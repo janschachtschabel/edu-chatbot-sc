@@ -1,0 +1,251 @@
+import {
+  ChangeDetectionStrategy, Component, HostListener, computed, input, output, signal,
+} from '@angular/core';
+
+import { WloCard } from './card-types';
+import { getCardPrimaryUrl } from './card-utils';
+import { WloCardTileComponent } from './wlo-card-tile.component';
+import { ICONS } from '../icons/icons';
+import { SafeSvgPipe } from '../icons/safe-svg.pipe';
+import { ChatMessage } from '../grouping/message-types';
+import { cardTooltip as cardTooltipUtil, GroupingContext } from '../grouping/result-grouping';
+
+/** Aktions-Nutzlast der Sammlungs-Buttons (ALT `browseCollection(node_id, title)`
+ *  bzw. `generateLearningPath(node_id, title)`). */
+export interface CardAction {
+  nodeId: string;
+  title: string;
+}
+
+/**
+ * CardList — die flache Card-Liste einer Bot-Nachricht: Tile-Grid, die
+ * Sammlungs-Aktionsleiste (Inhalte / Lernpfad / Themenseite samt Varianten-
+ * Dropdown) und die Pagination-Leiste. Visueller Port des ALT-Blocks
+ * `chat.component.html:240-378`, der dort inline im Monolithen lag.
+ *
+ * Kontrollfluss zu Angular 21 übersetzt (`*ngIf`→`@if`, `*ngFor`→`@for`);
+ * gerendertes DOM bleibt gleich — inklusive der Verschachtelung von
+ * `.card-actions` INNERHALB von `.wlo-card-wrapper` (dafür projiziert die
+ * Liste in den Tile-Slot, ALT-Rundungsregel `:not(:has(.card-actions))`).
+ *
+ * Schnitt wie bei den Geschwistern (result-groups/swimlanes/inline-documents):
+ * präsentational + Outputs. Die HOST-FLAG-Gates (`cards-enabled`,
+ * `inline-result-grouping`, `hideCards`) bleiben beim Elternteil (Chat-Shell);
+ * hier leben nur die Daten-Gates. Ausgeführt werden die Aktionen von
+ * `controllers/collection-actions.ts` über die Shell.
+ *
+ * Das Dropdown ist der einzige eigene Zustand — inklusive ALTs
+ * `@HostListener('document:click')`, der es beim Klick daneben schließt.
+ *
+ * A11y-Feinschliff (Fokus-Ring-Audit, Dropdown-Tastaturmuster) ist der
+ * koordinierte Sweep 8-6; hier DOM verbatim wie ALT.
+ */
+@Component({
+  selector: 'boerdi-card-list',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SafeSvgPipe, WloCardTileComponent],
+  styleUrl: './card-list.component.scss',
+  template: `
+    @if (visibleCards().length) {
+      <div class="cards-list">
+        @for (card of visibleCards(); track $index) {
+          <boerdi-wlo-card-tile [card]="card" [href]="cardUrl(card)" [tooltip]="cardTooltip(card)">
+            @if (card.node_type === 'collection' && card.node_id) {
+              <div class="card-actions">
+                <button
+                  type="button"
+                  class="card-btn card-btn--primary"
+                  [disabled]="isLoading()"
+                  (click)="browse.emit({ nodeId: card.node_id, title: card.title })"
+                >
+                  <span class="bb-icon" [innerHTML]="ICONS.list | safeSvg"></span>
+                  <span>Inhalte</span>
+                </button>
+                <button
+                  type="button"
+                  class="card-btn card-btn--secondary"
+                  [disabled]="isLoading()"
+                  (click)="learningPath.emit({ nodeId: card.node_id, title: card.title })"
+                >
+                  <span class="bb-icon" [innerHTML]="ICONS.route | safeSvg"></span>
+                  <span>Lernpfad</span>
+                </button>
+
+                <!-- Themenseite: ein Smart-Button auf die beste Variante
+                     (Backend sortiert), weitere hinter dem Dropdown. -->
+                @if (topicPages(card); as pages) {
+                  <div class="tp-wrapper">
+                    <a
+                      class="card-btn card-btn--tertiary"
+                      [href]="ctx().withBsid(pages[0].url)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      [attr.title]="topicTooltip(card)"
+                    >
+                      <span class="bb-icon" [innerHTML]="ICONS.language | safeSvg"></span>
+                      <span>Themenseite</span>
+                    </a>
+                    @if (pages.length > 1) {
+                      <!-- Der Wrapper ist KEIN Bedienelement, sondern Delegat: Escape
+                           kommt per Bubbling vom fokussierten Toggle bzw. von einem
+                           Dropdown-Eintrag. Ein tabindex hier wäre ein nutzloser
+                           Tab-Stop und würde die Reihenfolge verschlechtern.
+                           (Kein Backtick in diesem Kommentar: das Template ist ein
+                           TS-Template-Literal, ein Backtick beendet es.) -->
+                      <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -->
+                      <div class="tp-dropdown-wrap" (keydown.escape)="closeDropdownByKeyboard($event)">
+                        <button
+                          type="button"
+                          class="tp-toggle"
+                          (click)="toggleTopicDropdown($event, card.node_id)"
+                          [attr.aria-expanded]="openTopicDropdown() === card.node_id"
+                          aria-haspopup="true"
+                          aria-label="Weitere Themenseiten anzeigen"
+                        >
+                          <span class="bb-icon" [innerHTML]="ICONS.arrow_drop_down | safeSvg"></span>
+                        </button>
+                        @if (openTopicDropdown() === card.node_id) {
+                          <div class="tp-dropdown">
+                            @for (tp of pages; track $index) {
+                              <a
+                                class="tp-dropdown-item"
+                                [href]="ctx().withBsid(tp.url)"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                [attr.title]="ctx().externalLinkWarning(tp.url) || null"
+                                [class.tp-active]="$first"
+                              >{{ tp.label }}</a>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </boerdi-wlo-card-tile>
+        }
+      </div>
+    }
+
+    <!-- Pagination: Zähler + „Mehr anzeigen" (schon geladene Karten aufdecken)
+         bzw. „Weitere laden" (nächste Seite aus der Sammlung nachholen). -->
+    @if (totalCards() > 1) {
+      <div class="pagination-bar">
+        <span class="pagination-info">
+          {{ visibleCards().length }} von {{ totalCards() }} Ergebnissen
+        </span>
+        @if (hasHiddenCards()) {
+          <button type="button" class="btn-load-more" (click)="showMore.emit(message().id)">
+            <span>Mehr anzeigen</span>
+            <span class="bb-icon" [innerHTML]="ICONS.arrow_drop_down | safeSvg"></span>
+          </button>
+        } @else if (message().pagination?.has_more && message().pagination?.collection_id) {
+          <button
+            type="button"
+            class="btn-load-more"
+            [disabled]="isLoading()"
+            (click)="loadMore.emit(message().id)"
+          >
+            <span>{{ isLoading() ? 'Lade…' : 'Weitere laden' }}</span>
+            @if (!isLoading()) {
+              <span class="bb-icon" [innerHTML]="ICONS.arrow_drop_down | safeSvg"></span>
+            }
+          </button>
+        }
+      </div>
+    }
+  `,
+})
+export class CardListComponent {
+  /** Die Nachricht, deren `cards`/`visibleCardCount`/`pagination` gerendert wird. */
+  readonly message = input.required<ChatMessage>();
+  /** bsid-Rewrite + Extern-Link-Warnung der Shell (ALT `_groupingCtx`). */
+  readonly ctx = input.required<GroupingContext>();
+  /** Läuft gerade ein Turn? Sperrt die Aktions-Buttons (ALT `isLoading`). */
+  readonly isLoading = input(false);
+
+  /** „Inhalte" — Sammlung im Chat auflisten. */
+  readonly browse = output<CardAction>();
+  /** „Lernpfad" — Lernpfad aus der Sammlung generieren. */
+  readonly learningPath = output<CardAction>();
+  /** „Mehr anzeigen" — schon geladene Karten aufdecken (Message-ID). */
+  readonly showMore = output<string>();
+  /** „Weitere laden" — nächste Seite aus der Sammlung holen (Message-ID). */
+  readonly loadMore = output<string>();
+
+  /** Offenes Themenseiten-Dropdown (Karten-`node_id`), ALT `openTopicDropdown`. */
+  readonly openTopicDropdown = signal<string | null>(null);
+
+  readonly ICONS = ICONS;
+
+  private readonly cards = computed<WloCard[]>(() => this.message().cards || []);
+  readonly totalCards = computed(() => this.cards().length);
+  /** Sichtbares Fenster — ALT `getVisibleCards` (Default-Seitengröße 5). */
+  readonly visibleCards = computed(() => this.cards().slice(0, this.message().visibleCardCount || 5));
+  /** Noch ungezeigte, aber bereits geladene Karten? ALT `hasHiddenCards`. */
+  readonly hasHiddenCards = computed(() => this.totalCards() > (this.message().visibleCardCount || 5));
+
+  /** Typ-bewusste Ziel-URL der Karte inkl. bsid. ALT `cardUrl`. */
+  cardUrl(card: WloCard): string {
+    return this.ctx().withBsid(getCardPrimaryUrl(card));
+  }
+
+  /** Tooltip der Karte (Typ-Label + Extern-Warnung). ALT `cardTooltip`. */
+  cardTooltip(card: WloCard): string | null {
+    return cardTooltipUtil(card, this.cardUrl(card), this.ctx());
+  }
+
+  /** Themenseiten-Varianten der Karte, oder `null` wenn keine da sind.
+   *  `WloCard.topic_pages` ist im Typ nicht-optional, in echten Backend-
+   *  Payloads aber oft gar nicht gesetzt (ALT prüfte darum `card.topic_pages &&
+   *  …`). Dieser Accessor ist die einzige Stelle, die das abfedert — im Template
+   *  bleibt es dadurch bei einem einfachen `@if (…; as pages)`. */
+  topicPages(card: WloCard): WloCard['topic_pages'] | null {
+    const pages = card.topic_pages;
+    return pages && pages.length ? pages : null;
+  }
+
+  /** Tooltip des Themenseiten-Buttons — nennt weitere Varianten und hängt die
+   *  Extern-Warnung an. Verbatim aus ALT chat.component.html:320-323. */
+  topicTooltip(card: WloCard): string {
+    const pages = this.topicPages(card) || [];
+    const first = pages[0];
+    const base = pages.length > 1
+      ? 'Themenseite (' + first.label + ') — weitere verfügbar'
+      : 'Themenseite öffnen';
+    const warning = this.ctx().externalLinkWarning(first.url);
+    return warning ? base + ' — ' + warning : base;
+  }
+
+  /** Dropdown der Karte auf/zu. `stopPropagation`, damit der Dokument-Listener
+   *  unten es nicht im selben Klick wieder schließt. Verbatim ALT 1065-1068. */
+  toggleTopicDropdown(event: Event, nodeId: string): void {
+    event.stopPropagation();
+    this.openTopicDropdown.update(open => (open === nodeId ? null : nodeId));
+  }
+
+  /** Klick irgendwo sonst schließt das Dropdown. Verbatim ALT 1062-1063. */
+  @HostListener('document:click')
+  closeTopicDropdown(): void {
+    this.openTopicDropdown.set(null);
+  }
+
+  /** Escape schließt das Dropdown und gibt den Fokus an seinen Toggle zurück
+   *  (8-6, ARIA-APG-Muster für Menü-Buttons). ALT kannte nur ALTs
+   *  `document:click` — Tastatur-Nutzer kamen aus dem offenen Dropdown nicht
+   *  mehr heraus, ohne mit der Maus daneben zu klicken.
+   *
+   *  `stopPropagation` ist load-bearing: die Widget-Hülle schließt bei Escape
+   *  das ganze Chat-Panel (`@HostListener('keydown.escape')`). Ohne den Stopp
+   *  würde ein Escape im Dropdown das Panel mitreißen. */
+  closeDropdownByKeyboard(event: Event): void {
+    if (this.openTopicDropdown() === null) return;
+    event.stopPropagation();
+    this.openTopicDropdown.set(null);
+    const wrap = event.currentTarget as HTMLElement | null;
+    (wrap?.querySelector('.tp-toggle') as HTMLElement | null)?.focus();
+  }
+}

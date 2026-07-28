@@ -1,0 +1,40 @@
+// Factory baseline card (9-6). Shell/buttons/confirmations from the partial.
+@use './ops-panel';
+
+.fp-status {
+  margin: 0;
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-bg);
+  font-size: 0.875rem;
+}
+
+.op-actions {
+  margin-block-start: var(--st-3);
+}
+
+.fp-upload {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: var(--st-2) var(--st-3);
+  margin-block-start: var(--st-4);
+  padding-block-start: var(--st-4);
+  border-block-start: 1px solid var(--st-rule);
+}
+
+.fp-upload .op-label {
+  grid-column: 1 / -1;
+}
+
+.fp-file {
+  min-block-size: 2.5rem;
+  font: inherit;
+  color: var(--st-text);
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--st-focus);
+  }
+}

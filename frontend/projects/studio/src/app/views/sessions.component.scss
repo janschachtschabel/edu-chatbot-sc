@@ -1,0 +1,166 @@
+@use './visually-hidden';
+
+.sv-head {
+  margin-block-end: var(--st-4);
+}
+
+.sv-crumb {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.sv-title {
+  margin: var(--st-1) 0 0;
+  font-size: 1.375rem;
+}
+
+.sv-intro {
+  margin: var(--st-2) 0 0;
+  max-inline-size: 60ch;
+  color: var(--st-text-muted);
+}
+
+.sv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-3);
+  margin-block-end: var(--st-3);
+}
+
+.sv-status {
+  margin: 0;
+  min-block-size: 1.25rem; // reserved, so a status line does not shift the list
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.sv-error {
+  margin: 0 0 var(--st-3);
+  padding: var(--st-3);
+  border: 1px solid var(--st-danger-dot);
+  border-radius: var(--st-radius);
+  color: var(--st-danger-text);
+}
+
+.sv-split {
+  display: grid;
+  // One column until there is room for two — the transcript needs width, and a
+  // 320px screen has none to spare.
+  grid-template-columns: 1fr;
+  gap: var(--st-4);
+
+  @media (min-width: 60rem) {
+    grid-template-columns: minmax(18rem, 24rem) 1fr;
+    align-items: start;
+  }
+}
+
+.sv-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-2);
+}
+
+.sv-row {
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+
+  &--on {
+    // Selection is carried by the border AND aria-pressed, not by colour alone.
+    border-color: var(--st-accent);
+    border-inline-start-width: 3px;
+  }
+}
+
+.sv-pick {
+  display: grid;
+  gap: var(--st-1);
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 2px;
+  }
+}
+
+.sv-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere; // a session id is long and must not widen the page
+}
+
+.sv-meta,
+.sv-time {
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.sv-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+  margin-block-start: var(--st-2);
+}
+
+.sv-btn {
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 2px;
+  }
+}
+
+.sv-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  margin: var(--st-3) 0 0;
+  padding: var(--st-3);
+  border: 1px solid var(--st-danger-dot);
+  border-radius: var(--st-radius);
+  color: var(--st-danger-text);
+  font-size: 0.875rem;
+}
+
+.sv-detail {
+  min-inline-size: 0; // lets long transcript lines wrap instead of stretching
+}
+
+.sv-detail-title {
+  margin: 0 0 var(--st-2);
+  font-size: 1rem;
+}
+
+.sv-hint {
+  margin: 0;
+  color: var(--st-text-muted);
+}

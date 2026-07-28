@@ -1,0 +1,54 @@
+// The two live catalogues (A5-Rest): signal dimensions + material types.
+@use './section-shell';
+@use './reference';
+
+.rc-dims {
+  display: grid;
+  gap: var(--st-4);
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  margin-block-end: var(--st-4);
+}
+
+.rc-dim .ar-sub {
+  margin-block-start: 0;
+}
+
+.rc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-1);
+}
+
+.rc-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) 1fr;
+  align-items: baseline;
+  gap: var(--st-2);
+  font-size: 0.8125rem;
+}
+
+.rc-id {
+  overflow-wrap: anywhere;
+}
+
+.rc-effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-1);
+}
+
+.rc-chip {
+  padding: 0.0625rem var(--st-2);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  color: var(--st-text-muted);
+
+  // The flag chips carry a second, non-colour cue: they sit behind the
+  // tone/length chips and keep a stronger border.
+  &--flag {
+    border-color: var(--st-rule-strong);
+    color: var(--st-text);
+  }
+}

@@ -1,0 +1,52 @@
+// „Vorschau" (A6-Rest): Seitenkopf + Kontext-Formular + Zustandszeile.
+// Das Widget selbst bringt seine Stile im Shadow DOM mit und wird hier bewusst
+// NICHT umpositioniert — siehe Komponenten-Docstring.
+@use './ops-panel';
+
+.wp {
+  display: grid;
+  gap: var(--st-5);
+  max-inline-size: 60rem;
+}
+
+.wp-head {
+  display: grid;
+  gap: var(--st-2);
+}
+
+.wp-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.wp-intro {
+  margin: 0;
+  max-inline-size: 52rem;
+  color: var(--st-text-muted);
+}
+
+.wp-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--st-3);
+  margin-block-start: var(--st-4);
+}
+
+.wp-field {
+  display: grid;
+  gap: var(--st-1);
+  // Wächst mit, bricht aber nicht unter die Lesbarkeit: eine Node-ID ist 36
+  // Zeichen lang, ein Themenseiten-Slug kurz.
+  flex: 1 1 18rem;
+}
+
+.wp-submit {
+  // Auf einer Zeile mit den Feldern, aber nicht gestreckt.
+  flex: 0 0 auto;
+}
+
+.wp-state {
+  margin: 0;
+  color: var(--st-text-muted);
+}

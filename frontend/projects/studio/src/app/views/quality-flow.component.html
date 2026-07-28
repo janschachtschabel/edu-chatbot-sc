@@ -1,0 +1,86 @@
+<div class="qf-bar">
+  <p class="qf-total">
+    @if (value(); as flow) {
+      {{ whole(flow.total_turns) }} Turns mit Phase, {{ whole(flow.total_transitions) }}
+      Übergänge ({{ flow.scope }}, letzte {{ flow.days }} Tage).
+    }
+  </p>
+  <label class="qf-field" for="qf-days">
+    Zeitraum in Tagen
+    <input
+      id="qf-days"
+      type="number"
+      inputmode="numeric"
+      min="1"
+      max="365"
+      [value]="days()"
+      (input)="onDays($any($event.target).value)"
+    />
+  </label>
+  <label class="qf-field" for="qf-min">
+    Min-Häufigkeit
+    <input
+      id="qf-min"
+      type="number"
+      inputmode="numeric"
+      min="1"
+      max="1000"
+      [value]="minCount()"
+      (input)="onMinCount($any($event.target).value)"
+    />
+  </label>
+  <button type="button" class="qf-reload" [disabled]="flow.loading()" (click)="reload()">
+    {{ flow.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+  </button>
+</div>
+
+<studio-async-state
+  label="Gesprächs-Flow"
+  [loading]="flow.loading()"
+  [error]="flow.error()"
+  [empty]="isEmpty()"
+  emptyText="In den letzten {{ days() }} Tagen wurde kein Turn mit einer Phase
+             aufgezeichnet. Führe ein Gespräch oder vergrößere den Zeitraum."
+  (retry)="reload()"
+/>
+
+@if (value() && !isEmpty()) {
+  <div class="qf-grid">
+    <section class="qf-box">
+      <studio-quality-bars caption="Häufigkeit der Phasen" [data]="distribution()" />
+    </section>
+
+    <section class="qf-box">
+      <studio-quality-bars
+        caption="Übergänge zwischen Phasen"
+        unit="Übergänge"
+        [data]="moves()"
+      />
+      @if (!hasMoves()) {
+        <p class="qf-none">
+          Keine Übergänge zwischen verschiedenen Phasen im Zeitraum — jede Sitzung
+          blieb in einer Phase.
+        </p>
+      }
+    </section>
+
+    <section class="qf-box">
+      <studio-quality-bars
+        caption="Wiederholungen derselben Phase"
+        unit="Übergänge"
+        [data]="repeats()"
+      />
+      @if (!hasRepeats()) {
+        <p class="qf-none">Keine Wiederholungen derselben Phase im Zeitraum.</p>
+      }
+    </section>
+  </div>
+
+  <p class="qf-legend">
+    Phasen sind Verlaufs-Abschnitte: <strong>S1 Orientierung</strong> (kein
+    konkretes Anliegen), <strong>S2 Klärung</strong> (ein Pflicht-Slot fehlt,
+    eine Rückfrage) und <strong>S3 Aktion</strong> (der Bot liefert). Häufige
+    Übergänge zeigen den typischen Gesprächsverlauf; „S2 ↻" heißt mehrere
+    Klärungsrunden hintereinander — meist fehlte danach noch ein Slot.
+  </p>
+}

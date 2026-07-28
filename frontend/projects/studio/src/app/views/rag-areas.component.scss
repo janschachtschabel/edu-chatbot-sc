@@ -1,0 +1,53 @@
+@use './section-shell';
+
+.ra-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-3);
+}
+
+.ra-row {
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.ra-head {
+  display: flex;
+  flex-wrap: wrap; // long area names must reflow, not push the buttons off-screen
+  align-items: baseline;
+  gap: var(--st-2) var(--st-3);
+}
+
+.ra-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ra-counts {
+  color: var(--st-text-muted);
+  font-size: 0.875rem;
+}
+
+.ra-buttons {
+  margin-inline-start: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+}
+
+.ra-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2) var(--st-3);
+  margin: var(--st-3) 0 0;
+  padding: var(--st-3);
+  // Not colour alone: the border and the question itself carry the warning.
+  border: 1px solid var(--st-danger-dot);
+  border-radius: var(--st-radius);
+  color: var(--st-danger-text);
+  font-size: 0.875rem;
+}

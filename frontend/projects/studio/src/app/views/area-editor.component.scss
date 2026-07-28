@@ -1,0 +1,120 @@
+// The generic area editor (9-3e). Values from the studio tokens only.
+
+.ae-head {
+  margin-block-end: var(--st-4);
+}
+
+.ae-crumb {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--st-text-muted);
+}
+
+.ae-title {
+  margin: var(--st-1) 0 0;
+  font-size: 1.375rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere; // an area key must not push the page sideways at 320px
+}
+
+.ae-raw-label {
+  display: block;
+  margin-block-end: var(--st-2);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.ae-hint {
+  font-weight: 400;
+  color: var(--st-text-muted);
+}
+
+.ae-raw {
+  inline-size: 100%;
+  padding: var(--st-3);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.ae-raw:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 1px;
+  box-shadow: var(--st-focus);
+}
+
+.ae-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-3);
+  margin-block-start: var(--st-5);
+  padding-block-start: var(--st-4);
+  border-block-start: 1px solid var(--st-rule);
+}
+
+.ae-btn {
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-5);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ae-btn--primary {
+  border-color: var(--st-accent);
+  background: var(--st-accent);
+  color: var(--st-accent-text);
+  font-weight: 600;
+}
+
+.ae-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ae-btn:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 2px;
+}
+
+// The word, not just the colour — and next to the buttons it explains why
+// "Speichern" is live.
+.ae-dirty {
+  font-size: 0.875rem;
+  color: var(--st-warn-text);
+}
+
+.ae-state {
+  max-inline-size: 46rem;
+  margin: var(--st-4) 0;
+  color: var(--st-text-muted);
+}
+
+.ae-state--error {
+  padding: var(--st-3);
+  border: 1px solid var(--st-danger-dot);
+  border-radius: var(--st-radius);
+  color: var(--st-danger-text);
+}
+
+.ae-state--error::before {
+  content: '⚠ ';
+}
+
+.ae-status {
+  margin: var(--st-3) 0 0;
+  min-block-size: 1.25rem; // reserved: an appearing message must not shift the page
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}

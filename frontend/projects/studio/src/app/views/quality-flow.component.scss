@@ -1,0 +1,94 @@
+.qf-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--st-3);
+  margin-block-end: var(--st-3);
+}
+
+.qf-total {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+// The two knobs sit together at the end of the bar; on a narrow screen the flex
+// wrap puts them on their own line instead of squeezing the summary.
+.qf-field {
+  display: flex;
+  align-items: center;
+  gap: var(--st-2);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.qf-field:first-of-type {
+  margin-inline-start: auto;
+}
+
+.qf-field input {
+  inline-size: 5rem;
+  min-block-size: 2rem;
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+}
+
+.qf-field input:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.qf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: var(--st-4);
+}
+
+.qf-box {
+  min-inline-size: 0; // lets a grid column shrink below its content
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.qf-none {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--st-text-muted);
+}
+
+.qf-legend {
+  margin-block: var(--st-4) 0;
+  max-inline-size: 68ch;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--st-text-muted);
+}
+
+.qf-reload {
+  min-block-size: 2rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.qf-reload:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.qf-reload:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

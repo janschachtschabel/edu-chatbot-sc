@@ -1,0 +1,67 @@
+# Dev stack (P0-7, spec §4): Postgres 17 + pgvector, Jaeger v2, backend (reload).
+#
+#   docker compose -f deploy/compose.dev.yml up -d --build
+#   backend:  http://localhost:8100/health     (8100: ALT belegt lokal 8000)
+#   jaeger:   http://localhost:16686
+#
+# Dependency-Änderung => Image neu bauen (docker compose ... build backend).
+# TEI-Reranker-Sidecar kommt in P6-3 (RERANK_URL-Wiring).
+name: boerdi-chat-dev
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: boerdi
+      POSTGRES_PASSWORD: boerdi   # dev-only; prod creds via secrets (P10)
+      POSTGRES_DB: boerdi
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boerdi -d boerdi"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  jaeger:
+    image: jaegertracing/jaeger:2.19.0
+    ports:
+      - "16686:16686"   # UI
+      - "4318:4318"     # OTLP/HTTP (backend exporter, P1-5)
+
+  valkey:
+    # Nur für den §8-Cluster-Test (tests/test_cluster_checklist.py, Marker
+    # `valkey`): er prüft, dass sich zwei Limiter-Instanzen ein Kontingent
+    # teilen. Das Dev-Backend selbst bleibt bei `memory://` — im
+    # Ein-Prozess-Betrieb ist das dasselbe Ergebnis ohne zweiten Dienst.
+    # Valkey statt Redis (P10-6): Redis 8 steht unter RSALv2/SSPLv1/AGPLv3 —
+    # alle drei auf der Verbotsliste der Eisernen Regel 1 —, Valkey unter
+    # BSD-3-Clause bei gleichem Protokoll.
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.dev
+    environment:
+      DATABASE_URL: postgresql+asyncpg://boerdi:boerdi@postgres:5432/boerdi
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      WATCHFILES_FORCE_POLLING: "true"   # reliable --reload on Docker Desktop mounts
+    ports:
+      - "8100:8100"
+    volumes:
+      - ../backend/src:/app/src:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+
+volumes:
+  pgdata:

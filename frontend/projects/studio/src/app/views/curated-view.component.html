@@ -1,0 +1,38 @@
+<header class="cv-head">
+  <p class="cv-crumb">Konfiguration</p>
+  <h2 class="cv-title">{{ view().label }}</h2>
+  @if (definition(); as def) {
+    <p class="cv-intro">{{ def.intro }}</p>
+  }
+</header>
+
+@if (definition()) {
+  <div class="cv-sections">
+    @for (entry of entries(); track entry.key) {
+      @if (entry.kind === 'area') {
+        @if (entry.area.kind === 'group') {
+          <studio-group-section [section]="entry.area" [open]="entry.first" />
+        } @else {
+          <studio-area-section [section]="entry.area" [open]="entry.first" />
+        }
+      } @else {
+        @switch (entry.panel.panel) {
+          @case ('rag-areas') {
+            <studio-rag-areas [section]="entry.panel" [open]="entry.first" />
+          }
+          @case ('rag-ingest') {
+            <studio-rag-ingest [section]="entry.panel" [open]="entry.first" />
+          }
+          @case ('mcp-registry') {
+            <studio-mcp-registry [section]="entry.panel" [open]="entry.first" />
+          }
+        }
+      }
+    }
+  </div>
+} @else {
+  <p class="cv-empty" role="alert">
+    Für diese Ansicht ist noch kein Bereich hinterlegt. Alle Konfigurationsdateien sind
+    weiterhin über „Alle Bereiche“ erreichbar.
+  </p>
+}

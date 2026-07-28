@@ -1,0 +1,81 @@
+// A group of documents as one panel (9-4d). Panel chrome is shared with
+// area-section; only the two-column body below is specific to this one.
+@use './section-shell';
+
+.gs {
+  display: grid;
+  gap: var(--st-4);
+  // list beside document on wide screens, stacked below — no breakpoint to
+  // maintain, and it collapses on its own at 320px
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  align-items: start;
+}
+
+.gs-list-title {
+  margin: 0 0 var(--st-2);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--st-text-muted);
+}
+
+.gs-entries {
+  margin: 0 0 var(--st-4);
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-1);
+}
+
+.gs-entry {
+  inline-size: 100%;
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  color: var(--st-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+
+  &--on {
+    border-color: var(--st-accent);
+    background: var(--st-accent-soft);
+    font-weight: 600;
+  }
+}
+
+.gs-new {
+  padding-block-start: var(--st-3);
+  border-block-start: 1px solid var(--st-rule);
+}
+
+.gs-new-label {
+  display: block;
+  margin-block-end: var(--st-1);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.gs-new-name {
+  inline-size: 100%;
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-bg);
+  color: var(--st-text);
+  font: inherit;
+}
+
+.gs-new-key {
+  margin: var(--st-1) 0 var(--st-2);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.gs-doc {
+  min-inline-size: 0; // long values must not push the list off the panel
+}

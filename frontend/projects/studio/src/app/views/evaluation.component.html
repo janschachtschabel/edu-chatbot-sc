@@ -1,0 +1,50 @@
+<studio-tab-bar
+  label="Evaluation"
+  [tabs]="tabs"
+  [active]="active()"
+  (tabChange)="select($event)"
+/>
+
+<div
+  id="panel-laeufe"
+  class="ev-panel"
+  role="tabpanel"
+  aria-labelledby="tab-laeufe"
+  tabindex="0"
+  [hidden]="active() !== 'laeufe'"
+>
+  @if (shows()('laeufe')) {
+    <studio-eval-golden-start [busy]="busy()" (started)="onStarted()" />
+    <studio-eval-generative-start [busy]="busy()" (started)="onStarted()" />
+    <studio-eval-runs (runChange)="openDetail($event)" />
+    @if (openRun(); as id) {
+      <studio-eval-run-detail [runId]="id" (dismiss)="closeDetail()" />
+    }
+  }
+</div>
+
+<div
+  id="panel-trends"
+  class="ev-panel"
+  role="tabpanel"
+  aria-labelledby="tab-trends"
+  tabindex="0"
+  [hidden]="active() !== 'trends'"
+>
+  @if (shows()('trends')) {
+    <studio-eval-trends />
+  }
+</div>
+
+<div
+  id="panel-pattern"
+  class="ev-panel"
+  role="tabpanel"
+  aria-labelledby="tab-pattern"
+  tabindex="0"
+  [hidden]="active() !== 'pattern'"
+>
+  @if (shows()('pattern')) {
+    <studio-eval-pattern-usage />
+  }
+</div>

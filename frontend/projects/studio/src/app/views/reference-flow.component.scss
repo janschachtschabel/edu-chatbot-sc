@@ -1,0 +1,62 @@
+// Interactions + example turn (A5-Rest).
+@use './section-shell';
+@use './reference';
+
+.rf-cards {
+  display: grid;
+  gap: var(--st-3);
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rf-card {
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-bg);
+}
+
+.rf-card-title {
+  margin-block-start: 0;
+}
+
+.rf-flow {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  display: grid;
+  gap: var(--st-2);
+}
+
+.rf-step {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) 1fr;
+  gap: var(--st-1) var(--st-3);
+  padding-inline-start: var(--st-4);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  counter-increment: step;
+  position: relative;
+
+  // The step number is decoration over an <ol> that already numbers itself for
+  // assistive technology — hence generated content rather than markup.
+  &::before {
+    content: counter(step);
+    position: absolute;
+    inset-inline-start: 0;
+    color: var(--st-text-muted);
+  }
+}
+
+.rf-stage {
+  font-weight: 600;
+}
+
+@media (width < 34rem) {
+  .rf-step {
+    grid-template-columns: 1fr;
+  }
+}

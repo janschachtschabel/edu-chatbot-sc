@@ -1,0 +1,45 @@
+<details class="cs">
+  <summary class="cs-summary">
+    <h4 class="cs-title">Wechselwirkungen</h4>
+  </summary>
+  <div class="cs-body">
+    <p class="ar-text">
+      Die Elemente arbeiten nicht für sich — jede erkannte Größe wirkt an
+      mehreren Stellen weiter.
+    </p>
+    <ul class="rf-cards">
+      @for (card of influences; track card.from) {
+        <li class="rf-card">
+          <h5 class="ar-sub rf-card-title">{{ card.from }}</h5>
+          <ul class="ar-list">
+            @for (effect of card.effects; track effect) {
+              <li>{{ effect }}</li>
+            }
+          </ul>
+        </li>
+      }
+    </ul>
+  </div>
+</details>
+
+<details class="cs">
+  <summary class="cs-summary">
+    <h4 class="cs-title">Beispiel: ein kompletter Turn</h4>
+  </summary>
+  <div class="cs-body">
+    <p class="ar-text">
+      Nachricht: <em>„Mathe Klasse 7 Videos"</em> — getippt von einer Lehrkraft
+      auf der Startseite.
+    </p>
+    <!-- An ordered list, not a stack of arrow glyphs: the order IS the content,
+         and a screen reader announces „1 von 8" without needing decoration. -->
+    <ol class="rf-flow">
+      @for (step of flow; track step.stage) {
+        <li class="rf-step">
+          <span class="rf-stage">{{ step.stage }}</span>
+          <span class="rf-result">{{ step.result }}</span>
+        </li>
+      }
+    </ol>
+  </div>
+</details>

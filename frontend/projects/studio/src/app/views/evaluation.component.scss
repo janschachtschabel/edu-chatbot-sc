@@ -1,0 +1,10 @@
+.ev-panel {
+  padding-block-start: var(--st-4);
+}
+
+// The panel is focusable so keyboard users land in the content after the tabs;
+// that focus must be visible.
+.ev-panel:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}

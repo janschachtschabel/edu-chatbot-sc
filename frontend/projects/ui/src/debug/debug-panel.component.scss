@@ -1,0 +1,106 @@
+// DebugPanel — Verbatim-Port der ALT Debug-Panel-Stile aus chat.component.scss
+// (.debug-panel / .debug-row / .debug-label / .debug-parallel-* / .debug-
+// section-title / .debug-warn / .debug-ok, Z. 1227-1308). Die lokale
+// $border-Variable spiegelt ALTs geteilte $border (chat.component.scss:14-19)
+// wie im WloCard-Tile-Port. --boerdi-primary bleibt kundenüberschreibbar (mit
+// ALT-Fallback #1c4587), wie in ALT.
+
+$border: rgba(0, 0, 0, 0.1);
+
+.debug-panel {
+  background: #f8fafc;
+  border-top: 1px solid $border;
+  padding: 10px 14px;
+  font-size: 0.72rem;
+  font-family: monospace;
+  max-height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  line-height: 1.5;
+  word-break: break-all;
+  overflow-wrap: break-word;
+}
+
+.debug-row {
+  margin-bottom: 2px;
+  max-width: 100%;
+}
+.debug-label {
+  font-weight: 600;
+  color: var(--boerdi-primary, #1c4587);
+}
+
+// Welle E (2026-05-23) — Trace-Anzeige mit Parallel-Gruppen-Bars.
+// Eine Parallel-Gruppe wird als horizontaler Stack mit individuell
+// positionierten Bars dargestellt, damit man sieht WELCHER Task die
+// Gruppe in die Länge gezogen hat (start_at_ms + duration_ms relativ
+// zur Gruppen-Dauer).
+.debug-trace-entry {
+  margin: 2px 0;
+}
+.debug-parallel-header {
+  font-weight: 600;
+  color: #555;
+  margin: 4px 0 2px;
+  font-size: 0.82rem;
+}
+.debug-parallel-stack {
+  position: relative;
+  background: #f4f4f8;
+  border-radius: 4px;
+  padding: 4px 0;
+  margin-bottom: 4px;
+}
+.debug-parallel-task {
+  background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 18%, #fff);
+  border-left: 2px solid var(--boerdi-primary, #1c4587);
+  border-radius: 3px;
+  padding: 2px 6px;
+  margin: 2px 0;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+
+  &__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  &__time {
+    flex-shrink: 0;
+    color: #555;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// Section-Header zwischen den 6 Debug-Phasen-Gruppen (State / Klassifikation
+// / Pattern / Modulation / Tools / Safety). Erste Section hat keinen Trenner.
+.debug-section-title {
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: #1f2937;
+  margin: 8px 0 4px;
+  padding-top: 6px;
+  border-top: 1px dashed #d1d5db;
+  letter-spacing: 0.02em;
+
+  &:first-of-type {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+}
+
+// State-Übergang: plausibel / implausibel
+.debug-warn {
+  color: #b45309;
+  font-weight: 600;
+}
+.debug-ok {
+  color: #047857;
+  font-weight: 500;
+  margin-left: 4px;
+}

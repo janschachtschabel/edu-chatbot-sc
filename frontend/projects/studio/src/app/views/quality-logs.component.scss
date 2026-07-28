@@ -1,0 +1,241 @@
+@use './visually-hidden';
+
+.ql-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--st-3);
+  margin-block-end: var(--st-3);
+}
+
+.ql-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-1);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.ql-field input {
+  inline-size: 11rem;
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+}
+
+.ql-field input:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.ql-apply,
+.ql-reset,
+.ql-reload,
+.ql-clear,
+.ql-confirm,
+.ql-cancel,
+.ql-arm {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.ql-apply {
+  border-color: var(--st-accent);
+  background: var(--st-accent);
+  color: var(--st-bg);
+}
+
+.ql-reload {
+  margin-inline-start: auto;
+}
+
+.ql-clear {
+  border-color: var(--st-danger-dot);
+  color: var(--st-danger-text);
+}
+
+.ql-confirm {
+  border-color: var(--st-danger-dot);
+  color: var(--st-danger-text);
+}
+
+.ql-apply:focus-visible,
+.ql-reset:focus-visible,
+.ql-reload:focus-visible,
+.ql-clear:focus-visible,
+.ql-confirm:focus-visible,
+.ql-cancel:focus-visible,
+.ql-arm:focus-visible,
+.ql-row:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.ql-apply:disabled,
+.ql-reload:disabled,
+.ql-clear:disabled,
+.ql-confirm:disabled,
+.ql-arm:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+// The question sits where the action was, so the answer is next to the thing it
+// is about — no dialog, nothing to trap focus in.
+.ql-danger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  margin-block: var(--st-2);
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-danger-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+}
+
+.ql-question {
+  margin: 0;
+  flex: 1 1 16rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.ql-status,
+.ql-error {
+  margin-block: 0 var(--st-3);
+  font-size: 0.875rem;
+}
+
+.ql-status {
+  color: var(--st-ok-text);
+}
+
+.ql-error {
+  color: var(--st-danger-text);
+}
+
+.ql-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: var(--st-4);
+  align-items: start;
+}
+
+.ql-count {
+  margin: 0 0 var(--st-2);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.ql-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  // A long window scrolls inside its own column; at 200% zoom the grid has
+  // already collapsed to one column, so nothing is trapped beside it.
+  max-block-size: 60vh;
+  overflow-y: auto;
+}
+
+.ql-item {
+  margin-block-end: var(--st-2);
+}
+
+.ql-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  inline-size: 100%;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-inline-start-width: 3px;
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.ql-row:hover {
+  border-color: var(--st-accent);
+}
+
+// The selected row is marked by `aria-current` and this bar, not by colour
+// alone — the border is on the inline start of every row already.
+.ql-row--on {
+  border-inline-start-color: var(--st-accent);
+  background: var(--st-accent-soft);
+}
+
+.ql-row-top {
+  display: flex;
+  gap: var(--st-2);
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.ql-when {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.ql-row-message {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  // Two lines, then an ellipsis: the full text is in the detail panel, and a
+  // pasted wall of text would otherwise push every other row off the screen.
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.ql-row-meta {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.ql-flag {
+  color: var(--st-danger-text);
+  font-weight: 600;
+}
+
+.ql-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+  color: var(--st-accent-text);
+}
+
+.ql-arm {
+  margin-block-start: 2px;
+  border-color: transparent;
+  color: var(--st-danger-text);
+}
+
+.ql-arm:hover {
+  border-color: var(--st-danger-dot);
+}
+
+.ql-hint {
+  margin: 0;
+  padding: var(--st-4);
+  border: 1px dashed var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--st-text-muted);
+}

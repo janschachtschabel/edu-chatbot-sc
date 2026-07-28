@@ -1,0 +1,46 @@
+# Build context for the production image (P10-1, Dockerfile at this level).
+#
+# The context is the whole repo because the image builds the frontend itself
+# (see Dockerfile). Without this file the daemon would ship ~1 GB of
+# node_modules/.venv/.git before the first instruction runs, and any stray file
+# under them would bust every layer cache.
+#
+# Note: compose.dev.yml builds backend/Dockerfile.dev with context ../backend,
+# and a .dockerignore is resolved against the CONTEXT root — this file does not
+# apply there. That build is unchanged and out of scope here.
+
+# Dependency + build output trees (both are rebuilt inside the image)
+**/node_modules
+**/.venv
+frontend/dist
+frontend/.angular
+backend/widget_dist
+backend/studio_dist
+
+# Python/test/lint caches
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+
+# Test + report artefacts
+frontend/test-results
+frontend/playwright-report
+evals/reports
+
+# Nothing the running server reads: the golden flows live in the config store
+# (area "eval/gold-flows", V2), not on disk; evals/ is the standalone CLI a
+# person runs against a deployed instance.
+evals
+docs
+.github
+.git
+.gitignore
+CLAUDE.md
+
+# Secrets never enter an image layer (they would survive in the history even if
+# a later layer deleted them).
+**/.env
+**/.env.*
+!**/.env.example

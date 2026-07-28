@@ -1,0 +1,171 @@
+// Shared by SchemaFormComponent, SchemaFieldComponent and JsonValueComponent —
+// one stylesheet so a nesting level never looks different from its neighbours.
+// Every value is a studio token (theme/_studio-tokens.scss); no literal colours.
+//
+// Nesting is shown by an indent and a single hairline on the inline start, not
+// by a stack of shadowed cards: at four levels deep (policy -> rules -> item ->
+// match) shadows read as noise, a rule reads as structure.
+
+.sf-group {
+  margin: 0 0 var(--st-4);
+  padding: var(--st-3) 0 var(--st-3) var(--st-4);
+  border: 0;
+  border-inline-start: 2px solid var(--st-rule);
+  min-inline-size: 0; // a fieldset defaults to min-content: kills 320px reflow
+}
+
+.sf-legend {
+  padding: 0;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--st-text);
+}
+
+.sf-count {
+  font-weight: 400;
+  color: var(--st-text-muted);
+}
+
+.sf-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-1);
+  margin-block-end: var(--st-4);
+  max-inline-size: 46rem;
+}
+
+.sf-row--check {
+  flex-direction: row-reverse;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--st-2);
+}
+
+.sf-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--st-text);
+}
+
+// Not colour alone (SC 1.4.1): the marker is the word, in the label text.
+.sf-required {
+  font-weight: 400;
+  color: var(--st-text-muted);
+}
+
+.sf-desc {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.sf-empty {
+  margin: var(--st-2) 0;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.sf-input {
+  inline-size: 100%;
+  min-block-size: 2.25rem; // ≥ 24px target (SC 2.5.8), comfortable at 36px
+  padding: var(--st-2);
+  border: 1px solid var(--st-text-muted); // 7:1 — a field boundary carries meaning
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+}
+
+.sf-input:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 1px;
+  box-shadow: var(--st-focus);
+}
+
+.sf-number {
+  max-inline-size: 12rem;
+}
+
+.sf-multiline,
+.sf-json {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.sf-check {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  accent-color: var(--st-accent);
+  flex: none;
+}
+
+.sf-error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-danger-text);
+}
+
+// A stored value that cannot hold what the schema describes. Warning, not
+// error: nothing is broken yet, but the editor has to decide what to do.
+.sf-mismatch {
+  margin: 0;
+  padding: var(--st-2);
+  border-inline-start: 3px solid var(--st-warn-dot);
+  font-size: 0.8125rem;
+  color: var(--st-warn-text);
+}
+
+.sf-mismatch::before {
+  content: '⚠ ';
+}
+
+// "Kein gültiges JSON" also gets a shape cue, so the message does not depend
+// on the red alone.
+.sf-error::before {
+  content: '⚠ ';
+}
+
+.sf-entries {
+  margin: var(--st-2) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sf-entry {
+  padding: var(--st-3) 0 0;
+  border-block-start: 1px solid var(--st-rule);
+}
+
+.sf-entry:first-child {
+  border-block-start: 0;
+}
+
+.sf-add,
+.sf-remove {
+  min-block-size: 2rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.sf-add:hover,
+.sf-remove:hover {
+  background: var(--st-accent-soft);
+}
+
+.sf-add:focus-visible,
+.sf-remove:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 1px;
+}
+
+.sf-remove {
+  margin-block-end: var(--st-3);
+}

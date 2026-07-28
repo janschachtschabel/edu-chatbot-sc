@@ -1,0 +1,66 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ section().label }}</h3>
+    <p class="cs-hint">{{ section().hint }}</p>
+    @if (editor.dirty()) {
+      <!-- visible on the closed panel too: a collapsed section with unsaved
+           edits is exactly the case someone navigates away from -->
+      <span class="cs-flag">Ungespeichert</span>
+    }
+  </summary>
+
+  <div class="cs-body">
+    @if (editor.loading()) {
+      <p class="cs-state" aria-busy="true">Wird geladen …</p>
+    } @else if (editor.loadError()) {
+      <div class="cs-state cs-state--error" role="alert">
+        <p>{{ editor.loadError() }}</p>
+        <button type="button" class="cs-btn" (click)="reload()">Erneut versuchen</button>
+      </div>
+    } @else if (editor.schema(); as schema) {
+      @if (section().feature === 'safety-level') {
+        <studio-safety-level [doc]="editor.doc()" (docChange)="editor.setDoc($event)" />
+      }
+      <studio-schema-form
+        [schema]="schema"
+        [value]="editor.doc()"
+        [idPrefix]="idPrefix()"
+        (valueChange)="editor.setDoc($event)"
+        (errorsChange)="editor.setFieldErrors($event)"
+      />
+
+      <div class="cs-actions">
+        <button
+          type="button"
+          class="cs-btn cs-btn--primary cs-save"
+          [disabled]="editor.saving() || !editor.dirty() || editor.blocked()"
+          (click)="save()"
+        >
+          {{ editor.saving() ? 'Wird gespeichert …' : 'Speichern' }}
+        </button>
+        <button
+          type="button"
+          class="cs-btn"
+          [disabled]="editor.saving() || !editor.dirty()"
+          (click)="editor.discard()"
+        >
+          Verwerfen
+        </button>
+        <a class="cs-raw-link" [routerLink]="rawLink()">
+          Rohtext bearbeiten<span class="sr"> — {{ section().label }}</span>
+        </a>
+      </div>
+
+      @if (editor.blocked()) {
+        <!-- otherwise "Speichern" is simply grey and nothing says why -->
+        <p class="cs-state cs-state--error" role="alert">
+          Nicht speicherbar: {{ editor.fieldErrors().join(', ') }} enthält kein gültiges JSON.
+        </p>
+      }
+      @if (editor.saveError()) {
+        <p class="cs-state cs-state--error" role="alert">{{ editor.saveError() }}</p>
+      }
+      <p class="cs-status" aria-live="polite">{{ editor.status() }}</p>
+    }
+  </div>
+</details>

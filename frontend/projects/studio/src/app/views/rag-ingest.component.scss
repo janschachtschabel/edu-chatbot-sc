@@ -1,0 +1,102 @@
+@use './section-shell';
+
+.ri {
+  display: grid;
+  gap: var(--st-4);
+  max-inline-size: 46rem;
+}
+
+.ri-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ri-legend {
+  padding: 0 0 var(--st-2);
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.ri-source {
+  display: flex;
+  align-items: center;
+  gap: var(--st-2);
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  cursor: pointer;
+
+  // The radio stays visible and focusable: it is the selection state, and a
+  // border alone would be colour-only.
+  &:has(input:focus-visible) {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 2px;
+  }
+
+  &--on {
+    border-color: var(--st-accent);
+    background: var(--st-accent-soft);
+  }
+}
+
+.ri-field {
+  display: grid;
+  gap: var(--st-1);
+}
+
+.ri-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.ri-help {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.ri-area,
+.ri-title,
+.ri-url,
+.ri-text,
+.ri-file {
+  min-block-size: 2.5rem;
+  padding: var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-bg);
+  color: var(--st-text);
+  font: inherit;
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: -1px;
+  }
+}
+
+.ri-text {
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+}
+
+.ri-preview {
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.ri-preview-body {
+  margin: var(--st-2) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ri-missing {
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}

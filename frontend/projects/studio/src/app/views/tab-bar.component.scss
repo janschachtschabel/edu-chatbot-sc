@@ -1,0 +1,33 @@
+.tb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-1);
+  margin-block-end: var(--st-4);
+  border-block-end: 1px solid var(--st-rule);
+}
+
+.tb-tab {
+  // 2.5rem clears the 24px floor of SC 2.5.8 and stays a comfortable touch
+  // target once the strip wraps on a narrow screen.
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-4);
+  border: 0;
+  border-block-end: 3px solid transparent;
+  background: none;
+  color: var(--st-text-muted);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+// The selected tab carries weight AND an underline, never colour alone (SC 1.4.1).
+.tb-tab--on {
+  border-block-end-color: var(--st-accent);
+  color: var(--st-text);
+  font-weight: 600;
+}
+
+.tb-tab:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: -2px;
+}

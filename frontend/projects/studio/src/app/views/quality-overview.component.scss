@@ -1,0 +1,106 @@
+.qo-kpis {
+  display: grid;
+  // Fluid rather than a fixed column count: the strip reflows to one column at
+  // 320px and at 200% zoom without a media query.
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: var(--st-3);
+  margin: 0 0 var(--st-4);
+}
+
+.qo-kpi {
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.qo-kpi dt {
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.qo-kpi dd {
+  margin: var(--st-1) 0 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--st-text);
+}
+
+.qo-unit {
+  margin-inline-start: var(--st-1);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--st-text-muted);
+}
+
+// Explains two ABSENT metrics — quiet by design, but not hidden.
+.qo-note {
+  margin: 0 0 var(--st-4);
+  max-inline-size: 68ch;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--st-text-muted);
+}
+
+.qo-hints {
+  margin-block-end: var(--st-4);
+  padding: var(--st-3) var(--st-4);
+  // The warning colour is the border, and the heading says "Auffällig" —
+  // the state never rests on colour alone (SC 1.4.1).
+  border-inline-start: 3px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+}
+
+.qo-hints-title {
+  margin: 0 0 var(--st-2);
+  font-size: 0.9375rem;
+}
+
+.qo-hints ul {
+  margin: 0;
+  padding-inline-start: var(--st-4);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.qo-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--st-5);
+}
+
+.qo-chart {
+  min-inline-size: 0; // lets a grid column actually shrink below its content
+}
+
+// The refresh sits above the numbers, right-aligned like in the sibling
+// dashboards, so the same control is in the same place across the studio.
+.qo-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: var(--st-3);
+}
+
+.qo-reload {
+  min-block-size: 2rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.qo-reload:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.qo-reload:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

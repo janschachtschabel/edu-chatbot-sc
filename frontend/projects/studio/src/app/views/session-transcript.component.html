@@ -1,0 +1,38 @@
+<studio-async-state
+  label="Der Gesprächsverlauf"
+  [loading]="messages.loading()"
+  [error]="messages.error()"
+  [empty]="messages.isEmpty()"
+  emptyText="In dieser Session sind keine Nachrichten gespeichert — sie wurde
+             angelegt, aber nie benutzt, oder der Verlauf wurde geleert."
+  (retry)="load()"
+/>
+
+@if (rows().length > 0) {
+  <ol class="st-list">
+    @for (message of rows(); track message.id ?? $index) {
+      <li class="st-turn" [class.st-turn--bot]="message.role === 'assistant'">
+        <p class="st-who">
+          <span class="st-role">{{ roleLabel(message.role) }}</span>
+          @if (formatTime(message.created_at); as time) {
+            <span class="st-time">{{ time }}</span>
+          }
+        </p>
+        <p class="st-text">{{ message.content }}</p>
+
+        @if (facts(message); as facts) {
+          @if (facts.length > 0) {
+            <dl class="st-facts">
+              @for (fact of facts; track fact.label) {
+                <div class="st-fact">
+                  <dt>{{ fact.label }}</dt>
+                  <dd>{{ fact.value }}</dd>
+                </div>
+              }
+            </dl>
+          }
+        }
+      </li>
+    }
+  </ol>
+}

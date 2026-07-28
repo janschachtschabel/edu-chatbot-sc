@@ -1,0 +1,102 @@
+:host {
+  display: block;
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.sd-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--st-2) var(--st-3);
+  margin: 0 0 var(--st-3);
+}
+
+.sd-risk {
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid currentcolor;
+  border-radius: var(--st-radius);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  // Colour is the second signal here; the word "Hoch" is the first.
+  color: var(--st-text-muted);
+
+  &--medium {
+    color: var(--st-warn-text);
+  }
+
+  &--high {
+    color: var(--st-danger-text);
+  }
+}
+
+.sd-session {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.sd-block {
+  margin-block-end: var(--st-3);
+}
+
+.sd-label {
+  margin: 0 0 var(--st-1);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.sd-message {
+  margin: 0;
+  padding: var(--st-2);
+  border-inline-start: 3px solid var(--st-rule-strong);
+  background: var(--st-bg);
+  // The reported message is the one place user text is quoted verbatim, so it
+  // wraps instead of being clipped — this is what the editor came to read.
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.sd-facts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  margin: 0;
+  font-size: 0.875rem;
+
+  @media (min-width: 32rem) {
+    grid-template-columns: minmax(9rem, auto) 1fr;
+    column-gap: var(--st-3);
+  }
+
+  dt {
+    color: var(--st-text-muted);
+  }
+
+  dd {
+    margin: 0 0 var(--st-2);
+    overflow-wrap: anywhere;
+  }
+}
+
+.sd-scores {
+  margin-block-start: var(--st-2);
+  font-size: 0.875rem;
+
+  summary {
+    cursor: pointer;
+    min-block-size: 1.5rem;
+  }
+
+  pre {
+    margin: var(--st-2) 0 0;
+    padding: var(--st-2);
+    border-radius: var(--st-radius);
+    background: var(--st-bg);
+    font-size: 0.8125rem;
+    overflow-x: auto; // the block scrolls, the page never does
+  }
+}

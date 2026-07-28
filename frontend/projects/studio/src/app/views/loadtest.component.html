@@ -1,0 +1,190 @@
+<header class="lt-head">
+  <p class="lt-crumb">Auswertung</p>
+  <h2 class="lt-title">Lasttest</h2>
+  <p class="lt-intro">
+    Skalierbarkeits-Selbsttest: gemischte Abfragen mit steigender Parallelität gegen
+    die eigene Pipeline — Latenz und Fehler je Stufe.
+  </p>
+</header>
+
+<form class="lt-form" (submit)="$event.preventDefault(); start()">
+  <fieldset class="lt-fields">
+    <legend class="lt-legend">Profil</legend>
+
+    <p class="lt-field">
+      <label for="lt-stages">Stufen — Parallelität, kommagetrennt</label>
+      <input
+        id="lt-stages"
+        class="lt-input"
+        type="text"
+        inputmode="numeric"
+        autocomplete="off"
+        [value]="stagesText()"
+        (input)="stagesText.set($any($event.target).value)"
+        aria-describedby="lt-stages-hint"
+      />
+      <span class="lt-hint" id="lt-stages-hint">
+        höchstens {{ maxStages }} Stufen, je bis {{ maxConcurrency }} parallel
+      </span>
+    </p>
+
+    <p class="lt-field">
+      <label for="lt-rps">Requests pro Stufe</label>
+      <input
+        id="lt-rps"
+        class="lt-input"
+        type="number"
+        min="1"
+        [max]="maxRequestsPerStage"
+        [value]="requestsPerStage()"
+        (input)="setNumber('requestsPerStage', $any($event.target).value)"
+      />
+    </p>
+
+    <p class="lt-field">
+      <label for="lt-threshold">p95-Schwelle für „stabil" (Sekunden)</label>
+      <input
+        id="lt-threshold"
+        class="lt-input"
+        type="number"
+        min="1"
+        max="120"
+        [value]="thresholdS()"
+        (input)="setNumber('thresholdS', $any($event.target).value)"
+      />
+    </p>
+  </fieldset>
+
+  <fieldset class="lt-fields">
+    <legend class="lt-legend">Abfrage-Mix — Gewichte 0 bis 10</legend>
+
+    <studio-async-state
+      class="lt-mix-state"
+      label="Die Mix-Kategorien"
+      [loading]="options.loading() && mixOptions().length === 0"
+      [error]="options.error()"
+      (retry)="options.reload()"
+    />
+
+    @for (option of mixOptions(); track option.key) {
+      <p class="lt-field lt-field--mix">
+        <label [attr.for]="'lt-mix-' + option.key">{{ option.label }}</label>
+        <input
+          [id]="'lt-mix-' + option.key"
+          class="lt-input lt-input--weight"
+          type="number"
+          min="0"
+          max="10"
+          [value]="weightOf(option.key)"
+          (input)="setWeight(option.key, $any($event.target).value)"
+          [attr.aria-describedby]="'lt-prompt-' + option.key"
+        />
+        <span class="lt-hint" [id]="'lt-prompt-' + option.key">{{ option.prompt }}</span>
+      </p>
+    }
+  </fieldset>
+
+  <p class="lt-cost">
+    <strong>Kosten und Last:</strong> dieser Lauf feuert
+    <strong>{{ profile().totalRequests }} echte Chat-Anfragen</strong> (LLM + MCP) —
+    Stufen {{ profile().stages.join(' → ') || '–' }} × {{ profile().requestsPerStage }}.
+    Lernpfad-Anteile sind die teuersten. Es läuft immer nur ein Test gleichzeitig.
+  </p>
+
+  @if (profile().adjustments.length > 0) {
+    <p class="lt-adjust">
+      Das Backend passt das Profil an: {{ profile().adjustments.join(' ') }}
+      Oben steht bereits, was tatsächlich läuft.
+    </p>
+  }
+
+  @if (profile().problem) {
+    <p class="lt-problem" role="alert">{{ profile().problem }}</p>
+  }
+
+  @if (busyRun(); as busy) {
+    <p class="lt-busy">Lauf {{ busy.id }} ist noch unterwegs — solange startet kein zweiter.</p>
+  }
+
+  <div class="lt-actions">
+    <button
+      type="submit"
+      class="lt-btn lt-btn--go"
+      [disabled]="starting() || profile().problem !== '' || busyRun() !== null"
+    >
+      {{ starting() ? 'Startet …' : 'Lasttest starten' }}
+    </button>
+    <p class="lt-status" aria-live="polite">{{ status() }}</p>
+  </div>
+
+  @if (actionError()) {
+    <p class="lt-error" role="alert">{{ actionError() }}</p>
+  }
+</form>
+
+<section class="lt-runs" aria-labelledby="lt-runs-title">
+  <div class="lt-runs-head">
+    <h3 class="lt-runs-title" id="lt-runs-title">Läufe</h3>
+    <button type="button" class="lt-btn" [disabled]="runs.loading()" (click)="reload()">
+      {{ runs.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+    </button>
+  </div>
+
+  <studio-async-state
+    class="lt-runs-state"
+    label="Die Läufe"
+    [loading]="runs.loading() && rows().length === 0"
+    [error]="runs.error()"
+    [empty]="runs.isEmpty()"
+    emptyText="Noch kein Lasttest gelaufen. Oben ein Profil wählen und starten."
+    (retry)="reload()"
+  />
+
+  @if (rows().length > 0) {
+    <ul class="lt-list">
+      @for (row of rows(); track row.id) {
+        <li class="lt-row" [class.lt-row--on]="selected() === row.id">
+          <button
+            type="button"
+            class="lt-pick"
+            [attr.aria-pressed]="selected() === row.id"
+            (click)="select(row.id)"
+          >
+            <span class="lt-id">{{ row.id }}</span>
+            <span class="lt-meta" [class]="'lt-meta--' + row.status">
+              {{ statusLabel(row.status) }} · {{ formatTime(row.created_at) }}
+            </span>
+            @if (summaryLine(row)) {
+              <span class="lt-summary">{{ summaryLine(row) }}</span>
+            }
+          </button>
+
+          <button
+            type="button"
+            class="lt-btn lt-del"
+            [disabled]="working() || row.status === 'running'"
+            (click)="arm(row.id)"
+          >
+            Löschen<span class="sr"> — Lauf {{ row.id }}</span>
+          </button>
+
+          @if (armed() === row.id) {
+            <p class="lt-confirm">
+              <span role="alert">Diesen Lauf mit allen Messwerten löschen? Das lässt sich nicht rückgängig machen.</span>
+              <button type="button" class="lt-btn lt-del-yes" [disabled]="working()" (click)="confirmDelete()">
+                {{ working() ? 'Wird gelöscht …' : 'Ja, löschen' }}
+              </button>
+              <button type="button" class="lt-btn" [disabled]="working()" (click)="disarm()">
+                Abbrechen
+              </button>
+            </p>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+@if (selected(); as id) {
+  <studio-loadtest-run [runId]="id" (finished)="onRunFinished()" />
+}

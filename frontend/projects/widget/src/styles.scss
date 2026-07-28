@@ -1,0 +1,12 @@
+// Global styles for the dev harness only (the embeddable widget carries its own
+// Shadow-DOM styles, so build-widget ships no global stylesheet). Pulls in the
+// shared M3 tokens via the ui includePath.
+@use 'theme/tokens';
+
+body {
+  margin: 0;
+  padding: 24px;
+  font-family: var(--boerdi-font);
+  color: var(--boerdi-on-surface);
+  background: var(--boerdi-surface);
+}

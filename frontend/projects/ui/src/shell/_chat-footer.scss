@@ -1,0 +1,109 @@
+// Eingabe-Footer der Chat-Shell — Verbatim-Port aus ALT chat.component.scss
+// (`.chat-footer`/`.btn-mic`/`.recording-indicator`/`.rec-dot`/`.chat-input`/
+// `.btn-send` + Aufnahme-Keyframes, Z. 1311-1409). Eigenes Partial, weil das
+// Eingabe-Chrome eine andere Änderungs-Ursache hat als das Transkript-Chrome
+// (Bubbles/Zeilen) — konsumiert via `@use` von chat-shell.component.scss.
+//
+// `$border`/`$text`/`$text-muted` sind hier lokal deklariert (identisch zu ALT
+// 16-19): ein Partial sieht die Variablen des Konsumenten nicht.
+$text:       #1A1A2E;
+$text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 (4,5:1)
+$border:     rgba(0,0,0,.10);
+
+.chat-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  // 10% Primary auf Weiß — sehr dezenter Tönungs-Untergrund, der den
+  // Eingabe-Bereich vom Chat-Body absetzt und mit der Akzentfarbe harmoniert.
+  background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 10%, white);
+  border-top: 1px solid $border;
+}
+
+.btn-mic {
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--boerdi-primary, #1c4587) 30%, transparent);
+  border-radius: 18px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all .2s;
+  white-space: nowrap;
+
+  &:hover { background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 10%, transparent); }
+  &.recording {
+    background: #FEE2E2;
+    border-color: #EF4444;
+    color: #DC2626;
+    font-size: .75rem;
+    font-weight: 600;
+    min-width: 64px;
+    animation: pulse-border 1.5s infinite;
+  }
+}
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rec-dot {
+  width: 8px;
+  height: 8px;
+  background: #EF4444;
+  border-radius: 50%;
+  animation: blink-rec .8s infinite;
+}
+
+@keyframes blink-rec {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .2; }
+}
+
+@keyframes pulse-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .4); }
+  50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, .1); }
+}
+
+.chat-input {
+  flex: 1;
+  border: 1px solid rgba(0,0,0,.12);
+  border-radius: 20px;
+  padding: 9px 16px;
+  font-size: .875rem;
+  outline: none;
+  background: #fff;
+  color: $text;
+  font-family: inherit;
+  margin: 0;
+
+  &:focus { border-color: var(--boerdi-primary, #1c4587); box-shadow: 0 0 0 2px color-mix(in srgb, var(--boerdi-primary, #1c4587) 15%, transparent); color: inherit; }
+  &:disabled { opacity: .6; }
+  &::placeholder { color: $text-muted; }
+}
+
+.btn-send {
+  background: var(--boerdi-primary, #1c4587);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+
+  &:hover { background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 88%, black); }
+  &:disabled { opacity: .4; cursor: default; }
+}

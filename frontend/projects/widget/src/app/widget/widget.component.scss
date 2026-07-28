@@ -1,0 +1,51 @@
+// Stile der Widget-Hülle — Port von ALT widget.component.scss (440 Z.), nach
+// Änderungs-Ursache in drei Dateien geteilt (§3): `_widget-fab.scss`
+// (Host-Positionierung + Floating-Button), `_widget-panel.scss` (Panel-Rahmen,
+// Kopfzeile, Lotsen-Banner) und hier der Panel-Body samt Media-Queries.
+//
+// Der Chat-Bereich selbst bringt seine Stile mit (`chat-shell.component.scss`);
+// hier wird nur der Platz aufgespannt, in dem er lebt.
+
+@use 'widget-fab';
+@use 'widget-panel';
+@use 'widget-nav-banner';
+
+.boerdi-panel-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+}
+.boerdi-chat-pane {
+  flex: 1 1 420px;
+  min-width: 0;
+  display: flex;
+  min-height: 0;
+}
+.boerdi-chat-pane boerdi-chat-shell {
+  flex: 1;
+  display: block;
+  min-height: 0;
+  width: 100%;
+}
+@media (max-width: 480px) {
+  .boerdi-panel {
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+    position: fixed;
+    inset: 0;
+  }
+}
+
+/* ── Reduced Motion (A11y, WCAG 2.3.3) ──────────────────────────
+   prefers-reduced-motion: reduce → keine dekorativen (Endlos-)
+   Animationen: boerdi-bob/breathe/pulse/blink, boerdi-thinking-spin,
+   boerdi-speaking-bob, boerdi-wiggle, boerdi-slidein. Zustände
+   bleiben über Icon/Farbe/Text erkennbar. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
+}

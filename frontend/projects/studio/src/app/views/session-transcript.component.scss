@@ -1,0 +1,70 @@
+.st-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-3);
+}
+
+.st-turn {
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+
+  &--bot {
+    // Who spoke is in the label above; the tint only reinforces it.
+    background: var(--st-surface-variant);
+  }
+}
+
+.st-who {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--st-2);
+  margin: 0 0 var(--st-2);
+  font-size: 0.8125rem;
+}
+
+.st-role {
+  font-weight: 600;
+}
+
+.st-time {
+  color: var(--st-text-muted);
+}
+
+.st-text {
+  margin: 0;
+  white-space: pre-wrap; // answers carry their own line breaks
+  overflow-wrap: anywhere;
+}
+
+.st-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2) var(--st-4);
+  margin: var(--st-3) 0 0;
+  padding-block-start: var(--st-2);
+  border-block-start: 1px solid var(--st-rule);
+  font-size: 0.8125rem;
+}
+
+.st-fact {
+  display: flex;
+  gap: var(--st-1);
+
+  dt {
+    color: var(--st-text-muted);
+
+    &::after {
+      content: ':';
+    }
+  }
+
+  dd {
+    margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+  }
+}

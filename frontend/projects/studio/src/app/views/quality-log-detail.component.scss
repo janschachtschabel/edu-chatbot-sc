@@ -1,0 +1,146 @@
+.qd-panel {
+  padding: var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.qd-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--st-3);
+}
+
+.qd-title {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.qd-pattern {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--st-accent-text);
+}
+
+.qd-close {
+  margin-inline-start: auto;
+  min-block-size: 2rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.qd-close:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.qd-when {
+  margin: var(--st-1) 0 var(--st-3);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.qd-message {
+  margin: 0 0 var(--st-4);
+  padding: var(--st-3);
+  border-inline-start: 3px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  // A pasted URL or a long compound word must not push the panel sideways.
+  overflow-wrap: anywhere;
+}
+
+.qd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--st-3);
+  margin: 0 0 var(--st-4);
+}
+
+.qd-grid dt {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.qd-grid dd {
+  margin: 2px 0 0;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+// The state is carried by the sentence; the border only draws the eye to it.
+.qd-degradation {
+  margin: 0 0 var(--st-3);
+  padding-inline-start: var(--st-3);
+  border-inline-start: 3px solid var(--st-ok-dot);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.qd-degradation--on {
+  border-inline-start-color: var(--st-danger-dot);
+}
+
+.qd-list {
+  margin: 0 0 var(--st-2);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--st-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.qd-label {
+  color: var(--st-text);
+}
+
+.qd-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+}
+
+.qd-entities {
+  inline-size: 100%;
+  margin-block: var(--st-3);
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.qd-entities caption {
+  margin-block-end: var(--st-2);
+  text-align: start;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.qd-entities th,
+.qd-entities td {
+  padding: var(--st-1) var(--st-2);
+  border-block-end: 1px solid var(--st-rule);
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.qd-entities th {
+  inline-size: 40%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--st-text-muted);
+}
+
+.qd-session {
+  margin: var(--st-3) 0 0;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+  overflow-wrap: anywhere;
+}

@@ -1,0 +1,126 @@
+<header class="sfl-head">
+  <p class="sfl-crumb">Auswertung</p>
+  <h2 class="sfl-title">Safety-Logs</h2>
+  <p class="sfl-intro">
+    Jede Nachricht, bei der die Sicherheits-Pipeline eingegriffen oder ein Risiko
+    festgestellt hat — neueste zuerst, höchstens 200. Ein Event wählen, um die
+    vollständige Entscheidung zu sehen.
+  </p>
+</header>
+
+<section class="sfl-stats" aria-labelledby="sfl-stats-title">
+  <h3 class="sfl-stats-title" id="sfl-stats-title">Kennzahlen</h3>
+  <p class="sfl-stats-note">
+    Diese Zahlen gelten immer für alle geprüften Events. Der Filter darunter wirkt
+    nur auf die Liste.
+  </p>
+
+  <studio-async-state
+    class="sfl-stats-state"
+    label="Die Kennzahlen"
+    [loading]="stats.loading() && stats.value() === null"
+    [error]="stats.error()"
+    (retry)="reload()"
+  />
+
+  @if (stats.value(); as s) {
+    <dl class="sfl-cards">
+      <div class="sfl-card">
+        <dt>Events gesamt</dt>
+        <dd>{{ s.total }}</dd>
+      </div>
+      <div class="sfl-card sfl-card--high">
+        <dt>Risiko hoch</dt>
+        <dd>{{ s.by_risk['high'] || 0 }}</dd>
+      </div>
+      <div class="sfl-card sfl-card--medium">
+        <dt>Risiko mittel</dt>
+        <dd>{{ s.by_risk['medium'] || 0 }}</dd>
+      </div>
+      <div class="sfl-card">
+        <dt>An das LLM eskaliert</dt>
+        <dd>{{ s.escalated }}</dd>
+      </div>
+      <div class="sfl-card">
+        <dt>Rate-limited</dt>
+        <dd>{{ s.rate_limited }}</dd>
+      </div>
+    </dl>
+
+    @if (legalRows().length > 0) {
+      <dl class="sfl-legal">
+        @for (row of legalRows(); track row.key) {
+          <div class="sfl-legal-item">
+            <dt>{{ row.label }}</dt>
+            <dd>{{ row.count }}</dd>
+          </div>
+        }
+      </dl>
+    }
+  }
+</section>
+
+<div class="sfl-actions">
+  <p class="sfl-field">
+    <label class="sfl-field-label" for="sfl-risk">Risikostufe</label>
+    <select
+      id="sfl-risk"
+      class="sfl-filter"
+      [value]="filter()"
+      (change)="setFilter($any($event.target).value)"
+    >
+      <option value="">Alle Risiken</option>
+      <option value="medium">Mittel und hoch</option>
+      <option value="high">Nur hoch</option>
+    </select>
+  </p>
+
+  <button type="button" class="sfl-btn sfl-reload" [disabled]="logs.loading()" (click)="reload()">
+    {{ logs.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+  </button>
+</div>
+
+<studio-async-state
+  class="sfl-list-state"
+  label="Die Safety-Events"
+  [loading]="logs.loading() && rows().length === 0"
+  [error]="logs.error()"
+  [empty]="logs.isEmpty()"
+  [emptyText]="emptyText()"
+  (retry)="reload()"
+/>
+
+@if (rows().length > 0) {
+  <div class="sfl-split">
+    <ul class="sfl-list">
+      @for (log of rows(); track log.id) {
+        <li class="sfl-row" [class]="'sfl-row--' + log.risk_level" [class.sfl-row--on]="isSelected(log.id)">
+          <button
+            type="button"
+            class="sfl-pick"
+            [attr.aria-pressed]="isSelected(log.id)"
+            (click)="select(log.id)"
+          >
+            <span class="sfl-line">
+              <span class="sfl-risk">{{ riskLabel(log.risk_level) }}</span>
+              <span class="sfl-time">{{ formatTime(log.created_at) }}</span>
+            </span>
+            <span class="sfl-message">{{ log.message || '(leer)' }}</span>
+            @if (markers(log)) {
+              <span class="sfl-markers">{{ markers(log) }}</span>
+            }
+          </button>
+        </li>
+      }
+    </ul>
+
+    <section class="sfl-detail" aria-labelledby="sfl-detail-title">
+      <h3 class="sfl-detail-title" id="sfl-detail-title">Entscheidung</h3>
+      @if (selected(); as log) {
+        <studio-safety-log-detail [log]="log" />
+      } @else {
+        <p class="sfl-hint">Links ein Event wählen.</p>
+      }
+    </section>
+  </div>
+}

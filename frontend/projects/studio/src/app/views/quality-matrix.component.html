@@ -1,0 +1,96 @@
+<div class="qm-bar">
+  <p class="qm-total">
+    @if (value(); as matrix) {
+      Aggregiert aus {{ whole(matrix.total_turns) }} Turns ({{ matrix.scope }}).
+    }
+  </p>
+  <label class="qm-field" for="qm-min">
+    Min-Samples pro Zelle
+    <input
+      id="qm-min"
+      type="number"
+      inputmode="numeric"
+      min="1"
+      max="1000"
+      [value]="minCount()"
+      (input)="onMinCount($any($event.target).value)"
+    />
+  </label>
+  <button type="button" class="qm-reload" [disabled]="matrix.loading()" (click)="reload()">
+    {{ matrix.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+  </button>
+</div>
+
+<studio-async-state
+  label="Routing-Matrix"
+  [loading]="matrix.loading()"
+  [error]="matrix.error()"
+  [empty]="isEmpty()"
+  emptyText="Keine Persona-Intent-Kombination erreicht die Schwelle von {{ minCount() }}
+             Min-Samples. Senke die Schwelle oder sammle mehr Turns."
+  (retry)="reload()"
+/>
+
+@if (rows().length > 0) {
+  <div class="qm-scroll">
+    <table class="qm">
+      <caption>
+        Gewinner-Pattern je Persona und Intent. Pro Zelle: das dominanteste
+        Pattern, sein Anteil an der Zelle, die Zahl der Samples und — falls
+        vorhanden — die konkurrierenden Patterns.
+      </caption>
+      <thead>
+        <tr>
+          <td class="qm-corner"></td>
+          @for (intent of intents(); track intent) {
+            <th scope="col" class="qm-head">{{ intent }}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.persona) {
+          <tr>
+            <th scope="row" class="qm-head qm-head--row">{{ row.persona }}</th>
+            @for (cell of row.cells; track $index) {
+              @if (cell) {
+                <td class="qm-slot">
+                  <button
+                    type="button"
+                    class="qm-cell"
+                    (click)="drill.emit({ intentId: cell.intent_id })"
+                  >
+                    <span class="qm-pair">{{ cell.persona_id }} × {{ cell.intent_id }}</span>
+                    <span class="qm-pattern">{{ cell.top_pattern }}</span>
+                    <span class="qm-share">
+                      <span class="qm-bar-track" aria-hidden="true">
+                        <span class="qm-bar-fill" [style.inline-size.%]="cell.share * 100"></span>
+                      </span>
+                      {{ share(cell) }} · {{ cell.total_count }} Samples
+                    </span>
+                    @if (cell.alternatives.length > 0) {
+                      <span class="qm-alt">auch: {{ alternatives(cell) }}</span>
+                    }
+                    <!-- The cursor names the action for a pointer user; a screen
+                         reader needs it said. -->
+                    <span class="sr">Logs zu {{ cell.intent_id }} anzeigen</span>
+                  </button>
+                </td>
+              } @else {
+                <td class="qm-slot qm-none">
+                  <span aria-hidden="true">—</span>
+                  <span class="sr">keine Samples</span>
+                </td>
+              }
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <p class="qm-legend">
+    Ein kurzer Balken heißt: mehrere Patterns konkurrieren in dieser Zelle — die
+    Zuordnung ist dort unsicher. „—" heißt: für diese Persona-Intent-Kombination
+    liegen keine Samples vor, die Abdeckung hat dort eine Lücke.
+  </p>
+}

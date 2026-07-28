@@ -1,0 +1,16 @@
+@switch (shown()) {
+  @case ('loading') {
+    <p class="as-line" aria-busy="true">{{ label() }} werden geladen …</p>
+  }
+  @case ('error') {
+    <div class="as-line as-line--error" role="alert">
+      <p class="as-message">{{ error() }}</p>
+      <button type="button" class="as-retry" (click)="retry.emit()">
+        Erneut versuchen<span class="sr"> — {{ label() }}</span>
+      </button>
+    </div>
+  }
+  @case ('empty') {
+    <p class="as-line">{{ emptyText() || 'Hier ist noch nichts.' }}</p>
+  }
+}

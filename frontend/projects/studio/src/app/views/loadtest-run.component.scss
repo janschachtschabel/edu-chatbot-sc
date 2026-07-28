@@ -1,0 +1,207 @@
+:host {
+  display: block;
+}
+
+.lr-card {
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.lr-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--st-2) var(--st-3);
+}
+
+.lr-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.lr-status {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--st-text-muted);
+
+  &--running {
+    color: var(--st-warn-text);
+  }
+
+  &--completed {
+    color: var(--st-ok-text);
+  }
+
+  &--failed {
+    color: var(--st-danger-text);
+  }
+}
+
+.lr-progress {
+  font-weight: 400;
+}
+
+.lr-profile {
+  margin: var(--st-2) 0 var(--st-3);
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.lr-failed {
+  margin: 0 0 var(--st-3);
+  padding: var(--st-2);
+  border: 1px solid var(--st-danger-dot);
+  border-radius: var(--st-radius);
+  color: var(--st-danger-text);
+  font-size: 0.875rem;
+}
+
+.lr-verdict {
+  margin: 0 0 var(--st-4);
+  padding: var(--st-3);
+  border: 1px solid var(--st-ok-dot);
+  border-radius: var(--st-radius);
+  font-size: 0.9375rem;
+
+  &--none {
+    border-color: var(--st-warn-dot);
+  }
+}
+
+.lr-note {
+  display: block;
+  margin-block-start: var(--st-2);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.lr-figure {
+  margin: 0 0 var(--st-3);
+}
+
+figcaption {
+  margin-block-end: var(--st-1);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.lr-chart {
+  inline-size: 100%;
+  max-inline-size: 35rem;
+  block-size: auto;
+}
+
+.lr-axis {
+  stroke: var(--st-rule-strong);
+}
+
+.lr-threshold {
+  stroke: var(--st-danger-dot);
+  stroke-dasharray: 5 4;
+}
+
+.lr-threshold-label {
+  fill: var(--st-danger-text);
+  font-size: 10px;
+}
+
+.lr-line {
+  fill: none;
+  stroke-width: 2;
+
+  &--p95 {
+    stroke: var(--st-warn-dot);
+  }
+
+  &--p50 {
+    stroke: var(--st-accent);
+  }
+}
+
+.lr-dot {
+  &--p95 {
+    fill: var(--st-warn-dot);
+  }
+
+  &--p50 {
+    fill: var(--st-accent);
+  }
+}
+
+.lr-tick {
+  fill: var(--st-text-muted);
+  font-size: 11px;
+}
+
+.lr-legend {
+  display: flex;
+  gap: var(--st-3);
+  margin: var(--st-1) 0 0;
+  font-size: 0.8125rem;
+}
+
+.lr-key {
+  // A dash carries the series, so the legend still reads without colour.
+  &::before {
+    content: '— ';
+  }
+
+  &--p50 {
+    color: var(--st-accent);
+  }
+
+  &--p95 {
+    color: var(--st-warn-text);
+  }
+
+  &--limit {
+    color: var(--st-danger-text);
+  }
+}
+
+.lr-table-wrap {
+  overflow-x: auto; // the table scrolls, the page does not
+}
+
+.lr-table {
+  border-collapse: collapse;
+  inline-size: 100%;
+  font-size: 0.875rem;
+
+  caption {
+    margin-block-end: var(--st-1);
+    font-weight: 600;
+    text-align: start;
+  }
+
+  th,
+  td {
+    padding: var(--st-1) var(--st-2);
+    border-block-end: 1px solid var(--st-rule);
+    text-align: start;
+    white-space: nowrap;
+  }
+
+  thead th {
+    color: var(--st-text-muted);
+    font-weight: 600;
+  }
+}
+
+.lr-bad {
+  color: var(--st-danger-text);
+  font-weight: 600;
+}
+
+.lr-kinds {
+  color: var(--st-text-muted);
+  white-space: normal;
+}
+
+.lr-hint {
+  margin: 0;
+  color: var(--st-text-muted);
+}

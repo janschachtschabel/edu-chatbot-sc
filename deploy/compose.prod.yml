@@ -1,0 +1,223 @@
+# Prod-Stack (P10-2, Spec §4/§8): traefik (TLS+LB) · backend ×N (stateless)
+# · Postgres 17+pgvector · valkey (Rate-Limit-Storage) · Jaeger · Backup-Schleife.
+#
+#   docker build -t boerdi-chat ..                      # Kontext = Repo-Wurzel
+#   docker compose -f compose.prod.yml --env-file .env up -d
+#
+# **Kein TEI-Dienst.** Die P10-Zeile im Bauplan nennt ihn noch, aber V13 hat den
+# Reranker-Sidecar am 2026-07-12 aus Kostengründen verworfen; `RERANK_URL` wird
+# im gesamten Backend von niemandem gelesen (gemessen). Ein Dienst, mit dem
+# nichts sprechen kann, gehört nicht in ein Compose.
+#
+# **Nur traefik veröffentlicht Ports.** Docker published Ports laufen an ufw
+# vorbei (ALT-Audit T-2) — ALT musste deshalb jeden Port einzeln an 127.0.0.1
+# binden. Hier hat kein Anwendungsdienst ein `ports:`, sie sind ausschließlich
+# über das interne Netz erreichbar; die Jaeger-UI ist die eine Ausnahme und
+# bewusst host-lokal gebunden.
+name: boerdi-chat
+
+x-logging: &logging
+  # json-file-Logs wachsen sonst unbegrenzt (ALT-Audit 2026-07-09).
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  traefik:
+    image: traefik:v3.6
+    restart: unless-stopped
+    logging: *logging
+    command:
+      - --providers.docker=true
+      # Nur Container mit `traefik.enable=true` werden geroutet — sonst stünden
+      # Jaeger und die DB nach einem Tippfehler im Label öffentlich im Netz.
+      - --providers.docker.exposedByDefault=false
+      - --entryPoints.web.address=:80
+      - --entryPoints.websecure.address=:443
+      - --entryPoints.web.http.redirections.entryPoint.to=websecure
+      - --entryPoints.web.http.redirections.entryPoint.scheme=https
+      - --certificatesResolvers.le.acme.email=${ACME_EMAIL:?ACME_EMAIL fehlt}
+      - --certificatesResolvers.le.acme.storage=/acme/acme.json
+      - --certificatesResolvers.le.acme.tlschallenge=true
+      - --accesslog=true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # :ro — der Docker-Socket ist root-äquivalenter Host-Zugriff (ALT-Audit
+      # T-9 hat genau das an watchtower bemängelt). traefik braucht ihn nur
+      # lesend, um Labels zu entdecken.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-acme:/acme
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-boerdi}
+      POSTGRES_DB: ${POSTGRES_DB:-boerdi}
+      # Kein Default: ein Fallback-Passwort im Compose wäre ein ausgeliefertes
+      # Dev-Secret. Fehlt die Variable, startet der Stack gar nicht erst.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  valkey:
+    # Storage des Rate-Limits (V7): ohne gemeinsamen Speicher zählt jede Replika
+    # ihr eigenes Kontingent, drei Replikas ließen also das Dreifache durch.
+    # Kein Volume — ein verlorener Zählerstand nach Neustart ist genau ein
+    # Zeitfenster lang großzügig und danach wieder korrekt.
+    #
+    # **Valkey statt Redis** (P10-6): Redis 8 steht unter RSALv2 / SSPLv1 /
+    # AGPLv3 — alle drei auf der Verbotsliste der Eisernen Regel 1. Valkey ist
+    # BSD-3-Clause (Linux Foundation), spricht dasselbe Protokoll und ist mit
+    # 42 statt 114 MB auch das kleinere Image: Redis 8 bringt die Stack-Module
+    # (Suche/JSON/Zeitreihen) mit, von denen wir keines anfassen.
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    logging: *logging
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    # Einmal-Lauf aus DEMSELBEN Image wie das Backend. Migrationen dürfen nicht
+    # im Web-Prozess laufen: N Replikas führen sonst gleichzeitig
+    # `alembic upgrade head` aus.
+    image: ${BOERDI_IMAGE:-boerdi-chat}
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    logging: *logging
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-boerdi}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt}@postgres:5432/${POSTGRES_DB:-boerdi}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    image: ${BOERDI_IMAGE:-boerdi-chat}
+    restart: unless-stopped
+    logging: *logging
+    deploy:
+      # Zustandslos (Sessions/Config in Postgres, Lock per pg_advisory_xact_lock
+      # — V2/V6), deshalb keine Sticky-Sessions nötig. Auf kleinen Servern
+      # BACKEND_REPLICAS=1 setzen.
+      replicas: ${BACKEND_REPLICAS:-3}
+    # Länger als das --timeout-graceful-shutdown des Images (30 s), sonst
+    # schießt Docker einen Stream ab, den uvicorn gerade sauber beendet.
+    stop_grace_period: 40s
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-boerdi}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt}@postgres:5432/${POSTGRES_DB:-boerdi}
+      # Das Schema wählt auch den Client: ``limits`` liest ``valkey://`` mit
+      # valkey-py, ``redis://`` mit redis-py — und nur ersteres ist Abhängigkeit.
+      RATE_LIMIT_STORAGE_URI: valkey://valkey:6379/0
+      RATE_LIMIT_CHAT: ${RATE_LIMIT_CHAT:-}
+      # Nur korrekt, weil kein Anwendungsdienst einen Port veröffentlicht: das
+      # Backend ist ausschließlich hinter traefik erreichbar, der Header kommt
+      # also nicht vom Client. Ohne das zählte das Rate-Limit die Proxy-IP.
+      TRUST_FORWARDED_FOR: "true"
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS fehlt — '*' nur bewusst setzen}
+      STUDIO_API_KEY: ${STUDIO_API_KEY:?STUDIO_API_KEY fehlt}
+      STUDIO_PASSWORD: ${STUDIO_PASSWORD:?STUDIO_PASSWORD fehlt}
+      STUDIO_COOKIE_SECURE: ${STUDIO_COOKIE_SECURE:-1}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # ── LLM / MCP / RAG — Namen aus settings.py, leer = Code-Default ──
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      B_API_KEY: ${B_API_KEY:-}
+      B_API_BASE_URL: ${B_API_BASE_URL:-}
+      B_API_AUDIO: ${B_API_AUDIO:-}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-}
+      LLM_EMBED_MODEL: ${LLM_EMBED_MODEL:-}
+      EMBED_DIM: ${EMBED_DIM:-}
+      LLM_MAX_CONCURRENCY: ${LLM_MAX_CONCURRENCY:-}
+      BG_LLM_MAX_CONCURRENCY: ${BG_LLM_MAX_CONCURRENCY:-}
+      LLM_READ_TIMEOUT: ${LLM_READ_TIMEOUT:-}
+      MCP_SERVER_URL: ${MCP_SERVER_URL:-}
+      MCP_MAX_CONNECTIONS: ${MCP_MAX_CONNECTIONS:-}
+      REPO_BASE_URL: ${REPO_BASE_URL:-}
+      GUIDE_TRUSTED_DOMAINS: ${GUIDE_TRUSTED_DOMAINS:-}
+      BOERDI_MAX_INGEST_MB: ${BOERDI_MAX_INGEST_MB:-}
+      # Der Studio-Lasttest treibt die echte Chat-Pipeline und teilt den
+      # LLM-Pool mit Live-Nutzern — auf Prod aus, er gehört auf Staging.
+      BOERDI_ALLOW_LOADTEST: ${BOERDI_ALLOW_LOADTEST:-}
+      EVAL_CHAT_URL: ${EVAL_CHAT_URL:-}
+      EVAL_SIMULATOR_MODEL: ${EVAL_SIMULATOR_MODEL:-}
+      EVAL_JUDGE_MODEL: ${EVAL_JUDGE_MODEL:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.boerdi.rule=Host(`${PUBLIC_HOST:?PUBLIC_HOST fehlt}`)
+      - traefik.http.routers.boerdi.entrypoints=websecure
+      - traefik.http.routers.boerdi.tls.certresolver=le
+      - traefik.http.services.boerdi.loadbalancer.server.port=8100
+
+  jaeger:
+    image: jaegertracing/jaeger:2.19.0
+    restart: unless-stopped
+    logging: *logging
+    ports:
+      # Einziger host-gebundener Port außer traefik — und nur auf 127.0.0.1:
+      # die Traces enthalten Prompt-Metadaten und gehören nicht ins Internet.
+      # Zugriff per SSH-Tunnel (Runbook).
+      - "127.0.0.1:16686:16686"
+
+  pg-backup:
+    # Gleiches Image wie der Server = gleiche pg_dump-Version (ein neuerer
+    # Server mit älterem pg_dump verweigert den Dump).
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-boerdi}
+      PGDATABASE: ${POSTGRES_DB:-boerdi}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - pgbackup:/backup
+    # Schleife statt cron: das offizielle Postgres-Image bringt keinen
+    # Cron-Daemon mit, und ein zweites Image dafür wäre mehr Lieferkette als
+    # Nutzen. Preis: der Takt verschiebt sich bei jedem Neustart des
+    # Containers — für ein Tagesbackup unerheblich, im Runbook benannt.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          f="/backup/boerdi-$$(date +%Y%m%d-%H%M%S).dump"
+          if pg_dump -Fc -f "$$f"; then
+            echo "backup ok: $$f"
+          else
+            echo "BACKUP FEHLGESCHLAGEN" >&2
+            rm -f "$$f"
+          fi
+          find /backup -name 'boerdi-*.dump' -mtime "+$$KEEP_DAYS" -delete
+          sleep 86400
+        done
+
+volumes:
+  pgdata:
+  pgbackup:
+  traefik-acme:

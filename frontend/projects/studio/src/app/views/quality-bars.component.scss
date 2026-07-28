@@ -1,0 +1,57 @@
+@use './visually-hidden';
+
+.qb {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.qb caption {
+  margin-block-end: var(--st-2);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-align: start;
+  color: var(--st-text);
+}
+.qb-key {
+  padding: var(--st-1) var(--st-2) var(--st-1) 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: start;
+  color: var(--st-text);
+  // Long ids wrap instead of being cut — a truncated pattern id is unusable.
+  overflow-wrap: anywhere;
+}
+
+.qb-value {
+  display: flex;
+  align-items: center;
+  gap: var(--st-2);
+  padding: var(--st-1) 0;
+}
+
+.qb-bar {
+  flex: 1;
+  min-inline-size: 3rem;
+  block-size: 0.75rem;
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+}
+
+.qb-bar-fill {
+  display: block;
+  block-size: 100%;
+  border-radius: var(--st-radius);
+  background: var(--st-accent);
+  // A value of 1 against a maximum of 900 would otherwise be invisible.
+  min-inline-size: 2px;
+}
+
+.qb-count {
+  min-inline-size: 3ch;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  font-weight: 600;
+  color: var(--st-text);
+}

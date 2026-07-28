@@ -1,0 +1,74 @@
+@if (value()) {
+  <div class="qo-bar">
+    <button type="button" class="qo-reload" [disabled]="stats.loading()" (click)="reload()">
+      {{ stats.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+    </button>
+  </div>
+}
+
+<studio-async-state
+  label="Kennzahlen"
+  [loading]="stats.loading()"
+  [error]="stats.error()"
+  [empty]="isEmpty()"
+  emptyText="Noch keine Turns aufgezeichnet. Sobald jemand mit dem Widget chattet, sammeln
+             sich hier Verteilungen und Diagnosen."
+  (retry)="reload()"
+/>
+
+@if (value(); as stats) {
+  @if (!isEmpty()) {
+    <dl class="qo-kpis">
+      <div class="qo-kpi">
+        <dt>Turns gesamt</dt>
+        <dd>{{ whole(stats.total_turns) }}</dd>
+      </div>
+      <div class="qo-kpi">
+        <dt>Ø Confidence</dt>
+        <dd>{{ decimal(stats.avg_confidence) }}</dd>
+      </div>
+      <div class="qo-kpi">
+        <dt>Degradation-Rate</dt>
+        <dd>{{ percent(stats.degradation_rate) }}</dd>
+      </div>
+      <div class="qo-kpi">
+        <dt>Leere Entities</dt>
+        <dd>{{ percent(stats.empty_entity_rate) }}</dd>
+      </div>
+      <div class="qo-kpi">
+        <dt>Ø Antwortlänge</dt>
+        <dd>{{ whole(stats.avg_response_length) }}<span class="qo-unit">Zeichen</span></dd>
+      </div>
+    </dl>
+
+    <p class="qo-note">
+      Ohne Score-Phase: die Pattern-Wahl folgt seit Welle E v4 direkt dem Hinweis des
+      Classifiers, statt Kandidaten gegeneinander zu bewerten. „Ø Score-Gap" und
+      „Tight Races" wären deshalb für jeden Turn 0 und werden hier nicht angezeigt.
+      Uneindeutige Zuordnungen sieht man stattdessen unter „Unsichere Einordnung"
+      und in der Routing-Matrix.
+    </p>
+
+    @if (hints().length > 0) {
+      <aside class="qo-hints">
+        <h3 class="qo-hints-title">Auffällig</h3>
+        <ul>
+          @for (hint of hints(); track hint) {
+            <li>{{ hint }}</li>
+          }
+        </ul>
+      </aside>
+    }
+
+    <div class="qo-charts">
+      <section class="qo-chart">
+        <studio-quality-bars caption="Pattern-Verteilung" [data]="stats.pattern_distribution" />
+      </section>
+      <section class="qo-chart">
+        <studio-quality-bars caption="Intent-Verteilung" [data]="stats.intent_distribution" />
+      </section>
+    </div>
+
+    <studio-quality-diagnosis [scope]="scope()" (drill)="drill.emit($event)" />
+  }
+}

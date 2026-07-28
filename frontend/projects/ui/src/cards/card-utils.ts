@@ -1,0 +1,113 @@
+/**
+ * Card-URL + Typ-Helpers.
+ *
+ * Alle URLs kommen fertig vom Backend — das Frontend konstruiert keine
+ * Repo-URLs mehr. ``card.link`` ist die Single Source of Truth (gesetzt
+ * via ``build_card_link`` im Backend, berücksichtigt REPO_BASE_URL,
+ * Lotsen-Modus, Search-Query-Params usw.). Fallback-Kette für ältere
+ * Backends: ``guide_url → wlo_url → url``.
+ *
+ * Verbatim-Port des ALT `services/card-utils.ts` (Verhalten gepinnt durch
+ * die mitportierte card-utils.spec.ts). Imports umgehängt: `WloCard` aus dem
+ * herausgetrennten `./card-types`, `ICONS` aus `../icons/icons`.
+ */
+import { WloCard } from './card-types';
+import { ICONS } from '../icons/icons';
+
+/**
+ * Primary URL for a card — alle Varianten kommen vom Backend.
+ *
+ * Fallback-Kette (alle Felder werden serverseitig befüllt):
+ *   0. ``topic_pages[0].url`` — wenn die Card eine Themenseiten-Card
+ *      ist (variants-Array non-empty), zeigt der Primary-Link
+ *      direkt auf die kuratierte Themenseite — NICHT auf die
+ *      zugrundeliegende Sammlung. Eine TP-Card ist semantisch eine
+ *      Themenseite, kein Sammlungs-Wrapper; entsprechend muss die
+ *      ``Box: Themenseiten`` im Chat-Widget zur Themenseite linken.
+ *   1. ``link``      — Card-Pipeline v2 Single Source of Truth
+ *   2. ``guide_url`` — Lotsen-Modus Repo-Render-Link
+ *   3. ``wlo_url``   — Stabiler Repo-Permalink
+ *   4. ``url``       — Externe Provider-URL (wwwurl)
+ */
+export function getCardPrimaryUrl(c: WloCard | null | undefined): string {
+  if (!c) return '#';
+  if (Array.isArray(c.topic_pages) && c.topic_pages.length > 0) {
+    const tpUrl = c.topic_pages[0]?.url;
+    if (tpUrl) return tpUrl;
+  }
+  return c.link || c.guide_url || c.wlo_url || c.url || '#';
+}
+
+/**
+ * Drei-Wege-Klassifikation einer Card für die visuelle Unterscheidung
+ * (Themenseite / Sammlung / Inhalt) — Single Source of Truth.
+ *
+ * Die drei Prädikate sind über alle `node_type`-Fälle **paarweise
+ * disjunkt und vollständig**: für jede Card ist genau eines wahr.
+ * ``chat.component`` bindet sie im Template und delegiert hierher.
+ */
+
+/**
+ * Themenseite? — erkennt BEIDE Repräsentationen, passend zum Backend
+ * (`_is_themenseite_card`): neu ``node_type='topic_page'`` (topic-pages-
+ * Renderer-Link), alt ``node_type='collection'`` mit topic_pages-Varianten.
+ * Sonst landet die Themenseite in der falschen Box (Regression 2026-06-02:
+ * topic_page → Material-Box).
+ */
+export function isThemenseite(card: WloCard): boolean {
+  if (card.node_type === 'topic_page') return true;
+  return card.node_type === 'collection'
+    && Array.isArray(card.topic_pages) && card.topic_pages.length > 0;
+}
+
+/** Sammlung? — ``node_type='collection'`` ohne topic_pages-Varianten. */
+export function isSammlung(card: WloCard): boolean {
+  return card.node_type === 'collection'
+    && !(Array.isArray(card.topic_pages) && card.topic_pages.length > 0);
+}
+
+/** Einzelinhalt? — weder Sammlung noch Themenseite. */
+export function isInhalt(card: WloCard): boolean {
+  return card.node_type !== 'collection' && card.node_type !== 'topic_page';
+}
+
+/**
+ * Liefert das passende Material-Symbol-Inline-SVG für den Inhaltstyp einer
+ * Kachel. Template-Verwendung (via ``chat.component``-Delegate):
+ *   <span class="card-content-icon" [innerHTML]="getCardIcon(card) | safeSvg"></span>
+ */
+export function getCardIcon(card: WloCard): string {
+  // Themenseiten bekommen ihr eigenes Icon — sie sind kuratierte
+  // Webseiten, keine reinen Sammlungen, und unterscheiden sich
+  // visuell vom "Stapel"-Symbol der klassischen Sammlung.
+  if (isThemenseite(card)) return ICONS.topic;
+  if (card.node_type === 'collection') return ICONS.auto_stories;
+  const types = card.learning_resource_types || [];
+  if (types.some(t => t.toLowerCase().includes('video'))) return ICONS.play_circle;
+  if (types.some(t => t.toLowerCase().includes('arbeitsblatt'))) return ICONS.article;
+  if (types.some(t => t.toLowerCase().includes('interaktiv'))) return ICONS.videogame_asset;
+  if (types.some(t => t.toLowerCase().includes('audio'))) return ICONS.headphones;
+  if (types.some(t => t.toLowerCase().includes('quiz') || t.toLowerCase().includes('test'))) return ICONS.quiz;
+  if (types.some(t => t.toLowerCase().includes('präsent') || t.toLowerCase().includes('praesent'))) return ICONS.image;
+  if (types.some(t => t.toLowerCase().includes('übung') || t.toLowerCase().includes('uebung'))) return ICONS.edit_note;
+  if (types.some(t => t.toLowerCase().includes('kurs'))) return ICONS.school;
+  if (types.some(t => t.toLowerCase().includes('webseite') || t.toLowerCase().includes('website'))) return ICONS.language;
+  return ICONS.menu_book;
+}
+
+/**
+ * Lesbares Label für den Inhaltstyp (über dem Bild). Nutzt den ersten
+ * `learning_resource_types`-Eintrag wenn vorhanden, sonst Fallback.
+ */
+export function getContentTypeLabel(card: WloCard): string {
+  if (isThemenseite(card)) return 'Themenseite';
+  if (card.node_type === 'collection') {
+    // Sammlungen unterscheiden wir über das Kind-Badge rechts.
+    return 'Sammlung';
+  }
+  const types = (card.learning_resource_types || []).filter(
+    t => t && t.toLowerCase() !== 'sammlung' && t.toLowerCase() !== 'collection',
+  );
+  if (types.length) return types[0];
+  return 'Inhalt';
+}

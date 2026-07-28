@@ -1,0 +1,128 @@
+<div class="er-bar">
+  <label class="er-field" for="er-status">
+    Status
+    <select
+      id="er-status"
+      [value]="statusFilter()"
+      (change)="onStatusFilter($any($event.target).value)"
+    >
+      @for (option of statusFilters; track option.value) {
+        <option [value]="option.value">{{ option.label }}</option>
+      }
+    </select>
+  </label>
+
+  <button type="button" class="er-reload" [disabled]="runs.loading()" (click)="reload()">
+    {{ runs.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+  </button>
+  <button
+    type="button"
+    class="er-bulk"
+    [disabled]="working() || rows().length === 0"
+    (click)="arm({ kind: 'bulk' })"
+  >
+    {{ statusFilter() ? 'Gefilterte Läufe löschen' : 'Alle Läufe löschen' }}
+  </button>
+  <button type="button" class="er-clear-logs" [disabled]="working()" (click)="arm({ kind: 'logs' })">
+    Eval-Quality-Logs löschen
+  </button>
+</div>
+
+@if (armed(); as armedAction) {
+  @if (armedAction.kind !== 'one') {
+    <div class="er-danger">
+      <p class="er-question" role="alert">{{ question() }}</p>
+      <button type="button" class="er-confirm" [disabled]="working()" (click)="confirm()">
+        Ja, löschen
+      </button>
+      <button type="button" class="er-cancel" (click)="disarm()">Abbrechen</button>
+    </div>
+  }
+}
+
+@if (status()) {
+  <p class="er-status" role="status">{{ status() }}</p>
+}
+@if (actionError()) {
+  <p class="er-error" role="alert">{{ actionError() }}</p>
+}
+
+<studio-async-state
+  label="Eval-Läufe"
+  [loading]="runs.loading()"
+  [error]="runs.error()"
+  [empty]="runs.isEmpty()"
+  emptyText="Noch kein Eval-Lauf. Starte unten einen Gold-Flow-Lauf — der ist
+             deterministisch und prüft feste Gesprächsabläufe."
+  (retry)="reload()"
+/>
+
+@if (rows().length > 0) {
+  <p class="er-count">
+    {{ rows().length }} Läufe · neueste zuerst
+    @if (isPolling()) {
+      · <span class="er-live">ein Lauf ist aktiv, die Liste aktualisiert sich selbst</span>
+    }
+  </p>
+
+  <ul class="er-items">
+    @for (row of rows(); track row.id) {
+      <li class="er-item">
+        <button type="button" class="er-row" (click)="open(row.id)">
+          <span class="er-row-top">
+            <span class="er-mode">{{ row.mode }}</span>
+            <span class="er-badge" [class]="'er-badge--' + row.status">
+              {{ statusLabel(row.status) }}
+            </span>
+            <span class="er-when">{{ when(row.created_at) }}</span>
+          </span>
+
+          <span class="er-row-meta">
+            @if (row.status === 'running') {
+              {{ row.total_turns }} von {{ row.target_turns }} Turns
+              @if (row.current_activity) {
+                · {{ row.current_activity }}
+              }
+            } @else {
+              {{ row.total_turns }} Turns · Ø Score {{ score(row.avg_score) }}
+            }
+          </span>
+
+          <span class="er-row-scope">
+            {{ row.config_slug || 'ohne Konfigurations-Kennung' }}
+            @if (row.personas.length > 0) {
+              · {{ row.personas.length }} Personas
+            }
+            @if (row.intents.length > 0) {
+              · {{ row.intents.length }} Intents
+            }
+          </span>
+        </button>
+
+        @if (row.error_message) {
+          <p class="er-row-error">{{ row.error_message }}</p>
+        }
+
+        @if (isArmed(row.id)) {
+          <div class="er-danger">
+            <p class="er-question" role="alert">{{ question() }}</p>
+            <button type="button" class="er-confirm" [disabled]="working()" (click)="confirm()">
+              Ja, löschen
+            </button>
+            <button type="button" class="er-cancel" (click)="disarm()">Abbrechen</button>
+          </div>
+        } @else {
+          <button
+            type="button"
+            class="er-arm"
+            [disabled]="working() || row.status === 'running'"
+            [attr.title]="row.status === 'running' ? 'Ein laufender Lauf kann nicht gelöscht werden' : null"
+            (click)="arm({ kind: 'one', id: row.id })"
+          >
+            Löschen<span class="sr"> — Lauf {{ row.id }}</span>
+          </button>
+        }
+      </li>
+    }
+  </ul>
+}

@@ -1,0 +1,133 @@
+<h3 class="qd-title">Problem-Diagnose</h3>
+
+<details class="qd-box">
+  <summary class="qd-summary">
+    <span class="qd-name">Degradation — fehlende Slots führen zu Rückfragen</span>
+    @if (degradations.value(); as loaded) {
+      <span class="qd-count">{{ loaded.total }} Turns · {{ loaded.groups.length }} Muster</span>
+    }
+  </summary>
+
+  <p class="qd-help">
+    Ein Pattern <em>degradiert</em>, wenn es seine reguläre Antwort aufgibt und stattdessen
+    nachfragt, weil Pflicht-Slots leer sind — etwa M10 Canvas-Create ohne <code>thema</code>
+    oder <code>material_typ</code>. Häufige Kombinationen aus Pattern und fehlendem Slot
+    zeigen, wo sich Slot-Erkennung oder Fragetechnik zu verbessern lohnt.
+  </p>
+
+  <studio-async-state
+    label="Degradationen"
+    [loading]="degradations.loading()"
+    [error]="degradations.error()"
+    [empty]="degradationGroups().length === 0 && !degradations.loading() && !degradations.error()"
+    emptyText="Keine Degradationen im gewählten Bereich — alle Pflicht-Slots waren gefüllt."
+    (retry)="degradations.reload()"
+  />
+
+  @for (group of degradationGroups(); track group.pattern_id + group.missing_slots.join()) {
+    <article class="qd-item">
+      <div class="qd-item-head">
+        <span class="qd-id">{{ group.pattern_id || '(ohne Pattern)' }}</span>
+        <span class="qd-times">{{ group.count }}×</span>
+      </div>
+      @if (group.missing_slots.length > 0) {
+        <p class="qd-slots">
+          Fehlend:
+          @for (slot of group.missing_slots; track slot) {
+            <code class="qd-slot">{{ slot }}</code>
+          }
+        </p>
+      }
+      @if (group.example_message) {
+        <p class="qd-example">„{{ group.example_message }}"</p>
+      }
+      <button type="button" class="qd-drill" (click)="drill.emit({ patternId: group.pattern_id })">
+        Turns zu {{ group.pattern_id || 'diesem Muster' }} anzeigen
+      </button>
+    </article>
+  }
+</details>
+
+<details class="qd-box">
+  <summary class="qd-summary">
+    <span class="qd-name">Leere Entities — der Turn lieferte keine verwertbaren Angaben</span>
+    @if (emptyEntities.value(); as loaded) {
+      <span class="qd-count">{{ loaded.total }} Turns · {{ loaded.groups.length }} Muster</span>
+    }
+  </summary>
+
+  <p class="qd-help">
+    Diese Turns wurden einem Intent zugeordnet, aber die Entity-Erkennung fand nichts —
+    weder Thema noch Stufe noch Fach. Sammelt sich das bei einem Intent, ist meist der
+    Classifier-Prompt für diesen Fall zu unspezifisch.
+  </p>
+
+  <studio-async-state
+    label="Leere Entities"
+    [loading]="emptyEntities.loading()"
+    [error]="emptyEntities.error()"
+    [empty]="emptyEntityGroups().length === 0 && !emptyEntities.loading()
+             && !emptyEntities.error()"
+    emptyText="Jeder Turn im gewählten Bereich lieferte mindestens eine Entity."
+    (retry)="emptyEntities.reload()"
+  />
+
+  @for (group of emptyEntityGroups(); track group.intent_id + group.pattern_id) {
+    <article class="qd-item">
+      <div class="qd-item-head">
+        <span class="qd-id">{{ group.intent_id || '(ohne Intent)' }}</span>
+        <span class="qd-times">{{ group.count }}×</span>
+      </div>
+      <p class="qd-meta">Pattern: <code>{{ group.pattern_id || '—' }}</code></p>
+      @if (group.example_message) {
+        <p class="qd-example">„{{ group.example_message }}"</p>
+      }
+      <button type="button" class="qd-drill" (click)="drill.emit({ intentId: group.intent_id })">
+        Turns zu {{ group.intent_id || 'diesem Intent' }} anzeigen
+      </button>
+    </article>
+  }
+</details>
+
+<details class="qd-box">
+  <summary class="qd-summary">
+    <span class="qd-name">Unsichere Einordnung — niedrige Confidence</span>
+    @if (lowConfidence.value(); as loaded) {
+      <span class="qd-count">
+        {{ loaded.total }} Turns unter {{ confidence(loaded.max_confidence) }}
+      </span>
+    }
+  </summary>
+
+  <p class="qd-help">
+    Einzelne Turns, bei denen sich der Classifier seiner Einordnung am wenigsten sicher war
+    — unsicherste zuerst. Anders als die beiden Blöcke darüber ist das keine Gruppierung,
+    sondern eine Liste echter Turns.
+  </p>
+
+  <studio-async-state
+    label="Unsichere Turns"
+    [loading]="lowConfidence.loading()"
+    [error]="lowConfidence.error()"
+    [empty]="lowConfidenceTurns().length === 0 && !lowConfidence.loading()
+             && !lowConfidence.error()"
+    emptyText="Kein Turn lag unter der Schwelle — der Classifier war durchgehend sicher."
+    (retry)="lowConfidence.reload()"
+  />
+
+  @for (turn of lowConfidenceTurns(); track turn.id) {
+    <article class="qd-item">
+      <div class="qd-item-head">
+        <span class="qd-id">{{ turn.intent_id || '(ohne Intent)' }}</span>
+        <span class="qd-times">Confidence {{ confidence(turn.final_confidence) }}</span>
+      </div>
+      <p class="qd-meta">
+        Pattern: <code>{{ turn.pattern_id || '—' }}</code> ·
+        Persona: <code>{{ turn.persona_id || '—' }}</code>
+      </p>
+      @if (turn.message) {
+        <p class="qd-example">„{{ turn.message }}"</p>
+      }
+    </article>
+  }
+</details>

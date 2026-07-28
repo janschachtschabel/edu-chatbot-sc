@@ -1,0 +1,142 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ section().label }}</h3>
+    <p class="cs-hint">{{ section().hint }}</p>
+    @if (editor.dirty()) {
+      <span class="cs-flag">Ungespeichert</span>
+    }
+  </summary>
+
+  <div class="cs-body gs">
+    @if (listLoading()) {
+      <p class="cs-state" aria-busy="true">Liste wird geladen …</p>
+    } @else if (listError()) {
+      <div class="cs-state cs-state--error" role="alert">
+        <p>{{ listError() }}</p>
+        <button type="button" class="cs-btn" (click)="loadList()">Erneut versuchen</button>
+      </div>
+    } @else {
+      <div class="gs-list">
+        <h4 class="gs-list-title" [id]="idPrefix() + '-list'">Dokumente</h4>
+        @if (entries().length === 0) {
+          <p class="cs-state">Noch keine Dokumente. Unten eines anlegen.</p>
+        }
+        <ul class="gs-entries" [attr.aria-labelledby]="idPrefix() + '-list'">
+          @for (entry of entries(); track entry.key) {
+            <li>
+              <button
+                type="button"
+                class="gs-entry"
+                [class.gs-entry--on]="entry.key === selected()"
+                [attr.aria-current]="entry.key === selected() ? 'true' : null"
+                (click)="select(entry.key)"
+              >
+                {{ entry.label }}
+              </button>
+            </li>
+          }
+        </ul>
+
+        <div class="gs-new">
+          <label class="gs-new-label" [for]="idPrefix() + '-new'">Neues Dokument</label>
+          <input
+            type="text"
+            class="gs-new-name"
+            [id]="idPrefix() + '-new'"
+            [value]="newName()"
+            [attr.aria-describedby]="idPrefix() + '-new-key'"
+            (input)="onNewName($event)"
+          />
+          <p class="gs-new-key" [id]="idPrefix() + '-new-key'">
+            @if (newKey()) {
+              Wird angelegt als <code>{{ newKey() }}.md</code>
+            } @else {
+              Der Name wird zum Dateinamen.
+            }
+          </p>
+          <button
+            type="button"
+            class="cs-btn gs-new-go"
+            [disabled]="creating() || !newKey()"
+            (click)="create()"
+          >
+            {{ creating() ? 'Wird angelegt …' : 'Anlegen' }}
+          </button>
+          @if (newError()) {
+            <p class="cs-state cs-state--error" role="alert">{{ newError() }}</p>
+          }
+        </div>
+      </div>
+
+      <div class="gs-doc">
+        @if (!selected()) {
+          <p class="cs-state">Links ein Dokument wählen, um es zu bearbeiten.</p>
+        } @else if (editor.loading()) {
+          <p class="cs-state" aria-busy="true">Wird geladen …</p>
+        } @else if (editor.loadError()) {
+          <div class="cs-state cs-state--error" role="alert">
+            <p>{{ editor.loadError() }}</p>
+          </div>
+        } @else if (editor.schema(); as schema) {
+          @if (fieldTabs().length > 0) {
+            <studio-tab-bar
+              [label]="section().label"
+              [tabs]="fieldTabs()"
+              [active]="activeTab()"
+              (tabChange)="selectTab($event)"
+            />
+          }
+
+          <!-- Ein Bereich, dessen Id mit dem Reiter wandert: die Reiterleiste
+               sagt zu, dass `#tab-x` `#panel-x` steuert, und nur der offene
+               Reiter hat einen Bereich. Ohne Reiter bleibt es ein reines div. -->
+          <div
+            [attr.id]="activeTab() ? 'panel-' + activeTab() : null"
+            [attr.role]="activeTab() ? 'tabpanel' : null"
+            [attr.aria-labelledby]="activeTab() ? 'tab-' + activeTab() : null"
+            [attr.tabindex]="activeTab() ? 0 : null"
+          >
+            <studio-schema-form
+              [schema]="schema"
+              [value]="editor.doc()"
+              [idPrefix]="idPrefix()"
+              [visiblePaths]="visiblePaths()"
+              (valueChange)="editor.setDoc($event)"
+              (errorsChange)="editor.setFieldErrors($event)"
+            />
+          </div>
+
+          <div class="cs-actions">
+            <button
+              type="button"
+              class="cs-btn cs-btn--primary gs-save"
+              [disabled]="editor.saving() || !editor.dirty() || editor.blocked()"
+              (click)="save()"
+            >
+              {{ editor.saving() ? 'Wird gespeichert …' : 'Speichern' }}
+            </button>
+            <button
+              type="button"
+              class="cs-btn"
+              [disabled]="editor.saving() || !editor.dirty()"
+              (click)="editor.discard()"
+            >
+              Verwerfen
+            </button>
+          </div>
+
+          @if (editor.blocked()) {
+            <p class="cs-state cs-state--error" role="alert">
+              Nicht speicherbar: {{ blockedFields().join(', ') }} enthält kein gültiges JSON.
+            </p>
+          }
+          @if (editor.saveError()) {
+            <p class="cs-state cs-state--error" role="alert">{{ editor.saveError() }}</p>
+          }
+        }
+      </div>
+    }
+
+    <p class="cs-status" aria-live="polite">{{ notice() || editor.status() }}</p>
+  </div>
+</details>

@@ -1,0 +1,174 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "cli": {
+    "packageManager": "npm"
+  },
+  "projects": {
+    "ui": {
+      "projectType": "library",
+      "root": "projects/ui",
+      "sourceRoot": "projects/ui/src",
+      "prefix": "boerdi",
+      "architect": {
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "projects/ui/tsconfig.spec.json",
+            "buildTarget": "widget:build:development"
+          }
+        }
+      }
+    },
+    "widget": {
+      "projectType": "application",
+      "root": "projects/widget",
+      "sourceRoot": "projects/widget/src",
+      "prefix": "boerdi",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/widget-dev",
+            "index": "projects/widget/src/index.html",
+            "browser": "projects/widget/src/main.ts",
+            "polyfills": [],
+            "tsConfig": "projects/widget/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [],
+            "styles": ["projects/widget/src/styles.scss"],
+            "scripts": [],
+            "stylePreprocessorOptions": {
+              "includePaths": ["projects/ui/src"]
+            }
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                { "type": "initial", "maximumWarning": "500kb", "maximumError": "1mb" }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "build-widget": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/widget",
+            "index": false,
+            "browser": "projects/widget/src/widget-main.ts",
+            "polyfills": [],
+            "tsConfig": "projects/widget/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [],
+            "styles": [],
+            "scripts": [],
+            "stylePreprocessorOptions": {
+              "includePaths": ["projects/ui/src"]
+            },
+            "outputHashing": "none",
+            "optimization": true,
+            "sourceMap": false,
+            "extractLicenses": false,
+            "namedChunks": false
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                { "type": "initial", "maximumWarning": "418kb", "maximumError": "420kb" }
+              ]
+            },
+            "development": {
+              "optimization": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": {
+            "proxyConfig": "proxy.conf.json"
+          },
+          "configurations": {
+            "production": { "buildTarget": "widget:build:production" },
+            "development": { "buildTarget": "widget:build:development" }
+          },
+          "defaultConfiguration": "development"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "projects/widget/tsconfig.spec.json",
+            "buildTarget": "widget:build:development"
+          }
+        }
+      }
+    },
+    "studio": {
+      "projectType": "application",
+      "root": "projects/studio",
+      "sourceRoot": "projects/studio/src",
+      "prefix": "studio",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/studio",
+            "index": "projects/studio/src/index.html",
+            "browser": "projects/studio/src/main.ts",
+            "polyfills": [],
+            "tsConfig": "projects/studio/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [],
+            "styles": ["projects/studio/src/styles.scss"],
+            "scripts": [],
+            "baseHref": "/studio/",
+            "stylePreprocessorOptions": {
+              "includePaths": ["projects/ui/src", "projects/studio/src"]
+            }
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                { "type": "initial", "maximumWarning": "600kb", "maximumError": "900kb" }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": {
+            "proxyConfig": "proxy.conf.json"
+          },
+          "configurations": {
+            "production": { "buildTarget": "studio:build:production" },
+            "development": { "buildTarget": "studio:build:development" }
+          },
+          "defaultConfiguration": "development"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "projects/studio/tsconfig.spec.json",
+            "buildTarget": "studio:build:development"
+          }
+        }
+      }
+    }
+  }
+}

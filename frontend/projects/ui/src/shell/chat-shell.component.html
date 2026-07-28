@@ -1,0 +1,219 @@
+<!--
+  Message-Row-Template der Chat-Shell (8-4S-f3) — Port von ALT
+  chat.component.html (1-419 + 609-632). Kontrollfluss auf Angular 21 übersetzt
+  (`*ngIf`→`@if`, `*ngFor`→`@for`); gerendertes DOM bleibt gleich.
+
+  Die Blöcke, die in ALT inline im Monolithen lagen, sind hier eigene 8-2-
+  Komponenten: Themenseiten-Schwimmlinien (ALT 97-131), Inline-Result-Grouping-
+  Boxen (133-237), InlineDocument-Box (37-52), Quick-Replies (400-416) und das
+  Debug-Panel (422-607). Die HOST-FLAG-Gates bleiben hier beim Elternteil, die
+  Daten-Gates leben in den Komponenten.
+
+  NICHT hier (Slice 8-2i): die flachen Card-Tiles + `.card-actions` +
+  `.pagination-bar` (ALT 240-378) — sie hängen an Shell-State (visibleCardCount,
+  openTopicDropdown, loadMore/showMoreCards) und bekommen ihren eigenen Slice.
+  Der Chat-Header (ALT: schon nach widget.component hochgezogen) ist 8-5.
+-->
+<div class="chat-wrapper">
+  <!-- Messages. role="log"+aria-live: Screenreader bekommen neue Bot-Antworten
+       angesagt (ALT-a11y, 2026-06-10). -->
+  <div class="messages-area" #messagesContainer role="log" aria-live="polite" aria-label="Chat-Verlauf">
+    @for (msg of messages(); track msg.id) {
+      <div
+        [id]="'msg-' + msg.id"
+        class="message-row"
+        [class.bot-row]="msg.sender === 'bot'"
+        [class.user-row]="msg.sender === 'user'"
+      >
+        @if (msg.sender === 'bot') {
+          <img class="msg-avatar" [src]="boerdiLogo" alt="" />
+        }
+
+        <div
+          class="msg-bubble"
+          [class.bot-bubble]="msg.sender === 'bot'"
+          [class.user-bubble]="msg.sender === 'user'"
+        >
+          <!-- Lade-Punkte + Live-Phasen-Label (aus POST /api/chat/stream) -->
+          @if (msg.isLoading) {
+            <div class="typing-row">
+              <div class="typing-dots"><span></span><span></span><span></span></div>
+              @if (msg.loadingPhase) {
+                <span class="typing-phase">{{ msg.loadingPhase }}</span>
+              }
+            </div>
+          }
+
+          <!-- Inhalt. `render.displayContent(msg)` ist normalerweise identisch zu
+               `msg.content` — nur bei aktivem Inline-Result-Grouping werden
+               Bullet-Markdown-Links, die schon in der Webseiten-Inhalte-Box
+               auftauchen, hier rausgestrippt (keine Doppelung). -->
+          @if (!msg.isLoading && msg.content) {
+            <div class="msg-content" [innerHTML]="render.markdown(render.displayContent(msg), msg.sender)"></div>
+          }
+
+          <!-- Inline-Document-Box: Lernpfade (M09), KI-Materialien (M10),
+               Edits (M11) im Chat-Verlauf, mit Druck-Button im Box-Header. -->
+          @if (!msg.isLoading && msg.inlineDocuments?.length) {
+            <boerdi-inline-documents
+              [documents]="msg.inlineDocuments!"
+              [displayRules]="msg.displayRules ?? null"
+              [renderMarkdown]="renderBotMarkdown"
+              (print)="print.printInlineDocument($event)"
+            />
+          }
+
+          <!-- Legacy-Druck-Leisten: greifen nur für Bestands-Messages OHNE
+               inlineDocuments (z.B. aus dem Session-Restore) — bei vorhandener
+               Box druckt der Button IN der Box (kein Doppel-Button). -->
+          @if (!msg.isLoading && !msg.inlineDocuments?.length && print.isLearningPath(msg)) {
+            <div class="lp-print-bar">
+              <button
+                type="button"
+                class="btn-lp-print"
+                (click)="print.printLearningPath(msg)"
+                title="Lernpfad als PDF drucken"
+              >
+                <span class="bb-icon" [innerHTML]="ICONS.print | safeSvg"></span>
+                <span>Lernpfad drucken / als PDF speichern</span>
+              </button>
+            </div>
+          }
+          @if (!msg.isLoading && !msg.inlineDocuments?.length && print.isPrintableCanvasMaterial(msg)) {
+            <div class="lp-print-bar">
+              <button
+                type="button"
+                class="btn-lp-print"
+                (click)="print.printCanvasMaterial(msg)"
+                title="Material als PDF drucken"
+              >
+                <span class="bb-icon" [innerHTML]="ICONS.print | safeSvg"></span>
+                <span>{{ print.printableCanvasLabel(msg) }} drucken / als PDF speichern</span>
+              </button>
+            </div>
+          }
+
+          <!-- M16: Themenseiten-Inhalte als Schwimmlinien-Boxen + Absprung auf
+               die vollständige Themenseite. Setzt das Backend `msg.topicPage`,
+               unterdrückt es die normalen Sammlungs-/Inhalts-Boxen (cards=[]). -->
+          @if (!msg.isLoading && msg.topicPage) {
+            <boerdi-swimlanes [topicPage]="msg.topicPage!" [ctx]="render.groupingCtx" />
+          }
+
+          <!-- Inline-Result-Grouping: separate Boxen für Themenseiten /
+               Sammlungen / Materialien / Webseiten-Inhalte + Such-CTA statt
+               flacher Card-Liste. Bewusst UNABHÄNGIG von `cardsEnabledBool`
+               (Welle C.5): die Box-Übersicht ist eine Layout-Wahl; nur die
+               großen Tiles entfallen mit `cards-enabled="false"`. Der leere
+               Rahmen bleibt durch das interne hasGroupedResults-Gate aus (ALTs
+               Daten-Gate); `sender === 'bot'` hält die Komponente aus den
+               User-Bubbles heraus, wo sie ohnehin nie etwas rendern könnte. -->
+          @if (msg.sender === 'bot' && inlineResultGroupingBool && !hideCards) {
+            <boerdi-result-groups [message]="msg" [ctx]="render.resultGroupsCtx" />
+          }
+
+          <!-- Flacher Tile-Grid + Sammlungs-Aktionen + Pagination (8-2i): die
+               Alternative zum Boxen-Layout, gesteuert über
+               `inline-result-grouping="false"`. In ALT hing derselbe Block
+               hinter `!inlineResultGroupingBool`, was seit der Welle-E-Einfrierung
+               des Flags nie mehr wahr wurde — hier ist es wieder ein echtes
+               Host-Attribut (Default `true` = Boxen, wie bisher). -->
+          @if (!inlineResultGroupingBool && !hideCards && cardsEnabledBool) {
+            <boerdi-card-list
+              [message]="msg"
+              [ctx]="render.groupingCtx"
+              [isLoading]="isLoading()"
+              (browse)="browseCollection($event.nodeId, $event.title)"
+              (learningPath)="generateLearningPath($event.nodeId, $event.title)"
+              (showMore)="showMoreCards($event)"
+              (loadMore)="loadMoreCards($event)"
+            />
+          }
+
+          <!-- Bubble-Aktionen: Vorlesen. Die beiden Print-Buttons, die hier in
+               ALT bis 2026-06-10 saßen, sind entfernt — bei Nachrichten MIT
+               InlineDocument-Box druckten sie nur den Intro-Text. -->
+          @if (msg.sender === 'bot' && !msg.isLoading && msg.content) {
+            <div class="msg-actions">
+              @if (languageButtonsVisible) {
+                <button
+                  type="button"
+                  class="btn-speak"
+                  (click)="speakText(msg.content)"
+                  [title]="isSpeaking ? 'Stop' : 'Vorlesen'"
+                  [attr.aria-label]="isSpeaking ? 'Stop' : 'Vorlesen'"
+                >
+                  <span class="bb-icon" [innerHTML]="(isSpeaking ? ICONS.stop_circle : ICONS.volume_up) | safeSvg"></span>
+                </button>
+              }
+            </div>
+          }
+
+          <!-- Quick-Replies: Mix aus normalen Vorschlägen und (optional) einem
+               „Bring mich hin"-Guide-Chip (`__guide__|<label>|<url>`). Das
+               Length-Gate ist ALTs (400) — die Komponente prüft es zusätzlich
+               selbst, aber ohne Vorschläge braucht es sie gar nicht. -->
+          @if (msg.quickReplies?.length) {
+            <boerdi-quick-replies
+              [quickReplies]="msg.quickReplies!"
+              [enabled]="quickRepliesEnabledBool"
+              [guideModeActive]="guideModeActive"
+              (quickReply)="onQuickReply($event)"
+              (guideQuickReply)="onGuideQuickReply($event)"
+            />
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <boerdi-debug-panel [debug]="latestDebug()" [show]="showDebug()" />
+
+  <!-- Eingabe-Footer (ALT 609-632) -->
+  <div class="chat-footer">
+    @if (languageButtonsVisible) {
+      <button
+        type="button"
+        class="btn-mic"
+        [class.recording]="isRecording"
+        (click)="toggleRecording()"
+        [title]="isRecording ? 'Aufnahme stoppen' : 'Spracheingabe starten'"
+        [attr.aria-label]="isRecording ? 'Aufnahme stoppen' : 'Spracheingabe starten'"
+      >
+        @if (isRecording) {
+          <span class="recording-indicator">
+            <span class="rec-dot"></span>
+            {{ recordingSeconds }}s
+          </span>
+        } @else {
+          <span class="bb-icon" [innerHTML]="ICONS.mic | safeSvg"></span>
+        }
+      </button>
+    }
+    <!-- `[value]`+`(input)` statt `[(ngModel)]`: `userInput` ist ein Signal und
+         das Widget bleibt so ohne FormsModule im Bundle (§5.5-Budget). -->
+    <input
+      #inputField
+      type="text"
+      class="chat-input"
+      aria-label="Nachricht an BOERDi"
+      [value]="userInput()"
+      (input)="userInput.set($any($event.target).value)"
+      (keydown)="onKeydown($event)"
+      [placeholder]="isRecording
+        ? 'Aufnahme läuft… Klicke Stop zum Beenden'
+        : (isLoading() ? 'Boerdi denkt nach…' : 'Nachricht eingeben…')"
+      [disabled]="isLoading() || isRecording"
+    />
+    <button
+      type="button"
+      class="btn-send"
+      (click)="sendMessage()"
+      [disabled]="isLoading() || !userInput().trim()"
+      title="Senden"
+      aria-label="Senden"
+    >
+      <span class="bb-icon" [innerHTML]="ICONS.send | safeSvg"></span>
+    </button>
+  </div>
+</div>

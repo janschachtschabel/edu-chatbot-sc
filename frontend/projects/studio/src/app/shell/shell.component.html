@@ -1,0 +1,73 @@
+<!--
+  Shell chrome (P9-2). ALT put all of this in page.tsx with `<button onClick>`
+  nav items and no skip link, no aria-current, no responsive behaviour.
+-->
+<a class="skip" href="#studio-main">Zum Inhalt springen</a>
+
+<header class="header">
+  <!-- ALT made the <h1> itself the click-to-home affordance, which is neither
+       focusable nor activatable by keyboard. The link is the interactive part. -->
+  <h1 class="brand">
+    <a routerLink="/">BOERDi Studio</a>
+  </h1>
+
+  <button
+    type="button"
+    class="nav-toggle"
+    [attr.aria-expanded]="navOpen()"
+    aria-controls="studio-nav"
+    (click)="toggleNav()"
+  >
+    {{ navOpen() ? 'Navigation schließen' : 'Navigation' }}
+  </button>
+
+  <div class="header-tools">
+    <studio-status-indicator />
+    <!-- ALT's three header tools (Snapshots, Backup, Restore) are the "Sicherung"
+         view since 9-6 — reachable from the sidebar, deep-linkable, and without a
+         hand-rolled modal (backup.component.ts). A second entry point here would
+         only duplicate it. The logout button is §5.6's V8 addition (auth). -->
+    @if (!gateOpen()) {
+      <button type="button" class="btn" (click)="logout()" [disabled]="loggingOut()">
+        {{ loggingOut() ? 'Melde ab …' : 'Abmelden' }}
+      </button>
+    }
+  </div>
+</header>
+
+<div class="body">
+  <!-- `inert` keeps the collapsed drawer out of the tab order on narrow screens
+       without hiding it from the wide-screen layout. -->
+  <aside class="sidebar" id="studio-nav" [class.sidebar--open]="navOpen()">
+    <nav class="nav" aria-label="Konfigurationsbereiche">
+      @for (group of navGroups; track group.title) {
+        <div class="nav-group">
+          @if (group.title) {
+            <h2 class="nav-group-title">{{ group.title }}</h2>
+          }
+          <ul class="nav-list">
+            @for (view of group.views; track view.slug) {
+              <li>
+                <a
+                  class="nav-item"
+                  [routerLink]="['/', view.slug]"
+                  routerLinkActive="nav-item--active"
+                  #link="routerLinkActive"
+                  [attr.aria-current]="link.isActive ? 'page' : null"
+                  (click)="closeNavOnNarrow()"
+                >
+                  <span class="nav-label">{{ view.label }}</span>
+                  <span class="nav-desc">{{ view.desc }}</span>
+                </a>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </nav>
+  </aside>
+
+  <main class="main" id="studio-main" tabindex="-1">
+    <router-outlet />
+  </main>
+</div>

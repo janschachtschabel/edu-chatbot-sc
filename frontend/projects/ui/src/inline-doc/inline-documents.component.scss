@@ -1,0 +1,131 @@
+// Inline-Document-Box — Verbatim-Port aus ALT chat.component.scss
+// (.inline-document Z.450-564, Welle E). 1:1 die gleichen Rahmen-/Padding-/
+// Radius-Werte wie .result-group (User-Wunsch: „der rahmen soll wie bei der
+// linkgruppierung aussehen"). Lokale $-Variablen identisch zu den anderen
+// ui-Komponenten (ALT chat.component.scss:14-19); CTA-/Hover-Akzent am
+// kundenüberschreibbaren --boerdi-primary (ALT-Token, Fallback #1c4587).
+//
+// simplify: kein Dark-Mode — ALT hell-only. a11y-/Kontrast-Sweep = Slice 8-6.
+// follow-up: die 3 $-Farbvariablen liegen inzwischen in 3 Komponenten — ein
+//   geteiltes SCSS-Token-Partial lohnt sich, aber erst im koordinierten
+//   8-6-Sweep (kein Feature-Slice-Refactor über fremde Dateien).
+
+$border: rgba(0, 0, 0, 0.1);
+$text: #1a1a2e;
+$text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 (4,5:1)
+
+:host {
+  // Host layout-transparent: die .inline-document-Boxen zählen direkt als
+  // Kinder der Bot-Bubble (wie ALTs Struktur).
+  display: contents;
+}
+
+.inline-document {
+  border: 1px solid $border;
+  border-radius: 8px;
+  padding: 6px 10px 8px;
+  background: #fff;
+  margin: 8px 0;
+
+  // Skalierungs-Variable kommt vom Template (CSS-Custom-Property); bei 100 %
+  // rendert die Box wie eine normale .result-group.
+  --inline-doc-scale: 0.85;
+
+  &__heading {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .82rem;
+    font-weight: 600;
+    color: $text;
+    margin-bottom: 4px;
+
+    .bb-icon {
+      display: inline-flex;
+      color: $text-muted;
+      font-size: 1em;
+    }
+  }
+
+  &__title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // Print-Button rechts im Heading (Welle E, 2026-05-24).
+  &__print-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+    color: $text-muted;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+
+    &:hover {
+      background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 8%, #fff);
+      color: var(--boerdi-primary, #1c4587);
+      border-color: color-mix(in srgb, var(--boerdi-primary, #1c4587) 25%, #fff);
+    }
+
+    .bb-icon {
+      display: inline-flex;
+      font-size: .95em;
+    }
+  }
+
+  // Markdown-Body: Basis-Schrift .82rem, zusätzlich durch --inline-doc-scale
+  // regulierbar. Sub-Elemente dezent + dicht, Headings als Bold-Zeile.
+  &__body {
+    font-size: calc(.82rem * var(--inline-doc-scale, 0.85) / 0.85);
+    color: $text;
+    line-height: 1.4;
+
+    h1, h2, h3, h4, h5, h6 {
+      font-size: 1em;
+      font-weight: 600;
+      color: $text;
+      margin: .75em 0 .25em;
+      line-height: 1.3;
+    }
+    h1 { font-size: 1.06em; }
+    h2 { font-size: 1.03em; }
+
+    p { margin: .3em 0; }
+    li { margin: .15em 0; }
+
+    ul, ol {
+      padding-left: 1.3em;
+      margin: .3em 0;
+    }
+
+    blockquote {
+      border-left: 2px solid $border;
+      margin: .4em 0;
+      padding-left: .6em;
+      color: $text-muted;
+    }
+
+    code {
+      font-size: .92em;
+      background: #f5f5f7;
+      padding: 0 4px;
+      border-radius: 3px;
+    }
+
+    a {
+      color: var(--boerdi-primary, #1c4587);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    // Erste Heading-Zeile direkt unterm Box-Header braucht keinen margin-top.
+    > :first-child {
+      margin-top: 0;
+    }
+  }
+}

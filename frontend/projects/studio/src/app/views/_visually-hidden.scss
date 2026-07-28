@@ -1,0 +1,22 @@
+// Text that only a screen reader reads (A1) — since B3 the only copy of it.
+//
+// The rule had been hand-written nine times across eight stylesheets under
+// eight different class names. Two of those were not utility classes at all
+// but a `<thead>` and a hint `<span>`, which is why counting the copies by
+// their name never came out right. B3 moved all nine here; the two comments
+// that said *which element* is hidden and why went into the templates, next to
+// the element they describe.
+//
+// `clip-path` rather than `display: none` or `visibility: hidden`, because both
+// of those remove the text from the accessibility tree as well — which is the
+// opposite of the point.
+.sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

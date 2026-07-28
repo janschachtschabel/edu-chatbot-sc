@@ -1,0 +1,125 @@
+// Content rules of the architecture reference (9-5f), shared by the host and
+// the widget-contract section. Angular scopes styles per component, so the two
+// components `@use` this partial instead of one reaching into the other's
+// stylesheet — the mechanism `_section-shell.scss` already established.
+
+.ar-text {
+  margin: 0 0 var(--st-3);
+  max-inline-size: 80ch;
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+.ar-note {
+  margin: 0;
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-rule-strong);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--st-text-muted);
+}
+
+.ar-muted {
+  color: var(--st-text-muted);
+}
+
+.ar-sub {
+  margin: var(--st-4) 0 var(--st-2);
+  font-size: 0.875rem;
+}
+
+// A caption, not a heading: it states what the table below contains, and screen
+// readers announce it as part of the table rather than as a section of its own.
+.ar-caption {
+  caption-side: block-start;
+  padding-block-end: var(--st-2);
+  color: var(--st-text-muted);
+  font-size: 0.8125rem;
+  text-align: start;
+}
+
+.ar-two {
+  display: grid;
+  gap: var(--st-4);
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+
+.ar-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  text-align: start;
+
+  th,
+  td {
+    padding: var(--st-2) var(--st-3);
+    border-block-end: 1px solid var(--st-rule);
+    text-align: start;
+    vertical-align: top;
+  }
+
+  thead th {
+    background: var(--st-surface-variant);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  tbody th {
+    font-weight: 600;
+  }
+
+  &--fields tbody th {
+    inline-size: 10rem;
+  }
+}
+
+.ar-group {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.ar-list {
+  margin: 0 0 var(--st-3);
+  padding-inline-start: var(--st-5);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+
+  li + li {
+    margin-block-start: var(--st-1);
+  }
+}
+
+.ar-code {
+  margin: 0 0 var(--st-3);
+  padding: var(--st-3);
+  overflow-x: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+code {
+  padding: 0.0625rem 0.25rem;
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+.ar-code code {
+  padding: 0;
+  background: none;
+}
+
+// Wide tables scroll inside their own box; the page must never scroll sideways
+// (SC 1.4.10 reflow).
+.ar-scroll {
+  overflow-x: auto;
+}
+
+.ar-group-start > td,
+.ar-group-start > th {
+  border-block-start: 2px solid var(--st-rule);
+}

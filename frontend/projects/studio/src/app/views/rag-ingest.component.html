@@ -1,0 +1,137 @@
+<details class="cs" [open]="open()">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ section().label }}</h3>
+    <p class="cs-hint">{{ section().hint }}</p>
+  </summary>
+
+  <div class="cs-body ri">
+    <fieldset class="ri-sources">
+      <legend class="ri-legend">Quelle</legend>
+      @for (option of sources; track option.id) {
+        <label class="ri-source" [class.ri-source--on]="source() === option.id">
+          <input
+            type="radio"
+            [name]="idPrefix + '-mode'"
+            [value]="option.id"
+            [checked]="source() === option.id"
+            (change)="onSource(option.id)"
+          />
+          {{ option.label }}
+        </label>
+      }
+    </fieldset>
+
+    <div class="ri-field">
+      <label class="ri-label" [for]="idPrefix + '-area'">Wissensbereich (Pflicht)</label>
+      <input
+        type="text"
+        class="ri-area"
+        [id]="idPrefix + '-area'"
+        [attr.list]="idPrefix + '-areas'"
+        [attr.aria-describedby]="idPrefix + '-area-help'"
+        [value]="area()"
+        (input)="area.set($any($event.target).value)"
+      />
+      <datalist [id]="idPrefix + '-areas'">
+        @for (name of areaNames(); track name) {
+          <option [value]="name"></option>
+        }
+      </datalist>
+      <p class="ri-help" [id]="idPrefix + '-area-help'">
+        Ein vorhandener Bereich oder ein neuer Name — der Bereich entsteht mit
+        diesem Dokument.
+      </p>
+    </div>
+
+    <div class="ri-field">
+      <label class="ri-label" [for]="idPrefix + '-title'">Titel (optional)</label>
+      <input
+        type="text"
+        class="ri-title"
+        [id]="idPrefix + '-title'"
+        [value]="title()"
+        (input)="title.set($any($event.target).value)"
+      />
+    </div>
+
+    @switch (source()) {
+      @case ('file') {
+        <div class="ri-field">
+          <label class="ri-label" [for]="idPrefix + '-file'">Datei</label>
+          <input
+            #fileInput
+            type="file"
+            class="ri-file"
+            [id]="idPrefix + '-file'"
+            [attr.aria-describedby]="idPrefix + '-file-help'"
+            (change)="onFile($event)"
+          />
+          <p class="ri-help" [id]="idPrefix + '-file-help'">
+            PDF, DOCX, PPTX, XLSX, HTML, Markdown oder Text. Große Dateien lehnt
+            der Server ab, statt am Speicher zu scheitern.
+          </p>
+        </div>
+      }
+      @case ('url') {
+        <div class="ri-field">
+          <label class="ri-label" [for]="idPrefix + '-url'">Adresse der Webseite</label>
+          <input
+            type="url"
+            class="ri-url"
+            inputmode="url"
+            [id]="idPrefix + '-url'"
+            [attr.aria-describedby]="idPrefix + '-url-help'"
+            [value]="url()"
+            (input)="url.set($any($event.target).value)"
+          />
+          <p class="ri-help" [id]="idPrefix + '-url-help'">
+            Öffentlich erreichbare Adresse — interne Adressen weist der Server ab.
+          </p>
+        </div>
+      }
+      @default {
+        <div class="ri-field">
+          <label class="ri-label" [for]="idPrefix + '-text'">Text</label>
+          <textarea
+            class="ri-text"
+            rows="8"
+            [id]="idPrefix + '-text'"
+            [value]="text()"
+            (input)="text.set($any($event.target).value)"
+          ></textarea>
+        </div>
+      }
+    }
+
+    <div class="cs-actions">
+      <button
+        type="button"
+        class="cs-btn cs-btn--primary ri-go"
+        [disabled]="!ready() || sending()"
+        (click)="send()"
+      >
+        {{ sending() ? 'Wird eingelesen …' : 'Einlesen' }}
+      </button>
+      @if (missing(); as what) {
+        <!-- otherwise "Einlesen" is simply grey and nothing says what is left -->
+        <span class="ri-missing">Es fehlt noch: {{ what }}.</span>
+      }
+    </div>
+
+    @if (error()) {
+      <p class="cs-state cs-state--error" role="alert">{{ error() }}</p>
+    }
+    @if (result(); as done) {
+      <p class="cs-state ri-result" aria-live="polite">
+        „{{ done.title || 'Dokument' }}“ liegt jetzt in „{{ done.area }}“ —
+        {{ done.chunks }} {{ done.chunks === 1 ? 'Abschnitt' : 'Abschnitte' }}.
+      </p>
+      @if (done.preview) {
+        <details class="ri-preview">
+          <summary>Anfang des eingelesenen Textes</summary>
+          <p class="ri-preview-body">{{ done.preview }}</p>
+        </details>
+      }
+    }
+  </div>
+</details>

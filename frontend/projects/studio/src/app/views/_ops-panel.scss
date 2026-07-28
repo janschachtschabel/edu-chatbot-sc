@@ -1,0 +1,125 @@
+// Shared shell for the three writing panels of the Sicherung view (9-6):
+// snapshots, factory baseline, full backup. Written as a partial rather than
+// copied because all three carry the same three devices — a button row, an
+// inline confirmation and a result line — and copies drift (measured in 9-5a:
+// four hand-copies of the loading block, and they disagreed).
+//
+// Angular scopes styles per component, so each consumer `@use`s this and gets
+// its own emitted copy; the class names stay identical across the three
+// templates on purpose. Values from the studio tokens only.
+
+.op-panel {
+  display: block;
+  padding: var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.op-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--st-3);
+}
+
+.op-title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.op-lead {
+  margin: var(--st-2) 0 var(--st-4);
+  color: var(--st-text-muted);
+  font-size: 0.875rem;
+}
+
+.op-label {
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.op-input {
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-bg);
+  color: var(--st-text);
+  font: inherit;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--st-focus);
+  }
+}
+
+.op-btn {
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-4);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--st-focus);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  &--primary {
+    border-color: var(--st-accent);
+    background: var(--st-accent);
+    color: var(--st-accent-text);
+  }
+
+  // Colour is never the only signal here: the label names the action and the
+  // confirmation spells out what it destroys.
+  &--danger {
+    border-color: var(--st-danger-text);
+    color: var(--st-danger-text);
+  }
+}
+
+.op-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+}
+
+.op-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  margin: var(--st-3) 0 0;
+  padding: var(--st-3);
+  border: 1px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  font-size: 0.875rem;
+
+  > span {
+    flex: 1 1 20rem;
+  }
+}
+
+.op-msg {
+  margin: var(--st-3) 0 0;
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-ok-dot);
+  font-size: 0.875rem;
+
+  &--error {
+    border-inline-start-color: var(--st-danger-dot);
+    color: var(--st-danger-text);
+  }
+}

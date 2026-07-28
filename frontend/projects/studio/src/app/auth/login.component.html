@@ -1,0 +1,57 @@
+<main class="wrap">
+  <!-- Native submit, not ngSubmit: FormsModule would buy nothing here and the
+       Enter key must work in a one-field form. -->
+  <form class="card" (submit)="submit($event)">
+    <h1 class="title">BOERDi Studio</h1>
+
+    @if (disabled()) {
+      <!-- 503: no STUDIO_PASSWORD configured. A form would be a dead end here,
+           so it is not shown at all — ALT had no way to tell this apart from a
+           wrong password. -->
+      <p class="hint">
+        Das Studio ist nicht eingerichtet: es ist kein Passwort konfiguriert
+        (<code>STUDIO_PASSWORD</code>). Bitte in der Server-Konfiguration setzen.
+      </p>
+    } @else {
+      <p class="hint" id="pw-hint">
+        @if (expired()) {
+          Die Sitzung ist abgelaufen. Bitte erneut anmelden.
+        } @else {
+          Bitte Passwort eingeben.
+        }
+      </p>
+
+      <!--
+        ALT used the placeholder as the only accessible name (login/page.tsx:61-76).
+        No `autofocus` either (ALT had it): jumping focus past the heading and the
+        hint costs a screen-reader user the orientation those provide, and it is
+        the project's own a11y lint rule. One Tab is the better trade.
+      -->
+      <label class="label" for="studio-password">Passwort</label>
+      <input
+        class="input"
+        id="studio-password"
+        name="password"
+        type="password"
+        autocomplete="current-password"
+        required
+        [attr.aria-describedby]="error() ? 'pw-error' : 'pw-hint'"
+        [attr.aria-invalid]="error() ? 'true' : null"
+        [value]="password()"
+        (input)="onPassword($event)"
+      />
+
+      <!-- Live region so a screen reader hears the failure; ALT rendered the
+           error as a plain coloured div with no announcement. -->
+      <p class="error" id="pw-error" role="alert">
+        @if (error()) {
+          <span aria-hidden="true">⚠ </span>{{ error() }}
+        }
+      </p>
+
+      <button class="submit" type="submit" [disabled]="busy() || !password()">
+        {{ busy() ? 'Prüfe …' : 'Anmelden' }}
+      </button>
+    }
+  </form>
+</main>

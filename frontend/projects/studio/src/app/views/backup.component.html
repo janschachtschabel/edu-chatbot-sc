@@ -1,0 +1,68 @@
+<div class="bk">
+  <header class="bk-head">
+    <h1 class="bk-title">Sicherung</h1>
+    <p class="bk-intro">
+      Alle drei Wege sichern dasselbe: die <strong>Konfigurationsbereiche</strong>
+      des Chatbots. Gespräche, Auswertungen und RAG-Inhalte gehören nicht dazu —
+      ein eingespieltes Backup lässt sie unberührt.
+    </p>
+  </header>
+
+  <section class="op-panel" aria-labelledby="bk-full-title">
+    <h2 class="op-title" id="bk-full-title">Voll-Backup</h2>
+    <p class="op-lead">
+      Der aktuelle Stand als ZIP für das eigene Archiv — und der Weg zurück,
+      wenn er woanders liegt. Enthält keine Sessions, keine Logs, keine
+      RAG-Dokumente.
+    </p>
+
+    <div class="op-actions">
+      <button
+        type="button"
+        class="op-btn op-btn--primary"
+        [disabled]="action.busy()"
+        (click)="download()"
+      >
+        {{ action.isRunning('backup') ? 'Wird gepackt …' : 'Backup herunterladen' }}
+      </button>
+    </div>
+
+    <div class="bk-upload">
+      <label class="op-label" for="bk-file">Backup-ZIP einspielen</label>
+      <input type="file" class="bk-file" id="bk-file" accept=".zip" (change)="onFile($event)" />
+      <button
+        type="button"
+        class="op-btn op-btn--danger"
+        [disabled]="!file() || action.busy()"
+        (click)="arm()"
+      >
+        {{ action.isRunning('restore') ? 'Wird eingespielt …' : 'Backup einspielen' }}
+      </button>
+    </div>
+
+    @if (armed()) {
+      <p class="op-confirm" role="alert">
+        <span>
+          „{{ file()?.name }}" einspielen? Jeder Bereich aus der ZIP überschreibt
+          seinen aktuellen Stand. Bereiche, die nicht darin liegen, bleiben, wie
+          sie sind.
+        </span>
+        <button type="button" class="op-btn op-btn--danger" (click)="restore()">
+          Ja, einspielen
+        </button>
+        <button type="button" class="op-btn" (click)="disarm()">Abbrechen</button>
+      </p>
+    }
+
+    @if (action.message(); as msg) {
+      <p
+        class="op-msg"
+        [class.op-msg--error]="msg.kind === 'error'"
+        [attr.role]="msg.kind === 'error' ? 'alert' : 'status'"
+      >{{ msg.kind === 'error' ? '⚠ ' : '✓ ' }}{{ msg.text }}</p>
+    }
+  </section>
+
+  <studio-snapshots-panel />
+  <studio-factory-panel />
+</div>

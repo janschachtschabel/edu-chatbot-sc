@@ -1,0 +1,19 @@
+# Angular workspace
+/node_modules
+/dist
+/out-tsc
+/.angular
+/tmp
+
+# Vitest / coverage
+/coverage
+
+# Playwright (E2E-Artefakte: Traces, Screenshots, HTML-Report)
+/test-results
+/playwright-report
+/blob-report
+/.playwright
+
+# Editor / OS
+.DS_Store
+Thumbs.db

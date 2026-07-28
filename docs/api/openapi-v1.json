@@ -1,0 +1,6659 @@
+{
+  "components": {
+    "schemas": {
+      "AreaData": {
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AreaData",
+        "type": "object"
+      },
+      "Body_ingest_file_api_rag_ingest_file_post": {
+        "properties": {
+          "area": {
+            "default": "general",
+            "title": "Area",
+            "type": "string"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_ingest_file_api_rag_ingest_file_post",
+        "type": "object"
+      },
+      "Body_ingest_text_api_rag_ingest_text_post": {
+        "properties": {
+          "area": {
+            "default": "general",
+            "title": "Area",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "source": {
+            "default": "manual",
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "Body_ingest_text_api_rag_ingest_text_post",
+        "type": "object"
+      },
+      "Body_ingest_url_api_rag_ingest_url_post": {
+        "properties": {
+          "area": {
+            "default": "general",
+            "title": "Area",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "Body_ingest_url_api_rag_ingest_url_post",
+        "type": "object"
+      },
+      "Body_restore_backup_api_config_restore_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_restore_backup_api_config_restore_post",
+        "type": "object"
+      },
+      "Body_synthesize_api_speech_synthesize_post": {
+        "properties": {
+          "speed": {
+            "default": 1.0,
+            "title": "Speed",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "voice": {
+            "default": "nova",
+            "title": "Voice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "Body_synthesize_api_speech_synthesize_post",
+        "type": "object"
+      },
+      "Body_transcribe_api_speech_transcribe_post": {
+        "properties": {
+          "audio": {
+            "contentMediaType": "application/octet-stream",
+            "title": "Audio",
+            "type": "string"
+          },
+          "language": {
+            "default": "de",
+            "title": "Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "audio"
+        ],
+        "title": "Body_transcribe_api_speech_transcribe_post",
+        "type": "object"
+      },
+      "Body_upload_factory_api_config_factory_upload_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_factory_api_config_factory_upload_post",
+        "type": "object"
+      },
+      "CanvasMaterialType": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "emoji": {
+            "default": "",
+            "title": "Emoji",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "structure": {
+            "default": "",
+            "title": "Structure",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "category"
+        ],
+        "title": "CanvasMaterialType",
+        "type": "object"
+      },
+      "CanvasMaterialTypesPayload": {
+        "properties": {
+          "material_types": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasMaterialType"
+            },
+            "title": "Material Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "material_types"
+        ],
+        "title": "CanvasMaterialTypesPayload",
+        "type": "object"
+      },
+      "ChatRequest": {
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "action_params": {
+            "additionalProperties": true,
+            "title": "Action Params",
+            "type": "object"
+          },
+          "canvas_state": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canvas State"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/Environment"
+          },
+          "message": {
+            "maxLength": 10000,
+            "title": "Message",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "message"
+        ],
+        "title": "ChatRequest",
+        "type": "object"
+      },
+      "ChatResponse": {
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/WloCard"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "debug": {
+            "$ref": "#/components/schemas/DebugInfo"
+          },
+          "display_rules": {
+            "additionalProperties": true,
+            "title": "Display Rules",
+            "type": "object"
+          },
+          "follow_up": {
+            "default": "none",
+            "title": "Follow Up",
+            "type": "string"
+          },
+          "inline_documents": {
+            "items": {
+              "$ref": "#/components/schemas/InlineDocument"
+            },
+            "title": "Inline Documents",
+            "type": "array"
+          },
+          "page_action": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Action"
+          },
+          "pagination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaginationInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "query_metas": {
+            "items": {
+              "$ref": "#/components/schemas/QueryMetaEntry"
+            },
+            "title": "Query Metas",
+            "type": "array"
+          },
+          "quick_replies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Quick Replies",
+            "type": "array"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "topic_page": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TopicPageView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tour": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tour"
+          },
+          "web_links": {
+            "items": {
+              "$ref": "#/components/schemas/WebLink"
+            },
+            "title": "Web Links",
+            "type": "array"
+          }
+        },
+        "required": [
+          "session_id",
+          "content"
+        ],
+        "title": "ChatResponse",
+        "type": "object"
+      },
+      "ConfigFile": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "file_type": {
+            "default": "markdown",
+            "title": "File Type",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "title": "ConfigFile",
+        "type": "object"
+      },
+      "ContextActionsConfig": {
+        "properties": {
+          "curate_prompt": {
+            "title": "Curate Prompt",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "greetings": {
+            "$ref": "#/components/schemas/ContextGreetings"
+          },
+          "pills": {
+            "$ref": "#/components/schemas/ContextPills"
+          },
+          "report_url": {
+            "title": "Report Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report_url",
+          "greetings",
+          "pills",
+          "curate_prompt"
+        ],
+        "title": "ContextActionsConfig",
+        "type": "object"
+      },
+      "ContextGreetings": {
+        "properties": {
+          "collection": {
+            "title": "Collection",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "collection",
+          "content",
+          "topic"
+        ],
+        "title": "ContextGreetings",
+        "type": "object"
+      },
+      "ContextPill": {
+        "properties": {
+          "action": {
+            "default": "",
+            "title": "Action",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "kind"
+        ],
+        "title": "ContextPill",
+        "type": "object"
+      },
+      "ContextPills": {
+        "properties": {
+          "collection": {
+            "items": {
+              "$ref": "#/components/schemas/ContextPill"
+            },
+            "title": "Collection",
+            "type": "array"
+          },
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/ContextPill"
+            },
+            "title": "Content",
+            "type": "array"
+          },
+          "topic": {
+            "items": {
+              "$ref": "#/components/schemas/ContextPill"
+            },
+            "title": "Topic",
+            "type": "array"
+          }
+        },
+        "required": [
+          "collection",
+          "content",
+          "topic"
+        ],
+        "title": "ContextPills",
+        "type": "object"
+      },
+      "ContextSnapshot": {
+        "description": "Context layer snapshot (T-04/05).\n\nFormalised conversation/session context: aggregated entities, relevant\nhistory slice, environment, memory keys. Drives pattern fit + LLM prompts.",
+        "properties": {
+          "device": {
+            "default": "",
+            "title": "Device",
+            "type": "string"
+          },
+          "entities": {
+            "additionalProperties": true,
+            "title": "Entities",
+            "type": "object"
+          },
+          "last_intent": {
+            "default": "",
+            "title": "Last Intent",
+            "type": "string"
+          },
+          "last_state": {
+            "default": "",
+            "title": "Last State",
+            "type": "string"
+          },
+          "locale": {
+            "default": "",
+            "title": "Locale",
+            "type": "string"
+          },
+          "memory_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Memory Keys",
+            "type": "array"
+          },
+          "page": {
+            "default": "",
+            "title": "Page",
+            "type": "string"
+          },
+          "recent_signals": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recent Signals",
+            "type": "array"
+          },
+          "session_duration": {
+            "default": 0,
+            "title": "Session Duration",
+            "type": "integer"
+          },
+          "turn_count": {
+            "default": 0,
+            "title": "Turn Count",
+            "type": "integer"
+          }
+        },
+        "title": "ContextSnapshot",
+        "type": "object"
+      },
+      "DebugInfo": {
+        "properties": {
+          "confidence": {
+            "default": 1.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContextSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entities": {
+            "additionalProperties": true,
+            "title": "Entities",
+            "type": "object"
+          },
+          "intent": {
+            "default": "",
+            "title": "Intent",
+            "type": "string"
+          },
+          "llm_engine_match": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Engine Match"
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/ToolOutcome"
+            },
+            "title": "Outcomes",
+            "type": "array"
+          },
+          "pattern": {
+            "default": "",
+            "title": "Pattern",
+            "type": "string"
+          },
+          "pattern_id_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern Id Hint"
+          },
+          "pattern_reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern Reasoning"
+          },
+          "persona": {
+            "default": "",
+            "title": "Persona",
+            "type": "string"
+          },
+          "phase1_eliminated": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Phase1 Eliminated",
+            "type": "array"
+          },
+          "phase2_scores": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Phase2 Scores",
+            "type": "object"
+          },
+          "phase3_modulations": {
+            "additionalProperties": true,
+            "title": "Phase3 Modulations",
+            "type": "object"
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolicyDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "safety": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SafetyDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signals": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Signals",
+            "type": "array"
+          },
+          "state": {
+            "default": "",
+            "title": "State",
+            "type": "string"
+          },
+          "token_usage": {
+            "additionalProperties": true,
+            "title": "Token Usage",
+            "type": "object"
+          },
+          "tools_called": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tools Called",
+            "type": "array"
+          },
+          "trace": {
+            "items": {
+              "$ref": "#/components/schemas/TraceEntry"
+            },
+            "title": "Trace",
+            "type": "array"
+          },
+          "turn_type": {
+            "default": "",
+            "title": "Turn Type",
+            "type": "string"
+          }
+        },
+        "title": "DebugInfo",
+        "type": "object"
+      },
+      "EntitiesPayload": {
+        "properties": {
+          "entities": {
+            "items": {},
+            "title": "Entities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entities"
+        ],
+        "title": "EntitiesPayload",
+        "type": "object"
+      },
+      "Environment": {
+        "properties": {
+          "ai_content_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Content Enabled"
+          },
+          "device": {
+            "default": "desktop",
+            "title": "Device",
+            "type": "string"
+          },
+          "guide_mode": {
+            "default": true,
+            "title": "Guide Mode",
+            "type": "boolean"
+          },
+          "host": {
+            "default": "",
+            "title": "Host",
+            "type": "string"
+          },
+          "locale": {
+            "default": "de-DE",
+            "title": "Locale",
+            "type": "string"
+          },
+          "page": {
+            "default": "/",
+            "title": "Page",
+            "type": "string"
+          },
+          "page_context": {
+            "additionalProperties": true,
+            "title": "Page Context",
+            "type": "object"
+          },
+          "page_event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Event"
+          },
+          "referrer": {
+            "default": "direkt",
+            "title": "Referrer",
+            "type": "string"
+          },
+          "session_duration": {
+            "default": 0,
+            "title": "Session Duration",
+            "type": "integer"
+          },
+          "tour_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tour Action"
+          }
+        },
+        "title": "Environment",
+        "type": "object"
+      },
+      "EstimateRequest": {
+        "properties": {
+          "intent_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Intent Ids",
+            "type": "array"
+          },
+          "mode": {
+            "default": "both",
+            "pattern": "^(scenarios|conversations|both)$",
+            "title": "Mode",
+            "type": "string"
+          },
+          "persona_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Persona Ids",
+            "type": "array"
+          },
+          "scenarios_per_combo": {
+            "default": 2,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Scenarios Per Combo",
+            "type": "integer"
+          },
+          "turns_per_conv": {
+            "default": 3,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Turns Per Conv",
+            "type": "integer"
+          }
+        },
+        "title": "EstimateRequest",
+        "type": "object"
+      },
+      "GoldenRunRequest": {
+        "properties": {
+          "config_slug": {
+            "default": "",
+            "title": "Config Slug",
+            "type": "string"
+          },
+          "flow_ids": {
+            "description": "empty = all flows",
+            "items": {
+              "type": "string"
+            },
+            "title": "Flow Ids",
+            "type": "array"
+          },
+          "judge": {
+            "default": true,
+            "description": "run the LLM judge for soft quality dims",
+            "title": "Judge",
+            "type": "boolean"
+          }
+        },
+        "title": "GoldenRunRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InlineDocument": {
+        "description": "Gerahmtes Inline-Dokument im Chat-Verlauf — typischerweise\nLernpfade (M09), KI-generierte Materialien (M10) oder iterativ\nüberarbeitete Vorgänger-Versionen (M11).\n\nWelle E (2026-05-23) — ersetzt das frühere Canvas-Pane-Konzept:\nStatt ein separates Pane aufzumachen, rendert das Frontend den\nMarkdown direkt im Chat-Verlauf als optisch konsistente Box (gleicher\nRahmen wie die Webseiten-Inhalte-Box, aber kleinere Schrift —\n``display_rules.inline_documents.font_size_percent``).",
+        "properties": {
+          "content": {
+            "default": "",
+            "title": "Content",
+            "type": "string"
+          },
+          "kind": {
+            "default": "ki_material",
+            "title": "Kind",
+            "type": "string"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
+            "type": "object"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "title": "InlineDocument",
+        "type": "object"
+      },
+      "IntentsPayload": {
+        "properties": {
+          "intents": {
+            "items": {},
+            "title": "Intents",
+            "type": "array"
+          }
+        },
+        "required": [
+          "intents"
+        ],
+        "title": "IntentsPayload",
+        "type": "object"
+      },
+      "LoadTestProfile": {
+        "properties": {
+          "mix": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {
+              "orientierung": 1,
+              "suche": 1,
+              "wissen": 1
+            },
+            "description": "Gewichte je Kategorie (wissen/suche/orientierung/lernpfad)",
+            "title": "Mix",
+            "type": "object"
+          },
+          "p95_threshold_s": {
+            "default": 20.0,
+            "description": "p95-Schwelle für 'stabil' im Fazit",
+            "title": "P95 Threshold S",
+            "type": "number"
+          },
+          "requests_per_stage": {
+            "default": 6,
+            "description": "Requests pro Stufe",
+            "title": "Requests Per Stage",
+            "type": "integer"
+          },
+          "stages": {
+            "default": [
+              1,
+              2,
+              4
+            ],
+            "description": "Parallelität je Stufe",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Stages",
+            "type": "array"
+          }
+        },
+        "title": "LoadTestProfile",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "password": {
+            "default": "",
+            "maxLength": 1024,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "LoginResponse": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "open": {
+            "description": "true = no password configured, login is a no-op",
+            "title": "Open",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "open"
+        ],
+        "title": "LoginResponse",
+        "type": "object"
+      },
+      "McpServerUpdate": {
+        "properties": {
+          "servers": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Servers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "servers"
+        ],
+        "title": "McpServerUpdate",
+        "type": "object"
+      },
+      "PaginationInfo": {
+        "description": "Pagination metadata for card results.",
+        "properties": {
+          "collection_id": {
+            "default": "",
+            "title": "Collection Id",
+            "type": "string"
+          },
+          "collection_title": {
+            "default": "",
+            "title": "Collection Title",
+            "type": "string"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "page_size": {
+            "default": 5,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "skip_count": {
+            "default": 0,
+            "title": "Skip Count",
+            "type": "integer"
+          },
+          "total_count": {
+            "default": 0,
+            "title": "Total Count",
+            "type": "integer"
+          }
+        },
+        "title": "PaginationInfo",
+        "type": "object"
+      },
+      "PatternsPayload": {
+        "properties": {
+          "patterns": {
+            "items": {},
+            "title": "Patterns",
+            "type": "array"
+          }
+        },
+        "required": [
+          "patterns"
+        ],
+        "title": "PatternsPayload",
+        "type": "object"
+      },
+      "PersonasPayload": {
+        "properties": {
+          "personas": {
+            "items": {},
+            "title": "Personas",
+            "type": "array"
+          }
+        },
+        "required": [
+          "personas"
+        ],
+        "title": "PersonasPayload",
+        "type": "object"
+      },
+      "PolicyDecision": {
+        "description": "Policy layer decision (T-13/14).\n\nOrg/regulatory policy gating that runs alongside Safety. Distinguishes\nbetween hard blocks (required by policy) and soft warnings.",
+        "properties": {
+          "allowed": {
+            "default": true,
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "blocked_tools": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blocked Tools",
+            "type": "array"
+          },
+          "matched_rules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Matched Rules",
+            "type": "array"
+          },
+          "required_disclaimers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Disclaimers",
+            "type": "array"
+          }
+        },
+        "title": "PolicyDecision",
+        "type": "object"
+      },
+      "PrivacyConfig": {
+        "properties": {
+          "memory": {
+            "default": true,
+            "title": "Memory",
+            "type": "boolean"
+          },
+          "messages": {
+            "default": true,
+            "title": "Messages",
+            "type": "boolean"
+          },
+          "quality": {
+            "default": true,
+            "title": "Quality",
+            "type": "boolean"
+          },
+          "safety": {
+            "default": true,
+            "title": "Safety",
+            "type": "boolean"
+          }
+        },
+        "title": "PrivacyConfig",
+        "type": "object"
+      },
+      "QueryMetaEntry": {
+        "description": "Metadata about a single MCP search query — forwarded from MCP server\nthrough backend to the frontend so the widget can display what was queried.",
+        "properties": {
+          "criteria": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "pagination": {
+            "additionalProperties": true,
+            "title": "Pagination",
+            "type": "object"
+          },
+          "query_type": {
+            "default": "",
+            "title": "Query Type",
+            "type": "string"
+          },
+          "repository_url": {
+            "default": "",
+            "title": "Repository Url",
+            "type": "string"
+          },
+          "search_term": {
+            "default": "",
+            "title": "Search Term",
+            "type": "string"
+          },
+          "search_url": {
+            "default": "",
+            "title": "Search Url",
+            "type": "string"
+          },
+          "tool_name": {
+            "default": "",
+            "title": "Tool Name",
+            "type": "string"
+          }
+        },
+        "title": "QueryMetaEntry",
+        "type": "object"
+      },
+      "RagQuery": {
+        "properties": {
+          "area": {
+            "default": "general",
+            "title": "Area",
+            "type": "string"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "top_k": {
+            "default": 3,
+            "title": "Top K",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "RagQuery",
+        "type": "object"
+      },
+      "RagResult": {
+        "properties": {
+          "area": {
+            "title": "Area",
+            "type": "string"
+          },
+          "chunk": {
+            "title": "Chunk",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk",
+          "score",
+          "source",
+          "area"
+        ],
+        "title": "RagResult",
+        "type": "object"
+      },
+      "SafetyDecision": {
+        "description": "Safety layer decision (T-12/19).\n\nRisk-based gating that can block tools or enforce specific patterns\nindependently of pattern selection.",
+        "properties": {
+          "blocked_tools": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blocked Tools",
+            "type": "array"
+          },
+          "categories": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Categories",
+            "type": "object"
+          },
+          "enforced_pattern": {
+            "default": "",
+            "title": "Enforced Pattern",
+            "type": "string"
+          },
+          "escalated": {
+            "default": false,
+            "title": "Escalated",
+            "type": "boolean"
+          },
+          "flagged_categories": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Flagged Categories",
+            "type": "array"
+          },
+          "legal_flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Legal Flags",
+            "type": "array"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "risk_level": {
+            "default": "low",
+            "title": "Risk Level",
+            "type": "string"
+          },
+          "stages_run": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stages Run",
+            "type": "array"
+          }
+        },
+        "title": "SafetyDecision",
+        "type": "object"
+      },
+      "SessionResponse": {
+        "properties": {
+          "authenticated": {
+            "title": "Authenticated",
+            "type": "boolean"
+          },
+          "open": {
+            "title": "Open",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "authenticated",
+          "open"
+        ],
+        "title": "SessionResponse",
+        "type": "object"
+      },
+      "SnapshotCreate": {
+        "properties": {
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "title": "SnapshotCreate",
+        "type": "object"
+      },
+      "StartRequest": {
+        "properties": {
+          "config_slug": {
+            "default": "",
+            "title": "Config Slug",
+            "type": "string"
+          },
+          "intent_ids": {
+            "description": "empty = all",
+            "items": {
+              "type": "string"
+            },
+            "title": "Intent Ids",
+            "type": "array"
+          },
+          "mode": {
+            "default": "both",
+            "pattern": "^(scenarios|conversations|both)$",
+            "title": "Mode",
+            "type": "string"
+          },
+          "persona_ids": {
+            "description": "empty = all",
+            "items": {
+              "type": "string"
+            },
+            "title": "Persona Ids",
+            "type": "array"
+          },
+          "scenarios_per_combo": {
+            "default": 2,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Scenarios Per Combo",
+            "type": "integer"
+          },
+          "turns_per_conv": {
+            "default": 3,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Turns Per Conv",
+            "type": "integer"
+          }
+        },
+        "title": "StartRequest",
+        "type": "object"
+      },
+      "StatesPayload": {
+        "properties": {
+          "states": {
+            "items": {},
+            "title": "States",
+            "type": "array"
+          }
+        },
+        "required": [
+          "states"
+        ],
+        "title": "StatesPayload",
+        "type": "object"
+      },
+      "SwimlaneBox": {
+        "description": "Eine Schwimmlinie (Abschnitt) einer Themenseite als eigene Anzeige-Box.\nFrontend-Box-Titel = ``heading`` + „(Auszug)\"; max. 3 Karten je Box.",
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/WloCard"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "heading": {
+            "default": "",
+            "title": "Heading",
+            "type": "string"
+          },
+          "type": {
+            "default": "",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "SwimlaneBox",
+        "type": "object"
+      },
+      "ToneModifier": {
+        "properties": {
+          "card_text_mode": {
+            "default": "minimal",
+            "title": "Card Text Mode",
+            "type": "string"
+          },
+          "formality": {
+            "default": "wie_user",
+            "title": "Formality",
+            "type": "string"
+          },
+          "length_bias": {
+            "default": 0.0,
+            "title": "Length Bias",
+            "type": "number"
+          },
+          "override": {
+            "default": false,
+            "title": "Override",
+            "type": "boolean"
+          },
+          "tone": {
+            "default": "locker",
+            "title": "Tone",
+            "type": "string"
+          }
+        },
+        "title": "ToneModifier",
+        "type": "object"
+      },
+      "ToneModifiersPayload": {
+        "properties": {
+          "default_modifier": {
+            "$ref": "#/components/schemas/ToneModifier"
+          },
+          "modifiers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ToneModifier"
+            },
+            "title": "Modifiers",
+            "type": "object"
+          }
+        },
+        "required": [
+          "modifiers",
+          "default_modifier"
+        ],
+        "title": "ToneModifiersPayload",
+        "type": "object"
+      },
+      "ToolOutcome": {
+        "description": "Outcome of a tool call — separate from final content (T-23/24).\n\nTracks what happened with a tool call beyond the raw result text:\nsuccess/error/empty status, error messages, item counts, latency.\nUsed to feedback into Confidence (T-25) and State (T-27).",
+        "properties": {
+          "error": {
+            "default": "",
+            "title": "Error",
+            "type": "string"
+          },
+          "item_count": {
+            "default": 0,
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "default": 0,
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "status": {
+            "default": "success",
+            "title": "Status",
+            "type": "string"
+          },
+          "tool": {
+            "default": "",
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "title": "ToolOutcome",
+        "type": "object"
+      },
+      "TopicPageView": {
+        "description": "Inhalte EINER Themenseite, nach Schwimmlinien gruppiert (Pattern M16).\nWird ANSTELLE der normalen Sammlungs-/Inhalts-Boxen gerendert; mit\n``topic_page_url`` als Absprung-Button auf die vollständige Themenseite.",
+        "properties": {
+          "swimlanes": {
+            "items": {
+              "$ref": "#/components/schemas/SwimlaneBox"
+            },
+            "title": "Swimlanes",
+            "type": "array"
+          },
+          "topic_page_url": {
+            "default": "",
+            "title": "Topic Page Url",
+            "type": "string"
+          },
+          "variant_title": {
+            "default": "",
+            "title": "Variant Title",
+            "type": "string"
+          }
+        },
+        "title": "TopicPageView",
+        "type": "object"
+      },
+      "TraceEntry": {
+        "description": "Single trace step (T-29/30/31).\n\nObservability records for each layer transition: when, what, outcome.\nBuilt up over the request lifecycle and shipped in DebugInfo.",
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "duration_ms": {
+            "default": 0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "step": {
+            "default": "",
+            "title": "Step",
+            "type": "string"
+          }
+        },
+        "title": "TraceEntry",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WebLink": {
+        "description": "Strukturierter Web-Link aus dem Bot-Antwort-Text — typischerweise\nRAG-Quellen (FAQ-Artikel, WLO-Themenseiten, externe Referenzen) die\nder LLM während der Antwort zitiert hat. Vom Backend rausgezogen,\ndamit das Frontend sie in einer eigenen Box rendern kann ohne den\nBot-Text mit fragilen Regex zu parsen. Die zugehörigen Markdown-\nLinks werden aus ``ChatResponse.content`` entfernt — Bullet-Zeilen\nkomplett, Inline-Links nur die ``(url)``-Klammer (Label bleibt\nPlain-Text).",
+        "properties": {
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "url"
+        ],
+        "title": "WebLink",
+        "type": "object"
+      },
+      "WelcomeConfig": {
+        "properties": {
+          "greeting": {
+            "title": "Greeting",
+            "type": "string"
+          },
+          "quick_replies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Quick Replies",
+            "type": "array"
+          },
+          "tour_reply": {
+            "default": "",
+            "title": "Tour Reply",
+            "type": "string"
+          }
+        },
+        "required": [
+          "greeting",
+          "quick_replies"
+        ],
+        "title": "WelcomeConfig",
+        "type": "object"
+      },
+      "WloCard": {
+        "properties": {
+          "content_url": {
+            "default": "",
+            "title": "Content Url",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "disciplines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Disciplines",
+            "type": "array"
+          },
+          "download_url": {
+            "default": "",
+            "title": "Download Url",
+            "type": "string"
+          },
+          "educational_contexts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Educational Contexts",
+            "type": "array"
+          },
+          "file_size": {
+            "default": 0,
+            "title": "File Size",
+            "type": "integer"
+          },
+          "guide_url": {
+            "default": "",
+            "title": "Guide Url",
+            "type": "string"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "learning_resource_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Learning Resource Types",
+            "type": "array"
+          },
+          "license": {
+            "default": "",
+            "title": "License",
+            "type": "string"
+          },
+          "link": {
+            "default": "",
+            "title": "Link",
+            "type": "string"
+          },
+          "mime_type": {
+            "default": "",
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "node_id": {
+            "default": "",
+            "title": "Node Id",
+            "type": "string"
+          },
+          "node_type": {
+            "default": "content",
+            "title": "Node Type",
+            "type": "string"
+          },
+          "preview_is_icon": {
+            "default": false,
+            "title": "Preview Is Icon",
+            "type": "boolean"
+          },
+          "preview_url": {
+            "default": "",
+            "title": "Preview Url",
+            "type": "string"
+          },
+          "publisher": {
+            "default": "",
+            "title": "Publisher",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          },
+          "topic_pages": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Topic Pages",
+            "type": "array"
+          },
+          "url": {
+            "default": "",
+            "title": "Url",
+            "type": "string"
+          },
+          "user_roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "User Roles",
+            "type": "array"
+          },
+          "wlo_url": {
+            "default": "",
+            "title": "Wlo Url",
+            "type": "string"
+          }
+        },
+        "title": "WloCard",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "StudioCookie": {
+        "in": "cookie",
+        "name": "boerdi_studio_auth",
+        "type": "apiKey"
+      },
+      "StudioKey": {
+        "in": "header",
+        "name": "X-Studio-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "title": "boerdi-chat backend",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Root",
+        "tags": [
+          "health"
+        ]
+      },
+      "head": {
+        "operationId": "root_head__head",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Root Head",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/chat": {
+      "post": {
+        "description": "Run one chat turn through the LangGraph pipeline.\n\nSerialised per ``session_id`` via an ``asyncio.Lock`` so two concurrent\nrequests from the same session never read/write ``session_state`` in parallel;\ndifferent sessions still run fully in parallel. The compiled graph yields a\nstate dict — ``early_response`` (tour/preflight/fast-path early exit) wins over\n``response`` (normal path). Any unhandled error becomes a graceful bubble\ninstead of an HTTP 500 so the widget shows something actionable.",
+        "operationId": "chat_api_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/chat/stream": {
+      "post": {
+        "description": "Stream one chat turn as Server-Sent-Events (connected → result | error).\n\nSame turn pipeline as POST /api/chat, wrapped so the frontend gets an\nimmediate ``connected`` handshake and keepalives through proxies during the\n2–5 s classification + tool-loop, instead of a static spinner. See\n``_stream_turn`` for the frame contract (no ``phase`` frames in NEU).",
+        "operationId": "chat_stream_api_chat_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat Stream",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/config/backup": {
+      "get": {
+        "operationId": "download_backup_api_config_backup_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Download Backup",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/canvas/material-types": {
+      "get": {
+        "operationId": "get_canvas_material_types_api_config_canvas_material_types_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasMaterialTypesPayload"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Canvas Material Types",
+        "tags": [
+          "config"
+        ]
+      },
+      "put": {
+        "operationId": "update_canvas_material_types_api_config_canvas_material_types_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanvasMaterialTypesPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasMaterialTypesPayload"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Update Canvas Material Types",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/context-actions": {
+      "get": {
+        "operationId": "get_context_actions_config_api_config_context_actions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextActionsConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Context Actions Config",
+        "tags": [
+          "config"
+        ]
+      },
+      "put": {
+        "operationId": "update_context_actions_config_api_config_context_actions_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContextActionsConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextActionsConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Update Context Actions Config",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/data/{area}": {
+      "get": {
+        "description": "The area's stored document as JSON — the counterpart /schema needs.\n\n``/config/file`` returns YAML *text*, which a form cannot bind to. An area\nthat has a model but no row yields ``{}`` rather than 404: the schema is\nthere, so the form renders defaults and the first save creates it.\n\n``type`` says which file the raw editor must ask for, served from the same\n``seed_io.is_md_area`` predicate ``read_config_file`` uses to decide how to\nserialize. The studio therefore never guesses it from the document shape,\nand the two sides cannot disagree about a document.",
+        "operationId": "get_area_data_api_config_data__area__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "area",
+            "required": true,
+            "schema": {
+              "title": "Area",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Area Data Api Config Data  Area  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Area Data",
+        "tags": [
+          "config"
+        ]
+      },
+      "put": {
+        "description": "Replace the area's document (9-3a). ``data`` is the WHOLE document.\n\nGET/PUT are a read-modify-write pair, and that is deliberate. The area\nmodels pin only part of the tree — measured against the ALT config, 357\ndata paths sit below or beside a pinned key without being pinned\nthemselves (``01-base/policy`` -> ``rules[*].effect.disclaimer``,\n``01-base/classify-overrides`` -> ``pattern_disambiguators_legacy[*]``).\nA schema-driven form therefore edits a *copy of the whole document* and\nsubmits it whole; the unpinned parts ride along untouched.\n\nMerging server-side was the other candidate and is worse: a deep merge\ncannot express deletion (dropping a list entry or a whole section would be\nimpossible), and a shallow one would only have protected the top level —\nwhich is not where the unpinned keys are. Replace also matches every typed\narea endpoint, so the store has one write semantic, not two.\n\nValidation is a gate, not a transform: the submitted *raw* dict is\npersisted, never the model dump — dumping would inject defaults for every\nabsent optional field and rewrite the document the editor saw.",
+        "operationId": "update_area_data_api_config_data__area__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "area",
+            "required": true,
+            "schema": {
+              "title": "Area",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AreaData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Area Data Api Config Data  Area  Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Update Area Data",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/elements": {
+      "get": {
+        "description": "All editable elements + their source paths for the Studio browser.",
+        "operationId": "get_elements_api_config_elements_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Elements Api Config Elements Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Elements",
+        "tags": [
+          "config-elements"
+        ]
+      }
+    },
+    "/api/config/entities": {
+      "get": {
+        "operationId": "get_entities_route_api_config_entities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Entities Route Api Config Entities Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Entities Route",
+        "tags": [
+          "config-elements"
+        ]
+      },
+      "put": {
+        "operationId": "put_entities_route_api_config_entities_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntitiesPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Entities Route Api Config Entities Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Put Entities Route",
+        "tags": [
+          "config-elements"
+        ]
+      }
+    },
+    "/api/config/factory": {
+      "get": {
+        "operationId": "factory_status_api_config_factory_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Factory Status Api Config Factory Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Factory Status",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/factory/download": {
+      "get": {
+        "operationId": "download_factory_api_config_factory_download_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Download Factory",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/factory/restore": {
+      "post": {
+        "operationId": "restore_factory_api_config_factory_restore_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Restore Factory Api Config Factory Restore Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Restore Factory",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/factory/save": {
+      "post": {
+        "operationId": "save_factory_api_config_factory_save_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Factory Api Config Factory Save Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Save Factory",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/factory/upload": {
+      "post": {
+        "operationId": "upload_factory_api_config_factory_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_factory_api_config_factory_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Upload Factory Api Config Factory Upload Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Upload Factory",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/file": {
+      "delete": {
+        "operationId": "delete_config_file_api_config_file_delete",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Config File Api Config File Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Delete Config File",
+        "tags": [
+          "config"
+        ]
+      },
+      "get": {
+        "operationId": "get_config_file_api_config_file_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Config File Api Config File Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Config File",
+        "tags": [
+          "config"
+        ]
+      },
+      "put": {
+        "description": "Persist raw file text.\n\nMalformed YAML is the caller's mistake, not a server fault: ``safe_load``\nraises ``yaml.YAMLError`` (a subclass of neither ``ValueError`` nor\nanything else caught here), so before 9-3 a typo in the studio's raw editor\nproduced a 500 with a stack trace instead of a message the editor could\nact on. The parser's own message names the line and column.",
+        "operationId": "update_config_file_api_config_file_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigFile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Config File Api Config File Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Update Config File",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/files": {
+      "get": {
+        "operationId": "list_config_files_api_config_files_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Config Files Api Config Files Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "List Config Files",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/guide-mode": {
+      "get": {
+        "description": "Widget boot request (P2-8) — shape identical to ALT config_areas.py:\nguide-mode config + header_nav buttons + welcome, one round-trip.",
+        "operationId": "get_guide_mode_api_config_guide_mode_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Guide Mode Api Config Guide Mode Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Guide Mode",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/intents": {
+      "get": {
+        "operationId": "get_intents_route_api_config_intents_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Intents Route Api Config Intents Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Intents Route",
+        "tags": [
+          "config-elements"
+        ]
+      },
+      "put": {
+        "operationId": "put_intents_route_api_config_intents_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntentsPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Intents Route Api Config Intents Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Put Intents Route",
+        "tags": [
+          "config-elements"
+        ]
+      }
+    },
+    "/api/config/mcp-servers": {
+      "get": {
+        "operationId": "get_mcp_servers_api_config_mcp_servers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Mcp Servers Api Config Mcp Servers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Mcp Servers",
+        "tags": [
+          "config"
+        ]
+      },
+      "put": {
+        "description": "Replace the MCP server registry.\n\nEvery non-primary URL is SSRF-checked before anything is persisted (ALT audit\nT8, stored SSRF): the backend POSTs to each enabled server on every chat turn,\nso an internal URL accepted here would fire once per conversation.\n\nThe primary (``wlo-mcp``) is exempt: its URL comes from ``MCP_SERVER_URL`` and\nmay deliberately point inside the network, and ``save_mcp_servers`` strips it\nbefore writing regardless.",
+        "operationId": "update_mcp_servers_api_config_mcp_servers_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpServerUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Mcp Servers Api Config Mcp Servers Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Update Mcp Servers",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/mcp-servers/discover": {
+      "post": {
+        "description": "Handshake an MCP server once and list its tools, without registering it.\n\nThe SSRF guard sits in *front* of the egress, not behind a stored value like\nthe PUT above: this endpoint dials whatever URL it is handed, so an internal\nURL must be rejected before the handshake fires rather than before a later\nwrite (ALT audit T8/T9). A transport failure is a 502 — the server is\nreachable-or-not from here, it is not the caller's bad request.",
+        "operationId": "discover_mcp_tools_api_config_mcp_servers_discover_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "url",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Url",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Discover Mcp Tools Api Config Mcp Servers Discover Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Discover Mcp Tools",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/patterns": {
+      "get": {
+        "operationId": "get_patterns_route_api_config_patterns_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Patterns Route Api Config Patterns Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Patterns Route",
+        "tags": [
+          "config-elements"
+        ]
+      },
+      "put": {
+        "operationId": "put_patterns_route_api_config_patterns_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatternsPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Patterns Route Api Config Patterns Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Put Patterns Route",
+        "tags": [
+          "config-elements"
+        ]
+      }
+    },
+    "/api/config/personas": {
+      "get": {
+        "operationId": "get_personas_route_api_config_personas_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Personas Route Api Config Personas Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Personas Route",
+        "tags": [
+          "config-elements"
+        ]
+      },
+      "put": {
+        "operationId": "put_personas_route_api_config_personas_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonasPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Personas Route Api Config Personas Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Put Personas Route",
+        "tags": [
+          "config-elements"
+        ]
+      }
+    },
+    "/api/config/privacy": {
+      "get": {
+        "operationId": "get_privacy_config_api_config_privacy_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Privacy Config",
+        "tags": [
+          "config"
+        ]
+      },
+      "put": {
+        "operationId": "update_privacy_config_api_config_privacy_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivacyConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Update Privacy Config",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/restore": {
+      "post": {
+        "operationId": "restore_backup_api_config_restore_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_restore_backup_api_config_restore_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Restore Backup Api Config Restore Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Restore Backup",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/schema/{area}": {
+      "get": {
+        "description": "JSON schema of the area's pydantic model (P2-6) — grouped file keys\n(03-patterns/*, 04-personas/*) resolve to their group model.",
+        "operationId": "get_area_schema_api_config_schema__area__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "area",
+            "required": true,
+            "schema": {
+              "title": "Area",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Area Schema Api Config Schema  Area  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Area Schema",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/snapshots": {
+      "get": {
+        "operationId": "list_snapshots_api_config_snapshots_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Snapshots Api Config Snapshots Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "List Snapshots",
+        "tags": [
+          "config-snapshots"
+        ]
+      },
+      "post": {
+        "operationId": "create_snapshot_api_config_snapshots_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Snapshot Api Config Snapshots Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Create Snapshot",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/snapshots/{snap_id}": {
+      "delete": {
+        "operationId": "delete_snapshot_api_config_snapshots__snap_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snap_id",
+            "required": true,
+            "schema": {
+              "title": "Snap Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Snapshot Api Config Snapshots  Snap Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Delete Snapshot",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/snapshots/{snap_id}/download": {
+      "get": {
+        "operationId": "download_snapshot_api_config_snapshots__snap_id__download_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snap_id",
+            "required": true,
+            "schema": {
+              "title": "Snap Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Download Snapshot",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/snapshots/{snap_id}/restore": {
+      "post": {
+        "operationId": "restore_snapshot_api_config_snapshots__snap_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snap_id",
+            "required": true,
+            "schema": {
+              "title": "Snap Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Restore Snapshot Api Config Snapshots  Snap Id  Restore Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Restore Snapshot",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/states": {
+      "get": {
+        "operationId": "get_states_route_api_config_states_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get States Route Api Config States Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get States Route",
+        "tags": [
+          "config-elements"
+        ]
+      },
+      "put": {
+        "operationId": "put_states_route_api_config_states_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatesPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put States Route Api Config States Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Put States Route",
+        "tags": [
+          "config-elements"
+        ]
+      }
+    },
+    "/api/config/tone-modifiers": {
+      "get": {
+        "operationId": "get_tone_modifiers_api_config_tone_modifiers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToneModifiersPayload"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Tone Modifiers",
+        "tags": [
+          "config"
+        ]
+      },
+      "put": {
+        "description": "Persona modifiers go into each persona area's frontmatter; the\ndefault stays in 01-base/tone-modifiers (fallback for unknown personas).",
+        "operationId": "update_tone_modifiers_api_config_tone_modifiers_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToneModifiersPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToneModifiersPayload"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Update Tone Modifiers",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/config/welcome": {
+      "get": {
+        "operationId": "get_welcome_config_api_config_welcome_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WelcomeConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Welcome Config",
+        "tags": [
+          "config"
+        ]
+      },
+      "put": {
+        "operationId": "update_welcome_config_api_config_welcome_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WelcomeConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WelcomeConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Update Welcome Config",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/debug/mcp-test": {
+      "get": {
+        "operationId": "debug_mcp_test_api_debug_mcp_test_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Debug Mcp Test Api Debug Mcp Test Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Debug Mcp Test",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/eval/analytics/pattern-usage": {
+      "get": {
+        "description": "Pattern × intent × persona counts from quality_logs, scoped.",
+        "operationId": "pattern_usage_api_eval_analytics_pattern_usage_get",
+        "parameters": [
+          {
+            "description": "ISO timestamp floor",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO timestamp floor",
+              "title": "Since"
+            }
+          },
+          {
+            "description": "'all' | 'eval' (session_id LIKE eval-%) | 'production' (not eval-)",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "'all' | 'eval' (session_id LIKE eval-%) | 'production' (not eval-)",
+              "title": "Scope",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Pattern Usage Api Eval Analytics Pattern Usage Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Pattern Usage",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/eval/config": {
+      "get": {
+        "description": "Current personas + intents from the active chatbot config.",
+        "operationId": "eval_config_api_eval_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Eval Config Api Eval Config Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Eval Config",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/eval/estimate": {
+      "post": {
+        "operationId": "eval_estimate_api_eval_estimate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EstimateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Eval Estimate Api Eval Estimate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Eval Estimate",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/eval/gold-flows": {
+      "get": {
+        "description": "Parsed Gold-Standard flow specs (eval/gold-flows.yaml).",
+        "operationId": "get_gold_flows_api_eval_gold_flows_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Gold Flows Api Eval Gold Flows Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Gold Flows",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/eval/quality-logs": {
+      "delete": {
+        "description": "Delete quality_logs rows written by eval runs (session_id LIKE 'eval-%').",
+        "operationId": "delete_eval_quality_logs_api_eval_quality_logs_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Eval Quality Logs Api Eval Quality Logs Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Delete Eval Quality Logs",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/eval/runs": {
+      "delete": {
+        "operationId": "delete_eval_runs_api_eval_runs_delete",
+        "parameters": [
+          {
+            "description": "Optional: 'done', 'failed', or 'running' to restrict deletion",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional: 'done', 'failed', or 'running' to restrict deletion",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Optional: 'golden' | 'generative' (= mode != golden) | exact mode value",
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional: 'golden' | 'generative' (= mode != golden) | exact mode value",
+              "title": "Mode"
+            }
+          },
+          {
+            "description": "Must be true for unrestricted bulk delete",
+            "in": "query",
+            "name": "confirm",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Must be true for unrestricted bulk delete",
+              "title": "Confirm",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Eval Runs Api Eval Runs Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Delete Eval Runs",
+        "tags": [
+          "eval"
+        ]
+      },
+      "get": {
+        "operationId": "list_eval_runs_api_eval_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Eval Runs Api Eval Runs Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "List Eval Runs",
+        "tags": [
+          "eval"
+        ]
+      },
+      "post": {
+        "operationId": "start_eval_run_api_eval_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Start Eval Run Api Eval Runs Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Start Eval Run",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/eval/runs/golden": {
+      "post": {
+        "description": "Start a deterministic Gold-Flow run in the background (reproducible).",
+        "operationId": "start_golden_run_api_eval_runs_golden_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoldenRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Start Golden Run Api Eval Runs Golden Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Start Golden Run",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/eval/runs/{run_id}": {
+      "delete": {
+        "operationId": "delete_eval_run_api_eval_runs__run_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Eval Run Api Eval Runs  Run Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Delete Eval Run",
+        "tags": [
+          "eval"
+        ]
+      },
+      "get": {
+        "operationId": "get_eval_run_api_eval_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Eval Run Api Eval Runs  Run Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Eval Run",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/eval/trends": {
+      "get": {
+        "operationId": "eval_trends_api_eval_trends_get",
+        "parameters": [
+          {
+            "description": "Number of most-recent completed runs to compare",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Number of most-recent completed runs to compare",
+              "maximum": 100,
+              "minimum": 2,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Eval Trends Api Eval Trends Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Eval Trends",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "api_health_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Health Api Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Health",
+        "tags": [
+          "health"
+        ]
+      },
+      "head": {
+        "operationId": "api_health_head_api_health_head",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Api Health Head Api Health Head",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Health Head",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/loadtest/mix-options": {
+      "get": {
+        "description": "Available mix categories with description (for the Studio form).",
+        "operationId": "mix_options_api_loadtest_mix_options_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Mix Options Api Loadtest Mix Options Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Mix Options",
+        "tags": [
+          "loadtest"
+        ]
+      }
+    },
+    "/api/loadtest/runs": {
+      "get": {
+        "operationId": "list_loadtest_runs_api_loadtest_runs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Loadtest Runs Api Loadtest Runs Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "List Loadtest Runs",
+        "tags": [
+          "loadtest"
+        ]
+      },
+      "post": {
+        "operationId": "start_loadtest_run_api_loadtest_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadTestProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Start Loadtest Run Api Loadtest Runs Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Start Loadtest Run",
+        "tags": [
+          "loadtest"
+        ]
+      }
+    },
+    "/api/loadtest/runs/{run_id}": {
+      "delete": {
+        "operationId": "delete_loadtest_run_api_loadtest_runs__run_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Loadtest Run Api Loadtest Runs  Run Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Delete Loadtest Run",
+        "tags": [
+          "loadtest"
+        ]
+      },
+      "get": {
+        "operationId": "get_loadtest_run_api_loadtest_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Loadtest Run Api Loadtest Runs  Run Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Loadtest Run",
+        "tags": [
+          "loadtest"
+        ]
+      }
+    },
+    "/api/quality/degradations": {
+      "get": {
+        "description": "Which (pattern × missing-slot) combos most often trigger a fallback.",
+        "operationId": "degradations_api_quality_degradations_get",
+        "parameters": [
+          {
+            "description": "'all' | 'production' | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "'all' | 'production' | 'eval'",
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Degradations Api Quality Degradations Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Degradations",
+        "tags": [
+          "quality"
+        ]
+      }
+    },
+    "/api/quality/empty-entities": {
+      "get": {
+        "description": "Intents where entity extraction consistently yields nothing.",
+        "operationId": "empty_entities_api_quality_empty_entities_get",
+        "parameters": [
+          {
+            "description": "'all' | 'production' | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "'all' | 'production' | 'eval'",
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Empty Entities Api Quality Empty Entities Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Empty Entities",
+        "tags": [
+          "quality"
+        ]
+      }
+    },
+    "/api/quality/logs": {
+      "get": {
+        "description": "Recent quality-log entries. ``pattern_id``/``intent_id`` are prefix\nmatches (e.g. \"M04\", \"I02\"); ``scope`` splits production vs eval sessions.",
+        "operationId": "list_quality_logs_api_quality_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pattern_id",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Pattern Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "intent_id",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Intent Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "'all' | 'production' | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "'all' | 'production' | 'eval'",
+              "title": "Scope",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Quality Logs Api Quality Logs Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "List Quality Logs",
+        "tags": [
+          "quality"
+        ]
+      }
+    },
+    "/api/quality/logs/clear": {
+      "post": {
+        "description": "Bulk-delete quality logs by filter. Deleting everything (no filter AND\nscope='all') demands ``confirm=true`` to avoid accidental nukes.",
+        "operationId": "clear_quality_logs_api_quality_logs_clear_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pattern_id",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Pattern Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "intent_id",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Intent Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "'all' | 'production' | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "'all' | 'production' | 'eval'",
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "confirm",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Confirm",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Clear Quality Logs Api Quality Logs Clear Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Clear Quality Logs",
+        "tags": [
+          "quality"
+        ]
+      }
+    },
+    "/api/quality/logs/{log_id}": {
+      "delete": {
+        "description": "Delete a single quality-log entry by id (404 if it does not exist).",
+        "operationId": "delete_quality_log_api_quality_logs__log_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "log_id",
+            "required": true,
+            "schema": {
+              "title": "Log Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Quality Log Api Quality Logs  Log Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Delete Quality Log",
+        "tags": [
+          "quality"
+        ]
+      }
+    },
+    "/api/quality/low-confidence": {
+      "get": {
+        "description": "Turns below a confidence threshold, worst-first, with the raw message.",
+        "operationId": "low_confidence_api_quality_low_confidence_get",
+        "parameters": [
+          {
+            "description": "'all' | 'production' | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "'all' | 'production' | 'eval'",
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_confidence",
+            "required": false,
+            "schema": {
+              "default": 0.6,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Max Confidence",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Low Confidence Api Quality Low Confidence Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Low Confidence",
+        "tags": [
+          "quality"
+        ]
+      }
+    },
+    "/api/quality/matrix": {
+      "get": {
+        "description": "Persona × Intent → Pattern matrix; empty combinations are omitted.",
+        "operationId": "quality_matrix_api_quality_matrix_get",
+        "parameters": [
+          {
+            "description": "'all' | 'production' | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "'all' | 'production' | 'eval'",
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Min samples per cell",
+            "in": "query",
+            "name": "min_count",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "Min samples per cell",
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Min Count",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Quality Matrix Api Quality Matrix Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Quality Matrix",
+        "tags": [
+          "quality"
+        ]
+      }
+    },
+    "/api/quality/state-transitions": {
+      "get": {
+        "description": "Conversation State transitions (prev → next) for the Studio Flow view.",
+        "operationId": "state_transitions_api_quality_state_transitions_get",
+        "parameters": [
+          {
+            "description": "'all' | 'production' | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "'all' | 'production' | 'eval'",
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Time window in days",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Time window in days",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Min count per transition",
+            "in": "query",
+            "name": "min_count",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "Min count per transition",
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Min Count",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response State Transitions Api Quality State Transitions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "State Transitions",
+        "tags": [
+          "quality"
+        ]
+      }
+    },
+    "/api/quality/stats": {
+      "get": {
+        "description": "Aggregate quality metrics (distributions, confidence, degradation …).",
+        "operationId": "quality_stats_api_quality_stats_get",
+        "parameters": [
+          {
+            "description": "'all' | 'production' | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "'all' | 'production' | 'eval'",
+              "title": "Scope",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Quality Stats Api Quality Stats Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Quality Stats",
+        "tags": [
+          "quality"
+        ]
+      }
+    },
+    "/api/quality/tight-races": {
+      "get": {
+        "description": "Which (winner, runner_up) pattern pairs keep colliding, with examples.",
+        "operationId": "tight_races_api_quality_tight_races_get",
+        "parameters": [
+          {
+            "description": "'all' | 'production' | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "'all' | 'production' | 'eval'",
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "threshold",
+            "required": false,
+            "schema": {
+              "default": 0.02,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Threshold",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Tight Races Api Quality Tight Races Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Tight Races",
+        "tags": [
+          "quality"
+        ]
+      }
+    },
+    "/api/rag/area/{area}": {
+      "delete": {
+        "description": "Delete all chunks in a knowledge area, and its document rows.\n\nALT swept the sqlite-vec index here too, because embeddings lived in a\nseparate table whose rows could outlive their chunk. pgvector keeps the\nembedding as a column on ``rag_chunks``, so the vector dies with the chunk\nand there is nothing left to sweep (see services/rag/admin.py).",
+        "operationId": "delete_rag_area_api_rag_area__area__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "area",
+            "required": true,
+            "schema": {
+              "title": "Area",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Delete Rag Area",
+        "tags": [
+          "rag"
+        ]
+      },
+      "get": {
+        "description": "List documents in a knowledge area.\n\nDocuments are grouped by the compound key ``(title, source)`` so that\ne.g. two uploads with the same filename from different folders, or two\nmanual entries with the same title, remain distinguishable.",
+        "operationId": "get_rag_area_api_rag_area__area__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "area",
+            "required": true,
+            "schema": {
+              "title": "Area",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Rag Area",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/rag/area/{area}/doc": {
+      "delete": {
+        "description": "Delete a single document (all its chunks) from a knowledge area.\n\nQuery params ``title`` and ``source`` together identify the document\n— they must match the values returned by ``GET /area/{area}``. Empty\nstrings are valid (the match is exact).",
+        "operationId": "delete_rag_doc_api_rag_area__area__doc_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "area",
+            "required": true,
+            "schema": {
+              "title": "Area",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "title",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Delete Rag Doc",
+        "tags": [
+          "rag"
+        ]
+      },
+      "get": {
+        "description": "Return all chunks of a single document, ordered by chunk_index.\n\nIdentified by ``(area, title, source)`` exactly like the delete\nendpoint. Use when the Studio wants to preview the full content\nof a RAG document instead of just the 200-char preview.\n\nReturns ``{title, source, area, chunks: [{index, content, created_at}]}``.",
+        "operationId": "get_rag_doc_api_rag_area__area__doc_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "area",
+            "required": true,
+            "schema": {
+              "title": "Area",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "title",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Rag Doc",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/rag/areas": {
+      "get": {
+        "description": "List all knowledge areas with chunk counts.",
+        "operationId": "list_rag_areas_api_rag_areas_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "List Rag Areas",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/rag/embed": {
+      "post": {
+        "description": "Generate embeddings for all chunks that don't have one yet.\n\nA backfill for chunks that reached the DB without a vector (restored dump,\nmanual insert) — the ingest endpoints always embed inline. ALT additionally\nran this at startup after its seed import; NEU has no RAG seed importer, so\nthere is no such caller.\n\nReturns the number of chunks that were embedded.",
+        "operationId": "rag_embed_api_rag_embed_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rag Embed Api Rag Embed Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Rag Embed",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/rag/ingest/file": {
+      "post": {
+        "description": "Upload and ingest a document (PDF, DOCX, PPTX, etc.) via markitdown.",
+        "operationId": "ingest_file_api_rag_ingest_file_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_ingest_file_api_rag_ingest_file_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Ingest File",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/rag/ingest/text": {
+      "post": {
+        "description": "Ingest raw markdown/text into a knowledge area.",
+        "operationId": "ingest_text_api_rag_ingest_text_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_ingest_text_api_rag_ingest_text_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Ingest Text",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/rag/ingest/url": {
+      "post": {
+        "description": "Ingest a web page into a knowledge area via markitdown.",
+        "operationId": "ingest_url_api_rag_ingest_url_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_ingest_url_api_rag_ingest_url_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Ingest Url",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/rag/query": {
+      "post": {
+        "description": "Query the RAG knowledge base.",
+        "operationId": "rag_query_api_rag_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RagQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RagResult"
+                  },
+                  "title": "Response Rag Query Api Rag Query Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Rag Query",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/api/safety/logs": {
+      "get": {
+        "description": "Return recent safety-log entries.\n\nQuery params:\n  limit: max rows (default 100)\n  risk_min: '' | 'medium' | 'high' — filter by minimum risk level\n  session_id: filter to a single session",
+        "operationId": "list_safety_logs_api_safety_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "risk_min",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Risk Min",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Safety Logs Api Safety Logs Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "List Safety Logs",
+        "tags": [
+          "safety"
+        ]
+      }
+    },
+    "/api/safety/stats": {
+      "get": {
+        "description": "Aggregate counts for the dashboard.",
+        "operationId": "safety_stats_api_safety_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Safety Stats Api Safety Stats Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Safety Stats",
+        "tags": [
+          "safety"
+        ]
+      }
+    },
+    "/api/sessions/": {
+      "get": {
+        "description": "List the most recently active sessions (newest first, capped at 100).",
+        "operationId": "list_sessions_api_sessions__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Sessions Api Sessions  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "List Sessions",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/db-stats": {
+      "get": {
+        "description": "DB size + reclaimable-space estimate (read-only): when is a VACUUM due?",
+        "operationId": "db_stats_api_sessions_db_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Db Stats Api Sessions Db Stats Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Db Stats",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/optimize": {
+      "post": {
+        "description": "Compact/maintain the DB (VACUUM). Under load the lock may fail → 503.\n\nNOTE (deviation, flagged): ALT additionally refused with 409 while an\neval/loadtest run was active (``_ensure_db_idle_for_vacuum``). Those services\ndo not exist in NEU yet, so that idle guard is intentionally omitted here.",
+        "operationId": "optimize_db_api_sessions_optimize_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Optimize Db Api Sessions Optimize Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Optimize Db",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/purge": {
+      "post": {
+        "description": "Bulk-delete chat rows across ALL sessions. Per-table counts returned.\n\nDefaults to a sensible subset (messages+memory+quality_logs); ``safety_logs``\nis kept for audit and ``sessions`` is kept so active users aren't disconnected\nunless explicitly requested. ``confirm=true`` is REQUIRED (ALT safety floor)\nto guard against accidental calls from dev tooling.",
+        "operationId": "purge_sessions_api_sessions_purge_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "messages",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Messages",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "memory",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Memory",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "quality_logs",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Quality Logs",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "safety_logs",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Safety Logs",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sessions",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Sessions",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "confirm",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Confirm",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Purge Sessions Api Sessions Purge Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Purge Sessions",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/{session_id}": {
+      "delete": {
+        "description": "Fully delete a session: messages, memory, quality + safety logs, and the\nsession row. Per-table row counts returned.",
+        "operationId": "delete_session_api_sessions__session_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Session Api Sessions  Session Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Delete Session",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "get": {
+        "description": "Get session state. ``entities``/``signal_history`` come back already parsed\nfrom db_sessions (dict/list) — NOT re-``json.loads``ed as ALT did over sqlite\nTEXT.",
+        "operationId": "get_session_api_sessions__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Session Api Sessions  Session Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Session",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/{session_id}/memory": {
+      "get": {
+        "description": "Get memory entries for a session, optionally filtered by ``memory_type``.",
+        "operationId": "get_session_memory_api_sessions__session_id__memory_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "memory_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Memory Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Session Memory Api Sessions  Session Id  Memory Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Session Memory",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "post": {
+        "description": "Save a memory entry.\n\nHonors 01-base/privacy-config.yaml: when ``logging.memory`` is false the write\nis silently dropped (HTTP 200, ``persisted=false``). The session is created\nfirst (N-1 ALT audit): ``memory.session_id`` has an FK to ``sessions``, so a\nwrite for a never-created session would otherwise raise an uncaught 500.",
+        "operationId": "set_session_memory_api_sessions__session_id__memory_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "value",
+            "required": true,
+            "schema": {
+              "title": "Value",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "memory_type",
+            "required": false,
+            "schema": {
+              "default": "short",
+              "title": "Memory Type",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Session Memory Api Sessions  Session Id  Memory Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Set Session Memory",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/{session_id}/messages": {
+      "delete": {
+        "description": "Delete only the chat messages (keep session + memory + logs). Useful to\nreset a conversation while preserving analytics.",
+        "operationId": "delete_session_messages_api_sessions__session_id__messages_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Session Messages Api Sessions  Session Id  Messages Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Delete Session Messages",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "get": {
+        "description": "Public: widget history restore — rate-limited (spec §5.1 / V7).\n\nUnauthenticated by design (the widget restores history on every page load).\n``session_id`` is a client-held high-entropy bearer secret; its shape is\nvalidated and ``limit`` is bounded to 1..200 (trust-boundary hygiene + DoS\ncap, ALT Audit T2). ``request``/``response`` are required by the rate-limit\ndecorator: the peer-IP key and the ``X-RateLimit-*`` header injection.",
+        "operationId": "get_session_messages_api_sessions__session_id__messages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Session Messages Api Sessions  Session Id  Messages Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Session Messages",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/speech/status": {
+      "get": {
+        "description": "Public capability probe — tells the widget whether STT/TTS is available\nso it can show/hide the mic + speaker buttons instead of firing into the\nvoid (ALT speech.py::speech_status).\n\n``response`` is the FastAPI-injected response: ``@public_rate_limit`` runs\nwith ``headers_enabled`` and, for a dict-returning endpoint, injects the\n``X-RateLimit-*`` headers into it — slowapi raises without a real Response to\nwrite to (extension.py::_inject_headers), so the parameter is required even\nthough the body never touches it.",
+        "operationId": "speech_status_api_speech_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Speech Status Api Speech Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Speech Status",
+        "tags": [
+          "speech"
+        ]
+      }
+    },
+    "/api/speech/synthesize": {
+      "post": {
+        "description": "Synthesize text to speech (TTS).\n\nCaps the input at ``MAX_TTS_CHARS`` (413) before the enablement gate (503)\nand the upstream call, mirroring ALT's order. On success returns raw\n``audio/mpeg`` bytes — NOT JSON; the ``-> dict`` stub annotation is kept for\nthe P7 contract, and FastAPI returns the ``Response`` as-is. An upstream\nfailure becomes a generic 502.",
+        "operationId": "synthesize_api_speech_synthesize_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_synthesize_api_speech_synthesize_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Synthesize Api Speech Synthesize Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Synthesize",
+        "tags": [
+          "speech"
+        ]
+      }
+    },
+    "/api/speech/transcribe": {
+      "post": {
+        "description": "Transcribe uploaded audio to text (STT).\n\nReads at most ``MAX_AUDIO_BYTES + 1`` and rejects an oversized upload with\n413 BEFORE any enablement/upstream work — the cost + memory DoS floor (ALT\nAudit T3). Then gates on enablement (503) and proxies to the STT service;\nall-models-failed becomes a generic 502.\n\n``response`` is the FastAPI-injected response the rate-limit decorator writes\nits ``X-RateLimit-*`` headers into on the (dict-returning) success path —\nrequired, see ``speech_status``. The 413/503/502 paths raise before it is used.",
+        "operationId": "transcribe_api_speech_transcribe_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_transcribe_api_speech_transcribe_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Transcribe Api Speech Transcribe Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transcribe",
+        "tags": [
+          "speech"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "health"
+        ]
+      },
+      "head": {
+        "operationId": "health_head_health_head",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Head Health Head",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Head",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/studio/api/auth/login": {
+      "post": {
+        "description": "Set the auth cookie on a correct password (ALT login/route.ts).\n\n``request``/``response`` are required by the limiter decorator and to set the\ncookie. Both the provided and the expected password are hashed first, so the\ncomparison runs over equal-length digests (ALT login/route.ts:34-39).",
+        "operationId": "login_studio_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "studio-bff"
+        ]
+      }
+    },
+    "/studio/api/auth/logout": {
+      "post": {
+        "description": "Clear the cookie. Server-side revocation is impossible by construction\n(see studio_auth.py) — this only asks the browser to forget it.\n\nUnlike ALT (logout/route.ts:8) the clearing cookie keeps httponly/samesite/\nsecure: a Set-Cookie that drops them is a second, script-readable cookie in\nevery browser that stores it before expiry.",
+        "operationId": "logout_studio_api_auth_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Logout Studio Api Auth Logout Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "studio-bff"
+        ]
+      }
+    },
+    "/studio/api/auth/session": {
+      "get": {
+        "description": "The SPA's auth guard. 401 = show /login, 503 = studio not configured.",
+        "operationId": "session_studio_api_auth_session_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioCookie": []
+          }
+        ],
+        "summary": "Session",
+        "tags": [
+          "studio-bff"
+        ]
+      }
+    },
+    "/widget/": {
+      "get": {
+        "description": "Try the widget with the default attributes.",
+        "operationId": "widget_demo_widget__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Widget Demo",
+        "tags": [
+          "widget"
+        ]
+      }
+    },
+    "/widget/boerdi-widget.js": {
+      "get": {
+        "description": "The stable entry point every host page embeds — redirects to the hash.",
+        "operationId": "widget_bundle_widget_boerdi_widget_js_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Widget Bundle",
+        "tags": [
+          "widget"
+        ]
+      }
+    },
+    "/widget/classic": {
+      "get": {
+        "description": "The same embed with ``inline-result-grouping=\"false\"`` — an A/B.",
+        "operationId": "widget_demo_classic_widget_classic_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Widget Demo Classic",
+        "tags": [
+          "widget"
+        ]
+      }
+    },
+    "/widget/inline": {
+      "get": {
+        "description": "The embedded look — without the language and debug buttons.",
+        "operationId": "widget_demo_inline_widget_inline_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Widget Demo Inline",
+        "tags": [
+          "widget"
+        ]
+      }
+    },
+    "/widget/{asset_name}": {
+      "get": {
+        "description": "Any other file the build emits — plus the hashed bundle alias.\n\nThe concrete routes above win over this one; FastAPI matches in declaration\norder, so moving them below would make ``/widget/inline`` look for a file\ncalled ``inline``.",
+        "operationId": "widget_asset_widget__asset_name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_name",
+            "required": true,
+            "schema": {
+              "title": "Asset Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Widget Asset",
+        "tags": [
+          "widget"
+        ]
+      }
+    }
+  }
+}

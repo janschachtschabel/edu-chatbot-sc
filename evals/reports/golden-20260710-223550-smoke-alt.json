@@ -1,0 +1,350 @@
+{
+  "chat_url": "http://localhost:8000/api/chat",
+  "started_utc": "20260710-223550",
+  "duration_s": 50.5,
+  "golden_metrics": {
+    "categories": [
+      "persona",
+      "intent",
+      "register",
+      "structure",
+      "qr",
+      "host"
+    ],
+    "totals": {
+      "persona": 4,
+      "intent": 4,
+      "register": 4,
+      "structure": 3,
+      "qr": 4,
+      "host": 2
+    },
+    "passed": {
+      "persona": 4,
+      "intent": 4,
+      "register": 3,
+      "structure": 3,
+      "qr": 4,
+      "host": 0
+    },
+    "rates": {
+      "persona": 1.0,
+      "intent": 1.0,
+      "register": 0.75,
+      "structure": 1.0,
+      "qr": 1.0,
+      "host": 0.0
+    },
+    "overall_pass_rate": 0.947,
+    "hard_passed": 18,
+    "hard_total": 19,
+    "flows": 1,
+    "turns": 4,
+    "per_turn": [
+      {
+        "flow": "GS-1",
+        "title": "Lehrkraft: Material → Lernpfad → Arbeitsblatt → Lösungen ergänzen",
+        "turn": 1,
+        "message": "Ich bereite eine Mathestunde für meine 3. Klasse zum Thema Brüche vor und suche passendes Material.",
+        "expected": {
+          "persona": "P-LEH",
+          "intent": "I03",
+          "register": "sie",
+          "structure": null,
+          "must_offer": "Konkrete Material-/Sammlungstreffer zu Brüchen Primarstufe, mit Anschlussangebot."
+        },
+        "observed": {
+          "persona": "P-LEH",
+          "intent": "I03",
+          "pattern": "M06",
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 6,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 156
+        },
+        "checks": {
+          "persona": true,
+          "intent": true,
+          "register": true,
+          "structure": null,
+          "qr": true,
+          "host": false
+        }
+      },
+      {
+        "flow": "GS-1",
+        "title": "Lehrkraft: Material → Lernpfad → Arbeitsblatt → Lösungen ergänzen",
+        "turn": 2,
+        "message": "Gibt es dazu auch einen fertigen Lernpfad, den ich direkt einsetzen kann?",
+        "expected": {
+          "persona": "P-LEH",
+          "intent": "I04",
+          "register": "sie",
+          "structure": "idoc",
+          "must_offer": "Lernpfad-Vorschlag als strukturiertes Inline-Dokument."
+        },
+        "observed": {
+          "persona": "P-LEH",
+          "intent": "I04",
+          "pattern": "M09",
+          "register": "du",
+          "sie": 0,
+          "du": 2,
+          "cards": 4,
+          "idocs": 1,
+          "qr": 2,
+          "content_len": 268
+        },
+        "checks": {
+          "persona": true,
+          "intent": true,
+          "register": false,
+          "structure": true,
+          "qr": true,
+          "host": false
+        }
+      },
+      {
+        "flow": "GS-1",
+        "title": "Lehrkraft: Material → Lernpfad → Arbeitsblatt → Lösungen ergänzen",
+        "turn": 3,
+        "message": "Können Sie mir daraus ein kurzes Arbeitsblatt für die Stunde erstellen?",
+        "expected": {
+          "persona": "P-LEH",
+          "intent": "I05",
+          "register": "sie",
+          "structure": "idoc",
+          "must_offer": "Generiertes Arbeitsblatt als Inline-Dokument, mit Bearbeiten-Quick-Replies."
+        },
+        "observed": {
+          "persona": "P-LEH",
+          "intent": "I05",
+          "pattern": "M10",
+          "register": "sie",
+          "sie": 6,
+          "du": 0,
+          "cards": 0,
+          "idocs": 1,
+          "qr": 2,
+          "content_len": 368
+        },
+        "checks": {
+          "persona": true,
+          "intent": true,
+          "register": true,
+          "structure": true,
+          "qr": true,
+          "host": null
+        }
+      },
+      {
+        "flow": "GS-1",
+        "title": "Lehrkraft: Material → Lernpfad → Arbeitsblatt → Lösungen ergänzen",
+        "turn": 4,
+        "message": "Super — ergänzen Sie bitte noch einen Lösungsteil für mich als Lehrkraft.",
+        "expected": {
+          "persona": "P-LEH",
+          "intent": "I06",
+          "register": "sie",
+          "structure": "idoc",
+          "must_offer": "Re-Render des Arbeitsblatts mit ergänztem Lösungsteil."
+        },
+        "observed": {
+          "persona": "P-LEH",
+          "intent": "I06",
+          "pattern": "M11",
+          "register": "sie",
+          "sie": 1,
+          "du": 0,
+          "cards": 0,
+          "idocs": 1,
+          "qr": 2,
+          "content_len": 114
+        },
+        "checks": {
+          "persona": true,
+          "intent": true,
+          "register": true,
+          "structure": true,
+          "qr": true,
+          "host": null
+        }
+      }
+    ],
+    "per_flow": {
+      "GS-1": {
+        "title": "Lehrkraft: Material → Lernpfad → Arbeitsblatt → Lösungen ergänzen",
+        "persona": {
+          "ok": 4,
+          "total": 4
+        },
+        "intent": {
+          "ok": 4,
+          "total": 4
+        },
+        "register": {
+          "ok": 3,
+          "total": 4
+        },
+        "structure": {
+          "ok": 3,
+          "total": 3
+        },
+        "qr": {
+          "ok": 4,
+          "total": 4
+        },
+        "host": {
+          "ok": 0,
+          "total": 2
+        }
+      }
+    }
+  },
+  "conversations": [
+    {
+      "kind": "golden",
+      "flow_id": "GS-1",
+      "title": "Lehrkraft: Material → Lernpfad → Arbeitsblatt → Lösungen ergänzen",
+      "persona_id": "P-LEH",
+      "session_id": "eval-01b2918406c1",
+      "turns": [
+        {
+          "user": "Ich bereite eine Mathestunde für meine 3. Klasse zum Thema Brüche vor und suche passendes Material.",
+          "bot": "Ich habe Materialien zu **Brüchen** gefunden, passend für den Einstieg (u. a. Arbeitsblätter zur Umwandlung und Schreibweise). Hier sind 3 Optionen aus WLO:\n\n---\n[Material-Cards — vom Nutzer sichtbar, 6 Treffer]\n  - **Besondere Brüche** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=1d926161-36be-491c-96f4-cead912881a1&q=Br%C3%BCche\n    In diesem Lehrplanthema geht es um die faszinierende Welt der Bruchrechnung und besondere Brüche. Hier lernst du, wie du Brüche addieren, subtrahieren, multiplizieren und dividieren kannst. Außerdem e\n  - **Addition & Subtraktion von Brüchen** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=9e1b142f-3c9b-4c0a-8a67-d801bb2f863b&q=Br%C3%BCche\n    In diesem Lehrplanthema geht es um die faszinierende Welt der Bruchrechnung! Wir werden lernen, wie man Brüche addiert und subtrahiert, um komplexe mathematische Probleme zu lösen. Mit Algebra53 werde\n  - **Dezimalzahlen & Brüche** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=f119782e-7a6d-4f3a-9088-494a6fe757dd&q=Br%C3%BCche\n    In diesem Lehrplanthema geht es um die faszinierende Welt der Dezimalzahlen und Brüche. Du wirst lernen, wie man sie addiert, subtrahiert, multipliziert und dividiert und wie man sie in verschiedene F\n  - **Brüche** — https://repository.staging.openeduhub.net/edu-sharing/components/render/d8124917-3ab1-41b8-ba63-d8a975883d2d\n    - Brüche\n- koray79\n- 02.05.2023\n- Mathematik\n- 2\nUm die Lizenzinformationen zu sehen, klicken Sie bitte den gewünschten Inhalt an.\nName:\nBrüche\n02.05.2023\nLernzielkontrolle Brüche\n1\nWandle die Dezimal\n  - **Brüche** — https://repository.staging.openeduhub.net/edu-sharing/components/render/78b2c707-e6ad-4e29-a58c-ec3786abf5bd\n    - Brüche\n- koray79\n- 02.05.2023\n- Mathematik\n- 2\nUm die Lizenzinformationen zu sehen, klicken Sie bitte den gewünschten Inhalt an.\nName:\nBrüche\n02.05.2023\nLernzielkontrolle Brüche\n1\nWandle die Dezimal\n  - **Brüche** — https://repository.staging.openeduhub.net/edu-sharing/components/render/85a4bf51-1d13-498b-ae80-867bd4f3d203\n    Beim Bruchrechen geht man davon aus, dass sich das Ganze nochmals unterteilen lässt. Z. B. kann man eine Pizza halbieren, vierteln oder auch achteln. Geschrieben wird ein Bruch immer gleich. Oben steh",
+          "golden": {
+            "expected": {
+              "persona": "P-LEH",
+              "intent": "I03",
+              "register": "sie",
+              "structure": null,
+              "must_offer": "Konkrete Material-/Sammlungstreffer zu Brüchen Primarstufe, mit Anschlussangebot."
+            },
+            "observed": {
+              "persona": "P-LEH",
+              "intent": "I03",
+              "pattern": "M06",
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 6,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 156
+            },
+            "checks": {
+              "persona": true,
+              "intent": true,
+              "register": true,
+              "structure": null,
+              "qr": true,
+              "host": false
+            }
+          }
+        },
+        {
+          "user": "Gibt es dazu auch einen fertigen Lernpfad, den ich direkt einsetzen kann?",
+          "bot": "> **Lernpfad: Brüche**  \n> Du lernst, besondere Darstellungen von Brüchen zu erkennen und umzuformen (gemischte Zahl ↔ unechter Bruch). Außerdem übst du Rechnen mit Brüchen sowie das Umwandeln von Brüchen in Dezimalzahlen.  \n> **Geschätzte Gesamtdauer:** 40–50 Minuten\n\n---\n[Inline-Document — vom Nutzer sichtbar: Lernpfad: Brüche]\n\n### Schritt 1: Einstieg (ca. 10 Min.)\n- *Lernziel: Ich kann eine gemischte Zahl als unechten Bruch darstellen (und umgekehrt als Idee verstehen).*\n- Material: Gemischte Zahl - unechter Bruch (Video)\n- Aktivitaet:  \n  1) Schau das Video an.  \n  2) Notiere zu 2 Beispielen: Welche gemischte Zahl wird gezeigt? Welcher unechte Bruch gehört dazu?  \n  3) Markiere im Ergebnis den Zähler und den Nenner farbig.\n- Begruendung warum dieser Inhalt hier passt:  \n  Ein Wechsel der Darstellungsform hilft, Brüche “flexibel” zu sehen. Das ist eine wichtige Grundlage, bevor man Brüche weiterrechnet oder in andere Darstellungen (z.B. Dezimalzahlen) überführt.  \n  *(Hinweis: Die verfügbaren Materialien sind eher für „besondere Brüche“/fortgeschrittenere Bruchdarstellungen ausgerichtet, weniger für die allererste Einführung der Bruchidee in der Grundschule.)*\n\n### Schritt 2: Erarbeitung (ca. 15 Min.)\n- *Lernziel: Ich kann gemischte Brüche subtrahieren.*\n- Material: GEMISCHTE BRÜCHE subtrahieren – gemischte Zahlen Minus rechnen, einfach erklärt - YouTube\n- Aktivitaet:  \n  1) Schau ein Beispiel durch.  \n  2) Rechne ein zweites Beispiel selbst nach (am besten erst als Zwischenschritte, dann mit dem Endergebnis).  \n  3) Kontrolliere: Stimmen Zähler/Nenner und das Endergebnis?\n- Begruendung warum dieser Inhalt hier passt:  \n  Nachdem du in Schritt 1 Umformungen verstanden hast, setzt Schritt 2 direkt beim Rechnen an. Gemischte Brüche subtrahieren ist eine typische Anwendung dieser Darstellungslogik.\n\n### Schritt 3: Erarbeitung (ca. 10 Min.)\n- *Lernziel: Ich kann Brüche addieren, auch wenn die Nenner ungleich sind.*\n- Material: BRÜCHE addieren ungleicher Nenner – Bruchrechnung einfach erklärt, Beispiele - YouTube\n- Aktivitaet:  \n  1) Schau, wie mit unterschiedlichen Nennern vorgegangen wird.  \n  2) Bearbeite anschließend 1–2 Aufgaben aus dem Video (oder pausiere und rechne die gezeigten Schritte selbst mit).  \n  3) Prüfe mit einer groben Plausibilitätskontrolle: Wird das Ergebnis größer als der Ausgangsbruch?\n- Begruendung warum dieser Inhalt hier passt:  \n  Rechnen mit Brüchen verlangt sichere Schritte—besonders bei ungleichen Nennern. Das festigt die Regelhaftigkeit der Bruchrechnung.\n\n### Schritt 4: Sicherung / Vertiefung (ca. 5–15 Min.)\n- *Lernziel: Ich kann einen Bruch in eine Dezimalzahl umwandeln (und das Ergebnis prüfen).*\n- Material: Bruch- in Dezimalzahlen Übung (Tool)\n- Aktivitaet:  \n  1) Wähle mehrere Brüche im Tool.  \n  2) Wandeln lassen und das Ergebnis notieren.  \n  3) Wenn möglich: Versuche einmal kurz ohne Tool (Ergebnis grob abschätzen), dann vergleichen.\n- Begruendung warum dieser Inhalt hier passt:  \n  Dezimalzahlen sind eine anschauliche Zusatzdarstellung. Die Umwandlung hilft, Brüche besser zu „verorten“ (z.B. wie groß ein Anteil ungefähr ist) und sich Ergebnisse zu verifizieren.\n\n---\n\n- **Differenzierung:**  \n  - Für langsamere Lernende: In Schritt 2/3 erst jeweils nur **ein** Beispiel vollständig nachrechnen und besonders die Zwischenschritte/Begründungen (warum man etwas umwandelt) markieren.  \n  - Für schnellere Lernende: Mehrere Beispiele im Tool bearbeiten (Schritt 4) und jeweils eine kurze Plausibilitätsaussage formulieren („Der Bruch liegt zwischen … und …“).\n- **Tipp fuer Lehrende:**  \n  Nutze eine gemeinsame Ergebnis-Tabelle an der Tafel/auf Arbeitsblatt-Notiz:  \n  „gemischte Zahl → unechter Bruch → Rechnung → Ergebnis prüfen (z.B. Dezimalzahl/Größenvergleich)“. So werden Darstellungen und Rechenweg sichtbar verbunden.  \n\nWenn du möchtest, sag mir kurz, für welche Jahrgangsstufe (z.B. Klasse 4 oder 5/6) und welches Vorwissen zu Brüchen vorhanden ist—dann kann ich den Lernpfad passender in Schwierigkeitsgrad und Beispieltyp zuschneiden.\n\n---\n[Material-Cards — vom Nutzer sichtbar, 4 Treffer]\n  - **Gemischte Zahl - unechter Bruch** — https://repository.staging.openeduhub.net/edu-sharing/components/render/47fbdb4f-1e3b-4472-bb11-3772649037d3\n    In diesem Video zeige ich Euch, was eine Gemischte Zahl ist und wie man diese in einen unechten Bruch umwandelt. Mit einem kleinen Trick geht das ganz schnell.\n  - **GEMISCHTE BRÜCHE subtrahieren – gemischte Zahlen Minus rechnen, einfach erklärt - YouTube** — https://repository.staging.openeduhub.net/edu-sharing/components/render/1a0028d1-bc81-4bff-a52e-746e21f28328\n    Gemischte Brüche subtrahierenIn diesem Mathe Lernvideo erkläre ich euch an Beispielen wie man gemischte Brüche subtrahieren bzw. gemischte Zahlen Minus rechn...\n  - **BRÜCHE addieren ungleicher Nenner – Bruchrechnung einfach erklärt, Beispiele - YouTube** — https://repository.staging.openeduhub.net/edu-sharing/components/render/2813a612-5fb2-4e8c-a8df-ddc61f47a39b\n    In diesem Mathe Lernvideo erkläre ich (Susanne) wie man Brüche mit unterschiedlichen Nennern addieren kann. Wir rechnen Beis...\n  - **Bruch- in Dezimalzahlen Übung** — https://repository.staging.openeduhub.net/edu-sharing/components/render/d4fa47ba-3917-482d-9169-6b866730455f\n    Übungen zum Umwandeln von Brüchen in Dezimalzahlen",
+          "golden": {
+            "expected": {
+              "persona": "P-LEH",
+              "intent": "I04",
+              "register": "sie",
+              "structure": "idoc",
+              "must_offer": "Lernpfad-Vorschlag als strukturiertes Inline-Dokument."
+            },
+            "observed": {
+              "persona": "P-LEH",
+              "intent": "I04",
+              "pattern": "M09",
+              "register": "du",
+              "sie": 0,
+              "du": 2,
+              "cards": 4,
+              "idocs": 1,
+              "qr": 2,
+              "content_len": 268
+            },
+            "checks": {
+              "persona": true,
+              "intent": true,
+              "register": false,
+              "structure": true,
+              "qr": true,
+              "host": false
+            }
+          }
+        },
+        {
+          "user": "Können Sie mir daraus ein kurzes Arbeitsblatt für die Stunde erstellen?",
+          "bot": "Ich habe Ihnen ein **Arbeitsblatt** zum Thema *Brüche* erstellt.\n\nAbschnitte:\n1. **Hinweis für Lehrkräfte (Differenzierung)**\n\nDas Material steht direkt unter dieser Nachricht — Sie können es mit dem Druck-Button als PDF speichern. Geben Sie bitte Bescheid, falls Sie Anpassungen wünschen (z.B. *\"machen Sie die Aufgaben einfacher\"* oder *\"fügen Sie Lösungen hinzu\"*).\n\n---\n[Inline-Document — vom Nutzer sichtbar: Arbeitsblatt: Brüche]\n\n# Arbeitsblatt: Brüche\n\nLernende üben, was Brüche bedeuten und wie man sie darstellt, vergleicht und einfache Teile davon bestimmt. Außerdem wenden sie ihr Wissen auf anschauliche Situationen (z.B. Kuchenstücke) an. Dabei werden Zähler und Nenner sicher genutzt.\n\n1. Ordne die Brüche den Bruchteilen zu. Schreibe jeweils den passenden Bruch dahinter.\n   - a) 1 von 2 gleichen Teilen: ___\n   - b) 3 von 4 gleichen Teilen: ___\n   - c) 2 von 5 gleichen Teilen: ___\n   - d) 5 von 8 gleichen Teilen: ___\n\n2. Ergänze Zähler oder Nenner.\n   - a) 4/___ = vier von ____ gleichen Teilen\n   - b) ___/6 = fünf von 6 gleichen Teilen\n   - c) 7/10 = sieben von 10 gleichen Teilen (Zähler und Nenner eintragen): Zähler: ___, Nenner: ___\n\n3. Vergleiche die Brüche. Setze ein Zeichen ein: <, > oder =.\n   - a) 3/4 __ 5/8\n   - b) 2/3 __ 4/6\n   - c) 1/2 __ 3/6\n\n4. Brüche kürzen (wenn möglich) und als gleichwertigen Bruch angeben.\n   - a) 6/8 = ___/___\n   - b) 9/12 = ___/___\n\n5. Bestimme die fehlende Zahl. Nutze dazu den Bruch als „von“.\n   - a) 3/5 von __ = 12\n   - b) 2/7 von __ = 10\n\n6. Sachaufgabe (Brüche im Alltag)\n   Eine Pizza wird in 8 gleich große Stücke geschnitten. Anna isst 3 Stücke.\n   - a) Welcher Bruchteil der Pizza ist das? (als Bruch angeben)\n   - b) Wie viele Stücke bleiben übrig? (als Anzahl)\n\n## Lösungen\n\n1. \n   - a) 1 von 2 gleichen Teilen: 1/2  \n   - b) 3 von 4 gleichen Teilen: 3/4  \n   - c) 2 von 5 gleichen Teilen: 2/5  \n   - d) 5 von 8 gleichen Teilen: 5/8  \n\n2.\n   - a) 4/___ = vier von ____ gleichen Teilen: 4/5 = vier von 5 gleichen Teilen  \n     (Passend ist hier: Nenner = 5, Zähler = 4)\n   - b) ___/6 = fünf von 6 gleichen Teilen: 5/6  \n   - c) 7/10: Zähler: 7, Nenner: 10  \n\n3.\n   - a) 3/4 > 5/8  \n   - b) 2/3 = 4/6  \n   - c) 1/2 = 3/6  \n\n4.\n   - a) 6/8 = 3/4  \n   - b) 9/12 = 3/4  \n\n5.\n   - a) 3/5 von __ = 12  \n     3/5 von 20 = 12 ⇒ fehlende Zahl: 20  \n   - b) 2/7 von __ = 10  \n     2/7 von 35 = 10 ⇒ fehlende Zahl: 35  \n\n6.\n   - a) 3 von 8 Stücke: 3/8  \n   - b) Übrig bleiben: 8 - 3 = 5 Stücke  \n\n## Hinweis für Lehrkräfte (Differenzierung)\n\n- Für schnellere Lernende: Zusatzaufgabe „Welche Brüche liegen zwischen 1/2 und 3/4? Nenne zwei Beispiele.“  \n- Für unterstützungsbedürftige Lernende: Rechenwege stark an einem Bild (Kuchen/Pizza in gleich große Teile) anbahnen, Zähler = „genommene Teile“, Nenner = „Anzahl aller Teile“.  \n- Vor dem Vergleichen: Zuerst Nenner angleichen (z.B. auf 24), dann vergleichen, erst danach mit Kurzbegriffen arbeiten.  \n\n*Quelle: Wikipedia-Artikel „Brüchermühle\" (https://de.wikipedia.org/wiki/Br%C3%BCcherm%C3%BChle). Inhalte unter CC BY-SA 4.0 verarbeitet.*",
+          "golden": {
+            "expected": {
+              "persona": "P-LEH",
+              "intent": "I05",
+              "register": "sie",
+              "structure": "idoc",
+              "must_offer": "Generiertes Arbeitsblatt als Inline-Dokument, mit Bearbeiten-Quick-Replies."
+            },
+            "observed": {
+              "persona": "P-LEH",
+              "intent": "I05",
+              "pattern": "M10",
+              "register": "sie",
+              "sie": 6,
+              "du": 0,
+              "cards": 0,
+              "idocs": 1,
+              "qr": 2,
+              "content_len": 368
+            },
+            "checks": {
+              "persona": true,
+              "intent": true,
+              "register": true,
+              "structure": true,
+              "qr": true,
+              "host": null
+            }
+          }
+        },
+        {
+          "user": "Super — ergänzen Sie bitte noch einen Lösungsteil für mich als Lehrkraft.",
+          "bot": "Ich habe Ihnen einen zusätzlichen, lehrkrafttauglichen **Lösungsteil mit kurzen Rechenwegen/Erklärungen** ergänzt.\n\n---\n[Inline-Document — vom Nutzer sichtbar: Arbeitsblatt: Brüche]\n\n# Arbeitsblatt: Brüche\n\n## Lösungen für Lehrkräfte (mit kurzen Begründungen)\n\n### 1. Bruchteile zuordnen\n**Leitidee:** Zähler = Anzahl der genommenen Teile, Nenner = Anzahl der gleich großen Teile insgesamt.  \n- a) 1 von 2 gleichen Teilen → **1/2**  \n- b) 3 von 4 gleichen Teilen → **3/4**  \n- c) 2 von 5 gleichen Teilen → **2/5**  \n- d) 5 von 8 gleichen Teilen → **5/8**\n\n---\n\n### 2. Zähler oder Nenner ergänzen\n**Leitidee:** „___/6“ bedeutet: Nenner = 6 (insgesamt 6 Teile), Zähler = wie viele davon gemeint sind.  \n- a) **4/5** = vier von fünf gleichen Teilen  \n- b) **5/6** = fünf von 6 gleichen Teilen  \n- c) **Zähler = 7, Nenner = 10** (gegeben: 7/10)\n\n---\n\n### 3. Brüche vergleichen (<, >, =)\n**Leitidee (für Grundschule gut nutzbar):** Wenn möglich auf **einen Nenner** bringen oder über gleiche Teilgröße vergleichen.  \n- a) **3/4 > 5/8**  \n  - Vergleich über Nenner 8: 3/4 = 6/8, also 6/8 > 5/8  \n- b) **2/3 = 4/6**  \n  - 2/3 = 4/6 (beide gleichwertig, weil 2·2=4 und 3·2=6)  \n- c) **1/2 = 3/6**  \n  - 1/2 = 3/6 (beide halb bzw. 3 von 6)\n\n---\n\n### 4. Brüche kürzen (gleichwertiger Bruch)\n**Leitidee:** Zähler und Nenner durch die gleiche Zahl teilen.  \n- a) **6/8 = 3/4** (durch 2 kürzen)  \n- b) **9/12 = 3/4** (durch 3 kürzen)\n\n---\n\n### 5. Fehlende Zahl bestimmen („von“)\n**Leitidee:** „a/b von X = Ergebnis“ heißt: Ergebnis = (a/b)·X.  \n- a) **3/5 von __ = 12**  \n  - 12 = (3/5)·X ⇒ X = 12·(5/3) = 20  \n- b) **2/7 von __ = 10**  \n  - 10 = (2/7)·X ⇒ X = 10·(7/2) = 35\n\n---\n\n### 6. Sachaufgabe (Pizza)\n**Leitidee:** Pizza in 8 gleich große Stücke → Nenner 8. Anna isst 3 Stücke → Zähler 3.  \n- a) Bruchteil: **3/8**  \n- b) Übrig: **5 Stücke** (8 − 3 = 5)\n\n---\n\n## Hinweis zur Durchführung (kurz für Sie)\nWenn Lernende beim Vergleichen unsicher sind, lassen Sie sie zuerst **auf einen Nenner umformen** (z.B. 3/4 → 6/8), erst danach das Zeichen setzen. Das reduziert Rechenfehler.\n\nNoch anpassen: Soll ich das Arbeitsblatt eher **für 45 Minuten** straffen oder **mit einer Zusatzaufgabe** für schnelle Lernende ergänzen?",
+          "golden": {
+            "expected": {
+              "persona": "P-LEH",
+              "intent": "I06",
+              "register": "sie",
+              "structure": "idoc",
+              "must_offer": "Re-Render des Arbeitsblatts mit ergänztem Lösungsteil."
+            },
+            "observed": {
+              "persona": "P-LEH",
+              "intent": "I06",
+              "pattern": "M11",
+              "register": "sie",
+              "sie": 1,
+              "du": 0,
+              "cards": 0,
+              "idocs": 1,
+              "qr": 2,
+              "content_len": 114
+            },
+            "checks": {
+              "persona": true,
+              "intent": true,
+              "register": true,
+              "structure": true,
+              "qr": true,
+              "host": null
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

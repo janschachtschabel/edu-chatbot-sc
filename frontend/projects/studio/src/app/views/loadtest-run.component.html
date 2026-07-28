@@ -1,0 +1,134 @@
+<studio-async-state
+  class="lr-state"
+  label="Der Lauf"
+  [loading]="run.loading() && value() === null"
+  [error]="run.error()"
+  (retry)="load()"
+/>
+
+@if (value(); as r) {
+  <article class="lr-card">
+    <header class="lr-head">
+      <h3 class="lr-title">Auswertung {{ r.id }}</h3>
+      <p class="lr-status" [class]="'lr-status--' + r.status">
+        {{ statusLabel(r.status) }}
+        @if (isRunning()) {
+          <span class="lr-progress" aria-live="polite">
+            — Stufe {{ r.stages.length }} von {{ r.profile.stages.length }} fertig
+          </span>
+        }
+      </p>
+    </header>
+
+    <p class="lr-profile">
+      Stufen {{ r.profile.stages.join(' → ') }} · {{ r.profile.requests_per_stage }} Requests je
+      Stufe · Mix {{ mixLine(r.profile.mix) }} · p95-Schwelle {{ r.profile.p95_threshold_s }} s
+    </p>
+
+    @if (r.error) {
+      <p class="lr-failed" role="alert">{{ r.error }}</p>
+    }
+
+    @if (r.summary; as s) {
+      <p class="lr-verdict" [class.lr-verdict--none]="s.stable_concurrency === null">
+        @if (s.stable_concurrency !== null) {
+          <strong>Stabil bis {{ s.stable_concurrency }} gleichzeitige Nutzer</strong>
+          (keine Fehler, p95 ≤ {{ s.p95_threshold_s }} s).
+        } @else {
+          <strong>Schon die erste Stufe verfehlte die Schwelle</strong> — Profil oder Schwelle prüfen.
+        }
+        {{ s.total_requests }} Requests, {{ s.total_errors }} Fehler.
+        <span class="lr-note">
+          Keine Ressourcen-Messung: dieser Lauf misst Latenz und Fehler, nicht CPU und Speicher
+          des Backend-Prozesses. Steigt p95 mit der Parallelität, sagt das noch nicht, ob die
+          eigene Maschine oder der Upstream (LLM, MCP) die Grenze ist.
+        </span>
+      </p>
+    }
+
+    @if (chart(); as c) {
+      <figure class="lr-figure">
+        <figcaption>Antwortlatenz gegen Parallelität</figcaption>
+        <svg
+          class="lr-chart"
+          [attr.viewBox]="'0 0 ' + c.width + ' ' + c.height"
+          role="img"
+          [attr.aria-label]="'Latenzverlauf über ' + c.points.length + ' Stufen; die Werte stehen in der Tabelle darunter.'"
+        >
+          <line
+            [attr.x1]="c.pad" [attr.y1]="c.height - c.pad"
+            [attr.x2]="c.width - c.pad / 2" [attr.y2]="c.height - c.pad" class="lr-axis"
+          />
+          <line
+            [attr.x1]="c.pad" [attr.y1]="c.pad / 2"
+            [attr.x2]="c.pad" [attr.y2]="c.height - c.pad" class="lr-axis"
+          />
+          <line
+            [attr.x1]="c.pad" [attr.y1]="c.thresholdY"
+            [attr.x2]="c.width - c.pad / 2" [attr.y2]="c.thresholdY" class="lr-threshold"
+          />
+          <text
+            [attr.x]="c.width - c.pad / 2" [attr.y]="c.thresholdY - 4"
+            class="lr-threshold-label" text-anchor="end"
+          >p95-Schwelle {{ c.thresholdS }} s</text>
+
+          <polyline [attr.points]="c.p95Line" class="lr-line lr-line--p95" />
+          <polyline [attr.points]="c.p50Line" class="lr-line lr-line--p50" />
+
+          @for (p of c.points; track p.concurrency) {
+            <circle [attr.cx]="p.x" [attr.cy]="p.y95" r="3.5" class="lr-dot lr-dot--p95" />
+            <circle [attr.cx]="p.x" [attr.cy]="p.y50" r="3.5" class="lr-dot lr-dot--p50" />
+            <text [attr.x]="p.x" [attr.y]="c.height - c.pad + 14" class="lr-tick" text-anchor="middle">
+              {{ p.concurrency }}
+            </text>
+          }
+        </svg>
+        <p class="lr-legend">
+          <span class="lr-key lr-key--p50">p50</span>
+          <span class="lr-key lr-key--p95">p95</span>
+          <span class="lr-key lr-key--limit">Schwelle</span>
+        </p>
+      </figure>
+    }
+
+    @if (r.stages.length > 0) {
+      <div class="lr-table-wrap">
+        <table class="lr-table">
+          <caption>Ergebnis je Stufe</caption>
+          <thead>
+            <tr>
+              <th scope="col">parallel</th>
+              <th scope="col">Requests</th>
+              <th scope="col">OK</th>
+              <th scope="col">Fehler</th>
+              <th scope="col">p50</th>
+              <th scope="col">p95</th>
+              <th scope="col">max</th>
+              <th scope="col">RPS</th>
+              <th scope="col">p95 je Kategorie</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of r.stages; track s.concurrency) {
+              <tr>
+                <th scope="row">{{ s.concurrency }}</th>
+                <td>{{ s.requests }}</td>
+                <td>{{ s.ok }}</td>
+                <td [class.lr-bad]="s.errors > 0">
+                  {{ s.errors }}@if (s.error_kinds.length) { ({{ s.error_kinds.join(', ') }}) }
+                </td>
+                <td>{{ s.p50_s }} s</td>
+                <td>{{ s.p95_s }} s</td>
+                <td>{{ s.max_s }} s</td>
+                <td>{{ s.rps }}</td>
+                <td class="lr-kinds">{{ byKindLine(s.by_kind) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else if (!isRunning()) {
+      <p class="lr-hint">Keine abgeschlossene Stufe — der Lauf endete, bevor eine Stufe fertig war.</p>
+    }
+  </article>
+}

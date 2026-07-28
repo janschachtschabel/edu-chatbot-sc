@@ -1,0 +1,248 @@
+@use './visually-hidden';
+
+.lt-head {
+  margin-block-end: var(--st-4);
+}
+
+.lt-crumb {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.lt-title {
+  margin: var(--st-1) 0 0;
+  font-size: 1.375rem;
+}
+
+.lt-intro {
+  margin: var(--st-2) 0 0;
+  max-inline-size: 60ch;
+  color: var(--st-text-muted);
+}
+
+.lt-form {
+  margin-block-end: var(--st-5);
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.lt-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--st-3);
+  margin: 0 0 var(--st-3);
+  padding: 0;
+  border: 0;
+}
+
+.lt-legend {
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.lt-field {
+  display: grid;
+  gap: var(--st-1);
+  margin: 0;
+
+  label {
+    font-size: 0.8125rem;
+    color: var(--st-text-muted);
+  }
+
+  &--mix {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+
+    label {
+      grid-column: 1;
+    }
+
+    .lt-hint {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
+.lt-input {
+  min-block-size: 2.5rem;
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+
+  &--weight {
+    inline-size: 4.5rem;
+  }
+}
+
+.lt-hint {
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.lt-cost,
+.lt-adjust,
+.lt-problem,
+.lt-busy,
+.lt-error {
+  margin: 0 0 var(--st-3);
+  padding: var(--st-3);
+  border-radius: var(--st-radius);
+  font-size: 0.875rem;
+}
+
+.lt-cost {
+  // The one screen where a click spends money: the warning is a border and a
+  // sentence, never colour alone.
+  border: 1px solid var(--st-warn-dot);
+  color: var(--st-warn-text);
+}
+
+.lt-adjust,
+.lt-busy {
+  border: 1px solid var(--st-rule-strong);
+  color: var(--st-text-muted);
+}
+
+.lt-problem,
+.lt-error {
+  border: 1px solid var(--st-danger-dot);
+  color: var(--st-danger-text);
+}
+
+.lt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-3);
+}
+
+.lt-status {
+  margin: 0;
+  min-block-size: 1.25rem;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.lt-btn {
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  &--go {
+    border-color: var(--st-accent);
+    background: var(--st-accent);
+    color: var(--st-accent-text);
+    font-weight: 600;
+  }
+}
+
+.lt-runs {
+  margin-block-end: var(--st-4);
+}
+
+.lt-runs-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--st-3);
+  margin-block-end: var(--st-2);
+}
+
+.lt-runs-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.lt-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-2);
+}
+
+.lt-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+
+  &--on {
+    border-color: var(--st-accent);
+    background: var(--st-accent-soft);
+  }
+}
+
+.lt-pick {
+  flex: 1 1 18rem;
+  display: grid;
+  gap: var(--st-1);
+  min-block-size: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.lt-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.lt-meta,
+.lt-summary {
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.lt-meta {
+  &--running {
+    color: var(--st-warn-text);
+  }
+
+  &--failed {
+    color: var(--st-danger-text);
+  }
+}
+
+.lt-confirm {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  margin: 0;
+  padding: var(--st-3);
+  border: 1px solid var(--st-danger-dot);
+  border-radius: var(--st-radius);
+  color: var(--st-danger-text);
+  font-size: 0.875rem;
+}

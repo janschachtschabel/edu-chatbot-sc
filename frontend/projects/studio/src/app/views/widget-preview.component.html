@@ -1,0 +1,93 @@
+<div class="wp">
+  <header class="wp-head">
+    <h1 class="wp-title">Vorschau</h1>
+    <p class="wp-intro">
+      Das echte Chat-Widget mit dem aktuellen Stand der Konfiguration. Es spricht
+      mit dem Backend dieser Studio-Instanz (<code>{{ apiUrl }}</code>) und
+      schwebt unten rechts über dieser Seite — genauso wie auf einer Host-Seite.
+      Begrüßung, Quick-Replies und Lotsen-Einstellungen liest es
+      <strong>einmal beim Öffnen</strong>: nach einer Änderung neu starten.
+    </p>
+  </header>
+
+  <section class="op-panel" aria-labelledby="wp-context-title">
+    <h2 class="op-title" id="wp-context-title">Seitenkontext</h2>
+    <p class="op-lead">
+      Auf einer echten Seite erkennt das Widget den Kontext selbst; hier wird er
+      vorgegeben. Nur diese drei Seitentypen lösen die proaktive Begrüßung samt
+      Kontext-Pills aus — ohne ID oder Slug bleibt sie aus, weil das Backend
+      nichts aufzulösen hat.
+    </p>
+
+    <form class="wp-form" (submit)="apply($event)">
+      <label class="op-label wp-field" for="wp-kind">
+        Seitentyp
+        <select
+          id="wp-kind"
+          class="op-input"
+          [value]="kind()"
+          (change)="onKind($any($event.target).value)"
+        >
+          @for (option of kinds; track option.id) {
+            <option [value]="option.id">{{ option.label }}</option>
+          }
+        </select>
+      </label>
+
+      @if (field()) {
+        <label class="op-label wp-field" for="wp-value">
+          {{ fieldLabel() }}
+          <input
+            id="wp-value"
+            class="op-input"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            [placeholder]="example()"
+            [value]="value()"
+            (input)="value.set($any($event.target).value)"
+          />
+        </label>
+      }
+
+      <button type="submit" class="op-btn op-btn--primary wp-submit">
+        Vorschau neu starten
+      </button>
+    </form>
+  </section>
+
+  <!-- Eine bleibende Region, nicht zwei wechselnde: ein Screenreader erfährt so
+       auch, DASS das Widget da ist — es steht am Ende des DOM und schwebt,
+       ohne sich sonst anzukündigen. -->
+  <p class="wp-state" role="status">
+    @switch (status()) {
+      @case ('laden') { Das Widget wird geladen … }
+      @case ('bereit') { Das Widget ist bereit und schwebt unten rechts über der Seite. }
+    }
+  </p>
+
+  @if (status() === 'fehler') {
+    <p class="op-msg op-msg--error" role="alert">
+      ⚠ Die Vorschau konnte nicht geladen werden. Beim zweiten Versuch klappt es
+      meist; bleibt es dabei, fehlt dem Studio-Build das Widget-Bündel.
+    </p>
+    <div class="op-actions">
+      <button type="button" class="op-btn" (click)="load()">Erneut versuchen</button>
+    </div>
+  }
+
+  @if (status() === 'bereit') {
+    <!-- Der Schlüssel ist der Neustart-Zähler: ein neuer Wert wirft das Element
+         weg und baut ein neues — der einzige Weg, den Konfigurations-Boot
+         erneut laufen zu lassen. -->
+    @for (id of [boot()]; track id) {
+      <boerdi-chat
+        [attr.api-url]="apiUrl"
+        [attr.page-context]="applied()"
+        auto-context="false"
+        persist-session="false"
+        initial-state="expanded"
+      ></boerdi-chat>
+    }
+  }
+</div>

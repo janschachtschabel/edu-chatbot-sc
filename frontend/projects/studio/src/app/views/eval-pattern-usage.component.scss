@@ -1,0 +1,123 @@
+.epu-title {
+  margin: 0 0 var(--st-1);
+  font-size: 1rem;
+}
+
+.epu-intro,
+.epu-hint {
+  margin: 0 0 var(--st-2);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--st-text-muted);
+}
+
+.epu-intro code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.epu-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-3);
+  align-items: end;
+  margin-block-end: var(--st-3);
+}
+
+.epu-field {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.epu-input {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-bg);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.epu-input:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.epu-hint {
+  margin: 0;
+  font-size: 0.6875rem;
+}
+
+.epu-btn {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.epu-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.epu-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.epu-total {
+  margin: 0 0 var(--st-3);
+  font-size: 0.875rem;
+}
+
+// Two distributions side by side where there is room; the shared bar tables
+// bring their own styling.
+.epu-cols {
+  display: grid;
+  gap: var(--st-4);
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  margin-block-end: var(--st-4);
+}
+
+.epu-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.epu-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.epu-caption {
+  padding: var(--st-2) var(--st-3);
+  border-block-end: 1px solid var(--st-rule);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+  text-align: start;
+}
+
+.epu-table th,
+.epu-table td {
+  padding: var(--st-1) var(--st-2);
+  border-block-end: 1px solid var(--st-rule);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.epu-table thead th {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}

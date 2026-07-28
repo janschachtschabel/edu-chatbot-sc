@@ -1,0 +1,155 @@
+// Markdown-Bubble-Typografie — Verbatim-Port aus ALT chat.component.scss
+// (`.msg-content` Z. 223-367). Als Partial neben dem `markdown-renderer`, weil
+// es genau dessen Output stylt (`.md-*`-Klassen) und damit mit ihm zusammen
+// geändert wird; konsumiert via `@use` von der Chat-Shell (8-4S-f).
+// Nutzt bewusst KEINE SCSS-Variablen (ALT tat es hier auch nicht) → in sich
+// geschlossen und ohne Kopplung an die Variablen des Konsumenten.
+//
+// simplify: kein Dark-Mode — ALT war hell-only. Bewusste Grenze; Kontrast-/
+//   Fokus-Sweep = geplanter Slice 8-6.
+
+.msg-content {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+
+  // Inline-Links im Bot-Text fügen sich in die Schriftfarbe ein
+  // (statt blau hervorzustechen) — Material- und Lotsen-Links sollen
+  // sich als normale Text-Referenzen lesen, nicht als CTA-Buttons.
+  // Kacheln + Card-Buttons übernehmen die "klickbare CTA"-Rolle.
+  //
+  // ``::ng-deep`` ist nötig, weil die ``<a>``-Tags via ``[innerHTML]`` aus
+  // dem Markdown-Renderer kommen und kein ``_ngcontent-...``-Attribut
+  // bekommen — Component-Encapsulation-Selektoren würden sie sonst nicht
+  // matchen und der Browser-Default (blau-unterstrichen) bleibt aktiv.
+  ::ng-deep a {
+    color: inherit !important;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+    word-break: break-all;
+    &:hover { text-decoration-thickness: 2px; }
+    &:visited { color: inherit !important; }
+  }
+
+  // Material-Symbol-Icon vor Inline-Treffer-Links (Lotsen/Inline-Modus).
+  // Backend emittiert ``@@ICON:NAME@@`` als Sentinel, ``renderMarkdown``
+  // ersetzt es mit dem Inline-SVG aus ``shared/icons.ts``.
+  // Dezent hellgrau, nicht im Bot-Text-Farbton — damit der Link-Titel
+  // dominant bleibt und das Icon nur als Typ-Hinweis dient. Nicht
+  // unterstrichen, leicht angehoben für visuelle Balance neben Text.
+  ::ng-deep .bb-inline-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+    vertical-align: -0.18em;
+    margin-right: 6px;
+    color: #94a3b8;   // slate-400 — dezent, kein Schreischrei
+  }
+  ::ng-deep .bb-inline-icon > svg {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+    display: block;
+  }
+  // Inline-Card-Link (= ``<a>`` mit ``.bb-inline-icon``-Child):
+  // Underline NICHT aufs ``<a>`` sondern nur auf den Title-Span legen,
+  // damit der ``margin-right``-Gap zwischen Icon und Titel KEINEN
+  // Underline-Strich bekommt (sah hässlich aus weil der Strich vor
+  // dem Titel-Text anfing).
+  ::ng-deep a:has(> .bb-inline-icon) {
+    text-decoration: none !important;
+  }
+  ::ng-deep .bb-link-title {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+  ::ng-deep a:hover .bb-link-title {
+    text-decoration-thickness: 2px;
+  }
+
+  // Native lists (fallback)
+  ul, ol { margin: 6px 0; padding: 0 0 0 1.4em; }
+  li { margin-bottom: 4px; }
+
+  // Inline-Treffer-Listen (Lotsen/Inline-Modus): wenn die ``<li>``-Items
+  // einen Link mit Material-Symbol-Icon enthalten, übernimmt das Icon die
+  // visuelle Rolle des Bullet-Markers — also kein zusätzliches • mehr,
+  // keine Einrückung. Spart Platz nach links + visueller Doppelung.
+  // ``:has()`` Selektor — supportiert in Chrome 105+, Safari 15.4+,
+  // Firefox 121+ (Dez 2023). Bei älteren Browsern fällt's auf die obigen
+  // Default-List-Styles zurück (visuell sub-optimal, funktional OK).
+  ::ng-deep ul:has(> li > a > .bb-inline-icon) {
+    list-style: none;
+    padding-left: 0;
+    margin: 8px 0;
+  }
+  ::ng-deep ul:has(> li > a > .bb-inline-icon) > li {
+    margin-bottom: 2px;   // dichter zusammen — Icons geben sowieso visuelle Struktur
+  }
+
+  // Inline-Link-Bullet-Listen (Material/Lotsen-Treffer im Inline-Mode):
+  // Wenn ein ``<li>`` nur einen einzigen Link enthält, expandieren wir die
+  // Klick-Fläche auf die ganze Zeile. Vorher trafen Klicks oberhalb/unter-
+  // halb/rechts vom Link-Text das ``<li>`` statt das ``<a>``, weil das
+  // ``<li>`` breiter ist als der Link-Text. Browser navigiert dann nicht,
+  // User klickt nochmal — das ist die "ich muss 2x klicken"-Story.
+  //
+  // ``display: block`` macht den Link zum Block-Element und füllt damit
+  // die volle Breite des ``<li>``-Content-Bereichs (rechts der Bullet).
+  // ``padding: 1px 0`` schließt den vertikalen Mini-Gap (~1.6 px) zwischen
+  // ``<li>``-Top und Link-Top, sodass auch leichte Vertikal-Verfehler den
+  // Link treffen.
+  ::ng-deep li > a:only-child {
+    display: block;
+    padding: 1px 0;
+  }
+
+  // Headings (rendered by marked) — compact for chat bubbles
+  h1, h2, h3, h4, h5, h6 {
+    margin: 10px 0 4px;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  h1 { font-size: 1.05rem; }
+  h2 { font-size: 1.02rem; }
+  h3, h4, h5, h6 { font-size: 1rem; }
+
+  // Blockquote (rendered by marked)
+  blockquote {
+    border-left: 3px solid #c5cbd6;
+    padding: 2px 0 2px 10px;
+    margin: 2px 0;
+    color: #3a4252;
+  }
+
+  // Custom list items (rendered by renderMarkdown)
+  .md-li {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 4px;
+    padding-left: .15em;
+  }
+  .md-bullet {
+    flex-shrink: 0;
+    display: inline-block;
+    min-width: 10px;
+    margin-right: 6px;
+  }
+  .md-li-text {
+    flex: 1;
+  }
+  strong { font-weight: 600; }
+  code { background: rgba(0,0,0,.05); padding: 1px 4px; border-radius: 3px; font-size: .82rem; }
+
+  // marked wraps every chunk in <p>; with default 6px bottom-margin this
+  // makes one-liner user bubbles visibly taller than they used to be (the
+  // old regex renderer emitted plain text+<br>). Zero the outer margins
+  // and put the gap on adjacent paragraphs only.
+  p { margin: 0; }
+  p + p { margin-top: 6px; }
+}
+
+// ── Typing dots ──────────────────────────────────────────────────────────────

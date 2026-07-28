@@ -1,0 +1,112 @@
+<section class="op-panel" aria-labelledby="fp-title">
+  <h2 class="op-title" id="fp-title">Werkseinstellungen</h2>
+
+  <p class="op-lead">
+    Der Werksstand ist die Konfiguration, mit der eine frisch aufgesetzte
+    Installation startet. Er liegt als eigener Stand auf dem Server und lässt
+    sich jederzeit wieder einspielen.
+  </p>
+
+  <p class="fp-status" role="status">
+    @if (factory.loading() && !factory.value()) {
+      Werksstand wird geprüft …
+    } @else if (exists()) {
+      Gesichert am {{ saved() }}@if (label()) { · {{ label() }}}
+    } @else {
+      Kein Werksstand gesichert. Sichere den aktuellen Stand, sobald die
+      Konfiguration ausgeliefert werden soll.
+    }
+  </p>
+
+  @if (factory.error(); as err) {
+    <p class="op-msg op-msg--error" role="alert">⚠ {{ err }}</p>
+  }
+
+  <div class="op-actions">
+    <button
+      type="button"
+      class="op-btn"
+      [disabled]="action.busy()"
+      (click)="arm('save')"
+    >
+      {{ action.isRunning('save') ? 'Wird gesichert …' : 'Aus Live-Stand sichern' }}
+    </button>
+    <button
+      type="button"
+      class="op-btn op-btn--danger"
+      [disabled]="!exists() || action.busy()"
+      (click)="arm('restore')"
+    >
+      {{ action.isRunning('restore') ? 'Wird eingespielt …' : 'Zurücksetzen' }}
+    </button>
+    <button
+      type="button"
+      class="op-btn"
+      [disabled]="!exists() || action.busy()"
+      (click)="download()"
+    >
+      {{ action.isRunning('download') ? 'Lädt …' : 'Herunterladen' }}
+    </button>
+  </div>
+
+  @if (armed() === 'save') {
+    <p class="op-confirm" role="alert">
+      <span>
+        Den aktuellen Live-Stand als Werksstand sichern? Der bisher gesicherte
+        Werksstand wird dabei überschrieben.
+      </span>
+      <button type="button" class="op-btn op-btn--primary" (click)="save()">
+        Ja, Werksstand ersetzen
+      </button>
+      <button type="button" class="op-btn" (click)="disarm()">Abbrechen</button>
+    </p>
+  }
+
+  @if (armed() === 'restore') {
+    <p class="op-confirm" role="alert">
+      <span>
+        Auf den Werksstand zurücksetzen? Die Konfigurationsbereiche aus dem
+        gesicherten Stand überschreiben den aktuellen — laufende Gespräche und
+        Auswertungen bleiben unberührt.
+      </span>
+      <button type="button" class="op-btn op-btn--danger" (click)="restore()">
+        Ja, zurücksetzen
+      </button>
+      <button type="button" class="op-btn" (click)="disarm()">Abbrechen</button>
+    </p>
+  }
+
+  <div class="fp-upload">
+    <label class="op-label" for="fp-file">Werksstand aus einer ZIP übernehmen</label>
+    <input type="file" class="fp-file" id="fp-file" accept=".zip" (change)="onFile($event)" />
+    <button
+      type="button"
+      class="op-btn"
+      [disabled]="!file() || action.busy()"
+      (click)="arm('upload')"
+    >
+      {{ action.isRunning('upload') ? 'Wird übernommen …' : 'Hochladen' }}
+    </button>
+  </div>
+
+  @if (armed() === 'upload') {
+    <p class="op-confirm" role="alert">
+      <span>
+        „{{ file()?.name }}" als neuen Werksstand übernehmen? Der bisher
+        gesicherte Werksstand wird überschrieben.
+      </span>
+      <button type="button" class="op-btn op-btn--primary" (click)="upload()">
+        Ja, übernehmen
+      </button>
+      <button type="button" class="op-btn" (click)="disarm()">Abbrechen</button>
+    </p>
+  }
+
+  @if (action.message(); as msg) {
+    <p
+      class="op-msg"
+      [class.op-msg--error]="msg.kind === 'error'"
+      [attr.role]="msg.kind === 'error' ? 'alert' : 'status'"
+    >{{ msg.kind === 'error' ? '⚠ ' : '✓ ' }}{{ msg.text }}</p>
+  }
+</section>

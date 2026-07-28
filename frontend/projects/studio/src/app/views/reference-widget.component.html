@@ -1,0 +1,60 @@
+<details class="cs">
+  <summary class="cs-summary">
+    <h4 class="cs-title">Widget-Einbettung (Web-Komponente)</h4>
+  </summary>
+  <div class="cs-body">
+    <p class="ar-text">
+      Der Chat lässt sich als Custom Element <code>&lt;boerdi-chat&gt;</code> auf
+      jeder Seite einbinden. Das Single-File-Bundle entsteht mit
+      <code>npm run build:widget</code>.
+    </p>
+    <pre class="ar-code"><code>{{ embedSample }}</code></pre>
+
+    <h5 class="ar-sub">Attribute</h5>
+    <p class="ar-text">
+      Alle Boolean-Attribute nehmen die Strings <code>"true"</code> und
+      <code>"false"</code> — Attribute eines Custom Elements sind immer Strings.
+    </p>
+    <div class="ar-scroll">
+      <table class="ar-table">
+        <thead>
+          <tr><th>Gruppe</th><th>Attribut</th><th>Default</th><th>Beschreibung</th></tr>
+        </thead>
+        <tbody>
+          @for (row of attributes; track row.attr; let i = $index) {
+            <tr [class.ar-group-start]="isGroupStart(i)">
+              <td class="ar-group">{{ isGroupStart(i) ? row.group : '' }}</td>
+              <th scope="row"><code>{{ row.attr }}</code></th>
+              <td><code>{{ row.fallback }}</code></td>
+              <td>{{ row.desc }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <h5 class="ar-sub">Events</h5>
+    <div class="ar-scroll">
+      <table class="ar-table">
+        <thead>
+          <tr><th>Event</th><th>Wann</th><th>Payload</th></tr>
+        </thead>
+        <tbody>
+          @for (row of events; track row.name) {
+            <tr>
+              <th scope="row"><code>{{ row.name }}</code></th>
+              <td>{{ row.when }}</td>
+              <td><code>{{ row.payload }}</code></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="ar-text">
+      Angular-Outputs für programmatische Einbindung: <code>{{ outputs }}</code>.
+      <code>linkClicked</code> feuert nur mit
+      <code>intercept-edu-sharing-links="true"</code>. Das ausführliche
+      Payload-Schema steht in <code>docs/05-widget-javascript-api.md</code>.
+    </p>
+  </div>
+</details>

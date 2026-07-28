@@ -1,0 +1,37 @@
+// Studio global stylesheet. Unlike the widget (Shadow DOM, own styles) the
+// studio is a normal SPA, so the shared M3 tokens plus the studio layer land on
+// :root here and every component styles against them.
+@use 'theme/studio-tokens';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--boerdi-font);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--st-text);
+  background: var(--st-bg);
+}
+
+// A visible focus ring everywhere, replacing the UA default that `border: none`
+// buttons swallow. `:focus-visible` keeps it off for mouse clicks.
+:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.25;
+}
+
+a {
+  color: var(--st-accent);
+}

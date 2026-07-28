@@ -1,0 +1,267 @@
+// Panel + Kopfzeile + Lotsen-Banner der Widget-Hülle (8-5g) — Range-Port von
+// ALT widget.component.scss:96-401, de-indentiert, sonst unverändert.
+//
+// Enthält: Panel-Rahmen samt Slide-in und dem `--hidden`-Zustand (das Panel
+// bleibt nach dem ersten Öffnen im DOM, damit die Chat-Shell ihren Zustand
+// behält), die Kopfzeile mit Titelblock/Eulen-Tour-Starter/Statuszeile, die
+// Aktions-Buttons (solid = an, outlined = aus) und das Navigations-Banner.
+
+.boerdi-panel {
+  width: 420px;
+  height: min(820px, calc(100vh - 40px));
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 40px);
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: boerdi-slidein 0.25s ease-out;
+  transition: width 0.25s ease;
+}
+/* Lazy-mount hide: keeps the panel in the DOM (component state
+   preserved) but removes it visually and spatially. !important
+   overrides the central display:flex rule above. */
+.boerdi-panel.boerdi-panel--hidden {
+  display: none !important;
+}
+@keyframes boerdi-slidein {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+/* Konsolidierter Header: vereint die früheren outer-panel-header und
+   chat-internal-header zu einer Leiste. Avatar+Name+Status links,
+   Mobile-Tabs in der Mitte, Action-Buttons + Close rechts. */
+.boerdi-panel-header {
+  background: var(--boerdi-primary);
+  color: #fff;
+  padding: 8px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  min-height: 44px;
+}
+.boerdi-title-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.boerdi-title-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  min-width: 0;
+}
+.boerdi-title {
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.boerdi-status {
+  font-size: 11px;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.boerdi-owl-mini {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  display: block;
+  background: #ffffff;
+  border-radius: 50%;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.boerdi-owl-mini.is-thinking {
+  animation: boerdi-thinking-spin 1.4s ease-in-out infinite;
+}
+.boerdi-owl-mini.is-speaking {
+  animation: boerdi-speaking-bob .6s ease-in-out infinite;
+}
+@keyframes boerdi-thinking-spin {
+  0%, 100% { transform: rotate(-5deg); }
+  50% { transform: rotate(5deg); }
+}
+@keyframes boerdi-speaking-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+/* ── Owl als Web-Tour-Starter ──────────────────────────────
+   Der Kopf oben links ist ein Button → startet die Web-Tour.
+   Hover/Focus: Kopf wackelt (nur wenn er nicht gerade denkt/spricht)
+   + eine Sprechblase erscheint darunter. Tooltip + Tastatur kommen
+   vom nativen <button>. */
+.boerdi-owl-tour {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  position: relative;
+  display: inline-flex;
+  line-height: 0;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+.boerdi-owl-tour:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+.boerdi-owl-tour:hover .boerdi-owl-mini:not(.is-thinking):not(.is-speaking) {
+  animation: boerdi-wiggle 0.6s ease-in-out;
+}
+@keyframes boerdi-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-9deg) scale(1.06); }
+  45% { transform: rotate(7deg); }
+  70% { transform: rotate(-4deg); }
+}
+.boerdi-owl-bubble {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.22);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity .15s ease, transform .15s ease;
+  z-index: 20;
+}
+.boerdi-owl-bubble::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 14px;
+  border: 6px solid transparent;
+  border-bottom-color: #ffffff;
+}
+.boerdi-owl-tour:hover .boerdi-owl-bubble,
+.boerdi-owl-tour:focus-visible .boerdi-owl-bubble {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Einmaliger Auto-Hinweis beim ersten Öffnen (is-hinting): Kopf wackelt +
+   Sprechblase sichtbar; nach 3s entfernt JS die Klasse → Bubble blendet aus. */
+.boerdi-owl-tour.is-hinting .boerdi-owl-mini:not(.is-thinking):not(.is-speaking) {
+  animation: boerdi-wiggle 0.6s ease-in-out 2;
+}
+.boerdi-owl-tour.is-hinting .boerdi-owl-bubble {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.boerdi-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Action-Buttons mit klar kommuniziertem On/Off-State.
+   ON  = solider weißer Pill mit vollfarbigem Icon (aktiviert/gedrückt)
+   OFF = transparent mit weißem Outline + diagonalem Strich
+   NEUTRAL = halbtransparent ohne Toggle-State (z.B. Restart) */
+.boerdi-action-btn {
+  position: relative;
+  border: 0;
+  text-decoration: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s, color .15s, transform .1s, box-shadow .15s;
+  padding: 0;
+  /* Default-Icon-Farbe — weiß auf dem dunkelblauen Header. SVG-Icons
+     erben currentColor, also wird das Material-Symbol weiß. Wird
+     vom is-on-State auf dunkelblau überschrieben (Kontrast auf
+     weißem Pill-Background). */
+  color: #fff;
+}
+
+/* ON-State: solider weißer Pill, klar "gedrückt".
+   Icon wird dunkelblau, damit Kontrast zum weißen Background passt. */
+.boerdi-action-btn.is-on {
+  background: #ffffff;
+  color: var(--boerdi-primary, #1c4587);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15),
+              inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+}
+.boerdi-action-btn.is-on:hover {
+  background: #f1f5f9;
+  transform: translateY(-1px);
+}
+
+/* OFF-State: transparent + weißer Outline. Der Farbkontrast zum
+   solid-weißen ON-Pill reicht aus — kein Slash-Overlay nötig.
+   Icon bleibt weiß (vom Default) — auf dem dunklen Header sichtbar. */
+.boerdi-action-btn.is-off {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  opacity: 0.85;
+}
+.boerdi-action-btn.is-off:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.7);
+  opacity: 1;
+}
+
+/* NEUTRAL (Restart) — kein Toggle-State, aber sichtbar */
+.boerdi-action-btn--neutral {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+.boerdi-action-btn--neutral:hover {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.boerdi-action-btn:active { transform: translateY(1px); }
+.boerdi-close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: 2px;
+  opacity: 0.85;
+}
+.boerdi-close:hover { opacity: 1; }
+
+
+/* ── Fokus-Ringe der Kopfzeile (A11y 8-6, SC 2.4.7/1.4.11) ───────
+   Weiß auf dem dunkelblauen Kopf (≈8,6:1) — gleiche Behandlung, die ALT
+   schon dem Eulen-Kopf gab; die übrigen Buttons verließen sich auf den
+   Browser-Standardring, der auf dieser Fläche kaum zu sehen ist. */
+.boerdi-action-btn:focus-visible,
+.boerdi-close:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+/* Im is-on-Zustand liegt der Button auf weißem Pill — dort braucht der Ring
+   die Akzentfarbe, sonst verschwindet er im Weiß. */
+.boerdi-action-btn.is-on:focus-visible {
+  outline-color: var(--boerdi-primary, #1c4587);
+}

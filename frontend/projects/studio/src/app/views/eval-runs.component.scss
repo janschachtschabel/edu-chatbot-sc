@@ -1,0 +1,236 @@
+@use './visually-hidden';
+
+.er-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--st-3);
+  margin-block-end: var(--st-3);
+}
+
+.er-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-1);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.er-field select {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+}
+
+.er-field select:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.er-reload,
+.er-bulk,
+.er-clear-logs,
+.er-confirm,
+.er-cancel,
+.er-arm {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.er-reload {
+  margin-inline-start: auto;
+}
+
+.er-bulk,
+.er-clear-logs,
+.er-confirm {
+  border-color: var(--st-danger-dot);
+  color: var(--st-danger-text);
+}
+
+.er-reload:focus-visible,
+.er-bulk:focus-visible,
+.er-clear-logs:focus-visible,
+.er-confirm:focus-visible,
+.er-cancel:focus-visible,
+.er-arm:focus-visible,
+.er-row:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.er-reload:disabled,
+.er-bulk:disabled,
+.er-clear-logs:disabled,
+.er-confirm:disabled,
+.er-arm:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.er-danger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  margin-block: var(--st-2);
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-danger-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+}
+
+.er-question {
+  margin: 0;
+  flex: 1 1 18rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.er-status,
+.er-error {
+  margin-block: 0 var(--st-3);
+  font-size: 0.875rem;
+}
+
+.er-status {
+  color: var(--st-ok-text);
+}
+
+.er-error {
+  color: var(--st-danger-text);
+}
+
+.er-count {
+  margin: 0 0 var(--st-2);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.er-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.er-item {
+  margin-block-end: var(--st-3);
+}
+
+.er-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  inline-size: 100%;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.er-row:hover {
+  border-color: var(--st-accent);
+}
+
+.er-row-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  font-size: 0.8125rem;
+}
+
+.er-mode {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+  color: var(--st-accent-text);
+}
+
+// The state is a word first; the dot is the second, redundant signal (SC 1.4.1).
+.er-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-1);
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.er-badge::before {
+  content: '';
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--st-unknown-dot);
+}
+
+.er-badge--running::before {
+  background: var(--st-warn-dot);
+}
+
+.er-badge--done::before,
+.er-badge--completed::before {
+  background: var(--st-ok-dot);
+}
+
+.er-badge--failed::before {
+  background: var(--st-danger-dot);
+}
+
+.er-when {
+  margin-inline-start: auto;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--st-text-muted);
+}
+
+.er-row-meta {
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.er-row-scope {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.er-live {
+  color: var(--st-warn-text);
+}
+
+// The backend's own sentence, verbatim: for a generative run this is the only
+// account of why nothing came out.
+.er-row-error {
+  margin: var(--st-1) 0 0;
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-danger-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.er-arm {
+  margin-block-start: var(--st-1);
+  border-color: transparent;
+  color: var(--st-danger-text);
+}
+
+.er-arm:hover:not(:disabled) {
+  border-color: var(--st-danger-dot);
+}

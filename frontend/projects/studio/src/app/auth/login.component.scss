@@ -1,0 +1,89 @@
+// ALT's login page was 100 % inline styles with its own hardcoded palette
+// (#1c4587, #f9fafb) that matched neither the app tokens nor each other. Here it
+// uses the same tokens as every other surface.
+
+.wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--st-4);
+}
+
+.card {
+  width: 100%;
+  max-width: 22rem; // rem so the card grows with the user's text size
+  padding: var(--st-5);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--boerdi-radius);
+  background: var(--st-panel);
+}
+
+.title {
+  font-size: 1.25rem;
+  color: var(--st-accent);
+}
+
+.hint {
+  margin: var(--st-3) 0 var(--st-4);
+  color: var(--st-text-muted);
+  font-size: 0.875rem;
+}
+
+.label {
+  display: block;
+  margin-bottom: var(--st-1);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0 var(--st-3);
+  // --st-text-muted (7.0:1), not the decorative hairline: a field border is a
+  // meaningful UI component and needs ≥ 3:1 (SC 1.4.11).
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 1px;
+  }
+
+  &[aria-invalid='true'] {
+    border-color: var(--st-danger-text);
+  }
+}
+
+// Reserved height: the message appearing must not push the button down under
+// the cursor mid-click.
+.error {
+  min-height: 1.25rem;
+  margin: var(--st-2) 0;
+  font-size: 0.8125rem;
+  color: var(--st-danger-text);
+}
+
+.submit {
+  width: 100%;
+  min-height: 2.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--st-radius);
+  background: var(--st-accent);
+  color: var(--st-accent-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    // Not opacity alone: a faded label can drop below the contrast floor.
+    background: var(--st-surface-variant, var(--boerdi-surface-variant));
+    color: var(--st-text-muted);
+    border-color: var(--st-rule);
+  }
+}

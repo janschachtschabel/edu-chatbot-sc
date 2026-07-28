@@ -1,0 +1,131 @@
+@use './section-shell';
+
+.mr-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-4);
+}
+
+.mr-row {
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.mr-grid {
+  display: grid;
+  // Fluid, not breakpoint-based: the panel also sits in a narrow column.
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--st-3);
+  align-items: end;
+}
+
+.mr-field {
+  display: grid;
+  gap: var(--st-1);
+
+  &--wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.mr-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.mr-check {
+  display: flex;
+  align-items: center;
+  gap: var(--st-2);
+  min-block-size: 2.5rem;
+  font-size: 0.875rem;
+}
+
+.mr-help {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.mr-id,
+.mr-name,
+.mr-url,
+.mr-desc,
+.mr-discover-url {
+  min-block-size: 2.5rem;
+  padding: var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-bg);
+  color: var(--st-text);
+  font: inherit;
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: -1px;
+  }
+
+  &:disabled {
+    background: var(--st-surface-variant);
+    color: var(--st-text-muted);
+    cursor: not-allowed;
+  }
+}
+
+.mr-tools {
+  margin: var(--st-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-2);
+}
+
+.mr-tool {
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  font-size: 0.8125rem;
+}
+
+.mr-tool-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+}
+
+.mr-tool-desc {
+  display: block;
+  margin-block-start: var(--st-1);
+  color: var(--st-text-muted);
+}
+
+.mr-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2) var(--st-3);
+  margin: var(--st-3) 0 0;
+}
+
+.mr-discover {
+  margin-block-start: var(--st-5);
+  padding-block-start: var(--st-4);
+  border-block-start: 1px solid var(--st-rule);
+}
+
+.mr-discover-title {
+  margin: 0 0 var(--st-1);
+  font-size: 0.9375rem;
+}
+
+.mr-discover-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--st-3);
+  margin-block-start: var(--st-3);
+}

@@ -1,0 +1,37 @@
+<fieldset class="sl">
+  <legend class="sl-legend">Sicherheitslevel</legend>
+  <p class="sl-hint" id="sl-hint">
+    Steuert, welche Safety-Stufen laufen. Wirkt nach dem Speichern sofort, ohne Neustart.
+  </p>
+
+  <div class="sl-grid">
+    @for (level of levels(); track level.id) {
+      <label class="sl-option" [class.sl-option--on]="level.id === current()">
+        <input
+          type="radio"
+          name="security_level"
+          class="sl-radio"
+          [value]="level.id"
+          [checked]="level.id === current()"
+          [attr.aria-describedby]="'sl-desc-' + level.id"
+          (change)="select(level.id)"
+        />
+        <span class="sl-label">{{ level.label }}</span>
+        <span class="sl-desc" [id]="'sl-desc-' + level.id">
+          {{ level.desc }}
+          @if (!level.defined) {
+            <span class="sl-missing">Kein Preset in dieser Datei hinterlegt — es gilt der
+              Escalation-Block.</span>
+          }
+        </span>
+      </label>
+    }
+  </div>
+
+  @if (anyMissing()) {
+    <p class="sl-note">
+      Für die markierten Stufen ist unter „presets" nichts hinterlegt. Sie lassen sich wählen,
+      wirken dann aber wie der Escalation-Block weiter unten.
+    </p>
+  }
+</fieldset>

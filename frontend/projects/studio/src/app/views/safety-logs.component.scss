@@ -1,0 +1,239 @@
+.sfl-head {
+  margin-block-end: var(--st-4);
+}
+
+.sfl-crumb {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.sfl-title {
+  margin: var(--st-1) 0 0;
+  font-size: 1.375rem;
+}
+
+.sfl-intro {
+  margin: var(--st-2) 0 0;
+  max-inline-size: 60ch;
+  color: var(--st-text-muted);
+}
+
+.sfl-stats {
+  margin-block-end: var(--st-4);
+}
+
+.sfl-stats-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.sfl-stats-note {
+  margin: var(--st-1) 0 var(--st-3);
+  max-inline-size: 60ch;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.sfl-cards {
+  display: grid;
+  // Fluid, not a fixed column count: five numbers must reflow to one column at
+  // 320px and at 200 % zoom without clipping a label.
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--st-2);
+  margin: 0;
+}
+
+.sfl-card {
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+
+  dt {
+    font-size: 0.8125rem;
+    color: var(--st-text-muted);
+  }
+
+  dd {
+    margin: var(--st-1) 0 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  // The colour repeats what the label already says; it never carries it alone.
+  &--high dd {
+    color: var(--st-danger-text);
+  }
+
+  &--medium dd {
+    color: var(--st-warn-text);
+  }
+}
+
+.sfl-legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+  margin: var(--st-2) 0 0;
+}
+
+.sfl-legal-item {
+  display: flex;
+  gap: var(--st-1);
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  font-size: 0.875rem;
+
+  dd {
+    margin: 0;
+    font-weight: 600;
+  }
+}
+
+.sfl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--st-3);
+  margin-block-end: var(--st-3);
+}
+
+.sfl-field {
+  display: grid;
+  gap: var(--st-1);
+  margin: 0;
+}
+
+.sfl-field-label {
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.sfl-filter {
+  min-block-size: 2.5rem;
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+}
+
+.sfl-btn {
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+}
+
+.sfl-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--st-4);
+
+  @media (min-width: 60rem) {
+    grid-template-columns: minmax(18rem, 26rem) 1fr;
+    align-items: start;
+  }
+}
+
+.sfl-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-2);
+}
+
+.sfl-row {
+  border: 1px solid var(--st-rule);
+  // The risk is a shape as well as a word: a thick start-edge that a reader
+  // scanning the column notices before the label.
+  border-inline-start: 4px solid var(--st-unknown-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+
+  &--medium {
+    border-inline-start-color: var(--st-warn-dot);
+  }
+
+  &--high {
+    border-inline-start-color: var(--st-danger-dot);
+  }
+
+  &--on {
+    border-color: var(--st-accent);
+    background: var(--st-accent-soft);
+  }
+}
+
+.sfl-pick {
+  display: grid;
+  gap: var(--st-1);
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--st-3);
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.sfl-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--st-2);
+  font-size: 0.8125rem;
+}
+
+.sfl-risk {
+  font-weight: 600;
+}
+
+.sfl-time {
+  color: var(--st-text-muted);
+}
+
+.sfl-message {
+  font-size: 0.875rem;
+  // One line in the list, complete in the detail panel — the preview is for
+  // recognising an event, not for reading it.
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sfl-markers {
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.sfl-detail {
+  min-inline-size: 0;
+}
+
+.sfl-detail-title {
+  margin: 0 0 var(--st-2);
+  font-size: 1rem;
+}
+
+.sfl-hint {
+  margin: 0;
+  color: var(--st-text-muted);
+}

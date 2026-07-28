@@ -1,0 +1,53 @@
+// "Sicherung" hull (9-6): page head + full-backup panel + the two child panels.
+@use './ops-panel';
+
+.bk {
+  display: grid;
+  gap: var(--st-5);
+  max-inline-size: 60rem;
+}
+
+.bk-head {
+  display: grid;
+  gap: var(--st-2);
+}
+
+.bk-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.bk-intro {
+  margin: 0;
+  max-inline-size: 52rem;
+  color: var(--st-text-muted);
+}
+
+.bk-upload {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: var(--st-2) var(--st-3);
+  margin-block-start: var(--st-4);
+  padding-block-start: var(--st-4);
+  border-block-start: 1px solid var(--st-rule);
+}
+
+.bk-upload .op-label {
+  grid-column: 1 / -1;
+}
+
+.bk-file {
+  min-block-size: 2.5rem;
+  font: inherit;
+  color: var(--st-text);
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--st-focus);
+  }
+}
+
+.op-actions {
+  margin-block-start: var(--st-3);
+}

@@ -1,0 +1,278 @@
+// The front page (9-5f). ALT carried ~30 inline hex values here (one per card
+// colour); hierarchy comes from type weight, space and hairlines instead.
+
+.ov-head {
+  margin-block-end: var(--st-4);
+}
+
+.ov-crumb {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.ov-title {
+  margin: var(--st-1) 0 0;
+  font-size: 1.375rem;
+}
+
+.ov-intro {
+  margin: var(--st-2) 0 0;
+  max-inline-size: 62ch;
+  color: var(--st-text-muted);
+}
+
+.ov-panel {
+  padding-block-start: var(--st-5);
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 4px;
+  }
+}
+
+.ov-section-title {
+  margin: var(--st-6) 0 var(--st-3);
+  font-size: 1rem;
+}
+
+.ov-strip-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--st-3);
+
+  .ov-section-title {
+    margin-block-start: 0;
+  }
+}
+
+.ov-refresh {
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-4);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: progress;
+    opacity: 0.55;
+  }
+}
+
+.ov-error {
+  margin: 0 0 var(--st-3);
+  color: var(--st-danger-text);
+}
+
+.ov-status {
+  display: grid;
+  gap: var(--st-3);
+  // No fixed column count: three cards at desk width, one at 320px, without a
+  // breakpoint list to maintain.
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.ov-status-card {
+  padding: var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.ov-status-kind {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--st-text-muted);
+}
+
+.ov-status-main {
+  margin: var(--st-2) 0 0;
+  font-size: 1.125rem;
+  // Long model ids ("gpt-5-mini-2026-…") must wrap rather than widen the grid.
+  overflow-wrap: anywhere;
+}
+
+.ov-status-meta {
+  margin: var(--st-1) 0 0;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.ov-layers {
+  margin: 0;
+  padding: 0;
+  list-style: none; // the number is rendered in the card itself
+}
+
+.ov-layer-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: var(--st-3);
+  padding: var(--st-3) var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    border-color: var(--st-accent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 2px;
+  }
+}
+
+.ov-layer-num {
+  min-inline-size: 1.75rem;
+  padding: var(--st-1) 0;
+  border-radius: var(--st-radius);
+  background: var(--st-accent-soft);
+  color: var(--st-accent);
+  font-weight: 700;
+  text-align: center;
+}
+
+.ov-layer-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--st-2);
+}
+
+.ov-layer-title {
+  font-weight: 600;
+}
+
+.ov-layer-primary {
+  color: var(--st-accent);
+  font-size: 0.875rem;
+}
+
+.ov-layer-desc,
+.ov-ops-desc {
+  display: block;
+  margin-block-start: var(--st-1);
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.ov-layer-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-1) var(--st-2);
+  margin-block-start: var(--st-2);
+}
+
+.ov-tag {
+  padding: 0.0625rem var(--st-2);
+  border: 1px solid var(--st-rule);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.ov-layer-arrow {
+  align-self: center;
+  color: var(--st-text-muted);
+  font-size: 1.25rem;
+}
+
+.ov-flow {
+  display: flex;
+  justify-content: center;
+  padding: var(--st-1) 0;
+  color: var(--st-rule-strong);
+}
+
+.ov-ops {
+  display: grid;
+  gap: var(--st-3);
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ov-ops-card {
+  display: block;
+  block-size: 100%;
+  padding: var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    border-color: var(--st-accent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 2px;
+  }
+}
+
+.ov-ops-icon {
+  font-size: 1.25rem;
+}
+
+.ov-ops-label {
+  display: block;
+  margin-block-start: var(--st-1);
+  font-weight: 600;
+}
+
+.ov-info {
+  display: grid;
+  gap: var(--st-3);
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  margin-block-start: var(--st-6);
+}
+
+.ov-info-card {
+  padding: var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.ov-info-title {
+  margin: 0 0 var(--st-2);
+  font-size: 0.9375rem;
+}
+
+.ov-info-list {
+  margin: 0;
+  padding-inline-start: var(--st-5);
+  font-size: 0.875rem;
+  line-height: 1.6;
+
+  li + li {
+    margin-block-start: var(--st-2);
+  }
+}
+
+.ov-info-text {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+code {
+  padding: 0.0625rem 0.25rem;
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  font-size: 0.8125rem;
+}

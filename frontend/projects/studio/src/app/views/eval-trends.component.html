@@ -1,0 +1,161 @@
+<div class="et-bar">
+  <button type="button" class="et-reload" [disabled]="trends.loading()" (click)="reload()">
+    {{ trends.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+  </button>
+</div>
+
+<studio-async-state
+  label="Trends"
+  [loading]="trends.loading()"
+  [error]="trends.error()"
+  [empty]="runs().length === 0 && !trends.loading() && !trends.error()"
+  emptyText="Noch kein abgeschlossener Lauf. Trends entstehen aus fertigen Läufen —
+             starte einen Gold-Flow- oder generativen Lauf."
+  (retry)="reload()"
+/>
+
+@if (runs().length > 0) {
+  <figure class="et-figure">
+    <figcaption>Ø Judge-Score je Lauf</figcaption>
+    <svg
+      class="et-chart et-chart--wide"
+      [attr.viewBox]="'0 0 ' + scores().width + ' ' + scores().height"
+      role="img"
+      [attr.aria-label]="describeScores()"
+    >
+      <line
+        class="et-axis"
+        [attr.x1]="scores().pad" [attr.y1]="scores().height - scores().pad"
+        [attr.x2]="scores().width - scores().pad" [attr.y2]="scores().height - scores().pad"
+      />
+      @if (scores().points.length > 1) {
+        <polyline class="et-line" [attr.points]="scores().line" />
+      }
+      @for (p of scores().points; track p.runId) {
+        <circle class="et-dot" [attr.cx]="p.x" [attr.cy]="p.y" r="2.5" />
+      }
+    </svg>
+  </figure>
+
+  @if (!hasClassification()) {
+    <p class="et-note">
+      Die fünf Klassifikations-Serien unten stammen aus
+      <code>classification_metrics</code> — das schreibt nur ein
+      <strong>generativer</strong> Lauf. Hier liegen bisher nur Gold-Flow-Läufe,
+      deshalb sind sie leer. Der Ø-Score oben umfasst beide Lauf-Arten.
+    </p>
+  }
+
+  <ul class="et-grid">
+    @for (series of rates(); track series.key) {
+      <li class="et-cell">
+        <figure class="et-figure">
+          <figcaption>{{ series.label }}</figcaption>
+          <p class="et-hint">{{ series.hint }}</p>
+          @if (series.chart.points.length > 0) {
+            <svg
+              class="et-chart"
+              [attr.viewBox]="'0 0 ' + series.chart.width + ' ' + series.chart.height"
+              role="img"
+              [attr.aria-label]="describe(series)"
+            >
+              <line
+                class="et-axis"
+                [attr.x1]="series.chart.pad"
+                [attr.y1]="series.chart.height - series.chart.pad"
+                [attr.x2]="series.chart.width - series.chart.pad"
+                [attr.y2]="series.chart.height - series.chart.pad"
+              />
+              @if (series.chart.points.length > 1) {
+                <polyline class="et-line" [attr.points]="series.chart.line" />
+              }
+              @for (p of series.chart.points; track p.runId) {
+                <circle class="et-dot" [attr.cx]="p.x" [attr.cy]="p.y" r="2.5" />
+              }
+            </svg>
+          } @else {
+            <p class="et-empty">Keine Daten</p>
+          }
+        </figure>
+      </li>
+    }
+  </ul>
+
+  <table class="et-table">
+    <caption>Alle Werte je Lauf — älteste zuerst</caption>
+    <thead>
+      <tr>
+        <th scope="col">Lauf</th>
+        <th scope="col">Zeitpunkt</th>
+        <th scope="col">Art</th>
+        <th scope="col">Turns</th>
+        <th scope="col">Ø Score</th>
+        @for (series of rates(); track series.key) {
+          <th scope="col">{{ series.label }}</th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track row.id) {
+        <tr>
+          <th scope="row" class="et-run-id">{{ row.id }}</th>
+          <td>{{ when(row.createdAt) }}</td>
+          <td>{{ row.mode }}</td>
+          <td class="et-num">{{ row.totalTurns }}</td>
+          <td class="et-num">{{ score(row.avgScore) }}</td>
+          @for (rate of row.rates; track $index) {
+            <td class="et-num">{{ percent(rate) }}</td>
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+
+  @if (patterns().length > 0) {
+    <details class="et-details">
+      <summary>Tool-Compliance je Pattern ({{ patterns().length }})</summary>
+      <p class="et-hint">
+        Anteil der Turns, in denen das Pattern genau die Tools aufrief, die für
+        es konfiguriert sind.
+      </p>
+      <table class="et-table">
+        <caption>Letzter Lauf je Pattern</caption>
+        <thead>
+          <tr>
+            <th scope="col">Pattern</th>
+            <th scope="col">Quote</th>
+            <th scope="col">passend</th>
+            <th scope="col">Turns</th>
+            <th scope="col">Verlauf</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (pattern of patterns(); track pattern.patternId) {
+            <tr>
+              <th scope="row" class="et-run-id">{{ pattern.patternId }}</th>
+              <td class="et-num">{{ percent(pattern.latest?.rate ?? null) }}</td>
+              <td class="et-num">{{ pattern.latest?.ok ?? '–' }}</td>
+              <td class="et-num">{{ pattern.latest?.total ?? '–' }}</td>
+              <td>
+                <svg
+                  class="et-spark"
+                  [attr.viewBox]="'0 0 ' + pattern.chart.width + ' ' + pattern.chart.height"
+                  role="img"
+                  [attr.aria-label]="'Verlauf über ' + pattern.chart.points.length
+                    + ' Läufe; die Quote des letzten Laufs steht in der Zelle links.'"
+                >
+                  @if (pattern.chart.points.length > 1) {
+                    <polyline class="et-line" [attr.points]="pattern.chart.line" />
+                  }
+                  @for (p of pattern.chart.points; track p.runId) {
+                    <circle class="et-dot" [attr.cx]="p.x" [attr.cy]="p.y" r="2" />
+                  }
+                </svg>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </details>
+  }
+}

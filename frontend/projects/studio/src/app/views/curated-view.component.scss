@@ -1,0 +1,33 @@
+// A curated config view (9-4b). Values from the studio tokens only.
+
+.cv-head {
+  margin-block-end: var(--st-5);
+}
+
+.cv-crumb {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--st-text-muted);
+}
+
+.cv-title {
+  margin: var(--st-1) 0 0;
+  font-size: 1.375rem;
+}
+
+.cv-intro {
+  margin: var(--st-2) 0 0;
+  max-inline-size: 62ch; // a measure that stays readable at 200% zoom
+  color: var(--st-text-muted);
+}
+
+.cv-sections {
+  display: grid;
+  gap: var(--st-3);
+}
+
+.cv-empty {
+  color: var(--st-danger-text);
+}

@@ -1,0 +1,85 @@
+// Studio design tokens (P9-2). Layered ON TOP of the shared M3 tokens from
+// `@boerdi/ui` (theme/tokens.scss) — the studio does not get a second palette.
+// ALT carried its own 15 variables (`--primary: #2B6CB0` …) plus ~40 hardcoded
+// hex values inline; here every value a view needs is a token, so one change
+// propagates.
+//
+// Design direction: a quiet instrument panel. Hierarchy comes from type weight,
+// space and hairlines — not from a card grid with shadows on everything. The
+// only place boldness is spent is the active nav marker and the primary action.
+//
+// Fonts: inherited system stack (`--boerdi-font`). No CDN font, ever (DSGVO).
+//
+// CONTRAST: every pair below was computed against its own surface. Text tokens
+// meet WCAG 2.2 AA 4.5:1; "indicator" tokens (dots, badges, borders) meet the
+// 3:1 floor for non-text UI (SC 1.4.11). Ratios are noted per token so a future
+// change cannot silently drop below the floor.
+@use 'theme/tokens';
+
+:root {
+  // ── Surfaces ────────────────────────────────────────────────────────
+  --st-bg: #f8fafc; // page behind the panels (ALT --bg)
+  --st-panel: var(--boerdi-surface); // cards, sidebar, header
+  // Buttons and inset blocks. Added in 9-5b: nine stylesheets were already
+  // reading this name and it had never been defined, so every one of those
+  // backgrounds computed to transparent. Text on it stays ≥ 6.6:1 in both
+  // schemes because the M3 token flips with prefers-color-scheme.
+  --st-surface-variant: var(--boerdi-surface-variant);
+  --st-rule: #e5e7eb; // hairline; 1.35:1 — decorative, never carries meaning
+  --st-rule-strong: #9ca3af; // form borders; 2.6:1 vs white … see note below
+  --st-text: var(--boerdi-on-surface); // 15.9:1 on white
+  --st-text-muted: #545a63; // 7.0:1 on white (ALT's #6B7280 was 4.8 — kept AA
+  // but failed as soon as it sat on --st-bg)
+
+  // ── Accent ──────────────────────────────────────────────────────────
+  --st-accent: var(--boerdi-primary); // #1f6feb, 4.63:1 on white ✓ AA text
+  --st-accent-text: var(--boerdi-on-primary);
+  --st-accent-soft: #ebf3ff; // active-nav / selected-row wash
+
+  // ── Semantic pairs: -text meets 4.5:1, -dot meets 3:1 ───────────────
+  --st-ok-text: #047857; // 5.55:1  (NOT #10b981 = 2.56:1, ALT used it as text)
+  --st-ok-dot: #16a34a; // 3.30:1
+  --st-warn-text: #b45309; // 5.05:1
+  --st-warn-dot: #d97706; // 3.15:1
+  --st-danger-text: #b91c1c; // 6.54:1
+  --st-danger-dot: #dc2626; // 4.83:1
+  --st-unknown-dot: #6b7280; // 4.83:1 — the honest third status state
+
+  // ── Space scale (one scale, held everywhere) ────────────────────────
+  --st-1: 4px;
+  --st-2: 8px;
+  --st-3: 12px;
+  --st-4: 16px;
+  --st-5: 24px;
+  --st-6: 32px;
+  --st-7: 48px;
+
+  --st-radius: var(--boerdi-radius-sm);
+  --st-sidebar-w: 17.5rem; // rem, not px: survives 200 % zoom by reflowing
+  --st-header-h: 3.5rem;
+  // A `box-shadow` VALUE, not a colour — `outline: 2px solid var(--st-focus)`
+  // is invalid and the whole declaration is dropped. Ten stylesheets did that
+  // (found in 9-5b); the visible ring came from the global `:focus-visible`
+  // rule in styles.scss the whole time. For a ring, use `--st-accent`.
+  --st-focus: 0 0 0 3px rgb(31 111 235 / 45%);
+}
+
+// `--st-rule-strong` note: 2.6:1 is BELOW the 3:1 non-text floor, so it is used
+// only for decorative separators. Every input border uses `--st-text-muted`
+// (7.0:1) — a form field's boundary is a meaningful UI component (SC 1.4.11).
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --st-bg: #131517;
+    --st-rule: #33373b;
+    --st-rule-strong: #5b6067;
+    --st-text-muted: #b6bcc4; // 9.4:1 on --st-bg
+    --st-accent: #8ab4f8; // 8.1:1 on dark (the light-mode blue is 3.7:1 → fails)
+    --st-accent-text: #0b1420;
+    --st-accent-soft: #1d2733;
+    --st-ok-text: #6ee7b7;
+    --st-warn-text: #fcd34d;
+    --st-danger-text: #fca5a5;
+    --st-focus: 0 0 0 3px rgb(138 180 248 / 55%);
+  }
+}

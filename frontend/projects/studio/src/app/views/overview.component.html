@@ -1,0 +1,209 @@
+<header class="ov-head">
+  <p class="ov-crumb">Start</p>
+  <h2 class="ov-title">Übersicht</h2>
+  <p class="ov-intro">
+    Der Chatbot wird über sechs Architektur-Schichten konfiguriert; darunter steht
+    der laufende Betrieb. Alle Änderungen wirken live, ohne Backend-Neustart.
+  </p>
+</header>
+
+<studio-tab-bar
+  label="Übersicht"
+  [tabs]="tabs"
+  [active]="active()"
+  (tabChange)="select($event)"
+/>
+
+<div
+  id="panel-uebersicht"
+  class="ov-panel"
+  role="tabpanel"
+  aria-labelledby="tab-uebersicht"
+  tabindex="0"
+  [hidden]="active() !== 'uebersicht'"
+>
+  <section class="ov-strip" aria-labelledby="ov-status-title">
+    <div class="ov-strip-head">
+      <h3 id="ov-status-title" class="ov-section-title">Status</h3>
+      <button type="button" class="ov-refresh" (click)="reload()" [disabled]="loading()">
+        {{ loading() ? 'Lädt …' : 'Aktualisieren' }}
+      </button>
+    </div>
+
+    @for (message of errors(); track message) {
+      <p class="ov-error" role="alert">{{ message }}</p>
+    }
+
+    <div class="ov-status">
+      <div class="ov-status-card">
+        <p class="ov-status-kind">Backend</p>
+        <p class="ov-status-main">{{ health.value()?.chat_model || '—' }}</p>
+        <p class="ov-status-meta">
+          {{ health.value()?.provider || 'Provider unbekannt' }}
+        </p>
+      </div>
+
+      <div class="ov-status-card">
+        <p class="ov-status-kind">Werkseinstellungen</p>
+        @if (factory.value()?.exists) {
+          <p class="ov-status-main">{{ ago(factory.value()?.created_at) }}</p>
+          <p class="ov-status-meta">
+            {{ exact(factory.value()?.created_at) }} · {{ snapshotLine() }}
+          </p>
+        } @else {
+          <p class="ov-status-main">kein Werksstand gesichert</p>
+          <p class="ov-status-meta">
+            Ohne ihn gibt es kein „Zurück auf Anfang“. {{ snapshotLine() }}
+          </p>
+        }
+      </div>
+
+      <div class="ov-status-card">
+        <p class="ov-status-kind">Letzte Eval</p>
+        @if (lastEval(); as run) {
+          <p class="ov-status-main">Score {{ score(run.avg_score) }}</p>
+          <p class="ov-status-meta">
+            {{ count(run.total_turns) }} Turns · {{ ago(run.completed_at) }}
+          </p>
+        } @else {
+          <p class="ov-status-main">noch keine</p>
+          <p class="ov-status-meta">
+            <a routerLink="/evaluation">Evaluation öffnen</a> und einen Lauf starten
+          </p>
+        }
+      </div>
+    </div>
+  </section>
+
+  <h3 class="ov-section-title">Architektur</h3>
+  <!-- An ordered list because the order is the fact: this is how the layers are
+       assembled into the prompt, and the arrows repeat it visually. -->
+  <ol class="ov-layers">
+    @for (layer of layers; track layer.slug; let last = $last) {
+      <li class="ov-layer">
+        <a class="ov-layer-card" [routerLink]="'/' + layer.slug">
+          <span class="ov-layer-num" aria-hidden="true">{{ layer.num }}</span>
+          <span class="ov-layer-body">
+            <span class="ov-layer-title-row">
+              <span class="ov-layer-title">
+                <span class="ov-layer-icon" aria-hidden="true">{{ layer.icon }}</span>
+                Schicht {{ layer.num }} — {{ label(layer.slug) }}
+              </span>
+              @if (primary(layer)) {
+                <span class="ov-layer-primary">{{ primary(layer) }}</span>
+              }
+            </span>
+            <span class="ov-layer-desc">{{ layer.headline }}</span>
+            <span class="ov-layer-tags">
+              @for (tag of tags(layer); track tag) {
+                <span class="ov-tag">{{ tag }}</span>
+              }
+            </span>
+          </span>
+          <span class="ov-layer-arrow" aria-hidden="true">›</span>
+        </a>
+        @if (!last) {
+          <span class="ov-flow" aria-hidden="true">
+            <svg width="14" height="16" viewBox="0 0 14 16" focusable="false">
+              <path d="M7 0 L7 12 M3 8 L7 12 L11 8" fill="none"
+                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </span>
+        }
+      </li>
+    }
+  </ol>
+
+  <h3 class="ov-section-title">Betrieb &amp; Datenschutz</h3>
+  <ul class="ov-ops">
+    @for (card of ops; track card.slug) {
+      <li>
+        <a class="ov-ops-card" [routerLink]="'/' + card.slug">
+          <span class="ov-ops-icon" aria-hidden="true">{{ card.icon }}</span>
+          <span class="ov-ops-label">{{ label(card.slug) }}</span>
+          <span class="ov-ops-desc">{{ desc(card.slug) }}</span>
+        </a>
+      </li>
+    }
+  </ul>
+
+  <div class="ov-info">
+    <section class="ov-info-card">
+      <h3 class="ov-info-title">So entscheidet der Bot</h3>
+      <ol class="ov-info-list">
+        <li>
+          <strong>Klassifikation:</strong> Jeder Input wird in Intent, Persona, State
+          und Entities eingeordnet. Fehlende Pflicht-Slots lösen eine gezielte
+          Rückfrage aus.
+        </li>
+        <li>
+          <strong>Pattern-Wahl:</strong> Der LLM-Hint bestimmt das passende Pattern,
+          <code>classify-overrides.yaml</code> ist der deterministische Hard-Anker.
+        </li>
+        <li>
+          <strong>Modulate:</strong> Ton, Länge und Format werden anhand der aktiven
+          Signale und der Persona-Tonalität nachjustiert.
+        </li>
+      </ol>
+    </section>
+
+    <section class="ov-info-card">
+      <h3 class="ov-info-title">Verknüpfungen</h3>
+      <ul class="ov-info-list">
+        <li>
+          <strong>Patterns</strong> referenzieren Personas, Intents, States und
+          Signale — editierbar unter <a routerLink="/patterns">Patterns</a>.
+        </li>
+        <li>
+          <strong>Tonalitäts-Modifier</strong> stecken im Frontmatter jeder Persona
+          (<code>tone</code>, <code>length_bias</code>, <code>formality</code>,
+          <code>card_text_mode</code>). Die Persona steuert die Tonalität, nicht die
+          Pattern-Wahl.
+        </li>
+        <li>
+          <strong>Material-Formate</strong> greifen nur bei den Intents I05 (Create)
+          und I06 (Edit).
+        </li>
+        <li>
+          <strong>Inhalte abrufen (I03)</strong> gilt für Themenseiten, Sammlungen
+          und Einzelinhalte; die Pattern-Wahl läuft über Anker-Wörter und Persona.
+        </li>
+      </ul>
+    </section>
+
+    <section class="ov-info-card">
+      <h3 class="ov-info-title">Tonalitäts-Modifier</h3>
+      <p class="ov-info-text">
+        Jede Persona trägt im Frontmatter (siehe
+        <a routerLink="/dimensionen">Dimensionen</a>) die fünf Felder
+        <code>tone</code>, <code>length_bias</code>, <code>formality</code>,
+        <code>card_text_mode</code> und <code>override</code>. Der Antwort-Prompt
+        wendet sie an — die Tonalität liegt damit zentral pro Persona statt doppelt
+        in jedem Pattern.
+      </p>
+    </section>
+
+    <section class="ov-info-card">
+      <h3 class="ov-info-title">3-Stufen-Eskalation</h3>
+      <p class="ov-info-text">
+        In <code>02-domain/domain-rules.md</code> verankert: bei Anfragen außerhalb
+        von WLO folgt der Bot dem Schema <strong>direkter Treffer → Adjacent
+        (query_knowledge) → ehrliche Degradation mit Kontaktweg</strong>. Die
+        Few-Shot-Beispiele dazu stehen im Prompt.
+      </p>
+    </section>
+  </div>
+</div>
+
+<div
+  id="panel-referenz"
+  class="ov-panel"
+  role="tabpanel"
+  aria-labelledby="tab-referenz"
+  tabindex="0"
+  [hidden]="active() !== 'referenz'"
+>
+  @if (shows()('referenz')) {
+    <studio-architecture-reference [signals]="signals()" />
+  }
+</div>

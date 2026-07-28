@@ -1,0 +1,248 @@
+# Image-Gate (P10-5): baut das Prod-Image und fährt einen Smoke dagegen.
+#
+# **Warum überhaupt.** `ci.yml` prüft Quellen, nicht das Artefakt. Ein Fehler im
+# Dockerfile — falscher COPY-Pfad, kaputte Stufe, fehlende Abhängigkeit — fällt
+# damit erst beim Deploy auf. Genau das ist beim Bau von P10-2 passiert: das
+# Image stammte von vor `uv add redis`, das Compose setzte
+# `RATE_LIMIT_STORAGE_URI=redis://…`, und drei Container standen in
+# `Restarting (1)` mit `limits.errors.ConfigurationError`. Der Smoke unten setzt
+# deshalb eine echte Storage-URI — mit `memory://` (dem Code-Default) wäre genau
+# dieser Fehler unsichtbar geblieben. Seit P10-6 ist der Speicher Valkey statt
+# Redis; die Fehlerklasse ist dieselbe, nur der Client heißt anders.
+# **Warum ein eigener Workflow statt eines Jobs in `ci.yml`.** Der Build dauert
+# Minuten (npm ci + zwei Angular-Builds + uv sync), und Pfad-Filter gibt es in
+# GitHub Actions nur auf Workflow-Ebene, nicht pro Job — ein Job in `ci.yml`
+# könnte also nur nach Branch entscheiden oder bräuchte eine Fremd-Action
+# (`dorny/paths-filter`). Getrennt heißt außerdem: `ci.yml` bleibt das schnelle
+# Gate auf jedem Push, und dieser Workflow darf eine eigene
+# `concurrency`-Politik haben.
+#
+# **Kein `needs:` auf backend/frontend.** Wäre technisch nur im selben Workflow
+# möglich und würde den Bau serialisieren: der grüne Normalfall (die große
+# Mehrheit) würde dadurch etwa doppelt so lange dauern, um im roten Fall Minuten
+# zu sparen. Beide Workflows laufen parallel.
+name: image
+
+on:
+  # Auf main OHNE Pfad-Filter: was gemergt ist, wird gebaut — auch wenn der
+  # Merge-Commit selbst keine der Dateien unten berührt.
+  push:
+    branches: [main]
+  # Im PR nur, wenn das Image sich überhaupt ändern kann. Nicht gelistet und
+  # damit übersprungen: `backend/tests/**`, `docs/**`, `evals/**`, `deploy/**`,
+  # Markdown — alles im `.dockerignore` oder außerhalb jedes COPY.
+  #
+  # `backend/src/**` steht bewusst drin, obwohl es fast jeden Backend-PR trifft:
+  # `uv sync --no-editable` baut ein Wheel, und eine neue Nicht-`.py`-Datei unter
+  # `src/` kann in pytest (Quellbaum) funktionieren und im Image (Wheel) fehlen.
+  # Das ist dieselbe Drift-Klasse, gegen die dieser Workflow existiert.
+  #
+  # Preis, falls dieser Check je „required" wird: ein PR ohne Treffer meldet ihn
+  # nie und bleibt dann dauerhaft blockiert. Dann gehört hier ein
+  # Always-Skip-Zwilling her — solange er nicht required ist, ist nichts zu tun.
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "backend/pyproject.toml"
+      - "backend/uv.lock"
+      - "backend/alembic.ini"
+      - "backend/alembic/**"
+      - "backend/src/**"
+      - "frontend/**"
+      - ".github/workflows/image.yml"
+  # Für den Fall „ich will es trotzdem sehen" (z. B. nach einem Basis-Image-CVE,
+  # der keine Datei im Repo anfasst).
+  workflow_dispatch:
+
+# Ein laufender Bau auf demselben Ref wird abgebrochen, wenn nachgeschoben wird.
+# Nur hier, nicht in ci.yml: dort kostet ein Doppellauf Sekunden, hier Minuten.
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    # Der Bau liegt bei ~5–8 min; 30 ist Reißleine gegen einen hängenden
+    # Container, nicht das erwartete Maß.
+    timeout-minutes: 30
+    env:
+      # Eigenes Docker-Netz statt `services:`: die Dienste müssen für den
+      # App-Container unter ihrem NAMEN erreichbar sein (wie in compose.prod).
+      # GitHubs Service-Container hängen in einem vom Runner erzeugten Netz, an
+      # das ein per `docker run` gestarteter Container nicht ohne Weiteres kommt
+      # — man landet bei `--network host` und published Ports, also bei einer
+      # Topologie, die es in Produktion nicht gibt.
+      NET: boerdi-smoke
+      # Identisch zu compose.prod.yml (Dienstname `postgres`).
+      DB_URL: postgresql+asyncpg://boerdi:boerdi@postgres:5432/boerdi
+      BASE: http://localhost:8100
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # `cache-to: mode=max` statt `mode=min`: bei einem Multi-Stage-Build
+      # enthält `min` nur die Layer des FINALEN Images — die teuren Zwischen-
+      # stufen (npm ci, uv sync) wären damit nicht im Cache und liefen jedes Mal
+      # neu. Preis: der Cache ist groß (node_modules + .venv als Layer). Das
+      # GitHub-Cache-Kontingent liegt bei 10 GB pro Repo mit LRU-Verdrängung, es
+      # kann also die npm-/uv-Caches aus ci.yml verdrängen. Falls das je auffällt
+      # (ci.yml wird spürbar langsamer), ist `mode=min` + ein expliziter
+      # `cache-from` auf die Frontend-Stufe der nächste Schritt.
+      #
+      # `load: true` legt das Ergebnis im lokalen Daemon ab — ohne das existiert
+      # `boerdi-chat` nur im buildx-Cache und `docker run` findet es nicht.
+      - name: Build (`docker build -t boerdi-chat .`)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          tags: boerdi-chat
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Postgres + Valkey starten (dieselben Images wie compose.prod)
+        run: |
+          docker network create "$NET"
+          docker run -d --name postgres --network "$NET" \
+            -e POSTGRES_USER=boerdi -e POSTGRES_PASSWORD=boerdi -e POSTGRES_DB=boerdi \
+            --health-cmd "pg_isready -U boerdi -d boerdi" \
+            --health-interval 3s --health-timeout 3s --health-retries 20 \
+            pgvector/pgvector:pg17
+          docker run -d --name valkey --network "$NET" \
+            --health-cmd "valkey-cli ping" \
+            --health-interval 2s --health-timeout 3s --health-retries 15 \
+            valkey/valkey:8-alpine valkey-server --save '' --appendonly no
+
+      # **Auch auf Valkey warten, nicht nur auf Postgres.** `limits` verbindet
+      # sich beim Bau des Limiters, und der passiert beim Import — ein noch
+      # nicht bereiter Speicher wäre also kein später Fehler, sondern ein toter
+      # Container. Praktisch startet das Image schneller als die zwei Schritte
+      # davor dauern; „praktisch" ist bei einem Gate aber der Unterschied
+      # zwischen selten rot und verlässlich.
+      - name: Auf Postgres + Valkey warten
+        run: |
+          for name in postgres valkey; do
+            ready=
+            for _ in $(seq 1 40); do
+              if [ "$(docker inspect -f '{{.State.Health.Status}}' "$name")" = healthy ]; then
+                ready=1; break
+              fi
+              sleep 2
+            done
+            if [ -z "$ready" ]; then
+              echo "::error::$name wurde nicht healthy"
+              docker logs "$name"
+              exit 1
+            fi
+            echo "$name healthy"
+          done
+
+      # Aus DEMSELBEN Image, als eigener Lauf — genau wie der `migrate`-Dienst in
+      # compose.prod.yml. Prüft nebenbei, dass alembic.ini + alembic/ im Image
+      # gelandet sind (sie liegen außerhalb des Wheels).
+      - name: Migration (`alembic upgrade head`)
+        run: |
+          docker run --rm --network "$NET" -e DATABASE_URL="$DB_URL" \
+            boerdi-chat alembic upgrade head
+
+      - name: Backend-Container starten
+        run: |
+          docker run -d --name boerdi --network "$NET" -p 8100:8100 \
+            -e DATABASE_URL="$DB_URL" \
+            -e RATE_LIMIT_STORAGE_URI=valkey://valkey:6379/0 \
+            -e CORS_ORIGINS=https://smoke.example \
+            -e STUDIO_API_KEY=smoke-nur-fuer-ci-kein-secret \
+            boerdi-chat
+
+      - name: Auf /health warten
+        run: |
+          # `-fs` ohne `-S`: die ersten Versuche laufen in „Empty reply from
+          # server", solange uvicorn den Port schon hält aber noch nicht
+          # antwortet (lokal gemessen: 3 Versuche). Das ist der Normalfall und
+          # soll das Log nicht mit roten Zeilen füllen.
+          for _ in $(seq 1 60); do
+            curl -fs -o /dev/null "$BASE/health" && exit 0
+            # Container schon gestorben? Dann nicht zwei Minuten weiterwarten.
+            # Das IST der Redis-Fall aus dem Kopf dieser Datei: der
+            # ConfigurationError fliegt beim Import, der Prozess ist sofort weg.
+            if [ "$(docker inspect -f '{{.State.Running}}' boerdi)" != true ]; then
+              echo "::error::Container ist beendet (Exit $(docker inspect -f '{{.State.ExitCode}}' boerdi))"
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::/health hat in 120 s nicht geantwortet"
+          exit 1
+
+      - name: Smoke — /health
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/health.json -w '%{http_code}' "$BASE/health")
+          test "$code" = 200 || { echo "::error::/health => $code"; exit 1; }
+          grep -q '"status":"ok"' /tmp/health.json
+
+      # Der Vertrag aus api/widget.py: der stabile Pfad ist ein 302 auf die
+      # gehashte URL, und NUR die trägt `immutable`. Beides wird geprüft — ein
+      # 302 auf eine tote URL bestünde eine reine Statuscode-Prüfung.
+      - name: Smoke — /widget/boerdi-widget.js (302 → gehashte URL)
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /dev/null -D /tmp/redirect.h -w '%{http_code}' "$BASE/widget/boerdi-widget.js")
+          test "$code" = 302 || { echo "::error::Widget-Bündel => $code (503 = Bündel fehlt im Image)"; exit 1; }
+          loc=$(awk 'tolower($1) == "location:" { print $2 }' /tmp/redirect.h | tr -d '\r')
+          echo "Location: $loc"
+          echo "$loc" | grep -Eq '^/widget/boerdi-widget\.[0-9a-f]{12}\.js$' \
+            || { echo "::error::Location ist nicht die gehashte URL"; exit 1; }
+
+          code=$(curl -sS -o /dev/null -D /tmp/hashed.h -w '%{http_code}' "$BASE$loc")
+          test "$code" = 200 || { echo "::error::gehashte URL => $code"; exit 1; }
+          grep -qi '^cache-control: public, max-age=31536000, immutable' /tmp/hashed.h \
+            || { echo "::error::gehashte URL ohne immutable"; sed -n '1,20p' /tmp/hashed.h; exit 1; }
+
+      # Dritte Oberfläche desselben Images — und die einzige, deren Fehlen
+      # STUMM ist: `mount_studio_spa` überspringt den Mount mit einer
+      # Info-Zeile, wenn `index.html` fehlt. Ein falscher COPY-Pfad für
+      # `studio_dist` gäbe also einen fehlerfrei startenden Container ohne
+      # Studio — genau der Fall, der sonst erst im Deploy auffällt.
+      - name: Smoke — /studio/ (SPA im Image)
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/studio/")
+          test "$code" = 200 || { echo "::error::/studio/ => $code (Mount übersprungen?)"; exit 1; }
+
+      # V12 / Audit-Erbe T-9. Eine Zeile, und sie hält die Zusage aus dem
+      # Dockerfile fest: ein später eingefügtes `USER root` fällt sofort auf.
+      - name: Smoke — non-root (uid 1000)
+        run: |
+          set -euo pipefail
+          uid=$(docker exec boerdi id -u)
+          test "$uid" = 1000 || { echo "::error::läuft als uid $uid"; exit 1; }
+
+      # Zuletzt, weil es der teuerste Punkt ist: `--start-period=15s` +
+      # `--interval=30s` heißt, dass der erste Befund frühestens nach ~15 s und
+      # spätestens nach ~45 s vorliegt. Er ist es wert — ein kaputter
+      # HEALTHCHECK lässt in compose jedes `depends_on: service_healthy` ewig
+      # hängen, und der Deploy sieht nur „wartet".
+      - name: Smoke — Docker-HEALTHCHECK wird `healthy`
+        run: |
+          for _ in $(seq 1 40); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' boerdi)" = healthy ] && exit 0
+            sleep 2
+          done
+          echo "::error::HEALTHCHECK wurde in 80 s nicht healthy"
+          docker inspect -f '{{json .State.Health}}' boerdi
+          exit 1
+
+      # Ohne das zeigt ein roter Lauf nur „exit 1". Der Grund steht im
+      # Container-Log (siehe Runbook: `docker compose ps` zeigt die Schleife,
+      # nicht den Grund).
+      - name: Diagnose bei Fehlschlag
+        if: failure()
+        run: |
+          docker ps -a
+          echo "── boerdi ──"; docker logs boerdi 2>&1 | tail -80 || true
+          echo "── postgres ──"; docker logs postgres 2>&1 | tail -30 || true
+          echo "── valkey ──"; docker logs valkey 2>&1 | tail -20 || true

@@ -1,0 +1,176 @@
+.et-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: var(--st-3);
+}
+
+.et-reload {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.et-reload:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.et-reload:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.et-figure {
+  margin: 0;
+}
+
+.et-figure figcaption {
+  margin-block-end: var(--st-1);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.et-hint {
+  margin: 0 0 var(--st-2);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+}
+
+.et-note {
+  margin-block: var(--st-3);
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.et-note code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.et-chart {
+  inline-size: 100%;
+  max-inline-size: 20rem;
+  block-size: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.et-chart--wide {
+  max-inline-size: 40rem;
+}
+
+.et-spark {
+  inline-size: 7rem;
+  block-size: auto;
+  vertical-align: middle;
+}
+
+.et-axis {
+  stroke: var(--st-rule-strong);
+  stroke-width: 1;
+}
+
+.et-line {
+  fill: none;
+  stroke: var(--st-accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.et-dot {
+  fill: var(--st-accent);
+}
+
+.et-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--st-4);
+  margin-block: var(--st-4);
+  padding: 0;
+  list-style: none;
+}
+
+.et-cell {
+  min-inline-size: 0;
+}
+
+.et-empty {
+  margin: 0;
+  padding: var(--st-3);
+  border: 1px dashed var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+// Wide tables scroll inside their own box; the page must never scroll sideways.
+.et-table {
+  display: block;
+  overflow-x: auto;
+  inline-size: 100%;
+  margin-block: var(--st-4);
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.et-table caption {
+  margin-block-end: var(--st-1);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: start;
+  white-space: normal;
+}
+
+.et-table th,
+.et-table td {
+  padding: var(--st-1) var(--st-2);
+  border-block-end: 1px solid var(--st-rule);
+  text-align: start;
+}
+
+.et-table thead th {
+  border-block-end: 1px solid var(--st-rule-strong);
+  font-weight: 600;
+  white-space: normal;
+}
+
+.et-num {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.et-run-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 400;
+}
+
+.et-details {
+  margin-block: var(--st-4);
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.et-details summary {
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.et-details summary:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}

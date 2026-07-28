@@ -1,0 +1,188 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ section().label }}</h3>
+    <p class="cs-hint">{{ section().hint }}</p>
+    @if (dirty()) {
+      <span class="cs-flag">Ungespeichert</span>
+    }
+  </summary>
+
+  <div class="cs-body mr">
+    @if (loading()) {
+      <p class="cs-state" aria-busy="true">Registry wird geladen …</p>
+    } @else if (loadError()) {
+      <div class="cs-state cs-state--error" role="alert">
+        <p>{{ loadError() }}</p>
+        <button type="button" class="cs-btn" (click)="load()">Erneut versuchen</button>
+      </div>
+    } @else {
+      <ul class="mr-list">
+        @for (server of servers(); track $index) {
+          <li class="mr-row">
+            <div class="mr-grid">
+              <label class="mr-check">
+                <input
+                  type="checkbox"
+                  class="mr-enabled"
+                  [checked]="server.enabled"
+                  (change)="edit($index, { enabled: $any($event.target).checked })"
+                />
+                Aktiv
+              </label>
+
+              <label class="mr-field">
+                <span class="mr-label">Kennung</span>
+                <input
+                  type="text"
+                  class="mr-id"
+                  [value]="server.id"
+                  [disabled]="!!server.url_readonly"
+                  (input)="edit($index, { id: $any($event.target).value })"
+                />
+              </label>
+
+              <label class="mr-field">
+                <span class="mr-label">Name</span>
+                <input
+                  type="text"
+                  class="mr-name"
+                  [value]="server.name"
+                  (input)="edit($index, { name: $any($event.target).value })"
+                />
+              </label>
+
+              <label class="mr-field mr-field--wide">
+                <span class="mr-label">Adresse</span>
+                <input
+                  type="url"
+                  class="mr-url"
+                  inputmode="url"
+                  [value]="server.url"
+                  [disabled]="!!server.url_readonly"
+                  (input)="edit($index, { url: $any($event.target).value })"
+                />
+                @if (server.url_readonly) {
+                  <span class="mr-help">
+                    Kommt aus der Umgebungsvariable
+                    <code>{{ server.url_env_var || 'MCP_SERVER_URL' }}</code>
+                    und wird hier nicht gespeichert.
+                  </span>
+                }
+              </label>
+
+              <label class="mr-field mr-field--wide">
+                <span class="mr-label">Beschreibung</span>
+                <input
+                  type="text"
+                  class="mr-desc"
+                  [value]="server.description"
+                  (input)="edit($index, { description: $any($event.target).value })"
+                />
+              </label>
+            </div>
+
+            @if (toolsOf(server).length > 0) {
+              <ul class="mr-tools">
+                @for (tool of toolsOf(server); track tool.name) {
+                  <li class="mr-tool" [attr.title]="tool.description || null">
+                    <span class="mr-tool-name">{{ tool.name }}</span>
+                    @if (tool.description) {
+                      <span class="mr-tool-desc">{{ tool.description }}</span>
+                    }
+                  </li>
+                }
+              </ul>
+            } @else if (server.enabled) {
+              <p class="mr-help">
+                Keine Werkzeuge gemeldet — der Server war beim Laden nicht erreichbar.
+              </p>
+            }
+
+            <p class="mr-row-actions">
+              <button
+                type="button"
+                class="cs-btn mr-del"
+                [disabled]="!!server.url_readonly"
+                (click)="remove($index)"
+              >
+                Entfernen<span class="sr"> — {{ server.name || server.id }}</span>
+              </button>
+              @if (server.url_readonly) {
+                <span class="mr-help">Der Primär-Server lässt sich nicht entfernen.</span>
+              }
+            </p>
+          </li>
+        }
+      </ul>
+
+      <div class="cs-actions">
+        <button type="button" class="cs-btn mr-add" (click)="add()">Server hinzufügen</button>
+        <button
+          type="button"
+          class="cs-btn cs-btn--primary mr-save"
+          [disabled]="saving() || !dirty() || incomplete()"
+          (click)="save()"
+        >
+          {{ saving() ? 'Wird gespeichert …' : 'Registry speichern' }}
+        </button>
+      </div>
+
+      @if (incomplete()) {
+        <p class="cs-state cs-state--error" role="alert">
+          Nicht speicherbar: Jeder Server braucht eine Kennung — Einträge ohne
+          Kennung verwirft der Server beim Speichern.
+        </p>
+      }
+      @if (saveError()) {
+        <p class="cs-state cs-state--error" role="alert">{{ saveError() }}</p>
+      }
+
+      <section class="mr-discover">
+        <h4 class="mr-discover-title">Server prüfen</h4>
+        <p class="mr-help">
+          Meldet die Werkzeuge einer Adresse, ohne sie einzutragen — zum Prüfen,
+          bevor der Server in die Liste kommt.
+        </p>
+        <div class="mr-discover-row">
+          <label class="mr-field mr-field--wide">
+            <span class="mr-label">Adresse</span>
+            <input
+              type="url"
+              class="mr-discover-url"
+              inputmode="url"
+              [value]="discoverUrl()"
+              (input)="discoverUrl.set($any($event.target).value)"
+            />
+          </label>
+          <button
+            type="button"
+            class="cs-btn mr-discover-go"
+            [disabled]="discovering() || !discoverUrl().trim()"
+            (click)="discover()"
+          >
+            {{ discovering() ? 'Wird geprüft …' : 'Prüfen' }}
+          </button>
+        </div>
+
+        @if (discoverError()) {
+          <p class="cs-state cs-state--error" role="alert">{{ discoverError() }}</p>
+        } @else if (found(); as tools) {
+          @if (tools.length === 0) {
+            <p class="cs-state">Der Server ist erreichbar, meldet aber kein Werkzeug.</p>
+          } @else {
+            <ul class="mr-tools mr-found">
+              @for (tool of tools; track tool.name) {
+                <li class="mr-tool">
+                  <span class="mr-tool-name">{{ tool.name }}</span>
+                  <span class="mr-tool-desc">{{ tool.description }}</span>
+                </li>
+              }
+            </ul>
+          }
+        }
+      </section>
+    }
+
+    <p class="cs-status" aria-live="polite">{{ status() }}</p>
+  </div>
+</details>

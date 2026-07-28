@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+htmlcov/
+.coverage
+junit*.xml
+
+# Env / secrets (never commit)
+.env
+.env.*
+!.env.example
+
+# Node / Angular (P8+)
+node_modules/
+.angular/
+frontend/dist/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local scratch
+*.local.*
+tmp/

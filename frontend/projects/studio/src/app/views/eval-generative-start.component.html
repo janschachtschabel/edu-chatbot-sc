@@ -1,0 +1,200 @@
+<section class="egs" aria-labelledby="egs-title">
+  <h3 class="egs-title" id="egs-title">Generativen Lauf starten</h3>
+  <p class="egs-intro">
+    Ein LLM erfindet Szenarien je Persona × Intent, spielt sie durch die echte
+    Chat-Pipeline und bewertet jede Antwort. Das kostet Geld — die Schätzung steht
+    vor dem Start.
+  </p>
+
+  <studio-async-state
+    class="egs-state"
+    label="Personas und Intents"
+    [loading]="config.loading() && personas().length === 0"
+    [error]="config.error()"
+    [empty]="nothingConfigured()"
+    emptyText="Diese Chatbot-Config hat keine Personas oder keine Intents — ohne
+      beide gibt es keine Kombination, die ein Lauf durchspielen könnte. Erst unter
+      „Personas“ bzw. „Intents“ anlegen."
+    (retry)="config.reload()"
+  />
+
+  <form class="egs-form" (submit)="$event.preventDefault(); check()">
+    <fieldset class="egs-set">
+      <legend class="egs-legend">Umfang</legend>
+      <p class="egs-note">Nichts ausgewählt = alle.</p>
+
+      <div class="egs-cols">
+        <div class="egs-col">
+          <p class="egs-sub" id="egs-personas-label">Personas</p>
+          <ul class="egs-picks" aria-labelledby="egs-personas-label">
+            @for (persona of personas(); track persona.id) {
+              <li>
+                <label class="egs-pick" [attr.for]="'egs-persona-' + persona.id">
+                  <input
+                    type="checkbox"
+                    [id]="'egs-persona-' + persona.id"
+                    [checked]="isChosen('persona', persona.id)"
+                    (change)="toggle('persona', persona.id)"
+                  />
+                  <span>{{ persona.label }} <span class="egs-id">{{ persona.id }}</span></span>
+                </label>
+              </li>
+            }
+          </ul>
+        </div>
+
+        <div class="egs-col">
+          <p class="egs-sub" id="egs-intents-label">Intents</p>
+          <ul class="egs-picks" aria-labelledby="egs-intents-label">
+            @for (intent of intents(); track intent.id) {
+              <li>
+                <label class="egs-pick" [attr.for]="'egs-intent-' + intent.id">
+                  <input
+                    type="checkbox"
+                    [id]="'egs-intent-' + intent.id"
+                    [checked]="isChosen('intent', intent.id)"
+                    (change)="toggle('intent', intent.id)"
+                  />
+                  <span>{{ intent.label }} <span class="egs-id">{{ intent.id }}</span></span>
+                </label>
+              </li>
+            }
+          </ul>
+        </div>
+      </div>
+
+      <p class="egs-combos">
+        Auswahl ergibt <strong>{{ count(combos()) }} Kombinationen</strong>.
+      </p>
+    </fieldset>
+
+    <fieldset class="egs-set">
+      <legend class="egs-legend">Art des Laufs</legend>
+      @for (option of modes; track option.value) {
+        <label class="egs-pick" [attr.for]="'egs-mode-' + option.value">
+          <input
+            type="radio"
+            name="egs-mode"
+            [id]="'egs-mode-' + option.value"
+            [value]="option.value"
+            [checked]="mode() === option.value"
+            (change)="setMode(option.value)"
+          />
+          <span>{{ option.label }}</span>
+        </label>
+      }
+    </fieldset>
+
+    <fieldset class="egs-set">
+      <legend class="egs-legend">Menge je Kombination</legend>
+
+      <p class="egs-field">
+        <label for="egs-scenarios">Szenarien je Kombination</label>
+        <input
+          id="egs-scenarios"
+          class="egs-input"
+          type="number"
+          inputmode="numeric"
+          [min]="minPerCombo"
+          [max]="maxPerCombo"
+          [value]="scenariosPerCombo()"
+          (input)="setNumber('scenariosPerCombo', $any($event.target).value)"
+          aria-describedby="egs-bounds"
+        />
+      </p>
+
+      <p class="egs-field">
+        <label for="egs-turns">Turns je Gespräch</label>
+        <input
+          id="egs-turns"
+          class="egs-input"
+          type="number"
+          inputmode="numeric"
+          [min]="minPerCombo"
+          [max]="maxPerCombo"
+          [value]="turnsPerConv()"
+          (input)="setNumber('turnsPerConv', $any($event.target).value)"
+          aria-describedby="egs-bounds"
+        />
+      </p>
+
+      <p class="egs-hint" id="egs-bounds">
+        Je {{ minPerCombo }} bis {{ maxPerCombo }} — außerhalb lehnt das Backend ab.
+      </p>
+    </fieldset>
+
+    @if (busy()) {
+      <p class="egs-busy">
+        Es läuft schon ein Lauf — es kann immer nur einer gleichzeitig laufen.
+      </p>
+    }
+
+    <div class="egs-actions">
+      <button
+        type="submit"
+        class="egs-btn"
+        [disabled]="checking() || busy() || !ready()"
+      >
+        {{ checking() ? 'Wird geschätzt …' : 'Kosten prüfen' }}
+      </button>
+    </div>
+  </form>
+
+  @if (armed()) {
+    <div class="egs-confirm">
+      <!-- Only the prose is live. With the buttons inside, every label change
+           ("Startet …") would re-announce the whole cost paragraph. -->
+      <div aria-live="polite">
+        @if (estimate(); as cost) {
+          <p class="egs-cost">
+            Dieser Lauf feuert <strong>{{ count(cost.chat_calls) }} Chat-Aufrufe</strong>
+            durch die echte Pipeline, <strong>{{ count(cost.judge_calls) }} Judge-Aufrufe</strong>
+            und {{ count(cost.simulator_calls) }} Simulator-Aufrufe —
+            {{ count(cost.total_turns) }} bewertete Turns.
+          </p>
+          <p class="egs-band">
+            Geschätzte Kosten <strong>{{ usd(cost.est_usd_min) }} bis {{ usd(cost.est_usd_max) }}</strong>,
+            erwartet {{ usd(cost.est_usd) }}.
+          </p>
+          <p class="egs-hint">
+            Schätzung mit festen Preisannahmen je Aufruf — die echte Rechnung hängt an
+            Prompt-Länge, Antwort-Länge und Tool-Ergebnissen.
+          </p>
+        } @else {
+          <p class="egs-cost egs-cost--blind">
+            Start <strong>ohne Kostenschätzung</strong>: {{ estimateError() }}
+            Der Lauf kostet trotzdem Geld — {{ count(combos()) }} Kombinationen.
+          </p>
+        }
+      </div>
+
+      <div class="egs-actions">
+        <button type="button" class="egs-btn egs-btn--go" [disabled]="starting() || busy()"
+                (click)="start()">
+          {{ starting() ? 'Startet …' : 'Ja, Lauf starten' }}
+        </button>
+        <button type="button" class="egs-btn" [disabled]="starting()" (click)="disarm()">
+          Abbrechen
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="egs-live" aria-live="polite">
+    @if (status()) {
+      <p class="egs-status">{{ status() }}</p>
+    }
+
+    @if (warnings().length > 0) {
+      <ul class="egs-warn">
+        @for (warning of warnings(); track warning) {
+          <li>{{ warning }}</li>
+        }
+      </ul>
+    }
+  </div>
+
+  @if (startError()) {
+    <p class="egs-error" role="alert">{{ startError() }}</p>
+  }
+</section>

@@ -1,0 +1,85 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ section().label }}</h3>
+    <p class="cs-hint">{{ section().hint }}</p>
+  </summary>
+
+  <div class="cs-body">
+    @if (loading() && areas().length === 0) {
+      <p class="cs-state" aria-busy="true">Wissensbereiche werden geladen …</p>
+    } @else if (loadError()) {
+      <div class="cs-state cs-state--error" role="alert">
+        <p>{{ loadError() }}</p>
+        <button type="button" class="cs-btn" (click)="reload()">Erneut versuchen</button>
+      </div>
+    } @else if (areas().length === 0) {
+      <p class="cs-state">
+        Noch keine Wissensbereiche. Ein Bereich entsteht mit dem ersten Dokument —
+        unter „Dokumente hinzufügen“ eines hochladen.
+      </p>
+    } @else {
+      <ul class="ra-list">
+        @for (area of areas(); track area.area) {
+          <li class="ra-row">
+            <div class="ra-head">
+              <span class="ra-name">{{ area.area }}</span>
+              <span class="ra-counts">
+                {{ area.documents }} {{ area.documents === 1 ? 'Dokument' : 'Dokumente' }}
+                · {{ area.chunks }} {{ area.chunks === 1 ? 'Abschnitt' : 'Abschnitte' }}
+              </span>
+              <span class="ra-buttons">
+                <button
+                  type="button"
+                  class="cs-btn ra-open"
+                  [attr.aria-expanded]="selected() === area.area"
+                  (click)="select(area.area)"
+                >
+                  Dokumente<span class="sr"> von {{ area.area }}</span>
+                </button>
+                @if (pending() !== area.area) {
+                  <button type="button" class="cs-btn ra-del" (click)="askDelete(area.area)">
+                    Löschen<span class="sr"> — Bereich {{ area.area }}</span>
+                  </button>
+                }
+              </span>
+            </div>
+
+            @if (pending() === area.area) {
+              <p class="ra-confirm">
+                <span role="alert">
+                  Wirklich löschen? Alle {{ area.chunks }} Abschnitte von „{{ area.area }}“
+                  gehen verloren — das lässt sich nicht rückgängig machen.
+                </span>
+                <button
+                  type="button"
+                  class="cs-btn ra-del-yes"
+                  [disabled]="deleting()"
+                  (click)="confirmDelete()"
+                >
+                  {{ deleting() ? 'Wird gelöscht …' : 'Ja, löschen' }}
+                </button>
+                <button
+                  type="button"
+                  class="cs-btn ra-del-no"
+                  [disabled]="deleting()"
+                  (click)="cancelDelete()"
+                >
+                  Abbrechen
+                </button>
+              </p>
+            }
+
+            @if (selected() === area.area) {
+              <studio-rag-documents [area]="area.area" (changed)="reload()" />
+            }
+          </li>
+        }
+      </ul>
+    }
+
+    @if (deleteError()) {
+      <p class="cs-state cs-state--error" role="alert">{{ deleteError() }}</p>
+    }
+    <p class="cs-status" aria-live="polite">{{ status() }}</p>
+  </div>
+</details>

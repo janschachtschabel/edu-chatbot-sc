@@ -1,0 +1,289 @@
+@use './visually-hidden';
+
+.erd {
+  margin-block-start: var(--st-5);
+  padding: var(--st-4);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.erd-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+  align-items: baseline;
+  justify-content: space-between;
+  margin-block-end: var(--st-3);
+}
+
+.erd-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.erd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+}
+
+.erd-btn {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.erd-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.erd-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+// Facts as a definition list: each pair is a term and its value, which is what
+// a screen reader should hear rather than two unrelated cells.
+.erd-facts {
+  display: grid;
+  gap: var(--st-2) var(--st-4);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  margin: 0 0 var(--st-3);
+}
+
+.erd-facts dt {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.erd-facts dd {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.erd-card {
+  margin-block-end: var(--st-3);
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.erd-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.erd-sub {
+  margin: 0 0 var(--st-2);
+  font-size: 0.9375rem;
+}
+
+.erd-summary {
+  margin: 0 0 var(--st-2);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--st-text-muted);
+}
+
+.erd-cats {
+  display: grid;
+  gap: var(--st-2);
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.erd-cat {
+  padding: var(--st-2);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  text-align: center;
+}
+
+.erd-cat-rate {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.erd-cat-label {
+  display: block;
+  font-size: 0.75rem;
+}
+
+.erd-cat-frac {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--st-text-muted);
+}
+
+.erd-hint {
+  margin: var(--st-2) 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--st-text-muted);
+}
+
+.erd-hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.erd-live {
+  margin: 0 0 var(--st-3);
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.erd-error {
+  margin: 0 0 var(--st-3);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--st-danger-text);
+}
+
+// The table is the densest thing in the view: it scrolls inside its own box so
+// the page itself never scrolls sideways.
+.erd-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.erd-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.erd-caption {
+  padding: var(--st-2) var(--st-3);
+  border-block-end: 1px solid var(--st-rule);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+  text-align: start;
+}
+
+.erd-table th,
+.erd-table td {
+  padding: var(--st-1) var(--st-2);
+  border-block-end: 1px solid var(--st-rule);
+  text-align: start;
+  vertical-align: top;
+}
+
+.erd-table thead th {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+  white-space: nowrap;
+}
+
+.erd-nowrap {
+  white-space: nowrap;
+}
+
+.erd-row-head {
+  padding: 0;
+  white-space: nowrap;
+}
+
+.erd-open {
+  inline-size: 100%;
+  min-block-size: 2rem;
+  padding: var(--st-1) var(--st-2);
+  border: 0;
+  background: none;
+  color: var(--st-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.erd-open:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.erd-open::before {
+  content: '▸ ';
+}
+
+.erd-row--open .erd-open::before {
+  content: '▾ ';
+}
+
+.erd-row--open > * {
+  background: var(--st-surface-variant);
+}
+
+.erd-check {
+  text-align: center;
+}
+
+// Glyph plus a screen-reader word: the mark carries the meaning, the colour only
+// reinforces it (ALT's raw greens/ambers missed AA for text this size).
+.erd-ok { color: var(--st-ok-text); font-weight: 700; }
+.erd-bad { color: var(--st-danger-text); font-weight: 700; }
+.erd-none { color: var(--st-text-muted); }
+
+// No ellipsis: the message is the reason the row exists (the 9-5c lesson).
+.erd-msg {
+  max-inline-size: 22rem;
+  color: var(--st-text-muted);
+}
+
+.erd-detail-row > td {
+  background: var(--st-surface-variant);
+}
+
+.erd-sum > * {
+  background: var(--st-surface-variant);
+  border-block-start: 2px solid var(--st-rule-strong);
+  font-weight: 600;
+}
+
+.erd-turns {
+  margin: 0;
+  padding-inline-start: var(--st-4);
+}
+
+.erd-turn {
+  margin-block-end: var(--st-2);
+}
+
+.erd-user,
+.erd-bot {
+  margin: 0 0 var(--st-1);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.erd-who {
+  display: inline-block;
+  min-inline-size: 4.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--st-text-muted);
+  text-transform: uppercase;
+}
+
+// `.sr` comes from ./_visually-hidden.scss — no tenth hand-copy (rubric B3).

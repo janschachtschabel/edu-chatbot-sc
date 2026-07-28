@@ -1,0 +1,252 @@
+// WloCard-Tile — Verbatim-Port der ALT-Kartenstile aus chat.component.scss
+// (.wlo-card-wrapper / .wlo-card / header / body / footer). Die Werte sind
+// ALTs fixe WLO-Marken-Kartenoptik (Marken-Blau #1c4587, weiße Karte) —
+// bewusst NICHT an das kundenüberschreibbare --boerdi-primary gebunden,
+// damit die Karte exakt wie in ALT rendert (Fidelity-Port). Die lokalen
+// $-Variablen spiegeln die ALT-Namen (chat.component.scss:14-19,412-414).
+//
+// simplify: kein Dark-Mode — die ALT-Karte war ebenfalls hell-only (weiße
+//   Karte, dunkler Text). Bewusste Grenze; Nachziehen = eigener Polish-Slice.
+
+$border: rgba(0, 0, 0, 0.1);
+$text: #1a1a2e;
+$text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 (4,5:1)
+$card-radius: 12px;
+$brand-blue: #1c4587;
+
+:host {
+  // Host transparent lassen, damit .wlo-card-wrapper direkt als Grid-Item
+  // der späteren .cards-list zählt (wie ALTs Wrapper-Struktur).
+  display: contents;
+}
+
+.wlo-card-wrapper {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.wlo-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid $border;
+  border-radius: $card-radius;
+  background: #fff;
+  text-decoration: none;
+  color: $text;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(28, 69, 135, 0.12);
+    border-color: rgba($brand-blue, 0.25);
+  }
+
+  &:visited {
+    color: $text;
+  }
+}
+
+// Ohne .card-actions (das Tile rendert keine) → volle Rundung, wie ALTs
+// .wlo-card-wrapper:not(:has(.card-actions)) .wlo-card.
+.wlo-card-wrapper:not(:has(.card-actions)) .wlo-card {
+  border-radius: 10px;
+}
+
+// Themenseite: leicht prominenterer Schatten als visueller Akzent.
+.is-themenseite .wlo-card {
+  border-color: rgba($brand-blue, 0.3);
+  box-shadow: 0 2px 6px rgba(28, 69, 135, 0.08);
+
+  &:hover {
+    box-shadow: 0 8px 28px rgba(28, 69, 135, 0.18);
+  }
+}
+
+// ── Card Header: Inhaltstyp-Icon + Label ────────────────────────────────
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 4px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.card-content-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.card-content-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -0.15em;
+
+  > svg {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+  }
+}
+
+.card-content-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
+}
+
+// ── Card Body: Titel volle Breite, dann Desc + kleines Thumb nebeneinander
+.card-body {
+  padding: 8px 10px 6px;
+  flex: 1;
+}
+
+.card-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  line-height: 1.25;
+  margin-bottom: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: $brand-blue;
+}
+
+.card-body-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.card-desc-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.card-desc {
+  font-size: 0.72rem;
+  color: $text-muted;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+}
+
+// Kleines Thumb rechts neben der Beschreibung.
+.card-thumb-side {
+  position: relative;
+  flex: 0 0 92px;
+  width: 92px;
+  height: 72px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: linear-gradient(135deg, $brand-blue 0%, #3e6ea8 100%);
+}
+
+.card-img-side {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.35s ease;
+}
+
+.wlo-card:hover .card-img-side {
+  transform: scale(1.06);
+}
+
+// OER-Lizenz-Badge unten rechts auf dem Thumb.
+.card-license-badge-side {
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  background: rgba(255, 255, 255, 0.95);
+  color: $brand-blue;
+  font-size: 0.56rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+
+  &::before {
+    content: '✓';
+    font-size: 0.8em;
+  }
+}
+
+// ── Card Footer: Bildungsstufe + Fach ───────────────────────────────────
+.card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px 7px;
+  border-top: 1px solid #f1f5f9;
+  background: #fafbfd;
+  min-height: 26px;
+}
+
+.footer-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.footer-icon {
+  font-size: 0.8rem;
+  opacity: 0.85;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+  vertical-align: -0.18em;
+
+  > svg {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+  }
+}
+
+// A11y (better-coding-frontend): Hover-/Thumb-Animationen bei
+// prefers-reduced-motion abschalten. Additiv — verändert die Default-Optik
+// nicht, deaktiviert nur die Bewegung für Nutzer, die sie abgewählt haben.
+@media (prefers-reduced-motion: reduce) {
+  .wlo-card,
+  .card-img-side {
+    transition: none;
+  }
+
+  .wlo-card:hover {
+    transform: none;
+  }
+
+  .wlo-card:hover .card-img-side {
+    transform: none;
+  }
+}

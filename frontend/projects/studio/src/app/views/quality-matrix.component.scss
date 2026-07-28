@@ -1,0 +1,194 @@
+@use './visually-hidden';
+
+.qm-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--st-3);
+  margin-block-end: var(--st-3);
+}
+
+.qm-total {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.qm-field {
+  display: flex;
+  align-items: center;
+  gap: var(--st-2);
+  margin-inline-start: auto;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.qm-field input {
+  inline-size: 5rem;
+  // 24px is the WCAG 2.2 floor for a target; a number spinner needs the height
+  // anyway or its arrows are unusable on touch.
+  min-block-size: 2rem;
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+}
+
+.qm-field input:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+// The grid is the one place in the studio that legitimately scrolls sideways:
+// the column count is the number of observed intents. Only this box scrolls —
+// the page itself must not (SC 1.4.10).
+.qm-scroll {
+  overflow-x: auto;
+  padding-block-end: var(--st-1);
+}
+
+.qm {
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.qm caption {
+  margin-block-end: var(--st-2);
+  max-inline-size: 68ch;
+  text-align: start;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--st-text-muted);
+}
+
+.qm-corner {
+  border: 0;
+}
+
+.qm-head {
+  padding: var(--st-1) var(--st-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--st-text);
+  text-align: start;
+  white-space: nowrap;
+  border-block-end: 1px solid var(--st-rule);
+}
+
+.qm-head--row {
+  border-block-end: 1px solid var(--st-rule);
+  border-inline-end: 1px solid var(--st-rule);
+  padding-inline-end: var(--st-3);
+}
+
+.qm-slot {
+  padding: 2px;
+  border-block-end: 1px solid var(--st-rule);
+  vertical-align: top;
+}
+
+.qm-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  inline-size: 100%;
+  min-inline-size: 8rem;
+  min-block-size: 2.75rem;
+  padding: var(--st-2);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.qm-cell:hover {
+  border-color: var(--st-accent);
+  background: var(--st-accent-soft);
+}
+
+.qm-cell:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.qm-pair {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.6875rem;
+  color: var(--st-text-muted);
+}
+
+.qm-pattern {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.qm-share {
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--st-text-muted);
+}
+
+// Redundant with the printed percentage next to it, so it stays out of the
+// accessibility tree and never needs to carry contrast on its own.
+.qm-bar-track {
+  display: block;
+  block-size: 3px;
+  margin-block-end: 2px;
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+}
+
+.qm-bar-fill {
+  display: block;
+  block-size: 100%;
+  min-inline-size: 2px;
+  border-radius: var(--st-radius);
+  background: var(--st-accent);
+}
+
+.qm-alt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.6875rem;
+  color: var(--st-warn-text);
+}
+.qm-none {
+  padding: var(--st-2);
+  text-align: center;
+  color: var(--st-text-muted);
+}
+.qm-legend {
+  margin-block: var(--st-3) 0;
+  max-inline-size: 68ch;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--st-text-muted);
+}
+
+.qm-reload {
+  min-block-size: 2rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.qm-reload:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.qm-reload:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

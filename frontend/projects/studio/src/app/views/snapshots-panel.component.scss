@@ -1,0 +1,52 @@
+// Snapshot list + create form (9-6). Shell, buttons and confirmations come from
+// the shared partial; only the list is specific to this panel.
+@use './ops-panel';
+
+.sp-create {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: var(--st-2) var(--st-3);
+  margin-block-end: var(--st-3);
+}
+
+.sp-create .op-label {
+  grid-column: 1 / -1;
+}
+
+.sp-list {
+  margin: var(--st-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-2);
+}
+
+.sp-row {
+  display: grid;
+  gap: var(--st-2);
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-bg);
+}
+
+.sp-row-head {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.sp-row-name {
+  font-weight: 600;
+}
+
+.sp-row-meta {
+  color: var(--st-text-muted);
+  font-size: 0.8125rem;
+  word-break: break-word;
+}
+
+// Inside a row the confirmation is already indented by the row itself.
+.sp-row .op-confirm {
+  margin-block-start: 0;
+}

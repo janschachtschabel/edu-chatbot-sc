@@ -1,0 +1,143 @@
+# CI (P0-6, spec §0 rule 1 + §5.5): lint, tests, license gate, OpenAPI diff gate.
+# Frontend jobs activate automatically once frontend/package.json exists (P8).
+#
+# Dieser Workflow prüft QUELLEN. Das Prod-Image (Dockerfile in der Repo-Wurzel)
+# baut und smoked `image.yml` — bewusst getrennt, weil er Minuten kostet und
+# Pfad-Filter braucht, die es nur auf Workflow-Ebene gibt (Begründung dort).
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: boerdi
+          POSTGRES_PASSWORD: boerdi
+          POSTGRES_DB: boerdi
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U boerdi -d boerdi"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      jaeger:
+        image: jaegertracing/jaeger:2.19.0
+        ports:
+          - "16686:16686"
+          - "4318:4318"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Sync (locked)
+        run: uv sync --locked
+      - name: Lint (ruff)
+        run: uv run ruff check .
+      - name: Tests (pytest)
+        run: uv run pytest -q
+      - name: OpenAPI contract gate (spec P0-4)
+        run: uv run python scripts/export_openapi.py --check
+
+  licenses-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Sync (locked)
+        run: uv sync --locked
+      # psycopg/psycopg-pool: documented narrow exception (LGPL-3.0-only,
+      # unmodified use, pulled in by langgraph-checkpoint-postgres) — spec §0
+      # rule 1. Every OTHER GPL/AGPL/LGPL/SSPL/Elastic dependency fails.
+      - name: License gate (spec §0 rule 1)
+        run: >
+          uv run pip-licenses --partial-match
+          --fail-on "GPL;AGPL;LGPL;SSPL;Elastic;BUSL"
+          --ignore-packages psycopg psycopg-pool
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint (eslint + angular-eslint Templates/a11y)
+        run: npm run lint
+      # Eigener Schritt statt in `lint` hineingezogen: ein fehlgeschlagener
+      # Schritt soll benennen, WELCHE Regel gebrochen ist. Kein Linter kann das
+      # hier prüfen — ein undefiniertes `var()` ist gültiges CSS, es macht nur
+      # still die ganze Deklaration ungültig (dreimal von Hand gefunden).
+      - name: Design-Tokens (gelesen vs. definiert)
+        run: npm run check:tokens
+      - name: Unit tests (ui + widget + studio)
+        run: npm test
+      # Allow-Liste statt Deny-Liste: §0 Regel 1 erlaubt NUR MIT/Apache-2.0/
+      # BSD/PSF/PostgreSQL, und eine Deny-Liste übersieht jede neue Schreibweise
+      # ("LGPL-2.1-only" ≠ "LGPL-2.1"). `--excludePrivatePackages` überspringt
+      # das eigene UNLICENSED-Root-Paket. In 8-7 gegen den echten Baum
+      # verifiziert (14 Prod-Pakete), inkl. Gegenprobe, dass die Gate wirklich
+      # fehlschlägt.
+      #
+      # Drei dokumentierte Erweiterungen der §0-Liste (alle permissiv, ohne
+      # Copyleft-Pflichten, Muster wie die psycopg-Ausnahme im Backend-Gate):
+      #   - ISC        (funktional BSD-2-Clause, nur kürzer formuliert)
+      #   - 0BSD       (tslib; BSD ohne Namensnennungs-Pflicht)
+      #   - (MPL-2.0 OR Apache-2.0)  dompurify, dual → genutzt wird Apache-2.0
+      - name: License gate (npm, §0 Regel 1)
+        run: npm run licenses
+      # Bundle bauen, BEVOR Budget und E2E laufen: beide messen bzw. fahren das
+      # ausgelieferte Single-File-Artefakt, nicht die Quellen.
+      - name: Build widget bundle
+        run: npm run build:widget
+      # Direkt das Skript: `npm run budget` würde (bewusst) erst neu bauen.
+      - name: Widget bundle budget (§5.5 — ≤420 kB raw / ≤140 kB gzip)
+        run: node scripts/check-widget-budget.mjs
+      # Der Studio-Build ist eigenständig: er hat kein Single-File-Budget (die
+      # SPA lädt Routen lazy), aber ein Compile-Fehler in einer noch nicht
+      # getesteten View würde sonst erst beim Deploy auffallen. `ng build`
+      # erzwingt zusätzlich die strictTemplates-Prüfung ALLER Templates —
+      # `ng test studio` baut nur, was die Specs importieren.
+      - name: Build studio SPA (P9-2)
+        run: npm run build:studio
+      - name: Chromium für Playwright
+        run: npx playwright install --with-deps chromium
+      # `npx playwright test` statt `npm run e2e`: das Bundle ist zwei Schritte
+      # weiter oben schon gebaut, und `npm run e2e` baut es (bewusst) selbst.
+      - name: E2E (Playwright gegen das gebaute Bundle)
+        run: npx playwright test
+      # `test-results/` — DORT legt Playwright die `trace: retain-on-failure`-
+      # Traces ab. `playwright-report/` gäbe es nur mit dem html-Reporter, den
+      # die Config in CI nicht nutzt: der Upload wäre still leer geblieben.
+      - name: E2E-Traces bei Fehlschlag sichern
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: frontend/test-results/
+          if-no-files-found: error
+          retention-days: 7

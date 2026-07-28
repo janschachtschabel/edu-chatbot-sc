@@ -1,0 +1,42 @@
+<p class="sd-head">
+  <span class="sd-risk" [class]="'sd-risk--' + log().risk_level">Risiko: {{ risk() }}</span>
+  <span class="sd-session">Session: {{ log().session_id }}</span>
+</p>
+
+<div class="sd-block">
+  <h4 class="sd-label">Nachricht</h4>
+  <p class="sd-message">{{ log().message || '(leer)' }}</p>
+</div>
+
+<dl class="sd-facts">
+  <dt>Geprüfte Stufen</dt>
+  <dd>{{ stages() || '–' }}</dd>
+
+  <dt>Gründe</dt>
+  <dd>{{ reasons() || '–' }}</dd>
+
+  <dt>Rechtsfelder</dt>
+  <dd>{{ legal() || '–' }}</dd>
+
+  @if (log().flagged_categories.length > 0) {
+    <dt>Geflaggte Kategorien</dt>
+    <dd>{{ log().flagged_categories.join(', ') }}</dd>
+  }
+
+  @if (log().blocked_tools.length > 0) {
+    <dt>Blockierte Werkzeuge</dt>
+    <dd>{{ log().blocked_tools.join(', ') }}</dd>
+  }
+
+  @if (log().enforced_pattern) {
+    <dt>Erzwungenes Muster</dt>
+    <dd>{{ log().enforced_pattern }}</dd>
+  }
+</dl>
+
+@if (hasScores()) {
+  <details class="sd-scores">
+    <summary>Alle Kategorie-Werte</summary>
+    <pre>{{ scores() }}</pre>
+  </details>
+}

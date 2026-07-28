@@ -1,0 +1,134 @@
+<form class="ql-filters" (submit)="apply($event)">
+  <label class="ql-field" for="ql-pattern">
+    Pattern-ID
+    <input
+      id="ql-pattern"
+      type="search"
+      autocomplete="off"
+      placeholder="z. B. M04"
+      [value]="draftPattern()"
+      (input)="draftPattern.set($any($event.target).value)"
+    />
+  </label>
+  <label class="ql-field" for="ql-intent">
+    Intent-ID
+    <input
+      id="ql-intent"
+      type="search"
+      autocomplete="off"
+      placeholder="z. B. I02"
+      [value]="draftIntent()"
+      (input)="draftIntent.set($any($event.target).value)"
+    />
+  </label>
+  <label class="ql-field" for="ql-session">
+    Session-ID
+    <input
+      id="ql-session"
+      type="search"
+      autocomplete="off"
+      placeholder="vollständige ID"
+      [value]="draftSession()"
+      (input)="draftSession.set($any($event.target).value)"
+    />
+  </label>
+
+  <button type="submit" class="ql-apply">Filtern</button>
+  @if (hasFilter()) {
+    <button type="button" class="ql-reset" (click)="reset()">Filter zurücksetzen</button>
+  }
+  <button type="button" class="ql-reload" [disabled]="logs.loading()" (click)="reload()">
+    {{ logs.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+  </button>
+  <button type="button" class="ql-clear" [disabled]="working()" (click)="arm({ kind: 'bulk' })">
+    {{ hasFilter() ? 'Gefilterte löschen' : 'Alle löschen' }}
+  </button>
+</form>
+
+@if (armed(); as armedAction) {
+  @if (armedAction.kind === 'bulk') {
+    <div class="ql-danger">
+      <p class="ql-question" role="alert">{{ bulkQuestion() }}</p>
+      <button type="button" class="ql-confirm" [disabled]="working()" (click)="confirm()">
+        Ja, löschen
+      </button>
+      <button type="button" class="ql-cancel" (click)="disarm()">Abbrechen</button>
+    </div>
+  }
+}
+
+@if (status()) {
+  <p class="ql-status" role="status">{{ status() }}</p>
+}
+@if (actionError()) {
+  <p class="ql-error" role="alert">{{ actionError() }}</p>
+}
+
+<studio-async-state
+  label="Turns"
+  [loading]="logs.loading()"
+  [error]="logs.error()"
+  [empty]="logs.isEmpty()"
+  [emptyText]="emptyText()"
+  (retry)="reload()"
+/>
+
+@if (rows().length > 0) {
+  <div class="ql-split">
+    <div class="ql-list">
+      <p class="ql-count">{{ rows().length }} Turns · neueste zuerst</p>
+      <ul class="ql-items">
+        @for (row of rows(); track row.id) {
+          <li class="ql-item">
+            <button
+              type="button"
+              class="ql-row"
+              [class.ql-row--on]="selected() === row.id"
+              [attr.aria-current]="selected() === row.id ? 'true' : null"
+              (click)="select(row.id)"
+            >
+              <span class="ql-row-top">
+                <span class="ql-mono">{{ row.pattern_id }}</span>
+                <span class="ql-when">{{ when(row.created_at) }}</span>
+              </span>
+              <span class="ql-row-message">{{ row.message || '(leere Nachricht)' }}</span>
+              <span class="ql-row-meta">
+                {{ row.intent_id }} · Confidence {{ confidence(row.final_confidence) }}
+                @if (row.degradation) {
+                  · <span class="ql-flag">Degradation</span>
+                }
+              </span>
+            </button>
+
+            @if (isArmed(row.id)) {
+              <div class="ql-danger">
+                <p class="ql-question" role="alert">Turn #{{ row.id }} endgültig löschen?</p>
+                <button type="button" class="ql-confirm" [disabled]="working()" (click)="confirm()">
+                  Ja, löschen
+                </button>
+                <button type="button" class="ql-cancel" (click)="disarm()">Abbrechen</button>
+              </div>
+            } @else {
+              <button
+                type="button"
+                class="ql-arm"
+                [disabled]="working()"
+                (click)="arm({ kind: 'one', id: row.id })"
+              >
+                Löschen<span class="sr"> — Turn #{{ row.id }}</span>
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    </div>
+
+    <div class="ql-detail">
+      @if (openLog(); as turn) {
+        <studio-quality-log-detail [log]="turn" (dismiss)="selected.set(0)" />
+      } @else {
+        <p class="ql-hint">Wähle links einen Turn, um Signale, Entities und Werkzeuge zu sehen.</p>
+      }
+    </div>
+  </div>
+}

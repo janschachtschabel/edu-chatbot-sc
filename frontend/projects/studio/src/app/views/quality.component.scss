@@ -1,0 +1,94 @@
+.qv-head {
+  margin-block-end: var(--st-4);
+}
+
+.qv-crumb {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--st-text-muted);
+}
+
+.qv-title {
+  margin: var(--st-1) 0 var(--st-2);
+  font-size: 1.375rem;
+  line-height: 1.3;
+}
+
+.qv-intro {
+  margin: 0;
+  max-inline-size: 68ch;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--st-text-muted);
+}
+
+// Real radios in a fieldset: arrow-key navigation, the group name and the
+// selected state all come from the platform instead of being rebuilt with ARIA.
+.qv-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+  margin: 0 0 var(--st-4);
+  padding: var(--st-2) var(--st-3) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.qv-scope legend {
+  padding-inline: var(--st-1);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--st-text-muted);
+}
+
+.qv-scope-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 0 var(--st-2);
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  cursor: pointer;
+}
+
+.qv-scope-option:hover {
+  border-color: var(--st-accent);
+}
+
+// The label carries the ring because the input itself is small; :has keeps the
+// indicator on the whole control without a class toggle in the template.
+.qv-scope-option:has(input:focus-visible) {
+  box-shadow: var(--st-focus);
+}
+
+.qv-scope-option:has(input:checked) {
+  border-color: var(--st-accent);
+  background: var(--st-accent-soft);
+}
+
+.qv-scope-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.qv-scope-hint {
+  grid-column: 2;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--st-text-muted);
+}
+
+[role='tabpanel'] {
+  padding-block-start: var(--st-4);
+}
+
+// A panel is scrollable only if its own content says so; the focusable panel
+// must still show its focus ring when reached by Tab.
+[role='tabpanel']:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}

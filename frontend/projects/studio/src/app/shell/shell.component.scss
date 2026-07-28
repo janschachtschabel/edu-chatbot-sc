@@ -1,0 +1,194 @@
+// Shell layout. ALT was a fixed `grid-template-columns: 280px 1fr` with no
+// breakpoint anywhere in 1226 lines of CSS — below ~700px it was unusable, and
+// at 200 % zoom the 280px sidebar ate half the viewport. Here the sidebar is a
+// rem width (so it shrinks with the user's text size) and collapses to a
+// disclosure below 60rem.
+
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.skip {
+  position: absolute;
+  left: var(--st-2);
+  top: -3rem;
+  z-index: 20;
+  padding: var(--st-2) var(--st-3);
+  border-radius: var(--st-radius);
+  background: var(--st-accent);
+  color: var(--st-accent-text);
+  transition: top 120ms ease;
+
+  &:focus {
+    top: var(--st-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skip {
+    transition: none;
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--st-3);
+  min-height: var(--st-header-h);
+  padding: var(--st-2) var(--st-4);
+  border-bottom: 1px solid var(--st-rule);
+  background: var(--st-panel);
+}
+
+.brand {
+  font-size: 1rem;
+  font-weight: 650;
+  margin-inline-end: auto;
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--st-3);
+}
+
+.btn {
+  min-height: 2.25rem; // ≥ 24px target with room to spare (SC 2.5.8)
+  padding: 0 var(--st-3);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--st-accent-soft);
+  }
+
+  &:disabled {
+    cursor: progress;
+    color: var(--st-text-muted);
+  }
+}
+
+.nav-toggle {
+  @extend .btn;
+
+  display: none; // shown only on narrow screens
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  flex: none;
+  width: var(--st-sidebar-w);
+  padding: var(--st-4) var(--st-2);
+  border-inline-end: 1px solid var(--st-rule);
+  background: var(--st-panel);
+  overflow-y: auto;
+}
+
+.nav-group + .nav-group {
+  margin-top: var(--st-5);
+}
+
+.nav-group-title {
+  padding: 0 var(--st-3);
+  margin-bottom: var(--st-2);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--st-text-muted);
+}
+
+.nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-item {
+  display: block;
+  padding: var(--st-2) var(--st-3);
+  border-radius: var(--st-radius);
+  // 4px transparent marker so the active state does not shift the text sideways.
+  border-inline-start: 4px solid transparent;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    background: var(--st-accent-soft);
+  }
+}
+
+// The one place boldness is spent: colour AND a solid marker AND weight, so the
+// active item is not identified by colour alone.
+.nav-item--active {
+  background: var(--st-accent-soft);
+  border-inline-start-color: var(--st-accent);
+
+  .nav-label {
+    font-weight: 650;
+    color: var(--st-accent);
+  }
+}
+
+.nav-label {
+  display: block;
+}
+
+.nav-desc {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.main {
+  flex: 1;
+  min-width: 0; // lets wide children scroll instead of pushing the layout
+  padding: var(--st-5);
+
+  // The skip link moves focus here; suppress the ring on the container itself,
+  // it would frame the whole page for no benefit.
+  &:focus {
+    outline: none;
+  }
+}
+
+@media (max-width: 60rem) {
+  .body {
+    flex-direction: column;
+  }
+
+  .nav-toggle {
+    display: inline-block;
+  }
+
+  .sidebar {
+    width: 100%;
+    max-height: 60vh;
+    border-inline-end: none;
+    border-bottom: 1px solid var(--st-rule);
+
+    &:not(.sidebar--open) {
+      display: none;
+    }
+  }
+
+  .main {
+    padding: var(--st-4);
+  }
+}

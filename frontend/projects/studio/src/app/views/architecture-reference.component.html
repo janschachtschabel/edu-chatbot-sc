@@ -1,0 +1,258 @@
+<h3 class="ar-title">Architektur-Referenz</h3>
+<p class="ar-intro">
+  Wie die Elemente zusammenspielen — vom Nutzer-Input bis zur Bot-Antwort. Die
+  aktuellen Anzahlen (Patterns, Personas, Intents, States, Entities, Signale)
+  stehen im Tab „Übersicht“; hier steht, was sie bewirken.
+</p>
+
+<details class="cs ar-section" open>
+  <summary class="cs-summary">
+    <h4 class="cs-title">Die Verarbeitungs-Pipeline</h4>
+  </summary>
+  <div class="cs-body">
+    <p class="ar-text">
+      Jede Nutzernachricht durchläuft sieben Phasen. Klassifikation und
+      Pattern-Wahl laufen strukturiert — LLM-Hint plus deterministische Anker —,
+      bevor die Antwort generiert wird.
+    </p>
+    <ol class="ar-flow">
+      @for (phase of pipeline; track phase.step) {
+        <li class="ar-flow-step">
+          <span class="ar-flow-num" aria-hidden="true">{{ phase.step }}</span>
+          <span>
+            <span class="ar-flow-label">{{ phase.label }}</span>
+            <span class="ar-flow-desc">{{ phase.desc }}</span>
+          </span>
+        </li>
+      }
+    </ol>
+  </div>
+</details>
+
+<details class="cs ar-section">
+  <summary class="cs-summary">
+    <h4 class="cs-title">Input-Elemente (Klassifikation)</h4>
+  </summary>
+  <div class="cs-body">
+    <p class="ar-text">
+      In Phase 2 erkennt ein LLM-Aufruf sechs Dimensionen aus der Nachricht. Diese
+      Input-Elemente steuern alles Weitere.
+    </p>
+    <div class="ar-scroll">
+      <table class="ar-table">
+        <thead>
+          <tr><th>Element</th><th>Beschreibung</th><th>Wirkung</th></tr>
+        </thead>
+        <tbody>
+          @for (row of dimensions; track row.element) {
+            <tr>
+              <th scope="row">{{ row.element }}</th>
+              <td>{{ row.desc }}</td>
+              <td>{{ row.effect }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</details>
+
+<details class="cs ar-section">
+  <summary class="cs-summary">
+    <h4 class="cs-title">Pattern-Engine und ihre Ausgabe</h4>
+  </summary>
+  <div class="cs-body">
+    <p class="ar-text">
+      Aus allen Gesprächsmustern wird <strong>genau eines</strong> gewählt; nur das
+      Gewinner-Pattern landet im Prompt. Danach justiert die Modulation Ton, Länge
+      und Format — bei Konflikten gewinnt die kürzere Länge.
+    </p>
+    <div class="ar-two">
+      <div>
+        <h5 class="ar-sub">Stil &amp; Inhalt</h5>
+        <table class="ar-table ar-table--fields">
+          <tbody>
+            @for (row of modulationStyle; track row.field) {
+              <tr><th scope="row"><code>{{ row.field }}</code></th><td>{{ row.desc }}</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h5 class="ar-sub">Steuerung &amp; Flags</h5>
+        <table class="ar-table ar-table--fields">
+          <tbody>
+            @for (row of modulationControl; track row.field) {
+              <tr><th scope="row"><code>{{ row.field }}</code></th><td>{{ row.desc }}</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cs ar-section">
+  <summary class="cs-summary">
+    <h4 class="cs-title">Hard-Overrides im Classifier</h4>
+  </summary>
+  <div class="cs-body">
+    <p class="ar-text">
+      Die frühere Routing-Rule-Engine ist ausgebaut. Was sie an Mehrwert hatte —
+      explizite Persona-Selbstauskunft („ich bin Lehrkraft“), Verb-Unterscheidung
+      (suchen gegen erstellen) und Phantom-Themen-Erkennung — steht jetzt in einer
+      Datei: <code>01-base/classify-overrides.yaml</code>.
+    </p>
+    <p class="ar-text">
+      Der Classifier-System-Prompt rendert sie als Hint-Anker; das LLM bekommt sie
+      als deterministische Trigger-Liste mit Erwartungswerten. Eine Schicht statt
+      Pre-Route, Post-Route, Lookup-Gruppen und Shadow-Logs — und im Studio unter
+      „Alle Bereiche“ direkt editierbar, wirksam ab dem nächsten Turn.
+    </p>
+  </div>
+</details>
+
+<details class="cs ar-section">
+  <summary class="cs-summary">
+    <h4 class="cs-title">Pattern-Wahl — wer entscheidet?</h4>
+  </summary>
+  <div class="cs-body">
+    <div class="ar-scroll">
+      <table class="ar-table">
+        <thead>
+          <tr><th>Schritt</th><th>Quelle</th><th>Wirkung</th></tr>
+        </thead>
+        <tbody>
+          @for (row of selection; track row.step) {
+            <tr>
+              <th scope="row">{{ row.step }}</th>
+              <td><code>{{ row.source }}</code></td>
+              <td>{{ row.effect }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="ar-text">
+      <strong>Was es nicht mehr gibt:</strong> <code>gate_personas</code>,
+      <code>gate_states</code>, <code>gate_intents</code>, <code>signal_*_fit</code>,
+      <code>page_bonus</code> und Tie-Breaker. Pattern-Frontmatter braucht nur noch
+      Antwort-Form, Tools und Inhalt-Regeln. <code>precondition_slots</code> bleibt,
+      wirkt aber nur noch als Degradations-Flag in der Modulation, nicht als
+      Pattern-Ausschluss.
+    </p>
+    <h5 class="ar-sub">Wirkung der Persona</h5>
+    <p class="ar-text">
+      Die Persona steuert <strong>Stil und Anrede</strong>, nicht die Pattern-Wahl.
+      Ihre fünf Frontmatter-Felder greifen in der Modulation, nachdem das Pattern
+      feststeht. Eine ausdrückliche Selbstauskunft überstimmt den Klassifikator
+      über <code>persona_overrides</code> in
+      <code>01-base/classify-overrides.yaml</code> — sie setzt die Persona, nicht
+      das Pattern.
+    </p>
+    <p class="ar-note">
+      ALT nannte dafür die Routing-Regel <code>lookup_persona_self_id__*</code>,
+      obwohl der Abschnitt darüber den Ausbau der Rule-Engine beschreibt. In NEU
+      gibt es diese Regel nicht; der Mechanismus ist die Override-Liste im
+      Classifier-Prompt.
+    </p>
+  </div>
+</details>
+
+<details class="cs ar-section">
+  <summary class="cs-summary">
+    <h4 class="cs-title">Die sechs Architektur-Schichten</h4>
+  </summary>
+  <div class="cs-body">
+    <p class="ar-text">
+      Der System-Prompt wird aus Schichten zusammengesetzt. Jede hat eine
+      Priorität: bei Token-Knappheit werden niedrig priorisierte zuerst entladen.
+    </p>
+    <div class="ar-scroll">
+      <table class="ar-table">
+        <thead>
+          <tr><th>Schicht</th><th>Priorität</th><th>Inhalt</th><th>Token-Verhalten</th></tr>
+        </thead>
+        <tbody>
+          @for (row of layers; track row.layer) {
+            <tr>
+              <th scope="row">{{ row.layer }}</th>
+              <td>{{ row.priority }}</td>
+              <td>{{ row.content }}</td>
+              <td>{{ row.tokens }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <h5 class="ar-sub">Aufbau zur Laufzeit</h5>
+    <ol class="ar-assembly">
+      <li>Schicht 1: <code>base-persona.md</code> <span>immer</span></li>
+      <li>Schicht 2: <code>domain-rules.md</code> + Plattform-Wissen <span>immer</span></li>
+      <li>Schicht 4: Persona-Prompt, Intent, Signale <span>nur erkannte</span></li>
+      <li>Schicht 3: Pattern-Block <span>nur der Gewinner</span></li>
+      <li>Schicht 5: Material-Format-Struktur <span>nur bei I05/I06</span></li>
+      <li>Schicht 6: RAG-Kontext <span>always-on-Bereiche</span></li>
+      <li>Aktuelle Themenseite <span>wenn die node_id auflösbar ist</span></li>
+      <li>Schicht 1: <code>guardrails.md</code> <span>immer, und immer am Ende</span></li>
+    </ol>
+  </div>
+</details>
+
+<studio-reference-flow />
+
+<studio-reference-catalogs [signals]="signals()" />
+
+<studio-reference-knowledge />
+
+<studio-reference-widget />
+
+
+<details class="cs ar-section">
+  <summary class="cs-summary">
+    <h4 class="cs-title">Material-Erstellung &amp; Datenschutz</h4>
+  </summary>
+  <div class="cs-body">
+    <div class="ar-two">
+      <div>
+        <h5 class="ar-sub">Material-Intents &amp; -Formate</h5>
+        <p class="ar-text">
+          Welche Formate Schicht 5 führt, steht im Abschnitt „Material-Typen“ —
+          dort aus der laufenden Konfiguration gelesen statt hier abgeschrieben.
+        </p>
+        <ul class="ar-list">
+          <li>
+            <strong>I05 Material-Erstellung</strong> → M10 erzeugt das Material als
+            Inline-Dokument im Verlauf.
+          </li>
+          <li>
+            <strong>I06 Material-Bearbeitung</strong> → verfeinert das letzte
+            Dokument bei „mach es einfacher“ oder „Lösungen dazu“.
+          </li>
+          <li>
+            <strong>Typ- und Themen-Priorität:</strong> aktueller Turn vor
+            Klassifikator vor gemerkter Session — sonst gewinnt ein alter Wert
+            beim Klick auf einen Chip.
+          </li>
+        </ul>
+      </div>
+      <div>
+        <h5 class="ar-sub">Datenschutz-Schalter</h5>
+        <p class="ar-text">
+          Logging lässt sich in <code>01-base/privacy-config.yaml</code> einzeln
+          abschalten (Studio-Bereich „Datenschutz“):
+        </p>
+        <ul class="ar-list">
+          <li><code>logging.messages</code> — Chatverläufe</li>
+          <li><code>logging.memory</code> — Session-Gedächtnis</li>
+          <li><code>logging.quality</code> — Quality-Analytics</li>
+          <li><code>logging.safety</code> — <strong>immer an</strong> (Audit-Pflicht)</li>
+        </ul>
+        <p class="ar-text">
+          Dazu löschen die Purge-Endpunkte bestehende Daten, und Snapshots sichern
+          die Konfiguration ohne Up- oder Download.
+        </p>
+      </div>
+    </div>
+  </div>
+</details>

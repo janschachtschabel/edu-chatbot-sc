@@ -1,0 +1,126 @@
+// FAB + Host-Positionierung der Widget-Hülle (8-5g) — Range-Port von ALT
+// widget.component.scss:1-95 (dort 4-fach eingerückt, weil aus einem inline
+// `styles:`-Literal extrahiert; hier de-indentiert, sonst unverändert).
+//
+// Enthält: `:host`-Fixpositionierung, den Icon-Container (Inline-SVG erbt
+// `currentColor`), den Floating-Button samt Eule und Puls-Ring und deren
+// Keyframes.
+//
+// ALT-ABWEICHUNG (Fehlerbehebung): ALTs Positionsregeln lauteten
+// `:host([data-position="…"])` — die matchten nie, weil das Host-Element das
+// Attribut `position` trägt (`data-position` sitzt am inneren `div`). Das in
+// §5.5 dokumentierte `position`-Attribut war damit für alles außer dem Default
+// wirkungslos. Hier steht `:host([position="…"])`; Embeds ohne das Attribut
+// verhalten sich unverändert (Default unten rechts).
+//
+// simplify: kein `@use 'theme/tokens'` — die portierte Chrome nutzt allein
+// `--boerdi-primary` (unten mit ALTs Markenblau gesetzt). Die M3-Token-Datei
+// bliebe sonst als ~20 ungenutzte Custom Properties im Bundle und würde zwei
+// Farbsysteme mischen; sie bleibt für Studio (P9) + Dev-Harness.
+
+:host {
+  display: block;
+  position: fixed;
+  z-index: 999999;
+  pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --boerdi-primary: #1c4587;
+}
+.boerdi-widget { pointer-events: auto; }
+:host { bottom: 20px; right: 20px; }
+:host([position="bottom-left"]) { left: 20px; right: auto; }
+:host([position="top-right"]) { top: 20px; bottom: auto; }
+:host([position="top-left"]) { top: 20px; left: 20px; right: auto; bottom: auto; }
+
+/* ── Material-Symbols-Icons (Inline-SVG) ─────────────────────
+   Alle Icon-Container nutzen currentColor als Fill — das SVG
+   erbt die Schriftfarbe des Buttons. Größe 20px passt in die
+   40er-Action-Buttons mit etwas Padding. */
+.boerdi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+.boerdi-icon > svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* ── FAB ──────────────────────────────────────────────── */
+.boerdi-fab {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  border: none;
+  background: var(--boerdi-primary);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: boerdi-bob 4s ease-in-out infinite;
+}
+.boerdi-fab:hover {
+  transform: scale(1.1) rotate(-5deg);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+}
+/* Logo als <img>-Tag (Data-URL). Animationen laufen auf dem
+   Container, nicht auf SVG-internen Pfaden — das funktioniert in
+   Web Components (Custom Elements) zuverlässig. */
+.boerdi-owl {
+  width: 38px;
+  max-width: unset;
+  height: 38px;
+  display: block;
+  object-fit: contain;
+  /* Mehrlagige Animation: dezentes Atmen + gelegentliches Wackeln */
+  animation: boerdi-breathe 4s ease-in-out infinite,
+             boerdi-blink 8s ease-in-out infinite;
+  /* Keine Color-Inversion auf FAB, weil das Logo seine eigenen
+     Farben mitbringt — der weiße Hintergrund-Kreis stellt den
+     Kontrast zum brand-blue Body sicher. */
+}
+.boerdi-fab {
+  /* FAB hat einen weißen "Hof" damit das blaue Logo gut sichtbar ist */
+  background: #fff;
+  border: 3px solid var(--boerdi-primary);
+}
+.boerdi-fab:hover { border-color: color-mix(in srgb, var(--boerdi-primary, #1c4587) 70%, white); }
+@keyframes boerdi-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}
+.boerdi-fab-pulse {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 3px solid var(--boerdi-primary);
+  opacity: 0;
+  animation: boerdi-pulse 3s ease-out infinite;
+}
+@keyframes boerdi-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+@keyframes boerdi-pulse {
+  0%   { opacity: 0.6; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.6); }
+}
+@keyframes boerdi-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  94%           { transform: scaleY(0.1); }
+}
+
+/* ── Panel ────────────────────────────────────────────── */
+
+/* ── Fokus-Ring des FAB (A11y 8-6, SC 2.4.7/1.4.11) ──────────────
+   Zweifarbig, weil die Host-Seite JEDE Hintergrundfarbe haben kann:
+   der dunkelblaue Ring liegt am weißen FAB-Rand an (≈8,6:1), der weiße
+   Hof dahinter garantiert den Kontrast auch auf dunklem Untergrund.
+   ALT hatte `:focus-visible` nur am Eulen-Kopf der Kopfzeile. */
+.boerdi-fab:focus-visible {
+  outline: 3px solid var(--boerdi-primary, #1c4587);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.9), 0 4px 16px rgba(0, 0, 0, 0.25);
+}

@@ -1,0 +1,117 @@
+.qd-title {
+  margin-block: var(--st-6) var(--st-3);
+  font-size: 1.0625rem;
+}
+
+.qd-box {
+  margin-block-end: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.qd-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--st-2) var(--st-4);
+  // Clears the 24px target floor of SC 2.5.8 with room to spare.
+  min-block-size: 2.75rem;
+  padding: var(--st-3) var(--st-4);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.qd-summary:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: -2px;
+}
+
+.qd-name {
+  flex: 1;
+  min-inline-size: 12rem;
+}
+
+.qd-count {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--st-text-muted);
+}
+
+.qd-help {
+  margin: 0;
+  padding: 0 var(--st-4) var(--st-3);
+  max-inline-size: 62ch;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--st-text-muted);
+}
+
+.qd-item {
+  margin: 0 var(--st-4) var(--st-3);
+  padding: var(--st-3);
+  border-inline-start: 3px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+}
+
+.qd-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--st-2);
+}
+
+.qd-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.qd-times {
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--st-text-muted);
+}
+
+.qd-meta,
+.qd-slots {
+  margin-block: var(--st-2) 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.qd-slot {
+  margin-inline-end: var(--st-1);
+  padding: 0 var(--st-1);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+// The quoted user message is the one place a real sentence appears; italics
+// mark it as a quotation, the quotation marks in the template do the rest.
+.qd-example {
+  margin-block: var(--st-2) 0;
+  font-size: 0.875rem;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.qd-drill {
+  margin-block-start: var(--st-3);
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-accent-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.qd-drill:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 2px;
+}

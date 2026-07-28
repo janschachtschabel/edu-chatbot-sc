@@ -1,0 +1,14 @@
+// Knowledge sources + snapshots (A5-Rest).
+@use './section-shell';
+@use './reference';
+
+.rk-card {
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-bg);
+}
+
+.rk-card-title {
+  margin-block-start: 0;
+}

@@ -1,0 +1,106 @@
+// One disclosure panel per config area (9-4b). Values from the studio tokens.
+@use './visually-hidden';
+
+.cs {
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.cs-summary {
+  // The whole row is the control, so it must clear the 24px target size even
+  // with a one-line label.
+  min-block-size: 2.75rem;
+  padding: var(--st-3) var(--st-4);
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  column-gap: var(--st-3);
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: -2px;
+  }
+}
+
+.cs-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.cs-hint {
+  grid-column: 1;
+  margin: var(--st-1) 0 0;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.cs-flag {
+  grid-row: 1;
+  grid-column: 2;
+  padding: 0.125rem var(--st-2);
+  border-radius: 999px;
+  background: var(--st-warn-dot);
+  color: var(--st-bg);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.cs-body {
+  padding: 0 var(--st-4) var(--st-4);
+  border-block-start: 1px solid var(--st-rule);
+  padding-block-start: var(--st-4);
+}
+
+.cs-state {
+  margin: 0 0 var(--st-3);
+  color: var(--st-text-muted);
+
+  &--error {
+    color: var(--st-danger-text);
+  }
+}
+
+.cs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-3);
+  margin-block-start: var(--st-4);
+}
+
+.cs-btn {
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-4);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  &--primary {
+    border-color: var(--st-accent);
+    background: var(--st-accent);
+    color: var(--st-accent-text);
+  }
+}
+
+.cs-raw-link {
+  color: var(--st-text-muted);
+  font-size: 0.875rem;
+}
+
+.cs-status {
+  margin: var(--st-2) 0 0;
+  min-block-size: 1.25rem; // reserved, so a status line does not shift the page
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}

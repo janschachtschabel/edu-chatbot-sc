@@ -1,0 +1,77 @@
+// The architecture reference (9-5f). The disclosure shell itself comes from the
+// shared partial — this file only styles the reference's own content.
+@use './section-shell';
+@use './reference';
+
+.ar-title {
+  margin: 0;
+  font-size: 1.0625rem;
+}
+
+.ar-intro {
+  margin: var(--st-2) 0 var(--st-4);
+  max-inline-size: 70ch;
+  color: var(--st-text-muted);
+}
+
+.ar-section + .ar-section {
+  margin-block-start: var(--st-2);
+}
+
+.ar-flow {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ar-flow-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--st-3);
+  padding-block: var(--st-2);
+
+  & + & {
+    border-block-start: 1px solid var(--st-rule);
+  }
+}
+
+.ar-flow-num {
+  flex: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 50%;
+  background: var(--st-accent-soft);
+  color: var(--st-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.5rem;
+  text-align: center;
+}
+
+.ar-flow-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.ar-flow-desc {
+  display: block;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--st-text-muted);
+}
+
+.ar-assembly {
+  margin: 0;
+  padding-inline-start: var(--st-5);
+  font-size: 0.8125rem;
+  line-height: 1.8;
+
+  span {
+    color: var(--st-text-muted);
+
+    &::before {
+      content: '← ';
+    }
+  }
+}

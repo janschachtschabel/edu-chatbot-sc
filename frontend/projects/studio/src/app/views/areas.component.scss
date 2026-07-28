@@ -1,0 +1,105 @@
+// Area index (9-3f). A dense, scannable list — not a card grid: 55 equal-weight
+// cards would be 55 focal points and none.
+
+.ar-title {
+  margin: 0;
+  font-size: 1.375rem;
+}
+
+.ar-lead {
+  max-inline-size: 46rem;
+  margin: var(--st-2) 0 var(--st-5);
+  color: var(--st-text-muted);
+}
+
+.ar-count {
+  margin: 0 0 var(--st-4);
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.ar-group {
+  margin-block-end: var(--st-5);
+}
+
+.ar-folder {
+  margin: 0 0 var(--st-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--st-text-muted);
+}
+
+.ar-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block-start: 1px solid var(--st-rule);
+}
+
+.ar-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--st-3);
+  min-block-size: 2.75rem; // comfortable touch target (SC 2.5.8)
+  padding: var(--st-2) var(--st-2);
+  border-block-end: 1px solid var(--st-rule);
+  color: var(--st-text);
+  text-decoration: none;
+}
+
+.ar-link:hover {
+  background: var(--st-accent-soft);
+}
+
+.ar-link:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: -2px;
+}
+
+.ar-name {
+  flex: 1 1 auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.ar-type {
+  flex: none;
+  padding: 0 var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--st-text-muted);
+}
+
+.ar-state {
+  max-inline-size: 46rem;
+  color: var(--st-text-muted);
+}
+
+.ar-state--error {
+  padding: var(--st-3);
+  border: 1px solid var(--st-danger-dot);
+  border-radius: var(--st-radius);
+  color: var(--st-danger-text);
+}
+
+.ar-retry {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-4);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

@@ -1,0 +1,77 @@
+// Safety-level picker (9-4c). ALT coloured the five levels with hardcoded hex
+// (#f59e0b on white is ~2.2:1 as text, which fails AA). The scale survives as
+// the accent on the SELECTED option; the label itself keeps body contrast, and
+// the selection is carried by the radio, not by colour alone.
+
+.sl {
+  margin: 0 0 var(--st-4);
+  padding: var(--st-3) var(--st-4) var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.sl-legend {
+  padding-inline: var(--st-2);
+  font-weight: 600;
+}
+
+.sl-hint {
+  margin: 0 0 var(--st-3);
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.sl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11.25rem, 1fr));
+  gap: var(--st-2);
+}
+
+.sl-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: var(--st-2);
+  min-block-size: 2.75rem;
+  padding: var(--st-2) var(--st-3);
+  border: 2px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  cursor: pointer;
+
+  &--on {
+    border-color: var(--st-accent);
+    background: var(--st-accent-soft);
+  }
+
+  &:has(.sl-radio:focus-visible) {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 2px;
+  }
+}
+
+.sl-radio {
+  margin-block-start: 0.2rem;
+}
+
+.sl-label {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.sl-desc {
+  grid-column: 2;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.sl-missing {
+  display: block;
+  margin-block-start: var(--st-1);
+  color: var(--st-warn-text);
+}
+
+.sl-note {
+  margin: var(--st-3) 0 0;
+  font-size: 0.875rem;
+  color: var(--st-warn-text);
+}

@@ -1,0 +1,35 @@
+// M3 design tokens for the BOERDi UI (§7 theme layer). CSS custom properties
+// only — no Angular Material component library (it would blow the widget's
+// §5.5 gzip budget). Fonts are the self-hosted system stack: no external font
+// CDN (DSGVO — see memory dsgvo-no-external-qr-fonts).
+//
+// `:host` scopes the tokens inside the widget's Shadow DOM; `:root` covers the
+// studio SPA and the dev harness page. `--boerdi-primary` is overridable at
+// runtime via the `primary-color` host attribute (see primary-color.ts).
+
+:host,
+:root {
+  --boerdi-primary: #1f6feb;
+  --boerdi-on-primary: #ffffff;
+  --boerdi-surface: #ffffff;
+  --boerdi-on-surface: #1a1c1e;
+  --boerdi-surface-variant: #f1f3f5;
+  --boerdi-on-surface-variant: #43474e;
+  --boerdi-outline: #c4c7c5;
+  --boerdi-error: #ba1a1a;
+  --boerdi-radius: 12px;
+  --boerdi-radius-sm: 8px;
+  --boerdi-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :host,
+  :root {
+    --boerdi-surface: #1a1c1e;
+    --boerdi-on-surface: #e3e2e6;
+    --boerdi-surface-variant: #2a2d2f;
+    --boerdi-on-surface-variant: #c4c7c5;
+    --boerdi-outline: #43474e;
+    --boerdi-error: #ffb4ab;
+  }
+}

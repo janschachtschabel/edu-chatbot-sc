@@ -1,0 +1,94 @@
+<div class="rd">
+  @if (loading()) {
+    <p class="cs-state" aria-busy="true">Dokumente werden geladen …</p>
+  } @else if (loadError()) {
+    <p class="cs-state cs-state--error" role="alert">{{ loadError() }}</p>
+  } @else if (docs().length === 0) {
+    <p class="cs-state">
+      In „{{ area() }}“ liegen keine Dokumente mehr. Der Bereich verschwindet mit
+      dem nächsten Neuladen.
+    </p>
+  } @else {
+    <ul class="rd-list">
+      @for (doc of docs(); track docKey(doc)) {
+        <li class="rd-row">
+          <p class="rd-title">{{ doc.title }}</p>
+          <p class="rd-meta">
+            <span class="rd-source">{{ doc.source || 'ohne Quelle' }}</span>
+            <span>·</span>
+            <span>{{ doc.chunks }} {{ doc.chunks === 1 ? 'Abschnitt' : 'Abschnitte' }}</span>
+          </p>
+          <p class="rd-preview">{{ doc.preview }}</p>
+
+          <p class="rd-actions">
+            <button
+              type="button"
+              class="cs-btn rd-show"
+              [attr.aria-expanded]="isOpen(doc)"
+              (click)="show(doc)"
+            >
+              {{ isOpen(doc) ? 'Volltext ausblenden' : 'Volltext anzeigen' }}
+              <span class="sr"> — {{ doc.title }}</span>
+            </button>
+            @if (!isPending(doc)) {
+              <button type="button" class="cs-btn rd-del" (click)="askDelete(doc)">
+                Löschen<span class="sr"> — {{ doc.title }}</span>
+              </button>
+            }
+          </p>
+
+          @if (isPending(doc)) {
+            <p class="rd-confirm">
+              <span role="alert">Wirklich löschen? Das Dokument muss danach neu eingelesen werden.</span>
+              <button
+                type="button"
+                class="cs-btn rd-del-yes"
+                [disabled]="deleting()"
+                (click)="confirmDelete()"
+              >
+                {{ deleting() ? 'Wird gelöscht …' : 'Ja, löschen' }}
+              </button>
+              <button
+                type="button"
+                class="cs-btn rd-del-no"
+                [disabled]="deleting()"
+                (click)="cancelDelete()"
+              >
+                Abbrechen
+              </button>
+            </p>
+          }
+
+          @if (isOpen(doc)) {
+            <div class="rd-chunks">
+              @if (chunksLoading()) {
+                <p class="cs-state" aria-busy="true">Volltext wird geladen …</p>
+              } @else if (chunksError()) {
+                <p class="cs-state cs-state--error" role="alert">{{ chunksError() }}</p>
+              } @else {
+                <!-- tabindex: the list scrolls, so it must be reachable
+                     without a mouse (WCAG 2.1.1). -->
+                <ol
+                  class="rd-chunk-list"
+                  tabindex="0"
+                  [attr.aria-label]="'Abschnitte von ' + doc.title"
+                >
+                  @for (chunk of chunks(); track chunk.index) {
+                    <li class="rd-chunk">
+                      <p class="rd-chunk-no">Abschnitt {{ chunk.index + 1 }}</p>
+                      <p class="rd-chunk-body">{{ chunk.content }}</p>
+                    </li>
+                  }
+                </ol>
+              }
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  @if (deleteError()) {
+    <p class="cs-state cs-state--error" role="alert">{{ deleteError() }}</p>
+  }
+</div>
