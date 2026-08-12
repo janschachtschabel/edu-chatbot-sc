@@ -1,18 +1,15 @@
 <header class="lt-head">
-  <p class="lt-crumb">Auswertung</p>
-  <h2 class="lt-title">Lasttest</h2>
-  <p class="lt-intro">
-    Skalierbarkeits-Selbsttest: gemischte Abfragen mit steigender Parallelität gegen
-    die eigene Pipeline — Latenz und Fehler je Stufe.
-  </p>
+  <p class="lt-crumb">{{ t('nav.group.auswertung') }}</p>
+  <h2 class="lt-title">{{ t('view.lasttest.label') }}</h2>
+  <p class="lt-intro">{{ t('lt.intro') }}</p>
 </header>
 
 <form class="lt-form" (submit)="$event.preventDefault(); start()">
   <fieldset class="lt-fields">
-    <legend class="lt-legend">Profil</legend>
+    <legend class="lt-legend">{{ t('lt.profile.legend') }}</legend>
 
     <p class="lt-field">
-      <label for="lt-stages">Stufen — Parallelität, kommagetrennt</label>
+      <label for="lt-stages">{{ t('lt.stages') }}</label>
       <input
         id="lt-stages"
         class="lt-input"
@@ -24,12 +21,12 @@
         aria-describedby="lt-stages-hint"
       />
       <span class="lt-hint" id="lt-stages-hint">
-        höchstens {{ maxStages }} Stufen, je bis {{ maxConcurrency }} parallel
+        {{ t('lt.stages.hint', { stages: maxStages, concurrency: maxConcurrency }) }}
       </span>
     </p>
 
     <p class="lt-field">
-      <label for="lt-rps">Requests pro Stufe</label>
+      <label for="lt-rps">{{ t('lt.requests') }}</label>
       <input
         id="lt-rps"
         class="lt-input"
@@ -42,7 +39,7 @@
     </p>
 
     <p class="lt-field">
-      <label for="lt-threshold">p95-Schwelle für „stabil" (Sekunden)</label>
+      <label for="lt-threshold">{{ t('lt.threshold') }}</label>
       <input
         id="lt-threshold"
         class="lt-input"
@@ -56,11 +53,11 @@
   </fieldset>
 
   <fieldset class="lt-fields">
-    <legend class="lt-legend">Abfrage-Mix — Gewichte 0 bis 10</legend>
+    <legend class="lt-legend">{{ t('lt.mix.legend') }}</legend>
 
     <studio-async-state
       class="lt-mix-state"
-      label="Die Mix-Kategorien"
+      [label]="t('lt.mix.label')"
       [loading]="options.loading() && mixOptions().length === 0"
       [error]="options.error()"
       (retry)="options.reload()"
@@ -84,17 +81,11 @@
     }
   </fieldset>
 
-  <p class="lt-cost">
-    <strong>Kosten und Last:</strong> dieser Lauf feuert
-    <strong>{{ profile().totalRequests }} echte Chat-Anfragen</strong> (LLM + MCP) —
-    Stufen {{ profile().stages.join(' → ') || '–' }} × {{ profile().requestsPerStage }}.
-    Lernpfad-Anteile sind die teuersten. Es läuft immer nur ein Test gleichzeitig.
-  </p>
+  <p class="lt-cost"><studio-rich [parts]="costParts()" /></p>
 
   @if (profile().adjustments.length > 0) {
     <p class="lt-adjust">
-      Das Backend passt das Profil an: {{ profile().adjustments.join(' ') }}
-      Oben steht bereits, was tatsächlich läuft.
+      {{ t('lt.adjust', { changes: profile().adjustments.join(' ') }) }}
     </p>
   }
 
@@ -103,7 +94,7 @@
   }
 
   @if (busyRun(); as busy) {
-    <p class="lt-busy">Lauf {{ busy.id }} ist noch unterwegs — solange startet kein zweiter.</p>
+    <p class="lt-busy">{{ t('lt.busy', { id: busy.id }) }}</p>
   }
 
   <div class="lt-actions">
@@ -112,7 +103,7 @@
       class="lt-btn lt-btn--go"
       [disabled]="starting() || profile().problem !== '' || busyRun() !== null"
     >
-      {{ starting() ? 'Startet …' : 'Lasttest starten' }}
+      {{ starting() ? t('lt.starting') : t('lt.start') }}
     </button>
     <p class="lt-status" aria-live="polite">{{ status() }}</p>
   </div>
@@ -124,19 +115,19 @@
 
 <section class="lt-runs" aria-labelledby="lt-runs-title">
   <div class="lt-runs-head">
-    <h3 class="lt-runs-title" id="lt-runs-title">Läufe</h3>
+    <h3 class="lt-runs-title" id="lt-runs-title">{{ t('lt.runs') }}</h3>
     <button type="button" class="lt-btn" [disabled]="runs.loading()" (click)="reload()">
-      {{ runs.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+      {{ runs.loading() ? t('action.refreshing') : t('action.refresh') }}
     </button>
   </div>
 
   <studio-async-state
     class="lt-runs-state"
-    label="Die Läufe"
+    [label]="t('lt.runs')"
     [loading]="runs.loading() && rows().length === 0"
     [error]="runs.error()"
     [empty]="runs.isEmpty()"
-    emptyText="Noch kein Lasttest gelaufen. Oben ein Profil wählen und starten."
+    [emptyText]="t('lt.runs.empty')"
     (retry)="reload()"
   />
 
@@ -163,19 +154,18 @@
             type="button"
             class="lt-btn lt-del"
             [disabled]="working() || row.status === 'running'"
+            [attr.aria-label]="t('lt.deleteFor', { id: row.id })"
             (click)="arm(row.id)"
-          >
-            Löschen<span class="sr"> — Lauf {{ row.id }}</span>
-          </button>
+          >{{ t('lt.delete') }}</button>
 
           @if (armed() === row.id) {
             <p class="lt-confirm">
-              <span role="alert">Diesen Lauf mit allen Messwerten löschen? Das lässt sich nicht rückgängig machen.</span>
+              <span role="alert">{{ t('lt.confirm') }}</span>
               <button type="button" class="lt-btn lt-del-yes" [disabled]="working()" (click)="confirmDelete()">
-                {{ working() ? 'Wird gelöscht …' : 'Ja, löschen' }}
+                {{ working() ? t('lt.deleting') : t('action.confirmDelete') }}
               </button>
               <button type="button" class="lt-btn" [disabled]="working()" (click)="disarm()">
-                Abbrechen
+                {{ t('action.cancel') }}
               </button>
             </p>
           }

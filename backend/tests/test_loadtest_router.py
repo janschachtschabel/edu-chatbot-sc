@@ -86,13 +86,13 @@ def test_mix_options_lists_every_category_with_label_and_prompt(client):
 def test_gate_helper_allows_by_default(monkeypatch):
     monkeypatch.delenv("BOERDI_ALLOW_LOADTEST", raising=False)
     get_settings.cache_clear()
-    assert loadtest_api._ensure_loadtest_allowed() is None
+    assert loadtest_api._ensure_loadtest_allowed("de") is None
 
 
 def test_gate_helper_allows_explicit_true(monkeypatch):
     monkeypatch.setenv("BOERDI_ALLOW_LOADTEST", "true")
     get_settings.cache_clear()
-    assert loadtest_api._ensure_loadtest_allowed() is None
+    assert loadtest_api._ensure_loadtest_allowed("de") is None
 
 
 # ALT accepted whitespace-padded values (" Off ") via its own ``.strip().lower()``;
@@ -104,7 +104,7 @@ def test_gate_helper_raises_403_when_disabled(monkeypatch, val):
     monkeypatch.setenv("BOERDI_ALLOW_LOADTEST", val)
     get_settings.cache_clear()
     with pytest.raises(HTTPException) as exc:
-        loadtest_api._ensure_loadtest_allowed()
+        loadtest_api._ensure_loadtest_allowed("de")
     assert exc.value.status_code == 403
 
 
@@ -113,6 +113,35 @@ def test_post_run_refused_403_when_gate_disabled(client, monkeypatch):
     get_settings.cache_clear()
     r = client.post("/api/loadtest/runs", json={}, headers=_AUTH)
     assert r.status_code == 403
+
+
+def test_gate_meldet_in_der_sprache_der_anfrage(client, monkeypatch):
+    """C1-e2: derselbe 403 spricht die Sprache, die die Anfrage mitbringt.
+
+    Der Weg lohnt einen echten Endpunkt-Test statt nur des Katalog-Wächters:
+    zwischen `Accept-Language` und dem Satz liegen die Abhängigkeit in
+    `deps.py`, die Signatur des Handlers und die Weitergabe an den Helfer —
+    drei Stellen, an denen ein Katalog-Eintrag stumm bleiben könnte.
+    """
+    monkeypatch.setenv("BOERDI_ALLOW_LOADTEST", "false")
+    get_settings.cache_clear()
+
+    ohne = client.post("/api/loadtest/runs", json={}, headers=_AUTH)
+    assert "deaktiviert" in ohne.json()["detail"]
+
+    englisch = client.post(
+        "/api/loadtest/runs",
+        json={},
+        headers={**_AUTH, "Accept-Language": "en-GB,en;q=0.9,de;q=0.8"},
+    )
+    assert englisch.status_code == 403
+    assert "is disabled on this instance" in englisch.json()["detail"]
+
+    # Eine Sprache, die es nicht gibt, fällt auf Deutsch zurück statt auf leer.
+    fremd = client.post(
+        "/api/loadtest/runs", json={}, headers={**_AUTH, "Accept-Language": "fr-FR"}
+    )
+    assert "deaktiviert" in fremd.json()["detail"]
 
 
 # ── POST /api/loadtest/runs ───────────────────────────────────────────────

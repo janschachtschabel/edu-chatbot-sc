@@ -1,0 +1,57 @@
+# Guide-Mode (Webseiten-Lotse)
+# Aktiviert "Bring mich hin"-Button auf Cards, wenn Bot auf einer
+# gelisteten Domain läuft. Domain-Match case-insensitive, Wildcards
+# `*.x.de` matchen alle Subdomains.
+
+guide_mode:
+  default_enabled: false          # User-opt-in, persistent in localStorage
+  max_guide_targets_per_turn: 0   # 0 = unbegrenzt
+  max_guide_quick_replies: 2      # max. Bring-mich-hin-QRs (Cap bei 3)
+
+  url_fields_priority:
+    - topic_page_url
+    - wlo_url
+    - url
+    - content_url
+    - preview_url
+
+  # Hosts, auf denen Guide-Toggle sichtbar ist
+  allowed_hosts:
+    - wirlernenonline.de
+    - "*.wirlernenonline.de"
+    - openeduhub.net
+    - "*.openeduhub.net"
+    - openeduhub.de
+    - "*.openeduhub.de"
+    - wissenlebtonline.de
+    - "*.wissenlebtonline.de"
+    # Verbundene Plattformen (RAG-Quell-Domains)
+    - edu-sharing.com
+    - "*.edu-sharing.com"
+    - edu-sharing.net
+    - "*.edu-sharing.net"
+    - edu-sharing-network.org
+    - "*.edu-sharing-network.org"
+    - its.jointly.info
+    - "*.its.jointly.info"
+    - jointly.info
+    - "*.jointly.info"
+    # Dev / Self-Embed
+    - localhost
+    - 127.0.0.1
+    - "*.nip.io"
+
+  # Cross-TLD-Session-Brücke (bsid/bgm-Query-Param-Append)
+  # Override via Env GUIDE_TRUSTED_DOMAINS möglich.
+  trusted_domains:
+    - wirlernenonline.de
+    - "*.wirlernenonline.de"
+    - openeduhub.net
+    - "*.openeduhub.net"
+    - openeduhub.de
+    - "*.openeduhub.de"
+    - wissenlebtonline.de
+    - "*.wissenlebtonline.de"
+    - localhost
+    - 127.0.0.1
+    - "*.nip.io"

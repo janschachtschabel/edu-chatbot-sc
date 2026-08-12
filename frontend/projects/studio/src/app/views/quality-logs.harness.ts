@@ -10,6 +10,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { QualityLogsComponent } from './quality-logs.component';
 import type { LogFilters, QualityScope } from '../core/quality-api.service';
 
@@ -70,8 +71,14 @@ export async function settle(h: Harness): Promise<void> {
   await h.fixture.whenStable();
 }
 
-/** A fixture with no answer flushed yet — for asserting on the first request. */
-export async function bare(): Promise<Harness> {
+/**
+ * A fixture with no answer flushed yet — for asserting on the first request.
+ *
+ * jsdom meldet `navigator.language === 'en-US'`; ohne gesetzte Wahl liefe die
+ * deutsche Oberfläche auf Englisch.
+ */
+export async function bare(locale = 'de'): Promise<Harness> {
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -83,8 +90,8 @@ export async function bare(): Promise<Harness> {
   return h;
 }
 
-export async function mount(page: object = PAGE): Promise<Harness> {
-  const h = await bare();
+export async function mount(page: object = PAGE, locale = 'de'): Promise<Harness> {
+  const h = await bare(locale);
   h.http.expectOne((r) => r.url === LOGS_URL).flush(page);
   await settle(h);
   return h;

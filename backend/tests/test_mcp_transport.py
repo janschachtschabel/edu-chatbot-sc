@@ -142,3 +142,30 @@ def test_discover_maps_tools_and_filters_unnamed(monkeypatch):
         {"name": "search_wlo_content", "description": "d1"},
         {"name": "wlo_health_check", "description": ""},
     ]
+
+
+# ── Die Vorgabe-Adresse steht an EINER Stelle ───────────────────────────
+
+def test_die_vorgabe_adresse_steht_nur_an_einer_stelle():
+    """Der Rückfall darf keine zweite Abschrift der URL sein.
+
+    Er greift genau dann, wenn ``MCP_SERVER_URL`` leer ankommt — und leer
+    reicht ``compose.prod.yml`` sie per Vorgabe durch (``${MCP_SERVER_URL:-}``).
+    Stünde die Adresse hier ein zweites Mal, träfe ein Server-Wechsel, der nur
+    ``settings.py`` anfasst, ausgerechnet diesen Fall nicht: das Deployment
+    spräche still mit dem alten Server weiter. Genau davor warnte der Kommentar
+    an dieser Stelle — jetzt trägt es der Code.
+    """
+    from pathlib import Path
+
+    from boerdi.settings import Settings
+
+    vorgabe = Settings.model_fields["mcp_server_url"].default
+    quelle = Path(transport_mod.__file__).read_text(encoding="utf-8")
+
+    assert vorgabe not in quelle, (
+        "Die Vorgabe-Adresse steht als Literal in transport.py — sie gehört "
+        "einmal nach settings.py und wird von dort gelesen."
+    )
+    # Und der Rückfall zeigt trotzdem dorthin.
+    assert _DEFAULT_MCP_URL == vorgabe

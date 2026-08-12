@@ -26,7 +26,8 @@ from boerdi.api.config_element_models import (
     StateEntry,
     StatesPayload,
 )
-from boerdi.api.deps import require_studio_key
+from boerdi.api.deps import Lang, require_studio_key
+from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
 
 logger = logging.getLogger(__name__)
@@ -36,13 +37,15 @@ router = APIRouter(
 )
 
 
-def _validate_entries(model: type[BaseModel], raw: list, label: str) -> list:
+def _validate_entries(
+    model: type[BaseModel], raw: list, label: str, lang: Locale
+) -> list:
     """Validate a list against ``model`` -> generic 422 (no field details leaked)."""
     try:
         return [model.model_validate(item) for item in raw]
     except ValidationError as e:
         logger.warning("%s: ungültige Eintragsdaten: %s", label, e)
-        raise HTTPException(status_code=422, detail=f"Ungültige {label}-Daten.") from None
+        raise HTTPException(422, msg(lang, "entries.invalid", label=label)) from None
 
 
 def _strip_empty(obj: Any) -> Any:
@@ -128,8 +131,8 @@ async def get_intents_route() -> dict:
 
 
 @router.put("/intents")
-async def put_intents_route(payload: IntentsPayload) -> dict:
-    entries = _validate_entries(IntentEntry, payload.intents, "Intent")
+async def put_intents_route(payload: IntentsPayload, lang: Lang) -> dict:
+    entries = _validate_entries(IntentEntry, payload.intents, "Intent", lang)
     _require_unique_ids(entries, "Intent")
     cleaned = [_strip_empty(e.model_dump()) for e in entries]
     await cl.write_area("04-intents/intents", {"intents": cleaned})
@@ -143,8 +146,8 @@ async def get_states_route() -> dict:
 
 
 @router.put("/states")
-async def put_states_route(payload: StatesPayload) -> dict:
-    entries = _validate_entries(StateEntry, payload.states, "State")
+async def put_states_route(payload: StatesPayload, lang: Lang) -> dict:
+    entries = _validate_entries(StateEntry, payload.states, "State", lang)
     _require_unique_ids(entries, "State")
     cleaned = [_strip_empty(e.model_dump()) for e in entries]
     await cl.write_area("04-states/states", {"states": cleaned})
@@ -161,8 +164,8 @@ async def get_entities_route() -> dict:
 
 
 @router.put("/entities")
-async def put_entities_route(payload: EntitiesPayload) -> dict:
-    entries = _validate_entries(EntityEntry, payload.entities, "Entity")
+async def put_entities_route(payload: EntitiesPayload, lang: Lang) -> dict:
+    entries = _validate_entries(EntityEntry, payload.entities, "Entity", lang)
     _require_unique_ids(entries, "Entity")
     cleaned = [_strip_empty(e.model_dump()) for e in entries]
     existing = cl.area("04-entities/entities")
@@ -180,8 +183,8 @@ async def get_personas_route() -> dict:
 
 
 @router.put("/personas")
-async def put_personas_route(payload: PersonasPayload) -> dict:
-    entries = _validate_entries(PersonaEntry, payload.personas, "Persona")
+async def put_personas_route(payload: PersonasPayload, lang: Lang) -> dict:
+    entries = _validate_entries(PersonaEntry, payload.personas, "Persona", lang)
     _require_unique_ids(entries, "Persona")
     for e in entries:
         fm: dict[str, Any] = {"element": "persona", "id": e.id, "label": e.label}
@@ -222,13 +225,16 @@ async def get_patterns_route() -> dict:
 
 
 @router.put("/patterns")
-async def put_patterns_route(payload: PatternsPayload) -> dict:
-    entries = _validate_entries(PatternEntry, payload.patterns, "Pattern")
+async def put_patterns_route(payload: PatternsPayload, lang: Lang) -> dict:
+    entries = _validate_entries(PatternEntry, payload.patterns, "Pattern", lang)
     _require_unique_ids(entries, "Pattern")
     # validate ALL before writing any (no partial writes)
     for e in entries:
         if e.quick_replies_mode and e.quick_replies_mode not in _QR_MODES:
-            raise HTTPException(400, f"quick_replies_mode ungültig: {e.quick_replies_mode!r}")
+            raise HTTPException(
+                400,
+                msg(lang, "patterns.qrModeInvalid", value=repr(e.quick_replies_mode)),
+            )
 
     existing_key_by_id = {
         p["id"]: cl._strip_ext(p.get("_source_file", ""))

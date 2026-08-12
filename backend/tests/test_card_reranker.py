@@ -134,3 +134,42 @@ def test_rerank_empty_query_uses_fallback(monkeypatch):
     env = _envelope({"nodeId": "1"}, {"nodeId": "2"})
     out, dbg = cr.rerank_gate_envelope("", env, tool_name="search_wlo_content", top_n=1)
     assert dbg["mode"] == "fallback-no-ce"   # leere Query → kein CE
+
+
+def test_card_gate_has_its_own_switch(monkeypatch):
+    """W9: der billige Pfad darf nicht am teuren hängen.
+
+    Das Karten-Gate kostet ein Achtel des RAG-Reranks (227 ms gegen 1853 ms bei
+    3 Threads, je 25 Elemente) und liefert das sichtbarste Stück Qualität — das
+    Wegwerfen thematisch verfehlter Treffer. Wer den RAG-Rerank abschaltet, soll
+    dieses Gate nicht STILL mitverlieren; und umgekehrt.
+    """
+    import json as _json
+
+    from boerdi.services.card_reranker import rerank_gate_envelope
+    from boerdi.settings import get_settings
+
+    class _Backend:
+        def predict(self, pairs):
+            return [-9.0] * len(pairs)  # alles off-topic → Gate wirft weg
+
+    monkeypatch.setattr(
+        "boerdi.services.rag.rerank._get_reranker", lambda: _Backend(),
+    )
+    envelope = _json.dumps({
+        "total": 2, "count": 2,
+        "results": [{"title": "A", "description": "x"}, {"title": "B", "description": "y"}],
+    })
+
+    monkeypatch.setenv("CARD_RERANKER_ENABLED", "true")
+    get_settings.cache_clear()
+    text, debug = rerank_gate_envelope("Klimawandel", envelope, tool_name="t")
+    # Der aktive Pfad setzt kein `mode` — er meldet Schwelle und Verworfene.
+    assert "mode" not in debug and debug["dropped_by_gate"] == 2
+    assert _json.loads(text)["count"] == 0  # gegatet
+
+    monkeypatch.setenv("CARD_RERANKER_ENABLED", "false")
+    get_settings.cache_clear()
+    text, debug = rerank_gate_envelope("Klimawandel", envelope, tool_name="t")
+    assert debug["mode"] == "fallback-no-ce"
+    assert _json.loads(text)["count"] == 2  # ungegatet durchgereicht

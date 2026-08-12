@@ -12,6 +12,7 @@ import { RouterLink } from '@angular/router';
 
 import { ConfigApi, type ConfigFileEntry } from '../core/config-api.service';
 import { StudioApiError } from '../core/studio-api-error';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 
 interface AreaEntry {
   readonly key: string;
@@ -31,26 +32,20 @@ interface AreaGroup {
   imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 class="ar-title">Alle Bereiche</h2>
-    <p class="ar-lead">
-      Jeder Konfigurationsbereich, direkt aus dem Backend gelistet — auch die ohne eigene
-      Ansicht. Bearbeitet wird per Formular (aus dem Bereichsmodell erzeugt) oder im Rohtext.
-    </p>
+    <h2 class="ar-title">{{ t('view.bereiche.label') }}</h2>
+    <p class="ar-lead">{{ t('areas.lead') }}</p>
 
     @if (loading()) {
-      <p class="ar-state" aria-busy="true">Bereiche werden geladen …</p>
+      <p class="ar-state" aria-busy="true">{{ t('areas.loading') }}</p>
     } @else if (error()) {
       <div class="ar-state ar-state--error" role="alert">
         <p>{{ error() }}</p>
-        <button type="button" class="ar-retry" (click)="load()">Erneut versuchen</button>
+        <button type="button" class="ar-retry" (click)="load()">{{ t('async.retry') }}</button>
       </div>
     } @else if (groups().length === 0) {
-      <p class="ar-state">
-        Es ist noch keine Konfiguration geladen. Nach dem Import
-        (<code>boerdi import-config</code>) erscheinen die Bereiche hier.
-      </p>
+      <p class="ar-state">{{ t('areas.empty', { cmd: t('areas.importCmd') }) }}</p>
     } @else {
-      <p class="ar-count">{{ total() }} {{ total() === 1 ? 'Bereich' : 'Bereiche' }}</p>
+      <p class="ar-count">{{ plural('areas.count', total()) }}</p>
       @for (group of groups(); track group.folder) {
         <section class="ar-group">
           <h3 class="ar-folder">{{ group.folder }}</h3>
@@ -74,6 +69,9 @@ interface AreaGroup {
 })
 export class AreasComponent {
   private readonly config = inject(ConfigApi);
+  private readonly lang = inject(StudioLanguageService);
+  protected readonly t = this.lang.t;
+  protected readonly plural = this.lang.plural;
 
   readonly loading = signal(true);
   readonly error = signal('');
@@ -86,7 +84,7 @@ export class AreasComponent {
     for (const file of this.files()) {
       const key = stripExtension(file.path);
       const slash = key.lastIndexOf('/');
-      const folder = slash < 0 ? '(ohne Ordner)' : key.slice(0, slash);
+      const folder = slash < 0 ? this.lang.t('areas.noFolder') : key.slice(0, slash);
       const entry: AreaEntry = {
         key,
         name: key.slice(slash + 1),
@@ -113,11 +111,9 @@ export class AreasComponent {
     try {
       this.files.set(await this.config.listFiles());
     } catch (err) {
-      this.error.set(
-        err instanceof StudioApiError && err.status === 0
-          ? 'Backend nicht erreichbar.'
-          : 'Die Bereichsliste konnte nicht geladen werden.',
-      );
+      this.error.set(this.lang.t(
+        err instanceof StudioApiError && err.status === 0 ? 'error.offline' : 'areas.error',
+      ));
     } finally {
       this.loading.set(false);
     }

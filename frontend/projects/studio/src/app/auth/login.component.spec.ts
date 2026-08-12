@@ -6,6 +6,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
 import { LoginComponent } from './login.component';
 
 const SESSION = '/studio/api/auth/session';
@@ -65,6 +66,9 @@ async function submit(h: Harness, status: number, body: object = { detail: 'x' }
 describe('LoginComponent', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
+    // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund) — ohne dies
+    // stünde die Anmeldeseite hier auf Englisch.
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   });
 
   it('labels the password field properly', async () => {
@@ -156,6 +160,39 @@ describe('LoginComponent', () => {
   it('explains itself when the session expired mid-work', async () => {
     const h = await mount('?abgelaufen=1&from=%2Fpatterns');
     expect(h.el.querySelector('#pw-hint')?.textContent).toContain('Sitzung ist abgelaufen');
+  });
+
+  it('lässt sich umschalten, BEVOR man sich anmeldet', async () => {
+    // Ohne Umschalter hier käme ein englischsprachiger Nutzer mit deutschem
+    // Browser-Profil nicht an der deutschen Anmeldeseite vorbei.
+    const h = await mount();
+    expect(h.el.querySelector('studio-language-switcher')).not.toBeNull();
+
+    TestBed.inject(StudioLanguageService).toggle();
+    await h.fixture.whenStable();
+    expect(h.el.querySelector('label[for="studio-password"]')?.textContent?.trim())
+      .toBe('Password');
+    expect(h.el.querySelector('#pw-hint')?.textContent?.trim())
+      .toBe('Please enter the password.');
+  });
+
+  it('übersetzt auch die Fehlermeldungen — sie sind Oberfläche, kein Protokoll', async () => {
+    const h = await mount();
+    TestBed.inject(StudioLanguageService).toggle();
+    type(h, 'falsch');
+    await h.fixture.whenStable();
+    await submit(h, 401);
+    expect(h.el.querySelector('#pw-error')?.textContent).toContain('Wrong password');
+  });
+
+  it('setzt den Statuscode in die Sammelmeldung ein', async () => {
+    // Der Platzhalter ist der Grund, warum diese Meldung ein Schlüssel MIT
+    // Parameter ist und keine zusammengebaute Zeichenkette.
+    const h = await mount();
+    type(h, 'x');
+    await h.fixture.whenStable();
+    await submit(h, 500);
+    expect(h.el.querySelector('#pw-error')?.textContent).toContain('Fehler 500');
   });
 
   it('does not ask an already-signed-in user to log in again', async () => {

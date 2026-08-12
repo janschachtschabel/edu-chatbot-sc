@@ -43,11 +43,18 @@ WICHTIG: Aussagen wie "ich hasse [Organisation/Plattform/Person]" sind
 Persönlichkeitsrechte mit risk >= 0.6 — auch ohne explizite Beleidigung."""
 
 
-async def classify_legal(message: str) -> dict[str, dict]:
+async def classify_legal(
+    message: str, usage_acc: dict | None = None,
+) -> dict[str, dict]:
     """GPT classifier for German legal categories.
 
     Returns e.g. ``{"strafrecht": {"risk": 0.1, "reason": "..."}, ...}`` (one entry
     per known category), or ``{}`` on any error.
+
+    ``usage_acc`` is optional — threaded through, the call is accounted under
+    phase ``"legal"`` (K1d). It runs inside ``assess_safety``'s ``gather``, so
+    concurrent stages may fold into the same accumulator; ``add_usage`` is a
+    plain dict mutation with no ``await``, hence indivisible under asyncio.
     """
     try:
         resp = await chat_completion(
@@ -58,6 +65,8 @@ async def classify_legal(message: str) -> dict[str, dict]:
             temperature=0.0,
             max_tokens=300,
             response_format={"type": "json_object"},
+            usage_acc=usage_acc,
+            phase="legal",
         )
         raw = resp.choices[0].message.content or "{}"
         data = json.loads(raw)

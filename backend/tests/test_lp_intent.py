@@ -9,7 +9,7 @@ degradation when an LP intent lacks a concrete topic).
 
 from types import SimpleNamespace
 
-from boerdi.domain.lp_intent import detect_lp_intent
+from boerdi.domain.lp_intent import detect_lp_intent, strip_lp_command_words
 
 
 def _cls(intent_id: str):
@@ -52,6 +52,33 @@ class TestHasLpIntent:
                 pattern_output={},
             )
             assert has is False, iid
+
+    def test_auftrags_intents_sperren_den_schnellweg(self):
+        """K1 (2026-08-11): I09/I10/I11 kamen mit M18/M19/M20 dazu, die
+        Sperrliste blieb bei den vier alten stehen.
+
+        Der Schnellweg feuert schon, wenn EIN Stichwort irgendwo im Satz steht —
+        und „Unterrichtseinheit" steht in ``_lp_keywords``. Gemessen: alle drei
+        Sätze unten lösten ihn aus. Er läuft VOR der Musterwahl, das Muster kommt
+        also gar nicht mehr zum Zug: statt einer Prüfung bekäme die Person einen
+        erzeugten Lernpfad.
+
+        Die drei sind Aufträge AM BESTAND (anlegen, prüfen, erschliessen); ein
+        Stichwort im Nebensatz nennt ihren Zweck, nicht ihre Aufgabe.
+        """
+        for iid, nachricht in (
+            ("I09", "Leg eine Sammlung für meine Unterrichtseinheit Optik an"),
+            ("I10", "Prüf, ob die Sammlung für meine Unterrichtseinheit Optik reicht"),
+            ("I11", "Nimm diese Seite für meine Unterrichtseinheit Optik auf"),
+        ):
+            ss = {"persona_id": "P-LEHR", "entities": {"thema": "Optik"}}
+            has, _ = detect_lp_intent(
+                classification=_cls(iid),
+                message=nachricht,
+                session_state=ss,
+                pattern_output={},
+            )
+            assert has is False, f"{iid}: {nachricht}"
 
     def test_persona_p_red_blocks(self):
         ss = {"persona_id": "P-RED", "entities": {"thema": "Klimawandel"}}
@@ -178,3 +205,60 @@ class TestForcedDegradation:
             pattern_output=po,
         )
         assert po == {}
+
+
+# ── C1-f2c-b: das LP-Stichwort-Gate kannte nur Deutsch ───────────────
+# Auf Englisch blieb allein der Klassifikator-Pfad (``intent_id == "I04"``)
+# — das deterministische Gate griff nie.
+
+class TestEnglishLpKeywords:
+    def test_english_lesson_plan_request_has_lp_intent(self):
+        for msg in ("create a lesson plan on photosynthesis",
+                    "I need a learning path for fractions",
+                    "help me with my lesson preparation"):
+            has, _ = detect_lp_intent(
+                classification=_cls("I01"), message=msg,
+                session_state={"entities": {"thema": "X"}}, pattern_output={})
+            assert has is True, msg
+
+    def test_a_plain_question_still_has_no_lp_intent(self):
+        has, _ = detect_lp_intent(
+            classification=_cls("I01"), message="do you have videos on fractions",
+            session_state={"entities": {"thema": "X"}}, pattern_output={})
+        assert has is False
+
+    def test_blocking_intent_still_wins_over_the_english_keyword(self):
+        """Die Sperr-Intents sind wichtiger als das Stichwort — wer einen
+        BESTEHENDEN Lernpfad bearbeiten will, bekommt keinen neuen."""
+        has, _ = detect_lp_intent(
+            classification=_cls("I06"), message="edit my lesson plan",
+            session_state={"entities": {"thema": "X"}}, pattern_output={})
+        assert has is False
+
+
+# ── C1-f2c-b: der zweite Auftrag des Stichwort-Satzes ───────────────
+# ``_lp_keywords`` erkennt nicht nur die Absicht — dieselben Woerter werden
+# aus der Nachricht gestrichen, um das Thema freizulegen (Rueckfall, wenn
+# der Klassifikator kein ``thema`` geliefert hat). Bis C1-f2c-b lag diese
+# zweite Wirkung als Schleife in ``lp_fast_path`` und war nicht pruefbar.
+
+class TestStripLpCommandWords:
+    def test_german_stays_byte_exact(self):
+        assert strip_lp_command_words(
+            "erstelle mir einen lernpfad zum thema photosynthese"
+        ) == "photosynthese"
+
+    def test_english_command_words_are_stripped_too(self):
+        assert strip_lp_command_words(
+            "create a lesson plan on photosynthesis"
+        ) == "photosynthesis"
+        assert strip_lp_command_words(
+            "please prepare a learning path about fractions"
+        ) == "fractions"
+
+    def test_no_new_short_word_eats_into_a_topic(self):
+        """Die Streichung arbeitet auf Teilzeichenketten, nicht auf Woertern —
+        deshalb tragen die neuen englischen Fuellwoerter Leerzeichen. Ohne
+        die waere „a" in „maths" und „on" in „photosynthesis" mitgegangen."""
+        assert strip_lp_command_words("lesson plan on maths") == "maths"
+        assert "photosynthesis" in strip_lp_command_words("a lesson plan photosynthesis")

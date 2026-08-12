@@ -80,17 +80,36 @@ export interface MountOptions {
    * frische Session pingt nie (ALT chat.component.ts:738 — geprüft).
    */
   session?: string;
+  /**
+   * Antwort auf Kontext-Pings (`environment.page_event`). Vorgabe: LEER — das
+   * Backend hat zu einer beliebigen Seite meist nichts zu sagen, und genau
+   * dann fällt das Widget auf seine normale Begrüssung zurück. Wer die
+   * Kontextmeldung sprechen lassen will, setzt sie hier.
+   */
+  pingReply?: Record<string, unknown>;
 }
 
 export interface Harness {
   /** Click the FAB and wait for the panel to be interactive. */
   open(): Promise<void>;
-  /** Queue results for the next turns (FIFO); default is a plain text answer. */
+  /** Queue results for the next turns (FIFO); default is a plain text answer.
+   *  Kontext-Pings bedienen sich hier NICHT — siehe `pingReply`. */
   enqueue(...responses: Record<string, unknown>[]): void;
-  /** Chat requests captured so far, in order. */
+  /** Chat requests captured so far, in order — Pings eingeschlossen. */
   chatRequests(): ChatRequest[];
+  /** Nur die echten Züge: Pings (`page_event`) herausgefiltert. Seit der
+   *  Seitenkontext-Erweiterung pingt jede frische Sitzung, ein `[0]` auf
+   *  `chatRequests()` träfe also den Ping statt den gemeinten Zug. */
+  turnRequests(): ChatRequest[];
   /** Wait until at least `n` chat requests have arrived. */
   waitForChatRequests(n: number, timeout?: number): Promise<void>;
+  /** Wie `waitForChatRequests`, aber ohne Pings mitzuzählen. */
+  waitForTurns(n: number, timeout?: number): Promise<void>;
+}
+
+/** Ein Kontext-Ping trägt `page_event`; ein getippter/geklickter Zug nicht. */
+function istPing(r: ChatRequest): boolean {
+  return !!r.environment?.['page_event'];
 }
 
 function harnessHtml(opts: MountOptions): string {
@@ -115,6 +134,18 @@ export async function mount(page: Page, opts: MountOptions = {}): Promise<Harnes
   const queue: Record<string, unknown>[] = [];
   const requests: ChatRequest[] = [];
   const config = opts.config === undefined ? guideModeConfig() : opts.config;
+
+  /**
+   * Antwort auf EINEN Request. Ein Kontext-Ping bekommt die (vorgabegemäss
+   * leere) `pingReply` und nimmt der Warteschlange **nichts** weg: sonst
+   * schnappte er die Antwort weg, die ein Test für seinen eigenen Zug
+   * hinterlegt hat — ein reines Testartefakt.
+   */
+  const antwortAuf = (r: ChatRequest): Record<string, unknown> => (
+    istPing(r)
+      ? (opts.pingReply ?? chatResponse({ content: '', quick_replies: [] }))
+      : (queue.shift() ?? chatResponse())
+  );
 
   await page.emulateMedia({ reducedMotion: opts.motion ?? 'reduce' });
 
@@ -147,18 +178,17 @@ export async function mount(page: Page, opts: MountOptions = {}): Promise<Harnes
       return route.fulfill({ json: { enabled: false } });
     }
     if (path === '/api/chat/stream') {
-      requests.push(req.postDataJSON() as ChatRequest);
-      return route.fulfill({
-        contentType: 'text/event-stream',
-        body: sseBody(queue.shift() ?? chatResponse()),
-      });
+      const payload = req.postDataJSON() as ChatRequest;
+      requests.push(payload);
+      return route.fulfill({ contentType: 'text/event-stream', body: sseBody(antwortAuf(payload)) });
     }
     // Hintergrund-Turns (Tour-Start/-Tick, Kontext-Ping) laufen wie in ALT
     // non-streaming über POST /api/chat — beide Wege werden erfasst, damit
     // `chatRequests()` die echte Reihenfolge zeigt.
     if (path === '/api/chat') {
-      requests.push(req.postDataJSON() as ChatRequest);
-      return route.fulfill({ json: queue.shift() ?? chatResponse() });
+      const payload = req.postDataJSON() as ChatRequest;
+      requests.push(payload);
+      return route.fulfill({ json: antwortAuf(payload) });
     }
     if (path.startsWith('/api/sessions/')) {
       return route.fulfill({ json: [] });
@@ -180,8 +210,17 @@ export async function mount(page: Page, opts: MountOptions = {}): Promise<Harnes
     chatRequests() {
       return requests;
     },
+    turnRequests() {
+      return requests.filter((r) => !istPing(r));
+    },
     async waitForChatRequests(n, timeout) {
       await expect.poll(() => requests.length, { message: `${n} Chat-Requests erwartet`, timeout })
+        .toBeGreaterThanOrEqual(n);
+    },
+    async waitForTurns(n, timeout) {
+      await expect
+        .poll(() => requests.filter((r) => !istPing(r)).length,
+          { message: `${n} echte Züge erwartet`, timeout })
         .toBeGreaterThanOrEqual(n);
     },
   };

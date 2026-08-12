@@ -29,6 +29,7 @@
  * Mic/Speaker-Buttons entsprechend, dieser Service bleibt unverändert.
  */
 import { ChatMessage } from '../grouping/message-types';
+import type { TranslateFn } from '../i18n/i18n';
 import { splitSentences, stripMarkdown } from './tts-text';
 
 /** Live-Zustand/Seiteneffekte der ChatComponent, die der Speech-Cluster
@@ -49,6 +50,8 @@ export interface SpeechContext {
   /** Live-Zugriff auf die Message-Liste — ``toggleAutoSpeak`` liest die
    *  letzte fertige Bot-Nachricht für die Sofort-Bestätigung. */
   messages: () => ChatMessage[];
+  /** Übersetzer für die Fehler-Bubble der Transkription (C1-b4). */
+  t: TranslateFn;
 }
 
 export class SpeechService {
@@ -127,7 +130,7 @@ export class SpeechService {
           }
         } catch (err) {
           console.error('Transcription error:', err);
-          this.ctx.addBotMessage('Spracheingabe konnte nicht verarbeitet werden. Bitte tippe deine Nachricht.');
+          this.ctx.addBotMessage(this.ctx.t('error.transcription'));
         }
       });
     };
@@ -266,6 +269,12 @@ export class SpeechService {
       // is the upper bound — much longer than any single TTS sentence.
       let watchdog: ReturnType<typeof setTimeout> | null = null;
       const armWatchdog = () => {
+        // Clear the coarse timer armed below before replacing it: without this
+        // the pre-armed 90 s one is only orphaned, not replaced — `cleanup()`
+        // can then clear whichever `watchdog` currently points at, and the
+        // orphan keeps the Audio element and its object URL alive for up to
+        // 90 s per spoken sentence (audit 2026-08-12).
+        if (watchdog != null) clearTimeout(watchdog);
         const dur = isFinite(audio.duration) && audio.duration > 0
           ? Math.ceil(audio.duration * 1000) + 5000
           : 90_000;

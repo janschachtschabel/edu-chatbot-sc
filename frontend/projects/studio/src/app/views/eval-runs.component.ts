@@ -16,24 +16,19 @@ import {
 
 import { AsyncData, describeApiError } from '../core/async-data';
 import { EvalApi, type EvalRunSummary } from '../core/eval-api.service';
-import { formatDecimal, germanDateTime } from '../core/format';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { evalStatusLabel } from './eval-status';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 /** Slower than the load test's 2 s: an eval run takes minutes, not seconds. */
 const POLL_MS = 3000;
 
-const STATUS_LABELS: Readonly<Record<string, string>> = {
-  running: 'läuft',
-  done: 'fertig',
-  completed: 'fertig',
-  failed: 'fehlgeschlagen',
-};
-
-const STATUS_FILTERS: readonly { readonly value: string; readonly label: string }[] = [
-  { value: '', label: 'alle Status' },
-  { value: 'done', label: 'fertige' },
-  { value: 'failed', label: 'fehlgeschlagene' },
-  { value: 'running', label: 'laufende' },
+const STATUS_FILTERS: readonly { readonly value: string; readonly labelKey: string }[] = [
+  { value: '', labelKey: 'evalRuns.filter.all' },
+  { value: 'done', labelKey: 'evalRuns.filter.done' },
+  { value: 'failed', labelKey: 'evalRuns.filter.failed' },
+  { value: 'running', labelKey: 'evalRuns.filter.running' },
 ];
 
 type Armed =
@@ -50,12 +45,25 @@ type Armed =
   styleUrl: './eval-runs.component.scss',
 })
 export class EvalRunsComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  private readonly lang = inject(StudioLanguageService);
+
+  /** Uebersetzer fuer den Fehlersatz der Leseoperationen und fuer die
+   *  Texte dieser Ansicht. */
+  protected readonly t = this.lang.t;
+
   private readonly api = inject(EvalApi);
 
   /** The id of the run to open in detail; the view above owns that panel. */
   readonly runChange = output<string>();
 
-  readonly statusFilters = STATUS_FILTERS;
+  /** Erst beim Rendern beschriftet — sonst fröre die Sprache beim Laden des
+   *  Moduls ein (C1-d4b). */
+  readonly statusFilters = computed(() =>
+    STATUS_FILTERS.map((f) => ({ value: f.value, label: this.t(f.labelKey) })));
+
   readonly statusFilter = signal('');
 
   readonly armed = signal<Armed>(null);
@@ -63,7 +71,7 @@ export class EvalRunsComponent {
   readonly actionError = signal('');
   readonly status = signal('');
 
-  readonly runs = new AsyncData<readonly EvalRunSummary[]>(() => this.api.runs());
+  readonly runs = new AsyncData<readonly EvalRunSummary[]>(() => this.api.runs(), this.t);
 
   readonly rows = computed(() => this.runs.value() ?? []);
 
@@ -71,16 +79,13 @@ export class EvalRunsComponent {
 
   readonly question = computed(() => {
     const armed = this.armed();
-    if (armed?.kind === 'one') return `Lauf ${armed.id} endgültig löschen?`;
-    if (armed?.kind === 'logs') {
-      return 'Alle Quality-Logs löschen, die Eval-Läufe geschrieben haben? '
-        + 'Echte Chat-Turns bleiben unberührt.';
-    }
+    if (armed?.kind === 'one') return this.t('evalRuns.ask.run', { id: armed.id });
+    if (armed?.kind === 'logs') return this.t('evalRuns.ask.logs');
     if (armed?.kind === 'bulk') {
       const chosen = this.statusFilter();
-      if (!chosen) return 'ALLE Eval-Läufe löschen — auch die laufenden?';
-      const label = STATUS_FILTERS.find((f) => f.value === chosen)?.label ?? chosen;
-      return `Alle ${label} Eval-Läufe löschen?`;
+      if (!chosen) return this.t('evalRuns.ask.all');
+      const key = STATUS_FILTERS.find((f) => f.value === chosen)?.labelKey;
+      return this.t('evalRuns.ask.filtered', { label: key ? this.t(key) : chosen });
     }
     return '';
   });
@@ -133,10 +138,10 @@ export class EvalRunsComponent {
     try {
       if (armed.kind === 'one') {
         await this.api.deleteRun(armed.id);
-        this.status.set(`Lauf ${armed.id} gelöscht.`);
+        this.status.set(this.t('evalRuns.done.run', { id: armed.id }));
       } else if (armed.kind === 'logs') {
         const { deleted } = await this.api.clearEvalQualityLogs();
-        this.status.set(`${deleted} Eval-Quality-Logs gelöscht.`);
+        this.status.set(this.t('evalRuns.done.logs', { count: deleted }));
         this.armed.set(null);
         this.working.set(false);
         return; // the run list is unaffected — no reload needed
@@ -144,27 +149,34 @@ export class EvalRunsComponent {
         const { deleted } = await this.api.deleteRuns({
           status: this.statusFilter() || undefined,
         });
-        this.status.set(`${deleted} Läufe gelöscht.`);
+        this.status.set(this.lang.plural('evalRuns.done.runs', deleted));
       }
       this.armed.set(null);
       await this.load();
     } catch (err) {
-      this.actionError.set(describeApiError(err));
+      this.actionError.set(describeApiError(err, this.t));
     } finally {
       this.working.set(false);
     }
   }
 
   statusLabel(status: string): string {
-    return STATUS_LABELS[status] ?? status;
+    return evalStatusLabel(status, this.t);
+  }
+
+  /** Die Zähl-Zeile als GANZER Satz, gebeugt nach der Regel der aktiven
+   *  Sprache — bis C1-d4b stand hier fest `{n} Läufe`, und ein einzelner Lauf
+   *  las sich „1 Läufe". */
+  countLine(): string {
+    return this.lang.plural('evalRuns.count', this.rows().length);
   }
 
   when(iso: string): string {
-    return germanDateTime(iso);
+    return this.fmt.dateTime(iso);
   }
 
   score(value: number | null): string {
-    return value === null ? '–' : formatDecimal(value);
+    return value === null ? '–' : this.fmt.decimal(value);
   }
 
   private scheduleNextPoll(): void {

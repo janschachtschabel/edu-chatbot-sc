@@ -6,25 +6,101 @@
 //
 // `$border`/`$text`/`$text-muted` sind hier lokal deklariert (identisch zu ALT
 // 16-19): ein Partial sieht die Variablen des Konsumenten nicht.
-$text:       #1A1A2E;
-$text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 (4,5:1)
-$border:     rgba(0,0,0,.10);
+//
+// B2 (2026-07-31): aus festen Hellwerten wurden Material-Systemtoken, damit die
+// Fußzeile dem geerbten `color-scheme` der Gastseite folgt. `--mat-sys-primary`
+// steht im Hellmodus per Token-Brücke auf exakt `--boerdi-primary` — hell sieht
+// also alles aus wie vorher, dunkel wird die Marke aufgehellt statt zu
+// versinken.
+$text:       var(--mat-sys-on-surface);
+$text-muted: var(--mat-sys-on-surface-variant);
+$border:     var(--mat-sys-outline-variant);
 
 .chat-footer {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  // 10% Primary auf Weiß — sehr dezenter Tönungs-Untergrund, der den
+  // 10% Primary auf der Grundfläche — sehr dezenter Tönungs-Untergrund, der den
   // Eingabe-Bereich vom Chat-Body absetzt und mit der Akzentfarbe harmoniert.
-  background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 10%, white);
+  background: color-mix(in srgb, var(--mat-sys-primary) 10%, var(--mat-sys-surface));
   border-top: 1px solid $border;
+}
+
+// Neustart (U1) — teilt die Form des Mikrofon-Knopfs: beide sind sekundäre
+// Aktionen neben dem einen gefüllten Senden-Knopf. Eigene Regel statt einer
+// gemeinsamen Klasse, weil `.btn-mic` zusätzlich den Aufnahme-Zustand trägt;
+// zusammenlegen hieße, zwei Änderungs-Ursachen in eine Regel zu stecken.
+// Größe (U2a) — dieselbe sekundäre Form wie Neustart und Mikrofon. Eigene
+// Regel aus demselben Grund wie dort: verschiedene Änderungs-Ursachen.
+.btn-size {
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
+  border-radius: var(--mat-sys-corner-full);
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  cursor: pointer;
+  color: $text-muted;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s;
+
+  &:hover {
+    background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent);
+    color: var(--mat-sys-primary);
+  }
+}
+
+// Anmelden/Abmelden — dieselbe sekundäre Form wie Neustart und Größe, eigene
+// Regel aus demselben Grund wie dort. 36 px bleibt bewusst gleich: über dem
+// WCAG-2.2-Mindestmaß von 24 px, und eine Abweichung nach oben würde die Zeile
+// bei 320 px als Einzige sprengen.
+.btn-auth {
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
+  border-radius: var(--mat-sys-corner-full);
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  cursor: pointer;
+  color: $text-muted;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s;
+
+  &:hover {
+    background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent);
+    color: var(--mat-sys-primary);
+  }
+}
+
+.btn-restart {
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
+  border-radius: var(--mat-sys-corner-full);
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  cursor: pointer;
+  color: $text-muted;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s;
+
+  &:hover {
+    background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent);
+    color: var(--mat-sys-primary);
+  }
 }
 
 .btn-mic {
   background: none;
-  border: 1px solid color-mix(in srgb, var(--boerdi-primary, #1c4587) 30%, transparent);
-  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
+  border-radius: var(--mat-sys-corner-full);
   min-width: 36px;
   height: 36px;
   padding: 0 8px;
@@ -37,11 +113,13 @@ $border:     rgba(0,0,0,.10);
   transition: all .2s;
   white-space: nowrap;
 
-  &:hover { background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 10%, transparent); }
+  &:hover { background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent); }
   &.recording {
-    background: #FEE2E2;
-    border-color: #EF4444;
-    color: #DC2626;
+    // Alarmzustand über die Fehler-Rolle des Themes statt fester Rottöne:
+    // dieselbe Signalwirkung, aber im Dunkelmodus kein grelles Pastell.
+    background: var(--mat-sys-error-container);
+    border-color: var(--mat-sys-error);
+    color: var(--mat-sys-on-error-container);
     font-size: .75rem;
     font-weight: 600;
     min-width: 64px;
@@ -58,7 +136,7 @@ $border:     rgba(0,0,0,.10);
 .rec-dot {
   width: 8px;
   height: 8px;
-  background: #EF4444;
+  background: var(--mat-sys-error);
   border-radius: 50%;
   animation: blink-rec .8s infinite;
 }
@@ -75,24 +153,33 @@ $border:     rgba(0,0,0,.10);
 
 .chat-input {
   flex: 1;
-  border: 1px solid rgba(0,0,0,.12);
-  border-radius: 20px;
+  // Bewusste Abweichung vom ALT-Wortlaut (2026-08-11), WCAG 1.4.10 Reflow.
+  // Ein Flex-Kind schrumpft ohne dies nicht unter seine Eigenbreite — bei einem
+  // `<input>` sind das ~193 px. Gemessen bei 320 px Breite: die Fußzeile lief
+  // mit 329 px über (schon VOR dem Anmelde-Knopf, der sie auf 373 px brachte),
+  // statt das Feld zu verkleinern. Mit `min-width: 0` bleibt die Zeile ganz
+  // sichtbar und das Feld bekommt den Rest.
+  min-width: 0;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-full);
   padding: 9px 16px;
   font-size: .875rem;
   outline: none;
-  background: #fff;
+  background: var(--mat-sys-surface);
   color: $text;
   font-family: inherit;
   margin: 0;
 
-  &:focus { border-color: var(--boerdi-primary, #1c4587); box-shadow: 0 0 0 2px color-mix(in srgb, var(--boerdi-primary, #1c4587) 15%, transparent); color: inherit; }
+  &:focus { border-color: var(--mat-sys-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--mat-sys-primary) 15%, transparent); color: inherit; }
   &:disabled { opacity: .6; }
   &::placeholder { color: $text-muted; }
 }
 
 .btn-send {
-  background: var(--boerdi-primary, #1c4587);
-  color: #fff;
+  // Rollen-Paar statt „Marke + Weiß": im Dunkelmodus hellt `--mat-sys-primary`
+  // auf, weiße Schrift darauf würde durchfallen — `on-primary` kippt mit.
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
   border: none;
   border-radius: 50%;
   width: 36px;
@@ -104,6 +191,6 @@ $border:     rgba(0,0,0,.10);
   justify-content: center;
   transition: background .15s;
 
-  &:hover { background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 88%, black); }
+  &:hover { background: color-mix(in srgb, var(--mat-sys-primary) 88%, black); }
   &:disabled { opacity: .4; cursor: default; }
 }

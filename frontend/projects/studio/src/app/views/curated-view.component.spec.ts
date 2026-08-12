@@ -6,6 +6,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_DE } from '../i18n/de';
+import { STUDIO_EN } from '../i18n/en';
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
 import { AREA_KEYS, AREA_SCHEMAS } from '../schema-form/area-schemas.fixture';
 import { STUDIO_VIEWS, type StudioView } from '../studio-views';
 import { CURATED_VIEWS, curatedView, isAreaSection } from './curated-views';
@@ -38,6 +41,8 @@ function schemaFor(area: string): object {
 
 async function mount(slug: string): Promise<Harness> {
   TestBed.resetTestingModule();
+  // jsdom meldet `en-US`; die Wortlaute unten sind deutsch (C1-d3b).
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
@@ -128,6 +133,30 @@ describe('CURATED_VIEWS declaration', () => {
     expect(missing).toEqual([]);
   });
 
+  it('nennt nur Katalog-Schlüssel, die es in beiden Sprachen gibt', () => {
+    // Bis C1-d3d standen hier 70 fertige deutsche Texte auf Modulebene — sie
+    // frören in der Sprache ein, die beim Laden des Moduls galt. Jetzt sind es
+    // Schlüssel, und ein Tippfehler darin wäre unsichtbar bis jemand die Seite
+    // öffnet: `t()` gibt den Schlüssel selbst als Überschrift aus. Dieselbe
+    // Prüfung wie `views-i18n.spec.ts` für die Ansichts-Registry.
+    const keys = CURATED_VIEWS.flatMap((view) => [
+      view.introKey,
+      ...view.sections.flatMap((section) => [section.labelKey, section.hintKey]),
+    ]);
+    expect(keys.filter((key) => !(key in STUDIO_DE)), 'fehlt auf Deutsch').toEqual([]);
+    expect(keys.filter((key) => !(key in STUDIO_EN)), 'fehlt auf Englisch').toEqual([]);
+  });
+
+  it('gibt keinem Abschnitt denselben Schlüssel wie einem anderen', () => {
+    // Zwei Abschnitte mit demselben Schlüssel tragen dieselbe Überschrift —
+    // aus dem Katalog heraus nicht erkennbar, weil beide Sprachen ihn brav
+    // führen. Die Sichtprüfung fiele erst auf der Seite auf.
+    const keys = CURATED_VIEWS.flatMap((view) =>
+      view.sections.map((section) => section.labelKey),
+    );
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
   it('keeps the MCP registry off the generic form, which has no SSRF gate', () => {
     // `PUT /config/data/…` validates the model; only `PUT /config/mcp-servers`
     // knows what a server URL means. Listing the area here would put a second,
@@ -144,9 +173,22 @@ describe('CuratedViewComponent', () => {
 
     const headings = Array.from(el.querySelectorAll('summary .cs-title'))
       .map((h) => h.textContent?.trim());
-    expect(headings).toEqual(
-      curatedView('anzeige')?.sections.map((s) => s.label),
-    );
+    expect(headings).toEqual(['Darstellungsregeln', 'Kopfzeilen-Navigation', 'Geräte']);
+  });
+
+  it('nimmt Einleitung und Abschnitts-Überschriften aus dem Katalog', async () => {
+    // Die Erwartung steht ausgeschrieben und wird NICHT aus derselben Quelle
+    // gezogen, gegen die geprüft wird — sonst bestünde der Test auch dann,
+    // wenn überall der Schlüssel statt des Textes erschiene.
+    const { el, http, fixture } = await mount('anzeige');
+    answer(http, '01-base/display-rules', { display_rules: {} });
+    expect(el.querySelector('.cv-intro')?.textContent).toContain('Wie Ergebnisse im Widget');
+
+    TestBed.inject(StudioLanguageService).toggle();
+    await fixture.whenStable();
+    expect(el.querySelector('.cv-intro')?.textContent).toContain('How results appear');
+    expect(Array.from(el.querySelectorAll('summary .cs-title')).map((h) => h.textContent?.trim()))
+      .toEqual(['Display rules', 'Header navigation', 'Devices']);
   });
 
   it('loads only the section that is open', async () => {

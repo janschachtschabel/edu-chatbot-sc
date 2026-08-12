@@ -1,8 +1,22 @@
 // @vitest-environment jsdom
+import { I18n } from '@boerdi/ui';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_DE } from '../i18n/de';
+import { STUDIO_EN } from '../i18n/en';
 import { AsyncData } from './async-data';
 import { StudioApiError } from './studio-api-error';
+
+/**
+ * Ein echter Übersetzer, kein Platzhalter: die Frage dieser Tests ist, was ein
+ * Leser sieht, und ein `(k) => k` beantwortete sie nicht.
+ */
+function catalogue(): { i18n: I18n; t: I18n['t'] } {
+  const i18n = new I18n(STUDIO_DE, { en: STUDIO_EN });
+  return { i18n, t: (key, params) => i18n.t(key, params) };
+}
+
+const de = (): I18n['t'] => catalogue().t;
 
 /** A fetch whose resolution this test controls. */
 function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void; reject: (e: unknown) => void } {
@@ -17,7 +31,7 @@ const tick = (): Promise<unknown> => new Promise((r) => setTimeout(r, 0));
 describe('AsyncData', () => {
   it('starts empty and idle — nothing is fetched until asked', () => {
     let calls = 0;
-    const data = new AsyncData(async () => { calls += 1; return [1]; });
+    const data = new AsyncData(async () => { calls += 1; return [1]; }, de());
     expect(data.value()).toBeNull();
     expect(data.loading()).toBe(false);
     expect(data.error()).toBe('');
@@ -25,7 +39,7 @@ describe('AsyncData', () => {
   });
 
   it('publishes the result and clears the loading flag', async () => {
-    const data = new AsyncData(async () => ['a']);
+    const data = new AsyncData(async () => ['a'], de());
     const done = data.reload();
     expect(data.loading()).toBe(true);
     await done;
@@ -41,7 +55,7 @@ describe('AsyncData', () => {
     const data = new AsyncData(async () => {
       if (fail.now) throw new StudioApiError(500, 'Serverfehler', '/x');
       return ['alt'];
-    });
+    }, de());
     await data.reload();
     fail.now = true;
     await data.reload();
@@ -56,7 +70,7 @@ describe('AsyncData', () => {
     const data = new AsyncData(async () => {
       if (fail.now) throw new StudioApiError(500, 'kaputt', '/x');
       return ['ok'];
-    });
+    }, de());
     await data.reload();
     expect(data.error()).toBe('kaputt');
 
@@ -72,7 +86,7 @@ describe('AsyncData', () => {
     const first = deferred<string[]>();
     const second = deferred<string[]>();
     const queue = [first.promise, second.promise];
-    const data = new AsyncData(() => queue.shift() as Promise<string[]>);
+    const data = new AsyncData(() => queue.shift() as Promise<string[]>, de());
 
     const a = data.reload();
     const b = data.reload();
@@ -89,7 +103,7 @@ describe('AsyncData', () => {
     const first = deferred<string[]>();
     const second = deferred<string[]>();
     const queue = [first.promise, second.promise];
-    const data = new AsyncData(() => queue.shift() as Promise<string[]>);
+    const data = new AsyncData(() => queue.shift() as Promise<string[]>, de());
 
     const a = data.reload();
     const b = data.reload();
@@ -103,27 +117,68 @@ describe('AsyncData', () => {
   });
 
   it('describes an unexpected throw without leaking its internals', async () => {
-    const data = new AsyncData(async () => { throw new TypeError('x.y is not a function'); });
+    const data = new AsyncData(async () => { throw new TypeError('x.y is not a function'); }, de());
     await data.reload();
     expect(data.error()).toBe('Unerwarteter Fehler.');
   });
 
+  it('beschreibt den Fehler in der aktiven Sprache, nicht immer auf Deutsch', async () => {
+    // C1-d4a. Bis hierher gab `describeApiError` deutsche Sätze aus, egal was
+    // die Oberfläche sprach — sichtbar seit C1-d3b in „Sicherung" und
+    // „Werksstand", die längst übersetzt sind.
+    const { i18n, t } = catalogue();
+    i18n.setLocale('en');
+    const data = new AsyncData(async () => {
+      throw new StudioApiError(0, 'egal', '/x');
+    }, t);
+    await data.reload();
+    expect(data.error()).toBe('Backend unreachable.');
+  });
+
+  it('zieht eine stehende Fehlermeldung beim Sprachwechsel mit', async () => {
+    // Der Fehler wird roh gemerkt und erst beim Lesen in Worte gefasst. Stünde
+    // dort der fertige Satz, bliebe nach dem Umschalten die alte Sprache stehen
+    // — auf einer Seite, die sonst vollständig gewechselt hat.
+    const { i18n, t } = catalogue();
+    const data = new AsyncData(async () => {
+      throw new StudioApiError(0, 'egal', '/x');
+    }, t);
+    await data.reload();
+    expect(data.error()).toBe('Backend nicht erreichbar.');
+
+    i18n.setLocale('en');
+    expect(data.error()).toBe('Backend unreachable.');
+  });
+
+  it('gibt den Satz des Backends unübersetzt weiter', async () => {
+    // `detail` ist der Text des Endpunkts, nicht der der Oberfläche: ihn hier
+    // durch einen Katalog-Eintrag zu ersetzen hiesse, die einzige konkrete
+    // Auskunft wegzuwerfen. Er wird mit C1-e serverseitig übersetzt.
+    const { i18n, t } = catalogue();
+    i18n.setLocale('en');
+    const data = new AsyncData(async () => {
+      throw new StudioApiError(422, 'Feld „name" fehlt', '/x');
+    }, t);
+    await data.reload();
+    expect(data.error()).toBe('Feld „name" fehlt');
+  });
+
   it('reports emptiness only once something was actually loaded', async () => {
-    const data = new AsyncData<string[]>(async () => []);
+    const data = new AsyncData<string[]>(async () => [], de());
     expect(data.isEmpty()).toBe(false); // nothing loaded yet is not "empty"
     await data.reload();
     expect(data.isEmpty()).toBe(true);
   });
 
   it('treats a non-list payload as never empty', async () => {
-    const data = new AsyncData(async () => ({ total: 0 }));
+    const data = new AsyncData(async () => ({ total: 0 }), de());
     await data.reload();
     expect(data.isEmpty()).toBe(false);
   });
 
   it('survives being reloaded while a reload is already running', async () => {
     const gate = deferred<string[]>();
-    const data = new AsyncData(() => gate.promise);
+    const data = new AsyncData(() => gate.promise, de());
     const a = data.reload();
     const b = data.reload();
     gate.resolve(['x']);

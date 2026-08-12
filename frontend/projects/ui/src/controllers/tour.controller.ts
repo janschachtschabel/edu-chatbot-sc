@@ -24,6 +24,7 @@ import {
   TopicPageView,
   WebLink,
 } from '../grouping/message-types';
+import type { TranslateFn } from '../i18n/i18n';
 
 /** Exakter Text des Start-Chips, der die Web-Tour direkt startet. */
 export const TOUR_START_LABEL = 'Web-Tour starten';
@@ -54,6 +55,10 @@ export interface TourContext {
   setScrollTarget: (id: string) => void;
   /** Setzt `latestDebug` (Debug-Panel). */
   setLatestDebug: (debug: DebugInfo) => void;
+  /** Übersetzer für die Fehler-Bubble (C1-b4). Der gesendete Text
+   *  (`'Web-Tour starten'`) bleibt deutsch: er ist Backend-Anweisung, und
+   *  `TOUR_START_LABEL` ist ohnehin ein Protokollwert (siehe oben). */
+  t: TranslateFn;
 }
 
 export class TourController {
@@ -122,7 +127,7 @@ export class TourController {
       this.renderTourResponse(resp);
     } catch {
       this.ctx.removeMessage(loadingId);
-      this.ctx.addBotMessage('Entschuldigung, die Tour konnte gerade nicht gestartet werden. Bitte versuch es nochmal.');
+      this.ctx.addBotMessage(this.ctx.t('error.tourStart'));
     }
     this.ctx.setLoading(false);
   }

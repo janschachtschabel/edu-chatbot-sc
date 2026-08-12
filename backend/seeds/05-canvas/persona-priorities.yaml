@@ -1,0 +1,20 @@
+# Persona-abhängige Canvas-Material-Typ-Priorisierung
+# ============================================================================
+# Wenn der User nach Material-Typ gefragt wird (Degradation), werden die
+# Quick-Reply-Chips in dieser Reihenfolge angeboten:
+#
+# - analytical_personas: Diese Personas sehen ANALYTISCHE Typen (Bericht,
+#   Factsheet, Steckbrief, Pressemitteilung, Vergleich) zuerst. Danach
+#   'Automatisch', danach die didaktischen. Sinnvoll für Verwaltung, Politik,
+#   Presse, Beratung — die werden typischerweise keine Arbeitsblätter brauchen.
+#
+# - default (alle anderen Personas): 'Automatisch' zuerst, dann die
+#   didaktischen Typen, die analytischen am Ende. Das passt für Lehrkräfte,
+#   Schüler, Eltern und anonyme Nutzer.
+#
+# Änderungen wirken live (mtime-Cache).
+
+# Personas die analytische Material-Typen bevorzugen
+analytical_personas:
+  - P-ENT   # Entscheider: Verwaltung + Politik + Beratung (konsolidiert)
+  - P-RED   # Redaktion & Presse

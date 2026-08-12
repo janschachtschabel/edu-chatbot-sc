@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { EvalGenerativeStartComponent } from './eval-generative-start.component';
 
 const CONFIG_URL = '/studio/api/eval/config';
@@ -41,7 +42,12 @@ async function settle(): Promise<void> {
   await h.fixture.whenStable();
 }
 
-async function mount(config: Record<string, unknown> | null = CONFIG): Promise<void> {
+/** jsdom meldet `navigator.language === 'en-US'`; ohne die gemerkte Wahl liefe
+ *  die deutsche Oberfläche unter diesen Prüfungen auf Englisch. */
+async function mount(
+  config: Record<string, unknown> | null = CONFIG, locale = 'de',
+): Promise<void> {
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -247,5 +253,43 @@ describe('EvalGenerativeStartComponent', () => {
     expect(live?.getAttribute('aria-live')).toBe('polite');
     expect(live?.textContent).toContain('Chat-Aufrufe');
     expect(live?.querySelector('button')).toBeNull();
+  });
+
+  // ── C1-d4c ──────────────────────────────────────────────────────────
+  //
+  // Vier Anzahlen in einem Satz, jede mit eigener Mehrzahl. Eine
+  // Schlüssel-Matrix aus 2⁴ Sätzen wäre die falsche Antwort — die vier
+  // Wortgruppen entstehen einzeln und werden eingesetzt.
+  it('setzt jede der vier Anzahlen der Kostenzeile in ihre eigene Mehrzahl', async () => {
+    await mount({
+      personas: [{ id: 'P-LEH', label: 'Lehrkraft' }],
+      intents: [{ id: 'I01', label: 'Suche' }],
+    });
+    await check({
+      scenarios: 1, conversations: 1, total_turns: 1, chat_calls: 1,
+      judge_calls: 1, simulator_calls: 1,
+      est_usd: 0.01, est_usd_min: 0.01, est_usd_max: 0.02,
+    });
+    expect(h.el.querySelector('.egs-cost')!.textContent!.replace(/\s+/g, ' ').trim())
+      .toBe('Dieser Lauf feuert 1 Chat-Aufruf durch die echte Pipeline, '
+        + '1 Judge-Aufruf und 1 Simulator-Aufruf — 1 bewerteter Turn.');
+  });
+
+  it('zählt auch die Kombinationen in der Mehrzahl der Sprache', async () => {
+    await mount({
+      personas: [{ id: 'P-LEH', label: 'Lehrkraft' }],
+      intents: [{ id: 'I01', label: 'Suche' }],
+    });
+    expect(h.el.querySelector('.egs-combos')!.textContent!.replace(/\s+/g, ' ').trim())
+      .toBe('Auswahl ergibt 1 Kombination.');
+  });
+
+  it('spricht das ganze Panel in der aktiven Sprache', async () => {
+    await mount(CONFIG, 'en');
+    expect(text()).toContain('Start generative run');
+    expect(text()).toContain('4 combinations');
+    expect(text()).toContain('Nothing selected = all.');
+    expect(button('Check cost')).toBeTruthy();
+    expect(text()).not.toMatch(/Kombinationen|Nichts ausgewählt/);
   });
 });

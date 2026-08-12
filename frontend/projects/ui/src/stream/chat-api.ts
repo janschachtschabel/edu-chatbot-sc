@@ -121,6 +121,7 @@ export class ChatApiClient {
   private readonly startTime = Date.now();
   private guideMode = false;
   private guideHost = '';
+  private uiLocale = '';
   private readonly fetchImpl?: typeof fetch;
 
   constructor(opts: ChatApiClientOptions = {}) {
@@ -144,6 +145,16 @@ export class ChatApiClient {
   }
 
   /** Lotsen-Env setzen (Widget beim Boot). Host lowercased/getrimmt. */
+  /** Sprache der Oberfläche setzen (C1-f1). Die Shell ruft das beim Boot und
+   *  bei jeder Umschaltung — deshalb ein Setter und kein Konstruktor-Argument.
+   *
+   *  Ohne das schickte das Widget `navigator.language`: den Browser, nicht die
+   *  Sprache, die es anzeigt. Wer es per Host-Attribut auf Englisch stellt,
+   *  bekam eine deutsche Antwort. */
+  setUiLocale(locale: string): void {
+    this.uiLocale = (locale || '').trim();
+  }
+
   setGuideEnv(guideMode: boolean, host: string): void {
     this.guideMode = !!guideMode;
     this.guideHost = (host || '').trim().toLowerCase();
@@ -156,7 +167,7 @@ export class ChatApiClient {
       page: env?.page || window.location.pathname,
       page_context: env?.page_context || extractPageContext(),
       device: env?.device || detectDevice(),
-      locale: env?.locale || navigator.language || 'de-DE',
+      locale: env?.locale || this.uiLocale || navigator.language || 'de-DE',
       session_duration: Math.floor((Date.now() - this.startTime) / 1000),
       referrer: env?.referrer || document.referrer || 'direkt',
       guide_mode: env?.guide_mode ?? this.guideMode,

@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { SafetyLevelComponent } from './safety-level.component';
 
 const DOC = {
@@ -17,11 +18,17 @@ const DOC = {
   extra_crisis_terms: ['ein ungepinnter Nachbar'],
 };
 
-async function mount(doc: Record<string, unknown> = DOC): Promise<{
+async function mount(
+  doc: Record<string, unknown> = DOC,
+  locale: 'de' | 'en' = 'de',
+): Promise<{
   fixture: ComponentFixture<SafetyLevelComponent>;
   el: HTMLElement;
   emitted: Record<string, unknown>[];
 }> {
+  // jsdom meldet `navigator.language === 'en-US'`; ohne diese Festlegung stünde
+  // die Oberfläche in den deutschen Erwartungen unten auf Englisch.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
   const fixture = TestBed.createComponent(SafetyLevelComponent);
@@ -95,6 +102,26 @@ describe('SafetyLevelComponent', () => {
     const values = radios(el).map((r) => r.value);
     expect(values).toContain('hausintern');
     expect(radios(el).find((r) => r.checked)?.value).toBe('hausintern');
+    // Der Name bleibt der Schlüssel aus der Datei; beschrieben wird er als das,
+    // was er ist — und diese Beschreibung ist ein Satz, also übersetzt.
+    expect(el.textContent).toContain('Eigenes Preset aus dieser Datei.');
+  });
+
+  it('beschriftet Legende und Beschreibungen in der aktiven Sprache', async () => {
+    const { el } = await mount(DOC, 'en');
+    expect(el.textContent).toContain('Safety level');
+    expect(el.textContent).toContain('Regex + OpenAI moderation');
+    expect(el.textContent).not.toContain('Empfohlen');
+    // Die Namen der Stufen sind die Schlüssel aus der Datei und bleiben stehen.
+    expect(radios(el).map((r) => r.value)).toEqual([
+      'off', 'regex', 'standard', 'strict', 'paranoid',
+    ]);
+  });
+
+  it('sagt auch auf Englisch, dass eine Stufe kein Preset hat', async () => {
+    const { el } = await mount({ security_level: 'standard', presets: { standard: {} } }, 'en');
+    expect(el.textContent).toContain('No preset in this file');
+    expect(el.textContent).not.toContain('hinterlegt');
   });
 
   it('survives a document that has no presets block at all', async () => {

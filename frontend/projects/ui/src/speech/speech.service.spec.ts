@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { ChatMessage } from '../grouping/message-types';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import { SpeechContext, SpeechService } from './speech.service';
 
 /**
@@ -16,6 +18,11 @@ import { SpeechContext, SpeechService } from './speech.service';
  * Aufruf sichtbar ist, bevor `toggleAutoSpeak` zurückkehrt. Die Reject-
  * Antwort lässt `fetchTTS` `null` liefern → speakChunked bricht VOR `playBlob`
  * ab (kein `new Audio`).
+ *
+ * C1-b4: die eine übersetzte Zeile dieses Moduls (`error.transcription`) liegt
+ * in `mediaRecorder.onstop` und ist aus demselben Grund nicht erreichbar —
+ * jsdom kennt keinen MediaRecorder. Sie bleibt ungetestet wie der ganze
+ * Recorder-Pfad; belegt ist nur, dass der Übersetzer im Kontext ankommt.
  */
 type SynthMock = Mock<(text: string, signal?: AbortSignal) => Promise<Blob>>;
 
@@ -35,6 +42,7 @@ function makeCtx(over: Partial<Omit<SpeechContext, 'synthesize'>> = {}): {
     onTranscript: over.onTranscript ?? ((t) => transcript.push(t)),
     addBotMessage: over.addBotMessage ?? ((c) => bot.push(c)),
     messages: over.messages ?? (() => []),
+    t: over.t ?? createTranslator(DE, DE),
   };
   return { ctx, synthesize, transcript, bot };
 }

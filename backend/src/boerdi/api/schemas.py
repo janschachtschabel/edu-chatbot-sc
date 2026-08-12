@@ -38,25 +38,65 @@ from boerdi.api.schemas_debug import (
 )
 from boerdi.api.schemas_inline import InlineDocument
 from boerdi.api.schemas_mcp import (
+    AuthStatusArgs,
     CollectionContentsArgs,
+    CollectionStatsArgs,
     CollectionTreeArgs,
+    CompendiumTextArgs,
     HealthCheckArgs,
     LookupVocabularyArgs,
+    NodeBreadcrumbArgs,
+    NodeCollectionsArgs,
     NodeDetailsArgs,
     NodesDetailsArgs,
+    PublishersLookupArgs,
+    RelatedContentArgs,
     SearchTopicPagesArgs,
     SearchWloArgs,
+    SkillGetArgs,
+    SkillRegistryArgs,
+    SkillSearchArgs,
     SubjectPortalsArgs,
+    UrlTextArgs,
+    WikipediaSummaryArgs,
+    WithinCollectionArgs,
+)
+from boerdi.api.schemas_mcp_curation import (
+    CollectionCreateArgs,
+    CollectionMembershipArgs,
+    CollectionRenameArgs,
+    CompendiumUpdateArgs,
+    ContentCreateArgs,
+    ContentSubmitArgs,
+    ContentUpdateArgs,
+    MetadataSuggestArgs,
+    MetadataSuggestion,
+    NodeOnlyArgs,
+    SuggestionDecideArgs,
+    SuggestionsListArgs,
+    TopicPageSetArgs,
 )
 
 __all__ = [
     "ChatRequest", "ChatResponse", "ClassificationResult", "CollectionContentsArgs",
-    "CollectionTreeArgs", "ConfigFile", "ContextSnapshot", "DebugInfo", "Environment",
+    "CollectionCreateArgs", "CollectionMembershipArgs", "CollectionRenameArgs",
+    "CollectionStatsArgs", "CollectionTreeArgs", "CompendiumTextArgs",
+    "CompendiumUpdateArgs", "ConfigFile", "ContentCreateArgs", "ContentSubmitArgs",
+    "ContentUpdateArgs",
+    "ContextSnapshot", "DebugInfo", "Environment",
+    "MetadataSuggestArgs", "MetadataSuggestion", "NodeOnlyArgs",
+    "SuggestionDecideArgs", "SuggestionsListArgs", "TopicPageSetArgs",
     "HealthCheckArgs", "InlineDocument", "LookupVocabularyArgs", "MemoryEntry",
-    "NodeDetailsArgs", "NodesDetailsArgs", "PageAction", "PaginationInfo",
-    "PolicyDecision", "QueryMetaEntry", "RagDocument", "RagQuery", "RagResult",
+    "NodeBreadcrumbArgs", "NodeCollectionsArgs", "NodeDetailsArgs", "NodesDetailsArgs",
+    "PageAction",
+    "PaginationInfo", "PolicyDecision", "PublishersLookupArgs", "QueryMetaEntry",
+    "RagDocument", "RagQuery", "RagResult",
     "SafetyDecision", "SearchTopicPagesArgs", "SearchWloArgs", "SessionState",
-    "SubjectPortalsArgs", "SwimlaneBox", "ToolOutcome", "TopicPageView", "TraceEntry",
+    "SkillGetArgs", "SkillRegistryArgs", "SkillSearchArgs",
+    # H5 (2026-08-10): offenes Netz + Anmeldestatus.
+    "AuthStatusArgs", "UrlTextArgs", "WikipediaSummaryArgs",
+    "RelatedContentArgs", "SubjectPortalsArgs", "SwimlaneBox", "ToolOutcome",
+    "TopicPageView", "TraceEntry", "WithinCollectionArgs",
     "WebLink", "WloCard",
 ]
 
@@ -144,6 +184,29 @@ class ChatRequest(BaseModel):
     canvas_state: dict[str, Any] | None = None
 
 
+class PreparedWriteOut(BaseModel):
+    """Eine bestätigte Änderung, beschrieben statt ausgeführt (E3).
+
+    Im eingebetteten Betrieb schreibt der MCP-Server nicht selbst; die Anfrage
+    wird in der Repository-Seite abgesetzt, mit der dort bestehenden Anmeldung —
+    so trägt die Änderung den Namen der Person und nicht den eines Sammelkontos.
+    Gelesen und geprüft wird sie in ``domain/prepared_write.py``; die
+    Erlaubnisliste, welcher Aufruf überhaupt abgesetzt werden darf, liegt im
+    Widget, das ihn absetzt (E4).
+
+    **Ein eigenes Feld und kein weiterer ``page_action``-Typ.** ``page_action``
+    ist ein einzelner Platz und schon von Canvas/Guide belegt — ein Zug, der eine
+    Leinwand öffnet *und* eine Änderung vorbereitet, überschriebe sich selbst.
+    """
+
+    method: str
+    #: Pfad ab der Herkunft; die Seite setzt ihre eigene davor.
+    path: str
+    body: str | None = None
+    #: Was dem Menschen zu sagen ist, wenn das Repositorium zugestimmt hat.
+    done_message: str = ""
+
+
 class ChatResponse(BaseModel):
     session_id: str
     content: str
@@ -171,6 +234,10 @@ class ChatResponse(BaseModel):
     # Das Frontend pflegt damit sein localStorage-Flag (active=false →
     # Flag löschen, keine weiteren Tour-Ticks). None bei Normal-Antworten.
     tour: dict[str, Any] | None = None
+    # E3 — im eingebetteten Betrieb: die bestätigte Änderung als *beschriebene*
+    # Anfrage, die das Widget mit der Anmeldung der Seite absetzt. None im
+    # Normalbetrieb, in dem der MCP-Server selbst schreibt.
+    prepared_write: PreparedWriteOut | None = None
 
 
 # ── Session / Memory ──────────────────────────────────────────────

@@ -20,12 +20,13 @@ import {
 } from '@angular/core';
 
 import { AsyncData, describeApiError } from '../core/async-data';
-import { formatDecimal, germanDateTime } from '../core/format';
 import {
   QualityApi, type LogFilters, type QualityLog, type QualityScope,
 } from '../core/quality-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
 import { QualityLogDetailComponent } from './quality-log-detail.component';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 /** Which destructive action is waiting for a confirmation. */
 type Armed = { readonly kind: 'one'; readonly id: number } | { readonly kind: 'bulk' } | null;
@@ -38,6 +39,15 @@ type Armed = { readonly kind: 'one'; readonly id: number } | { readonly kind: 'b
   styleUrl: './quality-logs.component.scss',
 })
 export class QualityLogsComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  private readonly lang = inject(StudioLanguageService);
+
+  /** Uebersetzer fuer den Fehlersatz der Leseoperationen und fuer die
+   *  Texte dieser Ansicht. */
+  protected readonly t = this.lang.t;
+
   private readonly api = inject(QualityApi);
 
   readonly scope = input.required<QualityScope>();
@@ -57,7 +67,7 @@ export class QualityLogsComponent {
   readonly status = signal('');
 
   readonly logs = new AsyncData<readonly QualityLog[]>(
-    () => this.api.logs(this.scope(), this.filters()));
+    () => this.api.logs(this.scope(), this.filters()), this.t);
 
   readonly rows = computed(() => this.logs.value() ?? []);
 
@@ -70,23 +80,24 @@ export class QualityLogsComponent {
     this.rows().find((row) => row.id === this.selected()) ?? null);
 
   /** Empty because nothing matched, or empty because nothing was ever logged. */
-  readonly emptyText = computed(() => this.hasFilter()
-    ? 'Kein Turn passt zu diesem Filter. Setze den Filter zurück oder suche weiter gefasst.'
-    : 'Noch keine Turns aufgezeichnet. Sobald jemand mit dem Widget chattet, '
-      + 'erscheinen die Turns hier.');
+  readonly emptyText = computed(() =>
+    this.t(this.hasFilter() ? 'qualLogs.empty.filtered' : 'qualLogs.empty.none'));
 
   readonly bulkQuestion = computed(() => {
     const filters = this.filters();
-    if (!this.hasFilter()) {
-      return 'ALLE Quality-Logs löschen — auch die, die dieser Filter gerade nicht zeigt?';
-    }
+    if (!this.hasFilter()) return this.t('qualLogs.bulk.all');
+    // Nur die gesetzten Filter, in fester Reihenfolge; das Komma bleibt ein
+    // Komma — die Aufzählung ist technisch, keine Prosa für `list()`.
     const parts = [
-      filters.patternId && `Pattern ${filters.patternId}*`,
-      filters.intentId && `Intent ${filters.intentId}*`,
-      filters.sessionId && `Session ${filters.sessionId}`,
+      filters.patternId && this.t('qualLogs.filter.pattern', { id: filters.patternId }),
+      filters.intentId && this.t('qualLogs.filter.intent', { id: filters.intentId }),
+      filters.sessionId && this.t('qualLogs.filter.session', { id: filters.sessionId }),
     ].filter(Boolean);
-    return `Alle Turns löschen, die den Filter treffen (${parts.join(', ')})?`;
+    return this.t('qualLogs.bulk.filtered', { parts: parts.join(', ') });
   });
+
+  /** „12 Turns · neueste zuerst" — bis C1-d4d2 stand die Mehrzahl fest da. */
+  readonly countLine = computed(() => this.lang.plural('qualLogs.count', this.rows().length));
 
   constructor() {
     effect(() => {
@@ -157,27 +168,27 @@ export class QualityLogsComponent {
       if (armed.kind === 'one') {
         await this.api.deleteLog(armed.id);
         if (this.selected() === armed.id) this.selected.set(0);
-        this.status.set(`Turn #${armed.id} gelöscht.`);
+        this.status.set(this.t('qualLogs.deletedOne', { id: armed.id }));
       } else {
         const { deleted } = await this.api.clearLogs(this.scope(), this.filters());
         this.selected.set(0);
-        this.status.set(`${deleted} Turns gelöscht.`);
+        this.status.set(this.lang.plural('qualLogs.deletedMany', deleted));
       }
       this.armed.set(null);
       await this.logs.reload();
     } catch (err) {
       // The list is left standing: a failed delete must not look like a success.
-      this.actionError.set(describeApiError(err));
+      this.actionError.set(describeApiError(err, this.t));
     } finally {
       this.working.set(false);
     }
   }
 
   when(iso: string): string {
-    return germanDateTime(iso);
+    return this.fmt.dateTime(iso);
   }
 
   confidence(value: number): string {
-    return formatDecimal(value);
+    return this.fmt.decimal(value);
   }
 }

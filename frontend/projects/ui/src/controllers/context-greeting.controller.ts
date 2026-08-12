@@ -62,14 +62,26 @@ export class ContextGreetingController {
    *  ein Spinner wäre falsche UX, und ein Loading-Bubble würde bei bereits
    *  begrüßten Seiten (Backend liefert leer) kurz aufflackern. Die Begrüßung
    *  erscheint still nur dann, wenn die Antwort tatsächlich Inhalt hat.
-   *  `isLoading` bleibt gesetzt (Turn-Serialisierung wie beim Tour-Tick). */
-  async sendContextPing(): Promise<void> {
-    if (this.ctx.isLoading() || this._pinged) return;
+   *  `isLoading` bleibt gesetzt (Turn-Serialisierung wie beim Tour-Tick).
+   *
+   *  `event` sagt dem Backend, WELCHER Fall vorliegt: beim Fortsetzen ist eine
+   *  leere History das Zeichen für einen verirrten Ping, beim ersten Laden ist
+   *  sie der Normalzustand. Nur der Fortsetzungs-Fall wird dort noch daran
+   *  gemessen.
+   *
+   *  Rückgabe: ob eine Nachricht gerendert wurde. Der Erstaufruf-Pfad hängt
+   *  seine Standard-Begrüßung daran auf — so sieht die Person in jedem Fall
+   *  genau eine Nachricht. */
+  async sendContextPing(
+    event: 'context_open' | 'context_open_initial' = 'context_open',
+  ): Promise<boolean> {
+    if (this.ctx.isLoading() || this._pinged) return false;
     this._pinged = true;
     this.ctx.setLoading(true);
+    let rendered = false;
     try {
       const resp = await this.ctx.sendMessage('[context-open]', {
-        page_event: 'context_open',
+        page_event: event,
         page_context: this.ctx.pageContext(),
       });
       const hasContent = !!(resp.content || '').trim()
@@ -82,10 +94,13 @@ export class ContextGreetingController {
         );
         this.ctx.setScrollTarget(id);
         this.ctx.setLatestDebug(resp.debug);
+        rendered = true;
       }
     } catch {
-      // Ping-Fehler beim Fortsetzen still schlucken (kein Error-Bubble).
+      // Ping-Fehler still schlucken (kein Error-Bubble). Beim Erstaufruf holt
+      // der Aufrufer daraufhin die normale Begrüßung nach.
     }
     this.ctx.setLoading(false);
+    return rendered;
   }
 }

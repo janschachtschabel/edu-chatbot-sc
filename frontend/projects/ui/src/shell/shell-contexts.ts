@@ -19,6 +19,7 @@ import {
   ChatMessage, DebugInfo, InlineDocument, PaginationInfo,
   QueryMetaEntry, TopicPageView, WebLink,
 } from '../grouping/message-types';
+import type { TranslateFn } from '../i18n/i18n';
 import { ChatApiClient } from '../stream/chat-api';
 import { TourContext } from '../controllers/tour.controller';
 import { ContextGreetingContext } from '../controllers/context-greeting.controller';
@@ -67,6 +68,9 @@ export interface ShellHost {
   runInZone: <T>(fn: () => T) => T;
   /** STT-Erfolg: Transkript ins Eingabefeld + senden. */
   onTranscript: (text: string) => void;
+  /** Übersetzer der Shell (C1-b4) — LIVE gelesen wie alles andere, damit die
+   *  Controller nach einem Sprachwechsel den neuen Text nehmen. */
+  t: TranslateFn;
 }
 
 /** Die fünf Controller-Contexts, die die Shell aus einem `ShellHost` baut. */
@@ -99,6 +103,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
     removeMessage: (id) => host.removeMessage(id),
     setScrollTarget: (id) => host.setScrollTarget(id),
     setLatestDebug: (debug) => host.setLatestDebug(debug),
+    t: (key, params) => host.t(key, params),
   };
 
   const contextGreeting: ContextGreetingContext = {
@@ -124,6 +129,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
     setLatestDebug: (debug) => host.setLatestDebug(debug),
     dispatchPageAction: (pa) => host.dispatchPageAction(pa),
     messagesContainer: () => host.messagesContainer(),
+    t: (key, params) => host.t(key, params),
   };
 
   const speech: SpeechContext = {
@@ -133,6 +139,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
     onTranscript: (text) => host.onTranscript(text),
     addBotMessage: (content) => { host.addBotMessage(content); },
     messages: () => host.messages(),
+    t: (key, params) => host.t(key, params),
   };
 
   const hostEvents: HostEventsContext = {

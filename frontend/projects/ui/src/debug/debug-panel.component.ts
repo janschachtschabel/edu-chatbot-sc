@@ -225,8 +225,12 @@ import { DebugInfo } from '../grouping/message-types';
           <div class="debug-row">
             <span class="debug-label">LLM-Hint:</span>
             {{ d.pattern_id_hint }}
-            @if (d.llm_engine_match === true) { <span style="color:#1f7a39"> ✓ Engine-Match</span> }
-            @if (d.llm_engine_match === false) { <span style="color:#ad6f00"> ≠ Engine</span> }
+            <!-- U4d: waren zwei feste Hex-Werte im style-Attribut (#1f7a39 /
+                 #ad6f00). Auf der dunklen Fläche messen die 3,19:1 bzw. 4,11:1
+                 — beide unter SC 1.4.3. Die Klassen daneben sagen dasselbe und
+                 sind seit U4d schema-abhängig. -->
+            @if (d.llm_engine_match === true) { <span class="debug-ok"> ✓ Engine-Match</span> }
+            @if (d.llm_engine_match === false) { <span class="debug-warn"> ≠ Engine</span> }
             @if (d.pattern_reasoning) { <span class="debug-sub" style="display:block"> {{ d.pattern_reasoning }}</span> }
           </div>
         }

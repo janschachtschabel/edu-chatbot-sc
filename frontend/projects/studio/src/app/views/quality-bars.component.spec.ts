@@ -3,10 +3,24 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { QualityBarsComponent } from './quality-bars.component';
 
 let fixture: ComponentFixture<QualityBarsComponent>;
 let el: HTMLElement;
+
+/** jsdom meldet `navigator.language === 'en-US'`; ohne die gemerkte Wahl liefe
+ *  die deutsche Oberfläche unter diesen Prüfungen auf Englisch. */
+async function build(locale = 'de'): Promise<void> {
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+  fixture = TestBed.createComponent(QualityBarsComponent);
+  el = fixture.nativeElement as HTMLElement;
+  fixture.componentRef.setInput('caption', 'Pattern-Verteilung');
+  fixture.componentRef.setInput('data', {});
+  await fixture.whenStable();
+}
 
 async function render(data: Record<string, number>): Promise<void> {
   fixture.componentRef.setInput('data', data);
@@ -19,14 +33,7 @@ function rowKeys(): string[] {
 
 describe('QualityBarsComponent', () => {
   beforeEach(async () => {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
-    fixture = TestBed.createComponent(QualityBarsComponent);
-    el = fixture.nativeElement as HTMLElement;
-    fixture.componentRef.setInput('caption', 'Pattern-Verteilung');
-    fixture.componentRef.setInput('unit', 'Turns');
-    fixture.componentRef.setInput('data', {});
-    await fixture.whenStable();
+    await build();
   });
 
   it('names the table so the two distributions are tellable apart', async () => {
@@ -69,5 +76,28 @@ describe('QualityBarsComponent', () => {
   it('labels an empty key rather than showing a blank row', async () => {
     await render({ '': 4 });
     expect(el.querySelector('tbody tr')!.textContent).toContain('(ohne)');
+  });
+
+  // ── C1-d4b3 ─────────────────────────────────────────────────────────
+  //
+  // Die Balken-Tabelle steht in drei Ansichten an sieben Stellen. Ihre eigenen
+  // drei Texte übersetzt sie deshalb selbst; nur die Beschriftung der Tabelle
+  // und die Einheit kommen fertig von der Aufrufstelle, die weiss, was sie
+  // zählt.
+  it('trägt seine eigenen drei Texte in der aktiven Sprache', async () => {
+    await build('en');
+    await render({ M04: 3, '': 1 });
+
+    const kopf = el.querySelector('thead')!.textContent ?? '';
+    expect(kopf).toContain('Id');           // Spaltenkopf, nur für Screenreader
+    expect(kopf).toContain('Turns');        // Voreinstellung der Einheit
+    expect(el.querySelector('tbody tr:last-child')!.textContent).toContain('(none)');
+    expect(el.textContent).not.toMatch(/\(ohne\)/);
+  });
+
+  it('lässt eine mitgegebene Einheit stehen — sie gehört der Aufrufstelle', async () => {
+    fixture.componentRef.setInput('unit', 'Übergänge');
+    await render({ M04: 1 });
+    expect(el.querySelector('thead')!.textContent).toContain('Übergänge');
   });
 });

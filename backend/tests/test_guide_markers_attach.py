@@ -27,11 +27,11 @@ from boerdi.services.guide_markers import _attach_guide_qr, _attach_guide_urls
 
 
 def _req(message: str = "hallo", *, guide_mode: bool = True,
-         host: str = "wirlernenonline.de") -> ChatRequest:
+         host: str = "wirlernenonline.de", locale: str = "de-DE") -> ChatRequest:
     return ChatRequest(
         session_id="s1",
         message=message,
-        environment=Environment(guide_mode=guide_mode, host=host),
+        environment=Environment(guide_mode=guide_mode, host=host, locale=locale),
     )
 
 
@@ -71,11 +71,12 @@ def test_attach_guide_qr_passes_args_and_filters_session_state(monkeypatch):
     captured = {}
 
     def fake_inject(message, quick_replies, *, rag_areas_used, response_text,
-                    rag_top_sources, max_guide_qrs):
+                    rag_top_sources, max_guide_qrs, lang):
         captured.update(
             message=message, quick_replies=quick_replies,
             rag_areas_used=rag_areas_used, response_text=response_text,
             rag_top_sources=rag_top_sources, max_guide_qrs=max_guide_qrs,
+            lang=lang,
         )
         return ["__guide__|Hin|https://x", *quick_replies]
 
@@ -85,7 +86,7 @@ def test_attach_guide_qr_passes_args_and_filters_session_state(monkeypatch):
         "_rag_top_sources": ["src1", None, "src2"],          # None dropped
     }
     out = _attach_guide_qr(
-        _req(message="mitmachen?"), ["Andere"],
+        _req(message="mitmachen?", locale="en-GB"), ["Andere"],
         session_state=session_state, response_text="Antwort",
     )
     assert out[0] == "__guide__|Hin|https://x"
@@ -96,6 +97,7 @@ def test_attach_guide_qr_passes_args_and_filters_session_state(monkeypatch):
     assert captured["rag_top_sources"] == ["src1", "src2"]
     assert captured["response_text"] == "Antwort"
     assert captured["max_guide_qrs"] == 3
+    assert captured["lang"] == "en"    # C1-f2b3: aus environment.locale
 
 
 def test_attach_guide_qr_none_session_state_yields_empty_lists(monkeypatch):
@@ -106,8 +108,8 @@ def test_attach_guide_qr_none_session_state_yields_empty_lists(monkeypatch):
     captured = {}
 
     def fake_inject(message, quick_replies, *, rag_areas_used, response_text,
-                    rag_top_sources, max_guide_qrs):
-        captured.update(rag_areas_used=rag_areas_used,
+                    rag_top_sources, max_guide_qrs, lang):
+        captured.update(rag_areas_used=rag_areas_used, lang=lang,
                         rag_top_sources=rag_top_sources, max_guide_qrs=max_guide_qrs)
         return quick_replies
 
@@ -115,6 +117,7 @@ def test_attach_guide_qr_none_session_state_yields_empty_lists(monkeypatch):
     _attach_guide_qr(_req(), ["a"])
     assert captured["rag_areas_used"] == []
     assert captured["rag_top_sources"] == []
+    assert captured["lang"] == "de"
     # default when key missing: int({}.get("max_guide_quick_replies", 2)) == 2
     assert captured["max_guide_qrs"] == 2
 
@@ -128,7 +131,7 @@ def test_attach_guide_qr_end_to_end_real_injector(monkeypatch):
     monkeypatch.setattr(config_loader, "load_guide_mode_config",
                         lambda: {"max_guide_quick_replies": 2})
     monkeypatch.setattr(guide_qr_injector, "_COMPILED", [
-        (re.compile("themenseite.*klima", re.I), "Klima",
+        (re.compile("themenseite.*klima", re.I), "Klima", "",
          "https://wirlernenonline.de/themenseite/klima", 90),
     ])
     out = _attach_guide_qr(_req(message="zeig die themenseite zu klima"), ["Andere Frage"])

@@ -41,6 +41,7 @@ from boerdi.domain.config_models.dimensions import (
     SignalModulationsArea,
     StatesArea,
 )
+from boerdi.domain.config_models.engine import EngineArea
 from boerdi.domain.config_models.knowledge import (
     GoldFlowsArea,
     GuideRulesArea,
@@ -49,9 +50,10 @@ from boerdi.domain.config_models.knowledge import (
 )
 from boerdi.domain.config_models.md import LayerDocArea
 from boerdi.domain.config_models.patterns import PatternArea
+from boerdi.domain.config_models.pricing import PricingArea
 
 AREA_MODELS: dict[str, type[BaseModel]] = {
-    # 01-base (18)
+    # 01-base (19)
     "01-base/base-persona": LayerDocArea,
     "01-base/guardrails": LayerDocArea,
     "01-base/card-pipeline": CardPipelineArea,
@@ -59,10 +61,16 @@ AREA_MODELS: dict[str, type[BaseModel]] = {
     "01-base/context-actions": ContextActionsArea,
     "01-base/device-config": DeviceConfigArea,
     "01-base/display-rules": DisplayRulesArea,
+    # Kein ALT-Gegenstück: ALT kannte nur die Muster-Engine. Der Wächter in
+    # ``tests/test_config_models.py`` führt diesen Zusatz getrennt mit Grund.
+    "01-base/engine": EngineArea,
     "01-base/guide-mode": GuideModeArea,
     "01-base/header-nav": HeaderNavArea,
     "01-base/placeholder-topics": PlaceholderTopicsArea,
     "01-base/policy": PolicyArea,
+    # Kein ALT-Gegenstück: ALT rechnete nicht ab (K3). Der Wächter in
+    # ``tests/test_config_models.py`` führt diesen Zusatz getrennt mit Grund.
+    "01-base/pricing": PricingArea,
     "01-base/privacy-config": PrivacyConfigArea,
     "01-base/quality-log-config": QualityLogConfigArea,
     "01-base/safety-config": SafetyConfigArea,

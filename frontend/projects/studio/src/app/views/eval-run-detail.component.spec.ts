@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { EvalRunDetailComponent } from './eval-run-detail.component';
 
 const url = (id: string) => `/studio/api/eval/runs/${id}`;
@@ -95,8 +96,11 @@ async function settle(): Promise<void> {
 }
 
 async function mount(
-  payload: Record<string, unknown> | null = detail(), id = 'eval-abc',
+  payload: Record<string, unknown> | null = detail(), id = 'eval-abc', locale = 'de',
 ): Promise<void> {
+  // jsdom meldet `navigator.language === 'en-US'`; ohne die gemerkte Wahl liefe
+  // die deutsche Oberfläche unter diesen Prüfungen auf Englisch.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -243,6 +247,12 @@ describe('EvalRunDetailComponent', () => {
 
     expect(text()).toContain('Momentaufnahme');
     expect(text()).toContain('Gold-Flow GS-4 — Turn 2/3');
+    // Die Zeile setzt sich aus drei Teilen zusammen (ausgezeichneter Satz,
+    // Tätigkeit, Begründung). Ohne Abstand dazwischen klebte sie aneinander.
+    expect(h.el.querySelector('.erd-live')?.textContent?.replace(/\s+/g, ' ').trim())
+      .toBe('Momentaufnahme — der Lauf läuft noch. Gold-Flow GS-4 — Turn 2/3 '
+        + 'Die Lauf-Liste oben aktualisiert sich selbst; hier bewusst nicht, weil '
+        + 'diese Antwort die vollständigen Transkripte mitbringt.');
   });
 
   it('re-reads on demand', async () => {
@@ -269,5 +279,49 @@ describe('EvalRunDetailComponent', () => {
   it('shows the load failure of a run that is gone', async () => {
     await mount(null);
     expect(text()).toContain('Lauf weg.');
+  });
+
+  it('spricht auf Englisch vollständig englisch — Kennzahlen, Spalten, Kategorien', async () => {
+    await mount(detail(), 'eval-abc', 'en');
+
+    expect(text()).toContain('Gold flows');       // Art des Laufs
+    expect(text()).toContain('Scored turns');     // Kennzahlen-Liste
+    expect(text()).toContain('Hit rates');        // Abschnitts-Überschrift
+    expect(text()).toContain('Register');         // Kategorie der Scorecard
+    expect(text()).toContain('Expected P/I');     // Spaltenkopf
+    expect(text()).toContain('done');             // Status, aus C1-d4b1
+    // Kein deutscher Rest — der Fall, den ein Blick auf die Seite übersieht.
+    expect(text()).not.toMatch(/[äöüß]/);
+  });
+
+  it('setzt die Auszeichnung im Satz als Element, nicht als sichtbaren Stern', async () => {
+    await mount(detail({
+      status: 'running', completed_at: null, summary: { target_turns: 12 },
+    }));
+
+    const strong = Array.from(h.el.querySelectorAll('strong')).map((s) => s.textContent);
+    expect(strong).toContain('Momentaufnahme');
+    expect(text()).not.toContain('*');
+  });
+
+  it('setzt den Variablennamen im Hinweis als <code>', async () => {
+    await mount();
+    const code = Array.from(h.el.querySelectorAll('code')).map((c) => c.textContent);
+    expect(code).toContain('REPO_BASE_URL');
+    expect(text()).not.toContain('`');
+  });
+
+  it('lässt einen Stern in der Backend-Fehlermeldung keine Auszeichnung werden', async () => {
+    // Der Grund, warum der Katalog-Text ZUERST geteilt und danach eingesetzt
+    // wird: die Meldung ist fremder Text.
+    await mount(detail({
+      status: 'failed', error_message: 'chat *backend* down',
+      summary: { target_turns: 3 },
+    }));
+
+    const strong = Array.from(h.el.querySelectorAll('strong')).map((s) => s.textContent);
+    expect(strong).toContain('Fehler:');
+    expect(strong).not.toContain('backend');
+    expect(text()).toContain('chat *backend* down');
   });
 });

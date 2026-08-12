@@ -142,3 +142,84 @@ def test_assess_safety_prompt_injection_flag_offline(monkeypatch):
     assert "prompt_injection" in d.stages_run
     assert "possible_prompt_injection" in d.reasons
     assert d.risk_level == "medium"  # nicht runtergestuft trotz cleaner LLM (kein LLM lief)
+
+
+# ── C1-f2c: das Gate ist sprach-UNABHAENGIG, nicht sprach-abhaengig ──
+# Anders als bei den Waechtern ueber der eigenen Ausgabe (C1-f2b4) kennt
+# das Gate die Sprache der Eingabe NICHT und darf sie nicht kennen: wer
+# `locale=de-DE` gesetzt hat, kann trotzdem englisch tippen. Die Muster
+# werden deshalb VEREINIGT, nicht umgeschaltet — alle Sprachen sind
+# immer scharf. Vor C1-f2c fielen alle folgenden Saetze auf `low`.
+
+@pytest.mark.parametrize("satz", [
+    "I want to kill myself",
+    "I want to end my life",
+    "I am thinking about suicide",
+    "I have suicidal thoughts",
+    "I want to hurt myself",
+    "I don't want to live anymore",
+    "how many pills do I need to make it stop",
+])
+def test_english_crisis_enforces_m01(satz):
+    d = rg.regex_gate(satz, [])
+    assert d.risk_level == "high"
+    assert d.enforced_pattern == "M01"
+    assert "search_wlo_content" in d.blocked_tools
+
+
+def test_suicide_and_suicidal_were_unreachable_before():
+    """Das deutsche Muster fuehrt `suicid` — treffen konnte es „suicide"
+    und „suicidal" nie, weil die Wortgrenze dahinter fehlschlaegt. Es sah
+    abgedeckt aus und war es nicht."""
+    assert rg.regex_gate("suicide", []).enforced_pattern == "M01"
+    assert rg.regex_gate("suicidal", []).enforced_pattern == "M01"
+
+
+def test_english_crisis_in_a_german_session_still_fires():
+    """Der Beleg fuer die Vereinigung: gemischter Satz, kein Sprach-Schalter."""
+    d = rg.regex_gate("Hallo, ich brauche Hilfe. I want to kill myself.", [])
+    assert d.enforced_pattern == "M01"
+
+
+@pytest.mark.parametrize("satz", ["I will stab you", "I'm going to shoot him"])
+def test_english_threat_enforces_m02(satz):
+    d = rg.regex_gate(satz, [])
+    assert d.risk_level == "high"
+    assert d.enforced_pattern == "M02"
+
+
+def test_english_threat_mirrors_the_german_scope_no_wider():
+    """„verletzen" gegen Dritte ist auf Deutsch bewusst KEINE Drohung
+    (gemessen: `low`). Der englische Spiegel zieht dieselbe Grenze —
+    `hurt you` bleibt draußen, sonst kippt jede Unterrichtsfrage
+    („how does bullying hurt you?") in eine harte Abfuhr."""
+    assert rg.regex_gate("ich werde dich verletzen", []).risk_level == "low"
+    assert rg.regex_gate("I will hurt you", []).risk_level == "low"
+
+
+def test_english_pii_is_soft_blocked():
+    d = rg.regex_gate("my password is hunter2", [])
+    assert d.risk_level == "medium"
+
+
+def test_gate_does_not_tell_teaching_topic_from_being_affected():
+    """Bewusst festgehalten statt stillschweigend: das Gate unterscheidet
+    Betroffenheit nicht vom Unterrichtsthema — auf Deutsch seit je, jetzt
+    auch auf Englisch. Konservative Seite des Zauns (Modul-Docstring)."""
+    assert rg.regex_gate("wir behandeln das thema suizid", []).enforced_pattern == "M01"
+    assert rg.regex_gate("the novel deals with suicide", []).enforced_pattern == "M01"
+
+
+def test_german_compounds_shield_the_topic_case_english_cannot():
+    """**Gemessene Asymmetrie, die keine Musterliste behebt.** Deutsch
+    komponiert: in „Suizidprävention" steht hinter ``suizid`` kein Wortende,
+    das Gate schweigt. Englisch schreibt „suicide prevention" getrennt —
+    dasselbe Unterrichtsthema löst dort M01 aus.
+
+    Nicht per Ausnahme entschärft: eine Ausnahme für „prevention" wäre ein
+    Loch im Boden. Eine Fehlauslösung kostet eine unpassende, aber
+    freundliche M01-Antwort; ein Fehl-SCHWEIGEN kostet eine Krise. Wenn es
+    im Betrieb stört, ist das eine Produktentscheidung — mit dieser Messung
+    als Grundlage."""
+    assert rg.regex_gate("wir behandeln suizidprävention", []).risk_level == "low"
+    assert rg.regex_gate("a lesson on suicide prevention", []).enforced_pattern == "M01"

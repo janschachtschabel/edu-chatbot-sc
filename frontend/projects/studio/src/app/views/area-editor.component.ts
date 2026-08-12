@@ -21,6 +21,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 
 import { ConfigApi } from '../core/config-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AreaDocEditor, describeAreaError } from '../schema-form/area-doc-editor';
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
 import { TabBarComponent, type TabDef } from './tab-bar.component';
@@ -41,7 +42,8 @@ const TAB_ID: Readonly<Record<Tab, string>> = { form: 'ae-form', raw: 'ae-raw' }
 export class AreaEditorComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly config = inject(ConfigApi);
-  readonly editor = new AreaDocEditor(this.config);
+  protected readonly t = inject(StudioLanguageService).t;
+  readonly editor = new AreaDocEditor(this.config, this.t);
 
   /** `bereich/**` — the area key is everything after the first segment. */
   private readonly segments = toSignal(this.route.url, { initialValue: [] });
@@ -61,10 +63,13 @@ export class AreaEditorComponent {
   /** The raw tab names the format it is about to show — md and yaml save through
    *  different paths, and getting that wrong replaces the whole area. */
   readonly tabs = computed<readonly TabDef[]>(() => [
-    { id: TAB_ID.form, label: 'Formular' },
+    { id: TAB_ID.form, label: this.t('areaEditor.tab.form') },
     {
       id: TAB_ID.raw,
-      label: `Rohtext (${this.filePath().endsWith('.md') ? 'Markdown' : 'YAML'})`,
+      // `Markdown`/`YAML` are format names, not words — they stay put.
+      label: this.t('areaEditor.tab.raw', {
+        format: this.filePath().endsWith('.md') ? 'Markdown' : 'YAML',
+      }),
     },
   ]);
 
@@ -100,7 +105,7 @@ export class AreaEditorComponent {
         // would sit on "wird geladen" forever, with no error and no retry.
         this.editor.loading.set(false);
         this.editor.loadError.set(
-          'Es ist kein Bereich angegeben. Bitte über „Alle Bereiche“ öffnen.',
+          this.t('areaEditor.noArea', { view: this.t('view.bereiche.label') }),
         );
         return;
       }
@@ -133,7 +138,9 @@ export class AreaEditorComponent {
       this.rawText.set(file.content);
       this.savedRaw.set(file.content);
     } catch (err) {
-      if (this.editor.isCurrent(generation)) this.editor.loadError.set(describeAreaError(err));
+      if (this.editor.isCurrent(generation)) {
+        this.editor.loadError.set(describeAreaError(err, this.t));
+      }
     }
   }
 
@@ -158,8 +165,7 @@ export class AreaEditorComponent {
   selectTab(tab: Tab): void {
     if (tab === this.tab()) return;
     if (this.dirty()) {
-      this.editor.status.set('Bitte erst speichern oder verwerfen — die Ansichten zeigen sonst '
-        + 'unterschiedliche Stände desselben Bereichs.');
+      this.editor.status.set(this.t('areaEditor.tabBlocked'));
       return;
     }
     this.editor.status.set('');
@@ -174,7 +180,7 @@ export class AreaEditorComponent {
     }
     this.rawText.set(this.savedRaw());
     this.editor.saveError.set('');
-    this.editor.status.set('Änderungen verworfen.');
+    this.editor.status.set(this.t('editor.discarded'));
   }
 
   async save(): Promise<void> {
@@ -203,9 +209,11 @@ export class AreaEditorComponent {
       if (!this.editor.isCurrent(generation)) return;
       this.editor.adopt(document.data);
       this.editor.docType.set(document.type);
-      this.editor.status.set('Gespeichert.');
+      this.editor.status.set(this.t('editor.saved'));
     } catch (err) {
-      if (this.editor.isCurrent(generation)) this.editor.saveError.set(describeAreaError(err));
+      if (this.editor.isCurrent(generation)) {
+        this.editor.saveError.set(describeAreaError(err, this.t));
+      }
     } finally {
       if (this.editor.isCurrent(generation)) this.editor.saving.set(false);
     }

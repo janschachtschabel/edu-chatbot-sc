@@ -1,21 +1,21 @@
 <details class="cs" [open]="open()" (toggle)="onToggle($event)">
   <summary class="cs-summary">
-    <h3 class="cs-title">{{ section().label }}</h3>
-    <p class="cs-hint">{{ section().hint }}</p>
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
     @if (editor.dirty()) {
       <!-- visible on the closed panel too: a collapsed section with unsaved
            edits is exactly the case someone navigates away from -->
-      <span class="cs-flag">Ungespeichert</span>
+      <span class="cs-flag">{{ t('editor.unsavedShort') }}</span>
     }
   </summary>
 
   <div class="cs-body">
     @if (editor.loading()) {
-      <p class="cs-state" aria-busy="true">Wird geladen …</p>
+      <p class="cs-state" aria-busy="true">{{ t('editor.loading') }}</p>
     } @else if (editor.loadError()) {
       <div class="cs-state cs-state--error" role="alert">
         <p>{{ editor.loadError() }}</p>
-        <button type="button" class="cs-btn" (click)="reload()">Erneut versuchen</button>
+        <button type="button" class="cs-btn" (click)="reload()">{{ t('async.retry') }}</button>
       </div>
     } @else if (editor.schema(); as schema) {
       @if (section().feature === 'safety-level') {
@@ -36,7 +36,7 @@
           [disabled]="editor.saving() || !editor.dirty() || editor.blocked()"
           (click)="save()"
         >
-          {{ editor.saving() ? 'Wird gespeichert …' : 'Speichern' }}
+          {{ editor.saving() ? t('editor.saving') : t('editor.save') }}
         </button>
         <button
           type="button"
@@ -44,17 +44,19 @@
           [disabled]="editor.saving() || !editor.dirty()"
           (click)="editor.discard()"
         >
-          Verwerfen
+          {{ t('editor.discard') }}
         </button>
-        <a class="cs-raw-link" [routerLink]="rawLink()">
-          Rohtext bearbeiten<span class="sr"> — {{ section().label }}</span>
-        </a>
+        <a
+          class="cs-raw-link"
+          [routerLink]="rawLink()"
+          [attr.aria-label]="t('areaSection.rawLinkFor', { label: t(section().labelKey) })"
+        >{{ t('areaSection.rawLink') }}</a>
       </div>
 
       @if (editor.blocked()) {
         <!-- otherwise "Speichern" is simply grey and nothing says why -->
         <p class="cs-state cs-state--error" role="alert">
-          Nicht speicherbar: {{ editor.fieldErrors().join(', ') }} enthält kein gültiges JSON.
+          {{ t('editor.blocked', { fields: editor.fieldErrors().join(', ') }) }}
         </p>
       }
       @if (editor.saveError()) {

@@ -38,6 +38,7 @@ from typing import Any
 
 from boerdi.obs.tasks import _spawn_background
 from boerdi.services.mcp.arg_resolvers import prewarm_vocabularies
+from boerdi.services.rag.rerank import run_in_rerank_pool, warm_reranker
 from boerdi.services.safety.moderation import moderate
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,26 @@ async def warm_llm_connection() -> None:
         logger.warning("llm warmup skipped: %s", err)
 
 
+async def warm_cross_encoder() -> None:
+    """Den ONNX-Cross-Encoder laden und einmal rechnen lassen (W7).
+
+    Das Laden kostet Sitzungsaufbau und Speicherzuteilung — beim ersten echten
+    Zug wäre das ein sichtbarer Aufschlag. **Im Rerank-Pool**, nicht im Loop:
+    das Laden ist selbst CPU-Arbeit, und der Pool ist genau dafür da.
+
+    Der Modul-Kopf nannte dieses Warmup bis hierher als „bewusst entfallen
+    (V13 — kein CPU-Reranker in NEU)". Mit W7 gibt es ihn wieder.
+    """
+    t0 = time.perf_counter()
+    try:
+        await asyncio.wait_for(
+            run_in_rerank_pool(warm_reranker), timeout=_WARMUP_TIMEOUT_SECONDS,
+        )
+        logger.info("cross-encoder warmup done in %.0fms", (time.perf_counter() - t0) * 1000)
+    except Exception as err:  # noqa: BLE001 — s.o.
+        logger.warning("cross-encoder warmup skipped: %s", err)
+
+
 def spawn_startup_warmups(tasks: list[Coroutine[Any, Any, None]] | None = None) -> None:
     """Alle Warmups im Hintergrund starten und sofort zurückkehren.
 
@@ -79,5 +100,6 @@ def spawn_startup_warmups(tasks: list[Coroutine[Any, Any, None]] | None = None) 
     die starke Referenz (der Loop hält nur Weak-Refs) und holt die Exception ab.
     ``tasks`` ist die Test-Naht; im Betrieb bleibt sie leer.
     """
-    for coro in tasks if tasks is not None else [warm_vocabularies(), warm_llm_connection()]:
+    vorgabe = [warm_vocabularies(), warm_llm_connection(), warm_cross_encoder()]
+    for coro in tasks if tasks is not None else vorgabe:
         _spawn_background(coro)

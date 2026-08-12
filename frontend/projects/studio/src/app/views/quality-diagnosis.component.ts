@@ -17,21 +17,35 @@ import {
 } from '@angular/core';
 
 import { AsyncData } from '../core/async-data';
-import { formatDecimal } from '../core/format';
 import {
   QualityApi, type Breakdown, type DegradationGroup, type EmptyEntityGroup,
   type LogFilters, type LowConfidence, type QualityScope,
 } from '../core/quality-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { RichTextComponent } from './rich-text.component';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 @Component({
   selector: 'studio-quality-diagnosis',
-  imports: [AsyncStateComponent],
+  imports: [AsyncStateComponent, RichTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './quality-diagnosis.component.html',
   styleUrl: './quality-diagnosis.component.scss',
 })
 export class QualityDiagnosisComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  private readonly lang = inject(StudioLanguageService);
+
+  /** Uebersetzer fuer den Fehlersatz der Leseoperationen und fuer die
+   *  Texte dieser Ansicht. */
+  protected readonly t = this.lang.t;
+  /** Der Hilfetext des ersten Blocks fuehrt einen Fachbegriff ein und nennt
+   *  zwei Slot-Namen — Auszeichnung mitten im Satz. */
+  protected readonly rich = this.lang.rich;
+
   private readonly api = inject(QualityApi);
 
   readonly scope = input.required<QualityScope>();
@@ -40,11 +54,11 @@ export class QualityDiagnosisComponent {
   readonly drill = output<LogFilters>();
 
   readonly degradations = new AsyncData<Breakdown<DegradationGroup>>(
-    () => this.api.degradations(this.scope()));
+    () => this.api.degradations(this.scope()), this.t);
   readonly emptyEntities = new AsyncData<Breakdown<EmptyEntityGroup>>(
-    () => this.api.emptyEntities(this.scope()));
+    () => this.api.emptyEntities(this.scope()), this.t);
   readonly lowConfidence = new AsyncData<LowConfidence>(
-    () => this.api.lowConfidence(this.scope()));
+    () => this.api.lowConfidence(this.scope()), this.t);
 
   readonly degradationGroups = computed(() => this.degradations.value()?.groups ?? []);
   readonly emptyEntityGroups = computed(() => this.emptyEntities.value()?.groups ?? []);
@@ -69,6 +83,36 @@ export class QualityDiagnosisComponent {
   }
 
   confidence(value: number): string {
-    return formatDecimal(value);
+    return this.fmt.decimal(value);
+  }
+
+  /**
+   * „12 Turns · 3 Muster" — ZWEI unabhängige Anzahlen in einer Zeile.
+   *
+   * Zwei Wortgruppen, in einen Satz eingesetzt, und keine Schlüssel-Matrix aus
+   * vier Sätzen: die Formen sind unabhängig voneinander. Bis C1-d4d1 stand die
+   * Mehrzahl fest im Template und gab schon auf Deutsch „1 Turns" aus.
+   */
+  counts(turns: number, groups: number): string {
+    return this.t('qual.diag.counts', {
+      turns: this.lang.plural('qual.diag.turns', turns),
+      groups: this.lang.plural('qual.diag.groups', groups),
+    });
+  }
+
+  /** „2 Turns unter 0,6" — eine Anzahl und die Schwelle, die sie schnitt. */
+  lowCount(turns: number, threshold: number): string {
+    return this.t('qual.diag.low.count', {
+      turns: this.lang.plural('qual.diag.turns', turns),
+      threshold: this.confidence(threshold),
+    });
+  }
+
+  /**
+   * Beschriftung beider Drilldown-Knöpfe. Ein leerer Bezeichner ist ein Turn
+   * ohne Zuordnung; dann steht dort das Wort statt der Kennung.
+   */
+  drillLabel(id: string, fallbackKey: string): string {
+    return this.t('qual.diag.drill', { id: id || this.t(fallbackKey) });
   }
 }

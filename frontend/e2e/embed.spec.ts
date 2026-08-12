@@ -8,8 +8,33 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { chatResponse } from './fixtures/backend-payloads';
+import { card, chatResponse } from './fixtures/backend-payloads';
 import { HOST, mount } from './fixtures/harness';
+
+/** Gerenderte Farbe → Kanäle in 0…255.
+ *
+ *  Zwei Formen kommen vor: `rgb(r, g, b)` mit 0…255, und — sobald `color-mix()`
+ *  im Spiel ist — `color(srgb 0.93 0.88 0.91)` mit 0…1. Ein Muster nur für
+ *  Ganzzahlen läse aus „0.927" die 0 heraus und meldete Schwarz. */
+function kanaele(farbe: string): [number, number, number] {
+  const zahlen = farbe.match(/[\d.]+/g)?.map(Number);
+  if (!zahlen || zahlen.length < 3) throw new Error(`keine lesbare Farbe: ${farbe}`);
+  const faktor = farbe.startsWith('color(') ? 255 : 1;
+  return [zahlen[0] * faktor, zahlen[1] * faktor, zahlen[2] * faktor];
+}
+
+/** WCAG-2-Kontrastverhältnis zweier gerenderter Farben. */
+function kontrast(a: string, b: string): number {
+  const leucht = (farbe: string) => {
+    const [r, g, bl] = kanaele(farbe).map((c) => {
+      const s = c / 255;
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hell, dunkel] = [leucht(a), leucht(b)].sort((x, y) => y - x);
+  return (hell + 0.05) / (dunkel + 0.05);
+}
 
 const API_METHODS = [
   'openChatbot', 'closeChatbot', 'toggleChatbot',
@@ -58,19 +83,19 @@ test('resetSession() und updateContext() wirken wirklich, nicht nur am Typ', asy
   await page.locator('boerdi-chat').evaluate((n: any) => n.updateContext({ thema: 'Bruchrechnen' }));
   await page.locator('.chat-input').fill('Zweite Frage');
   await page.locator('.btn-send').click();
-  await w.waitForChatRequests(2);
-  expect(w.chatRequests()[1].environment.page_context.thema).toBe('Bruchrechnen');
+  await w.waitForTurns(2);
+  expect(w.turnRequests()[1].environment.page_context.thema).toBe('Bruchrechnen');
 
   // resetSession: neue Session-ID, Verlauf wieder auf die Begrüßung.
-  const before = w.chatRequests()[1].session_id;
+  const before = w.turnRequests()[1].session_id;
   await page.locator('boerdi-chat').evaluate((n: any) => n.resetSession());
   await expect(page.locator('.msg-bubble')).toHaveCount(1);
 
   w.enqueue(chatResponse({ content: 'Dritte Antwort.' }));
   await page.locator('.chat-input').fill('Dritte Frage');
   await page.locator('.btn-send').click();
-  await w.waitForChatRequests(3);
-  expect(w.chatRequests()[2].session_id).not.toBe(before);
+  await w.waitForTurns(3);
+  expect(w.turnRequests()[2].session_id).not.toBe(before);
 });
 
 test('das Panel wird erst beim ersten Öffnen gemountet (Lazy-Mount) und bleibt dann erhalten', async ({ page }) => {
@@ -176,6 +201,165 @@ test.describe('Bewegung', () => {
     await mount(page, { motion: 'no-preference' });
     expect(await fabAnimation(page)).toContain('boerdi-');
   });
+});
+
+test.describe('Kundenfarbe', () => {
+  /** Öffnet das Widget mit gesetzter `primary-color` und einer Ergebniskarte,
+   *  damit der einzige Material-Knopf („Inhalt anzeigen") sichtbar wird. Das
+   *  flache Raster ist nötig, weil die Gruppen-Box einen eigenen Icon-Knopf
+   *  rendert (kein Material). */
+  async function knopfMitFarbe(page: import('@playwright/test').Page, farbe: string) {
+    const w = await mount(page, {
+      attrs: { 'primary-color': farbe, 'inline-result-grouping': 'false' },
+    });
+    w.enqueue(chatResponse({ content: 'Hier ist etwas.', cards: [card()] }));
+    await w.open();
+    await page.locator('.chat-input').fill('Zeig mir Material');
+    await page.locator('.btn-send').click();
+
+    const knopf = page.locator('.card-btn-m3').first();
+    await expect(knopf).toBeVisible();
+    return knopf;
+  }
+
+  test('ohne primary-color bleibt der Knopf in der Marke und lesbar', async ({ page }) => {
+    // Der ausgelieferte Normalfall. Die Token-Brücke ersetzt hier Materials
+    // eigene Tonwerte durch eine `color-mix`-Formel — der Kontrast muss also
+    // auch OHNE Kundenfarbe halten, und die Marke (Blau) muss übrig bleiben.
+    const w = await mount(page, { attrs: { 'inline-result-grouping': 'false' } });
+    w.enqueue(chatResponse({ content: 'Hier ist etwas.', cards: [card()] }));
+    await w.open();
+    await page.locator('.chat-input').fill('Zeig mir Material');
+    await page.locator('.btn-send').click();
+
+    const stil = await page.locator('.card-btn-m3').first().evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { flaeche: s.backgroundColor, text: s.color };
+    });
+    const [r, , b] = kanaele(stil.flaeche);
+    expect(b, `Fläche ${stil.flaeche} ist nicht mehr blau`).toBeGreaterThan(r);
+    expect(kontrast(stil.text, stil.flaeche)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('primary-color schlägt bis in die Material-Token durch', async ({ page }) => {
+    // Ohne die Token-Brücke sind die `--mat-sys-*`-Werte zur BAUZEIT aus
+    // #1c4587 gebacken — der Knopf bliebe blau, egal was der Kunde setzt.
+    // Deshalb eine Kundenfarbe mit umgekehrtem Farbverhältnis (Rot > Blau):
+    // bleibt Blau übrig, ist die Brücke nicht da.
+    const knopf = await knopfMitFarbe(page, '#7a1f5c');
+    const stil = await knopf.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { flaeche: s.backgroundColor, text: s.color };
+    });
+
+    const [r, , b] = kanaele(stil.flaeche);
+    expect(r, `Fläche ${stil.flaeche} ist nicht aus #7a1f5c abgeleitet`).toBeGreaterThan(b);
+    expect(kontrast(stil.text, stil.flaeche)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('… und behält dabei den geerbten Dunkelmodus (light-dark bleibt heil)', async ({ page }) => {
+    // `color-scheme` ist vererbt: setzt die GASTSEITE dark, kippen die Token
+    // des Widgets mit. Eine Brücke ohne `light-dark()` würde das stillschweigend
+    // abschalten — hier gemessen statt geglaubt.
+    const knopf = await knopfMitFarbe(page, '#7a1f5c');
+    const hell = await knopf.evaluate((el) => getComputedStyle(el).backgroundColor);
+
+    await page.evaluate(() => { document.documentElement.style.colorScheme = 'dark'; });
+    const stil = await knopf.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { flaeche: s.backgroundColor, text: s.color };
+    });
+
+    expect(stil.flaeche, 'Dunkelmodus ändert die Fläche nicht').not.toBe(hell);
+    const [r, , b] = kanaele(stil.flaeche);
+    expect(r).toBeGreaterThan(b);
+    expect(kontrast(stil.text, stil.flaeche)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+test('die Ergebniskachel folgt dem Dunkelmodus der Gastseite (B2)', async ({ page }) => {
+  // `color-scheme` ist vererbt: setzt die Gastseite dark, kippen die
+  // `--mat-sys-*`-Token des Widgets mit. Die Kachel war hell-only (ALT-Erbe) —
+  // in einer dunklen Gastseite stand also eine weiße Karte in dunkler Hülle.
+  const w = await mount(page, { attrs: { 'inline-result-grouping': 'false' } });
+  w.enqueue(chatResponse({ content: 'Hier ist etwas.', cards: [card()] }));
+  await w.open();
+  await page.locator('.chat-input').fill('Zeig mir Material');
+  await page.locator('.btn-send').click();
+
+  const karte = page.locator('.wlo-card-wrapper').first();
+  await expect(karte).toBeVisible();
+  // Die Blase MIT geprüft: eine dunkle Karte in heller Blase wäre ein halber
+  // Dunkelmodus — schlechter als gar keiner (2026-07-31 im Bild gesehen).
+  //
+  // Über Locators, nicht über `document.querySelector`: das Widget lebt im
+  // Shadow DOM, den nur Playwrights Locator durchdringt.
+  const blase = page.locator('.bot-bubble').first();
+  const lies = async () => ({
+    flaeche: await karte.evaluate((el) => getComputedStyle(el).backgroundColor),
+    titel: await karte.evaluate((el) => getComputedStyle(el.querySelector('.card-title')!).color),
+    blase: await blase.evaluate((el) => getComputedStyle(el).backgroundColor),
+    blasenText: await blase.evaluate((el) => getComputedStyle(el).color),
+  });
+
+  const hell = await lies();
+  await page.evaluate(() => { document.documentElement.style.colorScheme = 'dark'; });
+  const dunkel = await lies();
+
+  expect(dunkel.flaeche, 'Kachelfläche ändert sich im Dunkelmodus nicht').not.toBe(hell.flaeche);
+  expect(dunkel.blase, 'Blasenfläche ändert sich im Dunkelmodus nicht').not.toBe(hell.blase);
+  // In BEIDEN Modi müssen Kachel-Titel und Blasentext lesbar bleiben.
+  expect(kontrast(hell.titel, hell.flaeche)).toBeGreaterThanOrEqual(4.5);
+  expect(kontrast(dunkel.titel, dunkel.flaeche)).toBeGreaterThanOrEqual(4.5);
+  expect(kontrast(hell.blasenText, hell.blase)).toBeGreaterThanOrEqual(4.5);
+  expect(kontrast(dunkel.blasenText, dunkel.blase)).toBeGreaterThanOrEqual(4.5);
+});
+
+test('auch die Hülle folgt dem Dunkelmodus — Panel, Fußzeile, Eingabe, Ergebnisbox (B2)', async ({ page }) => {
+  // Ergänzt den Kachel-Test oben um die HÜLLE. Die Kachel allein reichte nicht:
+  // beim Bild-Abgleich am 2026-07-31 stand eine korrekt gekippte Kachel in einem
+  // weißen Panel mit weißer Fußzeile — der halbe Dunkelmodus, den der Kachel-Test
+  // gerade verhindern sollte, eine Ebene höher.
+  //
+  // Bewusst OHNE `inline-result-grouping: false`: das ist die AUSGELIEFERTE
+  // Voreinstellung. Die Ergebnisse erscheinen dann als `.result-group`-Boxen,
+  // nicht als Kachelraster — die Fläche also, die Nutzer normalerweise sehen.
+  const w = await mount(page);
+  w.enqueue(chatResponse({ content: 'Hier ist etwas.', cards: [card()] }));
+  await w.open();
+  await page.locator('.chat-input').fill('Zeig mir Material');
+  await page.locator('.btn-send').click();
+
+  const box = page.locator('.result-group').first();
+  await expect(box).toBeVisible();
+
+  const flaeche = (ort: string) =>
+    page.locator(ort).first().evaluate((el) => getComputedStyle(el).backgroundColor);
+  const schrift = (ort: string) =>
+    page.locator(ort).first().evaluate((el) => getComputedStyle(el).color);
+  const lies = async () => ({
+    panel: await flaeche('.boerdi-panel'),
+    fuss: await flaeche('.chat-footer'),
+    eingabe: await flaeche('.chat-input'),
+    eingabeText: await schrift('.chat-input'),
+    box: await flaeche('.result-group'),
+    boxText: await schrift('.result-group__item'),
+  });
+
+  const hell = await lies();
+  await page.evaluate(() => { document.documentElement.style.colorScheme = 'dark'; });
+  const dunkel = await lies();
+
+  expect(dunkel.panel, 'Panel-Fläche kippt nicht').not.toBe(hell.panel);
+  expect(dunkel.fuss, 'Fußzeile kippt nicht').not.toBe(hell.fuss);
+  expect(dunkel.eingabe, 'Eingabefeld kippt nicht').not.toBe(hell.eingabe);
+  expect(dunkel.box, 'Ergebnisbox kippt nicht').not.toBe(hell.box);
+
+  // Kippen allein genügt nicht — lesbar muss es in beiden Modi bleiben.
+  expect(kontrast(hell.eingabeText, hell.eingabe)).toBeGreaterThanOrEqual(4.5);
+  expect(kontrast(dunkel.eingabeText, dunkel.eingabe)).toBeGreaterThanOrEqual(4.5);
+  expect(kontrast(hell.boxText, hell.box)).toBeGreaterThanOrEqual(4.5);
+  expect(kontrast(dunkel.boxText, dunkel.box)).toBeGreaterThanOrEqual(4.5);
 });
 
 test('das Widget lädt nichts von Dritt-Hosts (DSGVO-Guardrail)', async ({ page }) => {

@@ -1,8 +1,8 @@
 <header class="cv-head">
-  <p class="cv-crumb">Konfiguration</p>
-  <h2 class="cv-title">{{ view().label }}</h2>
+  <p class="cv-crumb">{{ t('curated.crumb') }}</p>
+  <h2 class="cv-title">{{ t(view().labelKey) }}</h2>
   @if (definition(); as def) {
-    <p class="cv-intro">{{ def.intro }}</p>
+    <p class="cv-intro">{{ t(def.introKey) }}</p>
   }
 </header>
 
@@ -31,8 +31,5 @@
     }
   </div>
 } @else {
-  <p class="cv-empty" role="alert">
-    Für diese Ansicht ist noch kein Bereich hinterlegt. Alle Konfigurationsdateien sind
-    weiterhin über „Alle Bereiche“ erreichbar.
-  </p>
+  <p class="cv-empty" role="alert">{{ t('curated.empty') }}</p>
 }

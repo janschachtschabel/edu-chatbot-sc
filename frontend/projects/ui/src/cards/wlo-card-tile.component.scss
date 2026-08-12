@@ -1,18 +1,27 @@
-// WloCard-Tile — Verbatim-Port der ALT-Kartenstile aus chat.component.scss
-// (.wlo-card-wrapper / .wlo-card / header / body / footer). Die Werte sind
-// ALTs fixe WLO-Marken-Kartenoptik (Marken-Blau #1c4587, weiße Karte) —
-// bewusst NICHT an das kundenüberschreibbare --boerdi-primary gebunden,
-// damit die Karte exakt wie in ALT rendert (Fidelity-Port). Die lokalen
-// $-Variablen spiegeln die ALT-Namen (chat.component.scss:14-19,412-414).
+// WloCard-Tile — Kartenstile nach der edu-sharing-Vorlage (Nutzer-Screenshots
+// 2026-07-31, Plan docs/plans/2026-07-31-material3-edu-sharing.md): Aufbau der
+// WLO-Kachel, Anmutung der vhb-Kachel (randlos, weicher Schatten, ruhigere
+// Typografie). Zuvor der Verbatim-Port der ALT-`.wlo-card`.
 //
-// simplify: kein Dark-Mode — die ALT-Karte war ebenfalls hell-only (weiße
-//   Karte, dunkler Text). Bewusste Grenze; Nachziehen = eigener Polish-Slice.
-
-$border: rgba(0, 0, 0, 0.1);
-$text: #1a1a2e;
-$text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 (4,5:1)
-$card-radius: 12px;
-$brand-blue: #1c4587;
+// Farbwerte bleiben ALTs WLO-Marken-Blau #1c4587 — bewusst NICHT an das
+// kundenüberschreibbare --boerdi-primary gebunden (Fidelity-Port). Es ist die
+// EINZIGE Markenfarbe des alten Chatbots (71 Fundstellen dort, alles Übrige
+// Slate-Grau) und seit 2026-07-31 auch die Quellfarbe der M3-Palette in
+// `theme/_m3-palette.scss` — Karte und Material-Komponenten stammen also aus
+// derselben Farbe.
+//
+// Dunkelmodus (B2, 2026-07-31): die frühere `simplify:`-Notiz „kein Dark-Mode,
+// ALT war hell-only" ist eingelöst. `color-scheme` ist eine VERERBTE
+// Eigenschaft — eine Gastseite mit `color-scheme: dark` kippt die
+// `--mat-sys-*`-Token des Widgets mit, und eine weiße Karte stand dann in
+// dunkler Hülle. Die Karte zieht ihre Farben deshalb aus denselben Token
+// (`mat-card` liefert die Fläche, der Rest kommt hier aus `--mat-sys-*`).
+//
+// `on-primary-container` für den Titel und nicht `primary`: sein Hellwert IST
+// exakt ALTs #1c4587, sein Dunkelwert das passende Hell-Blau. Er hängt bewusst
+// NICHT an der Kundenfarbe — die Karte war schon immer Marken-fest
+// (Fidelity-Port), nur jetzt zusätzlich dunkelmodus-fähig.
+$brand-blue: #1c4587;   // nur noch für Schatten-Tönungen (rgba-Mischungen)
 
 :host {
   // Host transparent lassen, damit .wlo-card-wrapper direkt als Grid-Item
@@ -20,83 +29,105 @@ $brand-blue: #1c4587;
   display: contents;
 }
 
+// Der Wrapper trägt Fläche, Rundung und Schatten — NICHT die Karte. Grund: die
+// Sammlungs-Aktionsleiste wird als Geschwister der Karte in den Wrapper
+// projiziert; läge der Schatten auf der Karte, zöge er eine sichtbare Naht
+// quer über die angesetzte Leiste. Kein `overflow: hidden` hier — das
+// Themenseiten-Aufklappmenü (.tp-dropdown) liegt in der Leiste und würde
+// abgeschnitten.
 .wlo-card-wrapper {
   display: flex;
   flex-direction: column;
   position: relative;
+  // Fläche und Textfarbe kommen von `mat-card` (--mat-sys-surface /
+  // --mat-sys-on-surface) und kippen dadurch im Dunkelmodus mit.
+  padding: 0;
+  border: 0;
+  border-radius: var(--mat-sys-corner-medium);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 1px 3px rgba(15, 23, 42, 0.1);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(28, 69, 135, 0.16);
+  }
+}
+
+// Themenseite: etwas prominenterer Schatten als visueller Akzent (in ALT ein
+// zusätzlicher Rahmen — die Vorlage kennt keine Rahmen).
+.wlo-card-wrapper.is-themenseite {
+  box-shadow:
+    0 1px 2px rgba(28, 69, 135, 0.1),
+    0 2px 8px rgba(28, 69, 135, 0.14);
+
+  &:hover {
+    box-shadow: 0 10px 28px rgba(28, 69, 135, 0.22);
+  }
 }
 
 .wlo-card {
   display: flex;
   flex-direction: column;
-  border: 1px solid $border;
-  border-radius: $card-radius;
-  background: #fff;
+  // Füllt die Höhe des Grid-Items → alle Kacheln einer Rasterzeile enden auf
+  // derselben Linie, auch wenn eine kürzere Beschreibung hat (Nutzer-Vorgabe
+  // 2026-07-31: einheitliche Größen).
+  flex: 1;
+  border-radius: inherit;
   text-decoration: none;
-  color: $text;
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease,
-    border-color 0.18s ease;
+  color: var(--mat-sys-on-surface);
   cursor: pointer;
+  // Klippt das formatfüllende Vorschaubild an den oberen Kartenecken.
   overflow: hidden;
   position: relative;
   z-index: 1;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(28, 69, 135, 0.12);
-    border-color: rgba($brand-blue, 0.25);
-  }
 
   &:visited {
-    color: $text;
+    color: var(--mat-sys-on-surface);
   }
 }
 
-// Ohne .card-actions (das Tile rendert keine) → volle Rundung, wie ALTs
-// .wlo-card-wrapper:not(:has(.card-actions)) .wlo-card.
-.wlo-card-wrapper:not(:has(.card-actions)) .wlo-card {
-  border-radius: 10px;
+// Mit angesetzter Aktionsleiste sind die unteren Ecken der Karte gerade — die
+// Rundung übernimmt dort die Leiste.
+.wlo-card-wrapper:has(.card-actions) .wlo-card {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
-// Themenseite: leicht prominenterer Schatten als visueller Akzent.
-.is-themenseite .wlo-card {
-  border-color: rgba($brand-blue, 0.3);
-  box-shadow: 0 2px 6px rgba(28, 69, 135, 0.08);
-
-  &:hover {
-    box-shadow: 0 8px 28px rgba(28, 69, 135, 0.18);
-  }
-}
-
-// ── Card Header: Inhaltstyp-Icon + Label ────────────────────────────────
-.card-header {
+// ── Medium: formatfüllend oben, mit Lizenz-Siegel ───────────────────────
+// Steht IMMER — ohne Vorschaubild trägt es das Typ-Symbol. Ein fehlendes
+// Medium ließe die Kachel gut 20 px flacher werden als ihre Nachbarn
+// (gemessen 2026-07-31) und bräche die Rasterzeile optisch auf.
+.card-media {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--mat-sys-surface-container-high);
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px 4px;
-  border-bottom: 1px solid #f1f5f9;
+  justify-content: center;
+  overflow: hidden;
 }
 
-.card-content-type {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: $text-muted;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+.card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.35s ease;
 }
 
-.card-content-icon {
-  font-size: 0.95rem;
-  line-height: 1;
+.wlo-card:hover .card-img {
+  transform: scale(1.04);
+}
+
+.card-media-fallback {
+  font-size: 3rem;
+  line-height: 0;
+  color: var(--mat-sys-outline);
   display: inline-flex;
-  align-items: center;
-  vertical-align: -0.15em;
 
   > svg {
     width: 1em;
@@ -105,86 +136,19 @@ $brand-blue: #1c4587;
   }
 }
 
-.card-content-label {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 110px;
-}
-
-// ── Card Body: Titel volle Breite, dann Desc + kleines Thumb nebeneinander
-.card-body {
-  padding: 8px 10px 6px;
-  flex: 1;
-}
-
-.card-title {
-  font-weight: 700;
-  font-size: 0.88rem;
-  line-height: 1.25;
-  margin-bottom: 4px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  color: $brand-blue;
-}
-
-.card-body-row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.card-desc-wrap {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.card-desc {
-  font-size: 0.72rem;
-  color: $text-muted;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  line-height: 1.4;
-}
-
-// Kleines Thumb rechts neben der Beschreibung.
-.card-thumb-side {
-  position: relative;
-  flex: 0 0 92px;
-  width: 92px;
-  height: 72px;
-  border-radius: 6px;
-  overflow: hidden;
-  background: linear-gradient(135deg, $brand-blue 0%, #3e6ea8 100%);
-}
-
-.card-img-side {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.35s ease;
-}
-
-.wlo-card:hover .card-img-side {
-  transform: scale(1.06);
-}
-
-// OER-Lizenz-Badge unten rechts auf dem Thumb.
-.card-license-badge-side {
+// OER-Lizenz-Siegel unten rechts auf dem Medium.
+.card-license-badge {
   position: absolute;
-  bottom: 3px;
-  right: 3px;
-  background: rgba(255, 255, 255, 0.95);
-  color: $brand-blue;
+  bottom: 6px;
+  right: 6px;
+  // Sitzt auf dem Vorschaubild, nicht auf der Kartenfläche — deshalb ein
+  // eigenes Paar (Container-Ton + zugehörige Schriftfarbe) statt surface.
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
   font-size: 0.56rem;
   font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 999px;
+  padding: 2px 6px;
+  border-radius: var(--mat-sys-corner-full);
   letter-spacing: 0.02em;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
   display: inline-flex;
@@ -197,34 +161,88 @@ $brand-blue: #1c4587;
   }
 }
 
-// ── Card Footer: Bildungsstufe + Fach ───────────────────────────────────
-.card-footer {
+// ── Textblock: Quelle → Titel → Beschreibung → Metazeilen ───────────────
+.card-body {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding: 5px 10px 7px;
-  border-top: 1px solid #f1f5f9;
-  background: #fafbfd;
-  min-height: 26px;
+  flex-direction: column;
+  padding: 9px 11px 10px;
+  flex: 1;
 }
 
-.footer-meta {
+// Quellzeile („Geogebra", „Youtube") — in der Vorlage über dem Titel.
+.card-source {
+  font-size: 0.66rem;
+  color: var(--mat-sys-on-surface-variant);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+// Titel und Beschreibung sind auf je 2 Zeilen gekürzt. Der Titel belegt beide
+// Zeilen AUCH, wenn er kürzer ist (``min-height``) — sonst beginnt die
+// Beschreibung je nach Titellänge auf einer anderen Höhe und die Kacheln
+// wirken ungleich, obwohl sie gleich hoch sind.
+.card-title {
+  font-weight: 600;
+  font-size: 0.86rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(2 * 1.3em);
+  // Hellwert dieses Tokens IST exakt ALTs #1c4587, Dunkelwert das passende
+  // Hell-Blau — deshalb hier und nicht `--mat-sys-primary`.
+  color: var(--mat-sys-on-primary-container);
+}
+
+.card-desc {
+  font-size: 0.72rem;
+  color: var(--mat-sys-on-surface-variant);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+  margin-top: 3px;
+}
+
+// Metazeilen sitzen am Fuß des Textblocks (``margin-top: auto``) — dadurch
+// fluchten sie über alle Kacheln einer Zeile, unabhängig von der Textlänge.
+.card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.card-meta-row {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 0.68rem;
-  color: #475569;
+  color: var(--mat-sys-on-surface-variant);
   font-weight: 500;
+  min-width: 0;
+
+  > span:last-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
-.footer-icon {
-  font-size: 0.8rem;
+.card-content-icon,
+.card-meta-icon {
+  font-size: 0.85rem;
+  line-height: 0;
+  flex: none;
   opacity: 0.85;
   display: inline-flex;
   align-items: center;
-  line-height: 0;
-  vertical-align: -0.18em;
 
   > svg {
     width: 1em;
@@ -233,20 +251,20 @@ $brand-blue: #1c4587;
   }
 }
 
-// A11y (better-coding-frontend): Hover-/Thumb-Animationen bei
+// A11y (better-coding-frontend): Hover-/Bild-Animationen bei
 // prefers-reduced-motion abschalten. Additiv — verändert die Default-Optik
 // nicht, deaktiviert nur die Bewegung für Nutzer, die sie abgewählt haben.
 @media (prefers-reduced-motion: reduce) {
-  .wlo-card,
-  .card-img-side {
+  .wlo-card-wrapper,
+  .card-img {
     transition: none;
   }
 
-  .wlo-card:hover {
+  .wlo-card-wrapper:hover {
     transform: none;
   }
 
-  .wlo-card:hover .card-img-side {
+  .wlo-card:hover .card-img {
     transform: none;
   }
 }

@@ -30,3 +30,24 @@ Thumbs.db
 # Local scratch
 *.local.*
 tmp/
+
+# Rückfall-Kopien vor grösseren Config-Umbauten (F0). Lokaler Rettungsanker,
+# kein Quellstand — der gültige Seed-Baum ist backend/seeds/.
+backups/
+
+# ONNX-Modell-Exporte (Reranker, lokale Embeddings). KEIN Quellstand, sondern
+# heruntergeladene bzw. quantisierte Artefakte — `embed_local.py` sagt es
+# ausdrücklich: „Das Modell-Asset wird NICHT mitgeliefert."
+#
+# Zwei harte Gründe, nicht nur Grösse: `model_quantized.onnx` liegt bei 113 MB,
+# und GitHub LEHNT Dateien über 100 MB ohne LFS AB — der Push scheitert, er wird
+# nicht bloss langsam. Und fehlt das Verzeichnis, bleibt der Reranker einfach aus
+# (`rerank._reranker_model_dir()` → None), der Betrieb läuft ohne ihn weiter.
+#
+# Woher es wieder kommt: INSTALL.md, Abschnitt „Reranker-Modell".
+backend/models/
+
+# Das gepackte Modell für den GitHub-Release. Gehört als Release-Asset ins
+# Projekt, nicht in die git-Historie — dort läge es für immer, auch nach dem
+# nächsten Modellwechsel.
+reranker-model-*.tar.gz

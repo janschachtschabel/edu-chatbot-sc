@@ -299,3 +299,58 @@ async def test_page_action_canvas_show_cards_in_widget():
     )
     assert page_action["action"] == "canvas_show_cards"
     assert page_action["payload"]["append"] is False
+
+
+# ── Anmelde-Rückfrage (C5-c2) ──────────────────────────────────────
+# Die Bedingung läuft hier ECHT (``curation_blocked_by_mode``); nur der
+# Zugangsblock wird gesetzt bzw. weggenommen. Ein Test, der stattdessen die
+# Bedingung selbst attrappiert, bewiese nur, dass eine Attrappe zurückgibt,
+# was man ihr eingebaut hat.
+
+
+async def test_kurationsmuster_ohne_block_bietet_die_anmeldung_an(monkeypatch):
+    from boerdi.services import response_tool_selection as rts
+    monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+
+    _c, qrs, _pa, _pg, _rt = await _call(
+        pattern_output={"format_follow_up": "quick_replies", "max_items": 5,
+                        "tools": ["wlo_add_to_collection"]},
+    )
+    assert qrs[0] == "__auth__"
+    assert qrs[1] == "Such einfach, ohne Anmeldung"
+
+
+async def test_mit_block_bleibt_die_rueckfrage_weg(monkeypatch):
+    """Wer kuratieren kann, soll nicht gefragt werden, ob er sich anmelden will."""
+    from boerdi.services import response_tool_selection as rts
+    monkeypatch.setattr(rts, "has_auth_token", lambda: True)
+
+    _c, qrs, _pa, _pg, _rt = await _call(
+        pattern_output={"format_follow_up": "quick_replies", "max_items": 5,
+                        "tools": ["wlo_add_to_collection"]},
+    )
+    assert "__auth__" not in qrs
+
+
+async def test_reines_suchmuster_bleibt_unberuehrt(monkeypatch):
+    from boerdi.services import response_tool_selection as rts
+    monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+
+    _c, qrs, _pa, _pg, _rt = await _call(
+        pattern_output={"format_follow_up": "quick_replies", "max_items": 5,
+                        "tools": ["search_wlo_content"]},
+    )
+    assert qrs == ["genQR1", "genQR2"]
+
+
+async def test_die_sprache_des_zuges_gilt(monkeypatch):
+    from boerdi.services import response_tool_selection as rts
+    monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+
+    _c, qrs, _pa, _pg, _rt = await _call(
+        req=ChatRequest(session_id="s1", message="frage",
+                        environment={"locale": "en"}),
+        pattern_output={"format_follow_up": "quick_replies", "max_items": 5,
+                        "tools": ["wlo_add_to_collection"]},
+    )
+    assert qrs[1] == "Just search, no sign-in"

@@ -102,6 +102,41 @@ class QualityLog(Base):
     )
 
 
+class UsageEvent(Base):
+    """Token-Verbrauch EINES Zuges, je verwendetem Modell eine Zeile (K2a).
+
+    Eigene Tabelle statt Auswertung des JSONB in ``messages.debug``
+    (Nutzer-Entscheid): abrechnungsfest, indizierbar, mit eigener
+    Aufbewahrungsfrist und unabhängig davon, wie sich das Debug-Format ändert.
+
+    **Die zwei „davon"-Felder sind der Kern und die häufigste Falle.**
+    ``cached_tokens`` ist in ``prompt_tokens`` ENTHALTEN und
+    ``reasoning_tokens`` in ``completion_tokens`` — so zählt es der Anbieter.
+    Wer sie addiert, rechnet doppelt.
+
+    Eine Zeile je Zug und Modell, nicht je LLM-Aufruf: der Merkposten
+    (``obs/usage.py``) summiert schon über den Zug, und abgerechnet wird die
+    Sitzung. Je Aufruf wären es 5–10× mehr Zeilen für eine Auflösung, die
+    niemand abrechnet — die Phasen-Aufteilung bleibt zur Diagnose im Debug-JSONB.
+    """
+
+    __tablename__ = "usage_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    session_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("sessions.session_id", ondelete="CASCADE")
+    )
+    model: Mapped[str] = mapped_column(Text)  # aufgelöster Modellname der Antwort
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cached_tokens: Mapped[int] = mapped_column(Integer, default=0)  # davon gecacht
+    completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    reasoning_tokens: Mapped[int] = mapped_column(Integer, default=0)  # davon Reasoning
+    calls: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class EvalRun(Base):
     __tablename__ = "eval_runs"
 

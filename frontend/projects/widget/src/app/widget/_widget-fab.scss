@@ -83,7 +83,11 @@
      Kontrast zum brand-blue Body sicher. */
 }
 .boerdi-fab {
-  /* FAB hat einen weißen "Hof" damit das blaue Logo gut sichtbar ist */
+  /* FAB hat einen weißen "Hof" damit das blaue Logo gut sichtbar ist.
+     B2 (2026-07-31): bewusst NICHT auf `--mat-sys-surface` umgestellt — das
+     Logo ist ein Bild mit eigenen, festen Farben (Data-URL, siehe .boerdi-owl).
+     Auf dunkler Fläche würde das blaue Motiv verschwinden; der weiße Hof IST
+     hier der Kontrastträger, kein vergessener Hellwert. */
   background: #fff;
   border: 3px solid var(--boerdi-primary);
 }

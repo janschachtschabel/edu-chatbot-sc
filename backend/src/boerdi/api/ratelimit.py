@@ -12,14 +12,16 @@ BSD-3-Clause and speaks the same protocol. The scheme also picks the CLIENT:
 only the former is a dependency here, so a leftover ``redis://`` URI fails
 loudly at startup instead of silently counting per process. Off-switch:
 RATE_LIMIT_CHAT=off|0|none|false|disabled (evaluated per request via
-``exempt_when``).
+``exempt_when``; the token itself never reaches slowapi's parser — see
+``_chat_limit``).
 
-**This is the only rate limit that exists in this build.** The safety-config
-block ``rate_limits`` (per-session/per-IP windows) has no consumer — measured
-2026-07-27: no ``RateLimitsBlock`` field is read outside the config model, and
-nobody ever sets ``rate_limited=True`` on a safety event, so that counter can
-never move. ALT's in-band guard was not ported. The block stays editable in the
-studio, which is the honesty problem — tracked as C6.
+**This is the OUTER limit.** It protects the process: one per-IP window,
+deployment-tuned via env, answered with HTTP 429 before the graph starts. The
+inner, editorially-tuned brake is ``services/rate_limits`` — per-session
+windows from the safety config, answered with a friendly bubble in the chat
+(C6, built 2026-07-31; until then that config block had no reader at all).
+Both count independently and are meant to: env is the operator's knob, the
+safety config is the editorial team's.
 """
 
 from slowapi import Limiter
@@ -27,6 +29,9 @@ from slowapi import Limiter
 from boerdi.settings import get_settings
 
 _OFF_TOKENS = ("off", "0", "none", "false", "disabled")
+
+# Stand-in fed to slowapi while the switch is off; see ``_chat_limit``.
+_OFF_PLACEHOLDER = "1000000/second"
 
 
 def peer_ip(request) -> str:
@@ -41,12 +46,31 @@ def peer_ip(request) -> str:
         return ""
 
 
-def _chat_limit() -> str:
-    return get_settings().rate_limit_chat
-
-
 def _limit_disabled() -> bool:
     return get_settings().rate_limit_chat.strip().lower() in _OFF_TOKENS
+
+
+def _chat_limit() -> str:
+    """Limit string for slowapi — never one that ``limits.parse_many`` rejects.
+
+    slowapi has no "no limit" limit string. Handing it an unparseable value
+    (``off``) made the PER-REQUEST parse in ``Limiter._check_request_limit``
+    throw, and slowapi logs that at ERROR once per request
+    (extension.py:596) — a production log with the limit disabled was
+    unusable. Worse, that parse is what builds the ``Limit`` objects carrying
+    ``exempt_when``, so it died before the off-switch above was ever
+    consulted: "off" worked by accident, as a side effect of the failure.
+
+    So when the switch is off we return a parseable placeholder and let
+    ``exempt_when=_limit_disabled`` do the disabling for real — slowapi skips
+    the limit before ``hit()``, so no bucket is touched and (with
+    ``view_rate_limit`` staying None) no X-RateLimit headers are emitted. The
+    amount is absurdly high on purpose: should the exemption ever be dropped,
+    the fallback is a practically unreachable limit, not a lockout.
+    """
+    if _limit_disabled():
+        return _OFF_PLACEHOLDER
+    return get_settings().rate_limit_chat
 
 
 # storage_uri is deployment-static (read once at import); the limit VALUE and

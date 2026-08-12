@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { FactoryPanelComponent } from './factory-panel.component';
 
 const FACTORY = '/studio/api/config/factory';
@@ -22,6 +23,8 @@ async function settle(h: Harness): Promise<void> {
 
 async function mount(status: Record<string, unknown> = { exists: false }): Promise<Harness> {
   TestBed.resetTestingModule();
+  // Siehe backup.component.spec.ts — jsdom meldet `en-US`.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(),

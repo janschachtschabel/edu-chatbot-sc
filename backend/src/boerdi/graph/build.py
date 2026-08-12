@@ -99,7 +99,17 @@ async def _log_turn_safety(ctx: TurnContext, session: AsyncSession) -> TurnConte
                 session, ctx.req.session_id, ctx.req.message, ctx.safety, ip=ctx.client_ip,
             )
     except Exception as err:
+        # The ``commit`` inside ``log_safety_event`` can fail and leave the
+        # shared session in an aborted transaction; without the rollback the
+        # turn's own persistence (state + assistant reply) fails afterwards.
+        # Telemetry must not stop the turn — and must not take the real work
+        # down with it either (audit 2026-08-12, F-1).
         logger.warning("safety log failed: %s", err)
+        try:
+            await session.rollback()
+        except Exception:
+            # No re-raise: this function promises never to break the turn.
+            logger.debug("safety log: rollback failed too", exc_info=True)
     return ctx
 
 
@@ -125,6 +135,7 @@ def build_turn_graph(
     peer_ip: str = "",
     on_token: Any = None,
     progress: TurnProgress | None = None,
+    engine: str = "pattern",
 ) -> CompiledStateGraph:
     """Compose + compile the per-request turn graph with its seams bound.
 
@@ -133,7 +144,13 @@ def build_turn_graph(
     streaming). ``progress`` (C9) reaches the four nodes that report a step to the
     SSE stream; omitted (``POST /api/chat``) it becomes a sink-less no-op, so the
     nodes call it unconditionally. ``memory_fetch`` for ``assess`` is ``get_memory``
-    bound to this session. Returns a compiled graph whose
+    bound to this session. ``engine`` (A4) picks the machine that answers this
+    turn — ``"pattern"`` (the default, and the shipped one) or ``"agent"``;
+    ``services/engine_choice.choose_engine`` resolves it at the HTTP edge. It
+    reaches ``assess`` (no classifier), ``route`` (no pattern selection, no
+    fast-paths) and ``respond`` (delegates to ``respond_agent``); every other
+    node runs the same either way.
+    Returns a compiled graph whose
     ``.ainvoke(TurnContext(req=...))`` runs the turn and yields a state dict — read
     ``early_response or response`` from it.
     """
@@ -148,12 +165,13 @@ def build_turn_graph(
     g.add_node("persist_user", functools.partial(_persist_user_message, session=session))
     g.add_node("preflight", functools.partial(preflight, session=session))
     g.add_node("assess", functools.partial(
-        assess, memory_fetch=memory_fetch, progress=progress))
+        assess, memory_fetch=memory_fetch, progress=progress, engine=engine))
     g.add_node("safety_log", functools.partial(_log_turn_safety, session=session))
     g.add_node("merge", merge)
-    g.add_node("route", functools.partial(route, progress=progress))
+    g.add_node("route", functools.partial(route, progress=progress, engine=engine))
     g.add_node("respond", functools.partial(
-        respond, session=session, on_token=on_token, progress=progress))
+        respond, session=session, on_token=on_token, progress=progress,
+        engine=engine))
     g.add_node("assemble", assemble)
     g.add_node("persist", functools.partial(persist, session=session, progress=progress))
 

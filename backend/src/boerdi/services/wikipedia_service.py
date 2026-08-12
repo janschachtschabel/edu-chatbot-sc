@@ -1,19 +1,33 @@
-"""Schlanker Wikipedia-DE-Helper (Phase-2-MVP).
+"""Wikipedia-DE-Kurzinfo fuer die Material-Erzeugung.
 
-Nutzt die offizielle MediaWiki-REST-Summary-API (de.wikipedia.org) — keine
-zusaetzliche Abhaengigkeit, keine Crawler-Logik. Liefert fuer ein Thema
-Titel, Beschreibung und Lead-Paragraph. Wird von canvas_service genutzt,
-um KI-generierte Materialien mit gepruefter Kurzinfo anzureichern.
+Liefert zu einem Thema Titel, Lead-Absatz und URL. ``canvas_service`` reichert
+damit KI-generierte Bildungsmaterialien mit einer belegten Kurzinfo an.
 
-Design-Entscheidungen:
-- Summary-Endpoint liefert schon einen 3-5 Satz Extract (ideale Groesse).
-- Search-Endpoint vorgeschaltet, damit wir Weiterleitungen / uneindeutige
-  Titel sauber abfangen.
-- Time-out bewusst kurz (6s) — wir wollen den Canvas-Flow nicht blockieren.
-- Ab v2: Relevance-Check vor dem Einsatz — nur wenn der gefundene Artikel
-  wirklich zum Topic passt (Title/Extract enthaelt normalisiertes Topic
-  oder umgekehrt), geben wir den Summary zurueck. Sonst None, damit der
-  LLM auf sein eigenes Wissen zurueckfaellt.
+**Transport: das MCP-Werkzeug ``get_wikipedia_summary``, nicht mehr die
+MediaWiki-REST-API direkt** (Nutzer-Entscheid 2026-08-01). Der Grund ist
+Pflegeaufwand: die Anbindung an einen fremden Dienst — zwei Endpunkte, eigener
+User-Agent, eigenes Timeout, eigene Weiterleitungs-Behandlung — lag hier im
+Chatbot, obwohl der MCP-Server sie ohnehin unterhaelt. Der Lead-Absatz ist
+derselbe (354 Zeichen bei „Photosynthese", vorher wie nachher); zusaetzlich
+kann das Werkzeug ``language`` und ``sections``.
+
+Erkauft ist das mit Laufzeit: ~850 ms statt ~570 ms Ende zu Ende, weil das
+MCP-SDK pro Aufruf eine frische Sitzung oeffnet. Im Material-Pfad, der ohnehin
+Sekunden LLM-Zeit braucht, ist das vertretbar — ein Gewinn ist es nicht.
+
+**Der Relevanz-Filter bleibt — er wird durch den Wechsel wichtiger, nicht
+ueberfluessig.** Live gemessen (2026-08-01) beantwortet das Werkzeug
+„Stadt Berlin" mit dem Artikel *Bern* und „Dreiecke" mit *Dreiecker* (einem
+Berg). Der Server loest Weiterleitungen sauber auf, aber er prueft nicht, ob
+der Treffer zum Thema gehoert. Ohne ``_is_relevant`` landete die falsche
+Sache samt CC-BY-SA-Quellenangabe in einem Unterrichtsmaterial. Passt der
+Artikel nicht, ist das Ergebnis ``None`` und das LLM arbeitet mit seinem
+eigenen Fachwissen weiter.
+
+Bekannte Grenze (unveraendert aus ALT uebernommen): der Filter ist an den
+Raendern zu streng — „Bruchrechnen" → *Bruchrechnung* verwirft er. Die
+Heuristik selbst ist byte-genau die ALT-Fassung; sie hier zu veraendern waere
+ein eigener Schritt mit eigener Absicherung.
 """
 from __future__ import annotations
 
@@ -22,13 +36,10 @@ import re
 import unicodedata
 from typing import Any
 
-import httpx
+from boerdi.services.mcp.client import call_mcp_tool
+from boerdi.services.mcp.parsers import parse_wikipedia_summary
 
 logger = logging.getLogger(__name__)
-
-_BASE = "https://de.wikipedia.org/w/rest.php/v1"
-_SUMMARY_BASE = "https://de.wikipedia.org/api/rest_v1/page/summary"
-_UA = "BadBoerdi-Widget/1.0 (+https://wirlernenonline.de; contact: redaktion@wirlernenonline.de)"
 
 
 def _normalize(s: str) -> str:
@@ -145,60 +156,38 @@ def _is_relevant(topic: str, title: str, extract: str) -> bool:
     return False
 
 
-async def fetch_wikipedia_summary(topic: str, timeout_s: float = 6.0) -> dict[str, Any] | None:
+async def fetch_wikipedia_summary(topic: str) -> dict[str, Any] | None:
     """Resolve a topic to a Wikipedia article summary, if relevant.
 
-    Returns a dict with keys {title, description, extract, url} or None on
-    miss / irrelevant match / disambiguation. Never raises — failures return
-    None so the caller can fall back to LLM-only.
+    Returns a dict with keys {title, extract, url}, or None when the tool found
+    nothing, the hit failed the relevance check, or the call itself failed.
+    Never raises — the caller falls back to LLM-only knowledge.
+
+    ``description`` (the one-line Wikidata subtitle) is gone with the transport
+    swap: the MCP tool does not carry it. No caller read it.
+
+    ``outputFormat="json"`` is set centrally in ``call_mcp_tool``
+    (``_JSON_CAPABLE_TOOLS``), so it is not repeated here.
     """
     q = (topic or "").strip()
     if not q:
         return None
 
     try:
-        async with httpx.AsyncClient(timeout=timeout_s, headers={"User-Agent": _UA}) as c:
-            # Step 1: search — ask for top-3 so we can pick the best relevant hit.
-            sr = await c.get(f"{_BASE}/search/title", params={"q": q, "limit": 3})
-            if sr.status_code != 200:
-                logger.info("wiki search status %s for %r", sr.status_code, q)
-                return None
-            data = sr.json() or {}
-            pages = data.get("pages") or []
-            if not pages:
-                return None
-
-            # Step 2: fetch summaries in order, return the first relevant one.
-            for page in pages:
-                key = page.get("key") or page.get("title")
-                if not key:
-                    continue
-                try:
-                    su = await c.get(f"{_SUMMARY_BASE}/{key}")
-                except httpx.HTTPError:
-                    continue
-                if su.status_code != 200:
-                    continue
-                sdata = su.json() or {}
-                if sdata.get("type") == "disambiguation":
-                    continue
-                extract = (sdata.get("extract") or "").strip()
-                if not extract:
-                    continue
-                title = sdata.get("title") or page.get("title") or q
-
-                if not _is_relevant(q, title, extract):
-                    logger.info("wiki reject irrelevant hit for %r: %r", q, title)
-                    continue
-
-                return {
-                    "title": title,
-                    "description": (sdata.get("description") or "").strip(),
-                    "extract": extract,
-                    "url": ((sdata.get("content_urls") or {}).get("desktop") or {}).get("page") or "",
-                }
-            logger.info("wiki: no relevant hit for %r (checked %d)", q, len(pages))
-            return None
-    except (httpx.HTTPError, ValueError) as e:
+        raw = await call_mcp_tool("get_wikipedia_summary", {"query": q})
+    except Exception as e:  # noqa: BLE001 — Anreicherung ist optional, nie fatal
         logger.info("wiki lookup failed for %r: %s", q, e)
         return None
+
+    hit = parse_wikipedia_summary(raw)
+    extract = (hit.get("extract") or "").strip()
+    title = (hit.get("title") or "").strip()
+    if not extract or not title:
+        logger.info("wiki: no hit for %r", q)
+        return None
+
+    if not _is_relevant(q, title, extract):
+        logger.info("wiki reject irrelevant hit for %r: %r", q, title)
+        return None
+
+    return {"title": title, "extract": extract, "url": hit.get("url") or ""}

@@ -12,6 +12,7 @@
  */
 import { Injectable, computed, inject, signal } from '@angular/core';
 
+import { StudioLanguageService, type Translate } from '../i18n/studio-language.service';
 import { StudioApiError } from './studio-api-error';
 import { StudioApi } from './studio-api.service';
 
@@ -54,6 +55,7 @@ export interface IngestResult {
 @Injectable({ providedIn: 'root' })
 export class RagApi {
   private readonly api = inject(StudioApi);
+  private readonly t = inject(StudioLanguageService).t;
 
   private readonly areaList = signal<readonly RagArea[]>([]);
   private readonly areaError = signal('');
@@ -73,7 +75,7 @@ export class RagApi {
     } catch (err) {
       // Keep the last good list: a failed refresh should not make the page
       // claim the knowledge base is empty.
-      this.areaError.set(describeRagError(err));
+      this.areaError.set(describeRagError(err, this.t));
     } finally {
       this.areaLoading.set(false);
     }
@@ -129,19 +131,23 @@ function formOf(area: string, title: string): FormData {
  * Reads `detail`, never `message`: the latter is the transport envelope
  * ("HTTP 400 /rag/ingest/text — …"), which names a route the editor never
  * typed and buries the sentence that actually explains the failure.
+ *
+ * The translator arrives through the call rather than an injection, exactly
+ * like `describeAreaError` (C1-d3c): the function stays pure, and no module
+ * holds language state.
  */
-export function describeRagError(err: unknown): string {
-  if (!(err instanceof StudioApiError)) return 'Unerwarteter Fehler.';
+export function describeRagError(err: unknown, t: Translate): string {
+  if (!(err instanceof StudioApiError)) return t('error.unexpected');
   switch (err.status) {
     case 0:
-      return 'Backend nicht erreichbar.';
+      return t('error.offline');
     case 400:
       // markitdown's own message ("Fehler beim Konvertieren: …") or the SSRF
-      // guard's — both name the actual obstacle.
-      return err.detail || 'Die Datei oder Adresse konnte nicht gelesen werden.';
+      // guard's — both name the actual obstacle and stay as they arrive (C1-e).
+      return err.detail || t('rag.error.unreadable');
     case 413:
-      return 'Die Datei ist größer als das Upload-Limit des Servers.';
+      return t('rag.error.tooLarge');
     default:
-      return err.detail || 'Unbekannter Fehler.';
+      return err.detail || t('error.unknown');
   }
 }

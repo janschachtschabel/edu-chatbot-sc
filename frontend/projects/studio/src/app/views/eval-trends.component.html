@@ -1,22 +1,21 @@
 <div class="et-bar">
   <button type="button" class="et-reload" [disabled]="trends.loading()" (click)="reload()">
-    {{ trends.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+    {{ trends.loading() ? t('action.refreshing') : t('action.refresh') }}
   </button>
 </div>
 
 <studio-async-state
-  label="Trends"
+  [label]="t('eval.tab.trends')"
   [loading]="trends.loading()"
   [error]="trends.error()"
   [empty]="runs().length === 0 && !trends.loading() && !trends.error()"
-  emptyText="Noch kein abgeschlossener Lauf. Trends entstehen aus fertigen Läufen —
-             starte einen Gold-Flow- oder generativen Lauf."
+  [emptyText]="t('evalTrends.empty')"
   (retry)="reload()"
 />
 
 @if (runs().length > 0) {
   <figure class="et-figure">
-    <figcaption>Ø Judge-Score je Lauf</figcaption>
+    <figcaption>{{ t('evalTrends.scores.caption') }}</figcaption>
     <svg
       class="et-chart et-chart--wide"
       [attr.viewBox]="'0 0 ' + scores().width + ' ' + scores().height"
@@ -38,12 +37,7 @@
   </figure>
 
   @if (!hasClassification()) {
-    <p class="et-note">
-      Die fünf Klassifikations-Serien unten stammen aus
-      <code>classification_metrics</code> — das schreibt nur ein
-      <strong>generativer</strong> Lauf. Hier liegen bisher nur Gold-Flow-Läufe,
-      deshalb sind sie leer. Der Ø-Score oben umfasst beide Lauf-Arten.
-    </p>
+    <p class="et-note"><studio-rich [parts]="rich('evalTrends.note')" /></p>
   }
 
   <ul class="et-grid">
@@ -74,7 +68,7 @@
               }
             </svg>
           } @else {
-            <p class="et-empty">Keine Daten</p>
+            <p class="et-empty">{{ t('evalTrends.noData') }}</p>
           }
         </figure>
       </li>
@@ -82,14 +76,14 @@
   </ul>
 
   <table class="et-table">
-    <caption>Alle Werte je Lauf — älteste zuerst</caption>
+    <caption>{{ t('evalTrends.table.caption') }}</caption>
     <thead>
       <tr>
-        <th scope="col">Lauf</th>
-        <th scope="col">Zeitpunkt</th>
-        <th scope="col">Art</th>
-        <th scope="col">Turns</th>
-        <th scope="col">Ø Score</th>
+        <th scope="col">{{ t('evalTrends.col.run') }}</th>
+        <th scope="col">{{ t('evalTrends.col.when') }}</th>
+        <th scope="col">{{ t('evalTrends.col.kind') }}</th>
+        <th scope="col">{{ t('evalTrends.col.turns') }}</th>
+        <th scope="col">{{ t('evalTrends.col.score') }}</th>
         @for (series of rates(); track series.key) {
           <th scope="col">{{ series.label }}</th>
         }
@@ -113,20 +107,19 @@
 
   @if (patterns().length > 0) {
     <details class="et-details">
-      <summary>Tool-Compliance je Pattern ({{ patterns().length }})</summary>
-      <p class="et-hint">
-        Anteil der Turns, in denen das Pattern genau die Tools aufrief, die für
-        es konfiguriert sind.
-      </p>
+      <summary>
+        {{ t('evalTrends.patterns.summary', { count: patterns().length }) }}
+      </summary>
+      <p class="et-hint">{{ t('evalTrends.patterns.hint') }}</p>
       <table class="et-table">
-        <caption>Letzter Lauf je Pattern</caption>
+        <caption>{{ t('evalTrends.patterns.caption') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Pattern</th>
-            <th scope="col">Quote</th>
-            <th scope="col">passend</th>
-            <th scope="col">Turns</th>
-            <th scope="col">Verlauf</th>
+            <th scope="col">{{ t('evalTrends.patterns.col.pattern') }}</th>
+            <th scope="col">{{ t('evalTrends.patterns.col.rate') }}</th>
+            <th scope="col">{{ t('evalTrends.patterns.col.ok') }}</th>
+            <th scope="col">{{ t('evalTrends.col.turns') }}</th>
+            <th scope="col">{{ t('evalTrends.patterns.col.trend') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -141,8 +134,7 @@
                   class="et-spark"
                   [attr.viewBox]="'0 0 ' + pattern.chart.width + ' ' + pattern.chart.height"
                   role="img"
-                  [attr.aria-label]="'Verlauf über ' + pattern.chart.points.length
-                    + ' Läufe; die Quote des letzten Laufs steht in der Zelle links.'"
+                  [attr.aria-label]="describeSpark(pattern)"
                 >
                   @if (pattern.chart.points.length > 1) {
                     <polyline class="et-line" [attr.points]="pattern.chart.line" />

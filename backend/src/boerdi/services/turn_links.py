@@ -16,20 +16,85 @@ NEU split the MCP client, so ``get_query_metas`` stays in ``mcp.client`` while t
 helpers live in ``mcp.arg_resolvers``). Boundaries (``get_query_metas``/``get_repo_base_url``/
 ``_extract_web_links_from_text``/``_resolve_wanted_content_types``) are module-level so tests
 patch them here; the vocab helpers stay lazy in-function so tests patch them at the source.
+
+**C1-f2b3/f2b4 end the byte-identity for the two rewriters.** The Such-CTA comes from
+``i18n/bot_text`` and the display label from ``_TYPE_LABELS`` instead of the in-function
+``_label_map`` (f2b3); the anti-hallucination watchdog reads its claim words, its
+determiner prefix and its delivery verbs from ``i18n/output_patterns`` and its three
+replacement sentences from ``i18n/bot_text`` instead of in-function literals (f2b4).
+The German output of both is unchanged and pinned byte-for-byte in
+``tests/test_turn_links.py``. Everything else is still verbatim.
+
+Still German on purpose inside the watchdog: ``_type_words_re``, which reads the USER's
+message rather than our own output, and ``_medientyp_classif``, which is elsewhere the
+German filter value of the WLO search. Both are C1-f2c.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Final
 
 from boerdi.api.schemas import ChatRequest
 from boerdi.domain.content_types import _resolve_wanted_content_types
 from boerdi.domain.url_helpers import _extract_web_links_from_text
+from boerdi.i18n import (
+    CLAIM_WORDS,
+    COLLECTION_WORD,
+    DEFAULT,
+    DELIVERY_VERBS,
+    DETERMINER_PREFIX,
+    TOPIC_PAGE_WORD,
+    Locale,
+    bot_text,
+    resolve_locale,
+)
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.mcp.client import get_query_metas
 
 logger = logging.getLogger(__name__)
+
+
+# **C1-f2b3 — Anzeigetext UND Suchbegriff.** Der deutsche Eintrag ist
+# ALT-verbatim und hat einen zweiten Auftrag: er geht als Label in den
+# WLO-Vokabular-Lookup (``_vocab_uri_for("lrt", …)``), der ausschließlich
+# deutsche Canonicals kennt. Deshalb liest der Lookup fest ``_TYPE_LABELS
+# [DEFAULT]`` — mit dem übersetzten Label träfe er nie, und der Typ-Filter
+# fiele still aus der Such-URL, auf die der Satz gerade verweist.
+_TYPE_LABELS: Final[dict[Locale, dict[str, str]]] = {
+    "de": {
+        "video": "Videos",
+        "arbeitsblatt": "Arbeitsblätter",
+        "übung": "Übungen",
+        "uebung": "Übungen",
+        "quiz": "Quizze",
+        "audio": "Audios",
+        "präsentation": "Präsentationen",
+        "praesentation": "Präsentationen",
+        "test": "Tests",
+        "podcast": "Podcasts",
+        "bild": "Bilder",
+        "lied": "Lieder",
+        "aufgabe": "Aufgaben",
+        "simulation": "Simulationen",
+    },
+    "en": {
+        "video": "Videos",
+        "arbeitsblatt": "Worksheets",
+        "übung": "Exercises",
+        "uebung": "Exercises",
+        "quiz": "Quizzes",
+        "audio": "Audio files",
+        "präsentation": "Presentations",
+        "praesentation": "Presentations",
+        "test": "Tests",
+        "podcast": "Podcasts",
+        "bild": "Images",
+        "lied": "Songs",
+        "aufgabe": "Tasks",
+        "simulation": "Simulations",
+    },
+}
 
 
 async def _finalize_links_and_metas(
@@ -85,6 +150,7 @@ async def _finalize_links_and_metas(
     #     Welle-C.5-Refactor: keine Inline-Card-Bullets im Text, Frontend
     #     rendert Cards in Boxen. Re-Extraktion AN (für LLM-flowing-text-
     #     Links → Webseiten-Inhalte-Box).
+    _lang = resolve_locale(getattr(req.environment, "locale", None))
     _ig_flag_impl = getattr(req.environment, "inline_result_grouping", None)
     _ce_flag_impl = getattr(req.environment, "cards_enabled", None)
     _legacy_inline_impl = (_ce_flag_impl is False) and (_ig_flag_impl is False)
@@ -199,6 +265,7 @@ async def _finalize_links_and_metas(
         and _po_for_rewriters.get("missing_slots")
     )
     _type_focus_label = ""
+    _type_focus_vocab = ""   # dasselbe Label auf Deutsch — s. ``_TYPE_LABELS``
     if _grouping_on_impl and _is_search_pattern_active and not _rewriters_degraded:
         try:
             _classif_e = classification_dict.get("entities", {}) or {}
@@ -211,24 +278,12 @@ async def _finalize_links_and_metas(
             if _wanted:
                 # Display-Label aus dem ersten canonical Type
                 # ("video" → "Videos", "arbeitsblatt" → "Arbeitsblätter").
-                _label_map = {
-                    "video": "Videos",
-                    "arbeitsblatt": "Arbeitsblätter",
-                    "übung": "Übungen",
-                    "uebung": "Übungen",
-                    "quiz": "Quizze",
-                    "audio": "Audios",
-                    "präsentation": "Präsentationen",
-                    "praesentation": "Präsentationen",
-                    "test": "Tests",
-                    "podcast": "Podcasts",
-                    "bild": "Bilder",
-                    "lied": "Lieder",
-                    "aufgabe": "Aufgaben",
-                    "simulation": "Simulationen",
-                }
                 _first_wanted = sorted(_wanted)[0]
-                _type_focus_label = _label_map.get(_first_wanted, _first_wanted.capitalize())
+                _fallback_label = _first_wanted.capitalize()
+                _type_focus_label = _TYPE_LABELS.get(_lang, _TYPE_LABELS[DEFAULT]).get(
+                    _first_wanted, _fallback_label)
+                _type_focus_vocab = _TYPE_LABELS[DEFAULT].get(
+                    _first_wanted, _fallback_label)
 
                 # A) Cards: Sammlungen/Themenseiten KOMPLETT raus —
                 #    der User will sie nicht sehen, sie verwirren ihn nur.
@@ -262,14 +317,12 @@ async def _finalize_links_and_metas(
                          or _session_e.get("thema")
                          or "").strip()
                     )
-                    _topic_suffix = (
-                        f" zu „{_topic_for_text}"" "
-                        if _topic_for_text else " zum Thema "
-                    )
-                    _new_response = (
-                        f"Für {_type_focus_label}{_topic_suffix}schau "
-                        "in die Suche unten — dort findest du die "
-                        "gefilterten Treffer."
+                    _new_response = bot_text(
+                        _lang,
+                        ("links.typeFocus.ctaTopic" if _topic_for_text
+                         else "links.typeFocus.ctaPlain"),
+                        label=_type_focus_label,
+                        topic=_topic_for_text,
                     )
                     if _new_response.strip() != response_text.strip():
                         logger.warning(
@@ -368,10 +421,14 @@ async def _finalize_links_and_metas(
             )
             _user_msg_match = _type_words_re.search(req.message or "")
             _is_type_focus = bool(_medientyp_classif) or bool(_user_msg_match)
+            # Der Typ-Name selbst bleibt, wie er hereinkam: ``medientyp`` ist
+            # anderswo der Filterwert der WLO-Suche (deutsches Vokabular,
+            # ``prefetch.py:250``), und das Nutzer-Wort ist das Wort des
+            # Nutzers. Nur der Ersatz, wenn beides fehlt, ist übersetzbar.
             _type_label = (
                 _medientyp_classif
                 or (_user_msg_match.group(0).capitalize() if _user_msg_match
-                    else "Materialien")
+                    else bot_text(_lang, "links.claim.fallbackLabel"))
             )
 
             # Schärfung A: Material-Typ-Anfrage → führender Satz wird auf
@@ -379,20 +436,18 @@ async def _finalize_links_and_metas(
             # Themenseite anpreist. Wir machen das auch dann, wenn
             # _n_samml > 0 oder _n_themen > 0 — der User wollte ja
             # explizit den Material-Typ, nicht die Sammlungs-Übersicht.
+            _claim_words = CLAIM_WORDS.get(_lang, CLAIM_WORDS[DEFAULT])
             if _is_type_focus and _re_wd.search(
-                r"\b(?:Sammlung(?:en)?|Themenseite(?:n)?)\b",
-                _new_text, _re_wd.IGNORECASE,
+                _claim_words, _new_text, _re_wd.IGNORECASE,
             ):
                 # Ersten Satz, der Sammlung/Themenseite enthält, ersetzen
                 # durch einen Type-Verweis. Folgesätze bleiben — der Bot
                 # darf weiter freundlich anbieten zu verfeinern.
                 _first_sentence_with_claim = _re_wd.compile(
-                    r"(?is)^[^.!?]*?\b(?:Sammlung(?:en)?|Themenseite(?:n)?)"
-                    r"\b[^.!?]*?[.!?]\s*",
+                    rf"(?is)^[^.!?]*?{_claim_words}[^.!?]*?[.!?]\s*",
                 )
-                _replacement = (
-                    f"Für {_type_label} zum Thema klick auf die Suche "
-                    "unten — dort findest du die gefilterten Treffer. "
+                _replacement = bot_text(
+                    _lang, "links.claim.typeFocusCta", label=_type_label,
                 )
                 _patched = _first_sentence_with_claim.sub(
                     _replacement, _new_text, count=1,
@@ -430,50 +485,38 @@ async def _finalize_links_and_metas(
             # Vorher (Bug 2026-05-22): „passende" matched, „passenden"
             # nicht → Ergebnis „passenden passende Treffer in der Suche".
             # Jetzt: alle Adjektiv-Endungen + Artikel-Deklinationen.
-            _det_adj = (
-                r"(?:\b(?:"
-                r"zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|"
-                r"ein(?:e[srnm]?)?|"
-                r"d(?:er|ie|as|em|en|es)|"
-                r"diese[srnm]?|"
-                r"meine[srnm]?|deine[srnm]?|seine[srnm]?|"
-                r"unsere[srnm]?|eure[srnm]?|ihre[srnm]?|"
-                r"passende[srnm]?|"
-                r"einige|mehrere|alle[srnm]?|viele|wenige|"
-                r"weitere|andere[srnm]?|"
-                r"ähnliche[srnm]?|verwandte[srnm]?"
-                r")\s+)?"
-            )
+            _det_adj = DETERMINER_PREFIX.get(_lang, DETERMINER_PREFIX[DEFAULT])
+            _search_hits = bot_text(_lang, "links.claim.searchHits")
 
             # Bot behauptet Sammlung(en), aber keine sichtbar — patchen.
             # Skip wenn kein Such-Tool gelaufen ist (Offer-Mode).
+            _collection_word = COLLECTION_WORD.get(_lang, COLLECTION_WORD[DEFAULT])
             if (not _offered_only_no_search and _n_samml == 0
                 and _re_wd.search(
-                    r"\bSammlung(?:en)?\b", _new_text, _re_wd.IGNORECASE,
+                    _collection_word, _new_text, _re_wd.IGNORECASE,
                 )):
                 _phrase_re = _re_wd.compile(
-                    _det_adj + r"\bSammlung(?:en)?\b",
+                    _det_adj + _collection_word,
                     _re_wd.IGNORECASE,
                 )
                 _new_text = _ctx_aware_sub(
-                    _phrase_re, _new_text,
-                    "passende Treffer in der Suche", _count=3,
+                    _phrase_re, _new_text, _search_hits, _count=3,
                 )
                 _changed_reasons.append(f"sammlungen=0 aber Text claimt")  # noqa: F541
 
             # Bot behauptet Themenseite(n), aber keine sichtbar — patchen.
             # Skip wenn kein Such-Tool gelaufen ist (Offer-Mode).
+            _topic_page_word = TOPIC_PAGE_WORD.get(_lang, TOPIC_PAGE_WORD[DEFAULT])
             if (not _offered_only_no_search and _n_themen == 0
                 and _re_wd.search(
-                    r"\bThemenseite(?:n)?\b", _new_text, _re_wd.IGNORECASE,
+                    _topic_page_word, _new_text, _re_wd.IGNORECASE,
                 )):
                 _phrase_re = _re_wd.compile(
-                    _det_adj + r"\bThemenseite(?:n)?\b",
+                    _det_adj + _topic_page_word,
                     _re_wd.IGNORECASE,
                 )
                 _new_text = _ctx_aware_sub(
-                    _phrase_re, _new_text,
-                    "passende Treffer in der Suche", _count=3,
+                    _phrase_re, _new_text, _search_hits, _count=3,
                 )
                 _changed_reasons.append(f"themenseiten=0 aber Text claimt")  # noqa: F541
 
@@ -485,10 +528,9 @@ async def _finalize_links_and_metas(
             if (not _offered_only_no_search
                 and _n_samml == 0 and _n_themen == 0):
                 _new_text = _re_wd.sub(
-                    r"(?im)^.*?(?:rausgezogen|rausgesucht|zusammengestellt|"
-                    r"herausgesucht|gefunden|kuratiert).*?[.!?]\s*",
-                    "Schau in die verlinkte Suche unten — dort findest du "
-                    "passende Treffer zum Thema. ",
+                    rf"(?im)^.*?(?:{DELIVERY_VERBS.get(_lang, DELIVERY_VERBS[DEFAULT])})"
+                    r".*?[.!?]\s*",
+                    bot_text(_lang, "links.claim.searchPointer"),
                     _new_text,
                     count=1,
                 )
@@ -736,7 +778,9 @@ async def _finalize_links_and_metas(
                     "learningResourceType",
                 )
                 if not _lrt_uri:
-                    _lrt_uri = await _vocab_uri_for("lrt", _type_focus_label)
+                    # Deutsches Label, nicht das angezeigte — das Vokabular
+                    # kennt nur deutsche Canonicals (s. ``_TYPE_LABELS``).
+                    _lrt_uri = await _vocab_uri_for("lrt", _type_focus_vocab)
                 # 2) Discipline — bevorzugt aus MCP criteria, sonst entity-Lookup
                 _disc_uri = _pick_props("ccm:taxonid", "discipline")
                 if not _disc_uri:

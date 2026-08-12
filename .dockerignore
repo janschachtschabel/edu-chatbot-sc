@@ -39,6 +39,10 @@ docs
 .gitignore
 CLAUDE.md
 
+# Lokale Rückfall-Kopien des Seed-Baums (F0): gehören nicht ins Image und
+# würden bei jeder neuen Sicherung den Layer-Cache brechen.
+backups
+
 # Secrets never enter an image layer (they would survive in the history even if
 # a later layer deleted them).
 **/.env

@@ -21,6 +21,19 @@ portiert). Alle 13 Funktionskoerper sind sonst byte-identisch (AST-Diff-Gate).
 ``rag_url_index`` ist noch unportiert (P6-RAG): Stage 3b (``rag_top_sources``)
 degradiert bis dahin graceful ueber das umgebende ``try/except`` — ein reiner
 Enrichment-Pfad, der Rest des Injektors ist voll funktional.
+
+**C1-f2b3:** ``find_response_urls``/``find_response_url``/``inject_guide_qr`` tragen
+jetzt ein ``lang``, und die beiden Ersatz-Beschriftungen, die der Injektor SELBST
+formuliert, kommen aus ``i18n/bot_text``.
+
+**C1-g2a:** die Config-Schema-Entscheidung ist gefallen — ``02-domain/guide-rules.yaml``
+traegt je Regel ein ``label_en``, und ``find_guide_match`` waehlt mit ``lang``.
+Gewaehlt wird HIER und nicht beim Laden: ``_COMPILED`` lebt pro Prozess, die
+Sprache gehoert zum Zug. ``_RULES`` bleibt einsprachig (Notbremse fuer eine
+kaputte YAML, kein Pflegeort), ``_RAG_AREA_URLS`` ebenfalls — dessen YAML-Zwilling
+``rag_area_rules`` wird zwar geladen und im Studio angezeigt, aber von NIEMANDEM
+gelesen (ALT-verbatim). Dort ``label_en`` anzubauen hiesse, Maschinerie ohne
+Verbraucher zu bauen.
 """
 
 from __future__ import annotations
@@ -28,6 +41,8 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterable
+
+from boerdi.i18n import DEFAULT, Locale, bot_text, pick_localized
 
 logger = logging.getLogger(__name__)
 
@@ -183,11 +198,14 @@ _RAG_AREA_URLS: dict[str, tuple[str, str, str]] = {
 
 
 # Cache der kompilierten Regexen — ohne Re-Compile pro Call.
-_COMPILED: list[tuple[re.Pattern, str, str, int]] | None = None
+# Eintrag: ``(regex, label, label_en, url, priority)``. Die englische
+# Beschriftung reist MIT statt aufgelöst zu werden: der Cache lebt pro Prozess
+# und ist sprachunabhängig, die Sprache gehört aber zum Zug (C1-g2a).
+_COMPILED: list[tuple[re.Pattern, str, str, str, int]] | None = None
 _COMPILED_SOURCE: str = ""  # "yaml" | "hardcoded" — fürs Logging
 
 
-def _compiled() -> list[tuple[re.Pattern, str, str, int]]:
+def _compiled() -> list[tuple[re.Pattern, str, str, str, int]]:
     """Liefert die kompilierten Lotsen-Regex-Regeln.
 
     Welle E (2026-05-23) — Vorrang hat ``02-domain/guide-rules.yaml``
@@ -200,14 +218,14 @@ def _compiled() -> list[tuple[re.Pattern, str, str, int]]:
     if _COMPILED is not None:
         return _COMPILED
 
-    rules_source: list[tuple[str, str, str, int]] = []
+    rules_source: list[tuple[str, str, str, str, int]] = []
     try:
         from boerdi.services.config_loader import load_guide_rules_config
         cfg = load_guide_rules_config() or {}
         yaml_msgs = cfg.get("message_rules") or []
         for item in yaml_msgs:
             rules_source.append((
-                item["pattern"], item["label"],
+                item["pattern"], item["label"], item.get("label_en", ""),
                 item["url"], int(item["priority"]),
             ))
         if rules_source:
@@ -217,12 +235,15 @@ def _compiled() -> list[tuple[re.Pattern, str, str, int]]:
         logger.warning("guide-rules YAML load failed (%s) — using hardcoded fallback", e)
 
     if not rules_source:
-        rules_source = list(_RULES)
+        # Der hartkodierte Rückfall bleibt einsprachig: er ist die Notbremse für
+        # eine kaputte YAML, kein Pflegeort. Das leere Feld heißt „nicht
+        # gepflegt" und lässt `pick_localized` das deutsche Label nehmen.
+        rules_source = [(pat, label, "", url, prio) for (pat, label, url, prio) in _RULES]
         _COMPILED_SOURCE = "hardcoded"
 
     _COMPILED = [
-        (re.compile(pat, re.IGNORECASE), label, url, prio)
-        for (pat, label, url, prio) in rules_source
+        (re.compile(pat, re.IGNORECASE), label, label_en, url, prio)
+        for (pat, label, label_en, url, prio) in rules_source
     ]
     return _COMPILED
 
@@ -264,9 +285,13 @@ def _format_qr(label: str, url: str) -> str:
     return f"{GUIDE_QR_PREFIX}{label}|{_normalize_to_https(url)}"
 
 
-def find_guide_match(message: str) -> tuple[str, str] | None:
+def find_guide_match(message: str, lang: Locale = DEFAULT) -> tuple[str, str] | None:
     """Return ``(label, url)`` for the highest-priority pattern that
     matches ``message``, or ``None`` when no pattern matches.
+
+    ``lang`` picks between the two labels the rule carries (C1-g2a). The choice
+    happens here rather than in the loader because the compiled rules are
+    cached per process, which the language is not.
 
     Pure function — no side effects, no I/O. Call sites can use it for
     direct lookups (e.g. when composing tool-arg replies).
@@ -274,10 +299,10 @@ def find_guide_match(message: str) -> tuple[str, str] | None:
     if not message or not isinstance(message, str):
         return None
     best: tuple[str, str, int] | None = None  # (label, url, prio)
-    for pat, label, url, prio in _compiled():
+    for pat, label, label_en, url, prio in _compiled():
         if pat.search(message):
             if best is None or prio > best[2]:
-                best = (label, url, prio)
+                best = (pick_localized(label, label_en, lang), url, prio)
     if best is None:
         return None
     return best[0], best[1]
@@ -345,7 +370,9 @@ _MD_LINK_RE = re.compile(
 )
 
 
-def find_response_urls(response_text: str | None) -> list[tuple[str, str]]:
+def find_response_urls(
+    response_text: str | None, lang: Locale = DEFAULT,
+) -> list[tuple[str, str]]:
     """Extract ALL allow-listed URLs from the bot's Markdown response in
     document order. Returns a list of ``(label, url)`` tuples — empty
     if no usable URL was found.
@@ -391,10 +418,15 @@ def find_response_urls(response_text: str | None) -> list[tuple[str, str]]:
         if not eff_label:
             try:
                 from urllib.parse import urlparse
-                last_seg = urlparse(url).path.rstrip("/").split("/")[-1] or "Quell-Seite"
+                # Der Ersatztext läuft hier noch durch das Slug-Aufhübschen
+                # und verliert dabei seinen Bindestrich („Quell Seite"). Das
+                # ist ALT-Verhalten und bleibt so — die Schwester-Stelle in
+                # Stage 3b zeigt denselben Schlüssel unverändert an.
+                last_seg = (urlparse(url).path.rstrip("/").split("/")[-1]
+                            or bot_text(lang, "guide.label.sourcePage"))
                 eff_label = last_seg.replace("-", " ").title()
             except Exception:
-                eff_label = "Mehr erfahren"
+                eff_label = bot_text(lang, "guide.label.learnMore")
         if len(eff_label) > 50:
             eff_label = eff_label[:47] + "…"
         if _is_domain_root(url):
@@ -410,10 +442,12 @@ def find_response_urls(response_text: str | None) -> list[tuple[str, str]]:
     return specific + domain_roots
 
 
-def find_response_url(response_text: str | None) -> tuple[str, str] | None:
+def find_response_url(
+    response_text: str | None, lang: Locale = DEFAULT,
+) -> tuple[str, str] | None:
     """Backward-compatible single-result variant of
     :func:`find_response_urls`. Returns the first hit or ``None``."""
-    hits = find_response_urls(response_text)
+    hits = find_response_urls(response_text, lang)
     return hits[0] if hits else None
 
 
@@ -475,6 +509,7 @@ def inject_guide_qr(
     response_text: str | None = None,
     rag_top_sources: Iterable[str] | None = None,
     max_guide_qrs: int = 2,
+    lang: Locale = DEFAULT,
 ) -> list[str]:
     """Return a copy of ``quick_replies`` with a Guide-QR added (or
     upgraded) when appropriate.
@@ -522,7 +557,7 @@ def inject_guide_qr(
         candidates.append((label, _normalize_to_https(url), source))
 
     # Stage 1 (specific): Message-Regex mit Sub-Pfad-URL.
-    msg_match = find_guide_match(message)
+    msg_match = find_guide_match(message, lang)
     msg_specific = msg_match is not None and not _is_domain_root(msg_match[1])
     if msg_specific:
         _add(msg_match[0], msg_match[1], "message-regex")
@@ -548,7 +583,7 @@ def inject_guide_qr(
     # Bot zwei distinkte URLs verlinkt (z.B. ``[WLO](…) und [Angebote](…)``),
     # werden beide als Guide-QR-Kandidaten registriert und tauchen
     # bei ``max_guide_qrs >= 2`` als getrennte Buttons auf.
-    for r_label, r_url in find_response_urls(response_text):
+    for r_label, r_url in find_response_urls(response_text, lang):
         _add(r_label, r_url, "response-url")
 
     # Stage 3b: RAG-Chunk-Frontmatter-URL.
@@ -565,7 +600,8 @@ def inject_guide_qr(
                 if chunk_url and _allow_listed_host(chunk_url) and not _is_domain_root(chunk_url):
                     from urllib.parse import urlparse
                     last_seg = urlparse(chunk_url).path.rstrip("/").split("/")[-1] or ""
-                    label = (last_seg.replace("-", " ").title() if last_seg else "Quell-Seite")
+                    label = (last_seg.replace("-", " ").title() if last_seg
+                             else bot_text(lang, "guide.label.sourcePage"))
                     if len(label) > 50:
                         label = label[:47] + "…"
                     _add(label, chunk_url, "rag-chunk-url")

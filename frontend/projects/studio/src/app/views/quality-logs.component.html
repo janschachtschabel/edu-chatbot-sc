@@ -1,47 +1,47 @@
 <form class="ql-filters" (submit)="apply($event)">
   <label class="ql-field" for="ql-pattern">
-    Pattern-ID
+    {{ t('qualLogs.pattern') }}
     <input
       id="ql-pattern"
       type="search"
       autocomplete="off"
-      placeholder="z. B. M04"
+      [placeholder]="t('qualLogs.pattern.hint')"
       [value]="draftPattern()"
       (input)="draftPattern.set($any($event.target).value)"
     />
   </label>
   <label class="ql-field" for="ql-intent">
-    Intent-ID
+    {{ t('qualLogs.intent') }}
     <input
       id="ql-intent"
       type="search"
       autocomplete="off"
-      placeholder="z. B. I02"
+      [placeholder]="t('qualLogs.intent.hint')"
       [value]="draftIntent()"
       (input)="draftIntent.set($any($event.target).value)"
     />
   </label>
   <label class="ql-field" for="ql-session">
-    Session-ID
+    {{ t('qualLogs.session') }}
     <input
       id="ql-session"
       type="search"
       autocomplete="off"
-      placeholder="vollständige ID"
+      [placeholder]="t('qualLogs.session.hint')"
       [value]="draftSession()"
       (input)="draftSession.set($any($event.target).value)"
     />
   </label>
 
-  <button type="submit" class="ql-apply">Filtern</button>
+  <button type="submit" class="ql-apply">{{ t('qualLogs.apply') }}</button>
   @if (hasFilter()) {
-    <button type="button" class="ql-reset" (click)="reset()">Filter zurücksetzen</button>
+    <button type="button" class="ql-reset" (click)="reset()">{{ t('qualLogs.reset') }}</button>
   }
   <button type="button" class="ql-reload" [disabled]="logs.loading()" (click)="reload()">
-    {{ logs.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+    {{ logs.loading() ? t('action.refreshing') : t('action.refresh') }}
   </button>
   <button type="button" class="ql-clear" [disabled]="working()" (click)="arm({ kind: 'bulk' })">
-    {{ hasFilter() ? 'Gefilterte löschen' : 'Alle löschen' }}
+    {{ hasFilter() ? t('qualLogs.clearFiltered') : t('qualLogs.clearAll') }}
   </button>
 </form>
 
@@ -50,9 +50,9 @@
     <div class="ql-danger">
       <p class="ql-question" role="alert">{{ bulkQuestion() }}</p>
       <button type="button" class="ql-confirm" [disabled]="working()" (click)="confirm()">
-        Ja, löschen
+        {{ t('action.confirmDelete') }}
       </button>
-      <button type="button" class="ql-cancel" (click)="disarm()">Abbrechen</button>
+      <button type="button" class="ql-cancel" (click)="disarm()">{{ t('action.cancel') }}</button>
     </div>
   }
 }
@@ -65,7 +65,7 @@
 }
 
 <studio-async-state
-  label="Turns"
+  [label]="t('qualLogs.label')"
   [loading]="logs.loading()"
   [error]="logs.error()"
   [empty]="logs.isEmpty()"
@@ -76,7 +76,7 @@
 @if (rows().length > 0) {
   <div class="ql-split">
     <div class="ql-list">
-      <p class="ql-count">{{ rows().length }} Turns · neueste zuerst</p>
+      <p class="ql-count">{{ countLine() }}</p>
       <ul class="ql-items">
         @for (row of rows(); track row.id) {
           <li class="ql-item">
@@ -91,32 +91,36 @@
                 <span class="ql-mono">{{ row.pattern_id }}</span>
                 <span class="ql-when">{{ when(row.created_at) }}</span>
               </span>
-              <span class="ql-row-message">{{ row.message || '(leere Nachricht)' }}</span>
+              <span class="ql-row-message">{{ row.message || t('qualLogs.emptyMessage') }}</span>
               <span class="ql-row-meta">
-                {{ row.intent_id }} · Confidence {{ confidence(row.final_confidence) }}
+                {{ row.intent_id }} · {{ t('qualLogs.confidence') }}
+                {{ confidence(row.final_confidence) }}
                 @if (row.degradation) {
-                  · <span class="ql-flag">Degradation</span>
+                  · <span class="ql-flag">{{ t('qualLogs.degradation') }}</span>
                 }
               </span>
             </button>
 
             @if (isArmed(row.id)) {
               <div class="ql-danger">
-                <p class="ql-question" role="alert">Turn #{{ row.id }} endgültig löschen?</p>
+                <p class="ql-question" role="alert">{{
+                  t('qualLogs.confirmOne', { id: row.id }) }}</p>
                 <button type="button" class="ql-confirm" [disabled]="working()" (click)="confirm()">
-                  Ja, löschen
+                  {{ t('action.confirmDelete') }}
                 </button>
-                <button type="button" class="ql-cancel" (click)="disarm()">Abbrechen</button>
+                <button type="button" class="ql-cancel" (click)="disarm()">{{
+                  t('action.cancel') }}</button>
               </div>
             } @else {
+              <!-- EIN zugänglicher Name statt sichtbarem Wort plus `sr`-Anhang;
+                   er beginnt mit dem sichtbaren Wort (WCAG 2.5.3). -->
               <button
                 type="button"
                 class="ql-arm"
                 [disabled]="working()"
+                [attr.aria-label]="t('qualLogs.deleteFor', { id: row.id })"
                 (click)="arm({ kind: 'one', id: row.id })"
-              >
-                Löschen<span class="sr"> — Turn #{{ row.id }}</span>
-              </button>
+              >{{ t('qualLogs.delete') }}</button>
             }
           </li>
         }
@@ -127,7 +131,7 @@
       @if (openLog(); as turn) {
         <studio-quality-log-detail [log]="turn" (dismiss)="selected.set(0)" />
       } @else {
-        <p class="ql-hint">Wähle links einen Turn, um Signale, Entities und Werkzeuge zu sehen.</p>
+        <p class="ql-hint">{{ t('qualLogs.hint') }}</p>
       }
     </div>
   </div>

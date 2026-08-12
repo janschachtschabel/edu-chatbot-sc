@@ -34,6 +34,9 @@ class McpServersArea(AreaModel):
 class MessageRule(AreaModel):
     pattern: str = ""
     label: str = ""
+    # C1-g2a: die englische Beschriftung des Lotsen-Chips. Leer = nicht
+    # gepflegt; die Wahl trifft `guide_qr_injector` im Zug, nicht der Loader.
+    label_en: str = ""
     url: str = ""
     priority: int = 50
 

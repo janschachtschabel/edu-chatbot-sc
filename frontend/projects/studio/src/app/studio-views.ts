@@ -10,7 +10,14 @@
  *
  * ALT had NO routes at all: all 17 views were `useState<Layer>` inside a single
  * page, so there is no URL contract to port. Slugs are therefore new and German,
- * matching the German content convention (labels and slugs stay in sync).
+ * matching the German content convention.
+ *
+ * Since C1-d2 the registry carries catalogue KEYS rather than the German words:
+ * the studio speaks two languages, and a label sitting here would be the one
+ * place the switch cannot reach. The slug stays German and stable — it is a URL,
+ * not a text, and translating it would break every bookmark on every switch.
+ * `i18n/de.ts` holds the words; `studio-views.spec.ts` pins the key convention
+ * and `i18n/views-i18n.spec.ts` pins that every key is in both catalogues.
  */
 
 /** Sidebar grouping, in display order. `null` = the ungrouped first item. */
@@ -19,98 +26,105 @@ export type StudioGroup = 'start' | 'konfiguration' | 'auswertung' | 'system';
 export interface StudioView {
   /** URL segment under /studio/ — also the route path. */
   readonly slug: string;
-  /** Nav label and page heading. ALT had two views where these disagreed. */
-  readonly label: string;
-  /** One-line hint under the nav label (ALT `desc`). */
-  readonly desc: string;
+  /** Catalogue key of the nav label and page heading (`view.<slug>.label`).
+   *  ALT had two views where nav label and heading disagreed. */
+  readonly labelKey: string;
+  /** Catalogue key of the one-line hint under the nav label (ALT `desc`). */
+  readonly descKey: string;
   readonly group: StudioGroup;
-  /** The P9 slice that replaces the placeholder with the real view. */
+  /** The slice that replaces the placeholder with the real view — a P9 one for
+   *  everything ported from ALT, or the package that invented it (K5). */
   readonly paket: string;
 }
 
 export const STUDIO_VIEWS: readonly StudioView[] = [
   {
-    slug: 'uebersicht', label: 'Übersicht', desc: 'Start, Architektur & Status',
+    slug: 'uebersicht', labelKey: 'view.uebersicht.label', descKey: 'view.uebersicht.desc',
     group: 'start', paket: '9-5',
   },
   {
-    slug: 'begruessung', label: 'Begrüßung', desc: 'Start-Text & Start-Quick-Replies',
+    slug: 'begruessung', labelKey: 'view.begruessung.label', descKey: 'view.begruessung.desc',
     group: 'konfiguration', paket: '9-4',
   },
   {
-    slug: 'kontext-aktionen', label: 'Kontext-Aktionen',
-    desc: 'Proaktive Begrüßung + Pills je Seitentyp', group: 'konfiguration', paket: '9-4',
+    slug: 'kontext-aktionen', labelKey: 'view.kontext-aktionen.label',
+    descKey: 'view.kontext-aktionen.desc', group: 'konfiguration', paket: '9-4',
   },
   {
-    slug: 'identitaet', label: 'Identität & Schutz',
-    // "Geräte" stood here until 9-4c: device-config belongs to Anzeige (§5.6),
-    // and naming it in two places would send editors to the wrong page.
-    desc: 'Sicherheitslevel, Persona, Leitplanken, Regelwerk',
+    // "Geräte" stood in this description until 9-4c: device-config belongs to
+    // Anzeige (§5.6), and naming it in two places would send editors astray.
+    slug: 'identitaet', labelKey: 'view.identitaet.label', descKey: 'view.identitaet.desc',
     group: 'konfiguration', paket: '9-4',
   },
   {
-    slug: 'domain-wissen', label: 'Domain-Wissen', desc: 'Plattform-Wissen, Web-Tour',
+    slug: 'domain-wissen', labelKey: 'view.domain-wissen.label',
+    descKey: 'view.domain-wissen.desc', group: 'konfiguration', paket: '9-4',
+  },
+  {
+    slug: 'patterns', labelKey: 'view.patterns.label', descKey: 'view.patterns.desc',
     group: 'konfiguration', paket: '9-4',
   },
   {
-    slug: 'patterns', label: 'Patterns', desc: 'Gesprächsmuster',
+    slug: 'dimensionen', labelKey: 'view.dimensionen.label', descKey: 'view.dimensionen.desc',
     group: 'konfiguration', paket: '9-4',
   },
   {
-    slug: 'dimensionen', label: 'Dimensionen', desc: 'Personas, Intents, States, Entities',
+    slug: 'material-formate', labelKey: 'view.material-formate.label',
+    descKey: 'view.material-formate.desc', group: 'konfiguration', paket: '9-4',
+  },
+  {
+    slug: 'wissen', labelKey: 'view.wissen.label', descKey: 'view.wissen.desc',
     group: 'konfiguration', paket: '9-4',
   },
   {
-    slug: 'material-formate', label: 'Material-Formate', desc: 'Material-Typen, Aliase, Trigger',
-    group: 'konfiguration', paket: '9-4',
-  },
-  {
-    slug: 'wissen', label: 'Wissen', desc: 'RAG-Bereiche & MCP-Tools',
-    group: 'konfiguration', paket: '9-4',
-  },
-  {
-    slug: 'sessions', label: 'Sessions', desc: 'Gesprächsverläufe',
+    slug: 'sessions', labelKey: 'view.sessions.label', descKey: 'view.sessions.desc',
     group: 'auswertung', paket: '9-5',
   },
   {
-    slug: 'analyse', label: 'Analyse', desc: 'Pattern-/Intent-Verteilung, Diagnose',
+    slug: 'analyse', labelKey: 'view.analyse.label', descKey: 'view.analyse.desc',
     group: 'auswertung', paket: '9-5',
   },
   {
-    slug: 'evaluation', label: 'Evaluation', desc: 'Persona-Dialoge & Gold-Flows',
+    slug: 'evaluation', labelKey: 'view.evaluation.label', descKey: 'view.evaluation.desc',
     group: 'auswertung', paket: '9-5',
   },
   {
-    slug: 'lasttest', label: 'Lasttest', desc: 'Skalierbarkeit & Ressourcen',
+    slug: 'lasttest', labelKey: 'view.lasttest.label', descKey: 'view.lasttest.desc',
     group: 'auswertung', paket: '9-5',
   },
   {
-    slug: 'safety-logs', label: 'Safety-Logs', desc: 'Risiko-Events & Rate-Limits',
+    slug: 'safety-logs', labelKey: 'view.safety-logs.label', descKey: 'view.safety-logs.desc',
     group: 'auswertung', paket: '9-5',
   },
   {
-    slug: 'anzeige', label: 'Anzeige', desc: 'Boxen, Schriftgrößen, Geräte-Limits',
+    // Kein ALT-Gegenstück: ALT rechnete überhaupt nicht ab. Die Ansicht kommt
+    // mit der Kostenüberwachung (K5), nicht aus dem P9-Port.
+    slug: 'kosten', labelKey: 'view.kosten.label', descKey: 'view.kosten.desc',
+    group: 'auswertung', paket: 'K5',
+  },
+  {
+    slug: 'anzeige', labelKey: 'view.anzeige.label', descKey: 'view.anzeige.desc',
     group: 'system', paket: '9-4',
   },
   {
-    slug: 'datenschutz', label: 'Datenschutz', desc: 'Logging & Purge',
+    slug: 'datenschutz', labelKey: 'view.datenschutz.label', descKey: 'view.datenschutz.desc',
     group: 'system', paket: '9-4',
   },
   {
-    slug: 'bereiche', label: 'Alle Bereiche', desc: 'Jede Konfigurationsdatei, generisch editierbar',
+    slug: 'bereiche', labelKey: 'view.bereiche.label', descKey: 'view.bereiche.desc',
     group: 'system', paket: '9-3',
   },
   {
     // ALT reached this through three header buttons and a modal; 9-2 recorded it
     // as "header chrome" and left it out of the view count. 9-6 makes it a view —
     // see backup.component.ts for why the modal was not rebuilt.
-    slug: 'sicherung', label: 'Sicherung', desc: 'Snapshots, Backup & Werksstand',
+    slug: 'sicherung', labelKey: 'view.sicherung.label', descKey: 'view.sicherung.desc',
     group: 'system', paket: '9-6',
   },
   {
     // Verbesserung V8, kein ALT-Gegenstück: dort ließ sich eine Änderung nur
     // auf einer echten Host-Seite ansehen.
-    slug: 'vorschau', label: 'Vorschau', desc: 'Das echte Widget mit dieser Konfiguration',
+    slug: 'vorschau', labelKey: 'view.vorschau.label', descKey: 'view.vorschau.desc',
     group: 'system', paket: '9-6',
   },
 ];
@@ -118,22 +132,23 @@ export const STUDIO_VIEWS: readonly StudioView[] = [
 /** The view the studio opens on. */
 export const DEFAULT_VIEW = 'uebersicht';
 
-const GROUP_TITLES: Record<StudioGroup, string | null> = {
+const GROUP_TITLE_KEYS: Record<StudioGroup, string | null> = {
   start: null, // the single Übersicht entry sits above the first heading
-  konfiguration: 'Konfiguration',
-  auswertung: 'Auswertung',
-  system: 'System',
+  konfiguration: 'nav.group.konfiguration',
+  auswertung: 'nav.group.auswertung',
+  system: 'nav.group.system',
 };
 
 const GROUP_ORDER: readonly StudioGroup[] = ['start', 'konfiguration', 'auswertung', 'system'];
 
 export interface NavGroup {
-  readonly title: string | null;
+  /** Catalogue key of the group heading; `null` = no heading at all. */
+  readonly titleKey: string | null;
   readonly views: readonly StudioView[];
 }
 
 /** Sidebar structure — grouped, in display order, empty groups dropped. */
 export const NAV_GROUPS: readonly NavGroup[] = GROUP_ORDER.map((group) => ({
-  title: GROUP_TITLES[group],
+  titleKey: GROUP_TITLE_KEYS[group],
   views: STUDIO_VIEWS.filter((v) => v.group === group),
 })).filter((g) => g.views.length > 0);

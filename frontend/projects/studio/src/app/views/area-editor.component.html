@@ -1,14 +1,14 @@
 <header class="ae-head">
-  <p class="ae-crumb">Konfigurationsbereich</p>
+  <p class="ae-crumb">{{ t('areaEditor.crumb') }}</p>
   <h2 class="ae-title">{{ area() }}</h2>
 </header>
 
 @if (loading()) {
-  <p class="ae-state" aria-busy="true">Bereich wird geladen …</p>
+  <p class="ae-state" aria-busy="true">{{ t('areaEditor.loading') }}</p>
 } @else if (loadError()) {
   <div class="ae-state ae-state--error" role="alert">
     <p>{{ loadError() }}</p>
-    <button type="button" class="ae-btn" (click)="load()">Erneut versuchen</button>
+    <button type="button" class="ae-btn" (click)="load()">{{ t('async.retry') }}</button>
   </div>
 } @else {
   <!-- Both panels stay in the DOM (`hidden` on the inactive one) so every
@@ -16,7 +16,7 @@
   <studio-tab-bar
     [tabs]="tabs()"
     [active]="activeTab()"
-    label="Ansicht des Bereichs"
+    [label]="t('areaEditor.tabsLabel')"
     (tabChange)="onTabChange($event)"
   />
 
@@ -47,8 +47,7 @@
   >
     <label class="ae-raw-label" for="ae-raw">
       {{ filePath() }}
-      <span class="ae-hint">— die vollständige Quelle, inklusive aller Schlüssel, die das
-        Formular nicht kennt.</span>
+      <span class="ae-hint">— {{ t('areaEditor.rawHint') }}</span>
     </label>
     <textarea
       id="ae-raw"
@@ -67,13 +66,13 @@
       [disabled]="saving() || !dirty() || blocked()"
       (click)="save()"
     >
-      {{ saving() ? 'Wird gespeichert …' : 'Speichern' }}
+      {{ saving() ? t('editor.saving') : t('editor.save') }}
     </button>
     <button type="button" class="ae-btn" [disabled]="saving() || !dirty()" (click)="discard()">
-      Verwerfen
+      {{ t('editor.discard') }}
     </button>
     @if (dirty()) {
-      <span class="ae-dirty">Ungespeicherte Änderungen</span>
+      <span class="ae-dirty">{{ t('editor.unsaved') }}</span>
     }
   </div>
 

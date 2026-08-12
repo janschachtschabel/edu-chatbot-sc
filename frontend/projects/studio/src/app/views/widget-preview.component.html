@@ -1,27 +1,18 @@
 <div class="wp">
   <header class="wp-head">
-    <h1 class="wp-title">Vorschau</h1>
-    <p class="wp-intro">
-      Das echte Chat-Widget mit dem aktuellen Stand der Konfiguration. Es spricht
-      mit dem Backend dieser Studio-Instanz (<code>{{ apiUrl }}</code>) und
-      schwebt unten rechts über dieser Seite — genauso wie auf einer Host-Seite.
-      Begrüßung, Quick-Replies und Lotsen-Einstellungen liest es
-      <strong>einmal beim Öffnen</strong>: nach einer Änderung neu starten.
-    </p>
+    <!-- h2 wie in backup.component.html: das einzige h1 der Seite ist die
+         Marke in der Shell-Kopfzeile (WCAG 1.3.1). -->
+    <h2 class="wp-title">{{ t('view.vorschau.label') }}</h2>
+    <p class="wp-intro">{{ t('preview.intro', { apiUrl }) }}</p>
   </header>
 
   <section class="op-panel" aria-labelledby="wp-context-title">
-    <h2 class="op-title" id="wp-context-title">Seitenkontext</h2>
-    <p class="op-lead">
-      Auf einer echten Seite erkennt das Widget den Kontext selbst; hier wird er
-      vorgegeben. Nur diese drei Seitentypen lösen die proaktive Begrüßung samt
-      Kontext-Pills aus — ohne ID oder Slug bleibt sie aus, weil das Backend
-      nichts aufzulösen hat.
-    </p>
+    <h2 class="op-title" id="wp-context-title">{{ t('preview.context.title') }}</h2>
+    <p class="op-lead">{{ t('preview.context.lead') }}</p>
 
     <form class="wp-form" (submit)="apply($event)">
       <label class="op-label wp-field" for="wp-kind">
-        Seitentyp
+        {{ t('preview.kindLabel') }}
         <select
           id="wp-kind"
           class="op-input"
@@ -29,7 +20,7 @@
           (change)="onKind($any($event.target).value)"
         >
           @for (option of kinds; track option.id) {
-            <option [value]="option.id">{{ option.label }}</option>
+            <option [value]="option.id">{{ t(option.labelKey) }}</option>
           }
         </select>
       </label>
@@ -51,7 +42,7 @@
       }
 
       <button type="submit" class="op-btn op-btn--primary wp-submit">
-        Vorschau neu starten
+        {{ t('preview.restart') }}
       </button>
     </form>
   </section>
@@ -61,18 +52,15 @@
        ohne sich sonst anzukündigen. -->
   <p class="wp-state" role="status">
     @switch (status()) {
-      @case ('laden') { Das Widget wird geladen … }
-      @case ('bereit') { Das Widget ist bereit und schwebt unten rechts über der Seite. }
+      @case ('laden') { {{ t('preview.state.loading') }} }
+      @case ('bereit') { {{ t('preview.state.ready') }} }
     }
   </p>
 
   @if (status() === 'fehler') {
-    <p class="op-msg op-msg--error" role="alert">
-      ⚠ Die Vorschau konnte nicht geladen werden. Beim zweiten Versuch klappt es
-      meist; bleibt es dabei, fehlt dem Studio-Build das Widget-Bündel.
-    </p>
+    <p class="op-msg op-msg--error" role="alert">⚠ {{ t('preview.error') }}</p>
     <div class="op-actions">
-      <button type="button" class="op-btn" (click)="load()">Erneut versuchen</button>
+      <button type="button" class="op-btn" (click)="load()">{{ t('async.retry') }}</button>
     </div>
   }
 

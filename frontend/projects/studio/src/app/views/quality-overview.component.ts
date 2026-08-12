@@ -14,13 +14,14 @@ import {
 } from '@angular/core';
 
 import { AsyncData } from '../core/async-data';
-import { formatDecimal, formatPercent, formatWhole } from '../core/format';
 import {
   QualityApi, type LogFilters, type QualityScope, type QualityStats,
 } from '../core/quality-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
 import { QualityBarsComponent } from './quality-bars.component';
 import { QualityDiagnosisComponent } from './quality-diagnosis.component';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 /** ALT's thresholds for the advisory box, kept so the same runs read the same. */
 const DEGRADATION_HINT = 0.05;
@@ -34,6 +35,13 @@ const EMPTY_ENTITY_HINT = 0.3;
   styleUrl: './quality-overview.component.scss',
 })
 export class QualityOverviewComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  /** Uebersetzer fuer den Fehlersatz der Leseoperationen und fuer die
+   *  Texte dieser Ansicht. */
+  protected readonly t = inject(StudioLanguageService).t;
+
   private readonly api = inject(QualityApi);
 
   readonly scope = input.required<QualityScope>();
@@ -43,23 +51,25 @@ export class QualityOverviewComponent {
 
   private readonly diagnosis = viewChild(QualityDiagnosisComponent);
 
-  readonly stats = new AsyncData<QualityStats>(() => this.api.stats(this.scope()));
+  readonly stats = new AsyncData<QualityStats>(() => this.api.stats(this.scope()), this.t);
   readonly value = computed(() => this.stats.value());
 
   /** Loaded, and the installation has not answered a single turn yet. */
   readonly isEmpty = computed(() => this.value()?.total_turns === 0);
 
+  /** Ganze Sätze aus dem Katalog: bis C1-d4d1 setzte die Komponente sie aus
+   *  zwei Zeichenketten und dem Prozentwert zusammen — die Wortstellung gehört
+   *  der Übersetzung, nicht dem Aufrufer. */
   readonly hints = computed<readonly string[]>(() => {
     const stats = this.value();
     if (!stats) return [];
     const out: string[] = [];
     if (stats.degradation_rate > DEGRADATION_HINT) {
-      out.push(`Degradation-Rate bei ${this.percent(stats.degradation_rate)} — `
-        + 'Pflicht-Slots der betroffenen Patterns prüfen.');
+      out.push(this.t('qual.hint.degradation', { value: this.percent(stats.degradation_rate) }));
     }
     if (stats.empty_entity_rate > EMPTY_ENTITY_HINT) {
-      out.push(`${this.percent(stats.empty_entity_rate)} der Turns ohne erkannte Entities — `
-        + 'Entity-Erkennung im Classifier prüfen.');
+      out.push(this.t('qual.hint.emptyEntities',
+        { value: this.percent(stats.empty_entity_rate) }));
     }
     return out;
   });
@@ -82,14 +92,14 @@ export class QualityOverviewComponent {
   }
 
   decimal(value: number): string {
-    return formatDecimal(value);
+    return this.fmt.decimal(value);
   }
 
   percent(value: number): string {
-    return formatPercent(value);
+    return this.fmt.percent(value);
   }
 
   whole(value: number): string {
-    return formatWhole(value);
+    return this.fmt.whole(value);
   }
 }

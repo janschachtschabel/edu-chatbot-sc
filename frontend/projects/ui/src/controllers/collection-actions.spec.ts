@@ -2,11 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { WloCard } from '../cards/card-types';
 import { ChatMessage, ChatResponse, DebugInfo, PaginationInfo } from '../grouping/message-types';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import {
   CollectionActionsContext,
   browseCollection,
   generateLearningPath,
   loadMore,
+  showContentText,
   showMoreCards,
 } from './collection-actions';
 
@@ -33,6 +36,7 @@ interface CtxOpts {
   isLoading?: () => boolean;
   initialMessages?: ChatMessage[];
   messagesContainer?: () => HTMLElement | undefined;
+  t?: CollectionActionsContext['t'];
 }
 
 function makeCtx(opts: CtxOpts = {}): { ctx: CollectionActionsContext; calls: Calls; getMessages: () => ChatMessage[] } {
@@ -64,6 +68,7 @@ function makeCtx(opts: CtxOpts = {}): { ctx: CollectionActionsContext; calls: Ca
     setLatestDebug: (d) => calls.debug.push(d),
     dispatchPageAction: (pa) => calls.page.push(pa),
     messagesContainer: opts.messagesContainer ?? (() => undefined),
+    t: opts.t ?? createTranslator(DE, DE),
   };
   return { ctx, calls, getMessages: () => messages };
 }
@@ -130,6 +135,79 @@ describe('browseCollection', () => {
     expect(err).toBeTruthy();
     expect(calls.scroll).toEqual([err.id]);
     expect(calls.page).toEqual([]);
+    expect(calls.loading).toEqual([true, false]);
+  });
+});
+
+describe('Fehler-Bubbles kommen aus dem Übersetzer (C1-b4)', () => {
+  const EN = {
+    'error.browseCollection': 'Could not load the contents of "{title}".',
+    'error.contentText': 'Could not load the content of "{title}".',
+    'error.learningPath': 'Could not build a learning path for "{title}".',
+  };
+
+  it('alle drei Aktionen übersetzen ihre Fehlermeldung', async () => {
+    const boom = () => { throw new Error('x'); };
+    for (const [lauf, erwartet] of [
+      [browseCollection, 'Could not load the contents of "Mathe".'],
+      [showContentText, 'Could not load the content of "Mathe".'],
+      [generateLearningPath, 'Could not build a learning path for "Mathe".'],
+    ] as const) {
+      const { ctx, calls } = makeCtx({ respond: boom, t: createTranslator(EN, DE) });
+      await lauf('c1', 'Mathe', ctx);
+      expect(calls.bot.some((b) => b.content === erwartet)).toBe(true);
+    }
+  });
+
+  it('der GESENDETE Text bleibt deutsch — er ist die Anweisung ans Backend, kein Oberflächentext', async () => {
+    const { ctx, calls } = makeCtx({ t: createTranslator(EN, DE) });
+    await browseCollection('c1', 'Mathe', ctx);
+    expect(calls.sent[0].message).toBe('Inhalte der Sammlung "Mathe"');
+  });
+});
+
+describe('showContentText (M17)', () => {
+  it('Loading-Bubble → sendMessage(show_content_text) → Dokument-Box im Bot-Turn', async () => {
+    const doc = { kind: 'volltext', title: 'Arbeitsblatt', content: '# Aufgabe 1' };
+    const { ctx, calls } = makeCtx({
+      respond: () => makeResp({
+        content: 'Hier ist der Inhalt.', quick_replies: ['Daran weiterarbeiten'],
+        inline_documents: [doc],
+      }),
+    });
+
+    await showContentText('n7', 'Arbeitsblatt', ctx);
+
+    expect(calls.bot[0]).toMatchObject({ content: '', loading: true });
+    expect(calls.removed).toEqual([calls.bot[0].id]);
+    // Die Aktion trägt die node_id — sie ist das, was der Server braucht.
+    expect(calls.sent).toEqual([{
+      message: 'Inhalt von "Arbeitsblatt"', env: undefined, action: 'show_content_text',
+      actionParams: { node_id: 'n7', title: 'Arbeitsblatt' },
+    }]);
+    // Die Volltext-Box muss an derselben Stelle der Render-Argumente stehen
+    // wie bei den Geschwister-Aktionen (`inline_documents` = rest[6]) — sonst
+    // landet der Text nicht in der Dokument-Box, sondern nirgends.
+    const real = calls.bot.find((b) => b.content === 'Hier ist der Inhalt.')!;
+    expect(real.rest[6]).toEqual([doc]);
+    expect(calls.scroll).toEqual([real.id]);
+    expect(calls.loading).toEqual([true, false]);
+  });
+
+  it('isLoading → No-Op (kein sendMessage, keine Bubble)', async () => {
+    const { ctx, calls } = makeCtx({ isLoading: () => true });
+    await showContentText('n7', 'Arbeitsblatt', ctx);
+    expect(calls.sent).toEqual([]);
+    expect(calls.bot).toEqual([]);
+  });
+
+  it('Fehler → Loading-Bubble weg + Fehler-Bubble + Loading false', async () => {
+    const { ctx, calls } = makeCtx({ respond: () => { throw new Error('x'); } });
+    await showContentText('n7', 'Arbeitsblatt', ctx);
+    expect(calls.removed).toEqual([calls.bot[0].id]);
+    const err = calls.bot.find((b) => b.content.includes('Arbeitsblatt'))!;
+    expect(err).toBeTruthy();
+    expect(calls.scroll).toEqual([err.id]);
     expect(calls.loading).toEqual([true, false]);
   });
 });

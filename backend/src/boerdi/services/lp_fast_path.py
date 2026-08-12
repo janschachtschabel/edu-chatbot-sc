@@ -46,12 +46,13 @@ from boerdi.domain.cards.lp_diversity import (
     _filter_cards_used_in_text,
     _get_used_lp_ids,
 )
-from boerdi.domain.lp_intent import _lp_keywords
+from boerdi.domain.lp_intent import strip_lp_command_words
 from boerdi.domain.quick_reply_policy import (
     _qr_default_count,
     _qr_policy,
     _spec_qr_response_block,
 )
+from boerdi.i18n import resolve_locale
 from boerdi.services.llm_learning_path import generate_learning_path_text
 from boerdi.services.mcp.client import call_mcp_tool
 from boerdi.services.mcp.parsers import parse_wlo_cards
@@ -190,23 +191,16 @@ async def run_lp_fast_path(
 
         # Priority 3: No session data — search for collections, fetch THEIR contents
         if not contents_text:
-            import re as _re
             # Use entity 'thema' if available (from LLM classification)
             _topic_from_entities = session_state.get("entities", {}).get("thema", "")
             _topic_msg = ""
             if _topic_from_entities:
                 topic = _topic_from_entities
             else:
-                # Extract topic by removing LP/command keywords
-                _topic_msg = _msg_lower
-                # Remove whole phrases first
-                for phrase in ["aus der sammlung", "erstelle mir", "erstelle bitte", "bitte einen", "bitte ein"]:
-                    _topic_msg = _topic_msg.replace(phrase, "")
-                # Then individual keywords
-                for kw in list(_lp_keywords) + ["erstelle", "erstell", "daraus", "einen", "ein", "bitte", "mir",
-                                                  "wie sieht", "aus", "zum thema", "zur", "zu", "für", "fuer"]:
-                    _topic_msg = _topic_msg.replace(kw, " ")
-                _topic_msg = _re.sub(r"\s+", " ", _topic_msg).strip()
+                # Extract topic by removing LP/command keywords. C1-f2c-b moved
+                # the loop next to its vocabulary (``domain/lp_intent``) so the
+                # German result stays pinned while English words joined it.
+                _topic_msg = strip_lp_command_words(_msg_lower)
             if _topic_msg:
                 topic = _topic_msg
             # Per-topic skipCount so repeated LP requests for the same topic
@@ -372,6 +366,7 @@ async def run_lp_fast_path(
                         },
                         usage_acc=usage_acc,
                         count=_lp_qr_count,
+                        lang=resolve_locale(req.environment.locale),
                     ))
                 except Exception as _sqr_err:
                     logger.warning("speculative QR start (M09) failed: %s", _sqr_err)
@@ -380,6 +375,8 @@ async def run_lp_fast_path(
                 collection_title=topic,
                 contents_text=contents_text[:6000],
                 session_state=session_state,
+                lang=resolve_locale(req.environment.locale),
+                usage_acc=usage_acc,
             )
             if _lp_reset:
                 response_text = (response_text or "") + (

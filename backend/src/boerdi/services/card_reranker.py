@@ -129,7 +129,14 @@ def rerank_gate_envelope(
     rr = None
     try:
         from boerdi.services.rag.rerank import _get_reranker
-        rr = _get_reranker()
+        from boerdi.settings import get_settings
+
+        # W9: eigener Schalter. Das Karten-Gate kostet ein Achtel des
+        # RAG-Reranks (gemessen bei 3 Threads: 227 ms fuer 25 Karten gegen
+        # 1853 ms fuer 25 Chunks) und liefert das sichtbarste Stueck Qualitaet
+        # — das Wegwerfen thematisch verfehlter Treffer. Wer den teuren Pfad
+        # abschaltet, soll diesen nicht STILL mitverlieren.
+        rr = _get_reranker() if get_settings().card_reranker_enabled else None
     except Exception as e:  # pragma: no cover
         logger.warning("card_reranker: reranker import failed: %s", e)
 

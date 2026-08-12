@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { EvalTrendsComponent } from './eval-trends.component';
 
 const TRENDS_URL = '/studio/api/eval/trends';
@@ -46,7 +47,12 @@ async function settle(): Promise<void> {
   await h.fixture.whenStable();
 }
 
-async function mount(payload: Record<string, unknown> | null = body()): Promise<void> {
+/** jsdom meldet `navigator.language === 'en-US'`; ohne die gemerkte Wahl liefe
+ *  die deutsche Oberfläche unter diesen Prüfungen auf Englisch. */
+async function mount(
+  payload: Record<string, unknown> | null = body(), locale = 'de',
+): Promise<void> {
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -184,6 +190,50 @@ describe('EvalTrendsComponent', () => {
     }));
     expect(h.el.querySelector('.as-line')!.textContent).toContain('Gold-Flow');
     expect(charts()).toHaveLength(0);
+  });
+
+  // ── C1-d4c ──────────────────────────────────────────────────────────
+  //
+  // Die gesprochene Zusammenfassung war bis hierher aus Bruchstücken
+  // zusammengesetzt (`${label}: ${current}, über N Läufe von X ${richtung}`).
+  // Sie steht jetzt als GANZER Satz im Katalog — die Wortstellung gehört der
+  // Übersetzung, nicht der Methode.
+  it('fügt die gesprochene Zusammenfassung ohne eingestreute Leerzeichen zusammen', async () => {
+    await mount();
+    const cache = charts()
+      .map((c) => c.getAttribute('aria-label') ?? '')
+      .find((l) => l.startsWith('Cache-Hit-Rate'))!;
+    // Zeichenweise verglichen statt `\s+`-normalisiert: die Prüfung soll
+    // ein versehentlich doppeltes Leerzeichen finden, und Zusammenziehen
+    // nähme ihr genau das. Vor dem Prozentzeichen steht im erwarteten Text
+    // deshalb das GESCHÜTZTE Leerzeichen (U+00A0), das `Intl` dort setzt.
+    expect(cache).toBe(
+      'Cache-Hit-Rate: aktuell 40,0 %, über 2 Läufe von 20,0 % gestiegen. '
+      + 'Werte in der Tabelle darunter.',
+    );
+  });
+
+  it('zählt den Verlauf eines Patterns in der Mehrzahl der Sprache', async () => {
+    await mount(body({
+      pattern_trend: { M06: [{ run_id: 'r1', created_at: '', rate: 0.5, ok: 1, total: 2 }] },
+    }));
+    // Ein einziger Lauf: „über 1 Läufe" wäre schon einsprachig falsch.
+    expect(h.el.querySelector('svg.et-spark')!.getAttribute('aria-label'))
+      .toContain('über 1 Lauf;');
+  });
+
+  it('spricht die ganze Ansicht in der aktiven Sprache', async () => {
+    await mount(body(), 'en');
+    const table = h.el.querySelector('table.et-table')!;
+    const headers = Array.from(table.querySelectorAll('thead th')).map(
+      (th) => th.textContent?.trim(),
+    );
+    expect(headers).toEqual([
+      'Run', 'Time', 'Kind', 'Turns', 'Avg score',
+      'Cache hit rate', 'LLM pattern match', 'Persona hit rate', 'Intent hit rate',
+    ]);
+    expect(h.el.textContent).toContain('Avg judge score per run');
+    expect(h.el.textContent).not.toMatch(/Trefferquote/);
   });
 
   it('shows a failed read and offers a retry', async () => {

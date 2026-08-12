@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_DE } from '../i18n/de';
+import { STUDIO_EN } from '../i18n/en';
 import { PREVIEW_CONTEXT_KINDS, buildPreviewContext } from './preview-embed';
 
 describe('PREVIEW_CONTEXT_KINDS', () => {
@@ -18,6 +20,19 @@ describe('PREVIEW_CONTEXT_KINDS', () => {
     expect(PREVIEW_CONTEXT_KINDS.map((k) => k.field)).toEqual([
       '', 'topic_page_slug', 'collection_id', 'node_id',
     ]);
+  });
+
+  it('nennt zu jedem Seitentyp Katalog-Schlüssel, die es wirklich gibt', () => {
+    // Die Beschriftungen kommen seit C1-d3b aus dem Katalog. Ein Tippfehler im
+    // Schlüssel bliebe sonst still: `t()` gibt den Schlüssel selbst aus, und im
+    // Auswahlfeld stünde dann „preview.kind.topik".
+    const schluessel = PREVIEW_CONTEXT_KINDS
+      .flatMap((k) => [k.labelKey, k.fieldLabelKey])
+      .filter(Boolean);
+    for (const key of schluessel) {
+      expect(STUDIO_DE[key], `fehlt im deutschen Katalog: ${key}`).toBeTypeOf('string');
+      expect(STUDIO_EN[key], `fehlt im englischen Katalog: ${key}`).toBeTypeOf('string');
+    }
   });
 });
 

@@ -2,6 +2,8 @@
 import type { SafeHtml } from '@angular/platform-browser';
 import { describe, expect, it, vi } from 'vitest';
 
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import { MarkdownRenderer, type MarkdownRenderContext } from './markdown-renderer';
 
 const SID = 'bb-12345678-1234-4123-8123-123456789abc';
@@ -10,6 +12,7 @@ function makeCtx(over: Partial<MarkdownRenderContext> = {}): MarkdownRenderConte
   return {
     bypassSecurityTrustHtml: (html: string) => html as unknown as SafeHtml,
     sessionId: () => SID,
+    t: createTranslator(DE, DE),
     isHostTrusted: (host: string) => host === 'openeduhub.net' || host.endsWith('.openeduhub.net'),
     withBsid: (url) => {
       const raw = (url || '').trim();
@@ -95,6 +98,17 @@ describe('MarkdownRenderer — markdown + link handling', () => {
     );
     expect(out).toContain('bb-inline-icon');
     expect(out).toContain('data-bb-type="Themenseite"');
+  });
+
+  it('nimmt Typ-Label und Extern-Warnung aus dem Übersetzer (C1-b3)', () => {
+    const en = createTranslator(
+      { 'contentType.topicPage': 'Topic page', 'link.external': 'Caution! External URL.' },
+      DE,
+    );
+    const r = new MarkdownRenderer(makeCtx({ t: en }));
+    expect(html(r.render('[@@ICON:topic@@Mathe](https://redaktion.openeduhub.net/x)')))
+      .toContain('data-bb-type="Topic page"');
+    expect(html(r.render('[x](https://evil.example/p)'))).toContain('Caution! External URL.');
   });
 });
 

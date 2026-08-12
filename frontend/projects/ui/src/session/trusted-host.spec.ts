@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import {
   CORE_TRUSTED_DOMAINS,
   buildTrustedDomains,
@@ -12,6 +14,8 @@ import {
 } from './trusted-host';
 
 const VALID_SID = 'bb-12345678-1234-4123-8123-123456789abc';
+/** Deutscher Übersetzer — pinnt den bisherigen Wortlaut über den Katalog. */
+const t = createTranslator(DE, DE);
 
 describe('isTrustedHost', () => {
   it('matches exact host and subdomains, case-insensitively', () => {
@@ -71,13 +75,20 @@ describe('externalLinkWarning', () => {
   const list = ['openeduhub.net'];
 
   it('warns for an untrusted external host', () => {
-    expect(externalLinkWarning('https://evil.example/page', list)).toBe('Achtung! Externe URL.');
+    expect(externalLinkWarning('https://evil.example/page', list, t)).toBe('Achtung! Externe URL.');
   });
 
   it('is silent for a trusted host, same-origin, or empty input', () => {
-    expect(externalLinkWarning('https://redaktion.openeduhub.net/x', list)).toBe('');
-    expect(externalLinkWarning(window.location.origin + '/foo', list)).toBe('');
-    expect(externalLinkWarning('', list)).toBe('');
+    expect(externalLinkWarning('https://redaktion.openeduhub.net/x', list, t)).toBe('');
+    expect(externalLinkWarning(window.location.origin + '/foo', list, t)).toBe('');
+    expect(externalLinkWarning('', list, t)).toBe('');
+  });
+
+  it('takes the warning from the translator (C1-b3)', () => {
+    const en = createTranslator({ 'link.external': 'Caution! External URL.' }, DE);
+    expect(externalLinkWarning('https://evil.example/page', list, en)).toBe('Caution! External URL.');
+    // Der Leer-Rückgabewert ist ein Signal, kein Text — er bleibt leer.
+    expect(externalLinkWarning('https://redaktion.openeduhub.net/x', list, en)).toBe('');
   });
 });
 

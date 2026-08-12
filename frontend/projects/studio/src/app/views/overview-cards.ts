@@ -19,6 +19,7 @@
  *    so the number is checked in with its source named below and can be
  *    re-counted by hand.
  */
+import type { Translate } from '../i18n/studio-language.service';
 import { STUDIO_VIEWS, type StudioView } from '../studio-views';
 
 /** The six element lists an editor can grow, as counts. */
@@ -47,18 +48,55 @@ export interface OverviewCard {
   readonly icon: string;
 }
 
+/**
+ * Ein Text auf einer Karte, samt den Zählungen, die er benennt.
+ *
+ * Seit C1-d4a ein Schlüssel statt eines fertigen Satzes. Die Zahl steckte
+ * vorher in einer Zeichenketten-Verkettung (`${counts.patterns} Patterns`) —
+ * also in deutscher Wortstellung, fest verdrahtet; jetzt steht sie als
+ * benannter Platzhalter im Katalog, wo die Sprache über ihre Stellung
+ * entscheidet.
+ *
+ * `counts` ist nicht abzuleiten, sondern angemeldet: nur so lässt sich prüfen,
+ * dass Text und Datenbedarf zusammenpassen (`overview-cards.spec.ts`).
+ */
+export interface CardFigure {
+  readonly key: string;
+  /** Leer = braucht keine Messung und steht immer da. */
+  readonly counts: readonly (keyof ElementCounts)[];
+}
+
 export interface LayerCard extends OverviewCard {
   /** 1…6 — the prompt layer this configures, in assembly order. */
   readonly num: number;
   /** The question this layer answers, in the editor's words. */
-  readonly headline: string;
+  readonly headlineKey: string;
   /** The figure line; '' when it needs counts that have not arrived. */
-  primary(counts: ElementCounts | null): string;
+  readonly primary: CardFigure;
   /** Chips under the headline; the numeric ones drop out without counts. */
-  tags(counts: ElementCounts | null): readonly string[];
+  readonly tags: readonly CardFigure[];
 }
 
 const size = (list: readonly unknown[] | undefined): number => list?.length ?? 0;
+
+/** Der fertige Text — `''`, solange eine benötigte Messung fehlt. */
+export function figureText(
+  figure: CardFigure, counts: ElementCounts | null, t: Translate,
+): string {
+  if (figure.counts.length === 0) return t(figure.key);
+  if (!counts) return '';
+  const params: Record<string, number> = {};
+  for (const name of figure.counts) params[name] = counts[name];
+  return t(figure.key, params);
+}
+
+/** Die Chips, die etwas zu sagen haben — ohne Messungen bleiben die reinen
+ *  Beschriftungen übrig, nicht leere Kästchen. */
+export function visibleTags(
+  card: LayerCard, counts: ElementCounts | null, t: Translate,
+): readonly string[] {
+  return card.tags.map((tag) => figureText(tag, counts, t)).filter((text) => text !== '');
+}
 
 /**
  * Six counts, or null when there is no payload at all — the caller then renders
@@ -80,51 +118,78 @@ export function viewOf(slug: string): StudioView {
   return view;
 }
 
+/** Kurzform für einen Text ohne Messung. */
+const flat = (key: string): CardFigure => ({ key, counts: [] });
+
 export const LAYER_CARDS: readonly LayerCard[] = [
   {
     num: 1, slug: 'identitaet', icon: '🛡️',
-    headline: 'Wer ist der Chatbot? Was darf er nie tun?',
-    primary: () => 'Persona · Guardrails · Safety · Policy',
-    tags: () => ['Basis-Persona', 'Guardrails', 'Safety-Preset', 'Policy-Regeln'],
+    headlineKey: 'overview.layer.identitaet.headline',
+    primary: flat('overview.layer.identitaet.primary'),
+    tags: [
+      flat('overview.layer.identitaet.tag.persona'),
+      flat('overview.layer.identitaet.tag.guardrails'),
+      flat('overview.layer.identitaet.tag.safety'),
+      flat('overview.layer.identitaet.tag.policy'),
+    ],
   },
   {
     num: 2, slug: 'domain-wissen', icon: '🌐',
-    headline: 'Was weiß der Chatbot über WLO und seine Umgebung?',
-    primary: () => 'Plattform-Wissen · Domain-Regeln',
-    tags: () => ['Domain-Rules', 'WLO-Fachwissen', 'Web-Tour'],
+    headlineKey: 'overview.layer.domain.headline',
+    primary: flat('overview.layer.domain.primary'),
+    tags: [
+      flat('overview.layer.domain.tag.rules'),
+      flat('overview.layer.domain.tag.wlo'),
+      flat('overview.layer.domain.tag.tour'),
+    ],
   },
   {
     num: 3, slug: 'patterns', icon: '🧩',
-    headline: 'Der LLM-Hint wählt das passende Pattern.',
-    primary: (counts) => (counts ? `${counts.patterns} Patterns` : ''),
-    tags: () => ['Inhalte abrufen', 'Material-Erstellung', 'Recherche', 'Safety-Pattern'],
+    headlineKey: 'overview.layer.patterns.headline',
+    primary: { key: 'overview.layer.patterns.primary', counts: ['patterns'] },
+    tags: [
+      flat('overview.layer.patterns.tag.retrieve'),
+      flat('overview.layer.patterns.tag.create'),
+      flat('overview.layer.patterns.tag.research'),
+      flat('overview.layer.patterns.tag.safety'),
+    ],
   },
   {
     num: 4, slug: 'dimensionen', icon: '🎭',
-    headline: 'Wie wird jeder Nutzer-Input klassifiziert?',
-    primary: (counts) =>
-      counts ? `${counts.personas} Personas · ${counts.intents} Intents` : '',
-    tags: (counts) => [
-      ...(counts
-        ? [`${counts.states} States`, `${counts.entities} Entities`, `${counts.signals} Signale`]
-        : []),
-      'Turn-Count', 'Tonalitäts-Modifier',
+    headlineKey: 'overview.layer.dimensionen.headline',
+    primary: { key: 'overview.layer.dimensionen.primary', counts: ['personas', 'intents'] },
+    tags: [
+      { key: 'overview.layer.dimensionen.tag.states', counts: ['states'] },
+      { key: 'overview.layer.dimensionen.tag.entities', counts: ['entities'] },
+      { key: 'overview.layer.dimensionen.tag.signals', counts: ['signals'] },
+      flat('overview.layer.dimensionen.tag.turnCount'),
+      flat('overview.layer.dimensionen.tag.tone'),
     ],
   },
   {
     num: 5, slug: 'material-formate', icon: '🎨',
-    headline: 'Wie sieht KI-generierter Inhalt im Chat aus?',
+    headlineKey: 'overview.layer.material.headline',
     // Counted in `05-canvas/material-types.yaml`: 19 entries, of which `auto` is
     // the "pick one for me" selector rather than a type ⇒ 18 types, 13
     // didaktisch + 5 analytisch. No endpoint reports this, so it cannot be live.
-    primary: () => '18 Material-Typen',
-    tags: () => ['13 didaktisch', '5 analytisch', 'Typ-Aliase', 'Edit-/Create-Trigger'],
+    primary: flat('overview.layer.material.primary'),
+    tags: [
+      flat('overview.layer.material.tag.didactic'),
+      flat('overview.layer.material.tag.analytic'),
+      flat('overview.layer.material.tag.aliases'),
+      flat('overview.layer.material.tag.triggers'),
+    ],
   },
   {
     num: 6, slug: 'wissen', icon: '📚',
-    headline: 'Welche Quellen liefern Faktenwissen zur Laufzeit?',
-    primary: () => 'RAG + MCP-Tools',
-    tags: () => ['Always-on RAG', 'On-Demand RAG', 'MCP-Server', 'Themenseiten-Resolver'],
+    headlineKey: 'overview.layer.wissen.headline',
+    primary: flat('overview.layer.wissen.primary'),
+    tags: [
+      flat('overview.layer.wissen.tag.alwaysOn'),
+      flat('overview.layer.wissen.tag.onDemand'),
+      flat('overview.layer.wissen.tag.mcp'),
+      flat('overview.layer.wissen.tag.topics'),
+    ],
   },
 ];
 

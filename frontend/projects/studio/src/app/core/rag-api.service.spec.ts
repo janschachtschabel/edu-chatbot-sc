@@ -5,21 +5,31 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { RagApi } from './rag-api.service';
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
+import { RagApi, describeRagError } from './rag-api.service';
+import { StudioApiError } from './studio-api-error';
 
-function setup(): { api: RagApi; http: HttpTestingController } {
+function setup(): { api: RagApi; http: HttpTestingController; lang: StudioLanguageService } {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
   });
-  return { api: TestBed.inject(RagApi), http: TestBed.inject(HttpTestingController) };
+  return {
+    api: TestBed.inject(RagApi),
+    http: TestBed.inject(HttpTestingController),
+    lang: TestBed.inject(StudioLanguageService),
+  };
 }
 
 describe('RagApi', () => {
   let api: RagApi;
   let http: HttpTestingController;
 
-  beforeEach(() => ({ api, http } = setup()));
+  beforeEach(() => {
+    // jsdom meldet `en-US`; die Sätze unten sind deutsch (C1-d3b).
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
+    ({ api, http } = setup());
+  });
 
   it('caches the area list in a signal the whole page can read', async () => {
     expect(api.areas()).toEqual([]);
@@ -81,5 +91,24 @@ describe('RagApi', () => {
     void api.ingestText('wlo', 'Notiz', 'Inhalt');
     expect((http.expectOne('/studio/api/rag/ingest/text').request.body as FormData).get('content'))
       .toBe('Inhalt');
+  });
+
+  it('erklärt einen Fehlschlag in der Sprache, die gerade gilt', () => {
+    // Bis C1-d3c standen diese Sätze fest auf Deutsch im Modul. Der Übersetzer
+    // kommt über den Aufruf herein — dasselbe Muster wie `describeAreaError`
+    // (C1-d3a), damit die Funktion rein bleibt und der Zustand am Injektor
+    // hängt, nicht am Modul.
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
+    const { t } = setup().lang;
+    const zuGross = new StudioApiError(413, '', '/rag/ingest/file');
+    expect(describeRagError(zuGross, t)).toContain('Upload-Limit');
+  });
+
+  it('lässt den Satz des Backends stehen, wo es einen geschrieben hat', () => {
+    // markitdown und der SSRF-Wächter benennen das tatsächliche Hindernis; ein
+    // eigener Ersatztext wäre allgemeiner und damit schlechter (C1-e).
+    const { t } = setup().lang;
+    const abgelehnt = new StudioApiError(400, 'Fehler beim Konvertieren: kaputt', '/x');
+    expect(describeRagError(abgelehnt, t)).toBe('Fehler beim Konvertieren: kaputt');
   });
 });

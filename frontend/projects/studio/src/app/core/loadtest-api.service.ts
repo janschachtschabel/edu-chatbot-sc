@@ -44,18 +44,22 @@ export interface StageResult {
 }
 
 /**
- * The four keys `_summary` in `services/loadtest.py` actually returns.
+ * The six keys `_summary` in `services/loadtest.py` actually returns.
  *
- * It used to declare `peak_rss_mb`/`peak_proc_cpu_pct` as well. No backend path
- * writes them — the psutil sampling ALT had was dropped in the port — so both
- * views rendered "NaN" and the type was the reason nobody noticed (B5). If
- * resource sampling comes back, the fields come back with it, together with the
- * display and the `resource_samples` chart.
+ * The two peaks were removed in B5 and **restored in C5 (2026-07-31)**, this
+ * time with a producer behind them: psutil is a backend dependency now and the
+ * runner samples CPU/RSS every 0.5 s. B5's lesson is why the wording above is
+ * "actually returns" — a type that promised fields nobody wrote was the reason
+ * "Spitze NaN MB" shipped unnoticed. Check the backend before extending this.
  */
 export interface RunSummary {
   /** `null` = even the first stage missed the threshold. */
   readonly stable_concurrency: number | null;
   readonly p95_threshold_s: number;
+  /** Highest sampled RSS in MB; `0` when a run recorded no sample at all. */
+  readonly peak_rss_mb: number;
+  /** Highest sampled process CPU in percent; `0` as above. */
+  readonly peak_proc_cpu_pct: number;
   readonly total_requests: number;
   readonly total_errors: number;
 }
@@ -67,7 +71,7 @@ export interface LoadTestRun {
   readonly finished_at: string | null;
   readonly profile: RunProfile;
   readonly stages: readonly StageResult[];
-  /** Always empty in this build — nothing samples CPU/RSS (see `RunSummary`). */
+  /** Seit C5 gefüllt: ein Punkt je 0,5 s Laufzeit (`t` = Sekunden seit Start). */
   readonly resource_samples: readonly { t: number; proc_cpu: number; rss_mb: number }[];
   readonly summary: RunSummary | null;
   readonly error: string | null;

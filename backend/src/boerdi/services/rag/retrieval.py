@@ -47,11 +47,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.models import RagChunk, RagDocument
 from boerdi.services.config_loader._store import area
-from boerdi.services.llm import embedding
-from boerdi.services.rag.rerank import _RERANK_CANDIDATES, rerank_results
+from boerdi.services.rag.embed import embed_text
+from boerdi.services.rag.rerank import (
+    rerank_candidates,
+    rerank_results,
+    run_in_rerank_pool,
+)
 
 _RAG_DEFAULTS = {
-    "top_k": 15,
+    # W10: 15 -> 10. Der Rerank-Aufrufer nimmt `max(RERANK_CANDIDATES, top_k)`;
+    # bliebe top_k bei 15, waere die Kandidaten-Vorgabe 10 wirkungslos (gemessen
+    # bei 3 Threads: 15 Kandidaten = 1070 ms statt 703 ms). Nutzer-Vorgabe
+    # 2026-08-09: „rag top k muss mit anpassen". Wirkt auch ohne Reranker — dann
+    # gehen 10 statt 15 Chunks in den Prompt.
+    "top_k": 10,
     "min_score": 0.30,
     "max_chars_per_area": 3000,  # cap per-area text injected into prompt
 }
@@ -158,7 +167,7 @@ async def query_rag(
     (avoids one embedding round-trip per area). None → embed here, as before.
     """
     if query_emb is None:
-        query_emb = await embedding(query)
+        query_emb = await embed_text(query, kind="query")
     results = await search_rag_chunks(session, area, query_emb, top_k)
     return results
 
@@ -194,7 +203,7 @@ async def get_rag_context(session: AsyncSession, query: str,
     # area re-embedded the same query and ran serially (N embed round-trips +
     # serial searches per RAG turn, T-7). Scores are re-sorted globally below,
     # so the concurrent completion order does not affect the result.
-    query_emb = await embedding(query)
+    query_emb = await embed_text(query, kind="query")
     per_area = await asyncio.gather(
         *(query_rag(session, query, area, top_k, query_emb=query_emb) for area in areas)
     )
@@ -222,11 +231,16 @@ async def get_rag_context(session: AsyncSession, query: str,
     # synchron im Event-Loop — währenddessen standen ALLE parallelen
     # Requests. In den Default-ThreadPool auslagern (onnxruntime gibt das
     # GIL während der Inferenz frei, echte Parallelität).
-    candidates = plausible[:max(_RERANK_CANDIDATES, top_k)]
+    candidates = plausible[:max(rerank_candidates(), top_k)]
     # Gedeckelter Rerank-Pool statt Default-Executor (2026-06-15): so
     # konkurrieren RAG-Rerank und Card-CE-Gate um dieselben max_workers
     # und überbuchen die CPU nicht.
-    top = rerank_results(query, candidates, top_k)
+    #
+    # W7 (2026-08-09): der Pool ist zurück. Zwischenzeitlich stand hier ein
+    # direkter Aufruf, weil hinter dem Seam nichts hing — mit echtem ONNX wäre
+    # das ein 1,5–3-Sekunden-Block MITTEN im Event-Loop (gemessen: 25 Chunks à
+    # ~900 Zeichen = 3079 ms bei intra_op=1). Genau davor warnt der Absatz oben.
+    top = await run_in_rerank_pool(rerank_results, query, candidates, top_k)
 
     if not top:
         return ""

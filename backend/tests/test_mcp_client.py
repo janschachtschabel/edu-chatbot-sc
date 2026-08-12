@@ -116,6 +116,33 @@ def test_call_mcp_tool_output_format_wird_nicht_ueberschrieben(mcp_state, monkey
     assert calls[0]["arguments"]["outputFormat"] == "markdown"
 
 
+# ── W5-3b: Volltexte dürfen nicht bei 8000 Zeichen enden ────────────────
+# Der Server-Standard ist ``maxChars: 8000``; live gemessen wurden 2 von 6
+# Arbeitsblättern dort abgeschnitten (``truncated: true``). Für „Inhalt anzeigen
+# und damit arbeiten" ist ein halbes Arbeitsblatt wertlos, deshalb setzen wir den
+# Deckel zentral — wie ``outputFormat``, damit kein Aufrufer ihn vergessen kann.
+def test_call_mcp_tool_hebt_volltext_deckel_an(mcp_state, monkeypatch):
+    _wire_tool_url(monkeypatch)
+    calls = _wire_transport(monkeypatch, [_result([_text_part("{}")])])
+    asyncio.run(client.call_mcp_tool("get_wlo_content_text", {"nodeId": "n1"}))
+    assert calls[0]["arguments"]["maxChars"] == 50000
+
+
+def test_call_mcp_tool_volltext_deckel_wird_nicht_ueberschrieben(mcp_state, monkeypatch):
+    _wire_tool_url(monkeypatch)
+    calls = _wire_transport(monkeypatch, [_result([_text_part("{}")])])
+    asyncio.run(client.call_mcp_tool(
+        "get_wlo_content_text", {"nodeId": "n1", "maxChars": 3000}))
+    assert calls[0]["arguments"]["maxChars"] == 3000
+
+
+def test_call_mcp_tool_setzt_deckel_nur_beim_volltext_tool(mcp_state, monkeypatch):
+    _wire_tool_url(monkeypatch)
+    calls = _wire_transport(monkeypatch, [_result([_text_part("{}")])])
+    asyncio.run(client.call_mcp_tool("search_wlo_all", {"query": "x"}))
+    assert "maxChars" not in calls[0]["arguments"]
+
+
 def test_call_mcp_tool_fehler_retry_erfolgreich(mcp_state, monkeypatch):
     # NEU ggü. ALT: kein Session-Reset-Assert — der Transport öffnet pro Call
     # eine frische Session (5-1b), der Retry ist damit ein simpler Zweit-Call.

@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+from boerdi.obs.usage import new_accumulator
 from boerdi.services import llm
 from boerdi.services import llm_learning_path as lp
 from boerdi.settings import get_settings
@@ -19,7 +20,7 @@ from boerdi.settings import get_settings
 
 def _content_resp(text):
     return SimpleNamespace(
-        model="gpt-5.4-mini",
+        model="gpt-5.6-luna",
         choices=[SimpleNamespace(message=SimpleNamespace(content=text))],
         usage=SimpleNamespace(
             prompt_tokens=50, completion_tokens=20,
@@ -101,3 +102,86 @@ def test_lp_reasoning_markers_stripped(monkeypatch):
 def test_lp_exception_embedded_in_error_message(monkeypatch):
     cap = _Capture(raises=RuntimeError("boom"))
     assert _run(monkeypatch, cap) == "Fehler beim Erstellen des Lernpfads: boom"
+
+
+# ── Ausgabe-Sprache (C1-f2a) ───────────────────────────────────────────────
+# Der Lernpfad-Markdown steht als Inline-Dokument im Chat — Bot-Text, den der
+# Nutzer liest. Die Sprachangabe steht hier im USER-Prompt (Format-Block).
+
+_LP_DE = "**Format (Markdown, auf Deutsch):**"
+
+
+def _lp_messages(monkeypatch, **kw):
+    cap = _Capture(text="Pfad")
+    get_settings.cache_clear()
+    llm.reset()
+    monkeypatch.setattr(llm, "_acompletion", cap)
+    asyncio.run(lp.generate_learning_path_text(
+        "Bruchrechnung", "1. [Video A](https://x)", {}, **kw))
+    return cap.calls[0]["messages"]
+
+
+def test_lp_deutsch_bleibt_wortgleich(monkeypatch):
+    ohne = _lp_messages(monkeypatch)
+    mit = _lp_messages(monkeypatch, lang="de")
+    assert ohne == mit
+    assert _LP_DE in mit[1]["content"]
+
+
+def test_lp_englisch_tauscht_die_direktive_und_haengt_den_hinweis_an(monkeypatch):
+    from boerdi.i18n import template_hint
+    system, user = _lp_messages(monkeypatch, lang="en")
+    assert _LP_DE not in user["content"]
+    assert "**Format (Markdown, auf Englisch (British English)):**" in user["content"]
+    assert system["content"].endswith(template_hint("en").strip())
+
+
+# ── C1-f2b6b: die Rueckfall-Saetze folgen derselben Sprache ────────────────
+
+def test_lp_fallback_message_english(monkeypatch):
+    cap = _Capture(text=None)
+    get_settings.cache_clear()
+    llm.reset()
+    monkeypatch.setattr(llm, "_acompletion", cap)
+    out = asyncio.run(lp.generate_learning_path_text(
+        "Fractions", "1. [Video A](https://x)", {}, lang="en"))
+    assert out == "The learning path could not be created."
+
+
+def test_lp_error_message_english(monkeypatch):
+    cap = _Capture(raises=RuntimeError("boom"))
+    get_settings.cache_clear()
+    llm.reset()
+    monkeypatch.setattr(llm, "_acompletion", cap)
+    out = asyncio.run(lp.generate_learning_path_text(
+        "Fractions", "1. [Video A](https://x)", {}, lang="en"))
+    assert out == "Error while creating the learning path: boom"
+
+
+# ── K1b: der Lernpfad bucht seine Token ───────────────────────────────────
+# ``max_tokens=2000`` macht ihn zu einem der groessten Einzelaufrufe des
+# Systems — und er tauchte in keiner Kostenzahl auf.
+
+def test_lp_bucht_unter_eigener_phase(monkeypatch):
+    cap = _Capture(text="Pfad")
+    acc = new_accumulator()
+    get_settings.cache_clear()
+    llm.reset()
+    monkeypatch.setattr(llm, "_acompletion", cap)
+
+    asyncio.run(lp.generate_learning_path_text(
+        "Bruchrechnung", "1. [Video A](https://x)", {}, usage_acc=acc))
+
+    assert acc["calls"] == 1
+    assert acc["per_phase"]["learning_path"] == {
+        "prompt": 50, "completion": 20, "cached": 0, "reasoning": 0, "calls": 1}
+
+
+def test_lp_ohne_merkposten_bleibt_lauffaehig(monkeypatch):
+    # Der Parameter ist optional — die Bestandsaufrufer (Tests, Evals) rufen
+    # ohne ihn auf und duerfen nicht scheitern.
+    cap = _Capture(text="Pfad")
+    get_settings.cache_clear()
+    llm.reset()
+    monkeypatch.setattr(llm, "_acompletion", cap)
+    assert asyncio.run(lp.generate_learning_path_text("T", "c", {})) == "Pfad"

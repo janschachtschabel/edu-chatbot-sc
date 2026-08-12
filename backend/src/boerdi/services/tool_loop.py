@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import TYPE_CHECKING, Any
 
 from boerdi.domain.inline_grouping import (
@@ -41,8 +42,20 @@ from boerdi.domain.inline_grouping import (
     _ui_box_state_footer,
 )
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
+from boerdi.domain.untrusted_text import frame_untrusted
+from boerdi.domain.write_confirm import (
+    extract_confirm_token,
+    is_confirmable,
+    is_expired,
+    redact_confirm_token,
+    remember_pending,
+    strip_confirm_token,
+    token_for,
+)
 from boerdi.obs.usage import add_usage, extract_usage
 from boerdi.services import llm
+from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
+from boerdi.services.card_collect import collect_cards
 from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.parsers import parse_wlo_cards
 
@@ -52,15 +65,29 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
+# Die Menge wohnt seit A4c-2a bei der Logik, die sie auswertet
+# (``services/card_collect``, mit ihrer Begründung); hier bleibt der Name
+# gebunden, weil dieses Modul der angestammte Fundort ist und Tests ihn so lesen.
+CARD_YIELDING_TOOLS = _CARD_YIELDING_TOOLS
+
+
 async def _max_iterations_fallback(
     messages: list[dict],
     all_cards: list[dict],
     tools_called: list[str],
     outcomes: list,
+    usage_acc: dict[str, Any] | None = None,
 ) -> tuple[str, list[dict], list[str], list]:
     """Abschluss-Fallback (P16) fuer ``generate_response``: der Tool-Loop hat
     max_iterations erreicht, ohne finalen Text zu liefern. Jeder Pfad liefert
     das finale ``(response_text, wlo_cards, tools_called, outcomes)``-Tupel.
+
+    ``usage_acc`` bucht den Zusammenfassungs-Aufruf unter der eigenen Phase
+    ``fallback_summary`` (K1f). Eigene Phase statt ``response``, weil ihr
+    Auftauchen zugleich meldet, dass dieser Zug die Iterationsgrenze gerissen
+    hat — das ist ein Qualitaetssignal, das in der Kostenschau nicht in der
+    normalen Antwort untergehen soll. Der Aufruf ist trotz kurzer Ausgabe
+    nicht klein: er haengt die GANZE bisherige Nachrichtenkette an.
     """
     # Fallback: if max_iterations reached without final text, generate a
     # short closing summary based on whatever we found.
@@ -75,6 +102,8 @@ async def _max_iterations_fallback(
                     ),
                 }],
                 temperature=0.4,
+                usage_acc=usage_acc,
+                phase="fallback_summary",
             )
             text = strip_reasoning_markers((summary_resp.choices[0].message.content or "").strip())
             if text:
@@ -303,8 +332,8 @@ async def _assemble_messages(
         messages.append({
             "role": "tool",
             "tool_call_id": "prefetch_mcp",
-            "content": _redact_search_content_for_llm(
-                _name, _txt, mcp_prefetch_cards, _inline_grouping_mode),
+            "content": frame_untrusted(_name, _redact_search_content_for_llm(
+                _name, _txt, mcp_prefetch_cards, _inline_grouping_mode)),
         })
         mcp_prefetched = True
 
@@ -359,8 +388,8 @@ async def _assemble_messages(
             messages.append({
                 "role": "tool",
                 "tool_call_id": _tc_id,
-                "content": _redact_search_content_for_llm(
-                    _ex_name, _ex_text, _ex_cards, _inline_grouping_mode),
+                "content": frame_untrusted(_ex_name, _redact_search_content_for_llm(
+                    _ex_name, _ex_text, _ex_cards, _inline_grouping_mode)),
             })
 
     # Tool calling loop
@@ -475,6 +504,20 @@ async def _run_tool_loop(
     first_iteration = True
     # Phase A1 — Reflection-Loop-Flag: nur EINMAL retryen, sonst Endlosschleife
     _reflection_done = False
+    # E1 (2026-08-10): der offene Bestätigungsvorgang, wie er beim EINTRITT in
+    # diesen Zug aussah. Genau das macht ihn zur Zeitgrenze: eine Vorschau, die
+    # weiter unten in diesem Zug entsteht, landet in ``session_state`` — aber
+    # nicht mehr hier. Sie ist damit erst im nächsten Zug bestätigbar, und
+    # zwischen zwei Zügen steht der Mensch. ``_run_tool_loop`` wird genau
+    # einmal pro Zug betreten (``services/generate.py:153``, einzige
+    # Aufrufstelle) — daran hängt diese Eigenschaft.
+    # Der Schnappschuss vom Zug-Eintritt. Er wohnt in ``entities``, weil NUR
+    # die fünf Spalten aus ``update_session`` einen Zug überdauern; ein
+    # Schlüssel auf oberster Ebene von ``session_state`` stirbt mit der
+    # Anfrage (``graph/nodes/setup.py`` baut den Zustand jeden Zug neu).
+    # Bis 2026-08-11 stand er dort — dadurch war dies immer ``None`` und
+    # keine Bestätigung je einlösbar.
+    _pending_at_turn_start = (session_state.get("entities") or {}).get("_pending_write")
 
     for iteration in range(max_iterations):  # noqa: B007 — verbatim ALT (unused index)
         tool_choice: Any = None
@@ -638,9 +681,12 @@ async def _run_tool_loop(
                     clean_ids: list[str] = []
                     seen: set[str] = set()
                     for x in ids:
-                        if isinstance(x, str) and x.strip() and x not in seen:
-                            clean_ids.append(x.strip())
-                            seen.add(x.strip())
+                        # Trim FIRST, then judge: comparing the raw value against
+                        # a set of trimmed ones let " abc " slip past "abc".
+                        xs = x.strip() if isinstance(x, str) else ""
+                        if xs and xs not in seen:
+                            clean_ids.append(xs)
+                            seen.add(xs)
                         if len(clean_ids) >= 5:
                             break
                     session_state["_selected_card_ids"] = clean_ids
@@ -719,6 +765,28 @@ async def _run_tool_loop(
                         "tool_call_id": tc.id,
                         "content": "OK",
                     })
+                    # The break below skips every SIBLING call of this same
+                    # parallel batch, leaving them without a role=tool answer.
+                    # Normally harmless (the chain is discarded), but the
+                    # reflection retry further down re-sends exactly this chain
+                    # — and OpenAI rejects one in which a tool_call has no tool
+                    # message, so the turn degraded to an error bubble although
+                    # the model's answer was already in hand (audit 2026-08-12,
+                    # F-5). The answer is deliberately NOT "OK": in that retry
+                    # it would tell the model a search had run when it had not.
+                    _answered = {
+                        m.get("tool_call_id") for m in messages
+                        if isinstance(m, dict) and m.get("role") == "tool"
+                    }
+                    for _sibling in choice.message.tool_calls:
+                        if _sibling.id in _answered:
+                            continue
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": _sibling.id,
+                            "content": ("Nicht ausgeführt: Die Antwort wurde "
+                                        "bereits mit respond_to_user gegeben."),
+                        })
                     # Don't process more tool calls — respond_to_user means
                     # we're done.
                     break
@@ -845,76 +913,119 @@ async def _run_tool_loop(
                     if _stufe and "educationalContext" not in tool_args:
                         tool_args["educationalContext"] = _stufe
 
+                # ── E1 (2026-08-10): Bestätigungs-Wall ────────────────
+                # Die kuratierenden Werkzeuge sind zweistufig: ohne
+                # ``confirmToken`` nur Vorschau, erst der zweite Aufruf mit
+                # dem Schlüssel führt aus. Der Server bindet den Schlüssel an
+                # die Änderung — aber er kann nicht sehen, ob zwischen beiden
+                # Schritten ein MENSCH stand. Bei fünf Iterationen pro Zug
+                # stünde dort sonst niemand.
+                #
+                # Deshalb: das Modell darf keinen Schlüssel setzen, und
+                # einsetzen dürfen wir ihn nur für einen Vorgang aus einem
+                # FRÜHEREN Zug — ``_pending_at_turn_start`` ist der
+                # Schnappschuss vom Zug-Eintritt. Was in diesem Zug entsteht,
+                # steht nicht darin und ist in diesem Zug nicht bestätigbar.
+                # Der Zugwechsel ist der Mensch.
+                if is_confirmable(tool_name):
+                    tool_args = strip_confirm_token(tool_name, tool_args)
+                    # Die Uhr steht hier und nicht in der Domäne: dort wohnt
+                    # die Identität eines Vorhabens, hier die Zeit (E4).
+                    _jetzt = time.time()
+                    _confirm = token_for(
+                        _pending_at_turn_start, tool_name, tool_args, now=_jetzt)
+                    if _confirm:
+                        tool_args = {**tool_args, "confirmToken": _confirm}
+                        _pending_at_turn_start = None
+                        session_state.setdefault("entities", {}).pop("_pending_write", None)
+                    elif ((_pending_at_turn_start or {}).get("tool") == tool_name
+                          and is_expired(_pending_at_turn_start, now=_jetzt)):
+                        # E4: derselbe Vorgang, nur zu spät. Ohne diesen Zweig
+                        # meldete die Zeile darunter „Argumente weichen ab" —
+                        # ein Grund, den es hier nicht gibt. Der Merkposten
+                        # bleibt liegen; die gleich folgende neue Vorschau
+                        # überschreibt ihn mit einem frischen Zeitpunkt.
+                        _logger.info(
+                            "offener Vorgang für %s ist abgelaufen — es folgt eine "
+                            "neue Vorschau", tool_name)
+                    elif (_pending_at_turn_start or {}).get("tool") == tool_name:
+                        # Offener Vorgang DESSELBEN Werkzeugs, aber andere
+                        # Argumente: es wird nicht bestätigt, sondern neu
+                        # vorgeschaut. Von hier aus sind zwei Fälle nicht zu
+                        # unterscheiden — der Nutzer hat angepasst (Normalfall),
+                        # oder das Modell hat im Bestätigungszug ein Feld mehr
+                        # oder weniger genannt (dann sagt der Nutzer „ja" und
+                        # wird erneut gefragt). Deshalb INFO statt WARNING:
+                        # aufgezeichnet, ohne einen Fehler zu behaupten.
+                        # Ohne diese Zeile ist der Rückfall spurlos.
+                        #
+                        # Nur der Werkzeugname, wie beim Nachbarn unten: weder
+                        # Schlüssel noch Argumente gehören ins Protokoll.
+                        _logger.info(
+                            "offener Vorgang für %s nicht bestätigt — Argumente weichen "
+                            "von der Vorschau ab; es folgt eine neue Vorschau",
+                            tool_name)
+
                 # Triple-Schema T-23: call with structured outcome
                 from boerdi.services.outcome_service import call_with_outcome
                 result_text, outcome = await call_with_outcome(tool_name, tool_args)
                 outcomes.append(outcome)
-                # Only search/content tools produce card-shaped output. Vocabulary
-                # and *_info tools return markdown documentation that would pollute
-                # the card list (e.g. "## Vokabular: Bildungsstufe" becoming a card).
-                CARD_YIELDING_TOOLS = {
-                    "search_wlo_collections", "search_wlo_content",
-                    "search_wlo_topic_pages", "get_collection_contents",
-                    "get_node_details",
-                    # MCP v2 — Discovery/Listing-Tools liefern auch Karten
-                    # (Fachportale + Sub-Sammlungen sind klickbare Cards).
-                    "get_subject_portals",
-                    "browse_collection_tree",
-                }
-                if tool_name in CARD_YIELDING_TOOLS:
-                    # search_wlo_topic_pages has its OWN parser — the standard
-                    # parse_wlo_cards reads ``nodeId`` and ignores ``variants``,
-                    # producing cards without the ``topic_pages`` array. Without
-                    # that array isTopicPage() returns false → cards render as
-                    # plain Inhalt-cards instead of topic-page-cards with the
-                    # 🌐 Themenseite button. The dedicated parser fixes this.
-                    if tool_name == "search_wlo_topic_pages":
-                        from boerdi.services.mcp.parsers import parse_wlo_topic_page_cards
-                        cards = parse_wlo_topic_page_cards(result_text)
-                    else:
-                        cards = parse_wlo_cards(result_text)
-                else:
-                    cards = []
-                # Mark cards from search_wlo_collections as collections
-                if tool_name == "search_wlo_collections":
-                    for c in cards:
-                        c.setdefault("node_type", "collection")
-                # Merge topic_pages from search_wlo_topic_pages into existing cards
-                if tool_name == "search_wlo_topic_pages":
-                    existing_by_id = {c["node_id"]: c for c in all_cards if c.get("node_id")}
-                    for c in cards:
-                        nid = c.get("node_id", "")
-                        tp_list = c.get("topic_pages", [])
-                        if nid and nid in existing_by_id and tp_list:
-                            existing = existing_by_id[nid]
-                            existing_vids = {
-                                v.get("variant_id") for v in existing.get("topic_pages", [])
-                            }
-                            for v in tp_list:
-                                if v.get("variant_id") not in existing_vids:
-                                    existing.setdefault("topic_pages", []).append(v)
-                            # If the existing card came from a non-topic-page tool
-                            # (e.g. get_subject_portals → node_type='content'),
-                            # promote it to 'collection' now that it has topic
-                            # pages — otherwise the frontend's isTopicPage()
-                            # check fails and the card renders as a flat
-                            # Inhalt-card without the 🌐 Themenseite button.
-                            existing["node_type"] = "collection"
-                # Deduplicate by node_id — enrich topic_pages on collision
-                existing_by_id = {c.get("node_id"): c for c in all_cards if c.get("node_id")}
-                for c in cards:
-                    _nid = c.get("node_id")
-                    if _nid and _nid in existing_by_id:
-                        _ex = existing_by_id[_nid]
-                        if not _ex.get("topic_pages") and c.get("topic_pages"):
-                            _ex["topic_pages"] = c["topic_pages"]
-                        if not _ex.get("topic_page_url") and c.get("topic_page_url"):
-                            _ex["topic_page_url"] = c["topic_page_url"]
-                    elif _nid:
-                        all_cards.append(c)
-                        existing_by_id[_nid] = c
-                    else:
-                        all_cards.append(c)
+
+                # Rückweg des Walls: den frisch geprägten Schlüssel merken und
+                # aus dem Text nehmen, BEVOR er irgendwohin weiterfließt
+                # (Nachrichtenkette, Karten, Protokoll). Sähe das Modell ihn,
+                # könnte es im selben Zug bestätigen.
+                if is_confirmable(tool_name):
+                    _minted = extract_confirm_token(result_text)
+                    # Redigiert wird ZUERST — danach kann kein Pfad mehr den
+                    # rohen Text weiterreichen. Seit S1 gibt es einen zweiten
+                    # Empfänger (den offenen Vorgang, aus dem die sichtbare
+                    # Vorschau-Box gespeist wird); die Reihenfolge macht die
+                    # Zusicherung an der Stelle ablesbar, an der sie gilt.
+                    # Die Absagen-Unterscheidung unten bleibt unberührt: die
+                    # Redaktion ersetzt nur den Schlüssel, ``confirmToken:``
+                    # selbst überlebt sie.
+                    result_text = redact_confirm_token(result_text)
+                    if _minted:
+                        # In ``entities``, weil der Merkposten den Zug
+                        # überdauern MUSS — siehe Zug-Eintritt oben.
+                        session_state.setdefault("entities", {})["_pending_write"] = (
+                            remember_pending(tool_name, tool_args, _minted, now=time.time()))
+                        # S1: derselbe Text ein zweites Mal — diesmal für den
+                        # Menschen. Der Server formuliert die Abnahme bereits
+                        # vollständig und auf Deutsch; bisher endete sie in der
+                        # Nachrichtenkette des Modells, und der Nutzer las nur
+                        # die Nacherzählung.
+                        #
+                        # Auf oberster Ebene, und das ist genau umgekehrt zum
+                        # Merkposten daneben: die Vorschau DARF den Zug nicht
+                        # überdauern. Dass dort nichts gespeichert wird, ist
+                        # hier die gewünschte Eigenschaft.
+                        session_state["_write_preview"] = result_text
+                    elif "confirmToken:" in result_text:
+                        # Der Server kündigt einen Schlüssel an, wir lesen aber
+                        # keinen heraus: dann hat sich sein Vorschautext
+                        # geändert. Sichtbar machen statt still hinnehmen —
+                        # die Folge wäre, dass sich nichts mehr bestätigen
+                        # lässt. Der Wall selbst hält auch dann, denn er trägt
+                        # auf dem HINWEG (``strip_confirm_token``): ein
+                        # Schlüssel, den das Modell sieht, kann es trotzdem
+                        # nicht absetzen.
+                        #
+                        # Der Doppelpunkt ist der Unterschied und kein Zufall:
+                        # die Vorschau sagt „mit confirmToken: <schlüssel>
+                        # wiederholen", die drei Absagen (abgelaufen, andere
+                        # Änderung, unbekannt) sagen „ohne confirmToken
+                        # wiederholen". Ohne ihn schlüge diese Warnung bei
+                        # jedem abgelaufenen Schlüssel falsch an.
+                        _logger.warning(
+                            "Vorschautext von %s nennt confirmToken, enthält aber "
+                            "keinen lesbaren Schlüssel — Bestätigung nicht möglich",
+                            tool_name)
+                # A4c-2a: Parser-Auswahl, Sammlungs-Markierung, Themenseiten-
+                # Mischung und Entdopplung wohnen in ``services/card_collect``,
+                # seit die Agent-Schleife dieselbe Ernte braucht.
+                cards = collect_cards(all_cards, tool_name, result_text)
 
                 # ── Inline-Result-Grouping: search_wlo_content-Redaction ──
                 # Im Box-Anzeige-Modus zeigt die UI Einzelinhalte NICHT direkt
@@ -933,11 +1044,20 @@ async def _run_tool_loop(
                 # die Footer-Zeile sagt der LLM, was nach diesem Call WIRKLICH
                 # in den sichtbaren Boxen landet — sodass sie im Antwort-Text
                 # keine Sammlungen/Themenseiten erfinden kann.
+                # D4 (2026-08-10): ``frame_untrusted`` kennzeichnet Werkzeuge,
+                # deren Nutzlast Langform-Prosa von Dritten ist (Volltext,
+                # Kompendium), als Daten statt Anweisung — indirekte
+                # Prompt-Einschleusung. Der UI-Box-Status ist UNSERE Anweisung
+                # und bleibt deshalb AUSSERHALB des Rahmens; innerhalb wuerde
+                # der Rahmen sie mit entwerten.
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
                     "content": (
-                        _redact_search_content_for_llm(tool_name, result_text, cards, _inline_grouping_mode)  # noqa: E501
+                        frame_untrusted(
+                            tool_name,
+                            _redact_search_content_for_llm(tool_name, result_text, cards, _inline_grouping_mode),  # noqa: E501
+                        )
                         + _ui_box_state_footer(all_cards, _inline_grouping_mode)
                     ),
                 })

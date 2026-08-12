@@ -15,9 +15,35 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+async def cancel_and_drain(tasks: Iterable[asyncio.Task | None]) -> int:
+    """Spekulative Tasks abbrechen und ihr Ende abwarten; gibt ihre Zahl zurück.
+
+    ``None`` wird übersprungen, damit der Aufrufer nicht erst filtern muss — ein
+    Zug ohne Vorabruf trägt ``spec_task=None``. Abwarten statt bloßem
+    ``cancel()``: sonst räumt die Aufgabe erst irgendwann später ab, und ihre
+    Ausnahme liefe als „Task exception was never retrieved" auf.
+
+    Dieselbe Bauart, die ``graph/nodes/respond`` für seine beiden Verwurf-Fälle
+    inline trägt (LP-/Canvas-Route). Hier steht sie, seit mit dem Agent-Modus
+    (A4c-2b) ein dritter Fall dazukam.
+    """
+    verworfen = 0
+    for task in tasks:
+        if task is None:
+            continue
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):
+            pass
+        verworfen += 1
+    return verworfen
 
 
 def _retrieve_task_exception(task: asyncio.Task) -> None:

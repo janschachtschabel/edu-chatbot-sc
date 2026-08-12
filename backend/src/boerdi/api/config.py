@@ -7,17 +7,21 @@ DB areas replace files (V2): the ``path`` parameter stays the area key
 is new (V3, JSON schema per area for the generic formly renderer).
 """
 
+from urllib.parse import urlparse
+
 import yaml
 from fastapi import APIRouter, HTTPException, Security
 from pydantic import BaseModel, ValidationError
 
-from boerdi.api.deps import require_studio_key
+from boerdi.api.deps import Lang, require_studio_key
 from boerdi.api.schemas import ConfigFile
+from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
 from boerdi.services import seed_io
 from boerdi.services.config_loader.mcp import _PRIMARY_ID
 from boerdi.services.mcp import tool_descriptions, transport
 from boerdi.services.url_safety import UnsafeUrlError, assert_public_url
+from boerdi.settings import get_settings
 
 router = APIRouter(
     prefix="/api/config", tags=["config"],
@@ -44,7 +48,7 @@ async def get_config_file(path: str) -> dict:
 
 
 @router.put("/file")
-async def update_config_file(file: ConfigFile) -> dict:
+async def update_config_file(file: ConfigFile, lang: Lang) -> dict:
     """Persist raw file text.
 
     Malformed YAML is the caller's mistake, not a server fault: ``safe_load``
@@ -64,12 +68,12 @@ async def update_config_file(file: ConfigFile) -> dict:
         try:
             parsed = yaml.safe_load(file.content) or {}
         except yaml.YAMLError as e:
-            raise HTTPException(status_code=400, detail=f"Inhalt nicht lesbar: {e}") from e
-        _assert_area_document_safe(key, parsed)
+            raise HTTPException(400, msg(lang, "file.unreadable", error=e)) from e
+        _assert_area_document_safe(key, parsed, lang)
     try:
         await cl.write_config_file(file.path, file.content)
     except (yaml.YAMLError, ValueError) as e:
-        raise HTTPException(status_code=400, detail=f"Inhalt nicht lesbar: {e}") from e
+        raise HTTPException(400, msg(lang, "file.unreadable", error=e)) from e
     return {"status": "saved", "path": file.path}
 
 
@@ -106,7 +110,7 @@ class McpServerUpdate(BaseModel):
 _MCP_AREA = "05-knowledge/mcp-servers"
 
 
-def _assert_servers_public(servers: object) -> None:
+def _assert_servers_public(servers: object, lang: Locale) -> None:
     """Reject a registry that would point the backend at an internal address.
 
     Stored SSRF (ALT audit T8): the backend POSTs to every enabled server on
@@ -127,12 +131,11 @@ def _assert_servers_public(servers: object) -> None:
             assert_public_url(srv_url)
         except UnsafeUrlError as e:
             raise HTTPException(
-                status_code=400,
-                detail=f"MCP-Server '{srv.get('id') or '?'}': {e}",
+                400, msg(lang, "mcp.serverRejected", id=srv.get("id") or "?", error=e)
             ) from e
 
 
-def _assert_area_document_safe(key: str, data: object) -> None:
+def _assert_area_document_safe(key: str, data: object, lang: Locale) -> None:
     """Per-area egress checks the GENERIC write paths must not skip.
 
     ``PUT /config/data/{area}`` and ``PUT /config/file`` accept any area, so
@@ -142,11 +145,11 @@ def _assert_area_document_safe(key: str, data: object) -> None:
     9-4 "Wissen" view; pinned by the two ``*_rejects_internal_url`` tests.
     """
     if key == _MCP_AREA and isinstance(data, dict):
-        _assert_servers_public(data.get("servers"))
+        _assert_servers_public(data.get("servers"), lang)
 
 
 @router.put("/mcp-servers")
-async def update_mcp_servers(data: McpServerUpdate) -> dict:
+async def update_mcp_servers(data: McpServerUpdate, lang: Lang) -> dict:
     """Replace the MCP server registry.
 
     Every non-primary URL is SSRF-checked before anything is persisted (ALT audit
@@ -157,13 +160,13 @@ async def update_mcp_servers(data: McpServerUpdate) -> dict:
     may deliberately point inside the network, and ``save_mcp_servers`` strips it
     before writing regardless.
     """
-    _assert_servers_public(data.servers)
+    _assert_servers_public(data.servers, lang)
     await cl.save_mcp_servers(data.servers)
     return {"status": "saved", "count": len(data.servers)}
 
 
 @router.post("/mcp-servers/discover")
-async def discover_mcp_tools(url: str = "") -> dict:
+async def discover_mcp_tools(lang: Lang, url: str = "") -> dict:
     """Handshake an MCP server once and list its tools, without registering it.
 
     The SSRF guard sits in *front* of the egress, not behind a stored value like
@@ -173,7 +176,7 @@ async def discover_mcp_tools(url: str = "") -> dict:
     reachable-or-not from here, it is not the caller's bad request.
     """
     if not url:
-        raise HTTPException(status_code=400, detail="URL required")
+        raise HTTPException(status_code=400, detail=msg(lang, "mcp.urlRequired"))
     try:
         assert_public_url(url)
     except UnsafeUrlError as e:
@@ -182,7 +185,7 @@ async def discover_mcp_tools(url: str = "") -> dict:
         tools = await transport.discover_server_tools(url)
         return {"url": url, "tools": tools}
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Verbindung fehlgeschlagen: {e}") from e
+        raise HTTPException(502, msg(lang, "mcp.connectFailed", error=e)) from e
 
 
 # backup / restore + snapshots + factory live in config_snapshots.py (P2-7).
@@ -260,7 +263,7 @@ async def get_area_data(area: str) -> dict:
 
 
 @router.put("/data/{area:path}")
-async def update_area_data(area: str, payload: AreaData) -> dict:
+async def update_area_data(area: str, payload: AreaData, lang: Lang) -> dict:
     """Replace the area's document (9-3a). ``data`` is the WHOLE document.
 
     GET/PUT are a read-modify-write pair, and that is deliberate. The area
@@ -282,7 +285,7 @@ async def update_area_data(area: str, payload: AreaData) -> dict:
     absent optional field and rewrite the document the editor saw.
     """
     key, model = _resolve_area(area, file_key=True)
-    _assert_area_document_safe(key, payload.data)
+    _assert_area_document_safe(key, payload.data, lang)
     try:
         model.model_validate(payload.data)
     except ValidationError as e:
@@ -296,6 +299,26 @@ async def update_area_data(area: str, payload: AreaData) -> dict:
     return {"status": "saved", "area": key, "data": payload.data}
 
 
+def _mcp_auth_base() -> str:
+    """Herkunft des MCP-Servers für die Anmeldung im Browser (C5-c2).
+
+    Nur ``scheme://host[:port]``. Der Werkzeug-Pfad (``/mcp``) gehört nicht
+    dazu: die Entdeckungs-Dokumente liegen unter ``/.well-known/…`` an der
+    Wurzel. Und nur die Herkunft — der Rest der Server-Registrierung ist
+    Betriebswissen und hat in einem öffentlichen Bündel nichts verloren.
+
+    Leer bei fehlender oder unbrauchbarer Angabe; das Widget liest das als
+    „diese Anlage bietet keine Anmeldung an" und bietet den Chip nicht an.
+    """
+    roh = (get_settings().mcp_server_url or "").strip()
+    if not roh:
+        return ""
+    teile = urlparse(roh)
+    if teile.scheme not in ("http", "https") or not teile.netloc:
+        return ""
+    return f"{teile.scheme}://{teile.netloc}"
+
+
 # ── public: widget boot bundle (trusted_domains + header_nav + welcome) ────
 @public_router.get("/guide-mode")
 async def get_guide_mode() -> dict:
@@ -304,4 +327,7 @@ async def get_guide_mode() -> dict:
     cfg = cl.load_guide_mode_config()
     cfg["header_nav"] = cl.load_header_nav_config().get("buttons", [])
     cfg["welcome"] = cl.load_welcome_config()
+    # C5-c2: neues Feld, KEIN Vertragsbruch — die Rückgabe ist ``dict``, im
+    # Dokument also ein offenes Objekt. Eine eigene Route wäre einer gewesen.
+    cfg["mcp_auth_base"] = _mcp_auth_base()
     return cfg

@@ -14,15 +14,15 @@
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: #f1f5f9;
-  border-bottom: 1px solid #e2e8f0;
-  color: #1e293b;
+  background: var(--mat-sys-surface-container);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  color: var(--mat-sys-on-surface);
   font-size: 13px;
   flex-wrap: wrap;
 }
 .nav-banner-icon {
   font-size: 16px;
-  color: var(--boerdi-primary, #1c4587);
+  color: var(--mat-sys-primary);
 }
 .nav-banner-text {
   flex: 1 1 220px;
@@ -32,7 +32,7 @@
 .nav-banner-text strong {
   font-weight: 600;
   word-break: break-word;
-  color: var(--boerdi-primary, #1c4587);
+  color: var(--mat-sys-primary);
 }
 .nav-banner-actions {
   display: flex;
@@ -41,7 +41,7 @@
 }
 .nav-banner-btn {
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--mat-sys-corner-small);
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 500;
@@ -49,19 +49,19 @@
   transition: background 0.15s, border-color 0.15s;
 }
 .nav-banner-btn--primary {
-  background: var(--boerdi-primary, #1c4587);
-  color: #fff;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
 }
 .nav-banner-btn--primary:hover {
   filter: brightness(1.1);
 }
 .nav-banner-btn--secondary {
-  background: #ffffff;
-  color: #475569;
-  border-color: #cbd5e1;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface-variant);
+  border-color: var(--mat-sys-outline-variant);
 }
 .nav-banner-btn--secondary:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: var(--mat-sys-surface-container-high);
+  border-color: var(--mat-sys-outline);
 }
 

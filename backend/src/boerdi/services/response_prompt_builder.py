@@ -25,6 +25,7 @@ import json
 import logging
 from typing import Any
 
+from boerdi.i18n import resolve_locale
 from boerdi.services import page_context
 from boerdi.services import response_prompt_display_blocks as _display
 from boerdi.services import response_prompt_tools_text as _tools_text
@@ -36,6 +37,7 @@ from boerdi.services.config_loader import (
     load_persona_prompt,
 )
 from boerdi.services.response_prompt_pattern import render_pattern_layer
+from boerdi.services.response_tool_selection import curation_blocked_by_mode
 
 _logger = logging.getLogger(__name__)
 
@@ -65,6 +67,12 @@ def _build_system_prompt(
     _cards_inline_mode, _inline_grouping_mode, _degradation_no_tools)`` — the
     finished prompt plus the three flags later phases (tool selection,
     inline-grouping closures) read."""
+    # C1-f1: Die Ausgabe-Sprache kommt aus ``environment.locale`` — dem Feld,
+    # das der Vertrag seit je fuehrt und das bis hierher niemand ausgewertet hat.
+    # ``resolve_locale`` ist derselbe Parser wie fuer ``Accept-Language`` (C1-e1):
+    # ``en-GB`` ist Englisch, alles Nichtunterstuetzte faellt auf Deutsch.
+    lang = resolve_locale(environment.get("locale"))
+
     # P1: config loads.
     persona_id = classification.get("persona_id", "P-AND")
     base_persona = load_base_persona()
@@ -183,13 +191,26 @@ Rolle in dieser Phase: {_resp_state_meta.get('role', '—')}
     )
     if pattern_wants_no_tools:
         if _degradation_no_tools:
-            system_parts.append(_tools_text.DEGRADATION_NO_TOOLS_RULES)
+            system_parts.append(
+                _tools_text.DEGRADATION_NO_TOOLS_RULES
+                + _tools_text.render_output_language(lang)
+            )
         else:
-            system_parts.append(_tools_text.M15_NO_TOOLS_RULES)
+            system_parts.append(
+                _tools_text.M15_NO_TOOLS_RULES + _tools_text.render_output_language(lang)
+            )
     else:
         system_parts.append(_tools_text.render_tools_block(
-            session_state, available_rag_areas, rag_config,
+            session_state, available_rag_areas, rag_config, lang,
         ))
+
+    # E3 (2026-08-10): Hat das Muster kuratierende Werkzeuge verlangt, die es
+    # mangels Zugangsblock nicht bekommt, weiss das Modell davon sonst nichts —
+    # es sucht ein Werkzeug, das gar nicht im Angebot steht, und weicht aus.
+    # NUR in diesem Fall angehaengt: der Prompt jedes anderen Zuges bleibt
+    # bytegleich, und der Block kostet Platz nur dort, wo er etwas erklaert.
+    if curation_blocked_by_mode(pattern_output):
+        system_parts.append(_tools_text.render_curation_unavailable(lang))
 
     # P9: recency anchor. ALT's _log_system_prompt_size("response", …) telemetry
     # is simplify-deferred (no tiktoken infra in NEU).

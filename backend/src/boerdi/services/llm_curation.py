@@ -10,7 +10,10 @@ verbatim ALT. Precedent: llm_learning_path.py / quick_replies_llm.py.
 
 from __future__ import annotations
 
+from typing import Any
+
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
+from boerdi.i18n import DEFAULT, Locale, bot_text, language_name, template_hint
 from boerdi.services import llm
 
 
@@ -20,6 +23,8 @@ async def generate_curation_text(
     contents_text: str,
     instruction: str,
     session_state: dict,
+    lang: Locale = DEFAULT,
+    usage_acc: dict[str, Any] | None = None,
 ) -> str:
     """Analyse the gap between a collection's compendium (the editorial "should
     cover") and its actual contents (the "is"), and suggest what's missing.
@@ -28,6 +33,10 @@ async def generate_curation_text(
     compendium and contents — never invent topics that aren't in the
     compendium. ``instruction`` is the Studio-editable curate_prompt from
     context-actions.yaml.
+
+    ``usage_acc`` is optional — threaded through, the call is accounted under
+    phase ``"curation"`` (K1c). Its caller is the ``curate_collection`` direct
+    action.
     """
     persona_id = session_state.get("persona_id", "P-AND")
 
@@ -42,8 +51,11 @@ async def generate_curation_text(
         "von außen einbauen.\n"
         "- Wenn Soll und Ist sich gut decken, sage das ehrlich, statt Lücken "
         "zu konstruieren.\n"
-        "Antworte auf Deutsch in sauberem Markdown ohne einleitende Meta-Sätze."
-    )
+        # C1-f2a: die Sprachdirektive stand hier schon — sie wird an Ort und
+        # Stelle sprachabhaengig, damit der deutsche Prompt bytegleich bleibt.
+        f"Antworte auf {language_name(lang)} in sauberem Markdown ohne "
+        "einleitende Meta-Sätze."
+    ) + template_hint(lang)
 
     prompt = (
         f'Sammlung: "{collection_title}"\n\n'
@@ -64,10 +76,12 @@ async def generate_curation_text(
             messages=messages,
             temperature=0.4,
             max_tokens=1800,
+            usage_acc=usage_acc,
+            phase="curation",
         )
         return (
             strip_reasoning_markers(resp.choices[0].message.content or "")
-            or "Die Kuratier-Analyse konnte nicht erstellt werden."
+            or bot_text(lang, "curation.failed")
         )
     except Exception as e:
-        return f"Fehler bei der Kuratier-Analyse: {e}"
+        return bot_text(lang, "curation.error", error=e)

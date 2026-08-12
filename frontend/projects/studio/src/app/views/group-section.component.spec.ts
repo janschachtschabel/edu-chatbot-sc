@@ -6,6 +6,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { AREA_SCHEMAS } from '../schema-form/area-schemas.fixture';
 import type { CuratedSection } from './curated-views';
 import { GroupSectionComponent } from './group-section.component';
@@ -13,8 +14,8 @@ import { GroupSectionComponent } from './group-section.component';
 const PATTERNS: CuratedSection = {
   area: '03-patterns',
   kind: 'group',
-  label: 'Gesprächsmuster',
-  hint: 'Ein Dokument je Muster.',
+  labelKey: 'curated.patterns.patterns.label',
+  hintKey: 'curated.patterns.patterns.hint',
 };
 
 /** Dieselbe Gruppe, aber mit ALTs Reiter-Gliederung (A7). */
@@ -38,6 +39,9 @@ interface Harness {
 
 async function mount(section: CuratedSection = PATTERNS): Promise<Harness> {
   TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen
+  // Zusagen unten brauchen deshalb die oberste Sprachquelle.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
@@ -72,7 +76,9 @@ describe('GroupSectionComponent', () => {
 
   it('reads the other group from the same response', async () => {
     const { el } = await mount({
-      area: '04-personas', kind: 'group', label: 'Personas', hint: 'Zielgruppen.',
+      area: '04-personas', kind: 'group',
+      labelKey: 'curated.dimensionen.personas.label',
+      hintKey: 'curated.dimensionen.personas.hint',
     });
     const options = Array.from(el.querySelectorAll('.gs-entry')).map((b) => b.textContent?.trim());
     expect(options).toEqual(['lehrkraft — Lehrkraft']);

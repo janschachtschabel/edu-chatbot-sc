@@ -7,6 +7,7 @@ import { provideRouter } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 
 import { routes } from '../app.routes';
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
 import { DEFAULT_VIEW } from '../studio-views';
 import { OverviewComponent } from './overview.component';
 
@@ -41,6 +42,10 @@ const ELEMENTS_NONE = {
 
 async function mount(answers: Answers = {}): Promise<Harness> {
   TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'`, und der Browser ist beim
+  // Studio die zweitstärkste Sprachquelle. Dieser Test prüft deutsche Texte,
+  // also muss er die deutsche Oberfläche ausdrücklich verlangen (C1-d3b).
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(),
@@ -131,6 +136,61 @@ describe('OverviewComponent', () => {
     });
     expect(text(h)).toContain('gerade eben');
     expect(text(h)).toContain('1 weiterer Snapshot');
+  });
+
+  it('beugt die Snapshot-Zeile als Ganzes, nicht nur ihr Substantiv', async () => {
+    // „1 weiterer Snapshot" gegen „3 weitere Snapshots": das Adjektiv beugt sich
+    // mit. Bis C1-d4a stand die Grenze als `=== 1` im Code — die deutsche Regel,
+    // fest verdrahtet; jetzt entscheidet `Intl.PluralRules` der aktiven Sprache.
+    const h = await mount({
+      factory: { exists: false },
+      snapshots: [1, 2, 3].map((n) => ({
+        id: `snap-${n}`, created_at: '2026-07-01T08:00:00Z', label: '', include_db: false,
+      })),
+    });
+    expect(text(h)).toContain('3 weitere Snapshots');
+    expect(text(h)).not.toContain('weiterer');
+  });
+
+  it('spricht auf Englisch vollständig englisch — Kopf, Reiter und Karten', async () => {
+    // C1-d4a. Die Reiter-Beschriftungen und die sechs Schicht-Karten standen als
+    // fertige Sätze auf Modulebene und wären in der Sprache eingefroren, die
+    // beim Laden des Moduls galt.
+    const h = await mount({ elements: ELEMENTS_NONE });
+    TestBed.inject(StudioLanguageService).toggle();
+    await h.fixture.whenStable();
+
+    expect(text(h)).toContain('Overview');
+    expect(text(h)).toContain('Architecture & reference');
+    expect(text(h)).toContain('Who is the chatbot? What must it never do?');
+    expect(text(h)).toContain('Layer 1 —');
+    expect(text(h)).not.toContain('Schicht 1');
+  });
+
+  it('übersetzt auch die vier Erklär-Karten am Fuss der Seite', async () => {
+    // C1-d5d, die letzte Scheibe der Studio-Oberfläche. Bis hierher standen die
+    // vier Karten als deutsche Prosa in der Vorlage — sichtbar deutsch mitten
+    // in einer sonst englischen Seite.
+    const h = await mount({ elements: ELEMENTS_NONE });
+    expect(text(h)).toContain('So entscheidet der Bot');
+    expect(text(h)).toContain('3-Stufen-Eskalation');
+
+    TestBed.inject(StudioLanguageService).toggle();
+    await h.fixture.whenStable();
+    expect(text(h)).toContain('How the bot decides');
+    expect(text(h)).toContain('Three-step escalation');
+    expect(text(h)).not.toContain('So entscheidet der Bot');
+  });
+
+  it('gibt jedem Verweis in den Karten eine vollständige Wortgruppe', async () => {
+    // Zwei Verweise standen mitten im Satz — einer davon in einer Klammer
+    // („siehe Dimensionen"). Einen Satz um ein `<a>` herum zu zerschneiden
+    // hiesse, die Wortstellung dem Template zu überlassen (Muster aus C1-d4a).
+    const h = await mount({ elements: ELEMENTS_NONE });
+    const linkText = (href: string): string =>
+      h.el.querySelector(`.ov-info a[href="${href}"]`)?.textContent?.trim() ?? '';
+    expect(linkText('/patterns')).toBe('editierbar unter Patterns');
+    expect(linkText('/dimensionen')).toBe('nachzusehen unter Dimensionen');
   });
 
   it('says a factory snapshot is missing instead of implying an empty one', async () => {

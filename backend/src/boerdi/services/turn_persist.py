@@ -51,19 +51,41 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
+from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo, PreparedWriteOut
 from boerdi.domain.cards.build import _is_themenseite_card
 from boerdi.domain.inline_rendering import _build_inline_document
+from boerdi.domain.prepared_write import single_prepared_write
 from boerdi.domain.quick_reply_policy import _apply_state_auto_followup
+from boerdi.domain.turn_frame import (
+    CLARIFIER_PATTERN_ID,
+    clear_frame,
+    note_clarification,
+)
+from boerdi.domain.write_confirm import preview_for_display
+from boerdi.i18n import CLAIM_WORDS, DEFAULT, resolve_locale
+from boerdi.i18n.bot_text import bot_text
 from boerdi.services.config_loader import load_display_rules_config
-from boerdi.services.db_sessions import save_message, update_session
+from boerdi.services.db_sessions import finalize_message, save_message, update_session
 from boerdi.services.guide_markers import _attach_guide_urls
+from boerdi.services.mcp.client import get_prepared_writes
 from boerdi.services.topic_pages import _resolve_m16_topic_page_view
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+
+def _needs_finalize(
+    cards_before: list, cards_after: list, debug_before: dict, debug_after: dict
+) -> bool:
+    """Did the group-trim or the M16 resolver change what the turn actually
+    delivers (audit 2026-08-12, F-6)?
+
+    Guards the follow-up write: on a normal turn nothing moves, and the hot path
+    must not pay for a second UPDATE that would write the identical row.
+    """
+    return cards_before != cards_after or debug_before != debug_after
 
 
 async def build_debug_and_update_session(
@@ -180,6 +202,17 @@ async def build_debug_and_update_session(
     except Exception:
         logger.debug("persisting _last_pattern in session state failed", exc_info=True)
 
+    # B1–B3 — den offenen Vorgang (Frame) fortschreiben, gleiche Stelle und
+    # gleiche Quelle wie ``_last_pattern``: das AUSGEFÜHRTE Muster, nicht der
+    # Engine-Winner. Hat der Klärer geantwortet, zählt der Versuch; jedes andere
+    # Muster schließt den Vorgang — daher verwirft ihn auch ein Themenwechsel,
+    # ohne dass es dafür eine eigene Regel bräuchte.
+    _entities = session_state.setdefault("entities", {})
+    if (_effective_pattern_id or winner_id) == CLARIFIER_PATTERN_ID:
+        note_clarification(_entities)
+    else:
+        clear_frame(_entities)
+
     # 11. Update session state in DB (jsonb-nativ: kein json.dumps).
     await update_session(
         session,
@@ -226,6 +259,11 @@ async def persist_and_build_response(
     — nach dem Return trägt die ChatResponse die Endwerte. Returns die fertige
     ``ChatResponse``. Deviationen: siehe Modul-Docstring.
     """
+    # Widget-Sprache dieses Zuges. Einmal aufgelöst statt an jeder der vier
+    # Stellen unten neu — sie ist für den ganzen Zug dieselbe (C1-f2b6a; vorher
+    # stand die Zeile in f2b4 und f2b5 je einmal lokal).
+    _lang = resolve_locale(getattr(req.environment, "locale", None))
+
     _debug_for_save = debug.model_dump()
     if _web_links:
         # Persistieren in debug_json, damit nach Refresh / Bubble-Reopen die
@@ -242,12 +280,13 @@ async def persist_and_build_response(
     # ``_final_text`` ist hier noch das ungestrippte Roh-Markdown (das Inline-
     # Document-Routing kürzt es erst weiter unten auf den Intro-Text) → wir
     # persistieren automatisch den vollen Material-Inhalt (für M11-Edit-Turns).
-    await save_message(
+    _cards_for_save = [c.model_dump() for c in cards]
+    _message_id = await save_message(
         session,
         req.session_id,
         "assistant",
         _final_text,
-        cards=[c.model_dump() for c in cards],
+        cards=_cards_for_save,
         debug=_debug_for_save,
     )
 
@@ -287,14 +326,18 @@ async def persist_and_build_response(
             state_id=new_state,
             quick_replies=quick_replies,
             has_cards=bool(cards),
+            lang=_lang,
         )
 
     # Type-Focus QR-Filter: „Sammlungen"/„Themenseiten"-QRs sind widersprüchlich,
     # wenn der User sich gerade WEG davon (hin zu Material-Typ) bewegt hat.
     if _type_focus_label and quick_replies:
         import re as _re_qrf
+        # Dieselbe Wortliste wie der Anti-Halluzinations-Wächter in
+        # ``turn_links`` — sonst könnten Text und Chips nach einer
+        # einseitigen Änderung Verschiedenes behaupten.
         _qr_block_re = _re_qrf.compile(
-            r"\b(?:Sammlung(?:en)?|Themenseite(?:n)?)\b",
+            CLAIM_WORDS.get(_lang, CLAIM_WORDS[DEFAULT]),
             _re_qrf.IGNORECASE,
         )
         _before_qr = list(quick_replies)
@@ -377,7 +420,8 @@ async def persist_and_build_response(
     if cards:
         try:
             from boerdi.domain.facets import narrowing_quick_replies_from_metas
-            _narrow_qrs = narrowing_quick_replies_from_metas(_raw_metas, max_options=2)
+            _narrow_qrs = narrowing_quick_replies_from_metas(
+                _raw_metas, max_options=2, lang=_lang)
             if _narrow_qrs:
                 _existing_qrs = quick_replies or []
                 quick_replies = _narrow_qrs + [
@@ -389,6 +433,16 @@ async def persist_and_build_response(
                 )
         except Exception as _nf_err:
             logger.debug("facet narrowing QRs skipped: %s", _nf_err, exc_info=True)
+
+    # S3: Steht eine Schreib-Abnahme an, ist die Zustimmung die kürzeste
+    # mögliche Antwort — sie bekommt einen Knopf. Hier und nicht unten bei der
+    # Box, damit der Deckel gleich darunter auch für sie gilt: ``max_count: 0``
+    # heißt „keine Pillen" und ist eine Entscheidung der Redaktion, kein
+    # Platzproblem. Gelesen und nicht verbraucht — verbraucht wird der Text
+    # dort, wo die Box entsteht.
+    if session_state.get("_write_preview"):
+        _confirm_chip = bot_text(_lang, "action.write.confirmChip")
+        quick_replies = [_confirm_chip, *(q for q in quick_replies if q != _confirm_chip)]
 
     # Welle E — Quick-Replies-Limit aus display_rules; per-Pattern ``_qr_max``
     # überschreibt den globalen Deckel. max_count: 0 → keine Pillen.
@@ -447,6 +501,7 @@ async def persist_and_build_response(
                     ),
                 },
                 formality=pattern_output.get("formality", "") or "",
+                lang=_lang,
             )
             if _docs:
                 inline_documents = _docs
@@ -467,6 +522,29 @@ async def persist_and_build_response(
         except Exception as _e:
             logger.warning("inline-document routing failed: %s", _e)
 
+    # ── S2 (2026-08-11): die Schreib-Abnahme als eigene Box ───────────────
+    # Getrennt von der Weiche oben, weil es ein anderer Vorgang ist: dort
+    # wandert ERZEUGTER Text des Modells in eine Box, hier wird FREMDER Text
+    # gezeigt, den der MCP-Server formuliert hat. Der Unterschied ist der
+    # ganze Punkt — die Abnahme darf nicht durch das Modell hindurch.
+    #
+    # Verbraucht statt gelesen: die Vorschau gehört dem Zug, der sie erzeugt
+    # hat. Bliebe sie stehen, zeigte jeder Folgezug sie erneut, auch einer,
+    # der von etwas anderem handelt. ``pop`` macht das strukturell und nicht
+    # per Konvention (vgl. ``_selected_card_ids``, das genau deshalb nur ins
+    # Debug-Feld gehen darf).
+    _write_preview = session_state.pop("_write_preview", "")
+    if _write_preview:
+        # Die Frage steht IN der Box und nicht im Fließtext: dort steht sie
+        # auch dann, wenn das Modell sie vergisst. Genau das war der Befund —
+        # eine Zusage, die nur im Prompt lebt, ist keine.
+        _ask = bot_text(_lang, "inline.writePreview.ask")
+        inline_documents = [*inline_documents, {
+            "kind": "schreib_vorschau",
+            "title": bot_text(_lang, "inline.title.writePreview"),
+            "content": f"{preview_for_display(_write_preview)}\n\n{_ask}",
+        }]
+
     # ── M16-Resolver (ALT chat_topic_pages._resolve_m16_topic_page_view) ──
     # Nur bei M16-Themenseiten-Turns: beste Themenseite finden → deren
     # Schwimmlinien-Inhalte als Swimlane-Boxen aufbereiten und die normalen
@@ -480,7 +558,7 @@ async def persist_and_build_response(
     # dem Nutzer ehrlich sagen, dass allgemeiner gesucht wurde (Self-gating).
     try:
         from boerdi.domain.facets import unresolved_filter_note
-        _uf_note = unresolved_filter_note(_raw_metas)
+        _uf_note = unresolved_filter_note(_raw_metas, lang=_lang)
         if _uf_note:
             _final_text = (
                 (_final_text.rstrip() + "\n\n" + _uf_note) if _final_text else _uf_note
@@ -488,6 +566,33 @@ async def persist_and_build_response(
             logger.info("unresolved-filter hint appended: %s", _uf_note)
     except Exception as _uf_err:
         logger.debug("unresolved-filter note skipped: %s", _uf_err, exc_info=True)
+
+    # E3: hat der MCP-Server die bestätigte Änderung beschrieben statt sie zu
+    # schreiben, wandert sie hier in die Antwort — ausgeführt wird sie in der
+    # Repository-Seite. Im Normalbetrieb ist die Liste leer.
+    _writes = get_prepared_writes()
+    _prepared = single_prepared_write(_writes)
+    if _prepared is None and _writes:
+        logger.warning(
+            "%d vorbereitete Schreibzugriffe in einem Zug — keiner wird "
+            "ausgeliefert, weil nicht feststellbar ist, welchem zugestimmt wurde",
+            len(_writes))
+
+    # F-6: Gespeichert wurde oben der Stand VOR Gruppen-Trim und M16-Auflösung —
+    # bewusst, denn dort ist der Zug noch absturzsicher: ``_resolve_m16_topic_page_view``
+    # trägt kein ``try/except``, und läge das Speichern dahinter, verlöre ein
+    # Fehler dort den GANZEN Zug. Jetzt steht der ausgelieferte Endstand fest,
+    # also wird die Zeile nachgezogen — sonst zeigt ``GET /messages`` nach einem
+    # Reload eine andere Kartenmenge als das Gespräch und bei einem M16-Zug die
+    # Schwimmlinien-Ansicht gar nicht.
+    _cards_final = [c.model_dump() for c in cards]
+    _debug_final = dict(_debug_for_save)
+    if _topic_page_view is not None:
+        _debug_final["_topic_page_view"] = _topic_page_view.model_dump()
+    if _needs_finalize(_cards_for_save, _cards_final, _debug_for_save, _debug_final):
+        await finalize_message(
+            session, _message_id, cards=_cards_final, debug=_debug_final,
+        )
 
     return ChatResponse(
         session_id=req.session_id,
@@ -503,4 +608,14 @@ async def persist_and_build_response(
         inline_documents=inline_documents,
         topic_page=_topic_page_view,
         display_rules=_display_rules_active,
+        prepared_write=(
+            PreparedWriteOut(
+                method=_prepared.method,
+                path=_prepared.path,
+                body=_prepared.body,
+                done_message=_prepared.done_message,
+            )
+            if _prepared is not None
+            else None
+        ),
     )

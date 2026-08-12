@@ -6,7 +6,7 @@
  * generative run far more — and re-reading that every few seconds to watch a
  * progress line would move megabytes. The run LIST already polls and already
  * shows `current_activity`, so watching happens there; this panel says out loud
- * that it is a snapshot and offers "Aktualisieren".
+ * that it is a snapshot and offers a refresh.
  *
  * Two renderings, never both, so no conversation is shown twice:
  *  - with `summary.golden_metrics` (a gold run) the per-turn table carries the
@@ -21,26 +21,36 @@
  * `#dc2626` on white ≈ 3.4 / 2.9 / 4.0∶1) miss AA for the small text they were
  * used on, so the checked `--st-*-text` trio carries them instead — the number
  * is always spelled out beside the colour anyway.
+ *
+ * Fünf Sätze dieser Ansicht tragen Auszeichnung MITTEN im Satz. Sie stehen als
+ * ganzer Satz im Katalog und werden über `lang.rich()` geteilt, gerendert von
+ * `<studio-rich>` (C1-d4b2).
  */
 import {
   ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal,
   untracked,
 } from '@angular/core';
+import type { RichSegment } from '@boerdi/ui';
 
 import { AsyncData } from '../core/async-data';
 import { EvalApi, type EvalRunDetail } from '../core/eval-api.service';
-import { formatDecimal, formatPercent, germanDateTime } from '../core/format';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { evalStatusLabel } from './eval-status';
 import {
   catLabel, flowGroups, hardRate, type GoldMetrics, type GoldPerTurn,
 } from './gold-scorecard';
+import { RichTextComponent } from './rich-text.component';
+import { StudioFormat } from '../i18n/studio-format.service';
 
-const STATUS_LABELS: Readonly<Record<string, string>> = {
-  running: 'läuft', done: 'fertig', completed: 'fertig', failed: 'fehlgeschlagen',
-};
-
-const MODE_LABELS: Readonly<Record<string, string>> = {
-  golden: 'Gold-Flows', generative: 'Generativ',
+/**
+ * Art des Laufs → Katalog-Schlüssel, wie bei den Status-Wörtern eine
+ * Erlaubnisliste: eine dritte Art des Backends soll ihren rohen Wert zeigen,
+ * nicht einen Schlüssel.
+ */
+const MODE_KEYS: Readonly<Record<string, string>> = {
+  golden: 'evalDetail.mode.golden',
+  generative: 'evalDetail.mode.generative',
 };
 
 /** One turn of a persisted conversation, as much of it as this view reads. */
@@ -61,18 +71,30 @@ interface TranscriptConv {
 
 @Component({
   selector: 'studio-eval-run-detail',
-  imports: [AsyncStateComponent],
+  imports: [AsyncStateComponent, RichTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './eval-run-detail.component.html',
   styleUrl: './eval-run-detail.component.scss',
 })
 export class EvalRunDetailComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  private readonly lang = inject(StudioLanguageService);
+
+  /** Uebersetzer fuer den Fehlersatz der Leseoperationen und fuer die
+   *  Texte dieser Ansicht. */
+  protected readonly t = this.lang.t;
+
+  /** Zerlegt einen Satz mit Auszeichnung in Stücke — siehe Klassen-Kommentar. */
+  protected readonly rich = this.lang.rich;
+
   private readonly api = inject(EvalApi);
 
   readonly runId = input.required<string>();
   readonly dismiss = output<void>();
 
-  readonly detail = new AsyncData<EvalRunDetail>(() => this.api.run(this.runId()));
+  readonly detail = new AsyncData<EvalRunDetail>(() => this.api.run(this.runId()), this.t);
   readonly run = computed(() => this.detail.value());
 
   /** Which `flow·turn` row is open; '' = none. */
@@ -138,13 +160,13 @@ export class EvalRunDetailComponent {
   }
 
   botText(key: string): string {
-    return this.botByTurn().get(key) || '(kein Antworttext gespeichert)';
+    return this.botByTurn().get(key) || this.t('evalDetail.noBotText');
   }
 
   flowRate(flow: string): string {
     const { ok, total, rate } = hardRate(this.metrics()?.per_flow?.[flow]);
-    if (rate === null) return 'nichts geprüft';
-    return `${formatPercent(rate, 0)} · ${ok}/${total} Checks`;
+    if (rate === null) return this.t('evalDetail.flowNothing');
+    return this.t('evalDetail.flowRate', { rate: this.fmt.percent(rate, 0), ok, total });
   }
 
   /** `null` means the check was not asserted for this turn, not that it failed. */
@@ -153,7 +175,8 @@ export class EvalRunDetailComponent {
   }
 
   checkWord(value: boolean | null | undefined): string {
-    return value === true ? 'bestanden' : value === false ? 'nicht bestanden' : 'nicht geprüft';
+    if (value === true) return this.t('evalDetail.check.passed');
+    return this.t(value === false ? 'evalDetail.check.failed' : 'evalDetail.check.skipped');
   }
 
   checkClass(value: boolean | null | undefined): string {
@@ -161,27 +184,28 @@ export class EvalRunDetailComponent {
   }
 
   label(category: string): string {
-    return catLabel(category);
+    return catLabel(category, this.t);
   }
 
   rate(value: number | null | undefined): string {
-    return value === null || value === undefined ? '–' : formatPercent(value, 0);
+    return value === null || value === undefined ? '–' : this.fmt.percent(value, 0);
   }
 
   score(value: number | null | undefined): string {
-    return value === null || value === undefined ? '–' : formatDecimal(value);
+    return value === null || value === undefined ? '–' : this.fmt.decimal(value);
   }
 
   when(iso: string | null): string {
-    return iso ? germanDateTime(iso) : '–';
+    return iso ? this.fmt.dateTime(iso) : '–';
   }
 
   statusLabel(status: string): string {
-    return STATUS_LABELS[status] ?? status;
+    return evalStatusLabel(status, this.t);
   }
 
   modeLabel(mode: string): string {
-    return MODE_LABELS[mode] ?? mode;
+    const key = MODE_KEYS[mode];
+    return key ? this.t(key) : mode;
   }
 
   observed(turn: GoldPerTurn, key: string): string {
@@ -190,6 +214,19 @@ export class EvalRunDetailComponent {
 
   expected(turn: GoldPerTurn, key: string): string {
     return this.field(turn.expected, key);
+  }
+
+  /** Die geöffnete Zeile als EIN Satz: bis C1-d4b2 stand er als sechs
+   *  Bruchstücke im Template, deren Reihenfolge der Übersetzung gehört. */
+  turnDetail(turn: GoldPerTurn): readonly RichSegment[] {
+    return this.rich('evalDetail.turnDetail', {
+      mustOffer: this.expected(turn, 'must_offer'),
+      sie: this.observed(turn, 'sie'),
+      du: this.observed(turn, 'du'),
+      cards: this.observed(turn, 'cards'),
+      idocs: this.observed(turn, 'idocs'),
+      qr: this.observed(turn, 'qr'),
+    });
   }
 
   private field(source: Readonly<Record<string, unknown>>, key: string): string {

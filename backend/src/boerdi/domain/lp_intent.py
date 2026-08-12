@@ -17,6 +17,7 @@ LP fast-path lands in P4-5.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from boerdi.domain.route_tail import _thema_plausible
@@ -27,10 +28,59 @@ logger = logging.getLogger(__name__)
 # signals a learning-path / lesson-prep request. Module-level so both the gate
 # (here) and the LP fast-path body (topic extraction, services/lp_fast_path.py)
 # read one source of truth — ALT had it inline in ``_route_pattern`` (Z. 197).
+#
+# **C1-f2c-b — dieses Set hat einen zweiten Auftrag.** Es ist nicht nur das
+# Erkennungs-Vokabular: ``strip_lp_command_words`` unten streicht dieselben
+# Wörter aus der Nachricht, um das Thema freizulegen. Ein neuer Eintrag wirkt
+# also an zwei Stellen — er erkennt die Absicht UND verschwindet aus dem
+# Suchbegriff. Für die englischen Einträge ist beides gewollt; wer hier etwas
+# ergänzt, muss die zweite Wirkung mitdenken.
+#
+# Bis hierher blieb auf Englisch allein der Klassifikator-Pfad
+# (``intent_id == "I04"``) — das deterministische Gate griff nie.
 _lp_keywords = {
     "lernpfad", "unterrichtsvorbereitung", "unterrichtsstunde", "unterrichtsplanung",
     "unterricht vorbereiten", "unterrichtseinheit", "stundenentwurf",
+    "learning path", "lesson plan", "lesson preparation", "lesson prep",
+    "teaching unit", "unit plan", "prepare a lesson", "plan a lesson",
 }
+
+
+# Befehls- und Füllwörter, die um die Stichwörter herum stehen. Zusammen mit
+# ``_lp_keywords`` legen sie das Thema frei, wenn der Klassifikator keines
+# geliefert hat. Bis C1-f2c-b lag diese Liste als Schleife in
+# ``services/lp_fast_path`` — mit dem zweisprachigen Stichwortsatz bekam sie
+# einen zweiten Grund sich zu ändern und wohnt jetzt bei ihrem Vokabular.
+#
+# Die deutschen Einträge sind ALT-verbatim, inklusive ihrer Eigenart: gestrichen
+# wird auf Teilzeichenketten, nicht auf Wörtern, also frisst ``"zu"`` auch das
+# ``Zu`` in „Zucker". Die englischen Einträge tragen deshalb Leerzeichen —
+# ohne sie ginge ``a`` in „maths" mit. Neue Einträge nach diesem Muster.
+_LP_PHRASES = ["aus der sammlung", "erstelle mir", "erstelle bitte",
+               "bitte einen", "bitte ein"]
+_LP_FILLER = ["erstelle", "erstell", "daraus", "einen", "ein", "bitte", "mir",
+              "wie sieht", "aus", "zum thema", "zur", "zu", "für", "fuer",
+              # C1-f2c-b, englisch — mit Leerzeichen, s. Kommentar oben.
+              "create ", "make ", "prepare ", "please", "i need ",
+              "help me with ", " a ", " an ", " on ", " for ", " me ",
+              " about ", " to "]
+
+
+def strip_lp_command_words(message: str) -> str:
+    """Die Nachricht ohne LP-Stichwörter und Befehlswörter — der Rest ist das
+    Thema.
+
+    Rückfall für ``services/lp_fast_path``, wenn die Klassifikation kein
+    ``thema`` geliefert hat. Verhaltenserhaltend aus der dortigen Schleife
+    gezogen; für deutsche Eingaben Zeichen für Zeichen dasselbe Ergebnis wie
+    vorher, gepinnt in ``tests/test_lp_intent.py``.
+    """
+    out = message.lower()
+    for phrase in _LP_PHRASES:
+        out = out.replace(phrase, "")
+    for kw in list(_lp_keywords) + _LP_FILLER:
+        out = out.replace(kw, " ")
+    return re.sub(r"\s+", " ", out).strip()
 
 
 def detect_lp_intent(
@@ -54,8 +104,16 @@ def detect_lp_intent(
     # (I07) — nicht einen neuen erstellen.
     # Welle C Sprint 4: I03 ist in I03 gemerged (Download =
     # Repo-Link-Output von Search-Pattern, kein Backend-File-Stream).
+    # K1 (2026-08-11): I09/I10/I11 kamen mit M18/M19/M20 dazu und gehören aus
+    # demselben Grund hierher wie I06 — es sind Aufträge AM BESTAND (anlegen,
+    # prüfen, erschliessen), nicht der Wunsch nach einem neuen Lernpfad.
+    # Warum das nötig ist, wurde gemessen: der Schnellweg feuert schon bei EINEM
+    # Stichwort irgendwo im Satz, und „Unterrichtseinheit" steht in
+    # ``_lp_keywords``. „Prüf, ob die Sammlung für meine Unterrichtseinheit
+    # Optik reicht" löste ihn aus — und er läuft VOR der Musterwahl, M19 kam
+    # also nie zum Zug. Im Nebensatz steht der Zweck, nicht die Aufgabe.
     _lp_blocking_intents = {
-        "I07", "I08", "I02", "I06",
+        "I07", "I08", "I02", "I06", "I09", "I10", "I11",
     }
     # Persona-Block: bestimmte Personas profitieren NICHT von einem
     # didaktisch strukturierten Lernpfad. P-RED/P-ENT erwarten

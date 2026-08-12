@@ -23,6 +23,7 @@ from boerdi.domain.quick_reply_policy import (
     _qr_policy,
     _spec_qr_response_block,
 )
+from boerdi.i18n import SUPPORTED
 
 
 def _raise(*_a, **_kw):
@@ -241,3 +242,34 @@ def test_auto_followup_empty_and_none_qrs_get_single_auto_qr():
         state_id="S3", quick_replies=[], has_cards=True) == ["Hat das geholfen?"]
     assert _apply_state_auto_followup(
         state_id="S3", quick_replies=None, has_cards=True) == ["Hat das geholfen?"]
+
+
+# ── C1-f2b6a: derselbe Auto-Chip auf Englisch ────────────────────────────
+
+def test_auto_followup_english_chip():
+    out = _apply_state_auto_followup(
+        state_id="S3", quick_replies=["A", "B"], has_cards=True, lang="en")
+    assert out == ["A", "B", "Did that help?"]
+
+
+def test_auto_followup_english_is_idempotent():
+    """Der Doublette-Schutz und der Chip sind DASSELBE Wort.
+
+    ``"Hat das geholfen?"`` enthaelt ``"geholfen"`` — einen Eintrag der
+    Stichwortliste. Uebersetzt man nur den Chip, erkennt der Waechter die
+    englische Pass-Quality-Frage des LLM nicht mehr und haengt eine zweite an.
+    """
+    out = _apply_state_auto_followup(
+        state_id="S3", quick_replies=["Did that help?"], has_cards=True, lang="en")
+    assert out == ["Did that help?"]
+
+
+def test_auto_followup_english_erkennt_llm_varianten():
+    for qr in ("Was that the right fit?", "Did this help you?", "Does that fit?"):
+        out = _apply_state_auto_followup(
+            state_id="S3", quick_replies=[qr], has_cards=True, lang="en")
+        assert out == [qr], qr
+
+
+def test_pass_quality_tabelle_kennt_jede_sprache():
+    assert set(quick_reply_policy._PASS_QUALITY_KEYWORDS) == set(SUPPORTED)

@@ -67,6 +67,11 @@ jobs:
     # Der Bau liegt bei ~5–8 min; 30 ist Reißleine gegen einen hängenden
     # Container, nicht das erwartete Maß.
     timeout-minutes: 30
+    # Explizit statt Repo-Default: `packages: write` ist die einzige Erweiterung
+    # gegenüber read-only, und sie gilt nur für den Push unten.
+    permissions:
+      contents: read
+      packages: write
     env:
       # Eigenes Docker-Netz statt `services:`: die Dienste müssen für den
       # App-Container unter ihrem NAMEN erreichbar sein (wie in compose.prod).
@@ -235,6 +240,47 @@ jobs:
           echo "::error::HEALTHCHECK wurde in 80 s nicht healthy"
           docker inspect -f '{{json .State.Health}}' boerdi
           exit 1
+
+      # ── Veröffentlichen ────────────────────────────────────────────────────
+      # ZULETZT, und mit Absicht: in die Registry kommt nur ein Image, das die
+      # Smokes oben bestanden hat. Gepusht wird genau das lokal gebaute Artefakt
+      # (`docker tag`), nicht ein zweiter Bau — sonst stünde in der Registry ein
+      # Image, das so nie geprüft wurde.
+      #
+      # Wozu überhaupt: das Image trägt zwei Angular-Builds. Es auf dem Zielserver
+      # zu bauen kostet dort Minuten und Arbeitsspeicher; ein `docker pull` kostet
+      # Sekunden. Der Server braucht dann weder Node noch den Quellbaum.
+      #
+      # Nicht bei `pull_request`: Läufe aus einem Fork bekommen kein
+      # `packages: write`, der Schritt würde dort zuverlässig scheitern.
+      - name: An GHCR anmelden
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Zwei Marken: die Commit-genaue (`sha-…`) ist die, auf die ein Deploy
+      # zeigen sollte — sie ist unveränderlich und macht ein Rollback zu einer
+      # Frage der Zeile in der `.env`. `latest` gibt es nur auf `main` und ist
+      # Bequemlichkeit, keine Deploy-Empfehlung: worauf sie zeigt, ändert sich
+      # unter einem laufenden Server.
+      - name: Veröffentlichen (ghcr.io)
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          # GHCR verlangt Kleinschreibung; GitHub-Kontonamen dürfen Grossbuchstaben haben.
+          repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          sha_tag="ghcr.io/$repo:sha-${GITHUB_SHA::7}"
+          docker tag boerdi-chat "$sha_tag"
+          docker push "$sha_tag"
+          echo "veröffentlicht: \`$sha_tag\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            docker tag boerdi-chat "ghcr.io/$repo:latest"
+            docker push "ghcr.io/$repo:latest"
+            echo "veröffentlicht: \`ghcr.io/$repo:latest\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # Ohne das zeigt ein roter Lauf nur „exit 1". Der Grund steht im
       # Container-Log (siehe Runbook: `docker compose ps` zeigt die Schleife,

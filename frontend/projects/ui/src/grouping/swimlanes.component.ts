@@ -4,6 +4,7 @@ import { WloCard } from '../cards/card-types';
 import { getCardIcon, getCardPrimaryUrl } from '../cards/card-utils';
 import { ICONS } from '../icons/icons';
 import { SafeSvgPipe } from '../icons/safe-svg.pipe';
+import type { TranslationParams } from '../i18n/dictionary';
 import { TopicPageView } from './message-types';
 import { cardTooltip as cardTooltipUtil, GroupingContext } from './result-grouping';
 
@@ -41,7 +42,7 @@ import { cardTooltip as cardTooltipUtil, GroupingContext } from './result-groupi
           <div class="result-group result-group--topic">
             <div class="result-group__heading">
               <span class="bb-icon" [innerHTML]="topicIcon | safeSvg"></span>
-              {{ sl.heading || 'Inhalte' }} (Auszug)
+              {{ t('swimlanes.heading', { heading: sl.heading || t('swimlanes.headingFallback') }) }}
             </div>
             <div class="result-group__items">
               @for (card of sl.cards; track $index) {
@@ -66,12 +67,12 @@ import { cardTooltip as cardTooltipUtil, GroupingContext } from './result-groupi
             [href]="url"
             target="_blank"
             rel="noopener noreferrer"
-            [attr.title]="'Zur vollständigen Themenseite: ' + topicPage().variant_title"
+            [attr.title]="t('swimlanes.cta.title', { title: topicPage().variant_title })"
           >
             <span class="result-group__cta-icon" [innerHTML]="topicIcon | safeSvg"></span>
             <span class="result-group__cta-text">
-              <strong>Zur Themenseite „{{ topicPage().variant_title }}"</strong>
-              <span class="result-group__cta-sub">Alle Inhalte auf der Themenseite ansehen</span>
+              <strong>{{ t('swimlanes.cta.label', { title: topicPage().variant_title }) }}</strong>
+              <span class="result-group__cta-sub">{{ t('swimlanes.cta.sub') }}</span>
             </span>
             <span class="result-group__cta-arrow" [innerHTML]="arrowIcon | safeSvg"></span>
           </a>
@@ -88,6 +89,9 @@ export class SwimlanesComponent {
   protected readonly arrowIcon = ICONS.chevron_right;
   /** Pures Card-Icon direkt im Template (ALT-Binding `getCardIcon(card)`). */
   protected readonly getCardIcon = getCardIcon;
+  /** Kurzform fürs Template — übersetzt über den Kontext der Shell (C1-b2). */
+  protected readonly t = (key: string, params?: TranslationParams): string =>
+    this.ctx().t(key, params);
 
   // Defensiver Read im TS (nicht `swimlanes?.length` im Template) — die
   // Real-Backend-JSON kann das Array auslassen, obwohl der Typ es führt;

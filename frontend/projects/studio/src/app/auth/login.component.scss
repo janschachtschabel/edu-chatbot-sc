@@ -19,6 +19,16 @@
   background: var(--st-panel);
 }
 
+// Titel und Sprach-Umschalter auf einer Zeile (C1-d1). `gap`, damit die beiden
+// bei 200 % Zoom umbrechen statt sich zu überlappen.
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--st-3);
+  flex-wrap: wrap;
+}
+
 .title {
   font-size: 1.25rem;
   color: var(--st-accent);

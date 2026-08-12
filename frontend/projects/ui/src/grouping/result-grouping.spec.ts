@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { WloCard } from '../cards/card-types';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import { ChatMessage, QueryMetaEntry } from './message-types';
 import {
   cardTooltip,
@@ -38,12 +40,16 @@ function meta(fields: Partial<QueryMetaEntry>): QueryMetaEntry {
   return fields as unknown as QueryMetaEntry;
 }
 
+/** Deutscher Übersetzer: die Funktionen hier bauen ihre Labels bislang selbst
+ *  (das räumt C1-b3 ab); der Kontext trägt ihn schon, damit es EINEN Weg gibt. */
+const t = createTranslator(DE, DE);
 /** Trusted-Host: keine Extern-Warnung, withBsid identisch. */
-const ctx: GroupingContext = { withBsid: (u) => u ?? '', externalLinkWarning: () => '' };
+const ctx: GroupingContext = { withBsid: (u) => u ?? '', externalLinkWarning: () => '', t };
 /** Untrusted-Host: Extern-Warnung für jede URL. */
 const ctxWarn: GroupingContext = {
   withBsid: (u) => u ?? '',
   externalLinkWarning: (u) => (u ? 'Achtung! Externe URL.' : ''),
+  t,
 };
 
 describe('_dedupTake', () => {
@@ -245,6 +251,30 @@ describe('Tooltips', () => {
       queryMetas: [meta({ tool_name: 'search_wlo_content', search_url: 'https://s', search_term: 'Mathe' })],
     });
     expect(searchCtaTooltip(m, ctx)).toBe('Alle Treffer in der Suche anzeigen zu „Mathe"');
+  });
+
+  it('searchCtaTooltip ohne Term: der Satz ohne Zusatz', () => {
+    const m = msg({ queryMetas: [meta({ tool_name: 'search_wlo_content', search_url: 'https://s' })] });
+    expect(searchCtaTooltip(m, ctx)).toBe('Alle Treffer in der Suche anzeigen');
+  });
+
+  it('searchCtaTooltip nimmt beide Sätze aus dem Übersetzer (C1-b3)', () => {
+    // Zwei ganze Sätze statt Präfix+Suffix: eine andere Sprache stellt den Term
+    // womöglich vorne oder in anderer Fügung — Zusammenkleben ginge dort schief.
+    const en = createTranslator(
+      {
+        'groups.ctaTooltip.all': 'Show all search results',
+        'groups.ctaTooltip.withTerm': 'Show all results for “{term}”',
+      },
+      DE,
+    );
+    const ctxEn: GroupingContext = { ...ctx, t: en };
+    const mitTerm = msg({
+      queryMetas: [meta({ tool_name: 'search_wlo_content', search_url: 'https://s', search_term: 'Mathe' })],
+    });
+    const ohneTerm = msg({ queryMetas: [meta({ tool_name: 'search_wlo_content', search_url: 'https://s' })] });
+    expect(searchCtaTooltip(mitTerm, ctxEn)).toBe('Show all results for “Mathe”');
+    expect(searchCtaTooltip(ohneTerm, ctxEn)).toBe('Show all search results');
   });
 });
 

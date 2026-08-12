@@ -21,9 +21,11 @@ widget old" failure class, where a cached bundle silently outlived its config.
   static roots explicitly (like ``STUDIO_DIST_DIR`` in ``studio_static.py``),
   which covers both of ALT's cases without guessing from ``__file__``.
 * The hashed name is served **by the catch-all**, not by a route of its own. The
-  route surface is frozen (``docs/api/openapi-v1.json``), and a sixth path would
-  be contract drift for something that is an implementation detail of the
-  redirect.
+  route surface is frozen (``docs/api/openapi-v1.json``), and a path of its own
+  would be contract drift for something that is an implementation detail of the
+  redirect. (``/frameless`` was added to the contract deliberately in U1 — a
+  demo page for a new embed mode is a capability, not an internal detail. The
+  step was purely additive: one path, nothing changed or removed.)
 
 **No ``/api/static`` mount.** ALT had one, for a logo its demo pages and widget
 loaded by absolute URL. Nothing in this project reads it: the widget carries the
@@ -133,6 +135,12 @@ def widget_demo_inline() -> Response:
 def widget_demo_classic() -> Response:
     """The same embed with ``inline-result-grouping="false"`` — an A/B."""
     return HTMLResponse(widget_demo_html.classic_page())
+
+
+@public_router.get("/frameless")
+def widget_demo_frameless() -> Response:
+    """The frameless embed (U1) inside a host container of the page's own."""
+    return HTMLResponse(widget_demo_html.frameless_page())
 
 
 @public_router.get("/{asset_name}")

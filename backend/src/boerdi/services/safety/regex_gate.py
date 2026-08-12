@@ -3,8 +3,24 @@
 Byte-parity port of ALT ``safety_service`` (regex asset lists + ``_regex_gate``).
 This stage runs BEFORE pattern selection and without any LLM, so it is the
 safety-critical hard floor: even if every LLM stage fails, the regex gate still
-blocks crisis/threat/PII. The pattern lists are verbatim security assets — do
-not reflow them (the escalation tests pin exact matches).
+blocks crisis/threat/PII. The ALT lines are verbatim security assets — do not
+reflow them (the escalation tests pin exact matches).
+
+**C1-f2c added English counterparts — as a union, never as a switch.** Unlike
+the watchdogs over our own output (``i18n/output_patterns``), this gate does not
+know the language of what it reads and must not: a user with ``locale=de-DE``
+can still type English, and a crisis must not depend on a language setting. The
+new entries are therefore appended to the existing lists, so every language is
+always armed and the German lines stay byte-identical. Two measured
+consequences are pinned in ``tests/test_safety_regex_gate.py``: the English
+mirror deliberately stops where the German one does (``hurt you`` is no threat
+in either), and German compounding shields the teaching case
+(„Suizidprävention") in a way English cannot.
+
+The second line of defence is not equivalent everywhere: ``moderation`` is
+multilingual, but ``moderation._moderation_target()`` returns ``None`` without
+an OpenAI key — on ``b-api-academiccloud`` that leaves this gate as the only
+floor.
 
 ``regex_gate`` is stage 1; ``INJECTION_PATTERNS`` / ``LEGAL_TRIGGER_PATTERNS`` are
 public because the orchestrator (``service``) consumes them in later stages.
@@ -42,6 +58,27 @@ _CRISIS_PATTERNS = [
     # ich nehmen damit es reicht", "genug tabletten für immer", "überdosis")
     r"\b(tabletten|pillen)\b[^.?!]{0,40}\b(reich(en|t)|genug|f[üu]r immer|damit (es|ich))\b",
     r"\b(überdosis|ueberdosis|overdose)\b",
+    # ── C1-f2c: englische Entsprechungen ────────────────────────────
+    # Additiv und IMMER scharf, NICHT sprachabhängig — anders als die
+    # Wächter über unserer eigenen Ausgabe (C1-f2b4). Das Gate kennt die
+    # Sprache der Eingabe nicht und darf sie nicht kennen: wer
+    # ``locale=de-DE`` gesetzt hat, kann trotzdem englisch tippen, und
+    # eine Krise darf nicht an der Spracheinstellung scheitern.
+    #
+    # ``suicid\w*`` statt des bestehenden ``suicid``: dort steht es in
+    # einer ``\b…\b``-Gruppe und konnte „suicide"/„suicidal" deshalb NIE
+    # treffen — es sah abgedeckt aus und war es nicht.
+    r"\b(suicid\w*|self[-\s]?harm\w*|selfharm\w*)\b",
+    # „kill/hurt myself", beide Reihenfolgen — Spiegel der mich/mir-Zeilen.
+    r"\b(kill|hurt|harm|cut|injure)\w*\b[^.?!]{0,10}\bmyself\b",
+    r"\bmyself\b[^.?!]{0,10}\b(kill|hurt|harm|cut|injure)\w*\b",
+    r"\bend\s+my\s+(own\s+)?life\b",
+    r"\bend\s+it\s+all\b",
+    # Spiegel von „nicht mehr leben wollen".
+    r"\b(don'?t|do not|no longer)\s+want\s+to\s+live\b",
+    r"\bwant\s+to\s+(die|stop\s+living)\b",
+    # Spiegel der Tabletten-/Überdosis-Zeile.
+    r"\b(pills|tablets)\b[^.?!]{0,40}\b(enough|forever|to\s+(make|end|stop))\b",
 ]
 
 # Threat = Nutzer droht Gewalt/Tötung gegen Dritte.  Eigener enforced
@@ -54,10 +91,23 @@ _THREAT_PATTERNS = [
     r"\b(umbring\w*|t[öo]te\w*|abstech\w*|erschieß\w*|erschiess\w*|kill\w*|murder\w*)\b[^.?!]{0,40}\b(dich|euch|ihn|sie|ihr|you|him|her|them)\b",
     # "Ich finde dich und …"
     r"\bich\s+finde\s+dich\b[^.?!]{0,40}\b(umbring\w*|t[öo]te\w*|fertig)\b",
+    # C1-f2c: die zwei Zeilen oben führen bereits ``you|him|her|them`` und
+    # ``kill|murder`` — es fehlten nur die übrigen englischen Gewaltverben.
+    # Als eigene Einträge, damit die ALT-Zeilen unverändert bleiben.
+    #
+    # **Bewusst NICHT dabei: ``hurt``.** Auf Deutsch ist „ich werde dich
+    # verletzen" gemessen KEINE Drohung (``low``) — nur die harten Verben
+    # sind es. Der Spiegel zieht dieselbe Grenze; sonst kippte jede
+    # Unterrichtsfrage („how does bullying hurt you?") in eine Abfuhr.
+    r"\b(will|gonna|going\s+to)\b[^.?!]{0,30}\b(you|him|her|them)\b[^.?!]{0,40}\b(stab|shoot|strangle|behead)\w*\b",
+    r"\b(stab|shoot|strangle|behead)\w*\b[^.?!]{0,40}\b(you|him|her|them)\b",
 ]
 
 _PII_PATTERNS = [
     r"\b(passwort|password|kreditkart|sozialvers|geburtsdatum)\b.*\b(meine?|ist|lautet)\b",
+    # C1-f2c: dieselbe Zeile mit englischen Kopula/Possessiv. ``password``
+    # stand schon in der deutschen Zeile — nur „is" statt „ist" fehlte.
+    r"\b(password|credit\s*card|social\s*security|date\s+of\s+birth)\b.*\b(my|is|are)\b",
 ]
 # Heuristik-Trigger: wenn eines dieser Wörter auftaucht, soll der Legal-Classifier
 # auch im "smart"-Mode laufen, selbst wenn das Risiko sonst noch low wäre.

@@ -19,8 +19,9 @@
  * did not survive that check, the correction sits at the data row or in the
  * component that owns the section.
  */
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { ReferenceCatalogsComponent } from './reference-catalogs.component';
 import type { SignalElement } from './reference-catalogs';
 import {
@@ -30,18 +31,28 @@ import {
 import { ReferenceFlowComponent } from './reference-flow.component';
 import { ReferenceKnowledgeComponent } from './reference-knowledge.component';
 import { ReferenceWidgetComponent } from './reference-widget.component';
+import { RichTextComponent } from './rich-text.component';
 
 @Component({
   selector: 'studio-architecture-reference',
   imports: [
     ReferenceFlowComponent, ReferenceCatalogsComponent, ReferenceKnowledgeComponent,
-    ReferenceWidgetComponent,
+    ReferenceWidgetComponent, RichTextComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './architecture-reference.component.html',
   styleUrl: './architecture-reference.component.scss',
 })
 export class ArchitectureReferenceComponent {
+  private readonly lang = inject(StudioLanguageService);
+
+  /** Die Prosa dieses Abschnitts (C1-d5a1) aus `i18n/catalogue/reference.ts`. */
+  protected readonly t = this.lang.t;
+
+  /** Neun Sätze tragen `<code>` oder `<strong>` mitten im Satz; sie kommen als
+   *  Stücke herein und werden von `<studio-rich>` gerendert. */
+  protected readonly rich = this.lang.rich;
+
   /** From the front page's `/config/elements` read — the signal table is data,
    *  not prose, and asking a second time would let the two halves disagree. */
   readonly signals = input<readonly SignalElement[]>([]);

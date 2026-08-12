@@ -26,6 +26,7 @@ Deviations from ALT, each forced by the SQLite→Postgres move:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from sqlalchemy import delete, func, select, update
@@ -39,6 +40,8 @@ from boerdi.db.models import (
     QualityLog,
     SafetyLog,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _session_to_dict(obj: ChatSession) -> dict[str, Any]:
@@ -97,18 +100,59 @@ async def save_message(
     content: str,
     cards: list | None = None,
     debug: dict | None = None,
-) -> None:
-    """Append one chat message. ``cards``/``debug`` land as native JSONB."""
-    session.add(
-        ChatMessage(
-            session_id=session_id,
-            role=role,
-            content=content,
-            cards=cards or [],
-            debug=debug or {},
-        )
+) -> int:
+    """Append one chat message. ``cards``/``debug`` land as native JSONB.
+
+    Returns the new row's id so a caller can complete the row afterwards with
+    ``finalize_message`` — see the F-6 note there.
+    """
+    obj = ChatMessage(
+        session_id=session_id,
+        role=role,
+        content=content,
+        cards=cards or [],
+        debug=debug or {},
     )
+    session.add(obj)
     await session.commit()
+    return obj.id
+
+
+async def finalize_message(
+    session: AsyncSession, message_id: int, *, cards: list, debug: dict
+) -> bool:
+    """Overwrite ``cards``/``debug`` of an already-saved message. Returns whether
+    the update went through.
+
+    Why a second write instead of saving once at the end (audit 2026-08-12, F-6):
+    the assistant message is stored before the card group-trim and before the M16
+    resolver runs, and that resolver is not wrapped in a ``try/except``. Saving
+    only afterwards would mean an M16 failure loses the WHOLE turn, which is
+    worse than the display mismatch it fixes. So the first write keeps the turn
+    safe and this one aligns what ``GET /messages`` replays on restore.
+
+    Never raises: the message is already on disk. A failed completion may cost
+    the restore view, never the turn — and it leaves the shared session usable
+    (F-1).
+    """
+    try:
+        await session.execute(
+            update(ChatMessage)
+            .where(ChatMessage.id == message_id)
+            .values(cards=cards, debug=debug)
+        )
+        await session.commit()
+        return True
+    except Exception:
+        logger.warning(
+            "message %s could not be finalized; the restore view keeps the "
+            "pre-trim state", message_id, exc_info=True,
+        )
+        try:
+            await session.rollback()
+        except Exception:
+            logger.debug("finalize: rollback failed too", exc_info=True)
+        return False
 
 
 async def get_messages(session: AsyncSession, session_id: str, limit: int = 50) -> list[dict]:
@@ -246,13 +290,28 @@ async def get_memory(
     session: AsyncSession, session_id: str, memory_type: str | None = None
 ) -> list[dict]:
     """Memory items for a session as ``{key, value, memory_type}`` dicts,
-    optionally filtered to one ``memory_type``."""
+    optionally filtered to one ``memory_type``.
+
+    The ``assess`` node deliberately swallows a failure here and carries on with
+    no memories. For that to stay harmless the session must remain usable: a
+    failed statement leaves the transaction aborted, and every later write of the
+    SAME turn would then fail too — the turn's state and the assistant reply
+    would be lost to a transient read blip (audit 2026-08-12, F-1).
+
+    A plain ``rollback()`` is right here, unlike in ``usage_store`` where a
+    SAVEPOINT is used: this read holds no pending write of its own, and the
+    services that ran before it commit their own work.
+    """
     stmt = select(
         MemoryItem.key, MemoryItem.value, MemoryItem.memory_type
     ).where(MemoryItem.session_id == session_id)
     if memory_type:
         stmt = stmt.where(MemoryItem.memory_type == memory_type)
-    rows = (await session.execute(stmt)).all()
+    try:
+        rows = (await session.execute(stmt)).all()
+    except Exception:
+        await session.rollback()
+        raise
     return [
         {"key": r.key, "value": r.value, "memory_type": r.memory_type} for r in rows
     ]

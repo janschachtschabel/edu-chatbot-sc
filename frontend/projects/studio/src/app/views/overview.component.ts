@@ -28,35 +28,53 @@ import { RouterLink } from '@angular/router';
 
 import { AsyncData } from '../core/async-data';
 import { EvalApi, type EvalRunSummary } from '../core/eval-api.service';
-import { formatDecimal, formatWhole, germanDateTime, relativeGerman } from '../core/format';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { OverviewApi, type HealthInfo } from '../core/overview-api.service';
 import type { FactoryInfo, SnapshotRow } from '../core/snapshots-api.service';
 import { ArchitectureReferenceComponent } from './architecture-reference.component';
 import type { SignalElement } from './reference-catalogs';
 import {
-  LAYER_CARDS, OPS_CARDS, type ElementsPayload, type LayerCard, elementCounts, viewOf,
+  LAYER_CARDS, OPS_CARDS, type ElementsPayload, type LayerCard, elementCounts, figureText,
+  viewOf, visibleTags,
 } from './overview-cards';
+import { RichTextComponent } from './rich-text.component';
 import { TabBarComponent, type TabDef } from './tab-bar.component';
+import { StudioFormat } from '../i18n/studio-format.service';
 
-const TABS: readonly TabDef[] = [
-  { id: 'uebersicht', label: 'Übersicht' },
-  { id: 'referenz', label: 'Architektur & Referenz' },
+/** Reiter-Kennung → Katalog-Schlüssel. Ausgeschriebene Paare statt
+ *  `'overview.tab.' + id`: ein zur Laufzeit gebauter Schlüssel gäbe bei einem
+ *  Tippfehler den Schlüssel selbst als Reiter-Beschriftung aus. */
+const TAB_KEYS: readonly { readonly id: string; readonly labelKey: string }[] = [
+  { id: 'uebersicht', labelKey: 'overview.tab.uebersicht' },
+  { id: 'referenz', labelKey: 'overview.tab.referenz' },
 ];
 
 @Component({
   selector: 'studio-overview',
-  imports: [TabBarComponent, RouterLink, ArchitectureReferenceComponent],
+  imports: [TabBarComponent, RouterLink, ArchitectureReferenceComponent, RichTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './overview.component.html',
   styleUrl: './overview.component.scss',
 })
 export class OverviewComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
   private readonly api = inject(OverviewApi);
   private readonly evalApi = inject(EvalApi);
+  private readonly lang = inject(StudioLanguageService);
+  protected readonly t = this.lang.t;
 
-  readonly tabs = TABS;
-  readonly active = signal(TABS[0].id);
-  private readonly visited = signal<ReadonlySet<string>>(new Set([TABS[0].id]));
+  /** Die vier Erklär-Karten am Fuss der Seite tragen `<code>` und `<strong>`
+   *  mitten im Satz (C1-d5d). */
+  protected readonly rich = this.lang.rich;
+
+  /** Errechnet und nicht konstant: eine Modul-Konstante fröre die Beschriftung
+   *  in der Sprache ein, die beim Laden des Moduls galt (C1-d3a). */
+  readonly tabs = computed<readonly TabDef[]>(() =>
+    TAB_KEYS.map((tab) => ({ id: tab.id, label: this.t(tab.labelKey) })));
+  readonly active = signal(TAB_KEYS[0].id);
+  private readonly visited = signal<ReadonlySet<string>>(new Set([TAB_KEYS[0].id]));
   readonly shows = computed(() => {
     const seen = this.visited();
     return (id: string): boolean => seen.has(id);
@@ -65,11 +83,11 @@ export class OverviewComponent {
   readonly layers = LAYER_CARDS;
   readonly ops = OPS_CARDS;
 
-  readonly health = new AsyncData<HealthInfo>(() => this.api.health());
-  readonly factory = new AsyncData<FactoryInfo>(() => this.api.factory());
-  readonly snapshots = new AsyncData<readonly SnapshotRow[]>(() => this.api.snapshots());
-  readonly elements = new AsyncData<ElementsPayload>(() => this.api.elements());
-  readonly runs = new AsyncData<readonly EvalRunSummary[]>(() => this.evalApi.runs());
+  readonly health = new AsyncData<HealthInfo>(() => this.api.health(), this.t);
+  readonly factory = new AsyncData<FactoryInfo>(() => this.api.factory(), this.t);
+  readonly snapshots = new AsyncData<readonly SnapshotRow[]>(() => this.api.snapshots(), this.t);
+  readonly elements = new AsyncData<ElementsPayload>(() => this.api.elements(), this.t);
+  readonly runs = new AsyncData<readonly EvalRunSummary[]>(() => this.evalApi.runs(), this.t);
 
   private readonly reads = [this.health, this.factory, this.snapshots, this.elements, this.runs];
 
@@ -102,15 +120,17 @@ export class OverviewComponent {
   readonly otherSnapshots = computed(() => this.snapshots.value()?.length ?? 0);
 
   /**
-   * "1 weiterer Snapshot" / "3 weitere Snapshots". Hand-written because the
-   * studio has no i18n layer (all German by project convention) and German needs
-   * exactly two forms here; `Intl.PluralRules` would add a dependency on a rule
-   * set for a case with one boundary.
+   * „1 weiterer Snapshot" / „3 weitere Snapshots" — über `plural()`, weil sich
+   * hier das Adjektiv mitbeugt und nicht nur das Substantiv (C1-d4a).
+   *
+   * Die Null bekommt einen eigenen Satz statt der `other`-Form: „0 weitere
+   * Snapshots" schreibt niemand, und `Intl.PluralRules` kennt für Deutsch und
+   * Englisch keine eigene Null-Kategorie.
    */
   snapshotLine(): string {
     const count = this.otherSnapshots();
-    if (count === 0) return 'keine weiteren Snapshots';
-    return count === 1 ? '1 weiterer Snapshot' : `${this.count(count)} weitere Snapshots`;
+    if (count === 0) return this.t('overview.snapshots.zero');
+    return this.lang.plural('overview.snapshots', count, { count: this.count(count) });
   }
 
   constructor() {
@@ -130,37 +150,41 @@ export class OverviewComponent {
   }
 
   label(slug: string): string {
-    return viewOf(slug).label;
+    return this.lang.t(viewOf(slug).labelKey);
   }
 
   desc(slug: string): string {
-    return viewOf(slug).desc;
+    return this.lang.t(viewOf(slug).descKey);
+  }
+
+  headline(card: LayerCard): string {
+    return this.t(card.headlineKey);
   }
 
   primary(card: LayerCard): string {
-    return card.primary(this.counts());
+    return figureText(card.primary, this.counts(), this.t);
   }
 
   tags(card: LayerCard): readonly string[] {
-    return card.tags(this.counts());
+    return visibleTags(card, this.counts(), this.t);
   }
 
   /** "vor 3 Stunden" — '' when there is no timestamp to describe. */
   ago(iso: string | null | undefined): string {
-    return iso ? relativeGerman(iso, this.loadedAt()) : '';
+    return iso ? this.fmt.relative(iso, this.loadedAt()) : '';
   }
 
   /** The exact date beside the relative one: a tooltip-only value is unreachable
    *  for keyboard and screen-reader users. */
   exact(iso: string | null | undefined): string {
-    return iso ? germanDateTime(iso) : '';
+    return iso ? this.fmt.dateTime(iso) : '';
   }
 
   score(value: number | null | undefined): string {
-    return typeof value === 'number' ? formatDecimal(value) : '—';
+    return typeof value === 'number' ? this.fmt.decimal(value) : '—';
   }
 
   count(value: number | null | undefined): string {
-    return formatWhole(value ?? 0);
+    return this.fmt.whole(value ?? 0);
   }
 }

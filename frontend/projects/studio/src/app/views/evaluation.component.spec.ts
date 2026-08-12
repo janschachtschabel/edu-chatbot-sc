@@ -6,6 +6,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
 import { routes } from '../app.routes';
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { EvaluationComponent } from './evaluation.component';
 
 const RUNS_URL = '/studio/api/eval/runs';
@@ -36,7 +37,12 @@ function runRow(over: Record<string, unknown> = {}) {
   };
 }
 
-async function mount(runs: readonly Record<string, unknown>[] = []): Promise<Harness> {
+async function mount(
+  runs: readonly Record<string, unknown>[] = [], locale = 'de',
+): Promise<Harness> {
+  // jsdom meldet `navigator.language === 'en-US'`; ohne diese Zeile liefe eine
+  // Prüfung auf deutschen Wortlaut gegen die englische Oberfläche (C1-d4a).
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -72,6 +78,15 @@ describe('EvaluationComponent', () => {
     // Trends must not fetch before it is opened.
     h.http.verify();
     expect(h.el.querySelector('#panel-trends')!.hasAttribute('hidden')).toBe(true);
+  });
+
+  it('beschriftet die Reiter in der aktiven Sprache', async () => {
+    // Bis C1-d4b standen die drei Beschriftungen als fertige Sätze in einer
+    // Modul-Konstante `TABS` — dem siebten eingefrorenen Fall dieser Art. Auf
+    // Englisch blieben sie deutsch, obwohl die Seite sonst wechselte.
+    const h = await mount([], 'en');
+    expect(tabs(h).map((t) => t.textContent?.trim()))
+      .toEqual(['Runs', 'Trends', 'Pattern usage']);
   });
 
   it('opens the detail of the run the list points at, and closes it again', async () => {

@@ -5,6 +5,7 @@ import { Component, provideZonelessChangeDetection, signal } from '@angular/core
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { QualityDiagnosisComponent } from './quality-diagnosis.component';
 import type { LogFilters, QualityScope } from '../core/quality-api.service';
 
@@ -56,9 +57,13 @@ async function settle(h: Harness): Promise<void> {
   await h.fixture.whenStable();
 }
 
+/** jsdom meldet `navigator.language === 'en-US'`; ohne gesetzte Wahl liefe die
+ *  deutsche Oberfläche auf Englisch. */
 async function mount(options: {
   degradations?: object; entities?: object; confidence?: object; failEntities?: boolean;
+  locale?: string;
 } = {}): Promise<Harness> {
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, options.locale ?? 'de');
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -133,6 +138,29 @@ describe('QualityDiagnosisComponent', () => {
     const box = h.el.querySelectorAll('details')[0];
     expect(box.textContent).toContain('Keine Degradationen');
     expect(box.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('setzt beide Anzahlen der Kopfzeile in ihre eigene Mehrzahl', async () => {
+    // Zwei unabhängige Anzahlen in EINEM Satz — zwei Wortgruppen, keine
+    // Schlüssel-Matrix. Bis hierher stand da fest „Turns · Muster", also
+    // schon auf Deutsch „1 Turns · 1 Muster".
+    const single = {
+      scope: 'all', total: 1,
+      groups: [{ pattern_id: 'M10', missing_slots: ['thema'], count: 1, example_message: '' }],
+    };
+    const h = await mount({ degradations: single });
+    expect(h.el.querySelectorAll('.qd-count')[0].textContent!.trim()).toBe('1 Turn · 1 Muster');
+
+    const en = await mount({ degradations: single, locale: 'en' });
+    expect(en.el.querySelectorAll('.qd-count')[0].textContent!.trim()).toBe('1 turn · 1 pattern');
+  });
+
+  it('zeichnet Fachbegriff und Slot-Namen im Hilfetext aus, statt den Satz zu zerlegen', async () => {
+    const h = await mount();
+    const help = h.el.querySelectorAll('.qd-help')[0];
+    expect(help.querySelector('strong')!.textContent).toBe('degradiert');
+    expect(Array.from(help.querySelectorAll('code')).map((c) => c.textContent))
+      .toEqual(['thema', 'material_typ']);
   });
 
   it('re-reads all three when the scope changes', async () => {

@@ -30,10 +30,36 @@ SPEC_AREAS = [
     "05-knowledge/mcp-servers", "05-knowledge/rag-config", "eval/gold-flows",
 ]
 
+# Bereiche, die es in ALT NICHT gibt und die NEU bewusst hinzufügt — je mit
+# Grund, nach dem Vorbild von ``BEWUSST_EINSPRACHIG`` (i18n) und
+# ``OHNE_BUCHUNG`` (test_usage_coverage). Ohne diese getrennte Liste müsste
+# ``SPEC_AREAS`` wachsen, und die Zusage „35 Bereiche wie in ALT" wäre still
+# aufgegeben statt sichtbar erweitert.
+NEUE_BEREICHE = {
+    "01-base/pricing": (
+        "K3 Kostenüberwachung: Preise je Modell, redaktionell pflegbar. "
+        "ALT rechnete überhaupt nicht ab, hat also kein Gegenstück."
+    ),
+    "01-base/engine": (
+        "Umschalter Muster-Engine ↔ Agent-Schleife plus deren Deckel. ALT kannte "
+        "nur einen Weg, hat also kein Gegenstück. Vorgabe ``pattern`` — ohne "
+        "Pflege ändert sich am ausgelieferten Chatbot nichts."
+    ),
+}
+
 
 def test_registry_covers_exactly_the_spec_areas() -> None:
-    assert set(AREA_MODELS) == set(SPEC_AREAS)
+    assert set(AREA_MODELS) == set(SPEC_AREAS) | set(NEUE_BEREICHE)
     assert len(SPEC_AREAS) == 35
+    assert not set(SPEC_AREAS) & set(NEUE_BEREICHE), "ALT-Bereich als neu geführt"
+
+
+def test_jeder_neue_bereich_traegt_einen_grund() -> None:
+    """Gegenrichtung: ein Eintrag ohne Begründung — oder einer, der aus der
+    Registry wieder verschwunden ist — fällt hier auf."""
+    for key, grund in NEUE_BEREICHE.items():
+        assert key in AREA_MODELS, f"{key} steht in NEUE_BEREICHE, aber nicht in AREA_MODELS"
+        assert len(grund) > 40, f"{key}: Grund zu knapp"
 
 
 def test_every_model_builds_json_schema() -> None:

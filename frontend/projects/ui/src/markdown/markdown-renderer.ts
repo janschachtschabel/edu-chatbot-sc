@@ -19,26 +19,31 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 
 import { ICONS } from '../icons/icons';
+import type { TranslateFn } from '../i18n/i18n';
 import { stripLatex } from './latex';
 
-/** Mapping vom ``@@ICON:NAME@@``-Sentinel auf das deutsche Material-Label.
- *  Wird als Hover-Tooltip auf Inline-Card-Link-Icons gesetzt, damit User
- *  sehen ob ein Inline-Treffer eine Themenseite, eine Sammlung oder ein
- *  konkreter Material-Typ (Video / Arbeitsblatt / Quiz / …) ist.
- *  Quelle der Namen: ``backend`` ``_icon_name_for_card``. */
-const INLINE_ICON_LABEL: Record<string, string> = {
-  topic: 'Themenseite',
-  auto_stories: 'Sammlung',
-  play_circle: 'Video',
-  article: 'Arbeitsblatt',
-  videogame_asset: 'Interaktiver Inhalt',
-  headphones: 'Audio',
-  quiz: 'Quiz',
-  image: 'Präsentation',
-  edit_note: 'Übung',
-  school: 'Kurs',
-  language: 'Webseite',
-  menu_book: 'Material',
+/** Mapping vom ``@@ICON:NAME@@``-Sentinel auf den Katalog-Schlüssel des
+ *  Material-Labels. Wird als Hover-Tooltip auf Inline-Card-Link-Icons gesetzt,
+ *  damit User sehen ob ein Inline-Treffer eine Themenseite, eine Sammlung oder
+ *  ein konkreter Material-Typ (Video / Arbeitsblatt / Quiz / …) ist.
+ *  Quelle der Namen: ``backend`` ``_icon_name_for_card``.
+ *
+ *  Seit C1-b3 Schlüssel statt Text — dieselben ``contentType.*``, die auch
+ *  ``card-utils.getContentTypeLabel`` benutzt: es ist derselbe Begriff, einmal
+ *  in der Kachel-Typzeile und einmal am Inline-Link. */
+const INLINE_ICON_LABEL_KEY: Record<string, string> = {
+  topic: 'contentType.topicPage',
+  auto_stories: 'contentType.collection',
+  play_circle: 'contentType.video',
+  article: 'contentType.worksheet',
+  videogame_asset: 'contentType.interactive',
+  headphones: 'contentType.audio',
+  quiz: 'contentType.quiz',
+  image: 'contentType.presentation',
+  edit_note: 'contentType.exercise',
+  school: 'contentType.course',
+  language: 'contentType.website',
+  menu_book: 'contentType.material',
 };
 
 /** Live-Zustand des Widgets, den die Render-Pipeline liest — als deferred
@@ -53,6 +58,11 @@ export interface MarkdownRenderContext {
   isHostTrusted: (host: string) => boolean;
   /** Hängt ``?bsid=<sessionId>`` an URLs zu Trusted-Hosts an (ui ``withBsid``). */
   withBsid: (url: string | null | undefined) => string;
+  /** Übersetzer (C1-b3) — für die Typ-Labels der Inline-Icons und den
+   *  Extern-Warntooltip. Über den Kontext statt als Konstruktor-Argument,
+   *  weil er wie die übrigen Zugriffe bei jedem Render frisch gelesen wird:
+   *  die Instanz überlebt einen Sprachwechsel. */
+  t: TranslateFn;
 }
 
 export class MarkdownRenderer {
@@ -73,7 +83,15 @@ export class MarkdownRenderer {
    *  Trusted-Hosts-Liste (async vom Backend) ankommt/sich ändert. Ohne Reset
    *  würden gecachte Bubbles Links zu Trusted-Hosts weiter mit
    *  ``target="_blank"`` zeigen, weil der Cache-Hit das Re-Rendering
-   *  überspringt. */
+   *  überspringt.
+   *
+   *  ZWEITER Anlass seit C1-b3: der **Sprachwechsel**. Die Typ-Labels der
+   *  Inline-Icons und der Extern-Warntooltip stecken im gerenderten HTML, der
+   *  Cache-Key (``sender|session|text``) kennt die Sprache aber nicht — schon
+   *  gerenderte Bubbles blieben sonst in der alten Sprache stehen. Heute kann
+   *  das nicht auftreten, weil es noch keinen Umschalter gibt; **C1-c muss
+   *  diesen Aufruf mitbauen**, sonst ist der Umschalter für den Bubble-Text
+   *  still wirkungslos. */
   clearCache(): void {
     this._renderCache.clear();
   }
@@ -107,7 +125,8 @@ export class MarkdownRenderer {
       const key = name as keyof typeof ICONS;
       const svg = ICONS[key];
       if (!svg) return '';
-      const label = INLINE_ICON_LABEL[name] || '';
+      const labelKey = INLINE_ICON_LABEL_KEY[name];
+      const label = labelKey ? this.ctx.t(labelKey) : '';
       const attr = label ? ` data-bb-type="${label}"` : '';
       return `<span class="bb-inline-icon"${attr}>${svg}</span>`;
     });
@@ -164,7 +183,7 @@ export class MarkdownRenderer {
               // Warntooltip nur setzen wenn kein anderer (z.B. Material-Typ-
               // Label vom Inline-Card-Link) bereits einen ``title`` gesetzt hat.
               const existingTitle = a.getAttribute('title') || '';
-              const warn = 'Achtung! Externe URL.';
+              const warn = this.ctx.t('link.external');
               if (!existingTitle) {
                 a.setAttribute('title', warn);
               } else if (!existingTitle.includes(warn)) {

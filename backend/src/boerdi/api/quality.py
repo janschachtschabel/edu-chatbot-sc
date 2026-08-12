@@ -12,7 +12,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from boerdi.api.deps import get_session, require_studio_key
+from boerdi.api.deps import Lang, get_session, require_studio_key
+from boerdi.i18n import msg
 from boerdi.services.quality_analytics import (
     clear_quality_logs as clear_quality_logs_svc,
 )
@@ -58,17 +59,21 @@ async def list_quality_logs(
 async def delete_quality_log(
     log_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
+    lang: Lang,
 ) -> dict:
     """Delete a single quality-log entry by id (404 if it does not exist)."""
     n = await delete_quality_log_svc(session, log_id)
     if n == 0:
-        raise HTTPException(status_code=404, detail="log not found")
+        raise HTTPException(
+            status_code=404, detail=msg(lang, "quality.logNotFound"),
+        )
     return {"status": "deleted", "id": log_id}
 
 
 @router.post("/logs/clear")
 async def clear_quality_logs(
     session: Annotated[AsyncSession, Depends(get_session)],
+    lang: Lang,
     session_id: str = "",
     pattern_id: str = "",
     intent_id: str = "",
@@ -79,13 +84,7 @@ async def clear_quality_logs(
     scope='all') demands ``confirm=true`` to avoid accidental nukes."""
     has_filter = any([session_id, pattern_id, intent_id, scope != "all"])
     if not has_filter and not confirm:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Bulk-delete ohne Filter und ohne Scope verlangt ?confirm=true — "
-                "das wuerde ALLE Quality-Logs loeschen."
-            ),
-        )
+        raise HTTPException(400, msg(lang, "quality.bulkDeleteNeedsConfirm"))
     n = await clear_quality_logs_svc(
         session, session_id=session_id, pattern_id=pattern_id,
         intent_id=intent_id, scope=scope,

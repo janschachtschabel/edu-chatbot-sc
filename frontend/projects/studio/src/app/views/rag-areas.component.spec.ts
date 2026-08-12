@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { RagAreasComponent } from './rag-areas.component';
 
 const tick = (): Promise<unknown> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -22,12 +23,15 @@ interface Harness {
 
 async function mount(open = true): Promise<Harness> {
   TestBed.resetTestingModule();
+  // Siehe rag-ingest.component.spec.ts — jsdom meldet `en-US`.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
   });
   const fixture = TestBed.createComponent(RagAreasComponent);
   fixture.componentRef.setInput('section', {
-    panel: 'rag-areas', label: 'Wissensbereiche', hint: 'Was der Bot nachschlagen kann.',
+    panel: 'rag-areas',
+    labelKey: 'curated.wissen.areas.label', hintKey: 'curated.wissen.areas.hint',
   });
   fixture.componentRef.setInput('open', open);
   const http = TestBed.inject(HttpTestingController);
@@ -59,9 +63,14 @@ describe('RagAreasComponent', () => {
   });
 
   it('says what an empty knowledge base means and how to fill it', async () => {
+    // Der Satz nannte bis C1-d3c den Nachbar-Abschnitt beim Namen
+    // („Dokumente hinzufügen"). Diese Beschriftung ist Daten aus
+    // `curated-views.ts` und dort noch deutsch — sie in den englischen Satz zu
+    // übernehmen hiesse, auf eine Überschrift zu verweisen, die anders lautet.
+    // Der Verweis ist deshalb örtlich statt namentlich.
     const { el } = await withAreas([]);
     expect(el.textContent).toContain('Noch keine Wissensbereiche');
-    expect(el.textContent).toContain('Dokumente hinzufügen');
+    expect(el.textContent).toContain('im Abschnitt darunter');
   });
 
   it('shows a failed load as an error, not as an empty knowledge base', async () => {
@@ -131,5 +140,32 @@ describe('RagAreasComponent', () => {
     const alert = el.querySelector('.ra-confirm [role="alert"]');
     expect(alert?.textContent).toContain('Wirklich löschen?');
     expect(alert?.querySelector('button')).toBeNull();
+  });
+
+  it('beugt die Rückfrage als Ganzes, wenn nur ein Abschnitt betroffen ist', async () => {
+    // „Alle 1 Abschnitte gehen verloren" — das Verb beugt sich mit, nicht nur
+    // das Substantiv. Ein Bereich mit einem einzigen Abschnitt ist der
+    // Normalfall direkt nach dem ersten kurzen Dokument.
+    const { el, fixture } = await withAreas([{ area: 'neu', chunks: 1, documents: 1 }]);
+    el.querySelector<HTMLButtonElement>('.ra-del')?.click();
+    await fixture.whenStable();
+
+    const frage = el.querySelector('.ra-confirm [role="alert"]')?.textContent ?? '';
+    expect(frage).toContain('geht verloren');
+    expect(frage).not.toContain('gehen verloren');
+  });
+
+  it('gibt jedem Knopf einen zugänglichen Namen, der sein Ziel nennt', async () => {
+    // Zwei Zeilen tragen dieselben sichtbaren Beschriftungen. Bis C1-d3c stand
+    // das Ziel in einem `sr`-Bruchstück („ — Bereich wlo") — ein Fragment aus
+    // Gedankenstrich und Namen ist kein übersetzbarer Inhalt (C1-d3a). Der
+    // ganze Name steht jetzt in `aria-label` und beginnt mit dem sichtbaren
+    // Text (WCAG 2.5.3 „Label in Name").
+    const { el } = await withAreas();
+    expect(el.querySelectorAll('.ra-row')[0].querySelector('.sr')).toBeNull();
+    expect(el.querySelectorAll<HTMLButtonElement>('.ra-open')[0].getAttribute('aria-label'))
+      .toBe('Dokumente von wlo');
+    expect(el.querySelectorAll<HTMLButtonElement>('.ra-del')[1].getAttribute('aria-label'))
+      .toBe('Löschen — Bereich recht');
   });
 });

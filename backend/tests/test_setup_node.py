@@ -184,3 +184,54 @@ def test_returns_same_ctx_no_early_response(monkeypatch):
     out = _run(ctx)
     assert out is ctx
     assert out.early_response is None
+
+
+# ── K1e: der Merkposten des Zuges ist aus der Tiefe erreichbar ───────────
+
+def test_setup_bindet_den_merkposten_des_zuges_und_ein_blatt_bucht_hinein(
+        monkeypatch):
+    """Die Verbindung, nicht die beiden Enden.
+
+    Der Vokabular-Abgleich sitzt hinter ``TOOL_PREPROCESSORS`` und
+    ``call_mcp_tool`` — er bekommt den Merkposten nicht als Parameter, sondern
+    aus dem ContextVar, das DIESER Knoten bindet. Zwei getrennt grüne Tests
+    („setup bindet" + „das Blatt bucht") hätten genau den Fehler M0 nicht
+    gefunden; deshalb fährt dieser Test beides in EINER Task-Kette.
+
+    ``asyncio.run`` kopiert den Kontext, also muss die Prüfung INNERHALB des
+    Laufs stehen — ein Binden im Task ist draußen nicht sichtbar.
+    """
+    from types import SimpleNamespace
+
+    from boerdi.services import llm
+    from boerdi.services.mcp import arg_resolvers as ar
+
+    _patch(monkeypatch)
+
+    async def fake_acompletion(**kwargs):
+        return SimpleNamespace(
+            model="gpt-5.6-luna",
+            choices=[SimpleNamespace(
+                message=SimpleNamespace(content="http://x/im"))],
+            usage=SimpleNamespace(
+                prompt_tokens=10, completion_tokens=5,
+                prompt_tokens_details=SimpleNamespace(cached_tokens=0)),
+        )
+
+    monkeypatch.setattr(llm, "_acompletion", fake_acompletion)
+    ar._label_to_uri_cache["lrt"]["interaktiv"] = "http://x/im"
+    ctx = _ctx()
+
+    async def zug():
+        await setup(ctx, _SESSION, peer_ip="")
+        return await ar._llm_vocab_match("lrt", "Simulation")
+
+    try:
+        assert asyncio.run(zug()) == "http://x/im"
+    finally:
+        ar._label_to_uri_cache["lrt"].clear()
+        ar._llm_vocab_cache.clear()
+
+    # Die Token stehen im Merkposten DIESES Zuges — dort liest turn_persist.
+    assert ctx.usage["calls"] == 1
+    assert ctx.usage["per_phase"]["vocab_match"]["prompt"] == 10

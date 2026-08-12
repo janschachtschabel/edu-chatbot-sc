@@ -38,6 +38,7 @@ import logging
 from typing import Any
 
 from boerdi.api.schemas import ChatRequest, PaginationInfo
+from boerdi.domain.auth_qr import inject_auth_qr
 from boerdi.domain.cards.build import (
     PAGE_SIZE,
     _build_cards,
@@ -46,10 +47,12 @@ from boerdi.domain.cards.build import (
 )
 from boerdi.domain.guide_markers import _strip_guide_markers_from_text
 from boerdi.domain.quick_reply_policy import _qr_default_count
+from boerdi.i18n import resolve_locale
 from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.guide_markers import _attach_guide_qr
 from boerdi.services.quick_replies_llm import generate_quick_replies
+from boerdi.services.response_tool_selection import curation_blocked_by_mode
 
 logger = logging.getLogger(__name__)
 
@@ -312,6 +315,20 @@ async def _assemble_cards_and_qrs(
                 # Insert at position 0, trim list to <=4 to stay within UI
                 quick_replies = [_fallback_reply] + (quick_replies or [])
                 quick_replies = quick_replies[:4]
+
+    # C5-c2: Wollte das Muster kuratieren, ohne dass für diesen Zug ein
+    # Zugangsblock gilt, bekam die Person bisher nur den ehrlichen Satz des
+    # Bots (E3) und keine Handhabe. Die zwei Chips geben ihr die Wahl:
+    # anmelden — oder ausdrücklich ohne weitersuchen.
+    #
+    # Absichtlich als LETZTE Station: der Relevanz-Rückfall darüber setzt
+    # ebenfalls an Position 0 und kürzt auf vier; davor eingesetzt wanderte
+    # die Anmeldung wieder nach hinten oder fiele ganz heraus.
+    quick_replies = inject_auth_qr(
+        quick_replies,
+        blocked=curation_blocked_by_mode(pattern_output),
+        lang=resolve_locale(getattr(req.environment, "locale", None)),
+    )
 
     # 9. Build page_action
     #    Priority:

@@ -1,8 +1,11 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
 
 import { ICONS } from '../icons/icons';
 import { SafeSvgPipe } from '../icons/safe-svg.pipe';
+import type { TranslateFn } from '../i18n/i18n';
 import { actionQuickReplyLabel } from './action-qr';
+import { isAuthQuickReply } from './auth-qr';
 import { guideQuickReplyLabel, isGuideQuickReply, shouldHideGuideQuickReply } from './guide-qr';
 
 /**
@@ -32,15 +35,40 @@ import { guideQuickReplyLabel, isGuideQuickReply, shouldHideGuideQuickReply } fr
 @Component({
   selector: 'boerdi-quick-replies',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SafeSvgPipe],
+  imports: [MatButtonModule, SafeSvgPipe],
   styleUrl: './quick-replies.component.scss',
   template: `
     @if (enabled() && quickReplies().length) {
       <div class="quick-replies">
         @for (qr of quickReplies(); track $index) {
           @if (!shouldHide(qr)) {
-            @if (isGuide(qr)) {
+            @if (isAuth(qr)) {
+              <!-- Anmelde-Chip (C5-c2): "filled" wie der Lotsen-Chip, denn er
+                   ist die HAUPT-Antwort auf die gerade gestellte Frage; der
+                   "Nur lesen"-Chip daneben bleibt getönt. Zusammen lesen sich
+                   die beiden als Frage mit zwei Antworten.
+                   Die Beschriftung kommt aus dem Katalog und nicht aus dem
+                   Marker: sie wird nirgends hingeschickt (der Klick startet
+                   einen Vorgang im Browser) und folgt so dem Sprachumschalter.
+                   Kein Icon — es gäbe keins, das "anmelden" ohne Erklärung
+                   trägt, und ein beliebiges wäre Zierrat. -->
               <button
+                matButton="filled"
+                type="button"
+                class="qr-btn"
+                (click)="quickReply.emit(qr)"
+              >
+                {{ translate()('auth.signIn') }}
+              </button>
+            } @else if (isGuide(qr)) {
+              <!-- filled für den Lotsen-Chip, tonal für die übrigen — das ist
+                   die ALT-Hierarchie in M3-Begriffen: der Lotsen-Chip war voll
+                   eingefärbt, die Vorschlags-Chips getönt. Outlined
+                   (transparent) hätte die Tönung verloren.
+                   (Keine Backticks hier: das Template ist ein Template-Literal,
+                   ein Backtick beendet es.) -->
+              <button
+                matButton="filled"
                 type="button"
                 class="qr-btn qr-btn--guide"
                 title="Im aktuellen Tab zur Seite navigieren"
@@ -50,7 +78,9 @@ import { guideQuickReplyLabel, isGuideQuickReply, shouldHideGuideQuickReply } fr
                 <span>{{ guideLabel(qr) }}</span>
               </button>
             } @else {
-              <button type="button" class="qr-btn" (click)="quickReply.emit(qr)">{{ label(qr) }}</button>
+              <button matButton="tonal" type="button" class="qr-btn" (click)="quickReply.emit(qr)">
+                {{ label(qr) }}
+              </button>
             }
           }
         }
@@ -65,6 +95,10 @@ export class QuickRepliesComponent {
   readonly enabled = input(true);
   /** ALT `guideModeActive` (Compat-Konstante, immer true) → an die guide-qr-Helfer. */
   readonly guideModeActive = input(true);
+  /** Übersetzer (C1-b4) — nur für den Rückfall-Text eines Guide-Chips ohne
+   *  Label. PFLICHT wie an der Shell: eine vergessene Bindung soll ein Fehler
+   *  sein, keine stumm deutsche Beschriftung. */
+  readonly translate = input.required<TranslateFn>();
 
   /** Roher qr-String eines Standard-Chips — der Shell routet (Tour/Action/Text). */
   readonly quickReply = output<string>();
@@ -72,6 +106,12 @@ export class QuickRepliesComponent {
   readonly guideQuickReply = output<string>();
 
   protected readonly exploreIcon = ICONS.explore;
+
+  /** Anmelde-Chip (C5-c2)? Er wird VOR dem Lotsen-Chip geprüft, weil er ein
+   *  eigener Marker ist und sonst als gewöhnliche Antwort durchginge. */
+  protected isAuth(qr: string): boolean {
+    return isAuthQuickReply(qr);
+  }
 
   /** ALT `isGuideQuickReply(qr)` — Delegate auf den guide-qr-Helfer mit Instanz-Flag. */
   protected isGuide(qr: string): boolean {
@@ -85,7 +125,7 @@ export class QuickRepliesComponent {
 
   /** ALT `guideQuickReplyLabel(qr)`. */
   protected guideLabel(qr: string): string {
-    return guideQuickReplyLabel(qr, this.guideModeActive());
+    return guideQuickReplyLabel(qr, this.guideModeActive(), this.translate());
   }
 
   /** ALT `quickReplyLabel(qr)` = `actionQuickReplyLabel` (Action-Pill zeigt sein Label). */

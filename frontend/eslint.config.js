@@ -37,7 +37,14 @@ module.exports = tseslint.config(
       // und alle bewussten Leer-Catches hier tragen einen Kommentar (geprüft:
       // 0 unkommentierte `catch {}` im Baum). Die Option würde nur künftige,
       // wirklich stille Fehler-Schlucker durchlassen.
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      // `ignoreRestSiblings`: `const { a, b, ...rest } = obj` ist die
+      // Standard-Schreibweise, um Felder WEGZULASSEN — die weggelassenen Namen
+      // sind dabei zwangsläufig ungenutzt. Die Option kann nichts anderes
+      // durchlassen als Geschwister eines Rest-Elements; ein ungenutzter Import
+      // oder eine ungenutzte freie Variable fällt weiterhin auf.
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true,
+      }],
       // Wir prefixen absichtlich private Felder mit `_` (ALT-Konvention).
       '@typescript-eslint/naming-convention': 'off',
     },

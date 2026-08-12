@@ -6,14 +6,25 @@ split, title truncation, card sorting. Stateless string logic, no DB/LLM/MCP →
 Consumed by the widget response post-processor and turn assembly (P4-5 subtree);
 content_types-sister.
 
-**NEU-Portierung:** the module has zero app imports, so it is copied byte-for-byte from
-ALT (only this docstring differs) — the whole-module AST is identical.
+**NEU-Portierung:** the module was copied byte-for-byte from ALT. **C1-f2b5 ended
+that AST identity** for the four units that touch language — the box title, the
+intro suffix, the boilerplate filter and their caller. Everything German is
+byte-identical (pinned in ``tests/test_inline_rendering.py``); what changed is
+that each of them now takes a ``lang``.
+
+Two of them are analysers over OUR OWN model output (``_inline_doc_title_for_pattern``,
+``_strip_generic_lead_lines``): their language is known, so they switch per
+language instead of taking the union — the opposite of ``safety/regex_gate``,
+which must not know the input language. The tables live here rather than in
+``i18n/output_patterns`` because this module is their only consumer.
 """
 
 from __future__ import annotations  # noqa: I001 — verbatim ALT (2 blank lines kept)
 
 import re as _re  # noqa: F401 — verbatim ALT (unused; shadowed by local re-imports)
-from typing import Any
+from typing import Any, Final
+
+from boerdi.i18n import DEFAULT, Locale, bot_text
 
 
 _INLINE_DOC_KIND_BY_PATTERN = {
@@ -22,8 +33,42 @@ _INLINE_DOC_KIND_BY_PATTERN = {
     "M11": "edit",
 }
 
+# Das Wort, mit dem das Modell einen Lernpfad-Titel überschreibt (M09), und die
+# Material-Typen, die es in einem M10-Titel nennen kann. Beides liest die
+# ANTWORT, nicht die Nutzer-Eingabe. Die englischen Zeilen führen die deutschen
+# Alternativen mit: schreibt das Modell in einer englischen Antwort trotzdem
+# „Arbeitsblatt", ist das sein Wort und der Titel soll es zeigen — dieselbe
+# Vereinigung-im-Zweig wie bei ``TOPIC_PAGE_WORD`` in C1-f2b4.
+_LP_TITLE_WORDS: Final[dict[Locale, str]] = {
+    "de": r"Lernpfad",
+    "en": r"Learning\s+path|Learning\s+pathway|Lernpfad",
+}
+_MATERIAL_TITLE_WORDS: Final[dict[Locale, str]] = {
+    "de": (r"Arbeitsblatt|Quiz|Bericht|Remix|Infoblatt|Übung|Lerngeschichte|"
+           r"Versuch|Präsentation|Glossar|Checkliste|Material|Steckbrief|"
+           r"Vergleich|Pressemitteilung|Factsheet|Kennzahlen"),
+    "en": (r"Worksheet|Quiz|Report|Remix|Info\s*sheet|Exercise|Learning\s+story|"
+           r"Experiment|Presentation|Glossary|Checklist|Material|Profile|"
+           r"Comparison|Press\s+release|Factsheet|Key\s+figures|"
+           # deutsche Alternativen, s. Kommentar oben
+           r"Arbeitsblatt|Bericht|Infoblatt|Übung|Lerngeschichte|Versuch|"
+           r"Präsentation|Glossar|Checkliste|Steckbrief|Vergleich|"
+           r"Pressemitteilung|Kennzahlen"),
+}
 
-def _inline_doc_title_for_pattern(pattern_id: str, markdown: str, topic: str = "") -> str:
+# Pattern → Katalog-Schlüssel des Rückfall-Titels. Der Wert ist Text, den der
+# Nutzer liest (Klasse A), nicht Werkzeug — deshalb Katalog statt Tabelle.
+_TITLE_LABEL_KEY: Final[dict[str, str]] = {
+    "M09": "inline.title.learningPath",
+    "M10": "inline.title.material",
+    "M11": "inline.title.editedVersion",
+}
+_TITLE_LABEL_FALLBACK_KEY: Final[str] = "inline.title.content"
+
+
+def _inline_doc_title_for_pattern(
+    pattern_id: str, markdown: str, topic: str = "", lang: Locale = DEFAULT,
+) -> str:
     """Extrahiere einen Box-Titel aus Pattern + Markdown + Topic.
 
     Reihenfolge (Welle E, 2026-05-23 — präferiert kontext-passende Header):
@@ -37,21 +82,25 @@ def _inline_doc_title_for_pattern(pattern_id: str, markdown: str, topic: str = "
     """
     import re as _re  # noqa: F811 — verbatim ALT (local re-import)
     md = (markdown or "").strip()
+    label = bot_text(lang, _TITLE_LABEL_KEY.get(pattern_id, _TITLE_LABEL_FALLBACK_KEY))
 
     # 1. Pattern-spezifische Header-Suche
     if pattern_id == "M09":
-        m = _re.search(r"\*\*\s*Lernpfad\s*[:\-—]?\s*([^*\n]{1,100})\*\*", md, _re.IGNORECASE)
+        m = _re.search(
+            r"\*\*\s*(?:" + _LP_TITLE_WORDS.get(lang, _LP_TITLE_WORDS[DEFAULT])
+            + r")\s*[:\-—]?\s*([^*\n]{1,100})\*\*",
+            md, _re.IGNORECASE,
+        )
         if m:
-            return f"Lernpfad: {m.group(1).strip()}"[:120]
+            return f"{label}: {m.group(1).strip()}"[:120]
         # Fallback für M09: Topic im Titel
         if topic:
-            return f"Lernpfad: {topic}"[:120]
+            return f"{label}: {topic}"[:120]
 
     if pattern_id == "M10":
         m = _re.search(
-            r"\*\*\s*(Arbeitsblatt|Quiz|Bericht|Remix|Infoblatt|Übung|Lerngeschichte|"
-            r"Versuch|Präsentation|Glossar|Checkliste|Material|Steckbrief|Vergleich|"
-            r"Pressemitteilung|Factsheet|Kennzahlen)\s*[:\-—]?\s*([^*\n]{1,100})\*\*",
+            r"\*\*\s*(" + _MATERIAL_TITLE_WORDS.get(lang, _MATERIAL_TITLE_WORDS[DEFAULT])
+            + r")\s*[:\-—]?\s*([^*\n]{1,100})\*\*",
             md, _re.IGNORECASE,
         )
         if m:
@@ -68,11 +117,6 @@ def _inline_doc_title_for_pattern(pattern_id: str, markdown: str, topic: str = "
         return m.group(1).strip()[:120]
 
     # 4. Fallback nach Pattern + Topic
-    label = {
-        "M09": "Lernpfad",
-        "M10": "Material",
-        "M11": "Bearbeitete Version",
-    }.get(pattern_id, "Inhalt")
     if topic:
         return f"{label}: {topic}"[:120]
     return label
@@ -84,6 +128,15 @@ def _format_inline_doc_intro(template: str, topic: str = "") -> str:
     Wenn ``topic`` leer ist, wird ``{topic_suffix}`` zu "". Sonst zu
     " zum Thema *Topic*". Kein KeyError-Risk wenn das Template anderen
     Placeholder enthält — fehlende Keys bleiben als ``{key}`` stehen.
+
+    **C1-f2b5: der deutsche Zusatz bleibt bewusst stehen.** Er ergänzt ein
+    Template, das die Redaktion in ``display-rules.yaml`` pflegt — heute gibt es
+    dort gar keins (``seeds/01-base/display-rules.yaml`` kennt ``intro_text``
+    nicht, also liefert ``_build_inline_document`` den LLM-Lead und diese
+    Funktion läuft nie). Käme eines, wäre es redaktionelle Prosa in genau einer
+    Sprache; ein englischer Zusatz in einem deutschen Satz wäre schlechter als
+    der deutsche. Zweisprachig wird das erst mit der offenen
+    Config-Schema-Entscheidung, nicht hier im Code.
     """
     suffix = f" zum Thema *{topic}*" if topic else ""
     try:
@@ -92,7 +145,7 @@ def _format_inline_doc_intro(template: str, topic: str = "") -> str:
         return template
 
 
-_GENERIC_LEAD_PHRASES = (
+_GERMAN_LEAD_PHRASES = (
     "hier ist dein material",
     "hier ist ihr material",
     "hier ist dein lernpfad",
@@ -106,8 +159,41 @@ _GENERIC_LEAD_PHRASES = (
     "möchten sie anpassungen",
 )
 
+# C1-f2b5: dieselbe Liste je Sprache. Die englische führt die deutschen Einträge
+# mit — eine deutsche Floskel in einer englischen Antwort ist eine Floskel und
+# soll fliegen. Umgekehrt gilt das nicht: die deutsche Liste bleibt ALT-verbatim,
+# damit der deutsche Weg Zeichen für Zeichen derselbe ist.
+_GENERIC_LEAD_PHRASES: Final[dict[Locale, tuple[str, ...]]] = {
+    "de": _GERMAN_LEAD_PHRASES,
+    "en": (
+        "here is your material",
+        "here's your material",
+        "here is your learning path",
+        "here's your learning path",
+        "this is how it looks after the change",
+        "let me know",
+        "just let me know",
+        "would you like any adjustments",
+        "want any changes",
+    ) + _GERMAN_LEAD_PHRASES,
+}
 
-def _strip_generic_lead_lines(lead: str) -> str:
+# Marker, die eine Floskel-Zeile retten, weil sie doch Substanz trägt.
+# ``"*"`` deckt jede Markdown-Auszeichnung ab und trägt den Löwenanteil; die
+# Verben fangen die unausgezeichneten Zeilen. Vereinigung statt Umschaltung:
+# ein Marker zu VIEL rettet höchstens eine Zeile zu viel, ein Marker zu WENIG
+# wirft substanziellen Text weg.
+_SUBSTANTIVE_MARKERS: Final[dict[Locale, tuple[str, ...]]] = {
+    "de": ("**", "*", "erstellt", "gekürzt", "umformuliert", "angepasst",
+           "ergänzt", "vereinfacht"),
+    "en": ("**", "*", "erstellt", "gekürzt", "umformuliert", "angepasst",
+           "ergänzt", "vereinfacht",
+           "created", "shortened", "rephrased", "adjusted", "added",
+           "simplified", "rewritten", "expanded"),
+}
+
+
+def _strip_generic_lead_lines(lead: str, lang: Locale = DEFAULT) -> str:
     """Entfernt Generic-Floskel-Zeilen aus dem Lead-Block.
 
     Welle E v4++++ (2026-05-26, eval-e901): Der LLM produziert oft
@@ -124,6 +210,8 @@ def _strip_generic_lead_lines(lead: str) -> str:
     """
     if not lead:
         return ""
+    phrases = _GENERIC_LEAD_PHRASES.get(lang, _GENERIC_LEAD_PHRASES[DEFAULT])
+    substantive_markers = _SUBSTANTIVE_MARKERS.get(lang, _SUBSTANTIVE_MARKERS[DEFAULT])
     out_lines: list[str] = []
     for raw in lead.split("\n"):
         line = raw.strip()
@@ -131,14 +219,11 @@ def _strip_generic_lead_lines(lead: str) -> str:
             out_lines.append(raw)
             continue
         low = line.lower()
-        is_generic = any(p in low for p in _GENERIC_LEAD_PHRASES)
+        is_generic = any(p in low for p in phrases)
         if is_generic:
             # Nur droppen, wenn die Zeile keine Material-Typ-Substanz
             # enthält (Substanz-Marker: `**Quiz**`, `**Arbeitsblatt**`,
             # `*Thema*`, "erstellt", "gekürzt", "umformuliert" usw).
-            substantive_markers = ("**", "*", "erstellt", "gekürzt",
-                                   "umformuliert", "angepasst", "ergänzt",
-                                   "vereinfacht")
             if not any(m in line for m in substantive_markers):
                 continue  # generic-only → drop
         out_lines.append(raw)
@@ -146,7 +231,7 @@ def _strip_generic_lead_lines(lead: str) -> str:
     return cleaned
 
 
-def _split_lead_and_body(markdown: str) -> tuple[str, str]:
+def _split_lead_and_body(markdown: str, lang: Locale = DEFAULT) -> tuple[str, str]:
     """Trennt den 1-2-Sätze-Lead vor dem ersten H1/H2 vom restlichen
     Markdown-Body.
 
@@ -182,7 +267,7 @@ def _split_lead_and_body(markdown: str) -> tuple[str, str]:
     body = md[m.start():].strip()
 
     # Generic-Floskeln rauswerfen.
-    lead = _strip_generic_lead_lines(lead)
+    lead = _strip_generic_lead_lines(lead, lang)
 
     # Sicherheits-Cap: bei extrem langem Lead (>800 Zeichen) nur ersten
     # Absatz behalten. Normalerweise nicht nötig, da der Cleaner schon
@@ -200,6 +285,7 @@ def _build_inline_document(
     topic: str = "",
     extra_meta: dict[str, Any] | None = None,
     formality: str = "",
+    lang: Locale = DEFAULT,
 ) -> tuple[list[dict[str, Any]], str]:
     """Wenn das Pattern für Box-Rendering konfiguriert ist, packe das
     Markdown in ein InlineDocument und gib einen Bubble-Lead-Text zurück.
@@ -232,11 +318,11 @@ def _build_inline_document(
         return [], markdown
 
     # Lead/Body-Split: Lead landet in der Bubble, Body in der Box.
-    _lead, _body = _split_lead_and_body(md)
+    _lead, _body = _split_lead_and_body(md, lang)
     box_content = _body or md
 
     kind = _INLINE_DOC_KIND_BY_PATTERN.get(pattern_id, "ki_material")
-    title = _inline_doc_title_for_pattern(pattern_id, box_content, topic)
+    title = _inline_doc_title_for_pattern(pattern_id, box_content, topic, lang)
     meta = {"pattern": pattern_id}
     if extra_meta:
         meta.update(extra_meta)

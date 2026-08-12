@@ -53,6 +53,11 @@ services:
       DATABASE_URL: postgresql+asyncpg://boerdi:boerdi@postgres:5432/boerdi
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
       WATCHFILES_FORCE_POLLING: "true"   # reliable --reload on Docker Desktop mounts
+      # W7b (2026-07-31): MCP-Server der Entwicklung — hier ausdrücklich, nicht nur
+      # als Code-Default: wer diese Datei liest, sieht ohne Umweg, gegen welchen
+      # Server entwickelt wird. Der frühere Vercel-Server ist abgelöst; ihm fehlte
+      # ``get_wlo_content_text``, M17 („Inhalt anzeigen") rief dort ins Leere.
+      MCP_SERVER_URL: https://wlo-mcp.87.106.195.152.nip.io/mcp
     ports:
       - "8100:8100"
     volumes:

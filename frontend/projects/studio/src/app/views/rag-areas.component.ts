@@ -11,6 +11,7 @@
 import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
 
 import { RagApi, describeRagError } from '../core/rag-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import type { CuratedPanelSection } from './curated-views';
 import { RagDocumentsComponent } from './rag-documents.component';
 
@@ -23,6 +24,9 @@ import { RagDocumentsComponent } from './rag-documents.component';
 })
 export class RagAreasComponent {
   private readonly rag = inject(RagApi);
+  private readonly lang = inject(StudioLanguageService);
+  protected readonly t = this.lang.t;
+  protected readonly plural = this.lang.plural;
 
   readonly section = input.required<CuratedPanelSection>();
   readonly open = input(false);
@@ -84,10 +88,10 @@ export class RagAreasComponent {
       await this.rag.deleteArea(area);
       this.pending.set('');
       if (this.selected() === area) this.selected.set('');
-      this.status.set(`Bereich „${area}" gelöscht.`);
+      this.status.set(this.t('rag.areas.deleted', { area }));
       await this.rag.refreshAreas();
     } catch (err) {
-      this.deleteError.set(describeRagError(err));
+      this.deleteError.set(describeRagError(err, this.t));
     } finally {
       this.deleting.set(false);
     }

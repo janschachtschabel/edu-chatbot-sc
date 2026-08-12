@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WidgetElementLoader } from '../core/widget-element-loader';
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
 import { WidgetPreviewComponent } from './widget-preview.component';
 
 interface Harness {
@@ -20,6 +21,8 @@ async function settle(h: Harness): Promise<void> {
 async function mount(load: () => Promise<void>): Promise<Harness> {
   const spy = vi.fn(load);
   TestBed.resetTestingModule();
+  // Siehe backup.component.spec.ts — jsdom meldet `en-US`.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
@@ -85,6 +88,11 @@ describe('WidgetPreviewComponent', () => {
     expect(el.getAttribute('initial-state')).toBe('expanded');
     expect(el.getAttribute('api-url')).toBe(window.location.origin);
     expect(el.getAttribute('page-context')).toBeNull();
+    // `show-debug-button` steht hier bewusst NICHT: der Default des Elements
+    // ist bereits `true` (widget.component.ts), das Debug-Panel — und damit
+    // Pattern, Quellen und die freigegebenen RAG-Bereiche — ist in der Vorschau
+    // also ohnehin erreichbar. Ein explizites Attribut wäre eine Dublette.
+    expect(el.getAttribute('show-debug-button')).toBeNull();
   });
 
   it('übernimmt den Seitenkontext erst beim Absenden, nicht beim Tippen', async () => {
@@ -138,6 +146,29 @@ describe('WidgetPreviewComponent', () => {
     expect(input).not.toBeNull();
     expect(h.el.querySelector(`label[for="${input.id}"]`)?.textContent)
       .toContain('Sammlungs-ID');
+  });
+
+  it('nimmt die Beschriftungen der Seitentypen aus dem Katalog', async () => {
+    // `PREVIEW_CONTEXT_KINDS` trug bis C1-d3b deutsche `label`/`fieldLabel` auf
+    // Modulebene — fertiger Text, der in der Sprache einfriert, die beim Laden
+    // des Moduls galt. Dieselbe Klasse wie `CONFIRM_LEAVE` (C1-d3a) und der
+    // Routen-Titel (C1-d2); `id` und `field` bleiben Daten.
+    const h = await mount(() => Promise.resolve());
+    const optionen = () => Array.from(h.el.querySelectorAll('option'))
+      .map((o) => (o.textContent ?? '').trim());
+    expect(optionen()).toEqual(['Kein Seitenkontext', 'Themenseite', 'Sammlung', 'Inhaltsseite']);
+
+    TestBed.inject(StudioLanguageService).toggle();
+    await settle(h);
+    expect(optionen()).toEqual(['No page context', 'Topic page', 'Collection', 'Content page']);
+
+    const select = h.el.querySelector('select') as HTMLSelectElement;
+    select.value = 'collection';
+    select.dispatchEvent(new Event('change'));
+    await settle(h);
+    const input = h.el.querySelector('input[type="text"]') as HTMLInputElement;
+    expect(h.el.querySelector(`label[for="${input.id}"]`)?.textContent)
+      .toContain('Collection ID');
   });
 
   it('behält den eingegebenen Wert beim Wechsel des Seitentyps', async () => {

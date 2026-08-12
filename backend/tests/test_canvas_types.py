@@ -65,8 +65,29 @@ class TestGetMaterialTypes:
              "structure": "S", "category": "didaktisch"},
         ])
         out = ct.get_material_types()
-        assert out == {"foo": {"label": "Foo", "emoji": "🎯",
+        # `label_en` gehoert seit C1-g2e zum Eintrag: der Getter ist gecacht,
+        # die Sprache gehoert zum Zug — also reist sie mit statt aufgeloest zu
+        # werden. Erwartung erweitert statt auf Teilmenge abgeschwaecht.
+        assert out == {"foo": {"label": "Foo", "label_en": "", "emoji": "🎯",
                                "structure": "S", "category": "didaktisch"}}
+
+    def test_english_label_travels_with_the_entry(self, monkeypatch):
+        """C1-g2e: ohne `label_en` im Eintrag koennte niemand es waehlen."""
+        _patch_cl(monkeypatch, material_types=[
+            {"id": "foo", "label": "Foo", "label_en": "Bar", "emoji": "🎯"},
+        ])
+        assert ct.get_material_types()["foo"]["label_en"] == "Bar"
+
+    def test_material_type_label_picks_per_key(self):
+        entry = {"label": "Arbeitsblatt", "label_en": "Worksheet"}
+        assert ct.material_type_label(entry, "de") == "Arbeitsblatt"
+        assert ct.material_type_label(entry, "en") == "Worksheet"
+
+    def test_material_type_label_falls_back_to_german(self):
+        """Leer heisst „nicht gepflegt", nie „leerer Text"."""
+        assert ct.material_type_label({"label": "Glossar"}, "en") == "Glossar"
+        assert ct.material_type_label(
+            {"label": "Glossar", "label_en": "  "}, "en") == "Glossar"
 
     def test_item_defaults_and_skips(self, monkeypatch):
         _patch_cl(monkeypatch, material_types=[
@@ -76,7 +97,8 @@ class TestGetMaterialTypes:
         ])
         out = ct.get_material_types()
         assert set(out) == {"bar"}
-        assert out["bar"] == {"label": "bar", "emoji": "📄", "structure": ""}
+        assert out["bar"] == {"label": "bar", "label_en": "",
+                              "emoji": "📄", "structure": ""}
 
 
 class TestGetTypeAliases:

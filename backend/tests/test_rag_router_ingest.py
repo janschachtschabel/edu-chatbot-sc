@@ -140,7 +140,7 @@ async def test_ingest_file_title_falls_back_to_unbenannt_without_filename(
     _fake_convert(monkeypatch)
     calls = _fake_ingest(monkeypatch)
     out = await rag_api.ingest_file(
-        file=_upload(filename=None), session=_SESSION, area="general", title=""
+        file=_upload(filename=None), session=_SESSION, lang="de", area="general", title=""
     )
     assert out["title"] == "Unbenannt"
     assert calls[0][3] == ""  # source: `file.filename or ""`
@@ -155,7 +155,7 @@ async def test_ingest_file_rejects_oversized_via_size_header_before_reading(
     calls = _fake_ingest(monkeypatch)
     with pytest.raises(HTTPException) as ei:
         await rag_api.ingest_file(
-            file=_upload(size=_MB + 1), session=_SESSION, area="general", title=""
+            file=_upload(size=_MB + 1), session=_SESSION, lang="de", area="general", title=""
         )
     assert ei.value.status_code == 413
     assert "1 MB Limit" in ei.value.detail
@@ -175,7 +175,7 @@ async def test_ingest_file_rejects_oversized_on_disk_when_size_unset(
     with pytest.raises(HTTPException) as ei:
         await rag_api.ingest_file(
             file=_upload(content=b"x" * (_MB + 1), size=None),
-            session=_SESSION, area="general", title="",
+            session=_SESSION, lang="de", area="general", title="",
         )
     assert ei.value.status_code == 413
     assert calls == []
@@ -189,7 +189,7 @@ async def test_ingest_file_accepts_size_exactly_at_the_cap(monkeypatch, tmp_path
     _fake_ingest(monkeypatch)
     out = await rag_api.ingest_file(  # `>` not `>=`: exactly at the limit passes
         file=_upload(content=b"x" * _MB, size=_MB),
-        session=_SESSION, area="general", title="",
+        session=_SESSION, lang="de", area="general", title="",
     )
     assert out["status"] == "ok"
 
@@ -200,7 +200,7 @@ async def test_ingest_file_cap_zero_means_unlimited(monkeypatch, tmp_path):
     _fake_convert(monkeypatch)
     _fake_ingest(monkeypatch)
     out = await rag_api.ingest_file(
-        file=_upload(size=99 * _MB), session=_SESSION, area="general", title=""
+        file=_upload(size=99 * _MB), session=_SESSION, lang="de", area="general", title=""
     )
     assert out["status"] == "ok"  # no 413 despite a huge declared size
 

@@ -22,6 +22,7 @@ import {
 import { RouterLink } from '@angular/router';
 
 import { ConfigApi } from '../core/config-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AreaDocEditor } from '../schema-form/area-doc-editor';
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
 import type { CuratedAreaSection } from './curated-views';
@@ -40,7 +41,8 @@ export class AreaSectionComponent {
   readonly open = input(false);
 
   private readonly config = inject(ConfigApi);
-  readonly editor = new AreaDocEditor(this.config);
+  protected readonly t = inject(StudioLanguageService).t;
+  readonly editor = new AreaDocEditor(this.config, this.t);
 
   readonly area = computed(() => this.section().area);
   /** Route segments for the raw editor — `/` is a path separator, not a key. */
@@ -61,7 +63,7 @@ export class AreaSectionComponent {
     if ((event.target as HTMLDetailsElement).open) this.ensureLoaded();
   }
 
-  /** Load once. Retrying after a failure is the "Erneut versuchen" button. */
+  /** Load once. Retrying after a failure is the `async.retry` button. */
   ensureLoaded(): void {
     if (this.loaded) return;
     this.loaded = true;

@@ -15,11 +15,13 @@ or Referer headers.
 
 import hmac
 from collections.abc import AsyncIterator
+from typing import Annotated
 
-from fastapi import HTTPException, Request, Security, status
+from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from boerdi.i18n import Locale, resolve_locale
 from boerdi.settings import get_settings
 
 _HEADER = "X-Studio-Key"
@@ -82,6 +84,25 @@ async def require_studio_key(
             detail="Studio API key required",
             headers={"WWW-Authenticate": _HEADER},
         )
+
+
+def request_locale(request: Request) -> Locale:
+    """The language this request wants, from ``Accept-Language`` (C1-e).
+
+    Read off ``Request`` rather than declared as ``Header()`` on purpose: a
+    declared header parameter shows up in the OpenAPI document, and every
+    endpoint that took the dependency would change the frozen contract that
+    ``scripts/export_openapi.py --check`` guards. The header is optional and
+    additive — a client that never sends it sees exactly what it saw before.
+
+    Known limitation, deliberately taken: because it is not declared, the
+    header does not appear in ``/docs``. It is documented here and in the
+    C1-e section of ``docs/plans/2026-08-02-c1-i18n.md`` instead.
+    """
+    return resolve_locale(request.headers.get("accept-language"))
+
+
+Lang = Annotated[Locale, Depends(request_locale)]
 
 
 def todo(package: str) -> HTTPException:

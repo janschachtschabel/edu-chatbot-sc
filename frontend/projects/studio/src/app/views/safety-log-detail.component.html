@@ -1,42 +1,44 @@
 <p class="sd-head">
-  <span class="sd-risk" [class]="'sd-risk--' + log().risk_level">Risiko: {{ risk() }}</span>
-  <span class="sd-session">Session: {{ log().session_id }}</span>
+  <span class="sd-risk" [class]="'sd-risk--' + log().risk_level">
+    {{ t('sd.risk', { value: risk() }) }}
+  </span>
+  <span class="sd-session">{{ t('sd.session', { id: log().session_id }) }}</span>
 </p>
 
 <div class="sd-block">
-  <h4 class="sd-label">Nachricht</h4>
-  <p class="sd-message">{{ log().message || '(leer)' }}</p>
+  <h4 class="sd-label">{{ t('sd.message') }}</h4>
+  <p class="sd-message">{{ log().message || t('sfl.emptyMessage') }}</p>
 </div>
 
 <dl class="sd-facts">
-  <dt>Geprüfte Stufen</dt>
+  <dt>{{ t('sd.stages') }}</dt>
   <dd>{{ stages() || '–' }}</dd>
 
-  <dt>Gründe</dt>
+  <dt>{{ t('sd.reasons') }}</dt>
   <dd>{{ reasons() || '–' }}</dd>
 
-  <dt>Rechtsfelder</dt>
+  <dt>{{ t('sd.legal') }}</dt>
   <dd>{{ legal() || '–' }}</dd>
 
   @if (log().flagged_categories.length > 0) {
-    <dt>Geflaggte Kategorien</dt>
+    <dt>{{ t('sd.categories') }}</dt>
     <dd>{{ log().flagged_categories.join(', ') }}</dd>
   }
 
   @if (log().blocked_tools.length > 0) {
-    <dt>Blockierte Werkzeuge</dt>
+    <dt>{{ t('sd.blockedTools') }}</dt>
     <dd>{{ log().blocked_tools.join(', ') }}</dd>
   }
 
   @if (log().enforced_pattern) {
-    <dt>Erzwungenes Muster</dt>
+    <dt>{{ t('sd.enforcedPattern') }}</dt>
     <dd>{{ log().enforced_pattern }}</dd>
   }
 </dl>
 
 @if (hasScores()) {
   <details class="sd-scores">
-    <summary>Alle Kategorie-Werte</summary>
+    <summary>{{ t('sd.scores') }}</summary>
     <pre>{{ scores() }}</pre>
   </details>
 }

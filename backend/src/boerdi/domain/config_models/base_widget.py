@@ -1,6 +1,14 @@
 """01-base widget-facing areas (spec §5.3): welcome, widget-modes, header-nav,
 device-config, display-rules, context-actions, placeholder-topics, website-tour.
 Shapes verified against the ALT tree inventory (2026-07-11).
+
+**C1-g1a — die zweite Sprache als Suffix je Schlüssel.** Redaktioneller Text,
+den der Nutzer im Chat liest, bekommt ein optionales ``*_en`` neben dem
+deutschen Feld (Nutzer-Entscheid 2026-08-04). Leer heißt „nicht gepflegt" —
+das Widget fällt dann je Schlüssel auf das deutsche zurück. Der Suffix statt
+eines ``en``-Blocks, damit das generische Studio-Formular die Felder ohne
+Sonderbehandlung nebeneinander rendert und ein neuer Schlüssel nur an einer
+Stelle gepflegt wird.
 """
 
 from typing import Any
@@ -12,6 +20,9 @@ class WelcomeBlock(AreaModel):
     greeting: str = ""
     quick_replies: list[str] = []
     tour_reply: str = ""
+    greeting_en: str = ""
+    quick_replies_en: list[str] = []
+    tour_reply_en: str = ""
 
 
 class WelcomeArea(AreaModel):
@@ -31,6 +42,7 @@ class NavButton(AreaModel):
     id: str
     enabled: bool = True
     label: str = ""
+    label_en: str = ""
     icon: str = "explore"
     url: str = ""
     new_tab: bool = False
@@ -100,6 +112,10 @@ class DisplayRulesArea(AreaModel):
 
 class ContextPill(AreaModel):
     label: str
+    # C1-g2b: leer = nicht gepflegt. Bei `kind: text` ist die Beschriftung
+    # zugleich die Nachricht, die der Klick sendet — sie muss deshalb in der
+    # Sprache des Nutzers stehen, nicht nur lesbar sein.
+    label_en: str = ""
     kind: str = ""
     action: str | None = None
     url: str | None = None
@@ -109,8 +125,24 @@ class ContextPill(AreaModel):
 class ContextActionsBlock(AreaModel):
     enabled: bool = True
     report_url: str = ""
+    # Unsere eigenen Seiten — exakte Hostnamen oder `*.example.com`. Entscheidet
+    # bei einer Seite, die der URL-Erkenner nicht einordnen kann, zwischen
+    # „eigene Startseite" und „fremde Seite" (dort bietet der Bot später die
+    # Erschliessung an). Leer heisst: alles gilt als fremd.
+    own_hosts: list[str] = []
     greetings: dict[str, str] = {}
+    # Parallel zu `greetings`, je Seitenart. Ein eigenes Feld statt Schlüssel
+    # mit Suffix, weil die Schlüssel hier Seitenarten benennen (collection /
+    # content / topic) — dort gehört keine Sprache hinein.
+    greetings_en: dict[str, str] = {}
     pills: dict[str, list[ContextPill]] = {}
+    # Zweite Lesart von `external` — die Seite liegt schon im Bestand. Bewusst
+    # KEINE eigene Seitenart in `greetings`/`pills`: sonst könnte ein Widget sie
+    # als `page_kind` senden und würde begrüßt.
+    duplicate_greeting: str = ""
+    duplicate_greeting_en: str = ""
+    duplicate_pill_label: str = ""
+    duplicate_pill_label_en: str = ""
     curate_prompt: str = ""
 
 
@@ -133,6 +165,10 @@ class TourFlow(AreaModel):
 class TourGroup(AreaModel):
     id: str
     label: str = ""
+    # Die Beschriftung ist zugleich der Chip-Text, der als Antwort zurückkommt
+    # (C1-g2d). ``synonyms`` bleibt bewusst deutsch — das macht das Matching zur
+    # Vereinigung statt zu einer Umschaltung.
+    label_en: str = ""
     synonyms: list[str] = []
     page: str | None = None
     angebote: Any = None
@@ -140,6 +176,7 @@ class TourGroup(AreaModel):
 
 class LabelPath(AreaModel):
     label: str = ""
+    label_en: str = ""
     path: str = ""
 
 
@@ -149,12 +186,20 @@ class WebsiteTourBlock(AreaModel):
     home_path: str = ""
     content_hub: str = ""
     contact_hub: str = ""
+    # Ohne englisches Gegenstück, mit Grund: ``start_label`` hat weder in NEU
+    # noch in ALT einen Leser — die Tour startet über ``tour_reply`` aus der
+    # Begrüßungs-Config (C1-g1a/b).
     start_label: str = ""
     trigger_phrases: list[str] = []
     flows: list[TourFlow] = []
     intro: str = ""
+    intro_en: str = ""
     nudge: str = ""
+    nudge_en: str = ""
     explore: str = ""
+    explore_en: str = ""
+    # ``entry`` und ``steps`` sind freie Dicts — dort reisen die ``_en``-
+    # Schlüssel ohne Modelländerung mit (wie ``effect`` in C1-g2c).
     entry: dict[str, str] = {}
     groups: list[TourGroup] = []
     content_sublinks: list[LabelPath] = []

@@ -18,7 +18,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Security
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from boerdi.api.deps import get_session, require_studio_key
+from boerdi.api.deps import Lang, get_session, require_studio_key
+from boerdi.i18n import Locale, msg
 from boerdi.obs.tasks import _spawn_background
 from boerdi.services.loadtest import (
     MIX_TEMPLATES,
@@ -52,18 +53,13 @@ class LoadTestProfile(BaseModel):
     )
 
 
-def _ensure_loadtest_allowed() -> None:
+def _ensure_loadtest_allowed(lang: Locale) -> None:
     """Guard: the loadtest drives the REAL ``/api/chat`` pipeline in-process (up
     to 32 parallel) and shares the LLM pool with live users (Audit 2026-07-03
     #6). Disable on a prod instance via ``BOERDI_ALLOW_LOADTEST=false``. Default:
     allowed (opt-out — no behaviour change without the env var set)."""
     if not get_settings().allow_loadtest:
-        raise HTTPException(
-            403,
-            "Lasttest ist auf dieser Instanz deaktiviert (BOERDI_ALLOW_LOADTEST). "
-            "Er würde die echte /api/chat-Pipeline mit Live-Nutzern um LLM-Kapazität "
-            "konkurrieren lassen — bitte auf einer Staging-Instanz ausführen.",
-        )
+        raise HTTPException(403, msg(lang, "loadtest.disabled"))
 
 
 @router.get("/mix-options")
@@ -84,12 +80,12 @@ async def list_loadtest_runs(session: _Session) -> dict:
 
 @router.post("/runs")
 async def start_loadtest_run(
-    profile: LoadTestProfile, request: Request, session: _Session,
+    profile: LoadTestProfile, request: Request, session: _Session, lang: Lang,
 ) -> dict:
-    _ensure_loadtest_allowed()
+    _ensure_loadtest_allowed(lang)
     running = await any_run_running(session)
     if running:
-        raise HTTPException(409, f"Lasttest {running} läuft bereits — bitte abwarten.")
+        raise HTTPException(409, msg(lang, "loadtest.alreadyRunning", id=running))
     try:
         norm = validate_profile(profile.model_dump())
     except ValueError as e:
@@ -101,18 +97,18 @@ async def start_loadtest_run(
 
 
 @router.get("/runs/{run_id}")
-async def get_loadtest_run(run_id: str, session: _Session) -> dict:
+async def get_loadtest_run(run_id: str, session: _Session, lang: Lang) -> dict:
     run = await load_run(session, run_id)
     if not run:
-        raise HTTPException(404, "Run nicht gefunden.")
+        raise HTTPException(404, msg(lang, "loadtest.runMissing"))
     return run
 
 
 @router.delete("/runs/{run_id}")
-async def delete_loadtest_run(run_id: str, session: _Session) -> dict:
+async def delete_loadtest_run(run_id: str, session: _Session, lang: Lang) -> dict:
     run = await load_run(session, run_id)
     if run and run.get("status") == "running":
-        raise HTTPException(409, "Laufender Run kann nicht gelöscht werden.")
+        raise HTTPException(409, msg(lang, "loadtest.runIsRunning"))
     if not await delete_run(session, run_id):
-        raise HTTPException(404, "Run nicht gefunden.")
+        raise HTTPException(404, msg(lang, "loadtest.runMissing"))
     return {"deleted": run_id}

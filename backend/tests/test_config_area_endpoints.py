@@ -118,7 +118,12 @@ def test_welcome_get_default_and_put_roundtrip(cfg) -> None:
     seed("01-base/welcome-config",
          {"welcome": {"greeting": "Moin", "quick_replies": ["a", "b"], "tour_reply": "a"}})
     g = client.get("/api/config/welcome", headers=_AUTH).json()
-    assert g == {"greeting": "Moin", "quick_replies": ["a", "b"], "tour_reply": "a"}
+    # Die `*_en`-Felder gehören seit C1-g2b zur Antwort. Bewusst weiter ein
+    # exakter Vergleich: er fängt ein ungewolltes Feld, ein Teilvergleich nicht.
+    assert g == {
+        "greeting": "Moin", "quick_replies": ["a", "b"], "tour_reply": "a",
+        "greeting_en": "", "quick_replies_en": [], "tour_reply_en": "",
+    }
 
     put = client.put("/api/config/welcome", headers=_AUTH, json={
         "greeting": "Servus", "quick_replies": ["x", "y"], "tour_reply": "y"})
@@ -136,6 +141,28 @@ def test_welcome_put_rejects_empty_and_bad_tour_reply(cfg) -> None:
         "greeting": "hi", "quick_replies": []}).status_code == 400
     assert client.put("/api/config/welcome", headers=_AUTH, json={
         "greeting": "hi", "quick_replies": ["a"], "tour_reply": "not-in-list"}).status_code == 400
+
+
+def test_welcome_put_meldet_in_der_sprache_der_anfrage(cfg) -> None:
+    """C1-e: der Studio zeigt `detail` unverändert an (`async-data.ts:95`).
+
+    Ohne Header bleibt die Meldung deutsch — die Vorgabe ändert sich nicht,
+    nur weil es jetzt zwei Sprachen gibt.
+    """
+    client, _ = cfg
+    leer = {"greeting": "  ", "quick_replies": ["a"]}
+
+    de = client.put("/api/config/welcome", headers=_AUTH, json=leer)
+    assert de.json()["detail"] == "greeting darf nicht leer sein"
+
+    en = client.put("/api/config/welcome", json=leer,
+                    headers={**_AUTH, "Accept-Language": "en-GB,en;q=0.9,de;q=0.8"})
+    assert en.json()["detail"] == "greeting must not be empty"
+
+    # Eine Sprache, die es nicht gibt, fällt auf Deutsch — nicht auf einen Fehler.
+    fr = client.put("/api/config/welcome", json=leer,
+                    headers={**_AUTH, "Accept-Language": "fr-FR"})
+    assert fr.json()["detail"] == "greeting darf nicht leer sein"
 
 
 # ── privacy (safety forced true) ───────────────────────────────────
@@ -163,6 +190,49 @@ def test_context_actions_put_roundtrip(cfg) -> None:
     assert r.status_code == 200
     assert r.json()["report_url"] == "https://x/report"
     assert r.json()["pills"]["collection"][0]["label"] == "Los"
+
+
+# ── C1-g2b-Nachtrag: die Alt-Routen tragen die zweite Sprache mit ──
+# Beide Endpunkte bauen ihr YAML Feld für Feld neu. Solange die `*_en` dort
+# fehlten, löschte jeder Schreibzugriff über sie die englische Fassung — still,
+# weil kein Fehler entstand. Das Studio benutzt diesen Weg nicht (es speichert
+# über `PUT /config/data/{area}`), aber die Routen sind erreichbar.
+
+def test_welcome_put_traegt_die_englische_fassung(cfg) -> None:
+    client, _ = cfg
+    r = client.put("/api/config/welcome", headers=_AUTH, json={
+        "greeting": "Servus", "greeting_en": "Hello there",
+        "quick_replies": ["a"], "quick_replies_en": ["A"],
+        "tour_reply": "a", "tour_reply_en": "A",
+    })
+    assert r.status_code == 200
+    g = client.get("/api/config/welcome", headers=_AUTH).json()
+    assert g["greeting_en"] == "Hello there"
+    assert g["quick_replies_en"] == ["A"]
+    assert g["tour_reply_en"] == "A"
+
+
+def test_welcome_put_ohne_englisch_bleibt_gueltig(cfg) -> None:
+    # Ein Aufrufer, der die Felder nicht kennt, bekommt keinen Fehler — die
+    # Fassung ist dann eben nicht gepflegt. Ersetzungs-Semantik, wie bei den
+    # deutschen Feldern auch: was der PUT nicht sendet, steht danach nicht da.
+    client, _ = cfg
+    r = client.put("/api/config/welcome", headers=_AUTH, json={
+        "greeting": "Servus", "quick_replies": ["a"], "tour_reply": "a"})
+    assert r.status_code == 200
+    assert r.json()["greeting_en"] == ""
+
+
+def test_context_actions_put_traegt_die_englische_fassung(cfg) -> None:
+    client, _ = cfg
+    payload = _valid_context_payload()
+    payload["greetings_en"] = {"collection": "c-en", "content": "i-en", "topic": "t-en"}
+    payload["pills"]["collection"] = [{"label": "Los", "label_en": "Go", "kind": "text"}]
+    r = client.put("/api/config/context-actions", headers=_AUTH, json=payload)
+    assert r.status_code == 200
+    g = client.get("/api/config/context-actions", headers=_AUTH).json()
+    assert g["greetings_en"]["collection"] == "c-en"
+    assert g["pills"]["collection"][0]["label_en"] == "Go"
 
 
 def test_context_actions_put_validation(cfg) -> None:

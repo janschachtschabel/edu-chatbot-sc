@@ -18,17 +18,32 @@ from typing import Any
 # Card-Feldern ``learning_resource_types`` matchen sollten. WLO emittiert
 # diese Labels mit Capitalisation (z.B. ``['Video']``, ``['Arbeitsblatt']``),
 # Match läuft case-insensitive via ``substring in lower(blob)``.
+#
+# **C1-f2c-b: die Stichwörter sind zweisprachig, der kanonische Schlüssel NICHT.**
+# Der Schlüssel ist kein blosser Name — er geht als ``learningResourceType`` in
+# die WLO-Suche (``services/prefetch.py:250``) und wird unten in
+# ``_card_matches_wanted_types`` als Teilzeichenkette gegen die deutschen
+# Labels der Karte gehalten. Übersetzt träfe er nie; dieselbe Doppelrolle wie
+# beim Typ-Label in C1-f2b3. Nur die linke Seite, das was der Nutzer schreibt,
+# wächst also um englische Wörter.
 _CONTENT_TYPE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "video":          ("video", "videos"),
-    "arbeitsblatt":   ("arbeitsblatt", "arbeitsblätter", "arbeitsblaetter"),
-    "übung":          ("übung", "uebung", "übungen", "uebungen"),
-    "quiz":           ("quiz", "test", "tests"),
-    "audio":          ("audio", "podcast", "podcasts", "hörspiel", "hoerspiel"),
-    "präsentation":   ("präsentation", "praesentation", "präsentationen", "praesentationen"),
-    "interaktiv":     ("interaktiv", "interaktive"),
-    "kurs":           ("kurs", "kurse", "tutorial", "tutorials"),
-    "spiel":          ("lernspiel", "lernspiele", "spiel"),
-    "grafik":         ("infografik", "grafik"),
+    "arbeitsblatt":   ("arbeitsblatt", "arbeitsblätter", "arbeitsblaetter",
+                       "worksheet", "worksheets", "work sheet"),
+    "übung":          ("übung", "uebung", "übungen", "uebungen",
+                       "exercise", "exercises", "practice task"),
+    "quiz":           ("quiz", "test", "tests", "quizzes"),
+    "audio":          ("audio", "podcast", "podcasts", "hörspiel", "hoerspiel",
+                       "audio play", "radio play"),
+    "präsentation":   ("präsentation", "praesentation", "präsentationen", "praesentationen",
+                       "presentation", "presentations", "slide deck", "slides"),
+    "interaktiv":     ("interaktiv", "interaktive", "interactive"),
+    "kurs":           ("kurs", "kurse", "tutorial", "tutorials",
+                       "course", "courses"),
+    "spiel":          ("lernspiel", "lernspiele", "spiel",
+                       "learning game", "learning games", "educational game"),
+    "grafik":         ("infografik", "grafik", "infographic", "infographics",
+                       "graphic", "graphics"),
 }
 
 

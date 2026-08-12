@@ -90,9 +90,106 @@ docker compose -f compose.prod.yml --env-file .env config > $null   # Exit 0 = v
 Alles Weitere ist optional und leer = Code-Default; die kanonischen Namen
 stehen in `backend/src/boerdi/settings.py`.
 
+#### `MCP_SERVER_URL` — die korrekte Adresse
+
+```
+MCP_SERVER_URL=https://wlo-mcp.87.106.195.152.nip.io/mcp
+```
+
+Das ist der **einzige** MCP-Server, gegen den boerdi-chat läuft (23 Werkzeuge,
+Stand 2026-07-31). Die frühere Vercel-Instanz ist **abgelöst** — ihr fehlte
+`get_wlo_content_text`, weshalb M17 („Inhalt anzeigen") dort ins Leere rief.
+Steht sie noch in einer `.env` auf einem Server, **überschreibt sie den
+Code-Default** und der Volltext bleibt kaputt. Beim Deployen also nachsehen.
+
+Leer lassen ist unkritisch: dann greift der Code-Default, und der zeigt auf
+denselben Server (zwei Stellen — `settings.mcp_server_url` und
+`transport._DEFAULT_MCP_URL`; ein Test hält sie zusammen).
+
+**Beim Wechsel auf einen anderen MCP-Server** die Werkzeugliste nicht abtippen,
+sondern holen — sie steuert die Server-Zuordnung, und ein fehlender Name fällt
+still auf die Default-URL zurück:
+
+```bash
+curl -s -X POST "$MCP_SERVER_URL" -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+Antwort ist SSE (`data: {…}`). Namen nach
+`backend/seeds/05-knowledge/mcp-servers.yaml` übertragen, dann
+`uv run boerdi import-config --from seeds`. Zwei Wächter in der Suite prüfen das
+Ergebnis: die Registry muss `TOOL_DEFINITIONS` abdecken, und die beiden
+Default-URLs müssen gleichziehen.
+
+#### `MCP_AUTH_TOKEN` — Zugangsblock, optional (C2, 2026-08-10)
+
+```
+MCP_AUTH_TOKEN=wlo2.…
+```
+
+**Ein Geheimnis** — wie `STUDIO_API_KEY` behandeln: nur in die `.env` auf dem
+Server, nie ins Repository, nie in ein Ticket. Der Wert steht als `SecretStr` in
+den Einstellungen und taucht weder in Protokollen noch in Fehlermeldungen auf.
+
+Den Block holt man **einmal** auf der `/auth`-Seite des MCP-Servers
+(`https://wlo-mcp.87.106.195.152.nip.io/auth`) mit einem WLO-Konto; dort ist er
+auch jederzeit widerrufbar. Wir bauen kein eigenes OAuth — die Anmeldung gehört
+dem MCP-Server.
+
+Zwei Betriebsarten, kein dritter Zustand:
+
+| `MCP_AUTH_TOKEN` | Betriebsart | Wirkung |
+|---|---|---|
+| leer (Default) | `anonymous` | nur lesend. Der Server antwortet weiter mit `200` und der vollen Werkzeugliste |
+| gesetzt | `service` | jeder Aufruf trägt `Authorization: Bearer …`; die kuratierenden Werkzeuge stehen dem hinterlegten Konto offen |
+
+Ein `401` kommt laut Server-Doku **nur bei einem vorgelegten, aber
+unbrauchbaren** Block — anonym zu bleiben ist kein Fehler.
+
+**Prüfen, ob der Block greift**, ohne ihn auszugeben:
+
+```bash
+curl -s http://localhost:8000/api/health
+```
+
+Das Feld `mcp_auth` nennt `service` oder `anonymous`.
+
+**Wenn der Bot nicht kuratiert**, obwohl ein Muster es vorsieht, steht der Grund
+im Protokoll — die Zeile nennt das Muster, die fehlenden Werkzeuge und
+`MCP_AUTH_TOKEN`:
+
+```
+Muster M13 verlangt kuratierende Werkzeuge ['wlo_create_collection'], aber es ist
+kein Zugangsblock hinterlegt (MCP_AUTH_TOKEN) — sie werden dem Modell nicht
+angeboten.
+```
+
+Im Chat selbst erscheint **keine** Anmelde-Adresse: der Block gehört dem
+Betrieb, nicht der Lehrkraft am Widget. Der Bot sagt dort nur offen, dass er
+derzeit nur lesend angebunden ist.
+
 ---
 
 # Runbook
+
+### Erstinstallation
+
+Ein neuer Server folgt **[../INSTALL.md](../INSTALL.md)** — dort steht der Weg
+vom leeren Debian bis zum laufenden Stack, inklusive des Schrittes, der hier
+unten bewusst FEHLT: dem einmaligen `boerdi import-config`.
+
+**Die Migration legt Tabellen an und füllt nichts.** Ohne den Seed-Import läuft
+ein Chatbot ohne Muster, ohne Begrüssung und ohne Vokabulare — technisch gesund,
+inhaltlich leer. Automatisch passiert das mit Absicht nicht: bei N Replikas
+schrieben alle gleichzeitig.
+
+```powershell
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps `
+  migrate boerdi import-config
+```
+
+Der Seed-Baum liegt **im Image** (`/app/seeds`, `CONFIG_SEED_DIR`), kommt also
+aus demselben Commit wie der Code. `--no-deps` überschreibt den Befehl des
+`migrate`-Dienstes; ohne die Option liefe wieder `alembic upgrade head`.
 
 ### Deployen / aktualisieren
 
@@ -105,6 +202,16 @@ docker compose -f compose.prod.yml --env-file .env up -d           # 3. Rest rol
 Schritt 2 getrennt, weil ein Migrationsfehler dann sichtbar ist, bevor
 Replikas neu starten. Der `migrate`-Dienst ist ein Einmal-Lauf; die Backends
 warten per `service_completed_successfully` auf ihn.
+
+**Hier KEIN `import-config`.** Ab dem ersten Import ist die Datenbank die
+Wahrheit und das Studio der Weg, sie zu ändern; ein zweiter Import überschreibt
+redaktionelle Arbeit mit dem Seed-Stand. Soll wirklich der ganze Baum neu
+gesetzt werden, gehört ein Backup davor (siehe unten).
+
+**Image aus der Registry statt selbst gebaut.** `image.yml` veröffentlicht nach
+bestandenem Smoke nach GHCR; dann entfällt Schritt 1 und `BOERDI_IMAGE` in der
+`.env` zeigt auf die commit-genaue Marke. Das ist zugleich der Rollback-Schalter
+— eine Zeile statt einer Suche.
 
 **Abhängigkeit geändert (`pyproject.toml`/`uv.lock`)? Image neu bauen — sonst
 Neustart-Schleife.** Beim Bauen von P10-2 real passiert: das Compose setzte
@@ -230,6 +337,7 @@ Aus dem Audit-Erbe (`../badboerdi/docs/audits/`), auf diesen Stack übersetzt.
 | — | Log-Rotation | ✅ `json-file`, 10 MB × 3 je Dienst — unbegrenzte Logs haben ALT den Platz gefressen. |
 | — | Rate-Limit | ✅ Default an (V7), Storage `valkey://` = ein Kontingent für den Cluster (`test_cluster_checklist.py`). |
 | — | Admin-Oberfläche | ⚠️ Prüfen, dass `STUDIO_API_KEY` **und** `STUDIO_PASSWORD` gesetzt sind und `BOERDI_ALLOW_OPEN_ADMIN` **nicht** gesetzt ist. |
+| — | Agenten-Endpunkt | ⚠️ `AGENT_OPEN` **nicht** setzen — es öffnet `/api/agent` ohne jede Anmeldung und ist für Testläufe gedacht. Der normale Weg herein ist die Anmeldung der Person (`WLO-Access-Block`), Server-zu-Server der `STUDIO_API_KEY`. Die Drosselung greift in allen drei Fällen. |
 | — | CORS | ⚠️ `CORS_ORIGINS` explizit setzen. `*` ist zulässig, aber eine Entscheidung — nicht der Default aus Versehen. |
 | — | Lasttest | ✅ `BOERDI_ALLOW_LOADTEST` leer = auf Prod abgelehnt; er teilt sonst den LLM-Pool mit Live-Nutzern. |
 | — | TLS | ⚠️ Nach dem ersten Start prüfen, dass ACME wirklich ein Zertifikat gezogen hat (`docker compose logs traefik`), sonst hängt die Seite an der Selbstsignatur. |

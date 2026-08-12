@@ -47,6 +47,16 @@ export class GuideBoot {
   readonly startReplies = signal<string[]>([]);
   /** Label des Tour-Chips aus der Studio-Config. */
   readonly tourReply = signal('');
+  /** C1-g1b: dieselben drei Werte auf Englisch. Sie stehen NEBEN den
+   *  deutschen, nicht statt ihrer — die Sprache ist zur Laufzeit umschaltbar
+   *  und der Boot-Abruf passiert nur einmal, also waehlt der Verbraucher. */
+  readonly configGreetingEn = signal('');
+  readonly startRepliesEn = signal<string[]>([]);
+  readonly tourReplyEn = signal('');
+  /** C5-c2: Herkunft des MCP-Servers für die WLO-Anmeldung. Leer heisst „diese
+   *  Anlage bietet sie nicht an" — dann öffnet der Anmelde-Chip kein Fenster,
+   *  sondern sagt genau das. */
+  readonly mcpAuthBase = signal('');
   /** Hostname-Schnappschuss fürs Guide-Env jeder Anfrage — damit das Backend
    *  weiß, ob es `guide_url` an ausgehende Karten hängen darf (ALT `guideHost`).
    *  Signal, weil die Hülle es erst an die später gemountete Shell weitergibt. */
@@ -91,6 +101,10 @@ export class GuideBoot {
         if (cfg.greeting !== null) this.configGreeting.set(cfg.greeting);
         if (cfg.startReplies !== null) this.startReplies.set(cfg.startReplies);
         if (cfg.tourReply !== null) this.tourReply.set(cfg.tourReply);
+        if (cfg.greetingEn !== null) this.configGreetingEn.set(cfg.greetingEn);
+        if (cfg.startRepliesEn !== null) this.startRepliesEn.set(cfg.startRepliesEn);
+        if (cfg.tourReplyEn !== null) this.tourReplyEn.set(cfg.tourReplyEn);
+        if (cfg.mcpAuthBase !== null) this.mcpAuthBase.set(cfg.mcpAuthBase);
       }
     } catch {
       // Backend nicht erreichbar — bewusst geschluckt, siehe Doc-Kommentar.

@@ -169,3 +169,24 @@ def test_assess_reports_even_on_the_crisis_short_circuit():
     asyncio.run(assess(_ctx("ich will mich umbringen"), _memory_ok,
                        progress=TurnProgress(seen.append)))
     assert [e["step"] for e in seen] == ["safety_classify"]
+
+
+# ── K1d: die Sicherheitsprüfung bucht auf den Zug-Merkposten ──────────────
+
+def test_assess_reicht_den_merkposten_an_die_sicherheitspruefung(monkeypatch):
+    seen: dict = {}
+
+    async def _safety(message, signals=None, usage_acc=None):
+        seen["usage_acc"] = usage_acc
+        return SafetyDecision(risk_level="low")
+
+    async def _classify(*a, **k):
+        return ClassificationResult(intent_id="I05")
+
+    monkeypatch.setattr(assess_mod, "assess_safety", _safety)
+    monkeypatch.setattr(assess_mod, "classify_input", _classify)
+
+    ctx = _ctx("wie erkläre ich bruchrechnung?")
+    asyncio.run(assess(ctx, _memory_ok))
+
+    assert seen["usage_acc"] is ctx.usage

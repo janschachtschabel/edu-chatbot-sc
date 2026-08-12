@@ -6,6 +6,7 @@ these are behavior pins, not a re-derivation. Pure formatting logic, no mocks ne
 from __future__ import annotations
 
 from boerdi.domain import inline_rendering as ir
+from boerdi.i18n import BOT_TEXT, SUPPORTED
 
 # --- _inline_doc_title_for_pattern -----------------------------------------
 
@@ -140,6 +141,81 @@ def test_build_doc_extra_meta_merged():
     docs, _ = ir._build_inline_document("M11", "# H\nB", dr, extra_meta={"src": "x"})
     assert docs[0]["kind"] == "edit"
     assert docs[0]["meta"] == {"pattern": "M11", "src": "x"}
+
+
+# --- C1-f2b5: dieselbe Box auf Englisch ------------------------------------
+# Die deutschen Pins oben bleiben unverändert stehen — sie sind der Beleg, dass
+# der deutsche Weg byte-genau derselbe geblieben ist.
+
+def test_title_m09_english_bold_header_wins():
+    md = "**Learning path: Fractions**\n\nText"
+    assert ir._inline_doc_title_for_pattern("M09", md, "Egal", lang="en") == \
+        "Learning path: Fractions"
+
+
+def test_title_m09_english_topic_fallback_when_no_bold():
+    assert ir._inline_doc_title_for_pattern("M09", "# Chapter", "Fractions", lang="en") == \
+        "Learning path: Fractions"
+
+
+def test_title_m10_english_material_type_bold():
+    md = "**Worksheet: Photosynthesis**"
+    assert ir._inline_doc_title_for_pattern("M10", md, "", lang="en") == \
+        "Worksheet: Photosynthesis"
+
+
+def test_title_english_pattern_default_with_topic():
+    assert ir._inline_doc_title_for_pattern("M11", "plain no markers", "Algebra", lang="en") == \
+        "Edited version: Algebra"
+
+
+def test_title_english_unknown_pattern_no_topic():
+    assert ir._inline_doc_title_for_pattern("XX", "plain no markers", "", lang="en") == "Content"
+
+
+def test_strip_english_generic_only_line_dropped():
+    assert ir._strip_generic_lead_lines("Here is your material", lang="en") == ""
+
+
+def test_strip_english_generic_but_substantive_kept():
+    # Dieselbe Schutzregel wie auf Deutsch: ein Inhalts-Marker rettet die Zeile.
+    line = "Here is your material *Topic*"
+    assert ir._strip_generic_lead_lines(line, lang="en") == line
+
+
+def test_strip_english_non_generic_kept():
+    line = "I created a quiz for you"
+    assert ir._strip_generic_lead_lines(line, lang="en") == line
+
+
+def test_strip_german_phrase_still_dropped_in_english_mode():
+    # Die englische Liste enthält die deutschen Floskeln mit (Vereinigung, wie
+    # in C1-f2b4): eine deutsche Zeile in einer englischen Antwort ist eine
+    # Floskel und soll fliegen, nicht überleben.
+    assert ir._strip_generic_lead_lines("Hier ist dein Material", lang="en") == ""
+
+
+def test_build_doc_english_end_to_end():
+    dr = {"inline_documents": {"per_pattern": {"M09": True}}}
+    docs, intro = ir._build_inline_document(
+        "M09", "Lead.\n\n# Body-Head\nRest", dr, topic="Fractions", lang="en")
+    assert intro == "Lead."
+    assert docs[0]["title"] == "Learning path: Fractions"
+
+
+def test_jede_sprachtabelle_kennt_jede_unterstuetzte_sprache():
+    # Der Wächter aus C1-f2b4: eine Tabelle mit nur deutschem Eintrag fällt am
+    # Aufrufort still auf DEFAULT zurück — der Fehler bliebe sonst unsichtbar.
+    for name in ("_LP_TITLE_WORDS", "_MATERIAL_TITLE_WORDS",
+                 "_GENERIC_LEAD_PHRASES", "_SUBSTANTIVE_MARKERS"):
+        table = getattr(ir, name)
+        assert set(table) == set(SUPPORTED), name
+
+
+def test_jeder_titel_schluessel_steht_in_beiden_katalogen():
+    for key in list(ir._TITLE_LABEL_KEY.values()) + [ir._TITLE_LABEL_FALLBACK_KEY]:
+        for lang in SUPPORTED:
+            assert key in BOT_TEXT[lang], (lang, key)
 
 
 # --- _truncate_title -------------------------------------------------------

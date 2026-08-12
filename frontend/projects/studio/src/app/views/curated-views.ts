@@ -16,6 +16,14 @@
  *
  * Areas no view lists stay reachable through „Alle Bereiche" (9-3) — that
  * escape hatch is why this list may stay editorial instead of exhaustive.
+ *
+ * Since C1-d3d this file holds STRUCTURE only. The 70 sentences that used to
+ * stand here live in `i18n/catalogue/curated.ts`; what remains are catalogue
+ * KEYS. Finished text on module level freezes in whichever language was active
+ * when the module loaded — the same defect as `CONFIRM_LEAVE` (C1-d3a) and
+ * `PREVIEW_CONTEXT_KINDS` (C1-d3b), twenty times over. The keys are written out
+ * rather than composed from the slug: one built at runtime would render itself
+ * as a heading the moment a name drifts, and no test could see it.
  */
 
 export interface CuratedAreaSection {
@@ -24,9 +32,9 @@ export interface CuratedAreaSection {
   /** `group` = the key is a folder of documents (`03-patterns`). */
   readonly kind?: 'file' | 'group';
   /** Heading for the section — what the editor is changing, not the filename. */
-  readonly label: string;
+  readonly labelKey: string;
   /** One line on what this area decides. */
-  readonly hint: string;
+  readonly hintKey: string;
   /**
    * Something the generated form alone cannot do for this area. Every value
    * gets its own branch in the section template rather than a plugin mechanism
@@ -48,8 +56,8 @@ export interface CuratedAreaSection {
  */
 export interface CuratedPanelSection {
   readonly panel: 'rag-areas' | 'rag-ingest' | 'mcp-registry';
-  readonly label: string;
-  readonly hint: string;
+  readonly labelKey: string;
+  readonly hintKey: string;
 }
 
 export type CuratedSection = CuratedAreaSection | CuratedPanelSection;
@@ -63,245 +71,224 @@ export interface CuratedView {
   /** Route slug — must be a `paket: '9-4'` entry in STUDIO_VIEWS. */
   readonly slug: string;
   /** Lead paragraph: what this page is for, in the editor's language. */
-  readonly intro: string;
+  readonly introKey: string;
   readonly sections: readonly CuratedSection[];
 }
 
 export const CURATED_VIEWS: readonly CuratedView[] = [
   {
     slug: 'begruessung',
-    intro:
-      'Der erste Eindruck im Widget: die Begrüßungsblase und die Chips darunter. '
-      + 'Ein Chip kann die Web-Tour starten — dafür muss „tour_reply" wörtlich einem '
-      + 'der Quick-Replies entsprechen.',
+    introKey: 'curated.begruessung.intro',
     sections: [
       {
         area: '01-base/welcome-config',
-        label: 'Begrüßung & Start-Chips',
-        hint: 'Begrüßungstext, Quick-Replies und der Chip, der die Web-Tour startet.',
+        labelKey: 'curated.begruessung.welcome.label',
+        hintKey: 'curated.begruessung.welcome.hint',
       },
     ],
   },
   {
     slug: 'kontext-aktionen',
-    intro:
-      'Was Boerdi anbietet, wenn er von selbst auf einer Seite auftaucht — je nach '
-      + 'Seitentyp (Sammlung, Inhalt, Themenseite) eine eigene Ansprache und eigene Pills.',
+    introKey: 'curated.kontextAktionen.intro',
     sections: [
       {
         area: '01-base/context-actions',
-        label: 'Proaktive Begrüßung & Pills',
-        hint: 'An/aus, Melde-Adresse, Ansprache und Pills je Seitentyp, Kuratier-Prompt.',
+        labelKey: 'curated.kontextAktionen.actions.label',
+        hintKey: 'curated.kontextAktionen.actions.hint',
       },
     ],
   },
   {
     slug: 'identitaet',
-    intro:
-      'Wer Boerdi ist und wo seine Grenzen liegen. Das Sicherheitslevel ganz oben '
-      + 'entscheidet, welche Prüfungen überhaupt laufen — alles Weitere feilt daran.',
+    introKey: 'curated.identitaet.intro',
     sections: [
       {
         area: '01-base/safety-config',
-        label: 'Sicherheit',
+        labelKey: 'curated.identitaet.safety.label',
+        hintKey: 'curated.identitaet.safety.hint',
         feature: 'safety-level',
-        hint: 'Stufe, Presets, Krisen- und PII-Begriffe, Schwellen und Rate-Limits.',
       },
       {
         area: '01-base/base-persona',
-        label: 'Grundpersona',
-        hint: 'Haltung, Stimme und Selbstverständnis in jeder Antwort.',
+        labelKey: 'curated.identitaet.persona.label',
+        hintKey: 'curated.identitaet.persona.hint',
       },
       {
         area: '01-base/guardrails',
-        label: 'Leitplanken',
-        hint: 'Was Boerdi nicht tut, und wie er das sagt.',
+        labelKey: 'curated.identitaet.guardrails.label',
+        hintKey: 'curated.identitaet.guardrails.hint',
       },
       {
         area: '01-base/policy',
-        label: 'Regelwerk',
-        hint: 'Regeln, die Muster und Werkzeuge je Situation erlauben oder sperren.',
+        labelKey: 'curated.identitaet.policy.label',
+        hintKey: 'curated.identitaet.policy.hint',
       },
     ],
   },
   {
     slug: 'domain-wissen',
-    intro:
-      'Was Boerdi über die Plattform und ihre Inhalte weiß. Diese Texte gehen als '
-      + 'Systemwissen in jede Antwort ein — je konkreter, desto weniger rät das Modell.',
+    introKey: 'curated.domainWissen.intro',
     sections: [
       {
         area: '02-domain/domain-rules',
-        label: 'Domänen-Regeln',
-        hint: 'Fachliche Leitplanken für Antworten in dieser Domäne.',
+        labelKey: 'curated.domainWissen.rules.label',
+        hintKey: 'curated.domainWissen.rules.hint',
       },
       {
         area: '02-domain/wlo-plattform-wissen',
-        label: 'Plattform-Wissen',
-        hint: 'Wie WirLernenOnline aufgebaut ist: Bereiche, Begriffe, Wege.',
+        labelKey: 'curated.domainWissen.platform.label',
+        hintKey: 'curated.domainWissen.platform.hint',
       },
       {
         area: '01-base/website-tour',
-        label: 'Web-Tour',
-        hint: 'Stationen der geführten Tour, ihre Gruppen und Einstiege.',
+        labelKey: 'curated.domainWissen.tour.label',
+        hintKey: 'curated.domainWissen.tour.hint',
       },
     ],
   },
   {
     slug: 'material-formate',
-    intro:
-      'Welche Materialarten Boerdi erzeugen kann und woran er erkennt, dass jemand '
-      + 'eine davon möchte.',
+    introKey: 'curated.materialFormate.intro',
     sections: [
       {
         area: '05-canvas/material-types',
-        label: 'Material-Typen',
-        hint: 'Die erzeugbaren Formate mit Beschreibung und Vorlage.',
+        labelKey: 'curated.materialFormate.types.label',
+        hintKey: 'curated.materialFormate.types.hint',
       },
       {
         area: '05-canvas/type-aliases',
-        label: 'Bezeichnungen',
-        hint: 'Alltagswörter, die auf einen Typ zeigen („Test" → Quiz).',
+        labelKey: 'curated.materialFormate.aliases.label',
+        hintKey: 'curated.materialFormate.aliases.hint',
       },
       {
         area: '05-canvas/create-triggers',
-        label: 'Auslöser: neu erstellen',
-        hint: 'Formulierungen, die als Auftrag zum Erstellen gelten.',
+        labelKey: 'curated.materialFormate.create.label',
+        hintKey: 'curated.materialFormate.create.hint',
       },
       {
         area: '05-canvas/edit-triggers',
-        label: 'Auslöser: überarbeiten',
-        hint: 'Formulierungen, die sich auf ein bestehendes Dokument beziehen.',
+        labelKey: 'curated.materialFormate.edit.label',
+        hintKey: 'curated.materialFormate.edit.hint',
       },
       {
         area: '05-canvas/persona-priorities',
-        label: 'Vorrang je Persona',
-        hint: 'Welche Typen für welche Zielgruppe zuerst vorgeschlagen werden.',
+        labelKey: 'curated.materialFormate.priorities.label',
+        hintKey: 'curated.materialFormate.priorities.hint',
       },
     ],
   },
   {
     slug: 'patterns',
-    intro:
-      'Die Gesprächsmuster: je ein Dokument mit Kopfdaten und Anweisungstext. '
-      + 'Welches Muster greift, entscheidet der LLM-Hint — hier steht, was es dann tut.',
+    introKey: 'curated.patterns.intro',
     sections: [
       {
         area: '03-patterns',
         kind: 'group',
-        label: 'Gesprächsmuster',
-        hint: 'Auslöser, Abgrenzung, Ton, Werkzeuge und Anweisungstext je Muster.',
+        labelKey: 'curated.patterns.patterns.label',
+        hintKey: 'curated.patterns.patterns.hint',
         feature: 'pattern-tabs',
       },
     ],
   },
   {
     slug: 'dimensionen',
-    intro:
-      'Die Achsen, an denen Boerdi ein Gespräch einordnet.',
+    introKey: 'curated.dimensionen.intro',
     sections: [
       {
         area: '04-personas',
         kind: 'group',
-        label: 'Personas',
-        hint: 'Zielgruppen mit Ansprache, Zielen und typischen Anliegen.',
+        labelKey: 'curated.dimensionen.personas.label',
+        hintKey: 'curated.dimensionen.personas.hint',
       },
       {
         area: '04-intents/intents',
-        label: 'Intents',
-        hint: 'Absichten, die der Klassifikator unterscheidet.',
+        labelKey: 'curated.dimensionen.intents.label',
+        hintKey: 'curated.dimensionen.intents.hint',
       },
       {
         area: '04-states/states',
-        label: 'Gesprächszustände',
-        hint: 'Phasen eines Dialogs und die erlaubten Übergänge.',
+        labelKey: 'curated.dimensionen.states.label',
+        hintKey: 'curated.dimensionen.states.hint',
       },
       {
         area: '04-entities/entities',
-        label: 'Entitäten',
-        hint: 'Erkannte Größen wie Fach oder Bildungsstufe, mit Beispielen.',
+        labelKey: 'curated.dimensionen.entities.label',
+        hintKey: 'curated.dimensionen.entities.hint',
       },
       {
         area: '04-signals/signal-modulations',
-        label: 'Signale',
-        hint: 'Feine Hinweise im Text, die die Antwort nachjustieren.',
+        labelKey: 'curated.dimensionen.signals.label',
+        hintKey: 'curated.dimensionen.signals.hint',
       },
       {
         area: '01-base/tone-modifiers',
-        label: 'Tonalität',
-        hint: 'Wie sich die Ansprache je Persona verschiebt.',
+        labelKey: 'curated.dimensionen.tone.label',
+        hintKey: 'curated.dimensionen.tone.hint',
       },
     ],
   },
   {
     slug: 'anzeige',
-    intro:
-      'Wie Ergebnisse im Widget erscheinen: welche Boxen, wie viele Einträge, '
-      + 'welche Kopfzeilen-Links — und was kleine Geräte davon abweichend bekommen.',
+    introKey: 'curated.anzeige.intro',
     sections: [
       {
         area: '01-base/display-rules',
-        label: 'Darstellungsregeln',
-        hint: 'Boxen, Grenzen und Textlängen der Ergebnisdarstellung.',
+        labelKey: 'curated.anzeige.display.label',
+        hintKey: 'curated.anzeige.display.hint',
       },
       {
         area: '01-base/header-nav',
-        label: 'Kopfzeilen-Navigation',
-        hint: 'Die Links, die das Widget oben anbietet.',
+        labelKey: 'curated.anzeige.header.label',
+        hintKey: 'curated.anzeige.header.hint',
       },
       {
         area: '01-base/device-config',
-        label: 'Geräte',
-        hint: 'Abweichende Grenzen für kleine Bildschirme.',
+        labelKey: 'curated.anzeige.devices.label',
+        hintKey: 'curated.anzeige.devices.hint',
       },
     ],
   },
   {
     slug: 'datenschutz',
-    intro:
-      'Was mitgeschrieben wird und wie lange. Weniger Logging heißt weniger '
-      + 'Auswertung — die Analyse-Ansichten zeigen dann entsprechend weniger.',
+    introKey: 'curated.datenschutz.intro',
     sections: [
       {
         area: '01-base/privacy-config',
-        label: 'Datenschutz',
-        hint: 'Welche Inhalte überhaupt gespeichert werden dürfen.',
+        labelKey: 'curated.datenschutz.privacy.label',
+        hintKey: 'curated.datenschutz.privacy.hint',
       },
       {
         area: '01-base/quality-log-config',
-        label: 'Qualitäts-Logging',
-        hint: 'Umfang der Protokolle, aus denen die Analyse gespeist wird.',
+        labelKey: 'curated.datenschutz.qualityLog.label',
+        hintKey: 'curated.datenschutz.qualityLog.hint',
       },
     ],
   },
   {
     slug: 'wissen',
-    intro:
-      'Woher der Bot Wissen holt: eigene Dokumente (RAG) und die MCP-Server, über '
-      + 'die er WirLernenOnline durchsucht. Ein Wissensbereich entsteht mit dem '
-      + 'ersten Dokument darin — angelegt wird er nicht, er wird befüllt.',
+    introKey: 'curated.wissen.intro',
     sections: [
       {
         panel: 'rag-areas',
-        label: 'Wissensbereiche',
-        hint: 'Was aktuell in der Datenbank liegt, mit Dokumenten und Abschnitten.',
+        labelKey: 'curated.wissen.areas.label',
+        hintKey: 'curated.wissen.areas.hint',
       },
       {
         panel: 'rag-ingest',
-        label: 'Dokumente hinzufügen',
-        hint: 'Datei, Webseite oder Text einlesen und in einen Bereich legen.',
+        labelKey: 'curated.wissen.ingest.label',
+        hintKey: 'curated.wissen.ingest.hint',
       },
       {
         // Describes the areas the panel above lists — only useful together,
         // which is why this config sits between them and not on its own page.
         area: '05-knowledge/rag-config',
-        label: 'Bereichs-Einstellungen',
-        hint: '„always" legt einen Bereich in jeden Prompt, „on-demand" nur bei Bedarf.',
+        labelKey: 'curated.wissen.ragConfig.label',
+        hintKey: 'curated.wissen.ragConfig.hint',
       },
       {
         panel: 'mcp-registry',
-        label: 'MCP-Server',
-        hint: 'Werkzeug-Server, die der Bot im Gespräch aufrufen darf.',
+        labelKey: 'curated.wissen.mcp.label',
+        hintKey: 'curated.wissen.mcp.hint',
       },
     ],
   },

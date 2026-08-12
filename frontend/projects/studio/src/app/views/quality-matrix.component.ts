@@ -20,11 +20,12 @@ import {
 } from '@angular/core';
 
 import { AsyncData } from '../core/async-data';
-import { formatPercent, formatWhole } from '../core/format';
 import {
   QualityApi, type LogFilters, type MatrixCell, type QualityScope, type RoutingMatrix,
 } from '../core/quality-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 interface MatrixRow {
   readonly persona: string;
@@ -40,6 +41,15 @@ interface MatrixRow {
   styleUrl: './quality-matrix.component.scss',
 })
 export class QualityMatrixComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  private readonly lang = inject(StudioLanguageService);
+
+  /** Uebersetzer fuer den Fehlersatz der Leseoperationen und fuer die
+   *  Texte dieser Ansicht. */
+  protected readonly t = this.lang.t;
+
   private readonly api = inject(QualityApi);
 
   readonly scope = input.required<QualityScope>();
@@ -54,7 +64,7 @@ export class QualityMatrixComponent {
   readonly minCount = signal(1);
 
   readonly matrix = new AsyncData<RoutingMatrix>(
-    () => this.api.matrix(this.scope(), this.minCount()));
+    () => this.api.matrix(this.scope(), this.minCount()), this.t);
 
   readonly value = computed(() => this.matrix.value());
 
@@ -92,12 +102,21 @@ export class QualityMatrixComponent {
     this.minCount.set(Math.max(1, Number.parseInt(value, 10) || 1));
   }
 
-  share(cell: MatrixCell): string {
-    return formatPercent(cell.share, 0);
+  /** „Aggregiert aus 13 Turns (all)." — die Anzahl wählt die Form, der
+   *  gruppierte Text füllt den Platzhalter. */
+  total(matrix: RoutingMatrix): string {
+    return this.lang.plural('qualMatrix.total', matrix.total_turns, {
+      count: this.fmt.whole(matrix.total_turns), scope: matrix.scope,
+    });
   }
 
-  whole(value: number): string {
-    return formatWhole(value);
+  /** Anteil und Sample-Zahl einer Zelle; die Zahl trägt ihre eigene Mehrzahl.
+   *  Nicht `cell(…)`: im Template verdeckt die Schleifenvariable den Namen. */
+  cellText(cell: MatrixCell): string {
+    return this.t('qualMatrix.cell', {
+      share: this.fmt.percent(cell.share, 0),
+      samples: this.lang.plural('qualMatrix.samples', cell.total_count),
+    });
   }
 
   /** "M15 (2), M08 (1)" — the patterns that lost this cell, and by how much. */

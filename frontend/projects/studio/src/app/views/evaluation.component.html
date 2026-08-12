@@ -1,6 +1,6 @@
 <studio-tab-bar
-  label="Evaluation"
-  [tabs]="tabs"
+  [label]="t('eval.label')"
+  [tabs]="tabs()"
   [active]="active()"
   (tabChange)="select($event)"
 />

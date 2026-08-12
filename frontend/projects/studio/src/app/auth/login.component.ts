@@ -14,11 +14,14 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { Router } from '@angular/router';
 
 import { StudioApiError } from '../core/studio-api-error';
+import { LanguageSwitcherComponent } from '../i18n/language-switcher.component';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AuthService } from './auth.service';
 import { safeRedirectTarget } from './redirect-target';
 
 @Component({
   selector: 'studio-login',
+  imports: [LanguageSwitcherComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
@@ -26,6 +29,9 @@ import { safeRedirectTarget } from './redirect-target';
 export class LoginComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly lang = inject(StudioLanguageService);
+
+  protected readonly t = this.lang.t;
 
   readonly password = signal('');
   readonly busy = signal(false);
@@ -62,7 +68,8 @@ export class LoginComponent implements OnInit {
       await this.auth.login(this.password());
       await this.goToTarget();
     } catch (err) {
-      this.error.set(messageFor(err));
+      const [key, params] = messageFor(err);
+      this.error.set(this.lang.t(key, params));
     } finally {
       this.busy.set(false);
     }
@@ -74,18 +81,23 @@ export class LoginComponent implements OnInit {
   }
 }
 
-function messageFor(err: unknown): string {
-  if (!(err instanceof StudioApiError)) return 'Unerwarteter Fehler. Bitte erneut versuchen.';
+/**
+ * Ursache → Katalog-Schlüssel (+ Platzhalter). Rein und ohne Übersetzer, damit
+ * die Zuordnung ohne Angular prüfbar bleibt — dasselbe Muster wie bei den
+ * Label-Funktionen des Widgets (C1-b3). Übersetzt wird am Aufrufer.
+ */
+function messageFor(err: unknown): [string, Record<string, string | number>?] {
+  if (!(err instanceof StudioApiError)) return ['login.error.unexpected'];
   switch (err.status) {
     case 401:
-      return 'Falsches Passwort.';
+      return ['login.error.wrongPassword'];
     case 429:
-      return 'Zu viele Versuche. Bitte eine Minute warten.';
+      return ['login.error.tooMany'];
     case 503:
-      return 'Das Studio ist nicht eingerichtet (kein Passwort konfiguriert).';
+      return ['login.error.notConfigured'];
     case 0:
-      return 'Backend nicht erreichbar. Läuft der Server?';
+      return ['login.error.offline'];
     default:
-      return `Anmeldung fehlgeschlagen (Fehler ${err.status}).`;
+      return ['login.error.generic', { status: err.status }];
   }
 }

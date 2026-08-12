@@ -15,6 +15,8 @@ werden hier NICHT eingefordert.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from pydantic import ValidationError
 
@@ -29,6 +31,7 @@ from boerdi.api.schemas import (
     WloCard,
 )
 from boerdi.graph.state import TurnContext
+from boerdi.obs.usage import add_usage, extract_usage, new_accumulator
 
 
 def _req() -> ChatRequest:
@@ -53,7 +56,8 @@ def test_constructs_from_request_with_defaults():
     assert ctx.state_id == "S1"
     assert ctx.context_snapshot is None
     assert ctx.policy is None
-    assert ctx.usage == {}
+    # NICHT ``== {}``: der Zug bringt den Token-Merkposten mit (s.u.).
+    assert ctx.usage == new_accumulator()
     # Answer (respond / assemble — 4-5)
     assert ctx.response_text == ""
     assert ctx.cards == []
@@ -69,6 +73,34 @@ def test_req_is_required():
     # ``req`` has no default — a turn is meaningless without the request.
     with pytest.raises(ValidationError):
         TurnContext()
+
+
+# ── Token-Merkposten: die Naht zwischen ``graph.state`` und ``obs.usage`` ──
+# ALT legt ihn zu Turn-Beginn an (``chat_turn_setup.py:175``:
+# ``usage_acc = usage_accumulator_new()``). NEU hatte KEINEN Erzeuger: das Feld
+# stand auf ``{}``, und ``add_usage`` kehrt bei leerem Merkposten still zurück
+# (``if not acc: return``). Damit war jede der fünf Durchreichungen
+# (assess/route/respond/assemble/persist) ein No-Op und ``debug.token_usage``
+# immer leer. Beide Seiten waren für sich korrekt und getestet — die Tests
+# bauten den Merkposten jedes Mal von Hand. Diese zwei Pins prüfen deshalb die
+# VERBINDUNG, nicht die Seiten.
+
+def test_frischer_zug_bringt_den_token_merkposten_mit():
+    assert TurnContext(req=_req()).usage == new_accumulator()
+
+
+def test_buchung_auf_dem_frischen_zug_kommt_an():
+    ctx = TurnContext(req=_req())
+    resp = SimpleNamespace(model="gpt-x", usage=SimpleNamespace(
+        prompt_tokens=100, completion_tokens=20,
+        prompt_tokens_details=SimpleNamespace(cached_tokens=64)))
+
+    add_usage(ctx.usage, extract_usage(resp), phase="classify")
+
+    assert ctx.usage["calls"] == 1
+    assert ctx.usage["prompt_tokens"] == 100
+    assert ctx.usage["cached_tokens"] == 64
+    assert ctx.usage["per_phase"]["classify"]["completion"] == 20
 
 
 def test_fields_are_mutable_across_phases():

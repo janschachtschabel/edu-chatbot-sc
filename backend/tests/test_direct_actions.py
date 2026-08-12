@@ -13,7 +13,8 @@ are fast unit tests, not pg-gated (the persistence itself is pinned in R3a/R3b).
 
 from __future__ import annotations
 
-from boerdi.api.schemas import ChatRequest
+from boerdi.api.schemas import ChatRequest, Environment
+from boerdi.obs.usage import add_usage, new_accumulator
 from boerdi.services import direct_actions
 
 
@@ -139,6 +140,30 @@ async def test_browse_collection_empty_is_honest(monkeypatch) -> None:
     assert 'In der Sammlung "Bio" habe ich leider keine Inhalte gefunden.' in resp.content
 
 
+async def test_browse_bucht_seinen_qr_aufruf(monkeypatch) -> None:
+    """Beim Bau von K1b/K1c gefunden, in KEINER Liste enthalten: auch das
+    reine Blättern ruft den QR-Generator — ein echter LLM-Aufruf. Die Messung
+    zählte nur Module mit eigenem Generator und übersah den geteilten."""
+    _patch_browse_boundaries(monkeypatch, cards=_raw_cards(2), total=2)
+    qr_kwargs: dict = {}
+
+    async def fake_qr(**kwargs):
+        qr_kwargs.update(kwargs)
+        return ["qr-A"]
+
+    monkeypatch.setattr(direct_actions, "generate_quick_replies", fake_qr)
+    acc = new_accumulator()
+    add_usage(acc, {"prompt": 7, "completion": 3, "model": "m"}, phase="probe")
+
+    resp = await direct_actions._handle_browse_collection(
+        object(), _req("browse_collection", collection_id="col-1", title="Bio"), _state(),
+        usage_acc=acc,
+    )
+
+    assert qr_kwargs["usage_acc"] is acc
+    assert resp.debug.token_usage["per_phase"]["probe"]["prompt"] == 7
+
+
 async def test_browse_collection_missing_id_short_circuits(monkeypatch) -> None:
     fake_mcp, save = _patch_browse_boundaries(monkeypatch, cards=_raw_cards(3), total=3)
 
@@ -179,10 +204,14 @@ def _patch_curate_boundaries(monkeypatch, *, cards, curate_out="KURATIONSTEXT", 
 
 def test_curate_search_pill() -> None:
     assert (
-        direct_actions._curate_search_pill("Bruchrechnen")
+        direct_actions._curate_search_pill("Bruchrechnen", "de")
         == "Fehlende Inhalte zu Bruchrechnen suchen"
     )
-    assert direct_actions._curate_search_pill("  ") == "Fehlende Inhalte suchen"
+    assert direct_actions._curate_search_pill("  ", "de") == "Fehlende Inhalte suchen"
+    assert (
+        direct_actions._curate_search_pill("Bruchrechnen", "en")
+        == "Search for content missing from Bruchrechnen"
+    )
 
 
 async def test_curate_no_compendium_is_honest_not_hallucinated(monkeypatch) -> None:
@@ -215,6 +244,24 @@ async def test_curate_with_compendium_runs_gap_analysis(monkeypatch) -> None:
     assert spy.kwargs["instruction"] == "PROMPT"
     assert "Titel 0" in spy.kwargs["contents_text"]
     assert resp.debug.tools_called == ["get_collection_contents", "llm_curation"]
+
+
+async def test_kuration_bucht_auf_den_zug_merkposten(monkeypatch) -> None:
+    """K1c: wie beim Lernpfad — der Merkposten geht an den Generator UND ins
+    Debug, weil ``turn_persist`` auf dem Direkt-Aktions-Weg nicht läuft."""
+    _fake_mcp, spy = _patch_curate_boundaries(monkeypatch, cards=_raw_cards(2))
+    state = _state()
+    state["entities"]["_page_metadata"] = {"compendium_text": "SOLL: Zellatmung"}
+    acc = new_accumulator()
+    add_usage(acc, {"prompt": 7, "completion": 3, "model": "m"}, phase="probe")
+
+    resp = await direct_actions._handle_curate_collection(
+        object(), _req("curate_collection", collection_id="col-1", title="Bio"), state,
+        usage_acc=acc,
+    )
+
+    assert spy.kwargs["usage_acc"] is acc
+    assert resp.debug.token_usage["per_phase"]["probe"]["prompt"] == 7
 
 
 async def test_curate_missing_id_short_circuits(monkeypatch) -> None:
@@ -268,6 +315,40 @@ def _patch_lp_boundaries(monkeypatch, *, cards, lp_text=None, inline_ret=None,
     if inline_ret is not None:
         monkeypatch.setattr(direct_actions, "_build_inline_document", lambda *a, **k: inline_ret)
     return fake_mcp, save, upd, fake_lp
+
+
+async def test_lp_direktaktion_bucht_beide_llm_aufrufe(monkeypatch) -> None:
+    """K1b: Die Direkt-Aktion ist der ZWEITE Weg zum Lernpfad-Generator — die
+    Messung im Plan kannte nur den Fast-Path. Beide LLM-Aufrufe des Handlers
+    (Lernpfad + Quick-Replies) buchen auf den Zug-Merkposten.
+
+    Und er MUSS hier ins Debug der Antwort: der preflight-Knoten beendet den
+    Zug vorzeitig, ``turn_persist`` — die einzige Stelle, die sonst
+    ``token_usage`` setzt — läuft auf diesem Weg nie.
+    """
+    _mcp, _save, _upd, fake_lp = _patch_lp_boundaries(monkeypatch, cards=_raw_cards(3))
+    qr_kwargs: dict = {}
+
+    async def fake_qr(**kwargs):
+        qr_kwargs.update(kwargs)
+        return ["qr-A"]
+
+    monkeypatch.setattr(direct_actions, "generate_quick_replies", fake_qr)
+    acc = new_accumulator()
+    # Vorgebucht, damit sich „derselbe Merkposten" von „ein frischer" trennen
+    # laesst — ein leerer waere von ``new_accumulator()`` nicht zu unterscheiden.
+    add_usage(acc, {"prompt": 7, "completion": 3, "model": "m"}, phase="probe")
+
+    resp = await direct_actions._handle_generate_learning_path(
+        object(),
+        _req("generate_learning_path", collection_id="col-1", title="Eiszeit"),
+        _state(),
+        usage_acc=acc,
+    )
+
+    assert fake_lp.kwargs["usage_acc"] is acc
+    assert qr_kwargs["usage_acc"] is acc
+    assert resp.debug.token_usage["per_phase"]["probe"]["prompt"] == 7
 
 
 async def test_lp_happy_path_persists_canvas_state_and_marks_diversity(monkeypatch) -> None:
@@ -398,3 +479,120 @@ def test_direct_action_safety_text_concatenates_and_caps() -> None:
     assert "title: " + ("t" * 500) in text  # string params folded, capped
     assert "n: " not in text  # non-string action_params skipped
     assert len(text) <= 2000
+
+
+# ── Sprache der Direkt-Aktionen (C1-f2a) ───────────────────────────────
+# Die Verdrahtungs-Probe: `environment.locale` aus der Anfrage muss beim
+# Erzeuger als `lang` ankommen. Ohne sie waere der Parameter Maschinerie
+# ohne Verbraucher — genau der Fehler, den C1-f1 vermieden hat.
+
+
+def _req_locale(action: str, locale: str, **params) -> ChatRequest:
+    return ChatRequest(
+        session_id="bb-1", message="los", action=action, action_params=params,
+        environment=Environment(locale=locale),
+    )
+
+
+async def test_curate_reicht_die_widget_sprache_an_den_erzeuger_durch(monkeypatch) -> None:
+    _fake_mcp, spy = _patch_curate_boundaries(monkeypatch, cards=_raw_cards(2))
+    state = _state()
+    state["entities"]["_page_metadata"] = {"compendium_text": "SOLL: Zellatmung"}
+
+    await direct_actions._handle_curate_collection(
+        object(), _req_locale("curate_collection", "en-GB", collection_id="col-1", title="Bio"),
+        state,
+    )
+    assert spy.kwargs["lang"] == "en"
+
+
+async def test_curate_ohne_locale_bleibt_deutsch(monkeypatch) -> None:
+    _fake_mcp, spy = _patch_curate_boundaries(monkeypatch, cards=_raw_cards(2))
+    state = _state()
+    state["entities"]["_page_metadata"] = {"compendium_text": "SOLL: Zellatmung"}
+
+    await direct_actions._handle_curate_collection(
+        object(), _req("curate_collection", collection_id="col-1", title="Bio"), state,
+    )
+    assert spy.kwargs["lang"] == "de"  # Vorgabe des Vertrags ist "de-DE"
+
+
+async def test_browse_leere_sammlung_folgt_der_sprache(monkeypatch) -> None:
+    _patch_browse_boundaries(monkeypatch, cards=[], total=0)
+    resp = await direct_actions._handle_browse_collection(
+        object(), _req_locale("browse_collection", "en-GB", collection_id="c1", title="Bio"),
+        _state(),
+    )
+    assert resp.content == 'I found no content in the collection "Bio".'
+
+
+async def test_curate_ohne_kompendium_folgt_der_sprache(monkeypatch) -> None:
+    _patch_curate_boundaries(monkeypatch, cards=_raw_cards(2))
+    resp = await direct_actions._handle_curate_collection(
+        object(), _req_locale("curate_collection", "en-GB", collection_id="c1", title="Bio"),
+        _state(),
+    )
+    assert "no editorial summary on file" in resp.content
+    assert resp.quick_replies == ["Search for content missing from Bio"]
+
+
+async def test_curate_ohne_id_bleibt_auf_deutsch_ohne_locale(monkeypatch) -> None:
+    _patch_curate_boundaries(monkeypatch, cards=_raw_cards(2))
+    resp = await direct_actions._handle_curate_collection(
+        object(), _req("curate_collection", title="Bio"), _state(),
+    )
+    assert resp.content == "Keine Sammlungs-ID angegeben."
+
+
+async def test_lp_reicht_die_sprache_an_die_inline_box_durch(monkeypatch) -> None:
+    """C1-f2b5: ``environment.locale`` muss bis zum Box-Titel durchkommen.
+
+    Ohne diese Probe waere der neue ``lang``-Parameter von
+    ``_build_inline_document`` wieder Maschinerie ohne Verbraucher — der
+    Rueckfall-Titel stuende weiter auf Deutsch ueber einer englischen Box.
+    """
+    seen: dict = {}
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs)
+        return ([{"kind": "lernpfad", "title": "T", "content": "B",
+                  "meta": {"pattern": "M09"}}], "INTRO")
+
+    _patch_lp_boundaries(monkeypatch, cards=_raw_cards(3))
+    monkeypatch.setattr(direct_actions, "_build_inline_document", spy)
+
+    await direct_actions._handle_generate_learning_path(
+        object(),
+        _req_locale("generate_learning_path", "en-GB", collection_id="col-1", title="Ice age"),
+        _state(),
+    )
+    assert seen.get("lang") == "en"
+
+
+async def test_lp_fehlschlag_bleibt_auch_auf_englisch_eine_schlichte_blase(monkeypatch) -> None:
+    """Der Fehlschlag wird am Kontrollfluss erkannt, nicht am Wortlaut.
+
+    Vor C1-f2b entschied ein ``startswith`` auf den deutschen Fehlersatz, ob
+    statt eines Canvas-Dokuments eine schlichte Blase zurueckkommt. Mit einer
+    zweiten Sprache haette der Vergleich still nicht mehr gegriffen — und der
+    Nutzer haette einen Fehlertext als Lernpfad-Dokument praesentiert bekommen.
+    """
+    _fake_mcp, save, _upd, _fake_lp = _patch_lp_boundaries(monkeypatch, cards=_raw_cards(3))
+
+    async def boom(**kwargs):
+        raise RuntimeError("B-API down")
+
+    monkeypatch.setattr(direct_actions, "generate_learning_path_text", boom)
+
+    state = _state()
+    resp = await direct_actions._handle_generate_learning_path(
+        object(),
+        _req_locale("generate_learning_path", "en-GB", collection_id="col-1", title="Ice age"),
+        state,
+    )
+
+    assert resp.content.startswith('Failed to build the learning path for "Ice age"')
+    assert "error" in resp.debug.tools_called
+    # Der Fehl-Zweig kehrt frueh zurueck und markiert deshalb KEIN M09 — sonst
+    # schickte der naechste Zug eine Bearbeiten-Anfrage auf einen Fehlertext.
+    assert state.get("last_pattern") != "M09"

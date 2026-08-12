@@ -5,6 +5,7 @@ import { Component, provideZonelessChangeDetection, signal } from '@angular/core
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { LoadtestRunComponent } from './loadtest-run.component';
 
 const POLL_MS = 2000;
@@ -31,9 +32,15 @@ const RUNNING = {
 const COMPLETED = {
   ...RUNNING, status: 'completed', finished_at: '2026-07-24T18:05:00Z',
   stages: [stage(1), stage(2, 1)],
-  // The real shape of `_summary` — no resource peaks (B5, see the sibling spec).
+  // Die echte Form von `_summary` — seit C5 mit den zwei Ressourcen-Spitzen,
+  // die jetzt einen Produzenten haben (psutil-Abtastung im Runner).
+  resource_samples: [
+    { t: 0.0, proc_cpu: 12.0, rss_mb: 180.0 },
+    { t: 0.5, proc_cpu: 63.5, rss_mb: 244.5 },
+  ],
   summary: {
     stable_concurrency: 1, p95_threshold_s: 20, total_requests: 8, total_errors: 1,
+    peak_rss_mb: 244.5, peak_proc_cpu_pct: 63.5,
   },
 };
 
@@ -60,7 +67,10 @@ async function settle(h: Harness): Promise<void> {
   await h.fixture.whenStable();
 }
 
-async function mount(first: object = COMPLETED): Promise<Harness> {
+async function mount(first: object = COMPLETED, locale = 'de'): Promise<Harness> {
+  // jsdom meldet `navigator.language === 'en-US'` — ohne die gemerkte Wahl
+  // stünde die Oberfläche ab C1-d4e1 auf Englisch.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -87,7 +97,10 @@ describe('LoadtestRunComponent', () => {
   it('shows the verdict, the profile and every finished stage', async () => {
     const h = await mount();
     const text = h.el.textContent!;
-    expect(text).toContain('Stabil bis 1 gleichzeitige Nutzer');
+    // C1-d4e1: die Einzahl beugt mit — „bis 1 gleichzeitigen Nutzer" gegen
+    // „bis 4 gleichzeitige Nutzer". Bis hierher stand die Mehrzahlform fest im
+    // Template und dieser Test hat sie mit `stable_concurrency: 1` gepinnt.
+    expect(text).toContain('Stabil bis 1 gleichzeitigen Nutzer');
     expect(text).not.toContain('NaN');
     expect(h.el.querySelectorAll('.lr-table tbody tr')).toHaveLength(2);
   });
@@ -169,16 +182,63 @@ describe('LoadtestRunComponent', () => {
   });
 
   /**
-   * B5: the studio showed "Spitze NaN MB" for every finished run. `_summary` in
-   * services/loadtest.py returns four keys and none of them is a resource peak —
-   * the psutil sampling ALT had was dropped in the port, on purpose. Only the
-   * fixtures kept the fields alive, so neither the type checker nor the suite
-   * ever saw it. Now the view says what it does not measure.
+   * B5 pinnte hier, dass die Ansicht die FEHLENDE Messung benennt statt „NaN"
+   * zu drucken. **C5 liefert die Messung** (psutil-Abtastung), also pinnt der
+   * Test jetzt die Werte — der NaN-Schutz bleibt, er galt dem Rechenfehler.
    */
-  it('names the missing resource measurement instead of printing NaN', async () => {
+  it('zeigt die gemessenen Spitzen samt Anzahl der Messpunkte, nie NaN', async () => {
     const h = await mount();
     const verdict = h.el.querySelector('.lr-verdict')!.textContent ?? '';
     expect(verdict).not.toContain('NaN');
-    expect(verdict).toContain('Keine Ressourcen-Messung');
+    expect(verdict).toContain('244,5');       // Speicher-Spitze, deutsch getrennt
+    expect(verdict).toContain('63,5');        // CPU-Spitze
+    expect(verdict).toContain('2 Messpunkte');
+  });
+
+  it('benennt einen Lauf ohne Messpunkte, statt 0 als Messwert auszugeben', async () => {
+    // Ein Lauf, der kürzer war als ein Abtast-Intervall: 0-Spitzen sind dann
+    // KEINE Aussage über den Ressourcenbedarf.
+    const h = await mount({
+      ...COMPLETED,
+      resource_samples: [],
+      summary: { ...COMPLETED.summary, peak_rss_mb: 0, peak_proc_cpu_pct: 0 },
+    });
+    const verdict = h.el.querySelector('.lr-verdict')!.textContent ?? '';
+    expect(verdict).toContain('Keine Messpunkte');
+    expect(verdict).not.toContain('0 MB Speicher');
+  });
+
+  /**
+   * C1-d4e1 — vier Anzahlen, die bis hierher fest in der Mehrzahl standen. Der
+   * Lauf mit genau einem von allem ist kein Sonderfall: das Backend deckelt
+   * nichts nach unten, und der Abtast-Takt von 0,5 s liefert bei einem kurzen
+   * Lauf genau einen Messpunkt.
+   */
+  it('beugt Requests, Fehler und Messpunkte nach ihrer Anzahl', async () => {
+    const h = await mount({
+      ...COMPLETED,
+      stages: [stage(1)],
+      resource_samples: [{ t: 0.0, proc_cpu: 12.0, rss_mb: 180.0 }],
+      summary: { ...COMPLETED.summary, total_requests: 1, total_errors: 1 },
+    });
+    const verdict = h.el.querySelector('.lr-verdict')!.textContent ?? '';
+
+    expect(verdict).toContain('1 Request, 1 Fehler.');
+    expect(verdict).toContain('1 Messpunkt,');
+  });
+
+  it('beugt auch die Stufenzahl im zugänglichen Namen des Diagramms', async () => {
+    const h = await mount({ ...COMPLETED, stages: [stage(1)] });
+    expect(h.el.querySelector('.lr-chart')!.getAttribute('aria-label'))
+      .toContain('über 1 Stufe;');
+  });
+
+  it('spricht Englisch, wenn Englisch eingestellt ist', async () => {
+    const h = await mount(COMPLETED, 'en');
+    const text = h.el.textContent!;
+
+    expect(text).toContain('Stable up to 1 concurrent user');
+    expect(text).toContain('8 requests, 1 error.');
+    expect(text).not.toContain('Stabil bis');
   });
 });

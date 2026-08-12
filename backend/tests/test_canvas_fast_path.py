@@ -26,8 +26,9 @@ import asyncio
 
 import pytest
 
-from boerdi.api.schemas import ChatRequest, ClassificationResult
+from boerdi.api.schemas import ChatRequest, ClassificationResult, Environment
 from boerdi.domain.completion_messages import _canvas_completion_message
+from boerdi.obs.usage import new_accumulator
 from boerdi.services import canvas_fast_path as cfp
 from boerdi.services.canvas_fast_path import run_canvas_create_fast_path
 
@@ -78,8 +79,10 @@ def canvas_fp(monkeypatch):
         return rec["named"]
     monkeypatch.setattr(cfp, "named_artifact_label", _named)
 
-    def _qr(persona):
-        rec["qr_calls"].append(persona)
+    def _qr(persona, lang="de"):
+        # C1-g2e: die Chip-Beschriftungen folgen der Sprache des Zuges — die
+        # Attrappe haelt beides fest, sonst waere die Sprache unbelegt.
+        rec["qr_calls"].append((persona, lang))
         return rec["qr"]
     monkeypatch.setattr(cfp, "material_type_quick_replies_for_persona", _qr)
     return rec
@@ -90,11 +93,13 @@ MD_WITH_LOES = "## Aufgaben\n\n1. Rechne 2+2.\n2. Rechne 3+3.\n\n## Lösungen\n\
 
 def _run_canvas(message="Erstelle ein Arbeitsblatt", entities=None,
                 session_state=None, pattern_output=None, lp_routed=False,
-                intent="I05", tools_called=None, new_state="S1"):
+                intent="I05", tools_called=None, new_state="S1",
+                locale="de-DE", frame_exhausted=False, usage_acc=None):
     classification = ClassificationResult(intent_id=intent,
                                           entities=entities or {})
     return asyncio.run(run_canvas_create_fast_path(
-        req=ChatRequest(session_id="s", message=message),
+        req=ChatRequest(session_id="s", message=message,
+                        environment=Environment(locale=locale)),
         classification=classification,
         session_state=session_state if session_state is not None else {"entities": {}},
         pattern_output=pattern_output or {},
@@ -102,6 +107,8 @@ def _run_canvas(message="Erstelle ein Arbeitsblatt", entities=None,
         lp_routed=lp_routed,
         tools_called=tools_called if tools_called is not None else ["TC-SENTINEL"],
         new_state=new_state,
+        frame_exhausted=frame_exhausted,
+        usage_acc=usage_acc,
     ))
 
 
@@ -110,6 +117,23 @@ def test_canvas_fp_passthrough_when_not_i05(canvas_fp):
     out = _run_canvas(intent="I03", tools_called=tc, new_state="SX")
     assert out == (False, None, [], "", ["vorher"], [], "SX")
     assert out[4] is tc                      # tools_called identisch durchgereicht
+    assert canvas_fp["gen_calls"] == []
+
+
+def test_canvas_fp_tritt_bei_erschoepftem_frame_zurueck(canvas_fp):
+    """B3: der Fast-Path ist der ZWEITE Erzeuger der Slot-Rückfrage.
+
+    Sein Eintritt hängt allein an ``intent_id == 'I05'`` — die Musterwahl
+    umgeht er absichtlich („even if the pattern engine eliminated M10"). Live
+    gemessen 2026-08-10: die Umleitung des Klärers auf M15 blieb wirkungslos,
+    weil der Fast-Path danach lief und die Frage erneut rendete
+    (``effective_pattern override: engine=M15 → executed=M03,
+    canvas_routed=True``). Ist der Vorgang erschöpft, muss er zurücktreten.
+    """
+    tc = ["vorher"]
+    out = _run_canvas(message="egal", tools_called=tc, new_state="SX",
+                      frame_exhausted=True)
+    assert out == (False, None, [], "", ["vorher"], [], "SX")
     assert canvas_fp["gen_calls"] == []
 
 
@@ -154,11 +178,14 @@ def test_canvas_fp_success_generates_and_mutates_session(canvas_fp):
     assert ss["entities"]["_canvas_topic"] == "Photosynthese"
     assert ss["entities"]["_canvas_last_markdown"] == MD_WITH_LOES
     assert ss["entities"]["thema"] == "Photosynthese"
-    # Boundary-Aufruf: kwargs inkl. formality-Default und leerem requested_label.
+    # Boundary-Aufruf: kwargs inkl. formality-Default, leerem requested_label,
+    # der Ausgabe-Sprache aus ``req.environment.locale`` (C1-f2a) und dem
+    # Token-Merkposten (K1c; hier None, weil dieser Aufruf keinen mitgibt).
     (kw,) = canvas_fp["gen_calls"]
     assert kw == {"topic": "Photosynthese", "material_type_key": "arbeitsblatt",
                   "session_state": ss, "memory_context": None,
-                  "formality": "", "requested_label": ""}
+                  "formality": "", "requested_label": "", "lang": "de",
+                  "usage_acc": None}
     assert canvas_fp["named_calls"] == []    # Robust-Fallback nicht befragt
 
 
@@ -253,7 +280,7 @@ def test_canvas_fp_topic_without_type_asks_for_type_with_persona_qr(canvas_fp):
     assert cards == []
     assert new_state == "SX"                 # unverändert durchgereicht
     assert forced_qr == ["Arbeitsblatt", "Quiz"]
-    assert canvas_fp["qr_calls"] == ["P-LEH"]
+    assert canvas_fp["qr_calls"] == [("P-LEH", "de")]
     assert canvas_fp["gen_calls"] == []
 
 
@@ -319,3 +346,82 @@ def test_canvas_fp_phantom_topic_forces_clarification(canvas_fp):
     assert text.startswith("Gerne erstelle ich dir ein Material.")
     assert tools == []
     assert canvas_fp["gen_calls"] == []
+
+
+# ── C1-f2b2: Sprache der Rückfragen, des Fehlers und des Lösungen-Wächters ──
+MD_WITH_SOLUTIONS = ("## Tasks\n\n1. Add 2+2.\n2. Add 3+3.\n\n"
+                     "## Solutions\n\n1. 4\n2. 6")
+
+
+def test_canvas_fp_ask_type_english(canvas_fp):
+    _routed, _p, _q, text, _t, _c, _ns = _run_canvas(
+        entities={"thema": "Maths"}, locale="en-GB",
+    )
+    assert text.startswith("Which kind of material should I create on **Maths**?")
+    # Das genannte Stichwort muss ein Alias sein. Seit C1-g2e kennt
+    # ``type-aliases.yaml`` auch ``automatic`` — der englische Satz nennt
+    # deshalb das englische Wort, nicht mehr das deutsche.
+    assert '"Automatic"' in text
+    assert "Automatisch" not in text
+
+
+def test_canvas_fp_ask_topic_english(canvas_fp):
+    _routed, _p, _q, text, _t, _c, _ns = _run_canvas(
+        message="Create a worksheet", entities={}, locale="en-GB",
+    )
+    assert text.startswith("I will gladly create a material for you.")
+
+
+def test_canvas_fp_generation_error_english(canvas_fp):
+    canvas_fp["resolve"] = {"arbeitsblatt": "arbeitsblatt"}
+    canvas_fp["gen_raises"] = True
+    _routed, _p, _q, text, _t, _c, _ns = _run_canvas(
+        entities={"thema": "Photosynthesis", "material_typ": "Arbeitsblatt"},
+        locale="en-GB",
+    )
+    assert text == (
+        "I could not create the **Arbeitsblatt** on *Photosynthesis* just now "
+        "(RuntimeError). Please try again — it usually works on the second attempt."
+    )
+
+
+def test_canvas_fp_english_solutions_block_recognised(canvas_fp):
+    """Der Wächter liest unser EIGENES Markdown. Seit C1-f2a ist das bei
+    ``locale='en-*'`` englisch — mit dem deutschen ``## Lösungen``-Muster
+    griff er NIE und hängte an jedes englische Arbeitsblatt einen deutschen
+    Stub an."""
+    canvas_fp["resolve"] = {"arbeitsblatt": "arbeitsblatt"}
+    canvas_fp["gen_result"] = ("Title", MD_WITH_SOLUTIONS)
+    ss = {"entities": {}}
+    _routed, _p, _q, text, _t, _c, _ns = _run_canvas(
+        entities={"thema": "Fractions", "material_typ": "Arbeitsblatt"},
+        session_state=ss, locale="en-GB",
+    )
+    assert "Lösungen" not in text
+    assert "Solutions will be added" not in text
+    assert ss["entities"]["_canvas_last_markdown"] == MD_WITH_SOLUTIONS
+
+
+def test_canvas_fp_english_solutions_stub_is_english(canvas_fp):
+    canvas_fp["resolve"] = {"quiz": "quiz"}
+    canvas_fp["gen_result"] = ("T", "1. Question A?\n2. Question B?")
+    _routed, _p, _q, text, _t, _c, _ns = _run_canvas(
+        entities={"thema": "Fractions", "material_typ": "Quiz"},
+        locale="en-GB",
+    )
+    assert "## Solutions" in text
+    assert "_Solutions will be added" in text
+    assert "Lösungen" not in text
+
+
+def test_merkposten_erreicht_den_material_generator(canvas_fp):
+    """K1c-Naht: der Canvas-Fast-Path führte gar keinen Merkposten — anders
+    als der LP-Fast-Path, der ihn schon als Parameter hatte (Z. 95)."""
+    canvas_fp["resolve"] = {"arbeitsblatt": "arbeitsblatt"}
+    canvas_fp["gen_result"] = ("Titel", MD_WITH_LOES)
+    acc = new_accumulator()
+
+    _run_canvas(entities={"thema": "Photosynthese", "material_typ": "Arbeitsblatt"},
+                usage_acc=acc)
+
+    assert canvas_fp["gen_calls"][0]["usage_acc"] is acc

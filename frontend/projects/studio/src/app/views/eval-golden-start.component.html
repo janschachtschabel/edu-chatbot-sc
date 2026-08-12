@@ -1,27 +1,22 @@
 <section class="egd" aria-labelledby="egd-title">
-  <h3 class="egd-title" id="egd-title">Gold-Lauf starten</h3>
-  <p class="egd-intro">
-    Geprüfte Abläufe aus <code>eval/gold-flows.yaml</code> gegen die echte
-    Chat-Pipeline, mit harten Soll-Ist-Checks je Turn. Deterministisch und
-    A/B-vergleichbar — dieselben Flows, dieselbe Scorecard.
-  </p>
+  <h3 class="egd-title" id="egd-title">{{ t('evalStart.gold.title') }}</h3>
+  <p class="egd-intro"><studio-rich [parts]="rich('evalStart.gold.intro')" /></p>
 
   <studio-async-state
     class="egd-state"
-    label="Die Gold-Flows"
+    [label]="t('evalStart.gold.list')"
     [loading]="flowList.loading() && flows().length === 0"
     [error]="flowList.error()"
     [empty]="noFlows()"
-    emptyText="Diese Config enthält keine Gold-Flows (eval/gold-flows.yaml fehlt
-      oder ist leer). Ohne Flows gibt es nichts abzuspielen."
+    [emptyText]="t('evalStart.gold.empty')"
     (retry)="flowList.reload()"
   />
 
   <form class="egd-form" (submit)="$event.preventDefault(); arm()">
     @if (flows().length > 0) {
       <fieldset class="egd-set">
-        <legend class="egd-legend">Flows</legend>
-        <p class="egd-note">Nichts ausgewählt = alle.</p>
+        <legend class="egd-legend">{{ t('evalStart.gold.legend') }}</legend>
+        <p class="egd-note">{{ t('evalStart.nothingChosen') }}</p>
 
         <ul class="egd-picks">
           @for (flow of flows(); track flow.id) {
@@ -45,7 +40,7 @@
       </fieldset>
 
       <fieldset class="egd-set">
-        <legend class="egd-legend">Weiche Bewertung</legend>
+        <legend class="egd-legend">{{ t('evalStart.gold.judge.legend') }}</legend>
         <label class="egd-pick" for="egd-judge">
           <input
             type="checkbox"
@@ -54,55 +49,36 @@
             (change)="setJudge($any($event.target).checked)"
           />
           <span>
-            LLM-Judge mitlaufen lassen
-            <span class="egd-flow-meta">
-              bewertet zusätzlich Intent-Treffer, Tonalität und Informationsqualität
-              — ein weiterer LLM-Aufruf je beantwortetem Turn. Die harte Quote
-              bleibt davon unberührt.
-            </span>
+            {{ t('evalStart.gold.judge.label') }}
+            <span class="egd-flow-meta">{{ t('evalStart.gold.judge.hint') }}</span>
           </span>
         </label>
       </fieldset>
 
-      <p class="egd-cost">
-        Dieser Lauf feuert
-        <strong>{{ count(turns()) }} Chat-Anfragen</strong> durch die echte
-        Pipeline
-        @if (judge()) {
-          und <strong>{{ count(turns()) }} Judge-Aufrufe</strong>
-        }
-        — {{ selected().length }} Flow(s). Keine Schätzung: die Turns stehen in
-        der Flow-Datei.
-      </p>
+      <p class="egd-cost"><studio-rich [parts]="costParts()" /></p>
     }
 
     @if (busy()) {
-      <p class="egd-busy">
-        Es läuft schon ein Lauf — es kann immer nur einer gleichzeitig laufen.
-      </p>
+      <p class="egd-busy">{{ t('evalStart.busy') }}</p>
     }
 
     <div class="egd-actions">
       <button type="submit" class="egd-btn" [disabled]="busy() || !ready()">
-        Gold-Lauf starten
+        {{ t('evalStart.gold.title') }}
       </button>
     </div>
   </form>
 
   @if (armed()) {
     <div class="egd-confirm">
-      <p class="egd-cost" role="alert">
-        {{ count(turns()) }} echte Chat-Anfragen
-        @if (judge()) { plus {{ count(turns()) }} Judge-Aufrufe } starten?
-        Es läuft dann kein zweiter Lauf, bis dieser fertig ist.
-      </p>
+      <p class="egd-cost" role="alert">{{ confirmText() }}</p>
       <div class="egd-actions">
         <button type="button" class="egd-btn egd-btn--go" [disabled]="starting() || busy()"
                 (click)="start()">
-          {{ starting() ? 'Startet …' : 'Ja, starten' }}
+          {{ starting() ? t('evalStart.starting') : t('evalStart.gold.go') }}
         </button>
         <button type="button" class="egd-btn" [disabled]="starting()" (click)="disarm()">
-          Abbrechen
+          {{ t('action.cancel') }}
         </button>
       </div>
     </div>

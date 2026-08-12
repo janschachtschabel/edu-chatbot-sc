@@ -17,7 +17,9 @@ pyproject.toml): wrapping would alter the bytes the LLM sees.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Final
+
+from boerdi.i18n import DEFAULT, Locale, language_name
 
 
 def render_degradation_rules(missing_slots: list, blocked_patterns: list) -> str:
@@ -47,15 +49,78 @@ def render_degradation_rules(missing_slots: list, blocked_patterns: list) -> str
     )
 
 
+# ── Sprache der Antwort (C1-f1) ────────────────────────────────────────────
+#: Die Schluss-Zeile aller drei P8-Bloecke. Sie stand vorher dreimal wortgleich
+#: und hart auf Deutsch im Code; jetzt steht sie einmal, je Sprache.
+#:
+#: Die Direktive selbst bleibt deutsch (C1-Entscheid: Prompts bleiben deutsch,
+#: nur die AUSGABE-Sprache wechselt). Der Zusatz „auch wenn Frage und Kontext
+#: deutsch sind" ist Absicht: die fuenf Prompt-Schichten davor sind deutsch,
+#: und ohne ihn zieht das Modell erfahrungsgemaess mit der Mehrheit.
+#: Der Sprachname kommt seit C1-f2a aus ``i18n.language_name`` — er steht in
+#: fuenf Prompts, und zwei Schreibweisen desselben Namens waeren zwei Wege,
+#: auseinanderzulaufen.
+_OUTPUT_LANGUAGE: Final[dict[Locale, str]] = {
+    "de": f"Antworte auf {language_name('de')}. Formatiere mit Markdown.",
+    "en": (
+        f"Antworte auf {language_name('en')}, auch wenn Frage und Kontext "
+        "deutsch sind. Formatiere mit Markdown."
+    ),
+}
+
+
+def render_output_language(lang: Locale) -> str:
+    """Der Schluss-Block, den jeder der drei P8-Zweige anhaengt.
+
+    Gibt die fuehrende Leerzeile mit zurueck, damit der deutsche Prompt
+    bytegleich zu dem bleibt, was vorher fest in den drei Vorlagen stand.
+    """
+    return "\n\n" + _OUTPUT_LANGUAGE.get(lang, _OUTPUT_LANGUAGE[DEFAULT])
+
+
+#: E3 (2026-08-10): Das Muster wollte kuratieren, aber es ist kein Zugangsblock
+#: hinterlegt — die Werkzeuge stehen dann gar nicht erst im Angebot
+#: (``_nameable_tools``). Ohne diesen Block sucht das Modell ein Werkzeug, das
+#: es nicht sieht, und weicht auf irgendetwas aus; der Nutzer erfaehrt nie warum.
+#:
+#: **Bewusst ohne Adresse.** Der Plan (C4) wollte hier den Verweis auf die
+#: ``/auth``-Seite. Der Block ist aber ein SERVER-Geheimnis, das der Betreiber
+#: einmal in die ``.env`` setzt (``deploy/README.md``) — eine Lehrkraft im Chat
+#: kann damit nichts anfangen, und sie auf eine Seite zu schicken, die einen
+#: Schreib-Zugang ausgibt, waere schlechte Hygiene. Der Hinweis fuer den
+#: Betreiber steht im Protokoll, wo er hingehoert (``response_tool_selection``).
+_CURATION_UNAVAILABLE: Final[dict[Locale, str]] = {
+    "de": """
+## Kuratieren ist gerade nicht moeglich
+- Du kannst im WLO-Bestand nichts anlegen, aendern oder loeschen — dieser
+  Chatbot ist derzeit nur lesend angebunden.
+- Bittet jemand darum, sag das offen und in einem Satz. Behaupte NICHT, etwas
+  sei angelegt oder geaendert, und versuche es nicht auf Umwegen.
+- Biete an, was wirklich geht: passende Materialien suchen, den Inhalt
+  vorbereiten, oder auf den Einreichungsweg von WirLernenOnline verweisen.""",
+    "en": """
+## Curation is currently unavailable
+- You cannot create, change or delete anything in the WLO repository — this
+  chatbot is connected read-only right now.
+- If someone asks for it, say so plainly, in one sentence. Do NOT claim
+  something was created or changed, and do not try to work around it.
+- Offer what actually works: searching for matching material, drafting the
+  content, or pointing to the WirLernenOnline submission route.""",
+}
+
+
+def render_curation_unavailable(lang: Locale) -> str:
+    """Der Block fuer „Muster wollte kuratieren, niemand ist angemeldet"."""
+    return _CURATION_UNAVAILABLE.get(lang, _CURATION_UNAVAILABLE[DEFAULT])
+
+
 # P8: pattern wants no tools because degradation blocks tool use — ask for the
 # missing info, no tool calls.
 DEGRADATION_NO_TOOLS_RULES = """
 ## Antwort-Regeln
 - Antworte NUR mit Text — rufe KEINE Tools auf.
 - Stelle die Rueckfrage nach den fehlenden Informationen.
-- Erfinde KEINE Sammlungen oder Materialien.
-
-Antworte auf Deutsch. Formatiere mit Markdown."""
+- Erfinde KEINE Sammlungen oder Materialien."""
 
 # P8: pattern like M15 Orientierungs-Guide — pure text, no tool calls.
 M15_NO_TOOLS_RULES = """
@@ -67,9 +132,7 @@ M15_NO_TOOLS_RULES = """
 - Schliesse mit einer offenen Frage die hilft, die Persona des Nutzers zu klaeren.
 - WICHTIG: Antwortvorschlaege / Quick Replies werden automatisch als Buttons
   unter dem Text gerendert. Schreibe sie NIEMALS in den Antworttext
-  (keine Liste wie "**Quick Replies:**", keine Aufzaehlung von Vorschlaegen).
-
-Antworte auf Deutsch. Formatiere mit Markdown."""
+  (keine Liste wie "**Quick Replies:**", keine Aufzaehlung von Vorschlaegen)."""
 
 
 def _render_session_context(session_state: dict) -> str:
@@ -127,6 +190,7 @@ def render_tools_block(
     session_state: dict,
     available_rag_areas: list[str] | None,
     rag_config: dict[str, Any] | None,
+    lang: Locale,
 ) -> str:
     """P8: the ``## Verfuegbare Werkzeuge`` + Tool-Routing-Regeln block, with the
     per-session collection/content context and the query_knowledge area list
@@ -255,9 +319,7 @@ SCHRITT 2 — REGELN:
    "Sekundarstufe I") als auch URIs aus lookup_wlo_vocabulary. Eine
    Filter-Ebene "Klassenstufe" gibt es NICHT — mappe Klassenangaben
    immer auf die Bildungsstufe (Kl. 1-4=Grundschule, 5-10=Sek I,
-   11-13=Sek II).
-
-Antworte auf Deutsch. Formatiere mit Markdown."""
+   11-13=Sek II).""" + render_output_language(lang)
 
 
 def render_recency_anchor(pattern_label: str, body_md: str | None) -> str:

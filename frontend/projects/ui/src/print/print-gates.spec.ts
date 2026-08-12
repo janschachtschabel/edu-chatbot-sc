@@ -2,9 +2,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatMessage, InlineDocument } from '../grouping/message-types';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import {
   isLearningPath, isPrintableCanvasMaterial, printableCanvasLabel, printInlineDocument,
 } from './print-gates';
+
+/** Deutscher Übersetzer — pinnt den bisherigen Wortlaut über den Katalog. */
+const t = createTranslator(DE, DE);
 
 /**
  * Print-Gates (8-4S-f1) — verbatim aus ALT chat.component.ts:859-916. Diese
@@ -61,16 +66,22 @@ describe('isPrintableCanvasMaterial (ALT 883-893)', () => {
 
 describe('printableCanvasLabel (ALT 910-916)', () => {
   it('Titel gewinnt vor Typ', () => {
-    expect(printableCanvasLabel(bot(SENTINEL))).toBe('Bruchrechnen Klasse 6');
+    expect(printableCanvasLabel(bot(SENTINEL), t)).toBe('Bruchrechnen Klasse 6');
   });
 
   it('leerer Titel → Material-Typ', () => {
-    expect(printableCanvasLabel(bot('<!-- boerdi:printable-canvas|Quiz| -->'))).toBe('Quiz');
+    expect(printableCanvasLabel(bot('<!-- boerdi:printable-canvas|Quiz| -->'), t)).toBe('Quiz');
   });
 
   it('kein Sentinel / beide Felder leer → "Material"', () => {
-    expect(printableCanvasLabel(bot('Normale Antwort'))).toBe('Material');
-    expect(printableCanvasLabel(bot('<!-- boerdi:printable-canvas|| -->'))).toBe('Material');
+    expect(printableCanvasLabel(bot('Normale Antwort'), t)).toBe('Material');
+    expect(printableCanvasLabel(bot('<!-- boerdi:printable-canvas|| -->'), t)).toBe('Material');
+  });
+
+  it('nur der Rückfall kommt aus dem Übersetzer — Titel und Typ sind Backend-Daten (C1-b3)', () => {
+    const en = createTranslator({ 'chat.print.canvasFallback': 'Material (EN)' }, DE);
+    expect(printableCanvasLabel(bot('Normale Antwort'), en)).toBe('Material (EN)');
+    expect(printableCanvasLabel(bot(SENTINEL), en)).toBe('Bruchrechnen Klasse 6');
   });
 });
 
@@ -91,7 +102,7 @@ describe('printInlineDocument (ALT 901-904)', () => {
 
   it('druckt doc.content unter doc.title', () => {
     const { written } = captureOpen();
-    printInlineDocument({ title: 'Mein Lernpfad', content: '# Inhalt', kind: 'lernpfad' });
+    printInlineDocument({ title: 'Mein Lernpfad', content: '# Inhalt', kind: 'lernpfad' }, t);
     expect(written.length).toBe(1);
     expect(written[0]).toContain('<title>Mein Lernpfad</title>');
     expect(written[0]).toContain('Inhalt');
@@ -99,13 +110,27 @@ describe('printInlineDocument (ALT 901-904)', () => {
 
   it('ohne Titel → Fallback-Label der kind (inlineDocFallbackLabel)', () => {
     const { written } = captureOpen();
-    printInlineDocument({ title: '', content: '# Inhalt', kind: 'lernpfad' });
+    printInlineDocument({ title: '', content: '# Inhalt', kind: 'lernpfad' }, t);
     expect(written[0]).toContain('<title>Lernpfad</title>');
+  });
+
+  it('das Druckdokument zeichnet seine Sprache aus (C1-b4)', () => {
+    const { written } = captureOpen();
+    const en = createTranslator({ 'format.htmlLang': 'en' }, DE);
+    printInlineDocument({ title: 'Path', content: '# Content', kind: 'lernpfad' }, en);
+    expect(written[0]).toContain('<html lang="en">');
+  });
+
+  it('ohne Titel: das Fallback-Label kommt aus dem Übersetzer (C1-b3)', () => {
+    const { written } = captureOpen();
+    const en = createTranslator({ 'inlineDoc.kind.lernpfad': 'Learning path' }, DE);
+    printInlineDocument({ title: '', content: '# Inhalt', kind: 'lernpfad' }, en);
+    expect(written[0]).toContain('<title>Learning path</title>');
   });
 
   it('ohne Inhalt: No-Op (kein Druckfenster für eine leere Box)', () => {
     const { written } = captureOpen();
-    printInlineDocument({ title: 'T', content: '', kind: 'lernpfad' });
+    printInlineDocument({ title: 'T', content: '', kind: 'lernpfad' }, t);
     expect(written).toEqual([]);
   });
 });

@@ -29,7 +29,10 @@ def _env(name: str) -> AliasChoices:
 
 _LLM_PROVIDERS = {"openai", "b-api-openai", "b-api-academiccloud"}
 _VERBOSITY = {"low", "medium", "high"}
-_REASONING = {"none", "minimal", "low", "medium", "high", "xhigh"}
+# W12: `max` ergaenzt — die Chat-Completions-Referenz fuehrt es auf
+# (none|minimal|low|medium|high|xhigh|max). Fehlte hier, ein gueltiger Wert
+# waere also beim Start als Tippfehler abgewiesen worden.
+_REASONING = {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 
 
 class Settings(BaseSettings):
@@ -58,6 +61,10 @@ class Settings(BaseSettings):
         False, validation_alias=_env("BOERDI_ALLOW_OPEN_ADMIN"),
         description="dev opt-in: admin without key when studio_api_key is empty",
     )
+    agent_open: bool = Field(
+        False, validation_alias=_env("AGENT_OPEN"),
+        description="test opt-in: /api/agent without any login (rate limit still applies)",
+    )
 
     # ── LLM provider / models (resolution chain lives in services/llm.py) ─
     llm_provider: str = Field("openai", validation_alias=_env("LLM_PROVIDER"))
@@ -77,7 +84,11 @@ class Settings(BaseSettings):
     llm_max_concurrency: int = Field(20, validation_alias=_env("LLM_MAX_CONCURRENCY"))
     llm_read_timeout: float = Field(75.0, validation_alias=_env("LLM_READ_TIMEOUT"))
     bg_llm_max_concurrency: int = Field(4, validation_alias=_env("BG_LLM_MAX_CONCURRENCY"))
-    llm_verbosity: str = Field("medium", validation_alias=_env("LLM_VERBOSITY"))
+    # W12 (Nutzer-Vorgabe „Ziel ist hohe Geschwindigkeit"): medium -> low.
+    # Die API-Referenz: „Lower values will result in more concise responses" —
+    # weniger Ausgabe-Token heisst direkt kuerzere Antwortzeit. `reasoning_effort`
+    # steht schon auf `low`.
+    llm_verbosity: str = Field("low", validation_alias=_env("LLM_VERBOSITY"))
     llm_reasoning_effort: str = Field("low", validation_alias=_env("LLM_REASONING_EFFORT"))
     openai_api_key: SecretStr = Field(SecretStr(""), validation_alias=_env("OPENAI_API_KEY"))
     openai_base_url: str = Field(
@@ -105,16 +116,102 @@ class Settings(BaseSettings):
 
     # ── MCP / repo ──────────────────────────────────────────────────────
     mcp_server_url: str = Field(
-        "https://wlo-mcp-server.vercel.app/mcp", validation_alias=_env("MCP_SERVER_URL")
+        # W7b (Nutzer-Vorgabe 2026-07-31): der Vercel-Server ist veraltet — er
+        # kennt ``get_wlo_content_text`` nicht, das TOOL_DEFINITIONS dem Modell
+        # aber anbietet. M17 („Inhalt anzeigen") rief dort ins Leere. Der neue
+        # Host liefert 23 Werkzeuge, eine echte Obermenge der alten 12.
+        "https://wlo-mcp.87.106.195.152.nip.io/mcp",
+        validation_alias=_env("MCP_SERVER_URL"),
     )
     mcp_max_connections: int = Field(50, validation_alias=_env("MCP_MAX_CONNECTIONS"))
+    mcp_auth_token: SecretStr = Field(
+        SecretStr(""),
+        validation_alias=_env("MCP_AUTH_TOKEN"),
+        description=(
+            "C2: Zugangsblock des MCP-Servers (`wlo2.…`, via dessen /auth-Seite). "
+            "Gesetzt ⇒ Dienst-Betriebsart, alle Aufrufe tragen "
+            "`Authorization: Bearer …`. Leer ⇒ anonym lesend — der Server "
+            "antwortet dann weiter mit 200 und der vollen Werkzeugliste."
+        ),
+    )
     repo_base_url: str = Field(
         "https://redaktion.openeduhub.net", validation_alias=_env("REPO_BASE_URL"),
         description="must match the repo the MCP server queries; rewrites card links",
     )
 
     # ── RAG / ingest / rerank ───────────────────────────────────────────
+    # W11 (Nutzer-Korrektur 2026-08-09): AN — wie ALT. Die kurz zuvor gesetzte
+    # Vorgabe AUS ist damit zurueckgenommen. Bezahlbar wird es durch die drei
+    # Werte darunter: 10 Kandidaten (statt ALTs 25) und die Latenz-Verteilung
+    # 1 Worker x 3 Threads. Gemessen kostet der RAG-Pfad damit ~703 ms statt
+    # 3726 ms, das Karten-Gate ~90 ms.
     rag_reranker_enabled: bool = Field(True, validation_alias=_env("RAG_RERANKER_ENABLED"))
+    # W7: das CPU-Budget der In-Prozess-ONNX-Inferenz. Die beiden Knöpfe spannen
+    # dasselbe Budget aus zwei Richtungen auf:
+    #     Worker × Threads-je-Inferenz = beanspruchte Kerne.
+    # Vorgabe (Nutzer 2026-08-09): halbe System-CPU, verteilt auf Worker à einem
+    # Thread — bester Durchsatz. Wer stattdessen kurze Einzel-Latenz will, dreht
+    # es um (1 Worker × N Threads): dasselbe Budget, andere Verteilung.
+    # W9: die beiden Rerank-Pfade sind GETRENNT schaltbar, weil sie um Faktor 8
+    # verschieden kosten (gemessen 2026-08-09, 3 Threads): Karten-Gate 227 ms bei
+    # 25 Karten, RAG-Rerank 1853 ms bei 25 Chunks. Ein gemeinsamer Schalter hiesse:
+    # wer den teuren Pfad abschaltet, verliert still auch das Off-Topic-Gate der
+    # Karten — genau den Teil, der sichtbar Qualitaet bringt.
+    card_reranker_enabled: bool = Field(
+        True, validation_alias=_env("CARD_RERANKER_ENABLED"),
+        description=(
+            "Off-Topic-Gate der WLO-Karten (billig); RAG_RERANKER_ENABLED "
+            "bleibt der Hauptschalter"
+        ),
+    )
+    rag_chunk_reranker_enabled: bool = Field(
+        True, validation_alias=_env("RAG_CHUNK_RERANKER_ENABLED"),
+        description=(
+            "Cross-Encoder ueber die RAG-Chunks (teuer); Gegenstueck zu "
+            "CARD_RERANKER_ENABLED, damit 'Karten an, RAG aus' ausdrueckbar ist"
+        ),
+    )
+    rerank_candidates: int = Field(
+        10, ge=1, validation_alias=_env("RERANK_CANDIDATES"),
+        description=(
+            "Chunks aus der Embedding-Suche in den RAG-Rerank; "
+            "WIRKSAM ist max(dieser Wert, RAG_TOP_K)"
+        ),
+    )
+    rerank_intra_op_threads: int | None = Field(
+        None, ge=1, validation_alias=_env("RERANK_INTRA_OP_THREADS"),
+        description="Kerne PRO Inferenz (ORT intra_op); None => min(3, halbe CPU)",
+    )
+    rerank_max_concurrency: int | None = Field(
+        None, ge=1, validation_alias=_env("RERANK_MAX_CONCURRENCY"),
+        description="gleichzeitige Inferenzen; None => 1 (Latenz vor Durchsatz)",
+    )
+    # W8: das Embedding-Backend. Vorgabe bleibt der Anbieter (Nutzer-Entscheid
+    # 2026-08-09: der Chat ist zeitkritisch, ein API-Aufruf skaliert nebenlaeufig).
+    # `local` ist die Ausweichmoeglichkeit, kein Umzug — siehe services/rag/embed.py.
+    embed_backend: str = Field(
+        "api", validation_alias=_env("EMBED_BACKEND"),
+        description="api (Vorgabe, LiteLLM) | local (ONNX im Haus)",
+    )
+    embed_ingest_parallel: int = Field(
+        4, ge=1, validation_alias=_env("EMBED_INGEST_PARALLEL"),
+        description=(
+            "gleichzeitige Embedding-Aufrufe beim Ingest; EIGENER Deckel, damit "
+            "ein Import nicht LLM_MAX_CONCURRENCY des Chats belegt"
+        ),
+    )
+    embed_local_model: str = Field(
+        "multilingual-e5-small", validation_alias=_env("EMBED_LOCAL_MODEL"),
+        description="Kandidat aus rag/embed_local.LOCAL_MODELS; alle 384-dimensional",
+    )
+    embed_local_model_dir: str = Field(
+        "models", validation_alias=_env("EMBED_LOCAL_MODEL_DIR"),
+        description="Verzeichnis mit dem Embedding-Export; fehlt es => lokaler Weg aus",
+    )
+    rerank_model_dir: str = Field(
+        "models", validation_alias=_env("RERANK_MODEL_DIR"),
+        description="Verzeichnis mit dem exportierten Cross-Encoder; fehlt es => Reranker aus",
+    )
     max_ingest_mb: int = Field(
         25, validation_alias=_env("BOERDI_MAX_INGEST_MB"), description="0 = unlimited"
     )
@@ -189,8 +286,13 @@ class Settings(BaseSettings):
         description="TEI sidecar base URL; empty => reranker off (embedding-only)",
     )
     config_seed_dir: str = Field(
-        "", validation_alias=_env("CONFIG_SEED_DIR"),
-        description="ALT config tree for first import (P2/P11)",
+        "seeds", validation_alias=_env("CONFIG_SEED_DIR"),
+        description=(
+            "config tree for the first import (P2/P11). Ships with the repo as "
+            "backend/seeds so a fresh install starts WITHOUT the ALT tree beside "
+            "it; afterwards the DB is the source of truth and the studio the way "
+            "to change things (`boerdi export-config` writes it back out)."
+        ),
     )
     widget_dist_dir: str = Field("widget_dist", validation_alias=_env("WIDGET_DIST_DIR"))
 

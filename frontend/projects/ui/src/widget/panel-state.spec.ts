@@ -156,3 +156,33 @@ describe('PanelState Owl-Hint', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+describe('PanelState — Größenstufe (U2a)', () => {
+  it('startet klein, solange der Host nichts anderes sagt', () => {
+    expect(new PanelState(mkCtx().ctx).sizeStep()).toBe('small');
+  });
+
+  it('übernimmt die Anfangsstufe des Hosts', () => {
+    const p = new PanelState(mkCtx().ctx);
+    p.initSize('large');
+    expect(p.sizeStep()).toBe('large');
+  });
+
+  it('schaltet zwischen den beiden Stufen hin und her', () => {
+    const p = new PanelState(mkCtx().ctx);
+    p.toggleSize();
+    expect(p.sizeStep()).toBe('large');
+    p.toggleSize();
+    expect(p.sizeStep()).toBe('small');
+  });
+
+  it('lässt die Stufe vom Auf- und Zuklappen unberührt', () => {
+    // Die Größe ist eine eigene Achse: wer vergrößert und zuklappt, will beim
+    // nächsten Öffnen nicht wieder das kleine Panel sehen.
+    const p = new PanelState(mkCtx().ctx);
+    p.toggleSize();
+    p.setExpanded(true);
+    p.setExpanded(false);
+    expect(p.sizeStep()).toBe('large');
+  });
+});

@@ -14,10 +14,11 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild
   from '@angular/core';
 
 import { AsyncData, describeApiError } from '../core/async-data';
-import { germanDateTime } from '../core/format';
 import { SessionsApi, type SessionRow } from '../core/sessions-api.service';
 import { AsyncStateComponent } from './async-state.component';
 import { SessionTranscriptComponent } from './session-transcript.component';
+import { StudioLanguageService } from '../i18n/studio-language.service';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 /** Which destructive action is armed, for which session. */
 interface Armed {
@@ -33,10 +34,24 @@ interface Armed {
   styleUrl: './sessions.component.scss',
 })
 export class SessionsComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  private readonly lang = inject(StudioLanguageService);
+
+  /** Uebersetzer fuer den Fehlersatz der Leseoperationen und fuer die
+   *  Texte dieser Ansicht. */
+  protected readonly t = this.lang.t;
+
   private readonly api = inject(SessionsApi);
 
-  readonly sessions = new AsyncData<SessionRow[]>(() => this.api.list());
+  readonly sessions = new AsyncData<SessionRow[]>(() => this.api.list(), this.t);
   readonly rows = computed(() => this.sessions.value() ?? []);
+
+  /** Bis C1-d4e2 stand die deutsche Mehrzahl-Regel in der Vorlage. */
+  turnCount(count: number): string {
+    return this.lang.plural('sv.turns', count);
+  }
 
   readonly selected = signal('');
   readonly armed = signal<Armed | null>(null);
@@ -81,25 +96,25 @@ export class SessionsComponent {
       if (armed.kind === 'delete') {
         await this.api.deleteSession(armed.id);
         if (this.selected() === armed.id) this.selected.set('');
-        this.status.set('Session gelöscht.');
+        this.status.set(this.t('sv.deleted'));
       } else {
         await this.api.clearMessages(armed.id);
         // The selection stays: closing the panel of the conversation someone is
         // reading is not feedback, it is a disappearance. The transcript
         // re-reads instead and shows that it is now empty.
         this.transcript()?.load();
-        this.status.set('Gesprächsverlauf geleert.');
+        this.status.set(this.t('sv.cleared'));
       }
       this.armed.set(null);
       await this.sessions.reload();
     } catch (err) {
-      this.actionError.set(describeApiError(err));
+      this.actionError.set(describeApiError(err, this.t));
     } finally {
       this.working.set(false);
     }
   }
 
   formatTime(iso: string): string {
-    return germanDateTime(iso);
+    return this.fmt.dateTime(iso);
   }
 }

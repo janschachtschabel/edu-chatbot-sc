@@ -10,11 +10,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   output,
   signal,
 } from '@angular/core';
 
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { removeAt, renameKeyAt, setAt } from './form-value';
 import type { JsonSchema } from './json-schema';
 import { pickFields } from './pick-fields';
@@ -26,18 +28,10 @@ import { rootField, type SchemaField } from './schema-to-fields';
   imports: [SchemaFieldComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (unmapped().length > 0) {
-      <p class="sf-note">
-        @if (unmapped().length === 1) {
-          Ein Schlüssel wird hier nicht angezeigt, weil das Bereichsmodell ihn nicht kennt:
-          <code>{{ unmapped()[0] }}</code
-          >. Beim Speichern bleibt er erhalten; ändern lässt er sich im Reiter „Rohtext“.
-        } @else {
-          {{ unmapped().length }} Schlüssel werden hier nicht angezeigt, weil das
-          Bereichsmodell sie nicht kennt: <code>{{ unmapped().join(', ') }}</code
-          >. Beim Speichern bleiben sie erhalten; ändern lassen sie sich im Reiter „Rohtext“.
-        }
-      </p>
+    @if (unmapped().length; as anzahl) {
+      <p class="sf-note">{{ plural('schemaForm.unmapped', anzahl, {
+        keys: unmapped().join(', '),
+      }) }}</p>
     }
     <studio-schema-field
       [field]="rendered()"
@@ -65,6 +59,9 @@ import { rootField, type SchemaField } from './schema-to-fields';
   styleUrl: './schema-form.scss',
 })
 export class SchemaFormComponent {
+  private readonly lang = inject(StudioLanguageService);
+  protected readonly plural = this.lang.plural;
+
   readonly schema = input.required<JsonSchema>();
   readonly value = input.required<Record<string, unknown>>();
   /** Makes `<label for>` ids unique — the area key, so they are stable too. */
@@ -112,7 +109,7 @@ export class SchemaFormComponent {
         this.valueChange.emit(renameKeyAt(current, edit.path, edit.from, edit.to));
         return;
       case 'field-error':
-        this.setFieldError(edit.path.join('.') || '(Wurzel)', edit.message);
+        this.setFieldError(edit.path.join('.') || this.lang.t('schemaForm.root'), edit.message);
         return;
     }
   }

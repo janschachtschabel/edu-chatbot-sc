@@ -34,6 +34,10 @@ def load_header_nav_config() -> dict[str, Any]:
         out.append({
             "id": bid,
             "label": str(it.get("label") or "").strip() or bid,
+            # C1-g1a: leer heißt „nicht gepflegt" — KEIN Rückfall auf ``bid``
+            # wie oben, sonst stünde die Button-ID als englische Beschriftung
+            # da statt der deutschen.
+            "label_en": str(it.get("label_en") or "").strip(),
             "icon": str(it.get("icon") or "explore").strip(),
             "url": url,
             "new_tab": bool(it.get("new_tab", False)),
@@ -95,10 +99,27 @@ def load_welcome_config() -> dict[str, Any]:
         replies = list(_WELCOME_DEFAULT_REPLIES)
     tour_reply = cfg.get("tour_reply")
     tour_reply = tour_reply.strip() if isinstance(tour_reply, str) else ""
+    # C1-g1a: die englischen Felder bekommen NICHT die deutschen Rückfälle
+    # oben. Leer heißt „nicht gepflegt"; wer den deutschen Wert einsetzte,
+    # nähme dem Widget die Unterscheidung zwischen „bewusst gleich" und
+    # „fehlt" — und damit jeden späteren Rückfall auf den eingebauten
+    # englischen Katalog.
+    greeting_en = cfg.get("greeting_en")
+    greeting_en = greeting_en.strip() if isinstance(greeting_en, str) else ""
+    raw_replies_en = cfg.get("quick_replies_en")
+    replies_en = (
+        [str(r).strip() for r in raw_replies_en if str(r).strip()]
+        if isinstance(raw_replies_en, list) else []
+    )
+    tour_reply_en = cfg.get("tour_reply_en")
+    tour_reply_en = tour_reply_en.strip() if isinstance(tour_reply_en, str) else ""
     return {
         "greeting": greeting.strip(),
         "quick_replies": replies,
         "tour_reply": tour_reply,
+        "greeting_en": greeting_en,
+        "quick_replies_en": replies_en,
+        "tour_reply_en": tour_reply_en,
     }
 
 
@@ -113,6 +134,14 @@ _CONTEXT_ACTIONS_DEFAULT_GREETINGS: dict[str, str] = {
                 "Ich kann Fragen dazu beantworten — oder direkt:"),
     "topic": ("Du bist auf der Themenseite „{title}“. "
               "Ich kenne ihre Struktur — womit kann ich helfen?"),
+    # Seitenkontext-Erweiterung: drei Arten, die KEIN WLO-Objekt sind. Ihr
+    # Platzhalter ist deshalb ein anderer — `{query}` bzw. `{host}` statt
+    # `{title}`: es gibt keinen Knoten, dessen Titel sich auflösen liesse.
+    "search": ("Du siehst gerade die Treffer zu „{query}“. "
+               "Ich kann die Suche verfeinern oder etwas dazu erklären."),
+    "home": "Du befindest Dich auf {host}. Womit fangen wir an?",
+    "external": ("Du bist auf {host} — das gehört nicht zu WLO. Ich kann mir "
+                 "die Seite ansehen und sie für den Bestand vorschlagen."),
 }
 _CONTEXT_ACTIONS_DEFAULT_PILLS: dict[str, list[dict[str, str]]] = {
     "collection": [
@@ -135,14 +164,45 @@ _CONTEXT_ACTIONS_DEFAULT_PILLS: dict[str, list[dict[str, str]]] = {
         {"label": "Neuen Inhalt dazu erstellen", "kind": "text"},
         {"label": "Inhalt melden", "kind": "report"},
     ],
+    "search": [
+        {"label": "Suche verfeinern", "kind": "text"},
+        {"label": "Passende Sammlungen dazu", "kind": "text"},
+    ],
+    "home": [
+        {"label": "Was kann ich hier finden?", "kind": "text"},
+        {"label": "Material zu einem Thema suchen", "kind": "text"},
+    ],
+    # WÖRTLICH aus M20s `trigger_phrases`. Bei `kind: text` IST die
+    # Beschriftung die Nachricht, die der Klick sendet — sie muss also das
+    # Muster auslösen, nicht bloss gut klingen. Eine frei erfundene Formulierung
+    # wäre eine Schaltfläche, die nichts tut. `action`-Chips scheiden hier aus:
+    # es gibt keine Direkt-Aktion fürs Erschliessen (nur browse_collection,
+    # curate_collection, generate_learning_path) — der Weg führt über M20.
+    "external": [
+        {"label": "Nimm diese Seite in WLO auf", "kind": "text"},
+        {"label": "Was steht auf der Seite, und passt das zu uns", "kind": "text"},
+    ],
 }
+# Zweite Lesart von `external`: die Dublettenprüfung hat die Seite im Bestand
+# gefunden. {title} ist der Titel des GEFUNDENEN Eintrags, nicht der der Seite.
+_CONTEXT_ACTIONS_DEFAULT_DUPLICATE_GREETING = (
+    "Diese Seite gibt es in WLO schon: „{title}“."
+)
+_CONTEXT_ACTIONS_DEFAULT_DUPLICATE_PILL = "Den vorhandenen Eintrag ansehen"
 _CONTEXT_ACTIONS_DEFAULT_CURATE_PROMPT = (
     "Das Kompendium beschreibt, was die Sammlung inhaltlich abdecken SOLL. Die "
     "Inhaltsliste zeigt, was IST. Nenne konkret: (1) gut abgedeckte Kernthemen, "
     "(2) Lücken (im Kompendium beschrieben, aber ohne passenden Inhalt), "
     "(3) je Lücke einen konkreten Suchvorschlag."
 )
-_CONTEXT_ACTIONS_PAGE_KINDS = ("collection", "content", "topic")
+# Welche Seitenarten überhaupt einen Text haben können. Diese Liste ist eine
+# STILLE SPERRE: was hier fehlt, wirft der Loader aus der Config, bevor der
+# Knoten es je sieht — ein gepflegter Seed-Text käme wirkungslos an. Sie muss
+# deshalb mit ``context_greeting._GREETABLE_KINDS`` übereinstimmen; ein Test
+# prüft das gegeneinander.
+_CONTEXT_ACTIONS_PAGE_KINDS = (
+    "collection", "content", "topic", "search", "home", "external",
+)
 _CONTEXT_ACTIONS_PILL_KINDS = ("action", "text", "report")
 
 
@@ -150,9 +210,14 @@ def _normalize_context_pills(
     raw: Any, default: list[dict[str, str]]
 ) -> list[dict[str, str]]:
     """Drop labelless / unknown-kind / actionless-action pills; fall back to
-    the per-kind defaults when nothing valid remains (ALT semantics)."""
+    the per-kind defaults when nothing valid remains (ALT semantics).
+
+    Both paths return the same shape. The German defaults carry an empty
+    ``label_en``: they are the safety net for an empty config, not a place to
+    maintain text (same call as ``_RULES`` in the guide injector, C1-g2a).
+    """
     if not isinstance(raw, list):
-        return [dict(p) for p in default]
+        return [{**p, "label_en": ""} for p in default]
     out: list[dict[str, str]] = []
     for item in raw:
         if not isinstance(item, dict):
@@ -161,14 +226,20 @@ def _normalize_context_pills(
         kind = str(item.get("kind") or "").strip().lower()
         if not label or kind not in _CONTEXT_ACTIONS_PILL_KINDS:
             continue
-        pill: dict[str, str] = {"label": label, "kind": kind}
+        # C1-g2b: `label_en` roh durchreichen, kein Rückfall auf `label` —
+        # sonst ließe sich „bewusst gleich" nicht mehr von „nicht gepflegt"
+        # unterscheiden.
+        pill: dict[str, str] = {
+            "label": label, "label_en": str(item.get("label_en") or "").strip(),
+            "kind": kind,
+        }
         if kind == "action":
             action = str(item.get("action") or "").strip()
             if not action:
                 continue
             pill["action"] = action
         out.append(pill)
-    return out if out else [dict(p) for p in default]
+    return out if out else [{**p, "label_en": ""} for p in default]
 
 
 def load_context_actions() -> dict[str, Any]:
@@ -187,6 +258,15 @@ def load_context_actions() -> dict[str, Any]:
         else:
             greetings[kind] = _CONTEXT_ACTIONS_DEFAULT_GREETINGS[kind]
 
+    # C1-g2b: die englische Fassung bekommt KEINE Vorgabe eingesetzt. Ein
+    # leerer Wert heißt „nicht gepflegt" und lässt den Knoten die deutsche
+    # nehmen; die deutsche Vorgabe hier einzusetzen, verwischte den Unterschied.
+    raw_greet_en = cfg.get("greetings_en") or {}
+    greetings_en: dict[str, str] = {}
+    for kind in _CONTEXT_ACTIONS_PAGE_KINDS:
+        val = raw_greet_en.get(kind) if isinstance(raw_greet_en, dict) else None
+        greetings_en[kind] = val.strip() if isinstance(val, str) else ""
+
     raw_pills = cfg.get("pills") or {}
     pills: dict[str, list[dict[str, str]]] = {}
     for kind in _CONTEXT_ACTIONS_PAGE_KINDS:
@@ -197,12 +277,30 @@ def load_context_actions() -> dict[str, Any]:
     if not isinstance(curate_prompt, str) or not curate_prompt.strip():
         curate_prompt = _CONTEXT_ACTIONS_DEFAULT_CURATE_PROMPT
 
+    # Die Dubletten-Fassung ist KEINE eigene Seitenart, sondern die zweite
+    # Lesart von `external` — sie gehört deshalb nicht in die Seitenart-Karten
+    # (sonst könnte ein Widget sie als `page_kind` senden und würde begrüßt).
+    def _text(key: str, default: str) -> str:
+        val = cfg.get(key)
+        return val.strip() if isinstance(val, str) and val.strip() else default
+
     return {
         "enabled": bool(cfg.get("enabled", True)),
         "report_url": report_url.strip(),
         "greetings": greetings,
+        "greetings_en": greetings_en,
         "pills": pills,
         "curate_prompt": curate_prompt.strip(),
+        "duplicate_greeting": _text(
+            "duplicate_greeting", _CONTEXT_ACTIONS_DEFAULT_DUPLICATE_GREETING,
+        ),
+        # Wie bei `greetings_en`: keine deutsche Vorgabe einsetzen, leer heißt
+        # „nicht gepflegt" und lässt den Knoten die deutsche Fassung nehmen.
+        "duplicate_greeting_en": _text("duplicate_greeting_en", ""),
+        "duplicate_pill_label": _text(
+            "duplicate_pill_label", _CONTEXT_ACTIONS_DEFAULT_DUPLICATE_PILL,
+        ),
+        "duplicate_pill_label_en": _text("duplicate_pill_label_en", ""),
     }
 
 
@@ -304,7 +402,14 @@ def load_guide_rules_config() -> dict[str, Any]:
             prio = int(item.get("priority") or 50)
         except (TypeError, ValueError):
             prio = 50
-        msg_rules.append({"pattern": pat, "label": lbl, "url": url, "priority": prio})
+        # C1-g2a: `label_en` geht ROH durch — kein Rückfall auf `label`. Setzte
+        # der Loader ihn ein, könnte niemand mehr „bewusst gleich" von „nicht
+        # gepflegt" unterscheiden (dieselbe Regel wie bei der Begrüßung).
+        msg_rules.append({
+            "pattern": pat, "label": lbl,
+            "label_en": str(item.get("label_en") or "").strip(),
+            "url": url, "priority": prio,
+        })
 
     rag_rules: dict[str, dict[str, str]] = {}
     raw_rag = data.get("rag_area_rules") or {}

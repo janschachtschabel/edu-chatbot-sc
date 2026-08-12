@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { SessionTranscriptComponent } from './session-transcript.component';
 
 const tick = (): Promise<unknown> => new Promise((r) => setTimeout(r, 0));
@@ -15,7 +16,10 @@ interface Harness {
   component: SessionTranscriptComponent;
 }
 
-async function mount(messages: unknown[]): Promise<Harness> {
+async function mount(messages: unknown[], locale = 'de'): Promise<Harness> {
+  // jsdom meldet `navigator.language === 'en-US'` — ohne die gemerkte Wahl
+  // stünde die Oberfläche ab C1-d4e2 auf Englisch.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -54,5 +58,34 @@ describe('SessionTranscriptComponent — Zeitstempel', () => {
   it('shows an unparseable timestamp as it came in', async () => {
     const h = await mount([{ id: 1, role: 'user', content: 'Hallo', created_at: 'kein-datum' }]);
     expect(h.el.querySelector('.st-time')?.textContent).toContain('kein-datum');
+  });
+});
+
+describe('SessionTranscriptComponent — Sprache (C1-d4e2)', () => {
+  const TURN = {
+    id: 1, role: 'assistant', content: 'Hier sind Materialien.',
+    debug: { pattern: 'M06', intent: 'I02', persona: 'lehrkraft', state: 'S3',
+      tools_called: ['wlo_search'], signals: ['rag_hit'] },
+  };
+
+  it('benennt Rollen und Entscheidungs-Fakten auf Deutsch', async () => {
+    const h = await mount([TURN, { id: 2, role: 'user', content: 'Danke' }]);
+    expect(h.el.textContent).toContain('BOERDi');
+    expect(h.el.textContent).toContain('Nutzerin/Nutzer');
+    expect(h.el.querySelector('.st-facts')!.textContent).toContain('Muster');
+    expect(h.el.querySelector('.st-facts')!.textContent).toContain('Werkzeuge');
+  });
+
+  it('benennt eine leere Rolle, statt eine Lücke zu lassen', async () => {
+    const h = await mount([{ id: 1, role: '', content: 'x' }]);
+    expect(h.el.querySelector('.st-role')!.textContent!.trim()).toBe('unbekannt');
+  });
+
+  it('spricht Englisch, wenn Englisch eingestellt ist', async () => {
+    const h = await mount([TURN], 'en');
+    expect(h.el.textContent).toContain('BOERDi');       // Produktname, unübersetzt
+    expect(h.el.querySelector('.st-facts')!.textContent).toContain('Pattern');
+    expect(h.el.querySelector('.st-facts')!.textContent).toContain('Tools');
+    expect(h.el.textContent).not.toContain('Werkzeuge');
   });
 });

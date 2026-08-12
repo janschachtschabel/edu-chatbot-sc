@@ -17,12 +17,16 @@ from types import SimpleNamespace
 
 import pytest
 
+from boerdi.obs.usage import new_accumulator
 from boerdi.services import lp_fast_path
 from boerdi.services.lp_fast_path import run_lp_fast_path
 
 
-def _req(message: str):
-    return SimpleNamespace(message=message)
+def _req(message: str, locale: str = "de-DE"):
+    # ``environment`` gehoert zum ChatRequest-Vertrag; der Fast-Path liest seit
+    # C1-f2a das ``locale`` daraus. Kein ``getattr``-Notausgang im Produktivcode
+    # — die Attrappe folgt dem Vertrag.
+    return SimpleNamespace(message=message, environment=SimpleNamespace(locale=locale))
 
 
 class _Cls:
@@ -42,8 +46,11 @@ def patch_gen(monkeypatch):
     call_mcp_tool/parse_wlo_cards default to empty so no test hits the network;
     the P2/P3 tests override them via ``_patch_mcp``.
     """
-    async def _fake_lp(collection_title, contents_text, session_state):
+    async def _fake_lp(**kwargs):
+        _fake_lp.kwargs = kwargs
         return "**Lernpfad: Test**\nSchritt 1: los"
+
+    _fake_lp.kwargs = None
 
     async def _fake_qr(**kwargs):
         return ["q1", "q2"]
@@ -57,6 +64,7 @@ def patch_gen(monkeypatch):
     monkeypatch.setattr(lp_fast_path, "parse_wlo_cards", lambda text: [])
     monkeypatch.setattr(lp_fast_path, "_qr_policy", lambda pid: ("exact", 4))
     monkeypatch.setattr(lp_fast_path, "_qr_default_count", lambda: 4)
+    return _fake_lp
 
 
 def _patch_mcp(monkeypatch, parsed_by_tool):
@@ -256,10 +264,27 @@ class TestGenerationSideEffects:
         result = await res.qr_spec_task  # drain the task
         assert result == ["q1", "q2"]
 
+    async def test_merkposten_erreicht_den_lp_generator(self, patch_gen):
+        """K1b-Naht: der Fast-Path FÜHRT den Merkposten (Parameter Z. 95) und
+        gab ihn an die spekulative QR-Erzeugung weiter — aber nicht an den
+        Lernpfad-Generator selbst, den teuersten Aufruf dieses Pfades."""
+        fake_lp = patch_gen
+        acc = new_accumulator()
+        ss = {"persona_id": "P-LEHR", "entities": {
+            "thema": "X", "_last_contents": json.dumps([{"node_id": "n1", "title": "A"}])}}
+
+        await run_lp_fast_path(
+            has_lp_intent=True, thema="X", req=_req("Lernpfad X"),
+            classification=_Cls({}), session_state=ss,
+            pattern_output={}, usage_acc=acc, new_state="S1",
+        )
+
+        assert fake_lp.kwargs["usage_acc"] is acc
+
     async def test_card_text_link_filter_applied(self, patch_gen, monkeypatch):
         # pattern_output card_text_link_required=True → cards filtered to those
         # whose node_id is mentioned in the response text.
-        async def _fake_lp(collection_title, contents_text, session_state):
+        async def _fake_lp(**kwargs):
             return "Lernpfad mit n1 erwähnt"
 
         monkeypatch.setattr(lp_fast_path, "generate_learning_path_text", _fake_lp)

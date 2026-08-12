@@ -6,9 +6,71 @@
 // Der Chat-Bereich selbst bringt seine Stile mit (`chat-shell.component.scss`);
 // hier wird nur der Platz aufgespannt, in dem er lebt.
 
+@use '@angular/material' as mat;
+@use 'theme/m3-palette' as palette;
 @use 'widget-fab';
 @use 'widget-panel';
 @use 'widget-nav-banner';
+
+// Material-3-Theme (Nutzer-Entscheid 2026-07-31 — kehrt die §5.5-Entscheidung
+// „keine Material-Komponentenbibliothek" um; §5.5 ist nachzuziehen).
+//
+// **Bewusst an `:host`, nicht an `:root`.** Das Widget lebt als Custom Element
+// in FREMDEN Seiten und liefert kein globales Stylesheet aus. Ein `:root`-Theme
+// stylte die Gastseite mit um; an `:host` bleiben alle `--mat-sys-*`-Token
+// innerhalb des Widgets. Und genau EINE Stelle gibt das Theme aus — deshalb
+// hier und nicht in `theme/tokens.scss`, das viele Komponenten einbinden (das
+// gäbe das Theme vielfach aus).
+//
+// Die Palette ist aus der Markenfarbe des ALTEN Chatbots erzeugt (#1c4587,
+// Nutzer-Vorgabe 2026-07-31) — siehe `theme/_m3-palette.scss`. Gewechselt wird
+// sie HIER, an dieser einen Stelle, nicht in den Komponenten.
+:host {
+  @include mat.theme((
+    color: (
+      primary: palette.$primary-palette,
+      tertiary: palette.$tertiary-palette,
+    ),
+    // Kein Google-Font — die selbst gehostete System-Schrift bleibt
+    // (DSGVO: keine externen Font-CDNs).
+    typography: (plain-family: (system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif)),
+    density: 0,
+  ));
+
+  // ── Token-Brücke: die Kundenfarbe schlägt auf die Material-Token durch ──
+  //
+  // `mat.theme` backt die `--mat-sys-*`-Werte zur BAUZEIT aus #1c4587. Der
+  // Embedder kann aber `primary-color="…"` setzen (→ `--boerdi-primary`,
+  // validiert in `widget.component.ts`); ohne diese Brücke folgen nur unsere
+  // handgeschriebenen Teile, und die Material-Knöpfe blieben blau.
+  //
+  // Umgesetzt mit `color-mix` aus `--boerdi-primary` — dasselbe Muster, das
+  // `.card-btn`, `.btn-load-more` und `.tp-toggle` schon benutzen. Die
+  // Alternative wäre HCT-Mathematik zur Laufzeit (M3 denkt in ganzen
+  // Tonwertfamilien, nicht in einem Hex); das wäre eine eigene Abhängigkeit
+  // für einen Knopf.
+  //
+  // `light-dark()` bleibt ERHALTEN: `color-scheme` ist vererbt, eine Gastseite
+  // mit `color-scheme: dark` kippt die Token des Widgets mit (gemessen). Ein
+  // einwertiger Override hätte das stillschweigend abgeschaltet.
+  //
+  // Überschrieben wird nur, was Markenfarbe TRÄGT. Flächen, Umrisse und
+  // Elevation bleiben neutral — sie sollen nicht mit der Kundenfarbe kippen.
+  // `on-primary` bleibt bewusst der gebackene Wert: es gehört zur gefüllten
+  // Knopfvariante, die wir nirgends rendern, und ein pauschales Weiß wäre bei
+  // einer hellen Kundenfarbe ein Kontrastbruch.
+  $marke: var(--boerdi-primary, #1c4587);
+
+  --mat-sys-primary: light-dark(#{$marke}, color-mix(in srgb, #{$marke} 55%, white));
+  --mat-sys-secondary-container: light-dark(
+    color-mix(in srgb, #{$marke} 14%, white),
+    color-mix(in srgb, #{$marke} 55%, black)
+  );
+  --mat-sys-on-secondary-container: light-dark(
+    color-mix(in srgb, #{$marke} 72%, black),
+    color-mix(in srgb, #{$marke} 22%, white)
+  );
+}
 
 .boerdi-panel-body {
   flex: 1;

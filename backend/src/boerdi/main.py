@@ -15,6 +15,7 @@ from slowapi.errors import RateLimitExceeded
 
 from boerdi import __version__
 from boerdi.api import (
+    agent,
     chat,
     config,
     config_areas,
@@ -28,6 +29,7 @@ from boerdi.api import (
     sessions,
     speech,
     studio_bff,
+    usage,
     widget,
 )
 from boerdi.api import (
@@ -156,6 +158,7 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(health.public_router)
+    app.include_router(agent.router)
     app.include_router(chat.public_router)
     app.include_router(chat.router)
     app.include_router(sessions.router)
@@ -167,6 +170,7 @@ def create_app() -> FastAPI:
     app.include_router(config_snapshots.router)
     app.include_router(rag.router)
     app.include_router(quality.router)
+    app.include_router(usage.router)
     app.include_router(safety.router)
     app.include_router(eval_api.router)
     app.include_router(loadtest.router)

@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { RagDocumentsComponent } from './rag-documents.component';
 
 const tick = (): Promise<unknown> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -22,6 +23,8 @@ interface Harness {
 
 async function mount(docs: unknown[] = DOCS): Promise<Harness> {
   TestBed.resetTestingModule();
+  // Siehe rag-ingest.component.spec.ts — jsdom meldet `en-US`.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
   });
@@ -136,5 +139,24 @@ describe('RagDocumentsComponent', () => {
     const alert = el.querySelector('.rd-confirm [role="alert"]');
     expect(alert?.textContent).toContain('Wirklich löschen?');
     expect(alert?.querySelector('button')).toBeNull();
+  });
+
+  it('gibt jedem Knopf einen zugänglichen Namen, der sein Dokument nennt', async () => {
+    // Beide Zeilen heissen „Leitfaden" und tragen dieselben sichtbaren
+    // Beschriftungen — ohne das Ziel im Namen sind ihre Knöpfe für einen
+    // Screenreader nicht unterscheidbar. Bis C1-d3c stand es in einem
+    // `sr`-Bruchstück, das sich nicht übersetzen liess (C1-d3a).
+    const { el, fixture } = await mount();
+    expect(el.querySelector('.rd-row .sr')).toBeNull();
+    expect(el.querySelectorAll<HTMLButtonElement>('.rd-show')[0].getAttribute('aria-label'))
+      .toBe('Volltext anzeigen — Leitfaden');
+    expect(el.querySelectorAll<HTMLButtonElement>('.rd-del')[0].getAttribute('aria-label'))
+      .toBe('Löschen — Leitfaden');
+
+    // Aufgeklappt benennt derselbe Knopf die andere Richtung.
+    el.querySelectorAll<HTMLButtonElement>('.rd-show')[0].click();
+    await fixture.whenStable();
+    expect(el.querySelectorAll<HTMLButtonElement>('.rd-show')[0].getAttribute('aria-label'))
+      .toBe('Volltext ausblenden — Leitfaden');
   });
 });

@@ -11,7 +11,10 @@ hint, no-LaTeX formatting). Precedent: quick_replies_llm.py.
 
 from __future__ import annotations
 
+from typing import Any
+
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
+from boerdi.i18n import DEFAULT, Locale, bot_text, language_name, template_hint
 from boerdi.services import llm
 
 
@@ -19,8 +22,17 @@ async def generate_learning_path_text(
     collection_title: str,
     contents_text: str,
     session_state: dict,
+    lang: Locale = DEFAULT,
+    usage_acc: dict[str, Any] | None = None,
 ) -> str:
-    """Generate a pedagogically structured learning path from collection contents."""
+    """Generate a pedagogically structured learning path from collection contents.
+
+    ``usage_acc`` is optional — threaded through, the call is accounted under
+    phase ``"learning_path"``. With ``max_tokens=2000`` this is one of the
+    largest single calls in the system, so leaving it unbooked understates every
+    cost figure (K1b). Both callers pass it: the LP fast-path and the
+    ``generate_learning_path`` direct action.
+    """
     persona_id = session_state.get("persona_id", "P-AND")
     entities = session_state.get("entities", {})
 
@@ -64,7 +76,7 @@ FORMATIERUNGS-REGELN — WICHTIG:
 - Mathematische Ausdruecke als einfacher Text: x^2 statt x^{{2}}, sqrt(2) statt
   \\sqrt{{2}}.
 - Markdown wird zu HTML gerendert (marked.js + DOMPurify) — alles, was nicht
-  Standard-Markdown ist, kommt beim User als Rohtext an."""
+  Standard-Markdown ist, kommt beim User als Rohtext an.""" + template_hint(lang)
 
     prompt = f"""Erstelle einen paedagogisch strukturierten **Lernpfad** zum Thema \"{collection_title}\".
 
@@ -95,7 +107,7 @@ Bringe die Materialien in eine didaktisch sinnvolle Reihenfolge (vom Einfachen z
    (nicht umformulieren oder kuerzen), damit die Lernenden jeden Schritt dem
    passenden Inhalt in der Material-Box darunter zuordnen koennen.
 
-**Format (Markdown, auf Deutsch):**
+**Format (Markdown, auf {language_name(lang)}):**
 
 Beginne mit einem kurzen Ueberblick:
 > **Lernpfad: {collection_title}**
@@ -135,7 +147,9 @@ um Luecken zu fuellen."""
             messages=messages,
             temperature=0.7,
             max_tokens=2000,
+            usage_acc=usage_acc,
+            phase="learning_path",
         )
-        return strip_reasoning_markers(resp.choices[0].message.content or "") or "Lernpfad konnte nicht erstellt werden."
+        return strip_reasoning_markers(resp.choices[0].message.content or "") or bot_text(lang, "learningPath.failed")
     except Exception as e:
-        return f"Fehler beim Erstellen des Lernpfads: {e}"
+        return bot_text(lang, "learningPath.error", error=e)

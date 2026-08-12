@@ -1,3 +1,4 @@
+import { HOST_EVENTS } from '../host-events/event-names';
 import { maybeRewriteOutgoingLink } from '../session/link-handoff';
 
 /** Tick-Abstand des SPA-URL-Watchers (ALT ngOnInit 287). */
@@ -66,13 +67,13 @@ export class HostBridges {
       const detail = (e as CustomEvent).detail;
       if (detail && detail.action) this.ctx.onPageAction(detail);
     };
-    window.addEventListener('badboerdi:page-action', this._onPageActionEvent);
+    window.addEventListener(HOST_EVENTS.pageAction, this._onPageActionEvent);
 
     this._onQueryMetaEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail) this.ctx.onQueryMeta(detail);
     };
-    window.addEventListener('badboerdi:query-meta', this._onQueryMetaEvent);
+    window.addEventListener(HOST_EVENTS.queryMeta, this._onQueryMetaEvent);
 
     // Outgoing-Link-Rewrite für den Cross-TLD-Session-Handoff.
     //
@@ -108,11 +109,11 @@ export class HostBridges {
       this._urlWatcher = null;
     }
     if (this._onPageActionEvent) {
-      window.removeEventListener('badboerdi:page-action', this._onPageActionEvent);
+      window.removeEventListener(HOST_EVENTS.pageAction, this._onPageActionEvent);
       this._onPageActionEvent = undefined;
     }
     if (this._onQueryMetaEvent) {
-      window.removeEventListener('badboerdi:query-meta', this._onQueryMetaEvent);
+      window.removeEventListener(HOST_EVENTS.queryMeta, this._onQueryMetaEvent);
       this._onQueryMetaEvent = undefined;
     }
     if (this._onHostClick) {

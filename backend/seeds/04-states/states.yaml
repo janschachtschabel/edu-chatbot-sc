@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────────────
+# Conversation-States — 3 Phasen (S1 / S2 / S3) — Welle E (2026-05-25)
+#
+# SCHEMA pro State:
+#   id:               Pflicht. State-Identifier.
+#   label:            Pflicht. Anzeigename.
+#   description:      1–2 Sätze. WAS markiert diese Phase.
+#   role:             Bot-Rolle in dieser Phase.
+#   bot_directive:    Handlungs-Anweisung an den Response-Prompt
+#                     (Multiline-String).
+#   next_likely:      Plausible Folge-States (für den Plausibilitäts-
+#                     Validator + Quick-Reply-Generator).
+#   selection_criteria: (optional) WANN wählt der Klassifikator
+#                     diesen State? Bullet-Liste.
+#
+# Diese Datei wird genutzt von:
+#   - llm_service._build_classify_system_prompt (State-Liste + Auswahl-
+#     Kriterien)
+#   - llm_service.generate_response (bot_directive an Response-LLM)
+#   - quick_reply_generator (next_likely + bot_directive)
+#   - state_validator (Plausibilität von Transitions)
+# ─────────────────────────────────────────────────────────────────────
+
+states:
+
+  - id: S1
+    label: Orientierung
+    description: "Erster Kontakt oder Re-Orientierung — kein konkretes Anliegen."
+    role: "Bot sondiert offen, ohne Pre-Commitment."
+    bot_directive: |
+      EINE offene Frage, 2–3 Quick-Reply-Optionen. Kein Tool-Call.
+      Max. 2 Sätze.
+    next_likely: [S2, S3]
+    selection_criteria:
+      - "Erstkontakt ohne Material-/Fach-Anker"
+      - "Re-Orientierung nach Topic-Switch ohne neues konkretes Anliegen"
+      - "User fragt 'Was kannst du?' / 'Ich bin neu'"
+
+  - id: S2
+    label: Klärung
+    description: "Slot-Lücke vor Suche/Erstellung — eine gezielte Rückfrage."
+    role: "Bot fragt nach EINEM fehlenden Slot."
+    bot_directive: |
+      Genau EINE Frage zum wichtigsten fehlenden Slot. Quick-Replies
+      mit 3–4 plausiblen Antworten. KEIN Tool-Call solange Pflicht-
+      Slot fehlt.
+    next_likely: [S3, S2, S1]
+    selection_criteria:
+      - "Intent ist klar (z. B. I03/I05/I04), aber ein Pflicht-Slot fehlt (Fach, Thema, Stufe)"
+      - "Antwort des Users ist mehrdeutig zwischen mehreren Optionen"
+
+  - id: S3
+    label: Aktion
+    description: >
+      Bot liefert die Antwort — Suche, Wissensantwort, Lernpfad,
+      KI-Inhalt, Nachbearbeitung, Routing, Feedback-Echo. Umfasst
+      alle nicht-orientierenden Verlaufs-Phasen.
+    role: "Bot führt die geforderte Aktion aus."
+    bot_directive: |
+      Aktion ausführen (Tool-Call oder direkte Antwort). Max. 1 Satz
+      Einleitung, Inhalte über Kacheln oder Markdown. Am Ende ein
+      konkreter Folgehook / Quick-Reply.
+    next_likely: [S3, S2, S1]
+    selection_criteria:
+      - "Intent + Pflicht-Slots klar → Antwort/Aktion direkt möglich"
+      - "Folge-Turn nach S2-Klärung mit nun vollem Slot-Set"
+      - "Edit-Turn (I06) auf bestehenden Bot-Inhalt"

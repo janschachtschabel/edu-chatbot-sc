@@ -20,21 +20,27 @@
 import {
   ChangeDetectionStrategy, Component, computed, inject, input, output, signal,
 } from '@angular/core';
+import type { RichSegment } from '@boerdi/ui';
 
 import { AsyncData, describeApiError } from '../core/async-data';
 import { EvalApi, type EvalConfig, type EvalEstimate, type EvalMode }
   from '../core/eval-api.service';
-import { formatUsd, formatWhole } from '../core/format';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { RichTextComponent } from './rich-text.component';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 /** `StartRequest`/`EstimateRequest` bounds — mirrored, not guessed. */
 const MIN_PER_COMBO = 1;
 const MAX_PER_COMBO = 10;
 
-const MODES: readonly { readonly value: EvalMode; readonly label: string }[] = [
-  { value: 'both', label: 'Szenarien und Gespräche' },
-  { value: 'scenarios', label: 'nur Szenarien (ein Turn je Szenario)' },
-  { value: 'conversations', label: 'nur Gespräche (mehrere Turns)' },
+/** Eingefroren war bis C1-d4c die Beschriftung, nicht nur die Kennung — der
+ *  elfte Fall dieser Art. Jetzt trägt die Konstante das Paar aus Kennung und
+ *  Schlüssel; der Text entsteht beim Rendern. */
+const MODES: readonly { readonly value: EvalMode; readonly key: string }[] = [
+  { value: 'both', key: 'evalStart.gen.mode.both' },
+  { value: 'scenarios', key: 'evalStart.gen.mode.scenarios' },
+  { value: 'conversations', key: 'evalStart.gen.mode.conversations' },
 ];
 
 interface Choice {
@@ -54,12 +60,22 @@ function choices(rows: readonly Record<string, unknown>[] | undefined): readonly
 
 @Component({
   selector: 'studio-eval-generative-start',
-  imports: [AsyncStateComponent],
+  imports: [AsyncStateComponent, RichTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './eval-generative-start.component.html',
   styleUrl: './eval-generative-start.component.scss',
 })
 export class EvalGenerativeStartComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  private readonly lang = inject(StudioLanguageService);
+
+  /** Uebersetzer fuer den Fehlersatz der Leseoperationen und fuer die
+   *  Texte dieser Ansicht. */
+  protected readonly t = this.lang.t;
+  protected readonly rich = this.lang.rich;
+
   private readonly api = inject(EvalApi);
 
   /** True while any run is in flight — the backend allows one and answers 409. */
@@ -72,7 +88,7 @@ export class EvalGenerativeStartComponent {
   readonly minPerCombo = MIN_PER_COMBO;
   readonly maxPerCombo = MAX_PER_COMBO;
 
-  readonly config = new AsyncData<EvalConfig>(() => this.api.config());
+  readonly config = new AsyncData<EvalConfig>(() => this.api.config(), this.t);
 
   readonly personas = computed(() => choices(this.config.value()?.personas));
   readonly intents = computed(() => choices(this.config.value()?.intents));
@@ -108,6 +124,48 @@ export class EvalGenerativeStartComponent {
    */
   readonly nothingConfigured = computed(() =>
     !this.config.loading() && !this.config.error() && this.combos() === 0);
+
+  readonly combosParts = computed<readonly RichSegment[]>(() =>
+    this.lang.richPlural('evalStart.gen.combos', this.combos(), {
+      count: this.fmt.whole(this.combos()),
+    }));
+
+  /**
+   * Die Kostenzeile trägt VIER Anzahlen, jede mit eigener Mehrzahl (C1-d4c).
+   *
+   * Vier Wortgruppen statt einer Schlüssel-Matrix aus 2⁴ Sätzen: jede entsteht
+   * für sich über `plural()` und wird eingesetzt. Die ZAHL wählt dabei die
+   * Form, der FORMATIERTE Text füllt den Platzhalter — sonst verlöre ein
+   * vierstelliger Wert seine Tausender-Trennung.
+   */
+  readonly costParts = computed<readonly RichSegment[]>(() => {
+    const cost = this.estimate();
+    if (!cost) return [];
+    return this.rich('evalStart.gen.cost', {
+      chat: this.phrase('evalStart.gen.chatCalls', cost.chat_calls),
+      judge: this.phrase('evalStart.judgeCalls', cost.judge_calls),
+      sim: this.phrase('evalStart.gen.simCalls', cost.simulator_calls),
+      turns: this.phrase('evalStart.gen.ratedTurns', cost.total_turns),
+    });
+  });
+
+  readonly bandParts = computed<readonly RichSegment[]>(() => {
+    const cost = this.estimate();
+    if (!cost) return [];
+    return this.rich('evalStart.gen.band', {
+      min: this.fmt.usd(cost.est_usd_min),
+      max: this.fmt.usd(cost.est_usd_max),
+      expected: this.fmt.usd(cost.est_usd),
+    });
+  });
+
+  /** Der Fehlersatz des Backends wird eingesetzt, NACHDEM geteilt wurde — er
+   *  kann also keine Auszeichnung erzeugen (die Zusage aus C1-d4b2). */
+  readonly blindParts = computed<readonly RichSegment[]>(() =>
+    this.lang.richPlural('evalStart.gen.blind', this.combos(), {
+      error: this.estimateError(),
+      count: this.fmt.whole(this.combos()),
+    }));
 
   constructor() {
     void this.config.reload();
@@ -153,7 +211,7 @@ export class EvalGenerativeStartComponent {
       // Not fatal: the operator authorises the spend, not the estimate. But the
       // confirmation must then say it has no price rather than imply one.
       this.estimate.set(null);
-      this.estimateError.set(describeApiError(err));
+      this.estimateError.set(describeApiError(err, this.t));
     } finally {
       this.armed.set(true);
       this.checking.set(false);
@@ -168,11 +226,11 @@ export class EvalGenerativeStartComponent {
     try {
       const result = await this.api.startRun({ ...this.request(), config_slug: '' });
       this.disarm();
-      this.status.set(`Lauf ${result.run_id} gestartet.`);
+      this.status.set(this.t('evalStart.gen.started', { id: result.run_id }));
       this.warnings.set(result.warnings ?? []);
       this.started.emit(result.run_id);
     } catch (err) {
-      this.startError.set(describeApiError(err));
+      this.startError.set(describeApiError(err, this.t));
     } finally {
       this.starting.set(false);
     }
@@ -184,12 +242,9 @@ export class EvalGenerativeStartComponent {
     this.estimateError.set('');
   }
 
-  usd(value: number): string {
-    return formatUsd(value);
-  }
-
-  count(value: number): string {
-    return formatWhole(value);
+  /** Eine gezählte Wortgruppe für die Kostenzeile. */
+  private phrase(key: string, count: number): string {
+    return this.lang.plural(key, count, { count: this.fmt.whole(count) });
   }
 
   private chosen(kind: 'persona' | 'intent') {

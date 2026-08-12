@@ -38,29 +38,80 @@ def _clean(monkeypatch):
 # ── build_chat_kwargs: GPT-5 gating ────────────────────────────────────────
 def test_gpt5_default_sends_verbosity_and_effort_no_tools() -> None:
     kw = llm.build_chat_kwargs(messages=[{"role": "user", "content": "hi"}])
-    assert kw["model"] == "gpt-5.4-mini"
-    assert kw["verbosity"] == "medium"
+    assert kw["model"] == "gpt-5.6-luna"
+    assert kw["verbosity"] == "low"  # W12: Vorgabe auf Geschwindigkeit
     assert kw["reasoning_effort"] == "low"
     assert "max_tokens" not in kw and "temperature" not in kw
 
 
-def test_gpt5_with_tools_drops_reasoning_effort_keeps_verbosity() -> None:
+_TOOLS = [{"type": "function", "function": {"name": "f"}}]
+
+
+def test_gpt54_group_still_drops_reasoning_effort_on_tool_calls(monkeypatch) -> None:
+    """Die ALT-Regel bleibt fuer die Gruppe, fuer die sie gilt (llm_provider.py:702-827)."""
+    monkeypatch.setenv("LLM_CHAT_MODEL", "gpt-5.4-mini")
+    get_settings.cache_clear()
     kw = llm.build_chat_kwargs(
-        messages=[{"role": "user", "content": "x"}],
-        tools=[{"type": "function", "function": {"name": "f"}}],
-        tool_choice="required",
+        messages=[{"role": "user", "content": "x"}], tools=_TOOLS, tool_choice="required",
     )
-    assert kw["verbosity"] == "medium"
-    assert "reasoning_effort" not in kw  # tool calls drop it
+    assert kw["verbosity"] == "low"
+    assert "reasoning_effort" not in kw
     assert kw["tools"] and kw["tool_choice"] == "required"
 
 
-def test_gpt5_temperature_only_when_effort_none_and_gpt54(monkeypatch) -> None:
+def test_luna_group_MUST_send_reasoning_effort_on_tool_calls() -> None:
+    """W12b — gemessen gegen die echte API, nicht abgeleitet.
+
+    ``gpt-5.6-luna`` weist eine Anfrage mit Werkzeugen ab, wenn ``reasoning_effort``
+    FEHLT: *„Function tools with reasoning_effort are not supported … in
+    /v1/chat/completions."* Der Text liest sich wie „du hast zu viel geschickt",
+    gemeint ist das Gegenteil — ohne Angabe gilt das Vorgabe-Reasoning des
+    Anbieters, und DAS vertraegt sich nicht mit Function Tools. Mit einem
+    ausdruecklichen Wert (``low`` wie ``none``) kommt sauber ein tool_call zurueck.
+    """
+    kw = llm.build_chat_kwargs(
+        messages=[{"role": "user", "content": "x"}], tools=_TOOLS, tool_choice="required",
+    )
+    assert kw["model"] == "gpt-5.6-luna"
+    assert kw["reasoning_effort"] == "low"
+    assert kw["verbosity"] == "low"
+
+
+def test_luna_sends_the_literal_none_instead_of_omitting_it(monkeypatch) -> None:
+    """``none`` ist fuer uns bisher ein Merker fuer *weglassen* — fuer luna waere
+    genau das der 400er. Bei dieser Gruppe ist ``none`` ein echter API-Wert."""
     monkeypatch.setenv("LLM_REASONING_EFFORT", "none")
+    get_settings.cache_clear()
+    kw = llm.build_chat_kwargs(messages=[{"role": "user", "content": "x"}], tools=_TOOLS)
+    assert kw["reasoning_effort"] == "none"
+
+
+def test_gpt5_temperature_only_when_effort_none_and_gpt54(monkeypatch) -> None:
+    # W12: das Modell steht hier AUSDRUECKLICH, es ist der Gegenstand des Tests.
+    # Die Temperatur-Ausnahme ist an die 5.4-Familie gepinnt (`startswith`), und
+    # ein pauschales Umbenennen auf das neue Standardmodell hat sie gerade
+    # deshalb zu Recht rot gemacht.
+    monkeypatch.setenv("LLM_REASONING_EFFORT", "none")
+    monkeypatch.setenv("LLM_CHAT_MODEL", "gpt-5.4-mini")
     get_settings.cache_clear()
     kw = llm.build_chat_kwargs(messages=[{"role": "user", "content": "x"}], temperature=0.5)
     assert kw["temperature"] == 0.5
     assert "reasoning_effort" not in kw  # effort none is not sent
+
+
+def test_the_new_default_model_gets_no_temperature(monkeypatch) -> None:
+    """W12: gpt-5.6-luna faellt NICHT unter die 5.4-Ausnahme — und das ist richtig.
+
+    Ob das Modell `temperature` neben abgeschaltetem Reasoning annimmt, steht in
+    der Modellkarte nicht. Die schmale Erlaubnis bleibt deshalb bei der Familie,
+    fuer die sie belegt ist. Ein Wert, den der Anbieter zurueckweist, kostet
+    einen 400er mitten im Zug.
+    """
+    monkeypatch.setenv("LLM_REASONING_EFFORT", "none")
+    get_settings.cache_clear()
+    kw = llm.build_chat_kwargs(messages=[{"role": "user", "content": "x"}], temperature=0.5)
+    assert kw["model"] == "gpt-5.6-luna"
+    assert "temperature" not in kw
 
 
 def test_gpt5_temperature_dropped_when_effort_not_none() -> None:
@@ -94,8 +145,8 @@ def test_response_format_passthrough() -> None:
 def test_route_openai_native(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-native")
     get_settings.cache_clear()
-    model, api_base, api_key, headers = llm.route("gpt-5.4-mini")
-    assert model == "openai/gpt-5.4-mini"  # LiteLLM OpenAI-compatible prefix
+    model, api_base, api_key, headers = llm.route("gpt-5.6-luna")
+    assert model == "openai/gpt-5.6-luna"  # LiteLLM OpenAI-compatible prefix
     assert api_base == "https://api.openai.com/v1"
     assert api_key == "sk-native"
     assert headers is None
@@ -105,8 +156,8 @@ def test_route_b_api_openai_dual_auth(monkeypatch) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
     monkeypatch.setenv("B_API_KEY", "bkey")
     get_settings.cache_clear()
-    model, api_base, api_key, headers = llm.route("gpt-5.4-mini")
-    assert model == "openai/gpt-5.4-mini"
+    model, api_base, api_key, headers = llm.route("gpt-5.6-luna")
+    assert model == "openai/gpt-5.6-luna"
     assert api_base == "https://b-api.prod.openeduhub.net/api/v1/llm/openai"
     assert api_key == "bkey"  # Bearer
     assert headers == {"X-API-KEY": "bkey"}  # and X-API-KEY
@@ -123,7 +174,7 @@ def test_route_academiccloud_suffix(monkeypatch) -> None:
 def test_route_b_api_without_key_uses_unused_placeholder(monkeypatch) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
     get_settings.cache_clear()
-    _model, _base, api_key, headers = llm.route("gpt-5.4-mini")
+    _model, _base, api_key, headers = llm.route("gpt-5.6-luna")
     assert api_key == "unused"  # SDK requires a truthy key
     assert headers is None  # no X-API-KEY when no key
 
@@ -138,7 +189,7 @@ class _FakeCompletion:
     async def __call__(self, **kwargs):
         self.calls.append(kwargs)
         return SimpleNamespace(
-            model="gpt-5.4-mini",
+            model="gpt-5.6-luna",
             usage=SimpleNamespace(
                 prompt_tokens=120, completion_tokens=30,
                 prompt_tokens_details=SimpleNamespace(cached_tokens=64)),
@@ -155,12 +206,12 @@ def test_chat_completion_wires_routing_timeout_retries(monkeypatch) -> None:
     resp = asyncio.run(llm.chat_completion(messages=[{"role": "user", "content": "hi"}]))
     assert resp.choices[0].message.content == "ok"
     sent = fake.calls[0]
-    assert sent["model"] == "openai/gpt-5.4-mini"
+    assert sent["model"] == "openai/gpt-5.6-luna"
     assert sent["api_base"] == "https://api.openai.com/v1"
     assert sent["api_key"] == "sk-x"
     assert sent["num_retries"] == 2
     assert sent["timeout"] == 75.0
-    assert sent["verbosity"] == "medium"  # gating flowed through
+    assert sent["verbosity"] == "low"  # gating flowed through
 
 
 def test_chat_completion_folds_usage_into_accumulator(monkeypatch) -> None:

@@ -9,13 +9,23 @@
 -->
 <!-- `data-position` aus ALT ist hier entfallen: die Positionierung hängt am
      Host (`:host([position="…"])`), das innere Attribut hatte keinen Konsumenten. -->
-<div class="boerdi-widget" [class.expanded]="expanded()">
+<div
+  class="boerdi-widget"
+  [class.expanded]="expanded()"
+  [class.boerdi-widget--frameless]="frameless()"
+  [class.boerdi-widget--large]="sizeStep() === 'large'"
+>
 
   <!-- Chat-Panel: beim ersten Öffnen gemountet, danach nur per CSS-Klasse
        versteckt. So überlebt der Zustand der Chat-Shell (Nachrichten, Karten)
        jedes Zuklappen — vorher hing das Panel an `expanded` und verlor ihn. -->
-  @if (everExpanded()) {
-    <div class="boerdi-panel" [class.boerdi-panel--hidden]="!expanded()">
+  @if (chatMounted()) {
+    <div class="boerdi-panel" [class.boerdi-panel--hidden]="!expanded() && !frameless()">
+      <!-- Rahmenlos stellt die Gastanwendung Kopfzeile und Navigation; das
+           Widget liefert nur Verlauf und Eingabe (U1). Die Statusmeldung
+           „denkt nach …" geht dabei nicht verloren — das Phasen-Label hängt
+           in der laufenden Blase, nicht hier. -->
+      @if (!frameless()) {
       <div class="boerdi-panel-header">
         <!-- Linker Bereich: Avatar + Name + Status -->
         <div class="boerdi-title-block">
@@ -27,7 +37,7 @@
             class="boerdi-owl-tour"
             [class.is-hinting]="hintActive()"
             (click)="startTour()"
-            aria-label="Web-Tour starten"
+            [attr.aria-label]="t('widget.tourStart')"
           >
             <img
               class="boerdi-owl-mini"
@@ -36,7 +46,7 @@
               [src]="boerdiLogo"
               alt=""
             />
-            <span class="boerdi-owl-bubble" aria-hidden="true">Klick mich — ich zeig dir die Seite</span>
+            <span class="boerdi-owl-bubble" aria-hidden="true">{{ t('widget.tourHint') }}</span>
           </button>
           <!-- role="status" (8-6): „denkt nach …"/„spricht …" steht außerhalb
                des `role="log"`-Verlaufs und wäre sonst für Screenreader stumm —
@@ -44,9 +54,9 @@
           <div class="boerdi-title-text" role="status" aria-live="polite">
             <span class="boerdi-title">BOERDi</span>
             @if (shell()?.isLoading()) {
-              <span class="boerdi-status">denkt nach …</span>
+              <span class="boerdi-status">{{ t('widget.status.thinking') }}</span>
             } @else if (shell()?.autoSpeak && shell()?.isSpeaking) {
-              <span class="boerdi-status">spricht …</span>
+              <span class="boerdi-status">{{ t('widget.status.speaking') }}</span>
             }
           </div>
         </div>
@@ -55,6 +65,34 @@
              Icon-Wechsel + solid-vs-outlined kommunizieren den Zustand.
              Welle E: Mobile-Tab-Switch und Lotsen-Toggle sind entfallen. -->
         <div class="boerdi-header-actions">
+          <!-- U6: die Navigations-Knöpfe der Redaktion (Startseite, Fachportale,
+               Suche — `header-nav.yaml`) stehen VORN und in einer eigenen
+               Gruppe. Sie führen aus dem Chat HERAUS auf die Webseite; die
+               Knöpfe rechts daneben bedienen den Chat selbst. Der Abstand macht
+               diesen Unterschied sichtbar, statt sieben gleich aussehende
+               Symbole in eine Reihe zu stellen.
+               Reihenfolge und Symbole bleiben Sache der Redaktion (Studio →
+               Kopfzeilen-Navigation); der Code legt nur die Gruppe fest.
+               `?bsid=` hängt headerNavHref dynamisch an Trusted-Links. -->
+          <!-- track $index: `id` ist laut guide-mode-config optional (`String(b.id || '')`),
+               zwei Studio-Einträge ohne id kollidierten sonst im Key (NG0955). Die
+               Liste wird pro Boot einmal gesetzt — Identität ist irrelevant. -->
+          @if (headerNavButtons().length) {
+            <div class="boerdi-nav-group">
+              @for (b of headerNavButtons(); track $index) {
+                <a
+                  class="boerdi-action-btn boerdi-action-btn--neutral"
+                  [href]="headerNavHref(b)"
+                  [attr.target]="b.new_tab ? '_blank' : null"
+                  [attr.rel]="b.new_tab ? 'noopener noreferrer' : null"
+                  [title]="headerNavLabel(b)"
+                  [attr.aria-label]="headerNavLabel(b)"
+                >
+                  <span class="boerdi-icon" [innerHTML]="headerNavIcon(b) | safeSvg"></span>
+                </a>
+              }
+            </div>
+          }
           @if (shell()?.languageButtonsVisible) {
             <button
               type="button"
@@ -62,12 +100,25 @@
               [class.is-on]="shell()?.autoSpeak"
               [class.is-off]="!shell()?.autoSpeak"
               (click)="shell()?.toggleAutoSpeak()"
-              [title]="shell()?.autoSpeak ? 'Sprachausgabe aus' : 'Sprachausgabe an'"
-              [attr.aria-label]="shell()?.autoSpeak ? 'Sprachausgabe aus' : 'Sprachausgabe an'"
+              [title]="shell()?.autoSpeak ? t('widget.speech.off') : t('widget.speech.on')"
+              [attr.aria-label]="shell()?.autoSpeak ? t('widget.speech.off') : t('widget.speech.on')"
             >
               <span class="boerdi-icon" [innerHTML]="(shell()?.autoSpeak ? ICONS.volume_up : ICONS.volume_off) | safeSvg"></span>
             </button>
           }
+          <!-- Sprach-Umschalter (C1-c). Das Kürzel benennt das ZIEL und ist
+               `aria-hidden`, wie die Icons der Nachbar-Knöpfe: der zugängliche
+               Name ist der ganze Satz („Auf Englisch umschalten"), nicht die
+               zwei Buchstaben. -->
+          <button
+            type="button"
+            class="boerdi-action-btn boerdi-action-btn--neutral boerdi-lang-btn"
+            (click)="toggleLanguage()"
+            [title]="languageSwitchLabel()"
+            [attr.aria-label]="languageSwitchLabel()"
+          >
+            <span class="boerdi-lang-code" aria-hidden="true">{{ languageSwitchCode() }}</span>
+          </button>
           @if (shell()?.debugButtonVisible) {
             <button
               type="button"
@@ -75,44 +126,22 @@
               [class.is-on]="shell()?.showDebug()"
               [class.is-off]="!shell()?.showDebug()"
               (click)="shell()?.toggleDebug()"
-              [title]="shell()?.showDebug() ? 'Debug aus' : 'Debug an'"
-              [attr.aria-label]="shell()?.showDebug() ? 'Debug aus' : 'Debug an'"
+              [title]="shell()?.showDebug() ? t('widget.debug.off') : t('widget.debug.on')"
+              [attr.aria-label]="shell()?.showDebug() ? t('widget.debug.off') : t('widget.debug.on')"
             >
               <span class="boerdi-icon" [innerHTML]="ICONS.bug_report | safeSvg"></span>
             </button>
           }
-          <!-- Optionale Kopfzeilen-Nav-Buttons (Studio: header-nav.yaml), links
-               vom Neustart-Button. `?bsid=` hängt headerNavHref dynamisch an
-               Trusted-Links. -->
-          <!-- track $index: `id` ist laut guide-mode-config optional (`String(b.id || '')`),
-               zwei Studio-Einträge ohne id kollidierten sonst im Key (NG0955). Die
-               Liste wird pro Boot einmal gesetzt — Identität ist irrelevant. -->
-          @for (b of headerNavButtons(); track $index) {
-            <a
-              class="boerdi-action-btn boerdi-action-btn--neutral"
-              [href]="headerNavHref(b)"
-              [attr.target]="b.new_tab ? '_blank' : null"
-              [attr.rel]="b.new_tab ? 'noopener noreferrer' : null"
-              [title]="b.label"
-              [attr.aria-label]="b.label"
-            >
-              <span class="boerdi-icon" [innerHTML]="headerNavIcon(b) | safeSvg"></span>
-            </a>
-          }
-          <button
-            type="button"
-            class="boerdi-action-btn boerdi-action-btn--neutral"
-            (click)="shell()?.restart()"
-            title="Neuer Chat"
-            aria-label="Neuer Chat"
-          >
-            <span class="boerdi-icon" [innerHTML]="ICONS.refresh | safeSvg"></span>
-          </button>
-          <button type="button" class="boerdi-close" (click)="toggle()" aria-label="Schließen">
+          <!-- Der Neustart-Knopf stand hier bis U1 (2026-08-09). Er sitzt jetzt
+               in der Eingabezeile der Chat-Shell, links vom Senden-Knopf: er
+               wirkt auf das Gespräch, nicht auf die Hülle — und rahmenlos gibt
+               es diese Kopfzeile gar nicht. -->
+          <button type="button" class="boerdi-close" (click)="toggle()" [attr.aria-label]="t('widget.close')">
             <span class="boerdi-icon" [innerHTML]="ICONS.close | safeSvg"></span>
           </button>
         </div>
       </div>
+      }
 
       <!-- Lotsen-Banner: vom Bot vorgeschlagene Navigation. Wir verlassen die
            Host-Seite NIE ohne explizite Zustimmung — daher zwei Buttons und ein
@@ -120,15 +149,20 @@
       @if (guideNavTarget(); as target) {
         <div class="boerdi-nav-banner" role="alert">
           <span class="nav-banner-icon boerdi-icon" aria-hidden="true" [innerHTML]="ICONS.explore | safeSvg"></span>
+          <!-- Zwei Schlüssel statt einem mit Platzhalter: das Ziel steht fett,
+               ein Platzhalter müsste dafür Markup mit einem Wert vom Bot
+               transportieren. So bringt jede Sprache zudem ihre eigenen
+               Anführungszeichen mit. -->
           <span class="nav-banner-text">
-            Soll ich dich zu „<strong>{{ target.label }}</strong>" bringen?
+            {{ t('widget.nav.askBefore')
+            }}<strong>{{ target.label }}</strong>{{ t('widget.nav.askAfter') }}
           </span>
           <div class="nav-banner-actions">
             <button type="button" class="nav-banner-btn nav-banner-btn--primary" (click)="confirmGuideNav()">
-              Bring mich hin
+              {{ t('widget.nav.confirm') }}
             </button>
             <button type="button" class="nav-banner-btn nav-banner-btn--secondary" (click)="cancelGuideNav()">
-              Hier bleiben
+              {{ t('widget.nav.cancel') }}
             </button>
           </div>
         </div>
@@ -140,6 +174,8 @@
         <div class="boerdi-chat-pane">
           <boerdi-chat-shell
             #chat
+            [translate]="t"
+            [locale]="activeLocale()"
             [apiUrl]="apiUrl()"
             [pageContext]="resolvedPageContext()"
             [persistSession]="persistSession()"
@@ -149,7 +185,14 @@
             [greeting]="greeting() || configGreeting()"
             [startReplies]="startReplies()"
             [tourReply]="tourReply()"
+            [tourReplyEn]="tourReplyEn()"
+            [mcpAuthBase]="mcpAuthBase()"
+            [ticket]="ticketOnce()"
             [showDebugButton]="showDebugButton()"
+            [sizeToggleVisible]="!frameless()"
+            [sizeStep]="sizeStep()"
+            [showCards]="showCards()"
+            (sizeToggle)="toggleSize()"
             [showLanguageButtons]="showLanguageButtons()"
             [trustedHosts]="parsedTrustedHostList"
             [emitGuideSuggestion]="emitGuideSuggestion()"
@@ -164,9 +207,10 @@
     </div>
   }
 
-  <!-- Floating Button -->
-  @if (!expanded()) {
-    <button type="button" class="boerdi-fab" (click)="toggle()" aria-label="Chat öffnen">
+  <!-- Floating Button. Rahmenlos gibt es ihn nicht: es gibt nichts auf- oder
+       zuzuklappen, der Chat sitzt fest im Container der Gastanwendung. -->
+  @if (!expanded() && !frameless()) {
+    <button type="button" class="boerdi-fab" (click)="toggle()" [attr.aria-label]="t('widget.open')">
       <img class="boerdi-owl" [src]="boerdiLogo" alt="" />
       <span class="boerdi-fab-pulse"></span>
     </button>

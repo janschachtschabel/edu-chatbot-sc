@@ -6,124 +6,87 @@
 // leiste wird in den Tile-Slot projiziert, muss also HIER gestylt werden: bei
 // emulierter View-Encapsulation trägt projizierter Inhalt das Attribut der
 // projizierenden Komponente, nicht das des Tiles.
-//
-// simplify: kein Dark-Mode — ALT war hell-only. Kontrast-/Fokus-Sweep = 8-6.
-$border:      rgba(0,0,0,.10);
-$text-muted:  #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 (4,5:1)
-$card-radius: 12px;
+// U4d: hier standen zwei Farbvariablen ($border, $text-muted: #767676) ohne
+// einen einzigen Leser — Reste aus dem Port. Beide waren zudem einwertig, also
+// blind für das Schema; ein späterer Griff danach hätte im Dunkelmodus
+// stillschweigend danebengelegen. Die Kachel holt ihre Farben aus den
+// `--mat-sys-*`-Rollen (gemessen: `.card-desc` 8,88:1 hell / 14,38:1 dunkel).
 
+// Bewusste Abweichung von ALT (dort eine Spalte, jede Karte über die volle
+// Chat-Breite): Nutzer-Vorgabe 2026-07-31 — „die Kacheln dürfen nicht zu groß
+// sein". Ein auto-fill-Raster deckelt die Kachelbreite und füllt die Zeile mit
+// so vielen Karten, wie hineinpassen; unter ~260 px bleibt es von selbst
+// einspaltig (schmales Widget, Handy). ``align-items: stretch`` ist der
+// Grid-Default und hier tragend: zusammen mit ``.wlo-card { flex: 1 }`` sind
+// alle Kacheln einer Zeile gleich hoch.
 .cards-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
   margin-top: 10px;
 }
 
+// Sitzt als Geschwister der Karte im Tile-Wrapper. Rahmen und Fläche liegen
+// seit dem edu-sharing-Umbau (2026-07-31) beim Wrapper — die Leiste ist
+// deshalb randlos und transparent und übernimmt nur die untere Rundung.
 .card-actions {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   padding: 8px 12px;
-  background: #fff;
-  border: 1px solid $border;
-  border-top: none;
-  border-bottom-left-radius: $card-radius;
-  border-bottom-right-radius: $card-radius;
-  margin-top: -1px; // align with card border
+  border-bottom-left-radius: var(--mat-sys-corner-medium);
+  border-bottom-right-radius: var(--mat-sys-corner-medium);
   position: relative;
   z-index: 1;
 }
 
-.card-btn {
-  font-size: .72rem;
-  font-weight: 600;
-  padding: 5px 11px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background .15s ease, color .15s ease, border-color .15s ease;
-  line-height: 1.3;
-  white-space: nowrap;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+// Größe der Material-Knöpfe in der Aktionsleiste. Materials Vorgabe (40 px
+// hoch, `label-large`) ist für eine Leiste IN der Kachel zu wuchtig — die
+// Kachel ist ab 260 px breit. Angepasst wird über die KOMPONENTEN-Token, nicht
+// durch Überschreiben von Materials Regeln: so bleiben Zustände, Ripple und
+// Fokusring unangetastet.
+//
+// Die Farbe kommt aus dem Theme (`--mat-sys-primary`), das seinerseits an
+// `--boerdi-primary` hängt (Token-Brücke in `widget.component.scss`) — deshalb
+// steht hier kein einziger Farbwert mehr.
+.card-btn-m3 {
+  --mat-button-outlined-container-height: 30px;
+  --mat-button-outlined-horizontal-padding: 11px;
+  --mat-button-outlined-label-text-size: 0.72rem;
+  --mat-button-outlined-label-text-weight: 600;
+  --mat-button-outlined-icon-spacing: 4px;
+  --mat-button-tonal-container-height: 30px;
+  --mat-button-tonal-horizontal-padding: 11px;
+  --mat-button-tonal-label-text-size: 0.72rem;
+  --mat-button-tonal-label-text-weight: 600;
 
-  // ─── Hierarchie ──────────────────────────────────────────────────
-  // ``--guide``  = Primary (gefüllt dunkelblau) — wichtigste CTA der Card,
-  //                "Bring mich hin" im Lotsen-Modus.
-  // Alle anderen = Secondary (outlined dunkelblau) — sekundäre Aktionen,
-  //                visuell ruhiger, damit pro Card eine klare Aktion
-  //                heraussticht.
-  //
-  // Bei mehreren Aktionen sieht die Card so aus:
-  //   [▮ Bring mich hin]  [▢ Inhalte]  [▢ Lernpfad]  [▢ Themenseite]
-  // ohne Lotsen:
-  //   [▢ Inhalte]  [▢ Lernpfad]  [▢ Themenseite]
-
-  &--guide {
-    background: var(--boerdi-primary, #1c4587);
-    color: #ffffff;
-    border: 1px solid var(--boerdi-primary, #1c4587);
-    &:hover {
-      background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 88%, black);
-      border-color: color-mix(in srgb, var(--boerdi-primary, #1c4587) 88%, black);
-    }
-  }
-
-  &--primary,
-  &--secondary,
-  &--tertiary,
-  &--remix {
-    background: transparent;
-    color: var(--boerdi-primary, #1c4587);
-    border: 1px solid color-mix(in srgb, var(--boerdi-primary, #1c4587) 35%, transparent);
-    &:hover {
-      background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 8%, transparent);
-      border-color: var(--boerdi-primary, #1c4587);
-    }
-  }
-
-  &:disabled {
-    opacity: .45;
-    cursor: default;
-    &:hover { background: inherit; border-color: inherit; }
+  // Materials `icon-spacing`-Token greift nur für `<mat-icon>`; wir liefern
+  // Inline-SVG (DSGVO: keine Icon-Font von einem CDN). Ohne diese Regel klebt
+  // das Symbol am Text — im Bildschirmfoto 2026-07-31 deutlich sichtbar.
+  .bb-icon {
+    display: inline-flex;
+    align-items: center;
+    font-size: 15px;
+    line-height: 0;
+    margin-inline-end: 5px;
   }
 }
 
-// Topic page smart button + dropdown — einheitlich hellblau
+// Themenseite + Varianten-Umschalter. In ALT ein zusammengeschweißter
+// Split-Button (linke Ecken rund, rechte eckig, 1 px Überlappung). Das ist
+// KEIN M3-Muster und ließe sich nur durch Übermalen von Materials Rundung
+// nachbauen — stattdessen zwei eigenständige Knöpfe dicht nebeneinander. Der
+// Zusammenhang bleibt über Nähe und das `aria-label` des Umschalters lesbar.
 .tp-wrapper {
   display: inline-flex;
-  align-items: stretch;
+  align-items: center;
+  gap: 2px;
   position: relative;
-
-  .card-btn--tertiary {
-    border-radius: 8px 0 0 8px;
-  }
-
-  // When no dropdown toggle, keep full rounded corners
-  &:not(:has(.tp-dropdown-wrap)) .card-btn--tertiary {
-    border-radius: 8px;
-  }
 }
 
 .tp-toggle {
-  font-size: .85rem;
-  padding: 5px 7px;
-  cursor: pointer;
-  background: transparent;
-  color: var(--boerdi-primary, #1c4587);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--boerdi-primary, #1c4587) 35%, transparent);
-  border-left: none;
-  border-radius: 0 8px 8px 0;
-  line-height: 1;
-  margin-left: -1px;  // overlap mit angrenzendem Themenseite-Button
-  &:hover {
-    background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 8%, transparent);
-    border-color: var(--boerdi-primary, #1c4587);
-  }
+  --mat-icon-button-state-layer-size: 30px;
+  --mat-icon-button-icon-size: 18px;
 }
 
 .tp-dropdown-wrap {
@@ -136,9 +99,9 @@ $card-radius: 12px;
   right: 0;
   z-index: 10;
   margin-top: 2px;
-  background: #fff;
-  border: 1px solid rgba(0,0,0,.12);
-  border-radius: 6px;
+  background: var(--mat-sys-surface-container-high);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-small);
   box-shadow: 0 4px 12px rgba(0,0,0,.1);
   min-width: 130px;
   overflow: hidden;
@@ -148,10 +111,10 @@ $card-radius: 12px;
   display: block;
   padding: 6px 12px;
   font-size: .7rem;
-  color: var(--boerdi-primary, #1c4587);
+  color: var(--mat-sys-primary);
   text-decoration: none;
   white-space: nowrap;
-  &:hover { background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 10%, transparent); }
+  &:hover { background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent); }
   &.tp-active { font-weight: 700; }
 }
 
@@ -162,22 +125,23 @@ $card-radius: 12px;
   justify-content: space-between;
   padding: 8px 12px;
   margin-top: 6px;
-  background: #F8FAFC;
-  border-radius: 8px;
-  border: 1px solid $border;
+  // B2: aus den Systemtoken, damit die Leiste mit Karte und Blase mitkippt.
+  background: var(--mat-sys-surface-container);
+  border-radius: var(--mat-sys-corner-small);
+  border: 1px solid var(--mat-sys-outline-variant);
 }
 
 .pagination-info {
   font-size: .75rem;
-  color: $text-muted;
+  color: var(--mat-sys-on-surface-variant);
   font-weight: 500;
 }
 
 .btn-load-more {
-  background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 10%, white);
-  color: var(--boerdi-primary, #1c4587);
-  border: 1px solid color-mix(in srgb, var(--boerdi-primary, #1c4587) 25%, transparent);
-  border-radius: 16px;
+  background: color-mix(in srgb, var(--mat-sys-primary) 10%, var(--mat-sys-surface));
+  color: var(--mat-sys-primary);
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 25%, transparent);
+  border-radius: var(--mat-sys-corner-large);
   padding: 5px 16px;
   font-size: .78rem;
   cursor: pointer;
@@ -188,8 +152,8 @@ $card-radius: 12px;
   gap: 4px;
 
   &:hover:not(:disabled) {
-    background: var(--boerdi-primary, #1c4587);
-    color: #fff;
+    background: var(--mat-sys-primary);
+    color: var(--mat-sys-on-primary);
   }
 
   &:disabled {

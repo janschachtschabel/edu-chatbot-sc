@@ -58,6 +58,7 @@ async def assess(
     ctx: TurnContext,
     memory_fetch: MemoryFetch,
     progress: TurnProgress = NO_PROGRESS,
+    engine: str = "pattern",
 ) -> TurnContext:
     """Safety + Classify + Memory als parallele Gruppe; liefert den mutierten
     ``ctx`` (safety, classification, memories gesetzt)."""
@@ -80,9 +81,18 @@ async def assess(
     # Safety + Classify + Memory-Fetch parallel — Memory hängt nur an der
     # session_id, ist also unabhängig von Klassifikation/Safety.
     async def _safety():
-        return await assess_safety(ctx.req.message, signals)
+        return await assess_safety(ctx.req.message, signals, usage_acc=ctx.usage)
 
     async def _classify():
+        # A4b: Der Agent-Modus hat keinen Klassifikator — das ist sein Zweck
+        # („eine einfachere und schnellere Variante ohne Klassifikationsprompt").
+        # Die nachgelagerten Knoten brauchen trotzdem eine gültige Form, und die
+        # gibt es hier schon: dieselbe Funktion trägt den Krisen-Kurzschluss und
+        # den Classify-Fehlerfall. Die Verzweigung sitzt IN der Coroutine und
+        # nicht am ``gather`` darunter — so bleibt der Weg der Muster-Engine
+        # Zeile für Zeile derselbe.
+        if engine == "agent":
+            return _fallback_classification(ss, "I01")
         return await classify_input(
             ctx.req.message, ctx.history, ss, ctx.env,
             ctx.req.canvas_state, usage_acc=ctx.usage,

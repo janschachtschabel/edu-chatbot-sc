@@ -262,6 +262,38 @@ class TestTopicPagesWithWarmup:
         rec["global_raises"] = True
         assert _warm(query="Nichtsda") == "Keine Themenseiten gefunden"
 
+    # ── W2-2: Filter-Hinweis des Global-Fallbacks ───────────────────────
+    # ALT reichte ``discipline`` durch — ein Parameter, den das Schema von
+    # ``search_wlo_topic_pages`` nicht kennt (Server verwirft ihn stumm) —
+    # und warf ``educationalContext`` weg, den einzigen Filter, den das Tool
+    # dort tatsächlich auswertet.
+    def test_global_fallback_forwards_educational_context(self, warmup_mcp):
+        calls, rec = warmup_mcp
+        rec["primary"] = '{"results": []}'
+        _warm(query="Mathematik", extra={
+            "query": "Mathematik",
+            "educationalContext": "Sekundarstufe I",
+        })
+        _tool, global_args = calls[2]
+        assert global_args.get("educationalContext") == "Sekundarstufe I"
+
+    def test_global_fallback_drops_unsupported_discipline(self, warmup_mcp):
+        calls, rec = warmup_mcp
+        rec["primary"] = '{"results": []}'
+        _warm(query="Mathematik", extra={"query": "Mathematik", "discipline": "Mathematik"})
+        _tool, global_args = calls[2]
+        assert "discipline" not in global_args
+
+    def test_global_fallback_keeps_full_result_window(self, warmup_mcp):
+        # Bewusst NICHT verkleinert: der Fallback existiert, um eine Themenseite
+        # zu finden, die der Server-Matcher übersehen hat — der Titel-Filter
+        # danach lebt von der Breite des Fensters (Server-Obergrenze ist 20).
+        calls, rec = warmup_mcp
+        rec["primary"] = '{"results": []}'
+        _warm(query="Mathematik")
+        _tool, global_args = calls[2]
+        assert global_args["maxResults"] == 20
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # _resolve_m16_topic_page_view  (R6-wired 2026-07-24)
@@ -287,19 +319,22 @@ def m16(monkeypatch):
                         "topic_page_url": "http://tp/1"}],
         "swimlanes": {"swimlanes": [{"heading": "Videos", "type": "video",
                                      "cards": [{"node_id": "v1", "title": "Klima-Video"}]}],
-                      "variant_title": "Klimawandel TP", "topic_page_url": "http://tp/1"},
+                      "variant_title": "Klimawandel TP", "topic_page_url": "http://tp/1",
+                      "reason": ""},
         "mcp_raises": False,
         "calls": [],
+        "call_args": [],
     }
 
     async def _call(tool, args):
         rec["calls"].append(tool)
+        rec["call_args"].append((tool, dict(args)))
         if rec["mcp_raises"]:
             raise RuntimeError("mcp boom")
         return tool                       # raw text irrelevant — parse-Fns are mocked
 
     monkeypatch.setattr(topic_pages, "call_mcp_tool", _call)
-    monkeypatch.setattr("boerdi.services.mcp.parsers.parse_wlo_cards",
+    monkeypatch.setattr("boerdi.services.mcp.parsers.parse_wlo_topic_page_cards",
                         lambda raw: list(rec["candidates"]))
     monkeypatch.setattr("boerdi.services.mcp.parsers.parse_topic_page_swimlanes",
                         lambda raw: rec["swimlanes"])
@@ -335,7 +370,10 @@ class TestResolveM16TopicPageView:
     def test_m16_success_builds_topic_page_view(self, m16):
         view, cards, text = _run_m16("M16", entities={"thema": "Klimawandel"})
         assert view is not None
-        assert view.variant_title == "Klimawandel"   # candidate title preferred
+        # W5-1: Der Titel kommt jetzt aus der Antwort (Parser bevorzugt
+        # ``collectionTitle``) — einen Kandidaten-Titel aus einer Vorsuche gibt
+        # es auf dem Ein-Call-Pfad nicht mehr.
+        assert view.variant_title == "Klimawandel TP"
         assert len(view.swimlanes) == 1
         assert view.swimlanes[0].heading == "Videos"
         assert view.swimlanes[0].cards[0].node_id == "v1"
@@ -367,14 +405,70 @@ class TestResolveM16TopicPageView:
         assert "search_wlo_collections" not in m16["calls"]   # NO collection search
         assert m16["calls"] == ["get_topic_page_content"]      # straight to content
 
-    def test_m16_without_collection_id_uses_search(self, m16):
+    # Zweck dieser beiden Tests ist: KEIN Seitenkontext-Kurzschluss → das Thema
+    # geht als ``query`` an den Server, der es selbst auflöst (W5-1; vorher
+    # prüften sie den Toolnamen der inzwischen entfallenen Vorsuche).
+    def test_m16_without_collection_id_resolves_by_topic(self, m16):
         _view, _cards, _text = _run_m16_pc("M16", {}, entities={"thema": "Klimawandel"})
-        assert m16["calls"][0] == "search_wlo_collections"     # regression: search path
+        _tool, args = m16["call_args"][0]
+        assert args.get("query") == "Klimawandel"
+        assert "collectionId" not in args
 
-    def test_m16_collection_kind_not_topic_still_searches(self, m16):
+    def test_m16_collection_kind_not_topic_resolves_by_topic(self, m16):
         # collection_id present, but page_kind != topic → no shortcut.
         _view, _cards, _text = _run_m16_pc(
             "M16", {"page_kind": "collection", "collection_id": "C-x"},
             entities={"thema": "Klimawandel"},
         )
-        assert m16["calls"][0] == "search_wlo_collections"
+        _tool, args = m16["call_args"][0]
+        assert args.get("query") == "Klimawandel"
+        assert "collectionId" not in args
+
+    # ── W5-1: der neue Server löst das Thema selbst auf ──────────────────
+    # ``get_topic_page_content`` nimmt ``query`` und findet die passende
+    # Themenseite intern — die vorgeschaltete Suche entfällt (gemessen
+    # 2026-07-30: 3,0 s statt 4,0 s, ein Call statt zwei).
+    def test_m16_resolves_topic_page_in_a_single_call(self, m16):
+        _view, _cards, _text = _run_m16("M16", entities={"thema": "Klimawandel"})
+        assert m16["calls"] == ["get_topic_page_content"]
+
+    def test_m16_passes_the_topic_as_query(self, m16):
+        _view, _cards, _text = _run_m16("M16", entities={"thema": "Klimawandel"})
+        _tool, args = m16["call_args"][0]
+        assert args.get("query") == "Klimawandel"
+
+    # W3-Erbe: die Sammlungs-Suche als Kandidatenquelle war unzuverlässig (3 von
+    # 7, davon eine FALSCHE Seite: "Lebensmittelchemie" statt "Chemie"). Seit
+    # W5-1 löst der Server das Thema selbst auf — der Wächter bleibt, jetzt als
+    # „gar keine Suche": strukturell kann keine falsche Quelle mehr greifen.
+    def test_m16_calls_no_search_tool_at_all(self, m16):
+        _view, _cards, _text = _run_m16("M16", entities={"thema": "Klimawandel"})
+        assert not [c for c in m16["calls"] if c.startswith("search_")]
+
+    # ── W2-3: den vom Server gemeldeten Grund auswerten ─────────────────
+    # Der Kandidaten-Marker-Filter aus W2-3 ist mit W3 entfallen: er sortierte
+    # Sammlungen ohne ``topic_page_url`` aus, und die Kandidaten kommen jetzt
+    # aus der Themenseiten-Suche, deren Karten den Marker IMMER tragen
+    # (``parse_wlo_topic_page_cards`` setzt sonst die Render-URL) — live
+    # gegengeprüft: 7 von 7 Karten mit Marker. Die Bedingung war damit
+    # unerreichbar geworden.
+    def test_m16_reason_no_page_config_ref_says_no_topic_page_exists(self, m16):
+        m16["candidates"] = [{"node_id": "a", "title": "Klimawandel"}]
+        m16["swimlanes"] = {"swimlanes": [], "reason": "no_page_config_ref"}
+        _view, _cards, text = _run_m16("M16", entities={"thema": "Klimawandel"})
+        assert "keine Themenseite gefunden" in text
+        assert "noch leer" not in text          # nichts behaupten, was nicht stimmt
+
+    def test_m16_reason_empty_config_keeps_empty_page_wording(self, m16):
+        m16["candidates"] = [
+            {"node_id": "a", "title": "Klimawandel", "topic_page_url": "http://tp/1"},
+        ]
+        m16["swimlanes"] = {"swimlanes": [], "reason": "empty_config"}
+        _view, _cards, text = _run_m16("M16", entities={"thema": "Klimawandel"})
+        assert "noch leer" in text               # Themenseite existiert, ist aber leer
+
+    def test_m16_unknown_reason_keeps_conservative_wording(self, m16):
+        m16["candidates"] = [{"node_id": "a", "title": "Klimawandel"}]
+        m16["swimlanes"] = {"swimlanes": [], "reason": "irgendwas_neues"}
+        _view, _cards, text = _run_m16("M16", entities={"thema": "Klimawandel"})
+        assert "noch leer" in text

@@ -19,6 +19,12 @@ MCP-Prefetch (``_launch_speculative_prefetch`` → der LP-Body bekommt hier
 Die Entscheidungs- und Fast-Path-Funktionen sind Top-Level-Importe (Tests patchen
 sie an DIESEM Modul); ``load_rag_config`` ist die Read-Fassade. ``async`` aus
 Parität mit ALT ``_route_pattern`` und weil die Fast-Paths hier ``await`` brauchen.
+
+Die drei reinen Kopf-Helfer (``_update_persona`` / ``_resolve_rag_areas`` /
+``_render_memory_context``) wohnen seit A4c in ``domain/route_head`` — dieser
+Knoten war für sie nur der Fundort, nicht der richtige Ort. Sie werden hier
+zurückimportiert, damit dieselbe Randkonvention gilt: auflösbar und patchbar AN
+DIESEM Modul.
 """
 
 from __future__ import annotations
@@ -26,75 +32,46 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from boerdi.domain.agent_pattern import agent_pattern
 from boerdi.domain.context import build_context
 from boerdi.domain.lp_intent import detect_lp_intent
 from boerdi.domain.pattern_engine import select_pattern
 from boerdi.domain.policy import assess_policy
 from boerdi.domain.quick_reply_policy import _qr_policy
+from boerdi.domain.route_head import (
+    _render_memory_context,
+    _resolve_rag_areas,
+    _update_persona,
+)
 from boerdi.domain.route_tail import reconcile_effective_pattern
 from boerdi.domain.state_machine import validate_transition
+from boerdi.domain.turn_frame import clarification_exhausted, resolve_frame
 from boerdi.graph.state import TurnContext
+from boerdi.i18n import resolve_locale
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
-from boerdi.services.canvas_fast_path import run_canvas_create_fast_path
+from boerdi.services.canvas_fast_path import (
+    CanvasFastPathResult,
+    run_canvas_create_fast_path,
+)
 from boerdi.services.config_loader import load_rag_config
 from boerdi.services.lp_fast_path import run_lp_fast_path
 
 logger = logging.getLogger(__name__)
 
 
-def _resolve_rag_areas(
-    pattern_output: dict[str, Any], rag_config: dict[str, Any]
-) -> list[str]:
-    """Strenge RAG-Whitelist je Pattern (Welle E, ALT ``_route_pattern`` Schritt 4).
-
-    1) ``rag_areas`` gesetzt (auch leere Liste) → exakt diese, gegen die Config
-       gefiltert (Tippschutz); leer bleibt leer.
-    2) ``sources`` ohne ``rag`` → gar kein RAG.
-    3) Default → always-on-Areas (+ on-demand, wenn ``sources`` „rag" enthält).
-    """
-    pattern_sources = pattern_output.get("sources")
-    pattern_rag_areas = pattern_output.get("rag_areas")
-    if pattern_rag_areas is not None:
-        available_rag_areas = [a for a in pattern_rag_areas if a in rag_config]
-    elif pattern_sources is not None and "rag" not in pattern_sources:
-        available_rag_areas = []
-    else:
-        available_rag_areas = [
-            area for area, cfg in rag_config.items() if cfg.get("mode") == "always"
-        ]
-        if pattern_sources is not None and "rag" in pattern_sources:
-            for area, cfg in rag_config.items():
-                if cfg.get("mode") == "on-demand" and area not in available_rag_areas:
-                    available_rag_areas.append(area)
-    return available_rag_areas
-
-
-def _render_memory_context(memories: list[dict[str, Any]]) -> str:
-    """Session-Erinnerungen zu einem Prompt-Block rendern (max. 10; ALT Schritt 5)."""
-    mems = memories or []
-    if not mems:
-        return ""
-    mem_parts = [f"- {m['key']}: {m['value']}" for m in mems[:10]]
-    return "\nErinnerungen:\n" + "\n".join(mem_parts)
-
-
-def _update_persona(session_state: dict[str, Any], classification: Any) -> None:
-    """R-06: Persona einmal persistieren, bei Korrektur oder expliziter Änderung
-    überschreiben (in-place auf ``session_state``, wie ALT ``chat_turn_setup``)."""
-    detected = classification.persona_id
-    if not session_state.get("persona_id"):
-        session_state["persona_id"] = detected
-    elif classification.turn_type == "correction":
-        session_state["persona_id"] = detected
-    elif detected != "P-AND" and detected != session_state["persona_id"]:
-        session_state["persona_id"] = detected
-
-
-async def route(ctx: TurnContext, progress: TurnProgress = NO_PROGRESS) -> TurnContext:
+async def route(
+    ctx: TurnContext,
+    progress: TurnProgress = NO_PROGRESS,
+    engine: str = "pattern",
+) -> TurnContext:
     """Routing-Entscheidung: merge → validate → policy → select → strip → RAG →
     memory → Fast-Path-Tail (LP-Fast-Path → Canvas-Fast-Path →
     Effective-Pattern-Reconciliation → QR-Policy → fp-Marker). Mutiert ``ctx``
-    in-place und gibt ihn zurück."""
+    in-place und gibt ihn zurück.
+
+    ``engine`` (A4c) ist die Maschine dieses Zuges. Im Agent-Modus entfallen die
+    Musterwahl und beide Schnellwege; alles andere — Persona-Merge, Policy samt
+    Werkzeug-Sperren, RAG-Whitelist, QR-Policy — gilt unverändert."""
     cls = ctx.classification
     safety = ctx.safety
     ss = ctx.session_state
@@ -133,25 +110,57 @@ async def route(ctx: TurnContext, progress: TurnProgress = NO_PROGRESS) -> TurnC
         message=ctx.req.message,
         persona_id=ss["persona_id"],
         intent_id=cls.intent_id,
+        # Der Hinweis wird in `respond` an die Antwort gehängt und ist damit
+        # Bot-Ausgabe — er folgt der Sprache des Zuges (C1-g2c).
+        lang=resolve_locale(getattr(ctx.req.environment, "locale", None)),
     )
     for t in policy.blocked_tools:
         if t not in safety.blocked_tools:
             safety.blocked_tools.append(t)
 
-    # 4. Pattern-Selektion (Enforce > Hint > Fallback).
-    progress.start("pattern", "Pattern selection (Safety → Hint → Fallback)")
-    winner, pattern_output, scores, eliminated = select_pattern(
-        persona_id=ss["persona_id"],
-        state_id=new_state,
-        intent_id=cls.intent_id,
-        signals=new_signals,
-        page=ctx.env.get("page", "/"),
-        device=ctx.env.get("device", "desktop"),
-        entities=ss.get("entities") or {},
-        intent_confidence=cls.intent_confidence,
-        enforced_pattern_id=safety.enforced_pattern or None,
-        pattern_id_hint=getattr(cls, "pattern_id_hint", None),
-    )
+    # 3b. Frame-Auflösung (B3) — VOR der Musterwahl, weil sie sonst schon
+    #     gefallen ist. Hat der Klärer seine Versuche verbraucht, ohne dass der
+    #     Nutzer einen Slot geliefert hat, wird er hier umgeleitet, statt zum
+    #     dritten Mal wortgleich zu fragen. Die Safety behält Vorrang: ihre
+    #     Erzwingung wird nur ersetzt, wenn es gar keine gibt.
+    enforced_pattern_id = safety.enforced_pattern or None
+    frame_exhausted = clarification_exhausted(ss.get("entities") or {})
+    if not enforced_pattern_id:
+        frame_target = resolve_frame(
+            ss.get("entities") or {}, getattr(cls, "pattern_id_hint", None)
+        )
+        if frame_target:
+            logger.info(
+                "Frame erschoepft: Klaerer nach %s umgeleitet statt erneut zu fragen",
+                frame_target,
+            )
+            enforced_pattern_id = frame_target
+
+    # 4. Pattern-Selektion (Enforce > Hint > Fallback). Im Agent-Modus (A4c)
+    #    gibt es nichts zu wählen — der Agent sucht sich sein Werkzeug selbst.
+    #    Die Rückgabe-Form bleibt dieselbe, damit alles Nachgelagerte unverändert
+    #    weiterläuft (Präzedenz A4b: gleiche Form, anderer Erzeuger).
+    if engine == "agent":
+        winner, pattern_output, scores, eliminated = agent_pattern(
+            signals=new_signals,
+            device=ctx.env.get("device", "desktop"),
+            entities=ss.get("entities") or {},
+            persona_id=ss["persona_id"],
+        )
+    else:
+        progress.start("pattern", "Pattern selection (Safety → Hint → Fallback)")
+        winner, pattern_output, scores, eliminated = select_pattern(
+            persona_id=ss["persona_id"],
+            state_id=new_state,
+            intent_id=cls.intent_id,
+            signals=new_signals,
+            page=ctx.env.get("page", "/"),
+            device=ctx.env.get("device", "desktop"),
+            entities=ss.get("entities") or {},
+            intent_confidence=cls.intent_confidence,
+            enforced_pattern_id=enforced_pattern_id,
+            pattern_id_hint=getattr(cls, "pattern_id_hint", None),
+        )
 
     # 4b. Safety/Policy: gesperrte Tools aus dem gewählten Pattern entfernen.
     if safety.blocked_tools and "tools" in pattern_output:
@@ -174,6 +183,12 @@ async def route(ctx: TurnContext, progress: TurnProgress = NO_PROGRESS) -> TurnC
     #    ``lp_routed`` als Passthrough zurück (Guard: not lp_routed). Der
     #    spekulative MCP-Prefetch (P5) fehlt noch → der LP-Body bekommt
     #    ``qr_spec_task=None`` als Eingang (startet seinen M09-Spec-Task selbst).
+    #    A4c: Beide Schnellwege sind Abkürzungen der Muster-Engine und deshalb
+    #    im Agent-Modus aus. Die Sperre hängt an DIESEM Schalter und nicht
+    #    daran, dass die Ersatz-Klassifikation zufällig nie I05 sagt — ein
+    #    Verhalten, das nur aus einer Eigenschaft eines anderen Knotens folgt,
+    #    ist geliehen und nicht zugesichert.
+    fast_paths_on = engine != "agent"
     fp_response_local = ""
     fp_cards_local: list[dict[str, Any]] = []
     has_lp_intent, thema = detect_lp_intent(
@@ -181,7 +196,7 @@ async def route(ctx: TurnContext, progress: TurnProgress = NO_PROGRESS) -> TurnC
         message=ctx.req.message,
         session_state=ss,
         pattern_output=pattern_output,
-    )
+    ) if fast_paths_on else (False, "")
     lp = await run_lp_fast_path(
         has_lp_intent=has_lp_intent,
         thema=thema,
@@ -201,16 +216,26 @@ async def route(ctx: TurnContext, progress: TurnProgress = NO_PROGRESS) -> TurnC
         fp_cards_local = lp.wlo_cards_raw
         new_state = lp.new_state
 
-    cv = await run_canvas_create_fast_path(
-        req=ctx.req,
-        classification=cls,
-        session_state=ss,
-        pattern_output=pattern_output,
-        memory_context=memory_context,
-        lp_routed=lp_routed,
-        tools_called=tools_called,
-        new_state=new_state,
-    )
+    if fast_paths_on:
+        cv = await run_canvas_create_fast_path(
+            req=ctx.req,
+            classification=cls,
+            session_state=ss,
+            pattern_output=pattern_output,
+            memory_context=memory_context,
+            lp_routed=lp_routed,
+            tools_called=tools_called,
+            new_state=new_state,
+            frame_exhausted=frame_exhausted,
+            usage_acc=ctx.usage,
+        )
+    else:
+        # Der „nicht geroutet"-Vertrag des Schnellwegs: Eingaben durchgereicht.
+        cv = CanvasFastPathResult(
+            routed=False, payload_out=None, forced_quick_replies=[],
+            response_text="", tools_called=tools_called, wlo_cards_raw=[],
+            new_state=new_state,
+        )
     canvas_routed = cv.routed
     # ALT entpackt ``tools_called`` unbedingt aus dem Fast-Path-Return (5.
     # Tupel-Position); nicht geroutet → der Fast-Path echot den Input zurück.

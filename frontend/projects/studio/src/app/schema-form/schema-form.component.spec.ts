@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { AREA_SCHEMAS } from './area-schemas.fixture';
 import type { JsonSchema } from './json-schema';
 import { SchemaFormComponent } from './schema-form.component';
@@ -23,6 +24,9 @@ function byId(el: HTMLElement, id: string): HTMLElement | null {
 async function mount(schema: JsonSchema, value: Record<string, unknown>): Promise<Harness> {
   // several tests mount a second form to compare a variant
   TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen
+  // Zusagen unten brauchen deshalb die oberste Sprachquelle.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
   const fixture = TestBed.createComponent(SchemaFormComponent);
   const emitted: Record<string, unknown>[] = [];
@@ -340,6 +344,9 @@ describe('SchemaFormComponent — unparseable fields are reported upwards', () =
 
   it('announces which fields cannot be parsed, and withdraws it on repair', async () => {
     TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen
+  // Zusagen unten brauchen deshalb die oberste Sprachquelle.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
     TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
     const fixture = TestBed.createComponent(SchemaFormComponent);
     const errors: readonly string[][] = [];

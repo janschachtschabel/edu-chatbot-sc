@@ -12,8 +12,9 @@
  * aktuellen Tab statt eine Folgenachricht zu senden.
  *
  * Pure functions — ``guideModeActive`` (seit Welle E immer ``true``) kommt pro
- * Aufruf als Parameter herein.
+ * Aufruf als Parameter herein, seit C1-b4 ebenso der Übersetzer.
  */
+import type { TranslateFn } from '../i18n/i18n';
 
 /** Marker-Präfix der Guide-QR-Konvention. */
 export const GUIDE_QR_PREFIX = '__guide__|';
@@ -33,14 +34,20 @@ export function shouldHideGuideQuickReply(qr: string, guideModeActive: boolean):
   return typeof qr === 'string' && qr.startsWith(GUIDE_QR_PREFIX);
 }
 
-/** Extrahiert den Anzeige-Text aus einem Guide-QR-String. */
-export function guideQuickReplyLabel(qr: string, guideModeActive: boolean): string {
+/**
+ * Extrahiert den Anzeige-Text aus einem Guide-QR-String.
+ *
+ * @param t Übersetzer (C1-b4) — nur für den Rückfall, wenn das Backend das
+ *   Label-Segment leer lässt. Das Label selbst ist Backend-Inhalt und geht nie
+ *   durch den Katalog. `t` als letzter Parameter, weil dieses Modul rein ist.
+ */
+export function guideQuickReplyLabel(qr: string, guideModeActive: boolean, t: TranslateFn): string {
   if (!isGuideQuickReply(qr, guideModeActive)) return qr;
   const rest = qr.slice(GUIDE_QR_PREFIX.length);
   const sepIdx = rest.indexOf('|');
-  if (sepIdx === -1) return rest.trim() || 'Bring mich hin';
+  if (sepIdx === -1) return rest.trim() || t('chips.guideFallback');
   const label = rest.slice(0, sepIdx).trim();
-  return label || 'Bring mich hin';
+  return label || t('chips.guideFallback');
 }
 
 /** Extrahiert die URL aus einem Guide-QR-String. URLs dürfen das Trennzeichen

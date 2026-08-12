@@ -76,12 +76,14 @@ def _patch(monkeypatch):
     return upd, save
 
 
-def _ctx(action=None, message="", page="/", tour_state=None) -> state_mod.TurnContext:
+def _ctx(
+    action=None, message="", page="/", tour_state=None, locale="de-DE"
+) -> state_mod.TurnContext:
     ctx = state_mod.TurnContext(
         req=ChatRequest(
             session_id="bb-1",
             message=message,
-            environment=Environment(tour_action=action, page=page),
+            environment=Environment(tour_action=action, page=page, locale=locale),
         )
     )
     ctx.session_state = {"tour_state": tour_state if tour_state is not None else {}}
@@ -197,3 +199,53 @@ def test_not_a_tour_turn_passes_through(monkeypatch):
 
     assert out.early_response is None
     assert upd.calls == [] and save.calls == []
+
+
+# ── Sprache des Zuges (C1-g2d) ──────────────────────────────────
+
+_CFG_EN = {
+    **_CFG,
+    "intro_en": "Welcome to the tour!",
+    "groups": [{**_CFG["groups"][0], "label_en": "Teachers"}],
+    "steps": {
+        **_CFG["steps"],
+        "group": {**_CFG["steps"]["group"], "text_en": "Who are you here for?"},
+        "intro": {**_CFG["steps"]["intro"], "nav_label_en": "To the home page"},
+    },
+}
+
+
+def _patch_en(monkeypatch):
+    upd, save = _Spy(), _Spy()
+    monkeypatch.setattr(tour_mod, "load_website_tour_config", lambda: dict(_CFG_EN))
+    monkeypatch.setattr(tour_mod, "update_session", upd)
+    monkeypatch.setattr(tour_mod, "save_message", save)
+    return upd, save
+
+
+def test_english_turn_answers_in_english(monkeypatch):
+    _patch_en(monkeypatch)
+    out = _run(_ctx("start", message="start", page="/home/", locale="en-GB"))
+
+    assert out.early_response.content == "Who are you here for?"
+    assert "Teachers" in out.early_response.quick_replies
+
+
+def test_english_chip_reply_still_finds_the_group(monkeypatch):
+    """Der englische Chip trägt die englische Beschriftung — und kommt so zurück."""
+    _patch_en(monkeypatch)
+    state = {"active": True, "step": "group", "group": "", "misses": 0}
+    out = _run(_ctx(None, message="Teachers", page="/home/",
+                    tour_state=state, locale="en-GB"))
+
+    assert out.early_response.tour == {
+        "active": True, "step": "group_page", "group": "lehrer",
+    }
+
+
+def test_german_turn_is_untouched_by_the_english_fields(monkeypatch):
+    _patch_en(monkeypatch)
+    out = _run(_ctx("start", message="start", page="/home/"))
+
+    assert out.early_response.content == "Für wen suchst du?"
+    assert "Lehrkräfte" in out.early_response.quick_replies

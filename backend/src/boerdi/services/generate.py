@@ -111,6 +111,9 @@ async def generate_response(
         rag_config,
         _cards_inline_mode,
         _degradation_no_tools,
+        # Nur fürs Protokoll: ``pattern_output`` trägt keine Kennung, die
+        # E3-Warnung stand deshalb im Betrieb als „Muster ?" da (F-neu).
+        pattern_label=pattern_label,
     )
 
     # Phasen-Split Teil 2: Messages-Aufbau + Prefetch-Injektion (P12+P14)
@@ -181,4 +184,5 @@ async def generate_response(
     # Phasen-Split Teil 1: Max-Iterations-Fallback (P16) als eigene Modul-
     # Funktion — jeder Pfad darin returnt das finale 4-Tupel, daher direktes
     # ``return await``.
-    return await _max_iterations_fallback(messages, all_cards, tools_called, outcomes)
+    return await _max_iterations_fallback(
+        messages, all_cards, tools_called, outcomes, usage_acc)

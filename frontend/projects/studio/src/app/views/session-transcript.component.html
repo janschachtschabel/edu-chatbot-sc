@@ -1,10 +1,9 @@
 <studio-async-state
-  label="Der Gesprächsverlauf"
+  [label]="t('sv.transcript')"
   [loading]="messages.loading()"
   [error]="messages.error()"
   [empty]="messages.isEmpty()"
-  emptyText="In dieser Session sind keine Nachrichten gespeichert — sie wurde
-             angelegt, aber nie benutzt, oder der Verlauf wurde geleert."
+  [emptyText]="t('st.empty')"
   (retry)="load()"
 />
 

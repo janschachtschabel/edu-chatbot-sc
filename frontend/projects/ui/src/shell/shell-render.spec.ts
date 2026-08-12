@@ -2,6 +2,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { ChatMessage } from '../grouping/message-types';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import { ShellRender } from './shell-render';
 
 /**
@@ -20,6 +22,7 @@ function make(over: Partial<{ sessionId: string; trusted: string[] }> = {}) {
     sessionId: () => state.sessionId,
     trustedDomains: () => ['wirlernenonline.de', ...state.trusted],
     inlineResultGrouping: () => true,
+    t: createTranslator(DE, DE),
   });
   return { render, state };
 }

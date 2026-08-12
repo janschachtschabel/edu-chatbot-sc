@@ -1,19 +1,19 @@
 <details class="cs" [open]="open()" (toggle)="onToggle($event)">
   <summary class="cs-summary">
-    <h3 class="cs-title">{{ section().label }}</h3>
-    <p class="cs-hint">{{ section().hint }}</p>
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
     @if (dirty()) {
-      <span class="cs-flag">Ungespeichert</span>
+      <span class="cs-flag">{{ t('editor.unsavedShort') }}</span>
     }
   </summary>
 
   <div class="cs-body mr">
     @if (loading()) {
-      <p class="cs-state" aria-busy="true">Registry wird geladen …</p>
+      <p class="cs-state" aria-busy="true">{{ t('mcp.loading') }}</p>
     } @else if (loadError()) {
       <div class="cs-state cs-state--error" role="alert">
         <p>{{ loadError() }}</p>
-        <button type="button" class="cs-btn" (click)="load()">Erneut versuchen</button>
+        <button type="button" class="cs-btn" (click)="load()">{{ t('async.retry') }}</button>
       </div>
     } @else {
       <ul class="mr-list">
@@ -27,11 +27,11 @@
                   [checked]="server.enabled"
                   (change)="edit($index, { enabled: $any($event.target).checked })"
                 />
-                Aktiv
+                {{ t('mcp.field.active') }}
               </label>
 
               <label class="mr-field">
-                <span class="mr-label">Kennung</span>
+                <span class="mr-label">{{ t('mcp.field.id') }}</span>
                 <input
                   type="text"
                   class="mr-id"
@@ -42,7 +42,7 @@
               </label>
 
               <label class="mr-field">
-                <span class="mr-label">Name</span>
+                <span class="mr-label">{{ t('mcp.field.name') }}</span>
                 <input
                   type="text"
                   class="mr-name"
@@ -52,7 +52,7 @@
               </label>
 
               <label class="mr-field mr-field--wide">
-                <span class="mr-label">Adresse</span>
+                <span class="mr-label">{{ t('mcp.field.url') }}</span>
                 <input
                   type="url"
                   class="mr-url"
@@ -62,16 +62,16 @@
                   (input)="edit($index, { url: $any($event.target).value })"
                 />
                 @if (server.url_readonly) {
+                  <!-- Der Variablenname reist als Platzhalterwert, damit der Satz
+                       als Ganzes übersetzbar bleibt (Muster login.passwordEnv). -->
                   <span class="mr-help">
-                    Kommt aus der Umgebungsvariable
-                    <code>{{ server.url_env_var || 'MCP_SERVER_URL' }}</code>
-                    und wird hier nicht gespeichert.
+                    {{ t('mcp.urlFromEnv', { env: server.url_env_var || 'MCP_SERVER_URL' }) }}
                   </span>
                 }
               </label>
 
               <label class="mr-field mr-field--wide">
-                <span class="mr-label">Beschreibung</span>
+                <span class="mr-label">{{ t('mcp.field.description') }}</span>
                 <input
                   type="text"
                   class="mr-desc"
@@ -93,9 +93,7 @@
                 }
               </ul>
             } @else if (server.enabled) {
-              <p class="mr-help">
-                Keine Werkzeuge gemeldet — der Server war beim Laden nicht erreichbar.
-              </p>
+              <p class="mr-help">{{ t('mcp.noTools') }}</p>
             }
 
             <p class="mr-row-actions">
@@ -103,12 +101,13 @@
                 type="button"
                 class="cs-btn mr-del"
                 [disabled]="!!server.url_readonly"
+                [attr.aria-label]="t('mcp.removeFor', { name: server.name || server.id })"
                 (click)="remove($index)"
               >
-                Entfernen<span class="sr"> — {{ server.name || server.id }}</span>
+                {{ t('mcp.remove') }}
               </button>
               @if (server.url_readonly) {
-                <span class="mr-help">Der Primär-Server lässt sich nicht entfernen.</span>
+                <span class="mr-help">{{ t('mcp.primaryFixed') }}</span>
               }
             </p>
           </li>
@@ -116,36 +115,30 @@
       </ul>
 
       <div class="cs-actions">
-        <button type="button" class="cs-btn mr-add" (click)="add()">Server hinzufügen</button>
+        <button type="button" class="cs-btn mr-add" (click)="add()">{{ t('mcp.add') }}</button>
         <button
           type="button"
           class="cs-btn cs-btn--primary mr-save"
           [disabled]="saving() || !dirty() || incomplete()"
           (click)="save()"
         >
-          {{ saving() ? 'Wird gespeichert …' : 'Registry speichern' }}
+          {{ saving() ? t('editor.saving') : t('mcp.save') }}
         </button>
       </div>
 
       @if (incomplete()) {
-        <p class="cs-state cs-state--error" role="alert">
-          Nicht speicherbar: Jeder Server braucht eine Kennung — Einträge ohne
-          Kennung verwirft der Server beim Speichern.
-        </p>
+        <p class="cs-state cs-state--error" role="alert">{{ t('mcp.incomplete') }}</p>
       }
       @if (saveError()) {
         <p class="cs-state cs-state--error" role="alert">{{ saveError() }}</p>
       }
 
       <section class="mr-discover">
-        <h4 class="mr-discover-title">Server prüfen</h4>
-        <p class="mr-help">
-          Meldet die Werkzeuge einer Adresse, ohne sie einzutragen — zum Prüfen,
-          bevor der Server in die Liste kommt.
-        </p>
+        <h4 class="mr-discover-title">{{ t('mcp.discover.title') }}</h4>
+        <p class="mr-help">{{ t('mcp.discover.hint') }}</p>
         <div class="mr-discover-row">
           <label class="mr-field mr-field--wide">
-            <span class="mr-label">Adresse</span>
+            <span class="mr-label">{{ t('mcp.field.url') }}</span>
             <input
               type="url"
               class="mr-discover-url"
@@ -160,7 +153,7 @@
             [disabled]="discovering() || !discoverUrl().trim()"
             (click)="discover()"
           >
-            {{ discovering() ? 'Wird geprüft …' : 'Prüfen' }}
+            {{ discovering() ? t('mcp.discover.busy') : t('mcp.discover.go') }}
           </button>
         </div>
 
@@ -168,7 +161,7 @@
           <p class="cs-state cs-state--error" role="alert">{{ discoverError() }}</p>
         } @else if (found(); as tools) {
           @if (tools.length === 0) {
-            <p class="cs-state">Der Server ist erreichbar, meldet aber kein Werkzeug.</p>
+            <p class="cs-state">{{ t('mcp.discover.none') }}</p>
           } @else {
             <ul class="mr-tools mr-found">
               @for (tool of tools; track tool.name) {
@@ -179,6 +172,39 @@
               }
             </ul>
           }
+
+          <!-- Der Abgleich: was für diese Adresse eingetragen ist, gegen das,
+               was sie wirklich führt. `role="status"` und nicht `alert` — es ist
+               das Ergebnis eines Knopfdrucks, auf den die Person schon schaut. -->
+          <div class="mr-compare">
+            @if (comparedServer()) {
+              @if (divergence(); as diff) {
+                @if (diff.missing.length > 0) {
+                  <p class="cs-state cs-state--error" role="status">
+                    {{ t('mcp.compare.missing') }}
+                  </p>
+                  <ul class="mr-tools mr-compare-missing">
+                    @for (name of diff.missing; track name) {
+                      <li class="mr-tool"><span class="mr-tool-name">{{ name }}</span></li>
+                    }
+                  </ul>
+                  <p class="mr-help">{{ t('mcp.compare.missingWhy') }}</p>
+                } @else {
+                  <p class="cs-state" role="status">{{ t('mcp.compare.match') }}</p>
+                }
+                @if (diff.extra.length > 0) {
+                  <p class="mr-help">{{ t('mcp.compare.extra') }}</p>
+                  <ul class="mr-tools mr-compare-extra">
+                    @for (name of diff.extra; track name) {
+                      <li class="mr-tool"><span class="mr-tool-name">{{ name }}</span></li>
+                    }
+                  </ul>
+                }
+              }
+            } @else {
+              <p class="mr-help" role="status">{{ t('mcp.compare.unregistered') }}</p>
+            }
+          </div>
         }
       </section>
     }

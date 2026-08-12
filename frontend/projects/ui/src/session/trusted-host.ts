@@ -16,6 +16,7 @@
  * (task 8-4) — they need element/event context. Behaviour pinned by
  * trusted-host.spec.ts. No logic change to ported bodies.
  */
+import type { TranslateFn } from '../i18n/i18n';
 
 /** Kern-WLO-Domains, die IMMER als vertrauenswürdig gelten — unabhängig davon,
  *  ob die dynamische Trusted-Liste (vom Backend via guide-mode-Config bzw. dem
@@ -111,6 +112,7 @@ export function buildTrustedDomains(
 export function externalLinkWarning(
   url: string | null | undefined,
   trustedDomains: readonly string[],
+  t: TranslateFn,
 ): string {
   const raw = (url || '').trim();
   if (!raw) return '';
@@ -121,7 +123,7 @@ export function externalLinkWarning(
   if (!host) return '';
   if (host === window.location.hostname.toLowerCase()) return '';
   if (isTrustedHost(host, trustedDomains)) return '';
-  return 'Achtung! Externe URL.';
+  return t('link.external');
 }
 
 /** Hängt ``?bsid=<sessionId>`` an URLs zu Trusted-Hosts an, damit:

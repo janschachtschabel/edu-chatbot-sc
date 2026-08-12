@@ -19,6 +19,8 @@ from __future__ import annotations
 import asyncio
 import functools
 
+import pytest
+
 from boerdi.api.schemas import ChatRequest, ChatResponse, Environment, SafetyDecision
 from boerdi.graph import build as build_mod
 from boerdi.graph.build import build_turn_graph
@@ -40,11 +42,11 @@ def _spy(name, calls, *, sets=None):
     """
 
     async def _node(ctx, session=None, peer_ip="", memory_fetch=None, on_token=None,
-                    progress=None):
+                    progress=None, engine="pattern"):
         calls.append(
             (name, {"session": session, "peer_ip": peer_ip,
                     "memory_fetch": memory_fetch, "on_token": on_token,
-                    "progress": progress})
+                    "progress": progress, "engine": engine})
         )
         for key, val in (sets or {}).items():
             setattr(ctx, key, val)
@@ -110,6 +112,26 @@ def _run(monkeypatch, *, ctx=None, session=None, peer_ip="9.9.9.9", on_token=Non
 
 def _order(calls):
     return [name for name, _ in calls]
+
+
+@pytest.mark.parametrize("knoten", ["assess", "route", "respond"])
+def test_die_engine_naht_erreicht_ihre_knoten(monkeypatch, knoten):
+    """A4b/A4c: ``engine`` darf nicht der neunte Fall „dokumentiert ohne
+    Konsumenten" werden. Der Wächter prüft beide Richtungen — die Vorgabe kommt
+    als ``pattern`` an, ein gesetzter Wert unverändert — und alle drei Knoten,
+    die ihn auswerten: ``assess`` (ohne Klassifikator), ``route`` (ohne
+    Musterwahl und ohne Schnellwege) und ``respond`` (reicht an
+    ``respond_agent`` weiter)."""
+    calls: list = []
+    _patch(monkeypatch, calls)
+    graph = build_turn_graph(session=object(), engine="agent")
+    asyncio.run(graph.ainvoke(_ctx()))
+    assert dict(calls)[knoten]["engine"] == "agent"
+
+    calls2: list = []
+    _patch(monkeypatch, calls2)
+    asyncio.run(build_turn_graph(session=object()).ainvoke(_ctx()))
+    assert dict(calls2)[knoten]["engine"] == "pattern"
 
 
 # ── Topology ──────────────────────────────────────────────────────────────

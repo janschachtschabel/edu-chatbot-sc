@@ -1,17 +1,19 @@
 <section class="erd" aria-labelledby="erd-title">
   <header class="erd-head">
-    <h3 class="erd-title" id="erd-title">Lauf {{ runId() }}</h3>
+    <h3 class="erd-title" id="erd-title">{{ t('evalDetail.title', { id: runId() }) }}</h3>
     <div class="erd-actions">
       <button type="button" class="erd-btn" [disabled]="detail.loading()" (click)="reload()">
-        {{ detail.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+        {{ detail.loading() ? t('action.refreshing') : t('action.refresh') }}
       </button>
-      <button type="button" class="erd-btn" (click)="dismiss.emit()">Schließen</button>
+      <button type="button" class="erd-btn" (click)="dismiss.emit()">
+        {{ t('evalDetail.close') }}
+      </button>
     </div>
   </header>
 
   <studio-async-state
     class="erd-state"
-    label="Der Lauf"
+    [label]="t('evalDetail.state')"
     [loading]="detail.loading() && !run()"
     [error]="detail.error()"
     (retry)="reload()"
@@ -19,50 +21,60 @@
 
   @if (run(); as detail) {
     <dl class="erd-facts">
-      <div><dt>Status</dt><dd>{{ statusLabel(detail.status) }}</dd></div>
-      <div><dt>Art</dt><dd>{{ modeLabel(detail.mode) }}</dd></div>
-      <div><dt>Gestartet</dt><dd>{{ when(detail.created_at) }}</dd></div>
-      <div><dt>Beendet</dt><dd>{{ when(detail.completed_at) }}</dd></div>
-      <div><dt>Bewertete Turns</dt><dd>{{ detail.total_turns }}</dd></div>
-      <div><dt>Ø Score</dt><dd>{{ score(detail.avg_score) }}</dd></div>
+      <div>
+        <dt>{{ t('evalDetail.fact.status') }}</dt>
+        <dd>{{ statusLabel(detail.status) }}</dd>
+      </div>
+      <div><dt>{{ t('evalDetail.fact.mode') }}</dt><dd>{{ modeLabel(detail.mode) }}</dd></div>
+      <div>
+        <dt>{{ t('evalDetail.fact.started') }}</dt><dd>{{ when(detail.created_at) }}</dd>
+      </div>
+      <div>
+        <dt>{{ t('evalDetail.fact.finished') }}</dt><dd>{{ when(detail.completed_at) }}</dd>
+      </div>
+      <div><dt>{{ t('evalDetail.fact.turns') }}</dt><dd>{{ detail.total_turns }}</dd></div>
+      <div><dt>{{ t('evalDetail.fact.score') }}</dt><dd>{{ score(detail.avg_score) }}</dd></div>
       @if (detail.config_slug) {
-        <div><dt>Config</dt><dd>{{ detail.config_slug }}</dd></div>
+        <div><dt>{{ t('evalDetail.fact.config') }}</dt><dd>{{ detail.config_slug }}</dd></div>
       }
       @if (detail.judge_model) {
-        <div><dt>Judge-Modell</dt><dd>{{ detail.judge_model }}</dd></div>
+        <div>
+          <dt>{{ t('evalDetail.fact.judgeModel') }}</dt><dd>{{ detail.judge_model }}</dd>
+        </div>
       }
       @if (detail.simulator_model) {
-        <div><dt>Simulator-Modell</dt><dd>{{ detail.simulator_model }}</dd></div>
+        <div>
+          <dt>{{ t('evalDetail.fact.simulatorModel') }}</dt><dd>{{ detail.simulator_model }}</dd>
+        </div>
       }
     </dl>
 
     @if (isRunning()) {
       <p class="erd-live">
-        <strong>Momentaufnahme</strong> — der Lauf läuft noch.
+        <studio-rich [parts]="rich('evalDetail.live')" />
         @if (activity()) { {{ activity() }} }
-        Die Lauf-Liste oben aktualisiert sich selbst; hier bewusst nicht, weil
-        diese Antwort die vollständigen Transkripte mitbringt.
+        {{ t('evalDetail.liveWhy') }}
       </p>
     }
 
     @if (detail.error_message) {
       <p class="erd-error" role="alert">
-        <strong>Fehler:</strong> {{ detail.error_message }}
+        <studio-rich [parts]="rich('evalDetail.error', { message: detail.error_message })" />
       </p>
     }
 
     @if (metrics(); as gm) {
       <section class="erd-card" aria-labelledby="erd-rates">
         <div class="erd-card-head">
-          <h4 class="erd-sub" id="erd-rates">Trefferquoten</h4>
+          <h4 class="erd-sub" id="erd-rates">{{ t('evalDetail.rates.title') }}</h4>
           <p class="erd-summary">
-            {{ gm.flows }} Flows · {{ gm.turns }} Turns · harte Quote
-            <strong>{{ rate(gm.overall_pass_rate) }}</strong>
-            ({{ gm.hard_passed }}/{{ gm.hard_total }} Checks)
+            <studio-rich [parts]="rich('evalDetail.rates.summary', {
+              flows: gm.flows, turns: gm.turns, rate: rate(gm.overall_pass_rate),
+              ok: gm.hard_passed, total: gm.hard_total })" />
             @if (gm.judge_avg !== undefined) {
-              · Judge-Schnitt <strong>{{ score(gm.judge_avg) }}</strong>
-              über {{ gm.judged_turns ?? gm.turns }} Turns — separate Größe, sie
-              fließt nicht in die harte Quote ein.
+              ·
+              <studio-rich [parts]="rich('evalDetail.rates.judge', {
+                score: score(gm.judge_avg), turns: gm.judged_turns ?? gm.turns })" />
             }
           </p>
         </div>
@@ -77,28 +89,23 @@
           }
         </ul>
         <p class="erd-hint">
-          „Link-Host" ist ein weicher Check: eine falsch gesetzte
-          <code>REPO_BASE_URL</code> lässt ihn für jeden Turn scheitern, ohne etwas
-          über den Bot zu sagen. Er steht deshalb neben der harten Quote, nicht darin.
+          <studio-rich [parts]="rich('evalDetail.rates.hostHint')" />
         </p>
       </section>
 
       <div class="erd-table-wrap">
         <table class="erd-table">
-          <caption class="erd-caption">
-            Turns je Flow, jede Gruppe mit ihrer eigenen harten Quote. Eine Zeile
-            öffnen zeigt die Bot-Antwort und was gemessen wurde.
-          </caption>
+          <caption class="erd-caption">{{ t('evalDetail.table.caption') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Flow · Turn</th>
-              <th scope="col">Soll P/I</th>
-              <th scope="col">Ist P/I/Pattern</th>
+              <th scope="col">{{ t('evalDetail.col.turn') }}</th>
+              <th scope="col">{{ t('evalDetail.col.expected') }}</th>
+              <th scope="col">{{ t('evalDetail.col.observed') }}</th>
               @for (category of ['persona', 'intent', 'register', 'structure', 'qr'];
                     track category) {
                 <th scope="col">{{ label(category) }}</th>
               }
-              <th scope="col">Nachricht</th>
+              <th scope="col">{{ t('evalDetail.col.message') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -136,13 +143,7 @@
                 @if (isOpen(turnKey(turn.flow, turn.turn))) {
                   <tr class="erd-detail-row">
                     <td [attr.colspan]="9">
-                      <p class="erd-hint">
-                        <strong>Soll-Angebot:</strong> {{ expected(turn, 'must_offer') }}
-                        · Sie {{ observed(turn, 'sie') }} · du {{ observed(turn, 'du') }}
-                        · Karten {{ observed(turn, 'cards') }}
-                        · Inline-Dokumente {{ observed(turn, 'idocs') }}
-                        · Quick-Replies {{ observed(turn, 'qr') }}
-                      </p>
+                      <p class="erd-hint"><studio-rich [parts]="turnDetail(turn)" /></p>
                       <p class="erd-bot">{{ botText(turnKey(turn.flow, turn.turn)) }}</p>
                     </td>
                   </tr>
@@ -150,7 +151,7 @@
               }
 
               <tr class="erd-sum">
-                <th scope="row">{{ group.flow }} Gesamt</th>
+                <th scope="row">{{ t('evalDetail.flowTotal', { flow: group.flow }) }}</th>
                 <td [attr.colspan]="8">
                   {{ group.title }} — {{ flowRate(group.flow) }}
                 </td>
@@ -161,20 +162,20 @@
       </div>
     } @else {
       <p class="erd-hint">
-        Dieser Lauf trägt <strong>keine Gold-Metriken</strong> — die
-        deterministische Scorecard entsteht nur bei Gold-Flows. Unten stehen die
-        Transkripte, die der Lauf geschrieben hat.
+        <studio-rich [parts]="rich('evalDetail.noMetrics')" />
       </p>
 
       @if (conversations().length === 0) {
-        <p class="erd-hint">Auch keine Transkripte: der Lauf ist gestorben, bevor
-          ein Turn fertig wurde.</p>
+        <p class="erd-hint">{{ t('evalDetail.noTranscripts') }}</p>
       }
 
       @for (conv of conversations(); track $index) {
-        <section class="erd-card" [attr.aria-label]="'Gespräch ' + ($index + 1)">
+        <section
+          class="erd-card"
+          [attr.aria-label]="t('evalDetail.conversation', { num: $index + 1 })"
+        >
           <h4 class="erd-sub">
-            {{ conv.title || conv.flow_id || 'Gespräch ' + ($index + 1) }}
+            {{ conv.title || conv.flow_id || t('evalDetail.conversation', { num: $index + 1 }) }}
             <span class="erd-cat-frac">
               {{ conv.persona_id }}@if (conv.intent_id) { · {{ conv.intent_id }} }
             </span>
@@ -182,11 +183,13 @@
           <ol class="erd-turns">
             @for (turn of conv.turns ?? []; track $index) {
               <li class="erd-turn">
-                <p class="erd-user"><span class="erd-who">Nutzer</span> {{ turn.user }}</p>
+                <p class="erd-user">
+                  <span class="erd-who">{{ t('evalDetail.speaker.user') }}</span> {{ turn.user }}
+                </p>
                 <p class="erd-bot"><span class="erd-who">BOERDi</span> {{ turn.bot }}</p>
                 @if (turn.judge; as judge) {
                   <p class="erd-hint">
-                    Judge {{ score(judge.total) }}@if (judge.notes) { — {{ judge.notes }} }
+                    {{ t('evalDetail.judge', { score: score(judge.total) }) }}@if (judge.notes) { — {{ judge.notes }} }
                   </p>
                 }
               </li>

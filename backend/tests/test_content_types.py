@@ -121,3 +121,48 @@ def test_card_match_substring_within_type_label():
     assert ct._card_matches_wanted_types(
         {"learning_resource_types": ["Erklärvideo"]}, {"video"}
     ) is True
+
+
+# ── C1-f2c-b: die Typ-Erkennung liest jetzt auch englische Nachrichten ──
+# Vor dieser Scheibe traf nur, was in beiden Sprachen gleich heißt (video,
+# quiz, audio, podcast). Alles andere fiel durch: kein Typ-Filter, keine
+# Typ-Fokus-CTA, keine gefilterte Such-URL.
+#
+# **Der kanonische Schlüssel bleibt deutsch.** Er ist nicht nur ein Name: er
+# geht als ``learningResourceType`` in die WLO-Suche (``prefetch.py:250``) und
+# wird in ``_card_matches_wanted_types`` als Teilzeichenkette gegen die
+# deutschen ``learning_resource_types`` der Karte gehalten. Übersetzt träfe er
+# nie — dieselbe Doppelrolle wie das Typ-Label in C1-f2b3.
+_EN_TYP = [
+    ("find me worksheets", "arbeitsblatt"),
+    ("I need exercises", "übung"),
+    ("show me presentations", "präsentation"),
+    ("are there learning games", "spiel"),
+    ("I am looking for a tutorial", "kurs"),
+    ("any infographics on this", "grafik"),
+]
+
+
+def test_english_type_words_resolve_to_the_german_canonical():
+    for nachricht, kanonisch in _EN_TYP:
+        assert kanonisch in ct._extract_wanted_content_types(nachricht), nachricht
+
+
+def test_english_request_still_filters_german_cards():
+    """Der Beleg, dass der Schlüssel deutsch bleiben MUSS: die Karte trägt das
+    deutsche WLO-Label, die Anfrage ist englisch.
+
+    Die leere Menge matcht ALLES — ohne die erste Zusicherung wäre dieser Test
+    auch ohne die englischen Stichwörter grün, und zwar aus dem falschen Grund.
+    """
+    wanted = ct._extract_wanted_content_types("find me worksheets")
+    assert wanted, "ohne Treffer prüft der Rest nichts"
+    treffer = type("Card", (), {"learning_resource_types": ["Arbeitsblatt"]})()
+    daneben = type("Card", (), {"learning_resource_types": ["Video"]})()
+    assert ct._card_matches_wanted_types(treffer, wanted) is True
+    assert ct._card_matches_wanted_types(daneben, wanted) is False
+
+
+def test_english_type_word_marks_a_specific_type_wish():
+    assert ct._user_wants_specific_content_type("do you have any worksheets?") is True
+    assert ct._user_wants_specific_content_type("explain photosynthesis to me") is False

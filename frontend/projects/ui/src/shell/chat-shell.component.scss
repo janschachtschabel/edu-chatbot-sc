@@ -15,8 +15,11 @@
 // konsolidierte Widget-Panel-Header, 8-5. `.cards-list`/`.wlo-card-wrapper`/
 // `.card-actions`/`.pagination-bar` (ALT 420-432, 704-1114) → Flat-Cards, 8-2i.
 //
-// simplify: kein Dark-Mode — ALT war hell-only (weiße Bubbles, dunkler Text).
-//   Bewusste Grenze; Kontrast-/Fokus-/a11y-Sweep = geplanter Slice 8-6.
+// Abweichung von ALT (B2, 2026-07-31): ALT war hell-only (weiße Bubbles,
+// dunkler Text). NEU folgt dem geerbten `color-scheme` der Gastseite, weil das
+// Widget als Custom Element in fremden Seiten sitzt — eine weiße Insel in einer
+// dunklen Seite war der Auslöser. Umgesetzt über die Material-Systemtoken,
+// nicht über eine zweite Farbliste.
 
 @use '../markdown/markdown-content';
 @use './chat-footer';
@@ -33,10 +36,21 @@
 // ``color-mix()`` daraus berechnet. Lokale $-Variablen wie in ALT 15-20.
 // (ALTs $text-link/$text-muted fehlen hier — kein Selektor dieser Datei nutzt
 //  sie; $text-muted lebt im Footer-Partial, wo der Placeholder ihn braucht.)
-$bot-bg:     #FFFFFF;
-$text:       #1A1A2E;
-$border:     rgba(0,0,0,.10);
-$radius:     14px;
+// B2 (2026-07-31): Flächen und Schrift kommen aus den Material-Systemtoken,
+// damit der Verlauf dem geerbten `color-scheme` der Gastseite folgt — sonst
+// stünden dunkle Karten in hellen Blasen (im Bild gesehen).
+//
+// NICHT `--boerdi-surface` aus `theme/tokens.scss`: dessen Dunkelmodus hängt an
+// `prefers-color-scheme` (anderer Auslöser), und die Datei wird über
+// `widget/src/styles.scss` eingebunden — die `build-widget`-Konfiguration
+// liefert aber `"styles": []` aus. Im AUSGELIEFERTEN Widget ist dieser
+// Token-Satz also gar nicht aktiv, nur in Studio und Dev-Seite.
+$bot-bg:     var(--mat-sys-surface);
+$text:       var(--mat-sys-on-surface);
+$border:     var(--mat-sys-outline-variant);
+// `$radius: 14px` stand hier bis U4c und hatte genau einen Leser (die
+// Chat-Blase). 14 ist keine Stufe der M3-Skala; die Blase nimmt jetzt
+// `--mat-sys-corner-medium` (12px) direkt, ohne den Umweg über eine Variable.
 
 // ── Material-Symbols-SVG-Wrapper ─────────────────────────────────────
 // Universeller Helper für Inline-SVGs (Icons aus `shared/icons.ts`),
@@ -65,7 +79,7 @@ $radius:     14px;
   min-height: 0;
   max-width: 520px;
   margin: 0 auto;
-  background: #FFFFFF;
+  background: var(--mat-sys-surface);
   font-family: system-ui, -apple-system, sans-serif;
   color: $text;
   border-left: 1px solid $border;
@@ -80,11 +94,11 @@ $radius:     14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: #fff;
+  background: var(--mat-sys-surface);
 
   &::-webkit-scrollbar { width: 5px; }
   &::-webkit-scrollbar-track { background: transparent; }
-  &::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 3px; }
+  &::-webkit-scrollbar-thumb { background: var(--mat-sys-outline); border-radius: var(--mat-sys-corner-extra-small); }
 }
 
 // ── Message Rows ─────────────────────────────────────────────────────────────
@@ -115,7 +129,7 @@ $radius:     14px;
 .msg-bubble {
   max-width: 80%;
   padding: 14px 18px;
-  border-radius: $radius;
+  border-radius: var(--mat-sys-corner-medium);
   font-size: .875rem;
   line-height: 1.65;
   position: relative;
@@ -129,7 +143,17 @@ $radius:     14px;
   color: $text;
   border: 1px solid $border;
   box-shadow: 0 2px 8px rgba(0,0,0,.04);
-  border-bottom-left-radius: 4px;
+  border-bottom-left-radius: var(--mat-sys-corner-extra-small);
+
+  // Einheitliche Breite statt schrumpfender (Nutzer-Beobachtung 2026-07-31).
+  // Vorher galt nur ``max-width``: jede Blase wurde so breit wie ihr eigener
+  // Inhalt — die Blase mit den Ergebnis-Boxen war dadurch SCHMALER als die
+  // Begrüßung darüber (gemessen 234 px gegen 290 px), obwohl sie mehr trägt.
+  // Das las sich falsch. Mit fester Breite fluchten die Kanten im Verlauf.
+  //
+  // Nur Bot-Blasen: Nutzer-Nachrichten sind kurz und rechtsbündig, eine
+  // aufgeblasene „Ja."-Blase wäre dort leerer Raum ohne Gewinn.
+  width: 80%;
 }
 
 // (Der frühere ``.bot-bubble.inline-links-mode``-Override ist entfernt:
@@ -137,13 +161,17 @@ $radius:     14px;
 //  Demo und die Standard-Demo verhalten sich gleich.)
 
 .user-bubble {
-  // 10% Primary auf Weiß — heller Tönungs-Pendant zum Bot-Weiß, der mit der
-  // gesetzten Akzentfarbe (``--boerdi-primary``) automatisch harmoniert.
-  // Bewusst identisch zum ``.qr-btn``-Hintergrund, damit User-Nachrichten und
-  // Quick-Reply-Vorschläge visuell als eine Familie wirken.
-  background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 10%, white);
-  color: $text;
-  border-bottom-right-radius: 4px;
+  // Getönter Container statt „10% Primary auf Weiß": Bewusst identisch zum
+  // ``.qr-btn``-Hintergrund (Material-Tonal-Knopf), damit User-Nachrichten und
+  // Quick-Reply-Vorschläge visuell als eine Familie wirken — das war schon
+  // vorher die Absicht, jetzt teilen sich beide dasselbe Token.
+  //
+  // NICHT ``color-mix(… 10%, var(--mat-sys-surface))``: im Dunkelmodus ergäbe
+  // das fast die Blasenfläche des Bots, und der Unterschied zwischen Frage und
+  // Antwort verschwände. ``secondary-container`` ist in beiden Modi abgesetzt.
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+  border-bottom-right-radius: var(--mat-sys-corner-extra-small);
 }
 
 // ── Typing-Indikator + Live-Phasen-Label ──
@@ -161,7 +189,7 @@ $radius:     14px;
   span {
     width: 7px;
     height: 7px;
-    background: var(--boerdi-primary, #1c4587);
+    background: var(--mat-sys-primary);
     border-radius: 50%;
     animation: blink 1.2s infinite both;
     &:nth-child(2) { animation-delay: .2s; }
@@ -174,7 +202,7 @@ $radius:     14px;
 // Kept tiny + dimmed so it doesn't compete with the eventual answer.
 .typing-phase {
   font-size: .82rem;
-  color: rgba(0, 0, 0, .55);
+  color: var(--mat-sys-on-surface-variant);
   font-style: italic;
   // Subtle fade-in when the label changes between phases
   animation: phase-fade .25s ease-in;
@@ -204,7 +232,7 @@ $radius:     14px;
   border: none;
   cursor: pointer;
   font-size: 1rem;
-  color: var(--boerdi-primary, #1c4587);
+  color: var(--mat-sys-primary);
   opacity: .55;
   transition: opacity .15s;
   padding: 2px 4px;
@@ -233,24 +261,25 @@ $radius:     14px;
   padding: 7px 14px;
   font-size: .82rem;
   font-weight: 500;
-  // Akzentfarbe vom Embedder (``--boerdi-primary``): das Widget erbt z.B.
-  // auf der Themenseite-Demo den dortigen Rotton (#8b0000), in der Default-
-  // Variante das Blau. Vorher waren die Farben hier hardgecodet und sahen
-  // im roten Theme fehl am Platz aus.
-  color: var(--boerdi-primary, #1c4587);
-  background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 10%, white);
-  border: 1px solid color-mix(in srgb, var(--boerdi-primary, #1c4587) 30%, transparent);
-  border-radius: 6px;
+  // Akzentfarbe vom Embedder: das Widget erbt z.B. auf der Themenseite-Demo den
+  // dortigen Rotton (#8b0000), in der Default-Variante das Blau. Vorher waren
+  // die Farben hier hardgecodet und sahen im roten Theme fehl am Platz aus.
+  // Seit B2 über ``--mat-sys-primary`` — hell identisch zu ``--boerdi-primary``
+  // (Token-Brücke), dunkel aufgehellt statt in der Fläche zu versinken.
+  color: var(--mat-sys-primary);
+  background: color-mix(in srgb, var(--mat-sys-primary) 10%, var(--mat-sys-surface));
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
+  border-radius: var(--mat-sys-corner-small);
   cursor: pointer;
   transition: background .15s, border-color .15s, color .15s;
 
   &:hover {
-    background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 18%, white);
-    border-color: color-mix(in srgb, var(--boerdi-primary, #1c4587) 50%, transparent);
+    background: color-mix(in srgb, var(--mat-sys-primary) 18%, var(--mat-sys-surface));
+    border-color: color-mix(in srgb, var(--mat-sys-primary) 50%, transparent);
   }
 
   &:active {
-    background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 26%, white);
+    background: color-mix(in srgb, var(--mat-sys-primary) 26%, var(--mat-sys-surface));
   }
 }
 
@@ -271,4 +300,23 @@ $radius:     14px;
   * {
     animation: none !important;
   }
+}
+
+// EU-AI-Act Art. 50 — die Kennzeichnung unter jeder Bot-Antwort.
+//
+// Die eigentliche Offenlegung („Ich bin kein Mensch …") trägt die Begrüßung,
+// also der erste Kontakt — genau dort verlangt Art. 50 sie. Diese Zeile ist die
+// beiläufige Erinnerung danach und darf deshalb leise sein: klein, gedämpft,
+// dicht an der Blase, damit sie beim Lesen nicht mit dem Inhalt konkurriert.
+//
+// Die untere Grenze ist trotzdem nicht Geschmack: `on-surface-variant` ist die
+// gedämpfte Textrolle von M3 und misst gegen die Blasenfläche über 4,5:1
+// (SC 1.4.3). Der Wächter in `e2e/contrast.spec.ts` prüft das in beiden
+// Schemata nach — noch blasser wäre keine Design-Entscheidung mehr, sondern ein
+// Verstoß. Deshalb sinkt hier die GRÖSSE und der Abstand, nicht der Kontrast.
+.ai-notice {
+  margin: 2px 0 0;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  color: var(--mat-sys-on-surface-variant);
 }

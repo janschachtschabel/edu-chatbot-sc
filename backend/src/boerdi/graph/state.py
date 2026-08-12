@@ -54,6 +54,7 @@ from boerdi.api.schemas import (
     WebLink,
     WloCard,
 )
+from boerdi.obs.usage import new_accumulator
 
 
 class TurnContext(BaseModel):
@@ -90,8 +91,13 @@ class TurnContext(BaseModel):
     state_id: str = "S1"
     context_snapshot: ContextSnapshot | None = None
     policy: PolicyDecision | None = None
-    # Token-Cost-Accumulator (ein Dict pro Turn, vgl. ``obs.usage.new_accumulator``).
-    usage: dict[str, Any] = Field(default_factory=dict)
+    # Token-Cost-Accumulator (ein Dict pro Turn). ALT legt ihn zu Turn-Beginn in
+    # ``_setup_turn`` an; NEUs Gegenstück dieser lokalen Variable ist DIESES Feld,
+    # nicht ein Seiteneffekt des setup-Nodes — so bringt jeder Zug ihn mit, auch
+    # der in einem Node-Test direkt konstruierte. Ein leeres Dict ist hier kein
+    # harmloser Default: ``add_usage`` kehrt bei falsy ``acc`` still zurück, d.h.
+    # ohne Merkposten bucht niemand und ``debug.token_usage`` bleibt leer.
+    usage: dict[str, Any] = Field(default_factory=new_accumulator)
 
     # ── Speculative MCP prefetch (merge produziert, respond konsumiert — P5) ──
     # ALT ``_launch_speculative_prefetch``-Ausgabe (``SpeculativePrefetch``-Tupel):

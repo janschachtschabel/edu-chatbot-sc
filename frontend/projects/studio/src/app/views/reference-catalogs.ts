@@ -47,16 +47,21 @@ export interface SignalDimension {
 const NON_FLAG_KEYS = new Set(['dimension', 'label', 'tone', 'length']);
 
 /**
- * German wording for the flags the engine knows today. Unknown keys fall
+ * Catalogue keys for the flags the engine knows today. Unknown keys fall
  * through as-is rather than disappearing — a flag added to the config must show
  * up here without a code change, which is the whole point of reading live.
+ *
+ * Seit C1-d5c2 stehen hier Schlüssel statt deutscher Wörter, und der Durchfall
+ * überlebt das ohne Zutun: `createTranslator` gibt einen unbekannten Schlüssel
+ * als sich selbst zurück, also rendert `t('brandneu_flag')` genau
+ * `brandneu_flag` — dasselbe Verhalten wie vorher, nur eine Schicht später.
  */
 const FLAG_LABELS: Record<string, string> = {
-  skip_intro: 'ohne Einleitung',
-  one_option: 'nur ein Vorschlag',
-  add_sources: 'mit Quellen',
-  show_more: 'ohne Rückfrage-Vorschlag',
-  show_overview: 'mit Überblick',
+  skip_intro: 'rc.flag.skipIntro',
+  one_option: 'rc.flag.oneOption',
+  add_sources: 'rc.flag.addSources',
+  show_more: 'rc.flag.showMore',
+  show_overview: 'rc.flag.showOverview',
 };
 
 function textOf(value: unknown): string {
@@ -99,6 +104,9 @@ function headingOf(key: string): string {
 export interface MaterialType {
   readonly id: string;
   readonly label: string;
+  /** Englische Beschriftung aus der Konfiguration (seit C1-g2e gepflegt); leer,
+   *  solange sie es nicht ist. Die Wahl trifft die Aufrufstelle. */
+  readonly labelEn: string;
   readonly emoji: string;
   readonly category: string;
 }
@@ -124,6 +132,7 @@ export function splitMaterialTypes(data: Record<string, unknown>): MaterialSplit
     return {
       id: textOf(row['id']),
       label: textOf(row['label']),
+      labelEn: textOf(row['label_en']),
       emoji: textOf(row['emoji']),
       category: textOf(row['category']),
     };

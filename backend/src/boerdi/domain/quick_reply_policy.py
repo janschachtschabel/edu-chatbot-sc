@@ -15,11 +15,33 @@ wrapper is only ``load_display_rules_config() or {}`` plus a fallback whose
 ``quick_replies.max_count`` is 4, i.e. identical to this function's own
 ``except -> 4``. The guide-QR helpers (``_strip_guide_qrs`` / ``_attach_guide_qr``)
 live elsewhere and stay deferred.
+
+**C1-f2b6a:** ``_apply_state_auto_followup`` folgt der Widget-Sprache. Der Chip
+und sein Doublette-Wächter sind dabei EIN Stück: ``"Hat das geholfen?"`` enthält
+``"geholfen"`` aus der Stichwortliste. Nur den Chip zu übersetzen hätte die
+Idempotenz zerstört — der Wächter hätte die englische Pass-Quality-Frage des
+LLM nicht mehr erkannt und eine zweite angehängt.
 """
 
 from __future__ import annotations
 
+from typing import Final
+
+from boerdi.i18n import DEFAULT, Locale, bot_text
 from boerdi.services.config_loader import load_display_rules_config
+
+# Stichwörter, an denen der Wächter eine bereits vorhandene Pass-Quality-Frage
+# erkennt. Er liest die vom LLM erzeugten Quick-Replies, also UNSERE eigene
+# Ausgabe — deren Sprache ist bekannt, deshalb Umschaltung je Sprache und keine
+# Vereinigung (Gegenstück: ``safety/regex_gate`` über der Nutzer-Eingabe).
+# Reiner Teilzeichenketten-Vergleich, ALT-verbatim: ``"richtig"`` trifft auch
+# „Richtig starke Auswahl!". Die englischen Einträge sind nach demselben Muster
+# kurz gehalten — sie sollen Wortformen mitnehmen („help" in „helped"/„helpful").
+_PASS_QUALITY_KEYWORDS: Final[dict[Locale, tuple[str, ...]]] = {
+    "de": ("geholfen", "gepasst", "passt", "passend", "richtig",
+           "stimmt", "weiterhilft"),
+    "en": ("help", "fit", "right", "correct", "useful", "what you needed"),
+}
 
 
 def _qr_policy(pattern_id: str) -> tuple[str, int | None]:
@@ -108,6 +130,7 @@ def _apply_state_auto_followup(
     state_id: str,
     quick_replies: list[str],
     has_cards: bool,
+    lang: Locale = DEFAULT,
 ) -> list[str]:
     """Append phase-specific Auto-Followups deterministically (Welle C Sprint 6).
 
@@ -124,17 +147,15 @@ def _apply_state_auto_followup(
 
     qrs = list(quick_replies) if quick_replies else []
     # Doublette-Schutz: hat der LLM schon eine Pass-Quality-Frage?
-    pass_quality_keywords = (
-        "geholfen", "gepasst", "passt", "passend", "richtig",
-        "stimmt", "weiterhilft",
-    )
+    pass_quality_keywords = _PASS_QUALITY_KEYWORDS.get(
+        lang, _PASS_QUALITY_KEYWORDS[DEFAULT])
     for q in qrs:
         q_lower = (q or "").lower()
         if any(kw in q_lower for kw in pass_quality_keywords):
             return qrs  # schon eine Pass-QR drin, nichts tun
 
     # Nicht überfüllen — wenn der LLM schon 4 QRs hatte, ersetze die letzte.
-    auto_qr = "Hat das geholfen?"
+    auto_qr = bot_text(lang, "qr.passQuality")
     if len(qrs) >= 4:
         qrs[-1] = auto_qr
     else:

@@ -1,16 +1,19 @@
 @switch (shown()) {
   @case ('loading') {
-    <p class="as-line" aria-busy="true">{{ label() }} werden geladen …</p>
+    <p class="as-line" aria-busy="true">{{ t('async.loading', { label: label() }) }}</p>
   }
   @case ('error') {
     <div class="as-line as-line--error" role="alert">
       <p class="as-message">{{ error() }}</p>
-      <button type="button" class="as-retry" (click)="retry.emit()">
-        Erneut versuchen<span class="sr"> — {{ label() }}</span>
-      </button>
+      <button
+        type="button"
+        class="as-retry"
+        [attr.aria-label]="t('async.retryFor', { label: label() })"
+        (click)="retry.emit()"
+      >{{ t('async.retry') }}</button>
     </div>
   }
   @case ('empty') {
-    <p class="as-line">{{ emptyText() || 'Hier ist noch nichts.' }}</p>
+    <p class="as-line">{{ emptyText() || t('async.empty') }}</p>
   }
 }

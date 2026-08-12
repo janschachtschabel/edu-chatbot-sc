@@ -94,6 +94,20 @@ jobs:
       # still die ganze Deklaration ungültig (dreimal von Hand gefunden).
       - name: Design-Tokens (gelesen vs. definiert)
         run: npm run check:tokens
+      # angular-eslint prüft Template-a11y je Element, kann aber nichts sehen,
+      # was sich erst aus dem ZUSAMMENSPIEL ergibt: dass die Shell schon ein
+      # <h1> trägt, oder dass ein <th> ohne scope seine Spalte verliert. Beide
+      # Regeln waren im Bestand etabliert und nur nicht durchgehalten
+      # (49 von 69 th, 9 von 11 Seiten-Views) — genau das kehrt ohne Gate zurück.
+      - name: Studio-Struktur (Überschriften-Ebene, Tabellen-Köpfe)
+        run: npm run check:a11y
+      # Radien driften lautlos: 3px hier, 5px dort, 6px im nächsten Bauteil —
+      # jeder Wert für sich plausibel, zusammen sieht die Oberfläche
+      # zusammengestückelt aus. Vor U4c waren es elf verschiedene Werte, die
+      # M3-Skala hat sechs. Ein Linter kann das nicht sehen: jeder Einzelwert
+      # ist gültiges CSS.
+      - name: Radien auf der M3-Skala
+        run: npm run check:radii
       - name: Unit tests (ui + widget + studio)
         run: npm test
       # Allow-Liste statt Deny-Liste: §0 Regel 1 erlaubt NUR MIT/Apache-2.0/

@@ -177,12 +177,20 @@ def _maybe_downgrade(decision: SafetyDecision, esc: dict, legal_data: dict[str, 
         decision.reasons.append("downgraded_by_llm_check")
 
 
-async def assess_safety(message: str, signals: list[str] | None = None) -> SafetyDecision:
+async def assess_safety(
+    message: str,
+    signals: list[str] | None = None,
+    usage_acc: dict | None = None,
+) -> SafetyDecision:
     """Multi-stage safety assessment.
 
     Always runs the regex gate. Escalates to the LLM stages per the active
     preset. Failure-mode: every LLM stage may fail; the regex gate is the hard
     backstop.
+
+    ``usage_acc`` (K1d) is the turn's token accumulator, handed to the legal
+    classifier — the only stage here that spends chat tokens (moderation uses
+    its own endpoint). Both callers pass it: the assess node and preflight.
     """
     signals = signals or []
     decision = regex_gate(message, signals)
@@ -227,7 +235,7 @@ async def assess_safety(message: str, signals: list[str] | None = None) -> Safet
         tasks.append(("openai", moderation.moderate(message)))
         decision.stages_run.append("openai_moderation")
     if run_legal:
-        tasks.append(("legal", legal.classify_legal(message)))
+        tasks.append(("legal", legal.classify_legal(message, usage_acc=usage_acc)))
         decision.stages_run.append("llm_legal")
 
     if not tasks:
@@ -246,6 +254,15 @@ async def assess_safety(message: str, signals: list[str] | None = None) -> Safet
     legal_data: dict[str, dict] = {}
     for (name, _), res in zip(tasks, results, strict=True):
         if isinstance(res, Exception):
+            # Fail-open is the design (the regex gate stays as the backstop) —
+            # but not silently: without this line a permanently broken stage
+            # looks exactly like a clean run, and a safety layer that is quietly
+            # switched off is worse than one that is loudly missing
+            # (audit 2026-08-12, F-9).
+            logger.warning(
+                "safety stage %s failed, continuing without it: %s: %s",
+                name, type(res).__name__, res,
+            )
             continue
         if name == "openai":
             openai_data = res or {}

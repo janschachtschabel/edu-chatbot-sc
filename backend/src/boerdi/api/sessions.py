@@ -29,9 +29,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from boerdi.api.deps import Lang, require_studio_key
 from boerdi.api.deps import get_session as get_db_session
-from boerdi.api.deps import require_studio_key
 from boerdi.api.ratelimit import public_rate_limit
+from boerdi.i18n import msg
 from boerdi.services.config_loader import load_privacy_config
 from boerdi.services.db_sessions import (
     delete_messages_for_session,
@@ -89,6 +90,7 @@ async def db_stats(
 @router.post("/purge")
 async def purge_sessions(
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    lang: Lang,
     messages: bool = True,
     memory: bool = True,
     quality_logs: bool = True,
@@ -104,14 +106,7 @@ async def purge_sessions(
     to guard against accidental calls from dev tooling.
     """
     if not confirm:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Purge verlangt ?confirm=true als Schutz gegen versehentliche "
-                "Nukes. Das Studio schickt den Parameter nach der "
-                "Doppel-Bestaetigung automatisch."
-            ),
-        )
+        raise HTTPException(400, msg(lang, "sessions.purgeNeedsConfirm"))
     counts = await purge_all(
         session,
         messages=messages,
@@ -126,6 +121,7 @@ async def purge_sessions(
 @router.post("/optimize")
 async def optimize_db(
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    lang: Lang,
 ) -> dict:
     """Compact/maintain the DB (VACUUM). Under load the lock may fail → 503.
 
@@ -136,14 +132,7 @@ async def optimize_db(
     try:
         result = await optimize_database(session)
     except Exception as e:  # noqa: BLE001 — surface lock/IO errors to the UI
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Kompaktieren fehlgeschlagen — die Datenbank ist evtl. gerade "
-                f"unter Last gesperrt. Bitte in einer ruhigen Phase erneut "
-                f"versuchen. ({e})"
-            ),
-        ) from e
+        raise HTTPException(503, msg(lang, "sessions.optimizeFailed", error=e)) from e
     return {"status": "optimized", **result}
 
 

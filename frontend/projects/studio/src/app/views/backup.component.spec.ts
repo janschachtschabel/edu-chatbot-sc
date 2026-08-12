@@ -6,6 +6,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { routes } from '../app.routes';
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
 import { BackupComponent } from './backup.component';
 
 const BASE = '/studio/api/config';
@@ -23,6 +24,10 @@ async function settle(h: Harness): Promise<void> {
 
 async function mount(): Promise<Harness> {
   TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'`, und der Browser ist im Studio
+  // die zweitstärkste Quelle. Ohne die oberste Quelle liefe diese Suite auf
+  // Englisch — deutsche Zusagen wären dann zufällig rot.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(),
@@ -116,6 +121,39 @@ describe('BackupComponent', () => {
     // it, and clearing the input element too needs a DOM reach-around for no
     // gain — re-applying the same ZIP writes the same areas.
     expect(button(h, 'Backup einspielen').disabled).toBe(false);
+  });
+
+  it('nennt die Datei in einem GANZEN Satz, in beiden Sprachen', async () => {
+    // Bis C1-d3b stand der Dateiname zwischen zwei Template-Bruchstücken
+    // (`„{{ file()?.name }}" einspielen? Jeder Bereich …`). Ein Satz, dessen
+    // Mitte aus einer anderen Datei kommt, lässt sich nicht übersetzen: im
+    // Englischen steht das Objekt hinter dem Verb, nicht davor.
+    const h = await mount();
+    h.fixture.componentInstance.onFile(
+      { target: { files: [new File(['PK'], 'stand.zip')] } } as unknown as Event);
+    await settle(h);
+    await click(h, 'Backup einspielen');
+    expect(h.el.querySelector('[role="alert"]')!.textContent)
+      .toContain('„stand.zip“ einspielen?');
+
+    TestBed.inject(StudioLanguageService).toggle();
+    await settle(h);
+    expect(h.el.querySelector('[role="alert"]')!.textContent)
+      .toContain('Restore “stand.zip”?');
+  });
+
+  it('zählt die eingespielten Bereiche in der Form der aktiven Sprache', async () => {
+    const h = await mount();
+    h.fixture.componentInstance.onFile(
+      { target: { files: [new File(['PK'], 'eins.zip')] } } as unknown as Event);
+    await settle(h);
+    await click(h, 'Backup einspielen');
+    await click(h, 'Ja, einspielen');
+    h.http.expectOne(`${BASE}/restore`).flush({ status: 'restored', areas: 1 });
+    await settle(h);
+    // Einzahl, nicht „1 Konfigurationsbereiche" — die Grenze zwischen den
+    // Formen entscheidet die Sprache, nicht ein `=== 1` im Code.
+    expect(text(h)).toContain('1 Konfigurationsbereich aus');
   });
 
   it('zeigt den Satz des Backends, wenn die ZIP abgelehnt wird', async () => {

@@ -96,7 +96,7 @@ def test_defaults_match_alt(clean_env) -> None:
     assert s.llm_max_concurrency == 20
     assert s.llm_read_timeout == 75.0
     assert s.bg_llm_max_concurrency == 4
-    assert s.llm_verbosity == "medium"
+    assert s.llm_verbosity == "low"  # W12: Nutzer-Vorgabe „hohe Geschwindigkeit"
     assert s.llm_reasoning_effort == "low"
     assert s.openai_base_url == ""
     assert s.b_api_base_url == "https://b-api.prod.openeduhub.net/api/v1/llm"
@@ -106,10 +106,16 @@ def test_defaults_match_alt(clean_env) -> None:
     assert s.stt_model == "gpt-4o-mini-transcribe"
     assert s.tts_model == "tts-1"
     # MCP
-    assert s.mcp_server_url == "https://wlo-mcp-server.vercel.app/mcp"
+    # W7b (2026-07-31): der Vercel-Server ist veraltet (kennt
+    # ``get_wlo_content_text`` nicht) — Default ist der neue Host. Der Zwilling
+    # ``transport._DEFAULT_MCP_URL`` muss denselben Wert tragen; das pinnt
+    # ``test_die_beiden_mcp_defaults_zeigen_auf_denselben_server``.
+    assert s.mcp_server_url == "https://wlo-mcp.87.106.195.152.nip.io/mcp"
     assert s.mcp_max_connections == 50
     assert s.repo_base_url == "https://redaktion.openeduhub.net"
     # RAG (None => yaml layer decides, ALT _RAG_DEFAULTS live in the rag service)
+    # W11 (Nutzer-Korrektur): wieder AN, wie ALT. Bezahlbar durch 10 Kandidaten
+    # und die Latenz-Verteilung 1 Worker x 3 Threads.
     assert s.rag_reranker_enabled is True
     assert s.max_ingest_mb == 25
     assert s.text_extraction_url == "https://text-extraction.prod.openeduhub.net"
@@ -206,3 +212,18 @@ def test_url_normalization_parity(clean_env) -> None:
     assert s.b_api_base_url == "https://b.example.com/api/v1/llm"
     assert s.text_extraction_url == "https://tx.example.com"  # /from-url appended internally
     assert s.repo_base_url == "https://repo.example.com"
+
+
+def test_die_beiden_mcp_defaults_zeigen_auf_denselben_server():
+    """``settings.mcp_server_url`` und ``transport._DEFAULT_MCP_URL`` sind Zwillinge.
+
+    Der zweite greift genau dann, wenn der erste leer ist — die Compose-Falle
+    ``${MCP_SERVER_URL:-}``. Driften sie auseinander, landet ausgerechnet der
+    Notfall-Pfad auf einem anderen Server als der Normalfall, und zwar lautlos.
+    Beim Server-Wechsel 2026-07-31 (W7b) wäre genau das passiert: der Zwilling
+    stand noch auf dem alten Host ohne ``get_wlo_content_text``.
+    """
+    from boerdi.services.mcp.transport import _DEFAULT_MCP_URL
+    from boerdi.settings import Settings
+
+    assert _DEFAULT_MCP_URL == Settings().mcp_server_url

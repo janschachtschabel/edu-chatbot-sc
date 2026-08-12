@@ -37,6 +37,27 @@ export const ICONS = {
   explore: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="m260-260 300-140 140-300-300 140-140 300Zm220-180q-17 0-28.5-11.5T440-480q0-17 11.5-28.5T480-520q17 0 28.5 11.5T520-480q0 17-11.5 28.5T480-440Zm0 360q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>`,
   /** Neu starten / Refresh */
   refresh: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></svg>`,
+  // Anmelden/Abmelden — wie die beiden Größen-Symbole unten NICHT aus dem
+  // Material-Set kopiert, sondern auf demselben Raster von Hand konstruiert:
+  // eine Tür (Rahmen, an einer Seite offen) und ein Pfeil, der hindurchgeht.
+  // Beide teilen exakt dieselben Maße, damit sie als ZWEI ZUSTÄNDE EINES Knopfs
+  // nicht springen: Rahmen y -800…-160, Balken- und Schaftstärke 80, Pfeilmitte
+  // y -480, Spitze 180 lang mit ±120 Widerhaken. `login` spiegelt `logout` —
+  // Rahmen rechts statt links, Pfeil hinein statt hinaus. Beide Pfeile zeigen
+  // nach rechts; die Richtung der Handlung sagt die Lage des Rahmens.
+  /** Anmelden (Pfeil in die Tür hinein) */
+  login: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M840-800L480-800L480-720L760-720L760-240L480-240L480-160L840-160Z"/><path d="M120-520L380-520L380-600L560-480L380-360L380-440L120-440Z"/></svg>`,
+  /** Abmelden (Pfeil aus der Tür hinaus) */
+  logout: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M120-800L480-800L480-720L200-720L200-240L480-240L480-160L120-160Z"/><path d="M380-520L660-520L660-600L840-480L660-360L660-440L380-440Z"/></svg>`,
+  // U2a — die beiden Größen-Symbole sind, anders als alle übrigen hier, NICHT
+  // aus dem Material-Set kopiert, sondern auf demselben Raster (0 -960 960 960)
+  // von Hand konstruiert: vier Eckwinkel, Strichstärke 80, Rand 120. Nach außen
+  // zeigende Winkel = vergrößern, nach innen zeigende = verkleinern. Jeder Punkt
+  // ist nachgerechnet; ein abgetippter Pfad wäre das nicht gewesen.
+  /** Chat vergrößern (Eckwinkel nach außen) */
+  fullscreen: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M120-120v-200h80v120h120v80H120Zm520 0v-80h120v-120h80v200H640ZM120-640v-200h200v80H200v120h-80Zm640 0v-120H640v-80h200v200h-80Z"/></svg>`,
+  /** Chat verkleinern (Eckwinkel nach innen) */
+  fullscreen_exit: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="M240-120h80v-200H120v80h120v120Zm480 0h-80v-200h200v80H720v120ZM240-840h80v200H120v-80h120v-120Zm480 0h-80v200h200v-80H720v-120Z"/></svg>`,
   /** Schließen */
   close: `<svg xmlns="http://www.w3.org/2000/svg" height="1em" viewBox="0 -960 960 960" width="1em" fill="currentColor"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>`,
 

@@ -3,56 +3,63 @@
     <div class="qd-head">
       <h3 class="qd-title">
         <span class="qd-pattern">{{ turn.pattern_id }}</span>
-        {{ turn.pattern_label || 'Pattern ohne Label' }}
+        {{ turn.pattern_label || t('qualDetail.noLabel') }}
       </h3>
       <button type="button" class="qd-close" (click)="dismiss.emit()">
-        Detail schließen
+        {{ t('qualDetail.close') }}
       </button>
     </div>
 
-    <p class="qd-when">
-      Turn {{ turn.turn_count }} · {{ turn.turn_type || 'ohne Typ' }} · {{ when() }}
-    </p>
+    <p class="qd-when">{{ t('qualDetail.head', {
+      count: turn.turn_count,
+      type: turn.turn_type || t('qualDetail.noType'),
+      when: when(),
+    }) }}</p>
 
-    <blockquote class="qd-message">{{ turn.message || '(leere Nachricht)' }}</blockquote>
+    <blockquote class="qd-message">{{ turn.message || t('qualLogs.emptyMessage') }}</blockquote>
 
     <dl class="qd-grid">
-      <div><dt>Persona</dt><dd>{{ turn.persona_id || '–' }}</dd></div>
-      <div><dt>Intent</dt><dd>{{ turn.intent_id || '–' }}</dd></div>
-      <div><dt>Phase</dt><dd>{{ turn.state_id || '–' }}</dd></div>
-      <div><dt>Confidence</dt><dd>{{ decimal(turn.final_confidence) }}</dd></div>
-      <div><dt>Antwortlänge</dt><dd>{{ whole(turn.response_length) }} Zeichen</dd></div>
-      <div><dt>Kacheln</dt><dd>{{ whole(turn.cards_count) }}</dd></div>
+      <div><dt>{{ t('qualDetail.persona') }}</dt><dd>{{ turn.persona_id || '–' }}</dd></div>
+      <div><dt>{{ t('qualDetail.intent') }}</dt><dd>{{ turn.intent_id || '–' }}</dd></div>
+      <div><dt>{{ t('qualDetail.state') }}</dt><dd>{{ turn.state_id || '–' }}</dd></div>
+      <div>
+        <dt>{{ t('qualLogs.confidence') }}</dt><dd>{{ decimal(turn.final_confidence) }}</dd>
+      </div>
+      <div>
+        <dt>{{ t('qualDetail.length') }}</dt>
+        <dd>{{ whole(turn.response_length) }} {{ t('qual.kpi.chars') }}</dd>
+      </div>
+      <div><dt>{{ t('qualDetail.cards') }}</dt><dd>{{ whole(turn.cards_count) }}</dd></div>
     </dl>
 
     <p class="qd-degradation" [class.qd-degradation--on]="turn.degradation">
       @if (turn.degradation) {
-        Degradation: der Turn lief mit fehlenden Pflicht-Slots weiter.
+        {{ t('qualDetail.degradation.on') }}
         @if (turn.missing_slots.length > 0) {
-          Fehlend: <span class="qd-mono">{{ turn.missing_slots.join(', ') }}</span>.
+          {{ t('qualDetail.degradation.missing', { slots: turn.missing_slots.join(', ') }) }}
         }
       } @else {
-        Keine Degradation — alle Pflicht-Slots waren gefüllt.
+        {{ t('qualDetail.degradation.off') }}
       }
     </p>
 
     @if (turn.signals.length > 0) {
       <p class="qd-list">
-        <span class="qd-label">Signale:</span>
+        <span class="qd-label">{{ t('qualDetail.signals') }}</span>
         <span class="qd-mono">{{ turn.signals.join(', ') }}</span>
       </p>
     }
 
     @if (turn.tools_called.length > 0) {
       <p class="qd-list">
-        <span class="qd-label">Werkzeuge:</span>
+        <span class="qd-label">{{ t('qualDetail.tools') }}</span>
         <span class="qd-mono">{{ turn.tools_called.join(', ') }}</span>
       </p>
     }
 
     @if (entities().length > 0) {
       <table class="qd-entities">
-        <caption>Erkannte Entities</caption>
+        <caption>{{ t('qualDetail.entities') }}</caption>
         <tbody>
           @for (entity of entities(); track entity.key) {
             <tr>
@@ -63,11 +70,9 @@
         </tbody>
       </table>
     } @else {
-      <p class="qd-list">Keine Entities erkannt.</p>
+      <p class="qd-list">{{ t('qualDetail.noEntities') }}</p>
     }
 
-    <p class="qd-session">
-      Session <span class="qd-mono">{{ turn.session_id }}</span>
-    </p>
+    <p class="qd-session">{{ t('qualDetail.session', { id: turn.session_id }) }}</p>
   </div>
 }

@@ -37,9 +37,13 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
+from boerdi.domain.answer_notes import append_answer_notes
 from boerdi.domain.quick_reply_policy import _qr_default_count, _spec_qr_response_block
+from boerdi.graph.nodes.respond_agent import respond_agent
 from boerdi.graph.state import TurnContext
+from boerdi.i18n import resolve_locale
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
+from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.generate import generate_response
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
@@ -55,10 +59,19 @@ async def respond(
     session: AsyncSession,
     on_token: Any = None,
     progress: TurnProgress = NO_PROGRESS,
+    engine: str = "pattern",
 ) -> TurnContext:
     """Erzeuge die Antwort (Standard-Pfad P16-19). Mutiert ``ctx`` in-place und
     gibt ihn zurück. ``session`` (pg-DI) reicht nur ``generate_response`` an die
-    DB durch; ``on_token`` ist der Streaming-Hook (POST /api/chat/stream)."""
+    DB durch; ``on_token`` ist der Streaming-Hook (POST /api/chat/stream).
+
+    ``engine`` (A4c-2b) ist die Maschine dieses Zuges. Im Agent-Modus antwortet
+    ``respond_agent``, und zwar **vor** allem anderen: der Rumpf unten ist der
+    Bestandsweg und bleibt unangetastet. Der Vorabruf aus ``merge`` wird dort
+    verworfen, nicht hier — sonst stünde Agent-Wissen im Bestandspfad."""
+    if engine == "agent":
+        return await respond_agent(ctx, progress=progress)
+
     req = ctx.req
     history = ctx.history
     session_state = ctx.session_state
@@ -256,12 +269,23 @@ async def respond(
     if not _lp_routed and not _canvas_routed and ctx.winner_id != "M16":
         # ── CE-Auswahl + Relevanz-Gate (ersetzt select_top_cards) ──────
         # Prefetch-Payloads per Cross-Encoder auf die angezeigten Top-N kürzen +
-        # off-topic gaten, BEVOR sie ans Antwort-LLM gehen. V13: kein
-        # CPU-Rerank-Pool mehr (run_in_rerank_pool entfällt) — das Gate ist
-        # synchron und deterministisch, daher sequenziell + pro Target isoliert
-        # (ein fehlgeschlagener Rerank lässt nur DIESES Target ungegatet).
+        # off-topic gaten, BEVOR sie ans Antwort-LLM gehen. Sequenziell und pro
+        # Target isoliert (ein fehlgeschlagener Rerank lässt nur DIESES Target
+        # ungegatet).
+        #
+        # **W7 (2026-08-09): wieder im gedeckelten Rerank-Pool.** Hier stand
+        # „V13: kein CPU-Rerank-Pool mehr — das Gate ist synchron und
+        # deterministisch". Das stimmte, solange hinter dem Seam nichts hing.
+        # Mit echtem ONNX kostet ein Gate 0,2–0,5 s CPU (gemessen: 25
+        # Kartenzeilen = 507 ms bei intra_op=1) — direkt im Event-Loop steht
+        # in dieser Zeit der ganze Worker, samt der SSE-Ströme aller anderen
+        # Nutzer. „Synchron" sagt etwas über Determinismus, nichts über den
+        # Ausführungsort.
         try:
+            from functools import partial as _partial
+
             from boerdi.services.card_reranker import rerank_gate_envelope as _ce_gate
+            from boerdi.services.rag.rerank import run_in_rerank_pool as _rerank_pool
             _ce_targets: list[dict] = []
             if prefetched_tool_payload and prefetched_tool_payload.get("result_text"):
                 _ce_targets.append(prefetched_tool_payload)
@@ -275,10 +299,13 @@ async def respond(
             ).lower()
             for _p in _ce_targets:
                 try:
-                    _nt, _ = _ce_gate(
+                    # `partial`, weil der Executor nur positionale Argumente
+                    # durchreicht (ALT-Muster, dort mit derselben Begründung).
+                    _nt, _ = await _rerank_pool(_partial(
+                        _ce_gate,
                         spec_query, _p["result_text"],
                         tool_name=_p.get("name", ""), allow_soft_fallback=_wants_tp,
-                    )
+                    ))
                     _p["result_text"] = _nt
                 except Exception as _ge:
                     logger.warning(
@@ -338,7 +365,14 @@ async def respond(
                     },
                     usage_acc=usage_acc,
                     count=_qr_count_eff,
+                    lang=resolve_locale(req.environment.locale),
                 ))
+                # Same guard every other fire-and-forget task carries (see
+                # ``services/prefetch.py``): if the turn errors before
+                # ``assemble`` consumes this task, its exception is retrieved
+                # here instead of surfacing as a stray "Task exception was never
+                # retrieved" (audit 2026-08-12).
+                _qr_spec_task.add_done_callback(_retrieve_task_exception)
             except Exception as _sqr_err:
                 logger.warning("speculative QR start failed: %s", _sqr_err)
                 _qr_spec_task = None
@@ -395,44 +429,9 @@ async def respond(
                         _spec_parse_err,
                     )
 
-    # Policy-Disclaimer anhängen (falls vorhanden).
-    if policy.required_disclaimers and response_text:
-        disclaimers = "\n\n".join(f"_{d}_" for d in policy.required_disclaimers)
-        response_text = f"{response_text}\n\n{disclaimers}"
-
-    # ── Safety-Hinweis (Medium-Risk) ───────────────────────────────
-    # Bei High-Risk übernimmt M01 die ganze Antwort; bei Medium-Risk gibt der LLM
-    # normal, wir hängen aber einen sichtbaren Hinweis an (Transparenz statt
-    # stilles Blockieren).
-    if safety.risk_level == "medium" and response_text:
-        _safety_notes: list[str] = []
-        _legal_de = {
-            "strafrecht": "strafrechtlich relevante",
-            "jugendschutz": "jugendschutzrelevante",
-            "persoenlichkeitsrechte": "persoenlichkeitsrechtliche",
-            "datenschutz": "datenschutzbezogene",
-        }
-        if safety.legal_flags:
-            _cats = ", ".join(_legal_de.get(f, f) for f in safety.legal_flags[:2])
-            _safety_notes.append(
-                f"Hinweis: Deine Anfrage beruehrt {_cats} Themen — ich kann dazu "
-                f"keine eigenstaendige rechtliche Beratung geben."
-            )
-        elif safety.blocked_tools:
-            _safety_notes.append(
-                "Hinweis: Fuer diese Anfrage habe ich die Suche vorsichtshalber "
-                "eingeschraenkt."
-            )
-        elif "possible_prompt_injection" in safety.reasons:
-            _safety_notes.append(
-                "Hinweis: Deine Nachricht enthaelt Formulierungen, die wie eine "
-                "Anweisung an mich aussehen. Ich halte mich an meine Regeln."
-            )
-        if _safety_notes:
-            response_text = (
-                f"{response_text}\n\n"
-                + "\n\n".join(f"_{n}_" for n in _safety_notes)
-            )
+    # Policy-Disclaimer + Medium-Risk-Notiz (seit A4c-2b in ``domain/answer_notes``,
+    # weil der Agent-Modus denselben Text zu verantworten hat).
+    response_text = append_answer_notes(response_text, policy=policy, safety=safety)
 
     # Triple-Schema T-25/27: Confidence + State-Hint aus den Tool-Outcomes.
     from boerdi.services.outcome_service import adjust_confidence, derive_state_hint

@@ -106,22 +106,33 @@ describe('HostBridges window-Events', () => {
   afterEach(() => { h.bridges.destroy(); document.body.innerHTML = ''; });
 
   it('page-action mit `action` wird durchgereicht, ohne verworfen', () => {
-    window.dispatchEvent(new CustomEvent('badboerdi:page-action', { detail: { action: 'navigate', payload: {} } }));
-    window.dispatchEvent(new CustomEvent('badboerdi:page-action', { detail: { payload: {} } }));
-    window.dispatchEvent(new CustomEvent('badboerdi:page-action', { detail: null }));
+    window.dispatchEvent(new CustomEvent('boerdi:page-action', { detail: { action: 'navigate', payload: {} } }));
+    window.dispatchEvent(new CustomEvent('boerdi:page-action', { detail: { payload: {} } }));
+    window.dispatchEvent(new CustomEvent('boerdi:page-action', { detail: null }));
     expect(h.pageActions).toEqual([{ action: 'navigate', payload: {} }]);
   });
 
   it('query-meta wird durchgereicht, leeres detail verworfen', () => {
-    window.dispatchEvent(new CustomEvent('badboerdi:query-meta', { detail: { tool: 'search' } }));
-    window.dispatchEvent(new CustomEvent('badboerdi:query-meta', { detail: null }));
+    window.dispatchEvent(new CustomEvent('boerdi:query-meta', { detail: { tool: 'search' } }));
+    window.dispatchEvent(new CustomEvent('boerdi:query-meta', { detail: null }));
     expect(h.queryMetas).toEqual([{ tool: 'search' }]);
+  });
+
+  /** U5a: Die Shell feuert jedes Ereignis unter BEIDEN Namen. Diese Brücke ist
+   *  ihr Rückfallweg — hörte sie auch auf den alten Namen, liefe jede
+   *  Seiten-Aktion doppelt (einmal navigieren, einmal nochmal). Der alte Name
+   *  ist Nachsicht gegenüber fremden Empfängern, kein Eingang. */
+  it('der alte Name wird NICHT konsumiert — sonst liefe alles doppelt', () => {
+    window.dispatchEvent(new CustomEvent('badboerdi:page-action', { detail: { action: 'navigate', payload: {} } }));
+    window.dispatchEvent(new CustomEvent('badboerdi:query-meta', { detail: { tool: 'search' } }));
+    expect(h.pageActions).toHaveLength(0);
+    expect(h.queryMetas).toHaveLength(0);
   });
 
   it('destroy() nimmt beide window-Listener ab', () => {
     h.bridges.destroy();
-    window.dispatchEvent(new CustomEvent('badboerdi:page-action', { detail: { action: 'x' } }));
-    window.dispatchEvent(new CustomEvent('badboerdi:query-meta', { detail: { a: 1 } }));
+    window.dispatchEvent(new CustomEvent('boerdi:page-action', { detail: { action: 'x' } }));
+    window.dispatchEvent(new CustomEvent('boerdi:query-meta', { detail: { a: 1 } }));
     expect(h.pageActions).toHaveLength(0);
     expect(h.queryMetas).toHaveLength(0);
   });

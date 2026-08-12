@@ -23,6 +23,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { ActionState } from '../core/action-state';
 import { saveBlob } from '../core/download';
 import { SnapshotsApi } from '../core/snapshots-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { FactoryPanelComponent } from './factory-panel.component';
 import { SnapshotsPanelComponent } from './snapshots-panel.component';
 
@@ -35,8 +36,10 @@ import { SnapshotsPanelComponent } from './snapshots-panel.component';
 })
 export class BackupComponent {
   private readonly api = inject(SnapshotsApi);
+  private readonly lang = inject(StudioLanguageService);
+  protected readonly t = this.lang.t;
 
-  readonly action = new ActionState();
+  readonly action = new ActionState(this.t);
   readonly file = signal<File | null>(null);
   readonly armed = signal(false);
 
@@ -56,7 +59,7 @@ export class BackupComponent {
   async download(): Promise<void> {
     await this.action.run('backup', async () => {
       saveBlob(await this.api.backup(), 'boerdi-config-backup.zip');
-      return 'Backup heruntergeladen.';
+      return this.t('backup.downloaded');
     });
   }
 
@@ -70,7 +73,7 @@ export class BackupComponent {
     // no gain — applying the same ZIP twice writes the same areas.
     await this.action.run('restore', async () => {
       const { areas } = await this.api.restoreBackup(chosen);
-      return `${areas} Konfigurationsbereiche aus „${chosen.name}" eingespielt.`;
+      return this.lang.plural('backup.areasRestored', areas, { name: chosen.name });
     });
   }
 }

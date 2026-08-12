@@ -1,0 +1,181 @@
+<header class="cst-head">
+  <p class="cst-crumb">{{ t('nav.group.auswertung') }}</p>
+  <h2 class="cst-title">{{ t('view.kosten.label') }}</h2>
+  <p class="cst-intro">{{ t('costs.intro') }}</p>
+</header>
+
+<form class="cst-filter" (submit)="$event.preventDefault(); reload()">
+  <fieldset class="cst-period">
+    <legend class="cst-legend">{{ t('costs.period.legend') }}</legend>
+
+    <p class="cst-field">
+      <label for="cst-from">{{ t('costs.from.label') }}</label>
+      <input
+        id="cst-from"
+        class="cst-input"
+        type="date"
+        required
+        [value]="from()"
+        (change)="setFrom($any($event.target).value)"
+        aria-describedby="cst-period-hint"
+      />
+    </p>
+
+    <p class="cst-field">
+      <label for="cst-to">{{ t('costs.to.label') }}</label>
+      <input
+        id="cst-to"
+        class="cst-input"
+        type="date"
+        required
+        [value]="to()"
+        (change)="setTo($any($event.target).value)"
+        aria-describedby="cst-period-hint"
+      />
+    </p>
+
+    <p class="cst-hint" id="cst-period-hint">{{ t('costs.period.hint') }}</p>
+  </fieldset>
+
+  <button
+    type="submit"
+    class="cst-btn"
+    [disabled]="report.loading() || incomplete()"
+  >{{ report.loading() ? t('action.refreshing') : t('action.refresh') }}</button>
+</form>
+
+<studio-async-state
+  class="cst-state"
+  [label]="t('view.kosten.label')"
+  [loading]="report.loading() && !value()"
+  [error]="report.error()"
+  [empty]="isEmpty()"
+  [emptyText]="t('costs.empty')"
+  (retry)="reload()"
+/>
+
+<!-- `usage` und nicht `report`: `report` ist hier schon das `AsyncData`-Feld
+     der Komponente, und ein Alias gleichen Namens verdeckte es im ganzen
+     Block — lesbar falsch, obwohl es übersetzt. -->
+@if (value(); as usage) {
+  @if (!usage.empty) {
+    <!-- Der Anker der Seite. Die Lücke steht DANEBEN, nicht darunter in einer
+         Fussnote: eine Teilsumme ohne ihre Lücke liest sich als Gesamtsumme.
+
+         `aria-live` samt `aria-atomic`, weil sich beim Wechsel des Zeitraums
+         nur diese Zahl ändert — am Bildschirm sieht man das, ohne ihn nicht.
+         Angesagt wird der ganze Block, sonst hörte man „4,92 €" ohne zu
+         wissen, wovon. Beim ERSTEN Laden entsteht der Bereich mitsamt seinem
+         Inhalt und bleibt darum stumm; das ist der Fall, in dem die Seite
+         ohnehin gerade gelesen wird. -->
+    <section
+      class="cst-amount"
+      aria-labelledby="cst-amount-label"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <p class="cst-amount-label" id="cst-amount-label">{{ t('costs.amount.label') }}</p>
+      <p class="cst-amount-value">{{ amount() }}</p>
+
+      @if (withoutPrice()) {
+        <p class="cst-amount-note">{{ noPriceReason() }}</p>
+        <p class="cst-amount-where"><studio-rich [parts]="rich('costs.amount.where')" /></p>
+      } @else if (partial()) {
+        <p class="cst-amount-note">{{ partial() }}</p>
+        <p class="cst-amount-where"><studio-rich [parts]="rich('costs.amount.where')" /></p>
+      }
+    </section>
+
+    <!-- „davon" ist keine Höflichkeit: Cache steckt IN der Eingabe, Reasoning
+         IN der Ausgabe. Wer sie addiert, zählt doppelt. -->
+    <dl class="cst-band">
+      <div class="cst-cell">
+        <dt>{{ t('costs.band.prompt') }}</dt>
+        <dd>{{ count(usage.prompt_tokens) }}</dd>
+      </div>
+      <div class="cst-cell cst-cell-sub">
+        <dt>{{ t('costs.band.cached') }}</dt>
+        <dd>{{ count(usage.cached_tokens) }}</dd>
+      </div>
+      <div class="cst-cell">
+        <dt>{{ t('costs.band.completion') }}</dt>
+        <dd>{{ count(usage.completion_tokens) }}</dd>
+      </div>
+      <div class="cst-cell cst-cell-sub">
+        <dt>{{ t('costs.band.reasoning') }}</dt>
+        <dd>{{ count(usage.reasoning_tokens) }}</dd>
+      </div>
+      <div class="cst-cell">
+        <dt>{{ t('costs.band.calls') }}</dt>
+        <dd>{{ count(usage.calls) }}</dd>
+      </div>
+    </dl>
+
+    <div class="cst-table-wrap">
+      <table class="cst-table">
+        <caption class="cst-caption">{{ t('costs.models.caption') }}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{{ t('costs.col.model') }}</th>
+            <th scope="col">{{ t('costs.col.calls') }}</th>
+            <th scope="col">{{ t('costs.col.prompt') }}</th>
+            <th scope="col">{{ t('costs.col.cached') }}</th>
+            <th scope="col">{{ t('costs.col.completion') }}</th>
+            <th scope="col">{{ t('costs.col.reasoning') }}</th>
+            <th scope="col">{{ t('costs.col.amount') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of models(); track row.model) {
+            <tr>
+              <th scope="row">{{ row.model }}</th>
+              <td>{{ count(row.calls) }}</td>
+              <td>{{ count(row.prompt_tokens) }}</td>
+              <td>{{ count(row.cached_tokens) }}</td>
+              <td>{{ count(row.completion_tokens) }}</td>
+              <td>{{ count(row.reasoning_tokens) }}</td>
+              <td>{{ rowAmount(row.amount) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (sessions().length > 0) {
+      <div class="cst-table-wrap">
+        <table class="cst-table">
+          <caption class="cst-caption">
+            {{ t('costs.sessions.caption') }}
+            @if (withoutPrice()) {
+              <span class="cst-caption-hint">{{ t('costs.sessions.hint') }}</span>
+            }
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ t('costs.col.session') }}</th>
+              <th scope="col">{{ t('costs.col.calls') }}</th>
+              <th scope="col">{{ t('costs.col.prompt') }}</th>
+              <th scope="col">{{ t('costs.col.cached') }}</th>
+              <th scope="col">{{ t('costs.col.completion') }}</th>
+              <th scope="col">{{ t('costs.col.reasoning') }}</th>
+              <th scope="col">{{ t('costs.col.amount') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of sessions(); track row.session_id) {
+              <tr>
+                <th scope="row" class="cst-session-id">{{ row.session_id }}</th>
+                <td>{{ count(row.calls) }}</td>
+                <td>{{ count(row.prompt_tokens) }}</td>
+                <td>{{ count(row.cached_tokens) }}</td>
+                <td>{{ count(row.completion_tokens) }}</td>
+                <td>{{ count(row.reasoning_tokens) }}</td>
+                <td>{{ rowAmount(row.amount) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+}

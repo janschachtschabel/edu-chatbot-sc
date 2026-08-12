@@ -1,113 +1,72 @@
 <details class="cs">
   <summary class="cs-summary">
-    <h4 class="cs-title">Wissensquellen: RAG und MCP</h4>
+    <h4 class="cs-title">{{ t('rk.title') }}</h4>
   </summary>
   <div class="cs-body">
     <div class="ar-two">
       <section class="rk-card">
-        <h5 class="ar-sub rk-card-title">RAG — eigenes Wissen</h5>
-        <p class="ar-text">
-          Hochgeladene Dokumente werden in Abschnitte zerlegt, als Vektoren in
-          Postgres abgelegt und per Kosinus-Ähnlichkeit (pgvector) gesucht.
-        </p>
+        <h5 class="ar-sub rk-card-title">{{ t('rk.rag.title') }}</h5>
+        <p class="ar-text">{{ t('rk.rag.text') }}</p>
         <ul class="ar-list">
-          <li><strong>Immer an:</strong> der Bereich wird bei jeder Nachricht als Kontext eingefügt.</li>
-          <li>
-            <strong>Auf Abruf:</strong> nur wenn das Pattern <code>sources: ["rag"]</code>
-            führt und das Modell <code>query_knowledge</code> aufruft.
-          </li>
-          <li><strong>Einspielen:</strong> im Studio als Datei, Webadresse oder Freitext.</li>
+          <li><studio-rich [parts]="rich('rk.rag.always')" /></li>
+          <li><studio-rich [parts]="rich('rk.rag.onDemand')" /></li>
+          <li><studio-rich [parts]="rich('rk.rag.ingest')" /></li>
         </ul>
       </section>
 
       <section class="rk-card">
-        <h5 class="ar-sub rk-card-title">MCP — externe Werkzeuge</h5>
-        <p class="ar-text">
-          Ein externer Server (WLO edu-sharing) stellt {{ mcpToolCount }} Werkzeuge
-          bereit, die das Modell bei Bedarf aufruft.
-        </p>
+        <h5 class="ar-sub rk-card-title">{{ t('rk.mcp.title') }}</h5>
+        <p class="ar-text">{{ mcpText() }}</p>
         <ul class="ar-list">
-          <li><strong>Zugang:</strong> nur wenn das Pattern <code>sources: ["mcp"]</code> führt.</li>
-          <li><strong>Sperrbar:</strong> Safety oder Policy können einzelne Werkzeuge ausschließen.</li>
-          <li>
-            <strong>Spekulativ:</strong> bei passenden Intents startet die Suche
-            parallel zur Antwort, statt auf sie zu warten.
-          </li>
+          <li><studio-rich [parts]="rich('rk.mcp.access')" /></li>
+          <li><studio-rich [parts]="rich('rk.mcp.blockable')" /></li>
+          <li><studio-rich [parts]="rich('rk.mcp.speculative')" /></li>
         </ul>
-        <p class="ar-note">
-          <code>query_knowledge</code> zählt hier nicht mit: es ist der Einstieg in
-          den RAG-Bestand, kein MCP-Werkzeug.
-        </p>
+        <p class="ar-note"><studio-rich [parts]="rich('rk.mcp.note')" /></p>
       </section>
     </div>
 
-    <h5 class="ar-sub">Themenseiten-Auflösung (ergänzt Schicht 6)</h5>
-    <p class="ar-text">
-      Steckt das Widget auf einer WLO-Themenseite, einer Sammlung oder einer
-      edu-sharing-Ansicht, löst <code>page_context</code> die Seite beim ersten
-      Turn über MCP auf (<code>get_node_details</code>, bei einem Slug zuerst
-      <code>search_wlo_topic_pages</code>) und legt Titel, Fächer, Bildungsstufen
-      und Schlagworte als Block in den Prompt.
-    </p>
+    <h5 class="ar-sub">{{ t('rk.page.title') }}</h5>
+    <p class="ar-text"><studio-rich [parts]="rich('rk.page.text')" /></p>
     <ul class="ar-list">
-      <li>
-        <strong>Gültigkeit:</strong> 30 Minuten bei erfolgreicher Auflösung,
-        2 Minuten nach einem Fehlschlag — damit ein kurzer MCP-Ausfall nicht eine
-        halbe Stunde nachwirkt.
-      </li>
-      <li>
-        <strong>Erkannt werden</strong> <code>node_id</code>,
-        <code>collection_id</code>, <code>topic_page_slug</code> und
-        <code>subject_slug</code>; welche URL-Formen und Meta-Angaben darauf
-        führen, steht im Kopf von <code>page-context-detector.ts</code>.
-      </li>
-      <li>
-        <strong>Wirkung:</strong> „Worum geht es hier?" lässt sich ohne Rückfrage
-        beantworten, der Seitentitel dient als voreingestelltes Thema.
-      </li>
+      <li><studio-rich [parts]="rich('rk.page.ttl')" /></li>
+      <li><studio-rich [parts]="rich('rk.page.detected')" /></li>
+      <li><studio-rich [parts]="rich('rk.page.effect')" /></li>
     </ul>
   </div>
 </details>
 
 <details class="cs">
   <summary class="cs-summary">
-    <h4 class="cs-title">Snapshots und Werkseinstellungen</h4>
+    <h4 class="cs-title">{{ t('rk.snap.title') }}</h4>
   </summary>
   <div class="cs-body">
     <p class="ar-text">
-      Ein Snapshot friert die <strong>Konfigurationsbereiche</strong> ein — und
-      nur diese. Gespräche, Auswertungen und RAG-Inhalte gehören nicht dazu; ein
-      Rückspielen lässt sie unberührt. Bedient wird das alles in der
-      <a routerLink="/sicherung">Sicherung</a>.
+      <studio-rich [parts]="rich('rk.snap.intro')" />
+      <a routerLink="/sicherung">{{ t('rk.snap.link') }}</a>.
     </p>
 
     <div class="ar-two">
       <section class="rk-card">
-        <h5 class="ar-sub rk-card-title">Snapshots</h5>
+        <h5 class="ar-sub rk-card-title">{{ t('rk.snap.snapshots') }}</h5>
         <ul class="ar-list">
-          <li>Liegen als Zeilen in <code>config_snapshots</code>, nicht als Dateien.</li>
-          <li>Bis zu 50 Stück; das Anlegen darüber hinaus lehnt der Server ab.</li>
-          <li>
-            Wiederherstellen <em>ergänzt</em>: jeder Bereich aus dem Snapshot
-            überschreibt seinen aktuellen Stand, Bereiche außerhalb bleiben stehen.
-          </li>
-          <li>Herunterladen liefert dieselbe ZIP fürs eigene Archiv.</li>
+          <li><studio-rich [parts]="rich('rk.snap.rows')" /></li>
+          <li>{{ t('rk.snap.limit') }}</li>
+          <li><studio-rich [parts]="rich('rk.snap.restore')" /></li>
+          <li>{{ t('rk.snap.download') }}</li>
         </ul>
       </section>
 
       <section class="rk-card">
-        <h5 class="ar-sub rk-card-title">Werksstand</h5>
+        <h5 class="ar-sub rk-card-title">{{ t('rk.factory.title') }}</h5>
         <ul class="ar-list">
-          <li>Genau einer je Installation — die Zeile mit der Kennung <code>factory</code>.</li>
-          <li>Entsteht aus dem aktuellen Live-Stand oder aus einer hochgeladenen ZIP.</li>
-          <li>„Zurücksetzen" spielt ihn wieder ein, ebenfalls nur die Konfiguration.</li>
+          <li><studio-rich [parts]="rich('rk.factory.one')" /></li>
+          <li>{{ t('rk.factory.from') }}</li>
+          <li>{{ t('rk.factory.reset') }}</li>
         </ul>
       </section>
     </div>
 
-    <p class="ar-note">
-      Ein vollständiges Datenbank-Abbild ist damit nicht abgedeckt — das gehört
-      zur Betriebs-Sicherung des Servers, nicht ins Studio.
-    </p>
+    <p class="ar-note">{{ t('rk.snap.note') }}</p>
   </div>
 </details>

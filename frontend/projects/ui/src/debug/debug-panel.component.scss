@@ -1,15 +1,27 @@
-// DebugPanel — Verbatim-Port der ALT Debug-Panel-Stile aus chat.component.scss
+// DebugPanel — Port der ALT Debug-Panel-Stile aus chat.component.scss
 // (.debug-panel / .debug-row / .debug-label / .debug-parallel-* / .debug-
-// section-title / .debug-warn / .debug-ok, Z. 1227-1308). Die lokale
-// $border-Variable spiegelt ALTs geteilte $border (chat.component.scss:14-19)
-// wie im WloCard-Tile-Port. --boerdi-primary bleibt kundenüberschreibbar (mit
-// ALT-Fallback #1c4587), wie in ALT.
-
-$border: rgba(0, 0, 0, 0.1);
+// section-title / .debug-warn / .debug-ok, Z. 1227-1308).
+//
+// **U4d bricht hier mit ALT-verbatim, und zwar aus einem gemessenen Grund.**
+// ALT setzte die Fläche fest auf `#f8fafc` und ließ die Zeilentexte die Farbe
+// des Chats erben. Seit U4b/U4c folgt diese geerbte Farbe dem `color-scheme` —
+// im Dunkelmodus stand also fast weißer Text (`rgb(226,226,232)`) auf fast
+// weißer Fläche: **1,23:1**, gemessen von `e2e/contrast.spec.ts`, die Zeilen
+// waren schlicht unsichtbar. Kein Test konnte das sehen, weil der Defekt erst
+// aus dem Zusammentreffen zweier Dateien entsteht.
+//
+// Der Ausweg ist nicht, den Text festzunageln (dann wäre das Panel eine
+// grellweiße Insel in einem dunklen Widget), sondern die Fläche mitkippen zu
+// lassen — wie überall sonst im Widget. Die Bedeutungsfarben (warn/ok) behalten
+// ihren Farbton und bekommen je Schema einen eigenen Wert; die Markenfarbe
+// läuft über `--mat-sys-primary`, das die Brücke in `widget.component.scss`
+// aus dem kundenüberschreibbaren `--boerdi-primary` ableitet. Damit bleibt
+// `primary-color="…"` wirksam, anders als bei einem festen Hex.
 
 .debug-panel {
-  background: #f8fafc;
-  border-top: 1px solid $border;
+  background: var(--mat-sys-surface-container-low);
+  color: var(--mat-sys-on-surface);
+  border-top: 1px solid var(--mat-sys-outline-variant);
   padding: 10px 14px;
   font-size: 0.72rem;
   font-family: monospace;
@@ -27,7 +39,11 @@ $border: rgba(0, 0, 0, 0.1);
 }
 .debug-label {
   font-weight: 600;
-  color: var(--boerdi-primary, #1c4587);
+  // Nicht `--boerdi-primary` direkt: der Rohwert ist die HELLE Markenfarbe und
+  // bliebe im Dunkelmodus dunkelblau auf dunkler Fläche. `--mat-sys-primary`
+  // ist genau diese Farbe, nur schema-abhängig aufgehellt (Brücke in
+  // `widget.component.scss`) — die Kundenfarbe schlägt weiterhin durch.
+  color: var(--mat-sys-primary);
 }
 
 // Welle E (2026-05-23) — Trace-Anzeige mit Parallel-Gruppen-Bars.
@@ -40,21 +56,23 @@ $border: rgba(0, 0, 0, 0.1);
 }
 .debug-parallel-header {
   font-weight: 600;
-  color: #555;
+  color: var(--mat-sys-on-surface-variant);
   margin: 4px 0 2px;
   font-size: 0.82rem;
 }
 .debug-parallel-stack {
   position: relative;
-  background: #f4f4f8;
-  border-radius: 4px;
+  background: var(--mat-sys-surface-container-high);
+  border-radius: var(--mat-sys-corner-extra-small);
   padding: 4px 0;
   margin-bottom: 4px;
 }
 .debug-parallel-task {
-  background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 18%, #fff);
-  border-left: 2px solid var(--boerdi-primary, #1c4587);
-  border-radius: 3px;
+  // Statt `18%, #fff` gegen die darunterliegende Fläche mischen — im
+  // Dunkelmodus ergäbe Weiß einen hellen Balken mit hellem Text darauf.
+  background: color-mix(in srgb, var(--mat-sys-primary) 18%, var(--mat-sys-surface-container-high));
+  border-left: 2px solid var(--mat-sys-primary);
+  border-radius: var(--mat-sys-corner-extra-small);
   padding: 2px 6px;
   margin: 2px 0;
   font-size: 0.78rem;
@@ -71,7 +89,7 @@ $border: rgba(0, 0, 0, 0.1);
   }
   &__time {
     flex-shrink: 0;
-    color: #555;
+    color: var(--mat-sys-on-surface-variant);
     font-variant-numeric: tabular-nums;
   }
 }
@@ -81,10 +99,10 @@ $border: rgba(0, 0, 0, 0.1);
 .debug-section-title {
   font-weight: 700;
   font-size: 0.72rem;
-  color: #1f2937;
+  color: var(--mat-sys-on-surface);
   margin: 8px 0 4px;
   padding-top: 6px;
-  border-top: 1px dashed #d1d5db;
+  border-top: 1px dashed var(--mat-sys-outline-variant);
   letter-spacing: 0.02em;
 
   &:first-of-type {
@@ -94,13 +112,20 @@ $border: rgba(0, 0, 0, 0.1);
   }
 }
 
-// State-Übergang: plausibel / implausibel
+// State-Übergang: plausibel / implausibel.
+//
+// Die beiden einzigen Farben des Panels, die etwas BEDEUTEN — deshalb behalten
+// sie ihren Farbton und bekommen je Schema einen eigenen Wert, statt auf eine
+// neutrale Rolle zu wandern. M3 hat für „gut" keine Rolle (`error` gibt es,
+// „success" nicht), also stehen die Werte hier. Der ALT-Wert ist jeweils der
+// helle; der dunkle ist so gewählt, dass er auf `surface-container-low` über
+// 4,5:1 liegt (gemessen in `e2e/contrast.spec.ts`).
 .debug-warn {
-  color: #b45309;
+  color: light-dark(#b45309, #e5a34a);
   font-weight: 600;
 }
 .debug-ok {
-  color: #047857;
+  color: light-dark(#047857, #5cc98f);
   font-weight: 500;
   margin-left: 4px;
 }

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ChatResponse, DebugInfo } from '../grouping/message-types';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import { TourContext, TourController, TOUR_START_LABEL } from './tour.controller';
 
 /**
@@ -39,6 +41,7 @@ function makeCtx(over: Partial<TourContext> = {}): { ctx: TourContext; calls: Ca
     removeMessage: (id) => calls.removed.push(id),
     setScrollTarget: (id) => calls.scroll.push(id),
     setLatestDebug: (d) => calls.debug.push(d),
+    t: over.t ?? createTranslator(DE, DE),
   };
   return { ctx, calls };
 }
@@ -88,6 +91,18 @@ describe('TourController', () => {
     expect(calls.removed.length).toBe(1);
     expect(calls.bot.some((b) => b.content.includes('konnte gerade nicht gestartet werden'))).toBe(true);
     expect(calls.loading).toEqual([true, false]);
+  });
+
+  it('die Fehler-Bubble kommt aus dem Übersetzer (C1-b4)', async () => {
+    const en = createTranslator({ 'error.tourStart': 'Sorry, the tour could not be started.' }, DE);
+    const { ctx, calls } = makeCtx({
+      t: en, sendMessage: async () => { throw new Error('x'); },
+    });
+    await new TourController(ctx).startTour();
+    expect(calls.bot.some((b) => b.content === 'Sorry, the tour could not be started.')).toBe(true);
+    // Der gesendete Text bleibt deutsch: er ist die Anweisung ans Backend/Modell,
+    // kein Oberflächentext (C1-Entscheid „Sprachdirektive im Prompt").
+    expect(calls.user).toEqual([TOUR_START_LABEL]);
   });
 
   it('sendTourTick: sendMessage(tick) + Render bei Inhalt; zweiter Aufruf No-Op (Guard)', async () => {

@@ -4,6 +4,8 @@ import { SafeHtml } from '@angular/platform-browser';
 import { InlineDocument } from '../grouping/message-types';
 import { ICONS } from '../icons/icons';
 import { SafeSvgPipe } from '../icons/safe-svg.pipe';
+import type { TranslationParams } from '../i18n/dictionary';
+import type { TranslateFn } from '../i18n/i18n';
 import { inlineDocFallbackLabel, inlineDocFontSize, inlineDocIcon } from './inline-doc';
 
 /**
@@ -33,13 +35,13 @@ import { inlineDocFallbackLabel, inlineDocFontSize, inlineDocIcon } from './inli
       <div class="inline-document" [style.--inline-doc-scale]="fontScale()">
         <div class="inline-document__heading">
           <span class="bb-icon" [innerHTML]="inlineDocIcon(doc.kind) | safeSvg"></span>
-          <span class="inline-document__title">{{ doc.title || inlineDocFallbackLabel(doc.kind) }}</span>
+          <span class="inline-document__title">{{ doc.title || fallbackLabel(doc.kind) }}</span>
           <button
             type="button"
             class="inline-document__print-btn"
             (click)="print.emit(doc)"
-            title="Als PDF drucken / speichern"
-            aria-label="Als PDF drucken / speichern"
+            [title]="t('inlineDoc.print')"
+            [attr.aria-label]="t('inlineDoc.print')"
           >
             <span class="bb-icon" [innerHTML]="printIcon | safeSvg"></span>
           </button>
@@ -55,13 +57,26 @@ export class InlineDocumentsComponent {
   readonly displayRules = input<Record<string, unknown> | null>(null);
   /** Render-Seam: fertig sanitisierter Markdown-Body (SafeHtml). */
   readonly renderMarkdown = input.required<(content: string) => SafeHtml>();
+  /** Übersetzer der Shell (C1-b2) — eigener Input statt über einen Kontext:
+   *  diese Box kennt weder `GroupingContext` noch bsid/Trust, und ein
+   *  Funktions-Seam als Input ist hier schon das Muster (`renderMarkdown`). */
+  readonly translate = input.required<TranslateFn>();
 
   /** ALT `printInlineDocument(doc)` — als Output ausgelagert (Shell 8-4). */
   readonly print = output<InlineDocument>();
 
+  /** Kurzform fürs Template (Muster wie in Shell und Hülle). */
+  protected readonly t = (key: string, params?: TranslationParams): string =>
+    this.translate()(key, params);
+
   protected readonly printIcon = ICONS.print;
   protected readonly inlineDocIcon = inlineDocIcon;
-  protected readonly inlineDocFallbackLabel = inlineDocFallbackLabel;
+
+  /** Rückfall-Titel der Box (C1-b3): die freie Funktion braucht seit C1-b3
+   *  einen Übersetzer, also eine Methode statt der direkten Referenz. */
+  protected fallbackLabel(kind: string): string {
+    return inlineDocFallbackLabel(kind, this.translate());
+  }
 
   /** ALT `[style.--inline-doc-scale]="inlineDocFontSize(msg) / 100"`. */
   protected readonly fontScale = computed(() => inlineDocFontSize(this.displayRules()) / 100);

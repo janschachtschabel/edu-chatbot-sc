@@ -14,7 +14,9 @@ import { ShellHost, buildControllerContexts } from './shell-contexts';
 
 interface Rec { post: any[][]; transcribe: any[][]; synthesize: any[][]; [k: string]: any[][]; }
 
-function fakeHost(): { host: ShellHost; calls: Rec; setSid: (s: string) => void } {
+function fakeHost(): {
+  host: ShellHost; calls: Rec; setSid: (s: string) => void; setSprache: (s: string) => void;
+} {
   const calls: Rec = { post: [], transcribe: [], synthesize: [] };
   const rec = (k: string) => (...args: any[]) => { (calls[k] ??= []).push(args); return undefined; };
   const api = {
@@ -23,6 +25,7 @@ function fakeHost(): { host: ShellHost; calls: Rec; setSid: (s: string) => void 
     synthesize: (...a: any[]) => { calls.synthesize.push(a); return Promise.resolve(new Blob()); },
   } as unknown as ChatApiClient;
   let sid = 'sess-1';
+  let sprache = 'de';
   const msgs: ChatMessage[] = [{ id: 'm', sender: 'bot', content: 'x', timestamp: new Date() }];
   const host: ShellHost = {
     api: () => api,
@@ -45,8 +48,13 @@ function fakeHost(): { host: ShellHost; calls: Rec; setSid: (s: string) => void 
     emitRoutingDebugOutput: rec('emitRoutingDebugOutput'),
     runInZone: (fn: any) => fn(),
     onTranscript: rec('onTranscript'),
+    t: (key: string) => `${sprache}:${key}`,
   };
-  return { host, calls, setSid: (s) => { sid = s; } };
+  return {
+    host, calls,
+    setSid: (s) => { sid = s; },
+    setSprache: (s) => { sprache = s; },
+  };
 }
 
 describe('buildControllerContexts', () => {
@@ -127,5 +135,18 @@ describe('buildControllerContexts', () => {
     const gp = { url: 'u', title: 't', node_id: '', node_type: '', query: 'q', alternatives: [] };
     hostEvents.emitGuideSuggestionOutput(gp);
     expect(calls['emitGuideSuggestionOutput'][0]).toEqual([gp]);
+  });
+
+  it('tour/speech/collectionActions bekommen `t` LIVE vom Host (C1-b4)', () => {
+    const { host, setSprache } = fakeHost();
+    const { tour, speech, collectionActions } = buildControllerContexts(host);
+    expect(tour.t('error.tourStart')).toBe('de:error.tourStart');
+
+    // Deferred wie `sessionId`: nach einem Sprachwechsel liefern DIESELBEN
+    // Contexts den neuen Text — sie halten keine eingefrorene Funktion.
+    setSprache('en');
+    expect(tour.t('error.tourStart')).toBe('en:error.tourStart');
+    expect(speech.t('error.transcription')).toBe('en:error.transcription');
+    expect(collectionActions.t('error.browseCollection')).toBe('en:error.browseCollection');
   });
 });

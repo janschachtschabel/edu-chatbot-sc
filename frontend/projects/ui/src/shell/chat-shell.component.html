@@ -17,7 +17,7 @@
 <div class="chat-wrapper">
   <!-- Messages. role="log"+aria-live: Screenreader bekommen neue Bot-Antworten
        angesagt (ALT-a11y, 2026-06-10). -->
-  <div class="messages-area" #messagesContainer role="log" aria-live="polite" aria-label="Chat-Verlauf">
+  <div class="messages-area" #messagesContainer role="log" aria-live="polite" [attr.aria-label]="t('chat.log')">
     @for (msg of messages(); track msg.id) {
       <div
         [id]="'msg-' + msg.id"
@@ -52,6 +52,14 @@
             <div class="msg-content" [innerHTML]="render.markdown(render.displayContent(msg), msg.sender)"></div>
           }
 
+          <!-- EU-AI-Act Art. 50: Kennzeichnung an der Antwort selbst. Kein
+               `aria-hidden` — der Hinweis gilt für Screenreader genauso. Er
+               steht NACH dem Inhalt, damit er vorgelesen wird, wenn die Antwort
+               steht, und nicht davor als Rauschen. -->
+          @if (!msg.isLoading && msg.content && msg.sender === 'bot') {
+            <p class="ai-notice">{{ t('chat.aiGenerated') }}</p>
+          }
+
           <!-- Inline-Document-Box: Lernpfade (M09), KI-Materialien (M10),
                Edits (M11) im Chat-Verlauf, mit Druck-Button im Box-Header. -->
           @if (!msg.isLoading && msg.inlineDocuments?.length) {
@@ -59,7 +67,8 @@
               [documents]="msg.inlineDocuments!"
               [displayRules]="msg.displayRules ?? null"
               [renderMarkdown]="renderBotMarkdown"
-              (print)="print.printInlineDocument($event)"
+              [translate]="t"
+              (print)="print.printInlineDocument($event, t)"
             />
           }
 
@@ -71,11 +80,11 @@
               <button
                 type="button"
                 class="btn-lp-print"
-                (click)="print.printLearningPath(msg)"
-                title="Lernpfad als PDF drucken"
+                (click)="print.printLearningPath(msg, t)"
+                [title]="t('chat.print.learningPathTitle')"
               >
                 <span class="bb-icon" [innerHTML]="ICONS.print | safeSvg"></span>
-                <span>Lernpfad drucken / als PDF speichern</span>
+                <span>{{ t('chat.print.learningPath') }}</span>
               </button>
             </div>
           }
@@ -84,11 +93,11 @@
               <button
                 type="button"
                 class="btn-lp-print"
-                (click)="print.printCanvasMaterial(msg)"
-                title="Material als PDF drucken"
+                (click)="print.printCanvasMaterial(msg, t)"
+                [title]="t('chat.print.materialTitle')"
               >
                 <span class="bb-icon" [innerHTML]="ICONS.print | safeSvg"></span>
-                <span>{{ print.printableCanvasLabel(msg) }} drucken / als PDF speichern</span>
+                <span>{{ t('chat.print.canvas', { label: print.printableCanvasLabel(msg, t) }) }}</span>
               </button>
             </div>
           }
@@ -100,31 +109,45 @@
             <boerdi-swimlanes [topicPage]="msg.topicPage!" [ctx]="render.groupingCtx" />
           }
 
-          <!-- Inline-Result-Grouping: separate Boxen für Themenseiten /
-               Sammlungen / Materialien / Webseiten-Inhalte + Such-CTA statt
-               flacher Card-Liste. Bewusst UNABHÄNGIG von `cardsEnabledBool`
-               (Welle C.5): die Box-Übersicht ist eine Layout-Wahl; nur die
-               großen Tiles entfallen mit `cards-enabled="false"`. Der leere
-               Rahmen bleibt durch das interne hasGroupedResults-Gate aus (ALTs
-               Daten-Gate); `sender === 'bot'` hält die Komponente aus den
-               User-Bubbles heraus, wo sie ohnehin nie etwas rendern könnte. -->
-          @if (msg.sender === 'bot' && inlineResultGroupingBool && !hideCards) {
-            <boerdi-result-groups [message]="msg" [ctx]="render.resultGroupsCtx" />
+          <!-- Treffer als TEXTLINKS: separate Boxen für Themenseiten /
+               Sammlungen / Materialien / Webseiten-Inhalte + Such-CTA. Kein
+               `<img>` — das ist die kompakte Darstellung, die U2 im kleinen
+               Modus verlangt; sie war schon da (gemessen 2026-08-09).
+               Bis U2b hing sie an `inlineResultGroupingBool`, jetzt an der
+               Kachel-Regel `cardsVisible` (Größe + `show-cards` + eben jenes
+               Attribut als Bestandsschutz — siehe `resolveCardsVisible`).
+               Der leere Rahmen bleibt durch das interne hasGroupedResults-Gate
+               aus (ALTs Daten-Gate); `sender === 'bot'` hält die Komponente aus
+               den User-Bubbles heraus, wo sie ohnehin nie etwas rendern könnte. -->
+          @if (msg.sender === 'bot' && !cardsVisible && !hideCards) {
+            <boerdi-result-groups
+              [message]="msg"
+              [ctx]="render.resultGroupsCtx"
+              [isLoading]="isLoading()"
+              (showContentText)="showContentText($event.nodeId, $event.title)"
+            />
           }
 
-          <!-- Flacher Tile-Grid + Sammlungs-Aktionen + Pagination (8-2i): die
-               Alternative zum Boxen-Layout, gesteuert über
-               `inline-result-grouping="false"`. In ALT hing derselbe Block
-               hinter `!inlineResultGroupingBool`, was seit der Welle-E-Einfrierung
-               des Flags nie mehr wahr wurde — hier ist es wieder ein echtes
-               Host-Attribut (Default `true` = Boxen, wie bisher). -->
-          @if (!inlineResultGroupingBool && !hideCards && cardsEnabledBool) {
+          <!-- Treffer als KACHELN mit Vorschaubild, dazu Sammlungs-Aktionen und
+               Pagination (8-2i) — die Alternative zu den Textlink-Boxen darüber,
+               und mehr als nur deren Optik: browse/learningPath/showMore gibt es
+               nur hier. In ALT hing der Block hinter `!inlineResultGroupingBool`,
+               was seit der Welle-E-Einfrierung nie mehr wahr wurde; 8-7 hat das
+               Attribut belebt, U2b hängt die Wahl an `cardsVisible`.
+               `cardsEnabledBool` (Welle-E-Konstante) steht nicht mehr in der
+               Bedingung: `show-cards` IST sein Nachfolger, nur mit drei
+               Stellungen statt zwei. -->
+          @if (cardsVisible && !hideCards) {
+            <!-- `resultGroupsCtx` statt `groupingCtx` seit U6b: das Raster
+                 zeigt jetzt ebenfalls den Such-Absprung, und dessen
+                 `_self`/`_blank`-Entscheidung braucht die Host-Trust-Abfrage. -->
             <boerdi-card-list
               [message]="msg"
-              [ctx]="render.groupingCtx"
+              [ctx]="render.resultGroupsCtx"
               [isLoading]="isLoading()"
               (browse)="browseCollection($event.nodeId, $event.title)"
               (learningPath)="generateLearningPath($event.nodeId, $event.title)"
+              (showContentText)="showContentText($event.nodeId, $event.title)"
               (showMore)="showMoreCards($event)"
               (loadMore)="loadMoreCards($event)"
             />
@@ -140,8 +163,8 @@
                   type="button"
                   class="btn-speak"
                   (click)="speakText(msg.content)"
-                  [title]="isSpeaking ? 'Stop' : 'Vorlesen'"
-                  [attr.aria-label]="isSpeaking ? 'Stop' : 'Vorlesen'"
+                  [title]="isSpeaking ? t('chat.speakStop') : t('chat.speak')"
+                  [attr.aria-label]="isSpeaking ? t('chat.speakStop') : t('chat.speak')"
                 >
                   <span class="bb-icon" [innerHTML]="(isSpeaking ? ICONS.stop_circle : ICONS.volume_up) | safeSvg"></span>
                 </button>
@@ -158,6 +181,7 @@
               [quickReplies]="msg.quickReplies!"
               [enabled]="quickRepliesEnabledBool"
               [guideModeActive]="guideModeActive"
+              [translate]="t"
               (quickReply)="onQuickReply($event)"
               (guideQuickReply)="onGuideQuickReply($event)"
             />
@@ -177,8 +201,8 @@
         class="btn-mic"
         [class.recording]="isRecording"
         (click)="toggleRecording()"
-        [title]="isRecording ? 'Aufnahme stoppen' : 'Spracheingabe starten'"
-        [attr.aria-label]="isRecording ? 'Aufnahme stoppen' : 'Spracheingabe starten'"
+        [title]="isRecording ? t('chat.record.stop') : t('chat.record.start')"
+        [attr.aria-label]="isRecording ? t('chat.record.stop') : t('chat.record.start')"
       >
         @if (isRecording) {
           <span class="recording-indicator">
@@ -190,28 +214,88 @@
         }
       </button>
     }
-    <!-- `[value]`+`(input)` statt `[(ngModel)]`: `userInput` ist ein Signal und
+    <!-- Bewusst KEIN `mat-form-field` (gemessen 2026-07-31: +106 kB roh /
+         +18 kB übertragen, Budget-Warnung gerissen — für ein Feld, das bereits
+         wie ein Outline-Feld aussieht). Stattdessen holt sich das
+         handgeschriebene Feld seine Farben aus denselben `--mat-sys-*`-Token
+         wie die Material-Knöpfe; siehe `_chat-footer.scss`.
+         `[value]`+`(input)` statt `[(ngModel)]`: `userInput` ist ein Signal und
          das Widget bleibt so ohne FormsModule im Bundle (§5.5-Budget). -->
     <input
       #inputField
       type="text"
       class="chat-input"
-      aria-label="Nachricht an BOERDi"
+      [attr.aria-label]="t('chat.input.label')"
       [value]="userInput()"
       (input)="userInput.set($any($event.target).value)"
       (keydown)="onKeydown($event)"
       [placeholder]="isRecording
-        ? 'Aufnahme läuft… Klicke Stop zum Beenden'
-        : (isLoading() ? 'Boerdi denkt nach…' : 'Nachricht eingeben…')"
+        ? t('chat.input.recording')
+        : (isLoading() ? t('chat.input.thinking') : t('chat.input.placeholder'))"
       [disabled]="isLoading() || isRecording"
     />
+    <!-- Bleibt handgeschrieben: `matIconButton` kennt in Material 21 keine
+         gefüllte Variante (nur die transparente), der Sende-Knopf ist aber ein
+         gefüllter Kreis. Seine Farbe kommt ohnehin aus `--boerdi-primary`,
+         also derselben Quelle wie die Material-Token. -->
+    <!-- WLO-Anmeldung. Ganz links in der Knopfgruppe, weil sie am weitesten von
+         der Absende-Handlung entfernt ist: sie betrifft nicht dieses Gespräch,
+         sondern die Sitzung (Senden > Neustart > Größe > Anmelden). Hier unten
+         und nicht in einer Kopfzeile, damit sie im rahmenlosen Einbettungs-
+         Modus bleibt — derselbe Grund, aus dem der Neustart hierher wanderte.
+         `hidden` heißt: diese Anlage bietet keine Anmeldung an. -->
+    @if (authButton() !== 'hidden') {
+      <button
+        type="button"
+        class="btn-auth"
+        (click)="onAuthClick()"
+        [title]="authButton() === 'signOut' ? t('auth.signOut') : t('auth.signIn')"
+        [attr.aria-label]="authButton() === 'signOut' ? t('auth.signOut') : t('auth.signIn')"
+      >
+        <span
+          class="bb-icon"
+          [innerHTML]="(authButton() === 'signOut' ? ICONS.logout : ICONS.login) | safeSvg"
+        ></span>
+      </button>
+    }
+    <!-- Größe (U2a). Steht links vom Neustart, weil er noch weiter von der
+         eigentlichen Absende-Handlung entfernt ist: Senden > Neustart > Größe.
+         Rahmenlos reicht die Hülle `sizeToggleVisible=false` — dort bestimmt
+         die Gastanwendung die Maße. -->
+    @if (sizeToggleVisibleBool) {
+      <button
+        type="button"
+        class="btn-size"
+        (click)="sizeToggle.emit()"
+        [title]="sizeToggleLabel"
+        [attr.aria-label]="sizeToggleLabel"
+      >
+        <span
+          class="bb-icon"
+          [innerHTML]="(sizeStep() === 'large' ? ICONS.fullscreen_exit : ICONS.fullscreen) | safeSvg"
+        ></span>
+      </button>
+    }
+    <!-- Neustart (U1). Stand bis 2026-08-09 in der Kopfzeile der Widget-Hülle;
+         die gibt es rahmenlos nicht mehr, und er ist ohnehin eine Aktion am
+         GESPRÄCH, nicht an der Hülle. Bewusst NICHT gesperrt, während der Bot
+         arbeitet — genau dann will man einen festgefahrenen Zug abbrechen. -->
+    <button
+      type="button"
+      class="btn-restart"
+      (click)="restart()"
+      [title]="t('widget.restart')"
+      [attr.aria-label]="t('widget.restart')"
+    >
+      <span class="bb-icon" [innerHTML]="ICONS.refresh | safeSvg"></span>
+    </button>
     <button
       type="button"
       class="btn-send"
       (click)="sendMessage()"
       [disabled]="isLoading() || !userInput().trim()"
-      title="Senden"
-      aria-label="Senden"
+      [title]="t('chat.send')"
+      [attr.aria-label]="t('chat.send')"
     >
       <span class="bb-icon" [innerHTML]="ICONS.send | safeSvg"></span>
     </button>

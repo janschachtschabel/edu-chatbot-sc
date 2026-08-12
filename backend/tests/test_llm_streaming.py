@@ -232,12 +232,12 @@ def test_stream_wires_routing_timeout_retries(monkeypatch):
     asyncio.run(lls._stream_completion(
         out.append, messages=[{"role": "user", "content": "hi"}]))
     sent = fake.calls[0]
-    assert sent["model"] == "openai/gpt-5.4-mini"
+    assert sent["model"] == "openai/gpt-5.6-luna"
     assert sent["api_base"] == "https://api.openai.com/v1"
     assert sent["api_key"] == "sk-x"
     assert sent["num_retries"] == 2
     assert sent["timeout"] == 75.0
-    assert sent["verbosity"] == "medium"  # GPT-5 gating flowed through
+    assert sent["verbosity"] == "low"  # GPT-5 gating flowed through
     assert "".join(out) == "ok"
 
 

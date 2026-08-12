@@ -63,7 +63,7 @@ def _patch(monkeypatch, *, result=None, exc=None):
     graph = _FakeGraph(result=result, exc=exc)
     builds: list[dict] = []
 
-    def _fake_build(*, session, peer_ip="", on_token=None):
+    def _fake_build(*, session, peer_ip="", on_token=None, engine="pattern"):
         builds.append({"session": session, "peer_ip": peer_ip, "on_token": on_token})
         return graph
 
@@ -198,3 +198,151 @@ def test_session_lock_acquired_and_released(monkeypatch, client):
     _post(client)
     assert ("acquire", "bb-1") in events
     assert ("release", "bb-1") in events
+
+
+# ── C1-f2b6b: die Fehler-Blase folgt der Widget-Sprache ─────────────────────
+
+def test_error_bubble_follows_widget_language(monkeypatch, client):
+    _patch(monkeypatch, exc=RuntimeError("boom"))
+    r = client.post("/api/chat", json={
+        "session_id": "bb-1", "message": "hi",
+        "environment": {"locale": "en-GB"},
+    })
+    body = r.json()
+    assert body["content"] == (
+        "Something went wrong on our side (RuntimeError). Try again — if it "
+        "keeps happening, let me know."
+    )
+    assert body["quick_replies"] == ["Try again"]
+
+
+# ── C5-a: der Zugangsblock der Person kommt als Kopfzeile ───────────────────
+#
+# Das Widget holt ihn beim MCP-Server (OAuth) und schickt ihn je Anfrage mit.
+# Gepinnt wird, was WÄHREND des Zuges gilt — nicht, ob eine Funktion gerufen
+# wurde: der Block muss am MCP-Aufruf ankommen, und der passiert im Graphen.
+
+_BLOCK_HEADER = "WLO-Access-Block"
+
+
+def _mit_block_beobachter(monkeypatch):
+    """Fährt einen Zug und hält fest, welcher Block dabei wirklich gilt."""
+    from pydantic import SecretStr
+
+    from boerdi.services.mcp.auth import build_http_client_factory
+    from boerdi.settings import get_settings
+
+    # Ohne das hinge der Test an der Entwicklungs-Umgebung: ein gesetztes
+    # ``MCP_AUTH_TOKEN`` liesse „ohne Kopfzeile" nicht leer aussehen.
+    monkeypatch.setattr(get_settings(), "mcp_auth_token", SecretStr(""),
+                        raising=False)
+
+    gesehen: dict[str, str] = {}
+
+    class _Graph:
+        async def ainvoke(self, state):
+            client = build_http_client_factory()()
+            gesehen["auth"] = client.headers.get("authorization", "")
+            return _ok()
+
+    async def _fake_pp(req, resp, *a, **k):
+        return resp
+
+    monkeypatch.setattr(chat_api, "build_turn_graph", lambda **k: _Graph())
+    monkeypatch.setattr(chat_api, "peer_ip", lambda request: "7.7.7.7")
+    monkeypatch.setattr(chat_api, "_postprocess_response_for_widget_modes", _fake_pp)
+    return gesehen
+
+
+def _post_mit(client, headers=None):
+    return client.post(
+        "/api/chat",
+        json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+        headers=headers or {},
+    )
+
+
+def test_kopfzeile_meldet_die_person_fuer_diesen_zug(monkeypatch, client):
+    gesehen = _mit_block_beobachter(monkeypatch)
+    r = _post_mit(client, {_BLOCK_HEADER: "wlo2.person-x"})
+    assert r.status_code == 200
+    assert gesehen["auth"] == "Bearer wlo2.person-x"
+
+
+def test_ein_zug_ohne_kopfzeile_erbt_nichts_vom_vorigen(monkeypatch, client):
+    """Die wichtigste Zusicherung: kein Zug handelt unter fremdem Namen.
+
+    Der ``ContextVar`` überlebt die Task; würde der Endpunkt ihn nur BEI
+    vorhandener Kopfzeile setzen, hinge der nächste, anonyme Zug an der
+    Anmeldung des vorigen.
+    """
+    gesehen = _mit_block_beobachter(monkeypatch)
+    _post_mit(client, {_BLOCK_HEADER: "wlo2.person-x"})
+    assert gesehen["auth"] == "Bearer wlo2.person-x"
+
+    _post_mit(client)  # derselbe Prozess — aber ohne Kopfzeile
+    assert gesehen["auth"] == ""
+
+
+def test_unbrauchbare_kopfzeile_meldet_niemanden_an(monkeypatch, client, caplog):
+    """Fremde Zugangsdaten werden nicht weitergereicht — und nicht protokolliert."""
+    gesehen = _mit_block_beobachter(monkeypatch)
+    with caplog.at_level("WARNING"):
+        r = _post_mit(client, {_BLOCK_HEADER: "Basic aGFsbG86d2VsdA=="})
+    assert r.status_code == 200
+    assert gesehen["auth"] == ""
+    assert "aGFsbG86d2VsdA==" not in caplog.text
+
+
+# ── K2b: der Zug bucht seinen Verbrauch ─────────────────────────────────
+# Geschrieben wird am TRICHTER hinter ``ainvoke``, nicht im persist-Knoten:
+# Direkt-Aktionen und der Sicherheits-Block beenden den Zug vorher, hätten dort
+# also keine Zeile bekommen. Gemessen: nur diese beiden Ausstiege geben
+# überhaupt Token aus — Tour und Kontext-Begrüßung rufen kein LLM.
+
+def _spy_usage(monkeypatch):
+    calls: list[tuple] = []
+
+    async def _fake(session, session_id, acc):
+        calls.append((session, session_id, acc))
+        return 1
+
+    monkeypatch.setattr(chat_api, "record_turn_usage", _fake)
+    return calls
+
+
+def test_verbrauch_wird_am_zugende_geschrieben(monkeypatch, client):
+    acc = {"models": {"m": {"prompt": 10, "completion": 5, "cached": 0,
+                            "reasoning": 0, "calls": 1}}}
+    _patch(monkeypatch, result={**_ok("HI"), "usage": acc})
+    calls = _spy_usage(monkeypatch)
+    assert _post(client).status_code == 200
+    assert len(calls) == 1
+    session, session_id, uebergeben = calls[0]
+    assert session is _SESSION and session_id == "bb-1"
+    assert uebergeben is acc  # Identität: derselbe Merkposten, keine Kopie
+
+
+def test_verbrauch_auch_bei_direkt_aktion_mit_frueh_antwort(monkeypatch, client):
+    # Der Fall, den ein Schreiben im persist-Knoten verloren hätte.
+    acc = {"models": {"m": {"prompt": 7, "completion": 1, "cached": 0,
+                            "reasoning": 0, "calls": 1}}}
+    _patch(monkeypatch, result={
+        "early_response": ChatResponse(session_id="bb-1", content="EARLY"),
+        "usage": acc,
+    })
+    calls = _spy_usage(monkeypatch)
+    assert _post(client).json()["content"] == "EARLY"
+    assert len(calls) == 1 and calls[0][2] is acc
+
+
+def test_schreibfehler_beim_verbrauch_kippt_die_antwort_nicht(monkeypatch, client):
+    _patch(monkeypatch, result={**_ok("HI"), "usage": {"models": {"m": {}}}})
+
+    async def _boom(session, session_id, acc):
+        raise RuntimeError("DB weg")
+
+    monkeypatch.setattr(chat_api, "record_turn_usage", _boom)
+    r = _post(client)
+    # Die Buchhaltung ist nachrangig: die Antwort geht trotzdem raus.
+    assert r.status_code == 200 and r.json()["content"] == "HI"

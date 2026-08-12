@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { SafetyLogsComponent } from './safety-logs.component';
 
 const tick = (): Promise<unknown> => new Promise((r) => setTimeout(r, 0));
@@ -63,7 +64,10 @@ interface Harness {
   http: HttpTestingController;
 }
 
-function create(): Harness {
+function create(locale = 'de'): Harness {
+  // jsdom meldet `navigator.language === 'en-US'` — ohne die gemerkte Wahl
+  // stünde die Oberfläche ab C1-d4e3 auf Englisch.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -84,8 +88,9 @@ async function settle(h: Harness): Promise<void> {
 async function mount(
   logs: unknown[] = [FULL_LOG, BARE_LOG],
   stats: object = STATS,
+  locale = 'de',
 ): Promise<Harness> {
-  const h = create();
+  const h = create(locale);
   await h.fixture.whenStable();
   h.http.expectOne((r) => r.url === LOGS_URL).flush({ count: logs.length, logs });
   h.http.expectOne(STATS_URL).flush(stats);
@@ -240,5 +245,25 @@ describe('SafetyLogsComponent', () => {
     h.http.expectOne(STATS_URL).flush(STATS);
     await settle(h);
     h.http.verify();
+  });
+
+  it('spricht Englisch, wenn Englisch eingestellt ist', async () => {
+    const h = await mount([FULL_LOG, BARE_LOG], STATS, 'en');
+    await pick(h, 0);
+    const detail = h.el.querySelector('.sfl-detail')!;
+
+    expect(h.el.querySelector('.sfl-risk')!.textContent!.trim()).toBe('High');
+    expect(detail.textContent).toContain('Criminal law');
+    expect(detail.textContent).toContain('Stages run');
+    expect(h.el.textContent).toContain('escalated to the LLM');
+    expect(h.el.textContent).not.toContain('Rechtsfelder');
+  });
+
+  it('benennt eine unbekannte Rechtskategorie roh, statt sie zu verschlucken', async () => {
+    // Das Backend hängt zugeordnete Kategorien an (`safety/service.py:113`),
+    // die diese Liste nicht aufzählen kann.
+    const h = await mount([{ ...FULL_LOG, legal_flags: ['urheberrecht'] }]);
+    await pick(h, 0);
+    expect(h.el.querySelector('.sfl-detail')!.textContent).toContain('urheberrecht');
   });
 });

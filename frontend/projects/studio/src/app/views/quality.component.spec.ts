@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { QualityComponent } from './quality.component';
 
 const STATS_URL = '/studio/api/quality/stats';
@@ -48,7 +49,10 @@ async function flushOverview(h: Harness): Promise<void> {
   }
 }
 
-async function mount(): Promise<Harness> {
+/** jsdom meldet `navigator.language === 'en-US'`; ohne gesetzte Wahl liefe die
+ *  deutsche Oberfläche auf Englisch. */
+async function mount(locale = 'de'): Promise<Harness> {
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -166,5 +170,20 @@ describe('QualityComponent', () => {
     const h = await mount();
     expect(h.el.querySelector('h2')!.textContent).toContain('Analyse');
     expect(h.el.querySelector('fieldset legend')!.textContent).toContain('Datenbasis');
+  });
+
+  it('nimmt Reiter, Datenbasis und deren Erklärungen aus dem Katalog', async () => {
+    // Die vier Reiter und die drei Datenbasis-Wahlen standen als eingefrorene
+    // Konstanten im Bauteil — beides ist Oberfläche, nicht Struktur.
+    const h = await mount('en');
+    expect(tabs(h).map((t) => t.textContent!.trim()))
+      .toEqual(['Overview', 'Routing matrix', 'Conversation flow', 'Logs']);
+    expect(h.el.querySelector('h2')!.textContent).toContain('Analysis');
+    expect(h.el.querySelector('fieldset legend')!.textContent).toContain('Data basis');
+    const hints = Array.from(h.el.querySelectorAll('.qv-scope-hint')).map((s) => s.textContent);
+    expect(hints).toEqual([
+      'Real conversations and eval runs together', 'Real conversations only',
+      'Simulated eval turns only',
+    ]);
   });
 });

@@ -83,3 +83,42 @@ def test_policy_decision_has_no_hard_block(monkeypatch):
     _patch_rules(monkeypatch, [])
     d = ps.assess_policy("x", "P-LEH", "I02")
     assert getattr(d, "allowed", True) is not False
+
+
+# ── C1-g2c: der Pflicht-Hinweis je Sprache ─────────────────────────────────
+# Der Hinweis wird in `respond` an die Antwort gehängt und ist damit
+# Bot-Ausgabe. Er steht in `effect`, einem freien Dict im Bereichsmodell —
+# `disclaimer_en` braucht deshalb KEINE Modelländerung, es reist als
+# ungepinnter Schlüssel mit (`api/config.py:266-272`).
+
+def test_disclaimer_englisch_wenn_gepflegt(monkeypatch):
+    _patch_rules(monkeypatch, [{
+        "id": "r-presse",
+        "match": {"persona": "P-ENT"},
+        "effect": {"disclaimer": "Hinweis X", "disclaimer_en": "Note X"},
+    }])
+    assert ps.assess_policy("frage", "P-ENT", "I02", "en").required_disclaimers == ["Note X"]
+    assert ps.assess_policy("frage", "P-ENT", "I02", "de").required_disclaimers == ["Hinweis X"]
+
+
+def test_disclaimer_ohne_englisch_bleibt_deutsch(monkeypatch):
+    _patch_rules(monkeypatch, [{
+        "id": "r-presse",
+        "match": {"persona": "P-ENT"},
+        "effect": {"disclaimer": "Hinweis X"},
+    }])
+    assert ps.assess_policy("frage", "P-ENT", "I02", "en").required_disclaimers == ["Hinweis X"]
+
+
+def test_dedup_laeuft_ueber_den_gewaehlten_text(monkeypatch):
+    """Zwei Regeln mit demselben englischen Hinweis ergeben EINEN Eintrag.
+
+    Die Entdopplung vergleicht den Text, nicht die Regel — sie muss deshalb
+    nach der Sprachwahl greifen, sonst stünde der Hinweis auf einer englischen
+    Antwort doppelt.
+    """
+    _patch_rules(monkeypatch, [
+        {"id": "a", "match": {}, "effect": {"disclaimer": "A", "disclaimer_en": "Same"}},
+        {"id": "b", "match": {}, "effect": {"disclaimer": "B", "disclaimer_en": "Same"}},
+    ])
+    assert ps.assess_policy("frage", "P-LEH", "I02", "en").required_disclaimers == ["Same"]

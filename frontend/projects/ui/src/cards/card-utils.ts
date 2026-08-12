@@ -13,6 +13,7 @@
  */
 import { WloCard } from './card-types';
 import { ICONS } from '../icons/icons';
+import type { TranslateFn } from '../i18n/i18n';
 
 /**
  * Primary URL for a card — alle Varianten kommen vom Backend.
@@ -98,16 +99,21 @@ export function getCardIcon(card: WloCard): string {
 /**
  * Lesbares Label für den Inhaltstyp (über dem Bild). Nutzt den ersten
  * `learning_resource_types`-Eintrag wenn vorhanden, sonst Fallback.
+ *
+ * @param t Übersetzer (C1-b3) — als Parameter statt Import, weil diese Datei
+ *   rein bleibt und der Aufrufer die Sprache seiner Instanz kennt.
+ *   Der `learning_resource_type` selbst wird NICHT übersetzt: er ist
+ *   Backend-Inhalt, kein Oberflächentext.
  */
-export function getContentTypeLabel(card: WloCard): string {
-  if (isThemenseite(card)) return 'Themenseite';
+export function getContentTypeLabel(card: WloCard, t: TranslateFn): string {
+  if (isThemenseite(card)) return t('contentType.topicPage');
   if (card.node_type === 'collection') {
     // Sammlungen unterscheiden wir über das Kind-Badge rechts.
-    return 'Sammlung';
+    return t('contentType.collection');
   }
   const types = (card.learning_resource_types || []).filter(
-    t => t && t.toLowerCase() !== 'sammlung' && t.toLowerCase() !== 'collection',
+    typ => typ && typ.toLowerCase() !== 'sammlung' && typ.toLowerCase() !== 'collection',
   );
   if (types.length) return types[0];
-  return 'Inhalt';
+  return t('contentType.fallback');
 }

@@ -18,9 +18,17 @@ are patched at their SOURCE module, since the function re-imports them at call t
 
 from __future__ import annotations
 
+import warnings
 from unittest.mock import AsyncMock, Mock
 
-from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo, Environment, WloCard
+from boerdi.api.schemas import (
+    ChatRequest,
+    ChatResponse,
+    DebugInfo,
+    Environment,
+    WebLink,
+    WloCard,
+)
 from boerdi.services.widget_postprocess import _postprocess_response_for_widget_modes
 
 MOD = "boerdi.services.widget_postprocess"
@@ -141,3 +149,43 @@ async def test_quick_reply_cap_enforced_from_display_rules(monkeypatch):
     resp = _resp(content="Hallo.", quick_replies=["a", "b", "c", "d", "e"])
     out = await _postprocess_response_for_widget_modes(_req(), resp)
     assert len(out.quick_replies) <= 2   # empty pattern → _qr_policy None → global cap
+
+
+# --- C8: web_links behalten ihren deklarierten Typ --------------------------
+
+async def test_web_links_stay_weblink_instances_not_dicts(monkeypatch):
+    """C8 — der Orchestrator gibt ``web_links`` per ``model_copy(update=…)``
+    zurueck, und ``update`` UEBERSPRINGT die pydantic-Validierung.
+
+    Intern werden die Links absichtlich zu dicts gemacht (Zeile 703/716), damit
+    die Merge-/Dedup-Logik einheitlich mit ``l.get("url")`` arbeiten kann —
+    bestehende ``WebLink``-Objekte und neue dicts aus
+    ``_extract_web_links_from_text`` treffen dort aufeinander. Ohne
+    Rueck-Validierung landen diese dicts in einem Feld, das ``list[WebLink]``
+    verspricht: die Antwort ist heute inhaltlich vollstaendig, aber der Vertrag
+    luegt — kaeme ein Feld zu ``WebLink`` dazu, fiele es still weg.
+    """
+    _no_v2(monkeypatch)
+    resp = _resp(content="Siehe die Quellen.")
+    resp.web_links = [WebLink(title="FAQ", url="https://faq.example")]
+
+    out = await _postprocess_response_for_widget_modes(_req(), resp)
+
+    assert [type(link).__name__ for link in out.web_links] == ["WebLink"]
+    assert out.web_links[0].url == "https://faq.example"
+
+
+async def test_web_links_serialize_without_pydantic_warning(monkeypatch):
+    """Die Wirkung, die im P11-Probelauf im Log stand: jede Antwort mit Links
+    erzeugte ``PydanticSerializationUnexpectedValue``. Diese Zusicherung misst
+    das Symptom (statt nur den Typ), damit auch ein anderer Weg zurueck in
+    dieselbe Luecke auffliegt."""
+    _no_v2(monkeypatch)
+    resp = _resp(content="Siehe die Quellen.")
+    resp.web_links = [WebLink(title="FAQ", url="https://faq.example")]
+
+    out = await _postprocess_response_for_widget_modes(_req(), resp)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out.model_dump()

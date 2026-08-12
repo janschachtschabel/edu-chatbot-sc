@@ -6,6 +6,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { AreasComponent } from './areas.component';
 
 const FILES = '/studio/api/config/files';
@@ -26,6 +27,9 @@ async function mount(
   status = 200,
 ): Promise<Harness> {
   TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen
+  // Zusagen unten brauchen deshalb die oberste Sprachquelle.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),

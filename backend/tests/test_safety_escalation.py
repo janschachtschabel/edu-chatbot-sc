@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 
+from boerdi.obs.usage import new_accumulator
 from boerdi.services.safety import legal as legal_mod
 from boerdi.services.safety import moderation as moderation_mod
 from boerdi.services.safety import service as ss
@@ -37,18 +38,21 @@ _CFG = {
 }
 
 
-def _run(monkeypatch, message, *, mod=None, legal=None, cfg=None):
+def _run(monkeypatch, message, *, mod=None, legal=None, cfg=None, usage_acc=None,
+         seen=None):
     monkeypatch.setattr(ss, "load_safety_config", lambda: dict(cfg or _CFG))
 
     async def _mod(_m):
         return mod or {}
 
-    async def _legal(_m):
+    async def _legal(_m, usage_acc=None):
+        if seen is not None:
+            seen["usage_acc"] = usage_acc
         return legal or {}
 
     monkeypatch.setattr(moderation_mod, "moderate", _mod)
     monkeypatch.setattr(legal_mod, "classify_legal", _legal)
-    return asyncio.run(ss.assess_safety(message))
+    return asyncio.run(ss.assess_safety(message, usage_acc=usage_acc))
 
 
 def test_moderation_hard_block_self_harm_is_m01(monkeypatch):
@@ -104,3 +108,19 @@ def test_legal_trigger_override_forces_legal_stage(monkeypatch):
     assert "legal_trigger_match" in d.reasons
     assert "llm_legal" in d.stages_run
     assert d.risk_level == "high"
+
+
+# ── K1d: die Rechtsprüfung bucht auf den Zug-Merkposten ───────────────────
+
+def test_assess_safety_reicht_den_merkposten_an_die_rechtspruefung(monkeypatch):
+    seen: dict = {}
+    acc = new_accumulator()
+    _run(monkeypatch, "ich hasse diese plattform", usage_acc=acc, seen=seen)
+    assert seen["usage_acc"] is acc
+
+
+def test_assess_safety_ohne_merkposten_bleibt_lauffaehig(monkeypatch):
+    seen: dict = {}
+    d = _run(monkeypatch, "harmlos", seen=seen)
+    assert seen["usage_acc"] is None
+    assert d.risk_level in {"low", "medium", "high"}

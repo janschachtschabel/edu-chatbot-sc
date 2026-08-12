@@ -148,6 +148,9 @@ services:
       LLM_READ_TIMEOUT: ${LLM_READ_TIMEOUT:-}
       MCP_SERVER_URL: ${MCP_SERVER_URL:-}
       MCP_MAX_CONNECTIONS: ${MCP_MAX_CONNECTIONS:-}
+      # Geheimnis (C2): Zugangsblock des MCP-Servers, aus der .env auf dem
+      # Server. Leer = anonym lesend. Siehe deploy/README.md.
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
       REPO_BASE_URL: ${REPO_BASE_URL:-}
       GUIDE_TRUSTED_DOMAINS: ${GUIDE_TRUSTED_DOMAINS:-}
       BOERDI_MAX_INGEST_MB: ${BOERDI_MAX_INGEST_MB:-}
@@ -157,6 +160,22 @@ services:
       EVAL_CHAT_URL: ${EVAL_CHAT_URL:-}
       EVAL_SIMULATOR_MODEL: ${EVAL_SIMULATOR_MODEL:-}
       EVAL_JUDGE_MODEL: ${EVAL_JUDGE_MODEL:-}
+      # Absoluter Mount-Punkt, damit die Auflösung nicht am Arbeitsverzeichnis
+      # hängt. Darunter liegt das Slug-Verzeichnis des Exports.
+      RERANK_MODEL_DIR: /models
+    volumes:
+      # Das Reranker-Modell liegt NICHT im Image — es ist ein heruntergeladenes
+      # Artefakt (~135 MB), kein Quellstand, und eine 113-MB-Datei gehört weder
+      # in git noch in jede Image-Schicht. Bezugsweg: INSTALL.md, „Reranker-Modell".
+      #
+      # OPTIONAL im Wortsinn: fehlt das Verzeichnis oder ist es leer, findet
+      # `rerank._reranker_model_dir()` keine `.onnx` und der Reranker bleibt aus
+      # — kein Startfehler, die Suche ordnet dann ohne ihn. Docker legt einen
+      # fehlenden Host-Pfad als leeres Verzeichnis an, also genau dieser Fall.
+      #
+      # `:ro`, weil das Backend nur liest — es braucht überhaupt kein
+      # beschreibbares Volume (siehe deploy/README.md).
+      - ${RERANK_MODEL_HOST_DIR:-./models}:/models:ro
     depends_on:
       migrate:
         condition: service_completed_successfully

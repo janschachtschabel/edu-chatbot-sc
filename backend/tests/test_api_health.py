@@ -26,10 +26,10 @@ def test_api_health_shape_gpt5(monkeypatch):
     body = r.json()
     assert body["status"] == "ok"
     assert body["provider"] == "openai"
-    assert body["chat_model"] == "gpt-5.4-mini"
+    assert body["chat_model"] == "gpt-5.6-luna"
     assert body["embed_model"] == "text-embedding-3-small"
     assert body["gpt5_params_active"] is True
-    assert body["verbosity"] == "medium"
+    assert body["verbosity"] == "low"  # W12
     assert body["reasoning_effort"] == "low"
     assert "sk-super-secret-value" not in r.text  # never leak key material
 

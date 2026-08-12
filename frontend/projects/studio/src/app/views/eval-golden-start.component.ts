@@ -14,27 +14,40 @@
 import {
   ChangeDetectionStrategy, Component, computed, inject, input, output, signal,
 } from '@angular/core';
+import type { RichSegment } from '@boerdi/ui';
 
 import { AsyncData, describeApiError } from '../core/async-data';
 import { EvalApi, type GoldFlow } from '../core/eval-api.service';
-import { formatWhole } from '../core/format';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { RichTextComponent } from './rich-text.component';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 @Component({
   selector: 'studio-eval-golden-start',
-  imports: [AsyncStateComponent],
+  imports: [AsyncStateComponent, RichTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './eval-golden-start.component.html',
   styleUrl: './eval-golden-start.component.scss',
 })
 export class EvalGoldenStartComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  private readonly lang = inject(StudioLanguageService);
+
+  /** Uebersetzer fuer den Fehlersatz der Leseoperationen und fuer die
+   *  Texte dieser Ansicht. */
+  protected readonly t = this.lang.t;
+  protected readonly rich = this.lang.rich;
+
   private readonly api = inject(EvalApi);
 
   /** True while any run is in flight — the backend allows one and answers 409. */
   readonly busy = input(false);
   readonly started = output<string>();
 
-  readonly flowList = new AsyncData<readonly GoldFlow[]>(() => this.api.goldFlows());
+  readonly flowList = new AsyncData<readonly GoldFlow[]>(() => this.api.goldFlows(), this.t);
   readonly flows = computed<readonly GoldFlow[]>(() => this.flowList.value() ?? []);
 
   readonly judge = signal(false);
@@ -58,6 +71,39 @@ export class EvalGoldenStartComponent {
 
   readonly noFlows = computed(() => !this.flowList.loading() && this.flows().length === 0);
   readonly ready = computed(() => !this.flowList.error() && this.turns() > 0);
+
+  /**
+   * Die drei Wortgruppen, die Kostenzeile und Rückfrage teilen (C1-d4c).
+   *
+   * Jede trägt ihre eigene Mehrzahl — die Kostenzeile sagt „1 Chat-Anfrage in
+   * 1 Flow" genauso richtig wie „7 Chat-Anfragen in 2 Flows"; bis hierher stand
+   * dort `Flow(s)`. Die ZAHL wählt dabei die Form, der FORMATIERTE Text füllt
+   * den Platzhalter, sonst verlöre ein vierstelliger Wert seine
+   * Tausender-Trennung (dasselbe Muster wie `overview.snapshots`).
+   */
+  private readonly phrases = computed(() => {
+    const turns = this.turns();
+    const flows = this.selected().length;
+    return {
+      calls: this.lang.plural('evalStart.gold.calls', turns, { count: this.fmt.whole(turns) }),
+      judgeCalls: this.lang.plural('evalStart.judgeCalls', turns, { count: this.fmt.whole(turns) }),
+      flows: this.lang.plural('evalStart.gold.flows', flows, { count: this.fmt.whole(flows) }),
+    };
+  });
+
+  /** Zwei ganze Sätze statt eines mit eingebautem `@if`: ein Nebensatz, den
+   *  das Template ein- und ausblendet, ist kein übersetzbarer Satz. */
+  readonly costParts = computed<readonly RichSegment[]>(() =>
+    this.rich(
+      this.judge() ? 'evalStart.gold.cost.judge' : 'evalStart.gold.cost.plain',
+      this.phrases(),
+    ));
+
+  readonly confirmText = computed(() =>
+    this.t(
+      this.judge() ? 'evalStart.gold.confirm.judge' : 'evalStart.gold.confirm.plain',
+      this.phrases(),
+    ));
 
   constructor() {
     void this.flowList.reload();
@@ -102,23 +148,19 @@ export class EvalGoldenStartComponent {
         flow_ids: [...this.chosen()], judge: this.judge(), config_slug: '',
       });
       this.armed.set(false);
-      this.status.set(`Gold-Lauf ${result.run_id} gestartet.`);
+      this.status.set(this.t('evalStart.gold.started', { id: result.run_id }));
       this.warnings.set(result.warnings ?? []);
       this.started.emit(result.run_id);
     } catch (err) {
-      this.startError.set(describeApiError(err));
+      this.startError.set(describeApiError(err, this.t));
     } finally {
       this.starting.set(false);
     }
   }
 
-  count(value: number): string {
-    return formatWhole(value);
-  }
-
   /** "4 Turns · P-LEH · I03, I04" — what this flow is going to exercise. */
   flowMeta(flow: GoldFlow): string {
-    const parts = [`${flow.turns?.length ?? 0} Turns`];
+    const parts = [this.lang.plural('evalStart.gold.turns', flow.turns?.length ?? 0)];
     if (flow.persona) parts.push(flow.persona);
     if (flow.intents?.length) parts.push(flow.intents.join(', '));
     return parts.join(' · ');

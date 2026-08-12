@@ -21,7 +21,7 @@ from boerdi.settings import get_settings
 
 def _content_resp(text: str):
     return SimpleNamespace(
-        model="gpt-5.4-mini",
+        model="gpt-5.6-luna",
         choices=[SimpleNamespace(message=SimpleNamespace(content=text))],
         usage=SimpleNamespace(
             prompt_tokens=50, completion_tokens=20,
@@ -180,3 +180,32 @@ def test_analytical_personas_default_when_config_empty(monkeypatch) -> None:
     monkeypatch.setattr(qr, "load_canvas_persona_priorities",
                         lambda: {"analytical_personas": ["P-Z"]})
     assert qr._analytical_personas() == frozenset({"P-Z"})
+
+
+# ── Ausgabe-Sprache (C1-f2a) ───────────────────────────────────────────────
+# Quick-Replies sind Sätze, die der NUTZER liest und anklickt. Anders als bei
+# Kuration/Lernpfad/Canvas gab es hier NIE eine Sprach-Direktive — das Modell
+# schloss die Sprache aus dem deutschen Prompt. Für Deutsch bleibt das so
+# (Prompt bytegleich); für Englisch kommt der Hinweis-Block dazu.
+
+
+def _qr_system(_qr_env, **kw):
+    cap = _Capture("A\nB\nC\nD")
+    _qr_env.setattr(llm, "_acompletion", cap)
+    asyncio.run(qr.generate_quick_replies(
+        "Zeig mir Material", "Hier sind Treffer.", dict(_QR_CLS), {}, **kw))
+    return cap.calls[0]["messages"][0]["content"]
+
+
+def test_qr_deutsch_bleibt_wortgleich(_qr_env):
+    ohne = _qr_system(_qr_env)
+    mit = _qr_system(_qr_env, lang="de")
+    assert ohne == mit
+    assert "Englisch" not in mit
+
+
+def test_qr_englisch_haengt_den_hinweis_an(_qr_env):
+    from boerdi.i18n import template_hint
+    system = _qr_system(_qr_env, lang="en")
+    assert system.endswith(template_hint("en").strip())
+    assert "Englisch (British English)" in system

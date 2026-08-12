@@ -20,6 +20,25 @@ from sqlalchemy import text
 
 from tests import pg_utils
 
+
+def _als_many(einzeln):
+    """Eine Einzel-Attrappe an die neue Sammel-Grenze anschliessen (W10).
+
+    `ingest` ruft seit W10 `embed_many`; die Tests beschreiben aber weiterhin
+    das Verhalten PRO Chunk (Reihenfolge, Fehler-Isolation). Diese Huelle
+    bewahrt beides: dieselbe Attrappe, neue Grenze.
+    """
+    async def viele(texte, *, kind="passage"):
+        aus = []
+        for t in texte:
+            try:
+                aus.append(await einzeln(t, kind=kind))
+            except Exception:
+                aus.append(None)
+        return aus
+    return viele
+
+
 pytestmark = [
     pytest.mark.pg,
     pytest.mark.skipif(not pg_utils.pg_available(), reason=pg_utils.SKIP_REASON),
@@ -76,7 +95,7 @@ def _run(fn, monkeypatch, embedder):
     import boerdi.services.rag.ingest as ri
     from boerdi.db.session import make_session_factory
 
-    monkeypatch.setattr(ri, "embedding", embedder)
+    monkeypatch.setattr(ri, "embed_many", _als_many(embedder))
 
     async def scenario():
         engine = _engine(_DB)
@@ -103,7 +122,7 @@ async def _count(session, where: str) -> int:
 def test_embed_missing_fills_every_null_vector(test_db, monkeypatch) -> None:
     import boerdi.services.rag.ingest as ri
 
-    async def good(_text):
+    async def good(_text, *, kind="query"):
         return [0.25] * _dim()
 
     async def scenario(session):
@@ -118,7 +137,7 @@ def test_embed_missing_fills_every_null_vector(test_db, monkeypatch) -> None:
 def test_embed_missing_savepoint_survives_a_real_dimension_mismatch(test_db, monkeypatch) -> None:
     import boerdi.services.rag.ingest as ri
 
-    async def one_bad(text_):
+    async def one_bad(text_, *, kind="query"):
         if text_ == "Zelle Teil 1":
             return [1.0, 2.0]  # wrong dim -> pgvector raises, aborting the tx
         return [0.25] * _dim()
@@ -140,7 +159,7 @@ def test_embed_missing_savepoint_survives_a_real_dimension_mismatch(test_db, mon
 def test_embed_missing_leaves_existing_vectors_untouched(test_db, monkeypatch) -> None:
     import boerdi.services.rag.ingest as ri
 
-    async def good(_text):
+    async def good(_text, *, kind="query"):
         return [0.25] * _dim()
 
     async def scenario(session):
@@ -160,7 +179,7 @@ def test_embed_missing_reports_nothing_to_do_on_a_fully_embedded_table(
 
     calls: list[str] = []
 
-    async def good(text_):
+    async def good(text_, *, kind="query"):
         calls.append(text_)
         return [0.25] * _dim()
 

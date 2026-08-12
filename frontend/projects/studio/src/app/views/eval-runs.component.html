@@ -1,19 +1,19 @@
 <div class="er-bar">
   <label class="er-field" for="er-status">
-    Status
+    {{ t('evalRuns.filter.label') }}
     <select
       id="er-status"
       [value]="statusFilter()"
       (change)="onStatusFilter($any($event.target).value)"
     >
-      @for (option of statusFilters; track option.value) {
+      @for (option of statusFilters(); track option.value) {
         <option [value]="option.value">{{ option.label }}</option>
       }
     </select>
   </label>
 
   <button type="button" class="er-reload" [disabled]="runs.loading()" (click)="reload()">
-    {{ runs.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+    {{ runs.loading() ? t('action.refreshing') : t('action.refresh') }}
   </button>
   <button
     type="button"
@@ -21,10 +21,10 @@
     [disabled]="working() || rows().length === 0"
     (click)="arm({ kind: 'bulk' })"
   >
-    {{ statusFilter() ? 'Gefilterte Läufe löschen' : 'Alle Läufe löschen' }}
+    {{ statusFilter() ? t('evalRuns.deleteFiltered') : t('evalRuns.deleteAll') }}
   </button>
   <button type="button" class="er-clear-logs" [disabled]="working()" (click)="arm({ kind: 'logs' })">
-    Eval-Quality-Logs löschen
+    {{ t('evalRuns.clearLogs') }}
   </button>
 </div>
 
@@ -33,9 +33,9 @@
     <div class="er-danger">
       <p class="er-question" role="alert">{{ question() }}</p>
       <button type="button" class="er-confirm" [disabled]="working()" (click)="confirm()">
-        Ja, löschen
+        {{ t('action.confirmDelete') }}
       </button>
-      <button type="button" class="er-cancel" (click)="disarm()">Abbrechen</button>
+      <button type="button" class="er-cancel" (click)="disarm()">{{ t('action.cancel') }}</button>
     </div>
   }
 }
@@ -48,20 +48,19 @@
 }
 
 <studio-async-state
-  label="Eval-Läufe"
+  [label]="t('evalRuns.list')"
   [loading]="runs.loading()"
   [error]="runs.error()"
   [empty]="runs.isEmpty()"
-  emptyText="Noch kein Eval-Lauf. Starte unten einen Gold-Flow-Lauf — der ist
-             deterministisch und prüft feste Gesprächsabläufe."
+  [emptyText]="t('evalRuns.empty')"
   (retry)="reload()"
 />
 
 @if (rows().length > 0) {
   <p class="er-count">
-    {{ rows().length }} Läufe · neueste zuerst
+    {{ countLine() }}
     @if (isPolling()) {
-      · <span class="er-live">ein Lauf ist aktiv, die Liste aktualisiert sich selbst</span>
+      · <span class="er-live">{{ t('evalRuns.live') }}</span>
     }
   </p>
 
@@ -79,22 +78,22 @@
 
           <span class="er-row-meta">
             @if (row.status === 'running') {
-              {{ row.total_turns }} von {{ row.target_turns }} Turns
+              {{ t('evalRuns.progress', { done: row.total_turns, total: row.target_turns }) }}
               @if (row.current_activity) {
                 · {{ row.current_activity }}
               }
             } @else {
-              {{ row.total_turns }} Turns · Ø Score {{ score(row.avg_score) }}
+              {{ t('evalRuns.result', { turns: row.total_turns, score: score(row.avg_score) }) }}
             }
           </span>
 
           <span class="er-row-scope">
-            {{ row.config_slug || 'ohne Konfigurations-Kennung' }}
+            {{ row.config_slug || t('evalRuns.noConfig') }}
             @if (row.personas.length > 0) {
-              · {{ row.personas.length }} Personas
+              · {{ t('evalRuns.personas', { count: row.personas.length }) }}
             }
             @if (row.intents.length > 0) {
-              · {{ row.intents.length }} Intents
+              · {{ t('evalRuns.intents', { count: row.intents.length }) }}
             }
           </span>
         </button>
@@ -107,19 +106,26 @@
           <div class="er-danger">
             <p class="er-question" role="alert">{{ question() }}</p>
             <button type="button" class="er-confirm" [disabled]="working()" (click)="confirm()">
-              Ja, löschen
+              {{ t('action.confirmDelete') }}
             </button>
-            <button type="button" class="er-cancel" (click)="disarm()">Abbrechen</button>
+            <button type="button" class="er-cancel" (click)="disarm()">
+              {{ t('action.cancel') }}
+            </button>
           </div>
         } @else {
+          <!-- Der zugängliche Name nennt den Lauf, weil jede Zeile denselben
+               sichtbaren Text trägt. Bis C1-d4b stand das Ziel in einem
+               `<span class="sr">` daneben — ein Satz aus zwei Bruchstücken,
+               dessen Wortstellung der Übersetzung gehört. -->
           <button
             type="button"
             class="er-arm"
             [disabled]="working() || row.status === 'running'"
-            [attr.title]="row.status === 'running' ? 'Ein laufender Lauf kann nicht gelöscht werden' : null"
+            [attr.aria-label]="t('evalRuns.deleteFor', { id: row.id })"
+            [attr.title]="row.status === 'running' ? t('evalRuns.deleteBlocked') : null"
             (click)="arm({ kind: 'one', id: row.id })"
           >
-            Löschen<span class="sr"> — Lauf {{ row.id }}</span>
+            {{ t('evalRuns.delete') }}
           </button>
         }
       </li>

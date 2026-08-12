@@ -32,9 +32,15 @@ deutsche Inhalte/englischer Code).
   Portieren IMMER zuerst die Alt-Testdatei portieren (Patch-Pfade anpassen), dann das Modul.
   `../badboerdi/backend/badboerdi.db` niemals beschreiben (für den RAG-Import nur eine KOPIE
   lesen). Secrets aus `../badboerdi/backend/.env` niemals ausgeben oder hierher kopieren.
-- **MCP-Server (extern, wird NUR konsumiert):** `../wlo-mcp-server/` — eigenes Repo, bleibt
-  unverändert; deployed auf Vercel (Backend spricht ihn über `MCP_SERVER_URL` an). 12 Tools,
-  Verträge in Spec-§5.2.
+- **MCP-Server (extern, wird NUR konsumiert):** `../wlo-mcp-server-sc/` — eigenes Repo, bleibt
+  unverändert; selbst gehostet unter `https://wlo-mcp.87.106.195.152.nip.io/mcp` (Backend
+  spricht ihn über `MCP_SERVER_URL` an, Default steht im Code). **23 Tools**, Stand
+  2026-07-31 per `tools/list` VOM SERVER geholt. Verträge in Spec-§5.2.
+  Die frühere Vercel-Instanz (`../wlo-mcp-server/`, 12 Tools) ist **abgelöst und wird nicht
+  mehr verwendet** — sie kannte `get_wlo_content_text` nicht, wodurch M17 ins Leere rief.
+  Beim nächsten Server-Wechsel: Liste erneut vom Server holen und
+  `seeds/05-knowledge/mcp-servers.yaml` nachziehen — zwei Wächter halten das fest
+  (Registry-Deckung gegen TOOL_DEFINITIONS + die zwei Default-URL-Zwillinge).
 
 ## Arbeitsweise
 

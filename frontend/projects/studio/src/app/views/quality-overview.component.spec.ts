@@ -5,6 +5,7 @@ import { Component, provideZonelessChangeDetection, signal } from '@angular/core
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { QualityOverviewComponent } from './quality-overview.component';
 import type { QualityScope } from '../core/quality-api.service';
 
@@ -46,7 +47,10 @@ async function settle(h: Harness): Promise<void> {
   await h.fixture.whenStable();
 }
 
-async function mount(stats: object = STATS): Promise<Harness> {
+/** jsdom meldet `navigator.language === 'en-US'`; ohne gesetzte Wahl liefe die
+ *  deutsche Oberfläche auf Englisch. */
+async function mount(stats: object = STATS, locale = 'de'): Promise<Harness> {
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -159,6 +163,18 @@ describe('QualityOverviewComponent', () => {
     await settle(h);
 
     expect(h.el.querySelector('[role="alert"]')!.textContent).toContain('Datenbank');
+  });
+
+  it('setzt den Prozentwert in den übersetzten Hinweissatz ein', async () => {
+    // Der Satz war in der Komponente aus zwei Bruchstücken und dem Wert
+    // zusammengesetzt; die Wortstellung gehört der Übersetzung.
+    // Und seit C1-d4f auch die ZAHL: bis dahin stand hier „22,0 %" — ein
+    // englischer Satz mit deutsch formatierter Zahl, samt geschütztem
+    // Leerzeichen, das die englische Typografie nicht setzt.
+    const h = await mount({ ...STATS, degradation_rate: 0.22 }, 'en');
+    expect(h.el.querySelector('.qo-hints li')!.textContent!.trim())
+      .toBe('Degradation rate at 22.0% — check the required slots of the '
+        + 'patterns concerned.');
   });
 
   it('says an untouched installation is empty, and how it fills', async () => {

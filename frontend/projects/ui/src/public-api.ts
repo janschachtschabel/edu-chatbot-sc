@@ -32,6 +32,31 @@ export {
 export { maybeRewriteOutgoingLink, resolveGuideNavUrl } from './session/link-handoff';
 export type { LinkHandoffContext, OutgoingLinkContext } from './session/link-handoff';
 
+// ── Sprache (C1): Kern aus C1-a, Seam aus C1-b1, Quellen aus C1-c ─────
+// Die Quellen-Leser standen bis C1-c bewusst NICHT hier — ihr einziger
+// Verbraucher war `WidgetLanguage` in derselben Bibliothek. Mit C1-d1 hat das
+// Studio seine eigene, vom Widget unabhängige Spracheinstellung; damit gibt es
+// den zweiten Verbraucher, und erst jetzt sind sie öffentlich.
+//
+// NICHT exportiert bleiben: die Kataloge `DE`/`EN` (das sind Widget-Texte, das
+// Studio bringt eigene mit), `createTranslator` (nur `I18n` ruft es auf) und
+// `readHostLocale` — die Host-Quelle gibt es nur für ein eingebettetes Element;
+// beim Studio wäre `<html lang>` die eigene Ausgabe, nicht eine Quelle.
+export { I18n } from './i18n/i18n';
+export type { TranslateFn } from './i18n/i18n';
+export {
+  DEFAULT_LOCALE, SUPPORTED_LOCALES, nextLocale, normalizeLocale, resolveLocale,
+} from './i18n/locale';
+export type { Locale, LocaleSources } from './i18n/locale';
+export type { Catalogue, TranslationParams } from './i18n/dictionary';
+export {
+  readBrowserLocale, readStoredLocale, writeStoredLocale,
+} from './i18n/locale-sources';
+// C1-d4b2: Auszeichnung mitten im Satz. `einsetzen` bleibt bibliotheks-intern —
+// `splitRich` ist sein einziger Aufrufer ausser `createTranslator`.
+export { splitRich } from './i18n/rich-text';
+export type { RichKind, RichSegment } from './i18n/rich-text';
+
 export { ICONS } from './icons/icons';
 export type { IconName } from './icons/icons';
 export { SafeSvgPipe } from './icons/safe-svg.pipe';
@@ -107,7 +132,7 @@ export type {
 } from './grouping/message-types';
 export { DebugPanelComponent } from './debug/debug-panel.component';
 export { ResultGroupsComponent } from './grouping/result-groups.component';
-export type { ResultGroupsContext } from './grouping/result-groups.component';
+export type { ResultGroupsContext } from './grouping/result-grouping';
 export { SwimlanesComponent } from './grouping/swimlanes.component';
 
 export {
@@ -143,13 +168,15 @@ export {
   browseCollection,
   generateLearningPath,
   loadMore,
+  showContentText,
   showMoreCards,
 } from './controllers/collection-actions';
 export type { CollectionActionsContext } from './controllers/collection-actions';
 export { SpeechService } from './speech/speech.service';
 export type { SpeechContext } from './speech/speech.service';
 
-export { _attrIsTrue } from './element/attr';
+export { _attrEnum, _attrIsTrue, PANEL_SIZE_STEPS, WIDGET_THEMES, resolveTheme } from './element/attr';
+export type { PanelSizeStep, WidgetTheme } from './element/attr';
 export {
   maybeDispatchGuideNavigate,
   maybeDispatchGuideSuggestion,
@@ -164,6 +191,7 @@ export {
   headerNavHrefWithBsid,
   headerNavIconSvg,
   parseGuideModeConfig,
+  pickLocalized,
 } from './widget/guide-mode-config';
 export type { HeaderNavButton, ParsedGuideModeConfig } from './widget/guide-mode-config';
 export { PanelState } from './widget/panel-state';
@@ -174,3 +202,5 @@ export { GuideNav } from './widget/guide-nav';
 export type { GuideNavContext } from './widget/guide-nav';
 export { HostBridges } from './widget/host-bridges';
 export type { HostBridgesContext } from './widget/host-bridges';
+export { WidgetLanguage } from './widget/widget-language';
+export type { WidgetLanguageContext } from './widget/widget-language';

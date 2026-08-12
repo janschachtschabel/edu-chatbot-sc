@@ -1,12 +1,12 @@
 <details class="cs" [open]="open()">
   <summary class="cs-summary">
-    <h3 class="cs-title">{{ section().label }}</h3>
-    <p class="cs-hint">{{ section().hint }}</p>
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
   </summary>
 
   <div class="cs-body ri">
     <fieldset class="ri-sources">
-      <legend class="ri-legend">Quelle</legend>
+      <legend class="ri-legend">{{ t('rag.ingest.sourceLegend') }}</legend>
       @for (option of sources; track option.id) {
         <label class="ri-source" [class.ri-source--on]="source() === option.id">
           <input
@@ -16,13 +16,13 @@
             [checked]="source() === option.id"
             (change)="onSource(option.id)"
           />
-          {{ option.label }}
+          {{ t(option.labelKey) }}
         </label>
       }
     </fieldset>
 
     <div class="ri-field">
-      <label class="ri-label" [for]="idPrefix + '-area'">Wissensbereich (Pflicht)</label>
+      <label class="ri-label" [for]="idPrefix + '-area'">{{ t('rag.ingest.area') }}</label>
       <input
         type="text"
         class="ri-area"
@@ -37,14 +37,11 @@
           <option [value]="name"></option>
         }
       </datalist>
-      <p class="ri-help" [id]="idPrefix + '-area-help'">
-        Ein vorhandener Bereich oder ein neuer Name — der Bereich entsteht mit
-        diesem Dokument.
-      </p>
+      <p class="ri-help" [id]="idPrefix + '-area-help'">{{ t('rag.ingest.areaHelp') }}</p>
     </div>
 
     <div class="ri-field">
-      <label class="ri-label" [for]="idPrefix + '-title'">Titel (optional)</label>
+      <label class="ri-label" [for]="idPrefix + '-title'">{{ t('rag.ingest.title') }}</label>
       <input
         type="text"
         class="ri-title"
@@ -57,7 +54,9 @@
     @switch (source()) {
       @case ('file') {
         <div class="ri-field">
-          <label class="ri-label" [for]="idPrefix + '-file'">Datei</label>
+          <label class="ri-label" [for]="idPrefix + '-file'">
+            {{ t('rag.ingest.source.file') }}
+          </label>
           <input
             #fileInput
             type="file"
@@ -66,15 +65,12 @@
             [attr.aria-describedby]="idPrefix + '-file-help'"
             (change)="onFile($event)"
           />
-          <p class="ri-help" [id]="idPrefix + '-file-help'">
-            PDF, DOCX, PPTX, XLSX, HTML, Markdown oder Text. Große Dateien lehnt
-            der Server ab, statt am Speicher zu scheitern.
-          </p>
+          <p class="ri-help" [id]="idPrefix + '-file-help'">{{ t('rag.ingest.fileHelp') }}</p>
         </div>
       }
       @case ('url') {
         <div class="ri-field">
-          <label class="ri-label" [for]="idPrefix + '-url'">Adresse der Webseite</label>
+          <label class="ri-label" [for]="idPrefix + '-url'">{{ t('rag.ingest.url') }}</label>
           <input
             type="url"
             class="ri-url"
@@ -84,14 +80,14 @@
             [value]="url()"
             (input)="url.set($any($event.target).value)"
           />
-          <p class="ri-help" [id]="idPrefix + '-url-help'">
-            Öffentlich erreichbare Adresse — interne Adressen weist der Server ab.
-          </p>
+          <p class="ri-help" [id]="idPrefix + '-url-help'">{{ t('rag.ingest.urlHelp') }}</p>
         </div>
       }
       @default {
         <div class="ri-field">
-          <label class="ri-label" [for]="idPrefix + '-text'">Text</label>
+          <label class="ri-label" [for]="idPrefix + '-text'">
+            {{ t('rag.ingest.source.text') }}
+          </label>
           <textarea
             class="ri-text"
             rows="8"
@@ -110,11 +106,11 @@
         [disabled]="!ready() || sending()"
         (click)="send()"
       >
-        {{ sending() ? 'Wird eingelesen …' : 'Einlesen' }}
+        {{ sending() ? t('rag.ingest.busy') : t('rag.ingest.go') }}
       </button>
       @if (missing(); as what) {
         <!-- otherwise "Einlesen" is simply grey and nothing says what is left -->
-        <span class="ri-missing">Es fehlt noch: {{ what }}.</span>
+        <span class="ri-missing">{{ t('rag.ingest.missing', { what }) }}</span>
       }
     </div>
 
@@ -123,12 +119,12 @@
     }
     @if (result(); as done) {
       <p class="cs-state ri-result" aria-live="polite">
-        „{{ done.title || 'Dokument' }}“ liegt jetzt in „{{ done.area }}“ —
-        {{ done.chunks }} {{ done.chunks === 1 ? 'Abschnitt' : 'Abschnitte' }}.
+        {{ plural('rag.ingest.done', done.chunks, {
+             title: done.title || t('rag.ingest.untitled'), area: done.area }) }}
       </p>
       @if (done.preview) {
         <details class="ri-preview">
-          <summary>Anfang des eingelesenen Textes</summary>
+          <summary>{{ t('rag.ingest.previewTitle') }}</summary>
           <p class="ri-preview-body">{{ done.preview }}</p>
         </details>
       }

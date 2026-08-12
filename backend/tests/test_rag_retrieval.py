@@ -36,8 +36,11 @@ def _no_yaml(monkeypatch):
 def test_defaults_when_no_env_and_no_yaml(monkeypatch):
     _clear_env(monkeypatch)
     _no_yaml(monkeypatch)
+    # W10: 15 -> 10 (Nutzer-Vorgabe 2026-08-09). Der Rerank-Aufrufer nimmt
+    # `max(RERANK_CANDIDATES, top_k)` — mit 15 waere die Kandidaten-Vorgabe 10
+    # wirkungslos gewesen.
     assert get_retrieval_settings() == {
-        "top_k": 15,
+        "top_k": 10,
         "min_score": 0.30,
         "max_chars_per_area": 3000,
     }
@@ -75,7 +78,7 @@ def test_env_zero_top_k_is_ignored(monkeypatch):
     _clear_env(monkeypatch)
     _no_yaml(monkeypatch)
     monkeypatch.setenv("RAG_TOP_K", "0")  # not > 0 → rejected
-    assert get_retrieval_settings()["top_k"] == 15
+    assert get_retrieval_settings()["top_k"] == 10
 
 
 def test_yaml_tier_applies_when_no_env(monkeypatch):
@@ -103,7 +106,7 @@ def test_returns_fresh_copy_not_the_defaults(monkeypatch):
     _no_yaml(monkeypatch)
     out = get_retrieval_settings()
     out["top_k"] = 999
-    assert rr._RAG_DEFAULTS["top_k"] == 15
+    assert rr._RAG_DEFAULTS["top_k"] == 10
 
 
 # ── _parse_int_env / _parse_float_env ────────────────────────────────────
@@ -215,20 +218,20 @@ def test_search_top_k_becomes_the_sql_limit():
 def test_query_rag_embeds_when_no_vector_given(monkeypatch):
     seen: list[str] = []
 
-    async def fake_embedding(text):
+    async def fake_embedding(text, *, kind="query"):
         seen.append(text)
         return [0.9]
 
-    monkeypatch.setattr(rr, "embedding", fake_embedding)
+    monkeypatch.setattr(rr, "embed_text", fake_embedding)
     out = asyncio.run(rr.query_rag(_FakeSession([_row("x")]), "Eiszeit", "erdkunde"))
     assert seen == ["Eiszeit"] and out[0]["chunk"] == "x"
 
 
 def test_query_rag_reuses_given_vector_without_re_embedding(monkeypatch):
-    async def boom(text):
+    async def boom(text, *, kind="query"):
         raise AssertionError("must not re-embed when query_emb is passed")
 
-    monkeypatch.setattr(rr, "embedding", boom)
+    monkeypatch.setattr(rr, "embed_text", boom)
     out = asyncio.run(
         rr.query_rag(_FakeSession([_row("y")]), "Eiszeit", "erdkunde", query_emb=[0.5])
     )
@@ -243,11 +246,27 @@ def _chunk(text, score, area="a", title="T", source="s.md", **extra):
 
 def _wire(monkeypatch, per_area, emb=(0.1,)):
     """Fake the two boundaries: embedding (network) + search_rag_chunks (DB).
-    Returns (embed_calls, search_calls)."""
+    Returns (embed_calls, search_calls).
+
+    **W7: der Cross-Encoder wird hier ABGESCHALTET.** Diese Tests handeln vom
+    Zusammenführen, Filtern und Formatieren — nicht vom Reranken. Ohne die
+    Abschaltung hinge ihr Ergebnis daran, ob das Modell-Asset auf der Maschine
+    liegt: lokal (mit Asset) sortiert der CE um und das Etikett trägt ein Feld
+    mehr, in CI (ohne Asset) nicht. Zwei verschiedene Ergebnisse für denselben
+    Test sind kein Test. Der CE-Pfad hat weiter unten einen eigenen — mit einer
+    Attrappe statt des echten Modells, also überall gleich.
+    """
+    from boerdi.services.rag import rerank as _rk
+
+    monkeypatch.setenv("RAG_RERANKER_ENABLED", "false")
+    # `getattr`, weil Tests, die den CE-Pfad prüfen, `_get_reranker` VOR dem
+    # `_wire`-Aufruf durch eine Attrappe ersetzen — die hat kein `cache_clear`.
+    getattr(_rk._get_reranker, "cache_clear", lambda: None)()
+
     embed_calls: list[str] = []
     search_calls: list[tuple] = []
 
-    async def fake_embedding(text):
+    async def fake_embedding(text, *, kind="query"):
         embed_calls.append(text)
         return list(emb)
 
@@ -255,7 +274,7 @@ def _wire(monkeypatch, per_area, emb=(0.1,)):
         search_calls.append((session, area, tuple(query_embedding), top_k))
         return [dict(r) for r in per_area.get(area, [])]
 
-    monkeypatch.setattr(rr, "embedding", fake_embedding)
+    monkeypatch.setattr(rr, "embed_text", fake_embedding)
     monkeypatch.setattr(rr, "search_rag_chunks", fake_search)
     return embed_calls, search_calls
 

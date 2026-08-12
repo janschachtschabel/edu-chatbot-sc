@@ -5,14 +5,41 @@
 // bleibt nach dem ersten Öffnen im DOM, damit die Chat-Shell ihren Zustand
 // behält), die Kopfzeile mit Titelblock/Eulen-Tour-Starter/Statuszeile, die
 // Aktions-Buttons (solid = an, outlined = aus) und das Navigations-Banner.
+//
+// B2 (2026-07-31): Panel-Fläche und Eulen-Sprechblase kommen aus den
+// Material-Systemtoken und folgen damit dem geerbten `color-scheme` der
+// Gastseite.
+//
+// U4b (2026-08-09) kehrt eine hier zuvor festgehaltene Entscheidung um. Sie
+// lautete: „Die KOPFZEILE bleibt bewusst markenfarben statt tokenisiert … Über
+// `--mat-sys-primary` würde sie im Dunkelmodus hell — dann müssten Eulenkopf,
+// Aktions-Pillen, Outlines und alle vier Fokusringe (jeweils weiß) mitkippen."
+// Die Analyse stimmte; nur ist genau dieses Mitkippen jetzt das Ziel
+// (Nutzer-Vorgabe: edu-sharing-/Material-3-Anmutung statt Farbband). Also
+// kippen alle sechs Stellen mit — Kopffläche, Titel/Status, Eulen-Scheibe,
+// Aktions-Chips, Schließen-Knopf und alle vier Fokusringe.
+//
+// **Nicht `--mat-sys-primary` als Fläche**, sondern `surface-container`: die
+// Kopfzeile ist eine Fläche, keine Aktion. Die Markenfarbe bleibt sichtbar,
+// wo sie etwas AUSSAGT — im aktiven Chip (`secondary-container`, per
+// Token-Brücke an `--boerdi-primary` gekoppelt) und in den Fokusringen.
+//
+// Weil das Farbband als Trennung wegfällt, bekommt die Kopfzeile eine
+// Umrisslinie nach unten: ohne sie liefe sie in die Chat-Fläche aus, die
+// dieselbe Tonfamilie hat.
 
 .boerdi-panel {
   width: 420px;
   height: min(820px, calc(100vh - 40px));
   max-width: calc(100vw - 40px);
   max-height: calc(100vh - 40px);
-  background: #fff;
-  border-radius: 16px;
+  background: var(--mat-sys-surface);
+  // U4c: 16px → `medium` (12px). Nutzer-Vorgabe „weniger runde Ecken außen
+  // rum". Bewusste Abweichung von M3, das großen Flächen große Ecken gibt —
+  // die Anmutung soll näher an edu-sharing liegen als an einer Karte. Wer es
+  // kantiger will, tauscht hier EIN Token (`small` = 8px); die inneren Radien
+  // ziehen bewusst NICHT mit, sonst verliert das Panel seinen Rahmencharakter.
+  border-radius: var(--mat-sys-corner-medium);
   box-shadow: 0 12px 48px rgba(0,0,0,0.3);
   display: flex;
   flex-direction: column;
@@ -20,6 +47,59 @@
   animation: boerdi-slidein 0.25s ease-out;
   transition: width 0.25s ease;
 }
+/* U2a — große Stufe. Zwei feste Maße statt eines Ziehgriffs (Nutzer-Entscheid).
+   Die Deckel `max-width`/`max-height` aus der Grundregel gelten weiter: auf
+   einem schmalen Gerät wird daraus wieder die Fensterbreite, und die Stufe
+   verschluckt keine Bedienelemente.
+
+   Die Klasse sitzt am Host, nicht an der Hülle: sie ist die Achse, an der auch
+   die Kachel-Regel (U2b) hängt. Die Doppelung am inneren `div` ist bewusst —
+   ein Test greift die Markierung im gerenderten DOM ab, wo `:host` nicht
+   sichtbar ist. */
+:host(.boerdi-large) .boerdi-panel {
+  // U6 (Nutzer-Vorgabe): die große Stufe ist als ARBEITSFLÄCHE gedacht — mehr
+  // Platz für Kacheln, Lernpfade und das Bearbeiten von Dokumenten. Deshalb
+  // ~56 % der Fensterbreite statt eines festen Maßes: auf einem breiten
+  // Bildschirm wächst sie mit, auf einem schmalen bleibt sie bedienbar.
+  // `clamp` deckelt nach beiden Seiten — unter 480px wäre die Kachel-Spalte
+  // nicht mehr sinnvoll, über 1280px reißt die Zeilenlänge des Fließtexts.
+  width: clamp(480px, 56vw, 1280px);
+  height: min(960px, calc(100vh - 40px));
+}
+
+/* U1 — rahmenloser Einbau (`embed-mode="frameless"`): das Widget gibt Rahmen
+   und Platzierung an die Gastanwendung ab und füllt deren Container. Deshalb
+   fällt hier alles weg, was „schwebendes Fenster" ausdrückt — feste Maße,
+   Außenradius, Schlagschatten, Einflug-Bewegung.
+
+   Der Selektor hängt an der Host-KLASSE, nicht am Attribut: die Klasse trägt
+   den normalisierten Wert (siehe `host`-Binding in widget.component.ts). */
+:host(.boerdi-frameless) {
+  position: static;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+}
+/* Die Hülle ZWISCHEN Host und Panel muss mit: sie hat sonst Auto-Höhe, und
+   `height: 100%` am Panel greift dann ins Leere — Prozenthöhen brauchen einen
+   Bezug mit fester Höhe. Das Panel fiel auf Inhaltshöhe zurück und ließ unten
+   Luft im Container stehen. Im schwebenden Modus fällt das nie auf, weil das
+   Panel dort absolut positioniert ist und die Hülle gar nicht befragt.
+   Am Browser gemessen (2026-08-09): 393 px Panel in einem 504-px-Kasten.
+   Kein Unit-Test kann das sehen — jsdom rechnet kein Layout. */
+:host(.boerdi-frameless) .boerdi-widget--frameless {
+  height: 100%;
+}
+:host(.boerdi-frameless) .boerdi-panel {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
+
 /* Lazy-mount hide: keeps the panel in the DOM (component state
    preserved) but removes it visually and spatially. !important
    overrides the central display:flex rule above. */
@@ -35,8 +115,14 @@
    chat-internal-header zu einer Leiste. Avatar+Name+Status links,
    Mobile-Tabs in der Mitte, Action-Buttons + Close rechts. */
 .boerdi-panel-header {
-  background: var(--boerdi-primary);
-  color: #fff;
+  background: var(--mat-sys-surface-container);
+  color: var(--mat-sys-on-surface);
+  // `outline` und nicht der übliche Divider-Ton `outline-variant`: gemessen
+  // unterscheidet sich die Kopffläche von der Panel-Fläche nur um 1,11:1
+  // (hell) bzw. 1,13:1 (dunkel) — M3-Tonschritte sind absichtlich klein. Die
+  // Linie IST damit die Trennung, nicht ihre Verzierung, und `outline-variant`
+  // trüge dafür nur 1,46:1. Mit `outline`: 3,84 / 5,17 gegen die Kopffläche.
+  border-bottom: 1px solid var(--mat-sys-outline);
   padding: 8px 12px;
   display: flex; align-items: center; justify-content: space-between;
   gap: 10px;
@@ -63,7 +149,11 @@
 }
 .boerdi-status {
   font-size: 11px;
-  opacity: 0.85;
+  // U4b: `opacity: .85` statt einer Farbe war die Abkürzung, solange Weiß auf
+  // Dunkelblau lag — 9,3:1 hält das aus. Auf einer hellen Fläche frisst
+  // Deckkraft den Kontrast; `on-surface-variant` ist der Ton, den M3 für genau
+  // diesen Zweck vorsieht, und er kippt mit dem Schema.
+  color: var(--mat-sys-on-surface-variant);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -73,6 +163,12 @@
   height: 32px;
   object-fit: contain;
   display: block;
+  // BEWUSSTE AUSNAHME von U4b — dieselbe wie beim FAB (`_widget-fab.scss`, B2):
+  // Das Logo ist ein Bild mit eigenen, festen Farben (blaue Data-URL). Die
+  // weiße Scheibe IST hier der Kontrastträger, kein vergessener Hellwert. Auf
+  // `--mat-sys-surface` umgestellt wäre sie im Dunkelmodus fast schwarz — und
+  // das blaue Motiv darauf unsichtbar. Ein Bild kann nicht mitkippen; also
+  // kippt sein Untergrund auch nicht.
   background: #ffffff;
   border-radius: 50%;
   padding: 2px;
@@ -111,7 +207,7 @@
   border-radius: 50%;
 }
 .boerdi-owl-tour:focus-visible {
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--mat-sys-primary);
   outline-offset: 2px;
 }
 .boerdi-owl-tour:hover .boerdi-owl-mini:not(.is-thinking):not(.is-speaking) {
@@ -127,10 +223,10 @@
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  background: #ffffff;
-  color: #1e293b;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
   padding: 6px 10px;
   font-size: 12px;
   font-weight: 500;
@@ -148,7 +244,7 @@
   bottom: 100%;
   left: 14px;
   border: 6px solid transparent;
-  border-bottom-color: #ffffff;
+  border-bottom-color: var(--mat-sys-surface-container-high);
 }
 .boerdi-owl-tour:hover .boerdi-owl-bubble,
 .boerdi-owl-tour:focus-visible .boerdi-owl-bubble {
@@ -172,17 +268,37 @@
   flex-shrink: 0;
 }
 
+/* U6 — die Navigations-Knöpfe der Redaktion als eigene Gruppe, mit einem
+   Trennabstand nach rechts. Sie führen aus dem Chat HERAUS auf die Webseite,
+   die Knöpfe daneben bedienen den Chat selbst; ohne die Lücke stehen sieben
+   gleich aussehende Symbole in einer Reihe und nichts sagt, welches wohin
+   gehört. Der Abstand ist bewusst nur ein Vielfaches des Grundabstands
+   (6px → 18px) statt eines Strichs: eine Linie im Farbband der Kopfzeile wäre
+   ein zweites gestalterisches Element für dieselbe Aussage. */
+.boerdi-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-end: 12px;
+}
+
 /* Action-Buttons mit klar kommuniziertem On/Off-State.
-   ON  = solider weißer Pill mit vollfarbigem Icon (aktiviert/gedrückt)
-   OFF = transparent mit weißem Outline + diagonalem Strich
-   NEUTRAL = halbtransparent ohne Toggle-State (z.B. Restart) */
+   ON  = gefüllter Ton-Chip (aktiviert/gedrückt)
+   OFF = umrissen, transparent
+   NEUTRAL = umrissen, ohne Toggle-State (Redaktions-Nav, Sprachwahl)
+
+   U4b: „gefüllt vs. umrissen" bleibt der Unterschied — nur trägt ihn jetzt
+   `secondary-container` statt eines weißen Pills. Das ist kein reiner
+   Farbwechsel: gefüllt/umrissen ist ein NICHT-farbliches Signal (SC 1.4.1),
+   und beim Debug-Knopf ist es das einzige — sein Symbol ändert sich nicht,
+   anders als beim Vorlese-Knopf (volume_up ⇄ volume_off). */
 .boerdi-action-btn {
   position: relative;
   border: 0;
   text-decoration: none;
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--mat-sys-corner-small);
   cursor: pointer;
   font-size: 15px;
   line-height: 1;
@@ -191,77 +307,115 @@
   justify-content: center;
   transition: background .15s, color .15s, transform .1s, box-shadow .15s;
   padding: 0;
-  /* Default-Icon-Farbe — weiß auf dem dunkelblauen Header. SVG-Icons
-     erben currentColor, also wird das Material-Symbol weiß. Wird
-     vom is-on-State auf dunkelblau überschrieben (Kontrast auf
-     weißem Pill-Background). */
-  color: #fff;
+  /* Default-Icon-Farbe. SVG-Icons erben `currentColor`, also färbt diese eine
+     Zeile jedes Material-Symbol im Kopf. `on-surface-variant` ist der Ton, den
+     M3 für ruhige Symbole auf einer Fläche vorsieht; der aktive Zustand
+     überschreibt ihn. */
+  color: var(--mat-sys-on-surface-variant);
+}
+/* Zustandsebene statt eigener Hover-Farbe: M3 legt bei Hover den Vordergrundton
+   mit 8 % über die Fläche. Das rechnet in BEIDEN Schemata richtig herum — eine
+   feste Hover-Farbe müsste je Schema eine andere sein. */
+.boerdi-action-btn:hover {
+  background: color-mix(in srgb, var(--mat-sys-on-surface) 8%, transparent);
 }
 
-/* ON-State: solider weißer Pill, klar "gedrückt".
-   Icon wird dunkelblau, damit Kontrast zum weißen Background passt. */
+/* ON-State: gefüllter Chip, der sich klar aus der Fläche heraushebt.
+   Der frühere Schlagschatten ist entfallen — er ließ den weißen Pill vom
+   Farbband abheben, eine gefüllte Fläche braucht ihn nicht.
+
+   ZWEI VERWORFENE ENTWÜRFE, je an einer Messung gescheitert:
+   1. `secondary-container` (der M3-Ton für „ausgewählt") trägt gegen die
+      Kopffläche nur **1,09:1** — hell auf hell bzw. dunkel auf dunkel. Als
+      Zustandsanzeige unbrauchbar.
+   2. Dazu eine Kante in `primary`: hält zwar je für sich über 3:1 gegen die
+      Fläche, unterscheidet sich von der neutralen Aus-Kante im Dunkelmodus
+      aber nur um **1,1:1** — also allein im Farbton. Das ist genau der Fall,
+      den SC 1.4.1 ausschließt („Farbe als einziges Mittel"), und beim
+      Debug-Knopf wäre es das einzige Unterscheidungsmerkmal: sein Symbol
+      wechselt nicht, anders als beim Vorlese-Knopf.
+
+   `inverse-surface` kehrt sich MIT dem Schema um (hell: dunkler Chip,
+   dunkel: heller Chip). Damit ist der Unterschied ein Helligkeitssprung —
+   dieselbe Aussage, die früher der weiße Pill auf dem Farbband machte, nur
+   jetzt in beiden Schemata. Bewusst neutral statt markenfarben: die
+   Kundenfarbe darf beliebig hell oder dunkel sein, ein darauf gebauter
+   Vordergrund wäre eine Wette (denselben Grund nennt die Token-Brücke in
+   `widget.component.scss` dafür, `on-primary` NICHT zu überschreiben). */
 .boerdi-action-btn.is-on {
-  background: #ffffff;
-  color: var(--boerdi-primary, #1c4587);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15),
-              inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+  background: var(--mat-sys-inverse-surface);
+  // Durchsichtige Kante statt keiner: der Knopf bleibt so genau so groß wie
+  // seine umrissenen Nachbarn, und das Umschalten verrückt nichts.
+  border: 1.5px solid transparent;
+  color: var(--mat-sys-inverse-on-surface);
 }
 .boerdi-action-btn.is-on:hover {
-  background: #f1f5f9;
+  background: color-mix(in srgb, var(--mat-sys-inverse-on-surface) 8%, var(--mat-sys-inverse-surface));
   transform: translateY(-1px);
 }
 
-/* OFF-State: transparent + weißer Outline. Der Farbkontrast zum
-   solid-weißen ON-Pill reicht aus — kein Slash-Overlay nötig.
-   Icon bleibt weiß (vom Default) — auf dem dunklen Header sichtbar. */
+/* OFF-State: umrissen und transparent. `outline` und nicht `outline-variant` —
+   der Rand ist hier BEDEUTUNGSTRAGEND (er unterscheidet „aus" von „an") und
+   muss die 3:1 aus SC 1.4.11 halten; `outline-variant` ist der dekorative Ton.
+   Das frühere `opacity: .85` ist weg: Deckkraft senkt den Kontrast genau an
+   der Stelle, an der er gebraucht wird. */
 .boerdi-action-btn.is-off {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1.5px solid rgba(255, 255, 255, 0.45);
-  opacity: 0.85;
+  background: transparent;
+  border: 1.5px solid var(--mat-sys-outline);
 }
 .boerdi-action-btn.is-off:hover {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.7);
-  opacity: 1;
+  background: color-mix(in srgb, var(--mat-sys-on-surface) 8%, transparent);
 }
 
-/* NEUTRAL (Restart) — kein Toggle-State, aber sichtbar */
+/* NEUTRAL — kein Toggle-State (Redaktions-Nav, Sprachwahl). Sieht aus wie
+   OFF und soll das auch: beide sagen „nicht aktiv". Die Farbe erbt der Knopf
+   von der Grundregel. */
 .boerdi-action-btn--neutral {
-  background: rgba(255, 255, 255, 0.18);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  color: #fff;
+  background: transparent;
+  border: 1.5px solid var(--mat-sys-outline);
 }
 .boerdi-action-btn--neutral:hover {
-  background: rgba(255, 255, 255, 0.32);
-  border-color: rgba(255, 255, 255, 0.6);
+  background: color-mix(in srgb, var(--mat-sys-on-surface) 8%, transparent);
+}
+
+/* Sprach-Umschalter (C1-c): derselbe 32×32-Knopf wie seine Nachbarn, nur mit
+   dem Ziel-Kürzel statt eines Icons. Bewusst Text und keine Flagge — eine
+   Flagge bezeichnet ein Land, nicht eine Sprache. Die Farbe erbt er vom Knopf
+   (seit U4b `on-surface-variant`). */
+.boerdi-lang-code {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 .boerdi-action-btn:active { transform: translateY(1px); }
 .boerdi-close {
   background: transparent;
   border: none;
-  color: #fff;
+  color: var(--mat-sys-on-surface-variant);
   font-size: 26px;
   line-height: 1;
   cursor: pointer;
   padding: 0 4px;
   margin-left: 2px;
-  opacity: 0.85;
 }
-.boerdi-close:hover { opacity: 1; }
+.boerdi-close:hover { color: var(--mat-sys-on-surface); }
 
 
 /* ── Fokus-Ringe der Kopfzeile (A11y 8-6, SC 2.4.7/1.4.11) ───────
-   Weiß auf dem dunkelblauen Kopf (≈8,6:1) — gleiche Behandlung, die ALT
-   schon dem Eulen-Kopf gab; die übrigen Buttons verließen sich auf den
-   Browser-Standardring, der auf dieser Fläche kaum zu sehen ist. */
+   U4b: `primary` statt Weiß. Der Ring muss 3:1 gegen die Fläche halten, auf
+   der er liegt — und das ist seit U4b eine helle ODER dunkle Fläche, je nach
+   Schema. `primary` ist in beiden dafür gebaut und trägt zusätzlich die
+   Kundenfarbe (Token-Brücke). Die Buttons verließen sich vor 8-6 auf den
+   Browser-Standardring, der hier kaum zu sehen war. */
 .boerdi-action-btn:focus-visible,
 .boerdi-close:focus-visible {
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--mat-sys-primary);
   outline-offset: 2px;
 }
-/* Im is-on-Zustand liegt der Button auf weißem Pill — dort braucht der Ring
-   die Akzentfarbe, sonst verschwindet er im Weiß. */
+/* Im is-on-Zustand liegt der Ring am umgekehrt gefärbten Chip an — dort trägt
+   `primary` nicht zuverlässig (hell auf hell im Dunkelmodus). Der zugehörige
+   Vordergrundton des Chips schon, in beiden Schemata. */
 .boerdi-action-btn.is-on:focus-visible {
-  outline-color: var(--boerdi-primary, #1c4587);
+  outline-color: var(--mat-sys-inverse-on-surface);
 }

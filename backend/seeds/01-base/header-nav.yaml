@@ -1,0 +1,39 @@
+# Optionale Kopfzeilen-Navigations-Buttons im Widget (Studio-pflegbar).
+# Seit U6 stehen sie als eigene Gruppe GANZ VORN in der Kopfzeile, abgesetzt
+# von den code-gebundenen Umschaltern: sie fuehren aus dem Chat heraus auf die
+# Webseite, jene bedienen den Chat selbst. Reihenfolge = Reihenfolge hier.
+# (Bis U1 standen sie links vom „Neuer Chat"-Button; der sitzt jetzt unten in
+# der Eingabezeile.) Gleiches outlined-neutrales Design.
+# An Trusted-WLO-Hosts hängt das Widget dynamisch ?bsid=<sid> an, damit die
+# Chat-Session auf der Zielseite weiterläuft (sofern das Widget dort eingebettet
+# ist). icon: Name aus shared/icons.ts. new_tab: true → neuer Tab.
+# C1-g1a: `label_en` ist optional — leer heißt „nicht gepflegt", dann zeigt
+# das Widget die deutsche Beschriftung.
+
+header_nav:
+  buttons:
+    - id: home
+      enabled: true
+      label: "Startseite"
+      label_en: "Home"
+      icon: home
+      url: "https://wp-test.wirlernenonline.de/home/"
+      new_tab: false
+
+    - id: fachportale
+      enabled: true
+      label: "Fachportale"
+      label_en: "Subject portals"
+      # U6 (Nutzer-Vorgabe): Buch statt Sternchen — Fachportale sind
+      # Sammlungen von Lerninhalten, das Buch sagt das, `topic` sagte es nicht.
+      icon: menu_book
+      url: "https://wp-test.wirlernenonline.de/bildungsinhalte/fachportale/"
+      new_tab: false
+
+    - id: suche
+      enabled: true
+      label: "Suche im WLO-Repository"
+      label_en: "Search the WLO repository"
+      icon: search
+      url: "https://repository.staging.openeduhub.net/edu-sharing/components/search"
+      new_tab: false

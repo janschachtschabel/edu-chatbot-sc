@@ -1,23 +1,16 @@
 <header class="sfl-head">
-  <p class="sfl-crumb">Auswertung</p>
-  <h2 class="sfl-title">Safety-Logs</h2>
-  <p class="sfl-intro">
-    Jede Nachricht, bei der die Sicherheits-Pipeline eingegriffen oder ein Risiko
-    festgestellt hat — neueste zuerst, höchstens 200. Ein Event wählen, um die
-    vollständige Entscheidung zu sehen.
-  </p>
+  <p class="sfl-crumb">{{ t('nav.group.auswertung') }}</p>
+  <h2 class="sfl-title">{{ t('view.safety-logs.label') }}</h2>
+  <p class="sfl-intro">{{ t('sfl.intro') }}</p>
 </header>
 
 <section class="sfl-stats" aria-labelledby="sfl-stats-title">
-  <h3 class="sfl-stats-title" id="sfl-stats-title">Kennzahlen</h3>
-  <p class="sfl-stats-note">
-    Diese Zahlen gelten immer für alle geprüften Events. Der Filter darunter wirkt
-    nur auf die Liste.
-  </p>
+  <h3 class="sfl-stats-title" id="sfl-stats-title">{{ t('sfl.stats') }}</h3>
+  <p class="sfl-stats-note">{{ t('sfl.stats.note') }}</p>
 
   <studio-async-state
     class="sfl-stats-state"
-    label="Die Kennzahlen"
+    [label]="t('sfl.stats')"
     [loading]="stats.loading() && stats.value() === null"
     [error]="stats.error()"
     (retry)="reload()"
@@ -26,23 +19,23 @@
   @if (stats.value(); as s) {
     <dl class="sfl-cards">
       <div class="sfl-card">
-        <dt>Events gesamt</dt>
+        <dt>{{ t('sfl.kpi.total') }}</dt>
         <dd>{{ s.total }}</dd>
       </div>
       <div class="sfl-card sfl-card--high">
-        <dt>Risiko hoch</dt>
+        <dt>{{ t('sfl.kpi.high') }}</dt>
         <dd>{{ s.by_risk['high'] || 0 }}</dd>
       </div>
       <div class="sfl-card sfl-card--medium">
-        <dt>Risiko mittel</dt>
+        <dt>{{ t('sfl.kpi.medium') }}</dt>
         <dd>{{ s.by_risk['medium'] || 0 }}</dd>
       </div>
       <div class="sfl-card">
-        <dt>An das LLM eskaliert</dt>
+        <dt>{{ t('sfl.kpi.escalated') }}</dt>
         <dd>{{ s.escalated }}</dd>
       </div>
       <div class="sfl-card">
-        <dt>Rate-limited</dt>
+        <dt>{{ t('sfl.kpi.rateLimited') }}</dt>
         <dd>{{ s.rate_limited }}</dd>
       </div>
     </dl>
@@ -62,27 +55,27 @@
 
 <div class="sfl-actions">
   <p class="sfl-field">
-    <label class="sfl-field-label" for="sfl-risk">Risikostufe</label>
+    <label class="sfl-field-label" for="sfl-risk">{{ t('sfl.filter') }}</label>
     <select
       id="sfl-risk"
       class="sfl-filter"
       [value]="filter()"
       (change)="setFilter($any($event.target).value)"
     >
-      <option value="">Alle Risiken</option>
-      <option value="medium">Mittel und hoch</option>
-      <option value="high">Nur hoch</option>
+      <option value="">{{ t('sfl.filter.all') }}</option>
+      <option value="medium">{{ t('sfl.filter.medium') }}</option>
+      <option value="high">{{ t('sfl.filter.high') }}</option>
     </select>
   </p>
 
   <button type="button" class="sfl-btn sfl-reload" [disabled]="logs.loading()" (click)="reload()">
-    {{ logs.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+    {{ logs.loading() ? t('action.refreshing') : t('action.refresh') }}
   </button>
 </div>
 
 <studio-async-state
   class="sfl-list-state"
-  label="Die Safety-Events"
+  [label]="t('sfl.events')"
   [loading]="logs.loading() && rows().length === 0"
   [error]="logs.error()"
   [empty]="logs.isEmpty()"
@@ -105,7 +98,7 @@
               <span class="sfl-risk">{{ riskLabel(log.risk_level) }}</span>
               <span class="sfl-time">{{ formatTime(log.created_at) }}</span>
             </span>
-            <span class="sfl-message">{{ log.message || '(leer)' }}</span>
+            <span class="sfl-message">{{ log.message || t('sfl.emptyMessage') }}</span>
             @if (markers(log)) {
               <span class="sfl-markers">{{ markers(log) }}</span>
             }
@@ -115,11 +108,11 @@
     </ul>
 
     <section class="sfl-detail" aria-labelledby="sfl-detail-title">
-      <h3 class="sfl-detail-title" id="sfl-detail-title">Entscheidung</h3>
+      <h3 class="sfl-detail-title" id="sfl-detail-title">{{ t('sfl.decision') }}</h3>
       @if (selected(); as log) {
         <studio-safety-log-detail [log]="log" />
       } @else {
-        <p class="sfl-hint">Links ein Event wählen.</p>
+        <p class="sfl-hint">{{ t('sfl.pick') }}</p>
       }
     </section>
   </div>

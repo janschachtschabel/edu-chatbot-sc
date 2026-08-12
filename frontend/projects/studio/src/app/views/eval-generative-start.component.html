@@ -1,31 +1,25 @@
 <section class="egs" aria-labelledby="egs-title">
-  <h3 class="egs-title" id="egs-title">Generativen Lauf starten</h3>
-  <p class="egs-intro">
-    Ein LLM erfindet Szenarien je Persona × Intent, spielt sie durch die echte
-    Chat-Pipeline und bewertet jede Antwort. Das kostet Geld — die Schätzung steht
-    vor dem Start.
-  </p>
+  <h3 class="egs-title" id="egs-title">{{ t('evalStart.gen.title') }}</h3>
+  <p class="egs-intro">{{ t('evalStart.gen.intro') }}</p>
 
   <studio-async-state
     class="egs-state"
-    label="Personas und Intents"
+    [label]="t('evalStart.gen.list')"
     [loading]="config.loading() && personas().length === 0"
     [error]="config.error()"
     [empty]="nothingConfigured()"
-    emptyText="Diese Chatbot-Config hat keine Personas oder keine Intents — ohne
-      beide gibt es keine Kombination, die ein Lauf durchspielen könnte. Erst unter
-      „Personas“ bzw. „Intents“ anlegen."
+    [emptyText]="t('evalStart.gen.empty')"
     (retry)="config.reload()"
   />
 
   <form class="egs-form" (submit)="$event.preventDefault(); check()">
     <fieldset class="egs-set">
-      <legend class="egs-legend">Umfang</legend>
-      <p class="egs-note">Nichts ausgewählt = alle.</p>
+      <legend class="egs-legend">{{ t('evalStart.gen.scope') }}</legend>
+      <p class="egs-note">{{ t('evalStart.nothingChosen') }}</p>
 
       <div class="egs-cols">
         <div class="egs-col">
-          <p class="egs-sub" id="egs-personas-label">Personas</p>
+          <p class="egs-sub" id="egs-personas-label">{{ t('evalStart.gen.personas') }}</p>
           <ul class="egs-picks" aria-labelledby="egs-personas-label">
             @for (persona of personas(); track persona.id) {
               <li>
@@ -44,7 +38,7 @@
         </div>
 
         <div class="egs-col">
-          <p class="egs-sub" id="egs-intents-label">Intents</p>
+          <p class="egs-sub" id="egs-intents-label">{{ t('evalStart.gen.intents') }}</p>
           <ul class="egs-picks" aria-labelledby="egs-intents-label">
             @for (intent of intents(); track intent.id) {
               <li>
@@ -63,13 +57,11 @@
         </div>
       </div>
 
-      <p class="egs-combos">
-        Auswahl ergibt <strong>{{ count(combos()) }} Kombinationen</strong>.
-      </p>
+      <p class="egs-combos"><studio-rich [parts]="combosParts()" /></p>
     </fieldset>
 
     <fieldset class="egs-set">
-      <legend class="egs-legend">Art des Laufs</legend>
+      <legend class="egs-legend">{{ t('evalStart.gen.mode.legend') }}</legend>
       @for (option of modes; track option.value) {
         <label class="egs-pick" [attr.for]="'egs-mode-' + option.value">
           <input
@@ -80,16 +72,16 @@
             [checked]="mode() === option.value"
             (change)="setMode(option.value)"
           />
-          <span>{{ option.label }}</span>
+          <span>{{ t(option.key) }}</span>
         </label>
       }
     </fieldset>
 
     <fieldset class="egs-set">
-      <legend class="egs-legend">Menge je Kombination</legend>
+      <legend class="egs-legend">{{ t('evalStart.gen.amount.legend') }}</legend>
 
       <p class="egs-field">
-        <label for="egs-scenarios">Szenarien je Kombination</label>
+        <label for="egs-scenarios">{{ t('evalStart.gen.scenariosLabel') }}</label>
         <input
           id="egs-scenarios"
           class="egs-input"
@@ -104,7 +96,7 @@
       </p>
 
       <p class="egs-field">
-        <label for="egs-turns">Turns je Gespräch</label>
+        <label for="egs-turns">{{ t('evalStart.gen.turnsLabel') }}</label>
         <input
           id="egs-turns"
           class="egs-input"
@@ -119,14 +111,12 @@
       </p>
 
       <p class="egs-hint" id="egs-bounds">
-        Je {{ minPerCombo }} bis {{ maxPerCombo }} — außerhalb lehnt das Backend ab.
+        {{ t('evalStart.gen.bounds', { min: minPerCombo, max: maxPerCombo }) }}
       </p>
     </fieldset>
 
     @if (busy()) {
-      <p class="egs-busy">
-        Es läuft schon ein Lauf — es kann immer nur einer gleichzeitig laufen.
-      </p>
+      <p class="egs-busy">{{ t('evalStart.busy') }}</p>
     }
 
     <div class="egs-actions">
@@ -135,7 +125,7 @@
         class="egs-btn"
         [disabled]="checking() || busy() || !ready()"
       >
-        {{ checking() ? 'Wird geschätzt …' : 'Kosten prüfen' }}
+        {{ checking() ? t('evalStart.gen.checking') : t('evalStart.gen.check') }}
       </button>
     </div>
   </form>
@@ -145,36 +135,22 @@
       <!-- Only the prose is live. With the buttons inside, every label change
            ("Startet …") would re-announce the whole cost paragraph. -->
       <div aria-live="polite">
-        @if (estimate(); as cost) {
-          <p class="egs-cost">
-            Dieser Lauf feuert <strong>{{ count(cost.chat_calls) }} Chat-Aufrufe</strong>
-            durch die echte Pipeline, <strong>{{ count(cost.judge_calls) }} Judge-Aufrufe</strong>
-            und {{ count(cost.simulator_calls) }} Simulator-Aufrufe —
-            {{ count(cost.total_turns) }} bewertete Turns.
-          </p>
-          <p class="egs-band">
-            Geschätzte Kosten <strong>{{ usd(cost.est_usd_min) }} bis {{ usd(cost.est_usd_max) }}</strong>,
-            erwartet {{ usd(cost.est_usd) }}.
-          </p>
-          <p class="egs-hint">
-            Schätzung mit festen Preisannahmen je Aufruf — die echte Rechnung hängt an
-            Prompt-Länge, Antwort-Länge und Tool-Ergebnissen.
-          </p>
+        @if (estimate()) {
+          <p class="egs-cost"><studio-rich [parts]="costParts()" /></p>
+          <p class="egs-band"><studio-rich [parts]="bandParts()" /></p>
+          <p class="egs-hint">{{ t('evalStart.gen.bandHint') }}</p>
         } @else {
-          <p class="egs-cost egs-cost--blind">
-            Start <strong>ohne Kostenschätzung</strong>: {{ estimateError() }}
-            Der Lauf kostet trotzdem Geld — {{ count(combos()) }} Kombinationen.
-          </p>
+          <p class="egs-cost egs-cost--blind"><studio-rich [parts]="blindParts()" /></p>
         }
       </div>
 
       <div class="egs-actions">
         <button type="button" class="egs-btn egs-btn--go" [disabled]="starting() || busy()"
                 (click)="start()">
-          {{ starting() ? 'Startet …' : 'Ja, Lauf starten' }}
+          {{ starting() ? t('evalStart.starting') : t('evalStart.gen.go') }}
         </button>
         <button type="button" class="egs-btn" [disabled]="starting()" (click)="disarm()">
-          Abbrechen
+          {{ t('action.cancel') }}
         </button>
       </div>
     </div>

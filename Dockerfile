@@ -82,6 +82,13 @@ COPY --from=deps /app/.venv /app/.venv
 COPY backend/alembic.ini ./
 COPY backend/alembic ./alembic
 
+# The config seed tree (W6). A fresh install has no ALT tree beside it, so the
+# last editorial state ships inside the image and `boerdi import-config` fills an
+# empty database from here. Afterwards the DB is the source of truth and the
+# studio the way to change things — this is the starting point, not a runtime
+# dependency.
+COPY backend/seeds ./seeds
+
 COPY --from=frontend /build/dist/widget/browser ./widget_dist
 COPY --from=frontend /build/dist/studio/browser ./studio_dist
 

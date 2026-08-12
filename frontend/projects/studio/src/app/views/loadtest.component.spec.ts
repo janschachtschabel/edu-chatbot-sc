@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { LoadtestComponent } from './loadtest.component';
 
 const tick = (): Promise<unknown> => new Promise((r) => setTimeout(r, 0));
@@ -17,12 +18,15 @@ const MIX = [
   { key: 'lernpfad', label: 'Lernpfade', prompt: 'Baue mir einen Lernpfad.' },
 ];
 
-// Exactly what `_summary` in services/loadtest.py returns — four keys. The
-// earlier fixture invented `peak_rss_mb`/`peak_proc_cpu_pct`, which no backend
-// path ever writes (resource sampling was dropped with psutil), and that is why
-// the row line rendered "Spitze NaN MB" in the real studio (B5).
+// Exactly what `_summary` in services/loadtest.py returns. Seit C5 (2026-07-31)
+// gehoeren die zwei Spitzenwerte wieder dazu: psutil ist Abhaengigkeit, der
+// Runner tastet CPU/RSS alle 0,5 s ab — die Felder haben also einen echten
+// Produzenten. VOR C5 hatte eine Fixture sie *erfunden*, ohne dass irgendein
+// Backend-Pfad sie schrieb; genau so kam "Spitze NaN MB" ins echte Studio (B5).
+// Der NaN-Schutz unten bleibt deshalb stehen.
 const SUMMARY = {
   stable_concurrency: 4, p95_threshold_s: 20, total_requests: 32, total_errors: 0,
+  peak_rss_mb: 512.5, peak_proc_cpu_pct: 87.5,
 };
 
 const PROFILE = {
@@ -43,7 +47,11 @@ interface Harness {
   http: HttpTestingController;
 }
 
-function create(): Harness {
+function create(locale = 'de'): Harness {
+  // jsdom meldet `navigator.language === 'en-US'`; ohne die gemerkte Wahl
+  // stünde die Oberfläche auf Englisch und jede deutsche Zusicherung unten
+  // wäre ab C1-d4e1 rot.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -61,8 +69,8 @@ async function settle(h: Harness): Promise<void> {
   await h.fixture.whenStable();
 }
 
-async function mount(runs: unknown[] = [DONE_RUN]): Promise<Harness> {
-  const h = create();
+async function mount(runs: unknown[] = [DONE_RUN], locale = 'de'): Promise<Harness> {
+  const h = create(locale);
   await h.fixture.whenStable();
   h.http.expectOne(RUNS_URL).flush({ runs });
   h.http.expectOne(MIX_URL).flush({ options: MIX });
@@ -237,17 +245,48 @@ describe('LoadtestComponent', () => {
   });
 
   /**
-   * B5: the studio showed "Spitze NaN MB" for every finished run. `_summary` in
-   * services/loadtest.py returns four keys and none of them is a resource peak —
-   * the psutil sampling ALT had was dropped in the port, on purpose. Only the
-   * fixtures kept the fields alive, so neither the type checker nor the suite
-   * ever saw it. Now the view says what it does not measure.
+   * B5 pinnte hier „nie eine Spitze zeigen", weil das Backend keine erhob — die
+   * Fixture erfand die Felder, und die Zeile rendete „Spitze NaN MB".
+   * **C5 kehrt die Voraussetzung um** (psutil-Abtastung gebaut), also pinnt der
+   * Test jetzt das neue Soll. Der eigentliche B5-Schutz — **niemals NaN** —
+   * bleibt wortwoertlich: er galt dem Rechenfehler, nicht dem Feature.
    */
-  it('never prints a resource peak the backend does not measure', async () => {
+  it('zeigt die gemessene Speicher-Spitze und nie NaN', async () => {
     const h = await mount();
     const line = h.el.querySelector('.lt-run-meta, .lt-summary, li')!.textContent ?? '';
     expect(h.el.textContent).not.toContain('NaN');
-    expect(h.el.textContent).not.toContain('Spitze');
+    expect(h.el.textContent).toContain('512,5');
     expect(line + (h.el.textContent ?? '')).toContain('stabil bis 4 parallel');
+  });
+
+  /**
+   * C1-d4e1: derselbe Fehler wie in der Lauf-Liste (C1-d4b1) und in den
+   * Quality-Logs (C1-d4d2) — der Knopf trug seinen Namen in zwei Bruchstücken
+   * (`Löschen` + `<span class="sr">`). Ein Screenreader las beide, aber der
+   * zugängliche Name entstand aus zwei Knoten statt aus einem Attribut.
+   */
+  it('gibt dem Löschen-Knopf EINEN Namen, der mit dem sichtbaren Wort beginnt', async () => {
+    const h = await mount();
+    const button = h.el.querySelector<HTMLButtonElement>('.lt-del')!;
+
+    expect(button.getAttribute('aria-label')).toBe('Löschen — Lauf lt-abc123');
+    expect(button.textContent!.trim()).toBe('Löschen');
+    expect(button.querySelector('.sr')).toBeNull();
+  });
+
+  it('zählt Requests und Fehler in der Zusammenfassung nach der Mehrzahl-Regel', async () => {
+    const h = await mount([{
+      ...DONE_RUN,
+      summary: { ...SUMMARY, stable_concurrency: 1, total_requests: 1, total_errors: 1 },
+    }]);
+    expect(h.el.querySelector('.lt-summary')!.textContent)
+      .toContain('stabil bis 1 parallel · 1 Request · 1 Fehler');
+  });
+
+  it('spricht Englisch, wenn Englisch eingestellt ist', async () => {
+    const h = await mount([DONE_RUN], 'en');
+    expect(h.el.querySelector('.lt-cost')!.textContent).toContain('32 real chat requests');
+    expect(h.el.querySelector('.lt-btn--go')!.textContent!.trim()).toBe('Start load test');
+    expect(h.el.textContent).not.toContain('Lasttest starten');
   });
 });

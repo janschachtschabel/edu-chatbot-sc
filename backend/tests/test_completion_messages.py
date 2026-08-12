@@ -119,3 +119,60 @@ class TestLpCompletionMessage:
     def test_no_phases_no_section_block(self):
         out = _lp_completion_message("X", "nur fließtext ohne headings")
         assert "gegliedert" not in out
+
+
+# ── C1-f2b2: Sprache der Blasen + der Meta-Filter ─────────────────────────
+class TestEnglishBubbles:
+    def test_canvas_bubble_english(self):
+        out = _canvas_completion_message(
+            "Worksheet", "Water", "## Basics\nText\n## Steps\nText", lang="en")
+        assert out.startswith("I have created a **Worksheet** on *Water* for you.")
+        assert "Sections:" in out
+        assert "1. **Basics**" in out
+        assert "canvas on the right" in out
+
+    def test_canvas_bubble_english_ignores_formality(self):
+        """Englisch kennt kein Sie — beide Höflichkeitsformen liefern denselben
+        Satz. Die Schlüssel bleiben trotzdem getrennt, damit der Aufrufer nicht
+        sprachabhängig verzweigen muss."""
+        du = _canvas_completion_message("Worksheet", "X", "## A\nT", lang="en")
+        sie = _canvas_completion_message(
+            "Worksheet", "X", "## A\nT", formality="siezen", lang="en")
+        assert du == sie
+
+    def test_canvas_inline_outro_english(self):
+        out = _canvas_completion_message(
+            "Worksheet", "X", "## A\nT", canvas_enabled=False, lang="en")
+        assert "right below this message" in out
+        assert "print button" in out
+
+    def test_canvas_task_count_english(self):
+        md = ("A worksheet on fractions.\n\n"
+              "1. First task\n2. Second task\n3. Third task\n\n"
+              "## Solutions\n1. Solution one\n")
+        out = _canvas_completion_message("Worksheet", "Fractions", md, lang="en")
+        assert "Contains **3 exercises**" in out
+
+    def test_lp_bubble_english(self):
+        out = _lp_completion_message(
+            "Fractions", "## Phase 1\nT\n## Phase 2\nT", lang="en")
+        assert out.startswith("I have built the **learning path on *Fractions***")
+        assert "It is structured into these phases:" in out
+        assert "1. **Phase 1**" in out
+
+
+class TestExtractHeadingsLanguage:
+    def test_english_meta_headings_filtered(self):
+        """Der Meta-Filter liest unser EIGENES Markdown. Seit C1-f2a ist das
+        bei ``lang='en'`` englisch — mit den deutschen Mustern rutschte
+        „Solutions" als einziger sichtbarer Abschnitt in die Vorschau."""
+        md = "## Introduction\n## Basics\n## Solutions\n## Further reading\n"
+        assert _extract_headings(md, "X", lang="en") == ["Introduction", "Basics"]
+
+    def test_english_meta_only_falls_back_to_meta(self):
+        md = "## Solutions\n## Notes\n"
+        assert _extract_headings(md, "X", lang="en") == ["Solutions", "Notes"]
+
+    def test_german_patterns_untouched_by_default(self):
+        md = "## Grundlagen\n## Lösungen\n"
+        assert _extract_headings(md, "X") == ["Grundlagen"]

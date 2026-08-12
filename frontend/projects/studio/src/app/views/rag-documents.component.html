@@ -1,22 +1,19 @@
 <div class="rd">
   @if (loading()) {
-    <p class="cs-state" aria-busy="true">Dokumente werden geladen …</p>
+    <p class="cs-state" aria-busy="true">{{ t('rag.docs.loading') }}</p>
   } @else if (loadError()) {
     <p class="cs-state cs-state--error" role="alert">{{ loadError() }}</p>
   } @else if (docs().length === 0) {
-    <p class="cs-state">
-      In „{{ area() }}“ liegen keine Dokumente mehr. Der Bereich verschwindet mit
-      dem nächsten Neuladen.
-    </p>
+    <p class="cs-state">{{ t('rag.docs.empty', { area: area() }) }}</p>
   } @else {
     <ul class="rd-list">
       @for (doc of docs(); track docKey(doc)) {
         <li class="rd-row">
           <p class="rd-title">{{ doc.title }}</p>
           <p class="rd-meta">
-            <span class="rd-source">{{ doc.source || 'ohne Quelle' }}</span>
+            <span class="rd-source">{{ doc.source || t('rag.docs.noSource') }}</span>
             <span>·</span>
-            <span>{{ doc.chunks }} {{ doc.chunks === 1 ? 'Abschnitt' : 'Abschnitte' }}</span>
+            <span>{{ plural('rag.chunks', doc.chunks) }}</span>
           </p>
           <p class="rd-preview">{{ doc.preview }}</p>
 
@@ -25,28 +22,34 @@
               type="button"
               class="cs-btn rd-show"
               [attr.aria-expanded]="isOpen(doc)"
+              [attr.aria-label]="t(isOpen(doc) ? 'rag.docs.hideTextFor' : 'rag.docs.showTextFor',
+                                  { title: doc.title })"
               (click)="show(doc)"
             >
-              {{ isOpen(doc) ? 'Volltext ausblenden' : 'Volltext anzeigen' }}
-              <span class="sr"> — {{ doc.title }}</span>
+              {{ isOpen(doc) ? t('rag.docs.hideText') : t('rag.docs.showText') }}
             </button>
             @if (!isPending(doc)) {
-              <button type="button" class="cs-btn rd-del" (click)="askDelete(doc)">
-                Löschen<span class="sr"> — {{ doc.title }}</span>
+              <button
+                type="button"
+                class="cs-btn rd-del"
+                [attr.aria-label]="t('rag.docs.deleteFor', { title: doc.title })"
+                (click)="askDelete(doc)"
+              >
+                {{ t('rag.delete') }}
               </button>
             }
           </p>
 
           @if (isPending(doc)) {
             <p class="rd-confirm">
-              <span role="alert">Wirklich löschen? Das Dokument muss danach neu eingelesen werden.</span>
+              <span role="alert">{{ t('rag.docs.confirmDelete') }}</span>
               <button
                 type="button"
                 class="cs-btn rd-del-yes"
                 [disabled]="deleting()"
                 (click)="confirmDelete()"
               >
-                {{ deleting() ? 'Wird gelöscht …' : 'Ja, löschen' }}
+                {{ deleting() ? t('rag.deleting') : t('action.confirmDelete') }}
               </button>
               <button
                 type="button"
@@ -54,7 +57,7 @@
                 [disabled]="deleting()"
                 (click)="cancelDelete()"
               >
-                Abbrechen
+                {{ t('action.cancel') }}
               </button>
             </p>
           }
@@ -62,7 +65,7 @@
           @if (isOpen(doc)) {
             <div class="rd-chunks">
               @if (chunksLoading()) {
-                <p class="cs-state" aria-busy="true">Volltext wird geladen …</p>
+                <p class="cs-state" aria-busy="true">{{ t('rag.docs.textLoading') }}</p>
               } @else if (chunksError()) {
                 <p class="cs-state cs-state--error" role="alert">{{ chunksError() }}</p>
               } @else {
@@ -71,11 +74,13 @@
                 <ol
                   class="rd-chunk-list"
                   tabindex="0"
-                  [attr.aria-label]="'Abschnitte von ' + doc.title"
+                  [attr.aria-label]="t('rag.docs.chunksOf', { title: doc.title })"
                 >
                   @for (chunk of chunks(); track chunk.index) {
                     <li class="rd-chunk">
-                      <p class="rd-chunk-no">Abschnitt {{ chunk.index + 1 }}</p>
+                      <p class="rd-chunk-no">
+                        {{ t('rag.docs.chunkNo', { number: chunk.index + 1 }) }}
+                      </p>
                       <p class="rd-chunk-body">{{ chunk.content }}</p>
                     </li>
                   }

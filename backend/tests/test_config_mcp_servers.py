@@ -139,8 +139,20 @@ def test_put_rejects_a_non_dict_server_entry(client, saved) -> None:
 def test_discover_requires_a_url(client, discovered) -> None:
     r = client.post("/api/config/mcp-servers/discover", headers=_AUTH)
     assert r.status_code == 400
-    assert r.json()["detail"] == "URL required"
+    # C1-e3: die Meldung folgt `Accept-Language`; ohne Header ist Deutsch die
+    # Vorgabe. Gepinnt werden BEIDE Sprachen — der Katalog-Test allein belegt
+    # nicht, dass die Wahl den Endpunkt erreicht.
+    assert r.json()["detail"] == "Bitte eine Server-URL angeben."
     assert discovered == []  # no URL -> nothing is handshaked
+
+
+def test_discover_url_message_follows_accept_language(client, discovered) -> None:
+    r = client.post(
+        "/api/config/mcp-servers/discover",
+        headers={**_AUTH, "Accept-Language": "en-GB"},
+    )
+    assert r.status_code == 400
+    assert r.json()["detail"] == "Please provide a server URL."
 
 
 def test_discover_rejects_an_internal_url(client, discovered) -> None:

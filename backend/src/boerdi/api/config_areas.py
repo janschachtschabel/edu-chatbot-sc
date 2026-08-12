@@ -12,7 +12,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Security
 from pydantic import BaseModel
 
-from boerdi.api.deps import require_studio_key
+from boerdi.api.deps import Lang, require_studio_key
+from boerdi.i18n import msg
 from boerdi.services import config_loader as cl
 
 router = APIRouter(
@@ -69,7 +70,7 @@ async def get_tone_modifiers() -> ToneModifiersPayload:
 
 
 @router.put("/tone-modifiers", response_model=ToneModifiersPayload)
-async def update_tone_modifiers(payload: ToneModifiersPayload) -> ToneModifiersPayload:
+async def update_tone_modifiers(payload: ToneModifiersPayload, lang: Lang) -> ToneModifiersPayload:
     """Persona modifiers go into each persona area's frontmatter; the
     default stays in 01-base/tone-modifiers (fallback for unknown personas)."""
     failed: list[str] = []
@@ -80,8 +81,7 @@ async def update_tone_modifiers(payload: ToneModifiersPayload) -> ToneModifiersP
         # ALT: partial writes stay (each persona is independent); surface the
         # failed subset so the Studio shows its error state instead of a false OK.
         raise HTTPException(
-            500, "Tone-Modifier teilweise gespeichert — fehlgeschlagen für: "
-            + ", ".join(sorted(failed)),
+            500, msg(lang, "tone.partial", failed=", ".join(sorted(failed))),
         )
     await cl.write_area("01-base/tone-modifiers",
                         {"default_modifier": payload.default_modifier.model_dump()})
@@ -97,6 +97,13 @@ class WelcomeConfig(BaseModel):
     greeting: str
     quick_replies: list[str]
     tour_reply: str = ""
+    # C1-g2b-Nachtrag: ohne diese Felder löschte jeder Schreibzugriff über
+    # diese Route die englische Fassung (das YAML wird hier feldweise neu
+    # gebaut). Optional mit leerer Vorgabe — ein Aufrufer, der sie nicht kennt,
+    # bekommt keinen Fehler.
+    greeting_en: str = ""
+    quick_replies_en: list[str] = []
+    tour_reply_en: str = ""
 
 
 @router.get("/welcome", response_model=WelcomeConfig)
@@ -105,18 +112,25 @@ async def get_welcome_config() -> WelcomeConfig:
 
 
 @router.put("/welcome", response_model=WelcomeConfig)
-async def update_welcome_config(cfg: WelcomeConfig) -> WelcomeConfig:
+async def update_welcome_config(cfg: WelcomeConfig, lang: Lang) -> WelcomeConfig:
     greeting = (cfg.greeting or "").strip()
     if not greeting:
-        raise HTTPException(400, "greeting darf nicht leer sein")
+        raise HTTPException(400, msg(lang, "field.empty", field="greeting"))
     replies = [r.strip() for r in (cfg.quick_replies or []) if r and r.strip()]
     if not replies:
-        raise HTTPException(400, "mindestens eine Quick-Reply nötig")
+        raise HTTPException(400, msg(lang, "welcome.noReplies"))
     tour_reply = (cfg.tour_reply or "").strip()
     if tour_reply and tour_reply not in replies:
-        raise HTTPException(400, "tour_reply muss exakt einer der quick_replies sein")
+        raise HTTPException(400, msg(lang, "welcome.tourReplyUnknown"))
+    # Die englische Fassung wird NICHT geprüft (kein Pflichtfeld, kein
+    # Tour-Chip-Abgleich): leer heißt „nicht gepflegt", und wer nur Deutsch
+    # pflegt, soll nicht an einer Prüfung scheitern, die er nicht kennt.
+    replies_en = [r.strip() for r in (cfg.quick_replies_en or []) if r and r.strip()]
     await cl.write_area("01-base/welcome-config", {"welcome": {
         "greeting": greeting, "quick_replies": replies, "tour_reply": tour_reply,
+        "greeting_en": (cfg.greeting_en or "").strip(),
+        "quick_replies_en": replies_en,
+        "tour_reply_en": (cfg.tour_reply_en or "").strip(),
     }})
     return WelcomeConfig(**cl.load_welcome_config())
 
@@ -124,6 +138,7 @@ async def update_welcome_config(cfg: WelcomeConfig) -> WelcomeConfig:
 # ── Context actions ────────────────────────────────────────────────────────
 class ContextPill(BaseModel):
     label: str
+    label_en: str = ""
     kind: str  # action | text | report
     action: str = ""
 
@@ -140,10 +155,20 @@ class ContextPills(BaseModel):
     topic: list[ContextPill]
 
 
+class ContextGreetingsEn(BaseModel):
+    """Wie ``ContextGreetings``, aber jedes Feld optional: eine nicht gepflegte
+    Sprache ist kein Fehler (C1-g2b)."""
+
+    collection: str = ""
+    content: str = ""
+    topic: str = ""
+
+
 class ContextActionsConfig(BaseModel):
     enabled: bool = True
     report_url: str
     greetings: ContextGreetings
+    greetings_en: ContextGreetingsEn = ContextGreetingsEn()
     pills: ContextPills
     curate_prompt: str
 
@@ -151,24 +176,31 @@ class ContextActionsConfig(BaseModel):
 _PILL_KINDS = {"action", "text", "report"}
 
 
-def _clean_pills(pills: list[ContextPill], kind_name: str) -> list[dict[str, str]]:
+def _clean_pills(
+    pills: list[ContextPill], kind_name: str, lang: Lang,
+) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for p in pills:
         label = (p.label or "").strip()
         kind = (p.kind or "").strip().lower()
         if not label:
-            raise HTTPException(400, f"pills.{kind_name}: label darf nicht leer sein")
+            raise HTTPException(400, msg(lang, "pills.labelEmpty", field=f"pills.{kind_name}"))
         if kind not in _PILL_KINDS:
-            raise HTTPException(400, f"pills.{kind_name}: kind muss action|text|report sein")
-        entry: dict[str, str] = {"label": label, "kind": kind}
+            raise HTTPException(400, msg(lang, "pills.badKind", field=f"pills.{kind_name}"))
+        # `label_en` wird nicht auf Leere geprüft: leer heißt „nicht gepflegt".
+        entry: dict[str, str] = {
+            "label": label, "label_en": (p.label_en or "").strip(), "kind": kind,
+        }
         if kind == "action":
             action = (p.action or "").strip()
             if not action:
-                raise HTTPException(400, f"pills.{kind_name}: action-Pill braucht eine action")
+                raise HTTPException(
+                    400, msg(lang, "pills.actionMissing", field=f"pills.{kind_name}"),
+                )
             entry["action"] = action
         out.append(entry)
     if not out:
-        raise HTTPException(400, f"pills.{kind_name} braucht mindestens eine Pill")
+        raise HTTPException(400, msg(lang, "pills.none", field=f"pills.{kind_name}"))
     return out
 
 
@@ -178,10 +210,12 @@ async def get_context_actions_config() -> ContextActionsConfig:
 
 
 @router.put("/context-actions", response_model=ContextActionsConfig)
-async def update_context_actions_config(cfg: ContextActionsConfig) -> ContextActionsConfig:
+async def update_context_actions_config(
+    cfg: ContextActionsConfig, lang: Lang,
+) -> ContextActionsConfig:
     report_url = (cfg.report_url or "").strip()
     if not report_url:
-        raise HTTPException(400, "report_url darf nicht leer sein")
+        raise HTTPException(400, msg(lang, "field.empty", field="report_url"))
     greetings = {
         "collection": (cfg.greetings.collection or "").strip(),
         "content": (cfg.greetings.content or "").strip(),
@@ -189,18 +223,24 @@ async def update_context_actions_config(cfg: ContextActionsConfig) -> ContextAct
     }
     for kind, text in greetings.items():
         if not text:
-            raise HTTPException(400, f"greetings.{kind} darf nicht leer sein")
+            raise HTTPException(400, msg(lang, "field.empty", field=f"greetings.{kind}"))
     pills = {
-        "collection": _clean_pills(cfg.pills.collection, "collection"),
-        "content": _clean_pills(cfg.pills.content, "content"),
-        "topic": _clean_pills(cfg.pills.topic, "topic"),
+        "collection": _clean_pills(cfg.pills.collection, "collection", lang),
+        "content": _clean_pills(cfg.pills.content, "content", lang),
+        "topic": _clean_pills(cfg.pills.topic, "topic", lang),
     }
     curate_prompt = (cfg.curate_prompt or "").strip()
     if not curate_prompt:
-        raise HTTPException(400, "curate_prompt darf nicht leer sein")
+        raise HTTPException(400, msg(lang, "field.empty", field="curate_prompt"))
+    greetings_en = {
+        "collection": (cfg.greetings_en.collection or "").strip(),
+        "content": (cfg.greetings_en.content or "").strip(),
+        "topic": (cfg.greetings_en.topic or "").strip(),
+    }
     await cl.write_area("01-base/context-actions", {"context_actions": {
         "enabled": bool(cfg.enabled), "report_url": report_url,
-        "greetings": greetings, "pills": pills, "curate_prompt": curate_prompt,
+        "greetings": greetings, "greetings_en": greetings_en,
+        "pills": pills, "curate_prompt": curate_prompt,
     }})
     return ContextActionsConfig(**cl.load_context_actions())
 
@@ -209,6 +249,11 @@ async def update_context_actions_config(cfg: ContextActionsConfig) -> ContextAct
 class CanvasMaterialType(BaseModel):
     id: str
     label: str
+    # Additiv am eingefrorenen Vertrag, wie beim C1-g2b-Nachtrag: ohne dieses
+    # Feld würde ein PUT über diese schmale Route die englischen
+    # Beschriftungen still löschen. Der Studio-Editor schreibt zwar über
+    # `/config/data/{area}`, die Route hier bleibt aber offen (C1-g2e).
+    label_en: str = ""
     emoji: str = ""
     category: str  # didaktisch | analytisch
     structure: str = ""

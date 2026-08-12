@@ -114,25 +114,30 @@ def test_spec_skips_i04_with_thema(spec_mcp):
 
 # ── Primary-Tool-Wahl + Extras ───────────────────────────────────────────
 
-def test_spec_i03_topic_first_warmup_primary_with_staircase_extras(spec_mcp):
-    # I03 → _topic_first → Primary search_wlo_topic_pages via Warmup-Wrapper;
-    # Extras = Staircase [collections, content], je maxResults=5, dedupliziert
-    # (der Intent-Zweig hängt content ein zweites Mal an → genau 1× gestartet).
+def test_spec_i03_topic_first_uses_the_combo_tool(spec_mcp):
+    """W7 (Nutzer-Entscheid 2026-07-31): die Themenseiten-HEURISTIK nimmt das
+    Kombi-Tool, nicht mehr das zustandsbehaftete ``search_wlo_topic_pages``.
+
+    Vorher pinnte dieser Test den Warmup-Primary + die Staircase-Extras. Live
+    gemessen war genau das der Defekt: der Themenseiten-Index des Servers hängt
+    am letzten Collections-Call, nicht an der Frage — zwei völlig verschiedene
+    Suchen bekamen dieselben drei Treffer (zwei davon Redaktions-Vorlagen) als
+    Karte 1-3. Der ausdrückliche Nutzerwunsch bleibt beim dedizierten Tool; das
+    pinnt ``test_spec_explicit_topic_page_wish_beats_search_all_hint``.
+    """
     out = _launch(intent="I03", entities={"thema": "Brüche"})
-    spec_task, name, args, query, extras, is_all, all_extras = out
+    spec_task, name, args, query, extras, is_all, _all_extras = out
     assert isinstance(spec_task, asyncio.Task)
-    assert name == "search_wlo_topic_pages"
-    assert args == {"query": "Brüche", "maxResults": 10}
+    assert name == "search_wlo_all"
+    assert is_all is True
     assert query == "Brüche"
-    assert [n for n, _t in extras] == ["search_wlo_collections", "search_wlo_content"]
-    assert all(isinstance(t, asyncio.Task) for _n, t in extras)
-    assert is_all is False
-    assert all_extras == []
-    assert spec_mcp == [
-        ("warmup", "Brüche", {"query": "Brüche", "maxResults": 10}),
-        ("call", "search_wlo_collections", {"query": "Brüche", "maxResults": 5}),
-        ("call", "search_wlo_content", {"query": "Brüche", "maxResults": 5}),
-    ]
+    # EIN Round-Trip deckt content + collections + topicPages ab …
+    assert args["query"] == "Brüche"
+    assert args["includeFacets"] is True
+    # … deshalb entfällt die Staircase, die vorher zwei Extra-Calls startete.
+    assert [n for n, _t in extras] == []
+    # und kein Warmup mehr: der galt allein dem session-stateful Tool.
+    assert [c[0] for c in spec_mcp] != ["warmup"]
 
 
 def test_spec_i04_generic_search_becomes_search_wlo_all(spec_mcp):
@@ -156,6 +161,45 @@ def test_spec_i04_generic_search_becomes_search_wlo_all(spec_mcp):
     assert extras == []
     assert all_extras == []
     assert spec_mcp == [("call", "search_wlo_all", args)]
+
+
+# ── W5-2a: search_wlo_all ist das Standard-Suchtool ─────────────────────
+# Nutzer-Vorgabe 2026-07-30: „search_wlo_all enthält auch Themenseiten und darf
+# andere Suchtools überstimmen … Sammlungen und Themenseiten wenn danach gefragt
+# wird, und search_wlo_all ist der Standard beim Suchen."
+# Vorrang, von stark nach schwach:
+#   1. Medientyp genannt („Video")        → search_wlo_content (Einzelinhalte)
+#   2. Nutzer sagt „Themenseite"          → search_wlo_topic_pages
+#   3. sonst / LLM-Hint search_wlo_all    → search_wlo_all
+def test_spec_llm_tool_hint_search_all_is_accepted(spec_mcp):
+    # Bisher fiel dieser Hint still durch (nicht in der Zulassungsliste) und die
+    # Heuristik entschied — bei I03 hätte sie auf Themenseiten geroutet.
+    out = _launch(intent="I03", entities={"fach": "Chemie"},
+                  tool_hint="search_wlo_all")
+    _task, name, _args, _query, _extras, is_all, _ = out
+    assert name == "search_wlo_all"
+    assert is_all is True          # Flagge MUSS mit — sie wählt den Parser
+
+
+def test_spec_media_type_beats_search_all_hint(spec_mcp):
+    # „Bruchrechnung und Video" → Einzelinhalt, auch wenn der Hint das Kombi-
+    # Tool nennt: der Nutzer hat den Inhaltstyp ausdrücklich genannt.
+    out = _launch(message="Ich suche ein Video zur Bruchrechnung",
+                  intent="I04", entities={"fach": "Mathematik", "medientyp": "Video"},
+                  tool_hint="search_wlo_all")
+    _task, name, _args, _query, _extras, is_all, _ = out
+    assert name == "search_wlo_content"
+    assert is_all is False
+
+
+def test_spec_explicit_topic_page_wish_beats_search_all_hint(spec_mcp):
+    # „Themenseite" im Nutzertext → die dedizierte Suche, nicht das Kombi-Tool.
+    out = _launch(message="Zeig mir die Themenseite zu Chemie",
+                  intent="I04", entities={"fach": "Chemie"},
+                  tool_hint="search_wlo_all")
+    _task, name, _args, _query, _extras, is_all, _ = out
+    assert name == "search_wlo_topic_pages"
+    assert is_all is False
 
 
 def test_spec_llm_tool_hint_topic_pages_wins_and_keeps_warmup(spec_mcp):
@@ -236,17 +280,16 @@ def test_spec_wants_topic_with_collections_hint_stays_direct_and_capped(spec_mcp
     ]
 
 
-def test_spec_m06_pattern_hint_triggers_topic_first(spec_mcp):
-    # Pattern-Hint M06 (ohne Tool-Hint) → _topic_first → Warmup-Primary
-    # topic_pages + Staircase-Extras, auch bei I04.
+def test_spec_m06_pattern_hint_also_uses_the_combo_tool(spec_mcp):
+    # W7: derselbe Entscheid wie oben, hier über den Pattern-Hint M06 statt I03.
+    # Der Fach-Filter muss den Wechsel überleben — er war der Grund, warum die
+    # Suche überhaupt eingegrenzt war.
     out = _launch(intent="I04", entities={"fach": "Physik"}, pattern_hint="M06")
-    _task, name, _args, _query, extras, is_all, _ = out
-    assert name == "search_wlo_topic_pages"
-    assert is_all is False
-    assert [n for n, _t in extras] == ["search_wlo_collections", "search_wlo_content"]
-    assert spec_mcp[0] == ("warmup", "Physik",
-                           {"query": "Physik", "maxResults": 10,
-                            "discipline": "Physik"})
+    _task, name, args, _query, extras, is_all, _ = out
+    assert name == "search_wlo_all"
+    assert is_all is True
+    assert args.get("discipline") == "Physik"
+    assert [n for n, _t in extras] == []
 
 
 # ── Query-Bildung ────────────────────────────────────────────────────────

@@ -25,6 +25,7 @@ from boerdi.api.schemas import (
     SafetyDecision,
 )
 from boerdi.domain.pattern_engine import PatternDef
+from boerdi.domain.turn_frame import CLARIFICATION_ATTEMPT_LIMIT, note_clarification
 from boerdi.graph import state as state_mod
 from boerdi.graph.nodes import route as route_mod
 from boerdi.graph.nodes.route import _render_memory_context, _resolve_rag_areas, route
@@ -198,6 +199,60 @@ def test_empty_enforced_pattern_becomes_none(monkeypatch):
     assert captured["select"]["enforced_pattern_id"] is None
 
 
+# ── Frame-Auflösung vor der Musterwahl (B3) ────────────────────────
+def _entities_mit_erschoepftem_frame() -> dict:
+    ents: dict = {"material_typ": "arbeitsblatt"}
+    for _ in range(CLARIFICATION_ATTEMPT_LIMIT):
+        note_clarification(ents)
+    return ents
+
+
+def test_erschoepfter_klaerer_wird_vor_der_musterwahl_umgeleitet(monkeypatch):
+    """B0-Messung: ohne das hier fragte der Bot dreimal wortgleich nach dem
+    Thema und nahm dann die Ausweich-Floskel als Thema."""
+    captured = {}
+    _patch(monkeypatch, captured)
+    ctx = _ctx(
+        session_state={"persona_id": "", "signal_history": [],
+                       "entities": _entities_mit_erschoepftem_frame(),
+                       "state_id": ""},
+        classification=ClassificationResult(pattern_id_hint="M03"),
+    )
+    asyncio.run(route(ctx))
+    assert captured["select"]["enforced_pattern_id"] == "M15"
+    # Der Hinweis wird NICHT verworfen — die Erzwingung sticht ihn ohnehin, und
+    # die Debug-Ausgabe soll weiterhin zeigen, was der Klassifikator wollte.
+    assert captured["select"]["pattern_id_hint"] == "M03"
+
+
+def test_safety_erzwingung_schlaegt_den_frame(monkeypatch):
+    captured = {}
+    _patch(monkeypatch, captured)
+    ctx = _ctx(
+        session_state={"persona_id": "", "signal_history": [],
+                       "entities": _entities_mit_erschoepftem_frame(),
+                       "state_id": ""},
+        safety=SafetyDecision(risk_level="high", enforced_pattern="M01"),
+        classification=ClassificationResult(pattern_id_hint="M03"),
+    )
+    asyncio.run(route(ctx))
+    assert captured["select"]["enforced_pattern_id"] == "M01"
+
+
+def test_frame_unterhalb_der_grenze_leitet_nicht_um(monkeypatch):
+    captured = {}
+    _patch(monkeypatch, captured)
+    ents: dict = {"material_typ": "arbeitsblatt"}
+    note_clarification(ents)
+    ctx = _ctx(
+        session_state={"persona_id": "", "signal_history": [], "entities": ents,
+                       "state_id": ""},
+        classification=ClassificationResult(pattern_id_hint="M03"),
+    )
+    asyncio.run(route(ctx))
+    assert captured["select"]["enforced_pattern_id"] is None
+
+
 def test_routing_output_fields_written(monkeypatch):
     captured = {}
     win = PatternDef(id="M11", label="Nachbearbeitung")
@@ -357,6 +412,10 @@ def test_fp_tail_lp_gate_and_body_receive_route_context(monkeypatch):
     assert captured["lp"]["qr_spec_task"] is None
     # Gate feuerte, Body (default) nicht geroutet → kein Fehl-Override.
     assert out.lp_routed is False
+    # K1c: der Canvas-Fast-Path bekommt denselben Merkposten. Er ging bisher
+    # als einziger der beiden Fast-Paths leer aus — der Material-Generator
+    # dahinter ist mit max_tokens=2500 der größte Einzelaufruf des Systems.
+    assert captured["canvas"]["usage_acc"] is ctx.usage
 
 
 # ── Reiner Helfer: RAG-Whitelist ───────────────────────────────────

@@ -1,0 +1,87 @@
+# MCP-Server-Registry
+# Registrierte MCP-Server fuer den Chatbot.
+#
+# Primary-Server (id=wlo-mcp): URL kommt aus der
+# Env-Variable ``MCP_SERVER_URL`` (Default:
+# https://wlo-mcp.87.106.195.152.nip.io/mcp). Nicht in dieser YAML eintragen —
+# sie wird vom Backend automatisch gefiltert.
+#
+# Weitere Server können über das Studio (System → MCP-Server →
+# Hinzufuegen) frei verwaltet werden — sie bekommen ihre url
+# regulaer aus dieser YAML.
+#
+# W7b (2026-07-31): Die Liste wird per ``tools/list`` VOM SERVER geholt, nicht
+# abgetippt. Sie steuert ``_get_server_url_for_tool`` (services/mcp/client.py):
+# ein hier fehlender Name faellt still auf die Default-URL zurueck. Genau das war
+# der Defekt davor — die Liste nannte zehn Werkzeuge, dem Modell wurden dreizehn
+# angeboten. Der Waechter
+# ``test_die_server_registry_kennt_jedes_werkzeug_das_dem_modell_angeboten_wird``
+# haelt das fest. Beim Server-Wechsel: Liste erneut vom Server holen.
+#
+# A1 (2026-08-10): erneut geholt — 41 Werkzeuge statt 23. Zwei Dinge dabei
+# gemessen: ``find_wlo_skills`` gibt es nicht mehr (der Server hat die Skills auf
+# ``search_skill`` + ``get_skill`` aufgeteilt), und die 14 kuratierenden
+# Werkzeuge stehen fuer JEDEN Aufrufer in ``tools/list``, auch anonym — sie
+# verweigern erst beim Aufruf. Sie stehen deshalb hier, obwohl der Katalog
+# (``tool_defs.py``) sie dem Modell noch nicht anbietet: diese Liste beschreibt,
+# WELCHER SERVER ein Werkzeug bedient, nicht, was das Modell darf.
+
+servers:
+- id: wlo-mcp
+  name: WLO edu-sharing
+  description: WirLernenOnline MCP-Server mit Such-, Metadaten- und Volltext-Tools
+  enabled: true
+  tools:
+  # Suche
+  - search_wlo_all
+  - search_wlo_collections
+  - search_wlo_content
+  - search_wlo_topic_pages
+  - search_wlo_within_collection
+  - search
+  # Inhalte + Volltext
+  - get_collection_contents
+  - get_topic_page_content
+  - get_wlo_content_text
+  - get_compendium_text
+  - get_related_content
+  # Volltext einer beliebigen Webseite. Vom Server als unsafe geführt und per
+  # WLO_DISABLE_UNSAFE_TOOLS abschaltbar.
+  - get_url_text
+  - fetch
+  # Metadaten + Navigation
+  - get_node_details
+  - get_nodes_details
+  - get_node_breadcrumb
+  - get_node_collections
+  - get_collection_stats
+  - browse_collection_tree
+  - get_subject_portals
+  # Nachschlagen
+  - lookup_wlo_vocabulary
+  - lookup_wlo_publishers
+  - get_wikipedia_summary
+  # Skills (Anleitungen aus dem Bestand)
+  - search_skill
+  - get_skill
+  # H9 (2026-08-10): die Freigabeliste EINER Sammlung. Ohne Konfiguration
+  # registriert — eine Sammlung ohne Registry sagt das schlicht.
+  - get_skill_registry
+  # Kuratieren — verlangen eine schreibberechtigte Anmeldung
+  - wlo_create_content
+  - wlo_update_content
+  - wlo_delete_content
+  - wlo_submit_content
+  - wlo_create_collection
+  - wlo_rename_collection
+  - wlo_delete_collection
+  - wlo_add_to_collection
+  - wlo_remove_from_collection
+  - wlo_update_compendium
+  - wlo_set_topic_page
+  - wlo_suggest_metadata
+  - wlo_list_suggestions
+  - wlo_decide_suggestion
+  # Betrieb
+  - wlo_health_check
+  - wlo_auth_status

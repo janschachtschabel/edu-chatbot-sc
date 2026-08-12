@@ -1,8 +1,6 @@
 <fieldset class="sl">
-  <legend class="sl-legend">Sicherheitslevel</legend>
-  <p class="sl-hint" id="sl-hint">
-    Steuert, welche Safety-Stufen laufen. Wirkt nach dem Speichern sofort, ohne Neustart.
-  </p>
+  <legend class="sl-legend">{{ t('safetyLevel.legend') }}</legend>
+  <p class="sl-hint" id="sl-hint">{{ t('safetyLevel.hint') }}</p>
 
   <div class="sl-grid">
     @for (level of levels(); track level.id) {
@@ -20,8 +18,7 @@
         <span class="sl-desc" [id]="'sl-desc-' + level.id">
           {{ level.desc }}
           @if (!level.defined) {
-            <span class="sl-missing">Kein Preset in dieser Datei hinterlegt — es gilt der
-              Escalation-Block.</span>
+            <span class="sl-missing">{{ t('safetyLevel.missing') }}</span>
           }
         </span>
       </label>
@@ -29,9 +26,6 @@
   </div>
 
   @if (anyMissing()) {
-    <p class="sl-note">
-      Für die markierten Stufen ist unter „presets" nichts hinterlegt. Sie lassen sich wählen,
-      wirken dann aber wie der Escalation-Block weiter unten.
-    </p>
+    <p class="sl-note">{{ t('safetyLevel.note') }}</p>
   }
 </fieldset>

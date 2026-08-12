@@ -3,6 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { WloCard } from '../cards/card-types';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import { GroupingContext } from './result-grouping';
 import { TopicPageView } from './message-types';
 import { SwimlanesComponent } from './swimlanes.component';
@@ -19,12 +21,14 @@ function card(fields: Partial<WloCard>): WloCard {
   return fields as unknown as WloCard;
 }
 
-const ctx: GroupingContext = { withBsid: (u) => u ?? '', externalLinkWarning: () => '' };
+const ctx: GroupingContext = {
+  withBsid: (u) => u ?? '', externalLinkWarning: () => '', t: createTranslator(DE, DE),
+};
 
-async function render(topicPage: TopicPageView): Promise<HTMLElement> {
+async function render(topicPage: TopicPageView, c: GroupingContext = ctx): Promise<HTMLElement> {
   const fixture = TestBed.createComponent(SwimlanesComponent);
   fixture.componentRef.setInput('topicPage', topicPage);
-  fixture.componentRef.setInput('ctx', ctx);
+  fixture.componentRef.setInput('ctx', c);
   fixture.detectChanges();
   await fixture.whenStable();
   return fixture.nativeElement as HTMLElement;
@@ -70,6 +74,30 @@ describe('SwimlanesComponent', () => {
     expect(cta.querySelector('strong')?.textContent?.trim()).toBe('Zur Themenseite „Bruchrechnung"');
     expect(cta.querySelector('.result-group__cta-sub')?.textContent?.trim()).toBe('Alle Inhalte auf der Themenseite ansehen');
     expect(cta.getAttribute('title')).toBe('Zur vollständigen Themenseite: Bruchrechnung');
+  });
+
+  /** Der deutsche Wortlaut oben stünde auch bei fest verdrahtetem Text da —
+   *  erst der Sprachwechsel belegt, dass die Texte über `ctx.t` laufen. */
+  it('nimmt Überschrift und CTA-Texte aus `ctx.t` (C1-b2)', async () => {
+    const EN: Record<string, string> = {
+      'swimlanes.heading': '{heading} (excerpt)',
+      'swimlanes.cta.label': 'To the topic page "{title}"',
+      'swimlanes.cta.sub': 'See all content on the topic page',
+    };
+    const host = await render(
+      {
+        variant_title: 'Fractions',
+        topic_page_url: 'https://tp.test/full',
+        swimlanes: [{ heading: 'Videos', cards: [] }],
+      },
+      { ...ctx, t: (key, params) => (EN[key] ?? key).replace(/\{(\w+)\}/g, (m, n) => String(params?.[n] ?? m)) },
+    );
+
+    expect(host.querySelector('.result-group__heading')?.textContent).toContain('Videos (excerpt)');
+    expect(host.querySelector('.result-group--cta strong')?.textContent?.trim())
+      .toBe('To the topic page "Fractions"');
+    expect(host.querySelector('.result-group__cta-sub')?.textContent?.trim())
+      .toBe('See all content on the topic page');
   });
 
   it('leere swimlanes → kein Wrapper', async () => {

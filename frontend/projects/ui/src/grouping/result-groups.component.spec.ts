@@ -3,8 +3,12 @@ import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { WloCard } from '../cards/card-types';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
+
 import { ChatMessage, QueryMetaEntry } from './message-types';
-import { ResultGroupsComponent, ResultGroupsContext } from './result-groups.component';
+import { ResultGroupsComponent } from './result-groups.component';
+import { ResultGroupsContext } from './result-grouping';
 
 /**
  * Charakterisierung des ResultGroups-Renderers — visueller Port des ALT
@@ -31,6 +35,7 @@ const ctx: ResultGroupsContext = {
   withBsid: (u) => u ?? '',
   externalLinkWarning: () => '',
   isTrustedHost: () => false,
+  t: createTranslator(DE, DE),
 };
 /** Wie `ctx`, aber jeder Host gilt als trusted (→ Such-CTA öffnet `_self`). */
 const ctxTrusted: ResultGroupsContext = { ...ctx, isTrustedHost: () => true };
@@ -67,6 +72,28 @@ describe('ResultGroupsComponent', () => {
       imports: [ResultGroupsComponent],
       providers: [provideZonelessChangeDetection()],
     });
+  });
+
+  /** Die deutschen Überschriften unten belegen nur den Wortlaut — sie stünden
+   *  auch fest verdrahtet da. Erst der Wechsel zeigt, dass sie über `ctx.t`
+   *  laufen; die Materialien-Zeile prüft zusätzlich den Platzhalter. */
+  it('nimmt Box-Überschriften und Knopf-Beschriftung aus `ctx.t` (C1-b2)', async () => {
+    const EN: Record<string, string> = {
+      'groups.topics': 'Topic pages',
+      'groups.materials': 'Selected materials',
+      'groups.showContent': 'Show content of {title} in the chat',
+    };
+    const host = await render(fullMessage(), {
+      ...ctx,
+      t: (key, params) => (EN[key] ?? key).replace(/\{(\w+)\}/g, (m, n) => String(params?.[n] ?? m)),
+    });
+
+    expect(host.querySelector('.result-group--topic .result-group__heading')?.textContent)
+      .toContain('Topic pages');
+    expect(host.querySelector('.result-group--material .result-group__heading')?.textContent)
+      .toContain('Selected materials');
+    expect(host.querySelector('.result-group__item-btn')?.getAttribute('aria-label'))
+      .toBe('Show content of Material Eins in the chat');
   });
 
   it('rendert alle 5 Boxen mit Heading, Items und aufgelösten Links', async () => {
@@ -125,6 +152,61 @@ describe('ResultGroupsComponent', () => {
     expect(host.querySelector('.result-group--collection')).toBeNull();
     expect(host.querySelector('.result-group--web')).toBeNull();
     expect(host.querySelector('.result-group--cta')).toBeNull();
+  });
+
+  it('Materialien-Zeile trägt den Volltext-Knopf; Klick meldet id+Titel (M17)', async () => {
+    // Diese Box ist die DEFAULT-Oberfläche (inline-result-grouping="true").
+    // Säße der Knopf nur im Flach-Grid, wäre die Volltext-Aktion im
+    // Normalbetrieb gar nicht auslösbar.
+    const fixture = TestBed.createComponent(ResultGroupsComponent);
+    fixture.componentRef.setInput('message', msg({
+      cards: [card({ node_type: 'content', node_id: 'm1', title: 'Arbeitsblatt Brüche', link: 'https://repo.test/m1' })],
+    }));
+    fixture.componentRef.setInput('ctx', ctx);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+
+    const seen: unknown[] = [];
+    fixture.componentInstance.showContentText.subscribe((e: unknown) => seen.push(e));
+
+    const btn = host.querySelector('.result-group--material .result-group__item-btn') as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    // Icon-Knopf ohne sichtbaren Text → sein Name kommt aus dem aria-label,
+    // und er muss das Material benennen (eine Box hat mehrere Zeilen).
+    expect(btn.getAttribute('aria-label')).toContain('Arbeitsblatt Brüche');
+    btn.click();
+    expect(seen).toEqual([{ nodeId: 'm1', title: 'Arbeitsblatt Brüche' }]);
+  });
+
+  it('Volltext-Knopf trägt KEIN Inhaltstyp-Symbol, sondern ein Handlungs-Symbol', async () => {
+    // Nutzer-Rückmeldung 2026-07-31: die Zeile wirkte, als stünde der
+    // Inhaltstyp zweimal drin — vorn und hinten. Vorn gehört der Typ, hinten
+    // die Handlung. Es reicht NICHT, dass die Glyphen verschieden sind
+    // (`article` neben `description` sieht gleich aus): das Knopf-Symbol darf
+    // aus der Typ-Menge gar nicht stammen.
+    // „Arbeitsblatt" ist der Typ, dessen Symbol mit dem alten Knopf-Symbol
+    // kollidierte (beides `article`). Verglichen werden zwei GERENDERTE
+    // Symbole — die Sanitizer-Pipe normalisiert das SVG, ein Vergleich gegen
+    // die Roh-Konstante ginge daran vorbei.
+    const host = await render(msg({
+      cards: [card({
+        node_type: 'content', node_id: 'm1', title: 'Ein Arbeitsblatt',
+        link: 'https://repo.test/m1', learning_resource_types: ['Arbeitsblatt'],
+      })],
+    }));
+    const typIcon = host.querySelector('.result-group--material .result-group__item-icon')!.innerHTML;
+    const knopfIcon = host.querySelector('.result-group--material .result-group__item-btn .bb-icon')!.innerHTML;
+    expect(knopfIcon.trim()).not.toBe('');
+    expect(knopfIcon).not.toBe(typIcon);
+  });
+
+  it('Material ohne node_id: Zeile bleibt, aber ohne Volltext-Knopf', async () => {
+    const host = await render(msg({
+      cards: [card({ node_type: 'content', title: 'Ohne ID', link: 'https://repo.test/x' })],
+    }));
+    expect(host.querySelector('.result-group--material')).not.toBeNull();
+    expect(host.querySelector('.result-group__item-btn')).toBeNull();
   });
 
   it('Search-CTA: Titel mit Suchbegriff', async () => {

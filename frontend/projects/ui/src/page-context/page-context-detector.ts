@@ -48,7 +48,18 @@ export interface DetectedContext {
   search_filters?: { publisher?: string[] };
   /** Raw extracted page text — title + first ~3KB of visible content. */
   page_text?: string;
-  /** What kind of page this is — useful for prompt construction. */
+  /** Bare hostname of the host page. The backend decides "our site or somebody
+   *  else's" against an editorially maintained list — a hostname is an
+   *  operational fact that changes without a widget rebuild, so the decision
+   *  does NOT live here. */
+  page_host?: string;
+  /** Full address of the host page. Needed to look up whether the page is
+   *  already a WLO record and, on a foreign page, to hand M20 something it can
+   *  actually open — a hostname alone points at the wrong page. */
+  page_url?: string;
+  /** What kind of page this is — useful for prompt construction.
+   *  ``home``/``external`` are never set here: they are the backend's answer to
+   *  the hostname question, and arrive on the page context server-side. */
   page_kind?: 'topic' | 'collection' | 'content' | 'subject' | 'search' | 'other';
   /** Origin of the detection — for trace/debug. */
   detection_source?: string;
@@ -57,8 +68,22 @@ export interface DetectedContext {
 /* ── URL pattern parsing ─────────────────────────────────────────── */
 
 /** Exported for unit tests — jsdom cannot navigate, so URL-pattern
- *  classification is exercised directly with a constructed `URL`. */
+ *  classification is exercised directly with a constructed `URL`.
+ *
+ *  Host and full address ride along with every classification, so the two
+ *  travel whether or not a pattern matched — the unmatched case (`other`) is
+ *  precisely the one where the backend needs the hostname to tell our own site
+ *  from a foreign one. Attached HERE rather than in each of the eight return
+ *  paths below: one place to be right, none to forget. */
 export function _detectFromUrl(url: URL): Partial<DetectedContext> {
+  return {
+    page_host: url.hostname,
+    page_url: url.href,
+    ..._classifyUrl(url),
+  };
+}
+
+function _classifyUrl(url: URL): Partial<DetectedContext> {
   const path = url.pathname.toLowerCase();
   const sp = url.searchParams;
 

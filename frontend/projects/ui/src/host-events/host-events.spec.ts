@@ -89,7 +89,7 @@ describe('maybeDispatchGuideNavigate', () => {
 describe('maybeDispatchGuideSuggestion', () => {
   it('Gate aus (Default) → kein window-Event, kein Output', () => {
     const { ctx, suggestionOut } = makeCtx({ emitGuideSuggestion: false });
-    const events = captureWindowEvent('badboerdi:guide-suggestion', () =>
+    const events = captureWindowEvent('boerdi:guide-suggestion', () =>
       maybeDispatchGuideSuggestion('Frage', [card({ title: 'T', link: 'https://a' })], ctx),
     );
     expect(events.length).toBe(0);
@@ -102,7 +102,7 @@ describe('maybeDispatchGuideSuggestion', () => {
       card({ title: 'Top', node_id: 'n1', node_type: 'content', link: 'https://a' }),
       card({ title: 'Alt', node_id: 'n2', node_type: 'collection', link: 'https://b' }),
     ];
-    const events = captureWindowEvent('badboerdi:guide-suggestion', () =>
+    const events = captureWindowEvent('boerdi:guide-suggestion', () =>
       maybeDispatchGuideSuggestion('Frage', cards, ctx),
     );
     expect(events.length).toBe(1);
@@ -117,7 +117,7 @@ describe('maybeDispatchGuideSuggestion', () => {
 
   it('Gate an aber keine eligible Card → nichts', () => {
     const { ctx, suggestionOut } = makeCtx({ emitGuideSuggestion: true });
-    const events = captureWindowEvent('badboerdi:guide-suggestion', () =>
+    const events = captureWindowEvent('boerdi:guide-suggestion', () =>
       maybeDispatchGuideSuggestion('Frage', [card({ title: 'Ohne Link' })], ctx),
     );
     expect(events.length).toBe(0);
@@ -128,7 +128,7 @@ describe('maybeDispatchGuideSuggestion', () => {
 describe('maybeDispatchRoutingDebug', () => {
   it('Gate aus → nichts', () => {
     const { ctx, routingOut } = makeCtx({ emitRoutingDebug: false });
-    const events = captureWindowEvent('badboerdi:routing-debug', () =>
+    const events = captureWindowEvent('boerdi:routing-debug', () =>
       maybeDispatchRoutingDebug('Frage', { pattern: 'P' } as unknown as DebugInfo, ctx),
     );
     expect(events.length).toBe(0);
@@ -145,7 +145,7 @@ describe('maybeDispatchRoutingDebug', () => {
         rag_areas: ['mathe'], sources: ['mcp'], _tone_modifier_override: true,
       },
     } as unknown as DebugInfo;
-    const events = captureWindowEvent('badboerdi:routing-debug', () =>
+    const events = captureWindowEvent('boerdi:routing-debug', () =>
       maybeDispatchRoutingDebug('Frage', debug, ctx),
     );
     expect(events.length).toBe(1);
@@ -162,7 +162,7 @@ describe('maybeDispatchRoutingDebug', () => {
 
   it('debug null → nichts', () => {
     const { ctx, routingOut } = makeCtx({ emitRoutingDebug: true });
-    const events = captureWindowEvent('badboerdi:routing-debug', () =>
+    const events = captureWindowEvent('boerdi:routing-debug', () =>
       maybeDispatchRoutingDebug('Frage', null, ctx),
     );
     expect(events.length).toBe(0);

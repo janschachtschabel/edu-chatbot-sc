@@ -50,8 +50,11 @@ _client = instructor.from_litellm(litellm.acompletion, mode=Mode.TOOLS)
 _acreate = _client.chat.completions.create_with_completion
 
 # instructor injects the tool itself; this placeholder only makes
-# build_chat_kwargs take its *tool-call* gating branch (no reasoning_effort,
-# verbosity kept) exactly as ALT's forced-tool classify. Stripped before use.
+# build_chat_kwargs take its *tool-call* gating branch exactly as ALT's
+# forced-tool classify. Stripped before use — die echte Werkzeug-Liste kommt von
+# instructor. WAS der Zweig dann sendet, entscheidet die Modellgruppe (W12b,
+# llm_models._GROUPS): bei gpt-5.4 faellt `reasoning_effort` weg, bei
+# gpt-5.6-luna MUSS er mit, sonst weist die API die ganze Klassifikation ab.
 _TOOL_GATING_MARKER = [{"type": "function", "function": {"name": "classify_input"}}]
 
 

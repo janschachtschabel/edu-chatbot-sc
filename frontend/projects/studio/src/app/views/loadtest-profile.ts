@@ -12,7 +12,12 @@
  * The four caps are mirrored here on purpose and named with their source. There
  * is no endpoint that publishes them; a copy that says where it came from beats
  * a number in a sentence, which is what ALT had.
+ *
+ * Der Übersetzer kommt als erster Parameter herein (C1-d4e1), wie bei
+ * `describeApiError` und `catLabel`: dieses Modul hat keinen Injector, und die
+ * sechs Sätze standen bis dahin als deutsche Vorlagen im Code.
  */
+import type { Translate } from '../i18n/studio-language.service';
 
 export const MAX_STAGES = 6;
 export const MAX_CONCURRENCY = 32;
@@ -53,23 +58,23 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-export function effectiveProfile(draft: ProfileDraft): EffectiveProfile {
+export function effectiveProfile(t: Translate, draft: ProfileDraft): EffectiveProfile {
   const adjustments: string[] = [];
   const parsed = parseStages(draft.stagesText);
 
   const kept = parsed.slice(0, MAX_STAGES);
   if (parsed.length > MAX_STAGES) {
-    adjustments.push(`Nur die ersten ${MAX_STAGES} Stufen laufen.`);
+    adjustments.push(t('ltProfile.adjust.stages', { count: MAX_STAGES }));
   }
   const stages = kept.map((s) => clamp(s, 1, MAX_CONCURRENCY));
   if (kept.some((s) => s > MAX_CONCURRENCY)) {
-    adjustments.push(`Parallelität ist bei ${MAX_CONCURRENCY} gedeckelt.`);
+    adjustments.push(t('ltProfile.adjust.concurrency', { count: MAX_CONCURRENCY }));
   }
 
   const rpsRaw = Number.isFinite(draft.requestsPerStage) ? draft.requestsPerStage : 0;
   const requestsPerStage = clamp(Math.trunc(rpsRaw) || 1, 1, MAX_REQUESTS_PER_STAGE);
   if (rpsRaw > MAX_REQUESTS_PER_STAGE) {
-    adjustments.push(`Höchstens ${MAX_REQUESTS_PER_STAGE} Requests pro Stufe.`);
+    adjustments.push(t('ltProfile.adjust.requests', { count: MAX_REQUESTS_PER_STAGE }));
   }
 
   const thrRaw = Number.isFinite(draft.thresholdS) ? draft.thresholdS : 0;
@@ -86,23 +91,22 @@ export function effectiveProfile(draft: ProfileDraft): EffectiveProfile {
   return {
     stages, requestsPerStage, thresholdS, mix, totalRequests,
     adjustments,
-    problem: problemWith(stages, totalRequests, mix),
+    problem: problemWith(t, stages, totalRequests, mix),
   };
 }
 
 /** The three things `validate_profile` refuses outright, in its own words. */
 function problemWith(
-  stages: readonly number[], totalRequests: number, mix: Record<string, number>,
+  t: Translate, stages: readonly number[], totalRequests: number, mix: Record<string, number>,
 ): string {
   if (stages.length === 0) {
-    return 'Mindestens eine Stufe nötig — z. B. „1, 2, 4".';
+    return t('ltProfile.problem.noStage');
   }
   if (totalRequests > MAX_TOTAL_REQUESTS) {
-    return `Profil zu groß: ${totalRequests} Requests gesamt (Limit ${MAX_TOTAL_REQUESTS}). `
-      + 'Stufenzahl oder Requests pro Stufe reduzieren.';
+    return t('ltProfile.problem.tooBig', { total: totalRequests, limit: MAX_TOTAL_REQUESTS });
   }
   if (Object.keys(mix).length === 0) {
-    return 'Der Mix darf nicht leer sein — mindestens eine Kategorie braucht ein Gewicht.';
+    return t('ltProfile.problem.emptyMix');
   }
   return '';
 }

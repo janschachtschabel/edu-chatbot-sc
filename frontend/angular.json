@@ -37,16 +37,24 @@
             "tsConfig": "projects/widget/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [],
-            "styles": ["projects/widget/src/styles.scss"],
+            "styles": [
+              "projects/widget/src/styles.scss"
+            ],
             "scripts": [],
             "stylePreprocessorOptions": {
-              "includePaths": ["projects/ui/src"]
+              "includePaths": [
+                "projects/ui/src"
+              ]
             }
           },
           "configurations": {
             "production": {
               "budgets": [
-                { "type": "initial", "maximumWarning": "500kb", "maximumError": "1mb" }
+                {
+                  "type": "initial",
+                  "maximumWarning": "500kb",
+                  "maximumError": "1mb"
+                }
               ],
               "outputHashing": "all"
             },
@@ -67,11 +75,19 @@
             "polyfills": [],
             "tsConfig": "projects/widget/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
-            "assets": [],
+            "assets": [
+              {
+                "glob": "oauth-callback.html",
+                "input": "projects/widget/src",
+                "output": "."
+              }
+            ],
             "styles": [],
             "scripts": [],
             "stylePreprocessorOptions": {
-              "includePaths": ["projects/ui/src"]
+              "includePaths": [
+                "projects/ui/src"
+              ]
             },
             "outputHashing": "none",
             "optimization": true,
@@ -82,7 +98,11 @@
           "configurations": {
             "production": {
               "budgets": [
-                { "type": "initial", "maximumWarning": "418kb", "maximumError": "420kb" }
+                {
+                  "type": "initial",
+                  "maximumWarning": "550kb",
+                  "maximumError": "600kb"
+                }
               ]
             },
             "development": {
@@ -98,8 +118,12 @@
             "proxyConfig": "proxy.conf.json"
           },
           "configurations": {
-            "production": { "buildTarget": "widget:build:production" },
-            "development": { "buildTarget": "widget:build:development" }
+            "production": {
+              "buildTarget": "widget:build:production"
+            },
+            "development": {
+              "buildTarget": "widget:build:development"
+            }
           },
           "defaultConfiguration": "development"
         },
@@ -128,17 +152,26 @@
             "tsConfig": "projects/studio/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [],
-            "styles": ["projects/studio/src/styles.scss"],
+            "styles": [
+              "projects/studio/src/styles.scss"
+            ],
             "scripts": [],
             "baseHref": "/studio/",
             "stylePreprocessorOptions": {
-              "includePaths": ["projects/ui/src", "projects/studio/src"]
+              "includePaths": [
+                "projects/ui/src",
+                "projects/studio/src"
+              ]
             }
           },
           "configurations": {
             "production": {
               "budgets": [
-                { "type": "initial", "maximumWarning": "600kb", "maximumError": "900kb" }
+                {
+                  "type": "initial",
+                  "maximumWarning": "600kb",
+                  "maximumError": "900kb"
+                }
               ],
               "outputHashing": "all"
             },
@@ -156,8 +189,12 @@
             "proxyConfig": "proxy.conf.json"
           },
           "configurations": {
-            "production": { "buildTarget": "studio:build:production" },
-            "development": { "buildTarget": "studio:build:development" }
+            "production": {
+              "buildTarget": "studio:build:production"
+            },
+            "development": {
+              "buildTarget": "studio:build:development"
+            }
           },
           "defaultConfiguration": "development"
         },

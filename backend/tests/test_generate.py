@@ -48,13 +48,16 @@ class _Spy:
     def __init__(self, ret):
         self.ret = ret
         self.args: tuple | None = None
+        self.kwargs: dict = {}
 
-    def __call__(self, *args):
+    def __call__(self, *args, **kwargs):
         self.args = args
+        self.kwargs = kwargs
         return self.ret
 
-    async def acall(self, *args):
+    async def acall(self, *args, **kwargs):
         self.args = args
+        self.kwargs = kwargs
         return self.ret
 
 
@@ -110,6 +113,9 @@ def test_wires_phases_threads_session_and_normalizes_blocked_tools(monkeypatch):
         CLASSIF, PATTERN, "M05", SSTATE, ENV, "RAG", ["a"], {"r": 1})
     # P10-P11: select consumes cards_inline + degradation FROM build.
     assert select.args == (CLASSIF, PATTERN, ["a"], {"r": 1}, CIM, DNT)
+    # …plus die Muster-Bezeichnung als Schlüsselwort (F-neu): ``pattern_output``
+    # trägt keine Kennung, die E3-Warnung stand ohne sie als „Muster ?" da.
+    assert select.kwargs == {"pattern_label": "M05"}
     # P12/P14: assemble — session FIRST, blocked_tools normalized to [],
     # system + inline_grouping + sources_decl + rag_allowed from prior phases.
     assert assemble.args == (
@@ -139,11 +145,15 @@ def test_returns_fallback_when_loop_returns_none(monkeypatch):
     _patch_phases(monkeypatch, build=build, select=select, assemble=assemble,
                   loop=loop, fallback=fallback)
 
+    acc = {"marke": "zug-merkposten"}
     out = asyncio.run(generate.generate_response(
-        _SESSION, "msg", [], {}, {"tools": []}, "M01", {}, {}))
+        _SESSION, "msg", [], {}, {"tools": []}, "M01", {}, {}, usage_acc=acc))
 
-    # Fallback gets exactly the four accumulators assemble produced.
-    assert fallback.args == (MSGS, CARDS, TOOLS, OUTS)
+    # Fallback gets exactly the four accumulators assemble produced — plus den
+    # Zug-Merkposten (K1f): der Abschluss-Aufruf im Fallback ist ein echter
+    # LLM-Aufruf und lief bis 2026-08-11 ungebucht. Identität, nicht Gleichheit.
+    assert fallback.args == (MSGS, CARDS, TOOLS, OUTS, acc)
+    assert fallback.args[4] is acc
     assert out is FALLBACK_RESULT
 
 
@@ -176,9 +186,9 @@ def _integ(monkeypatch, responses, *, raises=None):
     llm.reset()
     # Stub the already-tested P1-P11 phases; run the REAL P12-P16.
     monkeypatch.setattr(generate, "_build_system_prompt",
-                        lambda *a: ("SYS", False, False, False))
+                        lambda *a, **kw: ("SYS", False, False, False))
     monkeypatch.setattr(generate, "_select_active_tools",
-                        lambda *a: ([], None, True, False))
+                        lambda *a, **kw: ([], None, True, False))
     monkeypatch.setattr(llm, "chat_completion", _SeqLLM(responses, raises=raises))
     monkeypatch.setattr(tool_loop, "parse_wlo_cards", lambda text: [])
     return asyncio.run(generate.generate_response(

@@ -18,8 +18,6 @@ limiter key function.
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
 from collections.abc import AsyncIterator
 from typing import Annotated
@@ -32,10 +30,15 @@ from boerdi.api.deps import get_session, require_studio_key, todo
 from boerdi.api.ratelimit import peer_ip, public_rate_limit
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
 from boerdi.api.session_locks import _get_session_lock, _release_session_lock
+from boerdi.api.sse import sse_turn
+from boerdi.api.turn_auth import adopt_turn_auth_block
 from boerdi.graph.build import build_turn_graph
 from boerdi.graph.state import TurnContext
+from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.progress import TurnProgress
 from boerdi.services.db_sessions import save_message
+from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
+from boerdi.services.usage_store import record_turn_usage
 from boerdi.services.widget_postprocess import _postprocess_response_for_widget_modes
 
 logger = logging.getLogger(__name__)
@@ -43,16 +46,28 @@ logger = logging.getLogger(__name__)
 public_router = APIRouter(tags=["chat"])
 router = APIRouter(tags=["chat"], dependencies=[Security(require_studio_key)])
 
-# Keepalive cadence for the SSE stream: emit a comment line during quiet
-# stretches (e.g. a slow MCP search) so proxies that drop idle connections
-# after ~30 s keep it open. Module-level so tests can shrink it.
-_SSE_KEEPALIVE_SECONDS = 10.0
 
-# Cap on the progress queue (ALT ``chat.py:401``): without a bound, a slow client
-# plus a chatty turn could grow it without limit in RAM. 200 is far above the
-# events a real turn emits; on overflow the sink drops progress — the labels are
-# idempotent and losable, the answer is not.
-_SSE_PROGRESS_QUEUE_MAX = 200
+async def _record_usage(session: AsyncSession, session_id: str, state: dict) -> None:
+    """Den Token-Verbrauch dieses Zuges ablegen (K2b).
+
+    **Warum hier und nicht im persist-Knoten:** dies ist der einzige Punkt, den
+    JEDER Zug passiert. Der persist-Knoten läuft nur auf dem Hauptweg — eine
+    Direkt-Aktion und der Sicherheits-Block beenden den Zug schon im preflight,
+    und beide geben nachweislich Token aus (Kuration, Lernpfad, Quick-Replies,
+    Rechtsprüfung). Gemessen am 2026-08-11: **nur** diese beiden Ausstiege
+    kosten etwas; Tour und Kontext-Begrüßung rufen kein LLM. Statt drei Stellen
+    aufzuzählen — und die vierte zu vergessen, sobald jemand einen neuen
+    Früh-Ausstieg baut — schreibt der Trichter einmal für alle.
+
+    Der Aufruf ist nachrangig gegenüber der Antwort: schlägt er fehl, geht die
+    Antwort trotzdem raus (``usage_store`` schluckt seine eigenen Fehler; das
+    ``try`` hier fängt zusätzlich alles, was davor schiefgeht — etwa ein
+    unerwartet geformter Zustand).
+    """
+    try:
+        await record_turn_usage(session, session_id, state.get("usage"))
+    except Exception:
+        logger.warning("usage: Verbrauch dieses Zuges nicht erfasst", exc_info=True)
 
 
 @public_router.post("/api/chat", response_model=ChatResponse)
@@ -72,12 +87,17 @@ async def chat(
     ``response`` (normal path). Any unhandled error becomes a graceful bubble
     instead of an HTTP 500 so the widget shows something actionable.
     """
+    adopt_turn_auth_block(request)
     lock = await _get_session_lock(req.session_id)
     try:
         async with lock:
             try:
-                graph = build_turn_graph(session=session, peer_ip=peer_ip(request))
+                graph = build_turn_graph(
+                    session=session, peer_ip=peer_ip(request),
+                    engine=choose_engine(request.headers.get(ENGINE_HEADER)),
+                )
                 result = await graph.ainvoke(TurnContext(req=req))
+                await _record_usage(session, req.session_id, result)
                 resp = result.get("early_response") or result.get("response")
                 return await _postprocess_response_for_widget_modes(req, resp)
             except Exception as impl_err:
@@ -96,14 +116,15 @@ async def chat(
                     )
                 except Exception:
                     pass  # never let a DB-write failure mask the original error
+                _err_lang = resolve_locale(
+                    getattr(req.environment, "locale", None))
                 return ChatResponse(
                     session_id=req.session_id,
-                    content=(
-                        "Da ist intern etwas schiefgelaufen "
-                        f"({type(impl_err).__name__}). Versuch es nochmal — "
-                        "wenn es bestehen bleibt, gib mir kurz Bescheid."
+                    content=bot_text(
+                        _err_lang, "error.internal",
+                        kind=type(impl_err).__name__,
                     ),
-                    quick_replies=["Nochmal versuchen"],
+                    quick_replies=[bot_text(_err_lang, "error.retryChip")],
                     debug=err_debug,
                 )
     finally:
@@ -113,7 +134,8 @@ async def chat(
 
 
 async def _stream_turn(
-    req: ChatRequest, request: Request, session: AsyncSession
+    req: ChatRequest, request: Request, session: AsyncSession,
+    engine: str = "pattern",
 ) -> AsyncIterator[str]:
     """Yield the SSE frames for one streamed turn: connected → phase* → result | error.
 
@@ -130,16 +152,7 @@ async def _stream_turn(
     otherwise a flood of progress could crowd out ``_DONE`` and delay the answer by
     a whole keepalive interval.
     """
-    queue: asyncio.Queue = asyncio.Queue(maxsize=_SSE_PROGRESS_QUEUE_MAX)
-    _DONE = object()
-
-    def _sink(event: dict) -> None:
-        # Sync, non-blocking: runs inside the turn task, never awaits it.
-        if queue.qsize() >= _SSE_PROGRESS_QUEUE_MAX - 1:
-            return  # reserved slot for _DONE (see docstring)
-        queue.put_nowait(event)
-
-    async def _run_impl() -> ChatResponse | Exception:
+    async def _run_impl(progress: TurnProgress) -> ChatResponse | Exception:
         # Serialised per session_id, exactly like POST /api/chat; the finally
         # frees the lock even when the task is cancelled on client disconnect.
         lock = await _get_session_lock(req.session_id)
@@ -149,78 +162,31 @@ async def _stream_turn(
                     graph = build_turn_graph(
                         session=session,
                         peer_ip=peer_ip(request),
-                        progress=TurnProgress(_sink),
+                        progress=progress,
+                        engine=engine,
                     )
                     state = await graph.ainvoke(TurnContext(req=req))
+                    await _record_usage(session, req.session_id, state)
                     return state.get("early_response") or state.get("response")
                 except Exception as impl_err:
                     logger.exception("chat_stream impl failed: %s", impl_err)
                     return impl_err
         finally:
             await _release_session_lock(req.session_id)
-            queue.put_nowait(_DONE)  # slot reserved by _sink
 
-    def _phase(event: dict) -> str:
-        return f"event: phase\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
-
-    impl_task = asyncio.create_task(_run_impl())
-    # Handshake first — flushes proxy buffers so the client knows we're live.
-    yield "event: connected\ndata: {}\n\n"
-    while True:
+    async def _to_payload(result: ChatResponse) -> dict:
+        # Apply the widget-embed modes here too — the /api/chat wrapper does not
+        # run on this path since the stream drives the graph directly.
         try:
-            evt = await asyncio.wait_for(queue.get(), timeout=_SSE_KEEPALIVE_SECONDS)
-        except TimeoutError:
-            if await request.is_disconnected():
-                impl_task.cancel()
-                logger.info(
-                    "chat_stream client disconnected — cancelling turn (session=%s)",
-                    req.session_id,
-                )
-                # Await the cancellation so _run_impl's finally (lock release) has
-                # run before we abandon the stream (ALT fired-and-forgot the cancel).
-                try:
-                    await impl_task
-                except asyncio.CancelledError:
-                    pass
-                return
-            yield ": keepalive\n\n"
-            if impl_task.done():
-                break  # died before its finally could queue _DONE (e.g. lock error)
-            continue
-        if evt is _DONE:
-            break
-        yield _phase(evt)
-    # Events queued between the last get() and _DONE (the turn emits without
-    # awaiting, so a burst can still be sitting here) — ALT drains them too.
-    while not queue.empty():
-        evt = queue.get_nowait()
-        if evt is not _DONE:
-            yield _phase(evt)
+            result = await _postprocess_response_for_widget_modes(req, result)
+        except Exception as pp_err:
+            logger.warning("stream widget-modes postprocess failed: %s", pp_err)
+        return result.model_dump()
 
-    result = await impl_task
-    if isinstance(result, Exception):
-        err_payload = {"message": f"{type(result).__name__}: {result}"[:400]}
-        logger.warning(
-            "chat_stream END session=%s status=error %s",
-            req.session_id, err_payload["message"],
-        )
-        yield f"event: error\ndata: {json.dumps(err_payload)}\n\n"
-        return
-    # Apply the widget-embed modes here too — the /api/chat wrapper does not run
-    # on this path since the stream drives the graph directly.
-    try:
-        result = await _postprocess_response_for_widget_modes(req, result)
-    except Exception as pp_err:
-        logger.warning("stream widget-modes postprocess failed: %s", pp_err)
-    try:
-        payload = result.model_dump()
-    except Exception as dump_err:
-        logger.warning("stream result.model_dump failed: %s", dump_err)
-        payload = {"content": "(serialise error)"}
-    yield (
-        "event: result\n"
-        f"data: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
-    )
+    async for frame in sse_turn(
+        request, _run_impl, _to_payload, label=f"chat_stream session={req.session_id}"
+    ):
+        yield frame
 
 
 @public_router.post("/api/chat/stream")
@@ -237,8 +203,18 @@ async def chat_stream(
     2–5 s classification + tool-loop, instead of a static spinner. See
     ``_stream_turn`` for the frame contract (no ``phase`` frames in NEU).
     """
+    # Der Zugangsblock wird HIER übernommen, nicht in ``_stream_turn``: das ist
+    # die HTTP-Grenze (symmetrisch zu ``chat``), und der Zug läuft ohnehin in
+    # einer Task, die den Kontext beim Erzeugen erbt.
+    #
+    # Als Kommentar und NICHT im Docstring: FastAPI trägt Docstrings als
+    # ``description`` in das eingefrorene OpenAPI-Dokument ein — der Zusatz hier
+    # hat den Vertragstest brechen lassen. Gemessen 2026-08-10; die Kopfzeile
+    # selbst blieb unsichtbar (``parameters`` bleibt ``None``).
+    adopt_turn_auth_block(request)
     return StreamingResponse(
-        _stream_turn(req, request, session),
+        _stream_turn(req, request, session,
+                     engine=choose_engine(request.headers.get(ENGINE_HEADER))),
         media_type="text/event-stream",
         headers={
             # Proxies must not buffer or transform SSE.

@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 
 from boerdi.api.schemas import PolicyDecision
+from boerdi.i18n import DEFAULT, Locale, pick_localized
 from boerdi.services.config_loader import load_policy_config
 
 
@@ -21,12 +22,17 @@ def assess_policy(
     message: str,
     persona_id: str,
     intent_id: str,
+    lang: Locale = DEFAULT,
 ) -> PolicyDecision:
     """Policy-Regeln anwenden und eine ``PolicyDecision`` zurückgeben.
 
     Jede Regel in policy.yaml kann definieren:
       match: { persona?, intent?, message_regex? }
-      effect: { block_tools?, disclaimer? }
+      effect: { block_tools?, disclaimer?, disclaimer_en? }
+
+    ``lang`` wählt den Hinweis-Text (C1-g2c). ``disclaimer_en` braucht keine
+    Modelländerung: ``effect`` ist im Bereichsmodell ein freies Dict, der
+    Schlüssel reist als ungepinnter Wert mit.
 
     Hinweis: Policy erzwingt KEINE harte Blockade (Guardrail R-01 „nie
     blockieren") — sie sperrt nur einzelne Tools und hängt Pflicht-Disclaimer an.
@@ -57,7 +63,14 @@ def assess_policy(
         for t in effect.get("block_tools", []) or []:
             if t not in decision.blocked_tools:
                 decision.blocked_tools.append(t)
-        disc = effect.get("disclaimer")
+        # Erst wählen, dann entdoppeln: zwei Regeln können denselben englischen
+        # Hinweis tragen und verschiedene deutsche. Verglichen wird der Text,
+        # der wirklich in der Antwort landet.
+        disc = pick_localized(
+            str(effect.get("disclaimer") or ""),
+            str(effect.get("disclaimer_en") or ""),
+            lang,
+        )
         if disc and disc not in decision.required_disclaimers:
             decision.required_disclaimers.append(disc)
 

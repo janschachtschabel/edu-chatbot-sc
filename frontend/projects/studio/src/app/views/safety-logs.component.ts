@@ -14,12 +14,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import { AsyncData } from '../core/async-data';
-import { germanDateTime } from '../core/format';
 import { SafetyApi, type RiskFilter, type SafetyLog, type SafetyStats }
   from '../core/safety-api.service';
 import { AsyncStateComponent } from './async-state.component';
 import { SafetyLogDetailComponent } from './safety-log-detail.component';
 import { legalLabel, riskLabel } from './safety-labels';
+import { StudioLanguageService } from '../i18n/studio-language.service';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 const FILTERS: readonly RiskFilter[] = ['', 'medium', 'high'];
 
@@ -31,11 +32,18 @@ const FILTERS: readonly RiskFilter[] = ['', 'medium', 'high'];
   styleUrl: './safety-logs.component.scss',
 })
 export class SafetyLogsComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  /** Uebersetzer fuer den Fehlersatz der Leseoperationen und fuer die
+   *  Texte dieser Ansicht. */
+  protected readonly t = inject(StudioLanguageService).t;
+
   private readonly api = inject(SafetyApi);
 
   readonly filter = signal<RiskFilter>('');
-  readonly logs = new AsyncData<readonly SafetyLog[]>(() => this.api.logs(this.filter()));
-  readonly stats = new AsyncData<SafetyStats>(() => this.api.stats());
+  readonly logs = new AsyncData<readonly SafetyLog[]>(() => this.api.logs(this.filter()), this.t);
+  readonly stats = new AsyncData<SafetyStats>(() => this.api.stats(), this.t);
 
   readonly rows = computed<readonly SafetyLog[]>(() => this.logs.value() ?? []);
 
@@ -54,15 +62,13 @@ export class SafetyLogsComponent {
     // `key` is carried along as the track identity: labels are what a reader
     // sees, but an unmapped key falls back to itself and two of those could
     // collide where the keys never do.
-    return Object.entries(byLegal).map(([key, count]) => ({ key, label: legalLabel(key), count }));
+    return Object.entries(byLegal)
+      .map(([key, count]) => ({ key, label: legalLabel(key, this.t), count }));
   });
 
   /** Says what would be here — and, under a filter, that the filter may be why. */
   readonly emptyText = computed(() =>
-    this.filter()
-      ? 'Kein Event mit dieser Risikostufe im geladenen Fenster. Der Filter oben zeigt wieder alle.'
-      : 'Noch keine Safety-Events. Hier steht jede Nachricht, die die Sicherheits-Pipeline '
-        + 'geprüft und als auffällig eingestuft hat.');
+    this.t(this.filter() ? 'sfl.empty.filtered' : 'sfl.empty.none'));
 
   constructor() {
     this.reload();
@@ -89,18 +95,20 @@ export class SafetyLogsComponent {
   }
 
   riskLabel(level: string): string {
-    return riskLabel(level);
+    return riskLabel(level, this.t);
   }
 
-  /** The row's flags as one readable line, empty when the event carries none. */
+  /** The row's flags as one readable line, empty when the event carries none.
+   *  Bewusst ·-verbunden statt `list()`: eine technische Kennzeichnung, keine
+   *  Prosa — `Intl.ListFormat` setzte dort ein „und" ein. */
   markers(log: SafetyLog): string {
-    const parts = [...log.legal_flags.map(legalLabel)];
-    if (log.rate_limited) parts.push('rate-limited');
-    if (log.escalated) parts.push('an das LLM eskaliert');
+    const parts = log.legal_flags.map((flag) => legalLabel(flag, this.t));
+    if (log.rate_limited) parts.push(this.t('sfl.marker.rateLimited'));
+    if (log.escalated) parts.push(this.t('sfl.marker.escalated'));
     return parts.join(' · ');
   }
 
   formatTime(iso: string): string {
-    return germanDateTime(iso);
+    return this.fmt.dateTime(iso);
   }
 }

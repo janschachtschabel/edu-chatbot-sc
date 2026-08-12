@@ -37,6 +37,7 @@ import asyncio
 import pytest
 
 from boerdi.domain.canvas import types as canvas_types
+from boerdi.obs.usage import new_accumulator
 from boerdi.services import canvas_service as cs
 from boerdi.services import llm
 
@@ -325,3 +326,83 @@ def test_gen_postprocessing_strips_latex_and_empty_sections(monkeypatch):
         mtype="quiz",
     )
     assert md == "# Quiz: X\n\nBerechne 1/2 mal 4\n"
+
+
+# ── Ausgabe-Sprache (C1-f2a) ───────────────────────────────────────────────
+# Das Canvas-Material IST die Antwort — der Nutzer liest nichts anderes. Die
+# Sprach-Direktive stand als blosses Wort am Ende des FORMAT-Satzes, in beiden
+# Kategorie-Zweigen (didaktisch / analytisch) getrennt.
+
+
+def _canvas_system(monkeypatch, *, mtype="arbeitsblatt", **kw):
+    _t, _md, cap = _run_gen(monkeypatch, mtype=mtype, **kw)
+    return cap["cc"]["messages"][0]["content"]
+
+
+@pytest.mark.parametrize(("mtype", "schluss"), [
+    ("arbeitsblatt", "Keine Codefences um das gesamte Dokument. Deutsch.\n"),
+    ("bericht", "keine Codefences um das ganze Dokument. Deutsch."),
+])
+def test_gen_deutsch_bleibt_wortgleich_in_beiden_zweigen(monkeypatch, mtype, schluss):
+    ohne = _canvas_system(monkeypatch, mtype=mtype)
+    mit = _canvas_system(monkeypatch, mtype=mtype, lang="de")
+    assert ohne == mit
+    assert schluss in mit
+
+
+@pytest.mark.parametrize("mtype", ["arbeitsblatt", "bericht"])
+def test_gen_englisch_tauscht_das_sprachwort_in_beiden_zweigen(monkeypatch, mtype):
+    from boerdi.i18n import template_hint
+    system = _canvas_system(monkeypatch, mtype=mtype, lang="en")
+    assert "Dokument. Deutsch." not in system
+    assert "Dokument. Englisch (British English)." in system
+    assert system.endswith(template_hint("en").strip())
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Sprache des Zuges (C1-g2e)
+# ═══════════════════════════════════════════════════════════════════════
+
+_EN_TYPES = [
+    {"id": "auto", "label": "Automatisch", "label_en": "Automatic",
+     "emoji": "🤖", "category": "didaktisch", "structure": "S"},
+    {"id": "bericht", "label": "Bericht", "label_en": "Report",
+     "emoji": "📊", "category": "analytisch", "structure": "S"},
+    {"id": "glossar", "label": "Glossar", "emoji": "📖",
+     "category": "didaktisch", "structure": "S"},
+]
+
+
+@pytest.fixture
+def bilingual_types(monkeypatch):
+    monkeypatch.setattr(
+        canvas_types.config_loader, "load_canvas_material_types",
+        lambda: _EN_TYPES,
+    )
+    monkeypatch.setattr(
+        canvas_types.config_loader, "load_canvas_persona_priorities",
+        lambda: {"analytical_personas": ["P-ENT"]},
+    )
+
+
+def test_chips_follow_the_turn_language(bilingual_types):
+    assert cs.material_type_quick_replies_for_persona("P-LEH", "en") == [
+        "🤖 Automatic", "📖 Glossar", "📊 Report",
+    ]
+
+
+def test_chips_stay_german_by_default(bilingual_types):
+    assert cs.material_type_quick_replies_for_persona("P-LEH") == [
+        "🤖 Automatisch", "📖 Glossar", "📊 Bericht",
+    ]
+
+
+# ── K1c: der Material-Generator bucht ─────────────────────────────────────
+# ``max_tokens=2500`` — der groesste Einzelaufruf im System; er fehlte in
+# jeder Kostenzahl.
+
+def test_canvas_reicht_den_merkposten_an_den_transport(monkeypatch):
+    acc = new_accumulator()
+    _title, _md, cap = _run_gen(monkeypatch, usage_acc=acc)
+    assert cap["cc"]["usage_acc"] is acc
+    assert cap["cc"]["phase"] == "canvas"

@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { EvalGoldenStartComponent } from './eval-golden-start.component';
 
 const FLOWS_URL = '/studio/api/eval/gold-flows';
@@ -33,7 +34,12 @@ async function settle(): Promise<void> {
   await h.fixture.whenStable();
 }
 
-async function mount(payload: Record<string, unknown> | null = FLOWS): Promise<void> {
+/** jsdom meldet `navigator.language === 'en-US'`; ohne die gemerkte Wahl liefe
+ *  die deutsche Oberfläche unter diesen Prüfungen auf Englisch. */
+async function mount(
+  payload: Record<string, unknown> | null = FLOWS, locale = 'de',
+): Promise<void> {
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -191,5 +197,39 @@ describe('EvalGoldenStartComponent', () => {
     const alert = h.el.querySelector('.egd-confirm [role="alert"]');
     expect(alert?.textContent).toContain('starten?');
     expect(alert?.querySelector('button')).toBeNull();
+  });
+
+  // ── C1-d4c ──────────────────────────────────────────────────────────
+  //
+  // Die Kostenzeile trug bis hierher `{{ selected().length }} Flow(s)` — die
+  // Klammer-Mehrzahl ist die Ausrede dafür, dass eine Sprache hier eine Form
+  // wählen müsste. Beide Anzahlen des Satzes bekommen jetzt ihre eigene.
+  it('setzt beide Anzahlen der Kostenzeile in die Mehrzahl der Sprache', async () => {
+    await mount({ flows: [{ id: 'GS-9', title: 'Einzelfall', turns: [{}] }], count: 1 });
+    const cost = h.el.querySelector('.egd-cost')!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(cost).toBe(
+      'Dieser Lauf feuert 1 Chat-Anfrage durch die echte Pipeline — 1 Flow. '
+      + 'Keine Schätzung: die Turns stehen in der Flow-Datei.',
+    );
+  });
+
+  it('trägt die Mehrzahl auch in die Rückfrage', async () => {
+    await mount();
+    box('judge').click();
+    await h.fixture.whenStable();
+    await arm();
+    expect(h.el.querySelector('.egd-confirm [role="alert"]')!.textContent!
+      .replace(/\s+/g, ' ').trim())
+      .toBe('7 Chat-Anfragen plus 7 Judge-Aufrufe starten? Es läuft dann kein '
+        + 'zweiter Lauf, bis dieser fertig ist.');
+  });
+
+  it('spricht das ganze Panel in der aktiven Sprache', async () => {
+    await mount(FLOWS, 'en');
+    expect(text()).toContain('Start gold run');
+    expect(text()).toContain('4 turns');
+    expect(text()).toContain('Nothing selected = all.');
+    expect(text()).toContain('7 chat requests');
+    expect(text()).not.toMatch(/Chat-Anfragen|Nichts ausgewählt/);
   });
 });

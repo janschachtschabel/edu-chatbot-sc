@@ -10,6 +10,7 @@
  * `per_turn` (`flowAgg`) — two implementations of one sum, and the client copy
  * had no test.
  */
+import type { Translate } from '../i18n/studio-language.service';
 
 /** The 6 categories `aggregate_golden` reports; `host` is soft (see below). */
 export type GoldCategory = string;
@@ -70,18 +71,29 @@ export const GOLD_HARD_CATS: readonly string[] = [
   'persona', 'intent', 'register', 'structure', 'qr',
 ];
 
-const CAT_LABELS: Readonly<Record<string, string>> = {
-  persona: 'Persona',
-  intent: 'Intent',
-  register: 'Tonalität',
-  structure: 'Struktur',
-  qr: 'Quick-Replies',
-  host: 'Link-Host',
+/**
+ * Kategorie → Katalog-Schlüssel (C1-d4b2). Bis dahin standen hier die fertigen
+ * Namen und froren damit die Sprache ein, die beim Laden des Moduls gerade
+ * galt — derselbe Fall wie `overview-cards.ts` und `TABS`.
+ *
+ * Erlaubnisliste statt `'evalDetail.cat.' + category`: eine neue Kategorie des
+ * Backends gäbe sonst den Schlüssel selbst als Beschriftung aus, statt den
+ * rohen Wert zu zeigen.
+ */
+const CAT_KEYS: Readonly<Record<string, string>> = {
+  persona: 'evalDetail.cat.persona',
+  intent: 'evalDetail.cat.intent',
+  register: 'evalDetail.cat.register',
+  structure: 'evalDetail.cat.structure',
+  qr: 'evalDetail.cat.qr',
+  host: 'evalDetail.cat.host',
 };
 
-/** German label, or the raw key — an unknown category must stay visible. */
-export function catLabel(category: string): string {
-  return CAT_LABELS[category] ?? category;
+/** Beschriftung in der aktiven Sprache, oder der rohe Schlüssel — eine
+ *  unbekannte Kategorie muss sichtbar bleiben. */
+export function catLabel(category: string, t: Translate): string {
+  const key = CAT_KEYS[category];
+  return key ? t(key) : category;
 }
 
 export interface FlowGroup {

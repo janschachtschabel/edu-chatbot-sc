@@ -17,9 +17,11 @@ import {
 
 import { AsyncData } from '../core/async-data';
 import { EvalApi, type EvalTrends, type TrendPoint } from '../core/eval-api.service';
-import { formatDecimal, formatPercent, germanDateTime } from '../core/format';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { RichTextComponent } from './rich-text.component';
 import { type TrendChart, rateChart, scoreChart } from './trend-chart';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 interface RateSeries {
   readonly key: string;
@@ -44,6 +46,44 @@ interface RunRow {
   readonly rates: readonly (number | null)[];
 }
 
+/**
+ * Eingefroren war bis C1-d4c die Beschriftung samt Erklärsatz, nicht nur die
+ * Kennung — der zehnte Fall dieser Art. Jetzt trägt die Tabelle nur noch die
+ * beiden Schlüssel und den Griff auf die passende Serie; die Texte entstehen
+ * beim Rendern.
+ *
+ * Als Modul-Konstante und nicht mehr im `computed()`: die vier Einträge hängen
+ * an keinem Zustand, und vier Objekte je Neuberechnung neu zu bauen war Arbeit
+ * ohne Anlass.
+ */
+const RATES: readonly {
+  readonly key: string;
+  readonly labelKey: string;
+  readonly hintKey: string;
+  readonly pick: (data: EvalTrends) => readonly TrendPoint[];
+}[] = [
+  {
+    key: 'cache',
+    labelKey: 'evalTrends.rate.cache', hintKey: 'evalTrends.rate.cache.hint',
+    pick: (d) => d.cache_hit_trend,
+  },
+  {
+    key: 'match',
+    labelKey: 'evalTrends.rate.match', hintKey: 'evalTrends.rate.match.hint',
+    pick: (d) => d.llm_engine_match_trend,
+  },
+  {
+    key: 'persona',
+    labelKey: 'evalTrends.rate.persona', hintKey: 'evalTrends.rate.persona.hint',
+    pick: (d) => d.persona_correct_trend,
+  },
+  {
+    key: 'intent',
+    labelKey: 'evalTrends.rate.intent', hintKey: 'evalTrends.rate.intent.hint',
+    pick: (d) => d.intent_correct_trend,
+  },
+];
+
 const EMPTY: EvalTrends = {
   runs: [], pattern_trend: {}, cache_hit_trend: [],
   llm_engine_match_trend: [], persona_correct_trend: [], intent_correct_trend: [],
@@ -51,15 +91,25 @@ const EMPTY: EvalTrends = {
 
 @Component({
   selector: 'studio-eval-trends',
-  imports: [AsyncStateComponent],
+  imports: [AsyncStateComponent, RichTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './eval-trends.component.html',
   styleUrl: './eval-trends.component.scss',
 })
 export class EvalTrendsComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  private readonly lang = inject(StudioLanguageService);
+
+  /** Uebersetzer fuer den Fehlersatz der Leseoperationen und fuer die
+   *  Texte dieser Ansicht. */
+  protected readonly t = this.lang.t;
+  protected readonly rich = this.lang.rich;
+
   private readonly api = inject(EvalApi);
 
-  readonly trends = new AsyncData<EvalTrends>(() => this.api.trends());
+  readonly trends = new AsyncData<EvalTrends>(() => this.api.trends(), this.t);
 
   /** `AsyncData` never fetches on its own — the first read is triggered here. */
   constructor() {
@@ -74,28 +124,12 @@ export class EvalTrendsComponent {
 
   readonly rates = computed<readonly RateSeries[]>(() => {
     const d = this.data();
-    return [
-      {
-        key: 'cache', label: 'Cache-Hit-Rate',
-        hint: 'Anteil der Prompt-Tokens, die aus dem Provider-Cache kamen.',
-        chart: rateChart(d.cache_hit_trend),
-      },
-      {
-        key: 'match', label: 'LLM-Pattern-Übereinstimmung',
-        hint: 'Wie oft der LLM-Pattern-Hint mit der Engine-Wahl übereinstimmte.',
-        chart: rateChart(d.llm_engine_match_trend),
-      },
-      {
-        key: 'persona', label: 'Persona-Trefferquote',
-        hint: 'Anteil der Turns, in denen die erkannte Persona der erwarteten entsprach.',
-        chart: rateChart(d.persona_correct_trend),
-      },
-      {
-        key: 'intent', label: 'Intent-Trefferquote',
-        hint: 'Anteil der Turns, in denen der erkannte Intent dem erwarteten entsprach.',
-        chart: rateChart(d.intent_correct_trend),
-      },
-    ];
+    return RATES.map((series) => ({
+      key: series.key,
+      label: this.t(series.labelKey),
+      hint: this.t(series.hintKey),
+      chart: rateChart(series.pick(d)),
+    }));
   });
 
   /** True once any classification series carries a point. */
@@ -129,36 +163,61 @@ export class EvalTrendsComponent {
     void this.trends.reload();
   }
 
-  /** Spoken summary for a chart's `aria-label`. */
+  /**
+   * Spoken summary for a chart's `aria-label`.
+   *
+   * Drei ganze Sätze aus dem Katalog statt eines zusammengesetzten (C1-d4c).
+   * „ein Lauf" ist dabei kein Mehrzahl-Fall, sondern ein anderer INHALT: bei
+   * einem einzigen Punkt gibt es keine Richtung zu nennen.
+   */
   describe(series: RateSeries): string {
     const points = series.chart.points;
-    if (points.length === 0) return `${series.label}: keine Daten.`;
+    const label = series.label;
+    if (points.length === 0) return this.t('evalTrends.say.none', { label });
+
     const latest = points[points.length - 1].value;
-    const current = `aktuell ${formatPercent(latest)}`;
-    if (points.length === 1) return `${series.label}: ${current}, ein Lauf.`;
+    const value = this.fmt.percent(latest);
+    if (points.length === 1) return this.t('evalTrends.say.one', { label, value });
+
     const first = points[0].value;
-    const direction = latest > first ? 'gestiegen' : latest < first ? 'gefallen' : 'unverändert';
-    return `${series.label}: ${current}, über ${points.length} Läufe `
-      + `von ${formatPercent(first)} ${direction}. Werte in der Tabelle darunter.`;
+    return this.t('evalTrends.say.many', {
+      label, value, count: points.length,
+      first: this.fmt.percent(first),
+      direction: this.t(this.directionKey(latest, first)),
+    });
   }
 
   describeScores(): string {
     const points = this.scores().points;
-    if (points.length === 0) return 'Ø Judge-Score: keine bewerteten Läufe.';
-    const latest = points[points.length - 1].value;
-    return `Ø Judge-Score: aktuell ${formatDecimal(latest)} über ${points.length} `
-      + 'bewertete Läufe. Werte in der Tabelle darunter.';
+    if (points.length === 0) return this.t('evalTrends.scores.none');
+    return this.t('evalTrends.scores.some', {
+      value: this.fmt.decimal(points[points.length - 1].value),
+      count: points.length,
+    });
+  }
+
+  /** Spoken summary of a pattern sparkline — „über 1 Lauf" statt „1 Läufe". */
+  describeSpark(pattern: PatternSeries): string {
+    return this.lang.plural('evalTrends.spark', pattern.chart.points.length);
   }
 
   percent(value: number | null): string {
-    return value === null ? '–' : formatPercent(value);
+    return value === null ? '–' : this.fmt.percent(value);
   }
 
   score(value: number | null): string {
-    return value === null ? '–' : formatDecimal(value);
+    return value === null ? '–' : this.fmt.decimal(value);
   }
 
   when(iso: string): string {
-    return germanDateTime(iso);
+    return this.fmt.dateTime(iso);
+  }
+
+  /** Ausgeschrieben statt aus dem Vorzeichen gerechnet: ein Schlüssel, den
+   *  eine Suche im Katalog findet. */
+  private directionKey(latest: number, first: number): string {
+    if (latest > first) return 'evalTrends.dir.up';
+    if (latest < first) return 'evalTrends.dir.down';
+    return 'evalTrends.dir.flat';
   }
 }

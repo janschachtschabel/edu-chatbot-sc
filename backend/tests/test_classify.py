@@ -32,7 +32,7 @@ def _clean(monkeypatch):
 
 def _fake_raw(prompt=100, completion=20, cached=10):
     return SimpleNamespace(
-        model="gpt-5.4-mini",
+        model="gpt-5.6-luna",
         usage=SimpleNamespace(
             prompt_tokens=prompt, completion_tokens=completion,
             prompt_tokens_details=SimpleNamespace(cached_tokens=cached)),
@@ -96,13 +96,19 @@ def test_gpt5_gating_sets_verbosity_drops_temperature(monkeypatch) -> None:
     _install(monkeypatch, captured=cap)
     asyncio.run(classify.classify_input("hi", [], {}, {}))
     kw = cap["kwargs"]
-    assert kw["model"] == "openai/gpt-5.4-mini"
+    assert kw["model"] == "openai/gpt-5.6-luna"
     assert kw["api_base"] == "https://api.openai.com/v1"
     assert kw["api_key"] == "sk-x"
     assert kw["timeout"] == 75.0 and kw["num_retries"] == 2
-    assert kw["verbosity"] == "medium"  # GPT-5 gating flowed through
+    assert kw["verbosity"] == "low"  # W12  # GPT-5 gating flowed through
     assert "temperature" not in kw  # effort=low drops it (tool-call branch)
-    assert "tools" not in kw and "reasoning_effort" not in kw  # marker stripped
+    assert "tools" not in kw  # der Gating-Marker ist gestrippt
+    # W12b: instructor spritzt im Mode.TOOLS sein EIGENES Werkzeug ein — jede
+    # Klassifikation ist am Draht ein Werkzeug-Aufruf. Fuer die luna-Gruppe muss
+    # `reasoning_effort` deshalb mitgehen; die alte Erwartung („faellt weg") hat
+    # den 400er gepinnt, an dem jede Klassifikation gegen das neue Standardmodell
+    # gestorben waere.
+    assert kw["reasoning_effort"] == "low"
 
 
 def test_classic_model_sends_temperature(monkeypatch) -> None:

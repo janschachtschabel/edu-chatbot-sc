@@ -24,7 +24,7 @@ import logging
 import re as _re
 from typing import Any
 
-from boerdi.api.schemas import ChatRequest, ChatResponse
+from boerdi.api.schemas import ChatRequest, ChatResponse, WebLink
 from boerdi.domain.content_types import (
     _card_matches_wanted_types,
     _resolve_wanted_content_types,
@@ -744,12 +744,23 @@ async def _postprocess_response_for_widget_modes(
 
         # ChatResponse rekonstruieren — Pydantic-Modell aufgrund von
         # Validierungsregeln kopieren wir per model_copy(update=...).
+        #
+        # C8 (2026-07-31): ``update=`` ÜBERSPRINGT die Validierung. ``web_links``
+        # wird oben bewusst zu dicts gemacht (Z. 703/716), damit die Merge-/
+        # Dedup-Logik ``l.get("url")`` einheitlich über bestehende ``WebLink``-
+        # Objekte UND neue dicts aus ``_extract_web_links_from_text`` laufen
+        # kann. Ohne diese Rück-Validierung landen die dicts in einem Feld, das
+        # ``list[WebLink]`` verspricht — pydantic warnte dann bei JEDER Antwort
+        # mit Links (im P11-Probelauf im Log gesehen). Inhaltlich ging nichts
+        # verloren, weil ``WebLink`` exakt ``{title, url}`` ist; käme ein Feld
+        # dazu, fiele es still weg. ``cards`` braucht das nicht: dort ist der
+        # deklarierte Typ ``list[WloCard]`` und die Pipeline liefert Modelle.
         return resp.model_copy(update={
             "content": _final_txt,
             "cards": cards_out,
             "quick_replies": qrs,
             "page_action": pa,
-            "web_links": _existing_links,
+            "web_links": [WebLink.model_validate(link) for link in _existing_links],
         })
     except Exception as _e:  # pragma: no cover — postprocess darf nie blockieren
         logger.warning("widget-modes postprocess failed: %s", _e)

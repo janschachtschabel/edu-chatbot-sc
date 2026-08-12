@@ -4,8 +4,8 @@
  *
  * Die drei Dispatcher informieren die Host-Seite über Bot-Turn-Ergebnisse:
  *   - ``maybeDispatchGuideNavigate``  → ``navigate``-page_action (Widget-Banner)
- *   - ``maybeDispatchGuideSuggestion`` → ``badboerdi:guide-suggestion``-CustomEvent
- *   - ``maybeDispatchRoutingDebug``    → ``badboerdi:routing-debug``-CustomEvent
+ *   - ``maybeDispatchGuideSuggestion`` → ``boerdi:guide-suggestion``-CustomEvent
+ *   - ``maybeDispatchRoutingDebug``    → ``boerdi:routing-debug``-CustomEvent
  *
  * Plain functions statt Klasse — die Dispatcher halten keinen eigenen State.
  * Live-Zustand der ChatComponent kommt als :class:`HostEventsContext` mit
@@ -24,8 +24,9 @@
 import { WloCard } from '../cards/card-types';
 import { DebugInfo } from '../grouping/message-types';
 import { _attrIsTrue } from '../element/attr';
+import { dispatchHostEvent, HOST_EVENTS } from './event-names';
 
-/** Payload shape for the ``badboerdi:guide-suggestion`` CustomEvent and the
+/** Payload shape for the ``boerdi:guide-suggestion`` CustomEvent and the
  *  ``(guideSuggestion)`` Output. Emitted at most once per bot-turn, when the
  *  host page has ``emit-guide-suggestion="true"`` and the response contains
  *  at least one Lotsen-eligible target (``card.link`` or ``card.guide_url``).
@@ -33,7 +34,7 @@ import { _attrIsTrue } from '../element/attr';
  *  Hosts can listen via:
  *
  *  ```js
- *  window.addEventListener('badboerdi:guide-suggestion', (e) => {
+ *  window.addEventListener('boerdi:guide-suggestion', (e) => {
  *    const s = e.detail; // GuideSuggestionPayload
  *    // show banner / switch iframe / etc.
  *  });
@@ -62,7 +63,7 @@ export interface GuideSuggestionPayload {
   alternatives: Array<Pick<GuideSuggestionPayload, 'url' | 'title' | 'node_id' | 'node_type'>>;
 }
 
-/** Welle C.4 (2026-05): Payload für ``badboerdi:routing-debug``.
+/** Welle C.4 (2026-05): Payload für ``boerdi:routing-debug``.
  *  Auf ``window`` gefeuert nach jedem Bot-Turn, wenn der Host
  *  ``emit-routing-debug="true"`` gesetzt hat. Quellen-Daten kommen aus
  *  dem ``DebugInfo``-Block der ChatResponse — keine zusätzlichen
@@ -72,7 +73,7 @@ export interface GuideSuggestionPayload {
  *  oder A/B-Logging implementieren:
  *
  *  ```js
- *  window.addEventListener('badboerdi:routing-debug', (e) => {
+ *  window.addEventListener('boerdi:routing-debug', (e) => {
  *    const d = e.detail; // RoutingDebugPayload
  *    console.log(d.pattern, d.intent, d.state, d.tools);
  *  });
@@ -162,7 +163,7 @@ export function maybeDispatchGuideNavigate(
  *
  *  Im Gegensatz zu :func:`maybeDispatchGuideNavigate` (die NUR bei
  *  expliziter Navigations-Anfrage feuert) wird hier bei JEDEM Bot-Turn
- *  ein ``badboerdi:guide-suggestion``-Event ausgelöst, sobald die
+ *  ein ``boerdi:guide-suggestion``-Event ausgelöst, sobald die
  *  Antwort mindestens eine Lotsen-eligible Card enthält. So kann z.B.
  *  eine Edu-Sharing-Sidebar einen "Bot empfiehlt"-Pin setzen oder ein
  *  WP-Theme einen Banner zeigen, ohne dass der User aktiv navigieren
@@ -215,15 +216,11 @@ export function maybeDispatchGuideSuggestion(
   // Beide Kanäle: globales CustomEvent (Web-Component-Embed-Friendly) +
   // Angular-Output (für direkten Angular-Consumer). Hosts wählen den
   // Kanal, der zu ihrer Integration passt — die Daten sind identisch.
-  window.dispatchEvent(new CustomEvent('badboerdi:guide-suggestion', {
-    detail: payload,
-    bubbles: true,
-    composed: true,
-  }));
+  dispatchHostEvent(HOST_EVENTS.guideSuggestion, payload);
   ctx.emitGuideSuggestionOutput(payload);
 }
 
-/** Welle C.4 (2026-05): Dispatch a ``badboerdi:routing-debug`` Custom-
+/** Welle C.4 (2026-05): Dispatch a ``boerdi:routing-debug`` Custom-
  *  Event with the routing telemetry from the current turn. Gated by
  *  ``emitRoutingDebug`` — hosts opt in explicitly. Data is read from
  *  the existing ``DebugInfo`` block in the response — no additional
@@ -264,10 +261,6 @@ export function maybeDispatchRoutingDebug(
     signals: Array.isArray(debug.signals) ? debug.signals : [],
   };
 
-  window.dispatchEvent(new CustomEvent('badboerdi:routing-debug', {
-    detail: payload,
-    bubbles: true,
-    composed: true,
-  }));
+  dispatchHostEvent(HOST_EVENTS.routingDebug, payload);
   ctx.emitRoutingDebugOutput(payload);
 }

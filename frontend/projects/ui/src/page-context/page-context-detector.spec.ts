@@ -28,6 +28,22 @@ describe('page-context-detector: Bestandsmuster (Regression)', () => {
     expect(r.page_kind).toBe('collection');
   });
 
+  it('Sammlung MIT Filter (q) und sort-JSON → collection, q ist Filter und keine Suche', () => {
+    // Echte Staging-Adresse aus der Nutzer-Anforderung 2026-08-11 („Geometrische
+    // Optik"). Sie trägt DREI Signale gleichzeitig: `q=Optik` sieht aus wie eine
+    // Suche, `id` ist die Sammlung, `sort` ein JSON-Blob. Stünde der generische
+    // `?q`-Zweig vor dem Sammlungs-Zweig, läse der Bot hier eine Suche und
+    // verlöre die Sammlung — samt ihrer Metadaten und ihrer Kontext-Chips.
+    const r = detect(
+      `${STAGING}/components/collections`
+      + '?sort=%7B%22active%22:%22cm:modified%22,%22direction%22:%22desc%22%7D'
+      + '&q=Optik&id=f35c17d1-a29e-4b26-9d22-802682fad43d&scope=TYPE_EDITORIAL',
+    );
+    expect(r.page_kind).toBe('collection');
+    expect(r.collection_id).toBe('f35c17d1-a29e-4b26-9d22-802682fad43d');
+    expect(r.search_query).toBe('Optik');
+  });
+
   it('Themenseite-Slug /themenseite/<slug> → topic', () => {
     const r = detect(`${STAGING}/themenseite/klimawandel`);
     expect(r.topic_page_slug).toBe('klimawandel');
@@ -83,6 +99,35 @@ describe('page-context-detector: T5 Suche /components/search + filters', () => {
   });
 });
 
+describe('page-context-detector: Seitenkontext-Erweiterung — Host und Adresse', () => {
+  // Der Erkenner sah bislang nie den Hostnamen an. Eigene Startseite und fremde
+  // Webseite landeten beide auf `other` — die Unterscheidung, an der das
+  // Erschliessungs-Angebot hängt, gab es nicht. Entschieden wird sie im
+  // Backend gegen eine redaktionell gepflegte Liste; das Widget liefert nur
+  // den Hostnamen. Die volle Adresse reist mit, weil M20 ohne sie nichts
+  // erschliessen kann — und weil `page_text` (bis 1500 Zeichen sichtbarer
+  // Seitentext) ohnehin schon mitgeht, wäre ihr Zurückhalten kein Datenschutz.
+
+  it('page_host ist der blosse Hostname — ohne Schema, Port und Pfad', () => {
+    const r = detect('https://beispiel.org:8443/ein/pfad?q=x#frag');
+    expect(r.page_host).toBe('beispiel.org');
+  });
+
+  it('page_url ist die volle Adresse — sonst findet der Dublettencheck die falsche Seite', () => {
+    const url = 'https://beispiel.org/artikel?id=42';
+    expect(detect(url).page_url).toBe(url);
+  });
+
+  it('beides steht auch an der echten Staging-Sammlung', () => {
+    const r = detect(`${STAGING}/components/collections?id=94f22c9b-0d3a-4c1c-8987-4c8e83f3a92e`);
+    expect(r.page_host).toBe('repository.staging.openeduhub.net');
+    expect(r.page_url).toContain('94f22c9b-0d3a-4c1c-8987-4c8e83f3a92e');
+    // Die Seitenart bleibt unberührt — der Host entscheidet nur, was der
+    // URL-Erkenner NICHT einordnen konnte.
+    expect(r.page_kind).toBe('collection');
+  });
+});
+
 describe('page-context-detector: T6 Host-Agnostik (staging === prod)', () => {
   const paths = [
     'components/render/e4640668-f482-4c6a-9998-eec0c1bdde3e',
@@ -90,9 +135,24 @@ describe('page-context-detector: T6 Host-Agnostik (staging === prod)', () => {
     'components/topic-pages?collectionId=05ec7229-4f72-4244-ac72-294f72e2442c',
     'components/search?q=Kartoffel',
   ];
+
+  /** Alles ausser den bewusst hostabhängigen Feldern. Die Aussage dieses
+   *  Blocks ist „die EINORDNUNG hängt nicht am Host" — `page_host`/`page_url`
+   *  unterscheiden sich zwischen Staging und Produktion natürlich, das ist ihr
+   *  ganzer Zweck. Sie hier mitzuvergleichen prüfte das Gegenteil. */
+  function classification(url: string) {
+    const { page_host, page_url, ...rest } = detect(url);
+    return rest;
+  }
+
   for (const p of paths) {
-    it(`identische Felder für staging und prod: ${p}`, () => {
-      expect(detect(`${STAGING}/${p}`)).toEqual(detect(`${PROD}/${p}`));
+    it(`identische Einordnung für staging und prod: ${p}`, () => {
+      expect(classification(`${STAGING}/${p}`)).toEqual(classification(`${PROD}/${p}`));
+    });
+
+    it(`Host und Adresse folgen dagegen dem Ursprung: ${p}`, () => {
+      expect(detect(`${STAGING}/${p}`).page_host).toBe('repository.staging.openeduhub.net');
+      expect(detect(`${PROD}/${p}`).page_host).toBe('redaktion.openeduhub.net');
     });
   }
 });

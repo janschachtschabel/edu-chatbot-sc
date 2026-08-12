@@ -2,6 +2,8 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import { ChatShellComponent } from './chat-shell.component';
 
 /**
@@ -19,6 +21,8 @@ function make(): { c: ChatShellComponent; fixture: ComponentFixture<ChatShellCom
     providers: [provideZonelessChangeDetection()],
   });
   const fixture = TestBed.createComponent(ChatShellComponent);
+  // Pflicht-Input (C1-b2): das Template liest ihn beim ersten `detectChanges`.
+  fixture.componentRef.setInput('translate', createTranslator(DE, DE));
   return { c: fixture.componentInstance, fixture };
 }
 
@@ -30,6 +34,7 @@ describe('ChatShellComponent — Lifecycle-Wiring (8-4S-e5)', () => {
     fixture.componentRef.setInput('persistSession', false);
     (c as unknown as { _api: unknown })._api = {
       setBaseUrl: vi.fn(), getSpeechEnabled: async () => true, loadHistory: async () => [],
+      setUiLocale: vi.fn(),  // C1-f1: ngOnInit meldet dem Client die Widget-Sprache
     };
     fixture.detectChanges(); // triggert ngOnInit
 

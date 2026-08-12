@@ -140,6 +140,41 @@ describe('ChatApiClient', () => {
     });
   });
 
+  // ── Sprache des Widgets (C1-f1) ────────────────────────────────────────
+  // `environment.locale` stand seit je im Vertrag und wurde aus
+  // `navigator.language` gefuellt — also aus dem Browser, nicht aus der
+  // Sprache, die das Widget seit C1-c tatsaechlich anzeigt. Wer das Widget
+  // per Host-Attribut auf Englisch stellt, bekam eine deutsche Antwort.
+  it('setUiLocale landet in environment.locale', async () => {
+    const { fetchImpl, calls } = capturingFetch(jsonResponse({ content: 'ok', session_id: 's' }));
+    const client = new ChatApiClient({ fetchImpl });
+    client.setUiLocale('en');
+
+    await client.post('s', 'm');
+    expect(calls[0].body.environment.locale).toBe('en');
+  });
+
+  it('setUiLocale folgt dem Umschalter, ohne dass der Client neu gebaut wird', async () => {
+    const { fetchImpl, calls } = capturingFetch(jsonResponse({ content: 'ok', session_id: 's' }));
+    const client = new ChatApiClient({ fetchImpl });
+    client.setUiLocale('de');
+    await client.post('s', 'm');
+    client.setUiLocale('en');
+    await client.post('s', 'm');
+
+    expect(calls.map((c: any) => c.body.environment.locale)).toEqual(['de', 'en']);
+  });
+
+  it('ein ausdruecklich mitgegebenes locale schlaegt die Widget-Sprache', async () => {
+    // Gleiche Vorrang-Regel wie fuer jedes andere env-Feld: Override vor Ambient.
+    const { fetchImpl, calls } = capturingFetch(jsonResponse({ content: 'ok', session_id: 's' }));
+    const client = new ChatApiClient({ fetchImpl });
+    client.setUiLocale('en');
+
+    await client.post('s', 'm', { locale: 'fr-FR' } as any);
+    expect(calls[0].body.environment.locale).toBe('fr-FR');
+  });
+
   it('setGuideEnv landet in environment.guide_mode/host (host lowercased/trimmed)', async () => {
     const { fetchImpl, calls } = capturingFetch(jsonResponse({ content: 'ok', session_id: 's' }));
     const client = new ChatApiClient({ fetchImpl });

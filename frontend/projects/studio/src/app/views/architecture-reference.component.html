@@ -1,27 +1,19 @@
-<h3 class="ar-title">Architektur-Referenz</h3>
-<p class="ar-intro">
-  Wie die Elemente zusammenspielen — vom Nutzer-Input bis zur Bot-Antwort. Die
-  aktuellen Anzahlen (Patterns, Personas, Intents, States, Entities, Signale)
-  stehen im Tab „Übersicht“; hier steht, was sie bewirken.
-</p>
+<h3 class="ar-title">{{ t('arch.title') }}</h3>
+<p class="ar-intro">{{ t('arch.intro') }}</p>
 
 <details class="cs ar-section" open>
   <summary class="cs-summary">
-    <h4 class="cs-title">Die Verarbeitungs-Pipeline</h4>
+    <h4 class="cs-title">{{ t('arch.pipeline.title') }}</h4>
   </summary>
   <div class="cs-body">
-    <p class="ar-text">
-      Jede Nutzernachricht durchläuft sieben Phasen. Klassifikation und
-      Pattern-Wahl laufen strukturiert — LLM-Hint plus deterministische Anker —,
-      bevor die Antwort generiert wird.
-    </p>
+    <p class="ar-text">{{ t('arch.pipeline.text') }}</p>
     <ol class="ar-flow">
       @for (phase of pipeline; track phase.step) {
         <li class="ar-flow-step">
           <span class="ar-flow-num" aria-hidden="true">{{ phase.step }}</span>
           <span>
-            <span class="ar-flow-label">{{ phase.label }}</span>
-            <span class="ar-flow-desc">{{ phase.desc }}</span>
+            <span class="ar-flow-label">{{ t(phase.labelKey) }}</span>
+            <span class="ar-flow-desc">{{ t(phase.descKey) }}</span>
           </span>
         </li>
       }
@@ -31,24 +23,25 @@
 
 <details class="cs ar-section">
   <summary class="cs-summary">
-    <h4 class="cs-title">Input-Elemente (Klassifikation)</h4>
+    <h4 class="cs-title">{{ t('arch.input.title') }}</h4>
   </summary>
   <div class="cs-body">
-    <p class="ar-text">
-      In Phase 2 erkennt ein LLM-Aufruf sechs Dimensionen aus der Nachricht. Diese
-      Input-Elemente steuern alles Weitere.
-    </p>
+    <p class="ar-text">{{ t('arch.input.text') }}</p>
     <div class="ar-scroll">
       <table class="ar-table">
         <thead>
-          <tr><th>Element</th><th>Beschreibung</th><th>Wirkung</th></tr>
+          <tr>
+            <th scope="col">{{ t('arch.col.element') }}</th>
+            <th scope="col">{{ t('arch.col.desc') }}</th>
+            <th scope="col">{{ t('arch.col.effect') }}</th>
+          </tr>
         </thead>
         <tbody>
-          @for (row of dimensions; track row.element) {
+          @for (row of dimensions; track row.elementKey) {
             <tr>
-              <th scope="row">{{ row.element }}</th>
-              <td>{{ row.desc }}</td>
-              <td>{{ row.effect }}</td>
+              <th scope="row">{{ t(row.elementKey) }}</th>
+              <td>{{ t(row.descKey) }}</td>
+              <td>{{ t(row.effectKey) }}</td>
             </tr>
           }
         </tbody>
@@ -59,31 +52,27 @@
 
 <details class="cs ar-section">
   <summary class="cs-summary">
-    <h4 class="cs-title">Pattern-Engine und ihre Ausgabe</h4>
+    <h4 class="cs-title">{{ t('arch.engine.title') }}</h4>
   </summary>
   <div class="cs-body">
-    <p class="ar-text">
-      Aus allen Gesprächsmustern wird <strong>genau eines</strong> gewählt; nur das
-      Gewinner-Pattern landet im Prompt. Danach justiert die Modulation Ton, Länge
-      und Format — bei Konflikten gewinnt die kürzere Länge.
-    </p>
+    <p class="ar-text"><studio-rich [parts]="rich('arch.engine.text')" /></p>
     <div class="ar-two">
       <div>
-        <h5 class="ar-sub">Stil &amp; Inhalt</h5>
+        <h5 class="ar-sub">{{ t('arch.engine.style') }}</h5>
         <table class="ar-table ar-table--fields">
           <tbody>
             @for (row of modulationStyle; track row.field) {
-              <tr><th scope="row"><code>{{ row.field }}</code></th><td>{{ row.desc }}</td></tr>
+              <tr><th scope="row"><code>{{ row.field }}</code></th><td>{{ t(row.descKey) }}</td></tr>
             }
           </tbody>
         </table>
       </div>
       <div>
-        <h5 class="ar-sub">Steuerung &amp; Flags</h5>
+        <h5 class="ar-sub">{{ t('arch.engine.control') }}</h5>
         <table class="ar-table ar-table--fields">
           <tbody>
             @for (row of modulationControl; track row.field) {
-              <tr><th scope="row"><code>{{ row.field }}</code></th><td>{{ row.desc }}</td></tr>
+              <tr><th scope="row"><code>{{ row.field }}</code></th><td>{{ t(row.descKey) }}</td></tr>
             }
           </tbody>
         </table>
@@ -94,107 +83,84 @@
 
 <details class="cs ar-section">
   <summary class="cs-summary">
-    <h4 class="cs-title">Hard-Overrides im Classifier</h4>
+    <h4 class="cs-title">{{ t('arch.overrides.title') }}</h4>
   </summary>
   <div class="cs-body">
-    <p class="ar-text">
-      Die frühere Routing-Rule-Engine ist ausgebaut. Was sie an Mehrwert hatte —
-      explizite Persona-Selbstauskunft („ich bin Lehrkraft“), Verb-Unterscheidung
-      (suchen gegen erstellen) und Phantom-Themen-Erkennung — steht jetzt in einer
-      Datei: <code>01-base/classify-overrides.yaml</code>.
-    </p>
-    <p class="ar-text">
-      Der Classifier-System-Prompt rendert sie als Hint-Anker; das LLM bekommt sie
-      als deterministische Trigger-Liste mit Erwartungswerten. Eine Schicht statt
-      Pre-Route, Post-Route, Lookup-Gruppen und Shadow-Logs — und im Studio unter
-      „Alle Bereiche“ direkt editierbar, wirksam ab dem nächsten Turn.
-    </p>
+    <p class="ar-text"><studio-rich [parts]="rich('arch.overrides.text1')" /></p>
+    <p class="ar-text">{{ t('arch.overrides.text2') }}</p>
   </div>
 </details>
 
 <details class="cs ar-section">
   <summary class="cs-summary">
-    <h4 class="cs-title">Pattern-Wahl — wer entscheidet?</h4>
+    <h4 class="cs-title">{{ t('arch.selection.title') }}</h4>
   </summary>
   <div class="cs-body">
     <div class="ar-scroll">
       <table class="ar-table">
         <thead>
-          <tr><th>Schritt</th><th>Quelle</th><th>Wirkung</th></tr>
+          <tr>
+            <th scope="col">{{ t('arch.col.step') }}</th>
+            <th scope="col">{{ t('arch.col.source') }}</th>
+            <th scope="col">{{ t('arch.col.effect') }}</th>
+          </tr>
         </thead>
         <tbody>
-          @for (row of selection; track row.step) {
+          @for (row of selection; track row.stepKey) {
             <tr>
-              <th scope="row">{{ row.step }}</th>
-              <td><code>{{ row.source }}</code></td>
-              <td>{{ row.effect }}</td>
+              <th scope="row">{{ t(row.stepKey) }}</th>
+              <td><code>{{ t(row.sourceKey) }}</code></td>
+              <td>{{ t(row.effectKey) }}</td>
             </tr>
           }
         </tbody>
       </table>
     </div>
-    <p class="ar-text">
-      <strong>Was es nicht mehr gibt:</strong> <code>gate_personas</code>,
-      <code>gate_states</code>, <code>gate_intents</code>, <code>signal_*_fit</code>,
-      <code>page_bonus</code> und Tie-Breaker. Pattern-Frontmatter braucht nur noch
-      Antwort-Form, Tools und Inhalt-Regeln. <code>precondition_slots</code> bleibt,
-      wirkt aber nur noch als Degradations-Flag in der Modulation, nicht als
-      Pattern-Ausschluss.
-    </p>
-    <h5 class="ar-sub">Wirkung der Persona</h5>
-    <p class="ar-text">
-      Die Persona steuert <strong>Stil und Anrede</strong>, nicht die Pattern-Wahl.
-      Ihre fünf Frontmatter-Felder greifen in der Modulation, nachdem das Pattern
-      feststeht. Eine ausdrückliche Selbstauskunft überstimmt den Klassifikator
-      über <code>persona_overrides</code> in
-      <code>01-base/classify-overrides.yaml</code> — sie setzt die Persona, nicht
-      das Pattern.
-    </p>
-    <p class="ar-note">
-      ALT nannte dafür die Routing-Regel <code>lookup_persona_self_id__*</code>,
-      obwohl der Abschnitt darüber den Ausbau der Rule-Engine beschreibt. In NEU
-      gibt es diese Regel nicht; der Mechanismus ist die Override-Liste im
-      Classifier-Prompt.
-    </p>
+    <p class="ar-text"><studio-rich [parts]="rich('arch.selection.gone')" /></p>
+    <h5 class="ar-sub">{{ t('arch.selection.personaTitle') }}</h5>
+    <p class="ar-text"><studio-rich [parts]="rich('arch.selection.personaText')" /></p>
+    <p class="ar-note"><studio-rich [parts]="rich('arch.selection.note')" /></p>
   </div>
 </details>
 
 <details class="cs ar-section">
   <summary class="cs-summary">
-    <h4 class="cs-title">Die sechs Architektur-Schichten</h4>
+    <h4 class="cs-title">{{ t('arch.layers.title') }}</h4>
   </summary>
   <div class="cs-body">
-    <p class="ar-text">
-      Der System-Prompt wird aus Schichten zusammengesetzt. Jede hat eine
-      Priorität: bei Token-Knappheit werden niedrig priorisierte zuerst entladen.
-    </p>
+    <p class="ar-text">{{ t('arch.layers.text') }}</p>
     <div class="ar-scroll">
       <table class="ar-table">
         <thead>
-          <tr><th>Schicht</th><th>Priorität</th><th>Inhalt</th><th>Token-Verhalten</th></tr>
+          <tr>
+            <th scope="col">{{ t('arch.col.layer') }}</th>
+            <th scope="col">{{ t('arch.col.priority') }}</th>
+            <th scope="col">{{ t('arch.col.content') }}</th>
+            <th scope="col">{{ t('arch.col.tokens') }}</th>
+          </tr>
         </thead>
         <tbody>
-          @for (row of layers; track row.layer) {
+          @for (row of layers; track row.layerKey) {
             <tr>
-              <th scope="row">{{ row.layer }}</th>
+              <th scope="row">{{ t(row.layerKey) }}</th>
               <td>{{ row.priority }}</td>
-              <td>{{ row.content }}</td>
-              <td>{{ row.tokens }}</td>
+              <td>{{ t(row.contentKey) }}</td>
+              <td>{{ t(row.tokensKey) }}</td>
             </tr>
           }
         </tbody>
       </table>
     </div>
-    <h5 class="ar-sub">Aufbau zur Laufzeit</h5>
+    <h5 class="ar-sub">{{ t('arch.layers.assemblyTitle') }}</h5>
     <ol class="ar-assembly">
-      <li>Schicht 1: <code>base-persona.md</code> <span>immer</span></li>
-      <li>Schicht 2: <code>domain-rules.md</code> + Plattform-Wissen <span>immer</span></li>
-      <li>Schicht 4: Persona-Prompt, Intent, Signale <span>nur erkannte</span></li>
-      <li>Schicht 3: Pattern-Block <span>nur der Gewinner</span></li>
-      <li>Schicht 5: Material-Format-Struktur <span>nur bei I05/I06</span></li>
-      <li>Schicht 6: RAG-Kontext <span>always-on-Bereiche</span></li>
-      <li>Aktuelle Themenseite <span>wenn die node_id auflösbar ist</span></li>
-      <li>Schicht 1: <code>guardrails.md</code> <span>immer, und immer am Ende</span></li>
+      <li><studio-rich [parts]="rich('arch.assembly.1')" /> <span>{{ t('arch.assembly.1.when') }}</span></li>
+      <li><studio-rich [parts]="rich('arch.assembly.2')" /> <span>{{ t('arch.assembly.2.when') }}</span></li>
+      <li><studio-rich [parts]="rich('arch.assembly.3')" /> <span>{{ t('arch.assembly.3.when') }}</span></li>
+      <li><studio-rich [parts]="rich('arch.assembly.4')" /> <span>{{ t('arch.assembly.4.when') }}</span></li>
+      <li><studio-rich [parts]="rich('arch.assembly.5')" /> <span>{{ t('arch.assembly.5.when') }}</span></li>
+      <li><studio-rich [parts]="rich('arch.assembly.6')" /> <span>{{ t('arch.assembly.6.when') }}</span></li>
+      <li><studio-rich [parts]="rich('arch.assembly.7')" /> <span>{{ t('arch.assembly.7.when') }}</span></li>
+      <li><studio-rich [parts]="rich('arch.assembly.8')" /> <span>{{ t('arch.assembly.8.when') }}</span></li>
     </ol>
   </div>
 </details>
@@ -210,48 +176,29 @@
 
 <details class="cs ar-section">
   <summary class="cs-summary">
-    <h4 class="cs-title">Material-Erstellung &amp; Datenschutz</h4>
+    <h4 class="cs-title">{{ t('arch.material.title') }}</h4>
   </summary>
   <div class="cs-body">
     <div class="ar-two">
       <div>
-        <h5 class="ar-sub">Material-Intents &amp; -Formate</h5>
-        <p class="ar-text">
-          Welche Formate Schicht 5 führt, steht im Abschnitt „Material-Typen“ —
-          dort aus der laufenden Konfiguration gelesen statt hier abgeschrieben.
-        </p>
+        <h5 class="ar-sub">{{ t('arch.material.intentsTitle') }}</h5>
+        <p class="ar-text">{{ t('arch.material.text') }}</p>
         <ul class="ar-list">
-          <li>
-            <strong>I05 Material-Erstellung</strong> → M10 erzeugt das Material als
-            Inline-Dokument im Verlauf.
-          </li>
-          <li>
-            <strong>I06 Material-Bearbeitung</strong> → verfeinert das letzte
-            Dokument bei „mach es einfacher“ oder „Lösungen dazu“.
-          </li>
-          <li>
-            <strong>Typ- und Themen-Priorität:</strong> aktueller Turn vor
-            Klassifikator vor gemerkter Session — sonst gewinnt ein alter Wert
-            beim Klick auf einen Chip.
-          </li>
+          <li><studio-rich [parts]="rich('arch.material.i05')" /></li>
+          <li><studio-rich [parts]="rich('arch.material.i06')" /></li>
+          <li><studio-rich [parts]="rich('arch.material.priority')" /></li>
         </ul>
       </div>
       <div>
-        <h5 class="ar-sub">Datenschutz-Schalter</h5>
-        <p class="ar-text">
-          Logging lässt sich in <code>01-base/privacy-config.yaml</code> einzeln
-          abschalten (Studio-Bereich „Datenschutz“):
-        </p>
+        <h5 class="ar-sub">{{ t('arch.privacy.title') }}</h5>
+        <p class="ar-text"><studio-rich [parts]="rich('arch.privacy.text')" /></p>
         <ul class="ar-list">
-          <li><code>logging.messages</code> — Chatverläufe</li>
-          <li><code>logging.memory</code> — Session-Gedächtnis</li>
-          <li><code>logging.quality</code> — Quality-Analytics</li>
-          <li><code>logging.safety</code> — <strong>immer an</strong> (Audit-Pflicht)</li>
+          <li><studio-rich [parts]="rich('arch.privacy.messages')" /></li>
+          <li><studio-rich [parts]="rich('arch.privacy.memory')" /></li>
+          <li><studio-rich [parts]="rich('arch.privacy.quality')" /></li>
+          <li><studio-rich [parts]="rich('arch.privacy.safety')" /></li>
         </ul>
-        <p class="ar-text">
-          Dazu löschen die Purge-Endpunkte bestehende Daten, und Snapshots sichern
-          die Konfiguration ohne Up- oder Download.
-        </p>
+        <p class="ar-text">{{ t('arch.privacy.purge') }}</p>
       </div>
     </div>
   </div>

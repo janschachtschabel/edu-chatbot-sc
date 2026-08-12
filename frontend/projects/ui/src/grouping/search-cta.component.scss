@@ -1,0 +1,98 @@
+// Such-CTA: Card-Optik mit Primary-Akzent (dezenter Container, runde
+// Icon-Bubble, Chevron in Primary). Verbatim aus `_result-group.scss` hierher
+// gezogen (U6b, 2026-08-09), als der Block eine eigene Komponente wurde —
+// Komponentenstile des Elternteils greifen nicht in ein Kind hinein.
+//
+// Die Klassennamen bleiben `result-group--cta` &c.: das gerenderte DOM ist
+// unverändert, und die Bestandstests pinnen genau diese Selektoren.
+//
+// Lokale $-Variablen wie in `_result-group.scss` / `wlo-card-tile.component.scss`
+// (ALT chat.component.scss:14-19).
+
+$text: var(--mat-sys-on-surface);
+$text-muted: var(--mat-sys-on-surface-variant);
+
+:host {
+  // Layout-transparent: der Anker soll direkt im Flex-Fluss des Elternteils
+  // hängen (`.result-groups` mit `gap`), nicht in einem eigenen Kasten.
+  display: contents;
+}
+
+// Der einfarbige `border`-Wert steht vor dem `color-mix`, damit ältere Browser
+// den Fallback bekommen.
+.result-group--cta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--mat-sys-primary);
+  border-color: color-mix(in srgb, var(--mat-sys-primary) 28%, var(--mat-sys-surface));
+  border-radius: var(--mat-sys-corner-medium);
+  background: var(--mat-sys-surface);
+  color: $text;
+  text-decoration: none;
+  transition: border-color .12s ease, background .12s ease, transform .12s ease;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--mat-sys-primary) 55%, var(--mat-sys-surface));
+    background: color-mix(in srgb, var(--mat-sys-primary) 4%, var(--mat-sys-surface));
+    transform: translateY(-1px);
+    text-decoration: none;
+  }
+
+  .result-group__cta-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--mat-sys-primary) 12%, var(--mat-sys-surface));
+    color: var(--mat-sys-primary);
+    font-size: 1.05em;
+  }
+
+  .result-group__cta-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: .82rem;
+    line-height: 1.3;
+    min-width: 0;
+
+    strong {
+      font-weight: 600;
+      color: $text;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .result-group__cta-sub {
+    font-size: .76rem;
+    color: $text-muted;
+  }
+
+  .result-group__cta-arrow {
+    display: inline-flex;
+    flex-shrink: 0;
+    font-size: 1.2em;
+    color: var(--mat-sys-primary);
+  }
+}
+
+// simplify: prefers-reduced-motion — die CTA-Hover-transform/-transition wird
+// bei „Bewegung reduzieren" abgeschaltet (additiv, WCAG 2.3.3; ALT hatte den
+// Block nicht). Kein optischer Unterschied im Normalfall.
+@media (prefers-reduced-motion: reduce) {
+  .result-group--cta {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}

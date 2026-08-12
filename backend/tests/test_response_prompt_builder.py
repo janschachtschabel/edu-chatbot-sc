@@ -300,3 +300,45 @@ def test_formality_du_schueler():
 def test_formality_neutral_default():
     out = rpp._formality_guidance("neutral", "P-AND")
     assert "bleibe neutral" in out
+
+
+# ── Sprache der Antwort (C1-f1) ────────────────────────────────────────────
+# Der Prompt trug diese Zeile schon immer, hart auf Deutsch — und zwar in
+# ALLEN DREI sich ausschliessenden P8-Bloecken. C1-f1 macht sie sprachabhaengig
+# statt eine zweite, widersprechende Direktive anzuhaengen.
+DE_ZEILE = "Antworte auf Deutsch. Formatiere mit Markdown."
+
+_P8_ZWEIGE = {
+    "werkzeuge": {"label": "M05 (Material)", "body_md": ""},
+    "m15_ohne_werkzeuge": {"label": "M15", "body_md": "", "tools": []},
+    "degradation": {"label": "M05 (Material)", "body_md": "", "degradation": True,
+                    "missing_slots": ["fach"], "blocked_patterns": []},
+}
+
+
+@pytest.mark.parametrize("zweig", sorted(_P8_ZWEIGE))
+def test_deutsch_bleibt_wortgleich_in_jedem_p8_zweig(_cfg, zweig):
+    """Der Regelfall aendert sich nicht — auch nicht die Position der Zeile.
+
+    Deshalb wird sie an Ort und Stelle sprachabhaengig, statt als eigener
+    Block hinten anzuhaengen: das haette den deutschen Satz jedes Zuges hinter
+    den Aktualitaets-Anker verschoben, ohne dass irgendwer das gewollt haette.
+    """
+    ohne, *_ = _build(pattern_output=_P8_ZWEIGE[zweig], environment={})
+    deutsch, *_ = _build(pattern_output=_P8_ZWEIGE[zweig], environment={"locale": "de-DE"})
+    assert DE_ZEILE in ohne
+    assert deutsch == ohne
+
+
+@pytest.mark.parametrize("zweig", sorted(_P8_ZWEIGE))
+def test_englisches_locale_tauscht_die_zeile_in_jedem_p8_zweig(_cfg, zweig):
+    system, *_ = _build(pattern_output=_P8_ZWEIGE[zweig], environment={"locale": "en-GB"})
+    assert DE_ZEILE not in system
+    assert "Antworte auf Englisch" in system
+
+
+def test_unbekanntes_locale_faellt_auf_deutsch_zurueck(_cfg):
+    # Kein Ratespiel bei `fr-FR`: nicht unterstuetzt -> Standard, wie
+    # `resolve_locale` es auch fuer den Accept-Language-Header tut (C1-e1).
+    system, *_ = _build(environment={"locale": "fr-FR"})
+    assert DE_ZEILE in system

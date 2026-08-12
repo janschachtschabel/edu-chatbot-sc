@@ -2,22 +2,29 @@
   <!-- Native submit, not ngSubmit: FormsModule would buy nothing here and the
        Enter key must work in a one-field form. -->
   <form class="card" (submit)="submit($event)">
-    <h1 class="title">BOERDi Studio</h1>
+    <div class="card-head">
+      <h1 class="title">{{ t('studio.title') }}</h1>
+      <!-- Auch hier, nicht nur in der Hülle: wer die Oberfläche nicht lesen
+           kann, muss VOR dem Anmelden umschalten können (C1-d1). -->
+      <studio-language-switcher />
+    </div>
 
     @if (disabled()) {
       <!-- 503: no STUDIO_PASSWORD configured. A form would be a dead end here,
            so it is not shown at all — ALT had no way to tell this apart from a
            wrong password. -->
+      <!-- Der Variablenname steht als Platzhalterwert IM Satz statt als eigenes
+           <code>-Element: ein an der Klammer zerschnittener Satz liesse sich in
+           einer anderen Sprache nicht verlässlich zusammensetzen. -->
       <p class="hint">
-        Das Studio ist nicht eingerichtet: es ist kein Passwort konfiguriert
-        (<code>STUDIO_PASSWORD</code>). Bitte in der Server-Konfiguration setzen.
+        {{ t('login.notConfigured', { env: t('login.passwordEnv') }) }}
       </p>
     } @else {
       <p class="hint" id="pw-hint">
         @if (expired()) {
-          Die Sitzung ist abgelaufen. Bitte erneut anmelden.
+          {{ t('login.expired') }}
         } @else {
-          Bitte Passwort eingeben.
+          {{ t('login.hint') }}
         }
       </p>
 
@@ -27,7 +34,7 @@
         hint costs a screen-reader user the orientation those provide, and it is
         the project's own a11y lint rule. One Tab is the better trade.
       -->
-      <label class="label" for="studio-password">Passwort</label>
+      <label class="label" for="studio-password">{{ t('login.password') }}</label>
       <input
         class="input"
         id="studio-password"
@@ -50,7 +57,7 @@
       </p>
 
       <button class="submit" type="submit" [disabled]="busy() || !password()">
-        {{ busy() ? 'Prüfe …' : 'Anmelden' }}
+        {{ busy() ? t('login.checking') : t('login.submit') }}
       </button>
     }
   </form>

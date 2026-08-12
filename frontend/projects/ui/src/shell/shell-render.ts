@@ -16,8 +16,8 @@
 import { SafeHtml } from '@angular/platform-browser';
 
 import { ChatMessage } from '../grouping/message-types';
-import { displayContent, GroupingContext } from '../grouping/result-grouping';
-import { ResultGroupsContext } from '../grouping/result-groups.component';
+import { displayContent, GroupingContext, ResultGroupsContext } from '../grouping/result-grouping';
+import type { TranslateFn } from '../i18n/i18n';
 import { MarkdownRenderer } from '../markdown/markdown-renderer';
 import { externalLinkWarning, isTrustedHost, withBsid } from '../session/trusted-host';
 
@@ -32,6 +32,10 @@ export interface ShellRenderContext {
   trustedDomains: () => readonly string[];
   /** ALT `inlineResultGroupingBool` — steuert das Bullet-Link-Stripping. */
   inlineResultGrouping: () => boolean;
+  /** Übersetzer der Shell (C1-b2) — wandert in die Renderer-Kontexte. Deferred
+   *  wie die übrigen Zugriffe: die Shell bekommt ihn als Input, der bei der
+   *  Konstruktion des `ShellRender` noch nicht gesetzt sein muss. */
+  t: TranslateFn;
 }
 
 export class ShellRender {
@@ -43,6 +47,7 @@ export class ShellRender {
       sessionId: () => this.ctx.sessionId(),
       isHostTrusted: (host) => this.isHostTrusted(host),
       withBsid: (url) => this.withBsid(url),
+      t: (key, params) => this.ctx.t(key, params),
     });
   }
 
@@ -70,13 +75,14 @@ export class ShellRender {
 
   /** Warntooltip für Hosts außerhalb der Trusted-Liste. ALT 1221-1223. */
   externalLinkWarning(url: string | null | undefined): string {
-    return externalLinkWarning(url, this.ctx.trustedDomains());
+    return externalLinkWarning(url, this.ctx.trustedDomains(), (k, p) => this.ctx.t(k, p));
   }
 
   /** Kontext der 8-2g-Grouping-Utils (Swimlanes-Renderer). ALT 970-973. */
   readonly groupingCtx: GroupingContext = {
     withBsid: (url) => this.withBsid(url),
     externalLinkWarning: (url) => this.externalLinkWarning(url),
+    t: (key, params) => this.ctx.t(key, params),
   };
 
   /** Kontext des ResultGroups-Renderers = GroupingContext + Host-Trust-Abfrage
@@ -85,6 +91,7 @@ export class ShellRender {
     withBsid: (url) => this.withBsid(url),
     externalLinkWarning: (url) => this.externalLinkWarning(url),
     isTrustedHost: (host) => this.isHostTrusted(host),
+    t: (key, params) => this.ctx.t(key, params),
   };
 
   /** Anzuzeigender Bubble-Text: bei aktivem Inline-Grouping werden die Bullet-

@@ -235,8 +235,12 @@ describe('rootField — blank values for new entries', () => {
 describe('rootField — against the real area schemas', () => {
   const areas = Object.keys(AREA_SCHEMAS);
 
-  it('covers all 32 distinct area models', () => {
-    expect(areas).toHaveLength(32);
+  // 32 until 2026-08-11, then `01-base/pricing` (K3 cost monitoring) — a NEW
+  // area with no ALT counterpart, so the number grows rather than being wrong.
+  // Regenerate the fixture after adding one:
+  //   cd backend && uv run python scripts/export_area_schemas.py
+  it('covers all 33 distinct area models', () => {
+    expect(areas).toHaveLength(33);
   });
 
   it.each(areas)('maps %s without throwing', (area) => {
@@ -246,12 +250,19 @@ describe('rootField — against the real area schemas', () => {
   it('renders 01-base/welcome-config as a nested group', () => {
     const welcome = child(rootField(AREA_SCHEMAS['01-base/welcome-config']), 'welcome');
     expect(welcome.kind).toBe('group');
+    // C1-g1a: die englische Fassung steht als `*_en` NEBEN dem deutschen Feld
+    // (Nutzer-Entscheid 2026-08-04). Das generische Formular braucht dafür
+    // keine Sonderbehandlung — genau das belegt diese Zeile.
     expect((welcome.children ?? []).map((c) => c.key)).toEqual([
       'greeting',
       'quick_replies',
       'tour_reply',
+      'greeting_en',
+      'quick_replies_en',
+      'tour_reply_en',
     ]);
     expect(child(welcome, 'quick_replies').kind).toBe('list');
+    expect(child(welcome, 'quick_replies_en').kind).toBe('list');
   });
 
   it('renders 05-knowledge/rag-config as a map (its model is a RootModel dict)', () => {

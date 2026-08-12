@@ -25,7 +25,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.models import RagChunk, RagDocument
-from boerdi.services.llm import embedding
+from boerdi.services.rag.embed import embed_text
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ async def import_rag_from_sqlite(session: AsyncSession, sqlite_path: Path) -> di
         session.add(doc)
         await session.flush()  # assigns doc.id for the FK
         for m in members:
-            emb = await embedding(m["content"])
+            emb = await embed_text(m["content"], kind="passage")
             session.add(RagChunk(
                 document_id=doc.id, area=area,
                 chunk_index=m["chunk_index"], content=m["content"], embedding=emb,

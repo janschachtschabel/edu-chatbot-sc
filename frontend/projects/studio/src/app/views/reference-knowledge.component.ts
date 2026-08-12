@@ -21,17 +21,35 @@
  * Confirmed unchanged: the resolver's TTLs (30 min resolved / 2 min failed,
  * `services/page_context.py:41-42`) and its two MCP calls.
  */
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+
+import { StudioLanguageService } from '../i18n/studio-language.service';
+import { RichTextComponent } from './rich-text.component';
 
 @Component({
   selector: 'studio-reference-knowledge',
-  imports: [RouterLink],
+  imports: [RouterLink, RichTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './reference-knowledge.component.html',
   styleUrl: './reference-knowledge.component.scss',
 })
 export class ReferenceKnowledgeComponent {
+  private readonly lang = inject(StudioLanguageService);
+
+  /** Die Prosa dieses Abschnitts (C1-d5b1) aus `i18n/catalogue/reference-knowledge.ts`. */
+  protected readonly t = this.lang.t;
+
+  /** Zwölf Sätze führen `<code>` oder `<strong>` mitten im Satz. */
+  protected readonly rich = this.lang.rich;
+
   /** Counted in `services/mcp/tool_defs.py`; no endpoint reports it. */
   readonly mcpToolCount = 12;
+
+  /** Der einzige Satz mit einer Anzahl. Über `plural()` und nicht als fester
+   *  Text: die Zahl kommt aus dem Code, und würde sie je 1, stünde sonst
+   *  „1 Werkzeuge" da. */
+  mcpText(): string {
+    return this.lang.plural('rk.mcp.text', this.mcpToolCount);
+  }
 }

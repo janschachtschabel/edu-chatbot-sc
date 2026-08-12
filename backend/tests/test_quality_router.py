@@ -93,7 +93,16 @@ def test_delete_missing_row_is_404(client, monkeypatch):
     _fake(monkeypatch, "delete_quality_log_svc", 0)
     r = client.delete("/api/quality/logs/999", headers=_AUTH)
     assert r.status_code == 404
-    assert r.json()["detail"] == "log not found"
+    # C1-e3: zweisprachig, ohne Header deutsch (siehe test_i18n_messages).
+    assert r.json()["detail"] == "Log nicht gefunden."
+
+
+def test_delete_missing_row_message_follows_accept_language(client, monkeypatch):
+    _fake(monkeypatch, "delete_quality_log_svc", 0)
+    r = client.delete("/api/quality/logs/999",
+                      headers={**_AUTH, "Accept-Language": "en"})
+    assert r.status_code == 404
+    assert r.json()["detail"] == "Log not found."
 
 
 # ── POST /api/quality/logs/clear ─────────────────────────────────────────

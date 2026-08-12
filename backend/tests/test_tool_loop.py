@@ -25,7 +25,7 @@ from boerdi.settings import get_settings
 
 def _content_resp(text):
     return SimpleNamespace(
-        model="gpt-5.4-mini",
+        model="gpt-5.6-luna",
         choices=[SimpleNamespace(message=SimpleNamespace(content=text))],
         usage=SimpleNamespace(
             prompt_tokens=50, completion_tokens=20,
@@ -498,13 +498,17 @@ class _OutcomeFake:
 
 def _run_loop(monkeypatch, responses, *, raises=None, outcome=None,
               parse_cards=None, **kw):
-    from boerdi.services import outcome_service
+    from boerdi.services import card_collect, outcome_service
 
     fake = _SeqLLM(responses, raises=raises)
     monkeypatch.setattr(llm, "chat_completion", fake)
     monkeypatch.setattr(outcome_service, "call_with_outcome",
                         outcome if outcome is not None else _OutcomeFake())
-    monkeypatch.setattr(tool_loop, "parse_wlo_cards",
+    # A4c-2a: Die Karten-Ernte des Tool-Loops wohnt in ``services/card_collect``
+    # (zweiter Aufrufer: die Agent-Schleife). Nur der ORT hat sich geändert —
+    # ``_run_assemble`` patcht weiter an ``tool_loop``, denn die Prefetch-Karten
+    # in ``_assemble_messages`` sind dort geblieben.
+    monkeypatch.setattr(card_collect, "parse_wlo_cards",
                         parse_cards if parse_cards is not None else (lambda text: []))
     state = dict(
         message="hallo",
@@ -712,7 +716,42 @@ def test_loop_respond_to_user_inline_final(monkeypatch):
     assert len(fake.calls) == 1    # inline final ends the loop
     assert tools == ["respond_to_user"]  # tc2 after the break is NOT processed
     tool_msgs = [m for m in st["messages"] if m.get("role") == "tool"]
-    assert tool_msgs[-1]["content"] == "OK"
+    # Anchored on tc1's id rather than on "the last tool message": since F-5 the
+    # skipped sibling tc2 also gets an (honest, different) answer, and this pin
+    # is about respond_to_user's own acknowledgement.
+    assert [m for m in tool_msgs if m["tool_call_id"] == "tc1"][0]["content"] == "OK"
+
+
+def test_loop_respond_to_user_beantwortet_uebersprungene_geschwister(monkeypatch):
+    """Audit F-5: Der ``break`` nach ``respond_to_user`` ließ jeden Tool-Call
+    derselben parallelen Runde ohne ``role=tool``-Antwort zurück. Verworfen wird
+    die Kette nur im Normalfall — der Reflection-Retry schickt genau sie erneut
+    los, und OpenAI weist eine Kette mit unbeantwortetem ``tool_call`` zurück.
+    Der Zug degradierte dann zu einer Fehlermeldung, obwohl die Antwort des
+    Modells bereits vorlag."""
+    args = json.dumps({"text": "Antwort hier"})
+    _fake, result, st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "respond_to_user", args),
+                     ("tc2", "search_wlo_content", "{}"),
+                     ("tc3", "search_wlo_collections", "{}")]),
+    ], _inline_qr_enabled=True)
+
+    assert result[2] == ["respond_to_user"]  # tc2/tc3 laufen weiterhin NICHT
+
+    gefordert = {tc["id"] for m in st["messages"]
+                 if isinstance(m, dict) and m.get("role") == "assistant"
+                 for tc in (m.get("tool_calls") or [])}
+    beantwortet = {m["tool_call_id"] for m in st["messages"]
+                   if isinstance(m, dict) and m.get("role") == "tool"}
+    assert gefordert == {"tc1", "tc2", "tc3"}
+    assert gefordert <= beantwortet, "jeder tool_call braucht eine role=tool-Antwort"
+
+    # Und die Quittung sagt die Wahrheit: „OK" würde dem Modell im
+    # Reflection-Durchgang vorspiegeln, die Suche sei gelaufen.
+    uebersprungen = [m for m in st["messages"]
+                     if isinstance(m, dict) and m.get("tool_call_id") == "tc2"][0]
+    assert "respond_to_user" in uebersprungen["content"]
+    assert uebersprungen["content"] != "OK"
 
 
 def test_loop_query_knowledge_rag_dispatch_with_session(monkeypatch):
@@ -917,3 +956,46 @@ def test_loop_exhausted_returns_none_for_p16_fallback(monkeypatch):
     fake, result, _st = _run_loop(monkeypatch, [bad] * 5, active_tools=_ACTIVE)
     assert result is None          # continuation marker → caller runs P16
     assert len(fake.calls) == 5    # max_iterations
+
+
+# ── W9b: welche Werkzeuge Karten liefern ────────────────────────────────
+def test_card_yielding_tools_is_module_level_and_covers_the_combo_search():
+    """``search_wlo_all`` fehlte in der Karten-Weiche.
+
+    Live gemessen 2026-08-01: das Werkzeug liefert 13 Treffer in drei Töpfen
+    (``content``/``collections``/``topicPages``), aber sein Envelope hat kein
+    Top-Level-``results`` — ``parse_wlo_cards`` gab 0 Karten zurück. Ruft das
+    Modell es selbst auf (M06 bietet es an), sah der Nutzer nichts. Seit W5-2a
+    ist es das Standard-Suchwerkzeug, also der Hauptpfad.
+
+    Die Menge steht jetzt auf Modulebene: vorher wurde sie bei JEDEM Tool-Aufruf
+    neu gebaut und war von außen nicht prüfbar.
+    """
+    assert "search_wlo_all" in tool_loop.CARD_YIELDING_TOOLS
+
+
+def test_card_yielding_tools_covers_the_two_new_card_tools():
+    for name in ("search_wlo_within_collection", "get_related_content"):
+        assert name in tool_loop.CARD_YIELDING_TOOLS, name
+
+
+# ── K1f-Fund: der Abschluss-Fallback bucht seine Token ───────────────────
+# Vom AST-Waechter gefunden, nicht von der Messtabelle: dieser Aufruf haengt
+# die GANZE bisherige Nachrichtenkette an, ist also kein kleiner Aufruf — und
+# er lief bis 2026-08-11 ungebucht.
+
+def test_fallback_bucht_in_den_merkposten(monkeypatch):
+    from boerdi.obs import usage as usage_mod
+
+    cap = _Capture(text="Kurz zusammengefasst.")
+    acc = usage_mod.new_accumulator()
+    get_settings.cache_clear()
+    llm.reset()
+    monkeypatch.setattr(llm, "_acompletion", cap)
+    text, *_ = asyncio.run(tool_loop._max_iterations_fallback(
+        [{"role": "user", "content": "finde X"}], [{"node_id": "a"}], [], [],
+        usage_acc=acc,
+    ))
+    assert text == "Kurz zusammengefasst."
+    assert acc["calls"] == 1
+    assert acc["per_phase"]["fallback_summary"]["prompt"] == 50

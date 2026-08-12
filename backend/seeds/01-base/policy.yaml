@@ -1,0 +1,38 @@
+# Policy-Layer (Triple-Schema v2 — T-13/14)
+#
+# Organisations- und Compliance-Regeln, die unabhängig von der Safety-Layer
+# (User-Risiko) angewendet werden. Jede Regel hat einen Match-Block (welche
+# Persona/Intent/Pattern/Message betrifft sie) und einen Effect-Block
+# (was passiert: blockieren, Disclaimer einblenden, Tools sperren).
+#
+# Wird im Studio unter "Identität & Schutz" editiert — zusammen mit den
+# Guardrails (Prompt-Ebene) und der Safety-Konfiguration (Code-Gate). Im
+# Gegensatz zu den UNBEDINGTEN Guardrails/Safety wirken Policy-Regeln nur unter
+# passenden Match-Bedingungen — sie sind organisations-/use-case-spezifisch.
+
+rules:
+  - id: pol-presse-only-public
+    description: Presse-Persona darf nur veröffentlichte/lizenzierte Inhalte sehen
+    match:
+      persona: P-RED
+    effect:
+      # `disclaimer_en` ist optional: leer heißt „nicht gepflegt", dann zeigt
+      # der Bot den deutschen Hinweis (C1-g2c).
+      disclaimer: "Hinweis: Es werden ausschließlich öffentlich verfügbare Inhalte angezeigt."
+      disclaimer_en: "Note: only publicly available content is shown."
+
+  - id: pol-no-personal-data-search
+    description: Suche nach personenbezogenen Daten generell unterbinden
+    match:
+      message_regex: "(passwort|password|kreditkart)"
+    effect:
+      block_tools: ["search_wlo_content"]
+      disclaimer: "Personenbezogene Daten können nicht über die Suche verarbeitet werden."
+      disclaimer_en: "Personal data cannot be processed through the search."
+
+  # Beispiel: Schüler*innen-Kontext (P-LEH = Lehrkraft etc.)
+  # - id: pol-jugendschutz
+  #   match:
+  #     persona: P-AND
+  #   effect:
+  #     disclaimer: "Inhalte werden gemäß Jugendschutz gefiltert."

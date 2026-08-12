@@ -12,6 +12,8 @@ Altsystem, generisch über deklarative Konfiguration.
 
 | | |
 |---|---|
+| 🚀 **Auf einem Server installieren** (Debian 13, Docker, Seed-Daten) | [INSTALL.md](INSTALL.md) |
+| 🛠 Betrieb danach (Skalieren, Backup, Restore, Rollback) | [deploy/README.md](deploy/README.md) |
 | 📘 Bauplan/Spec (Quelle der Wahrheit) | [docs/plans/2026-07-10-boerdi-chat-neubau.md](docs/plans/2026-07-10-boerdi-chat-neubau.md) |
 | 🤖 Arbeits-Hinweise für KI-Sessions | [CLAUDE.md](CLAUDE.md) |
 | 🏛 Altsystem (Referenz, läuft parallel) | `../badboerdi/` |

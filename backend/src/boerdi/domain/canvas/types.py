@@ -12,6 +12,7 @@ from __future__ import annotations
 import copy
 import logging
 
+from boerdi.i18n import DEFAULT, Locale, pick_localized
 from boerdi.services import config_loader
 
 logger = logging.getLogger(__name__)
@@ -535,6 +536,10 @@ def get_material_types() -> dict[str, dict[str, str]]:
             continue
         entry: dict[str, str] = {
             "label": it.get("label") or mtid,
+            # C1-g2e: die englische Fassung reist MIT, statt hier aufgelöst zu
+            # werden — der Getter ist prozessweit gecacht, die Sprache gehört
+            # aber zum Zug. Aufgelöst wird sie in ``material_type_label``.
+            "label_en": it.get("label_en") or "",
             "emoji": it.get("emoji") or "📄",
             "structure": it.get("structure") or "",
         }
@@ -543,6 +548,17 @@ def get_material_types() -> dict[str, dict[str, str]]:
             entry["category"] = cat
         result[mtid] = entry
     return result or copy.deepcopy(_DEFAULT_MATERIAL_TYPES)
+
+
+def material_type_label(entry: dict[str, str], lang: Locale = DEFAULT) -> str:
+    """Beschriftung eines Material-Typs in ``lang``.
+
+    Sie trägt einen zweiten Auftrag: als Chip-Text kommt sie beim Klick
+    wortgleich zurück und wird über ``type-aliases.yaml`` wieder zu einer
+    Typ-ID. Zu jeder gepflegten Fassung muss dort ein Alias stehen — der
+    Wächter ``tests/test_material_type_labels.py`` prüft genau das.
+    """
+    return pick_localized(entry.get("label", ""), entry.get("label_en", ""), lang)
 
 
 def get_type_aliases() -> dict[str, str]:

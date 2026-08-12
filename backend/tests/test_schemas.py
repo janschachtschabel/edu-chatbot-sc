@@ -62,10 +62,17 @@ def test_model_json_schema_buildable(model) -> None:
 
 
 def test_chat_response_field_parity_spec_5_1() -> None:
+    # ``prepared_write`` ist der einzige Zusatz gegenüber §5.1 (E3, 2026-08-12):
+    # im eingebetteten Betrieb beschreibt der MCP-Server eine bestätigte Änderung,
+    # statt sie zu schreiben, und das Widget setzt sie mit der Anmeldung der Seite
+    # ab. Rein additiv, Vorgabe ``None`` — ohne diesen Betrieb sieht jede Antwort
+    # aus wie zuvor. Bewusst KEIN weiterer ``page_action``-Typ: der Platz ist
+    # einzeln und schon von Canvas/Guide belegt.
     assert set(ChatResponse.model_fields) == {
         "session_id", "content", "cards", "follow_up", "quick_replies", "debug",
         "page_action", "pagination", "query_metas", "web_links",
         "inline_documents", "topic_page", "display_rules", "tour",
+        "prepared_write",
     }
 
 

@@ -19,6 +19,7 @@ import logging
 from typing import Any
 
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
+from boerdi.i18n import DEFAULT, Locale, template_hint
 from boerdi.services import llm
 from boerdi.services.config_loader import (
     get_state_directive,
@@ -120,6 +121,7 @@ async def generate_quick_replies(
     session_state: dict,
     usage_acc: dict[str, Any] | None = None,
     count: int = 4,
+    lang: Locale = DEFAULT,
 ) -> list[str]:
     """Generate ``count`` context-aware quick reply suggestions using the LLM.
 
@@ -322,7 +324,7 @@ Waehle {count} aus den folgenden Kategorien (mindestens {min(3, count)} untersch
     - Anzeigetext kurz, konkret, deutsch. KEINE generische „Bring mich hin"
       ohne Kontext.
 
-Gib NUR die {count} Zeilen zurueck, sonst nichts."""
+Gib NUR die {count} Zeilen zurueck, sonst nichts.""" + template_hint(lang)
 
     messages = [
         {"role": "system", "content": system},

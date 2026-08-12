@@ -1,14 +1,23 @@
 import {
   AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, HostListener, Injector,
-  OnDestroy, OnInit, ViewEncapsulation, afterNextRender, effect, inject, input, output, signal,
+  OnDestroy, OnInit, ViewEncapsulation, afterNextRender, computed, effect, inject, input,
+  output, signal,
   viewChild,
 } from '@angular/core';
 
 import {
   ChatShellComponent, GuideBoot, GuideNav, GuideSuggestionPayload, HeaderNavButton, HostBridges,
-  ICONS, PanelState, RoutingDebugPayload, SafeSvgPipe, applyPrimaryColor, BOERDI_LOGO_DATA_URL,
-  headerNavHrefWithBsid, headerNavIconSvg, resolveMergedPageContext,
+  ICONS, PanelState, RoutingDebugPayload, SafeSvgPipe, TranslationParams, WidgetLanguage,
+  _attrEnum,
+  PANEL_SIZE_STEPS,
+  applyPrimaryColor, BOERDI_LOGO_DATA_URL, headerNavHrefWithBsid, headerNavIconSvg,
+  pickLocalized,
+  resolveMergedPageContext, resolveTheme,
 } from '@boerdi/ui';
+
+/** Erlaubte Werte von `embed-mode` (U1). `panel` = die freischwebende Hülle mit
+ *  FAB und Kopfzeile; `frameless` = der Einbau IN eine fremde Oberfläche. */
+const EMBED_MODES = ['panel', 'frameless'] as const;
 
 /**
  * BoerdiChatWidget — Floating Action Button + aufklappbares Chat-Panel, die
@@ -30,13 +39,14 @@ import {
  * `GuideNav`, die Host-Seiten-Brücken in `HostBridges` und die Bootstrap-
  * Entscheidungen in `widget-init.ts` (§3: eine Änderungs-Ursache je Datei).
  *
- * DOKUMENTIERTE GRÖSSEN-AUSNAHME (328 statt ≤300 Z., wie
+ * DOKUMENTIERTE GRÖSSEN-AUSNAHME (465 statt ≤300 Z., wie
  * `chat-shell.component.ts`): die Datei hat genau eine Änderungs-Ursache — den
- * Element-Kontrakt. Rund 100 Zeilen davon sind die 18 Inputs/4 Outputs samt ihrer
+ * Element-Kontrakt. Rund 130 Zeilen davon sind die 23 Inputs/4 Outputs samt ihrer
  * Doku (die `input()`-Deklarationen MÜSSEN in der Komponentenklasse stehen),
- * weitere ~50 die vier Seam-Literale. FOLLOW-UP, nicht dringend: die Seam-
- * Literale nach `widget-contexts.ts` ziehen (Muster `shell/shell-contexts.ts`) —
- * das brächte die Datei unter die Schwelle, ohne Verhalten zu ändern.
+ * weitere ~55 die fünf Seam-Literale. FOLLOW-UP, mit C1-c fälliger geworden: die
+ * Seam-Literale nach `widget-contexts.ts` ziehen (Muster
+ * `shell/shell-contexts.ts`) — das brächte die Datei unter die Schwelle, ohne
+ * Verhalten zu ändern.
  *
  * simplify (gegenüber ALT):
  *  - Signals statt plain Felder + `NgZone`/`cdr.markForCheck()` — im zoneless
@@ -53,6 +63,23 @@ import {
   imports: [ChatShellComponent, SafeSvgPipe],
   templateUrl: './widget.component.html',
   styleUrl: './widget.component.scss',
+  // Die Klasse trägt den NORMALISIERTEN Modus ans Host-Element, damit `:host`
+  // ihn stylen kann. Bewusst keine `:host([embed-mode="frameless"])`-Regel:
+  // CSS-Attributselektoren vergleichen exakt, `_attrEnum` toleriert dagegen
+  // Schreibweise und Leerzeichen — `embed-mode="FRAMELESS"` griffe im
+  // TypeScript und im CSS nicht. Dieselbe Klasse von Fehler wie das tote
+  // `data-position` (8-5), nur andersherum.
+  host: {
+    '[class.boerdi-frameless]': 'frameless()',
+    '[class.boerdi-large]': 'sizeStep() === "large"',
+    // U4a: `theme` als Inline-Stil und nicht — wie die beiden Zeilen darüber —
+    // als Klasse mit CSS-Regel dahinter. An `frameless`/`large` hängen jeweils
+    // viele Regeln, hier ist es genau EINE Deklaration mit einem Wert; eine
+    // Klasse wäre ein Umweg über ein Stylesheet, das nichts weiter tut.
+    // `null` (= `auto`) entfernt die Eigenschaft wieder, sodass `color-scheme`
+    // erbt — der Zustand, in dem das Widget bis U4a immer war.
+    '[style.color-scheme]': 'colorScheme()',
+  },
 })
 export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   // ── Host-Attribut-Kontrakt (§5.5) ───────────────────────────────
@@ -87,22 +114,59 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   /** Bei `true` werden Link-Klicks abgefangen: keine Navigation, stattdessen
    *  feuert `linkClicked` mit path+search. Default: normal navigieren. */
   readonly interceptEduSharingLinks = input<boolean | string>(false);
-  /** Lotsen-Treffer als `badboerdi:guide-suggestion` + Output emittieren. */
+  /** Lotsen-Treffer als `boerdi:guide-suggestion` + Output emittieren. */
   readonly emitGuideSuggestion = input<boolean | string>(false);
-  /** Routing-Debug als `badboerdi:routing-debug` + Output emittieren. */
+  /** Routing-Debug als `boerdi:routing-debug` + Output emittieren. */
   readonly emitRoutingDebug = input<boolean | string>(false);
   /** `false` = flaches Karten-Grid mit Pagination statt der Ergebnis-Boxen
    *  (8-2i). Hier durchgereicht, weil das Attribut sonst nur an der Shell
    *  existiert und am echten Embed wirkungslos wäre — dieselbe Falle wie das
    *  tote `data-position` (8-5); von e2e/chat.spec.ts gefunden. */
   readonly inlineResultGrouping = input<boolean | string>(true);
+  /** Sprache der Oberfläche (`de`/`en`). Leer = die Seite entscheidet: nächstes
+   *  `[lang]` im DOM, sonst der Browser, sonst Deutsch. Eine Nutzerwahl über
+   *  den Umschalter schlägt dieses Attribut — sonst spränge die Sprache beim
+   *  nächsten Rendern zurück (C1-c). */
+  readonly language = input('');
+  /** Einbettungs-Modus (U1). `frameless` gibt Rahmen und Navigation an die
+   *  Gastanwendung ab: kein FAB, keine Kopfzeile, kein Panel-Rahmen — nur
+   *  Verlauf und Eingabezeile, im Container des Hosts.
+   *
+   *  Bewusst `embed-mode` und nicht „headless": headless heißt üblicherweise
+   *  ganz ohne Oberfläche; hier ist sie da, nur ohne Rahmen. */
+  readonly embedMode = input('');
+  /** Anfangs-Größenstufe (U2a): `small` (Vorgabe) oder `large`. Nur der START —
+   *  danach gehört die Stufe dem Panel, weil der Umschalter in der Eingabezeile
+   *  sie verändert. Rahmenlos hat sie keine Wirkung auf die Maße (die stellt der
+   *  Host), speist aber die Kachel-Regel aus U2b. */
+  readonly size = input('');
+  /** Kachel-Regel (U2b): `auto` (Vorgabe) | `always` | `never`. `auto` heißt —
+   *  klein Textlinks, groß Kacheln; Bestands-Embeds mit
+   *  `inline-result-grouping="false"` behalten ihre Kacheln. Wird unverändert an
+   *  die Shell durchgereicht, die entscheidet (`resolveCardsVisible`). */
+  readonly showCards = input('');
+  /** Farbschema (U4a): `auto` (Vorgabe) | `light` | `dark`. `auto` heißt, dass
+   *  das Widget nichts setzt und dem `color-scheme` der Gastseite folgt — das
+   *  Verhalten, das es seit dem M3-Theme hat. Für Gastseiten gedacht, die
+   *  selbst keins setzen: dort entschied bis hierher der Browser allein, und
+   *  ein hell gestaltetes Portal bekam im Dunkelmodus des Betriebssystems ein
+   *  dunkles Widget. */
+  readonly theme = input('');
+  /** edu-sharing-Ticket der Gastgeberseite — die Betriebsform „das Repositorium
+   *  bettet ein": die Seite kennt die angemeldete Person und reicht ihren
+   *  Ausweis herein (dieselbe Konvention, die der md-editor als `?ticket=…`
+   *  konsumiert). Einmal gelesen, dann aus dem DOM getilgt (`ngOnInit`) — ein
+   *  Ticket darf nirgends liegenbleiben. Den Tausch gegen einen Zugangsblock
+   *  macht die Shell (`session/ticket-login.ts`), sobald die Anmelde-Adresse
+   *  aus dem Config-Bündel da ist. */
+  readonly ticket = input('');
 
   // ── Outputs (Host-Integration, siehe docs/05-widget-javascript-api.md) ──
   /** Abgefangener Link (nur mit `intercept-edu-sharing-links`). */
   readonly linkClicked = output<string>();
-  /** Spiegelt `badboerdi:guide-suggestion` für Angular-Konsumenten. */
+  /** Spiegelt `boerdi:guide-suggestion` für Angular-Konsumenten. */
   readonly guideSuggestion = output<GuideSuggestionPayload>();
-  /** Spiegelt `badboerdi:routing-debug` für Angular-Konsumenten. */
+  /** Spiegelt `boerdi:routing-debug` für Angular-Konsumenten. */
   readonly routingDebug = output<RoutingDebugPayload>();
   /** MCP-Suchmetadaten jedes Bot-Turns (immer aktiv, kein Opt-in). */
   readonly queryMeta = output<unknown>();
@@ -121,7 +185,25 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   /** Aufgelöster Seitenkontext (auto + manuell), an die Shell durchgereicht. */
   readonly resolvedPageContext = signal<Record<string, unknown>>({});
 
+  /** Das in `ngOnInit` EINMAL eingesammelte Ticket. Ein eigenes Signal statt
+   *  des Inputs, weil das Attribut danach getilgt wird — die Custom-Element-
+   *  Brücke setzte den Input dabei auf leer zurück, und die Shell bekäme das
+   *  Ticket nie zu sehen. */
+  readonly ticketOnce = signal('');
+
   private readonly hostEl = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  /** Sprache dieses Widgets (`widget-language.ts`): Auflösung aus den vier
+   *  Quellen, Umschalter, Merken. Eigene Instanz statt Root-Singleton — zwei
+   *  Widgets auf einer Seite dürfen verschiedene Sprachen sprechen. */
+  private readonly lang = new WidgetLanguage({
+    attribute: () => this.language(),
+    hostElement: () => this.hostEl.nativeElement,
+  });
+  /** Kurzform fürs Template. Als Arrow gebunden, damit `{{ t('…') }}` auch
+   *  ohne `this` funktioniert. */
+  protected readonly t = (key: string, params?: TranslationParams): string =>
+    this.lang.i18n.t(key, params);
   /** Für `afterNextRender` außerhalb des Konstruktor-Injektionskontexts. */
   private readonly injector = inject(Injector);
 
@@ -181,6 +263,11 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
 
   constructor() {
     effect(() => applyPrimaryColor(this.hostEl.nativeElement, this.primaryColor()));
+    // Sprache auflösen — im Effect und nicht in `ngOnInit`, damit ein zur
+    // Laufzeit gesetztes `language`-Attribut wirkt (derselbe Weg wie bei
+    // `initial-state`). Der Effect liest `language()`, die übrigen drei Quellen
+    // sind Momentaufnahmen; `resolve()` ist idempotent.
+    effect(() => this.lang.resolve());
     // `initial-state` zur Laufzeit umsetzen: Angular Custom Elements mappen ein
     // gesetztes HTML-Attribut auf den Input, also kann die Host-Seite per
     // `setAttribute('initial-state', 'expanded')` öffnen bzw. schließen. Beide
@@ -207,13 +294,44 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   // ── Template-Sicht ──────────────────────────────────────────────
   readonly expanded = this.panel.expanded;
   readonly everExpanded = this.panel.everExpanded;
+  /** U1: rahmenlos = der Host stellt den Rahmen. */
+  readonly frameless = computed(
+    () => _attrEnum(this.embedMode(), EMBED_MODES, 'panel') === 'frameless',
+  );
+  /** Ob der Chat gemountet sein soll. Im Panel-Betrieb entscheidet das
+   *  Lazy-Mount-Gate (erst beim ersten Öffnen); rahmenlos MUSS er sofort da
+   *  sein — es gibt keinen FAB, der das Gate je öffnen würde. */
+  readonly chatMounted = computed(() => this.everExpanded() || this.frameless());
+  /** U2a: aktuelle Größenstufe — Anfangswert aus `size`, danach vom Umschalter. */
+  readonly sizeStep = this.panel.sizeStep;
+  /** U4a: `color-scheme` fürs Host-Element, `null` = erben (siehe `host`). */
+  readonly colorScheme = computed(() => resolveTheme(this.theme()));
   readonly hintActive = this.panel.hintActive;
   readonly headerNavButtons = this.guide.headerNavButtons;
-  readonly configGreeting = this.guide.configGreeting;
-  readonly startReplies = this.guide.startReplies;
+  /** C1-g1b: die Wahl zwischen deutscher und englischer Fassung faellt HIER,
+   *  nicht im Server (C1-g1a) — die Sprache ist zur Laufzeit umschaltbar, der
+   *  Boot-Abruf laeuft nur einmal. Als `computed` folgen Chips und Kopfzeile
+   *  dem Umschalter; die Begruessung landet einmalig als NACHRICHT im Verlauf
+   *  und behaelt danach ihre Sprache — so wie jede andere Nachricht auch. */
+  readonly configGreeting = computed(() => pickLocalized(
+    this.guide.configGreeting(), this.guide.configGreetingEn(), this.activeLocale()));
+  readonly startReplies = computed(() => pickLocalized(
+    this.guide.startReplies(), this.guide.startRepliesEn(), this.activeLocale()));
+  /** Beide Fassungen gehen an die Shell — sie vergleicht den geklickten Chip
+   *  gegen BEIDE, weil ein Sprachwechsel den Verlauf nicht nachuebersetzt. */
   readonly tourReply = this.guide.tourReply;
+  readonly tourReplyEn = this.guide.tourReplyEn;
+  /** C5-c2: Herkunft des MCP-Servers für die WLO-Anmeldung (aus demselben
+   *  Boot-Abruf). Leer = diese Anlage bietet keine Anmeldung an. */
+  readonly mcpAuthBase = this.guide.mcpAuthBase;
   /** Vom Bot vorgeschlagenes Navigationsziel; `null` blendet das Banner aus. */
   readonly guideNavTarget = this.guideNav.target;
+  /** Aktive Sprache — die Shell braucht sie, um ihren Markdown-Cache beim
+   *  Wechsel zu verwerfen (C1-c). */
+  readonly activeLocale = this.lang.i18n.locale;
+  /** Kürzel und zugänglicher Name des Sprach-Umschalters (beide: Zielsprache). */
+  readonly languageSwitchCode = this.lang.switchCode;
+  readonly languageSwitchLabel = this.lang.switchLabel;
 
   /** Gemergte Whitelist für die Shell (klassifiziert Inline-Markdown-Links:
    *  trusted → same-tab + `?bsid=`, extern → `target=_blank`). */
@@ -222,8 +340,24 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // Ticket einsammeln und das Attribut TILGEN, bevor irgendetwas anderes
+    // läuft — die md-editor-Regel „ein Ticket darf nirgends liegenbleiben",
+    // hier fürs DOM statt für die Adresszeile: Serialisierung, Inspektion und
+    // fremde Skripte der Gastseite sollen es nicht länger sehen als nötig.
+    // (Das Tilgen setzt über die Element-Brücke den Input zurück, deshalb
+    // wandert der Wert vorher in `ticketOnce`.)
+    const ticket = this.ticket().trim();
+    if (ticket) {
+      this.ticketOnce.set(ticket);
+      this.hostEl.nativeElement.removeAttribute('ticket');
+    }
     // Auto-Open-Entscheidung (initial-state / ?bsid= / laufende Tour).
     this.panel.initExpanded(this.initialState());
+    // U2a: `size` ist die ANFANGS-Stufe. Bewusst hier und nicht in einem
+    // Effect wie `language`/`initial-state` — die Stufe ist danach vom
+    // Umschalter bedienbar, und ein Effect würde jede Handbedienung beim
+    // nächsten Signal-Lauf wieder überschreiben.
+    this.panel.initSize(_attrEnum(this.size(), PANEL_SIZE_STEPS, 'small'));
     this.refreshPageContext(false);
     // Allow-Liste + Studio-Config async holen — non-blocking, Fehler sind
     // kein Show-Stopper (siehe GuideBoot).
@@ -247,6 +381,12 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   /** FAB- und Schließen-Button. */
   toggle(): void {
     this.panel.toggle();
+  }
+
+  /** U2a — Umschaltwunsch aus der Eingabezeile. Die Shell hält keinen eigenen
+   *  Größen-Zustand; die Maße kennt das Panel. */
+  toggleSize(): void {
+    this.panel.toggleSize();
   }
 
   /** A11y: Escape schließt das offene Panel. Der Listener sitzt am Host, feuert
@@ -293,6 +433,12 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     void this.shell()?.startTour();
   }
 
+  /** Sprach-Umschalter in der Kopfzeile. Die Wahl wird gemerkt und schlägt
+   *  danach Attribut, Host-Seite und Browser. */
+  toggleLanguage(): void {
+    this.lang.toggle();
+  }
+
   // ── Lotsen-Banner ───────────────────────────────────────────────
   // Logik in `guide-nav.ts` (inkl. T7-Guard); hier nur die Template-Delegates.
 
@@ -315,6 +461,12 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
   // ── Kopfzeilen-Nav ──────────────────────────────────────────────
 
   /** Icon-SVG eines Nav-Buttons (Delegate — `guide-mode-config.ts`). */
+  /** Beschriftung des Kopfzeilen-Knopfs in der aktiven Sprache (C1-g1b).
+   *  Leeres `label_en` heisst „nicht gepflegt" → die deutsche. */
+  headerNavLabel(b: HeaderNavButton): string {
+    return pickLocalized(b?.label || '', b?.label_en || '', this.activeLocale());
+  }
+
   headerNavIcon(b: HeaderNavButton): string {
     return headerNavIconSvg(b?.icon);
   }

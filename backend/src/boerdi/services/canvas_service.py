@@ -32,19 +32,31 @@ from boerdi.domain.canvas.types import (
     get_material_types,
     get_short_alias_whitelist,
     get_type_aliases,
+    material_type_label,
 )
+from boerdi.i18n import DEFAULT, Locale, bot_text, language_name, template_hint
 from boerdi.services import llm
 from boerdi.services.wikipedia_service import fetch_wikipedia_summary
 
 logger = logging.getLogger(__name__)
 
 
-def material_type_quick_replies() -> list[str]:
-    """Return all material-type quick-reply labels (with emoji prefix)."""
-    return [f"{v['emoji']} {v['label']}" for v in get_material_types().values()]
+def material_type_quick_replies(lang: Locale = DEFAULT) -> list[str]:
+    """Return all material-type quick-reply labels (with emoji prefix).
+
+    Ohne Produktiv-Aufrufer (Stand C1-g2e) — der Chat baut die Chips über die
+    persona-abhängige Schwester. ``lang`` steht trotzdem hier, damit die beiden
+    nicht auseinanderlaufen, wenn jemand diese Fassung verdrahtet.
+    """
+    return [
+        f"{v['emoji']} {material_type_label(v, lang)}"
+        for v in get_material_types().values()
+    ]
 
 
-def material_type_quick_replies_for_persona(persona_id: str | None) -> list[str]:
+def material_type_quick_replies_for_persona(
+    persona_id: str | None, lang: Locale = DEFAULT
+) -> list[str]:
     """Persona-abhängige Reihenfolge der Material-Typ-Chips.
 
     - Bei Verwaltung/Politik/Presse/Berater/Redaktion zuerst die analytischen
@@ -57,7 +69,7 @@ def material_type_quick_replies_for_persona(persona_id: str | None) -> list[str]
 
     def _label(key: str) -> str:
         v = types[key]
-        return f"{v['emoji']} {v['label']}"
+        return f"{v['emoji']} {material_type_label(v, lang)}"
 
     analytical_keys = [
         k for k, v in types.items() if v.get("category") == "analytisch"
@@ -94,8 +106,14 @@ async def generate_canvas_content(
     memory_context: str = "",
     formality: str = "",
     requested_label: str = "",
+    lang: Locale = DEFAULT,
+    usage_acc: dict[str, Any] | None = None,
 ) -> tuple[str, str]:
     """Generate structured markdown content for a given topic and material type.
+
+    ``usage_acc`` is optional — threaded through, the call is accounted under
+    phase ``"canvas"`` (K1c). With ``max_tokens=2500`` this is the largest
+    single call in the system; unbooked it understates every cost figure.
 
     ``formality`` (Welle E v4++ 2026-05-26): Persona-Anrede explizit
     durchreichen. Akzeptiert "siezen" / "duzen" / "sie" / "du" / "wie_user" /
@@ -142,8 +160,10 @@ async def generate_canvas_content(
             "- Kennzeichne jede zitierte Quelle am Ende im Abschnitt '## Quellen' oder "
             "  direkt inline als [Quelle](URL).\n"
             "\n"
+            # C1-f2a: das Sprachwort stand hier schon — sprachabhaengig an Ort
+            # und Stelle, damit der deutsche Prompt bytegleich bleibt.
             "FORMAT: Antworte AUSSCHLIESSLICH mit Markdown. Keine einleitenden Sätze "
-            "an den Nutzer, keine Codefences um das ganze Dokument. Deutsch."
+            f"an den Nutzer, keine Codefences um das ganze Dokument. {language_name(lang)}."
         )
     else:
         # Didaktisch — Lehrkräfte / Schüler:innen / Eltern
@@ -151,7 +171,7 @@ async def generate_canvas_content(
             "Du bist BOERDi, ein pädagogischer Assistent für WirLernenOnline.de.\n"
             f"Du erstellst didaktisch durchdachte Bildungsmaterialien. Zielgruppe: {learner_ctx}.\n"
             "Antworte AUSSCHLIESSLICH mit sauberem Markdown ohne einleitende oder abschließende Meta-Sätze.\n"
-            "Keine Codefences um das gesamte Dokument. Deutsch.\n"
+            f"Keine Codefences um das gesamte Dokument. {language_name(lang)}.\n"
             "\n"
             "FORMATIERUNGS-REGELN — WICHTIG:\n"
             "- KEINE LaTeX-Syntax verwenden. Kein \\frac{}{}, kein \\sqrt{}, keine $...$-Delimiter.\n"
@@ -185,6 +205,10 @@ async def generate_canvas_content(
             "lernst du ...'). Die Persona ist Schüler:in oder Kind."
         )
 
+    # C1-f2a: zuletzt, damit der Hinweis auch die Anrede-Direktive noch
+    # ueberdeckt. Fuer Deutsch ist er leer — der Prompt bleibt bytegleich.
+    system += template_hint(lang)
+
     mem_block = ""
     if memory_context and memory_context.strip():
         mem_block = f"\n\nBisher bekannter Kontext aus der Sitzung:\n{memory_context.strip()}\n"
@@ -209,14 +233,13 @@ async def generate_canvas_content(
                 _pm_lines.append(f"Kompendialer Text (Auszug): {_pm_comp[:1500]}")
             page_block = "\n".join(_pm_lines) + "\n"
 
-    # Wikipedia-DE für fachlich belastbare Grundlagen. Kurzer Timeout;
-    # Fehlschlag ist tolerierbar (LLM-Wissen übernimmt). Der
-    # fetch_wikipedia_summary-Helper filtert bereits auf Relevanz
-    # (Disambig / irrelevante Treffer werden None zurückgegeben).
+    # Wikipedia-DE für fachlich belastbare Grundlagen. Fehlschlag ist
+    # tolerierbar (LLM-Wissen übernimmt). Der fetch_wikipedia_summary-Helper
+    # filtert bereits auf Relevanz (irrelevante Treffer werden None).
     wiki_block = ""
     wiki_used: dict[str, str] | None = None
     try:
-        wiki = await fetch_wikipedia_summary(topic, timeout_s=6.0)
+        wiki = await fetch_wikipedia_summary(topic)
         if wiki and wiki.get("extract"):
             wiki_used = {"title": wiki["title"], "url": wiki.get("url", "")}
             # Doppel-Sicherung gegen Wikipedia-False-Positives:
@@ -301,11 +324,16 @@ async def generate_canvas_content(
             messages=messages,
             temperature=0.5,
             max_tokens=2500,
+            usage_acc=usage_acc,
+            phase="canvas",
         )
         md = (resp.choices[0].message.content or "").strip()
     except Exception as e:
         logger.exception("generate_canvas_content failed: %s", e)
-        md = f"# {mat['label']}: {topic}\n\n*Fehler beim Erstellen: {e}*"
+        md = (
+            f"# {material_type_label(mat, lang)}: {topic}\n\n"
+            f"*{bot_text(lang, 'material.createFailed')}: {e}*"
+        )
 
     md = _strip_latex(md)
     md = _strip_empty_sections(md)
@@ -321,7 +349,9 @@ async def generate_canvas_content(
             )
             md = md.rstrip() + "\n\n---\n" + src_line + "\n"
 
-    title = _extract_h1_title(md) or f"{(_req_label or mat['label'])}: {topic}"
+    title = _extract_h1_title(md) or (
+        f"{(_req_label or material_type_label(mat, lang))}: {topic}"
+    )
     return title, md
 
 

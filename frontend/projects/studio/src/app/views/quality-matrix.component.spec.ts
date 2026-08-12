@@ -5,6 +5,7 @@ import { Component, provideZonelessChangeDetection, signal } from '@angular/core
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { QualityMatrixComponent } from './quality-matrix.component';
 import type { LogFilters, QualityScope } from '../core/quality-api.service';
 
@@ -54,7 +55,10 @@ async function settle(h: Harness): Promise<void> {
   await h.fixture.whenStable();
 }
 
-async function mount(matrix: object = MATRIX): Promise<Harness> {
+/** jsdom meldet `navigator.language === 'en-US'`; ohne gesetzte Wahl liefe die
+ *  deutsche Oberfläche auf Englisch. */
+async function mount(matrix: object = MATRIX, locale = 'de'): Promise<Harness> {
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -227,5 +231,28 @@ describe('QualityMatrixComponent', () => {
 
     expect(h.el.querySelector('[role="alert"]')!.textContent).toContain('Matrix-Query');
     expect(cellButtons(h)).toHaveLength(2);
+  });
+
+  it('setzt Turn-Zahl und Sample-Zahl in die Mehrzahl der Sprache', async () => {
+    // Beides stand fest im Template und las sich schon auf Deutsch als
+    // „1 Turns" und „1 Samples".
+    const single = {
+      scope: 'all', total_turns: 1,
+      cells: [{
+        persona_id: 'P01', intent_id: 'I05', top_pattern: 'M15',
+        top_pattern_count: 1, total_count: 1, share: 1, alternatives: [],
+      }],
+    };
+    const h = await mount(single);
+    expect(h.el.querySelector('.qm-total')!.textContent).toContain('aus 1 Turn (all)');
+    const share = h.el.querySelector('.qm-share')!.textContent!;
+    expect(share).toContain('· 1 Sample');
+    expect(share).not.toContain('1 Samples');
+  });
+
+  it('nimmt Beschriftungen und den Vorlese-Text des Drilldowns aus dem Katalog', async () => {
+    const h = await mount(MATRIX, 'en');
+    expect(h.el.querySelector('.qm-field')!.textContent).toContain('Min samples per cell');
+    expect(cellButtons(h)[0].querySelector('.sr')!.textContent).toBe('Show logs for I02');
   });
 });

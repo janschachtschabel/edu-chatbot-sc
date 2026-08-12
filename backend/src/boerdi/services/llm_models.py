@@ -4,11 +4,18 @@ LLM transport (LiteLLM, pools, retries, usage hook) arrives in P3-1 as
 ``services/llm.py`` and builds on these helpers.
 """
 
+from typing import NamedTuple
+
 from boerdi.settings import get_settings
 
 _PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
-    "openai": {"chat": "gpt-5.4-mini", "embed": "text-embedding-3-small"},
-    "b-api-openai": {"chat": "gpt-5.4-mini", "embed": "text-embedding-3-small"},
+    # W12 (Nutzer-Vorgabe 2026-08-09): gpt-5.6-luna. Aus der Modellkarte
+    # geprueft: 1.050.000 Token Kontext, Reasoning-Token, Streaming,
+    # function_calling und Structured Outputs — alles, was der Zug braucht.
+    # `is_gpt5_model` greift ueber den Praefix "gpt-5" automatisch, die
+    # GPT-5-Parameter gehen also ohne Zusatzcode mit.
+    "openai": {"chat": "gpt-5.6-luna", "embed": "text-embedding-3-small"},
+    "b-api-openai": {"chat": "gpt-5.6-luna", "embed": "text-embedding-3-small"},
     "b-api-academiccloud": {
         "chat": "mistral-large-3-675b-instruct-2512",
         "embed": "e5-mistral-7b-instruct",
@@ -54,26 +61,77 @@ def get_embed_model() -> str:
     return s.llm_embed_model or _PROVIDER_DEFAULTS[get_provider()]["embed"]
 
 
+class ParamRules(NamedTuple):
+    """Welche Parameter eine Modellgruppe vertraegt.
+
+    Vorher standen diese Ausnahmen als ``startswith``-Pruefungen mitten in
+    ``build_chat_kwargs``. Das ist der falsche Ort: dort entscheidet sich, WIE
+    eine Anfrage gebaut wird, nicht WAS ein bestimmtes Modell akzeptiert. Ein
+    neues Modell braucht jetzt eine Zeile in ``_GROUPS`` statt eine weitere
+    Verzweigung im Bauplan.
+    """
+
+    #: verbosity / reasoning_effort ueberhaupt senden
+    gpt5_params: bool
+    #: ``reasoning_effort`` AUCH bei Werkzeug-Aufrufen — und dann woertlich,
+    #: einschliesslich ``"none"``.
+    effort_with_tools: bool
+    #: ``temperature`` erlaubt, wenn das Reasoning abgeschaltet ist
+    temperature_on_none: bool
+
+
+_CLASSIC = ParamRules(gpt5_params=False, effort_with_tools=False, temperature_on_none=False)
+
+#: Praefix -> Regeln; der LAENGSTE passende Praefix gewinnt (``gpt-5.6`` vor ``gpt-5``).
+_GROUPS: dict[str, ParamRules] = {
+    # W12b, gegen die echte API gemessen (2026-08-09): luna weist eine Anfrage
+    # MIT Werkzeugen ab, wenn `reasoning_effort` FEHLT — dann gilt das
+    # Vorgabe-Reasoning des Anbieters, und das vertraegt sich nicht mit Function
+    # Tools auf /v1/chat/completions. Mit ausdruecklichem Wert (`low` wie `none`)
+    # kommt sauber ein tool_call zurueck.
+    "gpt-5.6": ParamRules(gpt5_params=True, effort_with_tools=True, temperature_on_none=False),
+    # ALT-verbatim (llm_provider.py:702-827): kein Reasoning bei Werkzeugen,
+    # dafuer `temperature` neben abgeschaltetem Reasoning.
+    "gpt-5.4": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=True),
+    # Uebrige Reasoning-Modelle. Gemessen ist, dass gpt-5.4 UND gpt-5.6 einen
+    # ausdruecklichen Wert auch mit Werkzeugen annehmen; fuer o1/o3/o4 liegt keine
+    # Messung vor, deshalb bleibt hier die vorsichtigere ALT-Regel stehen.
+    "gpt-5": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=False),
+    "o1": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=False),
+    "o3": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=False),
+    "o4": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=False),
+}
+
+
+def param_rules(model: str | None = None) -> ParamRules:
+    """Die Parameter-Regeln fuer ``model`` (oder das aktive Chat-Modell).
+
+    ``b-api-academiccloud`` faellt immer auf ``_CLASSIC``: dort liegen Qwen/GLM/
+    Mistral ohne den GPT-5-Vertrag — ALT llm_provider.py:597-610.
+    """
+    name = (model or get_chat_model() or "").strip().lower()
+    if not name or get_provider() not in ("openai", "b-api-openai"):
+        return _CLASSIC
+    for prefix in sorted(_GROUPS, key=len, reverse=True):
+        if name.startswith(prefix):
+            return _GROUPS[prefix]
+    return _CLASSIC
+
+
 def is_gpt5_model(model: str | None = None) -> bool:
     """True if the model name belongs to OpenAI's reasoning-capable GPT-5
     family. Also covers o1/o3/o4 reasoning models which share the same
-    ``reasoning_effort`` contract."""
+    ``reasoning_effort`` contract. Provider-blind by design — the
+    provider gate lives in ``param_rules``."""
     name = (model or get_chat_model() or "").strip().lower()
-    if not name:
-        return False
-    return (
-        name.startswith("gpt-5")
-        or name.startswith("o1")
-        or name.startswith("o3")
-        or name.startswith("o4")
-    )
+    return bool(name) and any(name.startswith(p) for p in _GROUPS)
 
 
 def supports_gpt5_params(model: str | None = None) -> bool:
     """Whether to send GPT-5 params (verbosity/reasoning_effort). Free for
     both OpenAI backends; b-api-academiccloud stays excluded (Qwen/GLM/
     Mistral models without the GPT-5 contract) — ALT llm_provider.py:597-610."""
-    return is_gpt5_model(model) and get_provider() in ("openai", "b-api-openai")
+    return param_rules(model).gpt5_params
 
 
 def get_verbosity() -> str:

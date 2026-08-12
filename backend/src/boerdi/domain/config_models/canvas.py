@@ -20,6 +20,11 @@ class CanvasPersonaPrioritiesArea(AreaModel):
 class MaterialType(AreaModel):
     id: str
     label: str = ""
+    # Die Beschriftung ist zugleich der Chip-Text, der beim Klick zurückkommt:
+    # zu jeder gepflegten Fassung muss ein Alias in `type-aliases.yaml` stehen
+    # (C1-g2e). `structure` bleibt einsprachig — sie ist Prompt (Klasse B), die
+    # Ausgabesprache regelt `i18n/prompt_language` seit C1-f2a.
+    label_en: str = ""
     emoji: str = ""
     category: str = ""
     structure: str = ""

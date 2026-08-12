@@ -21,14 +21,15 @@ only change is the import root — ``app.services.mcp_client`` →
 (pyproject) as for the sibling verbatim-prompt-byte modules — the tool-description
 strings are load-bearing bytes and must not be reflowed.
 
-Known latent quirk carried over VERBATIM (not fixed — an out-of-scope discovery,
-flagged for the user per scope-control): in the ``has_mcp_source`` branch ALT does
-``active_tools = TOOL_DEFINITIONS`` (a *reference*, not a copy). If that branch is
-reached with no RAG areas and ``select_top_cards`` enabled, the later
-``active_tools.append(...)`` mutates the shared module-global ``TOOL_DEFINITIONS``
-(unbounded growth across calls — an Eiserne-Regel-3 shared-mutable-state smell).
-simplify: change to ``active_tools = list(TOOL_DEFINITIONS)`` once the user approves
-this as a deliberate improvement; the return value is provably unchanged.
+Behobener ALT-Defekt (E2, 2026-08-10): der ``has_mcp_source``-Zweig wies ALT-treu
+``active_tools = TOOL_DEFINITIONS`` zu — eine *Referenz*, keine Kopie —, und das
+spätere ``active_tools.append(...)`` schrieb damit in die Modul-Globale. Der
+Katalog wuchs bei jedem Aufruf um einen Eintrag (gemessen 22 → 27 über fünf
+Aufrufe); das Modell bekam ``select_top_cards`` mehrfach angeboten. Bis dahin war
+das als ``simplify:``-Vermerk notiert und latent, weil kein Test den Zweig traf.
+Ein E2-Test tat es und kippte zwei fremde Tests über die Reihenfolge. Jetzt
+``list(TOOL_DEFINITIONS)``; Rückgabewert unverändert, gepinnt von
+``test_mcp_source_waechst_den_katalog_nicht``.
 """
 
 from __future__ import annotations
@@ -37,9 +38,54 @@ import logging
 import os
 from typing import Any
 
+from boerdi.domain.write_confirm import CURATION_TOOLS
+from boerdi.services.mcp.auth import has_auth_token
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
+from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 
 _logger = logging.getLogger(__name__)
+
+
+def _nameable_tools() -> list[dict]:
+    """Werkzeuge, die ein Muster in ``tools`` NAMENTLICH anfordern darf (E2).
+
+    Der Lesekatalog immer, die kuratierenden nur mit hinterlegtem Zugangsblock
+    (C3). Ohne Block verweigert der Server sie ohnehin — sie gar nicht erst
+    anzubieten ist trotzdem richtig: sonst kündigt der Bot eine Fähigkeit an,
+    die der nächste Schritt zurücknimmt.
+
+    Bewusst NUR für den namentlichen Zweig. Der ``has_mcp_source``-Zweig reicht
+    ``TOOL_DEFINITIONS`` als Ganzes weiter; stünden die schreibenden darin,
+    bekäme sie jedes Muster mit ``sources: [mcp]`` — also auch die reinen
+    Suchmuster. Kuratieren muss ein Muster ausdrücklich nennen.
+    """
+    if not has_auth_token():
+        return TOOL_DEFINITIONS
+    return [*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS]
+
+
+def _pattern_curates(pattern_output: dict[str, Any]) -> bool:
+    """Will dieses Muster den Bestand ÄNDERN — unabhängig davon, ob es darf?
+
+    Absichtlich ohne Blick auf den Zugangsblock: gefragt ist die Absicht des
+    Musters, nicht seine Erlaubnis. Beide Aufrufer brauchen sie so — der eine,
+    um den Verlust zu melden, der andere, um den Medientyp-Strip zu übergehen.
+    """
+    return bool(set(pattern_output.get("tools") or ()) & CURATION_TOOLS)
+
+
+def curation_blocked_by_mode(pattern_output: dict[str, Any]) -> bool:
+    """Wollte das Muster kuratieren, ohne dass ein Zugangsblock hinterlegt ist? (E3)
+
+    Genau dieser Fall geht sonst spurlos verloren: der Namensfilter oben lässt
+    das Werkzeug einfach weg. Das Muster verspricht dann etwas, wovon der Rest
+    des Zuges nichts weiß — der Prompt-Bauer fragt hier nach, um dem Modell die
+    Wahrheit über seine Fähigkeiten mitzugeben.
+
+    Nur der namentliche Zweig kann betroffen sein: die anderen bieten
+    kuratierende Werkzeuge ohnehin nie an.
+    """
+    return _pattern_curates(pattern_output) and not has_auth_token()
 
 
 def _select_active_tools(
@@ -49,6 +95,8 @@ def _select_active_tools(
     rag_config: dict[str, Any] | None,
     _cards_inline_mode: bool,
     _degradation_no_tools: bool,
+    *,
+    pattern_label: str = "",
 ) -> tuple[list[dict], Any, bool, bool]:
     """Stellt die aktive Tool-Liste fuer ``generate_response`` zusammen
     (Phasen P10-P11: pattern.tools / tools=[] / mcp-Source / Fallback,
@@ -58,6 +106,13 @@ def _select_active_tools(
     Parameter-Reihenfolge: classification, pattern_output,
     available_rag_areas, rag_config, _cards_inline_mode,
     _degradation_no_tools.
+
+    ``pattern_label`` ist NEU (F-neu, 2026-08-10) und rein diagnostisch: die
+    E3-Protokollwarnung wollte das Muster benennen und griff dafür auf
+    ``pattern_output["id"]`` zu — den Schlüssel schreibt ``phase3_modulate``
+    nicht, im Betrieb stand dort also immer „?". Schlüsselwort mit Vorgabe,
+    damit kein Aufrufer angefasst werden muss; ohne ihn bleibt der Eintrag,
+    was er war.
 
     Returns ``(active_tools, _pattern_sources_decl,
     _rag_allowed_for_pattern, _inline_qr_enabled)`` — die Tool-Liste plus
@@ -78,14 +133,62 @@ def _select_active_tools(
     if pattern_output.get("tools"):
         # Pattern defines specific tools → use those
         tool_names = set(pattern_output["tools"]) | INFO_TOOLS
-        active_tools = [t for t in TOOL_DEFINITIONS if t["function"]["name"] in tool_names]
+        active_tools = [t for t in _nameable_tools() if t["function"]["name"] in tool_names]
+        # E3: der Verlust bekommt eine Stimme — für den, der ihn beheben kann.
+        # Ein Betreiber sieht sonst nur, dass „der Bot nicht kuratiert", ohne
+        # Hinweis darauf, dass sein Block fehlt oder nicht greift.
+        #
+        # Seit C5-a hat der Satz zwei Ursachen, und keine ist von hier aus von
+        # der anderen zu unterscheiden: hier anzukommen heisst, dass WEDER die
+        # Person angemeldet ist NOCH die Anlage einen Block hat. Beide werden
+        # deshalb genannt.
+        if not has_auth_token():
+            _verloren = sorted(tool_names & CURATION_TOOLS)
+            if _verloren:
+                _logger.warning(
+                    "Muster %s verlangt kuratierende Werkzeuge %s, aber für diesen "
+                    "Zug gilt kein Zugangsblock — weder von der Person (nicht beim "
+                    "MCP-Server angemeldet) noch von der Anlage (MCP_AUTH_TOKEN). "
+                    "Sie werden dem Modell nicht angeboten. Siehe deploy/README.md.",
+                    pattern_label or "?",
+                    _verloren,
+                )
     elif has_explicit_tools and not pattern_output["tools"]:
-        # Pattern explicitly set tools=[] → NO tools (e.g. M15 Orientierungs-Guide)
+        # Leere Werkzeugliste → KEINE Werkzeuge. Für 8 der 17 Muster (M01–M04,
+        # M11, M13–M15) ist das richtig: sie verbieten Tool-Calls in ihren
+        # eigenen Regeln.
+        #
+        # F-neu (2026-08-10): der ALT-Kommentar sprach hier von „Pattern
+        # explicitly set tools=[]" — das tut kein einziges Muster. Sie kommen
+        # durch WEGLASSEN hierher, weil ``phase3_modulate`` den Schlüssel
+        # bedingungslos schreibt (``PatternDef.tools`` hat
+        # ``default_factory=list``). Damit ist dieser Zweig der lebende und die
+        # beiden darunter sind unerreichbar — siehe ``test_pattern_tool_naht``.
         active_tools = []
     elif has_mcp_source:
-        active_tools = TOOL_DEFINITIONS
+        # UNERREICHBAR über ``phase3_modulate`` (F-neu, 2026-08-10): der Zweig
+        # darüber fängt jedes Muster ab, weil ``tools`` immer im Dict steht.
+        # Gemessen an derselben Muster-Definition (``sources: [mcp]``, kein
+        # ``tools``): über den Betriebspfad 0 Werkzeuge, als handgebautes Dict
+        # 23. Bewusst NICHT gelöscht — er ist ALT-Verbatim und hält fest, was
+        # gemeint war; ihn zu beleben wäre eine Produktentscheidung (jedes
+        # Suchmuster bekäme schlagartig den ganzen Katalog).
+        #
+        # ``list(...)`` und NICHT die Modul-Globale selbst: weiter unten hängt
+        # ``active_tools.append(...)`` Werkzeuge an, und eine Referenz hätte
+        # damit in den Katalog geschrieben. Gemessen 2026-08-10 (E2): über fünf
+        # Aufrufe wuchs er 22 → 27, das Modell bekam ``select_top_cards``
+        # fünfmal angeboten — im Betrieb ein Eintrag pro Zug, unbegrenzt. Der
+        # Rückgabewert ist unverändert; nur die Aliasierung entfällt. Damit ist
+        # der ``simplify:``-Vermerk im Modulkopf eingelöst.
+        active_tools = list(TOOL_DEFINITIONS)
     else:
-        # Fallback: search + topic pages
+        # Fallback: search + topic pages — ebenfalls UNERREICHBAR über
+        # ``phase3_modulate`` (F-neu, 2026-08-10), aus demselben Grund wie der
+        # Zweig darüber. Der Plan vermutete hier den Gegenteil-Fehler („neun
+        # Muster bekommen still Such-Werkzeuge, darunter M15, das sie sich
+        # selbst verbietet"); die Messung zeigt, dass kein Muster je hier
+        # ankommt und M15 seine eigene Regel gar nicht verletzen kann.
         fallback_tools = {"search_wlo_collections", "search_wlo_topic_pages"} | INFO_TOOLS
         active_tools = [t for t in TOOL_DEFINITIONS if t["function"]["name"] in fallback_tools]
 
@@ -96,8 +199,17 @@ def _select_active_tools(
     # LLM from "falling back" to collections when content search could
     # satisfy the filter — a pattern we saw it enter after empty
     # collection results.
+    #
+    # R2 (2026-08-11): NICHT bei einem Schreibauftrag. Die Begründung oben trägt
+    # nur, solange der Medientyp ein SUCHFILTER ist. In „Pack das Arbeitsblatt in
+    # meine Sammlung Optik" — der eigenen Trigger-Phrase von I09 — ist er der
+    # Gegenstand, und ``search_wlo_collections`` sucht nicht Material, sondern
+    # das Ziel der Änderung. Gemessen: M18 verlor es und konnte die Sammlung
+    # nicht mehr über ihren Titel finden; es blieb ``browse_collection_tree``,
+    # das eine nodeId oder einen Fachportal-Namen verlangt. Suchmuster (M06,
+    # M09, M12) sind unberührt — sie nennen keine kuratierenden Werkzeuge.
     _classif_entities_top = classification.get("entities", {}) or {}
-    if _classif_entities_top.get("medientyp"):
+    if _classif_entities_top.get("medientyp") and not _pattern_curates(pattern_output):
         before = {t["function"]["name"] for t in active_tools}
         # Welle C.5+ (2026-05-22): zusätzlich ``search_wlo_topic_pages``
         # entfernen. Bei medientyp-Fokus will der User Einzelinhalte mit

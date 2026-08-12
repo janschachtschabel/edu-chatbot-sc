@@ -15,6 +15,7 @@ import {
 } from '@angular/core';
 
 import { RagApi, type RagChunk, type RagDoc, describeRagError } from '../core/rag-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 
 /** Which document is expanded — the pair, because the title is not unique. */
 interface OpenDoc {
@@ -30,6 +31,9 @@ interface OpenDoc {
 })
 export class RagDocumentsComponent {
   private readonly rag = inject(RagApi);
+  private readonly lang = inject(StudioLanguageService);
+  protected readonly t = this.lang.t;
+  protected readonly plural = this.lang.plural;
 
   readonly area = input.required<string>();
   /** Something was deleted here — the area counts above are now stale. */
@@ -70,7 +74,7 @@ export class RagDocumentsComponent {
       this.docs.set(docs);
     } catch (err) {
       if (generation !== this.generation) return;
-      this.loadError.set(describeRagError(err));
+      this.loadError.set(describeRagError(err, this.t));
     } finally {
       if (generation === this.generation) this.loading.set(false);
     }
@@ -105,7 +109,7 @@ export class RagDocumentsComponent {
       this.chunks.set(detail.chunks);
     } catch (err) {
       if (generation !== this.generation) return;
-      this.chunksError.set(describeRagError(err));
+      this.chunksError.set(describeRagError(err, this.t));
     } finally {
       if (generation === this.generation) this.chunksLoading.set(false);
     }
@@ -131,7 +135,7 @@ export class RagDocumentsComponent {
       await this.load(this.area());
       this.changed.emit();
     } catch (err) {
-      this.deleteError.set(describeRagError(err));
+      this.deleteError.set(describeRagError(err, this.t));
     } finally {
       this.deleting.set(false);
     }

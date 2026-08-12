@@ -1,14 +1,10 @@
 <section class="epu" aria-labelledby="epu-title">
-  <h3 class="epu-title" id="epu-title">Pattern-Nutzung</h3>
-  <p class="epu-intro">
-    Gezählt aus <code>quality_logs</code>, also unabhängig vom Eval-Motor: hier
-    stehen echte Turns genauso wie Eval-Turns. Der Bereich entscheidet, welche
-    Frage die Zahlen beantworten.
-  </p>
+  <h3 class="epu-title" id="epu-title">{{ t('eval.tab.pattern') }}</h3>
+  <p class="epu-intro"><studio-rich [parts]="rich('evalPattern.intro')" /></p>
 
   <form class="epu-filter" (submit)="$event.preventDefault(); reload()">
     <p class="epu-field">
-      <label for="epu-scope">Bereich</label>
+      <label for="epu-scope">{{ t('evalPattern.scope.label') }}</label>
       <select
         id="epu-scope"
         class="epu-input"
@@ -16,13 +12,13 @@
         (change)="setScope($any($event.target).value)"
       >
         @for (option of scopes; track option.value) {
-          <option [value]="option.value">{{ option.label }}</option>
+          <option [value]="option.value">{{ t(option.key) }}</option>
         }
       </select>
     </p>
 
     <p class="epu-field">
-      <label for="epu-since">Ab Datum</label>
+      <label for="epu-since">{{ t('evalPattern.since.label') }}</label>
       <input
         id="epu-since"
         class="epu-input"
@@ -31,66 +27,60 @@
         (change)="setSince($any($event.target).value)"
         aria-describedby="epu-since-hint"
       />
-      <span class="epu-hint" id="epu-since-hint">leer = das ganze Log</span>
+      <span class="epu-hint" id="epu-since-hint">{{ t('evalPattern.since.hint') }}</span>
     </p>
 
     <button type="button" class="epu-btn" [disabled]="usage.loading()" (click)="reload()">
-      {{ usage.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+      {{ usage.loading() ? t('action.refreshing') : t('action.refresh') }}
     </button>
   </form>
 
   <studio-async-state
     class="epu-state"
-    label="Die Pattern-Nutzung"
+    [label]="t('eval.tab.pattern')"
     [loading]="usage.loading() && triples().length === 0"
     [error]="usage.error()"
     [empty]="isEmpty()"
-    emptyText="Noch keine Turns in diesem Bereich. Ein Chat oder ein Eval-Lauf
-      füllt das Log; ein „Ab Datum“ in der Zukunft leert es auch."
+    [emptyText]="t('evalPattern.empty')"
     (retry)="reload()"
   />
 
-  @if (value(); as usage) {
-    @if (triples().length > 0) {
-      <p class="epu-total">
-        <strong>{{ count(usage.total) }} Turns</strong> in
-        {{ count(triples().length) }} Kombinationen aus Pattern, Intent und Persona.
-      </p>
+  <!-- Eine Bedingung statt zweier geschachtelter: `triples()` liest `value()`,
+       eine nicht-leere Liste setzt die Antwort also schon voraus. Die äussere
+       Hülle trug bis C1-d4b3 einen Alias, den nur die Summenzeile brauchte. -->
+  @if (triples().length > 0) {
+    <p class="epu-total"><studio-rich [parts]="totalParts()" /></p>
 
-      <div class="epu-cols">
-        <studio-quality-bars [data]="byPattern()" caption="Turns je Pattern" />
-        <studio-quality-bars [data]="byIntent()" caption="Turns je Intent" />
-      </div>
+    <div class="epu-cols">
+      <studio-quality-bars [data]="byPattern()" [caption]="t('evalPattern.bars.pattern')" />
+      <studio-quality-bars [data]="byIntent()" [caption]="t('evalPattern.bars.intent')" />
+    </div>
 
-      <div class="epu-table-wrap">
-        <table class="epu-table">
-          <caption class="epu-caption">
-            Jede Kombination einzeln, häufigste zuerst. Die Konfidenz ist der
-            Mittelwert der Turns dieser Kombination.
-          </caption>
-          <thead>
+    <div class="epu-table-wrap">
+      <table class="epu-table">
+        <caption class="epu-caption">{{ t('evalPattern.table.caption') }}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{{ t('evalPattern.col.pattern') }}</th>
+            <th scope="col">{{ t('evalPattern.col.intent') }}</th>
+            <th scope="col">{{ t('evalPattern.col.persona') }}</th>
+            <th scope="col">{{ t('evalPattern.col.turns') }}</th>
+            <th scope="col">{{ t('evalPattern.col.confidence') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (triple of triples(); track
+                triple.pattern_id + '|' + triple.intent_id + '|' + triple.persona_id) {
             <tr>
-              <th scope="col">Pattern</th>
-              <th scope="col">Intent</th>
-              <th scope="col">Persona</th>
-              <th scope="col">Turns</th>
-              <th scope="col">Ø Konfidenz</th>
+              <th scope="row">{{ id(triple.pattern_id) }}</th>
+              <td>{{ id(triple.intent_id) }}</td>
+              <td>{{ id(triple.persona_id) }}</td>
+              <td>{{ count(triple.count) }}</td>
+              <td>{{ confidence(triple.avg_conf) }}</td>
             </tr>
-          </thead>
-          <tbody>
-            @for (triple of triples(); track
-                  triple.pattern_id + '|' + triple.intent_id + '|' + triple.persona_id) {
-              <tr>
-                <th scope="row">{{ id(triple.pattern_id) }}</th>
-                <td>{{ id(triple.intent_id) }}</td>
-                <td>{{ id(triple.persona_id) }}</td>
-                <td>{{ count(triple.count) }}</td>
-                <td>{{ confidence(triple.avg_conf) }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    }
+          }
+        </tbody>
+      </table>
+    </div>
   }
 </section>

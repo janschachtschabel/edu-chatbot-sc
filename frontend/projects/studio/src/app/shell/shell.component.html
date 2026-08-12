@@ -2,13 +2,13 @@
   Shell chrome (P9-2). ALT put all of this in page.tsx with `<button onClick>`
   nav items and no skip link, no aria-current, no responsive behaviour.
 -->
-<a class="skip" href="#studio-main">Zum Inhalt springen</a>
+<a class="skip" href="#studio-main">{{ t('studio.skipToContent') }}</a>
 
 <header class="header">
   <!-- ALT made the <h1> itself the click-to-home affordance, which is neither
        focusable nor activatable by keyboard. The link is the interactive part. -->
   <h1 class="brand">
-    <a routerLink="/">BOERDi Studio</a>
+    <a routerLink="/">{{ t('studio.title') }}</a>
   </h1>
 
   <button
@@ -18,18 +18,21 @@
     aria-controls="studio-nav"
     (click)="toggleNav()"
   >
-    {{ navOpen() ? 'Navigation schließen' : 'Navigation' }}
+    {{ navOpen() ? t('studio.nav.close') : t('studio.nav.label') }}
   </button>
 
   <div class="header-tools">
     <studio-status-indicator />
+    <!-- Der Umschalter steht bewusst AUSSERHALB des `@if (!gateOpen())`:
+         ein Studio ohne Passwort hätte sonst gar keine Sprachwahl (C1-d1). -->
+    <studio-language-switcher />
     <!-- ALT's three header tools (Snapshots, Backup, Restore) are the "Sicherung"
          view since 9-6 — reachable from the sidebar, deep-linkable, and without a
          hand-rolled modal (backup.component.ts). A second entry point here would
          only duplicate it. The logout button is §5.6's V8 addition (auth). -->
     @if (!gateOpen()) {
-      <button type="button" class="btn" (click)="logout()" [disabled]="loggingOut()">
-        {{ loggingOut() ? 'Melde ab …' : 'Abmelden' }}
+      <button type="button" class="btn logout" (click)="logout()" [disabled]="loggingOut()">
+        {{ loggingOut() ? t('studio.loggingOut') : t('studio.logout') }}
       </button>
     }
   </div>
@@ -39,11 +42,11 @@
   <!-- `inert` keeps the collapsed drawer out of the tab order on narrow screens
        without hiding it from the wide-screen layout. -->
   <aside class="sidebar" id="studio-nav" [class.sidebar--open]="navOpen()">
-    <nav class="nav" aria-label="Konfigurationsbereiche">
-      @for (group of navGroups; track group.title) {
+    <nav class="nav" [attr.aria-label]="t('studio.nav.areas')">
+      @for (group of navGroups; track group.titleKey) {
         <div class="nav-group">
-          @if (group.title) {
-            <h2 class="nav-group-title">{{ group.title }}</h2>
+          @if (group.titleKey; as titleKey) {
+            <h2 class="nav-group-title">{{ t(titleKey) }}</h2>
           }
           <ul class="nav-list">
             @for (view of group.views; track view.slug) {
@@ -56,8 +59,8 @@
                   [attr.aria-current]="link.isActive ? 'page' : null"
                   (click)="closeNavOnNarrow()"
                 >
-                  <span class="nav-label">{{ view.label }}</span>
-                  <span class="nav-desc">{{ view.desc }}</span>
+                  <span class="nav-label">{{ t(view.labelKey) }}</span>
+                  <span class="nav-desc">{{ t(view.descKey) }}</span>
                 </a>
               </li>
             }
@@ -67,7 +70,7 @@
     </nav>
   </aside>
 
-  <main class="main" id="studio-main" tabindex="-1">
-    <router-outlet />
+  <main class="main" id="studio-main" tabindex="-1" #main>
+    <router-outlet (activate)="onViewActivated()" />
   </main>
 </div>

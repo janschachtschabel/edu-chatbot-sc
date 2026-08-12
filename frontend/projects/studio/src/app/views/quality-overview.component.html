@@ -1,18 +1,17 @@
 @if (value()) {
   <div class="qo-bar">
     <button type="button" class="qo-reload" [disabled]="stats.loading()" (click)="reload()">
-      {{ stats.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+      {{ stats.loading() ? t('action.refreshing') : t('action.refresh') }}
     </button>
   </div>
 }
 
 <studio-async-state
-  label="Kennzahlen"
+  [label]="t('qual.stats.label')"
   [loading]="stats.loading()"
   [error]="stats.error()"
   [empty]="isEmpty()"
-  emptyText="Noch keine Turns aufgezeichnet. Sobald jemand mit dem Widget chattet, sammeln
-             sich hier Verteilungen und Diagnosen."
+  [emptyText]="t('qual.stats.empty')"
   (retry)="reload()"
 />
 
@@ -20,38 +19,33 @@
   @if (!isEmpty()) {
     <dl class="qo-kpis">
       <div class="qo-kpi">
-        <dt>Turns gesamt</dt>
+        <dt>{{ t('qual.kpi.turns') }}</dt>
         <dd>{{ whole(stats.total_turns) }}</dd>
       </div>
       <div class="qo-kpi">
-        <dt>Ø Confidence</dt>
+        <dt>{{ t('qual.kpi.confidence') }}</dt>
         <dd>{{ decimal(stats.avg_confidence) }}</dd>
       </div>
       <div class="qo-kpi">
-        <dt>Degradation-Rate</dt>
+        <dt>{{ t('qual.kpi.degradation') }}</dt>
         <dd>{{ percent(stats.degradation_rate) }}</dd>
       </div>
       <div class="qo-kpi">
-        <dt>Leere Entities</dt>
+        <dt>{{ t('qual.emptyEntities') }}</dt>
         <dd>{{ percent(stats.empty_entity_rate) }}</dd>
       </div>
       <div class="qo-kpi">
-        <dt>Ø Antwortlänge</dt>
-        <dd>{{ whole(stats.avg_response_length) }}<span class="qo-unit">Zeichen</span></dd>
+        <dt>{{ t('qual.kpi.length') }}</dt>
+        <dd>{{ whole(stats.avg_response_length) }}<span class="qo-unit">{{
+          t('qual.kpi.chars') }}</span></dd>
       </div>
     </dl>
 
-    <p class="qo-note">
-      Ohne Score-Phase: die Pattern-Wahl folgt seit Welle E v4 direkt dem Hinweis des
-      Classifiers, statt Kandidaten gegeneinander zu bewerten. „Ø Score-Gap" und
-      „Tight Races" wären deshalb für jeden Turn 0 und werden hier nicht angezeigt.
-      Uneindeutige Zuordnungen sieht man stattdessen unter „Unsichere Einordnung"
-      und in der Routing-Matrix.
-    </p>
+    <p class="qo-note">{{ t('qual.note') }}</p>
 
     @if (hints().length > 0) {
       <aside class="qo-hints">
-        <h3 class="qo-hints-title">Auffällig</h3>
+        <h3 class="qo-hints-title">{{ t('qual.hints.title') }}</h3>
         <ul>
           @for (hint of hints(); track hint) {
             <li>{{ hint }}</li>
@@ -62,10 +56,16 @@
 
     <div class="qo-charts">
       <section class="qo-chart">
-        <studio-quality-bars caption="Pattern-Verteilung" [data]="stats.pattern_distribution" />
+        <studio-quality-bars
+          [caption]="t('qual.chart.patterns')"
+          [data]="stats.pattern_distribution"
+        />
       </section>
       <section class="qo-chart">
-        <studio-quality-bars caption="Intent-Verteilung" [data]="stats.intent_distribution" />
+        <studio-quality-bars
+          [caption]="t('qual.chart.intents')"
+          [data]="stats.intent_distribution"
+        />
       </section>
     </div>
 

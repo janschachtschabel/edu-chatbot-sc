@@ -1,0 +1,106 @@
+# Kontext-Aktionen (Studio-pflegbar) — Begrüßung + Aktions-Pills, die der
+# Chatbot proaktiv anbietet, wenn er auf einer Sammlungs-, Inhalts- oder
+# Themenseite eingebettet ist. Backend-getrieben: das Widget rendert nur
+# content + quick_replies. Änderungen wirken live (mtime-Cache).
+#
+# Pill-kinds:
+#   action  -> Direct-Action-Pill (encodiert als __action__|Label|action|params)
+#   text    -> sendet das Label als normale Nachricht (Normalfluss)
+#   report  -> Guide-Link-Pill (__guide__|Label|report_url) zum Melden
+context_actions:
+  enabled: true
+
+  # {node_id} / {collection_id} werden vom Dispatcher ersetzt. Der Param ist
+  # unschädlich, falls die WLO-Formularseite ihn (noch) nicht auswertet.
+  report_url: "https://wirlernenonline.de/mitmachen/inhalt-vorschlagen/?type=quelle&node={node_id}#esform"
+
+  # Unsere eigenen Seiten. Exakte Hostnamen oder `*.example.com`; `www.`, Port
+  # und Groß-/Kleinschreibung spielen keine Rolle. Nur wirksam, wenn der
+  # URL-Erkenner die Seite NICHT einordnen konnte — eine erkannte Sammlung
+  # bleibt eine Sammlung, auch auf einem eigenen Host.
+  #
+  # Die Repository-Hosts gehören zwingend dazu, nicht nur die WordPress-Seiten:
+  # dort gibt es Seiten, die auf kein Muster passen (z.B.
+  # /edu-sharing/components/workspace). Ohne sie böte der Bot an, eine
+  # WLO-eigene Seite „in WLO aufzunehmen". Leere Liste = alles gilt als fremd.
+  own_hosts:
+    - wirlernenonline.de
+    - wissenlebt.online
+    - repository.staging.openeduhub.net
+    - redaktion.openeduhub.net
+
+  # {title} wird durch den Seitentitel ersetzt — er muss in BEIDEN Fassungen
+  # stehen, sonst grüßt der Bot, ohne zu sagen, wo der Nutzer gerade ist.
+  greetings:
+    collection: "Du bist gerade in der Sammlung „{title}“. Ich kenne ihren Inhalt — womit kann ich helfen?"
+    content: "Du schaust dir gerade „{title}“ an. Ich kann Fragen dazu beantworten — oder direkt:"
+    topic: "Du bist auf der Themenseite „{title}“. Ich kenne ihre Struktur — womit kann ich helfen?"
+    # Diese drei Arten sind KEIN WLO-Objekt — es gibt keinen Knoten mit einem
+    # Titel. Ihr Platzhalter heißt deshalb {query} bzw. {host}; {title} bliebe
+    # hier als Text stehen.
+    search: "Du siehst gerade die Treffer zu „{query}“. Ich kann die Suche verfeinern oder etwas dazu erklären."
+    home: "Du befindest Dich auf {host}. Womit fangen wir an?"
+    external: "Du bist auf {host} — das gehört nicht zu WLO. Ich kann mir die Seite ansehen und sie für den Bestand vorschlagen."
+
+  # Englische Fassung (C1-g2b). Leer lassen heißt „nicht gepflegt" — dann
+  # zeigt der Bot die deutsche Fassung, nie einen leeren Gruß.
+  greetings_en:
+    collection: "You are in the “{title}” collection. I know what is in it — how can I help?"
+    content: "You are looking at “{title}”. I can answer questions about it — or go straight to:"
+    topic: "You are on the “{title}” topic page. I know how it is structured — how can I help?"
+    search: "You are looking at the results for “{query}”. I can narrow the search down or explain something about it."
+    home: "You are on {host}. Where shall we start?"
+    external: "You are on {host} — that is outside WLO. I can look at the page and suggest it for the collection."
+
+  # label_en ist bei `kind: text` KEINE reine Anzeige: der Klick sendet die
+  # Beschriftung als Nachricht. Sie muss deshalb in der Sprache des Nutzers
+  # stehen — sonst schickt ein englischer Nutzer deutschen Text.
+  pills:
+    collection:
+      - { label: "Sammlung erkunden",           label_en: "Explore collection",       kind: action, action: browse_collection }
+      - { label: "Sammlung kuratieren",         label_en: "Curate collection",        kind: action, action: curate_collection }
+      - { label: "Passende Inhalte suchen",     label_en: "Find matching content",    kind: text }
+      - { label: "Neuen Inhalt dazu erstellen", label_en: "Create new content on it", kind: text }
+      - { label: "Inhalt melden",               label_en: "Report content",           kind: report }
+    content:
+      - { label: "Worum geht es hier?",         label_en: "What is this about?",      kind: text }
+      - { label: "Ähnliche Inhalte suchen",     label_en: "Find similar content",     kind: text }
+      - { label: "Neuen Inhalt dazu erstellen", label_en: "Create new content on it", kind: text }
+      - { label: "Inhalt melden",               label_en: "Report content",           kind: report }
+    topic:
+      - { label: "Überblick über diese Themenseite", label_en: "Overview of this topic page", kind: text }
+      - { label: "Sammlung kuratieren",         label_en: "Curate collection",        kind: action, action: curate_collection }
+      - { label: "Passende Inhalte suchen",     label_en: "Find matching content",    kind: text }
+      - { label: "Neuen Inhalt dazu erstellen", label_en: "Create new content on it", kind: text }
+      - { label: "Inhalt melden",               label_en: "Report content",           kind: report }
+    search:
+      - { label: "Suche verfeinern",            label_en: "Narrow the search down",   kind: text }
+      - { label: "Passende Sammlungen dazu",    label_en: "Matching collections",     kind: text }
+    home:
+      - { label: "Was kann ich hier finden?",   label_en: "What can I find here?",    kind: text }
+      - { label: "Material zu einem Thema suchen", label_en: "Find material on a topic", kind: text }
+    # WÖRTLICH aus M20s `trigger_phrases`. Die Beschriftung eines `text`-Chips
+    # IST die gesendete Nachricht: sie muss das Erschliessungs-Muster auslösen,
+    # nicht nur gut klingen. Eine frei formulierte Zeile wäre eine Schaltfläche,
+    # die nichts tut. `action` scheidet aus — es gibt keine Direkt-Aktion fürs
+    # Erschliessen, der Weg führt über M20.
+    external:
+      - { label: "Nimm diese Seite in WLO auf", label_en: "Add this page to WLO",     kind: text }
+      - { label: "Was steht auf der Seite, und passt das zu uns", label_en: "What is on this page, and does it fit us", kind: text }
+
+  # Zweite Lesart von `external`: die Dublettenprüfung hat die Seite im Bestand
+  # gefunden. Dann darf der Bot das Aufnehmen NICHT anbieten — ein zweiter
+  # Datensatz zur selben Adresse ist die häufigste vermeidbare Verschmutzung
+  # (M20, Schritt 2). {title} ist der Titel des GEFUNDENEN Eintrags.
+  # Keine eigene Seitenart: sonst könnte ein Widget sie als page_kind senden.
+  duplicate_greeting: "Diese Seite gibt es in WLO schon: „{title}“."
+  duplicate_greeting_en: "This page is already in WLO: “{title}”."
+  duplicate_pill_label: "Den vorhandenen Eintrag ansehen"
+  duplicate_pill_label_en: "Open the existing entry"
+
+  # Anweisung für die Kuratier-Aktion (Soll-vs-Ist-Abgleich).
+  curate_prompt: |
+    Das Kompendium beschreibt, was die Sammlung inhaltlich abdecken SOLL. Die
+    Inhaltsliste zeigt, was IST. Nenne konkret: (1) gut abgedeckte Kernthemen,
+    (2) Lücken (im Kompendium beschrieben, aber ohne passenden Inhalt),
+    (3) je Lücke einen konkreten Suchvorschlag.

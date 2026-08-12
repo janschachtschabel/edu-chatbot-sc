@@ -2,8 +2,7 @@
   <div class="sf-row">
     <label class="sf-label" [for]="fieldId()">{{ label() }}</label>
     <p class="sf-mismatch" [id]="fieldId() + '-shape'">
-      Der gespeicherte Wert ist {{ actualShape() }}, das Bereichsmodell erwartet hier
-      {{ expectedShape() }}. Er wird als JSON gezeigt, damit nichts still verloren geht.
+      {{ t('schemaField.mismatch', { actual: actualShape(), expected: expectedShape() }) }}
     </p>
     <studio-json-value
       [fieldId]="fieldId()"
@@ -44,11 +43,14 @@
         <p class="sf-desc" [id]="descId()">{{ field().description }}</p>
       }
       @if (items().length === 0) {
-        <p class="sf-empty">Noch keine Einträge.</p>
+        <p class="sf-empty">{{ t('schemaField.emptyList') }}</p>
       } @else {
         <ol class="sf-entries" role="list">
           @for (item of items(); track $index) {
             <li class="sf-entry">
+              <!-- „Tools 2": ein Name aus einem schon übersetzten Wort und einer
+                   Zahl. Kein Satz, also auch kein Katalog-Eintrag — hier ist
+                   nichts zu übersetzen, was nicht schon übersetzt wäre. -->
               <studio-schema-field
                 [field]="field().item!"
                 [path]="childPath($index)"
@@ -60,11 +62,11 @@
               <button
                 type="button"
                 class="sf-remove"
-                [attr.aria-label]="'Eintrag ' + ($index + 1) + ' aus ' + groupLabel() + ' entfernen'"
+                [attr.aria-label]="
+                  t('schemaField.removeIndex', { index: $index + 1, group: groupLabel() })
+                "
                 (click)="removeItem($index)"
-              >
-                Entfernen
-              </button>
+              >{{ t('schemaField.remove') }}</button>
             </li>
           }
         </ol>
@@ -72,11 +74,9 @@
       <button
         type="button"
         class="sf-add"
-        [attr.aria-label]="'Eintrag zu ' + groupLabel() + ' hinzufügen'"
+        [attr.aria-label]="t('schemaField.addTo', { group: groupLabel() })"
         (click)="addItem()"
-      >
-        + Eintrag
-      </button>
+      >{{ t('schemaField.add') }}</button>
     </fieldset>
   }
 
@@ -89,13 +89,15 @@
         <p class="sf-desc" [id]="descId()">{{ field().description }}</p>
       }
       @if (entries().length === 0) {
-        <p class="sf-empty">Noch keine Einträge.</p>
+        <p class="sf-empty">{{ t('schemaField.emptyList') }}</p>
       } @else {
         <ul class="sf-entries" role="list">
           @for (entry of entries(); track entry.key) {
             <li class="sf-entry">
               <div class="sf-row">
-                <label class="sf-label" [for]="fieldId() + '-key-' + $index">Schlüssel</label>
+                <label class="sf-label" [for]="fieldId() + '-key-' + $index">
+                  {{ t('schemaField.key') }}
+                </label>
                 <input
                   class="sf-input"
                   type="text"
@@ -128,11 +130,9 @@
               <button
                 type="button"
                 class="sf-remove"
-                [attr.aria-label]="'Eintrag ' + entry.key + ' entfernen'"
+                [attr.aria-label]="t('schemaField.removeKey', { key: entry.key })"
                 (click)="removeEntry(entry.key)"
-              >
-                Entfernen
-              </button>
+              >{{ t('schemaField.remove') }}</button>
             </li>
           }
         </ul>
@@ -140,11 +140,9 @@
       <button
         type="button"
         class="sf-add"
-        [attr.aria-label]="'Eintrag zu ' + groupLabel() + ' hinzufügen'"
+        [attr.aria-label]="t('schemaField.addTo', { group: groupLabel() })"
         (click)="addEntry()"
-      >
-        + Eintrag
-      </button>
+      >{{ t('schemaField.add') }}</button>
     </fieldset>
   }
 
@@ -153,7 +151,7 @@
       <label class="sf-label" [for]="fieldId()">
         {{ label() }}
         @if (field().required) {
-          <span class="sf-required">(Pflichtfeld)</span>
+          <span class="sf-required">{{ t('schemaField.required') }}</span>
         }
       </label>
       @if (field().description) {

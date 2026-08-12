@@ -29,6 +29,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from boerdi.obs import usage as usage_mod
 from boerdi.services import llm
 from boerdi.services.mcp import arg_resolvers as ar
 from boerdi.settings import get_settings
@@ -76,7 +77,7 @@ def _wire_llm(monkeypatch, content):
     async def fake_acompletion(**kwargs):
         zaehler["calls"] += 1
         return SimpleNamespace(
-            model="gpt-5.4-mini",
+            model="gpt-5.6-luna",
             choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
             usage=SimpleNamespace(
                 prompt_tokens=10, completion_tokens=5,
@@ -413,3 +414,50 @@ def test_tool_preprocessor_registry_verdrahtung():
     assert ar.TOOL_PREPROCESSORS["search_wlo_all"] is ar._resolve_filter_uris
     assert ar.TOOL_PREPROCESSORS["browse_collection_tree"] is ar._resolve_browse_node_id
     assert ar.TOOL_PREPROCESSORS["get_collection_contents"] is ar._resolve_collection_node_id
+
+
+# ═══ K1e: der Vokabular-Abgleich bucht seine Token ════════════════════════
+# Gemessen am 2026-08-11 gegen die echten WLO-Vokabulare: ein Aufruf traegt
+# das GANZE Vokabular im Prompt — 2422 (discipline) bzw. 2727 (lrt) Token.
+# Der Merkposten kommt nicht als Parameter, sondern aus dem ContextVar des
+# Zuges (Begruendung in obs/usage.py).
+
+def test_llm_vocab_match_bucht_in_den_zug_merkposten(ar_state, monkeypatch):
+    ar._label_to_uri_cache["lrt"]["interaktiv"] = "http://x/im"
+    _wire_llm(monkeypatch, "http://x/im")
+    acc = usage_mod.new_accumulator()
+    usage_mod.bind_turn_usage(acc)
+    try:
+        assert asyncio.run(ar._llm_vocab_match("lrt", "Simulation")) == "http://x/im"
+    finally:
+        usage_mod.bind_turn_usage(None)
+
+    assert acc["calls"] == 1
+    assert acc["prompt_tokens"] == 10 and acc["completion_tokens"] == 5
+    assert acc["per_phase"]["vocab_match"]["prompt"] == 10
+
+
+def test_llm_vocab_match_cache_treffer_bucht_nichts(ar_state, monkeypatch):
+    # Ein Treffer im Prozess-Cache macht keinen LLM-Aufruf, kostet also nichts
+    # und darf folglich auch nichts buchen.
+    ar._label_to_uri_cache["lrt"]["interaktiv"] = "http://x/im"
+    _wire_llm(monkeypatch, "http://x/im")
+    acc = usage_mod.new_accumulator()
+    usage_mod.bind_turn_usage(acc)
+    try:
+        asyncio.run(ar._llm_vocab_match("lrt", "Simulation"))
+        asyncio.run(ar._llm_vocab_match("lrt", "Simulation"))
+    finally:
+        usage_mod.bind_turn_usage(None)
+
+    assert acc["calls"] == 1
+
+
+def test_llm_vocab_match_ohne_zug_bucht_nicht_und_faellt_nicht_um(
+        ar_state, monkeypatch):
+    # Start-Vorwaermung und Werkzeug-Aufrufe ausserhalb eines Zuges haben
+    # keinen Merkposten. Das ist kein Fehlerfall — es darf nur nicht knallen.
+    ar._label_to_uri_cache["lrt"]["interaktiv"] = "http://x/im"
+    _wire_llm(monkeypatch, "http://x/im")
+    usage_mod.bind_turn_usage(None)
+    assert asyncio.run(ar._llm_vocab_match("lrt", "Simulation")) == "http://x/im"

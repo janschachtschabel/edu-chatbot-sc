@@ -16,6 +16,7 @@
  * LIVE-`sessionId` rufen.
  */
 import { ChatResponse } from '../grouping/message-types';
+import type { TranslateFn } from '../i18n/i18n';
 import { ChatStreamEvent } from '../stream/stream-client';
 
 /** Live-Zustand/Seiteneffekte der Shell, die der Orchestrator braucht — als
@@ -58,13 +59,9 @@ export interface SendMessageContext {
   /** Erfolgs-Seiteneffekte (Tour/latestDebug/query-meta/page-action/Guides/
    *  autoSpeak) — Shell-verdrahtet in 8-4S-d/e/g, ALT-Sequenz + Gates dort. */
   onResult: (resp: ChatResponse, userMessage: string) => void;
+  /** Übersetzer für Stale- und Fehler-Bubble (C1-b4). */
+  t: TranslateFn;
 }
-
-/** Stale-Meldung, wenn der Stream 100 s lang nicht fertig wird (B10). */
-const STALE_MESSAGE =
-  'Das dauert gerade ungewöhnlich lange — bitte stell deine Frage '
-  + 'gleich noch einmal. Falls meine Antwort doch noch fertig '
-  + 'geworden ist, findest du sie beim nächsten Öffnen im Verlauf.';
 
 /**
  * Einen Chat-Turn abwickeln. `text` leer → Rückgriff aufs Eingabefeld
@@ -111,7 +108,7 @@ export async function runSendMessage(
       // serverseitig fertig gespeichert und steht im Verlauf.
       if ((streamErr as Error)?.name === 'StreamStaleError') {
         ctx.removeMessage(loadingId);
-        const staleId = ctx.addBotMessage(STALE_MESSAGE);
+        const staleId = ctx.addBotMessage(ctx.t('error.stale'));
         ctx.setScrollTarget(staleId);
         ctx.setLoading(false);
         ctx.focusInput();
@@ -138,7 +135,7 @@ export async function runSendMessage(
     ctx.onResult(resp, msg);
   } catch {
     ctx.removeMessage(loadingId);
-    const errId = ctx.addBotMessage('Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut.');
+    const errId = ctx.addBotMessage(ctx.t('error.generic'));
     ctx.setScrollTarget(errId);
   }
 

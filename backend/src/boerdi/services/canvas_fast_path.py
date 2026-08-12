@@ -34,21 +34,54 @@ Verdrahtung in den Route-Node (neben ``run_lp_fast_path``) folgt als eigener Sli
 from __future__ import annotations
 
 import logging
-from typing import Any, NamedTuple
+from typing import Any, Final, NamedTuple
 
 from boerdi.domain.canvas.intent import (
     extract_material_type_from_message,
     named_artifact_label,
     resolve_material_type,
 )
-from boerdi.domain.canvas.types import get_material_types, get_type_aliases
+from boerdi.domain.canvas.types import (
+    get_material_types,
+    get_type_aliases,
+    material_type_label,
+)
 from boerdi.domain.completion_messages import _canvas_completion_message
+from boerdi.i18n import DEFAULT, Locale, bot_text, resolve_locale
 from boerdi.services.canvas_service import (
     generate_canvas_content,
     material_type_quick_replies_for_persona,
 )
 
 logger = logging.getLogger(__name__)
+
+# Welle E v4+11 (2026-05-26, eval-f6f56-Befund): Validator akzeptiert mehrere
+# Lösungs-Formate:
+#   1. ## Lösungen / Loesungen / Musterlösung (Heading)
+#   2. **Lösungen:** als Bold-Header
+#   3. „Lösung 1:" / „Lösung zu Aufgabe 1:" als nummerierte Zeilen
+#      (``.{0,30}`` fängt „Lösung zu Aufgabe 1", „Lösung Teil A", „Lösung Nr. 3")
+#   4. ## Antworten / ## Auflösung
+#
+# **C1-f2b2 — sprachabhängig.** Der Wächter liest das Markdown, das wir gerade
+# selbst erzeugt haben; dessen Sprache ist seit C1-f2a die des Nutzers. Mit den
+# deutschen Mustern allein griff er bei englischem Material NIE — jedes
+# englische Arbeitsblatt bekam einen deutschen Stub angehängt. Muster, keine
+# Prosa: sie gehören deshalb nicht in ``i18n/bot_text``.
+_SOLUTIONS_PATTERNS: Final[dict[Locale, tuple[str, ...]]] = {
+    "de": (
+        r"(?im)^#{1,3}\s*(lösungen|loesungen|musterlösung|musterloesung|"
+        r"lösungsteil|antworten|auflösung|aufloesung)\b",
+        r"(?im)^\*\*(lösungen?|loesungen?|antworten):?\*\*",
+        r"(?im)^\s*(lösung|loesung)(\s+.{0,30})?\s*[:.]",
+    ),
+    "en": (
+        r"(?im)^#{1,3}\s*(solutions?|answers?|answer\s+key|"
+        r"sample\s+solutions?|worked\s+solutions?)\b",
+        r"(?im)^\*\*(solutions?|answers?|answer\s+key):?\*\*",
+        r"(?im)^\s*(solution|answer)(\s+.{0,30})?\s*[:.]",
+    ),
+}
 
 
 class CanvasFastPathResult(NamedTuple):
@@ -78,15 +111,28 @@ async def run_canvas_create_fast_path(
     lp_routed: bool,
     tools_called: list[str],
     new_state: str,
+    frame_exhausted: bool = False,
+    usage_acc: dict | None = None,
 ) -> CanvasFastPathResult:
     """Run the canvas-create fast-path; see the module docstring for the port.
 
-    Returns a :class:`CanvasFastPathResult`; not routed (``lp_routed`` or the
-    winning intent is not I05) ⇒ ``routed=False`` with the input
-    ``tools_called``/``new_state`` echoed and the helper defaults elsewhere.
+    ``usage_acc`` (K1c) is the turn's token accumulator, handed to the material
+    generator. NEU-addition over ALT, mirroring the LP fast-path, which carries
+    one since its port.
+
+    Returns a :class:`CanvasFastPathResult`; not routed (``lp_routed``, the
+    winning intent is not I05, or ``frame_exhausted``) ⇒ ``routed=False`` with
+    the input ``tools_called``/``new_state`` echoed and the helper defaults
+    elsewhere.
+
+    ``frame_exhausted`` (B3) ist NEU gegenüber ALT: der Klärer hat seine
+    Versuche verbraucht, ohne dass ein Slot dazukam. Dann muss dieser Pfad
+    zurücktreten, denn er ist der ZWEITE Erzeuger derselben Rückfrage — sein
+    Eintritt hängt allein am Intent, nicht am gewählten Muster.
     """
     response_text = ""
     wlo_cards_raw: list[dict] = []
+    _lang = resolve_locale(req.environment.locale)
     # ── Canvas-Create via natural text (I05 + M10) ────────
     # User tippt z.B. "Erstelle ein Arbeitsblatt zur Photosynthese"
     # → Classifier setzt I05, Pattern-Engine waehlt M10
@@ -99,6 +145,7 @@ async def run_canvas_create_fast_path(
     # In that case we want to show the material-type degradation, not fall
     # through to a generic M03 Clarification response.
     if (not lp_routed
+            and not frame_exhausted
             and classification.intent_id == "I05"):
         # Topic priority (fixes "stale topic" bug, same logic as material_typ):
         # 1. classifier extraction from THIS turn
@@ -383,7 +430,11 @@ async def run_canvas_create_fast_path(
 
         if _c_topic and _mt_key:
             _mts_flow = get_material_types()
-            _label = _requested_label or _mts_flow[_mt_key]["label"]
+            # C1-g2e: der Name landet in der Fertig-Meldung („Dein Arbeitsblatt
+            # zu X ist fertig") — er muss dieselbe Sprache sprechen wie sie.
+            _label = _requested_label or material_type_label(
+                _mts_flow[_mt_key], _lang
+            )
             _emoji = _mts_flow[_mt_key]["emoji"]
             try:
                 # Welle E v4++ (2026-05-26): formality aus pattern_output
@@ -397,6 +448,8 @@ async def run_canvas_create_fast_path(
                     memory_context=memory_context,
                     formality=_formality_for_material,
                     requested_label=_requested_label,
+                    lang=resolve_locale(req.environment.locale),
+                    usage_acc=usage_acc,
                 )
                 # Welle E v4+5 (2026-05-26, eval-185e): Lösungen-Pflicht
                 # bei aufgabenbasiertem Material. Bei Arbeitsblatt/Quiz/
@@ -409,37 +462,22 @@ async def run_canvas_create_fast_path(
                 )
                 if _needs_loesungen and _md:
                     import re as _re_loes
-                    # Welle E v4+11 (2026-05-26, eval-f6f56-Befund): Validator
-                    # akzeptiert jetzt mehrere Lösungs-Formate:
-                    #   1. ## Lösungen / Loesungen / Musterlösung (Heading)
-                    #   2. **Lösungen:** als Bold-Header
-                    #   3. „Lösung 1:" / „Lösung zu Aufgabe 1:" als nummerierte Zeilen
-                    #   4. ## Antworten / ## Auflösung
-                    _has_loes = bool(_re_loes.search(
-                        r"(?im)^#{1,3}\s*(lösungen|loesungen|musterlösung|musterloesung|"
-                        r"lösungsteil|antworten|auflösung|aufloesung)\b",
-                        _md,
-                    )) or bool(_re_loes.search(
-                        r"(?im)^\*\*(lösungen?|loesungen?|antworten):?\*\*",
-                        _md,
-                    )) or bool(_re_loes.search(
-                        # "Lösung X:" oder "Lösung zu Aufgabe X:" als nummerierte
-                        # Block-Zeile am Zeilenanfang. .{0,30} fängt Varianten wie
-                        # "Lösung zu Aufgabe 1", "Lösung Teil A", "Lösung Nr. 3" ab.
-                        r"(?im)^\s*(lösung|loesung)(\s+.{0,30})?\s*[:.]",
-                        _md,
-                    ))
+                    _has_loes = any(
+                        _re_loes.search(_pat, _md)
+                        for _pat in _SOLUTIONS_PATTERNS.get(
+                            _lang, _SOLUTIONS_PATTERNS[DEFAULT])
+                    )
                     if not _has_loes:
                         logger.warning(
                             "M10 material_type=%s ohne ## Lösungen-Block — "
                             "Stub angehängt (topic=%r). LLM-Pattern-Body-Compliance fail.",
                             _mt_key, _c_topic[:80],
                         )
-                        _md = (_md or "").rstrip() + (
-                            "\n\n## Lösungen\n\n"
-                            "_Lösungen werden ergänzt — du kannst mir "
-                            "antworten mit \"Lösungen ergänzen\", "
-                            "dann fülle ich den Block aus._\n"
+                        _md = (
+                            (_md or "").rstrip()
+                            + "\n\n"
+                            + bot_text(_lang, "material.solutionsStub")
+                            + "\n"
                         )
                 # Welle E (2026-05-23) — Material-Markdown ans response_text
                 # konkatenieren statt nur ins canvas_open payload. Sonst greift
@@ -449,7 +487,7 @@ async def run_canvas_create_fast_path(
                 # erscheinen → leere Bot-Antwort, wie der User berichtet hat.
                 _canvas_completion_intro = _canvas_completion_message(
                     _label, _c_topic, _md, canvas_enabled=False,
-                    formality=_formality_for_material,
+                    formality=_formality_for_material, lang=_lang,
                 )
                 response_text = (
                     (_canvas_completion_intro or "").rstrip()
@@ -477,10 +515,9 @@ async def run_canvas_create_fast_path(
                 # bubble instead of bubbling a 500. The frontend would otherwise
                 # show its generic "konnte ich leider nicht erstellen" message.
                 logger.error("M10 canvas generation failed: %s", _e)
-                response_text = (
-                    f"Ich konnte das **{_label}** zum Thema *{_c_topic}* gerade "
-                    f"nicht erstellen ({type(_e).__name__}). Versuch es nochmal — "
-                    "meistens klappt es beim zweiten Anlauf."
+                response_text = bot_text(
+                    _lang, "material.genFailed",
+                    label=_label, topic=_c_topic, error=type(_e).__name__,
                 )
                 tools_called = ["canvas_service.generate_canvas_content", "error"]
                 wlo_cards_raw = []
@@ -488,22 +525,15 @@ async def run_canvas_create_fast_path(
                 _canvas_payload_out = None
                 new_state = session_state.get("state_id") or "S3"
         elif _c_topic and not _mt_key:
-            response_text = (
-                f"Welches Material soll ich dir zum Thema **{_c_topic}** erstellen? "
-                "Waehle einen Typ aus den Vorschlaegen oder schreib \"Automatisch\", "
-                "damit ich den passenden Typ selbst waehle."
-            )
+            response_text = bot_text(_lang, "material.askType", topic=_c_topic)
             tools_called = []
             wlo_cards_raw = []
             _canvas_routed = True
             _canvas_forced_quick_replies = material_type_quick_replies_for_persona(
-                session_state.get("persona_id") or ""
+                session_state.get("persona_id") or "", _lang
             )
         elif not _c_topic:
-            response_text = (
-                "Gerne erstelle ich dir ein Material. Zu welchem **Thema**? "
-                "Beispiel: \"Erstelle ein Arbeitsblatt zur Photosynthese für Klasse 6\"."
-            )
+            response_text = bot_text(_lang, "material.askTopic")
             tools_called = []
             wlo_cards_raw = []
             _canvas_routed = True

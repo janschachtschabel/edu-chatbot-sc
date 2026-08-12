@@ -1,25 +1,25 @@
 <details class="cs" [open]="open()" (toggle)="onToggle($event)">
   <summary class="cs-summary">
-    <h3 class="cs-title">{{ section().label }}</h3>
-    <p class="cs-hint">{{ section().hint }}</p>
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
     @if (editor.dirty()) {
-      <span class="cs-flag">Ungespeichert</span>
+      <span class="cs-flag">{{ t('editor.unsavedShort') }}</span>
     }
   </summary>
 
   <div class="cs-body gs">
     @if (listLoading()) {
-      <p class="cs-state" aria-busy="true">Liste wird geladen …</p>
+      <p class="cs-state" aria-busy="true">{{ t('groupSection.listLoading') }}</p>
     } @else if (listError()) {
       <div class="cs-state cs-state--error" role="alert">
         <p>{{ listError() }}</p>
-        <button type="button" class="cs-btn" (click)="loadList()">Erneut versuchen</button>
+        <button type="button" class="cs-btn" (click)="loadList()">{{ t('async.retry') }}</button>
       </div>
     } @else {
       <div class="gs-list">
-        <h4 class="gs-list-title" [id]="idPrefix() + '-list'">Dokumente</h4>
+        <h4 class="gs-list-title" [id]="idPrefix() + '-list'">{{ t('groupSection.docs') }}</h4>
         @if (entries().length === 0) {
-          <p class="cs-state">Noch keine Dokumente. Unten eines anlegen.</p>
+          <p class="cs-state">{{ t('groupSection.empty') }}</p>
         }
         <ul class="gs-entries" [attr.aria-labelledby]="idPrefix() + '-list'">
           @for (entry of entries(); track entry.key) {
@@ -38,7 +38,9 @@
         </ul>
 
         <div class="gs-new">
-          <label class="gs-new-label" [for]="idPrefix() + '-new'">Neues Dokument</label>
+          <label class="gs-new-label" [for]="idPrefix() + '-new'">
+            {{ t('groupSection.new') }}
+          </label>
           <input
             type="text"
             class="gs-new-name"
@@ -48,10 +50,10 @@
             (input)="onNewName($event)"
           />
           <p class="gs-new-key" [id]="idPrefix() + '-new-key'">
-            @if (newKey()) {
-              Wird angelegt als <code>{{ newKey() }}.md</code>
+            @if (newKey(); as key) {
+              {{ t('groupSection.newKey', { file: key + '.md' }) }}
             } @else {
-              Der Name wird zum Dateinamen.
+              {{ t('groupSection.newHint') }}
             }
           </p>
           <button
@@ -60,7 +62,7 @@
             [disabled]="creating() || !newKey()"
             (click)="create()"
           >
-            {{ creating() ? 'Wird angelegt …' : 'Anlegen' }}
+            {{ creating() ? t('groupSection.creating') : t('groupSection.create') }}
           </button>
           @if (newError()) {
             <p class="cs-state cs-state--error" role="alert">{{ newError() }}</p>
@@ -70,9 +72,9 @@
 
       <div class="gs-doc">
         @if (!selected()) {
-          <p class="cs-state">Links ein Dokument wählen, um es zu bearbeiten.</p>
+          <p class="cs-state">{{ t('groupSection.pick') }}</p>
         } @else if (editor.loading()) {
-          <p class="cs-state" aria-busy="true">Wird geladen …</p>
+          <p class="cs-state" aria-busy="true">{{ t('editor.loading') }}</p>
         } @else if (editor.loadError()) {
           <div class="cs-state cs-state--error" role="alert">
             <p>{{ editor.loadError() }}</p>
@@ -80,7 +82,7 @@
         } @else if (editor.schema(); as schema) {
           @if (fieldTabs().length > 0) {
             <studio-tab-bar
-              [label]="section().label"
+              [label]="t(section().labelKey)"
               [tabs]="fieldTabs()"
               [active]="activeTab()"
               (tabChange)="selectTab($event)"
@@ -113,7 +115,7 @@
               [disabled]="editor.saving() || !editor.dirty() || editor.blocked()"
               (click)="save()"
             >
-              {{ editor.saving() ? 'Wird gespeichert …' : 'Speichern' }}
+              {{ editor.saving() ? t('editor.saving') : t('editor.save') }}
             </button>
             <button
               type="button"
@@ -121,13 +123,13 @@
               [disabled]="editor.saving() || !editor.dirty()"
               (click)="editor.discard()"
             >
-              Verwerfen
+              {{ t('editor.discard') }}
             </button>
           </div>
 
           @if (editor.blocked()) {
             <p class="cs-state cs-state--error" role="alert">
-              Nicht speicherbar: {{ blockedFields().join(', ') }} enthält kein gültiges JSON.
+              {{ t('editor.blocked', { fields: blockedFields().join(', ') }) }}
             </p>
           }
           @if (editor.saveError()) {

@@ -49,9 +49,19 @@ def _looks_like_search_query(message: str) -> bool:
         return False
     # Kurze Meta-/Greeting-Phrasen (mit Längenlimit, sonst false-positive
     # bei Sätzen wie "Hi, kannst du mir helfen mit Mathe?")
+    # C1-f2c-b: dieselbe Liste auf Englisch. Ohne sie galt „what can you do?"
+    # als echte Suchanfrage — genau der Fall, den der Hotfix-Kommentar oben
+    # beschreibt: das Sicherheitsnetz startet eine MCP-Suche und schmuggelt
+    # Karten in eine RAG-Antwort. Additiv, nicht sprachabhängig: das Widget
+    # kennt hier keine Sprache, und eine gemischte Nachricht gibt es auch.
     no_search_phrases_short = (
         "was kannst du", "wie kann ich", "hilfe", "help",
         "hallo", "hi ", "moin", "guten tag",
+        # ``hey`` fehlt mit Absicht: es steckt in ``they``, auch mit
+        # angehängtem Leerzeichen. Gemessen — mit dem Eintrag wäre
+        # „why do they matter" still keine Suchanfrage mehr.
+        "what can you do", "how do i", "how can i", "who are you",
+        "hello", "good morning", "good afternoon",
     )
     if any(p in low for p in no_search_phrases_short) and len(low) < 25:
         return False

@@ -12,6 +12,10 @@ It builds the answer entirely from ``01-base/website-tour.yaml`` (texts, URLs) +
 ``tour_state`` and sets ``ctx.early_response``. Leaves it None when not
 responsible (or when the tour ends) so the regular flow takes over.
 
+Die Sprache des Zuges wird hier EINMAL auf die Config angewandt
+(``domain/tour_i18n.localize``, C1-g2d), bevor die Zustandsmaschine sie sieht —
+die Begründung für diesen Schnitt steht dort.
+
 DI (Regel 3): ``session`` is injected — the graph-build (P4-6) binds the request
 session, like ``assess``/``preflight``. NEU deviations over ALT: ``tour_state`` is
 a native jsonb dict (the ``sessions.tour_state`` column is jsonb), so ALT's
@@ -29,7 +33,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatResponse, DebugInfo
 from boerdi.domain import tour as tour_domain
+from boerdi.domain.tour_i18n import localize as localize_tour
 from boerdi.graph.state import TurnContext
+from boerdi.i18n import resolve_locale
 from boerdi.services.config_loader import load_website_tour_config
 from boerdi.services.db_sessions import save_message, update_session
 
@@ -91,6 +97,10 @@ async def tour(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     cfg = load_website_tour_config()
     if not cfg.get("enabled", True):
         return ctx
+    # Sprache des Zuges EINMAL auflösen, statt sie durch die ~15 Lesestellen der
+    # Zustandsmaschine zu fädeln (C1-g2d). Pfade und IDs bleiben unberührt, das
+    # Gruppen-Matching sieht danach die englische Beschriftung.
+    cfg = localize_tour(cfg, resolve_locale(env.locale))
 
     persist_user = False
     persist_assistant = True

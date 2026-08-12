@@ -1,39 +1,24 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
 
+import type { CardAction } from '../cards/card-list.component';
 import { WloCard } from '../cards/card-types';
 import { getCardIcon, getCardPrimaryUrl } from '../cards/card-utils';
 import { ICONS } from '../icons/icons';
 import { SafeSvgPipe } from '../icons/safe-svg.pipe';
+import type { TranslationParams } from '../i18n/dictionary';
 import { ChatMessage, WebLink } from './message-types';
 import {
   cardTooltip as cardTooltipUtil,
   groupedCollectionCards,
   groupedContentCards,
-  groupedSearchTerm,
-  groupedSearchUrl,
   groupedTopicCards,
   groupedWebLinks,
-  GroupingContext,
   hasGroupedResults,
   itemTooltip as itemTooltipUtil,
-  searchCtaTooltip,
+  ResultGroupsContext,
 } from './result-grouping';
-
-/**
- * Instanz-Kontext für den Result-Grouping-Renderer. Erweitert den reinen
- * {@link GroupingContext} (withBsid/externalLinkWarning, den die 8-2g-Utils
- * lesen) um die eine Host-Trust-Abfrage, die nur die Such-CTA-Target-
- * Entscheidung braucht (ALT `ChatComponent.isHostTrusted`). Die Chat-Shell
- * (8-4) baut ihn aus `session/trusted-host` (sessionId + effektive
- * Trusted-Liste) und reicht ihn als Input herein — analog zum präsentationalen
- * Schnitt des WloCard-Tiles (8-2f), wo der Elternteil die Session-/Trust-Logik
- * besitzt.
- */
-export interface ResultGroupsContext extends GroupingContext {
-  /** ALT `ChatComponent.isHostTrusted(host)` = `isTrustedHost(host, effektive
-   *  Trusted-Domains)`, gebunden an die Instanz-Liste. */
-  isTrustedHost: (host: string) => boolean;
-}
+import { SearchCtaComponent } from './search-cta.component';
 
 /**
  * ResultGroups — der Inline-Result-Grouping-Block: statt einer flachen
@@ -63,7 +48,7 @@ export interface ResultGroupsContext extends GroupingContext {
 @Component({
   selector: 'boerdi-result-groups',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SafeSvgPipe],
+  imports: [MatButtonModule, SafeSvgPipe, SearchCtaComponent],
   styleUrl: './result-groups.component.scss',
   template: `
     @if (hasResults()) {
@@ -72,7 +57,7 @@ export interface ResultGroupsContext extends GroupingContext {
           <div class="result-group result-group--topic">
             <div class="result-group__heading">
               <span class="bb-icon" [innerHTML]="topicIcon | safeSvg"></span>
-              Themenseiten
+              {{ t('groups.topics') }}
             </div>
             <div class="result-group__items">
               @for (card of topicCards(); track $index) {
@@ -95,7 +80,7 @@ export interface ResultGroupsContext extends GroupingContext {
           <div class="result-group result-group--collection">
             <div class="result-group__heading">
               <span class="bb-icon" [innerHTML]="collectionIcon | safeSvg"></span>
-              Sammlungen
+              {{ t('groups.collections') }}
             </div>
             <div class="result-group__items">
               @for (card of collectionCards(); track $index) {
@@ -118,20 +103,39 @@ export interface ResultGroupsContext extends GroupingContext {
           <div class="result-group result-group--material">
             <div class="result-group__heading">
               <span class="bb-icon" [innerHTML]="materialIcon | safeSvg"></span>
-              Ausgewählte Materialien
+              {{ t('groups.materials') }}
             </div>
             <div class="result-group__items">
               @for (card of contentCards(); track $index) {
-                <a
-                  class="result-group__item"
-                  [href]="cardUrl(card)"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  [attr.title]="cardTooltip(card)"
-                >
-                  <span class="result-group__item-icon" [innerHTML]="getCardIcon(card) | safeSvg"></span>
-                  <span class="result-group__item-title">{{ card.title }}</span>
-                </a>
+                <!-- M17: Link raus zum Material PLUS ein Knopf, der den
+                     Volltext im Chat öffnet. Der Knopf steht NEBEN dem Link,
+                     nicht darin — ein Bedienelement im Anker wäre ungültiges
+                     HTML und für die Tastatur mehrdeutig. -->
+                <div class="result-group__row">
+                  <a
+                    class="result-group__item"
+                    [href]="cardUrl(card)"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    [attr.title]="cardTooltip(card)"
+                  >
+                    <span class="result-group__item-icon" [innerHTML]="getCardIcon(card) | safeSvg"></span>
+                    <span class="result-group__item-title">{{ card.title }}</span>
+                  </a>
+                  @if (card.node_id) {
+                    <button
+                      matIconButton
+                      type="button"
+                      class="result-group__item-btn"
+                      [disabled]="isLoading()"
+                      [attr.aria-label]="t('groups.showContent', { title: card.title })"
+                      [attr.title]="t('groups.showContent', { title: card.title })"
+                      (click)="showContentText.emit({ nodeId: card.node_id, title: card.title })"
+                    >
+                      <span class="bb-icon" [innerHTML]="contentTextIcon | safeSvg"></span>
+                    </button>
+                  }
+                </div>
               }
             </div>
           </div>
@@ -141,7 +145,7 @@ export interface ResultGroupsContext extends GroupingContext {
           <div class="result-group result-group--web">
             <div class="result-group__heading">
               <span class="bb-icon" [innerHTML]="webIcon | safeSvg"></span>
-              Webseiten-Inhalte
+              {{ t('groups.web') }}
             </div>
             <div class="result-group__items">
               @for (link of webLinks(); track $index) {
@@ -160,26 +164,11 @@ export interface ResultGroupsContext extends GroupingContext {
           </div>
         }
 
-        @if (searchUrl(); as url) {
-          <a
-            class="result-group result-group--cta"
-            [href]="url"
-            [attr.target]="searchTargetSelf() ? '_self' : '_blank'"
-            rel="noopener noreferrer"
-            [attr.title]="searchTooltip()"
-          >
-            <span class="result-group__cta-icon" [innerHTML]="searchIcon | safeSvg"></span>
-            <span class="result-group__cta-text">
-              @if (searchTerm(); as q) {
-                <strong>Treffer zur Suche „{{ q }}"</strong>
-              } @else {
-                <strong>Alle Treffer in der Suche</strong>
-              }
-              <span class="result-group__cta-sub">Alle passenden Materialien anzeigen</span>
-            </span>
-            <span class="result-group__cta-arrow" [innerHTML]="arrowIcon | safeSvg"></span>
-          </a>
-        }
+        <!-- Der Such-Absprung steht seit U6b in einer eigenen Komponente: das
+             Kachelraster zeigt ihn jetzt ebenfalls, und zwei Abschriften
+             desselben Knopfes wären zwei Wortlaute in spe. Gerendertes DOM
+             unverändert. -->
+        <boerdi-search-cta [message]="message()" [ctx]="ctx()" />
       </div>
     }
   `,
@@ -187,40 +176,38 @@ export interface ResultGroupsContext extends GroupingContext {
 export class ResultGroupsComponent {
   readonly message = input.required<ChatMessage>();
   readonly ctx = input.required<ResultGroupsContext>();
+  /** Läuft gerade ein Turn? Sperrt den Volltext-Knopf (wie im Flach-Grid). */
+  readonly isLoading = input(false);
 
-  // Box-/CTA-Icons (fix je Box — ALT chat.component.html:138/157/180/203/226/234).
+  /** „Inhalt anzeigen" an einer Materialien-Zeile (M17). Diese Box ist die
+   *  Default-Oberfläche, deshalb hängt die Aktion auch hier und nicht nur am
+   *  Flach-Grid (`inline-result-grouping="false"`). */
+  readonly showContentText = output<CardAction>();
+
+  // Box-Icons (fix je Box — ALT chat.component.html:138/157/180/203/226).
+  // Die beiden CTA-Icons stehen seit U6b in `search-cta.component`.
   protected readonly topicIcon = ICONS.auto_stories;
   protected readonly collectionIcon = ICONS.collections_bookmark;
   protected readonly materialIcon = ICONS.description;
   protected readonly webIcon = ICONS.language;
-  protected readonly searchIcon = ICONS.search;
-  protected readonly arrowIcon = ICONS.chevron_right;
+  // `visibility` (Auge = „anzeigen") und bewusst KEIN Dokument-Symbol:
+  // vorn in der Zeile steht der Inhaltstyp, und dessen Menge enthält
+  // `article`/`description`. Mit einem davon las sich die Zeile, als stünde
+  // der Typ zweimal drin — vorn der Typ, hinten die Handlung (Nutzer-
+  // Rückmeldung 2026-07-31).
+  protected readonly contentTextIcon = ICONS.visibility;
 
   /** Pures Card-Icon direkt im Template (ALT-Binding `getCardIcon(card)`). */
   protected readonly getCardIcon = getCardIcon;
+  /** Kurzform fürs Template — übersetzt über den Kontext der Shell (C1-b2). */
+  protected readonly t = (key: string, params?: TranslationParams): string =>
+    this.ctx().t(key, params);
 
   protected readonly hasResults = computed(() => hasGroupedResults(this.message(), this.ctx()));
   protected readonly topicCards = computed(() => groupedTopicCards(this.message()));
   protected readonly collectionCards = computed(() => groupedCollectionCards(this.message()));
   protected readonly contentCards = computed(() => groupedContentCards(this.message()));
   protected readonly webLinks = computed(() => groupedWebLinks(this.message(), this.ctx()));
-  protected readonly searchUrl = computed(() => groupedSearchUrl(this.message(), this.ctx()));
-  protected readonly searchTerm = computed(() => groupedSearchTerm(this.message()));
-  protected readonly searchTooltip = computed(() => searchCtaTooltip(this.message(), this.ctx()));
-
-  /** ALT `ChatComponent.isTrustedSearchUrl` — `_self` bei same-origin oder
-   *  trusted Host, sonst `_blank`. `window.location` = Widget-Host-Seite. */
-  protected readonly searchTargetSelf = computed(() => {
-    const url = this.searchUrl();
-    if (!url) return false;
-    try {
-      const u = new URL(url, window.location.href);
-      if (u.origin === window.location.origin) return true;
-      return this.ctx().isTrustedHost(u.hostname.toLowerCase());
-    } catch {
-      return false;
-    }
-  });
 
   /** ALT `ChatComponent.cardUrl` = `withBsid(getCardPrimaryUrl(card))`. */
   protected cardUrl(card: WloCard): string {
@@ -242,7 +229,9 @@ export class ResultGroupsComponent {
   /** ALT-Template-Inline: `itemTooltip(link.title ? link.title + ' (Webseite)'
    *  : 'Webseite', webLinkUrl(link))` — hierher gezogen statt in den Markup. */
   protected webLinkTooltip(link: WebLink): string | null {
-    const label = link.title ? link.title + ' (Webseite)' : 'Webseite';
+    const label = link.title
+      ? this.t('groups.webItem', { title: link.title })
+      : this.t('groups.webItemUntitled');
     return itemTooltipUtil(label, this.webLinkUrl(link), this.ctx());
   }
 }

@@ -34,6 +34,7 @@ import {
 } from '@angular/core';
 
 import { WidgetElementLoader } from '../core/widget-element-loader';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { PREVIEW_CONTEXT_KINDS, buildPreviewContext } from './preview-embed';
 
 type LoadState = 'laden' | 'bereit' | 'fehler';
@@ -47,6 +48,7 @@ type LoadState = 'laden' | 'bereit' | 'fehler';
 })
 export class WidgetPreviewComponent {
   private readonly loader = inject(WidgetElementLoader);
+  protected readonly t = inject(StudioLanguageService).t;
 
   readonly kinds = PREVIEW_CONTEXT_KINDS;
   readonly kind = signal(PREVIEW_CONTEXT_KINDS[0].id);
@@ -66,7 +68,10 @@ export class WidgetPreviewComponent {
 
   private readonly chosen = computed(() => this.kinds.find((k) => k.id === this.kind()));
   readonly field = computed(() => this.chosen()?.field ?? '');
-  readonly fieldLabel = computed(() => this.chosen()?.fieldLabel ?? '');
+  readonly fieldLabel = computed(() => {
+    const key = this.chosen()?.fieldLabelKey;
+    return key ? this.t(key) : '';
+  });
   readonly example = computed(() => this.chosen()?.example ?? '');
 
   constructor() {

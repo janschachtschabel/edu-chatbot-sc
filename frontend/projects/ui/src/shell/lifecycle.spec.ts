@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
 import { TourController } from '../controllers/tour.controller';
-import { LifecycleContext, ShellLifecycle } from './lifecycle';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
+import { LifecycleContext, ShellLifecycle, shouldSendContextPing } from './lifecycle';
 
 /**
  * Shell-Lifecycle (8-4S-e4): die Orchestrierung aus ALT `ngOnInit`/`showGreeting`/
@@ -48,6 +50,7 @@ function makeCtx(overrides: Partial<LifecycleContext> = {}): {
     tour: tour as unknown as TourController,
     contextGreeting: cg as unknown as ContextGreetingController,
     scrollToLatest: () => { rec.scroll++; },
+    t: createTranslator(DE, DE),
     ...overrides,
   };
   return { ctx, rec, tour, cg, api };
@@ -134,6 +137,31 @@ describe('ShellLifecycle (8-4S-e4)', () => {
     expect(rec.bots[0][0]).toBe('Hallo! Wie kann ich dir helfen?');
   });
 
+  it('die Rückfall-Begrüßungen und die vier Einstiegs-Chips kommen aus dem Übersetzer (C1-b4)', () => {
+    const en = createTranslator({
+      'greeting.default': 'Hi, glad you are here!',
+      'greeting.reset': 'Hello! How can I help?',
+      'greeting.reply.aiAge': 'How do I bring my content into the AI age?',
+      'greeting.reply.search': 'I am looking for content on a topic.',
+      'greeting.reply.tour': 'Guide me through the website.',
+      'greeting.reply.about': 'What is WissenLebtOnline?',
+    }, DE);
+    const { ctx, rec } = makeCtx({ t: en });
+    const lc = new ShellLifecycle(ctx);
+
+    lc.showGreeting();
+    expect(rec.bots[0][0]).toBe('Hi, glad you are here!');
+    expect(rec.bots[0][3]).toEqual([
+      'How do I bring my content into the AI age?',
+      'I am looking for content on a topic.',
+      'Guide me through the website.',
+      'What is WissenLebtOnline?',
+    ]);
+
+    lc.resetSession();
+    expect(rec.bots[1][0]).toBe('Hello! How can I help?');
+  });
+
   it('updateContext: merged in den bestehenden Seitenkontext', () => {
     const { ctx, rec } = makeCtx();
     const lc = new ShellLifecycle(ctx);
@@ -155,8 +183,109 @@ describe('ShellLifecycle (8-4S-e4)', () => {
   it('onSpaContextChange: nicht adressierbar → kein Ping', () => {
     vi.useFakeTimers();
     const { ctx, cg } = makeCtx();
-    new ShellLifecycle(ctx).onSpaContextChange({ page_kind: 'home' });
+    // `subject` (Fachportal) wird erkannt, bleibt aber bewusst stumm — der
+    // eindeutige Fall für „nicht adressierbar".
+    new ShellLifecycle(ctx).onSpaContextChange({ page_kind: 'subject' });
     vi.runAllTimers();
     expect(cg.sendContextPing).not.toHaveBeenCalled();
+  });
+});
+
+// ── Aufgabe 8: welche Seiten überhaupt einen Ping wert sind ─────────────────
+// Wichtig und nicht offensichtlich: `home`/`external` setzt der Erkenner NIE —
+// die entscheidet das Backend am Hostnamen. Eine Widget-Liste, die einfach die
+// begrüßbaren Backend-Arten spiegelte, pingte auf einer fremden Seite also nie
+// und liesse das Backend gar nicht erst zu Wort kommen. Die Bedingung hier
+// lautet deshalb „könnte begrüßbar sein", nicht „ist begrüßbar".
+
+describe('shouldSendContextPing', () => {
+  it('Sammlung, Inhalt, Themenseite — wie bisher', () => {
+    expect(shouldSendContextPing({ page_kind: 'collection' })).toBe(true);
+    expect(shouldSendContextPing({ page_kind: 'content' })).toBe(true);
+    expect(shouldSendContextPing({ page_kind: 'topic' })).toBe(true);
+    expect(shouldSendContextPing({ collection_id: 'c1' })).toBe(true);
+    expect(shouldSendContextPing({ node_id: 'n1' })).toBe(true);
+  });
+
+  it('Suche nur mit Begriff — ohne bleibt das Backend ohnehin stumm', () => {
+    expect(shouldSendContextPing({ page_kind: 'search', search_query: 'Optik' })).toBe(true);
+    expect(shouldSendContextPing({ page_kind: 'search' })).toBe(false);
+  });
+
+  it('nicht eingeordnete Seite mit Hostnamen — hier entscheidet das Backend', () => {
+    expect(shouldSendContextPing({ page_kind: 'other', page_host: 'beispiel.org' })).toBe(true);
+    expect(shouldSendContextPing({ page_host: 'wirlernenonline.de' })).toBe(true);
+  });
+
+  it('ohne Hostnamen kann das Backend nichts entscheiden → kein Ping', () => {
+    expect(shouldSendContextPing({ page_kind: 'other' })).toBe(false);
+    expect(shouldSendContextPing({})).toBe(false);
+  });
+
+  it('Fachportal bleibt bewusst draussen', () => {
+    expect(shouldSendContextPing({ page_kind: 'subject', page_host: 'wirlernenonline.de' })).toBe(false);
+  });
+});
+
+// ── Aufgabe 9: genau EINE Nachricht beim ersten Laden ───────────────────────
+// Ansatz C aus dem Plan: die Begrüßung wird zurückgestellt, bis der Ping
+// antwortet. Hat er Inhalt, IST er die Begrüßung; sonst kommt die normale.
+// Verworfen wurden (A) die Begrüßung bei erkannter Seite zu unterdrücken —
+// fällt der Ping aus, gäbe es GAR KEINE — und (B) sie zu zeigen und danach zu
+// ersetzen: sichtbares Flackern und kurz eine falsche Zeile im Verlauf.
+
+describe('ShellLifecycle: Begrüßung beim ersten Laden', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    history.replaceState({}, '', '/');
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  async function boot(overrides: Partial<LifecycleContext> = {}) {
+    const made = makeCtx(overrides);
+    new ShellLifecycle(made.ctx).init();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    return made;
+  }
+
+  it('erkannte Seite + Ping mit Inhalt ⇒ genau eine Nachricht, und zwar die Kontextmeldung', async () => {
+    const { ctx, rec, cg } = makeCtx({ pageContextInput: () => '{"page_kind":"collection"}' });
+    // `true` heisst: der Regler hat die Kontextmeldung selbst gerendert.
+    cg.sendContextPing.mockResolvedValue(true);
+    new ShellLifecycle(ctx).init();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(cg.sendContextPing).toHaveBeenCalledWith('context_open_initial');
+    expect(rec.bots.length).toBe(0);  // KEINE zusätzliche Standard-Begrüßung
+  });
+
+  it('Ping ohne Inhalt ⇒ die normale Begrüßung', async () => {
+    const { rec } = await boot({ pageContextInput: () => '{"page_kind":"collection"}' });
+    expect(rec.bots.length).toBe(1);
+  });
+
+  it('Ping-Fehler ⇒ die normale Begrüßung (nie gar keine)', async () => {
+    const { ctx, rec } = makeCtx({ pageContextInput: () => '{"page_kind":"collection"}' });
+    (ctx.contextGreeting as any).sendContextPing = vi.fn(async () => { throw new Error('offline'); });
+    new ShellLifecycle(ctx).init();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(rec.bots.length).toBe(1);
+  });
+
+  it('nicht erkannte Seite ⇒ die normale Begrüßung, ohne Ping', async () => {
+    const { rec, cg } = await boot();
+    expect(cg.sendContextPing).not.toHaveBeenCalled();
+    expect(rec.bots.length).toBe(1);
+  });
+
+  it('laufende Tour ⇒ normale Begrüßung, kein Kontext-Ping (kollidierte über isLoading)', async () => {
+    const made = makeCtx({ pageContextInput: () => '{"page_kind":"collection"}' });
+    made.tour.isTourFlagSet.mockReturnValue(true);
+    new ShellLifecycle(made.ctx).init();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(made.cg.sendContextPing).not.toHaveBeenCalled();
+    expect(made.rec.bots.length).toBe(1);
   });
 });

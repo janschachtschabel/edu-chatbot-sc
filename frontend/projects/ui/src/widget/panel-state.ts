@@ -1,5 +1,6 @@
 import { signal } from '@angular/core';
 
+import type { PanelSizeStep } from '../element/attr';
 import { computeInitialExpanded } from './widget-init';
 
 /** localStorage-Schlüssel des einmaligen Owl-Hinweises (ALT
@@ -51,6 +52,14 @@ export class PanelState {
   readonly everExpanded = signal(false);
   /** Owl-Kopf wackelt + Sprechblase (3 s, einmal pro Session). */
   readonly hintActive = signal(false);
+  /** U2a — Größenstufe des Panels. Zwei feste Stufen statt freier Größe
+   *  (Nutzer-Entscheid): ein Ziehgriff müsste Maße speichern, gegen den
+   *  Viewport kappen und am Rand des Shadow-DOM auf Zeigerereignisse hören.
+   *
+   *  Eigene Achse neben `expanded`: wer vergrößert und zuklappt, will beim
+   *  nächsten Öffnen nicht wieder das kleine Panel sehen. Bewusst NICHT
+   *  persistiert — die Stufe gehört zum Besuch, nicht zum Gerät. */
+  readonly sizeStep = signal<PanelSizeStep>('small');
 
   private _owlHintDone = false;
   private _owlHintTries = 0;
@@ -64,6 +73,17 @@ export class PanelState {
     const open = computeInitialExpanded(initialState);
     this.expanded.set(open);
     if (open) this.everExpanded.set(true);
+  }
+
+  /** Anfangsstufe aus dem Host-Attribut `size`. Wie `initExpanded` eine reine
+   *  Boot-Zuweisung — der Umschalter darunter ist der Bedienweg. */
+  initSize(step: PanelSizeStep): void {
+    this.sizeStep.set(step);
+  }
+
+  /** Umschalter der Eingabezeile: klein ⇄ groß. */
+  toggleSize(): void {
+    this.sizeStep.update((s) => (s === 'small' ? 'large' : 'small'));
   }
 
   /** Zentraler Setter — alle Öffnen/Schließen-Pfade (Toggle-Button, Public API,

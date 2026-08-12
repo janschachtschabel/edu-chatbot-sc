@@ -24,6 +24,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from boerdi.domain.guide_markers import _strip_guide_qrs
+from boerdi.i18n import resolve_locale
 
 if TYPE_CHECKING:  # nur für Typprüfer/IDE — die Annotationen sind Strings (PEP 563)
     from boerdi.api.schemas import ChatRequest
@@ -90,6 +91,7 @@ def _attach_guide_qr(
             response_text=response_text,
             rag_top_sources=rag_top_sources,
             max_guide_qrs=max_guide_qrs,
+            lang=resolve_locale(getattr(env, "locale", None)),
         )
     except Exception as e:
         logger.warning("guide-qr injection failed: %s", e)

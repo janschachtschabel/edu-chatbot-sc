@@ -17,7 +17,8 @@ from fastapi import APIRouter, HTTPException, Security, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from boerdi.api.deps import require_studio_key
+from boerdi.api.deps import Lang, require_studio_key
+from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
 from boerdi.services import snapshots
 
@@ -49,12 +50,12 @@ async def _apply_config(blob: bytes) -> int:
     return len(areas)
 
 
-async def _read_upload_capped(file: UploadFile) -> bytes:
+async def _read_upload_capped(file: UploadFile, lang: Locale) -> bytes:
     raw = await file.read(snapshots.MAX_CONFIG_UPLOAD_BYTES + 1)
     if len(raw) > snapshots.MAX_CONFIG_UPLOAD_BYTES:
         raise HTTPException(
-            status_code=413,
-            detail=f"Datei zu groß (max {snapshots.MAX_CONFIG_UPLOAD_BYTES // (1024 * 1024)} MB).",
+            413,
+            msg(lang, "upload.tooLarge", mb=snapshots.MAX_CONFIG_UPLOAD_BYTES // (1024 * 1024)),
         )
     return raw
 
@@ -66,13 +67,11 @@ async def list_snapshots() -> list[dict]:
 
 
 @router.post("/snapshots")
-async def create_snapshot(payload: SnapshotCreate) -> dict:
+async def create_snapshot(payload: SnapshotCreate, lang: Lang) -> dict:
     engine = cl.store_engine()
     if await snapshots.count_snapshots(engine) >= snapshots.MAX_SNAPSHOTS:
         raise HTTPException(
-            status_code=400,
-            detail=f"Snapshot-Limit erreicht (max {snapshots.MAX_SNAPSHOTS}) — "
-            "alte Snapshots löschen.",
+            400, msg(lang, "snapshots.limitReached", max=snapshots.MAX_SNAPSHOTS)
         )
     snap_id = f"snap-{uuid.uuid4().hex[:12]}"
     blob = snapshots.build_config_zip(cl.current_config())
@@ -81,25 +80,31 @@ async def create_snapshot(payload: SnapshotCreate) -> dict:
 
 
 @router.delete("/snapshots/{snap_id}")
-async def delete_snapshot(snap_id: str) -> dict:
+async def delete_snapshot(snap_id: str, lang: Lang) -> dict:
     if not await snapshots.delete_snapshot(cl.store_engine(), snap_id):
-        raise HTTPException(status_code=404, detail="Snapshot not found")
+        raise HTTPException(
+            status_code=404, detail=msg(lang, "snapshots.notFound"),
+        )
     return {"status": "deleted", "id": snap_id}
 
 
 @router.get("/snapshots/{snap_id}/download")
-async def download_snapshot(snap_id: str) -> StreamingResponse:
+async def download_snapshot(snap_id: str, lang: Lang) -> StreamingResponse:
     snap = await snapshots.get_snapshot(cl.store_engine(), snap_id)
     if snap is None:
-        raise HTTPException(status_code=404, detail="Snapshot not found")
+        raise HTTPException(
+            status_code=404, detail=msg(lang, "snapshots.notFound"),
+        )
     return _zip_response(snap["blob"], f"{snap_id}.zip")
 
 
 @router.post("/snapshots/{snap_id}/restore")
-async def restore_snapshot(snap_id: str) -> dict:
+async def restore_snapshot(snap_id: str, lang: Lang) -> dict:
     snap = await snapshots.get_snapshot(cl.store_engine(), snap_id)
     if snap is None:
-        raise HTTPException(status_code=404, detail="Snapshot not found")
+        raise HTTPException(
+            status_code=404, detail=msg(lang, "snapshots.notFound"),
+        )
     return {"status": "restored", "areas": await _apply_config(snap["blob"])}
 
 
@@ -114,10 +119,10 @@ async def factory_status() -> dict:
 
 
 @router.get("/factory/download")
-async def download_factory() -> StreamingResponse:
+async def download_factory(lang: Lang) -> StreamingResponse:
     snap = await snapshots.get_snapshot(cl.store_engine(), snapshots.FACTORY_ID)
     if snap is None:
-        raise HTTPException(status_code=404, detail="Kein Factory-Stand gesetzt")
+        raise HTTPException(404, msg(lang, "factory.missing"))
     return _zip_response(snap["blob"], "factory.zip")
 
 
@@ -129,16 +134,16 @@ async def save_factory() -> dict:
 
 
 @router.post("/factory/restore")
-async def restore_factory() -> dict:
+async def restore_factory(lang: Lang) -> dict:
     snap = await snapshots.get_snapshot(cl.store_engine(), snapshots.FACTORY_ID)
     if snap is None:
-        raise HTTPException(status_code=404, detail="Kein Factory-Stand gesetzt")
+        raise HTTPException(404, msg(lang, "factory.missing"))
     return {"status": "restored", "areas": await _apply_config(snap["blob"])}
 
 
 @router.post("/factory/upload")
-async def upload_factory(file: UploadFile) -> dict:
-    blob = await _read_upload_capped(file)
+async def upload_factory(file: UploadFile, lang: Lang) -> dict:
+    blob = await _read_upload_capped(file, lang)
     # validate it parses (caps) before persisting as the factory baseline
     try:
         snapshots.parse_config_zip(blob)
@@ -156,6 +161,6 @@ async def download_backup() -> StreamingResponse:
 
 
 @router.post("/restore")
-async def restore_backup(file: UploadFile) -> dict:
-    blob = await _read_upload_capped(file)
+async def restore_backup(file: UploadFile, lang: Lang) -> dict:
+    blob = await _read_upload_capped(file, lang)
     return {"status": "restored", "areas": await _apply_config(blob)}

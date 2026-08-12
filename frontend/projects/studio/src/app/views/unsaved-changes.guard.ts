@@ -8,15 +8,20 @@
 import { DestroyRef, Signal, inject } from '@angular/core';
 import { CanDeactivateFn } from '@angular/router';
 
+import { StudioLanguageService } from '../i18n/studio-language.service';
+
 export interface HasUnsavedChanges {
   readonly dirty: Signal<boolean>;
 }
 
-export const CONFIRM_LEAVE =
-  'Es gibt ungespeicherte Änderungen. Diese Seite trotzdem verlassen und die Änderungen verwerfen?';
+/** Katalog-Schlüssel der Rückfrage. Kein fertiger Text mehr: eine Konstante
+ *  auf Modulebene wäre einmal beim Laden in der damaligen Sprache gebaut und
+ *  bliebe darin stehen — derselbe Fall wie der Dokumenttitel in C1-d2. */
+export const CONFIRM_LEAVE_KEY = 'guard.confirmLeave';
 
+/** Läuft im Injektionskontext, deshalb ist `inject()` hier erlaubt. */
 export const unsavedChangesGuard: CanDeactivateFn<HasUnsavedChanges> = (component) =>
-  !component.dirty() || window.confirm(CONFIRM_LEAVE);
+  !component.dirty() || window.confirm(inject(StudioLanguageService).t(CONFIRM_LEAVE_KEY));
 
 /**
  * The same protection for leaving the whole app — the router guard above only

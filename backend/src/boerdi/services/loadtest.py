@@ -18,16 +18,19 @@ Deviations, each flagged in the progress log:
   rule 3/4: no module-global engine; DB access stays in the service layer). The
   background runner has no request scope, so it opens its own session from
   ``app.state.session_factory``.
-* **Resource sampling is dropped.** ALT sampled process CPU/RAM via ``psutil``
-  every 0.5 s and reported ``peak_rss_mb``/``peak_proc_cpu_pct``. ``psutil`` is
-  not a boerdi-chat dependency and ``pyproject.toml`` is out of this slice's
-  scope, so ``resource_samples`` stays ``[]`` and the summary omits the peaks.
+* ~~Resource sampling is dropped.~~ **Restored 2026-07-31 (C5, on the user's
+  decision to take the dependency).** ``psutil`` is a boerdi-chat dependency now
+  (BSD-3-Clause, license gate §0 rule 1), and ALT's 0.5 s CPU/RAM sampling plus
+  ``peak_rss_mb``/``peak_proc_cpu_pct`` are ported. Until then the Studio
+  advertised a feature it could never fill: ``resource_samples`` was always
+  ``[]``, and B5 had to word the view around permanently missing peaks.
 * The background runner fires the REAL ``/api/chat`` pipeline (LLM + MCP) via
   ``httpx.ASGITransport`` exactly as ALT did — real cost + staging load, so it
   is mocked in the router tests and never exercised offline.
-* ``sweep_orphaned_loadtests`` is provided for the startup deadlock-fix (ALT
-  Audit 2026-07-03) but is NOT wired into ``main.py``'s lifespan (shared file,
-  out of scope) — flagged for the user.
+* ``sweep_orphaned_loadtests`` is the startup deadlock-fix (ALT Audit
+  2026-07-03) and **is** wired into ``main.py``'s lifespan (``main.py:92-98``),
+  which runs it once per process start on its own session — best-effort, so a
+  failed sweep never blocks boot.
 """
 
 from __future__ import annotations
@@ -40,6 +43,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+import psutil
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -336,10 +340,48 @@ def _stage_stats(
     }
 
 
-def _summary(stages: list[dict[str, Any]], threshold: float) -> dict[str, Any]:
-    """Highest stage that stayed error-free AND under the p95 threshold.
+async def _sample_resources(samples: list[dict[str, Any]], stop: asyncio.Event) -> None:
+    """CPU/RAM alle 0,5 s sampeln, bis ``stop`` gesetzt ist (ALT-Port).
 
-    ALT's ``peak_rss_mb``/``peak_proc_cpu_pct`` are dropped (no psutil sampling).
+    Die erste Iteration misst OHNE Wartezeit — deshalb hat auch ein sehr kurzer
+    Lauf mindestens einen Messpunkt. ``cpu_percent(None)`` wird vorher einmal
+    „geprimt": der allererste Aufruf liefert sonst 0.0, weil er kein
+    Vergleichsintervall hat.
+
+    Messfehler beenden die Abtastung NICHT: ein Lasttest darf nicht daran
+    scheitern, dass ein Prozess-Zähler einmal nicht lesbar war.
+    """
+    proc = psutil.Process()
+    proc.cpu_percent(None)
+    psutil.cpu_percent(None)
+    t0 = time.perf_counter()
+    while not stop.is_set():
+        try:
+            samples.append({
+                "t": round(time.perf_counter() - t0, 2),
+                "proc_cpu": proc.cpu_percent(None),
+                "sys_cpu": psutil.cpu_percent(None),
+                "rss_mb": round(proc.memory_info().rss / (1024 * 1024), 1),
+            })
+        except Exception:
+            logger.debug("resource sampling failed", exc_info=True)
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=0.5)
+        except TimeoutError:
+            continue
+
+
+def _summary(
+    stages: list[dict[str, Any]], threshold: float, samples: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Highest stage that stayed error-free AND under the p95 threshold, plus
+    ALT's two resource peaks.
+
+    ``samples`` ist ein Pflicht-Parameter, kein Default: ein Aufrufer, der die
+    Messpunkte vergisst, soll auffallen, statt still ``0.0``-Spitzen zu melden.
+    Bei einer leeren Liste sind ``0.0``-Spitzen dagegen richtig und ALT-treu
+    (``max(…, default=0.0)``) — der Schlüssel FEHLT nicht, damit die Anzeige
+    nicht zwischen „nichts gemessen" und „nicht erhoben" raten muss.
     """
     stable = None
     for st in stages:
@@ -350,6 +392,8 @@ def _summary(stages: list[dict[str, Any]], threshold: float) -> dict[str, Any]:
     return {
         "stable_concurrency": stable,
         "p95_threshold_s": threshold,
+        "peak_rss_mb": max((s["rss_mb"] for s in samples), default=0.0),
+        "peak_proc_cpu_pct": max((s["proc_cpu"] for s in samples), default=0.0),
         "total_requests": sum(st["requests"] for st in stages),
         "total_errors": sum(st["errors"] for st in stages),
     }
@@ -366,6 +410,13 @@ async def execute_load_test(app: Any, run_id: str, profile: dict[str, Any]) -> N
         "summary": None, "error": None,
     }
     status = "completed"
+    # C5: die Abtastung schreibt DIREKT in ``result["resource_samples"]``, damit
+    # jedes ``_persist`` nach einer Stufe den bis dahin gemessenen Verlauf
+    # mitnimmt — das Studio pollt während des Laufs und soll die Kurve wachsen
+    # sehen, nicht erst am Ende bekommen.
+    samples: list[dict[str, Any]] = result["resource_samples"]
+    stop_sampling = asyncio.Event()
+    sampler = asyncio.create_task(_sample_resources(samples, stop_sampling))
     try:
         for stage_idx, concurrency in enumerate(profile["stages"]):
             n = profile["requests_per_stage"]
@@ -375,11 +426,21 @@ async def execute_load_test(app: Any, run_id: str, profile: dict[str, Any]) -> N
             stage_dt = time.perf_counter() - stage_t0
             result["stages"].append(_stage_stats(concurrency, n, kinds, results, stage_dt))
             await _persist(factory, run_id, result=result)
-        result["summary"] = _summary(result["stages"], profile["p95_threshold_s"])
+        result["summary"] = _summary(result["stages"], profile["p95_threshold_s"], samples)
     except Exception as e:  # runner records the failure instead of crashing the task
         logger.exception("loadtest %s failed", run_id)
         result["error"] = f"{type(e).__name__}: {e}"
         status = "failed"
     finally:
+        # Vor dem letzten _persist stoppen und abwarten: sonst könnte der Sampler
+        # noch während der Serialisierung an die Liste anhängen (RuntimeError
+        # „list changed size during iteration"), und ein verwaister Task liefe
+        # nach einem Fehlschlag endlos weiter.
+        stop_sampling.set()
+        try:
+            await asyncio.wait_for(sampler, timeout=2)
+        except (TimeoutError, asyncio.CancelledError):
+            sampler.cancel()
+            logger.debug("resource sampler did not stop in time; cancelled")
         result["finished_at"] = _now_iso()
         await _persist(factory, run_id, status=status, result=result)

@@ -14,15 +14,23 @@
  *
  * One instance per area. Not injectable: it holds the state of a single
  * editor, and two editors on one page must not share it.
+ *
+ * Because it is not injectable it cannot `inject()` the language service
+ * either — the translator arrives through the constructor, the same seam the
+ * `ConfigApi` already uses (C1-d3a).
  */
 import { computed, signal } from '@angular/core';
 
 import type { ConfigApi } from '../core/config-api.service';
 import { StudioApiError } from '../core/studio-api-error';
+import type { Translate } from '../i18n/studio-language.service';
 import type { JsonSchema } from './json-schema';
 
 export class AreaDocEditor {
-  constructor(private readonly config: ConfigApi) {}
+  constructor(
+    private readonly config: ConfigApi,
+    private readonly t: Translate,
+  ) {}
 
   readonly schema = signal<JsonSchema | null>(null);
   readonly doc = signal<Record<string, unknown>>({});
@@ -79,7 +87,7 @@ export class AreaDocEditor {
       this.docType.set(document.type);
       return true;
     } catch (err) {
-      if (this.isCurrent(generation)) this.loadError.set(describeAreaError(err));
+      if (this.isCurrent(generation)) this.loadError.set(describeAreaError(err, this.t));
       return false;
     } finally {
       if (this.isCurrent(generation)) this.loading.set(false);
@@ -91,7 +99,7 @@ export class AreaDocEditor {
     if (this.saving() || !this.dirty()) return false;
     if (this.blocked()) {
       this.saveError.set(
-        `Nicht gespeichert: ${this.fieldErrors().join(', ')} enthält kein gültiges JSON.`,
+        this.t('editor.notSaved', { fields: this.fieldErrors().join(', ') }),
       );
       return false;
     }
@@ -104,11 +112,11 @@ export class AreaDocEditor {
       if (!this.isCurrent(generation)) return false;
       this.adopt(saved.data);
       this.docType.set(saved.type);
-      this.status.set('Gespeichert.');
+      this.status.set(this.t('editor.saved'));
       return true;
     } catch (err) {
       // the edit stays in `doc` — clearing it would lose what was typed
-      if (this.isCurrent(generation)) this.saveError.set(describeAreaError(err));
+      if (this.isCurrent(generation)) this.saveError.set(describeAreaError(err, this.t));
       return false;
     } finally {
       if (this.isCurrent(generation)) this.saving.set(false);
@@ -129,7 +137,7 @@ export class AreaDocEditor {
   discard(): void {
     this.doc.set(JSON.parse(this.savedDoc()) as Record<string, unknown>);
     this.saveError.set('');
-    this.status.set('Änderungen verworfen.');
+    this.status.set(this.t('editor.discarded'));
   }
 
   /** Install a document as the new clean baseline. */
@@ -140,23 +148,22 @@ export class AreaDocEditor {
 }
 
 /** Turn an API failure into something an editor can act on. */
-export function describeAreaError(err: unknown): string {
-  if (!(err instanceof StudioApiError)) return 'Unerwarteter Fehler.';
+export function describeAreaError(err: unknown, t: Translate): string {
+  if (!(err instanceof StudioApiError)) return t('error.unexpected');
   switch (err.status) {
     case 0:
-      return 'Backend nicht erreichbar.';
+      return t('error.offline');
     case 400:
       // The backend sends two different 400s here: a malformed area key and a
       // document it could not parse. Reporting a YAML problem for a bad key
-      // sends the editor looking in the wrong place.
-      return err.detail.startsWith('Invalid path')
-        ? 'Der Bereichsschlüssel ist ungültig.'
-        : err.detail;
+      // sends the editor looking in the wrong place. `detail` is the backend's
+      // own wording and stays as it arrives — see the plan's C1-e.
+      return err.detail.startsWith('Invalid path') ? t('error.badAreaKey') : err.detail;
     case 404:
-      return 'Diesen Konfigurationsbereich gibt es nicht.';
+      return t('error.noSuchArea');
     case 422:
-      return `Die Eingabe passt nicht zum Bereichsmodell: ${err.detail}`;
+      return t('error.schemaMismatch', { detail: err.detail });
     default:
-      return `Fehler ${err.status}: ${err.detail}`;
+      return t('error.status', { status: err.status, detail: err.detail });
   }
 }

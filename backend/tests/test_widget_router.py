@@ -10,9 +10,12 @@ the test rather than depending on whether someone ran ``npm run build:widget``.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
+from boerdi.api import widget_demo_controls
 from boerdi.main import create_app
 from boerdi.settings import get_settings
 
@@ -108,7 +111,20 @@ def test_plain_asset_is_served_but_not_immutable(client, dist):
 
 @pytest.mark.parametrize(
     ("name", "expected"),
-    [("a.css", "text/css"), ("a.map", "application/json"), ("a.js", "javascript")],
+    [
+        ("a.css", "text/css"),
+        ("a.map", "application/json"),
+        ("a.js", "javascript"),
+        # C5-c1: die OAuth-Rückruf-Seite reist als Datei im Bündel und wird
+        # über genau diesen Sammelpfad ausgeliefert — deshalb KEINE neue Route
+        # und damit kein neuer Pfad im eingefrorenen Vertrag. Als HTML muss sie
+        # ankommen, sonst zeigt der Browser Quelltext statt sie auszuführen.
+        # ``.html`` steht bewusst NICHT in ``_MEDIA_TYPES``: gemessen 2026-08-10
+        # war dieser Fall ohne jede Codeänderung grün, weil ``FileResponse`` bei
+        # ``media_type=None`` aus dem Dateinamen rät. Der Eintrag wäre ein
+        # Zusatz ohne Wirkung; dieser Wächter hält die Verlässlichkeit fest.
+        ("oauth-callback.html", "text/html"),
+    ],
 )
 def test_asset_media_types(client, dist, name, expected):
     (dist / name).write_text("x", encoding="utf-8")
@@ -174,14 +190,18 @@ def test_guard_refuses_an_absolute_path(dist, tmp_path):
 # already documents the full contract from a source a test pins. A third,
 # untested copy in a Python string is what this project keeps finding drifted.
 
-DEMOS = ["/widget/", "/widget/inline", "/widget/classic"]
+DEMOS = ["/widget/", "/widget/inline", "/widget/classic", "/widget/frameless"]
 
 #: Exactly what the widget dispatches — `host-events.ts` and `chat-shell`.
+#: New `boerdi:` prefix since U5a (2026-08-09). The widget additionally fires
+#: each event under its old `badboerdi:` name during the P11 transition; the
+#: demo inspector deliberately does NOT listen to those (it would show every
+#: event twice), which is what the strict comparison below pins.
 WIDGET_EVENTS = [
-    "badboerdi:guide-suggestion",
-    "badboerdi:routing-debug",
-    "badboerdi:query-meta",
-    "badboerdi:page-action",
+    "boerdi:guide-suggestion",
+    "boerdi:routing-debug",
+    "boerdi:query-meta",
+    "boerdi:page-action",
 ]
 
 
@@ -224,6 +244,36 @@ def test_classic_is_the_real_a_b_against_inline(client):
     assert 'inline-result-grouping="false"' not in inline
 
 
+def test_only_the_frameless_demo_switches_the_embed_mode(client):
+    # `embed-mode` is what this page is about (U1). Asserted negatively on the
+    # other three as well, because all four share one template: a stray default
+    # there would strip the header off every demo at once.
+    assert 'embed-mode="frameless"' in client.get("/widget/frameless").text
+    for path in ["/widget/", "/widget/inline", "/widget/classic"]:
+        assert "embed-mode" not in client.get(path).text, path
+
+
+def test_the_frameless_demo_gives_the_widget_a_sized_container(client):
+    # Frameless means the element fills its container instead of floating at a
+    # size of its own. Embedded bare into the page flow it would therefore
+    # render at zero height — visible as nothing at all, with no error. The
+    # container and its height are the page, not decoration.
+    body = client.get("/widget/frameless").text
+    frame = body.split('<div class="frame">')[1].split("</div>")[0]
+    assert "<boerdi-chat" in frame
+    rule = re.search(r"\.frame\s*\{([^}]*)\}", body)
+    assert rule and "block-size" in rule.group(1), rule
+
+
+@pytest.mark.parametrize("path", DEMOS)
+def test_every_demo_page_links_to_every_variant(client, path):
+    # The nav is shared, so a new page is only reachable if it is listed there —
+    # otherwise it exists but nobody finds it.
+    body = client.get(path).text
+    for target in DEMOS:
+        assert f'href="{target}"' in body, f"{target} fehlt in der Navigation von {path}"
+
+
 @pytest.mark.parametrize("path", DEMOS)
 def test_the_event_inspector_listens_to_exactly_what_the_widget_emits(client, path):
     body = client.get(path).text
@@ -233,7 +283,9 @@ def test_the_event_inspector_listens_to_exactly_what_the_widget_emits(client, pa
     # broken widget, not as an unused feature.
     import re as _re
 
-    listed = set(_re.findall(r"badboerdi:[a-z-]+", body))
+    # The lookbehind keeps a leftover `badboerdi:` OUT of the match — without
+    # it a stale legacy listener would pass as if it were one of the new names.
+    listed = set(_re.findall(r"(?<!bad)boerdi:[a-z-]+", body))
     assert listed == set(WIDGET_EVENTS), listed
 
 
@@ -244,3 +296,68 @@ def test_a_demo_route_wins_over_a_file_of_the_same_name(client, dist):
     r = client.get("/widget/inline")
     assert r.headers["content-type"].startswith("text/html")
     assert "not the page" not in r.text
+
+
+# ── U8: das Bedienpult der Demo-Seiten ───────────────────────────────────
+
+
+@pytest.mark.parametrize("path", DEMOS)
+def test_every_demo_page_carries_the_control_panel(client, path):
+    # Vor U8 zeigte jede Seite EINE feste Attribut-Kombination — zusammen acht
+    # der 23 Host-Attribute. Wer `show-cards="never"` sehen wollte, musste sich
+    # eine eigene HTML-Datei schreiben; „geht nicht" las sich dann wie ein
+    # Defekt, wo nur kein Weg da war, es zu sehen.
+    body = client.get(path).text
+    assert 'id="pult-gitter"' in body
+    erwartet = {c.attr for c in widget_demo_controls.CONTROLS}
+    if path == "/widget/frameless":
+        erwartet -= {"position"}
+    assert set(re.findall(r'data-attr="([a-z-]+)"', body)) == erwartet
+
+
+def test_the_panel_preselects_what_the_page_itself_set(client):
+    # Sonst zeigte das Pult auf der eingebetteten Seite „Debug-Knopf: Standard",
+    # obwohl er dort aus ist — und der erste Klick wäre eine Korrektur einer
+    # Anzeige, die nie stimmte. Deshalb speist EINE Quelle Element und Pult.
+    body = client.get("/widget/inline").text
+    feld = body.split('data-attr="show-debug-button"')[1].split("</select>")[0]
+    assert '<option value="false" selected>' in feld
+
+
+def test_only_the_two_start_only_attributes_are_marked_for_a_restart(client):
+    # `size` und `initial-state` sind laut Vertrag Startwerte; ein `setAttribute`
+    # darauf tut nichts. Das Pult baut dafür das Element neu auf. Die Markierung
+    # ist die einzige Stelle, an der diese Vertragszusage im Backend steht —
+    # gerät sie an ein Attribut, das live wirkt, verliert der Nutzer bei jedem
+    # Umschalten grundlos das Panel.
+    body = client.get("/widget/").text
+    mit_neustart = re.findall(r'data-attr="([a-z-]+)" data-restart="true"', body)
+    assert set(mit_neustart) == {"size", "initial-state"}
+
+
+@pytest.mark.parametrize("path", DEMOS)
+def test_page_scheme_and_widget_theme_are_two_separate_switches(client, path):
+    # Der Kern von U4a: bei `theme="auto"` folgt das Widget dem `color-scheme`
+    # der Gastseite, bei `light`/`dark` nicht mehr. Mit nur einem Schalter liesse
+    # sich dieser Unterschied auf keiner Demo-Seite zeigen.
+    body = client.get(path).text
+    assert 'id="pult-seite"' in body
+    assert 'data-attr="theme"' in body
+
+
+def test_no_control_promises_an_attribute_the_element_does_not_have():
+    # Der lebende Vertrag steht im Studio (`widget-contract-data.ts`) und wird
+    # dort von einem Frontend-Test gegen das Element festgenagelt. Diese kleine
+    # Liste hier ist die zweite Kopie — genau die Sorte, von der dieses Projekt
+    # schon zweimal eine driften sah. Also gegenlesen statt hoffen.
+    from pathlib import Path
+
+    vertrag = (
+        Path(__file__).resolve().parents[2]
+        / "frontend/projects/studio/src/app/views/widget-contract-data.ts"
+    )
+    if not vertrag.exists():  # Backend-Image ohne Frontend-Quellen
+        pytest.skip(f"Vertragsdatei nicht da: {vertrag}")
+    bekannt = set(re.findall(r"attr: '([a-z-]+)'", vertrag.read_text(encoding="utf-8")))
+    unbekannt = {c.attr for c in widget_demo_controls.CONTROLS} - bekannt
+    assert not unbekannt, f"kein Host-Attribut: {sorted(unbekannt)}"

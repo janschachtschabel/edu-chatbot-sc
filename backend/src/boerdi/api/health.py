@@ -13,6 +13,8 @@ from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 
 from boerdi.services import llm_models
+from boerdi.services.mcp.auth import auth_mode
+from boerdi.services.rag.rerank import reranker_status
 
 public_router = APIRouter(tags=["health"])
 
@@ -27,6 +29,15 @@ def _health_detail() -> dict:
         "chat_model": model,
         "embed_model": llm_models.get_embed_model(),
         "gpt5_params_active": llm_models.supports_gpt5_params(model),
+        # C3: Betriebsart gegenüber dem MCP-Server — ``service`` (Zugangsblock
+        # hinterlegt) oder ``anonymous``. Nur das Wort, nie der Block: sonst
+        # könnte ein Betreiber nicht prüfen, ob sein Token überhaupt greift.
+        "mcp_auth": auth_mode(),
+        # Wie `mcp_auth` nur das WORT, aber hier mit einem eigenen Zweck: der
+        # Reranker kann eingeschaltet und trotzdem untätig sein, wenn das
+        # Modell fehlt. Ohne dieses Feld merkt man das nur an unauffällig
+        # schlechteren Antworten — die teuerste Art, einen Fehler zu finden.
+        "reranker": reranker_status(),
     }
     if info["gpt5_params_active"]:
         info["verbosity"] = llm_models.get_verbosity()

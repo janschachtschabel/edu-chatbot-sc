@@ -77,6 +77,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Label",
             "type": "string"
           },
+          "label_en": {
+            "default": "",
+            "title": "Label En",
+            "type": "string"
+          },
           "emoji": {
             "default": "",
             "title": "Emoji",
@@ -412,12 +417,28 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Report Url",
             "type": "string"
           },
+          "own_hosts": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Own Hosts",
+            "type": "array"
+          },
           "greetings": {
             "additionalProperties": {
               "type": "string"
             },
             "default": {},
             "title": "Greetings",
+            "type": "object"
+          },
+          "greetings_en": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Greetings En",
             "type": "object"
           },
           "pills": {
@@ -430,6 +451,26 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "default": {},
             "title": "Pills",
             "type": "object"
+          },
+          "duplicate_greeting": {
+            "default": "",
+            "title": "Duplicate Greeting",
+            "type": "string"
+          },
+          "duplicate_greeting_en": {
+            "default": "",
+            "title": "Duplicate Greeting En",
+            "type": "string"
+          },
+          "duplicate_pill_label": {
+            "default": "",
+            "title": "Duplicate Pill Label",
+            "type": "string"
+          },
+          "duplicate_pill_label_en": {
+            "default": "",
+            "title": "Duplicate Pill Label En",
+            "type": "string"
           },
           "curate_prompt": {
             "default": "",
@@ -445,6 +486,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "properties": {
           "label": {
             "title": "Label",
+            "type": "string"
+          },
+          "label_en": {
+            "default": "",
+            "title": "Label En",
             "type": "string"
           },
           "kind": {
@@ -504,8 +550,14 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "default": {
           "enabled": true,
           "report_url": "",
+          "own_hosts": [],
           "greetings": {},
+          "greetings_en": {},
           "pills": {},
+          "duplicate_greeting": "",
+          "duplicate_greeting_en": "",
+          "duplicate_pill_label": "",
+          "duplicate_pill_label_en": "",
           "curate_prompt": ""
         }
       }
@@ -1035,6 +1087,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Label",
             "type": "string"
           },
+          "label_en": {
+            "default": "",
+            "title": "Label En",
+            "type": "string"
+          },
           "url": {
             "default": "",
             "title": "Url",
@@ -1126,6 +1183,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "label": {
             "default": "",
             "title": "Label",
+            "type": "string"
+          },
+          "label_en": {
+            "default": "",
+            "title": "Label En",
             "type": "string"
           },
           "icon": {
@@ -2043,6 +2105,54 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
     "title": "PolicyArea",
     "type": "object"
   },
+  "01-base/pricing": {
+    "$defs": {
+      "ModelPrice": {
+        "additionalProperties": true,
+        "description": "Preise eines Modells je 1 Mio. Token.\n\nAlle drei auf 0 heißt **nicht gepflegt** und ausdrücklich nicht „kostenlos\"\n— die Auslegung trifft ``domain/pricing.resolve_model_price``.\n\nFür Reasoning gibt es keinen eigenen Preis: die Anbieter berechnen es zum\nAusgabepreis, es steckt also schon in ``output``.",
+        "properties": {
+          "input": {
+            "default": 0.0,
+            "minimum": 0,
+            "title": "Input",
+            "type": "number"
+          },
+          "cached_input": {
+            "default": 0.0,
+            "minimum": 0,
+            "title": "Cached Input",
+            "type": "number"
+          },
+          "output": {
+            "default": 0.0,
+            "minimum": 0,
+            "title": "Output",
+            "type": "number"
+          }
+        },
+        "title": "ModelPrice",
+        "type": "object"
+      }
+    },
+    "additionalProperties": true,
+    "properties": {
+      "currency": {
+        "default": "EUR",
+        "title": "Currency",
+        "type": "string"
+      },
+      "models": {
+        "additionalProperties": {
+          "$ref": "#/$defs/ModelPrice"
+        },
+        "default": {},
+        "title": "Models",
+        "type": "object"
+      }
+    },
+    "title": "PricingArea",
+    "type": "object"
+  },
   "01-base/privacy-config": {
     "$defs": {
       "PrivacyLoggingBlock": {
@@ -2287,6 +2397,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "default": "",
             "title": "Blocked Message",
             "type": "string"
+          },
+          "blocked_message_en": {
+            "default": "",
+            "title": "Blocked Message En",
+            "type": "string"
           }
         },
         "title": "RateLimitsBlock",
@@ -2420,7 +2535,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "requests_per_minute": 0
           },
           "ip_whitelist": [],
-          "blocked_message": ""
+          "blocked_message": "",
+          "blocked_message_en": ""
         }
       },
       "logging": {
@@ -2682,6 +2798,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Label",
             "type": "string"
           },
+          "label_en": {
+            "default": "",
+            "title": "Label En",
+            "type": "string"
+          },
           "path": {
             "default": "",
             "title": "Path",
@@ -2730,6 +2851,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "label": {
             "default": "",
             "title": "Label",
+            "type": "string"
+          },
+          "label_en": {
+            "default": "",
+            "title": "Label En",
             "type": "string"
           },
           "synonyms": {
@@ -2817,14 +2943,29 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Intro",
             "type": "string"
           },
+          "intro_en": {
+            "default": "",
+            "title": "Intro En",
+            "type": "string"
+          },
           "nudge": {
             "default": "",
             "title": "Nudge",
             "type": "string"
           },
+          "nudge_en": {
+            "default": "",
+            "title": "Nudge En",
+            "type": "string"
+          },
           "explore": {
             "default": "",
             "title": "Explore",
+            "type": "string"
+          },
+          "explore_en": {
+            "default": "",
+            "title": "Explore En",
             "type": "string"
           },
           "entry": {
@@ -2884,8 +3025,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "trigger_phrases": [],
           "flows": [],
           "intro": "",
+          "intro_en": "",
           "nudge": "",
+          "nudge_en": "",
           "explore": "",
+          "explore_en": "",
           "entry": {},
           "groups": [],
           "content_sublinks": [],
@@ -2919,6 +3063,24 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "default": "",
             "title": "Tour Reply",
             "type": "string"
+          },
+          "greeting_en": {
+            "default": "",
+            "title": "Greeting En",
+            "type": "string"
+          },
+          "quick_replies_en": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Quick Replies En",
+            "type": "array"
+          },
+          "tour_reply_en": {
+            "default": "",
+            "title": "Tour Reply En",
+            "type": "string"
           }
         },
         "title": "WelcomeBlock",
@@ -2932,7 +3094,10 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "default": {
           "greeting": "",
           "quick_replies": [],
-          "tour_reply": ""
+          "tour_reply": "",
+          "greeting_en": "",
+          "quick_replies_en": [],
+          "tour_reply_en": ""
         }
       }
     },
@@ -2988,6 +3153,7 @@ export const AREA_KEYS: readonly string[] = [
   "01-base/header-nav",
   "01-base/placeholder-topics",
   "01-base/policy",
+  "01-base/pricing",
   "01-base/privacy-config",
   "01-base/quality-log-config",
   "01-base/safety-config",

@@ -20,6 +20,7 @@ import { WloCard } from '../cards/card-types';
 import {
   getCardPrimaryUrl, isThemenseite, isSammlung, isInhalt, getContentTypeLabel,
 } from '../cards/card-utils';
+import type { TranslateFn } from '../i18n/i18n';
 import { ChatMessage } from './message-types';
 
 /** Instanz-State der ChatComponent, den die Grouping-Funktionen lesen —
@@ -31,6 +32,34 @@ export interface GroupingContext {
   /** ``ChatComponent.externalLinkWarning`` — Warntooltip für Hosts
    *  außerhalb der Trusted-Liste, ``''`` wenn keiner nötig. */
   externalLinkWarning: (url: string | null | undefined) => string;
+  /**
+   * Übersetzer der Shell (C1-b2). Steht hier und nicht als eigener Input an
+   * jeder Komponente, weil dieser Kontext ohnehin der Weg ist, auf dem die
+   * drei Grouping-Renderer instanzgebundene Helfer bekommen — und weil die
+   * reinen Label-Funktionen dieser Datei (C1-b3) denselben Zugang brauchen
+   * werden. Ein zweiter Weg daneben wäre eine Quelle für Drift.
+   */
+  t: TranslateFn;
+}
+
+/**
+ * Kontext für die Renderer, die den Such-Absprung zeigen. Erweitert den reinen
+ * {@link GroupingContext} um die eine Host-Trust-Abfrage, die nur die
+ * Target-Entscheidung der CTA braucht (`_self` vs. `_blank`, ALT
+ * `ChatComponent.isHostTrusted`). Die Chat-Shell (8-4) baut ihn aus
+ * `session/trusted-host` (sessionId + effektive Trusted-Liste) und reicht ihn
+ * als Input herein — analog zum präsentationalen Schnitt des WloCard-Tiles
+ * (8-2f), wo der Elternteil die Session-/Trust-Logik besitzt.
+ *
+ * Steht hier und nicht mehr in `result-groups.component` (U6b, 2026-08-09):
+ * seit der Absprung auch unter dem Kachelraster hängt, brauchen ihn zwei
+ * Renderer. Die Gruppen-Box importiert schon einen Typ AUS `cards/`; die
+ * Gegenrichtung hätte einen Ring geschlossen.
+ */
+export interface ResultGroupsContext extends GroupingContext {
+  /** ALT `ChatComponent.isHostTrusted(host)` = `isTrustedHost(host, effektive
+   *  Trusted-Domains)`, gebunden an die Instanz-Liste. */
+  isTrustedHost: (host: string) => boolean;
 }
 
 /** Dedup-Key für Gruppen-Items. Eine Karte gilt als duplikat-gleich
@@ -328,7 +357,7 @@ export function cardTooltip(
 ): string | null {
   if (!card) return null;
   const title = (card.title || '').trim();
-  const type = getContentTypeLabel(card);
+  const type = getContentTypeLabel(card, ctx.t);
   const label = title && type ? `${title} (${type})` : (title || type);
   // ``ctx.withBsid(getCardPrimaryUrl(card))`` ≙ ``ChatComponent.cardUrl(card)``.
   return itemTooltip(label, url ?? ctx.withBsid(getCardPrimaryUrl(card)), ctx);
@@ -337,10 +366,16 @@ export function cardTooltip(
 /** Tooltip-Builder für die Search-CTA-Box im Result-Grouping-Modus.
  *  Baut den String ``Alle Treffer in der Suche anzeigen zu „<term>"`` plus
  *  ggf. Extern-Warnung. Im Template aufrufen statt das umständliche
- *  Inline-Escaping mit ``\"`` zu hantieren. */
+ *  Inline-Escaping mit ``\"`` zu hantieren.
+ *
+ *  C1-b3: zwei vollständige Sätze im Katalog statt eines Präfixes mit
+ *  angeklebtem Zusatz — eine andere Sprache stellt den Suchbegriff womöglich
+ *  voran, dort ginge Zusammenkleben schief. */
 export function searchCtaTooltip(msg: ChatMessage, ctx: GroupingContext): string | null {
   const term = groupedSearchTerm(msg);
-  const base = 'Alle Treffer in der Suche anzeigen' + (term ? ` zu „${term}"` : '');
+  const base = term
+    ? ctx.t('groups.ctaTooltip.withTerm', { term })
+    : ctx.t('groups.ctaTooltip.all');
   return itemTooltip(base, groupedSearchUrl(msg, ctx), ctx);
 }
 

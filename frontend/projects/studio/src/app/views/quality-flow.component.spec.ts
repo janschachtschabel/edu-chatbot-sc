@@ -5,6 +5,7 @@ import { Component, provideZonelessChangeDetection, signal } from '@angular/core
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { QualityFlowComponent } from './quality-flow.component';
 import type { QualityScope } from '../core/quality-api.service';
 
@@ -45,7 +46,10 @@ async function settle(h: Harness): Promise<void> {
   await h.fixture.whenStable();
 }
 
-async function mount(flow: object = FLOW): Promise<Harness> {
+/** jsdom meldet `navigator.language === 'en-US'`; ohne gesetzte Wahl liefe die
+ *  deutsche Oberfläche auf Englisch. */
+async function mount(flow: object = FLOW, locale = 'de'): Promise<Harness> {
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -216,5 +220,24 @@ describe('QualityFlowComponent', () => {
     await settle(h);
 
     expect(h.el.querySelector('[role="alert"]')!.textContent).toContain('Zeitfenster');
+  });
+
+  it('setzt alle drei Anzahlen der Kopfzeile in ihre eigene Mehrzahl', async () => {
+    // Turns, Übergänge und Tage sind voneinander unabhängig — drei Wortgruppen
+    // in EINEM Satz, keine Schlüssel-Matrix. Fest verdrahtet las sich das schon
+    // auf Deutsch als „1 Turns mit Phase, 1 Übergänge (…, letzte 1 Tage)".
+    const h = await mount({
+      ...FLOW, days: 1, total_turns: 1, total_transitions: 1,
+      transitions: [{ prev: 'S2', next: 'S3', count: 1 }],
+    });
+    expect(h.el.querySelector('.qf-total')!.textContent!.replace(/\s+/g, ' ').trim())
+      .toBe('1 Turn mit Phase, 1 Übergang (all, letzter 1 Tag).');
+  });
+
+  it('nimmt Beschriftungen der drei Tabellen aus dem Katalog', async () => {
+    const h = await mount(FLOW, 'en');
+    expect(captions(h)).toEqual([
+      'Frequency of the phases', 'Transitions between phases', 'Repeats of the same phase',
+    ]);
   });
 });

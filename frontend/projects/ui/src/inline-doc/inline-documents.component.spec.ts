@@ -4,6 +4,9 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { InlineDocument } from '../grouping/message-types';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
+import { TranslateFn } from '../i18n/i18n';
 import { InlineDocumentsComponent } from './inline-documents.component';
 
 /**
@@ -27,11 +30,13 @@ describe('InlineDocumentsComponent', () => {
   async function render(
     documents: InlineDocument[],
     displayRules: Record<string, unknown> | null = null,
+    translate: TranslateFn = createTranslator(DE, DE),
   ): Promise<{ host: HTMLElement; printed: InlineDocument[] }> {
     const printed: InlineDocument[] = [];
     const fixture = TestBed.createComponent(InlineDocumentsComponent);
     fixture.componentRef.setInput('documents', documents);
     fixture.componentRef.setInput('displayRules', displayRules);
+    fixture.componentRef.setInput('translate', translate);
     fixture.componentRef.setInput(
       'renderMarkdown',
       (c: string): SafeHtml => sanitizer.bypassSecurityTrustHtml(`<p class="md">${c}</p>`),
@@ -64,6 +69,19 @@ describe('InlineDocumentsComponent', () => {
     expect(btn.getAttribute('type')).toBe('button');
     expect(btn.getAttribute('aria-label')).toBe('Als PDF drucken / speichern');
     expect(btn.querySelector('svg')).not.toBeNull();
+  });
+
+  /** Das Fallback-Label („Bearbeitete Version") bleibt bewusst außen vor: es
+   *  kommt aus `inline-doc.ts` und ist Sache von C1-b3. */
+  it('nimmt die Druck-Beschriftung aus `[translate]` (C1-b2)', async () => {
+    const { host } = await render(
+      [{ kind: 'lernpfad', title: 'P', content: 'x' }],
+      null,
+      (key) => (key === 'inlineDoc.print' ? 'Print / save as PDF' : key),
+    );
+    const btn = host.querySelector('.inline-document__print-btn')!;
+    expect(btn.getAttribute('aria-label')).toBe('Print / save as PDF');
+    expect(btn.getAttribute('title')).toBe('Print / save as PDF');
   });
 
   it('leere documents → nichts gerendert', async () => {

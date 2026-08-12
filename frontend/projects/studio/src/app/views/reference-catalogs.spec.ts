@@ -26,7 +26,14 @@ describe('groupSignals', () => {
     ]);
     // A hand-written list of known flags would silently drop a flag added later —
     // exactly how ALT's table came to omit `skip_intro` on five signals.
-    expect(group.signals[0].flags).toEqual(['ohne Rückfrage-Vorschlag', 'brandneu']);
+    //
+    // Seit C1-d5c2 liefert die Funktion Katalog-SCHLÜSSEL statt fertiger Wörter.
+    // Der Durchfall ist derselbe geblieben und hier weiter gepinnt: bekanntes
+    // Flag → sein Schlüssel, unbekanntes → es selbst. Am Bildschirm steht
+    // deshalb weiterhin `brandneu`, denn `createTranslator` gibt einen
+    // unbekannten Schlüssel unverändert aus — belegt in
+    // `reference-catalogs.component.spec.ts`, in beiden Sprachen.
+    expect(group.signals[0].flags).toEqual(['rc.flag.showMore', 'brandneu']);
   });
 
   it('lässt tone/length weg, wenn das Signal sie nicht setzt', () => {

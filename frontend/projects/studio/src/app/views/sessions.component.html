@@ -1,15 +1,12 @@
 <header class="sv-head">
-  <p class="sv-crumb">Auswertung</p>
-  <h2 class="sv-title">Sessions</h2>
-  <p class="sv-intro">
-    Die zuletzt aktiven Gespräche, neueste zuerst (die Liste zeigt höchstens 100).
-    Eine Session wählen, um ihren Verlauf mit den Routing-Entscheidungen zu sehen.
-  </p>
+  <p class="sv-crumb">{{ t('nav.group.auswertung') }}</p>
+  <h2 class="sv-title">{{ t('view.sessions.label') }}</h2>
+  <p class="sv-intro">{{ t('sv.intro') }}</p>
 </header>
 
 <div class="sv-actions">
   <button type="button" class="sv-btn sv-reload" [disabled]="sessions.loading()" (click)="reload()">
-    {{ sessions.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+    {{ sessions.loading() ? t('action.refreshing') : t('action.refresh') }}
   </button>
   <p class="sv-status" aria-live="polite">{{ status() }}</p>
 </div>
@@ -19,11 +16,11 @@
 }
 
 <studio-async-state
-  label="Die Sessions"
+  [label]="t('view.sessions.label')"
   [loading]="sessions.loading() && rows().length === 0"
   [error]="sessions.error()"
   [empty]="sessions.isEmpty()"
-  emptyText="Noch keine Sessions. Sobald jemand mit dem Widget spricht, steht das Gespräch hier."
+  [emptyText]="t('sv.empty')"
   (retry)="reload()"
 />
 
@@ -40,8 +37,8 @@
           >
             <span class="sv-id">{{ row.session_id }}</span>
             <span class="sv-meta">
-              {{ row.turn_count }} {{ row.turn_count === 1 ? 'Turn' : 'Turns' }}
-              · {{ row.persona_id || 'unbekannt' }}
+              {{ turnCount(row.turn_count) }}
+              · {{ row.persona_id || t('sv.unknown') }}
               · {{ row.state_id }}
             </span>
             <span class="sv-time">{{ formatTime(row.updated_at) }}</span>
@@ -52,56 +49,48 @@
               type="button"
               class="sv-btn sv-clear"
               [disabled]="working()"
+              [attr.aria-label]="t('sv.clearFor', { id: row.session_id })"
               (click)="arm(row.session_id, 'clear')"
-            >
-              Verlauf leeren<span class="sr"> — Session {{ row.session_id }}</span>
-            </button>
+            >{{ t('sv.clear') }}</button>
             <button
               type="button"
               class="sv-btn sv-del"
               [disabled]="working()"
+              [attr.aria-label]="t('sv.deleteFor', { id: row.session_id })"
               (click)="arm(row.session_id, 'delete')"
-            >
-              Löschen<span class="sr"> — Session {{ row.session_id }}</span>
-            </button>
+            >{{ t('sv.delete') }}</button>
           </span>
 
           @if (isArmed(row.session_id, 'clear')) {
             <p class="sv-confirm">
-              <span role="alert">
-                Wirklich den Gesprächsverlauf leeren? Die Session, ihr Gedächtnis und
-                die Auswertungsdaten bleiben erhalten.
-              </span>
+              <span role="alert">{{ t('sv.confirmClear') }}</span>
               <button
                 type="button"
                 class="sv-btn sv-clear-yes"
                 [disabled]="working()"
                 (click)="confirm()"
               >
-                {{ working() ? 'Wird geleert …' : 'Ja, Verlauf leeren' }}
+                {{ working() ? t('sv.clearing') : t('sv.clearYes') }}
               </button>
               <button type="button" class="sv-btn sv-clear-no" [disabled]="working()" (click)="disarm()">
-                Abbrechen
+                {{ t('action.cancel') }}
               </button>
             </p>
           }
 
           @if (isArmed(row.session_id, 'delete')) {
             <p class="sv-confirm">
-              <span role="alert">
-                Wirklich löschen? Verlauf, Gedächtnis und alle Auswertungsdaten dieser
-                Session gehen mit — das lässt sich nicht rückgängig machen.
-              </span>
+              <span role="alert">{{ t('sv.confirmDelete') }}</span>
               <button
                 type="button"
                 class="sv-btn sv-del-yes"
                 [disabled]="working()"
                 (click)="confirm()"
               >
-                {{ working() ? 'Wird gelöscht …' : 'Ja, löschen' }}
+                {{ working() ? t('sv.deleting') : t('action.confirmDelete') }}
               </button>
               <button type="button" class="sv-btn sv-del-no" [disabled]="working()" (click)="disarm()">
-                Abbrechen
+                {{ t('action.cancel') }}
               </button>
             </p>
           }
@@ -110,11 +99,11 @@
     </ul>
 
     <section class="sv-detail" aria-labelledby="sv-detail-title">
-      <h3 class="sv-detail-title" id="sv-detail-title">Gesprächsverlauf</h3>
+      <h3 class="sv-detail-title" id="sv-detail-title">{{ t('sv.transcript') }}</h3>
       @if (selected(); as id) {
         <studio-session-transcript [sessionId]="id" />
       } @else {
-        <p class="sv-hint">Links eine Session wählen.</p>
+        <p class="sv-hint">{{ t('sv.pick') }}</p>
       }
     </section>
   </div>

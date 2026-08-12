@@ -119,6 +119,9 @@ class DebugInfo(BaseModel):
     # Turns (Klassifikator + Tool-Loop + Response-Generierung). Ermöglicht
     # Cost-Analytics, Cache-Hit-Rate-Monitoring und Modell-Kosten-Vergleich.
     # Format: {"prompt_tokens": int, "completion_tokens": int,
-    #          "cached_tokens": int, "calls": int,
-    #          "models": {"<model_name>": {"prompt": …, "completion": …, …}}}
+    #          "cached_tokens": int, "reasoning_tokens": int, "calls": int,
+    #          "models": {"<model_name>": {"prompt": …, "completion": …, …}},
+    #          "per_phase": {"<phase>": {"prompt": …, "completion": …, …}}}
+    # ``cached_tokens``/``reasoning_tokens`` sind „davon"-Zahlen: enthalten in
+    # ``prompt_tokens`` bzw. ``completion_tokens``, nicht zusätzlich dazu.
     token_usage: dict[str, Any] = Field(default_factory=dict)

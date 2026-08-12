@@ -5,14 +5,14 @@
 // ui-Komponenten (ALT chat.component.scss:14-19); CTA-/Hover-Akzent am
 // kundenüberschreibbaren --boerdi-primary (ALT-Token, Fallback #1c4587).
 //
-// simplify: kein Dark-Mode — ALT hell-only. a11y-/Kontrast-Sweep = Slice 8-6.
-// follow-up: die 3 $-Farbvariablen liegen inzwischen in 3 Komponenten — ein
-//   geteiltes SCSS-Token-Partial lohnt sich, aber erst im koordinierten
-//   8-6-Sweep (kein Feature-Slice-Refactor über fremde Dateien).
+// B2 (2026-07-31): die drei $-Variablen zeigen jetzt auf die Material-System-
+// token. Damit erledigt sich zugleich das alte follow-up „dieselben drei
+// Farbwerte liegen in drei Komponenten" — geteilt wird nun das Theme, nicht
+// eine weitere handgepflegte Farbliste.
 
-$border: rgba(0, 0, 0, 0.1);
-$text: #1a1a2e;
-$text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 (4,5:1)
+$border: var(--mat-sys-outline-variant);
+$text: var(--mat-sys-on-surface);
+$text-muted: var(--mat-sys-on-surface-variant);
 
 :host {
   // Host layout-transparent: die .inline-document-Boxen zählen direkt als
@@ -22,9 +22,9 @@ $text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 
 
 .inline-document {
   border: 1px solid $border;
-  border-radius: 8px;
+  border-radius: var(--mat-sys-corner-small);
   padding: 6px 10px 8px;
-  background: #fff;
+  background: var(--mat-sys-surface);
   margin: 8px 0;
 
   // Skalierungs-Variable kommt vom Template (CSS-Custom-Property); bei 100 %
@@ -58,7 +58,7 @@ $text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 
   &__print-btn {
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: var(--mat-sys-corner-extra-small);
     padding: 2px 6px;
     cursor: pointer;
     color: $text-muted;
@@ -67,9 +67,9 @@ $text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 
     flex-shrink: 0;
 
     &:hover {
-      background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 8%, #fff);
-      color: var(--boerdi-primary, #1c4587);
-      border-color: color-mix(in srgb, var(--boerdi-primary, #1c4587) 25%, #fff);
+      background: color-mix(in srgb, var(--mat-sys-primary) 8%, var(--mat-sys-surface));
+      color: var(--mat-sys-primary);
+      border-color: color-mix(in srgb, var(--mat-sys-primary) 25%, var(--mat-sys-surface));
     }
 
     .bb-icon {
@@ -112,13 +112,13 @@ $text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 
 
     code {
       font-size: .92em;
-      background: #f5f5f7;
+      background: var(--mat-sys-surface-container-high);
       padding: 0 4px;
-      border-radius: 3px;
+      border-radius: var(--mat-sys-corner-extra-small);
     }
 
     a {
-      color: var(--boerdi-primary, #1c4587);
+      color: var(--mat-sys-primary);
       text-decoration: underline;
       text-underline-offset: 2px;
     }

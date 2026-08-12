@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { ReferenceCatalogsComponent } from './reference-catalogs.component';
 import type { SignalElement } from './reference-catalogs';
 
@@ -50,8 +51,12 @@ async function settle(h: Harness): Promise<void> {
 async function mount(
   signals: readonly SignalElement[] = SIGNALS,
   doc: Record<string, unknown> | null = MATERIAL_DOC,
+  locale: 'de' | 'en' = 'de',
 ): Promise<Harness> {
   TestBed.resetTestingModule();
+  // Ohne diese Zeile spräche die Ansicht englisch: der Runner meldet
+  // `navigator.language = en-US` (C1-d5a1).
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(),
@@ -107,5 +112,56 @@ describe('ReferenceCatalogsComponent', () => {
   it('zeigt den Satz des Backends, wenn die Material-Typen nicht laden', async () => {
     const h = await mount(SIGNALS, null);
     expect(h.el.querySelector('[role="alert"]')!.textContent).toContain('Bereich unbekannt.');
+  });
+
+  it('übersetzt die eigene Prosa, nicht die Werte aus der Konfiguration', async () => {
+    // C1-d5c2. `effizient`, `kurz`, `sachlich` stehen so in
+    // `signal-modulations.yaml` — sie sind Konfiguration und bleiben, wie sie
+    // gepflegt sind. Übersetzt wird, was diese Ansicht selbst sagt.
+    const h = await mount(SIGNALS, MATERIAL_DOC, 'en');
+    expect(text(h)).toContain('The signal dimensions in detail');
+    expect(text(h)).toContain('Material types');
+    expect(text(h)).toContain('without an introduction');
+    expect(text(h)).toContain('effizient');
+    expect(text(h)).toContain('kurz');
+  });
+
+  it('lässt ein unbekanntes Flag durch, statt es zu verschlucken', async () => {
+    // Der Kopf von `reference-catalogs.ts` verspricht: „a flag added to the
+    // config must show up here without a code change". Mit Katalog-Schlüsseln
+    // trägt das der Übersetzer selbst — ein unbekannter Schlüssel kommt als er
+    // selbst zurück (`createTranslator`). Geprüft in beiden Sprachen, weil das
+    // Versprechen sonst an der Vorgabesprache hinge.
+    const withNewFlag: readonly SignalElement[] = [{
+      id: 'neugierig',
+      modulations: { dimension: 'D2-Wissen', label: 'Neugierig', brandneu_flag: true },
+    }];
+    for (const locale of ['de', 'en'] as const) {
+      const h = await mount(withNewFlag, MATERIAL_DOC, locale);
+      expect(text(h), locale).toContain('brandneu_flag');
+    }
+  });
+
+  it('nimmt die englische Beschriftung eines Material-Typs, wenn sie gepflegt ist', async () => {
+    // Seit C1-g2e trägt `material-types.yaml` je Typ ein `label_en`. Ohne diese
+    // Wahl stünden deutsche Chip-Namen mitten in einer englischen Tabelle;
+    // ist das Feld leer, bleibt es bei der deutschen — „leer heisst nicht
+    // gepflegt" (C1-g1a).
+    const doc = {
+      area: '05-canvas/material-types', type: 'yaml',
+      data: {
+        material_types: [
+          { id: 'bericht', label: 'Bericht', label_en: 'Report', emoji: '📊', category: 'analytisch' },
+          { id: 'vokabelliste', label: 'Vokabelliste', label_en: '', emoji: '🗣️', category: 'didaktisch' },
+        ],
+      },
+    };
+    const en = await mount(SIGNALS, doc, 'en');
+    expect(text(en)).toContain('Report');
+    expect(text(en)).toContain('Vokabelliste');
+
+    const de = await mount(SIGNALS, doc, 'de');
+    expect(text(de)).toContain('Bericht');
+    expect(text(de)).not.toContain('Report');
   });
 });

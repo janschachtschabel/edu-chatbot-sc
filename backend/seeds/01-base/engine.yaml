@@ -1,0 +1,32 @@
+# Welche Maschine einen Zug beantwortet.
+#
+#   pattern  Der Bestand: Klassifikator, Musterwahl, gebundene Werkzeugliste.
+#   agent    Eine freie Werkzeugschleife — Systemprompt plus voller Katalog,
+#            kein Muster, kein Klassifikator. Fuer Einbettungen ohne Chat-Rahmen
+#            und als Versuchsaufbau fuer die Frage, ob sie im Chat besser ist.
+#
+# Die Vorgabe ist bewusst `pattern`: ohne Pflege aendert sich am ausgelieferten
+# Chatbot nichts. Je Anfrage laesst sie sich mit der Kopfzeile `X-Boerdi-Engine`
+# uebersteuern — das braucht der A/B-Lauf, der beide Maschinen in EINEM
+# Golden-Durchgang fahren muss.
+mode: pattern
+
+agent:
+  # Deckel der Schleife. Alle vier sind noetig, weil ein MCP-Aufruf gemessen bis
+  # 23 s steht: ohne Frist koennte ein Lauf mit 12 Iterationen acht Minuten
+  # dauern, ohne Budget beliebig viel kosten.
+  max_iterations: 12
+  deadline_s: 90
+  token_budget: 60000
+
+  # propose | execute — darf die Schleife eine Aenderung auch BESTAETIGEN?
+  # `propose` haelt die Bestaetigungs-Wall: kuratierende Werkzeuge laufen bis
+  # zur Vorschau, das Ausfuehren bleibt beim Menschen. `execute` ist die
+  # bewusste Entscheidung eines Gastgebers, der eine angemeldete Person vor sich
+  # hat (App mit WLO-Sitzung, Browser-Plugin). Nichts, was schreibt, ist
+  # standardmaessig an.
+  write_mode: propose
+
+  # Sicherheits-Gate (Regex + Moderation). Es haengt nicht am Klassifikator,
+  # kostet also nichts, was der Agent-Modus einspart.
+  safety: true

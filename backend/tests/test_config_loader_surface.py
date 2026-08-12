@@ -192,3 +192,134 @@ def test_write_then_read_roundtrip(seeded_store):
     assert cfg["quick_replies"] == ["x"]
     text = cl.read_config_file("01-base/welcome-config.yaml")
     assert "Servus" in text
+
+
+# ── C1-g1a: die zweite Sprache als Suffix je Schluessel ────────────────────
+# Nutzer-Entscheid 2026-08-04: „EN optional, Rueckfall auf DE je Schluessel".
+# Ein LEERES ``*_en`` heisst deshalb nicht „leerer Text", sondern „nimm das
+# deutsche Feld" — die Wahl trifft das Widget, der Loader liefert nur beides.
+
+def test_welcome_liefert_beide_sprachen(seeded_store):
+    asyncio.run(cl.write_config_file(
+        "01-base/welcome-config.yaml",
+        "welcome:\n"
+        "  greeting: Servus\n"
+        "  greeting_en: Hello there\n"
+        "  quick_replies: [a, b]\n"
+        "  quick_replies_en: [A, B]\n"
+        "  tour_reply: Zeig mir alles\n"
+        "  tour_reply_en: Show me around\n",
+    ))
+    cfg = cl.load_welcome_config()
+    assert cfg["greeting"] == "Servus"
+    assert cfg["greeting_en"] == "Hello there"
+    assert cfg["quick_replies"] == ["a", "b"]
+    assert cfg["quick_replies_en"] == ["A", "B"]
+    assert cfg["tour_reply"] == "Zeig mir alles"
+    assert cfg["tour_reply_en"] == "Show me around"
+
+
+def test_welcome_ohne_englisch_liefert_leere_felder_statt_deutsch(seeded_store):
+    """Der Loader setzt NICHT die deutschen Werte ein.
+
+    Ersetzte er sie, koennte das Widget „bewusst gleich" nicht mehr von
+    „nicht gepflegt" unterscheiden — und ein spaeterer Rueckfall auf den
+    eingebauten englischen Katalog waere fuer immer verbaut.
+    """
+    asyncio.run(cl.write_config_file(
+        "01-base/welcome-config.yaml",
+        "welcome:\n  greeting: Servus\n  quick_replies: [a]\n  tour_reply: ''\n",
+    ))
+    cfg = cl.load_welcome_config()
+    assert cfg["greeting"] == "Servus"
+    assert cfg["greeting_en"] == ""
+    assert cfg["quick_replies_en"] == []
+    assert cfg["tour_reply_en"] == ""
+
+
+def test_header_nav_buttons_tragen_label_en(seeded_store):
+    asyncio.run(cl.write_config_file(
+        "01-base/header-nav.yaml",
+        "header_nav:\n"
+        "  buttons:\n"
+        "    - id: home\n"
+        "      enabled: true\n"
+        "      label: Startseite\n"
+        "      label_en: Home\n"
+        "      icon: home\n"
+        "      url: https://example.org/\n"
+        "      new_tab: false\n",
+    ))
+    buttons = cl.load_header_nav_config()["buttons"]
+    assert buttons[0]["label"] == "Startseite"
+    assert buttons[0]["label_en"] == "Home"
+
+
+# ── C1-g2a: dieselbe Regel für die Lotsen-Beschriftungen ───────────────────
+
+def test_guide_rules_tragen_label_en(seeded_store):
+    asyncio.run(cl.write_config_file(
+        "02-domain/guide-rules.yaml",
+        "message_rules:\n"
+        "  - pattern: oer\n"
+        "    label: OER-Erklärung\n"
+        "    label_en: What is OER?\n"
+        "    url: https://wirlernenonline.de/oer\n"
+        "    priority: 60\n"
+        "  - pattern: mitmachen\n"
+        "    label: Mitmachen-Seite\n"
+        "    url: https://wirlernenonline.de/mitmachen\n"
+        "    priority: 75\n",
+    ))
+    rules = cl.load_guide_rules_config()["message_rules"]
+    assert rules[0]["label_en"] == "What is OER?"
+    # Ohne gepflegte Fassung bleibt das Feld leer — der Loader setzt NICHT das
+    # deutsche Label ein, sonst könnte niemand mehr „fehlt" von „gleich"
+    # unterscheiden (dieselbe Regel wie bei der Begrüßung, C1-g1a).
+    assert rules[1]["label_en"] == ""
+
+
+# ── C1-g2b: Kontext-Begrüßungen und Chips ─────────────────────────────────
+
+def test_context_actions_tragen_beide_sprachen(seeded_store):
+    asyncio.run(cl.write_config_file(
+        "01-base/context-actions.yaml",
+        "context_actions:\n"
+        "  greetings:\n"
+        "    collection: Du bist in „{title}“.\n"
+        "  greetings_en:\n"
+        "    collection: You are in “{title}”.\n"
+        "  pills:\n"
+        "    collection:\n"
+        "      - label: Sammlung erkunden\n"
+        "        label_en: Explore collection\n"
+        "        kind: action\n"
+        "        action: browse_collection\n"
+        "      - label: Inhalt melden\n"
+        "        kind: report\n",
+    ))
+    cfg = cl.load_context_actions()
+    assert cfg["greetings"]["collection"] == "Du bist in „{title}“."
+    assert cfg["greetings_en"]["collection"] == "You are in “{title}”."
+    pills = cfg["pills"]["collection"]
+    assert pills[0]["label_en"] == "Explore collection"
+    assert pills[1]["label_en"] == ""
+
+
+def test_context_actions_ohne_englisch_liefern_leere_felder(seeded_store):
+    """Die deutschen Vorgaben des Loaders bleiben einsprachig.
+
+    Sie sind die Notbremse für eine leere Config, kein Pflegeort — genau wie
+    `_RULES` im Lotsen-Injektor (C1-g2a). Ein englischer Wert hier hieße: zwei
+    Wahrheiten pflegen.
+    """
+    asyncio.run(cl.write_config_file(
+        "01-base/context-actions.yaml", "context_actions:\n  enabled: true\n",
+    ))
+    cfg = cl.load_context_actions()
+    assert cfg["greetings"]["collection"]          # deutsche Vorgabe greift
+    # Als Eigenschaft geprüft, nicht als Aufzählung: die Arten wachsen (die
+    # Seitenkontext-Erweiterung brachte search/home/external), die Regel nicht.
+    assert set(cfg["greetings_en"]) == set(cfg["greetings"])
+    assert all(v == "" for v in cfg["greetings_en"].values())
+    assert all(p["label_en"] == "" for p in cfg["pills"]["collection"])

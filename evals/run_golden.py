@@ -9,8 +9,16 @@ so it can run against ANY chat backend:
     cd backend && uv run python ../evals/run_golden.py --only GS-1
     EVAL_CHAT_URL=http://localhost:8100/api/chat uv run python ../evals/run_golden.py
 
+``EVAL_CHAT_HEADERS`` (A5) carries a JSON object of request headers into every
+turn — the way to drive ONE suite against BOTH engines, since the switch is a
+header (``X-Boerdi-Engine``, A4a):
+
+    EVAL_CHAT_HEADERS='{"X-Boerdi-Engine":"agent"}' \
+        uv run python ../evals/run_golden.py --label agent
+
 Exit code 0 == all asserted hard checks passed (persona/intent/register/
-structure/qr); host is reported but soft, like ALT.
+structure/qr); host is reported but soft, like ALT. Exit code 2 == the run never
+started (no matching flow, unreadable headers).
 
 ONE file on purpose (documented exception to the ~300-line rule, §0 rule 7):
 both ``eval_service._load_golden_runner`` and the tests load it by PATH via
@@ -25,6 +33,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import os
 import re
 import sys
@@ -61,6 +70,30 @@ def detect_register(text: str) -> tuple[str, int, int]:
     d = len(_DU_RE.findall(text or ""))
     label = "sie" if s > d else ("du" if d > s else "neutral")
     return label, s, d
+
+
+def chat_headers(raw: str | None) -> dict[str, str]:
+    """``EVAL_CHAT_HEADERS`` (a JSON object) as request headers (A5).
+
+    Empty means empty. Unreadable means **abort**, never "carry on without
+    headers": the whole point of this setting is the engine switch
+    (``X-Boerdi-Engine``), and a silent fallback would run the suite against the
+    pattern engine while the report claims ``agent`` — the A/B comparison would
+    then compare a run with itself, and nothing would turn red anywhere.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return {}
+    try:
+        data = json.loads(s)
+    except ValueError as e:
+        raise ValueError(f"EVAL_CHAT_HEADERS is not valid JSON: {e}") from e
+    if not isinstance(data, dict):
+        raise ValueError("EVAL_CHAT_HEADERS must be a JSON OBJECT of name → value")
+    bad = sorted(k for k, v in data.items() if not isinstance(v, str))
+    if bad:
+        raise ValueError(f"EVAL_CHAT_HEADERS: values must be strings ({bad})")
+    return data
 
 
 def repo_host() -> str:
@@ -220,12 +253,41 @@ def augment_bot_text(bot_resp: dict[str, Any]) -> str:
     return bot_text
 
 
+def _quantile(ordered: list[int], q: float) -> int:
+    """Nearest-rank quantile, no interpolation: these are measured milliseconds,
+    and an interpolated value never actually occurred in the run."""
+    idx = max(0, min(len(ordered) - 1, math.ceil(q * len(ordered)) - 1))
+    return ordered[idx]
+
+
+def latency_summary(values: list[int]) -> dict[str, Any]:
+    """Per-turn latency distribution (A5).
+
+    Distribution rather than an average: the MCP search was measured between 1.2
+    and 23.3 seconds in the same run, and a mean would smear away exactly the
+    difference the A/B comparison exists to see. Turns without a measurement are
+    simply not counted — an older report must not crash the scorecard.
+    """
+    if not values:
+        return {"turns": 0, "p50_ms": None, "p95_ms": None,
+                "max_ms": None, "total_ms": 0}
+    ordered = sorted(values)
+    return {
+        "turns": len(ordered),
+        "p50_ms": _quantile(ordered, 0.5),
+        "p95_ms": _quantile(ordered, 0.95),
+        "max_ms": ordered[-1],
+        "total_ms": sum(ordered),
+    }
+
+
 def aggregate_golden(conversations: list[dict]) -> dict[str, Any]:
-    """Deterministic scorecard over all golden-flow turns (1:1 ALT)."""
+    """Deterministic scorecard over all golden-flow turns (1:1 ALT + A5 latency)."""
     tot = {c: 0 for c in GOLDEN_CATS}
     ok = {c: 0 for c in GOLDEN_CATS}
     per_turn: list[dict[str, Any]] = []
     per_flow: dict[str, dict[str, Any]] = {}
+    latencies: list[int] = []
 
     for conv in conversations:
         fid = conv.get("flow_id") or conv.get("persona_id") or "?"
@@ -237,12 +299,16 @@ def aggregate_golden(conversations: list[dict]) -> dict[str, Any]:
         for ti, turn in enumerate(conv.get("turns", []), start=1):
             g = turn.get("golden") or {}
             checks = g.get("checks") or {}
+            latency = turn.get("latency_ms")
+            if isinstance(latency, int):
+                latencies.append(latency)
             per_turn.append({
                 "flow": fid, "title": title, "turn": ti,
                 "message": turn.get("user", ""),
                 "expected": g.get("expected") or {},
                 "observed": g.get("observed") or {},
                 "checks": checks,
+                "latency_ms": latency,
             })
             for c in GOLDEN_CATS:
                 v = checks.get(c)
@@ -267,21 +333,39 @@ def aggregate_golden(conversations: list[dict]) -> dict[str, Any]:
         "hard_total": hard_tot,
         "flows": len(conversations),
         "turns": len(per_turn),
+        "latency": latency_summary(latencies),
         "per_turn": per_turn,
         "per_flow": per_flow,
     }
 
 
-async def post_chat(chat_url: str, message: str, session_id: str) -> dict[str, Any]:
+async def post_chat(
+    chat_url: str, message: str, session_id: str,
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
     """Fire one user message at /api/chat, return raw response JSON (1:1 ALT)."""
     async with httpx.AsyncClient(timeout=60.0) as c:
-        r = await c.post(chat_url, json={"session_id": session_id, "message": message})
+        r = await c.post(chat_url, json={"session_id": session_id, "message": message},
+                         headers=headers or None)
         r.raise_for_status()
         return r.json()
 
 
-async def run_flows(chat_url: str, flows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Each flow in its own fresh session; turns sequential (context preserved)."""
+def _ms_since(t0: float) -> int:
+    return int(round((time.perf_counter() - t0) * 1000))
+
+
+async def run_flows(
+    chat_url: str, flows: list[dict[str, Any]], *,
+    headers: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Each flow in its own fresh session; turns sequential (context preserved).
+
+    ``headers`` (A5) go with every turn — keyword-only and defaulted, because the
+    backend eval service calls this positionally with two arguments. Each turn
+    records its own ``latency_ms``: the run total mixes 24-second searches with
+    instant replies and cannot answer "is the agent faster".
+    """
     conversations: list[dict[str, Any]] = []
     for fi, flow in enumerate(flows, start=1):
         flow_id = str(flow.get("id") or f"flow-{fi}")
@@ -292,15 +376,21 @@ async def run_flows(chat_url: str, flows: list[dict[str, Any]]) -> list[dict[str
             msg = str(tspec.get("message") or "").strip()
             expect = tspec.get("expect") or {}
             print(f"  {flow_id} turn {ti}/{len(turns_spec)} …", flush=True)
+            t_turn = time.perf_counter()
             try:
-                bot_resp = await post_chat(chat_url, msg, session_id)
+                bot_resp = await post_chat(chat_url, msg, session_id, headers=headers)
             except Exception as e:  # record + continue, like ALT
                 print(f"  {flow_id} turn {ti} FAILED: {e}", file=sys.stderr)
+                # Auch der Fehl-Zug trägt seine Zeit: eine Zeitüberschreitung ist
+                # der teuerste Zug des Laufs, ausgerechnet den nicht zu messen
+                # wäre die falsche Auslassung.
                 turn_records.append({"user": msg, "bot": f"(chat error: {e})",
                                      "debug": {}, "error": str(e),
                                      "expected_persona": expect.get("persona"),
-                                     "expected_intent": expect.get("intent")})
+                                     "expected_intent": expect.get("intent"),
+                                     "latency_ms": _ms_since(t_turn)})
                 continue
+            latency_ms = _ms_since(t_turn)
             debug = bot_resp.get("debug", {}) or {}
             turn_records.append({
                 "user": msg,
@@ -311,6 +401,7 @@ async def run_flows(chat_url: str, flows: list[dict[str, Any]]) -> list[dict[str
                 "expected_intent": expect.get("intent"),
                 "cards_count": len(bot_resp.get("cards") or []),
                 "response_length": len(bot_resp.get("content") or ""),
+                "latency_ms": latency_ms,
             })
         # Primary intent = what turn 1 was set up to trigger. ``_aggregate`` and
         # the classification metrics key the persona×intent matrix on it.
@@ -343,6 +434,14 @@ def render_console(metrics: dict[str, Any]) -> str:
         f" = {metrics['overall_pass_rate']:.1%}"
         f"  |  {metrics['flows']} Flows / {metrics['turns']} Turns"
     )
+    lat = metrics.get("latency") or {}
+    if lat.get("turns"):
+        lines.append(
+            f"Latenz je Zug: p50 {lat['p50_ms'] / 1000:.1f} s"
+            f" · p95 {lat['p95_ms'] / 1000:.1f} s"
+            f" · max {lat['max_ms'] / 1000:.1f} s"
+            f"  ({lat['turns']} gemessene Turns)"
+        )
     fails = [t for t in metrics["per_turn"]
              if any(v is False for v in t["checks"].values())]
     if fails:
@@ -368,6 +467,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", default=str(HERE / "reports"))
     args = p.parse_args(argv)
 
+    try:
+        headers = chat_headers(os.getenv("EVAL_CHAT_HEADERS"))
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+
     flows = yaml.safe_load(Path(args.flows).read_text(encoding="utf-8"))["flows"]
     if args.only:
         wanted = {x.strip() for x in args.only.split(",") if x.strip()}
@@ -376,9 +481,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"no flows match --only {args.only}", file=sys.stderr)
             return 2
 
-    print(f"Golden-Runner: {len(flows)} Flow(s) gegen {args.url}")
+    kopf = f" mit Kopfzeilen {', '.join(sorted(headers))}" if headers else ""
+    print(f"Golden-Runner: {len(flows)} Flow(s) gegen {args.url}{kopf}")
     t0 = time.perf_counter()
-    conversations = asyncio.run(run_flows(args.url, flows))
+    conversations = asyncio.run(run_flows(args.url, flows, headers=headers))
     metrics = aggregate_golden(conversations)
 
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
@@ -388,6 +494,10 @@ def main(argv: list[str] | None = None) -> int:
     report_path = out_dir / f"golden-{stamp}{label}.json"
     report_path.write_text(json.dumps({
         "chat_url": args.url,
+        # Nur die NAMEN: der Report soll sagen, WOMIT gemessen wurde, aber eine
+        # Kopfzeile kann ein Geheimnis tragen (``WLO-Access-Block`` führt die
+        # Zugangs-Kennung).
+        "chat_headers": sorted(headers),
         "started_utc": stamp,
         "duration_s": round(time.perf_counter() - t0, 1),
         "golden_metrics": metrics,

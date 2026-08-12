@@ -1,6 +1,6 @@
 <studio-async-state
   class="lr-state"
-  label="Der Lauf"
+  [label]="t('ltRun.label')"
   [loading]="run.loading() && value() === null"
   [error]="run.error()"
   (retry)="load()"
@@ -9,21 +9,18 @@
 @if (value(); as r) {
   <article class="lr-card">
     <header class="lr-head">
-      <h3 class="lr-title">Auswertung {{ r.id }}</h3>
+      <h3 class="lr-title">{{ t('ltRun.title', { id: r.id }) }}</h3>
       <p class="lr-status" [class]="'lr-status--' + r.status">
         {{ statusLabel(r.status) }}
         @if (isRunning()) {
           <span class="lr-progress" aria-live="polite">
-            — Stufe {{ r.stages.length }} von {{ r.profile.stages.length }} fertig
+            {{ t('ltRun.progress', { done: r.stages.length, total: r.profile.stages.length }) }}
           </span>
         }
       </p>
     </header>
 
-    <p class="lr-profile">
-      Stufen {{ r.profile.stages.join(' → ') }} · {{ r.profile.requests_per_stage }} Requests je
-      Stufe · Mix {{ mixLine(r.profile.mix) }} · p95-Schwelle {{ r.profile.p95_threshold_s }} s
-    </p>
+    <p class="lr-profile">{{ profileLine(r.profile) }}</p>
 
     @if (r.error) {
       <p class="lr-failed" role="alert">{{ r.error }}</p>
@@ -32,28 +29,33 @@
     @if (r.summary; as s) {
       <p class="lr-verdict" [class.lr-verdict--none]="s.stable_concurrency === null">
         @if (s.stable_concurrency !== null) {
-          <strong>Stabil bis {{ s.stable_concurrency }} gleichzeitige Nutzer</strong>
-          (keine Fehler, p95 ≤ {{ s.p95_threshold_s }} s).
+          <studio-rich [parts]="stableParts(s.stable_concurrency, s.p95_threshold_s)" />
         } @else {
-          <strong>Schon die erste Stufe verfehlte die Schwelle</strong> — Profil oder Schwelle prüfen.
+          <studio-rich [parts]="rich('ltRun.unstable')" />
         }
-        {{ s.total_requests }} Requests, {{ s.total_errors }} Fehler.
-        <span class="lr-note">
-          Keine Ressourcen-Messung: dieser Lauf misst Latenz und Fehler, nicht CPU und Speicher
-          des Backend-Prozesses. Steigt p95 mit der Parallelität, sagt das noch nicht, ob die
-          eigene Maschine oder der Upstream (LLM, MCP) die Grenze ist.
-        </span>
+        {{ totals(s.total_requests, s.total_errors) }}
+        <!-- C5: die Spitzen kommen seit der psutil-Abtastung aus echten Messpunkten.
+             Ein Lauf ohne Messpunkt meldet 0 — deshalb der @else-Zweig, damit eine
+             glatte Null nicht als „Prozess brauchte nichts" gelesen wird. -->
+        @if (r.resource_samples.length) {
+          <span class="lr-peaks">
+            {{ peaks(s.peak_rss_mb, s.peak_proc_cpu_pct, r.resource_samples.length) }}
+          </span>
+        } @else {
+          <span class="lr-note">{{ t('ltRun.noSamples') }}</span>
+        }
+        <span class="lr-note"><studio-rich [parts]="rich('ltRun.processNote')" /></span>
       </p>
     }
 
     @if (chart(); as c) {
       <figure class="lr-figure">
-        <figcaption>Antwortlatenz gegen Parallelität</figcaption>
+        <figcaption>{{ t('ltRun.chart.caption') }}</figcaption>
         <svg
           class="lr-chart"
           [attr.viewBox]="'0 0 ' + c.width + ' ' + c.height"
           role="img"
-          [attr.aria-label]="'Latenzverlauf über ' + c.points.length + ' Stufen; die Werte stehen in der Tabelle darunter.'"
+          [attr.aria-label]="chartAlt(c.points.length)"
         >
           <line
             [attr.x1]="c.pad" [attr.y1]="c.height - c.pad"
@@ -70,7 +72,7 @@
           <text
             [attr.x]="c.width - c.pad / 2" [attr.y]="c.thresholdY - 4"
             class="lr-threshold-label" text-anchor="end"
-          >p95-Schwelle {{ c.thresholdS }} s</text>
+          >{{ t('ltRun.chart.threshold', { seconds: c.thresholdS }) }}</text>
 
           <polyline [attr.points]="c.p95Line" class="lr-line lr-line--p95" />
           <polyline [attr.points]="c.p50Line" class="lr-line lr-line--p50" />
@@ -84,9 +86,9 @@
           }
         </svg>
         <p class="lr-legend">
-          <span class="lr-key lr-key--p50">p50</span>
-          <span class="lr-key lr-key--p95">p95</span>
-          <span class="lr-key lr-key--limit">Schwelle</span>
+          <span class="lr-key lr-key--p50">{{ t('ltRun.p50') }}</span>
+          <span class="lr-key lr-key--p95">{{ t('ltRun.p95') }}</span>
+          <span class="lr-key lr-key--limit">{{ t('ltRun.legend.limit') }}</span>
         </p>
       </figure>
     }
@@ -94,18 +96,18 @@
     @if (r.stages.length > 0) {
       <div class="lr-table-wrap">
         <table class="lr-table">
-          <caption>Ergebnis je Stufe</caption>
+          <caption>{{ t('ltRun.table.caption') }}</caption>
           <thead>
             <tr>
-              <th scope="col">parallel</th>
-              <th scope="col">Requests</th>
-              <th scope="col">OK</th>
-              <th scope="col">Fehler</th>
-              <th scope="col">p50</th>
-              <th scope="col">p95</th>
-              <th scope="col">max</th>
-              <th scope="col">RPS</th>
-              <th scope="col">p95 je Kategorie</th>
+              <th scope="col">{{ t('ltRun.col.concurrency') }}</th>
+              <th scope="col">{{ t('ltRun.col.requests') }}</th>
+              <th scope="col">{{ t('ltRun.col.ok') }}</th>
+              <th scope="col">{{ t('ltRun.col.errors') }}</th>
+              <th scope="col">{{ t('ltRun.p50') }}</th>
+              <th scope="col">{{ t('ltRun.p95') }}</th>
+              <th scope="col">{{ t('ltRun.col.max') }}</th>
+              <th scope="col">{{ t('ltRun.col.rps') }}</th>
+              <th scope="col">{{ t('ltRun.col.byKind') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -128,7 +130,7 @@
         </table>
       </div>
     } @else if (!isRunning()) {
-      <p class="lr-hint">Keine abgeschlossene Stufe — der Lauf endete, bevor eine Stufe fertig war.</p>
+      <p class="lr-hint">{{ t('ltRun.noStage') }}</p>
     }
   </article>
 }

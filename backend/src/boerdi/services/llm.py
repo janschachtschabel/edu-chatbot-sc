@@ -30,7 +30,7 @@ from boerdi.services.llm_models import (
     get_provider,
     get_reasoning_effort,
     get_verbosity,
-    supports_gpt5_params,
+    param_rules,
 )
 from boerdi.settings import get_settings
 
@@ -88,10 +88,14 @@ def build_chat_kwargs(
     **extra: Any,
 ) -> dict[str, Any]:
     """Assemble the completion kwargs (bare model). GPT-5 gating is the
-    load-bearing contract (ALT llm_provider.py:702-827):
+    load-bearing contract (ALT llm_provider.py:702-827). WELCHE Ausnahmen ein
+    Modell braucht, steht seit W12b in ``llm_models._GROUPS``; hier wird nur noch
+    ausgewertet:
     - verbosity: sent on GPT-5 (LiteLLM drops it if the model rejects it);
-    - reasoning_effort: only on tool-LESS calls and only when != "none";
-    - temperature: on GPT-5 only when effort == "none" AND model is gpt-5.4;
+    - reasoning_effort: ``effort_with_tools`` sendet ihn IMMER woertlich (auch
+      ``"none"``); sonst die ALT-Regel — nur bei tool-LOSEN Aufrufen und nur
+      wenn != ``"none"``;
+    - temperature: on GPT-5 only when effort == "none" AND the group allows it;
       on classic models passed through as given;
     - max_tokens: never on GPT-5; classic passes it through (simplify: no
       reasoning-buffer shaping — ALT _shape_max_tokens; LiteLLM caps per model).
@@ -106,12 +110,13 @@ def build_chat_kwargs(
         kwargs["response_format"] = response_format
 
     has_tools = bool(tools)
-    if supports_gpt5_params(resolved):
+    rules = param_rules(resolved)
+    if rules.gpt5_params:
         kwargs["verbosity"] = verbosity or get_verbosity()
         effort = reasoning_effort or get_reasoning_effort()
-        if not has_tools and effort != "none":
+        if rules.effort_with_tools or (not has_tools and effort != "none"):
             kwargs["reasoning_effort"] = effort
-        if effort == "none" and resolved.lower().startswith("gpt-5.4") and temperature is not None:
+        if effort == "none" and rules.temperature_on_none and temperature is not None:
             kwargs["temperature"] = temperature
     else:
         if temperature is not None:

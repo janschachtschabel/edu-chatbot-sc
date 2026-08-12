@@ -34,11 +34,11 @@ def test_chat_model_chain_openai_model_only_for_openai(monkeypatch):
     assert lm.get_chat_model() == "legacy-y"  # provider default = openai
     monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
     get_settings.cache_clear()
-    assert lm.get_chat_model() == "gpt-5.4-mini"  # legacy var ignored off-openai
+    assert lm.get_chat_model() == "gpt-5.6-luna"  # legacy var ignored off-openai
 
 
 def test_provider_defaults():
-    assert lm.get_chat_model() == "gpt-5.4-mini"
+    assert lm.get_chat_model() == "gpt-5.6-luna"
     assert lm.get_embed_model() == "text-embedding-3-small"
 
 
@@ -50,20 +50,20 @@ def test_academiccloud_defaults(monkeypatch):
 
 
 def test_is_gpt5_model_family():
-    assert lm.is_gpt5_model("gpt-5.4-mini") is True
+    assert lm.is_gpt5_model("gpt-5.6-luna") is True
     assert lm.is_gpt5_model("o3-mini") is True
     assert lm.is_gpt5_model("gpt-4.1-mini") is False
-    assert lm.is_gpt5_model("") is True  # falls back to default chat model (gpt-5.4-mini)
+    assert lm.is_gpt5_model("") is True  # falls back to default chat model (gpt-5.6-luna)
 
 
 def test_supports_gpt5_params_provider_gate(monkeypatch):
-    assert lm.supports_gpt5_params("gpt-5.4-mini") is True
+    assert lm.supports_gpt5_params("gpt-5.6-luna") is True
     monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
     get_settings.cache_clear()
-    assert lm.supports_gpt5_params("gpt-5.4-mini") is True
+    assert lm.supports_gpt5_params("gpt-5.6-luna") is True
     monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")
     get_settings.cache_clear()
-    assert lm.supports_gpt5_params("gpt-5.4-mini") is False  # provider excluded
+    assert lm.supports_gpt5_params("gpt-5.6-luna") is False  # provider excluded
 
 
 def test_embed_dim_resolution(monkeypatch):

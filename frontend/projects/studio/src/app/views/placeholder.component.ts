@@ -6,20 +6,23 @@
  * never leaves anyone wondering whether something is broken. Mirrors the
  * backend's `todo("P9-3")` convention, which names the package in the 501 body.
  */
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { StudioView } from '../studio-views';
 
 @Component({
   selector: 'studio-placeholder',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 class="title">{{ view()?.label }}</h2>
-    <p class="desc">{{ view()?.desc }}</p>
-    <p class="note">
-      Diese Ansicht wird mit Paket <strong>{{ view()?.paket }}</strong> gebaut.
-      Die Konfiguration selbst ist im Backend bereits vollständig vorhanden.
-    </p>
+    @if (view(); as v) {
+      <h2 class="title">{{ t(v.labelKey) }}</h2>
+      <p class="desc">{{ t(v.descKey) }}</p>
+      <!-- Das Paket steht als Platzhalterwert IM Satz, nicht als eigenes
+           <strong> zwischen zwei Satzhälften: sonst wäre der Satz nur in
+           Bruchstücken übersetzbar und die Wortstellung festgenagelt. -->
+      <p class="note">{{ t('view.placeholder.note', { paket: v.paket }) }}</p>
+    }
   `,
   styles: `
     .title { font-size: 1.375rem; }
@@ -38,4 +41,6 @@ import { StudioView } from '../studio-views';
 export class PlaceholderComponent {
   /** Bound from the route's `data.view` via withComponentInputBinding(). */
   readonly view = input<StudioView>();
+
+  protected readonly t = inject(StudioLanguageService).t;
 }

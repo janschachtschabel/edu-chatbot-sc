@@ -164,6 +164,57 @@ def test_last_pattern_echoed_into_entities(monkeypatch):
     assert upd.kwargs["entities"]["_last_pattern"] == "M09"
 
 
+# ── Frame-Fortschreibung (B1–B3) ─────────────────────────────────
+# Der offene Vorgang wird an derselben Stelle und aus derselben Quelle
+# fortgeschrieben wie ``_last_pattern``: dem AUSGEFÜHRTEN Muster.
+
+def test_klaerer_zaehlt_den_versuch_hoch(monkeypatch):
+    ss = {"persona_id": "P-AND", "state_id": "S2", "turn_count": 1,
+          "entities": {"material_typ": "arbeitsblatt"}}
+    _, upd = _run(monkeypatch, session_state=ss, eff_id="M03")
+    assert upd.kwargs["entities"]["_frame"]["attempts"] == 1
+
+
+def test_zweiter_klaerer_ohne_fortschritt_zaehlt_weiter(monkeypatch):
+    ss = {"persona_id": "P-AND", "state_id": "S2", "turn_count": 1,
+          "entities": {"material_typ": "arbeitsblatt",
+                       "_frame": {"slots": ["material_typ"], "attempts": 1}}}
+    _, upd = _run(monkeypatch, session_state=ss, eff_id="M03")
+    assert upd.kwargs["entities"]["_frame"]["attempts"] == 2
+
+
+def test_jedes_andere_muster_schliesst_den_vorgang(monkeypatch):
+    # Deckt zugleich den Themenwechsel ab: er landet bei einem anderen Muster,
+    # also verfällt der Vorgang, ohne dass es dafür eine eigene Regel braucht.
+    ss = {"persona_id": "P-AND", "state_id": "S2", "turn_count": 1,
+          "entities": {"thema": "Photosynthese",
+                       "_frame": {"slots": [], "attempts": 2}}}
+    _, upd = _run(monkeypatch, session_state=ss, eff_id="M06")
+    assert "_frame" not in upd.kwargs["entities"]
+
+
+def test_offener_schreibvorgang_ueberlebt_den_zug(monkeypatch):
+    # Der Test, der 2026-08-11 gefehlt hat. Die Naht im Tool-Loop legt den
+    # offenen Bestaetigungsvorgang ab, DIESE Stelle schreibt ihn — und
+    # dazwischen lag der Fehler: der Merkposten lag auf oberster Ebene von
+    # ``session_state``, ``update_session`` schreibt aber nur die fuenf
+    # Spalten. Er wurde nie gespeichert, ``setup`` baute den Zustand jeden Zug
+    # neu, und damit war keine Bestaetigung je einloesbar.
+    #
+    # Gepinnt wird deshalb die VERBINDUNG, nicht eine der beiden Seiten:
+    # gespeichert wird, was in ``entities`` steht.
+    vorgang = {"tool": "wlo_create_collection", "fingerprint": "[]", "token": "geheim"}
+    debug, upd = _run(monkeypatch, session_state={
+        "persona_id": "P-AND", "state_id": "S2", "turn_count": 4,
+        "entities": {"thema": "Bruch", "_pending_write": vorgang},
+    })
+    assert upd.kwargs["entities"]["_pending_write"] == vorgang
+    assert "_pending_write" not in debug.entities, (
+        "Der Schluessel darf nicht im Debug-Auszug landen — ``_``-Praefix haelt ihn heraus"
+    )
+    assert "geheim" not in str(debug.model_dump())
+
+
 def test_update_session_jsonb_native_and_session_injected(monkeypatch):
     _, upd = _run(monkeypatch, signal_history=["a", "b"])
     assert upd.args == (_SESSION, "bb-1")  # session injected first
@@ -211,20 +262,20 @@ def _patch2(monkeypatch, *, dr=None, ql=None, privacy=None, narrow=None, inline=
     log writers, facet helpers) at their source module — ALT boundary convention."""
     sp = SimpleNamespace(
         save=_ASpy(), guide=_Spy(), quality=_ASpy(), safety=_ASpy(),
-        auto_calls=[], inline_calls=[],
+        auto_calls=[], inline_calls=[], facet_langs=[],
     )
     monkeypatch.setattr(tp_mod, "save_message", sp.save)
     monkeypatch.setattr(tp_mod, "_attach_guide_urls", sp.guide)
 
-    def _fake_auto(*, state_id, quick_replies, has_cards):
-        sp.auto_calls.append((state_id, list(quick_replies), has_cards))
+    def _fake_auto(*, state_id, quick_replies, has_cards, lang="de"):
+        sp.auto_calls.append((state_id, list(quick_replies), has_cards, lang))
         return list(quick_replies) + ["Hat das geholfen?"]
 
     monkeypatch.setattr(tp_mod, "_apply_state_auto_followup", _fake_auto)
 
     def _fake_inline(pattern_id, markdown, display_rules, topic="",
-                     extra_meta=None, formality=""):
-        sp.inline_calls.append((pattern_id, markdown, topic, formality))
+                     extra_meta=None, formality="", lang="de"):
+        sp.inline_calls.append((pattern_id, markdown, topic, formality, lang))
         return inline if inline is not None else ([], markdown)
 
     monkeypatch.setattr(tp_mod, "_build_inline_document", _fake_inline)
@@ -245,14 +296,18 @@ def _patch2(monkeypatch, *, dr=None, ql=None, privacy=None, narrow=None, inline=
     )
     monkeypatch.setattr("boerdi.obs.quality_events.log_quality_event", sp.quality)
     monkeypatch.setattr("boerdi.obs.quality_events.log_safety_event", sp.safety)
+    def _fake_narrow(metas, max_options=3, lang="de"):
+        sp.facet_langs.append(lang)
+        return list(narrow) if narrow is not None else []
+
+    def _fake_unresolved(metas, max_shown=2, lang="de"):
+        sp.facet_langs.append(lang)
+        return ""
+
     monkeypatch.setattr(
-        "boerdi.domain.facets.narrowing_quick_replies_from_metas",
-        lambda metas, max_options=3: list(narrow) if narrow is not None else [],
-    )
+        "boerdi.domain.facets.narrowing_quick_replies_from_metas", _fake_narrow)
     monkeypatch.setattr(
-        "boerdi.domain.facets.unresolved_filter_note",
-        lambda metas, max_shown=2: "",
-    )
+        "boerdi.domain.facets.unresolved_filter_note", _fake_unresolved)
     return sp
 
 
@@ -419,6 +474,79 @@ def test_persist_qr_max_policy_override(monkeypatch):
     assert resp.quick_replies == ["A"]
 
 
+_VORSCHAU = (
+    "Bitte prüfen — bisher wurde nichts geändert:\n"
+    "Sammlung anlegen: „Bruchrechnung Klasse 6“\n"
+    "Titel: (leer) → „Bruchrechnung Klasse 6“"
+)
+
+
+def test_persist_schreib_vorschau_wird_eine_box(monkeypatch):
+    # S2: Der Server formuliert die Abnahme bereits vollständig und auf
+    # Deutsch. Bisher endete sie in der Nachrichtenkette des Modells, und der
+    # Nutzer las nur dessen Nacherzählung. Ab hier sieht er den Servertext —
+    # unabhängig davon, was das Modell darüber sagt.
+    resp, _ = _run2(
+        monkeypatch,
+        session_state={"turn_count": 4, "entities": {}, "_write_preview": _VORSCHAU},
+        _final_text="Ich würde folgendes ändern:",
+        _qr_mode="none",
+    )
+    assert len(resp.inline_documents) == 1
+    doc = resp.inline_documents[0]
+    assert doc.kind == "schreib_vorschau"
+    assert "Titel: (leer) → „Bruchrechnung Klasse 6“" in doc.content
+    assert doc.title
+    assert resp.content == "Ich würde folgendes ändern:", (
+        "Die Box BEGLEITET die Worte des Modells, sie ersetzt sie nicht"
+    )
+
+
+def test_persist_vorschau_fragt_und_bietet_beides_an(monkeypatch):
+    # S3: „um Zustimmung ODER Anpassung fragen". Die Zustimmung bekommt einen
+    # Knopf, weil sie die kuerzeste Antwort ist; die Anpassung bekommt einen
+    # Satz, weil sie nur der Nutzer formulieren kann. Beides deterministisch —
+    # eine Frage, die nur im Prompt steht, kann ausfallen.
+    resp, _ = _run2(
+        monkeypatch,
+        session_state={"turn_count": 4, "entities": {}, "_write_preview": _VORSCHAU},
+        _final_text="x", _qr_mode="none",
+    )
+    assert resp.quick_replies[0] == "Ja, so ausführen"
+    inhalt = resp.inline_documents[0].content
+    assert inhalt.rstrip().endswith(
+        "Soll ich das so ausführen? Wenn etwas nicht stimmt, sag mir, was anders sein soll."
+    )
+
+
+def test_persist_vorschau_chip_beugt_sich_dem_deckel(monkeypatch):
+    # ``max_count: 0`` heisst „keine Pillen" — eine Entscheidung der Redaktion
+    # und kein Platzproblem. Auch die Zustimmung ist dann ein Satz, kein Knopf.
+    dr = {"groups": {}, "quick_replies": {"max_count": 0},
+          "single_content_box": {"enabled": True}}
+    resp, _ = _run2(
+        monkeypatch, sp=_patch2(monkeypatch, dr=dr),
+        session_state={"turn_count": 4, "entities": {}, "_write_preview": _VORSCHAU},
+        _final_text="x", _qr_mode="none",
+    )
+    assert resp.quick_replies == []
+    assert resp.inline_documents, "Die Box bleibt — sie ist die Abnahme, nicht die Pille"
+
+
+def test_persist_ohne_vorschau_keine_box(monkeypatch):
+    resp, _ = _run2(monkeypatch, _final_text="nur Text", _qr_mode="none")
+    assert resp.inline_documents == []
+
+
+def test_persist_verbraucht_die_vorschau(monkeypatch):
+    # Die Box gehört dem Zug, der sie erzeugt hat. Bliebe der Text stehen,
+    # zeigte ihn jeder Folgezug erneut — auch einer, der von etwas ganz
+    # anderem handelt.
+    st = {"turn_count": 4, "entities": {}, "_write_preview": _VORSCHAU}
+    _resp, _ = _run2(monkeypatch, session_state=st, _final_text="x", _qr_mode="none")
+    assert "_write_preview" not in st
+
+
 def test_persist_inline_document_routing_m09(monkeypatch):
     docs = [{"kind": "lernpfad", "title": "LP", "content": "BODY"}]
     sp = _patch2(monkeypatch, inline=(docs, "INTRO-LEAD"))
@@ -478,8 +606,140 @@ def test_persist_unresolved_filter_note_appended(monkeypatch):
     sp = _patch2(monkeypatch)
     monkeypatch.setattr(
         "boerdi.domain.facets.unresolved_filter_note",
-        lambda metas, max_shown=2: "Hinweis: allgemeiner gesucht.",
+        lambda metas, max_shown=2, lang="de": "Hinweis: allgemeiner gesucht.",
     )
     resp, _ = _run2(monkeypatch, sp=sp, _final_text="Basis.")
     assert resp.content.endswith("Hinweis: allgemeiner gesucht.")
     assert "Basis." in resp.content
+
+
+# ── C1-f2b4: Type-Focus-QR-Filter ist sprachabhaengig ────────────────
+# Die Quick-Replies kommen (im ``llm``-Modus) vom Modell und sind seit
+# C1-f2a in der Sprache des Nutzers. Der Filter wirft die QRs weg, die
+# auf Sammlungen/Themenseiten zeigen, waehrend der Nutzer sich gerade
+# WEG davon bewegt hat — mit den deutschen Mustern allein griff er auf
+# Englisch nie, und der Widerspruch blieb stehen.
+
+
+def _qr_filtered(monkeypatch, qrs, *, locale=None):
+    env = Environment(locale=locale) if locale else Environment()
+    resp, _ = _run2(
+        monkeypatch,
+        req=ChatRequest(session_id="bb-1", message="nur videos", environment=env),
+        quick_replies=list(qrs), _qr_mode="none", _type_focus_label="Video",
+    )
+    return resp.quick_replies
+
+
+def test_persist_type_focus_qr_filter_german(monkeypatch):
+    assert _qr_filtered(
+        monkeypatch, ["Mehr Sammlungen", "Passende Themenseiten", "Anderes Thema"],
+    ) == ["Anderes Thema"]
+
+
+def test_persist_type_focus_qr_filter_english(monkeypatch):
+    assert _qr_filtered(
+        monkeypatch, ["More collections", "Topic pages", "Another subject"],
+        locale="en-GB",
+    ) == ["Another subject"]
+
+
+def test_persist_reicht_die_sprache_an_die_inline_box_durch(monkeypatch):
+    """C1-f2b5: dieselbe Verdrahtungs-Probe wie bei den Direkt-Aktionen.
+
+    ``persist_and_build_response`` ist die zweite und wichtigere Aufrufstelle
+    von ``_build_inline_document`` — sie baut die Box im Haupt-Weg (M09/M10/M11).
+    """
+    sp = _patch2(monkeypatch)
+    _run2(
+        monkeypatch, sp=sp,
+        req=ChatRequest(session_id="bb-1", message="mach mir was",
+                        environment=Environment(locale="en-GB")),
+        winner_id="M10", _effective_pattern_id="M10",
+        _final_text="# Worksheet\n" + "word " * 60,   # >= 200 Zeichen, sonst kein Box-Zweig
+    )
+    assert sp.inline_calls and sp.inline_calls[-1][4] == "en"
+
+
+# ── C1-f2b6a: Hinweise und Chips am Rand einer normalen Antwort ────────
+
+def test_persist_auto_followup_bekommt_die_sprache(monkeypatch):
+    sp = _patch2(monkeypatch)
+    _run2(
+        monkeypatch, sp=sp,
+        req=ChatRequest(session_id="bb-1", message="was",
+                        environment=Environment(locale="en-GB")),
+        new_state="S3",
+    )
+    assert sp.auto_calls and sp.auto_calls[0][3] == "en"
+
+
+def test_persist_reicht_die_sprache_an_beide_facetten_helfer(monkeypatch):
+    """Beide Helfer aus ``domain.facets`` bekommen die Widget-Sprache.
+
+    Was sie dann ausgeben, ist in ``tests/test_facets.py`` gepinnt — hier zaehlt
+    nur, dass die Sprache ueberhaupt ankommt.
+    """
+    sp = _patch2(monkeypatch, narrow=["chip"])
+    _run2(
+        monkeypatch, sp=sp,
+        req=ChatRequest(session_id="bb-1", message="was",
+                        environment=Environment(locale="en-GB")),
+    )
+    assert sp.facet_langs == ["en", "en"]
+
+
+def test_persist_type_focus_qr_filter_off_without_label(monkeypatch):
+    resp, _ = _run2(
+        monkeypatch, quick_replies=["Mehr Sammlungen"], _qr_mode="none",
+        _type_focus_label="",
+    )
+    assert resp.quick_replies == ["Mehr Sammlungen"]   # kein Typ-Fokus → kein Filter
+
+
+# ── E3: die vorbereitete Anfrage in der Antwort ──────────────────────────
+# Der MCP-Server hat die bestätigte Änderung beschrieben statt sie zu schreiben;
+# ausgeführt wird sie in der Repository-Seite. Die Antwort muss sie also tragen
+# — sonst endet der ganze Weg still im Backend.
+
+
+def test_die_vorbereitete_anfrage_faehrt_in_der_antwort_mit(monkeypatch):
+    from boerdi.domain.prepared_write import PreparedWrite
+
+    vorbereitet = PreparedWrite(
+        method="PUT",
+        path="/edu-sharing/rest/collection/v1/collections/-home-/c1/references/n1",
+        body=None,
+        done_message="„Arbeitsblatt“ ist jetzt in „Bruchrechnung“.",
+    )
+    sp = _patch2(monkeypatch)
+    monkeypatch.setattr(tp_mod, "get_prepared_writes", lambda: [vorbereitet])
+    resp, _ = _run2(monkeypatch, sp=sp)
+
+    assert resp.prepared_write is not None
+    assert resp.prepared_write.method == "PUT"
+    assert resp.prepared_write.path.endswith("/references/n1")
+    assert "Bruchrechnung" in resp.prepared_write.done_message
+
+
+def test_ohne_vorbereitung_bleibt_das_feld_leer(monkeypatch):
+    sp = _patch2(monkeypatch)
+    monkeypatch.setattr(tp_mod, "get_prepared_writes", list)
+    resp, _ = _run2(monkeypatch, sp=sp)
+    assert resp.prepared_write is None
+
+
+def test_bei_zwei_vorbereitungen_liefert_die_antwort_keine(monkeypatch):
+    # Zwei sind ein gebrochener Zusicherungszustand (der Wall lässt je Zug einen
+    # Schlüssel einlösen). Dann keine — welche der beiden zugestimmt wurde, ist
+    # nicht feststellbar.
+    from boerdi.domain.prepared_write import PreparedWrite
+
+    zwei = [
+        PreparedWrite(method="PUT", path="/edu-sharing/rest/a", body=None, done_message="a"),
+        PreparedWrite(method="DELETE", path="/edu-sharing/rest/b", body=None, done_message="b"),
+    ]
+    sp = _patch2(monkeypatch)
+    monkeypatch.setattr(tp_mod, "get_prepared_writes", lambda: zwei)
+    resp, _ = _run2(monkeypatch, sp=sp)
+    assert resp.prepared_write is None

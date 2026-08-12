@@ -31,6 +31,7 @@ import logging
 import re
 from typing import Any
 
+from boerdi.obs.usage import current_turn_usage
 from boerdi.services import llm
 
 logger = logging.getLogger(__name__)
@@ -480,6 +481,12 @@ async def _llm_vocab_match(vocab: str, value: str) -> str | None:
             ],
             max_tokens=80,
             temperature=0,
+            # K1e: Der Merkposten kommt aus dem ContextVar des Zuges, nicht als
+            # Parameter — hierher führt keine Kette, die ihn tragen könnte
+            # (Begründung in obs/usage.py). Ausserhalb eines Zuges ist er
+            # ``None``, dann bucht niemand.
+            usage_acc=current_turn_usage(),
+            phase="vocab_match",
         )
         content = (resp.choices[0].message.content or "").strip()
     except Exception as e:

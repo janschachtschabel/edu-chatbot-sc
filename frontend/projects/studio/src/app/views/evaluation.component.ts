@@ -13,9 +13,10 @@
  * panel reading the same endpoint again.
  */
 import {
-  ChangeDetectionStrategy, Component, computed, signal, viewChild,
+  ChangeDetectionStrategy, Component, computed, inject, signal, viewChild,
 } from '@angular/core';
 
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { EvalGenerativeStartComponent } from './eval-generative-start.component';
 import { EvalGoldenStartComponent } from './eval-golden-start.component';
 import { EvalPatternUsageComponent } from './eval-pattern-usage.component';
@@ -24,10 +25,15 @@ import { EvalRunsComponent } from './eval-runs.component';
 import { EvalTrendsComponent } from './eval-trends.component';
 import { TabBarComponent, type TabDef } from './tab-bar.component';
 
-const TABS: readonly TabDef[] = [
-  { id: 'laeufe', label: 'Läufe' },
-  { id: 'trends', label: 'Trends' },
-  { id: 'pattern', label: 'Pattern-Nutzung' },
+/**
+ * Nur die Kennungen und ihre Schlüssel — die Beschriftungen entstehen erst beim
+ * Rendern (C1-d4b). Standen sie hier fertig, fröre die Sprache ein, die beim
+ * Laden des Moduls gerade galt.
+ */
+const TAB_KEYS: readonly { readonly id: string; readonly labelKey: string }[] = [
+  { id: 'laeufe', labelKey: 'eval.tab.laeufe' },
+  { id: 'trends', labelKey: 'eval.tab.trends' },
+  { id: 'pattern', labelKey: 'eval.tab.pattern' },
 ];
 
 @Component({
@@ -42,15 +48,19 @@ const TABS: readonly TabDef[] = [
   styleUrl: './evaluation.component.scss',
 })
 export class EvaluationComponent {
-  readonly tabs = TABS;
-  readonly active = signal(TABS[0].id);
+  protected readonly t = inject(StudioLanguageService).t;
+
+  readonly tabs = computed<readonly TabDef[]>(() =>
+    TAB_KEYS.map((tab) => ({ id: tab.id, label: this.t(tab.labelKey) })));
+
+  readonly active = signal(TAB_KEYS[0].id);
 
   private readonly runsPanel = viewChild(EvalRunsComponent);
 
   /** The run list polls while anything runs; that is the honest source. */
   readonly busy = computed(() => this.runsPanel()?.isPolling() ?? false);
 
-  private readonly visited = signal<ReadonlySet<string>>(new Set([TABS[0].id]));
+  private readonly visited = signal<ReadonlySet<string>>(new Set([TAB_KEYS[0].id]));
 
   /** Whether a panel has been opened at least once and may stay mounted. */
   readonly shows = computed(() => {

@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
 import { RagIngestComponent } from './rag-ingest.component';
 
 const tick = (): Promise<unknown> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -17,12 +18,17 @@ interface Harness {
 
 async function mount(): Promise<Harness> {
   TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'`, und der Browser ist beim
+  // Studio die zweitstärkste Sprachquelle — ohne die gemerkte Wahl liefe
+  // dieser Test gegen die englische Oberfläche (C1-d3b).
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
   });
   const fixture = TestBed.createComponent(RagIngestComponent);
   fixture.componentRef.setInput('section', {
-    panel: 'rag-ingest', label: 'Dokumente hinzufügen', hint: 'Datei, Webseite oder Text.',
+    panel: 'rag-ingest',
+    labelKey: 'curated.wissen.ingest.label', hintKey: 'curated.wissen.ingest.hint',
   });
   fixture.componentRef.setInput('open', true);
   const http = TestBed.inject(HttpTestingController);
@@ -78,6 +84,18 @@ describe('RagIngestComponent', () => {
     expect(h.el.querySelector('.ri-missing')?.textContent).not.toContain('Wissensbereich');
   });
 
+  it('verbindet die fehlenden Angaben nach der Regel der aktiven Sprache', async () => {
+    // Bis C1-d3c stand `gaps.join(' und ')` im Code — die deutsche
+    // Aufzählungsregel, fest verdrahtet. Ein übersetzter Binder wäre nur die
+    // nächste Satzbildung aus Bruchstücken; `Intl.ListFormat` weiss, wo die
+    // jeweilige Sprache ihr Komma setzt.
+    const h = await mount();
+    TestBed.inject(StudioLanguageService).toggle();
+    await h.fixture.whenStable();
+    expect(h.el.querySelector('.ri-missing')?.textContent)
+      .toContain('a knowledge area and a file');
+  });
+
   it('uploads a chosen file into the named area', async () => {
     const h = await mount();
     await type(h, '.ri-area', 'recht');
@@ -117,6 +135,24 @@ describe('RagIngestComponent', () => {
     await tick();
     await h.fixture.whenStable();
     expect(h.el.querySelector('.ri-result')?.textContent).toContain('3');
+  });
+
+  it('beugt den Erfolgssatz als Ganzes, nicht nur ein Wort darin', async () => {
+    // Ein Dokument, das in genau einen Abschnitt zerfällt, ist der Normalfall
+    // bei kurzem Text — und „1 Abschnitte" wäre dort zu lesen.
+    const h = await mount();
+    await pickMode(h, 'text');
+    await type(h, '.ri-area', 'wlo');
+    await type(h, '.ri-text', 'Kurz.');
+    await submit(h);
+
+    h.http.expectOne('/studio/api/rag/ingest/text')
+      .flush({ status: 'ok', area: 'wlo', title: 'Notiz', chunks: 1 });
+    await tick();
+    await h.fixture.whenStable();
+    const text = h.el.querySelector('.ri-result')?.textContent ?? '';
+    expect(text).toContain('1 Abschnitt.');
+    expect(text).not.toContain('Abschnitte');
   });
 
   it('re-reads the area list after an ingest, so the counts above are current', async () => {

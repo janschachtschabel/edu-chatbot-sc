@@ -45,7 +45,7 @@
     line-height: 0;
     vertical-align: -0.18em;
     margin-right: 6px;
-    color: #94a3b8;   // slate-400 — dezent, kein Schreischrei
+    color: var(--mat-sys-outline);   // dezent, kein Schreischrei
   }
   ::ng-deep .bb-inline-icon > svg {
     width: 1em;
@@ -119,10 +119,10 @@
 
   // Blockquote (rendered by marked)
   blockquote {
-    border-left: 3px solid #c5cbd6;
+    border-left: 3px solid var(--mat-sys-outline-variant);
     padding: 2px 0 2px 10px;
     margin: 2px 0;
-    color: #3a4252;
+    color: var(--mat-sys-on-surface-variant);
   }
 
   // Custom list items (rendered by renderMarkdown)
@@ -142,7 +142,7 @@
     flex: 1;
   }
   strong { font-weight: 600; }
-  code { background: rgba(0,0,0,.05); padding: 1px 4px; border-radius: 3px; font-size: .82rem; }
+  code { background: var(--mat-sys-surface-container-high); padding: 1px 4px; border-radius: var(--mat-sys-corner-extra-small); font-size: .82rem; }
 
   // marked wraps every chunk in <p>; with default 6px bottom-margin this
   // makes one-liner user bubbles visibly taller than they used to be (the

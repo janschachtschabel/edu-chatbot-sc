@@ -10,8 +10,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Security, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from boerdi.api.deps import get_session, require_studio_key
+from boerdi.api.deps import Lang, get_session, require_studio_key
 from boerdi.api.schemas import RagQuery, RagResult
+from boerdi.i18n import msg
 from boerdi.services.rag.admin import (
     delete_area,
     delete_document,
@@ -40,6 +41,7 @@ router = APIRouter(
 async def ingest_file(
     file: Annotated[UploadFile, File()],
     session: Annotated[AsyncSession, Depends(get_session)],
+    lang: Lang,
     area: Annotated[str, Form()] = "general",
     title: Annotated[str, Form()] = "",
 ):
@@ -63,13 +65,10 @@ async def ingest_file(
         cl = getattr(file, "size", None)
         if isinstance(cl, int) and cl > _max_mb * 1024 * 1024:
             raise HTTPException(
-                status_code=413,
-                detail=(
-                    f"Datei zu groß: {cl / 1024 / 1024:.1f} MB > "
-                    f"{_max_mb} MB Limit. Wenn der Server genug RAM hat, "
-                    f"setze BOERDI_MAX_INGEST_MB höher (oder 0 für "
-                    f"unbegrenzt)."
-                ),
+                413,
+                msg(lang, "ingest.tooLarge", size=f"{cl / 1024 / 1024:.1f}", max=_max_mb)
+                + " "
+                + msg(lang, "ingest.raiseLimit"),
             )
 
     # Save to temp file
@@ -88,11 +87,8 @@ async def ingest_file(
             except Exception:
                 logger.debug("temp file cleanup failed", exc_info=True)
             raise HTTPException(
-                status_code=413,
-                detail=(
-                    f"Datei zu groß: {on_disk / 1024 / 1024:.1f} MB > "
-                    f"{_max_mb} MB Limit."
-                ),
+                413,
+                msg(lang, "ingest.tooLarge", size=f"{on_disk / 1024 / 1024:.1f}", max=_max_mb),
             )
 
     try:

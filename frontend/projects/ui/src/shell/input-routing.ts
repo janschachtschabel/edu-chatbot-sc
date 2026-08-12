@@ -11,6 +11,7 @@
  * weil die Shell-`sendMessage` `pageContextEnv` intern liest.
  */
 import { actionQuickReplyLabel, isActionQuickReply, parseActionQuickReply } from '../chips/action-qr';
+import { isAuthQuickReply } from '../chips/auth-qr';
 import { guideQuickReplyUrl } from '../chips/guide-qr';
 import { TOUR_START_LABEL } from '../controllers/tour.controller';
 import { resolveGuideNavUrl } from '../session/link-handoff';
@@ -19,6 +20,8 @@ import { resolveGuideNavUrl } from '../session/link-handoff';
 export interface InputRoutingContext {
   /** `[tourReply]` — Studio-Tour-Chip-Text (leer → kein Chip startet die Tour). */
   tourReply: () => string;
+  /** `[tourReplyEn]` — dieselbe Beschriftung auf Englisch (C1-g1b). */
+  tourReplyEn: () => string;
   /** ALT-Compat-Konstante (immer true). */
   guideModeActive: boolean;
   /** Effektive Trusted-Host-Liste (Kern-WLO + `[trustedHosts]`). */
@@ -27,14 +30,28 @@ export interface InputRoutingContext {
   sessionId: () => string;
   /** Web-Tour starten (Delegate auf `TourController`). */
   startTour: () => void;
+  /** WLO-Anmeldung starten (C5-c2). MUSS aus dem Klick heraus laufen — ohne
+   *  Nutzergeste blockt der Browser das Anmeldefenster. */
+  signIn: () => void;
   /** Normalen bzw. Direct-Action-Turn senden. */
   sendMessage: (text?: string, action?: string, params?: Record<string, any>) => void;
 }
 
 /** Standard-Quick-Reply-Weiche: Web-Tour-Start | Action-Pill | Textnachricht. */
 export function routeQuickReply(reply: string, ctx: InputRoutingContext): void {
-  if (reply === TOUR_START_LABEL || (ctx.tourReply() && reply === ctx.tourReply())) {
+  // Gegen BEIDE Fassungen vergleichen, nicht gegen die gerade aktive: ein
+  // Sprachwechsel uebersetzt den Verlauf nicht nach (C1-c), der alte Chip
+  // steht also weiter in der Blase und muss die Tour trotzdem starten.
+  const tourChips = [ctx.tourReply(), ctx.tourReplyEn()].filter(Boolean);
+  if (reply === TOUR_START_LABEL || tourChips.includes(reply)) {
     ctx.startTour();
+    return;
+  }
+  // Vor der Aktions-Weiche: der Anmelde-Chip sendet NICHTS, er startet einen
+  // Vorgang im Browser. Ginge er als Text durch, stünde „__auth__" als
+  // Nachricht im Verlauf.
+  if (isAuthQuickReply(reply)) {
+    ctx.signIn();
     return;
   }
   if (isActionQuickReply(reply)) {

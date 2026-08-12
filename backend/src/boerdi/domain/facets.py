@@ -9,14 +9,19 @@ Zwei zustandslose, gut testbare Ableitungen aus den akkumulierten
   kurzen Hinweis bauen, wenn der MCP einen angefragten Filter nicht auflösen
   konnte und ihn still verworfen hat.
 
-Verbatim-Port: ALT hatte keine ``app.``-Importe (nur ``typing``) → byte-identisch.
-Home = ``domain/`` (framework-frei, kein Config/DB/LLM). Der ``persist``-Node
-konsumiert beide.
+Verbatim-Port: ALT hatte keine ``app.``-Importe (nur ``typing``). **C1-f2b6a hat
+diese Byte-Gleichheit beendet** — beide Ausgaben folgen jetzt der Widget-Sprache
+(``lang``); der deutsche Wortlaut ist unverändert und in
+``tests/test_facets.py`` gepinnt. Home = ``domain/`` (framework-frei, kein
+Config/DB/LLM). Der ``persist``-Node konsumiert beide und reicht die Sprache
+durch.
 """
 
 from __future__ import annotations
 
 from typing import Any
+
+from boerdi.i18n import DEFAULT, Locale, bot_text
 
 
 def narrowing_quick_replies_from_metas(
@@ -25,6 +30,7 @@ def narrowing_quick_replies_from_metas(
     dimension: str = "learningResourceType",
     max_options: int = 3,
     min_count: int = 1,
+    lang: Locale = DEFAULT,
 ) -> list[str]:
     """Baut Eingrenzungs-Quick-Replies (z.B. ``['Nur Video (1203)', …]``) aus den
     akkumulierten ``_queryMeta``-Facetten einer Such-Runde.
@@ -52,13 +58,20 @@ def narrowing_quick_replies_from_metas(
         return []
 
     top = sorted(meaningful, key=lambda b: int(b.get("count") or 0), reverse=True)[:max_options]
-    return [f"Nur {b['label']} ({int(b['count'])})" for b in top]
+    # Das Label ist WLO-Vokabular („Video", „Arbeitsblatt") und bleibt, wie der
+    # MCP es liefert — übersetzt wird nur das Wort, das wir davorsetzen.
+    return [
+        bot_text(lang, "facets.narrowChip",
+                 label=b["label"], count=int(b["count"]))
+        for b in top
+    ]
 
 
 def unresolved_filter_note(
     metas: list[dict[str, Any]] | None,
     *,
     max_shown: int = 2,
+    lang: Locale = DEFAULT,
 ) -> str:
     """Kurzer, ehrlicher Hinweis, wenn der MCP einen angefragten Vokabular-Filter
     NICHT auf eine URI auflösen konnte und ihn deshalb still verworfen hat
@@ -78,6 +91,8 @@ def unresolved_filter_note(
                 seen[value] = str(uf.get("field") or "").strip()
     if not seen:
         return ""
-    quoted = ", ".join(f"„{v}“" for v in list(seen.keys())[:max_shown])
-    return (f"Hinweis: Nach {quoted} konnte ich nicht filtern und habe "
-            "allgemeiner gesucht.")
+    quoted = ", ".join(
+        bot_text(lang, "facets.quotedValue", value=v)
+        for v in list(seen.keys())[:max_shown]
+    )
+    return bot_text(lang, "facets.unresolvedFilter", values=quoted)

@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 from pydantic import SecretStr
 
+from boerdi.obs.usage import new_accumulator
 from boerdi.services.safety import legal as legal_mod
 from boerdi.services.safety import moderation as mod
 
@@ -211,3 +212,64 @@ def test_classify_legal_error_returns_empty(monkeypatch):
 
     monkeypatch.setattr(legal_mod, "chat_completion", _boom)
     assert asyncio.run(legal_mod.classify_legal("x")) == {}
+
+
+# ── K1d: die Rechtsprüfung bucht ─────────────────────────────────────────
+
+def test_classify_legal_reicht_den_merkposten_an_den_transport(monkeypatch):
+    seen: dict = {}
+
+    async def _fake(**kwargs):
+        seen.update(kwargs)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="{}"))])
+
+    monkeypatch.setattr(legal_mod, "chat_completion", _fake)
+    acc = new_accumulator()
+
+    asyncio.run(legal_mod.classify_legal("x", usage_acc=acc))
+
+    assert seen["usage_acc"] is acc
+    assert seen["phase"] == "legal"
+
+
+def test_zwei_gleichzeitige_rechtspruefungen_zaehlen_beide(monkeypatch):
+    """Der Aufruf steckt in einem ``gather`` — mehrere Nebenläufige schreiben
+    auf denselben Merkposten. ``add_usage`` ist eine reine Dict-Mutation ohne
+    ``await``, unter asyncio also unteilbar. Der Test fährt es wirklich
+    gleichzeitig, statt sich darauf zu verlassen."""
+    async def _fake(**kwargs):
+        await asyncio.sleep(0)          # erzwingt einen echten Aufgabenwechsel
+        return SimpleNamespace(
+            model="m",
+            choices=[SimpleNamespace(message=SimpleNamespace(content="{}"))],
+            usage=SimpleNamespace(prompt_tokens=10, completion_tokens=2,
+                                  prompt_tokens_details=None,
+                                  completion_tokens_details=None),
+        )
+
+    monkeypatch.setattr(legal_mod, "chat_completion", _real_transport_booking(_fake))
+    acc = new_accumulator()
+
+    async def _both():
+        await asyncio.gather(
+            legal_mod.classify_legal("a", usage_acc=acc),
+            legal_mod.classify_legal("b", usage_acc=acc),
+        )
+
+    asyncio.run(_both())
+
+    assert acc["calls"] == 2
+    assert acc["per_phase"]["legal"]["prompt"] == 20
+
+
+def _real_transport_booking(inner):
+    """Attrappe MIT Buchung: bildet ab, was ``llm.chat_completion`` tut, statt
+    die Buchung wegzumocken — sonst prüfte der Nebenläufigkeitstest nichts."""
+    from boerdi.obs.usage import add_usage, extract_usage
+
+    async def _wrapped(**kwargs):
+        resp = await inner(**kwargs)
+        add_usage(kwargs.get("usage_acc"), extract_usage(resp), kwargs.get("phase"))
+        return resp
+
+    return _wrapped

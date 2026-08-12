@@ -5,6 +5,7 @@ import { Component, provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { EvalRunsComponent } from './eval-runs.component';
 
 const RUNS_URL = '/studio/api/eval/runs';
@@ -57,7 +58,12 @@ async function settle(h: Harness): Promise<void> {
   await h.fixture.whenStable();
 }
 
-async function mount(runs: Record<string, unknown>[] = [run('r1')]): Promise<Harness> {
+async function mount(
+  runs: Record<string, unknown>[] = [run('r1')], locale = 'de',
+): Promise<Harness> {
+  // jsdom meldet `navigator.language === 'en-US'`; ohne diese Zeile liefe eine
+  // Prüfung auf deutschen Wortlaut gegen die englische Oberfläche (C1-d4a).
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -84,6 +90,7 @@ describe('EvalRunsComponent', () => {
   });
 
   it('reads the newest runs', async () => {
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -260,5 +267,37 @@ describe('EvalRunsComponent', () => {
     const alert = h.el.querySelector('.er-danger [role="alert"]');
     expect(alert?.textContent).toContain('löschen');
     expect(alert?.querySelector('button')).toBeNull();
+  });
+
+  it('spricht auf Englisch vollständig englisch — Leiste, Filter und Zeile', async () => {
+    const h = await mount([run('r1')], 'en');
+    const text = h.el.textContent ?? '';
+    expect(text).toContain('all statuses');
+    expect(text).toContain('Delete all runs');
+    expect(text).toContain('done');
+    expect(text).toContain('newest first');
+    expect(text).not.toMatch(/[äöüß]/);
+  });
+
+  it('beugt die Zähl-Zeile als Ganzes, nicht nur ihr Substantiv', async () => {
+    // `{count} Läufe` mit einem Lauf ist auf jeder Sprache falsch; die Grenze
+    // zwischen Ein- und Mehrzahl gehört der Sprache (Intl.PluralRules), nicht
+    // einem `=== 1` im Template.
+    const eins = await mount([run('r1')]);
+    expect(eins.el.querySelector('.er-count')!.textContent).toContain('1 Lauf ');
+
+    const zwei = await mount([run('r1'), run('r2')]);
+    expect(zwei.el.querySelector('.er-count')!.textContent).toContain('2 Läufe');
+  });
+
+  it('nennt im zugänglichen Namen des Löschen-Knopfs, welchen Lauf er trifft', async () => {
+    // Jede Zeile trägt denselben sichtbaren Text; ohne das Ziel sind die Knöpfe
+    // für einen Screenreader nicht unterscheidbar. Der Name beginnt mit dem
+    // sichtbaren Wort (WCAG 2.5.3 „Label in Name") — wie `async.retryFor`.
+    const h = await mount([run('r1'), run('r2')]);
+    const arm = h.el.querySelectorAll<HTMLButtonElement>('.er-arm');
+    expect(arm[0].getAttribute('aria-label')).toBe('Löschen — Lauf r1');
+    expect(arm[1].getAttribute('aria-label')).toBe('Löschen — Lauf r2');
+    expect(arm[0].textContent?.trim()).toBe('Löschen');
   });
 });

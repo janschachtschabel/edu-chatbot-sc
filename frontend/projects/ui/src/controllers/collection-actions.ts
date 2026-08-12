@@ -12,12 +12,19 @@
  * hier nichts eager gebunden werden. Bodies verbatim übernommen —
  * KEINE Logik-Änderung. NEU: Imports umgehängt (``WloCard`` → ``../cards``,
  * Response-/Message-Modell → ``../grouping/message-types``).
+ *
+ * C1-b4: übersetzt werden die **Fehler-Bubbles**, nicht die gesendeten Texte
+ * (``Inhalte der Sammlung "…"`` usw.). Letztere sind die Anweisung ans Backend
+ * bzw. Modell — deutsch nach dem C1-Entscheid „Sprachdirektive im Prompt" — und
+ * stehen so auch im gespeicherten Verlauf; eine Übersetzung machte die Historie
+ * sprachabhängig.
  */
 import { WloCard } from '../cards/card-types';
 import {
   ChatMessage, ChatResponse, DebugInfo, PaginationInfo,
   QueryMetaEntry, WebLink, InlineDocument, TopicPageView,
 } from '../grouping/message-types';
+import type { TranslateFn } from '../i18n/i18n';
 
 /** Live-Zustand/Seiteneffekte der ChatComponent, die die Aktionen
  *  brauchen — als deferred Arrows (Muster: ``TourContext``). */
@@ -53,6 +60,9 @@ export interface CollectionActionsContext {
   /** ``messagesContainer?.nativeElement`` — LIVE (ViewChild füllt sich
    *  erst nach dem ersten Render); ``undefined`` toleriert. */
   messagesContainer: () => HTMLElement | undefined;
+  /** Übersetzer für die Fehler-Bubbles (C1-b4). Über den Kontext wie alles
+   *  andere hier — die Aktionen sind Modul-Funktionen ohne eigenen Zustand. */
+  t: TranslateFn;
 }
 
 /** Inhalte einer Sammlung als neuen Bot-Turn laden (Card-Button „Inhalte zeigen"). */
@@ -77,7 +87,49 @@ export async function browseCollection(
     ctx.dispatchPageAction(resp.page_action);
   } catch {
     ctx.removeMessage(loadingId);
-    const errId = ctx.addBotMessage(`Ich konnte die Inhalte von "${title}" leider nicht laden. Versuch es nochmal!`);
+    const errId = ctx.addBotMessage(ctx.t('error.browseCollection', { title }));
+    ctx.setScrollTarget(errId);
+  }
+  ctx.setLoading(false);
+}
+
+/** Volltext EINES Materials als neuen Bot-Turn holen (Card-Button
+ *  „Inhalt anzeigen", M17).
+ *
+ *  Hinter `show_content_text` läuft bewusst KEIN Antwort-LLM: die Aktion
+ *  liefert den Text unverändert in `inline_documents` (Begründung im
+ *  Backend-Modul `services/content_text_action.py`). Für diese Seite heißt
+ *  das: nichts Besonderes zu tun — die Box steht an derselben Stelle der
+ *  Render-Argumente wie bei M09/M10.
+ *
+ *  simplify: dritter fast wortgleicher Ablauf in dieser Datei
+ *  (Loading-Bubble → sendMessage → Render → Scroll/Debug/PageAction). Die
+ *  beiden anderen sind Verbatim-Ports aus ALT; sie jetzt hinter einen
+ *  gemeinsamen Helfer zu ziehen wäre ein Refactor mitten in einer
+ *  Funktionsänderung. Upgrade-Pfad: `runCardAction(message, action, params,
+ *  ctx)` extrahieren, sobald eine vierte Aktion dazukommt. */
+export async function showContentText(
+  nodeId: string, title: string, ctx: CollectionActionsContext,
+): Promise<void> {
+  if (ctx.isLoading()) return;
+  ctx.setLoading(true);
+  const loadingId = ctx.addBotMessage('', true);
+
+  try {
+    const resp = await ctx.sendMessage(
+      `Inhalt von "${title}"`,
+      undefined,
+      'show_content_text',
+      { node_id: nodeId, title },
+    );
+    ctx.removeMessage(loadingId);
+    const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.debug, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
+    ctx.setScrollTarget(botMsgId);
+    ctx.setLatestDebug(resp.debug);
+    ctx.dispatchPageAction(resp.page_action);
+  } catch {
+    ctx.removeMessage(loadingId);
+    const errId = ctx.addBotMessage(ctx.t('error.contentText', { title }));
     ctx.setScrollTarget(errId);
   }
   ctx.setLoading(false);
@@ -105,7 +157,7 @@ export async function generateLearningPath(
     ctx.dispatchPageAction(resp.page_action);
   } catch {
     ctx.removeMessage(loadingId);
-    const errId = ctx.addBotMessage(`Den Lernpfad für "${title}" konnte ich leider nicht erstellen. Versuch es nochmal!`);
+    const errId = ctx.addBotMessage(ctx.t('error.learningPath', { title }));
     ctx.setScrollTarget(errId);
   }
   ctx.setLoading(false);

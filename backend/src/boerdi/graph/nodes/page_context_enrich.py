@@ -17,6 +17,12 @@ Placement (why a dedicated node between ``tour`` and ``context_greeting``):
   (``respond``'s prompt consumes it on every normal turn), so it stays its own node
   on the normal path rather than coupling to the greeting.
 
+Second job, added with the Seitenkontext-Erweiterung: settle the page kind the URL
+detector could not (``other``) from the hostname — our own site or somebody else's.
+It happens here, before the resolve, so the MCP resolver, the greeting and the prompt
+builders all read the same page kind. The decision itself is pure
+(``domain/page_host``); this node only supplies the editorially maintained host list.
+
 Never sets ``early_response`` (normal-path node). No session DI: ``resolve_page_context``
 talks to MCP, not the DB. ``resolve_page_context`` is best-effort by contract (returns
 None, never raises) but the call is still wrapped defensively — a resolver bug must not
@@ -27,10 +33,18 @@ from __future__ import annotations
 
 import logging
 
+from boerdi.domain.page_host import classify_page_host
 from boerdi.graph.state import TurnContext
+from boerdi.services.config_loader import load_context_actions
 from boerdi.services.page_context import resolve_page_context
 
 logger = logging.getLogger(__name__)
+
+# Only these two are open questions the hostname may answer. Any other kind is a
+# positive finding of the URL detector (path + query) and outranks the host: the
+# staging collection "Geometrische Optik" sits on one of OUR hosts and would
+# otherwise be relabelled ``home``, losing its metadata and its context pills.
+_UNDECIDED_KINDS = ("", "other")
 
 _PAGE_CONTEXT_ENTITY_KEYS = (
     "node_id",
@@ -43,9 +57,30 @@ _PAGE_CONTEXT_ENTITY_KEYS = (
 )
 
 
+def _decide_host_kind(page_ctx: dict) -> None:
+    """Turn an undecided page kind into ``home``/``external`` using the hostname.
+
+    Mutates ``page_ctx`` in place so every later reader — the MCP resolver, the
+    greeting, the prompt builders — sees one and the same page kind. Silent on
+    every failure: an unreachable config store must not cost the turn, and a
+    guessed kind is worse than the honest ``other`` it started with.
+    """
+    if (page_ctx.get("page_kind") or "").strip().lower() not in _UNDECIDED_KINDS:
+        return
+    try:
+        own_hosts = load_context_actions().get("own_hosts") or []
+    except Exception as err:
+        logger.warning("own-host list unavailable, page kind left undecided: %s", err)
+        return
+    kind = classify_page_host(page_ctx.get("page_host"), own_hosts)
+    if kind:
+        page_ctx["page_kind"] = kind
+
+
 async def page_context_enrich(ctx: TurnContext) -> TurnContext:
     """Inject page-context IDs into entities and best-effort resolve page metadata."""
     page_ctx = ctx.env.get("page_context") or {}
+    _decide_host_kind(page_ctx)
     entities = ctx.session_state.setdefault("entities", {})
     for key in _PAGE_CONTEXT_ENTITY_KEYS:
         if page_ctx.get(key):

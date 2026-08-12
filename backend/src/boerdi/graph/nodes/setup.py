@@ -39,8 +39,9 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.graph.state import TurnContext
+from boerdi.obs.usage import bind_turn_usage
 from boerdi.services.db_sessions import get_messages, get_or_create_session
-from boerdi.services.mcp.client import reset_query_metas
+from boerdi.services.mcp.client import reset_prepared_writes, reset_query_metas
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,19 @@ async def setup(ctx: TurnContext, session: AsyncSession, peer_ip: str = "") -> T
 
     # Clear the per-request MCP query-meta accumulator so each turn starts fresh.
     reset_query_metas()
+    # Dasselbe für die vorbereiteten Schreibzugriffe (E3): eine Änderung, die
+    # im vorigen Zug beschrieben und dort ausgeliefert wurde, darf im nächsten
+    # nicht ein zweites Mal auftauchen.
+    reset_prepared_writes()
+
+    # Den Merkposten dieses Zuges binden (K1e). Er ist der einzige Weg, auf dem
+    # Blätter ohne Zug-Kontext buchen können — allen voran der Vokabular-
+    # Abgleich hinter ``call_mcp_tool``. Hier, weil dieser Knoten der Eingang
+    # des Graphen ist (``START → setup``): jeder spätere Knoten und jede von
+    # ihm erzeugte Task erbt die Bindung. Wie ``reset_query_metas`` gehört das
+    # zur Grundhygiene des Zuges — ein Zug darf nie am Merkposten des vorigen
+    # hängen.
+    bind_turn_usage(ctx.usage)
 
     row = await get_or_create_session(session, req.session_id)
     ctx.history = await get_messages(session, req.session_id, limit=20)

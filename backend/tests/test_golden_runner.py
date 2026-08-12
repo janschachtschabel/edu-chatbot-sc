@@ -129,7 +129,10 @@ def _flow(*expects: dict) -> dict:
 
 
 def test_run_flows_records_what_judge_and_metrics_read(monkeypatch) -> None:
-    async def fake_post(url, message, session_id):
+    # ``headers`` seit A5 — die Attrappe folgt der ECHTEN Signatur, nicht dem
+    # eigenen Aufruf (Lehre aus A4b: ein ``async``-Double für ein synchrones
+    # ``load_engine`` war zwei Scheiben lang grün und in Produktion kaputt).
+    async def fake_post(url, message, session_id, headers=None):
         return {"content": "Antwort", "cards": [{"title": "K", "url": "https://r/x"}],
                 "quick_replies": ["a"], "debug": dict(_FULL_DEBUG)}
 
@@ -153,7 +156,7 @@ def test_run_flows_records_what_judge_and_metrics_read(monkeypatch) -> None:
 
 
 def test_run_flows_error_turn_keeps_the_expectations(monkeypatch) -> None:
-    async def broken_post(url, message, session_id):
+    async def broken_post(url, message, session_id, headers=None):
         raise RuntimeError("down")
 
     monkeypatch.setattr(rg, "post_chat", broken_post)

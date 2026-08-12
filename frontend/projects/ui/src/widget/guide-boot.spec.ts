@@ -42,7 +42,7 @@ describe('GuideBoot load()', () => {
     const { boot } = mk();
     await boot.load();
     expect(boot.headerNavButtons()).toEqual([
-      { id: 'x1', label: 'X', icon: 'explore', url: 'https://x', new_tab: true },
+      { id: 'x1', label: 'X', label_en: '', icon: 'explore', url: 'https://x', new_tab: true },
     ]);
   });
 
@@ -55,6 +55,26 @@ describe('GuideBoot load()', () => {
     expect(boot.configGreeting()).toBe('');
     expect(boot.startReplies()).toEqual(['a', '42']);   // C13: getrimmt + leer-gefiltert
     expect(boot.tourReply()).toBe('Zeig mir die Seite');
+  });
+
+  it('legt die englische Fassung in eigene Signale (C1-g1b)', async () => {
+    vi.stubGlobal('fetch', okFetch({
+      welcome: {
+        greeting: 'Moin', greeting_en: 'Hello',
+        quick_replies: ['Tour'], quick_replies_en: ['Tour EN'],
+        tour_reply: 'Tour', tour_reply_en: 'Tour EN',
+      },
+      header_nav: [{ id: 'h', label: 'Start', label_en: 'Home', url: 'https://x' }],
+    }));
+    const { boot } = mk();
+    await boot.load();
+    // Beide Fassungen liegen nebeneinander — die Wahl trifft der Verbraucher,
+    // weil die Sprache zur Laufzeit umschaltbar ist.
+    expect(boot.configGreeting()).toBe('Moin');
+    expect(boot.configGreetingEn()).toBe('Hello');
+    expect(boot.startRepliesEn()).toEqual(['Tour EN']);
+    expect(boot.tourReplyEn()).toBe('Tour EN');
+    expect(boot.headerNavButtons()[0].label_en).toBe('Home');
   });
 
   it('non-ok-Antwort: keine Config-Übernahme, aber guideMode=true + guideHost', async () => {

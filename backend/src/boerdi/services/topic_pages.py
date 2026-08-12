@@ -26,6 +26,13 @@ from boerdi.services.mcp.client import call_mcp_tool
 
 logger = logging.getLogger(__name__)
 
+# ``get_topic_page_content``-Gründe, die belegen: diese Sammlung IST keine
+# Themenseite. Der Server kennt daneben ``no_variant``/``empty_config`` (die
+# Themenseite existiert, hat aber keinen anzeigbaren Inhalt) und ``no_match``,
+# dessen Bedeutung nicht dokumentiert ist — beide bleiben bewusst draußen, damit
+# der Fallback-Text im Zweifel die vorsichtigere Aussage trifft.
+_M16_REASONS_NO_TOPIC_PAGE = frozenset({"no_page_config_ref", "node_not_found"})
+
 
 def _is_empty_topic_pages_response(raw: str) -> bool:
     """True when the WLO MCP server reported no topic pages found for a
@@ -122,10 +129,18 @@ async def _topic_pages_with_warmup(
     # server schema; we ask for the full window.
     try:
         global_args: dict[str, Any] = {"maxResults": 20}
-        # Preserve the discipline hint if the caller provided one — even
-        # with no query, the server narrows by discipline reliably.
-        if extra_args.get("discipline"):
-            global_args["discipline"] = extra_args["discipline"]
+        # Preserve the level hint if the caller provided one — even with no
+        # query, the server narrows by educationalContext reliably.
+        #
+        # Deviation vs ALT (W2-2, 2026-07-30): ALT forwarded ``discipline``
+        # here. ``search_wlo_topic_pages`` has no such parameter (its schema
+        # knows query/targetGroup/educationalContext/collectionId/mergeVariants/
+        # sort/maxResults/outputFormat), so the server discarded it silently and
+        # the fallback ran unfiltered — measured byte-identical with and without
+        # it. ``educationalContext`` is the filter this tool actually applies,
+        # and the caller already had it (prefetch sets both keys) but dropped it.
+        if extra_args.get("educationalContext"):
+            global_args["educationalContext"] = extra_args["educationalContext"]
         global_raw = await _ct("search_wlo_topic_pages", global_args)
     except Exception as _e:
         logger.warning("topic_pages global fallback failed: %s", _e)
@@ -184,13 +199,19 @@ async def _resolve_m16_topic_page_view(
     war ``winner.id``, matcht die turn_persist-Konvention); der Tracer ist
     projektweit gedroppt (kein ``tracer.start``/``tracer.end``); die Seams zeigen
     auf ``boerdi.services.mcp.{client,parsers}`` + ``boerdi.api.schemas`` statt der
-    ALT-Fassaden.
+    ALT-Fassaden. **W3 (2026-07-30): die Kandidatenquelle ist
+    ``search_wlo_topic_pages`` statt ALTs ``search_wlo_collections``** — Messung
+    und Begründung an der Aufrufstelle. Der leere Fall trägt seit W2-3 den
+    Server-``reason``, der den Fallback-Text bestimmt.
     """
     # ── M16: Themenseiten-Inhalt — Schwimmlinien-Boxen statt normaler Boxen ──
     # Beste Themenseite zum Thema finden → ihre Schwimmlinien-Inhalte holen
     # (Top-3 je Box) → als Swimlane-Boxen anzeigen. Die normalen Sammlungs-/
     # Inhalts-Boxen werden dabei unterdrückt (cards=[]).
     _topic_page_view = None
+    # Gründe, die der Server für leere Antworten mitschickt (W2-3). Wird VOR dem
+    # try gebunden, weil der Fallback-Zweig unten sie auch nach einem Abbruch liest.
+    _m16_reasons: list[str] = []
     if winner_id == "M16":
         try:
             from boerdi.api.schemas import (
@@ -205,24 +226,23 @@ async def _resolve_m16_topic_page_view(
             from boerdi.services.mcp.parsers import (
                 parse_topic_page_swimlanes as _m16_psl,
             )
-            from boerdi.services.mcp.parsers import (
-                parse_wlo_cards as _m16_pc,
-            )
             _m16_thema = str(
                 (classification.entities or {}).get("thema")
                 or (classification.entities or {}).get("topic")
                 or spec_query or req.message or ""
             ).strip()[:120]
-            # Themenseite über die zuverlässige Sammlungs-Suche finden. KEIN
-            # CE-Gate hier: der Nutzer hat die Themenseite NAMENTLICH genannt —
-            # sie soll gefunden werden, auch bei mäßigem CE-Score. Ranking:
-            # Titel-Match + Themenseiten-Flag (topic_page_url) zuerst, sonst
-            # MCP-Reihenfolge.
-            # Seitenkontext-Kurzschluss (T19): steht der Nutzer schon auf einer
-            # Themenseite mit bekannter collectionId, die Sammlungs-Suche
-            # überspringen und direkt deren Inhalte laden — spart einen MCP-Call
-            # und trifft garantiert die richtige Sammlung. Nur bei
-            # page_kind=='topic' + collection_id.
+            # W5-1 (2026-07-30): EIN Aufruf. ``get_topic_page_content`` nimmt seit
+            # dem neuen Server ein ``query`` und löst die passende Themenseite
+            # selbst auf ("Resolves the best matching Themenseite internally and
+            # renders its swimlanes in ONE call — no prior search_wlo_topic_pages
+            # needed", Schema des Tools). Damit entfallen die vorgeschaltete Suche
+            # (W3) und die Kandidaten-Rangfolge samt Drei-Versuche-Schleife: der
+            # Server macht die Auflösung, die wir bis hierher nachgebaut hatten.
+            # Gemessen: 3,0 s statt 4,0 s, ein MCP-Call statt zwei.
+            #
+            # Seitenkontext-Kurzschluss (T19) bleibt: steht der Nutzer schon auf
+            # einer Themenseite mit bekannter collectionId, ist die genauer als
+            # jede Themen-Auflösung — dann geht sie als ``collectionId`` rein.
             try:
                 _m16_pc_ctx = (req.environment.page_context or {}) if req.environment else {}
             except Exception:
@@ -231,57 +251,37 @@ async def _resolve_m16_topic_page_view(
             if str(_m16_pc_ctx.get("page_kind") or "").lower() == "topic":
                 _m16_known_cid = (_m16_pc_ctx.get("collection_id") or "").strip()
 
+            _m16_args: dict[str, Any] = {"maxPerSwimlane": 3}
             if _m16_known_cid:
-                _m16_cands = [{"node_id": _m16_known_cid, "title": _m16_thema}]
+                _m16_args["collectionId"] = _m16_known_cid
             else:
-                _m16_raw_col = await call_mcp_tool(
-                    "search_wlo_collections", {"query": _m16_thema, "maxResults": 8},
-                )
-                _m16_cards = _m16_pc(_m16_raw_col) or []
-                _m16_thl = _m16_thema.lower()
-
-                def _m16_rank(_c: dict) -> int:
-                    _t = (_c.get("title") or "").lower()
-                    _tm = bool(_m16_thl) and (_m16_thl in _t or _t in _m16_thl)
-                    _tp = bool(_c.get("topic_page_url"))
-                    return 0 if (_tm and _tp) else (1 if _tp else (2 if _tm else 3))
-
-                _m16_cands = sorted(_m16_cards, key=_m16_rank)
+                _m16_args["query"] = _m16_thema
+            _m16_raw_tc = await call_mcp_tool("get_topic_page_content", _m16_args)
+            _m16_parsed = _m16_psl(_m16_raw_tc)
             _m16_fields = _M16Card.model_fields
-            # Top-Kandidaten durchprobieren; erste Sammlung mit echter
-            # Schwimmlinien-Struktur gewinnt (max. 3 Versuche).
-            for _m16_cand in _m16_cands[:3]:
-                _cid = _m16_cand.get("node_id")
-                if not _cid:
+            _m16_boxes = []
+            for _m16_sl in _m16_parsed.get("swimlanes", []):
+                _m16_cc = _m16_sl.get("cards") or []
+                if not _m16_cc:
                     continue
-                _m16_raw_tc = await call_mcp_tool(
-                    "get_topic_page_content",
-                    {"collectionId": _cid, "maxPerSwimlane": 3},
+                _m16_boxes.append(_M16Box(
+                    heading=_m16_sl.get("heading") or "",
+                    type=_m16_sl.get("type") or "",
+                    has_more=bool(_m16_sl.get("has_more")),
+                    cards=[
+                        _M16Card(**{k: v for k, v in c.items() if k in _m16_fields})
+                        for c in _m16_cc
+                    ],
+                ))
+            if _m16_boxes:
+                _topic_page_view = _M16View(
+                    variant_title=_m16_parsed.get("variant_title") or _m16_thema,
+                    topic_page_url=_m16_parsed.get("topic_page_url") or "",
+                    swimlanes=_m16_boxes,
                 )
-                _m16_parsed = _m16_psl(_m16_raw_tc)
-                _m16_boxes = []
-                for _m16_sl in _m16_parsed.get("swimlanes", []):
-                    _m16_cc = _m16_sl.get("cards") or []
-                    if not _m16_cc:
-                        continue
-                    _m16_boxes.append(_M16Box(
-                        heading=_m16_sl.get("heading") or "",
-                        type=_m16_sl.get("type") or "",
-                        has_more=bool(_m16_sl.get("has_more")),
-                        cards=[
-                            _M16Card(**{k: v for k, v in c.items() if k in _m16_fields})
-                            for c in _m16_cc
-                        ],
-                    ))
-                if _m16_boxes:
-                    _topic_page_view = _M16View(
-                        variant_title=(_m16_cand.get("title")
-                                       or _m16_parsed.get("variant_title") or _m16_thema),
-                        topic_page_url=(_m16_parsed.get("topic_page_url")
-                                        or _m16_cand.get("topic_page_url") or ""),
-                        swimlanes=_m16_boxes,
-                    )
-                    break
+            else:
+                # Kein anzeigbarer Inhalt — den Grund des Servers merken (W2-3).
+                _m16_reasons.append(_m16_parsed.get("reason") or "")
         except Exception as _m16_err:
             logger.warning("M16 topic-content resolve failed: %s", _m16_err)
             _topic_page_view = None
@@ -306,7 +306,19 @@ async def _resolve_m16_topic_page_view(
                 or spec_query or ""
             ).strip()
             cards = []
-            if _m16_label:
+            # W2-3: Wenn JEDE Antwort meldet, dass die Sammlung gar keine
+            # Themenseite ist, dann existiert keine — dann darf der Text auch
+            # nicht behaupten, „die Themenseite" sei bloß noch leer. Unbekannte
+            # oder gemischte Gründe behalten den vorsichtigen ALT-Wortlaut.
+            _m16_keine_tp = bool(_m16_reasons) and all(
+                r in _M16_REASONS_NO_TOPIC_PAGE for r in _m16_reasons
+            )
+            if _m16_label and _m16_keine_tp:
+                _final_text = (
+                    f"Zu »{_m16_label}« habe ich keine Themenseite gefunden. "
+                    "Magst du es über die normale Suche zum Thema versuchen?"
+                )
+            elif _m16_label:
                 _final_text = (
                     f"Zur Themenseite »{_m16_label}« konnte ich gerade keine anzeigbaren "
                     "Inhalte laden — sie ist eventuell noch leer oder nicht vollständig "

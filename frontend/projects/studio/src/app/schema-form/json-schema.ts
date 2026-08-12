@@ -8,6 +8,11 @@
  * why this project renders schemas itself instead of pulling in a general
  * JSON-Schema form library (9-3).
  *
+ * Re-measured 2026-08-11 with `01-base/pricing` (K3): `minimum` joins the set,
+ * emitted by that area's `ge=0` price fields. The mapper does not read it — the
+ * server rejects a negative price on PUT, which is where that check belongs —
+ * so it is listed here only to keep the type honest about what is served.
+ *
  * Fields outside this set are simply absent from the type; the mapper falls
  * back to a `raw` field rather than guessing, so an unforeseen shape degrades
  * to "edit it in the YAML tab" instead of silently dropping data.
@@ -24,4 +29,5 @@ export interface JsonSchema {
   readonly items?: JsonSchema;
   readonly additionalProperties?: JsonSchema | boolean;
   readonly anyOf?: readonly JsonSchema[];
+  readonly minimum?: number;
 }

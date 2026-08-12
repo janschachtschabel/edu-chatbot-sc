@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
 import { SnapshotsPanelComponent } from './snapshots-panel.component';
 
 const LIST = '/studio/api/config/snapshots';
@@ -27,6 +28,9 @@ async function settle(h: Harness): Promise<void> {
 
 async function mount(rows: readonly unknown[] = [ROW]): Promise<Harness> {
   TestBed.resetTestingModule();
+  // Siehe backup.component.spec.ts: jsdom meldet `en-US`, der Browser ist die
+  // zweitstärkste Quelle — deutsche Zusagen brauchen die oberste.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting(),
@@ -162,6 +166,24 @@ describe('SnapshotsPanelComponent', () => {
     // The limit is enforced in create_snapshot (MAX_SNAPSHOTS = 50) and only
     // announces itself as a 400 — worth knowing before the button is pressed.
     expect(text(h)).toContain('2 von 50');
+  });
+
+  it('beugt den Stand-Satz nach der Regel der aktiven Sprache', async () => {
+    // Auf Deutsch unterscheidet nur das Substantiv, auf Englisch auch das Verb
+    // („1 snapshot of 50 is saved" ↔ „2 … are saved"). Ein `=== 1` im Template
+    // wäre die deutsche Regel, fest verdrahtet.
+    const eins = await mount([ROW]);
+    expect(text(eins)).toContain('1 von 50');
+
+    TestBed.inject(StudioLanguageService).toggle();
+    await settle(eins);
+    expect(text(eins)).toContain('1 of 50');
+    expect(text(eins)).toMatch(/\bis saved\b/);
+
+    const zwei = await mount([ROW, { ...ROW, id: 'snap-2' }]);
+    TestBed.inject(StudioLanguageService).toggle();
+    await settle(zwei);
+    expect(text(zwei)).toMatch(/\bare saved\b/);
   });
 
   it('zeigt den Satz des Backends, wenn das Anlegen scheitert', async () => {

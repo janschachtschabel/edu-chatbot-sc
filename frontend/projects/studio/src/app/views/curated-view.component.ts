@@ -12,8 +12,11 @@
  * several requests that can half-fail, and the page would have to explain
  * which half.
  */
-import { ChangeDetectionStrategy, Component, computed, input, viewChildren } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, computed, inject, input, viewChildren,
+} from '@angular/core';
 
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import type { StudioView } from '../studio-views';
 import { AreaSectionComponent } from './area-section.component';
 import {
@@ -45,6 +48,8 @@ type Entry =
 export class CuratedViewComponent {
   /** Bound from the route's `data.view` (withComponentInputBinding). */
   readonly view = input.required<StudioView>();
+
+  protected readonly t = inject(StudioLanguageService).t;
 
   readonly definition = computed(() => curatedView(this.view().slug));
   readonly sections = viewChildren(AreaSectionComponent);

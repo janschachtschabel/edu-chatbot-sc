@@ -1,16 +1,12 @@
 <header class="qv-head">
-  <p class="qv-crumb">Auswertung</p>
-  <h2 class="qv-title">Analyse</h2>
-  <p class="qv-intro">
-    Wie der Bot einordnet und antwortet: Kennzahlen und Problem-Diagnosen, die
-    Pattern-Wahl je Persona und Intent, der Verlauf über die Phasen und die
-    einzelnen Turns.
-  </p>
+  <p class="qv-crumb">{{ t('nav.group.auswertung') }}</p>
+  <h2 class="qv-title">{{ t('view.analyse.label') }}</h2>
+  <p class="qv-intro">{{ t('qual.intro') }}</p>
 </header>
 
 <fieldset class="qv-scope">
-  <legend>Datenbasis</legend>
-  @for (option of scopes; track option.id) {
+  <legend>{{ t('qual.scope.legend') }}</legend>
+  @for (option of scopes(); track option.id) {
     <label class="qv-scope-option">
       <input
         type="radio"
@@ -26,8 +22,8 @@
 </fieldset>
 
 <studio-tab-bar
-  label="Auswertung"
-  [tabs]="tabs"
+  [label]="t('nav.group.auswertung')"
+  [tabs]="tabs()"
   [active]="active()"
   (tabChange)="select($event)"
 />

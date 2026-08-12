@@ -1,17 +1,21 @@
 import {
-  AfterViewChecked, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef,
-  inject, input, OnChanges, OnDestroy, OnInit, output, signal, viewChild,
+  AfterViewChecked, ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, effect,
+  ElementRef, inject, input, OnChanges, OnDestroy, OnInit, output, signal, viewChild,
 } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
 
 import { CardListComponent } from '../cards/card-list.component';
+import { resolveCardsVisible, SHOW_CARDS_MODES } from '../cards/cards-visible';
 import { DebugPanelComponent } from '../debug/debug-panel.component';
-import { _attrIsTrue } from '../element/attr';
-import { ChatResponse, DebugInfo } from '../grouping/message-types';
+import { _attrEnum, _attrIsTrue, PanelSizeStep } from '../element/attr';
+import { ChatResponse, DebugInfo, PreparedWriteOut } from '../grouping/message-types';
 import { ResultGroupsComponent } from '../grouping/result-groups.component';
 import { SwimlanesComponent } from '../grouping/swimlanes.component';
 import { ICONS } from '../icons/icons';
 import { SafeSvgPipe } from '../icons/safe-svg.pipe';
+import type { TranslationParams } from '../i18n/dictionary';
+import type { TranslateFn } from '../i18n/i18n';
+import { DEFAULT_LOCALE, Locale } from '../i18n/locale';
 import { InlineDocumentsComponent } from '../inline-doc/inline-documents.component';
 import { QuickRepliesComponent } from '../chips/quick-replies.component';
 import { BOERDI_LOGO_DATA_URL } from '../branding/boerdi-logo';
@@ -19,12 +23,17 @@ import { SHELL_PRINT } from '../print/print-gates';
 import { ChatApiClient } from '../stream/chat-api';
 import { formatPhaseLabel } from '../stream/phase-label';
 import {
-  browseCollection, generateLearningPath, loadMore, showMoreCards,
+  browseCollection, generateLearningPath, loadMore, showContentText, showMoreCards,
 } from '../controllers/collection-actions';
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
 import { TourController } from '../controllers/tour.controller';
 import { SpeechService } from '../speech/speech.service';
 import { CORE_TRUSTED_DOMAINS } from '../session/trusted-host';
+import { runSignIn } from '../session/sign-in-flow';
+import { authButtonState } from '../session/auth-button';
+import { clearAccessBlock, readAccessBlock } from '../session/mcp-access';
+import { runTicketLogin } from '../session/ticket-login';
+import { runPreparedWrite } from '../session/prepared-write';
 import {
   InputRoutingContext, guideQuickReplyTarget, resolveGuideNavTarget, routeQuickReply,
 } from './input-routing';
@@ -32,6 +41,7 @@ import {
   GuideSuggestionPayload, RoutingDebugPayload, maybeDispatchGuideNavigate,
   maybeDispatchGuideSuggestion, maybeDispatchRoutingDebug,
 } from '../host-events/host-events';
+import { dispatchHostEvent, HOST_EVENTS } from '../host-events/event-names';
 import { SendMessageContext, runSendMessage } from './send-message';
 import { ControllerContexts, ShellHost, buildControllerContexts } from './shell-contexts';
 import { LifecycleContext, ShellLifecycle } from './lifecycle';
@@ -55,7 +65,7 @@ import { ShellRender } from './shell-render';
  * fields; der Verlauf lebt im `MessageStore` (8-4S-f0) statt in privaten
  * Component-Methoden — Bodies + Gates dort verbatim aus ALT :1273-1321.
  *
- * GRÖSSE: ~505 Z. — dokumentierte Ausnahme der ≤300-Invariante. Der Integrator
+ * GRÖSSE: ~573 Z. — dokumentierte Ausnahme der ≤300-Invariante. Der Integrator
  * enthält KEINE Business-Logik (die liegt in Modulen), sondern nur: 4 deklarative
  * Wiring-Seam-Literale (`_host`/`_sendCtx`/`_routingCtx`/`_lifecycleCtx`, ~85 Z.),
  * die Template-Sicht (Sub-Komponenten-Imports + Flag-Getter + Delegates, ~90 Z.),
@@ -118,6 +128,18 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   /** Exakter Start-Chip-Text, der die Web-Tour startet (statt zu senden).
    *  Studio-pflegbar (welcome-config.tour_reply); leer → kein Chip startet. */
   readonly tourReply = input('');
+  /** C1-g1b: die englische Fassung desselben Chips. Die Weiche vergleicht
+   *  gegen BEIDE, weil ein Sprachwechsel den Verlauf nicht nachuebersetzt. */
+  readonly tourReplyEn = input('');
+  /** C5-c2: Herkunft des MCP-Servers für die WLO-Anmeldung, aus dem
+   *  öffentlichen Config-Bündel durchgereicht. Leer = keine Anmeldung möglich;
+   *  der Chip sagt das dann, statt ein leeres Fenster zu öffnen. */
+  readonly mcpAuthBase = input('');
+  /** Ticket der Gastgeberseite (Attribut `ticket`, von der Hülle einmal
+   *  eingesammelt und aus dem DOM getilgt). Nicht leer → stiller Tausch gegen
+   *  einen Zugangsblock, sobald `mcpAuthBase` aus dem Config-Bündel da ist
+   *  (`session/ticket-login.ts`). */
+  readonly ticket = input('');
   /** Vom Widget durchgereichte Trusted-Hosts-Whitelist (Same-Tab-Nav-Gate). */
   readonly trustedHosts = input<string[]>([]);
   /** ALT-Compat-Konstante (seit Welle E immer true): Lotsen-Modus aktiv. */
@@ -147,6 +169,37 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  Die Widget-Hülle liest `debugButtonVisible`, ALT `chatRef?.debugButtonVisible`. */
   readonly showDebugButton = input<boolean | string>(false);
 
+  /** U2a — Größen-Umschalter in der Eingabezeile. Zwei getrennte Eingänge statt
+   *  eines: `sizeToggleVisible` beantwortet „gibt es hier überhaupt etwas zu
+   *  verändern" (rahmenlos und in der Studio-Vorschau: nein), `sizeStep` nur
+   *  „wie heißt der Knopf gerade". Ein Eingang für beides wäre eine Zeichenkette
+   *  mit zweitem, unsichtbarem Auftrag. */
+  readonly sizeToggleVisible = input<boolean | string>(false);
+  readonly sizeStep = input<PanelSizeStep>('small');
+  /** Der Umschaltwunsch geht nach OBEN: die Maße kennt das Panel, nicht die
+   *  Shell. Sie hält deshalb bewusst keinen eigenen Größen-Zustand. */
+  readonly sizeToggle = output<void>();
+
+  /** U2b — `show-cards`: `auto` (Vorgabe) | `always` | `never`. Entscheidet
+   *  zusammen mit `sizeStep` und `inline-result-grouping`, welche der beiden
+   *  vorhandenen Trefferdarstellungen greift. Siehe `resolveCardsVisible`. */
+  readonly showCards = input('');
+
+  /** Übersetzer der Hülle (C1-b2). Bewusst PFLICHT und nicht mit deutschem
+   *  Default: eine vergessene Bindung wäre sonst eine still einsprachige
+   *  Oberfläche statt eines Übersetzungsfehlers. Nur die Funktion, nicht die
+   *  `I18n`-Instanz — die Shell übersetzt, sie schaltet nicht um. */
+  readonly translate = input.required<TranslateFn>();
+  /** Kurzform fürs Template. Als Arrow gebunden, damit `{{ t('…') }}` ohne
+   *  `this` funktioniert; der Signal-Read liegt in `I18n.t` und macht jede
+   *  Auswertung von selbst reaktiv. */
+  protected readonly t = (key: string, params?: TranslationParams): string =>
+    this.translate()(key, params);
+  /** Aktive Sprache (C1-c). Die Shell übersetzt über `[translate]` — dieser
+   *  Input trägt keinen Text, sondern das **Ereignis** Sprachwechsel: der
+   *  Markdown-Cache muss dann fallen (siehe `ngOnChanges`). */
+  readonly locale = input<Locale>(DEFAULT_LOCALE);
+
   private readonly _cdr = inject(ChangeDetectorRef);
   private readonly _sanitizer = inject(DomSanitizer);
   /** Template-Anker: Auto-Follow-Container + Eingabefeld fürs Refokussieren. */
@@ -174,6 +227,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     sessionId: () => this.sessionId,
     trustedDomains: () => this._effectiveTrustedDomains(),
     inlineResultGrouping: () => this.inlineResultGroupingBool,
+    t: (key, params) => this.t(key, params),
   });
   /** Druck-Gates + -Trigger (Lernpfad-/Canvas-Leisten, InlineDocument-Box). */
   readonly print = SHELL_PRINT;
@@ -208,6 +262,27 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  String herein — gleiche Koerzierung wie alle Bool-Attribute des Widgets). */
   get inlineResultGroupingBool(): boolean {
     return _attrIsTrue(this.inlineResultGrouping());
+  }
+
+  /** U2a — Größen-Umschalter zeigen? Gleiche Koerzierung wie oben. */
+  get sizeToggleVisibleBool(): boolean {
+    return _attrIsTrue(this.sizeToggleVisible());
+  }
+
+  /** Beschriftung des Größen-Knopfs — benennt das ZIEL, nicht den Ist-Zustand. */
+  get sizeToggleLabel(): string {
+    return this.t(this.sizeStep() === 'large' ? 'widget.size.smaller' : 'widget.size.larger');
+  }
+
+  /** U2b — Kacheln mit Vorschaubild (`true`) oder Textlinks in Boxen (`false`).
+   *  Die Rangfolge steht in `resolveCardsVisible`; hier wird nur das
+   *  Host-Attribut normalisiert. */
+  get cardsVisible(): boolean {
+    return resolveCardsVisible(
+      this.sizeStep(),
+      _attrEnum(this.showCards(), SHOW_CARDS_MODES, 'auto'),
+      this.inlineResultGroupingBool,
+    );
   }
 
   /** Mikro-/Vorlese-Buttons: Host-Wunsch UND Backend-Capability. Ohne die
@@ -258,6 +333,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     // Zoneless-Äquivalent zu ALT `NgZone.run`: fn ausführen, dann re-rendern.
     runInZone: (fn) => { try { return fn(); } finally { this._cdr.markForCheck(); } },
     onTranscript: (text) => { this.userInput.set(text); this.sendMessage(); },
+    t: (key, params) => this.t(key, params),
   };
 
   private readonly _contexts: ControllerContexts = buildControllerContexts(this._host);
@@ -292,6 +368,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     tour: this._tour,
     contextGreeting: this._contextGreeting,
     scrollToLatest: () => this._scroll.scrollToLatest(),
+    t: (key, params) => this.t(key, params),
   };
   private readonly _lifecycle = new ShellLifecycle(this._lifecycleCtx);
 
@@ -313,17 +390,24 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       this._api.stream(this.sessionId, msg, onEvent, env as any, action, actionParams),
     post: (msg, env, action, actionParams) =>
       this._api.post(this.sessionId, msg, env as any, action, actionParams),
-    formatPhaseLabel: (evt) => formatPhaseLabel(evt),
+    formatPhaseLabel: (evt) => formatPhaseLabel(evt, (k, p) => this.t(k, p)),
     onResult: (resp, msg) => this._onResult(resp, msg),
+    t: (key, params) => this.t(key, params),
   };
 
   /** Input-Routing-Seam (8-4S-d2b). */
   private readonly _routingCtx: InputRoutingContext = {
     tourReply: () => this.tourReply(),
+    tourReplyEn: () => this.tourReplyEn(),
     guideModeActive: this.guideModeActive,
     trustedDomains: () => this._effectiveTrustedDomains(),
     sessionId: () => this.sessionId,
     startTour: () => { this.startTour(); },
+    // Der Klick IST die Nutzergeste, ohne die der Browser das Anmeldefenster
+    // blockt — deshalb wird hier synchron gestartet und nicht erst nach einem
+    // Rundlauf zum Backend. `void`, weil der Vorgang sein Ergebnis selbst in
+    // den Verlauf schreibt; die Weiche wartet nicht darauf.
+    signIn: () => { this._signInAndRefresh(); },
     // Spread erhält die Aufruf-Arität (1 Arg für Text/Label, 3 für Action-Pill),
     // sonst würden trailing `undefined` weitergereicht — verhaltensgleich, aber
     // die Aufrufer-Signatur bliebe unsauber.
@@ -347,15 +431,33 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     this._tour.applyTourState(resp);
     this.latestDebug.set(resp.debug);
     if (resp.query_metas?.length) {
-      window.dispatchEvent(new CustomEvent('badboerdi:query-meta', { detail: { queries: resp.query_metas } }));
+      dispatchHostEvent(HOST_EVENTS.queryMeta, { queries: resp.query_metas });
     }
     this.dispatchPageAction(resp.page_action);
     maybeDispatchGuideNavigate(userMessage, resp.cards, this._contexts.hostEvents);
     maybeDispatchGuideSuggestion(userMessage, resp.cards, this._contexts.hostEvents);
     maybeDispatchRoutingDebug(userMessage, resp.debug, this._contexts.hostEvents);
+    if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
     if (this._speech.autoSpeak && resp.content) {
       this._speech.autoSpeakText(resp.content);
     }
+  }
+
+  /** Die eine bestätigte Änderung absetzen, die dieser Zug mitgebracht hat (E4).
+   *
+   *  Absichtlich NICHT abgewartet: der Zug ist zu Ende, seine Antwort steht schon
+   *  im Verlauf, und das Eingabefeld darf nicht auf ein fremdes Repositorium
+   *  warten. Der Vorgang schreibt sein Ergebnis selbst als Blase — in jedem der
+   *  fünf Fälle, auch im gescheiterten (`session/prepared-write.ts`). */
+  private _executePreparedWrite(write: PreparedWriteOut): void {
+    runPreparedWrite(write, {
+      origin: () => (typeof window !== 'undefined' ? window.location?.origin || '' : ''),
+      say: (text) => { this._store.addBotMessage(text); this._cdr.markForCheck(); },
+      translate: (key, params) => this.t(key, params),
+      // Der Vorgang fängt alles Eigene ab und endet immer in einem Satz. Bleibt
+      // nur, was hier hereingereicht wird — dann gäbe es ohne diesen Zweig eine
+      // unbeachtete Zusage statt eines Eintrags, dem jemand nachgehen kann.
+    }).catch(err => console.error('vorbereitete Änderung: Vorgang gescheitert', err));
   }
 
   /** page_action an alle Hörer: Host-Callback + Angular-Output + window-Event.
@@ -365,7 +467,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     if (!pa) return;
     if (this.onPageAction) this.onPageAction(pa);
     this.pageAction.emit(pa);
-    window.dispatchEvent(new CustomEvent('badboerdi:page-action', { detail: pa }));
+    dispatchHostEvent(HOST_EVENTS.pageAction, pa);
   }
 
   /** Eingabefeld refokussieren — nach jedem Turn (intern) und wenn die
@@ -378,6 +480,77 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   // ── Input-Routing (8-4S-d2b) ────────────────────────────────────
   // Weiche + T-3-Resolver in `input-routing.ts`; hier dünne Delegates über den
   // `_routingCtx`. Der window-Sprung bleibt hier (Seiteneffekt der Komponente).
+
+  /** WLO-Anmeldung starten (Klick auf den `__auth__`-Chip, C5-c2). Der Ausgang
+   *  landet als Bot-Blase im Verlauf — die Live-Region der Nachrichtenliste
+   *  sagt ihn damit auch ohne Blick auf den Bildschirm an. */
+  private startSignIn(): Promise<void> {
+    return runSignIn({
+      mcpAuthBase: () => this.mcpAuthBase(),
+      apiUrl: () => this.apiUrl(),
+      origin: () => (typeof window !== 'undefined' ? window.location?.origin || '' : ''),
+      say: (text) => { this._store.addBotMessage(text); },
+      translate: (key, params) => this.t(key, params),
+    });
+  }
+
+  /** Ob ein Zugangsblock hinterlegt ist. Ein Signal, weil `sessionStorage`
+   *  keine kennt: ohne es bliebe der Knopf im zoneless Betrieb nach dem
+   *  Abmelden auf „Abmelden" stehen. Gesetzt beim Bau (der Block überlebt das
+   *  Neuladen des Tabs) und nach jedem An-/Abmelden. */
+  private readonly _hasAccessBlock = signal(readAccessBlock() !== null);
+
+  /** Welches Ticket schon getauscht wurde — der Effect unten feuert bei jedem
+   *  Signal-Lauf, der Tausch soll je Wert genau einmal laufen. */
+  private _ticketTried = '';
+
+  /** Anmeldung über das Ticket der Gastgeberseite (Attribut `ticket`).
+   *
+   *  Ein Effect und kein `ngOnInit`-Schritt, weil die zweite Zutat später
+   *  kommt: `mcpAuthBase` beginnt leer und wird erst vom Config-Abruf der
+   *  Hülle gesetzt. Still, mit Absicht — der Knopf zeigt das Ergebnis, und
+   *  ein Fehlschlag lässt ihn auf „Anmelden" stehen (Rückfall auf die
+   *  Handanmeldung); die `console.warn`-Zeile ist für die Betreiberseite,
+   *  deren Ticket-Template sonst unbemerkt abgelaufen bliebe. */
+  private readonly _ticketLogin = effect(() => {
+    const ticket = this.ticket().trim();
+    const basis = this.mcpAuthBase().trim();
+    if (!ticket || !basis || this._ticketTried === ticket) return;
+    this._ticketTried = ticket;
+    void runTicketLogin({ ticket: () => ticket, mcpAuthBase: () => basis }).then((ausgang) => {
+      if (ausgang === 'done') {
+        this._hasAccessBlock.set(readAccessBlock() !== null);
+        this._cdr.markForCheck();
+      } else {
+        console.warn('WLO-Anmeldung über das Seiten-Ticket nicht gelungen:', ausgang);
+      }
+    });
+  });
+
+  /** Was der Knopf in der Fußzeile zeigt — Entscheidung in `session/auth-button`. */
+  readonly authButton = computed(() => authButtonState(this.mcpAuthBase(), this._hasAccessBlock()));
+
+  /** Klick auf den Anmelde-/Abmelde-Knopf.
+   *
+   *  Abmelden räumt NUR den Zugangsblock, nicht das Gespräch — dafür sitzt der
+   *  Neustart-Knopf daneben. Anmelden startet SYNCHRON: der Klick ist die
+   *  Nutzergeste, ohne die der Browser das Anmeldefenster blockt. */
+  onAuthClick(): void {
+    if (this.authButton() === 'signOut') {
+      clearAccessBlock();
+      this._hasAccessBlock.set(false);
+      this._store.addBotMessage(this.t('auth.signedOut'));
+      return;
+    }
+    this._signInAndRefresh();
+  }
+
+  /** Anmelden und danach den Knopf nachziehen. Beide Auslöser — dieser Knopf
+   *  und der `__auth__`-Chip — laufen hier durch, sonst stünde der Knopf nach
+   *  einer Anmeldung über den Chip weiter auf „Anmelden". */
+  private _signInAndRefresh(): void {
+    void this.startSignIn().then(() => this._hasAccessBlock.set(readAccessBlock() !== null));
+  }
 
   /** Klick auf einen Standard-Quick-Reply (Tour-Start | Action-Pill | Text). */
   onQuickReply(reply: string): void {
@@ -424,6 +597,13 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   /** „Lernpfad" — Lernpfad aus der Sammlung generieren. */
   generateLearningPath(nodeId: string, title: string): Promise<void> {
     return generateLearningPath(nodeId, title, this._contexts.collectionActions);
+  }
+
+  /** „Inhalt anzeigen" — Volltext des Materials im Chat öffnen (M17).
+   *  Beide Karten-Oberflächen melden hierher: die Gruppen-Box (Default) und
+   *  das Flach-Grid. */
+  showContentText(nodeId: string, title: string): Promise<void> {
+    return showContentText(nodeId, title, this._contexts.collectionActions);
   }
 
   /** „Mehr anzeigen" — schon geladene Karten aufdecken (client-seitig). */
@@ -479,20 +659,35 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   /** Boot: Base-URL/Speech/pageContext/Session-Kaskade + Resume vs. Begrüßung. */
   ngOnInit(): void {
     this._lifecycle.init();
+    // C1-f1: Die Sprache, die das Widget ANZEIGT, ist auch die, in der das
+    // Backend antworten soll. Ohne das schickte `environment.locale` den
+    // Browser (`navigator.language`) — ein englisch gestelltes Widget bekam
+    // eine deutsche Antwort.
+    this._api.setUiLocale(this.locale());
   }
 
-  /** Neue Trusted-Hosts-Liste (async vom Host/Backend) → Markdown-Cache
-   *  verwerfen. Ohne Reset behielten gecachte Bubbles ihr `target="_blank"` und
-   *  ihre bsid-freien hrefs für jetzt vertraute Hosts. Verbatim ALT 214-222. */
+  /** Markdown-Cache verwerfen, wenn sich etwas ändert, das im **gerenderten
+   *  HTML** steckt, aber nicht im Cache-Key (`sender|session|text`):
+   *
+   *  - Trusted-Hosts (async vom Host/Backend): sonst behielten gecachte Bubbles
+   *    ihr `target="_blank"` und ihre bsid-freien hrefs für jetzt vertraute
+   *    Hosts. Verbatim ALT 214-222.
+   *  - Sprache (C1-c): die Icon-Labels des Renderers und die Extern-Warnung
+   *    sind übersetzt; ohne Reset bliebe der Verlauf nach dem Umschalten in der
+   *    alten Sprache stehen. In C1-b3 gefunden, mit dem Umschalter fällig. */
   ngOnChanges(changes: {
     trustedHosts?: { previousValue?: string[]; currentValue?: string[]; firstChange?: boolean };
+    locale?: { previousValue?: Locale; currentValue?: Locale; firstChange?: boolean };
   }): void {
-    const c = changes.trustedHosts;
-    if (!c || c.firstChange) return;
-    const prev = JSON.stringify(c.previousValue || []);
-    const curr = JSON.stringify(c.currentValue || []);
-    if (prev !== curr) {
+    const hosts = changes.trustedHosts;
+    if (hosts && !hosts.firstChange
+      && JSON.stringify(hosts.previousValue || []) !== JSON.stringify(hosts.currentValue || [])) {
       this.render.clearCache();
+    }
+    const sprache = changes.locale;
+    if (sprache && !sprache.firstChange && sprache.previousValue !== sprache.currentValue) {
+      this.render.clearCache();
+      this._api.setUiLocale(this.locale());  // C1-f1: ab dem nächsten Zug
     }
   }
 

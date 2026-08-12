@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { ICONS } from '../icons/icons';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import { WloCard } from './card-types';
 import { getCardIcon, getCardPrimaryUrl, getContentTypeLabel } from './card-utils';
+
+/** Deutscher Übersetzer — pinnt den bisherigen Wortlaut über den Katalog. */
+const t = createTranslator(DE, DE);
 
 /**
  * Charakterisierung der Render-Helfer (Link/Icon/Label) — in ALT über die
@@ -46,14 +51,29 @@ describe('getCardPrimaryUrl: Fallback-Kette', () => {
 
 describe('getContentTypeLabel', () => {
   it('Themenseite und Sammlung feste Labels', () => {
-    expect(getContentTypeLabel(makeCard({ node_type: 'topic_page' }))).toBe('Themenseite');
-    expect(getContentTypeLabel(makeCard({ node_type: 'collection' }))).toBe('Sammlung');
+    expect(getContentTypeLabel(makeCard({ node_type: 'topic_page' }), t)).toBe('Themenseite');
+    expect(getContentTypeLabel(makeCard({ node_type: 'collection' }), t)).toBe('Sammlung');
   });
 
   it('Einzelinhalt: erster learning_resource_type, "Sammlung"/"collection" herausgefiltert', () => {
-    expect(getContentTypeLabel(makeCard({ node_type: 'content', learning_resource_types: ['Video'] }))).toBe('Video');
-    expect(getContentTypeLabel(makeCard({ node_type: 'content', learning_resource_types: ['Sammlung', 'Arbeitsblatt'] }))).toBe('Arbeitsblatt');
-    expect(getContentTypeLabel(makeCard({ node_type: 'content', learning_resource_types: [] }))).toBe('Inhalt');
+    expect(getContentTypeLabel(makeCard({ node_type: 'content', learning_resource_types: ['Video'] }), t)).toBe('Video');
+    expect(getContentTypeLabel(makeCard({ node_type: 'content', learning_resource_types: ['Sammlung', 'Arbeitsblatt'] }), t)).toBe('Arbeitsblatt');
+    expect(getContentTypeLabel(makeCard({ node_type: 'content', learning_resource_types: [] }), t)).toBe('Inhalt');
+  });
+
+  it('nimmt die festen Labels aus dem Übersetzer (C1-b3)', () => {
+    const en = createTranslator(
+      { 'contentType.topicPage': 'Topic page', 'contentType.collection': 'Collection', 'contentType.fallback': 'Content' },
+      DE,
+    );
+    expect(getContentTypeLabel(makeCard({ node_type: 'topic_page' }), en)).toBe('Topic page');
+    expect(getContentTypeLabel(makeCard({ node_type: 'collection' }), en)).toBe('Collection');
+    expect(getContentTypeLabel(makeCard({ node_type: 'content', learning_resource_types: [] }), en)).toBe('Content');
+  });
+
+  it('der Backend-Typ bleibt unübersetzt — er ist Inhalt, kein Oberflächentext', () => {
+    const en = createTranslator({ Video: 'Movie' }, DE);
+    expect(getContentTypeLabel(makeCard({ node_type: 'content', learning_resource_types: ['Video'] }), en)).toBe('Video');
   });
 });
 

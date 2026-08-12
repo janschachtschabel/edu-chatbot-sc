@@ -358,14 +358,14 @@ nacheinander, das **letzte** Signal gewinnt; `reduce_items_signals` **deckelt**
 bereit, nicht zehn (`query_knowledge` ist der RAG-Einstieg, kein MCP-Werkzeug);
 und RAG liegt in Postgres mit pgvector, nicht in SQLite-Vec.
 
-**`widget-contract-data.ts` ist ein Zwilling, kein Kommentar.** Die 18
+**`widget-contract-data.ts` ist ein Zwilling, kein Kommentar.** Die 19
 Host-Attribute von `<boerdi-chat>` stehen dort als Tabelle; die Wahrheit sind die
 Inputs von `WidgetComponent`. Der Test
-`widget.component.spec.ts → „hat genau diese 18 Host-Attribute"` pinnt den Satz und
+`widget.component.spec.ts → „hat genau diese 19 Host-Attribute"` pinnt den Satz und
 nennt diese Datei, wenn er bricht — ein dokumentiertes Attribut, das seinen
 Konsumenten nie erreicht, ist hier schon zweimal passiert (`data-position` 8-5,
 `inline-result-grouping` 8-7). ALTs Tabelle listete 17 und ließ genau das
-kaputte weg.
+kaputte weg. `language` kam mit C1-c dazu.
 
 ### Sicherung (9-6, Snapshots + Werksstand + Voll-Backup)
 

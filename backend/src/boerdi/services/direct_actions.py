@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,6 +56,7 @@ from boerdi.domain.completion_messages import _lp_completion_message
 from boerdi.domain.inline_rendering import _build_inline_document
 from boerdi.domain.quick_reply_policy import _qr_default_count, _qr_policy
 from boerdi.domain.url_helpers import _extract_web_links_from_text
+from boerdi.i18n import Locale, bot_text, resolve_locale
 from boerdi.services.config_loader import load_context_actions, load_display_rules_config
 from boerdi.services.db_sessions import save_message, update_session
 from boerdi.services.guide_markers import _attach_guide_qr, _attach_guide_urls
@@ -89,16 +91,23 @@ def _direct_action_safety_text(req: ChatRequest) -> str:
 # ── Action: Browse collection contents ────────────────────────────
 async def _handle_browse_collection(
     session: AsyncSession, req: ChatRequest, session_state: dict,
+    usage_acc: dict[str, Any] | None = None,
 ) -> ChatResponse:
-    """Directly call ``get_collection_contents`` and page its items into the canvas."""
+    """Directly call ``get_collection_contents`` and page its items into the canvas.
+
+    ``usage_acc`` (K1b): browsing itself costs no tokens, but the quick-reply
+    generator below is a real LLM call. It was in no measurement list — those
+    counted modules with their own generator and missed the shared one.
+    """
     collection_id = req.action_params.get("collection_id", "")
-    title = req.action_params.get("title", "Sammlung")
+    lang = resolve_locale(req.environment.locale)
+    title = req.action_params.get("title") or bot_text(lang, "action.collectionFallbackTitle")
     skip_count = req.action_params.get("skip_count", 0)
 
     if not collection_id:
         return ChatResponse(
             session_id=req.session_id,
-            content="Keine Sammlungs-ID angegeben.",
+            content=bot_text(lang, "action.missingCollectionId"),
         )
 
     tools_called = ["get_collection_contents"]
@@ -139,15 +148,17 @@ async def _handle_browse_collection(
 
         if cards:
             showing = f"{skip_count + 1}–{skip_count + len(cards)}"
-            total_label = f" von {total}" if total > 0 else ""
-            response_text = f"**{title}** — Ergebnisse {showing}{total_label}:"
+            total_label = bot_text(lang, "action.browse.ofTotal", total=total) if total > 0 else ""
+            response_text = bot_text(
+                lang, "action.browse.header", title=title, range=showing, total=total_label,
+            )
         else:
-            response_text = f'In der Sammlung "{title}" habe ich leider keine Inhalte gefunden.'
+            response_text = bot_text(lang, "action.browse.empty", title=title)
 
     except Exception as e:
         logger.error("browse_collection error: %s", e)
         cards = []
-        response_text = f'Fehler beim Laden der Inhalte von "{title}": {e}'
+        response_text = bot_text(lang, "action.browse.loadFailed", title=title, error=e)
         tools_called.append("error")
 
     # Quick-replies are pure UX sugar — a B-API blip on the QR-LLM call must
@@ -163,7 +174,9 @@ async def _handle_browse_collection(
                 "entities": session_state.get("entities", {}),
             },
             session_state=session_state,
+            usage_acc=usage_acc,
             count=_qr_default_count() or 2,
+            lang=resolve_locale(req.environment.locale),
         )
     except Exception as _qr_err:
         logger.warning("browse_collection quick_replies failed: %s", _qr_err)
@@ -177,6 +190,7 @@ async def _handle_browse_collection(
         pattern="ACTION: browse_collection",
         tools_called=tools_called,
         entities=session_state.get("entities", {}),
+        token_usage=usage_acc or {},
     )
 
     await save_message(
@@ -188,7 +202,11 @@ async def _handle_browse_collection(
     # Canvas integration: route collection contents into the canvas instead of
     # duplicating them in the chat stream. The chat bubble gets a short
     # announcement; the full card grid lives in the canvas card pane.
-    _canvas_title = f"Inhalte: {title}" if title else "Sammlungs-Inhalte"
+    _canvas_title = (
+        bot_text(lang, "action.browse.canvasTitle", title=title)
+        if title
+        else bot_text(lang, "action.browse.canvasTitleFallback")
+    )
     page_action = {
         "action": "canvas_show_cards",
         "payload": {
@@ -217,15 +235,20 @@ async def _handle_browse_collection(
 
 
 # ── Action: Curate collection (gap analysis: compendium vs. contents) ──────
-def _curate_search_pill(title: str) -> str:
+def _curate_search_pill(title: str, lang: Locale) -> str:
     """A plain-text pill that starts a search for missing content — routed to
     the normal search flow by the classifier when clicked."""
     t = (title or "").strip()
-    return f"Fehlende Inhalte zu {t} suchen" if t else "Fehlende Inhalte suchen"
+    return (
+        bot_text(lang, "action.curate.searchPill", title=t)
+        if t
+        else bot_text(lang, "action.curate.searchPillPlain")
+    )
 
 
 async def _handle_curate_collection(
     session: AsyncSession, req: ChatRequest, session_state: dict,
+    usage_acc: dict[str, Any] | None = None,
 ) -> ChatResponse:
     """Compare a collection's compendium (SOLL) against its actual contents (IST)
     and point out gaps + search suggestions.
@@ -236,10 +259,14 @@ async def _handle_curate_collection(
     signature but unused here.
     """
     collection_id = req.action_params.get("collection_id", "")
-    title = req.action_params.get("title", "Sammlung")
+    lang = resolve_locale(req.environment.locale)
+    title = req.action_params.get("title") or bot_text(lang, "action.collectionFallbackTitle")
 
     if not collection_id:
-        return ChatResponse(session_id=req.session_id, content="Keine Sammlungs-ID angegeben.")
+        return ChatResponse(
+            session_id=req.session_id,
+            content=bot_text(lang, "action.missingCollectionId"),
+        )
 
     meta = (session_state.get("entities") or {}).get("_page_metadata") or {}
     compendium = (meta.get("compendium_text") or "").strip() if isinstance(meta, dict) else ""
@@ -262,13 +289,8 @@ async def _handle_curate_collection(
     if not compendium:
         return ChatResponse(
             session_id=req.session_id,
-            content=(
-                f'Die Sammlung „{title}" hat keinen kompendialen Text hinterlegt, '
-                "daher kann ich nicht zuverlässig abgleichen, was inhaltlich noch "
-                "fehlt. Ich kann dir aber die vorhandenen Inhalte zusammenfassen "
-                "oder gezielt passende Materialien suchen."
-            ),
-            quick_replies=[_curate_search_pill(title)],
+            content=bot_text(lang, "action.curate.noCompendium", title=title),
+            quick_replies=[_curate_search_pill(title, lang)],
             debug=DebugInfo(pattern="ACTION: curate_collection", tools_called=tools_called),
         )
 
@@ -287,32 +309,52 @@ async def _handle_curate_collection(
         contents_text=contents_text[:6000],
         instruction=instruction,
         session_state=session_state,
+        lang=resolve_locale(req.environment.locale),
+        usage_acc=usage_acc,
     )
 
     return ChatResponse(
         session_id=req.session_id,
         content=response_text,
-        quick_replies=[_curate_search_pill(title)],
-        debug=DebugInfo(pattern="ACTION: curate_collection", tools_called=tools_called),
+        quick_replies=[_curate_search_pill(title, lang)],
+        debug=DebugInfo(
+            pattern="ACTION: curate_collection",
+            tools_called=tools_called,
+            token_usage=usage_acc or {},
+        ),
     )
 
 
 # ── Action: Generate learning path ───────────────────────────────
 async def _handle_generate_learning_path(
     session: AsyncSession, req: ChatRequest, session_state: dict,
+    usage_acc: dict[str, Any] | None = None,
 ) -> ChatResponse:
-    """Fetch collection contents, then the LLM structures them into a learning path."""
+    """Fetch collection contents, then the LLM structures them into a learning path.
+
+    ``usage_acc`` is the turn's token accumulator (K1b), passed in by the
+    preflight node. It must also land in this handler's ``DebugInfo``: a direct
+    action ends the turn early, so ``turn_persist`` — the only other place that
+    fills ``token_usage`` — never runs on this path.
+    """
     collection_id = req.action_params.get("collection_id", "")
-    title = req.action_params.get("title", "Sammlung")
+    lang = resolve_locale(req.environment.locale)
+    title = req.action_params.get("title") or bot_text(lang, "action.collectionFallbackTitle")
 
     if not collection_id:
         return ChatResponse(
             session_id=req.session_id,
-            content="Keine Sammlungs-ID angegeben.",
+            content=bot_text(lang, "action.missingCollectionId"),
         )
 
     tools_called = ["get_collection_contents"]
     lp_reset_notice = ""
+    # Ob der LP-Schritt gescheitert ist, ist eine Tatsache des Kontrollflusses —
+    # nicht etwas, das man dem Antworttext ansieht. Vorher stand hier ein
+    # ``startswith`` auf den deutschen Fehlersatz; mit einer zweiten Sprache
+    # (C1-f2b) haette der still nicht mehr gegriffen, und ein Fehlschlag waere
+    # als Canvas-Dokument gerendert worden.
+    lp_failed = False
 
     try:
         # Step 1: fetch a wide window so we can deduplicate against previously used items.
@@ -330,18 +372,14 @@ async def _handle_generate_learning_path(
         used_ids = _get_used_lp_ids(session_state)
         cards_raw, was_reset = _filter_unused_cards(cards_raw, used_ids)
         if was_reset:
-            lp_reset_notice = (
-                "\n\n_Hinweis: Es waren keine neuen Inhalte verfügbar, "
-                "deshalb wird die Auswahl jetzt wiederholt._"
-            )
+            lp_reset_notice = "\n\n" + bot_text(lang, "action.lp.resetNotice")
             session_state.setdefault("entities", {})["_lp_used_node_ids"] = "[]"
         cards_raw = cards_raw[:16]
 
         if not cards_raw:
             return ChatResponse(
                 session_id=req.session_id,
-                content=f'Leider keine Inhalte in der Sammlung "{title}" gefunden, '
-                        f'aus denen ein Lernpfad erstellt werden koennte.',
+                content=bot_text(lang, "action.lp.noContents", title=title),
                 debug=DebugInfo(
                     pattern="ACTION: generate_learning_path",
                     tools_called=tools_called,
@@ -361,6 +399,8 @@ async def _handle_generate_learning_path(
             collection_title=title,
             contents_text=contents_text[:6000],
             session_state=session_state,
+            lang=resolve_locale(req.environment.locale),
+            usage_acc=usage_acc,
         )
         if lp_reset_notice:
             response_text = (response_text or "") + lp_reset_notice
@@ -413,7 +453,8 @@ async def _handle_generate_learning_path(
     except Exception as e:
         logger.error("generate_learning_path error: %s", e)
         cards = []
-        response_text = f'Fehler beim Erstellen des Lernpfads für "{title}": {e}'
+        response_text = bot_text(lang, "action.lp.failed", title=title, error=e)
+        lp_failed = True
         tools_called.append("error")
 
     # Quick replies (best-effort — never block a finished LP on QR). QR-Policy
@@ -435,7 +476,9 @@ async def _handle_generate_learning_path(
                     "entities": session_state.get("entities", {}),
                 },
                 session_state=session_state,
+                usage_acc=usage_acc,
                 count=_lp_qr_count,
+                lang=resolve_locale(req.environment.locale),
             )
         except Exception as _qr_err:
             logger.warning("learning_path quick_replies failed: %s", _qr_err)
@@ -449,6 +492,7 @@ async def _handle_generate_learning_path(
         pattern="ACTION: generate_learning_path",
         tools_called=tools_called,
         entities=session_state.get("entities", {}),
+        token_usage=usage_acc or {},
     )
 
     await save_message(
@@ -473,8 +517,7 @@ async def _handle_generate_learning_path(
     # If the LP step failed above, response_text is the user-facing error string
     # (no markdown headings) — fall back to a plain chat bubble instead of
     # pretending we built a canvas document.
-    _lp_failed = (response_text or "").startswith("Fehler beim Erstellen des Lernpfads")
-    if _lp_failed:
+    if lp_failed:
         _attach_guide_urls(req, cards, None)
         return ChatResponse(
             session_id=req.session_id,
@@ -488,7 +531,8 @@ async def _handle_generate_learning_path(
     # the later M11 iteration.
     session_state["last_pattern"] = "M09"
     _attach_guide_urls(req, cards, None)
-    short_ack = _lp_completion_message(title, response_text or "", canvas_enabled=False)
+    short_ack = _lp_completion_message(
+        title, response_text or "", canvas_enabled=False, lang=lang)
     inline_content = (response_text or short_ack).strip()
 
     # Direct-action learning path also rendered as an inline box in chat
@@ -501,6 +545,7 @@ async def _handle_generate_learning_path(
                 "M09", inline_content, _display_rules_dac,
                 topic=str(title or ""),
                 extra_meta={"material_type": "lernpfad"},
+                lang=lang,
             )
             if _docs:
                 _inline_docs_dac = _docs

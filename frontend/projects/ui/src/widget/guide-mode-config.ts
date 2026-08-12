@@ -19,6 +19,9 @@ import { isTrustedHost, normalizeTrustedDomain } from '../session/trusted-host';
 export interface HeaderNavButton {
   id: string;
   label: string;
+  /** C1-g1b: optionale englische Beschriftung. Leer heisst „nicht gepflegt" —
+   *  dann zeigt `pickLocalized` die deutsche. */
+  label_en: string;
   icon: string;
   url: string;
   new_tab: boolean;
@@ -38,6 +41,29 @@ export interface ParsedGuideModeConfig {
   startReplies: string[] | null;
   /** ``welcome.tour_reply`` — jeder String zählt, auch ``''``. */
   tourReply: string | null;
+  /** Die englischen Fassungen derselben drei Felder (C1-g1a liefert sie
+   *  NEBEN den deutschen, weil der Server die Sprache nicht auflöst). */
+  greetingEn: string | null;
+  startRepliesEn: string[] | null;
+  tourReplyEn: string | null;
+  /** C5-c2: Herkunft des MCP-Servers (``scheme://host``) für die WLO-Anmeldung.
+   *  Ein leerer Wert ist eine AUSSAGE („diese Anlage bietet sie nicht an") und
+   *  wird deshalb übernommen; `null` heisst nur „stand nicht in der Antwort". */
+  mcpAuthBase: string | null;
+}
+
+
+/** Wählt je Schlüssel zwischen deutscher und englischer Fassung.
+ *
+ * Ein leeres ``en`` heisst „nicht gepflegt", nicht „leerer Text" — dieselbe
+ * Regel wie im Backend-Loader (C1-g1a). Wer sie hier anders auslegte, zeigte
+ * einer englischen Oberfläche eine leere Begrüssung statt der deutschen.
+ */
+export function pickLocalized<T extends string | readonly string[]>(
+  de: T, en: T, lang: string,
+): T {
+  if (lang !== 'en') return de;
+  return (typeof en === 'string' ? en.length > 0 : en.length > 0) ? en : de;
 }
 
 /** Mappt die rohe ``/api/config/guide-mode``-Antwort auf typisierte Werte. */
@@ -48,7 +74,16 @@ export function parseGuideModeConfig(data: any): ParsedGuideModeConfig {
     greeting: null,
     startReplies: null,
     tourReply: null,
+    greetingEn: null,
+    startRepliesEn: null,
+    tourReplyEn: null,
+    mcpAuthBase: null,
   };
+  // C5-c2: jeder String zählt, auch der leere — er sagt „diese Anlage bietet
+  // keine WLO-Anmeldung an". Nur ein fehlendes Feld bleibt `null`.
+  if (typeof data?.mcp_auth_base === 'string') {
+    out.mcpAuthBase = data.mcp_auth_base.trim();
+  }
   if (Array.isArray(data?.trusted_domains)) {
     out.trustedDomains = data.trusted_domains
       .map((d: unknown) => normalizeTrustedDomain(String(d || '')))
@@ -61,6 +96,7 @@ export function parseGuideModeConfig(data: any): ParsedGuideModeConfig {
       .map((b: any) => ({
         id: String(b.id || ''),
         label: String(b.label || ''),
+        label_en: String(b.label_en || '').trim(),
         icon: String(b.icon || 'explore'),
         url: String(b.url),
         new_tab: !!b.new_tab,
@@ -82,6 +118,18 @@ export function parseGuideModeConfig(data: any): ParsedGuideModeConfig {
     }
     if (typeof w.tour_reply === 'string') {
       out.tourReply = w.tour_reply;
+    }
+    // Dieselben drei Regeln fuer die englische Fassung.
+    if (typeof w.greeting_en === 'string' && w.greeting_en.trim()) {
+      out.greetingEn = w.greeting_en;
+    }
+    if (Array.isArray(w.quick_replies_en)) {
+      out.startRepliesEn = w.quick_replies_en
+        .map((r: unknown) => String(r || '').trim())
+        .filter(Boolean);
+    }
+    if (typeof w.tour_reply_en === 'string') {
+      out.tourReplyEn = w.tour_reply_en;
     }
   }
   return out;

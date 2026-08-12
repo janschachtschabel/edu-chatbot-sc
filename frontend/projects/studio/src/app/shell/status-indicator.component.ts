@@ -23,15 +23,19 @@ import {
 } from '@angular/core';
 
 import { StudioApi } from '../core/studio-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 
 type Health = 'unknown' | 'online' | 'offline';
 
 const POLL_MS = 10_000;
 
-const LABELS: Record<Health, string> = {
-  unknown: 'Verbindung wird geprüft',
-  online: 'Verbunden',
-  offline: 'Offline',
+/** Zustand → Katalog-Schlüssel. Erlaubnisliste statt `'studio.status.' + …`:
+ *  ein dynamischer Schlüssel gäbe bei einem neuen Zustand den Schlüssel selbst
+ *  als Text aus — hier ausgerechnet in einer Live-Region. */
+const LABEL_KEY: Record<Health, string> = {
+  unknown: 'studio.status.unknown',
+  online: 'studio.status.online',
+  offline: 'studio.status.offline',
 };
 
 @Component({
@@ -68,9 +72,10 @@ const LABELS: Record<Health, string> = {
 export class StatusIndicatorComponent implements OnInit {
   private readonly api = inject(StudioApi);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly lang = inject(StudioLanguageService);
 
   readonly health = signal<Health>('unknown');
-  readonly label = () => LABELS[this.health()];
+  readonly label = () => this.lang.t(LABEL_KEY[this.health()]);
 
   ngOnInit(): void {
     void this.check();

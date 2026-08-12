@@ -12,28 +12,54 @@ import { WloCard } from '../cards/card-types';
 import { ContextGreetingController } from '../controllers/context-greeting.controller';
 import { TourController } from '../controllers/tour.controller';
 import { ChatMessage, DebugInfo, PaginationInfo, QueryMetaEntry, WebLink } from '../grouping/message-types';
+import type { TranslateFn } from '../i18n/i18n';
 import { deleteSessionCookie, generateSessionId, writeSessionEverywhere } from '../session/session-id';
 import { ChatApiClient } from '../stream/chat-api';
 import { restoreHistory } from './history-restore';
 import { bootSession } from './session-boot';
 
-/** Default-Begrüßungstext (ALT 328-331) — das `greeting`-Input überschreibt ihn. */
-const DEFAULT_GREETING =
-  'Hey, schön dass du da bist! Ich bin Boerdi, die schlaue Eule von '
-  + 'WissenLebtOnline.\nIch kann dir zeigen, wie du deine Wissens- oder '
-  + 'Lerninhalte ins KI-Zeitalter bringst? Oder ich kann dir helfen '
-  + 'vorhandene Inhalte in unserer Datenbasis zu finden.';
-
-/** Default-Einstiegs-Quick-Replies (ALT 337-342) — `startReplies` überschreibt. */
-const DEFAULT_REPLIES = [
-  'Wie bringe ich meine Inhalte ins KI-Zeitalter?',
-  'Ich suche Inhalte zu einem Thema.',
-  'Führe mich systematisch durch die Webseite.',
-  'Was ist WissenLebtOnline?',
+/** Katalog-Schlüssel der vier Einstiegs-Quick-Replies (ALT 337-342) — greifen
+ *  nur, wenn `startReplies` leer ist. Die Reihenfolge ist die von ALT. */
+const DEFAULT_REPLY_KEYS = [
+  'greeting.reply.aiAge',
+  'greeting.reply.search',
+  'greeting.reply.tour',
+  'greeting.reply.about',
 ];
 
-/** Kürzere Reset-Begrüßung (ALT 409). */
-const DEFAULT_RESET_GREETING = 'Hallo! Wie kann ich dir helfen?';
+/**
+ * Welche Backend-Seitenarten das Ping-Gate unten erreichen soll. Ein
+ * Backend-Test liest DIESE Liste und vergleicht sie mit `_GREETABLE_KINDS` —
+ * kommt dort eine Art dazu, ohne dass das Gate sie erreicht, meldet er sich.
+ * Ohne den Abgleich passierte einfach still gar nichts.
+ *
+ * ACHTUNG, nicht offensichtlich: `home` und `external` setzt der Erkenner NIE
+ * — die entscheidet das Backend am Hostnamen, und beim Erkenner heissen sie
+ * `other`. Das Gate darf sie deshalb nicht abfragen, sondern muss den
+ * unentschiedenen Fall durchlassen.
+ */
+export const PING_COVERS_BACKEND_KINDS = [
+  'collection', 'content', 'topic', 'search', 'home', 'external',
+] as const;
+
+/**
+ * Ist diese Seite einen Kontext-Ping wert? „Könnte begrüßbar sein", nicht „ist
+ * begrüßbar" — die endgültige Entscheidung trifft das Backend.
+ *
+ * Ein Ping, den das Backend leer beantwortet, kostet einen Rundlauf; ein Ping,
+ * der ausbleibt, kostet die Meldung ganz. Deshalb hier grosszügig, aber nicht
+ * blind: ohne Suchbegriff bzw. ohne Hostnamen kann das Backend nichts sagen.
+ */
+export function shouldSendContextPing(pc: Record<string, any>): boolean {
+  if (pc['collection_id'] || pc['node_id']) return true;
+  const kind = pc['page_kind'];
+  if (kind === 'collection' || kind === 'content' || kind === 'topic') return true;
+  if (kind === 'search') return !!pc['search_query'];
+  // Unentschieden: hier — und nur hier — entscheidet der Hostname zwischen
+  // eigener Startseite und fremder Seite.
+  if (!kind || kind === 'other') return !!pc['page_host'];
+  return false;  // `subject` (Fachportal) bleibt bewusst stumm.
+}
 
 /** Live-Zustand/Aktionen der Shell, die der Lifecycle braucht (deferred Arrows +
  *  die Controller-Instanzen). Muster `ShellHost`/`SendMessageContext`. */
@@ -72,6 +98,10 @@ export interface LifecycleContext {
   tour: TourController;
   contextGreeting: ContextGreetingController;
   scrollToLatest: () => void;
+  /** Übersetzer für die Rückfall-Begrüßungen (C1-b4). Sie greifen nur, wenn
+   *  Host bzw. Studio-Config nichts liefern — der redaktionelle Regelfall
+   *  bleibt deutsch (Zweisprachigkeit der Config ist bewusst vertagt). */
+  t: TranslateFn;
 }
 
 export class ShellLifecycle {
@@ -111,17 +141,17 @@ export class ShellLifecycle {
       // Fortgeführte Session: History laden, dann Tour prüfen/fortsetzen.
       this._restoreHistory().then(() => this._afterResume());
     } else {
-      this.showGreeting();
+      void this._greetOnFirstLoad();
       this._maybeStartTourTick();
     }
   }
 
   /** Zentrale Begrüßung mit Einstiegs-Quick-Replies. Verbatim aus ALT 322-344. */
   showGreeting(): void {
-    const text = this.ctx.greeting() || DEFAULT_GREETING;
+    const text = this.ctx.greeting() || this.ctx.t('greeting.default');
     const replies = (this.ctx.startReplies() && this.ctx.startReplies().length)
       ? this.ctx.startReplies()
-      : DEFAULT_REPLIES;
+      : DEFAULT_REPLY_KEYS.map(k => this.ctx.t(k));
     this.ctx.addBotMessage(text, false, undefined, replies);
   }
 
@@ -144,7 +174,7 @@ export class ShellLifecycle {
     writeSessionEverywhere(id, this._cookieCfg());
     this.ctx.setMessages([]);
     this.ctx.setLatestDebug(null);
-    this.ctx.addBotMessage(this.ctx.greeting() || DEFAULT_RESET_GREETING);
+    this.ctx.addBotMessage(this.ctx.greeting() || this.ctx.t('greeting.reset'));
   }
 
   /** Public API: Seitenkontext zur Laufzeit ergänzen (SPA ohne Reload).
@@ -195,15 +225,37 @@ export class ShellLifecycle {
     }
   }
 
-  /** Session-gated Kontext-Ping, wenn die aktuelle Seite adressierbar ist
-   *  (Sammlung/Inhalt/Themenseite). Kein Auto-Open. Verbatim aus ALT 759-766. */
+  /** Session-gated Kontext-Ping, wenn die Seite einen wert ist. Kein Auto-Open. */
   private _maybeSendContextPing(): void {
-    const pc = this.ctx.parsedPageContext() || {};
-    const kind = pc['page_kind'];
-    const addressable = !!pc['collection_id'] || !!pc['node_id']
-      || kind === 'collection' || kind === 'content' || kind === 'topic';
-    if (!addressable) return;
+    if (!shouldSendContextPing(this.ctx.parsedPageContext() || {})) return;
     setTimeout(() => this.ctx.contextGreeting.sendContextPing(), 0);
+  }
+
+  /** Erstaufruf: die Begrüßung zurückstellen, bis der Kontext-Ping geantwortet
+   *  hat. Hat er Inhalt, IST er die Begrüßung; sonst kommt die normale. So
+   *  sieht die Person in JEDEM Fall genau eine Nachricht — auch wenn der Ping
+   *  leer bleibt oder scheitert (Ansatz C aus dem Plan; A hätte bei Ping-
+   *  Ausfall gar keine Begrüßung ergeben, B ein sichtbares Flackern).
+   *
+   *  Während der Ping läuft, ist der Verlauf leer — das Eingabefeld steht
+   *  derweil auf `chat.input.thinking` und ist gesperrt (`isLoading`), die
+   *  Wartezeit ist also sichtbar und nicht als Fehler lesbar. */
+  private async _greetOnFirstLoad(): Promise<void> {
+    // Läuft eine Tour, gehört ihr die erste Nachricht; der Kontext-Ping würde
+    // über `isLoading` mit dem Tour-Tick kollidieren (dieselbe Sequenzierung
+    // wie im Resume-Pfad).
+    const tourOwnsTheOpener = this.ctx.tour.isTourFlagSet() || this.ctx.resumedViaBsid();
+    if (tourOwnsTheOpener || !shouldSendContextPing(this.ctx.parsedPageContext() || {})) {
+      this.showGreeting();
+      return;
+    }
+    let rendered = false;
+    try {
+      rendered = await this.ctx.contextGreeting.sendContextPing('context_open_initial');
+    } catch {
+      // Ping-Fehler still schlucken — aber NIE ohne Begrüßung dastehen.
+    }
+    if (!rendered) this.showGreeting();
   }
 
   private _cookieCfg() {

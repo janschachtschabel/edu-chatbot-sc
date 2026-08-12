@@ -12,11 +12,23 @@
  */
 import { computed, signal } from '@angular/core';
 
+import type { Translate } from '../i18n/studio-language.service';
 import { describeApiError } from './async-data';
 
 export interface ActionMessage {
   readonly kind: 'ok' | 'error';
-  /** German, from the backend where it wrote one. Safe to render as text. */
+  /**
+   * Fertiger Text in der Sprache, die beim Auslösen der Aktion galt — vom
+   * Backend, wo es einen geschrieben hat, sonst aus dem Katalog. Sicher als
+   * Text zu rendern.
+   *
+   * simplify: eine gemeldete Aktion übersetzt sich beim Sprachwechsel nicht
+   * mit; sie bleibt in der Sprache stehen, in der sie ausgeführt wurde.
+   * Bekannte Grenze, kein Versehen — die Meldung ist die Beschreibung eines
+   * vergangenen Ereignisses, und die Sätze vom Backend liessen sich ohnehin
+   * nicht nachübersetzen (C1-e). Wer sie mitziehen will, müsste hier
+   * Schlüssel + Parameter halten statt des Textes.
+   */
   readonly text: string;
 }
 
@@ -27,6 +39,9 @@ export class ActionState {
   readonly busyKey = this.running.asReadonly();
   readonly message = this.last.asReadonly();
   readonly busy = computed(() => this.running() !== '');
+
+  /** @param t Übersetzer für den Fehlersatz — siehe `AsyncData`. */
+  constructor(private readonly t: Translate) {}
 
   isRunning(key: string): boolean {
     return this.running() === key;
@@ -40,7 +55,7 @@ export class ActionState {
       this.last.set({ kind: 'ok', text: await work() });
       return true;
     } catch (err) {
-      this.last.set({ kind: 'error', text: describeApiError(err) });
+      this.last.set({ kind: 'error', text: describeApiError(err, this.t) });
       return false;
     } finally {
       this.running.set('');

@@ -1,11 +1,25 @@
-// M3 design tokens for the BOERDi UI (§7 theme layer). CSS custom properties
-// only — no Angular Material component library (it would blow the widget's
-// §5.5 gzip budget). Fonts are the self-hosted system stack: no external font
-// CDN (DSGVO — see memory dsgvo-no-external-qr-fonts).
+// M3 design tokens for the BOERDi UI (§7 theme layer). Fonts are the
+// self-hosted system stack: no external font CDN (DSGVO — see memory
+// dsgvo-no-external-qr-fonts).
 //
-// `:host` scopes the tokens inside the widget's Shadow DOM; `:root` covers the
-// studio SPA and the dev harness page. `--boerdi-primary` is overridable at
-// runtime via the `primary-color` host attribute (see primary-color.ts).
+// This header used to read "CSS custom properties only — no Angular Material
+// component library (it would blow the widget's §5.5 gzip budget)". **Reversed
+// 2026-07-31** on the user's instruction: Material 3 is in, the §5.5 budget was
+// raised to 600 kB raw / 175 kB gzip, and the widget's own theme is emitted in
+// `widget.component.scss` (scoped to `:host`, so guest pages stay untouched).
+//
+// **Where this file is actually active — measured, not assumed:** the studio SPA
+// and the dev harness page. NOT the shipped widget: `build-widget` delivers
+// `"styles": []`, so `widget/src/styles.scss` — the only importer — never ships.
+// Two consequences a reader should know before editing here: changes to this
+// file cannot affect the embedded widget, and `--boerdi-primary` below (#1f6feb)
+// differs from the widget's runtime fallback (#1c4587, ALT's brand colour), so
+// the dev preview and production do not show the same blue. Left as found;
+// changing it is a brand decision, not a cleanup.
+//
+// `:host` scopes the tokens inside a Shadow DOM; `:root` covers the studio SPA
+// and the dev harness page. `--boerdi-primary` is overridable at runtime via
+// the `primary-color` host attribute (see primary-color.ts).
 
 :host,
 :root {

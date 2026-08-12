@@ -1,0 +1,234 @@
+// Die Kostenschau (K5). Werte aus den Studio-Tokens, kein eigener Farbwert.
+//
+// Die Hierarchie liegt im BETRAG: er ist die einzige grosse Zahl der Seite,
+// alles darunter ist ruhig. Deshalb hier keine Kachelwand — das Summenband ist
+// eine Definitionsliste, die zwei Tabellen tragen die Detailtiefe.
+
+.cst-head {
+  margin-block-end: var(--st-4);
+}
+
+.cst-crumb {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.cst-title {
+  margin: var(--st-1) 0 0;
+  font-size: 1.375rem;
+}
+
+.cst-intro {
+  margin: var(--st-2) 0 0;
+  max-inline-size: 60ch;
+  color: var(--st-text-muted);
+}
+
+// ── Zeitraum ──────────────────────────────────────────────────────────
+
+.cst-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--st-3);
+  margin-block-end: var(--st-4);
+}
+
+.cst-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--st-3);
+  margin: 0;
+  padding: var(--st-2) var(--st-3) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.cst-legend {
+  padding-inline: var(--st-1);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.cst-field {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.cst-input {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-bg);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.cst-input:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.cst-hint {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.6875rem;
+  color: var(--st-text-muted);
+}
+
+.cst-btn {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.cst-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.cst-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+// ── Betrag ────────────────────────────────────────────────────────────
+
+.cst-amount {
+  margin-block-end: var(--st-4);
+  padding: var(--st-3) var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.cst-amount-label {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.cst-amount-value {
+  // Die einzige grosse Zahl der Seite. Tabellenziffern, damit ein Wechsel des
+  // Zeitraums die Stellen nicht seitlich wandern lässt.
+  margin: var(--st-1) 0 0;
+  font-size: 2rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+// Der Hinweis trägt Text, nicht bloss eine Farbe: eine Teilsumme, die sich nur
+// durch einen Farbton von einer Gesamtsumme unterscheidet, ist keine.
+.cst-amount-note {
+  margin: var(--st-2) 0 0;
+  font-size: 0.875rem;
+  color: var(--st-text);
+}
+
+.cst-amount-where {
+  margin: var(--st-1) 0 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.cst-amount-where code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+// ── Summenband ────────────────────────────────────────────────────────
+
+.cst-band {
+  display: grid;
+  gap: var(--st-3);
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  margin: 0 0 var(--st-4);
+}
+
+.cst-cell {
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+// „davon"-Werte stehen zurück: sie sind in ihrem Nachbarn schon enthalten.
+.cst-cell-sub {
+  border-style: dashed;
+}
+
+.cst-cell dt {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.cst-cell dd {
+  margin: var(--st-1) 0 0;
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Tabellen ──────────────────────────────────────────────────────────
+
+.cst-table-wrap {
+  overflow-x: auto;
+  margin-block-end: var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.cst-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.cst-caption {
+  padding: var(--st-2) var(--st-3);
+  border-block-end: 1px solid var(--st-rule);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+  text-align: start;
+}
+
+.cst-caption-hint {
+  display: block;
+}
+
+.cst-table th,
+.cst-table td {
+  padding: var(--st-1) var(--st-2);
+  border-block-end: 1px solid var(--st-rule);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.cst-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.cst-table thead th {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+// Eine Sitzungskennung ist lang und nicht sprechend — sie darf umbrechen,
+// statt die übrigen Spalten aus dem Sichtfeld zu schieben.
+.cst-session-id {
+  max-inline-size: 22ch;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

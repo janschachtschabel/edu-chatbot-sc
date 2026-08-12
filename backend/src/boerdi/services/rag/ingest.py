@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.models import RagChunk, RagDocument
 from boerdi.domain.rag_chunking import chunk_markdown
-from boerdi.services.llm import embedding
+from boerdi.services.rag.embed import embed_many
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +113,14 @@ async def ingest_document(
     session.add(doc)
     await session.flush()  # assigns doc.id for the FK
 
-    for i, chunk in enumerate(chunks):
-        emb = await embedding(chunk)
+    # W10: gedeckelt nebenlaeufig statt streng seriell. Vorher wartete jeder
+    # Chunk auf den Netz-Roundtrip des vorigen; bei 906 Chunks sind das 906
+    # Wartezeiten hintereinander. `embed_many` haelt die Reihenfolge (gather)
+    # und deckelt selbst, damit der Import den Chat-Semaphor nicht belegt.
+    vektoren = await embed_many(chunks, kind="passage")
+    for i, (chunk, emb) in enumerate(zip(chunks, vektoren, strict=True)):
+        if emb is None:  # dieser eine Chunk scheiterte — Rest zaehlt weiter
+            continue
         session.add(RagChunk(
             document_id=doc.id, area=area, chunk_index=i,
             content=chunk, embedding=emb,
@@ -179,16 +185,25 @@ async def embed_missing_chunks(session: AsyncSession) -> tuple[int, int]:
     if not rows:
         return 0, 0
 
+    # W10: erst nebenlaeufig einbetten (Netz), dann seriell schreiben (DB).
+    # Die Trennung ist Absicht: die Savepoint-Isolation je Zeile bleibt exakt
+    # wie vorher, nur die Wartezeit auf den Anbieter faellt zusammen.
+    vektoren = await embed_many([r.content for r in rows], kind="passage")
     embedded = 0
-    for row in rows:
+    for row, emb in zip(rows, vektoren, strict=True):
+        if emb is None:
+            # `embed_many` hat den GRUND geloggt, kennt aber die Zeile nicht.
+            # Ohne diese Zeile verlöre der Betrieb die ID — also genau die
+            # Angabe, mit der man den kaputten Chunk findet.
+            logger.warning("Embedding failed for chunk %d", row.id)
+            continue
         try:
-            emb = await embedding(row.content)
             async with session.begin_nested():
                 await session.execute(
                     update(RagChunk).where(RagChunk.id == row.id).values(embedding=emb)
                 )
             embedded += 1
         except Exception as e:
-            logger.warning("Embedding failed for chunk %d: %s", row.id, e)
+            logger.warning("Embedding write failed for chunk %d: %s", row.id, e)
     await session.commit()
     return embedded, len(rows)

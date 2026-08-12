@@ -29,6 +29,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import boerdi.api.chat as chat_api
+import boerdi.api.sse as sse_api
 from boerdi.api.deps import get_session
 from boerdi.api.schemas import ChatRequest, ChatResponse
 from boerdi.main import create_app
@@ -85,7 +86,8 @@ def _patch(monkeypatch, *, result=None, exc=None):
     graph = _FakeGraph(result=result, exc=exc)
     builds: list[dict] = []
 
-    def _fake_build(*, session, peer_ip="", on_token=None, progress=None):
+    def _fake_build(*, session, peer_ip="", on_token=None, progress=None,
+                    engine="pattern"):
         builds.append({
             "session": session, "peer_ip": peer_ip,
             "on_token": on_token, "progress": progress,
@@ -162,6 +164,41 @@ def test_early_response_wins_in_stream(monkeypatch, client):
     assert "NORMAL" not in r.text
 
 
+# ── C5-a: der Zugangsblock gilt auch im Strom ───────────────────────────────
+#
+# Eigener Pin, weil der Strom einen anderen Weg nimmt als ``/api/chat``: der Zug
+# läuft in einer per ``create_task`` erzeugten Task. Die erbt den Kontext beim
+# Erzeugen — das ist genau die Eigenschaft, die hier belegt wird.
+
+
+def test_der_block_gilt_auch_im_gestreamten_zug(monkeypatch, client):
+    from pydantic import SecretStr
+
+    from boerdi.services.mcp.auth import build_http_client_factory
+
+    monkeypatch.setattr(get_settings(), "mcp_auth_token", SecretStr(""),
+                        raising=False)
+    gesehen: dict[str, str] = {}
+
+    class _Graph:
+        async def ainvoke(self, state):
+            gesehen["auth"] = build_http_client_factory()().headers.get(
+                "authorization", "")
+            return _ok("HI")
+
+    monkeypatch.setattr(chat_api, "build_turn_graph", lambda **k: _Graph())
+    monkeypatch.setattr(chat_api, "peer_ip", lambda request: "7.7.7.7")
+    monkeypatch.setattr(chat_api, "_postprocess_response_for_widget_modes",
+                        _passthrough_pp)
+
+    client.post(
+        "/api/chat/stream",
+        json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+        headers={"WLO-Access-Block": "wlo2.person-y"},
+    )
+    assert gesehen["auth"] == "Bearer wlo2.person-y"
+
+
 def test_error_frame_on_graph_exception(monkeypatch, client):
     _patch(monkeypatch, exc=RuntimeError("boom"))
     r = _post(client)
@@ -220,7 +257,7 @@ async def test_disconnect_cancels_turn_and_releases_lock(monkeypatch):
     graph = _HangGraph()
     monkeypatch.setattr(chat_api, "build_turn_graph", lambda **k: graph)
     monkeypatch.setattr(chat_api, "peer_ip", lambda request: "7.7.7.7")
-    monkeypatch.setattr(chat_api, "_SSE_KEEPALIVE_SECONDS", 0.01)
+    monkeypatch.setattr(sse_api, "KEEPALIVE_SECONDS", 0.01)
     events = _fake_locks(monkeypatch)
 
     frames = await _drain(chat_api._stream_turn(_req(), _Req(disconnected=True), _SESSION))
@@ -246,7 +283,8 @@ def _patch_emitting(monkeypatch, steps):
                 holder["progress"].start(step, f"L-{step}")
             return _ok("DONE")
 
-    def _fake_build(*, session, peer_ip="", on_token=None, progress=None):
+    def _fake_build(*, session, peer_ip="", on_token=None, progress=None,
+                    engine="pattern"):
         holder["progress"] = progress
         return _EmittingGraph()
 
@@ -315,7 +353,7 @@ async def test_umlauts_survive_the_phase_frame(monkeypatch):
 async def test_a_flooded_queue_drops_events_but_still_finishes_the_turn(monkeypatch):
     """Cost control (ALT ``Queue(maxsize=200)``): a slow client must not let the
     queue grow without bound. Overflow drops progress — never the answer."""
-    monkeypatch.setattr(chat_api, "_SSE_PROGRESS_QUEUE_MAX", 2)
+    monkeypatch.setattr(sse_api, "PROGRESS_QUEUE_MAX", 2)
     _patch_emitting(monkeypatch, [f"s{i}" for i in range(50)])
     frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
 
@@ -334,7 +372,8 @@ async def test_progress_after_an_exception_still_yields_the_error_frame(monkeypa
             holder["progress"].start("pattern", "Pattern selection")
             raise RuntimeError("boom")
 
-    def _fake_build(*, session, peer_ip="", on_token=None, progress=None):
+    def _fake_build(*, session, peer_ip="", on_token=None, progress=None,
+                    engine="pattern"):
         holder["progress"] = progress
         return _BoomGraph()
 
@@ -359,7 +398,7 @@ async def test_keepalive_emitted_during_slow_turn(monkeypatch):
     monkeypatch.setattr(chat_api, "build_turn_graph", lambda **k: _GatedGraph())
     monkeypatch.setattr(chat_api, "peer_ip", lambda request: "7.7.7.7")
     monkeypatch.setattr(chat_api, "_postprocess_response_for_widget_modes", _passthrough_pp)
-    monkeypatch.setattr(chat_api, "_SSE_KEEPALIVE_SECONDS", 0.01)
+    monkeypatch.setattr(sse_api, "KEEPALIVE_SECONDS", 0.01)
     _fake_locks(monkeypatch)
 
     agen = chat_api._stream_turn(_req(), _Req(disconnected=False), _SESSION)
@@ -371,3 +410,25 @@ async def test_keepalive_emitted_during_slow_turn(monkeypatch):
     assert first == "event: connected\ndata: {}\n\n"
     assert second == ": keepalive\n\n"
     assert any(chunk.startswith("event: result\n") for chunk in rest)
+
+
+# ── K2b: auch der Streaming-Weg bucht ───────────────────────────────────
+# Eigener Test, obwohl der Trichter derselbe ist: die beiden Endpunkte haben
+# je eine eigene ainvoke-Stelle, und genau solche Zweitwege sind in diesem
+# Plan schon dreimal stumm geblieben.
+
+def test_verbrauch_wird_auch_im_stream_geschrieben(monkeypatch, client):
+    acc = {"models": {"m": {"prompt": 10, "completion": 5, "cached": 0,
+                            "reasoning": 0, "calls": 1}}}
+    _patch(monkeypatch, result={**_ok("HI"), "usage": acc})
+    calls: list[tuple] = []
+
+    async def _fake(session, session_id, uebergeben):
+        calls.append((session, session_id, uebergeben))
+        return 1
+
+    monkeypatch.setattr(chat_api, "record_turn_usage", _fake)
+    assert _post(client).status_code == 200
+    assert len(calls) == 1
+    assert calls[0][0] is _SESSION and calls[0][1] == "bb-1"
+    assert calls[0][2] is acc

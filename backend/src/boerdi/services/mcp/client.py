@@ -37,6 +37,7 @@ import logging
 import time as _time
 from typing import Any
 
+from boerdi.domain.prepared_write import PreparedWrite, read_prepared_write
 from boerdi.services.mcp import transport
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
 from boerdi.services.mcp.tool_cache import (
@@ -47,7 +48,11 @@ from boerdi.services.mcp.tool_cache import (
     _cache_key,
     _cache_set,
 )
-from boerdi.services.mcp.tool_defs import _JSON_CAPABLE_TOOLS, validate_tool_args
+from boerdi.services.mcp.tool_defs import (
+    _JSON_CAPABLE_TOOLS,
+    CONTENT_TEXT_MAX_CHARS,
+    validate_tool_args,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +78,27 @@ def reset_query_metas() -> None:
 def get_query_metas() -> list[dict[str, Any]]:
     """Return accumulated query metas for the current request."""
     return list(_query_metas.get([]))
+
+
+# Zweiter Sammler gleicher Bauart, für die vorbereiteten Schreibzugriffe (E3).
+# Im eingebetteten Betrieb führt der MCP-Server eine bestätigte Änderung nicht
+# aus, sondern beschreibt sie; abgesetzt wird sie später in der
+# Repository-Seite. Getrennt von ``_query_metas``, weil es eine andere Sache
+# ist: Metas beschreiben eine gelaufene Suche, dies eine Änderung, die noch
+# aussteht. Zur B039-Sicherheit gilt die Notiz oben unverändert.
+_prepared_writes: _ctxvars.ContextVar[list[PreparedWrite]] = _ctxvars.ContextVar(
+    "_prepared_writes", default=[],  # noqa: B039 — read-only default (siehe oben)
+)
+
+
+def reset_prepared_writes() -> None:
+    """Sammler der vorbereiteten Schreibzugriffe leeren (zu Zugbeginn)."""
+    _prepared_writes.set([])
+
+
+def get_prepared_writes() -> list[PreparedWrite]:
+    """Die in diesem Zug vorbereiteten Schreibzugriffe."""
+    return list(_prepared_writes.get([]))
 
 
 # Registry-Lookup Tool-Name → Server-URL (config-gekoppelt). ALTs Modul-Konstante
@@ -193,6 +219,13 @@ async def call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> str:
     ):
         arguments = {**arguments, "outputFormat": "json"}
 
+    # Volltext-Deckel zentral anheben (W5-3b). Wie bei ``outputFormat``: an EINER
+    # Stelle, damit kein Aufrufer — und kein LLM-Toolcall — versehentlich beim
+    # Server-Standard 8000 landet und ein halbes Arbeitsblatt liefert. Ein
+    # ausdrücklich mitgegebener Wert gewinnt (z.B. bewusst kurze Vorschau).
+    if tool_name == "get_wlo_content_text" and "maxChars" not in arguments:
+        arguments = {**arguments, "maxChars": CONTENT_TEXT_MAX_CHARS}
+
     # Cache-Lookup BEVOR der Transport bemüht wird (Hits sparen den kompletten
     # SDK-Handshake+Call). Blocklist-Tools (Health-Checks) umgehen den Cache.
     cache_key = None
@@ -261,6 +294,23 @@ async def call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> str:
                 texts.append(raw_text)
         elif isinstance(part, str):
             texts.append(part)
+
+    # Vorbereiteter Schreibzugriff (E3): der Server hat die bestätigte Änderung
+    # beschrieben, statt sie auszuführen. Der Text bleibt unangetastet — er sagt
+    # dem Modell, dass hier nichts geschrieben wurde. Unbrauchbares wird still
+    # verworfen (``read_prepared_write``): abgesetzt wird das später von einem
+    # Browser mit fremden Rechten, da ist nichts besser als etwas Halbes.
+    vorbereitet = read_prepared_write(result_data.get("structuredContent"))
+    if vorbereitet is not None:
+        offene = _prepared_writes.get([])
+        offene.append(vorbereitet)
+        _prepared_writes.set(offene)
+        logger.info("MCP tool %s hat einen Schreibzugriff vorbereitet: %s",
+                    tool_name, vorbereitet.method)
+    elif result_data.get("structuredContent") is not None:
+        logger.warning(
+            "MCP tool %s schickte einen strukturierten Teil, der keine "
+            "brauchbare Anfrage ergibt — verworfen", tool_name)
 
     response = "\n".join(texts) if texts else json.dumps(result_data)
     logger.info(

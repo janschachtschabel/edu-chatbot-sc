@@ -35,6 +35,9 @@ class RateLimitsBlock(AreaModel):
     per_ip: RateLimitWindow = RateLimitWindow()
     ip_whitelist: list[str] = []
     blocked_message: str = ""
+    # C1-g2c: leer heißt „nicht gepflegt" — dann zeigt der Bot den deutschen
+    # Satz, nie eine leere Blase.
+    blocked_message_en: str = ""
 
 
 class SafetyLoggingBlock(AreaModel):

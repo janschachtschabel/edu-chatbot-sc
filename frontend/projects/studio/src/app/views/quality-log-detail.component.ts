@@ -9,10 +9,11 @@
  * `eliminated_count` come from phase-1 elimination, which still runs, so they
  * stay.
  */
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 
-import { formatDecimal, formatWhole, germanDateTime } from '../core/format';
 import type { QualityLog } from '../core/quality-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 @Component({
   selector: 'studio-quality-log-detail',
@@ -21,6 +22,12 @@ import type { QualityLog } from '../core/quality-api.service';
   styleUrl: './quality-log-detail.component.scss',
 })
 export class QualityLogDetailComponent {
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
+
+  /** Teilt sich den Teilkatalog mit dem Log-Panel — es ist EIN Panel. */
+  protected readonly t = inject(StudioLanguageService).t;
+
   readonly log = input.required<QualityLog>();
 
   readonly dismiss = output<void>();
@@ -30,13 +37,13 @@ export class QualityLogDetailComponent {
       .filter(([, value]) => value !== null && value !== '' && value !== undefined)
       .map(([key, value]) => ({ key, value: String(value) })));
 
-  readonly when = computed(() => germanDateTime(this.log().created_at));
+  readonly when = computed(() => this.fmt.dateTime(this.log().created_at));
 
   decimal(value: number): string {
-    return formatDecimal(value);
+    return this.fmt.decimal(value);
   }
 
   whole(value: number): string {
-    return formatWhole(value);
+    return this.fmt.whole(value);
   }
 }

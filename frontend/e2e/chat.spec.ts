@@ -30,8 +30,10 @@ test('ein getippter Turn erzeugt User-Bubble, Antwort und einen sauberen Request
   await expect(page.locator('.message-row.user-row')).toContainText('Was kannst du?');
   await expect(page.locator('.msg-bubble').last()).toContainText('Ich helfe bei WLO-Inhalten.');
 
-  await w.waitForChatRequests(1);
-  const req = w.chatRequests()[0];
+  // `turnRequests` statt `chatRequests`: seit der Seitenkontext-Erweiterung
+  // pingt jede frische Sitzung beim Öffnen, der Ping läge sonst auf Index 0.
+  await w.waitForTurns(1);
+  const req = w.turnRequests()[0];
   expect(req.message).toBe('Was kannst du?');
   expect(req.session_id).toMatch(/^bb-[0-9a-f-]{36}$/);
   // C10: das Widget-Flag muss im page_context stehen (Backend routet Karten
@@ -61,14 +63,41 @@ test('Karten landen in den Ergebnis-Boxen (Default inline-result-grouping)', asy
   await expect(group).toContainText('Brüche kürzen');
 });
 
+test('alle Bot-Blasen eines Verlaufs sind gleich breit', async ({ page }) => {
+  // Nutzer-Beobachtung 2026-07-31: die Blase mit den Ergebnis-Boxen war
+  // schmaler als die Begrüßung darüber — obwohl sie MEHR trägt. Ursache war
+  // `max-width` bei sonst schrumpfender Breite: jede Blase wurde so breit wie
+  // ihr eigener Inhalt. Bot-Blasen haben jetzt eine einheitliche Breite, damit
+  // die Kanten im Verlauf fluchten.
+  const w = await mount(page);
+  w.enqueue(chatResponse({
+    content: 'Hier sind passende Materialien.',
+    cards: [card(), card({ node_id: 'n-2', title: 'Brüche kürzen' })],
+  }));
+  await w.open();
+  await page.locator('.chat-input').fill('Bruchrechnen');
+  await page.locator('.btn-send').click();
+  await page.locator('.result-group').first().waitFor();
+
+  const breiten = await page.locator('.bot-bubble').evaluateAll(
+    (els) => els.map((el) => Math.round(el.getBoundingClientRect().width)),
+  );
+  expect(breiten.length).toBeGreaterThanOrEqual(2);   // Begrüßung + Antwort
+  expect(new Set(breiten).size, `ungleiche Blasenbreiten: ${breiten}`).toBe(1);
+});
+
 test('inline-result-grouping="false" rendert das flache Karten-Grid mit Aktionsleiste', async ({ page }) => {
   const w = await mount(page, { attrs: { 'inline-result-grouping': 'false' } });
   w.enqueue(chatResponse({
     content: 'Bitte sehr.',
     cards: [
+      // Einzelinhalt MIT Kennung → Aktionsleiste mit „Inhalt anzeigen" (M17).
       card(),
-      // Nur Sammlungen tragen die Aktionsleiste (Inhalte/Lernpfad/Themenseite).
+      // Sammlung → Aktionsleiste mit Inhalte/Lernpfad.
       card({ node_id: 'c-1', title: 'Mathe-Sammlung', node_type: 'collection' }),
+      // Ohne Kennung ist keine Aktion möglich → gar keine Leiste. Der Gegenpol
+      // für die Rundungsprüfung unten.
+      card({ node_id: '', title: 'Ohne Kennung' }),
     ],
   }));
   await w.open();
@@ -81,17 +110,23 @@ test('inline-result-grouping="false" rendert das flache Karten-Grid mit Aktionsl
   await expect(tile).toContainText('Bruchrechnen üben');
   await expect(tile).toContainText('Mathematik');
 
+  // Seit M17 tragen auch Einzelinhalte eine Leiste — der alte Stand („nur
+  // Sammlungen") galt bis 8-2i.
   const actions = page.locator('.card-actions');
-  await expect(actions).toHaveCount(1);
-  await expect(actions).toContainText('Inhalte');
-  await expect(actions).toContainText('Lernpfad');
+  await expect(actions).toHaveCount(2);
+  await expect(actions.nth(0)).toContainText('Inhalt anzeigen');
+  await expect(actions.nth(1)).toContainText('Inhalte');
+  await expect(actions.nth(1)).toContainText('Lernpfad');
 
-  // `:has()`-Rundung (offen seit 8-6): eine Karte OHNE Aktionsleiste ist rundum
-  // gerundet, die MIT Leiste unten eckig, damit die Leiste bündig anschließt.
+  // `:has()`-Rundung: eine Karte OHNE Aktionsleiste ist rundum gerundet, die
+  // MIT Leiste unten eckig, damit die Leiste bündig anschließt. Der Radius kam
+  // vor dem edu-sharing-Umbau (2026-07-31) aus einer Sonderregel mit 10 px;
+  // jetzt erbt die Karte die 12 px des Wrappers.
   const radius = (i: number) => page.locator('.wlo-card').nth(i)
     .evaluate((el) => getComputedStyle(el).borderBottomLeftRadius);
-  expect(await radius(0)).toBe('10px');
-  expect(await radius(1)).not.toBe('10px');
+  expect(await radius(2)).toBe('12px');
+  expect(await radius(0)).toBe('0px');
+  expect(await radius(1)).toBe('0px');
 });
 
 test('ein Aktions-Pill sendet action + action_params statt Text', async ({ page }) => {
@@ -112,8 +147,8 @@ test('ein Aktions-Pill sendet action + action_params statt Text', async ({ page 
   await expect(pill).toBeVisible();
   await pill.click();
 
-  await w.waitForChatRequests(2);
-  const req = w.chatRequests()[1];
+  await w.waitForTurns(2);
+  const req = w.turnRequests()[1];
   expect(req.action).toBe('browse_collection');
   expect(req.action_params).toEqual({ collection_id: 'c-1' });
   expect(req.message).toBe('Inhalte zeigen');

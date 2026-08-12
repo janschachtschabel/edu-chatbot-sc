@@ -1,11 +1,11 @@
 <div class="qm-bar">
   <p class="qm-total">
     @if (value(); as matrix) {
-      Aggregiert aus {{ whole(matrix.total_turns) }} Turns ({{ matrix.scope }}).
+      {{ total(matrix) }}
     }
   </p>
   <label class="qm-field" for="qm-min">
-    Min-Samples pro Zelle
+    {{ t('qualMatrix.minSamples') }}
     <input
       id="qm-min"
       type="number"
@@ -17,28 +17,23 @@
     />
   </label>
   <button type="button" class="qm-reload" [disabled]="matrix.loading()" (click)="reload()">
-    {{ matrix.loading() ? 'Wird geladen …' : 'Aktualisieren' }}
+    {{ matrix.loading() ? t('action.refreshing') : t('action.refresh') }}
   </button>
 </div>
 
 <studio-async-state
-  label="Routing-Matrix"
+  [label]="t('qual.tab.matrix')"
   [loading]="matrix.loading()"
   [error]="matrix.error()"
   [empty]="isEmpty()"
-  emptyText="Keine Persona-Intent-Kombination erreicht die Schwelle von {{ minCount() }}
-             Min-Samples. Senke die Schwelle oder sammle mehr Turns."
+  [emptyText]="t('qualMatrix.empty', { count: minCount() })"
   (retry)="reload()"
 />
 
 @if (rows().length > 0) {
   <div class="qm-scroll">
     <table class="qm">
-      <caption>
-        Gewinner-Pattern je Persona und Intent. Pro Zelle: das dominanteste
-        Pattern, sein Anteil an der Zelle, die Zahl der Samples und — falls
-        vorhanden — die konkurrierenden Patterns.
-      </caption>
+      <caption>{{ t('qualMatrix.caption') }}</caption>
       <thead>
         <tr>
           <td class="qm-corner"></td>
@@ -65,20 +60,22 @@
                       <span class="qm-bar-track" aria-hidden="true">
                         <span class="qm-bar-fill" [style.inline-size.%]="cell.share * 100"></span>
                       </span>
-                      {{ share(cell) }} · {{ cell.total_count }} Samples
+                      {{ cellText(cell) }}
                     </span>
                     @if (cell.alternatives.length > 0) {
-                      <span class="qm-alt">auch: {{ alternatives(cell) }}</span>
+                      <span class="qm-alt">{{
+                        t('qualMatrix.alt', { list: alternatives(cell) }) }}</span>
                     }
                     <!-- The cursor names the action for a pointer user; a screen
                          reader needs it said. -->
-                    <span class="sr">Logs zu {{ cell.intent_id }} anzeigen</span>
+                    <span class="sr">{{
+                      t('qualMatrix.drill', { id: cell.intent_id }) }}</span>
                   </button>
                 </td>
               } @else {
                 <td class="qm-slot qm-none">
                   <span aria-hidden="true">—</span>
-                  <span class="sr">keine Samples</span>
+                  <span class="sr">{{ t('qualMatrix.noSamples') }}</span>
                 </td>
               }
             }
@@ -88,9 +85,5 @@
     </table>
   </div>
 
-  <p class="qm-legend">
-    Ein kurzer Balken heißt: mehrere Patterns konkurrieren in dieser Zelle — die
-    Zuordnung ist dort unsicher. „—" heißt: für diese Persona-Intent-Kombination
-    liegen keine Samples vor, die Abdeckung hat dort eine Lücke.
-  </p>
+  <p class="qm-legend">{{ t('qualMatrix.legend') }}</p>
 }

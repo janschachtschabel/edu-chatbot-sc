@@ -1,5 +1,9 @@
+import { I18n } from '@boerdi/ui';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_DE } from '../i18n/de';
+import { STUDIO_EN } from '../i18n/en';
+import type { Translate } from '../i18n/studio-language.service';
 import { catLabel, flowGroups, hardRate, type GoldPerTurn } from './gold-scorecard';
 
 const turn = (flow: string, no: number, over: Partial<GoldPerTurn> = {}): GoldPerTurn => ({
@@ -62,13 +66,34 @@ describe('hardRate', () => {
 });
 
 describe('catLabel', () => {
-  it('names the six categories in German', () => {
-    expect(catLabel('register')).toBe('Tonalität');
-    expect(catLabel('qr')).toBe('Quick-Replies');
-    expect(catLabel('host')).toBe('Link-Host');
+  // Der Übersetzer kommt als Parameter herein, wie bei `describeApiError` und
+  // `renderCard`: bis C1-d4b2 standen die sechs Namen als fertige Texte in
+  // einer Modul-Konstante und froren damit die Sprache ein, die beim Laden des
+  // Moduls gerade galt.
+  // Über `I18n` wie in `i18n/en.spec.ts` — derselbe Weg, den das Studio im
+  // Betrieb nimmt; der Kern muss seinen Übersetzer-Bauer nicht öffentlich
+  // machen.
+  const übersetzer = (locale: 'de' | 'en'): Translate => {
+    const i18n = new I18n(STUDIO_DE, { en: STUDIO_EN });
+    i18n.setLocale(locale);
+    return (key, params) => i18n.t(key, params);
+  };
+  const de = übersetzer('de');
+  const en = übersetzer('en');
+
+  it('names the six categories in the active language', () => {
+    expect(catLabel('register', de)).toBe('Tonalität');
+    expect(catLabel('qr', de)).toBe('Quick-Replies');
+    expect(catLabel('host', de)).toBe('Link-Host');
+
+    expect(catLabel('register', en)).toBe('Register');
+    expect(catLabel('qr', en)).toBe('Quick replies');
+    expect(catLabel('host', en)).toBe('Link host');
   });
 
   it('falls back to the raw key so a new category is visible, not hidden', () => {
-    expect(catLabel('brandneu')).toBe('brandneu');
+    // Erlaubnisliste statt `'evalDetail.cat.' + category`: ein zusammengesetzter
+    // Schlüssel gäbe hier „evalDetail.cat.brandneu" als Beschriftung aus.
+    expect(catLabel('brandneu', de)).toBe('brandneu');
   });
 });

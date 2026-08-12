@@ -12,10 +12,11 @@
  * effect depended on the active tab.
  */
 import {
-  ChangeDetectionStrategy, Component, computed, signal,
+  ChangeDetectionStrategy, Component, computed, inject, signal,
 } from '@angular/core';
 
 import type { LogFilters, QualityScope } from '../core/quality-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { QualityFlowComponent } from './quality-flow.component';
 import { QualityLogsComponent } from './quality-logs.component';
 import { QualityMatrixComponent } from './quality-matrix.component';
@@ -23,18 +24,19 @@ import { QualityOverviewComponent } from './quality-overview.component';
 import { TabBarComponent, type TabDef } from './tab-bar.component';
 
 /** The tab ids are also the panel ids: `#tab-x` controls `#panel-x`. */
-const TABS: readonly TabDef[] = [
-  { id: 'uebersicht', label: 'Übersicht' },
-  { id: 'matrix', label: 'Routing-Matrix' },
-  { id: 'flow', label: 'Gesprächs-Flow' },
-  { id: 'logs', label: 'Logs' },
+const TABS: readonly { readonly id: string; readonly labelKey: string }[] = [
+  { id: 'uebersicht', labelKey: 'qual.tab.overview' },
+  { id: 'matrix', labelKey: 'qual.tab.matrix' },
+  { id: 'flow', labelKey: 'qual.tab.flow' },
+  { id: 'logs', labelKey: 'qual.tab.logs' },
 ];
 
-const SCOPES: readonly { readonly id: QualityScope; readonly label: string;
-  readonly hint: string }[] = [
-  { id: 'all', label: 'Alle', hint: 'Echte Gespräche und Eval-Läufe zusammen' },
-  { id: 'production', label: 'Produktion', hint: 'Nur echte Gespräche' },
-  { id: 'eval', label: 'Nur Eval', hint: 'Nur simulierte Eval-Turns' },
+/** Ids and key names only: the wording is the catalogue's (C1-d4d1). */
+const SCOPES: readonly { readonly id: QualityScope; readonly labelKey: string;
+  readonly hintKey: string }[] = [
+  { id: 'all', labelKey: 'qual.scope.all', hintKey: 'qual.scope.all.hint' },
+  { id: 'production', labelKey: 'qual.scope.production', hintKey: 'qual.scope.production.hint' },
+  { id: 'eval', labelKey: 'qual.scope.eval', hintKey: 'qual.scope.eval.hint' },
 ];
 
 @Component({
@@ -48,8 +50,14 @@ const SCOPES: readonly { readonly id: QualityScope; readonly label: string;
   styleUrl: './quality.component.scss',
 })
 export class QualityComponent {
-  readonly tabs = TABS;
-  readonly scopes = SCOPES;
+  protected readonly t = inject(StudioLanguageService).t;
+
+  readonly tabs = computed<readonly TabDef[]>(() =>
+    TABS.map((tab) => ({ id: tab.id, label: this.t(tab.labelKey) })));
+
+  readonly scopes = computed(() => SCOPES.map((scope) => ({
+    id: scope.id, label: this.t(scope.labelKey), hint: this.t(scope.hintKey),
+  })));
 
   readonly active = signal<string>(TABS[0].id);
   readonly scope = signal<QualityScope>('all');

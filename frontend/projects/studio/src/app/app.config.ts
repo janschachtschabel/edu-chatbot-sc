@@ -8,11 +8,12 @@ import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from 
 
 import { routes } from './app.routes';
 import { authErrorInterceptor } from './core/auth-error.interceptor';
+import { languageInterceptor } from './core/language.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
-    provideHttpClient(withInterceptors([authErrorInterceptor])),
+    provideHttpClient(withInterceptors([languageInterceptor, authErrorInterceptor])),
     provideRouter(
       routes,
       withComponentInputBinding(),

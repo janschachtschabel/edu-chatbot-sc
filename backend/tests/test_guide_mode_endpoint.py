@@ -33,14 +33,59 @@ def test_guide_mode_bundle_shape() -> None:
         "trusted_domains", "repo_base_url", "header_nav", "welcome",
     }
     assert isinstance(body["header_nav"], list)
-    assert set(body["welcome"]) == {"greeting", "quick_replies", "tour_reply"}
+    # C1-g1a: die englische Fassung reist als eigenes Feld MIT — nicht statt.
+    # Das Widget waehlt je Schluessel, weil es die Sprache zur Laufzeit
+    # umschalten kann; der Server darf sie deshalb nicht vorab aufloesen.
+    assert set(body["welcome"]) == {
+        "greeting", "quick_replies", "tour_reply",
+        "greeting_en", "quick_replies_en", "tour_reply_en",
+    }
     assert body["welcome"]["greeting"]  # dev DB seeded => real content
     assert isinstance(body["trusted_domains"], list)
+    for button in body["header_nav"]:
+        assert "label_en" in button
 
 
 def test_guide_mode_is_public_no_auth() -> None:
     with TestClient(create_app()) as client:
         assert client.get("/api/config/guide-mode").status_code == 200
+
+
+# ── C5-c2: die Herkunft des MCP-Servers für die Anmeldung ──────────────
+# Ohne sie weiss das Widget nicht, wohin es das Anmeldefenster schicken soll.
+# Sie steht in diesem Bündel, weil das Widget genau eine öffentliche
+# Konfigurationsanfrage kennt — eine zweite Route wäre ein neuer Pfad im
+# eingefrorenen Vertrag; ein Feld in einem ``-> dict`` ist keiner.
+
+
+def test_die_herkunft_des_mcp_servers_steht_im_buendel() -> None:
+    body = _neu_bundle()
+    assert "mcp_auth_base" in body
+
+
+def test_nur_die_herkunft_kein_pfad(monkeypatch) -> None:
+    """Der Werkzeug-Pfad ``/mcp`` gehört nicht dazu — die Entdeckungs-Dokumente
+    liegen an der Wurzel, und was nicht gebraucht wird, wird nicht veröffentlicht."""
+    from boerdi.api import config as api_config
+
+    monkeypatch.setattr(
+        api_config, "get_settings",
+        lambda: type("S", (), {"mcp_server_url": "https://mcp.example.org:8443/mcp?x=1"})(),
+    )
+    assert api_config._mcp_auth_base() == "https://mcp.example.org:8443"
+
+
+@pytest.mark.parametrize("kaputt", ["", "   ", "nicht-mal-eine-url", "ftp://host/x", "//host/x"])
+def test_unbrauchbare_angaben_ergeben_leer(monkeypatch, kaputt) -> None:
+    """Leer heisst dem Widget „keine Anmeldung angeboten" — besser als ein
+    halbes Ziel, auf das der Browser dann ein Fenster schickt."""
+    from boerdi.api import config as api_config
+
+    monkeypatch.setattr(
+        api_config, "get_settings",
+        lambda: type("S", (), {"mcp_server_url": kaputt})(),
+    )
+    assert api_config._mcp_auth_base() == ""
 
 
 def _alt_available() -> bool:

@@ -146,4 +146,30 @@ describe('QualityLogsComponent — lesen', () => {
     expect(alert?.textContent).toContain('löschen');
     expect(alert?.querySelector('button')).toBeNull();
   });
+
+  it('setzt die Zählzeile in die Mehrzahl der Sprache', async () => {
+    // Fest verdrahtet las sich das bei genau einem Treffer als „1 Turns".
+    const h = await mount({ count: 1, logs: [log(1)] });
+    expect(h.el.querySelector('.ql-count')!.textContent!.trim())
+      .toBe('1 Turn · neueste zuerst');
+  });
+
+  it('benennt den Löschen-Knopf in EINEM Namen statt in zwei Bruchstücken', async () => {
+    // Derselbe Fehler, den C1-d4b1 in der Lauf-Liste abgestellt hat: der Name
+    // stand als sichtbares Wort plus `<span class="sr">`-Anhang da. Der
+    // zugängliche Name beginnt jetzt mit dem sichtbaren Wort (WCAG 2.5.3).
+    const h = await mount();
+    const arm = h.el.querySelector<HTMLButtonElement>('.ql-arm')!;
+    expect(arm.getAttribute('aria-label')).toBe('Löschen — Turn #1');
+    expect(arm.querySelector('.sr')).toBeNull();
+  });
+
+  it('nimmt Filterfelder und Knöpfe aus dem Katalog', async () => {
+    const h = await mount(PAGE, 'en');
+    const labels = Array.from(h.el.querySelectorAll('.ql-field')).map((l) =>
+      l.textContent!.trim().split('\n')[0].trim());
+    expect(labels).toEqual(['Pattern id', 'Intent id', 'Session id']);
+    expect(h.el.querySelector('.ql-apply')!.textContent!.trim()).toBe('Filter');
+    expect(h.el.querySelector('.ql-clear')!.textContent!.trim()).toBe('Delete all');
+  });
 });

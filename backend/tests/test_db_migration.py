@@ -159,3 +159,80 @@ def test_messages_role_check_constraint(migrated_db) -> None:
             await conn.close()
 
     _run(bad_role())
+
+
+# ── K2a: usage_events (Kostenüberwachung, Migration 0002) ────────────────
+# Nicht aus Spec §6, sondern aus docs/plans/2026-08-11-kostenueberwachung.md
+# §5.2 — deshalb eigener Block statt Erweiterung der SPEC_*-Mengen.
+
+def test_usage_events_tabelle_und_indizes(migrated_db) -> None:
+    tables = _run(_fetch_set(
+        migrated_db,
+        "SELECT table_name FROM information_schema.tables WHERE table_schema='public'",
+    ))
+    assert "usage_events" in tables
+    indexes = _run(_fetch_set(
+        migrated_db, "SELECT indexname FROM pg_indexes WHERE schemaname='public'"
+    ))
+    # Der Zeitraum-Index ist Pflicht, nicht Kür: ohne ihn wird die
+    # Monats-Abfrage mit wachsender Tabelle langsam (Plan §8).
+    fehlend = {"idx_usage_session", "idx_usage_created"} - indexes
+    assert fehlend == set(), f"fehlende Indizes: {sorted(fehlend)}"
+
+
+def test_usage_events_verschwinden_mit_der_sitzung(migrated_db) -> None:
+    """DSGVO-Zusage des Plans (§8): eine Sitzung ist ein Mensch, und die
+    Verbrauchszahlen sind ein Profil. Sie müssen mit der Sitzung gelöscht
+    werden — das leistet ON DELETE CASCADE, hier nachgewiesen statt behauptet.
+    """
+    async def szenario() -> int:
+        conn = await asyncpg.connect(migrated_db)
+        try:
+            await conn.execute("INSERT INTO sessions (session_id) VALUES ('bb-u1')")
+            await conn.execute(
+                "INSERT INTO usage_events (session_id, model, prompt_tokens, "
+                "cached_tokens, completion_tokens, reasoning_tokens, calls) "
+                "VALUES ('bb-u1','gpt-5.4-mini',100,64,20,8,1)"
+            )
+            await conn.execute("DELETE FROM sessions WHERE session_id='bb-u1'")
+            return await conn.fetchval(
+                "SELECT count(*) FROM usage_events WHERE session_id='bb-u1'"
+            )
+        finally:
+            await conn.close()
+
+    assert _run(szenario()) == 0
+
+
+def test_usage_event_orm_passt_auf_die_migrierte_tabelle(migrated_db) -> None:
+    async def roundtrip() -> None:
+        from boerdi.db.models import ChatSession, UsageEvent
+        from boerdi.db.session import make_engine, make_session_factory
+        from boerdi.settings import Settings
+
+        engine = make_engine(Settings(_env_file=None, database_url=_TEST_URL_SQLA))
+        try:
+            factory = make_session_factory(engine)
+            async with factory() as s:
+                s.add(ChatSession(session_id="bb-u2"))
+                await s.commit()
+            async with factory() as s:
+                s.add(UsageEvent(
+                    session_id="bb-u2", model="gpt-5.4-mini",
+                    prompt_tokens=100, cached_tokens=64,
+                    completion_tokens=20, reasoning_tokens=8, calls=2,
+                ))
+                await s.commit()
+            async with factory() as s:
+                from sqlalchemy import select
+                row = (await s.execute(
+                    select(UsageEvent).where(UsageEvent.session_id == "bb-u2")
+                )).scalar_one()
+                assert row.prompt_tokens == 100 and row.cached_tokens == 64
+                assert row.completion_tokens == 20 and row.reasoning_tokens == 8
+                assert row.calls == 2
+                assert row.created_at is not None  # server default
+        finally:
+            await engine.dispose()
+
+    _run(roundtrip())

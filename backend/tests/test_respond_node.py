@@ -44,6 +44,7 @@ class _Rec:
         self.gen_called = False
         self.gen_kwargs: dict | None = None
         self.qr_called = False
+        self.qr_kwargs: dict = {}
         self.hints: dict | None = None
         self.gate_calls: list = []
 
@@ -74,6 +75,7 @@ def _install(
 
     async def _fake_qr(**kw):
         rec.qr_called = True
+        rec.qr_kwargs = kw
         return ["QR1", "QR2"]
 
     monkeypatch.setattr(respond_mod, "generate_quick_replies", _fake_qr)
@@ -355,6 +357,8 @@ def test_speculative_qr_started(monkeypatch):
     out = asyncio.run(_go())
     assert out.qr_spec_task is not None
     assert rec.qr_called is True
+    # C1-f2a: die Ausgabe-Sprache kommt aus ``req.environment.locale``.
+    assert rec.qr_kwargs["lang"] == "de"
 
 
 def test_returns_same_ctx(monkeypatch):

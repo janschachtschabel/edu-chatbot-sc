@@ -17,7 +17,9 @@
  * escalation block for a level with no preset, so a level without one is
  * marked rather than silently offered as equal.
  */
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+
+import { StudioLanguageService } from '../i18n/studio-language.service';
 
 interface Level {
   readonly id: string;
@@ -27,17 +29,21 @@ interface Level {
   readonly defined: boolean;
 }
 
-/** Labels and descriptions verbatim from ALT SecurityLevelPicker.tsx:5-11. */
-const KNOWN: readonly { id: string; label: string; desc: string }[] = [
-  { id: 'off', label: 'Off', desc: 'Aus. Nur Crisis/PII-Regex (~1 ms).' },
-  { id: 'regex', label: 'Regex', desc: 'Alle Regex-Checks inkl. Prompt-Injection (~2 ms).' },
-  {
-    id: 'standard',
-    label: 'Standard',
-    desc: 'Regex + OpenAI-Moderation (parallel, ~150 ms). Empfohlen.',
-  },
-  { id: 'strict', label: 'Strict', desc: 'Standard + LLM-Legal-Classifier smart (~150-300 ms).' },
-  { id: 'paranoid', label: 'Paranoid', desc: 'Strict + Legal immer + halbierte Schwellen.' },
+/**
+ * The five documented levels, in ALT's order (SecurityLevelPicker.tsx:5-11).
+ *
+ * `label` is the preset key as this file writes it, NOT a translated word: a
+ * custom preset carries its own key as its label, and translating the known
+ * five would make the picker disagree with the document. Only the description
+ * is prose, so only the description has a catalogue key — spelled out rather
+ * than composed from the id, so an unknown level cannot print a key as text.
+ */
+const KNOWN: readonly { id: string; label: string; descKey: string }[] = [
+  { id: 'off', label: 'Off', descKey: 'safetyLevel.desc.off' },
+  { id: 'regex', label: 'Regex', descKey: 'safetyLevel.desc.regex' },
+  { id: 'standard', label: 'Standard', descKey: 'safetyLevel.desc.standard' },
+  { id: 'strict', label: 'Strict', descKey: 'safetyLevel.desc.strict' },
+  { id: 'paranoid', label: 'Paranoid', descKey: 'safetyLevel.desc.paranoid' },
 ];
 
 @Component({
@@ -47,6 +53,9 @@ const KNOWN: readonly { id: string; label: string; desc: string }[] = [
   styleUrl: './safety-level.component.scss',
 })
 export class SafetyLevelComponent {
+  /** Uebersetzer fuer Legende, Hinweis und die Beschreibungen der Stufen. */
+  protected readonly t = inject(StudioLanguageService).t;
+
   /** The whole safety-config document. */
   readonly doc = input.required<Record<string, unknown>>();
   /** The whole document back, with `security_level` replaced. */
@@ -67,7 +76,9 @@ export class SafetyLevelComponent {
 
   readonly levels = computed<Level[]>(() => {
     const defined = new Set(this.presets());
-    const known = KNOWN.map((level) => ({ ...level, defined: defined.has(level.id) }));
+    const known = KNOWN.map(({ id, label, descKey }) => ({
+      id, label, desc: this.t(descKey), defined: defined.has(id),
+    }));
     // A preset this document adds beyond the five: it is real, it works, and
     // hiding it would make the picker disagree with the file.
     const extra = [...defined, this.current()]
@@ -76,7 +87,7 @@ export class SafetyLevelComponent {
       .map((id) => ({
         id,
         label: id,
-        desc: 'Eigenes Preset aus dieser Datei.',
+        desc: this.t('safetyLevel.desc.custom'),
         defined: defined.has(id),
       }));
     return [...known, ...extra];

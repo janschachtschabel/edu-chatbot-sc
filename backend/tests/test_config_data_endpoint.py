@@ -237,6 +237,42 @@ def test_put_rejects_a_value_the_area_model_forbids(cfg) -> None:
     assert reread["data"]["welcome"] == {"greeting": "Moin"}
 
 
+# ── K3: der Preis ist über das Studio einstellbar ──────────────────────────
+def test_gepflegter_preis_aendert_den_betrag(cfg) -> None:
+    """Abnahmekriterium §7 des Kostenplans: „Preis einstellbar".
+
+    Geprüft wird die ganze Kette statt nur des Schreibvorgangs: ungepflegt
+    heißt kein Betrag, und nach dem Speichern rechnet dieselbe Zeile eine Zahl.
+    Ohne das letzte Stück bliebe offen, ob der Editor auf etwas schreibt, das
+    die Rechnung überhaupt liest.
+    """
+    from decimal import Decimal
+
+    from boerdi.domain.config_models.pricing import PricingArea
+    from boerdi.domain.pricing import TokenCounts, cost_for
+
+    client, seed = cfg
+    area = "01-base/pricing"
+    zeile = TokenCounts("gpt-5.4-mini", prompt=1_000_000, cached=0, completion=0)
+    seed(area, {"currency": "EUR", "models": {
+        "gpt-5.4-mini": {"input": 0.0, "cached_input": 0.0, "output": 0.0}}})
+
+    def tafel() -> PricingArea:
+        antwort = client.get(f"/api/config/data/{area}", headers=_AUTH)
+        assert antwort.status_code == 200
+        return PricingArea.model_validate(antwort.json()["data"])
+
+    assert cost_for(zeile, tafel()) is None, "ungepflegt muss betraglos bleiben"
+
+    r = client.put(f"/api/config/data/{area}", headers=_AUTH, json={"data": {
+        "currency": "EUR",
+        "models": {"gpt-5.4-mini": {"input": 3.0, "cached_input": 0.3,
+                                    "output": 15.0}}}})
+    assert r.status_code == 200
+
+    assert cost_for(zeile, tafel()) == Decimal("3")
+
+
 def test_put_unknown_area_404(cfg) -> None:
     client, _ = cfg
     r = client.put("/api/config/data/does/not-exist", headers=_AUTH, json={"data": {}})
@@ -287,3 +323,43 @@ def test_yaml_whose_root_is_not_a_mapping_is_also_a_400(cfg) -> None:
     r = client.put("/api/config/file", headers=_AUTH,
                    json={"path": f"{_WELCOME}.yaml", "content": "- eine Liste\n- keine Abbildung"})
     assert r.status_code == 400
+
+
+# ── C1-g2: die zweite Sprache übersteht den Editor-Weg ──────────────────────
+# Das Studio speichert Bereiche über GENAU diese Route, nicht über die
+# handgeschriebenen typisierten Endpunkte (`/config/welcome`,
+# `/config/context-actions`) — die haben keinen Studio-Aufrufer. Weil hier das
+# ganze Dokument ersetzt wird, hängt alles daran, dass das Bereichsmodell die
+# `*_en`-Felder kennt: was es nicht kennt, lehnt die Validierung ab.
+
+def test_put_traegt_die_englische_fassung_der_begruessung(cfg) -> None:
+    client, seed = cfg
+    seed(_WELCOME, {"welcome": {"greeting": "Moin"}})
+    doc = {"welcome": {
+        "greeting": "Moin", "greeting_en": "Hello",
+        "quick_replies": ["Tour"], "quick_replies_en": ["Tour EN"],
+        "tour_reply": "Tour", "tour_reply_en": "Tour EN",
+    }}
+    assert client.put(f"/api/config/data/{_WELCOME}", headers=_AUTH,
+                      json={"data": doc}).status_code == 200
+    saved = client.get(f"/api/config/data/{_WELCOME}", headers=_AUTH).json()["data"]
+    assert saved == doc
+
+
+def test_put_traegt_die_englische_fassung_der_kontext_aktionen(cfg) -> None:
+    area = "01-base/context-actions"
+    client, seed = cfg
+    seed(area, {"context_actions": {"enabled": True}})
+    doc = {"context_actions": {
+        "enabled": True,
+        "greetings": {"collection": "Du bist in „{title}“."},
+        "greetings_en": {"collection": "You are in “{title}”."},
+        "pills": {"collection": [
+            {"label": "Sammlung erkunden", "label_en": "Explore collection",
+             "kind": "action", "action": "browse_collection"},
+        ]},
+    }}
+    assert client.put(f"/api/config/data/{area}", headers=_AUTH,
+                      json={"data": doc}).status_code == 200
+    saved = client.get(f"/api/config/data/{area}", headers=_AUTH).json()["data"]
+    assert saved == doc

@@ -47,6 +47,54 @@ export function card(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+/**
+ * Ein vollständig gefülltes `debug`-Feld — alle Zweige des Debug-Panels an.
+ *
+ * Nötig für den Kontrast-Durchgang (U4d): die beiden Bedeutungsfarben des
+ * Panels (`.debug-warn`, `.debug-ok`) hängen an `state_transition.plausible`
+ * und `llm_engine_match`, die Balkenfarben an einer Parallel-Gruppe im Trace.
+ * Ohne diese Felder rendert das Panel sie nie — und ein Kontrast-Gate misst
+ * genau das nicht, was nicht im Bild steht.
+ */
+export function debugInfo(overrides: Record<string, unknown> = {}) {
+  return {
+    persona: 'schueler',
+    intent: 'suche',
+    state: 'exploring',
+    turn_type: 'normal',
+    signals: ['lp_intent'],
+    pattern: 'M06',
+    entities: { thema: 'Bruchrechnen' },
+    tools_called: ['search_wlo_all'],
+    phase1_eliminated: [],
+    phase2_scores: {},
+    phase3_modulations: {},
+    // Die beiden Flaggen absichtlich GEGENLÄUFIG: `plausible: true` rendert
+    // `.debug-ok`, `llm_engine_match: false` rendert `.debug-warn`. So stehen
+    // beide Bedeutungsfarben gleichzeitig im Bild.
+    state_transition: { prev: 'greeting', next: 'exploring', plausible: true, expected_next_likely: ['deepening'] },
+    pattern_id_hint: 'M07',
+    llm_engine_match: false,
+    context: { page: 'start', device: 'desktop', turn_count: 2 },
+    trace: [
+      { step: 'classify', label: 'Klassifikation', duration_ms: 900 },
+      {
+        step: 'retrieve',
+        label: 'Suche',
+        duration_ms: 1200,
+        data: {
+          parallel: true,
+          tasks: [
+            { name: 'wlo', label: 'WLO-Suche', started_at_ms: 0, duration_ms: 900 },
+            { name: 'rag', label: 'RAG', started_at_ms: 100, duration_ms: 400 },
+          ],
+        },
+      },
+    ],
+    ...overrides,
+  };
+}
+
 /** A `result`-event payload. Defaults are a plain text answer. */
 export function chatResponse(overrides: Record<string, unknown> = {}) {
   return {

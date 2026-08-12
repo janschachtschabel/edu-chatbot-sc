@@ -133,7 +133,7 @@ def _dim() -> int:
     return get_embed_dim()
 
 
-async def _fake_embed(text: str) -> list[float]:
+async def _fake_embed(text: str, *, kind: str = "query") -> list[float]:
     return [0.1] * _dim()
 
 
@@ -150,7 +150,7 @@ def test_import_rag_from_sqlite_populates_pg(tmp_path, monkeypatch, test_db) -> 
     from boerdi.db.models import RagChunk, RagDocument
     from boerdi.db.session import make_session_factory
 
-    monkeypatch.setattr(import_rag, "embedding", _fake_embed)
+    monkeypatch.setattr(import_rag, "embed_text", _fake_embed)
     db = tmp_path / "alt.db"
     _make_alt_sqlite(db, _ALT_ROWS)
     src_hash = _sha(db)
@@ -197,7 +197,7 @@ def test_cli_import_rag_end_to_end(tmp_path, monkeypatch, capsys, test_db) -> No
     from boerdi.db.session import make_session_factory
     from boerdi.settings import get_settings
 
-    monkeypatch.setattr(import_rag, "embedding", _fake_embed)
+    monkeypatch.setattr(import_rag, "embed_text", _fake_embed)
     monkeypatch.setenv("DATABASE_URL", pg_utils.sqlalchemy_url(test_db))
     get_settings.cache_clear()
     db = tmp_path / "alt.db"

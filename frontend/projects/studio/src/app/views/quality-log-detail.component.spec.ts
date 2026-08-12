@@ -3,6 +3,7 @@ import { Component, provideZonelessChangeDetection, signal } from '@angular/core
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { QualityLogDetailComponent } from './quality-log-detail.component';
 import type { QualityLog } from '../core/quality-api.service';
 
@@ -38,7 +39,10 @@ class HostComponent {
   closed = false;
 }
 
-async function mount(log: QualityLog = TURN) {
+/** jsdom meldet `navigator.language === 'en-US'`; ohne gesetzte Wahl liefe die
+ *  deutsche Oberfläche auf Englisch. */
+async function mount(log: QualityLog = TURN, locale = 'de') {
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
   const fixture = TestBed.createComponent(HostComponent);
@@ -101,5 +105,15 @@ describe('QualityLogDetailComponent', () => {
     const h = await mount({ ...TURN, message: '', pattern_label: '', turn_type: '' });
     expect(h.el.textContent).toContain('(leere Nachricht)');
     expect(h.el.textContent).toContain('Pattern ohne Label');
+  });
+
+  it('nimmt Feldnamen und den Degradations-Satz aus dem Katalog', async () => {
+    const h = await mount({ ...TURN, degradation: 1, missing_slots: ['thema'] }, 'en');
+    const labels = Array.from(h.el.querySelectorAll('.qd-grid dt')).map((d) => d.textContent);
+    expect(labels).toEqual([
+      'Persona', 'Intent', 'Phase', 'Confidence', 'Answer length', 'Tiles',
+    ]);
+    expect(h.el.querySelector('.qd-degradation')!.textContent!.replace(/\s+/g, ' ').trim())
+      .toBe('Degradation: the turn continued with required slots missing. Missing: thema.');
   });
 });

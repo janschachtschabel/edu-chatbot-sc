@@ -24,8 +24,8 @@ test('der Tour-Chip startet die Web-Tour mit tour_action="start"', async ({ page
   // Der Chip-Text kommt aus welcome-config.tour_reply.
   await page.locator('.qr-btn', { hasText: 'Zeig mir die Seite' }).click();
 
-  await w.waitForChatRequests(1);
-  const req = w.chatRequests()[0];
+  await w.waitForTurns(1);
+  const req = w.turnRequests()[0];
   expect(req.environment.tour_action).toBe('start');
   await expect(page.locator('.msg-bubble').last()).toContainText('Wir starten oben auf der Seite.');
 });
@@ -34,8 +34,12 @@ test('der Tour-Chip startet die Web-Tour mit tour_action="start"', async ({ page
 const KNOWN_SESSION = 'bb-7c9e6679-7425-40de-944b-e07fc1f90ae7';
 
 test('auf einer Inhaltsseite feuert der stille Kontext-Ping (page_event=context_open)', async ({ page }) => {
-  const w = await mount(page, { url: CONTENT_URL, session: KNOWN_SESSION });
-  w.enqueue(chatResponse({ content: 'Zu dieser Seite kann ich dir mehr sagen.' }));
+  // `pingReply` statt `enqueue`: die Warteschlange gehört den echten Zügen,
+  // ein Ping bedient sich dort nicht (sonst schnappte er die Antwort weg).
+  const w = await mount(page, {
+    url: CONTENT_URL, session: KNOWN_SESSION,
+    pingReply: chatResponse({ content: 'Zu dieser Seite kann ich dir mehr sagen.' }),
+  });
   await w.open();
 
   await w.waitForChatRequests(1);
@@ -51,8 +55,8 @@ test('auf einer Inhaltsseite feuert der stille Kontext-Ping (page_event=context_
 });
 
 test('eine leere Kontext-Antwort erzeugt keine Bubble', async ({ page }) => {
+  // Leere Ping-Antwort ist die Vorgabe der Harness — kein `enqueue` nötig.
   const w = await mount(page, { url: CONTENT_URL, session: KNOWN_SESSION });
-  w.enqueue(chatResponse({ content: '', quick_replies: [] }));
   await w.open();
 
   await w.waitForChatRequests(1);
@@ -62,36 +66,51 @@ test('eine leere Kontext-Antwort erzeugt keine Bubble', async ({ page }) => {
 });
 
 /**
- * „Es wurde NICHT gepingt" lässt sich nicht durch Abwarten beweisen: der Ping
- * ginge über `setTimeout(…, 0)` (lifecycle.ts:206) raus und wäre beim Lesen
- * womöglich noch unterwegs — ein `toHaveLength(0)` direkt nach dem Rendern der
- * Begrüßung wäre ein Münzwurf. Deshalb wird stattdessen die REIHENFOLGE
- * geprüft: ein selbst getippter Turn muss der ERSTE Request sein. Ein Ping
- * würde vor ihm losgeschickt und läge damit auf Index 0.
+ * Beide Tests hier hielten bis 2026-08-11 das ALT-Verhalten fest: „der
+ * Erstbesucher bekommt keine proaktive Kontext-Begrüßung", und „eine Seite ohne
+ * IDs pingt gar nicht". Die Seitenkontext-Erweiterung hat **beides bewusst
+ * geändert** (Nutzer-Entscheid: „Auch beim ersten Laden melden? Ja — mit der
+ * Auflage, dass Begrüßung und Kontextmeldung zu EINER Nachricht verschmelzen").
+ * Die Tests pinnen deshalb jetzt die neue Absicht statt der alten.
  */
-async function expectNoPingBefore(page: import('@playwright/test').Page, w: Awaited<ReturnType<typeof mount>>) {
-  await page.locator('.chat-input').fill('Hallo');
-  await page.locator('.btn-send').click();
-  await w.waitForChatRequests(1);
-  const first = w.chatRequests()[0];
-  expect(first.message).toBe('Hallo');
-  expect(first.environment.page_event).toBeUndefined();
-}
 
-test('eine fortgeführte Session auf einer Seite ohne Kontext pingt nicht', async ({ page }) => {
+test('eine Seite ohne IDs pingt trotzdem — der Hostname genügt, das Backend entscheidet', async ({ page }) => {
+  // Das Widget kennt „eigene Startseite" vs. „fremde Seite" nicht; beide
+  // heißen für den Erkenner `other`. Es fragt also, statt selbst zu urteilen.
   const w = await mount(page, { url: `${HOST}/impressum`, session: KNOWN_SESSION });
   await w.open();
-  await expectNoPingBefore(page, w);
+
+  await w.waitForChatRequests(1);
+  const ping = w.chatRequests()[0];
+  expect(ping.environment.page_event).toBe('context_open');
+  expect(ping.environment.page_context.page_host).toBe('host.test');
+  expect(ping.environment.page_context.node_id).toBeUndefined();
 });
 
-test('eine FRISCHE Session pingt nie — auch auf einer Inhaltsseite (ALT-Verhalten)', async ({ page }) => {
-  // Pinnt eine Grenze, die leicht als Bug missverstanden wird: ALT ruft
-  // `_maybeSendContextPing()` nur aus `_afterResume()` (chat.component.ts:738)
-  // und `onSpaContextChange()` (752) — der Erstbesucher bekommt keine proaktive
-  // Kontext-Begrüßung. Bewusst als IST-Verhalten festgehalten, nicht geändert.
+test('eine FRISCHE Session pingt beim ersten Laden — und bleibt bei EINER Nachricht', async ({ page }) => {
+  // Eigenes Ereignis `context_open_initial`: das Backend darf den Erstaufruf
+  // von der Fortsetzung unterscheiden. Antwortet es leer (Vorgabe der
+  // Harness), kommt die normale Begrüßung — nie beides und nie gar nichts.
   const w = await mount(page, { url: CONTENT_URL });
   await w.open();
-  await expectNoPingBefore(page, w);
+
+  await w.waitForChatRequests(1);
+  expect(w.chatRequests()[0].environment.page_event).toBe('context_open_initial');
+  await expect(page.locator('.msg-bubble')).toHaveCount(1);
+  await expect(page.locator('.msg-bubble')).toContainText('Moin! Ich bin BOERDi.');
+});
+
+test('spricht der Ping beim ersten Laden, IST er die Begrüßung — keine zweite Blase', async ({ page }) => {
+  // Die Auflage des Nutzers: Begrüßung und Kontextmeldung verschmelzen.
+  const w = await mount(page, {
+    url: CONTENT_URL,
+    pingReply: chatResponse({ content: 'Zu dieser Seite kann ich dir mehr sagen.' }),
+  });
+  await w.open();
+
+  await expect(page.locator('.msg-bubble')).toHaveCount(1);
+  await expect(page.locator('.msg-bubble')).toContainText('Zu dieser Seite kann ich dir mehr sagen.');
+  await expect(page.locator('.msg-bubble')).not.toContainText('Moin! Ich bin BOERDi.');
 });
 
 test('SPA-Navigation auf eine Inhaltsseite löst den Ping aus (URL-Watcher, 1,5 s)', async ({ page }) => {
@@ -103,8 +122,10 @@ test('SPA-Navigation auf eine Inhaltsseite löst den Ping aus (URL-Watcher, 1,5 
 
   // Der Watcher pollt alle 1,5 s — der Default-Timeout von 5 s wäre auf einem
   // ausgelasteten Runner die knappste Marge der ganzen Suite.
-  await w.waitForChatRequests(1, 15_000);
-  const req = w.chatRequests()[0];
+  // Index 0 ist der Erstaufruf-Ping (`context_open_initial`); der SPA-Ping ist
+  // der zweite und trägt `context_open`.
+  await w.waitForChatRequests(2, 15_000);
+  const req = w.chatRequests()[1];
   expect(req.environment.page_event).toBe('context_open');
   expect(req.environment.page_context.node_id).toBe('9f8b1c2d-4e5f-6789-abcd-ef0123456789');
 });
@@ -148,8 +169,8 @@ test('ohne Tour-Chip in der Config startet kein Tour-Turn', async ({ page }) => 
 
   await page.locator('.qr-btn', { hasText: 'Zeig mir die Seite' }).click();
 
-  await w.waitForChatRequests(1);
+  await w.waitForTurns(1);
   // Ohne `tour_reply` ist derselbe Text nur eine gewöhnliche Nachricht.
-  expect(w.chatRequests()[0].environment.tour_action).toBeUndefined();
-  expect(w.chatRequests()[0].message).toBe('Zeig mir die Seite');
+  expect(w.turnRequests()[0].environment.tour_action).toBeUndefined();
+  expect(w.turnRequests()[0].message).toBe('Zeig mir die Seite');
 });

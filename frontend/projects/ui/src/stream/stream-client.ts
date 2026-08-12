@@ -10,6 +10,8 @@
  * fährt die SSE-/Watchdog-Logik ohne Live-Backend unter Vitest.
  */
 
+import { accessBlockHeaders } from '../session/mcp-access';
+
 /** Server-Sent-Event-Payload aus POST /api/chat/stream. `event` = SSE-Name
  *  (`connected`/`phase`/`text_delta`/`result`/`error`), `data` = geparstes
  *  JSON (oder `{ raw }` bei Nicht-JSON). Verbatim aus ALT. */
@@ -59,6 +61,9 @@ export function parseSseBlock(rawBlock: string): ChatStreamEvent {
   return { event: evtName, data: parsed };
 }
 
+// C5-b: beide Wege — Strom und Rückfall-POST — tragen den Zugangsblock der
+// angemeldeten Person mit. Ohne Anmeldung ist es ein leeres Objekt, es geht
+// also gar keine solche Kopfzeile raus.
 export interface StreamChatOptions {
   /** Voll-URL des Stream-Endpoints (Shell baut sie aus baseUrl + `/chat/stream`). */
   url: string;
@@ -117,7 +122,11 @@ export async function streamChat<T = unknown>(opts: StreamChatOptions): Promise<
   try {
     resp = await fetchImpl(opts.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        ...accessBlockHeaders(),
+      },
       body: JSON.stringify(opts.body),
       signal: abort.signal,
     });
@@ -197,7 +206,7 @@ export async function postChat<T = unknown>(opts: PostChatOptions): Promise<T> {
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
   const resp = await fetchImpl(opts.url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...accessBlockHeaders() },
     body: JSON.stringify(opts.body),
   });
   if (!resp.ok) throw new Error(`Chat error: ${resp.status}`);

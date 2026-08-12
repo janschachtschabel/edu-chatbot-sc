@@ -5,6 +5,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { EvalPatternUsageComponent } from './eval-pattern-usage.component';
 
 const USAGE_URL = '/studio/api/eval/analytics/pattern-usage';
@@ -34,7 +35,12 @@ async function settle(): Promise<void> {
   await h.fixture.whenStable();
 }
 
-async function mount(payload: Record<string, unknown> | null = USAGE): Promise<void> {
+async function mount(
+  payload: Record<string, unknown> | null = USAGE, locale = 'de',
+): Promise<void> {
+  // jsdom meldet `navigator.language === 'en-US'`; ohne die gemerkte Wahl liefe
+  // die deutsche Oberfläche unter diesen Prüfungen auf Englisch.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
@@ -130,5 +136,57 @@ describe('EvalPatternUsageComponent', () => {
   it('shows why the numbers could not be read', async () => {
     await mount(null);
     expect(text()).toContain('kaputt');
+  });
+
+  // ── C1-d4b3 ─────────────────────────────────────────────────────────
+
+  it('spricht auf Englisch durchgehend Englisch', async () => {
+    await mount(USAGE, 'en');
+
+    expect(text()).toContain('Pattern usage');        // Überschrift, aus der Hülle
+    expect(text()).toContain('Scope');                // Filter-Beschriftung
+    expect(text()).toContain('eval runs only');       // Bereich aus der Konstante
+    expect(text()).toContain('From date');            // Datums-Feld
+    expect(text()).toContain('Turns per pattern');    // Beschriftung der Balken
+    expect(text()).toContain('Avg confidence');       // Spaltenkopf
+    expect(text()).toContain('(none)');               // aus der Balken-Tabelle
+    // Kein deutscher Rest — der Fall, den ein Blick auf die Seite übersieht.
+    expect(text()).not.toMatch(/[äöüß]/);
+  });
+
+  it('setzt die Auszeichnung als Element, nicht als sichtbaren Stern', async () => {
+    await mount();
+
+    expect(h.el.querySelector('.epu-intro code')?.textContent).toBe('quality_logs');
+    expect(h.el.querySelector('.epu-total strong')?.textContent).toBe('19 Turns');
+    expect(text()).not.toContain('*');
+    expect(text()).not.toContain('`');
+  });
+
+  it('fügt den Summen-Satz ohne eingestreute Leerzeichen zusammen', async () => {
+    // Angular behält den Leerraum innerhalb der `@`-Blöcke von `<studio-rich>`;
+    // in C1-d4b2 hat genau das aus „83 %" ein „83 % " gemacht.
+    await mount();
+    expect(h.el.querySelector('.epu-total')?.textContent?.replace(/\s+/g, ' ').trim())
+      .toBe('19 Turns in 3 Kombinationen aus Pattern, Intent und Persona.');
+  });
+
+  it('trennt die Tausender auch im Summen-Satz', async () => {
+    // Die Zahl wählt die Mehrzahlform, der FORMATIERTE Text füllt den
+    // Platzhalter — dasselbe Muster wie `overview.snapshots`.
+    await mount({ ...USAGE, total: 12345 });
+    expect(h.el.querySelector('.epu-total strong')?.textContent).toBe('12.345 Turns');
+  });
+
+  it('zählt Turn und Kombination in der Einzahl, wenn es nur eine gibt', async () => {
+    await mount({
+      triples: [{ pattern_id: 'M04', intent_id: 'I01', persona_id: 'P-LEH', count: 1, avg_conf: 0.5 }],
+      by_pattern: [{ pattern_id: 'M04', count: 1 }],
+      by_intent: [{ intent_id: 'I01', count: 1 }],
+      total: 1,
+      scope: 'all',
+    });
+    expect(h.el.querySelector('.epu-total')?.textContent?.replace(/\s+/g, ' ').trim())
+      .toBe('1 Turn in 1 Kombination aus Pattern, Intent und Persona.');
   });
 });

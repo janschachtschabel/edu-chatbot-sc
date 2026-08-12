@@ -3,7 +3,13 @@
 EXPECTED_ROUTES is the §5.1 acceptance inventory: ALT's live openapi.json
 (107 routes, dumped from :8000 on 2026-07-11) plus GET /api/config/schema/{area}
 and GET/PUT /api/config/data/{area} (improvement V3 — the exported schema needs
-a JSON counterpart to bind a form to; ``/config/file`` is YAML text, see 9-3a).
+a JSON counterpart to bind a form to; ``/config/file`` is YAML text, see 9-3a)
+and GET /widget/frameless (U1 — the demo page for the frameless embed mode,
+which ALT did not have; purely additive, one path, nothing changed or removed)
+and GET /api/usage/{session,period} (K4 — cost monitoring, which ALT did not do
+at all; the reason per route is in ``docs/api/bewusste-vertragszusaetze.md``,
+kept in shipped docs rather than only here because that file is also what
+``tests/test_openapi_additions.py`` counts against the frozen baseline).
 ``/api/static/*`` is a StaticFiles mount in ALT and NEU —
 mounts never appear in OpenAPI, so it is deliberately absent here.
 
@@ -125,6 +131,10 @@ GET    /api/sessions/{session_id}/messages
 GET    /api/speech/status
 POST   /api/speech/synthesize
 POST   /api/speech/transcribe
+POST   /api/agent
+POST   /api/agent/stream
+GET    /api/usage/period
+GET    /api/usage/session/{session_id}
 GET    /health
 HEAD   /health
 POST   /studio/api/auth/login
@@ -133,6 +143,7 @@ GET    /studio/api/auth/session
 GET    /widget/
 GET    /widget/boerdi-widget.js
 GET    /widget/classic
+GET    /widget/frameless
 GET    /widget/inline
 GET    /widget/{asset_name}
 """
@@ -144,7 +155,8 @@ PUBLIC_ROUTES = {
     "GET /api/speech/status", "POST /api/speech/transcribe",
     "POST /api/speech/synthesize", "GET /api/sessions/{session_id}/messages",
     "GET /api/config/guide-mode", "GET /widget/", "GET /widget/boerdi-widget.js",
-    "GET /widget/classic", "GET /widget/inline", "GET /widget/{asset_name}",
+    "GET /widget/classic", "GET /widget/frameless", "GET /widget/inline",
+    "GET /widget/{asset_name}",
     # studio-bff (P9-1): the login pair must be reachable unauthenticated, like
     # ALT's PUBLIC_PATHS (middleware.ts:25). GET /studio/api/auth/session is NOT
     # here — it carries the StudioCookie marker, which is what the else-branch
@@ -213,7 +225,13 @@ def test_stubs_return_501(monkeypatch) -> None:
     # There is no PUBLIC 501 stub left: C4 implemented the last three (the widget
     # demo pages). Every public route now answers for itself — asserted here so
     # the claim is checked rather than remembered.
-    for path in ("/widget/", "/widget/inline", "/widget/classic", "/widget/boerdi-widget.js"):
+    for path in (
+        "/widget/",
+        "/widget/inline",
+        "/widget/classic",
+        "/widget/frameless",
+        "/widget/boerdi-widget.js",
+    ):
         assert client.get(path).status_code != 501, path
     # The representative STUDIO 501 stub is GET /api/debug/mcp-test (P5-1); all the
     # studio ROUTERS are implemented. Reach it past fail-closed auth via the

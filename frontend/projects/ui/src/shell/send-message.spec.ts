@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatResponse } from '../grouping/message-types';
+import { DE } from '../i18n/de';
+import { createTranslator } from '../i18n/dictionary';
 import { ChatStreamEvent } from '../stream/stream-client';
 import { SendMessageContext, runSendMessage } from './send-message';
 
@@ -48,6 +50,7 @@ interface Opts {
   ) => Promise<ChatResponse>;
   post?: (msg: string, env: unknown, action?: string, actionParams?: Record<string, unknown>) => Promise<ChatResponse>;
   formatPhaseLabel?: (evt: ChatStreamEvent) => string | null;
+  t?: SendMessageContext['t'];
 }
 
 function makeCtx(opts: Opts = {}): Rec {
@@ -84,6 +87,7 @@ function makeCtx(opts: Opts = {}): Rec {
     },
     formatPhaseLabel: opts.formatPhaseLabel ?? (() => null),
     onResult: (resp, msg) => { rec.results.push({ resp, msg }); },
+    t: opts.t ?? createTranslator(DE, DE),
   };
   return rec;
 }
@@ -187,6 +191,30 @@ describe('runSendMessage — Lifecycle', () => {
     expect(r.loading).toEqual([true, false]);
     expect(r.focus).toBe(1);
     expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it('Stale- und Fehler-Bubble kommen aus dem Übersetzer (C1-b4)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const en = createTranslator(
+      { 'error.stale': 'This is taking unusually long.', 'error.generic': 'Sorry, something went wrong.' },
+      DE,
+    );
+
+    const stale = makeCtx({
+      input: '', t: en,
+      stream: () => Promise.reject(Object.assign(new Error('stale'), { name: 'StreamStaleError' })),
+    });
+    await runSendMessage('Frage', undefined, undefined, stale.ctx);
+    expect(stale.bots[1].content).toBe('This is taking unusually long.');
+
+    const kaputt = makeCtx({
+      input: '', t: en,
+      stream: () => Promise.reject(new Error('network')),
+      post: () => Promise.reject(new Error('post down')),
+    });
+    await runSendMessage('Frage', undefined, undefined, kaputt.ctx);
+    expect(kaputt.bots[1].content).toBe('Sorry, something went wrong.');
+    expect(warn).toHaveBeenCalled();
   });
 
   it('onEvent: phase-Event → updateLoadingPhase(loadingId, label); text_delta + null-Label ignoriert', async () => {

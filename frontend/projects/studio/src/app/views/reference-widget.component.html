@@ -1,60 +1,57 @@
 <details class="cs">
   <summary class="cs-summary">
-    <h4 class="cs-title">Widget-Einbettung (Web-Komponente)</h4>
+    <h4 class="cs-title">{{ t('rw.title') }}</h4>
   </summary>
   <div class="cs-body">
-    <p class="ar-text">
-      Der Chat lässt sich als Custom Element <code>&lt;boerdi-chat&gt;</code> auf
-      jeder Seite einbinden. Das Single-File-Bundle entsteht mit
-      <code>npm run build:widget</code>.
-    </p>
-    <pre class="ar-code"><code>{{ embedSample }}</code></pre>
+    <p class="ar-text"><studio-rich [parts]="rich('rw.intro')" /></p>
+    <pre class="ar-code"><code>{{ embedSample() }}</code></pre>
 
-    <h5 class="ar-sub">Attribute</h5>
-    <p class="ar-text">
-      Alle Boolean-Attribute nehmen die Strings <code>"true"</code> und
-      <code>"false"</code> — Attribute eines Custom Elements sind immer Strings.
-    </p>
+    <h5 class="ar-sub">{{ t('rw.attrTitle') }}</h5>
+    <p class="ar-text"><studio-rich [parts]="rich('rw.boolNote')" /></p>
     <div class="ar-scroll">
       <table class="ar-table">
         <thead>
-          <tr><th>Gruppe</th><th>Attribut</th><th>Default</th><th>Beschreibung</th></tr>
+          <tr>
+            <th scope="col">{{ t('rw.col.group') }}</th>
+            <th scope="col">{{ t('rw.col.attr') }}</th>
+            <th scope="col">{{ t('rw.col.default') }}</th>
+            <th scope="col">{{ t('rw.col.desc') }}</th>
+          </tr>
         </thead>
         <tbody>
           @for (row of attributes; track row.attr; let i = $index) {
             <tr [class.ar-group-start]="isGroupStart(i)">
-              <td class="ar-group">{{ isGroupStart(i) ? row.group : '' }}</td>
+              <td class="ar-group">{{ isGroupStart(i) ? t(row.groupKey) : '' }}</td>
               <th scope="row"><code>{{ row.attr }}</code></th>
-              <td><code>{{ row.fallback }}</code></td>
-              <td>{{ row.desc }}</td>
+              <td><code>{{ fallbackOf(row) }}</code></td>
+              <td>{{ t(row.descKey) }}</td>
             </tr>
           }
         </tbody>
       </table>
     </div>
 
-    <h5 class="ar-sub">Events</h5>
+    <h5 class="ar-sub">{{ t('rw.eventsTitle') }}</h5>
     <div class="ar-scroll">
       <table class="ar-table">
         <thead>
-          <tr><th>Event</th><th>Wann</th><th>Payload</th></tr>
+          <tr>
+            <th scope="col">{{ t('rw.col.event') }}</th>
+            <th scope="col">{{ t('rw.col.when') }}</th>
+            <th scope="col">{{ t('rw.col.payload') }}</th>
+          </tr>
         </thead>
         <tbody>
           @for (row of events; track row.name) {
             <tr>
               <th scope="row"><code>{{ row.name }}</code></th>
-              <td>{{ row.when }}</td>
+              <td>{{ t(row.whenKey) }}</td>
               <td><code>{{ row.payload }}</code></td>
             </tr>
           }
         </tbody>
       </table>
     </div>
-    <p class="ar-text">
-      Angular-Outputs für programmatische Einbindung: <code>{{ outputs }}</code>.
-      <code>linkClicked</code> feuert nur mit
-      <code>intercept-edu-sharing-links="true"</code>. Das ausführliche
-      Payload-Schema steht in <code>docs/05-widget-javascript-api.md</code>.
-    </p>
+    <p class="ar-text"><studio-rich [parts]="rich('rw.outputs', { outputs })" /></p>
   </div>
 </details>

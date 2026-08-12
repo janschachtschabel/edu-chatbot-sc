@@ -1,0 +1,32 @@
+# Preistafel fuer die Kostenueberwachung (K3)
+#
+# Preise stehen je 1 MIO. TOKEN, so wie die Anbieter sie ausweisen.
+#
+# Der Schluessel ist der Modellname, wie ihn der Anbieter in der ANTWORT
+# meldet (resp.model) — nicht der in LLM_CHAT_MODEL konfigurierte Alias.
+# Meldet der Anbieter eine Version (gpt-5.4-mini-2026-03-01), genuegt der
+# Kurzname: gesucht wird erst exakt, dann der laengste passende Praefix.
+#
+# ALLE PREISE STEHEN AUF 0,0 — das heisst "nicht gepflegt", NICHT "kostenlos".
+# Solange sie so stehen, meldet die Auswertung ausdruecklich, dass fuer dieses
+# Modell kein Preis hinterlegt ist. Ein erfundener Preis waere schlimmer als
+# keiner: er saehe aus wie eine Abrechnung.
+#
+# Zum Pflegen die Zahlen des Anbieters eintragen. Modelle, die hier fehlen,
+# einfach als neuen Block ergaenzen — die Tafel ist nicht auf diese Liste
+# beschraenkt.
+
+currency: EUR
+
+models:
+  # Antwort-/Klassifikationsmodell des Chats (LLM_CHAT_MODEL)
+  gpt-5.4-mini:
+    input: 0.0
+    cached_input: 0.0
+    output: 0.0
+  # Vorgabe fuer Simulator und Bewerter der Auswertungslaeufe
+  # (EVAL_SIMULATOR_MODEL / EVAL_JUDGE_MODEL)
+  gpt-4o-mini:
+    input: 0.0
+    cached_input: 0.0
+    output: 0.0

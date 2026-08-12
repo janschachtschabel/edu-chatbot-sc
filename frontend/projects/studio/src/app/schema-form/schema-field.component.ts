@@ -12,11 +12,13 @@ import {
   Component,
   computed,
   forwardRef,
+  inject,
   input,
   output,
   signal,
 } from '@angular/core';
 
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import type { ValuePath } from './form-value';
 import { JsonValueComponent } from './json-value.component';
 import type { SchemaField } from './schema-to-fields';
@@ -44,6 +46,9 @@ interface MapEntry {
   styleUrl: './schema-form.scss',
 })
 export class SchemaFieldComponent {
+  private readonly lang = inject(StudioLanguageService);
+  protected readonly t = this.lang.t;
+
   readonly field = input.required<SchemaField>();
   readonly path = input.required<ValuePath>();
   readonly value = input<unknown>();
@@ -65,7 +70,9 @@ export class SchemaFieldComponent {
    * no key, which produced an empty legend and "Eintrag zu  hinzufügen".
    * A group keeps the empty label: its legend is simply omitted.
    */
-  readonly groupLabel = computed(() => this.label() || 'Einträge');
+  readonly groupLabel = computed(
+    () => this.label() || this.lang.t('schemaField.fallbackGroup'),
+  );
   readonly fieldId = computed(() => {
     const suffix = this.path().map(safeIdPart).join('.');
     return suffix ? `${this.idPrefix()}-${suffix}` : this.idPrefix();
@@ -92,13 +99,17 @@ export class SchemaFieldComponent {
     }
   });
 
-  readonly expectedShape = computed(() =>
-    this.field().kind === 'list' ? 'eine Liste' : 'ein Objekt',
-  );
+  // Die Formnamen tragen ihren Artikel, weil der Satz sie so einsetzt („ist
+  // eine Liste") — und welcher Artikel das ist, entscheidet die Sprache.
+  readonly expectedShape = computed(() => this.lang.t(
+    this.field().kind === 'list' ? 'schemaField.shape.list' : 'schemaField.shape.object',
+  ));
   readonly actualShape = computed(() => {
     const value = this.value();
-    if (Array.isArray(value)) return 'eine Liste';
-    return typeof value === 'object' ? 'ein Objekt' : `ein einzelner Wert (${typeof value})`;
+    if (Array.isArray(value)) return this.lang.t('schemaField.shape.list');
+    return typeof value === 'object'
+      ? this.lang.t('schemaField.shape.object')
+      : this.lang.t('schemaField.shape.scalar', { type: typeof value });
   });
 
   /** Typed views of `value` — a template cannot bind `unknown` to an input. */
@@ -197,8 +208,8 @@ export class SchemaFieldComponent {
       this.keyError.set({
         key: from,
         message: taken
-          ? `Der Schlüssel „${to}“ ist schon vergeben.`
-          : 'Ein Schlüssel darf nicht leer sein.',
+          ? this.lang.t('schemaField.keyTaken', { key: to })
+          : this.lang.t('schemaField.emptyKey'),
       });
       return;
     }

@@ -82,6 +82,27 @@ def test_unresolved_note_empty_when_resolved():
     assert unresolved_filter_note(None) == ""
 
 
+# ── C1-f2b6a: dieselben zwei Ausgaben auf Englisch ───────────────
+
+def test_narrowing_pills_english():
+    metas = [{"facets": {"learningResourceType": [
+        {"label": "Video", "count": 1203},
+        {"label": "Arbeitsblatt", "count": 50},
+    ]}}]
+    # Das Label kommt aus dem WLO-Vokabular und bleibt, wie WLO es liefert —
+    # uebersetzt wird nur das Wort, das WIR davorsetzen.
+    assert narrowing_quick_replies_from_metas(metas, lang="en") == [
+        "Only Video (1203)", "Only Arbeitsblatt (50)"
+    ]
+
+
+def test_unresolved_note_english():
+    metas = [{"unresolvedFilters": [{"field": "discipline", "value": "Nonsens"}]}]
+    note = unresolved_filter_note(metas, lang="en")
+    assert note == ('Note: I could not filter by “Nonsens” and searched '
+                    'more broadly instead.')
+
+
 def test_unresolved_note_dedups_and_caps():
     metas = [
         {"unresolvedFilters": [{"field": "d", "value": "X"}, {"field": "d", "value": "Y"}]},

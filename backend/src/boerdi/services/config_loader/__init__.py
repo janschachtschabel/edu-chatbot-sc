@@ -39,6 +39,7 @@ from boerdi.services.config_loader.classification import (
     load_states,
     load_tie_breaker_config,
 )
+from boerdi.services.config_loader.engine import load_engine
 from boerdi.services.config_loader.gold_flows import load_gold_flows
 from boerdi.services.config_loader.mcp import (
     get_enabled_mcp_servers,
@@ -53,6 +54,7 @@ from boerdi.services.config_loader.personas import (
     load_persona_definitions,
     load_persona_prompt,
 )
+from boerdi.services.config_loader.pricing import load_pricing
 from boerdi.services.config_loader.rag import (
     get_all_rag_areas,
     get_always_on_rag_areas,
@@ -102,11 +104,13 @@ __all__ = [
     "load_canvas_persona_priorities", "load_canvas_type_aliases",
     "load_card_pipeline_config", "load_classify_overrides_config",
     "load_context_actions", "load_device_config", "load_display_rules_config",
-    "load_domain_rules", "load_entities", "load_gold_flows", "load_guardrails",
+    "load_domain_rules", "load_engine", "load_entities", "load_gold_flows",
+    "load_guardrails",
     "load_guide_mode_config", "load_guide_rules_config", "load_header_nav_config",
     "load_intents", "load_mcp_servers", "load_pattern_definitions",
     "load_persona_definitions", "load_persona_prompt",
-    "load_placeholder_topics_config", "load_policy_config", "load_privacy_config",
+    "load_placeholder_topics_config", "load_policy_config", "load_pricing",
+    "load_privacy_config",
     "load_quality_log_config", "load_rag_config", "load_safety_config",
     "load_signal_modulations", "load_states", "load_tie_breaker_config",
     "load_tone_modifiers_config", "load_website_tour_config", "load_welcome_config",

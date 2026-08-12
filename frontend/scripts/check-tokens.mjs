@@ -67,6 +67,37 @@ for (const path of walk(root)) {
   });
 }
 
+// Angular Materials `--mat-sys-*`/`--mat-*`-Token stehen in KEINER Projektdatei
+// — `mat.theme()` erzeugt sie beim Kompilieren. Statt sie per Präfix pauschal
+// durchzuwinken (ein Tippfehler bliebe unentdeckt), wird das Widget-Theme hier
+// wirklich kompiliert und seine Deklarationen eingesammelt.
+async function materialTokens() {
+  const eintrag = resolve('projects/widget/src/app/widget/widget.component.scss');
+  const sass = await import('sass');
+  const css = sass.compile(eintrag, {
+    loadPaths: [
+      resolve('projects/ui/src'),
+      resolve('projects/widget/src/app/widget'),
+      resolve('node_modules'),
+    ],
+  }).css;
+  const namen = new Set();
+  for (const [, name] of css.matchAll(DEFINITION)) namen.add(name);
+  return namen;
+}
+
+try {
+  const vomTheme = await materialTokens();
+  for (const name of vomTheme) defined.add(name);
+  console.log(`aus mat.theme: ${vomTheme.size}`);
+} catch (fehler) {
+  console.error(
+    'Das Widget-Theme ließ sich nicht kompilieren — `--mat-sys-*` kann nicht '
+    + 'geprüft werden:\n  ' + fehler.message,
+  );
+  process.exit(1);
+}
+
 const missing = [...used.entries()].filter(([name]) => !defined.has(name));
 
 console.log(`Wurzel:      ${root}`);

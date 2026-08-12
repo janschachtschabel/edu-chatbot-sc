@@ -269,7 +269,7 @@ Auth: `public` · `studio` (Header `X-Studio-Key`, aktiv wenn `STUDIO_API_KEY` g
 | POST | /api/chat | public | Chat-Turn |
 | POST | /api/chat/stream | public | SSE-Turn (`connected`/`phase`/`result`/`error`) |
 | GET | /api/speech/status · POST /api/speech/transcribe · POST /api/speech/synthesize | public | Speech (Caps!) |
-| GET | /widget/boerdi-widget.js · /widget/ · /widget/inline · /widget/classic · /widget/{asset} | public | Widget-Bundle/Demos (V1: hash+immutable) |
+| GET | /widget/boerdi-widget.js · /widget/ · /widget/inline · /widget/classic · /widget/frameless · /widget/{asset} | public | Widget-Bundle/Demos (V1: hash+immutable); `/frameless` additiv in U1 ergänzt |
 | GET | /api/sessions/ · /api/sessions/db-stats · /api/sessions/{id} · /api/sessions/{id}/memory | studio | Session-Verwaltung |
 | POST | /api/sessions/purge · /api/sessions/optimize · /api/sessions/{id}/memory | studio | Pflege/Memory |
 | GET | /api/sessions/{id}/messages | **public** | Widget-History-Restore (Rate-Limit!) |
@@ -416,8 +416,21 @@ oder `OPENAI_API_KEY`-Seitenkanal. Details: Memory `bapi-provider-capabilities`.
   ?node|node_id|nodeId= · ?collection|collection_id|collectionId= · /themenseite/<slug> ·
   /fachportal/<subject>[/<slug>] · /components/search[?q][&filters(publisher)] · generisch ?q=.
   DOM-Marker: meta boerdi:node-id/collection-id/topic-slug, body data-edu-*; page_text≤3000B.
-- **Bundle-Budget:** Single-File, zoneless; CI-Gate ≤ 420 KB raw / ≤ 140 KB gzip
-  (ALT: 455 KB raw mit zone.js — Budget erzwingt die zoneless-Einsparung).
+- **Bundle-Budget:** Single-File, zoneless; CI-Gate ≤ 600 KB raw / ≤ 175 KB gzip.
+  **Angehoben 2026-07-31** von 420/140 auf Nutzer-Weisung („das Größenlimit darf
+  dafür steigen") für Angular Material 3 — gemessene Kosten **+75,8 KB roh /
+  +33 KB gzip** (416,57 → 492,41 KB roh). Die ursprüngliche Begründung („ALT:
+  455 KB roh mit zone.js — Budget erzwingt die zoneless-Einsparung") ist damit
+  erledigt: die zoneless-Einsparung IST realisiert (416,57 KB vor Material,
+  38 KB unter ALT), das Budget deckt jetzt zusätzlich die Komponenten-
+  bibliothek. Der Wert steht an **drei** Stellen, die zusammen wandern müssen:
+  `angular.json` (build-widget), `scripts/check-widget-budget.mjs`, dieser Satz.
+- **Komponentenbibliothek:** Angular Material 3 + CDK (beide MIT), Theme an
+  `:host` des Widget-Roots. Kehrt die frühere Festlegung „nur CSS-Custom-
+  Properties, keine Material-Bibliothek" um (Nutzer-Entscheid 2026-07-31,
+  Details in `docs/plans/2026-07-31-material3-edu-sharing.md`). Ein globales
+  Stylesheet wird weiterhin **nicht** ausgeliefert (`"styles": []`), damit das
+  Widget die Gastseite nicht umstylt.
 
 ### 5.6 Studio-Funktionsumfang (Views NEU = Angular-Routen)
 
@@ -794,6 +807,375 @@ Auch die §4-Skizze nennt den Sidecar noch als „optional per Env"; er ist es n
 
 §9-Schritte als Tasks; Abnahme = Golden-A/B-Report ohne inhaltliche Regression + Redaktions-Fahne.
 
+### P11-Schritt 4a ✅ 2026-08-09 — der Abweichungs-Report, den §9-4 verlangt
+
+Schritt 4 heißt „Golden-Suite gegen ALT und NEU — **Abweichungs-Report pro
+Flow/Turn**". Der Runner schreibt beide Reports seit P0-8; **der Vergleich war nie
+gebaut** — das README nannte ihn nur als Absicht („`--label alt` vs `--label neu`
+Reports diffen"). Im ALT-Baum gibt es auch kein Vorbild: `eval_metrics.py` nennt die
+Scorecard „A/B-vergleichbar", vergleicht aber nichts. Also Neubau, kein Port:
+`evals/compare_golden.py` (264 Z., framework-frei wie der Runner, damit er gegen
+jedes Backend läuft).
+
+**Die eine Entwurfsentscheidung, die den Report brauchbar macht: was NICHT
+verglichen wird.** Ein Golden-Turn trägt neben den Checks auch Wortlaut,
+`content_len` und die Sie/du-Zähler. Die weichen bei jedem Lauf desselben Backends
+ab — ein Vergleich, der sie mitmeldet, schlägt bei *jedem* Turn an und begräbt damit
+die eine Abweichung, auf die es ankommt. Verglichen werden deshalb nur
+Check-Ergebnisse, Klassifikation (persona/intent/pattern) und Struktur
+(cards/idocs/qr). Das Register hat bereits einen eigenen Check; die Beobachtung
+zusätzlich zu melden wäre dieselbe Aussage zweimal.
+
+**Regression ist ausschließlich True→False.** `None` heißt im Runner „für diesen
+Turn nicht geprüft" (Wildcard-Persona, leerer Intent, kartenloser Turn bei `host`) —
+daraus eine Regression zu machen hieße, Beobachtungslücken als Fehler zu zählen.
+`host` bleibt weich wie im Runner. Blockierend sind: harte Regression, Fehl-Turn in
+NEU, oder ein Flow/Turn nur auf einer Seite — **ein abgebrochener NEU-Lauf darf
+nicht als „keine Regression" durchgehen**, sonst belohnt der Report den Abbruch.
+
+Für die in §9-4 ebenfalls geforderte **Stichproben-Redaktion** trägt der JSON-Report
+beide Wortlaute an jedem abweichenden Turn mit — nur dort, sonst wäre er eine Kopie
+der beiden Eingangs-Reports. Die Kategorien-Aufteilung hart/weich wird aus
+`run_golden.py` **per Pfad geladen statt kopiert** (dieselbe Einschränkung, die der
+Runner in seinem Kopf begründet); eine zweite Liste wäre stille Drift.
+
+**Belege:** 17 neue Tests (`backend/tests/test_golden_compare.py`), Backend
+**2541 / 4 skips**, ruff sauber. Nicht nur gegen Attrappen: der echte ALT-Smoke-Report
+gegen sich selbst → „Keine Abweichung", Exit 0; gegen eine gezielt verfälschte Kopie
+(Pattern M06→M15, Persona-Check gekippt, Karten weg, ein Turn auf Fehler) → alle drei
+Befunde einzeln benannt, unveränderter Turn 4 taucht nicht auf, Exit 1.
+**Offen bleibt Nutzer-Domäne:** die beiden echten Läufe (Parallelbetrieb auf
+Zweit-Port), die Redaktions-Fahne, Schritt 5 (Widget-Umschaltung) und 6 (Stilllegung).
+
+### 2026-08-11 ✅ — MCP-Anmeldeknopf, Reranker-Sichtbarkeit, Schreib-Abnahme
+
+Drei Nutzer-Aufträge, je mit eigenem Plan-Dokument; hier nur, was über das
+einzelne Paket hinaus gilt.
+
+* **Anmeldeknopf unten rechts** neben der Eingabezeile, damit er im
+  Einbettungs-Modus bleibt, plus Abmelden — `docs/plans/2026-08-11-mcp-anmeldung-knopf.md`.
+  Nebenbei ein **vorbestehender WCAG-1.4.10-Fehler** bei 320 px behoben: die
+  Zeile lief schon vorher um 9 px über, weil `min-width: auto` das Eingabefeld
+  nicht unter seine ~193 px schrumpfen ließ. Ein `min-width: 0`.
+* **Reranker-Sichtbarkeit:** `/api/health` führt jetzt `reranker` mit
+  `ready` / `model-missing` / `off`. `model-missing` ist der teure Fall —
+  eingeschaltet, Modell fehlt, Antworten werden unauffällig schlechter.
+  `ready` sagt bewusst nicht „geladen": das Modell kommt erst beim ersten Zug
+  in den Speicher. Kein Vertragsbruch, `/api/health` gibt ein untypisiertes
+  `dict` zurück.
+* **Schreib-Abnahme (S0–S4)** — `docs/plans/2026-08-11-schreib-abnahme.md`.
+
+**Der Fund, der über alle drei hinausgeht — und die dritte Wiederholung
+derselben Fehlerklasse.** Der Bestätigungs-Wall vor den kuratierenden
+MCP-Werkzeugen legte seinen Merkposten in `session_state["_pending_write"]`,
+also auf die **oberste Ebene**. Dort überdauert nichts einen Zug:
+`graph/nodes/setup.py:63` baut den Zustand jeden Zug aus fünf Spalten neu, und
+`update_session` schreibt genau diese fünf. Damit war `_pending_at_turn_start`
+im Betrieb **immer `None`** — **keine Bestätigung konnte je eingelöst werden**,
+jedes „ja" erzeugte nur eine neue Vorschau.
+
+Warum 2888 grüne Tests das nicht fanden: die Naht-Tests *speisten* den
+Merkposten direkt in den Tool-Loop ein, auf derselben obersten Ebene, die der
+Code annahm. **Die Attrappe teilte die Annahme des Codes, statt die
+Wirklichkeit abzubilden** — dieselbe Klasse wie bei den P11-Live-Funden
+(LiteLLM lieferte dicts, die Attrappen Objekte) und bei
+`prewarm_vocabularies()`. Gegenmittel hier: gepinnt wird jetzt die
+**Verbindung** zwischen Tool-Loop und DB-Schreibung
+(`test_offener_schreibvorgang_ueberlebt_den_zug`), nicht eine der beiden Seiten
+— denn genau dazwischen lag der Fehler.
+
+Der Merkposten wohnt seitdem in `entities`, wo die übrigen zugüberdauernden
+Merker schon liegen (`_last_pattern`, `_frame`, `_canvas_material_type`) und wo
+der Debug-Auszug `_`-Schlüssel wieder herausstreicht: gespeichert **und**
+unsichtbar. Der Vorschautext dagegen bleibt bewusst auf der obersten Ebene — er
+DARF den Zug nicht überdauern; dass dort nichts gespeichert wird, ist für ihn
+die gewünschte Eigenschaft.
+
+**Zweiter Befund, gleiche Familie wie C1-f1:** die Anweisung „zeige dem Nutzer
+die Vorschau" stand an **zwei** Orten (M18-Kernregel im Seed und `_ZWEISTUFIG`
+an jeder Werkzeug-Beschreibung). Nur einen zu ändern hätte die Doppelung
+verschoben statt beseitigt. Beide tragen jetzt einen Wächter, der den anderen
+namentlich nennt.
+
+Gates am Ende: pytest **2905 / 4 skips**, ruff sauber, OpenAPI unverändert,
+`ng test ui` **701**, `playwright` **46**, Widget-Budget eingehalten
+(523,25 kB raw · 87,2 %). **Nutzer-Domäne:** Seed-Import (sonst wirkt S4 nur
+zur Hälfte), Widget-Auslieferung, Live-Smoke gegen einen angemeldeten
+MCP-Server.
+
+### 2026-08-12 — E4: ein liegen gelassener Schreib-Vorgang verfällt
+
+**Geändert:** `domain/write_confirm.py` (+`TOKEN_TTL_SECONDS`, +`is_expired`,
+`remember_pending`/`token_for` bekommen `now`), `services/tool_loop.py` (Uhr an
+beiden Nahtstellen + eigener Protokoll-Zweig), `tests/test_write_confirm.py`.
+
+Der Merkposten eines offenen Vorgangs überdauert bis zum Sitzungsende. Fragte
+jemand Stunden später zufällig **exakt** dasselbe erneut an, wurde der alte
+Schlüssel eingesetzt, vom Server abgelehnt (er gilt zehn Minuten) und durch
+eine neue Vorschau beantwortet — ein überflüssiger Werkzeugaufruf, keine
+falsche Änderung, **kein Loch**: die Frist gilt serverseitig. Jetzt gilt sie
+auch hier, und zwar als Ersparnis, nicht als Absicherung.
+
+**Kein Erfinden nötig — das Muster stand schon da.** `services/page_context.py`
+legt `"_resolved_at": time.time()` in ein persistiertes Dict und prüft
+`(time.time() - ts) < ttl`. Dieselbe Form, dieselbe Ablage (JSONB in
+`entities`), keine Migration.
+
+**Der Fund beim Bauen:** die bestehende Protokollzeile hätte gelogen. Sie sagt
+„Argumente weichen von der Vorschau ab" — bei einem abgelaufenen Vorgang
+stimmen die Argumente aber überein. Ohne einen eigenen Zweig hätte E4 also
+einen *falschen Grund* aufgezeichnet statt gar keinen. Deshalb zwei
+unterscheidbare Zeilen, und ein Test, der beide gegeneinander pinnt.
+
+**Aufwärtspfad benannt:** ein Merkposten ohne Zeitstempel (aus der Zeit vor E4)
+gilt als abgelaufen — nicht beweisbar frisch heisst nicht absetzen. Das kostet
+genau den einen Aufruf, den E4 sonst spart, und nur für die Sitzung, die beim
+Deploy gerade lief; die nächste Vorschau legt einen vollständigen ab.
+
+**Rot-Probe, alle vier ROT:** Fristprüfung entfernt · Merkposten ohne Zeitpunkt
+gilt als frisch · Grenze `>` statt `>=` · eigener Protokoll-Zweig entfernt.
+
+**Belege:** pytest **3010 passed / 4 skipped** (vorher 3003) · ruff sauber ·
+`export_openapi.py --check` grün.
+
+### 2026-08-11 (2) — Kostenüberwachung K1-0 + K1a, und **die vierte Wiederholung derselben Klasse**
+
+Plan: `docs/plans/2026-08-11-kostenueberwachung.md` (Messung, Entscheidungen,
+K1–K5). Gebaut sind bisher **K1-0** und **K1a**.
+
+**Der Fund kam vor der ersten geplanten Zeile.** K1a sollte nur
+Reasoning-Token lesen. Beim Nachsehen, wer den Token-Merkposten anlegt, stellte
+sich heraus: **niemand.** `TurnContext.usage` stand auf `{}`, und
+`new_accumulator()` hatte im ganzen Backend **keinen Aufrufer** — ALT ruft es
+in `chat_turn_setup.py:175`, der Port hat die Zeile verloren. Weil `add_usage`
+bei falsy `acc` still zurückkehrt, war **jede** der fünf Durchreichungen
+(assess/route/respond/assemble/persist) ein No-Op und `debug.token_usage` in
+**jeder** Bot-Nachricht `{}`. Nicht „zu niedrig" — null. Das Debug-Panel zeigte
+die Token-Zeile nie an, weil ihre Bedingung `token_usage['calls']` ist.
+
+Das ist der **9. Fall „dokumentiert ohne Konsumenten"** und die **4.
+Wiederholung** der Attrappen-Klasse (P11-LiteLLM ×2, `_pending_write`,
+`prewarm_vocabularies`): `obs/usage.py` hatte 7 Tests, jede Durchreichung
+eigene — und **alle bauten den Merkposten von Hand**, also genau die Annahme
+nach, die im Betrieb niemand erfüllte. Gepinnt wird deshalb wieder die
+**Verbindung** (`test_frischer_zug_bringt_den_token_merkposten_mit` +
+`test_buchung_auf_dem_frischen_zug_kommt_an`), nicht eine der Seiten. Ein
+Bestandstest schrieb den Irrtum fest (`assert ctx.usage == {}`) und wurde mit
+Begründung korrigiert.
+
+**Wohnort des Fixes, bewusst abweichend von ALT:** nicht im setup-Knoten,
+sondern als `default_factory` am Feld. ALTs lokale Variable entspricht in NEU
+dem Zug-Zustandsfeld, nicht einem Knoten-Seiteneffekt — so bringt **jeder**
+Zug den Merkposten mit, auch der in einem Node-Test direkt konstruierte. Die
+Optionalität war die Ursache; sie zu beseitigen ist der Fix.
+
+**Was ich mir selbst korrigieren musste:** §2.1 des Kostenplans hieß „Was schon
+trägt — mehr als vermutet". Ich hatte die *Mechanik* gelesen und daraus
+geschlossen, dass sie *läuft*. **Gelesene Mechanik ist kein Beleg für einen
+Ablauf** — dieselbe Lehre wie „eine Zählung ist kein Befund", eine Ebene höher.
+
+**K1a** selbst dann wie geplant: `extract_usage` liest
+`completion_tokens_details.reasoning_tokens` (gegen die **echten** LiteLLM-Typen
+gepinnt, nicht gegen eine Attrappe), der Merkposten führt sie in allen drei
+Töpfen. `cached`/`reasoning` sind **„davon"-Zahlen** — enthalten in
+`prompt`/`completion`, nicht zusätzlich; wer addiert, zahlt doppelt. Der
+Kommentar in `api/schemas_debug.py` und der TS-Typ in `message-types.ts` sagen
+das jetzt ausdrücklich.
+
+Gates: pytest **2909 / 4 skips** (vorher 2905), ruff sauber, OpenAPI
+unverändert, `ng test ui` **701**. Keine Anzeigeänderung — die gehört zu K5.
+
+**Nachtrag desselben Tages — K1b–K1d gebaut** (Lernpfad, Kuration, Canvas,
+Rechtsprüfung buchen jetzt). Vier der fünf Stellen aus der Messung sind
+verdrahtet; offen bleibt K1e (Vokabular-Abgleich, Entscheidung nach Messung).
+
+**Der Befund dabei ist eine Wiederholung, aber mit neuer Lehre:** die
+Messtabelle im Kostenplan zählte **Aufrufstellen** zu niedrig — zwei der fünf
+Funktionen haben je **zwei** Aufrufer (`generate_learning_path_text`:
+LP-Fast-Path *und* Direkt-Aktion; `assess_safety`: assess-Knoten *und*
+preflight). Das ist das **7. Mal**, dass eine eigene Aufzählung eine untere
+Schranke war. Arbeitsregel daraus, enger als bisher: **vor dem Verdrahten auf
+den Funktionsnamen greppen, nicht der eigenen Tabelle glauben.**
+
+**Zweiter Fund, struktureller:** Direkt-Aktionen beenden den Zug im
+preflight-Knoten. `turn_persist` — die einzige Stelle, die `token_usage`
+füllt — läuft dort **nie**. Die Buchung wäre also wieder berechnet und
+weggeworfen worden, derselbe Fehler wie M0 eine Ebene tiefer. Deshalb setzen
+die beiden Direkt-Aktions-Handler `token_usage` in ihr **eigenes**
+`DebugInfo`. Für K2 ist das eine Vorgabe, keine Fußnote: der
+`usage_events`-Schreiber darf nicht allein in `turn_persist` sitzen.
+
+**Dritter Fund, und er kam vom Nachsehen statt vom Abarbeiten:** auch das reine
+**Blättern** (`browse_collection`) ruft den Quick-Reply-Generator — ein echter
+LLM-Aufruf, der in keiner Liste stand. Die Messung zählte Module mit *eigenem*
+Generator und übersah den **geteilten**. `generate_quick_replies` unterstützt
+`usage_acc` ohnehin seit je und bekam in allen drei Direkt-Aktionen einfach
+keines: kein Bau nötig, nur ein Argument. `show_content_text` ist dagegen
+gemessen frei von LLM-Aufrufen und bleibt bewusst ohne Merkposten.
+
+Gates nach K1b–K1d: pytest **2925 / 4 skips**, ruff sauber, OpenAPI
+unverändert.
+
+**Nachtrag 2 desselben Tages — K1e, und die Lehre heißt: nachsehen, wie das
+Haus dieselbe Frage schon beantwortet hat.** Der Plan gab drei Wege vor und
+empfahl „Zug-Kontext durchreichen". Die Messung davor brachte beides — die Zahl
+**und** einen vierten Weg.
+
+*Die Zahl:* der Vokabular-Abgleich schickt das **ganze** Vokabular im Prompt.
+Gegen die echten WLO-Daten gemessen (Produktivpfad gefahren, nur der Netz-Aufruf
+abgefangen): **2727 Token** für `lrt`, 2422 für `discipline`; vier Filter an
+einem Werkzeug-Aufruf bis ~6150. Und der Pfad ist nicht selten: von 61
+realistischen Filterwerten fallen **21,3 %** durch die Fuzzy-Heuristik zum LLM
+durch — darunter `Gymnasium`, `Oberstufe` und, am deutlichsten, **`teacher` und
+`learner`**, weil die englischen Wörter in der Zielgruppe nicht als Alias
+stehen. Seit C1 sind englische Züge zugesagt, dieser Weg zieht also **häufiger**
+statt seltener. „Nicht buchen" war damit widerlegt, nicht abgewogen.
+
+*Der vierte Weg:* der empfohlene Weg 1 kostet nicht „drei Schichten", sondern
+den Vertrag der `TOOL_PREPROCESSORS`-Registry plus **25 `call_mcp_tool`-Stellen
+in 11 Dateien**, die mit Kosten nichts zu tun haben. Den Ausschlag gab dann
+nicht mein Abwägen, sondern ein Fund: **dieselbe Frage ist in genau diesem Pfad
+schon entschieden und begründet** — `mcp/auth.py` trägt den Zugangsblock per
+`ContextVar`, „weil es 23 Aufrufstellen von `call_mcp_tool` in 9 Dateien gibt;
+der Block interessiert unterwegs niemanden", und nennt `_query_metas` und
+`_request_hints` als dieselbe Lösung. Drei Vorgänger, gleiche Lage, gleiche
+Antwort. **Arbeitsregel daraus: bevor man eine Quer-durch-Frage neu abwägt,
+nachsehen, ob das Haus sie schon beantwortet hat** — die Begründung steht dann
+meist geschrieben da, und Abweichen wäre die Ausnahme, die man rechtfertigen
+muss. Ein ContextVar ist dabei kein Modul-Zustand im Sinn der eisernen Regel:
+der Wert hängt an der asyncio-Task, ist je Zug getrennt und bei N Repliken
+richtig — anders als die verworfene Prozess-Summe (Weg 2).
+
+Gebaut: `bind_turn_usage`/`current_turn_usage` in `obs/usage.py` (Standard
+`None`, **nicht** `{}` — ein leeres Dict wäre M0 von vorn), gebunden im
+setup-Knoten neben `reset_query_metas()` (`START → setup`, also erbt jeder
+spätere Knoten und jede Task die Bindung), gelesen an der Aufrufstelle als
+sichtbares `usage_acc` — so braucht der kommende K1f-Wächter dort **keine**
+Ausnahme. Der Test über die Naht fährt setup und Blatt in EINER Task-Kette und
+stand vor dem Fix auf `calls == 0`; zwei getrennt grüne Tests wären genau die
+Konstellation gewesen, die M0 durchgelassen hat. Nebenfalle notiert:
+`asyncio.run` kopiert den Kontext, eine Bindung **im** Lauf ist draußen
+unsichtbar — die Prüfung muss innerhalb stehen.
+
+**Nachtrag 3 — K1f, und der Wächter fängt beim ersten Lauf einen echten
+Fehler.** Der AST-Wächter (`tests/test_usage_coverage.py`) zählt alle
+`chat_completion`-Aufrufstellen unter `src/boerdi/` auf: 12 gefunden, 6 ohne
+`usage_acc`. Fünf davon sind begründete Ausnahmen (vier Eval-Pfade, außerhalb
+des Umfangs; `_run_tool_loop`, das selbst bucht, weil das Phasen-Etikett erst
+aus `finish_reason` folgt). Die sechste war ein **echtes Loch**:
+`_max_iterations_fallback` — der Abschluss-Aufruf, wenn der Tool-Loop die
+Iterationsgrenze reißt, hängt die GANZE Nachrichtenkette an und lief ungebucht.
+**Fünfte Wiederholung derselben Klasse — und die erste, die nicht ich gefunden
+habe, sondern die Maschine.** Warum jede frühere Zählung sie übersah: sie suchte
+Module mit *eigenem* Generator, und `tool_loop` galt als „bucht schon" — es
+bucht auch, nur an einer anderen Stelle derselben Datei. Gebucht wird jetzt
+unter eigener Phase `fallback_summary`, deren Auftauchen zugleich meldet, dass
+der Zug die Grenze gerissen hat. Der Wächter prüft **beide** Richtungen (eine
+tote Ausnahme lässt ihn fallen), sein Aufzähler ist gegen erfundene Quelltexte
+selbst geprüft, und eine Untergrenze schützt vor dem stillen Totalausfall bei
+kaputtem Pfad.
+
+**Nachtrag 4 — K2a/K2b: Tabelle und Schreibpfad.** `usage_events` + Migration
+0002, **beide Richtungen gegen die laufende Compose-PG gefahren** (up → down →
+up, je mit Sichtprüfung der Tabelle). Die DSGVO-Zusage des Plans ist als Test
+belegt, nicht behauptet: mit der Sitzung verschwinden ihre Verbrauchszeilen.
+
+**Die Entscheidung, die von der Vorlage abweicht — Trichter statt
+Aufzählung.** Der Plan wollte den Schreibvorgang in `turn_persist` plus eine
+zweite Stelle für Direkt-Aktionen. Die geforderte Aufzählung wurde gemacht und
+ergab: nur zwei Ausstiege kosten überhaupt Token (Hauptweg und preflight);
+Tour und Kontext-Begrüßung rufen kein LLM. Trotzdem ist Aufzählen hier der
+falsche Ansatz — die Fehlerklasse, an der dieser Plan fünfmal hing, heißt „ein
+neuer Weg entsteht und fällt still heraus", und dagegen hilft nur ein Punkt,
+den **jeder** Zug passiert. Das ist die Stelle hinter `ainvoke`; der Merkposten
+liegt dort seit K1-0 als `state["usage"]` bereit. Zwei sichtbare Aufrufstellen
+(POST und Stream) statt einer Liste, die veralten kann. **Regel: gegen „still
+herausfallen" hilft ein Trichter, kein sorgfältiges Aufzählen.**
+
+Gates nach K1e: pytest **2932 / 4 skips** · nach K1f **2940** · nach K2a/K2b
+**2952 / 4 skips**, ruff sauber, OpenAPI unverändert.
+**Alle fünf Stellen der Messung buchen jetzt**; von K1 fehlt nur der Wächter
+K1f. Nebenbefund für die Redaktion, nicht für den Code: fehlende Vokabular-
+Aliase (`teacher`, `learner`, `Gymnasium`, `Oberstufe`) kosten heute je einen
+LLM-Aufruf, wo eine Alias-Zeile genügt hätte.
+
+### W7 + W7b ✅ 2026-07-31 — Such-Prefetch entgiftet, MCP-Server gewechselt
+
+**W7 (Nutzer-Entscheid).** Live gemessen: `search_wlo_topic_pages` lieferte bei
+**jeder** Suche dieselben drei Treffer — „OERinfo", „Vorlage: Themenseite",
+„Vorlage: Themenseite_Kopie" — und die standen als Karte 1–3 vor dem echten
+Material. Ursache steht als Kommentar im eigenen Code (`prefetch.py`, `_primary_max`):
+der Themenseiten-Index hängt serverseitig am letzten Collections-Call, nicht an
+der Frage. Fix = **eine Zeile**: die Heuristik `_topic_first` nimmt jetzt
+`search_wlo_all`; der ausdrückliche Nutzerwunsch bleibt beim dedizierten Tool
+(Bestandstest `test_spec_explicit_topic_page_wish_beats_search_all_hint` blieb grün).
+Nachher an denselben zwei Fragen: **kein Vorlagen-Treffer mehr**, Karte 1 ist
+echtes Material, und der Zug ist schlanker (ein Round-Trip statt Primary + zwei
+Extras). Zwei Tests umgeschrieben — ihre Prämisse hat der Entscheid geändert,
+Begründung steht im Docstring.
+
+**W7b (Nutzer-Vorgabe: neuer MCP-Host).** `MCP_SERVER_URL` →
+`https://wlo-mcp.87.106.195.152.nip.io/mcp`. Tool-Liste **per `tools/list` vom
+Server geholt**, nicht abgetippt: **23 Werkzeuge**, echte Obermenge der alten 12,
+nichts weggefallen. Registry (`05-knowledge/mcp-servers.yaml`) darauf nachgezogen.
+**Der eigentliche Fund:** `TOOL_DEFINITIONS` bot dem Modell 13 Werkzeuge an, die
+Registry kannte 10, und der alte Server hatte `get_wlo_content_text` **gar nicht**
+— M17 („Inhalt anzeigen") rief seit dem Bau ins Leere, ohne dass irgendwo etwas
+auffiel. Zwei neue Wächter halten beide Lücken fest: die Registry muss jedes
+angebotene Werkzeug kennen (sonst stiller Fallback auf die Default-URL), und die
+**zwei** MCP-Default-URLs (`settings.mcp_server_url` + `transport._DEFAULT_MCP_URL`,
+letzterer greift bei leerer Env — die Compose-Falle) müssen gleichziehen. Der
+Zwilling stand tatsächlich noch auf dem alten Host; ohne den Wächter wäre genau
+der Notfallpfad still auf dem toten Server gelandet. **Pattern brauchten nichts:**
+alle 11 dort genannten Tools sind in TOOL_DEFINITIONS, der W5-4a-Wächter blieb grün.
+Live belegt gegen den neuen Server: Suche 6 saubere Photosynthese-Karten;
+**M17 liefert echten Volltext** (960 Zeichen „Dunkelreaktion" als Inline-Dokument),
+und ein Material ohne Text bekommt die ehrliche Absage statt eines Fehlers.
+Belege: ruff sauber, Backend **2240** (2 neue Wächter), Seed-Import 56 Flächen,
+Registry in der DB 23 Werkzeuge.
+
+### P11-Schritt 2 ✅ 2026-07-31 — RAG-Re-Ingest gefahren, und §9-Schritt 1 hat eine **Richtungsumkehr** gebraucht
+
+Auftrag war „hol alles vom alten Chatbot rüber". Wörtlich ausgeführt wäre das ein
+**Rückschritt** gewesen — das ist der eigentliche Befund dieses Pakets.
+
+**Der ALT-Baum ist keine Obermenge des NEU-Seeds.** Datei-für-Datei-Vergleich der
+55 gemeinsamen Dateien: **zwei weichen ab, beide zugunsten von NEU.** `m16-themenseiten-inhalt`
+trägt in NEU den Ein-Call-Pfad des neuen MCP-Servers (W5-1); ALT ruft noch
+`search_wlo_topic_pages` → `get_topic_page_content` in zwei Schritten. `m11-iterative-nachbearbeitung`
+kennt in NEU M17 als Quelle für Vor-Inhalte. Dazu kommt `m17-volltext-anzeigen`, das
+es in ALT gar nicht gibt. Ein `import-config --from ../badboerdi/...` hätte also drei
+Arbeitspakete (W5-1, W5-4a, M17) stillschweigend zurückgedreht. **Regel daraus: der
+NEU-Seed IST die migrierte ALT-Config plus bewusste Korrekturen — ab jetzt ist
+`seeds/` die Import-Quelle, nicht der ALT-Baum.**
+
+**Zweiter Befund: die Default-Datenbank war der veraltete Stand.** `DATABASE_URL`
+zeigt auf `boerdi` — dort lagen 55 Flächen mit ALT-M16 und ohne M17 (Import vom
+11.07.), während der korrekte Stand in `boerdi_p11` (Probelauf) lag, also in der
+Datenbank, die beim normalen Start NICHT benutzt wird. `boerdi` ist jetzt aus
+`seeds/` nachgezogen: **56 Flächen, M16 auf Ein-Call, M17 vorhanden** (per SQL
+verifiziert, nicht angenommen). Vorher geprüft, dass dort niemand von Hand editiert
+hatte (alle 55 Zeilen `updated_by='import'`) — sonst wäre der Import ein Datenverlust.
+
+**Re-Ingest (§9-Schritt 2) gefahren:** `boerdi import-rag --sqlite <Kopie>` →
+**906 Chunks in 80 Dokumenten**, exakt die vorab aus der Quelle gemessenen Zahlen,
+**0 Chunks ohne Vektor**, 8 Wissensbereiche. Quelle war eine **Kopie** der ALT-DB
+(die CLI verlangt das im Hilfetext); das Original trägt unverändert den Zeitstempel
+vom 11.07. Vorab geprüft, was sonst erst nach 906 Aufrufen aufgefallen wäre: die
+Einbettung liefert 1536 Dimensionen, die Spalte ist `vector(1536)` — bei Abweichung
+hätte die Ein-Transaktions-Semantik den ganzen Lauf zurückgerollt.
+
+**Abnahme inhaltlich, nicht per Zeilenzähler:** drei echte semantische Abfragen über
+`query_rag`. „Was ist WirLernenOnline?" → 0,722 auf den FAQ-Eintrag mit genau dieser
+Überschrift; „Welche offenen Lizenzen gibt es für OER?" → 0,741 auf die BMBF-OER-Strategie;
+„Wie funktioniert die Redaktionsumgebung?" → 0,697 auf `002-redaktionen.md`.
+
+**Kostenkorrektur:** vorher als Nutzer-Domäne eingestuft, weil „bulk embedding".
+Gemessen: 715 k Zeichen ≈ 179 k Token ≈ **0,4 Cent**. Kein Grund zur Abgabe.
+**Kein Code geändert** — reine Datenmigration. Offen bleibt `boerdi_p11` ohne RAG
+(Probelauf-DB, bewusst nicht angefasst) sowie §9-Schritte 4–6 (Parallelbetrieb,
+Widget-Umschaltung, ALT-Stilllegung).
+
 ### P11-Probelauf 2026-07-27 — §9-Schritt 1 belegt, und **zwei echte Defekte gefunden**
 
 Ziel war „bringt den Chatbot zum Laufen" (Nutzer-Vorgabe). Vorgehen: eigene DB
@@ -993,6 +1375,542 @@ Anpassung an die weiterentwickelten Tools ist als eigenes Paket vorgemerkt
 `topic_pages.py` bringt jetzt nur noch ~1 s statt 16 s. Er bleibt trotzdem
 richtig (`discipline` existiert bei dem Tool nicht), ist aber keine
 Performance-Frage mehr, sondern eine Korrektheits-/Relevanz-Frage.
+
+### W2 ✅ 2026-07-30 — MCP-Client-Anpassung nach dem Server-Fix
+
+Drei Stücke, alle test-first, alle gegen den laufenden Server nachgemessen.
+
+**W2-1 — `parse_total_count` las eine Zahl, die nie da war.** Die Funktion ist
+eine Regex-Kette über *Prosa*. Ihr einziger Aufrufer
+(`direct_actions._handle_browse_collection`, Z. 115) fragt
+`get_collection_contents` — ein Tool aus `_JSON_CAPABLE_TOOLS`, das also **immer**
+den JSON-Envelope liefert. Gegen `{"total": 42, …}` matcht keine der drei Regexen
+(zwischen Schlüssel und Doppelpunkt steht ein `"`). Belegt:
+
+```
+parse_total_count('{"total": 42, "count": 5, "results": […]}')  ->  0
+```
+
+Schlimmer als „liefert 0": auf einem Envelope, dessen Karten-Beschreibungen
+Ziffern enthalten, griff die zweite Stufe und lieferte **die falsche Zahl**
+(Test: `description: "Gesamt: 999 Übungen"` → 999 statt 7). Sichtbar wurde das im
+Pager-Text `„**Titel** — Ergebnisse 1–5 von N"`: N fiel auf `skip_count +
+len(cards)` zurück. Live gegen die Sammlung „Mathematik": Server meldet **15**
+Inhalte, ausgeliefert werden 6 → ALT zeigte „von 6", jetzt „von 15".
+
+Fix: JSON zuerst (`total`), Regex bleibt Fallback für Markdown-Server. Ein
+JSON-Objekt **ohne** `total` liefert 0 statt durchzufallen — der Envelope ist
+maßgeblich, Ziffern darin sind Kartentext, nie der Zähler.
+
+**W2-2 — `discipline` raus, `educationalContext` durch.** Der Global-Fallback in
+`_topic_pages_with_warmup` reichte `discipline` weiter (kennt das Tool-Schema
+nicht → stumm verworfen) und warf `educationalContext` weg (der einzige Filter,
+den das Tool dort auswertet). `maxResults` bleibt bewusst bei **20**: der
+Fallback existiert, um eine Themenseite zu finden, die der Server-Matcher
+übersehen hat, und der anschließende Titel-Filter lebt von der Fensterbreite. Der
+Wert ist als Test gepinnt, damit die Entscheidung nicht später versehentlich
+kippt.
+
+**W2-3 — der M16-Resolver probiert nicht mehr blind drei Kandidaten.** Der Server
+begründet den Leerfall seit dem Fix selbst; `parse_topic_page_swimlanes` reicht
+das Feld jetzt als `reason` durch. Live gemessen (2026-07-30): **12 von 12**
+Sammlungen ohne `topic_page_url` antworten `no_page_config_ref`, je ~1,0–1,5 s.
+Deshalb: markierte Kandidaten zuerst, und trägt **keiner** den Marker, bleibt der
+bestplatzierte als Rückfall-Netz — so verlieren wir keine Themenseite, wenn der
+Server den Marker mal nicht mitliefert (kommt vor, s. u.).
+
+A/B gegen das ALT-Verhalten auf **identischen** Kandidatenlisten, 9 Läufe:
+
+| | ALT | NEU |
+|---|---|---|
+| Läufe mit Treffer | 3 | 3 |
+| Probe-Calls gesamt | 21 | **9** |
+| Ergebnis-Abweichungen | — | **0** |
+
+Der Fallback-Text richtet sich nach den gemeldeten Gründen: melden *alle*
+`no_page_config_ref`/`node_not_found`, sagt er „Zu »X« habe ich keine Themenseite
+gefunden" statt ALTs „sie ist eventuell noch leer" — Letzteres behauptet, die
+Themenseite existiere, und spekuliert über ihren Zustand. `no_variant`/
+`empty_config` (Themenseite da, aber leer) und unbekannte Gründe behalten den
+vorsichtigen ALT-Wortlaut; `no_match` bleibt bewusst draußen, weil seine
+Bedeutung nicht dokumentiert ist.
+
+**Nebenbefund aus der Live-Abnahme — eigener Punkt, nicht in W2 gebaut:** die
+M16-Kandidatenquelle ist unzuverlässig. Dieselbe Abfrage
+`search_wlo_collections(query, maxResults=8)` liefert von Lauf zu Lauf andere
+Ergebnisse; die gesuchte Themenseite war in **6 von 9** Läufen gar nicht dabei
+oder kam ohne `topic_page_url`. Die dedizierte `search_wlo_topic_pages` fand sie
+im selben Zeitraum **6 von 6** Mal. Das erklärt Beobachtungen wie „Themenseite
+Chemie existiert (7 Schwimmlinien), Resolver findet sie trotzdem nicht". Betrifft
+ALT genauso (0 Abweichungen oben) — also kein Regress, aber der lohnendste
+nächste Griff am Themenseiten-Pfad.
+
+Verifikation: Backend **2179 pytest** (+12), 2 skipped (beide umgebungsbedingt:
+ALT-Backend/Jaeger nicht gestartet), ruff sauber, `export_openapi.py --check`
+unverändert.
+
+### W3 ✅ 2026-07-30 — M16 fragt die Themenseiten-Suche, nicht die Sammlungs-Suche
+
+Der Nebenbefund aus der W2-Abnahme, jetzt gebaut. `_resolve_m16_topic_page_view`
+holte seine Kandidaten aus `search_wlo_collections(query, maxResults=8)`. Drei
+Quellen gegeneinander gemessen, **7 Themen, je eigener Prozess** (kein geteilter
+Tool-Cache — im ersten Anlauf lief C nach B im selben Prozess und war scheinbar
+3× schneller; das waren Cache-Treffer, nicht Leistung):
+
+| Quelle | Treffer | Median |
+|---|---|---|
+| A `search_wlo_collections` (ALT) | 3/7 | 2,78 s |
+| B `search_wlo_topic_pages` | **7/7** | 3,76 s |
+| C B + `_topic_pages_with_warmup` | 7/7 | 5,26 s |
+
+**A ist nicht nur unzuverlässig, sondern kann falsch antworten:** bei „Chemie"
+lieferte sie „Lebensmittelchemie" (6 Schwimmlinien) — der Nutzer bekäme die
+falsche Themenseite als Antwort auf seine Frage. Also 2 von 7 korrekt, nicht 3.
+
+**Gewählt: B, ohne den Warmup-Helfer.** Beide in dessen Docstring beschriebenen
+Server-Haken sind auf dem gefixten Server nicht mehr beobachtbar: der enge
+Query-Matcher am dort namentlich genannten Fall „Mathematik" greift nicht mehr,
+und die Warmup-Bedingung (leerer Themenseiten-Index ohne vorherige
+Sammlungs-Suche) ist genau die Lage im frischen Prozess — dort trifft B 7/7. C
+kostete 1,5 s Median ohne Gegenwert. `_topic_pages_with_warmup` bleibt
+unangetastet, der Prefetch-Pfad nutzt ihn weiter.
+
+**Der W2-3-Marker-Filter ist entfallen** — samt seiner zwei Tests. Nicht um die
+Suite grün zu halten: `parse_wlo_topic_page_cards` setzt `topic_page_url` immer
+(sonst die Render-URL), live gegengeprüft mit **0 von 7** Karten ohne Marker. Die
+Bedingung war unerreichbar geworden, und ihr Kommentar („Sammlungen ohne
+Marker …, 12/12 gemessen") beschrieb eine Quelle, die diesen Code nicht mehr
+speist. Die `reason`-Auswertung und der Drei-Versuche-Deckel bleiben.
+
+**Live-Abnahme mit dem echten Resolver** (frischer Prozess, 7 Themen):
+**7/7 Treffer**, je genau zwei MCP-Calls (`search_wlo_topic_pages` +
+`get_topic_page_content`), Median 4,03 s. Der Seitenkontext-Kurzschluss bleibt
+unangetastet: ein einziger `get_topic_page_content`, keine Suche.
+
+**Eine Zahl, die stutzig machte und geklärt ist:** der Resolver meldet 1–2
+Schwimmlinien, die Quell-Probe 7–8. Kein Verlust bei uns — der Server liefert für
+„Chemie" sieben Abschnitte, von denen **fünf serverseitig leer sind** (`items: []`);
+die beiden befüllten (3 und 1 Eintrag) werden vollständig zu Karten. Beobachtung
+für den MCP-Entwickler, kein Client-Fehler.
+
+Verifikation: Backend **2178 pytest** (+1 neu, −2 entfallen), 2 skipped
+(umgebungsbedingt), ruff sauber, `export_openapi.py --check` unverändert.
+
+### W4-1 ✅ 2026-07-30 — der Abgleich Client↔Server, und zwei Sachfehler daraus
+
+Bisher war „unsere Tool-Liste ist veraltet" eine Vermutung. Jetzt liegt der
+Abgleich vor (`tools/list` gegen `TOOL_DEFINITIONS`, Namen + Parameter +
+Pflichtfelder + Beschreibungen):
+
+| Befund | Wert |
+|---|---|
+| Tools auf dem Server | **23** (nicht 22, wie hier zuvor notiert) |
+| davon in unserer LLM-Liste | 12 |
+| Tools, die wir deklarieren und die es nicht gibt | **0** |
+| Pflichtfelder, die wir übersehen | **0** |
+| gemeinsame Tools mit abweichender Beschreibung | **12 von 12** |
+
+**Zwei Sachfehler gefixt** — beide in dem, was das Modell über die Tools erfährt:
+
+1. **`search_wlo_collections` bot `userRole` an, das Server-Schema kennt ihn dort
+   nicht** (bei `search_wlo_content` schon — dort bleibt er). Dieselbe Klasse wie
+   `discipline` in W2-2. Der Nachweis brauchte eine Kontrollmessung: mit und ohne
+   Parameter kamen *unterschiedliche* Antworten, was zunächst nach Wirkung aussah
+   — derselbe Aufruf **ohne** den Parameter liefert aber dreimal verschiedene
+   Längen (5257/5138/4994), und die „mit"-Längen stammen aus derselben Menge. Es
+   war die schon in W3 gemessene Instabilität dieser Suche, nicht der Parameter.
+2. **Die Beschreibung setzte „Sammlungen (= Themenseiten)" gleich.** W3 hat das
+   Gegenteil gemessen: nur ein kleiner Teil der Sammlungen trägt eine
+   Seitenkonfiguration, und dafür gibt es ein eigenes Tool. Die Gleichsetzung
+   schickte das Modell mit der Themenseiten-Frage in die Sammlungs-Suche — genau
+   der Pfad, der 3/7 traf statt 7/7. Neue Beschreibung nennt die Abgrenzung und
+   verweist auf `search_wlo_topic_pages`.
+
+Das Validierungsmodell `SearchWloArgs` bleibt unangetastet (es ist mit
+`search_wlo_content` geteilt, dort ist `userRole` echt), und in
+`_resolve_filter_uris` war nichts zu tun: die Auflösung ist schlüssel-, nicht
+toolgetrieben — kommt der Schlüssel nicht mehr an, überspringt die Schleife ihn.
+
+Verifikation: Backend **2181 pytest** (+3), ruff sauber, `export_openapi.py
+--check` unverändert.
+
+**Bewusst NICHT gebaut, weil es Entscheidungen braucht (bleibt als W4-Rest):**
+
+* **Die 11 ungenutzten Server-Tools** — welche der Bot bekommen soll, ist eine
+  Produktentscheidung, und jedes braucht Argument-Validierung, ggf. einen Parser
+  und Prompt-Führung. Auffällig darunter: `get_related_content` („mehr wie
+  dieses"), `search_wlo_within_collection` (passt zur Sammlungs-Aktion),
+  `get_wlo_content_text`/`get_compendium_text` (Volltexte, berühren RAG) — und
+  `get_wikipedia_summary`, das sich mit unserem eigenen
+  `services/wikipedia_service.py` überschneidet.
+* **Die 12 gedrifteten Beschreibungen** — sie 1:1 zu übernehmen wäre ein
+  Rückschritt: unsere tragen boerdi-eigene Führung („Mappe Klassenangaben IMMER
+  auf eine Bildungsstufe", „PFLICHT wenn der Nutzer einen Inhaltstyp nennt"), die
+  der Server nicht kennt. Das ist ein Zusammenführen je Tool, kein Kopieren.
+* **Ein Drift-Wächter**, der diesen Abgleich automatisch fährt (Vorbild
+  `export_openapi.py --check`), bräuchte Netz in der CI — eigene Entscheidung.
+
+### W5-1 ✅ 2026-07-30 — M16 auf den Ein-Call-Pfad des neuen MCP
+
+Der Nutzer hat den Quellbaum des neuen Servers bereitgestellt
+(`../wlo-mcp-server-sc`, **nur Referenz, nie ändern**). Zwei Dinge daraus, die
+sofort greifen — beide am Schema und live geprüft, nicht aus der Doku geglaubt:
+
+**`get_topic_page_content` nimmt jetzt `query`.** Das Tool-Schema sagt es
+wörtlich: „Resolves the best matching Themenseite internally and renders its
+swimlanes in ONE call — no prior search_wlo_topic_pages needed." Damit entfallen
+die vorgeschaltete Suche aus W3 **und** die Kandidaten-Rangfolge samt
+Drei-Versuche-Schleife: wir hatten nachgebaut, was der Server inzwischen selbst
+tut. Live: **7/7 Treffer, ein MCP-Call je Zug, Median 3,23 s statt 4,03 s.** Der
+Seitenkontext-Kurzschluss bleibt und geht weiter als `collectionId` rein — eine
+bekannte ID ist genauer als jede Themen-Auflösung.
+
+**Der Titel stand im falschen Feld.** Der Server liefert `collectionTitle`
+(lesbar) *und* `variantTitle` (technisch); unser Parser las `variantTitle`, das
+bei **jeder** Fachportal-Themenseite „Fachportalstartseite" lautet — live bei
+Mathematik, Chemie und Nachhaltigkeit gleichlautend bestätigt. Bisher verdeckte
+das der Kandidaten-Titel aus der Vorsuche; auf dem Ein-Call-Pfad hätte in der
+Antwort „Themenseite »Fachportalstartseite«" gestanden. Beide Änderungen mussten
+deshalb zusammen kommen.
+
+Vier Tests, die den entfallenen Such-Pfad pinnten, wurden **umgehängt statt
+gelöscht** — ihre Absicht (kein Seitenkontext-Kurzschluss ⇒ Thema als `query`;
+keine unzuverlässige Quelle) ist erhalten, der W3-Wächter jetzt als „gar keine
+Suche". `topic_pages.py` schrumpft 365 → **333 Zeilen**.
+
+Verifikation: Backend **2185 pytest**, ruff sauber, `export_openapi.py --check`
+unverändert.
+
+**W5-Rest — was der neue Server sonst noch bringt (Messung liegt vor, Bau
+offen).** Der Server hat **23 Tools und 4 Widgets**; wir nutzen 12 Tools. Die
+Widgets sind für uns **nicht** relevant: sie brauchen die ChatGPT-Erweiterung
+`window.openai.sendFollowUpMessage`, auf anderen Hosts erscheinen die Buttons
+laut Server-Doku bewusst gar nicht — unser Widget rendert ohnehin selbst. Was
+inhaltlich lohnt und je eine eigene Entscheidung ist: `get_wlo_content_text`
+(Volltext eines Materials — berührt RAG und die Inline-Dokumente),
+`get_related_content` („was passt noch dazu"), `search_wlo_within_collection`
+(passt zur Sammlungs-Aktion), `get_collection_stats`/`get_node_breadcrumb`
+(Einordnung). Dazu unverändert der W4-Rest (Beschreibungen zusammenführen,
+Drift-Wächter). **Der Server-Baum enthält außerdem `docs/systemprompt_boerdi
+v2.md`** — ein für uns geschriebener Systemprompt-Vorschlag; ob und wie er in
+unsere Pattern-/Prompt-Config einfließt, ist eine redaktionelle Entscheidung,
+keine technische.
+
+### W8 ✅ 2026-08-01 — Wikipedia-Eigenabruf gegen das MCP-Werkzeug getauscht
+
+**Auftrag (Nutzer):** den internen Wikipedia-Abruf entfernen und das
+gleichwertige MCP-Werkzeug nutzen — Begründung: externe Dienste soll pflegen,
+wer sie ohnehin unterhält.
+
+**Gebaut.** `services/wikipedia_service.py` sprach über zwei MediaWiki-REST-
+Endpunkte (Titelsuche → Summary) mit eigenem User-Agent, eigenem Timeout und
+eigener Weiterleitungs-Behandlung. Diese Hälfte ist ersetzt durch einen Aufruf
+von `get_wikipedia_summary`; `outputFormat="json"` setzt zentral
+`_JSON_CAPABLE_TOOLS` (wie bei `get_wlo_content_text`), gelesen wird der
+Envelope von `parse_wikipedia_summary` in `mcp/parsers.py`. Netto ~55 Zeilen
+Fremd-API-Anbindung weg.
+
+**Der Relevanz-Filter bleibt — die Messung hat meine eigene Empfehlung
+gekippt.** Ich hatte dem Nutzer geschrieben, der Filter könne auf einen kurzen
+Rest schrumpfen. Live gegen den Server (2026-08-01) beantwortet das Werkzeug
+aber `Stadt Berlin` mit **Bern** und `Dreiecke` mit **Dreiecker** (einem Berg).
+Der Server löst Weiterleitungen sauber auf (`Bruchrechnen` → *Bruchrechnung*),
+prüft aber keine Themen-Zugehörigkeit. Ohne `_is_relevant` landete die falsche
+Sache samt CC-BY-SA-Quellenangabe im Unterrichtsmaterial. Die Heuristik ist
+deshalb unverändert die ALT-Fassung geblieben.
+
+**Zwei Zahlen richtiggestellt**, die ich vorher zu günstig genannt hatte:
+
+| | alt (eigener Abruf) | neu (über MCP) |
+|---|---|---|
+| Lead-Absatz „Photosynthese" | 354 Zeichen | **354 Zeichen** (identisch) |
+| Ende-zu-Ende-Dauer | ~570 ms | **~850 ms** |
+
+Die früher genannten 0,16 s waren ein roher `curl`, verglichen mit unserem
+*ganzen* Dienst — kein fairer Vergleich. Der SDK-Handschlag pro Aufruf kostet
+~280 ms. Im Material-Pfad, der ohnehin Sekunden LLM-Zeit braucht, vertretbar;
+ein Geschwindigkeitsgewinn ist es aber nicht.
+
+**Weggefallen:** das Feld `description` (Wikidata-Untertitel) — der MCP führt es
+nicht, und `canvas_service` las es nie. Ebenso der Parameter `timeout_s`, der
+ohne eigenen HTTP-Client nichts mehr steuerte.
+
+**Belege:** Backend 2243 grün · ruff sauber (die E501-Ausnahme für
+`wikipedia_service.py` ist entfallen, die Begründung „byte-genaue ALT-Kopie"
+trägt für die neu geschriebene Hälfte nicht mehr) · Live-Smoke: Photosynthese
+trifft, `Stadt Berlin` und `Bruchrechnen` werden verworfen.
+
+**Bekannte Grenze (unverändert, nicht gefixt):** der Filter ist an den Rändern
+zu streng — `Bruchrechnen` → *Bruchrechnung* verwirft er, obwohl der Artikel
+passt. Ursache ist Regel 3 (Prefix-Vergleich); dieselbe Regel 1 lässt umgekehrt
+`Dreiecke` → *Dreiecker* durch, weil direkte Enthaltenheit vor der Suffix-
+Prüfung greift (die Testdatei charakterisiert das seit dem Port). Beides zu
+verbessern ist ein eigener Schritt mit eigener Absicherung.
+
+**Folge-Entscheidung für den W4-Rest:** `get_wikipedia_summary` ist damit
+belegt — deterministisch aus `canvas_service`. Bietet man es *zusätzlich* dem
+Antwort-LLM an, gibt es zwei Wege zur selben Auskunft; das braucht dann eine
+ausdrückliche Regel, welcher gewinnt.
+
+### W9a ✅ 2026-08-01 — vier Einordnungs-Werkzeuge, und ein struktureller Fund
+
+**Gebaut:** `get_collection_stats`, `get_node_breadcrumb`, `get_compendium_text`,
+`lookup_wlo_publishers` — Schemata per `tools/list` VOM SERVER geholt, je ein
+Pydantic-Argumentmodell, Beschreibungen = Server-Text plus boerdi-Führung
+(wann NICHT, und welches Werkzeug stattdessen — das weiß der Server nicht).
+
+**Bewusst nicht auf JSON gestellt.** `_JSON_CAPABLE_TOOLS` lohnt nur, wo wir
+selbst parsen; diese vier liest das Modell direkt, und Markdown ist dafür
+kürzer und lesbarer.
+
+**Der eigentliche Fund: eine Ergänzung in `TOOL_DEFINITIONS` allein ist IMMER
+wirkungslos.** Gemessen 2026-08-01: alle acht MCP-nutzenden Muster führen eine
+eigene `tools:`-Liste, **kein einziges** nutzt `sources: [mcp]` ohne sie. Der
+Zweig in `_select_active_tools`, der den ganzen Katalog anbietet
+(`response_tool_selection.py:86`), wird also nie betreten. Dieselbe Falle hatte
+2026-07-31 schon `get_wlo_content_text` erwischt (M17 rief ins Leere). Ohne
+Verdrahtung wären die vier der **achte** Fall der Klasse „gebaut, ohne
+Verbraucher" gewesen.
+
+Verdrahtet: M08 (+stats, +breadcrumb, +compendium — Einordnung vor dem
+Durchwühlen), M05 (+publishers: der `publisher`-Filterwert muss geholt statt
+geraten werden, ein erfundener Anbieter liefert **still** null Treffer), M12
+(+publishers als vierter Rettungsweg bei null Treffern). M16 blieb unangetastet
+— sein Wächter verlangt genau ein Werkzeug.
+
+**Der Einzelfall-Wächter ist jetzt ein Klassen-Wächter**
+(`test_jedes_angebotene_werkzeug_ist_aus_einem_pattern_erreichbar`): jeder Name
+aus `TOOL_DEFINITIONS` muss aus mindestens einem Muster erreichbar sein, sonst
+steht er mit Begründung in `_NICHT_UEBER_PATTERN`. Damit ist „unerreichbar"
+eine Entscheidung statt eines Versehens.
+
+**Zweiter Fund — `Field(le=…)` deckelt nicht.** Überschreitet ein Wert die
+Grenze, wirft pydantic, `validate_tool_args` fängt das ab und schickt die
+**Rohargumente** weiter (`tool_defs.py:326`). Die Obergrenzen der bestehenden
+Werkzeuge sind damit zahnlos. Für `lookup_wlo_publishers` wird deshalb geklemmt
+statt abgelehnt — live belegt: Anfrage mit `maxResults: 500` kam als
+„WLO Anbieter (50)" zurück. Die bestehenden `le=`-Grenzen sind **nicht**
+mitgezogen (eigenes Paket, siehe offene Liste).
+
+**Zurückgehalten: `find_wlo_skills`** — zwei Gründe, beide gemessen:
+(1) serverseitig gar nicht eingerichtet („Keine Skill-Sammlung konfiguriert.
+Setze `WLO_SKILLS_COLLECTION_ID`…") — angeboten wäre es ein Werkzeug, das immer
+scheitert; (2) sein Zweck ist laut Server, Anweisungsdokumente zu liefern,
+„die zu befolgen sind", mit der Warnung *„not authoritative system
+instructions — review it before acting"*. Das ist ein Kanal, über den fremd
+gepflegte Sammlungsinhalte zu Anweisungen für den Bot werden. Nutzer-Entscheid
+nötig.
+
+**Nebenbefund (nicht angefasst):** `get_nodes_details` und `wlo_health_check`
+waren schon vorher aus keinem Muster erreichbar. `wlo_health_check` zu Recht
+(Betriebs-Sonde); `get_nodes_details` ist ein offener Rest.
+
+**Belege:** Backend 2251 grün · ruff sauber · Live über unseren eigenen Client
+(also inkl. Validierung und Registry-Auflösung): alle vier antworten, getestet
+an der Sammlung „Biologie-Breakouts".
+
+### W9b ✅ 2026-08-01 — zwei Karten-Werkzeuge, und ein stiller Totalausfall im Hauptsuchpfad
+
+**Der Defekt zuerst.** `search_wlo_all` ist seit W5-2a das Standard-Suchwerkzeug
+und steht in M06s Werkzeugliste — aber **nicht** in der Karten-Weiche des
+Tool-Loops. Sein Envelope hat kein Top-Level-`results`, sondern drei Töpfe
+(`content`/`collections`/`topicPages`); `parse_wlo_cards` gab darauf **null**
+Karten zurück. Live gemessen: 13 Treffer, 0 Karten. Rief das Modell die
+Kombi-Suche selbst auf, sah der Nutzer nichts — ohne Fehlermeldung.
+
+Der Prefetch-Pfad hatte für genau diesen Envelope längst einen eigenen Splitter
+(`respond.py:137-177`); im Tool-Loop fehlte er schlicht. Und `parse_search_all_cards`
+lag seit dem Port in `parsers.py` **ohne einen einzigen Aufrufer** — der neunte
+Fall der Klasse „gebaut, dokumentiert, getestet, nie gerufen". Er ist jetzt der
+Verbraucher: 14 Karten statt 0, live geprüft.
+
+**`CARD_YIELDING_TOOLS` steht jetzt auf Modulebene.** Vorher wurde die Menge bei
+JEDEM Tool-Aufruf neu gebaut und war von außen nicht prüfbar — genau deshalb fiel
+die Lücke nie auf. Ein Werkzeug, das dort fehlt, scheitert nicht, es liefert
+stillschweigend nichts.
+
+**Gebaut:** `search_wlo_within_collection` (M08) und `get_related_content` (M06)
+— je Argumentmodell, Werkzeug-Definition, `_JSON_CAPABLE_TOOLS` (anders als die
+W9a-Vier parsen wir diese Antworten), `CARD_YIELDING_TOOLS` und Muster-Eintrag.
+
+**Envelope-Heuristik korrigiert.** `_cards_from_json_envelope` verlangte `total`
+oder `count`. `get_related_content` antwortet mit
+`{seedNodeId, seedTitle, disciplines, educationalContexts, results}` und keinem
+Zähler — die Regel warf drei einwandfreie Karten weg. Jetzt entscheidet der
+Eintrag mit `nodeId`; nur der Leerfall braucht noch einen Kopf, sonst ginge
+irgendein `{"results": []}` als „null Karten" statt als „kein Envelope" durch.
+Der Bestandstest, der die alte Regel festhielt, wurde **umgeschrieben statt
+gelöscht**, mit der Messung als Begründung.
+
+**Ein Irrweg, den ein Bestandstest gestoppt hat — festhalten, er ist lehrreich.**
+Ich hatte den `topicPages`-Topf durch den dedizierten Themenseiten-Parser
+geleitet, weil dessen Einträge `collectionId`+`variants` tragen. Der
+Bestandstest brach. Die Messung gab ihm recht: der `topicPages`-Topf von
+`search_wlo_all` ist eine **gewöhnliche FormattedNode-Liste** (`nodeId` +
+`topicPageUrl`) — nur `search_wlo_topic_pages` liefert die Varianten-Form. Zwei
+Werkzeuge, zwei Antwortformen. Meine Attrappe war nach dem Code gebaut, die des
+Bestandstests nach der Wirklichkeit; dieselbe Falle wie bei den
+LiteLLM-Antwortformen im P11-Probelauf.
+
+**Belege:** Backend 2261 grün · ruff sauber · live: `search_wlo_all` 14 Karten
+(vorher 0), `get_related_content` 3 Karten, `search_wlo_within_collection` 5
+Karten in „Biologie-Breakouts" (ohne `query`; die vorher gemessenen Nullen waren
+leere Sammlungen, kein Codefehler).
+
+**Offen bleibt W9c:** die 13 bestehenden Beschreibungen mit den Server-Texten
+zusammenführen (W4-1 hatte gemessen: alle gedriftet).
+
+### W9c ✅ 2026-08-01 — Beschreibungen zusammengeführt, drei Fähigkeiten geprüft
+
+**Vorbehalt vorweg:** das sind Prompt-Texte fürs Modell, keine Logik. Tests
+prüfen Struktur, nicht Wirkung — der Nachweis wäre ein Golden-Lauf (Nutzer-
+Domäne). Deshalb streng additiv gearbeitet: Server-Fakten ergänzt, die
+boerdi-eigene Führung nirgends angetastet.
+
+**Neun Beschreibungen ergänzt** um Fakten, die uns fehlten. Die wichtigsten:
+
+* `browse_collection_tree` — **`hasMoreChildren` heißt „hier steht nicht
+  alles"**. Der Server verlangt ausdrücklich, das dem Nutzer zu sagen statt die
+  Auswahl als vollständig auszugeben. Eine Wahrhaftigkeitsregel, die im Text
+  komplett fehlte; ein Test pinnt sie jetzt.
+* `search_wlo_all` — **nur `content.total` ist eine echte Trefferzahl**;
+  `collections.total`/`topicPages.total` sind bloß die Anzahl der angezeigten
+  Einträge. Ohne den Hinweis nennt der Bot dem Nutzer Zahlen, die es nicht gibt.
+* `get_node_details` — stand bei **54 Zeichen** gegen 973 beim Server. Jetzt mit
+  Feldliste, Tempo (~0,3 s) und der Abgrenzung zu `get_wlo_content_text` (1-3 s).
+* `get_collection_contents` — die `contentFilter`-Semantik (files/folders/both)
+  und die Rekursion von `includeSubcollections` fehlten dem Modell ganz.
+* `get_nodes_details` — eine fehlschlagende nodeId kippt den Stapel nicht, sie
+  kommt in einer `failed`-Liste.
+
+**Drei zusammengelegte Fähigkeiten geprüft, zwei übernommen:**
+
+| Fähigkeit | Messung | Ergebnis |
+|---|---|---|
+| `browse_collection_tree(subject="Mathematik")` | 11 Unterthemen | übernommen — spart den `get_subject_portals`-Vorlauf |
+| `get_topic_page_content(query="Mathematik")` | 8 Schwimmlinien in EINEM Aufruf | übernommen — unser Text verlangte vorher „erst search_wlo_topic_pages" |
+| `get_node_details(includeParents=true)` | `parents` **immer leer**, auch bei zwei Materialien, die nachweislich in „Biologie-Breakouts" liegen | **nicht** übernommen |
+
+Der letzte Fall ist der interessante: der Server *dokumentiert* die Fähigkeit
+(„useful to find which Sammlung a content item is in"), erfüllt sie aber nicht.
+Angeboten hätte das Modell dem Nutzer „liegt in keiner Sammlung" geantwortet —
+eine falsche Auskunft ist schlimmer als eine fehlende. `includeTextContent`
+dagegen liefert nachweislich Text (2444 / 4011 Zeichen) und ist drin.
+
+**Ein Server-Satz bewusst NICHT übernommen.** `search_wlo_collections` behauptet
+serverseitig: „In WLO ist eine Sammlung dasselbe wie eine Themenseite." Unser
+Text sagt seit W4-1 das Gegenteil — und der Server widerspricht sich selbst
+(`search_wlo_topic_pages`: „sucht Sammlungen und prüft dann, WELCHE davon eine
+Themenseite haben"). Gemessen: 5 Sammlungen zu 1 Themenseite bei „Mathematik".
+Unsere Korrektur bleibt; ein blinder Merge hätte sie zurückgedreht.
+
+**Neuer Wächter:** `test_every_offered_parameter_is_accepted_by_its_argument_model`
+— ein angebotener Parameter, den das Pydantic-Modell nicht kennt, fällt beim
+`model_dump` **still** heraus: das Modell füllt ihn aus, der Server sieht ihn
+nie. Diese Richtung ist jetzt lückenlos abgesichert (aktuell 0 Verstöße).
+
+**Belege:** Backend 2269 grün · ruff sauber · die drei Fähigkeiten live gegen
+den Server geprüft (siehe Tabelle). Die Textänderungen selbst sind NICHT
+verhaltensgeprüft — dafür braucht es den Golden-Lauf.
+
+**Nebenbefund, korrigiert:** ich hatte U+FFFD-Ersatzzeichen in den
+Beschreibungen vermutet — falsch, die Datei ist sauberes UTF-8, das `�` war die
+Darstellung meines Terminals. Ursache der zunächst fehlgeschlagenen
+Ersetzungen: ich hatte Suchtexte aus der Terminal-Ausgabe kopiert, samt der dort
+dargestellten Ersatzzeichen.
+
+## W10 — Obergrenzen, die nur dastanden (+ `get_nodes_details` entschieden) ✅ 2026-08-01
+
+Zwei Reste aus W9, beide von derselben Sorte: ein Wächter, der nicht wacht.
+
+**A — `Field(le=…)` deckelte nichts.** `validate_tool_args` fängt die
+`ValidationError` ab und reicht dann die **rohen** Argumente weiter. Jede Grenze
+auf jedem Bestands-Werkzeug war damit Dekoration: ein Modell, das
+`maxResults: 100` gegen `le=20` anfordert, bekam die 100 zum Server
+durchgereicht — genau der Fall, für den die Grenze existiert. Aufgefallen war
+das in W9a nur punktuell, deshalb trugen `lookup_wlo_publishers`,
+`search_wlo_within_collection` und `get_related_content` je einen
+**handgeschriebenen** Klemm-Validator; die dreizehn älteren Werkzeuge hatten
+nichts.
+
+Gefixt an der Wurzel statt zehnmal per Hand: `_clamp_bound_violations` liest die
+verletzte Grenze aus dem pydantic-Fehler (`ctx: {"le": 20}`), setzt das Feld
+darauf und validiert einmal nach. Die drei Hand-Klemmen sind dadurch überflüssig
+und **entfernt** — die Grenzen stehen jetzt überall deklarativ am Feld
+(`schemas_mcp.py` 259 → 234 Zeilen).
+
+Zwei Messbefunde, die den Entwurf entschieden haben:
+* Beim Alias-Pfad (`maxItems: 100`) meldet pydantic den **kanonischen** Namen
+  (`loc: maxResults`), weil der Pre-Validator vorher gelaufen ist. Die Reparatur
+  trifft ihn deshalb; der Alt-Name bleibt im Dict stehen und wird ignoriert.
+* Bewusst nur `ge`/`le` — `gt`/`lt` kommt in keinem Argument-Modell vor. Für
+  eine dort erfundene Grenze wäre der bisherige Fail-Open-Pfad ehrlicher.
+
+Nicht reparierbare Fehler (fehlendes Pflichtfeld, `maxResults: "viele"`) fallen
+weiter auf die Rohargumente zurück — unverändert. **Eine bewusste Verhaltens-
+änderung:** ein gebrochener Wert (`maxResults: 20.5`) wurde auf den drei
+W9-Werkzeugen bisher per `int()` auf 20 gerundet und fällt jetzt wie überall
+sonst auf die Rohargumente zurück. Einheitlich statt drei Sonderfälle.
+
+**C — `get_nodes_details` bleibt draußen, jetzt mit Grund.** Es stammt aus ALT
+und war dort ebenso in keinem Muster. Gemessen: der Prompt-Block
+`render_tools_block` nennt es zwar namentlich, ist aber **statisch** — er zählt
+alle zehn MCP-Werkzeuge auf, unabhängig von der aktiven Tool-Liste des Musters,
+und trifft `wlo_health_check` genauso. Damit ist es kein Sonderfall, sondern
+dieselbe Kategorie. Ein Muster nur zu verdrahten, damit der Wächter schweigt,
+hieße einen Verbraucher zu erfinden: die Karten-Pipeline holt ihre Metadaten aus
+den Suchtreffern selbst. Der Eintrag in `_NICHT_UEBER_PATTERN` trägt jetzt diese
+Begründung statt „offener Rest".
+
+**Neuer Wächter:** `test_der_werkzeug_prompt_nennt_nur_werkzeuge_die_es_wirklich_gibt`
+— die umgekehrte Richtung. Wird ein Werkzeug umbenannt oder entfernt, verspricht
+der statische Prompt dem Modell etwas, das der Katalog nicht mehr kennt.
+
+**Belege:** 8 neue Tests, 4 davon zuerst rot (genau die Bestands-Grenzen) ·
+`uv run pytest -q` → **2277 passed, 4 skipped** (vorher 2269) · `ruff check src
+tests` → All checks passed · `scripts/export_openapi.py --check` → openapi
+contract unchanged. Nicht abgedeckt: ein Live-Zug, der die Klemmung im Betrieb
+auslöst — dafür müsste das Modell eine Grenze überschreiten, was sich nicht
+erzwingen lässt.
+
+## W11 — `parsers.py` zerlegt (622 Zeilen → Paket) ✅ 2026-08-01
+
+Reine Struktur, kein Verhalten. Das Modul hatte **drei Gründe, sich zu ändern**,
+in einer Datei: das Kartenschema, die Themenseiten-Formen und die
+Textblock-Envelopes.
+
+`services/mcp/parsers.py` → `services/mcp/parsers/` mit Fassade — dieselbe Form
+wie beim `config_loader`-Split:
+
+| Modul | Zeilen | Verantwortung |
+|---|---|---|
+| `cards.py` | 259 | FormattedNode-Envelope → Karten; dazu `parse_total_count`, das **dasselbe** Such-Envelope liest, nur das Zählfeld |
+| `topic_pages.py` | 268 | Varianten (`collectionId` + `variants`) und Schwimmlinien — eine andere Antwortform als Karten |
+| `text_blocks.py` | 107 | Volltext und Wikipedia: Envelope → Textblock, mit benanntem Leerfall statt Raten |
+| `json_scan.py` | 39 | der Klammer-Scanner; weiß nichts über Karten, hat vier Verbraucher |
+| `__init__.py` | 56 | Fassade + `__all__` |
+
+**Warum die Fassade nicht optional war.** Bestands-Tests patchen per Zeichenkette
+(`monkeypatch.setattr("boerdi.services.mcp.parsers.parse_wlo_cards", …)`), und
+zwei Verbraucher (`card_reranker`, respond-Knoten) importieren sogar das private
+`_first_json_object`. Die Modul-Adresse musste also erhalten bleiben. Vorher
+gemessen: **kein Test patcht einen privaten Helfer** — sonst hätte der Schnitt
+zwischen `topic_pages` und `_cards_from_json_envelope` still danebengelegen, weil
+modulinterne Aufrufe im definierenden Modul auflösen, nicht an der Fassade. Diese
+Grenze steht jetzt in beiden Modul-Docstrings.
+
+**Beweis über die Tests hinaus:** ein Skript vergleicht jede bewegte Funktion per
+AST (ohne Docstring) gegen das Original — **11/11 identisch**, eine einzige
+Docstring-Abweichung, und zwar die beabsichtigte: die Querverweise in
+`parse_topic_page_swimlanes` zeigten auf `parse_wlo_cards` im selben Modul und
+wären nach dem Umzug falsch gewesen. Der erste Lauf des Skripts hat genau diese
+Abweichung gemeldet, bevor ich sie erklären konnte — der Wächter funktioniert.
+
+**Belege:** `uv run pytest -q` → **2277 passed, 4 skipped** (unverändert zum
+Stand vor dem Schnitt) · die vier direkt betroffenen Testdateien einzeln 154 grün
+vor **und** nach dem Umzug · `ruff check src tests` → All checks passed · alle
+fünf Dateien unter der 300-Zeilen-Regel. Neue Tests gab es bewusst keine: eine
+Extraktion, die neue Tests braucht, war keine Extraktion.
 
 # Offene Aufgaben
 
@@ -1593,7 +2511,9 @@ außerhalb des Config-Modells gelesen, und `rate_limited=True` setzt niemand, de
 Zähler in der Safety-Statistik kann sich also nie bewegen. Das Studio bietet den
 Block trotzdem zum Bearbeiten an. Die falsche Docstring-Zeile ist korrigiert (sie
 sagt jetzt, dass dieses HTTP-Limit das einzige ist), die Ehrlichkeitslücke in der
-Oberfläche steht als C6.
+Oberfläche steht als C6. — **Nachtrag 2026-07-31: C6 ist gebaut**, die Bremse
+existiert jetzt (`services/rate_limits.py`, Aufruf im preflight-Knoten); der
+Docstring von `ratelimit.py` sagt seither „das äußere Limit" statt „das einzige".
 
 ### C7 ✅ 2026-07-27 — Lizenz-Gate für Container-Images
 
@@ -1663,12 +2583,17 @@ Rest-Schritt `topic_content` ist bewusst offen. Rest davon unten als eigene Zeil
 
 | # | Aufgabe | Warum offen |
 |---|---|---|
-| C1 | i18n (Deutsch + Englisch) | **Nutzer-Entscheid 2026-07-27: vertagt** — „erst den Chatbot zum Laufen bringen, i18n später nachrüsten". Die Abgrenzung ist dabei gemessen worden und muss nicht neu erarbeitet werden: **vier Textsorten, die nichts miteinander zu tun haben.** (1) **Oberfläche** Widget+Studio: 159 von 204 Dateien tragen deutschen Text — klassisches i18n, mechanisch. (2) **Backend-Meldungen** an Nutzer/Redaktion: ~34 Literale in `api/` (`greeting darf nicht leer sein`). (3) **Redaktioneller Inhalt** (Begrüßung, Quick-Replies, Tour, Personas, 57 Canvas-Typ-Labels): liegt in der DB über 35 Config-Bereiche ⇒ Schema-Ebene je Sprache + Studio-Pflege je Sprache + Migration der Bestandsdaten. (4) **Bot-Antworten**: ~150 Literale in Prompts (`tool_loop`, `classify_prompt*`, `response_prompt_pattern`, `eval/judge`, `quick_replies_llm`) ⇒ Prompt-Neubau plus Golden-/Eval-Baselines **je Sprache**, Abnahme nur mit echten LLM-Läufen. Gesamt 449 deutsche String-Literale im Backend (per AST gezählt, Docstrings ausgenommen — der reine grep-Wert 111 Dateien täuscht, weil Kommentare hier deutsch sind). **Technik ist damit auch schon entschieden:** `@angular/localize` scheidet aus (backt zur Bauzeit ein, ein Bundle je Sprache, Umschalten nur per Neuladen) ⇒ Laufzeit-Wörterbücher. Und das zweite Wörterbuch gehört **nicht** ins Widget-Bundle: dessen §5.5-Budget hat bei ~413 von 420 kB nur ~7 kB Luft, die Sprachdatei muss nachgeladen werden. |
+| ~~W11~~ | ~~`services/mcp/parsers.py` zerlegen~~ **✅ ERLEDIGT 2026-08-01** | Aufgenommen und noch am selben Tag gebaut; Beleg im Abschnitt „W11" oben (Paket mit vier Modulen + Fassade, 11/11 Funktionen AST-identisch, Suite unverändert bei 2277). |
+| ~~C1~~ | ~~i18n (Deutsch + Englisch)~~ **✅ ERLEDIGT 2026-08-08** | **Komplett gebaut.** Fünf Rubriken: **C1-a/b/c** (Sprach-Kern, Widget, Umschalter), **C1-d** (Studio-Oberfläche, zuletzt d5 in sieben Scheiben = 295 Texte), **C1-e** (Backend-Meldungen über `Accept-Language`), **C1-f** (Ausgabe-Sprache der LLM-Erzeuger + die deterministischen Bot-Sätze) und **C1-g** (die Studio-gepflegte Config, Suffix je Schlüssel). Kataloge: Widget 114, Studio 890, Backend-Meldungen 25, Bot-Texte 31 Schlüssel je Sprache. Gates zuletzt: studio **889** (76 Dateien) · widget **39** · pytest **2458 / 4 skips** · eslint, `check:a11y`, `check:tokens` sauber. **Drei Dinge bleiben bewusst einsprachig, je mit Grund:** die Studio-gepflegten Auslöser-Listen bleiben deutsch (Nutzer-Entscheid bei C1-f2c), 14 Backend-Meldungen bleiben englisch (gemessen in C1-e3, der Wächter `BEWUSST_EINSPRACHIG` hält jede sichtbar), und `Invalid path` bleibt englisch, weil `area-doc-editor` es als Protokoll-Marker liest. **Nutzer-Domäne bleibt der Live-Lauf je Sprache** — belegt ist, dass die Sprach-Direktive im Prompt ankommt, nicht die Trefferquote des Modells. **Der Verlauf darunter bleibt stehen**, weil er die Messbefunde je Scheibe trägt; die Quelle ist und bleibt `docs/plans/2026-08-02-c1-i18n.md`. — **Der Verlauf, wie er beim Bauen entstand:** **🔄 ab 2026-08-02 in Arbeit — Entwurf, Entscheidungen und Schnitt stehen jetzt in `docs/plans/2026-08-02-c1-i18n.md`; dort ist die Quelle, nicht mehr hier.** **C1-b, C1-c, C1-d1, C1-d2, C1-d3 (a–d), C1-d4a, C1-d4b (b1–b3), C1-d4c, C1-d4d (d1+d2, damit die ganze Rubrik), C1-d4e (e1–e4) und C1-d4f sind fertig** (C1-a Sprach-Kern · C1-b1 Seam + Widget-Hülle · C1-b2 Chat-Shell + die vier Inline-Renderer · C1-b3 reine Label-Funktionen · C1-b4 Bot-/Fehlertexte + Druckfenster + Guide-Chip-Rückfall · **C1-c Umschalter + `language`-Attribut + Host-/Browser-/Speicher-Quellen + eingebauter EN-Katalog** · **C1-d1 Studio-Spracheinstellung + Umschalter + Rahmen-Katalog** · **C1-d2 Ansichts-Registry auf Katalog-Schlüssel + ihre sechs Verbraucher** · **C1-d3a der generische Bereichs-Editor + der von 21 Ansichten geteilte Zustands-Streifen** · **C1-d3b der Katalog-Split (je Bereich eine Datei unter `i18n/catalogue/`, beide Sprachen beieinander, `de.ts`/`en.ts` nur noch Fassaden) + „Sicherung" + „Vorschau"** · **C1-d3c MCP-Registry + Wissensbasis (Bereiche, Dokumente, Einlesen), dazu `Intl.ListFormat` als dritter Grammatik-Griff** · **C1-d3d `curated-views.ts` — die zehn kuratierten Seiten tragen nur noch Struktur und Katalog-Schlüssel**; Widget-Katalog **114 Schlüssel je Sprache**, Studio-Katalog **890** Schlüssel je Sprache (die 515 bei C1-d4b3 waren 8 zu niedrig — die Teil-Tabelle führte `views.ts` mit 40 statt 48; nachgezählt lauten die Laufzahlen 500 → 523 → 615, geprüft als Summe je Teil UND als Vereinigung, ohne einen Schlüssel in zwei Teilen) (ab C1-d4b1 **gezählt statt aufsummiert** — die Laufsumme der Scheiben-Zuwächse war um 8 abgedriftet; maßgeblich ist die Messung über alle Teilkataloge, DE und EN gleich), ui 561 / widget 36 / studio 874 grün, eslint 0, `check:tokens`/`check:a11y` sauber, Budget 507,71/600 kB roh · 148,08/175 kB gzip — durch C1-d1 bis C1-d3d unverändert, weil der Studio-Katalog nicht im Widget-Bundle liegt). Ein Restliteral-Scan über `ui/src` + `widget/src` findet keinen sichtbaren deutschen Text mehr — übrig sind nur `console.*`-Meldungen, interne `Error`-Texte und zwei benannte Protokollwerte (`TOUR_START_LABEL`, der `'Sammlung'`-Filter in `print-utils.ts:248`). Offen sind **C1-d5 und C1-f2c**. **C1-f2b2 ist fertig** (2351 pytest, `openapi contract unchanged`, ruff sauber): die Material-Oberflaeche — `canvas_fast_path` + `domain/completion_messages` (Katalog jetzt 48 Schluessel je Sprache; `lang` als Parameter durch den reinen Domaenen-Helfer). **Der Schnitt wurde durch die Messung geaendert:** die in f2b1 notierten „vier Module" sind keine vier gleichartigen — `turn_links` hat 2 erreichbare und 3 hinter deutschen Regexen unerreichbare Saetze, und `guide_qr_injector`s „5 Beschriftungen" stehen in `02-domain/guide-rules.yaml` und schlagen die Code-Fassung, sind also eine Config-Schema-Frage. Beide wandern nach **C1-f2b3**. **Der Fund:** der Loesungen-Waechter in `canvas_fast_path` prueft mit deutschen Regexen auf `## Loesungen` — seit C1-f2a ist das Material aber englisch, also bekam JEDES englische Arbeitsblatt einen deutschen Stub angehaengt, auch mit sauberem `## Solutions`. Anders als bei f2b1 waere der Defekt nicht durch das Uebersetzen entstanden, er war schon da. **Regel daraus:** ein Analysator ueber unserer EIGENEN Ausgabe hat eine bekannte Sprache und gehoert zu f2b; nur Analysatoren ueber NUTZER-Eingabe sind die vertagte Produktentscheidung f2c. Zweiter Fund: „Automatisch" bleibt auch im englischen Satz stehen — das Wort ist ein Schluessel in `05-canvas/type-aliases.yaml`, uebersetzt waere der Satz eine Anweisung, die das System nicht ausfuehren kann. **C1-f2b1 ist fertig** (2338 pytest, `openapi contract unchanged`, ruff sauber): die deterministischen Sätze der Direkt-Aktionen (`content_text_action` M17 + `direct_actions`) folgen der Widget-Sprache, über einen ZWEITEN Katalog `i18n/bot_text.py` (31 Schlüssel je Sprache) neben `messages.py` — andere Zielgruppe (Nutzer vs. Redaktion), anderer Auslöser (`environment.locale` vs. `Accept-Language`); geteilt wird nur das Rendern, dafür ist `render()`/`_Keep` verhaltenserhaltend nach `i18n/catalogue.py` gezogen. **Der Fund dabei:** `direct_actions` entschied den Rendering-Pfad per `startswith` auf den eigenen deutschen Fehlersatz — ein Klasse-C-Analysator im übersetzten Modul; ersetzt durch einen `lp_failed`-Merker am Kontrollfluss, rot-grün belegt (erst der zweite Testentwurf unterschied die Zweige überhaupt). Details in `docs/plans/2026-08-02-c1-i18n.md`. **C1-f2a ist fertig** (2325 pytest, `openapi contract unchanged`, ruff sauber; Frontend nicht berührt): die Ausgabe-Sprache der übrigen vier LLM-Erzeuger — Canvas-Material, Kuratier-Text, Lernpfad, Quick-Replies — folgt jetzt der Widget-Sprache, über zwei Atome in `i18n/prompt_language.py` (`language_name` ersetzt den Sprachnamen an Ort und Stelle → deutscher Prompt bytegleich; `template_hint` hängt NUR bei Nicht-Deutsch an und ist für Deutsch leer). Vier der fünf Direktiven gab es schon, in vier verschiedenen Gestalten. **Die Messung davor ist der eigentliche Ertrag:** die AST-Aufzählung ergibt **755 deutsche Literale in 72 Dateien** (die „286" waren wieder eine untere Schranke) und zerfällt in drei Klassen — Ausgabe (übersetzen), Prompt (bleibt deutsch) und **Analysator** (Regex/Stichwortlisten ÜBER deutschem Text; weder übersetzen noch lassen, weil sie beim Sprachwechsel still aufhören zu greifen — inklusive des Selbstverletzungs-Gates auf der Eingabeseite). Details in `docs/plans/2026-08-02-c1-i18n.md`. **C1-f1 ist fertig** (2309 pytest, ui 564, widget 36, `openapi contract unchanged`, ruff/eslint sauber, Budget 507,86/600 kB roh): die Sprache des Widgets erreicht das Backend und lenkt die Bot-Antwort. Nutzer-Entscheid: **`environment.locale` beleben** (statt Accept-Language), Schnitt **nur der Antwort-Pfad**. Zwei Messungen VOR dem ersten Edit: das Feld steht seit je im eingefrorenen Vertrag und wird in `domain/context.py:30` gelesen — mit **null Verbrauchern** (**sechster Fall „dokumentiert ohne Konsumenten"**); und das Widget fuellte es aus `navigator.language` statt aus seiner seit C1-c aufgeloesten Sprache. Kein neues Vertragsfeld noetig, kein zweiter Sprachkanal. **Der rote Lauf hat den Entwurf umgeworfen:** der Prompt endet **bereits** mit „Antworte auf Deutsch. Formatiere mit Markdown." — und zwar **dreimal wortgleich** in den drei sich ausschliessenden P8-Bloecken. Ein angehaengter Block haette zwei widersprechende Anweisungen erzeugt; stattdessen wird die bestehende Zeile an Ort und Stelle sprachabhaengig (`_OUTPUT_LANGUAGE`, einmal statt dreimal). **Folge, die den Ausschlag gab: der deutsche Prompt bleibt bytegleich**, inkl. Position — drei Tests halten das je Zweig fest. Kein Signatur-Umbau noetig, weil `_build_system_prompt` `environment: dict` schon entgegennahm; `resolve_locale` ist derselbe Parser wie fuer den Header (C1-e1). **Nicht bewiesen:** ob das Modell der Direktive FOLGT — das zeigt nur ein Golden-/Eval-Lauf je Sprache (Nutzer-Domaene); Aufruestweg waere eine zweisprachige Direktive in derselben Konstante. **C1-f2** bleibt: die uebrigen LLM-Aufrufe (`llm_curation.py:45` traegt dieselbe harte Zeile) + die deterministischen Rueckfall-Saetze — gemessen **286 deutsche Literale in 42 Dateien** als OBERE Schranke „moegliche Bot-Ausgabe"; welche davon der Nutzer wirklich sieht, ist die erste Aufgabe von C1-f2, vor jedem Schnitt. **C1-e1 und C1-e2 sind fertig** — und zwei Messungen haben den Zuschnitt geändert: das **Widget sieht diese Sätze nie** (alle `detail`-Treffer im Frontend-Kern sind `CustomEvent.detail`, `chat.py` trägt null deutsche Literale), C1-e ist also **vollständig Studio-Sache**; und das erste Suchmuster hatte **untergezählt** (9 gefunden, 11 vorhanden — zwei Meldungen ohne Umlaut und ohne eines der gesuchten Wörter). Nutzer-Entscheid aus drei vorgelegten Wegen: **`Accept-Language` + kleiner Backend-Katalog**, nicht Fehler-Codes. **Der eingefrorene Vertrag ist unangetastet geblieben:** die Abhängigkeit liest den Header von `Request` statt ihn als `Header()` zu deklarieren — ein deklarierter Header stünde im OpenAPI-Dokument; `export_openapi.py --check` sagt `openapi contract unchanged`. Bewusst getragene Grenze: er steht damit nicht in `/docs`. 11 Aufrufstellen → **8 Schlüssel** (`field.empty` trägt vier mit dem Feldnamen als Parameter). `msg()` gibt bei unbekanntem Schlüssel den Schlüssel zurück und lässt einen vergessenen Platzhalter stehen — im Fehlerpfad machte ein `raise` aus einer brauchbaren 400 eine 500; gefunden werden beide stattdessen von einem Wächter, der **jeden in `api/` gelesenen Schlüssel** gegen den Katalog prüft (AST-Suche, Gegenstück zu `views-i18n.spec.ts`). **C1-e2 ist fertig** (2302 pytest, `openapi contract unchanged`, ruff sauber, studio 878 unverändert — kein Frontend berührt, der `languageInterceptor` aus C1-e1 trägt den Header schon). Wieder hat die Messung den Zuschnitt geändert, und wieder war meine eigene Zählung eine untere Schranke: statt eines Prosa-Suchmusters lief eine **AST-Aufzählung jedes `HTTPException`-Details in `api/`**. Ergebnis **7 Router, 20 Aufrufstellen, 17 Schlüssel** (Katalog 25 je Sprache) statt der berichteten „~21 in sieben Routern" — **`quality.py` fehlte ganz** (Satz ohne Umlaut und ohne Suchwort), und **`speech.py` fällt raus**: das Studio ruft `/speech/*` nirgends auf, der einzige Aufrufer ist das Widget, und `chat-api.ts:231/244` wirft `new Error('Transcription failed')`, **ohne die Antwort zu lesen** — die vier Sätze liest kein Mensch. Neu gebaut ist der **Wächter der Gegenrichtung**: `BEWUSST_EINSPRACHIG` friert jede Meldung ein, die NICHT durch `msg()` geht, je mit Grund; C1-e1 hatte Schlüssel-ohne-Text, dieser hat Text-ohne-Schlüssel. Er hat sich sofort bezahlt gemacht — nach dem Umbau meldete er `'Kein Factory-Stand gesetzt'`, **2 von 20 Stellen**, deren Signatur ich umgestellt, deren Ausnahme-Zeile ich aber vergessen hatte. Zwei Meldungen tragen deutsche Wörter ohne Umlaut („wuerde ALLE Quality-Logs loeschen", „Doppel-Bestaetigung") — vor der Übernahme geprüft: **ALT-Wortlaut**, also bindend, wandert unverändert in den Katalog. **Offene Rechnung, bewusst:** ~13 Meldungen bleiben einsprachig ENGLISCH (Zustände wie „File not found", Betreiber-/Entwickler-Meldungen, die vier Widget-Sätze) — ein englischer Satz im deutschen Studio ist genauso einsprachig wie umgekehrt; der Wächter hält sie sichtbar, bis die Produkt-Entscheidung fällt. Nachlauf: `config.py` steht bei **307 Zeilen** (Bestand, meine Änderung per Saldo ~0). Die andere Hälfte ist der `languageInterceptor` im Studio (aus `format.htmlLang`, nur gleicher Ursprung). Backend 2300, studio 878. **C1-d4e4 (Sicherheitslevel-Wähler, 10 Schlüssel) ist fertig — und zwar in `area-editor.ts`, nicht in einem eigenen Teil:** die Komponente heißt nach Safety, gerendert wird sie in `area-section`. Übersetzt sind nur die Beschreibungen; die fünf NAMEN („Off“/„Regex“/…) bleiben stehen, weil sie die Schlüssel aus dem `presets`-Block der Datei sind und ein eigenes Preset seinen Schlüssel unverändert als Namen trägt — dieselbe Lage wie `areas.importCmd`. **18. eingefrorener Konstanten-Fall:** `KNOWN` trägt jetzt Beschreibungs-Schlüssel statt fertiger Sätze. **C1-d4f (die sechs sprachgebundenen Formatierer) ist fertig — gemessen 48 Aufrufe in 20 Ansichten statt der geschätzten 25 in 12, wieder Faktor ~2**, aber nicht teilbar, weil eine Signaturänderung der Compiler nicht teilt. `core/format.ts` nimmt das BCP-47-Kürzel als ersten Parameter (`germanDateTime` → `formatDateTime`, `relativeGerman` → `formatRelative` — die Namen behaupteten Deutsch); das Kürzel steht im Katalog als **`format.locale`** neben `format.htmlLang`, weil es eine Entscheidung je Sprache ist und kein Text. **Der neue Dienst `StudioFormat` wohnt in `i18n/`, nicht in `core/`** — `core` darf nicht nach `i18n` importieren, dieselbe Begründung wie beim `Translate`-Typ; und er ist ein eigener Dienst statt sechs weiterer Methoden in `StudioLanguageService`, weil Grammatik und Zahlen-Typografie zwei Gründe zur Änderung sind. **Englisch ist `en-GB`, nicht `en-US`** (Produktentscheidung, in einer Zeile umkehrbar): der Tag bleibt vorn, sonst stünde „7/24/2026“ neben dem „24.7.2026“ der Kollegin. **„gerade eben“ kommt als Parameter herein**, weil `Intl.RelativeTimeFormat` keinen Fall unter einer Minute kennt und dieser eine Satz damit redaktionell ist. **Der eine rote Lauf war ein echter Befund:** `quality-overview.component.spec.ts` nagelte einen englischen Satz mit deutsch formatierter Zahl fest („Degradation rate at 22,0 %“) — der Test hatte die Verschiebung sogar selbst notiert. **Eine Annahme wurde von der Messung widerlegt:** die Vermutung, die Ansichts-Specs hingen an der Rechner-Sprache und fielen in einer CI mit `en-US` um, ist falsch — eine Sonde im Runner meldet `navigator.language = en-US` bei `Intl`-Standard `de-DE`, und **44 Spec-Dateien legen die Sprache fest** (die erste Zählung war bei 20 Zeilen abgeschnitten gewesen). Genau deshalb wurde nur EIN Test rot. **C1-d4e2 (Sitzungen, 27) und C1-d4e3 (Safety-Logs, 37) sind fertig — und diesmal lag die Schätzung zu HOCH** (~38 bzw. ~48): beide Ansichten lesen viel aus `shared.ts`/`views.ts` mit, die Rubrik-Schätzung zählte aber Texte auf dem Schirm statt neuer Einträge. **Der letzte handgeschriebene Mehrzahl-Griff des Studios ist weg** (`turn_count === 1 ? 'Turn' : 'Turns'`) — er war richtig, nur die deutsche Regel fest verdrahtet. **Vierter und fünfter Fall derselben A11y-Sache:** die Sessions-Zeile trägt ZWEI zerstörende Knöpfe mit `sr`-Anhang — genau der Fall, für den die Regel da ist, weil „Verlauf leeren" die Auswertungsdaten behält und „Löschen" sie mitnimmt. **16. und 17. eingefrorener Konstanten-Fall:** die zwei Karten in `safety-labels.ts` (Risikostufen, Rechtsfelder) — beide Rückfälle auf den rohen Schlüssel bleiben, weil das Backend Rechtsfelder anhängt, die die Liste nicht kennt. **Ein Fund, der eine eigene Scheibe bekam (C1-d4e4):** `safety-level.component` heißt nach Safety, wird aber in `area-section` gerendert — seine Texte gehören nach der Panel-Regel in `area-editor.ts`, also hat C1-d3a/d3b eine Komponente des eigenen Panels übersehen (derselbe Fall wie C1-d3d, nur kleiner; 18. Konstanten-Fall inklusive). **C1-d4e ist gemessen und dreigeteilt — zum zweiten Mal VOR dem Bau:** geschätzt waren ~53 für die ganze Rubrik, gemessen sind es **~140** über drei unabhängige Ansichten → **e1 Lasttest** (69) · **e2 Sitzungen** (~38) · **e3 Safety-Logs** (~48). **C1-d4e1 ist fertig** mit 69 Schlüsseln in `loadtest.ts`; das Lauf-Panel teilt sich den Teil mit dem Formular, weil es dort hinein gerendert wird. **Vier Anzahlen, alle vier bis hierher fest in der Mehrzahl** — Requests, Fehler, Messpunkte und Stufen; die roten Läufe gaben sie wörtlich aus (`1 Requests`, `1 Messpunkte`, `über 1 Stufen`). **Die Anzahl wählt hier die FORM, nicht nur das Substantiv:** „Stabil bis 1 gleichzeitig**en** Nutzer" gegen „bis 4 gleichzeitig**e** Nutzer" — die Beugung sitzt im Adjektiv, also steht der ganze Satz je Form da (`richPlural`, weil derselbe Satz Auszeichnung trägt). **Und der Bestandstest pinnte die falsche Form**: er prüfte mit `stable_concurrency: 1` auf die Mehrzahl — nach dem Code geschrieben, nicht nach der Sprache. **Dritter Fall derselben A11y-Sache:** der Löschen-Knopf der Lauf-Liste trug seinen Namen in zwei Bruchstücken (nach C1-d4b1 und C1-d4d2 — dieselbe Vorlage, dreimal kopiert). **Ein reines Modul bekommt den Übersetzer als Parameter:** `effectiveProfile(t, draft)`, wie `describeApiError` und `catLabel`; seine Zahlen sind Backend-Konstanten, eine Einzahl-Form könnte nie greifen. **Eine Doppelung mitgenommen:** `statusLabel` stand in beiden Lasttest-Komponenten wortgleich → `loadtest-status.ts` nach dem Vorbild von `eval-status.ts`. **Bewusst NICHT veändert:** die Zusammenfassung der Lauf-Liste bleibt ·-verbunden statt `list()` (technischer Streifen, keine Prosa), und `mixLine`/`byKindLine` bleiben roh — das sind Backend-Kennungen samt Gewicht. **C1-d4d ist komplett — 130 Schlüssel statt der geschätzten ~52**, in vier Teilkatalogen. Die Rubrik wurde **VOR dem Bau gemessen und geteilt** (erste Scheibe, bei der das gelang): **d4d1** Hülle + Übersicht + Diagnose (53, `quality.ts`) · **d4d2** Matrix (12) + Fluss (18) + Logs samt Detail (47). Ein Teil je PANEL — Diagnose gehört zur Übersicht und das Turn-Detail zum Log-Panel, weil beide dort hinein gerendert werden. **Fünf Mehrzahl-Defekte, die es heute schon auf Deutsch gibt**, haben die roten Läufe wörtlich ausgegeben — `1 Turns · 1 Muster`, `Aggregiert aus 1 Turns`, `1 Samples`, `1 Turns mit Phase, 1 Übergänge`, `1 Turns gelöscht.`. **Drei Anzahlen in EINEM Satz** (Fluss-Kopfzeile) entstehen als drei Wortgruppen über `plural()`; **der Artikel gehört dabei IN die Form** („letzter 1 Tag" gegen „letzte 30 Tage"), und der Leer-Text steht als zwei ganze Sätze da, weil er den Dativ braucht. **Ein A11y-Fehler aus C1-d4b1 wiedergefunden:** der Löschen-Knopf der Turn-Liste trug seinen Namen in zwei Bruchstücken (`Löschen` + `sr`-Anhang) — jetzt ein `aria-label`, das mit dem sichtbaren Wort beginnt. **Zwölfter und dreizehnter eingefrorener Konstanten-Fall:** `TABS` und `SCOPES` in `quality.component.ts`. **Eine bewusste Abweichung:** `<em>degradiert</em>` wird über `*…*` zu `<strong>` — `splitRich` kennt nur `strong` und `code`, und ein dritter Marker wäre eine Erweiterung des geteilten Bausteins für EINEN Verbraucher (die vier übrigen `<em>` stehen in der zurückgestellten Referenz-Prosa C1-d5). **Bewusst NICHT verändert:** `{scope}` bleibt der rohe Bezeichner (Übersetzung wäre Verbesserung, nicht Übersetzung), und die Filter-Aufzählung bleibt komma-getrennt statt `list()` — technische Liste, keine Prosa. **Neue Nacharbeit notiert:** „Persona", „Intent", „Confidence" und „Pattern" stehen in VIER Teilkatalogen gleichlautend; eine `label.*`-Gruppe in `shared.ts` wäre die Zusammenlegung, berührt aber drei fertige Scheiben und gehört in eine eigene. **C1-d4d ist zweigeteilt worden, und diesmal VOR dem Bau:** der Schnitt schätzte ~52 Schlüssel für die ganze Analyse, gemessen sind es gut **120** über acht Dateien — dieselbe Richtung wie bei d3b, d4b und d4c. Geteilt entlang der PANELS: **d4d1** Hülle + Übersicht + Diagnose (die Diagnose-Blöcke stehen IM Übersichts-Reiter, nicht daneben) · **d4d2** Matrix, Fluss, Logs + Log-Detail. **C1-d4d1 ist fertig** mit **53 Schlüsseln** in `quality.ts`. **Zwei Anzahlen in EINER Kopfzeile** („12 Turns · 3 Muster") entstehen als zwei Wortgruppen über `plural()`; der rote Lauf gab den deutschen Defekt wörtlich aus — `1 Turns · 1 Muster`. `qual.diag.counts` enthält dabei **kein Wort** und steht mit Begründung auf der Gleichlaut-Liste. **Zwölfter und dreizehnter eingefrorener Konstanten-Fall:** `TABS` und `SCOPES` in `quality.component.ts`. **Eine bewusste Abweichung:** `<em>degradiert</em>` wird über `*…*` zu `<strong>` — `splitRich` kennt nur `strong` und `code`, und ein dritter Marker wäre eine Erweiterung des geteilten Bausteins für EINEN Verbraucher (die vier übrigen `<em>` stehen sämtlich in der zurückgestellten Referenz-Prosa C1-d5). **Kein eigener Eintrag** für Krümel und Überschrift: beide lesen `nav.group.auswertung`/`view.analyse.label` mit; und „Leere Entities" steht EINMAL, gelesen als Kennzahl-Name UND als Substantiv des Zustands-Streifens. **C1-d4c** (Trends, Gold-Start, Generativ-Start) hat **92 Schlüssel statt der geschätzten 54** gebraucht, in zwei neuen Teilen: `eval-trends.ts` (35) und `eval-start.ts` (57). **Ein Teil für BEIDE Start-Panels**, weil sie im selben Reiter stehen und vier Texte wörtlich teilten. **Vier Mehrzahl-Defekte, die es heute schon auf Deutsch gibt**, haben die roten Läufe wörtlich ausgegeben — `1 Chat-Aufrufe`, `1 Chat-Anfragen`, `1 Kombinationen`, `über 1 Läufe` — dazu der `Flow(s)`-Notbehelf in der Gold-Kostenzeile. **Vier Anzahlen in EINEM Satz** (die generative Kostenzeile) entstehen als vier Wortgruppen über `plural()` statt als Schlüssel-Matrix aus 2⁴ Sätzen; Kostenzeile und Rückfrage stehen als je zwei GANZE Sätze da (mit/ohne Judge) statt als einer mit eingebautem `@if`. **Die gesprochene Zusammenfassung der Diagramme** war in der Komponente zusammengesetzt und steht jetzt als ganzer Satz im Katalog — in drei Fällen, weil ,,ein Lauf" etwas ANDERES sagt als ,,über N Läufe gestiegen" (Inhalt, nicht Grammatik). **Zehnter und elfter eingefrorener Konstanten-Fall:** `RATES` (vier Beschriftungen samt Erklärsatz, obendrein in einem `computed()` ständig neu gebaut) und `MODES`. Bewusst NICHT zusammengelegt: ,,Turns" steht an drei Stellen im Katalog — es sind verschiedene Tabellen, und ein gemeinsamer Eintrag hiesse, dass eine Übersetzung die anderen mitzieht. **C1-d4b3 hat die Rubrik abgeschlossen — und dabei etwas gefunden, das nicht auf der Liste stand.** Die Ansicht war nicht allein zu übersetzen: `QualityBarsComponent`, die geteilte Balken-Tabelle, trug **drei eigene deutsche Texte** (Screenreader-Spaltenkopf, voreingestellte Einheit, Beschriftung eines leeren Bezeichners) und steht in **drei Ansichten an sieben Stellen**. Sie übersetzt sie jetzt selbst aus `shared.ts` — wie der Zustands-Streifen seit C1-d3a; die fünf Aufrufstellen in C1-d4d ziehen ihre Hälfte kostenlos mit. `(ohne)` stand dabei **zweimal wörtlich** da (Balken-Tabelle + Pattern-Nutzung) → ein Eintrag `label.unclassified`. **Ein vierter Grammatik-Griff: `richPlural()`** neben `plural()`, `list()` und `rich()`. Die Summenzeile trägt **zwei** Anzahlen mit je eigener Mehrzahl und obendrein eine Hervorhebung; `splitRich(plural(…))` wäre genau falsch gewesen, weil `plural()` VOR dem Teilen einsetzt und damit die C1-d4b2-Zusage bräche. Jetzt wählt die Anzahl nur die FORM, geteilt wird der rohe Katalog-Text; die innere Wortgruppe kommt als `{combos}` herein. **Ein Fehler, den erst die Selbstdurchsicht fand:** die erste Fassung reichte die Zahl roh durch und verlor die Tausender-Trennung (`expected '12345 Turns' to be '12.345 Turns'`, als eigener roter Lauf nachgereicht) — behoben mit dem Muster, das `overview.snapshots` schon benutzte. **Neunter eingefrorener Konstanten-Fall:** `SCOPES` in `eval-pattern-usage.component.ts` trug Kennung UND Beschriftung. **Kein eigener Eintrag für den Namen der Ansicht:** Überschrift und Zustands-Streifen lesen `eval.tab.pattern` aus der Hülle mit — eine Doppelung hätte `en.spec.ts` bauartbedingt nicht gefunden. Und ein Alias ging mit seinem letzten Verbraucher: `@if (value(); as usage)` ist auf `@if (triples().length > 0)` zusammengezogen. **Damit ist C1-d4b vollständig: 104 Schlüssel statt der geschätzten 92, in drei Scheiben.** **C1-d4b2 hat die Entwurfsfrage gelöst, für die es die eigene Scheibe bekam — Auszeichnung MITTEN im Satz.** Gewählt ist **Marker im Text, geteilt beim Rendern** (`*so*` hebt hervor, `` `so` `` ist Code): der Übersetzer sieht den ganzen Satz mitsamt der Hervorhebung an ihrem Platz und darf sie verschieben. Drei Bausteine — `splitRich` in `ui/src/i18n/rich-text.ts`, `StudioLanguageService.rich()` neben `plural()`/`list()`, und `<studio-rich>` als Renderer. **Geteilt wird der KATALOG-Text, eingesetzt wird danach**, damit ein eingesetzter Wert (etwa `error_message` des Backends) niemals Auszeichnung erzeugen kann — eigens gepinnt. **Das Widget-Budget blieb aufs Byte gleich**: es importiert `splitRich` nicht, also fällt es beim Treeshaking heraus. **Ein Fehler, den erst der Test zeigte:** Angular behält den Leerraum INNERHALB der `@`-Blöcke — ein Umbruch je Zweig machte aus „harte Quote 83 %" ein „harte Quote  83 % "; die Vorlage steht jetzt ohne Umbrüche da, mit dem Grund im Dateikopf. **Achter eingefrorener Konstanten-Fall:** `CAT_LABELS` in `gold-scorecard.ts` → `catLabel(category, t)`. **Eine Doppelung beseitigt, bevor sie entstand:** Lauf-Liste und Lauf-Detail trugen je eine eigene Kopie derselben vier Status-Zeilen → `views/eval-status.ts`. **Ein Satz aus sechs Bruchstücken beseitigt:** die geöffnete Turn-Zeile ist jetzt EIN Eintrag mit sechs Platzhaltern. **Neuer Teilkatalog `eval-detail.ts` statt Anbau:** die Evaluation hat fünf Ansichten, ein Teil für alle stünde nach C1-d4c über 400 Zeilen — geteilt, BEVOR eine Grenze es erzwingt. **Erstmals traf die Schätzung** (~41 gegen 45 gezählt), weil sie aus einer Messung stammte. **Beobachtet, nicht mitgemacht:** „Status" steht jetzt an drei Stellen im Katalog — anders als bei `overview.refresh` sind das drei verschiedene Rollen (Überschrift, Formular-Beschriftung, Listen-Begriff), notiert als Kandidat für eine spätere `label.*`-Gruppe. **Auch C1-d4b war doppelt so gross wie geschätzt** (92 gezählt gegen ~46) — die dritte Messung in Folge mit demselben Faktor, und damit keine Ausnahme mehr, sondern die Regel dieser Rubrik. Dreigeteilt: **d4b1 Hülle + Lauf-Liste ✅** · d4b2 Lauf-Detail + `gold-scorecard.ts` · d4b3 Pattern-Nutzung. **C1-d4b2 bekommt eine eigene Scheibe, weil es eine Entwurfsfrage mitbringt:** Auszeichnung **mitten im Satz** (`<strong>`, `<code>`) an sieben Stellen. Je Bruchstück ein Katalog-Eintrag wäre genau der Fehler, den C1-d3a beim Zustands-Streifen abgestellt hat; `innerHTML` scheidet aus. Es braucht eine kleine geteilte Hilfe, die den übersetzten Satz an einem Platzhalter teilt — sie trägt auch die vier Erklär-Karten der Startseite (C1-d5). **C1-d4b1 im Einzelnen:** **siebter eingefrorener Konstanten-Fall** (`TABS` in `evaluation.component.ts`, dazu `STATUS_LABELS`/`STATUS_FILTERS` der Lauf-Liste — alle drei jetzt Erlaubnisliste Status → Schlüssel, nie zur Laufzeit zusammengesetzt). **Ein Fehler, der heute schon auf Deutsch sichtbar war:** die Zähl-Zeile stand fest als `{n} Läufe`, bei genau einem Lauf las sie sich „1 Läufe" — der rote Lauf gab es wörtlich aus; jetzt über `plural()`. **Ein Satz aus zwei Bruchstücken beseitigt:** der Löschen-Knopf trug `Löschen<span class="sr"> — Lauf {id}</span>`, jetzt **ein** `aria-label`, das mit dem sichtbaren Wort beginnt (WCAG 2.5.3). **Zwei Katalog-Doppelungen zusammengezogen statt eine dritte angelegt:** „Ja, löschen" stand als `snapshots.confirmDeleteYes` und `rag.confirmYes` gleichlautend da → `action.confirmDelete` in `shared.ts`, drei Aufrufstellen umgehängt. **Und ein Versäumnis aus C1-d4a berichtigt:** `overview.refresh` war eine wörtliche Doppelung von `action.refresh` in beiden Sprachen — der Gleichheits-Wächter in `en.spec.ts` kann das nicht finden, er vergleicht DE gegen EN **je Schlüssel**, nicht Schlüssel gegeneinander (ein globaler Doppelungs-Wächter wäre kein Ausweg: es gibt berechtigte Gleichlaute). **C1-d4 ist gemessen und in sechs Scheiben zerlegt** (≥242 statt geschätzt ~180 — dieselbe Richtung wie bei d3): d4a Fehler-Beschreiber + Übersicht ✅ · d4b/c Evaluation · d4d Analyse · d4e Lasttest/Sitzungen/Safety · **d4f die sechs sprachgebundenen Formatierer**. **Die Übersicht war in keiner Scheibe** — zweiter Fall derselben Art wie C1-d3d: der Schnitt zählte nach Rubrik, und die Startseite hat keine. **C1-d4a hat zwei Schulden eingelöst und eine neue gefunden.** Eingelöst: `describeApiError` nimmt jetzt den Übersetzer (28 Aufrufstellen in 20 Ansichten — der `simplify:`-Vermerk sagte 38, das waren 28 plus 10 im Test), `messageOf` in der MCP-Registry ist verschwunden. Die Schuld war **früher fällig als angesagt**: über `core/action-state.ts` erreichten deutsche Fehlersätze auch „Sicherung“, „Werksstand“ und „Voll-Backup“, die seit **C1-d3b** übersetzt sind. `AsyncData.error` ist dabei von gemerkt auf **abgeleitet** umgestellt worden (roher Fehler im Signal, Satz im `computed`), sonst bliebe eine stehende Meldung beim Sprachwechsel in der alten Sprache. Gefunden: **`core/format.ts` baut alle sechs Formatierer fest auf `'de-DE'`** — Datum, Relativzeit, Zahl, Prozent, Währung, 25 Aufrufstellen in 12 Dateien; auf Englisch steht „vor 3 Stunden“ neben „Last eval“. Als **C1-d4f** aufgenommen und nicht in d4a gezogen, weil diese Familie das **Locale** braucht und nicht den Übersetzer — eine eigene Entwurfsfrage. **Sechster eingefrorener Konstanten-Fall:** `overview-cards.ts` (Schicht-Karten) plus dessen `TABS`; neu daran ist, dass die Zahlen in Zeichenketten-Verkettung steckten (`${counts.patterns} Patterns` = deutsche Wortstellung, fest verdrahtet). Karten tragen jetzt Schlüssel **und die Zählungen, die sie benennen**, mit einem Wächter, der beides vergleicht — die Gegenprobe liess drei Tests fallen, darunter den, der dem Leser roh `{states} States` auf die Karte schreibt. **Werkzeug-Merksatz erweitert:** die d3d-Lehre gilt nicht nur für Block-*Ersetzung*, sondern auch fürs *Einfügen* — ein Import-Einfüger hinter „die letzte `import `-Zeile“ zerschnitt drei mehrzeilige Import-Anweisungen. **Bewusst gelassen:** die vier Erklär-Karten der Startseite (20 Texte, `<code>` mitten im Satz) sind der Gattung nach C1-d5. **C1-d3d war in keiner Scheibe** (Fund beim Bau von d3c, gebaut direkt danach): `views/curated-views.ts` trug **70** deutsche Texte auf Modulebene — zehn `intro` plus je Abschnitt `label` und `hint`. Der Unterschnitt hatte die *Komponenten* der Bedien-Ansichten gezählt, nicht die **Daten**, aus denen sie ihre Überschriften nehmen. Die Datei trägt jetzt nur noch Struktur (312 → 299 Z., 0 Texte); die Sätze stehen in `i18n/catalogue/curated.ts` (72 Schlüssel, samt der beiden aus `views.ts` gezogenen `curated.crumb`/`curated.empty`). C1-d3 ist gemessen worden (**~132** statt geschätzt ~150, 25 Dateien) und in drei Scheiben zerlegt; d3a und d3b sind davon die ersten beiden — **d3b brachte 73 statt der geschätzten ~41 Schlüssel**, die Schätzungen dieser Rubrik sind also durchweg zu niedrig gewesen (auch der Zeilenstand von `de.ts`: 292 gemessen gegen 230 gerechnet). Alle Merkposten aus C1-c sind abgearbeitet: `render.clearCache()` hängt am `[locale]`-Input der Shell (rot-grün belegt); die Quellen-Leser stehen jetzt in `public-api.ts`, weil das Studio der zweite Verbraucher ist; der Speicher-Schlüssel ist Parameter geworden (`boerdi_locale` vs. `boerdi_studio_locale`), weil beide Oberflächen denselben Origin teilen; und `I18n` nimmt seinen Basis-Katalog als Argument, damit der Kern keinen Katalog mehr kennt. **Der Studio-Umfang ist jetzt gemessen statt geschätzt: ~640 sichtbare deutsche Texte in 96 Dateien, das Siebenfache des Widgets** — daher fünf Scheiben statt einer; ~210 davon (C1-d5) sind technische Referenz-Prosa und ohne Rückbau streichbar oder zurückstellbar (Produktentscheidung, im C1-Plan als solche benannt). **Merkposten für C1-d4 ff.:** (0) **Der Katalog-Split ist mit C1-d3b erledigt** — mit C1-d3d neun Teile unter `i18n/catalogue/` (`frame` 26 · `views` 48 · `shared` 26 · `area-editor` 50 · `backup` 54 · `preview` 15 · `knowledge` 50 · `mcp` 19 · `curated` 72), beide Sprachen je Teil in einer Datei, `STUDIO_PARTS` als **eine** Liste von `{ de, en }`-Paaren. Neue Scheiben legen eine neue Teildatei an und hängen sie dort ein — der Wächter `catalogue/parts.spec.ts` deckt sie damit ohne Nacharbeit ab. Er prüft, was `en.spec.ts` **nicht** sehen kann: ein Schlüssel in zwei Teilen überschreibt beim `Object.assign` den anderen still, in beiden Sprachen gleich (rot-grün belegt). Ebenfalls aus d3b: vier wiederkehrende Beschriftungen liegen jetzt in `shared.ts` (`action.cancel/refresh/download/downloading`) — „Abbrechen" steht an 17 Stellen im Studio, „Aktualisieren" an 13; die noch nicht übersetzten Ansichten greifen in **ihrer** Scheibe darauf zu. Und der dritte Fall der Klasse „fertiger Text auf Modulebene" ist gefallen (`PREVIEW_CONTEXT_KINDS` trug deutsche Beschriftungen; jetzt `labelKey`/`fieldLabelKey`, ausgeschrieben statt zur Laufzeit zusammengesetzt, mit Existenz-Test) — nach `CONFIRM_LEAVE` (d3a) und dem Routen-Titel (d2) ist das ein Muster, nach dem in jeder Scheibe zu suchen ist. **C1-d3c fand den vierten** (`SOURCES` in `rag-ingest.component.ts`) und den grössten: `curated-views.ts` mit 70 Texten — als C1-d3d nachgezogen. Dort halten zwei Wächter das Schlüsselschema: jeder in `CURATED_VIEWS` genannte Schlüssel muss in **beiden** Katalogen stehen, und kein Abschnitt darf den `labelKey` eines anderen tragen (aus dem Katalog heraus nicht erkennbar, weil beide Sprachen ihn brav führen). **Werkzeug-Merksatz aus d3d:** strukturierte Quelltext-Umbauten in diesem Baum **ganz neu schreiben statt per Regex ersetzen** — ein `re.sub` über mehrzeilige Blöcke hat `curated-views.ts` verschluckt, und ohne Git gibt es kein `checkout`. Weiter aus d3c: **`StudioLanguageService.list()`** verbindet Aufzählungen über `Intl.ListFormat`, weil `gaps.join(' und ')` dieselbe fest verdrahtete deutsche Regel war wie `=== 1` vor d3a — ein übersetzter Binder wäre nur die nächste Satzbildung aus Bruchstücken gewesen. **Der `Translate`-Typ wohnt jetzt in `i18n/studio-language.service.ts`** (vorher im `schema-form`), sonst importierte `core` nach aussen statt nach innen. **`describeApiError` ist als einziger der drei Fehler-Beschreiber noch einsprachig** und mit `simplify:` markiert: er wird über `AsyncData` erreicht, das an **38 Stellen in 20 Ansichten** gebaut wird — alle davon C1-d4, dort gehört der Übersetzer durchgereicht. Bewusst **kein** optionaler Übersetzer mit deutschem Rückfall, der liesse die 38 Stellen hinter einer grünen Suite unübersetzt; `messageOf` in der MCP-Registry ist bis dahin seine übersetzte Zwillingskopie und verschwindet mit C1-d4. Und ein Bestandstest war **aus dem falschen Grund grün**: „lists every registered server" fand den Servernamen nur im `sr`-Anhang des Entfernen-Knopfs, weil er in `<input [value]>` steht und kein Textknoten ist — mit dem Knopfnamen in `aria-label` wurde er rot und prüft jetzt die Feldwerte. Dazu aus C1-d3a: der Zustands-Streifen `async-state` baute seinen Lade-Satz aus einem Verb hier und einem Substantiv **samt Artikel** aus 21 Aufrufstellen — das war **schon einsprachig falsch** („Der Lauf werden geladen …" an sechs Stellen), weil der Bestandstest nur den Plural übergab. Der ganze Satz ist jetzt ein Katalog-Eintrag mit `{label}`; die zehn Artikel in acht **C1-d4-Dateien** sind dabei entfallen. Mehrzahl läuft seit C1-d3a über `StudioLanguageService.plural()` (`Intl.PluralRules`, Suffixe `.one`/`.other`) — der in C1-d2 vertagte Snapshot-Satz in `overview.component.ts` kann damit in seiner Scheibe nachziehen. (1) **erledigt in C1-d2, und anders als hier vermutet:** die Registry trägt jetzt Katalog-**Schlüssel** (`view.<slug>.label`/`.desc`), nicht die deutschen Wörter — nur der **Slug** bleibt deutsch, weil er eine Adresse ist und ein Lesezeichen sonst beim Sprachwechsel ins Leere zeigte. Verbraucher waren **sechs**, nicht vier (zusätzlich `not-found` und die kuratierte Ansicht). Der Dokumenttitel musste von einer Konstante auf einen `ResolveFn` umgestellt werden, sonst fröre er in der Sprache ein, die beim Laden des Moduls aktiv war; **bekannte Grenze:** er wird erst bei der nächsten Navigation neu aufgelöst. Neuer Wächter `i18n/views-i18n.spec.ts`: jeder Registry-Schlüssel muss in **beiden** Katalogen stehen — ohne ihn zeigt eine Lücke den Schlüssel selbst als Beschriftung. (2) **jsdom meldet `navigator.language === 'en-US'`**, und der Browser ist im Studio die **zweitstärkste** Quelle — jede Suite mit deutschem Wortlaut muss `sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de')` setzen (kein globaler `navigator`-Stub: der träfe in Angular-Komponenten auch andere Leser). (3) `<html lang>` ist beim Studio **Ausgabe, nicht Quelle** (`index.html` liefert fest `lang="de"`, der Dienst schreibt dorthin) — wer die Rangfolge anfasst, darf sie nicht „auf vier Quellen vervollständigen". Die ursprüngliche Messung zur Einordnung: **Nutzer-Entscheid 2026-07-27: vertagt** — „erst den Chatbot zum Laufen bringen, i18n später nachrüsten". Die Abgrenzung ist dabei gemessen worden und muss nicht neu erarbeitet werden: **vier Textsorten, die nichts miteinander zu tun haben.** (1) **Oberfläche** Widget+Studio: 159 von 204 Dateien tragen deutschen Text — klassisches i18n, mechanisch. (2) **Backend-Meldungen** an Nutzer/Redaktion: ~34 Literale in `api/` (`greeting darf nicht leer sein`). (3) **Redaktioneller Inhalt** (Begrüßung, Quick-Replies, Tour, Personas, 57 Canvas-Typ-Labels): liegt in der DB über 35 Config-Bereiche ⇒ Schema-Ebene je Sprache + Studio-Pflege je Sprache + Migration der Bestandsdaten. (4) **Bot-Antworten**: ~150 Literale in Prompts (`tool_loop`, `classify_prompt*`, `response_prompt_pattern`, `eval/judge`, `quick_replies_llm`) ⇒ Prompt-Neubau plus Golden-/Eval-Baselines **je Sprache**, Abnahme nur mit echten LLM-Läufen. Gesamt 449 deutsche String-Literale im Backend (per AST gezählt, Docstrings ausgenommen — der reine grep-Wert 111 Dateien täuscht, weil Kommentare hier deutsch sind). **Technik ist damit auch schon entschieden:** `@angular/localize` scheidet aus (backt zur Bauzeit ein, ein Bundle je Sprache, Umschalten nur per Neuladen) ⇒ Laufzeit-Wörterbücher. ~~Und das zweite Wörterbuch gehört **nicht** ins Widget-Bundle: dessen §5.5-Budget hat bei ~413 von 420 kB nur ~7 kB Luft, die Sprachdatei muss nachgeladen werden.~~ **Falsch, korrigiert 2026-08-02:** die Zahl war veraltet — die Decke wurde am 2026-07-31 mit Material 3 auf 600/175 kB angehoben (`frontend/scripts/check-widget-budget.mjs:19`). Gemessen beim C1-b1-Gate: 493,69/600 kB roh, 143,88/175 kB gzip ⇒ **106 kB frei**. Der englische Katalog (~5 kB) gehört ins Bundle; **kein Nachladen**, damit auch kein Abruf-Fehlerpfad und kein Ladezustand im Umschalter. **C1-f2b3 ist fertig** (2358 pytest, ruff sauber, OpenAPI unveraendert): der Suchverweis bei Typ-Fokus (`services/turn_links.py`) und die zwei Ersatz-Beschriftungen, die der Lotsen-Injektor selbst formuliert (`services/guide_qr_injector.py`, jetzt mit einem `lang`-Parameter); Katalog 55 Schluessel je Sprache. **Der Schnitt wurde wieder vor dem Bauen geaendert** — diesmal nach der Frage, was auf Englisch SICHTBAR kaputtgeht (ein deutscher Satz erreicht den Nutzer) gegenueber dem, was nur STILL ausfaellt (ein Waechter greift nicht mehr). Nur das Erste ist f2b3; der Anti-Halluzinations-Waechter in `turn_links` und der Type-Focus-QR-Filter in `turn_persist` werden **C1-f2b4**, weil sie eine englische Grammatik brauchen, die ohne Live-Lauf nicht als richtig belegbar ist. **Der Fund:** `_type_focus_label` ist Anzeigetext UND Suchbegriff — es geht in den WLO-Vokabular-Lookup, der nur deutsche Canonicals kennt; blosses Uebersetzen haette den Typ-Filter still aus der Such-URL fallen lassen, auf die der Satz gerade verweist (dritte Wiederholung derselben Klasse nach dem `startswith`-Vergleich aus f2b1 und dem Loesungen-Waechter aus f2b2). Nebenher zwei ALT-Eigenheiten aktenkundig gemacht statt stumm repariert: das fehlende schliessende Anfuehrungszeichen hinter dem Thema, und die Ersatz-Beschriftung, die als „Quell Seite“ ohne Bindestrich erscheint, weil sie durch das Slug-Aufhuebschen laeuft. **C1-f2b4 ist fertig** (2374 pytest, ruff sauber, OpenAPI unveraendert): der Anti-Halluzinations-Waechter in `services/turn_links.py` und der Type-Focus-QR-Filter in `services/turn_persist.py` lesen ihre Wortlisten jetzt aus dem neuen `i18n/output_patterns.py` und ihre drei Ersatzsaetze aus `i18n/bot_text`. **Die Messung davor hat den Bau umgestellt:** weder NEU noch ALT hatten je eine Zeile Verhalten dieses Blocks festgehalten — er war allein durch Byte-Gleichheit abgesichert. Also zuerst elf deutsche Charakterisierungs-Tests auf dem unveraenderten Code, dann fuenf englische, die rot starten. **Dritter Ablageort, mit Grund:** nicht in den Katalog (ein Regex hat kein Uebersetzung, sondern ein Gegenstueck je Sprache) und diesmal auch nicht neben den Code wie in f2b2 — beide Dateien lesen dieselbe Wortliste, zwei Kopien haetten Text und Chips nach einer einseitigen Aenderung Verschiedenes behaupten lassen. Zwei bewusste Asymmetrien: die englische Wortliste traegt die deutschen Produktbegriffe (`Sammlung`/`Themenseite` ueberleben als Eigennamen), die englische Verbliste nicht (Verben uebersetzt das Modell). Deutsch bleiben `_type_words_re` (liest die NUTZER-Nachricht) und `_medientyp_classif` (anderswo der Filterwert der WLO-Suche) — beides C1-f2c. **C1-f2c-a ist fertig** (2389 pytest, ruff sauber, OpenAPI unveraendert), Umfang nach Nutzer-Entscheid auf das SICHERHEITS-Gate begrenzt: `services/safety/regex_gate.py` traegt jetzt englische Krisen-, Drohungs- und PII-Muster. **Gemessener Befund:** sieben englische Krisen-Formulierungen liefen auf `low` durch, waehrend die deutschen Entsprechungen `high`/M01 ausloesen; das einzige englisch aussehende Token (`suicid`) war TOT, weil die Wortgrenze dahinter „suicide“ und „suicidal“ ausschliesst. Die zweite Reihe traegt nicht ueberall: `moderation` ist mehrsprachig, entfaellt aber still ohne OpenAI-Schluessel (`b-api-academiccloud`). **Entscheidung: Vereinigung, nicht Umschaltung** — anders als bei C1-f2b4 darf dieses Gate die Sprache nicht kennen, wer `locale=de-DE` gesetzt hat kann englisch tippen. Der Spiegel hoert dort auf, wo der deutsche aufhoert (`hurt you` ist keine Drohung, weil „verletzen“ es auch nicht ist). Eine Asymmetrie bleibt und ist gepinnt: deutsche Komposita schuetzen den Unterrichtsfall („Suizidpraevention“ → `low`), englische Getrenntschreibung nicht („suicide prevention“ → M01) — bewusst NICHT per Ausnahme entschaerft. **C1-f2c-b ist fertig** (2404 pytest, ruff sauber, OpenAPI unveraendert): Typ-Erkennung (`domain/content_types`), Such-Intent (`domain/search_intent`) und LP-Intent (`domain/lp_intent`) lesen jetzt auch englische Nachrichten. **Drei verschiedene Schaeden:** die Typ-Erkennung traf nur Lehnwoerter (kein Filter, keine gefilterte Such-URL); der Such-Intent war kein Loch sondern ein FEHLVERHALTEN („what can you do?“ galt als echte Suchanfrage, also MCP-Suche + Karten in einer RAG-Antwort); beim LP-Intent blieb allein der Klassifikator-Pfad. **Der kanonische Typ-Schluessel bleibt deutsch** — er ist der WLO-Filterwert, nur die Stichwoerter wachsen. **Fund: auch `_lp_keywords` hat einen zweiten Auftrag** (dieselben Woerter legen das Thema frei) — nur die Stichwoerter zu ergaenzen haette „create a on photosynthesis“ als Suchbegriff erzeugt; die Schleife ist deshalb verhaltenserhaltend als `strip_lp_command_words` zu ihrem Vokabular gezogen und um englische Fuellwoerter ergaenzt. **Zwei Messungen haben naheliegende Eintraege verhindert:** `hey` steckt in `they` (auch mit Leerzeichen) und die Streichung arbeitet auf Teilzeichenketten, nicht auf Woertern. **C1-f2b5 ist fertig** (2418 pytest, ruff sauber, OpenAPI unveraendert): die Inline-Box (`domain/inline_rendering` + die zwei Aufrufstellen `turn_persist`/`direct_actions`). Zwei Schaeden in einem Modul — KORRUPTION beim Rueckfall-Titel ueber der Box („Lernpfad“/ „Material“/„Bearbeitete Version“/„Inhalt“, jetzt im Katalog) und AUSFALL bei zwei Waechtern ueber der EIGENEN Ausgabe (Titel-Regex und Floskel-Filter, jetzt Tabellen je Sprache; Umschaltung wie in f2b4, nicht Vereinigung). **Wichtiger als das Paket ist die Messung davor:** eine AST-Aufzaehlung ueber den ganzen Baum zeigt, dass die f2a-Notiz („~50 Saetze in sechs Modulen“) zum FUENFTEN Mal eine untere Schranke war — nutzersichtbares Deutsch steht auch in `preflight` (Safety-Abweisung), `api/chat` (interner Fehler + QR), `domain/facets`, `quick_reply_policy` („Hat das geholfen?“), `domain/tour`, `rate_limits` und den LLM-Rueckfallsaetzen. Das wird **C1-f2b6**. **Gemessener Nicht-Eingriff:** `_format_inline_doc_intro` bleibt deutsch — der Seed kennt gar kein `intro_text`, die Funktion laeuft heute nie, und ein englischer Zusatz in einem deutschen Redaktions-Template waere schlechter als der deutsche. **C1-f2b6 ist fertig und damit C1-f2b abgeschlossen** (2432 pytest, ruff sauber, OpenAPI unveraendert): die Einzeiler an den Raendern — `domain/facets` (Eingrenzungs-Chips + Filter-Hinweis), `quick_reply_policy` (Auto-Chip), `preflight` (Sicherheits-Abweisung), `api/chat` (interner Fehler + Wiederhol-Chip) und die vier LLM-Rueckfallsaetze. **Zwei der sieben Kandidaten waren gar kein Code-Text:** `domain/tour` und `rate_limits._DEFAULT_BLOCKED` sind Config-Vorgaben mit Code-Rueckfall — sie zu uebersetzen hiesse, die Sprache springt auf Englisch, wenn die Konfiguration fehlt ⇒ gehoeren zur Config-Schema-Frage. **Fund: der Chip und sein eigener Waechter sind EIN Stueck** — „Hat das geholfen?“ enthaelt „geholfen“ aus der Doublette-Stichwortliste; nur den Chip zu uebersetzen haette die Idempotenz still zerstoert. **Der blinde Fleck aus f2b5 ist sofort eingetreten:** das `except Exception` um den Box-Zweig schluckte den `TypeError` der Test-Attrappen — zwei deutsche Bestandstests wurden rot und haben es gemeldet, im Betrieb waeren die Chips still verschwunden. **Die Config-Schema-Frage ist entschieden und begonnen (C1-g).** Nutzer-Entscheid 2026-08-04: **Suffix je Schluessel** (`greeting` / `greeting_en`), zuerst **Begruessung + Widget-Start**. **C1-g1a (Backend) ist fertig:** Modell, Loader und Seed tragen die englische Fassung; das oeffentliche Buendel liefert BEIDE, weil das Widget die Sprache zur Laufzeit umschalten kann und es keinen zweiten Abruf gibt. Kein Vertragsbruch (`-> dict`). **Regel: leer heisst „nicht gepflegt“, nicht „leerer Text“** — der Loader setzt NICHT die deutschen Rueckfaelle ein, sonst waere „bewusst gleich“ nicht mehr von „fehlt“ zu unterscheiden. **Die Messung machte den Schnitt klein:** `/api/config/guide-mode` ist die einzige Boot-Config, `guide-mode` selbst traegt keine Prosa ⇒ **9 Zeichenketten**. Die Vorschaetzung („57 Zeilen“) war zum ersten Mal zu HOCH — sie lief ueber Schluesselnamen statt ueber den Verbraucher. **Ehrlich offen bei der Verifikation:** Docker lief nicht, 140 pg-Tests uebersprungen (darunter der Endpunkt-Test); die Loader-Ebene traegt die Belege. **C1-g1b ist fertig** (ui 572 · studio 878 · widget 39 · eslint sauber · Bundle 508,95/600 kB): das Widget waehlt je Schluessel ueber die reine `pickLocalized`. **Die Messung entschied den Bau:** ein Sprachwechsel verwirft nur den Renderer-Cache, laedt die Boot-Config NICHT neu und uebersetzt den Verlauf NICHT nach (C1-c). Also gehoert die Wahl an den ORT DER VERWENDUNG: Chips und Kopfzeile als `computed` (folgen dem Umschalter), die Begruessung einmalig als NACHRICHT (behaelt ihre Sprache, wie jede andere Nachricht). **Fund: der Tour-Chip wird per TEXT verglichen** — nach dem Umschalten stuende der deutsche Chip weiter in der Blase, verglichen wuerde gegen die englische Fassung, und der Klick startete keine Tour. Geloest nicht durch besseres Nachfuehren, sondern durch Aufloesen der Kopplung: gegen BEIDE Fassungen vergleichen. **C1-g2a ist fertig** (pytest 2447/4 skipped, ruff sauber, OpenAPI unveraendert, studio 878): die 15 Lotsen-Beschriftungen aus `02-domain/guide-rules.yaml` tragen ein `label_en`, und `find_guide_match(message, lang)` waehlt. **Gewaehlt wird im ZUG, nicht beim Laden** — `_COMPILED` ist ein Prozess-Cache, die Sprache gehoert zum Zug; der kompilierte Eintrag traegt deshalb beide Beschriftungen mit. Neu: `i18n/pick_localized`, der Backend-Zwilling von `pickLocalized`. **Fund: `rag_area_rules` in derselben YAML hat KEINEN Leser** (Loader + Studio-Formular ja, `find_rag_area_match` nutzt die hartkodierte `_RAG_AREA_URLS`) — 8. Fall „dokumentiert ohne Konsumenten“, ALT-verbatim; dort wurde bewusst kein `label_en` angebaut. Der Lauf schliesst auch die g1a-Luecke: mit gestartetem Compose-PG liefen die 139 pg-Tests wirklich. **C1-g2b ist fertig** (pytest 2455/4, ruff sauber, OpenAPI unveraendert, studio 878): `ContextPill.label_en` + `ContextActionsBlock.greetings_en`, gewaehlt im Zug ueber `environment.locale`. **Fund: 9 der 14 Chips sind `kind: text` — ihre Beschriftung IST die Nachricht, die der Klick sendet** und danach klassifiziert wird; hier ist also NICHT-Uebersetzen die Gefahr (umgekehrtes Vorzeichen zu f2b4/f2b5). Moeglich nur, weil C1-f2c-b die Heuristiken ueber der Eingabe schon zweisprachig gemacht hat. `greetings_en` ist ein PARALLELES FELD, kein Schluessel-Suffix — die Schluessel von `greetings` benennen Seitenarten, dort gehoert keine Sprache hinein. **Eine falsche Sorge wurde von der Messung widerlegt:** die handgeschriebenen Routen `PUT /config/welcome` + `/config/context-actions` bauen ihr YAML feldweise neu und liessen die `*_en` fallen — aber KEIN Studio-Bauteil ruft sie auf; das Studio speichert ueber die generische, schema-getriebene `PUT /config/data/{area}`, die das ganze Dokument ersetzt und gegen das Bereichsmodell validiert (2 neue Round-Trip-Tests). **Nachtrag, vom Nutzer entschieden (Felder nachziehen, Vertrag neu erzeugen):** die beiden schmalen Alt-Routen tragen jetzt `greeting_en`, `quick_replies_en`, `tour_reply_en`, `greetings_en` und `label_en` mit. Rein additiv (optionale Felder, leere Vorgabe), deshalb bricht kein Aufrufer; `docs/api/openapi-v1.json` wurde bewusst regeneriert — der Waechter ist eine Drift-Warnung, kein Verbot („If deliberate, regenerate“). Serverseitig mergen wurde NICHT gewaehlt: das widerspraeche `api/config.py:274-278` („eine Schreibsemantik, nicht zwei“). Auf der englischen Seite gibt es bewusst KEINE Pflichtpruefung (leer = nicht gepflegt). pytest 2458/4. **C1-g2c ist fertig** (pytest 2465/4, ruff sauber, OpenAPI unveraendert, studio 878): Drosselungs-Satz (`blocked_message_en`) + die zwei Policy-Hinweise (`disclaimer_en`). **Der Policy-Hinweis brauchte KEIN Feld** — `PolicyRule.effect` ist ein freies Dict, der Schluessel reist als ungepinnter Wert mit (`api/config.py:266-272`); erster Bereich dieser Reihe, in dem die zweite Sprache nichts am Schema kostet. **Reihenfolge zaehlt: erst waehlen, dann entdoppeln** — `assess_policy` entdoppelt ueber den TEXT, zwei Regeln duerfen denselben englischen Hinweis tragen. `_DEFAULT_BLOCKED` bleibt einsprachig (Notbremse, kein Pflegeort); `preflight` loest die Sprache jetzt EINMAL am Knoten-Anfang auf, weil die Drosselung sie vor dem Sicherheits-Zweig braucht. **C1-g2d ist fertig** (pytest 2475/4, ruff sauber, OpenAPI unveraendert, studio 878): die Webseiten-Tour, **66 englische Schluessel** statt der geschaetzten ~50. **Der Schnitt: die Sprache wird EINMAL auf die Config angewandt** (`domain/tour_i18n.localize` an der Knoten-Grenze), statt sie durch die ~15 Lesestellen der ALT-Zustandsmaschine zu faedeln — `domain/tour` bleibt unberuehrt. **Fund: das Gruppen-Matching ist schon eine Vereinigung**, weil `synonyms` bewusst deutsch bleibt und jede der 11 Gruppen ihre deutsche Beschriftung dort ohnehin fuehrt. **`start_label` bekommt KEIN englisches Feld — es hat null Leser in NEU und in ALT** (10. Fall „dokumentiert ohne Konsumenten"). Nur 5 Modellfelder noetig, die uebrigen 45 reisen in freien Dicts (`steps`/`entry`/`angebote`). **C1-g2e ist fertig — damit ist C1-g2 GESCHLOSSEN** (pytest 2519 passed, 4 skipped, ruff sauber, OpenAPI additiv erweitert, studio 878): 19 Typ-Beschriftungen plus **15 englische Aliase**. **Der Fund: die Beschriftung ist der Chip-Text UND das Erkennungswort** — der geklickte Chip kommt wortgleich zurueck und wird ueber `type-aliases.yaml` wieder zur Typ-ID; ohne Alias waere der Typ still auf `auto` gefallen UND das englische Typ-Wort im Thema stehen geblieben (`canvas_fast_path` schneidet es mit denselben Aliassen heraus). Neuer Waechter `tests/test_material_type_labels.py` prueft gegen den ECHTEN Seed, dass jeder Chip-Text seinen eigenen Typ wiederfindet — roter Lauf 20 gruen (alle deutschen) / 19 rot. **C1-g2e loest ausserdem einen Kompromiss aus C1-f2b6 auf:** der englische Satz sagte `write "Automatisch"`, weil nur das deutsche Wort ein Alias war; jetzt sagt er `"Automatic"`. Einsprachig bleiben mit Grund: `structure` (Prompt/Klasse B), `_DEFAULT_MATERIAL_TYPES` (Notbremse), `lrt_to_type` (edu-sharing- Vokabular). Backlog-Befund: die Notbremse kennt 18 Typen, der Seed 19 (`vokabelliste` fehlt). Der Schnitt samt Messung (825 Prosa-Werte im Seed, davon die Masse Klasse C) steht in `docs/plans/2026-08-02-c1-i18n.md`. |
 | ~~C9~~ | ~~SSE sendet keine `phase`-Ereignisse~~ **ERLEDIGT 2026-07-27** | **Gebaut + live belegt.** Neu: `obs/progress.py` (`TurnProgress`, Sink-Callback, Sink-Ausnahmen geschluckt wie ALT `Tracer._emit`; `NO_PROGRESS` als zustandsloser Default) — bewusst **Transport, kein Rekorder**: `debug.trace` bleibt leer, das ist weiter Sache des vertagten Tracer-Subsystems. DI wie `on_token`: `build_turn_graph(progress=…)` → `functools.partial` in genau die vier meldenden Knoten (kein Modul-Global). `_stream_turn` hängt eine `asyncio.Queue(200)` davor und zieht sie leer, während der Turn läuft (ALT-Schleifenform `chat.py:448`); der Sink hält **einen Platz für `_DONE` frei**, sonst könnte eine Fortschritts-Flut das Abschluss-Signal verdrängen und den Zug um ein Keepalive-Intervall verzögern. **Live gegen `boerdi_p11` + OpenAI/gpt-5.4-mini gemessen:** `connected 0,1s → safety_classify 0,1s → context/policy/pattern 4,0s → wlo_search 4,0s → response 6,7s → query_meta 9,4s → result` (3 Karten, M05). Im ersten Lauf stand `wlo_search` **24 Sekunden** — genau die Spanne, in der vorher gar nichts kam. **Zwei Messbefunde, die den Bau geändert haben:** (a) Die Map hat **acht** `step`-Werte, nicht neun — der neunte Ladetext ist `connected`, den NEU schon sendet. (b) **ALTs `safety_classify`-Label ist in ALT selbst tot**, doppelt: ALT ruft `parallel_group("safety_classify_**memory**")` (`chat_pipeline_phases.py:54`), also einen anderen Namen als die Map kennt, und `ParallelGroup` emittiert **nur `end`**, das `formatPhaseLabel` verwirft. NEU sendet deshalb `start` unter `safety_classify` — dem Namen, den der Konsument **und ALTs eigenes `trace_service`-Docstring-Beispiel (Z. 96)** nennen. Bewusste, benannte Abweichung vom ALT-Code zugunsten der ALT-Absicht. **`end`-Ereignisse sendet NEU nicht** (`simplify:`): der einzige Konsument verwirft sie, und ihr Nutzlast-Zweck (`duration_ms` für die Studio-Trace) hängt am gedroppten Tracer. **Automatischer Sender↔Konsument-Abgleich** (Quelltext gegen `phase-label.ts`): 7 von 8 Schritten bedient, **kein emittierter Schritt ohne Label**. **Offen bleibt bewusst `topic_content`** — NEUs `_resolve_m16_topic_page_view` hat keinen tracer-Parameter; ihn nachzurüsten hieße zwei Verbatim-Port-Signaturen (`topic_pages` + `turn_persist`) zu ändern, für ein Label, das nur auf dem M16-Pfad und erst nach der fertigen Antwort erschiene. `query_meta` war dagegen fast gratis: der `_NullTracer` in `persist.py` wurde zum weiterleitenden `_ProgressTracer`, der Verbatim-Port blieb unangetastet. Belege: Backend **2160 pytest** (+22), ruff sauber, `export_openapi.py --check` unverändert; Rot-Grün gegengeprüft (Emissionen entfernt ⇒ Tests fallen). |
-| C8 | `web_links` ist als `list[WebLink]` deklariert, geliefert werden dicts | **Im P11-Probelauf am Log gesehen** (2026-07-27): pydantic warnt bei jeder Antwort mit Links `PydanticSerializationUnexpectedValue: Expected 'WebLink' … input_type=dict`. **Heute geht nichts verloren** — `WebLink` ist exakt `{title, url}`, also dieselbe Form, die `domain/url_helpers` baut; die Antwort ist vollständig. Es ist trotzdem eine Unwahrheit im Vertrag: käme ein Feld zu `WebLink` dazu, fiele es still weg. Kein Einzeiler (der Wert läuft als Element eines 7-Tupels durch `services/turn_links`), deshalb hier und nicht im P11-Fix mitgenommen. |
-| P11 | Migration & Cutover | §9-Schritte (Config-Import-CLI-Lauf, RAG-Re-Ingest, Parallelbetrieb, Golden-A/B, Widget-Umschaltung, ALT-Stilllegung). Setzt P10 voraus und ist zum großen Teil Nutzer-Domäne (echte Läufe gegen echte Instanzen). |
-| C6 | `rate_limits` im Studio ohne Wirkung | **Gemessen 2026-07-27.** Der Safety-Config-Block `rate_limits` (per-Session-/per-IP-Fenster, Whitelist, Sperrtext) ist im Schema und damit im Studio editierbar — gelesen wird er von **keiner Zeile**; ALTs in-band-Bremse wurde nicht portiert. Zusätzlich kann das Safety-Log-Feld `rate_limited` nie 1 werden, weil es niemand setzt. Zwei Wege: den Block ehrlich machen (Verbraucher bauen, also ALTs Fenster nachziehen) oder ihn aus dem Schema nehmen und in der Oberfläche benennen. Beides ist eine Produktentscheidung, deshalb hier und nicht im Code. Die falsche Docstring-Zeile ist bereits korrigiert. |
-| C5 | Lasttest-Ressourcen: psutil-Abtastung + Sparklines | **Backend-Entscheidung zuerst, deshalb hier und nicht in der B-Reihe.** `services/loadtest.py` hat ALTs psutil-Abtastung bewusst nicht portiert (Begründung im Modul-Docstring: `psutil` ist keine boerdi-chat-Abhängigkeit und `pyproject.toml` war außerhalb des Slice). Folge, in B5 gemessen: `resource_samples` ist immer `[]` und `_summary` liefert vier Schlüssel ohne Spitzenwerte — es gibt **weder eine Zeitreihe noch Spitzen**. Das Studio benennt das seit B5 ehrlich (vorher „Spitze NaN MB"). Wer die Sparklines will, braucht: (1) `psutil` in `pyproject.toml` — eine Abhängigkeits-Entscheidung des Nutzers, (2) die Abtast-Schleife in `execute_load_test` (ALT: alle 0,5 s), (3) `peak_rss_mb`/`peak_proc_cpu_pct` zurück in `_summary`, (4) im Studio die Anzeige plus das Diagramm über `resource_samples` — der Typ dafür steht schon. |
+| ~~C8~~ | ~~`web_links` ist als `list[WebLink]` deklariert, geliefert werden dicts~~ **ERLEDIGT 2026-07-31** | **Der Ort war ein anderer als hier vermutet.** Die alte Zeile verortete den Defekt bei `services/turn_links` („läuft als Element eines 7-Tupels", deshalb „kein Einzeiler"). **Gemessen statt geglaubt:** `ChatResponse(web_links=[dicts])` validiert sauber zu `WebLink` — der Endpunkt-Vertrag war nie das Problem, und `TurnContext.web_links` (`graph/state.py:159`) wird **von niemandem geschrieben**, ist also ein totes Feld. Die echte Quelle ist `services/widget_postprocess.py:763`: die Rückgabe geht über `resp.model_copy(update={…})`, und **`update=` überspringt die pydantic-Validierung**. Oben (Z. 703/716) werden die Links absichtlich zu dicts gemacht, damit die Merge-/Dedup-Logik `l.get("url")` einheitlich über bestehende `WebLink`-Objekte UND neue dicts aus `_extract_web_links_from_text` laufen kann — ohne Rück-Validierung landen genau diese dicts im `list[WebLink]`-Feld. **Fix: ein Listen-Comprehension mit `WebLink.model_validate`** — der befürchtete 7-Tupel-Umbau war nicht nötig. Rot-grün belegt: 2 neue Tests in `test_widget_postprocess_orchestrator.py`, einer pinnt den Typ, einer das Symptom (`model_dump()` unter `warnings.simplefilter("error")`); mit zurückgenommenem Fix fallen beide mit exakt der Log-Warnung. Backend **2082 passed** (142 pg-Skips, kein DB-Pfad berührt), ruff sauber, `export_openapi.py --check` unverändert. **Lehre für diese Rubrik:** die Ursachen-Vermutung einer offenen Zeile ist eine Vermutung, kein Befund — sie hat den Aufwand hier um Größenordnungen überschätzt und in die falsche Datei gezeigt. |
+| P11 | Migration & Cutover | §9-Schritte (Config-Import-CLI-Lauf, RAG-Re-Ingest, Parallelbetrieb, Golden-A/B, Widget-Umschaltung, ALT-Stilllegung). Setzt P10 voraus und ist zum großen Teil Nutzer-Domäne (echte Läufe gegen echte Instanzen). Schritte 1+2 erledigt (2026-07-31); der **Code**-Anteil von Schritt 4 steht seit 2026-08-09: `evals/compare_golden.py` (Abweichungs-Report pro Flow/Turn, siehe P11-Schritt 4a). Offen bleiben die beiden echten Läufe, die Redaktions-Fahne sowie Schritt 5+6. |
+| ~~K1–K5~~ | ~~Kostenüberwachung (Token je Sitzung/Zeitraum, Preise, Abrechnung)~~ **✅ ERLEDIGT 2026-08-12** | **Komplett gebaut. Aufgenommen 2026-08-11; K1 (K1-0, K1a–K1f) + K2 (Tabelle, Migration 0002, Schreibpfad) + K3 (Preise) + K4 (Auswertung) am selben Tag, K5 (Studio-Ansicht „Kosten") am 2026-08-12.** **K5 zerfiel in zwei Teile, weil der Plan etwas verlangte, das es noch nicht gab:** „die teuersten Sitzungen" war in K4 nicht gebaut (dort stehen nur „je Sitzung" und „je Zeitraum") — also erst K5a (Backend: `sessions` in der Zeitraum-Antwort; die Rangfolge entsteht in **Python**, weil der Preis in der Config und nicht in der DB lebt, ein `ORDER BY` könnte nur nach Token sortieren) und dann K5b (die Ansicht). **K5a kostete KEINEN Vertragszusatz** — gemessen statt vermutet: die 200er-Antwort der Kosten-Routen ist im eingefrorenen Dokument `{"type":"object","additionalProperties":true}` ohne ein einziges gepinntes Feld, ein neuer Schlüssel ändert sie also nicht; eine dritte Route hätte die §5.5-Ausnahme ein zweites Mal ausgegeben, für Zahlen, die dieselbe Ansicht im selben Fenster ohnehin zusammen liest. **Zwei Funde aus K5:** *das Tagesende* — der Server liest ein blosses Datum als Mitternacht, „bis heute" hätte den ganzen heutigen Tag **stumm** verloren (eine kleinere Summe sieht aus wie eine kleinere Summe), deshalb schickt die Ansicht `T23:59:59.999Z`; und *ein Test, der in der Rot-Probe grün blieb*, weil die Sitzungsnamen (`k5o-gross`/`k5o-klein`) alphabetisch zufällig dieselbe Reihenfolge ergaben wie die erwartete. **Die §5.6-Ansichtszusage ist beim 20. Eintrag nicht hochgezählt, sondern geteilt worden** — `PORTIERT` (16 aus ALT) und `OHNE_ALT_VORBILD` (4, je mit Grund) in `studio-views.spec.ts`, samt Gegenrichtungs-Test; dieselbe Disziplin wie `NEUE_BEREICHE` bei K3. Geld bleibt bis zum Bildschirm Text: `core/format.ts::formatMoney` entscheidet die Nachkommastellen an den **Ziffern der Zeichenkette** (zwei normal, mehr nur wenn zwei eine echte Zahl auf `0,00 €` rundeten) und fängt eine ungültige `currency` aus der Studio-Config ab, die sonst per `RangeError` die ganze Ansicht geleert hätte. Belege K5: pytest **3003/4** · `ng test studio` **922** · `ng test ui` **701 unverändert** (kein Kostenwert im Widget) · `check:tokens` grün · `--check` grün. Bewusst offen gelassen: `/api/usage/session/{id}` hat nach K5 keinen Verbraucher in der Oberfläche — die Sitzungsliste beantwortet die Frage für die Sitzungen, auf die es ankommt. **K4 hat den eingefrorenen OpenAPI-Vertrag zum ersten Mal bewusst neu erzeugt** (86/114 → 88 Pfade/116 Operationen, genau +2/+2, Nutzer-Entscheid §5.5): die benannte Liste dazu ist `docs/api/bewusste-vertragszusaetze.md`, bewacht von `tests/test_openapi_additions.py` (in drei Richtungen rot gesehen). Wer künftig eine Route hinzufügt, trägt sie dort ein, statt die eingefrorenen Zahlen nachzuziehen. Eigener Plan mit Messung, Architektur und ausführbarer Aufgabenliste: `docs/plans/2026-08-11-kostenueberwachung.md` — dort anfangen, nicht hier. **K3 brachte den 36. Config-Bereich** (`01-base/pricing`, ohne ALT-Gegenstück) — die Zusage „genau 35" bleibt erhalten, der Zusatz steht getrennt und mit Grund in `NEUE_BEREICHE` (`tests/test_config_models.py`), Vorbild `BEWUSST_EINSPRACHIG`/`OHNE_BUCHUNG`. Zwei begründete Abweichungen dort: Geld steht als `float` im Bereichsmodell und wird erst in `domain/pricing.py` zu `Decimal` (ein `Decimal`-Feld verschemat pydantic als `anyOf`+`pattern`, was den Studio-Editor auf ein JSON-Textfeld zurückwerfen würde — der Build brach mit `TS2353` ab), und Präfix-Treffer enden an der `-`-Grenze (sonst bepreist `gpt-5` still auch `gpt-55`). Kurz: das Fundament (`obs/usage.py`, prompt/completion/cached je Zug, in `messages.debug` gespeichert) ist gegen echtes LiteLLM geprüft, **lief aber gar nicht** — der Merkposten hatte keinen Erzeuger (M0, ✅ behoben in K1-0; siehe Abschnitt „2026-08-11 (2)"). ✅ Ebenfalls erledigt: (b) Reasoning-Token (K1a) und **alle fünf ungebuchten Module** (K1b–K1e: `llm_learning_path`, `llm_curation`, `canvas_service`, `safety/legal` je auf ALLEN Aufrufwegen — zwei mehr, als die Messtabelle nannte — plus `mcp/arg_resolvers`, das den Merkposten per `ContextVar` aus dem setup-Knoten bekommt statt durch 25 Aufrufstellen gefädelt). Es fehlen (c) Aggregation und (d) Preise. Nutzer-Entscheide stehen: eigene Tabelle `usage_events` ohne Rückfüllung, Umfang „Chat vollständig", Preise als Studio-Config. **Keine offene Frage mehr** — K1e ist am 2026-08-11 gemessen und entschieden; die OpenAPI-Vertragsfrage ebenso (zwei eigene Routen unter `/api/usage/`, einmal neu erzeugen, mit benanntem Eintrag „Bewusste Vertragszusätze"). Zwei Dinge gehören dem Nutzer: ein Live-Zug als Beleg, dass die Zahlen im Betrieb ankommen, und der Nebenbefund fehlender Vokabular-Aliase (`teacher`/`learner`/`Gymnasium`/`Oberstufe`), der heute je einen LLM-Aufruf kostet. |
+| ~~E4~~ | ~~Verwaister Schreib-Vorgang verfällt nicht~~ **✅ ERLEDIGT 2026-08-12** | **Gebaut; Beleg im Abschnitt „2026-08-12 — E4“ oben.** Frist als `TOKEN_TTL_SECONDS` + `is_expired` in `domain/write_confirm.py`, die Uhr reicht die Naht herein (`domain/` ist rein). Vorbild war `services/page_context.py`, das `_resolved_at` schon genauso ablegt und prüft — keine Migration, JSONB. **Fund beim Bauen:** die bestehende Protokollzeile hätte gelogen („Argumente weichen ab“, während sie übereinstimmen), also ein eigener Zweig und ein Test, der beide gegeneinander pinnt. pytest 3010/4, ruff sauber, Vertrag unverändert. Ursprünglich: **Aufgenommen 2026-08-11**, als Folge davon, dass der Merkposten des Bestätigungs-Walls jetzt wirklich gespeichert wird (Abschnitt „2026-08-11" oben). Vorher war der Fall unerreichbar, weil nichts überdauerte. Jetzt gilt: legt der Nutzer eine Änderung an und verfolgt sie nicht weiter, bleibt der Eintrag bis zum Sitzungsende liegen — entfernt wird er nur auf dem Bestätigungspfad oder durch eine neue Vorschau desselben Werkzeugs. Fragt er Stunden später zufällig **exakt** dasselbe Vorhaben erneut an (gleicher Fingerabdruck), wird der alte Schlüssel eingesetzt, der Server lehnt ihn ab (gilt zehn Minuten) und antwortet mit einer neuen Vorschau: ein überflüssiger Werkzeugaufruf, keine falsche Änderung, **kein Sicherheitsloch** (die Frist gilt serverseitig). Naheliegender Schnitt: Zeitstempel in `remember_pending`, Prüfung in `token_for` — dann steht die Frist an einer Stelle statt implizit. Achtung: `domain/` ist rein und hat keine Uhr, die Zeit muss der Aufrufer hereinreichen. |
+| ~~C6~~ | ~~`rate_limits` im Studio ohne Wirkung~~ **ERLEDIGT 2026-07-31** | **Nutzer-Entscheid: „integrieren und nutzen"** — also den Verbraucher bauen, nicht den Block entfernen. Neu: `services/rate_limits.py` (`check_rate_limit` → `RateVerdict`) und der Aufruf am **Kopf** von `graph/nodes/preflight.py`, vor dem Direkt-Aktions-Filter. Das ist ALTs Platz und Reihenfolge (gemessen: `chat_turn_setup.py:128-135` speichert erst die Nutzernachricht, dann `_run_preflight_guards`; NEUs Graph fährt `persist_user → preflight` — deckungsgleich, ebenso `client_ip = peer_ip or page_ip`). Ein Aufrufpunkt deckt `/api/chat` **und** `/api/chat/stream`, weil beide denselben Graphen fahren. `log_safety_event(rate_limited=True)` ist damit verdrahtet — das Studio zeigt den Zähler seit jeher an (`safety-logs.component.html:46` + Abzeichen), er kann sich jetzt bewegen. **Bewusst NICHT ALTs Zähler:** ALT hält ein modul-globales `dict` aus Deques — verboten (Regel 3) und bei N Replicas schlicht falsch, weil jedes Limit effektiv N-fach gälte. Stattdessen der Moving Window von `limits` (bisher nur transitiv über slowapi da, jetzt explizit deklariert, MIT) über **denselben** `RATE_LIMIT_STORAGE_URI` per `async+`-Präfix — `memory://` je Prozess, `valkey://` geteilt; dass beide `MovingWindowSupport` implementieren, ist geprüft. ALTs `_sweep_stale`-Hausputz entfällt dadurch ersatzlos (Verfall ist Sache des Speichers). **Zwei Dinge bewusst nicht portiert:** `reset_session()` und das Feld `retry_after` — beide haben **in ALT selbst keinen Aufrufer** (gemessen), sie zu portieren wäre genau der Defekt, den C6 behebt. **Zwei Abweichungen mit Grund:** ein leerer `blocked_message` (Modell-Default `""`) fällt auf ALTs Satz zurück statt eine leere Blase zu zeigen; und der Log bekommt die auslösende Fenster-Kennung als `reasons: ["rate_limit:session_minute"]` mit — sonst sehen alle gebremsten Zeilen gleich aus und niemand weiß, ob das Sitzungs- oder das IP-Fenster zu eng ist. **Ausfall des Zählers bremst nicht die Nutzer:** ist der Speicher unerreichbar, geht der Zug durch (mit Warnung) — das HTTP-Limit bleibt der harte Boden. **Der Seed liefert `enabled: true`,** die Bremse ist nach dem Import also scharf (30/min bzw. 600/h je Sitzung, 1200/min bzw. 30000/h je IP). Genau dafür gibt es einen Test, der den **echten Seed** durch die **echte** Schlüssel-Normalisierung und das **echte** Bereichs-Modell schickt und die vier Fenster prüft — die Lehre aus P11, wo zwei Attrappen nach dem Code statt nach der Wirklichkeit gebaut waren. Belege: Backend **2238** (15 neue), ruff sauber, `export_openapi.py --check` unverändert (keine API-Fläche berührt), `pip-licenses` limits 5.8.0 MIT, `uv lock` 149 Pakete. Zwei falsche Docstrings mitkorrigiert (`api/ratelimit.py` und `tests/test_ratelimit.py` behaupteten beide, die Config-Bremse sei portiert). **Nicht belegt:** ein Live-Lauf gegen echten Verkehr. Ursprünglicher Befund: **Gemessen 2026-07-27.** Der Safety-Config-Block `rate_limits` (per-Session-/per-IP-Fenster, Whitelist, Sperrtext) ist im Schema und damit im Studio editierbar — gelesen wird er von **keiner Zeile**; ALTs in-band-Bremse wurde nicht portiert. Zusätzlich kann das Safety-Log-Feld `rate_limited` nie 1 werden, weil es niemand setzt. Zwei Wege: den Block ehrlich machen (Verbraucher bauen, also ALTs Fenster nachziehen) oder ihn aus dem Schema nehmen und in der Oberfläche benennen. Beides ist eine Produktentscheidung, deshalb hier und nicht im Code. Die falsche Docstring-Zeile ist bereits korrigiert. |
+| ~~W3~~ | ~~M16 sucht Themenseiten über die falsche Quelle~~ **ERLEDIGT 2026-07-30** | **Gebaut, Beleg im Abschnitt „W3 ✅ 2026-07-30" oben** (A 3/7 mit einer falschen Seite vs. B 7/7; Live-Abnahme 7/7 mit zwei MCP-Calls je Zug). Die Zeile bleibt durchgestrichen stehen, weil ihr Befund erklärt, warum der Themenseiten-Pfad vorher unzuverlässig wirkte. Ursprüngliche Fassung: **Gemessen 2026-07-30 in der W2-Abnahme.** `_resolve_m16_topic_page_view` holt seine Kandidaten aus `search_wlo_collections(query, maxResults=8)`. Diese Quelle ist instabil: in **6 von 9** Läufen war die gesuchte Themenseite gar nicht dabei oder kam ohne `topic_page_url` — bei identischer Abfrage, Minuten auseinander. Die dedizierte `search_wlo_topic_pages` fand sie im selben Zeitraum **6 von 6** Mal. Sichtbare Folge: „Themenseite Chemie existiert (7 Schwimmlinien), der Resolver meldet trotzdem keine". Betrifft ALT identisch (W2-A/B: 0 Ergebnis-Abweichungen), ist also kein Regress, sondern geerbte Schwäche. Umbau ist mehr als ein Schlüsseltausch: der dedizierte Tool-Pfad hat den in `_topic_pages_with_warmup` dokumentierten „enger Query-Matcher"-Effekt, der Resolver müsste also über diesen Helfer statt direkt gehen — plus Rückfall auf die Sammlungs-Suche, damit nichts verloren geht. Eigenes Paket. |
+| W4-Rest | ~~Tool-Kopie im Client veraltet~~ **✅ ERLEDIGT mit W9a/W9b/W9c (2026-08-01)** — alle drei unten genannten Entscheidungen sind gefallen und umgesetzt: (1) sechs Werkzeuge aufgenommen und je in ein Muster verdrahtet, `search`/`fetch`/WebUI-Varianten bewusst draußen, `find_wlo_skills` zurückgestellt (serverseitig nicht konfiguriert + Anweisungs-Kanal); (2) die Beschreibungen sind zusammengeführt, drei zusammengelegte Fähigkeiten geprüft (zwei übernommen, `includeParents` abgelehnt — liefert für Inhalte nichts); (3) statt eines netzabhängigen CI-Wächters gibt es jetzt zwei netzfreie: Muster-Erreichbarkeit und Parameter↔Argumentmodell. Details in den Abschnitten W9a–W9c oben. Der ursprüngliche Text zur Nachvollziehbarkeit: | **Abgleich liegt vor (W4-1, Abschnitt oben): 23 Server-Tools, 12 bei uns, 0 Phantom-Tools, 0 fehlende Pflichtfelder, 12/12 Beschreibungen gedriftet.** Die zwei Sachfehler daraus sind gefixt. **Stand nach W7b (2026-07-31):** der neue Server ist live (23 Tools), `get_wlo_content_text` ist seit M17 verdrahtet — es sind also noch **zehn** ungenutzte. Ein Wächter hält seither fest, dass die Registry jedes angebotene Werkzeug kennt. Offen bleiben drei Entscheidungen: (1) **welche der 10 ungenutzten Tools** der Bot bekommt (`fetch`, `search`, `find_wlo_skills`, `get_collection_stats`, `get_compendium_text`, `get_node_breadcrumb`, `get_related_content`, `get_wikipedia_summary`, `lookup_wlo_publishers`, `search_wlo_within_collection`) — Produktentscheidung, je Tool zusätzlich Validierung/Parser/Prompt-Führung. **`get_wikipedia_summary` ist seit W8 (2026-08-01) verdrahtet** — deterministisch aus `canvas_service`, nicht über das LLM; es dem Modell *zusätzlich* anzubieten wäre ein zweiter Weg zur selben Auskunft und bräuchte eine Vorrang-Regel. Nutzer-Vorgabe 2026-07-31 für die übrigen: `search` und `fetch` bleiben draußen (Doppelgänger für den OpenAI-GPT-Store), die WebUI-Varianten ebenfalls — alle anderen kommen rein. (2) **Die 12 Beschreibungen zusammenführen statt kopieren** — unsere tragen boerdi-eigene Führung, die der Server nicht kennt. (3) **Ein automatischer Drift-Wächter** (Vorbild `export_openapi.py --check`) bräuchte Netz in der CI. Unser LLM sieht weiterhin nur die hartkodierte Liste (`_select_active_tools`, `generate.py:107`); `discover_server_tools` speist nur die Studio-Ansicht, ein „neu verbinden" ändert nichts (dem MCP-Entwickler so zurückgemeldet). |
+| ~~C5~~ | ~~Lasttest-Ressourcen: psutil-Abtastung~~ **ERLEDIGT 2026-07-31** | **Nutzer-Entscheid: Abhängigkeit aufnehmen.** Gebaut sind die vier genannten Schritte: (1) `psutil>=7.1.3` in `pyproject.toml` — installiert 7.2.2, **BSD-3-Clause**, vom Lizenz-Gate erlaubt (`pip-licenses` geprüft); (2) `_sample_resources` als ALT-Port (0,5-s-Takt, `cpu_percent`-Priming, Messfehler beenden die Abtastung NICHT); (3) `peak_rss_mb`/`peak_proc_cpu_pct` zurück in `_summary` — `samples` ist dort **Pflicht-Parameter**, damit ein vergesslicher Aufrufer auffällt statt still `0.0`-Spitzen zu melden; (4) Studio zeigt Spitzen + Messpunkt-Zahl in der Detailansicht und die Speicher-Spitze in der Liste. **Zwei Entscheidungen über den Port hinaus:** die Abtastung schreibt direkt in `result["resource_samples"]`, damit jedes Zwischen-`_persist` den bis dahin gemessenen Verlauf mitnimmt (das Studio pollt und soll die Kurve wachsen sehen); und der Sampler wird im `finally` **vor** dem letzten `_persist` gestoppt und abgewartet — sonst hängt er während der Serialisierung an die Liste an, und nach einem Fehlschlag liefe ein verwaister Task endlos. **B5s Lehre bewusst erhalten:** ein Lauf ohne Messpunkte zeigt „Keine Messpunkte" statt „0 MB" (0 ist dort keine Aussage), und beide umgeschriebenen B5-Tests behalten ihren NaN-Schutz wörtlich — der galt dem Rechenfehler, nicht dem Feature. Belege: Backend **2223** (3 neue), ruff sauber, `ng test studio` **735** (1 neuer), lint, `ng build studio` 297,50 kB. **Nicht belegt:** ein echter Lasttest-Lauf (feuert die reale LLM/MCP-Pipeline — Nutzer-Domäne). Ursprüngliche Fassung: **Backend-Entscheidung zuerst, deshalb hier und nicht in der B-Reihe.** `services/loadtest.py` hat ALTs psutil-Abtastung bewusst nicht portiert (Begründung im Modul-Docstring: `psutil` ist keine boerdi-chat-Abhängigkeit und `pyproject.toml` war außerhalb des Slice). Folge, in B5 gemessen: `resource_samples` ist immer `[]` und `_summary` liefert vier Schlüssel ohne Spitzenwerte — es gibt **weder eine Zeitreihe noch Spitzen**. Das Studio benennt das seit B5 ehrlich (vorher „Spitze NaN MB"). Wer die Sparklines will, braucht: (1) `psutil` in `pyproject.toml` — eine Abhängigkeits-Entscheidung des Nutzers, (2) die Abtast-Schleife in `execute_load_test` (ALT: alle 0,5 s), (3) `peak_rss_mb`/`peak_proc_cpu_pct` zurück in `_summary`, (4) im Studio die Anzeige plus das Diagramm über `resource_samples` — der Typ dafür steht schon. |
 
 ## Nutzer-Domäne (nicht von mir zu erledigen)
 

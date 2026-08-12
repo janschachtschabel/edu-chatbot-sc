@@ -22,6 +22,7 @@ import {
 
 import { ConfigApi } from '../core/config-api.service';
 import { StudioApi } from '../core/studio-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AreaDocEditor, describeAreaError } from '../schema-form/area-doc-editor';
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
 import { rootField } from '../schema-form/schema-to-fields';
@@ -53,7 +54,8 @@ export class GroupSectionComponent {
 
   private readonly api = inject(StudioApi);
   private readonly config = inject(ConfigApi);
-  readonly editor = new AreaDocEditor(this.config);
+  protected readonly t = inject(StudioLanguageService).t;
+  readonly editor = new AreaDocEditor(this.config, this.t);
 
   readonly entries = signal<readonly GroupEntry[]>([]);
   readonly selected = signal('');
@@ -145,7 +147,7 @@ export class GroupSectionComponent {
           .filter((entry) => entry.key.startsWith(`${this.area()}/`)),
       );
     } catch (err) {
-      this.listError.set(describeAreaError(err));
+      this.listError.set(describeAreaError(err, this.t));
     } finally {
       this.listLoading.set(false);
     }
@@ -154,10 +156,7 @@ export class GroupSectionComponent {
   select(key: string): void {
     if (key === this.selected()) return;
     if (this.editor.dirty()) {
-      this.notice.set(
-        'Bitte erst speichern oder verwerfen — sonst gehen die Änderungen an diesem '
-        + 'Dokument verloren.',
-      );
+      this.notice.set(this.t('groupSection.switchBlocked'));
       return;
     }
     this.notice.set('');
@@ -180,20 +179,17 @@ export class GroupSectionComponent {
   async create(): Promise<void> {
     const key = this.newKey();
     if (!key) {
-      this.newError.set('Bitte einen Namen angeben.');
+      this.newError.set(this.t('groupSection.needName'));
       return;
     }
     if (this.entries().some((entry) => entry.key === key)) {
-      this.newError.set(`„${key}" gibt es schon — bitte einen anderen Namen wählen.`);
+      this.newError.set(this.t('groupSection.duplicate', { name: key }));
       return;
     }
     if (this.editor.dirty()) {
       // Creating selects the new document, which would drop the open edits
       // exactly as switching entries would.
-      this.newError.set(
-        'Erst das offene Dokument speichern oder verwerfen — sonst gehen die Änderungen '
-        + 'beim Wechsel verloren.',
-      );
+      this.newError.set(this.t('groupSection.createBlocked'));
       return;
     }
     this.creating.set(true);
@@ -204,9 +200,9 @@ export class GroupSectionComponent {
       await this.loadList();
       this.selected.set(key);
       await this.editor.load(key);
-      this.notice.set('Angelegt.');
+      this.notice.set(this.t('groupSection.created'));
     } catch (err) {
-      this.newError.set(describeAreaError(err));
+      this.newError.set(describeAreaError(err, this.t));
     } finally {
       this.creating.set(false);
     }

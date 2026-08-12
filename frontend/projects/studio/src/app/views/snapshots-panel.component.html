@@ -1,33 +1,31 @@
 <section class="op-panel" aria-labelledby="sp-title">
   <div class="op-head">
-    <h2 class="op-title" id="sp-title">Snapshots</h2>
+    <h2 class="op-title" id="sp-title">{{ t('snapshots.title') }}</h2>
     <button
       type="button"
       class="op-btn"
       [disabled]="snapshots.loading()"
       (click)="snapshots.reload()"
-    >Aktualisieren</button>
+    >{{ t('action.refresh') }}</button>
   </div>
 
   <p class="op-lead">
-    Ein Snapshot friert alle Konfigurationsbereiche auf dem Server ein und lässt
-    sich ohne Download zurückspielen. Gespeichert sind {{ count() }} von
-    {{ limit }} möglichen.
+    {{ t('snapshots.lead') }} {{ plural('snapshots.count', count(), { limit }) }}
   </p>
 
   <form class="sp-create" (submit)="$event.preventDefault(); create()">
-    <label class="op-label" for="sp-label">Bezeichnung (optional)</label>
+    <label class="op-label" for="sp-label">{{ t('snapshots.labelField') }}</label>
     <input
       type="text"
       class="op-input"
       id="sp-label"
       [value]="label()"
       [disabled]="action.isRunning('create')"
-      placeholder="z. B. vor dem Persona-Umbau"
+      [placeholder]="t('snapshots.labelExample')"
       (input)="onLabel($event)"
     />
     <button type="submit" class="op-btn op-btn--primary" [disabled]="action.busy()">
-      {{ action.isRunning('create') ? 'Wird angelegt …' : 'Snapshot anlegen' }}
+      {{ action.isRunning('create') ? t('snapshots.creating') : t('snapshots.create') }}
     </button>
   </form>
 
@@ -40,12 +38,11 @@
   }
 
   <studio-async-state
-    label="Snapshots"
+    [label]="t('snapshots.title')"
     [loading]="snapshots.loading() && rows().length === 0"
     [error]="snapshots.error()"
     [empty]="snapshots.isEmpty()"
-    emptyText="Noch keine Snapshots. Ein Snapshot sichert die Konfiguration in ihrem
-               jetzigen Stand — sinnvoll, bevor größere Änderungen anstehen."
+    [emptyText]="t('snapshots.empty')"
     (retry)="snapshots.reload()"
   />
 
@@ -64,53 +61,51 @@
               class="op-btn"
               [disabled]="action.busy()"
               (click)="arm('restore', row.id)"
-            >Wiederherstellen</button>
+            >{{ t('snapshots.restore') }}</button>
             <button
               type="button"
               class="op-btn"
               [disabled]="action.busy()"
               (click)="download(row)"
             >
-              {{ action.isRunning('download:' + row.id) ? 'Lädt …' : 'Herunterladen' }}
+              {{ action.isRunning('download:' + row.id)
+                 ? t('action.downloading') : t('action.download') }}
             </button>
             <button
               type="button"
               class="op-btn op-btn--danger"
               [disabled]="action.busy()"
               (click)="arm('delete', row.id)"
-            >Löschen</button>
+            >{{ t('snapshots.delete') }}</button>
           </div>
 
           @if (isArmed('restore', row.id)) {
             <p class="op-confirm" role="alert">
-              <span>
-                „{{ name(row) }}" einspielen? Die Konfigurationsbereiche aus diesem
-                Snapshot überschreiben den aktuellen Stand. Bereiche, die er nicht
-                enthält, bleiben unverändert.
-              </span>
+              <span>{{ t('snapshots.confirmRestore', { name: name(row) }) }}</span>
               <button
                 type="button"
                 class="op-btn op-btn--primary"
                 [disabled]="action.busy()"
                 (click)="restore(row)"
-              >Ja, wiederherstellen</button>
-              <button type="button" class="op-btn" (click)="disarm()">Abbrechen</button>
+              >{{ t('snapshots.confirmRestoreYes') }}</button>
+              <button type="button" class="op-btn" (click)="disarm()">
+                {{ t('action.cancel') }}
+              </button>
             </p>
           }
 
           @if (isArmed('delete', row.id)) {
             <p class="op-confirm" role="alert">
-              <span>
-                „{{ name(row) }}" endgültig löschen? Der gesicherte Stand ist danach
-                nur noch über eine heruntergeladene ZIP verfügbar.
-              </span>
+              <span>{{ t('snapshots.confirmDelete', { name: name(row) }) }}</span>
               <button
                 type="button"
                 class="op-btn op-btn--danger"
                 [disabled]="action.busy()"
                 (click)="remove(row)"
-              >Ja, löschen</button>
-              <button type="button" class="op-btn" (click)="disarm()">Abbrechen</button>
+              >{{ t('action.confirmDelete') }}</button>
+              <button type="button" class="op-btn" (click)="disarm()">
+                {{ t('action.cancel') }}
+              </button>
             </p>
           }
         </li>

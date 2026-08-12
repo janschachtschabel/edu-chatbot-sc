@@ -8,12 +8,15 @@
 // chat.component.scss:14-19). CTA-Akzent am kundenüberschreibbaren
 // --boerdi-primary (ALT-Token, Fallback #1c4587).
 //
-// simplify: kein Dark-Mode — ALT war hell-only (weiße Boxen, dunkler Text).
-//   Bewusste Grenze; a11y-/Kontrast-/Fokus-Sweep = geplanter Slice 8-6.
+// B2 (2026-07-31): aus festen Hellwerten wurden Material-Systemtoken. Diese
+// Boxen sind die AUSGELIEFERTE Standard-Darstellung von Ergebnissen (das
+// Kachelraster erscheint nur bei `inline-result-grouping="false"`) — sie
+// hell-only zu lassen hätte den Dunkelmodus genau dort verfehlt, wo er zuerst
+// auffällt.
 
-$border: rgba(0, 0, 0, 0.1);
-$text: #1a1a2e;
-$text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 (4,5:1)
+$border: var(--mat-sys-outline-variant);
+$text: var(--mat-sys-on-surface);
+$text-muted: var(--mat-sys-on-surface-variant);
 
 :host {
   // Host layout-transparent: .result-groups zählt direkt als Kind der
@@ -30,9 +33,9 @@ $text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 
 
 .result-group {
   border: 1px solid $border;
-  border-radius: 8px;
+  border-radius: var(--mat-sys-corner-small);
   padding: 6px 10px 8px;
-  background: #fff;
+  background: var(--mat-sys-surface);
 
   &__heading {
     display: flex;
@@ -56,19 +59,55 @@ $text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 
     gap: 0;
   }
 
+  // M17: Zeile = Link (wächst) + optionaler Volltext-Knopf (feste Breite).
+  // Der Knopf steht NEBEN dem Anker, nicht darin — ein Bedienelement im Link
+  // wäre ungültiges HTML und für die Tastatur mehrdeutig.
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+
+    > .result-group__item {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  // Material-Icon-Knopf (`matIconButton`). Gesteuert über die
+  // KOMPONENTEN-Token statt durch Überschreiben von Materials Regeln — Ripple,
+  // Zustands-Overlay und Fokusring bleiben dadurch die von Material gelieferten.
+  &__item-btn {
+    flex-shrink: 0;
+    // 28px: über dem WCAG-2.2-Minimum von 24px (SC 2.5.8) und schmal genug,
+    // dass die Zeilenhöhe der Box erhalten bleibt. Materials Vorgabe wären 40px.
+    --mat-icon-button-state-layer-size: 28px;
+    --mat-icon-button-icon-size: 16px;
+    color: $text-muted;
+
+    .bb-icon {
+      display: inline-flex;
+      font-size: 16px;
+      line-height: 0;
+    }
+
+    &:hover:not(:disabled) {
+      color: var(--mat-sys-primary);
+    }
+  }
+
   &__item {
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 3px 6px;
-    border-radius: 5px;
+    border-radius: var(--mat-sys-corner-extra-small);
     text-decoration: none;
     color: $text;
     font-size: .82rem;
     line-height: 1.3;
 
     &:hover {
-      background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 7%, white);
+      background: color-mix(in srgb, var(--mat-sys-primary) 7%, var(--mat-sys-surface));
       text-decoration: underline;
     }
 
@@ -87,83 +126,10 @@ $text-muted: #767676;  // 8-6: #777 = 4,48:1 auf Weiß → knapp unter SC 1.4.3 
     }
   }
 
-  // Such-CTA: helle Card-Optik mit Primary-Akzent (dezenter Container, runde
-  // Icon-Bubble, Chevron in Primary). color-mix mit Fallback --boerdi-primary
-  // (#1c4587); ältere Browser bekommen den border-color-Fallback.
-  &--cta {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-    border: 1px solid var(--boerdi-primary, #1c4587);
-    border-color: color-mix(in srgb, var(--boerdi-primary, #1c4587) 28%, #fff);
-    border-radius: 12px;
-    background: #fff;
-    color: #1a1a2e;
-    text-decoration: none;
-    transition: border-color .12s ease, background .12s ease, transform .12s ease;
-
-    &:hover {
-      border-color: color-mix(in srgb, var(--boerdi-primary, #1c4587) 55%, #fff);
-      background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 4%, #fff);
-      transform: translateY(-1px);
-      text-decoration: none;
-    }
-
-    .result-group__cta-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 12%, #fff);
-      color: var(--boerdi-primary, #1c4587);
-      font-size: 1.05em;
-    }
-
-    .result-group__cta-text {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      font-size: .82rem;
-      line-height: 1.3;
-      min-width: 0;
-
-      strong {
-        font-weight: 600;
-        color: #1a1a2e;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-    }
-
-    .result-group__cta-sub {
-      font-size: .76rem;
-      color: #5f5f6f;
-    }
-
-    .result-group__cta-arrow {
-      display: inline-flex;
-      flex-shrink: 0;
-      font-size: 1.2em;
-      color: var(--boerdi-primary, #1c4587);
-    }
-  }
-
-  // simplify: prefers-reduced-motion — die CTA-Hover-transform/-transition
-  // wird bei „Bewegung reduzieren" abgeschaltet (additiv, WCAG 2.3.3; ALT
-  // hatte den Block nicht). Kein optischer Unterschied im Normalfall.
-  @media (prefers-reduced-motion: reduce) {
-    &--cta {
-      transition: none;
-
-      &:hover {
-        transform: none;
-      }
-    }
-  }
+  // Die Such-CTA (`&--cta`) stand bis U6b (2026-08-09) hier. Sie wohnt jetzt in
+  // `search-cta.component.scss`, weil sie eine eigene Komponente geworden ist —
+  // und Angular-Komponentenstile reichen nicht in ein Kind hinein. Der Umzug
+  // ist verhaltenserhaltend: der Anker trug `.result-group.result-group--cta`,
+  // und `--cta` überschrieb JEDE Eigenschaft der Basisklasse (border,
+  // border-radius, padding, background).
 }

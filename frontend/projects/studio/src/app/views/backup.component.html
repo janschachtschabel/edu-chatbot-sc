@@ -1,20 +1,15 @@
 <div class="bk">
   <header class="bk-head">
-    <h1 class="bk-title">Sicherung</h1>
-    <p class="bk-intro">
-      Alle drei Wege sichern dasselbe: die <strong>Konfigurationsbereiche</strong>
-      des Chatbots. Gespräche, Auswertungen und RAG-Inhalte gehören nicht dazu —
-      ein eingespieltes Backup lässt sie unberührt.
-    </p>
+    <!-- h2, nicht h1: das <h1> der Seite ist die Marke in der Shell-Kopfzeile.
+         Zwei h1 machen die Überschriften-Liste eines Screenreaders unbrauchbar
+         (WCAG 1.3.1). Die übrigen Seiten-Views setzen ebenfalls h2. -->
+    <h2 class="bk-title">{{ t('view.sicherung.label') }}</h2>
+    <p class="bk-intro">{{ t('backup.intro') }}</p>
   </header>
 
   <section class="op-panel" aria-labelledby="bk-full-title">
-    <h2 class="op-title" id="bk-full-title">Voll-Backup</h2>
-    <p class="op-lead">
-      Der aktuelle Stand als ZIP für das eigene Archiv — und der Weg zurück,
-      wenn er woanders liegt. Enthält keine Sessions, keine Logs, keine
-      RAG-Dokumente.
-    </p>
+    <h2 class="op-title" id="bk-full-title">{{ t('backup.full.title') }}</h2>
+    <p class="op-lead">{{ t('backup.full.lead') }}</p>
 
     <div class="op-actions">
       <button
@@ -23,12 +18,12 @@
         [disabled]="action.busy()"
         (click)="download()"
       >
-        {{ action.isRunning('backup') ? 'Wird gepackt …' : 'Backup herunterladen' }}
+        {{ action.isRunning('backup') ? t('backup.packing') : t('backup.download') }}
       </button>
     </div>
 
     <div class="bk-upload">
-      <label class="op-label" for="bk-file">Backup-ZIP einspielen</label>
+      <label class="op-label" for="bk-file">{{ t('backup.uploadLabel') }}</label>
       <input type="file" class="bk-file" id="bk-file" accept=".zip" (change)="onFile($event)" />
       <button
         type="button"
@@ -36,21 +31,17 @@
         [disabled]="!file() || action.busy()"
         (click)="arm()"
       >
-        {{ action.isRunning('restore') ? 'Wird eingespielt …' : 'Backup einspielen' }}
+        {{ action.isRunning('restore') ? t('backup.restoring') : t('backup.restore') }}
       </button>
     </div>
 
     @if (armed()) {
       <p class="op-confirm" role="alert">
-        <span>
-          „{{ file()?.name }}" einspielen? Jeder Bereich aus der ZIP überschreibt
-          seinen aktuellen Stand. Bereiche, die nicht darin liegen, bleiben, wie
-          sie sind.
-        </span>
+        <span>{{ t('backup.confirmRestore', { name: file()?.name ?? '' }) }}</span>
         <button type="button" class="op-btn op-btn--danger" (click)="restore()">
-          Ja, einspielen
+          {{ t('backup.confirmRestoreYes') }}
         </button>
-        <button type="button" class="op-btn" (click)="disarm()">Abbrechen</button>
+        <button type="button" class="op-btn" (click)="disarm()">{{ t('action.cancel') }}</button>
       </p>
     }
 

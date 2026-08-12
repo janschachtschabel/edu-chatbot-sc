@@ -6,6 +6,7 @@ import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ConfigApi } from '../core/config-api.service';
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
 import { AREA_SCHEMAS } from './area-schemas.fixture';
 import { AreaDocEditor } from './area-doc-editor';
 
@@ -20,11 +21,16 @@ let http: HttpTestingController;
 
 function makeEditor(): AreaDocEditor {
   TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund) — die Zusagen
+  // unten nennen deutsche Sätze, also wird die oberste Quelle gesetzt.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
   });
   http = TestBed.inject(HttpTestingController);
-  return new AreaDocEditor(TestBed.inject(ConfigApi));
+  // Der Übersetzer kommt durch den Konstruktor: `AreaDocEditor` ist bewusst
+  // nicht injizierbar und kann `inject()` daher nicht selbst aufrufen.
+  return new AreaDocEditor(TestBed.inject(ConfigApi), TestBed.inject(StudioLanguageService).t);
 }
 
 /** Answer one load(area) with the given document. */

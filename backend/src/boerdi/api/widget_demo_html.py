@@ -1,5 +1,5 @@
-"""The three demo pages behind ``/widget/``, ``/widget/inline`` and
-``/widget/classic`` (C4b).
+"""The four demo pages behind ``/widget/``, ``/widget/inline``,
+``/widget/classic`` and ``/widget/frameless`` (C4b, fourth added in U1).
 
 **These are demo pages, not ALT's integration guide.** ALT served 942 lines of
 hand-written HTML here, most of it an attribute reference — and that reference
@@ -13,23 +13,30 @@ that copy drifted twice.
 So the pages do what only they can do: run the real element against the real
 backend, with the attributes each variant is about, and show what it emits.
 
-One template, three variants — ALT kept two near-identical copies plus a
+One template, four variants — ALT kept two near-identical copies plus a
 ``str.replace`` for the third, which is why its ``/classic`` page ended up
 describing a mode it no longer had.
 """
 
 from __future__ import annotations
 
+from boerdi.api import widget_demo_controls
+
 #: The four events the widget dispatches — `ui/src/host-events/host-events.ts`
 #: (guide-suggestion, routing-debug) and `ui/src/shell/chat-shell.component.ts`
 #: (query-meta, page-action). Listed here because the inspector below must show
 #: these and only these: a panel for an event nobody fires reads as a broken
 #: widget rather than an unused feature.
+#:
+#: Only the new `boerdi:` names (U5a, 2026-08-09). The widget also fires each
+#: one under its old `badboerdi:` name while the OLD chatbot runs alongside —
+#: listening to both would show every event twice and make the demo look like
+#: it double-fires.
 EVENTS = (
-    "badboerdi:guide-suggestion",
-    "badboerdi:routing-debug",
-    "badboerdi:query-meta",
-    "badboerdi:page-action",
+    "boerdi:guide-suggestion",
+    "boerdi:routing-debug",
+    "boerdi:query-meta",
+    "boerdi:page-action",
 )
 
 _STYLE = """
@@ -80,7 +87,7 @@ _INSPECTOR = """
       none.hidden = true;
       var li = document.createElement('li');
       var strong = document.createElement('strong');
-      strong.textContent = name.replace('badboerdi:', '') + ' ';
+      strong.textContent = name.replace('boerdi:', '') + ' ';
       li.appendChild(strong);
       // textContent, never innerHTML: the payload carries backend text.
       li.appendChild(document.createTextNode(JSON.stringify(event.detail).slice(0, 220)));
@@ -98,17 +105,20 @@ _PAGE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>%(title)s — BOERDi</title>
-<style>%(style)s</style>
+<style>%(style)s%(extra_style)s</style>
 </head>
 <body>
 <h1>%(title)s</h1>
 <div class="lead">%(lead)s</div>
 
+%(controls)s
+
 <nav aria-label="Demo-Varianten">
-  <h2>Die drei Varianten</h2>
+  <h2>Die vier Varianten</h2>
   <a href="/widget/">Standard</a>
   <a href="/widget/inline">Eingebettet</a>
   <a href="/widget/classic">Ohne Gruppen-Boxen</a>
+  <a href="/widget/frameless">Rahmenlos</a>
 </nav>
 
 <h2>So bindet eine Host-Seite das Widget ein</h2>
@@ -122,7 +132,7 @@ _PAGE = """<!doctype html>
 
 <h2>Alle Attribute</h2>
 <p>
-  Die vollständige Liste der 18 Host-Attribute samt Standardwerten steht im
+  Die vollständige Liste der Host-Attribute samt Standardwerten steht im
   Studio unter <strong>Übersicht → Architektur &amp; Referenz</strong>. Sie wird
   dort aus einer Quelle gepflegt, die ein Test gegen das Element festnagelt —
   eine zweite, abgetippte Liste hier wäre die, die als Erstes veraltet.
@@ -149,15 +159,33 @@ def _element(**attrs: str) -> str:
     return f"<boerdi-chat\n{lines}>\n</boerdi-chat>"
 
 
-def _render(title: str, lead: str, element: str) -> str:
+def _render(
+    title: str,
+    lead: str,
+    attrs: dict[str, str],
+    extra_style: str = "",
+    ohne_schalter: tuple[str, ...] = (),
+    wrap: str = "%s",
+) -> str:
+    """``extra_style`` is appended to the shared sheet rather than added to it:
+    only the frameless page needs a host container, and a ``.frame`` rule the
+    other three never match would be dead CSS on every page but one.
+
+    ``attrs`` baut das Element UND speist das Bedienpult (U8) — dieselbe Quelle
+    für beide, sonst zeigte das Pult einen Anfangszustand, den die Seite gar
+    nicht hat. ``wrap`` umschliesst das Element (nur die rahmenlose Seite
+    braucht einen Container), ``ohne_schalter`` blendet Schalter aus.
+    """
     inspector = _INSPECTOR % {"events": list(EVENTS)}
     return _PAGE % {
         "title": title,
-        "style": _STYLE,
+        "style": _STYLE + widget_demo_controls.style(),
+        "extra_style": extra_style,
         "lead": lead,
+        "controls": widget_demo_controls.panel(attrs, exclude=ohne_schalter),
         "snippet": _SNIPPET,
         "inspector": inspector,
-        "element": element,
+        "element": wrap % _element(**attrs),
     }
 
 
@@ -173,7 +201,7 @@ def standard_page() -> str:
         "Unten rechts öffnet die Eule den Chat. Das Widget läuft hier mit den "
         "Standardwerten — es erkennt Adresse und Titel dieser Seite selbst "
         "(<code>auto-context</code>) und meldet, was es nach außen gibt.",
-        _element(position="bottom-right", **_EMIT),
+        {"position": "bottom-right", **_EMIT},
     )
 
 
@@ -181,14 +209,22 @@ def inline_page() -> str:
     """The embedded look: the two operator buttons off (ALT's actual delta)."""
     return _render(
         "Eingebettet",
-        "Dieselbe Integration ohne die beiden Bedien-Knöpfe für Sprache und "
-        "Debug — so tritt das Widget auf einer Themenseite oder in einem fremden "
-        "CMS auf. Quick-Replies und die Ergebnis-Boxen bleiben.",
-        _element(
-            position="bottom-right",
-            **{"show-language-buttons": "false", "show-debug-button": "false"},
+        # U8: hier stand „die beiden Bedien-Knöpfe für Sprache und Debug". Seit
+        # C1 gibt es einen EN/DE-Umschalter in der Kopfzeile, und „Sprache"
+        # meinte damit plötzlich zwei verschiedene Dinge — der Satz las sich wie
+        # ein Versprechen, das die Seite nicht hält.
+        "Dieselbe Integration mit <code>show-language-buttons=\"false\"</code> und "
+        "<code>show-debug-button=\"false\"</code>: ohne Mikrofon, ohne Vorlesen, "
+        "ohne Debug-Knopf — so tritt das Widget auf einer Themenseite oder in "
+        "einem fremden CMS auf. Der EN/DE-Umschalter bleibt; für ihn gibt es "
+        "(noch) kein Host-Attribut. Quick-Replies und Ergebnis-Boxen bleiben "
+        "ebenfalls.",
+        {
+            "position": "bottom-right",
+            "show-language-buttons": "false",
+            "show-debug-button": "false",
             **_EMIT,
-        ),
+        },
     )
 
 
@@ -206,13 +242,46 @@ def classic_page() -> str:
         "<code>inline-result-grouping=\"false\"</code>: Treffer erscheinen als "
         "Links im Antworttext statt in den strukturierten Boxen. Zum direkten "
         "Vergleich beide Seiten nebeneinander öffnen.",
-        _element(
-            position="bottom-right",
-            **{
-                "show-language-buttons": "false",
-                "show-debug-button": "false",
-                "inline-result-grouping": "false",
-            },
+        {
+            "position": "bottom-right",
+            "show-language-buttons": "false",
+            "show-debug-button": "false",
+            "inline-result-grouping": "false",
             **_EMIT,
-        ),
+        },
+    )
+
+
+#: The host container the frameless element fills. It is the page, not styling:
+#: frameless drops the widget's own size along with its frame, so an element
+#: dropped bare into the document flow has no height and renders as nothing —
+#: silently. `overflow: hidden` clips the chat to the rounded corner the *host*
+#: chose; the widget itself no longer brings one.
+_FRAME_STYLE = """
+  .frame { block-size: min(32rem, 70vh); border: 1px solid #d1d5db;
+           border-radius: .75rem; overflow: hidden; }
+  @media (prefers-color-scheme: dark) { .frame { border-color: #33373b; } }
+"""
+
+
+def frameless_page() -> str:
+    """The frameless embed (U1): no floating button, no widget header.
+
+    ``position`` is deliberately absent — it steers the floating button, and
+    there is none here. Passing it anyway would suggest it did something.
+    """
+    return _render(
+        "Rahmenlos",
+        "Mit <code>embed-mode=\"frameless\"</code> füllt das Widget den "
+        "Container, in dem es steht: kein Eulen-Knopf, keine eigene Kopfzeile, "
+        "kein Rahmen. Übrig bleiben Verlauf und Eingabezeile — Kopfzeile und "
+        "Navigation stellt die Gastanwendung. Der Kasten unten ist ein "
+        "gewöhnliches <code>&lt;div&gt;</code> dieser Seite; seine Höhe und "
+        "seine runden Ecken kommen von hier, nicht vom Widget.",
+        {"embed-mode": "frameless", **_EMIT},
+        extra_style=_FRAME_STYLE,
+        # Kein Eulen-Knopf, also auch kein Schalter für dessen Ecke — aus dem
+        # gleichen Grund, aus dem `position` oben schon fehlt.
+        ohne_schalter=("position",),
+        wrap='<div class="frame">\n%s\n</div>',
     )

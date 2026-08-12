@@ -22,8 +22,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActionState } from '../core/action-state';
 import { AsyncData } from '../core/async-data';
 import { saveBlob } from '../core/download';
-import { germanDateTime } from '../core/format';
 import { SnapshotsApi, type FactoryInfo } from '../core/snapshots-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 @Component({
   selector: 'studio-factory-panel',
@@ -32,10 +33,15 @@ import { SnapshotsApi, type FactoryInfo } from '../core/snapshots-api.service';
   styleUrl: './factory-panel.component.scss',
 })
 export class FactoryPanelComponent {
-  private readonly api = inject(SnapshotsApi);
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
 
-  readonly factory = new AsyncData<FactoryInfo>(() => this.api.factory());
-  readonly action = new ActionState();
+  private readonly api = inject(SnapshotsApi);
+  private readonly lang = inject(StudioLanguageService);
+  protected readonly t = this.lang.t;
+
+  readonly factory = new AsyncData<FactoryInfo>(() => this.api.factory(), this.t);
+  readonly action = new ActionState(this.t);
   readonly file = signal<File | null>(null);
 
   /** Which confirmation is armed ('save' | 'restore' | 'upload'), or ''. */
@@ -44,7 +50,7 @@ export class FactoryPanelComponent {
   readonly exists = computed(() => this.factory.value()?.exists === true);
   readonly saved = computed(() => {
     const info = this.factory.value();
-    return info?.exists ? germanDateTime(info.created_at ?? '') : '';
+    return info?.exists ? this.fmt.dateTime(info.created_at ?? '') : '';
   });
   readonly label = computed(() => this.factory.value()?.label ?? '');
 
@@ -69,7 +75,7 @@ export class FactoryPanelComponent {
     this.disarm();
     const ok = await this.action.run('save', async () => {
       await this.api.saveFactory();
-      return 'Werksstand aus dem aktuellen Live-Stand gesichert.';
+      return this.t('factory.saved');
     });
     if (ok) await this.factory.reload();
   }
@@ -78,14 +84,14 @@ export class FactoryPanelComponent {
     this.disarm();
     await this.action.run('restore', async () => {
       const { areas } = await this.api.restoreFactory();
-      return `${areas} Konfigurationsbereiche auf den Werksstand zurückgesetzt.`;
+      return this.lang.plural('factory.wasReset', areas);
     });
   }
 
   async download(): Promise<void> {
     await this.action.run('download', async () => {
       saveBlob(await this.api.downloadFactory(), 'factory.zip');
-      return 'Werksstand heruntergeladen.';
+      return this.t('factory.downloaded');
     });
   }
 
@@ -97,7 +103,7 @@ export class FactoryPanelComponent {
     // would put the picker and the button at odds.
     const ok = await this.action.run('upload', async () => {
       await this.api.uploadFactory(chosen);
-      return `„${chosen.name}" als Werksstand übernommen.`;
+      return this.t('factory.uploaded', { name: chosen.name });
     });
     if (ok) await this.factory.reload();
   }

@@ -17,29 +17,42 @@
 
 export interface PreviewContextKind {
   readonly id: string;
-  /** Auswahl-Beschriftung. */
-  readonly label: string;
   /** Der Schlüssel im Seitenkontext; leer beim Typ „kein Kontext". */
   readonly field: string;
-  /** Beschriftung des Eingabefelds, sobald dieser Typ gewählt ist. */
-  readonly fieldLabel: string;
+  /**
+   * Katalog-Schlüssel der Auswahl-Beschriftung.
+   *
+   * Der Schlüssel, nicht der Text (C1-d3b): eine fertige Zeichenkette auf
+   * Modulebene friert in der Sprache ein, die beim Laden des Moduls galt.
+   * Und ausgeschrieben statt `'preview.kind.' + id` zusammengesetzt — eine
+   * Erlaubnisliste wie `SWITCH_LABEL_KEY`: ein zur Laufzeit gebauter Schlüssel
+   * gäbe bei einem neuen Seitentyp den Schlüssel selbst als Beschriftung aus.
+   */
+  readonly labelKey: string;
+  /** Katalog-Schlüssel der Feld-Beschriftung; leer beim Typ „kein Kontext". */
+  readonly fieldLabelKey: string;
   /** Beispiel im Feld — Form, nicht Inhalt (kein echter Datensatz). */
   readonly example: string;
 }
 
 export const PREVIEW_CONTEXT_KINDS: readonly PreviewContextKind[] = [
-  { id: 'kein', label: 'Kein Seitenkontext', field: '', fieldLabel: '', example: '' },
   {
-    id: 'topic', label: 'Themenseite', field: 'topic_page_slug',
-    fieldLabel: 'Slug der Themenseite', example: 'eiszeit',
+    id: 'kein', field: '',
+    labelKey: 'preview.kind.kein', fieldLabelKey: '', example: '',
   },
   {
-    id: 'collection', label: 'Sammlung', field: 'collection_id',
-    fieldLabel: 'Sammlungs-ID (edu-sharing)', example: '00000000-0000-0000-0000-000000000000',
+    id: 'topic', field: 'topic_page_slug',
+    labelKey: 'preview.kind.topic', fieldLabelKey: 'preview.field.topic', example: 'eiszeit',
   },
   {
-    id: 'content', label: 'Inhaltsseite', field: 'node_id',
-    fieldLabel: 'Node-ID des Materials', example: '00000000-0000-0000-0000-000000000000',
+    id: 'collection', field: 'collection_id',
+    labelKey: 'preview.kind.collection', fieldLabelKey: 'preview.field.collection',
+    example: '00000000-0000-0000-0000-000000000000',
+  },
+  {
+    id: 'content', field: 'node_id',
+    labelKey: 'preview.kind.content', fieldLabelKey: 'preview.field.content',
+    example: '00000000-0000-0000-0000-000000000000',
   },
 ];
 

@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { headerNavHrefWithBsid, headerNavIconSvg, parseGuideModeConfig } from './guide-mode-config';
+import {
+  headerNavHrefWithBsid, headerNavIconSvg, parseGuideModeConfig, pickLocalized,
+} from './guide-mode-config';
 import { ICONS } from '../icons/icons';
 
 /**
@@ -18,8 +20,20 @@ describe('parseGuideModeConfig', () => {
   it('fehlende Felder bleiben null (Signal wird nicht angetastet)', () => {
     expect(parseGuideModeConfig({})).toEqual({
       trustedDomains: null, headerNav: null, greeting: null, startReplies: null, tourReply: null,
+      greetingEn: null, startRepliesEn: null, tourReplyEn: null, mcpAuthBase: null,
     });
     expect(parseGuideModeConfig(null).trustedDomains).toBeNull();
+  });
+
+  // C5-c2: Herkunft des MCP-Servers für die WLO-Anmeldung.
+  it('übernimmt die MCP-Herkunft, den LEEREN Wert eingeschlossen', () => {
+    // Leer ist eine Aussage („diese Anlage bietet keine Anmeldung an") und
+    // muss deshalb ein vorhandenes Signal überschreiben — anders als ein
+    // fehlendes Feld, das nur „stand nicht in der Antwort" heisst.
+    expect(parseGuideModeConfig({ mcp_auth_base: 'https://mcp.example' }).mcpAuthBase)
+      .toBe('https://mcp.example');
+    expect(parseGuideModeConfig({ mcp_auth_base: '  ' }).mcpAuthBase).toBe('');
+    expect(parseGuideModeConfig({ mcp_auth_base: 42 }).mcpAuthBase).toBeNull();
   });
 
   it('normalisiert trusted_domains und filtert leere Einträge', () => {
@@ -36,8 +50,8 @@ describe('parseGuideModeConfig', () => {
       ],
     }).headerNav;
     expect(nav).toEqual([
-      { id: 'home', label: 'Start', icon: 'explore', url: 'https://x.example', new_tab: true },
-      { id: '', label: '', icon: 'explore', url: 'https://y.example', new_tab: false },
+      { id: 'home', label: 'Start', label_en: '', icon: 'explore', url: 'https://x.example', new_tab: true },
+      { id: '', label: '', label_en: '', icon: 'explore', url: 'https://y.example', new_tab: false },
     ]);
   });
 
@@ -50,6 +64,52 @@ describe('parseGuideModeConfig', () => {
     expect(cfg.tourReply).toBe('');              // jeder String zählt, auch ''
     expect(parseGuideModeConfig({ welcome: { greeting: '   ' } }).greeting).toBeNull();
   });
+
+  // ── C1-g1b: die englische Fassung reist getrennt mit ────────────────────
+  // Der Server loest die Sprache NICHT auf (C1-g1a) — das Widget waehlt, weil
+  // es zur Laufzeit umschalten kann.
+
+  it('mappt welcome: die englischen Felder nach denselben Regeln', () => {
+    const cfg = parseGuideModeConfig({
+      welcome: {
+        greeting: 'Moin', greeting_en: 'Hello',
+        quick_replies: ['Tour'], quick_replies_en: [' Tour EN ', ''],
+        tour_reply: 'Tour', tour_reply_en: 'Tour EN',
+      },
+    });
+    expect(cfg.greetingEn).toBe('Hello');
+    expect(cfg.startRepliesEn).toEqual(['Tour EN']);
+    expect(cfg.tourReplyEn).toBe('Tour EN');
+  });
+
+  it('mappt header_nav: label_en getrimmt, fehlend zu ""', () => {
+    const nav = parseGuideModeConfig({
+      header_nav: [{ id: 'home', label: 'Start', label_en: '  Home  ',
+                     url: 'https://x.example' }],
+    }).headerNav;
+    expect(nav?.[0].label_en).toBe('Home');
+  });
+});
+
+describe('pickLocalized', () => {
+  it('englisch gepflegt → englisch', () => {
+    expect(pickLocalized('Start', 'Home', 'en')).toBe('Home');
+  });
+
+  it('englisch leer heisst „nicht gepflegt" → deutsch', () => {
+    // Dieselbe Regel wie im Backend-Loader (C1-g1a): ein leeres Feld ist kein
+    // leerer Text, sondern die Ansage „nimm das deutsche".
+    expect(pickLocalized('Start', '', 'en')).toBe('Start');
+  });
+
+  it('deutsche Oberflaeche nimmt nie das englische Feld', () => {
+    expect(pickLocalized('Start', 'Home', 'de')).toBe('Start');
+  });
+
+  it('gilt genauso fuer Listen', () => {
+    expect(pickLocalized(['a'], ['A'], 'en')).toEqual(['A']);
+    expect(pickLocalized(['a'], [], 'en')).toEqual(['a']);
+  });
 });
 
 describe('headerNavIconSvg', () => {
@@ -61,7 +121,9 @@ describe('headerNavIconSvg', () => {
 });
 
 describe('headerNavHrefWithBsid', () => {
-  const btn = (url: string) => ({ id: '', label: '', icon: 'explore', url, new_tab: false });
+  const btn = (url: string) => ({
+    id: '', label: '', label_en: '', icon: 'explore', url, new_tab: false,
+  });
 
   beforeEach(() => history.replaceState({}, '', '/'));
 

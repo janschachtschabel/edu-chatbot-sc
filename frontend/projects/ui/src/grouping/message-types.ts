@@ -146,13 +146,16 @@ export interface DebugInfo {
   llm_engine_match?: boolean | null;
   // Phase A2 Token-Cost-Tracking (Per-Turn-Aggregator über alle LLM-Calls);
   // `per_phase`-Keys: classify, tool_loop, response, quick_replies, …
+  // `cached_tokens`/`reasoning_tokens` sind „davon"-Zahlen — enthalten in
+  // prompt_tokens bzw. completion_tokens, nicht zusätzlich dazu.
   token_usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
     cached_tokens?: number;
+    reasoning_tokens?: number;
     calls?: number;
-    models?: Record<string, { prompt: number; completion: number; cached: number; calls: number; hit_rate?: number }>;
-    per_phase?: Record<string, { prompt: number; completion: number; cached: number; calls: number; hit_rate?: number }>;
+    models?: Record<string, { prompt: number; completion: number; cached: number; reasoning?: number; calls: number; hit_rate?: number }>;
+    per_phase?: Record<string, { prompt: number; completion: number; cached: number; reasoning?: number; calls: number; hit_rate?: number }>;
   };
   // Welle C Sprint 6 — Conversation-State-Plausibilität (Telemetrie-only,
   // `plausible=false` = vom Classifier gewählter Übergang außerhalb der
@@ -176,6 +179,23 @@ export interface PaginationInfo {
   collection_title: string;
 }
 
+/** Eine Änderung, die der MCP-Server **beschreibt** statt sie auszuführen (E3),
+ *  damit die Repository-Seite sie mit der Anmeldung absetzt, die dort schon
+ *  besteht — so trägt sie den Namen einer Person und nicht den eines
+ *  Sammelkontos. Gegenstück zu `api/schemas.PreparedWriteOut` des Backends.
+ *
+ *  Hier steht nur die **Form**; ob diese eine Anfrage abgesetzt werden darf,
+ *  entscheidet die Erlaubnisliste in `session/prepared-write.ts`. */
+export interface PreparedWriteOut {
+  method: string;
+  /** Pfad ab der Herkunft — nie eine absolute Adresse (E4 setzt ihn relativ ab). */
+  path: string;
+  /** Serialisierter JSON-Rumpf, oder nichts wo der Endpunkt keinen nimmt. */
+  body?: string | null;
+  /** Der Satz für hinterher; er gehört zum Werkzeug, das die Änderung kennt. */
+  done_message?: string;
+}
+
 /** Volle Bot-Antwort aus POST /api/chat[/stream] (das `result`-Event des
  *  Streams bzw. der JSON-Body des Fallback-POST). Verbatim aus ALT
  *  api.service.ts — das Modell, das die Chat-Shell (8-4) zu `ChatMessage`
@@ -195,6 +215,9 @@ export interface ChatResponse {
   topic_page?: TopicPageView | null;
   display_rules?: Record<string, any>;
   tour?: { active: boolean; step: string; group: string } | null;
+  /** Eingebetteter Betrieb (E3/E4): die eine Änderung, die dieser Zug ausliefern
+   *  darf. Höchstens eine je Zug — das Backend gibt bei zweien keine heraus. */
+  prepared_write?: PreparedWriteOut | null;
 }
 
 export interface ChatMessage {

@@ -12,50 +12,36 @@
   margin-top: 10px;
 }
 
+// Seit der M3-Umstellung (2026-07-31) sind die Chips Material-Knöpfe:
+// `matButton="tonal"` für die Vorschläge, `matButton="filled"` für den
+// Lotsen-Chip. Das ist die ALT-Hierarchie in M3-Begriffen (getönt vs. voll
+// eingefärbt). Farben stehen hier deshalb KEINE mehr — sie kommen über
+// `--mat-sys-*` aus dem Theme und damit aus `--boerdi-primary`.
+//
+// Angepasst wird nur die Größe, über die KOMPONENTEN-Token: Materials Vorgabe
+// (40 px hoch) ist für eine Chip-Reihe unter einer Nachricht zu wuchtig.
 .qr-btn {
-  // Bewusst identisch zur ``.user-bubble``-Hintergrundfarbe — beide gehören
-  // visuell zusammen (User-Aktion-Familie).
-  background: color-mix(in srgb, var(--boerdi-primary, #1c4587) 10%, white);
-  color: var(--boerdi-primary, #1c4587);
-  border: 1px solid color-mix(in srgb, var(--boerdi-primary, #1c4587) 25%, transparent);
-  border-radius: 16px;
-  padding: 5px 14px;
-  font-size: .78rem;
-  text-align: left;          // multi-line replies bleiben linksbündig
-  line-height: 1.3;
-  cursor: pointer;
-  transition: background .15s;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  --mat-button-tonal-container-height: 30px;
+  --mat-button-tonal-horizontal-padding: 14px;
+  --mat-button-tonal-label-text-size: 0.78rem;
+  --mat-button-filled-container-height: 30px;
+  --mat-button-filled-horizontal-padding: 14px;
+  --mat-button-filled-label-text-size: 0.78rem;
+  --mat-button-filled-label-text-weight: 600;
 
-  &:hover {
-    background: var(--boerdi-primary, #1c4587);
-    color: #fff;
-  }
-}
+  // Material zentriert seine Knopf-Beschriftung. Ein langer Vorschlag bricht
+  // dadurch mittig um — im Bildschirmfoto 2026-07-31 als Rückschritt sichtbar
+  // (ALT hatte ``text-align: left``, weil mehrzeilige Chips vorkommen).
+  justify-content: flex-start;
+  text-align: left;
 
-// "Bring mich hin"-Quick-Reply: vom Bot vorgeschlagene Same-Tab-Navigation.
-// Voll-eingefärbt im Header-Dunkelblau, damit sich die Aktion klar von den
-// hellblauen Standard-QRs abhebt — ohne Orange.
-.qr-btn--guide {
-  background: var(--boerdi-primary, #1c4587);
-  color: #fff;
-  border-color: var(--boerdi-primary, #1c4587);
-  font-weight: 600;
-
-  &:hover {
-    filter: brightness(1.1);
-    background: var(--boerdi-primary, #1c4587);     // Override: don't dim the bg on hover
-    color: #fff;
-  }
-}
-
-// Für Nutzer mit prefers-reduced-motion den Hintergrund-Übergang abschalten.
-// Additiv — verändert die Default-Optik nicht, deaktiviert nur die Bewegung
-// (Konvention wie in wlo-card-tile.component.scss).
-@media (prefers-reduced-motion: reduce) {
-  .qr-btn {
-    transition: none;
+  // Materials `icon-spacing`-Token greift nur für `<mat-icon>`; wir liefern
+  // Inline-SVG (DSGVO: keine Icon-Font vom CDN).
+  .bb-icon {
+    display: inline-flex;
+    align-items: center;
+    font-size: 15px;
+    line-height: 0;
+    margin-inline-end: 5px;
   }
 }

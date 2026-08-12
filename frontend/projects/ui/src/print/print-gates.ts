@@ -7,10 +7,11 @@
  * Wohnen hier statt in der Shell, weil sie rein über `ChatMessage` arbeiten und
  * den `PRINTABLE_CANVAS_RE`-Sentinel des Print-Moduls lesen — dieselbe
  * Verantwortung („druckbarer Inhalt: erkennen + auslösen"), eigene Datei, weil
- * `print-utils.ts` mit 363 Z. schon über der ≤300-Schwelle liegt.
+ * `print-utils.ts` schon über der ≤300-Schwelle liegt (395 Z. nach C1-b4).
  */
 import { inlineDocFallbackLabel } from '../inline-doc/inline-doc';
 import { ChatMessage } from '../grouping/message-types';
+import type { TranslateFn } from '../i18n/i18n';
 import {
   PRINTABLE_CANVAS_RE, printCanvasMaterial, printLearningPath, printMarkdownDocument,
 } from './print-utils';
@@ -47,13 +48,16 @@ export function isPrintableCanvasMaterial(msg: ChatMessage): boolean {
 /**
  * Lesbares Label des Canvas-Materials („Arbeitsblatt", „Quiz", „Material") —
  * Titel des Druckdialogs bzw. Beschriftung der Legacy-Druck-Leiste.
+ *
+ * Nur der Rückfall kommt aus dem Katalog (C1-b3): Typ und Titel stehen im
+ * Backend-Sentinel und sind Inhalt, kein Oberflächentext.
  */
-export function printableCanvasLabel(msg: ChatMessage): string {
+export function printableCanvasLabel(msg: ChatMessage, t: TranslateFn): string {
   const m = (msg.content || '').match(PRINTABLE_CANVAS_RE);
-  if (!m) return 'Material';
+  if (!m) return t('chat.print.canvasFallback');
   const type = (m[1] || '').trim();
   const title = (m[2] || '').trim();
-  return title || type || 'Material';
+  return title || type || t('chat.print.canvasFallback');
 }
 
 /**
@@ -61,9 +65,12 @@ export function printableCanvasLabel(msg: ChatMessage): string {
  * `doc.title` als Print-Header und `doc.content` als Markdown-Body — kein
  * Sentinel-Parse nötig.
  */
-export function printInlineDocument(doc: { title: string; content: string; kind: string }): void {
+export function printInlineDocument(
+  doc: { title: string; content: string; kind: string },
+  t: TranslateFn,
+): void {
   if (!doc || !doc.content) return;
-  printMarkdownDocument(doc.title || inlineDocFallbackLabel(doc.kind), doc.content);
+  printMarkdownDocument(doc.title || inlineDocFallbackLabel(doc.kind, t), doc.content, t);
 }
 
 /**

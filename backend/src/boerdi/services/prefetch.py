@@ -175,6 +175,14 @@ async def run_speculative_prefetch(req, classification, safety):
                     "search_wlo_topic_pages",
                     "search_wlo_collections",
                     "search_wlo_content",
+                    # W5-2a (Nutzer-Vorgabe 2026-07-30): das Kombi-Tool ist der
+                    # Standard beim Suchen und darf die Heuristik überstimmen.
+                    # Bis hierher fiel dieser Hint STILL durch — der
+                    # Antwort-Prompt empfiehlt das Tool ausdrücklich
+                    # (``response_prompt_tools_text``), die Zulassungsliste
+                    # kannte es nicht, also entschied bei I03/M06 die
+                    # Themenseiten-Heuristik gegen die Absicht des Modells.
+                    "search_wlo_all",
                 }
                 if _tool_hint in _known_search_tools:
                     spec_tool_name = _tool_hint
@@ -184,7 +192,18 @@ async def run_speculative_prefetch(req, classification, safety):
                         (getattr(classification, "tool_reasoning", "") or "")[:80],
                     )
                 elif _topic_first:
-                    spec_tool_name = "search_wlo_topic_pages"
+                    # W7 (Nutzer-Entscheid 2026-07-31): die HEURISTIK zwingt nicht
+                    # mehr auf das zustandsbehaftete ``search_wlo_topic_pages``.
+                    # Live gemessen: dessen Themenseiten-Index hängt serverseitig
+                    # am letzten Collections-Call (siehe Kommentar bei
+                    # ``_primary_max``), nicht an der Frage — beide Testzüge
+                    # („Photosynthese", „Bruchrechnen") bekamen deshalb DIESELBEN
+                    # drei Treffer, darunter zwei Redaktions-Vorlagen, und die
+                    # standen als Karte 1-3 vor den echten Materialien.
+                    # Das Kombi-Tool deckt topicPages in EINEM Round-Trip mit ab.
+                    # Der ausdrückliche Nutzerwunsch bleibt unberührt: ``_wants_topic``
+                    # dreht unten (Z. ~228) auf das dedizierte Tool zurück.
+                    spec_tool_name = "search_wlo_all"
                 elif _wants_content_only:
                     spec_tool_name = "search_wlo_content"
                 else:
@@ -200,6 +219,16 @@ async def run_speculative_prefetch(req, classification, safety):
                 # den _topic_first-/Fallback-Zweig oben.
                 if _wants_content_only:
                     spec_tool_name = "search_wlo_content"
+
+                # W5-2a: Hat der Nutzer ausdrücklich nach einer Themenseite
+                # gefragt, schlägt dieser Wunsch das Kombi-Tool — „Sammlungen und
+                # Themenseiten, wenn danach gefragt wird". Ohne diese Zeile bliebe
+                # ``search_wlo_all`` als Name stehen, während ``_use_search_all``
+                # unten wegen ``_wants_topic`` False ist: der Aufruf ginge mit den
+                # Primary-Argumenten raus und die Antwort liefe in den falschen
+                # Parser (``spec_is_search_all`` wählt ihn).
+                if spec_tool_name == "search_wlo_all" and _wants_topic:
+                    spec_tool_name = "search_wlo_topic_pages"
 
                 # Primary collections requests get capped at maxResults=5
                 # whenever a topic_pages-search is also expected: the WLO MCP

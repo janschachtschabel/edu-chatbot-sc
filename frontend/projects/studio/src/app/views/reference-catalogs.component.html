@@ -1,20 +1,12 @@
 <details class="cs">
   <summary class="cs-summary">
-    <h4 class="cs-title">Signal-Dimensionen im Detail</h4>
+    <h4 class="cs-title">{{ t('rc.signals.title') }}</h4>
   </summary>
   <div class="cs-body">
-    <p class="ar-text">
-      Signale erkennen die situative Lage der Nutzerin; mehrere können
-      gleichzeitig aktiv sein. Diese Tabelle kommt aus der laufenden
-      Konfiguration (<code>04-signals/signal-modulations.yaml</code>) — sie ist
-      keine Beschreibung der Konfiguration, sondern die Konfiguration.
-    </p>
+    <p class="ar-text"><studio-rich [parts]="rich('rc.signals.text')" /></p>
 
     @if (dimensions().length === 0) {
-      <p class="ar-text ar-muted">
-        Die Signale stehen hier, sobald die Übersicht sie aus der Konfiguration
-        geladen hat.
-      </p>
+      <p class="ar-text ar-muted">{{ t('rc.signals.empty') }}</p>
     } @else {
       <div class="rc-dims">
         @for (dim of dimensions(); track dim.key) {
@@ -28,7 +20,7 @@
                     @if (signal.length) { <span class="rc-chip">{{ signal.length }}</span> }
                     @if (signal.tone) { <span class="rc-chip">{{ signal.tone }}</span> }
                     @for (flag of signal.flags; track flag) {
-                      <span class="rc-chip rc-chip--flag">{{ flag }}</span>
+                      <span class="rc-chip rc-chip--flag">{{ t(flag) }}</span>
                     }
                   </span>
                 </li>
@@ -38,76 +30,60 @@
         }
       </div>
 
-      <p class="ar-text">
-        <strong>Wie mehrere Signale zusammenwirken:</strong> die Modulationen
-        werden der Reihe nach angewendet — bei widersprüchlichen Angaben gewinnt
-        schlicht das <em>letzte</em> Signal der Liste
-        (<code>pattern_engine.py</code>, „Apply signal modulations"). Eine Regel
-        „kürzere Länge gewinnt" gibt es nicht. Richtig ist die andere Hälfte:
-        Signale überschreiben die Pattern-Defaults, nicht umgekehrt. Und
-        <code>reduce_items_signals</code> <em>deckelt</em>
-        <code>max_items</code> auf 3 — es halbiert nicht.
-      </p>
+      <p class="ar-text"><studio-rich [parts]="rich('rc.signals.combine')" /></p>
     }
   </div>
 </details>
 
 <details class="cs">
   <summary class="cs-summary">
-    <h4 class="cs-title">Material-Typen</h4>
+    <h4 class="cs-title">{{ t('rc.mat.title') }}</h4>
   </summary>
   <div class="cs-body">
-    <p class="ar-text">
-      Schicht 5 (<code>{{ area }}</code>) legt fest, welche Ausgabeformate die
-      Material-Erstellung anbietet. Bei <code>auto</code> wählt das Modell selbst
-      — der Eintrag ist ein Selektor, kein Typ, und wird deshalb hier getrennt
-      gezählt.
-    </p>
+    <p class="ar-text"><studio-rich [parts]="rich('rc.mat.text', { area })" /></p>
 
     @if (materials.error(); as err) {
       <p class="ar-text ar-muted" role="alert">⚠ {{ err }}</p>
     } @else if (materials.loading() && !materials.value()) {
-      <p class="ar-text ar-muted">Material-Typen werden geladen …</p>
+      <p class="ar-text ar-muted">{{ t('rc.mat.loading') }}</p>
     }
 
     <div class="ar-scroll">
       <table class="ar-table">
-        <caption class="ar-caption">
-          {{ split().entries }} Einträge · {{ split().types }} Typen
-        </caption>
+        <caption class="ar-caption">{{ caption() }}</caption>
         <thead>
-          <tr><th>Kategorie</th><th>ID</th><th>Bezeichnung</th></tr>
+          <tr>
+            <th scope="col">{{ t('rc.mat.col.category') }}</th>
+            <th scope="col">{{ t('rc.mat.col.id') }}</th>
+            <th scope="col">{{ t('rc.mat.col.label') }}</th>
+          </tr>
         </thead>
         <tbody>
           @for (type of split().didaktisch; track type.id) {
             <tr>
-              <td>didaktisch</td>
+              <td>{{ t('rc.cat.didaktisch') }}</td>
               <th scope="row"><code>{{ type.id }}</code></th>
-              <td><span aria-hidden="true">{{ type.emoji }}</span> {{ type.label }}</td>
+              <td><span aria-hidden="true">{{ type.emoji }}</span> {{ materialLabel(type) }}</td>
             </tr>
           }
           @for (type of split().analytisch; track type.id) {
             <tr>
-              <td>analytisch</td>
+              <td>{{ t('rc.cat.analytisch') }}</td>
               <th scope="row"><code>{{ type.id }}</code></th>
-              <td><span aria-hidden="true">{{ type.emoji }}</span> {{ type.label }}</td>
+              <td><span aria-hidden="true">{{ type.emoji }}</span> {{ materialLabel(type) }}</td>
             </tr>
           }
           @for (type of split().weitere; track type.id) {
             <tr>
               <td>{{ type.category || '—' }}</td>
               <th scope="row"><code>{{ type.id }}</code></th>
-              <td><span aria-hidden="true">{{ type.emoji }}</span> {{ type.label }}</td>
+              <td><span aria-hidden="true">{{ type.emoji }}</span> {{ materialLabel(type) }}</td>
             </tr>
           }
         </tbody>
       </table>
     </div>
 
-    <p class="ar-text ar-muted">
-      Aliase („Lernblatt" → <code>arbeitsblatt</code>) stehen in
-      <code>05-canvas/create-triggers.yaml</code>, Bearbeitungs-Auslöser
-      („mach es kürzer") in <code>05-canvas/edit-triggers.yaml</code>.
-    </p>
+    <p class="ar-text ar-muted"><studio-rich [parts]="rich('rc.mat.aliases')" /></p>
   </div>
 </details>

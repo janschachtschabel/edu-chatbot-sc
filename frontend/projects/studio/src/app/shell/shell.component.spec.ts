@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideZonelessChangeDetection } from '@angular/core';
+import { Component, provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { SessionStore } from '../auth/session-store';
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
 import { STUDIO_VIEWS } from '../studio-views';
 import { ShellComponent } from './shell.component';
 
@@ -15,18 +16,30 @@ import { ShellComponent } from './shell.component';
  * nav items were `<button onClick>` with no href and no `aria-current`, there was
  * no skip link, and the status dot was an empty span with no live region.
  */
+/** Stands in for a real view: the outlet needs something to activate. */
+@Component({ standalone: true, template: '<p>Ansicht</p>' })
+class StubViewComponent {}
+
 describe('ShellComponent', () => {
   let fixture: ComponentFixture<ShellComponent>;
   let el: HTMLElement;
   let http: HttpTestingController;
 
   beforeEach(async () => {
+    TestBed.resetTestingModule();
+    // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund), und der
+    // Browser ist im Studio die zweitstärkste Quelle. Ohne diese Zeile stünde
+    // die Hülle hier auf Englisch und jede deutsche Zusage unten schlüge fehl.
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
-        // Real (empty) routes for every slug, so nav clicks actually navigate —
-        // that is what makes routerLinkActive/aria-current observable here.
-        provideRouter(STUDIO_VIEWS.map((v) => ({ path: v.slug, children: [] }))),
+        // Real routes for every slug, so nav clicks actually navigate — that is
+        // what makes routerLinkActive/aria-current observable here. Each one
+        // carries a stub component: a componentless route activates nothing in
+        // the outlet, so `(activate)` — and with it the focus move on a view
+        // change — would never fire.
+        provideRouter(STUDIO_VIEWS.map((v) => ({ path: v.slug, component: StubViewComponent }))),
         provideHttpClient(),
         provideHttpClientTesting(),
       ],
@@ -98,23 +111,80 @@ describe('ShellComponent', () => {
 
     const current = Array.from(el.querySelectorAll('[aria-current="page"]'));
     expect(current).toHaveLength(1);
-    expect(current[0].textContent).toContain(STUDIO_VIEWS[0].label);
+    expect(current[0].textContent)
+      .toContain(TestBed.inject(StudioLanguageService).t(STUDIO_VIEWS[0].labelKey));
     // ALT conveyed the active state through the `active` class alone, so a
     // screen reader had no way to know where it was.
     expect(current[0].classList.contains('nav-item--active')).toBe(true);
   });
 
   it('hides "Abmelden" when no password guards the studio', async () => {
-    expect(el.querySelector('.header-tools button')?.textContent).toContain('Abmelden');
+    // `.logout`, nicht `.header-tools button`: seit C1-d1 steht der
+    // Sprach-Umschalter als erster Knopf in denselben Werkzeugen.
+    expect(el.querySelector('.header-tools .logout')?.textContent).toContain('Abmelden');
 
     TestBed.inject(SessionStore).set('signed-in', true);
     await fixture.whenStable();
     // A logout button that cannot log anyone out is worse than none.
-    expect(el.querySelector('.header-tools button')).toBeNull();
+    expect(el.querySelector('.header-tools .logout')).toBeNull();
   });
 
   it('makes the brand a link — ALT put the click handler on the <h1>', () => {
     const brand = el.querySelector('h1.brand a');
     expect(brand?.getAttribute('href')).toBe('/');
+  });
+
+  it('trägt den Sprach-Umschalter in der Kopfzeile — auch ohne Passwort-Gate', async () => {
+    // Er darf NICHT im `@if (!gateOpen())`-Zweig stehen: ein Studio ohne
+    // Passwort hätte sonst gar keine Sprachwahl.
+    expect(el.querySelector('.header-tools studio-language-switcher')).not.toBeNull();
+
+    TestBed.inject(SessionStore).set('signed-in', true);
+    await fixture.whenStable();
+    expect(el.querySelector('.header-tools studio-language-switcher')).not.toBeNull();
+  });
+
+  it('holt die Texte der Hülle aus dem Katalog, nicht aus dem Markup', async () => {
+    TestBed.inject(StudioLanguageService).toggle();
+    await fixture.whenStable();
+
+    const holen = (sel: string) => el.querySelector(sel)?.textContent?.trim();
+    expect(holen('a.skip')).toBe('Skip to content');
+    expect(holen('.nav-toggle')).toBe('Navigation');
+    expect(holen('.header-tools .logout')).toBe('Sign out');
+    expect(el.querySelector('nav')?.getAttribute('aria-label')).toBe('Configuration areas');
+  });
+
+  it('übersetzt auch die Navigation selbst — nicht nur den Rahmen (C1-d2)', async () => {
+    expect(el.querySelector('.nav-label')?.textContent?.trim()).toBe('Übersicht');
+
+    TestBed.inject(StudioLanguageService).toggle();
+    await fixture.whenStable();
+
+    expect(el.querySelector('.nav-label')?.textContent?.trim()).toBe('Overview');
+    expect(el.querySelector('.nav-desc')?.textContent?.trim())
+      .toBe('Start, architecture & status');
+    const titel = Array.from(el.querySelectorAll('.nav-group-title'), (h) => h.textContent?.trim());
+    expect(titel).toEqual(['Configuration', 'Monitoring', 'System']);
+  });
+
+  it('zieht den Fokus beim Ansichtswechsel in den Inhaltsbereich (Audit 2026-08-12)', async () => {
+    // Ohne diesen Umzug bleibt der Fokus auf dem gerade aktivierten
+    // Seitenleisten-Link, während die Ansicht darunter wechselt: Tastatur- und
+    // Screenreader-Nutzende bekommen nichts angesagt und tabben anschließend
+    // weiter durch die Navigation statt durch die Seite, die sie wollten.
+    const router = TestBed.inject(Router);
+    const main = el.querySelector<HTMLElement>('#studio-main');
+    expect(main).not.toBeNull();
+
+    await router.navigate([STUDIO_VIEWS[0].slug]);
+    await fixture.whenStable();
+    // Der erste Aufschlag ist das Laden der Seite, keine Navigation des
+    // Nutzers — da darf der Fokus nicht wegspringen.
+    expect(document.activeElement).not.toBe(main);
+
+    await router.navigate([STUDIO_VIEWS[1].slug]);
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(main);
   });
 });

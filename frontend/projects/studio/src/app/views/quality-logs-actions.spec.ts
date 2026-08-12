@@ -91,4 +91,21 @@ describe('QualityLogsComponent — löschen', () => {
     expect(h.el.querySelector('.ql-error')!.textContent).toContain('gesperrt');
     expect(rows(h)).toHaveLength(2);
   });
+
+  it('setzt die Erfolgsmeldung des Sammel-Löschens in die Mehrzahl', async () => {
+    // Fest verdrahtet als `${deleted} Turns gelöscht.` — bei genau einer
+    // gelöschten Zeile schon auf Deutsch falsch.
+    const h = await mount();
+    h.el.querySelector<HTMLButtonElement>('.ql-clear')!.click();
+    await h.fixture.whenStable();
+    h.el.querySelector<HTMLButtonElement>('.ql-confirm')!.click();
+    await h.fixture.whenStable();
+
+    h.http.expectOne((r) => r.url === CLEAR_URL).flush({ deleted: 1 });
+    await settle(h);
+    h.http.expectOne((r) => r.url === LOGS_URL).flush({ count: 0, logs: [] });
+    await settle(h);
+
+    expect(h.el.querySelector('.ql-status')!.textContent!.trim()).toBe('1 Turn gelöscht.');
+  });
 });

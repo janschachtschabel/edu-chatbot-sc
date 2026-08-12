@@ -19,6 +19,25 @@ import boerdi.services.rag.ingest as ri
 from boerdi.db.models import RagChunk, RagDocument
 
 
+def _als_many(einzeln):
+    """Eine Einzel-Attrappe an die neue Sammel-Grenze anschliessen (W10).
+
+    `ingest` ruft seit W10 `embed_many`; die Tests beschreiben aber weiterhin
+    das Verhalten PRO Chunk (Reihenfolge, Fehler-Isolation). Diese Huelle
+    bewahrt beides: dieselbe Attrappe, neue Grenze.
+    """
+    async def viele(texte, *, kind="passage"):
+        aus = []
+        for t in texte:
+            try:
+                aus.append(await einzeln(t, kind=kind))
+            except Exception:
+                aus.append(None)
+        return aus
+    return viele
+
+
+
 # ── convert_to_markdown (verbatim ALT) ───────────────────────────────────
 class _FakeMid:
     def __init__(self, text="# MD", raise_exc=None):
@@ -167,11 +186,11 @@ class _FakeSession:
 def _wire_embedding(monkeypatch):
     calls: list[str] = []
 
-    async def fake_embedding(text):
+    async def fake_embedding(text, *, kind="query"):
         calls.append(text)
         return [0.1, float(len(calls))]
 
-    monkeypatch.setattr(ri, "embedding", fake_embedding)
+    monkeypatch.setattr(ri, "embed_many", _als_many(fake_embedding))
     return calls
 
 
@@ -309,12 +328,12 @@ def test_embed_missing_embeds_each_chunk_and_updates_it_by_id(monkeypatch):
 
 
 def test_embed_missing_skips_a_chunk_whose_embedding_call_fails(monkeypatch, caplog):
-    async def flaky(text):
+    async def flaky(text, *, kind="query"):
         if text == "kaputt":
             raise RuntimeError("rate limited")
         return [0.5, 0.5]
 
-    monkeypatch.setattr(ri, "embedding", flaky)
+    monkeypatch.setattr(ri, "embed_many", _als_many(flaky))
     sess = _EmbedSession(rows=[_null_row(1, "kaputt"), _null_row(2, "ok")])
     with caplog.at_level(logging.WARNING):
         assert asyncio.run(ri.embed_missing_chunks(sess)) == (1, 2)

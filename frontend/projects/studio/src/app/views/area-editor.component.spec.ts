@@ -7,6 +7,7 @@ import { ActivatedRoute, UrlSegment } from '@angular/router';
 import { BehaviorSubject, of } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { AREA_SCHEMAS } from '../schema-form/area-schemas.fixture';
 import { AreaEditorComponent } from './area-editor.component';
 
@@ -28,6 +29,9 @@ async function mount(
   raw = 'welcome:\n  greeting: Moin\n',
 ): Promise<Harness> {
   TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen
+  // Zusagen unten brauchen deshalb die oberste Sprachquelle.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
@@ -88,6 +92,9 @@ describe('AreaEditorComponent — loading', () => {
 
   it('offers a retry instead of a dead page when loading fails', async () => {
     TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen
+  // Zusagen unten brauchen deshalb die oberste Sprachquelle.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
@@ -259,6 +266,9 @@ describe('AreaEditorComponent — switching to another area', () => {
       ['bereich', '01-base', 'welcome-config'].map((p) => new UrlSegment(p, {})),
     );
     TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen
+  // Zusagen unten brauchen deshalb die oberste Sprachquelle.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
@@ -295,6 +305,9 @@ describe('AreaEditorComponent — switching to another area', () => {
   it('says so instead of loading forever when no area is named', async () => {
     // `bereich/**` also matches the bare `/bereich`
     TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen
+  // Zusagen unten brauchen deshalb die oberste Sprachquelle.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
@@ -330,6 +343,9 @@ describe('AreaEditorComponent — a field that cannot be parsed blocks the save'
 describe('AreaEditorComponent — markdown areas', () => {
   it('asks for the .md file when the document is a frontmatter/body pair', async () => {
     TestBed.resetTestingModule();
+  // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen
+  // Zusagen unten brauchen deshalb die oberste Sprachquelle.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),

@@ -5,7 +5,8 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
-import { McpRegistryComponent } from './mcp-registry.component';
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
+import { compareToolsets, McpRegistryComponent } from './mcp-registry.component';
 
 const tick = (): Promise<unknown> => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -30,12 +31,15 @@ interface Harness {
 
 async function mount(servers: unknown[] = SERVERS): Promise<Harness> {
   TestBed.resetTestingModule();
+  // Siehe rag-ingest.component.spec.ts — jsdom meldet `en-US`.
+  sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
     providers: [provideZonelessChangeDetection(), provideHttpClient(), provideHttpClientTesting()],
   });
   const fixture = TestBed.createComponent(McpRegistryComponent);
   fixture.componentRef.setInput('section', {
-    panel: 'mcp-registry', label: 'MCP-Server', hint: 'Werkzeug-Server.',
+    panel: 'mcp-registry',
+    labelKey: 'curated.wissen.mcp.label', hintKey: 'curated.wissen.mcp.hint',
   });
   fixture.componentRef.setInput('open', true);
   const http = TestBed.inject(HttpTestingController);
@@ -48,10 +52,15 @@ async function mount(servers: unknown[] = SERVERS): Promise<Harness> {
 
 describe('McpRegistryComponent', () => {
   it('lists every registered server', async () => {
+    // Über die Feldwerte und nicht über `textContent`: die Namen stehen in
+    // `<input [value]>`, wo sie kein Textknoten sind. Bis C1-d3c ging der Test
+    // dennoch durch — das `sr`-Bruchstück am Entfernen-Knopf trug den Namen
+    // zufällig in den Text. Mit dem Knopfnamen in `aria-label` ist dieser
+    // Umweg weg, und die Prüfung sieht jetzt hin, wo der Wert wirklich steht.
     const { el } = await mount();
     expect(el.querySelectorAll('.mr-row')).toHaveLength(2);
-    expect(el.textContent).toContain('WLO');
-    expect(el.textContent).toContain('Extra');
+    expect(Array.from(el.querySelectorAll<HTMLInputElement>('.mr-name')).map((i) => i.value))
+      .toEqual(['WLO', 'Extra']);
   });
 
   it('shows each tool with the description the live server reported', async () => {
@@ -69,6 +78,31 @@ describe('McpRegistryComponent', () => {
     expect(url.disabled).toBe(true);
     expect(el.textContent).toContain('MCP_SERVER_URL');
     expect(el.querySelectorAll<HTMLButtonElement>('.mr-del')[0].disabled).toBe(true);
+  });
+
+  it('trägt den Namen der Umgebungsvariablen als Wert im Satz, nicht als Auszeichnung', async () => {
+    // Muster von `login.passwordEnv`: der Satz bleibt als Ganzes übersetzbar,
+    // der Wert reist als Platzhalter. Das kostet die `<code>`-Auszeichnung —
+    // wo im Satz sie steht, ist je Sprache verschieden, und Markup im Katalog
+    // hat bislang kein einziger Eintrag.
+    const { el, fixture } = await mount();
+    const hilfe = el.querySelectorAll('.mr-row')[0].querySelector('.mr-help');
+    expect(hilfe?.textContent).toContain('Umgebungsvariable MCP_SERVER_URL');
+    expect(hilfe?.querySelector('code')).toBeNull();
+
+    TestBed.inject(StudioLanguageService).toggle();
+    await fixture.whenStable();
+    expect(el.querySelectorAll('.mr-row')[0].querySelector('.mr-help')?.textContent)
+      .toContain('MCP_SERVER_URL');
+  });
+
+  it('gibt dem Entfernen-Knopf einen zugänglichen Namen mit seinem Server', async () => {
+    // Zwei Zeilen, zweimal „Entfernen" — bis C1-d3c stand das Ziel in einem
+    // `sr`-Bruchstück, das sich nicht übersetzen liess (C1-d3a).
+    const { el } = await mount();
+    expect(el.querySelector('.mr-row .sr')).toBeNull();
+    expect(el.querySelectorAll<HTMLButtonElement>('.mr-del')[1].getAttribute('aria-label'))
+      .toBe('Entfernen — Extra');
   });
 
   it('marks itself unsaved as soon as something is changed', async () => {
@@ -194,5 +228,70 @@ describe('McpRegistryComponent', () => {
     await fixture.whenStable();
 
     expect(el.textContent).toContain('Verbindung fehlgeschlagen');
+  });
+});
+
+describe('compareToolsets', () => {
+  it('nennt beide Richtungen getrennt', () => {
+    expect(compareToolsets(['a', 'b', 'c'], ['b', 'c', 'd']))
+      .toEqual({ missing: ['a'], extra: ['d'] });
+  });
+
+  it('meldet nichts, wenn beide Seiten dasselbe führen — Reihenfolge zählt nicht', () => {
+    expect(compareToolsets(['a', 'b'], ['b', 'a'])).toEqual({ missing: [], extra: [] });
+  });
+});
+
+describe('McpRegistryComponent — Abgleich mit der Registry', () => {
+  /** Eine Adresse prüfen und die Antwort des Servers einspielen. */
+  async function pruefe(
+    harness: Harness, url: string, tools: { name: string; description: string }[],
+  ): Promise<void> {
+    const { el, fixture, http } = harness;
+    const field = el.querySelector<HTMLInputElement>('.mr-discover-url');
+    field!.value = url;
+    field!.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+    el.querySelector<HTMLButtonElement>('.mr-discover-go')?.click();
+    await fixture.whenStable();
+    http.expectOne((r) => r.url === '/studio/api/config/mcp-servers/discover')
+      .flush({ url, tools });
+    await tick();
+    await fixture.whenStable();
+  }
+
+  it('benennt das erwartete Werkzeug, das der Server gar nicht führt', async () => {
+    // Der Zweck der Ansicht: gemessen 2026-08-11 kannte ein laufender
+    // MCP-Betrieb ``get_skill_registry`` nicht, während drei Muster es nennen.
+    // Dem Modell angeboten, vom Server nicht geführt — jeder Aufruf ein Fehler.
+    const harness = await mount();
+    await pruefe(harness, 'http://intern:8080/mcp', [{ name: 'get_skill', description: '' }]);
+    expect(harness.el.querySelector('.mr-compare-missing')?.textContent)
+      .toContain('search_wlo_all');
+  });
+
+  it('greift auch bei nachgestelltem Schrägstrich — sonst vergleicht es still nichts', async () => {
+    const harness = await mount();
+    await pruefe(harness, 'http://intern:8080/mcp/', [{ name: 'get_skill', description: '' }]);
+    expect(harness.el.querySelector('.mr-compare-missing')?.textContent)
+      .toContain('search_wlo_all');
+  });
+
+  it('bestätigt ausdrücklich, wenn nichts fehlt — Schweigen wäre nicht dasselbe', async () => {
+    const harness = await mount();
+    await pruefe(harness, 'http://intern:8080/mcp', [
+      { name: 'search_wlo_all', description: '' },
+      { name: 'get_skill', description: '' },
+    ]);
+    expect(harness.el.querySelector('.mr-compare-missing')).toBeNull();
+    // Das Zusatzwerkzeug ist kein Mangel, wird aber genannt.
+    expect(harness.el.querySelector('.mr-compare')?.textContent).toContain('get_skill');
+  });
+
+  it('sagt bei einer unbekannten Adresse, dass es nichts zu vergleichen gibt', async () => {
+    const harness = await mount();
+    await pruefe(harness, 'https://neu.example/mcp', [{ name: 't', description: 'd' }]);
+    expect(harness.el.querySelector('.mr-compare-missing')).toBeNull();
+    expect(harness.el.querySelector('.mr-compare')?.textContent).toContain('nicht in der Liste');
   });
 });

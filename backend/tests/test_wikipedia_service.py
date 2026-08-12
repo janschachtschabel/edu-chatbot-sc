@@ -1,8 +1,9 @@
-"""Coverage + Verhaltens-Pins für wikipedia_service (vorher 16 %).
+"""Coverage + Verhaltens-Pins für wikipedia_service.
 
 Reine Relevanz-Logik (``_normalize`` / ``_word_match`` / ``_is_relevant``) +
-async ``fetch_wikipedia_summary`` (2-Schritt: Suche → Summary) mit Fake-httpx-
-Client — kein echter Netzcall.
+async ``fetch_wikipedia_summary``, das seit 2026-08-01 über das MCP-Werkzeug
+``get_wikipedia_summary`` geht. Die MCP-Grenze wird auf DIESEM Modul gepatcht
+(Bare-Name-Import, ALT-Konvention) — kein echter Netzcall.
 
 Hinweis (Charakterisierung, NICHT gefixt): der Title-länger-Suffix-Zweig in
 ``_is_relevant`` (Zeilen ~138-143) ist praktisch unerreichbar, weil die
@@ -12,6 +13,7 @@ daher hier nicht getestet."""
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 
@@ -73,106 +75,70 @@ def test_is_relevant_no_content_words():
     assert ws._is_relevant("die der und", "xyz", "abc") is False
 
 
-# ── fetch_wikipedia_summary (Fake-httpx) ───────────────────────────
-class _Resp:
-    def __init__(self, status=200, payload=None):
-        self.status_code = status
-        self._p = payload if payload is not None else {}
-
-    def json(self):
-        return self._p
-
-
-class _Client:
-    """Async-Context-Manager-Ersatz; ``handler(url) -> _Resp | Exception``."""
-
-    def __init__(self, handler):
-        self._handler = handler
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *_a):
-        return False
-
-    async def get(self, url, params=None):
-        r = self._handler(url)
-        if isinstance(r, Exception):
-            raise r
-        return r
+# ── fetch_wikipedia_summary (Fake-MCP) ─────────────────────────────
+def _envelope(title: str, extract: str, url: str = "https://de.wikipedia.org/wiki/X") -> str:
+    """Antwortform des Werkzeugs bei ``outputFormat="json"`` (live geprüft)."""
+    return json.dumps({
+        "query": title, "found": True,
+        "summary": {"title": title, "extract": extract, "url": url, "lang": "de"},
+    })
 
 
-def _patch(monkeypatch, handler):
-    monkeypatch.setattr(ws.httpx, "AsyncClient", lambda **_kw: _Client(handler))
+def _wire(monkeypatch, antwort):
+    """Patcht die MCP-Grenze; ``antwort`` ist ein String oder eine Exception.
+
+    Gibt die Aufruf-Liste zurück, damit Tests prüfen können, WAS gesendet wurde
+    (bzw. dass gar nicht gesendet wurde).
+    """
+    aufrufe: list[tuple[str, dict]] = []
+
+    async def fake(tool_name, arguments):
+        aufrufe.append((tool_name, arguments))
+        if isinstance(antwort, Exception):
+            raise antwort
+        return antwort
+
+    monkeypatch.setattr(ws, "call_mcp_tool", fake)
+    return aufrufe
 
 
-def test_fetch_empty_topic_returns_none():
+def test_fetch_empty_topic_does_not_call_the_server(monkeypatch):
+    aufrufe = _wire(monkeypatch, _envelope("X", "y"))
     assert asyncio.run(ws.fetch_wikipedia_summary("")) is None
+    assert aufrufe == []
 
 
 def test_fetch_happy_path(monkeypatch):
-    def handler(url):
-        if "/search/title" in url:
-            return _Resp(200, {"pages": [{"key": "Photosynthese", "title": "Photosynthese"}]})
-        return _Resp(200, {
-            "title": "Photosynthese", "description": "Biologischer Prozess",
-            "extract": "Die Photosynthese ist ein Prozess der Pflanzen.",
-            "content_urls": {"desktop": {"page": "https://de.wikipedia.org/wiki/Photosynthese"}},
-        })
-
-    _patch(monkeypatch, handler)
+    aufrufe = _wire(monkeypatch, _envelope(
+        "Photosynthese", "Die Photosynthese ist ein Prozess der Pflanzen.",
+        "https://de.wikipedia.org/wiki/Photosynthese",
+    ))
     out = asyncio.run(ws.fetch_wikipedia_summary("Photosynthese"))
     assert out["title"] == "Photosynthese"
-    assert out["description"] == "Biologischer Prozess"
     assert out["extract"].startswith("Die Photosynthese")
     assert out["url"] == "https://de.wikipedia.org/wiki/Photosynthese"
+    assert aufrufe == [("get_wikipedia_summary", {"query": "Photosynthese"})]
 
 
-def test_fetch_search_non_200_returns_none(monkeypatch):
-    _patch(monkeypatch, lambda url: _Resp(503, {}))
+def test_fetch_irrelevant_hit_is_rejected(monkeypatch):
+    # Live gemessen 2026-08-01: das Werkzeug beantwortet „Stadt Berlin" mit dem
+    # Artikel „Bern". Ohne den Relevanz-Filter landete die Schweizer
+    # Bundesstadt samt CC-BY-SA-Quellenangabe in einem Material über Berlin.
+    _wire(monkeypatch, _envelope("Bern", "Bern ist die Bundesstadt der Schweiz."))
+    assert asyncio.run(ws.fetch_wikipedia_summary("Stadt Berlin")) is None
+
+
+def test_fetch_not_found_returns_none(monkeypatch):
+    _wire(monkeypatch, json.dumps({"query": "x", "found": False, "summary": None}))
     assert asyncio.run(ws.fetch_wikipedia_summary("x")) is None
 
 
-def test_fetch_no_pages_returns_none(monkeypatch):
-    _patch(monkeypatch, lambda url: _Resp(200, {"pages": []}))
-    assert asyncio.run(ws.fetch_wikipedia_summary("x")) is None
+def test_fetch_mcp_error_string_returns_none(monkeypatch):
+    # ``call_mcp_tool`` wirft nicht, sondern liefert im Fehlerfall diesen Text.
+    _wire(monkeypatch, "MCP error: tool not found")
+    assert asyncio.run(ws.fetch_wikipedia_summary("Photosynthese")) is None
 
 
-def test_fetch_skips_disambiguation_and_irrelevant(monkeypatch):
-    def handler(url):
-        if "/search/title" in url:
-            return _Resp(200, {"pages": [
-                {"key": "Disambig", "title": "D"},
-                {"key": "Astronomie", "title": "A"},
-                {"key": "Photosynthese", "title": "Photosynthese"},
-            ]})
-        if url.endswith("/Disambig"):
-            return _Resp(200, {"type": "disambiguation", "extract": "x", "title": "D"})
-        if url.endswith("/Astronomie"):
-            return _Resp(200, {"title": "Astronomie", "extract": "Sterne am Himmel", "content_urls": {}})
-        return _Resp(200, {"title": "Photosynthese", "extract": "Die Photosynthese ist ein Prozess", "content_urls": {}})
-
-    _patch(monkeypatch, handler)
-    out = asyncio.run(ws.fetch_wikipedia_summary("Photosynthese"))
-    assert out["title"] == "Photosynthese"   # Disambig + irrelevant übersprungen
-
-
-def test_fetch_summary_http_error_skips_page(monkeypatch):
-    def handler(url):
-        if "/search/title" in url:
-            return _Resp(200, {"pages": [{"key": "A", "title": "A"}, {"key": "Photosynthese", "title": "Photosynthese"}]})
-        if url.endswith("/A"):
-            raise ws.httpx.ReadTimeout("timeout")
-        return _Resp(200, {"title": "Photosynthese", "extract": "Die Photosynthese ist", "content_urls": {}})
-
-    _patch(monkeypatch, handler)
-    out = asyncio.run(ws.fetch_wikipedia_summary("Photosynthese"))
-    assert out["title"] == "Photosynthese"   # /A warf → innerer except → weiter
-
-
-def test_fetch_outer_http_error_returns_none(monkeypatch):
-    def handler(url):
-        raise ws.httpx.ConnectError("boom")
-
-    _patch(monkeypatch, handler)
-    assert asyncio.run(ws.fetch_wikipedia_summary("x")) is None
+def test_fetch_transport_exception_returns_none(monkeypatch):
+    _wire(monkeypatch, RuntimeError("boom"))
+    assert asyncio.run(ws.fetch_wikipedia_summary("Photosynthese")) is None

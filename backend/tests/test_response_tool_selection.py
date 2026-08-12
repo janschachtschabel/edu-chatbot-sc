@@ -85,6 +85,34 @@ def test_mcp_source_offers_all_tool_defs(monkeypatch):
     assert _names({"sources": ["mcp"]}) == _ALL_TOOL_NAMES
 
 
+def test_mcp_source_waechst_den_katalog_nicht():
+    """Der ``has_mcp_source``-Zweig darf ``TOOL_DEFINITIONS`` nicht anfassen.
+
+    Gemessen 2026-08-10 beim Bau von E2: er wies die Modul-Globale per REFERENZ
+    zu, und das spätere ``active_tools.append(...)`` schrieb dann in sie hinein.
+    Über fünf Aufrufe wuchs der Katalog 22 → 27, das Modell bekam
+    ``select_top_cards`` fünfmal angeboten. Im Testlauf fiel es als
+    Reihenfolge-Abhängigkeit auf (zwei fremde Tests kippten), im Betrieb wäre es
+    still gewachsen: jeder Zug eines ``sources: [mcp]``-Musters ein Eintrag
+    mehr. Der ``simplify:``-Vermerk im Modulkopf hatte den Fall beschrieben —
+    hier ist die Messung dazu.
+
+    Bewusst OHNE ``_disable_cards``: gerade der eingeschaltete Zustand löst den
+    ``append`` aus. Das autouse-Sicherheitsnetz oben stellt den Katalog erst
+    NACH dem Test wieder her — während des Laufs misst diese Prüfung also den
+    echten Zustand. Genau deshalb blieb der Defekt lange unsichtbar: das Netz
+    hielt ihn in dieser Datei, und keine andere fasste den Zweig an.
+    """
+    vorher = len(td.TOOL_DEFINITIONS)
+    for _ in range(3):
+        rts._select_active_tools(
+            classification={}, pattern_output={"sources": ["mcp"]},
+            available_rag_areas=None, rag_config=None,
+            _cards_inline_mode=True, _degradation_no_tools=False,
+        )
+    assert len(td.TOOL_DEFINITIONS) == vorher
+
+
 def test_fallback_search_and_topic_pages(monkeypatch):
     _disable_cards(monkeypatch)
     # Kein tools, kein mcp → Fallback {collections, topic_pages}.

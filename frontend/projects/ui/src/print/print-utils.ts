@@ -5,11 +5,14 @@
  *
  * Die Komponente behält gleichnamige dünne Delegates (Template-Bindings
  * und Specs bleiben unverändert). Bodies verbatim übernommen — KEINE
- * Logik-Änderung. Die Print-Pfade selbst sind bewust UNGENETZT (jsdom
- * kann ``window.open`` in ein Zweitfenster nicht ehrlich faken, siehe
- * chat.component.spec.ts-Kopf); nur :func:`printMdToHtml` ist als pure
- * Funktion exportiert und charakterisierungsgetestet
- * (``print-utils.spec.ts``).
+ * Logik-Änderung.
+ *
+ * Hier stand, die Print-Pfade seien ungetestet, weil jsdom ``window.open`` in
+ * ein Zweitfenster nicht ehrlich faken könne. Das stimmt so nicht: eine
+ * Attrappe **nur** für `window.open` lässt den Modul-Pfad echt bis in das
+ * geschriebene HTML laufen (``print-gates.spec`` tut das seit dem Port, seit
+ * C1-b4 auch ``print-utils.spec`` für Canvas- und Lernpfad-Fenster). Was
+ * ungetestet bleibt, ist allein der Druck selbst.
  *
  * mdToHtml-Dedup-Befund (Diff der 3 Inline-Kopien, 2026-07-09):
  *  - ``printCanvasMaterial`` und ``printLearningPath`` waren semantisch
@@ -23,6 +26,7 @@
  */
 import { ChatMessage } from '../grouping/message-types';
 import { BOERDI_LOGO_DATA_URL } from '../branding/boerdi-logo';
+import type { TranslateFn } from '../i18n/i18n';
 import { stripLatex } from '../markdown/latex';
 
 // Sentinel-Format vom Backend (chat.py _apply_widget_modes_postprocess):
@@ -48,6 +52,22 @@ const esc = (s: string) =>
 export function safePrintHref(url: string | null | undefined): string {
   const raw = (url || '').trim();
   return /^https?:\/\//i.test(raw) ? raw : '';
+}
+
+/**
+ * Datum der Kopf-/Fußzeile in der Sprache des Nutzers (C1-b4).
+ *
+ * Der BCP-47-Tag kommt aus dem Katalog (`format.dateLocale`), nicht aus einem
+ * zweiten Parameter: das Druckfenster ist ein Dokument ohne Angular, das sein
+ * HTML als String baut — `t` ist der einzige Kanal, über den die Sprache dort
+ * ankommt, und ein zweiter wäre ein Weg mehr für dieselbe Sache. Dass der Tag
+ * für `Intl` brauchbar ist, prüft ein Test (der Katalog ist Code, kein
+ * Nutzereingabe-Feld).
+ */
+function printDate(t: TranslateFn): string {
+  return new Date().toLocaleDateString(t('format.dateLocale'), {
+    year: 'numeric', month: 'long', day: 'numeric',
+  });
 }
 
 /**
@@ -107,15 +127,20 @@ export function printMdToHtml(
 }
 
 /** Gemeinsamer Markdown-Print-Helper für InlineDocument + Legacy-Canvas
- *  (vorher ``ChatComponent._printMarkdown``). Auto-Print nach Load. */
-export function printMarkdownDocument(title: string, markdown: string): void {
+ *  (vorher ``ChatComponent._printMarkdown``). Auto-Print nach Load.
+ *
+ *  `t` (C1-b4) trägt hier keinen sichtbaren Text — der Titel kommt vom
+ *  Aufrufer —, sondern die `lang`-Auszeichnung. Die fehlte bisher ganz; mit
+ *  zwei Sprachen im Spiel wäre ein nicht ausgezeichnetes Dokument die Vorlage
+ *  dafür, dass ein Screenreader englischen Text deutsch vorliest (WCAG 3.1.1). */
+export function printMarkdownDocument(title: string, markdown: string, t: TranslateFn): void {
   const body = printMdToHtml(markdown || '', { blockquotes: false });
   /* eslint-disable no-useless-escape -- Das `<\/script>` weiter unten ist
      bewusst escaped (verbatim aus ALT): das Widget-Bundle darf von einer
      Host-Seite inline in einen `<script>`-Block gelegt werden, wo ein
      wörtliches `</script>` diesen Block vorzeitig beenden würde. Für JS selbst
      ist der Backslash bedeutungslos — die Regel sieht nur den halben Grund. */
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
+  const html = `<!doctype html><html lang="${esc(t('format.htmlLang'))}"><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:780px;margin:32px auto;padding:0 24px;color:#111;line-height:1.5}
 h1,h2,h3,h4{color:#1c4587;margin:1em 0 .4em}h1{font-size:1.6em;border-bottom:2px solid #1c4587;padding-bottom:.2em}
 p{margin:.4em 0}.li,.ol{margin:.2em 0 .2em 1em}.n,.b{display:inline-block;width:1.5em;color:#1c4587;font-weight:600}
@@ -132,11 +157,15 @@ a{color:#1c4587}@media print{a{color:inherit;text-decoration:none}}</style></hea
  * but generic over the material type. The sentinel-comment is stripped
  * from the markdown before rendering so it doesn't show up in print.
  */
-export function printCanvasMaterial(msg: ChatMessage): void {
+export function printCanvasMaterial(msg: ChatMessage, t: TranslateFn): void {
   const m = (msg.content || '').match(PRINTABLE_CANVAS_RE);
   if (!m) return;
+  // Typ und Titel stehen im Backend-Sentinel und bleiben unübersetzt (C1-b3);
+  // nur ihr Rückfall geht durch den Katalog — derselbe Schlüssel, den auch
+  // `printableCanvasLabel` für die Knopf-Beschriftung nimmt.
   const materialType = ((m[1] || 'material').trim() || 'material');
-  const docTitle = ((m[2] || 'Material').trim() || 'Material');
+  const rueckfall = t('chat.print.canvasFallback');
+  const docTitle = ((m[2] || rueckfall).trim() || rueckfall);
   // Markdown ohne Sentinel — der ist nur ein Marker, nicht Teil des Inhalts.
   const md = (msg.content || '')
     .replace(PRINTABLE_CANVAS_RE, '')
@@ -145,16 +174,14 @@ export function printCanvasMaterial(msg: ChatMessage): void {
   // Material-Type-Label für Header — capitalize first letter.
   const typeLabel = materialType
     ? materialType.charAt(0).toUpperCase() + materialType.slice(1)
-    : 'Material';
-  const today = new Date().toLocaleDateString('de-DE', {
-    year: 'numeric', month: 'long', day: 'numeric',
-  });
+    : rueckfall;
+  const today = printDate(t);
 
   const html = `<!doctype html>
-<html lang="de">
+<html lang="${esc(t('format.htmlLang'))}">
 <head>
 <meta charset="utf-8">
-<title>${esc(docTitle)} – BadBoerdi</title>
+<title>${esc(t('print.docTitle', { title: docTitle }))}</title>
 <style>
   /* @page steuert den Druck-Rand (A4 mit komfortabler Marge). Im Browser-
      Modus arbeitet der body mit auto-margin + festem max-width, damit der
@@ -203,15 +230,15 @@ export function printCanvasMaterial(msg: ChatMessage): void {
 </style>
 </head>
 <body>
-<div class="print-bar"><button onclick="window.print()">🖨 Drucken / Als PDF speichern</button></div>
+<div class="print-bar"><button onclick="window.print()">${esc(t('print.button'))}</button></div>
 <header>
   <h1><img src="${BOERDI_LOGO_DATA_URL}" alt="" style="width:28px;height:28px;vertical-align:-6px;margin-right:6px;"/> ${esc(docTitle || typeLabel)}</h1>
-  <span class="meta">BadBoerdi · ${esc(today)}</span>
+  <span class="meta">${esc(t('print.meta', { date: today }))}</span>
 </header>
 <main>
   ${printMdToHtml(md)}
 </main>
-<footer>Erstellt mit BadBoerdi · WirLernenOnline.de · ${esc(today)}</footer>
+<footer>${esc(t('print.footer', { date: today }))}</footer>
 <!-- Kein auto-print mehr: der User sieht erst die Preview im neuen
      Tab und klickt dann selbst "Drucken / Als PDF speichern". Vorher
      auto-print direkt nach load, was den User vor dem Druck-Dialog
@@ -221,7 +248,7 @@ export function printCanvasMaterial(msg: ChatMessage): void {
 
   const w = window.open('', '_blank', 'width=900,height=1100');
   if (!w) {
-    alert('Bitte erlaube Pop-ups für diese Seite, um das Material zu drucken.');
+    alert(t('print.popupBlockedMaterial'));
     return;
   }
   w.document.open();
@@ -234,7 +261,7 @@ export function printCanvasMaterial(msg: ChatMessage): void {
  * browser print dialog. Users can then "Save as PDF" from the dialog —
  * no server-side PDF rendering needed, works identically on all browsers.
  */
-export function printLearningPath(msg: ChatMessage): void {
+export function printLearningPath(msg: ChatMessage, t: TranslateFn): void {
   // Wenn der Lernpfad im Inline-Modus erzeugt wurde, hat das Backend einen
   // ``<!-- boerdi:printable-canvas|... -->``-Sentinel vor das Markdown
   // gestellt (siehe chat.py _apply_widget_modes_postprocess). Im PDF-
@@ -277,15 +304,14 @@ export function printLearningPath(msg: ChatMessage): void {
       </div>`;
   }).join('');
 
-  const today = new Date().toLocaleDateString('de-DE', {
-    year: 'numeric', month: 'long', day: 'numeric',
-  });
+  const today = printDate(t);
+  const lpTitel = t('print.learningPath');
 
   const html = `<!doctype html>
-<html lang="de">
+<html lang="${esc(t('format.htmlLang'))}">
 <head>
 <meta charset="utf-8">
-<title>Lernpfad – BadBoerdi</title>
+<title>${esc(t('print.docTitle', { title: lpTitel }))}</title>
 <style>
   /* Browser-Preview: zentriertes "Papier" auf grauem Hintergrund. Im
      Druck übernehmen die @page-margins, body wird entkleidet. */
@@ -341,16 +367,16 @@ export function printLearningPath(msg: ChatMessage): void {
 </style>
 </head>
 <body>
-<div class="print-bar"><button onclick="window.print()">🖨 Drucken / Als PDF speichern</button></div>
+<div class="print-bar"><button onclick="window.print()">${esc(t('print.button'))}</button></div>
 <header>
-  <h1><img src="${BOERDI_LOGO_DATA_URL}" alt="" style="width:28px;height:28px;vertical-align:-6px;margin-right:6px;"/> Lernpfad</h1>
-  <span class="meta">BadBoerdi · ${esc(today)}</span>
+  <h1><img src="${BOERDI_LOGO_DATA_URL}" alt="" style="width:28px;height:28px;vertical-align:-6px;margin-right:6px;"/> ${esc(lpTitel)}</h1>
+  <span class="meta">${esc(t('print.meta', { date: today }))}</span>
 </header>
 <main>
   ${printMdToHtml(lpContent)}
 </main>
-${cards.length ? `<section class="cards"><h2>Verwendete Inhalte (${cards.length})</h2>${cardsHtml}</section>` : ''}
-<footer>Erstellt mit BadBoerdi · WirLernenOnline.de · ${esc(today)}</footer>
+${cards.length ? `<section class="cards"><h2>${esc(t('print.usedContents', { count: cards.length }))}</h2>${cardsHtml}</section>` : ''}
+<footer>${esc(t('print.footer', { date: today }))}</footer>
 <!-- Kein auto-print mehr: der User sieht erst die Preview im neuen
      Tab und klickt dann selbst "Drucken / Als PDF speichern". Vorher
      auto-print direkt nach load, was den User vor dem Druck-Dialog
@@ -360,7 +386,7 @@ ${cards.length ? `<section class="cards"><h2>Verwendete Inhalte (${cards.length}
 
   const w = window.open('', '_blank', 'width=900,height=1100');
   if (!w) {
-    alert('Bitte erlaube Pop-ups für diese Seite, um den Lernpfad zu drucken.');
+    alert(t('print.popupBlockedLearningPath'));
     return;
   }
   w.document.open();

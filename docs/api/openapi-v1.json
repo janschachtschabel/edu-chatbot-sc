@@ -1,6 +1,117 @@
 {
   "components": {
     "schemas": {
+      "AgentRequest": {
+        "description": "Der Auftrag eines Gastgebers.",
+        "properties": {
+          "allow_curation": {
+            "default": true,
+            "title": "Allow Curation",
+            "type": "boolean"
+          },
+          "collection_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collection Id"
+          },
+          "instruction": {
+            "maxLength": 20000,
+            "title": "Instruction",
+            "type": "string"
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale"
+          },
+          "node_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Node Ids",
+            "type": "array"
+          },
+          "result_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Schema"
+          },
+          "write_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "propose",
+                  "execute"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Write Mode"
+          }
+        },
+        "required": [
+          "instruction"
+        ],
+        "title": "AgentRequest",
+        "type": "object"
+      },
+      "AgentResponse": {
+        "description": "Das Ergebnis eines Laufs.\n\n``stop_reason`` gehört zur Antwort und nicht ins Protokoll: ein Lauf, der an\nder Frist abgeschnitten wurde, sähe von außen sonst aus wie einer, der\nfertig geworden ist. Wer auswertet, muss beides unterscheiden können.",
+        "properties": {
+          "iterations": {
+            "title": "Iterations",
+            "type": "integer"
+          },
+          "result": {
+            "title": "Result"
+          },
+          "stop_reason": {
+            "title": "Stop Reason",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "tools_called": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tools Called",
+            "type": "array"
+          }
+        },
+        "required": [
+          "text",
+          "stop_reason",
+          "iterations"
+        ],
+        "title": "AgentResponse",
+        "type": "object"
+      },
       "AreaData": {
         "properties": {
           "data": {
@@ -179,6 +290,11 @@
             "title": "Label",
             "type": "string"
           },
+          "label_en": {
+            "default": "",
+            "title": "Label En",
+            "type": "string"
+          },
           "structure": {
             "default": "",
             "title": "Structure",
@@ -314,6 +430,16 @@
               }
             ]
           },
+          "prepared_write": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreparedWriteOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "query_metas": {
             "items": {
               "$ref": "#/components/schemas/QueryMetaEntry"
@@ -406,6 +532,14 @@
           "greetings": {
             "$ref": "#/components/schemas/ContextGreetings"
           },
+          "greetings_en": {
+            "$ref": "#/components/schemas/ContextGreetingsEn",
+            "default": {
+              "collection": "",
+              "content": "",
+              "topic": ""
+            }
+          },
           "pills": {
             "$ref": "#/components/schemas/ContextPills"
           },
@@ -446,6 +580,28 @@
         "title": "ContextGreetings",
         "type": "object"
       },
+      "ContextGreetingsEn": {
+        "description": "Wie ``ContextGreetings``, aber jedes Feld optional: eine nicht gepflegte\nSprache ist kein Fehler (C1-g2b).",
+        "properties": {
+          "collection": {
+            "default": "",
+            "title": "Collection",
+            "type": "string"
+          },
+          "content": {
+            "default": "",
+            "title": "Content",
+            "type": "string"
+          },
+          "topic": {
+            "default": "",
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "title": "ContextGreetingsEn",
+        "type": "object"
+      },
       "ContextPill": {
         "properties": {
           "action": {
@@ -459,6 +615,11 @@
           },
           "label": {
             "title": "Label",
+            "type": "string"
+          },
+          "label_en": {
+            "default": "",
+            "title": "Label En",
             "type": "string"
           }
         },
@@ -1120,6 +1281,41 @@
         "title": "PolicyDecision",
         "type": "object"
       },
+      "PreparedWriteOut": {
+        "description": "Eine bestätigte Änderung, beschrieben statt ausgeführt (E3).\n\nIm eingebetteten Betrieb schreibt der MCP-Server nicht selbst; die Anfrage\nwird in der Repository-Seite abgesetzt, mit der dort bestehenden Anmeldung —\nso trägt die Änderung den Namen der Person und nicht den eines Sammelkontos.\nGelesen und geprüft wird sie in ``domain/prepared_write.py``; die\nErlaubnisliste, welcher Aufruf überhaupt abgesetzt werden darf, liegt im\nWidget, das ihn absetzt (E4).\n\n**Ein eigenes Feld und kein weiterer ``page_action``-Typ.** ``page_action``\nist ein einzelner Platz und schon von Canvas/Guide belegt — ein Zug, der eine\nLeinwand öffnet *und* eine Änderung vorbereitet, überschriebe sich selbst.",
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "done_message": {
+            "default": "",
+            "title": "Done Message",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "path"
+        ],
+        "title": "PreparedWriteOut",
+        "type": "object"
+      },
       "PrivacyConfig": {
         "properties": {
           "memory": {
@@ -1624,6 +1820,11 @@
             "title": "Greeting",
             "type": "string"
           },
+          "greeting_en": {
+            "default": "",
+            "title": "Greeting En",
+            "type": "string"
+          },
           "quick_replies": {
             "items": {
               "type": "string"
@@ -1631,9 +1832,22 @@
             "title": "Quick Replies",
             "type": "array"
           },
+          "quick_replies_en": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Quick Replies En",
+            "type": "array"
+          },
           "tour_reply": {
             "default": "",
             "title": "Tour Reply",
+            "type": "string"
+          },
+          "tour_reply_en": {
+            "default": "",
+            "title": "Tour Reply En",
             "type": "string"
           }
         },
@@ -1828,6 +2042,98 @@
         "summary": "Root Head",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/agent": {
+      "post": {
+        "description": "Run one agent task and return its text plus structured result.",
+        "operationId": "agent_api_agent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Agent",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/agent/stream": {
+      "post": {
+        "description": "Stream one agent task as Server-Sent-Events (connected → result | error).",
+        "operationId": "agent_stream_api_agent_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Agent Stream",
+        "tags": [
+          "agent"
         ]
       }
     },
@@ -6391,6 +6697,117 @@
         ]
       }
     },
+    "/api/usage/period": {
+      "get": {
+        "description": "Dasselbe über einen Zeitraum, Grenzen einschließlich.\n\nZeitzonenlose Angaben gelten als UTC. Vertauschte Grenzen sind ein\nEingabefehler (422) und ausdrücklich **kein** leeres Ergebnis: das läse\nsich wie „keine Kosten\" statt wie „so herum ergibt die Frage keinen Sinn\".\nZu weite Zeiträume ebenso (``MAX_PERIOD_DAYS``).",
+        "operationId": "usage_for_period_api_usage_period_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "To",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Usage For Period Api Usage Period Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Usage For Period",
+        "tags": [
+          "usage"
+        ]
+      }
+    },
+    "/api/usage/session/{session_id}": {
+      "get": {
+        "description": "Token, Aufrufe und Betrag einer Sitzung, je Modell aufgeschlüsselt.\n\nEine Sitzung ohne LLM-Aufruf antwortet mit Nullen und ``empty: true`` —\nkein 404, denn genau das ist bei Tour und Kontext-Begrüßung der Normalfall.\n``amount`` ist eine Zeichenkette (oder ``null``, wenn für kein Modell ein\nPreis gepflegt ist); ``price_unavailable`` nennt die Modelle ohne Preis.",
+        "operationId": "usage_for_session_api_usage_session__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Usage For Session Api Usage Session  Session Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Usage For Session",
+        "tags": [
+          "usage"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "health_health_get",
@@ -6589,6 +7006,26 @@
           }
         },
         "summary": "Widget Demo Classic",
+        "tags": [
+          "widget"
+        ]
+      }
+    },
+    "/widget/frameless": {
+      "get": {
+        "description": "The frameless embed (U1) inside a host container of the page's own.",
+        "operationId": "widget_demo_frameless_widget_frameless_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Widget Demo Frameless",
         "tags": [
           "widget"
         ]

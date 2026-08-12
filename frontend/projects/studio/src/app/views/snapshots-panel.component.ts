@@ -26,9 +26,10 @@ import {
 import { ActionState } from '../core/action-state';
 import { AsyncData } from '../core/async-data';
 import { saveBlob } from '../core/download';
-import { germanDateTime } from '../core/format';
 import { SnapshotsApi, type SnapshotRow } from '../core/snapshots-api.service';
+import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { StudioFormat } from '../i18n/studio-format.service';
 
 /**
  * Mirrored from `services/snapshots.py` (`MAX_SNAPSHOTS = 50`). No endpoint
@@ -45,10 +46,16 @@ const MAX_SNAPSHOTS = 50;
   styleUrl: './snapshots-panel.component.scss',
 })
 export class SnapshotsPanelComponent {
-  private readonly api = inject(SnapshotsApi);
+  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
+  private readonly fmt = inject(StudioFormat);
 
-  readonly snapshots = new AsyncData<SnapshotRow[]>(() => this.api.list());
-  readonly action = new ActionState();
+  private readonly api = inject(SnapshotsApi);
+  private readonly lang = inject(StudioLanguageService);
+  protected readonly t = this.lang.t;
+  protected readonly plural = this.lang.plural;
+
+  readonly snapshots = new AsyncData<SnapshotRow[]>(() => this.api.list(), this.t);
+  readonly action = new ActionState(this.t);
   readonly label = signal('');
 
   /** `${kind}:${id}` of the confirmation that is armed, or ''. */
@@ -81,7 +88,7 @@ export class SnapshotsPanelComponent {
   async create(): Promise<void> {
     const ok = await this.action.run('create', async () => {
       const snap = await this.api.create(this.label().trim());
-      return `Snapshot „${snap.label || snap.id}" angelegt.`;
+      return this.t('snapshots.created', { name: snap.label || snap.id });
     });
     if (!ok) return;
     this.label.set('');
@@ -92,7 +99,9 @@ export class SnapshotsPanelComponent {
     this.disarm();
     await this.action.run(`restore:${row.id}`, async () => {
       const { areas } = await this.api.restore(row.id);
-      return `${areas} Konfigurationsbereiche aus „${this.name(row)}" eingespielt.`;
+      // Derselbe Satz wie beim Voll-Backup — beide schreiben Bereiche aus einer
+      // ZIP, und zwei Einträge könnten voneinander abdriften.
+      return this.lang.plural('backup.areasRestored', areas, { name: this.name(row) });
     });
   }
 
@@ -100,7 +109,7 @@ export class SnapshotsPanelComponent {
     this.disarm();
     const ok = await this.action.run(`delete:${row.id}`, async () => {
       await this.api.remove(row.id);
-      return `Snapshot „${this.name(row)}" gelöscht.`;
+      return this.t('snapshots.deleted', { name: this.name(row) });
     });
     if (ok) await this.snapshots.reload();
   }
@@ -108,7 +117,7 @@ export class SnapshotsPanelComponent {
   async download(row: SnapshotRow): Promise<void> {
     await this.action.run(`download:${row.id}`, async () => {
       saveBlob(await this.api.download(row.id), `${row.id}.zip`);
-      return `„${this.name(row)}" heruntergeladen.`;
+      return this.t('snapshots.downloaded', { name: this.name(row) });
     });
   }
 
@@ -118,6 +127,6 @@ export class SnapshotsPanelComponent {
   }
 
   when(iso: string): string {
-    return germanDateTime(iso);
+    return this.fmt.dateTime(iso);
   }
 }

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Anmeldung abgeschlossen</title>
+<!--
+  Rückkehr-Ziel des Anmeldevorgangs (C5-c1).
+
+  Diese Seite ist der `redirect_uri`, den wir beim MCP-Server registrieren. Sie
+  läuft eine knappe Sekunde: sie liest `code`/`state` aus ihrer eigenen Adresse,
+  reicht sie an das öffnende Fenster weiter und schliesst sich.
+
+  Bewusst eine DATEI im Widget-Bündel und keine eigene Route: die Widget-Pfade
+  stehen im eingefrorenen OpenAPI-Vertrag, der vorhandene Sammelpfad
+  `/widget/{asset_name}` liefert sie mit aus — also kein neuer Pfad im Dokument.
+
+  ⚠️ `postMessage(..., '*')` ist hier bewusst und nicht aus Bequemlichkeit:
+   * Das Ziel ist ausschliesslich `window.opener` — also genau das Fenster, das
+     diesen Vorgang gestartet hat. Ein anderes erreicht die Nachricht nicht.
+   * Wir KÖNNEN dessen Herkunft nicht kennen: das Widget läuft auf beliebigen
+     Gastgeberseiten, und eine feste Herkunft wäre schlicht falsch.
+   * Weitergereicht wird nur der Autorisierungs-Code — einmalig, 60 s gültig und
+     ohne den `code_verifier` wertlos, der das öffnende Fenster nie verlassen
+     hat. Genau dafür gibt es PKCE.
+   * Die Gegenprüfungen sitzen auf der Empfängerseite (`mcp-oauth.ts`): sie nimmt
+     nur Nachrichten aus GENAU diesem Fenster und mit passendem `state` an.
+  Der Zugangsblock selbst kommt hier nie vorbei — er entsteht erst beim Tausch
+  im öffnenden Fenster.
+-->
+<style>
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 1.5rem; text-align: center;
+    /* Eigene Farben statt Systemvorgabe wären hier Deko: die Seite ist eine
+       Sekunde lang sichtbar. Beide Modi kommen so vom Browser. */
+    color: CanvasText; background: Canvas;
+  }
+  p { max-width: 30rem; line-height: 1.5; }
+</style>
+</head>
+<body>
+<p id="text" role="status">Anmeldung wird abgeschlossen — dieses Fenster schließt sich gleich von selbst.</p>
+<script>
+(function () {
+  var p = new URLSearchParams(window.location.search);
+  var nachricht = {
+    source: 'boerdi-oauth',
+    code: p.get('code'),
+    state: p.get('state'),
+    error: p.get('error'),
+  };
+
+  if (window.opener) {
+    window.opener.postMessage(nachricht, '*');
+    window.close();
+    return;
+  }
+
+  // Ohne öffnendes Fenster (direkt aufgerufen, oder es wurde zwischendurch
+  // geschlossen) kann niemand die Antwort entgegennehmen. Das ehrlich sagen,
+  // statt eine leere Seite stehen zu lassen.
+  document.getElementById('text').textContent =
+    'Diese Seite gehört zur WLO-Anmeldung des Chats. Sie lässt sich nicht '
+    + 'einzeln aufrufen — bitte die Anmeldung erneut im Chat starten.';
+})();
+</script>
+</body>
+</html>
