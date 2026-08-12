@@ -106,6 +106,59 @@ einzeln lesen und beheben. **Keine** `$safeNavigationMigration()`-Wrapper stehen
 **A8 — Doku nachziehen.** Audit-Dokument §4a: Dev-Baum-CVEs erledigt oder Rest benennen.
 Spec-§2 (Stack) auf Angular 22 / TS 6.
 
+### A.4 Durchführung — **abgeschlossen 2026-08-13, alle Gates grün**
+
+**Der eine harte Stopper war die Umgebung, nicht der Code:** Angular CLI 22 verlangt Node
+**≥ 22.22.3** (oder 24.15 / 26.0) — deutlich strenger als das „Node 22+" der Doku. Lokal lief
+22.14.0, und `ng update` bricht davor ab, ohne irgendetwas anzufassen. Nutzer hat 22.23.2
+installiert. Seither ist die Anforderung als `engines.node` in `frontend/package.json`
+festgeschrieben, damit der nächste nicht in dieselbe Wand läuft. CI (`node-version: 22`) und
+`Dockerfile` (`node:22-slim`) ziehen jeweils das neueste 22.x und waren nie betroffen.
+
+Gefahren wurde ein einziger `ng update`-Lauf über alle vier Pakete gemeinsam
+(`@angular/core@22 @angular/cli@22 @angular/material@22 angular-eslint@22`) — einzeln
+scheiterte er an der Peer-Bindung von `angular-eslint@21` auf `@angular/cli <22`. Kein
+`--force`, kein `--legacy-peer-deps`.
+
+**Was die Migrationen taten — und was davon bleiben durfte:**
+
+| Migration | Wirkung | Entscheidung |
+|---|---|---|
+| `ChangeDetectionStrategy.Eager` nachtragen | 10 Dateien: 9 Specs + 1 Test-Harness, **keine Produktivkomponente** | **Wieder entfernt.** Die Test-Doubles laufen auf dem neuen OnPush-Default — 925 Studio-Tests unverändert grün. Das Opt-out war überflüssig, und die neue Regel `prefer-on-push-component-change-detection` hätte es sonst als 11 Lint-Fehler angemahnt. |
+| `$safeNavigationMigration()`-Wrapper | 2 Ausdrücke in `overview.component.html` | **Entfernt.** `ago()`/`exact()` nehmen bereits `string \| null \| undefined` — die Migration hatte die Signatur nicht geprüft. |
+| Neue Diagnosen stilllegen (`nullishCoalescingNotNullable`, `optionalChainNotNullable`) | 5 tsconfigs auf `"suppress"` | **Wieder aktiviert.** Mit voll scharfen Prüfungen bauen Widget und Studio sauber: **null Befunde** bei 36 `?.` und 9 `??`. Die Unterdrückung war reine Vorsicht. |
+| `provideHttpClient(withXhr())` ergänzen | 44 Dateien (1 Produktiv-Config + 43 Specs) | **Belassen.** Verhaltenserhaltend; der Wechsel auf den neuen Fetch-Default ist eine eigene Entscheidung, kein Migrations-Nebenprodukt. **Offen als Nachlauf.** |
+
+**Zusätzlich nötig:** TypeScript 6 meldet `baseUrl` als abgekündigt (TS5101). Statt des
+Silencers `ignoreDeprecations` trägt `tsconfig.json` jetzt `paths` **ohne** `baseUrl` — seit
+TS 4.1 lösen die Einträge relativ zur tsconfig auf, die Werte haben dafür ein `./` bekommen.
+
+**Der eigentliche Gewinn kam am Schluss und war kein Versionssprung:** `npm audit` meldete nach
+der Migration weiterhin 7 Dev-Funde, und npm schlug als „Fix" eine Rückstufung auf
+`@angular-devkit/build-angular@0.1002.1` (v10-Stand) vor. Ursache: das Paket stand noch in den
+devDependencies, **wird aber von keinem einzigen Target referenziert** (alle Builder kommen aus
+`@angular/build`). Es schleppte den kompletten Legacy-webpack-Stapel mit — webpack-dev-server,
+sockjs, less, image-size, uuid — und mit ihm alle Funde. Entfernt statt hochgestuft.
+
+**Abnahme (alle nach dem letzten Eingriff gemessen):**
+
+| Gate | Ergebnis |
+|---|---|
+| `npm run lint` | Exit 0 |
+| `npm test` | **757 / 56 / 925** — identisch zu Angular 21 |
+| `ng build studio` · `npm run build:widget` | beide sauber |
+| Diagnosen `nullish…`/`optionalChain…` | **aktiv**, 0 Befunde |
+| `npm run budget` | raw 536,75 kB / 600 (89,5 %) · gzip 156,33 kB / 175 (89,3 %) — §5.5 gehalten (von 88,0/88,1 %) |
+| `check:tokens` / `check:a11y` / `check:radii` | alle grün |
+| Lizenz-Gate | unverändert erlaubt (MIT 15 · MPL/Apache 1 · BSD-2 1 · Apache-2.0 1 · 0BSD 1) |
+| `npm audit` **und** `--omit=dev` | **0 vulnerabilities** |
+
+**Noch offen / bewusst nicht getan:** der `withXhr()`-Nachlauf (44 Dateien); ein Live-Test des
+Embeds gegen `element-api.ts:26` — der einzige Griff in nicht-öffentliches Angular-API
+(`_ngElementStrategy.componentRef.instance`, trägt die 6 JS-Methoden des Custom Elements).
+Die Unit-Tests dazu sind grün, aber ein echter Browser-Lauf (`npm run e2e`) gehört vor den
+Deploy. Playwright startet der Nutzer.
+
 ---
 
 ## Paket B — Zerlegung der fünf größten Backend-Dateien

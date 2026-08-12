@@ -1,7 +1,7 @@
 <header class="ov-head">
-  <p class="ov-crumb">{{ t('overview.crumb') }}</p>
-  <h2 class="ov-title">{{ t('overview.title') }}</h2>
-  <p class="ov-intro">{{ t('overview.intro') }}</p>
+  <p class="ov-crumb">{{ t("overview.crumb") }}</p>
+  <h2 class="ov-title">{{ t("overview.title") }}</h2>
+  <p class="ov-intro">{{ t("overview.intro") }}</p>
 </header>
 
 <studio-tab-bar
@@ -21,9 +21,16 @@
 >
   <section class="ov-strip" aria-labelledby="ov-status-title">
     <div class="ov-strip-head">
-      <h3 id="ov-status-title" class="ov-section-title">{{ t('overview.status.title') }}</h3>
-      <button type="button" class="ov-refresh" (click)="reload()" [disabled]="loading()">
-        {{ loading() ? t('overview.refreshing') : t('action.refresh') }}
+      <h3 id="ov-status-title" class="ov-section-title">
+        {{ t("overview.status.title") }}
+      </h3>
+      <button
+        type="button"
+        class="ov-refresh"
+        (click)="reload()"
+        [disabled]="loading()"
+      >
+        {{ loading() ? t("overview.refreshing") : t("action.refresh") }}
       </button>
     </div>
 
@@ -33,52 +40,59 @@
 
     <div class="ov-status">
       <div class="ov-status-card">
-        <p class="ov-status-kind">{{ t('overview.backend') }}</p>
-        <p class="ov-status-main">{{ health.value()?.chat_model || '—' }}</p>
+        <p class="ov-status-kind">{{ t("overview.backend") }}</p>
+        <p class="ov-status-main">{{ health.value()?.chat_model || "—" }}</p>
         <p class="ov-status-meta">
-          {{ health.value()?.provider || t('overview.providerUnknown') }}
+          {{ health.value()?.provider || t("overview.providerUnknown") }}
         </p>
       </div>
 
       <div class="ov-status-card">
-        <p class="ov-status-kind">{{ t('overview.factory') }}</p>
+        <p class="ov-status-kind">{{ t("overview.factory") }}</p>
         @if (factory.value()?.exists) {
-          <p class="ov-status-main">{{ ago(factory.value()?.created_at) }}</p>
+          <p class="ov-status-main">
+            {{ ago(factory.value()?.created_at) }}
+          </p>
           <p class="ov-status-meta">
-            {{ exact(factory.value()?.created_at) }} · {{ snapshotLine() }}
+            {{ exact(factory.value()?.created_at) }} ·
+            {{ snapshotLine() }}
           </p>
         } @else {
-          <p class="ov-status-main">{{ t('overview.factory.none') }}</p>
+          <p class="ov-status-main">{{ t("overview.factory.none") }}</p>
           <p class="ov-status-meta">
-            {{ t('overview.factory.noneHint') }} {{ snapshotLine() }}
+            {{ t("overview.factory.noneHint") }} {{ snapshotLine() }}
           </p>
         }
       </div>
 
       <div class="ov-status-card">
-        <p class="ov-status-kind">{{ t('overview.eval') }}</p>
+        <p class="ov-status-kind">{{ t("overview.eval") }}</p>
         @if (lastEval(); as run) {
           <p class="ov-status-main">
-            {{ t('overview.eval.score', { value: score(run.avg_score) }) }}
+            {{ t("overview.eval.score", { value: score(run.avg_score) }) }}
           </p>
           <p class="ov-status-meta">
-            {{ t('overview.eval.meta', {
-                 turns: count(run.total_turns), ago: ago(run.completed_at) }) }}
+            {{
+              t("overview.eval.meta", {
+                turns: count(run.total_turns),
+                ago: ago(run.completed_at),
+              })
+            }}
           </p>
         } @else {
-          <p class="ov-status-main">{{ t('overview.eval.none') }}</p>
+          <p class="ov-status-main">{{ t("overview.eval.none") }}</p>
           <p class="ov-status-meta">
             <!-- Der ganze Aufruf ist die Verweis-Beschriftung: bis C1-d4a stand
                  „und einen Lauf starten" ausserhalb des Links, ein Satz aus zwei
                  Bruchstücken — und ein Verweis, der sein Ziel nur halb nennt. -->
-            <a routerLink="/evaluation">{{ t('overview.eval.start') }}</a>
+            <a routerLink="/evaluation">{{ t("overview.eval.start") }}</a>
           </p>
         }
       </div>
     </div>
   </section>
 
-  <h3 class="ov-section-title">{{ t('overview.section.architecture') }}</h3>
+  <h3 class="ov-section-title">{{ t("overview.section.architecture") }}</h3>
   <!-- An ordered list because the order is the fact: this is how the layers are
        assembled into the prompt, and the arrows repeat it visually. -->
   <ol class="ov-layers">
@@ -89,8 +103,15 @@
           <span class="ov-layer-body">
             <span class="ov-layer-title-row">
               <span class="ov-layer-title">
-                <span class="ov-layer-icon" aria-hidden="true">{{ layer.icon }}</span>
-                {{ t('overview.layer', { num: layer.num, label: label(layer.slug) }) }}
+                <span class="ov-layer-icon" aria-hidden="true">{{
+                  layer.icon
+                }}</span>
+                {{
+                  t("overview.layer", {
+                    num: layer.num,
+                    label: label(layer.slug),
+                  })
+                }}
               </span>
               @if (primary(layer)) {
                 <span class="ov-layer-primary">{{ primary(layer) }}</span>
@@ -108,8 +129,13 @@
         @if (!last) {
           <span class="ov-flow" aria-hidden="true">
             <svg width="14" height="16" viewBox="0 0 14 16" focusable="false">
-              <path d="M7 0 L7 12 M3 8 L7 12 L11 8" fill="none"
-                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+              <path
+                d="M7 0 L7 12 M3 8 L7 12 L11 8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
             </svg>
           </span>
         }
@@ -117,7 +143,7 @@
     }
   </ol>
 
-  <h3 class="ov-section-title">{{ t('overview.section.ops') }}</h3>
+  <h3 class="ov-section-title">{{ t("overview.section.ops") }}</h3>
   <ul class="ov-ops">
     @for (card of ops; track card.slug) {
       <li>
@@ -132,7 +158,7 @@
 
   <div class="ov-info">
     <section class="ov-info-card">
-      <h3 class="ov-info-title">{{ t('overview.info.decide.title') }}</h3>
+      <h3 class="ov-info-title">{{ t("overview.info.decide.title") }}</h3>
       <ol class="ov-info-list">
         <li><studio-rich [parts]="rich('overview.info.decide.1')" /></li>
         <li><studio-rich [parts]="rich('overview.info.decide.2')" /></li>
@@ -141,11 +167,12 @@
     </section>
 
     <section class="ov-info-card">
-      <h3 class="ov-info-title">{{ t('overview.info.links.title') }}</h3>
+      <h3 class="ov-info-title">{{ t("overview.info.links.title") }}</h3>
       <ul class="ov-info-list">
         <li>
           <studio-rich [parts]="rich('overview.info.links.1')" />
-          <a routerLink="/patterns">{{ t('overview.info.links.1.link') }}</a>.
+          <a routerLink="/patterns">{{ t("overview.info.links.1.link") }}</a
+          >.
         </li>
         <li><studio-rich [parts]="rich('overview.info.links.2')" /></li>
         <li><studio-rich [parts]="rich('overview.info.links.3')" /></li>
@@ -154,15 +181,16 @@
     </section>
 
     <section class="ov-info-card">
-      <h3 class="ov-info-title">{{ t('overview.info.tone.title') }}</h3>
+      <h3 class="ov-info-title">{{ t("overview.info.tone.title") }}</h3>
       <p class="ov-info-text">
         <studio-rich [parts]="rich('overview.info.tone.text')" />
-        <a routerLink="/dimensionen">{{ t('overview.info.tone.link') }}</a>.
+        <a routerLink="/dimensionen">{{ t("overview.info.tone.link") }}</a
+        >.
       </p>
     </section>
 
     <section class="ov-info-card">
-      <h3 class="ov-info-title">{{ t('overview.info.escalation.title') }}</h3>
+      <h3 class="ov-info-title">{{ t("overview.info.escalation.title") }}</h3>
       <p class="ov-info-text">
         <studio-rich [parts]="rich('overview.info.escalation.text')" />
       </p>
@@ -178,7 +206,7 @@
   tabindex="0"
   [hidden]="active() !== 'referenz'"
 >
-  @if (shows()('referenz')) {
+  @if (shows()("referenz")) {
     <studio-architecture-reference [signals]="signals()" />
   }
 </div>

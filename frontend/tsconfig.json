@@ -1,10 +1,14 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "baseUrl": ".",
+    // Kein `baseUrl`: TypeScript 6 meldet es als abgekündigt (TS5101, entfällt
+    // in 7.0). Seit TS 4.1 löst `paths` ohne `baseUrl` relativ zu DIESER Datei
+    // auf — die Einträge tragen dafür ein ausdrückliches `./`. Das ist der
+    // Ersatz, nicht `ignoreDeprecations`: der würde die Meldung nur bis zum
+    // nächsten Major vertagen.
     "paths": {
-      "@boerdi/ui": ["projects/ui/src/public-api.ts"],
-      "@boerdi/ui/*": ["projects/ui/src/*"]
+      "@boerdi/ui": ["./projects/ui/src/public-api.ts"],
+      "@boerdi/ui/*": ["./projects/ui/src/*"]
     },
     "outDir": "./dist/out-tsc",
     "forceConsistentCasingInFileNames": true,
