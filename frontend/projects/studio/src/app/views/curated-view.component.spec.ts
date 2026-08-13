@@ -91,18 +91,27 @@ describe("CURATED_VIEWS declaration", () => {
   it("renders every declared panel — no silently empty section", () => {
     // A panel id with no `@case` in the template renders nothing at all: the
     // heading and hint would be gone too, so the page just looks shorter.
-    const RENDERED = ["rag-areas", "rag-ingest", "mcp-registry"];
+    const RENDERED = ["rag-areas", "rag-ingest", "mcp-registry", "agent-tester"];
     const declared = CURATED_VIEWS.flatMap((view) =>
       view.sections.flatMap((s) => (isAreaSection(s) ? [] : [s.panel])),
     );
     expect(declared.filter((panel) => !RENDERED.includes(panel))).toEqual([]);
   });
 
-  it("names only slugs the view registry routes to this package", () => {
+  it("names only slugs the view registry actually routes here", () => {
+    // Der Kern bleibt: jeder kuratierte Schnitt MUSS in der Registry stehen —
+    // sonst gibt es keine Route und die Seite ist unerreichbar.
+    //
+    // Die Paket-Zusage stand bis 2026-08-13 auf genau `9-4`. Das war so lange
+    // richtig, wie alle kuratierten Ansichten aus dem P9-Port stammten; „Agent
+    // & Maschine" (D2) ist die erste, die es nicht tut. Eine Erlaubnisliste
+    // statt einer gelöschten Zusicherung: ein Tippfehler im Paketnamen soll
+    // weiterhin auffallen.
+    const ERLAUBT = ["9-4", "D2"];
     for (const view of CURATED_VIEWS) {
       const registered = STUDIO_VIEWS.find((v) => v.slug === view.slug);
       expect(registered, `slug ${view.slug}`).toBeDefined();
-      expect(registered?.paket, `slug ${view.slug}`).toBe("9-4");
+      expect(ERLAUBT, `slug ${view.slug}`).toContain(registered?.paket);
     }
   });
 

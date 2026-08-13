@@ -196,7 +196,7 @@
         @case ('multiline') {
           <textarea
             class="sf-input sf-multiline"
-            rows="14"
+            [rows]="rows()"
             [id]="fieldId()"
             [value]="asText()"
             [attr.aria-describedby]="descId()"

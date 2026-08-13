@@ -18,6 +18,7 @@ import {
 
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import type { StudioView } from '../studio-views';
+import { AgentTesterComponent } from './agent-tester.component';
 import { AreaSectionComponent } from './area-section.component';
 import {
   type CuratedAreaSection, type CuratedPanelSection, curatedView, isAreaSection,
@@ -39,7 +40,7 @@ type Entry =
   selector: 'studio-curated-view',
   imports: [
     AreaSectionComponent, GroupSectionComponent,
-    RagAreasComponent, RagIngestComponent, McpRegistryComponent,
+    RagAreasComponent, RagIngestComponent, McpRegistryComponent, AgentTesterComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './curated-view.component.html',

@@ -398,6 +398,35 @@ def test_elements_browser_groups(cfg) -> None:
     assert isinstance(els["base_files"], list) and els["base_files"]
 
 
+def test_elements_browser_faerbt_den_bereich_nicht_ein(cfg) -> None:
+    """Der Element-Browser hängt jedem Eintrag seine Quelldatei an — das ist
+    Anzeige, kein Konfigurationswert.
+
+    Befund 2026-08-13 (Nutzer, Bildschirmfoto): das Bereichs-Formular meldete
+    ``intents[0].file`` … ``intents[10].file`` als unbekannte Schlüssel. Grund
+    ist kein fehlendes Modellfeld — ``load_intents()`` reicht die Listen AUS
+    DEM PROZESS-CACHE heraus, und der Browser schrieb ``file`` direkt in diese
+    Objekte. Der Bereich trug den Schlüssel danach für die Lebensdauer des
+    Prozesses mit, und ein Speichern über das Studio hätte ihn festgeschrieben.
+    """
+    client, _ = cfg
+    client.put("/api/config/intents", headers=_AUTH,
+               json={"intents": [{"id": "I01", "label": "Orient"}]})
+    client.put("/api/config/states", headers=_AUTH,
+               json={"states": [{"id": "S1", "label": "Start"}]})
+    client.put("/api/config/entities", headers=_AUTH,
+               json={"entities": [{"id": "fach", "label": "Fach"}]})
+
+    assert client.get("/api/config/elements", headers=_AUTH).status_code == 200
+
+    for pfad, schluessel in (
+        ("intents", "intents"), ("states", "states"), ("entities", "entities"),
+    ):
+        eintraege = client.get(f"/api/config/{pfad}", headers=_AUTH).json()[schluessel]
+        assert all("file" not in e for e in eintraege), (
+            f"{pfad}: der Element-Browser hat `file` in den Bereich geschrieben")
+
+
 # ── auth ───────────────────────────────────────────────────────────
 def test_typed_endpoints_require_studio_key(cfg) -> None:
     client, _ = cfg

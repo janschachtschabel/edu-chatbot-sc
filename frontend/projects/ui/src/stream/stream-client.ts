@@ -77,6 +77,15 @@ export interface StreamChatOptions {
   idleMs?: number;
   /** Stale-Named-Event-Watchdog (B10), Default 100 s. */
   staleMs?: number;
+  /** Zusätzliche Kopfzeilen dieses Zuges (heute: `X-Boerdi-Engine`).
+   *
+   *  Getrennt von `accessBlockHeaders()` und nicht daneben gelegt: der
+   *  Zugangsblock liegt im `sessionStorage` und holt sich der Transport selbst,
+   *  DIES hier kommt von einem Host-Attribut und muss durchgereicht werden. Wer
+   *  beides in einer Funktion bündelte, machte den Transport von einem
+   *  Widget-Eingang abhängig — genau die Richtung, in die Abhängigkeiten hier
+   *  nicht zeigen sollen. */
+  extraHeaders?: Record<string, string>;
 }
 
 /**
@@ -126,6 +135,7 @@ export async function streamChat<T = unknown>(opts: StreamChatOptions): Promise<
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
         ...accessBlockHeaders(),
+        ...(opts.extraHeaders ?? {}),
       },
       body: JSON.stringify(opts.body),
       signal: abort.signal,
@@ -195,6 +205,10 @@ export interface PostChatOptions {
   url: string;
   body: unknown;
   fetchImpl?: typeof fetch;
+  /** Wie bei `StreamChatOptions` — der Fallback-Weg muss dieselbe Maschine
+   *  treffen wie der Stream, sonst wechselte ein Zug bei einem Stream-Abbruch
+   *  stillschweigend die Engine. */
+  extraHeaders?: Record<string, string>;
 }
 
 /**
@@ -206,7 +220,11 @@ export async function postChat<T = unknown>(opts: PostChatOptions): Promise<T> {
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
   const resp = await fetchImpl(opts.url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...accessBlockHeaders() },
+    headers: {
+      'Content-Type': 'application/json',
+      ...accessBlockHeaders(),
+      ...(opts.extraHeaders ?? {}),
+    },
     body: JSON.stringify(opts.body),
   });
   if (!resp.ok) throw new Error(`Chat error: ${resp.status}`);

@@ -1,0 +1,165 @@
+@use './section-shell';
+
+.at {
+  display: grid;
+  gap: var(--st-4);
+  max-inline-size: 52rem;
+}
+
+.at-row {
+  display: grid;
+  gap: var(--st-4);
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+
+.at-field {
+  display: grid;
+  gap: var(--st-1);
+  align-content: start;
+
+  &--narrow {
+    max-inline-size: 16rem;
+  }
+}
+
+.at-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.at-input {
+  font: inherit;
+  font-size: 0.875rem;
+  padding: var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+
+  &--mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  // Beide Textflächen dürfen wachsen; die Anweisung ist der Ort, an dem
+  // wirklich getippt wird.
+  &--tall {
+    resize: vertical;
+  }
+}
+
+.at-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+// Ein Lauf fährt die echte Schleife und kostet entsprechend. Der Hinweis steht
+// deshalb ÜBER dem Knopf und nicht in einer Fussnote — dieselbe Linie wie beim
+// Lasttest und beim generativen Eval-Start.
+.at-cost {
+  margin: 0;
+  padding: var(--st-3);
+  border-inline-start: 3px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  font-size: 0.875rem;
+}
+
+.at-run {
+  justify-self: start;
+  font: inherit;
+  font-weight: 600;
+  min-block-size: 2.75rem;
+  padding: var(--st-2) var(--st-5);
+  border: 0;
+  border-radius: var(--st-radius);
+  background: var(--st-accent);
+  color: var(--st-accent-text);
+  cursor: pointer;
+
+  &:disabled {
+    cursor: progress;
+    opacity: 0.7;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--st-focus);
+    outline-offset: 2px;
+  }
+}
+
+// Der Haken steht IM Etikett (Muster `egs-pick`), damit die Klickfläche das
+// ganze Wort umfasst — `for`/`id` sind trotzdem gesetzt, weil die Verknüpfung
+// angesagt werden soll und nicht aus der Verschachtelung geraten.
+.at-check .at-label {
+  display: flex;
+  gap: var(--st-2);
+  align-items: center;
+}
+
+// Steht immer da, auch ohne Text. Ein leeres <div> ist null Pixel hoch; was
+// bleibt, ist eine Gitterlücke — der Preis dafür, dass die Region schon im
+// Dokument ist, BEVOR es etwas anzusagen gibt. Andersherum sagt sie nichts an.
+.at-live {
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.at-error {
+  margin: 0;
+  color: var(--st-danger-text);
+  font-size: 0.875rem;
+}
+
+.at-result {
+  display: grid;
+  gap: var(--st-3);
+  padding: var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+}
+
+.at-result-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.at-sub {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.at-meta {
+  display: grid;
+  gap: var(--st-3);
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  margin: 0;
+
+  dt {
+    font-size: 0.8125rem;
+    color: var(--st-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 600;
+  }
+}
+
+.at-text {
+  margin: 0;
+  // Der Agent antwortet in Absätzen; ohne dies stünde alles in einer Zeile.
+  white-space: pre-wrap;
+}
+
+.at-json {
+  margin: 0;
+  max-block-size: 24rem;
+  overflow: auto;
+  padding: var(--st-3);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  font-size: 0.8125rem;
+}

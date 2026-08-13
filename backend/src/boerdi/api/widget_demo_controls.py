@@ -1,7 +1,7 @@
 """Das Bedienpult der Demo-Seiten (U8, 2026-08-09).
 
 **Warum es das gibt.** Die vier Demo-Seiten zeigten je EINE feste
-Attribut-Kombination — zusammen acht der 23 Host-Attribute. Alles andere
+Attribut-Kombination — zusammen acht der damals 23 Host-Attribute. Alles andere
 (`theme`, `size`, `show-cards`, `language`, `primary-color`, …) liess sich auf
 keiner Seite ausprobieren; wer wissen wollte, wie das Widget mit
 `show-cards="never"` aussieht, musste sich eine eigene HTML-Datei schreiben.
@@ -83,6 +83,13 @@ CONTROLS: tuple[Control, ...] = (
     Control("show-language-buttons", "Mikro + Vorlesen", _AN_AUS),
     Control("language", "Oberflächensprache", (
         ("", "auto (Browser)"), ("de", "Deutsch"), ("en", "Englisch"))),
+    # Der einzige Schalter, der nichts am AUSSEHEN ändert. Er steht trotzdem
+    # hier, weil er die Frage beantwortet, die man auf einer Demo-Seite stellt:
+    # „was tut die Agent-Schleife eigentlich anders?" Sichtbar wird das an den
+    # Antworten, nicht am Rahmen. Leer = die Vorgabe aus `01-base/engine`.
+    Control("engine", "Maschine", (
+        ("", "Vorgabe (01-base/engine)"), ("pattern", "Muster-Engine"),
+        ("agent", "Agent-Schleife"))),
 )
 
 _STYLE = """

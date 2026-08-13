@@ -17,6 +17,17 @@ class SafetyPreset(AreaModel):
     moderation: Annotated[str, Choices(*_WHEN)] = ""
     legal_classifier: Annotated[str, Choices(*_WHEN)] = ""
     prompt_injection: bool = False
+    # Die Feinstellungen der oberen Stufen. Sie stehen seit jeher im Seed
+    # (strict, paranoid) und werden von ``services/safety/service.py``
+    # ausgewertet, waren aber nicht modelliert — das Studio meldete sie als
+    # unbekannt und liess sie nur im Rohtext-Reiter zu.
+    #
+    # Die Vorgaben sind exakt die, die ``_resolve_preset`` einsetzt, wenn ein
+    # Preset den Schlüssel weglässt (service.py:66-68). Eine andere Zahl hier
+    # hiesse: das Formular zeigt etwas anderes an, als der Code anwendet.
+    legal_trigger_override: bool = False
+    threshold_multiplier: float = 1.0
+    double_check: bool = False
 
 
 class EscalationBlock(AreaModel):

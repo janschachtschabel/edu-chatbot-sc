@@ -150,6 +150,20 @@ export const CURATED: CataloguePart = {
       '„always" legt einen Bereich in jeden Prompt, „on-demand" nur bei Bedarf.',
     'curated.wissen.mcp.label': 'MCP-Server',
     'curated.wissen.mcp.hint': 'Werkzeug-Server, die der Bot im Gespräch aufrufen darf.',
+
+    'curated.agent.intro':
+      'Zwei Wege, einen Zug zu beantworten. Die Muster-Engine ist der Bestand: '
+      + 'Klassifikator, Musterwahl, gebundene Werkzeugliste. Die Agent-Schleife '
+      + 'überlässt dem Modell alles — Systemprompt plus voller Werkzeugkatalog, '
+      + 'kein Muster, kein Klassifikator. Die Vorgabe ist „Muster-Engine", und '
+      + 'das ist eine Zusage: ohne Pflege ändert sich am ausgelieferten Chatbot '
+      + 'nichts.',
+    'curated.agent.engine.label': 'Welche Maschine antwortet',
+    'curated.agent.engine.hint':
+      'Umschalter und die Deckel der Schleife (Runden, Frist, Token-Budget, Schreibrecht).',
+    'curated.agent.tester.label': 'Agent testen',
+    'curated.agent.tester.hint':
+      'Eine Aufgabe stellen und das Ergebnis ansehen — ohne Chat, ohne Sitzung.',
   },
 
   en: {
@@ -271,5 +285,18 @@ export const CURATED: CataloguePart = {
       '“always” puts an area into every prompt, “on-demand” only when needed.',
     'curated.wissen.mcp.label': 'MCP servers',
     'curated.wissen.mcp.hint': 'Tool servers the bot may call during a conversation.',
+
+    'curated.agent.intro':
+      'Two ways to answer a turn. The pattern engine is what ships: classifier, '
+      + 'pattern selection, a bound tool list. The agent loop leaves everything '
+      + 'to the model — system prompt plus the full tool catalogue, no pattern, '
+      + 'no classifier. The default is “pattern engine”, and that is a promise: '
+      + 'without maintenance nothing about the shipped chatbot changes.',
+    'curated.agent.engine.label': 'Which engine answers',
+    'curated.agent.engine.hint':
+      'The switch and the loop’s caps (rounds, deadline, token budget, write mode).',
+    'curated.agent.tester.label': 'Test the agent',
+    'curated.agent.tester.hint':
+      'Give it a task and look at the result — no chat, no session.',
   },
 };

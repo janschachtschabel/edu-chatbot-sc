@@ -10,7 +10,9 @@ the test rather than depending on whether someone ran ``npm run build:widget``.
 
 from __future__ import annotations
 
+import json
 import re
+from html import unescape
 
 import pytest
 from fastapi.testclient import TestClient
@@ -192,6 +194,12 @@ def test_guard_refuses_an_absolute_path(dist, tmp_path):
 
 DEMOS = ["/widget/", "/widget/inline", "/widget/classic", "/widget/frameless"]
 
+#: Die Seiten, die das Element wirklich zeigen. ``/widget/`` gehört seit der
+#: Umwidmung (2026-08-13) NICHT dazu: es ist die Übersicht und trägt bewusst
+#: kein Widget. Vorher war es die dritte Seite mit demselben schwebenden Knopf —
+#: genau das las sich für den Nutzer als „alle machen dasselbe".
+LIVE_DEMOS = ["/widget/inline", "/widget/classic", "/widget/frameless"]
+
 #: Exactly what the widget dispatches — `host-events.ts` and `chat-shell`.
 #: New `boerdi:` prefix since U5a (2026-08-09). The widget additionally fires
 #: each event under its old `badboerdi:` name during the P11 transition; the
@@ -205,7 +213,7 @@ WIDGET_EVENTS = [
 ]
 
 
-@pytest.mark.parametrize("path", DEMOS)
+@pytest.mark.parametrize("path", LIVE_DEMOS)
 def test_demo_pages_embed_the_element_through_the_stable_path(client, path):
     r = client.get(path)
     assert r.status_code == 200
@@ -214,6 +222,16 @@ def test_demo_pages_embed_the_element_through_the_stable_path(client, path):
     # The stable path, never the hashed one: a demo page must exercise exactly
     # what a host page does, redirect included.
     assert 'src="/widget/boerdi-widget.js"' in r.text
+
+
+def test_the_index_shows_no_widget_and_loads_no_bundle(client):
+    # Die Übersicht ist ein Verzeichnis, kein vierter Einbau. Lüde sie das
+    # Bundle ohne Element, zahlte jeder Besuch 400 kB für nichts.
+    body = client.get("/widget/").text
+    assert not _ELEMENT_TAG.search(body)
+    assert '<script src="/widget/boerdi-widget.js"' not in body
+    # Das Einbau-Schnipsel steht sehr wohl da — maskiert, als Text zum Kopieren.
+    assert "&lt;boerdi-chat" in body
 
 
 @pytest.mark.parametrize("path", DEMOS)
@@ -233,36 +251,126 @@ def test_the_embed_demo_hides_the_two_operator_buttons(client):
     assert 'show-debug-button="false"' in body
 
 
-def test_classic_is_the_real_a_b_against_inline(client):
-    # ALT could no longer show this: it had forced `inline-result-grouping` to
-    # true and its /classic page was /inline plus a banner saying so. Here the
-    # attribute is live (the 18th, restored in 8-7), so the page can be what it
-    # claims — the same embed with the grouping boxes off.
-    classic = client.get("/widget/classic").text
-    inline = client.get("/widget/inline").text
-    assert 'inline-result-grouping="false"' in classic
-    assert 'inline-result-grouping="false"' not in inline
+#: Das Start-Tag des ECHTEN Elements. ``_element()`` schreibt es immer
+#: mehrzeilig (eine Zeile je Attribut), und daran hängt dieser Ausdruck.
+#:
+#: Die naive Fassung — auf ``<boerdi-chat`` teilen — war erst grün und dann
+#: falsch: das Bedienpult trägt in einem JS-Kommentar den Text
+#: ``` `<boerdi-chat>` ``` (die Erklärung, warum das Pult ÜBER dem Element
+#: steht). Der stand früher im Dokument, also traf der Split ihn, lieferte einen
+#: leeren Tag — und jede Zusicherung „Attribut X steht NICHT im Tag" war
+#: geschenkt.
+_ELEMENT_TAG = re.compile(r"<boerdi-chat\n[^>]*>")
 
 
-def test_only_the_frameless_demo_switches_the_embed_mode(client):
-    # `embed-mode` is what this page is about (U1). Asserted negatively on the
-    # other three as well, because all four share one template: a stray default
-    # there would strip the header off every demo at once.
-    assert 'embed-mode="frameless"' in client.get("/widget/frameless").text
-    for path in ["/widget/", "/widget/inline", "/widget/classic"]:
-        assert "embed-mode" not in client.get(path).text, path
+def _element_tag(body: str) -> str:
+    """Das ``<boerdi-chat …>``-Start-Tag der Seite, ohne den Rest."""
+    treffer = _ELEMENT_TAG.search(body)
+    assert treffer, "kein <boerdi-chat>-Element auf der Seite"
+    return treffer.group(0)
 
 
-def test_the_frameless_demo_gives_the_widget_a_sized_container(client):
+@pytest.mark.parametrize("path", LIVE_DEMOS)
+def test_a_hostile_query_value_cannot_break_out_of_the_element_attribute(client, path):
+    """Die zweite Verteidigungslinie, geprüft dort, wo sie liegt.
+
+    Die Erlaubnisliste in ``widget_demo_context`` ist die erste — aber `search`
+    lässt bewusst 2–200 BELIEBIGE Zeichen durch (ein Suchbegriff der Gastseite
+    ist Fliesstext), also ist dies der Wert, der wirklich mit Anführungszeichen
+    im Attribut landet. Maskiert wird seit 2026-08-13 in
+    ``widget_demo_html._element``, für JEDEN Wert; deshalb steht die Zusicherung
+    hier an der gerenderten Seite und nicht mehr am Modul, das den Kontext baut.
+
+    Geprüft wird beides: dass nichts ausbricht UND dass der Wert unverändert
+    ankommt — eine Maskierung, die den Suchbegriff verstümmelt, wäre sicher und
+    trotzdem falsch.
+
+    Nicht geprüft wird „die Zeichenkette ``onerror`` kommt nirgends vor": sie
+    steht sehr wohl im Tag, als Teil des Suchbegriffs zwischen zwei ``&quot;``,
+    und dort ist sie Text. Diese erste Fassung war rot bei richtigem Code.
+    """
+    boese = '" onerror="alert(1)'
+    body = client.get(path, params={"kontext": "search", "wert": boese}).text
+    tag = _element_tag(body)
+    treffer = re.search(r'page-context="([^"]*)"', tag)
+    assert treffer, tag
+    # Der Angriff muss VOLLSTÄNDIG in dem einen Attribut stecken. Bleibt draussen
+    # etwas von ihm übrig, hat sein Anführungszeichen das Attribut vorzeitig
+    # beendet — und ab da liest der Browser Markup statt Daten.
+    assert "onerror" not in tag.replace(treffer.group(0), "")
+    assert json.loads(unescape(treffer.group(1)))["search_query"] == boese
+
+
+def test_the_three_live_demos_differ_in_their_embed_situation(client):
+    """Der Befund des Nutzers, als Test: „sehen alle gleich aus".
+
+    Er hatte recht — vor dem 2026-08-13 setzten `/widget/`, `/inline` und
+    `/classic` alle `position="bottom-right"` OHNE `embed-mode`, also dreimal
+    denselben schwebenden Knopf; getrennt hat sie nur, was ohnehin im
+    Bedienpult jeder Seite steht. Diese Zusicherung ist deshalb keine Kosmetik,
+    sondern die einzige Stelle, an der „drei Seiten, drei Einbau-Lagen"
+    überhaupt geprüft wird.
+
+    Verglichen wird das Attribut-Paar, das die Lage AUSMACHT (`embed-mode` +
+    `initial-state`), nicht der ganze Seitentext: der unterschiede sich schon
+    durch die Überschrift, und der Test wäre grün ohne etwas zu wissen.
+    """
+    lagen = {}
+    for path in LIVE_DEMOS:
+        tag = _element_tag(client.get(path).text)
+        lagen[path] = (
+            "frameless" if 'embed-mode="frameless"' in tag else "panel",
+            "expanded" if 'initial-state="expanded"' in tag else "collapsed",
+        )
+    assert len(set(lagen.values())) == len(LIVE_DEMOS), lagen
+
+
+def test_classic_is_the_floating_bubble_that_opens_on_click(client):
+    # Die Vorgabe-Einbettung: Eulen-Knopf unten rechts, geschlossen. Kein
+    # `embed-mode` (dann gilt `panel`) und kein `initial-state` (dann gilt
+    # `collapsed`) — beides negativ geprüft, weil die vier Seiten EINE
+    # Schablone teilen und ein verirrter Vorgabewert dort alle zugleich träfe.
+    tag = _element_tag(client.get("/widget/classic").text)
+    assert 'position="bottom-right"' in tag
+    assert "embed-mode" not in tag
+    assert "initial-state" not in tag
+
+
+def test_inline_starts_as_an_embedded_open_chat(client):
+    # Der Befund „die inline Demo sollte auch mit einem eingebetteten Chatbot
+    # starten": eingebettet heisst `embed-mode="frameless"` IM Container der
+    # Seite, und „startet" heisst offen — sonst stünde dort ein leerer Kasten.
+    body = client.get("/widget/inline").text
+    tag = _element_tag(body)
+    assert 'embed-mode="frameless"' in tag
+    assert 'initial-state="expanded"' in tag
+    assert "<boerdi-chat" in body.split('<div class="frame">')[1].split("</div>")[0]
+
+
+@pytest.mark.parametrize("path", ["/widget/inline", "/widget/frameless"])
+def test_a_frameless_embed_gets_a_sized_container(client, path):
     # Frameless means the element fills its container instead of floating at a
     # size of its own. Embedded bare into the page flow it would therefore
     # render at zero height — visible as nothing at all, with no error. The
     # container and its height are the page, not decoration.
-    body = client.get("/widget/frameless").text
+    body = client.get(path).text
     frame = body.split('<div class="frame">')[1].split("</div>")[0]
     assert "<boerdi-chat" in frame
     rule = re.search(r"\.frame\s*\{([^}]*)\}", body)
     assert rule and "block-size" in rule.group(1), rule
+
+
+def test_no_live_demo_hides_the_grouping_boxes_by_default(client):
+    # `/classic` trug bis 2026-08-13 `inline-result-grouping="false"` und war
+    # damit ein A/B über ein ANZEIGE-Attribut — während der Nutzer unter
+    # „klassisch" die schwebende Blase verstand. Der A/B ist nicht verloren: er
+    # ist ein Schalter im Bedienpult JEDER Seite. Genau deshalb kostete das
+    # Umwidmen nichts, und genau das prüft diese Zeile.
+    for path in LIVE_DEMOS:
+        assert 'inline-result-grouping="false"' not in _element_tag(client.get(path).text)
+    assert any(
+        c.attr == "inline-result-grouping" for c in widget_demo_controls.CONTROLS
+    )
 
 
 @pytest.mark.parametrize("path", DEMOS)
@@ -274,7 +382,7 @@ def test_every_demo_page_links_to_every_variant(client, path):
         assert f'href="{target}"' in body, f"{target} fehlt in der Navigation von {path}"
 
 
-@pytest.mark.parametrize("path", DEMOS)
+@pytest.mark.parametrize("path", LIVE_DEMOS)
 def test_the_event_inspector_listens_to_exactly_what_the_widget_emits(client, path):
     body = client.get(path).text
     for event in WIDGET_EVENTS:
@@ -301,7 +409,7 @@ def test_a_demo_route_wins_over_a_file_of_the_same_name(client, dist):
 # ── U8: das Bedienpult der Demo-Seiten ───────────────────────────────────
 
 
-@pytest.mark.parametrize("path", DEMOS)
+@pytest.mark.parametrize("path", LIVE_DEMOS)
 def test_every_demo_page_carries_the_control_panel(client, path):
     # Vor U8 zeigte jede Seite EINE feste Attribut-Kombination — zusammen acht
     # der 23 Host-Attribute. Wer `show-cards="never"` sehen wollte, musste sich
@@ -310,7 +418,9 @@ def test_every_demo_page_carries_the_control_panel(client, path):
     body = client.get(path).text
     assert 'id="pult-gitter"' in body
     erwartet = {c.attr for c in widget_demo_controls.CONTROLS}
-    if path == "/widget/frameless":
+    # Beide rahmenlosen Seiten haben keinen Eulen-Knopf — ein Schalter für
+    # dessen Ecke wäre dort eine Lüge.
+    if path in ("/widget/frameless", "/widget/inline"):
         erwartet -= {"position"}
     assert set(re.findall(r'data-attr="([a-z-]+)"', body)) == erwartet
 
@@ -330,12 +440,12 @@ def test_only_the_two_start_only_attributes_are_marked_for_a_restart(client):
     # ist die einzige Stelle, an der diese Vertragszusage im Backend steht —
     # gerät sie an ein Attribut, das live wirkt, verliert der Nutzer bei jedem
     # Umschalten grundlos das Panel.
-    body = client.get("/widget/").text
+    body = client.get("/widget/classic").text
     mit_neustart = re.findall(r'data-attr="([a-z-]+)" data-restart="true"', body)
     assert set(mit_neustart) == {"size", "initial-state"}
 
 
-@pytest.mark.parametrize("path", DEMOS)
+@pytest.mark.parametrize("path", LIVE_DEMOS)
 def test_page_scheme_and_widget_theme_are_two_separate_switches(client, path):
     # Der Kern von U4a: bei `theme="auto"` folgt das Widget dem `color-scheme`
     # der Gastseite, bei `light`/`dark` nicht mehr. Mit nur einem Schalter liesse

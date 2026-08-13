@@ -239,3 +239,153 @@ zusammenlaufen: dort liefen auch die **redaktionell gepflegten** Chips durch (Zu
 zur Schreib-Abnahme, Kontext-Aktionen). Einen funktionalen Knopf wegen seiner Länge
 verschwinden zu lassen wäre schlimmer als der Umbruch. Der Deckel greift dort, wo die
 Prosa entsteht.
+
+## 9 Nachlauf 2 (Nutzer-Befunde am laufenden Studio, 2026-08-13)
+
+### 9a Vier Preset-Schlüssel fehlten im Modell
+
+Das Formular meldete unter „Identität & Schutz": *4 Schlüssel werden hier nicht
+angezeigt* — `presets.strict.legal_trigger_override`, `presets.paranoid.double_check`,
+`presets.paranoid.threshold_multiplier`, `presets.paranoid.legal_trigger_override`.
+
+Kein Datenmüll: alle drei Namen werden von `services/safety/service.py:66-68` ausgewertet
+(`legal_trigger_override` entscheidet, ob der Rechts-Klassifikator überhaupt auslösen darf;
+`threshold_multiplier` halbiert bei „paranoid" die Schwellen; `double_check` schaltet die
+zweite Prüfung). Sie fehlten schlicht in `SafetyPreset` und waren damit nur im
+Rohtext-Reiter erreichbar.
+
+Nachgetragen mit **genau den Vorgaben, die `_resolve_preset` einsetzt**, wenn ein Preset
+den Schlüssel weglässt (`False` / `1.0` / `False`) — eine andere Zahl im Formular hiesse,
+die Oberfläche verspricht etwas anderes als der Code tut. Wächter dagegen:
+`test_safety_presets_sind_vollstaendig_modelliert` vergleicht die Preset-Schlüssel des
+Seeds gegen `SafetyPreset.model_fields`.
+
+### 9b Fließtext in einer Zeile
+
+`structure` in den Material-Formaten (bis 729 Zeichen) stand in einem einzeiligen Feld.
+`MULTILINE_KEYS` kannte nur `body`.
+
+Gemessen statt geraten — jeder Schlüssel, unter dem im Seed-Baum ein String über 120
+Zeichen steht:
+
+```
+cd backend && python -c "import pathlib,yaml,collections; c=collections.Counter(); \
+walk=lambda n,k='': [walk(v,str(kk)) for kk,v in n.items()] if isinstance(n,dict) else \
+([walk(v,k) for v in n] if isinstance(n,list) else (c.update([k]) if isinstance(n,str) and len(n)>120 else None)); \
+[walk(yaml.safe_load(p.read_text(encoding='utf-8'))) for p in pathlib.Path('seeds').rglob('*.yaml')]; print(sorted(c))"
+```
+
+Ergebnis: 22 Schlüssel, `structure` bis 729, `description` bis 671, `pattern` bis 1013.
+
+Entschieden wird nach dem **Schlüsselnamen**, nicht nach dem Wert: eine Entscheidung am
+Wert liesse ein Feld beim Tippen die Bauart wechseln und den Fokus verlieren. Ein zu
+großzügiger Treffer kostet nur Höhe, ein verpasster die Bearbeitbarkeit.
+
+Zwei Ergänzungen:
+
+* `rules:` ist eine **Liste** langer Sätze; das Element hat keinen eigenen Schlüssel.
+  `inheritMultiline` vererbt die Entscheidung deshalb vom Listen-Schlüssel.
+* Die Höhe kommt aus dem Inhalt (`rows()`, 3–20 Zeilen à ~70 Zeichen) statt fest bei 14 zu
+  stehen. Ein Attribut, kein Elementwechsel — wächst also beim Tippen mit, ohne Fokusverlust.
+
+Zwei Bestandstests nutzten zufällig echte Fließtext-Schlüssel (`greeting`, `pattern`) als
+Beispiel und erwarteten `text`. Ihr Thema ist `$ref`-Auflösung bzw. Listen-Abbildung, nicht
+die Feldart — Beispielschlüssel auf `label` geändert, Zusage unverändert.
+
+### 9c Was der frontmatter bei den Domänen-Regeln tut (Nutzer-Frage)
+
+Nachgesehen statt geraten, und die Antwort ist zweigeteilt:
+
+* **`02-domain/*` (Domain-Wissen):** `load_domain_rules()`
+  (`config_loader/personas.py:87-97`) setzt Frontmatter **und** Body wieder zu einem
+  Dokument zusammen (`join_frontmatter`) und reicht das komplett in den System-Prompt —
+  ALT las die Datei roh, das ist verbatim portiert. Der YAML-Kopf steht also wörtlich im
+  Prompt und kostet Tokens; das Modell liest ihn mit.
+* **`01-base/base-persona`, `01-base/guardrails`:** `load_base_persona()` /
+  `load_guardrails()` nehmen **nur** `body`. Dort ist der Frontmatter reine Buchhaltung.
+
+Von den Feldern selbst wertet **kein** Code eines aus: `always_active`, `layer`,
+`priority`, `variant`, `version` haben im ganzen Backend keinen Leser (nur die
+Modelldefinition). Sie sind Herkunfts- und Sortier-Notiz aus der ALT-Dateiablage — im
+Domain-Fall zusätzlich Prompt-Text.
+
+Keine Änderung daran: die Prompt-Gleichheit zu ALT ist eine Zusage des Neubaus. Wer den
+Kopf aus dem Prompt nehmen will, ändert damit die Antworten und braucht einen Golden-Lauf.
+
+**Randnotiz zur Gliederung (S5):** ein LayerDoc hat genau zwei Abschnitte —
+`frontmatter` und `body`. Offen ist der erste, also die Metadaten; der eigentliche Text
+liegt einen Klick tiefer. Bewusst nicht angefasst: „welcher Abschnitt ist der wichtigste"
+ist nicht aus dem Schema ableitbar, und eine Tabelle je Bereich war der Entwurfsfehler,
+den §6 gerade vermeidet.
+
+### 9d Der Element-Browser hat den Bereich eingefärbt
+
+Nutzer-Befund: `04-intents/intents` meldete **11** unbekannte Schlüssel
+(`intents[0].file` … `intents[10].file`), `04-states/states` drei, `04-entities/entities`
+fünf — jeweils genau so viele, wie der Bereich Einträge hat.
+
+Kein fehlendes Modellfeld. `GET /api/config/elements` hängte jedem Eintrag seine
+Quelldatei an — **in die Objekte hinein**, die die Lade-Fassade herausreicht:
+
+```python
+intents = cl.load_intents()          # == area("04-intents/intents")["intents"]
+for i in intents:
+    i["file"] = "04-intents/intents.yaml"   # schreibt in den Prozess-Cache
+```
+
+Ein Aufruf des Element-Browsers genügte, und der Bereich trug den Schlüssel für die
+Lebensdauer des Prozesses mit. Das Formular meldete ihn korrekt als unbekannt — und wäre
+gespeichert worden, wie der Hinweis dort sagt („Beim Speichern bleiben sie erhalten").
+Aus einer Anzeige-Angabe wäre ein Konfigurationswert geworden.
+
+Bemerkenswert: zwei Zeilen darüber macht derselbe Endpunkt es richtig — Personas werden
+über `entry = dict(p)` kopiert, Patterns frisch aufgebaut. Nur diese drei Listen wurden
+in place beschrieben.
+
+Behoben mit `_with_source()` (Kopie statt Mutation) plus einem Wächter, der nach einem
+`/elements`-Aufruf die drei Bereiche zurückliest. Die eigentliche Falle steht aber im
+Vertrag der Fassade, also jetzt auch dort: `_store.area()` sagt im Docstring, dass es das
+Cache-Objekt herausgibt und niemand hineinschreiben darf.
+
+Ein Streifzug über alle `load_*`-Verbraucher fand keinen zweiten Fall. Der einzige
+Kandidat (`api/config.py:327`, `cfg["header_nav"] = …`) ist harmlos:
+`load_guide_mode_config()` baut ein frisches Dict.
+
+**Für den laufenden Server:** ein Neustart räumt den vergifteten Cache. Wurde einer der
+drei Bereiche im Studio gespeichert, solange er vergiftet war, steht `file:` jetzt in der
+DB — im Rohtext-Reiter sichtbar und dort zu entfernen.
+
+## 10 Abnahme am ruhenden Stand (2026-08-13, nach der Prompt-Auslagerung)
+
+Der Prompt-Split lief in derselben Arbeitskopie, also erst danach geprüft — sonst hätten
+sich zwei pytest-Läufe dieselben Postgres-Testdatenbanken weggezogen.
+
+| Prüfung | Befehl | Ergebnis |
+|---|---|---|
+| Backend-Lint | `uv run ruff check src tests` | All checks passed |
+| Backend-Tests | `uv run pytest -q` | 3237 passed, 4 skipped (2:18) |
+| Vertrag + Pakete des Tages | `pytest test_quick_replies_llm test_config_area_endpoints test_config_seed_tree test_openapi_contract` | 75 passed |
+| Schema-Fixture aktuell | `export_area_schemas.py` + Hash-Vergleich | unverändert (64340544f6a925e2) |
+| Frontend-Lint | `eslint .` | 0 |
+| Gates | `check:tokens` · `check:a11y` · `check:radii` | alle drei grün |
+| Tests | `ng test ui` / `widget` / `studio` | 757 / 56 / 961 |
+| Typprüfung | `ng build studio` + `ng run widget:build-widget` | beide sauber |
+| Widget-Budget | `check-widget-budget.mjs` | roh 89,6 % · gzip 89,4 % von §5.5 |
+
+Zusammen **5011 Tests grün**.
+
+**Ein Befund aus der eigenen Checkliste, sofort behoben:** `schema-field.component.ts` war
+durch die mitwachsende Textflächen-Höhe auf **315 Zeilen** gewachsen — über die
+300er-Schwelle. Die beiden reinen Helfer (`safeIdPart`, `nextFreeKey`) sind nach
+`field-ids.ts` gezogen; die Komponente steht bei 297, das neue Modul bei 28. Reiner
+Umzug, keine Logikänderung — Studio danach erneut 961 grün, Build sauber.
+
+**Die Prompt-Auslagerung war verhaltensgleich.** Nicht geglaubt, sondern nachgerechnet:
+der System-Prompt aus dem Git-Index gegen den in `quick_replies_prompt.py` gestellt, 159
+gegen 165 Zeilen, **8 geänderte Zeilen — und zwar genau die aus §8** (der neue erste Satz
+und die umgeschriebene Regel 2). Der ganze Rest ist Zeile für Zeile identisch. Die Tests
+allein hätten das nicht gezeigt: sie pinnen den Prompt nur an Stichproben.
+
+Der Schnitt selbst ist sauber gelegt — `quick_replies_prompt` liest **keine** Config, jeder
+Wert kommt als Argument; der Zeichen-Deckel und sein Filter bleiben zusammen in
+`quick_replies_llm`.

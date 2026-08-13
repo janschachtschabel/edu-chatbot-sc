@@ -12,7 +12,7 @@
  * **Seit C1-d5b2 stehen hier nur noch Bezeichner und Struktur.** Attributnamen,
  * Vorgabewerte und Payload-Formen sind Code und bleiben; jede Prosa-Zelle trägt
  * einen Katalog-Schlüssel (`i18n/catalogue/reference-widget.ts`). `fallbackKey`
- * ist optional, weil 16 der 19 Vorgabewerte echte Werte sind und nur drei das
+ * ist optional, weil 20 der 25 Vorgabewerte echte Werte sind und nur fünf das
  * Wort „leer" meinen.
  */
 
@@ -27,7 +27,7 @@ export interface HostAttribute {
 }
 
 /**
- * The 23 host attributes of `<boerdi-chat>` (§5.5). ALT's table listed 17 —
+ * The 25 host attributes of `<boerdi-chat>` (§5.5). ALT's table listed 17 —
  * `inline-result-grouping`, the one 8-7 found dead, was the one it left out.
  * `language` came with C1-c, `embed-mode` with U1, `size` with U2a,
  * `show-cards` with U2b, `theme` with U4a.
@@ -44,6 +44,10 @@ export const HOST_ATTRIBUTES: readonly HostAttribute[] = [
   {
     groupKey: 'rw.group.basis', attr: 'size', fallback: 'small',
     descKey: 'rw.attr.size',
+  },
+  {
+    groupKey: 'rw.group.basis', attr: 'engine', fallback: '',
+    fallbackKey: 'rw.default.empty', descKey: 'rw.attr.engine',
   },
   {
     groupKey: 'rw.group.basis', attr: 'position', fallback: 'bottom-right',

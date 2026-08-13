@@ -2558,6 +2558,21 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "default": false,
             "title": "Prompt Injection",
             "type": "boolean"
+          },
+          "legal_trigger_override": {
+            "default": false,
+            "title": "Legal Trigger Override",
+            "type": "boolean"
+          },
+          "threshold_multiplier": {
+            "default": 1.0,
+            "title": "Threshold Multiplier",
+            "type": "number"
+          },
+          "double_check": {
+            "default": false,
+            "title": "Double Check",
+            "type": "boolean"
           }
         },
         "title": "SafetyPreset",

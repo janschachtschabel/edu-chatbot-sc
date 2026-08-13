@@ -530,3 +530,28 @@ def test_die_erlaubnisliste_bleibt_ehrlich():
         "Diese Ausnahmen werden nicht mehr gebraucht und gehören gelöscht: "
         f"{verwaist}"
     )
+
+
+def test_safety_presets_sind_vollstaendig_modelliert() -> None:
+    """Jeder Preset-Schlüssel im Seed muss im Modell stehen — sonst ist er im
+    Studio-Formular unsichtbar und nur über „Rohtext" erreichbar.
+
+    Befund 2026-08-13 (Nutzer, Bildschirmfoto): das Formular meldete vier
+    Schlüssel als unbekannt — ``legal_trigger_override`` (strict, paranoid),
+    ``threshold_multiplier`` und ``double_check`` (paranoid). Alle drei werden
+    von ``services/safety/service.py`` ausgewertet; sie fehlten nur im Modell.
+    """
+    from boerdi.domain.config_models.base_governance import SafetyPreset
+
+    seed = yaml.safe_load(
+        (_SEEDS / "01-base" / "safety-config.yaml").read_text(encoding="utf-8"))
+    bekannt = set(SafetyPreset.model_fields)
+    fremd = {
+        f"{stufe}.{schluessel}"
+        for stufe, preset in (seed.get("presets") or {}).items()
+        for schluessel in preset
+        if schluessel not in bekannt
+    }
+    assert not fremd, (
+        "Preset-Schlüssel ohne Modellfeld (im Studio nur im Rohtext-Reiter "
+        f"editierbar): {sorted(fremd)}")

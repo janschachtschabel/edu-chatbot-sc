@@ -26,6 +26,9 @@
           @case ('mcp-registry') {
             <studio-mcp-registry [section]="entry.panel" [open]="entry.first" />
           }
+          @case ('agent-tester') {
+            <studio-agent-tester [section]="entry.panel" [open]="entry.first" />
+          }
         }
       }
     }

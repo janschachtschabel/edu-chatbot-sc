@@ -43,6 +43,12 @@ const OHNE_ALT_VORBILD: Readonly<Record<string, string>> = {
   kosten:
     'K5: ALT rechnete überhaupt nicht ab, hat also kein Gegenstück — die Ansicht '
     + 'kommt mit der Kostenüberwachung, nicht aus dem P9-Port',
+  agent:
+    'D2: ALT kannte nur EINEN Weg, einen Zug zu beantworten, also auch keinen '
+    + 'Umschalter. Der Bereich 01-base/engine war bis hierher nur über „Alle '
+    + 'Bereiche" erreichbar — der Nutzer hielt ihn deshalb für nicht vorhanden. '
+    + 'Dazu ein Formular auf POST /api/agent, das sonst nur mit einem '
+    + 'HTTP-Werkzeug und dem Admin-Schlüssel zu bedienen war',
 };
 
 describe('studio view registry', () => {
@@ -119,7 +125,9 @@ describe('studio view registry', () => {
     // `K5` steht hier neben den P9-Scheiben, weil die Kostenschau nicht aus dem
     // Port stammt. Eine Erlaubnisliste und kein `.toBeTruthy()`: ein Tippfehler
     // im Paketnamen soll auffallen, ein neues Paket bewusst eingetragen werden.
-    for (const view of STUDIO_VIEWS) expect(view.paket).toMatch(/^(9-[3-6]|K5)$/);
+    // `D2` steht seit 2026-08-13 neben `K5`: „Agent & Maschine" stammt so wenig
+    // aus dem P9-Port wie die Kostenschau.
+    for (const view of STUDIO_VIEWS) expect(view.paket).toMatch(/^(9-[3-6]|K5|D2)$/);
   });
 
   it('guards the shell and leaves /login open', () => {

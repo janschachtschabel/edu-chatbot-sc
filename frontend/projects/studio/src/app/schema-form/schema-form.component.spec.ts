@@ -540,6 +540,31 @@ describe('SchemaFormComponent — Vorschlagsliste (S3)', () => {
   });
 });
 
+describe('SchemaFormComponent — Textfläche (Fliesstext)', () => {
+  const MIT_STRUKTUR: JsonSchema = {
+    type: 'object',
+    properties: { structure: { type: 'string' }, label: { type: 'string' } },
+  };
+
+  it('wächst mit dem Inhalt statt bei einer festen Höhe zu bleiben', async () => {
+    // Nutzer 2026-08-13: „in einer fortlaufenden Zeile ist das als Mensch kaum
+    // zu bearbeiten". Eine feste Höhe hiesse: für `structure` (bis 729 Zeichen)
+    // zu klein, für ein leeres Feld unnötig hoch.
+    const kurz = await mount(MIT_STRUKTUR, { structure: 'Kurz.', label: 'x' });
+    const lang = await mount(MIT_STRUKTUR, { structure: 'W'.repeat(700), label: 'x' });
+    const zeilen = (h: Awaited<ReturnType<typeof mount>>) =>
+      Number(h.el.querySelector<HTMLTextAreaElement>('textarea.sf-multiline')!.rows);
+    expect(zeilen(kurz)).toBeGreaterThanOrEqual(3);
+    expect(zeilen(lang)).toBeGreaterThan(zeilen(kurz));
+  });
+
+  it('lässt kurze Felder einzeilig', async () => {
+    const h = await mount(MIT_STRUKTUR, { structure: '', label: 'Automatisch' });
+    const label = inputFor(h.el, 'label');
+    expect(label.tagName).toBe('INPUT');
+  });
+});
+
 describe('SchemaFormComponent — Sprung zum Element (S4)', () => {
   const MIT_KATALOG: JsonSchema = {
     type: 'object',

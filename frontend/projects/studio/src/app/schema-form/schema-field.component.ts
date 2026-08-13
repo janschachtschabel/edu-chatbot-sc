@@ -21,6 +21,7 @@ import { RouterLink } from '@angular/router';
 
 import { ChoicesApi } from '../core/choices-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
+import { nextFreeKey, safeIdPart } from './field-ids';
 import type { ValuePath } from './form-value';
 import { JsonValueComponent } from './json-value.component';
 import type { SchemaField } from './schema-to-fields';
@@ -37,6 +38,13 @@ interface MapEntry {
   readonly key: string;
   readonly value: unknown;
 }
+
+/** Grobe Zeichen je Zeile bei 46rem Feldbreite und Schriftgrad 0.8125rem. */
+const CHARS_PER_ROW = 70;
+/** Auch leer eine Fläche, die zum Schreiben einlädt … */
+const MIN_ROWS = 3;
+/** … und nach oben ein Bildschirm, nicht mehr. */
+const MAX_ROWS = 20;
 
 @Component({
   selector: 'studio-schema-field',
@@ -126,6 +134,20 @@ export class SchemaFieldComponent {
     return typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
   });
   readonly asBoolean = computed(() => this.value() === true);
+
+  /**
+   * Die Höhe einer Textfläche, aus dem Inhalt.
+   *
+   * Eine feste Höhe kann nur eines von beidem: ein leeres Feld nicht zur
+   * halben Seite aufblasen, oder einen 700-Zeichen-Text zeigen. Die Zahl
+   * wächst beim Tippen mit — ein Attribut, kein Elementwechsel, also ohne
+   * Fokusverlust. Wer selbst zieht, gewinnt: die gezogene Höhe steht als
+   * `style` und schlägt `rows`.
+   */
+  readonly rows = computed(() => {
+    const geschaetzt = Math.ceil(this.asText().length / CHARS_PER_ROW);
+    return Math.min(MAX_ROWS, Math.max(MIN_ROWS, geschaetzt));
+  });
 
   /**
    * Die Optionen eines Auswahlfeldes: die leere zuerst, dann der Vorrat — und
@@ -271,24 +293,5 @@ export class SchemaFieldComponent {
 
   onJsonError(message: string): void {
     this.edit.emit({ kind: 'field-error', path: this.path(), message });
-  }
-}
-
-/**
- * Injective enough for an `id`: unsafe characters are ESCAPED, not collapsed.
- * `\w` is ASCII-only, so a collapsing sanitizer mapped `größe` and `gr_e` — and
- * `a b` and `a_b` — onto one id, and `<label for>` then bound to whichever
- * control rendered first.
- */
-function safeIdPart(part: string | number): string {
-  return String(part).replace(/[^\w.-]/g, (char) => `_${char.codePointAt(0)!.toString(36)}_`);
-}
-
-function nextFreeKey(existing: readonly string[]): string {
-  const taken = new Set(existing);
-  if (!taken.has('neuer_eintrag')) return 'neuer_eintrag';
-  for (let n = 2; ; n += 1) {
-    const candidate = `neuer_eintrag_${n}`;
-    if (!taken.has(candidate)) return candidate;
   }
 }

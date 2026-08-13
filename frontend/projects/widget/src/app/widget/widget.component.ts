@@ -135,6 +135,21 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    *  Bewusst `embed-mode` und nicht „headless": headless heißt üblicherweise
    *  ganz ohne Oberfläche; hier ist sie da, nur ohne Rahmen. */
   readonly embedMode = input('');
+  /**
+   * Welche Maschine antwortet: `pattern` (Bestand) oder `agent` (freie
+   * Werkzeugschleife). Leer = die Vorgabe aus `01-base/engine`, und das ist der
+   * Normalfall — der Umschalter gehört redaktionell ins Studio.
+   *
+   * Warum es ihn trotzdem als Host-Attribut gibt: eine Einbettung ohne
+   * Chat-Rahmen (Browser-Plugin, edu-sharing) will die Schleife oft, ohne dass
+   * deshalb der ganze Chatbot umgestellt wird. Und A/B messen lässt sich nur,
+   * was sich JE EINBAU unterscheiden kann.
+   *
+   * Reist als Kopfzeile `X-Boerdi-Engine` (siehe `ChatApiClient.setEngine`), die
+   * das Backend undeklariert liest — der eingefrorene Vertrag bleibt unberührt.
+   * Ein unbekannter Wert fällt dort auf die Vorgabe zurück und bricht nichts.
+   */
+  readonly engine = input('');
   /** Anfangs-Größenstufe (U2a): `small` (Vorgabe) oder `large`. Nur der START —
    *  danach gehört die Stufe dem Panel, weil der Umschalter in der Eingabezeile
    *  sie verändert. Rahmenlos hat sie keine Wirkung auf die Maße (die stellt der
@@ -288,6 +303,14 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     effect(() => {
       const shell = this.shell();
       if (shell) shell.setGuideEnv(this.guide.guideMode(), this.guide.guideHost());
+    });
+    // Dasselbe Nachziehen für die Maschinen-Wahl, und aus demselben Grund: die
+    // Shell hängt am Lazy-Gate. Ein eigener Effect statt einer Zeile im obigen —
+    // dieser läuft auch, wenn das Attribut zur Laufzeit umgestellt wird, was
+    // das Bedienpult der Demo-Seiten genau tut.
+    effect(() => {
+      const shell = this.shell();
+      if (shell) shell.setEngine(this.engine());
     });
   }
 

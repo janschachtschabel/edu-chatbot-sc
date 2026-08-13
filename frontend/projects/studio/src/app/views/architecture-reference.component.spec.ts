@@ -79,15 +79,16 @@ describe("ArchitectureReferenceComponent", () => {
     // how `data-position` (8-5) and `inline-result-grouping` (8-7) stayed dead
     // long enough to ship. ALT's table listed 17 of the 18; `language` came
     // with C1-c, `embed-mode` with U1, `size` with U2a, `show-cards` with U2b,
-    // `theme` with U4a and `ticket` with the repository-embedding mode
-    // (2026-08-12), which makes 24.
+    // `theme` with U4a, `ticket` with the repository-embedding mode
+    // (2026-08-12) and `engine` with the machine switch (2026-08-13), which
+    // makes 25.
     const el = mount();
     const rows = el.querySelectorAll(".ar-table code");
     const documented = Array.from(rows).map((c) => c.textContent?.trim());
     for (const { attr } of HOST_ATTRIBUTES) {
       expect(documented, `Attribut ${attr}`).toContain(attr);
     }
-    expect(HOST_ATTRIBUTES).toHaveLength(24);
+    expect(HOST_ATTRIBUTES).toHaveLength(25);
     expect(HOST_ATTRIBUTES.map((a) => a.attr)).toContain(
       "inline-result-grouping",
     );
@@ -97,6 +98,7 @@ describe("ArchitectureReferenceComponent", () => {
     expect(HOST_ATTRIBUTES.map((a) => a.attr)).toContain("show-cards");
     expect(HOST_ATTRIBUTES.map((a) => a.attr)).toContain("theme");
     expect(HOST_ATTRIBUTES.map((a) => a.attr)).toContain("ticket");
+    expect(HOST_ATTRIBUTES.map((a) => a.attr)).toContain("engine");
   });
 
   it("names each attribute group once instead of on every row", () => {

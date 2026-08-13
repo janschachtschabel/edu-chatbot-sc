@@ -642,6 +642,13 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     this._api.setGuideEnv(guideMode, host);
   }
 
+  /** Welche Maschine diesen Einbau beantwortet (`''` = Vorgabe des Backends).
+   *  Delegate wie `setGuideEnv` — die Entscheidung trifft die Widget-Hülle aus
+   *  ihrem Host-Attribut, der Client trägt sie an jedem Zug mit. */
+  setEngine(mode: string): void {
+    this._api.setEngine(mode);
+  }
+
   /** Startet die geführte Web-Tour. Delegate — Logik in `tour.controller.ts`. */
   startTour(): Promise<void> {
     return this._tour.startTour();

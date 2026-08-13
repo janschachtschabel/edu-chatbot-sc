@@ -27,6 +27,18 @@ widget old" failure class, where a cached bundle silently outlived its config.
   demo page for a new embed mode is a capability, not an internal detail. The
   step was purely additive: one path, nothing changed or removed.)
 
+**Zwei bewusste Vertrags-Schritte am 2026-08-13**, beide additiv und beide neu
+eingefroren (``scripts/export_openapi.py``):
+
+* Die drei Live-Demos nehmen ``?kontext=&wert=`` für den Seitenkontext-Simulator
+  entgegen — optionale Parameter mit Vorgabe, kein Pfad kam hinzu oder fiel weg
+  (der Bestands-Wächter ``test_route_inventory_matches_spec_5_1`` blieb still).
+* Die vier Seiten wurden **umgewidmet**, nicht umbenannt: ``/`` ist jetzt die
+  Übersicht, ``/classic`` der schwebende Knopf, ``/inline`` der eingebettete
+  Chat. Vorher zeigten drei von vier denselben schwebenden Knopf. Umwidmen statt
+  Löschen genau deshalb, weil die Pfade im Vertrag stehen — was eine Seite
+  *zeigt*, ist keine Vertragszusage, ihr Vorhandensein schon.
+
 **No ``/api/static`` mount.** ALT had one, for a logo its demo pages and widget
 loaded by absolute URL. Nothing in this project reads it: the widget carries the
 logo inline (``ui/src/branding/boerdi-logo.ts`` exports the SVG and a data URL),
@@ -40,8 +52,9 @@ from __future__ import annotations
 import hashlib
 import re
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from boerdi.api import widget_demo_html
@@ -119,28 +132,38 @@ def widget_bundle() -> Response:
     return _public(RedirectResponse(target, status_code=302), _NO_STORE)
 
 
+#: Die Wahl des Kontext-Simulators, wie sie im Query-String reist. Als
+#: ``Query``-Parameter DEKLARIERT, anders als ``X-Boerdi-Engine`` bei den
+#: Kopfzeilen: die Demo-Seiten stehen nicht im eingefrorenen Vertrag der
+#: ``/api``-Fläche, und ein deklarierter Parameter ist hier der ehrlichere Weg —
+#: er steht in ``/docs`` und FastAPI prüft die Länge, bevor der Wert die
+#: Erlaubnisliste in ``widget_demo_context`` überhaupt erreicht.
+_Kontext = Annotated[str, Query(max_length=32)]
+_Wert = Annotated[str, Query(max_length=2048)]
+
+
 @public_router.get("/")
 def widget_demo() -> Response:
-    """Try the widget with the default attributes."""
-    return HTMLResponse(widget_demo_html.standard_page())
+    """Overview of the three embed situations — no widget of its own."""
+    return HTMLResponse(widget_demo_html.index_page())
 
 
 @public_router.get("/inline")
-def widget_demo_inline() -> Response:
-    """The embedded look — without the language and debug buttons."""
-    return HTMLResponse(widget_demo_html.inline_page())
+def widget_demo_inline(kontext: _Kontext = "", wert: _Wert = "") -> Response:
+    """The embedded look: frameless inside the page's own container, open."""
+    return HTMLResponse(widget_demo_html.inline_page((kontext, wert)))
 
 
 @public_router.get("/classic")
-def widget_demo_classic() -> Response:
-    """The same embed with ``inline-result-grouping="false"`` — an A/B."""
-    return HTMLResponse(widget_demo_html.classic_page())
+def widget_demo_classic(kontext: _Kontext = "", wert: _Wert = "") -> Response:
+    """The default embed: the floating owl button, opening on click."""
+    return HTMLResponse(widget_demo_html.classic_page((kontext, wert)))
 
 
 @public_router.get("/frameless")
-def widget_demo_frameless() -> Response:
-    """The frameless embed (U1) inside a host container of the page's own."""
-    return HTMLResponse(widget_demo_html.frameless_page())
+def widget_demo_frameless(kontext: _Kontext = "", wert: _Wert = "") -> Response:
+    """The frameless embed (U1), started collapsed — the "give it a height" case."""
+    return HTMLResponse(widget_demo_html.frameless_page((kontext, wert)))
 
 
 @public_router.get("/{asset_name}")

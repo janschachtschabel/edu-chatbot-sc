@@ -127,6 +127,16 @@ export const STUDIO_VIEWS: readonly StudioView[] = [
     slug: 'vorschau', labelKey: 'view.vorschau.label', descKey: 'view.vorschau.desc',
     group: 'system', paket: '9-6',
   },
+  {
+    // Kein ALT-Gegenstück — ALT kannte nur einen Weg, einen Zug zu beantworten.
+    // Die Ansicht bündelt zwei Dinge, die zusammengehören: den Umschalter
+    // `01-base/engine` (er war nur über „Alle Bereiche" erreichbar, weshalb der
+    // Nutzer ihn zu Recht für nicht vorhanden hielt) und ein Formular auf
+    // `POST /api/agent`, das ohne diese Seite nur mit einem HTTP-Werkzeug und
+    // dem Admin-Schlüssel zu bedienen war.
+    slug: 'agent', labelKey: 'view.agent.label', descKey: 'view.agent.desc',
+    group: 'system', paket: 'D2',
+  },
 ];
 
 /** The view the studio opens on. */

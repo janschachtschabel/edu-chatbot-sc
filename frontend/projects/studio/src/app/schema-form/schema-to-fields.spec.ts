@@ -39,6 +39,39 @@ describe('rootField — scalar kinds', () => {
     expect(child(rootField(schema), 'body').kind).toBe('multiline');
   });
 
+  it('gibt auch den anderen Fliesstext-Schlüsseln eine Textfläche', () => {
+    // Nutzer 2026-08-13: `structure` (Material-Formate, bis 729 Zeichen) stand
+    // in einer fortlaufenden Zeile. Gemessen wurde der ganze Seed-Baum, nicht
+    // nur der eine Fall — siehe MULTILINE_KEYS.
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: {
+        structure: { type: 'string' },
+        description: { type: 'string' },
+        label: { type: 'string' },
+      },
+    };
+    const root = rootField(schema);
+    expect(child(root, 'structure').kind).toBe('multiline');
+    expect(child(root, 'description').kind).toBe('multiline');
+    expect(child(root, 'label').kind).toBe('text'); // kurze Felder bleiben kurz
+  });
+
+  it('vererbt die Textfläche an die Elemente einer Fliesstext-Liste', () => {
+    // `rules:` ist eine Liste langer Sätze; das ELEMENT hat keinen eigenen
+    // Schlüssel, also kann nur der Listen-Schlüssel die Entscheidung tragen.
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: {
+        rules: { type: 'array', items: { type: 'string' } },
+        tags: { type: 'array', items: { type: 'string' } },
+      },
+    };
+    const root = rootField(schema);
+    expect(child(root, 'rules').item?.kind).toBe('multiline');
+    expect(child(root, 'tags').item?.kind).toBe('text');
+  });
+
   it('labels a field with its raw config key, not a prettified title', () => {
     const schema: JsonSchema = {
       type: 'object',
@@ -70,13 +103,16 @@ describe('rootField — scalar kinds', () => {
 describe('rootField — $ref resolution', () => {
   it('resolves a local $ref into $defs', () => {
     const schema: JsonSchema = {
-      $defs: { Block: { type: 'object', properties: { greeting: { type: 'string' } } } },
+      // `label` und nicht `greeting`: der echte Schlüssel trägt Fließtext und
+      // wäre eine Textfläche — hier geht es um die $ref-Auflösung, nicht um
+      // die Feldart.
+      $defs: { Block: { type: 'object', properties: { label: { type: 'string' } } } },
       type: 'object',
       properties: { welcome: { $ref: '#/$defs/Block' } },
     };
     const welcome = child(rootField(schema), 'welcome');
     expect(welcome.kind).toBe('group');
-    expect(child(welcome, 'greeting').kind).toBe('text');
+    expect(child(welcome, 'label').kind).toBe('text');
   });
 
   it('follows a chain of $refs', () => {
@@ -147,14 +183,16 @@ describe('rootField — containers', () => {
       properties: {
         rules: {
           type: 'array',
-          items: { type: 'object', properties: { pattern: { type: 'string' } } },
+          items: { type: 'object', properties: { label: { type: 'string' } } },
         },
       },
     };
     const list = child(rootField(schema), 'rules');
     expect(list.kind).toBe('list');
+    // Die Vererbung der Textfläche gilt nur für Listen VON Text, nicht für
+    // Listen von Objekten — das Element ist hier eine Gruppe.
     expect(list.item?.kind).toBe('group');
-    expect(child(list.item!, 'pattern').kind).toBe('text');
+    expect(child(list.item!, 'label').kind).toBe('text');
   });
 
   it('maps a typed additionalProperties object to a map', () => {

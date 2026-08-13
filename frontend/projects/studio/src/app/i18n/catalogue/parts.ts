@@ -7,6 +7,7 @@
  * die beiden vollständigen Kataloge zusammen — die Schnittstelle nach draussen
  * bleibt unverändert.
  */
+import { AGENT } from './agent';
 import { AREA_EDITOR } from './area-editor';
 import { BACKUP } from './backup';
 import type { CataloguePart } from './catalogue-part';
@@ -42,7 +43,7 @@ export const STUDIO_PARTS: readonly CataloguePart[] = [
   FRAME, VIEWS, SHARED, AREA_EDITOR, BACKUP, PREVIEW, KNOWLEDGE, MCP, CURATED, OVERVIEW,
   EVALUATION, EVAL_DETAIL, EVAL_PATTERN, EVAL_TRENDS, EVAL_START,
   QUALITY, QUALITY_MATRIX, QUALITY_FLOW, QUALITY_LOGS,
-  LOADTEST, SESSIONS, SAFETY, COSTS,
+  LOADTEST, SESSIONS, SAFETY, COSTS, AGENT,
   REFERENCE, REFERENCE_ROWS, REFERENCE_KNOWLEDGE, REFERENCE_WIDGET, REFERENCE_FLOW,
   REFERENCE_CATALOGS,
 ];

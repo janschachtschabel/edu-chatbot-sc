@@ -67,23 +67,23 @@ describe('Ansichts-Registry im Katalog', () => {
       ...STUDIO_VIEWS.flatMap((v) => [v.labelKey, v.descKey]),
       ...NAV_GROUPS.map((g) => g.titleKey).filter((k): k is string => k !== null),
     ];
-    expect(keys).toHaveLength(20 * 2 + 3);
+    expect(keys).toHaveLength(21 * 2 + 3);
     for (const key of keys) {
       expect(STUDIO_DE[key], `fehlt im deutschen Katalog: ${key}`).toBeTypeOf('string');
       expect(STUDIO_EN[key], `fehlt im englischen Katalog: ${key}`).toBeTypeOf('string');
     }
   });
 
-  it('zeigt die 20 Beschriftungen des Katalogs auf Deutsch', () => {
-    // 19 aus §5.6 und seinen drei Zugaben, dazu „Kosten" aus K5. Welche Ansicht
-    // woher stammt, hält `studio-views.spec.ts` fest — hier steht nur, wie sie
-    // heisst.
+  it('zeigt die 21 Beschriftungen des Katalogs auf Deutsch', () => {
+    // 19 aus §5.6 und seinen drei Zugaben, dazu „Kosten" aus K5 und
+    // „Agent & Maschine" aus D2. Welche Ansicht woher stammt, hält
+    // `studio-views.spec.ts` fest — hier steht nur, wie sie heisst.
     const lang = TestBed.inject(StudioLanguageService);
     expect(STUDIO_VIEWS.map((v) => lang.t(v.labelKey))).toEqual([
       'Übersicht', 'Begrüßung', 'Kontext-Aktionen', 'Identität & Schutz', 'Domain-Wissen',
       'Patterns', 'Dimensionen', 'Material-Formate', 'Wissen', 'Sessions', 'Analyse',
       'Evaluation', 'Lasttest', 'Safety-Logs', 'Kosten', 'Anzeige', 'Datenschutz',
-      'Alle Bereiche', 'Sicherung', 'Vorschau',
+      'Alle Bereiche', 'Sicherung', 'Vorschau', 'Agent & Maschine',
     ]);
   });
 

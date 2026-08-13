@@ -51,7 +51,7 @@ describe('WidgetComponent', () => {
     document.documentElement.removeAttribute('lang');
   });
 
-  it('hat genau diese 24 Host-Attribute (§5.5-Kontrakt)', () => {
+  it('hat genau diese 25 Host-Attribute (§5.5-Kontrakt)', () => {
     // Der Attribut-Satz IST der öffentliche Vertrag der Web-Komponente, und er
     // steht zusätzlich in der Studio-Architektur-Referenz
     // (`projects/studio/src/app/views/widget-contract-data.ts`, HOST_ATTRIBUTES).
@@ -62,10 +62,11 @@ describe('WidgetComponent', () => {
       .map((i) => i.templateName).sort();
     expect(inputs).toEqual([
       'apiUrl', 'autoContext', 'embedMode', 'emitGuideSuggestion', 'emitRoutingDebug',
-      'greeting', 'initialState', 'inlineResultGrouping', 'interceptEduSharingLinks',
-      'language', 'pageContext', 'persistSession', 'position', 'primaryColor',
-      'sessionCookieDomain', 'sessionCookieMaxAge', 'sessionKey', 'showCards',
-      'showDebugButton', 'showLanguageButtons', 'size', 'theme', 'ticket', 'trustedDomains',
+      'engine', 'greeting', 'initialState', 'inlineResultGrouping',
+      'interceptEduSharingLinks', 'language', 'pageContext', 'persistSession', 'position',
+      'primaryColor', 'sessionCookieDomain', 'sessionCookieMaxAge', 'sessionKey',
+      'showCards', 'showDebugButton', 'showLanguageButtons', 'size', 'theme', 'ticket',
+      'trustedDomains',
     ]);
   });
 

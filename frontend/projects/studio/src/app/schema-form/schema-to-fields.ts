@@ -53,10 +53,29 @@ export interface SchemaField {
 const MAX_REF_HOPS = 10;
 
 /**
- * Keys rendered as a text area. `body` is the whole markdown document of the
- * two MD area models and the only long-form string in the registry.
+ * Schlüssel, die Fließtext tragen und deshalb eine Textfläche bekommen.
+ *
+ * **Gemessen, nicht geraten** (Nutzer-Befund 2026-08-13: `structure` in den
+ * Material-Formaten stand in einer fortlaufenden Zeile). Aufgenommen ist jeder
+ * Schlüssel, unter dem im ausgelieferten Seed-Baum ein String über 120 Zeichen
+ * steht — `structure` bis 729, `description` bis 671, `pattern` bis 1013.
+ * Neu messen:
+ *
+ * ```
+ * cd backend && python -c "import pathlib,yaml,collections; ..."   # siehe §9 im Plan
+ * ```
+ *
+ * Nach dem SCHLÜSSELNAMEN und nicht nach dem Wert: sonst wechselte ein Feld
+ * beim Tippen die Bauart und verlöre den Fokus. Ein zu großzügiger Treffer
+ * kostet nur Höhe — ein verpasster kostet die Bearbeitbarkeit.
  */
-const MULTILINE_KEYS = new Set(['body']);
+const MULTILINE_KEYS = new Set([
+  'body', 'bot_directive', 'brand_pattern', 'curate_prompt', 'description',
+  'greeting', 'greeting_en', 'intent_conflict_rule', 'intro', 'intro_en',
+  'message', 'pattern', 'phrase', 'rationale', 'rule', 'rules', 'solutions',
+  'solutions_en', 'structure', 'text', 'text_en', 'unsure_text',
+  'unsure_text_en',
+]);
 
 /** Describe a whole area document. The root is a `group` for every area but
  * `05-knowledge/rag-config`, whose model is a `RootModel[dict[str, …]]`. */
@@ -101,7 +120,7 @@ function fieldFor(
       return {
         ...base,
         kind: 'list',
-        item: fieldFor('', node.items, root, false),
+        item: inheritMultiline(fieldFor('', node.items, root, false), key),
         blank: blank([]),
       };
     }
@@ -137,6 +156,18 @@ function stringKind(
   const kind = MULTILINE_KEYS.has(key) ? 'multiline' : 'text';
   const catalog = node['x-catalog'];
   return catalog ? { kind, catalog } : { kind };
+}
+
+/**
+ * Ein Listen-Element erbt die Textflächen-Entscheidung vom Listen-Schlüssel.
+ *
+ * Das Element selbst hat keinen Schlüssel (`key: ''`) — bei `rules:`, einer
+ * Liste langer Sätze, könnte es die Entscheidung sonst gar nicht treffen.
+ */
+function inheritMultiline(item: SchemaField, listKey: string): SchemaField {
+  return item.kind === 'text' && MULTILINE_KEYS.has(listKey)
+    ? { ...item, kind: 'multiline' }
+    : item;
 }
 
 function objectField(

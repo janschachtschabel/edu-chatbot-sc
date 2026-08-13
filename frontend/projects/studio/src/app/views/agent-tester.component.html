@@ -1,0 +1,166 @@
+<details class="cs" [open]="open()">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
+  </summary>
+
+  <div class="cs-body at">
+    <div class="at-field">
+      <label class="at-label" [for]="idPrefix + '-instruction'">
+        {{ t('agent.field.instruction') }}
+      </label>
+      <textarea
+        class="at-input at-input--tall"
+        [id]="idPrefix + '-instruction'"
+        [attr.aria-describedby]="idPrefix + '-instruction-hint'"
+        rows="5"
+        maxlength="20000"
+        [value]="instruction()"
+        (input)="onField('instruction', $event)"
+      ></textarea>
+      <p class="at-hint" [id]="idPrefix + '-instruction-hint'">
+        {{ t('agent.field.instructionHint') }}
+      </p>
+    </div>
+
+    <div class="at-row">
+      <div class="at-field">
+        <label class="at-label" [for]="idPrefix + '-collection'">
+          {{ t('agent.field.collection') }}
+        </label>
+        <input
+          type="text"
+          class="at-input"
+          [id]="idPrefix + '-collection'"
+          [attr.aria-describedby]="idPrefix + '-collection-hint'"
+          [value]="collectionId()"
+          (input)="onField('collectionId', $event)"
+        />
+        <p class="at-hint" [id]="idPrefix + '-collection-hint'">
+          {{ t('agent.field.collectionHint') }}
+        </p>
+      </div>
+
+      <div class="at-field">
+        <label class="at-label" [for]="idPrefix + '-nodes'">{{ t('agent.field.nodes') }}</label>
+        <textarea
+          class="at-input"
+          [id]="idPrefix + '-nodes'"
+          [attr.aria-describedby]="idPrefix + '-nodes-hint'"
+          rows="3"
+          [value]="nodeIds()"
+          (input)="onField('nodeIds', $event)"
+        ></textarea>
+        <p class="at-hint" [id]="idPrefix + '-nodes-hint'">{{ t('agent.field.nodesHint') }}</p>
+      </div>
+    </div>
+
+    <div class="at-field">
+      <label class="at-label" [for]="idPrefix + '-schema'">{{ t('agent.field.schema') }}</label>
+      <textarea
+        class="at-input at-input--mono"
+        [id]="idPrefix + '-schema'"
+        [attr.aria-describedby]="idPrefix + '-schema-hint'"
+        rows="5"
+        spellcheck="false"
+        [value]="resultSchema()"
+        (input)="onField('resultSchema', $event)"
+      ></textarea>
+      <p class="at-hint" [id]="idPrefix + '-schema-hint'">{{ t('agent.field.schemaHint') }}</p>
+    </div>
+
+    <div class="at-row">
+      <div class="at-field at-field--narrow">
+        <label class="at-label" [for]="idPrefix + '-write'">{{ t('agent.field.write') }}</label>
+        <select
+          class="at-input"
+          [id]="idPrefix + '-write'"
+          [value]="writeMode()"
+          (change)="onSelect('writeMode', $event)"
+        >
+          @for (mode of writeModes; track mode.id) {
+            <option [value]="mode.id">{{ t(mode.labelKey) }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="at-field at-field--narrow">
+        <label class="at-label" [for]="idPrefix + '-locale'">{{ t('agent.field.locale') }}</label>
+        <select
+          class="at-input"
+          [id]="idPrefix + '-locale'"
+          [value]="locale()"
+          (change)="onSelect('locale', $event)"
+        >
+          @for (option of locales; track option.id) {
+            <option [value]="option.id">{{ t(option.labelKey) }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="at-field at-check">
+      <label class="at-label" [for]="idPrefix + '-curation'">
+        <input
+          type="checkbox"
+          [id]="idPrefix + '-curation'"
+          [attr.aria-describedby]="idPrefix + '-curation-hint'"
+          [checked]="allowCuration()"
+          (change)="onCuration($event)"
+        />
+        {{ t('agent.field.curation') }}
+      </label>
+      <p class="at-hint" [id]="idPrefix + '-curation-hint'">
+        {{ t('agent.field.curationHint') }}
+      </p>
+    </div>
+
+    <p class="at-cost">{{ t('agent.costNote') }}</p>
+
+    <button type="button" class="at-run" [disabled]="running()" (click)="run()">
+      {{ running() ? t('agent.running') : t('agent.run') }}
+    </button>
+
+    <!-- Dauerhaft im Dokument, NIE in einem @if: eine Live-Region, die zugleich
+         mit ihrem Inhalt entsteht, wird unzuverlässig angesagt. Muster
+         `eval-generative-start.component.html` (.egs-live). -->
+    <div class="at-live" aria-live="polite">{{ liveStatus() }}</div>
+
+    @if (error()) {
+      <p class="at-error" role="alert">{{ error() }}</p>
+    }
+
+    @if (result(); as res) {
+      <section class="at-result">
+        <h4 class="at-result-title">{{ t('agent.result.title') }}</h4>
+
+        <dl class="at-meta">
+          <div>
+            <dt>{{ t('agent.result.stopReason') }}</dt>
+            <dd>{{ res.stop_reason }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('agent.result.iterations') }}</dt>
+            <dd>{{ res.iterations }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('agent.result.tools') }}</dt>
+            <dd>
+              {{ res.tools_called.length ? res.tools_called.join(', ') : t('agent.result.noTools') }}
+            </dd>
+          </div>
+        </dl>
+
+        <h5 class="at-sub">{{ t('agent.result.text') }}</h5>
+        <p class="at-text">{{ res.text || t('agent.result.noText') }}</p>
+
+        <h5 class="at-sub">{{ t('agent.result.structured') }}</h5>
+        @if (resultJson(); as json) {
+          <pre class="at-json"><code>{{ json }}</code></pre>
+        } @else {
+          <p class="at-hint">{{ t('agent.result.noStructured') }}</p>
+        }
+      </section>
+    }
+  </div>
+</details>

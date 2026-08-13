@@ -57,6 +57,8 @@ export const VIEWS: CataloguePart = {
     'view.sicherung.desc': 'Snapshots, Backup & Werksstand',
     'view.vorschau.label': 'Vorschau',
     'view.vorschau.desc': 'Das echte Widget mit dieser Konfiguration',
+    'view.agent.label': 'Agent & Maschine',
+    'view.agent.desc': 'Muster-Engine oder Agent-Schleife, und ein Probelauf',
 
     // ── Rahmen-Ansichten ────────────────────────────────────────────
     /** Platzhalter für eine Ansicht, die ein späteres Paket baut. Das Paket
@@ -127,6 +129,8 @@ export const VIEWS: CataloguePart = {
     'view.sicherung.desc': 'Snapshots, backup & factory state',
     'view.vorschau.label': 'Preview',
     'view.vorschau.desc': 'The real widget with this configuration',
+    'view.agent.label': 'Agent & engine',
+    'view.agent.desc': 'Pattern engine or agent loop, plus a test run',
 
     'view.placeholder.note':
       'This view is built in package {paket}. The configuration itself is already '

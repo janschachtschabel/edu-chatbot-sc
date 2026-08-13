@@ -57,6 +57,9 @@ export const REFERENCE_WIDGET: CataloguePart = {
       + 'Aufklapp-Knopf, füllt den Container der Gastseite',
     'rw.attr.size': 'small | large — Anfangs-Größenstufe des Panels; '
       + 'umschaltbar über den Knopf in der Eingabezeile',
+    'rw.attr.engine': 'pattern | agent — welche Maschine diesen Einbau '
+      + 'beantwortet; leer nimmt die Vorgabe aus 01-base/engine (Kopfzeile '
+      + 'X-Boerdi-Engine)',
     'rw.attr.position': 'bottom-right | bottom-left | top-right | top-left',
     'rw.attr.initialState': 'collapsed | expanded',
     'rw.attr.primaryColor': 'Akzentfarbe; leer lässt den CSS-Default #1c4587 greifen',
@@ -142,6 +145,8 @@ export const REFERENCE_WIDGET: CataloguePart = {
       + 'the launcher button and fills the host container',
     'rw.attr.size': 'small | large — initial panel size step; switchable via '
       + 'the button in the composer row',
+    'rw.attr.engine': 'pattern | agent — which engine answers for this embed; '
+      + 'empty takes the default from 01-base/engine (header X-Boerdi-Engine)',
     'rw.attr.position': 'bottom-right | bottom-left | top-right | top-left',
     'rw.attr.initialState': 'collapsed | expanded',
     'rw.attr.primaryColor': 'Accent colour; empty lets the CSS default #1c4587 apply',

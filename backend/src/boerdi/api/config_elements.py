@@ -77,6 +77,19 @@ def _md_body(entry_id: str, label: str, text: str | None) -> str:
 
 
 # ── element browser ────────────────────────────────────────────────────────
+def _with_source(entries: list[dict], file: str) -> list[dict]:
+    """Jedem Eintrag seine Quelldatei anhängen — auf einer KOPIE.
+
+    Die Lade-Fassade reicht die Listen aus dem Prozess-Cache heraus
+    (``load_intents`` = ``area(...)["intents"]``, kein Klon). Wer in diese
+    Objekte schreibt, ändert den Bereich selbst: das Studio-Formular meldete
+    ``intents[0].file`` … als unbekannten Schlüssel, und ein Speichern hätte
+    die Anzeige-Angabe als Konfigurationswert festgeschrieben (Nutzer-Befund
+    2026-08-13). ``file`` ist Herkunft für den Browser, kein Config-Wert.
+    """
+    return [{**entry, "file": file} for entry in entries]
+
+
 @router.get("/elements")
 async def get_elements() -> dict:
     """All editable elements + their source paths for the Studio browser."""
@@ -94,12 +107,8 @@ async def get_elements() -> dict:
         entry.pop("_source_file", None)
         personas.append(entry)
 
-    intents = cl.load_intents()
-    for i in intents:
-        i["file"] = "04-intents/intents.yaml"
-    states = cl.load_states()
-    for s in states:
-        s["file"] = "04-states/states.yaml"
+    intents = _with_source(cl.load_intents(), "04-intents/intents.yaml")
+    states = _with_source(cl.load_states(), "04-states/states.yaml")
 
     mods, _reduce = cl.load_signal_modulations()
     signals = [
@@ -107,9 +116,7 @@ async def get_elements() -> dict:
         for sig, mod in mods.items()
     ]
 
-    entities = cl.load_entities()
-    for e in entities:
-        e["file"] = "04-entities/entities.yaml"
+    entities = _with_source(cl.load_entities(), "04-entities/entities.yaml")
 
     return {
         "patterns": patterns, "personas": personas, "intents": intents,

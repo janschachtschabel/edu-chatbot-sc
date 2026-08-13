@@ -30,7 +30,16 @@ def bind_store(store: ConfigStore | None) -> None:
 
 
 def area(key: str) -> dict[str, Any]:
-    """Cached area data — ``{}`` when unbound/missing (ALT `_load_yaml` default)."""
+    """Cached area data — ``{}`` when unbound/missing (ALT `_load_yaml` default).
+
+    **Nur lesen.** Zurück kommt das Objekt AUS DEM CACHE, kein Klon — und alle
+    Lader dieser Fassade reichen Teile davon unverändert weiter
+    (``load_intents()`` ist ``area(...)["intents"]``). Wer hineinschreibt,
+    ändert den Bereich für den ganzen Prozess: das Studio zeigt den Zusatz dann
+    als unbekannten Schlüssel an, und ein Speichern schreibt ihn fest
+    (Befund 2026-08-13, ``config_elements``). Wer etwas anhängen will, kopiert:
+    ``[{**e, "extra": …} for e in load_…()]``.
+    """
     if _store is None:
         return {}
     return _store.get_cached(key) or {}

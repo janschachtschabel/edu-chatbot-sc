@@ -55,7 +55,7 @@ export interface CuratedAreaSection {
  * belong on the same page as the config that describes them.
  */
 export interface CuratedPanelSection {
-  readonly panel: 'rag-areas' | 'rag-ingest' | 'mcp-registry';
+  readonly panel: 'rag-areas' | 'rag-ingest' | 'mcp-registry' | 'agent-tester';
   readonly labelKey: string;
   readonly hintKey: string;
 }
@@ -289,6 +289,26 @@ export const CURATED_VIEWS: readonly CuratedView[] = [
         panel: 'mcp-registry',
         labelKey: 'curated.wissen.mcp.label',
         hintKey: 'curated.wissen.mcp.hint',
+      },
+    ],
+  },
+  {
+    // Umschalter und Probelauf auf EINER Seite: wer die Maschine umstellt, will
+    // sehen, was sie tut, und wer einen Lauf startet, will wissen, unter welchen
+    // Deckeln er läuft. Getrennt wären es zwei Seiten, zwischen denen man
+    // hin- und herspringt, um eine einzige Frage zu beantworten.
+    slug: 'agent',
+    introKey: 'curated.agent.intro',
+    sections: [
+      {
+        area: '01-base/engine',
+        labelKey: 'curated.agent.engine.label',
+        hintKey: 'curated.agent.engine.hint',
+      },
+      {
+        panel: 'agent-tester',
+        labelKey: 'curated.agent.tester.label',
+        hintKey: 'curated.agent.tester.hint',
       },
     ],
   },

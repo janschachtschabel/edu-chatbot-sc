@@ -122,6 +122,7 @@ export class ChatApiClient {
   private guideMode = false;
   private guideHost = '';
   private uiLocale = '';
+  private engine = '';
   private readonly fetchImpl?: typeof fetch;
 
   constructor(opts: ChatApiClientOptions = {}) {
@@ -158,6 +159,27 @@ export class ChatApiClient {
   setGuideEnv(guideMode: boolean, host: string): void {
     this.guideMode = !!guideMode;
     this.guideHost = (host || '').trim().toLowerCase();
+  }
+
+  /**
+   * Welche Maschine diesen Einbau beantwortet — `''` überlässt es dem Backend.
+   *
+   * Eine Kopfzeile und kein Body-Feld: das Backend liest sie undeklariert aus
+   * dem `Request` (`services/engine_choice.ENGINE_HEADER`), damit der
+   * eingefrorene OpenAPI-Vertrag unberührt bleibt. Denselben Weg gehen schon
+   * `Accept-Language` und `WLO-Access-Block`.
+   *
+   * Leer heisst hier wirklich leer: das Backend nimmt dann die Vorgabe aus
+   * `01-base/engine`. Eine leere Kopfzeile mitzuschicken wäre etwas anderes —
+   * sie protokolliert dort einen unbekannten Wert.
+   */
+  setEngine(mode: string): void {
+    this.engine = (mode || '').trim().toLowerCase();
+  }
+
+  /** Die Kopfzeilen, die dieser Einbau jedem Zug mitgibt. */
+  private turnHeaders(): Record<string, string> {
+    return this.engine ? { 'X-Boerdi-Engine': this.engine } : {};
   }
 
   /** `environment` aus Overrides + Ambient. Verbatim ALT-Literal (dedupliziert
@@ -199,6 +221,7 @@ export class ChatApiClient {
       body: this.buildBody(sessionId, message, env, action, actionParams),
       onEvent,
       fetchImpl: this.fetchImpl,
+      extraHeaders: this.turnHeaders(),
     });
   }
 
@@ -211,6 +234,7 @@ export class ChatApiClient {
       url: `${this.baseUrl}/chat`,
       body: this.buildBody(sessionId, message, env, action, actionParams),
       fetchImpl: this.fetchImpl,
+      extraHeaders: this.turnHeaders(),
     });
   }
 

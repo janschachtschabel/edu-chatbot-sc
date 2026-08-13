@@ -6990,7 +6990,7 @@
     },
     "/widget/": {
       "get": {
-        "description": "Try the widget with the default attributes.",
+        "description": "Overview of the three embed situations — no widget of its own.",
         "operationId": "widget_demo_widget__get",
         "responses": {
           "200": {
@@ -7030,8 +7030,32 @@
     },
     "/widget/classic": {
       "get": {
-        "description": "The same embed with ``inline-result-grouping=\"false\"`` — an A/B.",
+        "description": "The default embed: the floating owl button, opening on click.",
         "operationId": "widget_demo_classic_widget_classic_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kontext",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 32,
+              "title": "Kontext",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wert",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 2048,
+              "title": "Wert",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7040,6 +7064,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Widget Demo Classic",
@@ -7050,8 +7084,32 @@
     },
     "/widget/frameless": {
       "get": {
-        "description": "The frameless embed (U1) inside a host container of the page's own.",
+        "description": "The frameless embed (U1), started collapsed — the \"give it a height\" case.",
         "operationId": "widget_demo_frameless_widget_frameless_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kontext",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 32,
+              "title": "Kontext",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wert",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 2048,
+              "title": "Wert",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7060,6 +7118,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Widget Demo Frameless",
@@ -7070,8 +7138,32 @@
     },
     "/widget/inline": {
       "get": {
-        "description": "The embedded look — without the language and debug buttons.",
+        "description": "The embedded look: frameless inside the page's own container, open.",
         "operationId": "widget_demo_inline_widget_inline_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kontext",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 32,
+              "title": "Kontext",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wert",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 2048,
+              "title": "Wert",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7080,6 +7172,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Widget Demo Inline",

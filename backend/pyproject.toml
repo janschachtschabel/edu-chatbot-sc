@@ -83,6 +83,7 @@ select = ["E", "F", "I", "UP", "B"]
 # Verbatim LLM prompt strings ported 1:1 from ALT: line length is dictated by
 # the source prompt text, not style — wrapping would alter the prompt bytes.
 "src/boerdi/services/quick_replies_llm.py" = ["E501"]
+"src/boerdi/services/quick_replies_prompt.py" = ["E501"]
 "src/boerdi/services/llm_learning_path.py" = ["E501"]
 "src/boerdi/services/response_prompt_pattern.py" = ["E501"]
 "src/boerdi/services/response_prompt_display_blocks.py" = ["E501"]
