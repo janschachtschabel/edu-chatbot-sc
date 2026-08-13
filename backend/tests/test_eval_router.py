@@ -25,7 +25,10 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import boerdi.api.eval as eval_api
+import boerdi.services.eval.cost as eval_cost
+import boerdi.services.eval.generative_run as generative_run
 import boerdi.services.eval.golden as eval_golden
+import boerdi.services.eval.golden_run as golden_run
 import boerdi.services.eval_service as svc
 from boerdi.api.deps import get_session
 from boerdi.api.eval import GoldenRunRequest, StartRequest
@@ -235,7 +238,7 @@ def test_endpoints_require_studio_key(client, method, path, body):
 
 
 def test_service_estimate_both_mode_counts(monkeypatch):
-    monkeypatch.setattr(svc, "list_personas_and_intents",
+    monkeypatch.setattr(eval_cost, "list_personas_and_intents",
                         lambda: {"personas": [{"id": "a"}, {"id": "b"}],
                                  "intents": [{"id": "x"}]})
     out = svc.estimate("both", [], [], 2, 3)
@@ -250,7 +253,7 @@ def test_service_estimate_both_mode_counts(monkeypatch):
 
 
 def test_service_estimate_explicit_ids_override_config(monkeypatch):
-    monkeypatch.setattr(svc, "list_personas_and_intents",
+    monkeypatch.setattr(eval_cost, "list_personas_and_intents",
                         lambda: {"personas": [{"id": "a"}], "intents": [{"id": "x"}]})
     out = svc.estimate("scenarios", ["p1", "p2", "p3"], ["i1", "i2"], 1, 3)
     # n_p=3, n_i=2 → combos=6; scenarios=6; convs=0 (scenarios mode)
@@ -282,7 +285,11 @@ class _FakeCtx:
         return False
 
 
-def _patch_guard_and_spawn(monkeypatch):
+def _patch_guard_and_spawn(monkeypatch, mod):
+    """Patch guard + spawn in ``mod`` — the module owning the start function under
+    test (``generative_run`` or ``golden_run``). Both resolve these names in their
+    own globals, so the patch has to land where the caller lives, not on the
+    ``eval_service`` facade that merely re-exports them."""
     spawned: list = []
 
     async def no_running(_session):
@@ -292,8 +299,8 @@ def _patch_guard_and_spawn(monkeypatch):
         spawned.append(coro)
         coro.close()  # we never run it; close to avoid "never awaited" warnings
 
-    monkeypatch.setattr(svc, "_ensure_no_running_run", no_running)
-    monkeypatch.setattr(svc, "_spawn_background", spawn)
+    monkeypatch.setattr(mod, "_ensure_no_running_run", no_running)
+    monkeypatch.setattr(mod, "_spawn_background", spawn)
     return spawned
 
 
@@ -301,10 +308,10 @@ def _patch_guard_and_spawn(monkeypatch):
 
 
 def test_start_generative_run_happy_path(monkeypatch):
-    monkeypatch.setattr(svc, "list_personas_and_intents",
+    monkeypatch.setattr(generative_run, "list_personas_and_intents",
                         lambda: {"personas": [{"id": "P-AND"}, {"id": "P-LEH"}],
                                  "intents": [{"id": "I01"}, {"id": "I03"}]})
-    spawned = _patch_guard_and_spawn(monkeypatch)
+    spawned = _patch_guard_and_spawn(monkeypatch, generative_run)
     session = _FakeSession()
     req = StartRequest(mode="both", persona_ids=["P-AND"], intent_ids=["I03"])
     out = asyncio.run(svc.start_generative_run(session, None, req))
@@ -322,9 +329,9 @@ def test_start_generative_run_happy_path(monkeypatch):
 
 
 def test_start_generative_run_warns_on_unknown_ids(monkeypatch):
-    monkeypatch.setattr(svc, "list_personas_and_intents",
+    monkeypatch.setattr(generative_run, "list_personas_and_intents",
                         lambda: {"personas": [{"id": "P-AND"}], "intents": [{"id": "I01"}]})
-    _patch_guard_and_spawn(monkeypatch)
+    _patch_guard_and_spawn(monkeypatch, generative_run)
     req = StartRequest(persona_ids=["P-AND", "P-XXX"], intent_ids=["I01"])
     out = asyncio.run(svc.start_generative_run(_FakeSession(), None, req))
     assert out["personas_used"] == ["P-AND"]
@@ -332,9 +339,9 @@ def test_start_generative_run_warns_on_unknown_ids(monkeypatch):
 
 
 def test_start_generative_run_400_when_filter_matches_nothing(monkeypatch):
-    monkeypatch.setattr(svc, "list_personas_and_intents",
+    monkeypatch.setattr(generative_run, "list_personas_and_intents",
                         lambda: {"personas": [{"id": "P-AND"}], "intents": [{"id": "I01"}]})
-    _patch_guard_and_spawn(monkeypatch)
+    _patch_guard_and_spawn(monkeypatch, generative_run)
     req = StartRequest(persona_ids=["P-NONE"])
     with pytest.raises(HTTPException) as ei:
         asyncio.run(svc.start_generative_run(_FakeSession(), None, req))
@@ -349,7 +356,7 @@ def _run_generative(monkeypatch, factory, **over):
         captured["run_id"] = run_id
         captured.update(kw)
 
-    monkeypatch.setattr(svc, "_finalize_run", fake_finalize)
+    monkeypatch.setattr(generative_run, "_finalize_run", fake_finalize)
     kwargs = dict(
         mode="scenarios", personas=[{"id": "P-AND"}], intents=[{"id": "I01"}],
         scenarios_per_combo=1, turns_per_conv=3, target_turns=1,
@@ -365,7 +372,7 @@ def test_execute_generative_run_persists_the_engine_result(monkeypatch):
         return {"total_judged_turns": 4, "avg_score": 0.75,
                 "classification_metrics": {"persona_correct_rate": 0.5}}
 
-    monkeypatch.setattr(svc.runner, "execute_run", fake_execute)
+    monkeypatch.setattr(generative_run.runner, "execute_run", fake_execute)
     captured = _run_generative(monkeypatch, lambda: _FakeCtx())
     assert captured["status"] == "done"
     assert captured["total_turns"] == 4
@@ -382,7 +389,7 @@ def test_execute_generative_run_keeps_partial_conversations_on_failure(monkeypat
                               "intent_id": "I01", "turns": []})
         raise RuntimeError("provider weg")
 
-    monkeypatch.setattr(svc.runner, "execute_run", fake_execute)
+    monkeypatch.setattr(generative_run.runner, "execute_run", fake_execute)
     captured = _run_generative(monkeypatch, lambda: _FakeCtx())
     assert captured["status"] == "failed"
     assert captured["error_message"] == "provider weg"
@@ -396,7 +403,7 @@ def test_execute_generative_run_without_factory_is_noop(monkeypatch):
     async def fake_execute(**kw):
         called.append(1)
 
-    monkeypatch.setattr(svc.runner, "execute_run", fake_execute)
+    monkeypatch.setattr(generative_run.runner, "execute_run", fake_execute)
     captured = _run_generative(monkeypatch, None)
     assert called == [] and captured == {}
 
@@ -433,7 +440,7 @@ def test_progress_writer_throttles_the_transcript(monkeypatch):
                          "activity": row.summary.get("current_activity")})
 
     monkeypatch.setattr(
-        svc.runner, "build_summary",
+        generative_run.runner, "build_summary",
         lambda conv, target, activity: {
             "total_judged_turns": len(conv), "avg_score": 0.5,
             "current_activity": activity, "target_turns": target,
@@ -459,7 +466,7 @@ def test_progress_write_failure_does_not_kill_the_run(monkeypatch):
             return False
 
     monkeypatch.setattr(
-        svc.runner, "build_summary",
+        generative_run.runner, "build_summary",
         lambda conv, target, activity: {"total_judged_turns": 0, "avg_score": 0.0},
     )
     progress = svc._progress_writer(lambda: Boom(), "eval-9", 10)
@@ -479,8 +486,8 @@ def _golden_flows():
 
 
 def test_start_golden_run_happy_path(monkeypatch):
-    monkeypatch.setattr(svc, "load_gold_flows", _golden_flows)
-    spawned = _patch_guard_and_spawn(monkeypatch)
+    monkeypatch.setattr(golden_run, "load_gold_flows", _golden_flows)
+    spawned = _patch_guard_and_spawn(monkeypatch, golden_run)
     session = _FakeSession()
     out = asyncio.run(svc.start_golden_eval_run(session, None,
                                                 GoldenRunRequest(judge=True)))
@@ -496,8 +503,8 @@ def test_start_golden_run_happy_path(monkeypatch):
 
 
 def test_start_golden_run_filters_and_warns(monkeypatch):
-    monkeypatch.setattr(svc, "load_gold_flows", _golden_flows)
-    _patch_guard_and_spawn(monkeypatch)
+    monkeypatch.setattr(golden_run, "load_gold_flows", _golden_flows)
+    _patch_guard_and_spawn(monkeypatch, golden_run)
     out = asyncio.run(svc.start_golden_eval_run(
         _FakeSession(), None, GoldenRunRequest(flow_ids=["GS-2", "GS-99"])))
     assert out["flows_used"] == ["GS-2"]
@@ -506,16 +513,16 @@ def test_start_golden_run_filters_and_warns(monkeypatch):
 
 
 def test_start_golden_run_400_when_no_flows_configured(monkeypatch):
-    monkeypatch.setattr(svc, "load_gold_flows", lambda: [])
-    _patch_guard_and_spawn(monkeypatch)
+    monkeypatch.setattr(golden_run, "load_gold_flows", lambda: [])
+    _patch_guard_and_spawn(monkeypatch, golden_run)
     with pytest.raises(HTTPException) as ei:
         asyncio.run(svc.start_golden_eval_run(_FakeSession(), None, GoldenRunRequest()))
     assert ei.value.status_code == 400
 
 
 def test_start_golden_run_400_when_filter_matches_nothing(monkeypatch):
-    monkeypatch.setattr(svc, "load_gold_flows", _golden_flows)
-    _patch_guard_and_spawn(monkeypatch)
+    monkeypatch.setattr(golden_run, "load_gold_flows", _golden_flows)
+    _patch_guard_and_spawn(monkeypatch, golden_run)
     with pytest.raises(HTTPException) as ei:
         asyncio.run(svc.start_golden_eval_run(
             _FakeSession(), None, GoldenRunRequest(flow_ids=["GS-nope"])))
@@ -550,7 +557,7 @@ def _wire_golden(monkeypatch, *, judge=None):
             return metrics
 
     fake_runner = FakeRunner()
-    monkeypatch.setattr(svc, "_load_golden_runner", lambda: fake_runner)
+    monkeypatch.setattr(golden_run, "_load_golden_runner", lambda: fake_runner)
     monkeypatch.setattr(eval_golden, "load_persona_definitions",
                         lambda: [{"id": "P-SYN", "label": "Synth", "description": ""}])
     monkeypatch.setattr(eval_golden, "load_intents",
@@ -564,7 +571,7 @@ def _wire_golden(monkeypatch, *, judge=None):
         captured["run_id"] = run_id
         captured.update(kw)
 
-    monkeypatch.setattr(svc, "_finalize_run", fake_finalize)
+    monkeypatch.setattr(golden_run, "_finalize_run", fake_finalize)
     return fake_runner, convs, metrics, captured
 
 
@@ -642,13 +649,13 @@ def test_execute_golden_run_persists_failure_on_runner_error(monkeypatch):
         def aggregate_golden(self, c):  # pragma: no cover - not reached
             return {}
 
-    monkeypatch.setattr(svc, "_load_golden_runner", lambda: FakeRunner())
+    monkeypatch.setattr(golden_run, "_load_golden_runner", lambda: FakeRunner())
     captured: dict = {}
 
     async def fake_finalize(session, run_id, **kw):
         captured.update(kw)
 
-    monkeypatch.setattr(svc, "_finalize_run", fake_finalize)
+    monkeypatch.setattr(golden_run, "_finalize_run", fake_finalize)
     asyncio.run(svc._execute_golden_run(lambda: _FakeCtx(), "eval-g",
                                         _golden_flows(), False))
     assert captured["status"] == "failed"

@@ -40,6 +40,11 @@ from typing import Any
 from boerdi.domain.prepared_write import PreparedWrite, read_prepared_write
 from boerdi.services.mcp import transport
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
+from boerdi.services.mcp.tool_args import (
+    _JSON_CAPABLE_TOOLS,
+    CONTENT_TEXT_MAX_CHARS,
+    validate_tool_args,
+)
 from boerdi.services.mcp.tool_cache import (
     _TOOL_CACHE,
     _TOOL_CACHE_BLOCKLIST,
@@ -47,11 +52,6 @@ from boerdi.services.mcp.tool_cache import (
     _cache_get,
     _cache_key,
     _cache_set,
-)
-from boerdi.services.mcp.tool_defs import (
-    _JSON_CAPABLE_TOOLS,
-    CONTENT_TEXT_MAX_CHARS,
-    validate_tool_args,
 )
 
 logger = logging.getLogger(__name__)

@@ -153,11 +153,29 @@ sockjs, less, image-size, uuid — und mit ihm alle Funde. Entfernt statt hochge
 | Lizenz-Gate | unverändert erlaubt (MIT 15 · MPL/Apache 1 · BSD-2 1 · Apache-2.0 1 · 0BSD 1) |
 | `npm audit` **und** `--omit=dev` | **0 vulnerabilities** |
 
-**Noch offen / bewusst nicht getan:** der `withXhr()`-Nachlauf (44 Dateien); ein Live-Test des
+**Noch offen / bewusst nicht getan:** ein Live-Test des
 Embeds gegen `element-api.ts:26` — der einzige Griff in nicht-öffentliches Angular-API
 (`_ngElementStrategy.componentRef.instance`, trägt die 6 JS-Methoden des Custom Elements).
 Die Unit-Tests dazu sind grün, aber ein echter Browser-Lauf (`npm run e2e`) gehört vor den
 Deploy. Playwright startet der Nutzer.
+
+**Der `withXhr()`-Nachlauf — nachgemessen 2026-08-13, Ergebnis: Nutzer-Entscheid, nicht
+Aufräumarbeit.** Die „44 Dateien" zerfallen in zwei sehr ungleiche Hälften:
+
+* **42 Spec-Dateien** — und **alle 42** registrieren zusätzlich `provideHttpClientTesting()`.
+  Dort ist `withXhr()` wirkungslos: das Test-Backend ersetzt den echten Transport vollständig.
+* **2 Nicht-Spec-Dateien** — `studio/app/app.config.ts` (die einzige ausgelieferte Stelle) und
+  `quality-logs.harness.ts` (Test-Harness). Der Widget-Baum nutzt `provideHttpClient`
+  **gar nicht** und ist nicht betroffen.
+
+Daraus folgt das Unangenehme: `withXhr()` zu entfernen ist eine **Ein-Zeilen-Änderung am
+Produktivpfad, die keine Prüfung im Workspace verifizieren kann** — jede Spec, die HTTP
+anfasst, kurzschließt genau den Transport, um den es geht. Grün nach dem Entfernen bewiese
+nichts. Der Wechsel auf den Fetch-Default löst heute auch kein Problem: der SSE-Strom läuft
+ohnehin über rohes `fetch` (nicht über `HttpClient`), Upload-Fortschritt nutzt niemand
+(`reportProgress`: 0 Treffer). Deshalb **belassen**. Wenn er kommen soll, gehört ein
+manueller Durchgang durch Studio-Anmeldung, Snapshot-Download und Datei-Ingest dazu —
+kein Suitenlauf.
 
 ---
 
@@ -234,6 +252,100 @@ laufen unverändert. **Ergebnis ehrlich benennen:** 730 Z. sind weiterhin über 
 **Erwartetes Ergebnis Paket B:** Überhang von 8.289 auf ca. **6.663** Zeilen; die Zahl der
 Dateien über 300 steigt (mehr, kleinere Module) — das ist der Sinn der Regel, nicht ihr
 Verstoß.
+
+### B.4 Durchführung — **abgeschlossen 2026-08-13, Suite unverändert**
+
+Baseline vor dem ersten Schnitt: **3207 passed, 4 skipped**. Nach jedem der drei Schnitte
+dieselbe Zahl. `ruff check src/ tests/` durchgehend sauber.
+
+**Zwei Annahmen des Plans hielten der Prüfung nicht stand.**
+
+*Erstens:* „die Fassade behält ihre öffentlichen Namen, damit kein Test nachgezogen werden
+muss" — das gilt nur für öffentliche Namen. Die Tests patchen **sechs private Helfer** im
+Namensraum `eval_service` (`_ensure_no_running_run`, `_spawn_background`, `_finalize_run`,
+`_load_golden_runner`, `load_gold_flows`, `list_personas_and_intents`). Ein Patch wirkt dort,
+wo der **Aufrufer** wohnt, nicht wo die Fassade re-exportiert. Der Schnitt richtet sich
+deshalb nach der Patch-Fläche, und 18 `monkeypatch`-Ziele wurden auf das Modul umgezogen, das
+den Aufruf jetzt enthält — mechanisch, kein einziges Assert verändert.
+
+*Zweitens:* B2 sollte `TOOL_DEFINITIONS` „nach Werkzeug-Familien" zerlegen. Das ist **keine
+Verschiebung, sondern eine Verhaltensänderung**: die Familien liegen nicht zusammenhängend,
+eine Gruppierung sortiert die Liste um — und die Reihenfolge geht so in den Prompt
+(`response_tool_selection` reicht `list(TOOL_DEFINITIONS)` durch; deren Docstring hält fest,
+dass eine frühere Reihenfolge-Änderung „zwei fremde Tests kippte"). Der Literal bleibt darum
+ganz. Zerlegt wurde stattdessen entlang der Frage, die die beiden Hälften beantworten:
+`tool_defs` sagt WELCHE Werkzeuge es gibt, `tool_args` wie ein Aufruf gültig aussieht — genau
+die Trennung, die `client.py` schon vorlebte (es importierte ausschliesslich die Argument-Seite).
+Belegt per SHA256 des serialisierten Katalogs vor und nach dem Schnitt: **identisch**
+(`8e6d9c69…`, 26 Werkzeuge).
+
+| Datei | vorher | nachher | neue Module |
+|---|---|---|---|
+| `services/eval_service.py` | 860 | **77** (reine Fassade) | `eval/`: `cost` 96 · `queries` 254 · `mutations` 71 · `run_store` 98 · `generative_run` 226 · `golden_run` 177 |
+| `services/mcp/tool_defs.py` | 764 | **572** (nur noch der Katalog) | `mcp/tool_args.py` 210 |
+| `services/tool_loop.py` | 1140 | **760** (nur noch `_run_tool_loop`) | `tool_loop_messages.py` 362 · `tool_loop_fallback.py` 64 |
+
+Nebenbefund beim Verschieben: `_RUNNER_PATH` in `golden_run.py` musste von `parents[4]` auf
+`parents[5]` — eine Ebene tiefer. Geprüft, dass sie weiterhin auf `evals/run_golden.py` zeigt.
+
+**Ehrlich zum Ergebnis:** der Überhang im Backend sinkt von 8.335 auf **7.265** Zeilen
+(−1.070, −13 %), die Zahl der Dateien über 300 bleibt bei **48**. Drei Dateien liegen weiter
+darüber, jede aus einem benennbaren Grund:
+
+* `tool_loop.py` (760) — `_run_tool_loop` ist **eine** Funktion mit 685 Zeilen, AST-Gate-
+  abgenommen („206 verschachtelte Stmts, 24 Pins"). Weiter zerlegen hiesse umschreiben.
+* `tool_loop_messages.py` (362) — dasselbe für `_assemble_messages` (333 Z., AST 29/29). Das
+  Modul kann nicht kleiner werden als die Funktion, die es enthält.
+* `tool_defs.py` (572) — ein geordneter Daten-Literal, siehe oben.
+
+Das ist kein Rest, den man noch „aufräumen" könnte, sondern die Grenze, die der Nutzer-
+Entscheid „nur die sicheren zwei(einhalb)" bewusst gezogen hat.
+
+### B.5 Nachtrag — Wächter für die Katalog-Reihenfolge (2026-08-13)
+
+Der SHA256-Abgleich aus B2 war ein Einmal-Werkzeug von mir: er belegte, dass *dieser* Schnitt
+die Reihenfolge nicht angetastet hat, schützt aber nichts gegen den nächsten Eingriff. Und
+geschützt war sie durch **nichts** — alle bestehenden Prüfungen auf `TOOL_DEFINITIONS`
+arbeiten mit `set(...)` oder `len(...)` und sind gegen eine Umsortierung blind.
+
+`tests/test_mcp_tool_defs.py` hält die Namensfolge jetzt als Liste fest
+(`test_tool_definitions_order_is_pinned`, 26 Einträge). Der Pin schlägt **absichtlich** auch
+bei einem neuen Werkzeug an: wer eines ergänzt, soll die Einfügeposition bewusst wählen und
+hier nachtragen, statt sie dem Zufall des Anhängens zu überlassen.
+
+Nachgewiesen, dass er greift — nicht nur, dass er grün ist: bei vertauschten Nachbarn schlägt
+er an, bei einem angehängten Werkzeug schlägt er an, im Ist-Zustand ist er grün. Suite danach
+**3208 passed, 4 skipped** (ein Test mehr, sonst unverändert).
+
+### B.6 Nachtrag — die Regel ehrlich machen (2026-08-13)
+
+Der Audit-Fahrplan nennt zu F-8 eine Voraussetzung: „**zuerst** die Regel in der Spec um die
+Port-Ausnahme ergänzen, dann zerlegen". Die war offen — und der Grund steht in der Regel
+selbst. Spec-§0.7 sagte: „beim Portieren großer Alt-Module direkt am Verantwortlichkeits-
+Schnitt splitten (*die Alt-Zerlegung gibt die Schnitte bereits vor*)". Genau diese Klammer
+trifft bei `turn_links` und `widget_postprocess` nicht zu: ALT hat dort **eine** Funktion,
+es gibt keinen vorgegebenen Schnitt. Die Regel war also nicht nur unvollständig, ihre
+Begründung war für einen Teil des Bestands falsch.
+
+§0.7 trägt jetzt die Ausnahme mit drei Bedingungen — Überhang aus EINER Funktion/EINEM
+Literal · Marker im Docstring · kein Wachstumsfreibrief — und einem **Verfallsdatum**: sie
+erlischt mit dem Cutover, weil dann das AST-Gate nicht mehr bindet.
+
+Das Wort dafür musste nicht erfunden werden. `Fidelity-Port-Ausnahme` stand bereits in zwei
+Frontend-Dateien (`ui/debug/debug-panel.component.ts`, `ui/grouping/result-grouping.ts`); im
+Backend gab es null Treffer. Übernommen statt neu erfunden, und auf die fünf Backend-Dateien
+angewandt, die die Ausnahme beanspruchen.
+
+**Was das bringt:** `grep -r "Fidelity-Port-Ausnahme"` liefert jetzt die vollständige Liste —
+**5 Backend, 2 Frontend**. Damit zerfallen die 48 Backend-Dateien über 300 Zeilen erstmals in
+**5 begründete Ausnahmen** und **43 unentschiedene Schuld**; vorher war beides von außen
+ununterscheidbar. Die größten unentschiedenen sind damit auch benannt: `domain/canvas/types.py`
+684 · `services/guide_qr_injector.py` 647 · `services/turn_persist.py` 621 ·
+`services/page_context.py` 596 · `services/mcp/arg_resolvers.py` 595.
+
+**Die Ironie ehrlich benannt:** die Begründungen kosten je 4–5 Zeilen, der Überhang steigt
+dadurch von 7.265 auf **7.286**. Das ist der richtige Tausch — eine unbegründete Ausnahme
+ist teurer als 21 Zeilen Text —, aber es ist ein Aufschlag und kein Abbau.
 
 ---
 

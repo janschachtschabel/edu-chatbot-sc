@@ -304,11 +304,14 @@ def test_pattern_usage_since_floor(test_db) -> None:
 
 
 def test_start_golden_eval_run_persists_running_row(test_db, monkeypatch) -> None:
+    import boerdi.services.eval.golden_run as golden_run
     import boerdi.services.eval_service as svc
 
     flows = [{"id": "GS-1", "persona": "P-LEH", "intents": ["I03"],
               "turns": [{"message": "hallo"}]}]
-    monkeypatch.setattr(svc, "load_gold_flows", lambda: flows)
+    # Patched where the caller lives: ``start_golden_eval_run`` resolves both
+    # names in ``golden_run``'s globals; the facade only re-exports them.
+    monkeypatch.setattr(golden_run, "load_gold_flows", lambda: flows)
 
     spawned: list = []
 
@@ -316,7 +319,7 @@ def test_start_golden_eval_run_persists_running_row(test_db, monkeypatch) -> Non
         spawned.append(coro)
         coro.close()
 
-    monkeypatch.setattr(svc, "_spawn_background", fake_spawn)
+    monkeypatch.setattr(golden_run, "_spawn_background", fake_spawn)
 
     async def scenario(session):
         out = await svc.start_golden_eval_run(

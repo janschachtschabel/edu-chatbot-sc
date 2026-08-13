@@ -21,7 +21,8 @@ import pathlib
 import pytest
 import yaml
 
-from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS, validate_tool_args
+from boerdi.services.mcp.tool_args import validate_tool_args
+from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.response_tool_selection import _select_active_tools
 
 _SKILL_TOOLS = ("search_skill", "get_skill")

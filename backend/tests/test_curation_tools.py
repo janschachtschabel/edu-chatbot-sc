@@ -24,7 +24,8 @@ import pathlib
 import yaml
 
 from boerdi.domain.write_confirm import CONFIRMABLE_TOOLS, CURATION_TOOLS
-from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS, validate_tool_args
+from boerdi.services.mcp.tool_args import validate_tool_args
+from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 from boerdi.services.response_tool_selection import _select_active_tools
 

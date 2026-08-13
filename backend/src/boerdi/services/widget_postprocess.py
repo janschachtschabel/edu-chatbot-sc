@@ -1,6 +1,10 @@
 """Async widget-modes postprocess orchestrator — verbatim port of ALT
 ``chat_postprocess._postprocess_response_for_widget_modes`` (P4-5).
 
+Fidelity-Port-Ausnahme to the ~300-line rule (spec §0.7): the excess sits in ONE
+function (706 lines). ALT offers no seam to adopt here, and inventing one would be a
+rewrite that gives up the AST gate stated below. Lapses at cutover.
+
 I/O sibling of the pure sync ``domain/widget_postprocess._apply_widget_modes_postprocess``:
 same ``domain/`` (pure) ↔ ``services/`` (I/O) split as ``guide_markers``. Wraps a
 response AFTER the graph + direct-action handlers so host display-flags, the

@@ -7,9 +7,9 @@ wires the five response phases in order and returns the finished
 
     P1-P9   ``_build_system_prompt``      (services/response_prompt_builder.py)
     P10-P11 ``_select_active_tools``      (services/response_tool_selection.py)
-    P12/P14 ``_assemble_messages``        (services/tool_loop.py)
+    P12/P14 ``_assemble_messages``        (services/tool_loop_messages.py)
     P15     ``_run_tool_loop``            (services/tool_loop.py)
-    P16     ``_max_iterations_fallback``  (services/tool_loop.py)
+    P16     ``_max_iterations_fallback``  (services/tool_loop_fallback.py)
 
 Home: its own module. ALT co-located it with ``classify_input`` and a large
 re-export facade in ``llm_service.py``; NEU already split classify to
@@ -31,11 +31,9 @@ from typing import TYPE_CHECKING, Any
 
 from boerdi.services.response_prompt_builder import _build_system_prompt
 from boerdi.services.response_tool_selection import _select_active_tools
-from boerdi.services.tool_loop import (
-    _assemble_messages,
-    _max_iterations_fallback,
-    _run_tool_loop,
-)
+from boerdi.services.tool_loop import _run_tool_loop
+from boerdi.services.tool_loop_fallback import _max_iterations_fallback
+from boerdi.services.tool_loop_messages import _assemble_messages
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession

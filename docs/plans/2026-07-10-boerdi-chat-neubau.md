@@ -69,6 +69,20 @@
    (`connected`/`phase`/`result`/`error`), Session-ID-Format `bb-<uuid>` — identisch zu ALT.
 7. **Dateigrenze ~300 Zeilen**, Funktionen ~50 — beim Portieren großer Alt-Module direkt am
    Verantwortlichkeits-Schnitt splitten (die Alt-Zerlegung gibt die Schnitte bereits vor).
+   **`Fidelity-Port-Ausnahme` (ergänzt 2026-08-13, Audit F-8):** die Klammer oben trifft nicht
+   immer zu. Wo ALT selbst *eine* Funktion hat, ist Zerlegen kein Verschieben, sondern ein
+   Rewrite — und gibt das AST-Gate auf, mit dem der Verbatim-Port gegen die Vorlage abgenommen
+   wurde; dasselbe gilt für einen geordneten Daten-Literal, dessen Reihenfolge tragend ist.
+   Solche Dateien dürfen über der Grenze liegen, wenn **alle drei** Punkte gelten:
+   (a) der Überhang steckt in EINER Funktion bzw. EINEM Literal — nicht in mehreren
+   Verantwortlichkeiten, die man trennen könnte; (b) der Modul-Docstring (Python) bzw. der
+   Kopfkommentar (TS) trägt das Wort **`Fidelity-Port-Ausnahme`** und begründet sie, damit
+   `grep -r "Fidelity-Port-Ausnahme"` alle Ausnahmen des Repos auflistet — Backend und
+   Frontend gleichermaßen; (c) es kommt nichts Neues hinzu — neue
+   Verantwortlichkeiten wandern in ein eigenes Modul, die Ausnahme ist kein
+   Wachstumsfreibrief. Sie **erlischt mit dem Cutover**: sobald ALT abgeschaltet ist, bindet
+   das AST-Gate nicht mehr, und die Dateien werden regulär zerlegt. Eine Datei über 300 Zeilen
+   **ohne** dieses Wort ist keine Ausnahme, sondern unentschiedene Schuld.
 8. **Secrets nur aus Env** (pydantic-settings); nie loggen, nie in Responses. Fehlermeldungen
    nach außen generisch (Audit-Erbe: Speech-502 generisch, keine Stacktraces).
 9. **Sicherheits-Erbe ist Anforderung ab Tag 1:** SSRF-Guard für alle ausgehenden URL-Fetches
@@ -125,7 +139,7 @@ Domänen-Module (die Zerlegungs-Kampagne 2026-07 hat genau diese Schnitte gescha
 | Reranker | **In-Proc-Scorer (kein Netzwerk-Dienst, V13)** hinter `card_reranker._get_reranker()`: Cross-Encoder (ALT `mmarco-mMiniLMv2-L12-H384-v1`) / **Bi-Encoder-Cosine (mehrsprachig, teilt 6-1-Embedder)** / lexikalisch / aus — **entschieden 2026-07-17: Embedding-Order-Default** (Bi-Encoder über den geteilten Embedder ≡ pgvector-Retrieval-Ordnung → kein Re-Compute; Seam `services/rag/rerank._get_reranker`, CE-Slot offen) | Apache-2.0 / MIT | In-Proc, `RERANK_*`-Threads-Knöpfe; TEI-Sidecar verworfen (Kosten, Nutzer 2026-07-12) |
 | Ingest-Extraktion | MarkItDown + SSRF-Guarded-Session (portiert) | MIT | bleibt |
 | Observability | **OpenTelemetry SDK** (+ FastAPI/HTTPX/SQLAlchemy-Instrumentierung) → **Jaeger all-in-one** | Apache-2.0 | Eigen-Tracer + Studio-Trace-Tab (DebugInfo je Turn BLEIBT als Response-Feld — Widget-Debugpanel + Quality-Logs sind Parität) |
-| Frontend | **Angular 21** Workspace (3 Projekte), Angular Material **M3**, `@angular/elements` | MIT | Next.js-Studio + getrennter Widget-Build |
+| Frontend | **Angular 22** Workspace (3 Projekte, TypeScript 6 — Sprung von 21 am 2026-08-13), Angular Material **M3**, `@angular/elements` | MIT | Next.js-Studio + getrennter Widget-Build |
 | Studio-Formulare | **eigener Schema-Renderer** (`schema-to-fields.ts`, JSON-Schema-getrieben) — **ngx-formly 2026-07-25 verworfen** (Begründung in 9-3); MD/MD-Rohtext im `<textarea>`, **Monaco vertagt** | — (keine neue Dep) | handgebaute React-Views |
 | Markdown im Widget | marked + DOMPurify | MIT / Apache-2.0∥MPL | bleibt |
 | Tour-UI | **KEINE Fremd-Lib** — Tour ist Multi-Page-Chat-Navigation (QR + Ticks), wird 1:1 portiert | — | v1-Fehlannahme korrigiert (shepherd wäre zudem AGPL) |

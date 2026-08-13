@@ -1,5 +1,9 @@
 """Turn phases P27-P28 (verbatim port of ALT ``chat_turn_links._finalize_links_and_metas``).
 
+Fidelity-Port-Ausnahme to the ~300-line rule (spec §0.7): the excess sits in ONE
+function (772 lines). ALT offers no seam to adopt here, and inventing one would be a
+rewrite that gives up the AST gate stated below. Lapses at cutover.
+
 Sibling of ``services/turn_assembly`` (P20-P24): the ALT ``chat_turn_*`` turn-phase
 orchestrators land in ``services/turn_*``. This one runs the post-answer rewriters
 (off-topic card filter, type-focus card-strip + honest Such-CTA text-replace, and the

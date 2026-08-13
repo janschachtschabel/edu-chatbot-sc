@@ -34,7 +34,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from boerdi.services import generate, llm, tool_loop
+from boerdi.services import generate, llm, tool_loop_messages
 from boerdi.settings import get_settings
 
 _SESSION = object()  # opaque; the orchestrator only forwards it
@@ -190,7 +190,7 @@ def _integ(monkeypatch, responses, *, raises=None):
     monkeypatch.setattr(generate, "_select_active_tools",
                         lambda *a, **kw: ([], None, True, False))
     monkeypatch.setattr(llm, "chat_completion", _SeqLLM(responses, raises=raises))
-    monkeypatch.setattr(tool_loop, "parse_wlo_cards", lambda text: [])
+    monkeypatch.setattr(tool_loop_messages, "parse_wlo_cards", lambda text: [])
     return asyncio.run(generate.generate_response(
         _SESSION, "hi", [], {}, {"tools": []}, "M01", {}, {}))
 

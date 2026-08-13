@@ -19,7 +19,7 @@ import json
 import logging
 from types import SimpleNamespace
 
-from boerdi.services import llm, tool_loop
+from boerdi.services import llm, tool_loop, tool_loop_fallback, tool_loop_messages
 from boerdi.settings import get_settings
 
 
@@ -50,7 +50,7 @@ def _run(monkeypatch, cap, *, messages=None, all_cards=None,
     get_settings.cache_clear()
     llm.reset()
     monkeypatch.setattr(llm, "_acompletion", cap)
-    return asyncio.run(tool_loop._max_iterations_fallback(
+    return asyncio.run(tool_loop_fallback._max_iterations_fallback(
         [] if messages is None else messages,
         [] if all_cards is None else all_cards,
         [] if tools_called is None else tools_called,
@@ -150,7 +150,7 @@ def _run_assemble(monkeypatch, *, rag_ctx=None, settings=None,
         or {"top_k": 7, "min_score": 0.4, "max_chars_per_area": 5000})
     monkeypatch.setattr(retrieval, "get_rag_context", rag_ctx or _RagCtx())
     if parse_cards is not None:
-        monkeypatch.setattr(tool_loop, "parse_wlo_cards", parse_cards)
+        monkeypatch.setattr(tool_loop_messages, "parse_wlo_cards", parse_cards)
     if parse_topic is not None:
         monkeypatch.setattr(parsers, "parse_wlo_topic_page_cards", parse_topic)
 
@@ -173,7 +173,7 @@ def _run_assemble(monkeypatch, *, rag_ctx=None, settings=None,
         _rag_allowed_for_pattern=True,
     )
     args.update(kw)
-    return asyncio.run(tool_loop._assemble_messages(**args))
+    return asyncio.run(tool_loop_messages._assemble_messages(**args))
 
 
 def test_assemble_minimal_stack_and_settings_passthrough(monkeypatch):
@@ -992,7 +992,7 @@ def test_fallback_bucht_in_den_merkposten(monkeypatch):
     get_settings.cache_clear()
     llm.reset()
     monkeypatch.setattr(llm, "_acompletion", cap)
-    text, *_ = asyncio.run(tool_loop._max_iterations_fallback(
+    text, *_ = asyncio.run(tool_loop_fallback._max_iterations_fallback(
         [{"role": "user", "content": "finde X"}], [{"node_id": "a"}], [], [],
         usage_acc=acc,
     ))

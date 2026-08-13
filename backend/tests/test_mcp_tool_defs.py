@@ -9,12 +9,12 @@ Import aus ``boerdi.services.mcp.tool_defs`` (in ALT lief er über die
 
 from __future__ import annotations
 
-from boerdi.services.mcp.tool_defs import (
+from boerdi.services.mcp.tool_args import (
     _JSON_CAPABLE_TOOLS,
     _TOOL_ARG_MODELS,
-    TOOL_DEFINITIONS,
     validate_tool_args,
 )
+from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 
 
 # ── validate_tool_args ──────────────────────────────────────────────────
@@ -50,6 +50,50 @@ def test_tool_definitions_shape():
         assert td["function"]["name"]
     names = {td["function"]["name"] for td in TOOL_DEFINITIONS}
     assert "search_wlo_collections" in names
+
+
+# Die REIHENFOLGE ist tragend, nicht kosmetisch: ``_select_active_tools``
+# reicht ``list(TOOL_DEFINITIONS)`` unverändert an den LLM-Aufruf durch, der
+# Katalog geht also genau so in den Prompt. Eine Umsortierung ist deshalb keine
+# Formatierung, sondern eine Verhaltensänderung — sie kippte schon einmal zwei
+# fremde Tests (siehe Docstring von ``response_tool_selection``). Alle übrigen
+# Prüfungen hier arbeiten mit ``set(...)`` und würden das nicht bemerken.
+#
+# Der Pin schlägt ABSICHTLICH auch bei einem neuen Werkzeug an: wer eines
+# ergänzt, soll die Einfügeposition bewusst wählen und hier nachtragen, statt
+# sie dem Zufall des Anhängens zu überlassen.
+_TOOL_ORDER = [
+    "get_wlo_content_text",
+    "get_collection_stats",
+    "get_node_breadcrumb",
+    "get_compendium_text",
+    "lookup_wlo_publishers",
+    "search_wlo_within_collection",
+    "get_related_content",
+    "get_node_collections",
+    "search_skill",
+    "get_skill",
+    "search_wlo_collections",
+    "search_wlo_content",
+    "search_wlo_topic_pages",
+    "search_wlo_all",
+    "get_topic_page_content",
+    "get_collection_contents",
+    "get_node_details",
+    "lookup_wlo_vocabulary",
+    "get_subject_portals",
+    "browse_collection_tree",
+    "wlo_health_check",
+    "get_nodes_details",
+    "get_skill_registry",
+    "get_url_text",
+    "get_wikipedia_summary",
+    "wlo_auth_status",
+]
+
+
+def test_tool_definitions_order_is_pinned():
+    assert [td["function"]["name"] for td in TOOL_DEFINITIONS] == _TOOL_ORDER
 
 
 # ── W4-1: was wir dem LLM über die Tools sagen, muss stimmen ────────────
