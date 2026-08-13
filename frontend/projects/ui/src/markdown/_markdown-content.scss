@@ -32,6 +32,48 @@
     &:visited { color: inherit !important; }
   }
 
+  // Tabellen aus dem Markdown (GFM). Sie waren bisher GAR NICHT gestaltet und
+  // erbten damit das `word-break: break-word` von oben. Für `table-layout:
+  // auto` heisst das: die minimale Spaltenbreite ist EIN Zeichen — der Browser
+  // darf eine Spalte beliebig schmal rechnen und bricht mitten im Wort.
+  // Am Server gemessen (2026-08-13): eine Spalte „Bereich" wurde zu
+  // „Be / rei / ch" gestapelt, während daneben Platz frei blieb.
+  //
+  // `word-break: normal` an den Zellen nimmt dem Browser diese Erlaubnis
+  // wieder; `overflow-wrap: anywhere` lässt lange URLs trotzdem umbrechen,
+  // ohne die Spaltenberechnung zu beeinflussen. Passt die Tabelle dann nicht
+  // mehr, soll sie WAAGERECHT ROLLEN statt sich zu stauchen — deshalb der
+  // eigene Scroll-Kontext.
+  //
+  // Kein Unit-Test kann das prüfen: jsdom rechnet kein Layout (dieselbe Lage
+  // wie bei der Panel-Höhe in `_widget-panel.scss`). Nachweis am Browser.
+  ::ng-deep table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 0.6em 0;
+  }
+  ::ng-deep th,
+  ::ng-deep td {
+    word-break: normal;
+    // `break-word` und NICHT `anywhere`: `anywhere` fliesst in die
+    // Mindestbreiten-Berechnung ein und baut den Fehler wieder ein. Am Browser
+    // gemessen (Spalte „Bereich" in 560px Container): ungestylt 29px/3 Zeilen ·
+    // mit `anywhere` 46px · mit `break-word` 78px/1 Zeile.
+    overflow-wrap: break-word;
+    padding: 0.35em 0.6em;
+    text-align: left;
+    vertical-align: top;
+  }
+  ::ng-deep th {
+    font-weight: 600;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.22);
+  }
+  ::ng-deep td {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
   // Material-Symbol-Icon vor Inline-Treffer-Links (Lotsen/Inline-Modus).
   // Backend emittiert ``@@ICON:NAME@@`` als Sentinel, ``renderMarkdown``
   // ersetzt es mit dem Inline-SVG aus ``shared/icons.ts``.
