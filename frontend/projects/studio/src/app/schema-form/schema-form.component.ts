@@ -10,13 +10,16 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   input,
   output,
   signal,
 } from '@angular/core';
 
+import { ChoicesApi } from '../core/choices-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
+import { type FormSection, formSections } from './form-sections';
 import { removeAt, renameKeyAt, setAt } from './form-value';
 import type { JsonSchema } from './json-schema';
 import { pickFields } from './pick-fields';
@@ -33,13 +36,40 @@ import { rootField, type SchemaField } from './schema-to-fields';
         keys: unmapped().join(', '),
       }) }}</p>
     }
-    <studio-schema-field
-      [field]="rendered()"
-      [path]="[]"
-      [value]="value()"
-      [idPrefix]="idPrefix()"
-      (edit)="apply($event)"
-    />
+    @if (sections().length) {
+      @for (section of sections(); track section.id) {
+        <details class="sf-section" [open]="$first">
+          <summary class="sf-section-head">
+            {{ section.key || t('schemaForm.basics') }}
+          </summary>
+          <studio-schema-field
+            [field]="section.field"
+            [path]="section.basePath"
+            [value]="valueAt(section.basePath)"
+            [idPrefix]="idPrefix()"
+            (edit)="apply($event)"
+          />
+        </details>
+      }
+    } @else {
+      <studio-schema-field
+        [field]="rendered()"
+        [path]="[]"
+        [value]="value()"
+        [idPrefix]="idPrefix()"
+        (edit)="apply($event)"
+      />
+    }
+    <!-- Eine Vorschlagsliste je KATALOG, hier und nicht am Feld: ein Muster
+         nennt bis zu acht Werkzeuge, und jedes Feld mit einer eigenen Liste
+         schriebe denselben Vorrat achtmal in die Seite. -->
+    @for (name of catalogsInUse(); track name) {
+      <datalist [id]="idPrefix() + '-cat-' + name">
+        @for (entry of choices.entries(name); track entry.value) {
+          <option [value]="entry.value" [label]="entry.label"></option>
+        }
+      </datalist>
+    }
   `,
   styles: `
     .sf-note {
@@ -60,7 +90,9 @@ import { rootField, type SchemaField } from './schema-to-fields';
 })
 export class SchemaFormComponent {
   private readonly lang = inject(StudioLanguageService);
+  protected readonly choices = inject(ChoicesApi);
   protected readonly plural = this.lang.plural;
+  protected readonly t = this.lang.t;
 
   readonly schema = input.required<JsonSchema>();
   readonly value = input.required<Record<string, unknown>>();
@@ -83,6 +115,40 @@ export class SchemaFormComponent {
     const paths = this.visiblePaths();
     return paths ? pickFields(this.field(), new Set(paths)) : this.field();
   });
+
+  /**
+   * Die aufklappbaren Abschnitte (S5) — leer heißt „ungegliedert rendern".
+   *
+   * Nicht bei Reitern: `visiblePaths` schneidet den Baum bereits, und eine
+   * Gliederung im Reiter wäre eine Gliederung der Gliederung.
+   */
+  readonly sections = computed<readonly FormSection[]>(() =>
+    this.visiblePaths() ? [] : formSections(this.field()),
+  );
+
+  /** Die Kataloge, aus denen dieses Schema Vorschläge zieht (S4). */
+  readonly catalogsInUse = computed<readonly string[]>(() => [
+    ...collectCatalogs(this.field(), new Set<string>()),
+  ]);
+
+  /**
+   * Die Kataloge einmal je Formular holen, und nur wenn dieses Schema sie
+   * überhaupt braucht (S4). Hier und nicht im Feld: ein Bereich hat leicht ein
+   * Dutzend Katalog-Felder, und alle zeigen auf dieselben Listen — ein Effekt
+   * je Feld wäre ein Dutzend Effekte für einen Abruf.
+   */
+  private readonly primeCatalogs = effect(() => {
+    if (this.catalogsInUse().length > 0) void this.choices.prime();
+  });
+
+  /** Der Ausschnitt des Dokuments, an dem ein Abschnitt ansetzt. */
+  protected valueAt(path: readonly string[]): unknown {
+    return path.reduce<unknown>(
+      (node, key) =>
+        node && typeof node === 'object' ? (node as Record<string, unknown>)[key] : undefined,
+      this.value(),
+    );
+  }
 
   /**
    * Document paths no field renders — at ANY depth. Being told beats
@@ -121,6 +187,14 @@ export class SchemaFormComponent {
     this.fieldErrors.set(next);
     this.errorsChange.emit(Object.keys(next));
   }
+}
+
+/** Jeder Katalog, den dieser Baum nennt — je Name einmal. */
+function collectCatalogs(field: SchemaField, found: Set<string>): Set<string> {
+  if (field.catalog) found.add(field.catalog);
+  if (field.item) collectCatalogs(field.item, found);
+  for (const child of field.children ?? []) collectCatalogs(child, found);
+  return found;
 }
 
 /** Walk field tree and document together; a `raw` field covers its subtree. */

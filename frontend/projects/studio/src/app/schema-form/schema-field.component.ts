@@ -17,7 +17,9 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
+import { ChoicesApi } from '../core/choices-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import type { ValuePath } from './form-value';
 import { JsonValueComponent } from './json-value.component';
@@ -40,13 +42,14 @@ interface MapEntry {
   selector: 'studio-schema-field',
   // forwardRef: the template recurses into this very component, and a bare
   // self-reference would read the binding before the class exists.
-  imports: [JsonValueComponent, forwardRef(() => SchemaFieldComponent)],
+  imports: [JsonValueComponent, RouterLink, forwardRef(() => SchemaFieldComponent)],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './schema-field.component.html',
   styleUrl: './schema-form.scss',
 })
 export class SchemaFieldComponent {
   private readonly lang = inject(StudioLanguageService);
+  private readonly choices = inject(ChoicesApi);
   protected readonly t = this.lang.t;
 
   readonly field = input.required<SchemaField>();
@@ -124,6 +127,53 @@ export class SchemaFieldComponent {
   });
   readonly asBoolean = computed(() => this.value() === true);
 
+  /**
+   * Die Optionen eines Auswahlfeldes: die leere zuerst, dann der Vorrat — und
+   * ein gespeicherter Wert, den der Vorrat nicht kennt, als eigener Eintrag.
+   *
+   * Ohne diesen letzten Teil zeigte das Feld die erste Option an, obwohl etwas
+   * anderes gespeichert ist, und der nächste Speichervorgang schriebe die
+   * Anzeige fest. Ein Auswahlfeld darf einen Bestandswert nicht wegwerfen — es
+   * darf ihn nur ausweisen.
+   */
+  readonly options = computed<readonly { value: string; label: string }[]>(() => {
+    const vorrat = this.field().choices ?? [];
+    const rows = [
+      { value: '', label: this.lang.t('schemaField.noChoice') },
+      ...vorrat.map((value) => ({ value, label: value })),
+    ];
+    const current = this.asText();
+    if (current && !vorrat.includes(current)) {
+      rows.push({ value: current, label: this.lang.t('schemaField.foreignChoice', { current }) });
+    }
+    return rows;
+  });
+
+  /**
+   * Die `id` der Vorschlagsliste, oder `null` wenn das Feld keine hat. Aus dem
+   * KATALOG-Namen gebildet, nicht aus dem Feld: die Liste selbst rendert das
+   * Formular einmal je Katalog (`SchemaFormComponent`), sonst stünde derselbe
+   * Vorrat einmal je Listeneintrag in der Seite.
+   */
+  readonly datalistId = computed(() => {
+    const catalog = this.field().catalog;
+    return catalog ? `${this.idPrefix()}-cat-${catalog}` : null;
+  });
+
+  /**
+   * Der Sprung zum gewählten Element, als Routen-Segmente. `null`, solange der
+   * Wert in keinem Katalog steht oder das Element keine eigene Seite hat
+   * (Werkzeuge) — dann zeigt das Formular keinen Link statt eines toten.
+   *
+   * Segmente und nicht ein Stück: ein Bereichsschlüssel trägt einen
+   * Schrägstrich (`03-patterns/m06-…`), und als EIN Segment übergeben landet er
+   * `%2F`-kodiert in der Adresse. Ebenso in `areas.component.ts`.
+   */
+  readonly linkSegments = computed<readonly string[] | null>(() => {
+    const area = this.choices.areaFor(this.field().catalog, this.asText());
+    return area ? ['/bereich', ...area.split('/')] : null;
+  });
+
   readonly items = computed<readonly unknown[]>(() => {
     const value = this.value();
     return Array.isArray(value) ? value : [];
@@ -152,8 +202,10 @@ export class SchemaFieldComponent {
     this.edit.emit({ kind: 'set', path: this.path(), value });
   }
 
+  /** Text, Textfläche und Auswahlfeld — alle drei tragen ihren Wert in `value`. */
   onText(event: Event): void {
-    this.setValue((event.target as HTMLInputElement | HTMLTextAreaElement).value);
+    const control = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+    this.setValue(control.value);
   }
 
   onNumber(event: Event): void {

@@ -19,6 +19,7 @@ from boerdi.api import (
     chat,
     config,
     config_areas,
+    config_choices,
     config_elements,
     config_snapshots,
     health,
@@ -166,6 +167,7 @@ def create_app() -> FastAPI:
     app.include_router(config.router)
     app.include_router(config.public_router)
     app.include_router(config_areas.router)
+    app.include_router(config_choices.router)
     app.include_router(config_elements.router)
     app.include_router(config_snapshots.router)
     app.include_router(rag.router)

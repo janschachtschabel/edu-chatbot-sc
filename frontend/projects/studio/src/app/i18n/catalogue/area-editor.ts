@@ -86,6 +86,9 @@ export const AREA_EDITOR: CataloguePart = {
     /** Steht im Fehlertext an der Stelle eines Feldpfades, wenn der Fehler an
      *  der Wurzel des Dokuments sitzt. */
     'schemaForm.root': '(Wurzel)',
+    /** Der Sammel-Abschnitt der einzeiligen Felder (S5). Die übrigen
+     *  Abschnitte tragen ihren Config-Schlüssel, dieser hat keinen. */
+    'schemaForm.basics': 'Grundwerte',
 
     // Die Form-Namen tragen ihren Artikel, weil der Satz sie so braucht — im
     // Englischen ist es „a"/„an", und das entscheidet die Sprache, nicht der
@@ -109,6 +112,16 @@ export const AREA_EDITOR: CataloguePart = {
     'schemaField.emptyKey': 'Ein Schlüssel darf nicht leer sein.',
     'schemaField.keyTaken': 'Der Schlüssel „{key}“ ist schon vergeben.',
     'schemaField.required': '(Pflichtfeld)',
+
+    // ── Auswahl und Vorschlagsliste (S3/S4) ─────────────────────────
+    // Die WERTE selbst stehen nicht hier: sie sind Konfigurationsschlüssel
+    // (`smart`, `M06`, `search_wlo_all`), keine Prosa — dieselbe Grenze wie
+    // beim Sicherheitslevel-Wähler darunter.
+    'schemaField.noChoice': '— nicht gesetzt —',
+    /** Ein gespeicherter Wert, den die Auswahlliste nicht kennt. Er wird
+     *  weitergeführt statt weggeworfen, aber als Fremdkörper ausgewiesen. */
+    'schemaField.foreignChoice': '{current} — nicht in der Auswahl',
+    'schemaField.openTarget': '{value} öffnen',
 
     // ── Sicherheitslevel-Wähler ─────────────────────────────────────
     // Die NAMEN der fünf Stufen („Off", „Regex", „Standard", „Strict",
@@ -186,6 +199,7 @@ export const AREA_EDITOR: CataloguePart = {
       '{count} keys are not shown here because the area model does not know them: {keys}. '
       + 'They survive the save; to change them, use the “Source” tab.',
     'schemaForm.root': '(root)',
+    'schemaForm.basics': 'Basics',
 
     'schemaField.shape.list': 'a list',
     'schemaField.shape.object': 'an object',
@@ -204,6 +218,10 @@ export const AREA_EDITOR: CataloguePart = {
     'schemaField.emptyKey': 'A key must not be empty.',
     'schemaField.keyTaken': 'The key “{key}” is already taken.',
     'schemaField.required': '(required)',
+
+    'schemaField.noChoice': '— not set —',
+    'schemaField.foreignChoice': '{current} — not in the list',
+    'schemaField.openTarget': 'Open {value}',
 
     'safetyLevel.legend': 'Safety level',
     'safetyLevel.hint':

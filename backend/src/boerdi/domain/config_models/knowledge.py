@@ -2,11 +2,11 @@
 rag-config is the ONLY YAML whose root is a plain area-name mapping.
 """
 
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import RootModel
 
-from boerdi.domain.config_models._shared import AreaModel
+from boerdi.domain.config_models._shared import AreaModel, Catalog
 
 
 class RagAreaDef(AreaModel):
@@ -49,6 +49,9 @@ class RagAreaRule(AreaModel):
 
 class GuideRulesArea(AreaModel):
     message_rules: list[MessageRule] = []
+    # Die SCHLÜSSEL sind RAG-Bereichsnamen, nicht die Werte — dafür gibt es im
+    # generischen Formular (noch) keine Vorschlagsliste. Bewusst so belassen:
+    # ein Katalog am Wert würde hier auf das Falsche zeigen.
     rag_area_rules: dict[str, RagAreaRule] = {}
 
 
@@ -59,9 +62,9 @@ class GoldTurn(AreaModel):
 
 class GoldFlow(AreaModel):
     id: str = ""
-    persona: str = ""
+    persona: Annotated[str, Catalog("personas")] = ""
     title: str = ""
-    intents: list[str] = []
+    intents: list[Annotated[str, Catalog("intents")]] = []
     turns: list[GoldTurn] = []
 
 

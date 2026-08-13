@@ -25,6 +25,41 @@ from boerdi.settings import get_settings
 _SEEDS = Path(__file__).resolve().parents[1] / "seeds"
 
 
+def test_kein_seed_schluessel_wird_als_boolean_gelesen() -> None:
+    """YAML 1.1 liest ``off``/``on``/``yes``/``no`` als Boolean — auch als SCHLÜSSEL.
+
+    Befund 2026-08-13: ``presets:`` in ``01-base/safety-config.yaml`` hatte den
+    Schlüssel ``off:``. PyYAML lieferte dafür ``False``. Folge: die
+    Sicherheitsstufe „off" fand ihr Preset nie (das Studio meldete „kein Preset
+    hinterlegt") und zeigte stattdessen einen Geister-Eintrag namens ``false``.
+    Ein Speichern über die Oberfläche hätte daraus die Zeichenkette ``"false"``
+    gemacht — weder das eine noch das andere.
+
+    Geprüft wird der ganze Baum, nicht die eine Datei: die Falle schnappt bei
+    jedem neuen ``off:``/``no:``/``yes:``-Schlüssel wieder zu, und sie ist beim
+    Lesen unsichtbar — im Editor steht da ein Wort, im Speicher ein Boolean.
+    """
+    treffer: list[str] = []
+
+    def pruefe(knoten: Any, pfad: str) -> None:
+        if isinstance(knoten, dict):
+            for schluessel, wert in knoten.items():
+                if not isinstance(schluessel, str):
+                    treffer.append(
+                        f"{pfad}: {schluessel!r} ({type(schluessel).__name__})")
+                pruefe(wert, f"{pfad}/{schluessel}")
+        elif isinstance(knoten, list):
+            for i, wert in enumerate(knoten):
+                pruefe(wert, f"{pfad}[{i}]")
+
+    for datei in sorted(_SEEDS.rglob("*.yaml")):
+        pruefe(yaml.safe_load(datei.read_text(encoding="utf-8")), datei.name)
+
+    assert not treffer, (
+        "Seed-Schlüssel wird nicht als Zeichenkette gelesen — in "
+        'Anführungszeichen setzen ("off:"): ' + "; ".join(treffer))
+
+
 def _pattern_frontmatter() -> dict[str, dict[str, Any]]:
     """``{Pattern-ID: Frontmatter}`` aller Seed-Antwortmuster."""
     out: dict[str, dict[str, Any]] = {}

@@ -209,3 +209,61 @@ def test_qr_englisch_haengt_den_hinweis_an(_qr_env):
     system = _qr_system(_qr_env, lang="en")
     assert system.endswith(template_hint("en").strip())
     assert "Englisch (British English)" in system
+
+
+# ── Laengen-Deckel (display_rules.quick_replies.max_chars) ─────────────────
+# Vor diesem Paket war die einzige Laengenregel „max 6-8 Woerter" — im
+# Deutschen kein Laengenmass: „Erstelle ein Arbeitsblatt zu Kompetenzen
+# geometrischer Optik" sind sieben Woerter und 60 Zeichen, und die Pille bricht
+# um. Und niemand prueft nach, was das Modell abliefert.
+
+_ZU_LANG = "Erstelle ein Arbeitsblatt zu Kompetenzen geometrischer Optik"
+
+
+def _budget(monkeypatch, value: int) -> None:
+    monkeypatch.setattr(
+        qr, "load_display_rules_config",
+        lambda: {"quick_replies": {"max_chars": value}},
+    )
+
+
+def test_qr_verwirft_zu_lange_vorschlaege(_qr_env) -> None:
+    # Verworfen und NICHT gekuerzt: der Pillentext IST die Nachricht, die der
+    # Klick abschickt — ein abgeschnittener Satz waere schlimmer als nichts.
+    _budget(_qr_env, 40)
+    out, _ = _run(_qr_env, f"{_ZU_LANG}\nZeig mir mehr Videos\nAnderes Thema")
+    assert out == ["Zeig mir mehr Videos", "Anderes Thema"]
+
+
+def test_qr_misst_beim_lotsen_chip_nur_die_beschriftung(_qr_env) -> None:
+    # Im Knopf steht nur das Label (``guide-qr.ts``); zaehlte die URL mit,
+    # fiele jeder Lotsen-Chip durch den Deckel.
+    _budget(_qr_env, 30)
+    lotse = "__guide__|Fachportal-Uebersicht|https://wirlernenonline.de/fachportale"
+    out, _ = _run(_qr_env, f"{lotse}\nZeig mir mehr")
+    assert out == [lotse, "Zeig mir mehr"]
+
+
+def test_qr_deckel_null_heisst_kein_deckel(_qr_env) -> None:
+    _budget(_qr_env, 0)
+    out, _ = _run(_qr_env, _ZU_LANG)
+    assert out == [_ZU_LANG]
+
+
+def test_qr_prompt_nennt_dieselbe_zahl_wie_der_filter(_qr_env) -> None:
+    # Sonst verwirft der Code, was der Prompt ausdruecklich erlaubt hat.
+    _budget(_qr_env, 44)
+    _, cap = _run(_qr_env, "Zeig mir mehr")
+    system = _system_of(cap)
+    assert "44 Zeichen" in system
+    assert "Woerter" not in system
+
+
+def test_qr_unlesbare_config_faellt_auf_die_vorgabe_zurueck(_qr_env) -> None:
+    def _kaputt():
+        raise RuntimeError("config store nicht erreichbar")
+
+    _qr_env.setattr(qr, "load_display_rules_config", _kaputt)
+    out, cap = _run(_qr_env, f"{_ZU_LANG}\nZeig mir mehr")
+    assert out == ["Zeig mir mehr"]
+    assert f"{qr.QR_MAX_CHARS_DEFAULT} Zeichen" in _system_of(cap)

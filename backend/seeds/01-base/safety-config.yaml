@@ -4,7 +4,11 @@
 security_level: standard
 
 presets:
-  off:       { moderation: never,  legal_classifier: never, prompt_injection: false }
+  # In Anführungszeichen, sonst liest YAML 1.1 den Schlüssel als Boolean False —
+  # dann findet die Stufe „off" ihr Preset nie und das Studio zeigt einen
+  # Geister-Eintrag namens `false`. Ein Wächter in `test_config_seed_tree.py`
+  # hält das für den ganzen Seed-Baum fest.
+  "off":     { moderation: never,  legal_classifier: never, prompt_injection: false }
   regex:     { moderation: never,  legal_classifier: never, prompt_injection: true }
   standard:  { moderation: always, legal_classifier: never, prompt_injection: true }
   strict:    { moderation: always, legal_classifier: smart, prompt_injection: true, legal_trigger_override: true }

@@ -89,6 +89,12 @@ class InlineCardLinksRules(AreaModel):
 
 class QuickRepliesRules(AreaModel):
     max_count: int = 4
+    # Wie lang eine Pille sein darf, in ZEICHEN. Der Vorgabewert 48 ist
+    # gemessen, nicht geraten: die Beispiel-Vorschlaege im Generator-Prompt
+    # selbst reichen bis 47 Zeichen. 0 = kein Deckel. Wirkt beim Erzeugen
+    # (``services/quick_replies_llm``) — zu lange Vorschlaege werden
+    # verworfen, nie gekuerzt.
+    max_chars: int = 48
     inline_fallback_enabled: bool = True
 
 

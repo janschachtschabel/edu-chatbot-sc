@@ -2,9 +2,9 @@
 Shapes verified against the ALT tree inventory (2026-07-11).
 """
 
-from typing import Any
+from typing import Annotated, Any
 
-from boerdi.domain.config_models._shared import AreaModel
+from boerdi.domain.config_models._shared import AreaModel, Catalog
 
 
 class EntityDef(AreaModel):
@@ -67,7 +67,7 @@ class StateDef(AreaModel):
     description: str = ""
     role: str = ""
     bot_directive: str = ""
-    next_likely: list[str] = []
+    next_likely: list[Annotated[str, Catalog("states")]] = []
     selection_criteria: list[str] = []
 
 
@@ -104,7 +104,7 @@ class PersonaFrontmatter(AreaModel):
     discriminators: list[PersonaDiscriminator] = []
     goals: list[str] = []
     rules: list[str] = []
-    typical_intents: list[str] = []
+    typical_intents: list[Annotated[str, Catalog("intents")]] = []
 
 
 class PersonaArea(AreaModel):

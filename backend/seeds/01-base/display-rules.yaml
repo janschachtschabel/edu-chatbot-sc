@@ -42,6 +42,11 @@ display_rules:
 
   quick_replies:
     max_count: 2
+    # Zeichen, nicht Wörter: „Erstelle ein Arbeitsblatt zu Kompetenzen
+    # geometrischer Optik" sind sieben Wörter — und eine zweizeilige Pille.
+    # Der Generator setzt die Zahl in seinen Prompt UND verwirft, was darüber
+    # liegt (nie gekürzt: der Pillentext ist die Nachricht). 0 = kein Deckel.
+    max_chars: 48
     inline_fallback_enabled: true
 
   prompt_anzeige_konsistenz:

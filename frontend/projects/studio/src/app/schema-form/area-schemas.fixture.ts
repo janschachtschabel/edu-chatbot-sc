@@ -237,12 +237,14 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "intent": {
             "default": "",
             "title": "Intent",
-            "type": "string"
+            "type": "string",
+            "x-catalog": "intents"
           },
           "pattern": {
             "default": "",
             "title": "Pattern",
-            "type": "string"
+            "type": "string",
+            "x-catalog": "patterns"
           },
           "note": {
             "anyOf": [
@@ -278,7 +280,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "intent": {
             "default": "",
             "title": "Intent",
-            "type": "string"
+            "type": "string",
+            "x-catalog": "intents"
           },
           "triggers": {
             "default": [],
@@ -310,7 +313,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "persona": {
             "default": "",
             "title": "Persona",
-            "type": "string"
+            "type": "string",
+            "x-catalog": "personas"
           },
           "triggers": {
             "default": [],
@@ -631,6 +635,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "$ref": "#/$defs/QuickRepliesRules",
             "default": {
               "max_count": 4,
+              "max_chars": 48,
               "inline_fallback_enabled": true
             }
           },
@@ -759,6 +764,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Max Count",
             "type": "integer"
           },
+          "max_chars": {
+            "default": 48,
+            "title": "Max Chars",
+            "type": "integer"
+          },
           "inline_fallback_enabled": {
             "default": true,
             "title": "Inline Fallback Enabled",
@@ -827,6 +837,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           },
           "quick_replies": {
             "inline_fallback_enabled": true,
+            "max_chars": 48,
             "max_count": 4
           },
           "prompt_anzeige_konsistenz": {
@@ -837,6 +848,70 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       }
     },
     "title": "DisplayRulesArea",
+    "type": "object"
+  },
+  "01-base/engine": {
+    "$defs": {
+      "AgentLimits": {
+        "additionalProperties": true,
+        "description": "Die Deckel der Agent-Schleife.\n\nAlle vier sind nötig, weil ein MCP-Aufruf gemessen bis 23 s steht: ohne Frist\nkönnte ein Lauf mit 12 Iterationen acht Minuten dauern, ohne Budget beliebig\nviel kosten. ``ge``/``le`` sind kein Zierrat — das Studio schreibt über\n``PUT /config/data/{area}`` direkt gegen dieses Modell, und eine Frist von 0 s\nbeendete jeden Lauf vor dem ersten Werkzeug.",
+        "properties": {
+          "max_iterations": {
+            "default": 12,
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Max Iterations",
+            "type": "integer"
+          },
+          "deadline_s": {
+            "default": 90,
+            "maximum": 600,
+            "minimum": 5,
+            "title": "Deadline S",
+            "type": "integer"
+          },
+          "token_budget": {
+            "default": 60000,
+            "minimum": 1000,
+            "title": "Token Budget",
+            "type": "integer"
+          },
+          "write_mode": {
+            "default": "propose",
+            "enum": [
+              "propose",
+              "execute"
+            ],
+            "title": "Write Mode",
+            "type": "string"
+          },
+          "safety": {
+            "default": true,
+            "title": "Safety",
+            "type": "boolean"
+          }
+        },
+        "title": "AgentLimits",
+        "type": "object"
+      }
+    },
+    "additionalProperties": true,
+    "description": "Der Umschalter plus die Deckel der Agent-Schleife.",
+    "properties": {
+      "mode": {
+        "default": "pattern",
+        "enum": [
+          "pattern",
+          "agent"
+        ],
+        "title": "Mode",
+        "type": "string"
+      },
+      "agent": {
+        "$ref": "#/$defs/AgentLimits"
+      }
+    },
+    "title": "EngineArea",
     "type": "object"
   },
   "04-entities/entities": {
@@ -941,7 +1016,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "persona": {
             "default": "",
             "title": "Persona",
-            "type": "string"
+            "type": "string",
+            "x-catalog": "personas"
           },
           "title": {
             "default": "",
@@ -951,7 +1027,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "intents": {
             "default": [],
             "items": {
-              "type": "string"
+              "type": "string",
+              "x-catalog": "intents"
             },
             "title": "Intents",
             "type": "array"
@@ -1620,7 +1697,12 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "anyOf": [
               {
                 "items": {
-                  "type": "string"
+                  "type": "string",
+                  "x-choices": [
+                    "llm",
+                    "mcp",
+                    "rag"
+                  ]
                 },
                 "type": "array"
               },
@@ -1635,7 +1717,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "anyOf": [
               {
                 "items": {
-                  "type": "string"
+                  "type": "string",
+                  "x-catalog": "rag_areas"
                 },
                 "type": "array"
               },
@@ -1650,7 +1733,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "anyOf": [
               {
                 "items": {
-                  "type": "string"
+                  "type": "string",
+                  "x-catalog": "tools"
                 },
                 "type": "array"
               },
@@ -1665,7 +1749,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "anyOf": [
               {
                 "items": {
-                  "type": "string"
+                  "type": "string",
+                  "x-catalog": "entities"
                 },
                 "type": "array"
               },
@@ -1691,7 +1776,12 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "quick_replies_mode": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "x-choices": [
+                  "exact",
+                  "speculative",
+                  "none"
+                ]
               },
               {
                 "type": "null"
@@ -1996,7 +2086,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "typical_intents": {
             "default": [],
             "items": {
-              "type": "string"
+              "type": "string",
+              "x-catalog": "intents"
             },
             "title": "Typical Intents",
             "type": "array"
@@ -2135,9 +2226,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       }
     },
     "additionalProperties": true,
+    "description": "Währung und Preise der Tafel.\n\n``currency`` ist ein ISO-4217-Code (drei Buchstaben), keine freie Angabe:\ndie Kostenschau reicht ihn an ``Intl.NumberFormat`` weiter, und das wirft\nbei allem anderen einen ``RangeError``, der die ganze Ansicht leerte.\nDer Rückfall dort (Zahl plus roher Code) bleibt für den Weg am Studio\nvorbei — ``seed_io.import_tree`` schreibt ungeprüft, genau wie bei\n``ge=0``. Gross- und Kleinschreibung ist egal; ``Intl`` nimmt beide.",
     "properties": {
       "currency": {
         "default": "EUR",
+        "pattern": "^[A-Za-z]{3}$",
         "title": "Currency",
         "type": "string"
       },
@@ -2302,12 +2395,21 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "mode": {
             "default": "",
             "title": "Mode",
-            "type": "string"
+            "type": "string",
+            "x-choices": [
+              "off",
+              "smart",
+              "always"
+            ]
           },
           "provider": {
             "default": "",
             "title": "Provider",
-            "type": "string"
+            "type": "string",
+            "x-choices": [
+              "openai",
+              "none"
+            ]
           },
           "legal_classifier": {
             "default": false,
@@ -2435,12 +2537,22 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "moderation": {
             "default": "",
             "title": "Moderation",
-            "type": "string"
+            "type": "string",
+            "x-choices": [
+              "never",
+              "smart",
+              "always"
+            ]
           },
           "legal_classifier": {
             "default": "",
             "title": "Legal Classifier",
-            "type": "string"
+            "type": "string",
+            "x-choices": [
+              "never",
+              "smart",
+              "always"
+            ]
           },
           "prompt_injection": {
             "default": false,
@@ -2486,7 +2598,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       "crisis_blocked_tools": {
         "default": [],
         "items": {
-          "type": "string"
+          "type": "string",
+          "x-catalog": "tools"
         },
         "title": "Crisis Blocked Tools",
         "type": "array"
@@ -2494,12 +2607,14 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       "crisis_pattern": {
         "default": "",
         "title": "Crisis Pattern",
-        "type": "string"
+        "type": "string",
+        "x-catalog": "patterns"
       },
       "threat_pattern": {
         "default": "",
         "title": "Threat Pattern",
-        "type": "string"
+        "type": "string",
+        "x-catalog": "patterns"
       },
       "escalation": {
         "$ref": "#/$defs/EscalationBlock",
@@ -2702,7 +2817,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "next_likely": {
             "default": [],
             "items": {
-              "type": "string"
+              "type": "string",
+              "x-catalog": "states"
             },
             "title": "Next Likely",
             "type": "array"
@@ -3148,6 +3264,7 @@ export const AREA_KEYS: readonly string[] = [
   "01-base/context-actions",
   "01-base/device-config",
   "01-base/display-rules",
+  "01-base/engine",
   "01-base/guardrails",
   "01-base/guide-mode",
   "01-base/header-nav",

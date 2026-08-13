@@ -35,6 +35,7 @@ POST   /api/chat/stream
 GET    /api/config/backup
 GET    /api/config/canvas/material-types
 PUT    /api/config/canvas/material-types
+GET    /api/config/choices
 GET    /api/config/context-actions
 PUT    /api/config/context-actions
 GET    /api/config/elements

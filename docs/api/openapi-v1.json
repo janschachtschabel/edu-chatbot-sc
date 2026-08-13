@@ -2313,6 +2313,43 @@
         ]
       }
     },
+    "/api/config/choices": {
+      "get": {
+        "description": "Alle Kataloge in einem Zug — ein Formular braucht sie gemeinsam.",
+        "operationId": "get_choices_api_config_choices_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "items": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "title": "Response Get Choices Api Config Choices Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Choices",
+        "tags": [
+          "config-choices"
+        ]
+      }
+    },
     "/api/config/context-actions": {
       "get": {
         "operationId": "get_context_actions_config_api_config_context_actions_get",

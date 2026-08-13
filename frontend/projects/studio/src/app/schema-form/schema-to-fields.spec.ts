@@ -237,10 +237,14 @@ describe('rootField — against the real area schemas', () => {
 
   // 32 until 2026-08-11, then `01-base/pricing` (K3 cost monitoring) — a NEW
   // area with no ALT counterpart, so the number grows rather than being wrong.
+  // 34 seit 2026-08-13: `01-base/engine` (der Umschalter Muster/Agent, A0–A6
+  // vom 2026-08-12) fehlte in der Fixture, weil sie danach nicht neu erzeugt
+  // worden war. Diese Zahl ist deshalb kein Zierrat — sie ist das Einzige, was
+  // eine veraltete Fixture überhaupt bemerkbar macht.
   // Regenerate the fixture after adding one:
   //   cd backend && uv run python scripts/export_area_schemas.py
-  it('covers all 33 distinct area models', () => {
-    expect(areas).toHaveLength(33);
+  it('covers all 34 distinct area models', () => {
+    expect(areas).toHaveLength(34);
   });
 
   it.each(areas)('maps %s without throwing', (area) => {
@@ -300,5 +304,95 @@ describe('rootField — against the real area schemas', () => {
       '04-intents/intents:intents[].discriminators[]',
       'eval/gold-flows:flows[].turns[].expect', // dict[str, Any]
     ]);
+  });
+});
+
+describe('rootField — Auswahl und Vorschlagsliste (S3)', () => {
+  it('macht aus einem geschlossenen Wertevorrat ein Auswahlfeld', () => {
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: { mode: { type: 'string', 'x-choices': ['off', 'smart', 'always'] } },
+    };
+    const feld = child(rootField(schema), 'mode');
+    expect(feld.kind).toBe('select');
+    expect(feld.choices).toEqual(['off', 'smart', 'always']);
+  });
+
+  it('lässt ein Katalog-Feld ein Textfeld bleiben', () => {
+    // Ein Muster entsteht durch Anlegen, ein RAG-Bereich durch Einlesen — wer
+    // den Namen schon kennt, muss ihn tippen dürfen, bevor er im Katalog steht.
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: { crisis_pattern: { type: 'string', 'x-catalog': 'patterns' } },
+    };
+    const feld = child(rootField(schema), 'crisis_pattern');
+    expect(feld.kind).toBe('text');
+    expect(feld.catalog).toBe('patterns');
+  });
+
+  it('liest die Auszeichnung auch hinter einem `| None`', () => {
+    // `quick_replies_mode: Annotated[str, Choices(...)] | None` — pydantic legt
+    // sie in den anyOf-Zweig, nicht an die Eigenschaft selbst.
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: {
+        qr: { anyOf: [{ type: 'string', 'x-choices': ['exact'] }, { type: 'null' }] },
+      },
+    };
+    expect(child(rootField(schema), 'qr').kind).toBe('select');
+  });
+
+  it('trägt die Auszeichnung am Listeneintrag, nicht an der Liste', () => {
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: {
+        rag_areas: { type: 'array', items: { type: 'string', 'x-catalog': 'rag_areas' } },
+      },
+    };
+    const liste = child(rootField(schema), 'rag_areas');
+    expect(liste.kind).toBe('list');
+    expect(liste.catalog).toBeUndefined();
+    expect(liste.item?.catalog).toBe('rag_areas');
+  });
+
+  it('macht auch aus einem `enum` ein Auswahlfeld', () => {
+    // Befund 2026-08-13: `01-base/engine` deklariert `mode` seit A0–A6 als
+    // `Literal["pattern","agent"]`. Der Mapper kannte `enum` nicht, also stand
+    // der Umschalter Muster/Agent als Freitextfeld im Formular — obwohl der
+    // Server jeden anderen Wert mit 422 abweist.
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: { mode: { type: 'string', enum: ['pattern', 'agent'] } },
+    };
+    const feld = child(rootField(schema), 'mode');
+    expect(feld.kind).toBe('select');
+    expect(feld.choices).toEqual(['pattern', 'agent']);
+  });
+
+  it('ignoriert eine leere Werteliste', () => {
+    // Ein Auswahlfeld ohne Optionen wäre unbedienbar — dann lieber Freitext.
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: { v: { type: 'string', 'x-choices': [] } },
+    };
+    expect(child(rootField(schema), 'v').kind).toBe('text');
+  });
+
+  it('zeichnet in den ECHTEN Bereichsschemata die gemeldeten Felder aus', () => {
+    // Gegen die generierte Fixture, nicht gegen erfundene Schemata: was das
+    // Backend wirklich ausliefert, entscheidet.
+    const treffer: string[] = [];
+    for (const area of Object.keys(AREA_SCHEMAS)) {
+      walk(rootField(AREA_SCHEMAS[area]), (f, path) => {
+        if (f.catalog) treffer.push(`${area}:${path} → ${f.catalog}`);
+        if (f.choices) treffer.push(`${area}:${path} → [${f.choices.join('|')}]`);
+      });
+    }
+    expect(treffer).toContain('03-patterns:frontmatter.rag_areas[] → rag_areas');
+    expect(treffer).toContain('03-patterns:frontmatter.tools[] → tools');
+    expect(treffer).toContain('01-base/safety-config:crisis_pattern → patterns');
+    expect(treffer).toContain('01-base/safety-config:escalation.mode → [off|smart|always]');
+    // Der Umschalter Muster/Agent — über `enum`, nicht über `x-choices`.
+    expect(treffer).toContain('01-base/engine:mode → [pattern|agent]');
   });
 });

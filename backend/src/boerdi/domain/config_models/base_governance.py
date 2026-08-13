@@ -3,20 +3,27 @@ quality-log-config, guide-mode, classify-overrides, tone-modifiers,
 card-pipeline. Shapes verified against the ALT tree inventory (2026-07-11).
 """
 
-from typing import Any
+from typing import Annotated, Any
 
-from boerdi.domain.config_models._shared import AreaModel
+from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices
+
+#: Wann die jeweilige Prüfstufe läuft. Gemessen im Seed 2026-08-13; ``smart``
+#: kommt beim Rechts-Klassifikator vor, bei der Moderation nur ``never``/
+#: ``always`` — die Stufe kann es aber (``escalation.mode`` nutzt alle drei).
+_WHEN = ("never", "smart", "always")
 
 
 class SafetyPreset(AreaModel):
-    moderation: str = ""
-    legal_classifier: str = ""
+    moderation: Annotated[str, Choices(*_WHEN)] = ""
+    legal_classifier: Annotated[str, Choices(*_WHEN)] = ""
     prompt_injection: bool = False
 
 
 class EscalationBlock(AreaModel):
-    mode: str = ""
-    provider: str = ""
+    # Beide Vorräte stehen als Kommentar im Seed (`01-base/safety-config.yaml`)
+    # — hier stehen sie so, dass das Studio sie anbieten kann.
+    mode: Annotated[str, Choices("off", "smart", "always")] = ""
+    provider: Annotated[str, Choices("openai", "none")] = ""
     legal_classifier: bool = False
     thresholds: dict[str, float] = {}
     hard_block_categories: list[str] = []
@@ -47,13 +54,17 @@ class SafetyLoggingBlock(AreaModel):
 
 
 class SafetyConfigArea(AreaModel):
+    # Bewusst ohne Auswahl: die Stufe zeigt auf einen Schlüssel in `presets`
+    # derselben Datei, und `presets` ist eine offene Zuordnung — wer dort eine
+    # eigene Stufe anlegt, muss sie auch setzen können. Für die fünf
+    # ausgelieferten gibt es ohnehin die eigene Studio-Ansicht.
     security_level: str = "standard"
     presets: dict[str, SafetyPreset] = {}
     extra_crisis_terms: list[str] = []
     extra_pii_terms: list[str] = []
-    crisis_blocked_tools: list[str] = []
-    crisis_pattern: str = ""
-    threat_pattern: str = ""
+    crisis_blocked_tools: list[Annotated[str, Catalog("tools")]] = []
+    crisis_pattern: Annotated[str, Catalog("patterns")] = ""
+    threat_pattern: Annotated[str, Catalog("patterns")] = ""
     escalation: EscalationBlock = EscalationBlock()
     confidence_adjustments: dict[str, float] = {}
     rate_limits: RateLimitsBlock = RateLimitsBlock()
@@ -114,7 +125,9 @@ class GuideModeArea(AreaModel):
 class PersonaOverride(AreaModel):
     id: str
     description: str = ""
-    persona: str = ""
+    # Ein Vorschlagsfeld, kein Auswahlfeld: `*` ist hier ein zulässiger Wert
+    # (Platzhalter für „jede Persona") und steht in keinem Katalog.
+    persona: Annotated[str, Catalog("personas")] = ""
     triggers: list[str] = []
     except_explicit_role: list[str] = []
     requires_all: list[str] = []
@@ -124,14 +137,14 @@ class PersonaOverride(AreaModel):
 class IntentOverride(AreaModel):
     id: str
     description: str = ""
-    intent: str = ""
+    intent: Annotated[str, Catalog("intents")] = ""
     triggers: list[str] = []
 
 
 class FewShotExample(AreaModel):
     input: str
-    intent: str = ""
-    pattern: str = ""
+    intent: Annotated[str, Catalog("intents")] = ""
+    pattern: Annotated[str, Catalog("patterns")] = ""
     note: str | None = None
 
 
@@ -145,6 +158,12 @@ class ClassifyOverridesArea(AreaModel):
 
 
 class ToneModifier(AreaModel):
+    # Bewusst OHNE Auswahl, obwohl der Vorrat klein aussieht: `formality` wird
+    # in `completion_messages` gegen ("sie","siezen","formal","foermlich")
+    # geprüft — mehr Werte, als jeder Kommentar nennt. Und `card_text_mode` ist
+    # an zwei Stellen UNTERSCHIEDLICH dokumentiert (`config_areas.py`:
+    # minimal|kurz|explanation|ausfuehrlich, `pattern_engine.py`:
+    # minimal|reference|highlight). Eine Auswahl wäre hier eine Behauptung.
     tone: str = "locker"
     length_bias: float = 0.0
     formality: str = "wie_user"

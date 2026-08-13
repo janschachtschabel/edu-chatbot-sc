@@ -6,6 +6,44 @@
 // by a stack of shadowed cards: at four levels deep (policy -> rules -> item ->
 // match) shadows read as noise, a rule reads as structure.
 
+// Ein aufklappbarer Abschnitt (S5). `<details>` und kein eigener Umschalter:
+// nativ per Tastatur bedienbar und nativ angesagt (auf/zu), ohne eigenes ARIA.
+.sf-section {
+  margin: 0 0 var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.sf-section-head {
+  padding: var(--st-3);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--st-text);
+  cursor: pointer;
+  // Der Marker liefert die Auf/Zu-Ansage — die Beschriftung allein wäre nur
+  // ein Wort, und Farbe darf hier nichts tragen (SC 1.4.1).
+  list-style-position: inside;
+}
+
+.sf-section-head:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: -2px;
+  border-radius: var(--st-radius);
+}
+
+.sf-section[open] > .sf-section-head {
+  border-block-end: 1px solid var(--st-rule);
+}
+
+// Der oberste Rahmen im Abschnitt ist der Abschnitt selbst — die Haarlinie
+// des Feldsets doppelte ihn.
+.sf-section > studio-schema-field > .sf-group {
+  margin: 0;
+  padding: var(--st-3);
+  border-inline-start: 0;
+}
+
 .sf-group {
   margin: 0 0 var(--st-4);
   padding: var(--st-3) 0 var(--st-3) var(--st-4);
@@ -84,6 +122,27 @@
 
 .sf-number {
   max-inline-size: 12rem;
+}
+
+// Ein geschlossener Wertevorrat (S3). Schmaler als ein Textfeld, weil die
+// Werte kurz sind (`smart`, `always`) — die volle Breite liesse eine
+// Drei-Wort-Auswahl wie ein Freitextfeld aussehen.
+.sf-select {
+  max-inline-size: 20rem;
+}
+
+// Der Sprung zum verwiesenen Element (S4). Steht UNTER dem Feld statt daneben:
+// bei 320px hätte eine Zeile aus Eingabe + Link keinen Platz, und ein
+// umbrechender Link neben einem Eingabefeld liest sich als Fehler.
+.sf-jump {
+  align-self: flex-start;
+  font-size: 0.8125rem;
+  color: var(--st-accent);
+}
+
+.sf-jump:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 2px;
 }
 
 .sf-multiline,

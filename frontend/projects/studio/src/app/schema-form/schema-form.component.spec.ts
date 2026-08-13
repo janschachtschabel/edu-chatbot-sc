@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { provideZonelessChangeDetection } from '@angular/core';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { ChoicesApi } from '../core/choices-api.service';
 import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { AREA_SCHEMAS } from './area-schemas.fixture';
 import type { JsonSchema } from './json-schema';
@@ -382,5 +384,196 @@ describe('SchemaFormComponent — every real area renders', () => {
   it.each(Object.keys(AREA_SCHEMAS))('mounts %s with an empty document', async (area) => {
     const h = await mount(AREA_SCHEMAS[area], {});
     expect(h.el.querySelector('studio-schema-field')).not.toBeNull();
+  });
+});
+
+describe('SchemaFormComponent — aufklappbare Abschnitte (S5)', () => {
+  const LANG: JsonSchema = {
+    type: 'object',
+    properties: {
+      stufe: { type: 'string' },
+      block_a: { type: 'object', properties: { x: { type: 'string' } } },
+      block_b: { type: 'object', properties: { y: { type: 'string' } } },
+    },
+  };
+
+  function sections(el: HTMLElement): HTMLDetailsElement[] {
+    return Array.from(el.querySelectorAll<HTMLDetailsElement>('details.sf-section'));
+  }
+
+  it('gibt jedem Block einen Abschnitt und öffnet nur den ersten', async () => {
+    const h = await mount(LANG, { stufe: 'standard', block_a: {}, block_b: {} });
+    const auf = sections(h.el);
+    expect(auf.map((d) => d.querySelector('summary')?.textContent?.trim())).toEqual([
+      'Grundwerte', 'block_a', 'block_b',
+    ]);
+    expect(auf.map((d) => d.open)).toEqual([true, false, false]);
+  });
+
+  it('schreibt aus einem Abschnitt in dasselbe Dokument', async () => {
+    // Die tragende Zusage: die Gliederung ist Anzeige, nicht Struktur —
+    // gespeichert wird weiterhin das ganze Dokument.
+    const h = await mount(LANG, { stufe: 'standard', block_a: { x: 'alt' }, block_b: {} });
+    const feld = sections(h.el)[1].querySelector<HTMLInputElement>('input.sf-input')!;
+    feld.value = 'neu';
+    feld.dispatchEvent(new Event('input'));
+    await h.fixture.whenStable();
+    expect(h.emitted.at(-1)).toEqual({
+      stufe: 'standard', block_a: { x: 'neu' }, block_b: {},
+    });
+  });
+
+  it('lässt ein kurzes Formular ungegliedert', async () => {
+    const kurz: JsonSchema = { type: 'object', properties: { a: { type: 'string' } } };
+    const h = await mount(kurz, { a: '1' });
+    expect(sections(h.el)).toHaveLength(0);
+    expect(h.el.querySelector('studio-schema-field')).not.toBeNull();
+  });
+
+  // Die MEISTEN Bereiche sehen so aus — 16 von 34 packen alles in einen Block.
+  const HUELLE: JsonSchema = {
+    type: 'object',
+    properties: {
+      display_rules: {
+        type: 'object',
+        properties: {
+          block_a: { type: 'object', properties: { x: { type: 'string' } } },
+          block_b: { type: 'object', properties: { y: { type: 'string' } } },
+        },
+      },
+    },
+  };
+
+  it('nennt die Hülle nicht über jedem Abschnitt', async () => {
+    const h = await mount(HUELLE, { display_rules: { block_a: {}, block_b: {} } });
+    const legenden = Array.from(h.el.querySelectorAll('legend')).map((l) => l.textContent?.trim());
+    expect(legenden).not.toContain('display_rules');
+    expect(legenden).toContain('block_a');
+  });
+
+  it('schreibt aus einem Abschnitt hinter der Hülle in denselben Pfad', async () => {
+    // Die Gliederung verschiebt die ANZEIGE, nicht das Dokument: ein Abschnitt
+    // beginnt hinter der Hülle, sein Feld muss trotzdem unter ihr landen.
+    const h = await mount(HUELLE, { display_rules: { block_a: { x: 'alt' }, block_b: {} } });
+    const feld = sections(h.el)[0].querySelector<HTMLInputElement>('input.sf-input')!;
+    type(feld, 'neu');
+    await h.fixture.whenStable();
+    expect(h.emitted.at(-1)).toEqual({ display_rules: { block_a: { x: 'neu' }, block_b: {} } });
+  });
+});
+
+describe('SchemaFormComponent — Auswahlfeld (S3)', () => {
+  const MIT_AUSWAHL: JsonSchema = {
+    type: 'object',
+    properties: { mode: { type: 'string', 'x-choices': ['off', 'smart', 'always'] } },
+  };
+
+  it('zeigt jede erlaubte Option plus eine leere', async () => {
+    const h = await mount(MIT_AUSWAHL, { mode: 'smart' });
+    const box = h.el.querySelector<HTMLSelectElement>('select.sf-select')!;
+    expect(Array.from(box.options).map((o) => o.value)).toEqual(['', 'off', 'smart', 'always']);
+    expect(box.value).toBe('smart');
+  });
+
+  it('meldet die Wahl als Dokument-Änderung', async () => {
+    const h = await mount(MIT_AUSWAHL, { mode: 'smart' });
+    const box = h.el.querySelector<HTMLSelectElement>('select.sf-select')!;
+    box.value = 'always';
+    box.dispatchEvent(new Event('change'));
+    await h.fixture.whenStable();
+    expect(h.emitted.at(-1)).toEqual({ mode: 'always' });
+  });
+
+  it('führt einen Bestandswert ausserhalb der Liste weiter und weist ihn aus', async () => {
+    // Sonst zeigte das Feld die erste Option an, obwohl etwas anderes
+    // gespeichert ist — und der nächste Speichervorgang schriebe die Lüge fest.
+    const h = await mount(MIT_AUSWAHL, { mode: 'aus-2024' });
+    const box = h.el.querySelector<HTMLSelectElement>('select.sf-select')!;
+    expect(box.value).toBe('aus-2024');
+    const fremd = Array.from(box.options).find((o) => o.value === 'aus-2024')!;
+    expect(fremd.textContent).toContain('aus-2024');
+    expect(fremd.textContent?.trim()).not.toBe('aus-2024'); // trägt den Hinweis
+    expect(h.emitted).toEqual([]); // nichts verändert, nur angezeigt
+  });
+});
+
+describe('SchemaFormComponent — Vorschlagsliste (S3)', () => {
+  const MIT_KATALOG: JsonSchema = {
+    type: 'object',
+    properties: { crisis_pattern: { type: 'string', 'x-catalog': 'patterns' } },
+  };
+
+  it('bleibt ein Textfeld und hängt eine datalist an', async () => {
+    const h = await mount(MIT_KATALOG, { crisis_pattern: 'M01' });
+    const feld = h.el.querySelector<HTMLInputElement>('input.sf-input[type="text"]')!;
+    expect(feld.value).toBe('M01');
+    const liste = feld.getAttribute('list');
+    expect(liste).toBeTruthy();
+    expect(byId(h.el, liste!)?.tagName).toBe('DATALIST');
+  });
+
+  it('lässt einen Namen zu, der noch in keinem Katalog steht', async () => {
+    // Ein Muster entsteht durch Anlegen, ein RAG-Bereich durch Einlesen — wer
+    // den Namen schon kennt, muss ihn tippen dürfen.
+    const h = await mount(MIT_KATALOG, { crisis_pattern: '' });
+    const feld = h.el.querySelector<HTMLInputElement>('input.sf-input[type="text"]')!;
+    feld.value = 'M99';
+    feld.dispatchEvent(new Event('input'));
+    await h.fixture.whenStable();
+    expect(h.emitted.at(-1)).toEqual({ crisis_pattern: 'M99' });
+  });
+
+  it('rendert eine Liste je Katalog, nicht je Feld', async () => {
+    // Ein Muster nennt bis zu acht Werkzeuge; eine eigene Liste je Eintrag
+    // hiesse achtmal denselben Katalog in die Seite zu schreiben.
+    const listenFeld: JsonSchema = {
+      type: 'object',
+      properties: {
+        tools: { type: 'array', items: { type: 'string', 'x-catalog': 'tools' } },
+      },
+    };
+    const h = await mount(listenFeld, { tools: ['a', 'b', 'c'] });
+    const felder = h.el.querySelectorAll<HTMLInputElement>('input.sf-input[type="text"]');
+    expect(felder).toHaveLength(3);
+    expect(new Set(Array.from(felder).map((f) => f.getAttribute('list'))).size).toBe(1);
+    expect(h.el.querySelectorAll('datalist')).toHaveLength(1);
+  });
+});
+
+describe('SchemaFormComponent — Sprung zum Element (S4)', () => {
+  const MIT_KATALOG: JsonSchema = {
+    type: 'object',
+    properties: { crisis_pattern: { type: 'string', 'x-catalog': 'patterns' } },
+  };
+  const EINTRAG = { value: 'M06', label: 'Material-Suche', area: '03-patterns/m06-material' };
+  // Kein `satisfies ChoicesApi`: der Dienst hat private Felder, die eine
+  // Attrappe nicht nachbauen kann und nicht nachbauen soll.
+  const attrappe: Pick<ChoicesApi, 'catalogs' | 'prime' | 'entries' | 'areaFor'> = {
+    catalogs: signal({ patterns: [EINTRAG] }).asReadonly(),
+    prime: () => Promise.resolve(),
+    entries: () => [EINTRAG],
+    areaFor: (_katalog, wert) => (wert === EINTRAG.value ? EINTRAG.area : ''),
+  };
+
+  it('adressiert den Bereich in Segmenten, nicht als ein %2F-Stück', async () => {
+    // Wie in `areas.component.ts`: der Schlüssel trägt einen Schrägstrich. Als
+    // EIN Segment übergeben landet er `%2F`-kodiert in der Adresse — im SPA
+    // löst das noch auf, beim Neuladen entscheidet der Reverse-Proxy.
+    TestBed.resetTestingModule();
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([{ path: '**', children: [] }]),
+        { provide: ChoicesApi, useValue: attrappe },
+      ],
+    });
+    const fixture = TestBed.createComponent(SchemaFormComponent);
+    fixture.componentRef.setInput('schema', MIT_KATALOG);
+    fixture.componentRef.setInput('value', { crisis_pattern: 'M06' });
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const link = el.querySelector<HTMLAnchorElement>('a.sf-jump')!;
+    expect(link.getAttribute('href')).toBe('/bereich/03-patterns/m06-material');
   });
 });

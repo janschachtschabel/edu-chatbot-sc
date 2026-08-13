@@ -24,9 +24,16 @@ from boerdi.services import llm
 from boerdi.services.config_loader import (
     get_state_directive,
     load_canvas_persona_priorities,
+    load_display_rules_config,
 )
+from boerdi.services.guide_qr_injector import GUIDE_QR_PREFIX
 
 _logger = logging.getLogger(__name__)
+
+# Vorgabe fuer ``display_rules.quick_replies.max_chars``: wie lang ein
+# Vorschlag hoechstens sein darf. Gemessen und nicht geraten — die
+# Beispiel-Vorschlaege im Prompt unten reichen bis 47 Zeichen.
+QR_MAX_CHARS_DEFAULT = 48
 
 # ALT canvas_types._DEFAULT_ANALYTICAL_PERSONAS — fallback when the config
 # area is empty/unbound.
@@ -114,6 +121,33 @@ def _capability_hints_for_persona(
     return hints[:14]
 
 
+def _max_chars() -> int:
+    """Der Zeichen-Deckel aus ``display_rules.quick_replies.max_chars``.
+
+    ``0`` schaltet ihn ab. Ist die Config nicht lesbar, gilt die Vorgabe —
+    eine unerreichbare Config darf keine ungebremsten Pillen bedeuten."""
+    try:
+        rules = (load_display_rules_config() or {}).get("quick_replies") or {}
+        return max(0, int(rules.get("max_chars", QR_MAX_CHARS_DEFAULT) or 0))
+    except Exception:
+        _logger.debug("quick_replies.max_chars unlesbar; nehme Vorgabe", exc_info=True)
+        return QR_MAX_CHARS_DEFAULT
+
+
+def _display_length(reply: str) -> int:
+    """Wie lang die Pille WIRKT.
+
+    Bei einem Lotsen-Chip (``__guide__|Anzeigetext|URL``) steht im Knopf nur
+    der Anzeigetext (``ui/chips/guide-qr.ts``); zaehlte die URL mit, fiele
+    jeder Lotsen-Chip durch den Deckel."""
+    text = reply.strip()
+    if text.startswith(GUIDE_QR_PREFIX):
+        # ``partition`` liefert ohne Trenner den ganzen Rest als Label — genau
+        # das, was ``guideQuickReplyLabel`` dann auch anzeigt.
+        text = text[len(GUIDE_QR_PREFIX):].partition("|")[0]
+    return len(text.strip())
+
+
 async def generate_quick_replies(
     message: str,
     response_text: str,
@@ -166,7 +200,16 @@ async def generate_quick_replies(
     _qr_state_label = _qr_state_meta.get("label", "")
     _qr_state_directive = _qr_state_meta.get("bot_directive", "")
 
+    # Der Laengen-Deckel steht im Prompt UND im Filter unten — dieselbe Zahl,
+    # eine Quelle. Ein Prompt ohne Nachpruefung ist eine Bitte, keine Zusage.
+    budget = _max_chars()
+    _len_rule = (
+        f"hoechstens {budget} Zeichen lang (mit Leerzeichen)" if budget
+        else "kurz — ein knapper Satz"
+    )
+
     system = f"""Du generierst genau {count} kurze Antwortvorschlaege fuer einen Chatbot-Nutzer.
+Jeder Vorschlag ist {_len_rule}; laengere werden verworfen und gar nicht erst angezeigt.
 Der Nutzer interagiert gerade mit BOERDi, dem Chatbot der Bildungsplattform
 WirLernenOnline (WLO).
 
@@ -266,7 +309,12 @@ Waehle {count} aus den folgenden Kategorien (mindestens {min(3, count)} untersch
 
 ## Regeln
 1. Genau {count} Vorschlaege, einer pro Zeile, KEINE Nummerierung, KEINE Bullets.
-2. Jeder Vorschlag max 6-8 Woerter.
+2. **Laenge — HARTE Grenze**: jeder Vorschlag {_len_rule}. Zaehle die Zeichen,
+   bevor du eine Zeile abgibst. Zu lange Vorschlaege werden VERWORFEN; der
+   Nutzer sieht dann eine Pille weniger. Beim Lotsen-Format (Regel 11) zaehlt
+   nur der Anzeigetext, nicht die URL.
+   ZU LANG: "Erstelle ein Arbeitsblatt zu Kompetenzen geometrischer Optik" (60)
+   GUT:     "Arbeitsblatt zur geometrischen Optik" (35)
 3. Anrede strikt {persona_salute}.
 4. Wenn Canvas aktiv (S3) ist: mindestens EIN Edit-Vorschlag (Kategorie c).
 5. Wenn Themenseite bekannt: mindestens EIN Vorschlag der den Seiten-Kontext nutzt.
@@ -344,14 +392,30 @@ Gib NUR die {count} Zeilen zurueck, sonst nichts.""" + template_hint(lang)
             line.strip().lstrip("-•*0123456789. ")
             for line in text.strip().split("\n") if line.strip()
         ]
-        # Drop duplicates while preserving order.
+        # Drop duplicates while preserving order — und alles, was ueber dem
+        # Zeichen-Deckel liegt. Verworfen und NICHT gekuerzt: der Pillentext
+        # IST die Nachricht, die der Klick abschickt (``sendMessage`` im
+        # Widget), ein abgeschnittener Satz waere schlimmer als eine Pille
+        # weniger.
         seen: set[str] = set()
         unique: list[str] = []
+        zu_lang = 0
         for r in replies:
             k = r.lower()
-            if k and k not in seen:
-                seen.add(k)
-                unique.append(r)
+            if not k or k in seen:
+                continue
+            if budget and _display_length(r) > budget:
+                zu_lang += 1
+                continue
+            seen.add(k)
+            unique.append(r)
+        if zu_lang:
+            # Nur die Anzahl, nicht der Text: der Vorschlag traegt das Thema
+            # des Nutzers und gehoert damit nicht ungefiltert ins Log.
+            _logger.info(
+                "quick_replies.max_chars: %d Vorschlag/Vorschlaege ueber %d Zeichen verworfen",
+                zu_lang, budget,
+            )
         return unique[:count]
     except Exception:
         _logger.warning("quick-reply generation failed; returning none", exc_info=True)

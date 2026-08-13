@@ -17,6 +17,7 @@ import type { JsonSchema } from './json-schema';
 
 export type FieldKind =
   | 'text'
+  | 'select'
   | 'multiline'
   | 'number'
   | 'integer'
@@ -40,6 +41,10 @@ export interface SchemaField {
   readonly children?: readonly SchemaField[];
   /** `list` and `map` only: the template for one element. */
   readonly item?: SchemaField;
+  /** `select` only: the whole allowed vocabulary, in schema order. */
+  readonly choices?: readonly string[];
+  /** `text` with a live suggestion list — the catalog name to look up. */
+  readonly catalog?: string;
   /** Value for a fresh entry — used when adding a list/map element. */
   readonly blank: unknown;
 }
@@ -84,11 +89,7 @@ function fieldFor(
 
   switch (node.type) {
     case 'string':
-      return {
-        ...base,
-        kind: MULTILINE_KEYS.has(key) ? 'multiline' : 'text',
-        blank: blank(''),
-      };
+      return { ...base, ...stringKind(key, node), blank: blank('') };
     case 'integer':
       return { ...base, kind: 'integer', blank: blank(0) };
     case 'number':
@@ -112,6 +113,31 @@ function fieldFor(
 }
 
 type FieldBase = Pick<SchemaField, 'key' | 'label' | 'required' | 'nullable' | 'description'>;
+
+/**
+ * Which control a string gets (S3). Read from the RESOLVED node, not from the
+ * raw property: for a `str | None` field pydantic puts the annotation into the
+ * non-null `anyOf` branch, not onto the property itself.
+ *
+ * `enum` and `x-choices` both mean "closed vocabulary" and both become a
+ * select. They differ only in what a save does: `enum` comes from a `Literal`
+ * and the server rejects anything else, `x-choices` does not (see
+ * `config_models/_shared.py`). `enum` first — where the model really enforces
+ * a list, that list is the authority.
+ *
+ * An empty list stays a text field: a select without options could not be
+ * operated, and free text is the better fallback.
+ */
+function stringKind(
+  key: string,
+  node: JsonSchema,
+): Pick<SchemaField, 'kind' | 'choices' | 'catalog'> {
+  const choices = node.enum?.length ? node.enum : node['x-choices'];
+  if (choices?.length) return { kind: 'select', choices };
+  const kind = MULTILINE_KEYS.has(key) ? 'multiline' : 'text';
+  const catalog = node['x-catalog'];
+  return catalog ? { kind, catalog } : { kind };
+}
 
 function objectField(
   base: FieldBase,

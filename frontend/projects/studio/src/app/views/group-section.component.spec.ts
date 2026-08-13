@@ -70,6 +70,22 @@ async function mount(section: CuratedSection = PATTERNS): Promise<Harness> {
   return { fixture, el: fixture.nativeElement as HTMLElement, http };
 }
 
+/**
+ * Die Kataloge der Vorschlagslisten abräumen (S4).
+ *
+ * Sobald ein Muster-Dokument gerendert ist, holt das Formular einmal
+ * `/config/choices` — `frontmatter.rag_areas` und `frontmatter.tools` tragen
+ * eine Vorschlagsliste. Das ist kein Laden des Dokuments und darf die Zusage
+ * „für M02 wurde nichts geladen" nicht kippen; deshalb wird es hier getrennt
+ * beantwortet, statt `verify()` nachzugeben.
+ *
+ * Duldsam (`match` statt `expectOne`): der Dienst hält die Kataloge, also holt
+ * sie nur das erste Formular eines Tests.
+ */
+function settleChoices(http: HttpTestingController): void {
+  http.match("/studio/api/config/choices").forEach((req) => req.flush({}));
+}
+
 /** Answer the schema+data pair for one document of the group. */
 function answerDoc(
   http: HttpTestingController,
@@ -139,6 +155,7 @@ describe("GroupSectionComponent", () => {
     el.querySelectorAll<HTMLButtonElement>(".gs-entry")[1].click();
     await fixture.whenStable();
 
+    settleChoices(http);
     http.verify(); // no load for M02
     expect(fixture.componentInstance.selected()).toBe(
       "03-patterns/m01-orientierung",
@@ -233,6 +250,7 @@ describe("GroupSectionComponent", () => {
     el.querySelector<HTMLButtonElement>(".gs-new-go")?.click();
     await fixture.whenStable();
 
+    settleChoices(http);
     http.verify(); // nothing written, nothing switched
     expect(fixture.componentInstance.selected()).toBe(
       "03-patterns/m01-orientierung",
