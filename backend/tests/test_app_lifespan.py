@@ -10,7 +10,10 @@ from tests import pg_utils
 
 pytestmark = [
     pytest.mark.pg,
-    pytest.mark.skipif(not pg_utils.pg_available(), reason=pg_utils.SKIP_REASON),
+    # ``dev_db_ready`` statt ``pg_available``: dieses Modul startet die echte
+    # App gegen die Standard-URL und braucht Schema UND Seed, nicht bloss eine
+    # erreichbare Datenbank.
+    pytest.mark.skipif(not pg_utils.dev_db_ready(), reason=pg_utils.DEV_DB_SKIP_REASON),
 ]
 
 

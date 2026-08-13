@@ -167,24 +167,31 @@ docker compose -f compose.prod.yml --env-file .env config >/dev/null && echo "vo
 # 7a — Postgres allein hochfahren, damit die Migration ein Ziel hat
 docker compose -f compose.prod.yml --env-file .env up -d postgres
 
-# 7b — Schema anlegen (eigener Lauf, nie aus dem Web-Prozess)
+# 7b — Schema anlegen und fehlende Seed-Bereiche füllen (ein Lauf, idempotent)
 docker compose -f compose.prod.yml --env-file .env up migrate
-
-# 7c — Seed-Daten in die leeren Tabellen
-docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
-  migrate boerdi import-config
 ```
 
-Zu **7c**: der Seed-Baum liegt **im Image** unter `/app/seeds`, `import-config`
-nimmt ihn ohne Argument (`CONFIG_SEED_DIR`, Default `seeds`). Kein Bind-Mount,
-kein Kopieren — der Stand kommt aus demselben Commit wie der Code.
+Der `migrate`-Dienst führt beides aus: `alembic upgrade head`, dann
+`boerdi import-config --only-missing`. Der Seed-Baum liegt **im Image** unter
+`/app/seeds` (`CONFIG_SEED_DIR`, Default `seeds`) — kein Bind-Mount, kein
+Kopieren, der Stand kommt aus demselben Commit wie der Code.
 
-`--no-deps` überschreibt den Befehl des `migrate`-Dienstes; ohne die Option
-liefe erneut `alembic upgrade head`.
+`--only-missing` ist der Grund, warum das automatisch laufen darf: der Import
+legt nur an, was noch nicht in der Datenbank steht. Ohne die Option schreibt er
+**jeden** Bereich und würde bei jedem Neustart die redaktionelle Arbeit auf den
+Auslieferungsstand zurückdrehen.
 
 **Ab jetzt ist die Datenbank die Wahrheit**, nicht mehr der Seed. Änderungen
 macht die Redaktion im Studio. Der Seed ist der Startpunkt, keine
-Laufzeit-Abhängigkeit — ein zweiter Import überschreibt redaktionelle Arbeit.
+Laufzeit-Abhängigkeit.
+
+Einen **vollständigen** Import (überschreibt alles) gibt es weiterhin, aber nur
+ausdrücklich und mit Backup davor:
+
+```bash
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
+  migrate boerdi import-config
+```
 
 ## 8. Reranker-Modell (optional, aber empfohlen)
 
@@ -322,9 +329,14 @@ docker compose -f compose.prod.yml --env-file .env up -d           # dann rollie
 Die Migration getrennt, damit ein Fehler dort sichtbar wird, **bevor** Replikas
 neu starten.
 
-**Kein `import-config` beim Aktualisieren.** Er würde die redaktionelle Arbeit
-mit dem Seed-Stand überschreiben. Neue Seed-Inhalte gehören ins Studio — oder,
-wenn es wirklich der ganze Baum sein soll, mit einem Backup davor.
+**Der Seed läuft beim Aktualisieren mit — und das ist ungefährlich.** Der
+`migrate`-Dienst ruft `import-config --only-missing`: Bereiche, die eine neue
+Version mitbringt, kommen dazu; alles Gepflegte bleibt unberührt. So wandert
+der aktuelle Stand ohne Handgriff mit, ohne die Redaktion zu überschreiben.
+
+**Kein `import-config` ohne `--only-missing` beim Aktualisieren.** Der volle
+Import überschreibt die redaktionelle Arbeit mit dem Seed-Stand. Wenn es
+wirklich der ganze Baum sein soll: Backup davor.
 
 ---
 

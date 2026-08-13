@@ -95,8 +95,16 @@ services:
     # Einmal-Lauf aus DEMSELBEN Image wie das Backend. Migrationen dürfen nicht
     # im Web-Prozess laufen: N Replikas führen sonst gleichzeitig
     # `alembic upgrade head` aus.
+    #
+    # Der Seed hängt dran, damit eine frische Installation ohne Handgriff
+    # lauffähig ist. `--only-missing` macht ihn idempotent: er legt an, was
+    # fehlt, und rührt Bestehendes nicht an — sonst drehte jeder Neustart die
+    # redaktionelle Arbeit im Studio auf den Auslieferungsstand zurück. Der
+    # Seed-Baum liegt im Image unter /app/seeds, kommt also aus demselben
+    # Commit wie der Code. Beim Aktualisieren wirkt das als Nachzug: neue
+    # Bereiche einer Version kommen dazu, gepflegte bleiben unberührt.
     image: ${BOERDI_IMAGE:-boerdi-chat}
-    command: ["alembic", "upgrade", "head"]
+    command: ["sh", "-c", "alembic upgrade head && boerdi import-config --only-missing"]
     restart: "no"
     logging: *logging
     environment:

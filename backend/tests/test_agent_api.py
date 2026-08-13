@@ -19,6 +19,13 @@ from boerdi.api.schemas_agent import AgentResponse
 from boerdi.main import create_app
 from boerdi.services.mcp import auth
 from boerdi.settings import get_settings
+from tests import pg_utils
+
+# Der Router hängt an ``create_app``, dessen Start ``config_areas`` liest. Ohne
+# migrierte + geseedete Standard-DB kippte die Datei bisher mit 13 Fehlern, die
+# nach Code-Fehler aussahen — es fehlte nur die Bereitstellung.
+pytestmark = pytest.mark.skipif(
+    not pg_utils.dev_db_ready(), reason=pg_utils.DEV_DB_SKIP_REASON)
 
 _ANTWORT = AgentResponse(
     text="Sachlich richtig.", result={"note": 4}, stop_reason="submit",

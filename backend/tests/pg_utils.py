@@ -30,6 +30,42 @@ def pg_available() -> bool:
         return False
 
 
+DEV_DB_SKIP_REASON = (
+    "Standard-DB nicht migriert/geseedet — "
+    "uv run alembic upgrade head && uv run boerdi import-config --from seeds"
+)
+
+
+def dev_db_ready() -> bool:
+    """Ist die STANDARD-Datenbank migriert *und* befüllt?
+
+    ``pg_available`` beantwortet eine schwächere Frage: nimmt Postgres eine
+    Verbindung an. Tests, die die echte App gegen die Settings-Standard-URL
+    hochfahren, brauchen mehr — beim Start liest ``config_areas``, und sie
+    prüfen auf geseedete Inhalte. Auf einem frischen Postgres (CI ohne den
+    Bereitstellungs-Schritt) gelingt die Verbindung, und die Abfrage stirbt
+    danach mit ``UndefinedTableError``. Das liest sich wie ein Code-Fehler und
+    ist keiner — deshalb fragt dieses Tor nach dem, was wirklich gebraucht wird.
+    """
+
+    async def probe() -> bool:
+        from boerdi.settings import get_settings
+
+        url = get_settings().database_url.replace("postgresql+asyncpg://", "postgresql://")
+        conn = await asyncpg.connect(url, timeout=3)
+        try:
+            if await conn.fetchval("SELECT to_regclass('public.config_areas')") is None:
+                return False
+            return bool(await conn.fetchval("SELECT count(*) FROM config_areas"))
+        finally:
+            await conn.close()
+
+    try:
+        return asyncio.run(probe())
+    except Exception:
+        return False
+
+
 def asyncpg_dsn(db: str) -> str:
     return f"postgresql://boerdi:boerdi@{HOST}/{db}"
 

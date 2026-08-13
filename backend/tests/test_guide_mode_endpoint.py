@@ -12,7 +12,9 @@ from tests import pg_utils
 
 pytestmark = [
     pytest.mark.pg,
-    pytest.mark.skipif(not pg_utils.pg_available(), reason=pg_utils.SKIP_REASON),
+    # ``dev_db_ready`` statt ``pg_available``: der Test liest das Bündel über
+    # die echte App und prüft auf geseedete Inhalte (``welcome.greeting``).
+    pytest.mark.skipif(not pg_utils.dev_db_ready(), reason=pg_utils.DEV_DB_SKIP_REASON),
 ]
 
 _ALT_URL = "http://localhost:8000/api/config/guide-mode"

@@ -45,6 +45,15 @@ jobs:
         run: uv sync --locked
       - name: Lint (ruff)
         run: uv run ruff check .
+      # Teile der Suite fahren die ECHTE App gegen die Settings-Standard-URL
+      # hoch; deren Start liest ``config_areas`` und prüft auf geseedete
+      # Inhalte. Der Postgres-Service startet leer — ohne diesen Schritt
+      # überspringen die betroffenen Module (tests/pg_utils.dev_db_ready), und
+      # Lifespan, Guide-Mode-Endpunkt und Agent-API blieben in CI ungeprüft.
+      - name: Provision DB (Schema + Seed)
+        run: |
+          uv run alembic upgrade head
+          uv run boerdi import-config --from seeds
       - name: Tests (pytest)
         run: uv run pytest -q
       - name: OpenAPI contract gate (spec P0-4)
