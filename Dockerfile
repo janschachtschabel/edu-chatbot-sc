@@ -109,5 +109,17 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # single SSE stream that never ends blocks a rolling restart forever, which is
 # the opposite of the graceful shutdown V12 asks for; 30 s is longer than any
 # turn and shorter than compose's stop_grace_period.
+#
+# --proxy-headers makes uvicorn read X-Forwarded-Proto/-For from traefik.
+# Without it every ABSOLUTE redirect the app emits carries the scheme uvicorn
+# sees itself — plain http, because traefik terminates TLS and forwards
+# unencrypted. Measured on the live server: GET /studio answered
+# `Location: http://<host>/studio/`, and only traefik's own 80->443 rule
+# repaired it, one needless plaintext hop later.
+#
+# --forwarded-allow-ips "*" is safe HERE for the same reason TRUST_FORWARDED_FOR
+# is (compose.prod.yml): no application service publishes a port, so these
+# headers cannot come from a client — only from traefik on the internal network.
 CMD ["uvicorn", "boerdi.main:app", "--host", "0.0.0.0", "--port", "8100", \
+     "--proxy-headers", "--forwarded-allow-ips", "*", \
      "--timeout-graceful-shutdown", "30"]
