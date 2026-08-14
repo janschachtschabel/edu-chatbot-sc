@@ -144,4 +144,12 @@ async def persist(
         _qr_max=ctx.qr_max,
         _effective_pattern_id=ctx.effective_pattern_id,
     )
+    # Das maschinenlesbare Ergebnis der Agent-Schleife (2026-08-14). NACH dem
+    # Bau angehängt statt durch die Signatur gereicht: die trägt schon zwanzig
+    # Parameter, und diese zwei gehen durch keine der Stufen darin hindurch —
+    # sie werden gesetzt und weitergegeben. Nur wenn ein Schema galt: sonst
+    # stünde in jeder Antwort ein leeres Feldpaar.
+    if ctx.result is not None or ctx.result_stop_reason:
+        ctx.response.result = ctx.result
+        ctx.response.result_stop_reason = ctx.result_stop_reason
     return ctx

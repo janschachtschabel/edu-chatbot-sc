@@ -158,3 +158,61 @@ def test_persist_forwards_query_meta_from_the_verbatim_port(monkeypatch):
         "kind": "record", "step": "query_meta",
         "label": "MCP search queries", "data": {"queries": 2},
     }]
+
+
+# ── Strukturiertes Ergebnis durchreichen (Nutzer-Entscheid 2026-08-14) ──
+
+def _mit_echter_antwort(monkeypatch):
+    """Wie ``_patch``, aber der Antwort-Bauer liefert eine ECHTE ChatResponse.
+
+    Die Sentinel-Zeichenkette der Nachbartests genügt hier nicht: geprüft wird
+    genau, dass die zwei Felder AN DER ANTWORT ankommen — und an einer
+    Zeichenkette kann man nichts setzen. Genau diese Naht (etwas wird gesetzt,
+    aber nie weitergereicht) hat am selben Tag schon einmal ein Feld
+    verschluckt.
+    """
+    from boerdi.api.schemas import ChatResponse
+
+    async def _fake_bd(*a, **k):
+        return "DEBUG_SENTINEL"
+
+    async def _fake_fin(*a, **k):
+        return (["CARD"], "RT2", "FINAL", ["WL"], ["META"], ["QME"], "TF")
+
+    async def _fake_pbr(*a, **k):
+        return ChatResponse(session_id="s1", content="FINAL")
+
+    monkeypatch.setattr(persist_mod, "build_debug_and_update_session", _fake_bd)
+    monkeypatch.setattr(persist_mod, "_finalize_links_and_metas", _fake_fin)
+    monkeypatch.setattr(persist_mod, "persist_and_build_response", _fake_pbr)
+
+
+def test_ergebnis_und_ende_grund_erreichen_die_antwort(monkeypatch):
+    _mit_echter_antwort(monkeypatch)
+    ctx = _ctx()
+    ctx.result = {"taxon_id": "…/discipline/460"}
+    ctx.result_stop_reason = "submit"
+    asyncio.run(persist(ctx, _SESSION))
+    assert ctx.response.result == {"taxon_id": "…/discipline/460"}
+    assert ctx.response.result_stop_reason == "submit"
+
+
+def test_ohne_ergebnis_bleibt_die_antwort_unberuehrt(monkeypatch):
+    # Der Normalfall — ein Chat ohne erklärtes Schema. Kein leeres Feldpaar in
+    # jeder Antwort.
+    _mit_echter_antwort(monkeypatch)
+    ctx = _ctx()
+    asyncio.run(persist(ctx, _SESSION))
+    assert ctx.response.result is None
+    assert ctx.response.result_stop_reason == ""
+
+
+def test_ein_ende_ohne_ergebnis_wird_trotzdem_gemeldet(monkeypatch):
+    # „Hallo" bei erklärtem Schema: kein Ergebnis, aber die Gastseite soll
+    # erkennen können, warum.
+    _mit_echter_antwort(monkeypatch)
+    ctx = _ctx()
+    ctx.result_stop_reason = "text"
+    asyncio.run(persist(ctx, _SESSION))
+    assert ctx.response.result is None
+    assert ctx.response.result_stop_reason == "text"

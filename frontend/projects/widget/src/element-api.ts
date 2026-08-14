@@ -29,7 +29,14 @@ export interface NgElementLike {
 }
 
 /** Methoden, die das Element an die Komponente durchreicht (§5.5 JS-API).
- *  `resetSession`/`updateContext` sind die V4-Ergänzungen. */
+ *  `resetSession`/`updateContext` sind die V4-Ergänzungen.
+ *
+ *  `replaceContext` kam 2026-08-14 dazu (Befund der Plugin-Entwickler): in
+ *  einer Erweiterungs-Seitenleiste gibt es weder den Attribut-Weg (nur in
+ *  `ngOnInit` gelesen) noch den URL-Wächter (die Adresse der Leiste ändert sich
+ *  nie). Blieb `updateContext` — das MERGT, also überleben der Host aus der
+ *  Erkennung und die IDs des vorigen Tabs jeden Wechsel. Der ersetzende Weg
+ *  existierte im Code (`onSpaContextChange`), nur nicht nach außen. */
 export const FORWARDED_METHODS = [
   'openChatbot',
   'closeChatbot',
@@ -37,6 +44,8 @@ export const FORWARDED_METHODS = [
   'isChatbotOpen',
   'resetSession',
   'updateContext',
+  'replaceContext',
+  'startTask',
 ] as const;
 
 /** Komponenten-Instanz hinter einem `NgElement`, oder `undefined` solange das

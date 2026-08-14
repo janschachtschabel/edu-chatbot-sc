@@ -459,3 +459,87 @@ def test_swimlanes_happy_path_maps_items_to_cards():
     sl = out["swimlanes"][0]
     assert (sl["heading"], sl["type"], sl["has_more"]) == ("Videos", "container", True)
     assert [c["node_id"] for c in sl["cards"]] == ["n1"]
+
+
+# ── Skill-Hinweis an der Karte (Nutzer-Vorgabe 2026-08-14) ───────────────
+# Der MCP haengt ``skillRegistry`` ungefragt an Sammlungstreffer (gemessen an
+# ``search_wlo_collections`` und ``search_wlo_all``). Bisher landete das nur im
+# Prompt; sichtbar war es allein im Seitenkontext. Die Karte traegt die Zahl,
+# damit die Kachel es auch bei einer Suche zeigen kann.
+
+def test_karte_traegt_die_anzahl_freigegebener_skills():
+    import json as _json
+
+    from boerdi.services.mcp.parsers import parse_wlo_cards
+
+    envelope = _json.dumps({"total": 1, "count": 1, "results": [{
+        "nodeId": "9e7ae956-e9df-430f-bace-f3db4b910013",
+        "title": "Optik", "nodeType": "collection",
+        "skillRegistry": {"nodeId": "d84d54c4", "entries": [
+            {"nodeId": "s1", "title": "Stunde planen"},
+            {"nodeId": "s2", "title": "Pruefung erstellen"},
+            {"nodeId": "s3", "title": "Dokumentieren"},
+        ]},
+    }]})
+    karten = parse_wlo_cards(envelope)
+    assert karten[0]["skill_count"] == 3
+
+
+def test_karte_ohne_registry_meldet_null():
+    import json as _json
+
+    from boerdi.services.mcp.parsers import parse_wlo_cards
+
+    envelope = _json.dumps({"total": 1, "count": 1, "results": [{
+        "nodeId": "13c03c9b", "title": "Elektromagnetische Wellen",
+        "nodeType": "collection",
+    }]})
+    assert parse_wlo_cards(envelope)[0]["skill_count"] == 0
+
+
+def test_themenseiten_karte_traegt_das_feld_ebenfalls():
+    """Zweiter kartenbauender Parser, gleiche Regel.
+
+    Gemessen 2026-08-14 am echten Server: DERSELBE Knoten
+    (``9e7ae956…``, „Optik") kommt über ``search_wlo_collections`` MIT
+    ``skillRegistry`` (28 Eintraege) und über ``search_wlo_topic_pages`` OHNE.
+    Das Feld fehlt also am Werkzeug, nicht an der Sammlung — die Luecke gehoert
+    in den MCP-Server. Hier steht die Regel trotzdem, aus zwei Gruenden: heute
+    liefert sie ehrlich 0 statt eines fehlenden Feldes, und wenn der Server
+    nachzieht, traegt die Themenseiten-Kachel den Hinweis ohne weitere Aenderung.
+
+    Der haeufige Fall ist ohnehin schon abgedeckt: laeuft im selben Zug auch die
+    Sammlungssuche, erbt die Themenseiten-Karte die Zahl ueber ``_build_cards``
+    (dieselbe node_id) — siehe ``test_skill_count_wird_vom_reicheren_partner_
+    geerbt``.
+    """
+    import json as _json
+
+    from boerdi.services.mcp.parsers import parse_wlo_topic_page_cards
+
+    envelope = _json.dumps({"total": 1, "count": 1, "results": [{
+        "collectionId": "9e7ae956-e9df-430f-bace-f3db4b910013",
+        "title": "Optik",
+        "variants": [{"variantId": "v1", "url": "https://x/tp", "targetGroup": "teacher"}],
+        "skillRegistry": {"nodeId": "d84d54c4", "entries": [
+            {"nodeId": "s1", "title": "Stunde planen"},
+            {"nodeId": "s2", "title": "Pruefung erstellen"},
+        ]},
+    }]})
+    karten = parse_wlo_topic_page_cards(envelope)
+    assert karten and karten[0]["skill_count"] == 2
+
+
+def test_themenseiten_karte_ohne_registry_meldet_null():
+    # Der heutige Normalfall am echten Server.
+    import json as _json
+
+    from boerdi.services.mcp.parsers import parse_wlo_topic_page_cards
+
+    envelope = _json.dumps({"total": 1, "count": 1, "results": [{
+        "collectionId": "bf729405-18ff-440b-9d5b-dd466ff563c3",
+        "title": "Wellenoptik",
+        "variants": [{"variantId": "v1", "url": "https://x/tp"}],
+    }]})
+    karten = parse_wlo_topic_page_cards(envelope)
+    assert karten and karten[0]["skill_count"] == 0

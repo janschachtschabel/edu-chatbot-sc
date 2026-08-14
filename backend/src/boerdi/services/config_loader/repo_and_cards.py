@@ -4,10 +4,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from boerdi.services.config_loader._store import area
 from boerdi.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 _PROD_DEFAULT = "https://redaktion.openeduhub.net"
 _FALLBACK_HOSTS = [
@@ -16,9 +19,65 @@ _FALLBACK_HOSTS = [
     "https://repository.openeduhub.net",
 ]
 
+#: Zuletzt aufgelöste Angabe als ``(Adresse, Quelle)``. Nur fürs Protokoll: die
+#: Auflösung wird gemeldet, wenn sie sich ÄNDERT — beim ersten Zug, und wieder,
+#: wenn die Redaktion sie im Studio umstellt. Ohne dieses Merkmal stünde die
+#: Zeile bei jedem Kartenfeld im Log.
+_letzte_aufloesung: tuple[str, str] | None = None
+
+
+def reset_repo_base_url_cache() -> None:
+    """Merkmal der letzten Auflösung vergessen (Tests; Config-Wechsel)."""
+    global _letzte_aufloesung
+    _letzte_aufloesung = None
+
+
+def _repo_aus_der_konfig() -> str:
+    """Die Studio-Angabe, oder "" wenn keine brauchbare da ist.
+
+    Unbrauchbar heißt: leer, kein String, oder keine Adresse. Der letzte Fall
+    wird gemeldet — eine vertippte Angabe soll nicht still auf Produktion
+    zurückfallen, denn genau diese Stille war der Befund.
+    """
+    try:
+        roh = (area("01-base/card-pipeline").get("card_pipeline") or {}).get("repo_base_url")
+    except Exception:
+        logger.debug("card-pipeline-Bereich nicht lesbar; Repoangabe kommt aus der "
+                     "Umgebung", exc_info=True)
+        return ""
+    text = str(roh or "").strip().rstrip("/")
+    if not text:
+        return ""
+    if not text.startswith(("http://", "https://")):
+        logger.warning(
+            "repo_base_url in der Konfiguration ist keine Adresse (%r) — es gilt "
+            "die Umgebungsvariable REPO_BASE_URL", text,
+        )
+        return ""
+    return text
+
 
 def get_repo_base_url() -> str:
-    return get_settings().repo_base_url  # env REPO_BASE_URL, default prod
+    """Das Repositorium, gegen das dieser Chatbot läuft.
+
+    Reihenfolge: **Konfiguration** (``01-base/card-pipeline.repo_base_url``) vor
+    **Umgebung** (``REPO_BASE_URL``, Vorgabe Produktion). Die Konfiguration
+    gewinnt, weil die Angabe dort nachlesbar sein soll — eine Einstellung, die
+    nur in der Deploy-Umgebung existiert, kann im Studio niemand prüfen
+    (Nutzer-Vorgabe 2026-08-14). Der geltende Wert steht in ``GET /api/health``.
+
+    Ohne Schrägstrich am Ende: alle Verbraucher hängen ``/edu-sharing/…`` an.
+    """
+    global _letzte_aufloesung
+    wert = _repo_aus_der_konfig()
+    quelle = "Konfiguration"
+    if not wert:
+        wert = str(get_settings().repo_base_url or "").strip().rstrip("/")
+        quelle = "Umgebung"
+    if _letzte_aufloesung != (wert, quelle):
+        _letzte_aufloesung = (wert, quelle)
+        logger.info("Repositorium: %s (Quelle: %s)", wert, quelle)
+    return wert
 
 
 def rewrite_repo_host(url: str) -> str:

@@ -69,6 +69,51 @@ _EINZELINHALT_LEAK_TOOLS = {
     "get_node_details",        # Detail-View eines konkreten (oft Einzel-)Knotens
 }
 
+#: Untergrenze des Auswahl-Deckels. Bis 2026-08-14 stand hier eine harte 5 im
+#: Tool-Loop; weniger als das wäre eine Verschlechterung gegenüber dem Bestand.
+MIN_SELECTABLE_CARDS = 5
+#: Obergrenze. Die Gruppen-Deckel dürfen bis 20/20/8 gehen (``config_loader/
+#: widget.py``); ihre Summe als Auswahl-Budget wäre eine Antwort mit 48 Karten.
+MAX_SELECTABLE_CARDS = 20
+
+
+def max_selectable_cards(display_rules: dict) -> int:
+    """Wie viele Karten ``select_top_cards`` höchstens wählen darf.
+
+    Der Deckel folgt den Studio-Gruppen (``display_rules.groups``), statt eine
+    eigene Zahl zu führen. Grund (Befund 2026-08-14): der Tool-Loop kappte die
+    LLM-Auswahl hart auf 5 Karten über ALLE Boxen hinweg, und
+    ``_apply_widget_modes_postprocess`` filtert die Karten anschließend auf
+    genau diese IDs. Die Box-Deckel in ``turn_persist`` greifen erst danach —
+    sie konnten also nur noch kürzen, nie ergänzen. Belegten Einzelinhalte die
+    fünf Plätze, verschwand die gesuchte Sammlung, auch bei exaktem
+    Titeltreffer: gemessen an „Optik", das der MCP als Treffer 1 liefert.
+
+    Die Summe ist bewusst großzügig — sie ist ein *Budget*, keine Vorgabe. Was
+    am Ende steht, entscheiden weiterhin die Box-Deckel; dieser Wert sorgt nur
+    dafür, dass für jede Box überhaupt etwas übrig bleiben KANN.
+
+    Die Materialien-Box zählt mit ihrem *größeren* Deckel: ``turn_persist``
+    nimmt im Lernpfad-Zug ``materialien_max_lernpfad`` (Vorgabe 5) statt
+    ``materialien_max`` (3) — zwei Alternativen für dieselbe Box, nicht zwei
+    Boxen. Ein Budget, das nur die kleinere Zahl kennt, hungerte im M09-Zug
+    genau die Sammlung aus, um die es hier geht.
+    """
+    grp = display_rules.get("groups") or {}
+
+    def _wert(key: str, vorgabe: int) -> int:
+        try:
+            return max(0, int(grp.get(key) or vorgabe))
+        except (TypeError, ValueError):
+            return vorgabe
+
+    summe = (_wert("themenseiten_max", 3)
+             + _wert("sammlungen_max", 3)
+             + max(_wert("materialien_max", 3),
+                   _wert("materialien_max_lernpfad", 5)))
+    return max(MIN_SELECTABLE_CARDS, min(MAX_SELECTABLE_CARDS, summe))
+
+
 def _is_einzelinhalt_card(c: dict) -> bool:
     """True wenn die Card im Frontend als Einzelinhalt rendert (also NICHT
     in den sichtbaren Boxen erscheint, nur über die Such-CTA erreichbar

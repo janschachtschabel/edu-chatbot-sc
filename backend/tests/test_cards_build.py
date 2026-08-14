@@ -214,10 +214,102 @@ class TestBuildCards:
         out = _build_cards(raw)
         assert [c.node_id for c in out] == ["a", "b"]
 
+    # ── skill_count: die Naht Parser → WloCard (Befund 2026-08-14) ────────
+    # Diese Funktion ist die EINZIGE Stelle, an der eine WloCard gebaut wird,
+    # und sie zaehlt ihre Felder einzeln auf. Ein Feld, das der Parser setzt
+    # und das Schema fuehrt, ist ohne diese Zeile trotzdem weg — Parser-Test
+    # und Kachel-Test bleiben dabei gruen, weil beide neben der Naht liegen.
+
+    def test_skill_count_ueberlebt_die_kartenkonstruktion(self):
+        out = _build_cards([{
+            "node_id": "n1", "title": "Optik",
+            "node_type": "collection", "skill_count": 28,
+        }])
+        assert out[0].skill_count == 28
+
+    def test_ohne_freigabeliste_bleibt_der_zaehler_null(self):
+        assert _build_cards([{"node_id": "n1", "title": "T"}])[0].skill_count == 0
+
+    def test_skill_count_wird_vom_reicheren_partner_geerbt(self):
+        # Dieselbe Sammlung aus zwei Quellen: die Freigabeliste haengt am
+        # Treffer der Sammlungssuche, die Themenseiten-Karte kennt sie nicht.
+        # Ohne Vererbung gewinnt der Erstfund — mit 0.
+        raw = [
+            {"node_id": "n1", "title": "Optik", "node_type": "topic_page",
+             "topic_pages": [
+                 {"variant_id": "v1", "url": "u1", "target_group": "teacher"},
+             ]},
+            {"node_id": "n1", "title": "Optik", "node_type": "collection",
+             "skill_count": 28},
+        ]
+        assert _build_cards(raw)[0].skill_count == 28
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # _apply_llm_card_selection
 # ══════════════════════════════════════════════════════════════════════════
+
+class TestSammlungNachziehen:
+    """Nutzer-Vorgabe 2026-08-14: „Die Optiksammlung muss gefunden werden, wenn
+    der MCP diese liefern kann."
+
+    #193 hat das strukturelle Aushungern beseitigt (harter Deckel 5) und der
+    Prompt bittet um die Sammlung — eine Bitte ist aber keine Zusage. Enthielt
+    der Pool eine passende Sammlung und die Modell-Auswahl keine, sah der User
+    sie trotzdem nie. Diese Stufe ist deterministisch: genau EINE Sammlung wird
+    nachgezogen, ans Ende, damit die Reihenfolge des Modells erhalten bleibt.
+    """
+
+    @staticmethod
+    def _karte(nid: str, node_type: str = "content", **kw):
+        return WloCard(node_id=nid, title=nid, node_type=node_type, **kw)
+
+    def test_sammlung_wird_nachgezogen_wenn_die_auswahl_keine_hat(self):
+        pool = [
+            self._karte("v1"), self._karte("v2"),
+            self._karte("optik", "collection"),
+        ]
+        out = _apply_llm_card_selection(pool, ["v1", "v2"])
+        assert [c.node_id for c in out] == ["v1", "v2", "optik"]
+
+    def test_die_reihenfolge_des_modells_bleibt_vorn(self):
+        pool = [self._karte("optik", "collection"), self._karte("v1")]
+        out = _apply_llm_card_selection(pool, ["v1"])
+        assert out[0].node_id == "v1"
+
+    def test_hat_die_auswahl_schon_eine_sammlung_aendert_sich_nichts(self):
+        pool = [self._karte("s1", "collection"), self._karte("s2", "collection")]
+        out = _apply_llm_card_selection(pool, ["s1"])
+        assert [c.node_id for c in out] == ["s1"]
+
+    def test_ohne_sammlung_im_pool_aendert_sich_nichts(self):
+        pool = [self._karte("v1"), self._karte("v2")]
+        out = _apply_llm_card_selection(pool, ["v1"])
+        assert [c.node_id for c in out] == ["v1"]
+
+    def test_eine_themenseite_zaehlt_nicht_als_sammlung(self):
+        # Themenseiten haben ihre EIGENE Box; eine davon in der Auswahl belegt
+        # nicht, dass die Sammlungs-Box gefuellt ist.
+        tp = self._karte("thema", "collection", topic_pages=[
+            {"url": "u", "target_group": "teacher", "label": "L", "variant_id": "v"},
+        ])
+        pool = [tp, self._karte("optik", "collection")]
+        out = _apply_llm_card_selection(pool, ["thema"])
+        assert [c.node_id for c in out] == ["thema", "optik"]
+
+    def test_es_wird_hoechstens_eine_nachgezogen(self):
+        pool = [self._karte("v1")] + [
+            self._karte(f"s{i}", "collection") for i in range(4)
+        ]
+        out = _apply_llm_card_selection(pool, ["v1"])
+        assert len(out) == 2
+
+    def test_ohne_auswahl_bleibt_alles_wie_es_war(self):
+        # Keine Modell-Auswahl → der Caller sortiert selbst; hier darf nichts
+        # umgestellt werden.
+        pool = [self._karte("v1"), self._karte("s1", "collection")]
+        assert _apply_llm_card_selection(pool, []) == pool
+
 
 class _ObjCard:
     """Minimal object-form card (getattr path, not dict)."""

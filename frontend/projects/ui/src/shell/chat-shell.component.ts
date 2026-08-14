@@ -124,6 +124,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   readonly guideSuggestion = output<GuideSuggestionPayload>();
   /** Routing-Telemetrie pro Turn (gated durch `emitRoutingDebug`). */
   readonly routingDebug = output<RoutingDebugPayload>();
+  /** Das maschinenlesbare Ergebnis eines Zuges (2026-08-14). Feuert NUR, wenn
+   *  der Gastgeber ein `result_schema` erklärt hat — ungated, anders als
+   *  `guideSuggestion`/`routingDebug`: das Schema IST hier schon die Ansage. */
+  readonly agentResult = output<{ result: Record<string, any> | null; stop_reason: string }>();
 
   /** Exakter Start-Chip-Text, der die Web-Tour startet (statt zu senden).
    *  Studio-pflegbar (welcome-config.tour_reply); leer → kein Chip startet. */
@@ -378,7 +382,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     clearInput: () => this.userInput.set(''),
     isLoading: () => this.isLoading(),
     setLoading: (v) => this.isLoading.set(v),
-    addUserMessage: (content) => this._store.addUserMessage(content),
+    addUserMessage: (content) => this._store.addUserMessage(content, this._hostTurn),
     addBotMessage: (...args) => this._store.addBotMessage(...args),
     removeMessage: (id) => this._store.removeMessage(id),
     updateLoadingPhase: (id, label) => this._store.updateLoadingPhase(id, label),
@@ -422,6 +426,38 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     return runSendMessage(text, action, actionParams, this._sendCtx);
   }
 
+  /** Gilt die Blase des laufenden Zuges als Auftrag des Gastgebers?
+   *
+   *  Ein Merker und kein Parameter, weil `runSendMessage` die Blase selbst
+   *  anlegt (`ctx.addUserMessage`). Das ist gefahrlos: der Aufruf steht dort
+   *  VOR dem ersten `await`, läuft also synchron innerhalb von `startTask` —
+   *  zwischen Setzen und Lesen kann kein zweiter Zug dazwischenkommen. */
+  private _hostTurn = false;
+
+  /** **Public API** — einen Auftrag des Gastgebers als Zug starten.
+   *
+   *  Für Einbettungen, die den Chat auf ein Thema setzen wollen: „hier ist die
+   *  Sammlung, hier der Seitentext, leg los" (Nutzer-Entscheid 2026-08-14).
+   *  Danach ist es eine gewöhnliche Unterhaltung — der Auftrag ist der erste
+   *  Zug, nicht ein Modus.
+   *
+   *  Der Satz erscheint im Verlauf, aber als eigene Auftrags-Blase: die Person
+   *  hat ihn nicht gesagt. Unsichtbar wäre bequemer und unehrlich — sie sähe
+   *  eine Antwort auf eine Frage, die sie nie gestellt hat. */
+  startTask(text: string): Promise<void> {
+    const auftrag = (text ?? '').trim();
+    if (!auftrag) return Promise.resolve();
+    this._hostTurn = true;
+    try {
+      return this.sendMessage(auftrag);
+    } finally {
+      // Im `finally`, nicht nach dem `await`: die Blase entsteht synchron,
+      // und ein Merker, der bis zum Ende des Zuges stünde, färbte die nächste
+      // getippte Nachricht mit.
+      this._hostTurn = false;
+    }
+  }
+
   /** Erfolgs-Seiteneffekte eines Turns — ALT `sendMessage`-Tail (522-560):
    *  Tour-Flag pflegen (getippte Trigger-Phrase startet die Tour über diesen
    *  Pfad), Debug-Panel füttern, query-meta broadcasten, page_action
@@ -437,10 +473,27 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     maybeDispatchGuideNavigate(userMessage, resp.cards, this._contexts.hostEvents);
     maybeDispatchGuideSuggestion(userMessage, resp.cards, this._contexts.hostEvents);
     maybeDispatchRoutingDebug(userMessage, resp.debug, this._contexts.hostEvents);
+    this._reportAgentResult(resp);
     if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
     if (this._speech.autoSpeak && resp.content) {
       this._speech.autoSpeakText(resp.content);
     }
+  }
+
+  /** Das maschinenlesbare Ergebnis an den Gastgeber melden (2026-08-14).
+   *
+   *  Dieselbe Bedingung wie im Backend (`nodes/persist.py`): gemeldet wird,
+   *  sobald es ein Ergebnis ODER einen Ende-Grund gibt. Der Grund allein ist
+   *  keine leere Meldung, sondern die Auskunft „dieser Zug gab keins her — und
+   *  hier ist, warum". Ohne Schema setzt das Backend beide nicht, und dann
+   *  bleibt es hier still: ein Ereignis bei jeder Antwort wäre ein Signal, das
+   *  nichts bedeutet. */
+  private _reportAgentResult(resp: ChatResponse): void {
+    const grund = resp.result_stop_reason || '';
+    if (resp.result == null && !grund) return;
+    const nutzlast = { result: resp.result ?? null, stop_reason: grund };
+    dispatchHostEvent(HOST_EVENTS.agentResult, nutzlast);
+    this.agentResult.emit(nutzlast);
   }
 
   /** Die eine bestätigte Änderung absetzen, die dieser Zug mitgebracht hat (E4).
@@ -647,6 +700,13 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
    *  ihrem Host-Attribut, der Client trägt sie an jedem Zug mit. */
   setEngine(mode: string): void {
     this._api.setEngine(mode);
+  }
+
+  /** In welcher Form dieser Einbau sein Ergebnis erwartet (`null` = gar keins).
+   *  Delegate wie `setEngine` — die Entscheidung trifft die Widget-Hülle aus
+   *  ihrem Host-Attribut, der Client trägt sie an jedem Zug mit. */
+  setResultSchema(schema: Record<string, any> | null): void {
+    this._api.setResultSchema(schema);
   }
 
   /** Startet die geführte Web-Tour. Delegate — Logik in `tour.controller.ts`. */

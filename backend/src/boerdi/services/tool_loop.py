@@ -45,14 +45,18 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from boerdi.domain.inline_grouping import (
+    MIN_SELECTABLE_CARDS,
     _redact_search_content_for_llm,
     _strip_trailing_option_lines,
     _ui_box_state_footer,
 )
+from boerdi.domain.inline_grouping import max_selectable_cards as _max_selectable
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
 from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.domain.write_confirm import (
+    confirmed_args,
     extract_confirm_token,
+    is_affirmation,
     is_confirmable,
     is_expired,
     redact_confirm_token,
@@ -144,6 +148,16 @@ async def _run_tool_loop(
     # Bis 2026-08-11 stand er dort — dadurch war dies immer ``None`` und
     # keine Bestätigung je einlösbar.
     _pending_at_turn_start = (session_state.get("entities") or {}).get("_pending_write")
+    # S4 (2026-08-14): Die Zustimmung steht in der Nachricht des Menschen, nicht
+    # in den Argumenten des Modells — siehe ``domain/write_confirm``. Die letzte
+    # Nachricht mit ``role: "user"`` IST die dieses Zugs: ``_assemble_messages``
+    # haengt sie zuletzt an, und der Loop ergaenzt darunter nur noch
+    # ``assistant``/``tool``. Einmal gelesen, bevor der Loop laeuft.
+    _nutzernachricht = next(
+        (str(m.get("content") or "")
+         for m in reversed(messages) if m.get("role") == "user"),
+        "",
+    )
 
     for iteration in range(max_iterations):  # noqa: B007 — verbatim ALT (unused index)
         tool_choice: Any = None
@@ -303,7 +317,27 @@ async def _run_tool_loop(
                 if tool_name == "select_top_cards":
                     ids = tool_args.get("card_ids") or []
                     reasoning = (tool_args.get("reasoning") or "").strip()
-                    # Sanitize: nur Strings, dedupe, max 5
+                    # Sanitize: nur Strings, dedupe, gedeckelt auf das
+                    # Auswahl-Budget aus den Studio-Gruppen. Hier stand bis
+                    # 2026-08-14 eine harte 5 — quer über ALLE Boxen. Da der
+                    # Postprocess die Karten danach auf genau diese IDs
+                    # filtert, konnten Einzelinhalte die Plätze belegen und
+                    # eine gesuchte Sammlung fiel heraus, obwohl
+                    # ``sammlungen_max`` drei erlaubt. Begründung und
+                    # Grenzen: ``domain/inline_grouping.max_selectable_cards``.
+                    try:
+                        from boerdi.services.config_loader import (
+                            load_display_rules_config as _ldrc_sel,
+                        )
+                        _max_sel = _max_selectable(_ldrc_sel() or {})
+                    except Exception:
+                        # Sichtbar, nicht still: der Rückfall ist genau der
+                        # Zustand, den #193 beseitigt hat — eine unlesbare
+                        # Config nähme ihn stillschweigend zurück.
+                        _logger.warning(
+                            "display_rules für den Auswahl-Deckel unlesbar; "
+                            "nehme die Untergrenze", exc_info=True)
+                        _max_sel = MIN_SELECTABLE_CARDS
                     clean_ids: list[str] = []
                     seen: set[str] = set()
                     for x in ids:
@@ -313,7 +347,7 @@ async def _run_tool_loop(
                         if xs and xs not in seen:
                             clean_ids.append(xs)
                             seen.add(xs)
-                        if len(clean_ids) >= 5:
+                        if len(clean_ids) >= _max_sel:
                             break
                     session_state["_selected_card_ids"] = clean_ids
                     session_state["_selected_card_reasoning"] = reasoning
@@ -558,9 +592,31 @@ async def _run_tool_loop(
                     # Die Uhr steht hier und nicht in der Domäne: dort wohnt
                     # die Identität eines Vorhabens, hier die Zeit (E4).
                     _jetzt = time.time()
-                    _confirm = token_for(
+                    # S4 (2026-08-14): Hat der Mensch zugestimmt, gilt das
+                    # ABGENOMMENE Vorhaben — nicht das, was das Modell in
+                    # diesem Zug neu zusammenstellt. Nur dieser Weg trägt bei
+                    # Vorhaben MIT Nutzlast: eine hochgeladene Datei steht als
+                    # Argument im Aufruf (``_ContentFields.content`` /
+                    # ``fileBase64``), und die kann kein Modell zeichengleich
+                    # wiederholen. Der Fingerabdruck-Weg darunter bleibt für
+                    # alles ohne Nutzlast — und als Rückfall, wenn nichts
+                    # gemerkt wurde (zu grosse Argumente).
+                    _abgenommen = (
+                        confirmed_args(_pending_at_turn_start, tool_name, now=_jetzt)
+                        if is_affirmation(_nutzernachricht) else None
+                    )
+                    _confirm = None if _abgenommen else token_for(
                         _pending_at_turn_start, tool_name, tool_args, now=_jetzt)
-                    if _confirm:
+                    if _abgenommen is not None:
+                        # Weder Argumente noch Schlüssel ins Protokoll — nur,
+                        # dass eingelöst wurde.
+                        _logger.info(
+                            "Abnahme für %s eingelöst; es gelten die gezeigten "
+                            "Argumente", tool_name)
+                        tool_args = _abgenommen
+                        _pending_at_turn_start = None
+                        session_state.setdefault("entities", {}).pop("_pending_write", None)
+                    elif _confirm:
                         tool_args = {**tool_args, "confirmToken": _confirm}
                         _pending_at_turn_start = None
                         session_state.setdefault("entities", {}).pop("_pending_write", None)

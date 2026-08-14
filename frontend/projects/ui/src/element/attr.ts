@@ -39,6 +39,37 @@ export function _attrEnum<T extends string>(
 }
 
 /**
+ * JSON-Objekt-Attribut lesen (`result-schema`, 2026-08-14). `null` heißt „kein
+ * brauchbarer Wert" — leer, kaputt, oder kein Objekt.
+ *
+ * Wie `_attrEnum` behandelt dies den Wert als UNGEPRÜFTE Eingabe einer fremden
+ * Seite: ein vergessenes Anführungszeichen darf die Zusatzfunktion kosten, nie
+ * den Chat. Deshalb wird der Fehler gefangen — aber nicht verschluckt: die
+ * `console.warn`-Zeile ist die einzige Stelle, an der die Gastseite ihren
+ * Tippfehler bemerken kann, denn nach außen sieht ein kaputtes Attribut sonst
+ * genauso aus wie ein weggelassenes.
+ *
+ * Arrays und Skalare fallen mit durch: ein JSON-Schema ist ein Objekt, und
+ * `[1,2,3]` weiter zu reichen hieße, den Fehler ans Backend zu delegieren.
+ */
+export function _attrJsonObject(v: string | undefined): Record<string, unknown> | null {
+  const s = (v ?? '').trim();
+  if (!s) return null;
+  let wert: unknown;
+  try {
+    wert = JSON.parse(s);
+  } catch (err) {
+    console.warn('boerdi: Attribut ist kein gültiges JSON und wird ignoriert', err);
+    return null;
+  }
+  if (!wert || typeof wert !== 'object' || Array.isArray(wert)) {
+    console.warn('boerdi: Attribut ist kein JSON-Objekt und wird ignoriert', wert);
+    return null;
+  }
+  return wert as Record<string, unknown>;
+}
+
+/**
  * U2a — die beiden Größenstufen (`size`).
  *
  * Der Typ wohnt HIER und nicht bei `PanelState`, obwohl der Zustand dort liegt:

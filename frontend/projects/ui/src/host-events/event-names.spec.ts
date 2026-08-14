@@ -24,13 +24,18 @@ function capture(names: string[], run: () => void): Array<{ name: string; detail
 }
 
 describe('HOST_EVENTS — die Namen selbst', () => {
-  it('alle vier tragen den neuen Präfix', () => {
+  it('alle fünf tragen den neuen Präfix', () => {
+    // `agent-result` kam 2026-08-14 dazu (maschinenlesbares Ergebnis, siehe
+    // `chat-shell.component._reportAgentResult`). Die Liste IST der Vertrag:
+    // sie wächst hier UND in der Studio-Tabelle (`widget-contract-data.ts`),
+    // sonst verspricht die Doku etwas anderes, als der Code feuert.
     const namen = Object.values(HOST_EVENTS);
     expect(namen).toEqual([
       'boerdi:guide-suggestion',
       'boerdi:routing-debug',
       'boerdi:query-meta',
       'boerdi:page-action',
+      'boerdi:agent-result',
     ]);
     expect(namen.every((n) => n.startsWith('boerdi:'))).toBe(true);
   });

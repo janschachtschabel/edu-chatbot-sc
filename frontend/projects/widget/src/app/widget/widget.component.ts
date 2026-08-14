@@ -9,6 +9,7 @@ import {
   ChatShellComponent, GuideBoot, GuideNav, GuideSuggestionPayload, HeaderNavButton, HostBridges,
   ICONS, PanelState, RoutingDebugPayload, SafeSvgPipe, TranslationParams, WidgetLanguage,
   _attrEnum,
+  _attrJsonObject,
   PANEL_SIZE_STEPS,
   applyPrimaryColor, BOERDI_LOGO_DATA_URL, headerNavHrefWithBsid, headerNavIconSvg,
   pickLocalized,
@@ -150,6 +151,17 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    * Ein unbekannter Wert fällt dort auf die Vorgabe zurück und bricht nichts.
    */
   readonly engine = input('');
+  /**
+   * `result-schema` — in welcher Form dieser Einbau sein Ergebnis erwartet
+   * (Nutzer-Entscheid 2026-08-14). Ein JSON-Schema als **Zeichenkette**, denn
+   * so und nicht anders kommen Attribute eines Custom Elements herein.
+   *
+   * Leer = kein Ergebnis, und das ist der Normalfall. Gesetzt bekommt der
+   * Gastgeber je Zug ein `boerdi:agent-result` — dafür gelten zwei Bedingungen,
+   * die er kennen muss: es wirkt nur mit `engine="agent"`, und es kostet dort
+   * einen zusätzlichen Modellzug je Nachricht (2–9 s gemessen).
+   */
+  readonly resultSchema = input('');
   /** Anfangs-Größenstufe (U2a): `small` (Vorgabe) oder `large`. Nur der START —
    *  danach gehört die Stufe dem Panel, weil der Umschalter in der Eingabezeile
    *  sie verändert. Rahmenlos hat sie keine Wirkung auf die Maße (die stellt der
@@ -312,6 +324,26 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
       const shell = this.shell();
       if (shell) shell.setEngine(this.engine());
     });
+    // Und dasselbe für das Ergebnis-Schema. Eigener Effect statt einer Zeile
+    // im obigen: er hängt an `resultSchema()`, nicht an `engine()` — ein zur
+    // Laufzeit gesetztes Attribut soll ab dem nächsten Zug gelten, ohne dass
+    // die Maschinen-Wahl sich bewegt haben muss.
+    effect(() => {
+      const shell = this.shell();
+      if (shell) shell.setResultSchema(_attrJsonObject(this.resultSchema()));
+    });
+    // Der wartende Auftrag, sobald es eine Shell gibt. Dieselbe Nachzieh-Naht
+    // wie oben und aus demselben Grund: die Shell hängt am Lazy-Gate. Der
+    // Merker ist bewusst KEIN Signal — dieser Effect soll an `shell()` hängen,
+    // nicht am Auftrag, sonst liefe er beim Setzen ein zweites Mal.
+    effect(() => {
+      const shell = this.shell();
+      const auftrag = this._wartenderAuftrag;
+      if (shell && auftrag) {
+        this._wartenderAuftrag = null;
+        void shell.startTask(auftrag);
+      }
+    });
   }
 
   // ── Template-Sicht ──────────────────────────────────────────────
@@ -446,9 +478,49 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     this.shell()?.resetSession();
   }
 
-  /** **Public API** — Seitenkontext von außen aktualisieren (V4). */
+  /** **Public API** — Seitenkontext von außen ergänzen (V4). MERGT: Felder, die
+   *  hier nicht vorkommen, bleiben stehen. */
   updateContext(ctx: Record<string, unknown>): void {
     this.shell()?.updateContext(ctx);
+  }
+
+  /** **Public API** — Seitenkontext ERSETZEN, wie bei einer erkannten
+   *  Navigation: alte IDs fallen weg, das Ping-Gate wird zurückgesetzt, und
+   *  eine Kontext-Begrüßung darf wieder angeboten werden.
+   *
+   *  Für Einbettungen, in denen sich `location.href` nie ändert — eine
+   *  Erweiterungs-Seitenleiste zeigt einen fremden Tab an, ohne selbst zu
+   *  navigieren. Dort greift weder der URL-Wächter noch das Attribut
+   *  (`page-context` wird nur in `ngOnInit` gelesen), und `updateContext` ließe
+   *  die Sammlung des vorigen Tabs stehen (Befund der Plugin-Entwickler
+   *  2026-08-14). */
+  replaceContext(ctx: Record<string, unknown>): void {
+    this.shell()?.onSpaContextChange(ctx);
+  }
+
+  /** Auftrag, der auf die Shell wartet. Im Panel-Modus wird sie erst beim
+   *  ersten Öffnen gemountet; ein `startTask` davor liefe sonst ins Leere —
+   *  und ein still verschluckter Startbefehl ist schlimmer als gar keiner. */
+  private _wartenderAuftrag: string | null = null;
+
+  /** **Public API** — den Chat mit einem Auftrag des Gastgebers starten.
+   *
+   *  „Hier ist die Sammlung, hier der Seitentext, leg los" — danach ist es eine
+   *  gewöhnliche Unterhaltung (Nutzer-Entscheid 2026-08-14). Den Kontext gebt
+   *  ihr davor mit `replaceContext()` bzw. dem `page-context`-Attribut.
+   *
+   *  Öffnet das Panel, wenn es zu ist: ein Auftrag, dessen Antwort niemand
+   *  sieht, ist keiner. */
+  startTask(text: string): void {
+    const auftrag = (text ?? '').trim();
+    if (!auftrag) return;
+    const shell = this.shell();
+    if (shell) {
+      void shell.startTask(auftrag);
+      return;
+    }
+    this._wartenderAuftrag = auftrag;
+    this.panel.setExpanded(true);
   }
 
   /** Web-Tour starten (Klick auf den Eulen-Kopf). No-op solange die Shell lädt. */

@@ -306,7 +306,11 @@ darunter diese Link-Liste.
    ``search_wlo_content`` rufen, um die Auswahl mit Einzelinhalten zu
    ergänzen.
 2. **select_top_cards(card_ids=[...], reasoning="...")** aufrufen —
-   wähle aus den Treffern bis zu 5 node_ids in Anzeige-Reihenfolge aus.
+   wähle aus den Treffern die node_ids in Anzeige-Reihenfolge aus. Nimm aus
+   JEDER gefundenen Sorte (Themenseiten, Sammlungen, Einzelmaterialien) die
+   besten mit: das Backend kürzt danach pro Box selbst. Wurde eine Sammlung
+   gefunden, die zur Frage passt, gehört sie in die Auswahl — sonst sieht der
+   User sie nie.
    Auswahl-Regeln siehe Tool-Beschreibung. **Dieser Schritt ist
    verpflichtend, sobald du etwas zeigen willst** — sonst weiß das Backend
    nicht, welche Treffer es anzeigen soll, und die User sieht nur deinen
@@ -316,11 +320,12 @@ darunter diese Link-Liste.
 3. Plain-Text-Antwort — kurze 1-2-Satz-Prosa als Einleitung der Liste.
 
 **AUSWAHL-PRIORITÄT** für select_top_cards:
-- **ZIEL: bis zu 5 Treffer** — wenn die Search-Tools genug geliefert haben.
+- **ZIEL: aus jeder gefundenen Sorte die besten** — das Backend kürzt
+  danach pro Box selbst. Eine passende Sammlung gehört immer dazu.
 - DEFAULT-Reihenfolge: Themenseiten zuerst (geben breiten Überblick),
   dann Sammlungen, dann Einzelinhalte.
-- **MIX**: 1 Sammlung + 3-4 Einzelinhalte ist meist besser als 1 Sammlung
-  alleine. Fülle freie Slots mit passenden Einzelinhalten auf.
+- **MIX**: 1 Sammlung + einige Einzelinhalte ist meist besser als 1 Sammlung
+  alleine — aber nicht STATT der Sammlung.
 - AUSNAHME (Typ-Fokus): Wenn der User explizit nach Material-Typ fragt
   (Video, Arbeitsblatt, Übung, Quiz, Audio, Präsentation, Interaktiv,
   Kurs) → bis zu 5 Einzelinhalte dieses Typs. Keine Themenseiten/

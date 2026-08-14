@@ -38,6 +38,7 @@ from boerdi.services.mcp.parsers.cards import (
 from boerdi.services.mcp.parsers.json_scan import _first_json_object
 from boerdi.services.mcp.parsers.skill_registry import (
     parse_skill_registries,
+    skill_count_of,
     skill_registry_note,
 )
 from boerdi.services.mcp.parsers.text_blocks import (
@@ -61,5 +62,6 @@ __all__ = [
     "parse_wikipedia_summary",
     "parse_wlo_cards",
     "parse_wlo_topic_page_cards",
+    "skill_count_of",
     "skill_registry_note",
 ]

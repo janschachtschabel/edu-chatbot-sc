@@ -90,11 +90,44 @@ def _einzeilig(wert: object, deckel: int) -> str:
     return text[:deckel] if len(text) > deckel else text
 
 
+def _gueltige_eintraege(roh: object) -> list[dict]:
+    """Die abrufbaren Eintraege einer Registry — ohne ``nodeId`` kein Skill.
+
+    Eine Regel, zwei Verbraucher: der Prompt-Block unten und der Zaehler fuer
+    die Karte (:func:`skill_count_of`). Zwei Zaehlweisen fuer dasselbe Feld
+    waeren eine Gelegenheit zum Auseinanderlaufen — die Kachel wuerde eine Zahl
+    zeigen, die der Block darunter nicht belegt.
+    """
+    if not isinstance(roh, dict):
+        return []
+    eintraege = roh.get("entries")
+    if not isinstance(eintraege, list):
+        return []
+    return [e for e in eintraege if isinstance(e, dict) and e.get("nodeId")]
+
+
+def skill_count_of(node: object) -> int:
+    """Wie viele Skills an DIESEM Knoten freigegeben sind; 0 ohne Registry.
+
+    Fuer die Karte gedacht (Nutzer-Vorgabe 2026-08-14): dass Skills an einer
+    Sammlung haengen, soll auch bei einer *Suche* sichtbar sein, nicht nur
+    wenn man im Seitenkontext auf ihr steht. Der MCP liefert ``skillRegistry``
+    dabei ungefragt mit (gemessen an ``search_wlo_collections`` und
+    ``search_wlo_all``) — es kostet also keinen zusaetzlichen Abruf.
+
+    Nur die Zahl, nicht die Titel: die Kachel zeigt einen Hinweis, kein
+    Verzeichnis. Den Katalog traegt der Prompt-Block, die Volltexte
+    ``get_skill_registry`` / ``get_skill``.
+    """
+    if not isinstance(node, dict):
+        return 0
+    return len(_gueltige_eintraege(node.get("skillRegistry")))
+
+
 def _als_registry(besitzer: dict, roh: dict) -> SkillRegistry | None:
     eintraege = tuple(
         SkillEntry(node_id=str(e.get("nodeId") or ""), title=_einzeilig(e.get("title"), _MAX_TITLE))
-        for e in roh.get("entries") or []
-        if isinstance(e, dict) and e.get("nodeId")
+        for e in _gueltige_eintraege(roh)
     )
     if not eintraege:
         return None

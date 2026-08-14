@@ -218,6 +218,14 @@ export interface ChatResponse {
   /** Eingebetteter Betrieb (E3/E4): die eine Änderung, die dieser Zug ausliefern
    *  darf. Höchstens eine je Zug — das Backend gibt bei zweien keine heraus. */
   prepared_write?: PreparedWriteOut | null;
+  /** Das maschinenlesbare Ergebnis des Zuges (2026-08-14), wenn der Gastgeber
+   *  ein `result_schema` erklärt hat. `null`, wenn dieser Zug keins hergab —
+   *  „Hallo" ergibt kein Ergebnis, und das ist kein Fehler. */
+  result?: Record<string, any> | null;
+  /** Warum der Lauf endete (`submit`, `text`, `deadline`, …). Gehört ZUM
+   *  Ergebnis: ein an der Frist abgeschnittener Lauf sähe sonst aus wie einer,
+   *  der nichts zu sagen hatte. */
+  result_stop_reason?: string;
 }
 
 export interface ChatMessage {
@@ -238,6 +246,13 @@ export interface ChatMessage {
    *  `DebugInfo & Record<string, unknown>`, falls je typisierter Zugriff nötig. */
   debug?: unknown;
   isLoading?: boolean;
+  /** Der Satz kam vom GASTGEBER, nicht von der Person am Chat (`startTask()`,
+   *  Nutzer-Entscheid 2026-08-14). `sender` bleibt `'user'`: Grouping, Verlauf
+   *  und Backend kennen zwei Seiten, eine dritte einzuführen kostete jede
+   *  Consumer-Regel. Diese Markierung sagt nur, WER den Satz beigesteuert hat,
+   *  und die Blase wird danach anders dargestellt — ein untergeschobener Satz
+   *  im Verlauf wäre eine Behauptung über die Person. */
+  fromHost?: boolean;
   /** Live-Status aus POST /api/chat/stream während `isLoading`. Von der Shell
    *  pro Tracer-`phase`-Event gesetzt (updateLoadingPhase). */
   loadingPhase?: string;

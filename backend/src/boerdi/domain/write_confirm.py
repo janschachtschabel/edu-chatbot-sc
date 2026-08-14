@@ -81,6 +81,14 @@ CONFIRMABLE_TOOLS = CURATION_TOOLS - {"wlo_list_suggestions"}
 
 _TOKEN_FIELD = "confirmToken"
 
+# Wie viel eines Vorhabens wir uns merken (S4, 2026-08-14). Der Merkposten
+# liegt als JSONB in ``session_state["entities"]`` und wird je Zug geschrieben;
+# eine Nutzlast von Megabytes gehoerte dort nicht hinein. Bis zu dieser Grenze
+# ueberwiegt der Gegenwert deutlich — ohne die Argumente ist eine Abnahme mit
+# Datei ueberhaupt nicht einloesbar (siehe :func:`remember_pending`). Darueber
+# wird nichts gemerkt, und es bleibt beim Weg ueber :func:`token_for`.
+MAX_REMEMBERED_ARGS_BYTES = 262_144
+
 # Der Server schreibt ``… mit confirmToken: <schlüssel> wiederholen.``
 # (``previewReply`` in ``curation-shared.ts``). Der Schlüssel ist
 # ``randomBytes(18).toString('base64url')``, also 24 Zeichen aus dem
@@ -204,13 +212,34 @@ def remember_pending(
     Zug eine frisch erzeugte Vorschau mit. Er wohnt deshalb in
     ``session_state["_write_preview"]`` — auf oberster Ebene, wo nichts
     gespeichert wird, und die Antwort verbraucht ihn dort.
+
+    **Die abgenommenen Argumente liegen mit darin** (S4, 2026-08-14) — und das
+    ist der Unterschied zwischen „bestaetigbar" und „theoretisch bestaetigbar".
+    ``_ContentFields`` fuehrt die Nutzlast als gewoehnliches Argument
+    (``content``, ``fileBase64``): eine hochgeladene Datei ist ein
+    Werkzeug-Argument von mehreren Kilobyte. :func:`token_for` verlangt fuer die
+    Bestaetigung denselben Fingerabdruck, das Modell muesste diese Bytes im
+    Folgezug also zeichengleich wiederholen. Das gelingt nicht, und die Folge
+    war eine Schleife: jedes „ja" erzeugte eine neue Vorschau statt der
+    Ausfuehrung. Gemerkt wird deshalb, was der Mensch gesehen hat; ausgefuehrt
+    wird spaeter genau das (:func:`confirmed_args`) und nie das, was das Modell
+    im Bestaetigungszug neu erfindet. Das ist zugleich die staerkere Zusicherung
+    — abgenommen und ausgefuehrt sind dann dasselbe.
+
+    Ueber :data:`MAX_REMEMBERED_ARGS_BYTES` wird nichts gemerkt: dann bleibt es
+    beim alten Weg, der fuer Vorhaben ohne Nutzlast (Umbenennen, Loeschen)
+    ohnehin traegt.
     """
-    return {
+    sauber = strip_confirm_token(tool_name, args)
+    merkposten: dict[str, Any] = {
         "tool": tool_name,
         "fingerprint": change_fingerprint(tool_name, args),
         "token": token,
         "minted_at": now,
     }
+    if len(json.dumps(sauber, ensure_ascii=False, default=str)) <= MAX_REMEMBERED_ARGS_BYTES:
+        merkposten["args"] = sauber
+    return merkposten
 
 
 def is_expired(pending: dict[str, Any] | None, *, now: float) -> bool:
@@ -253,3 +282,87 @@ def token_for(
     if is_expired(pending, now=now):
         return None
     return pending.get("token") or None
+
+
+# ── Die Zustimmung des Menschen (S4, 2026-08-14) ──────────────────────────
+#
+# Ob ein Zug eine Abnahme ist oder eine Nachbesserung, steht **nicht in den
+# Argumenten des Modells** — beide Male ruft es dasselbe Werkzeug mit
+# aehnlichen Werten. Es steht in der Nachricht des Menschen. Deshalb liest der
+# Bestaetigungspfad sie, statt Argumente zu vergleichen, die er nicht
+# vergleichen kann (siehe :func:`remember_pending`).
+
+# Stämme, die eine Abnahme tragen. Umlaute sind aufgelöst, weil ``_woerter``
+# vor dem Vergleich normalisiert. Die beiden Knopf-Beschriftungen aus
+# ``i18n/bot_text`` („Ja, so ausführen" / „Yes, go ahead") fallen bewusst unter
+# diese Stämme — dann braucht dieses Modul keine Sprachkenntnis und keinen
+# Parameter. Ein Test klemmt genau das fest: wer den Knopf umbenennt, ohne
+# einen Stamm zu treffen, bekommt einen roten Test und keine stille Schleife.
+_ZUSTIMMUNG = frozenset({
+    "ja", "jawohl", "bestatige", "bestatigen", "bestatigt", "bestatigung",
+    "ausfuhren", "ausfuhrung", "abnehmen", "ok", "okay", "passt", "einverstanden",
+    "yes", "confirm", "confirmed", "ahead", "proceed",
+})
+
+# Was eine Abnahme wieder aufhebt. Ein „ja, aber ändere den Titel" ist keine
+# Zustimmung, sondern der Auftrag zu einer neuen Vorschau — und die Nutzlast
+# des alten Vorhabens darf dann gerade NICHT ausgeführt werden.
+_VORBEHALT = frozenset({
+    "nein", "nicht", "kein", "keine", "aber", "andere", "andern", "anders",
+    "statt", "stattdessen", "warte", "stopp", "stop", "abbrechen", "abbruch",
+    "erst", "no", "cancel", "change", "wait",
+})
+
+# Eine Abnahme ist kurz. Der Deckel haelt lange Saetze heraus, in denen ein
+# „ja" nur beilaeufig vorkommt.
+_WORTGRENZE = 6
+
+_WORTTRENNER = re.compile(r"[^0-9a-z]+")
+_UMLAUTE = str.maketrans({"ä": "a", "ö": "o", "ü": "u", "ß": "s"})
+
+
+def _woerter(text: str) -> list[str]:
+    """``text`` als Wortliste, kleingeschrieben und ohne Umlaute."""
+    flach = (text or "").lower().translate(_UMLAUTE)
+    return [w for w in _WORTTRENNER.split(flach) if w]
+
+
+def is_affirmation(text: str) -> bool:
+    """Ist ``text`` eine glatte Zustimmung zu einer offenen Abnahme?
+
+    Bewusst eng: ein Vorbehalt oder ein langer Satz zaehlt nicht. Der Preis
+    einer zu engen Regel ist eine ueberfluessige zweite Frage, der Preis einer
+    zu weiten eine Aenderung, der niemand zugestimmt hat.
+    """
+    woerter = _woerter(text)
+    if not woerter or len(woerter) > _WORTGRENZE:
+        return False
+    if any(w in _VORBEHALT for w in woerter):
+        return False
+    return any(w in _ZUSTIMMUNG for w in woerter)
+
+
+def confirmed_args(
+    pending: dict[str, Any] | None, tool_name: str, *, now: float
+) -> dict[str, Any] | None:
+    """Die abgenommenen Argumente samt Schluessel — oder ``None``.
+
+    Der Aufrufer verantwortet die beiden Bedingungen, die dieses Modul nicht
+    pruefen kann: dass der Mensch zugestimmt hat (:func:`is_affirmation`) und
+    dass ``pending`` aus einem **frueheren** Zug stammt (der Schnappschuss vom
+    Zug-Eintritt in ``services/tool_loop``). Was hier geprueft wird, ist die
+    Identitaet des Vorhabens: dasselbe Werkzeug, Frist noch offen, Argumente
+    gemerkt.
+
+    Zurueck kommen die **gemerkten** Argumente, nicht die des Modells. Damit
+    ist ausgefuehrt, was in der Abnahme-Box stand — Zeichen fuer Zeichen.
+    """
+    if not pending or pending.get("tool") != tool_name:
+        return None
+    if is_expired(pending, now=now):
+        return None
+    gemerkt = pending.get("args")
+    token = pending.get("token")
+    if not isinstance(gemerkt, dict) or not token:
+        return None
+    return {**gemerkt, _TOKEN_FIELD: token}

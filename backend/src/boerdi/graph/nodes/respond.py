@@ -69,6 +69,17 @@ async def respond(
     ``respond_agent``, und zwar **vor** allem anderen: der Rumpf unten ist der
     Bestandsweg und bleibt unangetastet. Der Vorabruf aus ``merge`` wird dort
     verworfen, nicht hier — sonst stünde Agent-Wissen im Bestandspfad."""
+    if engine != "agent" and ctx.req.environment.result_schema:
+        # Ein Ergebnis-Schema wirkt NUR in der Agent-Schleife, und die Vorgabe
+        # der Anlage ist ``pattern``. Ohne diese Zeile bekäme ein Gastgeber, der
+        # das Attribut setzt und die Maschine vergisst, stumm nie ein Ergebnis
+        # — und suchte den Fehler bei sich. Warnen statt abweisen: der Zug ist
+        # in Ordnung, nur die Erwartung nicht.
+        logger.warning(
+            "result_schema wurde erklärt, aber diese Anfrage läuft mit der "
+            "Maschine %r statt 'agent' — es bleibt wirkungslos. Kopfzeile "
+            "X-Boerdi-Engine: agent setzen oder 01-base/engine umstellen.",
+            engine)
     if engine == "agent":
         return await respond_agent(ctx, progress=progress)
 

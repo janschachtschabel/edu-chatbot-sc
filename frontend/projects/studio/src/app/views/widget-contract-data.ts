@@ -50,6 +50,10 @@ export const HOST_ATTRIBUTES: readonly HostAttribute[] = [
     fallbackKey: 'rw.default.empty', descKey: 'rw.attr.engine',
   },
   {
+    groupKey: 'rw.group.basis', attr: 'result-schema', fallback: '',
+    fallbackKey: 'rw.default.empty', descKey: 'rw.attr.resultSchema',
+  },
+  {
     groupKey: 'rw.group.basis', attr: 'position', fallback: 'bottom-right',
     descKey: 'rw.attr.position',
   },
@@ -170,6 +174,10 @@ export const HOST_EVENTS: readonly HostEvent[] = [
   {
     name: 'boerdi:routing-debug', whenKey: 'rw.when.routingDebug',
     payload: '{pattern, intent, state, persona, tools_called[], sources[], modifier{}}',
+  },
+  {
+    name: 'boerdi:agent-result', whenKey: 'rw.when.agentResult',
+    payload: '{result, stop_reason} — result ist null, wenn der Zug keins ergab',
   },
 ];
 

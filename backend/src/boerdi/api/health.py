@@ -13,6 +13,7 @@ from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 
 from boerdi.services import llm_models
+from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.mcp.auth import auth_mode
 from boerdi.services.rag.rerank import reranker_status
 
@@ -33,6 +34,13 @@ def _health_detail() -> dict:
         # hinterlegt) oder ``anonymous``. Nur das Wort, nie der Block: sonst
         # könnte ein Betreiber nicht prüfen, ob sein Token überhaupt greift.
         "mcp_auth": auth_mode(),
+        # Gegen WELCHES Repositorium dieser Bot läuft. Keine Nebensache: die
+        # Angabe entscheidet über jede Karten-Adresse, und ohne sie ist
+        # „läuft der Bot auf Staging?" nur durch Lesen der Deploy-Umgebung zu
+        # beantworten — genau die Frage stand am Anfang (Nutzer 2026-08-14).
+        # Eine öffentliche Adresse, kein Geheimnis: sie steht ohnehin in jedem
+        # Kartenlink.
+        "repo": get_repo_base_url(),
         # Wie `mcp_auth` nur das WORT, aber hier mit einem eigenen Zweck: der
         # Reranker kann eingeschaltet und trotzdem untätig sein, wenn das
         # Modell fehlt. Ohne dieses Feld merkt man das nur an unauffällig

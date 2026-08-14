@@ -175,7 +175,9 @@ export type { CollectionActionsContext } from './controllers/collection-actions'
 export { SpeechService } from './speech/speech.service';
 export type { SpeechContext } from './speech/speech.service';
 
-export { _attrEnum, _attrIsTrue, PANEL_SIZE_STEPS, WIDGET_THEMES, resolveTheme } from './element/attr';
+export {
+  _attrEnum, _attrIsTrue, _attrJsonObject, PANEL_SIZE_STEPS, WIDGET_THEMES, resolveTheme,
+} from './element/attr';
 export type { PanelSizeStep, WidgetTheme } from './element/attr';
 export {
   maybeDispatchGuideNavigate,

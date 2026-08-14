@@ -53,6 +53,7 @@ export const EN: Catalogue = {
   'chat.record.start': 'Start voice input',
   'chat.record.stop': 'Stop recording',
   'chat.send': 'Send',
+  'chat.hostTask': 'Task from the page',
 
   'chat.input.label': 'Message to BOERDi',
   'chat.input.placeholder': 'Type a message…',
@@ -73,6 +74,8 @@ export const EN: Catalogue = {
   'cards.topicTooltip.single': 'Open topic page',
   'cards.topicTooltip.more': 'Topic page ({variant}) — more available',
   'cards.showContent': 'Show content',
+  'cards.skills.one': '1 skill approved',
+  'cards.skills.many': '{count} skills approved',
   'cards.pagination.count': '{visible} of {total} results',
   'cards.pagination.showMore': 'Show more',
   'cards.pagination.loadMore': 'Load more',

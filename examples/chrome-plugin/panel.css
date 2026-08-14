@@ -1,0 +1,148 @@
+/* Seitenleiste — schmal (~360 px), deshalb eine Spalte und keine Tabellen.
+   Farben aus `color-scheme`, damit die Leiste dem Chrome-Thema folgt; das
+   Widget tut mit `theme="auto"` dasselbe. Keine Web-Schrift, kein externes
+   Bild: die Erweiterung soll nichts nachladen (und MV3 ließe es nicht zu). */
+:root {
+  color-scheme: light dark;
+  --rand: light-dark(#d5d9e0, #3a4048);
+  --grund: light-dark(#ffffff, #1d2126);
+  --feld: light-dark(#f7f8fa, #262b31);
+  --schrift: light-dark(#1a1d21, #e8eaed);
+  --leise: light-dark(#5b6270, #a0a7b4);
+  --akzent: light-dark(#1c4587, #7aa7e8);
+  --warn: light-dark(#8a4b00, #ffb865);
+  --warn-grund: light-dark(#fff6e8, #3a2a12);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--schrift);
+  background: var(--grund);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+.leiste {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--rand);
+  position: sticky;
+  top: 0;
+  background: var(--grund);
+  z-index: 2;
+}
+
+section {
+  padding: 12px;
+  border-bottom: 1px solid var(--rand);
+}
+section.wachsend { flex: 1; min-height: 220px; display: flex; flex-direction: column; }
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--leise);
+}
+
+.feld { display: block; margin-bottom: 8px; }
+.feld > span { display: block; margin-bottom: 3px; font-weight: 500; }
+.feld em { font-weight: 400; color: var(--leise); font-style: normal; }
+
+input[type="text"], input[type="url"], select, textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--rand);
+  border-radius: 6px;
+  background: var(--feld);
+  color: inherit;
+  font: inherit;
+}
+textarea { resize: vertical; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+#auftrag { font-family: inherit; }
+
+.reihe { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+.reihe label, .ankreuz { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.ankreuz { margin: 8px 0; flex-wrap: wrap; }
+
+button {
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--akzent);
+  color: light-dark(#fff, #10141a);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:hover { filter: brightness(1.08); }
+button:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+button.zweitrangig {
+  background: var(--feld);
+  color: inherit;
+  border-color: var(--rand);
+  font-weight: 500;
+}
+
+/* Sichtbarer Fokus — die Leiste ist mit der Tastatur bedienbar, und ohne das
+   wäre sie es nur theoretisch. */
+:is(button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--akzent);
+  outline-offset: 2px;
+}
+
+.hinweis { margin: 4px 0; font-size: 12px; color: var(--leise); }
+.hinweis.fehler { color: var(--warn); font-weight: 600; }
+
+.warnung {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: var(--warn-grund);
+  color: var(--warn);
+  font-size: 12px;
+}
+.warnung code { word-break: break-all; }
+
+code, pre { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; }
+pre {
+  margin: 6px 0 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--feld);
+  overflow-x: auto;          /* breite IDs schieben die Leiste nicht auseinander */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+details summary { cursor: pointer; color: var(--leise); font-size: 12px; }
+
+.chatHalter { flex: 1; min-height: 200px; display: flex; }
+.chatHalter > * { flex: 1; }
+
+.ergebnisse { list-style: none; margin: 0; padding: 0; }
+.ergebnisse li { margin-bottom: 10px; }
+.ergebnisse .kopf {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--leise);
+}
+.marke {
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--feld);
+  border: 1px solid var(--rand);
+  font-weight: 600;
+}
+.marke.gut { border-color: var(--akzent); color: var(--akzent); }
+.marke.leer { border-color: var(--warn); color: var(--warn); }

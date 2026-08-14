@@ -161,6 +161,11 @@ class TurnContext(BaseModel):
     cards: list[WloCard] = Field(default_factory=list)
     quick_replies: list[str] = Field(default_factory=list)
     page_action: dict[str, Any] | None = None
+    # Maschinenlesbares Ergebnis der Agent-Schleife samt Ende-Grund; nur gesetzt,
+    # wenn der Gastgeber ein ``result_schema`` erklärt hat (2026-08-14). Beide
+    # gehen unverändert in die ``ChatResponse``.
+    result: dict[str, Any] | None = None
+    result_stop_reason: str = ""
     pagination: PaginationInfo | None = None
     web_links: list[WebLink] = Field(default_factory=list)
 

@@ -33,7 +33,16 @@
           class="msg-bubble"
           [class.bot-bubble]="msg.sender === 'bot'"
           [class.user-bubble]="msg.sender === 'user'"
+          [class.host-bubble]="msg.fromHost"
         >
+          <!-- Auftrag des Gastgebers (startTask): sichtbar UND als solcher
+               gekennzeichnet. Die Person hat den Satz nicht gesagt; ihn wie
+               eine getippte Nachricht zu zeigen, wäre eine Behauptung über
+               sie, ihn zu verbergen liesse sie eine Antwort ohne Frage sehen. -->
+          @if (msg.fromHost) {
+            <div class="host-label">{{ t('chat.hostTask') }}</div>
+          }
+
           <!-- Lade-Punkte + Live-Phasen-Label (aus POST /api/chat/stream) -->
           @if (msg.isLoading) {
             <div class="typing-row">

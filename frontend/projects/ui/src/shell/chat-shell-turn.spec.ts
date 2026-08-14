@@ -33,14 +33,16 @@ function make(): ChatShellComponent {
 
 /** Fake-API, das stream/post aufzeichnet und RESP liefert. `streamRejects`
  *  erzwingt den POST-Fallback-Pfad. */
-function fakeApi(opts: { streamRejects?: Error } = {}) {
+function fakeApi(opts: { streamRejects?: Error; resp?: ChatResponse } = {}) {
+  const antwort = opts.resp ?? RESP;
   return {
     stream: vi.fn(async (_sid: string, _msg: string, onEvent: (e: any) => void) => {
       if (opts.streamRejects) throw opts.streamRejects;
       onEvent({ event: 'phase', data: { step: 'wlo_search' } });
-      return RESP;
+      return antwort;
     }),
-    post: vi.fn(async () => RESP),
+    post: vi.fn(async () => antwort),
+    setResultSchema: vi.fn(),
     // Vom Lebenszyklus gerufen. Die meisten Tests hier rendern nie, ein
     // wartender Test schon — ohne diese Attrappen stürbe er an einem Fehler
     // aus `ngOnInit` statt an seiner eigenen Aussage.
@@ -70,6 +72,58 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     expect(api.stream.mock.calls[0][1]).toBe('hallo');
   });
 
+  // ── Auftrag von außen (Nutzer-Entscheid 2026-08-14) ────────────────────
+  // Ein Gastgeber (Browser-Plugin, Repo-Seite) soll den Chat auf ein Thema
+  // starten können: „hier ist die Sammlung, hier der Seitentext, leg los".
+  // Der Satz erscheint im Verlauf, aber als EIGENE Auftrags-Blase — er wurde
+  // nicht von der Person gesagt, und ein untergeschobener Satz im Verlauf wäre
+  // eine Behauptung über sie.
+
+  it('startTask: Auftrags-Blase statt Nutzernachricht, Zug geht ab', async () => {
+    const c = make();
+    c.sessionId = 'sess-a';
+    const api = fakeApi();
+    (c as any)._api = api;
+
+    await c.startTask('Bestimme das Schulfach dieser Seite.');
+
+    const msgs = c.messages();
+    // `sender` bleibt 'user': Grouping und Verlauf kennen zwei Seiten, eine
+    // dritte einzuführen kostete jede Consumer-Regel. Die Markierung sagt,
+    // WER den Satz beigesteuert hat.
+    expect(msgs[0].sender).toBe('user');
+    expect(msgs[0].fromHost).toBe(true);
+    expect(msgs[0].content).toBe('Bestimme das Schulfach dieser Seite.');
+    expect(api.stream.mock.calls[0][1]).toBe('Bestimme das Schulfach dieser Seite.');
+    expect(msgs[1].sender).toBe('bot');
+  });
+
+  it('eine getippte Nachricht bleibt ohne die Auftrags-Markierung', async () => {
+    const c = make();
+    (c as any)._api = fakeApi();
+    await c.sendMessage('hallo');
+    expect(c.messages()[0].fromHost).toBeFalsy();
+  });
+
+  it('die Markierung gilt nur für den einen Zug', async () => {
+    // Sonst trüge jede spätere Nutzereingabe das Etikett des Gastgebers.
+    const c = make();
+    (c as any)._api = fakeApi();
+    await c.startTask('Auftrag');
+    await c.sendMessage('und jetzt ich');
+    expect(c.messages()[0].fromHost).toBe(true);
+    expect(c.messages()[2].fromHost).toBeFalsy();
+  });
+
+  it('ein leerer Auftrag löst keinen Zug aus', async () => {
+    const c = make();
+    const api = fakeApi();
+    (c as any)._api = api;
+    await c.startTask('   ');
+    expect(api.stream).not.toHaveBeenCalled();
+    expect(c.messages()).toEqual([]);
+  });
+
   it('onResult: latestDebug gesetzt, query-meta-Event gefeuert, page_action dispatcht', async () => {
     const c = make();
     (c as any)._api = fakeApi();
@@ -84,6 +138,69 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     expect(qm).toBeTruthy();
     expect((qm![0] as CustomEvent).detail).toEqual({ queries: RESP.query_metas });
     expect(onPageAction).toHaveBeenCalledWith({ action: 'canvas', payload: { n: 1 } });
+  });
+
+  // ── Das maschinenlesbare Ergebnis (Nutzer-Entscheid 2026-08-14) ──────
+  // Der Gastgeber erklärt ein Schema; kommt ein Ergebnis, muss es ihn
+  // erreichen. Ohne diesen Weg produzierte das Backend ein `result`, das
+  // niemand lesen kann.
+
+  it('setResultSchema wird an den Client durchgereicht', () => {
+    const c = make();
+    const api = fakeApi();
+    (c as any)._api = api;
+    c.setResultSchema({ type: 'object' });
+    expect(api.setResultSchema).toHaveBeenCalledWith({ type: 'object' });
+  });
+
+  it('ein Ergebnis im Zug feuert boerdi:agent-result und den Angular-Ausgang', async () => {
+    const c = make();
+    (c as any)._api = fakeApi({ resp: {
+      ...RESP, result: { taxon_id: '…/460' }, result_stop_reason: 'submit',
+    } as unknown as ChatResponse });
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    const gesehen: unknown[] = [];
+    c.agentResult.subscribe((v: unknown) => gesehen.push(v));
+
+    await c.sendMessage('welches Fach?');
+
+    const evt = dispatchSpy.mock.calls
+      .find(([e]) => (e as CustomEvent).type === 'boerdi:agent-result');
+    expect(evt).toBeTruthy();
+    expect((evt![0] as CustomEvent).detail)
+      .toEqual({ result: { taxon_id: '…/460' }, stop_reason: 'submit' });
+    expect(gesehen).toEqual([{ result: { taxon_id: '…/460' }, stop_reason: 'submit' }]);
+  });
+
+  it('ein Zug OHNE Ergebnis, aber mit Ende-Grund, meldet den Grund', async () => {
+    // „Hallo" bei erklärtem Schema: kein Ergebnis. Der Gastgeber soll den
+    // Unterschied zwischen „nichts dabei" und „abgeschnitten" sehen können.
+    const c = make();
+    (c as any)._api = fakeApi({ resp: {
+      ...RESP, result: null, result_stop_reason: 'text',
+    } as unknown as ChatResponse });
+    const gesehen: unknown[] = [];
+    c.agentResult.subscribe((v: unknown) => gesehen.push(v));
+
+    await c.sendMessage('hallo');
+
+    expect(gesehen).toEqual([{ result: null, stop_reason: 'text' }]);
+  });
+
+  it('ein gewöhnlicher Zug ohne Schema schweigt', async () => {
+    // Die Gegenprobe: kein Ereignis bei jeder normalen Antwort — sonst hörte
+    // eine Gastseite auf ein Signal, das nichts bedeutet.
+    const c = make();
+    (c as any)._api = fakeApi();
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    const gesehen: unknown[] = [];
+    c.agentResult.subscribe((v: unknown) => gesehen.push(v));
+
+    await c.sendMessage('hallo');
+
+    expect(dispatchSpy.mock.calls
+      .find(([e]) => (e as CustomEvent).type === 'boerdi:agent-result')).toBeFalsy();
+    expect(gesehen).toEqual([]);
   });
 
   it('Stream-Fehler (non-stale) → stiller POST-Fallback, Bot-Bubble erscheint', async () => {

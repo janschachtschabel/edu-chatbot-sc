@@ -8,7 +8,15 @@ card_pipeline:
   enable_llm_curation: true  # false = rein deterministisch sortiert
   min_displayed_cards: 5     # min. nach LLM-Auswahl (0 = kein Auffüllen)
 
-  # Hosts, deren Links auf REPO_BASE_URL umgeschrieben werden
+  # Welches Repositorium dieser Chatbot bedient.
+  # Leer = die Umgebungsvariable REPO_BASE_URL gilt (Vorgabe: Produktion).
+  # Gesetzt gewinnt dieser Wert — damit im Studio nachlesbar ist, gegen welches
+  # Repositorium der Bot laeuft, statt es aus der Deploy-Umgebung zu erraten.
+  # Staging: https://repository.staging.openeduhub.net
+  # Der aktuell geltende Wert steht in GET /api/health unter "repo".
+  repo_base_url: ""
+
+  # Hosts, deren Links auf das Repositorium oben umgeschrieben werden
   # (verteidigt gegen MCP-Server mit hardcoded Hosts).
   known_repo_hosts:
     - https://redaktion.openeduhub.net

@@ -156,3 +156,42 @@ describe('page-context-detector: T6 Host-Agnostik (staging === prod)', () => {
     });
   }
 });
+
+describe('page-context-detector: Nicht-Web-Herkünfte', () => {
+  /**
+   * Befund der Plugin-Entwickler (2026-08-14): in der Seitenleiste einer
+   * Chrome-Erweiterung läuft das Widget unter
+   * `chrome-extension://<id>/sidebar/index.html`. Der Detektor nahm die
+   * Erweiterungs-Kennung als Hostnamen, und der Bot sagte der Person:
+   * „Du bist auf dcchajcmmghejkhjmllhnmaggocmmjck — das gehört nicht zu WLO."
+   *
+   * Darüber lässt sich nichts aussagen: die Adresse bezeichnet die Erweiterung
+   * selbst, nicht das, was die Person ansieht. Ohne Host und Adresse bleibt der
+   * Kontext leer — und was der Gastgeber per `page-context` /
+   * `replaceContext()` mitgibt, steht dann allein da, statt gegen eine
+   * erfundene Seite anzukommen.
+   */
+  const fremd = [
+    'chrome-extension://dcchajcmmghejkhjmllhnmaggocmmjck/sidebar/index.html',
+    'moz-extension://a1b2c3d4-0000-0000-0000-000000000000/panel.html',
+    'file:///C:/tmp/test.html',
+    'about:blank',
+  ];
+
+  for (const u of fremd) {
+    it(`kein Host, keine Adresse: ${u}`, () => {
+      const r = detect(u);
+      expect(r.page_host).toBeUndefined();
+      expect(r.page_url).toBeUndefined();
+      expect(r.page_kind).toBeUndefined();
+    });
+  }
+
+  it('http bleibt unangetastet — auch ohne bekanntes Muster', () => {
+    // Gegenprobe: eine gewöhnliche fremde Webseite SOLL erkannt werden, dafür
+    // gibt es M20 („Seite für den Bestand vorschlagen").
+    const r = detect('http://beispiel.test/irgendwas');
+    expect(r.page_host).toBe('beispiel.test');
+    expect(r.page_url).toBe('http://beispiel.test/irgendwas');
+  });
+});

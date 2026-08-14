@@ -17,8 +17,9 @@ import json
 import logging
 from typing import Any
 
-from boerdi.services.config_loader import get_repo_base_url, rewrite_repo_host
+from boerdi.services.config_loader import get_repo_base_url, rewrite_repo_host_v2
 from boerdi.services.mcp.parsers.json_scan import _first_json_object
+from boerdi.services.mcp.parsers.skill_registry import skill_count_of
 
 logger = logging.getLogger(__name__)
 
@@ -71,12 +72,20 @@ def parse_total_count(mcp_text: str) -> int:
 
 
 def _normalize_card_repo_hosts(cards: list[dict]) -> list[dict]:
-    """URL-Felder aller Cards durch ``rewrite_repo_host`` schicken.
+    """URL-Felder aller Cards auf das konfigurierte Repositorium bringen.
 
     Notwendig, weil der MCP-Server ``previewUrl``/``contentUrl``/``url``-
     Felder serverseitig auf den Production-Repo-Host bakt — auch wenn der
     MCP-Server selbst Staging ist. Ohne Rewrite würden Staging-Node-IDs
     auf Production-Hostnamen landen und 404 liefern.
+
+    Über **alle** bekannten Repo-Hosts (``rewrite_repo_host_v2``), nicht nur den
+    Prod-Standardhost: die alte Fassung schrieb ausschließlich Adressen um, die
+    mit ``redaktion.openeduhub.net`` beginnen. Ein Link vom zweiten
+    Produktionshost blieb stehen, und der Chat zeigte eine Adresse, die zum
+    konfigurierten Repositorium nicht passt — die Angabe galt also nicht
+    konsequent (Nutzer-Vorgabe 2026-08-14). Fremde Hosts (YouTube, Geogebra)
+    stehen nicht auf der Liste und bleiben unangetastet.
     """
     _fields = ("url", "content_url", "preview_url", "download_url")
     for c in cards:
@@ -85,7 +94,7 @@ def _normalize_card_repo_hosts(cards: list[dict]) -> list[dict]:
         for f in _fields:
             v = c.get(f)
             if v:
-                c[f] = rewrite_repo_host(v)
+                c[f] = rewrite_repo_host_v2(v)
     return cards
 
 
@@ -170,6 +179,12 @@ def _cards_from_json_envelope(data: dict) -> list[dict] | None:
             "node_type": node_type,
             "wlo_url": _wlo_url,
             "topic_page_url": r.get("topicPageUrl") or "",
+            # Wie viele Skills die Redaktion an DIESER Sammlung freigegeben
+            # hat. Der MCP haengt ``skillRegistry`` ungefragt an
+            # Sammlungstreffer, es kostet also keinen Zusatzabruf. Bis
+            # 2026-08-14 landete das nur im Prompt — sichtbar war es allein im
+            # Seitenkontext; auf einem Suchtreffer sah man nichts davon.
+            "skill_count": skill_count_of(r),
         })
     return _normalize_card_repo_hosts(cards)
 

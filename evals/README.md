@@ -29,6 +29,10 @@ uv run python ../evals/run_golden.py --label neu          # gegen NEU (Dev-Compo
   `https://repository.staging.openeduhub.net` bei Staging-Config), sonst
   schlägt der Soft-Check `host` systematisch fehl. In ALT lief der Runner
   im Backend-Prozess und teilte dessen Env — standalone ist das Operator-Pflicht.
+  Welches Repositorium das Ziel-Backend tatsächlich führt, muss man dabei nicht
+  raten: `curl <ziel>/api/health` nennt es im Feld `repo`. Es kann aus der
+  Konfiguration kommen (Studio → Karten-Pipeline → `repo_base_url`) statt aus
+  der Env des Backends — dann gilt der Konfig-Wert.
 - Report: JSON unter `evals/reports/golden-<utc>-<label>.json` (Scorecard
   `golden_metrics` + volle Konversationen). Exit-Code 0 = alle harten Checks bestanden.
 - Kostenhinweis: 12 Flows ≈ 40 LLM-Turns — **volle Läufe startet der Nutzer**

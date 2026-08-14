@@ -69,6 +69,7 @@ export const DE: Catalogue = {
   'chat.record.start': 'Spracheingabe starten',
   'chat.record.stop': 'Aufnahme stoppen',
   'chat.send': 'Senden',
+  'chat.hostTask': 'Auftrag der Seite',
 
   'chat.input.label': 'Nachricht an BOERDi',
   'chat.input.placeholder': 'Nachricht eingeben…',
@@ -95,6 +96,10 @@ export const DE: Catalogue = {
   'cards.topicTooltip.single': 'Themenseite öffnen',
   'cards.topicTooltip.more': 'Themenseite ({variant}) — weitere verfügbar',
   'cards.showContent': 'Inhalt anzeigen',
+  // Skill-Hinweis an der Sammlungskachel. Getrennte Formen statt „1 Skill(s)",
+  // wie schon bei ``cards.topicTooltip.*``.
+  'cards.skills.one': '1 Skill freigegeben',
+  'cards.skills.many': '{count} Skills freigegeben',
   'cards.pagination.count': '{visible} von {total} Ergebnissen',
   'cards.pagination.showMore': 'Mehr anzeigen',
   'cards.pagination.loadMore': 'Weitere laden',

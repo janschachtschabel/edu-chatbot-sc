@@ -15,10 +15,11 @@ split by responsibility (≤300-line rule) but re-exported so imports stay
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from boerdi.api.schemas_cards import (
     PaginationInfo,
@@ -83,7 +84,7 @@ __all__ = [
     "CollectionStatsArgs", "CollectionTreeArgs", "CompendiumTextArgs",
     "CompendiumUpdateArgs", "ConfigFile", "ContentCreateArgs", "ContentSubmitArgs",
     "ContentUpdateArgs",
-    "ContextSnapshot", "DebugInfo", "Environment",
+    "ContextSnapshot", "DebugInfo", "Environment", "MAX_RESULT_SCHEMA_CHARS",
     "MetadataSuggestArgs", "MetadataSuggestion", "NodeOnlyArgs",
     "SuggestionDecideArgs", "SuggestionsListArgs", "TopicPageSetArgs",
     "HealthCheckArgs", "InlineDocument", "LookupVocabularyArgs", "MemoryEntry",
@@ -131,6 +132,28 @@ class ClassificationResult(BaseModel):
     tool_reasoning: str | None = None
 
 
+#: Zeichendeckel des ``result_schema`` (serialisiert).
+#:
+#: Das Schema reist WÖRTLICH in die Parameter von ``submit_result`` und damit in
+#: JEDEN Modellaufruf der Agent-Schleife — bis zu ``engine.agent.max_iterations``
+#: (Vorgabe 12) pro Zug. ``/api/chat`` ist der öffentliche Router **ohne
+#: Anmeldung**. Der Zwilling ``AgentRequest.result_schema`` bleibt bewusst
+#: UNGEDECKELT: er sitzt hinter ``require_agent_caller``, seine Aufrufer sind
+#: angemeldete Maschinen, und ein Deckel dort bräche einen berechtigten
+#: Gastgeber mit großem Schema, ohne eine offene Flanke zu schließen.
+#:
+#: Warum ABLEHNEN und nicht kürzen — anders als beim Nachbarn ``page_context``,
+#: der beim Verbraucher auf eine A4-Seite gekappt wird: ein halbes Schema ist
+#: ein ANDERES Schema. Gekürzt bekäme der Gastgeber Ergebnisse in einer Form,
+#: die er nie verlangt hat, und hätte keine Möglichkeit, das zu bemerken. Ein
+#: 422 sagt es ihm.
+#:
+#: 10 000 Zeichen = dieselbe Grenze wie ``ChatRequest.message``. Ein echtes
+#: Ergebnis-Schema ist ein bis zwei Kilobyte groß; der Deckel trifft nur
+#: Ausreißer.
+MAX_RESULT_SCHEMA_CHARS = 10000
+
+
 # ── Environment (sent by frontend every turn) ──────────────────────
 class Environment(BaseModel):
     page: str = "/"
@@ -154,6 +177,33 @@ class Environment(BaseModel):
     # immer zugelassen. Bleibt toleriert, damit ältere Embeds, die es noch
     # senden, keinen Validierungsfehler bekommen.
     ai_content_enabled: bool | None = None
+    # Erklärt der Gastgeber ein JSON-Schema, bekommt er das Ergebnis des Zuges
+    # zusätzlich maschinenlesbar (``ChatResponse.result``) — je Einbau, über das
+    # Attribut ``result-schema`` (Nutzer-Entscheid 2026-08-14). Wirkt NUR in der
+    # Agent-Schleife und kostet dort einen zusätzlichen Modellzug (2–9 s
+    # gemessen); deshalb opt-in und nicht die Vorgabe. Das Schema reist wörtlich
+    # in die Parameter von ``submit_result``: die Form bestimmt der Gastgeber,
+    # unser Code muss sie nicht kennen.
+    #
+    # ES IST EINE PROMPT-FLÄCHE, keine reine Datenstruktur: die ``description``-
+    # und ``title``-Werte eines JSON-Schemas sind Fließtext, den das Modell
+    # liest — und sie stehen in der WERKZEUG-Ebene, nicht in der Nutzerzeile.
+    # Die Sicherheitsprüfung sieht nur ``message`` (``assess.py``), dieses Feld
+    # also nicht. Wer es füllt, schreibt in den Prompt seiner eigenen Sitzung;
+    # der Deckel unten begrenzt, wie viel.
+    result_schema: dict[str, Any] | None = None
+
+    @field_validator("result_schema")
+    @classmethod
+    def _schema_gedeckelt(cls, wert: dict[str, Any] | None) -> dict[str, Any] | None:
+        if wert is None:
+            return wert
+        laenge = len(json.dumps(wert, ensure_ascii=False))
+        if laenge > MAX_RESULT_SCHEMA_CHARS:
+            raise ValueError(
+                f"result_schema ist {laenge} Zeichen lang, erlaubt sind "
+                f"{MAX_RESULT_SCHEMA_CHARS}")
+        return wert
     # Webseiten-Tour (geführte Besucherführung). Explizites UI-Signal:
     #   "start" → Tour beginnen (Button "Web-Tour starten")
     #   "tick"  → unsichtbarer Page-Load-Ping (Ankunfts-Erkennung)
@@ -215,6 +265,16 @@ class ChatResponse(BaseModel):
     quick_replies: list[str] = Field(default_factory=list)
     debug: DebugInfo = Field(default_factory=DebugInfo)
     page_action: dict[str, Any] | None = None
+    # Maschinenlesbares Ergebnis des Zuges — nur wenn der Gastgeber ein
+    # ``Environment.result_schema`` erklärt hat UND die Agent-Schleife über
+    # ``submit_result`` geendet ist. ``None`` ist der Normalfall: „Hallo" ergibt
+    # kein Ergebnis, und eine Unterhaltung ist kein Auftrag.
+    result: dict[str, Any] | None = None
+    # Warum der Lauf endete (``submit`` | ``text`` | ``deadline`` | …). Gehört
+    # zur Antwort und nicht ins Protokoll: ein an der Frist abgeschnittener Lauf
+    # sähe von außen sonst aus wie einer, der fertig geworden ist. Leer, wenn
+    # der Zug nicht über die Agent-Schleife lief.
+    result_stop_reason: str = ""
     pagination: PaginationInfo | None = None
     query_metas: list[QueryMetaEntry] = Field(default_factory=list)
     web_links: list[WebLink] = Field(default_factory=list)

@@ -19,6 +19,11 @@ export interface WloCard {
   license: string;
   publisher: string;
   node_type: string;
+  /** Wie viele Skills die Redaktion an dieser Sammlung freigegeben hat; 0 oder
+   *  fehlend = keine Registry. Kommt vom MCP an Sammlungstreffern ungefragt
+   *  mit, kostet also keinen Zusatzabruf. Optional, weil ältere Antworten aus
+   *  dem Sitzungs-Verlauf das Feld noch nicht tragen. */
+  skill_count?: number;
   topic_pages: { url: string; target_group: string; label: string; variant_id: string }[];
   /** Set by the backend when guide-mode is on AND the card points to an
    *  allow-listed host. Empty string means "no guide target" — the

@@ -21,13 +21,20 @@
  * Zuhörer würde jede Seiten-Aktion doppelt ausführen.
  */
 
-/** Die vier Ereignisse. Reihenfolge = Reihenfolge der Vertragstabelle im
- *  Studio (`widget-contract-data.ts`) und der Demo-Seite. */
+/** Die Ereignisse. Reihenfolge = Reihenfolge der Vertragstabelle im
+ *  Studio (`widget-contract-data.ts`) und der Demo-Seite.
+ *
+ *  `agentResult` kam 2026-08-14 als fünftes dazu und ist das einzige, das der
+ *  ALTE Chatbot nie kannte. Es geht trotzdem durch denselben Doppelversand:
+ *  `legacyName` ist eine reine Ableitung ohne zweite Liste, und der alte Name
+ *  fällt beim Cutover ohnehin für alle zusammen weg. Eine Ausnahme dafür zu
+ *  bauen hieße, eine Sonderregel länger zu pflegen als die Regel selbst. */
 export const HOST_EVENTS = {
   guideSuggestion: 'boerdi:guide-suggestion',
   routingDebug: 'boerdi:routing-debug',
   queryMeta: 'boerdi:query-meta',
   pageAction: 'boerdi:page-action',
+  agentResult: 'boerdi:agent-result',
 } as const;
 
 export type HostEventName = (typeof HOST_EVENTS)[keyof typeof HOST_EVENTS];

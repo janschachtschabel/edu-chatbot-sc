@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from boerdi.api.schemas import (
+    MAX_RESULT_SCHEMA_CHARS,
     ChatRequest,
     ChatResponse,
     ClassificationResult,
@@ -62,17 +63,24 @@ def test_model_json_schema_buildable(model) -> None:
 
 
 def test_chat_response_field_parity_spec_5_1() -> None:
-    # ``prepared_write`` ist der einzige Zusatz gegenüber §5.1 (E3, 2026-08-12):
-    # im eingebetteten Betrieb beschreibt der MCP-Server eine bestätigte Änderung,
-    # statt sie zu schreiben, und das Widget setzt sie mit der Anmeldung der Seite
-    # ab. Rein additiv, Vorgabe ``None`` — ohne diesen Betrieb sieht jede Antwort
-    # aus wie zuvor. Bewusst KEIN weiterer ``page_action``-Typ: der Platz ist
-    # einzeln und schon von Canvas/Guide belegt.
+    # Zwei Zusätze gegenüber §5.1, beide rein additiv mit Vorgabe „nichts":
+    #
+    # ``prepared_write`` (E3, 2026-08-12): im eingebetteten Betrieb beschreibt der
+    # MCP-Server eine bestätigte Änderung, statt sie zu schreiben, und das Widget
+    # setzt sie mit der Anmeldung der Seite ab. Bewusst KEIN weiterer
+    # ``page_action``-Typ: der Platz ist einzeln und schon von Canvas/Guide belegt.
+    #
+    # ``result`` + ``result_stop_reason`` (Nutzer-Entscheid 2026-08-14): erklärt
+    # der Gastgeber ein ``Environment.result_schema``, bekommt er das Ergebnis des
+    # Zuges maschinenlesbar. Der Ende-Grund gehört DAZU und nicht ins Protokoll —
+    # ein an der Frist abgeschnittener Lauf sähe sonst aus wie einer, der fertig
+    # geworden ist. Ohne Schema bleiben beide leer; jede Bestands-Antwort sieht
+    # aus wie zuvor.
     assert set(ChatResponse.model_fields) == {
         "session_id", "content", "cards", "follow_up", "quick_replies", "debug",
         "page_action", "pagination", "query_metas", "web_links",
         "inline_documents", "topic_page", "display_rules", "tour",
-        "prepared_write",
+        "prepared_write", "result", "result_stop_reason",
     }
 
 
@@ -89,6 +97,28 @@ def test_environment_defaults_spec_5_1() -> None:
     assert env.ai_content_enabled is None  # deprecated, tolerated
     assert env.tour_action is None
     assert env.page_event is None
+
+
+def test_result_schema_ist_gedeckelt() -> None:
+    """``result_schema`` reist WÖRTLICH in die Werkzeug-Parameter und damit in
+    jeden Modellaufruf der Schleife (bis zu ``max_iterations``). ``/api/chat``
+    ist der ÖFFENTLICHE Router ohne Anmeldung — der Deckel gehört deshalb an den
+    Rand, nicht an den Verbraucher.
+
+    Abgelehnt statt gekürzt, anders als beim Nachbarn ``page_context``: ein
+    halbes Schema ist ein ANDERES Schema. Der Gastgeber bekäme Ergebnisse in
+    einer Form, die er nie verlangt hat, und merkte es nicht.
+    """
+    Environment(result_schema={"type": "object"})
+    Environment(result_schema=None)
+    with pytest.raises(ValidationError):
+        Environment(result_schema={"type": "object", "x": "a" * MAX_RESULT_SCHEMA_CHARS})
+
+
+def test_result_schema_nimmt_nur_objekte() -> None:
+    # Eine Liste ist kein JSON-Schema-Objekt; ``dict[str, Any]`` weist sie ab.
+    with pytest.raises(ValidationError):
+        Environment(result_schema=[{"type": "object"}])  # type: ignore[arg-type]
 
 
 def test_chat_request_message_cap_10000() -> None:

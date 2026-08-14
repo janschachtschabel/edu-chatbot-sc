@@ -32,6 +32,9 @@ export interface Environment {
   tour_action?: string;
   /** Seitenkontext-Ping "context_open" (proaktive Kontext-Begrüßung). */
   page_event?: string;
+  /** JSON-Schema, in dem der Gastgeber sein Ergebnis erwartet (2026-08-14).
+   *  Wirkt nur mit der Agent-Maschine; siehe {@link ChatApiClient.setResultSchema}. */
+  result_schema?: Record<string, any>;
 }
 
 /** UA-freie Geräteklasse aus der Viewport-Breite. Verbatim ALT api.service.ts:650. */
@@ -123,6 +126,7 @@ export class ChatApiClient {
   private guideHost = '';
   private uiLocale = '';
   private engine = '';
+  private resultSchema: Record<string, any> | null = null;
   private readonly fetchImpl?: typeof fetch;
 
   constructor(opts: ChatApiClientOptions = {}) {
@@ -177,6 +181,26 @@ export class ChatApiClient {
     this.engine = (mode || '').trim().toLowerCase();
   }
 
+  /**
+   * In welcher Form der Gastgeber sein Ergebnis erwartet (Nutzer-Entscheid
+   * 2026-08-14). `null` = er erwartet keins.
+   *
+   * Ein Setter wie `setEngine` und kein Argument je Zug: das Schema gehört zum
+   * EINBAU, nicht zur einzelnen Nachricht. Und ein Body-Feld statt einer
+   * Kopfzeile — anders als bei `setEngine`, weil `environment.result_schema`
+   * im eingefrorenen Vertrag steht und ein JSON-Objekt in einer HTTP-Kopfzeile
+   * eine Zumutung wäre.
+   *
+   * ZWEI DINGE, die ein Gastgeber wissen muss: es wirkt nur mit der
+   * Agent-Maschine (`setEngine('agent')`), und es kostet dort einen
+   * zusätzlichen Modellzug je Nachricht (2–9 s gemessen).
+   */
+  setResultSchema(schema: Record<string, any> | null): void {
+    this.resultSchema = schema && typeof schema === 'object' && !Array.isArray(schema)
+      ? schema
+      : null;
+  }
+
   /** Die Kopfzeilen, die dieser Einbau jedem Zug mitgibt. */
   private turnHeaders(): Record<string, string> {
     return this.engine ? { 'X-Boerdi-Engine': this.engine } : {};
@@ -185,7 +209,11 @@ export class ChatApiClient {
   /** `environment` aus Overrides + Ambient. Verbatim ALT-Literal (dedupliziert
    *  über beide Transport-Varianten). */
   private buildEnvironment(env?: Partial<Environment>): Environment {
+    // Das Ergebnis-Schema wird nur GESETZT, wenn es eins gibt: ein `undefined`
+    // im Body wäre eine Aussage über eine Erwartung, die niemand hat.
+    const schema = env?.result_schema ?? this.resultSchema;
     return {
+      ...(schema ? { result_schema: schema } : {}),
       page: env?.page || window.location.pathname,
       page_context: env?.page_context || extractPageContext(),
       device: env?.device || detectDevice(),

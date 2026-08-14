@@ -80,15 +80,16 @@ describe("ArchitectureReferenceComponent", () => {
     // long enough to ship. ALT's table listed 17 of the 18; `language` came
     // with C1-c, `embed-mode` with U1, `size` with U2a, `show-cards` with U2b,
     // `theme` with U4a, `ticket` with the repository-embedding mode
-    // (2026-08-12) and `engine` with the machine switch (2026-08-13), which
-    // makes 25.
+    // (2026-08-12), `engine` with the machine switch (2026-08-13) and
+    // `result-schema` with the machine-readable result (2026-08-14), which
+    // makes 26.
     const el = mount();
     const rows = el.querySelectorAll(".ar-table code");
     const documented = Array.from(rows).map((c) => c.textContent?.trim());
     for (const { attr } of HOST_ATTRIBUTES) {
       expect(documented, `Attribut ${attr}`).toContain(attr);
     }
-    expect(HOST_ATTRIBUTES).toHaveLength(25);
+    expect(HOST_ATTRIBUTES).toHaveLength(26);
     expect(HOST_ATTRIBUTES.map((a) => a.attr)).toContain(
       "inline-result-grouping",
     );

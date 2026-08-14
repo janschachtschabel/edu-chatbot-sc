@@ -454,6 +454,23 @@
             "title": "Quick Replies",
             "type": "array"
           },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "result_stop_reason": {
+            "default": "",
+            "title": "Result Stop Reason",
+            "type": "string"
+          },
           "session_id": {
             "title": "Session Id",
             "type": "string"
@@ -951,6 +968,18 @@
             "default": "direkt",
             "title": "Referrer",
             "type": "string"
+          },
+          "result_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Schema"
           },
           "session_duration": {
             "default": 0,
@@ -1952,6 +1981,11 @@
             "default": "",
             "title": "Publisher",
             "type": "string"
+          },
+          "skill_count": {
+            "default": 0,
+            "title": "Skill Count",
+            "type": "integer"
           },
           "title": {
             "default": "",

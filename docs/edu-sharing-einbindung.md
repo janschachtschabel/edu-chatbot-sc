@@ -288,7 +288,7 @@ Alle Werte sind HTML-Attribute, also Zeichenketten; boolesche nehmen
 |---|---|
 | `initial-state` | **ja** — der erste Wert entscheidet den Start, spätere schalten das Panel um (`widget.component.ts:290-297`) |
 | `engine`, `language`, `primary-color` | **ja** — hängen an Effects (`widget.component.ts:279-315`) |
-| `page-context` | **nein, nicht unmittelbar** — hängt an keinem Effect; gelesen in `ngOnInit` und danach nur bei erkannter Navigation (`widget.component.ts:262,384`). Zur Laufzeit nehmt ihr `updateContext()` (§6) |
+| `page-context` | **nein, nicht unmittelbar** — hängt an keinem Effect; gelesen in `ngOnInit` und danach nur bei erkannter Navigation (`widget.component.ts:262,384`). Zur Laufzeit nehmt ihr `replaceContext()` bzw. `updateContext()` (§6) |
 | `size` | **nein** — Startwert; danach gehört die Stufe dem Umschalter in der Eingabezeile |
 | `ticket` | **nein** — einmal in `ngOnInit` gelesen und getilgt |
 
@@ -327,7 +327,7 @@ maschinenlesbares Ergebnis braucht ihr §8.
 ### Meistens müsst ihr gar nichts tun
 
 Die eingebaute Erkennung kennt eure URL-Schemata bereits
-(`ui/src/page-context/page-context-detector.ts:85-145`):
+(`ui/src/page-context/page-context-detector.ts:98-160`):
 
 | URL-Muster | ergibt |
 |---|---|
@@ -352,6 +352,14 @@ zwei Dinge vorab und legt sie **beiden** Maschinen in den Prompt:
 Den Volltext einer Anleitung holt das Modell danach gezielt selbst
 (`search_skill` → `get_skill`). Damit weiß der Chatbot auf einer Sammlungsseite
 sofort, welche redaktionellen Anleitungen für genau diese Sammlung gelten.
+
+Der Vorabruf hängt am **Kontext**, nicht am Startvorgang: ein
+`replaceContext({page_kind:'collection', collection_id:'…'})` mitten in der
+Sitzung schaltet ab dem nächsten Zug auf die Anleitungen dieser Sammlung um.
+Zwei Dinge, die dabei oft anders erwartet werden: die Übersicht nennt **nur
+Titel, keine `nodeId`s** (deshalb der Umweg über `search_skill`), und eine
+**Themenseite ist eine Sammlung** — `page_kind: 'topic'` mit derselben
+`collection_id` führt zu denselben Anleitungen.
 
 ### Selbst setzen
 
@@ -378,40 +386,58 @@ Das ist der wichtige Unterschied für eine SPA
 | Aufruf | Wirkung |
 |---|---|
 | `chat.updateContext({…})` | **mergt** in den bestehenden Kontext. Kein Ping, keine Nachricht — leise Ergänzung |
-| SPA-Navigation (erkannt) | **ersetzt** den Kontext (stale IDs raus), setzt das Ping-Gate zurück und **bietet eine Kontext-Begrüßung an** |
+| `chat.replaceContext({…})` | **ersetzt** den Kontext (alte IDs raus), setzt das Ping-Gate zurück und **bietet eine Kontext-Begrüßung an** |
+| SPA-Navigation (erkannt) | dasselbe wie `replaceContext`, nur vom Widget selbst ausgelöst |
 
-Den zweiten Weg löst das Widget selbst aus: ein Wächter vergleicht alle
+Den letzten Weg löst das Widget selbst aus: ein Wächter vergleicht alle
 **1,5 s** `location.href` (`ui/src/widget/host-bridges.ts:4,97-102`). Für eine
 Angular-SPA wie eure heißt das: **ihr müsst beim Routenwechsel nichts tun** —
 der Wechsel wird bemerkt, der Kontext ersetzt, und auf einer adressierbaren
 Seite begrüßt der Bot mit dem neuen Kontext.
 
-Wollt ihr das *sofort* statt nach bis zu 1,5 s, oder etwas ergänzen, das nicht in
-der URL steht (z.B. eine Auswahl in eurer Oberfläche), nehmt `updateContext()`:
+**Wollt ihr das sofort statt nach bis zu 1,5 s, ist `replaceContext()` das
+Richtige — nicht `updateContext()`.** Der Unterschied ist nicht kosmetisch: ein
+Seitenwechsel per Merge ließe die `node_id` und den `search_query` der vorigen
+Seite stehen, und der Bot spräche über zwei Seiten gleichzeitig. Ergänzen ist
+für das gedacht, was **zusätzlich** zur Seite gilt und nicht in der URL steht —
+etwa eine Auswahl in eurer Oberfläche:
 
 ```js
 const chat = document.querySelector('boerdi-chat');
 await customElements.whenDefined('boerdi-chat');
-chat.updateContext({ page_kind: 'collection', collection_id: gewaehlteId });
+
+// Routenwechsel: ersetzen.
+chat.replaceContext({ page_kind: 'collection', collection_id: gewaehlteId });
+
+// Auswahl innerhalb derselben Seite: ergänzen.
+chat.updateContext({ search_query: eingegebenerFilter });
 ```
 
 ### Die übrigen Steuerbefehle
 
-Sechs Methoden auf dem Element (`frontend/projects/widget/src/element-api.ts:33-40`):
+Acht Methoden auf dem Element (`frontend/projects/widget/src/element-api.ts`):
 
 ```js
 chat.openChatbot();   chat.closeChatbot();   chat.toggleChatbot();
-chat.isChatbotOpen(); chat.resetSession();   chat.updateContext({ … });
+chat.isChatbotOpen(); chat.resetSession();
+chat.updateContext({ … });   chat.replaceContext({ … });
+chat.startTask('Fasse zusammen, worum es hier geht.');
 ```
 
 Vor der Aufwertung des Elements geben sie `undefined` zurück statt zu werfen —
 bewusst so, aber es heißt eben auch: nichts ist passiert. Wartet auf
 `customElements.whenDefined('boerdi-chat')`.
 
-**Eine Nachricht von außen in den Chat schicken, geht nicht.** Die Chat-Shell
-hat ein `sendMessage`, aber es steht nicht in den durchgereichten Methoden
-(`element-api.ts:33-40`) — es gibt keinen unterstützten Weg, dem Widget einen
-Satz zu diktieren. Für einen gezielten Auftrag ist §8 der Weg.
+**`startTask` startet den Chat auf ein Thema** (seit 2026-08-14). Der Satz
+erscheint als eigene Auftrags-Blase mit der Zeile „Auftrag der Seite" — nicht
+als Nutzernachricht und nicht unsichtbar; danach ist es eine gewöhnliche
+Unterhaltung. Setzt den Kontext **vorher** (`replaceContext`), denn `startTask`
+schickt sofort. Ist das Panel zu, öffnet es sich; ist die Shell noch nicht
+gemountet, wird der Auftrag gehalten und danach ausgeführt.
+
+**Eine gewöhnliche Nachricht einschleusen, geht weiterhin nicht.** `sendMessage`
+steht nicht in den durchgereichten Methoden. Das ist Absicht: was von der Seite
+kommt, soll auch als solches erkennbar bleiben.
 
 ---
 
@@ -460,13 +486,39 @@ Outputs mit identischer Nutzlast: `linkClicked` (Zeichenkette, nur mit
 
 ## 8. Strukturierten Output erzeugen und abfangen
 
-### Zuerst die Einordnung
+### Zuerst die Einordnung: zwei Wege, und sie sind verschieden
 
-**Der Chat-Weg liefert keinen strukturierten Output** — auch nicht mit
-`engine="agent"`. `ChatResponse` hat kein Ergebnis-Feld
-(`backend/src/boerdi/api/schemas.py:210-243`): ein Chat-Zug ist Text, Karten,
-Quick-Replies, wahlweise `page_action`. Wer JSON nach eigenem Schema will,
-ruft **`POST /api/agent`** — mit oder ohne Widget auf der Seite.
+**Mit Chat-Fenster** — die Person soll mitreden und ihr wollt trotzdem Daten:
+Attribut `result-schema` am Element plus `engine="agent"`. Je Zug feuert dann
+`boerdi:agent-result` mit `{result, stop_reason}` (Angular-Output:
+`agentResult`). Das ist seit 2026-08-14 der unterstützte Weg; vorher stand hier,
+der Chat könne das nicht.
+
+```html
+<boerdi-chat api-url="…" engine="agent"
+  result-schema='{"type":"object","properties":{"taxon_id":{"type":"string"}},
+                  "required":["taxon_id"]}'></boerdi-chat>
+```
+
+```js
+chat.replaceContext({ page_kind: 'collection', collection_id: id });
+chat.startTask('Welchem Fach ordnest du diese Sammlung zu?');
+window.addEventListener('boerdi:agent-result', (e) => {
+  const { result, stop_reason } = e.detail;
+  if (result) uebernehmen(result.taxon_id);
+});
+```
+
+Vier Dinge dazu: **beide** Angaben sind nötig (ohne `engine="agent"` wirkt das
+Schema gar nicht — das Backend warnt im Protokoll, im Browser bleibt es still);
+jeder Zug kostet dann **einen zusätzlichen Modellzug (2–9 s gemessen)**, auch
+„Danke!"; `result` ist **je Zug optional** (`null` aushalten, `stop_reason`
+unterscheidet „nichts dabei" von „abgeschnitten"); und das Attribut ist eine
+**Zeichenkette** — kaputtes JSON gilt als „kein Schema" und meldet sich nur als
+`console.warn`. Das Schema ist auf 10 000 Zeichen gedeckelt (sonst 422).
+
+**Ohne Chat-Fenster** — reiner Auftrag, kein Gespräch: **`POST /api/agent`**,
+unverändert, siehe unten. Kein Widget nötig.
 
 ### Zugang
 
@@ -541,9 +593,16 @@ const antwort = await fetch('https://chat.example.org/api/agent', {
 | `allow_curation` | nein | `false` nimmt die kuratierenden Werkzeuge heraus, auch mit Anmeldung |
 | `locale` | nein | `de` \| `en` |
 
-Die Vorab-Abrufe laufen **vor** der Anweisung: erst was zu tun ist, dann woran.
-Schlägt einer fehl, kippt er den Auftrag nicht — der Agent arbeitet weiter und
-sagt im Ergebnis, dass ihm etwas fehlt.
+Die Vorab-Abrufe laufen **vor** der Anweisung: erst was zu tun ist, dann woran
+(`services/agent_run.py:64-74`). Schlägt einer fehl, kippt er den Auftrag nicht —
+der Fehlschlag landet als Vermerk in der Kette, der Agent arbeitet weiter und
+sagt im Ergebnis, dass ihm etwas fehlt (`services/agent_prefetch.py:58-67`).
+
+Ein zweites, vollständig durchgerechnetes Beispiel — Schulfach als taxonid aus
+einem Seitentext, mit Anleitung aus einer Sammlung und Prüfung gegen das
+Vokabular — steht in
+[`browser-plugin-einbindung.md`](browser-plugin-einbindung.md) §7. Der Endpunkt
+ist derselbe; dort ist nur der Aufrufer ein anderer.
 
 ### Abfangen
 
@@ -664,11 +723,17 @@ Volle Herleitung: [`plans/2026-08-12-einbettung-ohne-repo-aenderung.md`](plans/2
 | Anmelde-Knopf bleibt auf „Anmelden" | Ticket-Tausch gescheitert — `console.warn` nennt den Ausgang (§3) |
 | `unavailable` in der Konsole | `mcp_auth_base` leer (`MCP_SERVER_URL` fehlt) **oder** `/auth/ticket` → 404 (`WLO_AUTH_PRIVATE_KEY` fehlt) |
 | `rejected` in der Konsole | Ticket abgelaufen oder Template liefert ein totes Ticket |
-| Kontext bleibt nach Routenwechsel stehen | bis zu 1,5 s Wächter-Takt abwarten; sofort geht es mit `updateContext()` (§6) |
-| `page-context` zur Laufzeit gesetzt, nichts passiert | Das Attribut wird nach dem Start nicht mehr gelesen — `updateContext()` nehmen (§4, §6) |
+| Kontext bleibt nach Routenwechsel stehen | bis zu 1,5 s Wächter-Takt abwarten; sofort geht es mit `replaceContext()` (§6) |
+| Der Bot spricht über die vorige Seite mit | Für einen Seitenwechsel `updateContext()` benutzt — das mergt und lässt alte IDs stehen. `replaceContext()` nehmen (§6) |
+| Nach dem Kontextwechsel begrüßt der Bot die neue Seite nicht | Auch das ist der Unterschied: nur `replaceContext()` (und die erkannte Navigation) setzen das Ping-Gate zurück (§6) |
+| `page-context` zur Laufzeit gesetzt, nichts passiert | Das Attribut wird nach dem Start nicht mehr gelesen — `replaceContext()` nehmen (§4, §6) |
 | Jedes Ereignis kommt doppelt | Auf `boerdi:…` **und** `badboerdi:…` gehört (§7) |
 | `result` ist immer `null` | Kein `result_schema` mitgegeben — oder `stop_reason !== 'submit'` (§8) |
-| Strukturiertes Ergebnis aus dem Chat erwartet | Gibt es nicht — der Chat-Weg liefert keins, auch nicht mit `engine="agent"` (§8) |
+| `boerdi:agent-result` kommt nie | `engine="agent"` fehlt. Das Schema allein wirkt nicht; die Warnung steht nur im Backend-Protokoll (§8) |
+| `result-schema` gesetzt, nichts passiert | Kaputtes JSON — es gilt dann als „kein Schema". Die `console.warn`-Zeile im Browser nennt es (§8) |
+| `422` beim Senden | Das `result_schema` ist länger als 10 000 Zeichen. Abgelehnt statt gekürzt: ein halbes Schema wäre ein anderes (§8) |
+| Der Auftrag aus `startTask` erscheint nicht | Leerer Text wird verworfen; sonst wartet er auf die Shell und läuft nach dem Mounten (§6) |
+| Der Bot antwortet auf den Auftrag, ohne die Sammlung zu kennen | `replaceContext()` **vor** `startTask()` rufen — der Auftrag geht sofort raus (§6) |
 | Schreiben passiert nicht | `write_mode: execute` ohne persönliche Anmeldung → still auf `propose` zurückgefallen |
 | 429 | Drosselung, `RATE_LIMIT_CHAT` |
 | 503 auf `/widget/boerdi-widget.js` | Bündel nicht gebaut — die Antwort nennt den Befehl |

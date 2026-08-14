@@ -21,6 +21,7 @@ from boerdi.services.mcp.parsers.cards import (
     _normalize_card_repo_hosts,
 )
 from boerdi.services.mcp.parsers.json_scan import _first_json_object
+from boerdi.services.mcp.parsers.skill_registry import skill_count_of
 
 logger = logging.getLogger(__name__)
 
@@ -193,6 +194,14 @@ def parse_wlo_topic_page_cards(mcp_text: str) -> list[dict]:
             "educational_contexts": r.get("educationalContexts") or [],
             "wlo_url":              r.get("topicPageUrl") or tp_render_url,
             "topic_page_url":       r.get("topicPageUrl") or tp_render_url,
+            # Gleiche Regel wie am Sammlungs-Parser. Gemessen 2026-08-14: der
+            # MCP haengt ``skillRegistry`` an DIESES Werkzeug (noch) nicht an —
+            # derselbe Knoten traegt sie ueber ``search_wlo_collections``, hier
+            # fehlt sie. Also heute ehrlich 0. Kommt sie, traegt die
+            # Themenseiten-Kachel den Hinweis ohne weitere Aenderung; und wo
+            # beide Suchen im selben Zug liefen, erbt die Karte die Zahl
+            # ohnehin ueber ``_build_cards``.
+            "skill_count":          skill_count_of(r),
         })
     return _normalize_card_repo_hosts(cards)
 

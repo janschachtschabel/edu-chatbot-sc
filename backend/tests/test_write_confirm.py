@@ -24,10 +24,13 @@ import time
 from boerdi.domain.write_confirm import (
     CONFIRMABLE_TOOLS,
     CURATION_TOOLS,
+    MAX_REMEMBERED_ARGS_BYTES,
     TOKEN_PLACEHOLDER,
     TOKEN_TTL_SECONDS,
     change_fingerprint,
+    confirmed_args,
     extract_confirm_token,
+    is_affirmation,
     is_confirmable,
     is_expired,
     preview_for_display,
@@ -234,17 +237,28 @@ _WERKZEUG = "wlo_create_collection"
 _ARGS = '{"title": "Bruchrechnung Klasse 6"}'
 
 
-def _lauf(monkeypatch, aufrufe, *, session_state=None, ergebnis=_ECHTE_VORSCHAU):
+def _lauf(monkeypatch, aufrufe, *, session_state=None, ergebnis=_ECHTE_VORSCHAU,
+          nachricht=None, werkzeug=_WERKZEUG):
     from tests.test_tool_loop import _OutcomeFake, _resp_text, _resp_tools, _run_loop
 
-    outcome = _OutcomeFake({_WERKZEUG: ergebnis})
+    outcome = _OutcomeFake({werkzeug: ergebnis})
     antworten = [_resp_tools([a]) for a in aufrufe] + [_resp_text("fertig")]
+    extra = {}
+    if nachricht is not None:
+        # Ohne ``nachricht`` bleibt der Harness-Standard (nur ``system``) —
+        # dann gibt es keine Zustimmung, und die Alt-Tests messen weiter genau
+        # den Fingerabdruck-Weg, den sie messen wollen.
+        extra["messages"] = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": nachricht},
+        ]
     _fake, _result, st = _run_loop(
         monkeypatch,
         antworten,
         outcome=outcome,
-        active_tools=[{"type": "function", "function": {"name": _WERKZEUG}}],
+        active_tools=[{"type": "function", "function": {"name": werkzeug}}],
         session_state=session_state if session_state is not None else {},
+        **extra,
     )
     return outcome, st
 
@@ -472,6 +486,172 @@ class TestFrist:
         # länger, setzen wir tote Schlüssel ab; läuft sie kürzer, verwerfen
         # wir gültige.
         assert TOKEN_TTL_SECONDS == 600
+
+
+# ── S4: eine Abnahme MIT Nutzlast ist einlösbar ──────────────────────────
+#
+# Der Befund (Nutzer, 2026-08-14): Anmeldung bestätigt, Entwurf fertig, Upload
+# bestätigt — und es ging nicht weiter. Jedes „ja" beantwortete der Bot mit
+# derselben Vorschau.
+#
+# Die Ursache steht in ``schemas_mcp_curation._ContentFields``: die Nutzlast
+# ist ein gewöhnliches Argument (``content`` / ``fileBase64``). Für die
+# Bestätigung verlangte ``token_for`` denselben Fingerabdruck über ALLE
+# Argumente — das Modell hätte 4612 Byte Markdown zeichengleich wiederholen
+# müssen. Es traf daneben, der Zweig „Argumente weichen ab" griff, und es
+# folgte eine neue Vorschau. Der Kommentar an jener Stelle sagte den Fall
+# wörtlich voraus.
+#
+# Die Zustimmung steht deshalb dort, wo sie hingehört: in der Nachricht des
+# Menschen. Ausgeführt wird, was in der Abnahme-Box stand.
+
+_INHALT = "# Quiz: Gera\n\n## Lernziele\n" + ("Frage.\n" * 700)
+_CONTENT_WERKZEUG = "wlo_create_content"
+
+
+class TestZustimmung:
+    def test_eine_klare_zusage_zaehlt(self):
+        for satz in ("ja", "Ja, so ausführen", "ich bestätige es",
+                     "ok", "einverstanden", "Yes, go ahead", "confirm"):
+            assert is_affirmation(satz), satz
+
+    def test_ein_vorbehalt_zaehlt_nicht(self):
+        # „ja, aber …" ist der Auftrag zu einer NEUEN Vorschau. Würde er als
+        # Abnahme gelten, ginge die alte Nutzlast raus — die Änderung, der
+        # niemand zugestimmt hat.
+        for satz in ("nein", "ja, aber ändere den Titel", "warte",
+                     "nicht ausführen", "abbrechen", "erst noch ändern"):
+            assert not is_affirmation(satz), satz
+
+    def test_ein_langer_satz_ist_keine_abnahme(self):
+        # Ein beiläufiges „ja" mitten in einer Bitte ist keine Zustimmung.
+        assert not is_affirmation(
+            "ja genau das Thema meinte ich und jetzt suche mir bitte noch "
+            "Material zur Bruchrechnung")
+
+    def test_leer_ist_keine_zustimmung(self):
+        assert not is_affirmation("")
+        assert not is_affirmation("   ")
+
+    def test_die_knopfbeschriftungen_gelten(self):
+        # Der Knopf aus ``turn_persist`` ist der Normalweg. Dieses Modul kennt
+        # keine Sprachen — es erkennt die beiden Beschriftungen über ihre
+        # Stämme. Wer den Knopf umbenennt, ohne einen Stamm zu treffen, bekommt
+        # hier einen roten Test statt einer stillen Schleife im Betrieb.
+        from boerdi.i18n.bot_text import bot_text
+        for lang in ("de", "en"):
+            assert is_affirmation(bot_text(lang, "action.write.confirmChip"))
+
+
+class TestGemerkteArgumente:
+    def test_der_merkposten_traegt_die_abgenommenen_argumente(self):
+        offen = remember_pending(
+            _CONTENT_WERKZEUG, {"title": "Quiz: Gera", "content": _INHALT},
+            _TOKEN, now=1000.0)
+        assert offen["args"] == {"title": "Quiz: Gera", "content": _INHALT}
+
+    def test_ein_mitgeschickter_schluessel_wird_nicht_mitgemerkt(self):
+        offen = remember_pending(
+            _CONTENT_WERKZEUG, {"title": "X", "confirmToken": "ausgedacht"},
+            _TOKEN, now=1000.0)
+        assert "confirmToken" not in offen["args"]
+
+    def test_zu_grosse_argumente_werden_nicht_gemerkt(self):
+        # Der Merkposten liegt als JSONB in ``entities`` und wird je Zug
+        # geschrieben. Ein Riesen-Upload gehört dort nicht hinein; dann bleibt
+        # es beim Fingerabdruck-Weg statt einer aufgeblähten Sitzungszeile.
+        riese = "x" * (MAX_REMEMBERED_ARGS_BYTES + 1)
+        offen = remember_pending(
+            _CONTENT_WERKZEUG, {"content": riese}, _TOKEN, now=1000.0)
+        assert "args" not in offen
+        assert confirmed_args(offen, _CONTENT_WERKZEUG, now=1000.0) is None
+
+    def test_die_gemerkten_argumente_kommen_mit_schluessel_zurueck(self):
+        offen = remember_pending(
+            _CONTENT_WERKZEUG, {"title": "Quiz: Gera"}, _TOKEN, now=1000.0)
+        assert confirmed_args(offen, _CONTENT_WERKZEUG, now=1000.0) == {
+            "title": "Quiz: Gera", "confirmToken": _TOKEN}
+
+    def test_ein_anderes_werkzeug_bekommt_nichts(self):
+        offen = remember_pending(
+            _CONTENT_WERKZEUG, {"title": "X"}, _TOKEN, now=1000.0)
+        assert confirmed_args(offen, "wlo_delete_content", now=1000.0) is None
+
+    def test_die_frist_gilt_auch_hier(self):
+        offen = remember_pending(
+            _CONTENT_WERKZEUG, {"title": "X"}, _TOKEN, now=1000.0)
+        assert confirmed_args(
+            offen, _CONTENT_WERKZEUG, now=1000.0 + TOKEN_TTL_SECONDS) is None
+
+
+class TestAbnahmeMitNutzlast:
+    def _offen(self):
+        return {"entities": {"_pending_write": remember_pending(
+            _CONTENT_WERKZEUG,
+            {"title": "Quiz: Gera", "content": _INHALT},
+            _TOKEN, now=time.time())}}
+
+    # Das Modell trifft die Bytes im Bestätigungszug NICHT — genau das ist der
+    # Fall aus dem Betrieb, und genau daran scheiterte es bisher.
+    _MODELL_RUFT = ('{"title": "Quiz: Gera", "content": "# Quiz: Gera\\n(neu '
+                    'formuliert, weil das Modell den Text nicht wiederholen kann)"}')
+
+    def test_das_ja_loest_die_abnahme_ein(self, monkeypatch):
+        outcome, st = _lauf(
+            monkeypatch, [("tc1", _CONTENT_WERKZEUG, self._MODELL_RUFT)],
+            session_state=self._offen(), werkzeug=_CONTENT_WERKZEUG,
+            nachricht="ich bestätige es",
+            ergebnis="Der Datensatz wurde angelegt.",
+        )
+        args = outcome.calls[0][1]
+        assert args.get("confirmToken") == _TOKEN, (
+            "Ohne Schlüssel bleibt es bei der Vorschau — die Schleife")
+        assert args["content"] == _INHALT, (
+            "Ausgeführt gehört, was in der Abnahme-Box stand, nicht die "
+            "Neufassung des Modells")
+        assert st["session_state"]["entities"].get("_pending_write") is None
+
+    def test_ohne_zustimmung_bleibt_es_bei_der_vorschau(self, monkeypatch):
+        # Gegenprobe: dieselbe Lage, aber der Mensch sagt etwas anderes.
+        outcome, _st = _lauf(
+            monkeypatch, [("tc1", _CONTENT_WERKZEUG, self._MODELL_RUFT)],
+            session_state=self._offen(), werkzeug=_CONTENT_WERKZEUG,
+            nachricht="leg bitte noch eine Sammlung dazu an",
+        )
+        assert "confirmToken" not in outcome.calls[0][1]
+
+    def test_ein_vorbehalt_fuehrt_die_alte_nutzlast_nicht_aus(self, monkeypatch):
+        # Der gefährliche Fall: „ja, aber …" darf NICHT die abgenommene Datei
+        # hochladen, denn der Mensch will ja gerade etwas anderes.
+        outcome, _st = _lauf(
+            monkeypatch, [("tc1", _CONTENT_WERKZEUG, self._MODELL_RUFT)],
+            session_state=self._offen(), werkzeug=_CONTENT_WERKZEUG,
+            nachricht="ja, aber ändere den Titel",
+        )
+        args = outcome.calls[0][1]
+        assert "confirmToken" not in args
+        assert args["content"] != _INHALT
+
+    def test_zustimmung_ohne_offenen_vorgang_bestaetigt_nichts(self, monkeypatch):
+        # Ein „ja" ins Leere darf keinen Schlüssel erfinden.
+        outcome, _st = _lauf(
+            monkeypatch, [("tc1", _CONTENT_WERKZEUG, self._MODELL_RUFT)],
+            werkzeug=_CONTENT_WERKZEUG, nachricht="ja",
+        )
+        assert "confirmToken" not in outcome.calls[0][1]
+
+    def test_die_zustimmung_traegt_nicht_im_selben_zug(self, monkeypatch):
+        # Der Wall bleibt: entsteht die Vorschau in DIESEM Zug, ist sie hier
+        # nicht bestätigbar — auch nicht mit einem „ja" in der Nachricht, das
+        # ja einer FRÜHEREN Vorschau galt.
+        outcome, _st = _lauf(
+            monkeypatch,
+            [("tc1", _CONTENT_WERKZEUG, self._MODELL_RUFT),
+             ("tc2", _CONTENT_WERKZEUG, self._MODELL_RUFT)],
+            werkzeug=_CONTENT_WERKZEUG, nachricht="ja",
+        )
+        assert len(outcome.calls) == 2
+        assert all("confirmToken" not in args for _n, args in outcome.calls)
 
 
 class TestNahtFrist:

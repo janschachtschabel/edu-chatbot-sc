@@ -14,6 +14,7 @@ Altsystem, generisch über deklarative Konfiguration.
 |---|---|
 | 🚀 **Auf einem Server installieren** (Debian 13, Docker, Seed-Daten) | [INSTALL.md](INSTALL.md) |
 | 🛠 Betrieb danach (Skalieren, Backup, Restore, Rollback) | [deploy/README.md](deploy/README.md) |
+| 🏗 **Architektur** — Bestandteile, Stack, Abläufe (Einstieg für Entwickler) | [docs/architektur.md](docs/architektur.md) |
 | 🧩 **Chatbot einbinden** — Browser-Plugin / fremde Seite | [docs/browser-plugin-einbindung.md](docs/browser-plugin-einbindung.md) |
 | 🏫 **Chatbot einbinden** — edu-sharing-Repositorium (mit Ticket-Anmeldung) | [docs/edu-sharing-einbindung.md](docs/edu-sharing-einbindung.md) |
 | 📘 Bauplan/Spec (Quelle der Wahrheit) | [docs/plans/2026-07-10-boerdi-chat-neubau.md](docs/plans/2026-07-10-boerdi-chat-neubau.md) |

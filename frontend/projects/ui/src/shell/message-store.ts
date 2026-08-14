@@ -38,10 +38,15 @@ export class MessageStore {
     return Math.random().toString(36).slice(2, 10);
   }
 
-  /** User-Bubble anhängen. Verbatim aus ALT chat.component.ts:1273-1278. */
-  addUserMessage(content: string): void {
+  /** User-Bubble anhängen. Rumpf aus ALT chat.component.ts:1273-1278; neu ist
+   *  allein `fromHost` — der Satz kam vom Gastgeber (`startTask`), nicht von
+   *  der Person. Das Feld wird nur GESETZT, wenn es zutrifft: eine
+   *  `fromHost: false`-Eigenschaft an jeder Nachricht wäre Rauschen im
+   *  gespeicherten Verlauf. */
+  addUserMessage(content: string, fromHost = false): void {
     const msg: ChatMessage = {
       id: this.uid(), sender: 'user', content, timestamp: new Date(),
+      ...(fromHost ? { fromHost: true } : {}),
     };
     this.messages.update(msgs => [...msgs, msg]);
   }

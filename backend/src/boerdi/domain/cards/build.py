@@ -128,6 +128,10 @@ def _build_cards(raw: list[dict], persona_id: str = "") -> list[WloCard]:
                 "educational_contexts", "keywords",
                 "learning_resource_types", "license", "publisher",
                 "url", "wlo_url",
+                # Die Freigabeliste haengt am Treffer der Sammlungssuche; die
+                # Themenseiten-Karte derselben node_id kennt sie nicht. Ohne
+                # sie hier gewinnt der Erstfund mit 0.
+                "skill_count",
             ):
                 if not existing.get(k) and c.get(k):
                     existing[k] = c[k]
@@ -171,6 +175,12 @@ def _build_cards(raw: list[dict], persona_id: str = "") -> list[WloCard]:
             license=merged.get("license", ""),
             publisher=merged.get("publisher", ""),
             node_type=merged.get("node_type", "content"),
+            # Zaehlt die Felder einzeln auf: was hier fehlt, ist weg, egal was
+            # Parser und Schema fuehren. Genau daran ist der Skill-Hinweis
+            # zunaechst gescheitert (Review-Befund 2026-08-14) — Parser-Test
+            # und Kachel-Test blieben gruen, weil beide neben dieser Naht
+            # liegen.
+            skill_count=merged.get("skill_count", 0),
             topic_pages=tp,
         ))
     return cards
@@ -199,6 +209,27 @@ def _is_themenseite_card(c: Any) -> bool:
     if nt == "topic_page":
         return True
     return nt == "collection" and bool(getattr(c, "topic_pages", None))
+
+
+def _feld(c: Any, name: str, default: Any = None) -> Any:
+    """Ein Kartenfeld lesen, gleich ob die Karte ein dict oder ein Objekt ist.
+
+    ``_apply_llm_card_selection`` bekommt beide Formen (die ID-Suche darunter
+    macht dasselbe von Hand). Die beiden ``_is_themenseite_card``-Geschwister
+    im Bestand sind je auf EINE Form festgelegt — hier hilft keins von beiden.
+    """
+    return c.get(name, default) if isinstance(c, dict) else getattr(c, name, default)
+
+
+def _ist_sammlungs_karte(c: Any) -> bool:
+    """Karte, die in die Sammlungs-Box läuft.
+
+    Themenseiten sind ausgenommen: sie haben ihre eigene Box, eine von ihnen in
+    der Auswahl belegt also nicht, dass der User eine Sammlung sieht.
+    """
+    if (_feld(c, "node_type", "") or "") != "collection":
+        return False
+    return not _feld(c, "topic_pages", None)
 
 
 def _apply_llm_card_selection(
@@ -242,4 +273,25 @@ def _apply_llm_card_selection(
             len(selected_ids), len(cards),
         )
         return list(cards)
+    # Zusicherung statt Bitte (Nutzer-Vorgabe 2026-08-14: „Die Optiksammlung
+    # MUSS gefunden werden, wenn der MCP diese liefern kann"). #193 hat das
+    # strukturelle Aushungern beseitigt und der Prompt bittet um die Sammlung —
+    # eine Bitte ist aber keine Zusage, und was das Modell nicht wählt, sieht
+    # der User nie. Hatte der Pool eine Sammlung und die Auswahl keine, kommt
+    # genau EINE nach, ans Ende: die Reihenfolge des Modells bleibt vorn, und
+    # die Box-Deckel in ``turn_persist`` kürzen danach wie immer.
+    if ordered and not any(_ist_sammlungs_karte(c) for c in ordered):
+        gewaehlt = set(selected_ids)
+        nachzug = next(
+            (c for c in cards
+             if _ist_sammlungs_karte(c) and _feld(c, "node_id", "") not in gewaehlt),
+            None,
+        )
+        if nachzug is not None:
+            logger.info(
+                "select_top_cards: Sammlung %r nachgezogen — der Pool hatte "
+                "eine, die Auswahl des Modells keine",
+                _feld(nachzug, "title", ""),
+            )
+            ordered.append(nachzug)
     return ordered

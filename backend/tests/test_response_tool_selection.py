@@ -240,6 +240,40 @@ def test_select_top_cards_rerank_description_when_not_inline():
     assert sel["function"]["description"].startswith("RE-RANK-HINT für Kachel-Modus")
 
 
+def _select_tool(**kw):
+    active, *_ = _select({"tools": ["search_wlo_content"]}, **kw)
+    return next(t for t in active if t["function"]["name"] == "select_top_cards")
+
+
+def test_die_auswahl_ist_dem_modell_nicht_mehr_bei_fuenf_verboten():
+    """Befund 2026-08-14 (Review zu #193).
+
+    Der Backend-Deckel folgt seit #193 den Studio-Gruppen (Vorgabe 3+3+3), die
+    Werkzeug-Definition deckelte das Modell aber weiter bei fuenf — als
+    ``maxItems`` IM SCHEMA. Wo der Anbieter das Schema durchsetzt, waren mehr
+    als fuenf IDs technisch unmoeglich; der neue Deckel war damit unerreichbar
+    und die Optik-Sammlung konnte weiter aus der Auswahl fallen.
+
+    Die Obergrenze hier ist die Konstante, nicht das Budget: das Budget lebt in
+    der Konfiguration und wird allein im Backend angewandt. Zwei Zahlen fuer
+    dieselbe Sache waeren die naechste Gelegenheit zum Auseinanderlaufen.
+    """
+    from boerdi.domain.inline_grouping import MAX_SELECTABLE_CARDS
+    sel = _select_tool()
+    schema = sel["function"]["parameters"]["properties"]["card_ids"]
+    assert schema["maxItems"] == MAX_SELECTABLE_CARDS
+    assert schema["minItems"] == 1
+
+
+def test_die_beschreibung_nennt_kein_ziel_von_fuenf():
+    # Der Deckel im Code allein reicht nicht: was das Modell liest, ist die
+    # Beschreibung. Stand dort weiter „ZIEL: bis zu 5 IDs", waehlte es fuenf.
+    for sel in (_select_tool(inline=True), _select_tool(inline=False)):
+        beschreibung = sel["function"]["description"]
+        assert "bis zu 5 IDs" not in beschreibung
+        assert "1-5 IDs" not in beschreibung
+
+
 # ═══ P11d — Degradation-Wipe ═══════════════════════════════════════════════
 def test_degradation_wipes_all_tools():
     # _degradation_no_tools=True + nichtleere Liste → komplette Leerung, auch

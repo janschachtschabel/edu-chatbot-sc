@@ -19,6 +19,24 @@ function upgraded(instance: Record<string, unknown>): FakeElement {
 }
 
 describe('element-api', () => {
+  it('bietet beide Kontext-Wege an: ergänzen UND ersetzen', () => {
+    // Befund der Plugin-Entwickler (2026-08-14): eine Seitenleiste kann den
+    // Kontext nicht per Attribut nachreichen (nur in `ngOnInit` gelesen) und
+    // auch nicht per URL-Wächter (die Adresse der Leiste ändert sich nie).
+    // `updateContext` MERGT — ein Host aus der Erkennung und die IDs des
+    // vorigen Tabs überleben damit jeden Wechsel. Der ersetzende Weg existierte
+    // im Code, war aber von außen nicht erreichbar.
+    expect(FORWARDED_METHODS).toContain('updateContext');
+    expect(FORWARDED_METHODS).toContain('replaceContext');
+  });
+
+  it('reicht den Auftrag von außen durch', () => {
+    // Nutzer-Entscheid 2026-08-14: ein Gastgeber soll den Chat auf ein Thema
+    // starten können. Bis dahin gab es dafür nur `/api/agent` — also einen Weg
+    // OHNE Chat-Fenster, und genau das war die Lücke.
+    expect(FORWARDED_METHODS).toContain('startTask');
+  });
+
   it('reicht alle §5.5-Methoden an die Komponenten-Instanz durch', () => {
     patchElementApi(FakeElement.prototype);
     const calls: string[] = [];

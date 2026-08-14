@@ -193,6 +193,12 @@ class CardPipelineBlock(AreaModel):
     enable_llm_curation: bool = True
     min_displayed_cards: int = 5
     known_repo_hosts: list[str] = []
+    #: Welches Repositorium dieser Chatbot bedient. Leer = die Umgebungs-
+    #: variable ``REPO_BASE_URL`` gilt (Vorgabe: Produktion); gesetzt gewinnt
+    #: dieser Wert. Die Angabe gehört in die Konfiguration, damit im Studio
+    #: nachlesbar ist, gegen welches Repositorium der Bot läuft, statt es aus
+    #: der Deploy-Umgebung zu erraten (Nutzer-Vorgabe 2026-08-14).
+    repo_base_url: str = ""
 
 
 class CardPipelineArea(AreaModel):

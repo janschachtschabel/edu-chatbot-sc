@@ -76,6 +76,18 @@ export interface DetectedContext {
  *  from a foreign one. Attached HERE rather than in each of the eight return
  *  paths below: one place to be right, none to forget. */
 export function _detectFromUrl(url: URL): Partial<DetectedContext> {
+  // Nur echte Web-Herkünfte. Läuft das Widget in der Seitenleiste einer
+  // Browser-Erweiterung (`chrome-extension://<id>/…`), in einer lokalen Datei
+  // oder in `about:blank`, dann bezeichnet die Adresse NICHT das, was die
+  // Person ansieht, sondern die Hülle drumherum. Ohne diesen Wächter nahm der
+  // Detektor die Erweiterungs-Kennung als Hostnamen, und der Bot sagte:
+  // „Du bist auf dcchajcmmghejkhjmllhnmaggocmmjck — das gehört nicht zu WLO"
+  // (Befund der Plugin-Entwickler 2026-08-14). Leer ist hier die ehrliche
+  // Antwort: was der Gastgeber per `page-context` / `replaceContext()`
+  // mitgibt, steht dann allein und muss nicht gegen eine erfundene Seite an.
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    return {};
+  }
   return {
     page_host: url.hostname,
     page_url: url.href,

@@ -671,17 +671,46 @@ def test_loop_select_top_cards_sanitizes_stashes_and_acks(monkeypatch):
         _resp_text("fertig"),
     ], _inline_qr_enabled=True)
     assert result[0] == "fertig"
-    # sanitize: strings only, deduped, max 5
-    assert st["session_state"]["_selected_card_ids"] == ["a", "b", "c", "d", "e"]
+    # sanitize: strings only, deduped, gedeckelt auf das Auswahl-Budget.
+    # Der Deckel war bis 2026-08-14 eine harte 5 und ist jetzt die Summe der
+    # Studio-Gruppen (hier unkonfiguriert → Vorgabe 3+3+3=9), siehe
+    # ``domain/inline_grouping.max_selectable_cards``. Alle sechs gültigen IDs
+    # überleben also — genau das war der Befund: mit 5 Plätzen quer über alle
+    # Boxen fiel die gesuchte Sammlung neben den Einzelinhalten heraus.
+    assert st["session_state"]["_selected_card_ids"] == ["a", "b", "c", "d", "e", "f"]
     assert st["session_state"]["_selected_card_reasoning"] == "weil passend"
     assert st["tools_called"] == ["select_top_cards"]
     ack = [m for m in st["messages"] if m.get("role") == "tool"][0]["content"]
     assert ack.startswith(
-        "OK — Auswahl gespeichert (5 IDs). "
+        "OK — Auswahl gespeichert (6 IDs). "
         "Rufe jetzt respond_to_user mit der Prosa-Antwort auf.")
     # Welle-E consistency tail from display-rules config
     assert "WICHTIG: Im nächsten ``respond_to_user``-Aufruf" in ack
-    assert "genau diese 5 ausgewählten IDs" in ack
+    assert "genau diese 6 ausgewählten IDs" in ack
+
+
+def test_loop_select_top_cards_deckel_folgt_den_studio_gruppen(monkeypatch):
+    """Gegenprobe: enge Gruppen senken den Deckel wieder.
+
+    Der Deckel ist keine feste Zahl mehr, sondern die Summe der Box-Budgets.
+    Ohne diesen Test wäre nur die grosszügige Richtung belegt.
+    """
+    from boerdi.services import config_loader as cfg
+
+    monkeypatch.setattr(cfg, "load_display_rules_config", lambda: {
+        "groups": {"themenseiten_max": 1, "sammlungen_max": 1,
+                   "materialien_max": 1,
+                   # Gehört zur engen Einstellung dazu: der Lernpfad-Deckel ist
+                   # ein EIGENER Studio-Schlüssel und stünde sonst auf seiner
+                   # Vorgabe 5 — dann wäre diese Konfiguration nicht eng.
+                   "materialien_max_lernpfad": 1}})
+    args = json.dumps({"card_ids": ["a", "b", "c", "d", "e", "f", "g"]})
+    _fake, _result, st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "select_top_cards", args)]),
+        _resp_text("fertig"),
+    ], _inline_qr_enabled=True)
+    # 1+1+1=3 liegt unter der Untergrenze → es bleibt beim bisherigen Wert 5.
+    assert st["session_state"]["_selected_card_ids"] == ["a", "b", "c", "d", "e"]
 
 
 def test_loop_select_top_cards_ack_variant_and_pattern_exclude(monkeypatch):

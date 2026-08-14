@@ -1,0 +1,10 @@
+{
+  "name": "boerdi-chrome-plugin-beispiel",
+  "private": true,
+  "type": "module",
+  "description": "NICHTS ZU INSTALLIEREN. Diese Datei sagt node allein, dass die .js-Dateien ES-Module sind (fuer scripts/check-context.mjs und scripts/fetch-widget.mjs). Es gibt keine dependencies und keinen Build-Schritt; die Erweiterung wird als entpackter Ordner geladen.",
+  "scripts": {
+    "check": "node scripts/check-context.mjs && node scripts/check-ids.mjs",
+    "fetch-widget": "node scripts/fetch-widget.mjs"
+  }
+}

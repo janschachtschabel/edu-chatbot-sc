@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Boerdi — Agent-Schleife ausprobieren",
+  "version": "0.1.0",
+  "description": "Beispiel-Erweiterung: Kontext steuern, Auftrag stellen, strukturiertes Ergebnis sehen.",
+  "permissions": ["sidePanel", "storage", "activeTab", "scripting", "tabs"],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Boerdi-Seitenleiste öffnen" },
+  "side_panel": { "default_path": "panel.html" }
+}

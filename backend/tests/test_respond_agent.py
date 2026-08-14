@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 
 import pytest
 
@@ -325,6 +326,40 @@ async def test_gegenrichtung_ohne_angabe_laeuft_der_bestandsweg(monkeypatch):
     assert ctx.response_text == "Bestandsantwort"
 
 
+@pytest.mark.anyio
+async def test_ein_schema_ohne_agent_maschine_wird_angesagt(monkeypatch, caplog):
+    """Ein ``result_schema`` wirkt NUR in der Agent-Schleife — die Vorgabe der
+    Anlage ist aber ``pattern``. Wer das Attribut setzt und die Maschine
+    vergisst, bekäme sonst stumm nie ein Ergebnis und wartete auf ein Ereignis,
+    das nie kommt.
+
+    Eine Warnzeile und kein Fehler: der Zug selbst ist in Ordnung, nur die
+    Erwartung des Gastgebers nicht. Ihn abzuweisen hieße, eine gültige Frage
+    wegen einer wirkungslosen Beifügung zu verlieren.
+    """
+    async def _generate(*a, **k):
+        return ("Bestandsantwort", [], [], [])
+
+    monkeypatch.setattr(respond_mod, "generate_response", _generate)
+    ctx = _ctx()
+    ctx.req.environment.result_schema = {"type": "object"}
+    with caplog.at_level(logging.WARNING, logger=respond_mod.__name__):
+        await respond(ctx, session=object())
+    assert any("result_schema" in r.message for r in caplog.records)
+
+
+@pytest.mark.anyio
+async def test_ohne_schema_bleibt_der_bestandsweg_stumm(monkeypatch, caplog):
+    """Die Gegenprobe: der Normalfall darf nicht bei jedem Zug warnen."""
+    async def _generate(*a, **k):
+        return ("Bestandsantwort", [], [], [])
+
+    monkeypatch.setattr(respond_mod, "generate_response", _generate)
+    with caplog.at_level(logging.WARNING, logger=respond_mod.__name__):
+        await respond(_ctx(), session=object())
+    assert not [r for r in caplog.records if "result_schema" in r.message]
+
+
 # ── P4: der Seitenkontext, den der Agent bisher nicht sah ──────────
 # Befund B-2 (live gemessen 2026-08-13): auf einer Sammlungsseite fragte der
 # Agent „welche Sammlung meinst du?" — die ID stand in ``page_context``. Der
@@ -451,3 +486,74 @@ async def test_ein_gescheiterter_vorabruf_kippt_den_zug_nicht(monkeypatch):
     assert ctx.response_text == "Antwort des Agenten"
     ergebnis = [m for m in seen["run_agent_loop"]["messages"] if m.get("role") == "tool"]
     assert "nicht abrufen" in ergebnis[0]["content"]
+
+
+# ── Strukturiertes Ergebnis aus dem Chat (Nutzer-Entscheid 2026-08-14) ──
+# Ein Gastgeber, der ein `result_schema` erklärt, will maschinenlesbar
+# zurückbekommen, was das Gespräch ergeben hat. Ohne Schema bleibt alles wie
+# bisher: der Abschluss-Zug kostet 2–9 s (gemessen) und sagt sonst nur, was die
+# Prosa schon sagt — deshalb ist er opt-in und nicht die Vorgabe.
+
+_SCHEMA = {
+    "type": "object",
+    "properties": {"taxon_id": {"type": "string"}},
+    "required": ["taxon_id"],
+}
+
+
+@pytest.mark.anyio
+async def test_ohne_schema_bleibt_das_abschluss_werkzeug_weg(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    ctx = await respond_agent(_ctx())
+    assert "submit_result" not in _namen(seen["run_agent_loop"]["tools"])
+    assert ctx.result is None
+    assert ctx.result_stop_reason == ""
+    systeme = [m["content"] for m in seen["run_agent_loop"]["messages"]
+               if m.get("role") == "system"]
+    # Kein Wort über ein Abschluss-Werkzeug, das es nicht gibt: zwei
+    # Anweisungen, die einander widersprechen, wären schlechter als keine.
+    assert not any("submit_result" in s for s in systeme)
+
+
+@pytest.mark.anyio
+async def test_mit_schema_kommt_das_abschluss_werkzeug_dazu(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="Das Fach ist Physik.", result={"taxon_id": "…/discipline/460"},
+        stop_reason="submit", iterations=2, tools_called=["submit_result"],
+    ))
+    ctx = _ctx()
+    ctx.req.environment.result_schema = _SCHEMA
+    ctx = await respond_agent(ctx)
+
+    tools = seen["run_agent_loop"]["tools"]
+    assert "submit_result" in _namen(tools)
+    # Das Schema reist WÖRTLICH als ``result``-Eigenschaft des Abschluss-
+    # Werkzeugs (gemessen an ``submit_result_tool``): der Gastgeber bestimmt die
+    # Form, unser Code muss sie nicht kennen. Daneben steht ``text`` — die Prosa
+    # für den Menschen im Chat, die es hier ja weiterhin gibt.
+    submit = next(t for t in tools if t["function"]["name"] == "submit_result")
+    params = submit["function"]["parameters"]
+    assert params["properties"]["result"] == _SCHEMA
+    assert "result" in params["required"], "mit Schema ist das Ergebnis Pflicht"
+    assert ctx.result == {"taxon_id": "…/discipline/460"}
+    assert ctx.result_stop_reason == "submit"
+    systeme = [m["content"] for m in seen["run_agent_loop"]["messages"]
+               if m.get("role") == "system"]
+    assert any("submit_result" in s for s in systeme), "Anweisung fehlt"
+
+
+@pytest.mark.anyio
+async def test_ein_zug_ohne_ergebnis_meldet_das_ende_trotzdem(monkeypatch):
+    # „Hallo" ergibt kein taxonid. Die Gastseite muss `null` aushalten — und
+    # am Ende erkennen, warum: ohne `stop_reason` sähe ein an der Frist
+    # abgeschnittener Lauf aus wie einer, der fertig geworden ist.
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="Hallo!", stop_reason="text", iterations=1, tools_called=[]))
+    ctx = _ctx()
+    ctx.req.environment.result_schema = _SCHEMA
+    ctx = await respond_agent(ctx)
+    assert ctx.result is None
+    assert ctx.result_stop_reason == "text"

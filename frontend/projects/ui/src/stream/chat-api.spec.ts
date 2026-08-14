@@ -185,6 +185,47 @@ describe('ChatApiClient', () => {
     expect(calls[0].body.environment.host).toBe('wirlernenonline.de');
   });
 
+  // Das Ergebnis-Schema des Gastgebers (Nutzer-Entscheid 2026-08-14). Ein
+  // Setter wie `setEngine`/`setGuideEnv` und kein Argument je Zug: es gehört
+  // zum EINBAU, nicht zur einzelnen Nachricht.
+  it('setResultSchema landet in environment.result_schema', async () => {
+    const { fetchImpl, calls } = capturingFetch(jsonResponse({ content: 'ok', session_id: 's' }));
+    const client = new ChatApiClient({ fetchImpl });
+    const schema = { type: 'object', properties: { taxon_id: { type: 'string' } } };
+    client.setResultSchema(schema);
+
+    await client.post('s', 'm');
+    expect(calls[0].body.environment.result_schema).toEqual(schema);
+  });
+
+  it('ohne Schema steht das Feld NICHT im Body — ein leeres Feld wäre eine Aussage', async () => {
+    const { fetchImpl, calls } = capturingFetch(jsonResponse({ content: 'ok', session_id: 's' }));
+    const client = new ChatApiClient({ fetchImpl });
+
+    await client.post('s', 'm');
+    expect('result_schema' in calls[0].body.environment).toBe(false);
+  });
+
+  it('setResultSchema(null) nimmt es wieder zurück', async () => {
+    const { fetchImpl, calls } = capturingFetch(jsonResponse({ content: 'ok', session_id: 's' }));
+    const client = new ChatApiClient({ fetchImpl });
+    client.setResultSchema({ type: 'object' });
+    client.setResultSchema(null);
+
+    await client.post('s', 'm');
+    expect('result_schema' in calls[0].body.environment).toBe(false);
+  });
+
+  it('das Schema geht auch im Streaming-Zug mit', async () => {
+    const { fetchImpl, calls } = capturingFetch(
+      sseResponse(['event: result\ndata: {"content":"ok","session_id":"s"}\n\n']));
+    const client = new ChatApiClient({ fetchImpl });
+    client.setResultSchema({ type: 'object' });
+
+    await client.stream('s', 'm', () => {});
+    expect(calls[0].body.environment.result_schema).toEqual({ type: 'object' });
+  });
+
   it('setBaseUrl: trailing slash weg + /api angehängt (idempotent)', async () => {
     const { fetchImpl, calls } = capturingFetch(jsonResponse({ content: 'ok', session_id: 's' }));
     const client = new ChatApiClient({ fetchImpl });

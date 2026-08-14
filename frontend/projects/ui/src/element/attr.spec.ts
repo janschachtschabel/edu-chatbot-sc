@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { _attrEnum, _attrIsTrue, resolveTheme } from './attr';
+import { _attrEnum, _attrIsTrue, _attrJsonObject, resolveTheme } from './attr';
 
 /**
  * Charakterisierung der Attribut-Bool-Koerzierung — Verbatim-Port aus ALT
@@ -75,5 +75,44 @@ describe('resolveTheme', () => {
     expect(resolveTheme('')).toBeNull();
     expect(resolveTheme(undefined)).toBeNull();
     expect(resolveTheme('nachtmodus')).toBeNull();
+  });
+});
+
+/**
+ * `_attrJsonObject` (2026-08-14, erster Konsument `result-schema`). Der Wert ist
+ * ungeprüfte Eingabe einer FREMDEN Seite — gepinnt ist deshalb vor allem, was
+ * bei Unsinn passiert: `null` statt Wurf, plus eine Zeile in der Konsole, weil
+ * ein kaputtes Attribut von außen sonst genauso aussieht wie ein fehlendes.
+ */
+describe('_attrJsonObject', () => {
+  it('liest ein JSON-Objekt', () => {
+    expect(_attrJsonObject('{"type":"object","required":["a"]}'))
+      .toEqual({ type: 'object', required: ['a'] });
+  });
+
+  it('leer / undefined → null, und zwar STILL (kein Fehler der Gastseite)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(_attrJsonObject('')).toBeNull();
+    expect(_attrJsonObject('   ')).toBeNull();
+    expect(_attrJsonObject(undefined)).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('kaputtes JSON → null MIT Meldung', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(_attrJsonObject('{type: object,,}')).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('Array, Skalar und null sind keine Objekte → null MIT Meldung', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(_attrJsonObject('[1,2,3]')).toBeNull();
+    expect(_attrJsonObject('"text"')).toBeNull();
+    expect(_attrJsonObject('42')).toBeNull();
+    expect(_attrJsonObject('null')).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(4);
+    warn.mockRestore();
   });
 });

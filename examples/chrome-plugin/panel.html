@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Boerdi — Agent-Schleife</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+
+<header class="leiste">
+  <label class="feld">
+    <span>Backend</span>
+    <input id="apiUrl" type="url" inputmode="url" placeholder="http://localhost:8000"
+           value="http://localhost:8000">
+  </label>
+  <p id="bundleFehlt" class="warnung" hidden>
+    <strong>Das Widget-Bündel fehlt.</strong>
+    <code>vendor/boerdi-widget.js</code> ist nicht da. Manifest V3 verbietet
+    nachgeladenen Code — das Bündel muss im Ordner liegen:
+    <code>node scripts/fetch-widget.mjs http://localhost:8000</code>,
+    danach die Erweiterung neu laden.
+  </p>
+</header>
+
+<main>
+
+  <!-- ── Kontext ────────────────────────────────────────────────── -->
+  <section>
+    <h2>1 · Kontext</h2>
+
+    <div class="reihe" role="radiogroup" aria-label="Woher kommt der Kontext?">
+      <label><input type="radio" name="modus" value="auto" checked> automatisch</label>
+      <label><input type="radio" name="modus" value="manuell"> manuell</label>
+      <label><input type="radio" name="modus" value="aus"> aus</label>
+    </div>
+    <p class="hinweis" id="modusHinweis"></p>
+
+    <div id="autoBlock">
+      <button type="button" id="tabLesen" class="zweitrangig">Aus dem Tab übernehmen</button>
+      <p class="hinweis" id="tabAnzeige">Noch nichts gelesen.</p>
+    </div>
+
+    <div id="manuellBlock" hidden>
+      <label class="feld">
+        <span>Art</span>
+        <select id="art">
+          <option value="collection">Sammlung</option>
+          <option value="topic">Themenseite</option>
+          <option value="content">Einzelinhalt</option>
+          <option value="search">Suche</option>
+          <option value="none">nur Text, keine Art</option>
+        </select>
+      </label>
+      <label class="feld" data-fuer="collection topic">
+        <span>collection_id</span>
+        <input id="collectionId" type="text" placeholder="a1b2c3d4-…">
+      </label>
+      <label class="feld" data-fuer="topic">
+        <span>topic_page_slug</span>
+        <input id="topicSlug" type="text" placeholder="optik">
+      </label>
+      <label class="feld" data-fuer="content">
+        <span>node_id</span>
+        <input id="nodeId" type="text" placeholder="a1b2c3d4-…">
+      </label>
+      <label class="feld" data-fuer="search">
+        <span>Suchbegriff</span>
+        <input id="suche" type="text" placeholder="brüche">
+      </label>
+    </div>
+
+    <label class="ankreuz">
+      <input type="checkbox" id="textMit"> Seitentext des Tabs mitgeben
+      <span class="hinweis" id="textLaenge"></span>
+    </label>
+
+    <details>
+      <summary>Was geht raus?</summary>
+      <pre id="kontextVorschau" aria-live="polite">{}</pre>
+    </details>
+  </section>
+
+  <!-- ── Auftrag + Struktur ─────────────────────────────────────── -->
+  <section>
+    <h2>2 · Auftrag und Struktur</h2>
+
+    <label class="feld">
+      <span>Vorlage</span>
+      <select id="vorlage"></select>
+    </label>
+
+    <label class="feld hoch">
+      <span>Auftrag</span>
+      <textarea id="auftrag" rows="3"></textarea>
+    </label>
+
+    <label class="feld hoch">
+      <span>JSON-Schema <em>(leer = kein strukturiertes Ergebnis)</em></span>
+      <textarea id="schema" rows="10" spellcheck="false"></textarea>
+    </label>
+    <p class="hinweis" id="schemaStatus" role="status"></p>
+
+    <button type="button" id="starten">Starten</button>
+    <p class="hinweis">
+      Läuft mit <code>engine="agent"</code>. Mit Schema kostet <em>jeder</em> Zug
+      einen zusätzlichen Modellzug (2–9 s gemessen) — auch „Danke!".
+    </p>
+  </section>
+
+  <!-- ── Chat ───────────────────────────────────────────────────── -->
+  <section class="wachsend">
+    <h2>3 · Unterhaltung</h2>
+    <div id="chatHalter" class="chatHalter"></div>
+  </section>
+
+  <!-- ── Ergebnis ───────────────────────────────────────────────── -->
+  <section>
+    <h2>4 · Strukturiertes Ergebnis</h2>
+    <p class="hinweis" id="ergebnisLeer">
+      Noch nichts. Es erscheint hier, sobald ein Zug ein Ergebnis hergibt —
+      nicht jeder tut das.
+    </p>
+    <ol id="ergebnisListe" class="ergebnisse" aria-live="polite"></ol>
+  </section>
+
+</main>
+
+<script type="module" src="panel.js"></script>
+</body>
+</html>

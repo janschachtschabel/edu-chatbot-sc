@@ -13,12 +13,15 @@ All helpers are pure (no LLM/MCP/RAG/config) → run for real, no mocks.
 from __future__ import annotations
 
 from boerdi.domain.inline_grouping import (
+    MAX_SELECTABLE_CARDS,
+    MIN_SELECTABLE_CARDS,
     _is_einzelinhalt_card,
     _is_pure_sammlung_card,
     _is_themenseite_card,
     _redact_search_content_for_llm,
     _strip_trailing_option_lines,
     _ui_box_state_footer,
+    max_selectable_cards,
 )
 
 # ════════════════════════════════════════════════════════════════════════
@@ -171,3 +174,80 @@ def test_redact_einzelinhalte_replaced_with_summary_and_type_breakdown():
     )
     assert "Bruchrechnen" not in out          # Roh-Titel für die LLM redacted
     assert "NICHT im Antwort-Text" in out
+
+
+# ════════════════════════════════════════════════════════════════════════
+# max_selectable_cards — Befund 2026-08-14 (Nutzer: „die Optik-Sammlung
+# wird nicht gefunden")
+#
+# ``select_top_cards`` kappte die LLM-Auswahl hart auf 5 Karten, quer ueber
+# ALLE Boxen. Der Postprocess filtert die Karten danach auf genau diese IDs —
+# die Box-Deckel in ``turn_persist`` konnten also nur noch kuerzen, nie
+# ergaenzen. Belegten Einzelinhalte die fuenf Plaetze, fiel die gesuchte
+# Sammlung heraus. Gemessen an „Optik": ``search_wlo_collections`` liefert sie
+# als Treffer 1, im Chat erschien sie nie.
+# ════════════════════════════════════════════════════════════════════════
+
+def test_deckel_folgt_den_studio_gruppen():
+    # Die Materialien-Box hat ZWEI Deckel: ``materialien_max`` (3) und im
+    # Lernpfad-Zug ``materialien_max_lernpfad`` (5) — ``turn_persist`` waehlt je
+    # nach Muster den einen ODER den anderen. Das Budget muss den groesseren
+    # tragen, sonst hungert es im M09-Zug dieselbe Sammlung aus, die #193
+    # sichtbar machen sollte (Review-Befund 2026-08-14).
+    rules = {"groups": {"themenseiten_max": 3, "sammlungen_max": 3,
+                        "materialien_max": 3, "materialien_max_lernpfad": 5}}
+    assert max_selectable_cards(rules) == 11
+
+
+def test_ohne_konfiguration_gelten_die_vorgaben():
+    # Leere Config = die Defaults aus ``GroupsRules`` (3/3/3, Lernpfad 5).
+    assert max_selectable_cards({}) == 11
+    assert max_selectable_cards({"groups": {}}) == 11
+
+
+def test_der_lernpfad_deckel_ersetzt_und_addiert_nicht():
+    # Ist der Standard-Deckel groesser, bleibt er massgeblich — die beiden
+    # Werte sind Alternativen fuer DIESELBE Box, keine zwei Boxen.
+    rules = {"groups": {"themenseiten_max": 3, "sammlungen_max": 3,
+                        "materialien_max": 8, "materialien_max_lernpfad": 5}}
+    assert max_selectable_cards(rules) == 14
+
+
+def test_der_deckel_liegt_nie_unter_dem_bisherigen():
+    # Selbst eine sehr enge Redaktions-Einstellung darf nicht schlechter
+    # werden als der alte harte Wert — sonst waere die Aenderung ein
+    # Rueckschritt fuer alle, die die Gruppen klein halten.
+    rules = {"groups": {"themenseiten_max": 1, "sammlungen_max": 1,
+                        "materialien_max": 1, "materialien_max_lernpfad": 1}}
+    assert max_selectable_cards(rules) == MIN_SELECTABLE_CARDS
+
+
+def test_der_lernpfad_deckel_gehoert_zur_engen_einstellung_dazu():
+    # Wer nur ``materialien_max`` klein stellt, hat NICHT eng eingestellt: der
+    # Lernpfad-Deckel ist ein eigener Studio-Schluessel und steht dann weiter
+    # auf 5 — genau wie im Loader. Das Budget muss das spiegeln, sonst
+    # verspricht es weniger, als die Boxen zeigen duerfen.
+    rules = {"groups": {"themenseiten_max": 1, "sammlungen_max": 1,
+                        "materialien_max": 1}}
+    assert max_selectable_cards(rules) == 7
+
+
+def test_der_deckel_bleibt_gedeckelt():
+    # Die Gruppen duerfen bis 20/20/8 gehen; 48 Karten in einer Antwort sind
+    # keine Auswahl mehr.
+    rules = {"groups": {"themenseiten_max": 20, "sammlungen_max": 20,
+                        "materialien_max": 8}}
+    assert max_selectable_cards(rules) == MAX_SELECTABLE_CARDS
+
+
+def test_unsinnige_werte_werfen_nicht():
+    rules = {"groups": {"themenseiten_max": "drei", "sammlungen_max": None,
+                        "materialien_max": -5}}
+    assert MIN_SELECTABLE_CARDS <= max_selectable_cards(rules) <= MAX_SELECTABLE_CARDS
+
+
+def test_bei_vorgabe_ist_platz_fuer_eine_sammlung_neben_drei_materialien():
+    # Der eigentliche Befund in einer Zusicherung: mit den Vorgabe-Gruppen
+    # passen drei Einzelinhalte UND Sammlungen in dieselbe Auswahl. Beim
+    # alten Deckel 5 konkurrierten sie um dieselben Plaetze.
+    assert max_selectable_cards({}) >= 3 + 3

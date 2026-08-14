@@ -94,6 +94,12 @@ import { getLicenseShort } from './license';
                 <span>{{ s }}</span>
               </span>
             }
+            @if (skillHint(); as sh) {
+              <span class="card-meta-row card-meta-skills">
+                <span class="card-meta-icon" [innerHTML]="skillIcon | safeSvg"></span>
+                <span>{{ sh }}</span>
+              </span>
+            }
           </div>
         </div>
       </a>
@@ -122,6 +128,11 @@ export class WloCardTileComponent {
 
   protected readonly schoolIcon = ICONS.school;
   protected readonly bookIcon = ICONS.menu_book;
+  /** Symbol der Skill-Zeile. Glühbirne und nicht noch ein Buch: die
+   *  Freigabeliste enthält Anleitungen der Redaktion, und `menu_book`/`school`
+   *  sind an Fach und Stufe vergeben — drei Bücher untereinander wären keine
+   *  Unterscheidung. */
+  protected readonly skillIcon = ICONS.lightbulb;
   /** Platzhalter im Medienfeld, wenn die Karte kein Vorschaubild hat.
    *  Bewusst ein NEUTRALES Bildsymbol und nicht das Typ-Symbol: der Inhaltstyp
    *  wird genau einmal bebildert, in der Metazeile (Nutzer 2026-07-31, „vorn
@@ -134,6 +145,20 @@ export class WloCardTileComponent {
   protected readonly icon = computed(() => getCardIcon(this.card()));
   protected readonly label = computed(() => getContentTypeLabel(this.card(), this.translate()));
   protected readonly licenseShort = computed(() => getLicenseShort(this.card().license));
+
+  /** Hinweis, dass die Redaktion Skills für diese Sammlung freigegeben hat —
+   *  `null`, wenn keine dranhängen (Nutzer-Vorgabe 2026-08-14: sichtbar auch
+   *  bei einer Suche, nicht nur wenn man im Seitenkontext auf der Sammlung
+   *  steht). Kein „0 Skills": ein Hinweis, der auf jeder Karte steht, ist
+   *  keiner. Fehlt das Feld (ältere Antwort aus dem Verlauf), gilt dasselbe. */
+  protected readonly skillHint = computed<string | null>(() => {
+    const anzahl = this.card().skill_count ?? 0;
+    if (!Number.isFinite(anzahl) || anzahl <= 0) return null;
+    const t = this.translate();
+    return anzahl === 1
+      ? t('cards.skills.one')
+      : t('cards.skills.many', { count: anzahl });
+  });
 
   protected readonly contentTypeTitle = computed(() => {
     const c = this.card();

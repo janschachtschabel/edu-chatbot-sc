@@ -45,6 +45,12 @@ class WloCard(BaseModel):
     license: str = ""
     publisher: str = ""
     node_type: str = "content"
+    # Wie viele Skills die Redaktion an dieser Sammlung freigegeben hat; 0 =
+    # keine Registry. Der MCP liefert ``skillRegistry`` an Sammlungstreffern
+    # ungefragt mit — die Zahl kostet also keinen Zusatzabruf. Nur die Zahl,
+    # keine Titel: die Kachel zeigt einen Hinweis, kein Verzeichnis (den
+    # Katalog trägt der Prompt-Block, die Volltexte ``get_skill``).
+    skill_count: int = 0
     topic_pages: list[dict[str, str]] = Field(default_factory=list)
     # Each entry: {url, target_group, label}
     # e.g. [{url: "https://...", target_group: "teacher", label: "Lehrkräfte"}]

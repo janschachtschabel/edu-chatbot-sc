@@ -28,12 +28,17 @@ vom Chat-Zug ERBT.** Jedes dieser vier Stücke ginge sonst still verloren:
   **vorab geholt** (``agent_prefetch``), damit der Katalog in der Kette steht,
   bevor der Agent auf die Idee kommen könnte, danach zu fragen.
 
-**Ohne ``submit_result``.** Im Chat liest niemand das strukturierte ``result``,
-und die Beschreibung des Werkzeugs verlangt einen zusätzlichen Modellzug (2–9 s
-gemessen), nur um zu sagen, was die Prosa-Antwort schon sagt. Der Lauf endet hier
-über ``stop_reason='text'``. Deshalb sagt der Systemprompt auch **nichts** über
-ein Abschluss-Werkzeug: zwei Anweisungen, die einander widersprechen, wären
-schlechter als keine (Lehre aus C1-f1).
+**``submit_result`` nur auf Ansage.** Ohne erklärtes Schema gibt es das
+Abschluss-Werkzeug hier nicht: im Chat liest niemand das strukturierte
+``result``, und die Beschreibung des Werkzeugs verlangt einen zusätzlichen
+Modellzug (2–9 s gemessen), nur um zu sagen, was die Prosa-Antwort schon sagt.
+Der Lauf endet dann über ``stop_reason='text'``.
+
+Erklärt der Gastgeber ein ``environment.result_schema`` (2026-08-14), kehrt sich
+das um: das Werkzeug kommt in den Katalog **und** der Systemprompt bekommt den
+Satz darüber. Beides zusammen oder gar nicht — eine Anweisung auf ein Werkzeug,
+das nicht im Katalog steht, wäre genau der Widerspruch, den C1-f1 gelehrt hat.
+Wer die 2–9 s zahlt, hat sie bestellt.
 
 **Kein Streaming.** ``run_agent_loop`` kennt keinen ``on_token``-Haken; der
 SSE-Strom trägt im Agent-Modus die ``phase``-Ereignisse und am Ende die ganze
@@ -162,12 +167,27 @@ async def respond_agent(
     await resolve_prefetch(messages, _vorab_aufrufe(seite), progress=progress)
     messages.append({"role": "user", "content": ctx.req.message})
 
+    # Erklärt der Gastgeber ein Schema, bekommt der Lauf sein Abschluss-Werkzeug
+    # (2026-08-14). Nur dann: der Zug kostet 2–9 s und sagt sonst, was die Prosa
+    # schon sagt. Und nur dann steht der Satz darüber im Systemprompt — eine
+    # Anweisung auf ein Werkzeug, das nicht im Katalog ist, wäre der Widerspruch,
+    # den der Modulkopf beschreibt.
+    _schema = ctx.req.environment.result_schema or None
+    if _schema:
+        messages[0]["content"] += (
+            "\n\nDer Gastgeber erwartet ein maschinenlesbares Ergebnis. Rufe "
+            "``submit_result`` genau einmal, sobald du es hast — und nur dann. "
+            "Ist die Nachricht bloss Gespraech (Begruessung, Rueckfrage), "
+            "antworte gewoehnlich und rufe es NICHT."
+        )
+
     all_cards: list[dict] = []
     progress.start("response", "LLM response generation")
     lauf = await run_agent_loop(
         messages=messages,
         tools=build_agent_tools(
-            blocked_tools=ctx.safety.blocked_tools, include_submit=False),
+            blocked_tools=ctx.safety.blocked_tools,
+            include_submit=bool(_schema), result_schema=_schema),
         limits=enforce_write_mode(load_engine().agent),
         usage_acc=ctx.usage,
         progress=progress,
@@ -188,6 +208,12 @@ async def respond_agent(
     ctx.response_text = append_answer_notes(
         _antwort_oder_ersatz(lauf, sprache), policy=ctx.policy, safety=ctx.safety)
     ctx.wlo_cards_raw = all_cards
+    # Ergebnis und Ende-Grund weiterreichen. Der Grund geht MIT, auch wenn kein
+    # Ergebnis kam: sonst sähe ein an der Frist abgeschnittener Lauf für die
+    # Gastseite aus wie einer, der nichts zu sagen hatte.
+    if _schema:
+        ctx.result = lauf.result if isinstance(lauf.result, dict) else None
+        ctx.result_stop_reason = lauf.stop_reason
     ctx.tools_called = lauf.tools_called
     ctx.debug.outcomes = lauf.outcomes
     ctx.debug.confidence = adjust_confidence(

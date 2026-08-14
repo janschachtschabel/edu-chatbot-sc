@@ -1,6 +1,12 @@
 /**
- * Der Widget-Vertrag in der Referenz (C1-d5b2): Einbettung, die 22
- * Host-Attribute, die vier Ereignisse.
+ * Der Widget-Vertrag in der Referenz (C1-d5b2): Einbettung, die Host-Attribute,
+ * die Ereignisse.
+ *
+ * Ohne Zahlen im Kopf, mit Absicht: die Liste ist zweimal gewachsen (`ticket`
+ * 2026-08-12, `result-schema` + `boerdi:agent-result` 2026-08-14), und eine
+ * mitgezaehlte Zahl im Fliesstext wird beim dritten Mal falsch, ohne dass ein
+ * Test es merkt. Gezaehlt wird dort, wo es prueft: im Attribut-Waechter der
+ * Widget-Spec.
  *
  * **Dieselbe Regel wie in C1-d5a2 — und derselbe Sonderfall, zweimal anders
  * entschieden.** Was im `<code>` steht, ist Bezeichner und bleibt Daten. Zwei
@@ -60,6 +66,9 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.attr.engine': 'pattern | agent — welche Maschine diesen Einbau '
       + 'beantwortet; leer nimmt die Vorgabe aus 01-base/engine (Kopfzeile '
       + 'X-Boerdi-Engine)',
+    'rw.attr.resultSchema': 'JSON-Schema, in dem dieser Einbau sein Ergebnis '
+      + 'erwartet; liefert je Zug boerdi:agent-result. Wirkt NUR mit '
+      + 'engine="agent" und kostet dort einen zusätzlichen Modellzug (2–9 s)',
     'rw.attr.position': 'bottom-right | bottom-left | top-right | top-left',
     'rw.attr.initialState': 'collapsed | expanded',
     'rw.attr.primaryColor': 'Akzentfarbe; leer lässt den CSS-Default #1c4587 greifen',
@@ -107,6 +116,7 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.when.queryMeta': 'immer aktiv',
     'rw.when.guideSuggestion': 'emit-guide-suggestion="true"',
     'rw.when.routingDebug': 'emit-routing-debug="true"',
+    'rw.when.agentResult': 'result-schema gesetzt + engine="agent"',
 
     'rw.outputs':
       'Angular-Outputs für programmatische Einbindung: `{outputs}`. `linkClicked` '
@@ -147,6 +157,9 @@ export const REFERENCE_WIDGET: CataloguePart = {
       + 'the button in the composer row',
     'rw.attr.engine': 'pattern | agent — which engine answers for this embed; '
       + 'empty takes the default from 01-base/engine (header X-Boerdi-Engine)',
+    'rw.attr.resultSchema': 'JSON schema this embed expects its result in; '
+      + 'emits boerdi:agent-result per turn. Works ONLY with engine="agent" '
+      + 'and costs one extra model round there (2–9 s measured)',
     'rw.attr.position': 'bottom-right | bottom-left | top-right | top-left',
     'rw.attr.initialState': 'collapsed | expanded',
     'rw.attr.primaryColor': 'Accent colour; empty lets the CSS default #1c4587 apply',
@@ -195,6 +208,7 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.when.queryMeta': 'always active',
     'rw.when.guideSuggestion': 'emit-guide-suggestion="true"',
     'rw.when.routingDebug': 'emit-routing-debug="true"',
+    'rw.when.agentResult': 'result-schema set + engine="agent"',
 
     'rw.outputs':
       'Angular outputs for embedding programmatically: `{outputs}`. `linkClicked` '

@@ -194,7 +194,7 @@ ist kein Zufall, sondern jeweils eine Entscheidung im Code:
 |---|---|
 | `initial-state` | **ja** — der erste Wert entscheidet den Start, spätere schalten das Panel um (`widget.component.ts:290-297`) |
 | `engine`, `language`, `primary-color` | **ja** — hängen an Effects (`widget.component.ts:279-315`) |
-| `page-context` | **nein, nicht unmittelbar.** Es hängt an keinem Effect: gelesen wird es in `ngOnInit` und danach nur noch, wenn der URL-Wächter eine Navigation bemerkt (`widget.component.ts:262,384`). Zur Laufzeit nehmt ihr `updateContext()` (§5) |
+| `page-context` | **nein, nicht unmittelbar.** Es hängt an keinem Effect: gelesen wird es in `ngOnInit` und danach nur noch, wenn der URL-Wächter eine Navigation bemerkt (`widget.component.ts:262,384`). Zur Laufzeit nehmt ihr `replaceContext()` bzw. `updateContext()` (§5) |
 | `size` | **nein** — Startwert; danach gehört die Stufe dem Umschalter in der Eingabezeile, ein Effect überschriebe jede Handbedienung |
 | `ticket` | **nein** — einmal in `ngOnInit` gelesen und sofort aus dem DOM getilgt |
 
@@ -229,8 +229,8 @@ Schreib-Regel: [`agent-modus.md`](agent-modus.md).
 
 ### Die JS-API des Elements
 
-Sechs Methoden, auf dem Element-Prototyp
-(`frontend/projects/widget/src/element-api.ts:33-40`):
+Sieben Methoden, auf dem Element-Prototyp
+(`frontend/projects/widget/src/element-api.ts:40-48`):
 
 ```js
 const chat = document.querySelector('boerdi-chat');
@@ -240,7 +240,8 @@ chat.closeChatbot();    // schließen
 chat.toggleChatbot();
 chat.isChatbotOpen();   // → boolean
 chat.resetSession();    // neue Sitzung
-chat.updateContext({ … });  // Seitenkontext ergänzen
+chat.updateContext({ … });   // Seitenkontext ERGÄNZEN (mergt)
+chat.replaceContext({ … });  // Seitenkontext ERSETZEN (wie eine Navigation)
 ```
 
 Ruft ihr sie, **bevor** das Element aufgewertet ist, bekommt ihr `undefined`
@@ -282,36 +283,154 @@ Anzahl der Materialien und die **Übersicht der freigegebenen Anleitungen
 Muster wie Agent. Den Volltext einer Anleitung holt das Modell danach gezielt
 selbst (`search_skill` → `get_skill`).
 
+**Das gilt zur Laufzeit genauso.** Der Vorabruf hängt am Kontext, nicht am
+Startvorgang: ein `replaceContext({page_kind:'collection', collection_id:'…'})`
+mitten in der Sitzung schaltet den Chat ab dem nächsten Zug auf die Anleitungen
+dieser Sammlung um. Für ein Plugin ist das der eine Hebel, der zählt — die
+`collection_id` ist der Schlüssel zu den Skills, alles andere ist Beiwerk:
+
+```js
+// Die Person hat im Tab eine Sammlung offen → der Chat arbeitet ab jetzt
+// mit deren Anleitungen.
+chat.replaceContext({
+  page_kind: 'collection',
+  collection_id: 'f35c17d1-a29e-4b26-9d22-802682fad43d',  // „Geometrische Optik"
+  page_url: tab.url,
+  page_host: new URL(tab.url).hostname,
+});
+```
+
+Zwei Dinge, die dabei oft falsch erwartet werden:
+
+* **Die Übersicht nennt nur Titel, keine `nodeId`s** — bis zu 100, und darüber
+  gekappt (`services/page_context.py:388-432`). Das Modell holt sich die ID über
+  `search_skill` und den Volltext über `get_skill`. Das ist ein Aufruf mehr und
+  gewollt: 100 Titel sind eine A4-Seite, 100 Titel mit IDs wären gut zwei.
+* **Eine Themenseite ist eine Sammlung** — `page_kind: 'topic'` mit derselben
+  `collection_id` führt zu denselben Anleitungen. Ihr müsst nicht unterscheiden.
+
 Zur Laufzeit gibt es **zwei** Wege, und sie tun Verschiedenes
 (`frontend/projects/ui/src/shell/lifecycle.ts:182-193`):
 
 | Aufruf | Wirkung |
 |---|---|
 | `chat.updateContext({…})` | **mergt** in den bestehenden Kontext. Kein Ping, keine Nachricht. |
-| SPA-Navigation (erkannt) | **ersetzt** den Kontext (stale IDs raus), setzt das Ping-Gate zurück und bietet eine Kontext-Begrüßung an |
+| `chat.replaceContext({…})` | **ersetzt** den Kontext (alte IDs raus), setzt das Ping-Gate zurück und bietet eine Kontext-Begrüßung an |
+| SPA-Navigation (erkannt) | dasselbe wie `replaceContext`, nur vom Widget selbst ausgelöst |
 
-Den zweiten Weg löst das Widget selbst aus: ein Wächter vergleicht alle **1,5 s**
+Den letzten Weg löst das Widget selbst aus: ein Wächter vergleicht alle **1,5 s**
 `location.href` (`ui/src/widget/host-bridges.ts:4,97-102`). In einer SPA wie
 edu-sharing braucht ihr dafür nichts zu tun.
 
+**Ergänzen oder ersetzen — die Wahl ist nicht kosmetisch.** `updateContext`
+lässt stehen, was ihr nicht erwähnt. Wechselt die Person den Tab und ihr schickt
+nur die neue `collection_id`, bleiben `node_id`, `search_query` und `page_url`
+des vorigen Tabs im Kontext: der Bot spricht dann über zwei Seiten gleichzeitig.
+Für einen Seitenwechsel ist `replaceContext` das Richtige — und nur dieser Weg
+lässt den Bot die neue Seite auch von sich aus begrüßen.
+
+### Der Sonderfall Seitenleiste (und warum der erste Versuch scheiterte)
+
+Läuft das Widget in einer **Erweiterungs-Seitenleiste**
+(`chrome-extension://<id>/sidebar/index.html`), gilt etwas, das auf einer
+gewöhnlichen Gastseite nie auffällt: **die Leiste navigiert nicht.** Sie zeigt
+einen fremden Tab an, ihre eigene Adresse bleibt dieselbe. Damit fallen zwei der
+drei Wege aus, über die sonst ein Kontext hereinkommt:
+
+| Weg | in der Seitenleiste |
+|---|---|
+| Attribut `page-context` | **nur beim Mounten.** Es wird in `ngOnInit` gelesen; ein späteres `setAttribute` bleibt folgenlos (§3) |
+| URL-Wächter | **feuert nie** — `location.href` der Leiste ändert sich nicht |
+| `replaceContext()` / `updateContext()` | **funktioniert**, und ist damit der einzige Weg für jeden Tab-Wechsel |
+
+Dazu kam bis 2026-08-14 ein Fehler auf **unserer** Seite: die eigene Erkennung
+(`auto-context`, Vorgabe an) nahm die Erweiterungs-Kennung als Hostnamen. Der Bot
+begrüßte die Person dann mit *„Du bist auf dcchajcmmghejkhjmllhnmaggocmmjck — das
+gehört nicht zu WLO."* Behoben: der Detektor beachtet nur noch `http`/`https`;
+bei `chrome-extension:`, `moz-extension:`, `file:` und `about:` trägt er nichts
+bei (`ui/src/page-context/page-context-detector.ts:78-90`). Was ihr mitgebt,
+steht damit allein.
+
+**Das Rezept:**
+
+```js
+// 1. Element bauen und den Kontext SCHON AM ELEMENT setzen — vor dem Einhängen.
+const chat = document.createElement('boerdi-chat');
+chat.setAttribute('api-url', 'https://chat.example.org');
+chat.setAttribute('embed-mode', 'frameless');
+chat.setAttribute('initial-state', 'expanded');
+chat.setAttribute('auto-context', 'false');          // die Leiste ist nicht die Seite
+chat.setAttribute('page-context', JSON.stringify(ctxFuerTab(aktiverTab)));
+container.appendChild(chat);
+
+// 2. Bei JEDEM Tab-/Seitenwechsel: ersetzen, nicht ergänzen.
+await customElements.whenDefined('boerdi-chat');
+chrome.tabs.onActivated.addListener(async () => {
+  chat.replaceContext(ctxFuerTab(await aktivenTabHolen()));
+});
+
+// Aus einer Tab-URL wird der Kontext genauso gebaut wie sonst aus der Adresse
+// der Gastseite — die Feldnamen stehen in der Tabelle oben.
+function ctxFuerTab(tab) {
+  const u = new URL(tab.url);
+  const cid = u.searchParams.get('collectionId') ?? u.searchParams.get('id');
+  return {
+    page_kind: u.pathname.includes('/topic-pages') ? 'topic' : cid ? 'collection' : 'other',
+    ...(cid ? { collection_id: cid } : {}),
+    page_url: tab.url,
+    page_host: u.hostname,
+  };
+}
+```
+
+Zwei Feinheiten, die Zeit sparen:
+
+* **`auto-context="false"` ist hier keine Empfehlung, sondern nötig** — sonst
+  mischt die Erkennung der Leiste (heute: nichts, früher: die Kennung) in euren
+  Kontext hinein.
+* Schickt `page_url` und `page_host` **mit**. Ihr seid die Einzigen, die sie
+  kennen; ohne sie kann der Bot nicht beurteilen, ob die Person auf einer
+  WLO-Seite steht oder auf einer fremden, die man vorschlagen könnte (M20).
+
+### Den Chat auf ein Thema starten: `startTask`
+
+```js
+const chat = document.querySelector('boerdi-chat');
+chat.replaceContext({ collection_id: 'a1b2c3…', page_text: seitentext });
+chat.startTask('Fasse zusammen, worum es auf dieser Seite geht.');
+```
+
+Der Satz **erscheint im Verlauf**, aber als eigene Auftrags-Blase mit der Zeile
+„Auftrag der Seite" — gestrichelt, ungetönt, klar keine Nutzernachricht.
+Unsichtbar wäre bequemer und unehrlich: die Person sähe eine Antwort auf eine
+Frage, die sie nie gestellt hat. Danach ist es eine **gewöhnliche
+Unterhaltung** — der Auftrag ist der erste Zug, nicht ein Modus.
+
+Zwei Dinge, die in einer Seitenleiste zählen:
+
+* **Kontext zuerst, dann der Auftrag.** `startTask` schickt sofort; was der
+  Agent wissen soll, muss vorher gesetzt sein.
+* **Ist das Panel zu, öffnet es sich.** Und ist die Shell im Panel-Betrieb noch
+  nicht gemountet (beim ersten Aufruf der Normalfall), wird der Auftrag
+  **gehalten** und läuft nach dem Mount los. Ein still verschluckter
+  Startbefehl wäre schlimmer als gar keiner.
+
+`ui/src/shell/chat-shell.component.ts` (`startTask`) ·
+`widget/src/app/widget/widget.component.ts` (Warteschlange).
+
 ### Was es nicht gibt
 
-**Eine Nachricht von außen in den Chat schicken, geht nicht.** Die Chat-Shell
-hat ein `sendMessage` (`ui/src/shell/chat-shell.component.ts:421`), aber es steht
-**nicht** in `FORWARDED_METHODS` — das Element reicht es nicht durch, und die
-Hülle hat selbst keins. Es gibt also keinen unterstützten Weg, dem Widget von
-der Gastseite aus einen Satz zu diktieren.
-
-Für einen gezielten Auftrag von außen ist der richtige Weg deshalb **nicht** das
-Widget, sondern `POST /api/agent` (§7): dort ist „Anweisung rein, Ergebnis raus"
-der ganze Vertrag, ohne Chat-Rahmen dazwischen.
+**Eine gewöhnliche Nachricht von außen einschleusen, geht weiterhin nicht.**
+`sendMessage` steht nicht in `FORWARDED_METHODS`. Der unterstützte Weg ist
+`startTask` — und der ist bewusst als Auftrag markiert. Wer eine Antwort ganz
+ohne Chat-Rahmen will, nimmt `POST /api/agent` (§7).
 
 ---
 
 ## 6. Ereignisse mitlesen
 
-Vier Ereignisse, auf `window`, mit `bubbles` und `composed` (sonst käme aus dem
-Shadow-Root nichts an). Definition: `ui/src/host-events/event-names.ts:26-53`.
+Fünf Ereignisse, auf `window`, mit `bubbles` und `composed` (sonst käme aus dem
+Shadow-Root nichts an). Definition: `ui/src/host-events/event-names.ts`.
 
 ```js
 window.addEventListener('boerdi:guide-suggestion', (e) => {
@@ -325,6 +444,7 @@ window.addEventListener('boerdi:guide-suggestion', (e) => {
 | `boerdi:query-meta` | nach jedem Bot-Zug mit Suche — **immer an**, kein Opt-in | `{queries: [{tool_name, query_type, search_term, criteria[], pagination, repository_url, search_url}]}` |
 | `boerdi:guide-suggestion` | jeder Zug mit mindestens einem verlinkbaren Treffer — **`emit-guide-suggestion="true"` nötig** | `{url, title, node_id, node_type, query, alternatives[]}` |
 | `boerdi:routing-debug` | jeder Bot-Zug — **`emit-routing-debug="true"` nötig** | `{message, pattern, intent, state, persona, tools_called[], rag_areas[], sources[], modifier{tone,length,formality,card_text_mode,override}, signals[]}` |
+| `boerdi:agent-result` | jeder Zug — **`result-schema` gesetzt UND `engine="agent"` nötig** (§7a) | `{result, stop_reason}`; `result` ist `null`, wenn dieser Zug keins hergab |
 
 **Zwei Dinge, an denen man sich sonst die Zähne ausbeißt:**
 
@@ -356,10 +476,87 @@ Output; hier ist es richtiggestellt.)
 
 ---
 
-## 7. Agent-Modus: strukturiertes Ergebnis
+## 7a. Chat-Fenster MIT strukturiertem Ergebnis
+
+Der Fall, für den es beides braucht: die Person soll mitreden **und** ihr wollt
+am Ende maschinenlesbare Daten. Das geht seit 2026-08-14 in einem Stück.
+
+```html
+<boerdi-chat
+  api-url="https://chat.example.org"
+  engine="agent"
+  result-schema='{"type":"object",
+                  "properties":{"taxon_id":{"type":"string",
+                    "description":"Die Vokabular-URI der Fachzuordnung"}},
+                  "required":["taxon_id"]}'>
+</boerdi-chat>
+```
+
+```js
+const chat = document.querySelector('boerdi-chat');
+
+// 1. Kontext: Sammlung (holt deren Skills vorab) + Seitentext.
+chat.replaceContext({ collection_id: sammlungsId, page_text: seitentext });
+
+// 2. Auftakt.
+chat.startTask('Welchem Fach ordnest du diese Seite zu?');
+
+// 3. Mitlesen — bei JEDEM Zug, auch bei denen, die die Person selbst tippt.
+window.addEventListener('boerdi:agent-result', (e) => {
+  const { result, stop_reason } = e.detail;
+  if (result) uebernehmen(result.taxon_id);
+  else if (stop_reason === 'deadline') hinweisAnzeigen('Zeit war zu knapp');
+});
+```
+
+**Vier Dinge, die euch sonst kosten:**
+
+* **`engine="agent"` ist Pflicht.** Ohne sie antwortet die Muster-Maschine, und
+  das Schema wirkt **gar nicht** — kein `result`, kein Ereignis. Das Backend
+  schreibt dann eine Warnzeile ins Protokoll (`nodes/respond.py`), aber im
+  Browser seht ihr nur Stille. Setzt beides oder keins.
+* **Jeder Zug kostet extra.** Mit Schema hängt der Lauf einen zusätzlichen
+  Modellzug an (2–9 s gemessen) — auch bei „Danke!". Deshalb ist es opt-in je
+  Einbau und nicht die Vorgabe.
+* **`result` ist je Zug optional.** „Hallo" ergibt keine `taxon_id`. Euer Code
+  muss `null` aushalten; der `stop_reason` sagt, ob nichts da war (`text`) oder
+  ob der Lauf an einen Deckel stieß (`deadline`, `max_iterations`, …).
+* **Das Attribut ist eine Zeichenkette.** Attribute eines Custom Elements sind
+  immer Strings — achtet auf die Anführungszeichen (im Beispiel außen `'`,
+  innen `"`). Kaputtes JSON kippt den Chat **nicht**: es gilt als „kein Schema",
+  und in der Browser-Konsole steht eine `console.warn`-Zeile. Das ist die
+  einzige Stelle, an der ihr den Tippfehler bemerkt — von außen sieht ein
+  kaputtes Attribut sonst genauso aus wie ein weggelassenes.
+
+Das Schema reist **wörtlich** in die Parameter des Abschluss-Werkzeugs. Zwei
+Folgen: seine `description`-Texte liest das Modell (schreibt sie also als
+Anweisung, nicht als Notiz für euch), und es ist auf **10 000 Zeichen**
+gedeckelt — darüber lehnt das Backend die Anfrage mit 422 ab, statt ein halbes
+Schema zu verwenden, das eine andere Form verlangen würde als ihr wolltet.
+
+**In Angular** gibt es dieselbe Meldung als Output `agentResult`.
+
+### Zum Anfassen: `examples/chrome-plugin/`
+
+Genau dieser Abschnitt als lauffähige Erweiterung — eine Seitenleiste mit
+Steuerung für Kontext (automatisch · manuell · aus), Auftrag, Schema und einer
+Liste, die je Zug zeigt, was strukturiert herauskommt. Kein Build, keine
+Abhängigkeiten; `examples/chrome-plugin/README.md` erklärt das Einrichten.
+
+**Ein Punkt daraus, der jede Erweiterung betrifft:** Manifest V3 verbietet
+nachgeladenen Code. In einer Erweiterungs-**Seite** (Seitenleiste, Popup,
+Options-Seite) gilt `script-src 'self'` — das Bündel muss also mitgeliefert
+und bei Backend-Updates neu geholt werden. Nur wenn ihr das Widget in die
+**Gastseite** einhängt (§1), darf der Skript-Tag auf euer Backend zeigen.
+
+---
+
+## 7. Agent-Modus ohne Chat: `POST /api/agent`
 
 `POST /api/agent` ist der Weg für Gastgeber **ohne** Chat-Rahmen. Keine Sitzung,
 keine Begrüßung, keine Muster — Anweisung rein, Text plus freies JSON raus.
+Wollt ihr stattdessen ein Chat-Fenster, in dem die Person mitreden kann, nehmt
+§7a.
 
 ### Zugang
 
@@ -446,6 +643,110 @@ geworden ist:
 Kurz: **prüft `stop_reason === 'submit'`, bevor ihr `result` benutzt.** Ohne
 `result_schema` gibt es ohnehin nur `text`.
 
+### Vollständiges Beispiel: taxonid aus dem Text der offenen Seite
+
+Der Fall, den ein Plugin wirklich hat: die Person steht auf irgendeiner Seite,
+ihr habt deren Text (ihr seid im Browser), und ihr wollt daraus ein
+maschinenlesbares Metadatum — hier die **taxonid**, also die Vokabular-URI des
+Schulfachs. Dazu sollen die **Anleitungen einer Sammlung** gelten, damit das
+Ergebnis der Hauskonvention folgt und nicht der Laune des Modells.
+
+```js
+// Der Seitentext ist EURE Bringschuld — dazu unten mehr.
+const seitentext = document.body.innerText.replace(/\s+/g, ' ').slice(0, 12000);
+
+const antwort = await fetch('https://chat.example.org/api/agent', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'WLO-Access-Block': zugangsblock,          // persönliche Anmeldung, §7
+  },
+  body: JSON.stringify({
+    // Die Sammlung, aus der die Anleitungen kommen. Ihre Freigabeliste wird
+    // VOR dem Auftrag geholt — „Anleitungen vor Gegenstand"
+    // (`services/agent_run.py:64-74`).
+    collection_id: 'f35c17d1-a29e-4b26-9d22-802682fad43d',
+
+    instruction: [
+      'Bestimme das Schulfach dieser Seite und gib die WLO-taxonid zurück.',
+      'Falls unter den freigegebenen Anleitungen eine zur Metadaten-Anreicherung',
+      'dabei ist, halte dich an sie.',
+      'Prüfe die taxonid gegen das Vokabular (lookup_wlo_vocabulary,',
+      'vocabulary="discipline"), statt sie aus dem Gedächtnis zu bilden.',
+      'Gibt der Text kein Fach her: confidence 0 und leere taxon_id.',
+      '',
+      '--- Text der Seite ---',
+      seitentext,
+    ].join('\n'),
+
+    result_schema: {
+      type: 'object',
+      properties: {
+        taxon_id: {
+          type: 'string',
+          description: 'volle Vokabular-URI, z.B. '
+            + 'http://w3id.org/openeduhub/vocabs/discipline/460',
+        },
+        label:       { type: 'string', description: 'deutsches Label, z.B. Physik' },
+        confidence:  { type: 'number', minimum: 0, maximum: 1 },
+        begruendung: { type: 'string' },
+      },
+      required: ['taxon_id', 'label', 'confidence'],
+    },
+
+    allow_curation: false,   // reine Auskunft → keine Schreibwerkzeuge im Katalog
+    locale: 'de',
+  }),
+});
+
+const { result, stop_reason, tools_called } = await antwort.json();
+if (stop_reason !== 'submit') {
+  throw new Error(`Lauf endete mit ${stop_reason} — result ist nicht verlässlich`);
+}
+// result → {
+//   taxon_id: "http://w3id.org/openeduhub/vocabs/discipline/460",
+//   label: "Physik", confidence: 0.9, begruendung: "…"
+// }
+```
+
+**Was dabei serverseitig passiert**, in dieser Reihenfolge:
+
+1. `collection_id` → `get_skill_registry` läuft **vor** eurer Anweisung; die
+   Freigabeliste steht also schon im Gespräch, bevor der Auftrag kommt.
+2. Jedes weitere Werkzeug-Ergebnis bekommt seine Registry angehängt, falls es
+   eine mitbringt (`services/agent_loop.py:250-257`) — auch eine Sammlung, die
+   der Agent selbst erst findet, bringt ihre Anleitungen mit.
+3. Das Modell holt sich den Volltext der passenden Anleitung (`search_skill` →
+   `get_skill`) und arbeitet danach.
+4. `lookup_wlo_vocabulary({vocabulary:'discipline'})` liefert Label **und** URI
+   je Fach; die URI **ist** die taxonid (gemessen: Physik =
+   `…/vocabs/discipline/460`, Mathematik = `…/380`).
+5. `submit_result` mit eurem Schema — wörtlich als Parameter des
+   Abschluss-Werkzeugs.
+
+`tools_called` zeigt hinterher, ob das auch wirklich so lief. Steht dort kein
+`get_skill`, hat das Modell die Anleitung nicht gelesen — dann ist die Anweisung
+zu unbestimmt, nicht der Bestand leer.
+
+### Besonderheiten im Plugin
+
+Sechs Dinge, die auf einer gewöhnlichen Gastseite nicht auffallen:
+
+| | |
+|---|---|
+| **Der Seitentext ist eure Bringschuld** | `get_url_text` läuft auf dem *Server*. Einen Tab hinter Anmeldung, hinter Bezahlschranke oder auf `localhost` sieht er nicht — ihr schon. Schickt den Text in der `instruction` mit, statt auf das Werkzeug zu hoffen. |
+| **≤ 20 000 Zeichen** | Die `instruction` ist gedeckelt; ein langer Artikel plus eure Anweisung reißt das. Kürzt den Text (oben: 12 000), sonst kommt `422`. |
+| **Zugang: nur der Zugangsblock** | `WLO-Access-Block` mit **persönlicher** Anmeldung. Der Studio-Schlüssel ist der Admin-Schlüssel und hat in einer Erweiterung nichts zu suchen (§7). |
+| **20 Läufe je Minute und IP** | `RATE_LIMIT_CHAT`. Ein Plugin, das bei **jedem** Tab-Wechsel einen Agent-Lauf startet, steht nach zwanzig Wechseln bei `429`. Startet Läufe auf eine ausdrückliche Handlung, nicht auf Navigation. |
+| **CORS** | Eine Erweiterungs-Seite hat die Herkunft `chrome-extension://<id>`. Der Betreiber muss `CORS_ORIGINS` auf `*` lassen oder eure Herkunft eintragen (`main.py:140-147`); alternativ deckt ihr es über MV3-`host_permissions` ab. Klärt das **vor** dem Integrationstest — sonst sucht ihr den Fehler im Rumpf. |
+| **`allow_curation: false` bei Auskunft** | Nimmt die vierzehn kuratierenden Werkzeuge aus dem Katalog. Weniger Auswahl heißt kürzere Läufe und keine Möglichkeit, versehentlich etwas vorzuschlagen. |
+
+Und einer, der kein Nachteil ist: **`/api/agent` braucht kein Widget.** Für einen
+Auftrag ohne Chat-Rahmen könnt ihr den Endpunkt direkt rufen — das Bündel, die
+Seitenleiste und der ganze Kontext-Apparat aus §5 sind dafür nicht nötig. Beides
+zu bauen ist trotzdem sinnvoll: der Chat für die Person, der Endpunkt für die
+Automatik.
+
 ### Fortschritt zeigen
 
 `POST /api/agent/stream`, gleicher Rumpf, Antwort als Server-Sent-Events:
@@ -491,11 +792,22 @@ Volle Herleitung samt Messungen:
 | Der Chat startet geschlossen | `initial-state="expanded"` fehlt |
 | Jedes Ereignis kommt doppelt | Auf `boerdi:…` **und** `badboerdi:…` gehört (§6) |
 | `engine="agent"` wirkt nicht | Ausgeliefertes Widget-Bündel älter als das Attribut → neu bauen |
-| `page-context` zur Laufzeit gesetzt, nichts passiert | Das Attribut wird nach dem Start nicht mehr gelesen — nehmt `updateContext()` (§3, §5) |
+| `page-context` zur Laufzeit gesetzt, nichts passiert | Das Attribut wird nach dem Start nicht mehr gelesen — nehmt `replaceContext()` (§3, §5) |
+| Der Bot sagt „Du bist auf `<Erweiterungs-Kennung>` — das gehört nicht zu WLO" | Die eigene Erkennung lief auf der Adresse der Seitenleiste. Ab 2026-08-14 trägt sie dort nichts mehr bei; setzt zusätzlich `auto-context="false"` und gebt den Kontext selbst mit (§5) |
+| Der Bot spricht über die Sammlung des VORIGEN Tabs | `updateContext` mergt. Für einen Seitenwechsel ist `replaceContext` das Richtige (§5) |
+| Nach dem Kontext-Wechsel begrüßt der Bot die neue Seite nicht | Auch das ist der Unterschied: nur `replaceContext` setzt das Ping-Gate zurück (§5) |
 | `linkClicked` feuert nie | `intercept-edu-sharing-links="true"` fehlt |
 | `guide-suggestion` feuert nie | `emit-guide-suggestion="true"` fehlt (Opt-in) |
 | Klick auf einen Link der **Gastseite** bekommt kein `?bsid=` | Der Klick-Wächter greift nur im Shadow-Root des Widgets — die Navigation der Gastseite bleibt unangetastet. Wer die ID braucht, hängt sie selbst an |
 | `result` ist `null` | Kein `result_schema` mitgegeben — oder `stop_reason !== 'submit'` |
+| `boerdi:agent-result` kommt nie | `engine="agent"` fehlt am Element. Das Attribut `result-schema` allein wirkt nicht; die Warnung steht nur im Backend-Protokoll, nicht im Browser (§7a) |
+| `result-schema` gesetzt, nichts passiert | Kaputtes JSON — es gilt dann als „kein Schema". Die `console.warn`-Zeile im Browser nennt es. Achtet auf die Anführungszeichen (außen `'`, innen `"`) (§7a) |
+| `422` beim Chat-Zug | Das `result_schema` ist länger als 10 000 Zeichen. Abgelehnt statt gekürzt: ein halbes Schema verlangte eine andere Form, als ihr wolltet (§7a) |
+| Der Auftrag aus `startTask` erscheint nicht | Leerer Text wird verworfen. Sonst wartet er, bis die Shell gemountet ist, und läuft dann (§5) |
+| Der Bot antwortet auf den Auftrag ohne den Seitenkontext | `replaceContext()` **vor** `startTask()` — der Auftrag geht sofort raus (§5) |
+| `tools_called` enthält kein `get_skill` | Das Modell hat die Anleitung nicht gelesen. Die Anweisung war zu unbestimmt — nennt die Aufgabe und verlangt ausdrücklich, sich an eine passende Anleitung zu halten (§7) |
+| 422 an `/api/agent` | `instruction` über 20 000 Zeichen — meist der mitgeschickte Seitentext. Kürzen (§7) |
+| CORS-Fehler in der Erweiterungs-Konsole | Die Herkunft `chrome-extension://<id>` steht nicht in `CORS_ORIGINS` des Betreibers (§7) |
 | 401 / 403 an `/api/agent` | Keiner der drei Zugangswege greift (§7) |
 | 429 | Drosselung, `RATE_LIMIT_CHAT` |
 | 503 auf `/widget/boerdi-widget.js` | Bündel nicht gebaut — die Antwort nennt den Befehl |

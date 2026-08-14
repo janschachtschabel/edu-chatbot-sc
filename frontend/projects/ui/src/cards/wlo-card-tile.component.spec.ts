@@ -185,4 +185,56 @@ describe('WloCardTileComponent', () => {
     expect(projected).not.toBeNull();
     expect(projected!.previousElementSibling?.classList.contains('wlo-card')).toBe(true);
   });
+
+  // ── Skill-Hinweis (Nutzer-Vorgabe 2026-08-14) ─────────────────────────
+  // „Es muss auch im Chat angezeigt werden, dass Skills an der Sammlung
+  // gefunden wurden — nicht nur wenn man direkt drauf steht als Kontext,
+  // sondern auch bei einer Suche." Der MCP liefert die Freigabeliste an
+  // Sammlungstreffern ungefragt mit; die Kachel zeigt die Zahl.
+
+  it('Sammlung mit Freigabeliste: Skill-Hinweis mit Anzahl', async () => {
+    const el = await render(makeCard({
+      node_type: 'collection', title: 'Optik', skill_count: 28,
+    }));
+    const hinweis = el.querySelector('.card-meta-skills');
+    expect(hinweis).not.toBeNull();
+    expect(hinweis!.textContent).toContain('28');
+    expect(hinweis!.textContent).toContain('Skills');
+  });
+
+  it('Der Skill-Hinweis trägt ein Symbol wie seine Nachbarzeilen', async () => {
+    // Fach- und Stufenzeile bestehen aus Symbol + Text; eine Zeile ohne Symbol
+    // fluchtet nicht mit ihnen, und die Kürzungsregel `.card-meta-row >
+    // span:last-child` greift nur auf ein Kind-span.
+    const el = await render(makeCard({
+      node_type: 'collection', title: 'Optik', skill_count: 28,
+    }));
+    const zeile = el.querySelector('.card-meta-skills')!;
+    expect(zeile.querySelector('.card-meta-icon svg')).not.toBeNull();
+    expect(zeile.querySelector('span:last-child')?.textContent).toContain('28');
+  });
+
+  it('Ein einziger Skill wird im Singular genannt', async () => {
+    const el = await render(makeCard({
+      node_type: 'collection', title: 'Optik', skill_count: 1,
+    }));
+    const text = el.querySelector('.card-meta-skills')!.textContent ?? '';
+    expect(text).toContain('1 Skill');
+    expect(text).not.toContain('Skills');
+  });
+
+  it('Ohne Freigabeliste bleibt der Hinweis weg', async () => {
+    // Null ist der Normalfall — ein Hinweis „0 Skills" waere Rauschen auf
+    // jeder Karte.
+    const el = await render(makeCard({
+      node_type: 'collection', title: 'Ohne', skill_count: 0,
+    }));
+    expect(el.querySelector('.card-meta-skills')).toBeNull();
+  });
+
+  it('Fehlt das Feld ganz, bleibt der Hinweis weg', async () => {
+    // Aeltere Antworten aus dem Sitzungs-Verlauf tragen es nicht.
+    const el = await render(makeCard({ node_type: 'collection', title: 'Alt' }));
+    expect(el.querySelector('.card-meta-skills')).toBeNull();
+  });
 });

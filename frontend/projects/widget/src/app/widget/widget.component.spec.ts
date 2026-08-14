@@ -51,7 +51,7 @@ describe('WidgetComponent', () => {
     document.documentElement.removeAttribute('lang');
   });
 
-  it('hat genau diese 25 Host-Attribute (§5.5-Kontrakt)', () => {
+  it('hat genau diese 26 Host-Attribute (§5.5-Kontrakt)', () => {
     // Der Attribut-Satz IST der öffentliche Vertrag der Web-Komponente, und er
     // steht zusätzlich in der Studio-Architektur-Referenz
     // (`projects/studio/src/app/views/widget-contract-data.ts`, HOST_ATTRIBUTES).
@@ -64,9 +64,9 @@ describe('WidgetComponent', () => {
       'apiUrl', 'autoContext', 'embedMode', 'emitGuideSuggestion', 'emitRoutingDebug',
       'engine', 'greeting', 'initialState', 'inlineResultGrouping',
       'interceptEduSharingLinks', 'language', 'pageContext', 'persistSession', 'position',
-      'primaryColor', 'sessionCookieDomain', 'sessionCookieMaxAge', 'sessionKey',
-      'showCards', 'showDebugButton', 'showLanguageButtons', 'size', 'theme', 'ticket',
-      'trustedDomains',
+      'primaryColor', 'resultSchema', 'sessionCookieDomain', 'sessionCookieMaxAge',
+      'sessionKey', 'showCards', 'showDebugButton', 'showLanguageButtons', 'size',
+      'theme', 'ticket', 'trustedDomains',
     ]);
   });
 
@@ -530,6 +530,61 @@ describe('WidgetComponent', () => {
 
     expect(spy).toHaveBeenCalled();
     expect(spy.mock.calls.at(-1)?.[0]).toBe(true);   // guide_mode
+    spy.mockRestore();
+  });
+
+  // ── `result-schema` (Nutzer-Entscheid 2026-08-14) ────────────────────
+  // Das Schema kommt je Einbau als Attribut. Custom-Element-Attribute sind
+  // IMMER Zeichenketten — die Hülle muss also parsen, und zwar so, dass ein
+  // Tippfehler auf der Gastseite den Chat nicht mitnimmt.
+
+  it('result-schema erreicht die Shell als Objekt', () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'setResultSchema');
+    const f = mount();
+    f.componentRef.setInput('resultSchema', '{"type":"object","required":["taxon_id"]}');
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+
+    expect(spy.mock.calls.at(-1)?.[0]).toEqual({ type: 'object', required: ['taxon_id'] });
+    spy.mockRestore();
+  });
+
+  it('kaputtes JSON kippt den Chat nicht — es gilt als „kein Schema"', () => {
+    // Ein Attribut ist Handarbeit einer fremden Seite. Ein fehlendes
+    // Anführungszeichen darf höchstens die Zusatzfunktion kosten, nie den Chat.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'setResultSchema');
+    const f = mount();
+    f.componentRef.setInput('resultSchema', '{type: object,,}');
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+
+    expect(spy.mock.calls.at(-1)?.[0]).toBeNull();
+    expect(warn).toHaveBeenCalled();   // die Gastseite soll ihren Tippfehler finden
+    spy.mockRestore();
+    warn.mockRestore();
+  });
+
+  it('ein JSON-Array ist kein Schema-Objekt und gilt als keins', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'setResultSchema');
+    const f = mount();
+    f.componentRef.setInput('resultSchema', '[1,2,3]');
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+
+    expect(spy.mock.calls.at(-1)?.[0]).toBeNull();
+    spy.mockRestore();
+    warn.mockRestore();
+  });
+
+  it('ohne Attribut wird null gemeldet — kein Schema ist auch eine Auskunft', () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'setResultSchema');
+    const f = mount();
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+
+    expect(spy.mock.calls.at(-1)?.[0]).toBeNull();
     spy.mockRestore();
   });
 

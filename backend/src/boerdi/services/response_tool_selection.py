@@ -30,6 +30,17 @@ das als ``simplify:``-Vermerk notiert und latent, weil kein Test den Zweig traf.
 Ein E2-Test tat es und kippte zwei fremde Tests über die Reihenfolge. Jetzt
 ``list(TOOL_DEFINITIONS)``; Rückgabewert unverändert, gepinnt von
 ``test_mcp_source_waechst_den_katalog_nicht``.
+
+Zweite dokumentierte Abweichung (Review zu #193, 2026-08-14): das
+``select_top_cards``-Schema deckelte ``card_ids`` bei fünf — als ``maxItems``,
+also nicht nur als Bitte. Der Auswahl-Deckel im Backend folgt seit #193 den
+Studio-Gruppen und liegt darüber; wo der Anbieter das Schema durchsetzt, war er
+damit unerreichbar, und die gesuchte Sammlung fiel weiter aus der Auswahl. Jetzt
+trägt das Schema die Obergrenze ``MAX_SELECTABLE_CARDS``, und die Beschreibung
+nennt keine Zielzahl mehr, sondern die Sorten. Das *Budget* bleibt allein im
+Backend: zwei Zahlen für dieselbe Sache wären die nächste Gelegenheit zum
+Auseinanderlaufen. Gepinnt von ``test_die_auswahl_ist_dem_modell_nicht_mehr_bei_
+fuenf_verboten`` und ``test_die_beschreibung_nennt_kein_ziel_von_fuenf``.
 """
 
 from __future__ import annotations
@@ -38,6 +49,7 @@ import logging
 import os
 from typing import Any
 
+from boerdi.domain.inline_grouping import MAX_SELECTABLE_CARDS
 from boerdi.domain.write_confirm import CURATION_TOOLS
 from boerdi.services.agent_tools import AUS_DEM_KATALOG
 from boerdi.services.mcp.auth import has_auth_token
@@ -316,7 +328,7 @@ def _select_active_tools(
         _select_description_lead = (
             "FINAL-SELECTION für Inline-Modus. RUFE DIESES TOOL NACH "
             "DEN SEARCH-TOOLS AUF. Wähle aus den eben gefundenen "
-            "Treffern 1-5 IDs aus, in der Reihenfolge in der sie dem "
+            "Treffern die passenden IDs aus, in der Reihenfolge in der sie dem "
             "User gezeigt werden sollen. Wenn du gar nichts gefunden "
             "hast, RUFE DIESES TOOL NICHT — antworte stattdessen mit "
             "einer Klärungsfrage.\n\n"
@@ -328,7 +340,7 @@ def _select_active_tools(
         _select_description_lead = (
             "RE-RANK-HINT für Kachel-Modus. Optional aufrufbar, NACHDEM "
             "die Search-Tools Treffer geliefert haben. Wenn du eine "
-            "thematisch sinnvolle Reihenfolge der 5 passendsten Treffer "
+            "thematisch sinnvolle Reihenfolge der passendsten Treffer "
             "hast (z.B. Sammlung zum Thema zuerst, dann passende Einzel-"
             "inhalte), übergib sie hier — das Backend ordnet die Kacheln "
             "dann genau in dieser Reihenfolge an. Wenn du keine Präferenz "
@@ -346,18 +358,22 @@ def _select_active_tools(
             "description": (
                 _select_description_lead + "\n\n"
                 "AUSWAHL-REGELN:\n"
-                "1. **ZIEL: bis zu 5 IDs** — wenn die Tools genug geliefert "
-                "haben. Aber auch 1, 2 oder 3 sind OK, wenn wirklich nicht "
-                "mehr Passendes da ist. Lieber wenige gute als gar keine.\n"
+                "1. **Nimm aus JEDER gefundenen Sorte die besten mit** "
+                "(Themenseiten, Sammlungen, Einzelmaterialien) — das Backend "
+                "kürzt danach pro Box selbst. Wurde eine Sammlung gefunden, "
+                "die zur Frage passt, gehört sie in die Auswahl, sonst sieht "
+                "der User sie nie. Auch 1, 2 oder 3 IDs sind OK, wenn wirklich "
+                "nicht mehr Passendes da ist: lieber wenige gute als gar "
+                "keine.\n"
                 "2. **Typ-Priorität (DEFAULT)**: Themenseiten zuerst "
                 "(geben Überblick), dann Sammlungen, dann Einzelinhalte. "
                 "Themenseiten erkennst du an Tool-Result-Einträgen mit "
                 "node_type='collection' UND nicht-leerem topic_pages-Array.\n"
                 "3. **MIX**: Wenn nur 1 Themenseite oder 1 Sammlung "
-                "perfekt passt, fülle die freien Slots mit passenden "
-                "Einzelinhalten auf (z.B. 1 Sammlung + 3 Einzelinhalte). "
-                "1 Sammlung + Mix von Einzelinhalten ist meist besser als "
-                "nur 1 Sammlung alleine.\n"
+                "perfekt passt, ergänze sie mit passenden Einzelinhalten "
+                "(z.B. 1 Sammlung + 3 Einzelinhalte). 1 Sammlung + Mix von "
+                "Einzelinhalten ist meist besser als nur 1 Sammlung alleine — "
+                "aber immer ZUSÄTZLICH zur Sammlung, nie an ihrer Stelle.\n"
                 "4. AUSNAHME (Typ-Fokus): Wenn der User explizit nach "
                 "Material-Typ fragt (Video, Arbeitsblatt, Übung, Quiz, "
                 "Audio, Präsentation, Interaktiv, Kurs) → bis zu 5 "
@@ -375,11 +391,17 @@ def _select_active_tools(
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "1-5 node_ids in Anzeige-Reihenfolge. Erste ID "
+                            "node_ids in Anzeige-Reihenfolge. Erste ID "
                             "wird oben angezeigt."
                         ),
                         "minItems": 1,
-                        "maxItems": 5,
+                        # Harte Obergrenze, NICHT das Budget: wie viele Karten
+                        # am Ende stehen, entscheiden die Studio-Gruppen im
+                        # Backend (``max_selectable_cards``). Hier stand bis
+                        # 2026-08-14 eine 5 — sie machte den neuen, groesseren
+                        # Deckel unerreichbar, wo der Anbieter das Schema
+                        # durchsetzt.
+                        "maxItems": MAX_SELECTABLE_CARDS,
                     },
                     "reasoning": {
                         "type": "string",

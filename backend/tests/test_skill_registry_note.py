@@ -294,3 +294,56 @@ def test_naht_4_agent_schleife(monkeypatch):
     ], outcome=out)
     tool_msgs = [m for m in msgs if m.get("role") == "tool"]
     assert tool_msgs and _MARKER in tool_msgs[0]["content"]
+
+
+# ════════════════════════════════════════════════════════════════════════
+# skill_count_of — der Zaehler fuer die Karte (Nutzer-Vorgabe 2026-08-14)
+#
+# „Es muss auch im Chat angezeigt werden, dass Skills an der Sammlung
+# gefunden wurden — nicht nur wenn man direkt drauf steht als Kontext,
+# sondern auch bei einer Suche nach dem Thema, der Themenseite oder
+# Sammlung." Der Prompt-Block oben erreicht nur das Modell; die Kachel
+# braucht eine Zahl. Dieselbe Feldform, ein Besitzer.
+# ════════════════════════════════════════════════════════════════════════
+
+def test_zaehler_liest_die_freigabeliste_am_knoten():
+    from boerdi.services.mcp.parsers import skill_count_of
+
+    knoten = {
+        "nodeId": "9e7ae956", "title": "Optik",
+        "skillRegistry": {"nodeId": "d84d54c4", "entries": [
+            {"nodeId": "s1", "title": "Stunde planen"},
+            {"nodeId": "s2", "title": "Pruefung erstellen"},
+        ]},
+    }
+    assert skill_count_of(knoten) == 2
+
+
+def test_ohne_freigabeliste_zaehlt_nichts():
+    from boerdi.services.mcp.parsers import skill_count_of
+
+    assert skill_count_of({"nodeId": "13c03c9b", "title": "Ohne"}) == 0
+
+
+def test_eintraege_ohne_nodeid_zaehlen_nicht():
+    # Dieselbe Regel wie ``_als_registry``: ohne nodeId ist ein Skill nicht
+    # abrufbar, also auch nicht meldenswert. Zwei Zaehlweisen fuer dasselbe
+    # Feld waeren eine Gelegenheit zum Auseinanderlaufen.
+    from boerdi.services.mcp.parsers import skill_count_of
+
+    knoten = {"skillRegistry": {"entries": [
+        {"title": "ohne id"}, {"nodeId": "s1", "title": "mit id"},
+    ]}}
+    assert skill_count_of(knoten) == 1
+
+
+def test_unbrauchbare_formen_werfen_nicht():
+    # Der Server ist fremd beschrieben; eine kaputte Form darf einen Zug nicht
+    # kippen — sie bedeutet schlicht „keine Angabe".
+    from boerdi.services.mcp.parsers import skill_count_of
+
+    assert skill_count_of({"skillRegistry": "kaputt"}) == 0
+    assert skill_count_of({"skillRegistry": {"entries": "nein"}}) == 0
+    assert skill_count_of({"skillRegistry": {}}) == 0
+    assert skill_count_of(None) == 0
+    assert skill_count_of("kein dict") == 0
