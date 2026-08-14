@@ -18,10 +18,12 @@ from __future__ import annotations
 import boerdi.domain.quick_reply_policy as quick_reply_policy
 import boerdi.services.config_loader as config_loader
 from boerdi.domain.quick_reply_policy import (
+    CONTEXT_GREETING_MARKER,
     _apply_state_auto_followup,
     _qr_default_count,
     _qr_policy,
     _spec_qr_response_block,
+    has_curated_quick_replies,
 )
 from boerdi.i18n import SUPPORTED
 
@@ -273,3 +275,40 @@ def test_auto_followup_english_erkennt_llm_varianten():
 
 def test_pass_quality_tabelle_kennt_jede_sprache():
     assert set(quick_reply_policy._PASS_QUALITY_KEYWORDS) == set(SUPPORTED)
+
+
+# ── Kuratierte Quick-Replies (Review-Befund 2026-08-14) ────────────────────
+#
+# ``display-rules.quick_replies.max_count`` ist die Zielzahl des Generators.
+# Redaktionell gepflegte Pillen (Kontext-Begrüßung) sind keine Generator-Ausgabe
+# und fallen deshalb nicht darunter — von fünf gepflegten Knöpfen kamen sonst
+# zwei an. Diese Tests halten die Grenze der Ausnahme fest.
+
+
+def test_die_marke_des_begruessungs_knotens_erfuellt_das_praedikat():
+    """Der Knoten SETZT die Marke, der Anzeige-Trim LIEST sie.
+
+    Deshalb eine geteilte Konstante statt zweier Literale — und deshalb dieser
+    Test: hardcodiert jemand im Knoten wieder ein ``"CTX:"``, fällt es hier auf
+    und nicht erst daran, dass Knöpfe live verschwinden.
+    """
+    from boerdi.graph.nodes import context_greeting as cg
+
+    assert cg.CONTEXT_GREETING_MARKER is CONTEXT_GREETING_MARKER
+    assert has_curated_quick_replies(f"{CONTEXT_GREETING_MARKER}collection")
+    assert has_curated_quick_replies(f"{CONTEXT_GREETING_MARKER}skipped")
+
+
+def test_fuehrender_abstand_hebt_die_marke_nicht_auf():
+    # Das Debug-Label kommt aus verschiedenen Quellen; ein Leerzeichen davor
+    # darf die Pillen nicht kosten.
+    assert has_curated_quick_replies("  CTX:collection")
+
+
+def test_alles_andere_bleibt_unter_dem_generator_deckel():
+    """Die Gegenprobe. Ohne sie liesse sich der Deckel versehentlich global
+    abschalten, und niemand merkte es."""
+    for pattern in (None, "", "   ", "M09 (Lernpfad)", "TOUR:intro",
+                    "ACTION: browse_collection", "SAFETY: blocked_direct_action",
+                    "context:collection"):
+        assert not has_curated_quick_replies(pattern), pattern

@@ -14,6 +14,7 @@ import logging
 import time
 
 from boerdi.services import page_context as p
+from boerdi.services.context_facts import empty_marker
 
 
 # ── _safe_json ──────────────────────────────────────────────────────────
@@ -163,6 +164,122 @@ def test_render_collection_page_with_ids_and_filter():
     assert "Sammlungs-ID (collection_id): C1" in out
     assert "get_collection_contents" in out
     assert "brüche" in out
+
+
+def test_render_zeigt_bestand_und_skillkatalog():
+    """Nutzer-Vorgabe 2026-08-14: Bestandszahl UND Skillkatalog gehören in
+    BEIDE Engines, „pattern und agent loop".
+
+    Beide lesen ihren Seitenblock aus dieser Funktion — die Muster-Engine über
+    ``response_prompt_builder``, die Agent-Schleife über ``prompt_block``. Sie
+    ist damit die eine Naht, an der beide gleichzeitig versorgt werden; zwei
+    Einspeisungen wären zwei Orte, an denen es auseinanderläuft.
+
+    Die Übersicht trägt nur TITEL — keine Inhalte, keine ``nodeId``
+    (Nutzer-Klarstellung 2026-08-14). Die Rechnung dahinter steht im Docstring
+    von ``_bestands_zeilen``; den Weg zum Volltext nennt der Block selbst, und
+    genau darauf prüft die letzte Zusicherung unten.
+    """
+    meta = {
+        "title": "Geometrische Optik",
+        "context_facts": {
+            "materials": 35, "sub_collections": 4, "skills": 28,
+            "skill_titles": ["Stunde planen", "Dokumentieren"],
+        },
+    }
+    out = p.render_for_prompt(meta, {"page_kind": "collection", "collection_id": "C1"})
+    assert "35" in out and "Materialien" in out
+    assert "28" in out
+    assert "Stunde planen" in out and "Dokumentieren" in out
+    # Der zweistufige Weg zum Volltext MUSS benannt sein — ohne nodeId in der
+    # Übersicht käme das Modell sonst nicht an die Anleitung.
+    assert "search_skill" in out and "get_skill" in out
+
+
+def test_der_bestandsabschnitt_laesst_sich_abschalten():
+    """Review-Befund 2026-08-14: ``render_for_prompt`` hat DREI Verbraucher,
+    nicht zwei — auch der Klassifikator (``classify_prompt.py:244``) liest ihn.
+
+    Der wählt ein Muster und ruft keine Skills auf; der Katalog war dort
+    gemessene +2 232 Zeichen je Zug. Schwerer wiegt: es formt seinen Prompt,
+    und genau dafür verlangt der Plan einen Golden-Lauf. Also abschaltbar —
+    Vorgabe bleibt AN, damit die zwei gewollten Verbraucher nichts tun müssen.
+    """
+    meta = {
+        "title": "Geometrische Optik",
+        "context_facts": {"materials": 35, "skills": 28,
+                          "skill_titles": ["Stunde planen"]},
+    }
+    pc = {"page_kind": "collection", "collection_id": "C1"}
+    mit = p.render_for_prompt(meta, pc)
+    ohne = p.render_for_prompt(meta, pc, include_stock=False)
+    assert "Bestand dieser Sammlung" in mit
+    assert "Bestand dieser Sammlung" not in ohne
+    assert "Stunde planen" not in ohne
+    # Der Rest des Blocks bleibt — abgeschaltet wird der Bestand, nicht die Seite.
+    assert "Titel: Geometrische Optik" in ohne
+    assert "Sammlungs-ID (collection_id): C1" in ohne
+
+
+def test_render_ohne_bestandsfakten_bleibt_wie_bisher():
+    """Gegenprobe: ohne die Fakten darf kein leerer Abschnitt entstehen —
+    eine Überschrift ohne Inhalt liest sich wie ein Ausfall."""
+    out = p.render_for_prompt({"title": "T"}, {"page_kind": "collection"})
+    assert "Bestand" not in out
+    assert "Skill" not in out
+
+
+def test_der_leer_vermerk_erscheint_nie_im_prompt():
+    """Der Vermerk „hier kam nichts" wohnt IM Faktenobjekt (``_leer_seit``),
+    damit der Knoten ihn ohne zweites Feld datieren kann.
+
+    Der Preis dafür ist genau dieses Risiko: er läuft durch dieselbe Naht wie
+    echte Fakten. Beide Leser dürfen ihn nicht sehen — hier der Renderer, in
+    ``test_context_greeting`` der Begrüßungssatz.
+    """
+    out = p.render_for_prompt({"title": "T", "context_facts": empty_marker()},
+                              {"page_kind": "collection"})
+    assert "_leer_seit" not in out
+    assert "Bestand dieser Sammlung" not in out
+    assert "Freigegebene Anleitungen" not in out
+
+
+def test_render_kappt_einen_sehr_grossen_skillkatalog():
+    """Der Block läuft in JEDEN Zug auf einer Sammlungsseite. 28 Einträge sind
+    gemessene 2 kB; ohne Deckel wächst das mit dem Katalog unbegrenzt."""
+    titel = [f"Skill {i}" for i in range(200)]
+    meta = {"title": "T", "context_facts": {"skills": 200, "skill_titles": titel}}
+    out = p.render_for_prompt(meta, {"page_kind": "collection"})
+    assert "Skill 0" in out
+    assert f"Skill {p.MAX_SKILL_ENTRIES - 1}" in out      # bis zum Deckel vollständig
+    assert f"Skill {p.MAX_SKILL_ENTRIES}" not in out
+    assert "Skill 199" not in out
+    assert "weitere" in out          # die Kappung wird benannt, nicht verschwiegen
+
+
+def test_der_skillkatalog_passt_auf_eine_a4_seite():
+    """Nutzer-Vorgabe 2026-08-14: „nur die Übersicht … nicht mehr als eine A4
+    Seite … die registry bitte vollständig rein geben — kann man ab 100 kappen".
+
+    Beide Zahlen gehen nur in EINER Form zusammen, an der echten Registry
+    nachgemessen (28 Einträge, Titel im Schnitt 30,6 Zeichen): nur Titel
+    ergeben bei 100 Einträgen 3 361 Zeichen — eine A4-Seite. Mit ``nodeId``
+    wären es 7 161, also gut zwei. Deshalb trägt die Übersicht keine IDs; den
+    Volltext holt das Modell gezielt über ``search_skill`` → ``get_skill``.
+    """
+    titel = [f"Anleitung Nummer {i} zu einem Thema" for i in range(p.MAX_SKILL_ENTRIES)]
+    abschnitt = "\n".join(p._bestands_zeilen(
+        {"skills": len(titel), "skill_titles": titel}))
+    assert len(abschnitt) <= p.MAX_SKILL_CHARS, (
+        f"Übersicht {len(abschnitt)} Zeichen — mehr als eine A4-Seite")
+    assert "weitere" in abschnitt      # was nicht passt, wird benannt
+
+    # Die ECHTE Registry (28 Einträge, Titel im Schnitt 30,6 Zeichen) passt
+    # vollständig — der Deckel ist ein Netz, keine Alltagsgrenze.
+    echt = [f"Anleitung {i} zum Thema" for i in range(28)]
+    voll = "\n".join(p._bestands_zeilen({"skills": 28, "skill_titles": echt}))
+    assert "weitere" not in voll
+    assert echt[-1] in voll
 
 
 def test_render_unresolved_adds_hint_and_truncates_desc():

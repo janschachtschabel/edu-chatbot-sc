@@ -128,12 +128,17 @@ _CONTEXT_ACTIONS_DEFAULT_REPORT_URL = (
     "?type=quelle&node={node_id}#esform"
 )
 _CONTEXT_ACTIONS_DEFAULT_GREETINGS: dict[str, str] = {
-    "collection": ("Du bist gerade in der Sammlung „{title}“. "
-                   "Ich kenne ihren Inhalt — womit kann ich helfen?"),
+    # ``{bestand}`` ist die Kontext-Bestätigung in Zahlen (Nutzer-Vorgabe
+    # 2026-08-14): „Ich sehe 35 Materialien und 28 freigegebene Anleitungen
+    # dazu." Sie kommt aus ``services/context_facts`` und ist LEER, wenn keine
+    # Zahl rechtzeitig da war — deshalb steht der führende Abstand IM Satz und
+    # nicht hier, sonst bliebe bei Ausfall eine doppelte Lücke stehen.
+    "collection": ("Du bist gerade in der Sammlung „{title}“.{bestand} "
+                   "Womit kann ich helfen?"),
     "content": ("Du schaust dir gerade „{title}“ an. "
                 "Ich kann Fragen dazu beantworten — oder direkt:"),
-    "topic": ("Du bist auf der Themenseite „{title}“. "
-              "Ich kenne ihre Struktur — womit kann ich helfen?"),
+    "topic": ("Du bist auf der Themenseite „{title}“.{bestand} "
+              "Womit kann ich helfen?"),
     # Seitenkontext-Erweiterung: drei Arten, die KEIN WLO-Objekt sind. Ihr
     # Platzhalter ist deshalb ein anderer — `{query}` bzw. `{host}` statt
     # `{title}`: es gibt keinen Knoten, dessen Titel sich auflösen liesse.

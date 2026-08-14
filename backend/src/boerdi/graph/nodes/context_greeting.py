@@ -49,8 +49,10 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
+from boerdi.domain.quick_reply_policy import CONTEXT_GREETING_MARKER
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import DEFAULT, Locale, pick_localized, resolve_locale
+from boerdi.i18n.bot_text import bot_text
 from boerdi.services import page_context
 from boerdi.services.config_loader import get_repo_base_url, load_context_actions
 from boerdi.services.db_sessions import save_message, update_session
@@ -83,7 +85,10 @@ def _empty_response(session_id: str) -> ChatResponse:
         session_id=session_id,
         content="",
         follow_up="none",
-        debug=DebugInfo(pattern="CTX:skipped", tools_called=["context_greeting"]),
+        debug=DebugInfo(
+            pattern=f"{CONTEXT_GREETING_MARKER}skipped",
+            tools_called=["context_greeting"],
+        ),
     )
 
 
@@ -245,6 +250,48 @@ async def _known_page(page_kind: str, page_ctx: dict[str, Any]) -> dict[str, str
         return None
 
 
+#: Welcher Satz zu welcher Ausbeute passt — Schlüssel ist ``(Materialien?,
+#: Skills?)``. Fehlen beide, gibt es keinen Eintrag und damit keinen Satz.
+_STOCK_KEYS = {
+    (True, True): "context.stock.both",
+    (True, False): "context.stock.materials",
+    (False, True): "context.stock.skills",
+}
+
+
+def _stock_sentence(meta: dict[str, Any], lang: Locale) -> str:
+    """Die Kontext-Bestätigung in Zahlen — oder "" (Nutzer-Vorgabe 2026-08-14).
+
+    „Ich sehe 35 Materialien und 28 freigegebene Anleitungen dazu." macht
+    sichtbar, dass der Kontext WIRKLICH angekommen ist, statt es zu behaupten.
+    Der Satz kommt mit führendem Abstand, damit er im Vorlagentext direkt hinter
+    dem Punkt stehen kann (``…„{title}".{bestand} Womit…``) und bei Ausfall
+    keine doppelte Lücke hinterlässt.
+
+    **Liest nur, ruft nicht ab.** Die Zahlen stehen am Metadaten-Cache, den
+    ``page_context_enrich`` einen Knoten vorher füllt.
+
+    Das macht den Zug NICHT schneller — der Abruf liegt weiterhin davor, nur in
+    einem anderen Knoten. Es macht ihn EINMALIG: dieselben Zahlen tragen jetzt
+    auch den Seitenblock beider Engines. Vorher zahlte die Begrüßung 4–7 s
+    (kalt) für eine Angabe, die sonst niemand zu sehen bekam; warm kostet der
+    Abruf 0.00 s, und der Cache hält 30 Minuten.
+
+    Ohne Fakten "": auf einer Inhaltsseite gibt es keinen Bestand, und ein
+    ausgefallener Abruf soll sich nicht zeigen.
+    """
+    fakten = meta.get("context_facts")
+    if not isinstance(fakten, dict):
+        return ""
+    schluessel = _STOCK_KEYS.get(("materials" in fakten, "skills" in fakten))
+    if not schluessel:
+        return ""
+    return " " + bot_text(
+        lang, schluessel,
+        materials=fakten.get("materials", ""), skills=fakten.get("skills", ""),
+    )
+
+
 async def maybe_context_greeting(
     session: AsyncSession,
     req: ChatRequest,
@@ -296,6 +343,7 @@ async def maybe_context_greeting(
         return _empty_response(req.session_id)
 
     lang = resolve_locale(env.get("locale"))
+    fields = {**fields, "bestand": _stock_sentence(meta, lang)}
     known = await _known_page(page_kind, page_ctx)
     if known:
         # The page is already a WLO record — say which one and point at it,
@@ -335,7 +383,7 @@ async def maybe_context_greeting(
         await update_session(session, req.session_id, entities=entities)
         await save_message(
             session, req.session_id, "assistant", greeting,
-            debug={"pattern": f"CTX:{marker}"},
+            debug={"pattern": f"{CONTEXT_GREETING_MARKER}{marker}"},
         )
     except Exception as exc:  # pragma: no cover — persistence must not break the turn
         logger.warning("context greeting persist failed: %s", exc)
@@ -346,7 +394,10 @@ async def maybe_context_greeting(
         content=greeting,
         quick_replies=quick_replies,
         follow_up="none",
-        debug=DebugInfo(pattern=f"CTX:{marker}", tools_called=["context_greeting"]),
+        debug=DebugInfo(
+            pattern=f"{CONTEXT_GREETING_MARKER}{marker}",
+            tools_called=["context_greeting"],
+        ),
     )
 
 

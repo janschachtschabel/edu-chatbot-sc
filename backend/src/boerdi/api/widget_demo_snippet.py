@@ -118,15 +118,43 @@ _WATCHER = """
 """
 
 
+def _js_literal(wert: object) -> str:
+    """JSON-Literal, sicher innerhalb eines Inline-``<script>``.
+
+    **Der Fehler, gegen den das steht (live gemessen 2026-08-14).** Der
+    HTML-Parser beendet ein ``<script>``-Element am ERSTEN ``</script`` in
+    seinem Text — die Anführungszeichen von JavaScript sieht er nicht.
+    :data:`_SCRIPT_LINE` trägt genau das, es IST eine Skript-Zeile. Ohne
+    Maskierung endete das Element also mitten im Beobachter, und der Rest
+    wurde als MARKUP geparst: aus ``'<boerdi-chat ' + paare[0] + '>'`` wurde
+    ein zweites, leeres ``<boerdi-chat>``. Das Widget nahm dieses erste und
+    versteckte das echte als Dublette — der Seitenkontext war weg, und der
+    Chatbot redete über die Adresse statt über die Sammlung.
+
+    In einem JS-String ist ``<\\/`` dasselbe wie ``</``; für den HTML-Parser ist
+    es kein Ende-Tag mehr. ``<!--`` kommt mit, weil es denselben Sonderzustand
+    auslöst — eine Zeile für die ganze Klasse, statt auf den einen bekannten
+    Wert zu zielen.
+
+    Dieselbe Zeichenkette hat damit ZWEI korrekte Kodierungen: hier für das
+    Skript, in :func:`embed_snippet` HTML-maskiert für den ``<pre>``-Block.
+    """
+    return json.dumps(wert).replace("</", "<\\/").replace("<!--", "<\\!--")
+
+
 def snippet_watcher() -> str:
     """Das Skript, das den Einbindungscode dem Element nachführt.
 
     Nur für die Live-Seiten: die Übersicht hat kein Element, dort beobachtete er
     nichts und schriebe nie.
+
+    Jeder eingesetzte Wert geht durch :func:`_js_literal` — auch die, die heute
+    harmlos aussehen. Eine Ausnahme wäre die Stelle, an der die Maskierung beim
+    nächsten neuen Wert ausbleibt.
     """
     return _WATCHER % {
-        "demo_only": json.dumps(list(DEMO_ONLY_ATTRS)),
-        "eigene": json.dumps(list(_ELEMENT_OWN_ATTRS)),
-        "kopf": json.dumps(_SCRIPT_LINE),
-        "api_url": json.dumps(API_URL),
+        "demo_only": _js_literal(list(DEMO_ONLY_ATTRS)),
+        "eigene": _js_literal(list(_ELEMENT_OWN_ATTRS)),
+        "kopf": _js_literal(_SCRIPT_LINE),
+        "api_url": _js_literal(API_URL),
     }

@@ -365,3 +365,37 @@ def test_real_config_signals_pin_d1_zeit() -> None:
             assert header in prompt
     finally:
         cl.bind_store(None)
+
+
+# ── Review-Befund 2026-08-14: der Klassifikator ist der DRITTE Verbraucher ──
+
+
+def test_der_klassifikator_bekommt_den_skillkatalog_nicht(bound_min_store) -> None:
+    """``render_for_prompt`` speist drei Prompts, nicht zwei.
+
+    Muster-Engine und Agent-Schleife SOLLEN den Bestand sehen. Der
+    Klassifikator nicht: er wählt ein Muster und ruft keine Skills auf. Gemessen
+    waren es +2 232 Zeichen je Klassifikation — und vor allem formt es seinen
+    Prompt, wofür der Plan ausdrücklich einen Golden-Lauf verlangt.
+
+    Der Seitenblock selbst bleibt (Titel, IDs) — abgeschaltet wird nur der
+    Bestandsabschnitt.
+    """
+    state = {
+        "state_id": "S1", "turn_count": 0,
+        "entities": {"_page_metadata": {
+            "title": "Geometrische Optik",
+            "context_facts": {
+                "materials": 35, "skills": 28,
+                "skill_titles": ["Stunde planen"],
+            },
+        }},
+    }
+    prompt = build_classify_system_prompt(
+        state,
+        {"page": "/", "device": "desktop",
+         "page_context": {"page_kind": "collection", "collection_id": "C1"}},
+    )
+    assert "Geometrische Optik" in prompt          # Seitenblock bleibt
+    assert "Bestand dieser Sammlung" not in prompt
+    assert "Stunde planen" not in prompt

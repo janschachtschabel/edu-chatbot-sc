@@ -88,6 +88,50 @@ def test_empty_history_returns_empty_and_persists_nothing(monkeypatch):
     assert calls["save"] == [] and calls["update"] == []
 
 
+# ── Die Zahlen in der Begrüßung ────────────────────────────────────────────
+#
+# Sie kommen aus dem Seiten-Cache, den ``page_context_enrich`` einen Knoten
+# vorher füllt — die Begrüßung ruft NICHTS mehr ab. Deshalb steht in diesen
+# Tests auch keine MCP-Attrappe mehr: gäbe es hier noch einen Abruf, liefe er
+# in den echten Server und der Test hinge. (Der Abruf ist damit nicht aus dem
+# Zug verschwunden, sondern einen Knoten nach vorn gewandert — dafür versorgt
+# er jetzt auch die Prompt-Blöcke beider Engines.)
+
+
+def test_die_begruessung_nennt_die_zahlen_der_sammlung(monkeypatch):
+    """Nutzer-Vorgabe 2026-08-14: die Bestätigung soll ZEIGEN, dass der Kontext
+    angekommen ist — Materialien und freigegebene Anleitungen in Zahlen."""
+    _patch_io(monkeypatch)
+    resp = asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(), _env(page_context=_collection_ctx()),
+        _state(_resolved(title="Optik", context_facts={
+            "materials": 35, "sub_collections": 4, "skills": 28})), ["prev"]))
+    assert "35 Materialien" in resp.content
+    assert "28 freigegebene Anleitungen" in resp.content
+    assert "  " not in resp.content, f"doppelte Lücke: {resp.content!r}"
+
+
+def test_ohne_zahlen_bleibt_die_begruessung_die_von_vorher(monkeypatch):
+    """Der Ausfall darf sich nicht zeigen — kein Platzhalter, keine doppelte
+    Lücke, kein angefangener Satz."""
+    _patch_io(monkeypatch)
+    resp = asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(), _env(page_context=_collection_ctx()),
+        _state(_resolved(title="Optik")), ["prev"]))
+    assert "Optik" in resp.content
+    assert "{bestand}" not in resp.content
+    assert "  " not in resp.content, f"doppelte Lücke: {resp.content!r}"
+
+
+def test_eine_halbe_ausbeute_nennt_nur_was_da_ist(monkeypatch):
+    _patch_io(monkeypatch)
+    resp = asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(), _env(page_context=_collection_ctx()),
+        _state(_resolved(title="Optik", context_facts={"skills": 28})), ["prev"]))
+    assert "28 freigegebene Anleitungen" in resp.content
+    assert "Materialien" not in resp.content
+
+
 def test_collection_greeting_full(monkeypatch):
     calls = _patch_io(monkeypatch)
     state = _state(_resolved(title="Optik"))
@@ -613,3 +657,17 @@ def test_english_locale_without_translation_falls_back_to_german(monkeypatch):
         _SESSION, _req(), env, _state(_resolved(title="Optik")), ["prev"]))
     assert "Optik" in resp.content
     assert resp.quick_replies
+
+
+def test_der_leer_vermerk_zeigt_sich_nicht_in_der_begruessung(monkeypatch):
+    """Gegenstück zum Renderer-Wächter: ``_leer_seit`` ist ein Vermerk, keine
+    Zahl — die Begrüßung muss dazu schweigen wie bei gar keinen Fakten."""
+    from boerdi.services.context_facts import empty_marker
+
+    _patch_io(monkeypatch)
+    resp = asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(), _env(page_context=_collection_ctx()),
+        _state(_resolved(title="Optik", context_facts=empty_marker())), ["prev"]))
+    assert "Optik" in resp.content
+    assert "_leer_seit" not in resp.content
+    assert "  " not in resp.content, f"doppelte Lücke: {resp.content!r}"

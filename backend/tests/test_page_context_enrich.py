@@ -12,6 +12,7 @@ runs for real.
 from __future__ import annotations
 
 import asyncio
+import time
 
 from boerdi.api.schemas import ChatRequest, Environment
 from boerdi.graph.nodes import page_context_enrich as m
@@ -165,3 +166,115 @@ def test_kaputte_config_bricht_den_zug_nicht(monkeypatch):
     out = asyncio.run(m.page_context_enrich(ctx))  # must not raise
     assert out.env["page_context"]["page_kind"] == "other"  # unverändert, nicht geraten
     assert out.session_state["entities"]["node_id"] == "N1"
+
+
+# ── Bestandsfakten für BEIDE Engines (Nutzer-Vorgabe 2026-08-14) ───────────
+#
+# Dieser Knoten läuft VOR der Begrüßung und VOR ``respond`` (Graph-Reihenfolge
+# ``setup → tour → page_context_enrich → context_greeting → … → respond``).
+# Genau ein Abruf je Zug versorgt damit alle drei Verbraucher: Begrüßung,
+# Muster-Engine und Agent-Schleife. Zwei Abrufe wären zwei Wartezeiten.
+
+
+def _mit_cache(monkeypatch, meta: dict) -> list:
+    """Resolver, der einen Metadaten-Cache hinterlässt — wie der echte."""
+    calls: list = []
+
+    async def fake_resolve(page_context, session_state, **kw):
+        calls.append((page_context, session_state))
+        session_state.setdefault("entities", {})["_page_metadata"] = meta
+        return meta
+
+    monkeypatch.setattr(m, "resolve_page_context", fake_resolve)
+    return calls
+
+
+def _fakten_spion(monkeypatch, fakten: dict | Exception) -> list:
+    gerufen: list = []
+
+    async def fake_collect(collection_id):
+        gerufen.append(collection_id)
+        if isinstance(fakten, Exception):
+            raise fakten
+        return fakten
+
+    monkeypatch.setattr(m, "collect_context_facts", fake_collect)
+    return gerufen
+
+
+def test_bestandsfakten_landen_am_seiten_cache(monkeypatch):
+    meta = {"title": "Geometrische Optik"}
+    _mit_cache(monkeypatch, meta)
+    _patch_cfg(monkeypatch)
+    gerufen = _fakten_spion(monkeypatch, {"materials": 35, "skills": 28})
+    ctx = _ctx({"page_kind": "collection", "collection_id": "C1"})
+    out = asyncio.run(m.page_context_enrich(ctx))
+    assert gerufen == ["C1"]
+    assert out.session_state["entities"]["_page_metadata"]["context_facts"] == {
+        "materials": 35, "skills": 28}
+
+
+def test_eine_inhaltsseite_fragt_nicht_nach_bestand(monkeypatch):
+    # Ein Einzelinhalt enthält keine Materialien und führt keine Freigabeliste
+    # — ein Abruf dafür wäre ein Rundlauf ins Leere, und er kostet Zeit.
+    _mit_cache(monkeypatch, {"title": "Ein Video"})
+    _patch_cfg(monkeypatch)
+    gerufen = _fakten_spion(monkeypatch, {"materials": 1})
+    ctx = _ctx({"page_kind": "content", "node_id": "N1"})
+    asyncio.run(m.page_context_enrich(ctx))
+    assert gerufen == []
+
+
+def test_bereits_vorhandene_fakten_werden_nicht_neu_geholt(monkeypatch):
+    # Der Cache überlebt den Zug (jsonb-Entities). Ein zweiter Abruf je Zug
+    # wäre reine Wartezeit für dieselbe Antwort.
+    meta = {"title": "T", "context_facts": {"materials": 35}}
+    _mit_cache(monkeypatch, meta)
+    _patch_cfg(monkeypatch)
+    gerufen = _fakten_spion(monkeypatch, {"materials": 99})
+    ctx = _ctx({"page_kind": "collection", "collection_id": "C1"})
+    asyncio.run(m.page_context_enrich(ctx))
+    assert gerufen == []
+    assert meta["context_facts"] == {"materials": 35}
+
+
+def test_ein_ausfall_der_fakten_kostet_den_zug_nicht(monkeypatch):
+    meta = {"title": "T"}
+    _mit_cache(monkeypatch, meta)
+    _patch_cfg(monkeypatch)
+    _fakten_spion(monkeypatch, RuntimeError("MCP weg"))
+    ctx = _ctx({"page_kind": "collection", "collection_id": "C1"})
+    out = asyncio.run(m.page_context_enrich(ctx))  # darf nicht werfen
+    assert "context_facts" not in meta
+    assert out.early_response is None
+
+
+def test_ein_ergebnisloser_abruf_wird_nicht_bei_jedem_zug_wiederholt(monkeypatch):
+    """Review-Befund 2026-08-14: ohne Vermerk lief der Abruf JEDEN Zug erneut.
+
+    Der Fall ist real — eine Sammlung, deren Statistik 404 liefert und die keine
+    Freigabeliste führt, ergibt zweimal nichts. Ohne Gedächtnis kostet das
+    dauerhaft zwei MCP-Rundläufe je Zug, im Hängefall bis zum vollen Deckel.
+    Dasselbe Modul löst das nebenan längst so: ``_UNRESOLVED_TTL_SECONDS``.
+    """
+    meta = {"title": "T"}
+    _mit_cache(monkeypatch, meta)
+    _patch_cfg(monkeypatch)
+    gerufen = _fakten_spion(monkeypatch, {})
+    ctx = _ctx({"page_kind": "collection", "collection_id": "C1"})
+    asyncio.run(m.page_context_enrich(ctx))
+    asyncio.run(m.page_context_enrich(ctx))      # zweiter Zug, gleiche Sitzung
+    assert gerufen == ["C1"], "der leere Abruf wurde wiederholt"
+
+
+def test_nach_der_ruhezeit_wird_es_erneut_versucht(monkeypatch):
+    """Der Vermerk ist eine Pause, keine Aufgabe: ein vorübergehend stummer MCP
+    darf die Sammlung nicht für die ganze Sitzung ohne Bestand lassen."""
+    meta = {"title": "T", "context_facts": {"_leer_seit": time.time() - 10_000}}
+    _mit_cache(monkeypatch, meta)
+    _patch_cfg(monkeypatch)
+    gerufen = _fakten_spion(monkeypatch, {"materials": 35})
+    ctx = _ctx({"page_kind": "collection", "collection_id": "C1"})
+    asyncio.run(m.page_context_enrich(ctx))
+    assert gerufen == ["C1"]
+    assert meta["context_facts"] == {"materials": 35}

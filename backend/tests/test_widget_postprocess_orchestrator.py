@@ -29,6 +29,7 @@ from boerdi.api.schemas import (
     WebLink,
     WloCard,
 )
+from boerdi.domain.quick_reply_policy import CURATED_QR_MAX
 from boerdi.services.widget_postprocess import _postprocess_response_for_widget_modes
 
 MOD = "boerdi.services.widget_postprocess"
@@ -149,6 +150,60 @@ async def test_quick_reply_cap_enforced_from_display_rules(monkeypatch):
     resp = _resp(content="Hallo.", quick_replies=["a", "b", "c", "d", "e"])
     out = await _postprocess_response_for_widget_modes(_req(), resp)
     assert len(out.quick_replies) <= 2   # empty pattern → _qr_policy None → global cap
+
+
+async def test_context_greeting_pills_survive_the_generator_cap(monkeypatch):
+    """Live-Befund 2026-08-14: von fünf gepflegten Knöpfen kamen zwei an.
+
+    ``display-rules.quick_replies.max_count`` ist die ZIELZAHL des
+    QR-Generators (so beschreibt es ``_qr_default_count``), im Seed steht sie
+    auf 2. Die Pillen der Kontext-Begrüßung stammen aber nicht vom Generator,
+    sondern aus ``01-base/context-actions`` — eine von der Redaktion gepflegte
+    Liste je Seitenart. Der Deckel darf sie nicht beschneiden.
+
+    Der Präzedenzfall steht im selben Modul: Tour-Antworten umgehen den
+    Postprocess komplett, ausdrücklich damit ihre Gruppen-Knöpfe überleben.
+    """
+    monkeypatch.setattr(f"{MOD}.card_pipeline_v2_enabled", Mock(return_value=False))
+    monkeypatch.setattr(DR, Mock(return_value={"quick_replies": {"max_count": 2}}))
+    pillen = [
+        "__action__|Sammlungsinhalte zeigen|browse_collection|{}",
+        "Stunde planen",
+        "__action__|Sammlung kuratieren|curate_collection|{}",
+        "Zu Lehrplänen beraten",
+    ]
+    resp = _resp(content="Du bist gerade in der Sammlung „Optik“.",
+                 quick_replies=pillen, debug=DebugInfo(pattern="CTX:collection"))
+    out = await _postprocess_response_for_widget_modes(_req(), resp)
+    assert list(out.quick_replies) == pillen
+
+
+async def test_generator_cap_still_applies_to_a_normal_pattern(monkeypatch):
+    """Gegenprobe zum Test darüber: die Ausnahme gilt NUR der Begrüßung.
+    Ohne diesen Test liesse sich der Deckel versehentlich ganz abschalten."""
+    monkeypatch.setattr(f"{MOD}.card_pipeline_v2_enabled", Mock(return_value=False))
+    monkeypatch.setattr(DR, Mock(return_value={"quick_replies": {"max_count": 2}}))
+    resp = _resp(content="Hallo.", quick_replies=["a", "b", "c", "d"],
+                 debug=DebugInfo(pattern="M09 (Lernpfad)"))
+    out = await _postprocess_response_for_widget_modes(_req(), resp)
+    assert len(out.quick_replies) == 2
+
+
+async def test_kuratierte_pillen_haben_trotzdem_eine_obergrenze(monkeypatch):
+    """Review-Befund 2026-08-14: die Ausnahme hob JEDE Grenze auf.
+
+    Vorher klammerte der Pfad hart auf höchstens 6 (``max(0, min(6, …))``).
+    Danach hätten 20 gepflegte Pillen auch 20 Knöpfe ergeben — das Frontend hat
+    dafür kein Layout. Die Redaktion soll nicht gedeckelt, aber auch nicht die
+    einzige Bremse sein.
+    """
+    monkeypatch.setattr(f"{MOD}.card_pipeline_v2_enabled", Mock(return_value=False))
+    monkeypatch.setattr(DR, Mock(return_value={"quick_replies": {"max_count": 2}}))
+    resp = _resp(content="Hallo.", quick_replies=[f"Pille {i}" for i in range(20)],
+                 debug=DebugInfo(pattern="CTX:collection"))
+    out = await _postprocess_response_for_widget_modes(_req(), resp)
+    assert len(out.quick_replies) == CURATED_QR_MAX
+    assert out.quick_replies[0] == "Pille 0"   # gekappt wird hinten, nicht gemischt
 
 
 # --- C8: web_links behalten ihren deklarierten Typ --------------------------

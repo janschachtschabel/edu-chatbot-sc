@@ -241,7 +241,12 @@ def build_classify_system_prompt(
     # session_state["entities"]["_page_metadata"] by the page_context_enrich node).
     try:
         _page_meta = page_context.get_cached(session_state)
-        _page_block = page_context.render_for_prompt(_page_meta, environment.get("page_context"))
+        # ``include_stock=False``: der Klassifikator wählt ein Muster und ruft
+        # keine Skills auf. Der Bestandsabschnitt wäre hier gemessene 2 232
+        # Zeichen je Zug — und er formt diesen Prompt, was laut Plan einen
+        # Golden-Lauf verlangt. Die zwei Engines dahinter bekommen ihn.
+        _page_block = page_context.render_for_prompt(
+            _page_meta, environment.get("page_context"), include_stock=False)
         # Fallback: MCP resolved nothing (off-platform host page) but the widget's
         # DOM-detector saw visible text — render that as the heuristic block.
         if not _page_block:
@@ -254,10 +259,23 @@ def build_classify_system_prompt(
         if k in _PAGE_CONTEXT_KEYS
     }
 
+    # Nur die fachlichen Entities. Unterstrich-Schlüssel sind interne Buchhaltung
+    # (``_page_metadata``, ``_greeted_pages``, ``_last_pattern`` …) — dieselbe
+    # Regel, die ``response_prompt_builder`` seit jeher anwendet.
+    #
+    # Ohne sie floss der GESAMTE Metadaten-Cache als rohes JSON in den
+    # Klassifikator, seit P10 samt Skillkatalog. Der Seitenkontext erreicht ihn
+    # über seinen eigenen Block (``_page_block``) und die Positivliste
+    # ``_PAGE_CONTEXT_KEYS`` — dort geordnet statt hier als Dump.
+    _known_entities = {
+        k: v for k, v in (session_state.get("entities") or {}).items()
+        if not k.startswith("_")
+    }
+
     _dynamic_block = (
         f"\n## Aktueller Turn-Kontext\n"
         f"State: {session_state.get('state_id', 'S1')}\n"
-        f"Bekannte Entities: {json.dumps(session_state.get('entities', {}))}"
+        f"Bekannte Entities: {json.dumps(_known_entities)}"
         f"{persona_prompt}\n"
         f"Turn: {session_state.get('turn_count', 0) + 1}\n"
         f"Seite: {environment.get('page', '/')}\n"

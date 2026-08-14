@@ -32,9 +32,11 @@ context_actions:
   # {title} wird durch den Seitentitel ersetzt — er muss in BEIDEN Fassungen
   # stehen, sonst grüßt der Bot, ohne zu sagen, wo der Nutzer gerade ist.
   greetings:
-    collection: "Du bist gerade in der Sammlung „{title}“. Ich kenne ihren Inhalt — womit kann ich helfen?"
+    # {bestand} = Kontext-Bestätigung in Zahlen (services/context_facts).
+    # Leer, wenn keine Zahl rechtzeitig da war — der Abstand steht IM Satz.
+    collection: "Du bist gerade in der Sammlung „{title}“.{bestand} Womit kann ich helfen?"
     content: "Du schaust dir gerade „{title}“ an. Ich kann Fragen dazu beantworten — oder direkt:"
-    topic: "Du bist auf der Themenseite „{title}“. Ich kenne ihre Struktur — womit kann ich helfen?"
+    topic: "Du bist auf der Themenseite „{title}“.{bestand} Womit kann ich helfen?"
     # Diese drei Arten sind KEIN WLO-Objekt — es gibt keinen Knoten mit einem
     # Titel. Ihr Platzhalter heißt deshalb {query} bzw. {host}; {title} bliebe
     # hier als Text stehen.
@@ -45,9 +47,9 @@ context_actions:
   # Englische Fassung (C1-g2b). Leer lassen heißt „nicht gepflegt" — dann
   # zeigt der Bot die deutsche Fassung, nie einen leeren Gruß.
   greetings_en:
-    collection: "You are in the “{title}” collection. I know what is in it — how can I help?"
+    collection: "You are in the “{title}” collection.{bestand} How can I help?"
     content: "You are looking at “{title}”. I can answer questions about it — or go straight to:"
-    topic: "You are on the “{title}” topic page. I know how it is structured — how can I help?"
+    topic: "You are on the “{title}” topic page.{bestand} How can I help?"
     search: "You are looking at the results for “{query}”. I can narrow the search down or explain something about it."
     home: "You are on {host}. Where shall we start?"
     external: "You are on {host} — that is outside WLO. I can look at the page and suggest it for the collection."

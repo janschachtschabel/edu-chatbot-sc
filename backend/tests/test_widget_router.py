@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import re
 from html import unescape
+from html.parser import HTMLParser
 
 import pytest
 from fastapi.testclient import TestClient
@@ -640,6 +641,60 @@ def test_the_frameless_column_falls_back_to_a_box_on_narrow_screens(client):
     assert "position" not in grund.group(1)
 
 
+class _TagZaehler(HTMLParser):
+    """Sammelt Start-Tags, die mit ``boerdi-chat`` beginnen — als HTML gelesen.
+
+    Ein Tag-Name darf fast jedes Zeichen tragen; wird Skripttext als Markup
+    geparst, entsteht z.B. ``boerdi-chat\\n``. Deshalb Präfix und nicht
+    Gleichheit: der Fehlerfall soll auftauchen, nicht durchs Raster fallen.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.treffer: list[tuple[str, dict]] = []
+
+    def handle_starttag(self, tag: str, attrs: list) -> None:
+        if tag.startswith("boerdi-chat"):
+            self.treffer.append((tag, dict(attrs)))
+
+
+def _chat_elemente(body: str) -> list[tuple[str, dict]]:
+    p = _TagZaehler()
+    p.feed(body)
+    return p.treffer
+
+
+@pytest.mark.parametrize("path", LIVE_DEMOS)
+def test_a_demo_page_defines_exactly_one_chat_element(client, path):
+    """Die Seite muss als HTML gelesen genau EIN Chat-Element ergeben.
+
+    Live gemessen (2026-08-14, Staging): zwei. Das Inline-Skript trug in einem
+    String ein wörtliches ``</script>``; der HTML-Parser beendet das
+    ``<script>``-Element beim ERSTEN solchen Vorkommen, egal in welchen
+    Anführungszeichen es steht. Der Rest des Skripts wurde damit als Markup
+    geparst — inklusive der Zeile, die das Element als Text zusammenbaut. Im
+    Browser standen daraufhin zwei Knoten: der aus Skripttext geparste (leer,
+    Attribute ``'``/``+``/``paare[0]``) und der echte mit ``page-context``.
+    Das Widget nahm den ERSTEN und hielt den zweiten für eine Dublette
+    (``data-boerdi-duplicate-hidden``) — der Seitenkontext war weg, der
+    Chatbot argumentierte über die Adresse statt über die Sammlung.
+
+    Ein Zeichenketten-Test sieht das nicht: die Seite ENTHÄLT alles Richtige.
+    Erst das Parsen zeigt, was ein Browser daraus macht.
+    """
+    elemente = _chat_elemente(client.get(path).text)
+    assert len(elemente) == 1, f"{len(elemente)} Chat-Elemente: {[t for t, _ in elemente]}"
+    tag, attrs = elemente[0]
+    assert tag == "boerdi-chat", f"verstümmelter Tag-Name: {tag!r}"
+    assert "auto-context" in attrs or "page-context" not in attrs
+
+
+def test_the_overview_defines_no_chat_element(client):
+    # Die Übersicht trägt bewusst keins. Taucht dort eines auf, ist es aus
+    # Skripttext entstanden — dieselbe Ursache, andere Seite.
+    assert _chat_elemente(client.get("/widget/").text) == []
+
+
 def _rem(css: str, deklaration: str) -> float:
     """Der erste rem-Wert einer Deklaration — ``padding: 0 1.25rem`` gibt 1.25."""
     treffer = re.search(rf"{deklaration}:[^;]*?(\d+(?:\.\d+)?)rem", css)
@@ -666,7 +721,15 @@ def test_the_frameless_column_leaves_the_text_its_room(client):
 
     text_rechts = _rem(breit, "margin-inline") + _rem(grund, "padding") + _rem(grund, "max-width")
     kasten_rechts = text_rechts + _rem(grund, "padding")  # der Body-Kasten, Innenabstand mit
-    spalte_links = umbruch - _rem(breit, "inset-inline-end") - _rem(breit, "inline-size")
+    # Der Scrollbalken zählt mit: `position: fixed` richtet sich am Viewport
+    # OHNE ihn aus, die Media Query greift aber schon bei der Breite MIT. Im
+    # Browser gemessen (2026-08-14, 88rem): die Spalte stand 17 px weiter links
+    # als gerechnet, aus 1.5rem Luft wurden 0.45rem. 1.25rem ≈ 20 px deckt die
+    # üblichen klassischen Balken ab.
+    _SCROLLBALKEN = 1.25
+    spalte_links = (
+        umbruch - _SCROLLBALKEN - _rem(breit, "inset-inline-end") - _rem(breit, "inline-size")
+    )
 
     assert kasten_rechts <= spalte_links, (
         f"Body-Kasten endet bei {kasten_rechts}rem, Spalte beginnt bei {spalte_links}rem"

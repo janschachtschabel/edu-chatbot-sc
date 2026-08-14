@@ -372,6 +372,32 @@ async def test_der_seitenkontext_steht_in_der_kette(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_bestand_und_skillkatalog_stehen_in_der_agent_kette(monkeypatch):
+    """Nutzer-Vorgabe 2026-08-14: „inhaltsanzahl und Skillregistry muss man in
+    beiden modi aktiv rein geben — pattern und agent loop".
+
+    Dies ist die Agent-Seite. Die Muster-Seite hängt am selben Renderer
+    (``page_context.render_for_prompt``) und hat ihren eigenen Wächter in
+    ``test_response_prompt_builder``; laufen die beiden auseinander, fällt es
+    dort auf und nicht erst live.
+    """
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    meta = {**_AUFGELOEST, "context_facts": {
+        "materials": 35, "sub_collections": 4, "skills": 28,
+        "skill_titles": ["Stunde planen"],
+    }}
+    await respond_agent(_ctx(page_context=_SAMMLUNG, page_meta=meta))
+    systeme = "\n".join(m["content"] for m in seen["run_agent_loop"]["messages"]
+                        if m.get("role") == "system")
+    assert "35 Materialien" in systeme
+    assert "28" in systeme
+    assert "Stunde planen" in systeme
+    assert "search_skill" in systeme   # der Weg zum Volltext steht dabei
+
+
+@pytest.mark.anyio
 async def test_ohne_seitenkontext_bleibt_die_kette_wie_bisher(monkeypatch):
     # Gegenprobe zu ``test_verlauf_und_nachricht_stehen_in_der_kette``: ohne
     # Seite darf kein leerer Block und kein Vorabruf dazukommen.

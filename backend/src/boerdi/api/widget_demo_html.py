@@ -53,7 +53,12 @@ _FRAME_STYLE = """
 #: Ab dieser Fensterbreite steht die Spalte fest neben dem Text. EINE Quelle für
 #: Stilblatt und Fliesstext: die Zahl stand zweimal da und lief auseinander
 #: (Blatt 88, Vorspann noch 84 aus der ersten Fassung).
-_SPALTE_UMBRUCH = "88rem"
+#:
+#: 90 statt 88 seit der Browser-Probe (2026-08-14): bei 88rem blieben gemessen
+#: 0.45rem zwischen Text und Spalte statt der gerechneten 1.5rem — der
+#: Scrollbalken. Er zählt bei der Media Query mit und bei ``position: fixed``
+#: nicht, die Spalte stand also 17 px weiter links als das Blatt vermuten lässt.
+_SPALTE_UMBRUCH = "90rem"
 
 #: Die Spalte der rahmenlosen Seite (P9). Dieselbe Regel wie beim Kasten —
 #: Grösse kommt vom Gastgeber —, nur sichtbar anders: der Chat steht NEBEN dem
@@ -69,12 +74,15 @@ _SPALTE_UMBRUCH = "88rem"
 #: Blatt setzt kein ``box-sizing``, der Kasten ist also 62.5rem breit):
 #:
 #: * Text endet bei 1.75 + 1.25 + 60 = **63rem**, sein Kasten bei 64.25rem.
-#: * Spalte beginnt bei 88 - 1.5 - 22 = **64.5rem**.
-#: * Dazwischen 1.5rem Luft, und der Kasten stösst nicht an.
+#: * Spalte beginnt bei 90 - 1.25 - 1.5 - 22 = **65.25rem** — die 1.25rem sind
+#:   der Scrollbalken, den ``position: fixed`` abzieht und die Media Query
+#:   mitzählt.
+#: * Dazwischen 2.25rem Luft, und der Kasten stösst nicht an.
 #:
-#: Die erste Fassung rechnete ohne den Innenabstand und kam auf 3rem Rand — da
-#: waren es 0.25rem. Nachgerechnet hält das jetzt
-#: ``test_the_frameless_column_leaves_the_text_its_room``.
+#: Zwei Anläufe lagen daneben, beide zu optimistisch: der erste rechnete ohne
+#: den Innenabstand des Textkörpers (3rem Rand → 0.25rem Luft), der zweite ohne
+#: den Scrollbalken (88rem → im Browser gemessene 0.45rem). Nachgerechnet hält
+#: das jetzt ``test_the_frameless_column_leaves_the_text_its_room``.
 #:
 #: Unterhalb des Umbruchs ist sie ein gewöhnlicher Kasten im Fluss — kein
 #: Querscrollen, nichts verdeckt. Der Ereignis-Spiegel sitzt unten LINKS und

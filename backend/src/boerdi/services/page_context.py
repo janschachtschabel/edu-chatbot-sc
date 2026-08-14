@@ -385,9 +385,109 @@ def _trim_text(text: str, budget: int) -> str:
     return text[: budget - 1].rsplit(" ", 1)[0] + "…"
 
 
+#: Wie viele Anleitungen die Übersicht höchstens nennt (Nutzer-Vorgabe
+#: 2026-08-14: „die registry bitte vollständig rein geben — kann man ab 100
+#: kappen — bis dahin aber keine einschränkung").
+#:
+#: Öffentlich, weil ``services/context_facts`` denselben Deckel schon beim
+#: Sammeln anlegt: was hier nie erscheint, muss auch nicht je Zug als jsonb
+#: mitgeschrieben werden. Eine Konstante statt zweier gleicher Zahlen.
+MAX_SKILL_ENTRIES = 100
+
+#: Zeichenbudget der Skill-Übersicht — die A4-Seite als Zusicherung, nicht als
+#: Erwartung (Nutzer-Vorgabe 2026-08-14: „nicht mehr als eine A4 Seite").
+#:
+#: Der Eintragsdeckel allein genügt dafür nicht: 100 Titel sind an der echten
+#: Registry gemessen 3 361 Zeichen (Schnitt 30,6), aber Titellängen sind
+#: redaktionell und niemand hat sie zugesagt. Was zuerst greift, greift —
+#: der Rest wird als „… und N weitere" benannt, nie stillschweigend.
+#: 3 500 Zeichen ≈ eine A4-Seite Fließtext.
+MAX_SKILL_CHARS = 3500
+
+#: Platz, den :func:`_bestands_zeilen` für die „… und N weitere"-Zeile plus die
+#: beiden Leerzeilen zurücklegt. Sie entsteht erst NACH der Titel-Schleife, muss
+#: aber vorher bezahlt sein — sonst reisst genau der Fall das Budget, für den
+#: der Deckel da ist. Gemessen sind es 76 Zeichen; 120 lassen Luft für eine
+#: umformulierte Zeile.
+_REST_ZEILE_RESERVE = 120
+
+
+def _bestands_zeilen(fakten: Any) -> list[str]:
+    """Der Bestandsabschnitt: Zahlen + Skill-Übersicht — oder gar nichts.
+
+    Nutzer-Vorgabe 2026-08-14: „Inhaltsanzahl und Skillregistry muss man in
+    beiden Modi aktiv rein geben — pattern und agent loop". Beide Engines lesen
+    ihren Seitenblock über :func:`render_for_prompt`, also steht es hier ein
+    einziges Mal statt zweimal an ihren getrennten Prompt-Bauern.
+
+    **Nur Titel, keine Inhalte und keine IDs** (Nutzer-Vorgabe: „nicht die
+    vollen Skillinhalte … nur die Übersicht … nicht mehr als eine A4 Seite").
+    Die beiden Zahlen der Vorgabe — vollständig bis 100, höchstens eine
+    A4-Seite — gehen nur so zusammen; an der echten Registry nachgemessen
+    (28 Einträge, Titel im Schnitt 30,6 Zeichen): 100 Titel sind 3 361 Zeichen
+    (eine Seite), 100 Titel mit ``nodeId`` wären 7 161 (gut zwei).
+
+    Der Preis ist ein Aufruf mehr: ohne ID muss das Modell ``search_skill``
+    voranstellen. Das ist ohnehin der Weg, den die Werkzeugbeschreibung vorgibt
+    („der zweite Schritt nach search_skill") — deshalb nennt der Block beide.
+
+    Ohne Fakten eine leere Liste: eine Überschrift ohne Inhalt liest sich für
+    das Modell wie ein Ausfall und lädt zum Erfinden ein.
+    """
+    if not isinstance(fakten, dict) or not fakten:
+        return []
+
+    zeilen: list[str] = []
+    materialien = fakten.get("materials")
+    unter = fakten.get("sub_collections")
+    if isinstance(materialien, int):
+        satz = f"Bestand dieser Sammlung: {materialien} Materialien"
+        if isinstance(unter, int) and unter:
+            satz += f", {unter} Untersammlungen"
+        zeilen.append(satz)
+
+    skills = fakten.get("skills")
+    titel = [t for t in (fakten.get("skill_titles") or []) if isinstance(t, str) and t]
+    if not isinstance(skills, int) or not skills:
+        return zeilen
+
+    ueberschrift = f"### Freigegebene Anleitungen (Skills) dieser Sammlung — {skills}"
+    hinweis = (
+        "Diese Anleitungen sind für GENAU diese Sammlung freigegeben. Dies ist "
+        "die Übersicht, nicht ihr Inhalt. Passt eine zur Frage, hole sie in zwei "
+        "Schritten — ``search_skill`` mit dem Titel, dann ``get_skill`` mit der "
+        "``nodeId`` aus dem Treffer — und arbeite danach, statt den Ablauf selbst "
+        "zu erfinden."
+    )
+    # Das Budget gilt dem ABSCHNITT, nicht nur der Liste — es ist die Zusage
+    # „höchstens eine A4-Seite". Überschrift, Hinweis und die Rest-Zeile stehen
+    # fest, also gehen sie vorweg ab; was bleibt, ist für Titel.
+    budget = (MAX_SKILL_CHARS - len(ueberschrift) - len(hinweis)
+              - _REST_ZEILE_RESERVE)
+    gezeigt: list[str] = []
+    for t in titel[:MAX_SKILL_ENTRIES]:
+        budget -= len(t) + 3          # „- " plus Zeilenumbruch
+        if budget < 0:
+            break
+        gezeigt.append(t)
+
+    zeilen.append("")
+    zeilen.append(ueberschrift)
+    zeilen.extend(f"- {t}" for t in gezeigt)
+    if skills > len(gezeigt):
+        zeilen.append(
+            f"- … und {skills - len(gezeigt)} weitere — die vollständige Liste "
+            f"liefert ``get_skill_registry``.")
+    zeilen.append(hinweis)
+    zeilen.append("")
+    return zeilen
+
+
 def render_for_prompt(
     meta: dict[str, Any] | None,
     page_context: dict[str, Any] | None = None,
+    *,
+    include_stock: bool = True,
 ) -> str:
     """Human-readable block for the system prompt.
 
@@ -400,6 +500,17 @@ def render_for_prompt(
     Funktion eine Sammlungs-spezifische Überschrift + nennt Filter
     und IDs explizit, damit das LLM ``get_collection_contents`` mit
     der richtigen ``collection_id`` aufrufen kann.
+
+    ``meta['context_facts']`` (optional, von ``page_context_enrich``
+    angehängt) trägt Bestandszahlen und Skillkatalog; :func:`_bestands_zeilen`
+    rendert sie.
+
+    ``include_stock=False`` lässt genau diesen Abschnitt weg. Diese Funktion
+    speist DREI Prompts: Muster-Engine, Agent-Schleife — und den Klassifikator.
+    Der wählt ein Muster und ruft keine Skills auf; der Katalog kostete ihn
+    gemessene 2 232 Zeichen je Zug und veränderte seinen Prompt, wofür der Plan
+    einen Golden-Lauf verlangt. Vorgabe bleibt AN, damit die zwei gewollten
+    Verbraucher nichts tun müssen.
     """
     if not isinstance(meta, dict):
         return ""
@@ -466,6 +577,9 @@ def render_for_prompt(
     lrt = meta.get("learning_resource_types") or []
     if lrt:
         lines.append(f"Materialtypen auf der Seite: {', '.join(lrt[:6])}")
+
+    if include_stock:
+        lines.extend(_bestands_zeilen(meta.get("context_facts")))
 
     # IDs für direkte MCP-Tool-Calls. ``collection_id`` ist die Sammlungs-
     # Node-ID auf edu-sharing — das LLM kann ``get_collection_contents``

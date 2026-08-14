@@ -36,9 +36,21 @@ import logging
 from boerdi.domain.page_host import classify_page_host
 from boerdi.graph.state import TurnContext
 from boerdi.services.config_loader import load_context_actions
-from boerdi.services.page_context import resolve_page_context
+from boerdi.services.context_facts import (
+    EMPTY_RETRY_SECONDS,
+    collect_context_facts,
+    empty_marker,
+    retry_due,
+)
+from boerdi.services.page_context import get_cached, resolve_page_context
 
 logger = logging.getLogger(__name__)
+
+# Seitenarten, die überhaupt einen Bestand haben. Ein Einzelinhalt enthält keine
+# Materialien und führt keine eigene Freigabeliste — ein Abruf dafür wäre ein
+# Rundlauf ins Leere, und er kostet trotzdem Zeit. Themenseiten sind im Bestand
+# Sammlungen und zählen deshalb mit.
+_BESTANDS_KINDS = ("collection", "topic")
 
 # Only these two are open questions the hostname may answer. Any other kind is a
 # positive finding of the URL detector (path + query) and outranks the host: the
@@ -77,6 +89,54 @@ def _decide_host_kind(page_ctx: dict) -> None:
         page_ctx["page_kind"] = kind
 
 
+async def _bestand_anhaengen(page_ctx: dict, session_state: dict) -> None:
+    """Bestandszahlen + Skillkatalog an die aufgelösten Seiten-Metadaten hängen.
+
+    Nutzer-Vorgabe 2026-08-14: beide Engines sollen das **aktiv** bekommen,
+    sobald eine Sammlung oder Themenseite im Kontext steht. Hier ist der eine
+    Ort dafür: dieser Knoten läuft vor der Begrüßung UND vor ``respond``
+    (``setup → tour → page_context_enrich → context_greeting → … → respond``),
+    also versorgt ein Abruf alle drei Verbraucher. Gerendert wird er in
+    ``page_context.render_for_prompt``, das beide Prompt-Bauer lesen.
+
+    An den Metadaten-Cache und nicht an den Zug: der Cache trägt Signatur und
+    Ablauf. Wechselt die Seite, schreibt der Resolver ein neues Metaobjekt ohne
+    Fakten — der nächste Zug holt sie dann von selbst neu.
+
+    Wirft nicht und wartet nicht ewig: ``collect_context_facts`` deckelt jeden
+    Abruf selbst. Fehlt der Bestand, fehlt eine Angabe — kein Zug.
+    """
+    if (page_ctx.get("page_kind") or "").strip().lower() not in _BESTANDS_KINDS:
+        return
+    meta = get_cached(session_state)
+    if not isinstance(meta, dict) or not retry_due(meta.get("context_facts")):
+        return
+    collection_id = (page_ctx.get("collection_id") or "").strip() or (
+        meta.get("node_id") or ""
+    ).strip()
+    if not collection_id:
+        return
+    try:
+        fakten = await collect_context_facts(collection_id)
+    except Exception as err:
+        # ``collect_context_facts`` wirft laut Vertrag nicht — kommt hier doch
+        # etwas an, ist es ein Fehler im Code und keine Eigenschaft der Seite.
+        # Deshalb KEIN Leer-Vermerk: der Zug soll es erneut versuchen und jedes
+        # Mal warnen, statt zwei Minuten lang still zu sein.
+        logger.warning("Bestandsfakten nicht abrufbar: %s", err)
+        return
+    if fakten:
+        meta["context_facts"] = fakten
+        logger.info("Bestandsfakten geladen: %s Materialien, %s Skills",
+                    fakten.get("materials", "?"), fakten.get("skills", "?"))
+    else:
+        # Datierter Vermerk statt gar nichts: sonst liefe der Abruf auf einer
+        # Seite ohne Bestand bei JEDEM Zug erneut.
+        meta["context_facts"] = empty_marker()
+        logger.info("Kein Bestand zu %s — Wiederholung frühestens in %.0fs",
+                    collection_id, EMPTY_RETRY_SECONDS)
+
+
 async def page_context_enrich(ctx: TurnContext) -> TurnContext:
     """Inject page-context IDs into entities and best-effort resolve page metadata."""
     page_ctx = ctx.env.get("page_context") or {}
@@ -91,4 +151,5 @@ async def page_context_enrich(ctx: TurnContext) -> TurnContext:
     except Exception as err:  # pragma: no cover — resolver bug must not break the turn
         logger.warning("page_context auto-resolve skipped: %s", err)
 
+    await _bestand_anhaengen(page_ctx, ctx.session_state)
     return ctx

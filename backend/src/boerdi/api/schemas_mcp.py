@@ -155,8 +155,16 @@ class CollectionStatsArgs(BaseModel):
     Server schema (fetched 2026-08-01): ``nodeId`` required, nothing else the
     model needs to steer. The breakdown counts up to 100 direct child files —
     a sample, not the whole subtree; the server's own output says so.
+
+    ``outputFormat`` seit 2026-08-14 — nicht fürs Modell, sondern damit ein
+    interner Aufrufer JSON verlangen KANN. Ein Feld, das dieses Modell nicht
+    kennt, wirft Pydantic STILL weg: ``context_facts`` bat um ``json``, bekam
+    Markdown, ``json.loads`` scheiterte, und die Kontext-Bestätigung blieb ohne
+    Zahlen — ohne dass irgendwo ein Fehler stand. Vorgabe ``markdown`` ist der
+    Server-Standard, der Aufruf also unverändert.
     """
     nodeId: str
+    outputFormat: Literal["markdown", "json"] = "markdown"
 
 
 class NodeBreadcrumbArgs(BaseModel):
@@ -358,5 +366,12 @@ class SkillRegistryArgs(BaseModel):
 
     ``max_length`` mirrors the server's bound and is not enforced here — same
     reason as ``UrlTextArgs.url``.
+
+    ``outputFormat`` wie bei :class:`CollectionStatsArgs` (2026-08-14). Die
+    Vorgabe bleibt bewusst ``markdown``: der Agent-Vorabruf (P4) legt diese
+    Antwort dem Modell vor, und dort ist der Registry-Text mit den
+    Verwendungshinweisen der Redaktion mehr wert als ein JSON-Baum. Nur wer
+    zählen will — ``context_facts`` — verlangt JSON.
     """
     collectionId: str = Field(max_length=64)
+    outputFormat: Literal["markdown", "json"] = "markdown"

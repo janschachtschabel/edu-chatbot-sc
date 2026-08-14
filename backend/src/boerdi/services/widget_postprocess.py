@@ -33,7 +33,11 @@ from boerdi.domain.content_types import (
     _card_matches_wanted_types,
     _resolve_wanted_content_types,
 )
-from boerdi.domain.quick_reply_policy import _qr_policy
+from boerdi.domain.quick_reply_policy import (
+    CURATED_QR_MAX,
+    _qr_policy,
+    has_curated_quick_replies,
+)
 from boerdi.domain.search_intent import _looks_like_search_query
 from boerdi.domain.url_helpers import (
     _extract_web_links_from_text,
@@ -725,24 +729,39 @@ async def _postprocess_response_for_widget_modes(
         # Auto-Followup das Studio-Setting overrunnen.
         try:
             from boerdi.services.config_loader import load_display_rules_config as _ldr
-            _qr_max = int((_ldr().get("quick_replies") or {}).get("max_count", 4) or 0)
-            _qr_max = max(0, min(6, _qr_max))
-            # QR-Policy (2026-06-10): per-Pattern-Anzahl überschreibt den
-            # globalen Deckel. Pattern-ID aus dem Debug-Label ("M09 (…)").
-            try:
-                _dbg = resp.debug
-                _dbg_pattern = (
-                    getattr(_dbg, "pattern", None)
-                    or (_dbg.get("pattern") if isinstance(_dbg, dict) else "")
-                    or ""
-                )
-                _, _p_qr_max = _qr_policy(_dbg_pattern)
-                if _p_qr_max is not None:
-                    _qr_max = _p_qr_max
-            except Exception:
-                logger.debug("pattern QR-policy lookup failed", exc_info=True)
-            if qrs and len(qrs) > _qr_max:
-                qrs = qrs[:_qr_max]
+            _dbg = resp.debug
+            _dbg_pattern = (
+                getattr(_dbg, "pattern", None)
+                or (_dbg.get("pattern") if isinstance(_dbg, dict) else "")
+                or ""
+            )
+            # Redaktionell gepflegte Pillen sind KEINE Generator-Ausgabe, also
+            # gilt dessen Zielzahl für sie nicht — sonst kommen von fünf
+            # gepflegten Knöpfen zwei an (Live-Befund 2026-08-14). Dieselbe
+            # Überlegung wie beim Tour-Freibrief ganz oben in dieser Funktion.
+            if has_curated_quick_replies(_dbg_pattern):
+                # Ausgenommen vom Generator-Deckel, aber nicht grenzenlos: die
+                # gepflegte Liste bestimmt die Auswahl, ``CURATED_QR_MAX`` das
+                # Layout-Maximum.
+                if qrs and len(qrs) > CURATED_QR_MAX:
+                    logger.info("kuratierte Pillen: %d → %d", len(qrs), CURATED_QR_MAX)
+                    qrs = qrs[:CURATED_QR_MAX]
+                logger.debug(
+                    "Generator-Deckel übersprungen (kuratierte Pillen, %s) — "
+                    "es gilt CURATED_QR_MAX=%d", _dbg_pattern, CURATED_QR_MAX)
+            else:
+                _qr_max = int((_ldr().get("quick_replies") or {}).get("max_count", 4) or 0)
+                _qr_max = max(0, min(6, _qr_max))
+                # QR-Policy (2026-06-10): per-Pattern-Anzahl überschreibt den
+                # globalen Deckel. Pattern-ID aus dem Debug-Label ("M09 (…)").
+                try:
+                    _, _p_qr_max = _qr_policy(_dbg_pattern)
+                    if _p_qr_max is not None:
+                        _qr_max = _p_qr_max
+                except Exception:
+                    logger.debug("pattern QR-policy lookup failed", exc_info=True)
+                if qrs and len(qrs) > _qr_max:
+                    qrs = qrs[:_qr_max]
         except Exception:
             logger.debug("quick-reply cap enforcement failed", exc_info=True)
 

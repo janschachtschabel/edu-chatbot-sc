@@ -342,3 +342,41 @@ def test_unbekanntes_locale_faellt_auf_deutsch_zurueck(_cfg):
     # `resolve_locale` es auch fuer den Accept-Language-Header tut (C1-e1).
     system, *_ = _build(environment={"locale": "fr-FR"})
     assert DE_ZEILE in system
+
+
+# ── Bestand + Skillkatalog in der Muster-Engine (Nutzer-Vorgabe 2026-08-14) ─
+#
+# „inhaltsanzahl und Skillregistry muss man in beiden modi aktiv rein geben —
+# pattern und agent loop". Dies ist die Muster-Seite; die Agent-Seite hängt am
+# selben Renderer und hat ihren Wächter in ``test_respond_agent``.
+
+
+def _sammlung_mit_bestand() -> dict:
+    return {"entities": {"_page_metadata": {
+        "title": "Geometrische Optik",
+        "context_facts": {
+            "materials": 35, "sub_collections": 4, "skills": 28,
+            "skill_titles": ["Stunde planen"],
+        },
+    }}}
+
+
+def test_bestand_und_skillkatalog_stehen_im_muster_prompt(_cfg):
+    system, *_ = _build(
+        session_state=_sammlung_mit_bestand(),
+        environment={"page_context": {"page_kind": "collection", "collection_id": "C1"}},
+    )
+    assert "35 Materialien" in system
+    assert "28" in system
+    assert "Stunde planen" in system
+    assert "search_skill" in system
+    assert "get_skill" in system
+
+
+def test_ohne_bestand_bleibt_der_muster_prompt_wie_bisher(_cfg):
+    # Gegenprobe: kein leerer Abschnitt auf einer Seite ohne Bestandsangaben.
+    system, *_ = _build(
+        session_state={"entities": {"_page_metadata": {"title": "Irgendwas"}}},
+        environment={"page_context": {"page_kind": "collection"}},
+    )
+    assert "Bestand dieser Sammlung" not in system

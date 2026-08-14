@@ -79,6 +79,40 @@ def _qr_policy(pattern_id: str) -> tuple[str, int | None]:
     return "exact", None
 
 
+#: Marke der Kontext-Begrüßung im Debug-Label (``CTX:collection``, ``CTX:skipped``).
+#: Eine Konstante statt eines Literals an beiden Enden: der Knoten SETZT sie, der
+#: Anzeige-Trim LIEST sie. Driften die auseinander, fällt der Deckel wieder auf
+#: gepflegte Knöpfe — lautlos, denn nichts wirft dabei.
+CONTEXT_GREETING_MARKER: Final[str] = "CTX:"
+
+#: Obergrenze für redaktionell gepflegte Pillen.
+#:
+#: Sie sind vom Generator-Deckel ausgenommen (:func:`has_curated_quick_replies`)
+#: — aber „ausgenommen" darf nicht „unbegrenzt" heißen. Der Pfad klammerte
+#: vorher hart auf 6; fiele jede Grenze weg, ergäben 20 gepflegte Einträge auch
+#: 20 Knöpfe. Die Leiste bricht sie zwar um (``quick-replies.component.scss``:
+#: ``flex-wrap: wrap``) — aber mehrere Umbruchzeilen unter einer Nachricht sind
+#: keine Chip-Leiste mehr, sondern ein Menü. 8 lässt die längste heute gepflegte
+#: Liste (5) mit Luft durch und fängt einen Pflegefehler ab.
+CURATED_QR_MAX: Final[int] = 8
+
+
+def has_curated_quick_replies(pattern_id: str) -> bool:
+    """Sind die Quick-Replies dieser Antwort redaktionell gepflegt statt erzeugt?
+
+    Dann gilt ``display-rules.quick_replies.max_count`` NICHT: dieser Wert ist
+    die Zielzahl des QR-Generators (siehe :func:`_qr_default_count`), kein
+    Anzeige-Limit. Heute trifft das genau die Kontext-Begrüßung, deren Pillen je
+    Seitenart in ``01-base/context-actions`` stehen — von fünf gepflegten
+    Knöpfen kamen zwei an (Live-Befund 2026-08-14, Deckel im Seed auf 2).
+
+    Die Webseiten-Tour gehört derselben Klasse an, braucht diese Abfrage aber
+    nicht: ihre Antworten tragen ein ``tour``-Feld und verlassen den
+    Widget-Postprocess schon in dessen erster Zeile.
+    """
+    return (pattern_id or "").strip().startswith(CONTEXT_GREETING_MARKER)
+
+
 def _qr_default_count() -> int:
     """Globale QR-Zielzahl aus ``display-rules.quick_replies.max_count``
     (Studio: Anzeige → Quick-Replies). Seit 2026-06-10 erzeugt der

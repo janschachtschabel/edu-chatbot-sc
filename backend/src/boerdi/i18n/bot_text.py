@@ -293,6 +293,17 @@ BOT_TEXT: Final[Catalogue] = {
             "Ich konnte gerade keine Antwort erzeugen. Versuch es noch einmal "
             "— meistens klappt es beim zweiten Anlauf."
         ),
+        # ── Kontext-Bestätigung: was ich in dieser Sammlung sehe ───────────
+        # Nutzer-Vorgabe 2026-08-14: die Begrüßung soll ZEIGEN, dass der
+        # Kontext angekommen ist, statt es zu behaupten. Drei Fassungen, weil
+        # jede Zahl einzeln ausfallen darf (``services/context_facts``) —
+        # fehlen beide, bleibt der Satz weg und es bleibt bei der Begrüßung.
+        "context.stock.both": (
+            "Ich sehe {materials} Materialien und {skills} freigegebene "
+            "Anleitungen dazu."
+        ),
+        "context.stock.materials": "Ich sehe {materials} Materialien darin.",
+        "context.stock.skills": "Ich sehe {skills} freigegebene Anleitungen dazu.",
         "curation.failed": "Die Kuratier-Analyse konnte nicht erstellt werden.",
         "curation.error": "Fehler bei der Kuratier-Analyse: {error}",
         "learningPath.failed": "Lernpfad konnte nicht erstellt werden.",
@@ -488,6 +499,11 @@ BOT_TEXT: Final[Catalogue] = {
             "I could not produce an answer just now. Try again — it usually "
             "works on the second attempt."
         ),
+        "context.stock.both": (
+            "I can see {materials} materials and {skills} approved guides for it."
+        ),
+        "context.stock.materials": "I can see {materials} materials in it.",
+        "context.stock.skills": "I can see {skills} approved guides for it.",
         "curation.failed": "The curation analysis could not be created.",
         "curation.error": "Error during the curation analysis: {error}",
         "learningPath.failed": "The learning path could not be created.",
