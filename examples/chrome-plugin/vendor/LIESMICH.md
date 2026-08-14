@@ -23,3 +23,16 @@ Anders liegt der Fall nur, wenn ihr das Widget in die **Gastseite** einhängt
 statt in eine Erweiterungs-Seite: dort gilt die CSP der Gastseite, und der
 Skript-Tag darf auf euer Backend zeigen. Siehe
 `docs/browser-plugin-einbindung.md`, §1.
+
+## Nur aus einer Quelle, der ihr vertraut
+
+Was hier landet, läuft danach mit den Rechten der Erweiterung — samt jeder
+Seiten-Erlaubnis, die ihr ihr gebt. Eine Prüfsumme gibt es nicht (es wird keine
+veröffentlicht), also ist die Herkunft die ganze Sicherheit. Über `http://` auf
+einem fremden Host kann jeder dazwischen den Code austauschen; `fetch-widget.mjs`
+sagt es, verweigert aber nichts — gegen `localhost` ist `http` der Normalfall.
+
+Statt zu holen könnt ihr auch selbst bauen: `cd ../../frontend && npm run
+build:widget`, dann `frontend/dist/widget/browser/main.js` hierher kopieren. Das
+ist zugleich der einzige Weg, ein Attribut auszuprobieren, das im deployten
+Backend noch nicht steckt.

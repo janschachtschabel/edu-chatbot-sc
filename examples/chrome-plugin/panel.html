@@ -7,24 +7,42 @@
 </head>
 <body>
 
-<header class="leiste">
-  <label class="feld">
-    <span>Backend</span>
-    <input id="apiUrl" type="url" inputmode="url" placeholder="http://localhost:8000"
-           value="http://localhost:8000">
-  </label>
-  <p id="bundleFehlt" class="warnung" hidden>
-    <strong>Das Widget-Bündel fehlt.</strong>
-    <code>vendor/boerdi-widget.js</code> ist nicht da. Manifest V3 verbietet
-    nachgeladenen Code — das Bündel muss im Ordner liegen:
-    <code>node scripts/fetch-widget.mjs http://localhost:8000</code>,
-    danach die Erweiterung neu laden.
-  </p>
-</header>
+<div class="reiterleiste" role="tablist" aria-label="Bereiche">
+  <button type="button" role="tab" id="reiterEinstellungen"
+          aria-controls="feldEinstellungen" aria-selected="true">Einstellungen</button>
+  <button type="button" role="tab" id="reiterChat"
+          aria-controls="feldChat" aria-selected="false" tabindex="-1">Chat</button>
+</div>
 
-<main>
+<!-- ════ Reiter 1: Einstellungen ════════════════════════════════════ -->
+<main id="feldEinstellungen" role="tabpanel" aria-labelledby="reiterEinstellungen" tabindex="0">
 
-  <!-- ── Kontext ────────────────────────────────────────────────── -->
+  <section>
+    <h2>Verbindung</h2>
+    <label class="feld">
+      <span>Backend <em>(nur die Adresse — NICHT die Bündel-Datei)</em></span>
+      <input id="apiUrl" type="url" inputmode="url" placeholder="https://beispiel.test"
+             value="https://87.106.127.225.nip.io">
+    </label>
+    <button type="button" id="backendPruefen" class="zweitrangig">Verbindung prüfen</button>
+    <p class="hinweis" id="backendStatus" role="status"></p>
+
+    <div id="bundleFehlt" class="warnung" hidden>
+      <p>
+        <strong>Das Widget-Bündel fehlt.</strong>
+        <code>vendor/boerdi-widget.js</code> ist nicht da. Manifest V3 verbietet
+        nachgeladenen Code — das Bündel muss im Ordner liegen. Im Ordner der
+        Erweiterung ausführen:
+      </p>
+      <pre id="holBefehl"></pre>
+      <p>
+        Danach <button type="button" id="erneutLaden" class="zweitrangig">Erneut
+        versuchen</button> — oder, falls Chrome die neue Datei nicht sieht, in
+        <code>chrome://extensions</code> auf „Neu laden".
+      </p>
+    </div>
+  </section>
+
   <section>
     <h2>1 · Kontext</h2>
 
@@ -38,6 +56,9 @@
     <div id="autoBlock">
       <button type="button" id="tabLesen" class="zweitrangig">Aus dem Tab übernehmen</button>
       <p class="hinweis" id="tabAnzeige">Noch nichts gelesen.</p>
+      <button type="button" id="tabErlauben" class="zweitrangig" hidden>
+        Zugriff auf diese Seite erlauben
+      </button>
     </div>
 
     <div id="manuellBlock" hidden>
@@ -76,11 +97,13 @@
 
     <details>
       <summary>Was geht raus?</summary>
-      <pre id="kontextVorschau" aria-live="polite">{}</pre>
+      <!-- Kein `aria-live`: die Vorschau ändert sich mit jedem Tastendruck, ein
+           Screenreader läse dann nach jedem Zeichen das ganze JSON vor. Sie ist
+           zum Nachsehen da, nicht zum Melden. -->
+      <pre id="kontextVorschau">{}</pre>
     </details>
   </section>
 
-  <!-- ── Auftrag + Struktur ─────────────────────────────────────── -->
   <section>
     <h2>2 · Auftrag und Struktur</h2>
 
@@ -102,27 +125,25 @@
 
     <button type="button" id="starten">Starten</button>
     <p class="hinweis">
-      Läuft mit <code>engine="agent"</code>. Mit Schema kostet <em>jeder</em> Zug
-      einen zusätzlichen Modellzug (2–9 s gemessen) — auch „Danke!".
+      Läuft mit <code>engine="agent"</code> und wechselt in den Reiter „Chat".
+      Mit Schema kostet <em>jeder</em> Zug einen zusätzlichen Modellzug
+      (2–9 s gemessen) — auch „Danke!".
     </p>
   </section>
 
-  <!-- ── Chat ───────────────────────────────────────────────────── -->
-  <section class="wachsend">
-    <h2>3 · Unterhaltung</h2>
-    <div id="chatHalter" class="chatHalter"></div>
-  </section>
+</main>
 
-  <!-- ── Ergebnis ───────────────────────────────────────────────── -->
-  <section>
-    <h2>4 · Strukturiertes Ergebnis</h2>
+<!-- ════ Reiter 2: Chat oben, Ergebnis unten ════════════════════════ -->
+<main id="feldChat" role="tabpanel" aria-labelledby="reiterChat" tabindex="0" hidden>
+  <div id="chatHalter" class="chatHalter"></div>
+  <section class="ergebnisTeil" aria-label="Strukturiertes Ergebnis">
+    <h2>Strukturiertes Ergebnis</h2>
     <p class="hinweis" id="ergebnisLeer">
       Noch nichts. Es erscheint hier, sobald ein Zug ein Ergebnis hergibt —
       nicht jeder tut das.
     </p>
     <ol id="ergebnisListe" class="ergebnisse" aria-live="polite"></ol>
   </section>
-
 </main>
 
 <script type="module" src="panel.js"></script>

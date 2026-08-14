@@ -55,14 +55,19 @@ export function ausUrl(href) {
     ctx.node_id = knoten[1];
   }
 
+  // Die ART nur setzen, wenn kein Parameter sie schon bestimmt hat — sonst
+  // schlüge der Pfad den Parameter, entgegen der Regel oben. Die BEZEICHNER
+  // aus dem Pfad bleiben in jedem Fall: sie widersprechen dem Parameter nicht,
+  // sie ergänzen ihn (`?q=…` auf einer Fachportal-Seite ist eine Suche IM
+  // Fachportal, und beides gehört in den Kontext).
   const themenseite = pfad.match(/\/themenseite\/([^/?#]+)/);
   if (themenseite) {
-    ctx.page_kind = 'topic';
+    if (!ctx.page_kind) ctx.page_kind = 'topic';
     ctx.topic_page_slug = themenseite[1];
   }
   const fachportal = pfad.match(/\/fachportal\/([^/?#]+)(?:\/([^/?#]+))?/);
   if (fachportal) {
-    ctx.page_kind = 'topic';
+    if (!ctx.page_kind) ctx.page_kind = 'topic';
     ctx.subject_slug = fachportal[1];
     if (fachportal[2]) ctx.topic_page_slug = fachportal[2];
   }

@@ -1,5 +1,6 @@
 import { provideZonelessChangeDetection, reflectComponentType } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatShellComponent } from '@boerdi/ui';
@@ -51,7 +52,7 @@ describe('WidgetComponent', () => {
     document.documentElement.removeAttribute('lang');
   });
 
-  it('hat genau diese 26 Host-Attribute (§5.5-Kontrakt)', () => {
+  it('hat genau diese 28 Host-Attribute (§5.5-Kontrakt)', () => {
     // Der Attribut-Satz IST der öffentliche Vertrag der Web-Komponente, und er
     // steht zusätzlich in der Studio-Architektur-Referenz
     // (`projects/studio/src/app/views/widget-contract-data.ts`, HOST_ATTRIBUTES).
@@ -65,9 +66,56 @@ describe('WidgetComponent', () => {
       'engine', 'greeting', 'initialState', 'inlineResultGrouping',
       'interceptEduSharingLinks', 'language', 'pageContext', 'persistSession', 'position',
       'primaryColor', 'resultSchema', 'sessionCookieDomain', 'sessionCookieMaxAge',
-      'sessionKey', 'showCards', 'showDebugButton', 'showLanguageButtons', 'size',
-      'theme', 'ticket', 'trustedDomains',
+      'sessionKey', 'showCards', 'showDebugButton', 'showLanguageButtons', 'showWelcome',
+      'size', 'startReplies', 'theme', 'ticket', 'trustedDomains',
     ]);
+  });
+
+  // ── Begrüßung je Einbau (Nutzer-Entscheid 2026-08-14) ───────────────────
+  // Der Text konnte schon immer überschrieben werden (`greeting`), die Chips
+  // nicht — und abschalten ließ sich weder das eine noch das andere. Beides
+  // hängt an derselben Nachricht, deshalb stehen die Fälle beieinander.
+
+  it('start-replies überschreibt die Studio-Chips', () => {
+    const f = mount();
+    const c = f.componentInstance as any;
+    c.guide.startReplies.set(['Aus dem Studio']);
+    f.componentRef.setInput('startReplies', '["Eigener Chip","Noch einer"]');
+    f.detectChanges();
+    expect(c.resolvedStartReplies()).toEqual(['Eigener Chip', 'Noch einer']);
+  });
+
+  it('start-replies="[]" schaltet die Chips ab, statt auf die Config zurückzufallen', () => {
+    // Der Fall, der die Signatur `string[] | null` rechtfertigt: ohne die
+    // Unterscheidung „leer" / „nicht gesetzt" wäre genau das hier unmöglich.
+    const f = mount();
+    const c = f.componentInstance as any;
+    c.guide.startReplies.set(['Aus dem Studio']);
+    f.componentRef.setInput('startReplies', '[]');
+    f.detectChanges();
+    expect(c.resolvedStartReplies()).toEqual([]);
+  });
+
+  it('ohne start-replies gilt weiter die Studio-Config', () => {
+    const f = mount();
+    const c = f.componentInstance as any;
+    c.guide.startReplies.set(['Aus dem Studio']);
+    f.detectChanges();
+    expect(c.resolvedStartReplies()).toEqual(['Aus dem Studio']);
+  });
+
+  it('show-welcome erreicht die Shell — Vorgabe an, "false" aus', () => {
+    // Gebunden statt gelesen: ein Attribut, das seinen Konsumenten nicht
+    // erreicht, ist in diesem Projekt schon zweimal passiert (siehe oben).
+    const f = mount();
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    const shell = f.debugElement.query(By.directive(ChatShellComponent));
+    expect(shell.componentInstance.showWelcome()).toBe(true);
+
+    f.componentRef.setInput('showWelcome', 'false');
+    f.detectChanges();
+    expect(shell.componentInstance.showWelcome()).toBe('false');
   });
 
   // ── `ticket` — die Betriebsform „das Repositorium bettet ein" ────────────
@@ -708,7 +756,7 @@ describe('WidgetComponent Config-Sprache (C1-g1b)', () => {
     withConfig(f);
     const c = f.componentInstance as any;
     expect(c.configGreeting()).toBe('Moin');
-    expect(c.startReplies()).toEqual(['Tour']);
+    expect(c.resolvedStartReplies()).toEqual(['Tour']);
     expect(c.headerNavLabel(c.headerNavButtons()[0])).toBe('Startseite');
   });
 
@@ -718,7 +766,7 @@ describe('WidgetComponent Config-Sprache (C1-g1b)', () => {
     const c = f.componentInstance as any;
     c.lang.i18n.setLocale('en');
     expect(c.configGreeting()).toBe('Hello');
-    expect(c.startReplies()).toEqual(['Tour EN']);
+    expect(c.resolvedStartReplies()).toEqual(['Tour EN']);
     expect(c.headerNavLabel(c.headerNavButtons()[0])).toBe('Home');
   });
 

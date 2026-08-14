@@ -37,7 +37,7 @@ function makeCtx(overrides: Partial<LifecycleContext> = {}): {
     api: () => api as never,
     apiUrl: () => '', pageContextInput: () => '', persistSession: () => false,
     sessionKey: () => KEY, sessionCookieDomain: () => '', sessionCookieMaxAge: () => 2592000,
-    greeting: () => '', startReplies: () => [],
+    greeting: () => '', startReplies: () => [], showWelcome: () => true,
     sessionId: () => sid, setSessionId: (id) => { sid = id; rec.sessionIds.push(id); },
     resumedViaBsid: () => false, setResumedViaBsid: (v) => { rec.viaBsid.push(v); },
     parsedPageContext: () => pc, setParsedPageContext: (c) => { pc = c; rec.parsedPC.push(c); },
@@ -115,6 +115,41 @@ describe('ShellLifecycle (8-4S-e4)', () => {
     new ShellLifecycle(ctx).showGreeting();
     expect(String(rec.bots[0][0])).toContain('Boerdi');
     expect((rec.bots[0][3] as string[]).length).toBe(4);
+  });
+
+  // ── `show-welcome="false"` — der leere Chat (Nutzer-Entscheid 2026-08-14) ──
+  // Eine Einbettung, die den Chat selbst anmoderiert (Browser-Plugin,
+  // edu-sharing-Seite), will keine zweite Begrüßung obendrauf. Der Schalter
+  // betrifft NUR diese statische Startnachricht — die Kontext-Begrüßung des
+  // Backends hat ihren eigenen Weg und bleibt unberührt.
+
+  it('showWelcome=false: showGreeting schweigt — kein leerer Platzhalter', () => {
+    const { ctx, rec } = makeCtx({ showWelcome: () => false, greeting: () => 'Moin' });
+    new ShellLifecycle(ctx).showGreeting();
+    expect(rec.bots.length).toBe(0);
+  });
+
+  it('showWelcome=false: auch restart und resetSession bleiben stumm', () => {
+    // Sonst wäre der Chat nur beim ERSTEN Laden leer und ab dem ersten
+    // Neustart wieder begrüßt — ein Zustand, den niemand erklären kann.
+    const { ctx, rec } = makeCtx({ showWelcome: () => false });
+    const lc = new ShellLifecycle(ctx);
+    lc.restart();
+    lc.resetSession();
+    expect(rec.bots.length).toBe(0);
+    expect(rec.messages).toEqual([[], []]);   // geleert wird trotzdem
+  });
+
+  it('showWelcome=false hält den Erstaufruf leer, ohne den Kontext-Ping zu unterdrücken', async () => {
+    const { ctx, rec, cg } = makeCtx({
+      showWelcome: () => false,
+      pageContextInput: () => ({ page_kind: 'collection', collection_id: 'abc' }),
+    });
+    cg.sendContextPing.mockResolvedValue(false);   // Ping antwortet leer
+    new ShellLifecycle(ctx).init();
+    await Promise.resolve(); await Promise.resolve();
+    expect(cg.sendContextPing).toHaveBeenCalledWith('context_open_initial');
+    expect(rec.bots.length).toBe(0);
   });
 
   it('restart: neue Session persistiert, Messages/Debug geleert, Begrüßung', () => {

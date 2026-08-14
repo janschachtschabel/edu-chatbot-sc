@@ -11,6 +11,13 @@
  *
  * Danach in `chrome://extensions` auf „Neu laden" — ein getauschtes Bündel
  * sieht Chrome nicht von selbst.
+ *
+ * **Nur gegen ein Backend, dem ihr vertraut.** Was hier ankommt, läuft danach
+ * mit den Rechten der Erweiterung — samt der Erlaubnis für die Seiten, die ihr
+ * ihr gebt. Eine Prüfsumme gibt es nicht (es wird keine veröffentlicht), also
+ * ist die Quelle die ganze Sicherheit. Über `http://` auf einem fremden Host
+ * kann jeder dazwischen den Code austauschen; das Skript sagt es, verweigert
+ * aber nichts — beim Entwickeln gegen `localhost` ist `http` der Normalfall.
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -23,6 +30,20 @@ const basis = (process.argv[2] || 'http://localhost:8000').replace(/\/+$/, '');
 const quelle = `${basis}/widget/boerdi-widget.js`;
 
 console.log(`Hole ${quelle}`);
+
+// Unverschlüsselt von einem fremden Host: dann bestimmt jeder auf dem Weg, was
+// gleich mit den Rechten der Erweiterung läuft. Kein Abbruch — gegen
+// `localhost` ist genau das der Entwicklungsalltag.
+try {
+  const u = new URL(quelle);
+  const lokal = ['localhost', '127.0.0.1', '::1'].includes(u.hostname);
+  if (u.protocol === 'http:' && !lokal) {
+    console.warn(`\n  ACHTUNG: ${u.hostname} liefert über http, also ungeschützt.`);
+    console.warn('  Was hier ankommt, läuft danach mit den Rechten der Erweiterung.\n');
+  }
+} catch {
+  // Unbrauchbare Adresse — das meldet der Abruf gleich mit einer klareren Zeile.
+}
 
 let antwort;
 try {

@@ -72,7 +72,13 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.attr.position': 'bottom-right | bottom-left | top-right | top-left',
     'rw.attr.initialState': 'collapsed | expanded',
     'rw.attr.primaryColor': 'Akzentfarbe; leer lässt den CSS-Default #1c4587 greifen',
-    'rw.attr.greeting': 'Eigene Begrüßungsnachricht',
+    'rw.attr.greeting': 'Eigene Begrüßungsnachricht; schlägt die Studio-Vorgabe',
+    'rw.attr.startReplies':
+      'Eigene Einstiegs-Chips als JSON-Array, z.B. ["Was kannst du?"]; schlägt '
+      + 'die Studio-Vorgabe. [] heißt: keine Chips',
+    'rw.attr.showWelcome':
+      '"false" startet mit leerem Chat — ohne Startnachricht und Chips, auch '
+      + 'nach „Neu starten". Die Kontext-Begrüßung bleibt davon unberührt',
     'rw.attr.persistSession': 'Session in localStorage bzw. Cookie halten',
     'rw.attr.sessionKey': 'localStorage-Schlüssel',
     'rw.attr.sessionCookieDomain':
@@ -163,7 +169,13 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.attr.position': 'bottom-right | bottom-left | top-right | top-left',
     'rw.attr.initialState': 'collapsed | expanded',
     'rw.attr.primaryColor': 'Accent colour; empty lets the CSS default #1c4587 apply',
-    'rw.attr.greeting': 'A greeting message of your own',
+    'rw.attr.greeting': 'A greeting message of your own; beats the studio default',
+    'rw.attr.startReplies':
+      'Your own starter chips as a JSON array, e.g. ["What can you do?"]; beats '
+      + 'the studio default. [] means: no chips',
+    'rw.attr.showWelcome':
+      '"false" starts with an empty chat — no welcome message, no chips, not '
+      + 'even after "Restart". The context greeting is unaffected',
     'rw.attr.persistSession': 'Keep the session in localStorage or a cookie',
     'rw.attr.sessionKey': 'localStorage key',
     'rw.attr.sessionCookieDomain':

@@ -74,6 +74,10 @@ export interface LifecycleContext {
   sessionCookieMaxAge: () => number | string;
   greeting: () => string;
   startReplies: () => string[];
+  /** `show-welcome` — soll es die statische Startnachricht überhaupt geben?
+   *  `false` heißt: leerer Chat. Betrifft NUR sie; die Kontext-Begrüßung des
+   *  Backends hat ihren eigenen Weg (Seitenkontext) und bleibt unberührt. */
+  showWelcome: () => boolean;
   // ── Session-Zustand ──
   sessionId: () => string;
   setSessionId: (id: string) => void;
@@ -146,8 +150,14 @@ export class ShellLifecycle {
     }
   }
 
-  /** Zentrale Begrüßung mit Einstiegs-Quick-Replies. Verbatim aus ALT 322-344. */
+  /** Zentrale Begrüßung mit Einstiegs-Quick-Replies. Verbatim aus ALT 322-344,
+   *  davor das Tor aus `show-welcome` (2026-08-14).
+   *
+   *  Der Ausstieg sitzt HIER und nicht bei den drei Aufrufern, weil sie alle
+   *  dasselbe meinen — Erstaufruf, Neustart, leerer Verlauf. Ein Tor je
+   *  Aufrufer wäre dreimal dieselbe Bedingung und beim vierten vergessen. */
   showGreeting(): void {
+    if (!this.ctx.showWelcome()) return;
     const text = this.ctx.greeting() || this.ctx.t('greeting.default');
     const replies = (this.ctx.startReplies() && this.ctx.startReplies().length)
       ? this.ctx.startReplies()
@@ -174,6 +184,9 @@ export class ShellLifecycle {
     writeSessionEverywhere(id, this._cookieCfg());
     this.ctx.setMessages([]);
     this.ctx.setLatestDebug(null);
+    // Eigener Text (`greeting.reset`), deshalb ein eigenes Tor — geleert wird
+    // trotzdem, nur die Nachricht bleibt aus.
+    if (!this.ctx.showWelcome()) return;
     this.ctx.addBotMessage(this.ctx.greeting() || this.ctx.t('greeting.reset'));
   }
 

@@ -1,0 +1,8 @@
+# Das geholte Widget-Bündel — ein Bau-Erzeugnis (~540 kB), das sich mit jedem
+# Frontend-Stand ändert. Es gehört nicht ins Repositorium, sondern wird geholt:
+#
+#     node scripts/fetch-widget.mjs https://<euer-backend>
+#
+# Die Begründung steht in vendor/LIESMICH.md; ohne diese Zeile landete es beim
+# ersten `git add` mit im Verlauf.
+vendor/*.js

@@ -1,6 +1,6 @@
 /**
- * Jede `$('…')`-Kennung aus `panel.js`/`einstellungen.js` muss es in
- * `panel.html` geben.
+ * Jede `$('…')`-Kennung aus `panel.js`/`einstellungen.js`/`ergebnisse.js` muss
+ * es in `panel.html` geben.
  *
  * Ein Tippfehler dort ist ein `null` und damit ein Fehler erst beim Klick — in
  * einer Seitenleiste, deren Konsole man erst aufmachen muss. Diese Prüfung
@@ -13,10 +13,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HIER = dirname(fileURLToPath(import.meta.url));
-// BEIDE Dateien: `einstellungen.js` bekommt `$` hereingereicht und greift
-// damit genauso auf Kennungen zu. Nur `panel.js` zu prüfen ließe eine ganze
-// Datei durchrutschen.
-const quellen = ['panel.js', 'einstellungen.js'];
+// ALLE Dateien, die `$` hereingereicht bekommen: sie greifen genauso auf
+// Kennungen zu. Nur `panel.js` zu prüfen ließe eine ganze Datei durchrutschen —
+// wer hier ein neues Modul vergisst, hat den Wächter für dieses Modul
+// abgeschaltet, ohne dass etwas rot wird.
+const quellen = ['panel.js', 'einstellungen.js', 'ergebnisse.js'];
 const js = (await Promise.all(
   quellen.map((d) => readFile(join(HIER, '..', d), 'utf8')))).join('\n');
 const html = await readFile(join(HIER, '..', 'panel.html'), 'utf8');

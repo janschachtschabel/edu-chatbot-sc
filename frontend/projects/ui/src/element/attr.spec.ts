@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { _attrEnum, _attrIsTrue, _attrJsonObject, resolveTheme } from './attr';
+import {
+  _attrEnum, _attrIsTrue, _attrJsonObject, _attrJsonStringArray, resolveTheme,
+} from './attr';
 
 /**
  * Charakterisierung der Attribut-Bool-Koerzierung — Verbatim-Port aus ALT
@@ -113,6 +115,62 @@ describe('_attrJsonObject', () => {
     expect(_attrJsonObject('42')).toBeNull();
     expect(_attrJsonObject('null')).toBeNull();
     expect(warn).toHaveBeenCalledTimes(4);
+    warn.mockRestore();
+  });
+});
+
+/**
+ * `_attrJsonStringArray` (2026-08-14, erster Konsument `start-replies`).
+ *
+ * Der eine Fall, der die Form bestimmt: das LEERE Array. `[]` heißt „diese
+ * Einbettung will KEINE Chips" und muss sich deshalb von „Attribut nicht
+ * gesetzt" unterscheiden lassen — sonst führe der Weg zurück in die
+ * Studio-Vorgabe, und das Abschalten wäre unmöglich. Darum `string[] | null`
+ * und nicht `string[]`.
+ */
+describe('_attrJsonStringArray', () => {
+  it('liest ein JSON-Array von Zeichenketten', () => {
+    expect(_attrJsonStringArray('["Was kannst du?","Suche starten"]'))
+      .toEqual(['Was kannst du?', 'Suche starten']);
+  });
+
+  it('[] ist eine AUSSAGE (keine Chips) und kommt als leeres Array zurück', () => {
+    expect(_attrJsonStringArray('[]')).toEqual([]);
+    expect(_attrJsonStringArray('  [ ]  ')).toEqual([]);
+  });
+
+  it('leer / undefined → null („nicht gesetzt"), und zwar still', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(_attrJsonStringArray('')).toBeNull();
+    expect(_attrJsonStringArray('   ')).toBeNull();
+    expect(_attrJsonStringArray(undefined)).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('kaputtes JSON und Nicht-Arrays → null MIT Meldung', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(_attrJsonStringArray('["A",')).toBeNull();
+    expect(_attrJsonStringArray('{"a":1}')).toBeNull();
+    expect(_attrJsonStringArray('"A"')).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(3);
+    warn.mockRestore();
+  });
+
+  it('trimmt und wirft Leeres raus — dieselbe Regel wie bei der Studio-Config', () => {
+    // C13 (Audit 2026-07-09): ungetrimmte Einträge ließen den Tour-Chip-
+    // String-Match in der Shell fehlschlagen. Der Host-Weg darf sich hier
+    // nicht anders verhalten als der Config-Weg, sonst hinge es am Zufall,
+    // über welchen der beiden ein Chip hereinkam.
+    expect(_attrJsonStringArray('["  Tour  ","", "   "]')).toEqual(['Tour']);
+  });
+
+  it('Zahlen und Objekte im Array werden verworfen, nicht stringifiziert', () => {
+    // `String({})` ergäbe „[object Object]" als Chip-Beschriftung — ein
+    // sichtbarer Unfall statt eines stillen Weglassens.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(_attrJsonStringArray('["A",42,{"b":1},null,"B"]')).toEqual(['A', 'B']);
+    expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
 });

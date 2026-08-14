@@ -62,6 +62,18 @@ gleich('Anfrage-Parameter schlagen den Pfad',
   ausUrl('https://wirlernenonline.de/sammlung/aus-dem-pfad?collection=aus-der-anfrage'),
   { page_kind: 'collection', collection_id: 'aus-der-anfrage' });
 
+// Dieselbe Regel gilt für Themenseite und Fachportal. Sie setzten die ART
+// früher bedingungslos — der Pfad schlug damit den Parameter, entgegen der
+// Regel eine Zeile weiter oben. Der BEZEICHNER aus dem Pfad stimmt in jedem
+// Fall und bleibt: er widerspricht dem Parameter nicht, er ergänzt ihn.
+gleich('Themenseite im Pfad überschreibt die Art aus dem Parameter NICHT',
+  ausUrl('https://wirlernenonline.de/themenseite/optik?collection=abc'),
+  { page_kind: 'collection', collection_id: 'abc', topic_page_slug: 'optik' });
+
+gleich('Fachportal im Pfad überschreibt die Art aus dem Parameter NICHT',
+  ausUrl('https://wirlernenonline.de/fachportal/physik?q=br%C3%BCche'),
+  { page_kind: 'search', search_query: 'brüche', subject_slug: 'physik' });
+
 // ── baueKontext: die drei Betriebsarten der Steuerleiste ───────────
 
 gleich('aus: gar kein Kontext, auch wenn der Tab etwas hergäbe',

@@ -244,6 +244,8 @@ Alle Werte sind HTML-Attribute, also Zeichenketten; boolesche nehmen
 | `initial-state` | `collapsed` | `collapsed` \| `expanded` |
 | `primary-color` | leer | Akzentfarbe; validiert, schlägt bis in die Material-Token durch |
 | `greeting` | — | Begrüßung überschreiben (sonst die aus dem Studio) |
+| `start-replies` | leer | Einstiegs-Chips überschreiben, als **JSON-Array**: `start-replies='["Fach und Stufe?"]'`. `[]` = keine Chips |
+| `show-welcome` | `true` | `"false"` = **leerer Chat**: keine Startnachricht, keine Chips — für Seiten, die selbst anmoderieren. Die Kontext-Begrüßung bleibt |
 
 ### Sitzung
 

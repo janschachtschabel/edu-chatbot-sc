@@ -5,6 +5,7 @@
   "description": "Beispiel-Erweiterung: Kontext steuern, Auftrag stellen, strukturiertes Ergebnis sehen.",
   "permissions": ["sidePanel", "storage", "activeTab", "scripting", "tabs"],
   "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": { "default_title": "Boerdi-Seitenleiste öffnen" },
   "side_panel": { "default_path": "panel.html" }

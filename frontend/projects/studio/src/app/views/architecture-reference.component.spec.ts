@@ -81,15 +81,16 @@ describe("ArchitectureReferenceComponent", () => {
     // with C1-c, `embed-mode` with U1, `size` with U2a, `show-cards` with U2b,
     // `theme` with U4a, `ticket` with the repository-embedding mode
     // (2026-08-12), `engine` with the machine switch (2026-08-13) and
-    // `result-schema` with the machine-readable result (2026-08-14), which
-    // makes 26.
+    // `result-schema` with the machine-readable result (2026-08-14), and
+    // `start-replies` + `show-welcome` with the per-embed welcome the same day,
+    // which makes 28.
     const el = mount();
     const rows = el.querySelectorAll(".ar-table code");
     const documented = Array.from(rows).map((c) => c.textContent?.trim());
     for (const { attr } of HOST_ATTRIBUTES) {
       expect(documented, `Attribut ${attr}`).toContain(attr);
     }
-    expect(HOST_ATTRIBUTES).toHaveLength(26);
+    expect(HOST_ATTRIBUTES).toHaveLength(28);
     expect(HOST_ATTRIBUTES.map((a) => a.attr)).toContain(
       "inline-result-grouping",
     );

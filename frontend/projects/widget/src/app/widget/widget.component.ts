@@ -10,6 +10,7 @@ import {
   ICONS, PanelState, RoutingDebugPayload, SafeSvgPipe, TranslationParams, WidgetLanguage,
   _attrEnum,
   _attrJsonObject,
+  _attrJsonStringArray,
   PANEL_SIZE_STEPS,
   applyPrimaryColor, BOERDI_LOGO_DATA_URL, headerNavHrefWithBsid, headerNavIconSvg,
   pickLocalized,
@@ -105,7 +106,31 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    *  Hostnamen; Subdomain-Match automatisch. Ergänzt die Backend-Liste, kann
    *  sie aber nicht kürzen. Leer = nur die Backend-Liste. */
   readonly trustedDomains = input('');
+  /** Begrüßungstext dieses Einbaus. Gesetzt schlägt er die Studio-Config
+   *  (`welcome-config.yaml`), leer gilt sie. */
   readonly greeting = input('');
+  /**
+   * `start-replies` — die Einstiegs-Chips dieses Einbaus, als **JSON-Array**:
+   * `start-replies='["Was kannst du?","Suche starten"]'`. Gesetzt schlägt es
+   * die Studio-Config, wie `greeting` es für den Text tut.
+   *
+   * `[]` ist eine Aussage und heißt „keine Chips" — nur die Begrüßung. Nicht
+   * gesetzt heißt dagegen „die Studio-Vorgabe gilt"; ohne diesen Unterschied
+   * ließen sich die Chips gar nicht abschalten.
+   *
+   * JSON und nicht komma-getrennt, weil die Beschriftungen ganze Sätze sind
+   * und regelmäßig Kommas enthalten.
+   */
+  readonly startReplies = input('');
+  /**
+   * `show-welcome` — `false` startet mit LEEREM Chat: keine Startnachricht,
+   * keine Einstiegs-Chips, auch nicht nach „Neu starten".
+   *
+   * Für Einbettungen, die den Chat selbst anmoderieren und deshalb keine
+   * zweite Begrüßung wollen. Betrifft NUR diese statische Nachricht — die
+   * Kontext-Begrüßung des Backends hängt am Seitenkontext und bleibt.
+   */
+  readonly showWelcome = input<boolean | string>(true);
   readonly autoContext = input<boolean | string>(true);
   /** Debug-Umschalter in der Kopfzeile zeigen. */
   readonly showDebugButton = input<boolean | string>(true);
@@ -370,8 +395,17 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    *  und behaelt danach ihre Sprache — so wie jede andere Nachricht auch. */
   readonly configGreeting = computed(() => pickLocalized(
     this.guide.configGreeting(), this.guide.configGreetingEn(), this.activeLocale()));
-  readonly startReplies = computed(() => pickLocalized(
-    this.guide.startReplies(), this.guide.startRepliesEn(), this.activeLocale()));
+  /** Die Chips, die die Shell wirklich bekommt: Host-Attribut vor Studio-Config
+   *  — dieselbe Rangfolge wie beim Begrüßungstext (`greeting() || …` im
+   *  Template). `null` heißt „Attribut nicht gesetzt"; ein leeres Array heißt
+   *  „ausdrücklich keine" und darf deshalb NICHT auf die Config zurückfallen.
+   *  Der Host-Weg kennt keine zweite Sprache: wer je Einbau vorgibt, gibt genau
+   *  das vor, was dort stehen soll. */
+  readonly resolvedStartReplies = computed(() => {
+    const vomHost = _attrJsonStringArray(this.startReplies());
+    return vomHost ?? pickLocalized(
+      this.guide.startReplies(), this.guide.startRepliesEn(), this.activeLocale());
+  });
   /** Beide Fassungen gehen an die Shell — sie vergleicht den geklickten Chip
    *  gegen BEIDE, weil ein Sprachwechsel den Verlauf nicht nachuebersetzt. */
   readonly tourReply = this.guide.tourReply;

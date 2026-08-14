@@ -166,6 +166,11 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   readonly greeting = input('');
   /** Einstiegs-Quick-Replies (Studio-pflegbar; leer → hardkodierte Default-4). */
   readonly startReplies = input<string[]>([]);
+  /** `show-welcome` — `false` startet mit LEEREM Verlauf: keine Startnachricht,
+   *  keine Einstiegs-Chips. Für Einbettungen, die den Chat selbst anmoderieren
+   *  (Browser-Plugin, edu-sharing-Seite) und keine zweite Begrüßung wollen.
+   *  Die Kontext-Begrüßung des Backends hängt am Seitenkontext und bleibt. */
+  readonly showWelcome = input<boolean | string>(true);
   /** `show-language-buttons` — Host-Wunsch nach Mikro-/Vorlese-Buttons. Wirkt nur
    *  zusammen mit der Backend-Capability (siehe `languageButtonsVisible`). */
   readonly showLanguageButtons = input<boolean | string>(false);
@@ -357,6 +362,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     sessionCookieMaxAge: () => this.sessionCookieMaxAge(),
     greeting: () => this.greeting(),
     startReplies: () => this.startReplies(),
+    showWelcome: () => _attrIsTrue(this.showWelcome()),
     sessionId: () => this.sessionId,
     setSessionId: (id) => { this.sessionId = id; },
     resumedViaBsid: () => this._resumedViaBsid,

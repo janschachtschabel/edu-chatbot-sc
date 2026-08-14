@@ -39,6 +39,26 @@ export function _attrEnum<T extends string>(
 }
 
 /**
+ * Gemeinsamer Kopf der JSON-Attribute: trimmen, leer → `null`, Parse-Fehler →
+ * eine Zeile in der Konsole und `null`.
+ *
+ * Die Hülle `{ wert }` statt eines nackten `unknown` hat einen Grund: `null`
+ * ist selbst ein gültiger JSON-Wert. Ohne die Hülle ließe sich „kaputt" nicht
+ * von „hat wirklich `null` ergeben" unterscheiden, und der Aufrufer meldete den
+ * Tippfehler ein zweites Mal.
+ */
+function _jsonAttr(v: string | undefined): { wert: unknown } | null {
+  const s = (v ?? '').trim();
+  if (!s) return null;
+  try {
+    return { wert: JSON.parse(s) };
+  } catch (err) {
+    console.warn('boerdi: Attribut ist kein gültiges JSON und wird ignoriert', err);
+    return null;
+  }
+}
+
+/**
  * JSON-Objekt-Attribut lesen (`result-schema`, 2026-08-14). `null` heißt „kein
  * brauchbarer Wert" — leer, kaputt, oder kein Objekt.
  *
@@ -53,20 +73,51 @@ export function _attrEnum<T extends string>(
  * `[1,2,3]` weiter zu reichen hieße, den Fehler ans Backend zu delegieren.
  */
 export function _attrJsonObject(v: string | undefined): Record<string, unknown> | null {
-  const s = (v ?? '').trim();
-  if (!s) return null;
-  let wert: unknown;
-  try {
-    wert = JSON.parse(s);
-  } catch (err) {
-    console.warn('boerdi: Attribut ist kein gültiges JSON und wird ignoriert', err);
-    return null;
-  }
+  const gelesen = _jsonAttr(v);
+  if (!gelesen) return null;
+  const wert = gelesen.wert;
   if (!wert || typeof wert !== 'object' || Array.isArray(wert)) {
     console.warn('boerdi: Attribut ist kein JSON-Objekt und wird ignoriert', wert);
     return null;
   }
   return wert as Record<string, unknown>;
+}
+
+/**
+ * JSON-Array-Attribut mit Zeichenketten lesen (`start-replies`, 2026-08-14).
+ * `null` heißt „nicht gesetzt", `[]` heißt „ausdrücklich keine".
+ *
+ * Diese Unterscheidung IST der Grund für die Rückgabe `string[] | null`: nur so
+ * kann eine Einbettung die Studio-Chips abschalten. Gäbe es sie nicht, führe
+ * jedes leere Ergebnis zurück in die Vorgabe, und „keine Chips" wäre nicht
+ * sagbar.
+ *
+ * Warum JSON und nicht komma-getrennt wie `trusted-domains`: die Beschriftungen
+ * sind ganze Sätze und enthalten regelmäßig Kommas („Ich suche Inhalte zu einem
+ * Thema, bitte"). Eine Trennung am Komma zerschnitte sie still.
+ *
+ * Einträge werden getrimmt und leer-gefiltert — dieselbe Regel wie im
+ * Config-Weg (`parseGuideModeConfig`, C13): ungetrimmte Beschriftungen ließen
+ * den Tour-Chip-Vergleich in der Shell fehlschlagen. Nicht-Zeichenketten fallen
+ * mit Meldung heraus, statt über `String()` als „[object Object]" auf einer
+ * Schaltfläche zu landen.
+ */
+export function _attrJsonStringArray(v: string | undefined): string[] | null {
+  const gelesen = _jsonAttr(v);
+  if (!gelesen) return null;
+  const wert = gelesen.wert;
+  if (!Array.isArray(wert)) {
+    console.warn('boerdi: Attribut ist kein JSON-Array und wird ignoriert', wert);
+    return null;
+  }
+  const fremd = wert.filter((e) => typeof e !== 'string');
+  if (fremd.length) {
+    console.warn('boerdi: Einträge ohne Zeichenkette werden übergangen', fremd);
+  }
+  return wert
+    .filter((e): e is string => typeof e === 'string')
+    .map((e) => e.trim())
+    .filter(Boolean);
 }
 
 /**

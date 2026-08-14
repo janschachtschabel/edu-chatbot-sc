@@ -26,16 +26,62 @@ body {
   min-height: 100vh;
 }
 
+/* Zwei Reiter: „Einstellungen" scrollt, „Chat" füllt. Der Chat-Bereich wird
+   nur versteckt, nie entfernt — `<boerdi-chat>` hält Sitzung und Verlauf in
+   seiner Instanz, ein Neuaufbau verlöre beides. */
 main { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+#feldEinstellungen { overflow-y: auto; }
+main[hidden] { display: none; }   /* schlägt das display:flex oben */
 
-.leiste {
+/* Chat-Reiter: oben das Gespräch, unten das Ergebnis — je die Hälfte
+   (Nutzer-Vorgabe 2026-08-14). `min-height: 0` an beiden, sonst wächst der
+   Chat über seinen Anteil hinaus und schiebt die Ergebnisse aus dem Bild:
+   Flex-Kinder haben `min-height: auto` und schrumpfen sonst nicht. */
+#feldChat { padding: 0; }
+#feldChat .chatHalter { flex: 1 1 50%; min-height: 0; }
+#feldChat .ergebnisTeil {
+  flex: 1 1 50%;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--rand);
+  border-bottom: 0;
   padding: 10px 12px;
+}
+/* Die Überschrift bleibt beim Blättern stehen — sonst weiß man bei der
+   dritten Ergebnis-Blase nicht mehr, was man da liest. */
+#feldChat .ergebnisTeil h2 {
+  position: sticky;
+  top: -10px;
+  margin: -10px -12px 8px;
+  padding: 10px 12px 6px;
+  background: var(--grund);
+}
+
+.reiterleiste {
+  display: flex;
   border-bottom: 1px solid var(--rand);
+  background: var(--grund);
   position: sticky;
   top: 0;
-  background: var(--grund);
-  z-index: 2;
+  z-index: 3;
 }
+.reiterleiste button {
+  flex: 1;
+  padding: 10px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--leise);
+  font-weight: 600;
+}
+.reiterleiste button:hover { filter: none; color: var(--schrift); }
+.reiterleiste button[aria-selected="true"] {
+  color: var(--akzent);
+  border-bottom-color: var(--akzent);
+}
+/* Der Fokusring liegt innen — außen schnitte ihn die Leiste ab. */
+.reiterleiste button:focus-visible { outline-offset: -3px; }
 
 section {
   padding: 12px;

@@ -4,7 +4,7 @@
   "type": "module",
   "description": "NICHTS ZU INSTALLIEREN. Diese Datei sagt node allein, dass die .js-Dateien ES-Module sind (fuer scripts/check-context.mjs und scripts/fetch-widget.mjs). Es gibt keine dependencies und keinen Build-Schritt; die Erweiterung wird als entpackter Ordner geladen.",
   "scripts": {
-    "check": "node scripts/check-context.mjs && node scripts/check-ids.mjs",
+    "check": "node scripts/check-context.mjs && node scripts/check-backend.mjs && node scripts/check-tab.mjs && node scripts/check-schemas.mjs && node scripts/check-ergebnisse.mjs && node scripts/check-ids.mjs",
     "fetch-widget": "node scripts/fetch-widget.mjs"
   }
 }

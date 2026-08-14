@@ -27,10 +27,11 @@ export interface HostAttribute {
 }
 
 /**
- * The 25 host attributes of `<boerdi-chat>` (§5.5). ALT's table listed 17 —
+ * The 28 host attributes of `<boerdi-chat>` (§5.5). ALT's table listed 17 —
  * `inline-result-grouping`, the one 8-7 found dead, was the one it left out.
  * `language` came with C1-c, `embed-mode` with U1, `size` with U2a,
- * `show-cards` with U2b, `theme` with U4a.
+ * `show-cards` with U2b, `theme` with U4a, `result-schema` and then
+ * `start-replies` + `show-welcome` on 2026-08-14.
  */
 export const HOST_ATTRIBUTES: readonly HostAttribute[] = [
   {
@@ -68,6 +69,14 @@ export const HOST_ATTRIBUTES: readonly HostAttribute[] = [
   {
     groupKey: 'rw.group.basis', attr: 'greeting', fallback: '—',
     descKey: 'rw.attr.greeting',
+  },
+  {
+    groupKey: 'rw.group.basis', attr: 'start-replies', fallback: '',
+    fallbackKey: 'rw.default.empty', descKey: 'rw.attr.startReplies',
+  },
+  {
+    groupKey: 'rw.group.basis', attr: 'show-welcome', fallback: 'true',
+    descKey: 'rw.attr.showWelcome',
   },
   {
     groupKey: 'rw.group.session', attr: 'persist-session', fallback: 'true',

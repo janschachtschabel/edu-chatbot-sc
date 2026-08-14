@@ -147,6 +147,8 @@ Alle Werte sind HTML-Attribute, also Zeichenketten. Boolesche Attribute nehmen
 | `initial-state` | `collapsed` | `collapsed` \| `expanded` |
 | `primary-color` | leer | Akzentfarbe; validiert, schlägt bis in die Material-Token durch |
 | `greeting` | — | Begrüßung überschreiben (sonst die aus dem Studio) |
+| `start-replies` | leer | Einstiegs-Chips überschreiben, als **JSON-Array**; `[]` = keine Chips (§4a) |
+| `show-welcome` | `true` | `"false"` = **leerer Chat**: keine Startnachricht, keine Chips (§4a) |
 
 ### Sitzung
 
@@ -222,6 +224,54 @@ Drei Ebenen, von grob nach fein — die feinere gewinnt:
 
 Details, Deckel (`max_iterations` / `deadline_s` / `token_budget`) und die
 Schreib-Regel: [`agent-modus.md`](agent-modus.md).
+
+---
+
+## 4a. Begrüßung je Einbau — überschreiben oder abschalten
+
+Von Haus aus öffnet der Chat mit einer Begrüßung und vier Einstiegs-Chips. Beides
+pflegt die Redaktion im Studio (*Begrüßung* → `01-base/welcome-config.yaml`) und
+gilt damit für **alle** Einbettungen. Wo das nicht passt, entscheidet der Einbau:
+
+```html
+<boerdi-chat
+  api-url="https://chat.example"
+  greeting="Ich helfe beim Erschließen dieser Seite."
+  start-replies='["Fach und Stufe?","Qualität prüfen"]'>
+</boerdi-chat>
+```
+
+```html
+<!-- Leerer Chat: die Gastseite moderiert selbst an -->
+<boerdi-chat api-url="https://chat.example" show-welcome="false"></boerdi-chat>
+```
+
+Die Rangfolge ist bei beiden dieselbe wie überall: **Attribut schlägt Studio.**
+
+| gesetzt | Wirkung |
+|---|---|
+| `greeting="…"` | dieser Text statt dem aus dem Studio |
+| `start-replies='["A","B"]'` | diese Chips statt denen aus dem Studio |
+| `start-replies='[]'` | **keine** Chips — die Begrüßung bleibt |
+| `show-welcome="false"` | **gar keine** Startnachricht, auch nicht nach „Neu starten" |
+
+Drei Dinge, die man sonst erst im Betrieb merkt:
+
+* **`start-replies` ist JSON, keine Komma-Liste.** Die Beschriftungen sind ganze
+  Sätze und enthalten regelmäßig Kommas — am Komma getrennt zerfielen sie still.
+  Kaputtes JSON wird verworfen (mit einer Zeile in der Konsole), es gilt dann die
+  Studio-Vorgabe.
+* **Nicht gesetzt ≠ leer.** Ein weggelassenes `start-replies` heißt „die
+  Studio-Vorgabe gilt", `'[]'` heißt „ausdrücklich keine". Ohne diesen
+  Unterschied ließen sich die Chips gar nicht abschalten.
+* **`show-welcome="false"` betrifft NUR diese eine Nachricht.** Die
+  Kontext-Begrüßung („Du bist auf der Sammlung X…") hängt am Seitenkontext und
+  kommt weiter — wer auch sie nicht will, gibt keinen Kontext mit (§5). Das ist
+  Absicht: auf einer erkannten Seite ist sie meistens genau das, was man will.
+
+Der Host-Weg kennt keine zweite Sprache: wer je Einbau vorgibt, gibt genau das
+vor, was dort stehen soll. Die Deutsch/Englisch-Umschaltung greift nur bei den
+Studio-Werten.
 
 ---
 
@@ -538,10 +588,15 @@ Schema zu verwenden, das eine andere Form verlangen würde als ihr wolltet.
 
 ### Zum Anfassen: `examples/chrome-plugin/`
 
-Genau dieser Abschnitt als lauffähige Erweiterung — eine Seitenleiste mit
-Steuerung für Kontext (automatisch · manuell · aus), Auftrag, Schema und einer
-Liste, die je Zug zeigt, was strukturiert herauskommt. Kein Build, keine
-Abhängigkeiten; `examples/chrome-plugin/README.md` erklärt das Einrichten.
+Genau dieser Abschnitt als lauffähige Erweiterung — eine Seitenleiste mit zwei
+Reitern: „Einstellungen" (Kontext automatisch · manuell · aus, Auftrag, Schema)
+und „Chat" (oben das Gespräch, unten je Zug ein Eintrag mit dem, was strukturiert
+herauskommt). Kein Build, keine Abhängigkeiten; `examples/chrome-plugin/README.md`
+erklärt das Einrichten.
+
+Sie setzt zugleich `show-welcome="false"` aus §4a: der Auftrag steht schon im
+Feld daneben, eine Begrüßung würde von der ersten Antwort weggeschoben, bevor sie
+jemand liest.
 
 **Ein Punkt daraus, der jede Erweiterung betrifft:** Manifest V3 verbietet
 nachgeladenen Code. In einer Erweiterungs-**Seite** (Seitenleiste, Popup,
