@@ -11,26 +11,26 @@ er hat eine Maschine, die eine Aufgabe stellt und ein Ergebnis auswertet.
 
 **Vorab aufgelöst wird, was der Aufrufer ausdrücklich mitgegeben hat**, und nur
 das: Knoten über ``get_nodes_details``, die Sammlung über ``get_skill_registry``.
-Beides landet als *erledigter* Werkzeugaufruf in der Kette — dieselbe Bauart wie
-die Prefetch-Injektion in ``_assemble_messages``, weil der Anbieter ein
-``role=tool``-Ergebnis ohne den zugehörigen Aufruf ablehnt. Alles andere sucht
-sich der Agent selbst; das ist der Sinn der Sache.
+Alles andere sucht sich der Agent selbst; das ist der Sinn der Sache.
+
+*Wie* daraus ein erledigter Werkzeugaufruf in der Kette wird, steht seit P4 in
+``services/agent_prefetch`` — der Agent-Modus im Chat braucht dieselbe Mechanik
+(Seitenkontext statt Aufrufer-Angabe). Hier bleibt allein die Entscheidung, WAS
+vorab geholt wird.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
 from boerdi.api.schemas_agent import AgentRequest, AgentResponse
 from boerdi.domain.config_models.engine import AgentLimits
-from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.i18n.locale import resolve_locale
 from boerdi.i18n.prompt_language import language_name
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
-from boerdi.services import outcome_service
 from boerdi.services.agent_loop import run_agent_loop
+from boerdi.services.agent_prefetch import resolve_prefetch
 from boerdi.services.agent_tools import build_agent_tools
 from boerdi.services.agent_write import enforce_write_mode
 from boerdi.services.config_loader import load_engine
@@ -50,15 +50,6 @@ _SYSTEM = (
     "NICHT pruefen konntest, statt es zu ueberspielen.\n\n"
     "SPRACHE DER AUSGABE: {sprache}."
 )
-
-# Was in die Kette geht, wenn ein Vorab-Abruf scheitert. Ein gelöschter Knoten
-# oder ein wackliger MCP darf den Auftrag nicht kippen — der Agent arbeitet
-# weiter und sagt selbst, was ihm fehlt.
-_VORAB_FEHLER = (
-    "Diese Angaben liessen sich nicht abrufen. Arbeite ohne sie weiter und sage "
-    "im Ergebnis ausdruecklich, dass sie fehlen."
-)
-
 
 def _limits(vorgabe: AgentLimits, req: AgentRequest) -> AgentLimits:
     """Die Deckel dieses Laufs — Konfiguration, wahlweise vom Aufrufer verschoben.
@@ -83,34 +74,6 @@ def _vorab_aufrufe(req: AgentRequest) -> list[tuple[str, dict[str, Any]]]:
     return aufrufe
 
 
-async def _resolve_prefetch(
-    messages: list[dict[str, Any]], req: AgentRequest, progress: TurnProgress
-) -> None:
-    """Die Vorab-Abrufe ausführen und als erledigte Werkzeugaufrufe anhängen."""
-    for i, (name, args) in enumerate(_vorab_aufrufe(req)):
-        progress.record("agent_prefetch", f"Hole {name}", {"tool": name})
-        try:
-            text, _outcome = await outcome_service.call_with_outcome(name, args)
-        except Exception:
-            logger.warning("Agent-Lauf: Vorab-Abruf %s fehlgeschlagen", name,
-                           exc_info=True)
-            text = _VORAB_FEHLER
-        call_id = f"prefetch-{i}"
-        messages.append({
-            "role": "assistant", "content": None,
-            "tool_calls": [{
-                "id": call_id, "type": "function",
-                "function": {"name": name, "arguments": json.dumps(args)},
-            }],
-        })
-        messages.append({
-            "role": "tool", "tool_call_id": call_id,
-            # Dritte Naht der Vertrauensgrenze (D4): ``get_skill_registry``
-            # liefert die Freigabetexte der Redaktion, also Fremdtext.
-            "content": frame_untrusted(name, text),
-        })
-
-
 async def run_agent(
     req: AgentRequest,
     *,
@@ -125,7 +88,7 @@ async def run_agent(
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": _SYSTEM.format(sprache=language_name(sprache))},
     ]
-    await _resolve_prefetch(messages, req, progress)
+    await resolve_prefetch(messages, _vorab_aufrufe(req), progress=progress)
     messages.append({"role": "user", "content": req.instruction})
 
     lauf = await run_agent_loop(

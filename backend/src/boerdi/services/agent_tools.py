@@ -31,6 +31,14 @@ from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 #: ihn zwei Module vergleichen (hier gebaut, in ``agent_loop`` erkannt).
 SUBMIT_RESULT = "submit_result"
 
+#: Werkzeuge, die im Katalog stehen, aber KEINEM Lauf angeboten werden.
+#:
+#: ``search_skill`` (Nutzer-Entscheid 2026-08-13): der Weg zu einer Anleitung
+#: fuehrt ueber die Sammlung, die sie freigegeben hat. Die Definition bleibt im
+#: Katalog — sie beschreibt ein Werkzeug, das der MCP-Server hat, und ein
+#: Bestands-Waechter nennt sie —, aber kein Pfad reicht sie dem Modell.
+AUS_DEM_KATALOG = frozenset({"search_skill"})
+
 _SUBMIT_DESCRIPTION = (
     "Schliesse die Arbeit ab. Rufe dieses Werkzeug GENAU EINMAL, wenn du fertig "
     "bist — es beendet den Lauf. Solange du es nicht rufst, arbeitest du weiter. "
@@ -106,8 +114,16 @@ def build_agent_tools(
     ``list(TOOL_DEFINITIONS)`` und nicht die Modul-Globale selbst: unten wird
     angehaengt, und eine Referenz schriebe in den Katalog. Genau so wuchs er im
     E2-Fund bei jedem Zug um einen Eintrag.
+
+    **``search_skill`` faellt heraus** (Nutzer-Entscheid 2026-08-13). Der Weg zu
+    einer Anleitung fuehrt ueber die Sammlung, die sie freigegeben hat, nicht
+    ueber eine freie Suche. Gemessen am selben Tag: mit der nodeId einer
+    Fachsammlung liefert das Werkzeug ohnehin nichts (die Anleitungen liegen im
+    Arbeitsbereich, die Sammlung fuehrt nur die Freigabeliste) — und es sagt dem
+    Modell dann, das Nichts sei normal. Ein Lauf ohne Anleitung, der nicht
+    merkt, dass es eine gab, ist der schlechteste Ausgang.
     """
-    tools = list(TOOL_DEFINITIONS)
+    tools = [t for t in TOOL_DEFINITIONS if t["function"]["name"] not in AUS_DEM_KATALOG]
     if allow_curation and has_auth_token():
         tools.extend(CURATION_TOOL_DEFINITIONS)
     if blocked_tools:

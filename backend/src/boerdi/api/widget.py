@@ -138,8 +138,14 @@ def widget_bundle() -> Response:
 #: ``/api``-Fläche, und ein deklarierter Parameter ist hier der ehrlichere Weg —
 #: er steht in ``/docs`` und FastAPI prüft die Länge, bevor der Wert die
 #: Erlaubnisliste in ``widget_demo_context`` überhaupt erreicht.
-_Kontext = Annotated[str, Query(max_length=32)]
-_Wert = Annotated[str, Query(max_length=2048)]
+#:
+#: Seit P5 ``None``-fähig, und das ist keine Kosmetik: ``None`` heisst „stand
+#: nicht in der Adresse" — dann greift die Voreinstellung —, ``""`` heisst
+#: „nichts Bestimmtem", also ausdrücklich aus. Das Formular schickt immer beide
+#: Felder mit; ohne diesen Unterschied käme die Voreinstellung zurück, sobald
+#: man sie abwählt (``widget_demo_context.resolve_choice``).
+_Kontext = Annotated[str | None, Query(max_length=32)]
+_Wert = Annotated[str | None, Query(max_length=2048)]
 
 
 @public_router.get("/")
@@ -149,19 +155,19 @@ def widget_demo() -> Response:
 
 
 @public_router.get("/inline")
-def widget_demo_inline(kontext: _Kontext = "", wert: _Wert = "") -> Response:
+def widget_demo_inline(kontext: _Kontext = None, wert: _Wert = None) -> Response:
     """The embedded look: frameless inside the page's own container, open."""
     return HTMLResponse(widget_demo_html.inline_page((kontext, wert)))
 
 
 @public_router.get("/classic")
-def widget_demo_classic(kontext: _Kontext = "", wert: _Wert = "") -> Response:
+def widget_demo_classic(kontext: _Kontext = None, wert: _Wert = None) -> Response:
     """The default embed: the floating owl button, opening on click."""
     return HTMLResponse(widget_demo_html.classic_page((kontext, wert)))
 
 
 @public_router.get("/frameless")
-def widget_demo_frameless(kontext: _Kontext = "", wert: _Wert = "") -> Response:
+def widget_demo_frameless(kontext: _Kontext = None, wert: _Wert = None) -> Response:
     """The frameless embed (U1), started collapsed — the "give it a height" case."""
     return HTMLResponse(widget_demo_html.frameless_page((kontext, wert)))
 

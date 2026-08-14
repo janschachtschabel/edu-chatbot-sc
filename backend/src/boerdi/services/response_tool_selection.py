@@ -39,6 +39,7 @@ import os
 from typing import Any
 
 from boerdi.domain.write_confirm import CURATION_TOOLS
+from boerdi.services.agent_tools import AUS_DEM_KATALOG
 from boerdi.services.mcp.auth import has_auth_token
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
@@ -58,10 +59,21 @@ def _nameable_tools() -> list[dict]:
     ``TOOL_DEFINITIONS`` als Ganzes weiter; stünden die schreibenden darin,
     bekäme sie jedes Muster mit ``sources: [mcp]`` — also auch die reinen
     Suchmuster. Kuratieren muss ein Muster ausdrücklich nennen.
+
+    **``AUS_DEM_KATALOG`` fällt hier heraus** (P3, Nutzer-Entscheid 2026-08-13).
+    Die Agent-Schleife filtert dieselbe Menge in ``build_agent_tools``; für den
+    Muster-Weg hing die Entscheidung bis dahin allein daran, dass kein Seed das
+    Werkzeug mehr nennt. Muster leben aber in der Datenbank: bis zum
+    Seed-Import stehen dort die alten, und im Studio lässt sich der Name wieder
+    eintragen. „Darf ein Muster namentlich anfordern" ist genau die Frage, die
+    diese Funktion beantwortet — also gehört die Antwort hierher und nicht in
+    die Daten.
     """
-    if not has_auth_token():
-        return TOOL_DEFINITIONS
-    return [*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS]
+    katalog = (
+        TOOL_DEFINITIONS if not has_auth_token()
+        else [*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS]
+    )
+    return [t for t in katalog if t["function"]["name"] not in AUS_DEM_KATALOG]
 
 
 def _pattern_curates(pattern_output: dict[str, Any]) -> bool:

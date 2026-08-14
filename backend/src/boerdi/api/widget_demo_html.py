@@ -28,13 +28,18 @@ from __future__ import annotations
 
 from html import escape
 
-from boerdi.api import widget_demo_context, widget_demo_controls, widget_demo_layout
+from boerdi.api import (
+    widget_demo_context,
+    widget_demo_controls,
+    widget_demo_layout,
+    widget_demo_snippet,
+)
 
 #: Beide Melde-Attribute sind auf den Live-Seiten an: sonst bliebe der
 #: Ereignis-Spiegel leer, und die Seite sähe kaputt aus statt still.
 _EMIT = {"emit-guide-suggestion": "true", "emit-routing-debug": "true"}
 
-#: Der Host-Container der rahmenlosen Einbauten. Er ist die Seite, nicht Zierrat:
+#: Der Kasten der eingebetteten Seite. Er ist die Seite, nicht Zierrat:
 #: rahmenlos legt mit dem Rahmen auch die eigene Grösse ab, ein Element also, das
 #: blank im Textfluss steht, hat keine Höhe und zeigt — still — nichts.
 #: `overflow: hidden` beschneidet den Chat auf die runde Ecke, die der GASTGEBER
@@ -44,6 +49,52 @@ _FRAME_STYLE = """
            border-radius: .75rem; overflow: hidden; }
   @media (prefers-color-scheme: dark) { .frame { border-color: #33373b; } }
 """
+
+#: Ab dieser Fensterbreite steht die Spalte fest neben dem Text. EINE Quelle für
+#: Stilblatt und Fliesstext: die Zahl stand zweimal da und lief auseinander
+#: (Blatt 88, Vorspann noch 84 aus der ersten Fassung).
+_SPALTE_UMBRUCH = "88rem"
+
+#: Die Spalte der rahmenlosen Seite (P9). Dieselbe Regel wie beim Kasten —
+#: Grösse kommt vom Gastgeber —, nur sichtbar anders: der Chat steht NEBEN dem
+#: Inhalt statt in ihm. Das ist der Fall, den ein CMS wirklich baut, und der
+#: Unterschied, den der Nutzer zwischen den beiden rahmenlosen Seiten vermisste.
+#:
+#: **Nachgerechnet, nicht geschätzt** — und beim zweiten Anlauf richtig. Der
+#: Textkörper ist ``max-width: 60rem`` mit ``margin: auto``, der freie Rand
+#: rechts also ``(W-60)/2``; die Spalte belegt 22rem plus 1.5rem Abstand.
+#: Zentriert bliebe sie erst ab 107rem überlappungsfrei — bis dahin läge sie
+#: ÜBER dem Text. Deshalb rückt der Textkörper in derselben Media Query nach
+#: links. Die Rechnung MIT seinem Innenabstand (``padding: 0 1.25rem``, und das
+#: Blatt setzt kein ``box-sizing``, der Kasten ist also 62.5rem breit):
+#:
+#: * Text endet bei 1.75 + 1.25 + 60 = **63rem**, sein Kasten bei 64.25rem.
+#: * Spalte beginnt bei 88 - 1.5 - 22 = **64.5rem**.
+#: * Dazwischen 1.5rem Luft, und der Kasten stösst nicht an.
+#:
+#: Die erste Fassung rechnete ohne den Innenabstand und kam auf 3rem Rand — da
+#: waren es 0.25rem. Nachgerechnet hält das jetzt
+#: ``test_the_frameless_column_leaves_the_text_its_room``.
+#:
+#: Unterhalb des Umbruchs ist sie ein gewöhnlicher Kasten im Fluss — kein
+#: Querscrollen, nichts verdeckt. Der Ereignis-Spiegel sitzt unten LINKS und
+#: kommt ihr deshalb nicht in die Quere.
+_SPALTE_STYLE = """
+  .spalte { block-size: min(32rem, 70vh); border: 1px solid #d1d5db;
+            border-radius: .75rem; overflow: hidden; }
+  @media (min-width: %(umbruch)s) {
+    body { margin-inline: 1.75rem auto; }
+    .spalte { position: fixed; inset-block: 1.5rem; inset-inline-end: 1.5rem;
+              inline-size: 22rem; block-size: auto; }
+  }
+  @media (prefers-color-scheme: dark) { .spalte { border-color: #33373b; } }
+"""
+
+#: Die Wahl des Kontext-Simulators, so wie sie aus dem Query-String kommt.
+#: ``None`` = der Parameter fehlt (dann greift die Voreinstellung), ``""`` =
+#: ausdrücklich abgewählt. Aufgelöst wird beides an EINER Stelle, in
+#: ``_live_page`` — siehe ``widget_demo_context.resolve_choice``.
+_Wahl = tuple[str | None, str | None]
 
 
 def _element(**attrs: str) -> str:
@@ -70,7 +121,7 @@ def _live_page(
     lead: str,
     pfad: str,
     attrs: dict[str, str],
-    kontext: tuple[str, str] = ("", ""),
+    kontext: _Wahl = (None, None),
     extra_style: str = "",
     ohne_schalter: tuple[str, ...] = (),
     wrap: str = "%s",
@@ -81,7 +132,29 @@ def _live_page(
     für beide, sonst zeigte das Pult einen Anfangszustand, den die Seite gar
     nicht hat. ``kontext`` ist die Wahl des Kontext-Simulators; sie kann
     ``attrs`` um ``page-context``/``auto-context`` ergänzen.
+
+    Die Voreinstellung wird hier aufgelöst, an der einen Stelle, an der Element
+    und Bedienfeld dieselbe Wahl bekommen — sonst zeigte das Feld etwas anderes,
+    als am Element steht.
+
+    **Der Startzustand bleibt der der Seite (P6).** Naheliegend wäre gewesen,
+    bei gesetztem Kontext überall ``initial-state="expanded"`` zu ergänzen —
+    geschlossen ist die Chat-Shell nämlich gar nicht gemountet
+    (``PanelState.everExpanded`` ist der Lazy-Mount-Latch), also läuft
+    ``_greetOnFirstLoad`` nicht und es gibt keine Bestätigung zu sehen (B-5).
+    Gebaut, gemessen, zurückgenommen: die Lage einer Seite ist das Paar
+    (``embed-mode``, ``initial-state``), und drei Seiten belegen bereits alle
+    drei Kombinationen. Ein erzwungenes ``expanded`` macht ``/inline`` und
+    ``/frameless`` identisch — der Nutzer-Befund „sehen alle gleich aus", gegen
+    den ``test_the_three_live_demos_differ_in_their_embed_situation`` steht, und
+    das Gegenteil dessen, was P9 aus den beiden machen soll.
+
+    Sichtbar wird die Bestätigung deshalb dort, wo sie hingehört: auf
+    ``/inline`` sofort (die Seite startet ohnehin offen und trägt seit P5 einen
+    Kontext), auf den beiden anderen beim Öffnen — und der Hinweis im
+    Kontext-Feld sagt es, statt ihnen ihre Einbau-Lage zu nehmen.
     """
+    kontext = widget_demo_context.resolve_choice(*kontext)
     kontext_attrs = widget_demo_context.element_attributes(*kontext)
     body = (
         widget_demo_controls.panel(attrs, exclude=ohne_schalter)
@@ -89,6 +162,7 @@ def _live_page(
     )
     tail = (
         widget_demo_layout.inspector()
+        + widget_demo_snippet.snippet_watcher()
         + '\n<script src="/widget/boerdi-widget.js" defer></script>\n'
         + wrap % _element(**attrs, **kontext_attrs)
     )
@@ -98,6 +172,10 @@ def _live_page(
         aktuell=pfad,
         body=body,
         tail=tail,
+        # Dieselbe Quelle wie Element und Bedienpult (U8). Der Schnipsel zeigt
+        # damit die Lage DIESER Seite; das Skript im Schwanz zieht ihn nach,
+        # sobald jemand am Pult dreht.
+        snippet=widget_demo_snippet.embed_snippet(attrs),
         extra_style=widget_demo_controls.style()
         + widget_demo_context.style()
         + extra_style,
@@ -119,17 +197,18 @@ _UEBERSICHT = """
     </tr>
     <tr>
       <td><a href="/widget/inline">Eingebettet</a></td>
-      <td>Der Chat steht offen <em>in</em> der Seite, in einem Kasten, den die
-          Seite selbst stellt. Kein Knopf, keine eigene Kopfzeile — so tritt das
-          Widget auf einer Themenseite oder in einem fremden CMS auf.</td>
+      <td>Der Chat steht offen <em>im Textfluss</em> der Seite, in einem Kasten
+          zwischen zwei Absätzen. Kein Knopf, keine eigene Kopfzeile — so tritt
+          das Widget auf einer Themenseite auf.</td>
       <td><code>embed-mode</code>, <code>initial-state</code></td>
     </tr>
     <tr>
       <td><a href="/widget/frameless">Rahmenlos</a></td>
-      <td>Dieselbe Lage, aber geschlossen gestartet und mit dem Hinweis, was
-          passiert, wenn der Gastgeber keine Höhe vorgibt: dann ist das Widget
-          null Pixel hoch und man sieht gar nichts.</td>
-      <td><code>embed-mode</code></td>
+      <td>Dieselbe Betriebsart, andere Lage: als Spalte <em>neben</em> dem
+          Inhalt, über dessen ganze Höhe — der Fall, den ein CMS als Seitenpanel
+          baut. Beide zeigen dabei dieselbe Regel: Grösse und Platz kommen vom
+          Gastgeber, sonst ist das Widget null Pixel hoch.</td>
+      <td><code>embed-mode</code>, <code>initial-state</code></td>
     </tr>
   </tbody>
 </table>
@@ -166,7 +245,7 @@ def index_page() -> str:
     )
 
 
-def classic_page(kontext: tuple[str, str] = ("", "")) -> str:
+def classic_page(kontext: _Wahl = (None, None)) -> str:
     """Der Vorgabe-Einbau: schwebender Eulen-Knopf, geschlossen.
 
     Weder ``embed-mode`` noch ``initial-state`` stehen am Element — die Vorgaben
@@ -176,24 +255,36 @@ def classic_page(kontext: tuple[str, str] = ("", "")) -> str:
     return _live_page(
         title="Schwebender Knopf",
         lead="Unten rechts öffnet die Eule den Chat. So sieht der Einbau aus, den "
-             "eine Gastseite mit zwei Zeilen bekommt: das Widget erkennt Adresse "
-             "und Titel dieser Seite selbst (<code>auto-context</code>) und meldet, "
-             "was es nach aussen gibt.",
+             "eine Gastseite mit zwei Zeilen bekommt; der Ereignis-Spiegel zeigt, "
+             "was das Widget dabei nach aussen meldet. Woher es weiss, wo es "
+             "steht, entscheidet der Simulator: mit „nichts Bestimmtem“ erkennt es "
+             "Adresse und Titel dieser Seite selbst (<code>auto-context</code>), "
+             "sonst gilt die dort gewählte Seite. Die Bestätigung dazu kommt, "
+             "sobald du den Chat öffnest — vorher ist er nicht aufgebaut.",
         pfad="/widget/classic",
         attrs={"position": "bottom-right", **_EMIT},
         kontext=kontext,
     )
 
 
-def inline_page(kontext: tuple[str, str] = ("", "")) -> str:
-    """Eingebettet: rahmenlos im Container der Seite, offen von Anfang an."""
+def inline_page(kontext: _Wahl = (None, None)) -> str:
+    """Eingebettet: der Kasten IM Textfluss, offen von Anfang an.
+
+    Der Kasten steht seit P9 zwischen zwei Absätzen und nicht mehr unter allen
+    Abschnitten am Seitenende. Vorher unterschied sich diese Seite von der
+    rahmenlosen nur in ``initial-state`` — für den Nutzer „kein echter
+    Unterschied", und er hatte recht: was eine rahmenlose Einbettung ausmacht,
+    ist die Lage, die der GASTGEBER ihr gibt.
+    """
     return _live_page(
         title="Eingebettet",
         lead="Mit <code>embed-mode=\"frameless\"</code> füllt das Widget den Kasten, "
              "in dem es steht, und mit <code>initial-state=\"expanded\"</code> steht "
              "es offen da — kein Eulen-Knopf, keine eigene Kopfzeile, kein Rahmen. "
              "Kopfzeile und Navigation stellt die Gastanwendung. Zusätzlich sind "
-             "Mikrofon, Vorlesen und der Debug-Knopf aus, wie in einem fremden CMS.",
+             "Mikrofon, Vorlesen und der Debug-Knopf aus, wie in einem fremden CMS. "
+             "Ganz unten steht der Kasten mitten im Text — so, wie er auf einer "
+             "Themenseite zwischen zwei Abschnitten stünde.",
         pfad="/widget/inline",
         attrs={
             "embed-mode": "frameless",
@@ -206,28 +297,50 @@ def inline_page(kontext: tuple[str, str] = ("", "")) -> str:
         extra_style=_FRAME_STYLE,
         # Kein Eulen-Knopf, also auch kein Schalter für dessen Ecke.
         ohne_schalter=("position",),
-        wrap='<div class="frame">\n%s\n</div>',
+        # Text davor und danach: erst dadurch ist „eingebettet" zu SEHEN und
+        # nicht nur behauptet. Der Kasten selbst bleibt ein gewöhnliches
+        # ``<div>`` dieser Seite.
+        wrap=(
+            "<p>Hier läuft der Fliesstext der Gastseite — und mitten darin steht "
+            "der Chat:</p>\n"
+            '<div class="frame">\n%s\n</div>\n'
+            "<p>… und danach geht der Text weiter. Der Kasten oben ist ein "
+            "gewöhnliches <code>&lt;div&gt;</code> dieser Seite; das Widget füllt "
+            "ihn aus, mehr nicht.</p>"
+        ),
     )
 
 
-def frameless_page(kontext: tuple[str, str] = ("", "")) -> str:
-    """Rahmenlos pur — dieselbe Lage wie ``/inline``, aber geschlossen gestartet.
+def frameless_page(kontext: _Wahl = (None, None)) -> str:
+    """Rahmenlos als **Spalte neben dem Inhalt** — der CMS-Fall (P9).
 
-    Der Unterschied ist die Lektion: rahmenlos legt mit dem Rahmen auch die
-    eigene Grösse ab. Wer den Container vergisst, sieht nichts — ohne Fehler.
+    Bis P9 war diese Seite ``/inline`` mit ``initial-state`` weniger: derselbe
+    Kasten, dieselbe Lage. Jetzt trägt sie die zweite Art, rahmenlos einzubauen —
+    eine Spalte, die neben dem Seiteninhalt steht und dessen ganze Höhe nutzt.
+
+    **Offen gestartet, anders als vorher.** Eine leere Spalte sähe schlicht
+    kaputt aus, während ein leerer Kasten im Text noch als Lektion durchging.
+    Die Lektion selbst bleibt und ist hier sogar deutlicher: rahmenlos legt mit
+    dem Rahmen auch die eigene Grösse ab — Breite und Höhe der Spalte kommen aus
+    dem Stilblatt DIESER Seite.
     """
     return _live_page(
         title="Rahmenlos",
-        lead="Wie <a href='/widget/inline'>Eingebettet</a>, aber ohne "
-             "<code>initial-state</code>: das Widget startet geschlossen und der "
-             "Kasten bleibt zunächst leer. Genau daran hängt die Regel — der Kasten "
-             "unten ist ein gewöhnliches <code>&lt;div&gt;</code> dieser Seite, und "
-             "seine Höhe kommt von hier, nicht vom Widget. Ohne ihn wäre das "
-             "Element null Pixel hoch, und man sähe gar nichts.",
+        lead="Dieselbe Betriebsart wie <a href='/widget/inline'>Eingebettet</a>, "
+             "aber eine andere Einbau-Lage: der Chat steht als Spalte <em>neben</em> "
+             "dem Inhalt statt in ihm — so baut ein CMS ein Seitenpanel. Ab "
+             f"{_SPALTE_UMBRUCH} Fensterbreite steht sie rechts und nutzt die volle Höhe, "
+             "darunter rückt sie als gewöhnlicher Kasten unter den Text; sonst läge "
+             "sie darüber. Beides kommt aus dem Stilblatt dieser Seite: rahmenlos "
+             "legt mit dem Rahmen auch die eigene Grösse ab, und ohne Container "
+             "wäre das Element null Pixel hoch — man sähe gar nichts, ohne Fehler.",
         pfad="/widget/frameless",
-        attrs={"embed-mode": "frameless", **_EMIT},
+        # Offen: eine leere Spalte wäre kein Lehrstück, sondern ein Defekt.
+        attrs={"embed-mode": "frameless", "initial-state": "expanded", **_EMIT},
         kontext=kontext,
-        extra_style=_FRAME_STYLE,
+        # Umbruchbreite am Gebrauchsort eingesetzt, wie bei den anderen
+        # Vorlagen dieses Pakets — dieselbe Zahl steht oben im Vorspann.
+        extra_style=_SPALTE_STYLE % {"umbruch": _SPALTE_UMBRUCH},
         ohne_schalter=("position",),
-        wrap='<div class="frame">\n%s\n</div>',
+        wrap='<div class="spalte">\n%s\n</div>',
     )

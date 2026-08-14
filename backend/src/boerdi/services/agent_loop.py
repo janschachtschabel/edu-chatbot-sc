@@ -46,6 +46,7 @@ from boerdi.obs.usage import new_accumulator
 from boerdi.services import llm, outcome_service
 from boerdi.services.agent_tools import SUBMIT_RESULT
 from boerdi.services.agent_write import WriteGate
+from boerdi.services.mcp.parsers import skill_registry_note
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +247,14 @@ async def run_agent_loop(
             # ist eine Anweisung ans Modell, für einen Parser nur Störung).
             if on_tool_result is not None:
                 on_tool_result(name, beobachtet)
-            messages.append(_tool_turn(tc.id, frame_untrusted(name, beobachtet)))
+            # P1: der Freigabe-Katalog, den das Ergebnis mitbringt — ausserhalb
+            # des Rahmens, weil er unsere Anweisung ist. Auf ``beobachtet``,
+            # nicht auf ``text``: was die Schlüssel-Redaktion entfernt hat, darf
+            # auch hier nicht wieder auftauchen.
+            messages.append(_tool_turn(
+                tc.id,
+                frame_untrusted(name, beobachtet) + skill_registry_note(beobachtet),
+            ))
 
     logger.info("Agent-Schleife: Iterationsdeckel von %s erreicht", limits.max_iterations)
     return _ended(run, "max_iterations")

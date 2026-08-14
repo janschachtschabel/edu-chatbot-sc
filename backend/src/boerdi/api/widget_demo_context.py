@@ -90,6 +90,40 @@ KINDS: tuple[ContextKind, ...] = (
 
 _BY_ID = {k.id: k for k in KINDS}
 
+#: Womit die Demo-Seiten starten, wenn in der Adresse nichts steht: die Sammlung
+#: „Optik". Gegen sie liefen die vier Live-Züge aus §1 des Plans (2026-08-13),
+#: und sie trägt eine Skill-Registry der Redaktion — also genau der Fall, für den
+#: P1/P2/P4 gebaut wurden. Wer die Demo aufruft, soll ihn sehen, ohne eine UUID
+#: abzutippen.
+#:
+#: Eine ECHTE ID, kein Muster: die Demo-Seiten sprechen mit dem echten Backend,
+#: eine erfundene zeigte die Reaktion auf eine Sammlung, die es nicht gibt.
+#: Verschwindet sie eines Tages aus dem Repository, begrüsst die Demo ins Leere —
+#: aber sichtbar: die Wahl steht im Bedienfeld darunter, und ein Test hält fest,
+#: dass sie die Erlaubnisliste besteht (ein Tippfehler hier sähe sonst aus wie
+#: „gar keine Voreinstellung").
+DEFAULT_CHOICE: tuple[str, str] = ("collection", "9e7ae956-e9df-430f-bace-f3db4b910013")
+
+
+def resolve_choice(kind_id: str | None, wert: str | None) -> tuple[str, str]:
+    """Die Wahl aus der Adresse — oder die Voreinstellung, wenn nichts dastand.
+
+    ``None`` heisst „der Parameter fehlt", ``""`` heisst „nichts Bestimmtem",
+    also ausdrücklich AUS. Die beiden auseinanderzuhalten ist der ganze Punkt:
+    das Formular schickt immer beide Felder mit, der Ausschalter reist also als
+    *vorhandener* leerer Wert. Läge die Grenze bei „leer", käme die
+    Voreinstellung zurück, sobald man sie abwählt — der Ausschalter wäre ein
+    Knopf, der nichts tut.
+
+    Nur wenn **beide** fehlen, greift die Vorgabe. Ein von Hand getipptes
+    ``?kontext=topic`` ist eine Wahl, auch ohne Wert: dann steht „Themenseite"
+    im Feld und das Feld ist leer, statt dass eine Sammlungs-UUID darin
+    erschiene, die zu diesem Typ nicht passt.
+    """
+    if kind_id is None and wert is None:
+        return DEFAULT_CHOICE
+    return kind_id or "", wert or ""
+
 
 def _valid(kind: ContextKind, wert: str) -> bool:
     if kind.field in ("collection_id", "node_id"):
@@ -190,10 +224,19 @@ _PANEL = """
   </form>
 %(fehler)s
   <p class="kontext-hinweis">
+    Steht in der Adresse nichts, startet diese Seite auf einem vorbereiteten
+    Beispiel — der Sammlung, die dann oben im Feld steht. Was der Chat zur
+    Begrüssung sagt, kommt in dem Fall aus dieser Simulation und nicht von der
+    Demo-Seite selbst.
     Die Wahl steht in der Adresse dieser Seite — sie überlebt also das Neuladen
     und lässt sich verschicken. Das Widget bekommt sie beim Aufbau als
     <code>page-context</code>, mit abgeschaltetem <code>auto-context</code>:
     sonst trüge der Detektor die Adresse DIESER Seite bei.
+    Die Bestätigung zum Kontext kommt, <strong>sobald der Chat offen ist</strong>
+    — geschlossen ist er noch gar nicht aufgebaut und fragt beim Backend nicht an.
+    Auf „Eingebettet" steht er von Anfang an offen, dort erscheint sie sofort;
+    auf den beiden anderen Seiten beim ersten Öffnen. Wer sie auch dort ohne
+    Klick sehen will, stellt im Bedienpult „Beim Laden" auf „offen".
     „Anwenden" lädt die Seite neu — die Schalter im Bedienpult darüber beginnen
     danach wieder bei den Vorgaben dieser Seite.
     Zum Zurücksetzen „nichts Bestimmtem" wählen.

@@ -20,6 +20,13 @@ vom Chat-Zug ERBT.** Jedes dieser vier Stücke ginge sonst still verloren:
 * der **spekulative Vorabruf** aus ``merge``: er wird hier nie verbraucht und
   deshalb abgebrochen — sonst laufen die Tasks unbeobachtet weiter. Für die
   Schnellweg-Routen tut ``respond`` genau dasselbe.
+* der **Seitenkontext** (P4, 2026-08-13). Der Bestandsweg reicht ihn über
+  ``response_prompt_builder`` in den Systemprompt; hier wird die Kette selbst
+  gebaut, und er fiel weg. Live gemessen (Befund B-2): auf einer Sammlungsseite
+  fragte der Agent „welche Sammlung meinst du?" — die ID stand in
+  ``page_context``. Steht dort eine Sammlung, wird ihre Freigabeliste dazu
+  **vorab geholt** (``agent_prefetch``), damit der Katalog in der Kette steht,
+  bevor der Agent auf die Idee kommen könnte, danach zu fragen.
 
 **Ohne ``submit_result``.** Im Chat liest niemand das strukturierte ``result``,
 und die Beschreibung des Werkzeugs verlangt einen zusätzlichen Modellzug (2–9 s
@@ -47,7 +54,9 @@ from boerdi.i18n.bot_text import bot_text
 from boerdi.i18n.prompt_language import language_name
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import cancel_and_drain
+from boerdi.services import page_context
 from boerdi.services.agent_loop import AgentRun, run_agent_loop
+from boerdi.services.agent_prefetch import resolve_prefetch
 from boerdi.services.agent_tools import build_agent_tools
 from boerdi.services.agent_write import enforce_write_mode
 from boerdi.services.card_collect import collect_cards
@@ -86,6 +95,24 @@ async def _verwirf_vorabruf(ctx: TurnContext) -> None:
         logger.info("Agent-Modus: %d spekulative Vorabrufe verworfen", verworfen)
 
 
+def _vorab_aufrufe(seite: dict) -> list[tuple[str, dict]]:
+    """Was der Seitenkontext an Vorabrufen bestellt (P4).
+
+    Nur ``collection_id``: es ist das einzige Feld, aus dem ein
+    ``collectionId``-Argument wird. Steht keine Sammlung auf der Seite, gäbe es
+    nichts zu übergeben — der Aufruf wäre eine Rundreise ohne Ertrag.
+    Themenseiten sind im Bestand Sammlungen und tragen das Feld mit; sie sind
+    damit ohne eigene Regel abgedeckt.
+
+    Absichtlich NICHT ``node_ids``: was auf der Seite steht, sagt schon der
+    Seitenblock, und ein Detail-Abruf je Zug kostet mehr, als er trägt.
+    """
+    sammlung = (seite.get("collection_id") or "").strip()
+    if not sammlung:
+        return []
+    return [("get_skill_registry", {"collectionId": sammlung})]
+
+
 #: Enden, bei denen der Lauf an einen Deckel gestoßen ist statt zu scheitern —
 #: der Nutzer kann selbst etwas tun (kleiner schneiden). Alles andere ist ein
 #: Fehlschlag und bekommt den Wiederhol-Satz.
@@ -120,10 +147,19 @@ async def respond_agent(
     await _verwirf_vorabruf(ctx)
 
     sprache = resolve_locale(ctx.req.environment.locale)
+    seite = ctx.req.environment.page_context or {}
     messages: list[dict] = [
         {"role": "system", "content": _SYSTEM.format(sprache=language_name(sprache))},
     ]
+    # P4: der Seitenkontext. Der Bestandsweg reicht ihn über
+    # ``response_prompt_builder`` ein; hier wurde die Kette selbst gebaut und er
+    # fiel weg — der Agent fragte nach einer ID, die vor ihm stand (B-2).
+    seiten_block = page_context.prompt_block(ctx.session_state, seite)
+    if seiten_block:
+        messages.append({"role": "system", "content": seiten_block})
     messages.extend(ctx.history[-_HISTORY_TURNS:])
+    # Anleitungen vor Gegenstand — dieselbe Reihenfolge wie im Agent-Endpunkt.
+    await resolve_prefetch(messages, _vorab_aufrufe(seite), progress=progress)
     messages.append({"role": "user", "content": ctx.req.message})
 
     all_cards: list[dict] = []

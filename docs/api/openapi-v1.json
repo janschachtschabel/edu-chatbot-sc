@@ -7038,10 +7038,16 @@
             "name": "kontext",
             "required": false,
             "schema": {
-              "default": "",
-              "maxLength": 32,
-              "title": "Kontext",
-              "type": "string"
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kontext"
             }
           },
           {
@@ -7049,10 +7055,16 @@
             "name": "wert",
             "required": false,
             "schema": {
-              "default": "",
-              "maxLength": 2048,
-              "title": "Wert",
-              "type": "string"
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Wert"
             }
           }
         ],
@@ -7092,10 +7104,16 @@
             "name": "kontext",
             "required": false,
             "schema": {
-              "default": "",
-              "maxLength": 32,
-              "title": "Kontext",
-              "type": "string"
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kontext"
             }
           },
           {
@@ -7103,10 +7121,16 @@
             "name": "wert",
             "required": false,
             "schema": {
-              "default": "",
-              "maxLength": 2048,
-              "title": "Wert",
-              "type": "string"
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Wert"
             }
           }
         ],
@@ -7146,10 +7170,16 @@
             "name": "kontext",
             "required": false,
             "schema": {
-              "default": "",
-              "maxLength": 32,
-              "title": "Kontext",
-              "type": "string"
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kontext"
             }
           },
           {
@@ -7157,10 +7187,16 @@
             "name": "wert",
             "required": false,
             "schema": {
-              "default": "",
-              "maxLength": 2048,
-              "title": "Wert",
-              "type": "string"
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Wert"
             }
           }
         ],

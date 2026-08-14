@@ -188,7 +188,12 @@ def _build_quick_replies(
             action = str(pill.get("action") or "").strip()
             if not action:
                 continue
-            params = {"collection_id": action_id, "title": title}
+            # ``node_id`` seit P7 (2026-08-13): ``show_content_text`` liest genau
+            # dieses Feld. Bis dahin ging nur ``collection_id`` mit — der
+            # Volltext-Knopf einer Inhaltsseite wäre also stumm im Fehlerzweig
+            # gelandet („Ich brauche die ID des Inhalts"). Die drei
+            # Sammlungs-Aktionen ignorieren das zusätzliche Feld.
+            params = {"collection_id": action_id, "node_id": node_id, "title": title}
             out.append(f"__action__|{label}|{action}|{json.dumps(params, ensure_ascii=False)}")
         elif kind == "report":
             if report_url:

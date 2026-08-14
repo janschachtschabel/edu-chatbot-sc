@@ -59,6 +59,26 @@ def _names(pattern_output, **kw):
     return [t["function"]["name"] for t in active]
 
 
+def test_ein_stillgelegtes_werkzeug_kommt_auch_aus_einem_muster_nicht_durch(monkeypatch):
+    """P3 (Nutzer-Entscheid 2026-08-13) gilt fuer BEIDE Wege.
+
+    Die Agent-Schleife filtert ``AUS_DEM_KATALOG`` im Code; der Muster-Weg
+    verliess sich allein darauf, dass kein Seed das Werkzeug mehr nennt. Muster
+    liegen aber in der Datenbank: bis zum Seed-Import traegt sie die alten, und
+    im Studio laesst sich der Name jederzeit wieder eintragen. Der Wächter im
+    Seed-Baum liest den Seed, nicht die Datenbank — er saehe das nicht.
+
+    Hier steht das Werkzeug also ausdruecklich im Muster, und trotzdem darf es
+    dem Modell nicht angeboten werden.
+    """
+    _disable_cards(monkeypatch)
+    from boerdi.services.agent_tools import AUS_DEM_KATALOG
+    stillgelegt = sorted(AUS_DEM_KATALOG)
+    namen = _names({"tools": [*stillgelegt, "search_wlo_collections"]})
+    assert "search_wlo_collections" in namen, "das Muster verliert seine anderen Werkzeuge"
+    assert not (set(namen) & AUS_DEM_KATALOG), f"{stillgelegt} wurde trotzdem angeboten"
+
+
 def _disable_cards(monkeypatch):
     # Isoliert die Basis-Auswahl (kein select_top_cards-Append) und umgeht damit
     # zugleich den mcp-Alias-Quirk.

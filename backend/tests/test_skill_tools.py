@@ -25,7 +25,16 @@ from boerdi.services.mcp.tool_args import validate_tool_args
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.response_tool_selection import _select_active_tools
 
+#: Was im KATALOG steht. `search_skill` bleibt definiert — der MCP-Server hat
+#: das Werkzeug, und seine Beschreibung soll geprüft bleiben.
 _SKILL_TOOLS = ("search_skill", "get_skill")
+
+#: Was einem LAUF angeboten wird. Seit 2026-08-13 ohne `search_skill`: der Weg
+#: zu einer Anleitung führt über die Sammlung, die sie freigegeben hat
+#: (`agent_tools.AUS_DEM_KATALOG`, `test_pattern_tool_naht`). Zwei Konstanten
+#: statt einer, weil „existiert" und „wird angeboten" seither auseinanderfallen.
+_ANGEBOTENE_SKILL_TOOLS = ("get_skill", "get_skill_registry")
+
 _PATTERN_DIR = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "03-patterns"
 
 
@@ -91,7 +100,8 @@ class TestMusterZuordnung:
     ])
     def test_muster_bietet_beide_skill_werkzeuge(self, datei):
         tools = _muster(datei).get("tools") or []
-        assert set(_SKILL_TOOLS) <= set(tools), f"{datei}: {tools}"
+        assert set(_ANGEBOTENE_SKILL_TOOLS) <= set(tools), f"{datei}: {tools}"
+        assert "search_skill" not in tools, f"{datei}: freie Suche ist gestrichen"
 
     # ENTFERNT (R1, 2026-08-11): ``test_m10_behaelt_seine_bisherigen_werkzeuge``
     # verlangte hier ``search_wlo_collections`` + ``search_wlo_topic_pages`` für
@@ -120,7 +130,7 @@ class TestMusterZuordnung:
             available_rag_areas=None, rag_config=None,
             _cards_inline_mode=False, _degradation_no_tools=False,
         )
-        assert set(_SKILL_TOOLS) <= {t["function"]["name"] for t in aktiv}
+        assert set(_ANGEBOTENE_SKILL_TOOLS) <= {t["function"]["name"] for t in aktiv}
 
     def test_typ_fokus_laesst_die_skill_werkzeuge_stehen(self):
         # Bei einem Medientyp-Filter strippt ``_select_active_tools`` die
@@ -132,4 +142,4 @@ class TestMusterZuordnung:
             available_rag_areas=None, rag_config=None,
             _cards_inline_mode=False, _degradation_no_tools=False,
         )
-        assert set(_SKILL_TOOLS) <= {t["function"]["name"] for t in aktiv}
+        assert set(_ANGEBOTENE_SKILL_TOOLS) <= {t["function"]["name"] for t in aktiv}

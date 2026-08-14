@@ -13,6 +13,8 @@ seine Ereignisliste kommt aus ``EVENTS``, kann also nicht vom Widget wegdriften.
 
 from __future__ import annotations
 
+from boerdi.api.widget_demo_snippet import embed_snippet
+
 #: Die vier Ereignisse, die das Widget auslöst — `ui/src/host-events/host-events.ts`
 #: (guide-suggestion, routing-debug) und `ui/src/shell/chat-shell.component.ts`
 #: (query-meta, page-action). Hier aufgezählt, weil der Spiegel unten genau diese
@@ -123,7 +125,7 @@ _PAGE = """<!doctype html>
 </nav>
 
 <h2>So bindet eine Host-Seite das Widget ein</h2>
-<pre><code>%(snippet)s</code></pre>
+<pre id="einbindung"><code>%(snippet)s</code></pre>
 <p>
   <code>/widget/boerdi-widget.js</code> ist der stabile Pfad und bleibt es. Er
   leitet auf eine Datei mit Inhalts-Hash weiter, die ein Jahr lang
@@ -142,13 +144,6 @@ _PAGE = """<!doctype html>
 </body>
 </html>
 """
-
-SNIPPET = (
-    '&lt;script src="https://api.example.org/widget/boerdi-widget.js"'
-    " defer&gt;&lt;/script&gt;\n"
-    '&lt;boerdi-chat api-url="https://api.example.org"&gt;&lt;/boerdi-chat&gt;'
-)
-
 
 def inspector() -> str:
     """Der Ereignis-Spiegel, samt seinem Skript."""
@@ -176,6 +171,7 @@ def page(
     body: str = "",
     tail: str = "",
     extra_style: str = "",
+    snippet: str = "",
 ) -> str:
     """Eine fertige Demo-Seite.
 
@@ -187,6 +183,9 @@ def page(
     ``tail`` steht nach dem Fliesstext — dort hängen Ereignis-Spiegel, Bundle
     und Element. Die Übersicht lässt ihn leer und lädt damit auch das Bundle
     nicht: 400 kB für eine Seite ohne Widget wären reine Kosten.
+
+    ``snippet`` ist der Einbindungscode; leer heisst „das allgemeine Beispiel",
+    was genau auf die Seite passt, die kein Element trägt.
     """
     return _PAGE % {
         "title": title,
@@ -194,6 +193,6 @@ def page(
         "lead": lead,
         "body": body,
         "nav": _nav(aktuell),
-        "snippet": SNIPPET,
+        "snippet": snippet or embed_snippet(),
         "tail": tail,
     }

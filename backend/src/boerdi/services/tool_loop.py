@@ -65,6 +65,7 @@ from boerdi.services import llm
 from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
 from boerdi.services.card_collect import collect_cards
 from boerdi.services.llm_streaming import _stream_completion
+from boerdi.services.mcp.parsers import skill_registry_note
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -684,6 +685,11 @@ async def _run_tool_loop(
                             _redact_search_content_for_llm(tool_name, result_text, cards, _inline_grouping_mode),  # noqa: E501
                         )
                         + _ui_box_state_footer(all_cards, _inline_grouping_mode)
+                        # P1 (2026-08-13): der Freigabe-Katalog, den das
+                        # Ergebnis mitbringt. NACH der Redaktion, denn die
+                        # ersetzt bei ``get_collection_contents`` im Box-Modus
+                        # den ganzen Text — davor eingebaut waere er still weg.
+                        + skill_registry_note(result_text)
                     ),
                 })
 

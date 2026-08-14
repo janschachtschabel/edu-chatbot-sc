@@ -96,7 +96,9 @@ def test_collection_greeting_full(monkeypatch):
     assert "Optik" in resp.content
     assert resp.debug.pattern == "CTX:collection"
     joined = "\n".join(resp.quick_replies)
-    assert "__action__|Sammlung erkunden|browse_collection|" in joined
+    # Beschriftung seit P7 „Sammlungsinhalte zeigen" (Nutzer-Vorgabe
+    # 2026-08-13); die Aktion dahinter ist unverändert ``browse_collection``.
+    assert "__action__|Sammlungsinhalte zeigen|browse_collection|" in joined
     assert "__action__|Sammlung kuratieren|curate_collection|" in joined
     assert '"collection_id": "C1"' in joined
     assert "__guide__|Inhalt melden|" in joined
@@ -168,7 +170,10 @@ def test_melden_prefilled_and_erkunden_action_pill_parseable(monkeypatch):
     report = next(q for q in resp.quick_replies if q.startswith("__guide__|Inhalt melden|"))
     assert "node=C1" in report and "type=quelle" in report
 
-    erkunden = next(q for q in resp.quick_replies if q.startswith("__action__|Sammlung erkunden|"))
+    erkunden = next(
+        q for q in resp.quick_replies
+        if q.startswith("__action__|Sammlungsinhalte zeigen|")
+    )
     _, label, action, params_json = erkunden.split("|", 3)
     assert action == "browse_collection"
     params = _json.loads(params_json)

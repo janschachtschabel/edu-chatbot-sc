@@ -19,6 +19,9 @@ drei Gründen, sich zu ändern. Rein mechanisch zerlegt, kein Verhalten angefass
 * :mod:`~boerdi.services.mcp.parsers.topic_pages` — Varianten und Schwimmlinien
 * :mod:`~boerdi.services.mcp.parsers.text_blocks` — Volltext und Wikipedia
 * :mod:`~boerdi.services.mcp.parsers.json_scan` — der Klammer-Scanner
+* :mod:`~boerdi.services.mcp.parsers.skill_registry` — die Freigabeliste, die
+  ein Ergebnis nebenbei mitbringt (P1, 2026-08-13). Nachzügler zu W11 und der
+  einzige Parser, der nicht für die Oberfläche liest, sondern für den Prompt.
 
 Eine Grenze, die der Schnitt zieht: modulinterne Aufrufe (z.B. ``topic_pages``
 → ``_cards_from_json_envelope``) lösen jetzt im **definierenden** Modul auf. Ein
@@ -33,6 +36,10 @@ from boerdi.services.mcp.parsers.cards import (
     parse_wlo_cards,
 )
 from boerdi.services.mcp.parsers.json_scan import _first_json_object
+from boerdi.services.mcp.parsers.skill_registry import (
+    parse_skill_registries,
+    skill_registry_note,
+)
 from boerdi.services.mcp.parsers.text_blocks import (
     parse_content_text,
     parse_wikipedia_summary,
@@ -48,9 +55,11 @@ __all__ = [
     "_topic_page_display_title",
     "parse_content_text",
     "parse_search_all_cards",
+    "parse_skill_registries",
     "parse_topic_page_swimlanes",
     "parse_total_count",
     "parse_wikipedia_summary",
     "parse_wlo_cards",
     "parse_wlo_topic_page_cards",
+    "skill_registry_note",
 ]

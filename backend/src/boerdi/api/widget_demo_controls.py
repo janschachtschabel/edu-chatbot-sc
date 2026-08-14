@@ -139,6 +139,9 @@ _SCRIPT = """
       var a = alt.attributes[i];
       // `class` und `style` setzt das Element selbst (Host-Bindings), `ng-version`
       // Angular. Sie mitzunehmen hiesse, abgeleiteten Zustand als Vorgabe auszugeben.
+      // Dieselben drei stehen als `_ELEMENT_OWN_ATTRS` in `widget_demo_snippet`
+      // (dort für die ANZEIGE, hier fürs Kopieren) — kommt eines dazu, gehört es
+      // an beide Stellen.
       if (a.name === 'class' || a.name === 'style' || a.name === 'ng-version') continue;
       frisch.setAttribute(a.name, a.value);
     }

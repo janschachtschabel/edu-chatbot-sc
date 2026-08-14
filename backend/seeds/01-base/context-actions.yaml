@@ -55,30 +55,47 @@ context_actions:
   # label_en ist bei `kind: text` KEINE reine Anzeige: der Klick sendet die
   # Beschriftung als Nachricht. Sie muss deshalb in der Sprache des Nutzers
   # stehen — sonst schickt ein englischer Nutzer deutschen Text.
+  #
+  # Nutzer-Vorgabe 2026-08-13, eine Liste je Seitenart. Zwei Zeilen darin sind
+  # KEINE Geschmacksfrage — beide beim Bauen nachgemessen
+  # (``tests/test_context_action_pills.py`` hält sie fest):
+  #
+  # * „Stunde planen" heisst NICHT „Unterrichtsstunde planen". „unterrichtsstunde"
+  #   steht in ``lp_intent._lp_keywords``, geprüft wird auf Teilzeichenkette, und
+  #   der Lernpfad-Schnellweg läuft VOR der Musterwahl. Der Chip käme also nie
+  #   bei M09 an — und damit nie bei der Freigabeliste der Sammlung, die P1/P2
+  #   gerade erst dorthin gebracht haben. „Stunde planen" ist zugleich der
+  #   wörtliche Titel des Skills.
+  # * „Webseiten-Tour starten" enthält „tour starten" aus `website-tour.yaml`.
+  #   Dort entscheidet kein Klassifikator, sondern ein harter Phrasenvergleich;
+  #   die englische Fassung trägt „web tour" aus demselben Grund.
   pills:
     collection:
-      - { label: "Sammlung erkunden",           label_en: "Explore collection",       kind: action, action: browse_collection }
+      - { label: "Sammlungsinhalte zeigen",     label_en: "Show collection contents", kind: action, action: browse_collection }
+      - { label: "Stunde planen",               label_en: "Plan a lesson",            kind: text }
       - { label: "Sammlung kuratieren",         label_en: "Curate collection",        kind: action, action: curate_collection }
-      - { label: "Passende Inhalte suchen",     label_en: "Find matching content",    kind: text }
-      - { label: "Neuen Inhalt dazu erstellen", label_en: "Create new content on it", kind: text }
+      - { label: "Zu Lehrplänen beraten",       label_en: "Advise on the curriculum", kind: text }
       - { label: "Inhalt melden",               label_en: "Report content",           kind: report }
     content:
-      - { label: "Worum geht es hier?",         label_en: "What is this about?",      kind: text }
+      - { label: "Mehr Details zeigen",         label_en: "Show more details",        kind: text }
+      - { label: "Volltext abrufen und bearbeiten", label_en: "Open the full text",   kind: action, action: show_content_text }
+      - { label: "Inhalte remixen",             label_en: "Remix this content",       kind: text }
       - { label: "Ähnliche Inhalte suchen",     label_en: "Find similar content",     kind: text }
-      - { label: "Neuen Inhalt dazu erstellen", label_en: "Create new content on it", kind: text }
       - { label: "Inhalt melden",               label_en: "Report content",           kind: report }
     topic:
-      - { label: "Überblick über diese Themenseite", label_en: "Overview of this topic page", kind: text }
+      - { label: "Themenseiteninhalte zeigen",  label_en: "Show topic page contents", kind: action, action: browse_collection }
+      - { label: "Stunde planen",               label_en: "Plan a lesson",            kind: text }
       - { label: "Sammlung kuratieren",         label_en: "Curate collection",        kind: action, action: curate_collection }
-      - { label: "Passende Inhalte suchen",     label_en: "Find matching content",    kind: text }
-      - { label: "Neuen Inhalt dazu erstellen", label_en: "Create new content on it", kind: text }
+      - { label: "Zu Lehrplänen beraten",       label_en: "Advise on the curriculum", kind: text }
       - { label: "Inhalt melden",               label_en: "Report content",           kind: report }
     search:
-      - { label: "Suche verfeinern",            label_en: "Narrow the search down",   kind: text }
-      - { label: "Passende Sammlungen dazu",    label_en: "Matching collections",     kind: text }
+      - { label: "Videos zum Thema",            label_en: "Videos on this topic",     kind: text }
+      - { label: "Arbeitsblätter zum Thema",    label_en: "Worksheets on this topic", kind: text }
     home:
-      - { label: "Was kann ich hier finden?",   label_en: "What can I find here?",    kind: text }
-      - { label: "Material zu einem Thema suchen", label_en: "Find material on a topic", kind: text }
+      - { label: "Informiere mich über WLO",    label_en: "Tell me about WLO",        kind: text }
+      - { label: "Webseiten-Tour starten",      label_en: "Start the web tour",       kind: text }
+      - { label: "Inhalte finden",              label_en: "Find content",             kind: text }
+      - { label: "Kontakt und mitmachen",       label_en: "Contact and get involved", kind: text }
     # WÖRTLICH aus M20s `trigger_phrases`. Die Beschriftung eines `text`-Chips
     # IST die gesendete Nachricht: sie muss das Erschliessungs-Muster auslösen,
     # nicht nur gut klingen. Eine frei formulierte Zeile wäre eine Schaltfläche,

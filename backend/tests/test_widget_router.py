@@ -17,7 +17,11 @@ from html import unescape
 import pytest
 from fastapi.testclient import TestClient
 
-from boerdi.api import widget_demo_controls
+from boerdi.api import (
+    widget_demo_context,
+    widget_demo_controls,
+    widget_demo_snippet,
+)
 from boerdi.main import create_app
 from boerdi.settings import get_settings
 
@@ -301,7 +305,209 @@ def test_a_hostile_query_value_cannot_break_out_of_the_element_attribute(client,
     assert json.loads(unescape(treffer.group(1)))["search_query"] == boese
 
 
-def test_the_three_live_demos_differ_in_their_embed_situation(client):
+# ── Die Voreinstellung (P5) ──────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("path", LIVE_DEMOS)
+def test_a_bare_demo_page_starts_on_the_prepared_collection(client, path):
+    """Ohne Query-String steht das Widget auf der Optik-Sammlung.
+
+    Nutzer-Vorgabe: die Demo soll den Fall zeigen, für den P1/P2/P4 gebaut
+    wurden, ohne dass jemand eine UUID abtippt.
+    """
+    tag = _element_tag(client.get(path).text)
+    treffer = re.search(r'page-context="([^"]*)"', tag)
+    assert treffer, tag
+    gesetzt = json.loads(unescape(treffer.group(1)))
+    assert gesetzt["collection_id"] == widget_demo_context.DEFAULT_CHOICE[1]
+    # Ohne das trüge der Detektor die Adresse DIESER Seite bei, und das Backend
+    # entschiede „eigene oder fremde Seite" gegen etwas, das mit der Simulation
+    # nichts zu tun hat.
+    assert 'auto-context="false"' in tag
+
+
+@pytest.mark.parametrize("path", LIVE_DEMOS)
+def test_choosing_nothing_in_particular_really_turns_the_context_off(client, path):
+    # Genau so schickt es das Formular: beide Felder vorhanden, beide leer.
+    tag = _element_tag(client.get(path, params={"kontext": "", "wert": ""}).text)
+    assert "page-context" not in tag
+    assert "auto-context" not in tag
+
+
+@pytest.mark.parametrize("path", LIVE_DEMOS)
+def test_the_simulator_shows_which_context_is_in_effect(client, path):
+    """Die Voreinstellung muss ABLESBAR sein, nicht nur wirken.
+
+    Sonst erschiene auf einer Demoseite eine Begrüssung zu einer Sammlung, von
+    der die Seite nichts sagt — und der Besucher suchte den Grund beim Chatbot.
+    Das Bedienfeld ist der Ort, an dem die Simulation sich zu erkennen gibt.
+    """
+    body = client.get(path).text
+    assert '<option value="collection" selected>' in body
+    assert widget_demo_context.DEFAULT_CHOICE[1] in body
+
+
+# ── Die Bestätigung sichtbar machen (P6) ─────────────────────────────────
+# Befund B-5, im Code bestätigt: geschlossen ist die Chat-Shell gar nicht
+# gemountet (`PanelState.everExpanded` ist der Lazy-Mount-Latch), also läuft
+# `_greetOnFirstLoad` nicht, es gibt keinen Kontext-Ping und nichts zu sehen —
+# bis jemand öffnet. Einen Aufmerksamkeits-Kanal hat der geschlossene
+# Eulen-Knopf auch nicht: `hintActive` feuert erst BEIM Öffnen.
+#
+# Naheliegend wäre gewesen, bei gesetztem Kontext überall `initial-state=
+# "expanded"` zu ergänzen. Gebaut, gemessen, zurückgenommen: die Einbau-Lage ist
+# das Paar (`embed-mode`, `initial-state`), drei Seiten belegen alle drei
+# Kombinationen, und ein erzwungenes `expanded` macht `/inline` und
+# `/frameless` identisch — der Nutzer-Befund „sehen alle gleich aus", den
+# `test_the_three_live_demos_differ_in_their_embed_situation` unten festhält.
+# Sichtbar wird die Bestätigung deshalb auf der Seite, die ohnehin offen
+# startet; die beiden anderen sagen im Hinweistext, wann sie kommt.
+
+
+def test_the_embedded_demo_shows_the_context_greeting_without_a_click(client):
+    """Beide Zutaten auf EINER Seite: ein Kontext am Element (P5) und ein
+    offener Start. Erst zusammen läuft `_greetOnFirstLoad` mit
+    `context_open_initial`, und die Bestätigung steht da, ohne dass jemand
+    etwas anklickt."""
+    tag = _element_tag(client.get("/widget/inline").text)
+    assert 'initial-state="expanded"' in tag
+    assert "page-context=" in tag
+
+
+def test_a_context_never_overrides_the_page_its_embed_situation(client):
+    """Die Grenze der P6-Scheibe, als Zusicherung.
+
+    Ein gesetzter Kontext darf den Startzustand nicht anfassen: sonst verlöre
+    `/classic` den geschlossenen Eulen-Knopf — seine ganze Aussage.
+
+    Nur noch `/classic`: bis P9 stand `/frameless` mit hier, weil auch dort
+    „geschlossen" die Vorgabe war. Seit P9 ist die Spalte offen (eine leere
+    Spalte sähe kaputt aus), die Seite hat also einen EIGENEN
+    `initial-state` — dort gäbe es nichts mehr zu schützen. Dass die beiden
+    rahmenlosen Seiten trotzdem verschieden bleiben, hält der Wächter über die
+    drei Einbau-Lagen fest.
+    """
+    tag = _element_tag(client.get("/widget/classic").text)
+    assert "page-context=" in tag, "P5-Vorgabe fehlt — der Test prüfte sonst nichts"
+    assert "initial-state" not in tag
+
+
+# ── Der Einbindungscode (P8) ─────────────────────────────────────────────
+# Vorher stand auf allen vier Seiten derselbe erfundene Zweizeiler. Wer im
+# Bedienpult etwas umstellte, sah die Wirkung — bekam aber nirgends den Code
+# dazu. Jetzt zeigt der Block die Attribute DIESER Seite.
+
+
+def _snippet(body: str) -> str:
+    """Der Inhalt des Einbindungs-Blocks (maskiert, wie er im Dokument steht)."""
+    treffer = re.search(r'<pre id="einbindung"><code>(.*?)</code></pre>', body, re.S)
+    assert treffer, "kein Einbindungs-Block auf der Seite"
+    return treffer.group(1)
+
+
+@pytest.mark.parametrize(("path", "erwartet"), [
+    ("/widget/classic", 'position=&quot;bottom-right&quot;'),
+    ("/widget/inline", 'embed-mode=&quot;frameless&quot;'),
+    ("/widget/frameless", 'embed-mode=&quot;frameless&quot;'),
+])
+def test_the_embed_snippet_shows_this_pages_own_attributes(client, path, erwartet):
+    assert erwartet in _snippet(client.get(path).text)
+
+
+@pytest.mark.parametrize("path", LIVE_DEMOS)
+def test_the_embed_snippet_leaves_out_what_only_the_demo_needs(client, path):
+    """Ein Gastgeber baut kein Demo-Gerüst ein.
+
+    `page-context`/`auto-context` simulieren hier eine Seite — auf einer echten
+    Gastseite erkennt das Widget sie selbst. Die `emit-*` speisen den
+    Ereignis-Spiegel dieser Demo. Stünden sie im Schnipsel, kopierte man sie mit
+    und wunderte sich, warum der Chatbot auf einer Sammlungsseite von der Optik
+    redet.
+    """
+    schnipsel = _snippet(client.get(path).text)
+    for demo_only in ("page-context", "auto-context", "emit-guide-suggestion",
+                      "emit-routing-debug"):
+        assert demo_only not in schnipsel
+
+
+@pytest.mark.parametrize("path", LIVE_DEMOS)
+def test_the_embed_snippet_carries_the_api_url_the_demo_element_does_not_need(client, path):
+    """Das Element dieser Seite kommt ohne `api-url` aus — es lädt vom selben
+    Ursprung. Genau das gilt auf einer fremden Domain nicht mehr, und ohne diese
+    Zeile ist der kopierte Code stumm."""
+    assert "api-url=" in _snippet(client.get(path).text)
+    assert "api-url" not in _element_tag(client.get(path).text)
+
+
+def test_the_overview_keeps_the_generic_snippet(client):
+    # Die Übersicht trägt kein Element; sie kann nur das allgemeine Beispiel
+    # zeigen, und ausgedachte Attribute wären dort eine Behauptung über eine
+    # Seite, die es nicht gibt.
+    schnipsel = _snippet(client.get("/widget/").text)
+    assert "&lt;boerdi-chat" in schnipsel
+    assert "embed-mode" not in schnipsel
+
+
+def test_a_hostile_query_value_never_reaches_the_snippet(client):
+    # Der Schnipsel ist der EINZIGE Ort, an dem Attribute als Text erscheinen.
+    # Weil `page-context` draussen bleibt, kommt der Query-Wert dort gar nicht
+    # erst an — geprüft, statt sich auf die Maskierung allein zu verlassen.
+    boese = '" onerror="alert(1)'
+    body = client.get("/widget/classic", params={"kontext": "search", "wert": boese}).text
+    assert "onerror" not in _snippet(body)
+
+
+@pytest.mark.parametrize("path", LIVE_DEMOS)
+def test_the_live_updater_shares_the_servers_exclusion_list(client, path):
+    """Der Schnipsel entsteht ZWEIMAL: hier serverseitig, und im Browser jedes
+    Mal neu, wenn jemand am Bedienpult dreht. Die Ausschlussliste kommt deshalb
+    aus dem Python-Code ins Skript — als zweite, abgetippte Liste wäre sie der
+    Ort, an dem `emit-*` eines Tages wieder im kopierten Code steht.
+
+    Was das Skript tut, ist bewusst klein gehalten — Attribute lesen, Liste
+    anwenden, `textContent` schreiben. Für die eine Regel, die es dabei einhalten
+    MUSS, steht der Wächter darunter.
+    """
+    body = client.get(path).text
+    assert json.dumps(list(widget_demo_snippet.DEMO_ONLY_ATTRS)) in body
+
+
+def test_the_live_updater_writes_only_when_something_changed():
+    """Der Beobachter darf nicht ungeprüft in seinen eigenen Teilbaum schreiben.
+
+    `#einbindung code` liegt IM beobachteten `body`, also ist jede Zuweisung an
+    `textContent` selbst eine `childList`-Mutation — der Rückruf löst sich
+    wieder aus, endlos. Gemessen an genau diesem Skript (jsdom, EINE fremde
+    Mutation): ohne Vergleich 500+ Rückrufe ohne Abbruch, die Seite friert ein;
+    mit Vergleich zwei. Der Auslöser ist unvermeidbar — das Element wird erst
+    NACH dem Skript geparst, und danach bewegt jede DOM-Änderung des Widgets den
+    beobachteten Body.
+
+    Geprüft wird die Reihenfolge, nicht der Wortlaut: erst vergleichen, dann
+    schreiben. Ein Aufbau ohne diesen Vergleich ist der Fehler, unabhängig
+    davon, wie er formuliert ist.
+    """
+    skript = widget_demo_snippet.snippet_watcher()
+    vergleich = re.search(r"block\.textContent\s*===", skript)
+    schreiben = re.search(r"block\.textContent\s*=(?!=)", skript)
+    assert vergleich, "der Beobachter vergleicht nicht, bevor er schreibt"
+    assert schreiben, "der Beobachter schreibt den Block nicht mehr"
+    assert vergleich.start() < schreiben.start(), (
+        "der Vergleich steht NACH der Zuweisung — sie läuft dann trotzdem"
+    )
+
+
+def test_the_overview_carries_no_snippet_watcher(client):
+    # Kein Element, nichts zu beobachten. Ein Beobachter dort schriebe nie und
+    # sähe im Quelltext trotzdem nach Funktion aus.
+    assert "MutationObserver" not in client.get("/widget/").text
+
+
+@pytest.mark.parametrize("query", [
+    {},                              # Vorgabe: mit simuliertem Kontext (P5)
+    {"kontext": "", "wert": ""},     # „nichts Bestimmtem"
+], ids=["mit-kontext", "ohne-kontext"])
+def test_the_three_live_demos_differ_in_their_embed_situation(client, query):
     """Der Befund des Nutzers, als Test: „sehen alle gleich aus".
 
     Er hatte recht — vor dem 2026-08-13 setzten `/widget/`, `/inline` und
@@ -311,16 +517,28 @@ def test_the_three_live_demos_differ_in_their_embed_situation(client):
     sondern die einzige Stelle, an der „drei Seiten, drei Einbau-Lagen"
     überhaupt geprüft wird.
 
-    Verglichen wird das Attribut-Paar, das die Lage AUSMACHT (`embed-mode` +
-    `initial-state`), nicht der ganze Seitentext: der unterschiede sich schon
-    durch die Überschrift, und der Test wäre grün ohne etwas zu wissen.
+    Verglichen wird, was die Lage AUSMACHT, nicht der ganze Seitentext: der
+    unterschiede sich schon durch die Überschrift, und der Test wäre grün, ohne
+    etwas zu wissen.
+
+    Seit P9 sind das DREI Stellen, nicht mehr zwei. Nachgemessen an den drei
+    Seiten: nur nach `embed-mode` + `initial-state` bleiben **zwei**
+    unterscheidbare Lagen für drei Seiten übrig — `/inline` und `/frameless`
+    tragen jetzt dieselben Attribute und unterscheiden sich allein darin, wohin
+    der Gastgeber sie setzt. Die dritte Stelle ist also tragend, nicht Zierrat.
     """
     lagen = {}
     for path in LIVE_DEMOS:
-        tag = _element_tag(client.get(path).text)
+        body = client.get(path, params=query).text
+        tag = _element_tag(body)
         lagen[path] = (
             "frameless" if 'embed-mode="frameless"' in tag else "panel",
             "expanded" if 'initial-state="expanded"' in tag else "collapsed",
+            # Seit P9 gehoert die Lage des GASTGEBERS dazu. Zwei rahmenlose
+            # Seiten koennen dieselben Attribute tragen und trotzdem verschieden
+            # eingebaut sein: Kasten im Textfluss vs. Spalte neben dem Inhalt.
+            # Ohne diese dritte Stelle waere der Waechter nach P9 blind.
+            next((k for k in ("frame", "spalte") if f'<div class="{k}">' in body), "-"),
         )
     assert len(set(lagen.values())) == len(LIVE_DEMOS), lagen
 
@@ -347,17 +565,128 @@ def test_inline_starts_as_an_embedded_open_chat(client):
     assert "<boerdi-chat" in body.split('<div class="frame">')[1].split("</div>")[0]
 
 
-@pytest.mark.parametrize("path", ["/widget/inline", "/widget/frameless"])
-def test_a_frameless_embed_gets_a_sized_container(client, path):
+@pytest.mark.parametrize(("path", "behaelter"), [
+    ("/widget/inline", "frame"),
+    ("/widget/frameless", "spalte"),
+])
+def test_a_frameless_embed_gets_a_sized_container(client, path, behaelter):
     # Frameless means the element fills its container instead of floating at a
     # size of its own. Embedded bare into the page flow it would therefore
     # render at zero height — visible as nothing at all, with no error. The
     # container and its height are the page, not decoration.
+    #
+    # Seit P9 sind es ZWEI Behälter — Kasten im Textfluss bzw. Spalte daneben.
+    # Die Zusicherung ist dieselbe geblieben: welcher es auch ist, er hat eine
+    # Grösse.
     body = client.get(path).text
-    frame = body.split('<div class="frame">')[1].split("</div>")[0]
-    assert "<boerdi-chat" in frame
-    rule = re.search(r"\.frame\s*\{([^}]*)\}", body)
+    inhalt = body.split(f'<div class="{behaelter}">')[1].split("</div>")[0]
+    assert "<boerdi-chat" in inhalt
+    rule = re.search(rf"\.{behaelter}\s*\{{([^}}]*)\}}", body)
     assert rule and "block-size" in rule.group(1), rule
+
+
+# ── Zwei rahmenlose Seiten, zwei Einbau-Lagen (P9) ───────────────────────
+# Vorher unterschieden sie sich nur in `initial-state`, beide im selben Kasten.
+# Der Nutzer las das als „kein echter Unterschied", und er hatte recht: was eine
+# rahmenlose Einbettung ausmacht, ist die Lage, die der GASTGEBER ihr gibt.
+
+
+def _einbau_bereich(body: str) -> str:
+    """Alles nach dem Bundle-Skript — dort steht das eingebettete Element."""
+    return body.split('<script src="/widget/boerdi-widget.js" defer></script>')[1]
+
+
+def test_the_inline_demo_puts_the_box_into_running_text(client):
+    """„Eingebettet" heisst: der Kasten steht MITTEN im Text der Gastseite.
+
+    Vorher hing er unten an der Seite, hinter allen Abschnitten — dieselbe Lage
+    wie die rahmenlose Seite, nur mit anderem Anfangszustand.
+    """
+    bereich = _einbau_bereich(client.get("/widget/inline").text)
+    kasten = bereich.index('<div class="frame">')
+    assert "<p" in bereich[:kasten], "kein Text VOR dem Kasten"
+    assert "<p" in bereich[kasten:], "kein Text NACH dem Kasten"
+
+
+def test_the_frameless_demo_stands_beside_the_content_on_wide_screens(client):
+    """Die Spalte ist der realistische CMS-Fall — und sie muss auch wirklich
+    danebenstehen, sonst ist sie nur ein zweiter Kasten mit anderem Namen.
+
+    Geprüft wird der ganze Breiten-Block, nicht nur die `.spalte`-Regel darin:
+    das Danebenstehen hat ZWEI Hälften. Ohne den nach links gerückten Textkörper
+    läge die feste Spalte über dem Text — nachgerechnet beim Bauen, und genau
+    das war die erste Fassung.
+    """
+    body = client.get("/widget/frameless").text
+    # Ausdrücklich die Breiten-Regel: die Farbschema-Regel nennt `.spalte` auch,
+    # und ein Test, der die erstbeste liest, prüft je nach Reihenfolge etwas
+    # anderes.
+    block = re.search(r"@media \(min-width[^{]*\{(.*?)\n  \}", body, re.S)
+    assert block, "keine eigene Regel für breite Fenster"
+    assert "position: fixed" in block.group(1)
+    assert "margin-inline" in block.group(1), "Textkörper rückt nicht zur Seite"
+
+
+def test_the_frameless_column_falls_back_to_a_box_on_narrow_screens(client):
+    """Der Umbruch ist kein Zierrat: fest positioniert läge die Spalte auf einem
+    schmalen Fenster über dem Text. Die Grundregel (ohne Media Query) trägt
+    deshalb eine Höhe und keine feste Positionierung."""
+    body = client.get("/widget/frameless").text
+    # Die Grundregel steht auf der äussersten Ebene (zwei Leerzeichen Einzug);
+    # die in der Media Query ist tiefer eingerückt.
+    grund = re.search(r"\n  \.spalte\s*\{([^}]*)\}", body)
+    assert grund, "keine Grundregel für .spalte"
+    assert "block-size" in grund.group(1)
+    assert "position" not in grund.group(1)
+
+
+def _rem(css: str, deklaration: str) -> float:
+    """Der erste rem-Wert einer Deklaration — ``padding: 0 1.25rem`` gibt 1.25."""
+    treffer = re.search(rf"{deklaration}:[^;]*?(\d+(?:\.\d+)?)rem", css)
+    assert treffer, f"{deklaration} steht nicht im Blatt"
+    return float(treffer.group(1))
+
+
+def test_the_frameless_column_leaves_the_text_its_room(client):
+    """Nachgerechnet, nicht nur „eine Regel ist da".
+
+    Zwei Anläufe gingen hier daneben. Erst Umbruch bei 84rem — die Spalte hätte
+    zwischen 84 und 107rem ÜBER dem Text gelegen. Dann rückte der Textkörper
+    nach links, aber die Rechnung übersah sein `padding: 0 1.25rem`: aus den
+    behaupteten 1.5rem Luft wurden 0.25rem. Beide Male war die REGEL richtig
+    und die GEOMETRIE falsch, und beide Male schwieg der Test daneben, weil er
+    nur das Vorhandensein prüfte.
+
+    Gerechnet wird am engsten Punkt, dem Umbruch selbst: darüber wandert die
+    Spalte mit der Fensterbreite nach rechts, der Text bleibt stehen.
+    """
+    body = client.get("/widget/frameless").text
+    grund, _, breit = body.partition("@media (min-width:")
+    umbruch = float(re.search(r"^\s*(\d+(?:\.\d+)?)rem", breit).group(1))
+
+    text_rechts = _rem(breit, "margin-inline") + _rem(grund, "padding") + _rem(grund, "max-width")
+    kasten_rechts = text_rechts + _rem(grund, "padding")  # der Body-Kasten, Innenabstand mit
+    spalte_links = umbruch - _rem(breit, "inset-inline-end") - _rem(breit, "inline-size")
+
+    assert kasten_rechts <= spalte_links, (
+        f"Body-Kasten endet bei {kasten_rechts}rem, Spalte beginnt bei {spalte_links}rem"
+    )
+    assert spalte_links - text_rechts >= 1, (
+        f"nur {spalte_links - text_rechts}rem zwischen Text und Spalte"
+    )
+
+
+def test_the_frameless_page_names_the_breakpoint_it_actually_uses(client):
+    """Der Fliesstext nennt eine Fensterbreite — sie muss die des Blattes sein.
+
+    Stand nach P9: Text „ab etwa 84rem", Stilblatt 88rem. Wer bei 85rem prüft,
+    sieht das Gegenteil des Versprochenen. Dieselbe Fehlerklasse hat dieses
+    Paket schon zweimal korrigiert; hier ist sie festgenagelt.
+    """
+    body = client.get("/widget/frameless").text
+    umbruch = re.search(r"@media \(min-width:\s*(\d+(?:\.\d+)?rem)\)", body).group(1)
+    vorspann = body.split('<div class="lead">')[1].split("</div>")[0]
+    assert umbruch in vorspann, f"der Vorspann nennt nicht {umbruch}"
 
 
 def test_no_live_demo_hides_the_grouping_boxes_by_default(client):

@@ -23,7 +23,7 @@ from boerdi.domain.inline_grouping import (
     _ui_box_state_footer,
 )
 from boerdi.domain.untrusted_text import frame_untrusted
-from boerdi.services.mcp.parsers import parse_wlo_cards
+from boerdi.services.mcp.parsers import parse_wlo_cards, skill_registry_note
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -245,8 +245,12 @@ async def _assemble_messages(
         messages.append({
             "role": "tool",
             "tool_call_id": "prefetch_mcp",
+            # P1: der mitgelieferte Freigabe-Katalog, ausserhalb des Rahmens und
+            # nach der Redaktion — Begruendung im Modul-Docstring von
+            # ``parsers.skill_registry``.
             "content": frame_untrusted(_name, _redact_search_content_for_llm(
-                _name, _txt, mcp_prefetch_cards, _inline_grouping_mode)),
+                _name, _txt, mcp_prefetch_cards, _inline_grouping_mode))
+            + skill_registry_note(_txt),
         })
         mcp_prefetched = True
 
@@ -302,7 +306,8 @@ async def _assemble_messages(
                 "role": "tool",
                 "tool_call_id": _tc_id,
                 "content": frame_untrusted(_ex_name, _redact_search_content_for_llm(
-                    _ex_name, _ex_text, _ex_cards, _inline_grouping_mode)),
+                    _ex_name, _ex_text, _ex_cards, _inline_grouping_mode))
+                + skill_registry_note(_ex_text),
             })
 
     # Tool calling loop

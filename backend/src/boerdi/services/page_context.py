@@ -542,6 +542,33 @@ def render_for_prompt(
     return "\n".join(lines)
 
 
+def prompt_block(
+    session_state: dict[str, Any], page_context: dict[str, Any] | None
+) -> str:
+    """Der Seitenblock für einen Prompt — aufgelöst, sonst heuristisch, sonst "".
+
+    Die zweistufige Auflösung stand bis P4 als Handkopie an zwei Stellen
+    (``response_prompt_builder``, ``classify_prompt``). Der Agent-Modus im Chat
+    ist der dritte Verbraucher; eine dritte Kopie hätte die Regel „MCP-Auflösung
+    schlägt DOM-Heuristik" an drei Orten gehalten. Sie wohnt jetzt hier — bei
+    den beiden Renderern, die sie in Beziehung setzt.
+
+    Wirft nicht: ein Fehler im Seitenblock darf keinen Zug kosten. Er ist
+    Zusatzwissen, nicht die Aufgabe.
+
+    Aber laut: faellt er aus, ist der Agent wieder blind fuer die Seite —
+    Befund B-2, gegen den P4 gebaut wurde —, und der Rueckfall sieht von aussen
+    aus wie „diese Seite hat eben keinen Kontext". Deshalb WARNING, wie beim
+    Vorabruf nebenan; auf ``debug`` liefe der Rueckschritt unbemerkt mit.
+    """
+    try:
+        block = render_for_prompt(get_cached(session_state), page_context)
+        return block or render_raw_for_prompt(page_context)
+    except Exception:  # noqa: BLE001 — siehe Docstring
+        logger.warning("page-context prompt block failed", exc_info=True)
+        return ""
+
+
 def render_raw_for_prompt(page_context: dict[str, Any] | None) -> str:
     """Fallback block when no MCP-resolved metadata is available, but the
     widget's DOM-detector extracted visible page text + heuristic fields.

@@ -160,6 +160,14 @@ _NICHT_UEBER_PATTERN = {
     # zu erfinden: die Karten-Pipeline holt ihre Metadaten aus den Suchtreffern
     # selbst, ein Bulk-Nachschlag für >3 Knoten kommt in keinem Pfad vor.
     "get_nodes_details",
+    # Bewusst stillgelegt (Nutzer-Entscheid 2026-08-13): die freie Skill-Suche
+    # kennt keine Sammlung, freigegeben wird aber JE Sammlung. Gemessen am
+    # selben Tag liefert sie mit der nodeId einer Fachsammlung ohnehin nichts
+    # und meldet das als Normalfall — ein stummer Fehlschlag, der verdeckt, dass
+    # es 28 freigegebene Anleitungen gab. Der Weg führt über
+    # ``get_skill_registry`` + ``get_skill``; ``agent_tools.AUS_DEM_KATALOG``
+    # hält das Werkzeug auch aus der Agent-Schleife heraus.
+    "search_skill",
 }
 
 

@@ -34,6 +34,7 @@ import pytest
 from boerdi.api.schemas import (
     ChatRequest,
     ClassificationResult,
+    Environment,
     PolicyDecision,
     SafetyDecision,
 )
@@ -51,13 +52,20 @@ _KARTE = json.dumps({"results": [
 ]})
 
 
-def _ctx(*, message="frage", history=None, safety=None, policy=None):
-    ctx = state_mod.TurnContext(req=ChatRequest(session_id="s1", message=message))
+def _ctx(*, message="frage", history=None, safety=None, policy=None,
+         page_context=None, page_meta=None):
+    """``page_context`` = was das Widget mitschickt, ``page_meta`` = was der
+    ``page_context_enrich``-Knoten daraus aufgelöst und zwischengelegt hat."""
+    ctx = state_mod.TurnContext(req=ChatRequest(
+        session_id="s1", message=message,
+        environment=Environment(page_context=page_context or {}),
+    ))
     ctx.history = history if history is not None else []
     ctx.safety = safety or SafetyDecision(risk_level="low")
     ctx.policy = policy or PolicyDecision()
     ctx.classification = ClassificationResult()
-    ctx.session_state = {"persona_id": "P-AND", "entities": {}}
+    entities = {"_page_metadata": page_meta} if page_meta else {}
+    ctx.session_state = {"persona_id": "P-AND", "entities": entities}
     return ctx
 
 
@@ -315,3 +323,105 @@ async def test_gegenrichtung_ohne_angabe_laeuft_der_bestandsweg(monkeypatch):
     assert "respond_agent" not in seen
     assert seen["generate_response"] is True
     assert ctx.response_text == "Bestandsantwort"
+
+
+# ── P4: der Seitenkontext, den der Agent bisher nicht sah ──────────
+# Befund B-2 (live gemessen 2026-08-13): auf einer Sammlungsseite fragte der
+# Agent „welche Sammlung meinst du?" — die ID stand in ``page_context``. Der
+# Bestandsweg reicht den Block über ``response_prompt_builder`` ein; der
+# Agent-Modus baut seine Kette selbst und ließ ihn schlicht weg.
+
+_OPTIK_ID = "f35c17d1-a29e-4b26-9d22-802682fad43d"
+_SAMMLUNG = {"page_kind": "collection", "collection_id": _OPTIK_ID}
+_AUFGELOEST = {"title": "Geometrische Optik", "node_id": _OPTIK_ID}
+
+
+class _VorabFake:
+    """``outcome_service.call_with_outcome`` — hält fest, was vorab lief."""
+
+    def __init__(self, result_map=None, raises=False):
+        self.calls: list[tuple[str, dict]] = []
+        self._map = result_map or {}
+        self._raises = raises
+
+    async def __call__(self, tool_name, tool_args):
+        from boerdi.api.schemas import ToolOutcome
+        self.calls.append((tool_name, dict(tool_args)))
+        if self._raises:
+            raise RuntimeError("MCP weg")
+        return self._map.get(tool_name, f"result:{tool_name}"), ToolOutcome(
+            tool=tool_name, status="success", item_count=1)
+
+
+def _vorab(monkeypatch, **kw):
+    from boerdi.services import outcome_service
+    fake = _VorabFake(**kw)
+    monkeypatch.setattr(outcome_service, "call_with_outcome", fake)
+    return fake
+
+
+@pytest.mark.anyio
+async def test_der_seitenkontext_steht_in_der_kette(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    await respond_agent(_ctx(page_context=_SAMMLUNG, page_meta=_AUFGELOEST))
+    systeme = [m["content"] for m in seen["run_agent_loop"]["messages"]
+               if m.get("role") == "system"]
+    assert any("Geometrische Optik" in s for s in systeme)
+
+
+@pytest.mark.anyio
+async def test_ohne_seitenkontext_bleibt_die_kette_wie_bisher(monkeypatch):
+    # Gegenprobe zu ``test_verlauf_und_nachricht_stehen_in_der_kette``: ohne
+    # Seite darf kein leerer Block und kein Vorabruf dazukommen.
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    fake = _vorab(monkeypatch)
+    await respond_agent(_ctx())
+    assert len(seen["run_agent_loop"]["messages"]) == 2
+    assert fake.calls == []
+
+
+@pytest.mark.anyio
+async def test_eine_sammlung_im_kontext_holt_die_freigabeliste_vorab(monkeypatch):
+    """Der Kern von P4: der Katalog steht in der Kette, BEVOR der Agent
+    überhaupt auf die Idee kommen könnte, danach zu fragen."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    fake = _vorab(monkeypatch, result_map={"get_skill_registry": "Skill: Stunde planen"})
+    await respond_agent(_ctx(page_context=_SAMMLUNG, page_meta=_AUFGELOEST))
+    assert fake.calls == [("get_skill_registry", {"collectionId": _OPTIK_ID})]
+    messages = seen["run_agent_loop"]["messages"]
+    ergebnis = [m for m in messages if m.get("role") == "tool"]
+    assert len(ergebnis) == 1
+    assert "Stunde planen" in ergebnis[0]["content"]
+    # Anleitungen vor Gegenstand — die Nutzerfrage bleibt das letzte Wort.
+    assert messages[-1] == {"role": "user", "content": "frage"}
+
+
+@pytest.mark.anyio
+async def test_ohne_sammlung_wird_nichts_vorab_geholt(monkeypatch):
+    # Eine Einzelinhalt-Seite trägt keine ``collection_id`` — ein Vorabruf
+    # hätte hier kein Argument und wäre ein Aufruf ins Leere.
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    fake = _vorab(monkeypatch)
+    await respond_agent(_ctx(
+        page_context={"page_kind": "content", "node_id": "n-1"},
+        page_meta={"title": "Stationsarbeit zur Optik", "node_id": "n-1"}))
+    assert fake.calls == []
+    systeme = [m["content"] for m in seen["run_agent_loop"]["messages"]
+               if m.get("role") == "system"]
+    assert any("Stationsarbeit" in s for s in systeme), "Block fehlt — Test prüft nichts"
+
+
+@pytest.mark.anyio
+async def test_ein_gescheiterter_vorabruf_kippt_den_zug_nicht(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch, raises=True)
+    ctx = await respond_agent(_ctx(page_context=_SAMMLUNG, page_meta=_AUFGELOEST))
+    assert ctx.response_text == "Antwort des Agenten"
+    ergebnis = [m for m in seen["run_agent_loop"]["messages"] if m.get("role") == "tool"]
+    assert "nicht abrufen" in ergebnis[0]["content"]

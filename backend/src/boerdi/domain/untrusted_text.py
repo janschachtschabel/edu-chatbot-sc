@@ -25,11 +25,21 @@ Fremdtext sichtbar von der Anweisungsebene. Wirksam ist er nur, solange
 unsere eigenen Zusaetze (z.B. der UI-Box-Status) **ausserhalb** bleiben —
 sonst entwertet der Rahmen die eigene Anweisung mit.
 
-**Drei Nahtstellen, nicht eine.** Ein MCP-Ergebnis erreicht das Modell auf
-drei Wegen: aus der Werkzeug-Schleife und aus den beiden Prefetch-Injektionen
-(primary + extras) in ``_assemble_messages``. Alle drei rufen diese Funktion.
-Die erste Fassung deckte nur die Schleife ab — nachgemessen und geschlossen,
-bevor D3 (`/skillname`) eine Anleitung ueber den Prefetch einspeist.
+**Fuenf Nahtstellen, nicht eine.** Ein MCP-Ergebnis erreicht das Modell auf
+fuenf Wegen, und jeder ruft diese Funktion:
+
+1. die Werkzeug-Schleife der Muster-Engine (``tool_loop``)
+2. + 3. die beiden Prefetch-Injektionen in ``tool_loop_messages``
+   (primary + extras)
+4. die Agent-Schleife (``agent_loop``)
+5. der Vorabruf des Agenten (``agent_prefetch``) — Aufrufer-Angaben am
+   Endpunkt, Seitenkontext im Chat
+
+Die erste Fassung deckte nur die Schleife ab; 2+3 kamen 2026-08-10 dazu, bevor
+D3 (`/skillname`) eine Anleitung ueber den Prefetch einspeist. **Die Zahl stand
+danach als „drei" hier, obwohl der Agent-Weg (4+5) laengst existierte** — beim
+Bau von P4 nachgezaehlt und richtiggestellt. Wer hier eine Zahl liest, prueft
+sie besser nach: ``grep -rn frame_untrusted src/``.
 """
 
 from __future__ import annotations

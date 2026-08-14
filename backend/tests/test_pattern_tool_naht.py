@@ -157,6 +157,16 @@ class TestGegenrichtung:
     # nennt, lüde das Modell ein, den Zug mit einer Diagnose zu verbringen.
     NUR_BETRIEB = {"wlo_health_check"}
 
+    # Bewusst stillgelegt (Nutzer-Entscheid 2026-08-13). `search_skill` sucht
+    # Anleitungen im GESAMTBESTAND; freigegeben werden sie aber je Sammlung.
+    # Gemessen am selben Tag: mit der nodeId einer Fachsammlung liefert es
+    # nichts — die Anleitungen liegen im Arbeitsbereich, die Sammlung führt nur
+    # die Freigabeliste. Und es sagt dem Modell, das Nichts sei normal. Der Weg
+    # führt deshalb ausschliesslich über `get_skill_registry` + `get_skill`.
+    # Die Definition bleibt im Katalog (der MCP-Server hat das Werkzeug),
+    # `agent_tools.AUS_DEM_KATALOG` hält sie aus jedem Lauf heraus.
+    STILLGELEGT = {"search_skill"}
+
     def test_kein_katalog_werkzeug_ohne_muster(self):
         from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
         from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
@@ -169,7 +179,7 @@ class TestGegenrichtung:
         for fm in _seed_frontmatter():
             genannt |= set(fm.get("tools") or ())
 
-        verwaist = sorted(katalog - genannt - self.NUR_BETRIEB)
+        verwaist = sorted(katalog - genannt - self.NUR_BETRIEB - self.STILLGELEGT)
         assert verwaist == [], (
             f"{len(verwaist)} Katalog-Werkzeuge nennt kein einziges Muster: "
             f"{verwaist}. Sie werden dem Modell nie angeboten — der namentliche "
@@ -362,7 +372,8 @@ class TestKiErzeugungSuchtNicht(TestVierFaehigkeitenErreichbar):
         monkeypatch.setattr(rts, "has_auth_token", lambda: False)
         namen = self._aktiv("M10")
         assert {"get_wikipedia_summary", "get_url_text"} <= namen
-        assert {"search_skill", "get_skill", "get_skill_registry"} <= namen
+        assert {"get_skill", "get_skill_registry"} <= namen
+        assert "search_skill" not in namen
 
 
 class TestSkillProzess:
@@ -407,17 +418,23 @@ class TestSkillProzess:
         gerahmt = frame_untrusted("get_skill_registry", "Freigegebene Skills …")
         assert "keine Anweisung" in gerahmt
 
-    @pytest.mark.parametrize("pattern_id", ["M09", "M10", "M18", "M19", "M20"])
-    def test_arbeitende_muster_haben_auch_den_zweiten_weg(self, pattern_id):
-        """Der zweite Weg zur selben Frage. Führt die Sammlung KEINE Registry —
-        oder hängt die Aufgabe an gar keiner Sammlung, wie bei M20, das mit
-        einer blossen URL beginnt —, ist die Katalogsuche die einzige Chance,
-        eine passende Anleitung zu finden. Ohne sie endet der Weg an genau der
-        Stelle, an der die Redaktion vielleicht etwas hinterlegt hat.
+    @pytest.mark.parametrize(
+        "pattern_id", ["M08", "M09", "M10", "M18", "M19", "M20"])
+    def test_kein_muster_bietet_die_freie_skill_suche_an(self, pattern_id):
+        """Es gibt KEINEN zweiten Weg — und das ist die Entscheidung.
 
-        M08 fehlt hier bewusst: es ZEIGT eine Sammlung, es arbeitet nicht.
+        Bis 2026-08-13 stand hier das Gegenteil: `search_skill` als Rückfall,
+        wenn die Sammlung keine Registry führt. Die Live-Messung an diesem Tag
+        kehrte das um. Mit der nodeId einer Fachsammlung liefert das Werkzeug
+        nichts (die Anleitungen liegen im Arbeitsbereich, die Sammlung führt nur
+        die Freigabeliste) — und seine Beschreibung sagt dem Modell dann, das
+        Nichts sei normal und es solle ohne Anleitung weiterarbeiten, ohne sie
+        zu erwähnen. Ein Rückfall, der stumm scheitert, ist schlimmer als kein
+        Rückfall: er verdeckt, dass es 28 freigegebene Anleitungen gab.
+
+        Freigegeben wird je Sammlung. Also führt der Weg über die Sammlung.
         """
-        assert "search_skill" in self._tools(pattern_id)
+        assert "search_skill" not in self._tools(pattern_id)
 
     @pytest.mark.parametrize(
         "datei",
@@ -426,8 +443,13 @@ class TestSkillProzess:
          "m19-qualitaetssicherung.md", "m20-erschliessen.md"],
     )
     def test_jedes_dieser_muster_erklaert_die_reihenfolge(self, datei):
-        """Registry VOR Katalogsuche — eine für DIESE Sammlung freigegebene
-        Anleitung schlägt eine, die nur thematisch ähnlich klingt.
+        """Registry IMMER, freie Suche NIE, sonst normal lösen.
+
+        Seit 2026-08-13 ist Schritt 2 eine Verneinung: die freie Katalogsuche
+        wurde gestrichen. Geprüft wird deshalb ihre AUSSAGE und nicht mehr nur
+        das Vorkommen von `search_skill` — das Wort steht jetzt in der
+        Begründung, warum es das Werkzeug nicht mehr gibt, und ein Test darauf
+        wäre grün, ohne etwas zu wissen.
 
         R8 (2026-08-11): der Abschnitt steht sechsmal wortgleich in sechs
         Dateien; ein Einbau-Mechanismus fehlt, weil jeder Musterkörper allein in
@@ -438,7 +460,12 @@ class TestSkillProzess:
         koerper = (_PATTERN_DIR / datei).read_text(encoding="utf-8").split("---", 2)[2]
         assert "## Freigegebene Anleitungen der Redaktion" in koerper
         abschnitt = koerper.split("## Freigegebene Anleitungen der Redaktion")[1]
-        for schritt in ("get_skill_registry", "search_skill", "normal gelöst"):
+        for schritt in (
+            "get_skill_registry",
+            "**immer** geholt",
+            "**nicht** frei nach Anleitungen gesucht",
+            "normal gelöst",
+        ):
             assert schritt in abschnitt, (
                 f"{datei}: die Kopie nennt {schritt!r} nicht mehr — der Abschnitt "
                 "ist gegenüber den fünf anderen abgedriftet."

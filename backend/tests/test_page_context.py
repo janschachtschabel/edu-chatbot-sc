@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 
 from boerdi.services import page_context as p
@@ -348,3 +349,27 @@ def test_render_without_compendium_or_textcontent_is_unchanged():
     out = p.render_for_prompt(meta, {"page_kind": "collection", "collection_id": "C1"})
     assert "Kompendium" not in out
     assert "Volltext" not in out
+
+
+# ── prompt_block: darf keinen Zug kosten, aber auch nicht still ausfallen ──
+
+
+def test_ein_fehler_im_seitenblock_kostet_keinen_zug(monkeypatch, caplog):
+    """``prompt_block`` faengt alles — der Block ist Zusatzwissen, nicht die
+    Aufgabe. Lautlos darf der Ausfall trotzdem nicht sein.
+
+    Faellt er aus, ist der Agent wieder blind fuer die Seite (Befund B-2, den
+    P4 gerade behoben hat) — und das ist von „diese Seite hat keinen Kontext"
+    nicht zu unterscheiden. Auf ``debug`` sieht das im Betrieb niemand; der
+    Nachbar im selben Paket (``agent_prefetch``) meldet denselben Fall als
+    WARNING.
+    """
+    def _kaputt(*_a, **_k):
+        raise RuntimeError("Renderer kaputt")
+
+    monkeypatch.setattr(p, "render_for_prompt", _kaputt)
+    with caplog.at_level(logging.WARNING, logger=p.__name__):
+        assert p.prompt_block({}, {"page_kind": "collection", "collection_id": "C1"}) == ""
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING], (
+        "der Ausfall wurde nicht gemeldet"
+    )

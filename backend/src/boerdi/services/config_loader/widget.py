@@ -143,44 +143,74 @@ _CONTEXT_ACTIONS_DEFAULT_GREETINGS: dict[str, str] = {
     "external": ("Du bist auf {host} — das gehört nicht zu WLO. Ich kann mir "
                  "die Seite ansehen und sie für den Bestand vorschlagen."),
 }
+# Nutzer-Vorgabe 2026-08-13 (P7), wortgleich mit
+# ``seeds/01-base/context-actions.yaml`` — ``test_context_action_pills`` hält die
+# beiden Listen zusammen. Sie stehen zweimal, weil der Loader ohne
+# Datenbankeintrag eine Vorgabe braucht und die Redaktion eine Datei; bis P7
+# waren sie gedriftet (hier fehlte JEDES ``label_en``, und bei ``kind: text``
+# heisst das: einem englischen Nutzer deutschen Text in den Mund gelegt).
+#
+# Zwei Beschriftungen sind nachgemessen und nicht frei wählbar: „Stunde planen"
+# (nicht „Unterrichtsstunde…" — das Wort steht in ``lp_intent._lp_keywords``,
+# und der Schnellweg liefe vor der Musterwahl) und „Webseiten-Tour starten"
+# (enthält „tour starten" aus ``website-tour``, wo ein harter Phrasenvergleich
+# entscheidet). Die ausführliche Begründung steht im Kopf der Seed-Datei.
 _CONTEXT_ACTIONS_DEFAULT_PILLS: dict[str, list[dict[str, str]]] = {
     "collection": [
-        {"label": "Sammlung erkunden", "kind": "action", "action": "browse_collection"},
-        {"label": "Sammlung kuratieren", "kind": "action", "action": "curate_collection"},
-        {"label": "Passende Inhalte suchen", "kind": "text"},
-        {"label": "Neuen Inhalt dazu erstellen", "kind": "text"},
-        {"label": "Inhalt melden", "kind": "report"},
+        {"label": "Sammlungsinhalte zeigen", "label_en": "Show collection contents",
+         "kind": "action", "action": "browse_collection"},
+        {"label": "Stunde planen", "label_en": "Plan a lesson", "kind": "text"},
+        {"label": "Sammlung kuratieren", "label_en": "Curate collection",
+         "kind": "action", "action": "curate_collection"},
+        {"label": "Zu Lehrplänen beraten", "label_en": "Advise on the curriculum",
+         "kind": "text"},
+        {"label": "Inhalt melden", "label_en": "Report content", "kind": "report"},
     ],
     "content": [
-        {"label": "Worum geht es hier?", "kind": "text"},
-        {"label": "Ähnliche Inhalte suchen", "kind": "text"},
-        {"label": "Neuen Inhalt dazu erstellen", "kind": "text"},
-        {"label": "Inhalt melden", "kind": "report"},
+        {"label": "Mehr Details zeigen", "label_en": "Show more details", "kind": "text"},
+        {"label": "Volltext abrufen und bearbeiten", "label_en": "Open the full text",
+         "kind": "action", "action": "show_content_text"},
+        {"label": "Inhalte remixen", "label_en": "Remix this content", "kind": "text"},
+        {"label": "Ähnliche Inhalte suchen", "label_en": "Find similar content",
+         "kind": "text"},
+        {"label": "Inhalt melden", "label_en": "Report content", "kind": "report"},
     ],
     "topic": [
-        {"label": "Überblick über diese Themenseite", "kind": "text"},
-        {"label": "Sammlung kuratieren", "kind": "action", "action": "curate_collection"},
-        {"label": "Passende Inhalte suchen", "kind": "text"},
-        {"label": "Neuen Inhalt dazu erstellen", "kind": "text"},
-        {"label": "Inhalt melden", "kind": "report"},
+        {"label": "Themenseiteninhalte zeigen", "label_en": "Show topic page contents",
+         "kind": "action", "action": "browse_collection"},
+        {"label": "Stunde planen", "label_en": "Plan a lesson", "kind": "text"},
+        {"label": "Sammlung kuratieren", "label_en": "Curate collection",
+         "kind": "action", "action": "curate_collection"},
+        {"label": "Zu Lehrplänen beraten", "label_en": "Advise on the curriculum",
+         "kind": "text"},
+        {"label": "Inhalt melden", "label_en": "Report content", "kind": "report"},
     ],
     "search": [
-        {"label": "Suche verfeinern", "kind": "text"},
-        {"label": "Passende Sammlungen dazu", "kind": "text"},
+        {"label": "Videos zum Thema", "label_en": "Videos on this topic", "kind": "text"},
+        {"label": "Arbeitsblätter zum Thema", "label_en": "Worksheets on this topic",
+         "kind": "text"},
     ],
     "home": [
-        {"label": "Was kann ich hier finden?", "kind": "text"},
-        {"label": "Material zu einem Thema suchen", "kind": "text"},
+        {"label": "Informiere mich über WLO", "label_en": "Tell me about WLO",
+         "kind": "text"},
+        {"label": "Webseiten-Tour starten", "label_en": "Start the web tour",
+         "kind": "text"},
+        {"label": "Inhalte finden", "label_en": "Find content", "kind": "text"},
+        {"label": "Kontakt und mitmachen", "label_en": "Contact and get involved",
+         "kind": "text"},
     ],
     # WÖRTLICH aus M20s `trigger_phrases`. Bei `kind: text` IST die
     # Beschriftung die Nachricht, die der Klick sendet — sie muss also das
     # Muster auslösen, nicht bloss gut klingen. Eine frei erfundene Formulierung
     # wäre eine Schaltfläche, die nichts tut. `action`-Chips scheiden hier aus:
     # es gibt keine Direkt-Aktion fürs Erschliessen (nur browse_collection,
-    # curate_collection, generate_learning_path) — der Weg führt über M20.
+    # curate_collection, generate_learning_path, show_content_text) — der Weg
+    # führt über M20.
     "external": [
-        {"label": "Nimm diese Seite in WLO auf", "kind": "text"},
-        {"label": "Was steht auf der Seite, und passt das zu uns", "kind": "text"},
+        {"label": "Nimm diese Seite in WLO auf", "label_en": "Add this page to WLO",
+         "kind": "text"},
+        {"label": "Was steht auf der Seite, und passt das zu uns",
+         "label_en": "What is on this page, and does it fit us", "kind": "text"},
     ],
 }
 # Zweite Lesart von `external`: die Dublettenprüfung hat die Seite im Bestand

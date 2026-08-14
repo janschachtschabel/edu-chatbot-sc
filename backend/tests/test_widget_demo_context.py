@@ -162,6 +162,51 @@ def test_the_panel_says_when_a_value_was_refused():
     assert 'role="alert"' not in ctx.panel("", "")
 
 
+# ── Die Voreinstellung (P5) ──────────────────────────────────────────────
+# Nutzer-Vorgabe 2026-08-13: „Voreinstellung Sammlung + Optik-UUID". Der Grund
+# steht in §1 des Plans — die vier Züge, die den ganzen Umbau ausgelöst haben,
+# liefen gegen genau diese Sammlung. Wer die Demo aufruft, soll den Fall sehen,
+# ohne ihn abzutippen.
+
+
+def test_ohne_wahl_startet_die_seite_auf_dem_vorbereiteten_beispiel():
+    assert ctx.resolve_choice(None, None) == ctx.DEFAULT_CHOICE
+    assert ctx.DEFAULT_CHOICE[0] == "collection"
+
+
+def test_die_vorgabe_ist_ein_echter_kontext_und_kein_toter_wert():
+    """Ein Tippfehler in der UUID fiele sonst nirgends auf.
+
+    Die Erlaubnisliste verwürfe ihn, ``build_context`` gäbe ``None`` zurück, und
+    die Seite sähe aus wie ganz ohne Voreinstellung — nicht zu unterscheiden von
+    „das Backend findet die Sammlung nicht".
+    """
+    assert ctx.build_context(*ctx.resolve_choice(None, None)) == {
+        "page_kind": "collection",
+        "collection_id": ctx.DEFAULT_CHOICE[1],
+        "detection_source": ctx.DETECTION_SOURCE,
+    }
+
+
+def test_nichts_bestimmtem_schaltet_den_kontext_wirklich_ab():
+    """Warum „nicht gewählt" nicht als leere Zeichenkette reisen darf.
+
+    Das Formular schickt immer beide Felder mit; „nichts Bestimmtem" ist also
+    ``?kontext=&wert=`` — ein VORHANDENER leerer Wert. Hiesse leer „nichts
+    gesagt", käme die Voreinstellung zurück, und der Ausschalter wäre der
+    nächste Knopf, der nichts tut.
+    """
+    assert ctx.resolve_choice("", "") == ("", "")
+    assert ctx.build_context(*ctx.resolve_choice("", "")) is None
+
+
+def test_eine_getroffene_wahl_bleibt_unangetastet():
+    assert ctx.resolve_choice("topic", "eiszeit") == ("topic", "eiszeit")
+    # Auch die halbe: ein Typ ohne Wert ist ein leeres Feld — kein Anlass, die
+    # Sammlung dazuzudichten, die zu diesem Typ gar nicht passt.
+    assert ctx.resolve_choice("topic", None) == ("topic", "")
+
+
 def test_the_panel_carries_no_inline_event_handler():
     # Dieselbe Linie wie im Attribut-Pult: ein Formular, das der Browser selbst
     # abschickt (GET auf die eigene Adresse) braucht kein Skript — und was kein
