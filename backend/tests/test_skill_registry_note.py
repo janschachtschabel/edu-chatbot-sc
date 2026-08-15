@@ -2,18 +2,16 @@
 
 **Gemessen 2026-08-13 gegen den echten Server**, weil die Planannahme daneben
 lag. Der Plan sagte, ``get_collection_contents`` einer Sammlung trage das Feld
-``skillRegistry``. Das stimmt so nicht:
+``skillRegistry``. Das stimmt so nicht: das Feld haengt am **Knoten, der eine
+Registry besitzt**, und zwar nur dann, wenn dieser Knoten selbst als
+Trefferzeile auftaucht. Damit ist die richtige Naht nicht „bei
+Sammlungsabrufen", sondern „in jedem Ergebnis, das Knoten auflistet" — Suche,
+Auflistung, Baum, Knotendetails.
 
-* ``get_collection_contents(Optik)`` — der Standardaufruf (``contentFilter=
-  files``) — traegt **kein** ``skillRegistry``.
-* ``contentFilter=folders`` liefert die Unter-Sammlungen, und **eine** davon
-  („Geometrische Optik", ``f35c17d1-…``) traegt es mit **28** Eintraegen.
-* Die Inhalte DIESER Sammlung abzurufen bringt es wieder nicht mit.
-
-Das Feld haengt also am **Knoten, der eine Registry besitzt**, und zwar nur
-dann, wenn dieser Knoten selbst als Trefferzeile auftaucht. Damit ist die
-richtige Naht nicht „bei Sammlungsabrufen", sondern „in jedem Ergebnis, das
-Knoten auflistet" — Suche, Auflistung, Baum, Knotendetails.
+**Zweite Messung 2026-08-15** (siehe ``TestAnstossOhneRegistry``): auf dem
+NAVIGATIONSpfad kommt der Auszug an keinem der vier gemessenen Aufrufe mit, auch
+nicht bei ``contentFilter=folders``. Nur der Suchpfad traegt ihn. Deshalb tritt
+dort, wo keiner mitkommt, der **Anstoss** an seine Stelle.
 
 ``get_skill_registry`` selbst hat den Schluessel NICHT (es antwortet mit
 ``{"registry": {...}}``) und loest hier deshalb nichts aus — sonst stuende der
@@ -32,6 +30,9 @@ from boerdi.services.mcp.parsers import parse_skill_registries, skill_registry_n
 
 _REGISTRY_ID = "247da7a9-7cd9-4603-bda7-a97cd9760317"
 _STUNDE_PLANEN = "5b29f470-4417-49bb-a9f4-70441739bb3a"
+#: Die Sammlung, an der die Registry in ``_OPTIK`` haengt. Als Konstante, weil
+#: es seit 2026-08-15 darauf ankommt, ob eine ANGEFRAGTE Sammlung dieselbe ist.
+_OPTIK_ID = "f35c17d1-a29e-4b26-9d22-802682fad43d"
 
 
 def _knoten(node_id: str, titel: str, registry: dict | None = None) -> dict:
@@ -55,7 +56,7 @@ def _ergebnis(*knoten: dict) -> str:
 
 _OPTIK = _ergebnis(
     _knoten(
-        "f35c17d1-a29e-4b26-9d22-802682fad43d", "Geometrische Optik",
+        _OPTIK_ID, "Geometrische Optik",
         _registry(
             (_STUNDE_PLANEN, "Stunde planen"),
             ("f6c526e2-7ba8-443b-8526-e27ba8943b63", "Unterrichtsreihe planen"),
@@ -204,6 +205,231 @@ class TestDeckel:
         assert "weitere" in block
 
 
+# ── Der Anstoss, wenn KEINE Registry mitkam ──────────────────────────────
+# Live gemessen 2026-08-15 (echter Server, „Geometrische Optik" f35c17d1):
+# der Auszug reist NUR auf dem Suchpfad mit.
+#
+#   search_wlo_collections("Geometrische Optik")  → 28 Eintraege an JEDEM Treffer
+#   get_node_details(f35c17d1)                    → kein skillRegistry
+#   get_collection_contents(f35c17d1)             → kein skillRegistry
+#   get_collection_contents(…, folders)           → kein skillRegistry
+#   browse_collection_tree(f35c17d1)              → kein skillRegistry, an keinem der 6
+#
+# Damit gilt der Vermerk vom 2026-08-13 („contentFilter=folders traegt es") so
+# nicht mehr. Die Folge ist der Befund des Nutzers: sobald das Modell in eine
+# Sammlung HINEINnavigiert — die Pipeline, die M08 vorschreibt — steht im
+# Ergebnis nichts mehr von Anleitungen, und nichts stoesst es an.
+#
+# Die Sammlung ist trotzdem bekannt: ihre nodeId steht in den Argumenten, mit
+# denen WIR gerufen haben. Daraus wird der Anstoss gebaut — ohne Zusatzabruf.
+#
+# **Wofuer der Anstoss gilt, entschied sich am 2026-08-15 neu.** Der Server
+# beantwortet die Frage inzwischen fuer die meisten Werkzeuge selbst
+# (``tools/shared.ts::subjectRegistryText``, ``ensureRegistries`` am Knoten).
+# Wo er antwortet, hat unser Anstoss keine Aufgabe mehr — und waere sogar
+# schaedlich: ``subjectRegistryText`` schweigt ABSICHTLICH, wenn es nachgesehen
+# und nichts gefunden hat (shared.ts:58), und in genau dieses Schweigen hinein
+# haette unser Anstoss das Modell fuer nichts losgeschickt.
+#
+# Uebrig bleiben die beiden Werkzeuge, bei denen der Server ueber die
+# ANGEFRAGTE Sammlung nichts sagt — geprueft am Quelltext, siehe
+# ``test_wir_stossen_nur_an_wo_der_server_schweigt``.
+
+
+class TestAnstossOhneRegistry:
+    def test_ein_sammlungsabruf_ohne_registry_bekommt_einen_anstoss(self):
+        block = skill_registry_note(
+            _ergebnis(_knoten("u1", "Unterthema")),
+            tool_name="browse_collection_tree",
+            args={"nodeId": "C1"},
+        )
+        assert "C1" in block, "ohne die Sammlungs-ID ist der Anstoss nicht ausfuehrbar"
+        assert "get_skill_registry" in block
+
+    def test_die_mitgelieferte_registry_schlaegt_den_anstoss(self):
+        """Kam der Auszug DIESER Sammlung mit, ist er die bessere Auskunft.
+
+        Beides zu senden hiesse, dem Modell neben 2 kB Katalog noch die Bitte
+        mitzugeben, ihn abzurufen.
+
+        Bis 2026-08-15 stand hier ``nodeId="C1"`` — eine andere Sammlung als
+        die, an der die Registry haengt. Der Test beschrieb damit eine Regel,
+        die er nicht ausfuehrte: er belegte, dass IRGENDEIN Katalog den Anstoss
+        schlaegt, und gemeint war der Katalog der angefragten Sammlung. Die
+        beiden Faelle trennt jetzt der Test darunter.
+        """
+        block = skill_registry_note(
+            _OPTIK, tool_name="browse_collection_tree", args={"nodeId": _OPTIK_ID})
+        assert "Stunde planen" in block
+        assert "nicht dabei" not in block
+
+    def test_ein_katalog_ueber_ANDERE_sammlungen_schlaegt_den_anstoss_nicht(self):
+        """Der warme Cache darf die Frage nach der Eltern-Sammlung nicht schlucken.
+
+        ``browse_collection_tree`` haengt Registries nur an die KINDER, und nur
+        die, die der Cache schon kennt (``cachedRegistriesFor``). Also entschied
+        bis 2026-08-15 der Cache-Zustand darueber, ob C1 seinen Anstoss bekam:
+        kalt ja, warm nein — derselbe Aufruf, zwei Prompts.
+
+        Warm war es sogar der schaedlichere Fall: das Modell sah Kataloge von
+        Unter-Sammlungen und kein Wort ueber die, in der es steht — was sich
+        liest, als fuehre gerade sie keine.
+        """
+        kinder = _ergebnis(
+            _knoten("K1", "Unterthema", _registry((_STUNDE_PLANEN, "Stunde planen"))),
+        )
+        block = skill_registry_note(
+            kinder, tool_name="browse_collection_tree", args={"nodeId": "C1"})
+        assert "Stunde planen" in block, "der Katalog des Kindes bleibt stehen"
+        assert "C1" in block, "und die angefragte Sammlung bekommt trotzdem ihren Anstoss"
+        # Und die Ueberschrift des Anstosses muss neben einem Katalog noch wahr
+        # sein: sie spricht ueber die angefragte Sammlung, nicht ueber das
+        # Ergebnis — sonst stuende „bringt keine mit" ueber einer Freigabeliste.
+        assert "bringt keine mit" not in block
+
+    def test_ein_weggekuerzter_katalog_beantwortet_nichts(self):
+        """Beantwortet ist, was das Modell SIEHT — nicht, was mitkam.
+
+        Der Deckel ``_MAX_REGISTRIES`` schneidet ab dem vierten Katalog ab. Faellt
+        ausgerechnet der der angefragten Sammlung weg, ist ihre Frage offen wie
+        zuvor, auch wenn die Daten sie beantwortet haetten.
+        """
+        viele = _ergebnis(*[
+            _knoten(f"K{i}", f"Unterthema {i}", {
+                "nodeId": f"r{i}", "title": "Skill Registry",
+                "entries": [{"nodeId": f"s{i}", "title": f"Anleitung {i}"}],
+            })
+            for i in range(4)
+        ])
+        block = skill_registry_note(
+            viele, tool_name="browse_collection_tree", args={"nodeId": "K3"})
+        assert "Unterthema 3" not in block, "Vorbedingung: K3 ist weggekuerzt"
+        assert "K3" in block, "also steht die Frage nach K3 weiter offen"
+
+    def test_ohne_aufruf_kontext_bleibt_alles_wie_bisher(self):
+        # Rueckwaertsvertraeglich: die alte Aufrufform kennt keine Argumente und
+        # darf deshalb auch nichts behaupten.
+        assert skill_registry_note(_ergebnis(_knoten("m1", "Material"))) == ""
+
+    def test_ein_suchergebnis_ohne_registry_bekommt_keinen_anstoss(self):
+        """Eine Suche steht in keiner Sammlung — es gaebe keine ID zu nennen.
+
+        Und sie ist genau der Weg, auf dem der Auszug ohnehin mitkommt: bleibt
+        er hier aus, fuehrt die Sammlung keine Registry.
+        """
+        assert skill_registry_note(
+            _ergebnis(_knoten("m1", "Material")),
+            tool_name="search_wlo_content", args={"query": "Optik"}) == ""
+
+    def test_die_registry_selbst_stoesst_sich_nicht_an(self):
+        assert skill_registry_note(
+            '{"registry": {"entries": []}}',
+            tool_name="get_skill_registry", args={"collectionId": "C1"}) == ""
+
+    def test_wir_stossen_nur_an_wo_der_server_schweigt(self):
+        """Die Aufteilung, die die Wortlaut-Kopplung ueberfluessig macht.
+
+        Bis 2026-08-15 sah unser Anstoss dem Servertext an, ob dieser die Frage
+        schon beantwortet hatte — an vier deutschen Satzanfaengen. Das koppelte
+        uns an fremde FORMULIERUNGEN: eine Umformulierung im Server haette bei
+        uns eine Doppelung erzeugt.
+
+        Die Kopplung faellt weg, weil die Frage vorher entschieden ist. Am
+        Quelltext des Servers geprueft (2026-08-15):
+
+        * ``subjectRegistryText`` beantwortet sie fuer ``get_collection_contents``,
+          ``search_wlo_within_collection``, ``get_topic_page_content`` und
+          ``get_related_content`` — inklusive des ehrlichen Schweigens bei
+          „nachgesehen, keine da" (shared.ts:58).
+        * ``ensureRegistries`` beantwortet sie fuer ``get_node_details``
+          (live, ein Knoten) und ``search_wlo_collections``.
+        * ``browse_collection_tree`` und ``get_subject_portals`` nutzen nur
+          ``cachedRegistriesFor`` — und das sagt etwas ueber die KINDER, nie
+          ueber die angefragte Sammlung.
+        * ``get_collection_stats`` ruehrt die Registry gar nicht an.
+
+        Laufen die beiden Mengen kuenftig auseinander, ist der Preis derselbe
+        wie vorher — eine Doppelung, kein falscher Satz. Nur haengt es jetzt an
+        Werkzeugnamen (Vertragsflaeche) statt an Prosa.
+        """
+        from boerdi.services.mcp.parsers.skill_registry import _SAMMLUNGS_WERKZEUGE
+
+        beantwortet_der_server = {
+            "get_collection_contents", "search_wlo_within_collection",
+            "get_topic_page_content", "get_related_content",
+            "get_node_details", "search_wlo_collections",
+        }
+        assert set(_SAMMLUNGS_WERKZEUGE) == {
+            "browse_collection_tree", "get_collection_stats",
+        }
+        assert not set(_SAMMLUNGS_WERKZEUGE) & beantwortet_der_server
+
+    def test_wo_der_server_antwortet_schweigen_wir(self):
+        """Gegenprobe zur Liste: kein Anstoss fuer ein beantwortetes Werkzeug.
+
+        Fuer ``get_collection_contents`` gilt das auch dann, wenn das Ergebnis
+        keine Registry traegt — genau dort schweigt der Server absichtlich,
+        weil er nachgesehen und nichts gefunden hat.
+        """
+        for werkzeug in ("get_collection_contents", "get_node_details",
+                         "get_topic_page_content", "search_wlo_within_collection"):
+            assert skill_registry_note(
+                _ergebnis(_knoten("m1", "Material")),
+                tool_name=werkzeug, args={"nodeId": "C1", "collectionId": "C1"},
+            ) == "", f"{werkzeug}: der Server hat die Frage bereits beantwortet"
+
+    def test_der_anstoss_beginnt_eine_eigene_zeile(self):
+        # Dieselbe Regel wie fuer den Katalog-Marker: unsere Ueberschrift darf
+        # nicht mitten im Fremdtext stehen.
+        angehaengt = _ergebnis(_knoten("m1", "Material")) + skill_registry_note(
+            _ergebnis(_knoten("m1", "Material")),
+            tool_name="browse_collection_tree", args={"nodeId": "C1"})
+        assert any(z.startswith("[SKILL-REGISTRY") for z in angehaengt.split("\n"))
+
+    def test_kein_fremdtext_entscheidet_mehr_ueber_unseren_anstoss(self):
+        """Die Kopplung ist weg — und mit ihr ihr Nebenschaden.
+
+        Solange am Servertext erkannt wurde, ob dieser die Frage beantwortet
+        hat, entschied FREMDINHALT mit: eine Materialbeschreibung
+        „Skill-Registry: siehe Handbuch" brachte uns zum Schweigen (gemessen
+        2026-08-15). Dieselbe Klasse wie der Anschlusssatz aus fremdem Text.
+
+        Jetzt entscheidet allein der Werkzeugname. Ein Ergebnis darf schreiben,
+        was es will.
+        """
+        fremd = json.dumps({"total": 1, "count": 1, "results": [{
+            "nodeId": "u1", "title": "Unterthema", "nodeType": "collection",
+            "description": "Skill-Registry: siehe Handbuch",
+        }]})
+        block = skill_registry_note(
+            fremd, tool_name="browse_collection_tree", args={"nodeId": "C1"})
+        assert "C1" in block, "Fremdtext hat den Anstoß unterdrückt"
+
+        # Und andersherum: der volle Wortlaut des Servers im Ergebnis eines
+        # Werkzeugs, das WIR anstossen, hebt den Anstoss ebenfalls nicht auf.
+        mit_serverblock = (
+            _ergebnis(_knoten("u1", "Unterthema")) + "\n"
+            "Für die angefragte Sammlung C1 sind diese Skills freigegeben:\n"
+            "Skill-Registry: Skillkatalog (nodeId: r1) — 28 freigegebene Skills"
+        )
+        assert "C1" in skill_registry_note(
+            mit_serverblock, tool_name="browse_collection_tree",
+            args={"nodeId": "C1"})
+
+    def test_der_anstoss_nennt_die_bedingung_und_bleibt_kurz(self):
+        """Er soll anstossen, nicht antreiben.
+
+        Ohne die Bedingung riefe das Modell ``get_skill_registry`` bei JEDEM
+        Navigationsschritt — ein Abruf je Drilldown, fuer eine Frage, die
+        niemand gestellt hat.
+        """
+        block = skill_registry_note(
+            _ergebnis(_knoten("m1", "Material")),
+            tool_name="browse_collection_tree", args={"nodeId": "C1"})
+        assert len(block) < 500
+        assert "VOR" in block, "die Reihenfolge ist der Kern der Regel"
+
+
 # ── Die vier Nahtstellen ─────────────────────────────────────────────────
 # Ein MCP-Ergebnis erreicht das Modell auf vier Wegen (vgl. ``untrusted_text``,
 # das dieselbe Zaehlung fuer den Fremdtext-Rahmen fuehrt): Werkzeug-Schleife,
@@ -214,13 +440,14 @@ class TestDeckel:
 _MARKER = "SKILL-REGISTRY"
 
 
-def _loop_nachrichten(monkeypatch, tool_name: str, ergebnis: str, **kw):
+def _loop_nachrichten(monkeypatch, tool_name: str, ergebnis: str,
+                      argumente: str = "{}", **kw):
     from tests.test_tool_loop import _OutcomeFake, _resp_text, _resp_tools, _run_loop
 
     aktiv = [{"type": "function", "function": {"name": tool_name}}]
     _fake, _result, st = _run_loop(
         monkeypatch,
-        [_resp_tools([("tc1", tool_name, "{}")]), _resp_text("fertig")],
+        [_resp_tools([("tc1", tool_name, argumente)]), _resp_text("fertig")],
         outcome=_OutcomeFake({tool_name: ergebnis}),
         active_tools=aktiv,
         **kw,
@@ -271,6 +498,22 @@ class TestNahtstellen:
         )
         assert _MARKER not in nachrichten[0]["content"]
 
+    def test_der_anstoss_erreicht_den_mustermodus(self, monkeypatch):
+        """Die Naht, an der der Nutzer-Befund sichtbar wurde (2026-08-15).
+
+        Navigiert das Modell in eine Sammlung, bringt der Server keine
+        Teil-Registry mit (live gemessen an vier Aufrufen). Bis hierher stand im
+        Ergebnis dann NICHTS zu Anleitungen — der Mustermodus hat, anders als
+        die Agent-Schleife, keinen Vorabruf, der die Lücke deckt.
+        """
+        nachrichten = _loop_nachrichten(
+            monkeypatch, "browse_collection_tree",
+            _ergebnis(_knoten("u1", "Unterthema")),
+            argumente='{"nodeId": "C1"}',
+        )
+        inhalt = nachrichten[0]["content"]
+        assert "C1" in inhalt and "get_skill_registry" in inhalt
+
 
 def test_naht_4_agent_schleife(monkeypatch):
     """Die Agent-Schleife setzt ihre Werkzeug-Ergebnisse selbst ein.
@@ -294,6 +537,33 @@ def test_naht_4_agent_schleife(monkeypatch):
     ], outcome=out)
     tool_msgs = [m for m in msgs if m.get("role") == "tool"]
     assert tool_msgs and _MARKER in tool_msgs[0]["content"]
+
+
+def test_der_anstoss_erreicht_auch_die_agent_schleife(monkeypatch):
+    """Zweiter Modus, dieselbe Zusicherung.
+
+    Die Agent-Schleife hat für die Sammlung des SEITENkontexts einen Vorabruf —
+    aber nicht für eine, in die sie mitten im Lauf hineinnavigiert. Dort trifft
+    sie dieselbe Lücke wie der Mustermodus.
+    """
+    from tests.test_agent_loop import (
+        _lauf,
+        _OutcomeFake,
+        _resp_text,
+        _resp_tools,
+        _tool_call,
+    )
+
+    out = _OutcomeFake({
+        "browse_collection_tree": _ergebnis(_knoten("u1", "Unterthema")),
+    })
+    _fake, _run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("browse_collection_tree", {"nodeId": "C1"})]),
+        _resp_text("ok"),
+    ], outcome=out)
+    tool_msgs = [m for m in msgs if m.get("role") == "tool"]
+    assert tool_msgs
+    assert "get_skill_registry" in tool_msgs[0]["content"]
 
 
 # ════════════════════════════════════════════════════════════════════════

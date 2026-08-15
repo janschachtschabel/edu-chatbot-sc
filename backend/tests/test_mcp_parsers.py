@@ -226,6 +226,90 @@ _V2_ENVELOPE = json.dumps({
 })
 
 
+# ── Die Nutzlast trägt einen zweiten Block hinter sich ──────────────────
+#
+# Der MCP-Server hängt seit dem Skill-Umbau (Quelltext gelesen 2026-08-15,
+# Deploy steht noch aus) die Freigabeliste der ANGEFRAGTEN Sammlung als eigenen
+# ``content``-Block an — ``tools/shared.ts::subjectRegistryText``, aufgerufen von
+# ``get_collection_contents``, ``search_wlo_within_collection``,
+# ``get_related_content`` und ``get_topic_page_content``. Sie steht bewusst
+# NICHT im JSON: dort ist der erste Block die Nutzlast, und deutsche Prosa daran
+# geklebt ließe ``JSON.parse`` brechen.
+#
+# Unser Client hängt alle Textblöcke aneinander (``client.py``:
+# ``"\n".join(texts)``) — worauf der Server sich ausdrücklich verlässt. Beim
+# Parser kommt damit **JSON plus Prosa** an.
+#
+# Gemessen vor dem Fix: ``parse_wlo_cards`` 2 → **0** Karten,
+# ``parse_total_count`` 4 → **0**. Drei kartenliefernde Werkzeuge hätten ihre
+# Karten verloren, sobald der Server aktualisiert wird.
+_ZWEITER_BLOCK = (
+    "Für die angefragte Sammlung f35c17d1 sind diese Skills freigegeben:\n"
+    "Skill-Registry: Skillkatalog Physik Optik (nodeId: 247da7a9) — 28 "
+    "freigegebene Skills, alle hier gelistet; Beschreibungen und "
+    "Redaktionshinweise mit get_skill_registry\n"
+    "  Skill: Stunde planen (nodeId: 5b29f470) — laden mit get_skill"
+)
+
+
+def test_karten_ueberleben_einen_zweiten_textblock():
+    karten = parse_wlo_cards(_V2_ENVELOPE + "\n" + _ZWEITER_BLOCK)
+    assert [k["node_id"] for k in karten] == ["n-content-1", "n-coll-1"]
+
+
+def test_die_gesamtzahl_ueberlebt_einen_zweiten_textblock():
+    assert parse_total_count(_V2_ENVELOPE + "\n" + _ZWEITER_BLOCK) == 2
+
+
+# ── Ein einzelner Knoten statt einer Liste ──────────────────────────────
+#
+# ``get_node_details`` legt im TEXT-Block einen flachen Knoten ab —
+# ``{...formatted, renderUrl, parents?, raw?, textContent?}`` — und den Umschlag
+# nur in ``structuredContent``, das unser Client nicht liest
+# (node-details.ts:131-158, Quelltext gelesen 2026-08-15).
+#
+# Das ist auf der Server-Seite Absicht und von vier Tests dort festgenagelt
+# (``payload.parents``, ``payload.raw``, ``payload.compendiumText`` auf oberster
+# Ebene); der Vertrag des Repos verlangt nur, dass ein Text-Block DA ist, nicht
+# dass er ``structuredContent`` gleicht. Also passt sich diese Seite an.
+#
+# Gemessen vor dem Fix: 1 → **0** Karten, obwohl ``get_node_details`` in
+# ``CARD_YIELDING_TOOLS`` steht.
+_FLACHER_KNOTEN = json.dumps({
+    "nodeId": "f35c17d1", "title": "Geometrische Optik", "description": "",
+    "nodeType": "collection", "topicPageUrl": "",
+    "renderUrl": "https://example.invalid/render/f35c17d1",
+})
+
+
+def test_ein_einzelner_knoten_gilt_als_ergebnis_von_eins():
+    karten = parse_wlo_cards(_FLACHER_KNOTEN)
+    assert [k["node_id"] for k in karten] == ["f35c17d1"]
+    assert karten[0]["node_type"] == "collection"
+
+
+def test_die_toleranz_greift_nur_bei_einem_echten_knoten():
+    """Sonst läse jedes Objekt mit einer ``nodeId`` als Karte.
+
+    Die Signatur eines ``FormattedNode`` ist das PAAR aus ``nodeId`` und einem
+    bekannten ``nodeType`` — eine Auskunft wie ``{"nodeId": …, "fileCount": …}``
+    trägt zwar eine ID, ist aber keine Karte.
+    """
+    assert parse_wlo_cards(json.dumps({"nodeId": "n1", "fileCount": 12})) == []
+    assert parse_wlo_cards(json.dumps({"nodeType": "collection"})) == []
+    assert parse_wlo_cards(json.dumps({"registry": {"entries": []}})) == []
+
+
+def test_der_zweite_block_kapert_die_gesamtzahl_nicht():
+    """Der Rückfall darf den W2-1-Schutz nicht aufweichen.
+
+    ``parse_total_count`` liest den Umschlag und NICHT die Ziffern im Fließtext
+    — sonst wäre „28 freigegebene Skills" im angehängten Block ein Kandidat für
+    die Trefferzahl.
+    """
+    assert parse_total_count(_V2_ENVELOPE + "\n" + _ZWEITER_BLOCK) != 28
+
+
 def test_parse_wlo_cards_maps_fields_and_types():
     cards = parse_wlo_cards(_V2_ENVELOPE)
     assert len(cards) == 2

@@ -21,7 +21,7 @@ import time
 from typing import Any
 
 from boerdi.api.schemas import ToolOutcome
-from boerdi.services.mcp.client import call_mcp_tool
+from boerdi.services.mcp.client import call_mcp_tool, is_mcp_error
 
 
 async def call_with_outcome(
@@ -41,6 +41,17 @@ async def call_with_outcome(
 
         if not result or not result.strip():
             outcome.status = "empty"
+            outcome.item_count = 0
+        elif is_mcp_error(result):
+            # NEU-Abweichung ggü. ALT (2026-08-15). ALT prüfte nur auf leer —
+            # ein Fehlschlag kommt aber als gewöhnlicher Text zurück
+            # (``client.is_mcp_error``) und galt damit als ``success``. Die
+            # Folgen sind nicht kosmetisch: ``adjust_confidence`` HOB die
+            # Zuversicht um 0.05 statt sie um 0.20 zu senken, und
+            # ``derive_state_hint`` schickte den Zug nach ``S3``
+            # („Ergebnisse kuratieren"), obwohl es keine gab.
+            outcome.status = "error"
+            outcome.error = result[:200]
             outcome.item_count = 0
         else:
             outcome.status = "success"

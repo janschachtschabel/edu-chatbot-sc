@@ -17,6 +17,9 @@ import time as _time
 from collections import OrderedDict
 from typing import Any
 
+from boerdi.domain.write_confirm import CURATION_TOOLS
+from boerdi.services.mcp.auth import caller_fingerprint
+
 logger = logging.getLogger(__name__)
 
 
@@ -92,11 +95,29 @@ def _is_empty_response(value: str) -> bool:
 
 
 def _cache_key(tool_name: str, arguments: dict[str, Any]) -> tuple[str, str]:
-    """Stable cache key: tool name + sorted JSON-serialisation of args."""
+    """Stable cache key: tool name + caller + sorted JSON-serialisation of args.
+
+    **Der Aufrufer gehört in den Schlüssel** (S6, 2026-08-15). Der MCP-Server
+    antwortet identitätsabhängig — ``anonymous`` sieht nur Öffentliches,
+    ``user`` sieht, was diese Person sehen darf (Begründung und Messung in
+    :func:`~boerdi.services.mcp.auth.caller_fingerprint`). Dieser Speicher ist
+    prozessweit und überlebt Sitzungen; ohne das Kennzeichen bekäme die zweite
+    Person die Treffer der ersten.
+
+    Die Identität wird hier **geholt und nicht hereingereicht**: ein Aufrufer,
+    der sie vergisst, öffnet das Loch wieder. Genau eine Produktions-Aufrufstelle
+    gibt es (``client.call_mcp_tool``) — sie soll gar nicht daran denken müssen.
+
+    Das Werkzeug bleibt ``key[0]``: ``_cache_get`` liest daraus die
+    Per-Tool-TTL. Kennzeichen und Argumente stehen zusammen als **Liste** im
+    zweiten Element, nicht ineinandergemischt — ein Argument namens ``_caller``
+    könnte sonst die Trennung überschreiben.
+    """
+    caller = caller_fingerprint()
     try:
-        canonical = json.dumps(arguments, sort_keys=True, ensure_ascii=False)
+        canonical = json.dumps([caller, arguments], sort_keys=True, ensure_ascii=False)
     except Exception:
-        canonical = str(sorted(arguments.items()))
+        canonical = str((caller, sorted(arguments.items())))
     return (tool_name, canonical)
 
 
@@ -179,4 +200,27 @@ def clear_tool_cache() -> int:
 
 # Tools deren Output transient ist und die wir NICHT cachen wollen
 # (Health-Checks, Live-Daten, etc.). Default: alles cachen.
-_TOOL_CACHE_BLOCKLIST = frozenset({"wlo_health_check"})
+#
+# S5 (2026-08-15): Die kuratierende Oberfläche gehört vollständig hierher, und
+# das war der zweite Teil der Bestätigungs-Schleife. Drei getrennte Gründe:
+#
+# * **Eine Ausführung ist kein Lesevorgang.** Sie aus dem Zwischenspeicher zu
+#   beantworten heisst, sie NICHT auszuführen — und trotzdem Vollzug zu melden.
+# * **Der Schlüssel steht nicht im Cache-Schlüssel.** ``_cache_key`` liest die
+#   Argumente NACH ``validate_tool_args``; bis heute fiel ``confirmToken`` dort
+#   heraus, Vorschau und Ausführung hatten damit denselben Cache-Schlüssel. Der
+#   Ausführungsaufruf bekam die alte Vorschau zurück, ohne dass der Server je
+#   davon erfuhr. Beide Stellen sind jetzt behoben; die Sperre hier bleibt
+#   trotzdem die belastbare — sie hängt an keiner zweiten Bedingung.
+# * **Vorschläge ändern sich.** ``wlo_list_suggestions`` liest nur, aber nach
+#   einer Entscheidung ist die aufgehobene Liste falsch.
+#
+# ``wlo_auth_status`` steht daneben, weil es „unter welchem Namen würde
+# geschrieben" beantwortet. Der Zugangsblock reist im ContextVar und nicht in
+# den Argumenten, geht also NICHT in den Cache-Schlüssel ein — eine aufgehobene
+# Antwort gehörte womöglich einer anderen Person.
+_TOOL_CACHE_BLOCKLIST = frozenset({
+    "wlo_health_check",
+    "wlo_auth_status",
+    *CURATION_TOOLS,
+})

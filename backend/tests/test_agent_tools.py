@@ -16,7 +16,11 @@ from __future__ import annotations
 
 import pytest
 
-from boerdi.services.agent_tools import SUBMIT_RESULT, build_agent_tools
+from boerdi.services.agent_tools import (
+    AUS_DEM_KATALOG,
+    SUBMIT_RESULT,
+    build_agent_tools,
+)
 from boerdi.services.mcp.auth import set_turn_auth_block
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 
@@ -130,3 +134,55 @@ def test_ohne_abschluss_werkzeug_endet_die_liste_beim_katalog() -> None:
     namen = _namen(build_agent_tools(include_submit=False))
     assert SUBMIT_RESULT not in namen
     assert "search_wlo_all" in namen
+
+
+# ── Stillgelegte Werkzeuge dürfen in keinem Text mehr vorkommen ─────────────
+
+
+def _alle_texte(knoten: object) -> list[str]:
+    """Jede Zeichenkette einer Werkzeugdefinition — Beschreibung wie Parameter.
+
+    Beides geht wörtlich an das Modell; eine Parameter-Beschreibung wiegt sogar
+    schwerer, weil sie genau dann gelesen wird, wenn das Werkzeug gerufen werden
+    soll. Deshalb der ganze Teilbaum und nicht nur ``description``.
+    """
+    if isinstance(knoten, str):
+        return [knoten]
+    if isinstance(knoten, dict):
+        return [t for wert in knoten.values() for t in _alle_texte(wert)]
+    if isinstance(knoten, list):
+        return [t for wert in knoten for t in _alle_texte(wert)]
+    return []
+
+
+def test_kein_angebotenes_werkzeug_verweist_auf_ein_stillgelegtes() -> None:
+    """Ein Werkzeug, das kein Pfad reicht, darf in keinem Text als Weg stehen.
+
+    Befund 2026-08-15: ``search_skill`` ist seit 2026-08-13 aus jedem Pfad
+    genommen (:data:`AUS_DEM_KATALOG`, ``_NICHT_UEBER_PATTERN``) — die TEXTE
+    zogen nicht nach. ``get_skill`` beschrieb sich als „der zweite Schritt nach
+    search_skill" und seinen einzigen Pflichtparameter als „nodeId aus einem
+    search_skill-Treffer". Das Modell bekommt also das Werkzeug, das die
+    Anleitung öffnet, und dazu die Auskunft, seine Vorbedingung sei etwas, das
+    es nicht hat. Die Agent-Schleife verdeckte das, weil ``respond_agent`` die
+    Registry vorab in die Kette holt und die ``nodeId``s damit sichtbar sind;
+    im Mustermodus gibt es diesen Vorabruf nicht, und der Weg endete.
+
+    Geprüft wird der VOLLE Katalog (mit Zugangsblock, also samt kuratierender
+    Werkzeuge) — beide Engines schöpfen aus ihm, die Muster-Engine über
+    ``_nameable_tools``, die Agent-Schleife über ``build_agent_tools``.
+    """
+    assert set_turn_auth_block("wlo2.abc-def_123")
+    fundstellen = {
+        (werkzeug["function"]["name"], stillgelegt)
+        for werkzeug in build_agent_tools()
+        for text in _alle_texte(werkzeug)
+        for stillgelegt in AUS_DEM_KATALOG
+        if stillgelegt in text
+    }
+    assert not fundstellen, (
+        "Diese angebotenen Werkzeuge verweisen auf ein stillgelegtes: "
+        f"{sorted(fundstellen)}. Der Text muss den erreichbaren Weg nennen — "
+        "sonst beschreibt er dem Modell eine Vorbedingung, die es nicht "
+        "erfüllen kann."
+    )

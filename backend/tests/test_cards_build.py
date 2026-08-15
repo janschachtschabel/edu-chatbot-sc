@@ -287,15 +287,31 @@ class TestSammlungNachziehen:
         out = _apply_llm_card_selection(pool, ["v1"])
         assert [c.node_id for c in out] == ["v1"]
 
-    def test_eine_themenseite_zaehlt_nicht_als_sammlung(self):
-        # Themenseiten haben ihre EIGENE Box; eine davon in der Auswahl belegt
-        # nicht, dass die Sammlungs-Box gefuellt ist.
+    # UMGEDREHT am 15.08.2026. Bis dahin stand hier das Gegenteil („eine
+    # Themenseite zaehlt nicht als Sammlung"), begruendet damit, sie habe ja
+    # ihre eigene Box. Seit dem Optik-Befund stimmt diese Begruendung nicht
+    # mehr: der Sammlungen-Kasten zeigt Sammlungen MIT Themenseite jetzt
+    # ebenfalls (mit ``collection_link`` als Ziel). Eine davon in der Auswahl
+    # fuellt den Kasten also sehr wohl — eine zweite nachzuziehen brachte eine
+    # Karte hinein, die das Modell nicht gewaehlt hatte.
+    def test_eine_themenseite_zaehlt_als_sammlung(self):
         tp = self._karte("thema", "collection", topic_pages=[
             {"url": "u", "target_group": "teacher", "label": "L", "variant_id": "v"},
         ])
         pool = [tp, self._karte("optik", "collection")]
         out = _apply_llm_card_selection(pool, ["thema"])
-        assert [c.node_id for c in out] == ["thema", "optik"]
+        assert [c.node_id for c in out] == ["thema"]
+
+    def test_nachgezogen_wird_die_erste_passende_auch_mit_themenseite(self):
+        # Der Live-Fall: „Optik" steht vorn im Pool, traegt aber eine
+        # Themenseite und wurde beim Nachzug uebersprungen — der User bekam
+        # „Geometrische Optik" statt der Sammlung, nach der er gefragt hatte.
+        optik = self._karte("optik", "topic_page", topic_pages=[
+            {"url": "u", "target_group": "teacher", "label": "L", "variant_id": "v"},
+        ])
+        pool = [self._karte("v1"), optik, self._karte("geo-optik", "collection")]
+        out = _apply_llm_card_selection(pool, ["v1"])
+        assert [c.node_id for c in out] == ["v1", "optik"]
 
     def test_es_wird_hoechstens_eine_nachgezogen(self):
         pool = [self._karte("v1")] + [

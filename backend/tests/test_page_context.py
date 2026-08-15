@@ -192,8 +192,48 @@ def test_render_zeigt_bestand_und_skillkatalog():
     assert "28" in out
     assert "Stunde planen" in out and "Dokumentieren" in out
     # Der zweistufige Weg zum Volltext MUSS benannt sein — ohne nodeId in der
-    # Übersicht käme das Modell sonst nicht an die Anleitung.
-    assert "search_skill" in out and "get_skill" in out
+    # Übersicht käme das Modell sonst nicht an die Anleitung. WELCHE zwei
+    # Schritte das sind, prüft der Wächter darunter.
+    assert "get_skill" in out
+
+
+def test_der_block_nennt_den_weg_den_das_modell_auch_gehen_kann():
+    """Befund 2026-08-15: er nannte einen, den es nicht gehen kann.
+
+    Der Hinweis stand auf ``search_skill`` → ``get_skill``. ``search_skill`` ist
+    aber seit 2026-08-13 aus jedem Pfad genommen (``agent_tools.AUS_DEM_KATALOG``
+    für die Agent-Schleife, ``_NICHT_UEBER_PATTERN`` für die Muster) — der Block
+    entstand einen Tag später und nahm die Entscheidung nicht auf. Damit wies er
+    das Modell auf ein Werkzeug, das in keiner Werkzeugliste steht, und der
+    erreichbare Weg (``get_skill_registry`` mit der Sammlungs-ID, die derselbe
+    Block wenige Zeilen später nennt) kam gar nicht vor.
+
+    Der Agent-Lauf überstand das, weil ``respond_agent`` die Registry vorab in
+    die Kette holt; der Mustermodus hat keinen Vorabruf und lief ins Leere —
+    genau der Befund des Nutzers („beim pattern modus passiert dies oft nicht").
+
+    Beide Richtungen sind gepinnt: kein stillgelegtes Werkzeug, und die zwei,
+    die den Weg tragen, ausdrücklich. ``get_skill`` wird dabei mit einer
+    Wortgrenze gesucht — sonst genügte ``get_skill_registry`` der Zusicherung.
+    """
+    import re
+
+    from boerdi.services.agent_tools import AUS_DEM_KATALOG
+
+    meta = {"title": "Geometrische Optik",
+            "context_facts": {"skills": 28, "skill_titles": ["Stunde planen"]}}
+    out = p.render_for_prompt(meta, {"page_kind": "collection", "collection_id": "C1"})
+
+    for stillgelegt in AUS_DEM_KATALOG:
+        assert stillgelegt not in out, (
+            f"Der Seitenblock weist auf {stillgelegt} — kein Pfad reicht es dem "
+            "Modell.")
+    assert "get_skill_registry" in out
+    assert re.search(r"get_skill(?!_)", out), (
+        "Der zweite Schritt fehlt — die Registry allein liefert nur Titel und "
+        "nodeIds, nicht den Wortlaut der Anleitung.")
+    # Und die ID, mit der der erste Schritt überhaupt aufrufbar ist.
+    assert "C1" in out
 
 
 def test_der_bestandsabschnitt_laesst_sich_abschalten():
@@ -265,7 +305,8 @@ def test_der_skillkatalog_passt_auf_eine_a4_seite():
     nachgemessen (28 Einträge, Titel im Schnitt 30,6 Zeichen): nur Titel
     ergeben bei 100 Einträgen 3 361 Zeichen — eine A4-Seite. Mit ``nodeId``
     wären es 7 161, also gut zwei. Deshalb trägt die Übersicht keine IDs; den
-    Volltext holt das Modell gezielt über ``search_skill`` → ``get_skill``.
+    Volltext holt das Modell gezielt über ``get_skill_registry`` →
+    ``get_skill``.
     """
     titel = [f"Anleitung Nummer {i} zu einem Thema" for i in range(p.MAX_SKILL_ENTRIES)]
     abschnitt = "\n".join(p._bestands_zeilen(

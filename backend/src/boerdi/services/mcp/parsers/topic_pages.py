@@ -10,7 +10,6 @@ Envelope-Leser aus :mod:`~boerdi.services.mcp.parsers.cards`.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from typing import Any
@@ -20,7 +19,7 @@ from boerdi.services.mcp.parsers.cards import (
     _cards_from_json_envelope,
     _normalize_card_repo_hosts,
 )
-from boerdi.services.mcp.parsers.json_scan import _first_json_object
+from boerdi.services.mcp.parsers.json_scan import load_envelope
 from boerdi.services.mcp.parsers.skill_registry import skill_count_of
 
 logger = logging.getLogger(__name__)
@@ -102,9 +101,8 @@ def parse_wlo_topic_page_cards(mcp_text: str) -> list[dict]:
     """
     if not mcp_text:
         return []
-    try:
-        obj = json.loads(mcp_text)
-    except (ValueError, json.JSONDecodeError):
+    obj = load_envelope(mcp_text)
+    if obj is None:
         logger.warning(
             "parse_wlo_topic_page_cards: not a JSON envelope (first 80 chars: %r)",
             mcp_text[:80],
@@ -240,16 +238,7 @@ def parse_topic_page_swimlanes(mcp_text: str) -> dict[str, Any]:
     }
     if not mcp_text:
         return out
-    obj: Any = None
-    try:
-        obj = json.loads(mcp_text)
-    except (ValueError, json.JSONDecodeError):
-        frag = _first_json_object(mcp_text)
-        if frag:
-            try:
-                obj = json.loads(frag)
-            except (ValueError, json.JSONDecodeError):
-                obj = None
+    obj: Any = load_envelope(mcp_text)
     if not isinstance(obj, dict):
         logger.warning("parse_topic_page_swimlanes: kein JSON-Envelope (%r)", mcp_text[:80])
         return out

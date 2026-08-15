@@ -253,7 +253,8 @@ async def run_agent_loop(
             # auch hier nicht wieder auftauchen.
             messages.append(_tool_turn(
                 tc.id,
-                frame_untrusted(name, beobachtet) + skill_registry_note(beobachtet),
+                frame_untrusted(name, beobachtet)
+                + skill_registry_note(beobachtet, tool_name=name, args=args),
             ))
 
     logger.info("Agent-Schleife: Iterationsdeckel von %s erreicht", limits.max_iterations)

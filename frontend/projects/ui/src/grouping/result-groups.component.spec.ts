@@ -96,6 +96,45 @@ describe('ResultGroupsComponent', () => {
       .toBe('Show content of Material Eins in the chat');
   });
 
+  /** Der Live-Befund „Optik" (15.08.2026): von vier Optik-Sammlungen zeigte
+   *  der Chat nur die zwei OHNE Themenseite. Die anderen tragen
+   *  `node_type: 'topic_page'` und fielen aus jeder Sammlungs-Prüfung. Sie
+   *  stehen jetzt in beiden Kästen — mit dem Ziel, das zum Kasten passt. */
+  it('zeigt eine Sammlung MIT Themenseite in beiden Boxen, je mit eigenem Ziel', async () => {
+    const host = await render(msg({
+      cards: [
+        card({
+          node_type: 'topic_page', node_id: 'opt1', title: 'Optik',
+          link: 'https://wirlernenonline.de/themenseite/optik',
+          collection_link: 'https://repo.test/edu-sharing/components/collections?id=opt1',
+        }),
+      ],
+    }));
+
+    const themenseite = host.querySelector(
+      '.result-group--topic a.result-group__item',
+    ) as HTMLAnchorElement;
+    const sammlung = host.querySelector(
+      '.result-group--collection a.result-group__item',
+    ) as HTMLAnchorElement;
+
+    expect(themenseite.querySelector('.result-group__item-title')?.textContent?.trim())
+      .toBe('Optik');
+    expect(sammlung.querySelector('.result-group__item-title')?.textContent?.trim())
+      .toBe('Optik');
+    expect(themenseite.getAttribute('href')).toBe('https://wirlernenonline.de/themenseite/optik');
+    expect(sammlung.getAttribute('href'))
+      .toBe('https://repo.test/edu-sharing/components/collections?id=opt1');
+    // Im Sammlungen-Kasten ist sie als Sammlung beschriftet, nicht als
+    // Themenseite — sonst stünde dieselbe Zeile zweimal gleich da.
+    expect(sammlung.getAttribute('title')).toBe('Optik (Sammlung)');
+    expect(themenseite.getAttribute('title')).toBe('Optik (Themenseite)');
+    // Zwei Verweise, gleicher sichtbarer Text, verschiedene Ziele: ohne
+    // `aria-label` hiessen beide vorgelesen nur „Optik".
+    expect(sammlung.getAttribute('aria-label')).toBe('Optik (Sammlung)');
+    expect(themenseite.getAttribute('aria-label')).toBe('Optik (Themenseite)');
+  });
+
   it('rendert alle 5 Boxen mit Heading, Items und aufgelösten Links', async () => {
     const host = await render(fullMessage());
 

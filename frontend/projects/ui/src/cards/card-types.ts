@@ -40,4 +40,13 @@ export interface WloCard {
    *  URL-Logik. Phase 10 macht es zum Pflichtfeld und entfernt die Alt-
    *  Auswahl-Logik (`guide_url`, `wlo_url`-Fallbacks). */
   link?: string;
+  /** Ziel des Sammlungen-Kastens für Sammlungen MIT kuratierter Themenseite.
+   *  Solche Karten tragen `node_type: 'topic_page'`, und `link` zeigt dann auf
+   *  die Themenseite — die Sammlung selbst wäre unerreichbar. Das Backend
+   *  liefert sie hier zusätzlich (`…/components/collections?id=…`).
+   *
+   *  Leer/fehlend bei allen anderen Karten: bei reinen Sammlungen IST `link`
+   *  schon der Browse-Link. Optional, weil ältere Antworten aus dem
+   *  Sitzungs-Verlauf das Feld noch nicht tragen. */
+  collection_link?: string;
 }

@@ -4,22 +4,38 @@ Teil der Fassade ``boerdi.services.mcp.parsers``. Eigenes Modul, eigener
 Aenderungsgrund: die anderen Parser bauen Karten fuer die Oberflaeche, dieser
 baut einen Block fuer den Prompt.
 
-**Was gemessen wurde (2026-08-13, echter Server, Sammlung Optik).** Der MCP
-haengt an einen Sammlungs-Knoten, der ein Registry-Dokument fuehrt, das Feld
-``skillRegistry`` mit ``{nodeId, title, entries[{nodeId, title}]}``. Es sitzt am
-**Knoten**, nicht an der Huelle, und nur dann, wenn dieser Knoten selbst als
-Trefferzeile auftaucht:
-
-* ``get_collection_contents(Optik)`` (Standard, ``contentFilter=files``): kein
-  Feld — die Treffer sind Materialien, keine Sammlungen.
-* ``contentFilter=folders``: die Unter-Sammlung „Geometrische Optik" traegt es
-  mit 28 Eintraegen.
-* Die Inhalte DIESER Sammlung abzurufen bringt es wieder nicht mit.
+**Was gemessen wurde.** Der MCP haengt an einen Sammlungs-Knoten, der ein
+Registry-Dokument fuehrt, das Feld ``skillRegistry`` mit
+``{nodeId, title, entries[{nodeId, title}]}``. Es sitzt am **Knoten**, nicht an
+der Huelle, und nur dann, wenn dieser Knoten selbst als Trefferzeile auftaucht.
 
 Deshalb sucht dieses Modul nicht bei bestimmten Werkzeugen, sondern in jedem
 Ergebnis, das Knoten auflistet — Suche, Auflistung, Baum, Knotendetails. Es
 laeuft ueber jedes Werkzeugergebnis; ohne Feld kostet es einen fehlgeschlagenen
 ``json.loads`` und gibt "" zurueck.
+
+**Zweite Messung (2026-08-15, echter Server, „Geometrische Optik" f35c17d1) —
+sie korrigiert die erste.** Gemessen am DEPLOYTEN Stand; der neue Servercode
+liegt vor und aendert zwei dieser vier Zeilen — welche und wodurch, steht bei
+:data:`_SAMMLUNGS_WERKZEUGE`. Wer die Karte dort pruefen will, liest also besser
+zuerst sie: die Liste hier ist das Vorher, sie ist das Nachher. Der Auszug reist
+NUR auf dem Suchpfad mit:
+
+* ``search_wlo_collections("Geometrische Optik")`` → 28 Eintraege an JEDEM der
+  beiden Treffer.
+* ``get_node_details(f35c17d1)`` → kein Feld. Man fragt die Sammlung selbst ab
+  und erfaehrt nichts von ihren 28 Anleitungen.
+* ``get_collection_contents(f35c17d1)`` → kein Feld, weder mit ``files`` noch
+  mit ``folders``.
+* ``browse_collection_tree(f35c17d1)`` → kein Feld, an keiner der sechs
+  Unter-Sammlungen.
+
+Die erste Messung (2026-08-13) hatte fuer ``contentFilter=folders`` noch eine
+Ausnahme notiert; sie gilt so nicht mehr. Praktische Folge und der Grund fuer
+:func:`_anstoss`: sobald das Modell in eine Sammlung HINEINnavigiert, steht im
+Ergebnis nichts mehr von Anleitungen — und bis 2026-08-15 stiess auch nichts
+mehr an. Die Sammlung ist trotzdem bekannt: ihre nodeId steht in den
+Argumenten, mit denen wir gerufen haben.
 
 **Warum ueberhaupt.** Der Befund vom selben Tag (B-1): M09 deklariert alle drei
 Skill-Werkzeuge und ruft keines. Der Katalog kommt hier ohne Extra-Aufruf mit —
@@ -38,10 +54,9 @@ sich nicht als Anweisungsblock tarnen.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 
-from boerdi.services.mcp.parsers.json_scan import _first_json_object
+from boerdi.services.mcp.parsers.json_scan import load_envelope
 
 #: Deckel gegen Prompt-Flutung. Eine Registry sind ~28 Eintraege ≈ 2 KB;
 #: ``contentFilter=folders`` auf einer grossen Sammlung kann viele
@@ -64,6 +79,49 @@ _FUSS = (
     "Beschreibungen und Verwendungshinweise der Redaktion: "
     "get_skill_registry(collectionId)."
 )
+
+#: Werkzeuge, bei denen der Server ueber die ANGEFRAGTE Sammlung nichts sagt —
+#: samt des Arguments, das ihre nodeId traegt.
+#:
+#: Genau zwei, und die Auswahl ist am Quelltext des MCP-Servers geprueft
+#: (2026-08-15, am NEUEN Stand — er liegt vor, ist aber noch nicht deployt; die
+#: Messliste im Modul-Docstring zeigt den deployten und weicht deshalb bei
+#: ``get_node_details`` und ``get_collection_contents`` ab).
+#: ``browse_collection_tree`` haengt Registries nur an die KINDER
+#: (``cachedRegistriesFor``), nie an die Sammlung, nach der gefragt wurde;
+#: ``get_collection_stats`` ruehrt die Registry ueberhaupt nicht an. Wer eines
+#: davon ruft, steht in einer Sammlung und erfaehrt sonst nichts von ihren
+#: Anleitungen.
+#:
+#: **Alle anderen fielen am 2026-08-15 heraus, und das ist der Kern.** Fuer
+#: ``get_collection_contents``, ``search_wlo_within_collection``,
+#: ``get_topic_page_content`` und ``get_related_content`` antwortet der Server
+#: selbst (``tools/shared.ts::subjectRegistryText``); fuer ``get_node_details``
+#: und ``search_wlo_collections`` haengt er die Registry an den Knoten
+#: (``ensureRegistries``). Dort ist unser Anstoss nicht nur ueberfluessig,
+#: sondern schaedlich: ``subjectRegistryText`` schweigt ABSICHTLICH, wenn es
+#: nachgesehen und nichts gefunden hat (shared.ts:58) — und in dieses Schweigen
+#: hinein schickte unser Anstoss das Modell fuer nichts los.
+#:
+#: Damit entfaellt die Kopplung an den WORTLAUT des Servers. Bis zu dieser
+#: Fassung erkannten wir seine Antwort an vier deutschen Satzanfaengen; das
+#: liess Fremdinhalt mitentscheiden (eine Beschreibung „Skill-Registry: siehe
+#: Handbuch" brachte uns zum Schweigen) und waere bei jeder Umformulierung
+#: gebrochen. Jetzt haengt es an Werkzeugnamen — Vertragsflaeche statt Prosa.
+#:
+#: **Nicht dabei und mit Absicht:** ``get_node_breadcrumb`` beantwortet, WO eine
+#: Sammlung sitzt, nicht was in ihr zu tun ist — ein Anstoss dort waere Rauschen
+#: auf einer reinen Orientierungsfrage. ``get_subject_portals`` ebenso: es ist
+#: ein Waehler ueber dreissig Portale, kein Arbeiten in einem davon.
+_SAMMLUNGS_WERKZEUGE = {
+    "browse_collection_tree": "nodeId",
+    "get_collection_stats": "nodeId",
+}
+
+#: Sagt „fuer DIESE Sammlung", nicht „in diesem Ergebnis": seit der Anstoss auch
+#: neben einem Katalog stehen kann (der der Kinder), waere „dieses Ergebnis
+#: bringt keine mit" direkt unter einer Freigabeliste schlicht falsch.
+_ANSTOSS_MARKER = "[SKILL-REGISTRY — fuer die angefragte Sammlung nicht dabei]"
 
 
 @dataclass(frozen=True)
@@ -166,19 +224,11 @@ def parse_skill_registries(raw_text: str) -> list[SkillRegistry]:
     koennen dieselbe Liste fuehren (gemessen: das Lehrtoolkit haengt an mehreren
     Knoten), und zweimal dasselbe im Prompt ist zweimal bezahlt.
 
-    Unlesbarer Text gibt ``[]`` und wirft nicht — auf dem Rueckweg stehen auch
-    Markdown-Antworten und Fehlertexte, und ein Zug darf daran nicht kippen.
+    Unlesbarer Text gibt ``[]`` und wirft nicht — siehe :func:`_lade`.
     """
-    try:
-        daten = json.loads(raw_text)
-    except (ValueError, TypeError):
-        ausschnitt = _first_json_object(raw_text or "")
-        if not ausschnitt:
-            return []
-        try:
-            daten = json.loads(ausschnitt)
-        except ValueError:
-            return []
+    daten = load_envelope(raw_text)
+    if daten is None:
+        return []
 
     treffer: list[SkillRegistry] = []
     _sammle(daten, treffer)
@@ -207,7 +257,50 @@ def _registry_block(r: SkillRegistry) -> list[str]:
     return zeilen
 
 
-def skill_registry_note(raw_text: str) -> str:
+def _anstoss(
+    tool_name: str, args: dict | None, *, beantwortet: frozenset[str] = frozenset(),
+) -> str:
+    """Der Hinweis auf eine Sammlung, ueber deren Anleitungen niemand etwas sagt.
+
+    Die ID kommt aus den Argumenten, mit denen WIR gerufen haben — kein
+    Zusatzabruf, keine Rateraterei am Fremdtext. **Der Ergebnistext geht hier
+    gar nicht mehr ein**, und das ist der Punkt: ob der Server die Frage schon
+    beantwortet hat, entscheidet :data:`_SAMMLUNGS_WERKZEUGE`, nicht sein
+    Wortlaut.
+
+    **Mit Bedingung**, und das ist der zweite Kern: ohne sie riefe das Modell
+    ``get_skill_registry`` bei jedem Navigationsschritt: ein Abruf je Drilldown
+    fuer eine Frage, die niemand gestellt hat.
+
+    :param beantwortet: Sammlungen, deren Katalog in DIESER Nachricht schon
+        steht — dort waere der Anstoss eine Doppelung. Nur die tatsaechlich
+        gezeigten zaehlen, nicht die weggekuerzten: beantwortet ist, was das
+        Modell sieht. Heute kann der Fall nur eintreten, wenn der Server die
+        Registry der angefragten Sammlung selbst anhaengt; genau das ist die
+        Aenderung, die dem MCP-Team vorgeschlagen ist, und dann verstummt der
+        Anstoss von allein, ohne dass jemand die Karte pflegen muss.
+    """
+    feld = _SAMMLUNGS_WERKZEUGE.get(tool_name)
+    if feld is None:
+        return ""
+    node_id = _einzeilig((args or {}).get(feld), _MAX_TITLE)
+    if not node_id or node_id in beantwortet:
+        return ""
+    return "\n".join([
+        "",
+        "",
+        _ANSTOSS_MARKER,
+        f"Diese Sammlung ({node_id}) kann Anleitungen der Redaktion freigeben; "
+        f'ob und welche, sagt get_skill_registry(collectionId="{node_id}").',
+        "Geht es um eine Aufgabe IN dieser Sammlung — etwas erstellen, planen, "
+        "erschliessen, pruefen —, hole sie VOR der eigenen Loesung. Geht es nur "
+        "ums Stoebern oder Auflisten, lass es.",
+    ])
+
+
+def skill_registry_note(
+    raw_text: str, *, tool_name: str = "", args: dict | None = None,
+) -> str:
     """Der Block fuers Modell, oder "" wenn dieses Ergebnis keine Registry traegt.
 
     Wird an die ``role=tool``-Nachricht **angehaengt**, nicht eingemischt: im
@@ -221,12 +314,31 @@ def skill_registry_note(raw_text: str) -> str:
     Ein Titel, der auf eine Zeile gezwungen wird, gewinnt nichts, wenn die
     Ueberschrift darueber selbst mitten im Fremdtext steht. ``_ui_box_state_
     footer`` beginnt aus demselben Grund mit ``\\n\\n``.
+
+    ``tool_name``/``args`` (2026-08-15) sind der Aufruf, aus dem dieses Ergebnis
+    stammt. Bringt es keine Registry mit, war der Aufruf aber sammlungsbezogen,
+    tritt der **Anstoss** an die Stelle des Katalogs (:func:`_anstoss`) — live
+    gemessen kommt der Auszug nur auf dem Suchpfad mit, und beim Hineinnavigieren
+    in eine Sammlung schwieg bis dahin alles. Ohne die beiden Angaben verhaelt
+    sich die Funktion wie zuvor; die vier Nahtstellen reichen sie durch.
+
+    **Der Katalog schlaegt den Anstoss nur fuer DIESELBE Sammlung.** Wo beide
+    dieselbe meinen, stuenden sonst 2 kB Katalog und die Bitte, ihn abzurufen,
+    in derselben Nachricht. Wo sie verschiedene meinen, ist es keine Doppelung,
+    sondern zwei Auskuenfte — und bis 2026-08-15 fiel dabei die wichtigere aus:
+    ``browse_collection_tree`` haengt Registries an die KINDER, sobald der Cache
+    sie kennt, also entschied dessen Waerme darueber, ob die Sammlung, IN der
+    das Modell steht, ueberhaupt erwaehnt wurde. Kalt ja, warm nein — derselbe
+    Aufruf, zwei Prompts. Warm war zugleich der schaedlichere Fall: Kataloge der
+    Unter-Sammlungen und kein Wort ueber die eigene liest sich, als fuehre
+    gerade sie keine.
     """
     registries = parse_skill_registries(raw_text)
     if not registries:
-        return ""
+        return _anstoss(tool_name, args)
+    gezeigt = registries[:_MAX_REGISTRIES]
     zeilen = ["", "", _MARKER, _AUFFORDERUNG]
-    for r in registries[:_MAX_REGISTRIES]:
+    for r in gezeigt:
         zeilen.extend(_registry_block(r))
     if len(registries) > _MAX_REGISTRIES:
         zeilen.append(
@@ -234,4 +346,6 @@ def skill_registry_note(raw_text: str) -> str:
             "Sammlungen mit eigener Freigabeliste.)"
         )
     zeilen.append(_FUSS)
-    return "\n".join(zeilen)
+    return "\n".join(zeilen) + _anstoss(
+        tool_name, args, beantwortet=frozenset(r.collection_id for r in gezeigt),
+    )

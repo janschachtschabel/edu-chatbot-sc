@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pytest
 
+from boerdi.api.schemas import WloCard
 from boerdi.domain import guide_mode
 from boerdi.domain.cards.links import (
     annotate_cards_with_link,
@@ -229,3 +230,64 @@ def test_annotate_guide_mode_overrides_card_url_to_repo_link():
     out = annotate_cards_with_link(cards, guide_mode=True, repo_base=PROD)
     assert out[0]["link"] == f"{PROD}/edu-sharing/components/render/v1"
     assert out[0]["url"] == out[0]["link"]     # url auf Repo-Link überschrieben
+
+
+# ═══ collection_link — zweites Ziel für Sammlungen MIT Themenseite ═════════
+#
+# Eine Sammlung mit kuratierter Themenseite trägt `node_type="topic_page"`
+# (so etikettiert `_infer_node_type`) und ist damit für jede Sammlungs-Prüfung
+# unsichtbar — sie erschien nie im Sammlungen-Kasten (Live-Befund „Optik",
+# 15.08.2026: von vier Optik-Sammlungen fehlten genau die zwei mit
+# `topicPageUrl`). Sie soll in BEIDEN Kästen stehen, je mit dem passenden
+# Ziel. `link` bleibt die Themenseite, `collection_link` trägt die Sammlung.
+class TestCollectionLink:
+    def test_topic_page_card_gets_browse_url(self):
+        cards = [{
+            "node_id": "opt1", "node_type": "topic_page",
+            "topic_page_url": "https://wirlernenonline.de/themenseite/optik",
+        }]
+        out = annotate_cards_with_link(cards, repo_base=PROD)
+        assert out[0]["link"] == "https://wirlernenonline.de/themenseite/optik"
+        assert out[0]["collection_link"] == (
+            f"{PROD}/edu-sharing/components/collections?id=opt1"
+        )
+
+    def test_search_query_appended(self):
+        cards = [{"node_id": "opt1", "node_type": "topic_page"}]
+        out = annotate_cards_with_link(cards, repo_base=PROD, search_query="Optik")
+        assert out[0]["collection_link"].endswith("&q=Optik")
+
+    def test_pure_collection_stays_empty(self):
+        # Reine Sammlung: `link` IST schon der Browse-Link — ein zweites Feld
+        # mit demselben Wert wäre nur eine Quelle für Drift.
+        cards = [{"node_id": "c1", "node_type": "collection"}]
+        out = annotate_cards_with_link(cards, repo_base=PROD)
+        assert out[0]["collection_link"] == ""
+
+    def test_content_stays_empty(self):
+        cards = [{"node_id": "v1", "node_type": "content", "url": "https://x.de/y"}]
+        out = annotate_cards_with_link(cards, repo_base=PROD)
+        assert out[0]["collection_link"] == ""
+
+    def test_pydantic_model_path(self):
+        card = WloCard(
+            node_id="opt1", node_type="topic_page",
+            topic_pages=[{"url": "https://wirlernenonline.de/t/optik"}],
+        )
+        annotate_cards_with_link([card], repo_base=PROD)
+        assert card.link == "https://wirlernenonline.de/t/optik"
+        assert card.collection_link == (
+            f"{PROD}/edu-sharing/components/collections?id=opt1"
+        )
+
+    def test_guide_mode_unchanged(self):
+        # Der Browse-Link zeigt per Konstruktion aufs eigene Repo — der
+        # Lotsen-Modus hat daran nichts zu korrigieren.
+        cards = [{"node_id": "opt1", "node_type": "topic_page"}]
+        normal = annotate_cards_with_link(
+            [dict(cards[0])], repo_base=PROD,
+        )[0]["collection_link"]
+        lotse = annotate_cards_with_link(
+            [dict(cards[0])], guide_mode=True, repo_base=PROD,
+        )[0]["collection_link"]
+        assert normal == lotse == f"{PROD}/edu-sharing/components/collections?id=opt1"

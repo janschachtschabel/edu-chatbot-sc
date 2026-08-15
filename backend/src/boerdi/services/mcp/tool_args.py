@@ -41,6 +41,7 @@ from boerdi.api.schemas import (
     WikipediaSummaryArgs,
     WithinCollectionArgs,
 )
+from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD, is_confirmable
 from boerdi.services.mcp.tool_defs_curation import CURATION_ARG_MODELS
 
 logger = logging.getLogger(__name__)
@@ -142,7 +143,29 @@ def validate_tool_args(tool_name: str, arguments: dict[str, Any]) -> dict[str, A
     empty strings stripped). Passes through unchanged if no model is registered.
     Überschrittene ``ge``/``le``-Grenzen werden geklemmt statt verworfen; jeder
     andere Fehler fällt weiterhin auf die Rohargumente zurück.
+
+    **Der Bestätigungsschlüssel überlebt** (S5, 2026-08-15). Er steht in keinem
+    Argument-Modell, und zwar absichtlich: er gehört nicht zu dem, was ein Modell
+    bestimmen darf (``schemas_mcp_curation``). Pydantic übergeht unbekannte
+    Felder aber stillschweigend, und ``_export_non_empty`` gibt nur die
+    deklarierten zurück — der Schlüssel fiel hier heraus, gemessen 2026-08-15:
+    ``validate_tool_args('wlo_create_collection', {'title': …, 'confirmToken': …})``
+    lieferte ``{'title': …}``. Damit wurde **jeder Ausführungsaufruf wieder zu
+    einer Vorschau**: der Nutzer sagte „ja" und wurde erneut gefragt, endlos.
+
+    Dass die Ausnahme genau einen Namen betrifft, ist der Punkt — jedes andere
+    unbekannte Feld fällt weiter heraus, damit ein vertippter Feldname nicht
+    unbemerkt zum Server geht.
     """
+    geprueft = _validate_against_model(tool_name, arguments)
+    schluessel = arguments.get(CONFIRM_TOKEN_FIELD)
+    if schluessel and is_confirmable(tool_name) and CONFIRM_TOKEN_FIELD not in geprueft:
+        geprueft = {**geprueft, CONFIRM_TOKEN_FIELD: schluessel}
+    return geprueft
+
+
+def _validate_against_model(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Der Modell-Abgleich selbst — siehe :func:`validate_tool_args`."""
     model = _TOOL_ARG_MODELS.get(tool_name)
     if not model:
         return arguments

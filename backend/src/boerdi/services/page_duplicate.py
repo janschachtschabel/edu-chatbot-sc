@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 from urllib.parse import urlsplit
 
-from boerdi.services.mcp.client import call_mcp_tool
+from boerdi.services.mcp.client import call_mcp_tool, is_mcp_error
 from boerdi.services.mcp.parsers import parse_wlo_cards
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ async def _search(query: str) -> list[dict]:
     except Exception as err:
         logger.warning("duplicate check: search failed: %s", err)
         return []
-    if not raw or raw.startswith("MCP error"):
+    if not raw or is_mcp_error(raw):
         logger.info("duplicate check: no usable answer for %r", query[:80])
         return []
     return parse_wlo_cards(raw)

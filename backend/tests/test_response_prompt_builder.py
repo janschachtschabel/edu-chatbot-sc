@@ -369,7 +369,9 @@ def test_bestand_und_skillkatalog_stehen_im_muster_prompt(_cfg):
     assert "35 Materialien" in system
     assert "28" in system
     assert "Stunde planen" in system
-    assert "search_skill" in system
+    # Der Weg zum Wortlaut, und zwar der begehbare: bis 2026-08-15 stand hier
+    # ``search_skill`` — seit 2026-08-13 reicht kein Pfad es dem Modell.
+    assert "get_skill_registry" in system
     assert "get_skill" in system
 
 

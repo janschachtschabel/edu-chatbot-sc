@@ -189,16 +189,56 @@ Alle Werte sind HTML-Attribute, also Zeichenketten. Boolesche Attribute nehmen
 
 ### Was zur Laufzeit noch wirkt
 
-Nicht jedes Attribut lässt sich nachträglich per `setAttribute` umstellen. Das
-ist kein Zufall, sondern jeweils eine Entscheidung im Code:
+Ein `setAttribute` nach dem Einhängen wirkt **nicht bei jedem Attribut**. Das ist
+kein Zufall, sondern je eine Entscheidung im Code — und für eine Erweiterung die
+wichtigste Tabelle des ganzen Dokuments: in einer Seitenleiste lebt das Element
+oft stundenlang, während der Nutzer Tabs wechselt und Einstellungen dreht.
 
-| Attribut | nach dem Start änderbar? |
+Drei Klassen, alle am Quelltext geprüft (Stand 2026-08-14). Bewusst ohne
+Zeilennummern: die veralten schneller als die Mechanismen.
+
+**A · Wirkt sofort.** Hängt an einem Angular-`effect`, einem `computed` oder
+einer Template-Bindung — die nächste Auswertung nimmt den neuen Wert.
+
+| Attribut | wie es durchschlägt |
 |---|---|
-| `initial-state` | **ja** — der erste Wert entscheidet den Start, spätere schalten das Panel um (`widget.component.ts:290-297`) |
-| `engine`, `language`, `primary-color` | **ja** — hängen an Effects (`widget.component.ts:279-315`) |
-| `page-context` | **nein, nicht unmittelbar.** Es hängt an keinem Effect: gelesen wird es in `ngOnInit` und danach nur noch, wenn der URL-Wächter eine Navigation bemerkt (`widget.component.ts:262,384`). Zur Laufzeit nehmt ihr `replaceContext()` bzw. `updateContext()` (§5) |
-| `size` | **nein** — Startwert; danach gehört die Stufe dem Umschalter in der Eingabezeile, ein Effect überschriebe jede Handbedienung |
-| `ticket` | **nein** — einmal in `ngOnInit` gelesen und sofort aus dem DOM getilgt |
+| `engine` | Effect → `shell.setEngine()`; gilt ab dem nächsten Zug |
+| `result-schema` | Effect → `shell.setResultSchema()`; eigener Effect, damit es unabhängig von `engine` umstellbar ist. Gilt ab dem nächsten Zug |
+| `language` | Effect → `lang.resolve()` |
+| `primary-color` | Effect → `applyPrimaryColor()` auf dem Host-Element |
+| `initial-state` | Effect; der **erste** Wert entscheidet den Start (dort zählen auch `?bsid=` und eine laufende Tour mit), erst spätere Änderungen klappen auf und zu |
+| `theme` | `computed` → Inline-Stil `color-scheme` am Host |
+| `position` | CSS matcht das Attribut direkt (`:host([position="…"])`) — es gibt gar keinen Umweg über den Input |
+| `embed-mode` | `computed` `frameless()`; schaltet Rahmen, FAB und Kopfzeile um |
+| `show-cards`, `show-debug-button`, `show-language-buttons`, `inline-result-grouping` | werden beim Rendern gelesen (Getter/`computed` der Shell) |
+| `intercept-edu-sharing-links`, `emit-guide-suggestion`, `emit-routing-debug` | werden beim Ereignis gelesen |
+| `trusted-domains` | `computed`, mit der Backend-Liste gemergt |
+
+**B · Wirkt erst beim nächsten Neustart des Chats.** Die Bindung ist live, aber
+die einzige Stelle, die sie liest, läuft nur beim Öffnen und bei „Neu starten"
+(bzw. `resetSession()`).
+
+| Attribut | wann es greift |
+|---|---|
+| `greeting`, `start-replies`, `show-welcome` | beim Erstaufruf und bei jedem Neustart. Eine bereits gezeigte Begrüßung verschwindet **nicht** rückwirkend — wer sie loswerden will, setzt das Attribut vor dem ersten Öffnen (§4a) |
+
+**C · Nur beim Start gelesen.** Danach führt kein Weg über das Attribut; wo es
+einen anderen gibt, steht er dabei.
+
+| Attribut | warum, und was stattdessen |
+|---|---|
+| `api-url` | Einmal in `ngOnInit` der Shell → `setBaseUrl()`. **Achtung:** die Shell hängt am Lazy-Gate, entsteht also erst beim ersten Öffnen — bis dahin wirkt eine Änderung sehr wohl. Danach hilft nur, das Element neu aufzubauen |
+| `page-context` | Gelesen in `ngOnInit` und danach nur, wenn der URL-Wächter eine Navigation bemerkt. In einer Seitenleiste bemerkt er nie eine: die eigene Adresse ändert sich nicht. Nehmt **`replaceContext()`** (§5) |
+| `auto-context` | Wird nur beim Auflösen des Seitenkontexts gelesen, also zusammen mit `page-context` |
+| `persist-session`, `session-key`, `session-cookie-domain`, `session-cookie-max-age` | Die Sitzungs-Kaskade läuft einmal beim Start. Danach: `resetSession()` |
+| `size` | Startwert; danach gehört die Stufe dem Umschalter in der Eingabezeile — ein Effect überschriebe jede Handbedienung |
+| `ticket` | Einmal gelesen und sofort aus dem DOM getilgt: ein Ticket darf nirgends liegenbleiben |
+
+Faustregel, wenn ihr unsicher seid: **alles, was den Verlauf oder die Sitzung
+betrifft, ist Start-Zustand; alles, was nur die Darstellung oder den nächsten Zug
+betrifft, ist live.** Und im Zweifel den sicheren Weg nehmen — das Element neu
+aufbauen kostet die Sitzung, aber nie eine falsche Messung. Genau das tut das
+Beispiel-Plugin bei jedem „Starten" (§7a).
 
 ---
 
@@ -273,6 +313,51 @@ Der Host-Weg kennt keine zweite Sprache: wer je Einbau vorgibt, gibt genau das
 vor, was dort stehen soll. Die Deutsch/Englisch-Umschaltung greift nur bei den
 Studio-Werten.
 
+### Der Zeitpunkt zählt
+
+Alle drei Attribute gehören in Klasse **B** der Laufzeit-Tabelle (§3): die
+Bindung ist live, gelesen wird sie aber nur beim Erstaufruf und bei jedem
+Neustart. Praktisch heißt das:
+
+* **Vor dem ersten Öffnen setzen.** Wer `show-welcome="false"` erst setzt,
+  nachdem der Chat schon offen ist, findet die Begrüßung weiterhin im Verlauf —
+  sie wurde bereits geschrieben, und nichts nimmt eine Nachricht zurück.
+* **Im Panel-Betrieb ist „das erste Öffnen" später, als man denkt.** Die Shell
+  hängt am Lazy-Gate: sie entsteht beim ersten Klick auf den Eulen-Knopf. Bis
+  dahin dürft ihr die Attribute beliebig oft umstellen.
+* **Rahmenlos gibt es kein Gate.** Dort entsteht die Shell sofort, also müssen
+  die Attribute schon am Element stehen, wenn ihr es ins Dokument hängt — nicht
+  erst danach.
+
+Wer die Werte doch zur Laufzeit wechseln will, hat zwei ehrliche Wege:
+`resetSession()` (leert den Verlauf und wendet sie an) oder das Element neu
+aufbauen. Das Beispiel-Plugin nimmt den zweiten (§7a).
+
+### Wie das Beispiel es macht
+
+```js
+const chat = document.createElement('boerdi-chat');
+chat.setAttribute('api-url', basis);
+chat.setAttribute('embed-mode', 'frameless');
+chat.setAttribute('engine', 'agent');
+chat.setAttribute('show-welcome', 'false');   // ← vor dem Einhängen
+document.getElementById('chatHalter').append(chat);
+```
+
+Die Begründung dort in einem Satz: der Auftrag steht schon im Feld daneben und
+geht sofort hinaus — eine Begrüßung wäre eine Nachricht, die niemand gelesen
+hat, bevor die Antwort sie wegschiebt.
+
+**Prüfen, ob euer Bündel es überhaupt kennt.** `show-welcome` und `start-replies`
+gibt es seit dem 14.08.2026. Ein älteres Bündel ignoriert sie stillschweigend und
+begrüßt weiter — von außen nicht von „falsch geschrieben" zu unterscheiden:
+
+```bash
+grep -c showWelcome boerdi-widget.js
+```
+
+`0` heißt: altes Bündel, neu holen (§1).
+
 ---
 
 ## 5. Anweisungen und Auslöser von außen
@@ -331,7 +416,8 @@ und Titel der Gastseite zusätzlich bei. Die Felder
 Anzahl der Materialien und die **Übersicht der freigegebenen Anleitungen
 (Skills)** dieser Sammlung wandern in den Prompt — beide Maschinen bekommen sie,
 Muster wie Agent. Den Volltext einer Anleitung holt das Modell danach gezielt
-selbst (`search_skill` → `get_skill`).
+selbst (`get_skill_registry` mit der `collection_id` → `get_skill` mit der
+`nodeId` daraus).
 
 **Das gilt zur Laufzeit genauso.** Der Vorabruf hängt am Kontext, nicht am
 Startvorgang: ein `replaceContext({page_kind:'collection', collection_id:'…'})`
@@ -353,8 +439,9 @@ chat.replaceContext({
 Zwei Dinge, die dabei oft falsch erwartet werden:
 
 * **Die Übersicht nennt nur Titel, keine `nodeId`s** — bis zu 100, und darüber
-  gekappt (`services/page_context.py:388-432`). Das Modell holt sich die ID über
-  `search_skill` und den Volltext über `get_skill`. Das ist ein Aufruf mehr und
+  gekappt (`services/page_context.py:388-432`). Das Modell holt sich die IDs über
+  `get_skill_registry` (mit der `collection_id`, die derselbe Prompt-Block
+  nennt) und den Volltext über `get_skill`. Das ist ein Aufruf mehr und
   gewollt: 100 Titel sind eine A4-Seite, 100 Titel mit IDs wären gut zwei.
 * **Eine Themenseite ist eine Sammlung** — `page_kind: 'topic'` mit derselben
   `collection_id` führt zu denselben Anleitungen. Ihr müsst nicht unterscheiden.
@@ -594,15 +681,180 @@ und „Chat" (oben das Gespräch, unten je Zug ein Eintrag mit dem, was struktur
 herauskommt). Kein Build, keine Abhängigkeiten; `examples/chrome-plugin/README.md`
 erklärt das Einrichten.
 
-Sie setzt zugleich `show-welcome="false"` aus §4a: der Auftrag steht schon im
-Feld daneben, eine Begrüßung würde von der ersten Antwort weggeschoben, bevor sie
-jemand liest.
+Der Rest dieses Abschnitts beschreibt, **wie es gebaut ist und wie ihr dasselbe
+baut** — sechs Entscheidungen, die jede Erweiterung trifft, mit dem, was uns
+jeweils dazu gebracht hat. Wer nur die Fassung zum Kopieren will: der Ordner ist
+die Fassung, sie läuft ohne `npm install`.
 
-**Ein Punkt daraus, der jede Erweiterung betrifft:** Manifest V3 verbietet
-nachgeladenen Code. In einer Erweiterungs-**Seite** (Seitenleiste, Popup,
-Options-Seite) gilt `script-src 'self'` — das Bündel muss also mitgeliefert
-und bei Backend-Updates neu geholt werden. Nur wenn ihr das Widget in die
-**Gastseite** einhängt (§1), darf der Skript-Tag auf euer Backend zeigen.
+#### 1 · Das Bündel muss mitreisen
+
+Manifest V3 verbietet nachgeladenen Code. In einer Erweiterungs-**Seite**
+(Seitenleiste, Popup, Options-Seite) gilt `script-src 'self'`; ein
+`<script src="https://backend/widget/…">` wird gesperrt, auch bei einer entpackt
+geladenen Erweiterung. Also holt ein Skript das Bündel einmal nach `vendor/` und
+die Seite lädt es von dort:
+
+```js
+const s = document.createElement('script');
+s.src = chrome.runtime.getURL('vendor/boerdi-widget.js');
+s.onerror = () => zeigeFehler('Bündel nicht ladbar');
+s.onload  = () => customElements.whenDefined('boerdi-chat').then(weiter);
+document.head.append(s);
+```
+
+Ein **gewöhnlicher Skript-Tag**, kein `import()`: das Bündel ist ein klassisches
+Skript, kein ES-Modul. Und `onerror` erledigt zwei Fälle mit einem Mechanismus —
+Datei fehlt und Datei kaputt.
+
+Dazu eine Frist: ein Bündel, das lädt aber nichts definiert, hinge sonst ewig,
+und ewiges Warten sieht aus wie ein langsames Netz statt wie ein Fehler. Das
+Beispiel gibt `whenDefined` zehn Sekunden und meldet danach.
+
+Nur wenn ihr das Widget in die **Gastseite** einhängt (§1), darf der Skript-Tag
+auf euer Backend zeigen — dort gilt die CSP der Gastseite.
+
+#### 2 · Die eigene Erkennung abschalten und den Kontext selbst geben
+
+In einer Seitenleiste hat `auto-context` nichts zu erkennen: die Adresse ist
+`chrome-extension://<id>` und ändert sich nie, auch wenn nebenan der Tab
+wechselt. Wer sie stehen lässt, bekommt einen Bot, der über die Erweiterung
+spricht statt über die Seite.
+
+```js
+chat.setAttribute('auto-context', 'false');
+```
+
+Den Kontext gebt ihr selbst — und zwar mit **`replaceContext()`**, nicht mit
+`updateContext()`: das eine ersetzt, das andere mergt, und beim Tab-Wechsel
+überlebte sonst die Sammlungs-ID des vorigen Tabs (§5).
+
+Die Adresse des Tabs holt ihr über `chrome.tabs`, nicht aus dem eigenen
+`location`. Das Muster im Beispiel steht in `context.js` und ist bewusst
+**nachgebaut statt importiert**: das Widget hat dieselbe Erkennung eingebaut,
+sie zu importieren kettete das Beispiel an den Bauplan des Repositoriums.
+
+#### 3 · Seitentext braucht zwei Klicks — und dieselbe Tab-Kennung
+
+Adresse und Titel gibt `chrome.tabs` her. Der **Text** braucht eine
+Host-Berechtigung für genau diese Seite, und `activeTab` genügt dafür **nicht**,
+wenn die Erweiterung über die Seitenleiste bedient wird (gemessen 2026-08-14 auf
+`de.wikipedia.org`: *„Extension manifest must request permission to access this
+host"*).
+
+Nachfragen lässt sich das nicht im selben Klick: `chrome.permissions.request`
+verlangt eine Nutzergeste, und die ist nach `await chrome.tabs.query()`
+verbraucht. Also zwei Schritte, zwei Knöpfe — und **beide meinen denselben
+Tab**:
+
+```js
+// Schritt 1
+const [aktiv] = await chrome.tabs.query({ active: true, currentWindow: true });
+return { url: aktiv.url, titel: aktiv.title, tabId: aktiv.id, herkunft: `${new URL(aktiv.url).origin}/*` };
+
+// Schritt 2 — eigener Klick, und die tabId aus Schritt 1 statt „der aktive Tab"
+if (!await chrome.permissions.request({ origins: [herkunft] })) return;
+const [t] = await chrome.scripting.executeScript({ target: { tabId }, func: () => document.body?.innerText || '' });
+```
+
+Wer in Schritt 2 erneut den aktiven Tab abfragt, liest nach einem Tab-Wechsel
+zwischen den Klicks den Text von Seite B unter der Adresse von Seite A — bei
+gleicher Herkunft ohne jede Fehlermeldung. Das ist uns im eigenen Review
+aufgefallen, nicht im Betrieb; der Test dazu liegt in `scripts/check-tab.mjs`.
+
+Den Text bei **20 000 Zeichen** kappen: das ist die Grenze des Agent-Endpunkts
+und ungekappt der häufigste Grund für ein 422.
+
+#### 4 · Berechtigungen erst dann, wenn sie gebraucht werden
+
+Das Manifest verlangt nur `localhost`; jede andere Backend-Adresse wird zur
+Laufzeit erfragt, für **genau diese eine Herkunft**:
+
+```json
+"host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
+"optional_host_permissions": ["http://*/*", "https://*/*"]
+```
+
+```js
+if (!await chrome.permissions.contains({ origins: [herkunft] })) {
+  await chrome.permissions.request({ origins: [herkunft] });   // MUSS in der Nutzergeste liegen
+}
+```
+
+`<all_urls>` im Manifest wäre einfacher und ist der Grund, warum viele
+Erweiterungen im Store misstrauisch beäugt werden. Der Aufwand ist ein `await`
+an der richtigen Stelle: als **erster** Ausdruck im Klick-Griff, vor allem
+anderen — sonst ist die Geste verbraucht.
+
+#### 5 · Vor jedem Lauf nachsehen, nicht raten
+
+Eine falsche Backend-Adresse äußerte sich beim Ausprobieren erst dreißig Sekunden
+später als *„Entschuldigung, es ist ein Fehler aufgetreten"* — ein Satz, der über
+die Ursache nichts sagt. Ursache war die **Bündel-Adresse im Backend-Feld**: der
+Chat-Client hängt `/api` an, was dort steht, und aus
+`…/widget/boerdi-widget.js` wurde `…/boerdi-widget.js/api/chat/stream`
+(gemessen: 404 gegen 200).
+
+Zwei Lehren, beide billig:
+
+* **Einen Knopf „Verbindung prüfen"**, der `GET {basis}/api/health` fragt und die
+  Antwort zeigt — samt `repo`. Ob der Bot gegen Staging oder Produktion läuft,
+  merkt man sonst erst am Ziel eines Karten-Links.
+* **Den einen eindeutigen Tippfehler korrigieren und es SAGEN.** Endet der Pfad
+  auf `.js`, ist es die Bündel-Adresse; gerechnet wird mit der Herkunft, und der
+  Hinweis bleibt stehen. Ein Pfad-Präfix (`https://host/boerdi`, Reverse-Proxy)
+  bleibt dagegen unangetastet — ein falsch geratener Wert ist schlimmer als ein
+  falsch getippter, weil ihn niemand mehr sieht.
+
+#### 6 · Das Element neu aufbauen, statt Attribute nachzuziehen
+
+Bei „Starten" baut das Beispiel `<boerdi-chat>` neu auf. Das kostet die Sitzung,
+und genau das ist gewollt: `api-url` und die Sitzungs-Attribute gehören zu
+Klasse **C** der Laufzeit-Tabelle (§3) und würden sonst still den alten Wert
+behalten — ein Versuchsaufbau, bei dem der halbe Zustand von vorhin überlebt,
+misst das Falsche.
+
+```js
+halter.replaceChildren();
+leereErgebnisse();                                  // Liste UND Zählung
+const chat = document.createElement('boerdi-chat');
+chat.setAttribute('api-url', basis);
+chat.setAttribute('embed-mode', 'frameless');       // kein FAB, kein Rahmen
+chat.setAttribute('engine', 'agent');
+chat.setAttribute('auto-context', 'false');
+chat.setAttribute('show-welcome', 'false');         // §4a
+if (schema) chat.setAttribute('result-schema', JSON.stringify(schema));
+halter.append(chat);
+
+await customElements.whenDefined('boerdi-chat');
+await new Promise(requestAnimationFrame);           // eine Runde fürs Aufwerten
+chat.replaceContext(ctx);
+chat.startTask(auftrag);
+```
+
+Das `requestAnimationFrame` ist Vorsicht mit Grund: die JS-API des Elements
+(`openChatbot`, `replaceContext`, `startTask`, …) liegt auf dem Prototyp und
+delegiert an die Komponenten-Instanz. Existiert die noch nicht, ist der Aufruf
+ein **No-Op statt einer Exception** — bewusst so, damit eine frühe Gastseite
+nichts zerbricht, aber eben auch: still. Eine Bildrunde kostet nichts und nimmt
+diese Klasse von Fehlern aus dem Spiel.
+
+Und: die Ergebnisliste gehört mit geleert. Sonst stehen Einträge zweier Läufe
+mit verschiedenen Schemata untereinander und die Zählung läuft weiter — „Zug 5"
+über der ersten Antwort des neuen Laufs.
+
+#### Was der Ordner sonst noch zeigt
+
+| Datei | wofür sie ein Muster ist |
+|---|---|
+| `background.js` | Der Dienst-Worker tut genau eins: `sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` |
+| `tabs.js` | Zwei Reiter nach ARIA-Praxis (Pfeile, Home/End, roving `tabindex`). Der Chat wird beim Wechseln **versteckt, nie neu gebaut** — er hält Sitzung und Verlauf in seiner Instanz |
+| `einstellungen.js` | Eingaben in `chrome.storage.local` (nicht `sync`: IDs und Seitentexte einer Arbeitssitzung gehören nicht über alle Geräte verteilt) |
+| `schemas.js` | Fünf Auftrags-Vorlagen — und die Prüfung des Schema-Feldes. „Leer" ist gültig, „kaputt" nicht: ein Tippfehler darf keinen 90-Sekunden-Lauf kosten, der garantiert kein Ergebnis liefern kann |
+| `scripts/check-*.mjs` | Sechs Prüfungen ohne Browser und ohne Abhängigkeiten (`npm run check`), in der CI verdrahtet |
+
+Was das Beispiel **nicht** zeigt: einen Anmelde-Weg. Es gibt weder Ticket noch
+Zugangsblock, der Bot arbeitet anonym und kann deshalb nichts schreiben. Für den
+angemeldeten Betrieb siehe `docs/edu-sharing-einbindung.md` §3.
 
 ---
 
@@ -771,8 +1023,9 @@ if (stop_reason !== 'submit') {
 2. Jedes weitere Werkzeug-Ergebnis bekommt seine Registry angehängt, falls es
    eine mitbringt (`services/agent_loop.py:250-257`) — auch eine Sammlung, die
    der Agent selbst erst findet, bringt ihre Anleitungen mit.
-3. Das Modell holt sich den Volltext der passenden Anleitung (`search_skill` →
-   `get_skill`) und arbeitet danach.
+3. Das Modell holt sich den Volltext der passenden Anleitung mit `get_skill` —
+   die `nodeId` dafür steht schon in der vorab geholten Registry aus Schritt 1 —
+   und arbeitet danach.
 4. `lookup_wlo_vocabulary({vocabulary:'discipline'})` liefert Label **und** URI
    je Fach; die URI **ist** die taxonid (gemessen: Physik =
    `…/vocabs/discipline/460`, Mathematik = `…/380`).

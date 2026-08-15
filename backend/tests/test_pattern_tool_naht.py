@@ -461,7 +461,15 @@ class TestSkillProzess:
         assert "## Freigegebene Anleitungen der Redaktion" in koerper
         abschnitt = koerper.split("## Freigegebene Anleitungen der Redaktion")[1]
         for schritt in (
+            # Die drei Stufen (2026-08-15, Nutzer-Vorgabe). Sie sind neu und
+            # tragen den Kern: was schon da ist, was ein Aufruf kostet, und was
+            # den Wortlaut bringt. Vorher stand hier nur „hol die Registry" —
+            # dass eine Teil-Registry mit SUCH-Treffern ohnehin mitkommt und
+            # genutzt werden soll, sagte kein Muster.
+            "Teil-Registry",
             "get_skill_registry",
+            "get_skill(nodeId)",
+            # Die drei Regeln.
             "**immer** geholt",
             "**nicht** frei nach Anleitungen gesucht",
             "normal gelöst",

@@ -164,6 +164,64 @@ def test_call_mcp_tool_zweiter_fehler_liefert_mcp_error_string(mcp_state, monkey
     assert tool_cache.get_tool_cache_stats()["size"] == 0
 
 
+# ── Die Fehler-ART bis zum Aufrufer (2026-08-15) ────────────────────────
+#
+# ``call_mcp_tool`` bleibt eine Zeichenkette — das Modell soll den Text als
+# gewöhnliches Werkzeug-Ergebnis lesen. Wer OHNE Modell entscheidet, braucht
+# aber mehr: ob der Server abgelehnt hat (dann steht fest, dass nichts geändert
+# wurde) oder ob nie eine Antwort kam (dann steht das gerade nicht fest).
+# Deshalb die zweite, ausdrückliche Funktion statt eines versteckten Zustands.
+
+
+def test_status_meldet_die_art_des_fehlers(mcp_state, monkeypatch):
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [
+        {"error": {"message": "weg", "kind": "transport"}},
+        {"error": {"message": "immer noch weg", "kind": "transport"}},
+    ])
+    text, art = asyncio.run(
+        client.call_mcp_tool_status("unknown_probe_tool", {"q": "x"}))
+    assert text == "MCP error: immer noch weg"
+    assert art == "transport"
+
+
+def test_status_unterscheidet_ablehnung_von_ausfall(mcp_state, monkeypatch):
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [
+        {"error": {"message": "abgelehnt", "kind": "tool"}},
+        {"error": {"message": "abgelehnt", "kind": "tool"}},
+    ])
+    _text, art = asyncio.run(
+        client.call_mcp_tool_status("unknown_probe_tool", {"q": "x"}))
+    assert art == "tool"
+
+
+def test_status_ist_bei_erfolg_leer(mcp_state, monkeypatch):
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [_result([_text_part("OK")])])
+    text, art = asyncio.run(
+        client.call_mcp_tool_status("unknown_probe_tool", {"q": "x"}))
+    assert (text, art) == ("OK", "")
+
+
+def test_ohne_art_gilt_der_fehler_als_unbestimmt(mcp_state, monkeypatch):
+    # Ein Fehler-Dict ohne ``kind`` (Attrappe, älterer Pfad) darf nicht als
+    # „Server hat abgelehnt" durchgehen — das wäre die Behauptung, die man
+    # nicht belegen kann. Unbekannt zählt wie „keine Antwort".
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [_error("kaputt"), _error("kaputt")])
+    _text, art = asyncio.run(
+        client.call_mcp_tool_status("unknown_probe_tool", {"q": "x"}))
+    assert art == "transport"
+
+
+def test_der_string_wrapper_bleibt_unveraendert(mcp_state, monkeypatch):
+    # ``call_mcp_tool`` ist der Vertrag für 25 Aufrufstellen und das Modell.
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [_result([_text_part("OK")])])
+    assert asyncio.run(client.call_mcp_tool("unknown_probe_tool", {"q": "x"})) == "OK"
+
+
 def test_call_mcp_tool_extrahiert_query_meta_in_contextvar(mcp_state, monkeypatch):
     _wire_tool_url(monkeypatch)
     meta_text = '{"_queryMeta": {"queryType": "content", "filters": {"discipline": "d"}}}'

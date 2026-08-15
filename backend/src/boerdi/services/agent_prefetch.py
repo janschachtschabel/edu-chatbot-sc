@@ -81,7 +81,8 @@ async def resolve_prefetch(
             # Rahmen um den Fremdtext (D4), Registry-Auszug ausserhalb davon
             # (P1) — er ist unsere Anweisung, und innerhalb des Rahmens wuerde
             # dieser sie mit entwerten.
-            frame_untrusted(name, text) + skill_registry_note(text)
+            frame_untrusted(name, text)
+            + skill_registry_note(text, tool_name=name, args=args)
         )
         messages.append({
             "role": "tool", "tool_call_id": call_id, "content": inhalt,

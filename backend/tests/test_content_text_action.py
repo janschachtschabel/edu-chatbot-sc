@@ -100,9 +100,17 @@ async def test_der_volltext_wird_persistiert_nicht_nur_die_begleitzeile(monkeypa
     assert gespeichert != resp.content
 
 
-async def test_der_zug_wird_als_m17_vermerkt(monkeypatch):
-    # Ohne diese Markierung weiß der nächste Zug nicht, dass ein Vor-Inhalt
-    # existiert — dieselbe Markierung setzt die Lernpfad-Direkt-Aktion für M09.
+async def test_kein_toter_merker_auf_oberster_ebene(monkeypatch):
+    # Umgedreht am 2026-08-15. Vorher stand hier ``state.get("last_pattern")
+    # == "M17"`` — und der Test war grün, während die Sache nicht funktionierte:
+    # ``last_pattern`` wurde repo-weit von niemandem gelesen und lag auf der
+    # obersten Ebene von ``session_state``, die den Zug nicht überdauert. Ein
+    # Test, der einen wirkungslosen Schreibvorgang festklemmt, macht ihn
+    # unantastbar statt richtig.
+    #
+    # Der Wächter zeigt jetzt in die andere Richtung: wer den Merker wieder
+    # einbaut, soll ihn dorthin schreiben, wo er ankommt (``entities``) — und
+    # zuerst einen Leser haben.
     _patch(monkeypatch, _envelope())
     state: dict = {}
 
@@ -110,20 +118,10 @@ async def test_der_zug_wird_als_m17_vermerkt(monkeypatch):
         None, _req(node_id="abc-123"), state,
     )
 
-    assert state.get("last_pattern") == "M17"
-
-
-async def test_ohne_volltext_wird_der_zug_nicht_als_vor_inhalt_markiert(monkeypatch):
-    # Ein Rechte-Fall hat keinen Text — ihn als Vor-Inhalt zu markieren, würde
-    # einen Bearbeiten-Zug auf ein leeres Dokument schicken.
-    _patch(monkeypatch, _envelope(text="", reason="access_denied", charCount=0))
-    state: dict = {}
-
-    await content_text_action._handle_show_content_text(
-        None, _req(node_id="abc-123"), state,
+    assert "last_pattern" not in state, (
+        "Ein Merker auf oberster Ebene erreicht den Folgezug nie — "
+        "siehe die Begründung im Handler"
     )
-
-    assert "last_pattern" not in state
 
 
 async def test_gekuerzter_volltext_wird_als_solcher_ausgewiesen(monkeypatch):

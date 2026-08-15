@@ -16,6 +16,7 @@
     "check:tokens": "node scripts/check-tokens.mjs",
     "check:a11y": "node scripts/check-a11y-structure.mjs",
     "check:radii": "node scripts/check-radii.mjs",
+    "check:docs": "node scripts/check-docs-attributes.mjs",
     "test": "ng test ui && ng test widget && ng test studio",
     "licenses": "license-checker-rseidelsohn --production --summary --excludePrivatePackages --onlyAllow \"MIT;Apache-2.0;0BSD;BSD-2-Clause;BSD-3-Clause;ISC;(MPL-2.0 OR Apache-2.0)\"",
     "budget": "npm run build:widget && node scripts/check-widget-budget.mjs",

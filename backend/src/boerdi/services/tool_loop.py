@@ -54,6 +54,7 @@ from boerdi.domain.inline_grouping import max_selectable_cards as _max_selectabl
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
 from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.domain.write_confirm import (
+    CONFIRM_TOKEN_FIELD,
     confirmed_args,
     extract_confirm_token,
     is_affirmation,
@@ -617,7 +618,7 @@ async def _run_tool_loop(
                         _pending_at_turn_start = None
                         session_state.setdefault("entities", {}).pop("_pending_write", None)
                     elif _confirm:
-                        tool_args = {**tool_args, "confirmToken": _confirm}
+                        tool_args = {**tool_args, CONFIRM_TOKEN_FIELD: _confirm}
                         _pending_at_turn_start = None
                         session_state.setdefault("entities", {}).pop("_pending_write", None)
                     elif ((_pending_at_turn_start or {}).get("tool") == tool_name
@@ -745,7 +746,12 @@ async def _run_tool_loop(
                         # Ergebnis mitbringt. NACH der Redaktion, denn die
                         # ersetzt bei ``get_collection_contents`` im Box-Modus
                         # den ganzen Text — davor eingebaut waere er still weg.
-                        + skill_registry_note(result_text)
+                        # Aufruf mitgegeben (2026-08-15): bringt das Ergebnis
+                        # keinen Katalog mit, war der Aufruf aber sammlungs-
+                        # bezogen, steht dort der Anstoss — die Sammlungs-ID
+                        # dafuer kommt aus unseren eigenen Argumenten.
+                        + skill_registry_note(
+                            result_text, tool_name=tool_name, args=tool_args)
                     ),
                 })
 

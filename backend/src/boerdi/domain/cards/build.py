@@ -224,12 +224,18 @@ def _feld(c: Any, name: str, default: Any = None) -> Any:
 def _ist_sammlungs_karte(c: Any) -> bool:
     """Karte, die in die Sammlungs-Box läuft.
 
-    Themenseiten sind ausgenommen: sie haben ihre eigene Box, eine von ihnen in
-    der Auswahl belegt also nicht, dass der User eine Sammlung sieht.
+    Themenseiten zählen mit (seit 15.08.2026). Vorher waren sie ausgenommen,
+    weil sie ihre eigene Box haben — seit dem Optik-Befund zeigt der
+    Sammlungen-Kasten Sammlungen MIT Themenseite ebenfalls, mit der
+    Sammlungs-Adresse als Ziel. Zwei Folgen für den Nachzug oben:
+    eine gewählte Themenseiten-Sammlung füllt den Kasten bereits (kein
+    überflüssiger Nachzug mehr), und wenn nachgezogen wird, kommt die
+    vorderste passende Karte des Pools — nicht die vorderste, die zufällig
+    keine Themenseite hat. Genau daran scheiterte „Optik": es kam
+    „Geometrische Optik".
     """
-    if (_feld(c, "node_type", "") or "") != "collection":
-        return False
-    return not _feld(c, "topic_pages", None)
+    nt = _feld(c, "node_type", "") or ""
+    return nt in ("collection", "topic_page")
 
 
 def _apply_llm_card_selection(

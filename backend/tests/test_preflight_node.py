@@ -106,6 +106,142 @@ def test_unknown_action_passes_through(monkeypatch):
     assert safety.calls == [] and browse.calls == []
 
 
+# ── S5: die offene Schreib-Abnahme ──────────────────────────────
+
+def _mit_abnahme(monkeypatch, ret):
+    """Die Einlösung als Attrappe — ihr Inneres prüft ``test_write_approval``."""
+    spy = _Spy(ret)
+    monkeypatch.setattr(pf_mod, "redeem_write_approval", spy)
+    return spy
+
+
+def test_offene_abnahme_beendet_den_zug_vor_dem_klassifikator(monkeypatch):
+    """DER FIX. Vor S5 lief ein „ja" in den normalen Weg: der Klassifikator
+    musste M18 treffen (nur dieses Muster nennt die schreibenden Werkzeuge) und
+    das Modell die nie gesehenen Argumente rekonstruieren. Jedes Scheitern war
+    eine neue Vorschau — die Schleife. Jetzt endet der Zug hier."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    safety = _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    einloesung = _mit_abnahme(
+        monkeypatch, ChatResponse(session_id="bb-1", content="ANGELEGT"))
+
+    ctx = _ctx(None, message="Ja, so ausführen")
+    out = asyncio.run(preflight(ctx, _SESSION))
+
+    assert out.early_response.content == "ANGELEGT"
+    assert einloesung.calls[0]["args"][0] is _SESSION
+    assert einloesung.calls[0]["args"][2] is ctx.session_state
+    assert safety.calls == []
+
+
+def test_ohne_offene_abnahme_laeuft_der_zug_normal_weiter(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    einloesung = _mit_abnahme(monkeypatch, None)
+
+    out = asyncio.run(preflight(_ctx(None, message="Ja, gerne"), _SESSION))
+
+    assert out.early_response is None, "Ohne Vorgang gehört der Zug dem Klassifikator"
+    assert len(einloesung.calls) == 1
+
+
+def test_eine_direktaktion_loest_keine_abnahme_ein(monkeypatch):
+    """Ein Zug mit ``action`` beauftragt etwas anderes. Würde ein „ja" daneben
+    als Abnahme gelesen, führte ein Klick auf „Sammlung ansehen" eine fremde
+    Änderung aus."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    einloesung = _mit_abnahme(
+        monkeypatch, ChatResponse(session_id="bb-1", content="ANGELEGT"))
+
+    out = asyncio.run(preflight(
+        _ctx("browse_collection", message="ja", collection_id="c1"), _SESSION))
+
+    assert einloesung.calls == []
+    assert out.early_response.content == "BROWSE-OK"
+
+
+def test_die_drosselung_kommt_vor_der_abnahme(monkeypatch):
+    """Sonst liefe der einzige schreibende Weg an der Bremse vorbei."""
+    monkeypatch.setattr(pf_mod, "check_rate_limit", _Spy(
+        RateVerdict(allowed=False, reason="session", blocked_message="Moment bitte")))
+    _patch_db(monkeypatch)
+    einloesung = _mit_abnahme(
+        monkeypatch, ChatResponse(session_id="bb-1", content="ANGELEGT"))
+
+    out = asyncio.run(preflight(_ctx(None, message="Ja, so ausführen"), _SESSION))
+
+    assert out.early_response.content == "Moment bitte"
+    assert einloesung.calls == []
+
+
+# ── Die Auswertungs-Zeile für früh endende Züge (2026-08-15) ────
+
+def _mit_qualitaet(monkeypatch):
+    spy = _Spy()
+    monkeypatch.setattr(pf_mod, "log_turn_quality", spy)
+    return spy
+
+
+def test_eine_direktaktion_hinterlaesst_eine_auswertungszeile(monkeypatch):
+    """Diese Züge erreichen den ``persist``-Knoten nie — dort steht der einzige
+    andere Aufruf. Ohne diese Naht waren ausgerechnet die Knopfdruck-Züge in
+    der Auswertung unsichtbar."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    qual = _mit_qualitaet(monkeypatch)
+
+    ctx = _ctx("browse_collection", message="zeig mir Bio", collection_id="c1")
+    asyncio.run(preflight(ctx, _SESSION))
+
+    assert len(qual.calls) == 1
+    assert qual.calls[0]["args"][1] is ctx.req
+
+
+def test_eine_eingeloeste_abnahme_hinterlaesst_eine_auswertungszeile(monkeypatch):
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    _mit_abnahme(monkeypatch, ChatResponse(session_id="bb-1", content="ANGELEGT"))
+    qual = _mit_qualitaet(monkeypatch)
+
+    asyncio.run(preflight(_ctx(None, message="Ja, so ausführen"), _SESSION))
+
+    assert len(qual.calls) == 1
+
+
+def test_ein_gedrosselter_zug_schreibt_keine_auswertungszeile(monkeypatch):
+    """Drosselung und Sicherheits-Block führen ihr eigenes Sicherheits-Ereignis.
+    Ein zweiter Datensatz daneben machte die Zählung mehrdeutig."""
+    monkeypatch.setattr(pf_mod, "check_rate_limit", _Spy(
+        RateVerdict(allowed=False, reason="session", blocked_message="Moment")))
+    _patch_db(monkeypatch)
+    qual = _mit_qualitaet(monkeypatch)
+
+    asyncio.run(preflight(_ctx(None, message="hallo"), _SESSION))
+
+    assert qual.calls == []
+
+
+def test_ein_normaler_zug_schreibt_hier_nichts(monkeypatch):
+    """Gegenprobe: wer weiterläuft, wird im ``persist``-Knoten gezählt — hier
+    zusätzlich zu buchen wäre eine Doppelzählung."""
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    _mit_abnahme(monkeypatch, None)
+    qual = _mit_qualitaet(monkeypatch)
+
+    out = asyncio.run(preflight(_ctx(None, message="wie geht photosynthese?"), _SESSION))
+
+    assert out.early_response is None
+    assert qual.calls == []
+
+
 # ── dispatch (safe) ─────────────────────────────────────────────
 
 def test_browse_action_screens_then_dispatches(monkeypatch):

@@ -13,12 +13,11 @@ definieren. Wer sie in einem Test ersetzen will, muss sie **hier** ersetzen —
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
 from boerdi.services.config_loader import get_repo_base_url, rewrite_repo_host_v2
-from boerdi.services.mcp.parsers.json_scan import _first_json_object
+from boerdi.services.mcp.parsers.json_scan import load_envelope
 from boerdi.services.mcp.parsers.skill_registry import skill_count_of
 
 logger = logging.getLogger(__name__)
@@ -33,7 +32,13 @@ def parse_total_count(mcp_text: str) -> int:
        The count is a structured field; read it directly.
     2. **Markdown/prose** (v1 servers, ``outputFormat="markdown"``) — fall back
        to the historical patterns "Gesamt: 42", "Total: 42", "42 Ergebnisse",
-       "Found 42 results".
+       "Found 42 results". Reached only when the text holds NO JSON object at
+       all: since 2026-08-15 the envelope is read through ``load_envelope``,
+       which also finds one behind trailing prose. Measured consequence — a
+       prose answer that happens to embed a ``{…}`` now returns 0 instead of its
+       prose count. Not reachable on the live path (the only caller asks
+       ``get_collection_contents``, which is JSON-capable), and the envelope
+       staying authoritative is the point of shape 1.
 
     Deviation vs ALT (W2-1, 2026-07-30): ALT only had the prose branch. Its sole
     caller asks ``get_collection_contents``, which sits in ``_JSON_CAPABLE_TOOLS``
@@ -48,10 +53,11 @@ def parse_total_count(mcp_text: str) -> int:
     import re
     if not mcp_text:
         return 0
-    try:
-        envelope = json.loads(mcp_text)
-    except (ValueError, json.JSONDecodeError):
-        envelope = None
+    # Über ``load_envelope``, nicht über ein blankes ``json.loads``: der Umschlag
+    # kann seit dem MCP-Skill-Umbau einen zweiten Textblock hinter sich haben
+    # (Begründung dort). Ohne den Rückfall fiel diese Funktion in die
+    # Prosa-Kette — und die griffe dann nach Ziffern aus dem Begleittext.
+    envelope = load_envelope(mcp_text)
     if isinstance(envelope, dict):
         total = envelope.get("total")
         # bool is an int subclass — a stray ``"total": true`` is not a count.
@@ -98,6 +104,28 @@ def _normalize_card_repo_hosts(cards: list[dict]) -> list[dict]:
     return cards
 
 
+def _als_ein_knoten(data: dict) -> list[dict] | None:
+    """Ein einzelner ``FormattedNode`` als Ergebnisliste von eins, oder ``None``.
+
+    ``get_node_details`` legt im Text-Block einen FLACHEN Knoten ab —
+    ``{...formatted, renderUrl, parents?, raw?, textContent?}`` — und den
+    Umschlag nur in ``structuredContent``, das unser Client nicht liest.
+    Auf der Server-Seite ist das Absicht und von vier Tests gehalten; der
+    Vertrag dort verlangt einen Text-Block, nicht seine Gleichheit mit
+    ``structuredContent``. Also liest diese Seite beide Formen.
+
+    Die Signatur ist das **Paar** aus ``nodeId`` und einem bekannten
+    ``nodeType`` — nicht die ID allein. Sonst geriete jede Auskunft mit einer
+    nodeId (etwa ``get_collection_stats``) in die Kartenliste.
+    """
+    node_id = data.get("nodeId")
+    if not isinstance(node_id, str) or not node_id:
+        return None
+    if data.get("nodeType") not in ("collection", "content"):
+        return None
+    return [data]
+
+
 def _cards_from_json_envelope(data: dict) -> list[dict] | None:
     """Map an MCP v2 JSON envelope ({total, count, results: FormattedNode[]})
     to the internal Boerdi card schema.
@@ -113,7 +141,11 @@ def _cards_from_json_envelope(data: dict) -> list[dict] | None:
         return None
     results = data.get("results")
     if not isinstance(results, list):
-        return None
+        # Kein ``results``? Dann vielleicht der Knoten selbst — siehe
+        # :func:`_als_ein_knoten`.
+        results = _als_ein_knoten(data)
+        if results is None:
+            return None
     # Heuristic: an entry shaped like a FormattedNode (with `nodeId`) is what
     # makes this a card envelope. A `total`/`count` header is typical but NOT
     # required — W9b (2026-08-01) measured `get_related_content`, which answers
@@ -211,9 +243,8 @@ def parse_wlo_cards(mcp_text: str) -> list[dict]:
     """
     if not mcp_text:
         return []
-    try:
-        obj = json.loads(mcp_text)
-    except (ValueError, json.JSONDecodeError):
+    obj = load_envelope(mcp_text)
+    if obj is None:
         logger.warning("parse_wlo_cards: not a JSON envelope (first 80 chars: %r)", mcp_text[:80])
         return []
     cards = _cards_from_json_envelope(obj)
@@ -243,16 +274,7 @@ def parse_search_all_cards(mcp_text: str) -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {"content": [], "collections": [], "topic_pages": []}
     if not mcp_text:
         return out
-    obj: Any = None
-    try:
-        obj = json.loads(mcp_text)
-    except (ValueError, json.JSONDecodeError):
-        frag = _first_json_object(mcp_text)
-        if frag:
-            try:
-                obj = json.loads(frag)
-            except (ValueError, json.JSONDecodeError):
-                obj = None
+    obj: Any = load_envelope(mcp_text)
     if not isinstance(obj, dict):
         logger.warning("parse_search_all_cards: kein JSON-Envelope (%r)", mcp_text[:80])
         return out

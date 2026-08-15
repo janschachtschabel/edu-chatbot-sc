@@ -74,8 +74,9 @@ def test_die_skill_titel_kommen_als_uebersicht(monkeypatch):
 
     Deshalb TITEL und keine ``nodeId``: gemessen an der echten Registry passen
     100 Titel auf eine A4-Seite (3 361 Zeichen), 100 Titel mit ID nicht
-    (7 161). Den Volltext holt das Modell gezielt über ``search_skill`` →
-    ``get_skill``, nicht aus diesem Block."""
+    (7 161). Den Volltext holt das Modell gezielt über ``get_skill_registry`` →
+    ``get_skill``, nicht aus diesem Block — die ``nodeId``, die hier fehlt,
+    liefert der erste der beiden Schritte nach."""
     fakten = _lauf(monkeypatch, {
         "get_collection_stats": _STATS,
         "get_skill_registry": _REGISTRY,

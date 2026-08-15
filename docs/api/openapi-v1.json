@@ -1889,6 +1889,11 @@
       },
       "WloCard": {
         "properties": {
+          "collection_link": {
+            "default": "",
+            "title": "Collection Link",
+            "type": "string"
+          },
           "content_url": {
             "default": "",
             "title": "Content Url",

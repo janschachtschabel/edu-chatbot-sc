@@ -69,6 +69,7 @@ from boerdi.services.db_sessions import finalize_message, save_message, update_s
 from boerdi.services.guide_markers import _attach_guide_urls
 from boerdi.services.mcp.client import get_prepared_writes
 from boerdi.services.topic_pages import _resolve_m16_topic_page_view
+from boerdi.services.turn_quality import log_turn_quality
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -191,10 +192,18 @@ async def build_debug_and_update_session(
         token_usage=usage_acc,
     )
 
-    # Welle E — ``_last_pattern`` in entities persistieren, damit die
-    # Routing-Rules R2/R2b/R2c es im nächsten Turn aus sessions.entities lesen.
+    # Welle E — ``_last_pattern`` in entities persistieren.
+    #
+    # Der Satz hier nannte bis 2026-08-15 „die Routing-Rules R2/R2b/R2c" als
+    # Leser. **Die gibt es in NEU nicht** (repo-weit geprüft): gelesen wird der
+    # Schlüssel an genau einer Stelle, und die routet nichts —
+    # ``services/eval/runner`` fragt nach einem I06-Anlauf, ob die Sitzung
+    # überhaupt eine Spur trägt. Der Merker ist damit **Telemetrie und
+    # Vorleistung**, nicht Steuerung; wer eine Folgeregel darauf bauen will,
+    # baut den ersten Leser.
+    #
     # ``_effective_pattern_id`` (nicht winner) — ein Fast-Path kann den
-    # Engine-Winner überstimmt haben; die Folgeregel muss das AUSGEFÜHRTE sehen.
+    # Engine-Winner überstimmt haben; wer immer liest, muss das AUSGEFÜHRTE sehen.
     try:
         _winner_id_for_persist = _effective_pattern_id or winner_id or ""
         if _winner_id_for_persist:
@@ -291,30 +300,21 @@ async def persist_and_build_response(
     )
 
     # 12. Quality logging (config-/privacy-gated). NEU-Deviation: INLINE geawaitet
-    # statt _spawn_background — die Request-Session schließt am Request-Ende, ein
+    # statt _spawn_background — die Request-Session schließt am Request-End, ein
     # Fire-and-Forget-Task liefe danach ins Leere (stiller Write-Verlust).
-    try:
-        from boerdi.services.config_loader import (
-            load_privacy_config,
-            load_quality_log_config,
-        )
-        _ql_cfg = (load_quality_log_config().get("logging") or {})
-        _privacy = load_privacy_config()
-        if _ql_cfg.get("enabled", True) and _privacy.get("quality", True):
-            from boerdi.obs.quality_events import log_quality_event
-            await log_quality_event(
-                session,
-                req.session_id,
-                req.message,
-                session_state["turn_count"],
-                debug.model_dump(),
-                response_length=len(response_text or ""),
-                cards_count=len(cards),
-                page=env.get("page", "/"),
-                device=env.get("device", "desktop"),
-            )
-    except Exception as _e:
-        logger.warning("quality log failed: %s", _e)
+    #
+    # Tor und Aufruf wohnen seit 2026-08-15 in ``services/turn_quality``: sie
+    # werden von den früh endenden Zügen mitbenutzt, die diesen Knoten nie
+    # erreichen (Direkt-Aktionen, Schreib-Abnahme). Ein an fünf Stellen
+    # kopiertes Tor wären fünf Gelegenheiten, den Aus-Schalter zu verfehlen.
+    await log_turn_quality(
+        session, req, debug,
+        turn_count=session_state["turn_count"],
+        response_length=len(response_text or ""),
+        cards_count=len(cards),
+        page=env.get("page", "/"),
+        device=env.get("device", "desktop"),
+    )
 
     # Webseiten-Guide-Modus: enrich cards with same-tab navigation URLs.
     _attach_guide_urls(req, cards, page_action)

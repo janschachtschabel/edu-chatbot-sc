@@ -111,7 +111,12 @@ async def _skill_fakten(collection_id: str) -> dict[str, Any]:
     Beschreibungen, keine ``nodeId`` — die Vorgabe „nur die Übersicht, höchstens
     eine A4 Seite" und „vollständig bis 100" gehen nur so zusammen (Rechnung
     im Docstring von ``page_context._bestands_zeilen``). Den Volltext holt das
-    Modell gezielt über ``search_skill`` → ``get_skill``.
+    Modell gezielt über ``get_skill_registry`` → ``get_skill``.
+
+    Der zweite Schritt braucht die ``nodeId``, die hier gerade weggeworfen wird
+    — sie steht in denselben ``eintraege``. Das ist der bewusste Preis der
+    A4-Zusage: ein Aufruf mehr, dafür eine Übersicht, die in den Prompt passt.
+    Wer ihn sparen will, muss die IDs mitgeben und die Rechnung neu aufmachen.
 
     ``skills`` zählt die Einträge der Registry, nicht die benennbaren — es ist
     die Aussage „so viele Anleitungen sind hier freigegeben". Ein Eintrag ohne

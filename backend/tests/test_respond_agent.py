@@ -429,7 +429,7 @@ async def test_bestand_und_skillkatalog_stehen_in_der_agent_kette(monkeypatch):
     assert "35 Materialien" in systeme
     assert "28" in systeme
     assert "Stunde planen" in systeme
-    assert "search_skill" in systeme   # der Weg zum Volltext steht dabei
+    assert "get_skill_registry" in systeme   # der Weg zum Volltext steht dabei
 
 
 @pytest.mark.anyio

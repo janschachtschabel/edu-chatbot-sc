@@ -527,9 +527,26 @@ async def _handle_generate_learning_path(
             debug=debug,
         )
 
-    # Learning-path markdown renders directly in chat. Mark last_pattern=M09 for
-    # the later M11 iteration.
-    session_state["last_pattern"] = "M09"
+    # Kein Merker für den Folgezug — Feststellung, nicht Auslassung
+    # (2026-08-15). Bis dahin stand hier ``session_state["last_pattern"] =
+    # "M09"`` „for the later M11 iteration". Drei unabhängige Gründe, warum das
+    # nie ankam:
+    #
+    # 1. ``last_pattern`` wurde repo-weit von **niemandem** gelesen. Der
+    #    zugüberdauernde Merker heisst ``_last_pattern`` und wohnt in
+    #    ``entities`` (``turn_persist``) — ein anderer Schlüssel an einem
+    #    anderen Ort.
+    # 2. Er lag auf der **obersten Ebene** von ``session_state``. Der
+    #    ``update_session``-Aufruf oben schreibt genau ``state_id`` und
+    #    ``entities``; alles daneben stirbt mit der Anfrage.
+    # 3. Er stand ohnehin **hinter** diesem Aufruf — selbst in ``entities``
+    #    wäre er zu spät gekommen.
+    #
+    # Verloren geht nichts: der Folgezug wählt M11 über den Verlauf. Das
+    # Lernpfad-Markdown wird als Assistenten-Nachricht persistiert und steht im
+    # Prompt; daran greifen die Trigger-Phrasen von M11 („mach das kürzer").
+    # Wer hier doch einen Merker braucht: nach ``entities``, VOR dem
+    # ``update_session`` oben — und dann braucht es zuerst einen Leser.
     _attach_guide_urls(req, cards, None)
     short_ack = _lp_completion_message(
         title, response_text or "", canvas_enabled=False, lang=lang)

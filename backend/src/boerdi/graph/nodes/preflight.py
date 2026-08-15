@@ -17,6 +17,14 @@ to the R5 handler — the result becomes ``ctx.early_response`` and the graph sk
 assess/route/respond. Any other action (or none) leaves ``early_response`` None
 so the turn continues.
 
+**Neu über ALT hinaus: die Schreib-Abnahme (S5).** Steht aus einem früheren Zug
+eine bestätigungspflichtige Änderung offen und stimmt der Mensch ihr glatt zu,
+wird sie hier ausgeführt — mit Werkzeug, Argumenten und Schlüssel aus dem
+Merkposten, ohne Klassifikator und ohne Modell. Sie steht hier und nicht bei den
+Aktionen oben, weil sie über eine gewöhnliche Nachricht kommt („ja") und nicht
+über ``req.action``. Warum sie den normalen Weg nicht überleben konnte, steht in
+``services/write_approval``.
+
 **Neu über ALT hinaus: ``show_content_text`` (M17).** Die Volltext-Aktion des
 neuen MCP-Servers gehört hierher und nicht in ein Antwort-Muster — sie muss den
 Text unverändert ausliefern (``services/content_text_action``, Begründung dort).
@@ -58,6 +66,8 @@ from boerdi.services.direct_actions import (
 from boerdi.services.rate_limits import check_rate_limit
 from boerdi.services.safety import assess_safety
 from boerdi.services.safety.regex_gate import regex_gate
+from boerdi.services.turn_quality import log_turn_quality
+from boerdi.services.write_approval import redeem_write_approval
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +109,23 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
             quick_replies=[],
         )
         return ctx
+
+    # ── S5 (2026-08-15): eine offene Schreib-Abnahme einlösen ─────────────
+    # Vor dem Klassifikator, und genau darin liegt der Fix: eine Abnahme ist
+    # ein bestimmter Zustand (Werkzeug, Argumente und Schlüssel liegen fertig
+    # im Merkposten), keine Deutungsfrage. Ging sie in den normalen Weg, musste
+    # der Klassifikator auf ein „ja" hin M18 treffen UND das Modell die
+    # Argumente rekonstruieren, die es nie gesehen hat — die Schleife, die der
+    # Nutzer meldete. Begründung und Grenzen: ``services/write_approval``.
+    #
+    # Nur ohne ``action``: ein Zug mit Direkt-Aktion beauftragt etwas anderes,
+    # und ein „ja" im Textfeld daneben ist dann keine Abnahme.
+    if not req.action:
+        eingeloest = await redeem_write_approval(session, req, ctx.session_state)
+        if eingeloest is not None:
+            ctx.early_response = eingeloest
+            await _log_early_quality(ctx, session)
+            return ctx
 
     if req.action not in _DIRECT_ACTIONS:
         return ctx
@@ -158,4 +185,35 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
             session, req, ctx.session_state, usage_acc=ctx.usage)
     elif req.action == "show_content_text":
         ctx.early_response = await _handle_show_content_text(session, req, ctx.session_state)
+    await _log_early_quality(ctx, session)
     return ctx
+
+
+async def _log_early_quality(ctx: TurnContext, session: AsyncSession) -> None:
+    """Die Auswertungs-Zeile für einen Zug, der HIER endet (2026-08-15).
+
+    Diese Züge erreichen den ``persist``-Knoten nie, und dort steht der einzige
+    andere Aufruf — sie fehlten deshalb vollständig in der Auswertung. Gerade
+    die Knopfdruck-Züge (Sammlung ansehen, Lernpfad, Volltext, Schreib-Abnahme)
+    waren also unsichtbar.
+
+    **Eine Stelle statt zehn.** Die drei Handler haben zusammen zehn
+    Rückgabepunkte; den Aufruf dort einzeln zu verteilen hiesse, ihn beim
+    elften zu vergessen. Der Verteiler sieht jede fertige Antwort — hier kann
+    er nicht übersehen werden.
+
+    Nur wo tatsächlich geantwortet wurde: Drosselung und Sicherheits-Block
+    kehren weiter oben zurück und führen ihr eigenes *Sicherheits*-Ereignis;
+    ein zweiter Datensatz daneben machte die Zählung mehrdeutig.
+    """
+    antwort = ctx.early_response
+    if antwort is None:
+        return
+    await log_turn_quality(
+        session, ctx.req, antwort.debug,
+        turn_count=int(ctx.session_state.get("turn_count") or 0),
+        response_length=len(antwort.content or ""),
+        cards_count=len(antwort.cards or []),
+        page=ctx.req.environment.page,
+        device=ctx.req.environment.device,
+    )

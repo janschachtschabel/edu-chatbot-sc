@@ -13,6 +13,8 @@ sind prozess-global und würden sonst über Tests hinweg lecken.
 
 from __future__ import annotations
 
+import pytest
+
 from boerdi.services.mcp.tool_cache import (
     _cache_get,
     _cache_key,
@@ -34,6 +36,109 @@ def test_cache_key_is_order_independent():
 def test_cache_key_differs_by_tool_and_args():
     assert _cache_key("t1", {"a": 1}) != _cache_key("t2", {"a": 1})
     assert _cache_key("t1", {"a": 1}) != _cache_key("t1", {"a": 2})
+
+
+# ── Der Zwischenspeicher trennt nach Aufrufer (S6, 2026-08-15) ──────────
+#
+# Gemessen am Server, nicht angenommen: ``wlo_auth_status`` liefert
+# ``{"mode":"user","authenticated":true,"configuredAs":"…"}`` — der MCP-Server
+# handelt als BESTIMMTE Person, und seine eigene Werkzeug-Beschreibung sagt es
+# ausdrücklich: ``mode="anonymous"`` = nur öffentliche Daten, ``mode="user"`` =
+# die Rechte der angemeldeten Person („warum sie bestimmte Inhalte (nicht)
+# sieht").
+#
+# Was gelesen wird, hängt also an der Identität. Der Speicher hier ist
+# prozessweit und lebt über alle Sitzungen; ohne die Identität im Schlüssel
+# bekäme die zweite Person die Treffer der ersten.
+
+_ANFRAGE = ("search_wlo_content", {"searchTerm": "Optik"})
+
+
+@pytest.fixture(autouse=True)
+def _kein_zugangsblock():
+    """Jeder Test startet und endet ohne Anmeldung — dieselbe Fixture wie in
+    ``test_agent_tools``, und aus demselben Grund: der Block lebt in einem
+    ``ContextVar``, und den nimmt ``monkeypatch`` nicht zurück (er ist kein
+    Attribut).
+
+    Gemessen, als sie hier fehlte: 7 Fehlschläge in ``test_mcp_auth``, die einen
+    Zug ohne Anmeldung erwarten. Seit der Cache-Schlüssel den Aufrufer kennt,
+    hängt daran auch dieser Speicher — ein übriggebliebener Block verschöbe
+    fremde Tests in einen anderen Topf.
+    """
+    from boerdi.services.mcp.auth import set_turn_auth_block
+    set_turn_auth_block(None)
+    yield
+    set_turn_auth_block(None)
+
+
+def _als(monkeypatch, block: str):
+    """Diesen Zug unter dem gegebenen Zugangsblock laufen lassen."""
+    from boerdi.services.mcp.auth import set_turn_auth_block
+    monkeypatch.setattr(
+        "boerdi.services.mcp.auth._token", lambda: "", raising=True)
+    set_turn_auth_block(block)
+
+
+def test_zwei_personen_teilen_sich_keinen_treffer(monkeypatch):
+    """DER BEFUND. Ohne Trennung liest die zweite Person, was die erste sah."""
+    clear_tool_cache()
+    _als(monkeypatch, "wlo2.personA")
+    _cache_set(_cache_key(*_ANFRAGE), "TREFFER-VON-A")
+
+    _als(monkeypatch, "wlo2.personB")
+    assert _cache_get(_cache_key(*_ANFRAGE)) is None, (
+        "Person B bekommt den Treffer von Person A aus dem Zwischenspeicher"
+    )
+
+
+def test_dieselbe_person_bekommt_ihren_treffer_wieder(monkeypatch):
+    """Gegenprobe: die Trennung darf den Speicher nicht abschalten."""
+    clear_tool_cache()
+    _als(monkeypatch, "wlo2.personA")
+    _cache_set(_cache_key(*_ANFRAGE), "TREFFER-VON-A")
+    _als(monkeypatch, "wlo2.personA")
+    assert _cache_get(_cache_key(*_ANFRAGE)) == "TREFFER-VON-A"
+
+
+def test_anonyme_zuege_teilen_sich_einen_topf(monkeypatch):
+    """Ohne Anmeldung sehen alle dasselbe — getrennte Töpfe wären Verschwendung."""
+    clear_tool_cache()
+    _als(monkeypatch, "")
+    _cache_set(_cache_key(*_ANFRAGE), "OEFFENTLICH")
+    _als(monkeypatch, "")
+    assert _cache_get(_cache_key(*_ANFRAGE)) == "OEFFENTLICH"
+
+
+def test_das_dienstkonto_ist_ein_topf_fuer_alle(monkeypatch):
+    """``MCP_AUTH_TOKEN`` gilt allen Nutzenden gleich (so sagt es der Server:
+    „dieselben Rechte für alle Nutzenden") — ein gemeinsamer Topf ist richtig."""
+    clear_tool_cache()
+    monkeypatch.setattr(
+        "boerdi.services.mcp.auth._token", lambda: "wlo2.dienstkonto", raising=True)
+    from boerdi.services.mcp.auth import set_turn_auth_block
+    set_turn_auth_block("")          # Besucher 1: keine eigene Anmeldung
+    _cache_set(_cache_key(*_ANFRAGE), "DIENSTKONTO-TREFFER")
+    set_turn_auth_block("")          # Besucher 2: ebenfalls keine
+    assert _cache_get(_cache_key(*_ANFRAGE)) == "DIENSTKONTO-TREFFER"
+
+
+def test_der_schluessel_enthaelt_den_block_nicht(monkeypatch):
+    """Der Zugangsblock verschlüsselt ein WLO-Passwort. Er darf nicht als
+    Klartext in einem prozessweiten Dict stehen, das jeder Speicherauszug
+    mitnimmt."""
+    clear_tool_cache()
+    _als(monkeypatch, "wlo2.sehrGeheimerBlock")
+    schluessel = _cache_key(*_ANFRAGE)
+    assert "sehrGeheimerBlock" not in "".join(schluessel)
+
+
+def test_die_tool_ttl_greift_weiterhin(monkeypatch):
+    """``_cache_get`` liest die TTL aus ``key[0]``. Stünde dort etwas anderes
+    als der Werkzeugname, fiele jede Per-Tool-TTL still auf den Standard."""
+    clear_tool_cache()
+    _als(monkeypatch, "wlo2.personA")
+    assert _cache_key("lookup_wlo_vocabulary", {})[0] == "lookup_wlo_vocabulary"
 
 
 # ── _is_empty_response ──────────────────────────────────────────────────

@@ -22,15 +22,31 @@ Chat sicher steht: am Zugwechsel.** Zwei Regeln tragen ihn:
    Schlüssel wird aus dem Vorschautext geschnitten, bevor dieser in die
    Nachrichtenkette geht (:func:`redact_confirm_token`).
 2. *Eingesetzt wird er nur von uns, nur für dasselbe Vorhaben, nur in einem
-   späteren Zug.* Die ersten beiden Bedingungen prüft :func:`token_for`; die
-   dritte kann dieses Modul nicht prüfen, weil es keinen Zugbegriff hat — sie
-   liegt in der Naht (``services/tool_loop.py``), die den offenen Vorgang als
-   **Schnappschuss beim Zug-Eintritt** liest. Ein in diesem Zug entstandener
-   Vorgang steht nicht im Schnappschuss und ist damit in diesem Zug nicht
-   bestätigbar.
+   späteren Zug.* Die ersten beiden Bedingungen prüft :func:`token_for` bzw.
+   :func:`confirmed_args`; die dritte kann dieses Modul nicht prüfen, weil es
+   keinen Zugbegriff hat — sie liegt bei den Nähten.
+
+**Es gibt zwei Nähte, und sie tragen die Zug-Regel verschieden.**
+
+* ``services/write_approval`` (S5, der Regelweg) — löst die Abnahme
+  deterministisch ein, bevor der Klassifikator läuft. Er braucht keinen
+  Schnappschuss: sein ``session_state`` kommt aus der Datenbank, enthält also
+  ausschliesslich Vorgänge **früherer** Züge. Ein in diesem Zug entstandener
+  kann dort gar nicht auftauchen.
+* ``services/tool_loop`` (der Weg über das Modell) — liest den offenen Vorgang
+  als **Schnappschuss beim Zug-Eintritt**. Eine Vorschau, die weiter unten im
+  selben Zug entsteht, steht nicht darin und ist damit in diesem Zug nicht
+  bestätigbar. Ohne diesen Schnappschuss könnte das Modell in fünf Iterationen
+  beide Schritte selbst gehen.
 
 Die Trennung ist Absicht: hier wohnt die *Identität eines Vorhabens*, dort die
-*Zeit*. Wer die Zug-Regel sucht, findet sie an der Naht und nicht hier.
+*Zeit*. Wer die Zug-Regel sucht, findet sie an den Nähten und nicht hier.
+
+**Und eine dritte Stelle muss mitspielen, ohne es zu wissen:** auf dem Weg zum
+Server läuft ``services/mcp/tool_args.validate_tool_args``. Der Schlüssel steht
+in keinem Argument-Modell (siehe :data:`CONFIRM_TOKEN_FIELD`) und fiel dort bis
+2026-08-15 stillschweigend heraus — womit jede Ausführung wieder eine Vorschau
+wurde. Wer die Argumentprüfung anfasst, fasst diesen Weg mit an.
 
 **Welche der beiden Regeln trägt.** Regel 1 zerfällt in zwei Hälften, und sie
 sind ungleich wichtig. Das Entfernen auf dem **Hinweg** ist die Zusicherung: was
@@ -79,7 +95,12 @@ CURATION_TOOLS = frozenset({
 # geprüft, nicht angenommen.
 CONFIRMABLE_TOOLS = CURATION_TOOLS - {"wlo_list_suggestions"}
 
-_TOKEN_FIELD = "confirmToken"
+# Öffentlich, weil ihn zwei Seiten kennen müssen: dieses Modul (entfernen,
+# einsetzen, aus dem Text schneiden) und die Argument-Prüfung auf dem Weg zum
+# Server (``services/mcp/tool_args`` — sie muss ihn stehen lassen, weil er in
+# keinem Argument-Modell steht). Zwei Schreibweisen desselben Namens wären die
+# nächste Gelegenheit zum Auseinanderlaufen.
+CONFIRM_TOKEN_FIELD = "confirmToken"
 
 # Wie viel eines Vorhabens wir uns merken (S4, 2026-08-14). Der Merkposten
 # liegt als JSONB in ``session_state["entities"]`` und wird je Zug geschrieben;
@@ -93,7 +114,7 @@ MAX_REMEMBERED_ARGS_BYTES = 262_144
 # (``previewReply`` in ``curation-shared.ts``). Der Schlüssel ist
 # ``randomBytes(18).toString('base64url')``, also 24 Zeichen aus dem
 # base64url-Alphabet.
-_TOKEN_IN_TEXT = re.compile(rf"({_TOKEN_FIELD}:\s*)([A-Za-z0-9_-]{{16,}})")
+_TOKEN_IN_TEXT = re.compile(rf"({CONFIRM_TOKEN_FIELD}:\s*)([A-Za-z0-9_-]{{16,}})")
 
 TOKEN_PLACEHOLDER = "‹wird bei der Bestätigung eingesetzt›"
 
@@ -105,9 +126,9 @@ TOKEN_TTL_SECONDS = 600
 
 # Der Anschluss, ab dem die Vorschau nur noch den Aufrufer angeht: „ Dazu
 # denselben Aufruf mit confirmToken: … wiederholen.\nDer Schlüssel gilt …"
-# (``previewReply``). Ab dem führenden Leerzeichen, damit der Satz davor —
-# was passieren würde — vollständig stehen bleibt.
-_DISPLAY_TAIL = re.compile(r"\s*Dazu denselben Aufruf mit confirmToken:.*\Z", re.S)
+# (``previewReply``). Gesucht wird die Stelle, nicht ein Muster — warum das
+# LETZTE Vorkommen zählt, steht bei :func:`preview_for_display`.
+_DISPLAY_TAIL_MARKER = "Dazu denselben Aufruf mit confirmToken:"
 
 
 def is_curation_tool(tool_name: str) -> bool:
@@ -128,15 +149,34 @@ def strip_confirm_token(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
     Kurations-Oberfläche werden nicht angefasst — dort ist ``confirmToken`` ein
     gewöhnlicher Name ohne Bedeutung.
     """
-    if not is_confirmable(tool_name) or _TOKEN_FIELD not in args:
+    if not is_confirmable(tool_name) or CONFIRM_TOKEN_FIELD not in args:
         return args
-    return {k: v for k, v in args.items() if k != _TOKEN_FIELD}
+    return {k: v for k, v in args.items() if k != CONFIRM_TOKEN_FIELD}
 
 
 def extract_confirm_token(text: str) -> str | None:
-    """Der Schlüssel aus dem Vorschautext des Servers, oder ``None``."""
-    treffer = _TOKEN_IN_TEXT.search(text or "")
-    return treffer.group(2) if treffer else None
+    """Der Schlüssel aus dem Vorschautext des Servers, oder ``None``.
+
+    **Der letzte Treffer zählt, nicht der erste** (2026-08-15, live gemessen).
+    Der Server gibt Titel und Beschreibung des Vorhabens wörtlich in die
+    Vorschau und hängt seinen eigenen Block danach an. Bringt einer dieser
+    Werte den Anschlusssatz mit, stehen zwei Kandidaten im Text — und genau der
+    hintere stammt vom Server. Bei ``wlo_create_collection`` schreibt die
+    Person diesen Wert selbst; bei ``wlo_update_content`` zeigt die Vorschau
+    die **alten** Werte des Knotens, die jemand anderes geschrieben haben kann.
+
+    Die Folge eines Fehlgriffs wäre kein Loch, sondern eine Sackgasse: die
+    Abnahme setzte einen Schlüssel ab, den der Server nie geprägt hat, er
+    lehnte ab, und es passierte nichts. Fremder Text kann so aber jeden
+    Schreibvorgang an einem Knoten lahmlegen.
+
+    Das Muster bleibt bewusst weit (``confirmToken:`` plus Schlüssel, ohne den
+    Satz drumherum): enger wäre es an den Wortlaut des Servers gekettet, und
+    eine Umformulierung dort nähme uns die Extraktion ganz — der Ausfall, vor
+    dem der Modulkopf warnt.
+    """
+    treffer = list(_TOKEN_IN_TEXT.finditer(text or ""))
+    return treffer[-1].group(2) if treffer else None
 
 
 def redact_confirm_token(text: str) -> str:
@@ -163,8 +203,22 @@ def preview_for_display(text: str) -> str:
     ihn, findet die Funktion den Anschluss nicht mehr — dann steht zu VIEL in
     der Box, nie zu wenig. Diese Richtung ist Absicht: eine Abnahme über einem
     gekürzten Unterschied wäre der Fehler, den die Box gerade verhindern soll.
+
+    **Geschnitten wird am LETZTEN Anschluss** (2026-08-15, live gemessen). Der
+    Server gibt Titel und Beschreibung des Vorhabens wörtlich in die Vorschau
+    und hängt seinen Block danach an; bringt einer dieser Werte den Satz mit,
+    steht er zweimal im Text. Am ersten zu schneiden hiesse mitten in einen
+    Wert des Vorhabens zu schneiden — und damit genau die Richtung zu
+    verletzen, die der Absatz darüber zusichert. Bei
+    ``wlo_create_collection`` schreibt die Person diesen Wert selbst; bei
+    ``wlo_update_content`` zeigt die Vorschau die **alten** Werte des Knotens,
+    die jemand anderes geschrieben haben kann. Dieselbe Wurzel trifft
+    :func:`extract_confirm_token`, dort mit anderer Folge.
     """
-    return _DISPLAY_TAIL.sub("", text or "").rstrip()
+    stelle = (text or "").rfind(_DISPLAY_TAIL_MARKER)
+    if stelle < 0:
+        return (text or "").rstrip()
+    return text[:stelle].rstrip()
 
 
 def change_fingerprint(tool_name: str, args: dict[str, Any]) -> str:
@@ -365,4 +419,4 @@ def confirmed_args(
     token = pending.get("token")
     if not isinstance(gemerkt, dict) or not token:
         return None
-    return {**gemerkt, _TOKEN_FIELD: token}
+    return {**gemerkt, CONFIRM_TOKEN_FIELD: token}

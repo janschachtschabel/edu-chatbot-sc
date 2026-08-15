@@ -250,7 +250,7 @@ async def _assemble_messages(
             # ``parsers.skill_registry``.
             "content": frame_untrusted(_name, _redact_search_content_for_llm(
                 _name, _txt, mcp_prefetch_cards, _inline_grouping_mode))
-            + skill_registry_note(_txt),
+            + skill_registry_note(_txt, tool_name=_name, args=_args),
         })
         mcp_prefetched = True
 
@@ -307,7 +307,7 @@ async def _assemble_messages(
                 "tool_call_id": _tc_id,
                 "content": frame_untrusted(_ex_name, _redact_search_content_for_llm(
                     _ex_name, _ex_text, _ex_cards, _inline_grouping_mode))
-                + skill_registry_note(_ex_text),
+                + skill_registry_note(_ex_text, tool_name=_ex_name, args=_ex_args),
             })
 
     # Tool calling loop

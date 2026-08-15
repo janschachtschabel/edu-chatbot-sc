@@ -94,11 +94,34 @@ describe('grouped*Cards', () => {
     ],
   });
 
-  it('trennt nach Klassifikation', () => {
+  // Die Themenseiten-Karte steht seit 15.08.2026 in BEIDEN Kästen: eine
+  // Sammlung MIT kuratierter Themenseite ist immer noch eine Sammlung, war
+  // aber im Sammlungen-Kasten nie zu sehen (Live-Befund „Optik": von vier
+  // Optik-Sammlungen fehlten genau die zwei mit Themenseite). Der Kasten
+  // zeigt sie mit der Sammlungs-Adresse, der Themenseiten-Kasten mit der
+  // Themenseiten-Adresse. Vorher erwartete diese Zeile ['c1'].
+  it('trennt nach Klassifikation, Sammlungen enthalten auch Themenseiten', () => {
     expect(groupedTopicCards(m).map((c) => c.node_id)).toEqual(['t1']);
-    expect(groupedCollectionCards(m).map((c) => c.node_id)).toEqual(['c1']);
+    expect(groupedCollectionCards(m).map((c) => c.node_id)).toEqual(['c1', 't1']);
     expect(groupedContentCards(m).map((c) => c.node_id)).toEqual(['m1', 'm2']);
     expect(groupedContentCardsCount(m)).toBe(2);
+  });
+
+  // Reine Sammlungen zuerst: sie haben NUR diesen Kasten. Themenseiten
+  // stehen ohnehin schon oben — sie dürfen die Exklusiven nicht aus dem
+  // Deckel drängen. Das Backend liefert Themenseiten zuerst, deshalb
+  // sortiert diese Funktion um statt sich auf die Reihenfolge zu verlassen.
+  it('reine Sammlungen verdrängen Themenseiten aus dem Deckel, nicht umgekehrt', () => {
+    const voll = msg({
+      displayRules: { groups: { sammlungen_max: 2 } },
+      cards: [
+        card({ node_type: 'topic_page', node_id: 't1', title: 'TP1' }),
+        card({ node_type: 'topic_page', node_id: 't2', title: 'TP2' }),
+        card({ node_type: 'collection', node_id: 'c1', title: 'Sammlung1' }),
+        card({ node_type: 'collection', node_id: 'c2', title: 'Sammlung2' }),
+      ],
+    });
+    expect(groupedCollectionCards(voll).map((c) => c.node_id)).toEqual(['c1', 'c2']);
   });
 
   it('ohne cards → leer', () => {

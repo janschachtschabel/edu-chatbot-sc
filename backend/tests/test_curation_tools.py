@@ -25,6 +25,7 @@ import yaml
 
 from boerdi.domain.write_confirm import CONFIRMABLE_TOOLS, CURATION_TOOLS
 from boerdi.services.mcp.tool_args import validate_tool_args
+from boerdi.services.mcp.tool_cache import _TOOL_CACHE_BLOCKLIST
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 from boerdi.services.response_tool_selection import _select_active_tools
@@ -179,6 +180,75 @@ class TestArgumente:
         # führt das Feld als optional, und eine erfundene Sicherheit wäre eine
         # Aussage, die niemand getroffen hat.
         assert "confidence" not in geprueft["suggestions"][1]
+
+
+# ── Der Weg des Schlüssels zum Server (S5, 2026-08-15) ───────────────────
+#
+# Befund des Nutzers: „er will eine Bestätigung — die aber immer wieder gefragt
+# wird und es geht nicht weiter." Ursache waren zwei stille Stellen auf dem Weg
+# nach draussen, und beide sind hier festgeklemmt. Sie greifen ineinander: ohne
+# den Schlüssel ist der Ausführungsaufruf wieder eine Vorschau, und weil der
+# Schlüssel VOR dem Cache-Schlüssel wegfiel, war er sogar dieselbe — beantwortet
+# aus dem Zwischenspeicher, ohne dass der Server je davon erfuhr.
+
+
+class TestSchluesselErreichtDenServer:
+    def test_der_schluessel_ueberlebt_die_validierung(self):
+        # Gemessen 2026-08-15: ``validate_tool_args`` gab
+        # ``{'title': 'Optik'}`` zurück — der Schlüssel war weg. ``confirmToken``
+        # steht bewusst in KEINEM Argument-Modell (er gehört nicht zu dem, was
+        # ein Modell bestimmen darf, siehe ``schemas_mcp_curation``), und
+        # pydantic ignoriert unbekannte Felder stillschweigend.
+        for name in sorted(CONFIRMABLE_TOOLS & set(_kuration())):
+            fn = _kuration()[name]
+            args = {feld: _beispielwert(feld) for feld in fn["parameters"]["required"]}
+            geprueft = validate_tool_args(name, {**args, "confirmToken": "TOK-123"})
+            assert geprueft.get("confirmToken") == "TOK-123", (
+                f"{name}: ohne Schlüssel wird aus der Ausführung wieder eine Vorschau"
+            )
+
+    def test_erfundene_felder_fallen_weiterhin_raus(self):
+        # Gegenprobe: die Ausnahme gilt genau einem Namen, nicht allen.
+        geprueft = validate_tool_args(
+            "wlo_create_collection",
+            {"title": "Optik", "confirmToken": "TOK-123", "erfunden": "x"})
+        assert geprueft["confirmToken"] == "TOK-123"
+        assert "erfunden" not in geprueft
+
+    def test_ohne_schluessel_bleibt_das_feld_weg(self):
+        # Ein leeres Feld wäre kein Nichts: der Server unterscheidet „ohne
+        # confirmToken" (Vorschau) von einem ungültigen Schlüssel (Absage).
+        geprueft = validate_tool_args("wlo_create_collection", {"title": "Optik"})
+        assert "confirmToken" not in geprueft
+
+    def test_bei_lesenden_werkzeugen_ist_confirmtoken_ein_fremdes_feld(self):
+        geprueft = validate_tool_args(
+            "search_wlo_collections", {"searchTerm": "Optik", "confirmToken": "TOK-123"})
+        assert "confirmToken" not in geprueft
+
+
+class TestKeinZwischenspeicherFuerAenderungen:
+    def test_kuratierende_werkzeuge_werden_nie_zwischengespeichert(self):
+        # Der Zwischenspeicher ist prozessweit und cacht per Vorgabe ALLES.
+        # Für eine Änderung ist das dreifach falsch: die Ausführung würde aus
+        # dem Speicher beantwortet statt ausgeführt; eine zwischengespeicherte
+        # Vorschau reichte einen längst verbrauchten Schlüssel weiter; und eine
+        # Liste offener Vorschläge wäre nach einer Entscheidung veraltet.
+        for name in sorted(CURATION_TOOLS):
+            assert name in _TOOL_CACHE_BLOCKLIST, (
+                f"{name} ändert oder liest den Bestand live — nichts zum Aufheben"
+            )
+
+    def test_die_auskunft_ueber_die_anmeldung_wird_nie_aufgehoben(self):
+        # ``wlo_auth_status`` beantwortet „unter welchem Namen würde geschrieben".
+        # Der Zwischenspeicher kennt den Zugangsblock nicht (der reist im
+        # ContextVar, nicht in den Argumenten) — eine aufgehobene Antwort
+        # gehörte also womöglich einer anderen Person.
+        assert "wlo_auth_status" in _TOOL_CACHE_BLOCKLIST
+
+    def test_suchen_werden_weiterhin_zwischengespeichert(self):
+        # Gegenprobe: die Sperre ist eine Liste, kein Abschalten.
+        assert "search_wlo_collections" not in _TOOL_CACHE_BLOCKLIST
 
 
 # ── Das Betriebsart-Gate ─────────────────────────────────────────────────

@@ -113,6 +113,46 @@ def test_call_tool_transport_exception_maps_to_error_dict(monkeypatch):
     assert "error" in out and "connect refused" in out["error"]["message"]
 
 
+# ── Die Fehler-ART (2026-08-15) ─────────────────────────────────────────
+#
+# Beide Zweige oben liefern dasselbe Fehler-Dict — und genau daran scheiterte
+# die Schreib-Abnahme: „der Server hat abgelehnt" und „wir haben nie etwas
+# gehört" sind für den Aufrufer verschiedene Sachlagen. Beim ersten steht fest,
+# dass nichts geändert wurde; beim zweiten steht das gerade NICHT fest.
+#
+# Nur der Transport kann sie unterscheiden — er weiss, welchen Zweig er nahm.
+
+
+def test_ein_werkzeug_fehler_traegt_die_art_tool(monkeypatch):
+    result = CallToolResult(
+        content=[TextContent(type="text", text="Schlüssel abgelaufen")], isError=True
+    )
+    _patch_session(monkeypatch, _FakeSession(call_result=result))
+    out = asyncio.run(call_tool("wlo_create_collection", {}))
+    assert out["error"]["kind"] == "tool", (
+        "Der Server hat geantwortet — es steht fest, dass er ablehnte"
+    )
+
+
+def test_ein_transport_fehler_traegt_die_art_transport(monkeypatch):
+    _patch_session(monkeypatch, _FakeSession(call_exc=TimeoutError("read timeout")))
+    out = asyncio.run(call_tool("wlo_create_collection", {}))
+    assert out["error"]["kind"] == "transport", (
+        "Keine Antwort — ob geschrieben wurde, ist von hier aus offen"
+    )
+
+
+def test_die_meldung_bleibt_neben_der_art_stehen(monkeypatch):
+    # Gegenprobe: die Art kommt HINZU, sie ersetzt nichts. Der Text reist
+    # weiter zum Modell und in die Protokolle.
+    result = CallToolResult(
+        content=[TextContent(type="text", text="tool kaputt")], isError=True
+    )
+    _patch_session(monkeypatch, _FakeSession(call_result=result))
+    out = asyncio.run(call_tool("t", {}))
+    assert out["error"]["message"] == "tool kaputt"
+
+
 def test_call_tool_multiple_text_blocks_joined_in_order(monkeypatch):
     result = CallToolResult(
         content=[

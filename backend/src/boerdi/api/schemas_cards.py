@@ -79,6 +79,22 @@ class WloCard(BaseModel):
     # Backward-Compat: Default leer; Bestands-Frontend ignoriert das Feld
     # und nutzt die alte URL-Logik weiter (Phase 10 zieht das Pflicht-Switch).
     link: str = ""
+    # Zweites Ziel für Sammlungen MIT kuratierter Themenseite: sie stehen seit
+    # dem Live-Befund „Optik" (15.08.2026) in BEIDEN Kästen, und dieses Feld
+    # trägt das Ziel des Sammlungen-Kastens (``…/components/collections?id=…``).
+    #
+    # Gesetzt **nur, wo ``link`` woanders hinzeigt** — also bei
+    # ``node_type="topic_page"``, wo ``link`` die Themenseiten-Adresse ist.
+    # Leer in den beiden anderen Fällen, und zwar nicht aus Versehen:
+    #   * reine Sammlung → ``link`` IST der Browse-Link
+    #   * Themenseite in der ZWEITEN Darstellung (``node_type="collection"``
+    #     MIT ``topic_pages``, entsteht in ``_build_cards`` beim Zusammen-
+    #     führen zweier Treffer derselben node_id) → ``link`` ebenfalls
+    #     der Browse-Link, gebaut vom selben Zweig in ``build_card_link``.
+    # Ein zweites Feld mit gleichem Wert wäre nur eine Quelle für Drift; das
+    # Frontend fällt in beiden Fällen auf ``link`` zurück
+    # (``getCardCollectionUrl``).
+    collection_link: str = ""
 
 
 class QueryMetaEntry(BaseModel):

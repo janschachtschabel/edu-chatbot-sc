@@ -136,8 +136,21 @@ async def call_tool(
 
     Erfolg → ``{"result": {"content": [{"type": "text", "text": …}, …]}}``.
     Tool-Fehler (``isError``) oder Transportfehler (Exception) →
-    ``{"error": {"message": …}}`` — genau die Form, die ``call_mcp_tool`` (5-1c)
-    für seinen Retry-/Fehlerpfad erwartet.
+    ``{"error": {"message": …, "kind": …}}`` — genau die Form, die
+    ``call_mcp_tool`` (5-1c) für seinen Retry-/Fehlerpfad erwartet.
+
+    **``kind`` ist neu (2026-08-15)** und trennt zwei Sachlagen, die für einen
+    Aufrufer ohne Modell dahinter verschieden sind:
+
+    * ``"tool"`` — der Server hat **geantwortet** und abgelehnt. Bei einem
+      Schreibwerkzeug steht damit fest, dass nichts geändert wurde.
+    * ``"transport"`` — es kam **keine Antwort** (Verbindung, Zeitüberschreitung,
+      Abbruch). Ob geschrieben wurde, ist offen.
+
+    Nur diese Funktion kann das unterscheiden: eine Ebene höher sind beide Fälle
+    dasselbe Dict und danach derselbe String. Gelesen wird es über
+    ``client.call_mcp_tool_status``; daran hängt, ob die Schreib-Abnahme dem
+    Nutzer „es wurde nichts geändert" sagen darf oder „bitte nachsehen".
     """
     target_url = resolve_mcp_url(url)
     try:
@@ -146,12 +159,12 @@ async def call_tool(
     except Exception as exc:  # noqa: BLE001 — Transportfehler → Fehler-Dict (ALT-Parität)
         grund = _cause_text(exc)
         logger.error("MCP tool %s transport error @ %s: %s", tool_name, target_url, grund)
-        return {"error": {"message": grund}}
+        return {"error": {"message": grund, "kind": "transport"}}
 
     if result.isError:
         message = " ".join(b["text"] for b in _text_blocks(result)) or "tool error"
         logger.error("MCP tool %s error @ %s: %s", tool_name, target_url, message)
-        return {"error": {"message": message}}
+        return {"error": {"message": message, "kind": "tool"}}
 
     normalisiert: dict[str, Any] = {"content": _text_blocks(result)}
     # Der strukturierte Teil reist nur mit, wenn das Werkzeug einen geschickt

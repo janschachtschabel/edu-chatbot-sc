@@ -384,7 +384,10 @@ async def test_lp_happy_path_persists_canvas_state_and_marks_diversity(monkeypat
     assert ent["_canvas_topic"] == "Eiszeit"
     # session_state mutated for the M11 follow-up iteration
     assert state["state_id"] == "S3"
-    assert state["last_pattern"] == "M09"
+    # ``last_pattern`` stand hier bis 2026-08-15 und wurde von niemandem
+    # gelesen — dazu auf der obersten Ebene, die ``update_session`` oben gar
+    # nicht mitschreibt. Der Wächter zeigt jetzt umgekehrt: kein toter Merker.
+    assert "last_pattern" not in state
     # diversity: the fetched node ids are marked used (before text-filtering)
     assert "n0" in state["entities"]["_lp_used_node_ids"]
     assert fake_lp.kwargs["collection_title"] == "Eiszeit"
@@ -593,6 +596,8 @@ async def test_lp_fehlschlag_bleibt_auch_auf_englisch_eine_schlichte_blase(monke
 
     assert resp.content.startswith('Failed to build the learning path for "Ice age"')
     assert "error" in resp.debug.tools_called
-    # Der Fehl-Zweig kehrt frueh zurueck und markiert deshalb KEIN M09 — sonst
-    # schickte der naechste Zug eine Bearbeiten-Anfrage auf einen Fehlertext.
-    assert state.get("last_pattern") != "M09"
+    # Der Fehl-Zweig kehrt frueh zurueck. Seit 2026-08-15 markiert auch der
+    # Erfolgszweig nichts mehr (der Merker war wirkungslos, Begründung im
+    # Handler) — die Zusicherung „ein Fehlertext wird nicht zum Bearbeiten-
+    # Gegenstand" gilt damit erst recht, und der Wächter hält sie fest.
+    assert "last_pattern" not in state

@@ -352,14 +352,15 @@ zwei Dinge vorab und legt sie **beiden** Maschinen in den Prompt:
   Titel, höchstens 100, gedeckelt auf eine A4-Seite.
 
 Den Volltext einer Anleitung holt das Modell danach gezielt selbst
-(`search_skill` → `get_skill`). Damit weiß der Chatbot auf einer Sammlungsseite
-sofort, welche redaktionellen Anleitungen für genau diese Sammlung gelten.
+(`get_skill_registry` mit der `collection_id` → `get_skill` mit der `nodeId`
+daraus). Damit weiß der Chatbot auf einer Sammlungsseite sofort, welche
+redaktionellen Anleitungen für genau diese Sammlung gelten.
 
 Der Vorabruf hängt am **Kontext**, nicht am Startvorgang: ein
 `replaceContext({page_kind:'collection', collection_id:'…'})` mitten in der
 Sitzung schaltet ab dem nächsten Zug auf die Anleitungen dieser Sammlung um.
 Zwei Dinge, die dabei oft anders erwartet werden: die Übersicht nennt **nur
-Titel, keine `nodeId`s** (deshalb der Umweg über `search_skill`), und eine
+Titel, keine `nodeId`s** (deshalb der Umweg über `get_skill_registry`), und eine
 **Themenseite ist eine Sammlung** — `page_kind: 'topic'` mit derselben
 `collection_id` führt zu denselben Anleitungen.
 

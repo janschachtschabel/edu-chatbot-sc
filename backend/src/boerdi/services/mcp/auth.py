@@ -32,6 +32,7 @@ dieses Modul loggt bewusst gar nicht, auch keine Ablehnung.
 from __future__ import annotations
 
 import contextvars as _ctxvars
+import hashlib
 import re
 
 import httpx
@@ -142,6 +143,42 @@ def has_personal_auth() -> bool:
     WLO-Rechten dahintersteht (Nutzer-Entscheid 2026-08-12).
     """
     return bool(_turn_block.get(""))
+
+
+def caller_fingerprint() -> str:
+    """Ein wiedererkennbares Kennzeichen des Aufrufers — ohne den Block (S6).
+
+    Wozu: der MCP-Server antwortet **identitätsabhängig**. Seine eigene
+    Werkzeug-Beschreibung sagt es (``wlo_auth_status``): ``anonymous`` = nur
+    öffentliche Daten, ``service`` = dieselben Rechte für alle Nutzenden,
+    ``user`` = die Rechte der angemeldeten Person. Live gemessen 2026-08-15
+    lieferte der Server ``{"mode":"user","authenticated":true,…}`` — er handelt
+    als bestimmter Mensch.
+
+    Der Werkzeug-Zwischenspeicher ist dagegen **prozessweit** und überlebt
+    Sitzungen (``services/mcp/tool_cache``). Ohne dieses Kennzeichen im
+    Schlüssel bekäme die zweite Person die Treffer der ersten — auch solche,
+    die sie selbst nie sehen dürfte.
+
+    Die drei Fälle fallen dabei genau richtig:
+
+    * **kein Block** → ``""``: alle anonymen Züge teilen einen Topf, denn sie
+      sehen alle dasselbe.
+    * **Block der Anlage** (Dienstkonto) → ein Kennzeichen für alle, weil alle
+      unter demselben Konto handeln. Ein Topf ist hier richtig, nicht bloß
+      erlaubt.
+    * **persönlicher Block** → eigenes Kennzeichen, eigener Topf.
+
+    **Warum ein Streuwert und nicht der Block selbst:** der Block verschlüsselt
+    ein WLO-Passwort (``docs/AUTH.md`` §1). Als Klartext-Schlüssel läge er in
+    einem prozessweiten Dict und damit in jedem Speicherauszug. SHA-256, gekürzt
+    — die Kollisionswahrscheinlichkeit bei 64 Bit ist gegen die
+    Speichergröße (1024 Einträge) ohne Bedeutung.
+    """
+    block = _effective_token()
+    if not block:
+        return ""
+    return hashlib.sha256(block.encode("utf-8")).hexdigest()[:16]
 
 
 def auth_mode() -> str:

@@ -40,6 +40,26 @@ export function getCardPrimaryUrl(c: WloCard | null | undefined): string {
 }
 
 /**
+ * Ziel im Sammlungen-Kasten. {@link getCardPrimaryUrl} taugt hier NICHT: es
+ * zieht `topic_pages[0].url` allem anderen vor, und dann zeigte der
+ * Sammlungen-Kasten auf die Themenseite statt auf die Sammlung.
+ *
+ * Kette, in dieser Reihenfolge:
+ *   1. `collection_link` — vom Backend gesetzt, wenn `link` woanders
+ *      hinzeigt (Karte mit `node_type: 'topic_page'`).
+ *   2. `link` — für die ZWEITE Darstellung einer Themenseite
+ *      (`node_type: 'collection'` MIT Varianten, entsteht beim
+ *      Zusammenführen zweier Treffer derselben node_id) und für reine
+ *      Sammlungen ist `link` bereits der Browse-Link. Beides liefert
+ *      `build_card_link` über denselben Zweig — kein Zufall.
+ *   3. `getCardPrimaryUrl` — letzte Rückfalllinie für alte gespeicherte
+ *      Antworten ohne `link`.
+ */
+export function getCardCollectionUrl(c: WloCard): string {
+  return c.collection_link || c.link || getCardPrimaryUrl(c);
+}
+
+/**
  * Drei-Wege-Klassifikation einer Card für die visuelle Unterscheidung
  * (Themenseite / Sammlung / Inhalt) — Single Source of Truth.
  *

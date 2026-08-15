@@ -11,9 +11,16 @@ builders + ``_infer_node_type`` from the sibling ``normalize`` module, and the g
 mode allow-list (``host_matches_pattern`` top-level, ``host_is_allowed`` imported
 lazily inside ``validate_card_link`` — verbatim ALT, keeps the body byte-identical).
 
-Deviations from ALT (all AST-neutral): import roots (``app.`` → ``boerdi.``); the two
+Deviations from ALT: import roots (``app.`` → ``boerdi.``); the two
 ``setattr(obj, "<const>", …)`` calls keep a ``# noqa: B010`` (verbatim; rewriting to
-attribute assignment would diverge the AST). Function bodies are byte-identical.
+attribute assignment would diverge the AST).
+
+Ab 15.08.2026 nicht mehr byte-identisch — drei Stellen tragen den Sammlungs-
+Zweitlink (``collection_link``): die node_type-Auflösung steht als
+``_resolve_node_type`` heraus (``build_card_link`` ruft sie statt sie inline zu
+führen), ``_set_link_field`` nimmt den Feldnamen als Parameter, und
+``annotate_cards_with_link`` schreibt das zweite Feld. Alle drei sind durch
+``tests/test_cards_links.py`` gepinnt.
 """
 
 from __future__ import annotations
@@ -65,6 +72,20 @@ def _card_as_dict(card: Any) -> dict[str, Any] | None:
     return None
 
 
+def _resolve_node_type(card: dict[str, Any]) -> str:
+    """node_type der Card — vertraut dem von ``normalize_cards`` gesetzten
+    Wert, fällt auf Inferenz zurück wenn die Card aus einem alten Pfad kommt.
+
+    Eigene Funktion, seit auch der Sammlungs-Zweitlink (``collection_link``)
+    dieselbe Einordnung braucht: zwei Abschriften derselben drei Zeilen wären
+    zwei Wege, an denen eine Karte anders klassifiziert werden kann.
+    """
+    nt = card.get("node_type")
+    if nt not in ("topic_page", "collection", "content"):
+        return _infer_node_type(card)
+    return str(nt)
+
+
 def build_card_link(
     card: Any,
     *,
@@ -100,11 +121,7 @@ def build_card_link(
         return ""
     repo = (repo_base or get_repo_base_url()).rstrip("/")
     node_id = str(card.get("node_id") or "").strip()
-    # node_type-Inferenz: vertraue dem von normalize_cards gesetzten Wert,
-    # fall back auf Inferenz wenn die Card aus einem alten Pfad kommt.
-    nt = card.get("node_type")
-    if nt not in ("topic_page", "collection", "content"):
-        nt = _infer_node_type(card)
+    nt = _resolve_node_type(card)
 
     # ── Themenseiten ───────────────────────────────────────────────────
     if nt == "topic_page":
@@ -218,24 +235,54 @@ def validate_card_link(
     return False
 
 
-def _set_link_field(card: Any, link: str) -> None:
-    """Setzt ``link`` auf einer Card — egal ob Dict oder Pydantic-Model.
+def _set_link_field(card: Any, link: str, *, field: str = "link") -> None:
+    """Setzt ein Link-Feld auf einer Card — egal ob Dict oder Pydantic-Model.
 
     Bei Pydantic-Models nutzen wir ``setattr``; das funktioniert nur, wenn
-    ``link`` im Schema definiert ist (für ``WloCard`` ist das der Fall seit
+    das Feld im Schema definiert ist (für ``WloCard`` ist das der Fall seit
     Phase 4a). Wenn nicht, fangen wir die Exception und loggen — dann ist
-    ``card.link`` weiterhin der Default-Wert aus dem Schema.
+    ``card.<field>`` weiterhin der Default-Wert aus dem Schema.
+
+    ``field`` ist seit dem Sammlungs-Zweitlink parametrierbar (Default
+    unverändert ``link``); der Body ist bis auf den Feldnamen ALT.
     """
     if isinstance(card, dict):
-        card["link"] = link
+        card[field] = link
         return
     try:
-        setattr(card, "link", link)  # noqa: B010 — verbatim ALT; Pydantic-Model-Pfad
+        setattr(card, field, link)  # noqa: B010 — verbatim ALT; Pydantic-Model-Pfad
     except (AttributeError, ValueError) as e:
         logger.debug(
-            "annotate_cards_with_link: setattr(link) failed for %s: %s",
-            type(card).__name__, e,
+            "annotate_cards_with_link: setattr(%s) failed for %s: %s",
+            field, type(card).__name__, e,
         )
+
+
+def _build_collection_link(card: dict[str, Any], repo: str, search_query: str) -> str:
+    """Sammlungs-Adresse für Karten, deren ``link`` woanders hinzeigt.
+
+    Nimmt das bereits gelesene Karten-Dict (siehe ``annotate_cards_with_link``),
+    nicht die Karte in ihrer Originalform — der einzige Aufrufer hat es ohnehin.
+
+    Eine Sammlung mit kuratierter Themenseite wird zu ``node_type
+    "topic_page"``; ``build_card_link`` gibt ihr die Themenseiten-Adresse.
+    Der Sammlungen-Kasten braucht daneben das Browse-Ziel, sonst bleibt die
+    Sammlung unerreichbar (Live-Befund „Optik", 15.08.2026).
+
+    Leer für alle anderen Karten, und zwar absichtlich: bei reinen Sammlungen
+    ist ``link`` bereits der Browse-Link, bei Einzelinhalten gibt es keine
+    Sammlung — und in der ZWEITEN Themenseiten-Darstellung
+    (``node_type="collection"`` MIT ``topic_pages``, wie sie ``_build_cards``
+    beim Zusammenführen zweier Treffer derselben node_id erzeugt) liefert der
+    Sammlungs-Zweig oben ohnehin den Browse-Link. Das Frontend fällt dort auf
+    ``link`` zurück; siehe ``getCardCollectionUrl``.
+    """
+    if _resolve_node_type(card) != "topic_page":
+        return ""
+    node_id = str(card.get("node_id") or "").strip()
+    if not node_id:
+        return ""
+    return _repo_collection_browse_url(node_id, repo, search_query)
 
 
 def _get_node_id(card: Any) -> str:
@@ -279,8 +326,14 @@ def annotate_cards_with_link(
     """
     repo = (repo_base or get_repo_base_url()).rstrip("/")
     for c in cards or []:
+        # EINMAL in ein Dict lesen und an beide Link-Bauer geben. Beide würden
+        # sonst je ``_card_as_dict`` rufen, und das ist bei Pydantic-Karten ein
+        # ``model_dump()`` — bei Dicts reicht es die Karte selbst durch, der
+        # Pfad bleibt also für beide Kartenformen derselbe wie vorher.
+        # Geschrieben wird weiterhin auf ``c``, nicht auf die Kopie.
+        daten = _card_as_dict(c) or {}
         link = build_card_link(
-            c, guide_mode=guide_mode, repo_base=repo, search_query=search_query,
+            daten, guide_mode=guide_mode, repo_base=repo, search_query=search_query,
         )
         if require_allowed and link and not validate_card_link(
             link, allowed_hosts=allowed_hosts,
@@ -302,6 +355,15 @@ def annotate_cards_with_link(
                 )
                 link = ""
         _set_link_field(c, link)
+        # Zweitziel für Sammlungen MIT Themenseite: dieselbe Karte steht in
+        # zwei Kästen, und der Sammlungen-Kasten braucht die Sammlung statt
+        # der Themenseite. Zeigt per Konstruktion aufs eigene Repo — deshalb
+        # weder Allow-Listen-Prüfung noch Lotsen-Korrektur nötig.
+        _set_link_field(
+            c,
+            _build_collection_link(daten, repo, search_query),
+            field="collection_link",
+        )
         # Welle C Sprint 6 Hotfix — Lotsen-URL-Konsistenz auf card.url.
         #
         # User-Bug-Report: Im Event-Inspector und in einigen Frontend-Pfaden

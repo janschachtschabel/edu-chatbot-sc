@@ -49,6 +49,35 @@ def test_call_with_outcome_search_bullet_fallback(monkeypatch):
     assert outcome.item_count == 3
 
 
+def test_ein_mcp_fehler_ist_kein_erfolg(monkeypatch):
+    """Nebenbefund 2026-08-15, dieselbe Familie wie die Schreib-Abnahme.
+
+    ``call_mcp_tool`` meldet JEDEN Fehlschlag als gewöhnlichen Rückgabewert
+    (``"MCP error: …"``). Die Prüfung hier fragte nur „ist der Text leer?" —
+    ein Fehlschlag galt also als ``success``, mit zwei Folgen, die keine
+    Kosmetik sind:
+
+    * ``adjust_confidence`` **hob** die Zuversicht um 0.05, statt sie um 0.20
+      zu senken — 0.25 Unterschied je fehlgeschlagenem Werkzeugaufruf;
+    * ``derive_state_hint`` schickte den Zug nach ``S3`` („Ergebnisse
+      kuratieren"), obwohl es keine Ergebnisse gab.
+
+    Beides greift genau dann, wenn etwas schiefging — also dort, wo eine
+    falsche Zuversicht am meisten schadet.
+    """
+    _wire_call(monkeypatch, "MCP error: upstream weg")
+    _result, outcome = asyncio.run(os_.call_with_outcome("search_wlo_content", {}))
+    assert outcome.status == "error"
+    assert outcome.item_count == 0
+
+
+def test_ein_treffer_der_die_worte_spaeter_nennt_bleibt_erfolg(monkeypatch):
+    # Gegenprobe: erkannt wird der Präfix, nicht ein Vorkommen irgendwo.
+    _wire_call(monkeypatch, "Kein MCP error aufgetreten — 1 Treffer.")
+    _result, outcome = asyncio.run(os_.call_with_outcome("lookup_wlo_vocabulary", {}))
+    assert outcome.status == "success"
+
+
 def test_call_with_outcome_leer_ist_empty(monkeypatch):
     _wire_call(monkeypatch, "   ")
     result, outcome = asyncio.run(os_.call_with_outcome("search_wlo_content", {}))

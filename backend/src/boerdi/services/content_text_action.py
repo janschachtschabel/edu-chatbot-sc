@@ -187,9 +187,13 @@ async def _handle_show_content_text(
         # kürzer") nichts, was es überarbeiten könnte. ``turn_persist`` macht es
         # für M09/M10 aus demselben Grund genauso.
         persistiert = f"{lead}\n\n{text}"
-        # Markierung für den Folge-Zug — dasselbe tut die Lernpfad-Direkt-
-        # Aktion mit ``last_pattern = "M09"``.
-        session_state["last_pattern"] = _PATTERN_ID
+        # Kein Merker für den Folge-Zug: er läge auf der obersten Ebene von
+        # ``session_state``, und die überdauert den Zug nicht — erst recht nicht
+        # auf diesem Pfad, der in ``preflight`` endet. Bis 2026-08-15 stand hier
+        # ``session_state["last_pattern"] = _PATTERN_ID``; die Begründung steht
+        # ausführlich beim Zwilling in ``direct_actions`` (Lernpfad). Dass der
+        # Volltext oben **vollständig** persistiert wird, ist das, worauf ein
+        # M11-Folgezug tatsächlich zugreift.
 
     try:
         await save_message(

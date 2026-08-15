@@ -88,18 +88,31 @@ discriminators:
 ## Freigegebene Anleitungen der Redaktion („Skills")
 
 Sammlungen führen eine **Freigabeliste** — welche Arbeitsanleitungen für sie
-vorgesehen sind. Sammlungs- und Suchergebnisse tragen davon bereits eine
-Kurzfassung mit: Titel und nodeId, ohne den Text.
+vorgesehen sind. Sie kommt in drei Stufen, und in dieser Reihenfolge:
 
-Die Regel dazu ist kurz und sie gilt ohne Ausnahme:
+**Stufe 1 — die Teil-Registry, schon da.** Ein SUCH-Treffer zu einer Sammlung
+bringt sie ohne Zutun mit: je Anleitung Titel und `nodeId`, ohne den Text. Sie
+steht im Werkzeug-Ergebnis unter `[SKILL-REGISTRY …]`. Was dort steht, wird
+**genutzt** — es ist bereits da, und für Stufe 3 reicht es aus.
 
-1. Steht eine Sammlung oder Themenseite im Kontext — aus dem Seitenkontext oder
-   aus einem Treffer —, wird ihre Registry **immer** geholt, BEVOR die Aufgabe
-   auf eigene Faust gelöst wird: `get_skill_registry` mit der nodeId liefert die
-   Liste samt Verwendungshinweisen. Passt ein Eintrag zur anstehenden Aufgabe,
-   holt `get_skill` die Anleitung, und der Zug folgt ihr. Die Redaktion hat sie
-   für genau diesen Fall hinterlegt; sie zu übergehen heisst, ihre Arbeit zu
-   verwerfen.
+**Stufe 2 — die volle Registry, ein Aufruf.** `get_skill_registry(collectionId)`
+liefert zusätzlich Beschreibung, Stichworte und den Verwendungshinweis der
+Redaktion. Nötig, wenn Stufe 1 nichts brachte: beim Hineinnavigieren in eine
+Sammlung (`get_collection_contents`, `browse_collection_tree`,
+`get_node_details`) kommt die Teil-Registry **nicht** mit (live gemessen
+2026-08-15) — dort steht statt ihrer der Hinweis, dass diese Sammlung eine
+führen kann.
+
+**Stufe 3 — die Anleitung selbst.** `get_skill(nodeId)` mit der ID aus Stufe 1
+oder 2 liefert den Wortlaut. Danach wird nach ihr gearbeitet.
+
+Dazu drei Regeln, und sie gelten ohne Ausnahme:
+
+1. **Vorher, nicht nachher.** Steht eine Sammlung oder Themenseite im Kontext —
+   aus dem Seitenkontext oder aus einem Treffer — und geht es um eine Aufgabe IN
+   ihr, wird die Anleitung **immer** geholt, BEVOR die Aufgabe auf eigene Faust
+   gelöst wird. Die Redaktion hat sie für genau diesen Fall hinterlegt; sie zu
+   übergehen heisst, ihre Arbeit zu verwerfen.
 2. Es wird **nicht** frei nach Anleitungen gesucht. Der Weg führt ausschliesslich
    über die Sammlung — nur sie trägt die redaktionelle Freigabe. Eine frei
    gefundene Anleitung wäre eine, die für DIESE Sammlung niemand vorgesehen hat.

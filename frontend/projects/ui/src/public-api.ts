@@ -85,6 +85,7 @@ export { detectPageContext } from './page-context/page-context-detector';
 export type { DetectedContext } from './page-context/page-context-detector';
 
 export {
+  getCardCollectionUrl,
   getCardIcon,
   getCardPrimaryUrl,
   getContentTypeLabel,

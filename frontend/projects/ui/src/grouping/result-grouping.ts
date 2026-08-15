@@ -116,13 +116,25 @@ export function groupedTopicCards(msg: ChatMessage, n?: number): WloCard[] {
   return _dedupTake(msg.cards.filter(c => isThemenseite(c)), limit);
 }
 
-/** Top N reine Sammlungen (ohne Themenseiten-Markup) — dedupliziert
- *  per node_id + normalisiertem Titel. Default aus
- *  display_rules.groups.sammlungen_max. */
+/** Top N Sammlungen — dedupliziert per node_id + normalisiertem Titel.
+ *  Default aus display_rules.groups.sammlungen_max.
+ *
+ *  Enthält seit 15.08.2026 AUCH Sammlungen mit kuratierter Themenseite
+ *  (`node_type: 'topic_page'`). Die sind fachlich Sammlungen, waren hier
+ *  aber nie zu sehen: `_infer_node_type` etikettiert sie um, und jede
+ *  Sammlungs-Prüfung verlangte `collection`. Live-Befund „Optik" — von vier
+ *  Optik-Sammlungen fehlten genau die zwei mit Themenseite. Sie stehen jetzt
+ *  in beiden Kästen, hier mit `collection_link` als Ziel.
+ *
+ *  Reine Sammlungen zuerst: sie haben NUR diesen Kasten, Themenseiten stehen
+ *  ohnehin schon im eigenen. Ohne die Umsortierung würden Themenseiten sie
+ *  aus dem Deckel drängen — das Backend liefert sie vorne in der Liste. */
 export function groupedCollectionCards(msg: ChatMessage, n?: number): WloCard[] {
   if (!msg.cards) return [];
   const limit = n ?? _groupLimit(msg, 'sammlungen_max');
-  return _dedupTake(msg.cards.filter(c => isSammlung(c)), limit);
+  const rein = msg.cards.filter(c => isSammlung(c));
+  const mitThemenseite = msg.cards.filter(c => isThemenseite(c));
+  return _dedupTake([...rein, ...mitThemenseite], limit);
 }
 
 /** Anzahl Einzelinhalte (Content-Cards), die per Search-CTA verfügbar
@@ -349,15 +361,20 @@ export function itemTooltip(
  *  der konkrete Inhaltstyp bei Einzelmaterialien (z.B. „Video",
  *  „Arbeitsblatt"), „Sammlung" bei Sammlungen, „Themenseite" bei
  *  Themenseiten — geliefert von getContentTypeLabel(). Plus ggf.
- *  Extern-Warnung (wie itemTooltip). */
+ *  Extern-Warnung (wie itemTooltip).
+ *
+ *  `typeLabel` überschreibt den Typ. Gebraucht im Sammlungen-Kasten: dort
+ *  steht dieselbe Karte, die oben als Themenseite erscheint — mit dem
+ *  Themenseiten-Label wäre sie im falschen Kasten beschriftet. */
 export function cardTooltip(
   card: WloCard | null | undefined,
   url: string | null | undefined,
   ctx: GroupingContext,
+  typeLabel?: string,
 ): string | null {
   if (!card) return null;
   const title = (card.title || '').trim();
-  const type = getContentTypeLabel(card, ctx.t);
+  const type = typeLabel ?? getContentTypeLabel(card, ctx.t);
   const label = title && type ? `${title} (${type})` : (title || type);
   // ``ctx.withBsid(getCardPrimaryUrl(card))`` ≙ ``ChatComponent.cardUrl(card)``.
   return itemTooltip(label, url ?? ctx.withBsid(getCardPrimaryUrl(card)), ctx);

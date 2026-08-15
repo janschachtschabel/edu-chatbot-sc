@@ -3,7 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 
 import type { CardAction } from '../cards/card-list.component';
 import { WloCard } from '../cards/card-types';
-import { getCardIcon, getCardPrimaryUrl } from '../cards/card-utils';
+import { getCardCollectionUrl, getCardIcon, getCardPrimaryUrl } from '../cards/card-utils';
 import { ICONS } from '../icons/icons';
 import { SafeSvgPipe } from '../icons/safe-svg.pipe';
 import type { TranslationParams } from '../i18n/dictionary';
@@ -60,6 +60,12 @@ import { SearchCtaComponent } from './search-cta.component';
               {{ t('groups.topics') }}
             </div>
             <div class="result-group__items">
+              <!-- aria-label neben title: seit Sammlungen mit Themenseite in
+                   beiden Kästen stehen, gibt es zwei Verweise mit demselben
+                   sichtbaren Text und verschiedenen Zielen. Sehend trennt sie
+                   die Kasten-Überschrift; vorgelesen trennt sie nur dieses
+                   Etikett („Optik (Themenseite)" vs. „Optik (Sammlung)") —
+                   title allein wird nicht verlässlich angesagt. -->
               @for (card of topicCards(); track $index) {
                 <a
                   class="result-group__item"
@@ -67,6 +73,7 @@ import { SearchCtaComponent } from './search-cta.component';
                   target="_blank"
                   rel="noopener noreferrer"
                   [attr.title]="cardTooltip(card)"
+                  [attr.aria-label]="cardTooltip(card)"
                 >
                   <span class="result-group__item-icon" [innerHTML]="getCardIcon(card) | safeSvg"></span>
                   <span class="result-group__item-title">{{ card.title }}</span>
@@ -83,15 +90,20 @@ import { SearchCtaComponent } from './search-cta.component';
               {{ t('groups.collections') }}
             </div>
             <div class="result-group__items">
+              <!-- Sammlungen MIT Themenseite stehen auch oben im
+                   Themenseiten-Kasten — hier aber mit der Sammlungs-Adresse,
+                   dem Sammlungs-Symbol und dem Sammlungs-Label, sonst wäre
+                   dieselbe Zeile zweimal identisch beschriftet. -->
               @for (card of collectionCards(); track $index) {
                 <a
                   class="result-group__item"
-                  [href]="cardUrl(card)"
+                  [href]="collectionUrl(card)"
                   target="_blank"
                   rel="noopener noreferrer"
-                  [attr.title]="cardTooltip(card)"
+                  [attr.title]="collectionTooltip(card)"
+                  [attr.aria-label]="collectionTooltip(card)"
                 >
-                  <span class="result-group__item-icon" [innerHTML]="getCardIcon(card) | safeSvg"></span>
+                  <span class="result-group__item-icon" [innerHTML]="collectionItemIcon | safeSvg"></span>
                   <span class="result-group__item-title">{{ card.title }}</span>
                 </a>
               }
@@ -188,6 +200,10 @@ export class ResultGroupsComponent {
   // Die beiden CTA-Icons stehen seit U6b in `search-cta.component`.
   protected readonly topicIcon = ICONS.auto_stories;
   protected readonly collectionIcon = ICONS.collections_bookmark;
+  // Zeilen-Symbol im Sammlungen-Kasten: fix der Sammlungs-Stapel. Reine
+  // Sammlungen bekommen ihn ohnehin von `getCardIcon`; fix gesetzt zeigen ihn
+  // auch die Themenseiten-Karten, die in diesem Kasten als Sammlung stehen.
+  protected readonly collectionItemIcon = ICONS.auto_stories;
   protected readonly materialIcon = ICONS.description;
   protected readonly webIcon = ICONS.language;
   // `visibility` (Auge = „anzeigen") und bewusst KEIN Dokument-Symbol:
@@ -217,6 +233,20 @@ export class ResultGroupsComponent {
   /** ALT `ChatComponent.cardTooltip(card)` → 8-2g-Util mit Instanz-ctx. */
   protected cardTooltip(card: WloCard): string | null {
     return cardTooltipUtil(card, null, this.ctx());
+  }
+
+  /** Ziel im Sammlungen-Kasten — bei Sammlungen MIT Themenseite die
+   *  Sammlung statt der Themenseite (siehe `getCardCollectionUrl`). */
+  protected collectionUrl(card: WloCard): string {
+    return this.ctx().withBsid(getCardCollectionUrl(card));
+  }
+
+  /** Wie `cardTooltip`, aber mit „Sammlung" als Typ — in diesem Kasten ist
+   *  auch eine Themenseiten-Karte als Sammlung gemeint. */
+  protected collectionTooltip(card: WloCard): string | null {
+    return cardTooltipUtil(
+      card, this.collectionUrl(card), this.ctx(), this.t('contentType.collection'),
+    );
   }
 
   /** ALT `ChatComponent.webLinkUrl` = `withBsid(link.url)`. Idempotent — die

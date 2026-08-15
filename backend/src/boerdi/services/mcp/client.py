@@ -57,6 +57,31 @@ from boerdi.services.mcp.tool_cache import (
 logger = logging.getLogger(__name__)
 
 
+# Wie ein Fehlschlag aussieht — und warum das eine Zeichenkette ist.
+#
+# ``call_mcp_tool`` gibt IMMER einen String zurück, auch im Fehlerfall: das
+# Modell sieht ihn als gewöhnliches Werkzeug-Ergebnis und kann ihn einordnen.
+# ``transport.call_tool`` fängt dafür jede Ausnahme ab (auch Zeitüberschreitung
+# und „Server weg") und macht ein Fehler-Dict daraus — geworfen wird hier also
+# praktisch nie.
+#
+# Für jeden Aufrufer, der KEIN Modell dahinter hat, ist das eine Falle: ein
+# Fehlschlag sieht aus wie ein Ergebnis. Vier Stellen prüften den Präfix bis
+# 2026-08-15 mit einer eigenen Kopie des Literals, eine fünfte (die
+# Schreib-Abnahme) vergass es und meldete Fehlschläge als Vollzug. Deshalb
+# steht die Frage jetzt beim Erzeuger, nicht bei den Lesern.
+_MCP_ERROR_PREFIX = "MCP error"
+
+
+def is_mcp_error(text: str | None) -> bool:
+    """Ist ``text`` die Fehler-Antwort von :func:`call_mcp_tool` statt eines Ergebnisses?
+
+    Am Präfix erkannt, nicht am Vorkommen: ein Servertext, der die Worte
+    irgendwo in der Mitte führt, ist ein Ergebnis.
+    """
+    return bool(text) and str(text).startswith(_MCP_ERROR_PREFIX)
+
+
 # Per-request accumulator for MCP query metadata (_queryMeta blocks).
 # Each MCP tool call that returns a _queryMeta content block gets appended
 # here. The route/SSE layer reads + clears it to forward as SSE events / debug
@@ -172,6 +197,35 @@ def _compact_subject_portals(raw_response: str) -> str:
 async def call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> str:
     """Call a WLO MCP tool via the SDK transport, with parity-preserving wiring.
 
+    Der Vertrag für die 25 Aufrufstellen und für das Modell: **immer** eine
+    Zeichenkette, auch im Fehlerfall (:func:`is_mcp_error`). Wer zusätzlich
+    wissen muss, WIE es schiefging, nimmt :func:`call_mcp_tool_status`.
+    """
+    text, _art = await call_mcp_tool_status(tool_name, arguments)
+    return text
+
+
+async def call_mcp_tool_status(
+    tool_name: str, arguments: dict[str, Any]
+) -> tuple[str, str]:
+    """Wie :func:`call_mcp_tool`, sagt aber zusätzlich die **Art** des Fehlers.
+
+    Rückgabe ``(text, art)`` mit ``art`` aus ``""`` (kein Fehler) · ``"tool"``
+    (der Server hat geantwortet und abgelehnt) · ``"transport"`` (es kam keine
+    Antwort). Die Unterscheidung stammt aus ``transport.call_tool``, wo sie als
+    Einzige noch vorliegt.
+
+    **Wofür.** Ein Aufrufer mit einem Modell dahinter braucht sie nicht — das
+    Modell liest den Text und ordnet ihn ein. Ein *deterministischer* Aufrufer
+    schon: die Schreib-Abnahme darf nur dann „es wurde nichts geändert" sagen,
+    wenn der Server geantwortet hat. Bei ausgebliebener Antwort ist derselbe
+    Satz eine Behauptung, die im ungünstigen Fall eine Dublette im kuratierten
+    Bestand erzeugt (``services/write_approval``).
+
+    **Unbekannt zählt wie „keine Antwort".** Ein Fehler-Dict ohne ``kind``
+    (ältere Attrappe, fremder Transport) ergibt ``"transport"`` — die
+    vorsichtige Richtung, denn „abgelehnt" ist die stärkere Behauptung.
+
     Resolved den Tool-Namen über die Studio-Registry (mcp-servers.yaml,
     Env-Override durch ``MCP_SERVER_URL``) auf die passende Server-URL.
     Wenn kein Server den Tool deklariert, fällt es auf die Default-MCP-URL
@@ -247,7 +301,7 @@ async def call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> str:
                     "re-emitted %d cached queryMetas for %s",
                     len(_cached_metas), tool_name,
                 )
-            return cached
+            return cached, ""
 
     # SDK-Transport (5-1b): Handshake + Call + Result-Normalisierung liegen im
     # Transport, ein Call = frische Session. Result-Dict trägt die ALT-
@@ -263,7 +317,13 @@ async def call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> str:
         if "error" in result:
             error_msg = result["error"].get("message", "Unknown error")
             logger.error("MCP tool %s retry failed @ %s: %s", tool_name, target_url, error_msg)
-            return f"MCP error: {error_msg}"
+            # Ohne ``kind`` gilt „keine Antwort" — siehe Docstring: „abgelehnt"
+            # ist die stärkere Behauptung und braucht einen Beleg.
+            _art = result["error"].get("kind")
+            return (
+                f"{_MCP_ERROR_PREFIX}: {error_msg}",
+                _art if _art in ("tool", "transport") else "transport",
+            )
 
     # Extract text content from result, separating _queryMeta blocks.
     result_data = result.get("result", {})
@@ -342,4 +402,4 @@ async def call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> str:
         # siehe Re-Emit-Logik im Cache-Hit-Zweig oben.
         if _extracted_metas_this_call:
             _TOOL_META_CACHE[cache_key] = _extracted_metas_this_call
-    return response
+    return response, ""

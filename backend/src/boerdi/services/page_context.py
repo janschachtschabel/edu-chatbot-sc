@@ -32,7 +32,7 @@ import re
 import time
 from typing import Any
 
-from boerdi.services.mcp.client import call_mcp_tool
+from boerdi.services.mcp.client import call_mcp_tool, is_mcp_error
 
 logger = logging.getLogger(__name__)
 
@@ -300,7 +300,7 @@ async def resolve_page_context(
             if page_kind == "content":
                 args["includeTextContent"] = True
             raw = await call_mcp_tool("get_node_details", args)
-            if raw and not raw.startswith("MCP error"):
+            if raw and not is_mcp_error(raw):
                 fields = _extract_node_fields(raw)
                 if fields.get("title"):
                     meta = {
@@ -317,7 +317,7 @@ async def resolve_page_context(
                 "search_wlo_topic_pages",
                 {"query": query, "maxResults": 1},
             )
-            if raw and not raw.startswith("MCP error"):
+            if raw and not is_mcp_error(raw):
                 # Try to extract a nodeId out of the response text.
                 m = re.search(
                     r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}",
@@ -329,7 +329,7 @@ async def resolve_page_context(
                         "get_node_details",
                         {"nodeId": found_id, "outputFormat": "json"},
                     )
-                    if raw2 and not raw2.startswith("MCP error"):
+                    if raw2 and not is_mcp_error(raw2):
                         fields = _extract_node_fields(raw2)
                         if fields.get("title"):
                             meta = {
@@ -427,9 +427,19 @@ def _bestands_zeilen(fakten: Any) -> list[str]:
     (28 Einträge, Titel im Schnitt 30,6 Zeichen): 100 Titel sind 3 361 Zeichen
     (eine Seite), 100 Titel mit ``nodeId`` wären 7 161 (gut zwei).
 
-    Der Preis ist ein Aufruf mehr: ohne ID muss das Modell ``search_skill``
-    voranstellen. Das ist ohnehin der Weg, den die Werkzeugbeschreibung vorgibt
-    („der zweite Schritt nach search_skill") — deshalb nennt der Block beide.
+    Der Preis ist ein Aufruf mehr: ohne ID muss das Modell
+    ``get_skill_registry`` voranstellen — mit der Sammlungs-ID, die derselbe
+    Block wenige Zeilen weiter unten nennt. Das ist ohnehin der Weg, den die
+    Werkzeugbeschreibung vorgibt („der zweite Schritt nach
+    get_skill_registry") — deshalb nennt der Block beide.
+
+    **Bis 2026-08-15 stand hier ``search_skill``**, und das war ein Verweis ins
+    Leere: das Werkzeug ist seit dem 2026-08-13 aus jedem Pfad genommen
+    (``agent_tools.AUS_DEM_KATALOG``, ``_NICHT_UEBER_PATTERN``), dieser Block
+    entstand einen Tag später. Der Agent-Lauf merkte nichts davon, weil
+    ``respond_agent`` die Registry vorab in die Kette holt; der Mustermodus hat
+    keinen Vorabruf, und für ihn endete der Weg damit vor dem ersten Schritt.
+    Gepinnt von ``test_der_block_nennt_den_weg_den_das_modell_auch_gehen_kann``.
 
     Ohne Fakten eine leere Liste: eine Überschrift ohne Inhalt liest sich für
     das Modell wie ein Ausfall und lädt zum Erfinden ein.
@@ -454,10 +464,12 @@ def _bestands_zeilen(fakten: Any) -> list[str]:
     ueberschrift = f"### Freigegebene Anleitungen (Skills) dieser Sammlung — {skills}"
     hinweis = (
         "Diese Anleitungen sind für GENAU diese Sammlung freigegeben. Dies ist "
-        "die Übersicht, nicht ihr Inhalt. Passt eine zur Frage, hole sie in zwei "
-        "Schritten — ``search_skill`` mit dem Titel, dann ``get_skill`` mit der "
-        "``nodeId`` aus dem Treffer — und arbeite danach, statt den Ablauf selbst "
-        "zu erfinden."
+        "die Teil-Registry dieser Seite: Titel, ohne IDs und ohne Inhalt. Passt "
+        "eine zur Frage, geh die zwei Stufen weiter — ``get_skill_registry`` mit "
+        "der unten genannten Sammlungs-ID nennt zu jedem Titel die ``nodeId`` "
+        "samt Verwendungshinweis der Redaktion, dann liefert ``get_skill`` mit "
+        "dieser ``nodeId`` den Wortlaut — und arbeite danach, statt den Ablauf "
+        "selbst zu erfinden."
     )
     # Das Budget gilt dem ABSCHNITT, nicht nur der Liste — es ist die Zusage
     # „höchstens eine A4-Seite". Überschrift, Hinweis und die Rest-Zeile stehen

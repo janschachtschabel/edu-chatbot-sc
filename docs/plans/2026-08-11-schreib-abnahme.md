@@ -209,6 +209,8 @@ werden), D ist YAGNI.
 | **S3** | Symbol, Titel, Doppelfrage im Kastenfuß, Quick-Reply „Ja, so ausführen" | ✅ |
 | **P** | **Merkposten nach `entities`** — Fund oben, ohne ihn ist alles Übrige Zierde | ✅ |
 | **S4** | M18 **und** die Werkzeug-Beschreibung entlasten: einordnen statt nacherzählen | ✅ (Seed wirkt erst nach Import) |
+| **S5** | **Die Abnahme einlösbar machen** — drei stille Stellen, siehe unten | ✅ (2026-08-15) |
+| **S6** | **Zwischenspeicher nach Aufrufer trennen** — dabei gefunden, kein Schreib-Thema | ✅ (2026-08-15) |
 
 **Drei Entwurfsentscheidungen, die sich im Bau gegen den Plan geändert haben:**
 
@@ -323,8 +325,274 @@ weil `inlineDocIcon` und `inlineDocFallbackLabel` beide einen Rückfall haben.
 
 Kein `try/except` um den Box-Block, anders als beim M09-Nachbarn: `render`
 gibt bei unbekanntem Schlüssel den Schlüssel zurück statt zu werfen
-(`i18n/catalogue.py:37`), und `preview_for_display` ist ein Regex-Ersetzen.
+(`i18n/catalogue.py:37`), und `preview_for_display` schneidet eine Zeichenkette
+an einer gesuchten Stelle (seit S7 kein Regex mehr, aber ebenso wurffrei).
 Ein Fangblock könnte hier nur einen echten Fehler stumm schlucken.
+
+## S5 — die Abnahme war zeigbar, aber nicht einlösbar (2026-08-15)
+
+Nutzer-Befund, live: *„selbst mit Anmeldung komme ich bei Erstellung und Upload
+nur bis zu der Stelle, das er eine Bestätigung will — die aber immer wieder
+gefragt wird und es geht nicht weiter."*
+
+Alles bis zur Box war richtig. Der Rückweg lief über **drei** Stellen, und keine
+davon meldete sich. Sie liegen in verschiedenen Schichten und wurden deshalb
+einzeln gemessen, nicht erschlossen:
+
+| # | Stelle | Wirkung | Messung |
+|---|---|---|---|
+| 1 | `mcp/tool_args.validate_tool_args` | `confirmToken` steht in **keinem** Argument-Modell (bewusst — er gehört nicht zu dem, was ein Modell bestimmen darf). Pydantic übergeht unbekannte Felder still, `_export_non_empty` gibt nur deklarierte zurück. Der Schlüssel fiel heraus ⇒ **jede Ausführung war wieder eine Vorschau**. | `validate_tool_args('wlo_create_collection', {'title':'Optik','confirmToken':'…'})` → `{'title': 'Optik'}` |
+| 2 | `mcp/tool_cache._TOOL_CACHE_BLOCKLIST` | Vorgabe war „alles cachen", gesperrt nur `wlo_health_check`. Weil (1) den Schlüssel VOR `_cache_key` entfernte, hatten Vorschau und Ausführung **denselben** Cache-Schlüssel: der Ausführungsaufruf bekam die alte Vorschau zurück, ohne dass der Server je davon erfuhr. | Blocklist enthielt kein einziges kuratierendes Werkzeug |
+| 3 | Der Merkposten war nur im Tool-Loop bekannt | Einlösen hing an zwei Modell-Entscheidungen: der Klassifikator musste auf ein „ja" hin M18 treffen (nur dieses Muster nennt die schreibenden Werkzeuge), und das Modell musste Argumente rekonstruieren, die es **nie gesehen hat** — die Historie trägt nur Texte, die Vorschau ist ein Inline-Dokument daneben. Bei einem Upload grundsätzlich unmöglich. | `_pending_write` kommt in `src/` an genau vier Stellen vor, alle in `tool_loop.py` |
+
+**Warum (1) und (2) zusammen so schwer zu sehen waren:** sie erzeugten kein
+Fehlerbild, sondern eine plausible Wiederholung. Kein 401, kein Timeout, keine
+Warnung — und wegen (2) nicht einmal ein Eintrag im Server-Protokoll. Von aussen
+sah es nach einem Anmeldeproblem aus. Es war keines: **eine Vorschau zu bekommen
+setzt voraus, dass der Server den Schreibaufruf angenommen hat.**
+
+**Der Schnitt.** (1) und (2) sind Reparaturen am Weg nach draussen. (3) ist die
+Entwurfsentscheidung: eine Abnahme ist ein **bestimmter Zustand** — Werkzeug,
+Argumente und Schlüssel liegen fertig im Merkposten, die Zustimmung steht in der
+Nachricht des Menschen. Sie einzulösen braucht kein Modell. Deshalb
+`services/write_approval`, eingehängt im `preflight`-Knoten vor dem
+Klassifikator; dieselbe Bauart und dieselbe Begründung wie `content_text_action`
+(wo der Wortlaut zählt, hat das Modell nichts zu suchen). Das ist zugleich die
+**stärkere** Zusicherung: ausgeführt wird, was in der Box stand, Zeichen für
+Zeichen — und nicht, was ein Modell daraus rekonstruiert.
+
+Der Weg über das Modell (`tool_loop`) bleibt unangetastet: er trägt weiter den
+Fall, in dem nichts gemerkt werden konnte (Argumente über
+`MAX_REMEMBERED_ARGS_BYTES`).
+
+**Die Zug-Regel wird dabei nicht weicher, sondern härter.** Der Tool-Loop braucht
+einen Schnappschuss vom Zug-Eintritt, um eine im selben Zug erzeugte Vorschau
+nicht sofort bestätigen zu können. `write_approval` braucht ihn nicht: sein
+`session_state` kommt aus der Datenbank und enthält ausschliesslich Vorgänge
+früherer Züge.
+
+### S5-Nachlauf — was das Review am selben Tag fand
+
+Drei Sachen, alle im neuen Pfad, alle mit einer gemeinsamen Wurzel: **wie ein
+Fehlschlag aussieht.**
+
+`call_mcp_tool` gibt *immer* einen String zurück, auch im Fehlerfall
+(`"MCP error: …"`) — `transport.call_tool` fängt dafür jede Ausnahme ab, auch
+Zeitüberschreitung und „Server weg". Für einen Aufrufer mit einem Modell
+dahinter ist das richtig: das Modell liest den Text und ordnet ihn ein. Für
+einen **deterministischen** Aufrufer ist es eine Falle — ein Fehlschlag sieht
+aus wie ein Ergebnis.
+
+| | Vorher | Jetzt |
+|---|---|---|
+| Fehler-String | lief in den Erfolgszweig: Protokoll meldete „eingelöst", der Nutzer bekam die rohe Servermeldung als Bot-Antwort, Merkposten verbraucht | `is_mcp_error` beim Erzeuger; führt in denselben ehrlichen Zweig wie eine Ausnahme |
+| Fehlertext | „…und es wurde nichts geändert" — eine Behauptung, die niemand belegen kann | sagt, was feststeht, und schickt zum Nachsehen (`write.executeUnconfirmed`) |
+| >1 vorbereitete Anfrage | still verworfen | Warnung, wortgleich zum Nachbarn `turn_persist` |
+
+Die Prüfung auf den Präfix gab es schon **viermal als Literal**
+(`page_context` 3×, `page_duplicate` 1×). Eine fünfte Kopie wäre genau die
+Drift gewesen, die den Fehler erst möglich gemacht hat — deshalb wohnt die
+Frage jetzt bei `services/mcp/client.is_mcp_error`, und die vier
+Bestandsstellen nutzen sie.
+
+**Warum ein Text für beide Fehlerwege und nicht zwei.** Ablehnung und
+Zeitüberschreitung sind an dieser Naht nicht unterscheidbar. „Nichts geändert"
+wäre im zweiten Fall falsch — und zwar teuer: die Person legt dieselbe Sache
+erneut an. Konservativ in die richtige Richtung: nachsehen kostet eine Minute,
+eine Dublette bleibt im Bestand. Wer die Fälle trennen will, muss zuerst den
+Transport dazu bringen, sie zu unterscheiden.
+
+### S5-Nachlauf 2 — die zwei offenen Punkte
+
+**Punkt 1: die Fehlerarten sind jetzt unterscheidbar.** Der Text oben sagte,
+das ginge nur, wenn der Transport die Fälle trennt — genau das ist gebaut.
+`transport.call_tool` markiert sein Fehler-Dict mit `kind: "tool" | "transport"`
+(nur dort liegt die Unterscheidung überhaupt noch vor), und
+`client.call_mcp_tool_status` reicht sie als `(text, art)` weiter.
+`call_mcp_tool` bleibt unverändert die Zeichenkette — der Vertrag für 25
+Aufrufstellen und für das Modell, das den Text als gewöhnliches Ergebnis liest.
+
+Damit hat die Abnahme zwei Texte statt einem:
+
+| Lage | Beleg | Text |
+|---|---|---|
+| Server hat geantwortet und abgelehnt | seine Antwort | `write.executeRejected` — darf „es wurde nichts geändert" sagen |
+| keine Antwort / Art unbekannt | — | `write.executeUnconfirmed` — „bitte nachsehen" |
+
+Unbekannt zählt wie „keine Antwort": „abgelehnt" ist die stärkere Behauptung
+und braucht einen Beleg.
+
+**Nebenbefund derselben Familie.** `outcome_service.call_with_outcome` prüfte
+nur „ist der Text leer?" und verbuchte damit jeden `"MCP error: …"` als
+`status="success"`. Folgen: `adjust_confidence` **hob** die Zuversicht um 0.05
+statt sie um 0.20 zu senken, und `derive_state_hint` schickte den Zug nach `S3`
+(„Ergebnisse kuratieren"), obwohl es keine gab — beides genau dann, wenn etwas
+schiefging. ⚠️ **Das ändert Tool-Loop-Telemetrie und rechtfertigt einen
+Golden-Referenzlauf.**
+
+**Punkt 2: der Qualitäts-Eintrag für früh endende Züge.** Tor und Aufruf wohnen
+jetzt in `services/turn_quality.log_turn_quality`; `turn_persist` nutzt ihn
+(verhaltensgleich), und der `preflight`-Knoten bucht **an einer Stelle** für
+alle Züge, die dort enden. Die drei Direkt-Aktions-Handler haben zusammen zehn
+Rückgabepunkte — den Aufruf dort einzeln zu verteilen hiesse, ihn beim elften zu
+vergessen; der Verteiler dagegen sieht jede fertige Antwort.
+
+Bewusst **nicht** gebucht: Tour-Takte und der Kontext-Gruss (kein Muster, keine
+Frage beantwortet) sowie abgewiesene Züge (Drosselung, Sicherheits-Block) — die
+führen bereits ein *Sicherheits*-Ereignis, und ein zweiter Datensatz daneben
+machte die Zählung mehrdeutig.
+
+## S6 — der Zwischenspeicher kannte den Aufrufer nicht (2026-08-15)
+
+Beim Absichern der Cache-Sperre für S5 fiel der allgemeinere Fall auf. Er ist
+**kein** Schreib-Thema und hätte auch ohne S5 bestanden.
+
+**Gemessen, nicht angenommen.** Der MCP-Server sagt in seiner eigenen
+Werkzeug-Beschreibung (`wlo_auth_status`), was er unterscheidet:
+
+> `mode="anonymous"` = nur öffentliche Daten · `mode="service"` = ein
+> Dienstkonto, dieselben Rechte für alle Nutzenden · `mode="user"` = die Rechte
+> der angemeldeten Person
+
+— und nennt als Einsatzzweck ausdrücklich „warum sie bestimmte Inhalte **(nicht)
+sieht**". Live gegen den Server geprüft:
+
+```
+{"mode":"user","authenticated":true,"configuredAs":"janschachtschabel", …}
+```
+
+Der Server handelt also als **bestimmter Mensch**; was gelesen wird, hängt an
+der Identität.
+
+**Der Befund.** `_TOOL_CACHE` ist prozessweit, überlebt Sitzungen und fasst
+1024 Einträge. Sein Schlüssel war `(tool_name, json(arguments))` — **ohne
+Identität**. Zwei Personen mit derselben Suchanfrage teilten sich damit einen
+Eintrag; die zweite bekam die Treffer der ersten, auch solche, die sie selbst
+nie hätte sehen dürfen. Reproduziert als Test (rot vor dem Fix):
+
+```
+test_zwei_personen_teilen_sich_keinen_treffer
+  → Person B bekommt den Treffer von Person A aus dem Zwischenspeicher
+```
+
+**Der Fix.** `auth.caller_fingerprint()` — SHA-256 des geltenden Blocks,
+gekürzt — geht in den Schlüssel. Die drei Fälle fallen dabei genau richtig:
+
+| Betriebsart | Kennzeichen | Topf | warum richtig |
+|---|---|---|---|
+| kein Block | `""` | einer für alle | alle sehen dasselbe Öffentliche |
+| `MCP_AUTH_TOKEN` (Dienstkonto) | ein Wert | einer für alle | „dieselben Rechte für alle Nutzenden" |
+| persönlicher Block | eigener Wert | eigener | eigene Rechte |
+
+Zwei Entwurfsentscheidungen dabei:
+
+1. **Ein Streuwert, nicht der Block.** Der Block verschlüsselt ein
+   WLO-Passwort (`docs/AUTH.md` §1); als Klartext-Schlüssel läge er in einem
+   prozessweiten Dict und damit in jedem Speicherauszug.
+2. **`_cache_key` holt die Identität selbst**, statt sie sich reichen zu lassen.
+   Ein Aufrufer, der sie vergisst, öffnet das Loch wieder — und die eine
+   Produktions-Aufrufstelle soll gar nicht daran denken müssen.
+
+Der Speicher bleibt dabei erhalten: dieselbe Person bekommt ihren Eintrag
+wieder, anonyme Züge teilen sich weiter einen Topf. Gepinnt von sechs Tests in
+`test_mcp_tool_cache.py`.
+
+## S7 — der Anschlusssatz aus fremdem Text (2026-08-15, live gemessen)
+
+**Der Anlass war eine Prüfung, keine Vermutung.** `extract_confirm_token` und
+`preview_for_display` lesen **deutschen Servertext**; die Vorlage in den Tests
+war am 10.08. abgeschrieben. Formuliert der Server um, findet die Extraktion
+nichts — und dann lässt sich gar nichts mehr bestätigen. Die Testsuite kann das
+nicht sehen: sie kappt die Leitung an der MCP-Naht.
+
+Gemessen wurde deshalb am echten Server, mit dem einen Aufruf, der nichts
+kostet: `wlo_create_collection` **ohne** `confirmToken` ist per Bauart reine
+Vorschau. Die Antwort (Schlüssel hier durch `‹…›` ersetzt):
+
+```
+Bitte prüfen — bisher wurde nichts geändert:
+
+Legt die Sammlung „Messprobe Abnahme 2026-08-15“ auf oberster Ebene an.
+Titel: (leer) → „Messprobe Abnahme 2026-08-15“
+Beschreibung: (leer) → „…“
+
+Zum Anlegen bitte bestätigen. Dazu denselben Aufruf mit confirmToken: ‹…› wiederholen.
+Der Schlüssel gilt einmalig und zehn Minuten lang.
+```
+
+**Befund 1 — die Muster tragen.** Der Anschlusssatz steht wortgleich da;
+Extraktion, Schwärzung und Schnitt greifen alle. Die Prosa **davor** hat sich
+gedreht („Zum Anlegen bitte bestätigen." statt „Die Sammlung wird angelegt.",
+und das Änderungsformat ist jetzt `alt → neu`). Daran hängt nichts, deshalb
+bleibt `_ECHTE_VORSCHAU` in den Tests als Stand vom 10.08. stehen — die neue
+Form ist über `_VORSCHAU_MIT_FREMDEM_ANSCHLUSS` mit abgedeckt.
+
+**Befund 2 — und der war nicht gesucht.** Der Server gibt Titel und
+Beschreibung des Vorhabens **wörtlich** in die Vorschau. Zweite Probe, mit dem
+Anschlusssatz in der Beschreibung: er steht danach **zweimal** im Text. Beide
+Funktionen nahmen das *erste* Vorkommen — der Server hängt seinen Block aber
+immer **hinten** an. Gemessen an diesem Text:
+
+| | vor dem Fix | nach dem Fix |
+|---|---|---|
+| `extract_confirm_token` | der **fremde** Schlüssel | der des Servers |
+| `preview_for_display` | 5 von 8 Zeilen sichtbar, mitten im Wert gekappt | 7 von 8, geschnitten am Block des Servers |
+
+Zwei verschiedene Folgen, beide unerwünscht:
+
+* **Sackgasse.** Die Abnahme setzt einen Schlüssel ab, den der Server nie
+  geprägt hat → er lehnt ab → nichts passiert. Kein Loch (fälschen lässt sich
+  ein Schlüssel damit nicht), aber fremder Text kann jeden Schreibvorgang an
+  einem Knoten lahmlegen.
+* **Zu wenig in der Box.** Der Mensch stimmt einem Vorhaben zu, dessen vollen
+  Umfang er nicht gesehen hat — genau die Richtung, die der Docstring von
+  `preview_for_display` bis dahin ausschloss („zu VIEL, nie zu wenig").
+
+**Wer das auslösen kann.** Bei `wlo_create_collection` schreibt die
+zustimmende Person den Wert selbst — dort ist es folgenlos. Die Grenze, die
+zählt, ist `wlo_update_content`: die Vorschau zeigt die **alten** Werte des
+Knotens, und die kann jemand anderes geschrieben haben. Das ist aus dem
+gemessenen Format `alt → neu` gefolgert, nicht an einem Fremdknoten
+nachgemessen; der Fix hängt nicht daran, denn er stellt nur die Zusicherung
+her, die der Docstring ohnehin behauptet.
+
+**Der Fix.** Eine Wurzel, zwei Stellen: am **letzten** Anschluss ansetzen.
+`extract_confirm_token` nimmt `finditer(…)[-1]` statt `search(…)`;
+`preview_for_display` schneidet mit `rfind` auf `_DISPLAY_TAIL_MARKER` statt mit
+einem Regex, der von links greift. Das Token-Muster bleibt bewusst weit
+(`confirmToken:` plus Schlüssel, ohne den Satz drumherum): enger wäre es an den
+Wortlaut gekettet, und eine Umformulierung nähme uns die Extraktion ganz — der
+Ausfall, vor dem der Modulkopf warnt. Drei Tests in `test_write_confirm.py`,
+zwei davon rot vor dem Fix.
+
+### Die Klasse abgesucht
+
+Der Fund ist eine **Klasse**, keine Einzelstelle: *wir lesen Servertext, in den
+fremder Text wörtlich eingeht, und greifen das falsche Vorkommen*. Drei weitere
+Stellen geprüft — zwei entlastet, eine offen:
+
+* **`parsers/cards.py::parse_total_count`** — liest den JSON-Umschlag zuerst und
+  kehrt dort zurück; die Prosa-Muster laufen nur ohne Umschlag. Genau dieser
+  Fall steht schon im Docstring (W2-1: „on an envelope whose card descriptions
+  contain prose digits the regex scraped *those* instead"). **Kein Fund.**
+* **`arg_resolvers.py:232`** — der Regex auf das *erste* `"nodeId"` greift nur,
+  wenn `json.loads` scheitert. `search_wlo_collections` steht in
+  `_JSON_CAPABLE_TOOLS`, `call_mcp_tool` setzt dort `outputFormat: "json"`
+  zentral (`client.py:271`), und der Server antwortet live mit einem Umschlag
+  (gemessen 2026-08-15). Toter v1-Rückfall. **Kein Fund.**
+* **`services/agent_write.py::WriteGate`** — die **zweite** Naht, mit eigenem
+  Merkposten und schärfer als die Chat-Naht: sie bestätigt im *selben Lauf*, ein
+  falsch gemerkter Schlüssel geht also sofort hinaus. Sie ruft die Muster aus
+  `write_confirm` auf und erbt den Fix — war aber nirgends gepinnt. Jetzt
+  gepinnt (`test_agent_loop.py`, rot vor dem Fix mit `AAAA… ≠ aBcD…`).
+
+Beim Pinnen fiel eine Sache auf, die wie ein Leck aussieht und keines ist: der
+erfundene Schlüssel aus dem *Namen* steht sehr wohl in der Nachrichtenkette —
+weil das **Modell ihn selbst getippt hat**, in seinen eigenen Aufruf-Argumenten.
+Die Schwärzung kann die Worte des Modells nicht entfernen und soll es nicht: ein
+selbst erfundener Schlüssel autorisiert nichts, und `strip_confirm_token` hält
+ihn auf dem Hinweg aus jedem Aufruf heraus. Der Test sagt beides ausdrücklich,
+damit niemand später das eine für das andere hält.
 
 ## Risiken
 

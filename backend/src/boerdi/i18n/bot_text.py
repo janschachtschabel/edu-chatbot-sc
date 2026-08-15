@@ -256,6 +256,32 @@ BOT_TEXT: Final[Catalogue] = {
         # Nur die Zustimmung bekommt einen Knopf. Ein „Ändern"-Knopf könnte nur
         # einen Satz senden, den der Nutzer selbst besser formuliert.
         "action.write.confirmChip": "Ja, so ausführen",
+        # S5: die Abnahme lag vor, es kam keine bestätigte Rückmeldung.
+        #
+        # Der Satz sagte bis zum Review „es wurde nichts geändert" — eine
+        # Behauptung, die an dieser Stelle **niemand belegen kann**: Ablehnung
+        # und Zeitüberschreitung sehen für uns gleich aus (``transport`` macht
+        # aus beidem dieselbe Fehler-Antwort). Bei einer Zeitüberschreitung NACH
+        # dem Schreiben wäre der Satz falsch, die Person legte dieselbe Sache
+        # ein zweites Mal an, und der kuratierte Bestand trüge eine Dublette.
+        #
+        # Deshalb sagt er jetzt genau so viel, wie feststeht — und nennt den
+        # einen Schritt, der die Unsicherheit auflöst. Konservativ in die
+        # richtige Richtung: nachsehen kostet eine Minute, eine Dublette bleibt.
+        # Der Server hat geantwortet und abgelehnt. Hier DARF „nichts geändert"
+        # stehen: der Beleg dafür ist seine Antwort. Den Grund nennt der Satz
+        # nicht — er ist ein Interna-Auszug und steht im Protokoll.
+        "write.executeRejected": (
+            "Das ist so nicht durchgegangen — WLO hat die Änderung abgelehnt, "
+            "es wurde nichts geändert. Sag mir, was ich anders machen soll; "
+            "dann lege ich sie dir erneut zur Abnahme vor."
+        ),
+        "write.executeUnconfirmed": (
+            "Die Änderung ist nicht bestätigt zurückgekommen — ob sie "
+            "angekommen ist, kann ich von hier aus nicht sagen. Sieh bitte in "
+            "WLO nach, bevor du es noch einmal versuchst; sonst steht sie am "
+            "Ende zweimal da."
+        ),
         # ── Hinweise und Chips am Rand einer normalen Antwort ──────────
         # ``facets.narrowChip``: das Label kommt aus dem WLO-Vokabular und
         # bleibt, wie WLO es liefert — übersetzt wird nur das Wort davor.
@@ -475,6 +501,16 @@ BOT_TEXT: Final[Catalogue] = {
             "Shall I go ahead? If something is off, tell me what to change."
         ),
         "action.write.confirmChip": "Yes, go ahead",
+        "write.executeRejected": (
+            "That did not go through — WLO rejected the change, and nothing "
+            "was modified. Tell me what to do differently and I will put it "
+            "up for approval again."
+        ),
+        "write.executeUnconfirmed": (
+            "The change did not come back confirmed — from here I cannot tell "
+            "whether it went through. Please check in WLO before trying again, "
+            "otherwise it may end up there twice."
+        ),
         "facets.narrowChip": "Only {label} ({count})",
         "facets.quotedValue": "“{value}”",
         "facets.unresolvedFilter": (
