@@ -207,6 +207,12 @@ CONTENT_TEXT_MAX_CHARS = 50000
 # native format (e.g. `lookup_wlo_vocabulary` only emits Markdown that
 # `_ensure_label_cache` parses).
 _JSON_CAPABLE_TOOLS: frozenset[str] = frozenset({
+    # ``get_skill_registry`` steht hier BEWUSST NICHT (geprüft 2026-08-16): seine
+    # Schema-Vorgabe ``markdown`` ist eine Entscheidung (``SkillRegistryArgs``,
+    # der Agent-Vorabruf legt den Registry-Text dem Modell vor). Sie füllt den
+    # Schlüssel schon bei ``validate_tool_args`` — die Injektion unten liefe also
+    # ohnehin ins Leere. Die nötige Kürzung macht ``_redigiere_skill_registry``,
+    # und zwar für BEIDE Formen.
     "search_wlo_collections",
     "search_wlo_content",
     "get_collection_contents",

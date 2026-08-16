@@ -75,7 +75,7 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "get_compendium_text",
-            "description": "Holt den VOLLSTÄNDIGEN redaktionellen Kompendiumstext einer WLO-Sammlung — die kuratierte Übersichts-Prosa der Redaktion. Nutze das, wenn ein Sammlungsergebnis nur einen gekürzten 'Kompendium: …'-Auszug zeigt und du den ganzen Text brauchst, oder um zusammenzufassen, worum es in einer Sammlung geht. Nur für Sammlungen MIT redaktionellem Text — nicht für einzelne Materialien; deren Inhalt holt get_wlo_content_text.",
+            "description": "Holt den VOLLSTÄNDIGEN redaktionellen Kompendiumstext einer WLO-Sammlung — die kuratierte Übersichts-Prosa der Redaktion, also was die Sammlung inhaltlich abdecken SOLL. Suchergebnisse enthalten diesen Text NICHT (er ist lang); sie markieren eine Sammlung, zu der einer vorliegt, mit hasCompendium: true. Genau dann lohnt dieser Aufruf: um zusammenzufassen, worum es in der Sammlung geht, oder um sie gegen ihre Inhalte auf Vollständigkeit zu prüfen. Nicht für einzelne Materialien — deren Inhalt holt get_wlo_content_text.",
             "parameters": {
                 "type": "object",
                 "properties": {

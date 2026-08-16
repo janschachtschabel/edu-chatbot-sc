@@ -348,6 +348,25 @@ def test_parse_wlo_cards_skips_results_without_nodeid():
     assert parse_wlo_cards(payload) == []
 
 
+def test_der_envelope_leser_setzt_node_type_immer():
+    """``node_type`` ist nach dem Parsen IMMER gesetzt — auch ohne ``nodeType``.
+
+    Diese Invariante trägt eine Löschung vom 2026-08-16: an vier Stellen stand
+    ein ``c.setdefault("node_type", …)``, der einen fehlenden Schlüssel
+    nachtragen sollte. Er konnte nie greifen, weil hier ein Vorgabewert gesetzt
+    wird (Z. „nodeType or content"), und wurde deshalb entfernt. Fällt dieser
+    Test, ist die Vorgabe weg — dann sind die entfernten Schutzzeilen plötzlich
+    wieder nötig, und die Aufrufer bekämen Karten ohne Typ.
+    """
+    payload = json.dumps({"total": 2, "results": [
+        {"nodeId": "ohne", "title": "kein nodeType im Ergebnis"},
+        {"nodeId": "mit", "title": "Sammlung", "nodeType": "collection"},
+    ]})
+    ohne, mit = parse_wlo_cards(payload)
+    assert "node_type" in ohne and ohne["node_type"] == "content"
+    assert mit["node_type"] == "collection"
+
+
 # ── parse_wlo_topic_page_cards ──────────────────────────────────────────
 def test_topic_page_cards_basic():
     payload = json.dumps({
@@ -514,6 +533,55 @@ def test_search_all_three_buckets():
     assert [c["node_id"] for c in out["content"]] == ["ct1"]
     assert [c["node_id"] for c in out["collections"]] == ["co1"]
     assert [c["node_id"] for c in out["topic_pages"]] == ["tp1"]
+
+
+def test_search_all_markiert_den_themenseiten_topf_als_themenseiten():
+    # Der Server setzt im ``topicPages``-Topf ``nodeType='collection'`` und
+    # liefert KEINE ``variants`` — die Karten sahen deshalb aus wie gewöhnliche
+    # Sammlungen. ``_is_themenseite_card`` (``domain/cards/build``:211) erkannte
+    # sie nicht: sie landeten in der Sammlungs-Box statt in der Themenseiten-Box
+    # und teilten sich deren Deckel (Vorgabe 3). Live gemessen 2026-08-16 an
+    # „Optik": drei Sammlungen, Themenseiten-Box leer — bei einer vierten wäre
+    # die gesuchte Sammlung wieder ganz herausgefallen.
+    payload = json.dumps({
+        "topicPages": {"total": 1, "count": 1, "results": [
+            {"nodeId": "tp1", "title": "Optik", "nodeType": "collection",
+             "topicPageUrl": "https://wlo.example/tp?collectionId=tp1"},
+        ]},
+    })
+    karte = parse_search_all_cards(payload)["topic_pages"][0]
+    assert karte["node_type"] == "topic_page"
+    assert [v["url"] for v in karte["topic_pages"]] == \
+        ["https://wlo.example/tp?collectionId=tp1"]
+
+
+def test_search_all_leitet_die_themenseiten_adresse_ab_wenn_sie_fehlt():
+    # Ohne ``topicPageUrl`` baut der dedizierte Parser sie aus der cid
+    # (``topic_pages.py``:182). Dieselbe Regel hier — sonst hinge die Erkennung
+    # an einem Feld, das der Server weglassen darf.
+    payload = json.dumps({
+        "topicPages": {"total": 1, "count": 1, "results": [
+            {"nodeId": "tp2", "title": "Wellenoptik", "nodeType": "collection"},
+        ]},
+    })
+    karte = parse_search_all_cards(payload)["topic_pages"][0]
+    assert karte["node_type"] == "topic_page"
+    assert karte["topic_pages"][0]["url"].endswith("topic-pages?collectionId=tp2")
+
+
+def test_search_all_laesst_die_anderen_toepfe_unberuehrt():
+    # Gegenprobe: NUR der Themenseiten-Topf wird markiert. Sammlungen und
+    # Inhalte behalten den Typ des Servers und bekommen keine Varianten.
+    payload = json.dumps({
+        "content": {"total": 1, "count": 1, "results": [
+            {"nodeId": "c1", "title": "Video", "nodeType": "content"}]},
+        "collections": {"total": 1, "count": 1, "results": [
+            {"nodeId": "s1", "title": "Sammlung", "nodeType": "collection"}]},
+    })
+    out = parse_search_all_cards(payload)
+    assert out["content"][0]["node_type"] == "content"
+    assert out["collections"][0]["node_type"] == "collection"
+    assert not out["collections"][0].get("topic_pages")
 
 
 def test_search_all_with_trailing_text_uses_fragment():

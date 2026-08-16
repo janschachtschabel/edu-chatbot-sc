@@ -46,12 +46,13 @@ from typing import TYPE_CHECKING, Any
 
 from boerdi.domain.inline_grouping import (
     MIN_SELECTABLE_CARDS,
-    _redact_search_content_for_llm,
     _strip_trailing_option_lines,
     _ui_box_state_footer,
 )
 from boerdi.domain.inline_grouping import max_selectable_cards as _max_selectable
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
+from boerdi.domain.skill_precedence import merke_laufende_anleitung
+from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
 from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.domain.write_confirm import (
     CONFIRM_TOKEN_FIELD,
@@ -70,7 +71,7 @@ from boerdi.services import llm
 from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
 from boerdi.services.card_collect import collect_cards
 from boerdi.services.llm_streaming import _stream_completion
-from boerdi.services.mcp.parsers import skill_registry_note
+from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -653,6 +654,22 @@ async def _run_tool_loop(
                 from boerdi.services.outcome_service import call_with_outcome
                 result_text, outcome = await call_with_outcome(tool_name, tool_args)
                 outcomes.append(outcome)
+
+                # Welche Anleitung gerade abgearbeitet wird, muss den Zug
+                # überdauern: stellt ein Skill eine Rückfrage, kommt die Antwort
+                # erst im NÄCHSTEN Zug — und der entschied bisher neu. Gemessen
+                # 2026-08-16: „Stunde planen" fragte nach der Dauer, die Antwort
+                # „45 min physik sek 1" landete beim Klassifikator in einem
+                # fremden Muster, und das Modell holte eine andere Anleitung.
+                # Nur bei ECHTEM Ergebnis merken — ein Fehlschlag ist keine
+                # laufende Anleitung.
+                if tool_name == "get_skill" and result_text:
+                    merke_laufende_anleitung(
+                        session_state.setdefault("entities", {}),
+                        tool_args.get("nodeId"),
+                        session_state.get("turn_count"),
+                        titel=skill_titel(result_text),
+                    )
 
                 # Rückweg des Walls: den frisch geprägten Schlüssel merken und
                 # aus dem Text nehmen, BEVOR er irgendwohin weiterfließt

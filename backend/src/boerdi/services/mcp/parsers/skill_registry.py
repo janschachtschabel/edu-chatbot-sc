@@ -54,6 +54,7 @@ sich nicht als Anweisungsblock tarnen.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from boerdi.services.mcp.parsers.json_scan import load_envelope
@@ -71,7 +72,7 @@ _MAX_TITLE = 80
 _MAX_DEPTH = 12
 
 _MARKER = (
-    "[SKILL-REGISTRY — freigegebene Anleitungen der Redaktion, "
+    "[SKILL-REGISTRY — freigegebene Skills der Redaktion, "
     "mitgeliefert von diesem Werkzeug]"
 )
 _AUFFORDERUNG = "Passt eine zur Aufgabe, hole sie mit get_skill(nodeId) und folge ihr."
@@ -123,6 +124,10 @@ _SAMMLUNGS_WERKZEUGE = {
 #: bringt keine mit" direkt unter einer Freigabeliste schlicht falsch.
 _ANSTOSS_MARKER = "[SKILL-REGISTRY — fuer die angefragte Sammlung nicht dabei]"
 
+#: Sagt, was schon geschehen ist und was noch fehlt — der Katalog liegt vor,
+#: die Anleitung nicht. Siehe :func:`_nachfassen`.
+_NACHFASS_MARKER = "[SKILL-REGISTRY — Katalog gelesen, Skill noch nicht]"
+
 
 @dataclass(frozen=True)
 class SkillEntry:
@@ -146,6 +151,30 @@ def _einzeilig(wert: object, deckel: int) -> str:
     """Fremdtext auf eine gedeckelte Zeile bringen (siehe Modul-Docstring)."""
     text = " ".join(str(wert or "").split())
     return text[:deckel] if len(text) > deckel else text
+
+
+def skill_titel(raw_text: object) -> str:
+    """Der Titel einer geholten Anleitung — aus der H1 der ersten Zeile.
+
+    ``get_skill`` antwortet mit MARKDOWN, nicht mit JSON (gemessen 2026-08-16
+    gegen den echten Server)::
+
+        # Stunde planen
+        nodeId: 5b29f470-…
+
+    **Nur die erste Zeile.** Ein ``#`` weiter unten gehoert zur Gliederung des
+    Dokuments; ihn als Titel zu nehmen hiesse, dem Nutzer einen Abschnittsnamen
+    als Namen der Anleitung anzusagen. Lieber kein Titel als ein geratener — der
+    Aufrufer laesst die Ansage dann weg
+    (``domain/skill_precedence.mit_ladehinweis``).
+
+    Einzeilig und auf :data:`_MAX_TITLE` gedeckelt wie jeder Fremdtitel hier.
+    """
+    if not isinstance(raw_text, str):
+        return ""
+    erste = raw_text.lstrip().split("\n", 1)[0].strip()
+    treffer = re.match(r"#\s+(\S.*)$", erste)
+    return _einzeilig(treffer.group(1), _MAX_TITLE) if treffer else ""
 
 
 def _gueltige_eintraege(roh: object) -> list[dict]:
@@ -245,7 +274,7 @@ def parse_skill_registries(raw_text: str) -> list[SkillRegistry]:
 
 def _registry_block(r: SkillRegistry) -> list[str]:
     anzahl = len(r.entries)
-    wort = "Anleitung" if anzahl == 1 else "Anleitungen"
+    wort = "Skill" if anzahl == 1 else "Skills"
     zeilen = [
         f'Skill-Registry: „{r.collection_title}" ({r.collection_id}) '
         f"gibt {anzahl} {wort} frei.",
@@ -290,11 +319,73 @@ def _anstoss(
         "",
         "",
         _ANSTOSS_MARKER,
-        f"Diese Sammlung ({node_id}) kann Anleitungen der Redaktion freigeben; "
+        f"Diese Sammlung ({node_id}) kann Skills der Redaktion freigeben; "
         f'ob und welche, sagt get_skill_registry(collectionId="{node_id}").',
         "Geht es um eine Aufgabe IN dieser Sammlung — etwas erstellen, planen, "
         "erschliessen, pruefen —, hole sie VOR der eigenen Loesung. Geht es nur "
         "ums Stoebern oder Auflisten, lass es.",
+    ])
+
+
+def _nachfassen(tool_name: str, raw_text: str) -> str:
+    """Der Anstoss zum ZWEITEN Schritt, direkt am Katalog-Ergebnis (2026-08-16).
+
+    **Der Befund.** Live in der Sammlung „Optik": das Modell ruft
+    ``get_skill_registry``, bekommt 32 855 Zeichen — und ruft ``get_skill``
+    nicht. Drei Erklaerungen sind ausgeschlossen und gemessen: das Werkzeug
+    fehlt nicht (``seeds/03-patterns/m09-lernpfad-erstellung.md:20``), die
+    ``nodeId`` fehlt nicht (die Antwort traegt sie), und die Anweisung fehlt
+    nicht — sie steht DREIFACH: im Seitenblock (``page_context.
+    _bestands_zeilen``) und in beiden Werkzeugbeschreibungen.
+
+    **Was bleibt.** Der Katalog liefert je Eintrag eine Beschreibung, die wie
+    ein fertiger Auftrag liest — fuer „Stunde planen" etwa „tabellarischer
+    Verlaufsplan mit Phasen, Minuten, Sozialform und Material je Phase". Nach
+    32 855 Zeichen hat das Modell etwas in der Hand, das sich vollstaendig
+    anfuehlt; der Wortlaut der Anleitung ist mit 14 290 Zeichen sogar 2,3× so
+    klein. Der Grenznutzen eines weiteren Abrufs sieht klein aus — er ist es
+    nicht: die Beschreibung sagt, WAS herauskommt, die Anleitung WIE.
+
+    **Warum hier und nicht im Prompt.** Eine vierte Formulierung im
+    Systemprompt waere der vierte Versuch derselben Art nach drei
+    erfolglosen. Diese Zeile steht stattdessen an der Entscheidungsstelle:
+    unmittelbar unter dem Ergebnis, im selben Zug, in dem das Modell waehlt.
+
+    **Die Luecke war strukturell.** :func:`parse_skill_registries` sucht
+    ``skillRegistry`` an aufgelisteten Knoten; eine ``get_skill_registry``-
+    Antwort traegt aber ``{"registry": …}`` — eine andere Form. Und
+    :data:`_SAMMLUNGS_WERKZEUGE` kennt das Werkzeug nicht. Nach dem Abruf des
+    Katalogs wurde also gar nichts angehaengt.
+
+    **Nur bei einem Katalog MIT Eintraegen.** Eine Sammlung ohne freigegebene
+    Anleitungen liefert ``{"registry": {"entries": []}}`` — dort waere „waehle
+    einen Eintrag" eine Aufforderung ins Leere. Gepinnt von
+    ``test_die_registry_selbst_stoesst_sich_nicht_an``, das genau diese
+    Nutzlast fuehrt; die erste Fassung dieser Funktion hing allein am
+    Werkzeugnamen und ist daran gescheitert.
+
+    **Mit Ausstieg**, aus demselben Grund wie bei :func:`_anstoss`: passt
+    kein Eintrag, soll das Modell weiterarbeiten statt einen unpassenden Skill
+    zu holen. Dieselbe Absicherung traegt die Beschreibung von
+    ``search_skill`` seit jeher.
+    """
+    if tool_name != "get_skill_registry":
+        return ""
+    daten = load_envelope(raw_text)
+    # Dieselbe Gueltigkeitsregel wie ueberall im Modul: ohne ``nodeId`` ist ein
+    # Eintrag nicht abrufbar, also kein Grund, zum Abruf aufzufordern.
+    if not isinstance(daten, dict) or not _gueltige_eintraege(daten.get("registry")):
+        return ""
+    return "\n".join([
+        "",
+        "",
+        _NACHFASS_MARKER,
+        "Diese Liste nennt Titel, nodeIds und Kurzbeschreibungen — NICHT den "
+        "Skill selbst.",
+        "Passt ein Eintrag zur Anfrage: jetzt get_skill(nodeId) mit DESSEN "
+        "nodeId aufrufen und danach arbeiten. Die Kurzbeschreibung sagt, WAS "
+        "herauskommt; der Skill sagt, WIE — sie ist kein Ersatz.",
+        "Passt keiner, arbeite ohne Skill weiter und erwaehne ihn nicht.",
     ])
 
 
@@ -303,10 +394,13 @@ def skill_registry_note(
 ) -> str:
     """Der Block fuers Modell, oder "" wenn dieses Ergebnis keine Registry traegt.
 
-    Wird an die ``role=tool``-Nachricht **angehaengt**, nicht eingemischt: im
-    Box-Anzeige-Modus ersetzt ``_redact_search_content_for_llm`` den Ergebnistext
-    vollstaendig durch eine Zusammenfassung. Wer den Block vorher einbaut,
-    verliert ihn dort — still.
+    Wird an die ``role=tool``-Nachricht **angehaengt**, nicht eingemischt:
+    ``_redact_search_content_for_llm`` schreibt den Ergebnistext um, bevor das
+    Modell ihn sieht. Bei den Einzelinhalt-Werkzeugen ersetzt es ihn ganz durch
+    eine Zusammenfassung; bei der Kombi-Suche baut es ihn aus dem Envelope NEU
+    auf — und das in beiden Anzeige-Modi. Wer den Block vorher einbaut, verliert
+    ihn in beiden Faellen; beim Neuaufbau erst recht, denn dort ueberlebt nur,
+    was im Envelope steht — still.
 
     **Mit eigenem Trenner davor.** Angehaengt wird mit ``+``, und das Ergebnis
     davor endet auf keiner bestimmten Zeile — ohne die Leerzeile klebte der
@@ -335,7 +429,11 @@ def skill_registry_note(
     """
     registries = parse_skill_registries(raw_text)
     if not registries:
-        return _anstoss(tool_name, args)
+        # Die beiden Anstoesse schliessen einander aus, nicht der Reihenfolge
+        # wegen, sondern weil ihre Werkzeugmengen disjunkt sind: _nachfassen
+        # greift bei ``get_skill_registry``, _anstoss bei den zwei Werkzeugen
+        # aus _SAMMLUNGS_WERKZEUGE. Das ``or`` sagt genau das.
+        return _nachfassen(tool_name, raw_text) or _anstoss(tool_name, args)
     gezeigt = registries[:_MAX_REGISTRIES]
     zeilen = ["", "", _MARKER, _AUFFORDERUNG]
     for r in gezeigt:

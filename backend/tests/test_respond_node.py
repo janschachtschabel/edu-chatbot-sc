@@ -340,6 +340,30 @@ def test_medium_risk_note_appended(monkeypatch):
     assert "strafrechtlich relevante" in out.response_text
 
 
+# ── Die harte Ladezeile (Nutzer-Vorgabe 2026-08-16) ──────────────
+# Gegenstueck auf der Agent-Seite:
+# ``test_respond_agent.test_die_ladezeile_steht_vor_der_agent_antwort``.
+# Die Regel selbst liegt in ``domain/skill_precedence.mit_ladehinweis``.
+
+def test_die_ladezeile_steht_vor_der_antwort(monkeypatch):
+    rec = _Rec()
+    _install(monkeypatch, rec)
+    ctx = _ctx()
+    ctx.session_state["turn_count"] = 4
+    ctx.session_state["entities"]["_skill_lauf"] = {
+        "node_id": "5b29f470", "zug": 4, "titel": "Stunde planen"}
+    out = _run(ctx)
+    assert out.response_text.splitlines()[0] == (
+        "[ edu-sharing Skill ] Stunde planen - wird geladen")
+
+
+def test_ohne_geladene_anleitung_keine_ladezeile(monkeypatch):
+    rec = _Rec()
+    _install(monkeypatch, rec)
+    out = _run(_ctx())
+    assert "edu-sharing Skill" not in out.response_text
+
+
 # ── speculative QR start ─────────────────────────────────────────
 
 def test_speculative_qr_started(monkeypatch):

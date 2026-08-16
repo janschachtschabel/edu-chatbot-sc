@@ -107,7 +107,7 @@ def test_die_begruessung_nennt_die_zahlen_der_sammlung(monkeypatch):
         _state(_resolved(title="Optik", context_facts={
             "materials": 35, "sub_collections": 4, "skills": 28})), ["prev"]))
     assert "35 Materialien" in resp.content
-    assert "28 freigegebene Anleitungen" in resp.content
+    assert "28 freigegebene Skills" in resp.content
     assert "  " not in resp.content, f"doppelte Lücke: {resp.content!r}"
 
 
@@ -128,7 +128,7 @@ def test_eine_halbe_ausbeute_nennt_nur_was_da_ist(monkeypatch):
     resp = asyncio.run(g.maybe_context_greeting(
         _SESSION, _req(), _env(page_context=_collection_ctx()),
         _state(_resolved(title="Optik", context_facts={"skills": 28})), ["prev"]))
-    assert "28 freigegebene Anleitungen" in resp.content
+    assert "28 freigegebene Skills" in resp.content
     assert "Materialien" not in resp.content
 
 

@@ -28,12 +28,23 @@ Every other helper keeps its ALT name, imported from the canonical NEU home, so
 the handler bodies read the same as ALT. Tests patch the MCP/LLM/QR/persistence
 boundaries on THIS module (ALT convention).
 
-**simplify (bewusste Ausnahme):** ~510 Zeilen (drei kohäsive Handler + ihre
-gemeinsamen Helfer) über dem ~300-Zeilen-Schwellwert — 1:1 die Fläche des ALT
-``chat_direct_actions.py`` (519 Z.), ein Dispatch-Ziel (der R2-preflight-Node).
-Bewusst als eine Datei gehalten (ALT-Parität + Sibling-Präzedenz
-``lp_fast_path``/``canvas_fast_path``); Upgrade-Pfad, falls sie weiter wächst:
-Split in ein ``direct_actions/``-Paket (browse/curate/learning_path je Datei).
+**simplify (bewusste Ausnahme):** drei kohäsive Handler + ihre gemeinsamen
+Helfer, deutlich über dem ~300-Zeilen-Schwellwert — ALT
+``chat_direct_actions.py`` hatte 519 Z., ein Dispatch-Ziel (der
+R2-preflight-Node). Bewusst als eine Datei gehalten (ALT-Parität +
+Sibling-Präzedenz ``lp_fast_path`` / ``canvas_fast_path``, beide ähnlich groß).
+
+Bindend ist dabei nicht die Datei, sondern ``_handle_generate_learning_path``
+(gemessen 2026-08-16: 253 Zeilen, 37 Zweige): ein Schnitt in drei Dateien
+ließe diese Funktion unberührt — Schwellwert erfüllt, nichts gewonnen.
+
+**Auslöser für den Schnitt** in ein ``direct_actions/``-Paket
+(browse/curate/learning_path je Datei): Datei über 700 Zeilen **oder** eine
+Funktion über 300. Beides prüft ``test_der_simplify_vermerk_wird_eingehalten``
+— hier steht bewusst keine aktuelle Zeilenzahl mehr: bis 2026-08-16 stand hier
+„~510", während die Datei bei 593 lag. Eine Datei, die ihre eigene Länge im
+Präsens behauptet, wird bei jedem Edit ein Stück unwahrer; ein Test wird es
+nicht.
 """
 
 from __future__ import annotations
@@ -123,9 +134,11 @@ async def _handle_browse_collection(
         cards_raw = parse_wlo_cards(result_text)
         total_from_mcp = parse_total_count(result_text)
 
-        # Mark as content items (not collections)
-        for c in cards_raw:
-            c.setdefault("node_type", "content")
+        # Kartentyp vom Server, hier NICHT erzwungen: der Inhalt einer Sammlung
+        # darf Unter-Sammlungen enthalten, und die gehören als Sammlung gezeigt
+        # (Browse- statt Render-Link). Das bis 2026-08-16 hier stehende
+        # ``setdefault("node_type", "content")`` war wirkungslos — hätte es
+        # gewirkt, hätte es genau diese Unter-Sammlungen falsch etikettiert.
 
         # Determine if there are more items
         has_more = len(cards_raw) > PAGE_SIZE
@@ -278,9 +291,9 @@ async def _handle_curate_collection(
             "maxItems": 100,
             "skipCount": 0,
         })
+        # Kartentyp vom Server, nicht erzwungen — Begründung bei
+        # ``browse_collection`` (dort stand derselbe tote Schutz).
         cards_raw = parse_wlo_cards(result_text)
-        for c in cards_raw:
-            c.setdefault("node_type", "content")
     except Exception as e:
         logger.warning("curate_collection contents fetch failed: %s", e)
         cards_raw = []
@@ -364,9 +377,9 @@ async def _handle_generate_learning_path(
             "skipCount": 0,
         })
 
+        # Kartentyp vom Server, nicht erzwungen — Begründung bei
+        # ``browse_collection`` (dort stand derselbe tote Schutz).
         cards_raw = parse_wlo_cards(result_text)
-        for c in cards_raw:
-            c.setdefault("node_type", "content")
 
         # Diversity: skip items that were already used in earlier learning paths
         used_ids = _get_used_lp_ids(session_state)

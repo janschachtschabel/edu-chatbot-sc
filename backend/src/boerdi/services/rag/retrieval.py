@@ -97,7 +97,7 @@ def get_retrieval_settings() -> dict:
         if isinstance(r, dict):
             if isinstance(r.get("top_k"), int) and r["top_k"] > 0:
                 settings["top_k"] = r["top_k"]
-            if isinstance(r.get("min_score"), (int, float)) and 0 <= r["min_score"] <= 1:
+            if isinstance(r.get("min_score"), int | float) and 0 <= r["min_score"] <= 1:
                 settings["min_score"] = float(r["min_score"])
             if isinstance(r.get("max_chars_per_area"), int) and r["max_chars_per_area"] >= 0:
                 settings["max_chars_per_area"] = r["max_chars_per_area"]

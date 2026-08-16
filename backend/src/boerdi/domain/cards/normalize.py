@@ -227,9 +227,10 @@ def normalize_cards(
         _rewrite_card_urls(c, target_repo)
         c["node_type"] = _infer_node_type(c)
         # Schritt 2b: wlo_url-Repair. Falls die Card als Sammlung erkannt
-        # wurde (entweder vom Parser oder via Post-Set in den callers, z.B.
-        # ``search_wlo_collections``-Cards bekommen ``node_type = "collection"``
-        # erst NACH dem Parse), zeigt ``wlo_url`` ggf. noch auf den falschen
+        # wurde (entweder vom Parser oder via Post-Set in den callers —
+        # ``collect_cards`` und ``_build_cards`` befördern eine Karte mit
+        # Themenseiten-Varianten NACH dem Parse zur Sammlung), zeigt
+        # ``wlo_url`` ggf. noch auf den falschen
         # ``/components/render/<id>``-Endpoint (ccm:io-Permalink). Wir
         # rewriten ihn hier auf ``/components/collections?id=<id>``, sodass
         # auch direkter Aufruf von ``card.wlo_url`` im Frontend einen

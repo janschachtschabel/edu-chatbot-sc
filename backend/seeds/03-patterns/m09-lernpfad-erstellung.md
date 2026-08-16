@@ -74,6 +74,15 @@ discriminators:
 
 ## Pflicht-Pipeline
 
+Schritt 0 — Anleitung der Redaktion, falls es eine gibt:
+- Steht eine Sammlung im Kontext (Seitenkontext oder Treffer) und führt sie
+  freigegebene Anleitungen? Dann zuerst `get_skill(nodeId)` für die passende —
+  die IDs liefert Stufe 1 oder 2 weiter unten.
+- Passt eine, wird **nach ihr** gearbeitet: sie ersetzt die Schritte 2–6 und die
+  Antwort-Struktur unten, soweit sie eigene vorgibt.
+- Passt keine oder gibt es keine, weiter mit Schritt 1. Das ist der Normalfall
+  und kein Mangel.
+
 Schritt 1 — Slot-Check:
 - Pflicht: `topic`. Wenn fehlt → M03
 - Nice-to-have: `stufe`, `fach`. Wenn beide fehlen, in Plan-Intro mit:
@@ -91,6 +100,12 @@ Schritt 5 — `search_wlo_content` für ergänzendes Single-Material
 Schritt 6 — `get_node_details` für gewählte Materialien (Lizenz + URL)
 
 ## Antwort-Struktur (PFLICHT)
+
+> **Ausnahme, und nur diese eine:** Wurde in Schritt 0 eine freigegebene
+> Anleitung geladen und gibt sie ein eigenes Ausgabeformat vor, **gilt ihres**.
+> Dann keine Lernpfad-Überschrift und kein Schrittraster darüberlegen — die
+> Redaktion hat das Format für genau diese Aufgabe festgelegt. Ohne geladene
+> Anleitung gilt alles Folgende unverändert.
 
 **Zuerst 1-Satz-Bubble-Lead VOR dem H1** (NICHT „Hier ist Ihr Lernpfad
 — Sie können ihn anpassen lassen" Generic). Lead nennt Thema +

@@ -216,6 +216,17 @@ def test_compendium_text_keeps_a_single_node():
     assert validate_tool_args("get_compendium_text", {"nodeId": "abc"}) == {"nodeId": "abc"}
 
 
+def test_compendium_text_nennt_den_merker_als_ausloeser():
+    # Bis 2026-08-16 nannte die Beschreibung als Anlass einen „gekuerzten
+    # 'Kompendium: …'-Auszug" im Sammlungsergebnis. Den gibt es nicht mehr: die
+    # Kombi-Redaktion laesst den Kompendiumstext weg und setzt stattdessen
+    # ``hasCompendium``. Ein Ausloeser, den das Modell nie zu sehen bekommt,
+    # ist keiner — die Beschreibung muss den echten nennen.
+    beschreibung = _tool("get_compendium_text")["description"]
+    assert "hasCompendium" in beschreibung
+    assert "Auszug" not in beschreibung
+
+
 # ── W9c: Server-Fakten in die Beschreibungen, Fähigkeiten anbieten ──────
 def test_every_offered_parameter_is_accepted_by_its_argument_model():
     """Ein angebotener Parameter, den das Modell nicht kennt, verschwindet STILL.

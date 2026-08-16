@@ -38,12 +38,24 @@ def test_env_int(monkeypatch):
 
 
 def test_threshold_for_tool(monkeypatch):
+    # Nutzer-Vorgabe 2026-08-16: das Sammlungs-Tor stand auf 0.0 und war damit
+    # strenger als die Lage, gegen die es gebaut wurde. Gemessen an „Optik":
+    # Rauschen liegt bei -2.4/-2.46 („Galeriemethode", Regression 2026-06-02),
+    # die GESUCHTE Sammlung bei -0.27. -1.0 trennt beides und bleibt strenger
+    # als das Inhalts-Tor.
     monkeypatch.delenv("CARD_CE_GATE_COLLECTION", raising=False)
     monkeypatch.delenv("CARD_CE_GATE_CONTENT", raising=False)
-    assert cr.threshold_for_tool("search_wlo_collections") == 0.0
-    assert cr.threshold_for_tool("search_wlo_topic_pages") == 0.0
+    assert cr.threshold_for_tool("search_wlo_collections") == -1.0
+    assert cr.threshold_for_tool("search_wlo_topic_pages") == -1.0
     assert cr.threshold_for_tool("search_wlo_content") == -1.5
     assert cr.threshold_for_tool("get_node_details") == -1.5
+
+
+def test_der_namensgleiche_treffer_wird_unabhaengig_von_schreibweise_erkannt():
+    optik = cr._normalisiert("optik")
+    assert cr._ist_namensgleich({"title": "  OPTIK "}, optik)
+    assert not cr._ist_namensgleich({"title": "Geometrische Optik"}, optik)
+    assert not cr._ist_namensgleich({"title": "Optik"}, "")
 
 
 def test_doc_text():
@@ -70,6 +82,36 @@ def _mock_rr(monkeypatch, rr):
 
 def _envelope(*items, **extra):
     return json.dumps({"total": 99, "count": len(items), "results": list(items), **extra})
+
+
+def test_die_gleichnamige_sammlung_steht_vorn_und_ueberlebt_das_tor(monkeypatch):
+    # Der Fall aus dem Testlauf vom 2026-08-16, mit den echten CE-Werten:
+    # Anfrage „Optik" -> die gleichnamige Sammlung bekam -0.27, die breitere
+    # „Geometrische Optik" +0.52. Am alten Tor (0.0) fiel ausgerechnet die
+    # gesuchte heraus. Namensgleichheit wiegt jetzt schwerer als der CE-Wert.
+    monkeypatch.delenv("CARD_CE_GATE_COLLECTION", raising=False)
+    monkeypatch.delenv("CARD_CE_EXACT_BONUS", raising=False)
+    _mock_rr(monkeypatch, _FakeRR([-0.27, 0.52]))
+    env = _envelope({"nodeId": "t1", "title": "Optik"},
+                    {"nodeId": "s1", "title": "Geometrische Optik"})
+    out, _ = cr.rerank_gate_envelope(
+        "Optik", env, tool_name="search_wlo_topic_pages")
+    assert [r["title"] for r in json.loads(out)["results"]] == [
+        "Optik", "Geometrische Optik"]
+
+
+def test_das_gesenkte_tor_wirft_die_gemessene_rausch_lage_weiter_weg(monkeypatch):
+    # Gegenprobe zur Senkung: die Regression vom 2026-06-02 (generische
+    # Themenseiten wie „Galeriemethode", Score ~ -2.4) muss weiter greifen —
+    # sonst tauscht man einen Fehler gegen den alten.
+    monkeypatch.delenv("CARD_CE_GATE_COLLECTION", raising=False)
+    _mock_rr(monkeypatch, _FakeRR([0.52, -2.46]))
+    env = _envelope({"nodeId": "s1", "title": "Geometrische Optik"},
+                    {"nodeId": "s2", "title": "Galeriemethode"})
+    out, dbg = cr.rerank_gate_envelope(
+        "Optik", env, tool_name="search_wlo_collections")
+    assert [r["title"] for r in json.loads(out)["results"]] == ["Geometrische Optik"]
+    assert dbg["dropped_by_gate"] == 1
 
 
 def test_rerank_empty_text_unchanged():

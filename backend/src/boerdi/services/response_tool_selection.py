@@ -49,6 +49,7 @@ import logging
 import os
 from typing import Any
 
+from boerdi.domain.content_types import medientyp_meint_sammlungen
 from boerdi.domain.inline_grouping import MAX_SELECTABLE_CARDS
 from boerdi.domain.write_confirm import CURATION_TOOLS
 from boerdi.services.agent_tools import AUS_DEM_KATALOG
@@ -232,8 +233,21 @@ def _select_active_tools(
     # nicht mehr über ihren Titel finden; es blieb ``browse_collection_tree``,
     # das eine nodeId oder einen Fachportal-Namen verlangt. Suchmuster (M06,
     # M09, M12) sind unberührt — sie nennen keine kuratierenden Werkzeuge.
+    #
+    # 2026-08-16: NICHT, wenn der Medientyp die Sammlung SELBST benennt. Die
+    # Begründung oben („Sammlungen lassen sich nicht nach resourceType filtern,
+    # also ist die Inhaltssuche der einzig richtige Weg") dreht sich dann um.
+    # Live gemessen: „Suche mir Sammlungen zum Thema Optik" → medientyp
+    # ='Sammlung' → alle drei Werkzeuge weg → Inhaltssuche mit
+    # learningResourceType='Sammlung' → keine Sammlungskarte → keine Skill-Notiz
+    # → kein Vorrang der freigegebenen Anleitungen.
     _classif_entities_top = classification.get("entities", {}) or {}
-    if _classif_entities_top.get("medientyp") and not _pattern_curates(pattern_output):
+    _medientyp = _classif_entities_top.get("medientyp")
+    if (
+        _medientyp
+        and not medientyp_meint_sammlungen(_medientyp)
+        and not _pattern_curates(pattern_output)
+    ):
         before = {t["function"]["name"] for t in active_tools}
         # Welle C.5+ (2026-05-22): zusätzlich ``search_wlo_topic_pages``
         # entfernen. Bei medientyp-Fokus will der User Einzelinhalte mit

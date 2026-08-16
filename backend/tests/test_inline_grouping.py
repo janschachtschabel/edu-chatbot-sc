@@ -5,8 +5,8 @@ P13 pure layer (+ ``_strip_trailing_option_lines``).
 - predicates + ``_ui_box_state_footer``: the one direct ALT unit test
   (test_generate_response_net.py::test_ui_box_footer_counts_topic_page_node_type_as_themenseite)
   + characterization tests for the remaining branches.
-- ``_redact_search_content_for_llm``: only had integration coverage in ALT (via
-  the tool loop, deferred to P6) → characterization tests pinning ALT behaviour.
+Die Redaktion (was das MODELL sieht) zog 2026-08-16 mit ihrem Modul nach
+``test_tool_result_redaction`` um.
 
 All helpers are pure (no LLM/MCP/RAG/config) → run for real, no mocks.
 """
@@ -18,7 +18,6 @@ from boerdi.domain.inline_grouping import (
     _is_einzelinhalt_card,
     _is_pure_sammlung_card,
     _is_themenseite_card,
-    _redact_search_content_for_llm,
     _strip_trailing_option_lines,
     _ui_box_state_footer,
     max_selectable_cards,
@@ -101,6 +100,29 @@ def test_collection_with_topic_pages_is_themenseite_not_sammlung():
     assert _is_einzelinhalt_card(c) is False
 
 
+def test_themenseite_auch_ohne_varianten_wenn_topic_page_url_gesetzt():
+    # So kommt eine Themenseite aus ``search_wlo_all``: der Envelope-Leser setzt
+    # ``topic_page_url``, ein Varianten-Array gibt es auf diesem Weg nicht. Bis
+    # 2026-08-16 zaehlten die drei Praedikate sie deshalb als reine Sammlung —
+    # gemessen am Optik-Zug meldete der Fusstext „0 Themenseite(n) sichtbar",
+    # waehrend das Frontend zwei rendert (``_infer_node_type`` liest dasselbe
+    # Feld). Der Fusstext nennt sich Frontend-Spiegel; das hier ist die Zusage.
+    c = {"node_type": "collection",
+         "topic_page_url": "https://repo/edu-sharing/components/topic-pages?collectionId=9e7"}
+    assert _is_themenseite_card(c) is True
+    assert _is_pure_sammlung_card(c) is False
+    assert _is_einzelinhalt_card(c) is False
+
+
+def test_leerer_topic_page_url_bleibt_eine_reine_sammlung():
+    # Gegenprobe zur Zeile darueber: das Feld existiert auf JEDER Karte des
+    # Envelope-Lesers, nur eben leer. Wer auf Anwesenheit statt Inhalt prueft,
+    # macht jede Sammlung zur Themenseite.
+    c = {"node_type": "collection", "topic_page_url": "  "}
+    assert _is_pure_sammlung_card(c) is True
+    assert _is_themenseite_card(c) is False
+
+
 def test_content_card_is_einzelinhalt():
     c = {"node_type": "content"}
     assert _is_einzelinhalt_card(c) is True
@@ -130,50 +152,20 @@ def test_ui_box_footer_counts_mixed_boxes():
     assert "WAHRHEITSPFLICHT" in footer
 
 
-# ════════════════════════════════════════════════════════════════════════
-# _redact_search_content_for_llm — characterization (ALT: nur Integration)
-# ════════════════════════════════════════════════════════════════════════
-
-def test_redact_not_inline_mode_returns_truncated_raw():
-    raw = "X" * 5000
-    out = _redact_search_content_for_llm(
-        "search_wlo_content", raw, [{"node_type": "content"}], False)
-    assert out == raw[:4000]
-    assert len(out) == 4000
-
-
-def test_redact_inline_but_no_cards_returns_truncated_raw():
-    raw = "Roh-Treffer-Text"
-    assert _redact_search_content_for_llm("search_wlo_content", raw, [], True) == raw[:4000]
-
-
-def test_redact_non_leak_tool_not_redacted():
-    # search_wlo_collections steht NICHT auf der Leak-Liste → User sieht die Treffer.
-    raw = "Sammlungs-Treffer"
-    cards = [{"node_type": "content"}]
-    assert _redact_search_content_for_llm("search_wlo_collections", raw, cards, True) == raw[:4000]
-
-
-def test_redact_leak_tool_but_only_collections_not_redacted():
-    # Leak-Tool, aber konkret nur Sammlungen zurück → keine Einzelinhalte → keine Redaction.
-    raw = "Meta-Sammlung"
-    cards = [{"node_type": "collection"}]
-    assert _redact_search_content_for_llm("get_collection_contents", raw, cards, True) == raw[:4000]
-
-
-def test_redact_einzelinhalte_replaced_with_summary_and_type_breakdown():
-    raw = "Bruchrechnen-Video, Arbeitsblatt Brüche, ..."
-    cards = [
-        {"node_type": "content", "learning_resource_type": "Video"},
-        {"node_type": "content", "learning_resource_type": "Video"},
-        {"node_type": "content", "lrt_label": "Arbeitsblatt"},
-    ]
-    out = _redact_search_content_for_llm("search_wlo_content", raw, cards, True)
-    assert out.startswith(
-        "OK - search_wlo_content lieferte 3 Einzelinhalte (2x Video, 1x Arbeitsblatt)."
+def test_der_fusstext_zaehlt_den_optik_zug_wie_das_frontend():
+    # Der gemessene Zug (2026-08-16, ``search_wlo_all`` zu „Optik"): zwei
+    # Sammlungen mit Themenseite, zwei ohne, acht Einzelinhalte. Der Fusstext
+    # meldete „0 Themenseite(n), 4 Sammlung(en)" — das Frontend rendert 2/2.
+    cards = (
+        [{"node_type": "collection", "topic_page_url": f"https://repo/tp/{i}"}
+         for i in range(2)]
+        + [{"node_type": "collection"} for _ in range(2)]
+        + [{"node_type": "content"} for _ in range(8)]
     )
-    assert "Bruchrechnen" not in out          # Roh-Titel für die LLM redacted
-    assert "NICHT im Antwort-Text" in out
+    footer = _ui_box_state_footer(cards, True)
+    assert "2 Themenseite(n) sichtbar" in footer
+    assert "2 Sammlung(en) sichtbar" in footer
+    assert "8 Einzelinhalt(e) NICHT sichtbar" in footer
 
 
 # ════════════════════════════════════════════════════════════════════════

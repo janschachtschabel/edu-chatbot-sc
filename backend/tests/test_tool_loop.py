@@ -19,7 +19,13 @@ import json
 import logging
 from types import SimpleNamespace
 
-from boerdi.services import llm, tool_loop, tool_loop_fallback, tool_loop_messages
+from boerdi.services import (
+    card_collect,
+    llm,
+    tool_loop,
+    tool_loop_fallback,
+    tool_loop_messages,
+)
 from boerdi.settings import get_settings
 
 
@@ -150,7 +156,12 @@ def _run_assemble(monkeypatch, *, rag_ctx=None, settings=None,
         or {"top_k": 7, "min_score": 0.4, "max_chars_per_area": 5000})
     monkeypatch.setattr(retrieval, "get_rag_context", rag_ctx or _RagCtx())
     if parse_cards is not None:
-        monkeypatch.setattr(tool_loop_messages, "parse_wlo_cards", parse_cards)
+        # Seit 2026-08-16 parst die Prefetch-Einspeisung über
+        # ``card_collect.parse_cards_for_tool`` statt über eine eigene Kopie der
+        # Weiche. Der Standardparser bleibt die Naht — so behalten die Tests ihr
+        # „gegebener Text → diese Karten", und die Weiche selbst wird mitgeprüft
+        # statt umgangen.
+        monkeypatch.setattr(card_collect, "parse_wlo_cards", parse_cards)
     if parse_topic is not None:
         monkeypatch.setattr(parsers, "parse_wlo_topic_page_cards", parse_topic)
 
@@ -348,15 +359,24 @@ def test_assemble_mcp_prefetch_topic_pages_uses_topic_parser(monkeypatch):
     assert all_cards == [{"node_id": "tp1", "topic_pages": [{"u": 1}]}]
 
 
-def test_assemble_mcp_prefetch_collections_get_node_type_default(monkeypatch):
+def test_assemble_mcp_prefetch_reicht_den_server_typ_durch(monkeypatch):
+    """Die Prefetch-Einspeisung übernimmt den Kartentyp des Servers unverändert.
+
+    Ohne Parser-Attrappe: der Umschlag geht durch den ECHTEN Parser. Vorher
+    pinnte dieser Test, dass ein fehlender ``node_type`` zu ``"collection"``
+    ergänzt wird — das konnte nur die Attrappe erzeugen, die den Schlüssel
+    wegließ. Am echten Weg gab es diesen Fall nie.
+    """
+    umschlag = json.dumps({"total": 2, "count": 2, "results": [
+        {"nodeId": "c1", "title": "Sammlung Optik", "nodeType": "collection"},
+        {"nodeId": "i1", "title": "Ein Arbeitsblatt", "nodeType": "content"},
+    ]})
     all_cards = _run_assemble(
         monkeypatch,
-        parse_cards=lambda txt: [{"node_id": "c1"},
-                                 {"node_id": "c2", "node_type": "portal"}],
         prefetched_tool={"name": "search_wlo_collections", "arguments": {},
-                         "result_text": "RAW"})[1]
-    assert all_cards[0]["node_type"] == "collection"  # defaulted
-    assert all_cards[1]["node_type"] == "portal"      # existing value kept
+                         "result_text": umschlag})[1]
+    assert [(c["node_id"], c["node_type"]) for c in all_cards] == [
+        ("c1", "collection"), ("i1", "content")]
 
 
 def test_assemble_parse_error_still_injects_with_empty_outcome(monkeypatch):
@@ -884,7 +904,7 @@ def test_loop_entity_filters_injected(monkeypatch):
     assert "learningResourceType" not in args2              # collections: no LRT filter
 
 
-def test_loop_card_yielding_gate_and_collection_marking(monkeypatch):
+def test_loop_card_yielding_gate(monkeypatch):
     out = _OutcomeFake({"search_wlo_collections": "colls",
                         "lookup_wlo_vocabulary": "## Vokabular"})
     _fake, _r, st = _run_loop(monkeypatch, [
@@ -892,9 +912,12 @@ def test_loop_card_yielding_gate_and_collection_marking(monkeypatch):
                      ("tc2", "lookup_wlo_vocabulary", "{}")]),
         _resp_text("fertig"),
     ], outcome=out, parse_cards=lambda text: [{"node_id": "n1", "title": "T"}])
-    # collections yield cards, marked node_type=collection
-    assert st["all_cards"] == [
-        {"node_id": "n1", "title": "T", "node_type": "collection"}]
+    # Die Karten kommen so an, wie der Parser sie liefert — unverändert. Bis
+    # 2026-08-16 erwartete dieser Test hier ein nachgetragenes
+    # ``node_type: "collection"``; das entstand allein durch die Attrappe, die
+    # den Schlüssel wegließ. Der echte Parser setzt ihn immer, der
+    # nachtragende ``setdefault`` war deshalb wirkungslos und ist entfernt.
+    assert st["all_cards"] == [{"node_id": "n1", "title": "T"}]
     # vocabulary tool yields NO cards (CARD_YIELDING_TOOLS gate), but the raw
     # text goes back to the LLM (non-inline mode: no redaction, empty footer)
     tool_msgs = [m for m in st["messages"] if m.get("role") == "tool"]
@@ -1006,6 +1029,112 @@ def test_card_yielding_tools_is_module_level_and_covers_the_combo_search():
 def test_card_yielding_tools_covers_the_two_new_card_tools():
     for name in ("search_wlo_within_collection", "get_related_content"):
         assert name in tool_loop.CARD_YIELDING_TOOLS, name
+
+
+# ── Die Parser-Weiche stand dreimal da — und lief auseinander ────────────
+# Review-Befund 2026-08-16: ``tool_loop_messages`` parst die Prefetch-Ergebnisse
+# mit einer EIGENEN Kopie der Weiche, die der W9b-Fix nie erreicht hat. Gemessen
+# an der echten „Optik"-Antwort: Werkzeugschleife 12 Karten, Prefetch 0. Und der
+# Prefetch waehlt ``search_wlo_all`` selbst (prefetch.py:206/276), der Fall ist
+# also der Normalfall, nicht der Rand.
+
+_KOMBI_ANTWORT = json.dumps({
+    "query": "Optik",
+    "content": {"total": 9, "count": 1, "results": [
+        {"nodeId": "c1", "title": "Arbeitsblatt Licht", "nodeType": "content"},
+    ]},
+    "collections": {"total": 1, "count": 1, "results": [
+        {"nodeId": "s1", "title": "Geometrische Optik", "nodeType": "collection"},
+    ]},
+    "topicPages": {"total": 1, "count": 1, "results": [
+        {"nodeId": "t1", "title": "Optik", "nodeType": "collection",
+         "topicPageUrl": "https://repo/topic-pages?collectionId=t1"},
+    ]},
+})
+
+
+def test_die_kombi_suche_liefert_alle_drei_toepfe_als_karten():
+    from boerdi.services.card_collect import parse_cards_for_tool
+
+    titel = [c["title"] for c in parse_cards_for_tool("search_wlo_all", _KOMBI_ANTWORT)]
+    assert titel == ["Arbeitsblatt Licht", "Geometrische Optik", "Optik"]
+
+
+def test_prefetch_und_werkzeugschleife_ernten_dieselben_karten():
+    # Die eigentliche Zusicherung: EIN Aufruf, EIN Ergebnis — egal ob es aus
+    # dem Prefetch kommt oder aus der Schleife des Modells.
+    from boerdi.services.card_collect import collect_cards, parse_cards_for_tool
+
+    ueber_die_schleife = collect_cards([], "search_wlo_all", _KOMBI_ANTWORT)
+    ueber_den_prefetch = parse_cards_for_tool("search_wlo_all", _KOMBI_ANTWORT)
+    assert [c["node_id"] for c in ueber_die_schleife] == \
+           [c["node_id"] for c in ueber_den_prefetch]
+
+
+def test_die_weiche_reicht_den_server_typ_durch():
+    # Der ``setdefault``-Schutz fuer ``search_wlo_collections`` ist wirkungslos
+    # und war es schon vorher: der Envelope-Leser setzt ``node_type`` IMMER
+    # (Vorgabe "content"), also greift ``setdefault`` nie. Er schadet nicht —
+    # aber wer sich auf ihn verlaesst, irrt. Massgeblich ist der ``nodeType``
+    # des Servers, und den liefert er bei Sammlungstreffern (live geprueft).
+    from boerdi.services.card_collect import parse_cards_for_tool
+
+    mit_typ = json.dumps({"total": 1, "count": 1, "results": [
+        {"nodeId": "s9", "title": "Mathematik", "nodeType": "collection"},
+    ]})
+    ohne_typ = json.dumps({"total": 1, "count": 1, "results": [
+        {"nodeId": "s9", "title": "Mathematik"},
+    ]})
+    assert parse_cards_for_tool("search_wlo_collections", mit_typ)[0]["node_type"] == "collection"
+    assert parse_cards_for_tool("search_wlo_collections", ohne_typ)[0]["node_type"] == "content"
+
+
+def test_die_weiche_haelt_die_themenseiten_varianten():
+    from boerdi.services.card_collect import parse_cards_for_tool
+
+    roh = json.dumps({"total": 1, "count": 1, "results": [
+        {"collectionId": "tp1", "title": "Klimawandel",
+         "topicPageUrl": "https://repo/tp",
+         "variants": [{"variantId": "v1", "targetGroup": "teacher",
+                       "targetGroupLabel": "Lehrkräfte"}]},
+    ]})
+    karte = parse_cards_for_tool("search_wlo_topic_pages", roh)[0]
+    assert karte["topic_pages"], "ohne Varianten rendert das Frontend keine Themenseite"
+
+
+def test_die_weiche_erkennt_den_themenseiten_topf_der_kombi_suche():
+    # EIN Werkzeugname, ZWEI Antwortformen. Der Prefetch zerlegt das
+    # ``search_wlo_all``-Envelope und etikettiert den Themenseiten-Topf mit
+    # ``search_wlo_topic_pages`` (respond.py:196-201) — der Topf traegt aber
+    # ``nodeId``, nicht ``collectionId``+``variants``. Der dedizierte Parser
+    # verwarf deshalb JEDEN Eintrag (``if not cid: continue``).
+    #
+    # Live gemessen 2026-08-16 an der echten Optik-Antwort:
+    # content 10 -> 10 Karten, collections 2 -> 2, topicPages 2 -> 0.
+    # Verloren gingen genau die Sammlungen MIT Themenseite, also die
+    # kuratierten — darunter „Optik" (9e7ae956), die einzige mit Skills.
+    from boerdi.services.card_collect import parse_cards_for_tool
+
+    topf = json.dumps({"total": 1, "count": 1, "results": [
+        {"nodeId": "9e7ae956", "title": "Optik", "nodeType": "collection",
+         "topicPageUrl": "https://repo/topic-pages?collectionId=9e7ae956"},
+    ]})
+    karten = parse_cards_for_tool("search_wlo_topic_pages", topf)
+    assert [c["node_id"] for c in karten] == ["9e7ae956"]
+    assert karten[0]["topic_page_url"], "ohne die Adresse fehlt der Themenseiten-Knopf"
+
+    # Und sie muss als Themenseite ERKENNBAR sein, nicht nur vorhanden:
+    # ``_is_themenseite_card`` steuert die Box-Zuordnung. Ohne diese Zusicherung
+    # lag die Sammlung im Sammlungs-Kasten und teilte sich dessen Deckel (3) —
+    # der Fund war da, aber am falschen Platz und wieder verdrängbar.
+    from boerdi.domain.cards.build import _is_themenseite_card
+
+    class _Karte:
+        def __init__(self, d):
+            self.node_type = d.get("node_type", "")
+            self.topic_pages = d.get("topic_pages") or []
+
+    assert _is_themenseite_card(_Karte(karten[0]))
 
 
 # ── K1f-Fund: der Abschluss-Fallback bucht seine Token ───────────────────

@@ -52,12 +52,41 @@ def _env_int(name: str, default: int) -> int:
 
 # Tool-Name → Gate-Schwelle. Sammlungen/Themenseiten streng (saubere CE-Trennung),
 # Einzelinhalte mild (kurze Titel → verrauschter).
+#
+# Das Sammlungs-Tor stand bis 2026-08-16 auf 0.0 und war damit strenger als die
+# Lage, gegen die es gebaut wurde. Live gemessen an der Anfrage „Optik":
+#   +0.52  „Geometrische Optik"      — klarer Treffer
+#   -0.27  „Optik"                   — die GESUCHTE Sammlung, fiel heraus
+#   -2.46  thematisch verfehlt       — das Rauschen, gegen das 0.0 stand
+#          (Regression 2026-06-02: generische Themenseiten ~ -2.4)
+# Kuratierte Sammlungen tragen oft eine leere ``description`` — der CE urteilt
+# dann über Titel + Stichworte und landet knapp negativ, ohne off-topic zu sein.
+# -1.0 trennt Treffer von Rauschen und bleibt strenger als das Inhalts-Tor.
 def threshold_for_tool(tool_name: str) -> float:
     name = (tool_name or "").strip()
     if name in ("search_wlo_collections", "search_wlo_topic_pages"):
-        return _env_float("CARD_CE_GATE_COLLECTION", 0.0)
+        return _env_float("CARD_CE_GATE_COLLECTION", -1.0)
     # search_wlo_content, get_collection_contents, get_node_details, …
     return _env_float("CARD_CE_GATE_CONTENT", -1.5)
+
+
+def _normalisiert(s: str) -> str:
+    """Vergleichsform eines Namens: Groß/Klein und Leerraum egal."""
+    return " ".join(str(s or "").split()).casefold()
+
+
+def _ist_namensgleich(item: dict[str, Any], query_norm: str) -> bool:
+    """Trägt dieser Treffer GENAU den gesuchten Namen?
+
+    Nutzer-Vorgabe 2026-08-16: wer „Optik" sucht, muss die Sammlung „Optik"
+    bekommen — auch wenn der Cross-Encoder sie schlechter bewertet als eine
+    breiter beschriebene Nachbarsammlung. Bewusst nur Gleichheit, keine
+    Teilstring-Suche: „Optik" in „Geometrische Optik" wäre kein Namensgleich,
+    sondern ein zweiter, schwächerer Relevanzbegriff neben dem CE.
+    """
+    if not query_norm or not isinstance(item, dict):
+        return False
+    return _normalisiert(item.get("title") or "") == query_norm
 
 
 def _doc_text(item: dict[str, Any]) -> str:
@@ -67,7 +96,7 @@ def _doc_text(item: dict[str, Any]) -> str:
     t = str(item.get("title") or "").strip()
     d = str(item.get("description") or "").strip()
     kw = item.get("keywords") or item.get("general_keyword") or []
-    if isinstance(kw, (list, tuple)):
+    if isinstance(kw, list | tuple):
         kw = " ".join(str(k) for k in kw)
     return f"{t}. {d} {kw}".strip()[:450]
 
@@ -162,8 +191,16 @@ def rerank_gate_envelope(
             "in": len(results), "out": len(kept),
         }
 
+    # Namensgleichheit schlägt den CE-Wert: der Zuschlag geht in DIESELBE Zahl,
+    # die auch das Tor prüft — der gleichnamige Treffer steht damit vorn UND
+    # überlebt, statt beides getrennt regeln zu müssen.
+    _q_norm = _normalisiert(query)
+    _bonus = _env_float("CARD_CE_EXACT_BONUS", 2.0)
     scored = sorted(
-        zip(results, (float(s) for s in scores)),  # noqa: B905 (verbatim ALT)
+        (
+            (r, float(s) + (_bonus if _ist_namensgleich(r, _q_norm) else 0.0))
+            for r, s in zip(results, scores)  # noqa: B905 (verbatim ALT)
+        ),
         key=lambda x: x[1], reverse=True,
     )
     if soft_gate:

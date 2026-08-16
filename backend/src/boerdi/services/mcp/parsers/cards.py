@@ -173,12 +173,11 @@ def _cards_from_json_envelope(data: dict) -> list[dict] | None:
         # den ``components/collections?id=<uuid>``-Browse-Endpoint, nicht
         # ``components/render/<uuid>`` (das ist ccm:io-Permalink und liefert
         # für eine Sammlung eine falsche/leere Detail-View). Für content-
-        # Nodes bleibt render/<uuid> korrekt. Hinweis: Wenn die Eingabe
-        # ``nodeType`` nicht setzt (default "content"), aber später per
-        # ``c.setdefault("node_type", "collection")`` in den callers
-        # (chat.py / llm_service.py für search_wlo_collections) überschrieben
-        # wird, holt ``normalize_cards`` (card_pipeline) den wlo_url-Repair
-        # nach — siehe dort.
+        # Nodes bleibt render/<uuid> korrekt. Hinweis: Wer den ``node_type``
+        # NACH dem Parsen noch ändert — etwa ``collect_cards``, das eine Karte
+        # mit Themenseiten-Varianten zur Sammlung befördert —, hinterlässt eine
+        # ``wlo_url`` aus der alten Sicht. ``normalize_cards`` (card_pipeline)
+        # holt den Repair nach; siehe dort.
         _repo = get_repo_base_url()
         if node_type == "collection":
             _wlo_url = f"{_repo}/edu-sharing/components/collections?id={nid}"
@@ -254,6 +253,48 @@ def parse_wlo_cards(mcp_text: str) -> list[dict]:
     return cards
 
 
+def _als_themenseiten_karten(karten: list[dict]) -> list[dict]:
+    """Karten aus dem ``topicPages``-Topf als Themenseiten kenntlich machen.
+
+    Der Topf ist eine gewöhnliche FormattedNode-Liste: der Server setzt
+    ``nodeType='collection'`` und liefert ``topicPageUrl``, aber KEINE
+    ``variants``. Damit erkannte ``_is_themenseite_card``
+    (``domain/cards/build``:211) sie nicht — sie landeten in der Sammlungs-Box
+    statt in der Themenseiten-Box und teilten sich deren Deckel (Vorgabe 3).
+    Live gemessen 2026-08-16 an „Optik": drei Sammlungen, Themenseiten-Box
+    leer; bei einer vierten Sammlung wäre die gesuchte wieder ganz
+    herausgefallen — derselbe Ausgang wie vor dem Parser-Fix, nur durch das
+    Box-Budget.
+
+    Erzeugt wird die Form, die ``parse_wlo_topic_page_cards`` liefert:
+    ``node_type='topic_page'`` plus EINE Variante mit der Adresse. Fehlt
+    ``topicPageUrl``, wird sie wie dort aus der Knoten-ID abgeleitet
+    (``topic_pages.py``:182) — sonst hinge die Erkennung an einem Feld, das der
+    Server weglassen darf.
+
+    ``wlo_url`` bleibt bewusst unangetastet: es zeigt auf das konfigurierte
+    Repositorium (Paket #195), während ``topicPageUrl`` roh vom MCP kommt und
+    von :func:`_normalize_card_repo_hosts` nicht erfasst wird. Es zu
+    überschreiben hiesse, einen Fremdhost in den Hauptlink zu holen.
+    """
+    for karte in karten:
+        if not isinstance(karte, dict):
+            continue
+        nid = karte.get("node_id") or ""
+        url = karte.get("topic_page_url") or (
+            f"{get_repo_base_url()}/edu-sharing/components/"
+            f"topic-pages?collectionId={nid}" if nid else ""
+        )
+        karte["node_type"] = "topic_page"
+        karte["topic_page_url"] = url
+        if not karte.get("topic_pages"):
+            karte["topic_pages"] = [{
+                "variant_id": "", "target_group": "",
+                "label": "Themenseite", "url": url,
+            }]
+    return karten
+
+
 def parse_search_all_cards(mcp_text: str) -> dict[str, list[dict]]:
     """Parst das ``search_wlo_all``-Envelope in DREI getrennte Karten-Töpfe.
 
@@ -293,4 +334,6 @@ def parse_search_all_cards(mcp_text: str) -> dict[str, list[dict]]:
         sub = obj.get(key)
         if isinstance(sub, dict):
             out[pot] = _cards_from_json_envelope(sub) or []
+    # Nur dieser Topf: die anderen beiden behalten den Typ des Servers.
+    out["topic_pages"] = _als_themenseiten_karten(out["topic_pages"])
     return out

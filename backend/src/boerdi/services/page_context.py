@@ -441,6 +441,18 @@ def _bestands_zeilen(fakten: Any) -> list[str]:
     keinen Vorabruf, und für ihn endete der Weg damit vor dem ersten Schritt.
     Gepinnt von ``test_der_block_nennt_den_weg_den_das_modell_auch_gehen_kann``.
 
+    **Der Rang der Anleitungen steht seit 2026-08-16 im Hinweis** (Nutzer-Regel:
+    „skills stehen dabei über den mustern die der chatbot von haus aus
+    mitbringt"). Vorher nannte der Block den Weg zur Anleitung, aber nicht ihren
+    Vorrang — im selben Prompt stand die mitgelieferte Muster-Vorlage, und keine
+    Regel sagte, welche gewinnt. Der Befund: der Bot nahm seine eigene. Der
+    Hinweis wächst dadurch, das Titel-Budget schrumpft entsprechend — die
+    A4-Zusage rechnet ihn ab (``budget`` unten), sie bricht also nicht.
+
+    Der Routing-Teil derselben Regel wohnt in ``domain/skill_precedence``: er
+    nimmt die Schnellwege aus dem Weg, damit dieser Block überhaupt gelesen
+    wird. Ein Schnellweg baut nie einen Antwort-Prompt.
+
     Ohne Fakten eine leere Liste: eine Überschrift ohne Inhalt liest sich für
     das Modell wie ein Ausfall und lädt zum Erfinden ein.
     """
@@ -461,11 +473,14 @@ def _bestands_zeilen(fakten: Any) -> list[str]:
     if not isinstance(skills, int) or not skills:
         return zeilen
 
-    ueberschrift = f"### Freigegebene Anleitungen (Skills) dieser Sammlung — {skills}"
+    ueberschrift = f"### Freigegebene Skills dieser Sammlung — {skills}"
     hinweis = (
-        "Diese Anleitungen sind für GENAU diese Sammlung freigegeben. Dies ist "
+        "Diese Skills sind für GENAU diese Sammlung freigegeben und gehen "
+        "deinen mitgelieferten Vorlagen VOR: Deckt einer von ihnen die Frage ab, "
+        "arbeite nach ihm — auch dann, wenn du für dieselbe Ausgabe eine eigene "
+        "Vorlage hättest. Dies ist "
         "die Teil-Registry dieser Seite: Titel, ohne IDs und ohne Inhalt. Passt "
-        "eine zur Frage, geh die zwei Stufen weiter — ``get_skill_registry`` mit "
+        "einer zur Frage, geh die zwei Stufen weiter — ``get_skill_registry`` mit "
         "der unten genannten Sammlungs-ID nennt zu jedem Titel die ``nodeId`` "
         "samt Verwendungshinweis der Redaktion, dann liefert ``get_skill`` mit "
         "dieser ``nodeId`` den Wortlaut — und arbeite danach, statt den Ablauf "

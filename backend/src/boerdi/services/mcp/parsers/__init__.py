@@ -31,6 +31,7 @@ anderen intern auf (gemessen 2026-08-01).
 """
 
 from boerdi.services.mcp.parsers.cards import (
+    _als_themenseiten_karten,
     parse_search_all_cards,
     parse_total_count,
     parse_wlo_cards,
@@ -40,6 +41,7 @@ from boerdi.services.mcp.parsers.skill_registry import (
     parse_skill_registries,
     skill_count_of,
     skill_registry_note,
+    skill_titel,
 )
 from boerdi.services.mcp.parsers.text_blocks import (
     parse_content_text,
@@ -52,6 +54,7 @@ from boerdi.services.mcp.parsers.topic_pages import (
 )
 
 __all__ = [
+    "_als_themenseiten_karten",
     "_first_json_object",
     "_topic_page_display_title",
     "parse_content_text",
@@ -64,4 +67,5 @@ __all__ = [
     "parse_wlo_topic_page_cards",
     "skill_count_of",
     "skill_registry_note",
+    "skill_titel",
 ]

@@ -21,8 +21,12 @@ Katalog zweimal in derselben Nachricht.
 from __future__ import annotations
 
 import json
+import re
+
+import pytest
 
 from boerdi.services.mcp.parsers import parse_skill_registries, skill_registry_note
+from boerdi.services.mcp.parsers import skill_registry as sr
 
 # ── Der gemessene Envelope, auf das Noetige gekuerzt ─────────────────────
 # Form 1:1 vom Server: ``skillRegistry`` sitzt auf einem Treffer, nicht auf
@@ -617,3 +621,162 @@ def test_unbrauchbare_formen_werfen_nicht():
     assert skill_count_of({"skillRegistry": {}}) == 0
     assert skill_count_of(None) == 0
     assert skill_count_of("kein dict") == 0
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Nachfassen nach dem Katalog-Abruf (2026-08-16)
+#
+# Live gemessen in der Sammlung „Optik": das Modell ruft
+# ``get_skill_registry``, bekommt 32 855 Zeichen — und ruft ``get_skill``
+# NICHT. Ausgeschlossen sind: fehlendes Werkzeug (steht in M09s Liste,
+# ``seeds/03-patterns/m09-lernpfad-erstellung.md:20``), fehlende nodeId (die
+# Antwort trägt sie) und fehlende Anweisung (sie steht dreifach — Seitenblock
+# und beide Werkzeugbeschreibungen).
+#
+# Was blieb: die Katalog-Beschreibungen lesen sich wie ein fertiger Auftrag.
+# Für „Stunde planen" steht dort „tabellarischer Verlaufsplan mit Phasen,
+# Minuten, Sozialform und Material je Phase" — nach 32 855 Zeichen fühlt sich
+# das vollständig an. Deshalb greift der Hinweis an der ENTSCHEIDUNGSSTELLE,
+# direkt am Werkzeug-Ergebnis, statt als vierter Absatz in einem langen
+# Systemprompt (Drei-Schlag-Regel: drei Formulierungen haben nicht gewirkt).
+#
+# Die Lücke war strukturell: ``parse_skill_registries`` sucht ``skillRegistry``
+# an Knoten, eine ``get_skill_registry``-Antwort trägt aber ``{"registry": …}`` —
+# und ``_SAMMLUNGS_WERKZEUGE`` kennt das Werkzeug nicht. Es wurde also gar
+# nichts angehängt.
+# ════════════════════════════════════════════════════════════════════════
+
+#: Die echte Antwortform, am Server gemessen (2026-08-16, Sammlung „Optik").
+_REGISTRY_ANTWORT = json.dumps({
+    "registry": {
+        "collectionId": "9e7ae956-e9df-430f-bace-f3db4b910013",
+        "registryNodeId": "d84d54c4-f473-4e4b-8d54-c4f4738e4b87",
+        "registryTitle": "Skillkatalog Physik Optik",
+        "markdown": "# Skillkatalog Physik Optik\n\n## Stunde planen\n…",
+        "entries": [
+            {"nodeId": "5b29f470-4417-49bb-a9f4-70441739bb3a",
+             "title": "Stunde planen",
+             "description": "Plant eine konkrete Einzel- oder Doppelstunde als "
+                            "tabellarischen Verlaufsplan mit Phasen, Minuten, "
+                            "Sozialform und Material je Phase.",
+             "keywords": ["stunde-planen", "Stundenentwurf für die 8b"]},
+        ],
+    },
+    "reason": None,
+    "note": "Der Registry-Text stammt aus dem WLO-Repository …",
+})
+
+
+def test_nach_dem_katalog_abruf_wird_nachgefasst():
+    """Der Kern: nach ``get_skill_registry`` steht der Anstoß zum zweiten Schritt."""
+    out = skill_registry_note(
+        _REGISTRY_ANTWORT, tool_name="get_skill_registry",
+        args={"collectionId": "9e7ae956-e9df-430f-bace-f3db4b910013"})
+
+    assert out, "Nach dem Katalog-Abruf wurde nichts angehängt."
+    # Wortgrenze wie in ``test_der_block_nennt_den_weg…``: ohne sie genügte
+    # schon ein ``get_skill_registry`` der Zusicherung — und genau das Werkzeug
+    # hat das Modell ja gerade gerufen.
+    assert re.search(r"get_skill(?!_)", out), "Der zweite Schritt wird nicht benannt."
+
+
+def test_der_nachfass_sagt_dass_der_katalog_nicht_der_skill_ist():
+    """Die entscheidende Aussage — und der Grund, warum drei bestehende
+    Formulierungen nicht reichten: sie sagen, WIE es weitergeht, aber nicht,
+    dass der Katalog in der Hand des Modells den Skill NICHT enthält."""
+    out = skill_registry_note(_REGISTRY_ANTWORT, tool_name="get_skill_registry")
+    assert "nicht den skill" in out.lower()
+
+
+def test_der_nachfass_gilt_nur_dem_katalog_werkzeug():
+    """Andere Werkzeuge bleiben unberührt — sonst stünde der Anstoß unter
+    jedem Suchergebnis und triebe das Modell in Abrufe für Fragen, die
+    niemand gestellt hat. Dieselbe Bedingung wie bei ``_anstoss``."""
+    for werkzeug in ("search_wlo_content", "get_node_details", "get_skill"):
+        assert skill_registry_note(
+            _REGISTRY_ANTWORT, tool_name=werkzeug, args={"nodeId": "x"}) == "", (
+            f"{werkzeug} bekommt einen Nachfass-Hinweis, der ihm nicht zusteht.")
+
+
+def test_der_nachfass_doppelt_den_katalog_block_nicht():
+    """Trägt ein Listen-Ergebnis selbst eine Freigabeliste, steht dort schon
+    ``_AUFFORDERUNG``. Der Nachfass darf nicht zusätzlich erscheinen — sonst
+    stünde die Bitte zweimal in derselben Nachricht."""
+    listen_ergebnis = json.dumps({"results": [{
+        "nodeId": "9e7ae956", "title": "Optik",
+        "skillRegistry": {"nodeId": "d84d54c4", "entries": [
+            {"nodeId": "5b29f470", "title": "Stunde planen"}]},
+    }]})
+    out = skill_registry_note(
+        listen_ergebnis, tool_name="search_wlo_collections", args={"query": "Optik"})
+    assert "get_skill(nodeId)" in out          # der Katalog-Block ist da
+    assert out.count("get_skill") <= 3         # aber kein zweiter Anstoß-Block
+
+
+# ── Verworfen: die Feldnamen in den Hinweis schreiben ───────────────
+#
+# Zwischenstand am 2026-08-16, hier festgehalten, damit es niemand erneut
+# versucht. Weil das Modell in Lauf 3 zuerst die ``registryNodeId`` (die des
+# Katalog-Dokuments) statt einer Eintrags-ID nahm, stand im Hinweis eine
+# Runde lang die Feldangabe: „nodeId AUS DIESEM EINTRAG (Feld
+# entries[].nodeId), NICHT registryNodeId".
+#
+# Vier Live-Laeufe damit, gemessen an derselben Nachricht:
+#   Lauf 4  get_skill kam nicht
+#   Lauf 5  get_skill('e6bcb2e0…')  → 100 Zeichen zurueck (ID in keiner Registry)
+#   Lauf 6  get_skill('???')        →  67 Zeichen zurueck (Platzhalter statt ID)
+#   Lauf 7  get_skill kam nicht
+# Zum Vergleich Lauf 3, mit dem Wortlaut OHNE Feldangabe: zwei Aufrufe, der
+# zweite lud „Stunde planen" mit 14 290 Zeichen.
+#
+# Die Feldangabe hat das Modell also nicht praeziser gemacht, sondern zum
+# Erfinden von IDs gebracht — der Hinweis ist deshalb zurueckgenommen. Das
+# war der zweite erfolglose Anlauf derselben Art; weitere Umformulierungen
+# sind nicht der Weg (Drei-Schlag-Regel). Was zuverlaessig traegt, ist das
+# deterministische Laden (Plan-Variante B).
+
+
+# ── Der Titel einer geholten Anleitung (Nutzer-Vorgabe 2026-08-16) ─────────
+# ``get_skill`` antwortet mit MARKDOWN, nicht mit JSON — gemessen 2026-08-16
+# gegen den echten Server:
+#
+#     # Stunde planen
+#     nodeId: 5b29f470-4417-49bb-a9f4-70441739bb3a
+#
+#     ## Aktivierung
+#     …
+#
+# Der Titel ist also die H1 der ersten Zeile. Er traegt die hartcodierte
+# Chat-Ansage (``domain/skill_precedence.mit_ladehinweis``).
+
+_ECHTES_SKILL_ERGEBNIS = (
+    "# Stunde planen\n"
+    "nodeId: 5b29f470-4417-49bb-a9f4-70441739bb3a\n\n"
+    "## Aktivierung\nGib diese Zeile … aus:\n\n"
+    "[ edu-sharing Skill ] Stunde planen - aktiv\n"
+)
+
+
+def test_der_titel_kommt_aus_der_h1_der_ersten_zeile():
+    assert sr.skill_titel(_ECHTES_SKILL_ERGEBNIS) == "Stunde planen"
+
+
+def test_fuehrende_leerzeilen_stoeren_nicht():
+    assert sr.skill_titel("\n\n  # Arbeitsblatt bauen\nnodeId: x") == "Arbeitsblatt bauen"
+
+
+@pytest.mark.parametrize("roh", [
+    "", "   ", None, 42,
+    "nodeId: x\n# Erst spaeter",      # H1 nicht in der ersten Zeile
+    "## Nur eine H2\nText",           # keine H1
+    "Fliesstext ohne alles",
+])
+def test_ohne_h1_am_anfang_kein_titel(roh):
+    """Lieber kein Titel als ein geratener: die Ansage traegt ihn woertlich in
+    den Chat, und eine falsche Auskunft ist schlechter als keine."""
+    assert sr.skill_titel(roh) == ""
+
+
+def test_der_titel_wird_gedeckelt_und_einzeilig():
+    titel = sr.skill_titel("# " + "x" * 400 + "\nnodeId: x")
+    assert 0 < len(titel) <= sr._MAX_TITLE

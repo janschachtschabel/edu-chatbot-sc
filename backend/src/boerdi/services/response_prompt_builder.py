@@ -25,6 +25,7 @@ import json
 import logging
 from typing import Any
 
+from boerdi.domain.skill_precedence import anleitungs_hinweis, laufende_anleitung
 from boerdi.i18n import resolve_locale
 from boerdi.services import page_context
 from boerdi.services import response_prompt_display_blocks as _display
@@ -114,6 +115,14 @@ Rolle in dieser Phase: {_resp_state_meta.get('role', '—')}
     # P3: semantic page-context block (resolved theme-page metadata, cached on
     # session_state["entities"]["_page_metadata"] by the page_context_enrich node).
     # Goes after the generic context so the LLM treats it as prime information.
+    #
+    # ``_pm`` steht ausserhalb des ``try``, weil P3c es unten nochmal braucht:
+    # ein zweiter ``get_cached``-Aufruf liefe ohne diese Absicherung, und ein
+    # Ausfall des Zwischenspeichers darf den Prompt nicht kosten (gepinnt von
+    # ``test_page_context_block_failure_is_swallowed``). Bleibt es bei ``None``,
+    # fällt P3c auf die Gesprächs-Notiz zurück — der einzige Skill-Hinweis, der
+    # dann noch zu haben ist.
+    _pm: dict[str, Any] | None = None
     try:
         _pm = page_context.get_cached(session_state)
         _pb = page_context.render_for_prompt(_pm, environment.get("page_context"))
@@ -127,6 +136,37 @@ Rolle in dieser Phase: {_resp_state_meta.get('role', '—')}
                 system_parts.append(_raw_pb)
     except Exception:  # noqa: BLE001 — a page-block failure must never break the prompt
         _logger.debug("page-context prompt block failed", exc_info=True)
+
+    # P3b: die Anleitung, die noch in Arbeit ist. Ein Skill, der eine Rückfrage
+    # stellt, bekommt die Antwort erst im NÄCHSTEN Zug — und der entschied bis
+    # 2026-08-16 neu: gemessen ging „45 min physik sek 1" beim Klassifikator in
+    # ein fremdes Muster, worauf das Modell eine andere Anleitung holte und
+    # einen Material-Fund statt des Verlaufsplans lieferte.
+    #
+    # Der Block INFORMIERT und zwingt nicht — die Nutzer-Regel „das Modell
+    # entscheidet, was es nutzt" bleibt; es soll die laufende Anleitung nur
+    # überhaupt kennen.
+    _lauf = laufende_anleitung(
+        session_state.get("entities"), session_state.get("turn_count"))
+    if _lauf:
+        system_parts.append(
+            "## Laufender Skill\n"
+            f"In diesem Gespräch ist der freigegebene Skill `{_lauf}` in "
+            "Arbeit — er hat zuletzt geantwortet oder nachgefragt.\n"
+            "Passt die neue Nachricht dazu, auch als knappe Antwort auf seine "
+            f"Rückfrage, arbeite mit IHM weiter: `get_skill(\"{_lauf}\")`. Geht "
+            "es erkennbar um etwas anderes, ist er erledigt und du wählst frei."
+        )
+
+    # P3c: Anleitungen, die nur aus dem GESPRÄCH bekannt sind. Der Seitenblock
+    # oben trägt den Katalog nur, wenn Seiten-Metadaten da sind; wer über die
+    # Suche kommt, hat keine. Der Entscheid darüber (auch: auf der Seite
+    # schweigen) sitzt in ``domain/skill_precedence`` — dieselbe Regel, die das
+    # Routing liest, hier für den zweiten Leser.
+    _skills = anleitungs_hinweis(
+        (_pm or {}).get("context_facts"), session_state.get("entities"))
+    if _skills:
+        system_parts.append(_skills)
 
     # P4: M11 Edit needs the pre-edit canvas content explicitly in the prompt.
     _m11 = _display.render_m11_rerender_block(pattern_output, session_state)

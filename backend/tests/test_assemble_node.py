@@ -75,6 +75,38 @@ def _run(ctx):
 _EMPTY_RESULT = ([], [], None, None, "ANSWER")
 
 
+# ── Die Skill-Notiz fürs Gespräch (Vorrang-Kette, 2026-08-16) ────
+# Der Knoten ist die MITTE der Kette: die reine Entscheidung
+# (``domain/skill_precedence``) und ihr Leser (``graph/nodes/route``) haben
+# eigene Tests — der Aufruf DAZWISCHEN hatte keinen. Wer ihn entfernt, sieht
+# eine grüne Suite und einen stillschweigend kaputten Anwendungsfall: der
+# Sucheinstieg fände die Sammlung, löste aber nie den Skill aus.
+
+def _karte(node_id: str, titel: str, skills: int) -> WloCard:
+    return WloCard(node_id=node_id, title=titel, node_type="collection",
+                   skill_count=skills)
+
+
+def test_notiert_die_sammlung_mit_anleitungen_fuer_folgezuege(monkeypatch):
+    rec = _Rec()
+    _install_spy(monkeypatch, rec, (
+        [_karte("f35c17d1", "Geometrische Optik", 28), _karte("x1", "Ohne", 0)],
+        [], None, None, "ANSWER",
+    ))
+    ctx = _ctx()
+    _run(ctx)
+    assert ctx.session_state["entities"]["_skill_bestand"] == [
+        {"anzahl": 28, "titel": "Geometrische Optik", "node_id": "f35c17d1"}]
+
+
+def test_ohne_anleitungen_bleibt_der_zustand_unberuehrt(monkeypatch):
+    rec = _Rec()
+    _install_spy(monkeypatch, rec, ([_karte("x1", "Ohne", 0)], [], None, None, "ANSWER"))
+    ctx = _ctx()
+    _run(ctx)
+    assert "_skill_bestand" not in ctx.session_state["entities"]
+
+
 # ── arg-mapping contract ─────────────────────────────────────────
 
 def test_maps_ctx_fields_to_service(monkeypatch):

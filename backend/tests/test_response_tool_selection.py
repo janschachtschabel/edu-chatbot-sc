@@ -162,6 +162,33 @@ def test_no_medientyp_keeps_search_wlo_all(monkeypatch):
     assert "search_wlo_content" in names
 
 
+def test_medientyp_sammlung_behaelt_die_sammlungssuche(monkeypatch):
+    """Nutzer-Befund 2026-08-16: „Suche mir Sammlungen zum Thema Optik" ergab
+    ``medientyp='Sammlung'``, worauf genau die Werkzeuge verschwanden, die
+    Sammlungen finden. Ohne Sammlungskarte gibt es keine Skill-Notiz und damit
+    keinen Vorrang der freigegebenen Anleitungen.
+
+    Die Begruendung des Strips traegt nur fuer INHALTS-Typen; meint der
+    Medientyp die Sammlung selbst, ist die Sammlungssuche der richtige Weg."""
+    _disable_cards(monkeypatch)
+    names = _names(
+        {"tools": list(_SEARCH_TOOLS_WITH_ALL), "sources": ["mcp"]},
+        entities={"medientyp": "Sammlung"},
+    )
+    assert "search_wlo_all" in names
+    assert "search_wlo_collections" in names
+    assert "search_wlo_topic_pages" in names
+
+
+def test_medientyp_themenseite_behaelt_die_sammlungssuche(monkeypatch):
+    _disable_cards(monkeypatch)
+    names = _names(
+        {"tools": list(_SEARCH_TOOLS_WITH_ALL), "sources": ["mcp"]},
+        entities={"medientyp": "Themenseite"},
+    )
+    assert "search_wlo_topic_pages" in names
+
+
 def test_medientyp_adds_content_when_pattern_omitted_it(monkeypatch):
     _disable_cards(monkeypatch)
     # Pattern listet nur Sammlungen/Themenseiten; medientyp strippt beide →

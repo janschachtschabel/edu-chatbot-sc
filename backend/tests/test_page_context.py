@@ -236,6 +236,31 @@ def test_der_block_nennt_den_weg_den_das_modell_auch_gehen_kann():
     assert "C1" in out
 
 
+def test_der_block_sagt_den_vorrang_vor_den_mitgelieferten_vorlagen_an():
+    """Nutzer-Regel 2026-08-16: „skills stehen dabei über den mustern die der
+    chatbot von haus aus mitbringt. wenn es ein muster für die gleiche ausgabe
+    aus dem skill und eines aus dem bot gibt - sollte er den skill nutzen".
+
+    Der Block nannte den Weg zur Anleitung, aber nicht ihren Rang. Damit stand
+    Aussage gegen Aussage: hier eine freigegebene Anleitung, dort eine
+    mitgelieferte Vorlage im selben Prompt — und keine Regel, welche gewinnt.
+    Der Routing-Teil dieser Regel sitzt in ``domain/skill_precedence``; dies
+    hier ist der Teil, den das Modell liest.
+
+    Geprüft wird die **Aussage**, nicht ihr Wortlaut: der Rang („vor") und der
+    ausdrückliche Gleichstands-Fall (eine eigene Vorlage für dieselbe Ausgabe),
+    denn genau der war der Befund.
+    """
+    meta = {"title": "Geometrische Optik",
+            "context_facts": {"skills": 28, "skill_titles": ["Stunde planen"]}}
+    out = p.render_for_prompt(meta, {"page_kind": "collection", "collection_id": "C1"})
+
+    assert "VOR" in out, "Der Rang der Anleitungen steht nicht im Block."
+    assert "Vorlage" in out, (
+        "Der Gleichstands-Fall fehlt — genau er war der Befund: der Bot hatte "
+        "eine eigene Vorlage für dieselbe Ausgabe und nahm sie.")
+
+
 def test_der_bestandsabschnitt_laesst_sich_abschalten():
     """Review-Befund 2026-08-14: ``render_for_prompt`` hat DREI Verbraucher,
     nicht zwei — auch der Klassifikator (``classify_prompt.py:244``) liest ihn.

@@ -433,6 +433,80 @@ async def test_bestand_und_skillkatalog_stehen_in_der_agent_kette(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_anleitungen_aus_dem_gespraech_stehen_in_der_agent_kette(monkeypatch):
+    """Der Sucheinstieg hat keinen Seitenkontext — und damit bis 2026-08-16 auch
+    keinen Skill-Hinweis: ``prompt_block`` liefert ohne Metadaten nichts, und die
+    Notiz aus ``merke_skill_sammlung`` las nur das Routing. Der Agent wusste also
+    weder von den Anleitungen noch von der ``collectionId`` für Stufe 1.
+
+    Gegenstück auf der Muster-Seite:
+    ``test_response_prompt_builder.test_anleitungen_aus_dem_gespraech_stehen_im_prompt``.
+    """
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    ctx.session_state["entities"]["_skill_bestand"] = {
+        "anzahl": 28, "titel": "Geometrische Optik", "node_id": "f35c17d1"}
+    await respond_agent(ctx)
+    systeme = "\n".join(m["content"] for m in seen["run_agent_loop"]["messages"]
+                        if m.get("role") == "system")
+    # Zeilenweise: der Seitenblock heißt ``### … dieser Sammlung`` und enthält
+    # die kürzere Überschrift als Zeichenfolge.
+    assert "## Freigegebene Skills" in systeme.splitlines()
+    assert 'collectionId="f35c17d1"' in systeme
+
+
+@pytest.mark.anyio
+async def test_auf_der_sammlungsseite_bleibt_es_beim_seitenblock(monkeypatch):
+    """Gegenrichtung: steht der Bestand auf der Seite, trägt ihn der Seitenblock
+    — ein zweiter Hinweis daneben wären zwei Stimmen zur selben Sache."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    meta = {**_AUFGELOEST, "context_facts": {"materials": 35, "skills": 28}}
+    ctx = _ctx(page_context=_SAMMLUNG, page_meta=meta)
+    ctx.session_state["entities"]["_skill_bestand"] = {
+        "anzahl": 28, "titel": "Geometrische Optik", "node_id": "f35c17d1"}
+    await respond_agent(ctx)
+    systeme = "\n".join(m["content"] for m in seen["run_agent_loop"]["messages"]
+                        if m.get("role") == "system")
+    assert "## Freigegebene Skills" not in systeme.splitlines()
+    assert "### Freigegebene Skills dieser Sammlung" in systeme
+
+
+@pytest.mark.anyio
+async def test_die_ladezeile_steht_vor_der_agent_antwort(monkeypatch):
+    """Nutzer-Vorgabe 2026-08-16: eine hartcodierte Zeile, sobald ``get_skill``
+    eine Anleitung geladen hat — statt der Ansage aus dem Ergebnis, die das
+    Modell gemessen umformulierte.
+
+    Gegenstück auf der Muster-Seite:
+    ``test_respond_node.test_die_ladezeile_steht_vor_der_antwort``.
+    """
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    ctx.session_state["turn_count"] = 4
+    ctx.session_state["entities"]["_skill_lauf"] = {
+        "node_id": "5b29f470", "zug": 4, "titel": "Stunde planen"}
+    await respond_agent(ctx)
+    assert ctx.response_text.splitlines()[0] == (
+        "[ edu-sharing Skill ] Stunde planen - wird geladen")
+
+
+@pytest.mark.anyio
+async def test_ohne_geladene_anleitung_bleibt_die_agent_antwort_nackt(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    await respond_agent(ctx)
+    assert "edu-sharing Skill" not in ctx.response_text
+
+
+@pytest.mark.anyio
 async def test_ohne_seitenkontext_bleibt_die_kette_wie_bisher(monkeypatch):
     # Gegenprobe zu ``test_verlauf_und_nachricht_stehen_in_der_kette``: ohne
     # Seite darf kein leerer Block und kein Vorabruf dazukommen.

@@ -1,17 +1,31 @@
-"""Pure inline-grouping helpers (P5-3-Rest, extracted from ALT llm_tool_loop.py's
-pure layer): the P13 result-grouping helpers that decide what the user actually
-sees in ``inline_result_grouping`` mode — card-visibility predicates
-(``_is_einzelinhalt_card`` / ``_is_themenseite_card`` / ``_is_pure_sammlung_card``),
-the anti-hallucination UI-box-status footer (``_ui_box_state_footer``) and the
-LLM-visible tool-result redaction (``_redact_search_content_for_llm``) — plus the
-response-text QR/guide-line stripper (``_strip_trailing_option_lines``).
+"""Was der NUTZER von einem Zug zu sehen bekommt (P5-3-Rest, aus ALT
+llm_tool_loop.py's pure layer): die Karten-Zuordnung
+(``_is_einzelinhalt_card`` / ``_is_themenseite_card`` / ``_is_pure_sammlung_card``
+über :func:`_kartenart`), der Anti-Halluzinations-Fußtext
+(``_ui_box_state_footer``), der Auswahl-Deckel (:func:`max_selectable_cards`)
+und der Optionszeilen-Stripper (``_strip_trailing_option_lines``).
 
-All framework-free (stdlib + logger) → ``domain/``. Verbatim 1:1 from ALT (byte-
-exact contiguous extraction incl. comments); the I/O tool-loop body that consumes
-them (``_assemble_messages`` / ``_run_tool_loop``) stays in ALT and is ported with
-the respond/RAG layer (P6). These predicates duplicate the not-yet-ported
-``chat_cards.py`` copies (kept in sync in ALT via T-4); when chat_cards lands its
-slice should reuse these instead of re-duplicating.
+Was das MODELL zu sehen bekommt, wohnt seit 2026-08-16 nebenan in
+``tool_result_redaction`` — eigener Änderungsgrund (die Antwortformen des
+MCP-Servers), eigene Datei. Es fragt hier nur die Kasten-Zuordnung ab.
+
+Framework-frei (stdlib + Logger) → ``domain/``.
+
+**Kein reiner ALT-Port mehr** (richtiggestellt 2026-08-16): byte-genau aus ALT
+``llm_tool_loop.py`` stammen ``_strip_trailing_option_lines`` und
+``_ui_box_state_footer``; ``max_selectable_cards`` (2026-08-14) und
+``_kartenart`` (2026-08-16) sind hier entstanden. Bis dahin behauptete dieser
+Kopf „verbatim 1:1 / byte-exact" für die ganze Datei — wer daraufhin einen
+AST-Abgleich gegen ALT fährt (das Verfahren, mit dem die großen Ports
+abgenommen wurden), liest aus dem Ergebnis einen abgedrifteten Port statt zweier
+bewusster Ergänzungen.
+
+Erledigt, deshalb nur noch als Notiz: der Tool-Loop-Rumpf, der diese Helfer
+konsumiert, ist portiert (``services/tool_loop.py`` +
+``services/tool_loop_messages.py``). Und die Zwillings-Kopie der Prädikate aus
+ALT ``chat_cards.py`` ist **nicht** wieder entstanden — jene Scheibe landete in
+``domain/cards/build.py`` + ``lp_diversity.py`` und greift auf die Zuordnung
+hier zurück, wie es der frühere Kopf erbeten hatte.
 """
 
 from __future__ import annotations
@@ -57,17 +71,6 @@ def _strip_trailing_option_lines(text: str, quick_replies: list[str]) -> str:
 # von ``generate_response`` und lasen ``_inline_grouping_mode`` aus dem
 # umgebenden Scope — jetzt Modul-Funktionen mit explizitem Parameter
 # (Call-Sites: Prefetch-Injektion + Tool-Loop).
-# Tools deren Ergebnis im inline_result_grouping-Modus Einzelinhalt-
-# Details enthalten könnte und damit Quellen für "Arbeitsblatt"-/
-# "Video"-/"Inhalt"-Leakage in den Bot-Text sind. Nicht enthalten:
-# search_wlo_collections / _topic_pages / browse_collection_tree /
-# get_subject_portals — deren Treffer SIND als Boxen sichtbar, der
-# User sieht also was beschrieben wird.
-_EINZELINHALT_LEAK_TOOLS = {
-    "search_wlo_content",      # primärer Treffer-Pool für Einzelmaterialien
-    "get_collection_contents",  # Sammlung-Inhalte = i.d.R. Einzelmaterialien
-    "get_node_details",        # Detail-View eines konkreten (oft Einzel-)Knotens
-}
 
 #: Untergrenze des Auswahl-Deckels. Bis 2026-08-14 stand hier eine harte 5 im
 #: Tool-Loop; weniger als das wäre eine Verschlechterung gegenüber dem Bestand.
@@ -114,32 +117,51 @@ def max_selectable_cards(display_rules: dict) -> int:
     return max(MIN_SELECTABLE_CARDS, min(MAX_SELECTABLE_CARDS, summe))
 
 
+def _kartenart(c: dict) -> str:
+    """``"topic_page"`` | ``"collection"`` | ``"content"`` — der Kasten, in dem
+    diese Karte landen wird.
+
+    **Spiegelt ``domain.cards.normalize._infer_node_type``, nicht die
+    Frontend-Prädikate** — und das ist der Punkt: die drei Prädikate hier laufen
+    auf NOCH NICHT normalisierten Karten, das Frontend sieht die normalisierten.
+    Wer hier die Frontend-Bedingung nachbaut, misst eine Stufe zu früh.
+
+    Konkret unterschied sich die bisherige Hand-Kopie in ``topic_page_url``: der
+    Envelope-Leser setzt bei ``search_wlo_all`` genau dieses Feld und KEIN
+    Varianten-Array. Gemessen am Optik-Zug (2026-08-16) meldete der Fußtext
+    deshalb „0 Themenseite(n) sichtbar, 4 Sammlung(en)", während das Frontend
+    2 und 2 rendert.
+
+    Von Hand nachgebaut statt importiert, weil dieses Modul zur Importzeit
+    abhängigkeitsfrei bleibt (Kopfkommentar) und ``normalize`` den
+    ``config_loader`` mitbringt. Ändert sich ``_infer_node_type``, gehört diese
+    Funktion mit — dafür steht sie als EINE Stelle statt als drei.
+    """
+    nt = (c.get("node_type") or "").strip().lower()
+    if (nt == "topic_page"
+            or c.get("topic_pages")
+            or str(c.get("topic_page_url") or "").strip()):
+        return "topic_page"
+    if nt == "collection":
+        return "collection"
+    return "content"
+
+
 def _is_einzelinhalt_card(c: dict) -> bool:
     """True wenn die Card im Frontend als Einzelinhalt rendert (also NICHT
-    in den sichtbaren Boxen erscheint, nur über die Such-CTA erreichbar
-    ist). Spiegelt die Frontend-Klassifikation ``isInhalt`` aus
-    ``chat.component.ts``: node_type != 'collection'."""
-    nt = (c.get("node_type") or "").strip().lower()
-    if nt == "collection":
-        return False
-    # Topic-pages werden im Frontend als Themenseiten gerendert (sichtbar).
-    if c.get("topic_pages"):
-        return False
-    return True
+    in den sichtbaren Boxen erscheint, nur über die Such-CTA erreichbar ist)."""
+    return _kartenart(c) == "content"
+
 
 def _is_themenseite_card(c: dict) -> bool:
-    """Frontend-Spiegel: node_type 'topic_page' ODER collection +
-    topic_pages-Variants vorhanden."""
-    # hält Bedingung mit chat_cards._is_themenseite_card synchron (T-4, 2026-07-10)
-    if c.get("node_type") == "topic_page":
-        return True
-    return (c.get("node_type") == "collection"
-            and bool(c.get("topic_pages")))
+    """True wenn die Card in den Themenseiten-Kasten läuft."""
+    return _kartenart(c) == "topic_page"
+
 
 def _is_pure_sammlung_card(c: dict) -> bool:
-    """Frontend-Spiegel: collection ohne topic_pages."""
-    return (c.get("node_type") == "collection"
-            and not c.get("topic_pages"))
+    """True wenn die Card eine Sammlung OHNE kuratierte Themenseite ist."""
+    return _kartenart(c) == "collection"
+
 
 def _ui_box_state_footer(cards: list[dict], _inline_grouping_mode: bool) -> str:
     """Strukturierte Beschreibung dessen, was der User NACH diesem Tool-
@@ -169,60 +191,4 @@ def _ui_box_state_footer(cards: list[dict], _inline_grouping_mode: bool) -> str:
         "Einzelinhalten / Material-Typen gefragt hat. NIEMALS "
         "Sammlungen/Themenseiten erfinden, die der UI-Status nicht "
         "zeigt — das ist eine Halluzination."
-    )
-
-def _redact_search_content_for_llm(
-    name: str, raw_text: str, parsed_cards: list[dict],
-    _inline_grouping_mode: bool,
-) -> str:
-    """Im inline_result_grouping-Modus die Einzelinhalte aus dem
-    LLM-sichtbaren Tool-Result-Text rausziehen — die Cards selbst
-    bleiben in ``all_cards`` / Prefetch-Akkumulatoren erhalten, sodass
-    Such-CTA-Count und Lernpfad-Generator (separater Flow) weiter
-    Zugriff haben.
-
-    Greift wenn:
-      - inline_result_grouping-Modus aktiv UND
-      - Tool gehört zu den Einzelinhalt-Quellen UND
-      - die geparsten Cards enthalten mindestens 1 Einzelinhalt.
-
-    Tools mit ausschließlich Sammlungen/Themenseiten (search_wlo_collections,
-    search_wlo_topic_pages, browse_collection_tree, get_subject_portals)
-    werden NICHT redacted — der User SIEHT diese Treffer.
-    """
-    if not (_inline_grouping_mode and parsed_cards):
-        return raw_text[:4000]
-    if name not in _EINZELINHALT_LEAK_TOOLS:
-        return raw_text[:4000]
-    einzel = [c for c in parsed_cards if _is_einzelinhalt_card(c)]
-    if not einzel:
-        # Tool steht zwar auf der Leak-Liste, aber konkret nur Sammlungen
-        # zurückgekommen → keine Redaction nötig (z.B. get_collection_contents
-        # einer Meta-Sammlung).
-        return raw_text[:4000]
-    n = len(einzel)
-    types: dict[str, int] = {}
-    for c in einzel:
-        lrt = (c.get("lrt_label")
-               or c.get("learning_resource_type")
-               or "Inhalt")
-        types[lrt] = types.get(lrt, 0) + 1
-    type_summary = ", ".join(
-        f"{k}x {t}" for t, k in sorted(
-            types.items(), key=lambda x: -x[1],
-        )[:5]
-    ) or "verschiedene Typen"
-    _logger.info(
-        "inline_grouping: redacted %s (n=%d einzelinhalte, types=%s)",
-        name, n, type_summary,
-    )
-    return (
-        f"OK - {name} lieferte {n} Einzelinhalte "
-        f"({type_summary}). Diese sind im Backend gespeichert "
-        "und werden NICHT als sichtbare Items angezeigt - der "
-        "User erreicht sie nur ueber die Such-CTA. WICHTIG: "
-        "Du darfst diese Einzelinhalte NICHT im Antwort-Text "
-        "erwaehnen, zaehlen oder typisieren (kein 'ein Video', "
-        "'ein Arbeitsblatt', 'zwei Materialien', 'eine Aufgabe'). "
-        "Sprich im Text NUR ueber Themenseiten und Sammlungen."
     )

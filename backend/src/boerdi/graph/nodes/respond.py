@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING, Any
 
 from boerdi.domain.answer_notes import append_answer_notes
 from boerdi.domain.quick_reply_policy import _qr_default_count, _spec_qr_response_block
+from boerdi.domain.skill_precedence import mit_ladehinweis
 from boerdi.graph.nodes.respond_agent import respond_agent
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
@@ -443,6 +444,15 @@ async def respond(
     # Policy-Disclaimer + Medium-Risk-Notiz (seit A4c-2b in ``domain/answer_notes``,
     # weil der Agent-Modus denselben Text zu verantworten hat).
     response_text = append_answer_notes(response_text, policy=policy, safety=safety)
+    # Hartcodierte Ansage, wenn dieser Zug eine Anleitung geladen hat
+    # (Nutzer-Vorgabe 2026-08-16). Sie steht VOR den Hinweisen oben, weil
+    # sie ansagt, was gleich kommt — und nach ihnen berechnet, weil sie
+    # dem fertigen Text vorangestellt wird.
+    response_text = mit_ladehinweis(
+        response_text,
+        (session_state or {}).get("entities"),
+        (session_state or {}).get("turn_count"),
+    )
 
     # Triple-Schema T-25/27: Confidence + State-Hint aus den Tool-Outcomes.
     from boerdi.services.outcome_service import adjust_confidence, derive_state_hint

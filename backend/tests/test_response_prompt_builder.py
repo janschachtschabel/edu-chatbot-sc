@@ -131,6 +131,77 @@ def test_page_context_block_failure_is_swallowed(_cfg):
     assert "## Aktuelle Seite —" not in system
 
 
+# ── Laufende Anleitung (P3b, Nutzer-Test 2026-08-16) ───────────────────────
+# Ein Skill stellte seine Rückfrage („45 oder 90 Minuten?"). Die Antwort
+# „45 min physik sek 1" ging beim Klassifikator in ein fremdes Muster, das
+# Modell holte eine ANDERE Anleitung und lieferte einen Material-Fund statt des
+# Verlaufsplans. Der Block sagt dem Modell, welche Anleitung noch läuft.
+
+def test_laufende_anleitung_steht_im_prompt(_cfg):
+    ss = {"entities": {"_skill_lauf": {"node_id": "5b29f470", "zug": 3}},
+          "turn_count": 4}
+    system, *_ = _build(session_state=ss, environment={"page_context": {}})
+    assert "## Laufender Skill" in system
+    assert 'get_skill("5b29f470")' in system
+
+
+def test_abgelaufene_anleitung_steht_nicht_mehr_im_prompt(_cfg):
+    """Gegenrichtung: ohne Frist bekäme jeder spätere Zug denselben Hinweis,
+    auch bei ganz anderem Thema."""
+    ss = {"entities": {"_skill_lauf": {"node_id": "5b29f470", "zug": 3}},
+          "turn_count": 99}
+    system, *_ = _build(session_state=ss, environment={"page_context": {}})
+    assert "## Laufender Skill" not in system
+
+
+def test_ohne_notiz_kein_block(_cfg):
+    system, *_ = _build(session_state={"entities": {}}, environment={"page_context": {}})
+    assert "## Laufender Skill" not in system
+
+
+# ── Anleitungen aus dem Gespräch (P3c, live gemessen 2026-08-16) ───────────
+# Der Seitenweg trägt den Katalog über ``page_context._bestands_zeilen``. Beim
+# SUCHEINSTIEG gibt es keine Seiten-Metadaten — der Block blieb leer, und das
+# Modell erfuhr weder von den freigegebenen Anleitungen noch von der
+# ``collectionId``, mit der ``get_skill_registry`` anfängt.
+
+#: Der Notiz-Block heißt ``## …``, der Seitenblock ``### … dieser Sammlung`` —
+#: und ``###`` ENTHÄLT ``##``. Ein ``in system`` träfe deshalb beide. Geprüft
+#: wird die Zeile, nicht die Zeichenfolge.
+_NOTIZ_UEBERSCHRIFT = "## Freigegebene Skills"
+
+
+def _hat_notiz_block(system: str) -> bool:
+    return _NOTIZ_UEBERSCHRIFT in system.splitlines()
+
+
+def test_anleitungen_aus_dem_gespraech_stehen_im_prompt(_cfg):
+    ss = {"entities": {"_skill_bestand": {
+        "anzahl": 28, "titel": "Geometrische Optik", "node_id": "f35c17d1"}}}
+    system, *_ = _build(session_state=ss, environment={"page_context": {}})
+    assert _hat_notiz_block(system)
+    assert 'collectionId="f35c17d1"' in system
+    assert 'get_skill("<nodeId>")' in system
+
+
+def test_auf_der_sammlungsseite_bleibt_es_beim_seitenblock(_cfg):
+    """Gegenrichtung: dort steht der volle Katalog schon im Seitenblock — ein
+    zweiter Hinweis daneben wäre eine konkurrierende Stimme im selben Prompt."""
+    ss = {"entities": {
+        "_page_metadata": {"title": "Optik", "context_facts": {"skills": 28}},
+        "_skill_bestand": {"anzahl": 28, "titel": "Optik", "node_id": "f35c17d1"},
+    }}
+    system, *_ = _build(
+        session_state=ss, environment={"page_context": {"page_kind": "collection"}})
+    assert not _hat_notiz_block(system)
+    assert "### Freigegebene Skills dieser Sammlung" in system
+
+
+def test_ohne_gespraechs_notiz_kein_anleitungs_block(_cfg):
+    system, *_ = _build(session_state={"entities": {}}, environment={"page_context": {}})
+    assert not _hat_notiz_block(system)
+
+
 # ── M11 re-render (P4) ─────────────────────────────────────────────────────
 def test_m11_rerender_injects_prev_content_with_8000_cap(_cfg):
     po = {"label": "M11", "output_mode": "rerender", "body_md": ""}

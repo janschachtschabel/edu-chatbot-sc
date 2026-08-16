@@ -5,6 +5,8 @@ these are behavior pins, not a re-derivation. Pure formatting logic, no mocks ne
 
 from __future__ import annotations
 
+import pytest
+
 from boerdi.domain import inline_rendering as ir
 from boerdi.i18n import BOT_TEXT, SUPPORTED
 
@@ -16,7 +18,14 @@ def test_title_m09_bold_lernpfad_header_wins():
 
 
 def test_title_m09_topic_fallback_when_no_bold():
-    assert ir._inline_doc_title_for_pattern("M09", "# Kapitel", "Bruch") == "Lernpfad: Bruch"
+    # Nutzer-Entscheid 2026-08-16: der Rückfall nennt NUR das Thema, ohne das
+    # Wort „Lernpfad". Grund: seit ein freigegebener Skill sein eigenes Format
+    # vorgeben darf, ist der Inhalt dieser Box nicht mehr zwingend ein
+    # Lernpfad — live gemessen stand „Lernpfad: Optik" über einem
+    # Stundenentwurf. Die ART der Box zeigt ohnehin das Symbol
+    # (``inline-documents.component.ts``:37 aus ``doc.kind``); das Wort im
+    # Titel war Doppelung und im Skill-Fall schlicht falsch.
+    assert ir._inline_doc_title_for_pattern("M09", "# Kapitel", "Bruch") == "Bruch"
 
 
 def test_title_m10_material_type_bold():
@@ -130,8 +139,10 @@ def test_build_doc_llm_lead_when_no_template():
     dr = {"inline_documents": {"per_pattern": {"M09": True}}}
     docs, intro = ir._build_inline_document("M09", "Lead.\n\n# Body-Head\nRest", dr, topic="Bruch")
     assert intro == "Lead."
+    # ``kind`` trägt die Art der Box (das Widget zeichnet daraus sein Symbol),
+    # der Titel nur noch das Thema — siehe test_title_m09_topic_fallback_when_no_bold.
     assert docs[0]["kind"] == "lernpfad"
-    assert docs[0]["title"] == "Lernpfad: Bruch"
+    assert docs[0]["title"] == "Bruch"
     assert docs[0]["content"] == "# Body-Head\nRest"
     assert docs[0]["meta"] == {"pattern": "M09"}
 
@@ -141,6 +152,54 @@ def test_build_doc_extra_meta_merged():
     docs, _ = ir._build_inline_document("M11", "# H\nB", dr, extra_meta={"src": "x"})
     assert docs[0]["kind"] == "edit"
     assert docs[0]["meta"] == {"pattern": "M11", "src": "x"}
+
+
+# --- Ohne Überschrift keine Kachel (Nutzer-Befund 2026-08-16) --------------
+# Gemessen: der freigegebene Skill „Stunde planen" stellte seine Rückfrage
+# („Für welchen Jahrgang und welche Dauer … 45 oder 90 Minuten?"). Die Antwort
+# hatte 222 Zeichen und keine Überschrift. ``_split_lead_and_body`` gibt in dem
+# Fall alles als Body zurück — die Frage landete in der Material-Kachel mit dem
+# Titel „Optik" und der Art ``lernpfad``, die Sprechblase blieb LEER.
+#
+# Die drei Kachel-Muster verlangen alle ein H1 (M09 „1-Satz-Bubble-Lead VOR dem
+# H1 … dann ab H1 das Markdown", M10 dieselbe Formel je Materialtyp, M11 „der
+# KOMPLETTE editierte Markdown ab H1"). Fehlt es ganz, hat das Modell kein
+# Dokument geliefert, sondern Prosa — und Prosa gehört in die Blase.
+#
+# Der Längen-Wächter in ``turn_persist`` (``>= 200``) sollte genau das fangen
+# und griff nicht: 222 > 200. Länge ist das falsche Signal, die Struktur das
+# richtige.
+
+_RUECKFRAGE = (
+    "Für welchen Jahrgang und welche Dauer soll der Stundenentwurf gelten: "
+    "**45 oder 90 Minuten**? Außerdem: Ist die Stunde eine **Einführung**, "
+    "**Durcharbeitung**, **Übung** oder **Anwendung** innerhalb Ihrer "
+    "Unterrichtsreihe?"
+)
+
+
+def test_build_doc_rueckfrage_ohne_ueberschrift_bleibt_in_der_blase():
+    dr = {"inline_documents": {"per_pattern": {"M09": True}}}
+    docs, text = ir._build_inline_document("M09", _RUECKFRAGE, dr, topic="Optik")
+    assert docs == []
+    assert text == _RUECKFRAGE
+
+
+@pytest.mark.parametrize("pattern_id", ["M09", "M10", "M11"])
+def test_build_doc_ohne_ueberschrift_keine_kachel(pattern_id):
+    """Gilt für alle drei Kachel-Muster — jedes von ihnen schreibt ein H1 vor."""
+    dr = {"inline_documents": {"per_pattern": {pattern_id: True}}}
+    assert ir._build_inline_document(pattern_id, "Nur Fliesstext.", dr) == (
+        [], "Nur Fliesstext.")
+
+
+def test_build_doc_ueberschrift_mitten_im_text_zaehlt_weiter():
+    """Gegenrichtung: die Überschrift muss nicht am Anfang stehen. Genau dafür
+    gibt es den Lead — er steht davor und geht in die Blase."""
+    dr = {"inline_documents": {"per_pattern": {"M09": True}}}
+    docs, intro = ir._build_inline_document("M09", "Lead.\n\n# Kopf\nRest", dr)
+    assert intro == "Lead."
+    assert docs[0]["content"] == "# Kopf\nRest"
 
 
 # --- C1-f2b5: dieselbe Box auf Englisch ------------------------------------
@@ -154,8 +213,10 @@ def test_title_m09_english_bold_header_wins():
 
 
 def test_title_m09_english_topic_fallback_when_no_bold():
+    # Der neutrale Rückfall ist sprachunabhängig — ein blosses Thema braucht
+    # kein Label und damit auch keine Übersetzung.
     assert ir._inline_doc_title_for_pattern("M09", "# Chapter", "Fractions", lang="en") == \
-        "Learning path: Fractions"
+        "Fractions"
 
 
 def test_title_m10_english_material_type_bold():
@@ -200,7 +261,7 @@ def test_build_doc_english_end_to_end():
     docs, intro = ir._build_inline_document(
         "M09", "Lead.\n\n# Body-Head\nRest", dr, topic="Fractions", lang="en")
     assert intro == "Lead."
-    assert docs[0]["title"] == "Learning path: Fractions"
+    assert docs[0]["title"] == "Fractions"
 
 
 def test_jede_sprachtabelle_kennt_jede_unterstuetzte_sprache():

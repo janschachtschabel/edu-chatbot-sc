@@ -93,9 +93,24 @@ def _inline_doc_title_for_pattern(
         )
         if m:
             return f"{label}: {m.group(1).strip()}"[:120]
-        # Fallback für M09: Topic im Titel
+        # Rückfall für M09: NUR das Thema, ohne das Wort „Lernpfad"
+        # (Nutzer-Entscheid 2026-08-16). Seit ein freigegebener Skill sein
+        # eigenes Format vorgeben darf, ist der Inhalt dieser Box nicht mehr
+        # zwingend ein Lernpfad — live gemessen stand „Lernpfad: Optik" über
+        # einem Stundenentwurf, und der Mustertext M09 sagt für genau diesen
+        # Fall: „keine Lernpfad-Überschrift … die Redaktion hat das Format
+        # festgelegt". Ein neutraler Titel ist in beiden Fällen wahr.
+        #
+        # Die ART der Box geht dabei nicht verloren: das Widget zeichnet sein
+        # Symbol aus ``kind`` (``inline-documents.component.ts``:37) und hat für
+        # den titellosen Fall ein eigenes Label. Das Wort im Titel war
+        # Doppelung — und im Skill-Fall schlicht falsch.
+        #
+        # Trägt das Dokument selbst einen ``**Lernpfad: …**``-Kopf, gewinnt der
+        # oben; dies hier ist der Rückfall. Nebeneffekt: ein blosses Thema
+        # braucht kein Label und damit keine Übersetzung.
         if topic:
-            return f"{label}: {topic}"[:120]
+            return topic[:120]
 
     if pattern_id == "M10":
         m = _re.search(
@@ -231,6 +246,30 @@ def _strip_generic_lead_lines(lead: str, lang: Locale = DEFAULT) -> str:
     return cleaned
 
 
+#: ATX-Überschrift am Zeilenanfang. Als Konstante, weil zwei Stellen sie
+#: brauchen und jede sie anders auswertet: :func:`_split_lead_and_body` die
+#: POSITION, :func:`_hat_ueberschrift` nur das OB. Zwei Kopien desselben
+#: Ausdrucks driften auseinander — und dann teilt der eine, wo der andere gar
+#: keine Überschrift sieht.
+_ATX_UEBERSCHRIFT = r"(?m)^#{1,3}\s+\S"
+
+
+def _hat_ueberschrift(markdown: str) -> bool:
+    """Trägt der Text irgendwo eine ATX-Überschrift (``#``/``##``/``###``)?
+
+    Das Kriterium dafür, ob das Modell ein DOKUMENT geliefert hat: alle drei
+    Kachel-Muster schreiben eine vor — M09 „1-Satz-Bubble-Lead VOR dem H1 …
+    dann ab H1 das Markdown", M10 dieselbe Formel für jeden Materialtyp, M11
+    „der KOMPLETTE editierte Markdown ab H1". Fehlt sie ganz, ist die Antwort
+    Prosa (eine Rückfrage, ein Hinweis) und keine Kachel.
+
+    Zwei Leser, ein Ausdruck: :func:`_split_lead_and_body` teilt daran, und
+    :func:`_build_inline_document` entscheidet daran, ob es überhaupt teilt.
+    """
+    import re as _re  # noqa: F811 — verbatim ALT (local re-import)
+    return bool(_re.search(_ATX_UEBERSCHRIFT, markdown or ""))
+
+
 def _split_lead_and_body(markdown: str, lang: Locale = DEFAULT) -> tuple[str, str]:
     """Trennt den 1-2-Sätze-Lead vor dem ersten H1/H2 vom restlichen
     Markdown-Body.
@@ -256,7 +295,7 @@ def _split_lead_and_body(markdown: str, lang: Locale = DEFAULT) -> tuple[str, st
 
     # Suche nach erstem ATX-Heading (^# / ^## / ^### ...) — wir matchen
     # am Zeilen-Anfang.
-    m = _re.search(r"(?m)^#{1,3}\s+\S", md)
+    m = _re.search(_ATX_UEBERSCHRIFT, md)
     if not m:
         # Kein Heading → kein Body-Split, alles ist Lead-Material (kann
         # auch leer bleiben). Wir geben das ganze MD als Body zurück
@@ -287,9 +326,10 @@ def _build_inline_document(
     formality: str = "",
     lang: Locale = DEFAULT,
 ) -> tuple[list[dict[str, Any]], str]:
-    """Wenn das Pattern für Box-Rendering konfiguriert ist, packe das
-    Markdown in ein InlineDocument und gib einen Bubble-Lead-Text zurück.
-    Sonst leere Liste + Markdown unverändert weiterreichen.
+    """Wenn das Pattern für Box-Rendering konfiguriert ist UND das Markdown
+    eine Überschrift trägt, packe es in ein InlineDocument und gib einen
+    Bubble-Lead-Text zurück. Sonst leere Liste + Markdown unverändert
+    weiterreichen — dann geht der ganze Text in die Sprechblase.
 
     Welle E v4++++ (2026-05-26, eval-e901): Der Bubble-Lead kommt jetzt
     aus dem LLM-Output (Text vor erstem H1/H2), NICHT mehr aus
@@ -315,6 +355,23 @@ def _build_inline_document(
 
     per_pat = ind.get("per_pattern") or {}
     if not per_pat.get(pattern_id, False):
+        return [], markdown
+
+    # Ohne Überschrift gar keine Kachel (Nutzer-Befund 2026-08-16). Gemessen:
+    # der freigegebene Skill „Stunde planen" stellte seine Rückfrage („… 45
+    # oder 90 Minuten?"), 222 Zeichen ohne Überschrift — ``_split_lead_and_body``
+    # gibt dann alles als Body zurück, und die Frage stand als ``lernpfad``-
+    # Kachel „Optik" da, während die Sprechblase LEER blieb.
+    #
+    # Der Wächter muss HIER stehen und nicht in der Teilung: dort ist „keine
+    # Überschrift" von „Überschrift in Zeile 1" nicht zu unterscheiden (beide
+    # geben ``("", md)`` zurück), und ihre Zusage ist ALT-verbatim gepinnt.
+    #
+    # Warum die Struktur und nicht die Länge: ``turn_persist`` deckelt bereits
+    # bei 200 Zeichen und griff nicht (222 > 200). Ein langer Hinweistext ohne
+    # Dokument wäre weiterhin durchgerutscht. Alle drei Kachel-Muster schreiben
+    # ein H1 vor — siehe :func:`_hat_ueberschrift`.
+    if not _hat_ueberschrift(md):
         return [], markdown
 
     # Lead/Body-Split: Lead landet in der Bubble, Body in der Box.

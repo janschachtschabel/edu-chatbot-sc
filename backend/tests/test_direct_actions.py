@@ -18,6 +18,31 @@ from boerdi.obs.usage import add_usage, new_accumulator
 from boerdi.services import direct_actions
 
 
+def test_der_simplify_vermerk_wird_eingehalten():
+    """Die Ausnahme im Modulkopf nennt zwei Grenzen — hier werden sie geprüft.
+
+    Anlass (2026-08-16): der Vermerk nannte „~510 Zeilen", die Datei hatte 593.
+    Ein Auslöser, der nur als Prosa dasteht, wird von niemandem ausgewertet — er
+    rottet still, und genau das ist passiert. Der Vermerk nennt seither Grenzen
+    statt eines Ist-Werts, und dieser Test wertet sie aus.
+
+    Beim Überschreiten NICHT die Zahl hier hochsetzen: dann ist der Schnitt in
+    ein ``direct_actions/``-Paket fällig, und zuerst bei der längsten Funktion.
+    """
+    import ast
+    import pathlib
+
+    quelle = pathlib.Path(direct_actions.__file__).read_text(encoding="utf-8")
+    zeilen = len(quelle.splitlines())
+    laengste = max(
+        ((k.end_lineno or k.lineno) - k.lineno + 1, k.name)
+        for k in ast.walk(ast.parse(quelle))
+        if isinstance(k, ast.FunctionDef | ast.AsyncFunctionDef)
+    )
+    assert zeilen < 700, f"direct_actions.py: {zeilen} Zeilen — Schnitt fällig"
+    assert laengste[0] < 300, f"{laengste[1]}: {laengste[0]} Zeilen — zuerst hier schneiden"
+
+
 def _req(action: str, **params) -> ChatRequest:
     return ChatRequest(session_id="bb-1", message="los", action=action, action_params=params)
 

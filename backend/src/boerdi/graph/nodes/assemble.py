@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from boerdi.domain.skill_precedence import merke_skill_sammlung
 from boerdi.graph.state import TurnContext
 from boerdi.services.turn_assembly import _assemble_cards_and_qrs
 
@@ -48,6 +49,13 @@ async def assemble(ctx: TurnContext) -> TurnContext:
             wlo_cards_raw=ctx.wlo_cards_raw,
         )
     )
+    # Zeigte dieser Zug eine Sammlung mit freigegebenen Anleitungen? Dann für
+    # die FOLGEZÜGE merken. Hier, weil an dieser Stelle beides vorliegt: die
+    # fertigen Karten und der Zustand, den ``persist`` gleich schreibt
+    # (``build_debug_and_update_session`` ist der einzige Schreibvorgang des
+    # Zuges und läuft NACH diesem Knoten). Ohne die Notiz greift der
+    # Skill-Vorrang nur bei Nutzern, die schon auf der Sammlung stehen.
+    merke_skill_sammlung((ctx.session_state or {}).get("entities"), cards)
     ctx.cards = cards
     ctx.quick_replies = quick_replies
     ctx.page_action = page_action

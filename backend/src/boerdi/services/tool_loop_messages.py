@@ -18,12 +18,11 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from boerdi.domain.inline_grouping import (
-    _redact_search_content_for_llm,
-    _ui_box_state_footer,
-)
+from boerdi.domain.inline_grouping import _ui_box_state_footer
+from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
 from boerdi.domain.untrusted_text import frame_untrusted
-from boerdi.services.mcp.parsers import parse_wlo_cards, skill_registry_note
+from boerdi.services.card_collect import parse_cards_for_tool
+from boerdi.services.mcp.parsers import skill_registry_note
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -212,22 +211,10 @@ async def _assemble_messages(
         _args = prefetched_tool.get("arguments") or {}
         _txt = prefetched_tool["result_text"]
         try:
-            # Welle E v4+12 (Sprint K rev2, 2026-05-27): Topic-Pages-
-            # Primary-Prefetch braucht ``parse_wlo_topic_page_cards``,
-            # damit das ``topic_pages``-Variant-Array gefüllt wird — sonst
-            # rendert das Frontend die Cards als „Sammlung" statt
-            # „Themenseite". Bug-Befund: bei „Klimawandel"-Suche feuerte
-            # der Primary-Tool ``search_wlo_topic_pages`` korrekt, aber
-            # ``parse_wlo_cards`` verlor die Variant-Annotation → keine
-            # Themenseiten-Box im Chat-Widget.
-            if _name == "search_wlo_topic_pages":
-                from boerdi.services.mcp.parsers import parse_wlo_topic_page_cards as _ptp
-                mcp_prefetch_cards = _ptp(_txt) or []
-            else:
-                mcp_prefetch_cards = parse_wlo_cards(_txt) or []
-            if _name == "search_wlo_collections":
-                for c in mcp_prefetch_cards:
-                    c.setdefault("node_type", "collection")
+            # Dieselbe Weiche wie in der Werkzeugschleife — bewusst KEINE
+            # eigene Kopie mehr: sie stand hier bis 2026-08-16 nach und lief
+            # auseinander (``search_wlo_all`` → 0 statt 12 Karten, gemessen).
+            mcp_prefetch_cards = parse_cards_for_tool(_name, _txt)
         except Exception:
             mcp_prefetch_cards = []
         messages.append({
@@ -264,7 +251,6 @@ async def _assemble_messages(
     # für Remix-Anfragen).
     prefetched_extras_cards: list[dict] = []
     if prefetched_extras:
-        from boerdi.services.mcp.parsers import parse_wlo_topic_page_cards as _ptp
         for _i, _ex in enumerate(prefetched_extras):
             _ex_name = _ex.get("name") or ""
             _ex_args = _ex.get("arguments") or {}
@@ -273,16 +259,8 @@ async def _assemble_messages(
                 continue
             if _ex_name in (blocked_tools or []):
                 continue
-            # Cards parsen mit dem richtigen Parser. topic_pages liefert
-            # variant-Arrays, normale Such-Tools nicht.
             try:
-                if _ex_name == "search_wlo_topic_pages":
-                    _ex_cards = _ptp(_ex_text) or []
-                else:
-                    _ex_cards = parse_wlo_cards(_ex_text) or []
-                if _ex_name == "search_wlo_collections":
-                    for _c in _ex_cards:
-                        _c.setdefault("node_type", "collection")
+                _ex_cards = parse_cards_for_tool(_ex_name, _ex_text)
             except Exception:
                 _ex_cards = []
             prefetched_extras_cards.extend(_ex_cards)

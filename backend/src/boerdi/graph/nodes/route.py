@@ -44,11 +44,13 @@ from boerdi.domain.route_head import (
     _update_persona,
 )
 from boerdi.domain.route_tail import reconcile_effective_pattern
+from boerdi.domain.skill_precedence import skill_vorrang
 from boerdi.domain.state_machine import validate_transition
 from boerdi.domain.turn_frame import clarification_exhausted, resolve_frame
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
+from boerdi.services import page_context
 from boerdi.services.canvas_fast_path import (
     CanvasFastPathResult,
     run_canvas_create_fast_path,
@@ -188,7 +190,27 @@ async def route(
     #    daran, dass die Ersatz-Klassifikation zufällig nie I05 sagt — ein
     #    Verhalten, das nur aus einer Eigenschaft eines anderen Knotens folgt,
     #    ist geliehen und nicht zugesichert.
-    fast_paths_on = engine != "agent"
+    #
+    #    2026-08-16 kommt ein zweiter Grund dazu: freigegebene Anleitungen an
+    #    der Seite. Ein Schnellweg betritt die Werkzeugschleife nie und kann
+    #    deshalb kein ``get_skill`` rufen — auf ihm wäre die Nutzer-Regel
+    #    „Skills stehen über den mitgelieferten Mustern" bauartbedingt nicht
+    #    anwendbar. Tritt er zurück, läuft der Zug den gewöhnlichen Weg, und
+    #    das Modell entscheidet dort mit Katalog und Werkzeugen in der Hand.
+    #    Begründung und der verworfene Weg über den Klassifikator stehen in
+    #    ``domain/skill_precedence``.
+    #    Zwei Quellen, seit dem Testlauf 2026-08-16: der Seitenkontext UND das
+    #    Gespräch. Wer über die Suche kommt, steht auf keiner Sammlungsseite —
+    #    dort blieb der Vorrang bis dahin wirkungslos, obwohl der Treffer die
+    #    Anleitungen längst meldete (``merke_skill_sammlung`` im assemble-Knoten).
+    vorrang = skill_vorrang(
+        (page_context.get_cached(ss) or {}).get("context_facts"),
+        ss.get("entities"),
+    )
+    if vorrang.greift:
+        logger.info("Skill-Vorrang (%s): %d freigegebene Skills "
+                    "→ Schnellwege treten zurück", vorrang.quelle, vorrang.anzahl)
+    fast_paths_on = engine != "agent" and not vorrang.greift
     fp_response_local = ""
     fp_cards_local: list[dict[str, Any]] = []
     has_lp_intent, thema = detect_lp_intent(

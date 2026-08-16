@@ -6,7 +6,7 @@ Aufrufer dazukommt: dort baut nicht der Muster-Tool-Loop die Karten, sondern die
 Agent-Schleife — und beide müssen dieselbe Ernte einfahren, sonst misst der
 A/B-Vergleich einen Unterschied, den er selbst gebaut hat.
 
-Vier Dinge passieren hier, und drei davon sind teuer erkaufte Erfahrung:
+Drei Dinge passieren hier, und alle drei sind teuer erkaufte Erfahrung:
 
 * **Parser-Auswahl je Werkzeug.** ``search_wlo_topic_pages`` hat einen eigenen
   Parser (der Standard liest ``nodeId`` und ignoriert ``variants`` → Karten ohne
@@ -14,11 +14,10 @@ Vier Dinge passieren hier, und drei davon sind teuer erkaufte Erfahrung:
   Themenseiten-Knopf). ``search_wlo_all`` antwortet in DREI Töpfen statt mit
   einem ``results`` — der Standardparser gab darauf null Karten zurück (W9b,
   live gemessen: 13 verlorene Treffer).
-* **Sammlungen markieren**, damit die UI sie als Sammlung erkennt.
 * **Themenseiten in bestehende Karten mischen** statt sie danebenzustellen.
 * **Entdoppeln nach ``node_id``**, dabei Themenseiten-Angaben anreichern.
 
-Wer die Karten „mal eben selbst" parst, verliert alle vier — und zwar still.
+Wer die Karten „mal eben selbst" parst, verliert alle drei — und zwar still.
 """
 
 from __future__ import annotations
@@ -54,6 +53,61 @@ CARD_YIELDING_TOOLS: Final = {
 }
 
 
+def parse_cards_for_tool(tool_name: str, result_text: str) -> list[dict]:
+    """Die Karten EINES Werkzeug-Ergebnisses — mit dem Parser, der dazu passt.
+
+    Der erste der drei Punkte aus dem Modul-Docstring, herausgelöst, weil er
+    **drei** Aufrufer hat: diese Datei und zweimal ``tool_loop_messages`` für die
+    Prefetch-Einspeisung. Bis 2026-08-16 stand die Weiche dort als eigene Kopie,
+    die der W9b-Fix nie erreichte — gemessen an der echten „Optik"-Antwort gab
+    der Prefetch-Zweig 0 statt 12 Karten zurück, und weil ``search_wlo_all``
+    genau das Werkzeug ist, das der Prefetch selbst wählt, war das der
+    Normalfall. Der Fehler war nicht die Kopie, sondern dass es eine gab.
+
+    Maßgeblich für den Kartentyp ist der ``nodeType`` des Servers. Hier stand
+    bis 2026-08-16 ein ``setdefault("node_type", "collection")`` für
+    ``search_wlo_collections`` — er konnte nie greifen: der Server setzt das
+    Feld immer (``formatter.ts`` leitet es aus ``ccm:map`` ab, das
+    Ausgabe-Schema erzwingt es), und der Envelope-Leser setzt es ebenfalls
+    immer, notfalls auf ``"content"``. Wer den Typ hier erzwingen wollte,
+    überschriebe also eine Auskunft, statt eine Lücke zu füllen.
+    """
+    if tool_name == "search_wlo_topic_pages":
+        # Der Standardparser liest ``nodeId`` und ignoriert ``variants`` →
+        # Karten ohne ``topic_pages``-Feld → das Frontend rendert sie als
+        # flache Inhalts-Karte ohne Themenseiten-Knopf.
+        from boerdi.services.mcp.parsers import parse_wlo_topic_page_cards
+        karten = parse_wlo_topic_page_cards(result_text) or []
+        if karten:
+            return karten
+        # Unter DIESEM Namen kommen zwei Antwortformen an. Der Prefetch zerlegt
+        # das ``search_wlo_all``-Envelope und etikettiert dessen
+        # ``topicPages``-Topf hiermit (``graph/nodes/respond.py``:196-201). Der
+        # Topf ist aber eine gewöhnliche FormattedNode-Liste (``nodeId`` +
+        # ``topicPageUrl``), nicht die ``collectionId``+``variants``-Form des
+        # dedizierten Werkzeugs — der Themenseiten-Parser verwirft sie deshalb
+        # vollständig (``if not cid: continue``, ``parsers/topic_pages.py``:118).
+        # Live gemessen 2026-08-16 an „Optik": content 10→10 Karten,
+        # collections 2→2, topicPages 2→0. Verloren gingen genau die
+        # Sammlungen MIT Themenseite, also die kuratierten.
+        # Ein leeres Ergebnis kostet hier nichts: hat der Topf gar keine
+        # Treffer, geben beide Parser dasselbe ``[]`` zurück.
+        #
+        # ``_als_themenseiten_karten`` ist derselbe Schritt, den
+        # ``parse_search_all_cards`` auf seinen Themenseiten-Topf anwendet:
+        # der Standardparser liefert ``node_type='collection'`` ohne
+        # Varianten, und damit gilt die Karte flussabwärts als gewöhnliche
+        # Sammlung statt als Themenseite.
+        from boerdi.services.mcp.parsers import _als_themenseiten_karten
+        return _als_themenseiten_karten(parse_wlo_cards(result_text) or [])
+    if tool_name == "search_wlo_all":
+        # Drei Töpfe statt einem ``results`` — der Standardparser gibt 0 zurück.
+        from boerdi.services.mcp.parsers import parse_search_all_cards
+        toepfe = parse_search_all_cards(result_text)
+        return toepfe["content"] + toepfe["collections"] + toepfe["topic_pages"]
+    return parse_wlo_cards(result_text) or []
+
+
 def collect_cards(
     all_cards: list[dict], tool_name: str, result_text: str
 ) -> list[dict]:
@@ -64,38 +118,11 @@ def collect_cards(
     Redaktion des Ergebnistexts ans LLM. Ein Werkzeug ohne Karten liefert eine
     leere Liste und lässt ``all_cards`` unberührt.
     """
-    if tool_name in CARD_YIELDING_TOOLS:
-        # search_wlo_topic_pages has its OWN parser — the standard
-        # parse_wlo_cards reads ``nodeId`` and ignores ``variants``,
-        # producing cards without the ``topic_pages`` array. Without
-        # that array isTopicPage() returns false → cards render as
-        # plain Inhalt-cards instead of topic-page-cards with the
-        # 🌐 Themenseite button. The dedicated parser fixes this.
-        if tool_name == "search_wlo_topic_pages":
-            from boerdi.services.mcp.parsers import parse_wlo_topic_page_cards
-            cards = parse_wlo_topic_page_cards(result_text)
-        elif tool_name == "search_wlo_all":
-            # W9b (2026-08-01): das Kombi-Werkzeug antwortet in DREI
-            # Töpfen (content/collections/topicPages) statt mit einem
-            # Top-Level-``results``. ``parse_wlo_cards`` gab darauf
-            # null Karten zurück — live gemessen gingen so 13 Treffer
-            # verloren, sobald das Modell es selbst aufrief (M06
-            # bietet es an, seit W5-2a ist es das Standard-Suchtool).
-            # Der Prefetch-Pfad hatte dafür längst einen eigenen
-            # Splitter in ``respond.py``; hier fehlte er schlicht.
-            from boerdi.services.mcp.parsers import parse_search_all_cards
-            _pots = parse_search_all_cards(result_text)
-            cards = (
-                _pots["content"] + _pots["collections"] + _pots["topic_pages"]
-            )
-        else:
-            cards = parse_wlo_cards(result_text)
-    else:
-        cards = []
-    # Mark cards from search_wlo_collections as collections
-    if tool_name == "search_wlo_collections":
-        for c in cards:
-            c.setdefault("node_type", "collection")
+    cards = (
+        parse_cards_for_tool(tool_name, result_text)
+        if tool_name in CARD_YIELDING_TOOLS
+        else []
+    )
     # Merge topic_pages from search_wlo_topic_pages into existing cards
     if tool_name == "search_wlo_topic_pages":
         existing_by_id = {c["node_id"]: c for c in all_cards if c.get("node_id")}

@@ -166,3 +166,57 @@ def test_english_request_still_filters_german_cards():
 def test_english_type_word_marks_a_specific_type_wish():
     assert ct._user_wants_specific_content_type("do you have any worksheets?") is True
     assert ct._user_wants_specific_content_type("explain photosynthesis to me") is False
+
+
+# ── „Sammlung" ist kein Inhaltstyp (Nutzer-Befund 2026-08-16) ──────────────
+# Live gemessen: „Suche mir Sammlungen zum Thema Optik" → der Klassifikator
+# schrieb ``medientyp='Sammlung'``, und ``response_tool_selection`` nahm
+# daraufhin ``search_wlo_all``, ``search_wlo_collections`` und
+# ``search_wlo_topic_pages`` aus der Werkzeugliste, „um eine Inhaltssuche zu
+# erzwingen". Ergebnis: keine Sammlungskarte, keine Notiz, kein Skill-Vorrang.
+#
+# Die Begründung des Strips („Sammlungen lassen sich nicht nach resourceType
+# filtern, also ist die Inhaltssuche der einzig richtige Weg") trägt nur,
+# solange der Medientyp ein INHALT ist. Meint er die Sammlung selbst, dreht sie
+# sich um: dann ist die Sammlungssuche der einzig richtige Weg.
+
+def test_sammlung_und_themenseite_meinen_die_sammlung_selbst():
+    for wort in ("Sammlung", "sammlungen", "Themenseite", " THEMENSEITEN "):
+        assert ct.medientyp_meint_sammlungen(wort) is True, wort
+
+
+def test_echte_inhaltstypen_meinen_die_sammlung_nicht():
+    for wort in ("Video", "Arbeitsblatt", "Quiz", "", None, 42, "Sammelband"):
+        assert ct.medientyp_meint_sammlungen(wort) is False, wort
+
+
+def test_kein_inhaltstyp_heisst_sammlung():
+    """Gegenprobe am Katalog selbst: stünde „sammlung" dort, wäre die neue
+    Regel ein Widerspruch zur Filterung statt eine Ergänzung."""
+    assert "sammlung" not in ct._CONTENT_TYPE_KEYWORDS
+
+
+def test_sammlung_wird_kein_wunsch_typ():
+    """Der Rohwort-Rueckfall in ``_resolve_wanted_content_types`` nimmt jeden
+    unbekannten Medientyp als Filterwort. Bei „Sammlung" filtert der
+    Karten-Filter danach gegen ``learning_resource_types`` — und dort steht es
+    nie. Live gemessen 2026-08-16: „universal type-filter: 3 -> 0 cards
+    (medientyp=['sammlung'])", also alle Sammlungskarten weg, obwohl die Suche
+    sie gerade gefunden hatte."""
+    assert ct._resolve_wanted_content_types(
+        "Suche mir Sammlungen zum Thema Optik",
+        classification_entities={"medientyp": "Sammlung"},
+    ) == set()
+
+
+def test_ein_echter_medientyp_bleibt_ein_wunsch_typ():
+    """Gegenrichtung — der Filter ist fuer genau diesen Fall gebaut."""
+    assert ct._resolve_wanted_content_types(
+        "nur Videos", classification_entities={"medientyp": "Video"}) == {"video"}
+
+
+def test_ein_unbekannter_medientyp_faellt_weiter_aufs_rohwort_zurueck():
+    """Der Rueckfall bleibt: er faengt Typen, die der Katalog nicht kennt.
+    Nur die Sammlung ist ausgenommen — sie ist kein Inhaltstyp."""
+    assert "lehrfilmreihe" in ct._resolve_wanted_content_types(
+        "", classification_entities={"medientyp": "Lehrfilmreihe"})

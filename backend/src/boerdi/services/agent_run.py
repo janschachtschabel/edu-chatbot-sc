@@ -43,7 +43,7 @@ _SYSTEM = (
     "nicht von einem Menschen im Gespraech. Es gibt keine Begruessung und keinen "
     "Smalltalk.\n\n"
     "Arbeitsweise: nutze die Werkzeuge, um dir die Tatsachen zu holen, statt sie "
-    "aus dem Gedaechtnis zu behaupten. Steht in einer Sammlung eine Anleitung zu "
+    "aus dem Gedaechtnis zu behaupten. Steht in einer Sammlung ein Skill zu "
     "deiner Aufgabe, halte dich daran. Rufe ``submit_result`` genau einmal, wenn "
     "du fertig bist — vorher endet der Lauf nicht.\n\n"
     "Ehrlichkeit geht vor Vollstaendigkeit: nenne im Text ausdruecklich, was du "

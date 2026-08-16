@@ -563,3 +563,52 @@ def test_safety_presets_sind_vollstaendig_modelliert() -> None:
     assert not fremd, (
         "Preset-Schlüssel ohne Modellfeld (im Studio nur im Rohtext-Reiter "
         f"editierbar): {sorted(fremd)}")
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Der vorgeschriebene Ablauf muss die Anleitung enthalten (2026-08-16)
+# ════════════════════════════════════════════════════════════════════════
+
+def _abschnitt(text: str, ueberschrift: str) -> str:
+    """Der Textblock ab ``ueberschrift`` bis zur naechsten ``##``-Zeile."""
+    start = text.index(ueberschrift) + len(ueberschrift)
+    rest = text[start:]
+    ende = rest.find("\n## ")
+    return rest if ende < 0 else rest[:ende]
+
+
+def test_m09_holt_die_anleitung_im_pflicht_ablauf_und_nicht_erst_danach():
+    """Befund 2026-08-16, live gemessen: M09 rief die Anleitung nicht.
+
+    Die Ursache stand im Muster selbst. Es sagte ZWEIMAL „Pflicht" —
+    ``## Pflicht-Pipeline`` mit sechs nummerierten Werkzeugschritten, in denen
+    ``get_skill`` nicht vorkam, und ``## Antwort-Struktur (PFLICHT)`` mit einer
+    festen Lernpfad-Vorlage. Die Skill-Regel („die Anleitung wird IMMER geholt,
+    BEVOR die Aufgabe auf eigene Faust geloest wird") stand 55 Zeilen weiter
+    unten in einem eigenen Abschnitt.
+
+    Die gemessenen Werkzeug-Spuren waren woertlich die Pflicht-Pipeline,
+    Schritte 2/4/5: ``lookup_wlo_vocabulary`` → ``get_collection_contents`` →
+    ``search_wlo_content``. Das Modell hat die Skills nicht uebergangen; es hat
+    eine Pflichtliste abgearbeitet, in der sie fehlten.
+
+    Zwei Zusicherungen, weil zwei Dinge kollidierten:
+    1. Der Ablauf selbst nennt den Schritt — nicht nur ein Abschnitt danach.
+    2. Die Pflicht-Vorlage tritt ausdruecklich zurueck. Ohne das gewinnt sie
+       auch dann, wenn die Anleitung geladen ist: in Lauf 3 stand ueber dem
+       skill-gefuehrten Text weiterhin der Titel „Lernpfad: Optik".
+    """
+    import re
+
+    text = (_SEEDS / "03-patterns" / "m09-lernpfad-erstellung.md").read_text(
+        encoding="utf-8")
+
+    ablauf = _abschnitt(text, "## Pflicht-Pipeline")
+    assert re.search(r"get_skill(?!_)", ablauf), (
+        "Die Pflicht-Pipeline nennt den Schritt zum Holen der Anleitung nicht; "
+        "dann arbeitet das Modell sie ohne ihn ab, so wie live gemessen.")
+
+    struktur = _abschnitt(text, "## Antwort-Struktur (PFLICHT)")
+    assert "Anleitung" in struktur, (
+        "Die Pflicht-Vorlage sagt nicht, dass sie hinter einer freigegebenen "
+        "Anleitung zuruecktritt — dann gewinnt sie auch mit geladener Anleitung.")

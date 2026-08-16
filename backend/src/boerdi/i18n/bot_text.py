@@ -326,10 +326,10 @@ BOT_TEXT: Final[Catalogue] = {
         # fehlen beide, bleibt der Satz weg und es bleibt bei der Begrüßung.
         "context.stock.both": (
             "Ich sehe {materials} Materialien und {skills} freigegebene "
-            "Anleitungen dazu."
+            "Skills dazu."
         ),
         "context.stock.materials": "Ich sehe {materials} Materialien darin.",
-        "context.stock.skills": "Ich sehe {skills} freigegebene Anleitungen dazu.",
+        "context.stock.skills": "Ich sehe {skills} freigegebene Skills dazu.",
         "curation.failed": "Die Kuratier-Analyse konnte nicht erstellt werden.",
         "curation.error": "Fehler bei der Kuratier-Analyse: {error}",
         "learningPath.failed": "Lernpfad konnte nicht erstellt werden.",

@@ -53,6 +53,7 @@ from __future__ import annotations
 import logging
 
 from boerdi.domain.answer_notes import append_answer_notes
+from boerdi.domain.skill_precedence import anleitungs_hinweis, mit_ladehinweis
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
@@ -78,7 +79,7 @@ _SYSTEM = (
     "Du bist Boerdi, der Assistent von WirLernenOnline (WLO). Du sprichst mit "
     "einem Menschen im Chat — kurz, freundlich und ohne Floskeln.\n\n"
     "Arbeitsweise: hole dir die Tatsachen mit den Werkzeugen, statt sie aus dem "
-    "Gedaechtnis zu behaupten. Steht in einer Sammlung eine Anleitung zu deiner "
+    "Gedaechtnis zu behaupten. Steht in einer Sammlung ein Skill zu deiner "
     "Aufgabe, halte dich daran. Nenne, worauf du dich stuetzt, und sage "
     "ausdruecklich, was du NICHT pruefen konntest.\n\n"
     "SPRACHE DER AUSGABE: {sprache}. Formatiere mit Markdown."
@@ -162,6 +163,17 @@ async def respond_agent(
     seiten_block = page_context.prompt_block(ctx.session_state, seite)
     if seiten_block:
         messages.append({"role": "system", "content": seiten_block})
+    # Und die Anleitungen, die nur aus dem GESPRÄCH bekannt sind: über die Suche
+    # gibt es keinen Seitenkontext, also auch keinen Katalog — der Agent kannte
+    # weder die Anleitungen noch die ``collectionId`` für ``get_skill_registry``.
+    # Derselbe Entscheid wie im Bestandsweg, eine Ebene tiefer in
+    # ``domain/skill_precedence``; auf der Seite schweigt er von selbst.
+    anleitungen = anleitungs_hinweis(
+        (page_context.get_cached(ctx.session_state) or {}).get("context_facts"),
+        (ctx.session_state or {}).get("entities"),
+    )
+    if anleitungen:
+        messages.append({"role": "system", "content": anleitungen})
     messages.extend(ctx.history[-_HISTORY_TURNS:])
     # Anleitungen vor Gegenstand — dieselbe Reihenfolge wie im Agent-Endpunkt.
     await resolve_prefetch(messages, _vorab_aufrufe(seite), progress=progress)
@@ -205,8 +217,13 @@ async def respond_agent(
         logger.info("Outcome-based state hint: %s -> %s", ctx.state_id, zustand)
         ctx.state_id = zustand
 
-    ctx.response_text = append_answer_notes(
-        _antwort_oder_ersatz(lauf, sprache), policy=ctx.policy, safety=ctx.safety)
+    ctx.response_text = mit_ladehinweis(
+        append_answer_notes(
+            _antwort_oder_ersatz(lauf, sprache),
+            policy=ctx.policy, safety=ctx.safety),
+        (ctx.session_state or {}).get("entities"),
+        (ctx.session_state or {}).get("turn_count"),
+    )
     ctx.wlo_cards_raw = all_cards
     # Ergebnis und Ende-Grund weiterreichen. Der Grund geht MIT, auch wenn kein
     # Ergebnis kam: sonst sähe ein an der Frist abgeschnittener Lauf für die

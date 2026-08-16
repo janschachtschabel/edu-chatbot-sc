@@ -47,6 +47,43 @@ _CONTENT_TYPE_KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 
 
+#: Medientyp-Wörter, die die Sammlung SELBST meinen und keinen Inhalt darin.
+#:
+#: Sie stehen bewusst NICHT in :data:`_CONTENT_TYPE_KEYWORDS`: dort ist jeder
+#: Eintrag ein ``resourceType``, nach dem sich Einzelinhalte filtern lassen —
+#: „Sammlung" ist keiner, sondern die Gattung darüber. Ein Test hält fest, dass
+#: die beiden Kataloge sich nicht überschneiden.
+_SAMMLUNGS_MEDIENTYPEN: frozenset[str] = frozenset({
+    "sammlung", "sammlungen", "themenseite", "themenseiten",
+})
+
+
+def medientyp_meint_sammlungen(medientyp: object) -> bool:
+    """Meint dieser Medientyp die Sammlung selbst statt eines Inhalts darin?
+
+    **Wofür.** ``response_tool_selection`` nimmt bei einem gesetzten Medientyp
+    die Sammlungs- und Themenseiten-Suche aus der Werkzeugliste, weil sich
+    Sammlungen nicht nach ``resourceType`` filtern lassen — die Inhaltssuche ist
+    dann der einzig richtige Weg. Genau diese Begründung dreht sich um, sobald
+    der Medientyp die Sammlung SELBST benennt.
+
+    Live gemessen 2026-08-16: „Suche mir Sammlungen zum Thema Optik" ergab
+    ``medientyp='Sammlung'``, worauf ``search_wlo_all``,
+    ``search_wlo_collections`` und ``search_wlo_topic_pages`` verschwanden. Die
+    Suche lief als Inhaltssuche mit ``learningResourceType='Sammlung'`` und
+    brachte keine einzige Sammlungskarte — womit auch die Skill-Notiz
+    (``domain/skill_precedence.merke_skill_sammlung``) leer blieb und der
+    Vorrang der freigegebenen Anleitungen nicht griff. Derselbe Satz lief eine
+    halbe Stunde vorher normal durch; die Ableitung des Medientyps schwankt.
+
+    Fremdbeschrieben: der Wert kommt aus der LLM-Klassifikation und darf jede
+    Form haben.
+    """
+    if not isinstance(medientyp, str):
+        return False
+    return medientyp.strip().casefold() in _SAMMLUNGS_MEDIENTYPEN
+
+
 def _user_wants_specific_content_type(message: str) -> bool:
     """Heuristik: fragt der User nach einem konkreten Material-Format?
 
@@ -117,8 +154,17 @@ def _resolve_wanted_content_types(
                 wanted.add(canonical)
                 matched = True
                 break
-        if not matched and mt_lower:
-            # Fallback: das raw-Wort als Substring nutzen
+        if not matched and mt_lower and not medientyp_meint_sammlungen(mt_lower):
+            # Fallback: das raw-Wort als Substring nutzen.
+            #
+            # NICHT bei „Sammlung"/„Themenseite" (2026-08-16): der Rueckfall
+            # macht aus jedem unbekannten Medientyp ein Filterwort, gegen das
+            # ``_card_matches_wanted_types`` die ``learning_resource_types``
+            # der Karte haelt — und dort steht „sammlung" nie. Live gemessen
+            # warf der Filter daraufhin ALLE Karten weg („universal
+            # type-filter: 3 -> 0 cards"), obwohl die Suche die Sammlungen
+            # gerade gefunden hatte. Der Wunsch „zeig mir Sammlungen" ist kein
+            # Typfilter, sondern das Gegenteil eines Inhaltsfilters.
             wanted.add(mt_lower)
 
     return wanted
