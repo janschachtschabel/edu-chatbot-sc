@@ -62,6 +62,92 @@ laufen — üblich sind zwei Wege:
 
 ---
 
+## 1a. Das Grundmuster: Kontext rein, Auftrag rein, Ergebnis raus
+
+Fast jedes Plugin macht dieselben vier Dinge. Hier stehen sie einmal am Stück und
+in der richtigen Reihenfolge; die Abschnitte dahinter erklären jeden Schritt
+einzeln.
+
+```js
+await customElements.whenDefined('boerdi-chat');
+
+// ── 1. Element bauen: eigene Ansprache, eigene Chips, Agent-Schleife ────────
+const chat = document.createElement('boerdi-chat');
+chat.setAttribute('api-url', 'https://chat.example.org/api');
+chat.setAttribute('embed-mode', 'frameless');
+chat.setAttribute('engine', 'agent');
+chat.setAttribute('auto-context', 'false');     // ihr liefert den Kontext selbst
+chat.setAttribute('greeting',
+  'Hallo, ich bin BOERDi — die schlaue Eule von WirLernenOnline. ' +
+  'Ich helfe beim Erschließen, Kuratieren und bei der Qualitätssicherung.');
+chat.setAttribute('start-replies', JSON.stringify([
+  'Qualitätssicherungsskills suchen und ausführen',
+  'Inhalt kuratieren',
+]));
+// Was ihr maschinenlesbar zurückbekommen wollt (optional):
+chat.setAttribute('result-schema', JSON.stringify({
+  type: 'object',
+  properties: {
+    fach:       { type: 'string', description: 'Vokabular-URI aus `discipline`' },
+    confidence: { type: 'number', description: '0.0 bis 1.0' },
+  },
+  required: ['fach'],
+}));
+// KEIN page-context beim Einhängen — sonst ersetzt die Kontext-Begrüßung
+// eure Startnachricht (§4a).
+document.getElementById('chatHalter').append(chat);
+
+// ── 2. Ergebnisse mitlesen — VOR dem ersten Auftrag anmelden ───────────────
+window.addEventListener('boerdi:agent-result', (e) => {
+  const { result, stop_reason } = e.detail;
+  if (result?.fach) uebernehmen(result.fach, result.confidence);
+  else if (stop_reason !== 'text') hinweis(`Lauf endete mit ${stop_reason}`);
+});
+
+// ── 3. Kontext hineingeben — bei JEDEM Seitenwechsel erneut ────────────────
+function seiteMelden() {
+  chat.replaceContext({
+    page_kind: 'other',                       // fremde Seite; WLO-Seiten: siehe §5
+    page_url:  location.href,
+    page_host: location.hostname,
+    page_text: document.body.innerText.slice(0, 3000),
+  });
+}
+seiteMelden();
+
+// ── 4. Auftrag hineingeben (optional — sonst tippt die Person selbst) ──────
+chat.startTask(
+  'Ordne diese Seite einem Fach zu. Prüfe den Wert gegen das ' +
+  '`discipline`-Vokabular und gib die URI zurück.');
+```
+
+**Die Reihenfolge ist nicht Geschmack.** Jede Zeile hat einen Grund, und drei
+davon kosten sonst einen Nachmittag:
+
+| Schritt | Warum gerade hier |
+|---|---|
+| Attribute **vor** dem Einhängen | `greeting`, `start-replies`, `show-welcome` werden beim Erstaufruf gelesen; rahmenlos ist das der Moment des Einhängens (§4a) |
+| Zuhörer **vor** dem Auftrag | `startTask` schickt sofort; ein später angemeldeter Zuhörer verpasst den ersten Zug |
+| Kontext **vor** dem Auftrag | `startTask` nimmt mit, was in diesem Moment gesetzt ist (§5) |
+| `engine="agent"` **zusammen mit** `result-schema` | ohne die Agent-Schleife wirkt das Schema gar nicht — kein `result`, kein Ereignis, nur eine Zeile im Server-Protokoll (§7a) |
+
+Was das Widget selbst mitbringt und ihr **nicht** bauen müsst: Sitzung, Verlauf,
+Karten, Quick-Replies, Vorlesen, das Wiederherstellen nach einem Neustart.
+
+Und was ihr **je nach Aufgabe** braucht:
+
+| Ihr wollt … | Das ist der Weg | Abschnitt |
+|---|---|---|
+| eigene Startnachricht + Chips | `greeting` · `start-replies` | §4a |
+| gar keine Startnachricht | `show-welcome="false"` | §4a |
+| die offene Seite melden | `replaceContext({…})` | §5 |
+| ein Feld nachreichen (gleiche Seite) | `updateContext({…})` | §5 |
+| den Chat auf ein Thema starten | `startTask('…')` | §5 |
+| maschinenlesbares Ergebnis | `result-schema` + `boerdi:agent-result` | §7a |
+| Chat gar nicht anzeigen | `POST /api/agent` | §7 |
+
+---
+
 ## 2. Randlos den Platz füllen
 
 `embed-mode="frameless"` gibt Rahmen **und Platzierung** an die Gastanwendung ab:
@@ -332,6 +418,90 @@ Neustart. Praktisch heißt das:
 Wer die Werte doch zur Laufzeit wechseln will, hat zwei ehrliche Wege:
 `resetSession()` (leert den Verlauf und wendet sie an) oder das Element neu
 aufbauen. Das Beispiel-Plugin nimmt den zweiten (§7a).
+
+### Startnachricht UND Kontext-Meldung — die Reihenfolge entscheidet
+
+Der häufigste Stolperstein im Plugin-Betrieb, und er sieht nach einem Fehler aus,
+obwohl er Absicht ist: **liegt beim Öffnen schon ein Seitenkontext an, ersetzt die
+Kontext-Begrüßung die Startnachricht.** Die Person soll EINE Eröffnung sehen, nicht
+zwei — also stellt das Widget die statische Nachricht zurück, bis der Kontext-Ping
+geantwortet hat. Kommt etwas („Du bist auf de.wikipedia.org …"), ist *das* die
+Begrüßung; bleibt der Ping leer oder scheitert er, kommt die statische doch.
+
+Wer beides will — erst die eigene Vorstellung, dann die Meldung zur Seite —,
+hängt das Element **ohne** `page-context` ein und reicht den Kontext direkt danach
+mit `replaceContext()` nach:
+
+```js
+const chat = document.createElement('boerdi-chat');
+chat.setAttribute('api-url', 'https://chat.example');
+chat.setAttribute('embed-mode', 'frameless');
+chat.setAttribute('engine', 'agent');
+chat.setAttribute('greeting',
+  'Hallo, ich bin BOERDi — die schlaue Eule von WirLernenOnline. ' +
+  'Ich helfe beim Erschließen, Kuratieren und bei der Qualitätssicherung.');
+chat.setAttribute('start-replies', JSON.stringify([
+  'Qualitätssicherungsskills suchen und ausführen',
+  'Inhalt kuratieren',
+]));
+// KEIN page-context beim Einhängen — sonst übernimmt die Kontext-Begrüßung.
+document.getElementById('chatHalter').append(chat);
+
+// Erst jetzt die Seite melden: die Startnachricht steht bereits, die
+// Kontext-Meldung kommt als zweite Nachricht darunter.
+chat.replaceContext({
+  page_kind: 'other',
+  page_url: location.href,
+  page_host: location.hostname,
+  page_text: document.body.innerText.slice(0, 3000),
+});
+```
+
+Reihenfolge im Chat: **1.** die Eulen-Vorstellung mit den zwei Chips, **2.** die
+Meldung zur offenen Seite. Wer die Startnachricht *nicht* braucht, hängt den
+Kontext gleich als Attribut an und spart den zweiten Aufruf.
+
+**Im Panel-Modus greift das so nicht.** `replaceContext()` reicht an die Shell
+durch (`this.shell()?.…`), und die entsteht dort erst beim ersten Klick auf den
+Eulen-Knopf — ein Aufruf davor läuft still ins Leere. Rahmenlos
+(`embed-mode="frameless"`, wie oben) gibt es das Problem nicht: die Shell steht
+sofort. Im Panel-Betrieb also entweder auf das `chatbot-opened`-Ereignis warten
+(§6) oder den Kontext doch als Attribut mitgeben.
+
+Die beiden Chips sind gewöhnliche Nachrichten: ein Klick schickt die Beschriftung
+als Text. „Qualitätssicherungsskills suchen und ausführen" landet damit auf
+demselben Weg wie Rezept 1 (§5) — der Lauf holt die Registry und führt die
+freigegebene Anleitung aus.
+
+### Beim Seitenwechsel: keine zweite Startnachricht mehr (seit 17.08.2026)
+
+Ein Plugin ohne Sidebar-API hängt das Widget bei jedem Seitenwechsel **neu ein**.
+Beim Einhängen lädt es den gespeicherten Verlauf — und stellte ihm bisher immer
+die Startnachricht voran, weil das Backend sie nicht persistiert. In eurem Fall
+gab es sie aber nie: die Kontext-Begrüßung hatte eröffnet. Ergebnis war eine
+Startnachricht, die bei jedem Seitenwechsel neu nachwuchs.
+
+Seit dem 17.08.2026 prüft das Widget, **womit der Verlauf beginnt**: eröffnet ihn
+eine Kontext-Begrüßung, wird nichts mehr davorgestellt. Beginnt er wie gewohnt mit
+einer Frage der Person, bleibt alles beim Alten.
+
+Zwei Folgen, die ihr kennen solltet:
+
+* Nach einem Seitenwechsel steht die Eulen-Vorstellung **nicht** mehr oben im
+  wiederhergestellten Verlauf — sie war nie Teil davon. Gesehen hat die Person sie
+  trotzdem, beim ersten Öffnen.
+* Prüft, ob euer Bündel den Fix hat:
+
+  ```bash
+  grep -c "CTX:" boerdi-widget.js
+  ```
+
+  `0` heißt: altes Bündel, die Startnachricht wächst weiter nach.
+
+Beides zusammen — Startnachricht, Chips, danach die Kontext-Meldung — steht als
+Prüfseite in `frontend/dist/widget/browser/probe-greeting.html`. Sie ist ein
+Wegwerf-Artefakt im Build-Verzeichnis: der nächste `npm run build:widget` löscht
+sie.
 
 ### Wie das Beispiel es macht
 
@@ -834,8 +1004,7 @@ window.addEventListener('boerdi:agent-result', (e) => {
   Modellzug an (2–9 s gemessen) — auch bei „Danke!". Deshalb ist es opt-in je
   Einbau und nicht die Vorgabe.
 * **`result` ist je Zug optional.** „Hallo" ergibt keine `taxon_id`. Euer Code
-  muss `null` aushalten; der `stop_reason` sagt, ob nichts da war (`text`) oder
-  ob der Lauf an einen Deckel stieß (`deadline`, `max_iterations`, …).
+  muss `null` aushalten; der `stop_reason` sagt, warum (Tabelle unten).
 * **Das Attribut ist eine Zeichenkette.** Attribute eines Custom Elements sind
   immer Strings — achtet auf die Anführungszeichen (im Beispiel außen `'`,
   innen `"`). Kaputtes JSON kippt den Chat **nicht**: es gilt als „kein Schema",
@@ -848,6 +1017,55 @@ Folgen: seine `description`-Texte liest das Modell (schreibt sie also als
 Anweisung, nicht als Notiz für euch), und es ist auf **10 000 Zeichen**
 gedeckelt — darüber lehnt das Backend die Anfrage mit 422 ab, statt ein halbes
 Schema zu verwenden, das eine andere Form verlangen würde als ihr wolltet.
+
+**Das Ereignis hängt am Schema, nicht am Chat.** Das Backend füllt
+`result_stop_reason` nur, wenn ein `result-schema` gesetzt ist
+(`nodes/respond_agent.py`, `if _schema:`) — ohne Schema bleibt es still, mit
+Schema kommt es bei **jedem** Zug, auch wenn `result` null ist. Genau so ist es
+gemeint: ein an der Frist abgeschnittener Lauf soll für euch nicht aussehen wie
+einer, der nichts zu sagen hatte.
+
+**Alle `stop_reason`-Werte** — die Schleife kennt genau sieben, und nur bei
+zweien darf ein `result` erwartet werden:
+
+| `stop_reason` | Bedeutung | `result` zu erwarten? |
+|---|---|---|
+| `submit` | Der Lauf hat `submit_result` gerufen — der Regelfall mit Schema | **ja** |
+| `text` | Der Lauf hat in Prosa geantwortet, ohne das Abschluss-Werkzeug | selten |
+| `deadline` | Frist erreicht (`deadline_s`, Vorgabe 90 s) | nein |
+| `token_budget` | Token-Budget aufgebraucht | nein |
+| `max_iterations` | Iterationsdeckel erreicht (Vorgabe 12) | nein |
+| `no_progress` | Dasselbe Werkzeug zweimal mit denselben Argumenten — Stillstand | nein |
+| `error` | Der Anbieter-Aufruf scheiterte | nein |
+
+Behandelt die vier Deckel-Fälle sichtbar: sie heißen „die Anfrage war zu groß",
+nicht „es hat nicht geklappt". Ein kleiner geschnittener Auftrag ist dann die
+Antwort, kein Wiederholungsversuch mit demselben Text.
+
+```js
+window.addEventListener('boerdi:agent-result', (e) => {
+  const { result, stop_reason } = e.detail;
+  if (result) return uebernehmen(result);
+  if (stop_reason === 'text') return;                 // reines Gespräch, kein Fehler
+  hinweis({
+    deadline:       'Das hat zu lange gedauert — bitte kleiner schneiden.',
+    token_budget:   'Die Anfrage war zu umfangreich — bitte kleiner schneiden.',
+    max_iterations: 'Zu viele Schritte — bitte kleiner schneiden.',
+    no_progress:    'Der Lauf drehte sich im Kreis — bitte anders formulieren.',
+    error:          'Der Dienst war kurz nicht erreichbar.',
+  }[stop_reason] ?? `Unerwartetes Ende: ${stop_reason}`);
+});
+```
+
+**Das Schema lässt sich zur Laufzeit wechseln.** Es hängt an einem eigenen
+Effect (`resultSchema()`, nicht `engine()`) und gilt ab dem **nächsten** Zug —
+ihr könnt also je Aufgabe eine andere Form verlangen, ohne das Element neu zu
+bauen:
+
+```js
+chat.setAttribute('result-schema', JSON.stringify(schemaFuerDieseAufgabe));
+chat.startTask('… und jetzt bitte die Bildungsstufe.');
+```
 
 **In Angular** gibt es dieselbe Meldung als Output `agentResult`.
 
@@ -1304,3 +1522,6 @@ Volle Herleitung samt Messungen:
 | 401 / 403 an `/api/agent` | Keiner der drei Zugangswege greift (§7) |
 | 429 | Drosselung, `RATE_LIMIT_CHAT` |
 | 503 auf `/widget/boerdi-widget.js` | Bündel nicht gebaut — die Antwort nennt den Befehl |
+| Eigene Startnachricht erscheint beim Öffnen nicht | Es lag schon ein Seitenkontext an — die Kontext-Begrüßung ist dann die Eröffnung (§4a). Element ohne `page-context` einhängen, Kontext danach per `replaceContext()` |
+| Bei jedem Seitenwechsel wächst eine Startnachricht nach | Bündel älter als 17.08.2026: `grep -c "CTX:" boerdi-widget.js` gibt `0` (§4a) |
+| `replaceContext()` bleibt im Panel-Modus wirkungslos | Die Shell entsteht erst beim ersten Öffnen; vorher geht der Aufruf ins Leere (§4a) |

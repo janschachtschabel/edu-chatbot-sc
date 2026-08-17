@@ -1531,6 +1531,21 @@
         "title": "SafetyDecision",
         "type": "object"
       },
+      "SeedApply": {
+        "properties": {
+          "mode": {
+            "default": "missing",
+            "enum": [
+              "missing",
+              "exact"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "SeedApply",
+        "type": "object"
+      },
       "SessionResponse": {
         "properties": {
           "authenticated": {
@@ -3540,6 +3555,84 @@
         "summary": "Get Area Schema",
         "tags": [
           "config"
+        ]
+      }
+    },
+    "/api/config/seed": {
+      "get": {
+        "description": "Zählung des Auslieferungsstandes gegen den gelebten — ohne etwas zu ändern.\n\nVerglichen wird gegen ``current_config()``, also gegen genau die Quelle, aus\nder auch der Rückweg-Schnappschuss gebaut wird. Zwei Quellen wären hier ein\nstiller Fehler: der Schnappschuss deckte dann womöglich nicht ab, was der\nLauf löscht.",
+        "operationId": "seed_status_api_config_seed_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Seed Status Api Config Seed Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Seed Status",
+        "tags": [
+          "config-snapshots"
+        ]
+      }
+    },
+    "/api/config/seed/apply": {
+      "post": {
+        "description": "``missing`` zieht Fehlendes nach; ``exact`` stellt den Stand her.\n\n``exact`` überschreibt gepflegte Bereiche und löscht, was nur in der\nDatenbank steht — deshalb **zuerst** der Schnappschuss. Ist kein Platz mehr\nfür ihn, wird der Lauf verweigert statt ohne Rückweg ausgeführt.",
+        "operationId": "seed_apply_api_config_seed_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeedApply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Seed Apply Api Config Seed Apply Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Seed Apply",
+        "tags": [
+          "config-snapshots"
         ]
       }
     },

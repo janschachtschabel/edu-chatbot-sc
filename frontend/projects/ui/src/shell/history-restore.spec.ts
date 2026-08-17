@@ -89,4 +89,46 @@ describe('restoreHistory (8-4S-e3)', () => {
     expect(rec.users).toEqual([]);
     expect(rec.bots[0]).toEqual(['A', false, undefined, undefined, undefined, undefined, undefined, undefined]);
   });
+  /**
+   * Befund 2026-08-17 (Browser-Plugin der Kollegen, ohne Sidebar-API):
+   * Beim ersten Laden mit Seitenkontext ist die Kontext-Begruessung der Opener —
+   * `_greetOnFirstLoad` laesst die statische Startnachricht dann bewusst aus
+   * (Ansatz C: genau EINE Eroeffnung). Wird das Widget beim Seitenwechsel neu
+   * eingehaengt, lief hier trotzdem `showGreeting()` und schob eine
+   * Startnachricht davor, die es im Verlauf nie gab.
+   */
+  it('Verlauf beginnt mit einer Kontext-Begruessung → KEINE Startnachricht davor', async () => {
+    const history: HistoryMessage[] = [
+      { role: 'assistant', content: 'Du bist auf de.wikipedia.org …', debug: { pattern: 'CTX:external' } },
+      { role: 'user', content: 'Was kannst du?' },
+      { role: 'assistant', content: 'Einiges.' },
+    ];
+    const { ctx, rec } = makeCtx(history);
+    await restoreHistory(ctx);
+    expect(rec.greeting).toBe(0);
+    expect(rec.update).toBe(0);          // nichts zu strippen, es gibt keinen prepend
+    expect(rec.bots.length).toBe(2);     // Kontext-Begruessung + Antwort bleiben
+    expect(rec.scroll).toBe(1);
+  });
+
+  // Nur der Opener entscheidet: wer das Gespraech mit einer Frage begonnen hat,
+  // hat die Startnachricht gesehen — auch wenn spaeter eine Seite gewechselt wurde.
+  it('Kontext-Begruessung MITTEN im Verlauf → Startnachricht bleibt', async () => {
+    const history: HistoryMessage[] = [
+      { role: 'user', content: 'Frage' },
+      { role: 'assistant', content: 'Du bist auf de.wikipedia.org …', debug: { pattern: 'CTX:external' } },
+    ];
+    const { ctx, rec } = makeCtx(history);
+    await restoreHistory(ctx);
+    expect(rec.greeting).toBe(1);
+  });
+
+  it('Tour-Opener ist KEINE Kontext-Begruessung → Startnachricht bleibt', async () => {
+    const history: HistoryMessage[] = [
+      { role: 'assistant', content: 'Willkommen zur Tour', debug: { pattern: 'TOUR:step1' } },
+    ];
+    const { ctx, rec } = makeCtx(history);
+    await restoreHistory(ctx);
+    expect(rec.greeting).toBe(1);
+  });
 });

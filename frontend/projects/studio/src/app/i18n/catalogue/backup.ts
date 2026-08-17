@@ -104,6 +104,49 @@ export const BACKUP: CataloguePart = {
     'factory.wasReset.other': '{count} Konfigurationsbereiche auf den Werksstand zurückgesetzt.',
     'factory.downloaded': 'Werksstand heruntergeladen.',
     'factory.uploaded': '„{name}“ als Werksstand übernommen.',
+
+    // ── Auslieferungsstand aus dem Abbild (S4) ──────────────────────
+    // Der Unterschied zum Werksstand darüber muss im Text stehen, sonst
+    // stehen zwei Karten mit fast gleichem Wort nebeneinander und niemand
+    // weiss, welche was tut.
+    'seed.title': 'Auslieferungsstand aus dem Abbild',
+    'seed.lead':
+      'Der Konfigurationsstand, mit dem dieses Abbild gebaut wurde. Er liegt im '
+      + 'Abbild selbst — es wird nichts aus dem Repository nachgeladen. Nach einem '
+      + 'neuen Deployment ist das der Weg, die mitgelieferte Konfiguration zu '
+      + 'übernehmen, ohne über SSH zu gehen.',
+    'seed.checking': 'Auslieferungsstand wird gelesen …',
+    'seed.unavailable':
+      'Dieses Abbild bringt keinen Auslieferungsstand mit. Nichts zu tun.',
+    /** Beschriftung vor der Zahl, nicht dahinter: „1 fehlen in der Datenbank"
+     *  wäre falsch, und für fünf Zeilen sechs Pluralschlüssel anzulegen, nur
+     *  damit die Verben stimmen, wäre teurer als die Umstellung. So ist jede
+     *  Zeile bei jeder Zahl richtig. */
+    'seed.areaCount': 'Bereiche im Abbild: {count}',
+    'seed.same': 'unverändert: {count}',
+    'seed.new': 'fehlend: {count}',
+    'seed.differing': 'abweichend: {count}',
+    'seed.onlyInDb': 'nur in der Datenbank: {count}',
+    'seed.names': 'Bereiche im Einzelnen',
+    'seed.fill': 'Fehlende nachziehen',
+    'seed.filling': 'Wird nachgezogen …',
+    'seed.exact': 'Alles auf Auslieferungsstand',
+    'seed.exacting': 'Wird hergestellt …',
+    /** Der scharfe Knopf. Der Satz nennt beide Folgen — Überschreiben *und*
+     *  Löschen — weil die zweite die ist, die niemand erwartet. */
+    'seed.confirmExact':
+      'Alles auf den Auslieferungsstand bringen? Abweichende Bereiche werden '
+      + 'überschrieben und Bereiche, die es nur in der Datenbank gibt, gelöscht. '
+      + 'Vorher wird automatisch ein Schnappschuss angelegt — das ist der Rückweg.',
+    'seed.confirmExactYes': 'Ja, herstellen',
+    'seed.filled.one': '{count} Bereich nachgezogen.',
+    'seed.filled.other': '{count} Bereiche nachgezogen.',
+    'seed.nothingToFill': 'Nichts nachzuziehen — es fehlt kein Bereich.',
+    /** Zwei Zahlen in einem Satz — dieselbe Umstellung wie bei den Zählungen
+     *  oben, statt vier Pluralformen für eine Meldung. */
+    'seed.applied':
+      'Geschrieben: {written}, gelöscht: {deleted}. Der Stand davor liegt als '
+      + 'Schnappschuss „vor Auslieferungsstand“ oben in der Liste.',
   },
 
   en: {
@@ -187,5 +230,34 @@ export const BACKUP: CataloguePart = {
     'factory.wasReset.other': 'Reset {count} configuration areas to the factory state.',
     'factory.downloaded': 'Factory state downloaded.',
     'factory.uploaded': 'Took “{name}” as the factory state.',
+
+    'seed.title': 'Shipped configuration',
+    'seed.lead':
+      'The configuration state this image was built from. It travels inside the image — '
+      + 'nothing is fetched from the repository. After a new deployment this is how the '
+      + 'shipped configuration is applied without going through SSH.',
+    'seed.checking': 'Reading the shipped configuration …',
+    'seed.unavailable': 'This image ships no configuration state. Nothing to do.',
+    'seed.areaCount': 'Areas in the image: {count}',
+    'seed.same': 'unchanged: {count}',
+    'seed.new': 'missing: {count}',
+    'seed.differing': 'differing: {count}',
+    'seed.onlyInDb': 'only in the database: {count}',
+    'seed.names': 'Areas in detail',
+    'seed.fill': 'Add what is missing',
+    'seed.filling': 'Adding …',
+    'seed.exact': 'Match the shipped state exactly',
+    'seed.exacting': 'Applying …',
+    'seed.confirmExact':
+      'Match the shipped state exactly? Differing areas are overwritten and areas that '
+      + 'exist only in the database are deleted. A snapshot is taken first — that is the '
+      + 'way back.',
+    'seed.confirmExactYes': 'Yes, apply it',
+    'seed.filled.one': 'Added {count} area.',
+    'seed.filled.other': 'Added {count} areas.',
+    'seed.nothingToFill': 'Nothing to add — no area is missing.',
+    'seed.applied':
+      'Written: {written}, deleted: {deleted}. The previous state is at the top of the '
+      + 'snapshot list as “vor Auslieferungsstand”.',
   },
 };

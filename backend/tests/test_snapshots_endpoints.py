@@ -147,3 +147,131 @@ def test_snapshot_endpoints_require_studio_key(cfg) -> None:
     client, _ = cfg
     assert client.get("/api/config/snapshots").status_code == 401
     assert client.get("/api/config/backup").status_code == 401
+
+
+# ── S3: Auslieferungsstand aus dem Bild (docs/plans/2026-08-17-…) ──────────
+# Der Seed-Baum wird je Test frisch gebaut: ein echter Baum im Repo hätte 35
+# Bereiche und machte die Zählungen unlesbar. Geprüft wird die Mechanik, nicht
+# der Inhalt des ausgelieferten Standes.
+
+@pytest.fixture()
+def seed_baum(tmp_path, monkeypatch):
+    """Ein winziger Seed-Baum + ``CONFIG_SEED_DIR`` darauf."""
+    (tmp_path / "01-base").mkdir()
+
+    def schreibe(rel: str, text: str) -> None:
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+
+    monkeypatch.setenv("CONFIG_SEED_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    yield schreibe
+    get_settings.cache_clear()
+
+
+def test_seed_status_zaehlt_gegen_den_gelebten_stand(cfg, seed_baum) -> None:
+    client, seed = cfg
+    seed_baum("01-base/engine.yaml", "mode: pattern\n")          # gleich
+    seed_baum("01-base/welcome-config.yaml", "welcome:\n  greeting: Seed\n")  # abweichend
+    seed_baum("01-base/neu.yaml", "a: 1\n")                       # nur im Seed
+    seed("01-base/engine", {"mode": "pattern"})
+    seed("01-base/welcome-config", {"welcome": {"greeting": "Gepflegt"}})
+    seed("01-base/eigenbau", {"x": 1})                            # nur in der DB
+
+    r = client.get("/api/config/seed", headers=_AUTH)
+    assert r.status_code == 200
+    d = r.json()
+    assert d["available"] is True and d["area_count"] == 3
+    assert d["neu"] == ["01-base/neu"]
+    assert d["gleich"] == ["01-base/engine"]
+    assert d["abweichend"] == ["01-base/welcome-config"]
+    assert d["nur_in_db"] == ["01-base/eigenbau"]
+
+
+def test_seed_status_ohne_baum_ist_nicht_verfuegbar(cfg, monkeypatch) -> None:
+    """Fremd gebautes Bild / falsche Variable: kein 500, sondern eine Aussage."""
+    client, _ = cfg
+    monkeypatch.setenv("CONFIG_SEED_DIR", "gibt-es-nicht-42")
+    get_settings.cache_clear()
+    d = client.get("/api/config/seed", headers=_AUTH).json()
+    assert d["available"] is False and d["area_count"] == 0
+    get_settings.cache_clear()
+
+
+def test_missing_zieht_nur_fehlende_nach(cfg, seed_baum) -> None:
+    client, seed = cfg
+    seed_baum("01-base/welcome-config.yaml", "welcome:\n  greeting: Seed\n")
+    seed_baum("01-base/neu.yaml", "a: 1\n")
+    seed("01-base/welcome-config", {"welcome": {"greeting": "Gepflegt"}})
+
+    r = client.post("/api/config/seed/apply", headers=_AUTH, json={"mode": "missing"})
+    assert r.status_code == 200
+    assert r.json() == {"written": 1, "deleted": 0, "snapshot_id": None}
+    # die gepflegte Begrüßung hat den Lauf überlebt — das ist der ganze Zweck
+    # des harmlosen Knopfes
+    assert client.get("/api/config/welcome", headers=_AUTH).json()["greeting"] == "Gepflegt"
+
+
+def test_exact_ueberschreibt_loescht_und_sichert_vorher(cfg, seed_baum) -> None:
+    client, seed = cfg
+    seed_baum("01-base/welcome-config.yaml",
+              "welcome:\n  greeting: Seed\n  quick_replies: [a]\n")
+    seed("01-base/welcome-config", {"welcome": {"greeting": "Gepflegt", "quick_replies": ["b"]}})
+    seed("01-base/eigenbau", {"x": 1})
+
+    r = client.post("/api/config/seed/apply", headers=_AUTH, json={"mode": "exact"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["written"] == 1 and d["deleted"] == 1
+    assert client.get("/api/config/welcome", headers=_AUTH).json()["greeting"] == "Seed"
+
+    # Der Rückweg ist das Kernversprechen des scharfen Knopfes: der Schnappschuss
+    # muss existieren UND den Zustand VOR dem Lauf tragen.
+    assert d["snapshot_id"] is not None
+    assert any(s["id"] == d["snapshot_id"] for s in
+               client.get("/api/config/snapshots", headers=_AUTH).json())
+    client.post(f"/api/config/snapshots/{d['snapshot_id']}/restore", headers=_AUTH)
+    assert client.get("/api/config/welcome", headers=_AUTH).json()["greeting"] == "Gepflegt"
+
+
+def test_exact_ohne_platz_fuer_den_schnappschuss_wird_verweigert(
+    cfg, seed_baum, monkeypatch
+) -> None:
+    """Ohne Rückweg kein verlustbehafteter Lauf — lieber 400 als eine Löschung,
+    die niemand rückgängig machen kann."""
+    client, seed = cfg
+    seed_baum("01-base/neu.yaml", "a: 1\n")
+    seed("01-base/eigenbau", {"x": 1})
+    from boerdi.services import snapshots
+    monkeypatch.setattr(snapshots, "MAX_SNAPSHOTS", 0)
+
+    r = client.post("/api/config/seed/apply", headers=_AUTH, json={"mode": "exact"})
+    assert r.status_code == 400
+    # nichts angefasst
+    assert client.get("/api/config/seed", headers=_AUTH).json()["nur_in_db"] == \
+        ["01-base/eigenbau"]
+
+
+def test_apply_ohne_baum_ist_404(cfg, monkeypatch) -> None:
+    """Der Status-Code allein beweist hier nichts: eine unbekannte Route
+    antwortet ebenfalls mit 404. Geprüft wird deshalb die Begründung."""
+    client, _ = cfg
+    monkeypatch.setenv("CONFIG_SEED_DIR", "gibt-es-nicht-42")
+    get_settings.cache_clear()
+    r = client.post("/api/config/seed/apply", headers=_AUTH, json={"mode": "missing"})
+    assert r.status_code == 404
+    assert "CONFIG_SEED_DIR" in r.json()["detail"]
+    get_settings.cache_clear()
+
+
+def test_unbekannter_modus_wird_am_rand_abgewiesen(cfg, seed_baum) -> None:
+    """Der Literal-Typ hält den Tippfehler auf, bevor er die Datenbank sieht."""
+    client, _ = cfg
+    seed_baum("01-base/neu.yaml", "a: 1\n")
+    assert client.post("/api/config/seed/apply", headers=_AUTH,
+                       json={"mode": "alles"}).status_code == 422
+
+
+def test_seed_endpunkte_verlangen_den_studio_schluessel(cfg) -> None:
+    client, _ = cfg
+    assert client.get("/api/config/seed").status_code == 401
+    assert client.post("/api/config/seed/apply", json={"mode": "missing"}).status_code == 401

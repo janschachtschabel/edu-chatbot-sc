@@ -54,6 +54,10 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "snapshots.notFound": "Snapshot nicht gefunden.",
         "snapshots.limitReached": "Snapshot-Limit erreicht (max {max}) — alte Snapshots löschen.",
         "factory.missing": "Kein Factory-Stand gesetzt",
+        "seed.missing": (
+            "Dieses Abbild bringt keinen Auslieferungsstand mit "
+            "(CONFIG_SEED_DIR zeigt auf kein Verzeichnis)."
+        ),
         # ── Lasttest (C1-e2) ───────────────────────────────────────────
         "loadtest.disabled": (
             "Lasttest ist auf dieser Instanz deaktiviert (BOERDI_ALLOW_LOADTEST). "
@@ -116,6 +120,10 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "snapshots.notFound": "Snapshot not found.",
         "snapshots.limitReached": "Snapshot limit reached (max {max}) — delete old snapshots.",
         "factory.missing": "No factory state has been saved",
+        "seed.missing": (
+            "This image ships no factory config tree "
+            "(CONFIG_SEED_DIR points to no directory)."
+        ),
         "loadtest.disabled": (
             "The load test is disabled on this instance (BOERDI_ALLOW_LOADTEST). "
             "It would make the real /api/chat pipeline compete with live users for LLM "

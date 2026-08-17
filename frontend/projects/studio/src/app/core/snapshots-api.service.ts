@@ -51,8 +51,35 @@ export interface FactorySaved {
   readonly id: string;
 }
 
+/**
+ * `/api/config/seed` — der Auslieferungsstand, der im Abbild mitreist.
+ *
+ * Nicht zu verwechseln mit {@link FactoryInfo}: der Werksstand ist eine
+ * Momentaufnahme des *gelebten* Standes, dieser hier der Stand, mit dem das
+ * Abbild gebaut wurde. Die vier Listen tragen Bereichsnamen, damit das Panel
+ * zeigen kann, *was* betroffen ist — bei `nur_in_db` ist das die Löschliste.
+ */
+export interface SeedStatus {
+  readonly available: boolean;
+  readonly area_count: number;
+  readonly neu: readonly string[];
+  readonly gleich: readonly string[];
+  readonly abweichend: readonly string[];
+  readonly nur_in_db: readonly string[];
+}
+
+/** `snapshot_id` ist nur bei `exact` gesetzt — dort ist er der Rückweg. */
+export interface SeedApplied {
+  readonly written: number;
+  readonly deleted: number;
+  readonly snapshot_id: string | null;
+}
+
+export type SeedMode = 'missing' | 'exact';
+
 const SNAPSHOTS = '/config/snapshots';
 const FACTORY = '/config/factory';
+const SEED = '/config/seed';
 
 @Injectable({ providedIn: 'root' })
 export class SnapshotsApi {
@@ -99,6 +126,18 @@ export class SnapshotsApi {
 
   uploadFactory(file: File): Promise<FactorySaved> {
     return this.api.upload<FactorySaved>(`${FACTORY}/upload`, file);
+  }
+
+  /** Zählung des Auslieferungsstandes — ändert nichts. */
+  seed(): Promise<SeedStatus> {
+    return this.api.get<SeedStatus>(SEED);
+  }
+
+  /** `'exact'` überschreibt gepflegte Bereiche und löscht; das Backend legt
+   *  dafür zuerst einen Schnappschuss an und verweigert den Lauf, wenn dafür
+   *  kein Platz mehr ist. */
+  applySeed(mode: SeedMode): Promise<SeedApplied> {
+    return this.api.post<SeedApplied>(`${SEED}/apply`, { mode });
   }
 
   /** The live config as a ZIP — not a stored snapshot. */

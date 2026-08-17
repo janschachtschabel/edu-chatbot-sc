@@ -12,6 +12,7 @@ config areas, which is what the Studio edits.
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Security, UploadFile
 from fastapi.responses import StreamingResponse
@@ -20,7 +21,8 @@ from pydantic import BaseModel
 from boerdi.api.deps import Lang, require_studio_key
 from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
-from boerdi.services import snapshots
+from boerdi.services import seed_sync, snapshots
+from boerdi.settings import get_settings
 
 router = APIRouter(
     prefix="/api/config", tags=["config-snapshots"],
@@ -151,6 +153,82 @@ async def upload_factory(file: UploadFile, lang: Lang) -> dict:
         raise HTTPException(status_code=413, detail=str(e)) from None
     await snapshots.save_snapshot(cl.store_engine(), snapshots.FACTORY_ID, "factory", blob)
     return {"status": "saved", "id": snapshots.FACTORY_ID}
+
+
+# ── Auslieferungsstand aus dem Bild (S3) ───────────────────────────────────
+# Der Seed-Baum reist im Bild mit; bisher kam er nur über die CLI und damit nur
+# über SSH in die Datenbank. Plan: docs/plans/2026-08-17-werkszustand-im-studio.md
+#
+# **Der Werksstand darüber ist etwas anderes.** Er ist eine Momentaufnahme des
+# gelebten Standes; dies hier ist der Stand, mit dem das Bild gebaut wurde.
+# Beide bleiben nebeneinander — sie beantworten verschiedene Fragen.
+
+class SeedApply(BaseModel):
+    mode: seed_sync.Modus = "missing"
+
+
+def _seed_dir() -> Path | None:
+    return seed_sync.seed_pfad(get_settings().config_seed_dir)
+
+
+@router.get("/seed")
+async def seed_status() -> dict:
+    """Zählung des Auslieferungsstandes gegen den gelebten — ohne etwas zu ändern.
+
+    Verglichen wird gegen ``current_config()``, also gegen genau die Quelle, aus
+    der auch der Rückweg-Schnappschuss gebaut wird. Zwei Quellen wären hier ein
+    stiller Fehler: der Schnappschuss deckte dann womöglich nicht ab, was der
+    Lauf löscht.
+    """
+    pfad = _seed_dir()
+    if pfad is None:
+        return {"available": False, "area_count": 0,
+                "neu": [], "gleich": [], "abweichend": [], "nur_in_db": []}
+    seed = await seed_sync.seed_lesen(pfad)
+    diff = seed_sync.vergleiche(seed, cl.current_config())
+    return {"available": True, "area_count": len(seed), "neu": diff.neu,
+            "gleich": diff.gleich, "abweichend": diff.abweichend,
+            "nur_in_db": diff.nur_in_db}
+
+
+@router.post("/seed/apply")
+async def seed_apply(payload: SeedApply, lang: Lang) -> dict:
+    """``missing`` zieht Fehlendes nach; ``exact`` stellt den Stand her.
+
+    ``exact`` überschreibt gepflegte Bereiche und löscht, was nur in der
+    Datenbank steht — deshalb **zuerst** der Schnappschuss. Ist kein Platz mehr
+    für ihn, wird der Lauf verweigert statt ohne Rückweg ausgeführt.
+    """
+    pfad = _seed_dir()
+    if pfad is None:
+        raise HTTPException(404, msg(lang, "seed.missing"))
+
+    snap_id: str | None = None
+    if payload.mode == "exact":
+        engine = cl.store_engine()
+        if await snapshots.count_snapshots(engine) >= snapshots.MAX_SNAPSHOTS:
+            raise HTTPException(
+                400, msg(lang, "snapshots.limitReached", max=snapshots.MAX_SNAPSHOTS)
+            )
+        snap_id = f"snap-{uuid.uuid4().hex[:12]}"
+        await snapshots.save_snapshot(
+            engine, snap_id, "vor Auslieferungsstand",
+            snapshots.build_config_zip(cl.current_config()),
+        )
+
+    seed = await seed_sync.seed_lesen(pfad)
+    diff = seed_sync.vergleiche(seed, cl.current_config())
+
+    async def _schreiben(area: str, data: dict) -> None:
+        await cl.write_area(area, data, updated_by="seed-apply")
+
+    async def _loeschen(area: str) -> None:
+        await cl.delete_area(area)
+
+    bericht = await seed_sync.anwenden(
+        diff, seed, payload.mode, schreiben=_schreiben, loeschen=_loeschen
+    )
+    return {**bericht, "snapshot_id": snap_id}
 
 
 # ── full backup / restore (live config ZIP) ────────────────────────────────

@@ -208,6 +208,30 @@ Wahrheit und das Studio der Weg, sie zu ändern; ein zweiter Import überschreib
 redaktionelle Arbeit mit dem Seed-Stand. Soll wirklich der ganze Baum neu
 gesetzt werden, gehört ein Backup davor (siehe unten).
 
+### Den mitgelieferten Konfigurationsstand übernehmen — im Studio
+
+Seit 17.08.2026 braucht das keinen SSH-Zugang mehr: **Sicherung → „Auslieferungs­stand
+aus dem Abbild"** liest denselben Baum (`/app/seeds`) aus dem laufenden Abbild,
+zeigt vorher die Zählung (wie viele Bereiche fehlen, weichen ab, stehen nur in
+der Datenbank) und bietet zwei Wege an:
+
+| Knopf | Wirkung | Verlust |
+|---|---|---|
+| „Fehlende nachziehen" | schreibt nur Bereiche, die es in der Datenbank **nicht** gibt | keiner |
+| „Alles auf Auslieferungsstand" | schreibt neue **und abweichende**, löscht Bereiche, die nur in der Datenbank stehen | ja — vorher legt das Backend selbst einen Schnappschuss „vor Auslieferungsstand" an |
+
+**Das Abbild bleibt die Quelle.** Der Knopf lädt nichts aus dem Repository nach;
+er zeigt den Stand des Commits, aus dem *dieses* Abbild gebaut wurde. „Neueste
+Konfiguration aktivieren" heisst also weiterhin: Abbild bauen, deployen, **dann**
+im Studio drücken.
+
+Ein Neustart ist danach nicht nötig — der DB-Trigger benachrichtigt jede Replika
+(seit Migration `0003` auch beim Löschen).
+
+Der Weg über `docker compose … run --rm --no-deps migrate boerdi import-config`
+bleibt für die Erstinstallation und für den Fall, dass das Studio nicht
+erreichbar ist.
+
 **Image aus der Registry statt selbst gebaut.** `image.yml` veröffentlicht nach
 bestandenem Smoke nach GHCR; dann entfällt Schritt 1 und `BOERDI_IMAGE` in der
 `.env` zeigt auf die commit-genaue Marke. Das ist zugleich der Rollback-Schalter

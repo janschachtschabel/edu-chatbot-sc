@@ -1,0 +1,81 @@
+<section class="op-panel" aria-labelledby="sp-title">
+  <h2 class="op-title" id="sp-title">{{ t('seed.title') }}</h2>
+
+  <p class="op-lead">{{ t('seed.lead') }}</p>
+
+  <div class="sp-status" role="status">
+    @if (status.loading() && !status.value()) {
+      {{ t('seed.checking') }}
+    } @else if (!available()) {
+      {{ t('seed.unavailable') }}
+    } @else {
+      <ul class="sp-counts">
+        <li>{{ t('seed.areaCount', { count: counts().areas }) }}</li>
+        <li>{{ t('seed.same', { count: counts().gleich }) }}</li>
+        <li>{{ t('seed.new', { count: counts().neu }) }}</li>
+        <li>{{ t('seed.differing', { count: counts().abweichend }) }}</li>
+        <li>{{ t('seed.onlyInDb', { count: counts().nurInDb }) }}</li>
+      </ul>
+    }
+  </div>
+
+  @if (status.error(); as err) {
+    <p class="op-msg op-msg--error" role="alert">⚠ {{ err }}</p>
+  }
+
+  <!-- Die Namen stehen hinter einem Aufklapper: bei 35 Bereichen wäre die
+       Liste länger als die ganze Ansicht. Wer den scharfen Knopf drücken will,
+       braucht sie trotzdem — vor allem die dritte Gruppe, die gelöscht wird. -->
+  @if (namen().length) {
+    <details class="sp-names">
+      <summary>{{ t('seed.names') }}</summary>
+      @for (gruppe of namen(); track gruppe.key) {
+        <div class="sp-group">
+          <strong>{{ t(gruppe.key, { count: gruppe.areas.length }) }}</strong>
+          <ul class="sp-areas">
+            @for (area of gruppe.areas; track area) {
+              <li>{{ area }}</li>
+            }
+          </ul>
+        </div>
+      }
+    </details>
+  }
+
+  <div class="op-actions">
+    <button
+      type="button"
+      class="op-btn"
+      [disabled]="!canFill() || action.busy()"
+      (click)="fill()"
+    >
+      {{ action.isRunning('fill') ? t('seed.filling') : t('seed.fill') }}
+    </button>
+    <button
+      type="button"
+      class="op-btn op-btn--danger"
+      [disabled]="!canApply() || action.busy()"
+      (click)="arm()"
+    >
+      {{ action.isRunning('exact') ? t('seed.exacting') : t('seed.exact') }}
+    </button>
+  </div>
+
+  @if (armed()) {
+    <p class="op-confirm" role="alert">
+      <span>{{ t('seed.confirmExact') }}</span>
+      <button type="button" class="op-btn op-btn--danger" (click)="applyExact()">
+        {{ t('seed.confirmExactYes') }}
+      </button>
+      <button type="button" class="op-btn" (click)="disarm()">{{ t('action.cancel') }}</button>
+    </p>
+  }
+
+  @if (action.message(); as msg) {
+    <p
+      class="op-msg"
+      [class.op-msg--error]="msg.kind === 'error'"
+      [attr.role]="msg.kind === 'error' ? 'alert' : 'status'"
+    >{{ msg.kind === 'error' ? '⚠ ' : '✓ ' }}{{ msg.text }}</p>
+  }
+</section>

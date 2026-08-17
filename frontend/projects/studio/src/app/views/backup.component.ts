@@ -25,11 +25,12 @@ import { saveBlob } from '../core/download';
 import { SnapshotsApi } from '../core/snapshots-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { FactoryPanelComponent } from './factory-panel.component';
+import { SeedPanelComponent } from './seed-panel.component';
 import { SnapshotsPanelComponent } from './snapshots-panel.component';
 
 @Component({
   selector: 'studio-backup',
-  imports: [SnapshotsPanelComponent, FactoryPanelComponent],
+  imports: [SnapshotsPanelComponent, FactoryPanelComponent, SeedPanelComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './backup.component.html',
   styleUrl: './backup.component.scss',

@@ -76,6 +76,43 @@ def test_config_notify_trigger_installed(migrated_db) -> None:
     assert "trg_config_notify" in triggers
 
 
+def test_config_notify_traegt_auch_das_loeschen(migrated_db) -> None:
+    """Migration 0003: ein gelöschter Bereich muss die anderen Repliken erreichen.
+
+    ``ConfigStore.delete()`` räumt nur den **eigenen** Prozess-Cache. Die
+    Benachrichtigung ist der einzige Weg, mit dem die übrigen Repliken davon
+    erfahren; ohne sie servieren sie den gelöschten Bereich bis zum Neustart
+    weiter. Der Trigger aus 0001 feuerte nur ``INSERT OR UPDATE``.
+
+    Geprüft wird die Wirkung, nicht die Definition: ein ``tgtype``-Bitvergleich
+    hätte auch bei einer Funktion bestanden, die beim ``DELETE`` an ``NEW.area``
+    scheitert (``NEW`` ist dort ``NULL``).
+    """
+
+    async def szenario() -> list[str]:
+        empfangen: list[str] = []
+        conn = await asyncpg.connect(migrated_db)
+        try:
+            await conn.add_listener(
+                "config_changed", lambda *a: empfangen.append(a[-1])
+            )
+            await conn.execute(
+                "INSERT INTO config_areas (area, data) VALUES ('t/loeschprobe', '{}')"
+            )
+            await conn.execute("DELETE FROM config_areas WHERE area='t/loeschprobe'")
+            # NOTIFY wird nach dem Commit zugestellt; asyncpg liefert es auf dem
+            # Verbindungs-Lesekanal, der erst beim nächsten await bedient wird.
+            for _ in range(50):
+                if len(empfangen) >= 2:
+                    break
+                await asyncio.sleep(0.02)
+            return empfangen
+        finally:
+            await conn.close()
+
+    assert _run(szenario()) == ["t/loeschprobe", "t/loeschprobe"]
+
+
 def test_embedding_column_is_vector_with_dim(migrated_db) -> None:
     async def fetch() -> str:
         conn = await asyncpg.connect(migrated_db)

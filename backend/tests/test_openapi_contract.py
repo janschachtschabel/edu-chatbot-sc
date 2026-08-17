@@ -7,7 +7,9 @@ a JSON counterpart to bind a form to; ``/config/file`` is YAML text, see 9-3a)
 and GET /widget/frameless (U1 — the demo page for the frameless embed mode,
 which ALT did not have; purely additive, one path, nothing changed or removed)
 and GET /api/usage/{session,period} (K4 — cost monitoring, which ALT did not do
-at all; the reason per route is in ``docs/api/bewusste-vertragszusaetze.md``,
+at all) and GET/POST /api/config/seed{,/apply} (S3 — applying the config tree
+that ships inside the image, which ALT reached only over SSH; the reason per
+route is in ``docs/api/bewusste-vertragszusaetze.md``,
 kept in shipped docs rather than only here because that file is also what
 ``tests/test_openapi_additions.py`` counts against the frozen baseline).
 ``/api/static/*`` is a StaticFiles mount in ALT and NEU —
@@ -134,6 +136,8 @@ POST   /api/speech/synthesize
 POST   /api/speech/transcribe
 POST   /api/agent
 POST   /api/agent/stream
+GET    /api/config/seed
+POST   /api/config/seed/apply
 GET    /api/usage/period
 GET    /api/usage/session/{session_id}
 GET    /health
