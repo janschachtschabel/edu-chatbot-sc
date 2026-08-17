@@ -47,6 +47,10 @@
   margin: var(--st-1) 0 0;
   padding-inline-start: var(--st-4);
   color: var(--st-text-muted);
-  font-family: var(--st-font-mono, monospace);
+  // Wörtlich wie an den elf anderen Stellen im Studio: für Festbreitenschrift
+  // gibt es kein Token. Ein erfundenes mit Rückfallwert hätte ausgesehen wie
+  // gewollt und `check:tokens` zu Recht rot gemacht — der Rückfallwert
+  // verdeckt einen Tippfehler.
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   word-break: break-all;
 }
