@@ -1,11 +1,16 @@
 """01-base/engine — welche Maschine einen Zug beantwortet.
 
-Zwei Wege stehen zur Wahl. Die **Muster-Engine** ist der Bestand: Klassifikator,
+Drei Wege stehen zur Wahl. Die **Muster-Engine** ist der Bestand: Klassifikator,
 Musterwahl, gebundene Werkzeugliste. Die **Agent-Schleife** überlässt dem Modell
 alles — Systemprompt plus der volle Werkzeugkatalog, keine Muster, kein
 Klassifikator. Sie ist für Einbettungen gedacht, in denen der Chat-Rahmen fehlt
 (Browser-Plugin, edu-sharing), und zugleich der Versuchsaufbau für die Frage, ob
 sie im Chat schneller und besser ist.
+
+Der **Hybrid** ist die Antwort auf genau diese Frage: dieselbe Schleife, aber mit
+dem Musterkatalog als Werkzeug. Er spart den Klassifikator wie die Agent-Schleife
+und behält die redaktionell gepflegten Muster wie der Bestand — nur wählt sie das
+Modell selbst, und erst wenn es die Trefferlage kennt.
 
 **Die Vorgabe ist ``pattern``, und das ist eine Zusage**: ohne Pflege ändert sich
 am ausgelieferten Chatbot nichts. Der Bereich ist rein additiv — schaltet ihn
@@ -18,10 +23,11 @@ ALT kannte nur einen Weg.
 
 **Warum ``Literal`` und kein freier String.** Der Studio-Editor rendert selbst,
 aus einer gemessenen JSON-Schema-Teilmenge (``schema-form/json-schema.ts``); sein
-Mapper schaltet auf ``type`` und fällt sonst auf ein rohes JSON-Feld zurück.
-``Literal`` zweier Strings behält ``type: string``, bleibt also ein bedienbares
+Mapper schaltet auf ``type`` und fällt sonst auf ein rohes JSON-Feld zurück. Ein
+``Literal`` aus Strings behält ``type: string``, bleibt also ein bedienbares
 Feld, und schreibt die erlaubten Werte zusätzlich ins Schema. Genau die Falle,
-die ``01-base/pricing`` schon einmal bezahlt hat.
+die ``01-base/pricing`` schon einmal bezahlt hat. Ein weiterer Wert ändert daran
+nichts — die Zahl der Alternativen ist dem Mapper gleichgültig, ihr ``type`` nicht.
 """
 
 from typing import Literal
@@ -60,5 +66,5 @@ class AgentLimits(AreaModel):
 class EngineArea(AreaModel):
     """Der Umschalter plus die Deckel der Agent-Schleife."""
 
-    mode: Literal["pattern", "agent"] = "pattern"
+    mode: Literal["pattern", "agent", "hybrid"] = "pattern"
     agent: AgentLimits = Field(default_factory=AgentLimits)

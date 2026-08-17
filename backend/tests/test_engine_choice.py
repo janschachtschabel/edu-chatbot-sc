@@ -46,10 +46,36 @@ def test_die_kopfzeile_uebersteuert_auch_zurueck(monkeypatch):
     assert _waehle(monkeypatch, header="pattern", engine=engine) == "pattern"
 
 
+def test_die_vorgabe_kann_auf_hybrid_stehen(monkeypatch):
+    assert _waehle(monkeypatch, engine=EngineArea(mode="hybrid")) == "hybrid"
+
+
+def test_die_kopfzeile_uebersteuert_nach_hybrid(monkeypatch):
+    assert _waehle(monkeypatch, header="hybrid") == "hybrid"
+
+
+def test_die_kopfzeile_uebersteuert_aus_dem_hybrid_heraus(monkeypatch):
+    """Auch die dritte Maschine muss sich stichprobenweise gegen die beiden
+    anderen messen lassen — sonst ließe sich eine auf ``hybrid`` gestellte
+    Anlage nicht mit EINER Golden-Suite gegen den Bestand fahren."""
+    hybrid = EngineArea(mode="hybrid")
+    assert _waehle(monkeypatch, header="pattern", engine=hybrid) == "pattern"
+    assert _waehle(monkeypatch, header="agent", engine=hybrid) == "agent"
+
+
+def test_die_drei_maschinen_sind_verschieden():
+    """Wächter gegen einen Tippfehler in den Konstanten: drei Namen, drei Werte.
+    Fielen zwei zusammen, liefe eine Maschine still als die andere — und der
+    A/B-Vergleich verglich einen Lauf mit sich selbst, ohne rot zu werden."""
+    drei = {engine_choice.PATTERN, engine_choice.AGENT, engine_choice.HYBRID}
+    assert len(drei) == 3
+    assert drei == set(engine_choice._ERLAUBT)
+
+
 def test_unbekannte_kopfzeile_wird_ignoriert(monkeypatch):
-    """Ein Tippfehler darf nicht auf einen dritten, nicht vorhandenen Weg
-    schalten — und erst recht nicht still den Bestand verlassen."""
-    for unsinn in ("Agent!", "", "   ", "pattern-engine", "gpt"):
+    """Ein Tippfehler darf nicht auf einen anderen Weg schalten — und erst
+    recht nicht still den Bestand verlassen."""
+    for unsinn in ("Agent!", "", "   ", "pattern-engine", "gpt", "hybrid-engine"):
         assert _waehle(monkeypatch, header=unsinn) == "pattern"
 
 

@@ -30,6 +30,7 @@ from boerdi.api.schemas import ClassificationResult
 from boerdi.graph.state import TurnContext
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.services.classify import classify_input
+from boerdi.services.engine_choice import laeuft_ueber_die_schleife
 from boerdi.services.safety import assess_safety
 from boerdi.services.safety.regex_gate import regex_gate
 
@@ -86,12 +87,15 @@ async def assess(
     async def _classify():
         # A4b: Der Agent-Modus hat keinen Klassifikator — das ist sein Zweck
         # („eine einfachere und schnellere Variante ohne Klassifikationsprompt").
+        # H6: der Hybrid ebenso. Er holt die Muster zurück, aber nicht über den
+        # Klassifikator, sondern als Werkzeug in der Schleife — genau deshalb
+        # fragt die Bedingung nach der Schleife und nicht nach einem Namen.
         # Die nachgelagerten Knoten brauchen trotzdem eine gültige Form, und die
         # gibt es hier schon: dieselbe Funktion trägt den Krisen-Kurzschluss und
         # den Classify-Fehlerfall. Die Verzweigung sitzt IN der Coroutine und
         # nicht am ``gather`` darunter — so bleibt der Weg der Muster-Engine
         # Zeile für Zeile derselbe.
-        if engine == "agent":
+        if laeuft_ueber_die_schleife(engine):
             return _fallback_classification(ss, "I01")
         return await classify_input(
             ctx.req.message, ctx.history, ss, ctx.env,

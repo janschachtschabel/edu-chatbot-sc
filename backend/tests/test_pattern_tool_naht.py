@@ -63,6 +63,16 @@ def _ohne_select_top_cards(monkeypatch):
     monkeypatch.setenv("CHAT_DISABLE_SELECT_TOP_CARDS", "1")
 
 
+def _basis(aktiv: list[dict]) -> list[dict]:
+    """Die BASIS-Auswahl — ohne das unbedingt angehängte Ergebnis-Werkzeug.
+
+    ``select_top_cards`` nimmt die Fixture oben per ENV heraus; ``zeige_dokument``
+    (D3) hat keinen Schalter und wird hier gefiltert. Beide hängen unabhängig
+    vom gewählten Zweig an und sagen über die Naht, um die es hier geht, nichts.
+    """
+    return [t for t in aktiv if t["function"]["name"] != "zeige_dokument"]
+
+
 class TestNahtform:
     """Was ``phase3_modulate`` an die Werkzeug-Auswahl übergibt."""
 
@@ -77,14 +87,14 @@ class TestNahtform:
         aktiv, *_ = rts._select_active_tools(
             {}, _modulate(sources=["mcp"]), None, None, False, False,
         )
-        assert aktiv == []
+        assert _basis(aktiv) == []
 
     def test_rueckfall_zweig_ist_unerreichbar(self):
         # Der Code verspricht hier search_wlo_collections + search_wlo_topic_pages.
         aktiv, *_ = rts._select_active_tools(
             {}, _modulate(sources=["rag"]), None, None, False, False,
         )
-        assert aktiv == []
+        assert _basis(aktiv) == []
 
     def test_genannte_werkzeuge_kommen_weiterhin_an(self):
         # Gegenprobe: der lebende Zweig funktioniert unverändert.

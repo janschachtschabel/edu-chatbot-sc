@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING, Any
 
 from boerdi.graph.state import TurnContext
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
+from boerdi.services.tool_loop import GELIEFERTE_DOKUMENTE_KEY
 from boerdi.services.turn_links import _finalize_links_and_metas
 from boerdi.services.turn_persist import (
     build_debug_and_update_session,
@@ -119,6 +120,12 @@ async def persist(
         response_text=ctx.response_text,
     )
 
+    # Die gelieferten Ergebnis-Boxen haben zwei Zuflüsse und ab hier eine Naht:
+    # die Schleifen-Maschinen tragen sie am ``ctx`` (``respond_agent``), der
+    # Tool-Loop kennt kein ``ctx`` und legt sie nach seiner eigenen Konvention
+    # im ``session_state`` ab. ``pop`` in jedem Fall — bliebe der Merker stehen,
+    # zeigte der nächste Zug dieselbe Box noch einmal (wie ``_write_preview``).
+    _aus_dem_musterweg = ctx.session_state.pop(GELIEFERTE_DOKUMENTE_KEY, [])
     ctx.response = await persist_and_build_response(
         session,
         req=ctx.req,
@@ -143,6 +150,7 @@ async def persist(
         _qr_mode=ctx.qr_mode,
         _qr_max=ctx.qr_max,
         _effective_pattern_id=ctx.effective_pattern_id,
+        gelieferte_dokumente=ctx.gelieferte_dokumente or _aus_dem_musterweg,
     )
     # Das maschinenlesbare Ergebnis der Agent-Schleife (2026-08-14). NACH dem
     # Bau angehängt statt durch die Signatur gereicht: die trägt schon zwanzig

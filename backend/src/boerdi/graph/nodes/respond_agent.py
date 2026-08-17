@@ -53,6 +53,9 @@ from __future__ import annotations
 import logging
 
 from boerdi.domain.answer_notes import append_answer_notes
+from boerdi.domain.history_window import verlaufs_fenster
+from boerdi.domain.pattern_catalog import finde_muster
+from boerdi.domain.pattern_engine import PatternDef, get_patterns, phase3_modulate
 from boerdi.domain.skill_precedence import anleitungs_hinweis, mit_ladehinweis
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
@@ -63,10 +66,11 @@ from boerdi.obs.tasks import cancel_and_drain
 from boerdi.services import page_context
 from boerdi.services.agent_loop import AgentRun, run_agent_loop
 from boerdi.services.agent_prefetch import resolve_prefetch
-from boerdi.services.agent_tools import build_agent_tools
+from boerdi.services.agent_tools import VIRTUELLE_WERKZEUGE, build_agent_tools
 from boerdi.services.agent_write import enforce_write_mode
 from boerdi.services.card_collect import collect_cards
 from boerdi.services.config_loader import load_engine
+from boerdi.services.engine_choice import AGENT, HYBRID
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +78,15 @@ logger = logging.getLogger(__name__)
 #: (``tool_loop._assemble_messages``), damit der A/B-Vergleich nicht schon am
 #: Gedächtnis auseinanderläuft.
 _HISTORY_TURNS = 10
+
+#: Die ZAHL ist dieselbe wie im Bestandsweg, die **Größe** nicht mehr (H8-3):
+#: ``verlaufs_fenster`` deckelt zusätzlich die Zeichen. Eine bewusste Abweichung
+#: mit zwei Gründen. Erstens zahlt diese Schleife den Verlauf in **jeder** ihrer
+#: bis zu 12 Runden, der Bestandsweg in höchstens 5 — dieselben Zeichen kosten
+#: hier also mehr als das Doppelte. Zweitens trägt ``tool_loop_messages`` als
+#: P12/P14-Port die Zusage „byte-identisch zu ALT für dieselbe Config"; derselbe
+#: Deckel dort wäre ein Bruch dieser Zusage. Folge, ausdrücklich: der A/B-Lauf
+#: vergleicht ab jetzt zwei Maschinen mit unterschiedlicher Verlaufs-Behandlung.
 
 _SYSTEM = (
     "Du bist Boerdi, der Assistent von WirLernenOnline (WLO). Du sprichst mit "
@@ -138,14 +151,59 @@ def _antwort_oder_ersatz(lauf: AgentRun, sprache: str) -> str:
     """
     if lauf.text.strip():
         return lauf.text
+    if lauf.dokumente:
+        # Ein Lauf, der ein Ergebnis GELIEFERT hat, ist nicht gescheitert — ihm
+        # fehlt nur der Begleitsatz. Der Deckel-Satz („zu umfangreich, stell sie
+        # kleiner geschnitten noch einmal") stünde direkt über einer
+        # vollständigen Stundenplanung und würde von ihr widerlegt.
+        logger.info("Agent-Modus: %d Box(en) ohne Begleitsatz (Ende=%s)",
+                    len(lauf.dokumente), lauf.stop_reason)
+        return bot_text(sprache, "agent.delivered")
     schluessel = "agent.incomplete" if lauf.stop_reason in _GEDECKELT else "agent.failed"
     logger.info("Agent-Modus: Lauf ohne Text (Ende=%s) — Ersatzsatz %s",
                 lauf.stop_reason, schluessel)
     return bot_text(sprache, schluessel)
 
 
+def _muster_werkzeuge(ctx: TurnContext, muster: PatternDef) -> list[str]:
+    """Die Werkzeugliste eines Musters — durch die **echte** ``phase3_modulate``.
+
+    Nicht ``muster.tools`` roh: die Modulation hängt die Helfer an, ohne die eine
+    Suche halb ist (``lookup_wlo_vocabulary``, ``get_node_details``), und sie tut
+    es nach derselben Regel wie im Bestandsweg. Eine eigene Fassung liefe beim
+    nächsten Studio-Feld auseinander — und der A/B-Vergleich maße dann einen
+    Unterschied, den er selbst gebaut hat.
+    """
+    ss = ctx.session_state or {}
+    output = phase3_modulate(
+        muster,
+        list(ctx.classification.signals or []),
+        ctx.env.get("device", "desktop"),
+        ss.get("entities") or {},
+        ss.get("persona_id") or "P-AND",
+    )
+    return list(output.get("tools") or [])
+
+
+def _werkzeuge_des_musters(
+    alle: list[dict], erlaubt: list[str]
+) -> list[dict]:
+    """``alle`` auf die Werkzeuge des Musters eingeschränkt.
+
+    Die virtuellen bleiben immer drin (siehe :data:`VIRTUELLE_WERKZEUGE`). Eine
+    **leere** Erlaubnisliste heißt „dieses Muster arbeitet ohne Werkzeuge" (M04,
+    M11, M13, M14) — dann bleiben nur die virtuellen, und das Modell kann
+    zurückwechseln oder antworten, aber nicht suchen. Genau die Zusage, die
+    ``sources: [llm]`` im Bestandsweg gibt.
+    """
+    gewuenscht = set(erlaubt)
+    return [t for t in alle
+            if t["function"]["name"] in VIRTUELLE_WERKZEUGE
+            or t["function"]["name"] in gewuenscht]
+
+
 async def respond_agent(
-    ctx: TurnContext, progress: TurnProgress = NO_PROGRESS
+    ctx: TurnContext, progress: TurnProgress = NO_PROGRESS, engine: str = AGENT
 ) -> TurnContext:
     """Beantworte den Zug mit der Agent-Schleife. Mutiert ``ctx`` und gibt ihn
     zurück — gleiche Ausgangsfelder wie ``respond``, damit ``assemble`` und
@@ -174,7 +232,13 @@ async def respond_agent(
     )
     if anleitungen:
         messages.append({"role": "system", "content": anleitungen})
-    messages.extend(ctx.history[-_HISTORY_TURNS:])
+    _fenster = verlaufs_fenster(ctx.history, max_nachrichten=_HISTORY_TURNS)
+    _roh = sum(len(m.get("content") or "") for m in ctx.history[-_HISTORY_TURNS:])
+    _im_prompt = sum(len(m["content"]) for m in _fenster)
+    if _im_prompt < _roh:
+        logger.info("Verlauf gedeckelt: %d von %d Nachrichten, %d von %d Zeichen",
+                    len(_fenster), len(ctx.history[-_HISTORY_TURNS:]), _im_prompt, _roh)
+    messages.extend(_fenster)
     # Anleitungen vor Gegenstand — dieselbe Reihenfolge wie im Agent-Endpunkt.
     await resolve_prefetch(messages, _vorab_aufrufe(seite), progress=progress)
     messages.append({"role": "user", "content": ctx.req.message})
@@ -193,17 +257,45 @@ async def respond_agent(
             "antworte gewoehnlich und rufe es NICHT."
         )
 
+    # H6: Der Musterkatalog liegt nur im Hybrid in der Werkzeugliste — und auch
+    # dort NICHT, wenn das Sicherheits-Gate ein Muster erzwungen hat. Über M01
+    # und M02 entscheidet nicht das Modell; ein Katalog daneben machte die
+    # Krisen-Behandlung zu einem Angebot.
+    _katalog: list[PatternDef] | None = None
+    if engine == HYBRID:
+        if ctx.safety.enforced_pattern:
+            logger.info(
+                "Hybrid: %s ist vom Sicherheits-Gate erzwungen — der "
+                "Musterkatalog bleibt aus dem Werkzeugsatz.",
+                ctx.safety.enforced_pattern)
+        else:
+            _katalog = get_patterns()
+
+    def _voller_satz(*, kurz: bool = False) -> list[dict]:
+        """Der Werkzeugsatz. ``kurz`` schaltet den Musterkatalog auf eine Zeile
+        je Muster (H8-2) — richtig für jede Liste, die NACH einer Wahl entsteht:
+        dort ist nur noch das Wechseln offen, und die Einsatzregeln kosteten
+        gemessen 25 251 der 31 742 Zeichen dieses Satzes."""
+        return build_agent_tools(
+            blocked_tools=ctx.safety.blocked_tools,
+            include_submit=bool(_schema), result_schema=_schema,
+            muster_katalog=_katalog, include_dokument=True,
+            katalog_kurz=kurz)
+
     all_cards: list[dict] = []
     progress.start("response", "LLM response generation")
     lauf = await run_agent_loop(
         messages=messages,
-        tools=build_agent_tools(
-            blocked_tools=ctx.safety.blocked_tools,
-            include_submit=bool(_schema), result_schema=_schema),
+        tools=_voller_satz(),
         limits=enforce_write_mode(load_engine().agent),
         usage_acc=ctx.usage,
         progress=progress,
         on_tool_result=lambda name, text: collect_cards(all_cards, name, text),
+        muster_katalog=_katalog,
+        werkzeuge_fuer=(
+            lambda muster: _werkzeuge_des_musters(
+                _voller_satz(kurz=True), _muster_werkzeuge(ctx, muster))
+        ) if _katalog else None,
     )
     logger.info("Agent-Modus: %d Schritte, Ende=%s, %d Werkzeuge, %d Karten",
                 lauf.iterations, lauf.stop_reason, len(lauf.tools_called),
@@ -225,12 +317,26 @@ async def respond_agent(
         (ctx.session_state or {}).get("turn_count"),
     )
     ctx.wlo_cards_raw = all_cards
+    # D2: Was das Modell als Ergebnis GELIEFERT hat. ``turn_persist`` zieht es
+    # der geratenen Box vor; ist die Liste leer, bleibt der Bestandsweg.
+    ctx.gelieferte_dokumente = lauf.dokumente
     # Ergebnis und Ende-Grund weiterreichen. Der Grund geht MIT, auch wenn kein
     # Ergebnis kam: sonst sähe ein an der Frist abgeschnittener Lauf für die
     # Gastseite aus wie einer, der nichts zu sagen hatte.
     if _schema:
         ctx.result = lauf.result if isinstance(lauf.result, dict) else None
         ctx.result_stop_reason = lauf.stop_reason
+    # H6/H7: Was das Modell WIRKLICH benutzt hat, überschreibt den synthetischen
+    # Anfangszustand. ``effective_pattern_id`` trägt genau diese Bedeutung schon
+    # („engine=X → executed=Y", ``route_tail.reconcile_effective_pattern``), und
+    # daran hängen drei Dinge, die sonst still ausfielen: die Inline-Kachel für
+    # M09/M10/M11 (``turn_persist``), ``_last_pattern`` für die Nachbearbeitung
+    # im Folgezug, und die Muster-Spalte der Qualitätslogs.
+    if lauf.muster_id and (_gewaehlt := finde_muster(lauf.muster_id, _katalog or [])):
+        logger.info("Hybrid: ausgefuehrtes Muster %s (%s) statt %s",
+                    _gewaehlt.id, _gewaehlt.label, ctx.effective_pattern_id)
+        ctx.effective_pattern_id = _gewaehlt.id
+        ctx.effective_pattern_label = _gewaehlt.label
     ctx.tools_called = lauf.tools_called
     ctx.debug.outcomes = lauf.outcomes
     ctx.debug.confidence = adjust_confidence(

@@ -32,7 +32,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from boerdi.domain.agent_pattern import agent_pattern
+from boerdi.domain.agent_pattern import agent_pattern, hybrid_pattern
 from boerdi.domain.context import build_context
 from boerdi.domain.lp_intent import detect_lp_intent
 from boerdi.domain.pattern_engine import select_pattern
@@ -56,6 +56,7 @@ from boerdi.services.canvas_fast_path import (
     run_canvas_create_fast_path,
 )
 from boerdi.services.config_loader import load_rag_config
+from boerdi.services.engine_choice import HYBRID, laeuft_ueber_die_schleife
 from boerdi.services.lp_fast_path import run_lp_fast_path
 
 logger = logging.getLogger(__name__)
@@ -142,8 +143,12 @@ async def route(
     #    gibt es nichts zu wählen — der Agent sucht sich sein Werkzeug selbst.
     #    Die Rückgabe-Form bleibt dieselbe, damit alles Nachgelagerte unverändert
     #    weiterläuft (Präzedenz A4b: gleiche Form, anderer Erzeuger).
-    if engine == "agent":
-        winner, pattern_output, scores, eliminated = agent_pattern(
+    if laeuft_ueber_die_schleife(engine):
+        # Im Hybrid (H6) fällt die Wahl später — in der Schleife, wenn die
+        # Trefferlage bekannt ist. Hier steht nur der Anfangszustand; eigene
+        # Kennung, damit die beiden Maschinen im A/B unterscheidbar bleiben.
+        _synthetisch = hybrid_pattern if engine == HYBRID else agent_pattern
+        winner, pattern_output, scores, eliminated = _synthetisch(
             signals=new_signals,
             device=ctx.env.get("device", "desktop"),
             entities=ss.get("entities") or {},
@@ -210,7 +215,7 @@ async def route(
     if vorrang.greift:
         logger.info("Skill-Vorrang (%s): %d freigegebene Skills "
                     "→ Schnellwege treten zurück", vorrang.quelle, vorrang.anzahl)
-    fast_paths_on = engine != "agent" and not vorrang.greift
+    fast_paths_on = not laeuft_ueber_die_schleife(engine) and not vorrang.greift
     fp_response_local = ""
     fp_cards_local: list[dict[str, Any]] = []
     has_lp_intent, thema = detect_lp_intent(

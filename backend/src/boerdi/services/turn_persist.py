@@ -235,6 +235,17 @@ async def build_debug_and_update_session(
     return debug
 
 
+def _boxen_erlaubt(display_rules: dict[str, Any]) -> bool:
+    """Zeigt diese Anlage überhaupt Inline-Boxen?
+
+    Derselbe Schlüssel, den ``inline_rendering._build_inline_document`` für den
+    geratenen Weg liest. Hier eigens gelesen statt dort mitbenutzt: der
+    Lieferweg braucht dessen Überschriften-Suche und Vorspann-Trennung gerade
+    NICHT — er hat Titel und Rumpf schon getrennt vorliegen.
+    """
+    return bool((display_rules.get("inline_documents") or {}).get("enabled", True))
+
+
 async def persist_and_build_response(
     session: AsyncSession,
     req: ChatRequest,
@@ -259,6 +270,7 @@ async def persist_and_build_response(
     _qr_mode: str,
     _qr_max: int | None,
     _effective_pattern_id: str,
+    gelieferte_dokumente: list[dict[str, Any]] | None = None,
 ) -> ChatResponse:
     """Phasen P29-P33: DebugInfo-Anreicherung + Assistant-Persist + Quality-Log,
     guide_urls, finale QR-Politur + display_rules-Gruppen-Trims, Inline-Document-
@@ -471,7 +483,33 @@ async def persist_and_build_response(
     except Exception:
         _winner_id = ""
 
-    if (
+    # D4: Was das Modell AUSDRÜCKLICH geliefert hat (``zeige_dokument``),
+    # schlägt die Vermutung aus dem Antworttext. Der Unterschied ist nicht
+    # Geschmack: der geratene Weg unten verlangt das richtige Muster, 200
+    # Zeichen und ein H1 — vier Bedingungen, die zufällig zusammentreffen
+    # müssen. Live gemessen 2026-08-17 stimmte nur das Muster, und ein fertiger
+    # Verlaufsplan von 8.000 Zeichen fiel weg, weil das Modell den Text als
+    # Zusammenfassung ohne Überschrift formuliert hatte.
+    #
+    # Der Rückfall bleibt vollständig erhalten: liefert das Modell nichts,
+    # läuft alles wie bisher.
+    if gelieferte_dokumente and not _boxen_erlaubt(_display_rules_active):
+        # ``inline_documents.enabled: false`` ist die Ansage einer Anlage,
+        # keine Boxen zu zeigen — sie galt bisher nur für den geratenen Weg
+        # (``inline_rendering``), und eine gelieferte Box lief daran vorbei.
+        # Der Inhalt darf dabei NICHT verschwinden: das Modell hat ihn nicht in
+        # die Prosa geschrieben, weil das Werkzeug ihm genau das untersagt.
+        logger.info("Inline-Boxen sind abgeschaltet — %d Ergebnis(se) wandern "
+                    "in den Fließtext", len(gelieferte_dokumente))
+        _final_text = "\n\n".join(
+            [_final_text.strip(), *(d.get("content", "") for d in gelieferte_dokumente)]
+        ).strip()
+    elif gelieferte_dokumente:
+        inline_documents = list(gelieferte_dokumente)
+        logger.info("Inline-Box(en) vom Modell geliefert: %d — %s",
+                    len(inline_documents),
+                    ", ".join(d.get("kind", "?") for d in inline_documents))
+    elif (
         _winner_id in {"M09", "M10", "M11"}
         and _final_text
         and len(_final_text.strip()) >= 200

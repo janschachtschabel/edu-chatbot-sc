@@ -89,7 +89,7 @@ CONTROLS: tuple[Control, ...] = (
     # Antworten, nicht am Rahmen. Leer = die Vorgabe aus `01-base/engine`.
     Control("engine", "Maschine", (
         ("", "Vorgabe (01-base/engine)"), ("pattern", "Muster-Engine"),
-        ("agent", "Agent-Schleife"))),
+        ("agent", "Agent-Schleife"), ("hybrid", "Hybrid (Muster als Werkzeug)"))),
 )
 
 _STYLE = """

@@ -383,6 +383,116 @@ def test_fremde_seite_ohne_host_bleibt_stumm(monkeypatch):
     assert resp.content == ""
 
 
+# ── Eine ADRESSE ist eine Seite (Befund der Plugin-Entwickler, 2026-08-17) ───
+# Der Entdopplungs-Schlüssel trug für `external` nur den HOSTNAMEN — bei leeren
+# ID-Feldern blieb nichts anderes übrig. Damit galt der zweite Wikipedia-Artikel
+# derselben Sitzung als „schon begrüßt": die Browser-Erweiterung bekam nach dem
+# Seitenwechsel eine leere Antwort statt Begrüßung samt Knöpfen, und im Verlauf
+# stand weiter die alte Meldung (Quick-Replies werden nicht persistiert).
+
+async def _keine_dublette(url, title):
+    """Die Dublettenprüfung ist hier nicht der Gegenstand — und sie ginge sonst
+    wirklich an den MCP, sobald eine ``page_url`` mitkommt."""
+    return None
+
+
+def _fremd_lauf(monkeypatch, url, greeted=None, host="de.wikipedia.org"):
+    """Ein Begrüßungslauf auf einer fremden Seite → (Antwort, Merkliste)."""
+    _patch_io(monkeypatch)
+    monkeypatch.setattr(g, "find_existing_by_url", _keine_dublette)
+    state = {"entities": {"_greeted_pages": list(greeted or [])}}
+    resp = asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(),
+        _env(page_context={"page_kind": "external", "page_host": host,
+                           "page_url": url}),
+        state, ["prev"]))
+    return resp, state["entities"].get("_greeted_pages", [])
+
+
+def test_zwei_artikel_desselben_hosts_sind_zwei_seiten(monkeypatch):
+    """DER Befund. Beide Adressen gehören zu de.wikipedia.org, sind aber nicht
+    dieselbe Seite — das Angebot lautet „ich kann DIESE Seite ansehen"."""
+    erste, gemerkt = _fremd_lauf(
+        monkeypatch, "https://de.wikipedia.org/wiki/Astronomische_Einheit")
+    assert erste.quick_replies, "Vorbedingung: die erste Seite bekommt Knöpfe"
+
+    zweite, _ = _fremd_lauf(
+        monkeypatch, "https://de.wikipedia.org/wiki/Sonne", greeted=gemerkt)
+    assert zweite.content
+    assert zweite.quick_replies
+
+
+def test_dieselbe_adresse_wird_nur_einmal_begruesst(monkeypatch):
+    """Die Entdopplung bleibt, wofür sie da ist: derselbe Artikel meldet sich
+    nicht bei jedem Neu-Initialisieren der Erweiterung erneut."""
+    _, gemerkt = _fremd_lauf(monkeypatch, "https://de.wikipedia.org/wiki/Sonne")
+    nochmal, _ = _fremd_lauf(
+        monkeypatch, "https://de.wikipedia.org/wiki/Sonne", greeted=gemerkt)
+    assert nochmal.content == ""
+
+
+def test_ein_anker_wechselt_die_seite_nicht(monkeypatch):
+    """Ein Sprung in einen Abschnitt ist keine neue Seite — sonst begrüßte jeder
+    Klick im Inhaltsverzeichnis neu."""
+    _, gemerkt = _fremd_lauf(monkeypatch, "https://de.wikipedia.org/wiki/Sonne")
+    anker, _ = _fremd_lauf(
+        monkeypatch, "https://de.wikipedia.org/wiki/Sonne#Aufbau", greeted=gemerkt)
+    assert anker.content == ""
+
+
+def test_ohne_adresse_bleibt_es_beim_host(monkeypatch):
+    """Ein älteres Widget-Bündel schickt nur den Hostnamen. Dann gilt weiter das
+    bisherige Verhalten statt eines leeren Zusatzes, der alles neu begrüßte."""
+    _patch_io(monkeypatch)
+    ohne = {"page_kind": "external", "page_host": "beispiel.org"}
+    state = {"entities": {"_greeted_pages": [
+        g._greeting_signature("external", ohne, {"host": "beispiel.org",
+                                                 "title": "beispiel.org"})]}}
+    resp = asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(), _env(page_context=ohne), state, ["prev"]))
+    assert resp.content == ""
+
+
+def test_die_eigene_startseite_bleibt_hostweise(monkeypatch):
+    """Auf dem EIGENEN Host sagt die Meldung etwas über die Site, nicht über die
+    Seite. Sie auf jeder Unterseite zu wiederholen wäre Lärm."""
+    _patch_io(monkeypatch)
+
+    def _lauf(url, greeted):
+        state = {"entities": {"_greeted_pages": list(greeted)}}
+        resp = asyncio.run(g.maybe_context_greeting(
+            _SESSION, _req(),
+            _env(page_context={"page_kind": "home",
+                               "page_host": "wirlernenonline.de",
+                               "page_url": url}),
+            state, ["prev"]))
+        return resp, state["entities"].get("_greeted_pages", [])
+
+    _, gemerkt = _lauf("https://wirlernenonline.de/", [])
+    zweite, _ = _lauf("https://wirlernenonline.de/ueber-uns", gemerkt)
+    assert zweite.content == ""
+
+
+def test_eine_sammlung_bleibt_an_ihrer_kennung(monkeypatch):
+    """Zwei Adressen auf dieselbe Sammlung sind dieselbe Seite — sonst begrüßte
+    ein angehängter Zählparameter erneut. Deshalb steht die Adresse NICHT
+    unterschiedslos im Schlüssel."""
+    _patch_io(monkeypatch)
+
+    def _lauf(url, greeted):
+        state = _state(_resolved(title="Optik"))
+        state["entities"]["_greeted_pages"] = list(greeted)
+        resp = asyncio.run(g.maybe_context_greeting(
+            _SESSION, _req(),
+            _env(page_context={**_collection_ctx(), "page_url": url}),
+            state, ["prev"]))
+        return resp, state["entities"].get("_greeted_pages", [])
+
+    _, gemerkt = _lauf("https://wirlernenonline.de/sammlung/C1", [])
+    zweite, _ = _lauf("https://wirlernenonline.de/sammlung/C1?utm_source=x", gemerkt)
+    assert zweite.content == ""
+
+
 def test_abschalter_schweigt_auch_bei_den_neuen_arten(monkeypatch):
     _patch_io(monkeypatch)
     monkeypatch.setattr(g, "load_context_actions", lambda: {"enabled": False})

@@ -167,7 +167,12 @@ def build_turn_graph(
     g.add_node("assess", functools.partial(
         assess, memory_fetch=memory_fetch, progress=progress, engine=engine))
     g.add_node("safety_log", functools.partial(_log_turn_safety, session=session))
-    g.add_node("merge", merge)
+    # H5: ``merge`` startet den spekulativen Vorabruf, und dessen Auslöser hängt
+    # im Bestand am Klassifikator (``intent_id in {I03, I04}``). Der Hybrid
+    # klassifiziert nicht — ohne diese Naht fiele der Vorabruf dort still aus,
+    # und der Tempogewinn wäre gegen eine gemessen bis 23 s stehende MCP-Suche
+    # eingetauscht.
+    g.add_node("merge", functools.partial(merge, engine=engine))
     g.add_node("route", functools.partial(route, progress=progress, engine=engine))
     g.add_node("respond", functools.partial(
         respond, session=session, on_token=on_token, progress=progress,

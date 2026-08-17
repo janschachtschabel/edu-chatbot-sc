@@ -31,6 +31,27 @@ from boerdi.domain.pattern_engine import PatternDef, phase3_modulate
 AGENT_PATTERN_ID: Final = "AGENT"
 AGENT_PATTERN_LABEL: Final = "AGENT (Werkzeug-Agent)"
 
+#: Dasselbe für den Hybrid (H6). Eigene Kennung, weil beide Maschinen
+#: nebeneinander gemessen werden: stünde in den Qualitätslogs beider Läufe
+#: ``AGENT``, ließe sich der A/B-Vergleich nicht mehr auseinanderhalten. Es ist
+#: der **Anfangs**-Zustand — sobald das Modell ein Muster zieht, trägt
+#: ``effective_pattern_id`` dessen Kennung.
+HYBRID_PATTERN_ID: Final = "HYBRID"
+HYBRID_PATTERN_LABEL: Final = "HYBRID (Werkzeug-Agent mit Musterkatalog)"
+
+
+def _synthetisch(
+    pattern_id: str,
+    label: str,
+    signals: list[str],
+    device: str,
+    entities: dict[str, Any],
+    persona_id: str,
+) -> tuple[PatternDef, dict[str, Any], dict[str, float], list[str]]:
+    winner = PatternDef(id=pattern_id, label=label)
+    output = phase3_modulate(winner, signals, device, entities, persona_id)
+    return winner, output, {pattern_id: 1.0}, []
+
 
 def agent_pattern(
     *,
@@ -45,6 +66,24 @@ def agent_pattern(
     ``eliminated`` ist leer, weil nichts ausgeschieden ist — es stand nichts zur
     Wahl.
     """
-    winner = PatternDef(id=AGENT_PATTERN_ID, label=AGENT_PATTERN_LABEL)
-    output = phase3_modulate(winner, signals, device, entities, persona_id)
-    return winner, output, {AGENT_PATTERN_ID: 1.0}, []
+    return _synthetisch(AGENT_PATTERN_ID, AGENT_PATTERN_LABEL,
+                        signals, device, entities, persona_id)
+
+
+def hybrid_pattern(
+    *,
+    signals: list[str],
+    device: str,
+    entities: dict[str, Any],
+    persona_id: str,
+) -> tuple[PatternDef, dict[str, Any], dict[str, float], list[str]]:
+    """Dasselbe für den Hybrid — der **Anfangs**-Zustand des Zuges.
+
+    Hier steht ebenfalls nichts zur Wahl, denn die Wahl fällt später: das Modell
+    zieht das Muster erst in der Schleife, wenn es die Lage kennt. Bis dahin
+    gelten Ton, Persona-Modifier und Geräte-Deckel aus derselben echten
+    ``phase3_modulate`` wie überall — was das Modell dann wählt, schreibt
+    ``respond_agent`` nach ``effective_pattern_id`` fort.
+    """
+    return _synthetisch(HYBRID_PATTERN_ID, HYBRID_PATTERN_LABEL,
+                        signals, device, entities, persona_id)

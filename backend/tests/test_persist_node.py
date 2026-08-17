@@ -131,6 +131,41 @@ def test_persist_stores_response_and_returns_same_ctx(monkeypatch):
     assert ctx.response == "RESPONSE_SENTINEL"
 
 
+# ── Gelieferte Boxen: zwei Zuflüsse, eine Naht (D3) ──────────────────
+
+_BOX = {"kind": "stundenplanung", "title": "T", "content": "C",
+        "meta": {"source": "tool"}}
+
+
+def test_die_boxen_der_schleife_gehen_an_den_antwortbau(monkeypatch):
+    c = _patch(monkeypatch)
+    ctx = _ctx()
+    ctx.gelieferte_dokumente = [dict(_BOX)]
+    asyncio.run(persist(ctx, _SESSION))
+    assert c.pbr[1]["gelieferte_dokumente"] == [_BOX]
+
+
+def test_die_boxen_des_musterwegs_kommen_aus_dem_session_state(monkeypatch):
+    """Der Tool-Loop kennt kein ``ctx`` — er legt sie nach seiner eigenen
+    Konvention im ``session_state`` ab (wie ``_selected_card_ids``). Hier
+    laufen beide Wege zusammen, damit ``turn_persist`` eine Quelle sieht."""
+    c = _patch(monkeypatch)
+    ctx = _ctx()
+    ctx.session_state["_gelieferte_dokumente"] = [dict(_BOX)]
+    asyncio.run(persist(ctx, _SESSION))
+    assert c.pbr[1]["gelieferte_dokumente"] == [_BOX]
+
+
+def test_der_merker_gehoert_diesem_zug(monkeypatch):
+    """Bliebe er im ``session_state`` stehen, zeigte der nächste Zug dieselbe
+    Box noch einmal — dieselbe Begründung wie bei ``_write_preview``."""
+    _patch(monkeypatch)
+    ctx = _ctx()
+    ctx.session_state["_gelieferte_dokumente"] = [dict(_BOX)]
+    asyncio.run(persist(ctx, _SESSION))
+    assert "_gelieferte_dokumente" not in ctx.session_state
+
+
 def test_progress_tracer_swallows_the_duration_alt_passes():
     """ALT ``Tracer.record`` nimmt ein viertes ``duration_ms`` — der Fortschritt
     kennt es nicht. Der Adapter muss den Aufruf trotzdem annehmen, sonst bricht

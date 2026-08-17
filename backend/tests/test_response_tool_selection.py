@@ -54,9 +54,20 @@ def _select(pattern_output, *, entities=None, areas=None, rag_config=None,
     )
 
 
-def _names(pattern_output, **kw):
+def _alle_namen(pattern_output, **kw):
     active, *_ = _select(pattern_output, **kw)
     return [t["function"]["name"] for t in active]
+
+
+def _names(pattern_output, **kw):
+    """Die Namen der AUSWAHL — ohne ``zeige_dokument``.
+
+    Das Ergebnis-Werkzeug wird seit D3 unbedingt angehängt und ist damit an
+    keiner der Auswahl-Entscheidungen beteiligt, die diese Datei
+    charakterisiert. Es hier mitzuführen verlängerte jede Erwartungsliste, ohne
+    etwas zu belegen. Seine eigenen Fälle stehen unten und lesen ``_alle_namen``.
+    """
+    return [n for n in _alle_namen(pattern_output, **kw) if n != "zeige_dokument"]
 
 
 def test_ein_stillgelegtes_werkzeug_kommt_auch_aus_einem_muster_nicht_durch(monkeypatch):
@@ -341,3 +352,29 @@ def test_return_tuple_shape_and_flags(monkeypatch):
     assert decl == ["mcp", "rag"]
     assert allowed is True
     assert qr is False  # CHAT_INLINE_QUICK_REPLIES nicht gesetzt
+
+
+# ═══ Das Ergebnis-Dokument (D3) ════════════════════════════════════════════
+# Der Musterweg riet die Box bis heute aus dem Antworttext. Damit er sie
+# LIEFERN kann, muss das Werkzeug im Angebot stehen — in jedem Muster, denn
+# ein Arbeitsergebnis kann in jedem entstehen.
+
+def test_das_ergebnis_werkzeug_steht_jedem_muster_zur_verfuegung():
+    # Auch dem Muster OHNE Werkzeuge (``tools: []`` — M04, M11, M13, M14):
+    # gerade die erzeugen Inhalt aus dem Modell und haben etwas zu liefern.
+    assert "zeige_dokument" in _alle_namen({"tools": []})
+    assert "zeige_dokument" in _alle_namen({"tools": ["search_wlo_content"]})
+
+
+def test_bei_degradation_gibt_es_nichts_zu_liefern():
+    """Ein Zug mit fehlendem Pflicht-Slot stellt die Rückfrage — ein Ergebnis,
+    das geliefert werden könnte, gibt es dann nicht."""
+    assert "zeige_dokument" not in _alle_namen(
+        {"tools": ["search_wlo_content"]}, degradation=True)
+
+
+def test_der_medientyp_strip_nimmt_das_ergebnis_werkzeug_nicht_mit():
+    """Der Strip zielt auf SUCH-Werkzeuge. Das Ergebnis-Dokument ist keines —
+    fiele es mit heraus, verlöre ausgerechnet der Typ-Fokus-Zug seine Box."""
+    assert "zeige_dokument" in _alle_namen(
+        {"tools": ["search_wlo_collections"]}, entities={"medientyp": "Video"})

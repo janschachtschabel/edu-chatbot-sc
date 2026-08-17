@@ -466,6 +466,35 @@ des vorigen Tabs im Kontext: der Bot spricht dann über zwei Seiten gleichzeitig
 Für einen Seitenwechsel ist `replaceContext` das Richtige — und nur dieser Weg
 lässt den Bot die neue Seite auch von sich aus begrüßen.
 
+**Wann `updateContext` trotzdem das Richtige ist:** wenn ihr zur **selben** Seite
+etwas nachreicht. Der klassische Fall ist der Seitentext, den ihr erst habt,
+wenn das Content-Script geantwortet hat:
+
+```js
+chat.replaceContext({ page_kind: 'other', page_url: tab.url, page_host: host });
+// … später, wenn der Text da ist — die Seite ist dieselbe geblieben:
+chat.updateContext({ page_text: text.slice(0, 3000) });
+```
+
+**Wonach es aussieht, wenn ihr die beiden verwechselt:** nichts passiert.
+`updateContext` schickt keinen Ping, also erscheint keine Nachricht — die
+Methode wirkt tot, obwohl sie getan hat, was sie soll. Der Kontext ist gesetzt
+und geht in den **nächsten** Zug ein, den die Person tippt.
+
+**Eine Adresse ist eine Seite** (seit 2026-08-17). Die Kontext-Begrüßung meldet
+sich pro Seite genau einmal je Sitzung. „Dieselbe Seite" heißt dabei:
+
+| Seitenart | dieselbe Seite, wenn … |
+|---|---|
+| `collection`, `content`, `topic` | dieselbe **UUID** — Zählparameter an der URL ändern nichts |
+| `search` | derselbe **Suchbegriff** |
+| fremde Seite (`external`) | dieselbe **Adresse**, ohne `#anker` |
+| eigene Seite ohne Objekt (`home`) | derselbe **Host** — sonst meldete sich der Bot auf jeder Unterseite neu |
+
+Bis dahin galten fremde Seiten hostweise: der zweite Wikipedia-Artikel einer
+Sitzung bekam keine Begrüßung mehr. Wer ein älteres Backend betreibt, sieht das
+noch (`graph/nodes/context_greeting.py:_greeting_signature`).
+
 ### Der Sonderfall Seitenleiste (und warum der erste Versuch scheiterte)
 
 Läuft das Widget in einer **Erweiterungs-Seitenleiste**
@@ -554,6 +583,155 @@ Zwei Dinge, die in einer Seitenleiste zählen:
 
 `ui/src/shell/chat-shell.component.ts` (`startTask`) ·
 `widget/src/app/widget/widget.component.ts` (Warteschlange).
+
+### Rezept 1: Sammlung prüfen lassen — mit der Anleitung der Redaktion
+
+Die Person hat eine WLO-Sammlung offen, ihr wollt die **Sachrichtigkeit** ihrer
+Inhalte prüfen lassen — und zwar nach der Anleitung, die an dieser Sammlung
+freigegeben ist, nicht nach dem, was das Modell für richtig hält.
+
+```js
+const chat = document.querySelector('boerdi-chat');
+await customElements.whenDefined('boerdi-chat');
+
+// 1. Kontext ZUERST. Die collection_id ist der Schlüssel: sie holt die
+//    Übersicht der freigegebenen Anleitungen vorab in den Prompt.
+chat.replaceContext({
+  page_kind:     'collection',
+  collection_id: 'f35c17d1-a29e-4b26-9d22-802682fad43d',   // „Geometrische Optik"
+  page_url:      tab.url,
+  page_host:     new URL(tab.url).hostname,
+});
+
+// 2. Der Auftrag nennt die AUFGABE und verlangt die Anleitung ausdrücklich.
+chat.startTask([
+  'Prüfe die Sachrichtigkeit der Inhalte dieser Sammlung.',
+  'Halte dich an die freigegebene Anleitung zur Qualitätssicherung,',
+  'falls eine dabei ist — hol sie dir vorher.',
+].join(' '));
+```
+
+**Warum die zweite Zeile im Auftrag steht.** Der Prompt nennt nur die **Titel**
+der freigegebenen Anleitungen, keine `nodeId`s. Das Modell muss also selbst
+zugreifen: `get_skill_registry(collection_id)` → `get_skill(nodeId)`. Ein
+unbestimmter Auftrag („Schau mal drüber") lässt es das überspringen und aus dem
+Gedächtnis antworten.
+
+**Die Anleitung schlägt das Muster.** Gibt es für dieselbe Ausgabe ein
+Haus-Muster *und* eine freigegebene Anleitung, gewinnt die Anleitung
+(Redaktions-Regel, `domain/skill_precedence.py`). Das gilt auch dort, wo sonst
+ein deterministischer Schnellweg die Werkzeugschleife abkürzt.
+
+**Ohne passende Anleitung** greift das Haus-Muster **M19 Qualitätssicherung**:
+Soll-Ist-Abgleich aus Kompendiumstext (`get_compendium_text`) gegen Inhaltsliste
+(`get_collection_contents`), fachliche Gegenprobe über
+`get_wikipedia_summary`/`get_url_text`. Das ist kein Ausfall, sondern der
+Rückfall — nur eben ohne Hauskonvention.
+
+**Nachprüfen, ob es geklappt hat:** im Debug-Block muss `tools_called` ein
+`get_skill` enthalten. Fehlt es, war der Auftrag zu unbestimmt — nicht der Bot
+kaputt.
+
+So sah der Lauf oben aus (gemessen 2026-08-17, Maschine `pattern`, also die
+Vorgabe — hier braucht es **keinen** Engine-Wechsel):
+
+```
+Muster:     M19 (Qualitätssicherung)
+Werkzeuge:  get_skill_registry, get_skill, get_compendium_text,
+            get_collection_stats, get_collection_contents,
+            get_wlo_content_text ×3, get_node_details
+Antwort:    „[ edu-sharing Skill ] Materialprüfung, Reihenprüfung und
+             Kompendialtext-Gate – wird geladen …"
+```
+
+Die Zeile „Skill … wird geladen" ist keine Fehlermeldung, sondern der sichtbare
+Beleg: die Anleitung der Redaktion hat den Zug übernommen.
+
+### Rezept 2: Fremde Seite einordnen — Fach und Bildungsstufe
+
+Die Person steht auf einem Wikipedia-Artikel, ihr wollt eine Einordnung nach
+**Fach** und **Bildungsstufe** mit echten WLO-Vokabularen statt freier Prosa.
+
+**Das hier braucht `engine="agent"`** — und das ist keine Vorsichtsmaßnahme,
+sondern gemessen (2026-08-17, derselbe Artikel, derselbe Auftrag):
+
+| Maschine | Muster | gerufene Werkzeuge | Ergebnis |
+|---|---|---|---|
+| `pattern` (Vorgabe) | M04 Wissens-Antwort | keins | „Ein gültiger WLO-Fachwert konnte nicht gegen das `discipline`-Vokabular geprüft werden" |
+| `agent` | – | `lookup_wlo_vocabulary` ×2 | Fach mit URI; Stufe „nicht eindeutig bestimmbar" |
+| `hybrid` | M20 Erschließen | `lookup_wlo_vocabulary` ×2 | **beide** Werte mit URI |
+
+Im Muster-Modus entscheidet das **Muster** über die Werkzeugliste, und M04 führt
+`lookup_wlo_vocabulary` nicht. Das Modell hat das ehrlich gesagt statt zu raten —
+aber brauchbar ist die Antwort nicht. Setzt also:
+
+```html
+<boerdi-chat api-url="https://chat.example.org" engine="agent"> … </boerdi-chat>
+```
+
+```js
+// 1. Kontext: die Adresse UND genug Text. Nur der Titel reicht nicht —
+//    „Astronomische Einheit – Wikipedia" trägt keine Bildungsstufe.
+chat.replaceContext({
+  page_kind: 'other',                    // der Server macht daraus `external`
+  page_url:  'https://de.wikipedia.org/wiki/Astronomische_Einheit',
+  page_host: 'de.wikipedia.org',
+  page_text: seitentext.slice(0, 3000),  // ~3 KB, wie die eigene Erkennung
+});
+
+// 2. Auftrag mit ausdrücklicher Vokabular-Prüfung.
+chat.startTask([
+  'Ordne diese Seite ein: Schulfach und Bildungsstufe.',
+  'Prüfe beide Werte gegen die WLO-Vokabulare',
+  '(lookup_wlo_vocabulary mit vocabulary="discipline" bzw. "educationalContext")',
+  'statt sie aus dem Gedächtnis zu bilden.',
+  'Gibt der Text nichts her, sag das — rate nicht.',
+].join(' '));
+```
+
+**`page_kind: 'other'` ist richtig so.** `external` und `home` setzt ihr nicht
+selbst: der Server entscheidet das an seiner gepflegten Hostliste
+(`graph/nodes/page_context_enrich.py:_decide_host_kind`). Eine Liste, die sich
+ohne Widget-Neubau ändern darf, gehört nicht ins Plugin.
+
+**Die beiden Vokabulare** (`services/mcp/tool_defs.py`, `lookup_wlo_vocabulary`):
+
+| `vocabulary` | Bedeutung | so kam es im Lauf oben zurück |
+|---|---|---|
+| `discipline` | Fächer | Astronomie → `http://w3id.org/openeduhub/vocabs/discipline/46014` |
+| `educationalContext` | Bildungsstufen | Schule → `http://w3id.org/openeduhub/vocabs/educationalContext/schule` |
+
+Der Aufruf liefert Einträge **mit URI**, und die ist der Filterwert für eine
+spätere Suche. Lasst sie euch zurückgeben, statt sie zu bilden: die Nummer hinter
+`discipline/` ist nicht zu erraten, und ein geratener Wert liefert still null
+Treffer statt einer Fehlermeldung.
+
+**Braucht ihr das Ergebnis maschinenlesbar**, hängt ein `result-schema` ans
+Element und lest `boerdi:agent-result` mit — mit `engine="agent"`, sonst wirkt
+das Schema gar nicht (§7a):
+
+```html
+<boerdi-chat api-url="https://chat.example.org" engine="agent"
+  result-schema='{"type":"object","properties":{
+      "fach":{"type":"string","description":"Vokabular-URI aus discipline"},
+      "fach_label":{"type":"string"},
+      "stufe":{"type":"string","description":"Vokabular-URI aus educationalContext"},
+      "stufe_label":{"type":"string"},
+      "confidence":{"type":"number","minimum":0,"maximum":1}},
+    "required":["fach","stufe","confidence"]}'>
+</boerdi-chat>
+```
+
+Ganz ohne Chat-Fenster geht dasselbe über `POST /api/agent` — dort steht das
+ausgeführte Beispiel (§7).
+
+**Eine Grenze, die ihr kennen müsst:** einordnen darf der Bot anonym, den
+**Vorschlag in WLO schreiben** nicht. `wlo_suggest_metadata` zählt zu den
+kuratierenden Werkzeugen und wird ohne hinterlegten Zugangsblock gar nicht erst
+angeboten (`domain/write_confirm.py:CURATION_TOOLS`, Filter in
+`services/response_tool_selection.py:_nameable_tools`). Der Bot kündigt also
+nichts an, was der nächste Schritt zurücknimmt — er liest die Vokabulare und
+sagt euch das Ergebnis. Zum Anlegen siehe §8.
 
 ### Was es nicht gibt
 
@@ -1104,6 +1282,13 @@ Volle Herleitung samt Messungen:
 | Der Bot sagt „Du bist auf `<Erweiterungs-Kennung>` — das gehört nicht zu WLO" | Die eigene Erkennung lief auf der Adresse der Seitenleiste. Ab 2026-08-14 trägt sie dort nichts mehr bei; setzt zusätzlich `auto-context="false"` und gebt den Kontext selbst mit (§5) |
 | Der Bot spricht über die Sammlung des VORIGEN Tabs | `updateContext` mergt. Für einen Seitenwechsel ist `replaceContext` das Richtige (§5) |
 | Nach dem Kontext-Wechsel begrüßt der Bot die neue Seite nicht | Auch das ist der Unterschied: nur `replaceContext` setzt das Ping-Gate zurück (§5) |
+| `updateContext()` aufgerufen, es passiert sichtbar nichts | Genau so ist es gedacht: kein Ping, keine Nachricht. Der Kontext wirkt ab dem nächsten Zug. Wollt ihr eine Begrüßung, nehmt `replaceContext` (§5) |
+| Zweiter Artikel **desselben Hosts** wird nicht begrüßt | Backend älter als 2026-08-17: fremde Seiten wurden hostweise entdoppelt. Danach zählt die Adresse (§5) |
+| Im wiederhergestellten Verlauf fehlen die Knöpfe der Kontext-Begrüßung | Quick-Replies werden nicht persistiert (`db_sessions.save_message`); der Verlauf trägt nur den Text. Beim Seitenwechsel kommt eine neue Begrüßung samt Knöpfen |
+| Einordnung nach Fach/Stufe bleibt vage | Nur der Seitentitel im `page_text`. Schickt ~3 KB Text mit (§5, Rezept 2) |
+| „Konnte nicht gegen das `discipline`-Vokabular geprüft werden" | Muster-Modus: das gewählte Muster (M04) führt `lookup_wlo_vocabulary` nicht. Für Einordnungen `engine="agent"` setzen (§5, Rezept 2) |
+| `tools_called` bleibt leer, obwohl der Auftrag Werkzeuge nennt | Dasselbe: im Muster-Modus entscheidet das **Muster** über die Werkzeugliste, nicht der Auftragstext (§4, §5) |
+| Der Bot bietet an, Metadaten in WLO zu schreiben, tut es aber nicht | Ohne Zugangsblock sind die kuratierenden Werkzeuge gar nicht im Katalog. Anonym geht Einordnen, nicht Schreiben (§5, Rezept 2 · §8) |
 | `linkClicked` feuert nie | `intercept-edu-sharing-links="true"` fehlt |
 | `guide-suggestion` feuert nie | `emit-guide-suggestion="true"` fehlt (Opt-in) |
 | Klick auf einen Link der **Gastseite** bekommt kein `?bsid=` | Der Klick-Wächter greift nur im Shadow-Root des Widgets — die Navigation der Gastseite bleibt unangetastet. Wer die ID braucht, hängt sie selbst an |

@@ -78,12 +78,17 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
     ``collect_cards`` echt über einen echten MCP-Umschlag.
     """
 
+    # H6: ``muster_katalog``/``werkzeuge_fuer`` gehören zur ECHTEN Signatur —
+    # dieselbe A4b-Regel wie unten bei ``load_engine``. Eine Attrappe, die sie
+    # nicht kennt, verdeckt genau den Zweig, den der Hybrid neu betritt.
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
-                    clock=None, on_tool_result=None):
+                    clock=None, on_tool_result=None, muster_katalog=None,
+                    werkzeuge_fuer=None):
         seen["run_agent_loop"] = {
             "messages": messages, "tools": tools, "limits": limits,
             "usage_acc": usage_acc, "progress": progress,
             "on_tool_result": on_tool_result,
+            "muster_katalog": muster_katalog, "werkzeuge_fuer": werkzeuge_fuer,
         }
         if ruft_werkzeug is not None and on_tool_result is not None:
             on_tool_result(*ruft_werkzeug)
@@ -281,6 +286,27 @@ async def test_eine_leere_antwort_zaehlt_wie_ein_abbruch(monkeypatch):
     assert ctx.response_text.strip()
 
 
+@pytest.mark.parametrize("grund", ["deadline", "token_budget", "no_progress"])
+@pytest.mark.anyio
+async def test_eine_gelieferte_box_bekommt_keinen_abbruch_satz(monkeypatch, grund):
+    """Ein Lauf, der ein Ergebnis GELIEFERT hat, ist nicht gescheitert — ihm
+    fehlt nur der Begleitsatz.
+
+    Der Deckel-Satz („die Anfrage war zu umfangreich, stell sie kleiner
+    geschnitten noch einmal") stünde direkt über einer vollständigen
+    Stundenplanung und würde von ihr widerlegt.
+    """
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="", stop_reason=grund, iterations=12, tools_called=[],
+        dokumente=[{"kind": "stundenplanung", "title": "T", "content": "C",
+                    "meta": {"source": "tool"}}]))
+    ctx = await respond_agent(_ctx())
+    assert ctx.response_text.strip()
+    assert "umfangreich" not in ctx.response_text
+    assert "noch einmal" not in ctx.response_text
+
+
 # ── Die Weiche in ``respond`` ──────────────────────────────────────
 @pytest.mark.anyio
 async def test_respond_reicht_im_agent_modus_frueh_weiter(monkeypatch):
@@ -288,8 +314,8 @@ async def test_respond_reicht_im_agent_modus_frueh_weiter(monkeypatch):
     gar nicht erst anlaufen."""
     seen: dict = {}
 
-    async def _agent(ctx, progress=None):
-        seen["respond_agent"] = {"progress": progress}
+    async def _agent(ctx, progress=None, engine="agent"):
+        seen["respond_agent"] = {"progress": progress, "engine": engine}
         ctx.response_text = "vom Agenten"
         return ctx
 
@@ -631,3 +657,134 @@ async def test_ein_zug_ohne_ergebnis_meldet_das_ende_trotzdem(monkeypatch):
     ctx = await respond_agent(ctx)
     assert ctx.result is None
     assert ctx.result_stop_reason == "text"
+
+
+# ── Der Hybrid: Musterkatalog im Werkzeugsatz (H6) ──────────────────────────
+
+def _drei_muster():
+    from boerdi.domain.pattern_engine import PatternDef
+    return [
+        PatternDef(id="M01", label="Krisen-Empathie"),
+        PatternDef(id="M06", label="Material-Suche Cascade",
+                   tools=["search_wlo_all"]),
+        PatternDef(id="M10", label="KI-Inhalt-Generierung", sources=["llm"]),
+    ]
+
+
+@pytest.mark.anyio
+async def test_der_agent_modus_bekommt_keinen_musterkatalog(monkeypatch):
+    """Die Zusage aus H1: ``agent`` bleibt die Maschine ohne Muster."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    await respond_agent(_ctx(), engine="agent")
+    assert seen["run_agent_loop"]["muster_katalog"] is None
+    assert "waehle_vorgehen" not in _namen(seen["run_agent_loop"]["tools"])
+
+
+@pytest.mark.anyio
+async def test_der_hybrid_bekommt_den_musterkatalog(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    monkeypatch.setattr(agent_mod, "get_patterns", _drei_muster)
+    await respond_agent(_ctx(), engine="hybrid")
+    namen = _namen(seen["run_agent_loop"]["tools"])
+    assert namen[0] == "waehle_vorgehen"
+    assert seen["run_agent_loop"]["werkzeuge_fuer"] is not None
+
+
+@pytest.mark.anyio
+async def test_ein_erzwungenes_muster_nimmt_den_katalog_weg(monkeypatch):
+    """Über M01/M02 entscheidet das Sicherheits-Gate, nicht das Modell. Läge der
+    Katalog daneben, wäre die Krisen-Behandlung ein Angebot."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    monkeypatch.setattr(agent_mod, "get_patterns", _drei_muster)
+    safety = SafetyDecision(risk_level="high", enforced_pattern="M01")
+    await respond_agent(_ctx(safety=safety), engine="hybrid")
+    assert seen["run_agent_loop"]["muster_katalog"] is None
+    assert "waehle_vorgehen" not in _namen(seen["run_agent_loop"]["tools"])
+
+
+@pytest.mark.anyio
+async def test_das_gewaehlte_muster_wird_das_ausgefuehrte(monkeypatch):
+    """H6/H7: an ``effective_pattern_id`` hängen die Inline-Kachel, der
+    ``_last_pattern``-Merker des Folgezugs und die Muster-Spalte der Logs."""
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="fertig", stop_reason="text", iterations=2, muster_id="M10"))
+    monkeypatch.setattr(agent_mod, "get_patterns", _drei_muster)
+    ctx = _ctx()
+    ctx.effective_pattern_id = "HYBRID"
+    await respond_agent(ctx, engine="hybrid")
+    assert ctx.effective_pattern_id == "M10"
+    assert ctx.effective_pattern_label == "KI-Inhalt-Generierung"
+
+
+@pytest.mark.anyio
+async def test_ohne_muster_bleibt_der_anfangszustand_stehen(monkeypatch):
+    """Wählt das Modell nichts, wird auch nichts überschrieben — sonst stünde in
+    den Logs ein Muster, das nie gelaufen ist."""
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="fertig", stop_reason="text", iterations=1))
+    monkeypatch.setattr(agent_mod, "get_patterns", _drei_muster)
+    ctx = _ctx()
+    ctx.effective_pattern_id = "HYBRID"
+    await respond_agent(ctx, engine="hybrid")
+    assert ctx.effective_pattern_id == "HYBRID"
+
+
+@pytest.mark.anyio
+async def test_das_muster_schnuert_die_werkzeugliste_zusammen(monkeypatch):
+    """M10 arbeitet aus dem Modell (``sources: [llm]``, keine ``tools``) — dann
+    bleiben nur die virtuellen Werkzeuge übrig. M06 gibt die Suche wieder frei."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    monkeypatch.setattr(agent_mod, "get_patterns", _drei_muster)
+    await respond_agent(_ctx(), engine="hybrid")
+    fuer = seen["run_agent_loop"]["werkzeuge_fuer"]
+    muster = {m.id: m for m in _drei_muster()}
+
+    # M10 arbeitet ohne Suchwerkzeuge — aber es ERZEUGT etwas, muss also eine
+    # Box liefern koennen (D2). Beide virtuellen Werkzeuge bleiben deshalb.
+    nur_llm = _namen(fuer(muster["M10"]))
+    assert sorted(nur_llm) == ["waehle_vorgehen", "zeige_dokument"]
+
+    mit_suche = _namen(fuer(muster["M06"]))
+    assert "search_wlo_all" in mit_suche
+    assert "waehle_vorgehen" in mit_suche
+    assert "wlo_delete_content" not in mit_suche
+
+
+@pytest.mark.anyio
+async def test_die_erste_runde_bekommt_den_vollen_katalog(monkeypatch):
+    """Wer noch nicht gewaehlt hat, braucht die Einsatzregeln — sie sind die
+    Grundlage der Wahl."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    monkeypatch.setattr(agent_mod, "get_patterns", _drei_muster)
+    await respond_agent(_ctx(), engine="hybrid")
+    beschreibung = seen["run_agent_loop"]["tools"][0]["function"]["description"]
+    assert "###" in beschreibung
+
+
+@pytest.mark.anyio
+async def test_nach_der_wahl_traegt_der_katalog_nur_noch_eine_zeile_je_muster(monkeypatch):
+    """H8-2: ``waehle_vorgehen`` bleibt in jeder eingeschraenkten Liste und
+    schleppte bisher seinen vollen Katalog durch alle Runden — gemessen 25 251
+    von 31 742 Zeichen des Werkzeugsatzes nach der Wahl."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    monkeypatch.setattr(agent_mod, "get_patterns", _drei_muster)
+    await respond_agent(_ctx(), engine="hybrid")
+
+    rueckruf = seen["run_agent_loop"]["werkzeuge_fuer"]
+    danach = rueckruf(_drei_muster()[0])
+    vorgehen = next(t for t in danach if t["function"]["name"] == "waehle_vorgehen")
+    vorher = seen["run_agent_loop"]["tools"][0]["function"]["description"]
+    assert len(vorgehen["function"]["description"]) < len(vorher)
+    assert "###" not in vorgehen["function"]["description"]
+    # Die Auswahl bleibt vollstaendig — gespart wird an der Beschreibung.
+    assert (vorgehen["function"]["parameters"]["properties"]["muster_id"]["enum"]
+            == seen["run_agent_loop"]["tools"][0]["function"]["parameters"]
+               ["properties"]["muster_id"]["enum"])

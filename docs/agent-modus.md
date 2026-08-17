@@ -25,18 +25,24 @@ Chatbot nichts.
 **Studio → Agent & Maschine → „Welche Maschine antwortet"** (Bereich `01-base/engine`)
 
 ```yaml
-mode: agent          # pattern | agent
+mode: agent            # pattern | agent | hybrid
 
 agent:
-  max_iterations: 12   # 1 … 50
-  deadline_s: 90       # 5 … 600
-  token_budget: 60000  # ≥ 1000
-  write_mode: propose  # propose | execute
+  max_iterations: 12    # 1 … 50
+  deadline_s: 90        # 5 … 600
+  token_budget: 120000  # ≥ 1000
+  write_mode: propose   # propose | execute
   safety: true
 ```
 
 Wirkt ohne Neustart. Alle vier Deckel sind nötig: ein MCP-Aufruf steht gemessen
 bis 23 s, ohne Frist könnte ein Lauf mit 12 Runden acht Minuten dauern.
+
+Das Budget zählt `prompt + completion` **kumulativ über alle Runden**, und weil
+die Nachrichtenkette wächst, wird der Prompt jede Runde neu berechnet. Bei
+60 000 (Stand bis 2026-08-17) war deshalb nach drei Runden Schluss, während
+`max_iterations` und `deadline_s` unberührt blieben — Messung und Begründung in
+`docs/plans/2026-08-17-hybrid-muster-als-werkzeug.md` §8.
 
 ### b) Je Einbau — Host-Attribut `engine`
 

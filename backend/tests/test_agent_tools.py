@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import pytest
 
+from boerdi.domain.pattern_engine import PatternDef
 from boerdi.services.agent_tools import (
     AUS_DEM_KATALOG,
     SUBMIT_RESULT,
+    WAEHLE_VORGEHEN,
     build_agent_tools,
 )
 from boerdi.services.mcp.auth import set_turn_auth_block
@@ -136,6 +138,66 @@ def test_ohne_abschluss_werkzeug_endet_die_liste_beim_katalog() -> None:
     assert "search_wlo_all" in namen
 
 
+# ── Der Musterkatalog als Werkzeug (H2, Hybrid-Modus) ──────────────────────
+
+
+def _katalog() -> list[PatternDef]:
+    return [
+        PatternDef(id="M06", label="Material-Suche Cascade",
+                   short_purpose="Thema ohne Filter → Kaskade"),
+        PatternDef(id="M12", label="Null-Treffer-Eskalation"),
+        # Gesperrt: darf weder ins ``enum`` noch in die Beschreibung geraten.
+        PatternDef(id="M01", label="Krisen-Empathie"),
+    ]
+
+
+def test_ohne_katalog_gibt_es_kein_musterwerkzeug() -> None:
+    """Der Parameter ist additiv: ``agent`` und ``/api/agent`` bleiben, wie sie
+    sind. Ohne diese Zusage wäre der Hybrid keine dritte Maschine, sondern eine
+    Änderung an der zweiten."""
+    assert WAEHLE_VORGEHEN not in _namen(build_agent_tools())
+
+
+def test_ein_leerer_katalog_bietet_kein_werkzeug_an() -> None:
+    """Ein Werkzeug ohne wählbare Muster wäre ein angekündigtes Können, das der
+    nächste Schritt zurücknimmt — dieselbe Regel wie bei den kuratierenden."""
+    assert WAEHLE_VORGEHEN not in _namen(build_agent_tools(muster_katalog=[]))
+
+
+def test_mit_katalog_steht_es_vorn_und_der_abschluss_hinten() -> None:
+    """Die Reihenfolge ist die Reihenfolge der Arbeit: erst das Vorgehen wählen,
+    dann arbeiten, zuletzt abschließen."""
+    namen = _namen(build_agent_tools(muster_katalog=_katalog()))
+    assert namen[0] == WAEHLE_VORGEHEN
+    assert namen[-1] == SUBMIT_RESULT
+    assert "search_wlo_all" in namen
+
+
+def test_das_enum_fuehrt_genau_die_waehlbaren_kennungen() -> None:
+    tools = build_agent_tools(muster_katalog=_katalog())
+    props = tools[0]["function"]["parameters"]["properties"]
+    assert props["muster_id"]["enum"] == ["M06", "M12"]
+    assert tools[0]["function"]["parameters"]["required"] == ["muster_id"]
+
+
+def test_der_katalog_steht_in_der_beschreibung() -> None:
+    tools = build_agent_tools(muster_katalog=_katalog())
+    text = tools[0]["function"]["description"]
+    assert "### M06 — Material-Suche Cascade" in text
+    assert "Thema ohne Filter" in text
+    assert "Krisen-Empathie" not in text
+
+
+def test_das_musterwerkzeug_ist_nicht_sperrbar() -> None:
+    """Virtuell wie ``submit_result``: es geht nie an den MCP. Eine Sperre
+    darauf nähme dem Lauf die Wahl seines Vorgehens, statt eine Gefahr
+    abzuwenden — die Gefahr sitzt in den Werkzeugen, die das Muster dann
+    freigibt, und die filtert ``blocked_tools`` weiterhin."""
+    namen = _namen(build_agent_tools(muster_katalog=_katalog(),
+                                     blocked_tools=[WAEHLE_VORGEHEN]))
+    assert namen[0] == WAEHLE_VORGEHEN
+
+
 # ── Stillgelegte Werkzeuge dürfen in keinem Text mehr vorkommen ─────────────
 
 
@@ -186,3 +248,59 @@ def test_kein_angebotenes_werkzeug_verweist_auf_ein_stillgelegtes() -> None:
         "sonst beschreibt er dem Modell eine Vorbedingung, die es nicht "
         "erfüllen kann."
     )
+
+
+# ── Kurzfassung nach der Musterwahl (H8-2) ──────────────────────────────────
+# ``waehle_vorgehen`` bleibt in JEDER eingeschraenkten Liste (virtuell, sonst
+# kaeme der Lauf aus dem Muster nicht heraus) und schleppt damit seinen Katalog
+# durch alle Runden: gemessen 25 251 von 31 742 Zeichen des Werkzeugsatzes nach
+# der Wahl. Ab der zweiten Runde genuegt die Kurzfassung.
+
+
+def _beschreibung(tools: list[dict], name: str) -> str:
+    for t in tools:
+        if t["function"]["name"] == name:
+            return t["function"]["description"]
+    raise AssertionError(f"{name} steht nicht in der Liste")
+
+
+def test_die_vorgabe_bleibt_der_volle_katalog() -> None:
+    """Die erste Runde muss waehlen koennen — dafuer braucht sie die
+    Einsatzregeln. Nur der Weg NACH der Wahl schaltet um."""
+    text = _beschreibung(build_agent_tools(muster_katalog=_katalog()), WAEHLE_VORGEHEN)
+    assert "Einsetzen wenn" in text or "Thema ohne Filter" in text
+    assert "### M06" in text
+
+
+def test_die_kurzfassung_ist_deutlich_kleiner() -> None:
+    voll = _beschreibung(build_agent_tools(muster_katalog=_katalog()), WAEHLE_VORGEHEN)
+    kurz = _beschreibung(
+        build_agent_tools(muster_katalog=_katalog(), katalog_kurz=True), WAEHLE_VORGEHEN)
+    assert len(kurz) < len(voll)
+    assert "### M06" not in kurz
+
+
+def test_die_kurzfassung_nimmt_dem_lauf_keine_wahl() -> None:
+    """Sparen darf die Beschreibung, nicht die Auswahl: das ``enum`` ist in
+    beiden Fassungen dasselbe, sonst waere ein Muster nach der ersten Wahl
+    unerreichbar."""
+    for kurz in (False, True):
+        tools = build_agent_tools(muster_katalog=_katalog(), katalog_kurz=kurz)
+        props = tools[0]["function"]["parameters"]["properties"]
+        assert props["muster_id"]["enum"] == ["M06", "M12"]
+
+
+def test_die_kurzfassung_nennt_die_muster_weiter_mit_namen() -> None:
+    kurz = _beschreibung(
+        build_agent_tools(muster_katalog=_katalog(), katalog_kurz=True), WAEHLE_VORGEHEN)
+    assert "M06" in kurz and "Material-Suche Cascade" in kurz
+    assert "M12" in kurz and "Null-Treffer-Eskalation" in kurz
+    assert "Krisen-Empathie" not in kurz
+
+
+def test_die_kurzfassung_spricht_vom_WECHSELN() -> None:
+    """Der Kopfsatz der Vollfassung fordert eine Wahl. Bliebe er stehen, forderte
+    er sie ein zweites Mal — und ein Lauf, der schon waehlte, waehlte erneut."""
+    kurz = _beschreibung(
+        build_agent_tools(muster_katalog=_katalog(), katalog_kurz=True), WAEHLE_VORGEHEN)
+    assert "wechsel" in kurz.lower()

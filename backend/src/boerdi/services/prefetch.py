@@ -33,6 +33,7 @@ import asyncio
 import logging
 from typing import Any, NamedTuple
 
+from boerdi.domain.search_intent import _looks_like_search_query
 from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.mcp.client import call_mcp_tool
 from boerdi.services.topic_pages import _topic_pages_with_warmup
@@ -58,7 +59,7 @@ class SpeculativePrefetch(NamedTuple):
     search_all_extras: list[dict]
 
 
-async def run_speculative_prefetch(req, classification, safety):
+async def run_speculative_prefetch(req, classification, safety, *, engine="pattern"):
     """Spekulativen MCP-Prefetch hinter der Pre-Route-Engine starten (Verbatim-
     Port ALT ``chat_prefetch._launch_speculative_prefetch``). Startet je nach
     Intent/Hint/Entities einen primaeren + optionale Extra-MCP-Such-Tasks (O1:
@@ -122,10 +123,28 @@ async def run_speculative_prefetch(req, classification, safety):
             return True
         return False
 
+    def _startet_der_vorabruf() -> bool:
+        """Die Startbedingung — je Maschine aus einer anderen Quelle.
+
+        Im Bestand entscheiden Intent und Slots des Klassifikators. Der Hybrid
+        (H5) hat weder das eine noch das andere: seine Ersatz-Klassifikation
+        trägt ``I01`` und leere Entities, der Vorabruf fiele also **immer** aus.
+        An ihre Stelle tritt ``_looks_like_search_query`` — dieselbe reine
+        Heuristik, die das Sicherheitsnetz des Bestandswegs schon benutzt
+        (``_fallback_inline_search``): substantieller Inhalt, und keine
+        Meta-/Begrüßungsfrage. Als Suchanker dient dann die Nachricht selbst,
+        wozu ``_spec_query_from_classification`` ohnehin zurückfällt.
+
+        Der Zweig der Muster-Engine bleibt Ausdruck für Ausdruck derselbe.
+        """
+        if engine == "hybrid":
+            return _looks_like_search_query(req.message or "")
+        return (classification.intent_id in _spec_search_intents
+                and _spec_has_enough_signal())
+
     if (
         safety.risk_level != "high"
-        and classification.intent_id in _spec_search_intents
-        and _spec_has_enough_signal()
+        and _startet_der_vorabruf()
         # Bedarfssteuerung: M16 (Themenseiten-Inhalt) macht weiter unten seine
         # EIGENE gezielte Auflösung (Sammlung → get_topic_page_content). Die
         # generische Spekulativ-Suche wäre hier verworfene MCP-Arbeit → skip.

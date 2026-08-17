@@ -1157,3 +1157,84 @@ def test_fallback_bucht_in_den_merkposten(monkeypatch):
     assert text == "Kurz zusammengefasst."
     assert acc["calls"] == 1
     assert acc["per_phase"]["fallback_summary"]["prompt"] == 50
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Das Ergebnis-Dokument im Musterweg (D3)
+# ════════════════════════════════════════════════════════════════════════
+# Bis heute riet ``turn_persist`` die Box aus dem Antworttext: Muster ∈
+# {M09,M10,M11}, ≥200 Zeichen, ein H1. Die Agent-Schleife liefert sie seit D2
+# ausdrücklich; hier bekommt der Musterweg dieselbe Möglichkeit. Der Transport
+# nach oben ist die Konvention dieser Schleife — ``session_state``, wie bei
+# ``_selected_card_ids`` und ``_write_preview``.
+
+def _dok_call(cid="c1", **over):
+    args = {"titel": "Verlaufsplan Optik", "art": "stundenplanung",
+            "markdown": "# Verlaufsplan\n\nEinstieg, Erarbeitung, Sicherung."}
+    args.update(over)
+    return (cid, "zeige_dokument", json.dumps(args))
+
+
+def test_ein_geliefertes_dokument_landet_im_session_state(monkeypatch):
+    out = _OutcomeFake()
+    _fake, result, st = _run_loop(monkeypatch, [
+        _resp_tools([_dok_call()]),
+        _resp_text("Hier ist der Plan."),
+    ], outcome=out)
+    docs = st["session_state"]["_gelieferte_dokumente"]
+    assert len(docs) == 1
+    assert docs[0]["kind"] == "stundenplanung"
+    assert docs[0]["title"] == "Verlaufsplan Optik"
+    assert result[0] == "Hier ist der Plan."
+    assert out.calls == []          # virtuell: geht nie an den MCP
+
+
+def test_die_bestaetigung_geht_an_das_modell_zurueck(monkeypatch):
+    """Ohne Rückmeldung wüsste das Modell nicht, ob der Inhalt angekommen ist —
+    und schriebe ihn sicherheitshalber noch einmal in die Prosa."""
+    _fake, _result, st = _run_loop(monkeypatch, [
+        _resp_tools([_dok_call()]),
+        _resp_text("fertig"),
+    ])
+    quittungen = [m for m in st["messages"]
+                  if m.get("role") == "tool" and m.get("tool_call_id") == "c1"]
+    assert len(quittungen) == 1
+    assert "Verlaufsplan Optik" in quittungen[0]["content"]
+
+
+def test_respond_to_user_in_derselben_runde_verliert_das_dokument_nicht(monkeypatch):
+    """``respond_to_user`` bricht die Runde mit ``break`` ab. Käme es VOR dem
+    Dokument, ginge ein fertiges Ergebnis verloren — genau die Abhängigkeit von
+    der Ausgabe-Reihenfolge des Modells, die dieser Umbau beseitigen soll."""
+    _fake, result, st = _run_loop(monkeypatch, [
+        _resp_tools([
+            ("c0", "respond_to_user", json.dumps({"text": "Hier ist der Plan."})),
+            _dok_call("c1"),
+        ]),
+    ], _inline_qr_enabled=True)
+    assert result[0] == "Hier ist der Plan."
+    assert len(st["session_state"]["_gelieferte_dokumente"]) == 1
+
+
+def test_unbrauchbare_argumente_beenden_den_zug_nicht(monkeypatch):
+    """Ein leeres Markdown ist ein Werkzeugfehler, kein Zug-Ende (B8)."""
+    _fake, result, st = _run_loop(monkeypatch, [
+        _resp_tools([_dok_call(markdown="")]),
+        _resp_text("dann eben als Text"),
+    ])
+    assert result[0] == "dann eben als Text"
+    assert not st["session_state"].get("_gelieferte_dokumente")
+    # Letzte Nachricht der Kette: die finale Textantwort wird nicht angehängt.
+    assert "Fehler" in st["messages"][-1]["content"]
+
+
+def test_der_deckel_gilt_auch_im_musterweg(monkeypatch):
+    from boerdi.domain.inline_documents import MAX_DOKUMENTE_JE_ZUG
+
+    zuviele = [_dok_call(f"c{i}", titel=f"Doc {i}")
+               for i in range(MAX_DOKUMENTE_JE_ZUG + 2)]
+    _fake, _result, st = _run_loop(monkeypatch, [
+        _resp_tools(zuviele),
+        _resp_text("fertig"),
+    ])
+    assert len(st["session_state"]["_gelieferte_dokumente"]) == MAX_DOKUMENTE_JE_ZUG

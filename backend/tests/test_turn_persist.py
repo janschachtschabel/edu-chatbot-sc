@@ -743,3 +743,69 @@ def test_bei_zwei_vorbereitungen_liefert_die_antwort_keine(monkeypatch):
     monkeypatch.setattr(tp_mod, "get_prepared_writes", lambda: zwei)
     resp, _ = _run2(monkeypatch, sp=sp)
     assert resp.prepared_write is None
+
+
+# ── Gelieferte Box schlägt geratene Box (D4/D5) ────────────────────────────
+
+_GELIEFERT = {"kind": "stundenplanung", "title": "Verlaufsplan Optik",
+              "content": "Kurz, ohne Raute.", "meta": {"source": "tool"}}
+
+
+def test_ein_geliefertes_dokument_wird_zur_box(monkeypatch):
+    """DIE Zusage dieses Umbaus: die Box entsteht, obwohl **keine** der vier
+    Bedingungen des geratenen Weges erfüllt ist — Muster M04 statt M09/M10/M11,
+    Text weit unter 200 Zeichen, kein H1 im Markdown.
+
+    Live gemessen 2026-08-17: genau daran fiel ein 8.000 Zeichen langer
+    Verlaufsplan weg."""
+    resp, _sp = _run2(monkeypatch,
+                      winner_id="M04", _effective_pattern_id="M04",
+                      _final_text="kurz",
+                      gelieferte_dokumente=[dict(_GELIEFERT)])
+    assert len(resp.inline_documents) == 1
+    assert resp.inline_documents[0].title == "Verlaufsplan Optik"
+    assert resp.inline_documents[0].content == "Kurz, ohne Raute."
+
+
+def test_ohne_lieferung_bleibt_der_geratene_weg(monkeypatch):
+    """Die Rückbau-Sicherheit: ruft das Modell das Werkzeug nicht, ändert sich
+    am heutigen Verhalten nichts."""
+    resp, _sp = _run2(monkeypatch, winner_id="M04", _effective_pattern_id="M04",
+                      _final_text="kurz")
+    assert resp.inline_documents == []
+
+
+def test_die_lieferung_schlaegt_die_vermutung(monkeypatch):
+    """Beide Wege könnten greifen (M09 + langer Text mit H1) — dann gilt das,
+    was das Modell ausdrücklich geliefert hat, nicht was der Text vermuten lässt."""
+    langer_text = "# Geratener Titel\n\n" + ("Fließtext. " * 60)
+    resp, _sp = _run2(monkeypatch,
+                      winner_id="M09", _effective_pattern_id="M09",
+                      _final_text=langer_text,
+                      gelieferte_dokumente=[dict(_GELIEFERT)])
+    assert len(resp.inline_documents) == 1
+    assert resp.inline_documents[0].title == "Verlaufsplan Optik"
+    # Und der Fließtext bleibt UNANGETASTET. Ihn zu kürzen hieße zu raten,
+    # welcher Teil die Box wiederholt — genau das, was dieser Umbau abschafft.
+    # Die Anweisung sitzt am Werkzeug („deine Prosa daneben ist nur der
+    # Begleitsatz"); hält das Modell sich nicht daran, ist das im Text sichtbar
+    # statt in einer stillen Regex.
+    assert resp.content == langer_text
+
+
+def test_der_globale_schalter_gilt_auch_fuer_gelieferte_boxen(monkeypatch):
+    """``inline_documents.enabled: false`` ist die Ansage einer Anlage, KEINE
+    Boxen zu zeigen. Sie galt bisher nur für den geratenen Weg — eine
+    gelieferte Box lief daran vorbei."""
+    sp = _patch2(monkeypatch)
+    monkeypatch.setattr(tp_mod, "load_display_rules_config",
+                        lambda: {"inline_documents": {"enabled": False}})
+    resp, _ = _run2(monkeypatch, sp=sp, winner_id="M04",
+                    _effective_pattern_id="M04",
+                    _final_text="Der Begleitsatz.",
+                    gelieferte_dokumente=[dict(_GELIEFERT)])
+    assert resp.inline_documents == []
+    # Der Inhalt darf dabei NICHT verschwinden: das Modell hat ihn nicht in die
+    # Prosa geschrieben, weil das Werkzeug ihm genau das untersagt.
+    assert resp.content.startswith("Der Begleitsatz.")
+    assert "Kurz, ohne Raute." in resp.content

@@ -37,10 +37,14 @@ from boerdi.services.prefetch import run_speculative_prefetch
 logger = logging.getLogger(__name__)
 
 
-async def merge(ctx: TurnContext) -> TurnContext:
+async def merge(ctx: TurnContext, engine: str = "pattern") -> TurnContext:
     """Fold the classifier's entities into ``session_state`` (per turn_type), run
     the material heuristics, launch the speculative prefetch, and enrich the I05
-    slot. Mutates ``ctx`` in place and returns it."""
+    slot. Mutates ``ctx`` in place and returns it.
+
+    ``engine`` (H5) reicht nur bis zum Vorabruf: dessen Auslöser hängt im Bestand
+    am Klassifikator, und der Hybrid hat keinen. Alles andere in diesem Knoten
+    läuft in jeder Maschine gleich."""
     req = ctx.req
     classification = ctx.classification
     session_state = ctx.session_state
@@ -176,7 +180,8 @@ async def merge(ctx: TurnContext) -> TurnContext:
     # ── Speculative MCP prefetch (post-Classification) ──────────────
     # Für Such-Style-Intents die MCP-Suche im Hintergrund starten, während
     # Pattern/Policy/Context laufen; der ``respond``-Node konsumiert das Ergebnis.
-    sp = await run_speculative_prefetch(req, classification, ctx.safety)
+    sp = await run_speculative_prefetch(req, classification, ctx.safety,
+                                        engine=engine)
     ctx.spec_task = sp.spec_task
     ctx.spec_tool_name = sp.spec_tool_name
     ctx.spec_tool_args = sp.spec_tool_args

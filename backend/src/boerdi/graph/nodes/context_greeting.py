@@ -125,6 +125,30 @@ def _greeting_fields(
     return {"host": host, "title": host} if host else None
 
 
+#: Seitenarten, deren Gegenstand die ADRESSE ist und nicht der Host.
+#:
+#: Auf einer fremden Seite lautet das Angebot „ich kann DIESE Seite ansehen und
+#: für den Bestand vorschlagen" — es gilt pro Adresse. ``home`` steht bewusst
+#: nicht dabei: dort sagt die Meldung etwas über die Site, und sie auf jeder
+#: Unterseite zu wiederholen wäre Lärm.
+_ADRESS_KINDS = ("external",)
+
+
+def _page_address(page_kind: str, page_ctx: dict[str, Any]) -> str:
+    """Die Adresse als Teil des Dedup-Schlüssels — nur für fremde Seiten.
+
+    Ohne Anker: ein Sprung in einen Abschnitt ist keine neue Seite, sonst
+    begrüßte jeder Klick im Inhaltsverzeichnis erneut.
+
+    Leer, wenn die Adresse fehlt (älteres Widget-Bündel schickt nur den Host).
+    Dann gilt weiter das bisherige, hostweite Verhalten — ein leerer Zusatz
+    ändert am Schlüssel nichts.
+    """
+    if page_kind not in _ADRESS_KINDS:
+        return ""
+    return (page_ctx.get("page_url") or "").strip().split("#", 1)[0]
+
+
 def _greeting_signature(
     page_kind: str, page_ctx: dict[str, Any], fields: dict[str, str],
 ) -> str:
@@ -138,12 +162,25 @@ def _greeting_signature(
 
     Two pages are the same page here when they are the same kind ABOUT the same
     subject, so the subject (``fields``) joins the IDs in the key.
+
+    **Die Adresse kommt für fremde Seiten dazu** (Befund der Plugin-Entwickler,
+    2026-08-17). Dort sind alle vier ID-Felder leer und der Suchbegriff auch —
+    übrig blieb der Hostname, und damit galten ALLE Seiten eines Hosts als
+    dieselbe: der zweite Wikipedia-Artikel einer Sitzung bekam eine leere
+    Antwort statt Begrüßung samt Knöpfen. Für WLO-Objekte bleibt die Kennung der
+    Schlüssel — zwei Adressen auf dieselbe Sammlung sind dieselbe Seite, sonst
+    begrüßte ein angehängter Zählparameter erneut (:func:`_page_address`).
+
+    Der Schlüssel ändert sich damit für fremde Seiten. Laufende Sitzungen tragen
+    noch die alten Einträge; die betroffene Seite meldet sich einmalig ein
+    zweites Mal. Das ist der ganze Übergang.
     """
     return "|".join((
         page_kind,
         page_context._current_context_signature(page_ctx),
         fields.get("query", ""),
         fields.get("host", ""),
+        _page_address(page_kind, page_ctx),
     ))
 
 

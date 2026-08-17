@@ -25,7 +25,10 @@ _EMPTY_SP = SpeculativePrefetch(None, None, None, "", [], False, [])
 
 
 def _patch(monkeypatch, sp=None, mt=None, wanted=None, placeholders=None):
-    async def _fake_prefetch(req, classification, safety):
+    # ``engine`` (H5) gehört zur echten Signatur — dieselbe A4b-Regel wie
+    # überall: eine Attrappe wird nach der ECHTEN Signatur gebaut, nicht nach
+    # dem eigenen Aufruf.
+    async def _fake_prefetch(req, classification, safety, *, engine="pattern"):
         return sp if sp is not None else _EMPTY_SP
 
     monkeypatch.setattr(merge_mod, "run_speculative_prefetch", _fake_prefetch)

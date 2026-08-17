@@ -45,6 +45,7 @@ from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import _retrieve_task_exception
+from boerdi.services.engine_choice import laeuft_ueber_die_schleife
 from boerdi.services.generate import generate_response
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
@@ -70,7 +71,7 @@ async def respond(
     ``respond_agent``, und zwar **vor** allem anderen: der Rumpf unten ist der
     Bestandsweg und bleibt unangetastet. Der Vorabruf aus ``merge`` wird dort
     verworfen, nicht hier — sonst stünde Agent-Wissen im Bestandspfad."""
-    if engine != "agent" and ctx.req.environment.result_schema:
+    if not laeuft_ueber_die_schleife(engine) and ctx.req.environment.result_schema:
         # Ein Ergebnis-Schema wirkt NUR in der Agent-Schleife, und die Vorgabe
         # der Anlage ist ``pattern``. Ohne diese Zeile bekäme ein Gastgeber, der
         # das Attribut setzt und die Maschine vergisst, stumm nie ein Ergebnis
@@ -78,11 +79,11 @@ async def respond(
         # in Ordnung, nur die Erwartung nicht.
         logger.warning(
             "result_schema wurde erklärt, aber diese Anfrage läuft mit der "
-            "Maschine %r statt 'agent' — es bleibt wirkungslos. Kopfzeile "
-            "X-Boerdi-Engine: agent setzen oder 01-base/engine umstellen.",
+            "Maschine %r — es bleibt wirkungslos. Kopfzeile X-Boerdi-Engine auf "
+            "'agent' oder 'hybrid' setzen oder 01-base/engine umstellen.",
             engine)
-    if engine == "agent":
-        return await respond_agent(ctx, progress=progress)
+    if laeuft_ueber_die_schleife(engine):
+        return await respond_agent(ctx, progress=progress, engine=engine)
 
     req = ctx.req
     history = ctx.history

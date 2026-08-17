@@ -319,6 +319,10 @@ BOT_TEXT: Final[Catalogue] = {
             "Ich konnte gerade keine Antwort erzeugen. Versuch es noch einmal "
             "— meistens klappt es beim zweiten Anlauf."
         ),
+        # D3: Der Lauf endete an einem Deckel, hatte sein Ergebnis aber schon
+        # geliefert — ihm fehlt nur der Begleitsatz. Die beiden Sätze darüber
+        # würden von der Box widerlegt, die direkt darunter steht.
+        "agent.delivered": "Hier ist das Ergebnis.",
         # ── Kontext-Bestätigung: was ich in dieser Sammlung sehe ───────────
         # Nutzer-Vorgabe 2026-08-14: die Begrüßung soll ZEIGEN, dass der
         # Kontext angekommen ist, statt es zu behaupten. Drei Fassungen, weil
@@ -535,6 +539,7 @@ BOT_TEXT: Final[Catalogue] = {
             "I could not produce an answer just now. Try again — it usually "
             "works on the second attempt."
         ),
+        "agent.delivered": "Here is the result.",
         "context.stock.both": (
             "I can see {materials} materials and {skills} approved guides for it."
         ),

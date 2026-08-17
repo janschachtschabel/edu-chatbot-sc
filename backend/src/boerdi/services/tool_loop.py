@@ -44,6 +44,11 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from boerdi.domain.inline_documents import (
+    MAX_DOKUMENTE_JE_ZUG,
+    ZEIGE_DOKUMENT,
+    dokument_aus_argumenten,
+)
 from boerdi.domain.inline_grouping import (
     MIN_SELECTABLE_CARDS,
     _strip_trailing_option_lines,
@@ -83,6 +88,56 @@ _logger = logging.getLogger(__name__)
 # (``services/card_collect``, mit ihrer Begründung); hier bleibt der Name
 # gebunden, weil dieses Modul der angestammte Fundort ist und Tests ihn so lesen.
 CARD_YIELDING_TOOLS = _CARD_YIELDING_TOOLS
+
+#: Wo der Musterweg die gelieferten Ergebnis-Boxen ablegt (D3). Diese Schleife
+#: kennt kein ``ctx``; ihr Weg nach oben ist der ``session_state``, wie schon
+#: bei ``_selected_card_ids`` und ``_write_preview``. Der Merker gehört DIESEM
+#: Zug — ``graph/nodes/persist`` holt ihn mit ``pop`` ab.
+GELIEFERTE_DOKUMENTE_KEY = "_gelieferte_dokumente"
+
+_DOKUMENT_FEHLER = (
+    "Fehler: Das Dokument war unbrauchbar — ``titel`` und ``markdown`` muessen "
+    "nichtleere Zeichenketten sein. Wiederhole den Aufruf mit dem "
+    "vollstaendigen Ergebnis, oder antworte in Prosa."
+)
+
+_DOKUMENT_DECKEL = (
+    "Hinweis: Fuer diesen Zug sind bereits genug Boxen geliefert. Schreibe "
+    "jetzt deinen Begleitsatz."
+)
+
+
+def _nimm_dokument_an(roh_args: str, session_state: dict) -> str:
+    """Einen ``zeige_dokument``-Aufruf annehmen; Rückgabe ist die Quittung.
+
+    Die Quittung ist keine Höflichkeit: ohne sie wüsste das Modell nicht, ob der
+    Inhalt angekommen ist, und schriebe ihn sicherheitshalber noch einmal in die
+    Prosa-Antwort — dann stünde er doppelt da.
+
+    Unbrauchbare Argumente sind ein Werkzeugfehler und kein Zug-Ende (B8): das
+    Modell soll den Aufruf richtig wiederholen oder in Prosa antworten können.
+    """
+    try:
+        args = json.loads(roh_args or "{}")
+    except (json.JSONDecodeError, TypeError):
+        return _DOKUMENT_FEHLER
+    dokument = dokument_aus_argumenten(args)
+    if dokument is None:
+        _logger.info("zeige_dokument: unbrauchbare Argumente")
+        return _DOKUMENT_FEHLER
+    geliefert = session_state.setdefault(GELIEFERTE_DOKUMENTE_KEY, [])
+    if len(geliefert) >= MAX_DOKUMENTE_JE_ZUG:
+        _logger.info("zeige_dokument: Deckel von %d erreicht", MAX_DOKUMENTE_JE_ZUG)
+        return _DOKUMENT_DECKEL
+    geliefert.append(dokument)
+    # Ohne den Titel: er ist Modell-Ausgabe aus Nutzer-Inhalt und kann bei
+    # ``art: zeugnis`` einen Namen tragen. Art und Länge tragen die Diagnose.
+    _logger.info("zeige_dokument: Box übernommen (%s, %d Zeichen)",
+                 dokument["kind"], len(dokument["content"]))
+    return (
+        f"Uebernommen: '{dokument['title']}' wird als Box angezeigt. Schreibe "
+        "jetzt nur noch einen kurzen Begleitsatz — NICHT den Inhalt noch einmal."
+    )
 
 
 async def _run_tool_loop(
@@ -256,7 +311,8 @@ async def _run_tool_loop(
             # Entscheidung. Lokale/virtuelle Tools (Auswahl, Inline-Antwort,
             # RAG) sind kein MCP-Netz-Call und zählen nicht mit. Rein
             # beobachtend, kein Verhaltenseffekt.
-            _LOCAL_TOOLS = {"select_top_cards", "respond_to_user", "query_knowledge"}
+            _LOCAL_TOOLS = {"select_top_cards", "respond_to_user", "query_knowledge",
+                            ZEIGE_DOKUMENT}
             _mcp_calls_this_round = sum(
                 1 for _tc in choice.message.tool_calls
                 if _tc.function.name not in _LOCAL_TOOLS
@@ -288,7 +344,28 @@ async def _run_tool_loop(
                     } for tc in choice.message.tool_calls
                 ],
             })
+            # ── Ergebnis-Dokumente ZUERST (D3) ────────────────────
+            # Eine Vorrunde und nicht bloß ein Zweig weiter unten: der
+            # ``respond_to_user``-Zweig verlässt die Runde mit ``break``, und
+            # stünde die finale Antwort VOR dem Dokument in derselben Runde,
+            # ginge ein fertiges Arbeitsergebnis verloren. Genau die
+            # Abhängigkeit von der Ausgabe-Reihenfolge des Modells, die dieser
+            # Umbau beseitigen soll. Virtuell wie ``select_top_cards``: geht
+            # nie an den MCP, zählt daher nicht als Werkzeugaufruf.
+            _dokument_calls: set[str] = set()
             for tc in choice.message.tool_calls:
+                if tc.function.name != ZEIGE_DOKUMENT:
+                    continue
+                _dokument_calls.add(tc.id)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": _nimm_dokument_an(tc.function.arguments, session_state),
+                })
+
+            for tc in choice.message.tool_calls:
+                if tc.id in _dokument_calls:
+                    continue          # in der Vorrunde erledigt und quittiert
                 tool_name = tc.function.name
                 # B8 (2026-06-10): malformed Tool-Args (Token-Limit-Abbruch,
                 # Streaming-Reassembly) warfen vorher den GANZEN Turn auf den

@@ -146,6 +146,9 @@ class TurnContext(BaseModel):
     tools_called: list[str] = Field(default_factory=list)
     effective_pattern_id: str = ""
     effective_pattern_label: str = ""
+    #: Vom Modell GELIEFERTE Ergebnis-Boxen (D2, ``zeige_dokument``). Leer =
+    #: keine geliefert, dann greift die geratene Box aus ``turn_persist``.
+    gelieferte_dokumente: list[dict[str, Any]] = Field(default_factory=list)
     qr_mode: str | None = None
     qr_max: int | None = None
     qr_spec_task: Any = None

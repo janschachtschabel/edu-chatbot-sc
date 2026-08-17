@@ -4,20 +4,34 @@
 #   agent    Eine freie Werkzeugschleife — Systemprompt plus voller Katalog,
 #            kein Muster, kein Klassifikator. Fuer Einbettungen ohne Chat-Rahmen
 #            und als Versuchsaufbau fuer die Frage, ob sie im Chat besser ist.
+#   hybrid   Dieselbe Schleife, aber der Musterkatalog liegt als Werkzeug darin:
+#            das Modell zieht ein Muster, wenn es die Trefferlage kennt, und kann
+#            mitten im Zug wechseln (Suche → 0 Treffer → Eskalations-Muster).
+#            Spart den Klassifikator wie `agent`, behaelt die redaktionell
+#            gepflegten Muster wie `pattern`.
 #
 # Die Vorgabe ist bewusst `pattern`: ohne Pflege aendert sich am ausgelieferten
 # Chatbot nichts. Je Anfrage laesst sie sich mit der Kopfzeile `X-Boerdi-Engine`
-# uebersteuern — das braucht der A/B-Lauf, der beide Maschinen in EINEM
+# uebersteuern — das braucht der A/B-Lauf, der alle Maschinen in EINEM
 # Golden-Durchgang fahren muss.
 mode: pattern
 
+# Die Deckel gelten fuer `agent` UND `hybrid` — es ist dieselbe Schleife.
 agent:
   # Deckel der Schleife. Alle vier sind noetig, weil ein MCP-Aufruf gemessen bis
   # 23 s steht: ohne Frist koennte ein Lauf mit 12 Iterationen acht Minuten
   # dauern, ohne Budget beliebig viel kosten.
   max_iterations: 12
   deadline_s: 90
-  token_budget: 60000
+  # 2026-08-17 von 60000 heraufgesetzt. Grund, gemessen: das Budget zaehlt
+  # prompt+completion KUMULATIV, und weil die Kette waechst, wird der Prompt
+  # jede Runde neu berechnet. Ein Hybrid-Zug lag bei ~15 300 Token je Runde
+  # (45 930 fuer 3 Runden) — damit war nach drei Runden Schluss, waehrend
+  # `max_iterations: 12` und `deadline_s: 90` unberuehrt blieben. Ein Deckel,
+  # der die beiden anderen nie zu Wort kommen laesst, misst nicht die Arbeit,
+  # sondern den Werkzeugsatz. 120000 gibt der Schleife ihre 12 Runden zurueck;
+  # der Kosten-Deckel je Zug verdoppelt sich damit ausdruecklich.
+  token_budget: 120000
 
   # propose | execute — darf die Schleife eine Aenderung auch BESTAETIGEN?
   # `propose` haelt die Bestaetigungs-Wall: kuratierende Werkzeuge laufen bis

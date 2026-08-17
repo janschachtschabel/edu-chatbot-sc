@@ -39,12 +39,19 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from boerdi.domain.config_models.engine import AgentLimits
+from boerdi.domain.inline_documents import (
+    MAX_DOKUMENTE_JE_ZUG,
+    ZEIGE_DOKUMENT,
+    dokument_aus_argumenten,
+)
+from boerdi.domain.pattern_catalog import finde_muster
+from boerdi.domain.pattern_engine import PatternDef
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
 from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.usage import new_accumulator
 from boerdi.services import llm, outcome_service
-from boerdi.services.agent_tools import SUBMIT_RESULT
+from boerdi.services.agent_tools import SUBMIT_RESULT, WAEHLE_VORGEHEN
 from boerdi.services.agent_write import WriteGate
 from boerdi.services.mcp.parsers import skill_registry_note
 
@@ -57,6 +64,42 @@ _ARGUMENT_FEHLER = (
     "Fehler: Die Argumente dieses Aufrufs waren kein gueltiges JSON. Wiederhole "
     "den Aufruf mit vollstaendigem, gueltigem JSON."
 )
+
+#: Der Kopf, unter dem ein gewaehltes Muster in die Kette geht. Er sagt dem
+#: Modell, dass dies eine Anweisung ist und kein Fund — anders als bei einem
+#: MCP-Ergebnis, das der Fremdtext-Rahmen ausdruecklich als Daten kennzeichnet.
+_VORGEHEN_KOPF = (
+    "Ab jetzt gilt dieses Vorgehen ({kennung} — {label}). Es ist die "
+    "verbindliche Arbeitsanweisung der Redaktion; halte dich daran, bis du ein "
+    "anderes waehlst.\n\n"
+)
+
+
+_DOKUMENT_FEHLER = (
+    "Fehler: Das Dokument war unbrauchbar — ``titel`` und ``markdown`` muessen "
+    "nichtleere Zeichenketten sein. Wiederhole den Aufruf mit dem "
+    "vollstaendigen Ergebnis, oder antworte in Prosa."
+)
+
+_DOKUMENT_DECKEL = (
+    "Hinweis: Fuer diesen Zug sind bereits genug Boxen geliefert. Schreibe "
+    "jetzt deinen Begleitsatz."
+)
+
+
+def _unbekanntes_vorgehen(kennung: object) -> str:
+    """Antwort auf eine Kennung, die es nicht gibt oder die gesperrt ist.
+
+    Ein Werkzeugfehler, kein Laufende (wie B8 bei unlesbaren Argumenten): das
+    Modell soll es richtig wiederholen oder ohne Muster weiterarbeiten koennen.
+    Der Text nennt **nicht**, welche Muster gesperrt sind — das ``enum`` fuehrt
+    die waehlbaren, und eine Aufzaehlung der verbotenen waere eine Einladung.
+    """
+    return (
+        f"Fehler: '{kennung}' ist kein waehlbares Vorgehen. Nimm eine der "
+        "Kennungen aus der Liste des Werkzeugs — oder arbeite ohne Vorgehen "
+        "weiter und antworte direkt."
+    )
 
 
 @dataclass(slots=True)
@@ -76,6 +119,14 @@ class AgentRun:
     iterations: int = 0
     tools_called: list[str] = field(default_factory=list)
     outcomes: list[Any] = field(default_factory=list)
+    #: Das zuletzt gewaehlte Muster (H3) — leer, wenn keines gewaehlt wurde.
+    #: Es ist das TATSAECHLICH benutzte und damit die ehrlichere Angabe fuer
+    #: Qualitaetslogs als eine Vermutung im Voraus.
+    muster_id: str = ""
+    #: Die vom Modell GELIEFERTEN Ergebnis-Boxen (D2), in Aufrufreihenfolge.
+    #: Leer heisst: dieser Zug hat keine geliefert — dann greift weiter die
+    #: geratene Box aus ``turn_persist``.
+    dokumente: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _spent(acc: dict[str, Any]) -> int:
@@ -150,6 +201,8 @@ async def run_agent_loop(
     progress: TurnProgress = NO_PROGRESS,
     clock: Callable[[], float] = time.monotonic,
     on_tool_result: Callable[[str, str], None] | None = None,
+    muster_katalog: list[PatternDef] | None = None,
+    werkzeuge_fuer: Callable[[PatternDef], list[dict[str, Any]]] | None = None,
 ) -> AgentRun:
     """Fahre die Schleife, bis ein Grund sie beendet.
 
@@ -164,10 +217,25 @@ async def run_agent_loop(
     ist **redigiert, aber ungerahmt**: ein Bestätigungs-Schlüssel darf diese
     Naht nicht passieren, der Fremdtext-Rahmen ist dagegen eine Anweisung ans
     Modell und für einen Parser nur Störung.
+
+    ``muster_katalog`` (H3) macht aus der Schleife den **Hybrid**: das Modell darf
+    über ``waehle_vorgehen`` ein redaktionelles Muster ziehen, dessen Body als
+    Anweisung in die Kette geht. Ohne den Katalog gibt es den Sonderfall nicht —
+    dann ist der Name ein unbekanntes Werkzeug wie jeder andere.
+
+    ``werkzeuge_fuer`` (H4) liefert die Werkzeugliste **des gewählten Musters**.
+    Ohne sie bleibt die mitgegebene Liste stehen; mit ihr wechselt sie im Moment
+    der Wahl. Als Rückruf und nicht als Katalog-Parameter, weil nur der Aufrufer
+    weiß, was sonst noch in die Liste gehört (Sperren aus Safety/Policy, ob eine
+    Anmeldung vorliegt) — diese Schleife soll davon nichts wissen müssen.
     """
     acc = usage_acc if usage_acc is not None else new_accumulator()
     gate = WriteGate(limits.write_mode)
     run = AgentRun()
+    # Die Werkzeugliste dieses Augenblicks. Sie beginnt bei der mitgegebenen und
+    # wechselt erst, wenn ein Muster gewählt wurde — neu gebaut wird sie also bei
+    # der WAHL und nicht in jeder Runde, weil sie sich sonst nicht ändert.
+    aktive_tools = tools
     start = clock()
     # Der Nullpunkt des Budgets, nicht der Zählerstand: im Chat-Modus trägt der
     # Zug-Zähler bereits Token früherer Schritte (Safety), und die gehören dem
@@ -193,7 +261,7 @@ async def run_agent_loop(
             # und deshalb dort begründet selbst gebucht wird. Eine Buchungs-
             # stelle weniger ist eine Driftquelle weniger.
             resp = await llm.chat_completion(
-                messages=messages, tools=tools, temperature=0.4,
+                messages=messages, tools=aktive_tools, temperature=0.4,
                 usage_acc=acc, phase=USAGE_PHASE)
         except Exception as e:
             logger.error("Agent-Schleife: LLM-Fehler — %s", e)
@@ -233,6 +301,73 @@ async def run_agent_loop(
                     "Argumenten — Stillstand", name)
                 return _ended(run, "no_progress")
             last_call = key
+
+            # Das Ergebnis-Dokument (D2): virtuell wie die beiden anderen, und
+            # es beendet den Lauf NICHT — das Modell darf danach noch seinen
+            # Begleitsatz schreiben oder ein zweites Dokument liefern. Steht
+            # nach der Stillstands-Pruefung, damit zweimal dasselbe Dokument
+            # als Stillstand zaehlt.
+            if name == ZEIGE_DOKUMENT:
+                dokument = dokument_aus_argumenten(args)
+                if dokument is None:
+                    logger.info("Dokument-Werkzeug: unbrauchbare Argumente")
+                    messages.append(_tool_turn(tc.id, _DOKUMENT_FEHLER))
+                    continue
+                if len(run.dokumente) >= MAX_DOKUMENTE_JE_ZUG:
+                    logger.info("Dokument-Werkzeug: Deckel von %d erreicht",
+                                MAX_DOKUMENTE_JE_ZUG)
+                    messages.append(_tool_turn(tc.id, _DOKUMENT_DECKEL))
+                    continue
+                run.dokumente.append(dokument)
+                # Ohne den Titel: er ist Modell-Ausgabe aus Nutzer-Inhalt und
+                # kann bei ``art: zeugnis`` einen Namen tragen. Das Server-Log
+                # unterliegt keiner Datenschutz-Schranke; Art und Länge tragen
+                # die Diagnose ebenso.
+                logger.info("Dokument geliefert (%s, %d Zeichen)",
+                            dokument["kind"], len(dokument["content"]))
+                progress.record("agent_document", f"Ergebnis: {dokument['title']}",
+                                {"kind": dokument["kind"]})
+                # Die Bestaetigung ist keine Hoeflichkeit: ohne sie wuesste das
+                # Modell nicht, ob der Inhalt angekommen ist, und schriebe ihn
+                # sicherheitshalber noch einmal in die Prosa-Antwort.
+                messages.append(_tool_turn(
+                    tc.id,
+                    f"Uebernommen: '{dokument['title']}' wird als Box "
+                    f"angezeigt. Schreibe jetzt nur noch einen kurzen "
+                    f"Begleitsatz — NICHT den Inhalt noch einmal."))
+                continue
+
+            # Der Musterwechsel ist virtuell wie ``submit_result`` — nur beendet
+            # er den Lauf nicht, sondern richtet ihn aus. Er steht NACH der
+            # Stillstands-Prüfung, damit zweimal dasselbe Muster als Stillstand
+            # zählt und ein Wechsel als Fortschritt; beides fällt damit ohne
+            # eigene Logik heraus. Und er steht VOR ``call_with_outcome``, denn
+            # es gibt kein Werkzeug dieses Namens am MCP.
+            if muster_katalog and name == WAEHLE_VORGEHEN:
+                gewaehlt = finde_muster(args.get("muster_id"), muster_katalog)
+                if gewaehlt is None:
+                    logger.info("Hybrid: Vorgehen %r nicht waehlbar",
+                                args.get("muster_id"))
+                    messages.append(_tool_turn(
+                        tc.id, _unbekanntes_vorgehen(args.get("muster_id"))))
+                    continue
+                run.muster_id = gewaehlt.id
+                if werkzeuge_fuer is not None:
+                    aktive_tools = werkzeuge_fuer(gewaehlt)
+                logger.info("Hybrid: Vorgehen %s (%s) gewaehlt — %d Werkzeuge",
+                            gewaehlt.id, gewaehlt.label, len(aktive_tools))
+                progress.record("agent_pattern", f"Vorgehen: {gewaehlt.label}",
+                                {"pattern": gewaehlt.id})
+                # Ohne Fremdtext-Rahmen, und das ist keine Auslassung: der Body
+                # stammt aus dem eigenen Konfigurations-Bestand, nicht vom MCP.
+                # Ihn als Fremdtext zu kennzeichnen hieße dem Modell zu sagen,
+                # es solle unsere eigene Anweisung als bloße Daten behandeln.
+                messages.append(_tool_turn(
+                    tc.id,
+                    _VORGEHEN_KOPF.format(kennung=gewaehlt.id, label=gewaehlt.label)
+                    + gewaehlt.body_md,
+                ))
+                continue
 
             progress.record("agent_tool", f"Werkzeug: {name}", {"tool": name})
             text, outcome = await outcome_service.call_with_outcome(name, args)

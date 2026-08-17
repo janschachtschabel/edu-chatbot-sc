@@ -41,6 +41,18 @@ nennt keine Zielzahl mehr, sondern die Sorten. Das *Budget* bleibt allein im
 Backend: zwei Zahlen für dieselbe Sache wären die nächste Gelegenheit zum
 Auseinanderlaufen. Gepinnt von ``test_die_auswahl_ist_dem_modell_nicht_mehr_bei_
 fuenf_verboten`` und ``test_die_beschreibung_nennt_kein_ziel_von_fuenf``.
+
+Dritte dokumentierte Abweichung (D3, 2026-08-17): ``zeige_dokument`` steht neben
+``select_top_cards`` im Angebot. Die Agent-Schleife bekam das Werkzeug mit D2;
+solange der Musterweg — die **Vorgabe-Maschine** — es nicht hat, rät er die
+Ergebnis-Box weiter aus dem Antworttext, und der gemeldete Befund („die
+Stundenplanung wird erzeugt, landet aber nicht in der Box") besteht für jede
+Anlage fort, die die Maschine nicht umstellt. Das Schema stammt aus
+``domain/inline_documents`` und nicht aus einem vierten Inline-Literal hier:
+zwei Maschinen bieten dasselbe Werkzeug an, und zwei Kopien seiner Beschreibung
+liefen beim nächsten Studio-Feld auseinander. Gepinnt von
+``test_das_ergebnis_werkzeug_steht_jedem_muster_zur_verfuegung`` und
+``test_bei_degradation_gibt_es_nichts_zu_liefern``.
 """
 
 from __future__ import annotations
@@ -50,6 +62,7 @@ import os
 from typing import Any
 
 from boerdi.domain.content_types import medientyp_meint_sammlungen
+from boerdi.domain.inline_documents import dokument_werkzeug
 from boerdi.domain.inline_grouping import MAX_SELECTABLE_CARDS
 from boerdi.domain.write_confirm import CURATION_TOOLS
 from boerdi.services.agent_tools import AUS_DEM_KATALOG
@@ -441,6 +454,20 @@ def _select_active_tools(
             "select_top_cards via CHAT_DISABLE_SELECT_TOP_CARDS deaktiviert — "
             "Backend nutzt deterministische Karten-Auswahl (MCP-Ranking)."
         )
+
+    # ── Ergebnis-Dokument: zeige_dokument (immer verfügbar, D3) ───────
+    # Neben ``select_top_cards`` und aus demselben Grund unbedingt: ein
+    # Arbeitsergebnis kann in JEDEM Muster entstehen — auch in einem mit
+    # ``tools: []``, denn gerade die (M04, M11) erzeugen ihren Inhalt aus dem
+    # Modell. Die Box hing bis 2026-08-17 an einer Vermutung über den
+    # Antworttext (Muster ∈ {M09,M10,M11}, ≥200 Zeichen, ein H1); live
+    # gemessen fiel ein fertiger Verlaufsplan weg, weil das Modell ihn als
+    # Zusammenfassung ohne Überschrift formuliert hatte.
+    #
+    # VOR dem Degradations-Wipe und damit von ihm erfasst — anders als
+    # ``respond_to_user`` unten: fehlt ein Pflicht-Slot, stellt der Zug die
+    # Rückfrage, und ein Ergebnis, das zu liefern wäre, gibt es dann nicht.
+    active_tools.append(dokument_werkzeug())
 
     # Degradation (Pflicht-Slot fehlt): Tool-Liste wirklich leeren statt nur
     # per Prompt-Regel zu bitten — gegen einen Pattern-Body mit

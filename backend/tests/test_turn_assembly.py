@@ -354,3 +354,40 @@ async def test_die_sprache_des_zuges_gilt(monkeypatch):
                         "tools": ["wlo_add_to_collection"]},
     )
     assert qrs[1] == "Just search, no sign-in"
+
+
+# ── Der Themen-Filter und die Schleifen-Maschinen (H6, live gemessen) ──────
+
+_INHALTS_KARTE = {"node_id": "n1", "node_type": "content", "title": "Optik-Buch"}
+
+
+async def test_ohne_thema_werden_karten_im_bestandsweg_unterdrueckt():
+    """Der Bestandsfilter, unverändert: ohne Slot ist die Suche themenlos
+    gelaufen, und die Treffer sind erfahrungsgemäß Müll."""
+    ergebnis = await _call(wlo_cards_raw=[dict(_INHALTS_KARTE)],
+                           winner=type("W", (), {"id": "M06"})(),
+                           session_state={"entities": {}})
+    assert ergebnis[0] == []
+
+
+async def test_ein_thema_im_slot_laesst_die_karten_stehen():
+    ergebnis = await _call(wlo_cards_raw=[dict(_INHALTS_KARTE)],
+                           winner=type("W", (), {"id": "M06"})(),
+                           session_state={"entities": {"thema": "Optik"}})
+    assert len(ergebnis[0]) == 1
+
+
+async def test_die_schleifen_maschinen_behalten_ihre_karten():
+    """Live gemessen 2026-08-17: der Hybrid erntete acht Karten, und dieser
+    Filter löschte alle acht — die Slots sind dort leer, weil das MODELL den
+    Suchbegriff als Werkzeug-Argument übergibt statt eines Klassifikators.
+
+    ``agent`` steht mit im Test, obwohl er bis heute durchkam: das lag allein
+    daran, dass sein Modell meist ``search_wlo_all`` wählt, dessen
+    Themenseiten-Karten die Ausnahme darüber treffen. Geliehen, nicht zugesichert.
+    """
+    for maschine in ("HYBRID", "AGENT"):
+        ergebnis = await _call(wlo_cards_raw=[dict(_INHALTS_KARTE)],
+                               winner=type("W", (), {"id": maschine})(),
+                               session_state={"entities": {}})
+        assert len(ergebnis[0]) == 1, f"{maschine} verliert seine Karten"

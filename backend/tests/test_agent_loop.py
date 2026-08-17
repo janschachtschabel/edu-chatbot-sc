@@ -99,7 +99,8 @@ class _Sammler:
 
 def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
           limits=None, usage_acc=None, progress=None, clock=None, raises=None,
-          echter_transport=False, on_tool_result=None):
+          echter_transport=False, on_tool_result=None,
+          muster_katalog=None, werkzeuge_fuer=None):
     """``echter_transport=True`` fälscht eine Ebene tiefer (``llm._acompletion``).
 
     Nötig für alles, was die **Buchung** prüft: die Schleife reicht ``usage_acc``
@@ -124,6 +125,10 @@ def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
         kwargs["progress"] = progress
     if on_tool_result is not None:
         kwargs["on_tool_result"] = on_tool_result
+    if muster_katalog is not None:
+        kwargs["muster_katalog"] = muster_katalog
+    if werkzeuge_fuer is not None:
+        kwargs["werkzeuge_fuer"] = werkzeuge_fuer
     run = asyncio.run(agent_loop.run_agent_loop(
         messages=msgs,
         tools=[{"type": "function", "function": {"name": "search_wlo_content"}}],
@@ -522,3 +527,184 @@ def test_ohne_naht_laeuft_die_schleife_unveraendert(monkeypatch):
     ], outcome=out)
     assert run.stop_reason == "text"
     assert run.tools_called == ["search_wlo_content"]
+
+
+# ── Der Musterwechsel im Lauf (H3/H4, Hybrid-Modus) ──────────────────────
+
+
+def _katalog():
+    from boerdi.domain.pattern_engine import PatternDef
+    return [
+        PatternDef(id="M06", label="Material-Suche Cascade",
+                   body_md="## Pipeline\nThemenseite vor Sammlung.",
+                   tools=["search_wlo_all"]),
+        PatternDef(id="M12", label="Null-Treffer-Eskalation",
+                   body_md="## Rettung\nSynonyme, dann breiter.",
+                   tools=["search_wlo_content"]),
+        PatternDef(id="M01", label="Krisen-Empathie", body_md="## Nie waehlbar"),
+    ]
+
+
+def test_ein_gewaehltes_vorgehen_kommt_als_anweisung_zurueck(monkeypatch):
+    out = _OutcomeFake()
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("waehle_vorgehen", {"muster_id": "M06"})]),
+        _resp_text("fertig"),
+    ], outcome=out, muster_katalog=_katalog())
+    assert run.stop_reason == "text"
+    assert run.muster_id == "M06"
+    anweisung = msgs[-1]["content"]
+    assert "Themenseite vor Sammlung." in anweisung
+    assert "Material-Suche Cascade" in anweisung
+    # Virtuell: der Musterwechsel darf den MCP nie erreichen.
+    assert out.calls == []
+    assert run.tools_called == []
+
+
+def test_ein_unbekanntes_vorgehen_beendet_den_lauf_nicht(monkeypatch):
+    """Eine erfundene Kennung ist ein Werkzeugfehler, kein Laufende — dieselbe
+    Entscheidung wie bei unlesbaren Argumenten (B8)."""
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("waehle_vorgehen", {"muster_id": "M99"})]),
+        _resp_text("dann eben ohne"),
+    ], muster_katalog=_katalog())
+    assert run.stop_reason == "text"
+    assert run.muster_id == ""
+    assert "M99" in msgs[-1]["content"]
+
+
+def test_ein_gesperrtes_vorgehen_kommt_auch_hier_nicht_durch(monkeypatch):
+    """Der zweite Riegel: M01 steht nicht im ``enum`` — erfindet das Modell die
+    Kennung trotzdem, darf sie das Krisen-Muster nicht aktivieren."""
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("waehle_vorgehen", {"muster_id": "M01"})]),
+        _resp_text("ok"),
+    ], muster_katalog=_katalog())
+    assert run.muster_id == ""
+
+
+def test_dasselbe_vorgehen_zweimal_ist_stillstand(monkeypatch):
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("waehle_vorgehen", {"muster_id": "M06"})]),
+        _resp_tools([_tool_call("waehle_vorgehen", {"muster_id": "M06"}, "c2")]),
+    ], muster_katalog=_katalog())
+    assert run.stop_reason == "no_progress"
+
+
+def test_ein_wechsel_ist_kein_stillstand(monkeypatch):
+    """Suche ohne Treffer → Eskalations-Muster: genau der Fall, für den der
+    Wechsel mitten im Zug da ist."""
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("waehle_vorgehen", {"muster_id": "M06"})]),
+        _resp_tools([_tool_call("waehle_vorgehen", {"muster_id": "M12"}, "c2")]),
+        _resp_text("nichts gefunden, hier Alternativen"),
+    ], muster_katalog=_katalog())
+    assert run.stop_reason == "text"
+    assert run.muster_id == "M12"
+
+
+def test_das_gewaehlte_vorgehen_wechselt_die_werkzeugliste(monkeypatch):
+    """H4: bis zur Wahl gilt die mitgegebene Liste, danach die des Musters."""
+    def werkzeuge_fuer(muster):
+        return [{"type": "function", "function": {"name": t}} for t in muster.tools]
+
+    fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("waehle_vorgehen", {"muster_id": "M12"})]),
+        _resp_text("fertig"),
+    ], muster_katalog=_katalog(), werkzeuge_fuer=werkzeuge_fuer)
+    assert run.stop_reason == "text"
+    erste = [t["function"]["name"] for t in fake.calls[0]["tools"]]
+    zweite = [t["function"]["name"] for t in fake.calls[1]["tools"]]
+    assert erste == ["search_wlo_content"]      # die mitgegebene Startliste
+    assert zweite == ["search_wlo_content"]     # M12 gibt genau dieses frei
+
+
+def test_ohne_katalog_bleibt_die_schleife_die_alte(monkeypatch):
+    """Der reine Agent-Modus: ohne Katalog ist ``waehle_vorgehen`` kein
+    Sonderfall, sondern ein unbekanntes Werkzeug wie jedes andere."""
+    out = _OutcomeFake()
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("search_wlo_content", {"query": "a"})]),
+        _resp_text("fertig"),
+    ], outcome=out)
+    assert run.muster_id == ""
+    assert run.tools_called == ["search_wlo_content"]
+
+
+# ── Das Ergebnis-Dokument als Werkzeug (D2) ────────────────────────────────
+
+
+def _dok_args(**over):
+    a = {"titel": "Verlaufsplan Optik", "art": "stundenplanung",
+         "markdown": "# Verlaufsplan\n\nEinstieg, Erarbeitung, Sicherung."}
+    a.update(over)
+    return a
+
+
+def test_ein_geliefertes_dokument_landet_im_lauf(monkeypatch):
+    out = _OutcomeFake()
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("zeige_dokument", _dok_args())]),
+        _resp_text("Hier ist der Plan."),
+    ], outcome=out)
+    assert run.stop_reason == "text"
+    assert len(run.dokumente) == 1
+    assert run.dokumente[0]["kind"] == "stundenplanung"
+    assert run.dokumente[0]["title"] == "Verlaufsplan Optik"
+    # Virtuell: es geht nie an den MCP.
+    assert out.calls == []
+    assert run.tools_called == []
+
+
+def test_die_bestaetigung_geht_an_das_modell_zurueck(monkeypatch):
+    """Ohne Rückmeldung wüsste das Modell nicht, ob es angekommen ist — und
+    lieferte den ganzen Text sicherheitshalber noch einmal in die Prosa."""
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("zeige_dokument", _dok_args())]),
+        _resp_text("fertig"),
+    ])
+    assert "Verlaufsplan Optik" in msgs[-1]["content"]
+
+
+def test_der_titel_steht_nicht_im_protokoll(monkeypatch, caplog):
+    """``art: zeugnis`` ist zulässig — ein Titel kann dann einen Namen tragen.
+    Art und Länge tragen die Diagnose; der Titel gehört nicht ins Server-Log,
+    das keiner Datenschutz-Schranke unterliegt."""
+    caplog.set_level("INFO")
+    _lauf(monkeypatch, [
+        _resp_tools([_tool_call("zeige_dokument",
+                                _dok_args(art="zeugnis",
+                                          titel="Zeugnis fuer Mira Beispiel"))]),
+        _resp_text("fertig"),
+    ])
+    assert "Mira Beispiel" not in caplog.text
+    assert "zeugnis" in caplog.text          # die Art bleibt sichtbar
+
+
+def test_unbrauchbare_argumente_beenden_den_lauf_nicht(monkeypatch):
+    """Ein leeres Markdown ist ein Werkzeugfehler, kein Laufende (B8)."""
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("zeige_dokument", _dok_args(markdown=""))]),
+        _resp_text("dann eben als Text"),
+    ])
+    assert run.stop_reason == "text"
+    assert run.dokumente == []
+    assert "Fehler" in msgs[-1]["content"]
+
+
+def test_mehrere_dokumente_gehen_bis_zum_deckel(monkeypatch):
+    from boerdi.domain.inline_documents import MAX_DOKUMENTE_JE_ZUG
+    rufe = [_resp_tools([_tool_call("zeige_dokument",
+                                    _dok_args(titel=f"Doc {i}"), f"c{i}")])
+            for i in range(MAX_DOKUMENTE_JE_ZUG + 2)]
+    _fake, run, _msgs = _lauf(monkeypatch, rufe + [_resp_text("fertig")],
+                              limits=AgentLimits(max_iterations=8))
+    assert len(run.dokumente) == MAX_DOKUMENTE_JE_ZUG
+
+
+def test_ohne_dokument_bleibt_die_liste_leer(monkeypatch):
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("search_wlo_content", {"query": "a"})]),
+        _resp_text("fertig"),
+    ])
+    assert run.dokumente == []

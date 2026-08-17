@@ -56,10 +56,11 @@ def spec_mcp(monkeypatch):
     return calls
 
 
-async def _drive_spec(req, classification, safety):
+async def _drive_spec(req, classification, safety, engine="pattern"):
     """Funktion treiben und die gestarteten Fake-Tasks abräumen (sonst warnt
     asyncio.run beim Loop-Close über pending Tasks)."""
-    out = await run_speculative_prefetch(req, classification, safety)
+    out = await run_speculative_prefetch(req, classification, safety,
+                                         engine=engine)
     pending = ([out[0]] if out[0] is not None else []) + [t for _, t in out[4]]
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
@@ -67,14 +68,14 @@ async def _drive_spec(req, classification, safety):
 
 
 def _launch(message="Material zu Brüchen", intent="I03", entities=None,
-            pattern_hint=None, tool_hint=None, risk="low"):
+            pattern_hint=None, tool_hint=None, risk="low", engine="pattern"):
     req = ChatRequest(session_id="s", message=message)
     classification = ClassificationResult(
         intent_id=intent, entities=entities or {},
         pattern_id_hint=pattern_hint, tool_id_hint=tool_hint,
     )
     return asyncio.run(_drive_spec(req, classification,
-                                   SafetyDecision(risk_level=risk)))
+                                   SafetyDecision(risk_level=risk), engine))
 
 
 # ── Start-Bedingung: Skip-Zweige (Default-Tupel, kein MCP-Call) ──────────
@@ -342,3 +343,39 @@ def test_spec_sammlung_keyword_has_no_observable_effect(spec_mcp):
     b = _launch(message="Material zu Brüchen",
                 intent="I03", entities={"thema": "Brüche"})
     assert _comparable(a) == _comparable(b)
+
+
+# ── H5: der Vorabruf im Hybrid, ohne Klassifikator ──────────────────────
+
+
+def _hybrid(message, risk="low"):
+    """Wie der Hybrid wirklich ankommt: Ersatz-Klassifikation, leere Entities."""
+    return _launch(message=message, intent="I01", entities={},
+                   risk=risk, engine="hybrid")
+
+
+def test_hybrid_startet_den_vorabruf_an_der_nachricht(spec_mcp):
+    """Ohne diesen Zweig fiele der Vorabruf im Hybrid IMMER aus: die
+    Ersatz-Klassifikation trägt I01 und leere Entities."""
+    _hybrid("Material zur Optik für Klasse 8")
+    assert spec_mcp, "kein MCP-Aufruf gestartet"
+
+
+def test_hybrid_laesst_meta_fragen_liegen(spec_mcp):
+    """``_looks_like_search_query`` filtert Begrüßung und Meta-Frage — sonst
+    liefe hinter jedem „Hallo" eine MCP-Suche."""
+    _hybrid("Was kannst du?")
+    assert spec_mcp == []
+
+
+def test_hybrid_haelt_sich_an_das_sicherheits_gate(spec_mcp):
+    _hybrid("Material zur Optik", risk="high")
+    assert spec_mcp == []
+
+
+def test_die_musterengine_bleibt_am_klassifikator(spec_mcp):
+    """Gegenrichtung: derselbe Satz, aber mit I01 und leeren Entities im
+    BESTANDSWEG — dort entscheidet weiterhin der Klassifikator, und der sagt
+    nein. Ohne diese Zusicherung hätte H5 den Bestandspfad mitverändert."""
+    _launch(message="Material zur Optik für Klasse 8", intent="I01", entities={})
+    assert spec_mcp == []

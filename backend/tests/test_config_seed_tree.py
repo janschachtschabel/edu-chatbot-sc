@@ -612,3 +612,27 @@ def test_m09_holt_die_anleitung_im_pflicht_ablauf_und_nicht_erst_danach():
     assert "Anleitung" in struktur, (
         "Die Pflicht-Vorlage sagt nicht, dass sie hinter einer freigegebenen "
         "Anleitung zuruecktritt — dann gewinnt sie auch mit geladener Anleitung.")
+
+
+def test_der_ausgelieferte_modus_ist_der_musterweg() -> None:
+    """Eine frische Installation antwortet über die Muster-Engine.
+
+    Nutzer-Vorgabe 2026-08-17: „im Werksmodus sollte pattern-Modus sein." Das
+    ist kein Geschmack, sondern die Zusage, dass ein Deployment den Antwortweg
+    nicht wechselt, ohne dass jemand es entscheidet — `agent` und `hybrid`
+    sind Opt-in, je Anlage über das Studio oder je Anfrage über die Kopfzeile
+    `X-Boerdi-Engine`.
+
+    Der Wächter steht hier, weil der Seed der einzige Ort ist, den ein
+    `boerdi import-config` in eine leere Datenbank schreibt. Wer den Wert dort
+    umstellt, stellt jede künftige Installation um — dieser Test macht daraus
+    eine sichtbare Entscheidung statt einer stillen.
+
+    **Der Werksstand des Studios ist NICHT diese Datei** (`config_snapshots`,
+    Zeile `factory`): er wird aus dem gerade gelebten Stand gespeichert und kann
+    deshalb jeden Modus tragen, der beim Speichern aktiv war. Diesen Fall kann
+    kein Test im Repo abfangen — nur die Regel, beim Speichern des Werksstands
+    auf den Modus zu schauen.
+    """
+    daten = yaml.safe_load((_SEEDS / "01-base" / "engine.yaml").read_text("utf-8"))
+    assert daten["mode"] == "pattern"
