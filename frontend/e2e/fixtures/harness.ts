@@ -87,10 +87,23 @@ export interface MountOptions {
    * Kontextmeldung sprechen lassen will, setzt sie hier.
    */
   pingReply?: Record<string, unknown>;
+  /**
+   * Rahmenloser Einbau (U1) — EIN Schalter für drei Dinge, die zusammengehören
+   * und sonst auseinanderlaufen: das Attribut `embed-mode="frameless"`, die
+   * Gastanwendung drumherum (eigene Kopfleiste + Flex-Platz für den Chat, wie
+   * `docs/browser-plugin-einbindung.md` §2 sie beschreibt) und der Verzicht
+   * auf den FAB, den es rahmenlos nicht gibt.
+   *
+   * Der Wirt ist nicht Zierrat: im schlichten Body wäre ein ausgebrochenes
+   * Panel von einem korrekt gefüllten nicht zu unterscheiden.
+   */
+  frameless?: boolean;
 }
 
 export interface Harness {
-  /** Click the FAB and wait for the panel to be interactive. */
+  /** Klickt den FAB und wartet, bis das Panel bedienbar ist. Rahmenlos entfällt
+   *  der Klick — dort gibt es keinen FAB und der Chat steht schon; die Zusage
+   *  „danach ist die Eingabe da" gilt aber in beiden Modi. */
   open(): Promise<void>;
   /** Queue results for the next turns (FIFO); default is a plain text answer.
    *  Kontext-Pings bedienen sich hier NICHT — siehe `pingReply`. */
@@ -112,18 +125,44 @@ function istPing(r: ChatRequest): boolean {
   return !!r.environment?.['page_event'];
 }
 
+/** Der Wirt für den rahmenlosen Einbau. Bewusst NUR in diesem Zweig: die
+ *  schlichte Seite ist die Grundlage von rund einem Dutzend Tests, und eine
+ *  global gesetzte Höhe/Randlosigkeit hätte deren Messungen mitverändert. */
+const WIRT_STIL = `<style>
+      html, body { margin: 0; height: 100%; }
+      .wirt { display: flex; flex-direction: column; height: 100%; }
+      .wirt-kopf { flex: none; height: 44px; background: #eef1f5; }
+      /* Der Platz ist ABSICHTLICH auf beiden Achsen kleiner als der Viewport:
+         die Kopfleiste versetzt ihn senkrecht, der Seitenabstand waagerecht.
+         Ohne den Abstand wäre er genau so breit wie das Fenster, und ein
+         durchgeschlagenes 100vw bliebe unsichtbar — die Zusicherung hätte dann
+         keine Zähne. (Keine Backticks hier: dieser Block steht in einem
+         Template-Literal.) */
+      .wirt-platz { flex: 1; min-height: 0; margin-inline: 12px; }
+    </style>`;
+
 function harnessHtml(opts: MountOptions): string {
-  const attrs = Object.entries({ 'api-url': API, ...(opts.attrs ?? {}) })
+  const attrs = Object.entries({
+    'api-url': API,
+    ...(opts.frameless ? { 'embed-mode': 'frameless' } : {}),
+    ...(opts.attrs ?? {}),
+  })
     .map(([k, v]) => `${k}="${v}"`)
     .join(' ');
   const element = `<boerdi-chat ${attrs}></boerdi-chat>`;
+  const koerper = opts.frameless
+    ? `<div class="wirt">
+      <header class="wirt-kopf">Leiste der Gastanwendung</header>
+      <main class="wirt-platz">${element}</main>
+    </div>`
+    : `<h1>Host-Seite</h1>
+    ${element}
+    ${opts.duplicate ? element : ''}`;
   return `<!doctype html>
 <html lang="de">
-  <head><meta charset="utf-8" /><title>Host-Seite</title></head>
+  <head><meta charset="utf-8" /><title>Host-Seite</title>${opts.frameless ? WIRT_STIL : ''}</head>
   <body>
-    <h1>Host-Seite</h1>
-    ${element}
-    ${opts.duplicate ? element : ''}
+    ${koerper}
     <script src="/boerdi-widget.js"></script>
   </body>
 </html>`;
@@ -197,11 +236,15 @@ export async function mount(page: Page, opts: MountOptions = {}): Promise<Harnes
   });
 
   await page.goto(opts.url ?? `${HOST}/`);
-  await expect(page.locator('boerdi-chat .boerdi-fab').first()).toBeVisible();
+  // Rahmenlos gibt es keinen FAB, auf den zu warten wäre — der Chat steht dort
+  // sofort (`chatMounted()` in widget.component.ts).
+  await expect(
+    page.locator(opts.frameless ? 'boerdi-chat .chat-input' : 'boerdi-chat .boerdi-fab').first(),
+  ).toBeVisible();
 
   return {
     async open() {
-      await page.locator('.boerdi-fab').first().click();
+      if (!opts.frameless) await page.locator('.boerdi-fab').first().click();
       await expect(page.locator('.chat-input')).toBeVisible();
     },
     enqueue(...responses) {

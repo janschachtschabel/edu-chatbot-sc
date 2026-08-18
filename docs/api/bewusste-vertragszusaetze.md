@@ -41,6 +41,16 @@ Debatte (Nutzer-Entscheid 2026-08-11, ausführlich in
 Kompatibilität steht nicht auf dem Spiel: Aufrufer sind Widget und Studio,
 beide in diesem Repo; einen externen Verbraucher gibt es nicht.
 
+## Felder, keine Routen
+
+Ein neues **Feld** an einem bestehenden Modell ändert den Vertrag, aber keine
+Operation — der Zähler oben bleibt, `--check` wird trotzdem rot. Auch das gehört
+aufgeschrieben, sonst sieht ein neu erzeugtes Dokument aus wie ein Versehen:
+
+| Feld | Grund |
+|---|---|
+| `Environment.host_instruction` (G1, 2026-08-17) | Der Rahmen, den eine Gastanwendung einem Zug mitgibt: „so bist du hier zu verstehen". Gehört ins `environment` und nicht in die `message`, weil es **kein Zug** ist — es erscheint nicht im Verlauf, genau wie der Seitenkontext daneben. Nicht in `page_context` gequetscht: dessen Renderer verwirft freien Text, sobald MCP die Seite auflösen konnte (gemessen), und ein Feld, das mal ankommt und mal nicht, ist schlimmer als keins. Gedeckelt auf 2000 Zeichen, **abweisend statt kürzend** — dieselbe Begründung wie beim `result_schema`. Wirkt in allen drei Maschinen (`domain/host_instruction` speist beide Prompt-Wege). |
+
 ## Die Zusätze
 
 | Methode | Pfad | Grund |

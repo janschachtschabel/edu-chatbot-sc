@@ -46,6 +46,10 @@ export const FORWARDED_METHODS = [
   'updateContext',
   'replaceContext',
   'startTask',
+  // G1 (2026-08-17): der unsichtbare Rahmen der Gastanwendung. Gehört hierher
+  // und nicht an ein Attribut — er soll je Zug neu gesetzt werden können, und
+  // Attribute werden nach dem Start nicht mehr gelesen.
+  'setHostInstruction',
 ] as const;
 
 /** Komponenten-Instanz hinter einem `NgElement`, oder `undefined` solange das

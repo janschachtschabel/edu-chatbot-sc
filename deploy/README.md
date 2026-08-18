@@ -78,10 +78,11 @@ Jaeger-UI, bewusst host-lokal.
 
 ### `.env` (nicht im Repo)
 
-Fünf Werte **müssen** gesetzt sein, sonst startet der Stack gar nicht erst —
+Sechs Werte **müssen** gesetzt sein, sonst startet der Stack gar nicht erst —
 ein Compose-Default für ein Passwort wäre ein ausgeliefertes Dev-Secret:
 `POSTGRES_PASSWORD`, `STUDIO_API_KEY`, `STUDIO_PASSWORD`, `CORS_ORIGINS`,
-`PUBLIC_HOST`, `ACME_EMAIL`. Prüfen ohne zu starten:
+`PUBLIC_HOST`, `ACME_EMAIL`. `CORS_ORIGINS` **wirkt erst mit**
+`CORS_ALLOW_ALL=false` — die Vorgabe ist offen, siehe Abnahme-Zeile unten. Prüfen ohne zu starten:
 
 ```powershell
 docker compose -f compose.prod.yml --env-file .env config > $null   # Exit 0 = vollständig
@@ -362,7 +363,7 @@ Aus dem Audit-Erbe (`../badboerdi/docs/audits/`), auf diesen Stack übersetzt.
 | — | Rate-Limit | ✅ Default an (V7), Storage `valkey://` = ein Kontingent für den Cluster (`test_cluster_checklist.py`). |
 | — | Admin-Oberfläche | ⚠️ Prüfen, dass `STUDIO_API_KEY` **und** `STUDIO_PASSWORD` gesetzt sind und `BOERDI_ALLOW_OPEN_ADMIN` **nicht** gesetzt ist. |
 | — | Agenten-Endpunkt | ⚠️ `AGENT_OPEN` **nicht** setzen — es öffnet `/api/agent` ohne jede Anmeldung und ist für Testläufe gedacht. Der normale Weg herein ist die Anmeldung der Person (`WLO-Access-Block`), Server-zu-Server der `STUDIO_API_KEY`. Die Drosselung greift in allen drei Fällen. |
-| — | CORS | ⚠️ `CORS_ORIGINS` explizit setzen. `*` ist zulässig, aber eine Entscheidung — nicht der Default aus Versehen. |
+| — | CORS | ⚠️ **Die Vorgabe ist OFFEN.** Zum Schließen `CORS_ALLOW_ALL=false` **und** `CORS_ORIGINS` mit den einbettenden Domänen setzen — die Liste allein bleibt sonst wirkungslos. Der Start warnt, wenn eine gesetzte Liste übersteuert wird; diese Zeile ist die Abnahme. Browser-Erweiterungen (`safari-web-extension://`, `chrome-extension://`) dürfen auch bei enger Liste — `CORS_ALLOW_EXTENSIONS=false` nimmt ihnen das. |
 | — | Lasttest | ✅ `BOERDI_ALLOW_LOADTEST` leer = auf Prod abgelehnt; er teilt sonst den LLM-Pool mit Live-Nutzern. |
 | — | TLS | ⚠️ Nach dem ersten Start prüfen, dass ACME wirklich ein Zertifikat gezogen hat (`docker compose logs traefik`), sonst hängt die Seite an der Selbstsignatur. |
 

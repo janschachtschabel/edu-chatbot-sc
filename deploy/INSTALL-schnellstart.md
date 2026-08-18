@@ -219,11 +219,12 @@ festschreiben.
 <boerdi-chat></boerdi-chat>
 ```
 
-Damit das aus einer anderen Domäne funktioniert, muss diese in `CORS_ORIGINS`
-stehen — mehrere kommagetrennt:
+Das funktioniert **ohne Zutun aus jeder Domäne**: CORS ist standardmäßig offen
+(`CORS_ALLOW_ALL=true`). Wer zumachen will, setzt den Schalter auf `false` — dann
+gilt `CORS_ORIGINS`, und nur dann. Mehrere Domänen kommagetrennt:
 
 ```bash
-cd /opt/boerdi/deploy && sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=https://${HOST},https://wirlernenonline.de|" .env && docker compose -f compose.prod.yml --env-file .env up -d backend
+cd /opt/boerdi/deploy && sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=https://${HOST},https://wirlernenonline.de|;s|^CORS_ALLOW_ALL=.*|CORS_ALLOW_ALL=false|" .env && docker compose -f compose.prod.yml --env-file .env up -d backend
 ```
 
 **Jaeger (Traces)** ist bewusst nicht öffentlich. Zugriff über einen

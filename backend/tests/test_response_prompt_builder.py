@@ -119,6 +119,23 @@ def test_no_page_context_block_when_nothing_resolvable(_cfg):
     assert "## Inhalt der aktuellen Seite (Heuristik)" not in system
 
 
+def test_host_instruction_steht_im_muster_prompt(_cfg):
+    """G1: der Auftrag der Gastanwendung erreicht auch die MUSTER-Maschine.
+
+    Die Zusage lautet „wirkt in allen drei Maschinen". Der Schleifen-Weg hat
+    seinen eigenen Test (`test_respond_agent`); ohne diesen hier wäre die Hälfte
+    unbelegt — und zwar die, die ausgeliefert die Vorgabe ist.
+    """
+    system, *_ = _build(environment={"host_instruction": "Bewerte den Füllstand."})
+    assert "Bewerte den Füllstand." in system
+    assert "gilt die Regel" in system  # die Rangfolge reist mit
+
+
+def test_ohne_host_instruction_kein_block(_cfg):
+    system, *_ = _build(environment={})
+    assert "## Auftrag der einbettenden Anwendung" not in system
+
+
 def test_page_context_block_failure_is_swallowed(_cfg):
     def boom(_ss):
         raise RuntimeError("cache read blew up")

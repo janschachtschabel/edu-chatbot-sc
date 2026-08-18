@@ -39,6 +39,7 @@ SPEC_ENV_VARS = [
     # NEW in boerdi-chat
     "DATABASE_URL", "RATE_LIMIT_STORAGE_URI", "RATE_LIMIT_CHAT",
     "OTEL_EXPORTER_OTLP_ENDPOINT", "RERANK_URL", "CONFIG_SEED_DIR", "WIDGET_DIST_DIR",
+    "CORS_ALLOW_ALL", "CORS_ALLOW_EXTENSIONS",
 ]
 
 
@@ -192,13 +193,39 @@ def test_inverted_bool_defaults(clean_env) -> None:
     assert fresh(BOERDI_ALLOW_LOADTEST="0").allow_loadtest is False
 
 
-def test_cors_origin_list_parity(clean_env) -> None:
+def test_cors_liste_wird_getrimmt(clean_env) -> None:
+    """**ALT-Treue hier bewusst gebrochen** (Nutzer-Entscheid 2026-08-18).
+
+    ALT spaltete nur an ``,`` und trimmte NICHT. Gemessen am selben Tag: bei
+    ``CORS_ORIGINS="https://a.de, https://b.de"`` traegt der zweite Eintrag ein
+    fuehrendes Leerzeichen, trifft damit **nie** einen Ursprung — und niemand
+    erfaehrt es. Ein Herkunfts-Eintrag mit Leerzeichen kann nichts anderes sein
+    als ein Tippfehler: ein Origin enthaelt per Definition keine Leerzeichen.
+    Die Treue zu ALT bewahrte hier also nur eine stille Falle.
+
+    Leere Eintraege fallen ebenfalls heraus — ein Komma am Ende ist dasselbe
+    Versehen in gruen.
+    """
     assert Settings(_env_file=None).cors_origin_list == ["*"]
-    # ALT parity: plain split(","), items are NOT stripped
     assert fresh(CORS_ORIGINS="https://a.de, https://b.de").cors_origin_list == [
         "https://a.de",
-        " https://b.de",
+        "https://b.de",
     ]
+    assert fresh(CORS_ORIGINS="https://a.de,,  ").cors_origin_list == ["https://a.de"]
+
+
+def test_der_offen_schalter_uebersteuert_die_liste(clean_env) -> None:
+    """Vorgabe ist OFFEN (Nutzer-Entscheid 2026-08-18): die Anlage soll ohne
+    Zutun einbettbar sein. ``cors_origin_list`` bleibt dabei, was der Betreiber
+    geschrieben HAT — ``cors_effective_origins`` ist, was gilt. Zwei
+    Eigenschaften statt einer, damit keine von beiden luegt."""
+    offen = fresh(CORS_ORIGINS="https://a.de")
+    assert offen.cors_allow_all is True
+    assert offen.cors_origin_list == ["https://a.de"]      # unveraendert gelesen
+    assert offen.cors_effective_origins == ["*"]           # was tatsaechlich gilt
+
+    eng = fresh(CORS_ORIGINS="https://a.de", CORS_ALLOW_ALL="false")
+    assert eng.cors_effective_origins == ["https://a.de"]
 
 
 def test_url_normalization_parity(clean_env) -> None:

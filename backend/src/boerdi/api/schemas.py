@@ -77,6 +77,7 @@ from boerdi.api.schemas_mcp_curation import (
     SuggestionsListArgs,
     TopicPageSetArgs,
 )
+from boerdi.domain import host_instruction as _host_instruction
 
 __all__ = [
     "ChatRequest", "ChatResponse", "ClassificationResult", "CollectionContentsArgs",
@@ -203,6 +204,27 @@ class Environment(BaseModel):
             raise ValueError(
                 f"result_schema ist {laenge} Zeichen lang, erlaubt sind "
                 f"{MAX_RESULT_SCHEMA_CHARS}")
+        return wert
+
+    # G1 — der Rahmen, den die einbettende Anwendung diesem Zug mitgibt: „so bist
+    # du hier zu verstehen". Unsichtbar im Verlauf, weil es KEIN Zug ist, sondern
+    # Kontext — dieselbe Sorte Wissen wie der Seitenblock daneben. Wirkt in allen
+    # drei Maschinen, weil beide Prompt-Wege denselben Block einsetzen
+    # (``domain/host_instruction``).
+    #
+    # Wie ``result_schema`` geht dieses Feld NICHT durch die Sicherheitsprüfung —
+    # die sieht nur ``message`` (``assess.py``). Wer es füllt, schreibt in den
+    # Prompt seiner eigenen Sitzung; der Deckel unten begrenzt, wie viel, und der
+    # Block selbst sagt dem Modell, dass eine Regel über der Anweisung steht.
+    host_instruction: str | None = None
+
+    @field_validator("host_instruction")
+    @classmethod
+    def _anweisung_gedeckelt(cls, wert: str | None) -> str | None:
+        if wert is not None and len(wert) > _host_instruction.MAX_CHARS:
+            raise ValueError(
+                f"host_instruction ist {len(wert)} Zeichen lang, erlaubt sind "
+                f"{_host_instruction.MAX_CHARS}")
         return wert
     # Webseiten-Tour (geführte Besucherführung). Explizites UI-Signal:
     #   "start" → Tour beginnen (Button "Web-Tour starten")

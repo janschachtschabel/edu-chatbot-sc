@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import logging
 
+from boerdi.domain import host_instruction
 from boerdi.domain.answer_notes import append_answer_notes
 from boerdi.domain.history_window import verlaufs_fenster
 from boerdi.domain.pattern_catalog import finde_muster
@@ -63,7 +64,7 @@ from boerdi.i18n.bot_text import bot_text
 from boerdi.i18n.prompt_language import language_name
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import cancel_and_drain
-from boerdi.services import page_context
+from boerdi.services import llm, page_context
 from boerdi.services.agent_loop import AgentRun, run_agent_loop
 from boerdi.services.agent_prefetch import resolve_prefetch
 from boerdi.services.agent_tools import VIRTUELLE_WERKZEUGE, build_agent_tools
@@ -151,18 +152,62 @@ def _antwort_oder_ersatz(lauf: AgentRun, sprache: str) -> str:
     """
     if lauf.text.strip():
         return lauf.text
-    if lauf.dokumente:
+    if lauf.dokumente or lauf.result is not None:
         # Ein Lauf, der ein Ergebnis GELIEFERT hat, ist nicht gescheitert — ihm
         # fehlt nur der Begleitsatz. Der Deckel-Satz („zu umfangreich, stell sie
         # kleiner geschnitten noch einmal") stünde direkt über einer
         # vollständigen Stundenplanung und würde von ihr widerlegt.
-        logger.info("Agent-Modus: %d Box(en) ohne Begleitsatz (Ende=%s)",
-                    len(lauf.dokumente), lauf.stop_reason)
+        #
+        # ``lauf.result`` zählt seit J1 mit: seit ``liefere_ergebnis`` den Lauf
+        # nicht mehr beendet, kann ein Zug das Ergebnis abliefern und DANACH an
+        # der Frist enden. Ohne diese Zeile bekäme der Gastgeber ein tadelloses
+        # JSON und die Person daneben die Auskunft, es sei nichts geworden.
+        logger.info("Agent-Modus: Lieferung ohne Begleitsatz (%d Box(en), "
+                    "Ergebnis=%s, Ende=%s)",
+                    len(lauf.dokumente), lauf.result is not None, lauf.stop_reason)
         return bot_text(sprache, "agent.delivered")
     schluessel = "agent.incomplete" if lauf.stop_reason in _GEDECKELT else "agent.failed"
     logger.info("Agent-Modus: Lauf ohne Text (Ende=%s) — Ersatzsatz %s",
                 lauf.stop_reason, schluessel)
     return bot_text(sprache, schluessel)
+
+
+_ABSCHLUSS_BITTE = (
+    "Schreibe jetzt deine Antwort fuer die Person im Chat — ohne weitere "
+    "Werkzeug-Aufrufe. Sie hat weder dein Ergebnis noch deine Zwischenschritte "
+    "gesehen: sag ihr vollstaendig, was du herausgefunden hast."
+)
+
+
+async def _abschluss_nachholen(
+    lauf: AgentRun, messages: list[dict], usage_acc: dict | None,
+) -> str:
+    """EIN Abschluss-Aufruf, wenn ein Deckel die Antwort verschluckt hat.
+
+    Seit J1 ist die Prosa ein eigener Zug — und damit deckelbar. Live gemessen
+    am selben Tag (Hybrid, Sammlung „Optik"): das Ergebnis kam vollstaendig, der
+    Lauf riss danach das Token-Budget, und im Chat standen 22 Zeichen. Vorher
+    konnte das nicht passieren, weil ``submit_result`` den Text mittrug.
+
+    Die Deckel sind gegen weglaufende **Arbeit** gebaut, nicht gegen die
+    Antwort. Genau diese Unterscheidung trifft der Bestandsweg seit P16
+    (``tool_loop_fallback``), und dies ist dieselbe Naht: ein Aufruf, keine
+    Werkzeuge, eigene Phase in der Kostenschau — ihr Auftauchen meldet den
+    gerissenen Deckel und soll in der normalen Antwort nicht untergehen.
+
+    Scheitert er, gibt es ``""`` zurueck: dann greift der ehrliche Ersatzsatz.
+    """
+    try:
+        antwort = await llm.chat_completion(
+            messages=[*messages, {"role": "user", "content": _ABSCHLUSS_BITTE}],
+            temperature=0.4, usage_acc=usage_acc, phase="fallback_summary")
+        text = (antwort.choices[0].message.content or "").strip()
+    except Exception as e:                       # pragma: no cover - Transportfehler
+        logger.warning("Agent-Modus: Abschluss-Aufruf fehlgeschlagen — %s", e)
+        return ""
+    logger.info("Agent-Modus: Antwort nach Deckel %s nachgeholt (%d Zeichen)",
+                lauf.stop_reason, len(text))
+    return text
 
 
 def _muster_werkzeuge(ctx: TurnContext, muster: PatternDef) -> list[str]:
@@ -221,6 +266,13 @@ async def respond_agent(
     seiten_block = page_context.prompt_block(ctx.session_state, seite)
     if seiten_block:
         messages.append({"role": "system", "content": seiten_block})
+    # G1: der Auftrag der einbettenden Anwendung — WÖRTLICH derselbe Block wie im
+    # Bestandsweg (``domain/host_instruction``). Er steht hinter dem Seitenblock
+    # und vor den Anleitungen: die Anwendung rahmt den Zug, die Anleitung sagt,
+    # wie eine Aufgabe zu tun ist.
+    anweisungs_block = host_instruction.prompt_block(ctx.req.environment.host_instruction)
+    if anweisungs_block:
+        messages.append({"role": "system", "content": anweisungs_block})
     # Und die Anleitungen, die nur aus dem GESPRÄCH bekannt sind: über die Suche
     # gibt es keinen Seitenkontext, also auch keinen Katalog — der Agent kannte
     # weder die Anleitungen noch die ``collectionId`` für ``get_skill_registry``.
@@ -243,18 +295,21 @@ async def respond_agent(
     await resolve_prefetch(messages, _vorab_aufrufe(seite), progress=progress)
     messages.append({"role": "user", "content": ctx.req.message})
 
-    # Erklärt der Gastgeber ein Schema, bekommt der Lauf sein Abschluss-Werkzeug
-    # (2026-08-14). Nur dann: der Zug kostet 2–9 s und sagt sonst, was die Prosa
-    # schon sagt. Und nur dann steht der Satz darüber im Systemprompt — eine
-    # Anweisung auf ein Werkzeug, das nicht im Katalog ist, wäre der Widerspruch,
-    # den der Modulkopf beschreibt.
+    # Erklärt der Gastgeber ein Schema, bekommt der Lauf seinen Ergebnis-Kanal
+    # (2026-08-14, seit J1 ``liefere_ergebnis`` statt ``submit_result``). Nur
+    # dann: der Zug kostet 2–9 s und sagt sonst, was die Prosa schon sagt. Und
+    # nur dann steht der Satz darüber im Systemprompt — eine Anweisung auf ein
+    # Werkzeug, das nicht im Katalog ist, wäre der Widerspruch, den der
+    # Modulkopf beschreibt.
     _schema = ctx.req.environment.result_schema or None
     if _schema:
         messages[0]["content"] += (
             "\n\nDer Gastgeber erwartet ein maschinenlesbares Ergebnis. Rufe "
-            "``submit_result`` genau einmal, sobald du es hast — und nur dann. "
-            "Ist die Nachricht bloss Gespraech (Begruessung, Rueckfrage), "
-            "antworte gewoehnlich und rufe es NICHT."
+            "``liefere_ergebnis`` genau einmal, sobald du es hast — und nur "
+            "dann. Es beendet den Lauf NICHT: schreibe danach deine Antwort "
+            "fuer die Person im Chat, und zwar vollstaendig, denn sie sieht das "
+            "Ergebnis nicht. Ist die Nachricht bloss Gespraech (Begruessung, "
+            "Rueckfrage), antworte gewoehnlich und rufe es NICHT."
         )
 
     # H6: Der Musterkatalog liegt nur im Hybrid in der Werkzeugliste — und auch
@@ -278,7 +333,10 @@ async def respond_agent(
         gemessen 25 251 der 31 742 Zeichen dieses Satzes."""
         return build_agent_tools(
             blocked_tools=ctx.safety.blocked_tools,
-            include_submit=bool(_schema), result_schema=_schema,
+            # ``submit_result`` gehört seit J1 dem Agent-Endpunkt: es beendet
+            # den Lauf, und im Chat kostete genau das die Prosa-Antwort.
+            include_submit=False, include_ergebnis=bool(_schema),
+            result_schema=_schema,
             muster_katalog=_katalog, include_dokument=True,
             katalog_kurz=kurz)
 
@@ -300,6 +358,13 @@ async def respond_agent(
     logger.info("Agent-Modus: %d Schritte, Ende=%s, %d Werkzeuge, %d Karten",
                 lauf.iterations, lauf.stop_reason, len(lauf.tools_called),
                 len(all_cards))
+
+    # Geliefert, aber nicht geantwortet (J1): ein Deckel hat die Prosa
+    # verschluckt. Nur dann — ein Lauf ohne jede Lieferung hat auch nichts zu
+    # erzählen, und der ehrliche Ersatzsatz ist billiger und richtiger als ein
+    # weiterer Zug.
+    if not lauf.text.strip() and (lauf.result is not None or lauf.dokumente):
+        lauf.text = await _abschluss_nachholen(lauf, messages, ctx.usage)
 
     # Triple-Schema T-25/27 wie im Bestandsweg: die Qualitätslogs lesen beides
     # in beiden Maschinen, sonst misst der A/B-Vergleich eine selbstgebaute Lücke.

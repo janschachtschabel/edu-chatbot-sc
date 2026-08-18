@@ -47,6 +47,13 @@ from boerdi.domain.inline_documents import (
 from boerdi.domain.pattern_catalog import finde_muster
 from boerdi.domain.pattern_engine import PatternDef
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
+from boerdi.domain.result_delivery import (
+    BEREITS_GELIEFERT,
+    ERGEBNIS_UEBERNOMMEN,
+    ERGEBNIS_UNBRAUCHBAR,
+    LIEFERE_ERGEBNIS,
+    ergebnis_aus_argumenten,
+)
 from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.usage import new_accumulator
@@ -290,6 +297,37 @@ async def run_agent_loop(
                 run.text = strip_reasoning_markers(str(args.get("text") or ""))
                 run.result = args.get("result")
                 return _ended(run, "submit")
+
+            # Das Ergebnis als eigener Kanal (J1): virtuell wie ``submit_result``
+            # — aber es beendet den Lauf NICHT. Die Antwort für die Person
+            # entsteht danach als gewöhnlicher Zug, und genau diese Trennung ist
+            # der Zweck (live gemessen, solange beides in EINEM Aufruf steckte:
+            # 196 Zeichen Chat gegen 1932 Zeichen Ergebnis).
+            #
+            # Es steht VOR der Stillstands-Prüfung, anders als das Dokument: ein
+            # zweiter Aufruf mit denselben Argumenten ist hier keine Sackgasse,
+            # sondern ein überlesener Hinweis. Ihn als Stillstand zu werten,
+            # beendete den Lauf ohne Prosa — mit genau dem Schaden also, gegen
+            # den dieser Kanal gebaut ist.
+            if name == LIEFERE_ERGEBNIS:
+                if run.result is not None:
+                    logger.info("Ergebnis-Werkzeug: zweiter Aufruf verworfen")
+                    messages.append(_tool_turn(tc.id, BEREITS_GELIEFERT))
+                    continue
+                ergebnis = ergebnis_aus_argumenten(args)
+                if ergebnis is None:
+                    logger.info("Ergebnis-Werkzeug: unbrauchbare Argumente")
+                    messages.append(_tool_turn(tc.id, ERGEBNIS_UNBRAUCHBAR))
+                    continue
+                run.result = ergebnis
+                # Nur die Zahl der Felder: der Inhalt ist Modell-Ausgabe aus
+                # Nutzer-Inhalt, und das Server-Log unterliegt keiner
+                # Datenschutz-Schranke — dieselbe Linie wie beim Dokument-Titel.
+                logger.info("Ergebnis geliefert (%d Felder)", len(ergebnis))
+                progress.record("agent_result", "Ergebnis an die Anwendung übergeben",
+                                {"felder": len(ergebnis)})
+                messages.append(_tool_turn(tc.id, ERGEBNIS_UEBERNOMMEN))
+                continue
 
             # Die Wall zuerst: sie kann einen Schlüssel einsetzen, und der
             # gehört zur Identität des Aufrufs (siehe ``_call_key``).

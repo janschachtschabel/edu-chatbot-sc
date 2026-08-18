@@ -89,6 +89,11 @@
   min-height: 0;
   width: 100%;
 }
+// Schmales Gerät ⇒ das SCHWEBENDE Panel wird Vollbild. Der Selektor greift an
+// der Klasse und damit auch rahmenlos, wo eine 340–440-px-Seitenleiste immer
+// unter der Schwelle liegt. Jede Deklaration hier braucht deshalb eine Antwort
+// in `:host(.boerdi-frameless) .boerdi-panel` (`_widget-panel.scss`) — dort
+// steht auch, warum die Regel nicht einfach eingeschränkt wird.
 @media (max-width: 480px) {
   .boerdi-panel {
     width: 100vw;

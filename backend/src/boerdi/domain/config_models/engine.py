@@ -41,15 +41,29 @@ class AgentLimits(AreaModel):
     """Die Deckel der Agent-Schleife.
 
     Alle vier sind nötig, weil ein MCP-Aufruf gemessen bis 23 s steht: ohne Frist
-    könnte ein Lauf mit 12 Iterationen acht Minuten dauern, ohne Budget beliebig
+    könnte ein Lauf mit 20 Iterationen zehn Minuten dauern, ohne Budget beliebig
     viel kosten. ``ge``/``le`` sind kein Zierrat — das Studio schreibt über
     ``PUT /config/data/{area}`` direkt gegen dieses Modell, und eine Frist von 0 s
     beendete jeden Lauf vor dem ersten Werkzeug.
+
+    **Am 2026-08-18 angehoben (Nutzer-Entscheid): 12/90/60k → 20/300/400k.** Die
+    drei mussten GEMEINSAM steigen, sonst wäre die Anhebung eine Zusage ohne
+    Deckung: gemessen kostete ein Hybrid-Zug ~15 300 Token je Runde (die Kette
+    wächst, der Prompt wird jede Runde neu berechnet) und ein Werkzeug-Aufruf bis
+    23 s. Mit 20 Runden, aber alter Frist wäre nach ~5 Runden Schluss gewesen, mit
+    altem Budget nach ~4 — der neue Wert stünde in der Konfiguration und käme nie
+    zum Tragen. Genau diese Falle hatte das Budget am 2026-08-17 schon einmal
+    gestellt.
+
+    **Der Preis steht hier, nicht nur im Log:** der Kosten-Deckel je Zug steigt
+    damit auf das Sechsfache des ursprünglichen Wertes. Wer ihn kleiner braucht,
+    stellt ihn im Studio je Anlage ein — dieser Wert ist die Vorgabe, keine
+    Obergrenze der Vernunft.
     """
 
-    max_iterations: int = Field(default=12, ge=1, le=50)
-    deadline_s: int = Field(default=90, ge=5, le=600)
-    token_budget: int = Field(default=60_000, ge=1_000)
+    max_iterations: int = Field(default=20, ge=1, le=50)
+    deadline_s: int = Field(default=300, ge=5, le=600)
+    token_budget: int = Field(default=400_000, ge=1_000)
 
     # ``propose`` heißt: die Schleife darf kuratierende Werkzeuge rufen, aber nur
     # bis zur Vorschau — die Bestätigung bleibt beim Menschen (E1-Wall). Nichts,

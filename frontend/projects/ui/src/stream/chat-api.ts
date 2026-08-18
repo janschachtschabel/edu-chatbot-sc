@@ -32,6 +32,9 @@ export interface Environment {
   tour_action?: string;
   /** Seitenkontext-Ping "context_open" (proaktive Kontext-Begrüßung). */
   page_event?: string;
+  /** G1 — der unsichtbare Rahmen der Gastanwendung für DIESEN Zug; siehe
+   *  {@link ChatApiClient.setHostInstruction}. */
+  host_instruction?: string;
   /** JSON-Schema, in dem der Gastgeber sein Ergebnis erwartet (2026-08-14).
    *  Wirkt nur mit der Agent-Maschine; siehe {@link ChatApiClient.setResultSchema}. */
   result_schema?: Record<string, any>;
@@ -127,6 +130,8 @@ export class ChatApiClient {
   private uiLocale = '';
   private engine = '';
   private resultSchema: Record<string, any> | null = null;
+  /** G1 — einmaliger Rahmen der Gastanwendung; `takeHostInstruction` verbraucht ihn. */
+  private hostInstruction: string | null = null;
   private readonly fetchImpl?: typeof fetch;
 
   constructor(opts: ChatApiClientOptions = {}) {
@@ -206,14 +211,46 @@ export class ChatApiClient {
     return this.engine ? { 'X-Boerdi-Engine': this.engine } : {};
   }
 
+  /**
+   * G1 — der unsichtbare Rahmen für den nächsten echten Zug: „so bist du hier
+   * zu verstehen".
+   *
+   * Anders als {@link setResultSchema} ist er **einmalig**: er reist mit dem
+   * nächsten Zug und ist danach verbraucht. Dauerhaft wäre daraus zu bauen (der
+   * Gastgeber setzt ihn erneut), umgekehrt nicht — und ein Rahmen, der still
+   * über Stunden weiterwirkt, ist genau das, was hinterher niemand mehr erklären
+   * kann.
+   *
+   * `null` oder Leerraum löscht ihn wieder.
+   */
+  setHostInstruction(text: string | null): void {
+    const satz = (text ?? '').trim();
+    this.hostInstruction = satz || null;
+  }
+
+  /** Die Anweisung — **verbrauchend**, deshalb `take`.
+   *
+   *  Kontext-Pings und Tour-Ticks bekommen sie NICHT: sie sind Züge, die die
+   *  Gastanwendung nicht gemeint hat. Ohne diese Bedingung fräße ein Ping, der
+   *  zufällig dazwischenkommt, die Anweisung auf, und der Zug der Person liefe
+   *  ohne — ein Fehler, der sich nur sporadisch zeigte. */
+  private takeHostInstruction(env?: Partial<Environment>): string | null {
+    if (!this.hostInstruction || env?.page_event || env?.tour_action) return null;
+    const satz = this.hostInstruction;
+    this.hostInstruction = null;
+    return satz;
+  }
+
   /** `environment` aus Overrides + Ambient. Verbatim ALT-Literal (dedupliziert
    *  über beide Transport-Varianten). */
   private buildEnvironment(env?: Partial<Environment>): Environment {
     // Das Ergebnis-Schema wird nur GESETZT, wenn es eins gibt: ein `undefined`
     // im Body wäre eine Aussage über eine Erwartung, die niemand hat.
     const schema = env?.result_schema ?? this.resultSchema;
+    const anweisung = env?.host_instruction ?? this.takeHostInstruction(env);
     return {
       ...(schema ? { result_schema: schema } : {}),
+      ...(anweisung ? { host_instruction: anweisung } : {}),
       page: env?.page || window.location.pathname,
       page_context: env?.page_context || extractPageContext(),
       device: env?.device || detectDevice(),

@@ -60,11 +60,33 @@ def _warn_insecure_config(settings: Settings) -> None:
             "Staging/Produktion einen langen Zufallswert setzen; lokal öffnet "
             "BOERDI_ALLOW_OPEN_ADMIN=1."
         )
-    if "*" in settings.cors_origins:
-        log.warning(
-            "⚠ CORS_ORIGINS='*' (offen für alle Ursprünge). Für Produktion eine "
-            "Allow-Liste der einbettenden Domains in CORS_ORIGINS setzen."
+    if settings.cors_allow_extensions and "*" not in settings.cors_effective_origins:
+        # Nur bei enger Liste melden — und zwar an der WIRKSAMEN, nicht an der
+        # geschriebenen: im offenen Zustand ist die Regel folgenlos, und eine
+        # Zeile, die dort eine Wirkung behauptet, stumpft die Warnung darunter ab.
+        log.info(
+            "CORS: Browser-Erweiterungen sind zusätzlich zur Liste erlaubt "
+            "(safari-web-extension://, chrome-extension://). Safari vergibt die "
+            "UUID je Installation, deshalb eine Regel statt Listeneinträgen. "
+            "Abschalten mit CORS_ALLOW_EXTENSIONS=false."
         )
+    if settings.cors_allow_all:
+        if settings.cors_origin_list and settings.cors_origin_list != ["*"]:
+            # Der teure Fall: jemand hat eine Liste gepflegt und sie gilt nicht.
+            # Eine still uebergangene Konfiguration ist schlimmer als eine
+            # offene — der Betreiber glaubt dann, er habe zugemacht.
+            log.warning(
+                "⚠ CORS ist OFFEN für alle Ursprünge (Vorgabe). CORS_ORIGINS=%r "
+                "ist gesetzt, wird aber ÜBERSTEUERT. Zum Schließen "
+                "CORS_ALLOW_ALL=false setzen.",
+                ",".join(settings.cors_origin_list),
+            )
+        else:
+            log.warning(
+                "⚠ CORS ist OFFEN für alle Ursprünge (Vorgabe). Für Produktion "
+                "CORS_ALLOW_ALL=false setzen und die einbettenden Domains in "
+                "CORS_ORIGINS auflisten."
+            )
 
 
 @asynccontextmanager
@@ -137,10 +159,15 @@ def create_app() -> FastAPI:
 
     app.add_middleware(StudioProxyMiddleware)
 
-    cors_origins = settings.cors_origin_list
+    cors_origins = settings.cors_effective_origins
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
+        # Ursprünge von Browser-Erweiterungen kommen als REGEL dazu, nicht als
+        # Listeneintrag: Safari vergibt die UUID je Installation, eine statische
+        # Liste kann den Fall nicht abdecken (Begründung an
+        # ``Settings.cors_origin_regex``). Starlette prüft Liste ODER Regel.
+        allow_origin_regex=settings.cors_origin_regex,
         allow_credentials=("*" not in cors_origins),  # credentials only with specific origins
         allow_methods=["*"],
         allow_headers=["*"],

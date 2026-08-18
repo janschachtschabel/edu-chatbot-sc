@@ -433,6 +433,29 @@ async def test_der_seitenkontext_steht_in_der_kette(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_der_auftrag_der_gastanwendung_steht_in_der_kette(monkeypatch):
+    """G1: ``host_instruction`` erreicht die Schleife — also ``agent`` UND
+    ``hybrid``.
+
+    Beide teilen sich diesen Knoten (``respond.py`` verzweigt über
+    ``laeuft_ueber_die_schleife``), ein Test deckt hier deshalb zwei Maschinen.
+    Die dritte hängt am selben Block-Bauer und wird in
+    ``test_response_prompt_builder`` geprüft.
+    """
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    ctx.req.environment.host_instruction = "Du bist in der Redaktionsumgebung."
+    await respond_agent(ctx)
+    systeme = [m["content"] for m in seen["run_agent_loop"]["messages"]
+               if m.get("role") == "system"]
+    assert any("Du bist in der Redaktionsumgebung." in s for s in systeme)
+    # Ohne die Rangfolge wäre der Block eine Blankovollmacht.
+    assert any("gilt die Regel" in s for s in systeme)
+
+
+@pytest.mark.anyio
 async def test_bestand_und_skillkatalog_stehen_in_der_agent_kette(monkeypatch):
     """Nutzer-Vorgabe 2026-08-14: „inhaltsanzahl und Skillregistry muss man in
     beiden modi aktiv rein geben — pattern und agent loop".
@@ -593,6 +616,14 @@ async def test_ein_gescheiterter_vorabruf_kippt_den_zug_nicht(monkeypatch):
 # zurückbekommen, was das Gespräch ergeben hat. Ohne Schema bleibt alles wie
 # bisher: der Abschluss-Zug kostet 2–9 s (gemessen) und sagt sonst nur, was die
 # Prosa schon sagt — deshalb ist er opt-in und nicht die Vorgabe.
+#
+# **Umgestellt am 2026-08-17 (J1, Nutzer-Entscheid).** Bis dahin trug
+# ``submit_result`` Prosa UND Ergebnis in EINEM Aufruf und beendete den Lauf
+# dabei. Live gemessen an der Sammlung „Optik": 196 Zeichen im Chat gegen 1932
+# im Ergebnis — die Substanz landete dort, wo die Person im Chat sie nie sieht.
+# Der Chat-Zug nimmt jetzt ``liefere_ergebnis``: es notiert und läuft WEITER,
+# die Antwort entsteht danach als gewöhnlicher Zug. ``submit_result`` gehört ab
+# hier ``/api/agent``, wo es keinen Chat gibt und ``text`` die Lieferung IST.
 
 _SCHEMA = {
     "type": "object",
@@ -602,46 +633,69 @@ _SCHEMA = {
 
 
 @pytest.mark.anyio
-async def test_ohne_schema_bleibt_das_abschluss_werkzeug_weg(monkeypatch):
+async def test_ohne_schema_bleibt_das_ergebnis_werkzeug_weg(monkeypatch):
     seen: dict = {}
     _patch(monkeypatch, seen)
     ctx = await respond_agent(_ctx())
-    assert "submit_result" not in _namen(seen["run_agent_loop"]["tools"])
+    assert "liefere_ergebnis" not in _namen(seen["run_agent_loop"]["tools"])
     assert ctx.result is None
     assert ctx.result_stop_reason == ""
     systeme = [m["content"] for m in seen["run_agent_loop"]["messages"]
                if m.get("role") == "system"]
-    # Kein Wort über ein Abschluss-Werkzeug, das es nicht gibt: zwei
-    # Anweisungen, die einander widersprechen, wären schlechter als keine.
-    assert not any("submit_result" in s for s in systeme)
+    # Kein Wort über ein Werkzeug, das es nicht gibt: zwei Anweisungen, die
+    # einander widersprechen, wären schlechter als keine.
+    assert not any("liefere_ergebnis" in s for s in systeme)
 
 
 @pytest.mark.anyio
-async def test_mit_schema_kommt_das_abschluss_werkzeug_dazu(monkeypatch):
+async def test_mit_schema_kommt_das_ergebnis_werkzeug_dazu(monkeypatch):
     seen: dict = {}
     _patch(monkeypatch, seen, lauf=AgentRun(
-        text="Das Fach ist Physik.", result={"taxon_id": "…/discipline/460"},
-        stop_reason="submit", iterations=2, tools_called=["submit_result"],
+        text="Das Fach ist Physik — und zwar in der Sekundarstufe I.",
+        result={"taxon_id": "…/discipline/460"},
+        stop_reason="text", iterations=3, tools_called=[],
     ))
     ctx = _ctx()
     ctx.req.environment.result_schema = _SCHEMA
     ctx = await respond_agent(ctx)
 
     tools = seen["run_agent_loop"]["tools"]
-    assert "submit_result" in _namen(tools)
-    # Das Schema reist WÖRTLICH als ``result``-Eigenschaft des Abschluss-
-    # Werkzeugs (gemessen an ``submit_result_tool``): der Gastgeber bestimmt die
-    # Form, unser Code muss sie nicht kennen. Daneben steht ``text`` — die Prosa
-    # für den Menschen im Chat, die es hier ja weiterhin gibt.
-    submit = next(t for t in tools if t["function"]["name"] == "submit_result")
-    params = submit["function"]["parameters"]
+    assert "liefere_ergebnis" in _namen(tools)
+    # ``submit_result`` gehört seit J1 dem Agent-Endpunkt. Stünde es hier
+    # daneben, hätte das Modell zwei Ziellinien — und die eine, die den Lauf
+    # sofort beendet, nähme der Prosa wieder ihren Zug.
+    assert "submit_result" not in _namen(tools)
+    # Das Schema reist WÖRTLICH als ``result``-Eigenschaft: der Gastgeber
+    # bestimmt die Form, unser Code muss sie nicht kennen. Und daneben steht
+    # KEIN ``text`` — genau diese Nachbarschaft war die gemessene Ursache.
+    werkzeug = next(t for t in tools if t["function"]["name"] == "liefere_ergebnis")
+    params = werkzeug["function"]["parameters"]
     assert params["properties"]["result"] == _SCHEMA
-    assert "result" in params["required"], "mit Schema ist das Ergebnis Pflicht"
+    assert set(params["properties"]) == {"result"}
+    assert params["required"] == ["result"]
     assert ctx.result == {"taxon_id": "…/discipline/460"}
-    assert ctx.result_stop_reason == "submit"
+    # Der Lauf endet jetzt über die Prosa, nicht am Werkzeug.
+    assert ctx.result_stop_reason == "text"
     systeme = [m["content"] for m in seen["run_agent_loop"]["messages"]
                if m.get("role") == "system"]
-    assert any("submit_result" in s for s in systeme), "Anweisung fehlt"
+    assert any("liefere_ergebnis" in s for s in systeme), "Anweisung fehlt"
+
+
+@pytest.mark.anyio
+async def test_ein_geliefertes_ergebnis_ohne_prosa_gilt_nicht_als_gescheitert(monkeypatch):
+    """Der Deckel-Satz („zu umfangreich, stell sie kleiner geschnitten noch
+    einmal") stünde sonst über einem vollständig gelieferten Ergebnis und würde
+    von ihm widerlegt — dieselbe Entscheidung wie bei den Dokument-Boxen."""
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="", result={"taxon_id": "…/discipline/460"},
+        stop_reason="max_iterations", iterations=9, tools_called=[],
+    ))
+    ctx = _ctx()
+    ctx.req.environment.result_schema = _SCHEMA
+    ctx = await respond_agent(ctx)
+    assert "kleiner geschnitten" not in ctx.response_text
+    assert ctx.result == {"taxon_id": "…/discipline/460"}
 
 
 @pytest.mark.anyio
@@ -788,3 +842,93 @@ async def test_nach_der_wahl_traegt_der_katalog_nur_noch_eine_zeile_je_muster(mo
     assert (vorgehen["function"]["parameters"]["properties"]["muster_id"]["enum"]
             == seen["run_agent_loop"]["tools"][0]["function"]["parameters"]
                ["properties"]["muster_id"]["enum"])
+
+
+@pytest.mark.anyio
+async def test_der_ergebnis_kanal_ueberlebt_die_musterwahl(monkeypatch):
+    """H4 baut die Werkzeugliste beim Musterwechsel neu — auf die Werkzeuge des
+    Musters plus die virtuellen. Fehlte ``liefere_ergebnis`` in dieser Menge,
+    wäre der Ergebnis-Kanal im Hybrid weg, sobald das Modell ein Muster zieht:
+    der Gastgeber bekäme genau in den Fällen kein JSON, in denen gearbeitet
+    wurde. Dieselbe Falle, die der Kommentar an ``VIRTUELLE_WERKZEUGE`` für
+    ``waehle_vorgehen`` beschreibt."""
+    from boerdi.domain.pattern_engine import PatternDef
+    from boerdi.graph.nodes.respond_agent import _werkzeuge_des_musters
+    from boerdi.services.agent_tools import build_agent_tools
+
+    alle = build_agent_tools(include_submit=False, include_ergebnis=True,
+                             result_schema=_SCHEMA, include_dokument=True,
+                             muster_katalog=[PatternDef(id="M06", label="Suche")])
+    # M10 arbeitet ohne MCP (``sources: [llm]``) — die härteste Einschränkung.
+    uebrig = _namen(_werkzeuge_des_musters(alle, []))
+    assert "liefere_ergebnis" in uebrig
+    assert "zeige_dokument" in uebrig
+    assert "waehle_vorgehen" in uebrig
+
+
+@pytest.mark.anyio
+async def test_ein_gedeckelter_lauf_holt_die_antwort_nach(monkeypatch):
+    """Live gemessen (2026-08-17, hybrid, Sammlung „Optik"): der Lauf lieferte
+    das Ergebnis und riss DANACH das Token-Budget — die Person bekam 22 Zeichen.
+    Seit ``liefere_ergebnis`` den Lauf nicht mehr beendet, ist die Prosa ein
+    eigener Zug und damit deckelbar; vorher trug ``submit_result`` sie mit, und
+    diese Lücke konnte es gar nicht geben.
+
+    Der Bestandsweg kennt die Antwort darauf seit P16
+    (``tool_loop_fallback._max_iterations_fallback``): EIN Abschluss-Aufruf ohne
+    Werkzeuge. Die Deckel sollen weglaufende ARBEIT stoppen, nicht die Antwort.
+    """
+    gesehen: dict = {}
+
+    async def _abschluss(*, messages, temperature=0.4, usage_acc=None, phase=None,
+                         tools=None, **rest):
+        gesehen["phase"] = phase
+        gesehen["tools"] = tools
+        gesehen["letzte"] = messages[-1]["content"]
+
+        class _M:
+            content = "Die Sammlung deckt Optik gut ab; es fehlt Wellenoptik."
+
+        class _C:
+            message = _M()
+
+        class _R:
+            choices = [_C()]
+
+        return _R()
+
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="", result={"titel": "x", "befund": "y"},
+        stop_reason="token_budget", iterations=7, tools_called=[],
+    ))
+    monkeypatch.setattr(agent_mod.llm, "chat_completion", _abschluss)
+    ctx = _ctx()
+    ctx.req.environment.result_schema = _SCHEMA
+    ctx = await respond_agent(ctx)
+
+    assert "Wellenoptik" in ctx.response_text
+    # Ohne Werkzeuge: der Zug soll antworten, nicht weiterarbeiten.
+    assert not gesehen["tools"]
+    # Eigene Phase in der Kostenschau — ihr Auftauchen meldet den gerissenen
+    # Deckel, und das soll in der normalen Antwort nicht untergehen (K1f).
+    assert gesehen["phase"] == "fallback_summary"
+
+
+@pytest.mark.anyio
+async def test_ohne_lieferung_kein_abschluss_aufruf(monkeypatch):
+    """Ein Lauf, der NICHTS geliefert hat, hat auch nichts zu erzählen — der
+    ehrliche Ersatzsatz ist billiger und richtiger als ein weiterer Zug."""
+    gerufen: list = []
+
+    async def _nie(**kw):
+        gerufen.append(kw)
+        raise AssertionError("kein Abschluss-Aufruf erwartet")
+
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="", stop_reason="deadline", iterations=9, tools_called=[]))
+    monkeypatch.setattr(agent_mod.llm, "chat_completion", _nie)
+    ctx = await respond_agent(_ctx())
+    assert gerufen == []
+    assert ctx.response_text

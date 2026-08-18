@@ -19,19 +19,27 @@ mode: pattern
 # Die Deckel gelten fuer `agent` UND `hybrid` — es ist dieselbe Schleife.
 agent:
   # Deckel der Schleife. Alle vier sind noetig, weil ein MCP-Aufruf gemessen bis
-  # 23 s steht: ohne Frist koennte ein Lauf mit 12 Iterationen acht Minuten
+  # 23 s steht: ohne Frist koennte ein Lauf mit 20 Iterationen zehn Minuten
   # dauern, ohne Budget beliebig viel kosten.
-  max_iterations: 12
-  deadline_s: 90
-  # 2026-08-17 von 60000 heraufgesetzt. Grund, gemessen: das Budget zaehlt
-  # prompt+completion KUMULATIV, und weil die Kette waechst, wird der Prompt
-  # jede Runde neu berechnet. Ein Hybrid-Zug lag bei ~15 300 Token je Runde
-  # (45 930 fuer 3 Runden) — damit war nach drei Runden Schluss, waehrend
-  # `max_iterations: 12` und `deadline_s: 90` unberuehrt blieben. Ein Deckel,
-  # der die beiden anderen nie zu Wort kommen laesst, misst nicht die Arbeit,
-  # sondern den Werkzeugsatz. 120000 gibt der Schleife ihre 12 Runden zurueck;
-  # der Kosten-Deckel je Zug verdoppelt sich damit ausdruecklich.
-  token_budget: 120000
+  #
+  # 2026-08-18 gemeinsam angehoben (Nutzer-Entscheid): 12/90/60000 -> 20/300/400000.
+  # GEMEINSAM, weil jeder Wert allein wirkungslos gewesen waere — welcher Deckel
+  # zuerst greift, entscheidet die Messung und nicht die Absicht:
+  #
+  #   * Das Budget zaehlt prompt+completion KUMULATIV, und weil die Kette
+  #     waechst, wird der Prompt jede Runde neu berechnet. Gemessen lag ein
+  #     Hybrid-Zug bei ~15 300 Token je Runde. Mit 60000 war nach vier Runden
+  #     Schluss — gemessen am 2026-08-17, mitten in einem Lauf, der sein
+  #     Ergebnis schon abgeliefert hatte und die Antwort nicht mehr schrieb.
+  #   * Mit `deadline_s: 90` waeren 20 Runden ebenso nie erreicht worden: eine
+  #     Runde kostet Modellzeit plus bis zu 23 s Werkzeug.
+  #
+  # Der Preis steht hier, damit ihn niemand suchen muss: der Kosten-Deckel je
+  # Zug steigt auf das Sechsfache von 60000. Wer das kleiner braucht, stellt es
+  # im Studio je Anlage ein.
+  max_iterations: 20
+  deadline_s: 300
+  token_budget: 400000
 
   # propose | execute — darf die Schleife eine Aenderung auch BESTAETIGEN?
   # `propose` haelt die Bestaetigungs-Wall: kuratierende Werkzeuge laufen bis

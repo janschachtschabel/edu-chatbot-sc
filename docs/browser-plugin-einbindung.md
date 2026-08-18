@@ -210,6 +210,17 @@ Drei Demo-Seiten am laufenden Backend, jede mit Bedienpult für alle Attribute:
 | `/widget/inline` | rahmenloser Kasten mitten im Text |
 | `/widget/frameless` | rahmenlose Spalte neben dem Inhalt |
 
+Dazu eine **Probierseite für Gastgeber** — nicht „wie sieht es aus", sondern „was
+kann ich hineinreichen":
+
+| Seite | Wozu |
+|---|---|
+| `/widget/edu-sharing-demo.html` | Redaktionsumgebung nachgestellt: 440-px-Seitenleiste mit Chat (⅔) und strukturierter Ausgabe (⅓), Hybrid-Modus. Begrüßung und Schnellantworten von der Seite überschreiben, Kontext (Sammlung/Themenseite/Einzelinhalt) beim Aufbau **oder** live nachreichen, Anweisung über `startTask()`, `result-schema` bearbeiten, alle fünf Ereignisse mitlesen |
+
+Sie ist eine einzelne Datei (`frontend/projects/widget/src/edu-sharing-demo.html`),
+ausgeliefert über die Asset-Route des Widget-Builds — deshalb ohne eigene Route und
+ohne Vertragsänderung. Ein anderes Backend: `?api=https://…` anhängen.
+
 ---
 
 ## 3. Alle Parameter
@@ -534,8 +545,8 @@ grep -c showWelcome boerdi-widget.js
 
 ### Die JS-API des Elements
 
-Sieben Methoden, auf dem Element-Prototyp
-(`frontend/projects/widget/src/element-api.ts:40-48`):
+Neun Methoden, auf dem Element-Prototyp
+(`frontend/projects/widget/src/element-api.ts:40-53`):
 
 ```js
 const chat = document.querySelector('boerdi-chat');
@@ -547,11 +558,18 @@ chat.isChatbotOpen();   // → boolean
 chat.resetSession();    // neue Sitzung
 chat.updateContext({ … });   // Seitenkontext ERGÄNZEN (mergt)
 chat.replaceContext({ … });  // Seitenkontext ERSETZEN (wie eine Navigation)
+chat.startTask('…');         // Zug starten — SICHTBAR als Auftrags-Blase (unten)
+chat.setHostInstruction('…'); // Rahmen mitgeben — UNSICHTBAR (unten)
 ```
 
 Ruft ihr sie, **bevor** das Element aufgewertet ist, bekommt ihr `undefined`
 statt einer Ausnahme — bewusst so, aber es heißt eben auch: nichts ist passiert.
 Wartet auf `customElements.whenDefined('boerdi-chat')`.
+
+Zwei Ausnahmen von dieser Regel: `startTask` und `setHostInstruction` **warten**
+auf die Shell, statt ins Leere zu laufen. Beide werden typischerweise sofort nach
+dem Einbau gerufen, und die Shell ist da noch keinen Zyklus alt (rahmenlos) bzw.
+bis zum ersten Öffnen gar nicht gemountet (Panel-Betrieb).
 
 ### Kontext als Anweisung
 
@@ -753,6 +771,51 @@ Zwei Dinge, die in einer Seitenleiste zählen:
 
 `ui/src/shell/chat-shell.component.ts` (`startTask`) ·
 `widget/src/app/widget/widget.component.ts` (Warteschlange).
+
+### Der unsichtbare Rahmen: `setHostInstruction`
+
+`startTask` schickt einen **Zug**. Manchmal wollt ihr aber keinen Zug, sondern
+nur sagen, *wie* der Bot hier zu verstehen ist — und zwar so, dass die Person
+davon nichts sieht und ihre eigene Frage stellt:
+
+```js
+chat.setHostInstruction(
+  'Du bist im Kontext der Redaktionsumgebung von edu-sharing. Hilf bei dieser '
+  + 'Sammlung: bewerte den Füllstand gegen den kompendialen Text, beantworte '
+  + 'Fragen zu den Inhalten, schlage passende Materialien zu den Lehrplänen vor.'
+);
+```
+
+Der Satz reist am **nächsten Zug** der Person mit und steht **nicht** im
+Verlauf. Danach ist er verbraucht — für dauerhaft nach jedem Zug erneut setzen.
+
+| | was passiert |
+|---|---|
+| `setHostInstruction(text)` | wartet auf die nächste Eingabe, unsichtbar |
+| `setHostInstruction(text, { trigger: 'now', message: 'Füllstand prüfen' })` | zusätzlich sofort ein Zug — mit `message` als sichtbarer Auftrags-Blase |
+| `setHostInstruction('')` | verwirft einen gesetzten Rahmen |
+
+Vier Eigenschaften, auf die ihr euch verlassen könnt:
+
+* **Wirkt in allen drei Maschinen.** Der Block sitzt in *beiden* Prompt-Wegen —
+  `services/response_prompt_builder.py` (Muster) und
+  `graph/nodes/respond_agent.py` (Agent *und* Hybrid). Anders als das
+  `result-schema`, das nur über die Schleife wirkt.
+* **Ein Kontext-Ping isst ihn nicht auf.** Wechselt die Seite gerade, während
+  der Rahmen wartet, geht der automatische Kontext-Zug **ohne** ihn los; der
+  Rahmen bleibt für die Eingabe der Person liegen.
+* **Er hebt nichts auf.** Im Block steht ausdrücklich, dass die Anweisung nicht
+  von der Person im Chat stammt und dass bei Widerspruch die Leitplanken und
+  Sicherheitsregeln gelten. Er ist ein Rahmen, kein Generalschlüssel.
+* **Deckel 2000 Zeichen** — darüber lehnt das Backend den Zug mit `422` ab,
+  statt still zu kürzen (`domain/host_instruction.py`).
+
+Warum `'now'` seinen Zug **zeigt**, obwohl der Rahmen unsichtbar bleibt: das
+Unsichtbare ist Rahmen, der Zug ist ein Zug. Eine Antwort auf eine Frage, die
+die Person nie gestellt hat, ohne sichtbaren Anlass — das ist genau die Zeile,
+die `startTask` oben schon nicht überschreitet.
+
+Zum Anfassen: `/widget/edu-sharing-demo.html`, Abschnitte 2 und 3.
 
 ### Rezept 1: Sammlung prüfen lassen — mit der Anleitung der Redaktion
 
@@ -1012,11 +1075,36 @@ window.addEventListener('boerdi:agent-result', (e) => {
   einzige Stelle, an der ihr den Tippfehler bemerkt — von außen sieht ein
   kaputtes Attribut sonst genauso aus wie ein weggelassenes.
 
-Das Schema reist **wörtlich** in die Parameter des Abschluss-Werkzeugs. Zwei
+Das Schema reist **wörtlich** in die Parameter des Ergebnis-Werkzeugs. Zwei
 Folgen: seine `description`-Texte liest das Modell (schreibt sie also als
 Anweisung, nicht als Notiz für euch), und es ist auf **10 000 Zeichen**
 gedeckelt — darüber lehnt das Backend die Anfrage mit 422 ab, statt ein halbes
 Schema zu verwenden, das eine andere Form verlangen würde als ihr wolltet.
+
+### Ergebnis und Chat-Antwort sind getrennt (seit 17.08.2026)
+
+Im Chat liefert das Modell das Ergebnis über `liefere_ergebnis` — und das
+**beendet den Lauf nicht**. Es antwortet danach ganz normal, und erst diese
+Prosa schließt den Zug ab (`stop_reason: "text"`).
+
+Der Grund ist gemessen. Bis dahin trug ein einziger Aufruf beides, Prosa *und*
+Ergebnis, und beendete den Lauf dabei: an derselben Anfrage standen **196
+Zeichen im Chat gegen 1932 im Ergebnis** — die Substanz landete dort, wo die
+Person im Chat sie nie sieht. Nach der Trennung: **1179 gegen 1418**, beides
+vollständig.
+
+Was das für euch heißt:
+
+* **`stop_reason: "text"` ist jetzt der Regelfall mit Schema** — nicht `submit`.
+  Wer auf `submit` prüft, wartet vergeblich. Prüft auf `result != null`.
+* **`submit_result` gibt es im Chat nicht mehr.** Es gehört `POST /api/agent`
+  (§7), wo es keinen Chat gibt und `text` die Lieferung *ist*.
+* **Die Antwort kostet ihren eigenen Zug.** Reißt dabei ein Deckel, holt das
+  Backend sie mit **einem** Aufruf ohne Werkzeuge nach — ein geliefertes
+  Ergebnis ohne Antwort daneben wäre der schlechtere Ausgang.
+* **Zu kurze Chat-Antworten steuert ihr selbst**, ohne Schalter: gebt per
+  `setHostInstruction` mit, was ihr wollt („Das Ergebnis rendere ich selbst,
+  fass dich im Chat kurz" oder umgekehrt).
 
 **Das Ereignis hängt am Schema, nicht am Chat.** Das Backend füllt
 `result_stop_reason` nur, wenn ein `result-schema` gesetzt ist
@@ -1030,11 +1118,11 @@ zweien darf ein `result` erwartet werden:
 
 | `stop_reason` | Bedeutung | `result` zu erwarten? |
 |---|---|---|
-| `submit` | Der Lauf hat `submit_result` gerufen — der Regelfall mit Schema | **ja** |
-| `text` | Der Lauf hat in Prosa geantwortet, ohne das Abschluss-Werkzeug | selten |
-| `deadline` | Frist erreicht (`deadline_s`, Vorgabe 90 s) | nein |
+| `text` | Der Lauf hat in Prosa geantwortet — **der Regelfall mit Schema**, seit `liefere_ergebnis` den Lauf nicht mehr beendet | **ja** |
+| `submit` | `submit_result` gerufen. Im Chat kommt das nicht mehr vor; der Wert gehört `POST /api/agent` (§7) | **ja** |
+| `deadline` | Frist erreicht (`deadline_s`, Vorgabe 300 s) | nein |
 | `token_budget` | Token-Budget aufgebraucht | nein |
-| `max_iterations` | Iterationsdeckel erreicht (Vorgabe 12) | nein |
+| `max_iterations` | Iterationsdeckel erreicht (Vorgabe 20) | nein |
 | `no_progress` | Dasselbe Werkzeug zweimal mit denselben Argumenten — Stillstand | nein |
 | `error` | Der Anbieter-Aufruf scheiterte | nein |
 
@@ -1442,7 +1530,7 @@ Sechs Dinge, die auf einer gewöhnlichen Gastseite nicht auffallen:
 | **≤ 20 000 Zeichen** | Die `instruction` ist gedeckelt; ein langer Artikel plus eure Anweisung reißt das. Kürzt den Text (oben: 12 000), sonst kommt `422`. |
 | **Zugang: nur der Zugangsblock** | `WLO-Access-Block` mit **persönlicher** Anmeldung. Der Studio-Schlüssel ist der Admin-Schlüssel und hat in einer Erweiterung nichts zu suchen (§7). |
 | **20 Läufe je Minute und IP** | `RATE_LIMIT_CHAT`. Ein Plugin, das bei **jedem** Tab-Wechsel einen Agent-Lauf startet, steht nach zwanzig Wechseln bei `429`. Startet Läufe auf eine ausdrückliche Handlung, nicht auf Navigation. |
-| **CORS** | Eine Erweiterungs-Seite hat die Herkunft `chrome-extension://<id>`. Der Betreiber muss `CORS_ORIGINS` auf `*` lassen oder eure Herkunft eintragen (`main.py:140-147`); alternativ deckt ihr es über MV3-`host_permissions` ab. Klärt das **vor** dem Integrationstest — sonst sucht ihr den Fehler im Rumpf. |
+| **CORS** | Erledigt seit 18.08.2026, doppelt: CORS ist **standardmäßig offen** (`CORS_ALLOW_ALL`, Vorgabe an), und selbst bei enger Liste dürfen `chrome-extension://` und `safari-web-extension://` (`CORS_ALLOW_EXTENSIONS`). **Safari brauchte das zwingend** — dort ist die UUID je Installation eine andere, ein Listeneintrag also unmöglich. Fragt beim Betreiber nach, falls der Schalter aus ist. |
 | **`allow_curation: false` bei Auskunft** | Nimmt die vierzehn kuratierenden Werkzeuge aus dem Katalog. Weniger Auswahl heißt kürzere Läufe und keine Möglichkeit, versehentlich etwas vorzuschlagen. |
 
 Und einer, der kein Nachteil ist: **`/api/agent` braucht kein Widget.** Für einen
@@ -1492,6 +1580,7 @@ Volle Herleitung samt Messungen:
 | Symptom | Ursache |
 |---|---|
 | Der Kasten bleibt leer | `embed-mode="frameless"` ohne Höhe am Container (§2) |
+| Der Chat legt sich über **eure** Kopfleiste und Navigation | Widget-Bündel älter als 2026-08-17 → neu bauen. Bis dahin überlebte `position: fixed; inset: 0` aus der 480-px-Vollbild-Regel den rahmenlosen Modus; in einer Seitenleiste unter 480 px riss sich das Panel damit aus seinem Flex-Platz. Gepinnt in `frontend/e2e/frameless.spec.ts` |
 | Element bleibt ein leeres Tag | Bündel lief in der isolierten Welt des Content-Scripts, nicht in der Hauptwelt (§1) |
 | Der Chat startet geschlossen | `initial-state="expanded"` fehlt |
 | Jedes Ereignis kommt doppelt | Auf `boerdi:…` **und** `badboerdi:…` gehört (§6) |
@@ -1518,7 +1607,8 @@ Volle Herleitung samt Messungen:
 | Der Bot antwortet auf den Auftrag ohne den Seitenkontext | `replaceContext()` **vor** `startTask()` — der Auftrag geht sofort raus (§5) |
 | `tools_called` enthält kein `get_skill` | Das Modell hat die Anleitung nicht gelesen. Die Anweisung war zu unbestimmt — nennt die Aufgabe und verlangt ausdrücklich, sich an eine passende Anleitung zu halten (§7) |
 | 422 an `/api/agent` | `instruction` über 20 000 Zeichen — meist der mitgeschickte Seitentext. Kürzen (§7) |
-| CORS-Fehler in der Erweiterungs-Konsole | Die Herkunft `chrome-extension://<id>` steht nicht in `CORS_ORIGINS` des Betreibers (§7) |
+| CORS-Fehler in der Erweiterungs-Konsole | Seit 18.08.2026 sind `chrome-extension://` und `safari-web-extension://` **von sich aus erlaubt** (`CORS_ALLOW_EXTENSIONS`, Vorgabe an). Tritt der Fehler trotzdem auf: der Betreiber hat **beide** Schalter zu (`CORS_ALLOW_ALL=false` **und** `CORS_ALLOW_EXTENSIONS=false`) |
+| Safari: `Preflight response is not successful. Status code: 400` | Dasselbe. Die 400 ist Starlettes „Disallowed CORS origin" — sie sagt nur, dass die Herkunft abgewiesen wurde, nicht dass mit dem Rumpf etwas nicht stimmt |
 | 401 / 403 an `/api/agent` | Keiner der drei Zugangswege greift (§7) |
 | 429 | Drosselung, `RATE_LIMIT_CHAT` |
 | 503 auf `/widget/boerdi-widget.js` | Bündel nicht gebaut — die Antwort nennt den Befehl |

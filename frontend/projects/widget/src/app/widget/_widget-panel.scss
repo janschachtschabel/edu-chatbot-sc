@@ -113,7 +113,29 @@
 :host(.boerdi-frameless) .boerdi-widget--frameless {
   height: 100%;
 }
+/* STEHENDE PFLICHT: jede Deklaration der 480-px-Regel in `widget.component.scss`
+   braucht hier eine Antwort. Die Regel meint den SCHWEBENDEN Modus („schmales
+   Gerät ⇒ Vollbild"), hängt aber an der Klasse und greift damit auch rahmenlos —
+   und eine Plugin-Seitenleiste liegt praktisch immer unter 480 px (gemeldet:
+   440 px Vorgabe, 340 px Minimum), die Regel ist dort also nie aus.
+
+   Sie auf `:host(:not(.boerdi-frameless))` einzuschränken wäre der kürzere Weg
+   und ist verworfen: `:not()` hebt ihre Spezifität auf die der Regel der großen
+   Stufe (U2a), und bei Gleichstand gewinnt die spätere — die große Stufe verlöre
+   bei schmaler Weite ihre `100vh - 40px`. Ein dritter Modus als Kollateral.
+
+   `position`/`inset` fehlten bis 2026-08-17 (von den Plugin-Entwicklern
+   gemeldet): das Panel riss sich aus seinem Flex-Platz und legte sich über
+   Kopfleiste und Navigation der Gastanwendung — im Browser gemessen Oberkante 0
+   gegen eine Leiste, die bei 44 endet. Die übrigen fünf Deklarationen der Regel
+   standen unten längst und deckten sie stillschweigend ab — darum blieb die
+   Lücke unentdeckt. `inset` wirkt an einem statischen Kasten nicht — es steht
+   mit da, weil `inset: 0` sonst als halb zurückgenommenes Paar in der Kaskade
+   liegen bleibt, und weil der Host-Block oben dasselbe Paar zurücksetzt.
+   Gepinnt in `frontend/e2e/frameless.spec.ts` (jsdom rechnet kein Layout). */
 :host(.boerdi-frameless) .boerdi-panel {
+  position: static;
+  inset: auto;
   width: 100%;
   height: 100%;
   max-width: none;

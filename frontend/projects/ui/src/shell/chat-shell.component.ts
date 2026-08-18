@@ -715,6 +715,30 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     this._api.setResultSchema(schema);
   }
 
+  /** **Public API** (G1) — der Gastanwendung ihren Rahmen mitgeben: „so bist du
+   *  hier zu verstehen". Der Text erscheint NICHT im Verlauf; er reist als
+   *  System-Block mit und wirkt in allen drei Maschinen.
+   *
+   *  `trigger` unterscheidet die beiden Fälle, nach denen gefragt wurde:
+   *
+   *  * `'next'` (Vorgabe) — der Rahmen wartet auf die nächste Eingabe der
+   *    Person und reist dann unsichtbar mit. Das ist der ehrliche Weg: es
+   *    entsteht kein Zug, den niemand ausgelöst hat.
+   *  * `'now'` — zusätzlich sofort ein Zug. Der braucht einen sichtbaren Anlass,
+   *    sonst sähe die Person eine Antwort auf eine Frage, die sie nie gestellt
+   *    hat (dieselbe Entscheidung wie bei `startTask` oben). Deshalb `message`:
+   *    die kurze Zeile, die als Auftrags-Blase erscheint, während die lange
+   *    Anweisung unsichtbar bleibt. Ohne `message` steht der Anweisungstext
+   *    selbst in der Blase — nie gar nichts. */
+  setHostInstruction(
+    text: string, opts?: { trigger?: 'next' | 'now'; message?: string },
+  ): Promise<void> {
+    const rahmen = (text ?? '').trim();
+    this._api.setHostInstruction(rahmen || null);
+    if (opts?.trigger !== 'now' || !rahmen) return Promise.resolve();
+    return this.startTask((opts.message || '').trim() || rahmen);
+  }
+
   /** Startet die geführte Web-Tour. Delegate — Logik in `tour.controller.ts`. */
   startTour(): Promise<void> {
     return this._tour.startTour();

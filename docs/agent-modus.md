@@ -28,21 +28,35 @@ Chatbot nichts.
 mode: agent            # pattern | agent | hybrid
 
 agent:
-  max_iterations: 12    # 1 … 50
-  deadline_s: 90        # 5 … 600
-  token_budget: 120000  # ≥ 1000
-  write_mode: propose   # propose | execute
+  max_iterations: 20     # 1 … 50
+  deadline_s: 300        # 5 … 600
+  token_budget: 400000   # ≥ 1000
+  write_mode: propose    # propose | execute
   safety: true
 ```
 
 Wirkt ohne Neustart. Alle vier Deckel sind nötig: ein MCP-Aufruf steht gemessen
-bis 23 s, ohne Frist könnte ein Lauf mit 12 Runden acht Minuten dauern.
+bis 23 s, ohne Frist könnte ein Lauf mit 20 Runden zehn Minuten dauern.
 
 Das Budget zählt `prompt + completion` **kumulativ über alle Runden**, und weil
 die Nachrichtenkette wächst, wird der Prompt jede Runde neu berechnet. Bei
 60 000 (Stand bis 2026-08-17) war deshalb nach drei Runden Schluss, während
 `max_iterations` und `deadline_s` unberührt blieben — Messung und Begründung in
 `docs/plans/2026-08-17-hybrid-muster-als-werkzeug.md` §8.
+
+**Am 2026-08-18 gemeinsam angehoben** (12/90/120000 → 20/300/400000,
+Nutzer-Entscheid). Gemeinsam, weil einzeln jeder Wert wirkungslos bliebe: wer
+20 Runden erlaubt, aber die Frist bei 90 s lässt, bekommt fünf. Die Reihenfolge,
+in der die Deckel greifen, entscheidet die Messung — nicht die Absicht.
+
+Zwei Folgen, die dazugehören:
+
+* **Der Kosten-Deckel je Zug steigt auf das Sechsfache.** Er ist eine Vorgabe,
+  keine Empfehlung: wer knapper rechnen muss, stellt ihn im Studio je Anlage ein.
+* **Die neue Grenze ist das Kontextfenster des Anbieters, nicht mehr unsere.**
+  Die Schleife kürzt die Nachrichtenkette nicht; 20 Runden mit großen
+  Werkzeug-Ergebnissen können sie über das Fenster des Modells treiben. Das
+  endet dann mit `stop_reason: "error"`, nicht mit einem sauberen Deckel.
 
 ### b) Je Einbau — Host-Attribut `engine`
 

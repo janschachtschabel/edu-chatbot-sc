@@ -357,14 +357,26 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
       const shell = this.shell();
       if (shell) shell.setResultSchema(_attrJsonObject(this.resultSchema()));
     });
-    // Der wartende Auftrag, sobald es eine Shell gibt. Dieselbe Nachzieh-Naht
-    // wie oben und aus demselben Grund: die Shell hängt am Lazy-Gate. Der
-    // Merker ist bewusst KEIN Signal — dieser Effect soll an `shell()` hängen,
-    // nicht am Auftrag, sonst liefe er beim Setzen ein zweites Mal.
+    // Der wartende Rahmen und der wartende Auftrag, sobald es eine Shell gibt.
+    // Dieselbe Nachzieh-Naht wie oben und aus demselben Grund: die Shell hängt
+    // am Lazy-Gate. Die Merker sind bewusst KEINE Signale — dieser Effect soll
+    // an `shell()` hängen, nicht an ihnen, sonst liefe er beim Setzen ein
+    // zweites Mal.
+    //
+    // Beide in EINEM Effect, damit die Reihenfolge hier steht und nicht in der
+    // Anlege-Reihenfolge zweier Effects: der Rahmen muss VOR dem Auftrag
+    // ankommen, sonst liefe genau der eine Zug ohne ihn, für den die Gastseite
+    // ihn gesetzt hat.
     effect(() => {
       const shell = this.shell();
+      if (!shell) return;
+      const rahmen = this._wartenderRahmen;
+      if (rahmen) {
+        this._wartenderRahmen = null;
+        void shell.setHostInstruction(rahmen.text, rahmen.opts);
+      }
       const auftrag = this._wartenderAuftrag;
-      if (shell && auftrag) {
+      if (auftrag) {
         this._wartenderAuftrag = null;
         void shell.startTask(auftrag);
       }
@@ -537,6 +549,11 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    *  und ein still verschluckter Startbefehl ist schlimmer als gar keiner. */
   private _wartenderAuftrag: string | null = null;
 
+  /** Rahmen, der auf die Shell wartet (G1). Siehe `setHostInstruction`. */
+  private _wartenderRahmen:
+    | { text: string; opts?: { trigger?: 'next' | 'now'; message?: string } }
+    | null = null;
+
   /** **Public API** — den Chat mit einem Auftrag des Gastgebers starten.
    *
    *  „Hier ist die Sammlung, hier der Seitentext, leg los" — danach ist es eine
@@ -555,6 +572,36 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this._wartenderAuftrag = auftrag;
     this.panel.setExpanded(true);
+  }
+
+  /** **Public API** (G1) — der Gastanwendung ihren unsichtbaren Rahmen mitgeben.
+   *
+   *  `setHostInstruction('Du bist in der Redaktionsumgebung …')` wartet auf die
+   *  nächste Eingabe der Person und reist dann mit, ohne im Verlauf zu stehen.
+   *  Mit `{ trigger: 'now', message: 'Füllstand prüfen' }` startet zusätzlich
+   *  sofort ein Zug — der bekommt die kurze `message` als sichtbare
+   *  Auftrags-Blase, die lange Anweisung bleibt unsichtbar.
+   *
+   *  Ohne Shell wartet der Rahmen, statt zu verschwinden. Das ist nicht der
+   *  Randfall, sondern der Regelfall: „Rahmen gleich beim Aufbau mitgeben" ist
+   *  das Erste, was eine Gastseite tut, und die Shell ist da noch keinen Zyklus
+   *  alt (rahmenlos) bzw. bis zum ersten Öffnen gar nicht gemountet (Panel).
+   *  Ein still verschluckter Rahmen wäre schlimmer als gar keiner — dieselbe
+   *  Begründung wie bei `startTask`.
+   *
+   *  Das Panel öffnet der Aufruf dabei NICHT: ein Rahmen ist kein Zug, es gibt
+   *  nichts zu sehen. Nur bei `trigger: 'now'` gibt es einen — der geht deshalb
+   *  über `startTask`, das öffnet. */
+  setHostInstruction(
+    text: string, opts?: { trigger?: 'next' | 'now'; message?: string },
+  ): void {
+    const shell = this.shell();
+    if (shell) {
+      void shell.setHostInstruction(text, opts);
+      return;
+    }
+    this._wartenderRahmen = { text, opts: { ...opts, trigger: 'next' } };
+    if (opts?.trigger === 'now') this.startTask((opts.message || '').trim() || text);
   }
 
   /** Web-Tour starten (Klick auf den Eulen-Kopf). No-op solange die Shell lädt. */

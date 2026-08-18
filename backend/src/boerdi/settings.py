@@ -56,6 +56,15 @@ class Settings(BaseSettings):
         "*", validation_alias=_env("CORS_ORIGINS"),
         description="comma-separated; '*' disables credentials (parse: cors_origin_list)",
     )
+    cors_allow_all: bool = Field(
+        True, validation_alias=_env("CORS_ALLOW_ALL"),
+        description="open CORS for every origin; false => cors_origins applies",
+    )
+    cors_allow_extensions: bool = Field(
+        True, validation_alias=_env("CORS_ALLOW_EXTENSIONS"),
+        description="allow safari-web-extension:// and chrome-extension:// origins "
+                    "(regex, in ADDITION to cors_origins)",
+    )
     trust_forwarded_for: bool = Field(False, validation_alias=_env("TRUST_FORWARDED_FOR"))
     allow_open_admin: bool = Field(
         False, validation_alias=_env("BOERDI_ALLOW_OPEN_ADMIN"),
@@ -358,8 +367,65 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        # parity: plain split(","), items deliberately NOT stripped (ALT main.py:188)
-        return self.cors_origins.split(",")
+        """Was der Betreiber GESCHRIEBEN hat — getrimmt, ohne Leereinträge.
+
+        **ALT-Treue hier bewusst gebrochen** (Nutzer-Entscheid 2026-08-18). ALT
+        spaltete nur an ``,`` und trimmte nicht; gemessen am selben Tag traf
+        ``"https://a.de, https://b.de"`` mit dem zweiten Eintrag **nie** einen
+        Ursprung, weil das führende Leerzeichen mitlief — und niemand erfuhr es.
+        Ein Origin enthält per Definition keine Leerzeichen, ein solcher Eintrag
+        kann also nur ein Tippfehler sein. Die Treue bewahrte hier bloß eine
+        stille Falle.
+        """
+        return [teil.strip() for teil in self.cors_origins.split(",") if teil.strip()]
+
+    @property
+    def cors_effective_origins(self) -> list[str]:
+        """Was tatsächlich GILT — der Schalter über der Liste.
+
+        Getrennt von :attr:`cors_origin_list`, damit keine der beiden lügt: die
+        eine sagt, was konfiguriert wurde, die andere, was wirkt. Wer beides in
+        eine Eigenschaft presste, könnte einem Betreiber nicht mehr zeigen, dass
+        seine Liste übersteuert wird — und genau das muss sichtbar sein.
+
+        **Vorgabe ist offen** (Nutzer-Entscheid 2026-08-18): eine Anlage soll
+        ohne Zutun einbettbar sein. Zumachen ist eine ausdrückliche Handlung
+        (``CORS_ALLOW_ALL=false``). ``main.py`` warnt beim Start, wenn dadurch
+        eine gepflegte Liste übergangen wird.
+        """
+        return ["*"] if self.cors_allow_all else self.cors_origin_list
+
+    @property
+    def cors_origin_regex(self) -> str | None:
+        """Ursprünge von Browser-Erweiterungen — oder ``None``.
+
+        **Warum eine Regel und kein Listeneintrag.** Safari vergibt einer
+        Erweiterung ihre UUID JE INSTALLATION
+        (``safari-web-extension://72c621e2-…``); auf dem nächsten Gerät ist es
+        eine andere, nach einer Neuinstallation wieder. Eine statische Liste
+        kann diesen Fall grundsätzlich nicht abdecken. Chrome vergibt eine feste
+        Kennung — deshalb ist es dort nie aufgefallen, und deshalb steht Chrome
+        hier trotzdem mit drin: ein Gastgeber soll nicht zwei Wege lernen müssen.
+
+        Gemeldet am 2026-08-18 von den Plugin-Entwicklern, Safari-Konsole:
+        Preflight 400 auf ``/api/chat/stream`` (das ist wörtlich Starlettes
+        „Disallowed CORS origin") und daneben blockierte 200er auf den einfachen
+        GETs — ein Befund, zwei Gesichter.
+
+        **Sie ERWEITERT die Liste, sie ersetzt sie nicht** (Starlette prüft
+        beides mit ODER, ``cors.py:102``). Und sie gibt den KONKRETEN Ursprung
+        zurück statt ``*`` — nur so bleiben Anmeldedaten überhaupt möglich.
+
+        Was sie öffnet, ehrlich benannt: jede Browser-Erweiterung darf diese API
+        rufen. Das ist weniger, als es klingt — CORS ist keine Authentifizierung,
+        ein Aufruf ohne Browser ignoriert die Liste vollständig. Die Abwehr gegen
+        Missbrauch ist das Rate-Limit, nicht die Herkunftsliste.
+        """
+        if not self.cors_allow_extensions:
+            return None
+        # ``fullmatch`` verwendet Starlette; die Anker sind trotzdem gesetzt,
+        # damit die Regel auch beim Lesen keine Vorsilbe zulässt.
+        return r"^(safari-web-extension|chrome-extension)://[A-Za-z0-9-]+$"
 
 
 @lru_cache

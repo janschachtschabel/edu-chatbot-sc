@@ -35,6 +35,18 @@
   justify-content: flex-start;
   text-align: left;
 
+  // …und er muss dann auch MITWACHSEN. Das Höhen-Token oben setzt eine feste
+  // ``height``; ein zweizeiliger Chip lief deshalb unten aus seinem Knopf heraus
+  // und legte sich über den nächsten (gemeldet 2026-08-17 mit Chips aus der
+  // edu-sharing-Probierseite, wo die Vorschläge ganze Aufträge sind). Die feste
+  // Höhe wird zur MINDEST-Höhe: einzeilige Chips sehen aus wie bisher, lange
+  // wachsen. Innenabstand und Zeilenhöhe müssen mit — beide erbt der Knopf
+  // sonst aus Materials Ein-Zeilen-Annahme.
+  height: auto;
+  min-height: 30px;
+  padding-block: 5px;
+  line-height: 1.35;
+
   // Materials `icon-spacing`-Token greift nur für `<mat-icon>`; wir liefern
   // Inline-SVG (DSGVO: keine Icon-Font vom CDN).
   .bb-icon {

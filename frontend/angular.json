@@ -80,6 +80,11 @@
                 "glob": "oauth-callback.html",
                 "input": "projects/widget/src",
                 "output": "."
+              },
+              {
+                "glob": "edu-sharing-demo.html",
+                "input": "projects/widget/src",
+                "output": "."
               }
             ],
             "styles": [],

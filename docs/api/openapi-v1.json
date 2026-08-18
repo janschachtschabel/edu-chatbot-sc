@@ -938,6 +938,17 @@
             "title": "Host",
             "type": "string"
           },
+          "host_instruction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host Instruction"
+          },
           "locale": {
             "default": "de-DE",
             "title": "Locale",

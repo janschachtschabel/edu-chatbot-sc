@@ -25,6 +25,7 @@ import json
 import logging
 from typing import Any
 
+from boerdi.domain import host_instruction
 from boerdi.domain.skill_precedence import anleitungs_hinweis, laufende_anleitung
 from boerdi.i18n import resolve_locale
 from boerdi.services import page_context
@@ -136,6 +137,14 @@ Rolle in dieser Phase: {_resp_state_meta.get('role', '—')}
                 system_parts.append(_raw_pb)
     except Exception:  # noqa: BLE001 — a page-block failure must never break the prompt
         _logger.debug("page-context prompt block failed", exc_info=True)
+
+    # G1: der Auftrag der einbettenden Anwendung. Steht NACH dem Seitenblock:
+    # erst wo die Person ist, dann was die Anwendung will — die Anweisung bezieht
+    # sich in aller Regel auf die Seite. Derselbe Block wie im Schleifen-Weg
+    # (``respond_agent``), damit die Rangfolge nicht zweimal formuliert wird.
+    _hb = host_instruction.prompt_block(environment.get("host_instruction"))
+    if _hb:
+        system_parts.append(_hb)
 
     # P3b: die Anleitung, die noch in Arbeit ist. Ein Skill, der eine Rückfrage
     # stellt, bekommt die Antwort erst im NÄCHSTEN Zug — und der entschied bis

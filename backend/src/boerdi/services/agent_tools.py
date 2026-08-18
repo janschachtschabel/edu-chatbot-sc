@@ -32,6 +32,7 @@ from typing import Any
 from boerdi.domain.inline_documents import ZEIGE_DOKUMENT, dokument_werkzeug
 from boerdi.domain.pattern_catalog import katalog_kurz, katalog_text, waehlbare_muster
 from boerdi.domain.pattern_engine import PatternDef
+from boerdi.domain.result_delivery import LIEFERE_ERGEBNIS, ergebnis_werkzeug
 from boerdi.services.mcp.auth import has_auth_token
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
@@ -48,7 +49,13 @@ WAEHLE_VORGEHEN = "waehle_vorgehen"
 #: einschränkt, darf sie nicht mitnehmen: ohne ``waehle_vorgehen`` käme der Lauf
 #: aus dem gewählten Muster nicht mehr heraus, ohne ``submit_result`` verlöre er
 #: seine Ziellinie. Beides wäre eine Sackgasse, die wie eine Regel aussieht.
-VIRTUELLE_WERKZEUGE = frozenset({WAEHLE_VORGEHEN, SUBMIT_RESULT, ZEIGE_DOKUMENT})
+#:
+#: ``liefere_ergebnis`` (J1) gehört aus demselben Grund dazu: fehlte es hier,
+#: verschwände der Ergebnis-Kanal in dem Augenblick, in dem das Hybrid-Modell
+#: ein Muster zieht — der Gastgeber bekäme also genau dann kein JSON, wenn
+#: gearbeitet wurde.
+VIRTUELLE_WERKZEUGE = frozenset(
+    {WAEHLE_VORGEHEN, SUBMIT_RESULT, ZEIGE_DOKUMENT, LIEFERE_ERGEBNIS})
 
 #: Werkzeuge, die im Katalog stehen, aber KEINEM Lauf angeboten werden.
 #:
@@ -178,6 +185,7 @@ def build_agent_tools(
     allow_curation: bool = True,
     blocked_tools: list[str] | None = None,
     include_submit: bool = True,
+    include_ergebnis: bool = False,
     muster_katalog: list[PatternDef] | None = None,
     include_dokument: bool = False,
     katalog_kurz: bool = False,
@@ -208,6 +216,13 @@ def build_agent_tools(
     es virtuell ist: eine Sperre darauf naehme dem Lauf die Wahl seines Vorgehens
     statt eine Gefahr abzuwenden. Die Gefahr sitzt in den Werkzeugen, die ein
     Muster freigibt — und die filtert ``blocked_tools`` weiterhin.
+
+    ``include_ergebnis`` (J1) legt ``liefere_ergebnis`` dazu — den Kanal des
+    **Chat-Zuges** fuer das maschinenlesbare Ergebnis. Er schliesst sich mit
+    ``include_submit`` aus, und das ist Absicht: ``submit_result`` beendet den
+    Lauf, ``liefere_ergebnis`` nicht. Beide zugleich hiessen zwei Ziellinien —
+    und die schnellere naehme der Prosa ihren Zug, also genau das, wogegen J1
+    gebaut ist. Der Chat-Zug nimmt den zweiten, ``/api/agent`` den ersten.
 
     ``include_dokument`` (D2) legt ``zeige_dokument`` dazu — das Werkzeug, mit
     dem das Modell ein fertiges Arbeitsergebnis als eigene Box LIEFERT, statt
@@ -244,4 +259,6 @@ def build_agent_tools(
         tools.insert(0, vorgehen)
     if include_submit:
         tools.append(submit_result_tool(result_schema))
+    if include_ergebnis:
+        tools.append(ergebnis_werkzeug(result_schema))
     return tools

@@ -135,7 +135,15 @@ services:
       # Backend ist ausschließlich hinter traefik erreichbar, der Header kommt
       # also nicht vom Client. Ohne das zählte das Rate-Limit die Proxy-IP.
       TRUST_FORWARDED_FOR: "true"
+      # CORS. Die Liste bleibt Pflicht (`:?`) — sie ist die Angabe, die beim
+      # Zumachen gilt. Die beiden Schalter MÜSSEN hier stehen: docker compose
+      # liest die .env nur zur Ersetzung IN dieser Datei; was nicht unter
+      # `environment:` steht, erreicht den Container nie. Ohne diese Zeilen
+      # bliebe CORS_ALLOW_ALL=false aus der .env wirkungslos und CORS in
+      # Produktion offen — gemessen 2026-08-18. Leer = Code-Vorgabe (offen).
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS fehlt — '*' nur bewusst setzen}
+      CORS_ALLOW_ALL: ${CORS_ALLOW_ALL:-}
+      CORS_ALLOW_EXTENSIONS: ${CORS_ALLOW_EXTENSIONS:-}
       STUDIO_API_KEY: ${STUDIO_API_KEY:?STUDIO_API_KEY fehlt}
       STUDIO_PASSWORD: ${STUDIO_PASSWORD:?STUDIO_PASSWORD fehlt}
       STUDIO_COOKIE_SECURE: ${STUDIO_COOKIE_SECURE:-1}

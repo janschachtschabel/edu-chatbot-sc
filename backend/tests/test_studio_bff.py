@@ -327,6 +327,11 @@ def test_a_cors_preflight_is_not_swallowed_by_the_gate(monkeypatch) -> None:
     every cross-origin non-simple request. CORS must wrap the gate — which is
     why StudioProxyMiddleware is registered BEFORE CORSMiddleware in main.py
     (``add_middleware`` inserts at the front, so later = outer)."""
+    # `CORS_ALLOW_ALL=false`: die geprüfte Zusage ist die REIHENFOLGE der
+    # Middlewares, und die zeigt sich nur an einer echten Herkunftsprüfung —
+    # mit der offenen Vorgabe ('*', seit 2026-08-18) ginge der Preflight auch
+    # durch, wenn die Reihenfolge falsch wäre.
+    monkeypatch.setenv("CORS_ALLOW_ALL", "false")
     monkeypatch.setenv("CORS_ORIGINS", "https://studio.example")
     get_settings.cache_clear()
     client = TestClient(create_app())

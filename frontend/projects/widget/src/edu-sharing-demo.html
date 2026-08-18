@@ -1,0 +1,511 @@
+<!doctype html>
+<!--
+  Einbettungs-Demo für edu-sharing — die Gastseite, an der sich ausprobieren
+  lässt, was ein Gastgeber in den Chat hineinreichen kann.
+
+  WO SIE LIEGT UND WARUM: als Asset des Widget-Builds, ausgeliefert über die
+  bestehende Route `/widget/{asset_name}`. Sie braucht damit keine neue Route
+  (der OpenAPI-Vertrag ist eingefroren), keine Zeile Python und lädt vom
+  SELBEN Ursprung wie das Backend — also ohne CORS-Umweg. Der Preis: sie ist
+  eine einzelne Datei ohne Baukasten. Für eine Demo ist das der richtige
+  Tausch; die drei erklärenden Demo-Seiten (/widget/classic, /inline,
+  /frameless) bleiben, wo sie sind.
+
+  Aufruf:  https://<backend>/widget/edu-sharing-demo.html
+  Fremdes Backend:            …/edu-sharing-demo.html?api=https://anderes.backend
+
+  Der Chat sitzt in einer 440 px schmalen Seitenleiste — also unter der
+  480-px-Schwelle, ab der die Vollbild-Regel des schwebenden Modus greift.
+  Sie braucht deshalb ein Bündel vom 17.08.2026 oder neuer; ältere reißen das
+  Panel aus der Leiste (siehe docs/browser-plugin-einbindung.md §9).
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOERDi in edu-sharing — Einbettungs-Demo</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) 440px;
+    /* `height: 100vh` allein deckelt NICHTS: ohne `grid-template-rows` ist die
+       implizite Zeile `auto` und wächst mit ihrem Inhalt. Gemessen 2026-08-17:
+       ein langer Verlauf zog das Panel von 689 auf 3697 px und die Seite bekam
+       eine Bildlaufleiste. `minmax(0, 1fr)` bindet die Zeile an die Fensterhöhe,
+       `overflow: hidden` fängt den Rest ab — die Spalten scrollen dann in sich. */
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+    font: 14px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 1.15rem; margin: 0 0 .25rem; }
+  h2 { font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 .5rem; opacity: .7; }
+  p  { margin: .35rem 0; }
+  .pult { overflow: auto; padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1.1rem; }
+  .karte { border: 1px solid #9993; border-radius: 10px; padding: .9rem 1rem; }
+  /* Jeder Abschnitt ist ein `<details>`: die Vorgaben stehen alle schon richtig,
+     wer sie sehen will, klappt auf. `summary` trägt dabei die Rolle der
+     Abschnitts-Überschrift — deshalb steckt das `<h2>` darin und nicht daneben,
+     sonst hätte der Abschnitt zwei Titel. */
+  summary { cursor: pointer; }
+  summary h2 { display: inline; }
+  details[open] > summary { margin-bottom: .6rem; }
+  label { display: block; font-size: .8rem; opacity: .75; margin: .5rem 0 .2rem; }
+  input, select, textarea {
+    width: 100%; padding: .45rem .55rem; border: 1px solid #9995; border-radius: 6px;
+    background: transparent; color: inherit; font: inherit;
+  }
+  textarea { resize: vertical; }
+  .knoepfe { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }
+  button {
+    padding: .5rem .9rem; border: 1px solid #9995; border-radius: 6px; cursor: pointer;
+    background: transparent; color: inherit; font: inherit;
+  }
+  button.stark { border-color: #1c4587; background: #1c4587; color: #fff; }
+  .hinweis { font-size: .8rem; opacity: .7; }
+  /* Rechte Leiste: oben 2/3 Chat, unten 1/3 strukturierte Ausgabe. */
+  .leiste { display: grid; grid-template-rows: 2fr 1fr; border-left: 1px solid #9993; min-width: 0; min-height: 0; }
+  /* `min-height: 0` UND `overflow: hidden`: ohne das erste sprengt ein wachsendes
+     Eingabefeld die Zeilenhöhe (Grid-Elemente haben `min-height: auto`), ohne das
+     zweite schöbe es sich über den Nachbarn. Der Chat bleibt so bei ⅔, egal wie
+     viel jemand tippt. */
+  .leiste > section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: .6rem; }
+  .leiste > section + section { border-top: 1px solid #9993; }
+  #halter { flex: 1; min-height: 0; display: flex; }
+  #halter > * { flex: 1; }
+  pre, .protokoll {
+    flex: 1; min-height: 0; overflow: auto; margin: 0; font-size: .75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .protokoll { max-height: 14rem; }
+  .protokoll div { padding: .15rem 0; border-bottom: 1px solid #9992; white-space: pre-wrap; word-break: break-word; }
+  .protokoll b { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<main class="pult">
+  <div>
+    <h1>BOERDi in edu-sharing — was die Gastseite hineinreichen kann</h1>
+    <p class="hinweis">
+      Backend: <code id="api"></code> · Maschine: <code id="motor">hybrid</code> ·
+      Einbau: <code>embed-mode="frameless"</code> in einer 440-px-Leiste.
+    </p>
+    <p class="hinweis" id="rechte">Rechte: wird geprüft …</p>
+    <div class="knoepfe">
+      <button type="button" class="stark" id="btnNeu">Neu aufbauen — übernimmt alles von unten</button>
+    </div>
+    <p class="hinweis">
+      Der Knopf baut das Element neu, und das ist der sichere Weg: Begrüßung, Schnellantworten
+      und Sitzungs-Einstellungen werden nur beim Start gelesen. Das kostet den Verlauf; die
+      Seite läuft absichtlich mit <code>persist-session="false"</code>, jeder Aufbau und jedes
+      Neuladen fängt also frisch an.
+    </p>
+  </div>
+
+  <details class="karte" open>
+    <summary><h2>1 · Kontext — worauf schaut die Person gerade?</h2></summary>
+    <label for="art">Woher kommt der Kontext?</label>
+    <select id="art">
+      <option value="collection">Sammlung (Vorgabe: „Optik")</option>
+      <option value="topic">Themenseite</option>
+      <option value="content">Einzelinhalt</option>
+      <option value="search">Suche</option>
+      <option value="auto">Automatisch — das Widget erkennt die Seite selbst</option>
+    </select>
+    <label for="wert" id="wertLabel">Sammlungs-ID (UUID)</label>
+    <input id="wert" spellcheck="false">
+    <label for="ctxBeimAufbau" style="display:flex; gap:.4rem; align-items:flex-start; margin-top:.7rem;">
+      <input type="checkbox" id="ctxBeimAufbau" style="width:auto; margin-top:.25rem;" checked>
+      <span>Kontext schon beim Aufbau mitgeben — dann <strong>begrüßt das Backend die Seite
+      selbst</strong> („Du bist gerade in der Sammlung „Optik"…") und ersetzt damit
+      Startnachricht und Schnellantworten von unten. Zum Vergleich abwählen.</span>
+    </label>
+    <div class="knoepfe">
+      <button type="button" id="btnKontext">Kontext live nachreichen (replaceContext)</button>
+    </div>
+    <p class="hinweis">
+      Live heißt live: <code>replaceContext()</code> wirkt ohne Neustart und setzt das
+      Ping-Gate zurück, der Bot meldet sich also zur neuen Seite. Das Attribut
+      <code>page-context</code> wird nach dem Start nicht mehr gelesen.
+      Gemessen an der Sammlung „Optik": der Bot antwortet dann mit „Ich sehe 37 Materialien
+      und 28 freigegebene Skills" und vier eigenen Chips.
+    </p>
+    <p class="hinweis">
+      Auch über die Adresse wählbar, damit sich ein Fall verlinken lässt:
+      <code>?kontext=collection&amp;wert=&lt;UUID&gt;</code> — ebenso <code>topic</code>
+      (Slug), <code>content</code> (Knoten-ID), <code>search</code> (Suchbegriff) und
+      <code>auto</code>. Ohne Parameter startet die Sammlung „Optik".
+      <strong>Automatisch</strong> heißt: kein mitgegebener Kontext, das Widget schaut
+      selbst auf die Adresse der Gastseite — auf DIESER Seite gibt es nichts zu erkennen,
+      der Bot sagt dann sinngemäß, sie gehöre nicht zu WLO. Genau so verhält es sich in
+      einer Seitenleiste; auf einer echten edu-sharing-Seite findet er die Sammlung selbst.
+    </p>
+  </details>
+
+  <details class="karte" open>
+    <summary><h2>2 · Startmuster — Begrüßung, Knöpfe und der Rahmen dazu</h2></summary>
+    <p class="hinweis">
+      Die drei gehören zusammen und sind deshalb ein Abschnitt: die Begrüßung sagt, wo man
+      ist, die Knöpfe bieten die vier Züge an, die hier Sinn ergeben, und der Rahmen sagt
+      dem Bot, wie er sie ausführen soll. Fehlt der dritte Teil, sind die Knöpfe vier
+      Sätze ins Blaue.
+    </p>
+    <label for="gruss">Begrüßung (Attribut <code>greeting</code>)</label>
+    <textarea id="gruss" rows="2"></textarea>
+    <label for="chips">Schnellantworten (Attribut <code>start-replies</code>, eine je Zeile)</label>
+    <textarea id="chips" rows="4" spellcheck="false"></textarea>
+    <p class="hinweis">
+      Vorgabe sind die vier, die das Backend an einer Sammlung von selbst vorschlägt. Der
+      Text des Knopfes <strong>ist</strong> die Nachricht, die abgeschickt wird — je genauer
+      der Satz, desto sicherer greifen Muster, Skills und Werkzeuge.
+    </p>
+    <label for="anweisung">Rahmen an den Bot — unsichtbar (<code>setHostInstruction()</code>)</label>
+    <textarea id="anweisung" rows="6"></textarea>
+    <label for="rahmenBeimAufbau" style="display:flex; gap:.4rem; align-items:flex-start; margin-top:.7rem;">
+      <input type="checkbox" id="rahmenBeimAufbau" style="width:auto; margin-top:.25rem;" checked>
+      <span>Rahmen schon beim Aufbau setzen — dann trägt ihn <strong>schon der erste
+      Knopfdruck</strong>. Das ist der Regelfall einer Gastseite; abwählen, um den
+      Unterschied zu hören.</span>
+    </label>
+    <p class="hinweis">
+      <strong>Begrüßung und Knöpfe wirken nur ohne Kontext beim Aufbau.</strong> Gibt die
+      Gastseite einen Kontext mit, begrüßt das Backend die Seite selbst — und diese
+      Begrüßung <em>ist</em> dann die erste Blase, samt eigener Chips. Das ist kein Fehler,
+      sondern die Absicht (keine zwei Begrüßungen hintereinander). Der Rahmen ist davon
+      unberührt: er gilt in beiden Fällen.
+    </p>
+  </details>
+
+  <details class="karte">
+    <summary><h2>3 · Rahmen zur Laufzeit — sofort oder bei der nächsten Eingabe</h2></summary>
+    <label for="kurz">Kurze Zeile für den Sofort-Start (erscheint als Auftrags-Blase)</label>
+    <input id="kurz" value="Füllstand dieser Sammlung prüfen">
+    <div class="knoepfe">
+      <button type="button" class="stark" id="btnNaechste">Bei nächster Eingabe wirken</button>
+      <button type="button" id="btnSofort">Sofort ausführen</button>
+      <button type="button" id="btnVerwerfen">Rahmen verwerfen</button>
+    </div>
+    <p class="hinweis">
+      Genommen wird der Text aus Abschnitt 2. <strong>Bei nächster Eingabe</strong> legt ihn
+      still in den Zug, den die Person als Nächstes auslöst — im Verlauf steht davon nichts.
+      Er ist danach <em>verbraucht</em>; für dauerhaft einfach erneut setzen.
+      <strong>Sofort</strong> startet zusätzlich einen Zug, und der bekommt die kurze Zeile
+      oben als sichtbare Auftrags-Blase: ein Zug, den die Person nicht ausgelöst hat, wird
+      gezeigt — die lange Anweisung bleibt trotzdem unsichtbar.
+    </p>
+    <p class="hinweis">
+      Wirkt in <strong>allen drei Maschinen</strong> — der Block sitzt in beiden
+      Prompt-Wegen. Er hebt Leitplanken und Sicherheitsregeln <em>nicht</em> auf; das steht
+      im Block selbst. Deckel: 2000 Zeichen, darüber lehnt das Backend mit 422 ab.
+    </p>
+  </details>
+
+  <details class="karte">
+    <summary><h2>4 · Maschine, Ergebnis-Schema, Anmeldung</h2></summary>
+    <label for="engine">Maschine (Attribut <code>engine</code>)</label>
+    <select id="engine">
+      <option value="hybrid">hybrid</option>
+      <option value="agent">agent</option>
+      <option value="pattern">pattern</option>
+    </select>
+    <label for="schema">Ergebnis-Schema (<code>result-schema</code>) — leer heißt: keine strukturierte Ausgabe</label>
+    <textarea id="schema" rows="8" spellcheck="false"></textarea>
+    <p class="hinweis">
+      Ein Ergebnis-Schema wirkt nur über die Schleife: in <code>pattern</code> bleibt es
+      folgenlos. Was dabei herauskommt, steht unten rechts im Kasten.
+    </p>
+    <p class="hinweis">
+      <strong>JSON und Chat-Antwort sind getrennt (seit 17.08.2026).</strong> Der Bot
+      übergibt das Ergebnis und <em>antwortet danach weiter</em> — die Übergabe beendet
+      den Lauf nicht mehr. Deshalb steht der Lauf am Ende auf
+      <code>stop_reason: "text"</code> und nicht auf <code>submit</code>; prüft auf
+      <code>result != null</code>. Vorher teilten sich beide einen Aufruf, und gemessen
+      blieben 196 Zeichen im Chat gegen 1932 im JSON übrig.
+    </p>
+    <p class="hinweis" style="margin:.9rem 0 0"><strong>Verhältnis der beiden steuern</strong> — es gibt dafür <em>keinen</em> Schalter:</p>
+    <div class="knoepfe">
+      <button type="button" id="btnBeides">Beides ausführlich</button>
+      <button type="button" id="btnKurz">Chat kurz, JSON trägt alles</button>
+    </div>
+    <p class="hinweis">
+      Die Knöpfe schreiben einen Satz in den Rahmen aus Abschnitt 2 und setzen ihn sofort
+      — sie steuern also über <code>setHostInstruction()</code>. Bewusst kein eigenes
+      Attribut: der Kanal dafür existiert schon, und ein Feld im eingefrorenen Vertrag
+      ist eine Einbahnstraße. „Chat kurz" ist der Fall dieser Seite selbst — das JSON
+      steht unten rechts ja schon lesbar da.
+    </p>
+    <p class="hinweis">
+      <strong>Anmelden:</strong> der Knopf sitzt in der Eingabezeile des Chats und
+      erscheint von selbst, sobald das Backend eine MCP-Anmeldung anbietet. Die Gastseite
+      kann ihn nicht setzen — er hängt am Config-Bündel, nicht an einem Attribut.
+    </p>
+  </details>
+
+  <section class="karte">
+    <h2>5 · Ereignisse an die Gastseite</h2>
+    <div class="protokoll" id="protokoll"></div>
+  </section>
+</main>
+
+<aside class="leiste">
+  <section>
+    <div id="halter"></div>
+  </section>
+  <section>
+    <h2>Strukturierte Ausgabe (boerdi:agent-result)</h2>
+    <p class="hinweis" id="ergebnisKopf">Noch kein Lauf.</p>
+    <pre id="ergebnis">Noch kein Ergebnis. Es erscheint, sobald der Bot es über liefere_ergebnis übergibt.</pre>
+  </section>
+</aside>
+
+<script src="/widget/boerdi-widget.js" defer></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var API = new URL(location.href).searchParams.get('api') || location.origin;
+
+  // Die Sammlung „Optik" — dieselbe echte ID, mit der die drei bestehenden
+  // Demo-Seiten starten (widget_demo_context.py, DEFAULT_CHOICE). Sie trägt eine
+  // Skill-Registry der Redaktion, ist also der Fall, den man sehen will.
+  var KONTEXTE = {
+    collection: { feld: 'collection_id', label: 'Sammlungs-ID (UUID)', wert: '9e7ae956-e9df-430f-bace-f3db4b910013' },
+    topic:      { feld: 'topic_page_slug', label: 'Themenseiten-Slug', wert: 'optik' },
+    content:    { feld: 'node_id', label: 'Knoten-ID (UUID)', wert: '' },
+    search:     { feld: 'search_query', label: 'Suchbegriff der Gastseite', wert: 'Optik Klasse 8' },
+    // „auto" gibt gar nichts mit — das Widget schaut selbst auf die Adresse.
+    auto:       { feld: '', label: '(entfällt — das Widget erkennt selbst)', wert: '' }
+  };
+
+  // Die vier, die das Backend bei einer Sammlung von selbst vorschlägt (an der
+  // Sammlung „Optik" gemessen). Als Vorgabe genommen, damit die Seite mit dem
+  // ausgeliefertem Verhalten startet statt mit einer Erfindung — und damit der
+  // Unterschied „meine Chips ↔ die des Backends" nur noch der Text ist.
+  var CHIPS = [
+    'Sammlungsinhalte zeigen',
+    'Stunde planen',
+    'Sammlung kuratieren',
+    'Zu Lehrplänen beraten'
+  ];
+
+  var ANWEISUNG = 'Du bist im Kontext der Redaktionsumgebung von edu-sharing. '
+    + 'Hilf mir bei dieser Sammlung: bewerte ihren Füllstand, indem du die enthaltenen '
+    + 'Inhalte mit dem kompendialen Text abgleichst; beantworte Fragen, die sich auf die '
+    + 'Sammlungsinhalte beziehen; schlage passende Inhalte zu den Optik-Lehrplänen vor; '
+    + 'und erstelle Lernpfade auf Basis der Lehrpläne aus dem kompendialen Text, '
+    + 'angereichert mit Inhalten aus der Sammlung.';
+
+  // Die zwei Richtungen, in die sich das Verhaeltnis JSON <-> Chat schieben
+  // laesst. Sie haengen an `setHostInstruction`, nicht an einem Attribut: der
+  // Kanal existiert, und ein Feld im eingefrorenen Vertrag waere eine
+  // Einbahnstrasse (Nutzer-Entscheid 2026-08-17).
+  var AUSGABE = {
+    beides: 'Antworte im Chat vollstaendig und gut lesbar — die Person sieht das '
+      + 'strukturierte Ergebnis nicht. Liefere das Ergebnis zusaetzlich.',
+    kurz: 'Das strukturierte Ergebnis zeige ich selbst an. Halte dich im Chat auf '
+      + 'zwei bis drei Saetze und nenne nur das Wichtigste; die Einzelheiten '
+      + 'gehoeren ins Ergebnis.'
+  };
+
+  var SCHEMA = {
+    type: 'object',
+    properties: {
+      titel: { type: 'string', description: 'Überschrift des Befunds' },
+      befund: { type: 'string', description: 'Was herausgekommen ist, in zwei bis fünf Sätzen' },
+      luecken: { type: 'array', items: { type: 'string' }, description: 'Themen aus dem kompendialen Text ohne Material in der Sammlung' },
+      vorschlaege: {
+        type: 'array',
+        items: { type: 'object', properties: { titel: { type: 'string' }, url: { type: 'string' } } }
+      }
+    },
+    required: ['titel', 'befund']
+  };
+
+  var START = ausDerAdresse();
+  $('api').textContent = API;
+  $('art').value = START.art;
+  $('wert').value = START.wert;
+  $('wertLabel').textContent = KONTEXTE[START.art].label;
+  $('gruss').value = 'Du bist in der Sammlung „Optik". Ich bin BOERDi, die schlaue Eule '
+    + 'von edu-sharing. Wie kann ich Dir helfen?';
+  $('chips').value = CHIPS.join('\n');
+  $('anweisung').value = ANWEISUNG;
+  $('schema').value = JSON.stringify(SCHEMA, null, 2);
+
+  function zeilen(text) {
+    return text.split('\n').map(function (z) { return z.trim(); }).filter(Boolean);
+  }
+
+  function kontext() {
+    var art = $('art').value, wert = $('wert').value.trim();
+    if (art === 'auto' || !wert) return null;
+    var gebaut = { page_kind: art, detection_source: 'demo' };
+    gebaut[KONTEXTE[art].feld] = wert;
+    return gebaut;
+  }
+
+  /** Art und Wert aus der Adresse — sonst die Vorgabe (Sammlung „Optik"). Zwei
+   *  fehlende Parameter heissen „nichts gewählt", ein leerer Wert dagegen ist
+   *  eine Wahl; dieselbe Unterscheidung wie auf den drei anderen Demo-Seiten. */
+  function ausDerAdresse() {
+    var such = new URL(location.href).searchParams;
+    var art = such.get('kontext'), wert = such.get('wert');
+    if (art === null && wert === null) return { art: 'collection', wert: KONTEXTE.collection.wert };
+    if (!KONTEXTE[art]) art = 'collection';
+    return { art: art, wert: wert === null ? KONTEXTE[art].wert : wert };
+  }
+
+  function protokoll(name, nutzlast) {
+    var zeile = document.createElement('div');
+    var marke = document.createElement('b');
+    marke.textContent = new Date().toLocaleTimeString('de-DE') + '  ' + name + '  ';
+    zeile.appendChild(marke);
+    // textContent, nicht innerHTML: die Nutzlast kommt vom Modell.
+    zeile.appendChild(document.createTextNode(JSON.stringify(nutzlast)));
+    $('protokoll').prepend(zeile);
+  }
+
+  function element() { return $('halter').firstElementChild; }
+
+  function bauen() {
+    var el = document.createElement('boerdi-chat');
+    el.setAttribute('api-url', API);
+    el.setAttribute('embed-mode', 'frameless');
+    el.setAttribute('initial-state', 'expanded');
+    el.setAttribute('engine', $('engine').value);
+    // Nur im Automatik-Fall darf die eigene Erkennung des Widgets laufen. Sonst
+    // schweigt sie: die Adresse dieser Demo ist nicht die Seite, um die es geht,
+    // und sie überschriebe den mitgegebenen Kontext.
+    el.setAttribute('auto-context', $('art').value === 'auto' ? 'true' : 'false');
+    // Jeder Aufbau fängt frisch an. Mit der Vorgabe (Sitzung wird behalten) zeigte
+    // die Seite nach einem Neuladen den ALTEN Verlauf statt der eingestellten
+    // Begrüßung — und deren Chips fehlten obendrein, weil Quick-Replies nicht
+    // persistiert werden. Auf einer Probierseite ist die leere Bühne richtig.
+    el.setAttribute('persist-session', 'false');
+    el.setAttribute('greeting', $('gruss').value);
+    el.setAttribute('start-replies', JSON.stringify(zeilen($('chips').value)));
+    // Nur auf Ansage: mit Kontext beim Aufbau begrüßt das Backend die Seite und
+    // verdrängt damit `greeting` und `start-replies` (gemessen 2026-08-17 an der
+    // Sammlung „Optik"). Vorgabe deshalb AUS — sonst zeigte die Seite ihre eigene
+    // wichtigste Demonstration nicht.
+    var ctx = $('ctxBeimAufbau').checked ? kontext() : null;
+    if (ctx) el.setAttribute('page-context', JSON.stringify(ctx));
+    var schema = $('schema').value.trim();
+    if (schema) el.setAttribute('result-schema', schema);
+    $('halter').replaceChildren(el);
+    // Der Rahmen gehört zum Startmuster, nicht in einen eigenen Handgriff: er
+    // soll schon den ERSTEN Knopfdruck tragen. Kein Attribut, sondern eine
+    // Methode — Attribute werden nach dem Start nicht mehr gelesen, der Rahmen
+    // soll aber je Zug neu setzbar sein.
+    var rahmen = $('rahmenBeimAufbau').checked ? $('anweisung').value.trim() : '';
+    if (rahmen) el.setHostInstruction(rahmen);
+    // Kopfzeile und Ergebnis-Kasten gehören zum Aufbau. Standen sie stehen,
+    // log die Seite: der Kasten zeigte nach einem Wechsel auf `pattern` noch das
+    // JSON des vorigen Laufs — es sah aus, als könne die Muster-Maschine
+    // strukturierte Ausgabe. Sie kann es nicht (gemessen 17.08.2026: `result`
+    // null), und eine Probierseite, die das Gegenteil suggeriert, ist schlimmer
+    // als keine.
+    $('motor').textContent = $('engine').value;
+    $('ergebnis').textContent = $('engine').value === 'pattern'
+      ? 'Maschine „pattern" — ein Ergebnis-Schema bleibt hier wirkungslos. Es wirkt '
+        + 'nur über die Schleife, also in „agent" und „hybrid".'
+      : (schema
+        ? 'Noch kein Ergebnis. Es erscheint, sobald der Bot es übergibt — er '
+          + 'antwortet danach im Chat weiter, das Ergebnis beendet den Lauf nicht.'
+        : 'Kein Ergebnis-Schema erklärt — es gibt nichts zu strukturieren.');
+    protokoll('demo:neu-aufgebaut', {
+      engine: $('engine').value, kontext: ctx, rahmenZeichen: rahmen.length,
+    });
+  }
+
+  $('art').addEventListener('change', function () {
+    var k = KONTEXTE[$('art').value];
+    $('wertLabel').textContent = k.label;
+    $('wert').value = k.wert;
+    $('wert').disabled = $('art').value === 'auto';
+  });
+
+  $('btnNeu').addEventListener('click', bauen);
+  $('btnKontext').addEventListener('click', function () {
+    var ctx = kontext();
+    if (!ctx) return protokoll('demo:kontext-leer', { hinweis: 'kein Wert eingetragen' });
+    element().replaceContext(ctx);
+    protokoll('demo:replaceContext', ctx);
+  });
+  // G1 — der unsichtbare Rahmen, in beiden Auslösearten.
+  $('btnNaechste').addEventListener('click', function () {
+    var text = $('anweisung').value.trim();
+    if (!text) return;
+    element().setHostInstruction(text);
+    protokoll('demo:setHostInstruction', { ausloeser: 'next', zeichen: text.length });
+  });
+  $('btnSofort').addEventListener('click', function () {
+    var text = $('anweisung').value.trim();
+    if (!text) return;
+    element().setHostInstruction(text, { trigger: 'now', message: $('kurz').value.trim() });
+    protokoll('demo:setHostInstruction', { ausloeser: 'now', zeichen: text.length });
+  });
+  $('btnVerwerfen').addEventListener('click', function () {
+    element().setHostInstruction('');
+    protokoll('demo:setHostInstruction', { ausloeser: 'verworfen' });
+  });
+
+  /** Ausgabe-Steuerung: Vorlage in den Rahmen schreiben UND sofort setzen.
+   *
+   *  Beides, weil nur Schreiben zu wenig waere (nichts passierte bis zum
+   *  naechsten Handgriff) und nur Setzen zu wenig zeigte (der Text bliebe
+   *  unsichtbar). So sieht man, WAS gesetzt wurde, und es wirkt am naechsten
+   *  Zug. */
+  function ausgabeVorlage(schluessel) {
+    var text = AUSGABE[schluessel];
+    $('anweisung').value = text;
+    element().setHostInstruction(text);
+    protokoll('demo:ausgabe-steuerung', { vorlage: schluessel, zeichen: text.length });
+  }
+  $('btnBeides').addEventListener('click', function () { ausgabeVorlage('beides'); });
+  $('btnKurz').addEventListener('click', function () { ausgabeVorlage('kurz'); });
+
+  /** Mit welchen Rechten der Chat gerade unterwegs ist.
+   *
+   *  Gelesen wird nur, OB der Zugangsblock im `sessionStorage` liegt — nie sein
+   *  Inhalt: er trägt ein Ticket, und ein Ticket gehört weder auf den Bildschirm
+   *  noch in ein Protokoll. Der Schlüssel ist der exportierte Name aus
+   *  `session/mcp-access.ts`. */
+  function rechte() {
+    var angemeldet = false;
+    try { angemeldet = sessionStorage.getItem('boerdi.mcp-access') !== null; } catch (e) { angemeldet = false; }
+    $('rechte').textContent = angemeldet
+      ? 'Rechte: angemeldet — der Bot handelt im Namen dieser Person, Schreiben ist möglich.'
+      : 'Rechte: anonym — Lesen im öffentlichen Bestand. Zum Anmelden der Knopf in der Eingabezeile.';
+  }
+  rechte();
+  setInterval(rechte, 2000);
+
+  // Die fünf Ereignisse des Vertrags. Bewusst NUR die neuen Namen: jedes geht
+  // während der Übergangszeit zusätzlich als `badboerdi:…` raus, und wer auf
+  // beide hört, sieht alles doppelt.
+  ['boerdi:guide-suggestion', 'boerdi:routing-debug', 'boerdi:query-meta',
+   'boerdi:page-action', 'boerdi:agent-result'].forEach(function (name) {
+    window.addEventListener(name, function (e) {
+      protokoll(name, e.detail);
+      if (name === 'boerdi:agent-result') {
+        // Der Kopf trennt die zwei Fragen, die frueher eine waren: KAM ein
+        // Ergebnis, und WIE endete der Lauf. Seit das Ergebnis den Lauf nicht
+        // mehr beendet, ist `text` der Regelfall — wer auf `submit` wartet,
+        // wartet vergeblich.
+        var d = e.detail || {};
+        $('ergebnisKopf').textContent =
+          (d.result ? 'Ergebnis da (' + Object.keys(d.result).length + ' Felder)'
+                    : 'Kein Ergebnis in diesem Zug')
+          + ' · Ende: ' + (d.stop_reason || '?')
+          + (d.stop_reason === 'text' ? ' (der Regelfall — die Prosa schliesst den Zug ab)' : '');
+        $('ergebnis').textContent = JSON.stringify(d, null, 2);
+      }
+    });
+  });
+
+  customElements.whenDefined('boerdi-chat').then(bauen);
+})();
+</script>
+</body>
+</html>

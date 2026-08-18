@@ -708,3 +708,65 @@ def test_ohne_dokument_bleibt_die_liste_leer(monkeypatch):
         _resp_text("fertig"),
     ])
     assert run.dokumente == []
+
+
+# ── Das Ergebnis als eigener Kanal (J1) ────────────────────────────────────
+#
+# Bis 2026-08-17 trug ``submit_result`` Prosa UND Ergebnis in einem Aufruf und
+# beendete den Lauf dabei. Live gemessen: 196 Zeichen Chat gegen 1932 Ergebnis.
+# ``liefere_ergebnis`` trennt beides — es notiert und laeuft WEITER.
+
+
+def test_geliefertes_ergebnis_beendet_den_lauf_nicht(monkeypatch):
+    out = _OutcomeFake()
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("liefere_ergebnis", {"result": {"note": 4}})]),
+        _resp_text("Die Sammlung ist ordentlich gefuellt, es fehlt aber Wellenoptik."),
+    ], outcome=out)
+    assert run.stop_reason == "text"
+    assert run.result == {"note": 4}
+    # Und die Prosa ist da — genau das war vorher verloren.
+    assert "Wellenoptik" in run.text
+    # Virtuell: es geht nie an den MCP.
+    assert out.calls == []
+    assert run.tools_called == []
+
+
+def test_die_bestaetigung_fordert_die_volle_antwort(monkeypatch):
+    """Ohne Rueckmeldung wuesste das Modell nicht, ob es angekommen ist — und
+    ohne die Erinnerung schriebe es den Verweis statt der Antwort."""
+    _fake, _run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("liefere_ergebnis", {"result": {"a": 1}})]),
+        _resp_text("fertig"),
+    ])
+    assert "NICHT gesehen" in msgs[-1]["content"]
+
+
+def test_ein_zweiter_aufruf_verwirft_und_mahnt_die_antwort_an(monkeypatch):
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("liefere_ergebnis", {"result": {"lauf": 1}}, "c1")]),
+        _resp_tools([_tool_call("liefere_ergebnis", {"result": {"lauf": 2}}, "c2")]),
+        _resp_text("fertig"),
+    ], limits=AgentLimits(max_iterations=6))
+    assert run.result == {"lauf": 1}          # das erste bleibt stehen
+    assert "bereits" in msgs[-1]["content"]
+
+
+def test_unbrauchbares_ergebnis_beendet_den_lauf_nicht(monkeypatch):
+    """Eine Liste kaeme beim Gastgeber ohnehin nie an (``result`` ist ``dict``).
+    Werkzeugfehler statt Laufende — dieselbe Linie wie beim Dokument."""
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("liefere_ergebnis", {"result": [1, 2]})]),
+        _resp_text("dann eben als Text"),
+    ])
+    assert run.stop_reason == "text"
+    assert run.result is None
+    assert "Fehler" in msgs[-1]["content"]
+
+
+def test_ohne_lieferung_bleibt_das_ergebnis_leer(monkeypatch):
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("search_wlo_content", {"query": "a"})]),
+        _resp_text("fertig"),
+    ])
+    assert run.result is None

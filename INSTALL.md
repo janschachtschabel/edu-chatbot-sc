@@ -136,7 +136,8 @@ nano .env
 
 Sechs Werte sind Pflicht, sonst startet nichts: `POSTGRES_PASSWORD`,
 `STUDIO_API_KEY`, `STUDIO_PASSWORD`, `CORS_ORIGINS`, `PUBLIC_HOST`,
-`ACME_EMAIL`. Geheimnisse erzeugen:
+`ACME_EMAIL`. `CORS_ORIGINS` wirkt erst, wenn `CORS_ALLOW_ALL=false`
+gesetzt ist — die Vorgabe lässt jede Domäne einbetten. Geheimnisse erzeugen:
 
 ```bash
 openssl rand -base64 32

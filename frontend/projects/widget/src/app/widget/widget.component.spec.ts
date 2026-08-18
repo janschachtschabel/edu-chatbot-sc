@@ -652,6 +652,65 @@ describe('WidgetComponent', () => {
     f.detectChanges();
     expect(f.componentInstance.resolvedPageContext()['widget']).toBe(true);
   });
+
+  // ── Der Rahmen der Gastanwendung am Lazy-Gate (G1) ────────────────────
+  // Dieselbe Naht wie bei `setGuideEnv` und `startTask` oben: die Shell ist
+  // erst nach einem Zyklus da. Der Fall ist hier aber der HÄUFIGSTE, nicht der
+  // seltene — „Rahmen gleich beim Aufbau mitgeben" ist das, was eine Gastseite
+  // als Erstes tut, und ohne Nachziehen verschwände er still.
+
+  it('ein Rahmen vor dem Mount wartet und erreicht die Shell danach', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'setHostInstruction')
+      .mockResolvedValue(undefined);
+    const f = mount();
+    f.detectChanges();
+    f.componentInstance.setHostInstruction('Du bist in der Redaktionsumgebung.');
+    expect(spy).not.toHaveBeenCalled();          // noch keine Shell
+
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0]).toBe('Du bist in der Redaktionsumgebung.');
+    spy.mockRestore();
+  });
+
+  it('nur einmal: der wartende Rahmen ist nach dem Nachziehen verbraucht', async () => {
+    const spy = vi.spyOn(ChatShellComponent.prototype, 'setHostInstruction')
+      .mockResolvedValue(undefined);
+    const f = mount();
+    f.componentInstance.setHostInstruction('einmalig');
+    f.componentInstance.openChatbot();
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+    f.detectChanges();                            // weitere Zyklen dürfen nichts wiederholen
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  it('„sofort" vor dem Mount: erst der Rahmen, dann der Zug', async () => {
+    // Die Reihenfolge ist die ganze Zusage. Liefe der Zug zuerst, ginge genau
+    // der eine Zug ohne den Rahmen, für den die Gastseite ihn gesetzt hat.
+    const folge: string[] = [];
+    const rahmen = vi.spyOn(ChatShellComponent.prototype, 'setHostInstruction')
+      .mockImplementation(async () => { folge.push('rahmen'); });
+    const zug = vi.spyOn(ChatShellComponent.prototype, 'startTask')
+      .mockImplementation(async () => { folge.push('zug'); });
+    const f = mount();
+    f.componentInstance.setHostInstruction('Rahmen', { trigger: 'now', message: 'Los' });
+    f.detectChanges();
+    await Promise.resolve();
+    f.detectChanges();
+
+    expect(folge).toEqual(['rahmen', 'zug']);
+    expect(zug.mock.calls[0][0]).toBe('Los');
+    rahmen.mockRestore();
+    zug.mockRestore();
+  });
 });
 
 describe('WidgetComponent Lotsen-Banner (handlePageAction)', () => {

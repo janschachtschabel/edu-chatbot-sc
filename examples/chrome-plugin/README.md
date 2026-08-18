@@ -73,6 +73,10 @@ CORS-Fehler zu laufen, der nur in der Konsole steht.
 CORS_ORIGINS=chrome-extension://<eure-kennung>
 ```
 
+**Seit dem 18.08.2026 meist unnoetig:** Erweiterungs-Herkuenfte sind von sich aus
+erlaubt (`CORS_ALLOW_EXTENSIONS`, Vorgabe an). Der Eintrag oben schadet nicht und
+bleibt der Weg, wenn ein Betreiber den Schalter ausgeschaltet hat.
+
 Einer der beiden Wege genügt. Die Kennung ändert sich, wenn ihr den Ordner an
 einen anderen Pfad legt.
 
