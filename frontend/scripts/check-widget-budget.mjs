@@ -62,8 +62,15 @@ try {
  * ist also kein toter Anhang, sondern ein zweiter, eigener Einstiegspunkt.
  * Eine Endungs-Ausnahme wäre hier falsch: ein versehentlich ausgelagertes
  * Stylesheet oder ein zweiter JS-Chunk muss weiterhin auffallen.
+ *
+ * `edu-sharing-demo.html` steht aus demselben Grund hier (2026-08-18): sie wird
+ * von KEINER Gastseite geladen — sie IST eine Seite, die ein Mensch unter
+ * `/widget/edu-sharing-demo.html` aufruft (`api/widget.py`, Route
+ * `/{asset_name}`; angeboten in docs/browser-plugin-einbindung.md). Die Datei
+ * kam mit der Probierseite dazu und ließ diese Gate stumm auflaufen, weil sie
+ * nur in CI läuft.
  */
-const ERLAUBTE_BEIGABEN = new Set(['oauth-callback.html']);
+const ERLAUBTE_BEIGABEN = new Set(['oauth-callback.html', 'edu-sharing-demo.html']);
 
 const chunks = readdirSync(dirname(bundle));
 const embed = chunks.filter((f) => !ERLAUBTE_BEIGABEN.has(f));
