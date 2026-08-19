@@ -99,11 +99,19 @@ def test_group_into_documents_groups_by_area_source_title(tmp_path) -> None:
     assert [m["chunk_index"] for m in klima] == [0, 1]
 
 
-def test_cli_requires_the_sqlite_argument() -> None:
+def test_cli_lehnt_beide_quellen_zusammen_ab(tmp_path, capsys) -> None:
+    """``--sqlite`` ist seit dem Seed (2026-08-19) NICHT mehr Pflicht.
+
+    Vorher pinnte dieser Test, dass ``import-rag`` ohne Argument abbricht. Der
+    Vertrag hat sich bewusst geaendert: ohne Argument gilt der Seed-Baum, und die
+    sqlite ist die Ausnahme. Was bleibt, ist die Eindeutigkeit — beides zugleich
+    waere zweideutig.
+    """
     from boerdi.cli import main
 
-    with pytest.raises(SystemExit):  # argparse: --sqlite is required
-        main(["import-rag"])
+    rc = main(["import-rag", "--seed", str(tmp_path), "--sqlite", str(tmp_path / "x.db")])
+    assert rc == 2
+    assert "mutually exclusive" in capsys.readouterr().err
 
 
 def test_cli_reports_a_missing_sqlite_file(tmp_path, capsys) -> None:

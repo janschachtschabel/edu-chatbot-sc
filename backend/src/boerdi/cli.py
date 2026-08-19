@@ -83,6 +83,29 @@ async def _import_rag(sqlite_path: Path) -> int:
         await engine.dispose()
 
 
+async def _import_rag_seed(seed_dir: Path, *, force: bool) -> int:
+    from boerdi.services.rag.import_rag import import_rag_from_seed
+
+    engine = make_engine(get_settings())
+    try:
+        factory = make_session_factory(engine)
+        async with factory() as session:
+            stats = await import_rag_from_seed(session, seed_dir, force=force)
+        print(f"imported {stats['chunks']} chunks in {stats['documents']} documents "
+              f"from {seed_dir}")
+        if stats.get("skipped"):
+            print("skipped (already populated, use --force to replace): "
+                  + ", ".join(stats["skipped"]))
+        return 0
+    finally:
+        await engine.dispose()
+
+
+def _rag_seed_default() -> Path:
+    """``<CONFIG_SEED_DIR>/rag`` — der Seed liegt neben dem der Konfiguration."""
+    return Path(get_settings().config_seed_dir) / "rag"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="boerdi")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -97,9 +120,15 @@ def main(argv: list[str] | None = None) -> int:
     p_exp = sub.add_parser("export-config", help="export config_areas as YAML/MD tree")
     p_exp.add_argument("--to", dest="dst", required=True)
 
-    p_rag = sub.add_parser("import-rag", help="re-ingest ALT sqlite rag_chunks into pgvector")
-    p_rag.add_argument("--sqlite", dest="sqlite", required=True,
+    p_rag = sub.add_parser(
+        "import-rag",
+        help="fill rag_chunks: from the repo seed (default) or from an ALT sqlite")
+    p_rag.add_argument("--seed", dest="seed", nargs="?", const="", default=None,
+                       help="seed tree with *.jsonl (default: <CONFIG_SEED_DIR>/rag)")
+    p_rag.add_argument("--sqlite", dest="sqlite", default=None,
                        help="path to a COPY of the ALT badboerdi.db (opened read-only)")
+    p_rag.add_argument("--force", dest="force", action="store_true",
+                       help="empty the seeded areas first (default: skip populated ones)")
 
     args = parser.parse_args(argv)
     if args.command == "import-config":
@@ -112,11 +141,23 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         return asyncio.run(_import_config(src, only_missing=args.only_missing))
     if args.command == "import-rag":
-        sqlite_path = Path(args.sqlite)
-        if not sqlite_path.is_file():
-            print(f"sqlite db not found: {sqlite_path}", file=sys.stderr)
+        # Zwei Quellen, eine Wahl: ``--sqlite`` ist die einmalige Bruecke aus ALT,
+        # der Seed der Dauerzustand. Beides zusammen waere zweideutig, keins von
+        # beidem heisst „nimm den Seed".
+        if args.sqlite and args.seed is not None:
+            print("--seed and --sqlite are mutually exclusive", file=sys.stderr)
             return 2
-        return asyncio.run(_import_rag(sqlite_path))
+        if args.sqlite:
+            sqlite_path = Path(args.sqlite)
+            if not sqlite_path.is_file():
+                print(f"sqlite db not found: {sqlite_path}", file=sys.stderr)
+                return 2
+            return asyncio.run(_import_rag(sqlite_path))
+        seed_dir = Path(args.seed) if args.seed else _rag_seed_default()
+        if not seed_dir.is_dir():
+            print(f"seed tree not found: {seed_dir}", file=sys.stderr)
+            return 2
+        return asyncio.run(_import_rag_seed(seed_dir, force=args.force))
     return asyncio.run(_export_config(Path(args.dst)))
 
 

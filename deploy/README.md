@@ -192,6 +192,27 @@ Der Seed-Baum liegt **im Image** (`/app/seeds`, `CONFIG_SEED_DIR`), kommt also
 aus demselben Commit wie der Code. `--no-deps` überschreibt den Befehl des
 `migrate`-Dienstes; ohne die Option liefe wieder `alembic upgrade head`.
 
+**Und der Wissensbestand dazu** (RAG, seit 2026-08-19). Ohne diesen Schritt
+startet die Anlage mit leeren Wissensbereichen: das Studio zeigt sie mit
+`0 Dokumente`, und der Chatbot antwortet aus Modellwissen statt aus euren
+Dokumenten — eine Antwort, die gut aussieht und nichts belegt.
+
+```powershell
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps `
+  migrate boerdi import-rag
+```
+
+Ohne Argument gilt `/app/seeds/rag` (906 Abschnitte in 8 Bereichen). Der Lauf
+**bettet neu ein** — die Vektoren reisen bewusst nicht mit, weil sich das
+Einbettungsmodell ändern darf; rechnet mit wenigen Minuten und entsprechend
+vielen Einbettungs-Aufrufen.
+
+Der Aufruf ist **gefahrlos wiederholbar**: belegte Bereiche bleiben unberührt und
+werden am Ende namentlich gemeldet. Soll wirklich der Werkszustand zurück, sagt
+das `--force` ausdrücklich — es leert die betroffenen Bereiche vorher, also mit
+Backup davor. `--sqlite <KOPIE der ALT-badboerdi.db>` bleibt als einmalige
+Brücke aus dem Altsystem bestehen.
+
 ### Deployen / aktualisieren
 
 ```powershell
