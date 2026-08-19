@@ -310,7 +310,10 @@ describe('rootField — against the real area schemas', () => {
   it('renders 05-knowledge/rag-config as a map (its model is a RootModel dict)', () => {
     const root = rootField(AREA_SCHEMAS['05-knowledge/rag-config']);
     expect(root.kind).toBe('map');
-    expect(child(root.item!, 'mode').kind).toBe('text');
+    // S1: `mode` ist seit dem 18.08.2026 eine Auswahl, kein Textfeld — zwei
+    // Werte, und ein Tippfehler nahm den Bereich still aus der Nutzung.
+    expect(child(root.item!, 'mode').kind).toBe('select');
+    expect(child(root.item!, 'agent').kind).toBe('boolean');
   });
 
   it('pins exactly which real fields fall back to the JSON editor', () => {
@@ -430,7 +433,19 @@ describe('rootField — Auswahl und Vorschlagsliste (S3)', () => {
     expect(treffer).toContain('03-patterns:frontmatter.tools[] → tools');
     expect(treffer).toContain('01-base/safety-config:crisis_pattern → patterns');
     expect(treffer).toContain('01-base/safety-config:escalation.mode → [off|smart|always]');
-    // Der Umschalter Muster/Agent — über `enum`, nicht über `x-choices`.
-    expect(treffer).toContain('01-base/engine:mode → [pattern|agent]');
+    // Der Maschinen-Umschalter — über `enum`, nicht über `x-choices`. Seit H1
+    // sind es DREI Werte; dass hier bis zum 18.08.2026 zwei standen, lag an
+    // einer veralteten Fixture: das Studio bot `hybrid` nie zur Auswahl an.
+    // Seither hält `export_area_schemas.py --check` die Fixture aktuell.
+    expect(treffer).toContain('01-base/engine:mode → [pattern|agent|hybrid]');
+    // S1: der RAG-Modus war ein leeres Textfeld — ein Tippfehler nahm den
+    // Bereich still aus der Nutzung.
+    expect(treffer).toContain('05-knowledge/rag-config:[].mode → [always|on-demand]');
+    // Die Kontext-Aktion: `preflight` verzweigt auf genau diese vier Namen,
+    // alles andere faellt still durch. `str | None` — der Mapper holt die
+    // Auszeichnung aus dem anyOf-Zweig (siehe `resolveNode`).
+    expect(treffer).toContain(
+      '01-base/context-actions:context_actions.pills[][].action → [browse_collection|curate_collection|generate_learning_path|show_content_text]',
+    );
   });
 });

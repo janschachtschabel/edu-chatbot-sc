@@ -47,6 +47,10 @@
               </span>
             </div>
 
+            @if (!area.configured) {
+              <p class="ra-unconfigured">{{ t('rag.areas.unconfigured') }}</p>
+            }
+
             @if (pending() === area.area) {
               <p class="ra-confirm">
                 <span role="alert">

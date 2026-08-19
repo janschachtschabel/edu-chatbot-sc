@@ -301,6 +301,9 @@ einer Template-Bindung — die nächste Auswertung nimmt den neuen Wert.
 |---|---|
 | `engine` | Effect → `shell.setEngine()`; gilt ab dem nächsten Zug |
 | `result-schema` | Effect → `shell.setResultSchema()`; eigener Effect, damit es unabhängig von `engine` umstellbar ist. Gilt ab dem nächsten Zug |
+| `master-skill` | Effect → `shell.setMasterSkill()`; eigener Effect aus demselben Grund. Gilt ab dem nächsten Zug. Drei Zustände: `"on"`, `"off"`, **fehlt** = Vorgabe des Betreibers (`MASTER_SKILL_ENABLED`). Das nackte Attribut ohne Wert gilt als „fehlt" — drei Zustände lassen sich durch Vorhandensein allein nicht ausdrücken |
+| `tool-mode` | Effect → `shell.setToolMode()`. Gilt ab dem nächsten Zug. `read-only` \| `curate` \| `full` (Vorgabe); ein unbekannter Wert gilt als Vorgabe. Wirkt zweifach: die verbotenen Werkzeuge fehlen in der Liste, UND das Modell erfährt es — sonst verspräche es eine Änderung, die es gleich nicht ausführen kann |
+| `quick-replies` | Effect → `shell.setQuickReplies()`, oder zur Laufzeit direkt `el.setQuickReplies([...])`. JSON-Array; gilt ab dem nächsten Zug und BLEIBT, bis jemand es ersetzt oder mit `[]` löscht. Schlägt Generator, Canvas-Vorgaben und Policy. Der Chip-Text IST die gesendete Nachricht — deshalb wird nie gekürzt, nur die Anzahl begrenzt (sechs) |
 | `language` | Effect → `lang.resolve()` |
 | `primary-color` | Effect → `applyPrimaryColor()` auf dem Host-Element |
 | `initial-state` | Effect; der **erste** Wert entscheidet den Start (dort zählen auch `?bsid=` und eine laufende Tour mit), erst spätere Änderungen klappen auf und zu |
@@ -795,6 +798,58 @@ Verlauf. Danach ist er verbraucht — für dauerhaft nach jedem Zug erneut setze
 | `setHostInstruction(text, { trigger: 'now', message: 'Füllstand prüfen' })` | zusätzlich sofort ein Zug — mit `message` als sichtbarer Auftrags-Blase |
 | `setHostInstruction('')` | verwirft einen gesetzten Rahmen |
 
+### Als Kuratierungswerkzeug: Rechte und feste Chips (seit 18.08.2026)
+
+Ein Rahmen sagt dem Bot, *wie* er hier zu verstehen ist. Zwei Dinge kann er
+nicht: verhindern, dass der Bot etwas verspricht, wozu ihm die Rechte fehlen —
+und gezielte Antworten abfangen. Dafür gibt es zwei harte Schalter.
+
+**Was der Bot in eurer Anwendung darf.** Drei benannte Modi, keine freie
+Werkzeugliste (eine Umbenennung im MCP änderte sonst still eure Rechte):
+
+```html
+<boerdi-chat engine="agent" tool-mode="curate"></boerdi-chat>
+```
+
+| Modus | drin |
+|---|---|
+| `read-only` | nur lesende WLO-Werkzeuge |
+| `curate` | dazu anlegen, ändern, einsortieren — weiterhin zweistufig mit Bestätigung; **ohne** Wikipedia und fremde Adressen |
+| `full` | alles (Vorgabe) |
+
+Der Modus wirkt **zweifach**: die verbotenen Werkzeuge fehlen in der Liste, und
+das Modell erfährt die Grenze im Systemprompt. Ohne das Zweite verspräche es eine
+Änderung, die es gleich nicht ausführen kann.
+
+**Feste Schnellantworten je Zug.** Anders als `start-replies` (nur die
+Begrüßung) gilt das für jeden Zug und schlägt Generator, Canvas-Vorgaben und
+Policy:
+
+```html
+<boerdi-chat quick-replies='["Passt zur Sammlung","Passt nicht","Erschließen"]'></boerdi-chat>
+```
+
+```js
+chat.setQuickReplies(['Passt zur Sammlung', 'Passt nicht', 'Erschließen']);
+// … und wieder freigeben:
+chat.setQuickReplies([]);
+```
+
+Der Chip-**Text** ist die Nachricht, die der Klick sendet — deshalb wird nie
+gekürzt; zu viele werden hinten abgeschnitten (sechs). Die Liste bleibt gesetzt,
+bis ihr sie ersetzt oder mit `[]` löscht: ein Kuratierungswerkzeug will dieselben
+drei Knöpfe bei jedem Schritt, nicht einmal.
+
+**Wenn ihr selbst rendert.** `inline-result-grouping="false"` schaltet die
+gruppierten Boxen ab — und sagt es dem Modell, damit es keine Boxen erwähnt, die
+es bei euch nicht gibt, und die Treffer nicht zusätzlich als Linkliste aufzählt.
+Beides zusammen ist die übliche Plugin-Einbettung:
+
+```html
+<boerdi-chat engine="agent" embed-mode="frameless"
+             tool-mode="curate" inline-result-grouping="false"></boerdi-chat>
+```
+
 Vier Eigenschaften, auf die ihr euch verlassen könnt:
 
 * **Wirkt in allen drei Maschinen.** Der Block sitzt in *beiden* Prompt-Wegen —
@@ -807,8 +862,11 @@ Vier Eigenschaften, auf die ihr euch verlassen könnt:
 * **Er hebt nichts auf.** Im Block steht ausdrücklich, dass die Anweisung nicht
   von der Person im Chat stammt und dass bei Widerspruch die Leitplanken und
   Sicherheitsregeln gelten. Er ist ein Rahmen, kein Generalschlüssel.
-* **Deckel 2000 Zeichen** — darüber lehnt das Backend den Zug mit `422` ab,
-  statt still zu kürzen (`domain/host_instruction.py`).
+* **Kein Zeichendeckel** (seit 18.08.2026; vorher 2000 mit `422`). Lange
+  Anleitungen samt Angaben über die Gastseite gehören hier hinein. Gekürzt
+  wird nichts — was ihr schickt, steht im Prompt. Der Preis ist eures: der
+  Rahmen reist in **jeden** Modellaufruf des Zuges, im Agent-/Hybrid-Modus
+  also bis zu `max_iterations` mal, und zählt jedes Mal aufs Token-Budget.
 
 Warum `'now'` seinen Zug **zeigt**, obwohl der Rahmen unsichtbar bleibt: das
 Unsichtbare ist Rahmen, der Zug ist ein Zug. Eine Antwort auf eine Frage, die
@@ -816,6 +874,48 @@ die Person nie gestellt hat, ohne sichtbaren Anlass — das ist genau die Zeile,
 die `startTask` oben schon nicht überschreitet.
 
 Zum Anfassen: `/widget/edu-sharing-demo.html`, Abschnitte 2 und 3.
+
+## Die Ausgabeflächen gelten in ALLEN Maschinen
+
+Ein verbreitetes Missverständnis: die gegliederten Ergebnis-Boxen seien etwas,
+das nur der Mustermodus kann. Das ist nicht so — und das ist gemessen, nicht
+angenommen.
+
+Die Boxen entstehen **im Widget** aus Feldern der Antwort (`cards` mit ihrem
+`node_type`, `topic_pages`, `collection_link`, dazu `query_metas` für den
+Absprung in die Suche). Diese Felder füllt der Zug unabhängig von der Maschine:
+die Karten werden in der Schleife aus den Werkzeug-Treffern geerntet
+(`collect_cards`), und `assemble` sowie `persist` laufen für alle drei Maschinen
+denselben Weg.
+
+**Live gemessen am 18.08.2026**, ein Zug mit `X-Boerdi-Engine: agent` auf
+„Material zur Optik für Klasse 8":
+
+```
+cards 7 -> node_type: topic_page 2 · collection 2 · content 3
+query_metas 1 (search_term gesetzt) · quick_replies 2 · display_rules vorhanden
+```
+
+Das sind genau die drei Töpfe, aus denen der Mustermodus seine Boxen baut.
+
+### Beides ist je Einbettung abschaltbar
+
+| Fläche | an | aus |
+|---|---|---|
+| Gegliederte Boxen | Vorgabe (`inline-result-grouping` fehlt oder `true`) | `inline-result-grouping="false"` → flache Kachel-Liste |
+| Ergebnisfenster (JSON) | `result-schema="{…}"` gesetzt | Attribut weglassen |
+
+Für ein Browser-Plugin, das die Gliederung selbst übernimmt, heißt das:
+
+```html
+<boerdi-chat engine="agent" inline-result-grouping="false"></boerdi-chat>
+```
+
+Die Karten kommen dann unverändert mit — nur die Gruppierung und das
+Link-Strippen im Text bleiben aus. Wer die Kacheln gar nicht will, nimmt
+zusätzlich `show-cards="false"`.
+
+
 
 ### Rezept 1: Sammlung prüfen lassen — mit der Anleitung der Redaktion
 
@@ -1077,9 +1177,11 @@ window.addEventListener('boerdi:agent-result', (e) => {
 
 Das Schema reist **wörtlich** in die Parameter des Ergebnis-Werkzeugs. Zwei
 Folgen: seine `description`-Texte liest das Modell (schreibt sie also als
-Anweisung, nicht als Notiz für euch), und es ist auf **10 000 Zeichen**
-gedeckelt — darüber lehnt das Backend die Anfrage mit 422 ab, statt ein halbes
-Schema zu verwenden, das eine andere Form verlangen würde als ihr wolltet.
+Anweisung, nicht als Notiz für euch), und es ist auf **200 000 Zeichen**
+gedeckelt (seit 18.08.2026; vorher 10 000) — darüber lehnt das Backend die
+Anfrage mit 422 ab, statt ein halbes Schema zu verwenden, das eine andere Form
+verlangen würde als ihr wolltet. Ein echtes Schema ist ein bis zwei Kilobyte
+groß; der Deckel trifft nur Ausreißer.
 
 ### Ergebnis und Chat-Antwort sind getrennt (seit 17.08.2026)
 
@@ -1602,7 +1704,7 @@ Volle Herleitung samt Messungen:
 | `result` ist `null` | Kein `result_schema` mitgegeben — oder `stop_reason !== 'submit'` |
 | `boerdi:agent-result` kommt nie | `engine="agent"` fehlt am Element. Das Attribut `result-schema` allein wirkt nicht; die Warnung steht nur im Backend-Protokoll, nicht im Browser (§7a) |
 | `result-schema` gesetzt, nichts passiert | Kaputtes JSON — es gilt dann als „kein Schema". Die `console.warn`-Zeile im Browser nennt es. Achtet auf die Anführungszeichen (außen `'`, innen `"`) (§7a) |
-| `422` beim Chat-Zug | Das `result_schema` ist länger als 10 000 Zeichen. Abgelehnt statt gekürzt: ein halbes Schema verlangte eine andere Form, als ihr wolltet (§7a) |
+| `422` beim Chat-Zug | Das `result_schema` ist länger als 200 000 Zeichen. Abgelehnt statt gekürzt: ein halbes Schema verlangte eine andere Form, als ihr wolltet (§7a) |
 | Der Auftrag aus `startTask` erscheint nicht | Leerer Text wird verworfen. Sonst wartet er, bis die Shell gemountet ist, und läuft dann (§5) |
 | Der Bot antwortet auf den Auftrag ohne den Seitenkontext | `replaceContext()` **vor** `startTask()` — der Auftrag geht sofort raus (§5) |
 | `tools_called` enthält kein `get_skill` | Das Modell hat die Anleitung nicht gelesen. Die Anweisung war zu unbestimmt — nennt die Aufgabe und verlangt ausdrücklich, sich an eine passende Anleitung zu halten (§7) |

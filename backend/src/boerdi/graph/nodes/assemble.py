@@ -17,11 +17,44 @@ injected deps. The service is a top-level import so tests patch it on this modul
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
+from typing import Final
 
 from boerdi.domain.skill_precedence import merke_skill_sammlung
 from boerdi.graph.state import TurnContext
 from boerdi.services.turn_assembly import _assemble_cards_and_qrs
+
+logger = logging.getLogger(__name__)
+
+#: Wie viele erzwungene Chips ein Gastgeber höchstens setzen darf (O-B). Der
+#: Deckel gilt der ANZAHL, nie dem Text: ein Chip trägt die Nachricht, die der
+#: Klick sendet — ein gekürzter Chip schickte eine andere Frage, als er
+#: verspricht. Sechs, weil die Chip-Leiste darüber hinaus umbricht und der
+#: Gastgeber dann nicht mehr sieht, was er gesetzt hat.
+MAX_ERZWUNGENE_CHIPS: Final = 6
+
+
+def _erzwungene_chips(ctx: TurnContext) -> list[str]:
+    """Die Chips DIESES Zuges: Gastgeber vor Canvas.
+
+    „Hart überschreiben" (Nutzer-Entscheid 2026-08-18) heißt auch: gegen die
+    eigene Mechanik. Ein Browser-Plugin, das gezielte Antworten abfangen will,
+    kommt sonst gegen einen Canvas-Zustand nicht an.
+
+    Der Rückgabewert reist im vorhandenen ``_canvas_forced_quick_replies``-Slot
+    weiter — das spart nicht nur eine Weiche, sondern auch den Generator-Zug für
+    die Chips (die Montage bricht ihn ab, wenn die Liste steht).
+    """
+    gesetzt = [c.strip() for c in (ctx.req.environment.forced_quick_replies or [])
+               if c and c.strip()]
+    if not gesetzt:
+        return ctx.canvas_forced_quick_replies
+    if len(gesetzt) > MAX_ERZWUNGENE_CHIPS:
+        logger.info("Gastgeber setzte %d Chips — auf %d gekürzt (Anzahl, nicht Text)",
+                    len(gesetzt), MAX_ERZWUNGENE_CHIPS)
+        gesetzt = gesetzt[:MAX_ERZWUNGENE_CHIPS]
+    return gesetzt
 
 
 async def assemble(ctx: TurnContext) -> TurnContext:
@@ -40,7 +73,7 @@ async def assemble(ctx: TurnContext) -> TurnContext:
             winner=SimpleNamespace(id=ctx.winner_id),
             pattern_output=ctx.pattern_output,
             _canvas_payload_out=ctx.canvas_payload,
-            _canvas_forced_quick_replies=ctx.canvas_forced_quick_replies,
+            _canvas_forced_quick_replies=_erzwungene_chips(ctx),
             _qr_mode=ctx.qr_mode,
             _qr_max=ctx.qr_max,
             _qr_spec_task=ctx.qr_spec_task,

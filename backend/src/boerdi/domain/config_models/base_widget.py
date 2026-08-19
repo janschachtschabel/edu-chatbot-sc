@@ -11,9 +11,9 @@ Sonderbehandlung nebeneinander rendert und ein neuer Schlüssel nur an einer
 Stelle gepflegt wird.
 """
 
-from typing import Any
+from typing import Annotated, Any
 
-from boerdi.domain.config_models._shared import AreaModel
+from boerdi.domain.config_models._shared import AreaModel, Choices
 
 
 class WelcomeBlock(AreaModel):
@@ -123,7 +123,14 @@ class ContextPill(AreaModel):
     # Sprache des Nutzers stehen, nicht nur lesbar sein.
     label_en: str = ""
     kind: str = ""
-    action: str | None = None
+    #: Auswahl statt Freitext: ``graph/nodes/preflight`` verzweigt auf genau
+    #: diese vier Namen und laesst alles andere still durchfallen — der Knopf
+    #: taete dann nichts, und niemand sagte es. Die Liste ist mit dem Dispatch
+    #: gepaart; ein Waechter prueft sie gegen den ausgelieferten Seed.
+    action: Annotated[str, Choices(
+        "browse_collection", "curate_collection",
+        "generate_learning_path", "show_content_text",
+    )] | None = None
     url: str | None = None
     params: dict[str, Any] | None = None
 

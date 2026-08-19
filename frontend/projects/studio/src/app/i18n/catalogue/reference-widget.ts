@@ -69,6 +69,9 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.attr.resultSchema': 'JSON-Schema, in dem dieser Einbau sein Ergebnis '
       + 'erwartet; liefert je Zug boerdi:agent-result. Wirkt NUR mit '
       + 'engine="agent" und kostet dort einen zusätzlichen Modellzug (2–9 s)',
+    'rw.attr.masterSkill': 'Redaktionelle Gesamtanleitung fuer diesen Einbau: on / off; fehlt das Attribut, gilt die Vorgabe des Betreibers. Nur mit engine=agent|hybrid.',
+    'rw.attr.toolMode': 'Was in dieser Anwendung erlaubt ist: read-only (nur lesen), curate (auch anlegen und einsortieren, weiterhin zweistufig) oder full (Vorgabe). Nimmt die Werkzeuge aus der Liste UND sagt es dem Modell. Nur mit engine=agent|hybrid.',
+    'rw.attr.quickReplies': 'Hart gesetzte Schnellantworten als JSON-Array, z. B. ["Passt","Passt nicht"]. Gilt je Zug (anders als start-replies) und schlaegt Generator und Canvas. Der Chip-Text IST die gesendete Nachricht; hoechstens sechs.',
     'rw.attr.position': 'bottom-right | bottom-left | top-right | top-left',
     'rw.attr.initialState': 'collapsed | expanded',
     'rw.attr.primaryColor': 'Akzentfarbe; leer lässt den CSS-Default #1c4587 greifen',
@@ -166,6 +169,9 @@ export const REFERENCE_WIDGET: CataloguePart = {
     'rw.attr.resultSchema': 'JSON schema this embed expects its result in; '
       + 'emits boerdi:agent-result per turn. Works ONLY with engine="agent" '
       + 'and costs one extra model round there (2–9 s measured)',
+    'rw.attr.masterSkill': 'Editorial master skill for this embed: on / off; without the attribute the operator default applies. Only with engine=agent|hybrid.',
+    'rw.attr.toolMode': 'What this application allows: read-only, curate (create and file, still two-step) or full (default). Removes the tools from the list AND tells the model. Only with engine=agent|hybrid.',
+    'rw.attr.quickReplies': 'Hard-set quick replies as a JSON array, e.g. ["Fits","Does not fit"]. Applies per turn (unlike start-replies) and beats generator and canvas. The chip text IS the message sent; six at most.',
     'rw.attr.position': 'bottom-right | bottom-left | top-right | top-left',
     'rw.attr.initialState': 'collapsed | expanded',
     'rw.attr.primaryColor': 'Accent colour; empty lets the CSS default #1c4587 apply',

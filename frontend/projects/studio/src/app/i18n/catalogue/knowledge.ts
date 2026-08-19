@@ -32,6 +32,10 @@ export const KNOWLEDGE: CataloguePart = {
       + 'im Abschnitt darunter eines hochladen.',
     'rag.areas.documents.one': '{count} Dokument',
     'rag.areas.documents.other': '{count} Dokumente',
+    'rag.areas.unconfigured':
+      'Der Chatbot durchsucht diesen Bereich NICHT: er fehlt in der Konfiguration ' +
+      'rag-config (unten auf dieser Seite). Dort mit einem mode eintragen, sonst ' +
+      'bleiben die Dokumente hier liegen, ohne je in einer Antwort vorzukommen.',
     'rag.areas.openDocs': 'Dokumente',
     'rag.areas.openDocsFor': 'Dokumente von {area}',
     'rag.areas.deleteFor': 'Löschen — Bereich {area}',
@@ -52,13 +56,13 @@ export const KNOWLEDGE: CataloguePart = {
       'In „{area}“ liegen keine Dokumente mehr. Der Bereich verschwindet mit dem '
       + 'nächsten Neuladen.',
     'rag.docs.noSource': 'ohne Quelle',
-    'rag.docs.showText': 'Volltext anzeigen',
-    'rag.docs.hideText': 'Volltext ausblenden',
-    'rag.docs.showTextFor': 'Volltext anzeigen — {title}',
-    'rag.docs.hideTextFor': 'Volltext ausblenden — {title}',
+    'rag.docs.showText': 'Abschnitte anzeigen',
+    'rag.docs.hideText': 'Abschnitte ausblenden',
+    'rag.docs.showTextFor': 'Abschnitte anzeigen — {title}',
+    'rag.docs.hideTextFor': 'Abschnitte ausblenden — {title}',
     'rag.docs.deleteFor': 'Löschen — {title}',
     'rag.docs.confirmDelete': 'Wirklich löschen? Das Dokument muss danach neu eingelesen werden.',
-    'rag.docs.textLoading': 'Der Volltext wird geladen …',
+    'rag.docs.textLoading': 'Die Abschnitte werden geladen …',
     'rag.docs.chunksOf': 'Abschnitte von {title}',
     'rag.docs.chunkNo': 'Abschnitt {number}',
 
@@ -68,9 +72,13 @@ export const KNOWLEDGE: CataloguePart = {
     'rag.ingest.source.url': 'Webseite',
     'rag.ingest.source.text': 'Text',
     'rag.ingest.area': 'Wissensbereich (Pflicht)',
-    'rag.ingest.areaHelp':
-      'Ein vorhandener Bereich oder ein neuer Name — der Bereich entsteht mit '
-      + 'diesem Dokument.',
+    'rag.ingest.areaPlaceholder': 'Bereich wählen …',
+    'rag.ingest.areaNew': '＋ Neuen Bereich anlegen …',
+    'rag.ingest.areaNewName': 'Name des neuen Bereichs',
+    'rag.ingest.areaNewHelp':
+      'Der Bereich entsteht mit diesem Dokument. Damit der Chatbot ihn auch '
+      + 'durchsucht, muss er zusätzlich in rag-config stehen (das Formular '
+      + 'weiter unten auf dieser Seite).',
     'rag.ingest.title': 'Titel (optional)',
     'rag.ingest.fileHelp':
       'PDF, DOCX, PPTX, XLSX, HTML, Markdown oder Text. Große Dateien lehnt der '
@@ -110,6 +118,10 @@ export const KNOWLEDGE: CataloguePart = {
       + 'upload one in the section below.',
     'rag.areas.documents.one': '{count} document',
     'rag.areas.documents.other': '{count} documents',
+    'rag.areas.unconfigured':
+      'The chatbot does NOT search this area: it is missing from the rag-config ' +
+      'document further down this page. Add it there with a mode, or the documents ' +
+      'stay here without ever appearing in an answer.',
     'rag.areas.openDocs': 'Documents',
     'rag.areas.openDocsFor': 'Documents of {area}',
     'rag.areas.deleteFor': 'Delete — area {area}',
@@ -123,13 +135,13 @@ export const KNOWLEDGE: CataloguePart = {
     'rag.docs.empty':
       'There are no documents left in “{area}”. The area disappears on the next reload.',
     'rag.docs.noSource': 'no source',
-    'rag.docs.showText': 'Show full text',
-    'rag.docs.hideText': 'Hide full text',
-    'rag.docs.showTextFor': 'Show full text — {title}',
-    'rag.docs.hideTextFor': 'Hide full text — {title}',
+    'rag.docs.showText': 'Show sections',
+    'rag.docs.hideText': 'Hide sections',
+    'rag.docs.showTextFor': 'Show sections — {title}',
+    'rag.docs.hideTextFor': 'Hide sections — {title}',
     'rag.docs.deleteFor': 'Delete — {title}',
     'rag.docs.confirmDelete': 'Really delete? The document has to be ingested again afterwards.',
-    'rag.docs.textLoading': 'Loading the full text …',
+    'rag.docs.textLoading': 'Loading the sections …',
     'rag.docs.chunksOf': 'Sections of {title}',
     'rag.docs.chunkNo': 'Section {number}',
 
@@ -138,8 +150,13 @@ export const KNOWLEDGE: CataloguePart = {
     'rag.ingest.source.url': 'Web page',
     'rag.ingest.source.text': 'Text',
     'rag.ingest.area': 'Knowledge area (required)',
-    'rag.ingest.areaHelp':
-      'An existing area or a new name — the area comes into being with this document.',
+    'rag.ingest.areaPlaceholder': 'Choose an area …',
+    'rag.ingest.areaNew': '＋ Create a new area …',
+    'rag.ingest.areaNewName': 'Name of the new area',
+    'rag.ingest.areaNewHelp':
+      'The area comes into being with this document. For the chatbot to search '
+      + 'it as well, it must also appear in rag-config (the form further down '
+      + 'this page).',
     'rag.ingest.title': 'Title (optional)',
     'rag.ingest.fileHelp':
       'PDF, DOCX, PPTX, XLSX, HTML, Markdown or text. The server rejects large '

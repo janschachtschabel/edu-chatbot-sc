@@ -34,7 +34,9 @@ def test_check_golden_turn_assertions() -> None:
     expect = {"persona": "P-LEH", "intent": "I03", "register": "sie", "structure": "cards"}
     bot = {
         "content": "Gerne zeige ich Ihnen Material.",
-        "cards": [{"wlo_url": "https://redaktion.openeduhub.net/x"}],
+        # 2026-08-19: der Host muss zur Vorgabe von ``repo_host()`` passen —
+        # der Test prueft die HOST-Pruefung, nicht einen bestimmten Host.
+        "cards": [{"wlo_url": "https://repository.staging.openeduhub.net/x"}],
         "inline_documents": [],
         "quick_replies": ["Mehr zeigen"],
     }
@@ -178,3 +180,18 @@ def test_gold_flows_yaml_copy_has_12_flows() -> None:
         assert flow["turns"], f"{flow['id']} has no turns"
         for turn in flow["turns"]:
             assert turn.get("message"), f"{flow['id']} turn without message"
+
+
+def test_die_vorgabe_des_runners_folgt_der_des_backends(monkeypatch) -> None:
+    """``repo_host`` verspricht im Docstring „same default as the backend" —
+    bis 2026-08-19 hielt das nichts fest. Laufen die beiden auseinander,
+    schlaegt ``host_ok`` bei JEDER Karte fehl, und der ganze Lauf meldet einen
+    Fehler, den es nicht gibt (bzw. verschweigt einen, den es gibt).
+    """
+    from urllib.parse import urlparse
+
+    from boerdi.settings import Settings
+
+    monkeypatch.delenv("REPO_BASE_URL", raising=False)
+    vorgabe = Settings.model_fields["repo_base_url"].default
+    assert rg.repo_host() == urlparse(vorgabe).netloc

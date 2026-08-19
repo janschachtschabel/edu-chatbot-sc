@@ -73,6 +73,18 @@ CORS-Fehler zu laufen, der nur in der Konsole steht.
 CORS_ORIGINS=chrome-extension://<eure-kennung>
 ```
 
+**Master-Skill (seit 18.08.2026).** Laeuft die Anlage mit einer redaktionellen
+Gesamtanleitung (`MASTER_SKILL_ENABLED=true`), gilt sie auch fuer euch. Ihr
+koennt sie je Einbau uebersteuern:
+
+```html
+<boerdi-chat engine="agent" master-skill="off"></boerdi-chat>
+```
+
+`"on"` schaltet sie an, auch wenn der Betreiber sie aus hat. Fehlt das
+Attribut, gilt dessen Vorgabe. Das nackte Attribut ohne Wert zaehlt als
+"fehlt" - drei Zustaende lassen sich durch Vorhandensein allein nicht sagen.
+
 **Seit dem 18.08.2026 meist unnoetig:** Erweiterungs-Herkuenfte sind von sich aus
 erlaubt (`CORS_ALLOW_EXTENSIONS`, Vorgabe an). Der Eintrag oben schadet nicht und
 bleibt der Weg, wenn ein Betreiber den Schalter ausgeschaltet hat.

@@ -304,3 +304,40 @@ def test_die_kurzfassung_spricht_vom_WECHSELN() -> None:
     kurz = _beschreibung(
         build_agent_tools(muster_katalog=_katalog(), katalog_kurz=True), WAEHLE_VORGEHEN)
     assert "wechsel" in kurz.lower()
+
+
+# ── O-A: Werkzeug-Erlaubnis je Einbettung ────────────────────────────
+
+
+def test_ohne_modus_bleibt_der_katalog_vollstaendig() -> None:
+    assert set_turn_auth_block("wlo2.abc-def_123")
+    assert _namen(build_agent_tools()) == _namen(build_agent_tools(tool_mode=None))
+    assert _namen(build_agent_tools()) == _namen(build_agent_tools(tool_mode="full"))
+
+
+def test_read_only_nimmt_die_schreibenden_werkzeuge_heraus() -> None:
+    assert set_turn_auth_block("wlo2.abc-def_123")
+    namen = _namen(build_agent_tools(tool_mode="read-only"))
+    assert "wlo_add_to_collection" not in namen
+    assert "wlo_create_content" not in namen
+    assert "search_wlo_all" in namen
+    assert "get_wikipedia_summary" in namen
+
+
+def test_curate_laesst_schreiben_zu_und_den_blick_nach_draussen_nicht() -> None:
+    assert set_turn_auth_block("wlo2.abc-def_123")
+    namen = _namen(build_agent_tools(tool_mode="curate"))
+    assert "wlo_add_to_collection" in namen
+    assert "get_wikipedia_summary" not in namen
+    assert "get_url_text" not in namen
+
+
+def test_der_modus_erreicht_die_virtuellen_werkzeuge_nicht() -> None:
+    """Sonst naehme eine Anzeige-Entscheidung dem Lauf seine Ziellinie."""
+    muster = [PatternDef(id="M06", label="Suche", body_md="x")]
+    namen = _namen(build_agent_tools(
+        tool_mode="read-only", muster_katalog=muster,
+        include_dokument=True, include_submit=True))
+    assert WAEHLE_VORGEHEN in namen
+    assert SUBMIT_RESULT in namen
+    assert "zeige_dokument" in namen

@@ -8,6 +8,7 @@ import { provideZonelessChangeDetection } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { describe, expect, it } from "vitest";
 
+import { RagApi } from "../core/rag-api.service";
 import {
   STUDIO_LOCALE_STORAGE_KEY,
   StudioLanguageService,
@@ -78,7 +79,97 @@ async function pickMode(h: Harness, value: string): Promise<void> {
   await h.fixture.whenStable();
 }
 
+/** Die Bereichsliste füllen — sie gehört dem geteilten `RagApi`, nicht dem Panel. */
+async function withAreas(h: Harness, ...namen: string[]): Promise<void> {
+  const laedt = TestBed.inject(RagApi).refreshAreas();
+  h.http
+    .expectOne("/studio/api/rag/areas")
+    .flush(namen.map((area) => ({ area, chunks: 1, documents: 1, configured: true })));
+  await laedt;
+  await h.fixture.whenStable();
+}
+
+async function pickArea(h: Harness, value: string): Promise<void> {
+  const select = h.el.querySelector<HTMLSelectElement>(".ri-area-pick");
+  if (!select) throw new Error("kein Auswahlfeld für den Wissensbereich");
+  select.value = value;
+  select.dispatchEvent(new Event("change"));
+  await h.fixture.whenStable();
+}
+
 describe("RagIngestComponent", () => {
+  // ── S2: der Wissensbereich wird GEWÄHLT, nicht getippt ────────────────
+  // Nutzer-Befund 2026-08-18: „beim anlegen vom neuen wissen oder dokumenten
+  // sehe ich keine auswahlmöglichkeit für den wissensbereich". Ein `datalist`
+  // ist im Browser unsichtbar, bis man tippt — und ein Tippfehler legte
+  // schweigend einen Bereich an, den der Chatbot nie durchsucht.
+
+  it("bietet die vorhandenen Bereiche zur Auswahl an", async () => {
+    const h = await mount();
+    await withAreas(h, "wlo", "recht");
+    const optionen = Array.from(
+      h.el.querySelectorAll<HTMLOptionElement>(".ri-area-pick option"),
+    ).map((o) => o.value);
+    expect(optionen).toContain("wlo");
+    expect(optionen).toContain("recht");
+  });
+
+  it("liest in den gewählten Bereich ein", async () => {
+    const h = await mount();
+    await withAreas(h, "wlo", "recht");
+    await pickArea(h, "recht");
+    await pickMode(h, "text");
+    await type(h, ".ri-text", "Inhalt");
+    await submit(h);
+    const req = h.http.expectOne("/studio/api/rag/ingest/text");
+    expect((req.request.body as FormData).get("area")).toBe("recht");
+    req.flush({ status: "ok", area: "recht", title: "", chunks: 1 });
+  });
+
+  it("zeigt das Namensfeld erst, wenn ein neuer Bereich gewollt ist", async () => {
+    const h = await mount();
+    await withAreas(h, "wlo");
+    expect(h.el.querySelector(".ri-area")).toBeNull();
+    await pickArea(h, "__neu__");
+    expect(h.el.querySelector(".ri-area")).not.toBeNull();
+    // Der Hinweis aus Paket R: ein neuer Bereich wird nicht von selbst genutzt.
+    expect(h.el.querySelector(".ri-new-help")?.textContent).toContain("rag-config");
+  });
+
+  it("behaelt den neuen Bereich, nachdem er angelegt wurde", async () => {
+    // Befund aus der Durchsicht: nach dem ALLERERSTEN Einlesen macht
+    // `refreshAreas()` die Liste nicht-leer, `auswahl` steht aber noch auf ''
+    // — das Namensfeld verschwand und der Bereich war weg. Wer ein zweites
+    // Dokument in denselben Bereich legen wollte, musste ihn neu waehlen.
+    const h = await mount();
+    await type(h, ".ri-area", "faq");
+    await pickMode(h, "text");
+    await type(h, ".ri-text", "Inhalt");
+    await submit(h);
+    h.http
+      .expectOne("/studio/api/rag/ingest/text")
+      .flush({ status: "ok", area: "faq", title: "", chunks: 1 });
+    await tick();
+    // Der Refresh, den `send()` anstoesst — jetzt gibt es einen Bereich.
+    h.http
+      .expectOne("/studio/api/rag/areas")
+      .flush([{ area: "faq", chunks: 1, documents: 1, configured: false }]);
+    await tick();
+    await h.fixture.whenStable();
+
+    const select = h.el.querySelector<HTMLSelectElement>(".ri-area-pick");
+    expect(select).not.toBeNull();
+    expect(h.fixture.componentInstance.area()).toBe("faq");
+  });
+
+  it("ohne einen einzigen Bereich fragt es direkt nach dem Namen", async () => {
+    // Erstinbetriebnahme: es gibt nichts zu wählen, ein leeres Auswahlfeld wäre
+    // eine Sackgasse.
+    const { el } = await mount();
+    expect(el.querySelector(".ri-area-pick")).toBeNull();
+    expect(el.querySelector(".ri-area")).not.toBeNull();
+  });
+
   it("offers the three sources as a real radio group", async () => {
     // Native radios give arrow-key selection and aria-checked for free; ALT's
     // button row had to hand-roll both and rolled neither.

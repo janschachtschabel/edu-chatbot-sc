@@ -233,3 +233,63 @@ describe('runSendMessage — Lifecycle', () => {
     expect(r.phases).toEqual([[loadingId, 'sucht…']]);
   });
 });
+
+describe('Abgelehnte Anfrage: kein zweiter Versuch (Nutzer-Meldung 2026-08-19)', () => {
+  /**
+   * Gemeldet aus der Einbettung: eine ueberlange ``host_instruction`` ergab am
+   * ``/stream``-Endpunkt einen 422 — und der Rueckfall schickte denselben
+   * Rumpf sofort an ``/chat``, wo er identisch abgelehnt wurde. Zwei
+   * Konsolenfehler, zwei abgelehnte Anfragen, keine Antwort.
+   *
+   * Der Rueckfall ist fuer „Transport kaputt" und „altes Backend ohne
+   * /stream" gedacht. Ein 4xx ist beides nicht: der Server hat verstanden und
+   * abgelehnt. Derselbe Rumpf wird auf dem anderen Weg genauso abgelehnt.
+   */
+  const httpFehler = (status: number) =>
+    Object.assign(new Error(`Chat stream error: ${status}`),
+                  { name: 'StreamHttpError', status });
+
+  it('422 → KEIN Fallback, eine Fehlerblase, kein zweiter Aufruf', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r = makeCtx({ input: '', stream: () => Promise.reject(httpFehler(422)) });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+
+    expect(r.postCalls).toEqual([]);
+    expect(r.bots[1].content).toBe(ERROR_TEXT);
+    expect(r.results).toEqual([]);
+    expect(r.loading).toEqual([true, false]);
+    expect(warn).toHaveBeenCalledOnce();   // EINE Meldung, nicht zwei
+  });
+
+  it('429 → ebenfalls kein Fallback (das Limit gilt auf beiden Wegen)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r = makeCtx({ input: '', stream: () => Promise.reject(httpFehler(429)) });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.postCalls).toEqual([]);
+  });
+
+  it('404 → Fallback BLEIBT: das ist der Fall „altes Backend ohne /stream"', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const postResp = makeResp({ content: 'via POST' });
+    const r = makeCtx({
+      input: '',
+      stream: () => Promise.reject(httpFehler(404)),
+      post: () => Promise.resolve(postResp),
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.postCalls).toHaveLength(1);
+    expect(r.bots[1].content).toBe('via POST');
+  });
+
+  it('500 → Fallback BLEIBT: ein Aussetzer ist auf dem anderen Weg vielleicht weg', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const postResp = makeResp({ content: 'via POST' });
+    const r = makeCtx({
+      input: '',
+      stream: () => Promise.reject(httpFehler(500)),
+      post: () => Promise.resolve(postResp),
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.postCalls).toHaveLength(1);
+  });
+});

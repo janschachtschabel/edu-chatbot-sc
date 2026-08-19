@@ -1,6 +1,7 @@
 """Generate the studio spec fixture: every distinct area model's JSON schema."""
 import json
 import pathlib
+import sys
 
 from boerdi.domain.config_models import AREA_MODELS
 
@@ -47,5 +48,18 @@ footer = f"""
 /** Every registered config area — the registry keys, nothing derived. */
 export const AREA_KEYS: readonly string[] = {keys} as const;
 """
-out.write_text(header + blob + " as const;\n" + footer, encoding="utf-8")
-print(f"{out} — {len(by_model)} schemas, {len(AREA_MODELS)} keys, {len(blob)} chars")
+text = header + blob + " as const;\n" + footer
+if "--check" in sys.argv:
+    if not out.exists():
+        raise SystemExit(f"MISSING: {out} — run scripts/export_area_schemas.py")
+    if out.read_text(encoding="utf-8") != text:
+        raise SystemExit(
+            "DRIFT: die Bereichs-Schemata der Modelle stehen nicht in der Fixture. "
+            "Das Studio baut seine Formulare daraus — ein Feld, das hier fehlt, "
+            "fehlt der Redaktion. Neu erzeugen: "
+            "uv run python scripts/export_area_schemas.py"
+        )
+    print("area schemas unchanged")
+else:
+    out.write_text(text, encoding="utf-8")
+    print(f"{out} — {len(by_model)} schemas, {len(AREA_MODELS)} keys, {len(blob)} chars")

@@ -28,15 +28,15 @@ Chatbot nichts.
 mode: agent            # pattern | agent | hybrid
 
 agent:
-  max_iterations: 20     # 1 … 50
-  deadline_s: 300        # 5 … 600
-  token_budget: 400000   # ≥ 1000
+  max_iterations: 30     # 1 . 50
+  deadline_s: 900        # 5 . 1800
+  token_budget: 900000   # ≥ 1000
   write_mode: propose    # propose | execute
   safety: true
 ```
 
 Wirkt ohne Neustart. Alle vier Deckel sind nötig: ein MCP-Aufruf steht gemessen
-bis 23 s, ohne Frist könnte ein Lauf mit 20 Runden zehn Minuten dauern.
+bis 23 s, ohne Frist koennte ein Lauf mit 30 Runden eine halbe Stunde dauern.
 
 Das Budget zählt `prompt + completion` **kumulativ über alle Runden**, und weil
 die Nachrichtenkette wächst, wird der Prompt jede Runde neu berechnet. Bei
@@ -46,7 +46,7 @@ die Nachrichtenkette wächst, wird der Prompt jede Runde neu berechnet. Bei
 
 **Am 2026-08-18 gemeinsam angehoben** (12/90/120000 → 20/300/400000,
 Nutzer-Entscheid). Gemeinsam, weil einzeln jeder Wert wirkungslos bliebe: wer
-20 Runden erlaubt, aber die Frist bei 90 s lässt, bekommt fünf. Die Reihenfolge,
+30 Runden erlaubt, aber die Frist bei 90 s laesst, bekommt fuenf. Die Reihenfolge,
 in der die Deckel greifen, entscheidet die Messung — nicht die Absicht.
 
 Zwei Folgen, die dazugehören:
@@ -300,3 +300,105 @@ wie ein Lasttest, nicht wie eine Suche.
 | 429 | Drosselung, `RATE_LIMIT_CHAT` |
 | `result` ist `null` | Kein `result_schema` mitgegeben — dann gibt es nur `text` |
 | Schreiben passiert nicht | `write_mode: execute` ohne persönliche Anmeldung → still auf `propose` zurückgefallen |
+
+## Master-Skill als Prompt-Kopf (2026-08-18)
+
+Im Agent- **und** Hybrid-Modus kann eine im Repositorium gepflegte
+Gesamtanleitung als stabiler Kopf des Systemprompts laufen — die Vorlage dafür
+ist [`docs/skills/vorgehen.md`](skills/vorgehen.md).
+
+| Schalter | Vorgabe | Wirkung |
+|---|---|---|
+| `MASTER_SKILL_ENABLED` | `false` | Betreiber-Vorgabe: an oder aus |
+| `MASTER_SKILL_NODE_ID` | `535cabca-47e4-4cbf-9cab-ca47e40cbf4e` | Knoten der Anleitung (`get_skill`) |
+| Attribut `master-skill="on\|off"` | fehlt | übersteuert die Vorgabe **je Einbettung**, in beide Richtungen |
+
+**Warum weit vorn.** Der Block ist groß und zwischen zwei Zügen unverändert;
+Anbieter mit Präfix-Caching berechnen ihn dann nur einmal. Genau eine Abweichung
+von „ganz am Anfang": der eigene Rollen-Block bleibt davor. Er ist ebenso stabil,
+kostet also keinen Cache-Treffer, und eigene Regeln gehören vor fremden Text.
+Alles Wechselnde (Seitenkontext, Gastgeber-Rahmen, Verlauf) folgt dahinter —
+sonst zerfiele das Präfix. Ein Test hält die Position fest
+(`test_der_master_skill_steht_im_stabilen_praefix`).
+
+**Was der Text NICHT darf.** Er ist kuratierter Inhalt, keine Systemanweisung.
+Der Rahmen um ihn sagt das dem Modell ausdrücklich: er ergänzt die Rolle, hebt
+aber weder Leitplanken noch Sicherheitsregeln auf.
+
+**Wenn der Abruf scheitert** — MCP weg, Knoten gelöscht, leerer Text — läuft der
+Zug **ohne** Anleitung weiter, mit einer Warnung im Log. Ein Fehlschlag wird
+nicht zwischengespeichert, damit eine kurze Störung nicht eine Viertelstunde
+nachwirkt. Der Erfolgsfall bleibt 15 Minuten im Prozess: je Zug erneut zu holen
+wäre bei 1,2–23,3 s je MCP-Aufruf unbrauchbar.
+
+## Interne Wissensdatenbank (2026-08-18)
+
+Bis zu diesem Tag hatte die Agent-Schleife **gar kein** internes Wissen: das
+Werkzeug `query_knowledge` wird ausschließlich im Muster-Weg gebaut, hier lief
+also jede Frage nach WLO, OER oder edu-sharing ins Modellgedächtnis. Seither
+liegt `wissen_suchen` im Werkzeugsatz — sichtbar, sobald in
+`05-knowledge/rag-config` Bereiche gepflegt sind.
+
+| | Muster-Weg | Agent und Hybrid |
+|---|---|---|
+| Werkzeug | `query_knowledge(area, query)` — **ein** Bereich, Pflichtfeld | `wissen_suchen(frage, bereiche?, ohne?)` — ohne Angabe **alle** |
+| Vorabruf | `mode: always`-Bereiche vor dem ersten Modellzug | keiner |
+| Muster kann es abschalten | ja, über `sources` ohne `rag` | nein — es bleibt erreichbar |
+
+**Warum „alle" nicht teurer ist:** `get_rag_context` bettet die Frage einmal ein
+und durchsucht die Bereiche nebenläufig; weil alle dieselbe Einbettung und
+dasselbe Abstandsmaß benutzen, sind die Punktzahlen bereichsübergreifend
+vergleichbar. Neun Bereiche kosten also eine Einbettung, nicht neun.
+
+**Warum kein Vorabruf:** die Schleife beantwortet auch „hallo". Der Muster-Weg
+kann vorab holen, weil ein Klassifikator vorher weiß, worum es geht; hier weiß
+es das Modell selbst — und ruft, wenn es passt.
+
+**Wenn die Datenbank ausfällt**, bekommt das Modell den Ausfall im Klartext als
+Werkzeug-Ergebnis und kann ihn sagen. Der Zug bricht nicht ab: dieselbe Regel wie
+beim Master-Skill.
+
+### Einen Bereich für die Schleife abwählen
+
+In `05-knowledge/rag-config` (Studio → **Wissen**) trägt jeder Bereich zwei
+Schalter, und sie meinen verschiedene Maschinen:
+
+```yaml
+Interna:
+  mode: on-demand   # Muster-Weg: Vorabruf oder Abruf auf Zuruf
+  agent: false      # Agent + Hybrid: gar nicht
+```
+
+`agent` fehlt = `true`. Die Vorgabe bleibt also „alle Bereiche für den Agenten";
+abgewählt wird nur, wer es ausdrücklich sagt. Zwei Felder statt einem, weil
+„im Muster vorab, in der Schleife gar nicht" sonst nicht ausdrückbar wäre.
+
+### Die zwei Bereichslisten
+
+Ein Bereich existiert an zwei Stellen, und sie können auseinanderlaufen:
+
+| | Quelle | Bedeutung |
+|---|---|---|
+| Studio → Wissen → Liste | Datenbank (`rag_chunks.area`) | was **eingelesen** wurde |
+| `05-knowledge/rag-config` | Konfiguration | was der Chatbot **durchsucht** |
+
+Wer beim Einlesen einen neuen Bereichsnamen tippt, legt ihn nur links an. Seit
+dem 18.08.2026 markiert die Liste solche Bereiche („Der Chatbot durchsucht
+diesen Bereich NICHT …"). Das Verhalten bleibt absichtlich zweistufig: würde ein
+eingelesener Bereich automatisch mitgesucht, wäre jeder Probe-Upload zugleich
+eine Freigabe im Betrieb.
+
+## Was die Einbettung hart überschreibt (Paket O, 2026-08-18)
+
+Drei Angaben reisen seit diesem Tag im `environment` mit und wirken **nur** in
+Agent und Hybrid:
+
+| Attribut | Wirkung |
+|---|---|
+| `tool-mode="read-only\|curate\|full"` | nimmt die verbotenen Werkzeuge aus der Liste **und** sagt es dem Modell |
+| `quick-replies='["…","…"]'` | erzwungene Schnellantworten je Zug; schlagen Generator, Canvas und Policy |
+| `inline-result-grouping="false"` | war bis dahin rein visuell; jetzt weiß das Modell, dass es die Gliederung selbst schreiben muss |
+
+Der Block dazu steht als dritte System-Nachricht — hinter dem Master-Skill, vor
+dem Seitenkontext — und **nur bei Abweichung**: ein Satz über den Normalfall
+kostete in jedem Zug Token und sagte nichts.

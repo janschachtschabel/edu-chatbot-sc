@@ -146,6 +146,7 @@ export { InlineDocumentsComponent } from './inline-doc/inline-documents.componen
 export {
   parseSseBlock,
   postChat,
+  StreamHttpError,
   streamChat,
   StreamStaleError,
 } from './stream/stream-client';
@@ -177,8 +178,8 @@ export { SpeechService } from './speech/speech.service';
 export type { SpeechContext } from './speech/speech.service';
 
 export {
-  _attrEnum, _attrIsTrue, _attrJsonObject, _attrJsonStringArray,
-  PANEL_SIZE_STEPS, WIDGET_THEMES, resolveTheme,
+  _attrEnum, _attrIsTrue, _attrJsonObject, _attrJsonStringArray, _attrTriState,
+  PANEL_SIZE_STEPS, TOOL_MODES, WIDGET_THEMES, resolveTheme,
 } from './element/attr';
 export type { PanelSizeStep, WidgetTheme } from './element/attr';
 export {

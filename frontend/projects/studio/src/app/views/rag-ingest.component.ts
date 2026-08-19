@@ -1,10 +1,23 @@
 /**
  * Reading a document into the knowledge base (9-4e): file, web page, or text.
  *
- * The area is a free-text field with a datalist of the areas that already
- * exist, not a select plus a "new area" toggle: an area is created by writing
- * into it, so picking an existing one and naming a new one are the same act.
- * ALT modelled them as two modes and needed a state flag to switch between.
+ * **Der Wissensbereich wird GEWÄHLT, nicht getippt** (S2, 18.08.2026). Bis
+ * dahin stand hier ein Textfeld mit `datalist`, begründet mit: „ein Bereich
+ * entsteht, indem man hineinschreibt — einen bestehenden zu wählen und einen
+ * neuen zu benennen ist derselbe Vorgang." Beide Hälften haben sich als falsch
+ * erwiesen:
+ *
+ * 1. Eine `datalist` ist unsichtbar, bis jemand tippt. Gemeldet wurde genau
+ *    das: „ich sehe keine Auswahlmöglichkeit für den Wissensbereich."
+ * 2. Es ist NICHT derselbe Vorgang. Einen bestehenden Bereich zu wählen genügt;
+ *    ein neuer muss zusätzlich in `05-knowledge/rag-config` stehen, sonst
+ *    durchsucht der Chatbot ihn nie (Paket R). Ein Tippfehler im Textfeld sah
+ *    aus wie ein Treffer und legte schweigend eine tote Ablage an.
+ *
+ * Deshalb jetzt: ein `select` der vorhandenen Bereiche, und der neue Name erst
+ * nach ausdrücklicher Wahl von `__neu__` — mit dem Hinweis, was noch fehlt.
+ * Gibt es noch gar keinen Bereich, fragt das Panel direkt nach dem Namen: ein
+ * leeres Auswahlfeld wäre eine Sackgasse.
  */
 import {
   ChangeDetectionStrategy, Component, type ElementRef, computed, inject, input, signal, viewChild,
@@ -34,6 +47,10 @@ const SOURCES: readonly { readonly id: Source; readonly labelKey: string }[] = [
 ];
 
 /** Was fehlt, in der Reihenfolge des Formulars — je Quelle genau eines. */
+/** Der Wert der Option „neuen Bereich anlegen". Kein gültiger Bereichsname:
+ *  die Unterstriche kämen aus keiner Redaktionshand. */
+export const NEUER_BEREICH = '__neu__';
+
 const NEED_KEY: Record<Source, string> = {
   file: 'rag.ingest.need.file',
   url: 'rag.ingest.need.url',
@@ -59,7 +76,16 @@ export class RagIngestComponent {
   readonly areaNames = this.rag.areaNames;
 
   readonly source = signal<Source>('file');
-  readonly area = signal('');
+  /** Der Wert des Auswahlfelds: ein Bereichsname, {@link NEUER_BEREICH} oder ''. */
+  readonly auswahl = signal('');
+  /** Der getippte Name, wenn ein neuer Bereich angelegt wird. */
+  readonly neuerName = signal('');
+  /** Wird ein neuer Bereich benannt? Auch wahr, solange es keinen einzigen gibt. */
+  readonly neu = computed(
+    () => this.auswahl() === NEUER_BEREICH || this.areaNames().length === 0);
+  /** Der Bereich, in den dieser Upload geht — aus beidem zusammengesetzt. */
+  readonly area = computed(() =>
+    this.neu() ? this.neuerName().trim() : this.auswahl());
   readonly title = signal('');
   readonly url = signal('');
   readonly text = signal('');
@@ -71,6 +97,8 @@ export class RagIngestComponent {
 
   /** A unique prefix so several panels on one page keep distinct label targets. */
   readonly idPrefix = 'ri';
+  /** Fürs Template — der Wert der Option „neuen Bereich anlegen". */
+  readonly NEUER_BEREICH = NEUER_BEREICH;
 
   private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
@@ -103,6 +131,12 @@ export class RagIngestComponent {
     }
   }
 
+  onArea(value: string): void {
+    this.auswahl.set(value);
+    if (value !== NEUER_BEREICH) this.neuerName.set('');
+    this.error.set('');
+  }
+
   onSource(value: string): void {
     this.source.set(value as Source);
     this.error.set('');
@@ -127,6 +161,13 @@ export class RagIngestComponent {
       this.result.set(await this.ingest(area, title));
       this.clearInput();
       await this.rag.refreshAreas();
+      // Den benutzten Bereich im Auswahlfeld stehen lassen. Ohne das faellt er
+      // nach dem ERSTEN Einlesen aus dem Formular: die Liste ist dann nicht
+      // mehr leer, `auswahl` steht aber noch auf '' — `neu()` kippt, das
+      // Namensfeld verschwindet, und wer ein zweites Dokument in denselben
+      // Bereich legen will, muss ihn neu waehlen (Durchsicht 2026-08-18).
+      this.auswahl.set(area);
+      this.neuerName.set('');
     } catch (err) {
       // Deliberately keeps every field: a rejected upload must not cost the
       // editor the text they pasted.

@@ -31,6 +31,25 @@ export function _attrIsTrue(v: boolean | string | undefined): boolean {
  * vorhanden = an": `<boerdi-chat embed-mode>` sagt nicht, welcher Modus gemeint
  * ist, also gilt die Vorgabe.
  */
+/**
+ * Attribut mit DREI Zustaenden: an, aus, nichts gesagt (N4, `master-skill`).
+ *
+ * `_attrIsTrue` kann das nicht: dort ist „fehlt" gleich „aus". Hier muss ein
+ * drittes „die Gastseite aeussert sich nicht" moeglich sein, weil dann die
+ * Vorgabe des Betreibers gilt — und die kann an ODER aus sein.
+ *
+ * FOLGE, die ein Gastgeber wissen muss: das nackte Attribut (`<x master-skill>`)
+ * liefert den leeren String und gilt damit als „nichts gesagt", nicht als „an".
+ * Drei Zustaende lassen sich durch Vorhandensein allein nicht ausdruecken —
+ * deshalb braucht dieses Attribut einen Wert.
+ */
+export function _attrTriState(v: boolean | string | undefined): boolean | null {
+  if (typeof v === 'boolean') return v;
+  const s = (v ?? '').trim().toLowerCase();
+  if (s === '') return null;
+  return !['off', 'false', '0', 'no', 'aus'].includes(s);
+}
+
 export function _attrEnum<T extends string>(
   v: string | undefined, allowed: readonly T[], fallback: T,
 ): T {
@@ -134,6 +153,12 @@ export type PanelSizeStep = 'small' | 'large';
 
 /** Erlaubte Werte des `size`-Attributs, für `_attrEnum`. */
 export const PANEL_SIZE_STEPS = ['small', 'large'] as const;
+
+/** O-A — die drei Werte des `tool-mode`-Attributs. Benannte Modi statt freier
+ *  Werkzeugliste: eine Umbenennung im MCP wuerde sonst still die Rechte einer
+ *  Einbettung aendern. Die Liste ist mit `domain/host_capabilities.MODI` im
+ *  Backend gepaart — dort entscheidet sie, hier beschreibt sie nur. */
+export const TOOL_MODES = ['read-only', 'curate', 'full'] as const;
 
 /** U4a — die drei Werte des `theme`-Attributs. */
 export const WIDGET_THEMES = ['auto', 'light', 'dark'] as const;

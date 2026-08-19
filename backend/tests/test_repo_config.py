@@ -20,6 +20,8 @@ Drei Dinge, die vorher fehlten:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -46,6 +48,15 @@ def _mit_konfig(monkeypatch, wert: object) -> None:
     monkeypatch.setattr(
         rc, "area", lambda name: {"card_pipeline": {"repo_base_url": wert}},
     )
+
+
+def _seed_card_pipeline() -> dict:
+    """Der ausgelieferte Seed-Block — die drei Waechter unten lesen dieselbe Quelle."""
+    import yaml
+
+    pfad = (Path(__file__).resolve().parents[1] / "seeds" / "01-base"
+            / "card-pipeline.yaml")
+    return yaml.safe_load(pfad.read_text(encoding="utf-8"))["card_pipeline"]
 
 
 def _mit_env(monkeypatch, wert: str) -> None:
@@ -144,3 +155,66 @@ def test_health_nennt_das_repositorium():
     with TestClient(create_app()) as client:
         daten = client.get("/api/health").json()
     assert daten["repo"].startswith("https://")
+
+
+# ═══ 4. Die Vorgabe selbst: Staging, nicht Produktion ════════════════════
+#
+# Befund 2026-08-19 (Nutzer: „es darf nur auf staging zeigen"): ``/api/health``
+# meldete ``redaktion.openeduhub.net``, WAEHREND der MCP-Server nachweislich
+# ``repository.staging.openeduhub.net`` befragt (gemessen mit
+# ``wlo_health_check``). Die Folge war nicht nur eine schiefe Anzeige:
+# ``rewrite_repo_host_v2`` schreibt jeden Treffer auf das konfigurierte Ziel um
+# — Staging-Knoten erschienen also unter Produktions-Adressen und liefen dort
+# ins Leere oder auf einen fremden Knoten gleicher ID.
+#
+# Der Mechanismus (Paket 2026-08-14) war da, nur nie belegt: Seed leer, Env
+# ungesetzt, Vorgabe im Code = Produktion. Genau der Fall, den der Modulkopf
+# oben unter Punkt 1 „die stille falsche Antwort" nennt.
+
+
+class TestVorgabeIstStaging:
+    def test_ohne_jede_angabe_gilt_staging(self, monkeypatch):
+        """Weder Konfig noch Umgebung gesetzt — es darf NIE Produktion sein."""
+        from boerdi.settings import get_settings
+
+        monkeypatch.delenv("REPO_BASE_URL", raising=False)
+        get_settings.cache_clear()
+        _mit_konfig(monkeypatch, "")
+        try:
+            assert rc.get_repo_base_url() == _STAGING
+        finally:
+            get_settings.cache_clear()
+
+    def test_der_seed_ist_belegt_und_nennt_ein_bekanntes_repositorium(self):
+        """Die DAUERHAFTE Regel, unabhaengig davon, welches System gerade gilt.
+
+        Leer hiesse „frag die Deploy-Umgebung" — genau das sollte die Angabe
+        abschaffen (Nutzer-Vorgabe 2026-08-14: im Studio nachlesbar). Und ein
+        Wert ausserhalb von ``known_repo_hosts`` waere schlimmer als keiner:
+        die Umschreibung fuehrt dann JEDEN Treffer auf einen Host, den sonst
+        niemand kennt.
+        """
+        cfg = _seed_card_pipeline()
+        wert = cfg["repo_base_url"]
+        assert wert, "Seed laesst das Repositorium offen"
+        assert wert in cfg["known_repo_hosts"], (
+            f"{wert!r} steht nicht in known_repo_hosts")
+
+    def test_die_geltende_richtlinie_ist_staging(self):
+        """Die RICHTLINIE, bewusst getrennt vom Test darueber.
+
+        „Es darf nur auf staging zeigen" (Nutzer 2026-08-19). Das ist eine
+        Betriebsentscheidung, keine Eigenschaft des Codes — deshalb steht sie
+        allein und ist die EINE Stelle, die ein spaeterer Produktions-Umstieg
+        anfasst. Der Test darueber gilt dann unveraendert weiter.
+        """
+        assert _seed_card_pipeline()["repo_base_url"] == _STAGING
+
+    def test_produktion_bleibt_umschreib_quelle(self):
+        """Gegenrichtung, damit die Korrektur nicht zu weit geht: die
+        Prod-Hosts muessen in ``known_repo_hosts`` BLEIBEN. Sie stehen dort
+        nicht als Ziel, sondern als Quelle — nur was dort gelistet ist, wird
+        ueberhaupt auf das Ziel umgeschrieben. Ein MCP-Server mit hart
+        verdrahtetem Prod-Host waere sonst wieder unbemerkt durchgereicht."""
+        hosts = _seed_card_pipeline()["known_repo_hosts"]
+        assert _PROD in hosts and _ZWEITES_PROD in hosts

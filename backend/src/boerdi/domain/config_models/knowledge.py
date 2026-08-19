@@ -6,12 +6,25 @@ from typing import Annotated, Any
 
 from pydantic import RootModel
 
-from boerdi.domain.config_models._shared import AreaModel, Catalog
+from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices
 
 
 class RagAreaDef(AreaModel):
-    mode: str = ""
+    #: S1: Auswahl statt Freitext. Der Wert entscheidet ueber den MUSTER-Weg —
+    #: ``always`` holt den Bereich vor dem ersten Modellzug, ``on-demand`` erst
+    #: auf Zuruf. Ein Tippfehler nahm den Bereich bis dahin still aus der
+    #: Nutzung: ``load_rag_config`` behaelt nur Eintraege MIT ``mode``, und ein
+    #: leeres Textfeld sagte das niemandem.
+    mode: Annotated[str, Choices("always", "on-demand")] = ""
     description: str | None = None
+    #: Q (2026-08-18): darf die AGENT-/HYBRID-Schleife diesen Bereich
+    #: durchsuchen? Vorgabe ``True`` — „alle Bereiche fuer den Agenten"
+    #: (Nutzer-Vorgabe). Steht NEBEN ``mode`` und ersetzt ihn nicht: ``mode``
+    #: steuert den Muster-Weg (Vorabruf oder Abruf auf Zuruf), dieses Feld
+    #: allein die Schleife. Ein Feld fuer beides koennte „im Muster vorab, in
+    #: der Schleife gar nicht" nicht ausdruecken. Gelesen von
+    #: ``services/agent_knowledge.fuer_die_schleife``.
+    agent: bool = True
 
 
 class RagConfigArea(RootModel[dict[str, RagAreaDef]]):

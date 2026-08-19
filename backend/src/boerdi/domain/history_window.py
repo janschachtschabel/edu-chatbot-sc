@@ -17,6 +17,15 @@ Gekürzt wird **sichtbar**: der Hinweis sagt dem Modell, dass es einen Ausschnit
 liest. Stillschweigend gekürzter Text sieht wie ein vollständiger aus, und das
 Modell würde über einen Abschnitt urteilen, den es nie gesehen hat.
 
+**Die Messung oben hat ein Verfallsdatum, und das ist wichtig.** Sie entstand,
+als ``ChatRequest.message`` noch bei 10 000 Zeichen gedeckelt war — das Maximum
+von 8 190 konnte die Grenze gar nicht überschreiten. Seit dem Wegfall des
+Deckels (2026-08-18) ist die Nachricht nach oben offen: eine Gastanwendung
+reicht ganze Seiteninhalte herein. Die Zahlen beschreiben also weiter den
+Regelfall, aber nicht mehr den schlimmsten. Genau deshalb deckelt dieses Fenster
+nach ZEICHEN und nicht nach einem Vielfachen einer gemessenen Nachrichtengröße:
+es hält auch, wenn die Eingabe jede Annahme sprengt.
+
 Rein und ohne I/O: der Aufrufer entscheidet, welchen Verlauf er hereingibt.
 """
 

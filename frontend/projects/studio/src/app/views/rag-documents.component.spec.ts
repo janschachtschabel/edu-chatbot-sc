@@ -180,7 +180,7 @@ describe("RagDocumentsComponent", () => {
       el
         .querySelectorAll<HTMLButtonElement>(".rd-show")[0]
         .getAttribute("aria-label"),
-    ).toBe("Volltext anzeigen — Leitfaden");
+    ).toBe("Abschnitte anzeigen — Leitfaden");
     expect(
       el
         .querySelectorAll<HTMLButtonElement>(".rd-del")[0]
@@ -194,6 +194,6 @@ describe("RagDocumentsComponent", () => {
       el
         .querySelectorAll<HTMLButtonElement>(".rd-show")[0]
         .getAttribute("aria-label"),
-    ).toBe("Volltext ausblenden — Leitfaden");
+    ).toBe("Abschnitte ausblenden — Leitfaden");
   });
 });

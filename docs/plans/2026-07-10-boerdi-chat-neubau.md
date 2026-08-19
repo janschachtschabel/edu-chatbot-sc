@@ -306,7 +306,7 @@ Auth: `public` · `studio` (Header `X-Studio-Key`, aktiv wenn `STUDIO_API_KEY` g
 | **NEU** GET/PUT | /api/config/data/{area} | studio | Bereichs-Daten als JSON (9-3a). Gegenstück zu `/schema/{area}`: `/config/file` liefert nur YAML-**Text**, damit lässt sich kein Formular binden. **PUT ersetzt, `data` ist das GANZE Dokument** (Read-Modify-Write). Grund: gemessen am ALT-Baum sind **357 Daten-Pfade** nicht vom Bereichs-Modell gepinnt und liegen *verschachtelt* (`01-base/policy` → `rules[*].effect.disclaimer`, `01-base/classify-overrides` → `pattern_disambiguators_legacy[*]`). Ein Server-Merge rettet das nicht: flach schützt die falsche Ebene, tief kann Löschen nicht ausdrücken. Also editiert das Formular eine Kopie des ganzen Dokuments; ungepinnte Teile fahren unberührt mit. Validierung ist ein Tor, keine Transformation — persistiert wird das rohe Dict, nie der `model_dump()` (der würde Defaults für jedes fehlende Optional-Feld einspritzen) |
 | **NEU** POST | /api/auth/… bleibt Studio-seitig (SPA-Login wie ALT: HMAC-Cookie) | — | §7 |
 
-**ChatRequest:** `session_id:str · message:str(≤10000) · environment:Environment ·
+**ChatRequest:** `session_id:str · message:str (Deckel ≤10000 entfernt 2026-08-18) · environment:Environment ·
 action:str|None · action_params:dict · canvas_state:dict|None`
 **Environment:** `page:"/" · page_context:dict · device:"desktop" · locale:"de-DE" ·
 session_duration:0 · referrer:"direkt" · guide_mode:True · host:"" ·

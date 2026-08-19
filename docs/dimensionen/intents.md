@@ -1,0 +1,594 @@
+# Intents
+
+<!-- ERZEUGT von backend/scripts/export_dimensions.py aus backend/seeds/ — nicht von Hand ändern; Änderungen gehören in den Seed bzw. ins Studio. -->
+
+Quelle: `backend/seeds/04-intents/intents.yaml`
+
+## I01 — Orientierung
+
+- **description**: Erstkontakt / Erkundung der Plattform OHNE Material-Anker. Auch: Übersicht über Fachportale / Themenbereiche.
+
+- **examples**:
+  - Was kann ich hier machen?
+  - Welche Fächer gibt es?
+  - Ich bin neu hier
+  - Wie funktioniert das hier?
+  - Ich will mich erst mal umschauen
+  - Stell dich vor
+  - Was ist WirLernenOnline?
+  - Was ist WissenLebtOnline?
+  - Welche Möglichkeiten bietet WLO?
+- **trigger_verbs**:
+  - was kann ich hier
+  - was kannst du
+  - ich orientiere mich
+  - erstmal schauen
+  - ich schau erst mal
+  - ich bin neu
+  - stell dich vor
+  - wofür ist diese plattform
+  - hilf mir loszulegen
+  - was ist wlo
+  - was ist wirlernenonline
+  - was ist wissenlebtonline
+  - was bietet wlo
+  - was bietet die plattform
+- **negative_triggers**:
+  - **phrase**: fach|thema|material
+  - **redirect_to**: I03
+  - **rationale**: Material-/Fach-Anker im Text → Such-Intent, nicht reine Orientierung.
+
+  - **phrase**: was ist (oer|cc by|cc-by|creative commons|eine lizenz|open educational)
+  - **redirect_to**: I02
+  - **rationale**: Konzept-Definition (OER, Lizenz, CC) → I02. ABER "Was ist WLO/WissenLebtOnline" = Plattform-Identität → bleibt I01.
+
+  - **phrase**: welche rolle (spielt|hat)|wie (hilft|unterstützt) (wlo|die plattform)|welche möglichkeiten bietet (wlo|die plattform|ihr).{0,40}(integrier|für |um |in )
+  - **redirect_to**: I02
+  - **rationale**: Substantielle Funktions-/Rollen-/Möglichkeitsfrage zu WLO in konkretem Kontext will eine INHALTLICHE Antwort (I02/M04), keine Erst-Orientierung.
+
+- **discriminators**:
+  - **vs**: I02
+  - **rule**: I01 = reine Erst-Orientierung/Identität (Was ist WLO, was kann ich hier, was bietet WLO allgemein). I02 = (a) Konzept-Definition (OER/CC BY), (b) konkreter WLO-Fakt/Statistik, ODER (c) SUBSTANTIELLE Funktions-/Rollenfrage mit Kontext (welche Rolle spielt WLO in der Schulaufsicht, welche Möglichkeiten bietet WLO um X zu integrieren) — die will eine inhaltliche Antwort, keine Begrüßung.
+  - **example_a**: Was ist WissenLebtOnline? → I01
+  - **example_b**: Welche Rolle spielt WLO in der Schulaufsicht? → I02
+
+## I02 — Wissensfrage
+
+- **description**: Konkrete Definitions-/Konzept-/Faktenfrage zu WLO, OER, Lizenz, Plattform-Eckdaten ODER aggregierte Statistik ODER Bewertung eines konkreten Materials. Knappe Antwort aus RAG, keine Suche.
+
+- **examples**:
+  - Was ist OER?
+  - Was bedeutet CC BY 4.0?
+  - Wer steht hinter WLO?
+  - Wie viele Materialien hat WLO?
+  - Passt das Material für Klasse 6?
+  - Welche Statistiken zur Nutzung gibt es?
+  - Welche Rolle spielt WLO in der Schulaufsicht?
+  - Welche Möglichkeiten bietet WLO, das in unsere Systeme zu integrieren?
+- **trigger_verbs**:
+  - was ist
+  - was bedeutet
+  - wer betreibt
+  - wer steht hinter
+  - wie viele
+  - passt das material
+  - ist X geeignet
+  - wie gut ist
+- **negative_triggers**:
+  - **phrase**: verstehe nicht|kapier(e)? nicht
+  - **redirect_to**: I03
+  - **rationale**: Defizit-Verb + Lern-Wunsch → I03 (Hilfe-Material suchen), nicht reine Definition.
+  - **when**: co-occurs: erklär|schritt für schritt
+
+  - **phrase**: was kann ich hier|was kannst du
+  - **redirect_to**: I01
+  - **rationale**: Handlungs-Orientierung → I01.
+
+  - **phrase**: was ist (wlo|wirlernenonline|wissenlebtonline)|was kann ich hier
+  - **redirect_to**: I01
+  - **rationale**: REINE Plattform-Identität/Erst-Orientierung ("Was ist WLO?", "Was kann ich hier?") → I01. Substantielle Funktions-/Rollen-/Möglichkeitsfragen ("welche Rolle spielt WLO in X", "welche Möglichkeiten bietet WLO um Y") bleiben I02 — wollen eine inhaltliche Antwort.
+
+- **discriminators**:
+  - **vs**: I01
+  - **rule**: I02 = Konzept-Definition (OER/CC BY), konkreter WLO-Fakt/Statistik, ODER substantielle Funktions-/Rollenfrage mit Kontext (welche Rolle spielt WLO in der Schulaufsicht, welche Möglichkeiten bietet WLO um X zu integrieren). I01 = reine Erst-Orientierung/Identität (Was ist WLO, was kann ich hier).
+  - **example_a**: Welche Rolle spielt WLO in der Schulaufsicht? → I02
+  - **example_b**: Was ist WissenLebtOnline? → I01
+
+  - **vs**: I03
+  - **rule**: I02 = reine Definition ohne Lern-/Material-Wunsch. Sobald 'erklär mir' oder Material-Wort → I03.
+  - **example_a**: Was ist Photosynthese? → I02
+  - **example_b**: Erklär mir Photosynthese Schritt für Schritt → I03
+
+## I03 — Inhalte-Suchen
+
+- **description**:
+  > Universal-Such-Intent: Material, Themenseite, Sammlung, Drilldown unter einem konkreten Fach. Bot sucht IM BESTAND von WirLernenOnline, liefert Original-Links — KEINE KI-Generierung neuer Inhalte.
+  >
+  > Leitsatz: 'Suchen = aus dem WLO-Repository raussuchen'. 'Generieren/Erstellen = KI baut etwas Neues' (das ist I05).
+- **examples**:
+  - Zeig mir Videos zu Bruchrechnung Klasse 5
+  - Material zu Photosynthese
+  - Themenseite zu Klimawandel
+  - Welche Unterthemen hat Mathematik?
+  - Hast du Arbeitsblätter zu Bruchrechnung?
+  - Ich verstehe Photosynthese nicht, gibt es ein Video?
+  - Ich suche etwas zu einem Thema
+  - Ich suche Material zu Bruchrechnung
+  - Such mir was zu Photosynthese
+  - Was hast du zu Klimawandel?
+  - Welches Material gibt es zu Mathe?
+  - Ich bereite eine Stunde vor und suche passendes Material
+  - Ich stelle eine Sammlung zusammen und suche gute Materialien dazu
+- **trigger_verbs**:
+  - zeig mir
+  - suche
+  - such mir
+  - ich suche
+  - finde
+  - find mir
+  - brauche
+  - hast du
+  - hast du etwas
+  - hast du was
+  - was hast du
+  - was gibt es
+  - was habt ihr
+  - gibt es
+  - welche.*gibt es
+  - welches material
+  - material zu
+  - themenseite zu
+  - sammlung zu
+  - runterladen
+  - herunterladen
+  - bereitstellen
+  - liefern
+  - zur verfügung stellen
+- **negative_triggers**:
+  - **phrase**: erstelle|generiere|mach mir|schreib mir|bau mir|entwirf|produziere|erzeug|fertige an
+  - **redirect_to**: I05
+  - **rationale**: Create-Verb hat harten Vorrang vor Such-Verb (KI-Neuerstellung).
+
+  - **phrase**: plane|stundenentwurf|unterrichtsreihe|lernpfad|materialzusammenstellung
+  - **redirect_to**: I04
+  - **rationale**: Plan-/Reihen-/Zusammenstellungs-Wort → mehrstufige Komposition.
+
+- **discriminators**:
+  - **vs**: I05
+  - **rule**: Such-Verb (Zeig/Finde/Hast du) → I03. Create-Verb (Erstelle/Mach mir) → I05.
+  - **example_a**: Zeig mir Arbeitsblätter zu Bruchrechnung → I03
+  - **example_b**: Erstelle ein Arbeitsblatt zu Bruchrechnung → I05
+
+  - **vs**: I02
+  - **rule**: Reine Definitions-Frage ohne Lern-/Material-Wunsch → I02. Mit Material-/Lern-Wunsch → I03.
+  - **example_a**: Was ist Bruchrechnung? → I02
+  - **example_b**: Material zu Bruchrechnung → I03
+
+  - **vs**: I06
+  - **rule**: Edit-Verb auf vorherigen Bot-Inhalt → I06. Sonst I03.
+  - **example_a**: Zeig mir andere Materialien → I03
+  - **example_b**: Mach den Lernpfad kürzer → I06
+
+  - **vs**: I04
+  - **rule**: Hauptverb entscheidet. Such-Verb (suche/brauche/zeig/hast du/gibt es) auf 'Material(ien)' → I03 — AUCH wenn es 'für eine Stunde/Klasse/Sammlung' ist (der Nutzer kuratiert selbst). NUR ein Sequenz-/Struktur-Substantiv (Lernpfad/Unterrichtsreihe/Stundenentwurf/Materialzusammenstellung) → I04, auch mit Such-Verb davor ('gibt es einen Lernpfad').
+  - **example_a**: Ich bereite eine Stunde vor und suche passendes Material → I03
+  - **example_b**: Gibt es dazu einen fertigen Lernpfad? → I04
+
+## I04 — Lernpfad
+
+- **description**: Mehrstufiger Stundenentwurf / Unterrichtsreihe / Lernpfad aus EXISTIERENDEN WLO-Materialien zusammensetzen. Auch: Materialzusammenstellungen, kuratierte Mehrfach-Quellen.
+
+- **examples**:
+  - Plane mir eine Stunde zu Bruchrechnung Klasse 5
+  - Lernpfad zu Klimawandel für Sek I
+  - Unterrichtsreihe Photosynthese, 4 Stunden
+  - Stundenentwurf zu Geometrie
+  - Erstelle eine Materialzusammenstellung zu Lyrik
+  - Material-Sammlung Klimawandel zum Selbstlernen
+- **trigger_verbs**:
+  - plane
+  - stundenentwurf
+  - unterrichtsstunde
+  - unterrichtsreihe
+  - unterrichtseinheit
+  - unterrichtsplanung
+  - lernpfad
+  - materialzusammenstellung
+  - material zusammenstellen
+  - strukturierte sammlung
+  - sammlung zusammenstellen
+  - materialpaket
+  - übersicht von materialien
+  - mehrere materialien
+- **negative_triggers**:
+  - **phrase**: (suche|brauche|finde) (passendes |gutes |geeignetes |dazu )?material(ien)?
+  - **redirect_to**: I03
+  - **rationale**: Reine Material-Suche (auch "für eine Stunde/Klasse" oder "für eine Sammlung, die ich selbst zusammenstelle") = I03. I04 NUR bei explizitem Auftrag, eine Sequenz/Reihe/Zusammenstellung zu BAUEN (plane/Lernpfad/Unterrichtsreihe/stell zusammen).
+
+- **discriminators**:
+  - **vs**: I05
+  - **rule**: Plural/Sammlung/Zusammenstellung/Stunden-Sequenz → I04. SINGULÄRER neuer Material-Typ → I05.
+  - **example_a**: Erstelle eine Materialzusammenstellung zu X → I04
+  - **example_b**: Erstelle ein Arbeitsblatt zu X → I05
+
+  - **vs**: I03
+  - **rule**: Hauptverb entscheidet. Sequenz-/Struktur-Substantiv (Lernpfad/Unterrichtsreihe/Stundenentwurf) ODER Plan-Verb → I04, auch mit Such-Verb ('gibt es einen Lernpfad'). Reine Material-Suche → I03, auch wenn 'für eine Stunde/Sammlung'.
+  - **example_a**: Gibt es dazu einen fertigen Lernpfad? → I04
+  - **example_b**: Ich bereite eine Stunde vor und suche passendes Material → I03
+
+## I05 — Inhalt-Generieren
+
+- **description**:
+  > KI-Generierung EINES neuen Materials — Arbeitsblatt, Quiz, Info- blatt, Präsentation, Checkliste, Glossar, Übungen, Bericht/ Faktenblatt, Pressemitteilung, Remix. Singular, NICHT mehrteilig.
+  >
+  > Leitsatz: 'Generieren/Erstellen = KI baut neu'. 'Suchen/Finden = aus dem WLO-Repository raussuchen' (das ist I03).
+- **examples**:
+  - Erstelle ein Arbeitsblatt zu Bruchrechnung
+  - Mach mir ein Quiz zur Photosynthese
+  - Generier mir einen Bericht zu OER-KPIs
+  - Schreib eine Pressemitteilung zu unserer OER-Strategie
+  - Bau mir ein Rollenspiel zu Klimawandel
+  - Entwirf eine Checkliste für Eltern-Sprechtag
+  - Können Sie mir daraus ein kurzes Arbeitsblatt erstellen?
+  - Erstellen Sie uns daraus eine Argumentationshilfe
+- **trigger_verbs**:
+  - erstelle
+  - erstell mir
+  - erstell ein
+  - erstell eine
+  - generiere
+  - generier mir
+  - generier ein
+  - mach mir ein
+  - mach mir eine
+  - schreib mir
+  - schreib ein
+  - bau mir
+  - entwirf
+  - produziere
+  - erzeuge
+  - fasse zusammen als
+  - fertige an
+- **negative_triggers**:
+  - **phrase**: suche|such mir|ich suche|finde mir|find mir|zeig mir|hast du etwas|hast du was|gibt es|was gibt es
+  - **redirect_to**: I03
+  - **rationale**: Such-Verb = User will EXISTIERENDE Inhalte aus WLO sehen — KEIN KI-Create. Inverse-Override zu Create-Verb.
+
+  - **phrase**: runterladen|herunterladen|bereitstellen|liefern|zur verfügung|bekommen|geben
+  - **redirect_to**: I03
+  - **rationale**: Bot sucht im Repo, gibt Original-Link — kein eigener File-Stream-Download.
+
+  - **phrase**: bewerten|überprüfen|prüfen|wie gut ist|ist x geeignet
+  - **redirect_to**: I02
+  - **rationale**: Qualitätsprüfung/Review → I02 (Inhalte evaluieren).
+
+  - **phrase**: statistiken|zahlen|wie viele|aktuelle nutzungsdaten|reporting|übersicht.*daten
+  - **redirect_to**: I02
+  - **rationale**: Auch wenn 'Übersicht' fällt — Statistik-Anfrage ist I02, kein Material-Create.
+
+  - **phrase**: kürzer|ausführlicher|einfacher|ergänze|ändere|umformulieren|anpassen
+  - **redirect_to**: I06
+  - **rationale**: Bei aktivem Canvas-Inhalt + Edit-Verb → IMMER I06.
+  - **when**: canvas_state.mode == 'material'
+
+  - **phrase**: fehler gefunden|falsch|weiterleiten an redaktion|hier ist was falsch
+  - **redirect_to**: I08
+  - **rationale**: Fehler-/Lücken-Meldung → I08 (Routing Redaktion).
+
+  - **phrase**: was ist|wer ist|was macht
+  - **redirect_to**: I02
+  - **rationale**: Fakten-/Info-Frage → I02.
+
+- **discriminators**:
+  - **vs**: I04
+  - **rule**: Plural 'Materialien'/'Sammlung'/'Zusammenstellung' → I04. SINGULÄRER Material-Typ ohne Stunden-Kontext → I05.
+  - **example_a**: Erstelle eine Materialzusammenstellung zu X → I04
+  - **example_b**: Erstelle ein Arbeitsblatt zu X → I05
+
+  - **vs**: I03
+  - **rule**: Such-Verb (Zeig/Finde/Hast du) → I03. Create-Verb (Erstelle/Mach mir) → I05.
+  - **example_a**: Zeig mir Quizze zu Bruchrechnung → I03
+  - **example_b**: Mach mir ein Quiz zu Bruchrechnung → I05
+
+  - **vs**: I06
+  - **rule**: Create-Verb + (neuer) Material-Typ → I05, AUCH mit Bezug auf Vor-Inhalt ('daraus/davon ein Arbeitsblatt erstellen') — ein neues Artefakt zu bauen ist eine Generierung, kein Edit. I06 NUR beim Ändern DESSELBEN zuvor erzeugten Dokuments mit Änderungs-Verb (kürzer/ergänze/entferne).
+  - **example_a**: Können Sie mir daraus ein Arbeitsblatt erstellen? → I05
+  - **example_b**: Mach das Arbeitsblatt jetzt kürzer → I06
+
+## I06 — Inhalt-Nachbearbeiten
+
+- **description**:
+  > Ein vom Bot ZUVOR gerendertes Dokument (Lernpfad oder KI-Material) soll VERÄNDERT werden — Edit am bestehenden Inhalt, keine Neu-Erzeugung. Voraussetzung: voriger Bot-Turn enthält erstellten Inhalt.
+  >
+  > NUR bei echten Änderungs-Verben am Dokument: kürzer/länger, einfacher, ergänzen, Lösungen rein, entfernen, umstrukturieren, umformulieren. NICHT wenn der Nutzer (a) etwas VERSTEHEN will ('erklär mir', 'genauer erklären' → I02), (b) einen Einstieg/Reihenfolge im Lernpfad sucht ('womit fange ich an' → I04) oder (c) ein NEUES Material erstellt ('erstell mir daraus ein Arbeitsblatt' → I05) — auch wenn er sich dabei auf den Vorinhalt bezieht ('daraus', 'das', 'nochmal').
+- **examples**:
+  - Mach den Lernpfad kürzer
+  - Füge Lösungen hinzu
+  - Mach Abschnitt 2 im Dokument ausführlicher
+  - Anders strukturieren bitte
+  - Ergänze ein Beispiel zu Bruchrechnung
+  - Entferne den letzten Abschnitt
+- **trigger_verbs**:
+  - mach kürzer
+  - kürzer
+  - ausführlicher
+  - einfacher
+  - ergänze
+  - füge hinzu
+  - entferne
+  - anders strukturieren
+  - noch ein beispiel
+  - fasse zusammen
+  - umformulieren
+  - schreib um
+- **negative_triggers**:
+  - **phrase**: \b(erstell|generier|entwirf|produzier|erzeug)\w*|\b(bau|mach|schreib) (mir )?ein
+  - **redirect_to**: I05
+  - **rationale**: Erstell-/Generier-Verb = NEUES Material (I05), auch bei Bezug auf den Vorinhalt ("daraus"). Nur echte Änderungs-Verben am Vorinhalt (kürzer/ergänze/entferne) bleiben I06.
+
+  - **phrase**: kannst du.*erklär|erklär.*(mir|nochmal|genauer|verständlich|schritt für schritt)
+  - **redirect_to**: I02
+  - **rationale**: Verständnis-Wunsch (Erklärung AN den Nutzer) — kein Dokument-Edit, auch bei Bezug auf einen Schritt/Vorinhalt.
+
+  - **phrase**: womit (fange|fang|soll ich)|wo (fange|fang|soll ich)|wie fange ich an|was (mache|soll) ich zuerst|womit (starte|anfangen)
+  - **redirect_to**: I04
+  - **rationale**: Einstiegs-/Reihenfolge-Frage im Lernpfad-Kontext — kein Dokument-Edit.
+
+  - **phrase**: stattdessen|anderes thema|neues thema|mach mir.*zu
+  - **redirect_to**: I05
+  - **rationale**: Themenwechsel mit Create-Verb → neues Material, kein Edit.
+
+- **discriminators**:
+  - **vs**: I05
+  - **rule**: I06 NUR bei Änderungs-Verb am Vorinhalt (kürzer/ergänze/entferne/umschreibe). Erstell-/Generier-Verb + Material-Typ = NEUES Material → I05, auch bei "daraus".
+  - **example_a**: Mach es kürzer → I06
+  - **example_b**: Erstell mir daraus ein Arbeitsblatt → I05
+
+  - **vs**: I02
+  - **rule**: Dokument verändern → I06. "Erklär mir / genauer erklären / verständlicher" = Verständnis-Wunsch → I02 (auch mit Bezug auf einen Schritt).
+  - **example_a**: Mach Schritt 2 im Dokument ausführlicher → I06
+  - **example_b**: Kannst du mir Schritt 2 genauer erklären? → I02
+
+  - **vs**: I04
+  - **rule**: Edit am gerenderten Lernpfad → I06. Folgefrage nach Einstieg/Reihenfolge ("womit anfangen") → I04.
+  - **example_a**: Mach den Lernpfad kürzer → I06
+  - **example_b**: Womit fange ich am besten an? → I04
+
+  - **vs**: I03
+  - **rule**: Edit-Verb auf bestehenden Inhalt → I06. Suche nach neuem Material → I03.
+  - **example_a**: Ergänze ein Beispiel im Dokument → I06
+  - **example_b**: Zeig mir andere Materialien → I03
+
+## I07 — Feedback-Bot
+
+- **description**: Rückmeldung zum Bot, zur Antwort, zur Plattform-UX oder Meta-Frage zur Feedback-Möglichkeit / Bot-Bedienung. NICHT über konkrete Inhalte.
+
+- **examples**:
+  - Das war richtig hilfreich, danke!
+  - Funktioniert irgendwie nicht
+  - Kann ich hier Feedback geben?
+  - Wie kann ich Feedback geben?
+  - Wie kann ich dir Feedback geben?
+  - Wie melde ich dir was?
+  - Du hast nicht verstanden was ich meinte
+  - Die Ergebnisse sind nicht gut
+  - Wie bewertet ihr die Antworten?
+  - Wie funktioniert das hier mit dem Feedback?
+  - Kannst du mir Schritt für Schritt zeigen wie ich Feedback geben kann?
+- **trigger_verbs**:
+  - danke
+  - hilfreich
+  - super geholfen
+  - funktioniert nicht
+  - verwirrend
+  - hast nicht verstanden
+  - schade dass
+  - feedback geben
+  - feedback dazu
+  - feedback abgeben
+  - wie kann ich feedback
+  - wie melde ich
+  - wie sage ich dir
+  - wie sage ich euch
+  - wie bewertet ihr
+  - schritt für schritt feedback
+  - wie funktioniert das hier
+- **discriminators**:
+  - **vs**: I08
+  - **rule**: I07 bezieht sich auf Bot-Interaktion oder die FUNKTIONSWEISE des Feedback-Gebens. I08 bezieht sich auf konkreten Plattform-Inhalt mit Weiterleitungs-Wunsch.
+  - **example_a**: Das war hilfreich → I07
+  - **example_b**: Wie kann ich dir Feedback geben? → I07
+
+  - **vs**: I02
+  - **rule**: I07 = Reflexion über die Konversation oder Frage zur Bot-Bedienung. I02 = Wissens-/Faktenfrage zur Plattform/Welt.
+  - **example_a**: Du hast nicht verstanden was ich meinte → I07
+  - **example_b**: Was bedeutet OER? → I02
+
+  - **vs**: I03
+  - **rule**: I07 = Frage zur Bot-/Feedback-Bedienung. I03 = Suche nach Inhalten. „Wie kann ich X geben/melden" mit X=Feedback → I07. „Wie kann ich X finden" mit X=Material → I03.
+  - **example_a**: Wie kann ich Feedback geben? → I07
+  - **example_b**: Wie kann ich Material zu Photosynthese finden? → I03
+
+  - **vs**: I01
+  - **rule**: I07 = explizite Frage nach Feedback-Funktionalität. I01 = allgemeine Erstorientierung „was kann ich hier machen". Wenn der User „Feedback" oder „melden" sagt → I07, nicht I01.
+  - **example_a**: Hi, wie kann ich Feedback geben? → I07
+  - **example_b**: Hi, was kann ich hier machen? → I01
+
+## I08 — Einreichen / Melden
+
+- **description**: User schlägt eigenes Material vor ODER meldet inhaltlichen Fehler/ Lücke in WLO-Inhalt. Routing zur Redaktion mit Submit-Link.
+
+- **examples**:
+  - Ich habe ein gutes Video gefunden, wie reiche ich das ein?
+  - Hier ist ein Fehler im Material zur Photosynthese
+  - Der Link in dieser Sammlung funktioniert nicht
+  - Wo kann ich eigene Materialien hochladen?
+  - Es fehlen Materialien zu Klimawandel, könnt ihr das ergänzen?
+  - Ich habe Fehler in den Mathe-Übungen gefunden, an Redaktion weiterleiten bitte
+- **trigger_verbs**:
+  - an die redaktion weiterleiten
+  - an redaktion schicken
+  - an die redaktion melden
+  - ich habe einen fehler gefunden
+  - hier ist was falsch
+  - da stimmt etwas nicht
+  - ungereimtheiten entdeckt
+  - es fehlen materialien zu
+  - wo kann ich einen inhaltswunsch einreichen
+  - wie kann ich eigene materialien hochladen
+  - material vorschlagen
+  - quelle einreichen
+- **discriminators**:
+  - **vs**: I07
+  - **rule**: I08 = konkrete Meldung MIT Weiterleitungs-Wunsch an Redaktion. I07 = allgemeine Meinung zum Bot ohne Weiterleitungs-Wunsch.
+  - **example_a**: Fehler im Material, bitte an Redaktion → I08
+  - **example_b**: Das war nicht hilfreich → I07
+
+  - **vs**: I05
+  - **rule**: Bestehendes externes Material wird eingereicht → I08. Neues Material soll erzeugt werden → I05.
+  - **example_a**: Ich habe ein Video gefunden, wie reiche ich es ein? → I08
+  - **example_b**: Erstelle mir ein Video-Skript → I05
+
+## I09 — Kuratieren
+
+- **description**: AUFTRAG, den WLO-Bestand zu ändern: anlegen, Metadaten ändern, ein- oder aussortieren, einreichen, vorschlagen, entscheiden, löschen. Setzt einen Gegenstand voraus (Material, Sammlung, Themenseite) und führt aus — im Unterschied zu I08, das den Weg für Menschen ohne Konto zeigt.
+
+- **examples**:
+  - Leg das in WLO an
+  - Pack das Arbeitsblatt in meine Sammlung
+  - Ändere das Fach auf Physik
+  - Lösch den Eintrag
+  - Reich diesen Inhalt zur Prüfung ein
+  - Schlag Metadaten für den Inhalt vor
+- **trigger_verbs**:
+  - leg an / lege an
+  - erstell eine sammlung
+  - anlegen in wlo
+  - speicher das in wlo
+  - pack das in
+  - füg das hinzu
+  - sortier das ein
+  - lösch den eintrag
+  - lösche die sammlung
+  - nimm das raus
+  - entferne aus der sammlung
+  - ändere das feld
+  - setz das fach auf
+  - benenn die sammlung um
+  - reich das ein
+  - zur prüfung einreichen
+  - schlag metadaten vor
+  - vorschläge ansehen
+  - vorschlag annehmen oder ablehnen
+  - zur themenseite machen
+- **negative_triggers**:
+  - **phrase**: ^(wie|wo|wohin|kann ich)\b.{0,40}(einreichen|hochladen|vorschlagen|melden)
+  - **redirect_to**: I08
+  - **rationale**: Wie-Frage über den Vorgang → I08 zeigt den menschlichen Weg. Nur ein AUFTRAG mit Gegenstand ist I09.
+
+  - **phrase**: (erstell|schreib|generier).{0,25}(arbeitsblatt|quiz|prüfung|text|stunde|reihe|lernpfad)
+  - **redirect_to**: I05
+  - **rationale**: Ein neues Artefakt TEXTEN lassen → I05. Erst das Ergebnis in WLO ABLEGEN ist I09.
+
+- **discriminators**:
+  - **vs**: I08
+  - **rule**: I09 = Ausführungsauftrag mit Gegenstand, der den Bestand ändert. I08 = Frage nach dem Weg oder Meldung an die Redaktion ohne eigenen Schreibzugriff.
+  - **example_a**: Reich dieses Arbeitsblatt zur Prüfung ein → I09
+  - **example_b**: Wie kann ich Material einreichen? → I08
+
+  - **vs**: I05
+  - **rule**: I05 erzeugt einen Text im Chat. I09 schreibt in den WLO-Bestand. Ein „erstelle und speichere" ist zwei Züge, erst I05, dann I09.
+  - **example_a**: Speicher das Arbeitsblatt in meiner Sammlung → I09
+  - **example_b**: Erstell mir ein Arbeitsblatt zu Brüchen → I05
+
+  - **vs**: I03
+  - **rule**: I03 sucht und zeigt. I09 verändert. „Zeig mir die Sammlung" ist nie I09.
+  - **example_a**: Leg eine Sammlung Optik an → I09
+  - **example_b**: Was ist in der Sammlung Optik? → I03
+
+## I10 — Qualitätssicherung
+
+- **description**: PRÜFAUFTRAG zu einem benannten WLO-Gegenstand: Vollständigkeit, Lücken, Abdeckung, Kennzahlen deuten, fachliche Richtigkeit eines Materials. Setzt einen Gegenstand voraus und erwartet ein BEGRÜNDETES URTEIL, keine Aufzählung — und keine Änderung.
+
+- **examples**:
+  - Prüf die Sammlung Optik
+  - Was fehlt in dieser Sammlung?
+  - Gibt es Dubletten in der Sammlung?
+  - Passt der Bestand zum Kompendiumstext?
+  - Ist das Material fachlich in Ordnung?
+  - Deute mir die Kennzahlen der Sammlung
+- **trigger_verbs**:
+  - prüf
+  - überprüf
+  - bewerte
+  - beurteile
+  - wie vollständig
+  - was fehlt
+  - welche lücken
+  - ist das in ordnung
+  - stimmt das fachlich
+  - deute die kennzahlen
+  - wie gut ist
+  - abdeckung prüfen
+  - soll ist abgleich
+- **negative_triggers**:
+  - **phrase**: ^(zeig|liste|was ist in|welche inhalte)
+  - **redirect_to**: I03
+  - **rationale**: Anzeigen ist keine Prüfung. Nur ein Urteil verlangt I10.
+
+  - **phrase**: (füg|ergänze|leg an|behebe|schliess die lücke)
+  - **redirect_to**: I09
+  - **rationale**: Eine Lücke BEHEBEN ändert den Bestand → I09. Sie BENENNEN ist I10.
+
+- **discriminators**:
+  - **vs**: I03
+  - **rule**: I03 sucht und zeigt. I10 urteilt über Gefundenes. Das Verb entscheidet, nicht der Gegenstand.
+  - **example_a**: Prüf die Sammlung Optik → I10
+  - **example_b**: Zeig mir die Sammlung Optik → I03
+
+  - **vs**: I02
+  - **rule**: I10 braucht einen benannten WLO-Gegenstand. Ohne ihn ist es eine Wissensfrage.
+  - **example_a**: Ist diese Sammlung vollständig? → I10
+  - **example_b**: Was macht eine gute Sammlung aus? → I02
+
+  - **vs**: I09
+  - **rule**: Befund benennen → I10. Befund beheben → I09.
+  - **example_a**: Was fehlt in der Sammlung? → I10
+  - **example_b**: Füg das fehlende Material hinzu → I09
+
+## I11 — Erschliessen
+
+- **description**: Eine EXTERNE Webadresse soll verstanden und in WLO aufgenommen werden: Text holen, Dublette ausschliessen, Metadaten ableiten, Datensatz anlegen, einsortieren. Unterscheidet sich von I09 durch den Gegenstand — der kommt von aussen und hat noch keine nodeId.
+
+- **examples**:
+  - Nimm diese Seite in WLO auf
+  - Leg die URL als Material an
+  - Erschliess mir diese Webseite
+  - Was steht auf der Seite, und passt das zu uns?
+  - Schlag Metadaten für diesen Link vor
+  - Kannst du die Seite aufnehmen und in meine Sammlung packen?
+- **trigger_verbs**:
+  - nimm die seite auf
+  - seite erschliessen
+  - webseite aufnehmen
+  - url anlegen
+  - link als material
+  - diese adresse aufnehmen
+  - metadaten für den link
+  - seite in wlo aufnehmen
+- **negative_triggers**:
+  - **phrase**: (fass|zusammenfassen|worum geht)
+  - **redirect_to**: I02
+  - **rationale**: Eine Seite nur VERSTEHEN wollen ist eine Wissensfrage. Erst die Ablage-Absicht macht es zu I11.
+
+- **discriminators**:
+  - **vs**: I09
+  - **rule**: I11 beginnt bei einer externen ADRESSE ohne nodeId. I09 arbeitet an etwas, das schon in WLO liegt.
+  - **example_a**: Nimm https://example.org/optik auf → I11
+  - **example_b**: Ändere das Fach dieses Materials → I09
+
+  - **vs**: I02
+  - **rule**: Nur verstehen → I02. Verstehen, um abzulegen → I11.
+  - **example_a**: Nimm die Seite auf → I11
+  - **example_b**: Fass mir die Seite zusammen → I02
+

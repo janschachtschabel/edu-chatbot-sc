@@ -20,6 +20,13 @@ export interface RagArea {
   readonly area: string;
   readonly chunks: number;
   readonly documents: number;
+  /**
+   * Steht der Bereich in `05-knowledge/rag-config`? Nur dann durchsucht der
+   * Chatbot ihn (R, 18.08.2026). Die Liste hier kommt aus der DATENBANK, die
+   * Nutzung entscheidet die Konfiguration — wer beim Einlesen einen neuen Namen
+   * tippt, legt ihn nur hier an und wundert sich später über Antworten ohne ihn.
+   */
+  readonly configured: boolean;
 }
 
 export interface RagDoc {

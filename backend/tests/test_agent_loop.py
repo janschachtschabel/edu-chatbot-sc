@@ -100,7 +100,7 @@ class _Sammler:
 def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
           limits=None, usage_acc=None, progress=None, clock=None, raises=None,
           echter_transport=False, on_tool_result=None,
-          muster_katalog=None, werkzeuge_fuer=None):
+          muster_katalog=None, werkzeuge_fuer=None, wissen=None):
     """``echter_transport=True`` fälscht eine Ebene tiefer (``llm._acompletion``).
 
     Nötig für alles, was die **Buchung** prüft: die Schleife reicht ``usage_acc``
@@ -129,6 +129,8 @@ def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
         kwargs["muster_katalog"] = muster_katalog
     if werkzeuge_fuer is not None:
         kwargs["werkzeuge_fuer"] = werkzeuge_fuer
+    if wissen is not None:
+        kwargs["wissen"] = wissen
     run = asyncio.run(agent_loop.run_agent_loop(
         messages=msgs,
         tools=[{"type": "function", "function": {"name": "search_wlo_content"}}],
@@ -770,3 +772,41 @@ def test_ohne_lieferung_bleibt_das_ergebnis_leer(monkeypatch):
         _resp_text("fertig"),
     ])
     assert run.result is None
+
+
+# ── P: die Wissensdatenbank als virtuelles Werkzeug ──────────────────
+
+
+def test_wissen_suchen_geht_nie_an_den_mcp(monkeypatch):
+    """Virtuell wie ``submit_result``: der Name wird VOR dem Netzaufruf
+    abgefangen. Ginge er durch, meldete der MCP-Server ein unbekanntes Werkzeug
+    — und das Modell lernte, dass es kein internes Wissen gibt."""
+    gefragt: list[dict] = []
+
+    async def _wissen(args):
+        gefragt.append(args)
+        return "Aus der Wissensdatenbank: OER heisst frei nutzbar."
+
+    class _NieAufrufen:
+        async def __call__(self, name, args):  # pragma: no cover - darf nicht laufen
+            raise AssertionError(f"{name} haette nie an den MCP gehen duerfen")
+
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("wissen_suchen", {"frage": "Was ist OER?"})]),
+        _resp_text("OER heisst frei nutzbar."),
+    ], outcome=_NieAufrufen(), wissen=_wissen)
+    assert gefragt == [{"frage": "Was ist OER?"}]
+    assert "wissen_suchen" in run.tools_called
+    werkzeug_zug = [m for m in msgs if m.get("role") == "tool"][-1]
+    assert "frei nutzbar" in werkzeug_zug["content"]
+
+
+def test_ohne_wissens_naht_ist_der_name_ein_werkzeug_wie_jedes(monkeypatch):
+    """Der Agent-Endpunkt reicht nichts herein — dann darf der Name nicht
+    heimlich eine andere Bedeutung haben."""
+    fake_outcome = _OutcomeFake()
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("wissen_suchen", {"frage": "x"})]),
+        _resp_text("fertig"),
+    ], outcome=fake_outcome)
+    assert fake_outcome.calls and fake_outcome.calls[0][0] == "wissen_suchen"

@@ -359,7 +359,6 @@
             "$ref": "#/components/schemas/Environment"
           },
           "message": {
-            "maxLength": 10000,
             "title": "Message",
             "type": "string"
           },
@@ -928,6 +927,13 @@
             "title": "Device",
             "type": "string"
           },
+          "forced_quick_replies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Forced Quick Replies",
+            "type": "array"
+          },
           "guide_mode": {
             "default": true,
             "title": "Guide Mode",
@@ -949,10 +955,32 @@
             ],
             "title": "Host Instruction"
           },
+          "inline_result_grouping": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inline Result Grouping"
+          },
           "locale": {
             "default": "de-DE",
             "title": "Locale",
             "type": "string"
+          },
+          "master_skill": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Master Skill"
           },
           "page": {
             "default": "/",
@@ -996,6 +1024,17 @@
             "default": 0,
             "title": "Session Duration",
             "type": "integer"
+          },
+          "tool_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Mode"
           },
           "tour_action": {
             "anyOf": [
@@ -5887,7 +5926,7 @@
     },
     "/api/rag/areas": {
       "get": {
-        "description": "List all knowledge areas with chunk counts.",
+        "description": "Alle Wissensbereiche mit Zaehlungen — **und** ob der Chatbot sie nutzt (R).\n\nZwei Listen werden hier zu einer: der Datenbank-Bestand (was eingelesen\nwurde) und ``05-knowledge/rag-config`` (was der Chatbot durchsucht). Sie\nkoennen auseinanderlaufen, und das tat bis 2026-08-18 niemand sehen —\nBegruendung und Regeln im Kopf von ``domain/rag_areas``.",
         "operationId": "list_rag_areas_api_rag_areas_get",
         "responses": {
           "200": {

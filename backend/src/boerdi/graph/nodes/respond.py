@@ -83,7 +83,10 @@ async def respond(
             "'agent' oder 'hybrid' setzen oder 01-base/engine umstellen.",
             engine)
     if laeuft_ueber_die_schleife(engine):
-        return await respond_agent(ctx, progress=progress, engine=engine)
+        # ``session`` reicht nur die Wissensdatenbank durch (P) — dieselbe
+        # pg-DI-Naht, die der Bestandsweg an ``generate_response`` gibt.
+        return await respond_agent(ctx, progress=progress, engine=engine,
+                                   session=session)
 
     req = ctx.req
     history = ctx.history

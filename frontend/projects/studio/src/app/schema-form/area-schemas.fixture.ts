@@ -202,6 +202,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             },
             "title": "Known Repo Hosts",
             "type": "array"
+          },
+          "repo_base_url": {
+            "default": "",
+            "title": "Repo Base Url",
+            "type": "string"
           }
         },
         "title": "CardPipelineBlock",
@@ -218,7 +223,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "final_selection_size": 5,
           "enable_llm_curation": true,
           "min_displayed_cards": 5,
-          "known_repo_hosts": []
+          "known_repo_hosts": [],
+          "repo_base_url": ""
         }
       }
     },
@@ -505,7 +511,13 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "action": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "x-choices": [
+                  "browse_collection",
+                  "curate_collection",
+                  "generate_learning_path",
+                  "show_content_text"
+                ]
               },
               {
                 "type": "null"
@@ -854,24 +866,24 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
     "$defs": {
       "AgentLimits": {
         "additionalProperties": true,
-        "description": "Die Deckel der Agent-Schleife.\n\nAlle vier sind nötig, weil ein MCP-Aufruf gemessen bis 23 s steht: ohne Frist\nkönnte ein Lauf mit 12 Iterationen acht Minuten dauern, ohne Budget beliebig\nviel kosten. ``ge``/``le`` sind kein Zierrat — das Studio schreibt über\n``PUT /config/data/{area}`` direkt gegen dieses Modell, und eine Frist von 0 s\nbeendete jeden Lauf vor dem ersten Werkzeug.",
+        "description": "Die Deckel der Agent-Schleife.\n\nAlle vier sind nötig, weil ein MCP-Aufruf gemessen bis 23 s steht: ohne Frist\nkönnte ein Lauf mit 20 Iterationen zehn Minuten dauern, ohne Budget beliebig\nviel kosten. ``ge``/``le`` sind kein Zierrat — das Studio schreibt über\n``PUT /config/data/{area}`` direkt gegen dieses Modell, und eine Frist von 0 s\nbeendete jeden Lauf vor dem ersten Werkzeug.\n\n**Am 2026-08-18 angehoben (Nutzer-Entscheid): 12/90/60k → 20/300/400k.** Die\ndrei mussten GEMEINSAM steigen, sonst wäre die Anhebung eine Zusage ohne\nDeckung: gemessen kostete ein Hybrid-Zug ~15 300 Token je Runde (die Kette\nwächst, der Prompt wird jede Runde neu berechnet) und ein Werkzeug-Aufruf bis\n23 s. Mit 20 Runden, aber alter Frist wäre nach ~5 Runden Schluss gewesen, mit\naltem Budget nach ~4 — der neue Wert stünde in der Konfiguration und käme nie\nzum Tragen. Genau diese Falle hatte das Budget am 2026-08-17 schon einmal\ngestellt.\n\n**Der Preis steht hier, nicht nur im Log:** der Kosten-Deckel je Zug steigt\ndamit auf das Sechsfache des ursprünglichen Wertes. Wer ihn kleiner braucht,\nstellt ihn im Studio je Anlage ein — dieser Wert ist die Vorgabe, keine\nObergrenze der Vernunft.",
         "properties": {
           "max_iterations": {
-            "default": 12,
+            "default": 30,
             "maximum": 50,
             "minimum": 1,
             "title": "Max Iterations",
             "type": "integer"
           },
           "deadline_s": {
-            "default": 90,
-            "maximum": 600,
+            "default": 900,
+            "maximum": 1800,
             "minimum": 5,
             "title": "Deadline S",
             "type": "integer"
           },
           "token_budget": {
-            "default": 60000,
+            "default": 900000,
             "minimum": 1000,
             "title": "Token Budget",
             "type": "integer"
@@ -902,7 +914,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "default": "pattern",
         "enum": [
           "pattern",
-          "agent"
+          "agent",
+          "hybrid"
         ],
         "title": "Mode",
         "type": "string"
@@ -2362,7 +2375,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "mode": {
             "default": "",
             "title": "Mode",
-            "type": "string"
+            "type": "string",
+            "x-choices": [
+              "always",
+              "on-demand"
+            ]
           },
           "description": {
             "anyOf": [
@@ -2375,6 +2392,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             ],
             "default": null,
             "title": "Description"
+          },
+          "agent": {
+            "default": true,
+            "title": "Agent",
+            "type": "boolean"
           }
         },
         "title": "RagAreaDef",

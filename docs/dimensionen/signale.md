@@ -1,0 +1,108 @@
+# Signal-Modulationen
+
+<!-- ERZEUGT von backend/scripts/export_dimensions.py aus backend/seeds/ — nicht von Hand ändern; Änderungen gehören in den Seed bzw. ins Studio. -->
+
+Quelle: `backend/seeds/04-signals/signal-modulations.yaml`
+
+- **signals**:
+  - **zeitdruck**:
+    - **dimension**: D1-Zeit
+    - **label**: Zeitdruck
+    - **tone**: sachlich
+    - **length**: kurz
+    - **skip_intro**: True
+  - **ungeduldig**:
+    - **dimension**: D1-Zeit
+    - **label**: Ungeduldig
+    - **tone**: sachlich
+    - **length**: kurz
+    - **skip_intro**: True
+  - **gestresst**:
+    - **dimension**: D1-Zeit
+    - **label**: Gestresst
+    - **tone**: beruhigend
+    - **length**: kurz
+    - **skip_intro**: True
+  - **effizient**:
+    - **dimension**: D1-Zeit
+    - **label**: Effizient
+    - **tone**: sachlich
+    - **length**: kurz
+    - **skip_intro**: True
+  - **unsicher**:
+    - **dimension**: D2-Sicherheit
+    - **label**: Unsicher
+    - **tone**: empathisch
+    - **length**: mittel
+    - **one_option**: True
+  - **ueberfordert**:
+    - **dimension**: D2-Sicherheit
+    - **label**: Überfordert
+    - **tone**: empathisch
+    - **length**: kurz
+    - **one_option**: True
+  - **unerfahren**:
+    - **dimension**: D2-Sicherheit
+    - **label**: Unerfahren
+    - **tone**: niedrigschwellig
+    - **length**: mittel
+    - **one_option**: True
+  - **erfahren**:
+    - **dimension**: D2-Sicherheit
+    - **label**: Erfahren
+    - **tone**: sachlich
+    - **length**: kurz
+    - **skip_intro**: True
+  - **entscheidungsbereit**:
+    - **dimension**: D2-Sicherheit
+    - **label**: Entscheidungsbereit
+    - **tone**: sachlich
+    - **length**: kurz
+    - **skip_intro**: True
+  - **neugierig**:
+    - **dimension**: D3-Haltung
+    - **label**: Neugierig
+    - **tone**: spielerisch
+    - **length**: mittel
+    - **show_more**: True
+  - **zielgerichtet**:
+    - **dimension**: D3-Haltung
+    - **label**: Zielgerichtet
+    - **tone**: sachlich
+    - **skip_intro**: True
+  - **skeptisch**:
+    - **dimension**: D3-Haltung
+    - **label**: Skeptisch
+    - **tone**: transparent
+    - **length**: mittel
+    - **add_sources**: True
+  - **vertrauend**:
+    - **dimension**: D3-Haltung
+    - **label**: Vertrauend
+    - **tone**: empfehlend
+    - **length**: mittel
+  - **orientierungssuchend**:
+    - **dimension**: D4-Kontext
+    - **label**: Orientierungssuchend
+    - **tone**: orientierend
+    - **length**: mittel
+    - **show_overview**: True
+  - **vergleichend**:
+    - **dimension**: D4-Kontext
+    - **label**: Vergleichend
+    - **tone**: analytisch
+    - **length**: mittel
+  - **validierend**:
+    - **dimension**: D4-Kontext
+    - **label**: Validierend
+    - **tone**: belegend
+    - **length**: mittel
+    - **add_sources**: True
+  - **delegierend**:
+    - **dimension**: D4-Kontext
+    - **label**: Delegierend
+    - **tone**: proaktiv
+    - **length**: mittel
+- **reduce_items_signals**:
+  - ungeduldig
+  - gestresst

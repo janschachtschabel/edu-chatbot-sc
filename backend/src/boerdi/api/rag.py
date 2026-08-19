@@ -12,7 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.deps import Lang, get_session, require_studio_key
 from boerdi.api.schemas import RagQuery, RagResult
+from boerdi.domain.rag_areas import zusammenfuehren
 from boerdi.i18n import msg
+from boerdi.services.config_loader import load_rag_config
 from boerdi.services.rag.admin import (
     delete_area,
     delete_document,
@@ -163,8 +165,14 @@ async def rag_embed(session: Annotated[AsyncSession, Depends(get_session)]) -> d
 
 @router.get("/areas")
 async def list_rag_areas(session: Annotated[AsyncSession, Depends(get_session)]):
-    """List all knowledge areas with chunk counts."""
-    return await list_areas(session)
+    """Alle Wissensbereiche mit Zaehlungen — **und** ob der Chatbot sie nutzt (R).
+
+    Zwei Listen werden hier zu einer: der Datenbank-Bestand (was eingelesen
+    wurde) und ``05-knowledge/rag-config`` (was der Chatbot durchsucht). Sie
+    koennen auseinanderlaufen, und das tat bis 2026-08-18 niemand sehen —
+    Begruendung und Regeln im Kopf von ``domain/rag_areas``.
+    """
+    return zusammenfuehren(await list_areas(session), load_rag_config())
 
 
 @router.get("/area/{area}")

@@ -715,6 +715,29 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     this._api.setResultSchema(schema);
   }
 
+  /** N4: Gesamtanleitung fuer diese Einbettung — durchgereicht an den Client. */
+  setMasterSkill(an: boolean | null): void {
+    this._api.setMasterSkill(an);
+  }
+
+  /** O-C: gruppiert diese Anwendung die Treffer? Delegate wie `setEngine` —
+   *  die Hülle löst ihr Host-Attribut auf, der Client trägt es an jedem Zug mit.
+   *  Bis 2026-08-18 war der Schalter rein visuell und erreichte das Modell nie. */
+  setInlineResultGrouping(an: boolean): void {
+    this._api.setInlineResultGrouping(an);
+  }
+
+  /** O-A: was der Gastgeber erlaubt (`read-only` | `curate` | `full`). */
+  setToolMode(modus: string): void {
+    this._api.setToolMode(modus);
+  }
+
+  /** **Public API** (O-B) — Schnellantworten fuer die naechsten Zuege hart
+   *  setzen. `[]` oder `null` gibt sie wieder frei. */
+  setQuickReplies(chips: string[] | null): void {
+    this._api.setQuickReplies(chips);
+  }
+
   /** **Public API** (G1) — der Gastanwendung ihren Rahmen mitgeben: „so bist du
    *  hier zu verstehen". Der Text erscheint NICHT im Verlauf; er reist als
    *  System-Block mit und wirkt in allen drei Maschinen.

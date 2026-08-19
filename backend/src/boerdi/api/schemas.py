@@ -77,7 +77,6 @@ from boerdi.api.schemas_mcp_curation import (
     SuggestionsListArgs,
     TopicPageSetArgs,
 )
-from boerdi.domain import host_instruction as _host_instruction
 
 __all__ = [
     "ChatRequest", "ChatResponse", "ClassificationResult", "CollectionContentsArgs",
@@ -149,10 +148,13 @@ class ClassificationResult(BaseModel):
 #: die er nie verlangt hat, und hätte keine Möglichkeit, das zu bemerken. Ein
 #: 422 sagt es ihm.
 #:
-#: 10 000 Zeichen = dieselbe Grenze wie ``ChatRequest.message``. Ein echtes
-#: Ergebnis-Schema ist ein bis zwei Kilobyte groß; der Deckel trifft nur
-#: Ausreißer.
-MAX_RESULT_SCHEMA_CHARS = 10000
+#: **200 000 Zeichen seit 2026-08-18** (vorher 10 000, damals dieselbe Grenze
+#: wie ``ChatRequest.message``). Diese Kopplung gilt nicht mehr: ``message`` und
+#: ``Environment.host_instruction`` haben seit demselben Tag GAR KEINEN Deckel,
+#: dieser hier ist der letzte im öffentlichen Chat-Vertrag. Ein echtes
+#: Ergebnis-Schema ist ein bis zwei Kilobyte groß — wer 200 000 überschreitet,
+#: hat einen Fehler, keinen Wunsch.
+MAX_RESULT_SCHEMA_CHARS = 200000
 
 
 # ── Environment (sent by frontend every turn) ──────────────────────
@@ -214,18 +216,41 @@ class Environment(BaseModel):
     #
     # Wie ``result_schema`` geht dieses Feld NICHT durch die Sicherheitsprüfung —
     # die sieht nur ``message`` (``assess.py``). Wer es füllt, schreibt in den
-    # Prompt seiner eigenen Sitzung; der Deckel unten begrenzt, wie viel, und der
-    # Block selbst sagt dem Modell, dass eine Regel über der Anweisung steht.
+    # Prompt seiner eigenen Sitzung; der Block selbst sagt dem Modell, dass eine
+    # Regel über der Anweisung steht.
+    #
+    # OHNE Zeichendeckel (Nutzer-Entscheid 2026-08-18) — Begründung in
+    # ``domain/host_instruction``. Das Rate-Limit begrenzt den Missbrauch, nicht
+    # dieses Feld; ``page_context`` daneben war ohnehin nie gedeckelt.
     host_instruction: str | None = None
 
-    @field_validator("host_instruction")
-    @classmethod
-    def _anweisung_gedeckelt(cls, wert: str | None) -> str | None:
-        if wert is not None and len(wert) > _host_instruction.MAX_CHARS:
-            raise ValueError(
-                f"host_instruction ist {len(wert)} Zeichen lang, erlaubt sind "
-                f"{_host_instruction.MAX_CHARS}")
-        return wert
+    # N3/N4 (2026-08-18): darf der Master-Skill fuer DIESE Einbettung gelten?
+    # ``None`` heisst „die Anwendung sagt nichts" — dann gilt
+    # ``MASTER_SKILL_ENABLED``. Ein Wert uebersteuert die Vorgabe in BEIDE
+    # Richtungen: ein Gastgeber kennt seinen Anwendungsfall besser als eine
+    # globale Variable. Rangfolge steht in ``services/master_skill.ist_aktiv``.
+    master_skill: bool | None = None
+
+    # O-A/B/C (2026-08-18): was die Einbettung ANZEIGT und ERLAUBT. Alle drei
+    # ``None``/leer = Vorgabe, also das heutige Verhalten.
+    #
+    # ``inline_result_grouping`` war bis dahin ein REINES Frontend-Attribut; das
+    # Modell erfuhr nie, dass diese Anwendung Treffer nicht gruppiert, und
+    # verwies auf Boxen, die es dort nicht gibt. Jetzt erreicht es den Prompt
+    # (``domain/host_capabilities``).
+    #
+    # Ein ``show_cards`` steht hier BEWUSST NICHT: das gleichnamige Attribut
+    # waehlt nur zwischen zwei Darstellungen (Kacheln oder Textlinks), es
+    # schaltet die Treffer nicht ab. Begruendung im Kopf von
+    # ``domain/host_capabilities``.
+    inline_result_grouping: bool | None = None
+    # read-only | curate | full. Benannte Modi statt freier Werkzeugliste: eine
+    # Umbenennung im MCP wuerde sonst still die Rechte einer Einbettung aendern.
+    tool_mode: str | None = None
+    # Vom Gastgeber HART gesetzte Schnellantworten fuer DIESEN Zug. Der Chip-Text
+    # IST die Nachricht, die beim Klick gesendet wird — deshalb wird nichts
+    # gekuerzt; zu viele werden abgeschnitten (Anzahl, nicht Text).
+    forced_quick_replies: list[str] = Field(default_factory=list)
     # Webseiten-Tour (geführte Besucherführung). Explizites UI-Signal:
     #   "start" → Tour beginnen (Button "Web-Tour starten")
     #   "tick"  → unsichtbarer Page-Load-Ping (Ankunfts-Erkennung)
@@ -243,7 +268,9 @@ class Environment(BaseModel):
 # ── Chat request / response ────────────────────────────────────────
 class ChatRequest(BaseModel):
     session_id: str
-    message: str = Field(..., max_length=10000)
+    # Ohne Deckel (Nutzer-Entscheid 2026-08-18; vorher 10000). Eine
+    # Gastanwendung reicht hier ganze Seiteninhalte herein.
+    message: str
     environment: Environment = Field(default_factory=Environment)
     # browse_collection | generate_learning_path | curate_collection | None
     action: str | None = None

@@ -7,9 +7,6 @@ Verdrahtung in BEIDE Prompt-Wege (Muster ↔ Schleife).
 
 from __future__ import annotations
 
-import pytest
-from pydantic import ValidationError
-
 from boerdi.api.schemas import Environment
 from boerdi.domain import host_instruction
 
@@ -30,17 +27,18 @@ def test_block_traegt_text_und_rangfolge() -> None:
     assert "NICHT von der Person" in block
 
 
-def test_zu_lange_anweisung_wird_abgewiesen() -> None:
-    # Abweisen statt kürzen: eine halbierte Anweisung ist eine ANDERE Anweisung,
-    # und der Gastgeber hätte keine Möglichkeit, das zu bemerken. Gleiche
-    # Entscheidung wie beim `result_schema` nebenan.
-    with pytest.raises(ValidationError):
-        Environment(host_instruction="x" * (host_instruction.MAX_CHARS + 1))
+def test_die_anweisung_hat_keinen_zeichendeckel_mehr() -> None:
+    """Deckel entfernt (Nutzer-Entscheid 2026-08-18).
 
-
-def test_deckel_laesst_die_grenze_selbst_durch() -> None:
-    env = Environment(host_instruction="x" * host_instruction.MAX_CHARS)
+    Er lag bei 2000 Zeichen und wies mit 422 ab. Aus der Praxis gemeldet: eine
+    Schritt-Anleitung ist rund 2500 Zeichen lang, und Angaben ueber die
+    Gastseite sollen dazu passen. Die Begruendung des Deckels — „reist in JEDEN
+    Modellaufruf des Zuges" — trifft die ``message`` genauso, und die durfte das
+    Fuenffache: der Schnitt lag also nicht dort, wo die Kosten entstehen.
+    """
+    env = Environment(host_instruction="x" * 50_000)
     assert env.host_instruction is not None
+    assert len(env.host_instruction) == 50_000
 
 
 def test_vorgabe_ist_keine_anweisung() -> None:

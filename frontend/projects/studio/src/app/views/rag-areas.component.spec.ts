@@ -15,8 +15,8 @@ const tick = (): Promise<unknown> =>
   new Promise((resolve) => setTimeout(resolve, 0));
 
 const AREAS = [
-  { area: "wlo", chunks: 12, documents: 3 },
-  { area: "recht", chunks: 4, documents: 1 },
+  { area: "wlo", chunks: 12, documents: 3, configured: true },
+  { area: "recht", chunks: 4, documents: 1, configured: true },
 ];
 
 interface Harness {
@@ -66,6 +66,21 @@ describe("RagAreasComponent", () => {
     expect(rows[0]).toContain("wlo");
     expect(rows[0]).toContain("12");
     expect(rows[0]).toContain("3");
+  });
+
+  it("markiert einen Bereich, den der Chatbot nicht durchsucht", async () => {
+    // R: wer beim Einlesen einen neuen Namen tippt, legt ihn nur in der
+    // Datenbank an. Bis 18.08.2026 sah die Seite genauso aus wie bei einem
+    // gepflegten Bereich — die Dokumente da, die Antworten ohne sie.
+    const { el } = await withAreas([
+      { area: "wlo", chunks: 12, documents: 3, configured: true },
+      { area: "neu-getippt", chunks: 3, documents: 1, configured: false },
+    ]);
+    const rows = Array.from(el.querySelectorAll(".ra-row"));
+    expect(rows[0].querySelector(".ra-unconfigured")).toBeNull();
+    const hinweis = rows[1].querySelector(".ra-unconfigured");
+    expect(hinweis).not.toBeNull();
+    expect(hinweis?.textContent).toContain("rag-config");
   });
 
   it("does not fetch before the panel is opened", async () => {

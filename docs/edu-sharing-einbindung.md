@@ -518,7 +518,8 @@ jeder Zug kostet dann **einen zusätzlichen Modellzug (2–9 s gemessen)**, auch
 „Danke!"; `result` ist **je Zug optional** (`null` aushalten, `stop_reason`
 unterscheidet „nichts dabei" von „abgeschnitten"); und das Attribut ist eine
 **Zeichenkette** — kaputtes JSON gilt als „kein Schema" und meldet sich nur als
-`console.warn`. Das Schema ist auf 10 000 Zeichen gedeckelt (sonst 422).
+`console.warn`. Das Schema ist auf 200 000 Zeichen gedeckelt (sonst 422;
+seit 18.08.2026, vorher 10 000).
 
 **Ohne Chat-Fenster** — reiner Auftrag, kein Gespräch: **`POST /api/agent`**,
 unverändert, siehe unten. Kein Widget nötig.
@@ -734,7 +735,7 @@ Volle Herleitung: [`plans/2026-08-12-einbettung-ohne-repo-aenderung.md`](plans/2
 | `result` ist immer `null` | Kein `result_schema` mitgegeben — oder `stop_reason !== 'submit'` (§8) |
 | `boerdi:agent-result` kommt nie | `engine="agent"` fehlt. Das Schema allein wirkt nicht; die Warnung steht nur im Backend-Protokoll (§8) |
 | `result-schema` gesetzt, nichts passiert | Kaputtes JSON — es gilt dann als „kein Schema". Die `console.warn`-Zeile im Browser nennt es (§8) |
-| `422` beim Senden | Das `result_schema` ist länger als 10 000 Zeichen. Abgelehnt statt gekürzt: ein halbes Schema wäre ein anderes (§8) |
+| `422` beim Senden | Das `result_schema` ist länger als 200 000 Zeichen. Abgelehnt statt gekürzt: ein halbes Schema wäre ein anderes (§8) |
 | Der Auftrag aus `startTask` erscheint nicht | Leerer Text wird verworfen; sonst wartet er auf die Shell und läuft nach dem Mounten (§6) |
 | Der Bot antwortet auf den Auftrag, ohne die Sammlung zu kennen | `replaceContext()` **vor** `startTask()` rufen — der Auftrag geht sofort raus (§6) |
 | Schreiben passiert nicht | `write_mode: execute` ohne persönliche Anmeldung → still auf `propose` zurückgefallen |

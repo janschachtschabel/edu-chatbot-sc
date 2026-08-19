@@ -31,6 +31,15 @@
   font-size: 0.875rem;
 }
 
+/* R: der Bereich liegt in der Datenbank, aber nicht in der Konfiguration —
+   der Chatbot durchsucht ihn also nie. Warn-Token statt Fehler-Token: nichts ist
+   kaputt, es fehlt nur ein Schritt. */
+.ra-unconfigured {
+  margin: var(--st-1) 0 0;
+  color: var(--st-warn-text);
+  font-size: 0.875rem;
+}
+
 .ra-buttons {
   margin-inline-start: auto;
   display: flex;

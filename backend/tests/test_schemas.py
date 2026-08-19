@@ -115,16 +115,35 @@ def test_result_schema_ist_gedeckelt() -> None:
         Environment(result_schema={"type": "object", "x": "a" * MAX_RESULT_SCHEMA_CHARS})
 
 
+def test_result_schema_deckel_liegt_bei_200000(monkeypatch) -> None:
+    """Angehoben von 10000 auf 200000 (Nutzer-Entscheid 2026-08-18).
+
+    Anders als bei ``message`` und ``host_instruction`` bleibt hier EIN Deckel
+    stehen: das Schema reist woertlich in die Werkzeug-Parameter und damit in
+    jeden Modellaufruf der Schleife, und ein absurd grosses Schema ist nie ein
+    Wunsch, sondern ein Fehler. 200000 Zeichen sind fuer eine Struktur so viel
+    Platz, dass die Grenze in der Praxis nicht mehr vorkommt.
+    """
+    assert MAX_RESULT_SCHEMA_CHARS == 200000
+    gross = Environment(result_schema={"type": "object", "x": "a" * 100_000})
+    assert gross.result_schema is not None
+
+
 def test_result_schema_nimmt_nur_objekte() -> None:
     # Eine Liste ist kein JSON-Schema-Objekt; ``dict[str, Any]`` weist sie ab.
     with pytest.raises(ValidationError):
         Environment(result_schema=[{"type": "object"}])  # type: ignore[arg-type]
 
 
-def test_chat_request_message_cap_10000() -> None:
-    ChatRequest(session_id="bb-x", message="a" * 10000)
-    with pytest.raises(ValidationError):
-        ChatRequest(session_id="bb-x", message="a" * 10001)
+def test_chat_request_message_ohne_zeichendeckel() -> None:
+    """Deckel entfernt (Nutzer-Entscheid 2026-08-18) — er lag bei 10000.
+
+    Er war nie die Grenze der Anfragegroesse: ``environment.page_context`` ist
+    ein freies ``dict`` ohne jede Schranke und stand die ganze Zeit daneben
+    offen. Was den Missbrauch begrenzt, ist das Rate-Limit, nicht dieses Feld.
+    """
+    lang = ChatRequest(session_id="bb-x", message="a" * 50_000)
+    assert len(lang.message) == 50_000
     req = ChatRequest(session_id="bb-x", message="hi")
     assert req.action is None
     assert req.action_params == {}

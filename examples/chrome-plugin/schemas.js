@@ -304,8 +304,10 @@ export function vorlage(id) {
 
 /** Der Deckel des Backends (`MAX_RESULT_SCHEMA_CHARS` in `api/schemas.py`).
  *  Darüber lehnt es mit 422 ab, statt zu kürzen — ein halbes Schema wäre ein
- *  anderes Schema. */
-export const MAX_SCHEMA_ZEICHEN = 10000;
+ *  anderes Schema. Am 18.08.2026 von 10000 auf 200000 angehoben; die Zahl muss
+ *  hier und im Backend dieselbe bleiben, sonst weist die eine Seite ab, was die
+ *  andere annimmt. */
+export const MAX_SCHEMA_ZEICHEN = 200000;
 
 /**
  * Was im Schema-Feld steht — geprüft, nicht geraten.

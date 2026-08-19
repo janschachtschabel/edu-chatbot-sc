@@ -38,9 +38,27 @@ export class ScrollFollowController {
     this._scrollTargetId = msgId;
   }
 
-  /** In `ngAfterViewChecked`: aufgeschobene Scroll-Wünsche einlösen. Verbatim
-   *  ALT chat.component.ts:417-426. */
+  /** In `ngAfterViewChecked`: aufgeschobene Scroll-Wünsche einlösen — und den
+   *  Tail-Follow scharfschalten, sobald der Container im DOM ist.
+   *
+   *  Aufgeschobene Wünsche: verbatim ALT chat.component.ts:417-426.
+   *
+   *  Das Scharfschalten ist **neu** (Befund 2026-08-19: „scrollt beim Antworten
+   *  nicht mehr mit"). ALT hängte den Beobachter allein in `scrollToLatest`
+   *  (chat.component.ts:1355) — und das lief nur, wenn jemand das Panel
+   *  ÖFFNETE, ein Verlauf wiederhergestellt wurde oder der Host die API rief.
+   *  Für ein Widget, das man immer erst aufklappt, genügte das. Startet das
+   *  Panel dagegen schon offen (`initial-state="expanded"`, `?bsid=`, laufende
+   *  Tour — `PanelState.initExpanded` setzt das Signal bewusst an `setExpanded`
+   *  vorbei) oder steckt die Shell in einer Inline-Einbettung ohne Panel, dann
+   *  hängte sich der Beobachter nie ein und die Ansicht blieb beim ersten Satz
+   *  stehen.
+   *
+   *  Der Tail-Follow gehört zum LEBEN der Ansicht, nicht zu einer einzelnen
+   *  Scroll-Anweisung. Der Aufruf ist idempotent und ohne Container ein No-Op,
+   *  kostet in der Prüfschleife also nichts. */
   afterViewChecked(): void {
+    this._setupAutoFollowTail();
     if (this._scrollTargetId) {
       this.scrollToMessage(this._scrollTargetId);
       this._scrollTargetId = null;

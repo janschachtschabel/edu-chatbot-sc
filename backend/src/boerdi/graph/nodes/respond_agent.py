@@ -51,12 +51,14 @@ Randkonvention wie bei den Nachbarknoten: Nachbarn sind AN DIESEM Modul patchbar
 from __future__ import annotations
 
 import logging
+from typing import Any
 
-from boerdi.domain import host_instruction
+from boerdi.domain import host_capabilities, host_instruction
 from boerdi.domain.answer_notes import append_answer_notes
 from boerdi.domain.history_window import verlaufs_fenster
 from boerdi.domain.pattern_catalog import finde_muster
 from boerdi.domain.pattern_engine import PatternDef, get_patterns, phase3_modulate
+from boerdi.domain.skill_ansagen import mit_master_ansage
 from boerdi.domain.skill_precedence import anleitungs_hinweis, mit_ladehinweis
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
@@ -64,7 +66,9 @@ from boerdi.i18n.bot_text import bot_text
 from boerdi.i18n.prompt_language import language_name
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import cancel_and_drain
-from boerdi.services import llm, page_context
+from boerdi.services import llm, master_skill, page_context
+from boerdi.services.agent_knowledge import antwort as wissen_antwort
+from boerdi.services.agent_knowledge import wissen_werkzeug
 from boerdi.services.agent_loop import AgentRun, run_agent_loop
 from boerdi.services.agent_prefetch import resolve_prefetch
 from boerdi.services.agent_tools import VIRTUELLE_WERKZEUGE, build_agent_tools
@@ -88,6 +92,14 @@ _HISTORY_TURNS = 10
 #: P12/P14-Port die Zusage „byte-identisch zu ALT für dieselbe Config"; derselbe
 #: Deckel dort wäre ein Bruch dieser Zusage. Folge, ausdrücklich: der A/B-Lauf
 #: vergleicht ab jetzt zwei Maschinen mit unterschiedlicher Verlaufs-Behandlung.
+#:
+#: Seit dem Wegfall des ``message``-Deckels (2026-08-18) hat diese Abweichung
+#: eine zweite Folge, die hier stehen soll statt entdeckt zu werden: der
+#: Bestandsweg — und das ist die VORGABE-Maschine — trägt den Verlauf ohne jede
+#: Größenschranke in den Prompt. Bewusst so gelassen: die Zusage der
+#: Byte-Gleichheit wiegt schwerer als ein Randfall, den der Gastgeber selbst
+#: auslöst und in seinem eigenen Token-Budget bezahlt (dieselbe Abwägung wie in
+#: ``domain/host_instruction``). Wer die Entscheidung dreht, fängt hier an.
 
 _SYSTEM = (
     "Du bist Boerdi, der Assistent von WirLernenOnline (WLO). Du sprichst mit "
@@ -248,7 +260,8 @@ def _werkzeuge_des_musters(
 
 
 async def respond_agent(
-    ctx: TurnContext, progress: TurnProgress = NO_PROGRESS, engine: str = AGENT
+    ctx: TurnContext, progress: TurnProgress = NO_PROGRESS, engine: str = AGENT,
+    session: Any = None,
 ) -> TurnContext:
     """Beantworte den Zug mit der Agent-Schleife. Mutiert ``ctx`` und gibt ihn
     zurück — gleiche Ausgangsfelder wie ``respond``, damit ``assemble`` und
@@ -260,6 +273,31 @@ async def respond_agent(
     messages: list[dict] = [
         {"role": "system", "content": _SYSTEM.format(sprache=language_name(sprache))},
     ]
+    # N3: die redaktionelle Gesamtanleitung — GROSS und zwischen zwei Zuegen
+    # unveraendert, deshalb so weit vorn wie moeglich: Anbieter mit
+    # Praefix-Caching berechnen sie dann nur einmal. Eine Abweichung von
+    # „ganz am Anfang" ist gewollt: der eigene Rollen-Block bleibt davor. Er
+    # ist ebenso stabil, kostet also keinen Cache-Treffer, und die eigenen
+    # Regeln gehoeren vor fremden Text. Alles Wechselnde (Seite, Rahmen,
+    # Verlauf) folgt dahinter — sonst zerfiele das Praefix.
+    anleitung = await master_skill.prompt_block(ctx.req.environment.master_skill)
+    if anleitung:
+        messages.append({"role": "system", "content": anleitung})
+    # Der Beleg fuer den Zusammenbau unten: die Ansage-Zeile entsteht NUR,
+    # wenn der Abruf wirklich lief. Das Modell selbst haelt sich nicht
+    # zuverlaessig an die Bitte des Dokuments (gemessen ueber drei Zuege:
+    # ja / nein / ja) — deshalb setzt der Server sie.
+    ctx.master_skill_zeile = master_skill.aktivierungszeile(anleitung)
+    # O-C: was DIESE Einbettung anzeigt und erlaubt. Ebenfalls stabil (die
+    # Attribute wechseln nicht zwischen zwei Zuegen), deshalb noch im
+    # gecachten Praefix — aber hinter der Gesamtanleitung, denn es schraenkt
+    # sie ein. Steht alles auf Vorgabe, entsteht kein Block.
+    grenzen = host_capabilities.prompt_block(
+        inline_result_grouping=ctx.req.environment.inline_result_grouping,
+        tool_mode=ctx.req.environment.tool_mode,
+    )
+    if grenzen:
+        messages.append({"role": "system", "content": grenzen})
     # P4: der Seitenkontext. Der Bestandsweg reicht ihn über
     # ``response_prompt_builder`` ein; hier wurde die Kette selbst gebaut und er
     # fiel weg — der Agent fragte nach einer ID, die vor ihm stand (B-2).
@@ -326,6 +364,16 @@ async def respond_agent(
         else:
             _katalog = get_patterns()
 
+    # P: die interne Wissensdatenbank. Bis 2026-08-18 hatte die Agent-Schleife
+    # sie GAR NICHT — ``query_knowledge`` wird allein im Muster-Weg gebaut, also
+    # lief hier jede Frage nach WLO, OER oder edu-sharing ins Modellgedaechtnis.
+    # Ohne Vorabruf und mit allen Bereichen zugleich: siehe Modulkopf von
+    # ``services/agent_knowledge``.
+    _wissen_tool = wissen_werkzeug(ctx.rag_config or {})
+
+    async def _wissen(args: dict) -> str:
+        return await wissen_antwort(session, args, ctx.rag_config or {})
+
     def _voller_satz(*, kurz: bool = False) -> list[dict]:
         """Der Werkzeugsatz. ``kurz`` schaltet den Musterkatalog auf eine Zeile
         je Muster (H8-2) — richtig für jede Liste, die NACH einer Wahl entsteht:
@@ -338,7 +386,12 @@ async def respond_agent(
             include_submit=False, include_ergebnis=bool(_schema),
             result_schema=_schema,
             muster_katalog=_katalog, include_dokument=True,
-            katalog_kurz=kurz)
+            katalog_kurz=kurz,
+            # O-A: die Erlaubnis der Einbettung. Dasselbe Wort, das ueber
+            # ``host_capabilities.prompt_block`` im Prompt steht — sonst
+            # verspraeche das Modell, was ihm die Liste gleich nimmt.
+            tool_mode=ctx.req.environment.tool_mode,
+            wissen_tool=_wissen_tool)
 
     all_cards: list[dict] = []
     progress.start("response", "LLM response generation")
@@ -354,6 +407,7 @@ async def respond_agent(
             lambda muster: _werkzeuge_des_musters(
                 _voller_satz(kurz=True), _muster_werkzeuge(ctx, muster))
         ) if _katalog else None,
+        wissen=_wissen if _wissen_tool else None,
     )
     logger.info("Agent-Modus: %d Schritte, Ende=%s, %d Werkzeuge, %d Karten",
                 lauf.iterations, lauf.stop_reason, len(lauf.tools_called),
@@ -374,11 +428,15 @@ async def respond_agent(
         logger.info("Outcome-based state hint: %s -> %s", ctx.state_id, zustand)
         ctx.state_id = zustand
 
-    ctx.response_text = mit_ladehinweis(
-        append_answer_notes(
-            _antwort_oder_ersatz(lauf, sprache),
-            policy=ctx.policy, safety=ctx.safety),
-        (ctx.session_state or {}).get("entities"),
+    ctx.response_text = mit_master_ansage(
+        mit_ladehinweis(
+            append_answer_notes(
+                _antwort_oder_ersatz(lauf, sprache),
+                policy=ctx.policy, safety=ctx.safety),
+            (ctx.session_state or {}).get("entities"),
+            (ctx.session_state or {}).get("turn_count"),
+        ),
+        ctx.master_skill_zeile,
         (ctx.session_state or {}).get("turn_count"),
     )
     ctx.wlo_cards_raw = all_cards

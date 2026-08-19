@@ -29,10 +29,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from boerdi.domain.host_capabilities import erlaubt
 from boerdi.domain.inline_documents import ZEIGE_DOKUMENT, dokument_werkzeug
 from boerdi.domain.pattern_catalog import katalog_kurz, katalog_text, waehlbare_muster
 from boerdi.domain.pattern_engine import PatternDef
 from boerdi.domain.result_delivery import LIEFERE_ERGEBNIS, ergebnis_werkzeug
+from boerdi.services.agent_knowledge import WISSEN_SUCHEN
 from boerdi.services.mcp.auth import has_auth_token
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
@@ -54,8 +56,13 @@ WAEHLE_VORGEHEN = "waehle_vorgehen"
 #: verschwände der Ergebnis-Kanal in dem Augenblick, in dem das Hybrid-Modell
 #: ein Muster zieht — der Gastgeber bekäme also genau dann kein JSON, wenn
 #: gearbeitet wurde.
+#: ``wissen_suchen`` (P) gehoert ebenfalls dazu, und das ist eine BENANNTE
+#: Abweichung vom Muster-Weg: dort schaltet ``sources`` ohne ``rag`` die
+#: Wissensdatenbank ab. In der Schleife bleibt sie immer erreichbar — Vorgabe des
+#: Nutzers („immer alle Wissensbereiche, ausser man nennt oder schliesst einzelne
+#: aus"). Sie liegt ohnehin in der eigenen Datenbank, nicht am MCP.
 VIRTUELLE_WERKZEUGE = frozenset(
-    {WAEHLE_VORGEHEN, SUBMIT_RESULT, ZEIGE_DOKUMENT, LIEFERE_ERGEBNIS})
+    {WAEHLE_VORGEHEN, SUBMIT_RESULT, ZEIGE_DOKUMENT, LIEFERE_ERGEBNIS, WISSEN_SUCHEN})
 
 #: Werkzeuge, die im Katalog stehen, aber KEINEM Lauf angeboten werden.
 #:
@@ -189,6 +196,8 @@ def build_agent_tools(
     muster_katalog: list[PatternDef] | None = None,
     include_dokument: bool = False,
     katalog_kurz: bool = False,
+    tool_mode: str | None = None,
+    wissen_tool: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Der volle Katalog plus ``submit_result``.
 
@@ -224,6 +233,24 @@ def build_agent_tools(
     und die schnellere naehme der Prosa ihren Zug, also genau das, wogegen J1
     gebaut ist. Der Chat-Zug nimmt den zweiten, ``/api/agent`` den ersten.
 
+    ``tool_mode`` (O-A) ist die Erlaubnis der EINBETTUNG: ``read-only`` nimmt die
+    schreibenden Werkzeuge heraus, ``curate`` zusaetzlich den Blick nach draussen
+    (Wikipedia, fremde Adressen), ``full`` und ``None`` lassen alles. Er steht
+    neben ``allow_curation`` und nicht an seiner Stelle, weil die beiden
+    verschiedene Fragen beantworten: jener „darf in diesem LAUF geschrieben
+    werden", dieser „was hat der GASTGEBER erlaubt". Ein Browser-Plugin, das den
+    Chatbot als Kuratierungswerkzeug fahren will, sagt es hier — und dasselbe
+    Wort erreicht ueber ``domain/host_capabilities.prompt_block`` das Modell,
+    damit es nicht verspricht, was ihm gleich fehlt. Der Filter greift VOR den
+    virtuellen Werkzeugen: eine Anzeige-Entscheidung darf dem Lauf nicht seine
+    Ziellinie nehmen.
+
+    ``wissen_tool`` (P) legt die interne Wissensdatenbank dazu — gebaut von
+    ``agent_knowledge.wissen_werkzeug`` aus der gepflegten Bereichsliste. Als
+    fertige Erklaerung und nicht als Bereichsliste, damit dieses Modul nichts
+    ueber RAG wissen muss. Virtuell wie die anderen: nicht sperrbar, denn ein
+    Bestand in der eigenen Datenbank ist keine Gefahr, die eine Sperre abwendet.
+
     ``include_dokument`` (D2) legt ``zeige_dokument`` dazu — das Werkzeug, mit
     dem das Modell ein fertiges Arbeitsergebnis als eigene Box LIEFERT, statt
     dass ``turn_persist`` es aus dem Antworttext rät. Der Chat-Zug setzt es,
@@ -251,6 +278,10 @@ def build_agent_tools(
     if blocked_tools:
         gesperrt = set(blocked_tools)
         tools = [t for t in tools if t["function"]["name"] not in gesperrt]
+    if tool_mode:
+        tools = [t for t in tools if erlaubt(t["function"]["name"], tool_mode)]
+    if wissen_tool:
+        tools.append(wissen_tool)
     if include_dokument:
         tools.append(dokument_werkzeug())
     if muster_katalog and (

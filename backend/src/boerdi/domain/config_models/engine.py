@@ -61,9 +61,12 @@ class AgentLimits(AreaModel):
     Obergrenze der Vernunft.
     """
 
-    max_iterations: int = Field(default=20, ge=1, le=50)
-    deadline_s: int = Field(default=300, ge=5, le=600)
-    token_budget: int = Field(default=400_000, ge=1_000)
+    max_iterations: int = Field(default=30, ge=1, le=50)
+    # Obergrenze mitgehoben: 30 Runden x (Modellzeit + bis 23 s Werkzeug)
+    # sprengen 600 s im Zweifel. Der Deckel ist ein Sicherheitsnetz, keine
+    # Erwartung — der typische Zug lag gemessen weit darunter.
+    deadline_s: int = Field(default=900, ge=5, le=1800)
+    token_budget: int = Field(default=900_000, ge=1_000)
 
     # ``propose`` heißt: die Schleife darf kuratierende Werkzeuge rufen, aber nur
     # bis zur Vorschau — die Bestätigung bleibt beim Menschen (E1-Wall). Nichts,

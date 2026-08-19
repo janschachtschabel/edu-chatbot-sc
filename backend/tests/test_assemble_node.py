@@ -190,3 +190,59 @@ def test_real_turn_assembly_runs(monkeypatch):
     assert isinstance(out.cards, list)
     assert out.quick_replies == []  # qr_mode="none", content card → no fallback QR
     assert out.response_text == "ANSWER"
+
+
+# ── O-B: vom Gastgeber hart gesetzte Schnellantworten ────────────────
+
+
+def test_die_chips_des_gastgebers_erreichen_die_montage(monkeypatch):
+    rec = _Rec()
+    _install_spy(monkeypatch, rec, _EMPTY_RESULT)
+    ctx = _ctx()
+    ctx.req.environment.forced_quick_replies = ["Passt", "Passt nicht"]
+    _run(ctx)
+    assert rec.kwargs["_canvas_forced_quick_replies"] == ["Passt", "Passt nicht"]
+
+
+def test_der_gastgeber_schlaegt_den_canvas(monkeypatch):
+    """„Hart ueberschreiben" heisst: auch gegen die eigene Mechanik."""
+    rec = _Rec()
+    _install_spy(monkeypatch, rec, _EMPTY_RESULT)
+    ctx = _ctx()
+    ctx.canvas_forced_quick_replies = ["Weiter im Canvas"]
+    ctx.req.environment.forced_quick_replies = ["Melden"]
+    _run(ctx)
+    assert rec.kwargs["_canvas_forced_quick_replies"] == ["Melden"]
+
+
+def test_ohne_chips_bleibt_der_bestandsweg(monkeypatch):
+    rec = _Rec()
+    _install_spy(monkeypatch, rec, _EMPTY_RESULT)
+    ctx = _ctx()
+    ctx.canvas_forced_quick_replies = ["Weiter im Canvas"]
+    _run(ctx)
+    assert rec.kwargs["_canvas_forced_quick_replies"] == ["Weiter im Canvas"]
+
+
+def test_zu_viele_chips_werden_gezaehlt_nicht_gekuerzt(monkeypatch):
+    """Der Chip-TEXT ist die Nachricht, die beim Klick gesendet wird — ein
+    gekuerzter Chip schickte eine andere Frage, als er verspricht. Begrenzt
+    wird deshalb die ANZAHL."""
+    rec = _Rec()
+    _install_spy(monkeypatch, rec, _EMPTY_RESULT)
+    ctx = _ctx()
+    lang = "Zeig mir bitte alles zu diesem Thema, sortiert nach Eignung"
+    ctx.req.environment.forced_quick_replies = [f"{lang} {i}" for i in range(10)]
+    _run(ctx)
+    gesetzt = rec.kwargs["_canvas_forced_quick_replies"]
+    assert len(gesetzt) == assemble_mod.MAX_ERZWUNGENE_CHIPS
+    assert all(c.startswith(lang) for c in gesetzt)
+
+
+def test_leere_und_blanke_chips_fallen_heraus(monkeypatch):
+    rec = _Rec()
+    _install_spy(monkeypatch, rec, _EMPTY_RESULT)
+    ctx = _ctx()
+    ctx.req.environment.forced_quick_replies = ["  ", "", "Melden"]
+    _run(ctx)
+    assert rec.kwargs["_canvas_forced_quick_replies"] == ["Melden"]

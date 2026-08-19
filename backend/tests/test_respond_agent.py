@@ -83,12 +83,13 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
     # nicht kennt, verdeckt genau den Zweig, den der Hybrid neu betritt.
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
                     clock=None, on_tool_result=None, muster_katalog=None,
-                    werkzeuge_fuer=None):
+                    werkzeuge_fuer=None, wissen=None):
         seen["run_agent_loop"] = {
             "messages": messages, "tools": tools, "limits": limits,
             "usage_acc": usage_acc, "progress": progress,
             "on_tool_result": on_tool_result,
             "muster_katalog": muster_katalog, "werkzeuge_fuer": werkzeuge_fuer,
+            "wissen": wissen,
         }
         if ruft_werkzeug is not None and on_tool_result is not None:
             on_tool_result(*ruft_werkzeug)
@@ -102,6 +103,16 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
     def _engine():
         return EngineArea(mode="agent", agent=limits or AgentLimits())
 
+    # Die Gesamtanleitung bleibt AUS, solange ein Test sie nicht ausdruecklich
+    # will. Befund 2026-08-19: diese Tests zaehlen Nachrichten in der Kette und
+    # hingen damit still an ``MASTER_SKILL_ENABLED`` aus der lokalen ``.env``.
+    # Wurde der Schalter dort gesetzt, kam ein System-Block dazu und drei Tests
+    # wurden rot — ohne dass sich am Produkt etwas geaendert haette. Ein Test
+    # muss seine Eingaben besitzen.
+    async def _keine_gesamtanleitung(_ueberschreibung=None):
+        return None
+
+    monkeypatch.setattr(agent_mod.master_skill, "prompt_block", _keine_gesamtanleitung)
     monkeypatch.setattr(agent_mod, "run_agent_loop", _loop)
     monkeypatch.setattr(agent_mod, "load_engine", _engine)
     monkeypatch.setattr(agent_write, "has_personal_auth", lambda: personal)
@@ -314,8 +325,9 @@ async def test_respond_reicht_im_agent_modus_frueh_weiter(monkeypatch):
     gar nicht erst anlaufen."""
     seen: dict = {}
 
-    async def _agent(ctx, progress=None, engine="agent"):
-        seen["respond_agent"] = {"progress": progress, "engine": engine}
+    async def _agent(ctx, progress=None, engine="agent", session=None):
+        seen["respond_agent"] = {"progress": progress, "engine": engine,
+                                 "session": session}
         ctx.response_text = "vom Agenten"
         return ctx
 
@@ -325,7 +337,11 @@ async def test_respond_reicht_im_agent_modus_frueh_weiter(monkeypatch):
 
     monkeypatch.setattr(respond_mod, "respond_agent", _agent)
     monkeypatch.setattr(respond_mod, "generate_response", _generate)
-    ctx = await respond(_ctx(), session=object(), engine="agent")
+    _sitzung = object()
+    ctx = await respond(_ctx(), session=_sitzung, engine="agent")
+    # P: die Wissensdatenbank braucht sie — ohne diese Naht liefe der
+    # Agent-Modus wieder ohne internes Wissen, und zwar still.
+    assert seen["respond_agent"]["session"] is _sitzung
     assert "generate_response" not in seen
     assert ctx.response_text == "vom Agenten"
 
@@ -453,6 +469,52 @@ async def test_der_auftrag_der_gastanwendung_steht_in_der_kette(monkeypatch):
     assert any("Du bist in der Redaktionsumgebung." in s for s in systeme)
     # Ohne die Rangfolge wäre der Block eine Blankovollmacht.
     assert any("gilt die Regel" in s for s in systeme)
+
+
+@pytest.mark.anyio
+async def test_der_master_skill_steht_im_stabilen_praefix(monkeypatch):
+    """N3: die redaktionelle Gesamtanleitung als zweiter System-Block.
+
+    Die Position IST die Zusage: das Caching-Argument traegt nur, wenn der Block
+    vor allem Wechselnden steht. Zweiter statt erster Block ist eine bewusste
+    Abweichung — der eigene Rollen-Block bleibt davor (er ist ebenso stabil,
+    kostet also keinen Cache-Treffer, und eigene Regeln gehoeren vor fremden
+    Text). Steht davor irgendwann etwas Wechselndes, fällt dieser Test.
+    """
+    from boerdi.services import master_skill
+
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    monkeypatch.setattr(master_skill, "prompt_block",
+                        lambda ueberschreibung=None: _fertig("## Gesamtanleitung — Inhalt."))
+    ctx = _ctx()
+    ctx.req.environment.page_context = {"title": "Optik"}
+    await respond_agent(ctx)
+    kette = seen["run_agent_loop"]["messages"]
+    assert kette[1]["role"] == "system"
+    fehler = f"Position 1 ist {kette[1]['content'][:60]!r}"
+    assert "Gesamtanleitung" in kette[1]["content"], fehler
+
+
+async def _fertig(wert):
+    return wert
+
+
+@pytest.mark.anyio
+async def test_ohne_master_skill_bleibt_die_kette_wie_bisher(monkeypatch):
+    """Vorgabe ist AUS — dann darf kein zusaetzlicher Block auftauchen."""
+    from boerdi.services import master_skill
+
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    monkeypatch.setattr(master_skill, "prompt_block",
+                        lambda ueberschreibung=None: _fertig(None))
+    await respond_agent(_ctx())
+    systeme = [m["content"] for m in seen["run_agent_loop"]["messages"]
+               if m.get("role") == "system"]
+    assert not any("Gesamtanleitung" in s for s in systeme)
 
 
 @pytest.mark.anyio
@@ -932,3 +994,106 @@ async def test_ohne_lieferung_kein_abschluss_aufruf(monkeypatch):
     ctx = await respond_agent(_ctx())
     assert gerufen == []
     assert ctx.response_text
+
+
+@pytest.mark.anyio
+async def test_die_grenzen_der_einbettung_stehen_hinter_dem_master_skill(monkeypatch):
+    """O-C: was die Anwendung anzeigt und erlaubt, erfaehrt das Modell.
+
+    Die Position ist Teil der Zusage: hinter dem Master-Skill (beide stabil,
+    also im gecachten Praefix), aber VOR dem Seitenkontext — der wechselt je
+    Zug und darf das Praefix nicht spalten.
+    """
+    from boerdi.services import master_skill
+
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    monkeypatch.setattr(master_skill, "prompt_block",
+                        lambda ueberschreibung=None: _fertig("## Gesamtanleitung — Inhalt."))
+    ctx = _ctx(page_context={"title": "Optik"})
+    ctx.req.environment.inline_result_grouping = False
+    ctx.req.environment.tool_mode = "read-only"
+    await respond_agent(ctx)
+    kette = seen["run_agent_loop"]["messages"]
+    assert "Gesamtanleitung" in kette[1]["content"]
+    grenzen = kette[2]["content"]
+    assert grenzen.startswith("## Diese Anwendung"), grenzen[:60]
+    assert "gruppiert" in grenzen.lower()
+    assert "NICHTS aendern" in grenzen
+
+
+@pytest.mark.anyio
+async def test_ohne_abweichung_kein_grenz_block(monkeypatch):
+    """Vorgabe = heutiges Verhalten: kein Satz, kein Token."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    await respond_agent(_ctx())
+    systeme = [m["content"] for m in seen["run_agent_loop"]["messages"]
+               if m.get("role") == "system"]
+    assert not any("## Diese Anwendung" in s for s in systeme)
+
+
+@pytest.mark.anyio
+async def test_read_only_nimmt_dem_zug_die_schreibenden_werkzeuge(monkeypatch):
+    """O-A: der Gastgeber entscheidet, was in SEINER Anwendung moeglich ist.
+
+    Gegenprobe zum Prompt-Block: das Modell erfaehrt die Grenze nicht nur, es
+    kann sie auch nicht umgehen — das Werkzeug ist gar nicht da.
+    """
+    from boerdi.services.mcp.auth import set_turn_auth_block
+
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    assert set_turn_auth_block("wlo2.abc-def_123")
+    try:
+        ctx = _ctx()
+        ctx.req.environment.tool_mode = "read-only"
+        await respond_agent(ctx)
+    finally:
+        set_turn_auth_block(None)
+    namen = _namen(seen["run_agent_loop"]["tools"])
+    # Geprueft wird gegen den KURATIER-Katalog, nicht gegen das Praefix: seit
+    # der Durchsicht am 18.08.2026 ueberleben `wlo_auth_status` und
+    # `wlo_health_check` den read-only-Modus — sie tragen das Praefix, aendern
+    # aber nichts. Das Praefix abzufragen hiesse, die Faustregel zu pruefen
+    # statt die Zusage.
+    from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
+    schreibend = {t["function"]["name"] for t in CURATION_TOOL_DEFINITIONS}
+    assert not (set(namen) & schreibend), sorted(set(namen) & schreibend)
+    assert "search_wlo_all" in namen
+
+
+# ── P: die Wissensdatenbank in der Agent-Schleife ───────────────────
+
+
+@pytest.mark.anyio
+async def test_die_wissensbereiche_stehen_im_werkzeugsatz(monkeypatch):
+    """Befund 2026-08-18: der Agent-Modus hatte GAR KEIN internes Wissen —
+    ``query_knowledge`` gibt es nur im Muster-Weg. Vorgabe des Nutzers: hier
+    immer alle Bereiche, ausser man nennt oder schliesst einzelne aus."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    ctx.rag_config = {"WirLernenOnline": {"description": "Die Plattform."}}
+    await respond_agent(ctx)
+    werkzeuge = seen["run_agent_loop"]["tools"]
+    assert "wissen_suchen" in _namen(werkzeuge)
+    wissen = next(t for t in werkzeuge if t["function"]["name"] == "wissen_suchen")
+    assert "Die Plattform." in wissen["function"]["description"]
+    assert seen["run_agent_loop"].get("wissen") is not None
+
+
+@pytest.mark.anyio
+async def test_ohne_gepflegte_bereiche_kein_werkzeug(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    ctx.rag_config = {}
+    await respond_agent(ctx)
+    assert "wissen_suchen" not in _namen(seen["run_agent_loop"]["tools"])
+    assert seen["run_agent_loop"].get("wissen") is None

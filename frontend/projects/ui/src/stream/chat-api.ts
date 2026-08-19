@@ -35,6 +35,15 @@ export interface Environment {
   /** G1 — der unsichtbare Rahmen der Gastanwendung für DIESEN Zug; siehe
    *  {@link ChatApiClient.setHostInstruction}. */
   host_instruction?: string;
+  /** N4: darf die Gesamtanleitung fuer diese Einbettung gelten? */
+  master_skill?: boolean;
+  /** O-C: gruppiert diese Anwendung die Treffer? Sonst verweist das Modell auf
+   *  Boxen, die es hier nicht gibt. */
+  inline_result_grouping?: boolean;
+  /** O-A: `read-only` | `curate` | `full` — was der Gastgeber erlaubt. */
+  tool_mode?: string;
+  /** O-B: vom Gastgeber HART gesetzte Schnellantworten fuer DIESEN Zug. */
+  forced_quick_replies?: string[];
   /** JSON-Schema, in dem der Gastgeber sein Ergebnis erwartet (2026-08-14).
    *  Wirkt nur mit der Agent-Maschine; siehe {@link ChatApiClient.setResultSchema}. */
   result_schema?: Record<string, any>;
@@ -132,6 +141,10 @@ export class ChatApiClient {
   private resultSchema: Record<string, any> | null = null;
   /** G1 — einmaliger Rahmen der Gastanwendung; `takeHostInstruction` verbraucht ihn. */
   private hostInstruction: string | null = null;
+  private masterSkill: boolean | null = null;
+  private inlineResultGrouping: boolean | null = null;
+  private toolMode = '';
+  private forcedQuickReplies: string[] = [];
   private readonly fetchImpl?: typeof fetch;
 
   constructor(opts: ChatApiClientOptions = {}) {
@@ -206,6 +219,53 @@ export class ChatApiClient {
       : null;
   }
 
+  /**
+   * N4 — die redaktionelle Gesamtanleitung fuer DIESE Einbettung an- oder
+   * abschalten. `null` heisst „nichts sagen": dann gilt `MASTER_SKILL_ENABLED`
+   * beim Betreiber. Ein Wert uebersteuert die Vorgabe in beide Richtungen.
+   */
+  setMasterSkill(an: boolean | null): void {
+    this.masterSkill = typeof an === 'boolean' ? an : null;
+  }
+
+  /**
+   * O-C — gruppiert diese Anwendung die Treffer in Boxen? Das Modell erfuhr es
+   * bis 2026-08-18 nie: das Attribut war rein visuell. Ohne Gruppierung bleiben
+   * Link-Aufzaehlungen im Antworttext stehen, statt in die Boxen zu wandern —
+   * dann darf das Modell die Treffer nicht zusaetzlich aufzaehlen.
+   */
+  setInlineResultGrouping(an: boolean | null): void {
+    this.inlineResultGrouping = typeof an === 'boolean' ? an : null;
+  }
+
+  /**
+   * O-A — was der Gastgeber in SEINER Anwendung erlaubt: `read-only`,
+   * `curate` oder `full` (Vorgabe). Der Wert wirkt zweifach: er nimmt die
+   * Werkzeuge aus der Liste UND sagt dem Modell, was fehlt — sonst verspraeche
+   * es eine Aenderung, die es nicht ausfuehren kann.
+   */
+  setToolMode(modus: string): void {
+    this.toolMode = (modus || '').trim();
+  }
+
+  /**
+   * O-B — Schnellantworten fuer den NAECHSTEN Zug hart setzen. Anders als
+   * `start-replies` (nur Begruessung) gilt das je Zug, und es schlaegt alles
+   * andere: Generator, Canvas-Vorgaben, Policy.
+   *
+   * Der Chip-TEXT ist die Nachricht, die der Klick sendet — deshalb wird nichts
+   * gekuerzt. Zu viele werden hinten abgeschnitten (Backend, sechs).
+   *
+   * Die Liste BLEIBT gesetzt, bis sie jemand ersetzt oder mit `[]` loescht:
+   * ein Kuratierungswerkzeug will „Passt / Passt nicht" bei jedem Schritt, nicht
+   * einmal. Wer sie einmalig will, setzt sie nach dem Zug auf `[]`.
+   */
+  setQuickReplies(chips: string[] | null): void {
+    this.forcedQuickReplies = Array.isArray(chips)
+      ? chips.filter((c) => typeof c === 'string' && c.trim()).map((c) => c.trim())
+      : [];
+  }
+
   /** Die Kopfzeilen, die dieser Einbau jedem Zug mitgibt. */
   private turnHeaders(): Record<string, string> {
     return this.engine ? { 'X-Boerdi-Engine': this.engine } : {};
@@ -248,9 +308,21 @@ export class ChatApiClient {
     // im Body wäre eine Aussage über eine Erwartung, die niemand hat.
     const schema = env?.result_schema ?? this.resultSchema;
     const anweisung = env?.host_instruction ?? this.takeHostInstruction(env);
+    // Tri-State: nur senden, wenn sich jemand geaeussert hat. Ein `false` ist
+    // eine Aussage und muss mit — deshalb die Pruefung auf null/undefined und
+    // nicht auf Wahrheitswert.
+    const meister = env?.master_skill ?? this.masterSkill;
     return {
       ...(schema ? { result_schema: schema } : {}),
       ...(anweisung ? { host_instruction: anweisung } : {}),
+      ...(meister === null || meister === undefined ? {} : { master_skill: meister }),
+      // O: dieselbe Tri-State-Regel — nur senden, wenn sich jemand geaeussert
+      // hat. Ein leeres Feld ist keine Aussage, `false` sehr wohl.
+      ...(this.inlineResultGrouping === null
+        ? {} : { inline_result_grouping: this.inlineResultGrouping }),
+      ...(this.toolMode ? { tool_mode: this.toolMode } : {}),
+      ...(this.forcedQuickReplies.length
+        ? { forced_quick_replies: [...this.forcedQuickReplies] } : {}),
       page: env?.page || window.location.pathname,
       page_context: env?.page_context || extractPageContext(),
       device: env?.device || detectDevice(),

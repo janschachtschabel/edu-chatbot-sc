@@ -9,12 +9,16 @@ card_pipeline:
   min_displayed_cards: 5     # min. nach LLM-Auswahl (0 = kein Auffüllen)
 
   # Welches Repositorium dieser Chatbot bedient.
-  # Leer = die Umgebungsvariable REPO_BASE_URL gilt (Vorgabe: Produktion).
-  # Gesetzt gewinnt dieser Wert — damit im Studio nachlesbar ist, gegen welches
-  # Repositorium der Bot laeuft, statt es aus der Deploy-Umgebung zu erraten.
-  # Staging: https://repository.staging.openeduhub.net
+  # Dieser Wert gewinnt vor der Umgebungsvariablen REPO_BASE_URL — damit im
+  # Studio nachlesbar ist, gegen welches Repositorium der Bot laeuft, statt es
+  # aus der Deploy-Umgebung zu erraten.
+  # ER MUSS ZU DEM PASSEN, WAS DER MCP-SERVER BEFRAGT (dort pruefbar mit
+  # wlo_health_check -> repositoryUrl). Laufen die beiden auseinander, werden
+  # Treffer des einen Systems unter Adressen des anderen ausgeliefert.
+  # Leer hiesse "frag die Deploy-Umgebung" — genau die Stille, die diese Angabe
+  # abschaffen soll; ein Waechter haelt den Wert deshalb belegt.
   # Der aktuell geltende Wert steht in GET /api/health unter "repo".
-  repo_base_url: ""
+  repo_base_url: "https://repository.staging.openeduhub.net"
 
   # Hosts, deren Links auf das Repositorium oben umgeschrieben werden
   # (verteidigt gegen MCP-Server mit hardcoded Hosts).

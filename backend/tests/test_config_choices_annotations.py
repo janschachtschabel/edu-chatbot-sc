@@ -184,3 +184,44 @@ def test_die_gemeldeten_faelle_sind_verdrahtet(name: str) -> None:
     """Die drei Kataloge aus der Nutzer-Meldung — ohne sie wäre der ganze
     Mechanismus gebaut, aber am Anlass vorbei."""
     assert name in _katalognamen_im_schema()
+
+
+def test_der_rag_modus_ist_eine_auswahl() -> None:
+    """S1 (Nutzer-Befund 2026-08-18): „vieles sind noch freitext eingaben".
+
+    ``mode`` entscheidet, ob ein Wissensbereich im Muster-Weg vorab geholt oder
+    erst auf Zuruf durchsucht wird — zwei Werte, kein Freitext. Der alte Bot
+    hatte dafuer einen Umschalter; hier war es ein leeres Textfeld, in dem ein
+    Tippfehler den Bereich still aus der Nutzung nimmt (``load_rag_config``
+    behaelt nur Eintraege mit einem ``mode``).
+    """
+    from boerdi.domain.config_models.knowledge import RagAreaDef
+
+    props = RagAreaDef.model_json_schema()["properties"]
+    assert props["mode"]["x-choices"] == ["always", "on-demand"]
+
+
+def test_die_kontext_aktion_ist_eine_auswahl() -> None:
+    """Der einzige weitere Freitext mit BELEGT geschlossenem Vorrat.
+
+    ``preflight`` verzweigt auf genau vier Namen (``preflight.py:174-186``);
+    alles andere faellt still durch — der Knopf tut dann nichts, und niemand
+    sagt es. Deshalb Auswahl statt Textfeld.
+
+    Die uebrigen Kandidaten (``canvas.structure``/``category``,
+    ``dimensions.length``) sind geprueft und bleiben BEWUSST Freitext: sie
+    werden nirgends gegen feste Werte verglichen, ``structure`` ist sogar
+    ganze Prosa fuer den Prompt.
+    """
+    from boerdi.domain.config_models.base_widget import ContextPill
+
+    # ``str | None``: pydantic legt die Auszeichnung in den NICHT-null-Zweig des
+    # ``anyOf``, nicht an die Eigenschaft. Das Studio loest das auf
+    # (``schema-to-fields.resolveNode``) — hier wird dieselbe Stelle gelesen,
+    # damit der Test nicht an einer Form scheitert, die das Produkt beherrscht.
+    feld = ContextPill.model_json_schema()["properties"]["action"]
+    zweig = next(z for z in feld["anyOf"] if z.get("type") == "string")
+    assert zweig["x-choices"] == [
+        "browse_collection", "curate_collection",
+        "generate_learning_path", "show_content_text",
+    ]

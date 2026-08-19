@@ -144,6 +144,11 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS fehlt — '*' nur bewusst setzen}
       CORS_ALLOW_ALL: ${CORS_ALLOW_ALL:-}
       CORS_ALLOW_EXTENSIONS: ${CORS_ALLOW_EXTENSIONS:-}
+      # Muss hier stehen, aus demselben Grund wie die CORS-Schalter darueber:
+      # was nicht unter `environment:` steht, erreicht den Container nie.
+      # Leer = Code-Vorgabe (aus bzw. die vorbelegte Kennung).
+      MASTER_SKILL_ENABLED: ${MASTER_SKILL_ENABLED:-}
+      MASTER_SKILL_NODE_ID: ${MASTER_SKILL_NODE_ID:-}
       STUDIO_API_KEY: ${STUDIO_API_KEY:?STUDIO_API_KEY fehlt}
       STUDIO_PASSWORD: ${STUDIO_PASSWORD:?STUDIO_PASSWORD fehlt}
       STUDIO_COOKIE_SECURE: ${STUDIO_COOKIE_SECURE:-1}

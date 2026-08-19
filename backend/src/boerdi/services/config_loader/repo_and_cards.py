@@ -61,12 +61,17 @@ def get_repo_base_url() -> str:
     """Das Repositorium, gegen das dieser Chatbot läuft.
 
     Reihenfolge: **Konfiguration** (``01-base/card-pipeline.repo_base_url``) vor
-    **Umgebung** (``REPO_BASE_URL``, Vorgabe Produktion). Die Konfiguration
+    **Umgebung** (``REPO_BASE_URL``, Vorgabe Staging). Die Konfiguration
     gewinnt, weil die Angabe dort nachlesbar sein soll — eine Einstellung, die
     nur in der Deploy-Umgebung existiert, kann im Studio niemand prüfen
     (Nutzer-Vorgabe 2026-08-14). Der geltende Wert steht in ``GET /api/health``.
 
     Ohne Schrägstrich am Ende: alle Verbraucher hängen ``/edu-sharing/…`` an.
+
+    Die Vorgabe ist **Staging**, seit sie am 2026-08-19 auf Produktion stand,
+    während der MCP-Server Staging befragte: ``rewrite_repo_host_v2`` schrieb
+    die Treffer damit auf einen Host um, auf dem es sie nicht gibt. Eine
+    vergessene Angabe darf nicht im Wirkbetrieb landen.
     """
     global _letzte_aufloesung
     wert = _repo_aus_der_konfig()

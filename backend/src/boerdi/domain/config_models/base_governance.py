@@ -194,8 +194,11 @@ class CardPipelineBlock(AreaModel):
     min_displayed_cards: int = 5
     known_repo_hosts: list[str] = []
     #: Welches Repositorium dieser Chatbot bedient. Leer = die Umgebungs-
-    #: variable ``REPO_BASE_URL`` gilt (Vorgabe: Produktion); gesetzt gewinnt
-    #: dieser Wert. Die Angabe gehört in die Konfiguration, damit im Studio
+    #: variable ``REPO_BASE_URL`` gilt (Vorgabe: Staging, siehe
+    #: ``settings.repo_base_url``); gesetzt gewinnt dieser Wert. Er muss zu dem
+    #: passen, was der MCP-Server befragt — sonst werden Treffer des einen
+    #: Systems unter Adressen des anderen ausgeliefert (Befund 2026-08-19).
+    #: Die Angabe gehört in die Konfiguration, damit im Studio
     #: nachlesbar ist, gegen welches Repositorium der Bot läuft, statt es aus
     #: der Deploy-Umgebung zu erraten (Nutzer-Vorgabe 2026-08-14).
     repo_base_url: str = ""

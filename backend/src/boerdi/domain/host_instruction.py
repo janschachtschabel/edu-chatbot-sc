@@ -19,21 +19,22 @@ Sicherheitsregeln auf. Das Modell muss das lesen können, sonst ist die Zusage
 eine Behauptung über etwas, das es nie erfährt. Dieselbe Bauart wie die
 Vertrauensgrenze um Fremdtext aus dem MCP.
 
-Der Deckel liegt im Schema (``Environment.host_instruction``) und WEIST AB statt
-zu kürzen — eine halbierte Anweisung ist eine andere Anweisung, und der Gastgeber
-hätte keine Möglichkeit, das zu bemerken. Dieselbe Begründung wie beim
-``result_schema`` nebenan.
+**Kein Zeichendeckel** (Nutzer-Entscheid 2026-08-18). Bis dahin lag er bei 2000
+Zeichen und wies mit ``422`` ab. Zwei Gründe für das Streichen, beide gemessen:
+eine echte Schritt-Anleitung ist rund 2500 Zeichen lang und passte damit knapp
+NICHT — und die Begründung des Deckels („reist in jeden Modellaufruf des Zuges")
+trifft die ``message`` genauso, die das Fünffache durfte. Der Schnitt lag also
+nicht dort, wo die Kosten entstehen.
+
+Was die Größe einer Anfrage wirklich begrenzt, ist das Rate-Limit
+(``RATE_LIMIT_CHAT``), nicht ein Feld-Deckel: ``environment.page_context`` steht
+als freies ``dict`` ohne jede Schranke daneben. Wer den Rahmen füllt, zahlt ihn
+in seinem eigenen Token-Budget — je Runde erneut.
 """
 
 from __future__ import annotations
 
 from typing import Final
-
-#: Zeichendeckel der Anweisung. Sie reist in JEDEN Modellaufruf des Zuges, im
-#: Agent-/Hybrid-Modus also bis zu ``engine.agent.max_iterations`` mal. 2000
-#: Zeichen sind gut zwei Bildschirmseiten Auftrag — mehr ist kein Rahmen mehr,
-#: sondern ein Dokument, und dafür gibt es RAG.
-MAX_CHARS: Final = 2000
 
 _KOPF: Final = "## Auftrag der einbettenden Anwendung"
 
@@ -53,8 +54,9 @@ def prompt_block(text: str | None) -> str:
     ``response_prompt_builder``, Schleifen-Weg über ``respond_agent``) denselben
     Text bauen. Zwei Kopien hätten hier zwei Rangfolgen bedeutet.
 
-    Gekürzt wird NICHT: kommt hier etwas zu Langes an, ist der Deckel im Schema
-    umgangen worden, und dann ist Durchreichen ehrlicher als ein stiller Schnitt.
+    Gekürzt wird NICHT — auch nicht bei sehr langem Text. Eine halbierte
+    Anweisung ist eine ANDERE Anweisung, und der Gastgeber hätte keine
+    Möglichkeit, das zu bemerken.
     """
     inhalt = (text or "").strip()
     if not inhalt:

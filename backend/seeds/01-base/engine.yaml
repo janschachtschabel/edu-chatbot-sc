@@ -37,9 +37,22 @@ agent:
   # Der Preis steht hier, damit ihn niemand suchen muss: der Kosten-Deckel je
   # Zug steigt auf das Sechsfache von 60000. Wer das kleiner braucht, stellt es
   # im Studio je Anlage ein.
-  max_iterations: 20
-  deadline_s: 300
-  token_budget: 400000
+  # 2026-08-18, zweite Anhebung am selben Tag (Nutzer-Entscheid):
+  # 20/300/400000 -> 30/900/900000. Vorgabe war „bis zu 30 Zuege am Stueck";
+  # Frist und Budget wandern mit, sonst greift einer von ihnen vorher und die
+  # 30 sind Zierde. Rechnung: gemessen ~15 300 Token je Runde, und die Kette
+  # waechst — 30 Runden landen grob bei 700-800k; 900000 laesst Luft, ohne den
+  # Deckel wirkungslos zu machen.
+  #
+  # WAS DIESE DECKEL NICHT LOESEN: das Widget bricht nach 90 s OHNE Ereignis ab
+  # (`stream-client.ts`, idleMs 90_000). Nicht die Gesamtdauer zaehlt, sondern
+  # die Stille zwischen zwei Fortschritts-Ereignissen — ein langsamer
+  # LLM-Aufruf (LLM_READ_TIMEOUT 75 s) plus ein langsames Werkzeug (bis 23 s)
+  # liegt darueber. Bestandsgrenze, keine neue, aber mit 30 Runden trifft man
+  # sie oefter.
+  max_iterations: 30
+  deadline_s: 900
+  token_budget: 900000
 
   # propose | execute — darf die Schleife eine Aenderung auch BESTAETIGEN?
   # `propose` haelt die Bestaetigungs-Wall: kuratierende Werkzeuge laufen bis

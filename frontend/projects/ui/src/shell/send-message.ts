@@ -114,6 +114,20 @@ export async function runSendMessage(
         ctx.focusInput();
         return;
       }
+      // Hat der Server die Anfrage VERSTANDEN und abgelehnt (4xx), bringt ein
+      // zweiter Versuch nichts: derselbe Rumpf wird auf `/chat` genauso
+      // abgelehnt. Gemeldet 2026-08-19 aus der Einbettung — eine ueberlange
+      // `host_instruction` erzeugte zwei identische 422 in der Konsole und am
+      // Ende doch nur die Fehlerblase. Ausgenommen 404/405: das ist der Fall,
+      // fuer den der Rueckfall gebaut wurde (aelteres Backend ohne die Route).
+      const status = (streamErr as { status?: number })?.status;
+      const abgelehnt = typeof status === 'number'
+        && status >= 400 && status < 500
+        && status !== 404 && status !== 405;
+      if (abgelehnt) {
+        console.warn('chat stream rejected, no POST fallback:', streamErr);
+        throw streamErr;
+      }
       // Stream-Transport gescheitert (Netz/Proxy/Parser) → stiller Fallback
       // auf den non-stream Endpoint, damit der User trotzdem eine Antwort
       // bekommt (deckt auch ältere Backends ohne /stream-Route ab).

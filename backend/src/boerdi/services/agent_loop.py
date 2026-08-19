@@ -34,7 +34,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -58,6 +58,7 @@ from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.usage import new_accumulator
 from boerdi.services import llm, outcome_service
+from boerdi.services.agent_knowledge import WISSEN_SUCHEN
 from boerdi.services.agent_tools import SUBMIT_RESULT, WAEHLE_VORGEHEN
 from boerdi.services.agent_write import WriteGate
 from boerdi.services.mcp.parsers import skill_registry_note
@@ -210,6 +211,7 @@ async def run_agent_loop(
     on_tool_result: Callable[[str, str], None] | None = None,
     muster_katalog: list[PatternDef] | None = None,
     werkzeuge_fuer: Callable[[PatternDef], list[dict[str, Any]]] | None = None,
+    wissen: Callable[[dict[str, Any]], Awaitable[str]] | None = None,
 ) -> AgentRun:
     """Fahre die Schleife, bis ein Grund sie beendet.
 
@@ -405,6 +407,20 @@ async def run_agent_loop(
                     _VORGEHEN_KOPF.format(kennung=gewaehlt.id, label=gewaehlt.label)
                     + gewaehlt.body_md,
                 ))
+                continue
+
+            # Die Wissensdatenbank (P): virtuell wie die vier davor — sie liegt
+            # in der eigenen Datenbank, nicht am MCP. Ginge der Name durch,
+            # meldete der Server ein unbekanntes Werkzeug, und das Modell lernte,
+            # dass es kein internes Wissen gibt. Die Naht ist eine Rueckrufkarte
+            # und keine Datenbank-Sitzung: die Schleife bedient auch den
+            # Agent-Endpunkt, und der hat keine.
+            if wissen is not None and name == WISSEN_SUCHEN:
+                progress.record("agent_tool", f"Werkzeug: {name}", {"tool": name})
+                run.tools_called.append(name)
+                # Ohne Fremdtext-Rahmen: der Bestand ist redaktionell gepflegt
+                # und liegt bei uns — dieselbe Begruendung wie beim Muster-Body.
+                messages.append(_tool_turn(tc.id, await wissen(args)))
                 continue
 
             progress.record("agent_tool", f"Werkzeug: {name}", {"tool": name})

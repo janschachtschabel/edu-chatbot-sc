@@ -158,7 +158,7 @@ def test_route_b_api_openai_dual_auth(monkeypatch) -> None:
     get_settings.cache_clear()
     model, api_base, api_key, headers = llm.route("gpt-5.6-luna")
     assert model == "openai/gpt-5.6-luna"
-    assert api_base == "https://b-api.prod.openeduhub.net/api/v1/llm/openai"
+    assert api_base == "https://b-api.staging.openeduhub.net/api/v1/llm/openai"
     assert api_key == "bkey"  # Bearer
     assert headers == {"X-API-KEY": "bkey"}  # and X-API-KEY
 

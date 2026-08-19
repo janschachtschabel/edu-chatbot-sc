@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ScrollFollowController } from './scroll-follow';
 
@@ -79,5 +79,69 @@ describe('ScrollFollowController (8-4S-e2)', () => {
 
   it('destroy ohne vorherige Aktivierung: kein Throw', () => {
     expect(() => new ScrollFollowController({ container: () => undefined }).destroy()).not.toThrow();
+  });
+});
+
+describe('Auto-Follow haengt am View-Leben, nicht am Panel-Oeffnen (Befund 2026-08-19)', () => {
+  // `instances` ist statisch und ueberlebt den describe darueber — ohne dieses
+  // Leeren zaehlte dieser Block fremde Beobachter mit und haenge an der
+  // Testreihenfolge.
+  beforeEach(() => { FakeMutationObserver.instances.length = 0; });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    FakeMutationObserver.instances.length = 0;
+  });
+
+  it('afterViewChecked schaltet den Tail-Follow scharf, ohne dass jemand scrollToLatest ruft', () => {
+    // Der Fehler: `_setupAutoFollowTail` hing allein in `scrollToLatest`, und das
+    // laeuft nur beim Panel-OEFFNEN (`setExpanded`), beim History-Restore oder
+    // per Host-API. Startet das Panel schon offen (`initExpanded` umgeht
+    // `setExpanded` bewusst) und gibt es keinen Verlauf, hing der Beobachter nie
+    // — die Ansicht folgte der wachsenden Antwort nicht.
+    vi.stubGlobal('MutationObserver', FakeMutationObserver);
+    const el = fakeEl(500);
+    const ctrl = new ScrollFollowController({ container: () => el });
+
+    ctrl.afterViewChecked();
+
+    expect(FakeMutationObserver.instances).toHaveLength(1);
+    expect(FakeMutationObserver.instances[0].observe).toHaveBeenCalledWith(
+      el, { childList: true, subtree: true, characterData: true },
+    );
+  });
+
+  it('eine Mutation zieht die Ansicht ans Ende — der eigentliche Zweck', () => {
+    vi.stubGlobal('MutationObserver', FakeMutationObserver);
+    const el = fakeEl(500);
+    const ctrl = new ScrollFollowController({ container: () => el });
+    ctrl.afterViewChecked();
+
+    el.scrollHeight = 900;                    // Antwort waechst
+    (FakeMutationObserver.instances[0].cb as () => void)();
+    expect(el.scrollTop).toBe(900);
+  });
+
+  it('ohne Container passiert nichts — und beim naechsten Durchlauf klappt es', () => {
+    vi.stubGlobal('MutationObserver', FakeMutationObserver);
+    const el = fakeEl(500);
+    let vorhanden = false;
+    const ctrl = new ScrollFollowController({ container: () => (vorhanden ? el : undefined) });
+
+    ctrl.afterViewChecked();                  // vor dem ersten Render
+    expect(FakeMutationObserver.instances).toHaveLength(0);
+
+    vorhanden = true;
+    ctrl.afterViewChecked();                  // Template ist da
+    expect(FakeMutationObserver.instances).toHaveLength(1);
+  });
+
+  it('nur EIN Beobachter, egal wie oft geprueft oder zusaetzlich scrollToLatest kommt', () => {
+    vi.stubGlobal('MutationObserver', FakeMutationObserver);
+    const ctrl = new ScrollFollowController({ container: () => fakeEl(500) });
+    ctrl.afterViewChecked();
+    ctrl.afterViewChecked();
+    ctrl.scrollToLatest();
+    expect(FakeMutationObserver.instances).toHaveLength(1);
   });
 });

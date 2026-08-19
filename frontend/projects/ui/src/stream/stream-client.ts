@@ -32,6 +32,20 @@ export class StreamStaleError extends Error {
   }
 }
 
+/** Der Server hat geantwortet, aber nicht mit 2xx — mit dem Status.
+ *
+ *  Der Status ist der Unterschied zwischen „Transport kaputt" und „Anfrage
+ *  abgelehnt": ein 4xx faellt auf dem zweiten Weg genauso aus, ein 5xx oder
+ *  ein Netzfehler vielleicht nicht. Ohne ihn konnte der Aufrufer das nicht
+ *  unterscheiden und schickte jede abgelehnte Anfrage ein zweites Mal
+ *  (Nutzer-Meldung 2026-08-19: zwei identische 422 in der Konsole). */
+export class StreamHttpError extends Error {
+  constructor(readonly status: number) {
+    super(`Chat stream error: ${status}`);
+    this.name = 'StreamHttpError';
+  }
+}
+
 /**
  * Parst EINEN SSE-Block (Zeilen zwischen zwei Leerzeilen) in `{event, data}`.
  * Kommentar-/Keepalive-Zeilen (`: …`) und Leerzeilen werden ignoriert;
@@ -146,7 +160,7 @@ export async function streamChat<T = unknown>(opts: StreamChatOptions): Promise<
   }
   if (!resp.ok || !resp.body) {
     clearTimers();
-    throw new Error(`Chat stream error: ${resp.status}`);
+    throw new StreamHttpError(resp.status);
   }
 
   const reader = resp.body.getReader();

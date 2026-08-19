@@ -144,6 +144,10 @@ class TurnContext(BaseModel):
     canvas_payload: dict[str, Any] | None = None
     canvas_forced_quick_replies: list[str] = Field(default_factory=list)
     tools_called: list[str] = Field(default_factory=list)
+    #: Die Ansage-Zeile des Master-Skills, wenn er in DIESEM Zug wirklich
+    #: geladen wurde — sonst leer. Der Antwort-Zusammenbau setzt sie im
+    #: ersten Zug einer Sitzung voran (``skill_precedence.mit_master_ansage``).
+    master_skill_zeile: str = ""
     effective_pattern_id: str = ""
     effective_pattern_label: str = ""
     #: Vom Modell GELIEFERTE Ergebnis-Boxen (D2, ``zeige_dokument``). Leer =

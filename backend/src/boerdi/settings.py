@@ -65,6 +65,22 @@ class Settings(BaseSettings):
         description="allow safari-web-extension:// and chrome-extension:// origins "
                     "(regex, in ADDITION to cors_origins)",
     )
+    # ── Master-Skill (N3, 2026-08-18) ───────────────────────────────
+    # Eine redaktionelle Gesamtanleitung aus dem Repositorium, die im
+    # Agent-/Hybrid-Modus als stabiler Prompt-Kopf laeuft. Vorgabe AUS: sie
+    # kostet einen MCP-Abruf und aendert das Verhalten, das gehoert zu einer
+    # bewussten Handlung. Die Kennung ist vorbelegt, damit Anschalten ein
+    # Schalter ist und keine Suche. Je Einbettung uebersteuert
+    # ``environment.master_skill`` (Rangfolge in ``services/master_skill``).
+    master_skill_enabled: bool = Field(
+        False, validation_alias=_env("MASTER_SKILL_ENABLED"),
+        description="load the master skill as the first system block (agent/hybrid)",
+    )
+    master_skill_node_id: str = Field(
+        "535cabca-47e4-4cbf-9cab-ca47e40cbf4e",
+        validation_alias=_env("MASTER_SKILL_NODE_ID"),
+        description="WLO nodeId of the master skill (get_skill)",
+    )
     trust_forwarded_for: bool = Field(False, validation_alias=_env("TRUST_FORWARDED_FOR"))
     allow_open_admin: bool = Field(
         False, validation_alias=_env("BOERDI_ALLOW_OPEN_ADMIN"),
@@ -104,10 +120,18 @@ class Settings(BaseSettings):
         "", validation_alias=_env("OPENAI_BASE_URL"),
         description="empty => https://api.openai.com/v1 (resolved in services/llm.py)",
     )
+    # 2026-08-19 auf Staging gezogen (Nutzer: nur Staging). ACHTUNG, die eine
+    # Falle: Adresse und Schluessel gehoeren zusammen. ``b_api_key`` kommt aus
+    # EINER Variablen ``B_API_KEY`` — wer dort einen Produktions-Schluessel
+    # hinterlegt, bekommt gegen diese Adresse 401. Beide Deployments
+    # existieren (je 401 ohne Schluessel, gemessen 2026-08-19).
     b_api_base_url: str = Field(
-        "https://b-api.prod.openeduhub.net/api/v1/llm",
+        "https://b-api.staging.openeduhub.net/api/v1/llm",
         validation_alias=_env("B_API_BASE_URL"),
-        description="/openai or /academiccloud appended per provider",
+        description=(
+            "/openai or /academiccloud appended per provider. Default staging — "
+            "B_API_KEY must be the key for THIS deployment."
+        ),
     )
     b_api_key: SecretStr = Field(
         SecretStr(""), validation_alias=_env("B_API_KEY"),
@@ -143,9 +167,20 @@ class Settings(BaseSettings):
             "antwortet dann weiter mit 200 und der vollen Werkzeugliste."
         ),
     )
+    # Befund 2026-08-19 (Nutzer: "es darf nur auf staging zeigen"): die Vorgabe
+    # stand auf Produktion, waehrend der MCP-Server nachweislich Staging
+    # befragt (gemessen mit ``wlo_health_check``). Weil ``rewrite_repo_host_v2``
+    # JEDEN Treffer auf diesen Wert umschreibt, trugen Staging-Knoten
+    # Produktions-Adressen — Links ins Leere oder auf einen fremden Knoten
+    # gleicher ID. Vorgabe ist deshalb Staging: eine vergessene Angabe zeigt
+    # aufs Uebungssystem, nie auf den Wirkbetrieb.
     repo_base_url: str = Field(
-        "https://redaktion.openeduhub.net", validation_alias=_env("REPO_BASE_URL"),
-        description="must match the repo the MCP server queries; rewrites card links",
+        "https://repository.staging.openeduhub.net",
+        validation_alias=_env("REPO_BASE_URL"),
+        description=(
+            "must match the repo the MCP server queries; rewrites card links. "
+            "Default is staging — a forgotten value must not hit production."
+        ),
     )
 
     # ── RAG / ingest / rerank ───────────────────────────────────────────
@@ -224,10 +259,17 @@ class Settings(BaseSettings):
     max_ingest_mb: int = Field(
         25, validation_alias=_env("BOERDI_MAX_INGEST_MB"), description="0 = unlimited"
     )
+    # 2026-08-19: Vorgabe auf Staging gezogen (Nutzer: nur Staging). Zwei
+    # Dinge dazu, damit niemand mehr davon erwartet, als der Wert leistet:
+    # (1) In DIESEM Backend liest ihn nichts — die Textextraktion macht der
+    #     MCP-Server mit seiner eigenen ``WLO_TEXT_EXTRACTION_URL``. Die
+    #     Angabe ist eine Naht ohne Verbraucher, kein Schalter.
+    # (2) Der zuvor eingetragene Prod-Host beantwortet keinen Aufruf: seine
+    #     Zertifikatskette ist nicht vertrauenswuerdig (gemessen 2026-08-19).
     text_extraction_url: str = Field(
-        "https://text-extraction.prod.openeduhub.net",
+        "https://text-extraction.staging.openeduhub.net",
         validation_alias=_env("TEXT_EXTRACTION_URL"),
-        description="base URL; /from-url appended internally",
+        description="base URL; /from-url appended internally (no consumer here)",
     )
     rag_top_k: int | None = Field(None, validation_alias=_env("RAG_TOP_K"))
     rag_min_score: float | None = Field(None, validation_alias=_env("RAG_MIN_SCORE"))

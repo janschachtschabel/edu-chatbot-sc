@@ -99,7 +99,10 @@ def chat_headers(raw: str | None) -> dict[str, str]:
 def repo_host() -> str:
     """Host of REPO_BASE_URL — same default as the backend (config_loader)."""
     base = (os.getenv("REPO_BASE_URL") or "").strip().rstrip("/") or (
-        "https://redaktion.openeduhub.net"
+        # 2026-08-19 mit der Backend-Vorgabe auf Staging gezogen. Liefe der
+        # Runner weiter gegen Produktion, schluege ``host_ok`` bei JEDER Karte
+        # fehl — ein systematischer Falschalarm ueber den ganzen Lauf.
+        "https://repository.staging.openeduhub.net"
     )
     return urlparse(base).netloc or base
 

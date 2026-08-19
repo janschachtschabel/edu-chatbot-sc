@@ -40,6 +40,7 @@ SPEC_ENV_VARS = [
     "DATABASE_URL", "RATE_LIMIT_STORAGE_URI", "RATE_LIMIT_CHAT",
     "OTEL_EXPORTER_OTLP_ENDPOINT", "RERANK_URL", "CONFIG_SEED_DIR", "WIDGET_DIST_DIR",
     "CORS_ALLOW_ALL", "CORS_ALLOW_EXTENSIONS",
+    "MASTER_SKILL_ENABLED", "MASTER_SKILL_NODE_ID",
 ]
 
 
@@ -100,7 +101,7 @@ def test_defaults_match_alt(clean_env) -> None:
     assert s.llm_verbosity == "low"  # W12: Nutzer-Vorgabe „hohe Geschwindigkeit"
     assert s.llm_reasoning_effort == "low"
     assert s.openai_base_url == ""
-    assert s.b_api_base_url == "https://b-api.prod.openeduhub.net/api/v1/llm"
+    assert s.b_api_base_url == "https://b-api.staging.openeduhub.net/api/v1/llm"
     assert s.b_api_audio is False
     # Speech
     assert s.speech_force_enable is False
@@ -113,13 +114,15 @@ def test_defaults_match_alt(clean_env) -> None:
     # ``test_die_beiden_mcp_defaults_zeigen_auf_denselben_server``.
     assert s.mcp_server_url == "https://wlo-mcp.87.106.195.152.nip.io/mcp"
     assert s.mcp_max_connections == 50
-    assert s.repo_base_url == "https://redaktion.openeduhub.net"
+    # 2026-08-19: Staging ist die Vorgabe, nicht Produktion — siehe
+    # ``TestVorgabeIstStaging`` in test_repo_config.py fuer den Befund.
+    assert s.repo_base_url == "https://repository.staging.openeduhub.net"
     # RAG (None => yaml layer decides, ALT _RAG_DEFAULTS live in the rag service)
     # W11 (Nutzer-Korrektur): wieder AN, wie ALT. Bezahlbar durch 10 Kandidaten
     # und die Latenz-Verteilung 1 Worker x 3 Threads.
     assert s.rag_reranker_enabled is True
     assert s.max_ingest_mb == 25
-    assert s.text_extraction_url == "https://text-extraction.prod.openeduhub.net"
+    assert s.text_extraction_url == "https://text-extraction.staging.openeduhub.net"
     assert s.rag_top_k is None
     assert s.rag_min_score is None
     assert s.rag_max_chars_per_area is None
@@ -254,3 +257,32 @@ def test_die_beiden_mcp_defaults_zeigen_auf_denselben_server():
     from boerdi.settings import Settings
 
     assert _DEFAULT_MCP_URL == Settings().mcp_server_url
+
+
+def test_die_betriebs_env_spricht_in_tests_nicht_mit() -> None:
+    """Die Suite muss ihre Konfiguration BESITZEN.
+
+    Befund 2026-08-19: ``backend/.env`` wurde von jedem ``Settings()`` in den
+    Tests mitgelesen. Als dort ``MASTER_SKILL_ENABLED=true`` landete, wurden drei
+    Tests in ``test_respond_agent.py`` rot — ohne dass sich am Produkt etwas
+    geaendert hatte. Die eigentliche Gefahr ist die Umkehrung: **CI hat keine
+    ``.env``, ein Entwicklerrechner schon.** Beide liefen damit gegen
+    unterschiedliche Konfigurationen, und ein Test konnte hier gruen und dort rot
+    sein — oder umgekehrt einen Fehler verdecken.
+
+    **Die Datei auszuhaengen genuegt nicht** (gemessen): ``litellm`` ruft beim
+    Import ``load_dotenv()`` und kippt ``backend/.env`` in ``os.environ`` —
+    ``import boerdi.main`` reicht dafuer. ``conftest`` entfernt deshalb
+    zusaetzlich genau die Schluessel, die in der Datei stehen.
+
+    Zwei Zusicherungen: die Mechanik selbst, und ein Wert, den die echte
+    ``.env`` heute setzt.
+    """
+    from boerdi.settings import get_settings
+
+    assert not Settings.model_config.get("env_file"), (
+        "Die Env-Datei ist in Tests nicht ausgehaengt — die lokale Konfiguration "
+        "des Entwicklers spricht mit."
+    )
+    # Vorgabe im Code ist AUS; die Betriebs-.env setzt sie auf AN.
+    assert get_settings().master_skill_enabled is False

@@ -1,5 +1,18 @@
 # RAG-Bereichskonfiguration
-# mode: always = immer im Kontext, on-demand = nur bei Bedarf
+#
+# mode:  gilt fuer den MUSTER-Weg. always = vor dem ersten Modellzug geholt,
+#        on-demand = nur, wenn das Modell danach fragt. Ein Eintrag OHNE `mode`
+#        wird vom Loader ganz verworfen — das Feld ist der Schluessel, nicht nur
+#        eine Einstellung.
+# agent: gilt fuer die AGENT- und HYBRID-Schleife. Vorgabe `true`; dort werden
+#        ohne weitere Angabe ALLE Bereiche zugleich durchsucht (kostet eine
+#        Einbettung, nicht neun). `agent: false` nimmt einen Bereich nur aus der
+#        Schleife, nicht aus dem Muster-Weg. Weglassen heisst „dabei".
+#
+# WICHTIG: Ein Bereich, in den das Studio Dokumente eingelesen hat, wird vom
+# Chatbot erst durchsucht, wenn er HIER steht. Die Bereichsliste auf der
+# Wissen-Seite kommt aus der Datenbank, diese Datei entscheidet ueber die
+# Nutzung — die Wissen-Seite kennzeichnet einen Bereich, der hier fehlt.
 
 WissenLebtOnline:
   mode: always

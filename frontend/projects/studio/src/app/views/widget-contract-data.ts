@@ -27,7 +27,7 @@ export interface HostAttribute {
 }
 
 /**
- * The 28 host attributes of `<boerdi-chat>` (§5.5). ALT's table listed 17 —
+ * The 29 host attributes of `<boerdi-chat>` (§5.5). ALT's table listed 17 —
  * `inline-result-grouping`, the one 8-7 found dead, was the one it left out.
  * `language` came with C1-c, `embed-mode` with U1, `size` with U2a,
  * `show-cards` with U2b, `theme` with U4a, `result-schema` and then
@@ -53,6 +53,14 @@ export const HOST_ATTRIBUTES: readonly HostAttribute[] = [
   {
     groupKey: 'rw.group.basis', attr: 'result-schema', fallback: '',
     fallbackKey: 'rw.default.empty', descKey: 'rw.attr.resultSchema',
+  },
+  {
+    groupKey: 'rw.group.basis', attr: 'master-skill', fallback: '',
+    fallbackKey: 'rw.default.empty', descKey: 'rw.attr.masterSkill',
+  },
+  {
+    groupKey: 'rw.group.basis', attr: 'tool-mode', fallback: 'full',
+    descKey: 'rw.attr.toolMode',
   },
   {
     groupKey: 'rw.group.basis', attr: 'position', fallback: 'bottom-right',
@@ -121,6 +129,10 @@ export const HOST_ATTRIBUTES: readonly HostAttribute[] = [
   {
     groupKey: 'rw.group.anzeige', attr: 'show-cards', fallback: 'auto',
     descKey: 'rw.attr.showCards',
+  },
+  {
+    groupKey: 'rw.group.anzeige', attr: 'quick-replies', fallback: '',
+    fallbackKey: 'rw.default.empty', descKey: 'rw.attr.quickReplies',
   },
   {
     groupKey: 'rw.group.anzeige', attr: 'theme', fallback: 'auto',

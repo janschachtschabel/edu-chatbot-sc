@@ -52,10 +52,28 @@ def _chunk(title="Zelle", source="z.md", content="Inhalt", idx=0):
 # ── GET /api/rag/areas ───────────────────────────────────────────────────
 def test_areas_passes_di_session_and_returns_the_service_list(client, monkeypatch):
     calls = _fake(monkeypatch, "list_areas", [{"area": "bio", "chunks": 4, "documents": 1}])
+    monkeypatch.setattr(rag_api, "load_rag_config", lambda: {"bio": {"mode": "always"}})
     r = client.get("/api/rag/areas", headers=_AUTH)
     assert r.status_code == 200
-    assert r.json() == [{"area": "bio", "chunks": 4, "documents": 1}]
+    assert r.json() == [{"area": "bio", "chunks": 4, "documents": 1, "configured": True}]
     assert calls == [(_SESSION,)]
+
+
+def test_areas_markiert_den_nur_eingelesenen_bereich(client, monkeypatch):
+    """R: ein im Studio getippter Bereichsname landet nur in der Datenbank —
+    der Chatbot durchsucht ihn nie. Die Liste sagt es jetzt."""
+    _fake(monkeypatch, "list_areas", [{"area": "neu", "chunks": 3, "documents": 1}])
+    monkeypatch.setattr(rag_api, "load_rag_config", lambda: {})
+    r = client.get("/api/rag/areas", headers=_AUTH)
+    assert r.json() == [{"area": "neu", "chunks": 3, "documents": 1, "configured": False}]
+
+
+def test_areas_zeigt_auch_den_konfigurierten_ohne_dokumente(client, monkeypatch):
+    """Der Gegenfall: steht in der Werkzeug-Beschreibung, ist aber immer leer."""
+    _fake(monkeypatch, "list_areas", [])
+    monkeypatch.setattr(rag_api, "load_rag_config", lambda: {"leer": {"mode": "always"}})
+    r = client.get("/api/rag/areas", headers=_AUTH)
+    assert r.json() == [{"area": "leer", "chunks": 0, "documents": 0, "configured": True}]
 
 
 # ── GET /api/rag/area/{area} ─────────────────────────────────────────────

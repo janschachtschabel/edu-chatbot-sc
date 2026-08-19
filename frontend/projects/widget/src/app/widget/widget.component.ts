@@ -9,9 +9,12 @@ import {
   ChatShellComponent, GuideBoot, GuideNav, GuideSuggestionPayload, HeaderNavButton, HostBridges,
   ICONS, PanelState, RoutingDebugPayload, SafeSvgPipe, TranslationParams, WidgetLanguage,
   _attrEnum,
+  _attrIsTrue,
   _attrJsonObject,
   _attrJsonStringArray,
+  _attrTriState,
   PANEL_SIZE_STEPS,
+  TOOL_MODES,
   applyPrimaryColor, BOERDI_LOGO_DATA_URL, headerNavHrefWithBsid, headerNavIconSvg,
   pickLocalized,
   resolveMergedPageContext, resolveTheme,
@@ -187,6 +190,32 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    * einen zusätzlichen Modellzug je Nachricht (2–9 s gemessen).
    */
   readonly resultSchema = input('');
+
+  /**
+   * `master-skill` — soll die redaktionelle Gesamtanleitung dieser Anlage fuer
+   * diesen Einbau gelten? (N4)
+   *
+   * Drei Zustaende: `"on"` an, `"off"` aus, **fehlt** = die Vorgabe des
+   * Betreibers (`MASTER_SKILL_ENABLED`). Das nackte Attribut ohne Wert gilt als
+   * „fehlt" — Begruendung an `_attrTriState`. Wirkt nur mit den Maschinen
+   * `agent` und `hybrid`; der Mustermodus hat seine Anweisungen aus der Config.
+   */
+  readonly masterSkill = input('');
+  /**
+   * O-A — was in DIESER Anwendung erlaubt ist: `read-only` (nur lesen),
+   * `curate` (auch anlegen und einsortieren, weiterhin zweistufig) oder `full`
+   * (Vorgabe). Der Wert wirkt zweifach: er nimmt die Werkzeuge aus der Liste
+   * UND sagt es dem Modell — sonst verspraeche es eine Aenderung, die es gleich
+   * nicht ausfuehren kann. Nur mit `engine=agent|hybrid`.
+   */
+  readonly toolMode = input('');
+  /**
+   * O-B — Schnellantworten, die der Gastgeber HART setzt, als JSON-Array
+   * (`quick-replies='["Passt","Passt nicht"]'`). Anders als `start-replies`
+   * (nur die Begruessung) gilt das je Zug und schlaegt alles andere. Zur
+   * Laufzeit umschaltbar ueber `setQuickReplies()`.
+   */
+  readonly quickReplies = input('');
   /** Anfangs-Größenstufe (U2a): `small` (Vorgabe) oder `large`. Nur der START —
    *  danach gehört die Stufe dem Panel, weil der Umschalter in der Eingabezeile
    *  sie verändert. Rahmenlos hat sie keine Wirkung auf die Maße (die stellt der
@@ -356,6 +385,27 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     effect(() => {
       const shell = this.shell();
       if (shell) shell.setResultSchema(_attrJsonObject(this.resultSchema()));
+    });
+    // Eigener Effect, gleiche Begruendung: das Attribut soll ab dem naechsten
+    // Zug gelten, ohne dass Maschine oder Schema sich bewegt haben muessen.
+    effect(() => {
+      const shell = this.shell();
+      if (shell) shell.setMasterSkill(_attrTriState(this.masterSkill()));
+    });
+    // O: was diese Anwendung anzeigt und erlaubt. Je ein eigener Effect aus
+    // demselben Grund wie oben — ein zur Laufzeit gesetztes Attribut soll ab
+    // dem naechsten Zug gelten, ohne dass die anderen sich bewegt haben.
+    effect(() => {
+      const shell = this.shell();
+      if (shell) shell.setInlineResultGrouping(_attrIsTrue(this.inlineResultGrouping()));
+    });
+    effect(() => {
+      const shell = this.shell();
+      if (shell) shell.setToolMode(_attrEnum(this.toolMode(), TOOL_MODES, ''));
+    });
+    effect(() => {
+      const shell = this.shell();
+      if (shell) shell.setQuickReplies(_attrJsonStringArray(this.quickReplies()));
     });
     // Der wartende Rahmen und der wartende Auftrag, sobald es eine Shell gibt.
     // Dieselbe Nachzieh-Naht wie oben und aus demselben Grund: die Shell hängt

@@ -21,24 +21,48 @@
       }
     </fieldset>
 
-    <div class="ri-field">
-      <label class="ri-label" [for]="idPrefix + '-area'">{{ t('rag.ingest.area') }}</label>
-      <input
-        type="text"
-        class="ri-area"
-        [id]="idPrefix + '-area'"
-        [attr.list]="idPrefix + '-areas'"
-        [attr.aria-describedby]="idPrefix + '-area-help'"
-        [value]="area()"
-        (input)="area.set($any($event.target).value)"
-      />
-      <datalist [id]="idPrefix + '-areas'">
-        @for (name of areaNames(); track name) {
-          <option [value]="name"></option>
-        }
-      </datalist>
-      <p class="ri-help" [id]="idPrefix + '-area-help'">{{ t('rag.ingest.areaHelp') }}</p>
-    </div>
+    <!-- S2: gewählt statt getippt. Das Auswahlfeld erscheint nur, wenn es etwas
+         zu wählen gibt; sonst (und nach „neuer Bereich") das Namensfeld. -->
+    @if (areaNames().length > 0) {
+      <div class="ri-field">
+        <label class="ri-label" [for]="idPrefix + '-area-pick'">
+          {{ t('rag.ingest.area') }}
+        </label>
+        <select
+          class="ri-area-pick"
+          [id]="idPrefix + '-area-pick'"
+          [value]="auswahl()"
+          (change)="onArea($any($event.target).value)"
+        >
+          <option value="" disabled>{{ t('rag.ingest.areaPlaceholder') }}</option>
+          @for (name of areaNames(); track name) {
+            <option [value]="name" [selected]="auswahl() === name">{{ name }}</option>
+          }
+          <option [value]="NEUER_BEREICH" [selected]="auswahl() === NEUER_BEREICH">
+            {{ t('rag.ingest.areaNew') }}
+          </option>
+        </select>
+      </div>
+    }
+
+    @if (neu()) {
+      <div class="ri-field">
+        <label class="ri-label" [for]="idPrefix + '-area'">
+          {{ t('rag.ingest.areaNewName') }}
+        </label>
+        <input
+          type="text"
+          class="ri-area"
+          [id]="idPrefix + '-area'"
+          [attr.aria-describedby]="idPrefix + '-area-help'"
+          [value]="neuerName()"
+          (input)="neuerName.set($any($event.target).value)"
+        />
+        <p class="ri-help ri-new-help" [id]="idPrefix + '-area-help'">
+          {{ t('rag.ingest.areaNewHelp') }}
+        </p>
+      </div>
+    }
 
     <div class="ri-field">
       <label class="ri-label" [for]="idPrefix + '-title'">{{ t('rag.ingest.title') }}</label>
