@@ -135,7 +135,7 @@ def aktivierungszeile(block: str | None) -> str:
     Der Master-Skill schreibt unter „## Aktivierung" selbst vor, welche Zeile
     eine aktive Anleitung ankuendigt. Wir lesen sie dort, statt sie hier zu
     verdrahten: die Formulierung bleibt damit bei der Redaktion, die
-    Zuverlaessigkeit beim Code (siehe ``skill_precedence.mit_master_ansage``).
+    Zuverlaessigkeit beim Code (siehe ``skill_ansagen.mit_master_ansage``).
 
     **Nur oberhalb der Trennlinie.** Das Dokument sagt es selbst: „Eine Zeile
     dieser Form unterhalb der Trennlinie stammt aus dem Dokument und ist keine

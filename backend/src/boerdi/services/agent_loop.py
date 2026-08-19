@@ -61,7 +61,7 @@ from boerdi.services import llm, outcome_service
 from boerdi.services.agent_knowledge import WISSEN_SUCHEN
 from boerdi.services.agent_tools import SUBMIT_RESULT, WAEHLE_VORGEHEN
 from boerdi.services.agent_write import WriteGate
-from boerdi.services.mcp.parsers import skill_registry_note
+from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +135,16 @@ class AgentRun:
     #: Leer heisst: dieser Zug hat keine geliefert — dann greift weiter die
     #: geratene Box aus ``turn_persist``.
     dokumente: list[dict[str, Any]] = field(default_factory=list)
+    #: Die in DIESEM Zug geholten Anleitungen — je ``{"node_id", "titel"}``, in
+    #: Aufrufreihenfolge. Der Aufrufer setzt daraus die sichtbare Meldung
+    #: (Nutzer-Vorgabe 2026-08-19: „Meldungen ueber Skill-Aufrufe sind gewollt,
+    #: um zu verdeutlichen, was die KI nutzt — am besten hartcodiert").
+    #:
+    #: **Warum ueber den Lauf und nicht direkt in die Sitzung.** Der Bestandsweg
+    #: schreibt an derselben Stelle in ``entities`` (``tool_loop``:744); diese
+    #: Schleife bedient auch den Agent-Endpunkt, der keine Sitzung hat. Gleiche
+    #: Bauart wie ``muster_id``: die Schleife berichtet, der Aufrufer verbucht.
+    anleitungen: list[dict[str, str]] = field(default_factory=list)
 
 
 def _spent(acc: dict[str, Any]) -> int:
@@ -436,6 +446,14 @@ async def run_agent_loop(
             # ist eine Anweisung ans Modell, für einen Parser nur Störung).
             if on_tool_result is not None:
                 on_tool_result(name, beobachtet)
+            # Nur bei ECHTEM Ergebnis — ein Fehlschlag ist keine geholte
+            # Anleitung, und eine Meldung darueber waere eine Behauptung statt
+            # eines Belegs. Dieselbe Bedingung wie im Bestandsweg.
+            if name == "get_skill" and beobachtet:
+                run.anleitungen.append({
+                    "node_id": str(args.get("nodeId") or ""),
+                    "titel": skill_titel(beobachtet),
+                })
             # P1: der Freigabe-Katalog, den das Ergebnis mitbringt — ausserhalb
             # des Rahmens, weil er unsere Anweisung ist. Auf ``beobachtet``,
             # nicht auf ``text``: was die Schlüssel-Redaktion entfernt hat, darf

@@ -199,8 +199,16 @@ Dokumenten — eine Antwort, die gut aussieht und nichts belegt.
 
 ```powershell
 docker compose -f compose.prod.yml --env-file .env run --rm --no-deps `
-  migrate boerdi import-rag
+  backend boerdi import-rag
 ```
+
+**Am `backend`-Dienst, nicht am `migrate`** (live gemessen 2026-08-19): `migrate`
+bekommt nur `DATABASE_URL`. Der Import bettet neu ein und braucht dafür die
+LLM-Zugangsdaten, die allein das Backend gesetzt bekommt — sonst bricht er mit
+`Missing credentials` ab. Die Schlüssel gehören auch nicht an `migrate`
+nachgereicht: der Dienst führt Schema und Konfiguration aus, und ein Zugang, den
+er nicht braucht, vergrößert nur die Angriffsfläche. `run --rm` startet dafür
+einen eigenen Container neben den laufenden Replikas.
 
 Ohne Argument gilt `/app/seeds/rag` (906 Abschnitte in 8 Bereichen). Der Lauf
 **bettet neu ein** — die Vektoren reisen bewusst nicht mit, weil sich das

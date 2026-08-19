@@ -587,13 +587,20 @@ async def test_auf_der_sammlungsseite_bleibt_es_beim_seitenblock(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_die_ladezeile_steht_vor_der_agent_antwort(monkeypatch):
-    """Nutzer-Vorgabe 2026-08-16: eine hartcodierte Zeile, sobald ``get_skill``
-    eine Anleitung geladen hat — statt der Ansage aus dem Ergebnis, die das
-    Modell gemessen umformulierte.
+async def test_die_notiz_allein_erzeugt_keine_ladezeile_mehr(monkeypatch):
+    """**Vertragsänderung 2026-08-19** — hier stand vorher das Gegenteil.
 
-    Gegenstück auf der Muster-Seite:
-    ``test_respond_node.test_die_ladezeile_steht_vor_der_antwort``.
+    Bis dahin las auch der Agent-Weg die Notiz (``_skill_lauf``) und setzte
+    daraus die Zeile. Das war die falsche Quelle: die Notiz gilt
+    ``LAUF_GUELTIG_ZUEGE`` Züge, damit die Rückfrage einer Anleitung fortgeführt
+    wird — sie sagt „hier läuft etwas", nicht „dieser Zug hat es geholt". Die
+    Meldung soll zeigen, was die KI in DIESEM Zug benutzt hat; die Quelle dafür
+    ist ``AgentRun.anleitungen``.
+
+    Ein Zug ohne eigenen Abruf meldet deshalb nichts, auch wenn die Notiz noch
+    liegt — sonst stünde „wird geladen" über einer Antwort, die nichts geladen
+    hat. Der Bestandsweg behält die Notiz als Quelle (``test_respond_node``):
+    dort gibt es keine Lauf-Liste.
     """
     seen: dict = {}
     _patch(monkeypatch, seen)
@@ -603,8 +610,7 @@ async def test_die_ladezeile_steht_vor_der_agent_antwort(monkeypatch):
     ctx.session_state["entities"]["_skill_lauf"] = {
         "node_id": "5b29f470", "zug": 4, "titel": "Stunde planen"}
     await respond_agent(ctx)
-    assert ctx.response_text.splitlines()[0] == (
-        "[ edu-sharing Skill ] Stunde planen - wird geladen")
+    assert "edu-sharing Skill" not in ctx.response_text
 
 
 @pytest.mark.anyio
@@ -1097,3 +1103,111 @@ async def test_ohne_gepflegte_bereiche_kein_werkzeug(monkeypatch):
     await respond_agent(ctx)
     assert "wissen_suchen" not in _namen(seen["run_agent_loop"]["tools"])
     assert seen["run_agent_loop"].get("wissen") is None
+
+
+@pytest.mark.anyio
+async def test_die_wissensregel_steht_im_systemprompt(monkeypatch):
+    """Das Werkzeug allein reicht nicht — die Regel muss danebenstehen.
+
+    Gemessen 2026-08-19 an der Live-Anlage, drei Laeufe je Frage: der
+    Muster-Weg holt sein RAG in 3 von 3 Zuegen (der Vorabruf der
+    ``always``-Bereiche ist unbedingt), der Agent rief ``wissen_suchen`` nur in
+    2 von 3 — der dritte beantwortete „Was ist WissenLebtOnline?" aus dem
+    Modellgedaechtnis. Der Muster-Weg traegt fuer genau diesen Fall eine
+    ausdrueckliche Regel samt Beispielen (``response_prompt_tools_text``); die
+    Agent-Schleife hatte nur den allgemeinen Satz „hole dir die Tatsachen mit
+    den Werkzeugen".
+    """
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    ctx.rag_config = {"WirLernenOnline": {"description": "Die Plattform."}}
+    await respond_agent(ctx)
+    system = seen["run_agent_loop"]["messages"][0]["content"]
+    assert "wissen_suchen" in system
+
+
+@pytest.mark.anyio
+async def test_ohne_bereiche_verspricht_der_systemprompt_kein_wissen(monkeypatch):
+    """Kein Werkzeug im Katalog ⇒ kein Wort darueber im Prompt.
+
+    Dieselbe Regel wie beim ``result_schema`` (Modulkopf): eine Anweisung auf
+    ein Werkzeug, das nicht im Katalog steht, ist der Widerspruch aus C1-f1.
+    """
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    ctx.rag_config = {}
+    await respond_agent(ctx)
+    assert "wissen_suchen" not in seen["run_agent_loop"]["messages"][0]["content"]
+
+
+# ── Die Skill-Meldung im Agent-Weg (Nutzer-Vorgabe 2026-08-19) ─────────────
+# „Meldungen über Skill-Aufrufe sind gewollt, um zu verdeutlichen, was die KI
+# nutzt — am besten hartcodiert." Live gemessen an „Geometrische Optik" standen
+# drei Zeilen übereinander: die servergesetzte Master-Zeile und ZWEI vom Modell
+# abgeschriebene, in zwei verschiedenen Formaten.
+
+@pytest.mark.anyio
+async def test_geholte_anleitung_wird_hartcodiert_gemeldet(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="Dein Verlaufsplan.", stop_reason="text", iterations=2,
+        anleitungen=[{"node_id": "5b29f470", "titel": "Stunde planen"}],
+    ))
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    await respond_agent(ctx)
+    assert ctx.response_text.splitlines()[0] == (
+        "[ edu-sharing Skill ] Stunde planen - wird geladen")
+
+
+@pytest.mark.anyio
+async def test_die_abgeschriebene_zeile_des_modells_wird_ersetzt(monkeypatch):
+    """Nicht ergänzt, sondern ersetzt — sonst steht die Meldung doppelt."""
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text=("[ edu-sharing Skill ] Stunde planen - aktiv\n"
+              "▸ stunde-planen aktiv — Verlaufsplan\n\nDein Verlaufsplan."),
+        stop_reason="text", iterations=2,
+        anleitungen=[{"node_id": "5b29f470", "titel": "Stunde planen"}],
+    ))
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    await respond_agent(ctx)
+    assert ctx.response_text.count("Stunde planen") == 1
+    assert "- aktiv" not in ctx.response_text
+    assert ctx.response_text.endswith("Dein Verlaufsplan.")
+
+
+@pytest.mark.anyio
+async def test_die_geholte_anleitung_ueberdauert_den_zug(monkeypatch):
+    """Dieselbe Notiz wie im Bestandsweg: stellt ein Skill eine Rückfrage, kommt
+    die Antwort erst im nächsten Zug — und der entschiede sonst neu
+    (``skill_precedence.merke_laufende_anleitung``, Befund 2026-08-16)."""
+    from boerdi.domain.skill_precedence import LAUF_KEY
+
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="Wie lange soll die Stunde dauern?", stop_reason="text", iterations=2,
+        anleitungen=[{"node_id": "5b29f470", "titel": "Stunde planen"}],
+    ))
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    ctx.session_state["turn_count"] = 0
+    await respond_agent(ctx)
+    notiz = ctx.session_state["entities"][LAUF_KEY]
+    assert notiz["node_id"] == "5b29f470" and notiz["zug"] == 0
+
+
+@pytest.mark.anyio
+async def test_ohne_geholte_anleitung_keine_meldung(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="Antwort ohne Skill.", stop_reason="text", iterations=1))
+    _vorab(monkeypatch)
+    ctx = _ctx()
+    await respond_agent(ctx)
+    assert "edu-sharing Skill" not in ctx.response_text

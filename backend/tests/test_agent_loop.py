@@ -810,3 +810,64 @@ def test_ohne_wissens_naht_ist_der_name_ein_werkzeug_wie_jedes(monkeypatch):
         _resp_text("fertig"),
     ], outcome=fake_outcome)
     assert fake_outcome.calls and fake_outcome.calls[0][0] == "wissen_suchen"
+
+
+# ── Geladene Anleitungen mitschreiben (Nutzer-Vorgabe 2026-08-19) ──────────
+
+def test_geladene_anleitung_wird_am_lauf_vermerkt(monkeypatch):
+    """Der Lauf merkt sich, WELCHE Anleitung er geholt hat — mit Titel.
+
+    Nutzer-Vorgabe 2026-08-19: „Meldungen über Skill-Aufrufe sind gewollt, um zu
+    verdeutlichen, was die KI nutzt — am besten hartcodiert." Hartcodiert heisst:
+    der Server setzt die Zeile, nicht das Modell. Dafuer braucht der Aufrufer
+    Titel und ``nodeId``, und beide kennt nur diese Stelle — die Argumente des
+    Aufrufs und sein Ergebnis liegen hier zusammen.
+
+    Der Bestandsweg tut dasselbe seit 2026-08-16 in ``tool_loop`` (dort direkt
+    in ``entities``); hier wandert es ueber den Lauf, damit die Schleife nichts
+    ueber Sitzungen wissen muss — dieselbe Bauart wie ``muster_id``.
+    """
+    _, lauf, _msgs = _lauf(
+        monkeypatch,
+        [_resp_tools([_tool_call("get_skill", {"nodeId": "5b29f470"})]),
+         _resp_text("Fertig.")],
+        outcome=_OutcomeFake({"get_skill": "# Stunde planen\nnodeId: 5b29f470\n\nAblauf …"}),
+    )
+    assert lauf.anleitungen == [{"node_id": "5b29f470", "titel": "Stunde planen"}]
+
+
+def test_mehrere_anleitungen_stehen_in_aufrufreihenfolge(monkeypatch):
+    """Zwei Anleitungen in EINEM Zug ergeben zwei Eintraege, nicht einen.
+
+    Sonst waere eine der beiden Meldungen still verloren — und die Zeile soll
+    ja gerade zeigen, was die KI wirklich benutzt hat.
+    """
+    _, lauf, _msgs = _lauf(
+        monkeypatch,
+        [_resp_tools([_tool_call("get_skill", {"nodeId": "aaa"}, call_id="c1"),
+                      _tool_call("get_skill", {"nodeId": "bbb"}, call_id="c2")]),
+         _resp_text("Fertig.")],
+        outcome=_OutcomeFake({"get_skill": "# Stunde planen\n"}),
+    )
+    assert [e["node_id"] for e in lauf.anleitungen] == ["aaa", "bbb"]
+
+
+def test_ein_leeres_ergebnis_ist_keine_geladene_anleitung(monkeypatch):
+    """Fehlschlag = keine Anleitung. Dieselbe Regel wie im Bestandsweg: eine
+    Meldung ueber etwas, das nicht ankam, waere eine Behauptung."""
+    _, lauf, _msgs = _lauf(
+        monkeypatch,
+        [_resp_tools([_tool_call("get_skill", {"nodeId": "leer"})]),
+         _resp_text("Fertig.")],
+        outcome=_OutcomeFake({"get_skill": ""}),
+    )
+    assert lauf.anleitungen == []
+
+
+def test_andere_werkzeuge_erzeugen_keinen_eintrag(monkeypatch):
+    _, lauf, _msgs = _lauf(
+        monkeypatch,
+        [_resp_tools([_tool_call("search_wlo_all", {"searchTerm": "Optik"})]),
+         _resp_text("Fertig.")],
+    )
+    assert lauf.anleitungen == []

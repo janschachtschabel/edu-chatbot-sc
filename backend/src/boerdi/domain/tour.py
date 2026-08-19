@@ -98,6 +98,43 @@ def match_group(message: str, cfg: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def ist_ausloeser(message: str, cfg: dict[str, Any]) -> bool:
+    """Enthält die Nachricht eine der getippten Auslöser-Phrasen?
+
+    Zwei Aufrufer mit derselben Frage und verschiedenen Folgen: ohne laufende
+    Tour startet der Auslöser sie, mit laufender bestätigt er den aktuellen
+    Schritt (``graph/nodes/tour``). Bis 2026-08-19 stand das Matching nur im
+    Knoten und nur für den ersten Fall — der zweite fiel deshalb in den weichen
+    Ausstieg, und „starte die Tour" beendete die Tour.
+
+    Teilstring, case-insensitive — wie ``match_group``, und aus demselben Grund:
+    die Phrasen kommen aus der Redaktion und stehen selten allein im Satz.
+    Phrasen unter drei Zeichen werden übergangen; ein „ok" in der Liste träfe
+    sonst jede zweite Nachricht.
+
+    **Kein feineres Sieb für den zweiten Fall, und das ist eine Entscheidung**
+    (Durchsicht 2026-08-19). Eine allgemeine Phrase wie „zeig mir die seite"
+    trifft mitten in der Tour auch „zeig mir die seite für Lehrkräfte" — der
+    Besucher bekommt den Schritt erneut statt einer Antwort. Erwogen und
+    verworfen wurden drei Verschärfungen: Restlänge nach Abzug der Phrase,
+    „Nachricht endet auf die Phrase", und eine Füllwort-Liste. Jede tauscht
+    diesen Fehlalarm gegen einen anderen ein — „starte die tour bitte" fiele
+    bei zweien durch —, und welcher häufiger ist, ist ungemessen. Ein
+    ungeeichter Schwellwert im Kern wäre schlechter als der bekannte
+    Nebeneffekt: die Phrasenliste steht im Studio, sie kostet keinen Deploy,
+    und der Fehlalarm verschwindet mit der Phrase, die ihn erzeugt. Wer ihn
+    misst, hat dann Zahlen für die Verschärfung.
+    """
+    msg = (message or "").strip().lower()
+    if not msg:
+        return False
+    for phrase in cfg.get("trigger_phrases") or []:
+        p = str(phrase).strip().lower()
+        if len(p) >= 3 and p in msg:
+            return True
+    return False
+
+
 def _group_by_angebot_path(cfg: dict[str, Any], path: str) -> dict[str, Any] | None:
     """Rückwärts-Lookup: Angebots-/Produkt-Pfad → zugehörige Gruppe (erste
     Gruppe, die dieses Angebot listet). Für Einstiegspunkt C1 (Besucher

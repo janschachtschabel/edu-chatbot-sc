@@ -171,3 +171,20 @@ def test_render_unknown_step_falls_back_to_intro():
     r = ts.render("S1", CFG)
     assert r["text"] == "Willkommen!"
     assert r["final"] is False
+
+
+def test_ist_ausloeser_trifft_als_teilstring_und_ignoriert_kurze_phrasen():
+    """Der Auslöser-Abgleich (2026-08-19) — zwei Aufrufer, eine Regel.
+
+    Ohne laufende Tour startet er sie, mit laufender bestätigt er den Schritt;
+    beides im Knoten. Die Drei-Zeichen-Grenze ist dieselbe wie in
+    ``match_group``: eine versehentlich gepflegte Kurzphrase („ok") träfe sonst
+    fast jede Nachricht und startete Touren, die niemand wollte.
+    """
+    cfg = {**CFG, "trigger_phrases": ["web-tour", "starte die tour", "ok"]}
+    assert ts.ist_ausloeser("Ja, starte die Tour", cfg) is True   # Teilstring + Groß/Klein
+    assert ts.ist_ausloeser("WEB-TOUR", cfg) is True
+    assert ts.ist_ausloeser("ok", cfg) is False                   # zu kurz → übergangen
+    assert ts.ist_ausloeser("was ist photosynthese?", cfg) is False
+    assert ts.ist_ausloeser("", cfg) is False
+    assert ts.ist_ausloeser("irgendwas", CFG) is False             # gar keine Phrasen gepflegt

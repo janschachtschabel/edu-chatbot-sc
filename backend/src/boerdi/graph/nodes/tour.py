@@ -69,23 +69,32 @@ async def tour(ctx: TurnContext, session: AsyncSession) -> TurnContext:
 
     is_group_reply = active and step == "group" and action == ""
 
-    # Typed tour start: no explicit action and no active tour, but the message
-    # contains a trigger phrase from website-tour.yaml → treat like a button
-    # start. Config is mtime-cached, so this costs no extra IO.
-    if action == "" and not active and not is_group_reply:
+    # Getippter Auslöser aus website-tour.yaml. OHNE laufende Tour startet er
+    # sie wie der Knopf; MIT laufender bestätigt er den aktuellen Schritt und
+    # zeigt ihn erneut. Der zweite Fall fehlte bis 2026-08-19: geprüft wurde nur
+    # bei ``not active``, danach griff der weiche Ausstieg unten — und ausgerechnet
+    # der Satz, der die Tour meint („Ja, starte die Tour"), beendete sie. Live in
+    # BEIDEN Maschinen gemessen; der Zug landete im gewöhnlichen Chat, der die
+    # Tour dann aus dem Gedächtnis nacherzählte statt sie zu fahren.
+    # Der ``group``-Schritt bleibt ausgenommen: dort entscheidet das
+    # Gruppen-Matching samt Fehlversuch-Zähler, und eine Wiederholung nähme ihm
+    # seine eigene Mechanik ab.
+    wiederholen = False
+    if action == "" and not is_group_reply:
         try:
             cfg_t = load_website_tour_config()
-            if cfg_t.get("enabled", True):
-                low = (req.message or "").strip().lower()
-                trigs = cfg_t.get("trigger_phrases") or []
-                if low and any(
-                    str(t).strip().lower() in low for t in trigs if str(t).strip()
-                ):
+            if cfg_t.get("enabled", True) and tour_domain.ist_ausloeser(req.message, cfg_t):
+                if active:
+                    wiederholen = True
+                else:
                     action = "start"
         except Exception:
             logger.debug("website-tour trigger check failed", exc_info=True)
 
-    handle = (action == "start") or (action == "tick" and active) or is_group_reply
+    handle = (
+        (action == "start") or (action == "tick" and active)
+        or is_group_reply or wiederholen
+    )
     if not handle:
         # Normal message. If a tour sits in a nav-wait step, softly end it (no
         # hijack of the normal chat) and fall through.
@@ -114,6 +123,12 @@ async def tour(ctx: TurnContext, session: AsyncSession) -> TurnContext:
         state = {"active": True, "step": step, "group": group_id, "misses": 0}
         if step == "solutions":
             kind = "entry"
+
+    elif wiederholen:
+        # Schritt, Gruppe und Zustand bleiben, wie sie sind — nur die Nachricht
+        # wird festgehalten. Bewusst KEIN „nudge": der Mensch hat nichts falsch
+        # gemacht, er hat die Tour bestätigt.
+        persist_user = True
 
     elif action == "tick":
         if step == "group":

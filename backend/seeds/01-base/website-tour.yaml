@@ -56,10 +56,27 @@ website_tour:
   start_label: "Web-Tour starten"
 
   # Getippte Auslöser: Enthält die Nutzer-Nachricht eine dieser Phrasen
-  # (Teilstring, case-insensitive) UND es läuft KEINE Tour, startet die Tour
-  # automatisch — auch mitten im Chat, nicht nur über den Startbutton.
+  # (Teilstring, case-insensitive), passiert je nach Lage eines von zwei Dingen:
+  #   * es läuft KEINE Tour  → sie startet, auch mitten im Chat und nicht nur
+  #     über den Startbutton;
+  #   * es läuft schon eine  → der aktuelle Schritt wird erneut gezeigt, samt
+  #     seinem Weiter-Knopf. Vorher endete die Tour hier (2026-08-19 behoben):
+  #     ausgerechnet „Ja, starte die Tour" beendete sie, weil jede getippte
+  #     Nachricht als Themenwechsel galt.
+  # Im Schritt "group" gilt weiter das Gruppen-Matching (siehe groups: unten) —
+  # dort entscheiden Beschriftung und Synonyme, nicht diese Liste.
+  #
+  # WICHTIG BEIM PFLEGEN: seit dem zweiten Fall kostet eine ALLGEMEIN gehaltene
+  # Phrase mehr als vorher. "zeig mir die seite" trifft mitten in der Tour auch
+  # "zeig mir die seite für Lehrkräfte" — der Besucher bekommt dann den
+  # Tour-Schritt erneut statt einer Antwort. Je eindeutiger die Phrase
+  # ("web-tour", "guided tour"), desto kleiner der Nebeneffekt. Wer eine
+  # allgemeine Phrase streichen will, kann das hier tun; die Änderung wirkt
+  # sofort, ohne Deploy.
+  #
   # Redaktionell pflegbar. Bewusst eindeutige Phrasen, damit normale Suchen
-  # ("zeig mir material zu …") die Tour nicht versehentlich auslösen.
+  # ("zeig mir material zu …") die Tour nicht versehentlich auslösen. Phrasen
+  # unter drei Zeichen werden übergangen.
   trigger_phrases:
     - "web-tour"
     - "webtour"

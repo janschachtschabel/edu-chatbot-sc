@@ -443,3 +443,104 @@ def test_die_alte_einzelform_wird_weiter_gelesen():
     alt = {BESTAND_KEY: {"anzahl": 28, "titel": "Optik", "node_id": "9e7ae956"}}
     assert skill_vorrang(None, alt).anzahl == 28
     assert "9e7ae956" in anleitungs_hinweis(None, alt)
+
+
+# ── Die Ansage im Agent-Weg: aus der Liste des Laufs, nicht aus der Notiz ──
+# Nutzer-Vorgabe 2026-08-19: „Meldungen über Skill-Aufrufe sind gewollt, um zu
+# verdeutlichen, was die KI nutzt — am besten hartcodiert." Der Bestandsweg tut
+# das seit 2026-08-16 (die Notiz oben); der Agent-Weg schrieb sie nie, und das
+# Modell füllte die Lücke selbst — live gemessen an der Sammlung „Geometrische
+# Optik" standen DREI Zeilen übereinander, zwei davon Modell-Ausgabe in zwei
+# verschiedenen Formaten.
+
+def test_je_geholter_anleitung_eine_zeile():
+    from boerdi.domain.skill_precedence import mit_ladehinweisen
+
+    aus = mit_ladehinweisen("Antwort.", [
+        {"node_id": "a", "titel": "Stunde planen"},
+        {"node_id": "b", "titel": "Methoden wählen"},
+    ])
+    assert aus.splitlines()[:2] == [
+        "[ edu-sharing Skill ] Stunde planen - wird geladen",
+        "[ edu-sharing Skill ] Methoden wählen - wird geladen",
+    ]
+    assert aus.endswith("Antwort.")
+
+
+def test_dieselbe_anleitung_zweimal_geholt_meldet_einmal():
+    """Zwei Aufrufe derselben Anleitung sind EIN Vorgang für den Leser."""
+    from boerdi.domain.skill_precedence import mit_ladehinweisen
+
+    aus = mit_ladehinweisen("Antwort.", [
+        {"node_id": "a", "titel": "Stunde planen"},
+        {"node_id": "a", "titel": "Stunde planen"},
+    ])
+    assert aus.count("Stunde planen") == 1
+
+
+def test_die_abgeschriebene_zeile_des_modells_verschwindet():
+    """Beide live gemessenen Leck-Formate — sonst steht die Meldung doppelt.
+
+    Entfernt wird der ANSAGE-BLOCK AM ANFANG, nicht jede Zeile im Text: das
+    ``▸``-Format ist ein gewöhnliches Zeichen, und mitten in einer Antwort darf
+    ein Absatz damit beginnen, ohne dass er verschwindet.
+    """
+    from boerdi.domain.skill_precedence import mit_ladehinweisen
+
+    roh = ("[ edu-sharing Skill ] Sammlungen weiterentwickeln - aktiv\n"
+           "▸ sammlung-entwickeln aktiv — Bestand gegen Soll\n\n"
+           "## Befund\n\n▸ dieser Absatz gehört zur Antwort")
+    aus = mit_ladehinweisen(roh, [{"node_id": "c", "titel": "Sammlungen weiterentwickeln"}])
+    zeilen = aus.splitlines()
+    assert zeilen[0] == "[ edu-sharing Skill ] Sammlungen weiterentwickeln - wird geladen"
+    assert "- aktiv" not in aus
+    assert "sammlung-entwickeln aktiv" not in aus
+    assert "▸ dieser Absatz gehört zur Antwort" in aus
+
+
+def test_ohne_geholte_anleitung_wird_trotzdem_aufgeraeumt():
+    """Das Modell behauptet eine Anleitung, die nie geholt wurde — die Zeile
+    ist dann falsch und geht weg, ohne dass eine neue entsteht."""
+    from boerdi.domain.skill_precedence import mit_ladehinweisen
+
+    roh = "[ edu-sharing Skill ] Erfundener Skill - aktiv\n\nAntwort."
+    assert mit_ladehinweisen(roh, []) == "Antwort."
+
+
+def test_der_bestandsweg_raeumt_die_abgeschriebene_zeile_ebenfalls_weg():
+    """Dasselbe Leck gibt es im Muster-Weg (dort 2026-08-16 gemessen). Es hier
+    mitzunehmen kostet nichts und schließt die zweite Hälfte derselben Lücke."""
+    entities: dict = {}
+    merke_laufende_anleitung(entities, "5b29f470", zug=3, titel="Stunde planen")
+    roh = "▸ stunde-planen aktiv — Verlaufsplan\n\nDein Entwurf."
+    aus = mit_ladehinweis(roh, entities, zug=3)
+    assert aus == "[ edu-sharing Skill ] Stunde planen - wird geladen\n\nDein Entwurf."
+
+
+@pytest.mark.parametrize("liste", [None, "kein liste", [None], [{}], [{"titel": ""}]])
+def test_unbrauchbare_eintraege_erzeugen_keine_zeile(liste):
+    from boerdi.domain.skill_precedence import mit_ladehinweisen
+
+    assert mit_ladehinweisen("Antwort.", liste) == "Antwort."
+
+
+def test_an_eine_leere_antwort_kommt_auch_hier_nichts():
+    from boerdi.domain.skill_precedence import mit_ladehinweisen
+
+    assert mit_ladehinweisen("", [{"node_id": "a", "titel": "Stunde planen"}]) == ""
+
+
+def test_eine_antwort_aus_lauter_ansagen_behaelt_die_belegte_zeile():
+    """Sonst bliebe eine leere Blase im Chat.
+
+    Das Modell schreibt nur die abgeschriebene Aktivierungs-Zeile und keine
+    Prosa. Aufgeräumt wird sie trotzdem — aber die servergesetzte Zeile bleibt
+    stehen, denn sie ist wahr: ``get_skill`` lief. Ohne belegten Abruf bleibt zu
+    Recht nichts übrig, dann war die ganze „Antwort" eine Behauptung.
+    """
+    from boerdi.domain.skill_precedence import mit_ladehinweisen
+
+    nur_ansage = "[ edu-sharing Skill ] Stunde planen - aktiv"
+    assert mit_ladehinweisen(nur_ansage, [{"node_id": "a", "titel": "Stunde planen"}]) == (
+        "[ edu-sharing Skill ] Stunde planen - wird geladen")
+    assert mit_ladehinweisen(nur_ansage, []) == ""

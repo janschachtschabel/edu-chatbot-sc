@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from boerdi.api.schemas import ChatRequest, Environment
 from boerdi.graph import state as state_mod
 from boerdi.graph.nodes import tour as tour_mod
@@ -191,6 +193,64 @@ def test_soft_exit_active_tour_on_normal_message(monkeypatch):
 
     assert out.early_response is None  # not hijacked; falls through
     assert upd.calls[-1]["kwargs"]["tour_state"]["active"] is False  # tour softly ended
+
+
+@pytest.mark.parametrize(("step", "group", "text", "nav"), [
+    ("intro", "", "Willkommen zur Tour!",
+     "__guide__|Zur Startseite|https://wlo.test/home/"),
+    # Die beiden anderen Nav-Warte-Schritte rendern über eigene ``render``-Äste
+    # mit ``{group}``-Ersetzung und eigenem Weiter-Knopf. Der Wiederholungs-
+    # Zweig ist schrittunabhängig — genau deshalb gehört er an jedem Ast
+    # festgenagelt und nicht nur an dem, der den Befund ausgelöst hat.
+    ("group_page", "lehrer", "Seite für Lehrkräfte",
+     "__guide__|Zur Seite|https://wlo.test/fuer-lehrende/"),
+    ("content", "lehrer", "Bildungsinhalte",
+     "__guide__|Zu den Bildungsinhalten|https://wlo.test/bildungsinhalte/"),
+])
+def test_ausloeser_waehrend_der_tour_zeigt_den_schritt_erneut(
+    monkeypatch, step, group, text, nav,
+):
+    """Ein Auslöser bei LAUFENDER Tour bestätigt sie, er beendet sie nicht.
+
+    Live gemessen 2026-08-19: „Ja, starte die Tour" auf den Intro-Schritt
+    beendete die Tour — die Auslöser-Prüfung lief nur bei ``not active``, und
+    danach griff der weiche Ausstieg. Der Zug fiel in den gewöhnlichen Chat,
+    wo beide Maschinen die Tour aus dem Gedächtnis nacherzählten statt sie zu
+    fahren. Der Schritt wird deshalb erneut gezeigt, samt seinem Weiter-Knopf.
+
+    Zwei Schritte fehlen mit Absicht. ``solutions`` setzt seinen Text aus drei
+    Teilen zusammen (Fließtext, Stöber-Links, Angebote) — ihn hier zu erwarten
+    hieße, die Render-Regeln nachzubauen statt den Wiederholungs-Zweig zu
+    prüfen; dafür ist ``test_tour.py`` zuständig. ``contact`` ist unerreichbar:
+    der Schritt schaltet die Tour in demselben Zug ab, in dem er gesetzt wird
+    (``tour.py``: „Final step → end the tour"), also gibt es kein ``active``
+    mit ``step == 'contact'``, auf das ein Auslöser treffen könnte.
+    """
+    upd, save = _patch(monkeypatch)
+    state = {"active": True, "step": step, "group": group, "misses": 0}
+    out = _run(_ctx(None, message="Ja, zeig mir die seite", page="/", tour_state=state))
+
+    assert out.early_response is not None, "die Tour wurde beendet statt bestätigt"
+    assert out.early_response.debug.pattern == f"TOUR:{step}"
+    assert out.early_response.tour == {"active": True, "step": step, "group": group}
+    assert out.early_response.content == text
+    assert out.early_response.quick_replies == [nav]
+    assert upd.calls[-1]["kwargs"]["tour_state"]["active"] is True
+    assert any(c["args"][2] == "user" for c in save.calls)
+
+
+def test_ausloeser_im_gruppenschritt_bleibt_bei_der_gruppenwahl(monkeypatch):
+    """Im ``group``-Schritt entscheidet das Gruppen-Matching, nicht der Auslöser.
+
+    Sonst nähme die Wiederholung dem Schritt seine eigene Mechanik (Treffer,
+    Fehlversuch, Abbruch nach zweimal) ab.
+    """
+    _patch(monkeypatch)
+    state = {"active": True, "step": "group", "group": "", "misses": 0}
+    out = _run(_ctx(None, message="zeig mir die seite", page="/home/", tour_state=state))
+
+    assert out.early_response.tour["step"] == "group"
+    assert out.early_response.content.startswith("Ich hab dich nicht verstanden.")
 
 
 def test_not_a_tour_turn_passes_through(monkeypatch):

@@ -238,6 +238,89 @@ def merke_laufende_anleitung(
     }
 
 
+#: Der Kopf jeder Ansage-Zeile — und das Erkennungsmerkmal beim Aufräumen:
+#: eine Zeile, die so beginnt, ist nie Fließtext.
+ANSAGE_PRAEFIX = "[ edu-sharing Skill ]"
+
+
+def _ansage_zeile(titel: str) -> str:
+    return f"{ANSAGE_PRAEFIX} {titel} - wird geladen"
+
+
+def _ist_fremde_ansage(zeile: str) -> bool:
+    """Eine Aktivierungs-Zeile, die das MODELL geschrieben hat?
+
+    Beide Formen sind live gemessen (siehe Kopf von :func:`mit_ladehinweis`).
+    Die zweite verlangt zusätzlich „aktiv": ``▸`` allein ist ein gewöhnliches
+    Zeichen, mit dem ein Absatz beginnen darf.
+    """
+    z = zeile.strip()
+    return z.startswith(ANSAGE_PRAEFIX) or (z.startswith("▸") and " aktiv" in z)
+
+
+def _ohne_fremde_ansagen(text: str) -> str:
+    """Den Ansage-Block AM ANFANG abtragen — und nur den.
+
+    Gemessen steht die abgeschriebene Zeile immer vorn, weil das Skill-Dokument
+    sie als Eröffnung verlangt. Nur dort zu schneiden ist die vorsichtigere
+    Regel: eine gleich aussehende Zeile mitten in einer Antwort wäre Inhalt,
+    und den nimmt ihr niemand weg.
+    """
+    zeilen = text.splitlines()
+    i = 0
+    while i < len(zeilen) and (not zeilen[i].strip() or _ist_fremde_ansage(zeilen[i])):
+        i += 1
+    return "\n".join(zeilen[i:])
+
+
+def _mit_zeilen(text: str, titel: list[str]) -> str:
+    """Der gemeinsame Kern beider Ansage-Wege: aufräumen, dann voranstellen.
+
+    Zwei Aufrufer mit derselben Ausgabe und verschiedenen Quellen — der
+    Bestandsweg kennt die Notiz, der Agent-Weg die Liste seines Laufs. Zwei
+    Formatierungen desselben Satzes liefen beim nächsten Wortlaut auseinander.
+
+    **Bestand die Antwort NUR aus Ansagen**, bleibt nach dem Aufräumen nichts
+    übrig. Dann gilt die belegte Zeile allein — eine leere Blase wäre der
+    schlechtere von beiden Ausgängen, und die Zeile ist ja wahr: der Abruf lief.
+    Gibt es auch keine belegte Zeile, war die ganze „Antwort" eine Behauptung,
+    und dann bleibt zu Recht nichts stehen.
+    """
+    sauber = _ohne_fremde_ansagen(text)
+    gesehen: list[str] = []
+    for roh in titel:
+        einzeilig = _einzeilig(roh)
+        if einzeilig and einzeilig not in gesehen:
+            gesehen.append(einzeilig)
+    if not gesehen:
+        return sauber
+    zeilen = "\n".join(_ansage_zeile(t) for t in gesehen)
+    return f"{zeilen}\n\n{sauber}" if sauber.strip() else zeilen
+
+
+def mit_ladehinweisen(text: str, anleitungen: object) -> str:
+    """Je in DIESEM Zug geholter Anleitung eine Zeile — der Agent-/Hybrid-Weg.
+
+    Nutzer-Vorgabe 2026-08-19: „Meldungen über Skill-Aufrufe sind gewollt, um zu
+    verdeutlichen, was die KI nutzt — am besten hartcodiert."
+
+    **Warum eine Liste und nicht die Notiz.** Die Notiz (:data:`LAUF_KEY`) führt
+    EINE Anleitung, weil sie einen Faden über Züge trägt. Die Meldung soll
+    zeigen, was dieser Zug benutzt hat — holt er zwei, gehören zwei Zeilen hin.
+    Die Schleife berichtet sie ohnehin (``AgentRun.anleitungen``).
+
+    **Aufgeräumt wird immer**, auch ohne einen einzigen Eintrag: eine Zeile, die
+    das Modell schreibt, ohne dass ein Abruf lief, ist genau die Behauptung,
+    gegen die die hartcodierte Ansage gebaut wurde.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    eintraege = anleitungen if isinstance(anleitungen, list) else []
+    return _mit_zeilen(text, [
+        (e or {}).get("titel", "") for e in eintraege if isinstance(e, dict)
+    ])
+
+
 def mit_ladehinweis(text: str, entities: object, zug: object) -> str:
     """Die Ansage „<Titel> wird geladen" vor die Antwort setzen — oder nicht.
 
@@ -259,18 +342,18 @@ def mit_ladehinweis(text: str, entities: object, zug: object) -> str:
     **Vorangestellt, nicht angehängt** — sie sagt an, was gleich kommt. An eine
     leere Antwort kommt sie nicht (dieselbe Regel wie in
     ``domain/answer_notes.append_answer_notes``).
+
+    **Aufgeräumt wird auch ohne passende Notiz** (2026-08-19): das Leck oben ist
+    hier dasselbe, und eine abgeschriebene Zeile ohne belegten Abruf ist eine
+    Behauptung — sie geht weg, ohne dass eine neue entsteht.
     """
-    if not text or not isinstance(entities, dict):
+    if not text:
         return text
-    if not isinstance(zug, int) or isinstance(zug, bool):
-        return text
-    notiz = entities.get(LAUF_KEY)
-    if not isinstance(notiz, dict) or notiz.get("zug") != zug:
-        return text
-    titel = _einzeilig(notiz.get("titel"))
-    if not titel:
-        return text
-    return f"[ edu-sharing Skill ] {titel} - wird geladen\n\n{text}"
+    notiz = entities.get(LAUF_KEY) if isinstance(entities, dict) else None
+    passend = (isinstance(notiz, dict)
+               and isinstance(zug, int) and not isinstance(zug, bool)
+               and notiz.get("zug") == zug)
+    return _mit_zeilen(text, [notiz.get("titel", "")] if passend else [])
 
 
 def laufende_anleitung(entities: object, zug: object) -> str:
