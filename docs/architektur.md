@@ -15,6 +15,7 @@ Quelltext erhoben; Fundstellen stehen in Klammern.
 | Bauplan/Spezifikation (Quelle der Wahrheit) | [`plans/2026-07-10-boerdi-chat-neubau.md`](plans/2026-07-10-boerdi-chat-neubau.md) |
 | Widget in fremde Seiten einbetten | [`browser-plugin-einbindung.md`](browser-plugin-einbindung.md) · [`edu-sharing-einbindung.md`](edu-sharing-einbindung.md) |
 | Agent-Schleife | [`agent-modus.md`](agent-modus.md) |
+| Master-Skill (Suchdisziplin, 30 Anwendungsfälle) | [`skills/vorgehen.md`](skills/vorgehen.md) |
 | Eingefrorener HTTP-Vertrag | [`api/openapi-v1.json`](api/openapi-v1.json) |
 
 ---
@@ -41,14 +42,14 @@ Drei Bestandteile, ein Auslieferungsartefakt:
    (Studio-Login)   │  BACKEND                                 │
                     │  FastAPI + LangGraph, Python 3.12        │
                     │  ├── Zug-Graph (13 Knoten)               │
-                    │  ├── Muster-Engine │ Agent-Schleife      │
+                    │  ├── Muster │ Agent │ Hybrid             │
                     │  ├── MCP-Client · RAG · Safety           │
                     │  └── Config-Store (37 Bereiche)          │
                     └──┬────────┬─────────┬────────────┬───────┘
                        │        │         │            │
                        ▼        ▼         ▼            ▼
                   Postgres17  Valkey   LLM-Provider  MCP-Server
-                  +pgvector  (Limits)  (LiteLLM)     (WLO/edu-sharing)
+                  +pgvector  (Limits)  (B-API/LiteLLM) (WLO/edu-sharing)
                                      ▲
                     ┌────────────────┴─────────────────────────┐
                     │  STUDIO  /studio                         │
@@ -130,7 +131,7 @@ Das eine Bild bedient damit drei Oberflächen:
 | `/api/*` | die HTTP-Fläche (Chat, Agent, Config, RAG, Eval …) |
 | `/widget/boerdi-widget.js` | das Widget-Bündel (302 → gehashte URL, `ACAO: *`) |
 | `/studio` | die Studio-SPA (StaticFiles mit SPA-Fallback) |
-| `/studio/api/*` | BFF — Pfad-Umschrift nach `/api/*` (§6) |
+| `/studio/api/*` | BFF — Pfad-Umschrift nach `/api/*` (§7) |
 
 ### Produktions-Topologie (`deploy/compose.prod.yml`)
 
@@ -229,14 +230,16 @@ Ende läuft, nicht braucht.
 fürs Streaming werden je Anfrage per `functools.partial` gebunden. Es gibt keine
 modul-globale Engine.
 
-### 4.3 Zwei Maschinen im `respond`-Knoten
+### 4.3 Drei Maschinen im `respond`-Knoten
 
-| | **Muster-Engine** (Vorgabe) | **Agent-Schleife** |
-|---|---|---|
-| Modul | `respond.py` → `tool_loop.py` | `respond_agent.py` → `agent_loop.py` |
-| Werkzeugwahl | pro Muster gebunden (`response_tool_selection`) | voller Katalog |
-| Ende | eine Antwort | `submit_result`, Prosa oder Deckel |
-| Deckel | Muster-Grenzen | `max_iterations`, `deadline_s`, `token_budget` |
+| | **Muster-Engine** (Vorgabe) | **Agent-Schleife** | **Hybrid** |
+|---|---|---|---|
+| Modul | `respond.py` → `tool_loop.py` | `respond_agent.py` → `agent_loop.py` | wie Agent |
+| Klassifikator | ja (größter Prompt des Zuges) | nein | nein |
+| Werkzeugwahl | pro Muster gebunden (`response_tool_selection`) | voller Katalog | Katalog **plus** `waehle_vorgehen`: das Modell wählt ein redaktionelles Muster als Werkzeug, dessen Body wird Anweisung, die Werkzeugliste wechselt mit |
+| Vorabruf | über Intent (`prefetch.py`) | — | deterministisch (`_looks_like_search_query`) |
+| Ende | eine Antwort | `submit_result`, Prosa oder Deckel | wie Agent |
+| Deckel | Muster-Grenzen | `max_iterations`, `deadline_s`, `token_budget` | wie Agent |
 
 Gewählt wird in `engine_choice.py` — Studio-Vorgabe (`01-base/engine`),
 überschreibbar je Einbau (Attribut `engine`) und je Anfrage (Kopfzeile
@@ -328,7 +331,7 @@ der ALT-Baum.
 |---|---|
 | Eingabe-Prüfung | `services/safety/regex_gate.py` (Muster), `moderation.py` (Anbieter), `legal.py` (rechtliche Hinweise), `service.py` (Reihenfolge) |
 | Drosselung | slowapi + `limits`, Zähler in Valkey; `/api/chat` und `/api/agent` gleich behandelt |
-| Zugang Studio | Cookie-Sitzung, BFF spritzt `X-Studio-Key` serverseitig (§6) |
+| Zugang Studio | Cookie-Sitzung, BFF spritzt `X-Studio-Key` serverseitig (§7) |
 | Zugang Agent | `AGENT_OPEN` \| persönlicher `WLO-Access-Block` \| `X-Studio-Key` |
 | Ausgehende Abrufe | `url_safety.py` — SSRF-Riegel inklusive Redirect-Prüfung |
 | Fremdtext | `domain/untrusted_text.py` — MCP-Antworten sind Eingabe, nicht Wahrheit |
@@ -344,7 +347,121 @@ mit ehrlicher Fehlerauswertung).
 
 ---
 
-## 5. Widget
+## 5. Zusammenspiel mit edu-sharing (WLO)
+
+Der Chatbot hält **keine Kopie** des Bestands. Alles, was er über
+Bildungsmaterialien weiß, holt er zur Laufzeit über den **MCP-Server** aus dem
+edu-sharing-Repositorium — und alles, was er dazu sagt, formuliert ein Modell
+aus der **B-API**, der LLM-Versorgung des Bildungssektors. Diese Doppelrolle in
+einem Bild:
+
+```
+            LESEN                          SCHREIBEN (zweistufig)
+  Suche · Details · Kompendium ·      Inhalt anlegen/ändern · einsortieren ·
+  Volltext · Skills · Vokabulare      Metadaten-/Redaktionsvorschläge
+            ▲                                   ▲
+            └────────────┬──────────────────────┘
+                    MCP-Server  (Streamable HTTP, ein Aufrufweg: call_mcp_tool)
+                         ▲                     ▲
+   BACKEND ──────────────┘   Zugangsblock je Zug: anonym ODER Ticket → EDU-TICKET
+      │
+      └── LLM-Aufrufe ─▶  B-API  (Chat · Embeddings · je nach Modus Speech/Moderation)
+```
+
+### 5.1 Inhalte lesen
+
+| Werkzeugfamilie | Zweck |
+|---|---|
+| `search_wlo_all` | **eine** breite Suche über Inhalte, Sammlungen und Themenseiten — der Standardweg |
+| `search_wlo_content` / `_collections` / `_topic_pages` / `_within_collection` | gezielte Einzelsuchen; Filter als deutsche Labels (`learningResourceType`, `discipline`, `educationalContext`), dazu `license` (u. a. Sammelwert `"OER"`) und `excludeNodeIds` („zeig mehr davon") |
+| `get_node_details` / `get_nodes_details` | Einzelheiten, im Bündel bis 50 Knoten in einem Aufruf |
+| `get_compendium_text` | die kuratierte Übersichts-Prosa einer Sammlung; mit `query` nur die passenden Absätze, im Bündel bis 9 Sammlungen je Aufruf (bewusst unter dem Server-Maximum 25, weil die Langform ungedeckelt in den Prompt geht). Suchtreffer tragen nur das Signal `hasCompendium` — den Text holt der Seitenkontext bei Bedarf nach |
+| `get_related_content` · `get_node_breadcrumb` · `get_node_collections` | „mehr wie dieses", Einordnung im Baum |
+| `lookup_wlo_vocabulary` · `lookup_wlo_publishers` | Vokabular-/Anbieterauflösung, wenn ein Label nicht greift |
+
+Die Suchdisziplin steht im **Master-Skill** (`docs/skills/vorgehen.md`): die
+`query` trägt nur den Kernbegriff, Materialart/Fach/Stufe gehören in die Filter.
+Wächter-Tests halten das Dokument synchron zum Werkzeugkatalog.
+
+### 5.2 Textextraktion
+
+Drei Wege, gestaffelt nach Quelle:
+
+* **Einzelmaterial:** `get_wlo_content_text` liefert den extrahierten Volltext
+  eines Materials — als LLM-Werkzeug und als deterministische Direkt-Aktion
+  („Inhalt anzeigen"-Knopf an jeder Karte, Muster M17). Der Client deckelt auf
+  `CONTENT_TEXT_MAX_CHARS` = 50 000 Zeichen (`services/mcp/tool_args.py:205`).
+* **Sammlung:** das Kompendium (5.1) — redaktionelle Prosa statt Extraktion,
+  dreiteilig (Weltwissen · Lehrplanbezüge je Stufe/Bundesland · Inhalte).
+* **Eigenes Wissen:** der RAG-Ingest (`services/rag/ingest.py`) konvertiert
+  Dateien und URLs mit **markitdown** nach Markdown (SSRF-Guard davor),
+  zerlegt, bettet ein und legt sie in `rag_chunks` (pgvector) ab — für
+  Redaktionswissen, das nicht im Repositorium steht.
+
+### 5.3 Skills — Anleitungen aus dem Repositorium
+
+Skills sind im Repositorium gepflegte Arbeitsanleitungen (Inhaltsart
+`ai_skill`). Der Bot behandelt sie als **Vorrang-Wissen**:
+
+* Suchtreffer und Sammlungen tragen ihre **Skill-Registry** mit (Katalog der
+  freigegebenen Skills, je Eintrag mit Arbeitskontext); der volle Katalog ist
+  die Vorgabe, ein Kontextfilter greift nur auf ausdrücklichen Wunsch.
+* `get_skill` holt die Anleitung **ungekürzt** — sie wird Teil des Prompts und
+  schlägt die mitgelieferte Systemvorlage (Skill-Vorrang,
+  `domain/skill_precedence.py`): steht an einer Sammlung „Stunde planen", plant
+  der Bot nach dieser Anleitung, nicht nach seinem Standardmuster.
+* Der **Master-Skill** selbst (`vorgehen.md`, ~30 Anwendungsfälle) liegt als
+  Knoten im Repositorium und reist als Prompt-Kopf in Agent- und Hybrid-Zügen
+  mit (`services/master_skill.py`; Einbettung schaltet mit `master-skill`).
+
+### 5.4 Schreiben und Kuratieren
+
+Der Schreibweg ist **zweistufig**: das Modell führt nie direkt aus, sondern
+beschreibt die Änderung (`PreparedWrite` + Bestätigungs-Token); erst die
+Bestätigung im Folgezug löst den MCP-Schreibaufruf aus. Werkzeuge
+(`tool_defs_curation.py`): Inhalt anlegen/ändern/einreichen, in Sammlungen
+einsortieren, Sammlungen anlegen/umbenennen, Metadaten-Vorschläge erzeugen und
+entscheiden. Was eine Einbettung davon darf, begrenzt `tool_mode`
+(`read-only` · `curate` · `full`) — die Grenze steht zusätzlich im Systemprompt,
+damit das Modell nichts verspricht, was es nicht ausführen kann.
+
+### 5.5 Identität — anonym oder als Person
+
+Ohne Anmeldung liest der Bot den öffentlichen Bestand. Reicht die
+edu-sharing-Seite ihr **Ticket** durch (Widget-Attribut `ticket` →
+`POST /auth/ticket` am MCP-Server → EDU-TICKET upstream), handelt der MCP als
+die angemeldete Person — Rechte, Vorschläge und Schreibzugriffe laufen unter
+ihrem Konto. Das Backend braucht dafür keine Sonderwege; der Zugangsblock reist
+je Zug mit (`services/mcp/auth.py`). Details: `edu-sharing-einbindung.md` §3.
+
+### 5.6 B-API — die LLM-Versorgung
+
+Alle Modellaufrufe laufen über **einen** Transport (`services/llm.py`, LiteLLM);
+der Anbieter ist Konfiguration (`LLM_PROVIDER`), nicht Code:
+
+| Modus | Chat-Modell (Vorgabe) | Embeddings | Speech/Moderation |
+|---|---|---|---|
+| `openai` | gpt-5.6-luna | text-embedding-3-small (1536) | ja |
+| `b-api-openai` | gpt-5.6-luna | text-embedding-3-small (1536) | ja |
+| `b-api-academiccloud` | mistral-large-3-675b | e5-mistral-7b-instruct (4096) | **nein** — Speech ehrlich abgeschaltet, Moderation degradiert kontrolliert |
+
+Die Embedding-Dimension bestimmt das pgvector-Schema (`EMBED_DIM`); alternativ
+laufen Embeddings und Reranking **lokal** auf onnxruntime (§4.5) — dann braucht
+der RAG-Weg gar keinen externen Anbieter. Schlüssel liegen ausschließlich in der
+Umgebung (`B_API_KEY_*`), nie im Code oder in Logs.
+
+### 5.7 Wo der Bot in edu-sharing sichtbar wird
+
+| Fläche | Weg | Doku |
+|---|---|---|
+| Seitenleiste im Repositorium | `<boerdi-chat embed-mode="frameless">`, Link-Abfang per `linkClicked` (Opt-in) | `edu-sharing-einbindung.md` |
+| Browser-Erweiterung | dasselbe Element, CORS-Regel für Extension-Origins | `browser-plugin-einbindung.md` |
+| Maschinelle Aufträge | `POST /api/agent` — Anweisung rein, Text + JSON nach eigenem Schema raus | `agent-modus.md` |
+| Seitenkontext | Widget erkennt Sammlung/Inhalt/Themenseite, Backend begrüßt kontextbezogen (`page_context`, Kontext-Aktionen) | `edu-sharing-einbindung.md` §6 |
+
+---
+
+## 6. Widget
 
 Ein Custom Element `<boerdi-chat>` — 25 Attribute, 4 Ereignisse, 6 Methoden.
 Vollständige Referenz in [`browser-plugin-einbindung.md`](browser-plugin-einbindung.md).
@@ -378,7 +495,7 @@ Vier Bauentscheidungen, die das Verhalten erklären:
 
 ---
 
-## 6. Studio
+## 7. Studio
 
 Die Redaktionsoberfläche: 37 Bereiche pflegen, Muster und Personas bearbeiten,
 Auswertungen ansehen, Sicherungen ziehen, Agent und Widget testen.
@@ -409,7 +526,7 @@ statt zu 404en (`studio_static.py`); die drei echten Auth-Routen unter
 
 ---
 
-## 7. Datenmodell
+## 8. Datenmodell
 
 13 Tabellen (`db/models.py`):
 
@@ -435,9 +552,9 @@ Zustand halten müsste. Genau das macht die Repliken austauschbar.
 
 ---
 
-## 8. Abläufe
+## 9. Abläufe
 
-### 8.1 Ein Chat-Zug (Muster-Engine)
+### 9.1 Ein Chat-Zug (Muster-Engine)
 
 ```
 Widget                Backend                        Außen
@@ -461,7 +578,7 @@ Widget                Backend                        Außen
   │ Ereignisse an die Gastseite: query-meta, ggf. guide-suggestion
 ```
 
-### 8.2 Eine Redaktions-Änderung
+### 9.2 Eine Redaktions-Änderung
 
 ```
 Studio-Formular ─PUT /studio/api/config/…─▶ BFF-Umschrift ─▶ /api/config/…
@@ -470,7 +587,7 @@ Studio-Formular ─PUT /studio/api/config/…─▶ BFF-Umschrift ─▶ /api/co
    ─▶ nächster Zug liest den neuen Wert          (Ziel: < 2 s, kein Neustart)
 ```
 
-### 8.3 Ein Agent-Auftrag
+### 9.3 Ein Agent-Auftrag
 
 ```
 Gastgeber ─POST /api/agent {instruction, collection_id, node_ids, result_schema}
@@ -485,7 +602,7 @@ sechs anderen Gründe liefern kein verlässliches Ergebnis.
 
 ---
 
-## 9. Qualitätssicherung
+## 10. Qualitätssicherung
 
 | Ebene | Werkzeug | Umfang |
 |---|---|---|
@@ -508,7 +625,7 @@ Dazu zwei fachliche Verfahren, die über Unit-Tests hinausgehen:
 
 ---
 
-## 10. Wo was hingehört
+## 11. Wo was hingehört
 
 Wer etwas ändern will, findet hier den Ort:
 

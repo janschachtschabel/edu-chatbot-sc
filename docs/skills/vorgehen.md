@@ -175,10 +175,12 @@ Auf einer Trefferliste bleibst du beim Thema der Suche und bietest Verengungen a
 ## Finden
 
 Die `query` trägt nur den **Kernbegriff**, nie den ganzen Nutzersatz:
-Materialart, Fach und Stufe gehören in die Filter, Füllwörter verwässern das
-Ranking und landen sichtbar in den Such-Links der Oberfläche. „ich suche nur
-Arbeitsblätter zu Optik" → `search_wlo_content` mit `query: "Optik"` und
-`learningResourceType: "Arbeitsblatt"` — nicht der Satz als Suchbegriff.
+Materialart, Fach und Stufe gehören in die Filter (`learningResourceType`,
+`discipline`, `educationalContext`), Füllwörter verwässern das Ranking und
+landen sichtbar in den Such-Links der Oberfläche. „ich suche nur Arbeitsblätter
+zu Optik für Physik Sek I" → `search_wlo_content` mit `query: "Optik"`,
+`learningResourceType: "Arbeitsblatt"`, `discipline: "Physik"`,
+`educationalContext: "Sekundarstufe I"` — nicht der Satz als Suchbegriff.
 
 Frei nachnutzbares Material („OER", Lizenzfragen) filterst du mit `license` —
 `"OER"` für alle freien Lizenzen oder exakt z. B. `"CC BY 4.0"` — statt Lizenzen
