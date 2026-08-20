@@ -91,6 +91,9 @@ _STRING_FIELDS = (
     "page_kind", "page_host", "page_url", "page_text", "detection_source",
     "node_id", "collection_id", "topic_page_slug", "subject_slug",
     "search_query", "document_title", "page_type",
+    # EK8: ``title`` ist der Gastgeber-Alias für ``document_title`` — seit der
+    # Resolver ihn liest, gehört er in dieselbe Härtung.
+    "title",
 )
 
 

@@ -88,6 +88,13 @@ export interface LifecycleContext {
   // ── Seitenkontext ──
   parsedPageContext: () => Record<string, any>;
   setParsedPageContext: (ctx: Record<string, any>) => void;
+  /** Hat diese Unterhaltung schon eine NUTZER-Nachricht? Entscheidet, als
+   *  welcher Fall ein nachgereichter Kontext-Ping firmiert (EK7): ohne
+   *  Nutzer-Nachricht ist es der Erstlade-Fall (`context_open_initial`) —
+   *  sonst wertete das Backend den Ping bei leerer History als verirrt und
+   *  schwiege, obwohl der Gastgeber den Kontext absichtlich hereingereicht
+   *  hat (Live-Befund Prüftisch 2026-08-21). */
+  hasUserMessages: () => boolean;
   // ── Sprach-Capability ──
   setSpeechEnabled: (v: boolean) => void;
   // ── Message-API ──
@@ -246,10 +253,17 @@ export class ShellLifecycle {
     }
   }
 
-  /** Session-gated Kontext-Ping, wenn die Seite einen wert ist. Kein Auto-Open. */
+  /** Session-gated Kontext-Ping, wenn die Seite einen wert ist. Kein Auto-Open.
+   *
+   *  Das Event richtet sich nach der UNTERHALTUNG, nicht nach dem Ladezeitpunkt:
+   *  ohne Nutzer-Nachricht ist jeder Kontext-Ping der Erstlade-Fall — auch wenn
+   *  der Gastgeber den Kontext erst nach dem Mount per `replaceContext`
+   *  hereinreicht (Prüftisch-Seitenleiste). Als `context_open` gesendet, fiele
+   *  er dort in das Streu-Ping-Gate des Backends (leere History → Stille). */
   private _maybeSendContextPing(): void {
     if (!shouldSendContextPing(this.ctx.parsedPageContext() || {})) return;
-    setTimeout(() => this.ctx.contextGreeting.sendContextPing(), 0);
+    const event = this.ctx.hasUserMessages() ? 'context_open' : 'context_open_initial';
+    setTimeout(() => this.ctx.contextGreeting.sendContextPing(event), 0);
   }
 
   /** Erstaufruf: die Begrüßung zurückstellen, bis der Kontext-Ping geantwortet

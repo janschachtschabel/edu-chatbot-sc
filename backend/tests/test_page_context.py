@@ -770,3 +770,41 @@ def test_render_ohne_id_und_ohne_seitentext_bleibt_stumm():
                                      "page_host": "example.org"})
     assert "Sichtbarer Text" not in out
     assert "Irgendeine Seite" in out     # der Block selbst bleibt
+
+
+def test_resolve_akzeptiert_title_als_alias_fuer_document_title(monkeypatch):
+    """EK8 (Live-Befund Prüftisch 2026-08-21): der Repo-Rahmen sendet den
+    Seitentitel als ``title``, nicht als ``document_title`` — das Widget setzt
+    letzteres nur aus der EIGENEN Erkennung. Ohne Alias fiel der Titel durch,
+    und der Gruß/Prompt zitierte den Z2-Platzhalter „Seite mit nicht
+    auflösbarem Inhalt" als wäre er der Seitenname."""
+    async def fake_call(tool, args):
+        return ""
+
+    _patch_mcp(monkeypatch, fake_call)
+    state = {}
+    meta = asyncio.run(p.resolve_page_context(
+        {"node_id": "n-1", "title": "Redaktion - edu-sharing"}, state))
+    assert meta["title"] == "Redaktion - edu-sharing"
+    assert meta["unresolved"] is True
+
+
+def test_resolve_document_title_schlaegt_den_alias(monkeypatch):
+    # Beide gesetzt: das ausdrücklich benannte Feld gewinnt.
+    async def fake_call(tool, args):
+        return ""
+
+    _patch_mcp(monkeypatch, fake_call)
+    meta = asyncio.run(p.resolve_page_context(
+        {"node_id": "n-1", "document_title": "Eigenes Feld",
+         "title": "Alias"}, {}))
+    assert meta["title"] == "Eigenes Feld"
+
+
+def test_resolve_ohne_ids_nutzt_den_title_alias():
+    # Der signaturlose Minimal-Rückfall (nur Titel, keine ID) kennt den Alias
+    # ebenfalls — fremde Seiten mit Rahmen-Kontext bekommen sonst gar kein Meta.
+    meta = asyncio.run(p.resolve_page_context(
+        {"title": "Gordon Bunshaft – Wikipedia"}, {}))
+    assert meta is not None
+    assert meta["title"] == "Gordon Bunshaft – Wikipedia"

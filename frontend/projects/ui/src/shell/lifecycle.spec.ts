@@ -41,6 +41,7 @@ function makeCtx(overrides: Partial<LifecycleContext> = {}): {
     sessionId: () => sid, setSessionId: (id) => { sid = id; rec.sessionIds.push(id); },
     resumedViaBsid: () => false, setResumedViaBsid: (v) => { rec.viaBsid.push(v); },
     parsedPageContext: () => pc, setParsedPageContext: (c) => { pc = c; rec.parsedPC.push(c); },
+    hasUserMessages: () => false,
     setSpeechEnabled: (v) => { rec.speech.push(v); },
     setMessages: (m) => { rec.messages.push(m); },
     updateMessages: () => { /* Restore-QR-Strip separat gepinnt */ },
@@ -213,6 +214,27 @@ describe('ShellLifecycle (8-4S-e4)', () => {
     expect(cg.resetForNewPage).toHaveBeenCalled();
     vi.runAllTimers();
     expect(cg.sendContextPing).toHaveBeenCalled();
+  });
+
+  it('onSpaContextChange: jungfraeulicher Chat → Ping als context_open_initial (EK7)', () => {
+    // Live-Befund Prüftisch 2026-08-21: der Repo-Rahmen reicht den Kontext
+    // erst NACH dem Mount per replaceContext herein. Der Ping lief als
+    // context_open, und das Backend wertet das bei leerer History als
+    // verirrten Ping — bewusste Stille. Ein absichtlicher Laufzeit-Kontext
+    // auf einem Chat ohne Nutzer-Nachricht ist aber der ERSTLADE-Fall.
+    vi.useFakeTimers();
+    const { ctx, cg } = makeCtx({ hasUserMessages: () => false });
+    new ShellLifecycle(ctx).onSpaContextChange({ node_id: 'n-1' });
+    vi.runAllTimers();
+    expect(cg.sendContextPing).toHaveBeenCalledWith('context_open_initial');
+  });
+
+  it('onSpaContextChange: laufende Unterhaltung → Ping als context_open', () => {
+    vi.useFakeTimers();
+    const { ctx, cg } = makeCtx({ hasUserMessages: () => true });
+    new ShellLifecycle(ctx).onSpaContextChange({ node_id: 'n-1' });
+    vi.runAllTimers();
+    expect(cg.sendContextPing).toHaveBeenCalledWith('context_open');
   });
 
   it('onSpaContextChange: nicht adressierbar → kein Ping', () => {

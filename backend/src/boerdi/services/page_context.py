@@ -237,6 +237,21 @@ def _extract_node_fields(raw: str) -> dict[str, Any]:
 # ────────────────────────────────────────────────────────────────────
 
 
+def _host_title(page_context: dict[str, Any]) -> str:
+    """Der vom Gastgeber gelieferte Seitentitel — mit ``title`` als Alias.
+
+    ``document_title`` setzt nur das Widget aus seiner EIGENEN Erkennung
+    (``chat-api.extractPageContext``); Gastgeber-Rahmen senden den Tab-Titel
+    naheliegend als ``title`` (EK8, Live-Befund Prüftisch 2026-08-21). Ohne den
+    Alias fiel er durch, und Gruß wie Prompt zitierten den Z2-Platzhalter
+    „Seite mit nicht auflösbarem Inhalt" als wäre er der Seitenname. Das
+    ausdrücklich benannte Feld gewinnt.
+    """
+    return str(
+        page_context.get("document_title") or page_context.get("title") or ""
+    ).strip()
+
+
 async def resolve_page_context(
     page_context: dict[str, Any],
     session_state: dict[str, Any],
@@ -262,7 +277,7 @@ async def resolve_page_context(
     signature = _current_context_signature(page_context)
     if not signature.strip("|"):
         # No addressable context — only titles/search_query — minimal fallback
-        title = page_context.get("document_title") or ""
+        title = _host_title(page_context)
         if not title:
             return None
         meta = {
@@ -363,7 +378,7 @@ async def resolve_page_context(
         # vorher verschwand der ganze Block, und das Modell fragte den Nutzer
         # nach der Node-ID, die die Seite längst geliefert hatte (Live-Befund
         # edu-sharing Prüftisch: anonymer Bot, unveröffentlichter Knoten, 403).
-        title = page_context.get("document_title") or slug or ""
+        title = _host_title(page_context) or slug or ""
         target_id = node_id or collection_id
         if not title and not target_id:
             return None

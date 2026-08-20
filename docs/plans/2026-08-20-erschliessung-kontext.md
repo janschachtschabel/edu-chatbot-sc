@@ -107,6 +107,29 @@ Die Lücke blieb unentdeckt, weil der Agent-Test-Helper `Environment(...)` direk
 baute und `ctx.env` leer ließ — eine Umgebung, die es im Betrieb nie gibt. Der
 Helper bildet jetzt den `setup`-Knoten nach.
 
+### EK7 — Nachgereichter Kontext pingt als Erstlade-Fall (Live-Befund 2026-08-21)
+
+Auf dem Prüftisch blieb trotz EK1–EK5 die Standard-Begrüßung stehen. Hergang:
+Der Repo-Rahmen reicht den Kontext erst NACH dem Shell-Mount per
+`replaceContext` herein. (1) Beim Mount ist `parsedPageContext` leer → kein
+Erstlade-Ping, die statische Begrüßung rendert. (2) `replaceContext` →
+`onSpaContextChange` pingt — mit Default-Event `context_open`. (3) Backend-Gate 1
+wertet `context_open` bei leerer History als verirrten Ping → bewusste Stille.
+Der Streu-Ping-Schutz fraß den absichtlichen Laufzeit-Kontext.
+
+Fix (Widget): `_maybeSendContextPing` wählt das Event nach der UNTERHALTUNG —
+ohne Nutzer-Nachricht `context_open_initial`, sonst `context_open`. Neuer
+`LifecycleContext`-Getter `hasUserMessages` (Shell: `sender === 'user'` im
+Store). Deckt auch den Resume mit leergeräumter History ab.
+
+### EK8 — `title` als Gastgeber-Alias für `document_title`
+
+`document_title` setzt nur das Widget aus der eigenen Erkennung; Rahmen senden
+den Tab-Titel naheliegend als `title`. Ohne Alias fiel er durch, und Gruß wie
+Prompt zitierten den Z2-Platzhalter „Seite mit nicht auflösbarem Inhalt" als
+Seitennamen. Neu: `_host_title()` (document_title gewinnt) an beiden
+Lesestellen des Resolvers; `title` in `_STRING_FIELDS` der EK4-Härtung.
+
 ## Nicht-Ziele
 Kein Frontend-/Detektor-Umbau (der Rahmen ist fremder Code; die Erkennung ist
 serverseitig vollständig). Kein OpenAPI-Delta (`page_context` ist Freiform).
@@ -120,3 +143,5 @@ MCP-Server unberührt.
 | EK3 | ✅ 2026-08-20 — zwei orthogonale Regeln in `render_for_prompt`; fremde Seiten nutzen den `page_text` jetzt, Rechte-Note bleibt dem ID-Fall vorbehalten; 2 Pins, Suite 4112 |
 | EK4 | ✅ 2026-08-20 — `_normalize_strings` (12 Textfelder) im Enrich-Knoten; Zahl-Enums und Zahl-IDs brechen den Zug nicht mehr, `None` bleibt `None`; 4 Pins, Suite 4116 |
 | EK5 | ✅ 2026-08-20 — `respond_agent` liest `ctx.env`; serverseitige Seitenart + Normalisierung erreichen den Agent-Prompt. Test-Helper bildet `setup` nach (verdeckte die Lücke); 1 Pin, Suite 4117 |
+| EK7 | ✅ 2026-08-21 — Ping-Event nach Unterhaltungszustand (`hasUserMessages`); Prüftisch-Seitenleiste bekommt Gruß + Pills trotz nachgereichtem Kontext; 2 Pins, ui 832 |
+| EK8 | ✅ 2026-08-21 — `_host_title` mit `title`-Alias an beiden Resolver-Rückfällen + `_STRING_FIELDS`; 3 Pins, Suite 4120 |

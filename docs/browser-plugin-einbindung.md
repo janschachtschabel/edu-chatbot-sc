@@ -603,6 +603,7 @@ und Titel der Gastseite zusätzlich bei. Die Felder
 | `search_filters` | `{ publisher?: string[] }` |
 | `page_text` | Titel + erste ~3 KB sichtbarer Text |
 | `page_url`, `page_host` | volle Adresse und Hostname |
+| `title` | Seitentitel des Tabs (Alias: `document_title` gewinnt, wenn beide gesetzt) |
 
 Alle **Text**felder dieser Tabelle — also alle außer `search_filters`, das ein Objekt bleibt — werden serverseitig zu Zeichenketten normalisiert: ein numerisches Enum als `page_kind` oder eine Zahl-ID (`collection_id: 4711` → `"4711"`) bricht den Zug also nicht. Nicht gesetzte Felder (`null`) bleiben ungesetzt.
 
