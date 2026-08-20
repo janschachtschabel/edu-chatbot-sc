@@ -253,6 +253,11 @@ class Environment(BaseModel):
     # IST die Nachricht, die beim Klick gesendet wird — deshalb wird nichts
     # gekuerzt; zu viele werden abgeschnitten (Anzahl, nicht Text).
     forced_quick_replies: list[str] = Field(default_factory=list)
+    # O-B2 (2026-08-20): Chip-GESAMTZAHL im Mix-Modus. Nur zusammen mit
+    # ``forced_quick_replies`` bedeutsam: die Chips des Gastgebers zuerst, das
+    # Modell fuellt die restlichen Plaetze auf (Klammer 1-6 serverseitig,
+    # abgelehnt wird nichts). None = kein Mix, es gilt das harte Ueberschreiben.
+    quick_replies_max: int | None = None
     # Webseiten-Tour (geführte Besucherführung). Explizites UI-Signal:
     #   "start" → Tour beginnen (Button "Web-Tour starten")
     #   "tick"  → unsichtbarer Page-Load-Ping (Ankunfts-Erkennung)

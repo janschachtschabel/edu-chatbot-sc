@@ -72,6 +72,7 @@ Das war's. Alles Weitere sind Vorgaben, die ihr überschreiben könnt.
 | `greeting` | — | Eigene Begrüßung; schlägt die Studio-Vorgabe |
 | `start-replies` | *(leer)* | JSON-Array — Chips **nur** unter der Begrüßung |
 | `quick-replies` | *(leer)* | JSON-Array — Chips **je Zug**, höchstens 6 |
+| `quick-replies-max` | *(leer)* | Mix-Modus: Gesamtzahl 1–6 — eigene Chips zuerst, KI füllt den Rest |
 
 ### Sitzung
 
@@ -91,7 +92,7 @@ Das war's. Alles Weitere sind Vorgaben, die ihr überschreiben könnt.
 | `trusted-domains` | *(leer)* | Kommaliste, wird mit der Backend-Liste gemergt |
 | `emit-routing-debug` | `false` | `true` → Ereignis `boerdi:routing-debug` |
 | `emit-guide-suggestion` | `false` | `true` → Ereignis `boerdi:guide-suggestion` |
-| `intercept-edu-sharing-links` | `false` | `true` → Klick auf Repo-Links wird abgefangen statt navigiert |
+| `intercept-edu-sharing-links` | `false` | `true` → Repo-Links werden abgefangen; **ihr müsst `linkClicked` behandeln**, sonst sind die Klicks tot |
 
 ---
 
@@ -115,6 +116,9 @@ Chips **je Zug** statt nur am Anfang:
 ```js
 chat.setQuickReplies(['Passt', 'Passt nicht', 'Erschließen']);
 chat.setQuickReplies([]);   // wieder freigeben
+// Mix: 2 eigene Chips, das Modell füllt bis 4 auf
+chat.setQuickReplies(['Passt', 'Passt nicht']);
+chat.setQuickRepliesMax(4);
 ```
 
 **Regeln:** Der Chip-**Text** ist die gesendete Nachricht — als Anfrage formulieren,

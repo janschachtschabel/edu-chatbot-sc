@@ -202,6 +202,9 @@ export class ShellLifecycle {
   onSpaContextChange(newContext: Record<string, any>): void {
     this.ctx.setParsedPageContext({ ...newContext });
     this.ctx.contextGreeting.resetForNewPage();
+    // Während einer laufenden Tour gehört jede Station der Tour: der Kontext
+    // bleibt aktuell (Ankunftserkennung), nur die Begrüßung schweigt (X1).
+    if (this.ctx.tour.isTourFlagSet()) return;
     this._maybeSendContextPing();
   }
 
@@ -222,12 +225,15 @@ export class ShellLifecycle {
    *  DANACH — nur wenn keine Tour aktiv — die Kontext-Begrüßung. Sequenziert
    *  (await), damit die Pings nicht über `isLoading` kollidieren. Verbatim 733-739. */
   private async _afterResume(): Promise<void> {
-    if (this.ctx.tour.isTourFlagSet() || this.ctx.resumedViaBsid()) {
+    // Besitz VOR dem Tick entscheiden: der Abschluss-Tick löscht das Tour-Flag,
+    // und eine Kontext-Begrüßung direkt hinter „Fast geschafft" wäre der
+    // falsche Abgang (X1, live auf wp-test 2026-08-20).
+    const tourOwnsThisLoad = this.ctx.tour.isTourFlagSet() || this.ctx.resumedViaBsid();
+    if (tourOwnsThisLoad) {
       try { await this.ctx.tour.sendTourTick(); } catch { /* Tick-Fehler still */ }
+      return;
     }
-    if (!this.ctx.tour.isTourFlagSet()) {
-      this._maybeSendContextPing();
-    }
+    this._maybeSendContextPing();
   }
 
   /** Nach (Re)Start: läuft eine Tour (Flag) ODER kam die Session per ?bsid=,

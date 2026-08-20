@@ -25,6 +25,10 @@ context_actions:
   # WLO-eigene Seite „in WLO aufzunehmen". Leere Liste = alles gilt als fremd.
   own_hosts:
     - wirlernenonline.de
+    # X1 (2026-08-20): der bare Eintrag matcht exakt — die Test-Instanz
+    # wp-test.wirlernenonline.de galt als fremd, und der Bot bot am Tour-Ende
+    # an, die eigene Mitmach-Seite „in WLO aufzunehmen".
+    - "*.wirlernenonline.de"
     - wissenlebt.online
     - repository.staging.openeduhub.net
     - redaktion.openeduhub.net

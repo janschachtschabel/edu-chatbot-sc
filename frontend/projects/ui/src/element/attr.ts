@@ -121,6 +121,19 @@ export function _attrJsonObject(v: string | undefined): Record<string, unknown> 
  * mit Meldung heraus, statt über `String()` als „[object Object]" auf einer
  * Schaltfläche zu landen.
  */
+/**
+ * Zahlen-Attribut lesen (O-B2: `quick-replies-max`). Nur eine positive
+ * Ganzzahl zaehlt; alles andere — leer, 0, negativ, Bruch, Text — heisst
+ * „nicht gesetzt" (null). Der Wert kommt von einer fremden Seite; die
+ * fachliche Klammer (1-6) zieht das Backend, hier wird nur geparst.
+ */
+export function _attrPositiveInt(v: string | undefined): number | null {
+  const roh = (v ?? '').trim();
+  if (!roh || !/^\d+$/.test(roh)) return null;
+  const n = Number(roh);
+  return n > 0 ? n : null;
+}
+
 export function _attrJsonStringArray(v: string | undefined): string[] | null {
   const gelesen = _jsonAttr(v);
   if (!gelesen) return null;

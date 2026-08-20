@@ -75,6 +75,7 @@ async def _assemble_cards_and_qrs(
     _effective_pattern_id: str,
     response_text: str,
     wlo_cards_raw: list,
+    _host_qr_max: int | None = None,
 ) -> tuple:
     """Phasen P20–P24 von ``_chat_impl``: preview_url-Synthese +
     Themenseiten-Default-Description (Card-Enrichment), _build_cards +
@@ -90,7 +91,9 @@ async def _assemble_cards_and_qrs(
     classification, classification_dict, winner, pattern_output,
     _canvas_payload_out, _canvas_forced_quick_replies, _qr_mode,
     _qr_max, _qr_spec_task, _effective_pattern_id, response_text,
-    wlo_cards_raw.
+    wlo_cards_raw, _host_qr_max (O-B2, additiv mit Default: die
+    Chip-Gesamtzahl des Gastgeber-Mix, von assemble ueber
+    ``domain.quick_reply_policy.host_qr_max`` geklammert).
 
     Mutiert ``session_state`` in-place (entities._last_collections/
     _last_contents; ``_inline_quick_replies``-Pop) — kein Rebind, keine
@@ -200,7 +203,40 @@ async def _assemble_cards_and_qrs(
         _inline_qr = None
     _qr_spec_consumed = False
     if _canvas_forced_quick_replies:
-        quick_replies = _canvas_forced_quick_replies
+        quick_replies = list(_canvas_forced_quick_replies)
+        # O-B2 (2026-08-20): nennt der Gastgeber zu seinen Chips eine
+        # Gesamtzahl, füllt das Modell die restlichen Plätze — seine Chips
+        # bleiben vorn und ungekürzt (gekappt wird die Anzahl). Inline-QRs
+        # aus der Antwort sind die Gratis-Füllung; erst ohne sie zahlt der
+        # Mix einen Generator-Call mit genau der Restzahl. Ohne Gesamtzahl
+        # gilt weiter das harte Überschreiben (O-B-Vertrag).
+        if _host_qr_max is not None:
+            quick_replies = quick_replies[:_host_qr_max]
+            _fill_n = _host_qr_max - len(quick_replies)
+            _fill: list[str] | None = _inline_qr if _fill_n > 0 else []
+            if _fill_n > 0 and _fill is None:
+                try:
+                    _fill = await generate_quick_replies(
+                        message=req.message,
+                        response_text=response_text,
+                        classification=classification_dict,
+                        session_state=session_state,
+                        usage_acc=usage_acc,
+                        count=_fill_n,
+                    )
+                except Exception as _mix_err:
+                    # Wie beim exakten Nach-Call unten: QRs sind optionale
+                    # UX — ein LLM-Schluckauf lässt die Host-Chips stehen.
+                    logger.warning("mix quick_replies failed: %s", _mix_err)
+                    _fill = []
+            _kenne = {q.strip().casefold() for q in quick_replies}
+            for _q in _fill or []:
+                if len(quick_replies) >= _host_qr_max:
+                    break
+                if (_q or "").strip().casefold() in _kenne:
+                    continue
+                _kenne.add((_q or "").strip().casefold())
+                quick_replies.append(_q)
     elif _inline_qr is not None:
         quick_replies = _inline_qr
     elif _qr_mode == "none":

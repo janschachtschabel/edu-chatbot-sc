@@ -246,3 +246,37 @@ def test_leere_und_blanke_chips_fallen_heraus(monkeypatch):
     ctx.req.environment.forced_quick_replies = ["  ", "", "Melden"]
     _run(ctx)
     assert rec.kwargs["_canvas_forced_quick_replies"] == ["Melden"]
+
+
+# ── O-B2: Mix-Modus — die Gesamtzahl reist nur mit eigenen Host-Chips ──
+
+
+def test_die_gesamtzahl_reist_geklammert_mit(monkeypatch):
+    rec = _Rec()
+    _install_spy(monkeypatch, rec, _EMPTY_RESULT)
+    ctx = _ctx()
+    ctx.req.environment.forced_quick_replies = ["Passt"]
+    ctx.req.environment.quick_replies_max = 99
+    _run(ctx)
+    assert rec.kwargs["_host_qr_max"] == 6
+
+
+def test_ohne_host_chips_reist_keine_gesamtzahl(monkeypatch):
+    """Auch nicht, wenn der CANVAS Chips erzwingt — dessen 12er-Liste ist
+    Degradations-Mechanik und darf nicht angefuellt werden."""
+    rec = _Rec()
+    _install_spy(monkeypatch, rec, _EMPTY_RESULT)
+    ctx = _ctx()
+    ctx.canvas_forced_quick_replies = ["Weiter im Canvas"]
+    ctx.req.environment.quick_replies_max = 4
+    _run(ctx)
+    assert rec.kwargs["_host_qr_max"] is None
+
+
+def test_ohne_gesamtzahl_reist_none(monkeypatch):
+    rec = _Rec()
+    _install_spy(monkeypatch, rec, _EMPTY_RESULT)
+    ctx = _ctx()
+    ctx.req.environment.forced_quick_replies = ["Passt"]
+    _run(ctx)
+    assert rec.kwargs["_host_qr_max"] is None

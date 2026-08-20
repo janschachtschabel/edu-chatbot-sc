@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  _attrEnum, _attrIsTrue, _attrJsonObject, _attrJsonStringArray, resolveTheme,
+  _attrEnum, _attrIsTrue, _attrJsonObject, _attrJsonStringArray, _attrPositiveInt,
+  resolveTheme,
 } from './attr';
 
 /**
@@ -172,5 +173,26 @@ describe('_attrJsonStringArray', () => {
     expect(_attrJsonStringArray('["A",42,{"b":1},null,"B"]')).toEqual(['A', 'B']);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+/**
+ * Zahlen-Attribut (O-B2: `quick-replies-max`). Der Wert kommt von einer
+ * FREMDEN Seite — alles außer einer positiven Ganzzahl heißt „nicht gesetzt"
+ * (null), niemals 0 oder NaN.
+ */
+describe('_attrPositiveInt', () => {
+  it('liest positive Ganzzahlen', () => {
+    expect(_attrPositiveInt('4')).toBe(4);
+    expect(_attrPositiveInt(' 6 ')).toBe(6);
+  });
+
+  it('alles andere ist „nicht gesetzt"', () => {
+    expect(_attrPositiveInt(undefined)).toBeNull();
+    expect(_attrPositiveInt('')).toBeNull();
+    expect(_attrPositiveInt('0')).toBeNull();
+    expect(_attrPositiveInt('-2')).toBeNull();
+    expect(_attrPositiveInt('4.7')).toBeNull();
+    expect(_attrPositiveInt('abc')).toBeNull();
   });
 });

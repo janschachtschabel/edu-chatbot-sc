@@ -152,6 +152,32 @@ async def test_quick_reply_cap_enforced_from_display_rules(monkeypatch):
     assert len(out.quick_replies) <= 2   # empty pattern → _qr_policy None → global cap
 
 
+async def test_host_gesamtzahl_ersetzt_den_anzeige_deckel(monkeypatch):
+    """O-B2: die Zielzahl aus den Anzeige-Regeln beschreibt die EIGENE
+    Oberflaeche. Nennt die Einbettung zu ihren Chips eine Gesamtzahl, kennt
+    sie ihre Leiste selbst — ihr Deckel gilt (derselbe Gedanke wie O-C)."""
+    monkeypatch.setattr(f"{MOD}.card_pipeline_v2_enabled", Mock(return_value=False))
+    monkeypatch.setattr(DR, Mock(return_value={"quick_replies": {"max_count": 2}}))
+    req = _req()
+    req.environment.forced_quick_replies = ["a", "b"]
+    req.environment.quick_replies_max = 5
+    resp = _resp(content="Hallo.", quick_replies=["a", "b", "c", "d", "e"])
+    out = await _postprocess_response_for_widget_modes(req, resp)
+    assert out.quick_replies == ["a", "b", "c", "d", "e"]
+
+
+async def test_ohne_gesamtzahl_gilt_der_anzeige_deckel_auch_fuer_host_chips(monkeypatch):
+    """Reines O-B (nur Chips, keine Zahl) bleibt unveraendert: der
+    Anzeige-Deckel greift wie bisher."""
+    monkeypatch.setattr(f"{MOD}.card_pipeline_v2_enabled", Mock(return_value=False))
+    monkeypatch.setattr(DR, Mock(return_value={"quick_replies": {"max_count": 2}}))
+    req = _req()
+    req.environment.forced_quick_replies = ["a", "b", "c"]
+    resp = _resp(content="Hallo.", quick_replies=["a", "b", "c"])
+    out = await _postprocess_response_for_widget_modes(req, resp)
+    assert len(out.quick_replies) <= 2
+
+
 async def test_context_greeting_pills_survive_the_generator_cap(monkeypatch):
     """Live-Befund 2026-08-14: von fünf gepflegten Knöpfen kamen zwei an.
 

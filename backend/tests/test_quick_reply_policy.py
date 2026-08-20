@@ -312,3 +312,27 @@ def test_alles_andere_bleibt_unter_dem_generator_deckel():
                     "ACTION: browse_collection", "SAFETY: blocked_direct_action",
                     "context:collection"):
         assert not has_curated_quick_replies(pattern), pattern
+
+
+# ── O-B2: host_qr_max (Mix-Modus des Gastgebers) ────────────────────
+
+class TestHostQrMax:
+    def test_ohne_zahl_kein_mix(self):
+        from boerdi.domain.quick_reply_policy import host_qr_max
+        assert host_qr_max(None, ["Passt"]) is None
+
+    def test_ohne_eigene_chips_kein_mix(self):
+        """Die Zahl allein ist keine Aussage — Mix gibt es nur zu eigenen
+        Chips des Gastgebers (sonst hieße `max=3` still: kappe den
+        Generator, was O-C-Anzeige-Regeln schon können)."""
+        from boerdi.domain.quick_reply_policy import host_qr_max
+        assert host_qr_max(3, []) is None
+        assert host_qr_max(3, None) is None
+        assert host_qr_max(3, ["  ", ""]) is None
+
+    def test_wert_wird_geklammert(self):
+        from boerdi.domain.quick_reply_policy import host_qr_max
+        assert host_qr_max(4, ["Passt"]) == 4
+        assert host_qr_max(99, ["Passt"]) == 6
+        assert host_qr_max(0, ["Passt"]) == 1
+        assert host_qr_max(-2, ["Passt"]) == 1

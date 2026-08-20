@@ -178,7 +178,8 @@ export { SpeechService } from './speech/speech.service';
 export type { SpeechContext } from './speech/speech.service';
 
 export {
-  _attrEnum, _attrIsTrue, _attrJsonObject, _attrJsonStringArray, _attrTriState,
+  _attrEnum, _attrIsTrue, _attrJsonObject, _attrJsonStringArray, _attrPositiveInt,
+  _attrTriState,
   PANEL_SIZE_STEPS, TOOL_MODES, WIDGET_THEMES, resolveTheme,
 } from './element/attr';
 export type { PanelSizeStep, WidgetTheme } from './element/attr';

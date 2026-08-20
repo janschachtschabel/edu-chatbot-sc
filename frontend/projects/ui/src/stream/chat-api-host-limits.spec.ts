@@ -74,6 +74,32 @@ describe('Grenzen der Einbettung auf dem Draht', () => {
     expect(umgebung(gesehen[0])['forced_quick_replies']).toBeUndefined();
   });
 
+  it('traegt die Mix-Gesamtzahl nur zusammen mit Chips', async () => {
+    // O-B2: die Zahl allein ist keine Aussage — ohne eigene Chips reist sie
+    // nicht mit (das Backend ignorierte sie ohnehin, aber der Rumpf soll
+    // keine toten Felder tragen).
+    const gesehen: Record<string, unknown>[] = [];
+    const api = new ChatApiClient({ fetchImpl: rumpfFetch(gesehen) });
+    api.setQuickRepliesMax(4);
+    await api.post('s1', 'ohne chips');
+    api.setQuickReplies(['Passt', 'Passt nicht']);
+    await api.post('s1', 'mit chips');
+    expect(umgebung(gesehen[0])['quick_replies_max']).toBeUndefined();
+    expect(umgebung(gesehen[1])['quick_replies_max']).toBe(4);
+    expect(umgebung(gesehen[1])['forced_quick_replies']).toEqual(['Passt', 'Passt nicht']);
+  });
+
+  it('gibt die Gesamtzahl mit null wieder frei', async () => {
+    const gesehen: Record<string, unknown>[] = [];
+    const api = new ChatApiClient({ fetchImpl: rumpfFetch(gesehen) });
+    api.setQuickReplies(['Passt']);
+    api.setQuickRepliesMax(4);
+    api.setQuickRepliesMax(null);
+    await api.post('s1', 'hallo');
+    expect(umgebung(gesehen[0])['quick_replies_max']).toBeUndefined();
+    expect(umgebung(gesehen[0])['forced_quick_replies']).toEqual(['Passt']);
+  });
+
   it('wirft leere Chips weg, kuerzt aber keinen Text', async () => {
     const gesehen: Record<string, unknown>[] = [];
     const api = new ChatApiClient({ fetchImpl: rumpfFetch(gesehen) });

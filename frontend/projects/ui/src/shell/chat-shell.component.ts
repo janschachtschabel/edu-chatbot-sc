@@ -738,6 +738,13 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     this._api.setQuickReplies(chips);
   }
 
+  /** **Public API** (O-B2) — Chip-Gesamtzahl des Mix-Modus: Host-Chips zuerst,
+   *  das Modell fuellt bis zur Zahl auf. `null` = kein Mix (hartes
+   *  Ueberschreiben wie bisher). Nur zusammen mit `setQuickReplies` wirksam. */
+  setQuickRepliesMax(max: number | null): void {
+    this._api.setQuickRepliesMax(max);
+  }
+
   /** **Public API** (G1) — der Gastanwendung ihren Rahmen mitgeben: „so bist du
    *  hier zu verstehen". Der Text erscheint NICHT im Verlauf; er reist als
    *  System-Block mit und wirkt in allen drei Maschinen.

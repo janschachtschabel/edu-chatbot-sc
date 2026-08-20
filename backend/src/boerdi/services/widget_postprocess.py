@@ -37,6 +37,7 @@ from boerdi.domain.quick_reply_policy import (
     CURATED_QR_MAX,
     _qr_policy,
     has_curated_quick_replies,
+    host_qr_max,
 )
 from boerdi.domain.search_intent import _looks_like_search_query
 from boerdi.domain.url_helpers import (
@@ -760,6 +761,16 @@ async def _postprocess_response_for_widget_modes(
                         _qr_max = _p_qr_max
                 except Exception:
                     logger.debug("pattern QR-policy lookup failed", exc_info=True)
+                # O-B2 (2026-08-20): nennt die Einbettung zu ihren eigenen
+                # Chips eine Gesamtzahl, kennt sie ihre Leiste selbst — dann
+                # gilt IHR Deckel statt der Generator-Zielzahl (derselbe
+                # Gedanke wie O-C). host_qr_max klammert und prüft beides.
+                _host_max = host_qr_max(
+                    getattr(req.environment, "quick_replies_max", None),
+                    getattr(req.environment, "forced_quick_replies", None),
+                )
+                if _host_max is not None:
+                    _qr_max = _host_max
                 if qrs and len(qrs) > _qr_max:
                     qrs = qrs[:_qr_max]
         except Exception:

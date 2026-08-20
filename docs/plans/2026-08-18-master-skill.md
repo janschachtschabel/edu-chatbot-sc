@@ -175,6 +175,8 @@ Drei neue `Environment`-Felder (`tool_mode`, `forced_quick_replies`,
 |---|---|---|
 | O-A | `host_capabilities.erlaubt` + Filter in `build_agent_tools(tool_mode=…)`, durchgereicht aus `respond_agent` | Attribut `tool-mode`, `shell.setToolMode` |
 | O-B | `assemble._erzwungene_chips` (Gastgeber vor Canvas, Deckel 6, Text nie gekuerzt) | Attribut `quick-replies` (JSON), `el.setQuickReplies([...])` |
+| O-B2 (2026-08-20) | Mix-Modus: `Environment.quick_replies_max` -> `domain/quick_reply_policy.host_qr_max` (Klammer 1-6, nur mit eigenen Host-Chips) -> `assemble._host_mix_max` -> Kaskaden-Zweig in `turn_assembly` (Host-Chips vorn, Inline-QRs oder Generator `count=Rest`, Dedupe) + `widget_postprocess` (Host-Zahl ersetzt Anzeige-Deckel). Wunsch der Plugin-Entwickler: „max. 4, davon 2 hardcodiert, Rest KI". | Attribut `quick-replies-max` (`_attrPositiveInt`), `el.setQuickRepliesMax(4)`; Host-Attribute 31 -> 32 |
+| Y1/Y2 (2026-08-20) | Y1: Kernbegriff-Suchregel im Finden-Teil von `vorgehen.md` (Live-Befund Repo-Einbettung: ganzer Nutzersatz als `query` -> verwaesserte Treffer + haessliche Such-Links); Waechter `test_vorgehen_md_traegt_die_kernbegriff_suchregel`. Y2: geprueft — `intercept-edu-sharing-links` ist BEREITS Opt-in (Default `false`, widget.component.ts:146); kein Code noetig, stattdessen Pin-Test + Vertrag dokumentiert (wer abfaengt, navigiert selbst; Same-Route braucht `onSameUrlNavigation: 'reload'`). | Skill-Knoten `535cabca…` neu publizieren |
 | O-C | `host_capabilities.prompt_block` als 3. System-Block (hinter Master-Skill, vor Seitenkontext) | Attribut `inline-result-grouping` erreicht jetzt das `environment` |
 
 Host-Attribute 29 -> 31 (Waechter-Spec, Studio-`HOST_ATTRIBUTES` + i18n,

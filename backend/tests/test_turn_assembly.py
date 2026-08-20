@@ -67,6 +67,7 @@ async def _call(**over):
         _effective_pattern_id="M06",
         response_text="Antwort.",
         wlo_cards_raw=[],
+        _host_qr_max=None,
     )
     kw.update(over)
     return await ta._assemble_cards_and_qrs(**kw)
@@ -391,3 +392,89 @@ async def test_die_schleifen_maschinen_behalten_ihre_karten():
                                winner=type("W", (), {"id": maschine})(),
                                session_state={"entities": {}})
         assert len(ergebnis[0]) == 1, f"{maschine} verliert seine Karten"
+
+
+# ── O-B2: Mix-Modus (Host-Chips + KI-Auffuellung) ──────────────────
+async def test_qr_mix_fuellt_mit_generator_bis_zur_gesamtzahl(monkeypatch):
+    gesehen = {}
+
+    async def _gen(**k):
+        gesehen.update(k)
+        return ["KI1", "KI2", "KI3"]
+
+    monkeypatch.setattr(ta, "generate_quick_replies", _gen)
+    _c, qr, _pa, _pg, _rt = await _call(
+        _canvas_forced_quick_replies=["A", "B"], _host_qr_max=4)
+    assert qr == ["A", "B", "KI1", "KI2"]
+    assert gesehen["count"] == 2   # nur der Rest wird generiert
+
+
+async def test_qr_mix_ohne_zahl_bleibt_hartes_ueberschreiben(monkeypatch):
+    """Der O-B-Vertrag: keine Gesamtzahl -> forced ersetzt alles."""
+    aufgerufen = {"gen": False}
+
+    async def _gen(**k):
+        aufgerufen["gen"] = True
+        return ["x"]
+
+    monkeypatch.setattr(ta, "generate_quick_replies", _gen)
+    _c, qr, _pa, _pg, _rt = await _call(_canvas_forced_quick_replies=["A"])
+    assert qr == ["A"]
+    assert aufgerufen["gen"] is False
+
+
+async def test_qr_mix_kappt_forced_auf_die_gesamtzahl_ohne_generator(monkeypatch):
+    aufgerufen = {"gen": False}
+
+    async def _gen(**k):
+        aufgerufen["gen"] = True
+        return ["x"]
+
+    monkeypatch.setattr(ta, "generate_quick_replies", _gen)
+    _c, qr, _pa, _pg, _rt = await _call(
+        _canvas_forced_quick_replies=["A", "B", "C"], _host_qr_max=2)
+    assert qr == ["A", "B"]
+    assert aufgerufen["gen"] is False
+
+
+async def test_qr_mix_dedupe_gegen_die_host_chips(monkeypatch):
+    """Erzeugt das Modell einen Host-Chip doppelt (Gross/klein egal),
+    faellt er weg — dann kommen eben weniger Chips an."""
+
+    async def _gen(**k):
+        # "a" doppelt einen Host-Chip, das zweite "KI1" sich selbst — beides
+        # faellt weg (Inline-QRs kommen ungeprueft aus der Antwort).
+        return ["a", "KI1", "KI1"]
+
+    monkeypatch.setattr(ta, "generate_quick_replies", _gen)
+    _c, qr, _pa, _pg, _rt = await _call(
+        _canvas_forced_quick_replies=["A"], _host_qr_max=4)
+    assert qr == ["A", "KI1"]
+
+
+async def test_qr_mix_nutzt_inline_qrs_ohne_generator_call(monkeypatch):
+    """Agent-/Hybrid-Zuege liefern Inline-QRs aus der Antwort mit — die
+    Fuellung ist dann gratis (kein zweiter LLM-Call)."""
+    aufgerufen = {"gen": False}
+
+    async def _gen(**k):
+        aufgerufen["gen"] = True
+        return ["x"]
+
+    monkeypatch.setattr(ta, "generate_quick_replies", _gen)
+    ss = {"entities": {}, "_inline_quick_replies": ["I1", "I2"]}
+    _c, qr, _pa, _pg, _rt = await _call(
+        _canvas_forced_quick_replies=["A"], _host_qr_max=3, session_state=ss)
+    assert qr == ["A", "I1", "I2"]
+    assert aufgerufen["gen"] is False
+    assert "_inline_quick_replies" not in ss
+
+
+async def test_qr_mix_generatorfehler_laesst_die_host_chips_stehen(monkeypatch):
+    async def _gen(**k):
+        raise RuntimeError("B-API weg")
+
+    monkeypatch.setattr(ta, "generate_quick_replies", _gen)
+    _c, qr, _pa, _pg, _rt = await _call(
+        _canvas_forced_quick_replies=["A", "B"], _host_qr_max=4)
+    assert qr == ["A", "B"]

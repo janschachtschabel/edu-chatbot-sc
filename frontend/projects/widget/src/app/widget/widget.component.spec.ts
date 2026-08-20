@@ -52,7 +52,16 @@ describe('WidgetComponent', () => {
     document.documentElement.removeAttribute('lang');
   });
 
-  it('hat genau diese 31 Host-Attribute (§5.5-Kontrakt)', () => {
+  it('faengt edu-sharing-Links per Vorgabe NICHT ab (Opt-in, Y2 2026-08-20)', () => {
+    // Wer abfaengt, uebernimmt die Navigation: ohne behandeltes `linkClicked`
+    // waere jeder Klick tot. Deshalb ist die Vorgabe aus — nur eine
+    // Gastanwendung, die das Ereignis verdrahtet, schaltet sie ein.
+    const f = mount();
+    const c = f.componentInstance as any;
+    expect(c.interceptEduSharingLinks()).toBe(false);
+  });
+
+  it('hat genau diese 32 Host-Attribute (§5.5-Kontrakt)', () => {
     // Der Attribut-Satz IST der öffentliche Vertrag der Web-Komponente, und er
     // steht zusätzlich in der Studio-Architektur-Referenz
     // (`projects/studio/src/app/views/widget-contract-data.ts`, HOST_ATTRIBUTES).
@@ -66,7 +75,7 @@ describe('WidgetComponent', () => {
       'engine', 'greeting', 'initialState', 'inlineResultGrouping',
       'interceptEduSharingLinks', 'language', 'masterSkill', 'pageContext',
       'persistSession', 'position',
-      'primaryColor', 'quickReplies', 'resultSchema', 'sessionCookieDomain',
+      'primaryColor', 'quickReplies', 'quickRepliesMax', 'resultSchema', 'sessionCookieDomain',
       'sessionCookieMaxAge',
       'sessionKey', 'showCards', 'showDebugButton', 'showLanguageButtons', 'showWelcome',
       'size', 'startReplies', 'theme', 'ticket', 'toolMode', 'trustedDomains',

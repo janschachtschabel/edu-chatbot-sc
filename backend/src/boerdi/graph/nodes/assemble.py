@@ -21,6 +21,7 @@ import logging
 from types import SimpleNamespace
 from typing import Final
 
+from boerdi.domain.quick_reply_policy import host_qr_max
 from boerdi.domain.skill_precedence import merke_skill_sammlung
 from boerdi.graph.state import TurnContext
 from boerdi.services.turn_assembly import _assemble_cards_and_qrs
@@ -57,6 +58,13 @@ def _erzwungene_chips(ctx: TurnContext) -> list[str]:
     return gesetzt
 
 
+def _host_mix_max(ctx: TurnContext) -> int | None:
+    """O-B2: die Gesamtzahl des Mix-Modus — Klammer und beide Bedingungen
+    (Zahl UND eigene Host-Chips) liegen in ``domain.quick_reply_policy``."""
+    return host_qr_max(ctx.req.environment.quick_replies_max,
+                       ctx.req.environment.forced_quick_replies)
+
+
 async def assemble(ctx: TurnContext) -> TurnContext:
     """Karten + Quick-Replies + ``page_action`` bauen (P20-24). Mutiert ``ctx``
     in-place und gibt ihn zurück."""
@@ -74,6 +82,7 @@ async def assemble(ctx: TurnContext) -> TurnContext:
             pattern_output=ctx.pattern_output,
             _canvas_payload_out=ctx.canvas_payload,
             _canvas_forced_quick_replies=_erzwungene_chips(ctx),
+            _host_qr_max=_host_mix_max(ctx),
             _qr_mode=ctx.qr_mode,
             _qr_max=ctx.qr_max,
             _qr_spec_task=ctx.qr_spec_task,

@@ -113,6 +113,25 @@ def has_curated_quick_replies(pattern_id: str) -> bool:
     return (pattern_id or "").strip().startswith(CONTEXT_GREETING_MARKER)
 
 
+def host_qr_max(gewuenscht: int | None, host_chips: list[str] | None) -> int | None:
+    """O-B2 (2026-08-20): die vom Gastgeber genannte Chip-Gesamtzahl im
+    Mix-Modus — oder ``None``, wenn kein Mix verlangt ist.
+
+    Zwei Bedingungen, beide bewusst: (1) Ohne Zahl bleibt es beim harten
+    Überschreiben aus O-B. (2) Ohne EIGENE Chips des Gastgebers ist die Zahl
+    keine Aussage — ``max=3`` allein hieße still „kappe den Generator", und
+    dafür gibt es schon die Anzeige-Regeln. Geklammert auf 1–6 aus demselben
+    Grund wie ``MAX_ERZWUNGENE_CHIPS`` (graph/nodes/assemble.py): darüber
+    bricht die Chip-Leiste um. Von assemble (Kaskade) UND widget_postprocess
+    (Anzeige-Deckel) benutzt — EINE Semantik, eine Klammer.
+    """
+    if gewuenscht is None:
+        return None
+    if not any(isinstance(c, str) and c.strip() for c in (host_chips or [])):
+        return None
+    return max(1, min(6, gewuenscht))
+
+
 def _qr_default_count() -> int:
     """Globale QR-Zielzahl aus ``display-rules.quick_replies.max_count``
     (Studio: Anzeige → Quick-Replies). Seit 2026-06-10 erzeugt der

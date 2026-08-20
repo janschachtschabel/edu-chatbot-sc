@@ -79,3 +79,24 @@ def test_ohne_gepflegte_liste_ist_nichts_eigen_aber_alles_fremd():
 
 def test_leere_und_kaputte_eintraege_werden_uebersprungen():
     assert classify_page_host("wirlernenonline.de", ("", "   ", "wirlernenonline.de")) == "home"
+
+
+def test_seed_own_hosts_deckt_die_subdomains_der_hauptdomain():
+    """X1 (2026-08-20, live auf wp-test): die Tour endet auf der Mitmach-Seite
+    der Test-Instanz wp-test.wirlernenonline.de — mit nur exaktem Host-Eintrag
+    galt die EIGENE Domain als fremd, und der Bot bot direkt nach „Fast
+    geschafft" an, die WLO-Seite in WLO aufzunehmen."""
+    from pathlib import Path
+
+    import yaml
+
+    from boerdi.domain.page_host import HOME, classify_page_host
+
+    doc = yaml.safe_load(
+        (Path(__file__).parents[1] / "seeds" / "01-base" / "context-actions.yaml")
+        .read_text(encoding="utf-8"))
+    inhalt = doc if "own_hosts" in doc else next(iter(doc.values()))
+    own = inhalt["own_hosts"]
+    for host in ("wirlernenonline.de", "wp-test.wirlernenonline.de",
+                 "www.wirlernenonline.de"):
+        assert classify_page_host(host, own) == HOME, host

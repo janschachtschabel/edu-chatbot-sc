@@ -135,6 +135,10 @@ export const HOST_ATTRIBUTES: readonly HostAttribute[] = [
     fallbackKey: 'rw.default.empty', descKey: 'rw.attr.quickReplies',
   },
   {
+    groupKey: 'rw.group.anzeige', attr: 'quick-replies-max', fallback: '',
+    fallbackKey: 'rw.default.empty', descKey: 'rw.attr.quickRepliesMax',
+  },
+  {
     groupKey: 'rw.group.anzeige', attr: 'theme', fallback: 'auto',
     descKey: 'rw.attr.theme',
   },

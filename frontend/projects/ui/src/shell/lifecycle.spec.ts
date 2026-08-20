@@ -324,3 +324,37 @@ describe('ShellLifecycle: Begrüßung beim ersten Laden', () => {
     expect(made.rec.bots.length).toBe(1);
   });
 });
+
+// ── X1 (2026-08-20, wp-test live): die Tour besitzt ihren ganzen Load ───────
+// Der Abschluss-Tick löscht das Tour-Flag; wurde der Besitz erst NACH dem Tick
+// geprüft, feuerte der Kontext-Ping im selben Load — und direkt hinter „Fast
+// geschafft" stand „diese Seite gehört nicht zu WLO".
+describe('ShellLifecycle — Tour besitzt den Load (X1)', () => {
+  afterEach(() => { vi.useRealTimers(); localStorage.clear(); });
+
+  it('Resume: der Abschluss-Tick löscht das Flag — trotzdem kein Kontext-Ping in diesem Load', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem(KEY, VALID_SID);
+    const made = makeCtx({
+      persistSession: () => true,
+      parsedPageContext: () => ({ page_host: 'wp-test.wirlernenonline.de' }),
+    });
+    let flag = true;
+    made.tour.isTourFlagSet.mockImplementation(() => flag);
+    made.tour.sendTourTick.mockImplementation(async () => { flag = false; });
+    new ShellLifecycle(made.ctx).init();
+    await vi.runAllTimersAsync();
+    expect(made.tour.sendTourTick).toHaveBeenCalled();
+    expect(made.cg.sendContextPing).not.toHaveBeenCalled();
+  });
+
+  it('onSpaContextChange: laufende Tour → Kontext ersetzt, aber kein Ping', () => {
+    vi.useFakeTimers();
+    const { ctx, cg, rec, tour } = makeCtx();
+    tour.isTourFlagSet.mockReturnValue(true);
+    new ShellLifecycle(ctx).onSpaContextChange({ collection_id: 'c1' });
+    expect(rec.parsedPC[0]).toEqual({ collection_id: 'c1' });
+    vi.runAllTimers();
+    expect(cg.sendContextPing).not.toHaveBeenCalled();
+  });
+});

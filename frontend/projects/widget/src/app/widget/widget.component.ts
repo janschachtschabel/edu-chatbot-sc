@@ -12,6 +12,7 @@ import {
   _attrIsTrue,
   _attrJsonObject,
   _attrJsonStringArray,
+  _attrPositiveInt,
   _attrTriState,
   PANEL_SIZE_STEPS,
   TOOL_MODES,
@@ -216,6 +217,13 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    * Laufzeit umschaltbar ueber `setQuickReplies()`.
    */
   readonly quickReplies = input('');
+  /**
+   * O-B2 — Chip-GESAMTZAHL des Mix-Modus (`quick-replies-max="4"`): die
+   * `quick-replies`-Chips zuerst, das KI-Modell fuellt bis zur Zahl auf
+   * (Klammer 1-6 zieht das Backend). Nur zusammen mit `quick-replies`
+   * wirksam; ohne Zahl ueberschreiben die Chips hart wie bisher.
+   */
+  readonly quickRepliesMax = input('');
   /** Anfangs-Größenstufe (U2a): `small` (Vorgabe) oder `large`. Nur der START —
    *  danach gehört die Stufe dem Panel, weil der Umschalter in der Eingabezeile
    *  sie verändert. Rahmenlos hat sie keine Wirkung auf die Maße (die stellt der
@@ -406,6 +414,10 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
     effect(() => {
       const shell = this.shell();
       if (shell) shell.setQuickReplies(_attrJsonStringArray(this.quickReplies()));
+    });
+    effect(() => {
+      const shell = this.shell();
+      if (shell) shell.setQuickRepliesMax(_attrPositiveInt(this.quickRepliesMax()));
     });
     // Der wartende Rahmen und der wartende Auftrag, sobald es eine Shell gibt.
     // Dieselbe Nachzieh-Naht wie oben und aus demselben Grund: die Shell hängt

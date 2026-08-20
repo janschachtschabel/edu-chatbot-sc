@@ -279,7 +279,7 @@ Alle Werte sind HTML-Attribute, also Zeichenketten. Boolesche Attribute nehmen
 
 | Attribut | Vorgabe | Bedeutung |
 |---|---|---|
-| `intercept-edu-sharing-links` | `false` | `true` = Link-Klicks abfangen statt navigieren → Ereignis `linkClicked` mit Pfad+Query |
+| `intercept-edu-sharing-links` | `false` | `true` = **ihr übernehmt die Navigation**: jeder Klick auf einen Link mit `/edu-sharing` im Pfad wird unterdrückt und nur als Ereignis `linkClicked` (Pfad+Query) gereicht. Unbehandelt ist jeder solche Klick tot — auch die Such-Pille. Vorgabe aus |
 | `emit-guide-suggestion` | `false` | `boerdi:guide-suggestion` einschalten (§6) |
 | `emit-routing-debug` | `false` | `boerdi:routing-debug` einschalten (§6) |
 | `ticket` | — | edu-sharing-Ticket der Gastgeberseite. **Für Plugins nicht nutzbar** (§8) |
@@ -304,6 +304,7 @@ einer Template-Bindung — die nächste Auswertung nimmt den neuen Wert.
 | `master-skill` | Effect → `shell.setMasterSkill()`; eigener Effect aus demselben Grund. Gilt ab dem nächsten Zug. Drei Zustände: `"on"`, `"off"`, **fehlt** = Vorgabe des Betreibers (`MASTER_SKILL_ENABLED`). Das nackte Attribut ohne Wert gilt als „fehlt" — drei Zustände lassen sich durch Vorhandensein allein nicht ausdrücken |
 | `tool-mode` | Effect → `shell.setToolMode()`. Gilt ab dem nächsten Zug. `read-only` \| `curate` \| `full` (Vorgabe); ein unbekannter Wert gilt als Vorgabe. Wirkt zweifach: die verbotenen Werkzeuge fehlen in der Liste, UND das Modell erfährt es — sonst verspräche es eine Änderung, die es gleich nicht ausführen kann |
 | `quick-replies` | Effect → `shell.setQuickReplies()`, oder zur Laufzeit direkt `el.setQuickReplies([...])`. JSON-Array; gilt ab dem nächsten Zug und BLEIBT, bis jemand es ersetzt oder mit `[]` löscht. Schlägt Generator, Canvas-Vorgaben und Policy. Der Chip-Text IST die gesendete Nachricht — deshalb wird nie gekürzt, nur die Anzahl begrenzt (sechs) |
+| `quick-replies-max` | Effect → `shell.setQuickRepliesMax()`, oder zur Laufzeit `el.setQuickRepliesMax(4)`. Mix-Modus (O-B2): die `quick-replies`-Chips zuerst, das Modell füllt bis zur Gesamtzahl auf (Klammer 1–6 serverseitig). Nur zusammen mit `quick-replies` wirksam; ohne Zahl überschreiben die Chips hart |
 | `language` | Effect → `lang.resolve()` |
 | `primary-color` | Effect → `applyPrimaryColor()` auf dem Host-Element |
 | `initial-state` | Effect; der **erste** Wert entscheidet den Start (dort zählen auch `?bsid=` und eine laufende Tour mit), erst spätere Änderungen klappen auf und zu |
@@ -840,6 +841,28 @@ gekürzt; zu viele werden hinten abgeschnitten (sechs). Die Liste bleibt gesetzt
 bis ihr sie ersetzt oder mit `[]` löscht: ein Kuratierungswerkzeug will dieselben
 drei Knöpfe bei jedem Schritt, nicht einmal.
 
+**Mix-Modus: eigene Chips + KI-Auffüllung (O-B2).** Nennt ihr zu euren Chips
+zusätzlich eine **Gesamtzahl**, ersetzt die Liste nicht mehr alles — eure Chips
+stehen vorn, und das Modell füllt die restlichen Plätze passend zum
+Gesprächsverlauf auf:
+
+```html
+<boerdi-chat quick-replies='["Passt","Passt nicht"]' quick-replies-max="4"></boerdi-chat>
+```
+
+```js
+chat.setQuickReplies(['Passt', 'Passt nicht']);
+chat.setQuickRepliesMax(4);      // 2 eigene + bis zu 2 vom Modell
+chat.setQuickRepliesMax(null);   // Mix aus → wieder hartes Überschreiben
+```
+
+Die Zahl ist der Deckel des ganzen Zuges (Klammer 1–6, serverseitig) und
+schlägt auch die Studio-Anzeige-Regeln — ihr kennt eure Leiste selbst. Erzeugt
+das Modell einen eurer Chips doppelt, fällt die Dublette weg (dann kommen eben
+weniger an). Ohne Gesamtzahl bleibt alles beim harten Überschreiben; die Zahl
+allein (ohne Chips) tut nichts. Gleiche Lebensdauer wie die Liste: bleibt, bis
+ihr sie ersetzt oder mit `null` löscht.
+
 **Wenn ihr selbst rendert.** `inline-result-grouping="false"` schaltet die
 gruppierten Boxen ab — und sagt es dem Modell, damit es keine Boxen erwähnt, die
 es bei euch nicht gibt, und die Treffer nicht zusätzlich als Linkliste aufzählt.
@@ -1117,6 +1140,19 @@ ignoriert ihr, statt daran zu scheitern.
 
 Vier Outputs mit identischer Nutzlast: `linkClicked` (Zeichenkette, nur mit
 `intercept-edu-sharing-links`), `guideSuggestion`, `routingDebug`, `queryMeta`.
+
+**`linkClicked` verpflichtet.** Mit `intercept-edu-sharing-links="true"`
+navigiert das Widget **nie** selbst — für alle `/edu-sharing`-Ziele seid ihr
+dran, auch für die Such-Pille (`…/components/search?query=…`). Der häufigste
+Stolperstein: ihr steht bereits auf `components/search`, und der Angular-Router
+ignoriert Navigation auf dieselbe Route. Deshalb `onSameUrlNavigation`:
+
+```ts
+chat.addEventListener('linkClicked', (e: Event) => {
+  const ziel = new URL((e as CustomEvent<string>).detail, location.origin);
+  router.navigateByUrl(ziel.pathname + ziel.search, { onSameUrlNavigation: 'reload' });
+});
+```
 
 `page-action` ist **nicht** dabei — es erreicht eine Gastseite ausschließlich als
 `window`-Ereignis. (Die Tabelle des ALTEN Chatbots führte es fälschlich als
@@ -1699,6 +1735,7 @@ Volle Herleitung samt Messungen:
 | `tools_called` bleibt leer, obwohl der Auftrag Werkzeuge nennt | Dasselbe: im Muster-Modus entscheidet das **Muster** über die Werkzeugliste, nicht der Auftragstext (§4, §5) |
 | Der Bot bietet an, Metadaten in WLO zu schreiben, tut es aber nicht | Ohne Zugangsblock sind die kuratierenden Werkzeuge gar nicht im Katalog. Anonym geht Einordnen, nicht Schreiben (§5, Rezept 2 · §8) |
 | `linkClicked` feuert nie | `intercept-edu-sharing-links="true"` fehlt |
+| Klick auf die Such-Pille tut nichts, Material-Links gehen | `intercept-edu-sharing-links="true"` ist an und euer `linkClicked`-Handler behandelt `components/search` nicht — oder navigiert auf dieselbe Route ohne `onSameUrlNavigation: 'reload'` (§6a) |
 | `guide-suggestion` feuert nie | `emit-guide-suggestion="true"` fehlt (Opt-in) |
 | Klick auf einen Link der **Gastseite** bekommt kein `?bsid=` | Der Klick-Wächter greift nur im Shadow-Root des Widgets — die Navigation der Gastseite bleibt unangetastet. Wer die ID braucht, hängt sie selbst an |
 | `result` ist `null` | Kein `result_schema` mitgegeben — oder `stop_reason !== 'submit'` |

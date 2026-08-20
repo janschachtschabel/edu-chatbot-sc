@@ -90,7 +90,7 @@ describe("ArchitectureReferenceComponent", () => {
     for (const { attr } of HOST_ATTRIBUTES) {
       expect(documented, `Attribut ${attr}`).toContain(attr);
     }
-    expect(HOST_ATTRIBUTES).toHaveLength(31);   // +tool-mode/quick-replies (O, 2026-08-18)
+    expect(HOST_ATTRIBUTES).toHaveLength(32);  // +quick-replies-max (O-B2, 2026-08-20)
     expect(HOST_ATTRIBUTES.map((a) => a.attr)).toContain(
       "inline-result-grouping",
     );

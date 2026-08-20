@@ -44,6 +44,7 @@ export interface Environment {
   tool_mode?: string;
   /** O-B: vom Gastgeber HART gesetzte Schnellantworten fuer DIESEN Zug. */
   forced_quick_replies?: string[];
+  quick_replies_max?: number;
   /** JSON-Schema, in dem der Gastgeber sein Ergebnis erwartet (2026-08-14).
    *  Wirkt nur mit der Agent-Maschine; siehe {@link ChatApiClient.setResultSchema}. */
   result_schema?: Record<string, any>;
@@ -145,6 +146,7 @@ export class ChatApiClient {
   private inlineResultGrouping: boolean | null = null;
   private toolMode = '';
   private forcedQuickReplies: string[] = [];
+  private forcedQuickRepliesMax: number | null = null;
   private readonly fetchImpl?: typeof fetch;
 
   constructor(opts: ChatApiClientOptions = {}) {
@@ -266,6 +268,18 @@ export class ChatApiClient {
       : [];
   }
 
+  /**
+   * O-B2 — die Chip-GESAMTZAHL des Mix-Modus: die Chips aus `setQuickReplies`
+   * zuerst, das Modell fuellt bis zu dieser Zahl auf (Klammer 1-6 zieht das
+   * Backend). Nur zusammen mit gesetzten Chips wirksam; ohne Zahl bleibt es
+   * beim harten Ueberschreiben. `null` schaltet den Mix wieder ab. Gleiche
+   * Lebensdauer wie die Chips: bleibt, bis jemand sie ersetzt.
+   */
+  setQuickRepliesMax(max: number | null): void {
+    this.forcedQuickRepliesMax =
+      typeof max === 'number' && Number.isInteger(max) && max > 0 ? max : null;
+  }
+
   /** Die Kopfzeilen, die dieser Einbau jedem Zug mitgibt. */
   private turnHeaders(): Record<string, string> {
     return this.engine ? { 'X-Boerdi-Engine': this.engine } : {};
@@ -323,6 +337,8 @@ export class ChatApiClient {
       ...(this.toolMode ? { tool_mode: this.toolMode } : {}),
       ...(this.forcedQuickReplies.length
         ? { forced_quick_replies: [...this.forcedQuickReplies] } : {}),
+      ...(this.forcedQuickReplies.length && this.forcedQuickRepliesMax != null
+        ? { quick_replies_max: this.forcedQuickRepliesMax } : {}),
       page: env?.page || window.location.pathname,
       page_context: env?.page_context || extractPageContext(),
       device: env?.device || detectDevice(),

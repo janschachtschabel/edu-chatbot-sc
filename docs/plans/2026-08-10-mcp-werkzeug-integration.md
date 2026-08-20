@@ -1893,3 +1893,17 @@ trägt `hasCompendium: true` ohne Inline-Text). Sechs Teilpakete, alle testgetri
 Tore: `ruff check .` sauber · `pytest -q` **4068 passed, 4 skipped** ·
 `export_openapi.py --check` unverändert. Offen (Nutzer-Domäne): Commit,
 Backend-Image, Deploy, Republizieren des Master-Skills auf den Repo-Knoten.
+
+**Nachtrag W1 (2026-08-20) — Ablauf-Optimierung des Master-Skills.** Der ganze
+Text gegen den Werkzeugkatalog gehalten; fünf Stellen legten langsamere
+Call-Folgen nahe, als der Katalog hergibt: M19 kannte `get_nodes_details`
+(Details mehrerer Datensätze in einem Aufruf) und den Geschwister-Vergleich per
+Bulk-`nodeIds` nicht; die Lehrplan-Beratung holte den ganzen Kompendiumstext
+statt Teil 2 per `query` und nannte zwei Suchen statt einer; M05 legte den
+Vokabular-Lookup vor jede Suche (Filter nehmen deutsche Labels direkt — Lookup
+nur bei Fehlgriff); M20 prüfte Dubletten mit zwei Werkzeugen statt einer breiten
+Suche; „Stunde planen" beschrieb den Registry-Zwischenschritt, obwohl der
+Katalog auf Sammlungsseiten vorab in der Kette liegt. Dazu ein neuer Wächter:
+`test_vorgehen_md_nennt_nur_existierende_werkzeuge` prüft jeden im Skill
+genannten Werkzeugnamen gegen Haupt- und Kuratierungs-Katalog — ein Tippfehler
+dort wäre ein Phantom-Werkzeug im wichtigsten Prompt-Dokument.
