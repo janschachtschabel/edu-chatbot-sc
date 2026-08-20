@@ -81,6 +81,14 @@ export interface MountOptions {
    */
   session?: string;
   /**
+   * Persistierte History des Wiederkehrers (GET /sessions/:id/messages).
+   * Vorgabe LEER — und das ist verhaltensrelevant (EK7): eine fortgeführte
+   * Session OHNE Nutzer-Nachricht pingt als Erstlade-Fall
+   * (`context_open_initial`), erst mit echter History als Fortsetzung
+   * (`context_open`). Zeilenform wie das Backend: `{ role, content, … }`.
+   */
+  history?: Array<Record<string, unknown>>;
+  /**
    * Antwort auf Kontext-Pings (`environment.page_event`). Vorgabe: LEER — das
    * Backend hat zu einer beliebigen Seite meist nichts zu sagen, und genau
    * dann fällt das Widget auf seine normale Begrüssung zurück. Wer die
@@ -230,7 +238,7 @@ export async function mount(page: Page, opts: MountOptions = {}): Promise<Harnes
       return route.fulfill({ json: antwortAuf(payload) });
     }
     if (path.startsWith('/api/sessions/')) {
-      return route.fulfill({ json: [] });
+      return route.fulfill({ json: opts.history ?? [] });
     }
     return route.fulfill({ status: 404, json: { detail: `nicht gestubbt: ${path}` } });
   });

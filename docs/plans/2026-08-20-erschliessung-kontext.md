@@ -145,3 +145,4 @@ MCP-Server unberührt.
 | EK5 | ✅ 2026-08-20 — `respond_agent` liest `ctx.env`; serverseitige Seitenart + Normalisierung erreichen den Agent-Prompt. Test-Helper bildet `setup` nach (verdeckte die Lücke); 1 Pin, Suite 4117 |
 | EK7 | ✅ 2026-08-21 — Ping-Event nach Unterhaltungszustand (`hasUserMessages`); Prüftisch-Seitenleiste bekommt Gruß + Pills trotz nachgereichtem Kontext; 2 Pins, ui 832 |
 | EK8 | ✅ 2026-08-21 — `_host_title` mit `title`-Alias an beiden Resolver-Rückfällen + `_STRING_FIELDS`; 3 Pins, Suite 4120 |
+| EK7b | ✅ 2026-08-21 — CI-Nachlauf: 3 E2E-Pins auf den neuen Ping-Vertrag umgezogen (Begründung im Spec, Muster der Datei), Harness-`history`-Option + neuer Wiederkehrer-Test pinnt `context_open` bei echter History samt Restore-vor-Ping-Reihenfolge; E2E 49 passed |

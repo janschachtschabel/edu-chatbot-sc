@@ -33,9 +33,37 @@ test('der Tour-Chip startet die Web-Tour mit tour_action="start"', async ({ page
 /** Wiederkehrer: fortgeführte Session im localStorage. */
 const KNOWN_SESSION = 'bb-7c9e6679-7425-40de-944b-e07fc1f90ae7';
 
-test('auf einer Inhaltsseite feuert der stille Kontext-Ping (page_event=context_open)', async ({ page }) => {
+test('ein echter Wiederkehrer (History vorhanden) pingt als context_open', async ({ page }) => {
+  // EK7: das Ping-Event richtet sich nach der UNTERHALTUNG. Erst eine
+  // Nutzer-Nachricht in der wiederhergestellten History macht den Ping zur
+  // Fortsetzung — und pinnt zugleich die Reihenfolge: Restore VOR Ping.
+  const w = await mount(page, {
+    url: CONTENT_URL, session: KNOWN_SESSION,
+    history: [
+      { role: 'user', content: 'Was ist das hier?' },
+      { role: 'assistant', content: 'Ein Arbeitsblatt zur Optik.' },
+    ],
+    pingReply: chatResponse({ content: 'Zu dieser Seite kann ich dir mehr sagen.' }),
+  });
+  await w.open();
+
+  await w.waitForChatRequests(1);
+  const req = w.chatRequests()[0];
+  expect(req.session_id).toBe(KNOWN_SESSION);
+  expect(req.environment.page_event).toBe('context_open');
+  // Beleg der Reihenfolge: die restaurierte User-Bubble stand vor dem Ping da.
+  await expect(page.locator('.message-row.user-row')).toHaveCount(1);
+});
+
+test('auf einer Inhaltsseite feuert der stille Kontext-Ping — geleerte History gilt als Erstlade-Fall', async ({ page }) => {
   // `pingReply` statt `enqueue`: die Warteschlange gehört den echten Zügen,
   // ein Ping bedient sich dort nicht (sonst schnappte er die Antwort weg).
+  //
+  // EK7 (2026-08-21, Live-Befund Prüftisch): OHNE Nutzer-Nachricht ist jeder
+  // Kontext-Ping der Erstlade-Fall — als `context_open` gesendet, fiele er im
+  // Backend ins Streu-Ping-Gate (leere History → bewusste Stille), und genau
+  // das hat live die Erschließungs-Begrüßung verschluckt. Der Pin hielt bis
+  // dahin den alten Draht-Vertrag fest, nicht eine Produktanforderung.
   const w = await mount(page, {
     url: CONTENT_URL, session: KNOWN_SESSION,
     pingReply: chatResponse({ content: 'Zu dieser Seite kann ich dir mehr sagen.' }),
@@ -45,7 +73,7 @@ test('auf einer Inhaltsseite feuert der stille Kontext-Ping (page_event=context_
   await w.waitForChatRequests(1);
   const req = w.chatRequests()[0];
   expect(req.session_id).toBe(KNOWN_SESSION);
-  expect(req.environment.page_event).toBe('context_open');
+  expect(req.environment.page_event).toBe('context_open_initial');
   // Der Detektor muss die node_id aus dem Pfad gezogen haben.
   expect(req.environment.page_context.node_id).toBe('9f8b1c2d-4e5f-6789-abcd-ef0123456789');
 
@@ -82,7 +110,9 @@ test('eine Seite ohne IDs pingt trotzdem — der Hostname genügt, das Backend e
 
   await w.waitForChatRequests(1);
   const ping = w.chatRequests()[0];
-  expect(ping.environment.page_event).toBe('context_open');
+  // EK7: Session ohne Nutzer-Nachricht (Harness-History ist leer) → Erstlade-
+  // Event. Der Kern dieses Tests ist unverändert: es pingt trotz fehlender IDs.
+  expect(ping.environment.page_event).toBe('context_open_initial');
   expect(ping.environment.page_context.page_host).toBe('host.test');
   expect(ping.environment.page_context.node_id).toBeUndefined();
 });
@@ -122,11 +152,14 @@ test('SPA-Navigation auf eine Inhaltsseite löst den Ping aus (URL-Watcher, 1,5 
 
   // Der Watcher pollt alle 1,5 s — der Default-Timeout von 5 s wäre auf einem
   // ausgelasteten Runner die knappste Marge der ganzen Suite.
-  // Index 0 ist der Erstaufruf-Ping (`context_open_initial`); der SPA-Ping ist
-  // der zweite und trägt `context_open`.
+  // Index 0 ist der Erstaufruf-Ping; der SPA-Ping ist der zweite. EK7: die
+  // Unterhaltung hat auch nach der Navigation noch keine Nutzer-Nachricht,
+  // also bleibt es der Erstlade-Fall — als `context_open` schwiege das Backend
+  // (leere History), und die SPA-Begrüßung fiele aus. Den Fortsetzungs-Fall
+  // (context_open nach echtem Turn) pinnt der Wiederkehrer-Test oben.
   await w.waitForChatRequests(2, 15_000);
   const req = w.chatRequests()[1];
-  expect(req.environment.page_event).toBe('context_open');
+  expect(req.environment.page_event).toBe('context_open_initial');
   expect(req.environment.page_context.node_id).toBe('9f8b1c2d-4e5f-6789-abcd-ef0123456789');
 });
 
