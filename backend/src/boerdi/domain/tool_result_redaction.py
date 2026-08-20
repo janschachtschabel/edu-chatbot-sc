@@ -117,13 +117,24 @@ _KATALOG_BESCHREIBUNG = 200
 #: Flachkarten-Modus Einzelinhalte durchreicht: ob etwas ein Video oder ein
 #: Arbeitsblatt ist, entscheidet dort über die Auswahl. Bei Sammlungen ist das
 #: Feld leer und fällt von selbst weg.
+#: ``license`` seit dem Lizenzfilter (V3/Review 2026-08-20): beim "OER"-Bündel
+#: muss das Modell sehen, WELCHE Lizenz ein Treffer trägt — sonst rät es.
+#: Bei Sammlungen ist das Feld leer und fällt von selbst weg.
 _KOMBI_FELDER = ("nodeId", "title", "description", "keywords",
-                 "disciplines", "educationalContexts", "learningResourceTypes")
+                 "disciplines", "educationalContexts", "learningResourceTypes",
+                 "license")
 
 #: Sagt „hier liegt redaktionelle Übersichts-Prosa", ohne sie mitzuschicken.
 #: Ohne diesen Merker hätte ``get_compendium_text`` seit der Kürzung gar keinen
 #: Anlass mehr — der gekürzte Auszug, auf den seine Beschreibung zeigte, ist ja
 #: genau das, was hier wegfällt.
+#:
+#: Seit der MCP-Ansage vom 2026-08-20 hat der Merker ZWEI Quellen: bis zum
+#: angekündigten Server-Deploy wird er aus dem Inline-``compendiumText``
+#: abgeleitet, danach setzt ihn der Server selbst — und der Inline-Text
+#: verschwindet aus den Treffern. ``_kurzfassung`` liest beide, damit die
+#: Markierung über den Stichtag hinweg nie ausfällt: das Deploy-Datum bestimmt
+#: der MCP-Betrieb, nicht dieser Code.
 _MERKER_KOMPENDIUM = "hasCompendium"
 
 
@@ -154,7 +165,8 @@ def _kurzfassung(eintrag: dict) -> dict:
     text = kurz.get("description")
     if isinstance(text, str) and len(text) > _MAX_BESCHREIBUNG:
         kurz["description"] = text[:_MAX_BESCHREIBUNG] + "…"
-    if str(eintrag.get("compendiumText") or "").strip():
+    if (str(eintrag.get("compendiumText") or "").strip()
+            or eintrag.get(_MERKER_KOMPENDIUM) is True):
         kurz[_MERKER_KOMPENDIUM] = True
     return kurz
 
@@ -212,10 +224,94 @@ def _redigiere_kombi_suche(raw_text: str, *, mit_einzelinhalten: bool = False) -
             continue
         gezeigt[topf_name] = {
             **{k: topf[k] for k in ("total", "count") if isinstance(topf.get(k), int)},
+            # V3 (2026-08-20): wie viele Treffer exakt auf die Lizenz geprüft/
+            # behalten wurden — gehört in die Einordnung des Modells.
+            **({"licenseFilter": topf["licenseFilter"]}
+               if isinstance(topf.get("licenseFilter"), dict) else {}),
             "results": [_kurzfassung(r) for r in (topf.get("results") or [])
                         if isinstance(r, dict)],
         }
     return json.dumps(gezeigt, ensure_ascii=False)
+
+
+#: Werkzeuge, deren Antwort NIE gedeckelt wird — sie tragen ihren eigenen.
+#:
+#: Der Befund (live gemessen 2026-08-20): die Anleitung „Stunde planen" ist
+#: ~11 000 Zeichen, der blinde Deckel schnitt bei 4 000 — das Muster-Modell hat
+#: Konsistenzregeln, Sperren, Ausgabeformat und Werkzeugtabelle NIE gesehen und
+#: lieferte trotz „wird geladen" eine Materialliste statt des Verlaufsplans
+#: (Nutzer-Befund 16.08., reproduziert 19.08.). Der Agent-Weg, der keine
+#: Redaktion hatte, bekam die volle Anleitung — und lieferte.
+#:
+#: Alle drei sind genau die Werkzeuge, die ``frame_untrusted`` als Langform-
+#: Prosa rahmt, und alle drei sind anderswo gedeckelt: ``get_skill`` durch die
+#: redaktionelle Länge des Dokuments, ``get_compendium_text`` durch den
+#: Server (``WLO_COMPENDIUM_SECTION_MAX``, je Hauptabschnitt) und seit dem
+#: ``query``-Parameter zusätzlich durch die gezielte Frage,
+#: ``get_wlo_content_text`` durch den Client-Deckel (W5-3b, ``maxChars``).
+#: Ein zweiter, blinder Deckel darüber zerschnitt Anleitungen und
+#: Lehrplan-Abschnitte mitten im Satz.
+_LANGFORM_UNGEDECKELT = frozenset({
+    "get_skill", "get_compendium_text", "get_wlo_content_text",
+})
+
+#: Die flache Sammlungs-Suche — eigene Antwortform (EIN ``results``-Topf),
+#: eigene Kürzung. Siehe :func:`_redigiere_sammlungs_suche`.
+_SAMMLUNGS_SUCHE = "search_wlo_collections"
+
+
+def _redigiere_sammlungs_suche(raw_text: str) -> str | None:
+    """``search_wlo_collections`` aufs Wählbare gekürzt — jeder Treffer bleibt.
+
+    Dieselbe Lücke wie beim Kombi-Werkzeug, eine Werkzeugliste weiter (live
+    gemessen 2026-08-20 an „Optik"): ~35 KB Antwort, davon ~30 KB
+    ``compendiumText`` im ERSTEN Treffer. ``raw_text[:4000]`` zeigte dem Modell
+    Treffer 1 halb und verschluckte Treffer 2–4 samt nodeIds — es konnte die
+    Sammlungen weder nennen noch weiterverfolgen. Die Karten des Nutzers waren
+    nie betroffen (sie werden vor der Redaktion geerntet); es ist die Sicht des
+    Modells, die abbrach.
+
+    ``None``, wenn der Text kein ``results``-Envelope ist — dann bleibt es beim
+    alten Zeichen-Deckel. ``_kurzfassung`` setzt ``hasCompendium`` und hält
+    damit die Zusage des Master-Skills („Suchergebnisse markieren mit
+    hasCompendium, ob einer vorliegt") auch für dieses Werkzeug ein.
+    """
+    from boerdi.services.mcp.parsers.json_scan import load_envelope
+
+    env = load_envelope(raw_text)
+    if not isinstance(env, dict) or not isinstance(env.get("results"), list):
+        return None
+    gezeigt: dict = {
+        **{k: env[k] for k in ("total", "count") if isinstance(env.get(k), int)},
+        "results": [_kurzfassung(r) for r in env["results"] if isinstance(r, dict)],
+    }
+    return json.dumps(gezeigt, ensure_ascii=False)
+
+
+def redigiere_strukturell(tool_name: str, raw_text: str) -> str:
+    """Nur die strukturellen Kürzungen — die Sicht der Agent-Schleife (2026-08-20).
+
+    Die Agent-Schleife hatte GAR KEINE Ergebnis-Redaktion: die 35-KB-Antwort
+    der Sammlungs-Suche reiste voll in jede ihrer bis zu 12 Folgerunden. Sie
+    bekommt jetzt dieselben strukturellen Kürzungen wie der Muster-Weg — und
+    bewusst NICHT den blinden Deckel: dort müssen ``get_skill`` und die anderen
+    Langform-Werkzeuge weiterhin ganz ankommen, so wie bisher. Entfernt wird
+    nur, was nachladbar ist (``compendiumText`` → ``get_compendium_text``) oder
+    zur Wahl nichts beiträgt (Vorschaubild, MIME-Typ, Dateigröße).
+
+    Der Aufrufer nutzt das Ergebnis allein für die Prompt-Sicht; Karten-Ernte
+    und ``skill_registry_note`` lesen weiterhin den Rohtext.
+    """
+    if tool_name == _KATALOG_WERKZEUG:
+        katalog = _redigiere_skill_registry(raw_text)
+        return katalog if katalog is not None else raw_text
+    if tool_name == _KOMBI_WERKZEUG:
+        kurz = _redigiere_kombi_suche(raw_text, mit_einzelinhalten=True)
+        return kurz if kurz is not None else raw_text
+    if tool_name == _SAMMLUNGS_SUCHE:
+        kurz = _redigiere_sammlungs_suche(raw_text)
+        return kurz if kurz is not None else raw_text
+    return raw_text
 
 
 def _katalog_aus_markdown(raw_text: str) -> list[dict]:
@@ -282,6 +378,15 @@ def _redigiere_skill_registry(raw_text: str) -> str | None:
     """
     from boerdi.services.mcp.parsers.json_scan import load_envelope
 
+    # V2 (2026-08-20): eine mit ``context=`` verengte Antwort trägt eine
+    # ``Kontext:``-Zeile im Kopf (vor der ersten ``##``). Sie ist klein
+    # (~2 KB live gemessen) und ihre Prosa IST die Redaktions-Anweisung —
+    # die Kürzung würde genau sie wegwerfen. Also gar nicht kürzen; die
+    # Länge verantwortet die Redaktion, wie bei ``_LANGFORM_UNGEDECKELT``.
+    kopf = raw_text.split("##", 1)[0]
+    if any(z.startswith("Kontext: ") for z in kopf.splitlines()):
+        return raw_text
+
     daten = load_envelope(raw_text)
     registry = daten.get("registry") if isinstance(daten, dict) else None
     eintraege = registry.get("entries") if isinstance(registry, dict) else None
@@ -336,11 +441,19 @@ def _redact_search_content_for_llm(
     zurückgehalten werden darf, hängt am Modus. Wege 2 und 3 greifen nur im
     inline_result_grouping-Modus.
     """
+    if name in _LANGFORM_UNGEDECKELT:
+        # VOR allem anderen: diese Antworten tragen ihren eigenen Deckel, und
+        # ein blinder darüber schnitt die Anleitung „Stunde planen" bei 4 000
+        # von 11 000 Zeichen ab (Begründung an der Konstante).
+        return raw_text
     if name == _KATALOG_WERKZEUG:
         # Vor der Kombi-Suche geprüft, weil der Rückfall derselbe ist: gelingt
         # die strukturelle Kürzung nicht, bleibt der blinde Deckel.
         katalog = _redigiere_skill_registry(raw_text)
         return katalog if katalog is not None else raw_text[:_ROH_DECKEL]
+    if name == _SAMMLUNGS_SUCHE:
+        kurz = _redigiere_sammlungs_suche(raw_text)
+        return kurz if kurz is not None else raw_text[:_ROH_DECKEL]
     if name == _KOMBI_WERKZEUG:
         kurz = _redigiere_kombi_suche(
             raw_text, mit_einzelinhalten=not _inline_grouping_mode)

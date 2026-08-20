@@ -1849,3 +1849,47 @@ und für WLO-Material weist seine Beschreibung weiter auf `get_wlo_content_text`
 Der deterministische Wikipedia-Aufruf in `wikipedia_service.py` bleibt daneben
 bestehen — er bedient einen anderen Auslöser (Canvas-Quellenangabe, nicht
 Modellentscheidung).
+
+---
+
+## 7. Paket V (2026-08-20) — Nachzug zum MCP-Deploy vom 20.08.
+
+Der Server fährt seit dem 20.08. den neuen Stand (live belegt: der Optik-Treffer
+trägt `hasCompendium: true` ohne Inline-Text). Sechs Teilpakete, alle testgetrieben:
+
+* **V1 Seitenkontext-Regression:** `get_node_details`-JSON trägt den
+  Kompendiumstext nicht mehr, nur das Signal — `page_context.py` las genau daraus
+  (`compendiumText`), der Prompt-Block auf Sammlungsseiten lief seit dem Deploy
+  leer. Jetzt: `has_compendium` aus dem Detail-JSON, Nachladen über
+  `get_compendium_text`; Inline-Text alter Server-Stände gewinnt weiterhin
+  (kein Zweitaufruf), Nachlade-Fehler lassen den Kontext bestehen.
+* **V2 Kontext-Regel (Nutzer-Entscheid):** `context`/`skillContext` nur, wenn
+  ausdrücklich ein Arbeitszusammenhang verlangt ist (Nutzer oder Einbettung) —
+  Vorgabe ist der volle Katalog. Umformuliert in `vorgehen.md`, in der
+  `get_skill_registry`-Definition und im 5× kopierten `skillContext`-Text
+  (neuer Wächter hält die 5 Kopien deckungsgleich). Dazu der Review-Befund vom
+  20.08.: eine mit `context=` verengte Registry-Antwort (erkannt an der
+  `Kontext:`-Kopfzeile) wird gar nicht mehr gekürzt — ihre Prosa IST die
+  Redaktions-Anweisung, und sie ist klein (~2 KB live).
+* **V3 Lizenzfilter:** `license` an `search_wlo_content` (neues Modell
+  `ContentSearchArgs`, da die Sammlungs-Suche das Feld serverseitig ablehnt),
+  `search_wlo_within_collection` und `search_wlo_all` (modellfrei, nur
+  Definition); das `data.pop("license")` mit inzwischen falscher Begründung ist
+  raus. Die Kombi-Redaktion reicht `licenseFilter` (geprüft/behalten) durch.
+* **V4 excludeNodeIds** (max. 200) an allen vier Suchwerkzeugen — der
+  dokumentierte Weg für „zeig mehr davon" statt Paging. Dafür strippt
+  `_export_non_empty` jetzt auch leere Listen (nicht nur leere Strings).
+* **V5 Master-Skill:** Lizenz-/Folgeseiten-Absatz unter „Finden"; M09 baut das
+  Gerüst aus `get_compendium_text(query: "Lehrplan …")` und sucht Material je
+  Schritt mit `search_wlo_content` (nicht `search_wlo_collections`); M19 nennt
+  freigegebene Prüfanleitungen als Maßstab vor dem eigenen; Einzelinhalt-Pfad
+  verkürzt (`get_node_collections` trägt seit dem Deploy die Skill-Kataloge);
+  Kompendium ohne `query` = „je Hauptabschnitt gekürzt".
+* **V6 Bulk:** `get_compendium_text` nimmt zusätzlich `nodeIds` (max. 9; der
+  Server nähme 25, aber der Langform-Pfad ist ungedeckelt — Review-Befund) für
+  Lückenanalysen über Geschwister-Sammlungen; der frühere Verzicht stützte sich
+  auf den Export-Filter, den V4 behoben hat (Vertragswechsel im Test begründet).
+
+Tore: `ruff check .` sauber · `pytest -q` **4068 passed, 4 skipped** ·
+`export_openapi.py --check` unverändert. Offen (Nutzer-Domäne): Commit,
+Backend-Image, Deploy, Republizieren des Master-Skills auf den Repo-Knoten.

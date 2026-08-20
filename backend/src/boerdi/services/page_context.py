@@ -112,6 +112,7 @@ def _extract_node_fields(raw: str) -> dict[str, Any]:
         "url": "",
         "compendium_text": "",
         "text_content": "",
+        "has_compendium": False,
     }
     if not raw:
         return out
@@ -150,6 +151,9 @@ def _extract_node_fields(raw: str) -> dict[str, Any]:
             # stay "" there. camelCase from formatNode → snake_case here.
             out["compendium_text"] = _str("compendiumText")
             out["text_content"] = _str("textContent")
+            # Server 2026-08-20: die Detail-Antwort trägt den Text nicht mehr
+            # inline, nur noch das Signal — der Aufrufer lädt dann nach.
+            out["has_compendium"] = data.get("hasCompendium") is True
             if out["title"]:
                 return out
 
@@ -338,6 +342,16 @@ async def resolve_page_context(
                                 "source": "topic_page_slug",
                                 "unresolved": False,
                             }
+
+        # Seit dem MCP-Deploy 2026-08-20 kommt der Kompendiumstext nur noch
+        # über get_compendium_text; die Detail-Antwort signalisiert ihn bloß.
+        # Bewusst ohne ``query``: der Seitenkontext braucht den Überblick
+        # (Inhaltsverzeichnis + gekappte Abschnitte), keine Passagen zu einer
+        # Frage — die stellt erst das Modell, mit eigenem Aufruf.
+        if meta is not None and meta.get("has_compendium") and not meta.get("compendium_text"):
+            raw3 = await call_mcp_tool("get_compendium_text", {"nodeId": meta["node_id"]})
+            if raw3 and not is_mcp_error(raw3):
+                meta["compendium_text"] = raw3
 
     except Exception as e:
         logger.warning("page_context resolve failed: %s", e)

@@ -28,7 +28,7 @@ beyond field bounds and alias normalisation; the sibling
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -50,6 +50,14 @@ class SearchWloArgs(BaseModel):
     publisher: str = ""
     parentNodeId: str = ""  # only valid for search_wlo_collections
     maxResults: int = Field(default=5, ge=1, le=20)  # maxItems is a legacy alias
+    # V4 (Server 2026-08-20): bereits gezeigte IDs überspringen — der
+    # dokumentierte Weg für „zeig mehr davon" statt skipCount-Paging.
+    excludeNodeIds: list[str] = Field(default_factory=list, max_length=200)
+
+    #: Felder, die das Server-Schema DIESES Werkzeugs nicht kennt
+    #: (``additionalProperties: false`` — mitreisen hieße Server-Fehler).
+    #: Die Sammlungs-Suche kennt weder ``license`` noch ``skipCount``.
+    _SERVER_UNBEKANNT: ClassVar[tuple[str, ...]] = ("license", "skipCount")
 
     @model_validator(mode="before")
     @classmethod
@@ -67,10 +75,23 @@ class SearchWloArgs(BaseModel):
         # maxItems → maxResults
         if "maxResults" not in data and "maxItems" in data:
             data["maxResults"] = data.pop("maxItems")
-        # Drop fields the real MCP schema doesn't know
-        data.pop("license", None)
-        data.pop("skipCount", None)
+        for feld in cls._SERVER_UNBEKANNT:
+            data.pop(feld, None)
         return data
+
+
+class ContentSearchArgs(SearchWloArgs):
+    """Arguments for search_wlo_content — kennt zusätzlich ``license``.
+
+    Server 2026-08-20: exakter Lizenzfilter ("CC BY 4.0", "gemeinfrei", …)
+    oder das Bündel "OER" (CC0/gemeinfrei/CC BY/CC BY-SA). ``skipCount``
+    kennt der Server hier zwar auch, bleibt aber bewusst undeklariert:
+    Folgeseiten laufen über ``excludeNodeIds`` — beim Lizenzbündel ist
+    Paging laut Server-Doku keine saubere Partition.
+    """
+    license: str = ""
+
+    _SERVER_UNBEKANNT: ClassVar[tuple[str, ...]] = ("skipCount",)
 
 
 class CollectionContentsArgs(BaseModel):
@@ -82,6 +103,13 @@ class CollectionContentsArgs(BaseModel):
     nodeId: str
     query: str = ""
     contentFilter: str = ""  # "files" | "folders" | "both"
+    # Server 2026-08-18: liefert die Skills DIESES Arbeitszusammenhangs samt
+    # der Anweisung der Redaktion mit der Sammlungsantwort — der
+    # get_skill_registry-Zwischenschritt entfällt. Ein Name, der nicht trifft,
+    # liefert den vollen Katalog samt vorhandener Namen, nie einen Fehler.
+    # Nutzungsregel (2026-08-20): nur auf ausdrücklichen Wunsch verengen
+    # (Nutzer/Einbettung) — Vorgabe ist der volle Katalog.
+    skillContext: str = ""
     includeSubcollections: bool = False
     maxResults: int = Field(default=5, ge=1, le=100)
     skipCount: int = Field(default=0, ge=0)
@@ -103,6 +131,7 @@ class NodeDetailsArgs(BaseModel):
     includeTextContent: bool = False
     includeParents: bool = False
     includeRaw: bool = False
+    skillContext: str = ""  # wie CollectionContentsArgs (Server 2026-08-18)
 
 
 class SearchTopicPagesArgs(BaseModel):
@@ -178,13 +207,22 @@ class NodeBreadcrumbArgs(BaseModel):
 class CompendiumTextArgs(BaseModel):
     """Arguments for get_compendium_text (W9a).
 
-    The server also accepts ``nodeIds`` for a bulk fetch. We deliberately
-    expose only the single-node form: the export filter in
-    ``validate_tool_args`` strips empty *strings* only, so an unused list would
-    travel as ``nodeIds: []``. One compendium per call costs a round trip and
-    saves a special case.
+    ``nodeIds`` (V6) ergänzt ``nodeId`` um weitere Sammlungen — der Server
+    vereinigt beide Angaben und nähme bis zu 25. Wir bieten 9: die Antwort
+    läuft ungedeckelt durch die Redaktion (Langform-Pfad), und der
+    Server-Deckel gilt JE Kompendium — 25 auf einmal multiplizierten ihn auf
+    >100 KB Prompt (Review 2026-08-20). Der frühere Verzicht auf die Liste
+    stützte sich darauf, dass der Export-Filter nur leere Strings strippte;
+    seit V4 strippt er auch leere Listen.
+
+    ``query`` (Server 2026-08-18): nur die per BM25 passenden Absätze samt
+    Inhaltsverzeichnis statt des ganzen Texts — gemessen ~5 KB statt ~21 KB am
+    größten Kompendium. Die Antwort nennt Suchwörter ohne Treffer ausdrücklich.
+    ``max_length`` spiegelt die Server-Schranke.
     """
     nodeId: str
+    nodeIds: list[str] = Field(default_factory=list, max_length=9)
+    query: str = Field(default="", max_length=200)
 
 
 class PublishersLookupArgs(BaseModel):
@@ -212,6 +250,9 @@ class WithinCollectionArgs(BaseModel):
     learningResourceType: str = ""
     publisher: str = ""
     maxResults: int = Field(default=10, ge=1, le=20)
+    skillContext: str = ""  # wie CollectionContentsArgs (Server 2026-08-18)
+    license: str = ""  # wie ContentSearchArgs (Server 2026-08-20)
+    excludeNodeIds: list[str] = Field(default_factory=list, max_length=200)  # wie SearchWloArgs
 
     @model_validator(mode="before")
     @classmethod
@@ -240,6 +281,7 @@ class RelatedContentArgs(BaseModel):
     nodeId: str
     maxResults: int = Field(default=8, ge=1, le=20)
     includeSiblings: bool = False
+    skillContext: str = ""  # wie CollectionContentsArgs (Server 2026-08-18)
 
 
 class NodeCollectionsArgs(BaseModel):
@@ -372,6 +414,15 @@ class SkillRegistryArgs(BaseModel):
     Antwort dem Modell vor, und dort ist der Registry-Text mit den
     Verwendungshinweisen der Redaktion mehr wert als ein JSON-Baum. Nur wer
     zählen will — ``context_facts`` — verlangt JSON.
+
+    ``context`` (Server 2026-08-18): eine Überschrift des Registry-Dokuments —
+    dann kommt nur dieser Arbeitszusammenhang zurück. Gemessen am deployten
+    Server: 28 Skills/~14 KB ohne, 1 Skill/~2 KB mit ``context``. Ein Name, der
+    nicht trifft, liefert den vollen Katalog samt der vorhandenen Namen — nie
+    einen Fehler. Leer = alles (der Export-Filter strippt leere Strings).
+    Nutzungsregel (Nutzer-Entscheid 2026-08-20): nur auf ausdrücklichen
+    Wunsch verengen (Nutzer oder Einbettung) — Vorgabe ist der volle Katalog.
     """
     collectionId: str = Field(max_length=64)
+    context: str = Field(default="", max_length=120)
     outputFormat: Literal["markdown", "json"] = "markdown"

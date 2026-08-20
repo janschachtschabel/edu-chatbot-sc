@@ -556,3 +556,71 @@ def test_ein_fehler_im_seitenblock_kostet_keinen_zug(monkeypatch, caplog):
     assert [r for r in caplog.records if r.levelno >= logging.WARNING], (
         "der Ausfall wurde nicht gemeldet"
     )
+
+
+# ── V1 (2026-08-20): MCP-Deploy — Details-JSON trägt nur noch das Signal ────
+# Gemessen live: der Optik-Treffer kam mit ``hasCompendium: true`` und OHNE
+# ``compendiumText``; get_node_details liefert im JSON denselben Stand. Ohne
+# Nachladen wäre der Kompendium-Block des Seitenkontexts seit dem Deploy leer.
+
+def test_hascompendium_signal_loest_nachladen_aus(monkeypatch):
+    calls = []
+
+    async def fake_call(tool, args):
+        calls.append((tool, dict(args)))
+        if tool == "get_node_details":
+            return json.dumps({
+                "nodeId": args["nodeId"], "title": "Optik",
+                "disciplines": ["Physik"], "hasCompendium": True,
+            })
+        assert tool == "get_compendium_text"
+        return "## Optik\nDie Optik ist ein Teilgebiet der Physik."
+
+    _patch_mcp(monkeypatch, fake_call)
+    meta = asyncio.run(p.resolve_page_context({"collection_id": "c-optik"}, {}))
+    assert "Teilgebiet der Physik" in meta["compendium_text"]
+    assert ("get_compendium_text", {"nodeId": "c-optik"}) in calls
+
+
+def test_ohne_signal_kein_nachladen(monkeypatch):
+    calls = []
+
+    async def fake_call(tool, args):
+        calls.append(tool)
+        return json.dumps({"nodeId": args["nodeId"], "title": "Arbeitsblatt",
+                           "disciplines": ["Mathematik"]})
+
+    _patch_mcp(monkeypatch, fake_call)
+    meta = asyncio.run(p.resolve_page_context({"node_id": "m-1"}, {}))
+    assert meta["compendium_text"] == ""
+    assert calls == ["get_node_details"]
+
+
+def test_inline_text_gewinnt_kein_zweitaufruf(monkeypatch):
+    """Alte Server-Stände liefern den Text noch inline — dann kein Nachladen."""
+    calls = []
+
+    async def fake_call(tool, args):
+        calls.append(tool)
+        return json.dumps({"nodeId": args["nodeId"], "title": "Optik",
+                           "disciplines": ["Physik"], "hasCompendium": True,
+                           "compendiumText": "Inline-Text."})
+
+    _patch_mcp(monkeypatch, fake_call)
+    meta = asyncio.run(p.resolve_page_context({"collection_id": "c-1"}, {}))
+    assert meta["compendium_text"] == "Inline-Text."
+    assert calls == ["get_node_details"]
+
+
+def test_nachlade_fehler_laesst_den_kontext_bestehen(monkeypatch):
+    async def fake_call(tool, args):
+        if tool == "get_node_details":
+            return json.dumps({"nodeId": args["nodeId"], "title": "Optik",
+                               "disciplines": ["Physik"], "hasCompendium": True})
+        return "MCP error: upstream down"
+
+    _patch_mcp(monkeypatch, fake_call)
+    meta = asyncio.run(p.resolve_page_context({"collection_id": "c-1"}, {}))
+    assert meta["title"] == "Optik"
+    assert meta["unresolved"] is False
+    assert meta["compendium_text"] == ""

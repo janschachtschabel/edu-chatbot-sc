@@ -194,16 +194,25 @@ def test_collection_stats_requires_a_node_id():
     assert _tool("get_collection_stats")["parameters"]["required"] == ["nodeId"]
 
 
-def test_compendium_text_offers_one_node_at_a_time():
-    # Der Server kann auch ``nodeIds`` (Mehrfach-Abruf). Wir bieten es dem
-    # Modell BEWUSST nicht an: der Export-Filter in ``validate_tool_args``
-    # entfernt nur leere Strings, eine leere Liste ginge als ``nodeIds: []``
-    # mit raus. Ein Kompendium je Aufruf kostet einen Roundtrip mehr und
-    # spart eine Sonderbehandlung — Bündelung ist eine Optimierung, die kein
-    # Anwendungsfall verlangt.
+def test_compendium_text_bietet_auch_den_buendel_abruf():
+    """Vertragswechsel V6 (2026-08-20), vorher bewusst Einzelform.
+
+    Die alte Begründung — der Export-Filter strippe nur leere Strings, eine
+    leere Liste ginge als ``nodeIds: []`` mit raus — ist seit V4 hinfällig
+    (leere Listen werden gestrippt). Und der Anwendungsfall existiert jetzt:
+    Lückenanalyse über Geschwister-Sammlungen in EINEM Aufruf (M19,
+    MCP-Hinweis 6). ``nodeId`` bleibt Pflicht; ``nodeIds`` ergänzt weitere —
+    der Server vereinigt beide Angaben.
+    """
     props = _tool("get_compendium_text")["parameters"]["properties"]
     assert "nodeId" in props
-    assert "nodeIds" not in props
+    assert "nodeIds" in props
+
+
+def test_compendium_text_haelt_ein_buendel():
+    out = validate_tool_args(
+        "get_compendium_text", {"nodeId": "a", "nodeIds": ["b", "c"]})
+    assert out == {"nodeId": "a", "nodeIds": ["b", "c"]}
 
 
 def test_publishers_lookup_can_be_scoped():
@@ -454,3 +463,135 @@ def test_zahlgrenzen_klemmen_weiterhin():
     """Die Gegenprobe zum Test darueber: der W10-Reparaturschritt bleibt heil."""
     out = validate_tool_args("get_url_text", {"url": "https://e.org/", "maxChars": 99999})
     assert out["maxChars"] == 50000
+
+
+# ── MCP-Server-Update 2026-08-18/20: query, context, skillContext ──────────
+# Die Fähigkeiten existierten serverseitig, waren aber unerreichbar: das
+# Modell kann nur senden, was die Definition deklariert. Gemessen am
+# deployten Server: get_skill_registry(f35c17d1) = 28 Skills/~14 KB, mit
+# context="Stunde planen" = 1 Skill/~2 KB; get_compendium_text ohne query
+# bis ~21 KB, mit query ~5 KB (Messung der MCP-Entwickler).
+
+def _params(name: str) -> dict:
+    from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
+    defn = next(t for t in TOOL_DEFINITIONS if t["function"]["name"] == name)
+    return defn["function"]["parameters"]["properties"]
+
+
+def test_kompendium_deklariert_die_suchanfrage():
+    assert "query" in _params("get_compendium_text")
+
+
+def test_registry_deklariert_den_kontext():
+    assert "context" in _params("get_skill_registry")
+
+
+def test_die_fuenf_sammlungs_werkzeuge_deklarieren_skillContext():
+    for name in ("get_collection_contents", "search_wlo_within_collection",
+                 "get_node_details", "get_topic_page_content",
+                 "get_related_content"):
+        assert "skillContext" in _params(name), name
+
+
+def test_validierung_laesst_die_neuen_argumente_durch():
+    """Deklariert UND validierbar — ein Parameter, den ``validate_tool_args``
+    still verwirft, ist genau die halbe Fähigkeit, die dieser Block anmahnt."""
+    from boerdi.services.mcp.tool_args import validate_tool_args
+
+    faelle = [
+        ("get_compendium_text", {"nodeId": "n", "query": "Lehrplan Thüringen"}, "query"),
+        ("get_skill_registry", {"collectionId": "c", "context": "Stunde planen"}, "context"),
+        ("get_collection_contents", {"collectionId": "c", "skillContext": "X"}, "skillContext"),
+        ("search_wlo_within_collection",
+         {"nodeId": "c", "query": "q", "skillContext": "X"}, "skillContext"),
+        ("get_node_details", {"nodeId": "n", "skillContext": "X"}, "skillContext"),
+        ("get_related_content", {"nodeId": "n", "skillContext": "X"}, "skillContext"),
+    ]
+    for werkzeug, args, feld in faelle:
+        raus = validate_tool_args(werkzeug, args)
+        assert raus.get(feld) == args[feld], f"{werkzeug}: {feld} kam nicht durch"
+
+
+# ── V3 (2026-08-20): Lizenzfilter — der Server kennt license an drei Suchen ─
+
+def test_content_search_keeps_the_license_filter():
+    out = validate_tool_args("search_wlo_content", {"query": "Optik", "license": "OER"})
+    assert out.get("license") == "OER"
+
+
+def test_within_collection_search_keeps_the_license_filter():
+    out = validate_tool_args(
+        "search_wlo_within_collection", {"nodeId": "c1", "license": "CC BY 4.0"})
+    assert out.get("license") == "CC BY 4.0"
+
+
+def test_collection_search_drops_the_license_filter():
+    # search_wlo_collections kennt serverseitig kein ``license``
+    # (``additionalProperties: false``) — mitreisen hieße Server-Fehler.
+    out = validate_tool_args("search_wlo_collections", {"query": "Optik", "license": "OER"})
+    assert "license" not in out
+
+
+def test_search_tools_offer_the_license_filter():
+    fuer = {d["function"]["name"]: d["function"]["parameters"]["properties"]
+            for d in TOOL_DEFINITIONS}
+    for name in ("search_wlo_content", "search_wlo_all", "search_wlo_within_collection"):
+        assert "license" in fuer[name], name
+    assert "license" not in fuer["search_wlo_collections"]
+
+
+# ── V4 (2026-08-20): excludeNodeIds — der dokumentierte Weg für Folgeseiten ─
+
+def test_search_models_keep_exclude_node_ids():
+    for tool, extra in (("search_wlo_content", {"query": "x"}),
+                        ("search_wlo_collections", {"query": "x"}),
+                        ("search_wlo_within_collection", {"nodeId": "c1"})):
+        out = validate_tool_args(tool, {**extra, "excludeNodeIds": ["a", "b"]})
+        assert out.get("excludeNodeIds") == ["a", "b"], tool
+
+
+def test_leere_liste_reist_nicht_mit():
+    # ``_export_non_empty`` strippt seit V4 auch leere Listen — sonst ginge
+    # der Default ``[]`` mit JEDEM Aufruf zum Server.
+    out = validate_tool_args("search_wlo_content", {"query": "x"})
+    assert "excludeNodeIds" not in out
+
+
+def test_search_tools_offer_exclude_node_ids():
+    fuer = {d["function"]["name"]: d["function"]["parameters"]["properties"]
+            for d in TOOL_DEFINITIONS}
+    for name in ("search_wlo_content", "search_wlo_all",
+                 "search_wlo_collections", "search_wlo_within_collection"):
+        assert "excludeNodeIds" in fuer[name], name
+
+
+# ── V2 (2026-08-20): Kontext nur auf ausdrücklichen Wunsch ──────────────────
+
+def _props(name):
+    return next(d["function"]["parameters"]["properties"]
+                for d in TOOL_DEFINITIONS if d["function"]["name"] == name)
+
+
+def test_skillcontext_beschreibungen_identisch_und_mit_regel():
+    """Der Text steht 5× wörtlich kopiert (Datei-Konvention: Inline-Literale)
+    — dieser Wächter hält die Kopien deckungsgleich und pinnt die Regel:
+    nur auf ausdrücklichen Wunsch, sonst voller Katalog."""
+    traeger = ("get_collection_contents", "search_wlo_within_collection",
+               "get_node_details", "get_topic_page_content", "get_related_content")
+    texte = {_props(n)["skillContext"]["description"] for n in traeger}
+    assert len(texte) == 1
+    assert texte.pop().startswith("Nur setzen")
+
+
+def test_registry_context_beschreibung_traegt_die_regel():
+    assert _props("get_skill_registry")["context"]["description"].startswith("Nur setzen")
+
+
+def test_compendium_buendel_ist_auf_neun_begrenzt():
+    """Review-Befund 1 (2026-08-20): get_compendium_text ist im Langform-Pfad
+    NIE gedeckelt, und der Server-Deckel gilt je Kompendium — 25 auf einmal
+    multiplizierten ihn auf >100 KB Prompt. 1+9 deckt die Lückenanalyse."""
+    from annotated_types import MaxLen
+
+    from boerdi.api.schemas import CompendiumTextArgs
+    assert MaxLen(9) in CompendiumTextArgs.model_fields["nodeIds"].metadata

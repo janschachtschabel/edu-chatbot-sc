@@ -871,3 +871,44 @@ def test_andere_werkzeuge_erzeugen_keinen_eintrag(monkeypatch):
          _resp_text("Fertig.")],
     )
     assert lauf.anleitungen == []
+
+
+# ── Die Prompt-Sicht wird strukturell redigiert (2026-08-20) ───────────────
+
+def test_prompt_sicht_der_sammlungs_suche_ist_redigiert_karten_sehen_roh(monkeypatch):
+    """Die 35-KB-Antwort reiste bisher VOLL in jede Folgerunde (kein Deckel im
+    Agent-Weg — gemessen an search_wlo_collections „Optik", ~30 KB davon
+    Kompendium). Die Nachrichtenkette bekommt die strukturelle Kürzung; die
+    Karten-Ernte liest weiter den Rohtext, sonst verlöre das Widget Felder,
+    die das Modell nicht braucht."""
+    antwort = json.dumps({"total": 2, "count": 2, "results": [
+        {"nodeId": "n-1", "title": "Optik", "description": "D",
+         "compendiumText": "K" * 30000},
+        {"nodeId": "n-2", "title": "Wellenoptik"},
+    ]})
+    geerntet: list[tuple[str, str]] = []
+    _, lauf, msgs = _lauf(
+        monkeypatch,
+        [_resp_tools([_tool_call("search_wlo_collections", {"query": "Optik"})]),
+         _resp_text("Fertig.")],
+        outcome=_OutcomeFake({"search_wlo_collections": antwort}),
+        on_tool_result=lambda name, text: geerntet.append((name, text)),
+    )
+    tool_msg = next(m for m in msgs if m.get("role") == "tool")
+    assert "n-1" in tool_msg["content"] and "n-2" in tool_msg["content"]
+    assert "KKKK" not in tool_msg["content"], "Kompendium reiste ungekürzt mit"
+    assert geerntet and "KKKK" in geerntet[0][1], "die Ernte muss den Rohtext sehen"
+
+
+def test_get_skill_bleibt_in_der_kette_ungekuerzt(monkeypatch):
+    """Der Gegenpol: die Anleitung ist der Arbeitsvertrag des Zuges und muss
+    ganz ankommen — im Agent-Weg war das immer so und bleibt so."""
+    lang = "# Stunde planen\n" + ("Regel.\n" * 2000)
+    _, lauf, msgs = _lauf(
+        monkeypatch,
+        [_resp_tools([_tool_call("get_skill", {"nodeId": "x"})]),
+         _resp_text("Fertig.")],
+        outcome=_OutcomeFake({"get_skill": lang}),
+    )
+    tool_msg = next(m for m in msgs if m.get("role") == "tool")
+    assert lang in tool_msg["content"]

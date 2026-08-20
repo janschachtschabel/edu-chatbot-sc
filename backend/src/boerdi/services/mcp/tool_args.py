@@ -23,6 +23,7 @@ from boerdi.api.schemas import (
     CollectionStatsArgs,
     CollectionTreeArgs,
     CompendiumTextArgs,
+    ContentSearchArgs,
     HealthCheckArgs,
     LookupVocabularyArgs,
     NodeBreadcrumbArgs,
@@ -52,7 +53,7 @@ logger = logging.getLogger(__name__)
 # have been removed because RAG handles those topics in Boerdi.
 _TOOL_ARG_MODELS: dict[str, type] = {
     "search_wlo_collections": SearchWloArgs,
-    "search_wlo_content":     SearchWloArgs,
+    "search_wlo_content":     ContentSearchArgs,
     "search_wlo_topic_pages": SearchTopicPagesArgs,
     "get_collection_contents":CollectionContentsArgs,
     "get_node_details":       NodeDetailsArgs,
@@ -91,14 +92,17 @@ _TOOL_ARG_MODELS: dict[str, type] = {
 
 
 def _export_non_empty(model: type, validated: Any) -> dict[str, Any]:
-    """Export only non-empty values (strip empty optional strings).
+    """Export only non-empty values (strip empty optional strings/lists).
 
-    Nur LEERE STRINGS strippen — explizite False/0-Werte behalten
-    (``v != 0`` fraß wegen ``False == 0`` auch Bool-False, C7).
+    Nur LEERE Strings und Listen strippen — explizite False/0-Werte behalten
+    (``v != 0`` fraß wegen ``False == 0`` auch Bool-False, C7). Leere Listen
+    seit V4 (2026-08-20): ``excludeNodeIds``-Defaults reisten sonst mit jedem
+    Aufruf zum Server; ``False``/``0`` fallen nicht darunter, weil ``in``
+    über ``==`` vergleicht und ``False == []`` falsch ist.
     """
     return {
         k: v for k, v in validated.model_dump().items()
-        if v != "" or (k in model.model_fields and model.model_fields[k].is_required())
+        if v not in ("", []) or (k in model.model_fields and model.model_fields[k].is_required())
     }
 
 

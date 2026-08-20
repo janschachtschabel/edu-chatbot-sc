@@ -406,3 +406,258 @@ def test_ohne_erkennbare_feldmarken_bleibt_der_blinde_deckel():
     fremd = "Serverfehler: registry temporarily unavailable. " * 200
     sichtbar = _redact_search_content_for_llm("get_skill_registry", fremd, [], False)
     assert sichtbar == fremd[:4000]
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Langform-Werkzeuge sind vom blinden Deckel ausgenommen (2026-08-20)
+# ════════════════════════════════════════════════════════════════════════
+# Der Befund, live gemessen: die Anleitung „Stunde planen" ist ~11 000 Zeichen,
+# der blinde Deckel schnitt sie bei 4 000 ab — das Muster-Modell hat
+# Konsistenzregeln, Sperren, Ausgabeformat und Werkzeugtabelle NIE gesehen.
+# Genau das erklärt den Befund vom 16.08./19.08.: „wird geladen" stand über
+# der Antwort, gearbeitet wurde nach einem halben Skill. Der Agent-Weg (ohne
+# Redaktion) bekam die volle Anleitung und lieferte den Verlaufsplan.
+
+def test_get_skill_wird_nie_gekappt():
+    lang = "# Stunde planen\n" + ("Regel.\n" * 2000)
+    assert len(lang) > 4000
+    out = _redact_search_content_for_llm("get_skill", lang, [], False)
+    assert out == lang
+
+
+def test_get_skill_bleibt_auch_im_inline_modus_ganz():
+    lang = "# Anleitung\n" + ("x" * 6000)
+    assert _redact_search_content_for_llm("get_skill", lang, [], True) == lang
+
+
+def test_kompendium_und_volltext_tragen_ihren_eigenen_deckel():
+    """Beide sind server-/clientseitig gedeckelt (SECTION_MAX bzw. maxChars) —
+    ein zweiter, blinder Deckel darüber zerriss die Lehrplan-Abschnitte."""
+    lang = "## Lehrplanbezug\n" + ("y" * 9000)
+    for name in ("get_compendium_text", "get_wlo_content_text"):
+        assert _redact_search_content_for_llm(name, lang, [], False) == lang
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Flache Sammlungs-Suche wird strukturell gekürzt statt blind geschnitten
+# ════════════════════════════════════════════════════════════════════════
+# Live gemessen (search_wlo_collections „Optik", 2026-08-20): ~35 KB Antwort,
+# davon ~30 KB Kompendiumstext im ERSTEN Treffer. raw[:4000] zeigte dem Modell
+# Treffer 1 halb und verschluckte Treffer 2–4 samt nodeIds — dieselbe Lücke,
+# die ``_redigiere_kombi_suche`` für search_wlo_all geschlossen hat.
+
+def _sammlungs_antwort() -> str:
+    return json.dumps({"total": 4, "count": 4, "results": [
+        {"nodeId": "n-1", "title": "Optik", "description": "D1",
+         "keywords": ["Licht"], "disciplines": ["Physik"],
+         "educationalContexts": ["Sekundarstufe I"],
+         "compendiumText": "K" * 30000,
+         "skillRegistry": {"nodeId": "r-1", "entries": []},
+         "previewUrl": "https://x/p", "mimeType": "application/x-directory"},
+        {"nodeId": "n-2", "title": "Wellenoptik", "description": "D2"},
+        {"nodeId": "n-3", "title": "Geometrische Optik", "description": "D3"},
+        {"nodeId": "n-4", "title": "EM-Wellen", "description": "D4"},
+    ]})
+
+
+def test_sammlungs_suche_alle_node_ids_kommen_an():
+    out = _redact_search_content_for_llm(
+        "search_wlo_collections", _sammlungs_antwort(), [], False)
+    for nid in ("n-1", "n-2", "n-3", "n-4"):
+        assert nid in out, f"{nid} hat die Kürzung nicht überlebt"
+    assert len(out) < 4000
+
+
+def test_sammlungs_suche_markiert_das_kompendium_statt_es_mitzuschicken():
+    out = _redact_search_content_for_llm(
+        "search_wlo_collections", _sammlungs_antwort(), [], False)
+    assert "hasCompendium" in out
+    assert "KKKK" not in out
+
+
+def test_sammlungs_suche_behaelt_die_trefferzahl():
+    out = _redact_search_content_for_llm(
+        "search_wlo_collections", _sammlungs_antwort(), [], False)
+    daten = json.loads(out)
+    assert daten["total"] == 4 and daten["count"] == 4
+
+
+def test_sammlungs_suche_ohne_lesbares_json_faellt_auf_den_schnitt_zurueck():
+    raw = "kein json " * 500
+    out = _redact_search_content_for_llm("search_wlo_collections", raw, [], False)
+    assert out == raw[:4000]
+
+
+# ════════════════════════════════════════════════════════════════════════
+# redigiere_strukturell — die Sicht der Agent-Schleife (2026-08-20)
+# ════════════════════════════════════════════════════════════════════════
+# Die Agent-Schleife hatte GAR KEINE Ergebnis-Redaktion: die 35-KB-Antwort
+# reiste voll in jede Folgerunde. Sie bekommt NUR die strukturellen Kürzungen
+# (nachladbarer Ballast raus), NIE den blinden Deckel — get_skill & Co. müssen
+# dort weiterhin ganz ankommen, so wie bisher.
+
+def test_strukturell_kuerzt_die_sammlungs_suche():
+    from boerdi.domain.tool_result_redaction import redigiere_strukturell
+    out = redigiere_strukturell("search_wlo_collections", _sammlungs_antwort())
+    assert "n-4" in out and "KKKK" not in out and len(out) < 4000
+
+
+def test_strukturell_laesst_langform_und_unbekanntes_unangetastet():
+    from boerdi.domain.tool_result_redaction import redigiere_strukturell
+    lang = "z" * 9000
+    assert redigiere_strukturell("get_skill", lang) == lang
+    assert redigiere_strukturell("get_node_details", lang) == lang
+
+
+def test_strukturell_kuerzt_katalog_und_kombi_wie_der_musterweg():
+    from boerdi.domain.tool_result_redaction import redigiere_strukturell
+    kombi = json.dumps({
+        "content": {"total": 1, "results": [
+            {"nodeId": "c-1", "title": "T", "compendiumText": "Q" * 8000}]},
+        "collections": {"total": 0, "results": []},
+        "topicPages": {"total": 0, "results": []},
+    })
+    out = redigiere_strukturell("search_wlo_all", kombi)
+    assert "c-1" in out and "QQQQ" not in out
+
+
+def test_die_verengte_registry_antwort_wird_gelesen():
+    """``get_skill_registry(…, context=…)`` liefert eine ANDERE Markdown-Form
+    (live gemessen 2026-08-20): eine ``Kontext:``-Zeile im Kopf, ein einzelner
+    Katalogeintrag, KEIN ``## Kontexte``-Index. Der Parser ist an der vollen
+    Form gebaut — dieser Wächter hält fest, dass die nodeId auch aus der
+    verengten Form ankommt, denn sie ist der einzige Weg zu ``get_skill``."""
+    from boerdi.domain.tool_result_redaction import _redigiere_skill_registry
+
+    verengte = (
+        "# Skill Registry\n"
+        "Registry-Dokument: 247da7a9 — Sammlung: f35c17d1\n"
+        "Kontext: Stunde planen\n\n"
+        "## Freigegebene Skills (1)\n\n"
+        "### Stunde planen\n"
+        "nodeId: 5b29f470-4417-49bb-a9f4-70441739bb3a\n"
+        "Plant eine konkrete Einzel- oder Doppelstunde als Verlaufsplan.\n"
+        "Keywords: stunde-planen, Vorgabe & Planung\n\n"
+        "Das ist nur die Übersicht — die Anleitung lädt `get_skill`.\n"
+    )
+    out = _redigiere_skill_registry(verengte)
+    assert out is not None
+    assert "5b29f470-4417-49bb-a9f4-70441739bb3a" in out
+    assert "Stunde planen" in out
+
+
+# ════════════════════════════════════════════════════════════════════════
+# MCP-Ansage 2026-08-20: ``hasCompendium`` kommt serverseitig, der Inline-
+# Text verschwindet aus den Suchtreffern. Beide Server-Stände müssen durch
+# dieselbe Kürzung — das Deploy-Datum ist angekündigt, nicht terminiert,
+# und der Chatbot darf weder vor noch nach dem Stichtag die Markierung
+# verlieren.
+# ════════════════════════════════════════════════════════════════════════
+
+def test_servergesetztes_hasCompendium_ueberlebt_die_kuerzung():
+    """Nach dem Server-Deploy: kein ``compendiumText`` mehr im Treffer,
+    stattdessen ``hasCompendium: true`` vom Server. Bisher hätte
+    ``_kurzfassung`` das Feld weggefiltert (nicht in ``_KOMBI_FELDER``) und
+    nichts abgeleitet (kein Inline-Text) — die Markierung wäre still weg."""
+    nach_deploy = json.dumps({"total": 1, "count": 1, "results": [
+        {"nodeId": "n-1", "title": "Optik", "hasCompendium": True},
+    ]})
+    out = _redact_search_content_for_llm(
+        "search_wlo_collections", nach_deploy, [], False)
+    assert "hasCompendium" in out
+
+
+def test_der_alte_serverstand_traegt_weiter_die_abgeleitete_markierung():
+    """Vor dem Deploy: Inline-Text da, kein Server-Feld — der abgeleitete
+    Marker bleibt. Beide Stände, ein Verhalten."""
+    vor_deploy = json.dumps({"total": 1, "count": 1, "results": [
+        {"nodeId": "n-1", "title": "Optik", "compendiumText": "K" * 500},
+    ]})
+    out = _redact_search_content_for_llm(
+        "search_wlo_collections", vor_deploy, [], False)
+    assert "hasCompendium" in out and "KKKK" not in out
+
+
+def test_ohne_kompendium_keine_falsche_markierung():
+    ohne = json.dumps({"total": 1, "count": 1, "results": [
+        {"nodeId": "n-1", "title": "Wellenoptik", "hasCompendium": False},
+    ]})
+    out = _redact_search_content_for_llm(
+        "search_wlo_collections", ohne, [], False)
+    assert "hasCompendium" not in out
+
+
+def test_kombi_redaktion_traegt_den_lizenzfilter_weiter():
+    """V3 (2026-08-20): die Antwort legt offen, wie viele Treffer exakt auf die
+    Lizenz geprüft/behalten wurden — das gehört in die Einordnung des Modells."""
+    from boerdi.domain.tool_result_redaction import _redigiere_kombi_suche
+
+    env = {"query": "Optik", "content": {
+        "total": 12, "count": 2,
+        "licenseFilter": {"checked": 12, "kept": 2},
+        "results": [{"nodeId": "n1", "title": "T", "license": "CC BY 4.0"}],
+    }}
+    out = _redigiere_kombi_suche(json.dumps(env), mit_einzelinhalten=True)
+    parsed = json.loads(out)
+    assert parsed["content"]["licenseFilter"] == {"checked": 12, "kept": 2}
+
+
+def test_verengte_registry_antwort_bleibt_ungekuerzt():
+    """V2 (2026-08-20): eine mit ``context=`` verengte Antwort ist klein
+    (~2 KB live gemessen), und ihre Prosa hinter der Trennlinie IST die
+    Redaktions-Anweisung — die Kürzung würde genau sie wegwerfen. Erkannt
+    an der ``Kontext:``-Zeile im Kopf, die nur die verengte Form trägt."""
+    from boerdi.domain.tool_result_redaction import _redigiere_skill_registry
+
+    raw = (
+        "# WLO-Sammlungs-Agent-Anweisung\n"
+        "Registry-Dokument: d84d54c4 — Sammlung: 9e7ae956\n"
+        "Kontext: Redaktionsumgebung\n\n"
+        "## Freigegebene Skills (1)\n\n"
+        "### Vertretungsstunde planen\n"
+        "nodeId: efb09968-0e8a-45a1-b099-680e8a65a185\n"
+        "Erzeugt eine sofort durchführbare Vertretungsstunde.\n\n"
+        "---\n\n"
+        "Nutze die hier aufgelisteten Skills für die Qualitätsprüfung.\n"
+        "Falls die Skills eine Antwort auf einer Skala vorsehen, bitte das "
+        "Ergebnis und die Einschätzung ausgeben.\n"
+    )
+    assert _redigiere_skill_registry(raw) == raw
+
+
+def test_volle_registry_antwort_wird_weiter_gekuerzt():
+    """Gegenprobe: ohne ``Kontext:``-Kopfzeile bleibt die Kürzung aktiv."""
+    from boerdi.domain.tool_result_redaction import _redigiere_skill_registry
+
+    raw = (
+        "# WLO-Sammlungs-Agent-Anweisung\n"
+        "Registry-Dokument: d84d54c4 — Sammlung: 9e7ae956\n\n"
+        "## Freigegebene Skills (1)\n\n"
+        "### Stunde planen\n"
+        "nodeId: 5b29f470-4417-49bb-a9f4-70441739bb3a\n"
+        "Plant eine Einzelstunde.\n\n"
+        "---\n\n"
+        "Lange Prosafassung, die die Liste doppelt.\n"
+    )
+    out = _redigiere_skill_registry(raw)
+    # Nur die Kürzung selbst pinnen — der Markdown-Fallback hängt beim
+    # LETZTEN Eintrag den Resttext an dessen Beschreibung (Bestand).
+    assert out is not None and out != raw
+    assert out.startswith("Freigegebene Skills dieser Sammlung")
+    assert "5b29f470-4417-49bb-a9f4-70441739bb3a" in out
+
+
+def test_kombi_redaktion_zeigt_die_lizenz_je_treffer():
+    """Review-Befund 2 (2026-08-20): beim "OER"-Bündel muss das Modell sehen,
+    WELCHE der vier Lizenzen ein Treffer trägt — sonst rät es. Sammlungen
+    ohne Lizenz bleiben schlank (leere Felder fallen in _kurzfassung weg)."""
+    from boerdi.domain.tool_result_redaction import _redigiere_kombi_suche
+
+    env = {"query": "Optik", "content": {
+        "total": 2, "count": 2,
+        "results": [{"nodeId": "n1", "title": "T", "license": "CC BY 4.0"},
+                    {"nodeId": "n2", "title": "U", "license": ""}],
+    }}
+    parsed = json.loads(_redigiere_kombi_suche(json.dumps(env), mit_einzelinhalten=True))
+    assert parsed["content"]["results"][0]["license"] == "CC BY 4.0"
+    assert "license" not in parsed["content"]["results"][1]

@@ -54,6 +54,7 @@ from boerdi.domain.result_delivery import (
     LIEFERE_ERGEBNIS,
     ergebnis_aus_argumenten,
 )
+from boerdi.domain.tool_result_redaction import redigiere_strukturell
 from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.usage import new_accumulator
@@ -458,9 +459,14 @@ async def run_agent_loop(
             # des Rahmens, weil er unsere Anweisung ist. Auf ``beobachtet``,
             # nicht auf ``text``: was die Schlüssel-Redaktion entfernt hat, darf
             # auch hier nicht wieder auftauchen.
+            # Die Prompt-Sicht wird strukturell redigiert (2026-08-20): die
+            # Sammlungs-Suche trug live ~30 KB nachladbaren Kompendiumstext im
+            # ersten Treffer, und diese Kette zahlt jede Runde erneut. NUR die
+            # Kette — Ernte und Registry-Hinweis lesen weiter ``beobachtet``,
+            # und Langform-Werkzeuge (get_skill!) kommen unverändert durch.
             messages.append(_tool_turn(
                 tc.id,
-                frame_untrusted(name, beobachtet)
+                frame_untrusted(name, redigiere_strukturell(name, beobachtet))
                 + skill_registry_note(beobachtet, tool_name=name, args=args),
             ))
 

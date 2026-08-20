@@ -44,6 +44,7 @@ from boerdi.api.schemas_mcp import (
     CollectionStatsArgs,
     CollectionTreeArgs,
     CompendiumTextArgs,
+    ContentSearchArgs,
     HealthCheckArgs,
     LookupVocabularyArgs,
     NodeBreadcrumbArgs,
@@ -80,6 +81,7 @@ from boerdi.api.schemas_mcp_curation import (
 
 __all__ = [
     "ChatRequest", "ChatResponse", "ClassificationResult", "CollectionContentsArgs",
+    "ContentSearchArgs",
     "CollectionCreateArgs", "CollectionMembershipArgs", "CollectionRenameArgs",
     "CollectionStatsArgs", "CollectionTreeArgs", "CompendiumTextArgs",
     "CompendiumUpdateArgs", "ConfigFile", "ContentCreateArgs", "ContentSubmitArgs",
