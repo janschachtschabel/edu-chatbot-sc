@@ -47,6 +47,11 @@ context_actions:
     search: "Du siehst gerade die Treffer zu „{query}“. Ich kann die Suche verfeinern oder etwas dazu erklären."
     home: "Du befindest Dich auf {host}. Womit fangen wir an?"
     external: "Du bist auf {host} — das gehört nicht zu WLO. Ich kann mir die Seite ansehen und sie für den Bestand vorschlagen."
+    # EK2 (2026-08-20): Erschließung im Prüftisch (editorial-desk). KEIN
+    # {title} — der Knoten unter Erschließung ist für den anonymen Zugriff
+    # regelmäßig nicht lesbar (403, unveröffentlicht), und genau dann soll
+    # der Gruß sprechen. Gegenstand ist die Situation, nicht der Titel.
+    editorial: "Du erschließt gerade einen Einzelinhalt. Ich kann Hinweise zum Inhalt geben, eine passende Sammlung suchen oder beim Kuratieren helfen."
 
   # Englische Fassung (C1-g2b). Leer lassen heißt „nicht gepflegt" — dann
   # zeigt der Bot die deutsche Fassung, nie einen leeren Gruß.
@@ -57,6 +62,7 @@ context_actions:
     search: "You are looking at the results for “{query}”. I can narrow the search down or explain something about it."
     home: "You are on {host}. Where shall we start?"
     external: "You are on {host} — that is outside WLO. I can look at the page and suggest it for the collection."
+    editorial: "You are cataloguing a single content item. I can give pointers on the content, find a fitting collection, or help with curation."
 
   # label_en ist bei `kind: text` KEINE reine Anzeige: der Klick sendet die
   # Beschriftung als Nachricht. Sie muss deshalb in der Sprache des Nutzers
@@ -110,6 +116,15 @@ context_actions:
     external:
       - { label: "Nimm diese Seite in WLO auf", label_en: "Add this page to WLO",     kind: text }
       - { label: "Was steht auf der Seite, und passt das zu uns", label_en: "What is on this page, and does it fit us", kind: text }
+    # EK2 (2026-08-20): die drei bestellten Erschließungs-Angebote — Hinweise
+    # zum Inhalt, Sammlungs-Suche, Kuratierungshilfe. Alles `text`: es gibt
+    # keine Direkt-Aktion fürs Erschließen, und die Beschriftung IST die
+    # gesendete Nachricht; Node-ID + sichtbarer Seitentext stehen im
+    # Seitenblock des Prompts (EK1).
+    editorial:
+      - { label: "Gib mir Hinweise zu diesem Inhalt", label_en: "Give me pointers on this content", kind: text }
+      - { label: "Such eine passende Sammlung für diesen Inhalt", label_en: "Find a fitting collection for this content", kind: text }
+      - { label: "Hilf mir beim Erschließen dieses Inhalts", label_en: "Help me catalogue this content", kind: text }
 
   # Zweite Lesart von `external`: die Dublettenprüfung hat die Seite im Bestand
   # gefunden. Dann darf der Bot das Aufnehmen NICHT anbieten — ein zweiter

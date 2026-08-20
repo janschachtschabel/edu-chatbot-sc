@@ -23,7 +23,8 @@ from boerdi.domain.lp_intent import _lp_keywords
 from boerdi.graph.nodes.preflight import _DIRECT_ACTIONS
 from boerdi.services.config_loader.widget import _CONTEXT_ACTIONS_DEFAULT_PILLS
 
-_ARTEN = ("collection", "content", "topic", "search", "home", "external")
+_ARTEN = ("collection", "content", "topic", "search", "home", "external",
+          "editorial")
 _SEEDS = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "01-base"
 
 
@@ -60,7 +61,7 @@ def _labels(art: str, kind: str | None = None) -> list[str]:
 # Stichwort und ist zugleich der wörtliche Titel des Skills.
 
 
-@pytest.mark.parametrize("art", ["collection", "topic"])
+@pytest.mark.parametrize("art", ["collection", "topic", "editorial"])
 def test_kein_text_chip_faellt_in_den_lernpfad_schnellweg(art):
     for label in _labels(art, "text"):
         low = label.lower()
@@ -144,6 +145,11 @@ def test_die_volltext_aktion_bekommt_eine_node_id(monkeypatch):
     ("search", ["Videos zum Thema", "Arbeitsblätter zum Thema"]),
     ("home", ["Informiere mich über WLO", "Webseiten-Tour starten",
               "Inhalte finden", "Kontakt und mitmachen"]),
+    # EK2 (2026-08-20): die drei bestellten Erschließungs-Angebote — Hinweise
+    # zum Inhalt, Sammlungs-Suche, Kuratierungshilfe.
+    ("editorial", ["Gib mir Hinweise zu diesem Inhalt",
+                   "Such eine passende Sammlung für diesen Inhalt",
+                   "Hilf mir beim Erschließen dieses Inhalts"]),
 ])
 def test_die_bestellten_knoepfe_stehen_da(art, erwartet):
     vorhanden = _labels(art)

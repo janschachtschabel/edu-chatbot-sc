@@ -307,7 +307,15 @@ async def respond_agent(
     await _verwirf_vorabruf(ctx)
 
     sprache = resolve_locale(ctx.req.environment.locale)
-    seite = ctx.req.environment.page_context or {}
+    # ``ctx.env`` und NICHT ``ctx.req.environment``: ``ctx.env`` ist ein
+    # ``model_dump()``, das das verschachtelte ``page_context``-Dict KOPIERT
+    # (gemessen 2026-08-20). Alles, was der Server selbst einträgt — Seitenart
+    # ``editorial`` (Prüftisch), ``home``/``external`` aus der Host-Einordnung,
+    # die Textfeld-Normalisierung —, steht nur in dieser Kopie. Der Muster-Weg
+    # liest sie längst (``respond.py``: ``env = ctx.env``); hier fehlte sie, und
+    # damit kam z.B. die Erschließungs-Regel im Agent-Modus nie an.
+    # Rückfall auf das Original, falls ``setup`` nicht lief.
+    seite = (ctx.env or {}).get("page_context") or ctx.req.environment.page_context or {}
     messages: list[dict] = [
         {"role": "system", "content": _SYSTEM.format(sprache=language_name(sprache))},
     ]

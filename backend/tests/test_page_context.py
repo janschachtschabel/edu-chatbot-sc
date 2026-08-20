@@ -677,3 +677,96 @@ def test_render_aufgeloestes_meta_traegt_keinen_unresolved_hinweis():
     meta = {"title": "Bruchrechnung", "unresolved": False}
     out = p.render_for_prompt(meta, {"page_kind": "content", "node_id": "n-1"})
     assert "Leserechte" not in out
+
+
+def test_render_unaufgeloest_mit_seitentext_liefert_den_text_statt_transkript_bitte():
+    """EK1 (2026-08-20, Live-Befund Prüftisch): der Rahmen liefert den sichtbaren
+    Seitentext mit, aber seit Z2 ist der unaufgelöste Block nie leer — der
+    ``or``-Rückfall auf ``render_raw_for_prompt`` griff nicht mehr, und die
+    Z2-Note bat um ein Transkript, das im Request längst stand. Liegt
+    ``page_text`` vor, gehört er in den Block, und die Note zeigt auf ihn."""
+    meta = {"title": "Redaktion - edu-sharing", "unresolved": True, "node_id": "n-1"}
+    pc = {"page_kind": "content", "node_id": "n-1",
+          "page_text": "Kategorie des Inhalts Person Gordon Bunshaft Lebensdaten"}
+    out = p.render_for_prompt(meta, pc)
+    assert "Gordon Bunshaft" in out          # der Text steht im Block
+    assert "Sichtbarer Text" in out
+    assert "Transkript" not in out           # keine Bitte um längst Vorhandenes
+    assert "Leserechte" in out               # die ehrliche Ansage bleibt
+
+
+def test_render_unaufgeloest_ohne_seitentext_bittet_weiter_um_transkript():
+    meta = {"title": "X", "unresolved": True, "node_id": "n-1"}
+    out = p.render_for_prompt(meta, {"page_kind": "content", "node_id": "n-1"})
+    assert "Transkript" in out or "Anmeldung" in out
+
+
+def test_render_aufgeloest_ignoriert_den_heuristischen_seitentext():
+    """Aufgelöst schlägt Heuristik: der Bestand liefert ``text_content``, der
+    DOM-Harvest wäre daneben nur Rauschen (und doppelte Prompt-Kosten)."""
+    meta = {"title": "Bruchrechnung", "unresolved": False, "text_content": "Echter Text."}
+    pc = {"page_kind": "content", "node_id": "n-1", "page_text": "DOM-Harvest"}
+    out = p.render_for_prompt(meta, pc)
+    assert "DOM-Harvest" not in out
+
+
+def test_render_unaufgeloester_seitentext_haelt_das_budget():
+    # 3000 wie ``text_content``: der Seitentext ist hier die EINZIGE Inhalts-
+    # quelle, und auf dem Prüftisch liegen vor dem Metadaten-Formular ~1800
+    # Zeichen Listen-Harvest — ein 1500er-Budget schnitte genau das Wertvolle ab.
+    meta = {"title": "X", "unresolved": True, "node_id": "n-1"}
+    out = p.render_for_prompt(
+        meta, {"page_kind": "content", "node_id": "n-1", "page_text": "T" * 5000})
+    assert "T" * 3001 not in out
+    assert "T" * 2500 in out
+
+
+def test_render_editorial_traegt_erschliessungs_rahmen():
+    """EK2: auf dem Prüftisch ist die Überschrift die Situation (Erschließung),
+    nicht „Inhaltsseite" — und eine Regelzeile sagt dem Modell, was hier
+    gefragt ist: Hinweise zum Inhalt, Sammlungs-Vorschläge, Metadaten-Hilfe."""
+    meta = {"title": "Redaktion - edu-sharing", "unresolved": True, "node_id": "n-1"}
+    out = p.render_for_prompt(meta, {"page_kind": "editorial", "node_id": "n-1"})
+    assert "Erschließung" in out
+    assert "Sammlung" in out
+
+
+def test_resolve_editorial_holt_den_volltext(monkeypatch):
+    seen = {}
+
+    async def fake_call(tool, args):
+        seen["args"] = args
+        return ""
+
+    _patch_mcp(monkeypatch, fake_call)
+    state = {}
+    asyncio.run(p.resolve_page_context(
+        {"node_id": "n-1", "page_kind": "editorial"}, state))
+    assert seen["args"].get("includeTextContent") is True
+
+
+def test_render_ohne_id_nimmt_den_seitentext_trotzdem_auf():
+    """EK3 (Review-Befund B, 2026-08-20): fremde Seiten haben KEINE auflösbare
+    ID — der Resolver baut aus dem Tab-Titel ein Minimal-Meta, und weil ein Meta
+    mit Titel den Block nie leer lässt, griff auch dort der ``or``-Rückfall auf
+    ``render_raw_for_prompt`` nicht mehr. Der geerntete Seitentext lag ungenutzt
+    im Request, während das Modell blind urteilte oder einen Werkzeug-Rundlauf
+    für Text zahlte, den es schon hatte. Die Rechte-Note gehört NICHT dazu: auf
+    einer fremden Seite fehlen keine Leserechte, sie ist einfach kein WLO-Objekt.
+    """
+    meta = {"title": "Gordon Bunshaft – Wikipedia", "unresolved": True}
+    pc = {"page_kind": "external", "page_host": "de.wikipedia.org",
+          "page_text": "Gordon Bunshaft war ein US-amerikanischer Architekt."}
+    out = p.render_for_prompt(meta, pc)
+    assert "Sichtbarer Text" in out
+    assert "US-amerikanischer Architekt" in out
+    assert "Leserechte" not in out       # keine Rechte-Erklärung ohne ID
+    assert "Transkript" not in out
+
+
+def test_render_ohne_id_und_ohne_seitentext_bleibt_stumm():
+    meta = {"title": "Irgendeine Seite", "unresolved": True}
+    out = p.render_for_prompt(meta, {"page_kind": "external",
+                                     "page_host": "example.org"})
+    assert "Sichtbarer Text" not in out
+    assert "Irgendeine Seite" in out     # der Block selbst bleibt

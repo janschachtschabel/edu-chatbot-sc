@@ -147,6 +147,13 @@ _CONTEXT_ACTIONS_DEFAULT_GREETINGS: dict[str, str] = {
     "home": "Du befindest Dich auf {host}. Womit fangen wir an?",
     "external": ("Du bist auf {host} — das gehört nicht zu WLO. Ich kann mir "
                  "die Seite ansehen und sie für den Bestand vorschlagen."),
+    # EK2 (2026-08-20): Erschließung im Prüftisch. KEIN ``{title}`` — der
+    # Knoten unter Erschließung ist für den anonymen Zugriff regelmäßig nicht
+    # lesbar (403, unveröffentlicht), und genau dann soll der Gruß sprechen.
+    # Der Gegenstand ist die Situation, nicht der aufgelöste Titel.
+    "editorial": ("Du erschließt gerade einen Einzelinhalt. Ich kann Hinweise "
+                  "zum Inhalt geben, eine passende Sammlung suchen oder beim "
+                  "Kuratieren helfen."),
 }
 # Nutzer-Vorgabe 2026-08-13 (P7), wortgleich mit
 # ``seeds/01-base/context-actions.yaml`` — ``test_context_action_pills`` hält die
@@ -217,6 +224,18 @@ _CONTEXT_ACTIONS_DEFAULT_PILLS: dict[str, list[dict[str, str]]] = {
         {"label": "Was steht auf der Seite, und passt das zu uns",
          "label_en": "What is on this page, and does it fit us", "kind": "text"},
     ],
+    # EK2 (2026-08-20): die drei bestellten Erschließungs-Angebote. Alles
+    # ``text`` — es gibt keine Direkt-Aktion fürs Erschließen, und die
+    # Beschriftung IST die gesendete Nachricht; der Seitenblock (Node-ID +
+    # sichtbarer Seitentext, EK1) gibt dem Modell den Gegenstand dazu.
+    "editorial": [
+        {"label": "Gib mir Hinweise zu diesem Inhalt",
+         "label_en": "Give me pointers on this content", "kind": "text"},
+        {"label": "Such eine passende Sammlung für diesen Inhalt",
+         "label_en": "Find a fitting collection for this content", "kind": "text"},
+        {"label": "Hilf mir beim Erschließen dieses Inhalts",
+         "label_en": "Help me catalogue this content", "kind": "text"},
+    ],
 }
 # Zweite Lesart von `external`: die Dublettenprüfung hat die Seite im Bestand
 # gefunden. {title} ist der Titel des GEFUNDENEN Eintrags, nicht der der Seite.
@@ -236,7 +255,7 @@ _CONTEXT_ACTIONS_DEFAULT_CURATE_PROMPT = (
 # deshalb mit ``context_greeting._GREETABLE_KINDS`` übereinstimmen; ein Test
 # prüft das gegeneinander.
 _CONTEXT_ACTIONS_PAGE_KINDS = (
-    "collection", "content", "topic", "search", "home", "external",
+    "collection", "content", "topic", "search", "home", "external", "editorial",
 )
 _CONTEXT_ACTIONS_PILL_KINDS = ("action", "text", "report")
 

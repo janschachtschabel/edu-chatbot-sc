@@ -594,7 +594,7 @@ und Titel der Gastseite zusätzlich bei. Die Felder
 
 | Feld | Bedeutung |
 |---|---|
-| `page_kind` | `topic` \| `collection` \| `content` \| `subject` \| `search` \| `other` |
+| `page_kind` | `topic` \| `collection` \| `content` \| `subject` \| `search` \| `other` — `editorial` (Prüftisch) setzt der Server selbst, sobald `page_url` auf `/components/editorial-desk` zeigt und eine `node_id` dabei ist; Hosts dürfen es auch direkt senden (nur zusammen mit `node_id` wirksam) |
 | `node_id` | edu-sharing-UUID eines Einzelmaterials |
 | `collection_id` | UUID einer Sammlung |
 | `topic_page_slug` | Kürzel einer Themenseite, z.B. `klimawandel` |
@@ -603,6 +603,8 @@ und Titel der Gastseite zusätzlich bei. Die Felder
 | `search_filters` | `{ publisher?: string[] }` |
 | `page_text` | Titel + erste ~3 KB sichtbarer Text |
 | `page_url`, `page_host` | volle Adresse und Hostname |
+
+Alle **Text**felder dieser Tabelle — also alle außer `search_filters`, das ein Objekt bleibt — werden serverseitig zu Zeichenketten normalisiert: ein numerisches Enum als `page_kind` oder eine Zahl-ID (`collection_id: 4711` → `"4711"`) bricht den Zug also nicht. Nicht gesetzte Felder (`null`) bleiben ungesetzt.
 
 `page_kind: "collection"` oder `"topic"` löst zusätzlich einen Vorabruf aus:
 Anzahl der Materialien und die **Übersicht der freigegebenen Anleitungen

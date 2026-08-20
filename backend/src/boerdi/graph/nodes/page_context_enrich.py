@@ -32,6 +32,7 @@ break the turn (ALT wrapped it too). Tests patch ``resolve_page_context`` on thi
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlsplit
 
 from boerdi.domain.page_host import classify_page_host
 from boerdi.graph.state import TurnContext
@@ -67,6 +68,82 @@ _PAGE_CONTEXT_ENTITY_KEYS = (
     "document_title",
     "page_type",
 )
+
+
+#: Die Felder des Seitenkontexts, die ab hier im Zug als Text gelesen werden.
+#:
+#: ``environment.page_context`` ist im Vertrag ``dict[str, Any]`` — Freiform,
+#: damit ein Gastgeber eigene Felder mitgeben kann. Genau das macht die überall
+#: übliche Lesart ``(wert or "").strip()`` zur Falle: sie hält jeden TRUTHY
+#: Nicht-String für einen String und wirft ``AttributeError``. Falsy Werte
+#: (``0``, ``""``, ``None``) waren nie betroffen — deshalb fiel es nie auf.
+#:
+#: Der gemessene Auslöser (Review 2026-08-20): ein Gastgeber mit numerischem
+#: TypeScript-Enum (``enum PageKind { Content, Collection }`` → ``0``/``1``)
+#: oder mit Zahl-IDs aus der eigenen Datenbank. Der Zug landete dann in der
+#: Fehler-Blase des Endpunkts — nicht einmal, sondern bei JEDEM Zug dieser
+#: Einbettung, solange sie so sendet.
+#:
+#: ``ip`` fehlt bewusst: das liest der ``setup``-Knoten VOR diesem, eine
+#: Normalisierung hier käme zu spät — und dort wird es ohne Textoperation nur
+#: weitergereicht.
+_STRING_FIELDS = (
+    "page_kind", "page_host", "page_url", "page_text", "detection_source",
+    "node_id", "collection_id", "topic_page_slug", "subject_slug",
+    "search_query", "document_title", "page_type",
+)
+
+
+def _normalize_strings(page_ctx: dict) -> None:
+    """Truthy Nicht-Strings der bekannten Textfelder zu Text machen.
+
+    An EINER Stelle statt an jeder Lesestelle, weil dieser Knoten der erste
+    Leser dieser Felder im Zug ist: Begrüßung, Resolver und beide Prompt-Bauer
+    lesen danach dasselbe Dict.
+
+    ``str()`` statt Verwerfen, weil es den häufigsten Fall gleich mitheilt:
+    aus ``collection_id: 4711`` wird die brauchbare Kennung ``"4711"``. Bleibt
+    eine Zahl als Seitenart übrig (``"1"``), passt sie auf keine bekannte Art —
+    der Bot bietet dann keine Kontext-Knöpfe an, statt zu raten.
+
+    ``None`` bleibt ``None``: ``"None"`` wäre ein Titel, den nie jemand gesetzt
+    hat, und würde so im Prompt stehen.
+    """
+    for key in _STRING_FIELDS:
+        wert = page_ctx.get(key)
+        if wert is not None and not isinstance(wert, str):
+            page_ctx[key] = str(wert)
+
+
+#: Der Prüftisch des Repositoriums (edu-sharing editorial-desk). Nur der PFAD
+#: zählt — ein ``?next=…editorial-desk…`` in einer Login-Weiterleitung ist kein
+#: Prüftisch.
+_EDITORIAL_DESK_PATH = "/components/editorial-desk"
+
+
+def _decide_editorial_kind(page_ctx: dict) -> None:
+    """EK2 (2026-08-20, Live-Befund Staging): Erschließungs-Situation aus der URL.
+
+    Die editorial-desk-Adresse mit konkretem Knoten fällt beim Erkenner in den
+    generischen ``?node``-Zweig (``content``) — und ``content`` begrüßt nur mit
+    aufgelöstem Titel, den es auf dem Prüftisch anonym nie gibt (403,
+    unveröffentlicht). Anders als die Host-Einordnung darunter darf diese Regel
+    eine POSITIVE Einstufung übersteuern: die URL benennt hier die Situation,
+    und die ist das schärfere Indiz als der Objekttyp. Serverseitig wie
+    ``home``/``external``, damit jeder Einbett-Weg (Repo-Rahmen, Plugin,
+    eigenes Widget) den Fix ohne Host-Änderung bekommt. Ohne ``node_id`` bleibt
+    alles unangetastet — das ist die Prüftisch-Übersicht, kein Einzelinhalt.
+    """
+    # ``str()`` bleibt als zweite Sicherung stehen, obwohl ``_normalize_strings``
+    # im Knoten davor läuft: die Funktion soll auch für sich genommen halten.
+    if not str(page_ctx.get("node_id") or "").strip():
+        return
+    try:
+        path = urlsplit(str(page_ctx.get("page_url") or "")).path.lower()
+    except ValueError:
+        return
+    if _EDITORIAL_DESK_PATH in path:
+        page_ctx["page_kind"] = "editorial"
 
 
 def _decide_host_kind(page_ctx: dict) -> None:
@@ -140,6 +217,8 @@ async def _bestand_anhaengen(page_ctx: dict, session_state: dict) -> None:
 async def page_context_enrich(ctx: TurnContext) -> TurnContext:
     """Inject page-context IDs into entities and best-effort resolve page metadata."""
     page_ctx = ctx.env.get("page_context") or {}
+    _normalize_strings(page_ctx)
+    _decide_editorial_kind(page_ctx)
     _decide_host_kind(page_ctx)
     entities = ctx.session_state.setdefault("entities", {})
     for key in _PAGE_CONTEXT_ENTITY_KEYS:

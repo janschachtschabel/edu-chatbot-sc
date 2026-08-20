@@ -65,7 +65,10 @@ logger = logging.getLogger(__name__)
 _OBJECT_KINDS = ("collection", "content", "topic")
 # Everything the node may greet. Must stay in step with the loader's
 # ``_CONTEXT_ACTIONS_PAGE_KINDS`` — what the loader drops never reaches here.
-_GREETABLE_KINDS = (*_OBJECT_KINDS, "search", "home", "external")
+# ``editorial`` (EK2) steht bewusst NICHT bei den Objekt-Arten: der Knoten
+# unter Erschließung ist zwar ein WLO-Objekt, aber sein Titel ist anonym nie
+# auflösbar — der Gegenstand des Grußes ist die Situation.
+_GREETABLE_KINDS = (*_OBJECT_KINDS, "search", "home", "external", "editorial")
 _GREETED_KEY = "_greeted_pages"
 _GREETED_CAP = 20
 
@@ -113,6 +116,21 @@ def _greeting_fields(
         title = (meta.get("title") or "").strip()
         if not title or meta.get("unresolved"):
             return None
+        return {"title": title}
+
+    if page_kind == "editorial":
+        # EK2: Gegenstand ist die SITUATION (Erschließung eines Einzelinhalts),
+        # nicht der aufgelöste Titel — der Prüftisch-Knoten ist für den
+        # anonymen Zugriff regelmäßig nicht lesbar (403), und genau dann soll
+        # der Gruß sprechen. ``{title}`` gehört deshalb nicht in den
+        # editorial-Gruß; als Pill-Platzhalter dient der aufgelöste Titel nur,
+        # wenn es ihn wirklich gibt — nie der Z2-Platzhalter.
+        if not (page_ctx.get("node_id") or "").strip():
+            return None
+        meta = page_context.get_cached(session_state)
+        title = ""
+        if isinstance(meta, dict) and not meta.get("unresolved"):
+            title = (meta.get("title") or "").strip()
         return {"title": title}
 
     if page_kind == "search":

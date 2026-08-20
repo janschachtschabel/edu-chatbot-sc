@@ -781,3 +781,48 @@ def test_der_leer_vermerk_zeigt_sich_nicht_in_der_begruessung(monkeypatch):
     assert "Optik" in resp.content
     assert "_leer_seit" not in resp.content
     assert "  " not in resp.content, f"doppelte Lücke: {resp.content!r}"
+
+
+# ── EK2: Erschließung im Prüftisch (editorial) ──────────────────────────────
+
+
+def test_editorial_begruesst_ohne_aufgeloesten_titel(monkeypatch):
+    """EK2 (2026-08-20, Live-Befund Staging-Prüftisch): der Knoten unter
+    Erschließung ist für den anonymen Zugriff regelmäßig NICHT auflösbar
+    (403, unveröffentlicht) — genau dann soll der Gruß sprechen. Gegenstand
+    ist die Situation, nicht der Titel; das Titel-Gate der Objekt-Arten gilt
+    hier deshalb nicht, und der Platzhalter-Titel bleibt draußen."""
+    _patch_io(monkeypatch)
+    unresolved = {"title": "Seite mit nicht auflösbarem Inhalt",
+                  "unresolved": True,
+                  "node_id": "0d4c07cf-1919-436b-8c07-cf1919f36bde"}
+    resp = asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(),
+        _env(page_context={"page_kind": "editorial",
+                           "node_id": "0d4c07cf-1919-436b-8c07-cf1919f36bde"}),
+        _state(unresolved), ["prev"]))
+    assert resp.content, "editorial muss trotz unaufgelöstem Knoten begrüßen"
+    assert "nicht auflösbarem" not in resp.content
+    assert resp.quick_replies, "die Erschließungs-Pills fehlen"
+    labels = " | ".join(resp.quick_replies)
+    assert "Sammlung" in labels
+
+
+def test_editorial_ohne_node_id_schweigt(monkeypatch):
+    _patch_io(monkeypatch)
+    resp = asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(), _env(page_context={"page_kind": "editorial"}),
+        _state({"title": "x", "unresolved": True}), ["prev"]))
+    assert resp.content == ""
+
+
+def test_editorial_wird_je_knoten_nur_einmal_begruesst(monkeypatch):
+    _patch_io(monkeypatch)
+    pc = {"page_kind": "editorial", "node_id": "n-1"}
+    state = _state({"title": "t", "unresolved": True, "node_id": "n-1"})
+    r1 = asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(), _env(page_context=pc), state, ["prev"]))
+    assert r1.content
+    r2 = asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(), _env(page_context=pc), state, ["prev"]))
+    assert r2.content == ""

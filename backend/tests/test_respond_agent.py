@@ -61,6 +61,12 @@ def _ctx(*, message="frage", history=None, safety=None, policy=None,
         session_id="s1", message=message,
         environment=Environment(page_context=page_context or {}),
     ))
+    # Wie im echten Zug: der ``setup``-Knoten legt ``ctx.env`` als
+    # ``model_dump()`` an, und ``page_context_enrich`` reichert DIESE Fassung an
+    # (Seitenart, Textfeld-Normalisierung). Ohne die Zeile prüfte der Test eine
+    # Umgebung, die es im Betrieb nie gibt — und verdeckte, aus welcher der
+    # beiden Fassungen der Knoten liest.
+    ctx.env = ctx.req.environment.model_dump()
     ctx.history = history if history is not None else []
     ctx.safety = safety or SafetyDecision(risk_level="low")
     ctx.policy = policy or PolicyDecision()
@@ -1211,3 +1217,31 @@ async def test_ohne_geholte_anleitung_keine_meldung(monkeypatch):
     ctx = _ctx()
     await respond_agent(ctx)
     assert "edu-sharing Skill" not in ctx.response_text
+
+
+@pytest.mark.anyio
+async def test_der_seitenblock_kommt_aus_dem_angereicherten_kontext(monkeypatch):
+    """EK5 (Review-Befund 2026-08-20): ``ctx.env = req.environment.model_dump()``
+    KOPIERT das verschachtelte ``page_context``-Dict (gemessen: ``is`` → False).
+    Alles, was der Server selbst einträgt — Seitenart ``editorial`` aus dem
+    Prüftisch-Erkenner, ``home``/``external`` aus der Host-Einordnung, die
+    Textfeld-Normalisierung —, steht deshalb NUR in ``ctx.env``. Der Muster-Weg
+    liest die angereicherte Fassung (``respond.py``: ``env = ctx.env``), der
+    Agent-Weg las das unveränderte Original: die Erschließungs-Regel kam im live
+    genutzten Modus nie an."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    ctx = _ctx(
+        page_context={"page_kind": "content", "node_id": "n-1"},
+        page_meta={"title": "Ein Datensatz", "unresolved": True, "node_id": "n-1"},
+    )
+    # Was ``page_context_enrich`` aus der Prüftisch-Adresse gemacht hat — auf
+    # der Kopie, die das Anfrage-Original nicht sieht.
+    ctx.env["page_context"]["page_kind"] = "editorial"
+    await respond_agent(ctx)
+    systeme = [m["content"] for m in seen["run_agent_loop"]["messages"]
+               if m.get("role") == "system"]
+    assert any("Erschließung" in s for s in systeme), (
+        "der Agent-Prompt kennt die serverseitig gesetzte Seitenart nicht"
+    )

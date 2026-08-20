@@ -278,3 +278,145 @@ def test_nach_der_ruhezeit_wird_es_erneut_versucht(monkeypatch):
     asyncio.run(m.page_context_enrich(ctx))
     assert gerufen == ["C1"]
     assert meta["context_facts"] == {"materials": 35}
+
+
+# ── EK2: Erschließungs-Situation (editorial-desk) ───────────────────────────
+# Die URL benennt die SITUATION (Prüftisch mit konkretem Knoten) und darf die
+# positive ``content``-Einstufung des Erkenners übersteuern — anders als der
+# Hostname, der nur Unentschiedenes klärt. Serverseitig, damit jeder
+# Einbett-Weg (Repo-Rahmen, Plugin, eigenes Widget) den Fix ohne Host-Änderung
+# bekommt.
+
+_DESK_URL = (
+    "https://repository.staging.openeduhub.net/edu-sharing/components/"
+    "editorial-desk?mode=audit&viewType=Single&mdsEdit=true&useAi=true"
+    "&nodeId=0d4c07cf-1919-436b-8c07-cf1919f36bde"
+)
+
+
+def test_pruefktisch_url_macht_aus_content_editorial(monkeypatch):
+    """EK2 (2026-08-20, Live-Befund Staging): die editorial-desk-URL fiel in den
+    generischen ``?node``-Zweig (content) — und content begrüßt nur mit
+    aufgelöstem Titel, den es anonym auf dem Prüftisch nie gibt (403)."""
+    _patch_resolve(monkeypatch)
+    _patch_cfg(monkeypatch)
+    ctx = _ctx({
+        "page_kind": "content",
+        "node_id": "0d4c07cf-1919-436b-8c07-cf1919f36bde",
+        "page_host": "repository.staging.openeduhub.net",
+        "page_url": _DESK_URL,
+    })
+    out = asyncio.run(m.page_context_enrich(ctx))
+    assert out.env["page_context"]["page_kind"] == "editorial"
+
+
+def test_pruefktisch_uebersicht_ohne_knoten_bleibt_unangetastet(monkeypatch):
+    # Ohne node_id ist es die Prüftisch-ÜBERSICHT, kein Einzelinhalt in
+    # Erschließung — dort greift weiter die Host-Einordnung (eigene Seite).
+    _patch_resolve(monkeypatch)
+    _patch_cfg(monkeypatch)
+    ctx = _ctx({
+        "page_kind": "other",
+        "page_host": "repository.staging.openeduhub.net",
+        "page_url": ("https://repository.staging.openeduhub.net/edu-sharing/"
+                     "components/editorial-desk?mode=audit"),
+    })
+    out = asyncio.run(m.page_context_enrich(ctx))
+    assert out.env["page_context"]["page_kind"] == "home"
+
+
+def test_renderseite_ausserhalb_des_pruefktischs_bleibt_content(monkeypatch):
+    _patch_resolve(monkeypatch)
+    _patch_cfg(monkeypatch)
+    ctx = _ctx({
+        "page_kind": "content",
+        "node_id": "n-1",
+        "page_host": "repository.staging.openeduhub.net",
+        "page_url": ("https://repository.staging.openeduhub.net/edu-sharing/"
+                     "components/render/n-1"),
+    })
+    out = asyncio.run(m.page_context_enrich(ctx))
+    assert out.env["page_context"]["page_kind"] == "content"
+
+
+def test_editorial_desk_nur_im_pfad_nicht_in_der_query(monkeypatch):
+    # Ein ?next=…editorial-desk… in der Query (Login-Redirect) ist KEIN
+    # Prüftisch — nur der Pfad zählt.
+    _patch_resolve(monkeypatch)
+    _patch_cfg(monkeypatch)
+    ctx = _ctx({
+        "page_kind": "content",
+        "node_id": "n-1",
+        "page_host": "repository.staging.openeduhub.net",
+        "page_url": ("https://repository.staging.openeduhub.net/edu-sharing/"
+                     "components/render/n-1?next=%2Fcomponents%2Feditorial-desk"),
+    })
+    out = asyncio.run(m.page_context_enrich(ctx))
+    assert out.env["page_context"]["page_kind"] == "content"
+
+
+def test_feindliche_nicht_string_werte_brechen_den_zug_nicht(monkeypatch):
+    """Review-Befund EK (2026-08-20): ``environment.page_context`` ist
+    ``dict[str, Any]`` — ein Client kann ``node_id``/``page_url`` als Zahl
+    senden. ``(123 or "").strip()`` bzw. ``urlsplit(123)`` würfen und der
+    Knoten bräche den Zug — gegen den Vertrag des Moduls (Ausfälle kosten
+    nie den Zug, siehe Resolver- und Config-Tests oben)."""
+    _patch_resolve(monkeypatch)
+    _patch_cfg(monkeypatch)
+    ctx = _ctx({"page_kind": "content", "node_id": 123, "page_url": 456})
+    out = asyncio.run(m.page_context_enrich(ctx))  # darf nicht werfen
+    assert out.env["page_context"]["page_kind"] == "content"
+
+
+# ── EK4: Textfelder normalisieren (Review-Befund A) ─────────────────────────
+# ``page_context`` ist im Vertrag ``dict[str, Any]`` — Freiform, damit Gastgeber
+# eigene Felder mitgeben können. Genau das macht ``(wert or "").strip()`` zur
+# Falle: jeder TRUTHY Nicht-String wirft. Falsy Werte (``0``, ``""``, ``None``)
+# waren nie betroffen, und das ist der Grund, warum es niemandem auffiel — ein
+# numerisches TypeScript-Enum (``enum PageKind { Content, Collection }``) läuft
+# auf Inhaltsseiten (0) sauber und bricht auf Sammlungsseiten (1).
+
+
+def test_zahl_als_seitenart_bricht_den_zug_nicht(monkeypatch):
+    """Der TypeScript-Enum-Fall. Die Zahl wird zur Zeichenkette, nicht zu einer
+    geratenen Seitenart: ``"1"`` ist keine bekannte Art, der Bot bietet also
+    keine Kontext-Knöpfe an — aber der Zug lebt, statt mit AttributeError in
+    die Fehler-Blase zu laufen (und zwar bei JEDEM Zug dieser Einbettung)."""
+    _patch_resolve(monkeypatch)
+    _patch_cfg(monkeypatch)
+    ctx = _ctx({"page_kind": 1, "page_host": "example.org"})
+    out = asyncio.run(m.page_context_enrich(ctx))  # darf nicht werfen
+    assert out.env["page_context"]["page_kind"] == "1"
+
+
+def test_zahl_als_host_bricht_die_einordnung_nicht(monkeypatch):
+    # Nach der Normalisierung läuft die Host-Einordnung ganz normal durch.
+    _patch_resolve(monkeypatch)
+    _patch_cfg(monkeypatch)
+    ctx = _ctx({"page_kind": "other", "page_host": 12345})
+    out = asyncio.run(m.page_context_enrich(ctx))
+    assert out.env["page_context"]["page_kind"] == "external"
+
+
+def test_zahl_als_sammlungs_id_erreicht_den_bestandsabruf(monkeypatch):
+    """Ein Gastgeber-CMS mit numerischen IDs. Hier ist ``str()`` nicht nur
+    rettend, sondern sachlich richtig: aus ``4711`` wird die brauchbare
+    Kennung ``"4711"``, und der Bestandsabruf läuft damit weiter."""
+    _mit_cache(monkeypatch, {"title": "Eine Sammlung"})
+    _patch_cfg(monkeypatch)
+    gerufen = _fakten_spion(monkeypatch, {"materials": 3})
+    ctx = _ctx({"page_kind": "collection", "collection_id": 4711})
+    asyncio.run(m.page_context_enrich(ctx))
+    assert gerufen == ["4711"]
+
+
+def test_leere_und_fehlende_werte_bleiben_unangetastet(monkeypatch):
+    """``None`` darf NICHT zu ``"None"`` werden — sonst stünde der Titel
+    „None" im Prompt. Falsy heisst „nicht gesetzt" und bleibt es."""
+    _patch_resolve(monkeypatch)
+    _patch_cfg(monkeypatch)
+    ctx = _ctx({"page_kind": "content", "document_title": None, "node_id": ""})
+    out = asyncio.run(m.page_context_enrich(ctx))
+    pc = out.env["page_context"]
+    assert pc["document_title"] is None
+    assert pc["node_id"] == ""

@@ -301,7 +301,7 @@ async def resolve_page_context(
             # one extra edu-sharing GET MCP-side — request it only there, not
             # for collections/topic pages.
             args: dict[str, Any] = {"nodeId": target_id, "outputFormat": "json"}
-            if page_kind == "content":
+            if page_kind in ("content", "editorial"):
                 args["includeTextContent"] = True
             raw = await call_mcp_tool("get_node_details", args)
             if raw and not is_mcp_error(raw):
@@ -581,6 +581,9 @@ def render_for_prompt(
         "content": "Inhaltsseite (Einzelmaterial)",
         "subject": "Fachportal",
         "search": "Such-Ergebnisseite",
+        # EK2: der Prüftisch des Repositoriums — die Person ERSCHLIESST den
+        # Inhalt gerade, sie schaut ihn nicht an.
+        "editorial": "Erschließung eines Einzelinhalts (Prüftisch/Redaktion)",
     }
     heading = heading_map.get(page_kind, "Aktuelle Seite")
     lines: list[str] = [f"## Aktuelle Seite — {heading}"]
@@ -637,21 +640,52 @@ def render_for_prompt(
     elif node_id:
         lines.append(f"Node-ID: {node_id}")
 
-    # Z2: Auflösung gescheitert, aber eine ID liegt vor — ehrlich sagen statt
-    # schweigen. Ohne diese Zeilen fragte das Modell den Nutzer nach genau der
-    # ID, die hier steht, oder suchte chancenlos nach dem Titel (der Index
-    # kennt nur Öffentliches).
-    if meta.get("unresolved") and (collection_id or node_id):
+    # Gescheiterte Auflösung, ZWEI voneinander unabhängige Regeln (EK3,
+    # 2026-08-20). Sie standen bis dahin ineinander verschachtelt, und das war
+    # der Fehler: der Seitentext hing an einer Bedingung, mit der er nichts zu
+    # tun hat.
+    #
+    # (1) Rechte-Note — nur MIT ID (Z2). Ohne diese Zeilen fragte das Modell den
+    #     Nutzer nach genau der ID, die im Block steht, oder suchte chancenlos
+    #     nach dem Titel (der Index kennt nur Öffentliches). Auf einer Seite
+    #     OHNE ID wäre sie sachlich falsch — dort fehlen keine Leserechte, die
+    #     Seite ist schlicht kein WLO-Objekt.
+    # (2) Sichtbarer Seitentext — sobald er da ist. Seit Z2 ist der unaufgelöste
+    #     Block nie mehr leer, also griff der ``or``-Rückfall auf
+    #     ``render_raw_for_prompt`` (der einzige Renderer, der ``page_text``
+    #     kannte) in den drei Verbrauchern nicht mehr. Mit ID war das der
+    #     Prüftisch-Befund (EK1); ohne ID trifft es fast jede fremde Seite, wo
+    #     der Browser-Harvest die einzige Textquelle ist — hinter Login-Wänden
+    #     und in Schul-Intranets erreicht ``get_url_text`` die Seite nie.
+    _unaufgeloest = bool(meta.get("unresolved"))
+    _seitentext = (pc.get("page_text") or "").strip() if _unaufgeloest else ""
+
+    if _unaufgeloest and (collection_id or node_id):
         lines.append(
             "Hinweis: Die Metadaten dieser Seite konnten NICHT aus dem Bestand "
             "aufgelöst werden — vermutlich fehlen dem (anonymen) Zugriff die "
             "Leserechte, z. B. bei unveröffentlichtem Material. Die ID oben "
             "liegt bereits vor: NICHT beim Nutzer danach fragen, und keine "
             "Titelsuche versuchen (der Suchindex kennt nur Öffentliches). "
-            "Wird der Inhalt gebraucht, bitte um den Text bzw. das Transkript "
-            "oder verweise auf die Anmeldung, damit der Zugriff mit Rechten "
-            "läuft."
+            + (
+                "Der sichtbare Text der Seite steht unten in diesem Block — "
+                "arbeite damit, statt nach dem Inhalt zu fragen."
+                if _seitentext else
+                "Wird der Inhalt gebraucht, bitte um den Text bzw. das "
+                "Transkript oder verweise auf die Anmeldung, damit der "
+                "Zugriff mit Rechten läuft."
+            )
         )
+
+    if _seitentext:
+        lines.append("")
+        lines.append("### Sichtbarer Text der Seite (aus dem Widget)")
+        # 3000 wie beim gespeicherten Volltext: der Seitentext ist hier die
+        # EINZIGE Inhaltsquelle, und auf dem Prüftisch liegen vor dem
+        # Metadaten-Formular ~1800 Zeichen Listen-Harvest — das knappere
+        # Rohblock-Budget (1500) schnitte genau das Wertvolle ab.
+        lines.append(_trim_text(_seitentext, 3000))
+        lines.append("")
 
     # Aktive URL-Filter (?q=…) — auf Sammlungs-Browse-Seiten der Filter
     # innerhalb der Sammlung. Bot soll diesen Filter weitergeben wenn er
@@ -717,6 +751,15 @@ def render_for_prompt(
         "- Bei 'mehr Material dazu', 'weitere Inhalte', 'andere Materialtypen' "
         "-> Suche mit Titel/Schlagworten starten, passend zu den Bildungsstufen."
     )
+    if page_kind == "editorial":
+        lines.append(
+            "- Die Person ERSCHLIESST diesen Inhalt gerade redaktionell "
+            "(Prüftisch): gib auf Wunsch Hinweise zum Inhalt (aus dem "
+            "sichtbaren Seitentext bzw. den Metadaten), schlage passende "
+            "Sammlungen vor (suche danach mit dem Kernbegriff des Inhalts, "
+            "statt zu raten) und hilf bei Metadaten-Feldern wie Fach, Stufe, "
+            "Materialtyp oder Beschreibung."
+        )
     return "\n".join(lines)
 
 
@@ -774,6 +817,7 @@ def render_raw_for_prompt(page_context: dict[str, Any] | None) -> str:
             "content": "Inhaltsseite (einzelnes Material)",
             "subject": "Fachportal",
             "search": "Such-Ergebnisseite",
+            "editorial": "Erschließung eines Einzelinhalts (Prüftisch)",
         }
         lines.append(f"Seitentyp: {kind_labels.get(kind, kind)}")
 

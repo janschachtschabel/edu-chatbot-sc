@@ -36,10 +36,12 @@ const DEFAULT_REPLY_KEYS = [
  * ACHTUNG, nicht offensichtlich: `home` und `external` setzt der Erkenner NIE
  * — die entscheidet das Backend am Hostnamen, und beim Erkenner heissen sie
  * `other`. Das Gate darf sie deshalb nicht abfragen, sondern muss den
- * unentschiedenen Fall durchlassen.
+ * unentschiedenen Fall durchlassen. `editorial` (EK2, Prüftisch) entscheidet
+ * ebenfalls das Backend — beim Erkenner kommt die Seite als `content` an,
+ * das Gate erreicht sie also über diesen Weg.
  */
 export const PING_COVERS_BACKEND_KINDS = [
-  'collection', 'content', 'topic', 'search', 'home', 'external',
+  'collection', 'content', 'topic', 'search', 'home', 'external', 'editorial',
 ] as const;
 
 /**
