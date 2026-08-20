@@ -624,3 +624,56 @@ def test_nachlade_fehler_laesst_den_kontext_bestehen(monkeypatch):
     assert meta["title"] == "Optik"
     assert meta["unresolved"] is False
     assert meta["compendium_text"] == ""
+
+
+# ── Z2 (2026-08-20): gescheiterte Aufloesung verschluckt die Node-ID nicht ──
+# Live-Befund (edu-sharing Prueftisch, anonymer Bot): die Seite reicht eine
+# node_id, get_node_details scheitert an den Leserechten, und der GANZE
+# Seitenblock verschwand — das Modell fragte den Nutzer nach der ID, die
+# laengst vorlag.
+
+
+def test_resolve_unaufloesbare_node_id_liefert_meta_statt_none(monkeypatch):
+    async def fake_call(tool, args):
+        return "MCP-Fehler: 403 Forbidden"
+
+    _patch_mcp(monkeypatch, fake_call)
+    monkeypatch.setattr(p, "is_mcp_error", lambda raw: True)
+    state = {}
+    meta = asyncio.run(p.resolve_page_context(
+        {"node_id": "765efba2-x", "page_kind": "content"}, state))
+    assert meta is not None
+    assert meta["unresolved"] is True
+    assert meta["node_id"] == "765efba2-x"
+    assert meta["title"]                       # Block braucht einen Titel
+    assert state["entities"]["_page_metadata"]["node_id"] == "765efba2-x"
+
+
+def test_resolve_unaufloesbar_behaelt_document_title(monkeypatch):
+    async def fake_call(tool, args):
+        return ""
+
+    _patch_mcp(monkeypatch, fake_call)
+    state = {}
+    meta = asyncio.run(p.resolve_page_context(
+        {"node_id": "abc-1", "document_title": "Redaktion - edu-sharing"}, state))
+    assert meta["title"] == "Redaktion - edu-sharing"
+    assert meta["unresolved"] is True
+    assert meta["node_id"] == "abc-1"
+
+
+def test_render_unaufgeloest_nennt_id_und_warnt_vor_nachfrage():
+    meta = {"title": "Redaktion - edu-sharing", "unresolved": True,
+            "node_id": "765efba2-x"}
+    out = p.render_for_prompt(meta, {"page_kind": "content",
+                                     "node_id": "765efba2-x"})
+    assert "Node-ID: 765efba2-x" in out
+    assert "NICHT" in out and "Leserechte" in out
+    # Der Ausweg steht dabei: Transkript/Text erbitten oder Anmeldung.
+    assert "Transkript" in out or "Anmeldung" in out
+
+
+def test_render_aufgeloestes_meta_traegt_keinen_unresolved_hinweis():
+    meta = {"title": "Bruchrechnung", "unresolved": False}
+    out = p.render_for_prompt(meta, {"page_kind": "content", "node_id": "n-1"})
+    assert "Leserechte" not in out

@@ -58,6 +58,11 @@ _TOOL_CACHE_TTL_PER_TOOL: dict[str, int] = {
     "get_nodes_details": 1800,
     # Sammlung-Inhalte: mittlere Stabilität (neue Materialien können kommen) → 10 min
     "get_collection_contents": 600,
+    # Skills: redaktionell gepflegte Anleitungen — Änderungen sollen nach
+    # spätestens 3 Minuten beim Bot ankommen (Nutzer-Entscheid 2026-08-20;
+    # vorher fielen beide auf den 5-Minuten-Default).
+    "get_skill": 180,
+    "get_skill_registry": 180,
     # Suchen: dynamisch, neue Treffer möglich → Default 5 min
     "search_wlo_collections": 300,
     "search_wlo_content": 300,

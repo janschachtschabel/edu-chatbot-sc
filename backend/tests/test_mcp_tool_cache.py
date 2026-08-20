@@ -158,6 +158,14 @@ def test_ttl_per_tool_and_default():
     assert _ttl_for_tool("__unknown_tool__") == 300  # Default
 
 
+def test_ttl_skills_kuerzer_als_default():
+    """Nutzer-Entscheid 2026-08-20: redaktionelle Skill-Änderungen sollen nach
+    spätestens 3 Minuten beim Bot ankommen — vorher fielen beide Skill-Werkzeuge
+    auf den 5-Minuten-Default."""
+    assert _ttl_for_tool("get_skill") == 180
+    assert _ttl_for_tool("get_skill_registry") == 180
+
+
 # ── Set/Get-Roundtrip + Zähler ──────────────────────────────────────────
 def test_set_then_get_returns_value_and_counts_hit():
     clear_tool_cache()

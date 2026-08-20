@@ -37,10 +37,11 @@ from boerdi.settings import get_settings
 logger = logging.getLogger(__name__)
 
 #: Wie lange ein geholter Text im Prozess bleibt. Ein MCP-Aufruf steht gemessen
-#: 1,2–23,3 s — je Zug erneut wäre unbrauchbar. 15 Minuten sind der Kompromiss:
-#: eine redaktionelle Änderung ist nach einer Viertelstunde überall da, und eine
-#: laufende Unterhaltung sieht denselben Text (sonst platzt der Prompt-Cache).
-_TTL_SEKUNDEN: Final = 15 * 60
+#: 1,2–23,3 s — je Zug erneut wäre unbrauchbar. 5 Minuten (Nutzer-Entscheid
+#: 2026-08-20, vorher 15): eine redaktionelle Änderung ist nach spätestens
+#: fünf Minuten überall da, und eine laufende Unterhaltung sieht in diesem
+#: Fenster denselben Text (sonst platzt der Prompt-Cache).
+_TTL_SEKUNDEN: Final = 5 * 60
 
 #: ``{nodeId: (geholt_um, text)}`` — Prozess-Cache, absichtlich ohne obere
 #: Schranke: es gibt genau eine Kennung je Anlage.

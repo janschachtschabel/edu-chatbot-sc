@@ -235,7 +235,7 @@ TOOL_DEFINITIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Suchanfrage auf Deutsch, z.B. 'Bruchrechnung Grundschule' oder 'Klimawandel interaktiv'."},
+                    "query": {"type": "string", "description": "Nur der Kernbegriff des Themas auf Deutsch, z.B. 'Bruchrechnung' oder 'Klimawandel' — NIE der ganze Nutzersatz. Fach gehoert in discipline, Stufe in educationalContext, Materialtyp in learningResourceType; im Suchbegriff verwaessern sie das Ranking und landen sichtbar in den Such-Links der Trefferanzeige."},
                     "educationalContext": {"type": "string", "description": "Bildungsstufe als Label ODER URI — z.B. 'Primarstufe', 'Sekundarstufe I', 'Sekundarstufe II', 'Hochschule', 'Berufliche Bildung'. Mappe Klassenangaben IMMER auf eine Bildungsstufe (Kl. 1-4=Grundschule, 5-10=Sek I, 11-13=Sek II). Eine Filterebene 'Klassenstufe' existiert NICHT."},
                     "discipline": {"type": "string", "description": "Fach/Schulfach als Label ODER URI — z.B. 'Mathematik', 'Biologie', 'Deutsch', 'Informatik'."},
                     "userRole": {"type": "string", "description": "Zielgruppe als Label ODER URI — z.B. 'Lehrer/in', 'Lerner/in'."},
@@ -274,7 +274,7 @@ TOOL_DEFINITIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Suchanfrage auf Deutsch, z.B. 'Bruchrechnung Klasse 7' oder 'Klimawandel'."},
+                    "query": {"type": "string", "description": "Nur der Kernbegriff des Themas auf Deutsch, z.B. 'Bruchrechnung' oder 'Klimawandel' — NIE der ganze Nutzersatz. Fach gehoert in discipline, Stufe in educationalContext, Materialtyp in learningResourceType; im Suchbegriff verwaessern sie das Ranking und landen sichtbar in den Such-Links der Trefferanzeige."},
                     "educationalContext": {"type": "string", "description": "Bildungsstufe als Label ODER URI — Klassenangaben IMMER auf Bildungsstufe mappen (Kl. 1-4=Grundschule, 5-10=Sek I, 11-13=Sek II)."},
                     "discipline": {"type": "string", "description": "Fach/Schulfach als Label ODER URI, z.B. 'Mathematik', 'Biologie'."},
                     "userRole": {"type": "string", "description": "Zielgruppe als Label ODER URI, z.B. 'Lehrer/in', 'Lerner/in'."},

@@ -637,3 +637,25 @@ def test_vorgehen_md_traegt_die_kernbegriff_suchregel():
     assert "Kernbegriff" in finden
     assert 'query: "Optik"' in finden
     assert 'learningResourceType: "Arbeitsblatt"' in finden
+    # Z1: alle drei Filter-Dimensionen beim Namen — das Modell soll wissen,
+    # WOHIN Fach und Stufe gehoeren, nicht nur, dass sie nicht in die query.
+    assert "discipline" in finden
+    assert "educationalContext" in finden
+
+
+def test_query_beschreibungen_lehren_den_kernbegriff_nicht_den_satz():
+    """Z1 (2026-08-20): die ``query``-Beispiele von search_wlo_content
+    ("Bruchrechnung Grundschule") und search_wlo_all ("Bruchrechnung Klasse 7")
+    machten dem Modell das Stopfen von Stufe/Typ in den Suchbegriff aktiv VOR —
+    die Such-Links der Trefferanzeige trugen dann den ganzen Wortschwall. Die
+    Beschreibung muss den Kernbegriff lehren und die drei Filter-Dimensionen
+    (Fach -> discipline, Stufe -> educationalContext, Typ ->
+    learningResourceType) beim Namen nennen."""
+    for name in ("search_wlo_content", "search_wlo_all"):
+        props = _props(name)
+        q = props["query"]["description"]
+        assert "Kernbegriff" in q, name
+        for dimension in ("discipline", "educationalContext", "learningResourceType"):
+            assert dimension in q, (name, dimension)
+        assert "Bruchrechnung Grundschule" not in q, name
+        assert "Bruchrechnung Klasse 7" not in q, name

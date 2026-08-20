@@ -358,21 +358,28 @@ async def resolve_page_context(
         meta = None
 
     if meta is None:
-        # Final fallback: document_title as placeholder so LLM has *something*
+        # Final fallback: document_title as placeholder so LLM has *something*.
+        # Z2 (2026-08-20): eine ADRESSIERBARE ID überlebt auch ohne Titel —
+        # vorher verschwand der ganze Block, und das Modell fragte den Nutzer
+        # nach der Node-ID, die die Seite längst geliefert hatte (Live-Befund
+        # edu-sharing Prüftisch: anonymer Bot, unveröffentlichter Knoten, 403).
         title = page_context.get("document_title") or slug or ""
-        if not title:
+        target_id = node_id or collection_id
+        if not title and not target_id:
             return None
         meta = {
-            "title": title,
+            "title": title or "Seite mit nicht auflösbarem Inhalt",
             "description": "",
             "keywords": [],
             "disciplines": [],
             "educational_contexts": [],
             "learning_resource_types": [],
             "url": "",
-            "source": "fallback_title",
+            "source": "fallback_title" if title else "unresolved_node",
             "unresolved": True,
         }
+        if node_id:
+            meta["node_id"] = node_id
 
     meta["_signature"] = signature
     meta["_resolved_at"] = time.time()
@@ -629,6 +636,22 @@ def render_for_prompt(
         lines.append(f"Sammlungs-ID (collection_id): {collection_id}")
     elif node_id:
         lines.append(f"Node-ID: {node_id}")
+
+    # Z2: Auflösung gescheitert, aber eine ID liegt vor — ehrlich sagen statt
+    # schweigen. Ohne diese Zeilen fragte das Modell den Nutzer nach genau der
+    # ID, die hier steht, oder suchte chancenlos nach dem Titel (der Index
+    # kennt nur Öffentliches).
+    if meta.get("unresolved") and (collection_id or node_id):
+        lines.append(
+            "Hinweis: Die Metadaten dieser Seite konnten NICHT aus dem Bestand "
+            "aufgelöst werden — vermutlich fehlen dem (anonymen) Zugriff die "
+            "Leserechte, z. B. bei unveröffentlichtem Material. Die ID oben "
+            "liegt bereits vor: NICHT beim Nutzer danach fragen, und keine "
+            "Titelsuche versuchen (der Suchindex kennt nur Öffentliches). "
+            "Wird der Inhalt gebraucht, bitte um den Text bzw. das Transkript "
+            "oder verweise auf die Anmeldung, damit der Zugriff mit Rechten "
+            "läuft."
+        )
 
     # Aktive URL-Filter (?q=…) — auf Sammlungs-Browse-Seiten der Filter
     # innerhalb der Sammlung. Bot soll diesen Filter weitergeben wenn er

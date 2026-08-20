@@ -184,3 +184,11 @@ class TestAktivierungszeile:
         block = self._BLOCK.replace("\n", "\r\n")
         assert master_skill.aktivierungszeile(block) == (
             "[ edu-sharing Skill ] Chatbot Masterskill - aktiv")
+
+
+def test_ttl_ist_fuenf_minuten():
+    """Nutzer-Entscheid 2026-08-20: redaktionelle Änderungen am Master-Skill
+    sollen nach spätestens 5 Minuten überall ankommen (vorher 15)."""
+    from boerdi.services import master_skill as m
+
+    assert m._TTL_SEKUNDEN == 5 * 60
