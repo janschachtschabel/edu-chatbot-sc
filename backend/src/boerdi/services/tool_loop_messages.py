@@ -187,7 +187,9 @@ async def _assemble_messages(
                     "tool_call_id": "prefetch_knowledge",
                     "content": (
                         f"[Bereits durchsuchte Bereiche: {areas_label}]\n\n"
-                        + prefetch_ctx[:12000]
+                        # 200 000er-Notbremse (Nutzer-Entscheid 2026-08-21)
+                        # statt Arbeitsbudget — vorher 12 000.
+                        + prefetch_ctx[:200_000]
                     ),
                 })
 

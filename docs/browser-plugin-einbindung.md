@@ -110,7 +110,7 @@ function seiteMelden() {
     page_kind: 'other',                       // fremde Seite; WLO-Seiten: siehe §5
     page_url:  location.href,
     page_host: location.hostname,
-    page_text: document.body.innerText.slice(0, 3000),
+    page_text: document.body.innerText.slice(0, 200000),
   });
 }
 seiteMelden();
@@ -468,7 +468,7 @@ chat.replaceContext({
   page_kind: 'other',
   page_url: location.href,
   page_host: location.hostname,
-  page_text: document.body.innerText.slice(0, 3000),
+  page_text: document.body.innerText.slice(0, 200000),
 });
 ```
 
@@ -601,11 +601,65 @@ und Titel der Gastseite zusätzlich bei. Die Felder
 | `subject_slug` | Fachkürzel, z.B. `biologie` |
 | `search_query` | aktueller Suchbegriff der Gastseite |
 | `search_filters` | `{ publisher?: string[] }` |
-| `page_text` | Titel + erste ~3 KB sichtbarer Text |
+| `page_text` | Titel + sichtbarer Text der Seite (Server-Budget 200 000 Zeichen) |
 | `page_url`, `page_host` | volle Adresse und Hostname |
 | `title` | Seitentitel des Tabs (Alias: `document_title` gewinnt, wenn beide gesetzt) |
 
 Alle **Text**felder dieser Tabelle — also alle außer `search_filters`, das ein Objekt bleibt — werden serverseitig zu Zeichenketten normalisiert: ein numerisches Enum als `page_kind` oder eine Zahl-ID (`collection_id: 4711` → `"4711"`) bricht den Zug also nicht. Nicht gesetzte Felder (`null`) bleiben ungesetzt.
+
+#### Prüftisch (Erschließung): eingetragene Feldwerte mitgeben
+
+Zum Zeitpunkt der Erschließung ist der Knoten **unveröffentlicht** — der
+anonyme Server-Abruf über die `node_id` liefert leer, und `innerText` enthält
+von der Maske nur Feldnamen und Hilfetexte: **eingetragene Formularwerte
+(vor allem die Quell-URL) fehlen im automatischen Harvest.** Der Rahmen kennt
+sie aber — als Anhang an `page_text` bekommt der Bot sie sofort, ohne
+Backend-Änderung. Steht die Quell-URL im Text, holt er den Inhalt
+selbstständig per `get_url_text`, statt danach zu fragen.
+
+```js
+// Werte aus input/textarea einsammeln — genau die fehlen im innerText.
+// (Dropdown-Auswahlen stehen als Text ohnehin schon im Harvest.)
+function feldwerteAlsText() {
+  const zeilen = [];
+  for (const el of document.querySelectorAll('input, textarea')) {
+    const wert = (el.value || '').trim();
+    if (!wert || el.type === 'hidden' || el.type === 'password') continue;
+    const label = el.labels?.[0]?.innerText?.trim()
+      || el.getAttribute('aria-label') || el.getAttribute('placeholder')
+      || el.name || el.id || 'Feld';
+    zeilen.push(label + ': ' + wert);
+  }
+  return zeilen.length
+    ? '
+
+— Eingetragene Feldwerte (vom Rahmen ausgelesen) —
+' + zeilen.join('
+')
+    : '';
+}
+
+function pruefTischKontext() {
+  return {
+    page_kind: 'content',            // der Server macht daraus `editorial` …
+    page_url:  location.href,        // … anhand von /components/editorial-desk
+    page_host: location.hostname,
+    node_id:   new URLSearchParams(location.search).get('nodeId') || undefined,
+    title:     document.title,
+    page_text: (document.body.innerText.slice(0, 190000) + feldwerteAlsText())
+                 .slice(0, 200000),
+  };
+}
+
+chat.replaceContext(pruefTischKontext());
+
+// Die Maske füllt sich erst nach und nach — Werte still nachreichen
+// (updateContext pingt nicht, es erscheint also keine neue Nachricht;
+// bei sehr großen Seiten den Handler entprellen):
+document.addEventListener('change', () => {
+  chat.updateContext({ page_text: pruefTischKontext().page_text });
+}, true);
+```
 
 `page_kind: "collection"` oder `"topic"` löst zusätzlich einen Vorabruf aus:
 Anzahl der Materialien und die **Übersicht der freigegebenen Anleitungen
@@ -668,7 +722,7 @@ wenn das Content-Script geantwortet hat:
 ```js
 chat.replaceContext({ page_kind: 'other', page_url: tab.url, page_host: host });
 // … später, wenn der Text da ist — die Seite ist dieselbe geblieben:
-chat.updateContext({ page_text: text.slice(0, 3000) });
+chat.updateContext({ page_text: text.slice(0, 200000) });
 ```
 
 **Wonach es aussieht, wenn ihr die beiden verwechselt:** nichts passiert.
@@ -1035,7 +1089,7 @@ chat.replaceContext({
   page_kind: 'other',                    // der Server macht daraus `external`
   page_url:  'https://de.wikipedia.org/wiki/Astronomische_Einheit',
   page_host: 'de.wikipedia.org',
-  page_text: seitentext.slice(0, 3000),  // ~3 KB, wie die eigene Erkennung
+  page_text: seitentext.slice(0, 200000),  // Server-Budget der Antwort-Prompts
 });
 
 // 2. Auftrag mit ausdrücklicher Vokabular-Prüfung.
@@ -1386,7 +1440,7 @@ zwischen den Klicks den Text von Seite B unter der Adresse von Seite A — bei
 gleicher Herkunft ohne jede Fehlermeldung. Das ist uns im eigenen Review
 aufgefallen, nicht im Betrieb; der Test dazu liegt in `scripts/check-tab.mjs`.
 
-Den Text bei **20 000 Zeichen** kappen: das ist die Grenze des Agent-Endpunkts
+Den Text bei **200 000 Zeichen** kappen: das ist die Grenze des Agent-Endpunkts
 und ungekappt der häufigste Grund für ein 422.
 
 #### 4 · Berechtigungen erst dann, wenn sie gebraucht werden
@@ -1538,7 +1592,7 @@ const { text, result, stop_reason, iterations, tools_called } = await antwort.js
 
 | Eingabe | Pflicht | Bedeutung |
 |---|---|---|
-| `instruction` | **ja** | Die Aufgabe im Klartext, ≤ 20 000 Zeichen, nicht leer |
+| `instruction` | **ja** | Die Aufgabe im Klartext, ≤ 200 000 Zeichen, nicht leer |
 | `collection_id` | nein | Sammlung, aus der die Anleitungen kommen — vorab über `get_skill_registry` aufgelöst |
 | `node_ids` | nein | Die Inhalte, um die es geht — vorab über `get_nodes_details`, **höchstens 50** |
 | `result_schema` | nein | JSON-Schema. Reist **wörtlich** in die Parameter des Abschluss-Werkzeugs `submit_result` |
@@ -1585,7 +1639,7 @@ Ergebnis der Hauskonvention folgt und nicht der Laune des Modells.
 
 ```js
 // Der Seitentext ist EURE Bringschuld — dazu unten mehr.
-const seitentext = document.body.innerText.replace(/\s+/g, ' ').slice(0, 12000);
+const seitentext = document.body.innerText.replace(/\s+/g, ' ').slice(0, 190000);
 
 const antwort = await fetch('https://chat.example.org/api/agent', {
   method: 'POST',
@@ -1668,7 +1722,7 @@ Sechs Dinge, die auf einer gewöhnlichen Gastseite nicht auffallen:
 | | |
 |---|---|
 | **Der Seitentext ist eure Bringschuld** | `get_url_text` läuft auf dem *Server*. Einen Tab hinter Anmeldung, hinter Bezahlschranke oder auf `localhost` sieht er nicht — ihr schon. Schickt den Text in der `instruction` mit, statt auf das Werkzeug zu hoffen. |
-| **≤ 20 000 Zeichen** | Die `instruction` ist gedeckelt; ein langer Artikel plus eure Anweisung reißt das. Kürzt den Text (oben: 12 000), sonst kommt `422`. |
+| **≤ 200 000 Zeichen** | Die `instruction` ist gedeckelt; extrem lange Texte plus eure Anweisung reißen das. Kürzt den Text (oben: 190 000), sonst kommt `422`. |
 | **Zugang: nur der Zugangsblock** | `WLO-Access-Block` mit **persönlicher** Anmeldung. Der Studio-Schlüssel ist der Admin-Schlüssel und hat in einer Erweiterung nichts zu suchen (§7). |
 | **20 Läufe je Minute und IP** | `RATE_LIMIT_CHAT`. Ein Plugin, das bei **jedem** Tab-Wechsel einen Agent-Lauf startet, steht nach zwanzig Wechseln bei `429`. Startet Läufe auf eine ausdrückliche Handlung, nicht auf Navigation. |
 | **CORS** | Erledigt seit 18.08.2026, doppelt: CORS ist **standardmäßig offen** (`CORS_ALLOW_ALL`, Vorgabe an), und selbst bei enger Liste dürfen `chrome-extension://` und `safari-web-extension://` (`CORS_ALLOW_EXTENSIONS`). **Safari brauchte das zwingend** — dort ist die UUID je Installation eine andere, ein Listeneintrag also unmöglich. Fragt beim Betreiber nach, falls der Schalter aus ist. |
@@ -1748,7 +1802,7 @@ Volle Herleitung samt Messungen:
 | Der Auftrag aus `startTask` erscheint nicht | Leerer Text wird verworfen. Sonst wartet er, bis die Shell gemountet ist, und läuft dann (§5) |
 | Der Bot antwortet auf den Auftrag ohne den Seitenkontext | `replaceContext()` **vor** `startTask()` — der Auftrag geht sofort raus (§5) |
 | `tools_called` enthält kein `get_skill` | Das Modell hat die Anleitung nicht gelesen. Die Anweisung war zu unbestimmt — nennt die Aufgabe und verlangt ausdrücklich, sich an eine passende Anleitung zu halten (§7) |
-| 422 an `/api/agent` | `instruction` über 20 000 Zeichen — meist der mitgeschickte Seitentext. Kürzen (§7) |
+| 422 an `/api/agent` | `instruction` über 200 000 Zeichen — meist der mitgeschickte Seitentext. Kürzen (§7) |
 | CORS-Fehler in der Erweiterungs-Konsole | Seit 18.08.2026 sind `chrome-extension://` und `safari-web-extension://` **von sich aus erlaubt** (`CORS_ALLOW_EXTENSIONS`, Vorgabe an). Tritt der Fehler trotzdem auf: der Betreiber hat **beide** Schalter zu (`CORS_ALLOW_ALL=false` **und** `CORS_ALLOW_EXTENSIONS=false`) |
 | Safari: `Preflight response is not successful. Status code: 400` | Dasselbe. Die 400 ist Starlettes „Disallowed CORS origin" — sie sagt nur, dass die Herkunft abgewiesen wurde, nicht dass mit dem Rumpf etwas nicht stimmt |
 | 401 / 403 an `/api/agent` | Keiner der drei Zugangswege greift (§7) |

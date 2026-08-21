@@ -196,7 +196,9 @@ def _validate_against_model(tool_name: str, arguments: dict[str, Any]) -> dict[s
 # Zeichen — live schnitt das 2 von 6 Arbeitsblättern ab, eines davon um mehr als
 # die Hälfte. Nutzer-Vorgabe 2026-07-30: gar nicht abschneiden, deshalb die
 # Schema-Obergrenze des Tools (``content-text.ts``: ``min(500).max(50000)``).
-# Höher geht nicht — der Server lehnte einen größeren Wert ab.
+# Höher geht nicht — der Server lehnte einen größeren Wert ab (Schema live
+# erneut geprüft 2026-08-21: ``maxChars`` maximum 50000 unverändert; eine
+# Anhebung braucht den MCP-Server, ``content-text.ts``).
 #
 # Bewusst in Kauf genommen: ein wirklich ausgereizter Text sind ~13-17k Tokens im
 # Modell-Kontext. Das trifft nur den Volltext-Pfad (der Nutzer will dann mit dem

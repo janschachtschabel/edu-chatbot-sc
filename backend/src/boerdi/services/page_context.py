@@ -719,7 +719,9 @@ def render_for_prompt(
                 )
                 + "Für Aussagen zum Inhalt bitte die Person um die Quell-URL "
                 "des Materials (oder nimm sie aus ihrer Nachricht) und hole "
-                "den Text mit get_url_text."
+                "den Text mit get_url_text. Steht die Quell-URL bereits im "
+                "sichtbaren Text (vom Rahmen angehängte Feldwerte), nutze sie "
+                "DIREKT mit get_url_text, ohne nachzufragen."
             )
         elif _seitentext:
             _weg = (

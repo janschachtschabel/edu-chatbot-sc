@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
+from uuid import uuid4
 
 import litellm
 
@@ -163,11 +164,23 @@ def wire_transport(resolved: str, kwargs: dict[str, Any]) -> None:
     kwargs["num_retries"] = 2
     if extra_headers is not None:
         kwargs["extra_headers"] = extra_headers
-    # b-api-Antwort-Cache umgehen (Sommercamp-Entscheid 2026-08-21; Messwerte
-    # und die openai-Pfad-Falle am Setting ``b_api_clear_cache``). Nur der
+    # b-api-Antwort-Cache umgehen (Sommercamp-Entscheid 2026-08-21, GENERELL —
+    # beide b-api-Pfade; Messwerte am Setting ``b_api_clear_cache``). Nur der
     # Transport aendert sich — Prompt-Aufbau und Embeddings bleiben unberuehrt.
-    if s.b_api_clear_cache and get_provider() == "b-api-academiccloud":
-        kwargs["extra_body"] = {"clearCache": True}
+    if s.b_api_clear_cache:
+        provider = get_provider()
+        if provider == "b-api-academiccloud":
+            # Semantisches Feld, vom Gateway konsumiert (gemessen: jede
+            # Antwort frisch generiert).
+            kwargs.setdefault("extra_body", {})["clearCache"] = True
+        elif provider == "b-api-openai":
+            # ``clearCache`` wuerde hier an OpenAI durchgereicht (HTTP 400,
+            # gemessen). Der Cache-Schluessel der b-api umfasst aber den Body
+            # samt ``user`` (offizielles OpenAI-Feld): identisches ``user`` →
+            # Treffer in 0,2 s, neues ``user`` → frische Generierung
+            # (gemessen 21.08.). Ein Zufallswert je Request schaltet den
+            # Cache also auch hier ab.
+            kwargs.setdefault("extra_body", {})["user"] = f"boerdi-nc-{uuid4().hex}"
 
 
 async def chat_completion(

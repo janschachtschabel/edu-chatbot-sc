@@ -14,7 +14,8 @@ Parity preserved:
   tool marker selects its tool-call branch, then is stripped — instructor
   injects its own tool);
 - provider routing + timeout + num_retries + the shared concurrency bulkhead
-  are wired exactly like ``llm.chat_completion``;
+  come via ``llm.wire_transport`` — the same stamp (incl. b-api
+  cache-bust) as every chat turn;
 - Layer-A fallback reproduces ALT: on retry exhaustion, salvage the valid
   subset of the model's raw tool args via ``model_construct``.
 
@@ -37,7 +38,6 @@ from boerdi.obs import usage as _usage
 from boerdi.services import llm as _llm
 from boerdi.services.classify_prompt import build_classify_system_prompt
 from boerdi.services.llm_models import get_chat_model
-from boerdi.settings import get_settings
 
 _logger = logging.getLogger(__name__)
 
@@ -80,14 +80,11 @@ async def classify_input(
     )
     kwargs.pop("messages")
     kwargs.pop("tools", None)
-    litellm_model, api_base, api_key, extra_headers = _llm.route(model)
-    kwargs["model"] = litellm_model
-    kwargs["api_base"] = api_base
-    kwargs["api_key"] = api_key
-    kwargs["timeout"] = get_settings().llm_read_timeout
-    kwargs["num_retries"] = 2
-    if extra_headers is not None:
-        kwargs["extra_headers"] = extra_headers
+    # Derselbe Stempel wie jeder Chat-Zug — seit dem Cache-Paket (2026-08-21)
+    # inklusive b-api-Cache-Bust. Die frühere Zeilen-Kopie ließ genau den aus:
+    # eine falsch gecachte Klassifikation klebte an identischen Folgezügen
+    # (Review-Befund).
+    _llm.wire_transport(model, kwargs)
 
     try:
         async with _llm.semaphore():

@@ -1238,3 +1238,17 @@ def test_der_deckel_gilt_auch_im_musterweg(monkeypatch):
         _resp_text("fertig"),
     ])
     assert len(st["session_state"]["_gelieferte_dokumente"]) == MAX_DOKUMENTE_JE_ZUG
+
+
+def test_assemble_rag_prefetch_haelt_das_grosse_budget(monkeypatch):
+    """Limit-Sweep-Nachzügler (Review 2026-08-21): der Vorabruf wurde bei
+    12 000 Zeichen geschnitten — seit dem Blanket-Entscheid „alle auf 200 000"
+    gilt auch hier die Notbremse statt eines Arbeitsbudgets."""
+    rag = _RagCtx(text="K" * 210000)
+    (messages, *_rest) = _run_assemble(
+        monkeypatch, rag_ctx=rag, session_state={},
+        available_rag_areas=["hilfe"],
+        rag_config={"hilfe": {"mode": "always"}})
+    inhalt = messages[3]["content"]
+    assert "K" * 190000 in inhalt
+    assert "K" * 200001 not in inhalt

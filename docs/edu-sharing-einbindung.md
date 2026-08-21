@@ -589,7 +589,7 @@ const antwort = await fetch('https://chat.example.org/api/agent', {
 
 | Eingabe | Pflicht | Bedeutung |
 |---|---|---|
-| `instruction` | **ja** | Die Aufgabe im Klartext, ≤ 20 000 Zeichen, nicht leer |
+| `instruction` | **ja** | Die Aufgabe im Klartext, ≤ 200 000 Zeichen, nicht leer |
 | `collection_id` | nein | Sammlung, aus der die Anleitungen kommen — vorab über `get_skill_registry` |
 | `node_ids` | nein | Die Inhalte — vorab über `get_nodes_details`, **höchstens 50** |
 | `result_schema` | nein | JSON-Schema des gewünschten Ergebnisses |

@@ -175,3 +175,18 @@ def test_fallback_on_malformed_arguments_returns_defaults(monkeypatch) -> None:
     _raise(monkeypatch, _retry_exc(raw))
     result = asyncio.run(classify.classify_input("hi", [], {}, {}))
     assert result.persona_id == "P-AND"  # unparseable → defaults, no crash
+
+
+def test_transport_traegt_den_b_api_cache_bust(monkeypatch) -> None:
+    """Review-Befund 2026-08-21 (MAJOR): der Klassifikator kopierte den
+    Transport-Stempel Zeile für Zeile — ohne den Cache-Bust des Cache-Pakets.
+    Seine b-api-Züge blieben gecacht: eine falsch gecachte Klassifikation
+    klebte an allen identischen Folgezügen. Seit dem Fix läuft er über
+    ``llm.wire_transport`` — derselbe Stempel wie jeder Chat-Zug."""
+    cap: dict = {}
+    _install(monkeypatch, captured=cap)
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")
+    monkeypatch.setenv("B_API_KEY", "bkey")
+    get_settings.cache_clear()
+    asyncio.run(classify.classify_input("hi", [], {}, {}))
+    assert cap["kwargs"]["extra_body"] == {"clearCache": True}

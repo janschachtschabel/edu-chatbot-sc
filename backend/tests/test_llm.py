@@ -156,16 +156,23 @@ def test_wire_transport_academiccloud_sendet_clear_cache(monkeypatch) -> None:
     assert kw["extra_body"] == {"clearCache": True}
 
 
-def test_wire_transport_b_api_openai_sendet_kein_clear_cache(monkeypatch) -> None:
-    """Gemessen 21.08.: der openai-Pfad reicht das Feld ungefiltert an OpenAI
-    durch — HTTP 400 „Unknown parameter: 'clearCache'" bei JEDEM Zug. Dort
-    darf es also nie mitgesendet werden (Cache dort derzeit nicht abschaltbar)."""
+def test_wire_transport_b_api_openai_umgeht_cache_per_user_feld(monkeypatch) -> None:
+    """Gemessen 21.08.: ``clearCache`` reicht der openai-Pfad ungefiltert an
+    OpenAI durch (HTTP 400 „Unknown parameter") — der Cache-Schlüssel der
+    b-api umfasst aber den Body samt ``user`` (offizielles OpenAI-Feld):
+    identisches ``user`` → Treffer in 0,2 s, neues ``user`` → frische
+    Generierung. Ein Zufallswert je Request schaltet den Cache also auch hier
+    ab, ohne unbekanntes Feld."""
     monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
     monkeypatch.setenv("B_API_KEY", "bkey")
     get_settings.cache_clear()
-    kw = {}
-    llm.wire_transport("m", kw)
-    assert "extra_body" not in kw
+    kw1, kw2 = {}, {}
+    llm.wire_transport("m", kw1)
+    llm.wire_transport("m", kw2)
+    assert "clearCache" not in kw1["extra_body"]
+    u1 = kw1["extra_body"]["user"]
+    u2 = kw2["extra_body"]["user"]
+    assert u1.startswith("boerdi-nc-") and u1 != u2  # je Request frisch
 
 
 def test_wire_transport_openai_nativ_sendet_kein_clear_cache(monkeypatch) -> None:
@@ -177,13 +184,14 @@ def test_wire_transport_openai_nativ_sendet_kein_clear_cache(monkeypatch) -> Non
 
 
 def test_wire_transport_clear_cache_abschaltbar(monkeypatch) -> None:
-    monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")
     monkeypatch.setenv("B_API_KEY", "bkey")
     monkeypatch.setenv("B_API_CLEAR_CACHE", "false")
-    get_settings.cache_clear()
-    kw = {}
-    llm.wire_transport("m", kw)
-    assert "extra_body" not in kw
+    for provider in ("b-api-academiccloud", "b-api-openai"):
+        monkeypatch.setenv("LLM_PROVIDER", provider)
+        get_settings.cache_clear()
+        kw = {}
+        llm.wire_transport("m", kw)
+        assert "extra_body" not in kw, provider
 
 
 # ── provider routing ───────────────────────────────────────────────────────
@@ -472,3 +480,15 @@ def test_semaphore_public_wrapper_returns_same_per_loop() -> None:
         assert bg is not a  # distinct live/bg bulkheads
 
     asyncio.run(go())
+
+
+def test_wire_transport_merged_vorhandenes_extra_body(monkeypatch) -> None:
+    """Review-NIT: die Zuweisung überschrieb ein vom Aufrufer gesetztes
+    ``extra_body`` still — heute liefert es niemand zu, der Merge kostet
+    nichts und verhindert den künftigen stillen Verlust."""
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")
+    monkeypatch.setenv("B_API_KEY", "bkey")
+    get_settings.cache_clear()
+    kw = {"extra_body": {"x": 1}}
+    llm.wire_transport("m", kw)
+    assert kw["extra_body"] == {"x": 1, "clearCache": True}

@@ -130,6 +130,61 @@ Prompt zitierten den Z2-Platzhalter „Seite mit nicht auflösbarem Inhalt" als
 Seitennamen. Neu: `_host_title()` (document_title gewinnt) an beiden
 Lesestellen des Resolvers; `title` in `_STRING_FIELDS` der EK4-Härtung.
 
+### EK9 — Prüftisch: die Maske ist nicht der Inhalt
+
+Live-Befund 2026-08-21 (Staging, Knoten `56cea807…`): der Resolver NUTZT die
+`node_id` (`get_node_details` mit `includeTextContent`), aber der frisch
+eingereichte Knoten ist unveröffentlicht — anonym kommt ein LEERES Ergebnis
+(live geprüft: `{"total":0}`), kein Fehler. Der Z2-Rückfall setzt dann den
+Host-Titel („Redaktion - edu-sharing") als `Titel:`, und die Wo-bin-ich-Regel
+weist das Modell an, ihn zu zitieren — der Bot erklärt die
+Redaktionsoberfläche zum Inhalt und generiert Schnellantworten zu edu-sharing
+statt zum Material. Zweiter Anteil: `page_text` ist auf dem Prüftisch die
+Erschließungsmaske — innerText trägt Feldnamen und Hilfetexte, eingetragene
+FORMULARWERTE (z. B. die Quell-URL des Materials) erscheinen darin nie; die
+EK3-Note sagt aber „arbeite damit, statt nach dem Inhalt zu fragen".
+
+Fix (nur `render_for_prompt`, Fall `editorial` + `unresolved`):
+1. Titel-Zeile ehrlich: „Titel des Inhalts: noch unbekannt …" statt Host-Titel.
+2. Rechte-Note-Variante: Maske erklärt (Werte fehlen im sichtbaren Text) +
+   Arbeitsweg — Quell-URL erfragen bzw. aus der Nachricht nehmen → `get_url_text`.
+3. Wo-bin-ich-Regel zitiert den Host-Titel nicht mehr.
+4. Überschrift der Textsektion benennt die Maske.
+5. Editorial-Regelzeile nennt die Inhaltsquelle je nach Auflösungslage.
+6. Generik-Regeln (Seitentitel-als-Thema, Titel-Suche) laufen im Maskenfall
+   über den Kernbegriff des Materials statt über den Oberflächen-Titel.
+
+Resolver unangetastet: der Abruf über die `node_id` passiert bereits und wird
+mit Leserechten (Service-Konto/Ticket) sofort wirksam; anonym ist ein
+unveröffentlichter Knoten strukturell unsichtbar — das kann kein Backend-Code
+ändern. Der Weg zum Inhalt ist deshalb die Quell-URL (`get_url_text` ist
+SSRF-geschützt vorhanden).
+
+### EK10 — Seitentext-Budget: 20 000 für die Antwort-Prompts
+
+Nutzer-Entscheid 2026-08-21: Der Transport ist seit L1 ungedeckelt, aber
+``render_for_prompt`` schnitt den Gastgeber-Seitentext bei 3000 Zeichen ab —
+hinter Login-Wänden, in Intranets und auf dem Prüftisch ist dieser Text die
+einzige Inhaltsquelle, der Rest wurde still verworfen. Neu:
+``SEITENTEXT_PROMPT_BUDGET = 20 000`` (deckungsgleich mit dem
+``get_wlo_content_text``-Deckel und dem Agent-Endpunkt-Richtwert der
+Plugin-Doku) als Vorgabe für Muster-Antwort und Agent; der Klassifikator
+übergibt ``page_text_budget=3000`` (wählt nur ein Muster, Volltext wäre dort
+Kostenlast pro Zug). Die vier Beispiel-Snippets der Plugin-Doku
+(``slice(0, 3000)``) ziehen auf 20 000 nach — sonst bliebe das Server-Budget
+wirkungslos, weil die Gastgeber clientseitig weiter kappen.
+
+**EK10b (noch am selben Tag):** Nutzer-Entscheid „alle auf 200 000" — die
+Vorgabe heißt jetzt ``TEXT_PROMPT_BUDGET = 200 000`` (Skala des
+``result_schema``-Deckels) und gilt für ALLE Textabschnitte des Blocks:
+Seitentext, gespeicherter Volltext (vorher 3000), Kompendium (vorher 4000)
+und den Heuristik-Rohblock (vorher 1500, jetzt parametrisiert). Zusätzlich
+zieht ``AgentRequest.instruction`` von 20 000 auf 200 000 nach
+(Vertrags-Änderung, OpenAPI neu erzeugt) — der alte Deckel war laut
+Plugin-Doku der häufigste 422-Grund. Bewusste Ausnahme bleibt der
+Klassifikator: 3000 je Textabschnitt (beide Pfade, Meta und Roh), sonst
+zahlte jeder Zug den Volltext im teuersten Prompt.
+
 ## Nicht-Ziele
 Kein Frontend-/Detektor-Umbau (der Rahmen ist fremder Code; die Erkennung ist
 serverseitig vollständig). Kein OpenAPI-Delta (`page_context` ist Freiform).
@@ -146,3 +201,7 @@ MCP-Server unberührt.
 | EK7 | ✅ 2026-08-21 — Ping-Event nach Unterhaltungszustand (`hasUserMessages`); Prüftisch-Seitenleiste bekommt Gruß + Pills trotz nachgereichtem Kontext; 2 Pins, ui 832 |
 | EK8 | ✅ 2026-08-21 — `_host_title` mit `title`-Alias an beiden Resolver-Rückfällen + `_STRING_FIELDS`; 3 Pins, Suite 4120 |
 | EK7b | ✅ 2026-08-21 — CI-Nachlauf: 3 E2E-Pins auf den neuen Ping-Vertrag umgezogen (Begründung im Spec, Muster der Datei), Harness-`history`-Option + neuer Wiederkehrer-Test pinnt `context_open` bei echter History samt Restore-vor-Ping-Reihenfolge; E2E 49 passed |
+| EK9 | ✅ 2026-08-21 — Prüftisch-Prompt ehrlich: Host-Titel nie als Inhaltstitel (Titel-Zeile, Wo-bin-ich-Regel, Schluss-Hinweis, 2 Generik-Regeln), Rechte-Note erklärt die Maske (Formularwerte fehlen im innerText) + Quell-URL-Weg via get_url_text, Sektions-Überschrift benennt die Maske; Resolver unberührt (nutzt die node_id bereits — anonym leer, live belegt). 3 Pins + 2 Zusatz-Assertions, Suite 4123 |
+| EK10 | ✅ 2026-08-21 — `SEITENTEXT_PROMPT_BUDGET=20000` als Vorgabe in `render_for_prompt` (`page_text_budget`-Parameter), Klassifikator bleibt bei 3000; 4 Doku-Snippets auf 20 000 nachgezogen; Budget-Pin um-gepinnt + Parameter-Test + Klassifikator-Wächter |
+| EK10b | ✅ 2026-08-21 — alle Textabschnitts-Budgets auf `TEXT_PROMPT_BUDGET=200000` (Seitentext/Volltext/Kompendium/Rohblock), `AgentRequest.instruction` 20 000→200 000 (OpenAPI neu erzeugt), Doku-Snippets + Agent-Grenze nachgezogen; Klassifikator-Ausnahme 3000 beidpfadig gepinnt; dazu Review-Befunde: EK9-Spec Punkt 6 + NIT-Assertion `_quelle` |
+| EK9c | ✅ 2026-08-21 — Rechte-Note: eine im sichtbaren Text stehende Quell-URL (vom Rahmen angehängte Feldwerte) DIREKT mit get_url_text nutzen statt nachzufragen; Prüftisch-Einbindungsbeispiel (Feldwerte an page_text anhängen) in der Plugin-Doku; 1 Pin |

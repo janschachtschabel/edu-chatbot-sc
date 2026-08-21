@@ -805,6 +805,9 @@ def test_render_editorial_unaufgeloest_erklaert_maske_und_quell_url_weg():
     assert "Erschließungsmaske" in out
     assert "Quell-URL" in out and "get_url_text" in out
     assert "arbeite damit, statt nach dem Inhalt zu fragen" not in out
+    # EK9c: hängt der RAHMEN Feldwerte (samt Quell-URL) an den Seitentext an,
+    # soll der Bot eine dort stehende URL DIREKT nutzen statt nachzufragen.
+    assert "Steht die Quell-URL bereits im sichtbaren Text" in out
     # Der Maskentext bleibt trotzdem im Block (Feldliste hilft bei Metadaten-Fragen) …
     assert "Voller Titel" in out
     # … und die ehrliche Rechte-Ansage samt ID ebenso.

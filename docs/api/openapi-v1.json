@@ -21,7 +21,7 @@
             "title": "Collection Id"
           },
           "instruction": {
-            "maxLength": 20000,
+            "maxLength": 200000,
             "title": "Instruction",
             "type": "string"
           },
