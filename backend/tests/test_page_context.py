@@ -369,9 +369,10 @@ def test_render_raw_includes_fields_and_snippet():
 
 
 def test_render_raw_truncates_long_text():
-    out = p.render_raw_for_prompt({"page_text": "x" * 2000})
+    # EK10b: Kürzung erst oberhalb der 200 000er-Vorgabe (vorher 1500).
+    out = p.render_raw_for_prompt({"page_text": "x" * 210000})
     assert "…" in out
-    assert "x" * 2000 not in out
+    assert "x" * 210000 not in out
 
 
 def _patch_mcp(monkeypatch, fn):
@@ -508,10 +509,11 @@ def test_render_includes_compendium_block_and_curation_hint():
 
 
 def test_render_compendium_trims_to_budget():
-    meta = {"title": "X", "compendium_text": "K" * 5000}
+    # EK10b: Kürzung erst oberhalb der 200 000er-Vorgabe (vorher 4000).
+    meta = {"title": "X", "compendium_text": "K" * 210000}
     out = p.render_for_prompt(meta, {"page_kind": "collection"})
     assert "…" in out
-    assert "K" * 4001 not in out  # auf ~4000er-Budget gekürzt
+    assert "K" * 200001 not in out
 
 
 def test_render_includes_textcontent_block_for_content():
@@ -711,14 +713,45 @@ def test_render_aufgeloest_ignoriert_den_heuristischen_seitentext():
 
 
 def test_render_unaufgeloester_seitentext_haelt_das_budget():
-    # 3000 wie ``text_content``: der Seitentext ist hier die EINZIGE Inhalts-
-    # quelle, und auf dem Prüftisch liegen vor dem Metadaten-Formular ~1800
-    # Zeichen Listen-Harvest — ein 1500er-Budget schnitte genau das Wertvolle ab.
+    """EK10b (Nutzer-Entscheid 2026-08-21): der Transport ist seit L1 ungedeckelt,
+    und auf fremden Seiten (Login-Wände, Intranets, Prüftisch) ist der Seitentext
+    die EINZIGE Inhaltsquelle. Vorgabe 200 000 — die Skala des letzten
+    Vertrags-Deckels (``MAX_RESULT_SCHEMA_CHARS``); nur der Klassifikator
+    reicht weiter 3000 je Textabschnitt."""
     meta = {"title": "X", "unresolved": True, "node_id": "n-1"}
     out = p.render_for_prompt(
-        meta, {"page_kind": "content", "node_id": "n-1", "page_text": "T" * 5000})
+        meta, {"page_kind": "content", "node_id": "n-1", "page_text": "T" * 210000})
+    assert "T" * 200001 not in out
+    assert "T" * 190000 in out
+
+
+def test_render_seitentext_budget_parameter_fuer_kleine_prompts():
+    """Der Klassifikator reicht ``text_budget=3000`` — er wählt nur ein
+    Muster; der Volltext wäre dort reine Kostenlast bei jedem Zug."""
+    meta = {"title": "X", "unresolved": True, "node_id": "n-1"}
+    out = p.render_for_prompt(
+        meta, {"page_kind": "content", "node_id": "n-1", "page_text": "T" * 5000},
+        text_budget=3000)
     assert "T" * 3001 not in out
     assert "T" * 2500 in out
+
+
+def test_render_volltext_und_kompendium_halten_das_grosse_budget():
+    """EK10b: dieselbe 200 000er-Vorgabe gilt für den gespeicherten Volltext
+    (vorher 3000) und den kompendialen Text (vorher 4000)."""
+    meta = {"title": "X", "unresolved": False, "node_id": "n-1",
+            "text_content": "V" * 210000, "compendium_text": "C" * 210000}
+    out = p.render_for_prompt(meta, {"page_kind": "content", "node_id": "n-1"})
+    assert "V" * 190000 in out and "V" * 200001 not in out
+    assert "C" * 190000 in out and "C" * 200001 not in out
+
+
+def test_render_raw_haelt_das_grosse_budget():
+    """EK10b: auch der Heuristik-Rohblock (vorher 1500) nutzt die Vorgabe —
+    er ist derselbe Seitentext, nur ohne aufgelöstes Meta."""
+    out = p.render_raw_for_prompt({"page_kind": "other", "page_text": "R" * 210000})
+    assert "R" * 190000 in out
+    assert "R" * 200001 not in out
 
 
 def test_render_editorial_traegt_erschliessungs_rahmen():
@@ -743,6 +776,55 @@ def test_resolve_editorial_holt_den_volltext(monkeypatch):
     asyncio.run(p.resolve_page_context(
         {"node_id": "n-1", "page_kind": "editorial"}, state))
     assert seen["args"].get("includeTextContent") is True
+
+
+def test_render_editorial_unaufgeloest_tarnt_den_hosttitel_nicht_als_inhaltstitel():
+    """EK9 (Live-Befund Prüftisch 2026-08-21): der Tab-Titel des Prüftischs ist
+    IMMER „Redaktion - edu-sharing" — als ``Titel:`` ausgegeben übernahm ihn
+    das Modell wörtlich („Erschließung des Einzelinhalts ‚Redaktion -
+    edu-sharing'") und erfand Schnellantworten zu edu-sharing statt zum
+    Material. Auf ``editorial`` benennt der Host-Titel die Oberfläche, nie den
+    Inhalt — der Block muss das sagen, statt ihn als Inhaltstitel zu führen."""
+    meta = {"title": "Redaktion - edu-sharing", "unresolved": True, "node_id": "n-1"}
+    out = p.render_for_prompt(meta, {"page_kind": "editorial", "node_id": "n-1"})
+    assert "Titel: Redaktion - edu-sharing" not in out
+    assert "Redaktionsoberfläche" in out
+    # Auch die Wo-bin-ich-Regel darf ihn nicht als Inhaltsnamen zitieren.
+    assert '"Redaktion - edu-sharing"' not in out
+
+
+def test_render_editorial_unaufgeloest_erklaert_maske_und_quell_url_weg():
+    """EK9: der sichtbare Text des Prüftischs ist die MASKE — innerText trägt
+    Feldnamen und Hilfetexte, eingetragene Formularwerte (etwa die Quell-URL)
+    nie. „Arbeite damit" (EK3-Note) schickt das Modell also in die Irre; der
+    begehbare Weg zum Inhalt ist die Quell-URL → ``get_url_text``."""
+    meta = {"title": "Redaktion - edu-sharing", "unresolved": True, "node_id": "n-1"}
+    pc = {"page_kind": "editorial", "node_id": "n-1",
+          "page_text": "Redaktion Voller Titel Beschreibung URL Internetadresse"}
+    out = p.render_for_prompt(meta, pc)
+    assert "Erschließungsmaske" in out
+    assert "Quell-URL" in out and "get_url_text" in out
+    assert "arbeite damit, statt nach dem Inhalt zu fragen" not in out
+    # Der Maskentext bleibt trotzdem im Block (Feldliste hilft bei Metadaten-Fragen) …
+    assert "Voller Titel" in out
+    # … und die ehrliche Rechte-Ansage samt ID ebenso.
+    assert "Leserechte" in out and "Node-ID: n-1" in out
+    # Keine Gegen-Anweisung durch die Generik-Regeln: „Seitentitel als Thema"
+    # bzw. „Suche mit Titel" wäre wieder die Oberfläche statt des Materials.
+    assert "nimm den Seitentitel als Thema" not in out
+    assert "Suche mit Titel/Schlagworten" not in out
+
+
+def test_render_editorial_aufgeloest_zeigt_den_echten_titel_normal():
+    """Gegenprobe: mit Leserechten (Service-Konto/Ticket) löst der Knoten auf —
+    dann ist der Titel der echte Inhaltstitel und alle EK9-Sonderzeilen entfallen."""
+    meta = {"title": "Gordon Bunshaft", "unresolved": False, "node_id": "n-1"}
+    out = p.render_for_prompt(meta, {"page_kind": "editorial", "node_id": "n-1"})
+    assert "Titel: Gordon Bunshaft" in out
+    assert "Redaktionsoberfläche" not in out
+    assert "Erschließungsmaske" not in out
+    # Review-NIT 2026-08-21: die Quellen-Variante des aufgelösten Zweigs pinnen.
+    assert "aus den Metadaten und dem Volltext oben" in out
 
 
 def test_render_ohne_id_nimmt_den_seitentext_trotzdem_auf():

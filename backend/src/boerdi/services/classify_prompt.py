@@ -245,12 +245,17 @@ def build_classify_system_prompt(
         # keine Skills auf. Der Bestandsabschnitt wäre hier gemessene 2 232
         # Zeichen je Zug — und er formt diesen Prompt, was laut Plan einen
         # Golden-Lauf verlangt. Die zwei Engines dahinter bekommen ihn.
+        # ``text_budget=3000``: der Klassifikator wählt nur ein Muster — die
+        # 200 000er-Vorgabe der Antwort-Prompts (EK10b) wäre hier reine
+        # Kostenlast bei jedem Zug.
         _page_block = page_context.render_for_prompt(
-            _page_meta, environment.get("page_context"), include_stock=False)
+            _page_meta, environment.get("page_context"), include_stock=False,
+            text_budget=3000)
         # Fallback: MCP resolved nothing (off-platform host page) but the widget's
         # DOM-detector saw visible text — render that as the heuristic block.
         if not _page_block:
-            _page_block = page_context.render_raw_for_prompt(environment.get("page_context"))
+            _page_block = page_context.render_raw_for_prompt(
+                environment.get("page_context"), text_budget=3000)
     except Exception:  # noqa: BLE001 — a page-block failure must never break classification
         _page_block = ""
 

@@ -314,6 +314,35 @@ def test_page_context_raw_fallback_when_unresolved(bound_min_store) -> None:
     assert "Sichtbarer Seitentext." in prompt  # DOM text the raw one-liner whitelist drops
 
 
+def test_page_context_seitentext_im_klassifikator_bleibt_gedeckelt(bound_min_store) -> None:
+    """EK10: die Antwort-Prompts sehen den ganzen gesendeten Seitentext
+    (20 000er-Vorgabe) — der Klassifikator wählt nur ein Muster und bleibt beim
+    3000er-Deckel, sonst zahlte JEDER Zug den Volltext im teuersten Prompt."""
+    prompt = build_classify_system_prompt(
+        {"state_id": "S1", "turn_count": 0,
+         "entities": {"_page_metadata": {
+             "title": "X", "unresolved": True, "node_id": "n-1"}}},
+        {"page": "/", "device": "desktop",
+         "page_context": {"page_kind": "content", "node_id": "n-1",
+                          "page_text": "K" * 25000}},
+    )
+    assert "K" * 2500 in prompt
+    assert "K" * 3001 not in prompt
+
+
+def test_page_context_raw_seitentext_im_klassifikator_bleibt_gedeckelt(bound_min_store) -> None:
+    """EK10b: auch der Heuristik-Rohblock (kein aufgelöstes Meta) hält im
+    Klassifikator den 3000er-Deckel, während die Antwort-Prompts die
+    200 000er-Vorgabe nutzen."""
+    prompt = build_classify_system_prompt(
+        {"state_id": "S1", "entities": {}, "turn_count": 0},
+        {"page": "/", "device": "desktop",
+         "page_context": {"page_kind": "content", "page_text": "K" * 25000}},
+    )
+    assert "K" * 2500 in prompt
+    assert "K" * 3001 not in prompt
+
+
 def test_no_page_context_block_when_nothing(bound_min_store) -> None:
     prompt = build_classify_system_prompt(
         {"state_id": "S1", "entities": {}, "turn_count": 0},

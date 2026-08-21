@@ -28,7 +28,10 @@ MAX_NODE_IDS = 50
 class AgentRequest(BaseModel):
     """Der Auftrag eines Gastgebers."""
 
-    instruction: str = Field(..., max_length=20000)
+    #: 200 000 = Skala des ``result_schema``-Deckels (EK10b, 2026-08-21) —
+    #: der alte 20 000er-Deckel war der häufigste 422-Grund, wenn Gastgeber
+    #: Seitentext in den Auftrag geben. Notbremse, kein Erwartungswert.
+    instruction: str = Field(..., max_length=200000)
     #: Die Sammlung, aus der die Anleitungen ('Skills') für diese Aufgabe
     #: kommen. Wird vorab aufgelöst — wer sie mitschickt, will sie genutzt sehen.
     collection_id: str | None = None

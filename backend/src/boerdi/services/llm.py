@@ -155,13 +155,19 @@ def wire_transport(resolved: str, kwargs: dict[str, Any]) -> None:
     retries, optional X-API-KEY header. Shared by ``chat_completion`` and its
     streaming twin (services/llm_streaming.py)."""
     litellm_model, api_base, api_key, extra_headers = route(resolved)
+    s = get_settings()
     kwargs["model"] = litellm_model
     kwargs["api_base"] = api_base
     kwargs["api_key"] = api_key
-    kwargs["timeout"] = get_settings().llm_read_timeout
+    kwargs["timeout"] = s.llm_read_timeout
     kwargs["num_retries"] = 2
     if extra_headers is not None:
         kwargs["extra_headers"] = extra_headers
+    # b-api-Antwort-Cache umgehen (Sommercamp-Entscheid 2026-08-21; Messwerte
+    # und die openai-Pfad-Falle am Setting ``b_api_clear_cache``). Nur der
+    # Transport aendert sich — Prompt-Aufbau und Embeddings bleiben unberuehrt.
+    if s.b_api_clear_cache and get_provider() == "b-api-academiccloud":
+        kwargs["extra_body"] = {"clearCache": True}
 
 
 async def chat_completion(

@@ -259,3 +259,18 @@ def test_die_drosselung_gilt_jetzt_auch_hier(monkeypatch, client):
     assert client.post("/api/agent", json={"instruction": "A."}).status_code == 200
     assert client.post("/api/agent", json={"instruction": "B."}).status_code == 200
     assert client.post("/api/agent", json={"instruction": "C."}).status_code == 429
+
+
+def test_instruction_grenze_liegt_bei_200000_zeichen():
+    """EK10b (Nutzer-Entscheid 2026-08-21): ``instruction`` zieht auf die
+    200 000er-Skala des letzten Vertrags-Deckels (``MAX_RESULT_SCHEMA_CHARS``)
+    nach — der alte 20 000er-Deckel war laut Plugin-Doku der häufigste
+    422-Grund, wenn Gastgeber Seitentext in den Auftrag geben."""
+    import pytest
+    from pydantic import ValidationError
+
+    from boerdi.api.schemas_agent import AgentRequest
+
+    assert AgentRequest(instruction="A" * 200000).instruction
+    with pytest.raises(ValidationError):
+        AgentRequest(instruction="A" * 200001)

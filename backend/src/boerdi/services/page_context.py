@@ -546,11 +546,26 @@ def _bestands_zeilen(fakten: Any) -> list[str]:
     return zeilen
 
 
+#: Budget je TEXTABSCHNITT des Seitenblocks (Gastgeber-Seitentext, gespeicherter
+#: Volltext, kompendialer Text, Heuristik-Rohblock) in den ANTWORT-Prompts
+#: (Muster-Antwort + Agent). Nutzer-Entscheid 2026-08-21 (EK10, auf 200 000
+#: erweitert in EK10b): der Transport ist seit L1 ungedeckelt, und hinter
+#: Login-Wänden, in Intranets und auf dem Prüftisch ist dieser Text die EINZIGE
+#: Inhaltsquelle — ein knappes Budget verwarf den Rest stillschweigend. 200 000
+#: ist die Skala des letzten Vertrags-Deckels (``MAX_RESULT_SCHEMA_CHARS`` und
+#: seit EK10b auch ``AgentRequest.instruction``) — praktisch „kein Limit", nur
+#: eine Notbremse gegen Unfälle. Einzige Ausnahme bleibt der Klassifikator
+#: (übergibt 3000): er wählt nur ein Muster, ein Volltext wäre dort reine
+#: Kostenlast bei JEDEM Zug und riskierte das Kontextfenster des kleinen Modells.
+TEXT_PROMPT_BUDGET = 200_000
+
+
 def render_for_prompt(
     meta: dict[str, Any] | None,
     page_context: dict[str, Any] | None = None,
     *,
     include_stock: bool = True,
+    text_budget: int = TEXT_PROMPT_BUDGET,
 ) -> str:
     """Human-readable block for the system prompt.
 
@@ -574,6 +589,10 @@ def render_for_prompt(
     gemessene 2 232 Zeichen je Zug und veränderte seinen Prompt, wofür der Plan
     einen Golden-Lauf verlangt. Vorgabe bleibt AN, damit die zwei gewollten
     Verbraucher nichts tun müssen.
+
+    ``text_budget`` deckelt jeden Textabschnitt des Blocks — Seitentext,
+    Volltext, Kompendium (EK10/EK10b): Vorgabe ist :data:`TEXT_PROMPT_BUDGET`;
+    der Klassifikator übergibt 3000.
     """
     if not isinstance(meta, dict):
         return ""
@@ -586,6 +605,14 @@ def render_for_prompt(
     collection_id = (pc.get("collection_id") or "").strip()
     node_id = (pc.get("node_id") or "").strip() or (meta.get("node_id") or "").strip()
     search_query = (pc.get("search_query") or "").strip()
+    _unaufgeloest = bool(meta.get("unresolved"))
+    _seitentext = (pc.get("page_text") or "").strip() if _unaufgeloest else ""
+    # EK9 (Live-Befund Prüftisch 2026-08-21): auf ``editorial`` benennt der
+    # Host-Titel die Redaktionsoberfläche („Redaktion - edu-sharing"), nie den
+    # Inhalt — der Titel eines unveröffentlichten Knotens ist anonym schlicht
+    # nicht ermittelbar. Unaufgelöst darf er darum nirgends als Inhaltstitel
+    # auftreten, sonst erklärt das Modell die Oberfläche zum Material.
+    _redaktionsmaske = page_kind == "editorial" and _unaufgeloest
 
     # Seitentyp-Label — Sammlung ist NICHT Themenseite. Vorher hatten wir
     # immer "## Aktuelle Themenseite" was bei Collection-Pages irreführend
@@ -602,7 +629,13 @@ def render_for_prompt(
     }
     heading = heading_map.get(page_kind, "Aktuelle Seite")
     lines: list[str] = [f"## Aktuelle Seite — {heading}"]
-    lines.append(f"Titel: {title}")
+    if _redaktionsmaske:
+        lines.append(
+            "Titel des Inhalts: noch unbekannt — der Seitentitel benennt nur "
+            "die Redaktionsoberfläche, nicht das Material."
+        )
+    else:
+        lines.append(f"Titel: {title}")
 
     desc = (meta.get("description") or "").strip()
     if desc:
@@ -611,21 +644,21 @@ def render_for_prompt(
         lines.append(f"Beschreibung: {desc}")
 
     # Kompendialer Text — die redaktionelle Soll-Beschreibung einer Sammlung,
-    # sachrichtigste Quelle für die Zusammenfassung. Eigenes Budget (4000),
-    # damit ein langer Text den Prompt nicht sprengt.
+    # sachrichtigste Quelle für die Zusammenfassung.
     compendium = (meta.get("compendium_text") or "").strip()
     if compendium:
         lines.append("")
         lines.append("### Kompendialer Text der Sammlung (redaktionelle Soll-Beschreibung)")
-        lines.append(_trim_text(compendium, 4000))
+        lines.append(_trim_text(compendium, text_budget))
         lines.append("")
 
-    # Volltext — nur bei Einzelinhalten (content) abgerufen. Eigenes Budget (3000).
+    # Volltext — bei Einzelinhalten abgerufen (``content`` UND ``editorial``,
+    # seit EK2).
     text_content = (meta.get("text_content") or "").strip()
     if text_content:
         lines.append("")
         lines.append("### Volltext der Seite (gespeicherter Inhalt)")
-        lines.append(_trim_text(text_content, 3000))
+        lines.append(_trim_text(text_content, text_budget))
         lines.append("")
 
     disc = meta.get("disciplines") or []
@@ -672,34 +705,53 @@ def render_for_prompt(
     #     Prüftisch-Befund (EK1); ohne ID trifft es fast jede fremde Seite, wo
     #     der Browser-Harvest die einzige Textquelle ist — hinter Login-Wänden
     #     und in Schul-Intranets erreicht ``get_url_text`` die Seite nie.
-    _unaufgeloest = bool(meta.get("unresolved"))
-    _seitentext = (pc.get("page_text") or "").strip() if _unaufgeloest else ""
-
     if _unaufgeloest and (collection_id or node_id):
+        if _redaktionsmaske:
+            # EK9: „arbeite mit dem Text unten" wäre hier eine Irreführung —
+            # innerText der Maske trägt Feldnamen und Hilfetexte, eingetragene
+            # Formularwerte (etwa die Quell-URL des Materials) nie.
+            _weg = (
+                (
+                    "Der sichtbare Text unten ist NUR die Erschließungsmaske "
+                    "(Feldnamen und Hilfetexte) — eingetragene Formularwerte "
+                    "und der eigentliche Inhalt stehen NICHT darin. "
+                    if _seitentext else ""
+                )
+                + "Für Aussagen zum Inhalt bitte die Person um die Quell-URL "
+                "des Materials (oder nimm sie aus ihrer Nachricht) und hole "
+                "den Text mit get_url_text."
+            )
+        elif _seitentext:
+            _weg = (
+                "Der sichtbare Text der Seite steht unten in diesem Block — "
+                "arbeite damit, statt nach dem Inhalt zu fragen."
+            )
+        else:
+            _weg = (
+                "Wird der Inhalt gebraucht, bitte um den Text bzw. das "
+                "Transkript oder verweise auf die Anmeldung, damit der "
+                "Zugriff mit Rechten läuft."
+            )
         lines.append(
             "Hinweis: Die Metadaten dieser Seite konnten NICHT aus dem Bestand "
             "aufgelöst werden — vermutlich fehlen dem (anonymen) Zugriff die "
             "Leserechte, z. B. bei unveröffentlichtem Material. Die ID oben "
             "liegt bereits vor: NICHT beim Nutzer danach fragen, und keine "
             "Titelsuche versuchen (der Suchindex kennt nur Öffentliches). "
-            + (
-                "Der sichtbare Text der Seite steht unten in diesem Block — "
-                "arbeite damit, statt nach dem Inhalt zu fragen."
-                if _seitentext else
-                "Wird der Inhalt gebraucht, bitte um den Text bzw. das "
-                "Transkript oder verweise auf die Anmeldung, damit der "
-                "Zugriff mit Rechten läuft."
-            )
+            + _weg
         )
 
     if _seitentext:
         lines.append("")
-        lines.append("### Sichtbarer Text der Seite (aus dem Widget)")
-        # 3000 wie beim gespeicherten Volltext: der Seitentext ist hier die
-        # EINZIGE Inhaltsquelle, und auf dem Prüftisch liegen vor dem
-        # Metadaten-Formular ~1800 Zeichen Listen-Harvest — das knappere
-        # Rohblock-Budget (1500) schnitte genau das Wertvolle ab.
-        lines.append(_trim_text(_seitentext, 3000))
+        lines.append(
+            "### Sichtbarer Text der Seite (Erschließungsmaske — Feldnamen, "
+            "nicht der Inhalt)"
+            if _redaktionsmaske else
+            "### Sichtbarer Text der Seite (aus dem Widget)"
+        )
+        # Budget vom Aufrufer: Antwort-Prompts nutzen die Vorgabe (Konstante
+        # oben), der Klassifikator reicht 3000.
+        lines.append(_trim_text(_seitentext, text_budget))
         lines.append("")
 
     # Aktive URL-Filter (?q=…) — auf Sammlungs-Browse-Seiten der Filter
@@ -723,20 +775,33 @@ def render_for_prompt(
     if meta.get("unresolved"):
         lines.append(
             "(Hinweis: vollständige Seitenmetadaten konnten nicht geladen "
-            "werden — nur Seitentitel ist sicher.)"
+            + (
+                "werden — auch der Inhaltstitel ist unbekannt.)"
+                if _redaktionsmaske else
+                "werden — nur Seitentitel ist sicher.)"
+            )
         )
 
     lines.append("")
     lines.append(
         "Der Nutzer ist auf dieser Seite eingebettet. Regeln:"
     )
-    lines.append(
-        "- Bei Fragen wie 'Auf welcher Seite bin ich?', 'Wo bin ich?', "
-        "'Worum geht es hier?', 'Was ist das?', 'In welcher Sammlung?' "
-        "-> beziehe dich direkt + KONKRET auf Titel + Seitentyp ('Du bist "
-        f"hier in der {heading.split()[0]} \"{title}\"'). Nutze den "
-        "Sammlungstitel namentlich, NICHT generische WLO-Floskeln."
-    )
+    if _redaktionsmaske:
+        lines.append(
+            "- Bei Fragen wie 'Auf welcher Seite bin ich?', 'Was siehst du?', "
+            "'Worum geht es hier?' -> Du bist auf dem Prüftisch der Redaktion; "
+            "erschlossen wird ein Einzelinhalt, dessen Titel noch nicht "
+            "ermittelbar ist. Den Titel der Redaktionsoberfläche NICHT als "
+            "Inhaltstitel ausgeben."
+        )
+    else:
+        lines.append(
+            "- Bei Fragen wie 'Auf welcher Seite bin ich?', 'Wo bin ich?', "
+            "'Worum geht es hier?', 'Was ist das?', 'In welcher Sammlung?' "
+            "-> beziehe dich direkt + KONKRET auf Titel + Seitentyp ('Du bist "
+            f"hier in der {heading.split()[0]} \"{title}\"'). Nutze den "
+            "Sammlungstitel namentlich, NICHT generische WLO-Floskeln."
+        )
     if collection_id:
         lines.append(
             f"- Wenn der Nutzer nach 'Materialien hier', 'was ist in dieser "
@@ -757,23 +822,44 @@ def render_for_prompt(
             f"'mehr dazu' / 'weiter' / 'andere Treffer' sagt, suche INNERHALB "
             f"der Sammlung mit diesem Filter."
         )
-    lines.append(
-        "- Bei Create-Anfragen ohne eigenes Thema ('Erstelle mir ein "
-        "Arbeitsblatt dazu', 'Mach ein Quiz hierzu') -> nimm den Seitentitel "
-        "als Thema."
-    )
-    lines.append(
-        "- Bei 'mehr Material dazu', 'weitere Inhalte', 'andere Materialtypen' "
-        "-> Suche mit Titel/Schlagworten starten, passend zu den Bildungsstufen."
-    )
+    if _redaktionsmaske:
+        # EK9: „Seitentitel als Thema" / „Suche mit Titel" zeigte hier wieder
+        # auf die Oberfläche — beide Generik-Regeln laufen über den Kernbegriff
+        # des Materials, sobald er (Quell-URL/Nachricht) bekannt ist.
+        lines.append(
+            "- Bei Create-Anfragen ohne eigenes Thema ('Erstelle mir ein "
+            "Arbeitsblatt dazu', 'Mach ein Quiz hierzu') -> erst das Thema "
+            "klären (Quell-URL bzw. Kernbegriff des Materials erfragen); den "
+            "Seitentitel der Oberfläche NICHT als Thema verwenden."
+        )
+        lines.append(
+            "- Bei 'mehr Material dazu', 'weitere Inhalte', 'andere "
+            "Materialtypen' -> mit dem Kernbegriff des Materials suchen "
+            "(aus Quell-URL oder Nachricht), nicht mit dem Seitentitel."
+        )
+    else:
+        lines.append(
+            "- Bei Create-Anfragen ohne eigenes Thema ('Erstelle mir ein "
+            "Arbeitsblatt dazu', 'Mach ein Quiz hierzu') -> nimm den Seitentitel "
+            "als Thema."
+        )
+        lines.append(
+            "- Bei 'mehr Material dazu', 'weitere Inhalte', 'andere Materialtypen' "
+            "-> Suche mit Titel/Schlagworten starten, passend zu den Bildungsstufen."
+        )
     if page_kind == "editorial":
+        _quelle = (
+            "über die Quell-URL des Materials: erfragen bzw. aus der "
+            "Nachricht nehmen, dann get_url_text"
+            if _unaufgeloest else
+            "aus den Metadaten und dem Volltext oben"
+        )
         lines.append(
             "- Die Person ERSCHLIESST diesen Inhalt gerade redaktionell "
-            "(Prüftisch): gib auf Wunsch Hinweise zum Inhalt (aus dem "
-            "sichtbaren Seitentext bzw. den Metadaten), schlage passende "
-            "Sammlungen vor (suche danach mit dem Kernbegriff des Inhalts, "
-            "statt zu raten) und hilf bei Metadaten-Feldern wie Fach, Stufe, "
-            "Materialtyp oder Beschreibung."
+            f"(Prüftisch): gib auf Wunsch Hinweise zum Inhalt ({_quelle}), "
+            "schlage passende Sammlungen vor (suche danach mit dem Kernbegriff "
+            "des Inhalts, statt zu raten) und hilf bei Metadaten-Feldern wie "
+            "Fach, Stufe, Materialtyp oder Beschreibung."
         )
     return "\n".join(lines)
 
@@ -805,7 +891,11 @@ def prompt_block(
         return ""
 
 
-def render_raw_for_prompt(page_context: dict[str, Any] | None) -> str:
+def render_raw_for_prompt(
+    page_context: dict[str, Any] | None,
+    *,
+    text_budget: int = TEXT_PROMPT_BUDGET,
+) -> str:
     """Fallback block when no MCP-resolved metadata is available, but the
     widget's DOM-detector extracted visible page text + heuristic fields.
 
@@ -845,8 +935,8 @@ def render_raw_for_prompt(page_context: dict[str, Any] | None) -> str:
     if detection:
         lines.append(f"Erkennungs-Quelle: {detection}")
 
-    # Cap snippet length — the prompt budget is finite.
-    snippet = text if len(text) <= 1500 else text[:1497] + "…"
+    # Same budget knob as ``render_for_prompt`` — the classifier passes 3000.
+    snippet = _trim_text(text, text_budget)
     lines.append("")
     lines.append("Sichtbarer Text der Seite (gekürzt):")
     lines.append(snippet)

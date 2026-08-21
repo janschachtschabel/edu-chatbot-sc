@@ -141,6 +141,19 @@ class Settings(BaseSettings):
         False, validation_alias=_env("B_API_AUDIO"),
         description="opt-in: STT/TTS via B-API (needs b_api_key)",
     )
+    # Sommercamp-Entscheid 2026-08-21: der /llm/-Pfad der b-api cached
+    # Antworten serverseitig (Staging gemessen: Temperatur 1, dreimal dieselbe
+    # „Zufallszahl", Treffer in ~0,2 s) — ein Generierungsfehler bliebe damit
+    # über alle identischen Züge stehen. Wirkt NUR bei b-api-academiccloud:
+    # der openai-Pfad reicht das Feld ungefiltert an OpenAI durch → HTTP 400
+    # bei jedem Zug (gemessen; Verdrahtung in services/llm.wire_transport).
+    b_api_clear_cache: bool = Field(
+        True, validation_alias=_env("B_API_CLEAR_CACHE"),
+        description=(
+            "bypass the b-api response cache per request "
+            "(clearCache: true; academiccloud only)"
+        ),
+    )
 
     # ── Speech ──────────────────────────────────────────────────────────
     speech_force_enable: bool = Field(False, validation_alias=_env("SPEECH_FORCE_ENABLE"))

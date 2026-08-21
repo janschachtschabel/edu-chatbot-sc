@@ -22,7 +22,8 @@ from boerdi.services import llm
 from boerdi.settings import get_settings
 
 _ENV = ("LLM_PROVIDER", "LLM_CHAT_MODEL", "OPENAI_MODEL", "OPENAI_API_KEY",
-        "OPENAI_BASE_URL", "B_API_KEY", "B_API_BASE_URL", "LLM_VERBOSITY",
+        "OPENAI_BASE_URL", "B_API_KEY", "B_API_BASE_URL", "B_API_CLEAR_CACHE",
+        "LLM_VERBOSITY",
         "LLM_REASONING_EFFORT", "LLM_EMBED_MODEL")
 
 
@@ -139,6 +140,50 @@ def test_response_format_passthrough() -> None:
     kw = llm.build_chat_kwargs(
         messages=[{"role": "user", "content": "x"}], response_format={"type": "json_object"})
     assert kw["response_format"] == {"type": "json_object"}
+
+
+# ── b-api Antwort-Cache (Sommercamp-Entscheid 2026-08-21) ──────────────────
+def test_wire_transport_academiccloud_sendet_clear_cache(monkeypatch) -> None:
+    """Staging gemessen (21.08.): der /llm/-Pfad cached Antworten serverseitig
+    (Temperatur 1, dreimal dieselbe „Zufallszahl", Treffer in ~0,2 s) — ein
+    Generierungsfehler bliebe so über alle identischen Züge stehen. Mit
+    ``clearCache: true`` generiert academiccloud jedes Mal frisch."""
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")
+    monkeypatch.setenv("B_API_KEY", "bkey")
+    get_settings.cache_clear()
+    kw = {}
+    llm.wire_transport("m", kw)
+    assert kw["extra_body"] == {"clearCache": True}
+
+
+def test_wire_transport_b_api_openai_sendet_kein_clear_cache(monkeypatch) -> None:
+    """Gemessen 21.08.: der openai-Pfad reicht das Feld ungefiltert an OpenAI
+    durch — HTTP 400 „Unknown parameter: 'clearCache'" bei JEDEM Zug. Dort
+    darf es also nie mitgesendet werden (Cache dort derzeit nicht abschaltbar)."""
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
+    monkeypatch.setenv("B_API_KEY", "bkey")
+    get_settings.cache_clear()
+    kw = {}
+    llm.wire_transport("m", kw)
+    assert "extra_body" not in kw
+
+
+def test_wire_transport_openai_nativ_sendet_kein_clear_cache(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    get_settings.cache_clear()
+    kw = {}
+    llm.wire_transport("m", kw)
+    assert "extra_body" not in kw
+
+
+def test_wire_transport_clear_cache_abschaltbar(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")
+    monkeypatch.setenv("B_API_KEY", "bkey")
+    monkeypatch.setenv("B_API_CLEAR_CACHE", "false")
+    get_settings.cache_clear()
+    kw = {}
+    llm.wire_transport("m", kw)
+    assert "extra_body" not in kw
 
 
 # ── provider routing ───────────────────────────────────────────────────────
