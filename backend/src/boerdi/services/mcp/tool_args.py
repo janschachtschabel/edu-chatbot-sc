@@ -99,10 +99,16 @@ def _export_non_empty(model: type, validated: Any) -> dict[str, Any]:
     seit V4 (2026-08-20): ``excludeNodeIds``-Defaults reisten sonst mit jedem
     Aufruf zum Server; ``False``/``0`` fallen nicht darunter, weil ``in``
     über ``==`` vergleicht und ``False == []`` falsch ist.
+
+    ``None`` seit 2026-08-21: ein optionales Feld ohne Wert bedeutet „nicht
+    gesetzt" und muss WEGBLEIBEN, nicht als ``null`` mitreisen — sonst kann
+    eine Server-Vorgabe wie ``maxChars: 200000`` nie greifen. ``is not None``
+    statt ``in``, damit ``False``/``0`` unberührt bleiben.
     """
     return {
         k: v for k, v in validated.model_dump().items()
-        if v not in ("", []) or (k in model.model_fields and model.model_fields[k].is_required())
+        if (v is not None and v not in ("", []))
+        or (k in model.model_fields and model.model_fields[k].is_required())
     }
 
 
@@ -192,19 +198,14 @@ def _validate_against_model(tool_name: str, arguments: dict[str, Any]) -> dict[s
         logger.warning("Tool arg validation for %s: %s — using raw args", tool_name, e)
         return arguments
 
-# W5-3b: Deckel für ``get_wlo_content_text``. Der Server-Standard sind 8000
-# Zeichen — live schnitt das 2 von 6 Arbeitsblättern ab, eines davon um mehr als
-# die Hälfte. Nutzer-Vorgabe 2026-07-30: gar nicht abschneiden, deshalb die
-# Schema-Obergrenze des Tools (``content-text.ts``: ``min(500).max(50000)``).
-# Höher geht nicht — der Server lehnte einen größeren Wert ab (Schema live
-# erneut geprüft 2026-08-21: ``maxChars`` maximum 50000 unverändert; eine
-# Anhebung braucht den MCP-Server, ``content-text.ts``).
-#
-# Bewusst in Kauf genommen: ein wirklich ausgereizter Text sind ~13-17k Tokens im
-# Modell-Kontext. Das trifft nur den Volltext-Pfad (der Nutzer will dann mit dem
-# Material arbeiten) und ist dort der Zweck; für Titel/Fach/Lizenz genügt
-# ``get_node_details``, worauf die Tool-Beschreibung ausdrücklich hinweist.
-CONTENT_TEXT_MAX_CHARS = 50000
+# Hier stand bis 2026-08-21 ``CONTENT_TEXT_MAX_CHARS = 50000`` (W5-3b), das der
+# Client jedem ``get_wlo_content_text`` aufzwang — nötig, solange der
+# Server-Standard 8000 betrug. Seit dem MCP-Deploy vom 20.08. ist die
+# Server-Vorgabe selbst 200000 („wer nichts sagt, bekommt den ganzen Text"),
+# unsere Setzung wäre also eine ABSENKUNG. Ersatzlos gestrichen statt auf 200000
+# gehoben: eine Kopie einer fremden Grenze veraltet still, und genau das war der
+# Fehler — die 8000/50000 waren beide einmal richtig und dann jahrelang falsch,
+# ohne dass eine Kappung sich meldet.
 
 
 # Tools that support `outputFormat="json"` on MCP server v2+. We auto-set

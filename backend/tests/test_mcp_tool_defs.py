@@ -460,9 +460,40 @@ def test_zu_lange_zeichenkette_reist_unveraendert_weiter():
 
 
 def test_zahlgrenzen_klemmen_weiterhin():
-    """Die Gegenprobe zum Test darueber: der W10-Reparaturschritt bleibt heil."""
-    out = validate_tool_args("get_url_text", {"url": "https://e.org/", "maxChars": 99999})
-    assert out["maxChars"] == 50000
+    """Die Gegenprobe zum Test darueber: der W10-Reparaturschritt bleibt heil.
+    Die Grenze ist seit 2026-08-21 die Server-Obergrenze 200000, nicht mehr
+    unsere alte 50000er-Kopie."""
+    out = validate_tool_args("get_url_text", {"url": "https://e.org/", "maxChars": 999999})
+    assert out["maxChars"] == 200000
+
+
+def test_url_text_ohne_maxchars_schickt_den_parameter_nicht_mit():
+    """Kern des Befunds der Plugin-Entwickler (2026-08-21): unser Feld-Default
+    8000 reiste bei JEDEM Aufruf mit — fremde Seiten kamen also mit 8000 statt
+    59 398 Zeichen an. Ohne Angabe darf nichts mitgehen, dann gilt die
+    Server-Vorgabe 200000."""
+    out = validate_tool_args("get_url_text", {"url": "https://e.org/"})
+    assert "maxChars" not in out
+
+
+def test_url_text_laesst_die_volle_server_grenze_durch():
+    out = validate_tool_args("get_url_text", {"url": "https://e.org/", "maxChars": 200000})
+    assert out["maxChars"] == 200000
+
+
+def test_werkzeugbeschreibungen_nennen_die_200000er_vorgabe():
+    """Die KI kann nicht wissen, wie lang eine Seite ist — sie erfährt die
+    Vorgabe nur aus der Beschreibung. Stand bis 2026-08-21 dort „500-50000,
+    Standard 8000", bestellte sie systematisch zu klein."""
+    from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
+
+    for name in ("get_url_text", "get_wlo_content_text"):
+        beschr = next(
+            t["function"]["parameters"]["properties"]["maxChars"]["description"]
+            for t in TOOL_DEFINITIONS if t["function"]["name"] == name
+        )
+        assert "200000" in beschr, name
+        assert "50000" not in beschr and "8000" not in beschr, name
 
 
 # ── MCP-Server-Update 2026-08-18/20: query, context, skillContext ──────────

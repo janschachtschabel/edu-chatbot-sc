@@ -31,7 +31,7 @@ TOOL_DEFINITIONS = [
                 "type": "object",
                 "properties": {
                     "nodeId": {"type": "string", "description": "nodeId des Materials aus einem beliebigen Suchergebnis."},
-                    "maxChars": {"type": "integer", "description": "Obergrenze der Zeichen (500-50000). Ohne Angabe holt der Client den vollen Text — Materialien sollen NICHT abgeschnitten ankommen. Nur kleiner setzen, wenn bewusst eine kurze Vorschau reicht."},
+                    "maxChars": {"type": "integer", "description": "Obergrenze der Zeichen (500-200000, Vorgabe 200000 = ganzer Text). Ohne Angabe kommt der volle Text — Materialien sollen NICHT abgeschnitten ankommen. Nur kleiner setzen, wenn bewusst eine kurze Vorschau reicht."},
                 },
                 "required": ["nodeId"],
             },
@@ -544,7 +544,7 @@ TOOL_DEFINITIONS = [
                         "enum": ["browser", "simple"],
                         "description": "'browser' rendert JavaScript (Standard, langsamer); 'simple' holt nur das HTML. Scheitert der eine Weg, ist der andere der sinnvolle zweite Versuch.",
                     },
-                    "maxChars": {"type": "integer", "description": "Obergrenze der Zeichen (500-50000, Standard 8000). Längere Texte werden an einer Wortgrenze gekürzt und über 'truncated' gemeldet."},
+                    "maxChars": {"type": "integer", "description": "Obergrenze der Zeichen (500-200000, Vorgabe 200000 = ganzer Text). NICHT MITGEBEN, wenn du den Inhalt lesen willst — dann kommt alles. Nur setzen, wenn bewusst eine kurze Vorschau reichen soll; gekürzte Antworten melden 'truncated'."},
                 },
                 "required": ["url"],
             },

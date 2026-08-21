@@ -367,7 +367,14 @@ class UrlTextArgs(BaseModel):
     """
     url: str = Field(max_length=2000)
     method: Literal["browser", "simple"] = "browser"
-    maxChars: int = Field(default=8000, ge=500, le=50000)
+    #: KEIN Default (2026-08-21): ein Feld-Default reist bei JEDEM Aufruf mit
+    #: — unser altes ``8000`` kappte damit jede fremde Seite, ohne dass es
+    #: jemand sah (Befund der Plugin-Entwickler: 59 398 Zeichen Wikipedia
+    #: kamen als 8000 an). Ohne Angabe schickt der Client nichts, dann gilt die
+    #: Server-Vorgabe 200000 = ganzer Text. ``le`` ist die Server-Obergrenze,
+    #: keine eigene Politik: eine kleinere Kopie hier veraltet still, sobald
+    #: der Server sie anhebt.
+    maxChars: int | None = Field(default=None, ge=500, le=200000)
 
 
 class WikipediaSummaryArgs(BaseModel):

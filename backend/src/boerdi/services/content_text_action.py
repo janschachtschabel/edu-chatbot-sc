@@ -8,9 +8,10 @@ belegbaren Gründen:
 * **Wortlaut.** Ginge der Text durch das Antwort-LLM, wäre das Ergebnis eine
   Nacherzählung. Ein Arbeitsblatt, mit dem jemand arbeiten will, muss
   unverändert ankommen — die Wahrheitspflicht des Bots gilt hier wörtlich.
-* **Länge.** ``get_wlo_content_text`` liefert bis zu ``CONTENT_TEXT_MAX_CHARS``
-  (50000, live gegen den Server geprüft) — das sind ~15000 Token und passt in
-  keine Antwort-Länge, die wir dem Modell geben. Ein LLM-vermittelter Pfad
+* **Länge.** ``get_wlo_content_text`` liefert ohne Angabe den ganzen Text
+  (Server-Vorgabe 200000 seit dem MCP-Deploy 2026-08-20) — schon ein
+  50000-Zeichen-Material sind ~15000 Token und passt in keine Antwort-Länge,
+  die wir dem Modell geben. Ein LLM-vermittelter Pfad
   könnte die Anforderung also gar nicht erfüllen, nicht nur schlechter.
 
 Deshalb ein eigener Handler statt eines Antwort-Musters mit Tool-Aufruf: die

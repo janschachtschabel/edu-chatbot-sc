@@ -117,15 +117,17 @@ def test_call_mcp_tool_output_format_wird_nicht_ueberschrieben(mcp_state, monkey
 
 
 # ── W5-3b: Volltexte dürfen nicht bei 8000 Zeichen enden ────────────────
-# Der Server-Standard ist ``maxChars: 8000``; live gemessen wurden 2 von 6
-# Arbeitsblättern dort abgeschnitten (``truncated: true``). Für „Inhalt anzeigen
-# und damit arbeiten" ist ein halbes Arbeitsblatt wertlos, deshalb setzen wir den
-# Deckel zentral — wie ``outputFormat``, damit kein Aufrufer ihn vergessen kann.
-def test_call_mcp_tool_hebt_volltext_deckel_an(mcp_state, monkeypatch):
+# Bis 2026-08-21 hob der Client den Deckel zentral auf 50000 an, weil der
+# Server-Standard 8000 betrug und live 2 von 6 Arbeitsblättern abschnitt. Mit
+# dem MCP-Deploy vom 20.08. ist der Server-Standard selbst 200000 („wer nichts
+# sagt, bekommt den ganzen Text", live gemessen: 59 398 Zeichen ungekürzt).
+# Unsere Setzung wäre seither eine ABSENKUNG und zugleich eine Kopie einer
+# fremden Grenze, die still veraltet — deshalb schicken wir gar nichts mehr.
+def test_call_mcp_tool_ueberlaesst_den_volltext_deckel_dem_server(mcp_state, monkeypatch):
     _wire_tool_url(monkeypatch)
     calls = _wire_transport(monkeypatch, [_result([_text_part("{}")])])
     asyncio.run(client.call_mcp_tool("get_wlo_content_text", {"nodeId": "n1"}))
-    assert calls[0]["arguments"]["maxChars"] == 50000
+    assert "maxChars" not in calls[0]["arguments"]
 
 
 def test_call_mcp_tool_volltext_deckel_wird_nicht_ueberschrieben(mcp_state, monkeypatch):
@@ -367,3 +369,21 @@ def test_get_server_url_registry_treffer_und_fallback(mcp_state, monkeypatch):
     # Server ohne url-Feld → Default; unbekanntes Tool → Default.
     assert client._get_server_url_for_tool("ohne_url_tool") == default
     assert client._get_server_url_for_tool("nirgends") == default
+
+
+def test_strukturierter_teil_ohne_schreibzugriff_bleibt_still(mcp_state, monkeypatch, caplog):
+    """Live-Befund 2026-08-21: Der MCP-Server hängt ``structuredContent`` an
+    JEDE Antwort (Markdown wie JSON, sein eigener Kommentar sagt es). Nur ein
+    vorbereiteter Schreibzugriff ist daraus lesbar — bei jedem Leseaufruf lief
+    also eine WARNING auf, und der Kommentar daneben verspricht ausdrücklich
+    „still verworfen". Ein Warn-Level, das bei jedem Zug feuert, verdeckt
+    echte Probleme."""
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [
+        {"result": {"content": [_text_part("Quelle: https://e.org/ -- Text")],
+                    "structuredContent": {"url": "https://e.org/", "charCount": 12,
+                                          "truncated": False, "text": "Text"}}},
+    ])
+    with caplog.at_level("WARNING"):
+        asyncio.run(client.call_mcp_tool("get_url_text", {"url": "https://e.org/"}))
+    assert not [r for r in caplog.records if "strukturierten Teil" in r.message]

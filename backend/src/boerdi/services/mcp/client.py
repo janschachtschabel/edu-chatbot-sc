@@ -42,7 +42,6 @@ from boerdi.services.mcp import transport
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
 from boerdi.services.mcp.tool_args import (
     _JSON_CAPABLE_TOOLS,
-    CONTENT_TEXT_MAX_CHARS,
     validate_tool_args,
 )
 from boerdi.services.mcp.tool_cache import (
@@ -273,12 +272,10 @@ async def call_mcp_tool_status(
     ):
         arguments = {**arguments, "outputFormat": "json"}
 
-    # Volltext-Deckel zentral anheben (W5-3b). Wie bei ``outputFormat``: an EINER
-    # Stelle, damit kein Aufrufer — und kein LLM-Toolcall — versehentlich beim
-    # Server-Standard 8000 landet und ein halbes Arbeitsblatt liefert. Ein
-    # ausdrücklich mitgegebener Wert gewinnt (z.B. bewusst kurze Vorschau).
-    if tool_name == "get_wlo_content_text" and "maxChars" not in arguments:
-        arguments = {**arguments, "maxChars": CONTENT_TEXT_MAX_CHARS}
+    # Kein ``maxChars`` mehr von uns (2026-08-21): der Server liefert ohne
+    # Angabe den ganzen Text (Vorgabe 200000 seit dem MCP-Deploy 20.08., live
+    # gemessen an einer 59 398-Zeichen-Seite). Begründung an der gestrichenen
+    # Konstante in ``tool_args``.
 
     # Cache-Lookup BEVOR der Transport bemüht wird (Hits sparen den kompletten
     # SDK-Handshake+Call). Blocklist-Tools (Health-Checks) umgehen den Cache.
@@ -368,9 +365,15 @@ async def call_mcp_tool_status(
         logger.info("MCP tool %s hat einen Schreibzugriff vorbereitet: %s",
                     tool_name, vorbereitet.method)
     elif result_data.get("structuredContent") is not None:
-        logger.warning(
-            "MCP tool %s schickte einen strukturierten Teil, der keine "
-            "brauchbare Anfrage ergibt — verworfen", tool_name)
+        # DEBUG, nicht WARNING (2026-08-21): der Server hängt
+        # ``structuredContent`` an JEDE Antwort — im Markdown-Zweig genauso wie
+        # im JSON-Zweig (sein eigener Kommentar in ``url-text.ts`` sagt es).
+        # Ein Schreibzugriff ist nur der Ausnahmefall; auf WARNING lief die
+        # Meldung bei jedem Leseaufruf auf und machte das Warn-Level wertlos.
+        # „Still verworfen" ist ohnehin, was der Kommentar oben zusagt.
+        logger.debug(
+            "MCP tool %s schickte einen strukturierten Teil ohne "
+            "Schreibzugriff — verworfen", tool_name)
 
     response = "\n".join(texts) if texts else json.dumps(result_data)
     logger.info(
