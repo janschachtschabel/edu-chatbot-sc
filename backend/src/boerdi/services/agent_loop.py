@@ -69,6 +69,7 @@ logger = logging.getLogger(__name__)
 #: Der Name, unter dem die Kostenschau (K3) die Züge der Agent-Schleife führt.
 USAGE_PHASE = "agent"
 
+
 _ARGUMENT_FEHLER = (
     "Fehler: Die Argumente dieses Aufrufs waren kein gueltiges JSON. Wiederhole "
     "den Aufruf mit vollstaendigem, gueltigem JSON."
@@ -262,6 +263,10 @@ async def run_agent_loop(
     # Zug, nicht der Schleife.
     start_tokens = _spent(acc)
     last_call: str | None = None
+    # Verbrauchte Wiederholungen nach einem Aussetzer (siehe unten). Am Lauf
+    # und nicht global — wie ``_reflection_done`` im Muster-Weg (``tool_loop``,
+    # Phase A1), nur als Zaehler, weil hier mehr als ein Anlauf erlaubt ist.
+    _leerlaeufe = 0
 
     for _ in range(limits.max_iterations):
         if clock() - start >= limits.deadline_s:
@@ -290,8 +295,43 @@ async def run_agent_loop(
         choice = resp.choices[0]
         calls = getattr(choice.message, "tool_calls", None)
         if not calls:
-            run.text = strip_reasoning_markers(choice.message.content or "")
-            return _ended(run, "text")
+            _prosa = strip_reasoning_markers(choice.message.content or "")
+            if _prosa.strip():
+                run.text = _prosa
+                return _ended(run, "text")
+            # Weder Werkzeug noch Text — das ist KEINE Ziellinie, sondern ein
+            # Aussetzer des Anbieters. Live gemessen 2026-08-21 an derselben
+            # Volltext-Frage: 3 von 8 Zuegen kamen so zurueck, auffaellig
+            # schnell (6-8 s statt 9-19 s), und der Zug endete stumm. Bis hier
+            # galt der Fall als ``text`` und damit als fertige Antwort.
+            #
+            # Wiederholt wird die Kette UNVERAENDERT, ohne Ermahnung: die
+            # Messung zeigt dieselbe Eingabe mal leer, mal vollstaendig — es
+            # ist nichts richtigzustellen. Eine Ermahnung waere eine Diagnose,
+            # die die Belege nicht hergeben, und veraenderte den Prompt. Der
+            # zweite Anlauf ist auch wirklich einer: der Cache-Bust (B4)
+            # schickt je Aufruf ``clearCache``/eine frische ``user``-Kennung,
+            # der Anbieter kann die leere Antwort also nicht bloss wiederholen.
+            #
+            # Der Aussetzer kostet eine Iteration und wird gebucht — beides
+            # ist ehrlich: der Aufruf ist passiert. Frist und Token-Budget
+            # pruefen oben, die Wiederholung laeuft also nicht an ihnen vorbei.
+            if _leerlaeufe < llm.LEERLAUF_VERSUCHE:
+                _leerlaeufe += 1
+                logger.warning(
+                    "Agent-Schleife: Antwort ohne Werkzeug und ohne Text "
+                    "(Iteration %d) — Anlauf %d von %d",
+                    run.iterations, _leerlaeufe, llm.LEERLAUF_VERSUCHE)
+                continue
+            # Eigener Abbruchgrund statt ``text``: ``text`` hiesse „hat
+            # geantwortet" und machte den stummen Zug in den Qualitaetslogs
+            # unsichtbar. ``empty`` faellt in ``respond_agent`` nicht unter
+            # ``_GEDECKELT`` und bekommt damit den richtigen Satz („Ich konnte
+            # gerade keine Antwort erzeugen"), nicht den Deckel-Satz.
+            logger.warning(
+                "Agent-Schleife: auch nach %d Anlaeufen weder Werkzeug noch "
+                "Text — Lauf endet leer", llm.LEERLAUF_VERSUCHE)
+            return _ended(run, "empty")
 
         messages.append(_assistant_turn(choice.message, calls))
 

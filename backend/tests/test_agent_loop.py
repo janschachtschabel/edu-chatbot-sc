@@ -912,3 +912,50 @@ def test_get_skill_bleibt_in_der_kette_ungekuerzt(monkeypatch):
     )
     tool_msg = next(m for m in msgs if m.get("role") == "tool")
     assert lang in tool_msg["content"]
+
+
+# ── Der Aussetzer: weder Werkzeug noch Text ──────────────────────────────
+def test_ein_aussetzer_ohne_werkzeug_und_ohne_text_wird_einmal_wiederholt(monkeypatch):
+    """Live gemessen 2026-08-21: rund jeder dritte Volltext-Zug kam ohne
+    Werkzeugaufruf UND ohne Inhalt zurueck — bei identischer Frage, in
+    7,6 s statt 9-14 s. Ohne diese Wiederholung galt der Aussetzer als
+    fertige Antwort, und die Person bekam einen stummen Zug.
+    """
+    fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_text(None),                        # Aussetzer des Anbieters
+        _resp_text("Hier ist die Antwort."),     # zweiter Anlauf traegt
+    ])
+    assert len(fake.calls) == 2
+    assert run.stop_reason == "text"
+    assert run.text == "Hier ist die Antwort."
+
+
+def test_der_aussetzer_darf_die_nachrichtenkette_nicht_veraendern(monkeypatch):
+    """Ein Aussetzer ist kein Zug: haenge ihn an die Kette, lernte das Modell
+    im zweiten Anlauf, eine leere Antwort sei hier ueblich."""
+    vorher = [{"role": "system", "content": "sys"}]
+    _fake, _run, msgs = _lauf(monkeypatch, [
+        _resp_text(""), _resp_text("Antwort."),
+    ], messages=vorher)
+    assert msgs == [{"role": "system", "content": "sys"}]
+
+
+def test_bleibt_es_leer_endet_der_lauf_ehrlich_statt_stumm(monkeypatch, caplog):
+    """Gedeckelt auf ``llm.LEERLAUF_VERSUCHE`` — sonst zahlte ein dauerhaft stummes
+    Modell den vollen Iterationsdeckel. Der eigene Abbruchgrund macht den Fall
+    in den Qualitaetslogs sichtbar; ``text`` hiesse „hat geantwortet"."""
+    with caplog.at_level("WARNING"):
+        fake, run, _msgs = _lauf(monkeypatch, [_resp_text("   ")],
+                                 limits=AgentLimits(max_iterations=12))
+    assert len(fake.calls) == llm.LEERLAUF_VERSUCHE + 1
+    assert run.stop_reason == "empty"
+    assert run.text == ""
+    assert any("ohne Werkzeug" in r.message for r in caplog.records)
+
+
+def test_ein_gelungener_zug_zahlt_die_wiederholung_nicht(monkeypatch):
+    """Der Deckel wirkt NUR im Fehlerfall: wer beim ersten Mal antwortet,
+    ruft genau einmal."""
+    fake, run, _msgs = _lauf(monkeypatch, [_resp_text("Da ist sie.")])
+    assert len(fake.calls) == 1
+    assert run.stop_reason == "text"

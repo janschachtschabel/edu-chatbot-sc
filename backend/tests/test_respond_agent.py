@@ -1245,3 +1245,57 @@ async def test_der_seitenblock_kommt_aus_dem_angereicherten_kontext(monkeypatch)
     assert any("Erschließung" in s for s in systeme), (
         "der Agent-Prompt kennt die serverseitig gesetzte Seitenart nicht"
     )
+
+
+def _mit_gesamtanleitung(monkeypatch):
+    """Der Zug lädt eine Gesamtanleitung mit der Ansage-Zeile im Kopf — wie
+    live. Nötig, weil ``_patch`` den Abruf auf ``None`` stubbt: der Knoten
+    überschreibt ``ctx.master_skill_zeile`` aus dem geladenen Block, eine
+    manuell gesetzte Zeile ist wirkungslos (das saß bis 2026-08-22 als toter
+    Code in diesen Tests, und das Voranstellen war damit unprüfbar)."""
+    async def _block(_ueberschreibung=None):
+        return ("## Gesamtanleitung dieser Anlage\n"
+                "[ edu-sharing Skill ] Chatbot Masterskill - aktiv\n"
+                "\n---\n\nInhalt.")
+    monkeypatch.setattr(agent_mod.master_skill, "prompt_block", _block)
+
+
+@pytest.mark.anyio
+async def test_nur_die_master_ansage_ist_keine_antwort(monkeypatch):
+    """Live gemessen 2026-08-21 (lokaler Lauf gegen die b-api, 3 von 12 Zuegen):
+    das Modell antwortet gelegentlich mit NICHTS ausser der Master-Skill-Ansage.
+
+    ``mit_master_ansage`` entfernt die Modell-Kopie dieser Zeile — und das ist
+    richtig so, sonst stuende sie doppelt. Danach bleibt aber nichts uebrig, und
+    die Person sah eine leere Blase: ``AgentRun.text`` war nicht leer, der
+    Ersatzsatz griff also nicht, und kein Log meldete etwas. Genau dieser Fall.
+    """
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="[ edu-sharing Skill ] Chatbot Masterskill - aktiv",
+        stop_reason="text", iterations=1, tools_called=[]))
+    _mit_gesamtanleitung(monkeypatch)
+    ctx = _ctx()
+    ctx = await respond_agent(ctx)
+    assert ctx.response_text.strip(), "leere Blase statt Antwort"
+    assert "keine Antwort erzeugen" in ctx.response_text
+
+
+@pytest.mark.anyio
+async def test_die_ansage_vor_einer_echten_antwort_bleibt(monkeypatch):
+    """Gegenprobe: steht die Ansage VOR echtem Inhalt, wird nur die Kopie
+    entfernt und die Antwort bleibt — der Zweig oben darf sie nicht kapern."""
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="[ edu-sharing Skill ] Chatbot Masterskill - aktiv\n\nEin Lichtjahr ist eine Strecke.",
+        stop_reason="text", iterations=2, tools_called=["get_url_text"]))
+    _mit_gesamtanleitung(monkeypatch)
+    ctx = _ctx()
+    ctx = await respond_agent(ctx)
+    assert "Ein Lichtjahr ist eine Strecke." in ctx.response_text
+    assert "keine Antwort erzeugen" not in ctx.response_text
+    # „Nur die Kopie entfernt" heisst: die Server-Ansage steht voran — und
+    # genau einmal (die Modell-Kopie ist weg, die Sitzungs-Ansage ist da).
+    assert ctx.response_text.startswith(
+        "[ edu-sharing Skill ] Chatbot Masterskill - aktiv")
+    assert ctx.response_text.count("[ edu-sharing Skill ]") == 1

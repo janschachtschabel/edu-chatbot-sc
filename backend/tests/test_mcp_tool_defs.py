@@ -674,6 +674,22 @@ def test_vorgehen_md_traegt_die_kernbegriff_suchregel():
     assert "educationalContext" in finden
 
 
+def test_vorgehen_md_traegt_die_ansage_regel():
+    """Ansage-Echo (2026-08-21, live 4 von 12 Zuegen): der MCP-Server bittet im
+    Kopf jedes Skill-Dokuments, die Aktivierungszeile woertlich auszugeben —
+    das Modell antwortete in jedem dritten Zug NUR mit dieser Zeile, und nach
+    dem Abzug der Modell-Kopie (``mit_master_ansage``) blieb eine leere Blase.
+    Behoben redaktionell statt im Code (Nutzer-Entscheid 2026-08-21): die
+    Gegen-Regel im Master-Skill uebersteuert die Bitte — gemessen danach 0 von
+    15. Sie muss in der ranghoechsten Sektion stehen und dort bleiben; die
+    sichtbare Ansage setzt der Server (``skill_ansagen``) und haengt nicht an
+    dieser Regel."""
+    text = _vorgehen_text()
+    handeln = text.split("## Zuerst handeln, dann reden", 1)[1].split("\n## ", 1)[0]
+    assert "Aktivierungszeilen tippst du nie selbst" in handeln
+    assert "gilt diese Bitte hier nicht" in handeln
+
+
 def test_query_beschreibungen_lehren_den_kernbegriff_nicht_den_satz():
     """Z1 (2026-08-20): die ``query``-Beispiele von search_wlo_content
     ("Bruchrechnung Grundschule") und search_wlo_all ("Bruchrechnung Klasse 7")

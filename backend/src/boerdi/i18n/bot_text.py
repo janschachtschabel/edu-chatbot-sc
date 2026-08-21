@@ -307,10 +307,17 @@ BOT_TEXT: Final[Catalogue] = {
             "wenn es bestehen bleibt, gib mir kurz Bescheid."
         ),
         "error.retryChip": "Nochmal versuchen",
-        # ── A4c-2b: der Agent-Modus endet ohne eigenen Text ────────────
+        # ── A4c-2b: eine Maschine endet ohne eigenen Text ──────────────
         # ``AgentRun.text`` ist nur bei ``text``/``submit`` gefüllt; bei Frist,
         # Token-Budget, Iterationsdeckel, Stillstand und LLM-Fehler bleibt er
         # leer. Eine leere Blase ist der schlechtere von beiden Ausfällen.
+        #
+        # ``agent.failed`` dient seit 2026-08-21 BEIDEN Maschinen: der
+        # Muster-Weg (``graph/nodes/respond``) sagt denselben Satz, wenn ein
+        # Aussetzer des Anbieters auch die Wiederholungen überlebt hat. Es ist
+        # derselbe Ausfall — zwei Formulierungen dafür wären zwei Wahrheiten.
+        # Der Schlüssel behält den ``agent.``-Präfix, weil dort seine Heimat
+        # ist; umbenennen hieße drei Aufrufstellen und zwei Sprachen anfassen.
         "agent.incomplete": (
             "Ich bin damit nicht fertig geworden — die Anfrage war zu "
             "umfangreich. Stell sie gern kleiner geschnitten noch einmal."

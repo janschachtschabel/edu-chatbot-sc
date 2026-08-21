@@ -432,3 +432,15 @@ def test_m16_reports_nothing_because_it_skips_generate(monkeypatch):
     asyncio.run(respond(_ctx(winner_id="M16"), _SESSION,
                         progress=TurnProgress(seen.append)))
     assert seen == []
+
+
+def test_eine_leere_antwort_bleibt_nicht_stumm(monkeypatch):
+    """Der Bestandsweg degradierte bisher NUR bei einer Exception. Ein leerer
+    Text (Aussetzer des Anbieters, der auch die Wiederholungen ueberlebt hat)
+    lief unbemerkt durch bis in die leere Blase — derselbe Ausfall, den die
+    Agent-Schleife ueber ``_antwort_oder_ersatz`` schon ehrlich benennt."""
+    rec = _Rec()
+    _install(monkeypatch, rec, gen_result=("   ", [], ["search_wlo_content"], []))
+    out = _run(_ctx())
+    assert out.response_text.strip()
+    assert "keine Antwort erzeugen" in out.response_text

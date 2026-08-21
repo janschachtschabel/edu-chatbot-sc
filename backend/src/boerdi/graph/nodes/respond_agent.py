@@ -495,7 +495,7 @@ async def respond_agent(
         logger.info("Outcome-based state hint: %s -> %s", ctx.state_id, zustand)
         ctx.state_id = zustand
 
-    ctx.response_text = mit_master_ansage(
+    _antwort = mit_master_ansage(
         # Aus der LISTE des Laufs, nicht aus der Notiz: die Notiz führt einen
         # Faden (eine Anleitung), die Meldung zeigt den Zug (womöglich zwei).
         # Sie räumt zugleich die Zeilen weg, die das Modell selbst geschrieben
@@ -515,6 +515,30 @@ async def respond_agent(
         # 2026-08-19). Begruendung im Kopf von ``domain/skill_ansagen``.
         (ctx.session_state or {}).get("entities"),
     )
+    # Das Modell hat NUR die Master-Ansage geschrieben und sonst nichts.
+    # ``mit_master_ansage`` entfernt die Modell-Kopie dieser Zeile — richtig so,
+    # sonst stünde sie doppelt —, und danach ist die Antwort leer. Denselben
+    # Leerfall erzeugt ``mit_ladehinweisen`` mit Fach-Skill-Ansagen; der Zweig
+    # fängt beide, deshalb spricht das WARNING von Ansagezeilen.
+    #
+    # Live gemessen 2026-08-21 (b-api-openai/gpt-5.6-luna, 3 von 12 Zügen):
+    # ``AgentRun.text`` war genau die 49 Zeichen der Ansage, ``stop_reason``
+    # war ``text``, kein Deckel, kein Fehler. Der Ersatzsatz oben griff deshalb
+    # NICHT (er prüft ``lauf.text``, und der war nicht leer), und die Person
+    # bekam eine leere Blase — der stille Ausfall, gegen den A4c-2b gebaut ist,
+    # nur eine Station später. Geprüft wird darum das ERGEBNIS der Komposition
+    # und nicht mehr allein die Eingabe.
+    #
+    # Keine Wiederholung, sondern der ehrliche Satz: derselbe Fall, dieselbe
+    # Antwort wie bei jedem anderen textlosen Zug. Das WARNING macht die
+    # Häufigkeit sichtbar — ohne es war der Fall im Betrieb unauffindbar.
+    if not _antwort.strip():
+        logger.warning(
+            "Agent-Modus: Antwort bestand nur aus Ansagezeilen "
+            "(%d Zeichen Lauf-Text, Ende=%s) — ehrlicher Ersatzsatz",
+            len(lauf.text or ""), lauf.stop_reason)
+        _antwort = bot_text(sprache, "agent.failed")
+    ctx.response_text = _antwort
     ctx.wlo_cards_raw = all_cards
     # D2: Was das Modell als Ergebnis GELIEFERT hat. ``turn_persist`` zieht es
     # der geratenen Box vor; ist die Liste leer, bleibt der Bestandsweg.

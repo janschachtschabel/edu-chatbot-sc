@@ -1252,3 +1252,69 @@ def test_assemble_rag_prefetch_haelt_das_grosse_budget(monkeypatch):
     inhalt = messages[3]["content"]
     assert "K" * 190000 in inhalt
     assert "K" * 200001 not in inhalt
+
+
+# ── Der Aussetzer im Muster-Weg ──────────────────────────────────────────
+def test_ein_aussetzer_wird_auch_im_musterweg_wiederholt(monkeypatch):
+    """Dieselbe Absicherung wie in der Agent-Schleife, hier fuer den Bestand.
+
+    Live gemessen 2026-08-21 blieb der Muster-Weg in 10 Zuegen ohne Aussetzer
+    (die Agent-Schleife hatte 7 in 20) — die Luecke ist also latent und nicht
+    beobachtet. Der Zweig greift ausschliesslich, wenn heute ein STUMMER Zug
+    herauskaeme: jeder Zug mit Text laeuft Zeile fuer Zeile wie bisher.
+    """
+    fake, result, _st = _run_loop(monkeypatch, [
+        _resp_text(None),            # Aussetzer des Anbieters
+        _resp_text("Antwort."),      # zweiter Anlauf traegt
+    ])
+    assert len(fake.calls) == 2
+    assert result[0] == "Antwort."
+
+
+def test_der_aussetzer_veraendert_die_kette_im_musterweg_nicht(monkeypatch):
+    """Ein Aussetzer ist kein Zug — nichts davon gehoert in die Kette."""
+    _fake, _result, st = _run_loop(monkeypatch, [
+        _resp_text(""), _resp_text("Antwort."),
+    ])
+    assert st["messages"] == [{"role": "system", "content": "sys"}]
+
+
+def test_bleibt_es_im_musterweg_leer_gibt_es_genau_drei_anlaeufe(monkeypatch, caplog):
+    """Gedeckelt auf ``llm.LEERLAUF_VERSUCHE`` — der Muster-Weg hat nur fuenf
+    Iterationen, ein ungedeckelter Retry frae sie auf."""
+    with caplog.at_level("WARNING"):
+        fake, result, _st = _run_loop(monkeypatch, [
+            _resp_text(""), _resp_text("   "), _resp_text(None),
+        ])
+    assert len(fake.calls) == llm.LEERLAUF_VERSUCHE + 1
+    assert (result[0] or "") == ""
+    assert any("ohne Werkzeug" in r.message for r in caplog.records)
+
+
+def test_ein_gelungener_zug_im_musterweg_ruft_einmal(monkeypatch):
+    """Der Deckel wirkt NUR im Ausfall — sonst waere jeder Zug teurer."""
+    fake, result, _st = _run_loop(monkeypatch, [_resp_text("Da ist sie.")])
+    assert len(fake.calls) == 1
+    assert result[0] == "Da ist sie."
+
+
+def test_eine_leere_inline_antwort_wird_nicht_wiederholt(monkeypatch):
+    """Der Inline-Pfad (``respond_to_user``) ist anders gelagert als der
+    Inhalts-Pfad — die Wiederholung darf ihn NICHT mitnehmen.
+
+    Zwei Gruende, beide an der Quelle geprueft: (1) der Text ist bereits
+    zeichenweise beim Client (``_ToolArgTextStreamer`` -> ``on_token``), eine
+    zweite Antwort haengte sich sichtbar dahinter; (2) die Kette traegt hier
+    schon Assistenten-Zug UND ``role:tool``-Quittungen (F-5, Audit 2026-08-12),
+    von „unveraendert wiederholen" kann also keine Rede sein.
+
+    Erreichbar ist der Leerfall ueber ``_strip_trailing_option_lines``: besteht
+    die Antwort nur aus Optionszeilen, bleibt "" uebrig. Dann endet der Zug
+    leer — und ``graph/nodes/respond`` sagt den ehrlichen Satz.
+    """
+    fake, result, _st = _run_loop(monkeypatch, [
+        _resp_tools([("c1", "respond_to_user", json.dumps({"text": "   "}))]),
+        _resp_text("Diese zweite Antwort darf es gar nicht erst geben."),
+    ])
+    assert len(fake.calls) == 1
+    assert (result[0] or "") == ""

@@ -211,10 +211,67 @@ abgeschnittener Lauf sähe von außen sonst aus wie einer, der fertig wurde.
 | `deadline` | Frist abgelaufen |
 | `token_budget` | Token-Budget aufgebraucht |
 | `no_progress` | Stillstand: die Schleife kam nicht mehr voran |
+| `empty` | Das Modell lieferte dreimal weder Werkzeug noch Text |
 | `error` | Fehler in der Schleife |
 
 Die vier Deckel stehen in `01-base/engine`; `submit` und `text` sind die beiden
 Ziellinien.
+
+**`empty` — der Aussetzer des Anbieters.** Kommt eine Antwort ohne
+Werkzeugaufruf *und* ohne Inhalt, ist das keine Ziellinie: die Schleife
+wiederholt den Aufruf mit **unveränderter** Nachrichtenkette, bis zu
+`llm.LEERLAUF_VERSUCHE` mal (2, also drei Aufrufe insgesamt), und endet erst dann
+mit `empty`.
+
+Live gemessen am 21.08.2026 über 20 Züge derselben Volltext-Frage: **7
+Aussetzer**, auffällig schnell (6–8 s statt 9–19 s), und der Zug endete stumm.
+Sie treten unabhängig voneinander auf — dieselbe Eingabe, mal leer, mal
+vollständig. Ein einziger zweiter Anlauf ließe rechnerisch ~12 % stumme Züge
+übrig, zwei lassen ~4 %. Bezahlt wird das nur im Fehlerfall: wer beim ersten
+Mal antwortet, ruft einmal.
+
+Der zweite Anlauf ist ein echter — der b-api-Cache-Bust schickt je Aufruf
+`clearCache` bzw. eine frische `user`-Kennung, der Anbieter kann die leere
+Antwort also nicht bloß wiederholen. Ermahnt wird das Modell dabei nicht: es
+gibt nichts richtigzustellen. Jeder Aussetzer kostet eine Iteration und wird
+gebucht; Frist und Token-Budget prüfen vor jeder Runde und greifen unverändert.
+
+**Der Muster-Modus trägt dieselbe Absicherung** (`services/tool_loop`, seit
+21.08.2026) — es ist derselbe Anbieter und derselbe Aufruf. Dort gibt es kein
+`stop_reason`; bleibt es nach allen Anläufen leer, sagt `graph/nodes/respond`
+denselben Satz wie der Agent-Weg (`agent.failed`). Der Zweig greift
+ausschließlich im Ausfall: ein Zug mit Text läuft unverändert, und M16 wie die
+Schnellwege sehen ihn nie. Gemessen wurde der Aussetzer dort in 10 Zügen
+**nicht** — Vorsorge, kein Befund. Die Zahl steht für beide Maschinen an einer
+Stelle: `services/llm.LEERLAUF_VERSUCHE`.
+
+Eine Einschränkung gilt nur dort: **auf dem Inline-Pfad (`respond_to_user`)
+wird nicht wiederholt.** Der Text ist dort schon zeichenweise beim Client
+gestreamt — eine zweite Antwort hängte sich sichtbar hinter die erste. Bleibt
+er leer (erreichbar, wenn die Antwort nur aus Optionszeilen bestand), endet der
+Zug leer und bekommt den ehrlichen Satz statt einer Wiederholung.
+
+**Das Ansage-Echo — die tatsächlich gemessene Live-Ursache.** Die stummen Züge
+vom 21.08.2026 waren am Ende kein Aussetzer: das Modell antwortete, aber die
+ganze Antwort war die Aktivierungszeile (`[ edu-sharing Skill ] Chatbot
+Masterskill - aktiv`), die `mit_master_ansage` als Modell-Kopie entfernt —
+richtig so, sonst stünde sie doppelt —, womit nichts übrig blieb.
+`graph/nodes/respond_agent` prüft seither das **Ergebnis** der Komposition und
+sagt im Leerfall den ehrlichen Satz (`agent.failed`) samt WARNING.
+
+Die Quelle der Zeile ist der MCP-Server: er legt um jedes `get_skill`-Dokument
+einen Abschnitt „## Aktivierung" mit der Bitte, die Zeile wörtlich als erste
+Zeile der nächsten Antwort auszugeben. Seit der Server der Ansage-Setzer ist
+(T2/T4), war diese Bitte hier überflüssig — und kollidierte mit „gib sie nicht
+wörtlich wieder" (Rang-Block) und „Eine Ankündigung ist keine Antwort"
+(Master-Skill selbst). Behoben wurde sie **redaktionell, nicht im Code**
+(Nutzer-Entscheid 21.08.2026): der Master-Skill (`docs/skills/vorgehen.md`,
+Sektion „Zuerst handeln, dann reden") übersteuert die Bitte — „Aktivierungszeilen
+tippst du nie selbst". Messung, gleiche Volltext-Frage, frische Session je Zug:
+vorher trug jeder dritte Zug nur den Ersatzsatz und rief kein Werkzeug (4 von
+12); nachher **0 von 15**, und **15 von 15** riefen das Werkzeug — die
+Echo-Warnung feuerte kein einziges Mal. Die sichtbare Ansage bleibt davon
+unberührt, sie kommt vom Server.
 
 ### Syntax — curl
 

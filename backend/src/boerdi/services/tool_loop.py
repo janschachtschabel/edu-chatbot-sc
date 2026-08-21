@@ -191,6 +191,8 @@ async def _run_tool_loop(
     first_iteration = True
     # Phase A1 — Reflection-Loop-Flag: nur EINMAL retryen, sonst Endlosschleife
     _reflection_done = False
+    # Verbrauchte Wiederholungen nach einem Aussetzer des Anbieters (s.u.).
+    _leerlaeufe = 0
     # E1 (2026-08-10): der offene Bestätigungsvorgang, wie er beim EINTRITT in
     # diesen Zug aussah. Genau das macht ihn zur Zeitgrenze: eine Vorschau, die
     # weiter unten in diesem Zug entsteht, landet in ``session_state`` — aber
@@ -921,6 +923,42 @@ async def _run_tool_loop(
                 # den expliziten Hinweis hat.
                 continue
 
+            # Aussetzer des Anbieters: weder Werkzeug noch Text. Dann ist
+            # dieser Zug stumm — die Person sieht eine leere Blase. Wiederholt
+            # wird die Kette UNVERAENDERT, ohne Ermahnung: dieselbe Eingabe
+            # gelingt beim naechsten Mal, es gibt also nichts richtigzustellen.
+            # Der zweite Anlauf ist ein echter — der b-api-Cache-Bust schickt
+            # je Aufruf ``clearCache`` bzw. eine frische ``user``-Kennung.
+            #
+            # ``_inline_response_text is None`` grenzt auf den INHALTS-Pfad ein
+            # (dieselbe Weiche wie oben), und das ist der Kern dieses Zweigs:
+            # auf dem Inline-Pfad (``respond_to_user``) waere die Wiederholung
+            # schaedlich. Der Text ist dort schon zeichenweise beim Client
+            # (``_ToolArgTextStreamer`` -> ``on_token``), eine zweite Antwort
+            # haengte sich sichtbar dahinter; und die Kette traegt dort bereits
+            # Assistenten-Zug und ``role:tool``-Quittungen (F-5, Audit
+            # 2026-08-12) — „unveraendert" waere sie also gar nicht. Der
+            # Leerfall ist dort ueber ``_strip_trailing_option_lines``
+            # erreichbar (Antwort nur aus Optionszeilen) und faellt bewusst an
+            # ``graph/nodes/respond``, der den ehrlichen Satz sagt.
+            #
+            # NACH der A1-Reflexion und nicht davor: greift die, hat sie den
+            # spezifischeren Befund (Muster verlangt Werkzeuge, keines lief)
+            # und behebt die Stille gleich mit. Dieser Zweig deckt den Rest —
+            # etwa M04, das gar keine Werkzeuge verlangt.
+            #
+            # Er aendert NUR den Ausfall: ein Zug mit Text laeuft Zeile fuer
+            # Zeile wie bisher (eigener Test). Live gemessen 2026-08-21 blieb
+            # der Muster-Weg in 10 Zuegen ohne Aussetzer, die Agent-Schleife
+            # hatte 7 in 20 — hier also Vorsorge, dort ein Befund.
+            if (_inline_response_text is None
+                    and not (response_text or "").strip()
+                    and _leerlaeufe < llm.LEERLAUF_VERSUCHE):
+                _leerlaeufe += 1
+                _logger.warning(
+                    "Tool-Loop: Antwort ohne Werkzeug und ohne Text — "
+                    "Anlauf %d von %d", _leerlaeufe, llm.LEERLAUF_VERSUCHE)
+                continue
             return response_text, all_cards, tools_called, outcomes
     # Loop erschoepft ohne finale Antwort → Fortsetzungs-Marker fuer den
     # P16-Fallback am Call-Site.

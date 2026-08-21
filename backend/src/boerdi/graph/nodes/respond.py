@@ -43,6 +43,7 @@ from boerdi.domain.skill_precedence import mit_ladehinweis
 from boerdi.graph.nodes.respond_agent import respond_agent
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
+from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.engine_choice import laeuft_ueber_die_schleife
@@ -444,6 +445,26 @@ async def respond(
                         "could not salvage spec cards in error path: %s",
                         _spec_parse_err,
                     )
+
+        # Aussetzer des Anbieters, der auch die Wiederholungen im Tool-Loop
+        # überlebt hat (``llm.LEERLAUF_VERSUCHE``): kein Fehler, nur eine
+        # leere Antwort. Der Guard oben fängt ausschließlich **Exceptions** —
+        # ein leerer Text lief bis hier unbemerkt durch bis in die leere
+        # Blase, und ein stiller Ausfall ist der schlechtere von beiden.
+        #
+        # Absichtlich INNERHALB dieses Zweigs: M16 setzt ``response_text``
+        # weiter oben mit voller Absicht auf "" (den Text baut das Assembly),
+        # und ein gerouteter Schnellweg bringt seinen eigenen mit. Beide
+        # dürfen diesen Satz nie sehen.
+        #
+        # Derselbe Satz wie im Agent-Modus (``agent.failed``) — es ist
+        # derselbe Ausfall, und zwei Formulierungen dafür wären zwei Wahrheiten.
+        if not (response_text or "").strip():
+            logger.warning(
+                "Muster-Weg: Antwort ohne Text (Muster %s) — ehrlicher Ersatzsatz",
+                ctx.winner_id)
+            response_text = bot_text(
+                resolve_locale(req.environment.locale), "agent.failed")
 
     # Policy-Disclaimer + Medium-Risk-Notiz (seit A4c-2b in ``domain/answer_notes``,
     # weil der Agent-Modus denselben Text zu verantworten hat).

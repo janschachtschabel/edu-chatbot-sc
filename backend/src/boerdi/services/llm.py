@@ -43,6 +43,20 @@ litellm.drop_params = True
 _acompletion = litellm.acompletion
 _aembedding = litellm.aembedding
 
+#: So oft wird ein **Aussetzer des Anbieters** wiederholt: eine Antwort ohne
+#: Werkzeugaufruf UND ohne Inhalt. Beide Antwort-Schleifen lesen die Zahl von
+#: hier — ``services/agent_loop`` (Agent + Hybrid) und ``services/tool_loop``
+#: (Muster). Sie wohnt am Transport, weil sie das Verhalten des ANBIETERS
+#: beschreibt und nicht das einer Schleife; zwei Kopien liefen auseinander.
+#:
+#: **Warum 2 und nicht 1.** Live gemessen am 21.08.2026 über 20 Agent-Züge
+#: derselben Volltext-Frage: 7 Aussetzer, gut ein Drittel, und sie treten
+#: unabhängig voneinander auf (dieselbe Eingabe, mal leer, mal vollständig).
+#: Ein einziger zweiter Anlauf ließe rechnerisch ~12 % stumme Züge übrig — für
+#: die Person weiterhin „antwortet manchmal nicht". Mit zwei sind es ~4 %.
+#: Bezahlt wird das NUR im Ausfall; ein gelungener Zug ruft unverändert einmal.
+LEERLAUF_VERSUCHE = 2
+
 _DEFAULT_OPENAI_BASE = "https://api.openai.com/v1"
 
 # Per-event-loop semaphores: (loop_id, "live"|"bg") -> Semaphore. A single
