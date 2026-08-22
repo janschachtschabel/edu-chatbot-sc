@@ -58,6 +58,9 @@ services:
       # Server entwickelt wird. Der frühere Vercel-Server ist abgelöst; ihm fehlte
       # ``get_wlo_content_text``, M17 („Inhalt anzeigen") rief dort ins Leere.
       MCP_SERVER_URL: https://wlo-mcp.87.106.195.152.nip.io/mcp
+      # Selbstaufruf für Eval-Läufe — der Code-Default zeigt auf ALT-Port 8000,
+      # dieser Container lauscht auf 8100 (Begründung: compose.prod.yml).
+      EVAL_CHAT_URL: http://127.0.0.1:8100/api/chat
     ports:
       - "8100:8100"
     volumes:

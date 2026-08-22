@@ -11,7 +11,7 @@ Drei Projekte:
 ## Befehle
 
 ```bash
-npm start          # Widget-Dev-Server auf :4200 (Proxy auf das Backend :8000)
+npm start          # Widget-Dev-Server auf :4200 (Proxy auf das Backend :8100)
 npm run start:studio   # Studio-Dev-Server auf :4300 (gleicher Proxy)
 npm run lint       # eslint + angular-eslint (Templates inkl. a11y-Regeln)
 npm run check:tokens   # jedes gelesene var(--token) muss definiert sein (s. u.)
@@ -57,7 +57,7 @@ STUDIO_DIST_DIR=../frontend/dist/studio/browser uv run uvicorn boerdi.main:app
 ```
 
 Für die Arbeit an einer View ist `npm run start:studio` bequemer: der Dev-Server
-proxyt `/studio/api` und `/api` auf :8000, und Hot-Reload bleibt erhalten.
+proxyt `/studio/api` und `/api` auf :8100, und Hot-Reload bleibt erhalten.
 
 Neue Views werden in `projects/studio/src/app/studio-views.ts` eingetragen —
 diese Registry erzeugt Routen **und** Navigation, damit beide nicht auseinander

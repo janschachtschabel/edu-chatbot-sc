@@ -23,7 +23,9 @@ from boerdi.db.models import EvalRun
 logger = logging.getLogger(__name__)
 
 # Where the golden runner talks to the real chatbot (ALT default kept verbatim;
-# NEU dev-compose sets EVAL_CHAT_URL=http://localhost:8100/api/chat).
+# BEIDE NEU-Compose-Dateien setzen den Container-Selbstaufruf
+# EVAL_CHAT_URL=http://127.0.0.1:8100/api/chat als Default — der Wert hier
+# greift nur noch bei nacktem uvicorn ohne gesetzte Variable).
 _CHAT_URL_DEFAULT = "http://localhost:8000/api/chat"
 # Stale 'running' rows older than this are swept to 'failed' by the start-guard
 # so a crashed run cannot block new ones forever (ALT: 2h).

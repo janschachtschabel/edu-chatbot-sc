@@ -47,6 +47,26 @@ def test_jeder_dokumentierte_schluessel_steht_in_compose() -> None:
     )
 
 
+def test_eval_chat_url_hat_einen_container_tauglichen_default() -> None:
+    """``EVAL_CHAT_URL`` muss im Container auf den EIGENEN Port zeigen.
+
+    Gemessen auf Prod am 2026-08-22: die Compose reichte den Wert nur leer
+    durch (``${EVAL_CHAT_URL:-}``), der Code-Default zeigt auf ALT-Port 8000 —
+    das Image lauscht aber auf 8100. Jeder Eval-Start brach damit im Preflight
+    mit „Chat-Backend nicht erreichbar" ab, bis ein Betreiber die Variable von
+    Hand setzte. Der Default ist der Selbstaufruf im Container (kein Umweg
+    ueber traefik/TLS); die ``.env`` darf weiterhin uebersteuern.
+    """
+    for compose in (_COMPOSE, _DEPLOY / "compose.dev.yml"):
+        dienste = yaml.safe_load(compose.read_text("utf-8"))["services"]
+        umgebung = dienste["backend"]["environment"]
+        wert = str(umgebung.get("EVAL_CHAT_URL", ""))
+        assert "http://127.0.0.1:8100/api/chat" in wert, (
+            f"{compose.name}: EVAL_CHAT_URL ohne Selbstaufruf-Default — "
+            f"Eval-Starts laufen im Container gegen ALT-Port 8000 (Wert: {wert!r})"
+        )
+
+
 def test_die_cors_schalter_erreichen_den_backend_dienst() -> None:
     """Die drei CORS-Namen muessen in der Umgebung des Backends stehen.
 
