@@ -29,10 +29,11 @@ frontend/test-results
 frontend/playwright-report
 evals/reports
 
-# Nothing the running server reads: the golden flows live in the config store
-# (area "eval/gold-flows", V2), not on disk; evals/ is the standalone CLI a
-# person runs against a deployed instance.
-evals
+# evals/ MUSS im Kontext bleiben: die Gold-FLOWS liegen zwar im Config-Store,
+# aber die Runner-DATEI evals/run_golden.py lädt das Backend zur LAUFZEIT per
+# Pfad (EVAL_RUNNER_PATH), und das Dockerfile kopiert genau sie ins Image.
+# Ein pauschales `evals` hier ließ den COPY mit „not found" scheitern
+# (CI-Befund 2026-08-22); reports/ ist oben ausgeschlossen, __pycache__ global.
 docs
 .github
 .git

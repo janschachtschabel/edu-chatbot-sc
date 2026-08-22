@@ -61,6 +61,22 @@ def test_dockerfile_liefert_den_gold_runner_mit() -> None:
     assert "EVAL_RUNNER_PATH=/app/evals/run_golden.py" in text, (
         "EVAL_RUNNER_PATH zeigt im Image nicht auf die mitkopierte Datei"
     )
+    # CI-Befund 2026-08-22 (zweite Hälfte): das Dockerfile ALLEIN reicht nicht —
+    # ein pauschales `evals` in der .dockerignore hielt die Datei aus dem
+    # Build-Kontext, und der COPY brach mit „not found" ab.
+    ignore = (_DEPLOY.parent / ".dockerignore").read_text("utf-8")
+    zeilen = {
+        z.strip() for z in ignore.splitlines()
+        if z.strip() and not z.strip().startswith("#")
+    }
+    verboten = sorted(zeilen & {
+        "evals", "evals/", "evals/*", "evals/**", "**/evals",
+        "evals/run_golden.py",
+    })
+    assert verboten == [], (
+        f".dockerignore hält den Gold-Runner aus dem Build-Kontext: {verboten} "
+        "— der COPY im Dockerfile findet die Datei dann nicht"
+    )
 
 
 def test_eval_chat_url_hat_einen_container_tauglichen_default() -> None:
