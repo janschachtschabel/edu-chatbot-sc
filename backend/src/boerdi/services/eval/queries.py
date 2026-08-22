@@ -138,21 +138,35 @@ async def get_trends(session: AsyncSession, limit: int) -> dict[str, Any]:
             "prompt_tokens": tua.get("prompt_tokens", 0),
             "cached_tokens": tua.get("cached_tokens", 0),
         })
-        match_rate_trend.append({
-            "run_id": run_id, "created_at": created_at,
-            "value": cm.get("llm_engine_match_rate", 0.0),
-            "judged": cm.get("llm_hint_present_count", 0),
-        })
-        persona_rate_trend.append({
-            "run_id": run_id, "created_at": created_at,
-            "value": cm.get("persona_correct_rate", 0.0),
-            "total": cm.get("persona_total_judged", 0),
-        })
-        intent_rate_trend.append({
-            "run_id": run_id, "created_at": created_at,
-            "value": cm.get("intent_correct_rate", 0.0),
-            "total": cm.get("intent_total_judged", 0),
-        })
+        # GV6: None = in diesem Lauf strukturell unmessbar (kein Hint, z. B.
+        # Agent-Engine) — der Punkt entfällt und die Serie zeigt eine Lücke
+        # statt eines 0.0-„Absturzes". Alt gespeicherte 0.0-Läufe bleiben, wie
+        # sie sind; rückwirkend ist die Unterscheidung nicht rekonstruierbar.
+        match_value = cm.get("llm_engine_match_rate", 0.0)
+        if match_value is not None:
+            match_rate_trend.append({
+                "run_id": run_id, "created_at": created_at,
+                "value": match_value,
+                "judged": cm.get("llm_hint_present_count", 0),
+            })
+        # Dieselbe Skip-Regel für Persona/Intent (Review-Befund 1, 2026-08-22):
+        # Golden-v2-Läufe tragen kein Klassifikator-Soll und lieferten hier
+        # 0.0-Punkte — nach drei Engine-Läufen sah die Persona-Serie aus wie
+        # ein Klassifikator-Absturz.
+        persona_value = cm.get("persona_correct_rate", 0.0)
+        if persona_value is not None:
+            persona_rate_trend.append({
+                "run_id": run_id, "created_at": created_at,
+                "value": persona_value,
+                "total": cm.get("persona_total_judged", 0),
+            })
+        intent_value = cm.get("intent_correct_rate", 0.0)
+        if intent_value is not None:
+            intent_rate_trend.append({
+                "run_id": run_id, "created_at": created_at,
+                "value": intent_value,
+                "total": cm.get("intent_total_judged", 0),
+            })
 
     # Pad each pattern series with implicit zeros for runs it never appeared in,
     # then order by run timeline — keeps sparklines honest about coverage.
@@ -222,33 +236,13 @@ async def pattern_usage_stats(
             params,
         )
     ]
-    by_pattern = [
-        dict(row._mapping)
-        for row in await session.execute(
-            text(
-                "SELECT pattern_id, COUNT(*) AS count "
-                f"FROM quality_logs {where_sql} "
-                "GROUP BY pattern_id ORDER BY count DESC"
-            ),
-            params,
-        )
-    ]
-    by_intent = [
-        dict(row._mapping)
-        for row in await session.execute(
-            text(
-                "SELECT intent_id, COUNT(*) AS count "
-                f"FROM quality_logs {where_sql} "
-                "GROUP BY intent_id ORDER BY count DESC"
-            ),
-            params,
-        )
-    ]
+    # Review-Runde 3 (2026-08-22, Nutzer-Entscheid): die ALT-Aggregate
+    # by_pattern/by_intent sind entfernt. Seit dem Betriebsart-Filter leitet
+    # das Studio — der einzige Konsument — beide Verteilungen client-seitig
+    # aus den Kombinationen ab; der Server rechnete zwei GROUP-BYs ins Leere.
     total = sum(r.get("count", 0) for r in triples)
     return {
         "triples": triples,
-        "by_pattern": by_pattern,
-        "by_intent": by_intent,
         "total": total,
         "scope": scope,
     }

@@ -118,6 +118,14 @@ wählte das Muster** (M05), die **Werkzeugliste wechselte** auf M05s fünf, und 
   dieser Stichprobe sogar am langsamsten. Der A/B-Lauf über die Golden-Suite
   (`EVAL_CHAT_HEADERS='{"X-Boerdi-Engine":"hybrid"}'`) steht aus — er gehört dem
   Nutzer und ist der eigentliche Beleg für Ziel 1.
+* **H5 zurückgenommen (Review-Befund 2, 2026-08-22).** Das Hybrid-Gate startete
+  den spekulativen Vorabruf, aber die Verbrauchsseite wurde nie gebaut:
+  `respond_agent._verwirf_vorabruf` bricht `spec_task` unbedingt ab, für agent
+  UND hybrid — jeder such-artige Hybrid-Zug bezahlte einen verworfenen
+  MCP-Roundtrip (die Live-Probe in §5 zeigt entsprechend keinen Prefetch).
+  Der Hybrid startet jetzt KEINEN Vorabruf; das Tempo-Ziel auf Such-Zügen
+  bleibt damit offen. Nachrüstweg: Einspeisung in die Schleife (Fremdtext-
+  Rahmen + Karten-Ernte + `tools_called`-Annotation), dann das Gate zurück.
 * **Slot-Degradation, M03-Rückfrage und Filter-Injektion entfallen im Hybrid** —
   Entscheidung des Nutzers. Nachrüstweg wäre ein kleiner Slot-Klassifikator (nur
   Entities, ~1/10 des heutigen Prompts).

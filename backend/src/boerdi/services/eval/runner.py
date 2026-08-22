@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -30,8 +31,13 @@ from typing import Any
 import httpx
 
 from boerdi.services.config_loader import get_state_directive, load_persona_definitions
-from boerdi.services.eval.judge import judge_turn
-from boerdi.services.eval.metrics import _aggregate, _aggregate_classification_metrics
+from boerdi.services.eval.judge import JudgeError, judge_turn
+from boerdi.services.eval.metrics import (
+    _aggregate,
+    _aggregate_classification_metrics,
+    count_chat_error_turns,
+    count_judge_failed_turns,
+)
 from boerdi.services.eval.prompts import _SIMULATOR_SYSTEM
 from boerdi.services.eval.scenario_gen import (
     _build_persona_markers_block,
@@ -42,8 +48,20 @@ from boerdi.services.llm import chat_completion
 
 logger = logging.getLogger(__name__)
 
-# One chat turn can involve tool calls and a reranker — ALT's 60 s, kept.
-_CHAT_TIMEOUT_S = 60.0
+def _chat_timeout_s() -> float:
+    """``EVAL_CHAT_TIMEOUT`` (seconds) or 120 (review finding 3, 2026-08-22).
+
+    ALT capped a chat turn at 60 s. The loop engines run several LLM rounds
+    per turn and the provider queues for 30-41 s per round under load — the
+    60 s cap booked legitimate turns as chat errors, asymmetrically against
+    exactly the engines the A/B run compares. Read per call so a test (or an
+    operator) can change it without a module reload; garbage raises loudly
+    and becomes a recorded turn error instead of a silently different cap.
+    Twin of ``chat_timeout`` in ``evals/run_golden.py`` (that file must stay
+    importable without ``boerdi.*``).
+    """
+    raw = (os.getenv("EVAL_CHAT_TIMEOUT") or "").strip()
+    return float(raw) if raw else 120.0
 
 # I06 is an edit intent: it only makes sense once material exists. Without a
 # priming turn every I06 scenario is an opening with nothing to edit, the engine
@@ -72,7 +90,7 @@ async def _post_chat(
     if not session_id:
         session_id = f"eval-{uuid.uuid4().hex[:12]}"
     payload: dict[str, Any] = {"session_id": session_id, "message": message}
-    async with httpx.AsyncClient(timeout=_CHAT_TIMEOUT_S) as c:
+    async with httpx.AsyncClient(timeout=_chat_timeout_s()) as c:
         r = await c.post(chat_url, json=payload)
         r.raise_for_status()
         return r.json()
@@ -379,6 +397,7 @@ async def _run_scenario_stage(
             f"Szenario {idx + 1}/{len(scens)}: {sc['persona_id']} × {sc['intent_id']}"
         )
         use_session_id: str | None = None
+        chat_error = ""
         try:
             priming_meta: dict[str, Any] | None = None
             if sc["intent_id"] == "I06":
@@ -393,22 +412,41 @@ async def _run_scenario_stage(
                 debug["i06_priming"] = priming_meta
             dbg_flat = _flat_debug(debug)
             bot_text = _augment_bot_text(bot_resp)
-            judge = await judge_turn(
-                persona, intent, sc["opening"], bot_text, dbg_flat,
-            )
+            # GV4: der Judge wirft jetzt statt still 0 Punkte zu liefern.
+            # Eigener try-Block, damit ein Judge-Ausfall NICHT den Bot-Text
+            # mit "(error: …)" überschreibt — der Chat hat ja geantwortet.
+            judge = None
+            judge_failed = ""
+            try:
+                judge = await judge_turn(
+                    persona, intent, sc["opening"], bot_text, dbg_flat,
+                )
+            except JudgeError as e:
+                logger.warning("[eval %s] judge failed: %s", run_id, e)
+                judge_failed = str(e)[:200]
         except Exception as e:
             logger.warning("[eval %s] scenario failed: %s", run_id, e)
+            # Review-Befund 6 (2026-08-22): ein Chat-Ausfall ist ein
+            # Mess-Ausfall, kein 0-Punkte-Bot. Der Zug trägt ``error`` (wie
+            # Golden und Stage 2) und bleibt unbewertet — bis dahin ging er
+            # als judge={"total": 0.0} in den Lauf-Schnitt ein.
             bot_text, dbg_flat = f"(error: {e})", {}
-            judge = {"total": 0.0, "notes": str(e)[:200]}
+            judge, judge_failed, chat_error = None, "", str(e)[:200]
+        turn: dict[str, Any] = {
+            "user": sc["opening"], "bot": bot_text, "debug": dbg_flat,
+        }
+        if judge is not None:
+            turn["judge"] = judge
+        if judge_failed:
+            turn["judge_failed"] = judge_failed
+        if chat_error:
+            turn["error"] = chat_error
         conversations.append({
             "kind": "scenario",
             "persona_id": sc["persona_id"],
             "intent_id": sc["intent_id"],
             "session_id": use_session_id,  # set for I06, otherwise None
-            "turns": [{
-                "user": sc["opening"], "bot": bot_text,
-                "debug": dbg_flat, "judge": judge,
-            }],
+            "turns": [turn],
         })
         # Write after the first scenario (so the UI leaves "Generiere Szenarien"
         # as soon as the loop starts), then every second one.
@@ -442,11 +480,20 @@ async def _run_conversation_stage(
                 continue
             for turn in conv["turns"]:
                 if turn.get("error"):
-                    turn["judge"] = {"total": 0.0, "notes": turn["error"]}
+                    # Review-Befund 6 (2026-08-22): Chat-Ausfall bleibt
+                    # unbewertet und wird als ``chat_error_turns`` gezählt —
+                    # vorher zog er als judge={"total": 0.0} den Schnitt.
                     continue
-                turn["judge"] = await judge_turn(
-                    persona, intent, turn["user"], turn["bot"], turn["debug"],
-                )
+                # GV4: ein Judge-Ausfall kostet den Turn seine Bewertung
+                # (``judge_failed``), nicht den ganzen Lauf — und keine
+                # stille Null mehr.
+                try:
+                    turn["judge"] = await judge_turn(
+                        persona, intent, turn["user"], turn["bot"], turn["debug"],
+                    )
+                except JudgeError as e:
+                    logger.warning("[eval %s] judge failed: %s", run_id, e)
+                    turn["judge_failed"] = str(e)[:200]
             conversations.append({
                 "kind": "conversation",
                 "persona_id": persona["id"],
@@ -471,6 +518,12 @@ def build_summary(conversations: list[dict], target_turns: int, activity: str) -
     summary["target_turns"] = target_turns
     summary["current_activity"] = activity
     summary["classification_metrics"] = _aggregate_classification_metrics(conversations)
+    # Review-Befund 4/6 (2026-08-22): Chat-Ausfälle stehen gezählt im Summary
+    # statt als 0.0-Bewertung im Schnitt (gleiche Regel wie im Golden-Weg).
+    summary["chat_error_turns"] = count_chat_error_turns(conversations)
+    # Review Runde 2 (2026-08-22): Judge-Ausfälle ebenso — der Golden-Weg
+    # zählte sie, der generative nicht, und das Studio las den Schlüssel.
+    summary["judge_failed_turns"] = count_judge_failed_turns(conversations)
     return summary
 
 

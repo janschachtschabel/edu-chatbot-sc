@@ -17,7 +17,9 @@ import {
 import type { RichSegment } from '@boerdi/ui';
 
 import { AsyncData, describeApiError } from '../core/async-data';
-import { EvalApi, type GoldFlow } from '../core/eval-api.service';
+import {
+  EvalApi, GOLDEN_ENGINES, type GoldenEngine, type GoldFlow,
+} from '../core/eval-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
 import { RichTextComponent } from './rich-text.component';
@@ -51,6 +53,12 @@ export class EvalGoldenStartComponent {
   readonly flows = computed<readonly GoldFlow[]>(() => this.flowList.value() ?? []);
 
   readonly judge = signal(false);
+
+  /** GV5: eine Maschine je Lauf. "default" = keine Kopfzeile, der Lauf misst
+   *  die Server-Vorgabe aus `engine.yaml`. */
+  readonly engine = signal<GoldenEngine>('default');
+  readonly engines = GOLDEN_ENGINES;
+
   private readonly chosen = signal<ReadonlySet<string>>(new Set());
 
   readonly armed = signal(false);
@@ -122,9 +130,33 @@ export class EvalGoldenStartComponent {
     this.disarm();
   }
 
+  /** Feedback 2026-08-22: „alles außer einem" (etwa GV-RED-1 abwählen)
+   *  brauchte vorher N−1 Einzelklicks — leer hieß zwar alle, aber der erste
+   *  Haken hieß NUR dieser. */
+  selectAll(): void {
+    this.chosen.set(new Set(this.flows().map((flow) => flow.id)));
+    this.disarm();
+  }
+
+  clearSelection(): void {
+    this.chosen.set(new Set());
+    this.disarm();
+  }
+
   setJudge(on: boolean): void {
     this.judge.set(on);
     this.disarm();
+  }
+
+  setEngine(engine: GoldenEngine): void {
+    this.engine.set(engine);
+    this.disarm();
+  }
+
+  engineLabel(engine: GoldenEngine): string {
+    // Nur die Vorgabe braucht einen Namen — die drei Maschinen heißen im
+    // Studio wie in der Konfig und der Kopfzeile (technische Werte).
+    return engine === 'default' ? this.t('evalStart.gold.engine.default') : engine;
   }
 
   arm(): void {
@@ -146,6 +178,7 @@ export class EvalGoldenStartComponent {
     try {
       const result = await this.api.startGoldenRun({
         flow_ids: [...this.chosen()], judge: this.judge(), config_slug: '',
+        engine: this.engine(),
       });
       this.armed.set(false);
       this.status.set(this.t('evalStart.gold.started', { id: result.run_id }));
@@ -158,10 +191,12 @@ export class EvalGoldenStartComponent {
     }
   }
 
-  /** "4 Turns · P-LEH · I03, I04" — what this flow is going to exercise. */
+  /** "4 Turns · P-LEH" — what this flow is going to exercise. v2 flows carry
+   *  the Zielgruppe; `persona`/`intents` remain readable for stored v1 sets. */
   flowMeta(flow: GoldFlow): string {
     const parts = [this.lang.plural('evalStart.gold.turns', flow.turns?.length ?? 0)];
-    if (flow.persona) parts.push(flow.persona);
+    const gruppe = flow.zielgruppe || flow.persona;
+    if (gruppe) parts.push(gruppe);
     if (flow.intents?.length) parts.push(flow.intents.join(', '));
     return parts.join(' · ');
   }

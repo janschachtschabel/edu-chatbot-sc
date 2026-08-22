@@ -136,6 +136,30 @@ def test_classification_persona_intent_accuracy_and_confusion():
     assert out["intent_confusion"] == {"I-SYN": {"I-SYN": 1, "I-OTHER": 1}}
 
 
+def test_unmeasurable_rates_are_none_not_zero():
+    """GV6: der Agent liefert keinen Pattern-Hint und (ohne Muster) keine
+    Pflicht-Werkzeugliste — die beiden Raten sind dann NICHT messbar. Eine
+    0.0 sah in den Trends wie ein Absturz aus; None heißt „nicht gemessen"
+    und die Serie zeigt eine Lücke."""
+    conv = {"persona_id": "", "intent_id": "", "turns": [
+        {"user": "x", "debug": {"pattern": "", "tools_called": ["search_wlo_all"]},
+         "judge": {}},
+    ]}
+    out = _aggregate_classification_metrics([conv])
+    assert out["llm_hint_present_count"] == 0
+    assert out["llm_engine_match_rate"] is None
+    assert out["llm_hint_final_match_rate"] is None
+    assert out["tool_compliance_total"] == 0
+    assert out["tool_compliance_rate"] is None
+    # Review-Befund 1 (2026-08-22): Golden-v2-Läufe (persona_id "*") haben
+    # auch kein Persona-/Intent-Soll — dieselbe Regel gilt für diese Raten,
+    # sonst malen sie die Studio-Trends auf 0 %.
+    assert out["persona_total_judged"] == 0
+    assert out["persona_correct_rate"] is None
+    assert out["intent_total_judged"] == 0
+    assert out["intent_correct_rate"] is None
+
+
 def test_classification_hint_engine_and_judge():
     out = _aggregate_classification_metrics([_clf_conv()])
     assert out["llm_hint_present_count"] == 2

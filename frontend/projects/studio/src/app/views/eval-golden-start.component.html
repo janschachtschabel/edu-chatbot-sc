@@ -18,6 +18,15 @@
         <legend class="egd-legend">{{ t('evalStart.gold.legend') }}</legend>
         <p class="egd-note">{{ t('evalStart.nothingChosen') }}</p>
 
+        <div class="egd-select-actions">
+          <button type="button" class="egd-btn" (click)="selectAll()">
+            {{ t('evalStart.gold.selectAll') }}
+          </button>
+          <button type="button" class="egd-btn" (click)="clearSelection()">
+            {{ t('evalStart.gold.clearSelection') }}
+          </button>
+        </div>
+
         <ul class="egd-picks">
           @for (flow of flows(); track flow.id) {
             <li>
@@ -37,6 +46,23 @@
             </li>
           }
         </ul>
+      </fieldset>
+
+      <fieldset class="egd-set">
+        <legend class="egd-legend">{{ t('evalStart.gold.engine.legend') }}</legend>
+        <p class="egd-note">{{ t('evalStart.gold.engine.hint') }}</p>
+        @for (option of engines; track option) {
+          <label class="egd-pick" [attr.for]="'egd-engine-' + option">
+            <input
+              type="radio"
+              name="egd-engine"
+              [id]="'egd-engine-' + option"
+              [checked]="engine() === option"
+              (change)="setEngine(option)"
+            />
+            <span>{{ engineLabel(option) }}</span>
+          </label>
+        }
       </fieldset>
 
       <fieldset class="egd-set">

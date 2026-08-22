@@ -125,6 +125,20 @@ describe("EvalTrendsComponent", () => {
     }
   });
 
+  it("beschriftet die Kurven mit Skalen-Marken (Feedback 2026-08-22)", async () => {
+    await mount();
+    const scales = Array.from(h.el.querySelectorAll(".et-scale")).map((s) =>
+      (s.textContent ?? "").replace(/\s+/g, ""),
+    );
+    // 1 Score-Skala + 4 Raten-Skalen — vorher hingen die Kurven ohne Achse.
+    expect(scales).toHaveLength(5);
+    // Die Score-Kurve skaliert auf ihr Maximum (Fixture: 0,9) …
+    expect(scales[0]).toContain("0,9");
+    expect(scales[0]).toContain("0");
+    // … die Raten-Kurven tragen die feste 0..100-%-Achse.
+    expect(scales.slice(1).every((s) => s.includes("100%") && s.includes("0"))).toBe(true);
+  });
+
   it("gives every chart a spoken summary naming value and direction", async () => {
     await mount();
     const labels = charts().map((c) => c.getAttribute("aria-label") ?? "");

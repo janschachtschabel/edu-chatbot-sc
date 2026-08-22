@@ -123,11 +123,19 @@ def validate_profile(profile: dict[str, Any]) -> dict[str, Any]:
     p95_threshold = float(profile.get("p95_threshold_s") or 20.0)
     p95_threshold = max(1.0, min(120.0, p95_threshold))
 
+    # Review-Befund 7 (2026-08-22): Engine je Lauf. Der Router validiert per
+    # Literal; hier noch einmal, weil validate_profile auch die Cap-Schicht
+    # für direkte Aufrufer ist.
+    engine = str(profile.get("engine") or "default")
+    if engine not in ("default", "pattern", "agent", "hybrid"):
+        raise ValueError(f"Unbekannte Engine: {engine!r}")
+
     return {
         "stages": stages,
         "requests_per_stage": rps,
         "mix": mix,
         "p95_threshold_s": p95_threshold,
+        "engine": engine,
         "total_requests": total,
     }
 
@@ -221,8 +229,8 @@ async def sweep_orphaned_loadtests(session: AsyncSession) -> int:
     A ``running`` row after a process start is orphaned by definition — its
     asyncio task cannot have survived the restart. Without this it blocks every
     new run (``any_run_running`` → 409) and cannot be deleted (delete refuses a
-    live run) → permanent deadlock (Audit 2026-07-03). NOT wired into the app
-    lifespan here (``main.py`` is out of scope) — flagged for the user.
+    live run) → permanent deadlock (Audit 2026-07-03). Wired into the app
+    lifespan (``main.py``), once per process start, best-effort.
     """
     rows = (
         await session.execute(
@@ -265,8 +273,14 @@ async def _persist(
 
 async def _fire_request(
     client: httpx.AsyncClient, kind: str, topic: str, session_id: str,
+    *, engine: str = "default",
 ) -> dict[str, Any]:
-    """One real chat request; measures latency and success (verbatim ALT logic)."""
+    """One real chat request; measures latency and success (verbatim ALT logic).
+
+    ``engine`` (Review-Befund 7): alles außer "default" reist als
+    ``X-Boerdi-Engine`` mit — sonst misst der Lasttest immer die
+    Server-Vorgabe, und die Kapazitätszahlen sagen nichts über agent/hybrid.
+    """
     prompt = MIX_TEMPLATES[kind]["prompt"].format(topic=topic)
     payload = {
         "session_id": session_id,
@@ -274,9 +288,11 @@ async def _fire_request(
         # ALT sent ``environment.page_url``; NEU ``Environment`` field is ``page``.
         "environment": {"page": "https://staging.openeduhub.net/"},
     }
+    headers = {"X-Boerdi-Engine": engine} if engine != "default" else None
     t0 = time.perf_counter()
     try:
-        r = await client.post("/api/chat", json=payload, timeout=REQUEST_TIMEOUT_S)
+        r = await client.post("/api/chat", json=payload,
+                              timeout=REQUEST_TIMEOUT_S, headers=headers)
         dt = time.perf_counter() - t0
         return {"kind": kind, "ok": r.status_code == 200, "status": r.status_code,
                 "latency_s": round(dt, 2)}
@@ -288,6 +304,7 @@ async def _fire_request(
 
 async def _run_stage(
     app: Any, run_id: str, stage_idx: int, concurrency: int, kinds: list[str],
+    *, engine: str = "default",
 ) -> list[dict[str, Any]]:
     """Fire one stage at the given concurrency. Extracted from the stages loop so
     ``_worker`` closes over parameters, not loop variables (verbatim firing)."""
@@ -303,7 +320,7 @@ async def _run_stage(
         async with sem, httpx.AsyncClient(
             transport=transport, base_url="http://loadtest.local",
         ) as client:
-            return await _fire_request(client, kind, topic, sid)
+            return await _fire_request(client, kind, topic, sid, engine=engine)
 
     return await asyncio.gather(*[_worker(i, k) for i, k in enumerate(kinds)])
 
@@ -418,11 +435,14 @@ async def execute_load_test(app: Any, run_id: str, profile: dict[str, Any]) -> N
     stop_sampling = asyncio.Event()
     sampler = asyncio.create_task(_sample_resources(samples, stop_sampling))
     try:
+        # ``.get``: vor Befund 7 gespeicherte Profile tragen kein engine-Feld.
+        engine = str(profile.get("engine") or "default")
         for stage_idx, concurrency in enumerate(profile["stages"]):
             n = profile["requests_per_stage"]
             kinds = _mix_sequence(profile["mix"], n)
             stage_t0 = time.perf_counter()
-            results = await _run_stage(app, run_id, stage_idx, concurrency, kinds)
+            results = await _run_stage(app, run_id, stage_idx, concurrency, kinds,
+                                       engine=engine)
             stage_dt = time.perf_counter() - stage_t0
             result["stages"].append(_stage_stats(concurrency, n, kinds, results, stage_dt))
             await _persist(factory, run_id, result=result)

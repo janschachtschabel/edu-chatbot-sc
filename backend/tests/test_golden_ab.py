@@ -31,9 +31,20 @@ _spec.loader.exec_module(rg)
 
 def _flow(*expects: dict) -> dict:
     return {
-        "id": "F1", "title": "Flow Eins", "persona": "P-LEH",
+        "id": "F1", "title": "Flow Eins", "zielgruppe": "P-LEH",
         "turns": [{"message": f"m{i}", "expect": e} for i, e in enumerate(expects, 1)],
     }
+
+
+def _v2_flows_datei(tmp_path: Path) -> Path:
+    """Eine minimale v2-Datei — seit GV1 weist ``main`` v1-Sets ab, die
+    Kopfzeilen-Tests brauchen also ein gültiges v2-Ziel."""
+    import yaml
+
+    p = tmp_path / "flows.yaml"
+    p.write_text(yaml.safe_dump({"version": 2, "flows": [_flow({})]},
+                                allow_unicode=True), encoding="utf-8")
+    return p
 
 
 def _antwort() -> dict:
@@ -100,8 +111,8 @@ def test_main_bricht_bei_unlesbaren_kopfzeilen_ab(monkeypatch, tmp_path) -> None
         raise AssertionError("run_flows trotz unlesbarer Kopfzeilen gestartet")
 
     monkeypatch.setattr(rg, "run_flows", darf_nicht_laufen)
-    assert rg.main(["--flows", str(EVALS / "gold-flows.yaml"), "--only", "GS-1",
-                    "--out", str(tmp_path)]) == 2
+    assert rg.main(["--flows", str(_v2_flows_datei(tmp_path)),
+                    "--out", str(tmp_path / "r")]) == 2
 
 
 def test_der_report_nennt_die_kopfzeilen_namen_ohne_werte(
@@ -115,10 +126,10 @@ def test_der_report_nennt_die_kopfzeilen_namen_ohne_werte(
 
     async def fake_flows(url, flows, *, headers=None):
         return [{"kind": "golden", "flow_id": "F1", "title": "", "persona_id": "*",
-                 "intent_id": "", "session_id": "s", "turns": []}]
+                 "zielgruppe": "", "intent_id": "", "session_id": "s", "turns": []}]
 
     monkeypatch.setattr(rg, "run_flows", fake_flows)
-    rg.main(["--flows", str(EVALS / "gold-flows.yaml"), "--only", "GS-1",
+    rg.main(["--flows", str(_v2_flows_datei(tmp_path)),
              "--out", str(tmp_path)])
     roh = next(tmp_path.glob("golden-*.json")).read_text(encoding="utf-8")
     assert "geheim-jti-123" not in roh

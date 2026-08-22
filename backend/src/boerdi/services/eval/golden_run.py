@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.db.models import EvalRun
@@ -23,6 +24,7 @@ from boerdi.services.config_loader import load_gold_flows
 from boerdi.services.eval import golden
 from boerdi.services.eval.run_store import (
     _chat_url,
+    _ensure_chat_reachable,
     _ensure_no_running_run,
     _finalize_run,
 )
@@ -81,9 +83,15 @@ async def start_golden_eval_run(
             f"{sorted({str(f.get('id')) for f in all_flows})}",
         )
 
+    await _ensure_chat_reachable()
     await _ensure_no_running_run(session)
     run_id = f"eval-{uuid.uuid4().hex[:12]}"
-    persona_ids = sorted({str(f.get("persona") or "*") for f in flows})
+    engine = str(getattr(req, "engine", "") or "default")
+    # v2-Flows tragen die Zielgruppe; "persona" bleibt als Rückfall lesbar,
+    # solange ein gespeicherter Config-Stand noch v1 sein kann.
+    persona_ids = sorted({
+        str(f.get("zielgruppe") or f.get("persona") or "*") for f in flows
+    })
     intent_ids = sorted({
         iid for f in flows for iid in (f.get("intents") or []) if iid
     })
@@ -96,6 +104,7 @@ async def start_golden_eval_run(
             "config_slug": req.config_slug,
             "personas": persona_ids, "intents": intent_ids,
             "flows": flow_ids_used, "judge": bool(req.judge),
+            "engine": engine,
             "turns_per_conv": 0, "judge_model": "", "simulator_model": "",
         },
         totals={"total_turns": 0, "avg_score": None},
@@ -107,7 +116,8 @@ async def start_golden_eval_run(
     ))
     await session.commit()
     _spawn_background(
-        _execute_golden_run(session_factory, run_id, flows, bool(req.judge))
+        _execute_golden_run(session_factory, run_id, flows, bool(req.judge),
+                            engine=engine)
     )
     return {
         "run_id": run_id,
@@ -116,13 +126,51 @@ async def start_golden_eval_run(
         "flows_used": flow_ids_used,
         "turns_total": turns_total,
         "judge": bool(req.judge),
+        "engine": engine,
         "warnings": warnings,
     }
+
+
+async def _write_golden_progress(
+    session_factory: async_sessionmaker[AsyncSession],
+    run_id: str,
+    *,
+    conversations: list[dict[str, Any]],
+    target_turns: int,
+    turns_done: int,
+    activity: str,
+) -> None:
+    """Zwischenstand eines Gold-Laufs (Feedback 2026-08-22).
+
+    Bis dahin schrieb der Gold-Weg NUR beim Finale — die Lauf-Liste stand
+    minutenlang auf „0 von N Turns · Starte Gold-Flows …" und das Detail
+    hatte keine Teil-Transkripte. Anders als der generative
+    ``_progress_writer`` schreibt dieser die Transkripte IMMER mit: ein
+    Gold-Lauf hat höchstens ~40 Züge, und der Zwischenstand kommt nur je
+    Flow. Ein verlorener Zwischenstand darf den Lauf nie beenden.
+    """
+    try:
+        async with session_factory() as s:
+            r = (
+                await s.execute(select(EvalRun).where(EvalRun.id == run_id))
+            ).scalar_one_or_none()
+            if r is None:
+                return
+            r.totals = {**(r.totals or {}), "total_turns": turns_done}
+            summary = dict(r.summary or {})
+            summary["current_activity"] = activity
+            summary["target_turns"] = target_turns
+            r.summary = summary
+            r.conversations = list(conversations)
+            await s.commit()
+    except Exception:
+        logger.warning("[golden %s] progress write failed", run_id, exc_info=True)
 
 
 async def _execute_golden_run(
     session_factory: async_sessionmaker[AsyncSession] | None,
     run_id: str, flows: list[dict[str, Any]], judge_enabled: bool,
+    *, engine: str = "default",
 ) -> None:
     """Background job: fire the flows at EVAL_CHAT_URL via the ported runner,
     add the optional judge layer, persist to eval_runs.
@@ -130,6 +178,10 @@ async def _execute_golden_run(
     The hard scorecard comes from the framework-free runner; ``judge=True`` adds
     the soft axes on top via ``eval/golden.py`` (C3). The headline ``avg_score``
     stays the deterministic pass rate either way.
+
+    ``engine`` (GV5): anything but "default" rides as ``X-Boerdi-Engine`` on
+    every turn — until then this job silently measured whatever engine.yaml
+    said, and the Studio could not choose.
     """
     if session_factory is None:
         logger.error("[golden %s] no session factory — cannot run", run_id)
@@ -141,8 +193,34 @@ async def _execute_golden_run(
     conversations: list[dict[str, Any]] = []
     try:
         runner = _load_golden_runner()
-        conversations = await runner.run_flows(_chat_url(), flows)
+        headers = {"X-Boerdi-Engine": engine} if engine != "default" else None
+        # Feedback 2026-08-22: Flow für Flow statt EIN Block — nur so gibt es
+        # Zwischenstände und Teil-Transkripte. ``run_flows`` öffnet je Flow
+        # ohnehin eine frische Session; die Schleife ändert am Messverhalten
+        # nichts.
+        turns_done = 0
+        for i, flow in enumerate(flows, start=1):
+            flow_convs = await runner.run_flows(_chat_url(), [flow], headers=headers)
+            conversations.extend(flow_convs)
+            turns_done = sum(len(c.get("turns") or []) for c in conversations)
+            await _write_golden_progress(
+                session_factory, run_id,
+                conversations=conversations, target_turns=target_turns,
+                turns_done=turns_done,
+                activity=(
+                    f"Flow {i}/{len(flows)}: {flow.get('id')} fertig "
+                    f"({turns_done}/{target_turns} Züge)"
+                ),
+            )
         if judge_enabled:
+            # Auch die Bewertungsphase dauert Minuten — ohne Ansage sähe der
+            # Lauf nach dem letzten Flow erneut eingefroren aus.
+            await _write_golden_progress(
+                session_factory, run_id,
+                conversations=conversations, target_turns=target_turns,
+                turns_done=turns_done,
+                activity=f"Judge bewertet {turns_done} Züge …",
+            )
             judged = await golden.judge_conversations(conversations)
             logger.info("[golden %s] judged %d turn(s)", run_id, judged)
         summary = golden.summarize_golden_run(
@@ -150,6 +228,7 @@ async def _execute_golden_run(
             target_turns=target_turns,
             golden_metrics=runner.aggregate_golden(conversations),
         )
+        summary["engine"] = engine
         golden_metrics = summary["golden_metrics"]
         async with session_factory() as s:
             await _finalize_run(

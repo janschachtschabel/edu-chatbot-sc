@@ -1,20 +1,19 @@
-"""Eval endpoints — generative + golden (studio). Implemented in P7.
+"""Eval endpoints — generative + golden (studio).
 
 The runner core is ported standalone under ``evals/run_golden.py`` (loaded by the
 service). Studio auth is applied at the router level (do not re-add per route).
 
-Two run families are deliberately unequal in NEU:
+Both run families are LIVE (the header claiming the generative engine was
+"NOT yet ported" outlived E1–E7 by weeks — GV5 removed it):
 
-* **Golden** (POST /runs/golden) is LIVE — it reuses the ported golden runner and
-  persists the deterministic scorecard.
-* **Generative** (POST /runs) keeps ALT's HTTP contract (validation, running-guard,
-  ``status: running`` response, run row) but its background job marks the run
-  *failed*: ALT's scenario/simulator/judge/metrics engine
-  (``eval_scenario_gen``/``eval_judge``/``eval_metrics``) is NOT yet ported to NEU.
-  This is honest — no fake success. Porting that engine is the remaining live work.
+* **Golden** (POST /runs/golden) reuses the ported v2 runner, persists the
+  deterministic scorecard, and since GV5 selects the engine per run
+  (``X-Boerdi-Engine`` on every turn; the report carries it).
+* **Generative** (POST /runs) drives the persona×intent matrix through the
+  scenario generator, simulator and judge (``services/eval/runner.py``).
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Security
 from pydantic import BaseModel, Field
@@ -130,6 +129,11 @@ class GoldenRunRequest(BaseModel):
     flow_ids: list[str] = Field(default_factory=list, description="empty = all flows")
     judge: bool = Field(True, description="run the LLM judge for soft quality dims")
     config_slug: str = ""
+    # GV5: one run per engine — "default" sends no header and measures the
+    # server's engine.yaml setting; the others set X-Boerdi-Engine per turn.
+    engine: Literal["default", "pattern", "agent", "hybrid"] = Field(
+        "default", description="engine for every turn of this run",
+    )
 
 
 @router.get("/gold-flows")

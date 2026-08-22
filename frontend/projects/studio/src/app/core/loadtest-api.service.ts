@@ -12,6 +12,7 @@
  */
 import { Injectable, inject } from '@angular/core';
 
+import { type GoldenEngine } from './eval-api.service';
 import { StudioApi } from './studio-api.service';
 
 export interface MixOption {
@@ -92,6 +93,9 @@ export interface StartProfile {
   readonly requests_per_stage: number;
   readonly mix: Record<string, number>;
   readonly p95_threshold_s: number;
+  /** Review-Befund 7 (2026-08-22): agent/hybrid haben ein anderes
+   *  Runden-Profil — ohne Wahl galten die Zahlen nur für die Vorgabe. */
+  readonly engine: GoldenEngine;
 }
 
 @Injectable({ providedIn: 'root' })

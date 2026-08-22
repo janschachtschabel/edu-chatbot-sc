@@ -167,6 +167,9 @@ def test_start_run_persists_running_row_and_spawns_runner(client, monkeypatch):
         "requests_per_stage": 6,
         "mix": {"wissen": 1, "suche": 1, "orientierung": 1},
         "p95_threshold_s": 20.0,
+        # Review-Befund 7 (2026-08-22): das Profil trägt die Engine — ohne
+        # Angabe misst der Lauf wie bisher die Server-Vorgabe.
+        "engine": "default",
         "total_requests": 18,
     }
     assert body["status"] == "running"
@@ -290,3 +293,61 @@ def test_delete_run_404_when_nothing_deleted(client, monkeypatch):
 )
 def test_endpoints_require_studio_key(client, method, path):
     assert client.request(method, path).status_code == 401
+
+
+# ── Review-Befund 7 (2026-08-22): Engine je Lasttest-Lauf ────────────────
+
+
+def test_start_run_traegt_die_engine_ins_profil(client, monkeypatch):
+    _afake(monkeypatch, "any_run_running", None)
+    _afake(monkeypatch, "create_run", None)
+    _capture_runner(monkeypatch)
+
+    r = client.post("/api/loadtest/runs", json={"engine": "agent"},
+                    headers=_AUTH)
+
+    assert r.status_code == 200
+    assert r.json()["profile"]["engine"] == "agent"
+
+
+def test_start_run_422_bei_unbekannter_engine(client, monkeypatch):
+    _afake(monkeypatch, "any_run_running", None)
+
+    r = client.post("/api/loadtest/runs", json={"engine": "turbo"},
+                    headers=_AUTH)
+
+    assert r.status_code == 422
+
+
+def test_validate_profile_engine_default_und_passthrough():
+    from boerdi.services.loadtest import validate_profile
+
+    assert validate_profile({})["engine"] == "default"
+    assert validate_profile({"engine": "hybrid"})["engine"] == "hybrid"
+
+
+def test_fire_request_setzt_die_engine_kopfzeile():
+    """Ohne Kopfzeile misst der Lasttest immer die Server-Vorgabe — die
+    Kapazitaetszahlen sagten nichts ueber agent/hybrid (anderes
+    Runden-Profil, H8)."""
+    import asyncio as _asyncio
+
+    from boerdi.services.loadtest import _fire_request
+
+    class _R:
+        status_code = 200
+
+    class _FakeClient:
+        def __init__(self):
+            self.calls = []
+
+        async def post(self, url, json=None, timeout=None, headers=None):
+            self.calls.append(headers)
+            return _R()
+
+    c = _FakeClient()
+    _asyncio.run(_fire_request(c, "wissen", "Optik", "s1", engine="agent"))
+    _asyncio.run(_fire_request(c, "wissen", "Optik", "s1", engine="default"))
+
+    assert c.calls[0] == {"X-Boerdi-Engine": "agent"}
+    assert c.calls[1] is None

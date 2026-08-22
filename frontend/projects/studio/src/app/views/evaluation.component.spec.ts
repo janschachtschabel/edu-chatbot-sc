@@ -169,6 +169,22 @@ describe("EvaluationComponent", () => {
     expect(panel.querySelector("studio-eval-runs")).toBeTruthy();
   });
 
+  it("zeigt die Lauf-Liste zuerst und klappt die Start-Formulare zu (Feedback 2026-08-22)", async () => {
+    // Vorher standen beide Start-Panels ÜBER der Liste — aktive Läufe waren
+    // erst nach langem Scrollen sichtbar.
+    const h = await mount();
+    const panel = h.el.querySelector("#panel-laeufe")!;
+    expect(panel.children[0]?.tagName.toLowerCase()).toBe("studio-eval-runs");
+    const disclosures = Array.from(
+      panel.querySelectorAll<HTMLDetailsElement>("details.ev-start"),
+    );
+    expect(disclosures.length).toBe(2);
+    for (const details of disclosures) expect(details.open).toBe(false);
+    // Die Formulare bleiben MONTIERT (laden ihre Daten), nur zugeklappt.
+    expect(disclosures[0].querySelector("studio-eval-golden-start")).toBeTruthy();
+    expect(disclosures[1].querySelector("studio-eval-generative-start")).toBeTruthy();
+  });
+
   it("loads the trends panel on its first visit", async () => {
     const h = await mount();
     tabs(h)[1].click();

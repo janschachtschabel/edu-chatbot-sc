@@ -345,7 +345,17 @@ def test_spec_sammlung_keyword_has_no_observable_effect(spec_mcp):
     assert _comparable(a) == _comparable(b)
 
 
-# ── H5: der Vorabruf im Hybrid, ohne Klassifikator ──────────────────────
+# ── H5 zurückgenommen (Review-Befund 2, 2026-08-22) ─────────────────────
+#
+# H5 hatte den Vorabruf für den Hybrid an ``_looks_like_search_query``
+# gehängt — aber die Verbrauchsseite wurde nie gebaut: ``respond_agent``
+# verwirft ``ctx.spec_task`` unbedingt (``_verwirf_vorabruf``), für agent
+# UND hybrid. Ergebnis war ein verworfener MCP-Roundtrip je such-artigem
+# Hybrid-Zug — genau das Muster, das dieselbe Datei an den M16-/I04-Skips
+# ausdrücklich vermeidet. Bis eine Einspeisung in die Schleife existiert
+# (Framing + Karten-Ernte + tools_called-Annotation), startet der Hybrid
+# KEINEN Vorabruf. Die alten Zusicherungen sind damit absichtlich
+# umgekehrt; die Begründung steht in ``_startet_der_vorabruf``.
 
 
 def _hybrid(message, risk="low"):
@@ -354,16 +364,15 @@ def _hybrid(message, risk="low"):
                    risk=risk, engine="hybrid")
 
 
-def test_hybrid_startet_den_vorabruf_an_der_nachricht(spec_mcp):
-    """Ohne diesen Zweig fiele der Vorabruf im Hybrid IMMER aus: die
-    Ersatz-Klassifikation trägt I01 und leere Entities."""
+def test_hybrid_startet_keinen_vorabruf(spec_mcp):
+    """Auch bei einem klaren Suchsatz: kein spekulativer MCP-Aufruf, denn
+    ``respond_agent`` würde ihn ohnehin verwerfen — Start ohne Verbrauch
+    wäre bezahlte, weggeworfene Arbeit."""
     _hybrid("Material zur Optik für Klasse 8")
-    assert spec_mcp, "kein MCP-Aufruf gestartet"
+    assert spec_mcp == []
 
 
 def test_hybrid_laesst_meta_fragen_liegen(spec_mcp):
-    """``_looks_like_search_query`` filtert Begrüßung und Meta-Frage — sonst
-    liefe hinter jedem „Hallo" eine MCP-Suche."""
     _hybrid("Was kannst du?")
     assert spec_mcp == []
 

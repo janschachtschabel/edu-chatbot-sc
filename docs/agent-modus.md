@@ -82,6 +82,12 @@ Wert bricht nichts: er fällt auf die Vorgabe zurück und wird nur protokolliert
 > `/widget/inline`, `/widget/frameless`) steht im Bedienpult ein Schalter
 > **„Maschine"**.
 
+**Messen statt vermuten:** dieselbe Kopfzeile treibt die Golden-Suite v2 —
+`evals/run_golden.py --engine pattern|agent|hybrid` fährt je Engine einen Lauf
+über 12 Anwendungsfall-Flows, `compare_golden.py` stellt zwei Läufe gegenüber
+(Checks + Latenz je Zug). Im Studio wählt der Gold-Start die Engine direkt.
+Details: `evals/README.md`.
+
 ---
 
 ## 3. Eingebettet in einen Seitenbereich

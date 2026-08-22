@@ -58,8 +58,10 @@ def _patch_defs(monkeypatch) -> None:
 def _judge_spy(monkeypatch, *, result=None, exc=None) -> list[tuple]:
     calls: list[tuple] = []
 
-    async def fake_judge(persona, intent, user, bot, dbg):
-        calls.append((persona, intent, user, bot, dbg))
+    # GV4: die Attrappe folgt der ECHTEN Signatur — ``soll_angebot`` ist
+    # keyword-only und wird als 6. Element mitgeschnitten.
+    async def fake_judge(persona, intent, user, bot, dbg, *, soll_angebot=None):
+        calls.append((persona, intent, user, bot, dbg, soll_angebot))
         if exc is not None:
             raise exc
         return dict(result or {"total": 0.5, "notes": ""})
@@ -128,19 +130,51 @@ def test_config_is_read_once_per_run_not_per_turn(monkeypatch) -> None:
     assert reads == ["p", "i"]
 
 
-def test_a_failing_judge_costs_its_turn_not_the_run(monkeypatch) -> None:
+def test_a_failing_judge_marks_the_turn_and_is_excluded(monkeypatch) -> None:
+    """GV4-Spec-Änderung: bis dahin bekam der Turn eine stille 0 („zero-score
+    verdict", ALT-Konvention) — die drückte den Schnitt der übrigen Turns, als
+    hätte der Bot versagt, obwohl der GUTACHTER ausgefallen war. Jetzt trägt
+    der Turn ``judge_failed`` und KEINEN ``judge``-Schlüssel; ``_aggregate``
+    lässt ihn damit von selbst aus ``judge_avg`` heraus."""
     _patch_defs(monkeypatch)
     _judge_spy(monkeypatch, exc=RuntimeError("judge provider 500"))
     convs = _convs()
 
     judged = asyncio.run(eg.judge_conversations(convs))
 
-    # Still counted as judged: ALT records a zero-score verdict, and dropping
-    # the turn instead would quietly raise the average of the survivors.
-    assert judged == 2
-    turn = convs[0]["turns"][0]
-    assert turn["judge"]["total"] == 0.0
-    assert "judge provider 500" in turn["judge"]["notes"]
+    assert judged == 0
+    for turn in convs[0]["turns"]:
+        assert "judge" not in turn
+        assert "judge provider 500" in turn["judge_failed"]
+
+
+def test_zielgruppe_beats_persona_id_for_the_rubric(monkeypatch) -> None:
+    """v2-Records tragen ``persona_id: "*"`` (kein Klassifikator-Soll) und die
+    Zielgruppe separat — der Judge braucht trotzdem die Persona-Rubrik."""
+    _patch_defs(monkeypatch)
+    calls = _judge_spy(monkeypatch)
+    convs = _convs()
+    convs[0]["persona_id"] = "*"
+    convs[0]["zielgruppe"] = "P-SYN"
+
+    asyncio.run(eg.judge_conversations(convs))
+
+    assert calls[0][0]["label"] == "Synth-Persona"
+
+
+def test_must_offer_reaches_the_judge_as_soll_angebot(monkeypatch) -> None:
+    _patch_defs(monkeypatch)
+    calls = _judge_spy(monkeypatch)
+    convs = _convs()
+    convs[0]["turns"][0]["golden"] = {
+        "expected": {"must_offer": "Treffer plus Anschlussangebot."},
+        "observed": {}, "checks": {},
+    }
+
+    asyncio.run(eg.judge_conversations(convs))
+
+    assert calls[0][5] == "Treffer plus Anschlussangebot."
+    assert calls[1][5] is None  # Turn ohne golden-Block: kein Soll
 
 
 # ── summarize_golden_run ─────────────────────────────────────────────────
@@ -170,6 +204,43 @@ def test_unjudged_run_carries_no_judge_average() -> None:
     assert summary["avg_score"] == 1.0  # deterministic rate, unchanged
     assert "judge_avg" not in summary and "judge_avg" not in gm
     assert summary["total_judged_turns"] == 0
+    assert summary["judge_failed_turns"] == 0
+    assert summary["chat_error_turns"] == 0
+    assert "chat_error_turns" not in gm
+
+
+def test_chat_fehler_zuege_stehen_gezaehlt_im_summary() -> None:
+    """Review-Befund 4 (2026-08-22): die CLI meldet Fehl-Züge über Exit 1 und
+    stderr — der GESPEICHERTE Lauf hatte keinen Zähler und stand mit grüner
+    harter Quote da, obwohl N Züge nie stattfanden. Gezählt wie
+    ``judge_failed_turns``: immer im Summary, in der Scorecard nur wenn >0."""
+    convs = _convs()
+    convs[0]["turns"].append({"user": "x", "bot": "(chat error: weg)",
+                              "debug": {}, "error": "weg"})
+    gm = dict(_GM)
+
+    summary = eg.summarize_golden_run(convs, target_turns=3, golden_metrics=gm)
+
+    assert summary["chat_error_turns"] == 1
+    assert gm["chat_error_turns"] == 1
+
+
+def test_judge_failures_are_counted_not_averaged(monkeypatch) -> None:
+    """GV4: fallen ALLE Judge-Aufrufe aus, bleibt ``judge_avg`` weg (nichts
+    wurde bewertet) — aber der Ausfall steht gezählt im Summary und in der
+    Scorecard, statt als 0.0-Schnitt wie ein Bot-Versagen auszusehen."""
+    _patch_defs(monkeypatch)
+    _judge_spy(monkeypatch, exc=RuntimeError("judge down"))
+    convs = _convs()
+    asyncio.run(eg.judge_conversations(convs))
+    gm = dict(_GM)
+
+    summary = eg.summarize_golden_run(convs, target_turns=2, golden_metrics=gm)
+
+    assert summary["judge_failed_turns"] == 2
+    assert gm["judge_failed_turns"] == 2
+    assert "judge_avg" not in summary and "judge_avg" not in gm
+    assert summary["avg_score"] == 1.0  # deterministisch, unberührt
 
 
 def test_summary_fills_the_source_of_the_five_trend_series() -> None:

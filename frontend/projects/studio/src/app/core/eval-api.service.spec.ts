@@ -93,6 +93,7 @@ describe("EvalApi", () => {
       flow_ids: ["f1"],
       judge: false,
       config_slug: "",
+      engine: "agent",
     });
     const req = http.expectOne((r) => r.url === `${BASE}/runs/golden`);
     expect(req.request.method).toBe("POST");
@@ -100,6 +101,7 @@ describe("EvalApi", () => {
       flow_ids: ["f1"],
       judge: false,
       config_slug: "",
+      engine: "agent",
     });
     req.flush({ run_id: "g1" });
   });
@@ -172,8 +174,6 @@ describe("EvalApi", () => {
     expect(req.request.params.has("since")).toBe(false);
     req.flush({
       triples: [],
-      by_pattern: [],
-      by_intent: [],
       total: 0,
       scope: "eval",
     });

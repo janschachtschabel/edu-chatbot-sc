@@ -3,10 +3,13 @@
  *
  * Six things are plotted. The judge score per run comes from the run metadata
  * and covers golden runs too. The five classification series come from
- * `summary.classification_metrics`, which only a **generative** run writes — so
- * an installation that has only ever run gold flows sees the score timeline
- * filled and the five series empty. That is stated in the UI rather than left
- * looking broken.
+ * `summary.classification_metrics`, which golden AND generative runs write —
+ * but a golden v2 run has no classifier targets, so its rates are None and the
+ * backend skips its points (GV6 + review fix 2026-08-22): the series show a
+ * gap for such runs rather than a fake 0 % crash. An installation that has
+ * only ever run gold flows therefore sees the score timeline filled and the
+ * classification series empty — stated in the UI rather than left looking
+ * broken.
  *
  * The charts are `role="img"` with a spoken summary; the table below is the
  * accessible source for every number (same split as the load-test chart).
@@ -203,6 +206,13 @@ export class EvalTrendsComponent {
 
   percent(value: number | null): string {
     return value === null ? '–' : this.fmt.percent(value);
+  }
+
+  /** Obere Achsen-Marke der Raten-Kurven (Feedback 2026-08-22): die Achse
+   *  ist fix 0..1 (`rateChart`), die Marke ganzzahlig — „100,0 %" wäre
+   *  Pseudo-Präzision an einer Skala. */
+  rateAxisTop(): string {
+    return this.fmt.percent(1, 0);
   }
 
   score(value: number | null): string {

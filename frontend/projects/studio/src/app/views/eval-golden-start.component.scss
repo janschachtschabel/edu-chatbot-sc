@@ -19,6 +19,13 @@
   color: var(--st-text-muted);
 }
 
+// Feedback 2026-08-22: Sammel-Aktionen über der Flow-Liste.
+.egd-select-actions {
+  display: flex;
+  gap: var(--st-2);
+  margin-block-end: var(--st-2);
+}
+
 .egd-intro code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.9em;

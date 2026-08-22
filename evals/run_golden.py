@@ -1,24 +1,34 @@
 #!/usr/bin/env python
 """Golden-flow runner (P0-8) — the deterministic acceptance instrument (spec §5.7).
 
-Ported 1:1 from ALT ``eval_golden.py`` / ``eval_metrics.py`` / ``eval_text_utils.py``
+Ported from ALT ``eval_golden.py`` / ``eval_metrics.py`` / ``eval_text_utils.py``
 / ``eval_service._post_chat`` — runner part only: no eval_runs DB row, no LLM
 judge (both live in the backend eval API, P7). Framework-free (httpx + pyyaml),
 so it can run against ANY chat backend:
 
-    cd backend && uv run python ../evals/run_golden.py --only GS-1
+    cd backend && uv run python ../evals/run_golden.py --only GV-LEH-1
     EVAL_CHAT_URL=http://localhost:8100/api/chat uv run python ../evals/run_golden.py
 
-``EVAL_CHAT_HEADERS`` (A5) carries a JSON object of request headers into every
-turn — the way to drive ONE suite against BOTH engines, since the switch is a
-header (``X-Boerdi-Engine``, A4a):
+Format v2 (GV1, 2026-08-22): the dataset describes USE CASES, and every hard
+check is an observable RESULT that all three engines can produce the same way
+(register/structure/tools_any/qr; host stays soft). persona/intent checks are
+gone — the classifier is only one of three engines now, and measuring it is
+the generative track's job. v1 files are rejected loudly (``version: 2``
+required); ``must_offer`` per turn feeds the backend judge (GV4), never the
+hard rate.
 
-    EVAL_CHAT_HEADERS='{"X-Boerdi-Engine":"agent"}' \
-        uv run python ../evals/run_golden.py --label agent
+The engine is chosen per run — ``--engine`` sets the ``X-Boerdi-Engine``
+header (A4a) and the report carries a top-level ``engine`` field, so an A/B
+compare can name both sides:
 
-Exit code 0 == all asserted hard checks passed (persona/intent/register/
-structure/qr); host is reported but soft, like ALT. Exit code 2 == the run never
-started (no matching flow, unreadable headers).
+    uv run python ../evals/run_golden.py --engine agent --label v2-agent
+
+``EVAL_CHAT_HEADERS`` (A5) still carries arbitrary extra headers (JSON
+object); an ``X-Boerdi-Engine`` in there is overridden by ``--engine``.
+
+Exit code 0 == all asserted hard checks passed (register/structure/tools_any/
+qr); host is reported but soft, like ALT. Exit code 2 == the run never started
+(no matching flow, unreadable headers, v1 dataset).
 
 ONE file on purpose (documented exception to the ~300-line rule, §0 rule 7):
 both ``eval_service._load_golden_runner`` and the tests load it by PATH via
@@ -49,8 +59,15 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 
-GOLDEN_CATS = ["persona", "intent", "register", "structure", "qr", "host"]
-GOLDEN_HARD = ["persona", "intent", "register", "structure", "qr"]
+#: Eine Quelle: die Seed-Datei ist die Import-Quelle (GV2). Die frühere
+#: Kopie ``evals/gold-flows.yaml`` musste von Hand synchron gehalten werden.
+DEFAULT_FLOWS = HERE.parent / "backend" / "seeds" / "eval" / "gold-flows.yaml"
+
+GOLDEN_CATS = ["register", "structure", "tools_any", "qr", "host"]
+GOLDEN_HARD = ["register", "structure", "tools_any", "qr"]
+
+ENGINE_HEADER = "X-Boerdi-Engine"
+ENGINES = ("pattern", "agent", "hybrid")
 
 _SIE_RE = re.compile(r"\b(?:Sie|Ihnen|Ihr|Ihre[nmrs]?|Ihrem)\b")
 _DU_RE = re.compile(r"\b(?:[Dd]u|[Dd]ich|[Dd]ir|[Dd]eine?[nmrs]?|[Dd]ein)\b")
@@ -96,6 +113,67 @@ def chat_headers(raw: str | None) -> dict[str, str]:
     return data
 
 
+def chat_timeout() -> float:
+    """``EVAL_CHAT_TIMEOUT`` (Sekunden) oder 120 (Review-Befund 3, 2026-08-22).
+
+    120 statt der alten ALT-60: Agent-/Hybrid-Züge machen mehrere LLM-Runden,
+    und beim Anbieter sind 30-41 s Wartezeit je Runde gemessen — der 60er
+    Deckel verbuchte legitime Züge als Chat-Fehler, asymmetrisch zulasten der
+    Schleifen-Maschinen. Unlesbare Werte brechen laut ab (wie
+    ``chat_headers``): still auf den Default zu fallen hieße, mit einem
+    anderen Deckel zu messen, als der Aufrufer glaubt.
+    """
+    raw = (os.getenv("EVAL_CHAT_TIMEOUT") or "").strip()
+    if not raw:
+        return 120.0
+    try:
+        return float(raw)
+    except ValueError as e:
+        raise ValueError(f"EVAL_CHAT_TIMEOUT ist keine Zahl: {raw!r}") from e
+
+
+def bare_tool_names(raw: Any) -> list[str]:
+    """Werkzeugnamen vor dem ersten Leerzeichen: ``tools_called`` trägt
+    Annotationen wie "search_wlo_collections (prefetch)" — gleicher Vergleich
+    wie ``metrics._aggregate_classification_metrics`` (Tool-Compliance)."""
+    names: list[str] = []
+    for t in raw or []:
+        if isinstance(t, str):
+            bare = t.split(" ", 1)[0].strip()
+            if bare:
+                names.append(bare)
+    return names
+
+
+def effective_engine(headers: dict[str, str]) -> str:
+    """Engine laut Kopfzeilen (Name case-insensitiv), sonst "default"."""
+    for k, v in headers.items():
+        if k.lower() == ENGINE_HEADER.lower():
+            return v.strip().lower() or "default"
+    return "default"
+
+
+def load_flows(path: str | Path) -> list[dict[str, Any]]:
+    """Parse a v2 gold-flows file; reject anything else loudly.
+
+    v1 expectations (persona/intent) describe the classifier machine, which
+    agent/hybrid do not run — a v1 set under v2 checks would silently assert
+    nothing and report green. No silent dual operation: the format is pinned.
+    """
+    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    version = data.get("version") if isinstance(data, dict) else None
+    if version != 2:
+        raise ValueError(
+            f"{path}: version={version!r} — dieser Runner erwartet 'version: 2'. "
+            "v1-Sets (persona/intent-Checks) beschreiben die Anlage seit dem "
+            "Engine-Umbau nicht mehr; Format siehe evals/README.md."
+        )
+    flows = data.get("flows")
+    if not isinstance(flows, list) or not flows:
+        raise ValueError(f"{path}: keine Flows gefunden")
+    return flows
+
+
 def repo_host() -> str:
     """Host of REPO_BASE_URL — same default as the backend (config_loader)."""
     base = (os.getenv("REPO_BASE_URL") or "").strip().rstrip("/") or (
@@ -111,30 +189,38 @@ def check_golden_turn(
     expect: dict[str, Any], bot_resp: dict[str, Any], debug: dict[str, Any],
 ) -> dict[str, Any]:
     """Programmatic, deterministic per-turn checks against the gold-standard
-    expectations. Returns {expected, observed, checks}. A check value of
-    None means "not asserted for this turn" (excluded from rates)."""
-    exp_persona = str(expect.get("persona") or "*").strip()
-    exp_intent = str(expect.get("intent") or "").strip()
+    expectations (v2). Returns {expected, observed, checks}. A check value of
+    None means "not asserted / not measurable for this turn" (excluded from
+    rates).
+
+    Every check is a RESULT the user would see, engine-fair by construction:
+    HOW a document box or a tool call came to be (pattern switch, agent loop,
+    ``zeige_dokument``) is invisible here. persona/intent expectations are
+    ignored on purpose — the classifier is measured by the generative track.
+    """
     exp_register = str(expect.get("register") or "any").strip().lower()
     exp_structure = str(expect.get("structure") or "").strip().lower()
+    raw_tools = expect.get("tools_any") or []
+    if isinstance(raw_tools, str):  # tolerate a lone name; guard enforces list
+        raw_tools = [raw_tools]
+    exp_tools = [str(t).strip() for t in raw_tools if str(t).strip()]
 
-    obs_persona = strip_id(debug.get("persona", ""))
-    obs_intent = strip_id(debug.get("intent", ""))
     obs_pattern = strip_id(debug.get("pattern", ""))
+    obs_tools = bare_tool_names(debug.get("tools_called"))
     content = bot_resp.get("content") or ""
     cards = bot_resp.get("cards") or []
     idocs = bot_resp.get("inline_documents") or []
     qr = bot_resp.get("quick_replies") or []
     reg_label, sie_n, du_n = detect_register(content)
 
-    # B1 (ALT 2026-07-10): wildcard persona ("*") / empty intent are NOT
-    # asserted -> None (neutral, excluded from overall_pass_rate), not True.
-    persona_ok: bool | None = None if exp_persona == "*" else (obs_persona == exp_persona)
-    intent_ok: bool | None = None if not exp_intent else (obs_intent == exp_intent)
-    if exp_register == "sie":
-        register_ok: bool | None = reg_label != "du"
-    elif exp_register == "du":
-        register_ok = reg_label != "sie"
+    # v2-Ehrlichkeit: misst die Heuristik nichts (neutral), ist der Check
+    # None — nicht bestanden. Bis v1 galt „nur die GEGENTEILIGE Anrede
+    # fällt durch", und eine Ansage-Zeile plus Ein-Satz-Lead zählte als
+    # korrekt gesiezt.
+    if exp_register in ("sie", "du"):
+        register_ok: bool | None = (
+            None if reg_label == "neutral" else reg_label == exp_register
+        )
     else:
         register_ok = None  # "any" -> not asserted
     if exp_structure == "idoc":
@@ -143,6 +229,9 @@ def check_golden_turn(
         structure_ok = len(cards) >= 1
     else:
         structure_ok = None
+    tools_ok: bool | None = (
+        None if not exp_tools else any(t in obs_tools for t in exp_tools)
+    )
     qr_ok = len(qr) >= 1
     host = repo_host()
     urls = [(c.get("wlo_url") or c.get("url") or "") for c in cards if isinstance(c, dict)]
@@ -151,20 +240,20 @@ def check_golden_turn(
 
     return {
         "expected": {
-            "persona": exp_persona, "intent": exp_intent,
             "register": exp_register,
             "structure": exp_structure or None,
+            "tools_any": exp_tools,
             "must_offer": expect.get("must_offer") or "",
         },
         "observed": {
-            "persona": obs_persona, "intent": obs_intent, "pattern": obs_pattern,
+            "pattern": obs_pattern, "tools_called": obs_tools,
             "register": reg_label, "sie": sie_n, "du": du_n,
             "cards": len(cards), "idocs": len(idocs), "qr": len(qr),
             "content_len": len(content),
         },
         "checks": {
-            "persona": persona_ok, "intent": intent_ok, "register": register_ok,
-            "structure": structure_ok, "qr": qr_ok, "host": host_ok,
+            "register": register_ok, "structure": structure_ok,
+            "tools_any": tools_ok, "qr": qr_ok, "host": host_ok,
         },
     }
 
@@ -293,10 +382,14 @@ def aggregate_golden(conversations: list[dict]) -> dict[str, Any]:
     latencies: list[int] = []
 
     for conv in conversations:
-        fid = conv.get("flow_id") or conv.get("persona_id") or "?"
+        fid = conv.get("flow_id") or "?"
         title = conv.get("title", "")
+        # Begleitfix GV1: bis v1 hieß das Feld "persona" und wurde vom
+        # Spread sofort von der gleichnamigen Kategorie-Zelle überschrieben
+        # (im Studio als Bug dokumentiert, gold-scorecard.ts). "zielgruppe"
+        # kollidiert mit keiner Kategorie.
         pf = per_flow.setdefault(
-            fid, {"title": title, "persona": conv.get("persona_id", ""),
+            fid, {"title": title, "zielgruppe": conv.get("zielgruppe", ""),
                   **{c: {"ok": 0, "total": 0} for c in GOLDEN_CATS}},
         )
         for ti, turn in enumerate(conv.get("turns", []), start=1):
@@ -346,8 +439,9 @@ async def post_chat(
     chat_url: str, message: str, session_id: str,
     headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Fire one user message at /api/chat, return raw response JSON (1:1 ALT)."""
-    async with httpx.AsyncClient(timeout=60.0) as c:
+    """Fire one user message at /api/chat, return raw response JSON (1:1 ALT;
+    Deckel seit Befund 3 über ``chat_timeout()`` statt fixer 60 s)."""
+    async with httpx.AsyncClient(timeout=chat_timeout()) as c:
         r = await c.post(chat_url, json={"session_id": session_id, "message": message},
                          headers=headers or None)
         r.raise_for_status()
@@ -389,8 +483,6 @@ async def run_flows(
                 # wäre die falsche Auslassung.
                 turn_records.append({"user": msg, "bot": f"(chat error: {e})",
                                      "debug": {}, "error": str(e),
-                                     "expected_persona": expect.get("persona"),
-                                     "expected_intent": expect.get("intent"),
                                      "latency_ms": _ms_since(t_turn)})
                 continue
             latency_ms = _ms_since(t_turn)
@@ -400,23 +492,22 @@ async def run_flows(
                 "bot": augment_bot_text(bot_resp),
                 "debug": flatten_debug(debug),
                 "golden": check_golden_turn(expect, bot_resp, debug),
-                "expected_persona": expect.get("persona"),
-                "expected_intent": expect.get("intent"),
                 "cards_count": len(bot_resp.get("cards") or []),
                 "response_length": len(bot_resp.get("content") or ""),
                 "latency_ms": latency_ms,
             })
-        # Primary intent = what turn 1 was set up to trigger. ``_aggregate`` and
-        # the classification metrics key the persona×intent matrix on it.
-        primary_intent = ""
-        if turns_spec:
-            primary_intent = str((turns_spec[0].get("expect") or {}).get("intent") or "")
+        # persona_id "*" = kein Klassifikator-Soll: die Backend-Aggregation
+        # (``_aggregate_classification_metrics``) liest persona_id/intent_id
+        # als Soll-Label — die Zielgruppe eines v2-Flows ist aber Gruppierung
+        # und Judge-Rubrik, kein Soll. Sonst sähen Golden-Läufe im
+        # Agent-Modus in den Klassifikations-Trends wie Abstürze aus.
         conversations.append({
             "kind": "golden",
             "flow_id": flow_id,
             "title": str(flow.get("title") or ""),
-            "persona_id": str(flow.get("persona") or "*"),
-            "intent_id": primary_intent,
+            "persona_id": "*",
+            "zielgruppe": str(flow.get("zielgruppe") or ""),
+            "intent_id": "",
             "session_id": session_id,
             "turns": turn_records,
         })
@@ -462,21 +553,35 @@ def main(argv: list[str] | None = None) -> int:
     except (AttributeError, ValueError):
         pass  # non-reconfigurable stream (e.g. under some test runners)
     p = argparse.ArgumentParser(description="Golden-flow runner (spec §5.7)")
-    p.add_argument("--flows", default=str(HERE / "gold-flows.yaml"))
+    p.add_argument("--flows", default=str(DEFAULT_FLOWS))
     p.add_argument("--url", default=os.getenv("EVAL_CHAT_URL")
                    or "http://localhost:8000/api/chat")
-    p.add_argument("--only", default="", help="comma-separated flow ids (e.g. GS-1,GS-3)")
+    p.add_argument("--only", default="",
+                   help="comma-separated flow ids (e.g. GV-LEH-1,GV-RED-2)")
+    p.add_argument("--engine", choices=list(ENGINES), default="",
+                   help=f"setzt {ENGINE_HEADER} je Zug "
+                        "(überschreibt EVAL_CHAT_HEADERS)")
     p.add_argument("--label", default="", help="report filename label")
     p.add_argument("--out", default=str(HERE / "reports"))
     args = p.parse_args(argv)
 
     try:
         headers = chat_headers(os.getenv("EVAL_CHAT_HEADERS"))
+        chat_timeout()  # frueh validieren: Tippfehler stoppen den Lauf, bevor er kostet
     except ValueError as e:
         print(str(e), file=sys.stderr)
         return 2
+    if args.engine:
+        headers = {k: v for k, v in headers.items()
+                   if k.lower() != ENGINE_HEADER.lower()}
+        headers[ENGINE_HEADER] = args.engine
+    engine = effective_engine(headers)
 
-    flows = yaml.safe_load(Path(args.flows).read_text(encoding="utf-8"))["flows"]
+    try:
+        flows = load_flows(args.flows)
+    except (ValueError, OSError) as e:
+        print(str(e), file=sys.stderr)
+        return 2
     if args.only:
         wanted = {x.strip() for x in args.only.split(",") if x.strip()}
         flows = [f for f in flows if str(f.get("id")) in wanted]
@@ -485,7 +590,8 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     kopf = f" mit Kopfzeilen {', '.join(sorted(headers))}" if headers else ""
-    print(f"Golden-Runner: {len(flows)} Flow(s) gegen {args.url}{kopf}")
+    print(f"Golden-Runner: {len(flows)} Flow(s) gegen {args.url}"
+          f" · Engine: {engine}{kopf}")
     t0 = time.perf_counter()
     conversations = asyncio.run(run_flows(args.url, flows, headers=headers))
     metrics = aggregate_golden(conversations)
@@ -497,6 +603,9 @@ def main(argv: list[str] | None = None) -> int:
     report_path = out_dir / f"golden-{stamp}{label}.json"
     report_path.write_text(json.dumps({
         "chat_url": args.url,
+        # Die Engine ist der A/B-Schlüssel des Berichts — ohne sie kann der
+        # Vergleich zwei Läufe nicht benennen. Der Wert ist kein Geheimnis.
+        "engine": engine,
         # Nur die NAMEN: der Report soll sagen, WOMIT gemessen wurde, aber eine
         # Kopfzeile kann ein Geheimnis tragen (``WLO-Access-Block`` führt die
         # Zugangs-Kennung).

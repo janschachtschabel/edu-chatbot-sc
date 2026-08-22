@@ -76,6 +76,15 @@
               <studio-rich [parts]="rich('evalDetail.rates.judge', {
                 score: score(gm.judge_avg), turns: gm.judged_turns ?? gm.turns })" />
             }
+            @if (engine()) {
+              · {{ t('evalDetail.engine', { engine: engine() }) }}
+            }
+            @if (judgeFailed() > 0) {
+              · {{ t('evalDetail.judgeFailed', { count: judgeFailed() }) }}
+            }
+            @if (chatErrors() > 0) {
+              · <span class="erd-error-count" role="alert">{{ t('evalDetail.chatErrors', { count: chatErrors() }) }}</span>
+            }
           </p>
         </div>
 
@@ -101,8 +110,7 @@
               <th scope="col">{{ t('evalDetail.col.turn') }}</th>
               <th scope="col">{{ t('evalDetail.col.expected') }}</th>
               <th scope="col">{{ t('evalDetail.col.observed') }}</th>
-              @for (category of ['persona', 'intent', 'register', 'structure', 'qr'];
-                    track category) {
+              @for (category of cats(); track category) {
                 <th scope="col">{{ label(category) }}</th>
               }
               <th scope="col">{{ t('evalDetail.col.message') }}</th>
@@ -123,13 +131,12 @@
                     </button>
                   </th>
                   <td class="erd-nowrap">
-                    {{ expected(turn, 'persona') }}/{{ expected(turn, 'intent') }}
+                    {{ sollText(turn) }}
                   </td>
                   <td class="erd-nowrap">
-                    {{ observed(turn, 'persona') }}/{{ observed(turn, 'intent') }}/<strong>{{ observed(turn, 'pattern') }}</strong>
+                    {{ istText(turn) }}<strong>{{ observed(turn, 'pattern') }}</strong>
                   </td>
-                  @for (category of ['persona', 'intent', 'register', 'structure', 'qr'];
-                        track category) {
+                  @for (category of cats(); track category) {
                     <td class="erd-check">
                       <span [class]="checkClass(turn.checks[category])" aria-hidden="true">
                         {{ checkGlyph(turn.checks[category]) }}
@@ -142,7 +149,7 @@
 
                 @if (isOpen(turnKey(turn.flow, turn.turn))) {
                   <tr class="erd-detail-row">
-                    <td [attr.colspan]="9">
+                    <td [attr.colspan]="4 + cats().length">
                       <p class="erd-hint"><studio-rich [parts]="turnDetail(turn)" /></p>
                       <p class="erd-bot">{{ botText(turnKey(turn.flow, turn.turn)) }}</p>
                     </td>
@@ -152,7 +159,7 @@
 
               <tr class="erd-sum">
                 <th scope="row">{{ t('evalDetail.flowTotal', { flow: group.flow }) }}</th>
-                <td [attr.colspan]="8">
+                <td [attr.colspan]="3 + cats().length">
                   {{ group.title }} — {{ flowRate(group.flow) }}
                 </td>
               </tr>
@@ -161,12 +168,28 @@
         </table>
       </div>
     } @else {
+      @if (judgeFailed() > 0 || chatErrors() > 0) {
+        <!-- Review Runde 2 (2026-08-22): die Zähler standen nur im
+             Gold-Metriken-Kopf — generative Läufe zeigten tote Züge nie an. -->
+        <p class="erd-summary">
+          @if (judgeFailed() > 0) {
+            {{ t('evalDetail.judgeFailed', { count: judgeFailed() }) }}
+          }
+          @if (chatErrors() > 0) {
+            <span class="erd-error-count" role="alert">{{ t('evalDetail.chatErrors', { count: chatErrors() }) }}</span>
+          }
+        </p>
+      }
       <p class="erd-hint">
         <studio-rich [parts]="rich('evalDetail.noMetrics')" />
       </p>
 
       @if (conversations().length === 0) {
-        <p class="erd-hint">{{ t('evalDetail.noTranscripts') }}</p>
+        <!-- Feedback 2026-08-22: bei LAUFENDEM Lauf ist „gestorben" falsch —
+             der Gold-Lauf schreibt seine Zwischenstände je Flow. -->
+        <p class="erd-hint">
+          {{ t(isRunning() ? 'evalDetail.noTranscriptsYet' : 'evalDetail.noTranscripts') }}
+        </p>
       }
 
       @for (conv of conversations(); track $index) {

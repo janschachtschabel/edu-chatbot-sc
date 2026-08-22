@@ -1109,6 +1109,18 @@
             "title": "Config Slug",
             "type": "string"
           },
+          "engine": {
+            "default": "default",
+            "description": "engine for every turn of this run",
+            "enum": [
+              "default",
+              "pattern",
+              "agent",
+              "hybrid"
+            ],
+            "title": "Engine",
+            "type": "string"
+          },
           "flow_ids": {
             "description": "empty = all flows",
             "items": {
@@ -1183,6 +1195,18 @@
       },
       "LoadTestProfile": {
         "properties": {
+          "engine": {
+            "default": "default",
+            "description": "Engine für jeden Zug dieses Laufs",
+            "enum": [
+              "default",
+              "pattern",
+              "agent",
+              "hybrid"
+            ],
+            "title": "Engine",
+            "type": "string"
+          },
           "mix": {
             "additionalProperties": {
               "type": "integer"

@@ -40,6 +40,15 @@ export const EVAL_PATTERN: CataloguePart = {
     'evalPattern.scope.production': 'nur echte Nutzung',
     'evalPattern.since.label': 'Ab Datum',
     'evalPattern.since.hint': 'leer = das ganze Log',
+    // Feedback 2026-08-22: AGENT/HYBRID sind Maschinen-Marker, keine Muster —
+    // der Umschalter trennt die Betriebsarten, client-seitig.
+    'evalPattern.engine.label': 'Betriebsart',
+    'evalPattern.engine.all': 'alle Betriebsarten',
+    'evalPattern.engine.muster': 'nur Muster (M01–M20)',
+    'evalPattern.engine.agent': 'nur Agent-Schleife',
+    'evalPattern.engine.hybrid': 'nur Hybrid',
+    'evalPattern.engine.none':
+      'Keine Turns dieser Betriebsart im gewählten Bereich.',
 
     // ── Zustand ─────────────────────────────────────────────────────
     'evalPattern.empty':
@@ -58,6 +67,12 @@ export const EVAL_PATTERN: CataloguePart = {
     // ── Verteilungen ────────────────────────────────────────────────
     'evalPattern.bars.pattern': 'Turns je Pattern',
     'evalPattern.bars.intent': 'Turns je Intent',
+
+    // ── Matrix (ALT-Auswertung, Feedback 2026-08-22) ────────────────
+    'evalPattern.matrix.caption':
+      'Turns je Pattern × Persona — wer löst welches Verhalten aus. Zeilen '
+      + 'und Spalten nach Turn-Summe sortiert.',
+    'evalPattern.matrix.sum': 'Summe',
 
     // ── Tabelle ─────────────────────────────────────────────────────
     'evalPattern.table.caption':
@@ -82,6 +97,12 @@ export const EVAL_PATTERN: CataloguePart = {
     'evalPattern.scope.production': 'real usage only',
     'evalPattern.since.label': 'From date',
     'evalPattern.since.hint': 'empty = the whole log',
+    'evalPattern.engine.label': 'Mode',
+    'evalPattern.engine.all': 'all modes',
+    'evalPattern.engine.muster': 'patterns only (M01-M20)',
+    'evalPattern.engine.agent': 'agent loop only',
+    'evalPattern.engine.hybrid': 'hybrid only',
+    'evalPattern.engine.none': 'No turns of this mode in the chosen scope.',
 
     'evalPattern.empty':
       'No turns in this scope yet. A chat or an eval run fills the log; a '
@@ -94,6 +115,11 @@ export const EVAL_PATTERN: CataloguePart = {
 
     'evalPattern.bars.pattern': 'Turns per pattern',
     'evalPattern.bars.intent': 'Turns per intent',
+
+    'evalPattern.matrix.caption':
+      'Turns per pattern and persona — who triggers which behaviour. Rows and '
+      + 'columns sorted by turn total.',
+    'evalPattern.matrix.sum': 'Total',
 
     'evalPattern.table.caption':
       'Every combination on its own, most frequent first. The confidence is '

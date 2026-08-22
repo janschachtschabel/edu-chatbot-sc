@@ -14,12 +14,21 @@
   [hidden]="active() !== 'laeufe'"
 >
   @if (shows()('laeufe')) {
-    <studio-eval-golden-start [busy]="busy()" (started)="onStarted()" />
-    <studio-eval-generative-start [busy]="busy()" (started)="onStarted()" />
     <studio-eval-runs (runChange)="openDetail($event)" />
     @if (openRun(); as id) {
       <studio-eval-run-detail [runId]="id" (dismiss)="closeDetail()" />
     }
+    <!-- Nutzer-Feedback 2026-08-22: Läufe zuerst — wer die Seite öffnet, will
+         den AKTIVEN Lauf sehen, nicht die Flow-Liste des nächsten Starts.
+         Die Formulare bleiben montiert (laden ihre Daten), nur zugeklappt. -->
+    <details class="ev-start">
+      <summary>{{ t('evalStart.gold.title') }}</summary>
+      <studio-eval-golden-start [busy]="busy()" (started)="onStarted()" />
+    </details>
+    <details class="ev-start">
+      <summary>{{ t('evalStart.gen.title') }}</summary>
+      <studio-eval-generative-start [busy]="busy()" (started)="onStarted()" />
+    </details>
   }
 </div>
 

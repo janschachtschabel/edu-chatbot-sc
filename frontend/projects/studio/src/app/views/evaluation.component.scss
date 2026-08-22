@@ -8,3 +8,32 @@
   outline: none;
   box-shadow: var(--st-focus);
 }
+
+// Nutzer-Feedback 2026-08-22: die Start-Formulare stehen zugeklappt UNTER der
+// Lauf-Liste — der Deckel macht sie als bewusste zweite Ebene erkennbar.
+.ev-start {
+  margin-block-start: var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.ev-start > summary {
+  cursor: pointer;
+  padding: var(--st-3);
+  font-weight: 600;
+}
+
+.ev-start > summary:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus);
+}
+
+.ev-start[open] > summary {
+  border-block-end: 1px solid var(--st-rule);
+}
+
+.ev-start > :not(summary) {
+  display: block;
+  padding: var(--st-3);
+}

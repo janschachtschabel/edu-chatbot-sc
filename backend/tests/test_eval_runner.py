@@ -18,6 +18,15 @@ import pytest
 from boerdi.services.eval import runner as rn
 from tests.eval_fakes import FakeLLM
 
+
+def test_chat_timeout_default_und_env(monkeypatch):
+    """Review-Befund 3 (2026-08-22): 120 s statt ALT-60 (Schleifen-Maschinen
+    machen mehrere LLM-Runden je Zug), per ``EVAL_CHAT_TIMEOUT`` übersteuerbar."""
+    monkeypatch.delenv("EVAL_CHAT_TIMEOUT", raising=False)
+    assert rn._chat_timeout_s() == 120.0
+    monkeypatch.setenv("EVAL_CHAT_TIMEOUT", "45")
+    assert rn._chat_timeout_s() == 45.0
+
 _PERSONA = {"id": "P-LEH", "label": "Lehrkraft", "description": "d"}
 _INTENT = {"id": "I01", "label": "Suchen", "description": "d"}
 _URL = "http://chat.test/api/chat"
@@ -272,10 +281,37 @@ def test_execute_run_degrades_a_failing_scenario_turn(monkeypatch, recorder):
         scenarios_per_combo=1, turns_per_conv=3, target_turns=1,
         progress=recorder,
     ))
-    # The run completes; the dead turn is recorded with score 0 and its reason.
+    # Review-Befund 6 (2026-08-22): ein Chat-Ausfall ist ein Mess-Ausfall,
+    # kein 0-Punkte-Bot. Der Zug traegt ``error`` und KEINEN judge (wie im
+    # Golden-Weg) und wird als ``chat_error_turns`` gezaehlt, statt den
+    # ``avg_score`` des Laufs herunterzuziehen. Bis dahin stand hier die
+    # ALT-Konvention judge={"total": 0.0} — der Test validierte den Befund.
     turn = conversations[0]["turns"][0]
-    assert "chat weg" in turn["bot"] and turn["judge"]["total"] == 0.0
+    assert "chat weg" in turn["bot"] and turn["error"] == "chat weg"
+    assert "judge" not in turn
+    assert summary["chat_error_turns"] == 1
+    assert summary["total_judged_turns"] == 0
     assert summary["current_activity"] == "Fertig"
+
+
+def test_build_summary_counts_judge_failed_turns():
+    """Review Runde 2 (2026-08-22): der Golden-Weg zählt Judge-Ausfälle
+    (``judge_failed_turns``, GV4), der generative Summary tat es nicht — das
+    Studio liest den Schlüssel und zeigte für Generativ-Läufe deshalb nie
+    einen Ausfall. Gleiche Regel, gleicher Zähler in beiden Familien."""
+    conversations = [{
+        "persona_id": "P-LEH", "intent_id": "I01",
+        "turns": [
+            {"user": "a", "bot": "ok", "debug": {}, "judge": {"total": 0.8}},
+            {"user": "b", "bot": "ok", "debug": {},
+             "judge_failed": "Judge-Aufruf fehlgeschlagen: leer"},
+            {"user": "c", "bot": "(error: down)", "debug": {}, "error": "down"},
+        ],
+    }]
+    summary = rn.build_summary(conversations, 3, "Fertig")
+    assert summary["judge_failed_turns"] == 1
+    assert summary["chat_error_turns"] == 1
+    assert summary["total_judged_turns"] == 1
 
 
 def test_execute_run_i06_scenario_gets_a_priming_turn(monkeypatch, recorder):
@@ -341,8 +377,10 @@ def test_execute_run_conversation_stage_judges_non_error_turns(monkeypatch, reco
     ))
     turns = conversations[0]["turns"]
     assert turns[0]["judge"] == {"total": 0.6}
-    # An errored turn is scored 0 with the error as the note — never judged.
-    assert turns[1]["judge"] == {"total": 0.0, "notes": "weg"}
+    # Review-Befund 6 (2026-08-22): der Fehl-Turn behaelt ``error`` und
+    # bekommt KEINEN judge — vorher stand hier judge={"total": 0.0}, und ein
+    # Anbieter-Aussetzer sah im Lauf-Schnitt wie ein 0-Punkte-Bot aus.
+    assert turns[1]["error"] == "weg" and "judge" not in turns[1]
     assert any("Dialog 1/1" in a for a in recorder.seen)
 
 

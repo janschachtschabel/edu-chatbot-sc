@@ -212,6 +212,9 @@ describe('STUDIO_EN', () => {
       // `ltRun.totals`; „ID" ist in beiden Sprachen dieselbe Abkürzung.
       'rc.mat.caption',
       'rc.mat.col.id',
+      // GV5: „Engine" ist in beiden Sprachen dasselbe Fachwort, der Rest der
+      // Zeile ist ein Platzhalter.
+      'evalDetail.engine',
     ]);
     const kopien = Object.keys(STUDIO_DE)
       .filter((k) => !gleichErlaubt.has(k) && STUDIO_EN[k] === STUDIO_DE[k]);

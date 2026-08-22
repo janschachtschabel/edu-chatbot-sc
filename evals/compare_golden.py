@@ -6,35 +6,31 @@ Der Parallelbetrieb verlangt den Vergleich: was tut NEU anders als ALT, pro Flow
 und pro Turn. Dieses Modul liest zwei solche Reports und meldet die Abweichung.
 
     cd backend && uv run python ../evals/compare_golden.py \
-        --ref ../evals/reports/golden-<utc>-ref-alt.json \
-        --new ../evals/reports/golden-<utc>-neu.json
-
-    # Muster-Engine gegen Agent-Modus derselben Anlage (A5):
-    cd backend && uv run python ../evals/compare_golden.py \
-        --ref ../evals/reports/golden-<utc>-pattern.json \
-        --new ../evals/reports/golden-<utc>-agent.json \
-        --ignore-classification
+        --ref ../evals/reports/golden-<utc>-v2-pattern.json \
+        --new ../evals/reports/golden-<utc>-v2-agent.json \
+        --label engines
 
 Exit-Code 0 = keine Regression und beide Läufe deckungsgleich; 1 = mindestens
 eine harte Regression, ein Fehl-Turn in NEU oder ein Strukturbruch (ein Flow/Turn
 nur auf einer Seite — dann ist der Vergleich selbst nicht mehr belastbar).
 
 **Was verglichen wird und was nicht.** Verglichen werden die Check-Ergebnisse
-(pass/fail je Kategorie) sowie Klassifikation und Struktur (persona, intent,
-pattern, cards, idocs, qr). NICHT verglichen werden Wortlaut, Textlänge und die
-Sie/du-Zähler: das Modell ist nichtdeterministisch, diese Werte weichen bei
-JEDEM Turn ab, und ein Report, der bei jedem Turn anschlägt, verdeckt die eine
-Abweichung, auf die es ankommt. Für die in §9-4 geforderte Stichproben-Redaktion
-trägt der JSON-Report die beiden Wortlaute der abweichenden Turns mit — dort
-gehören sie hin, weil sie dort gelesen werden.
+(pass/fail je v2-Kategorie) und die Antwort-Struktur (cards, idocs, qr). NICHT
+verglichen werden Wortlaut, Textlänge und die Sie/du-Zähler: das Modell ist
+nichtdeterministisch, diese Werte weichen bei JEDEM Turn ab, und ein Report,
+der bei jedem Turn anschlägt, verdeckt die eine Abweichung, auf die es ankommt.
+Ebenfalls NICHT verglichen wird die Mechanik (beobachtetes Muster,
+Werkzeugliste): die unterscheidet sich zwischen den Maschinen von Bauart wegen
+an fast jedem Zug — was davon zählt, behauptet der ``tools_any``-Check. Für
+die in §9-4 geforderte Stichproben-Redaktion trägt der JSON-Report die beiden
+Wortlaute der abweichenden Turns mit — dort gehören sie hin, weil sie dort
+gelesen werden.
 
-``--ignore-classification`` (A5) nimmt Persona, Intent und Muster ganz heraus.
-Das ist der Schalter für den zweiten Vergleichszweck: **Muster-Engine gegen
-Agent-Modus** derselben Anlage. Der Agent klassifiziert nicht (A4b) und wählt
-kein Muster (A4c-1) — diese drei weichen dort an fast jedem Zug ab, von Bauart
-wegen und nicht als Befund; ungefiltert überdeckt das Rauschen genau die Frage,
-um die es geht. Für den ursprünglichen ALT↔NEU-Vergleich bleibt der Schalter
-aus, denn dort IST eine andere Klassifikation ein Befund.
+Seit v2 (GV3) ist der Maschinen-Vergleich der Normalfall, kein Sondermodus:
+die v2-Checks sind engine-fair, das frühere ``--ignore-classification``
+(A5) ist damit gegenstandslos und entfernt. Der Berichtskopf nennt beide
+Engines (``engine_ref``/``engine_new``, aus dem ``engine``-Feld der
+Lauf-Reports) — ungleiche Engines sind der gewollte A/B-Fall, kein Fehler.
 
 Framework-frei wie der Runner (nur stdlib), damit er gegen jedes Backend läuft.
 """
@@ -61,14 +57,11 @@ _spec.loader.exec_module(_rg)
 GOLDEN_CATS: list[str] = _rg.GOLDEN_CATS
 GOLDEN_HARD: list[str] = _rg.GOLDEN_HARD
 
-CLASSIFICATION = ("persona", "intent", "pattern")
+#: Beobachtete Antwort-Struktur, deren Wert-Wechsel gemeldet wird. Die
+#: Mechanik (``pattern``, ``tools_called``) steht absichtlich NICHT hier:
+#: sie ist je Maschine von Bauart wegen anders, und ein Report, der an jedem
+#: Zug anschlägt, verdeckt die eine Abweichung, auf die es ankommt.
 STRUCTURE = ("cards", "idocs", "qr")
-
-#: Die Check-Kategorien, die aus dem Klassifikator kommen (``pattern`` ist keine
-#: Kategorie, sondern nur ein beobachteter Wert). Nur diese blendet
-#: ``--ignore-classification`` aus — Register, Struktur, Quick-Replies und Host
-#: beschreiben die ANTWORT und bleiben.
-CLASSIFICATION_CHECKS = ("persona", "intent")
 
 TurnKey = tuple[str, int]
 
@@ -95,22 +88,19 @@ def index_turns(report: dict[str, Any]) -> dict[TurnKey, dict[str, Any]]:
 
 
 def compare_turn(
-    ref_turn: dict[str, Any], new_turn: dict[str, Any], *,
-    ignore_classification: bool = False,
+    ref_turn: dict[str, Any], new_turn: dict[str, Any],
 ) -> dict[str, Any]:
     """Ein Turn-Paar vergleichen.
 
     Eine Regression ist ausschließlich True→False. None heißt „für diesen Turn
-    nicht geprüft" (Wildcard-Persona, leerer Intent, kartenloser Turn bei
-    ``host``) — daraus kann weder Regression noch Verbesserung werden, sonst
-    zählt der Report Beobachtungslücken als Fehler.
+    nicht geprüft" (Register neutral, kein ``tools_any``-Soll, kartenloser
+    Turn bei ``host``) — daraus kann weder Regression noch Verbesserung werden,
+    sonst zählt der Report Beobachtungslücken als Fehler.
 
-    ``ignore_classification`` (A5) lässt Persona, Intent und Muster ganz aus dem
-    Vergleich. Gedacht für Muster-Engine ↔ Agent-Modus: der Agent klassifiziert
-    nicht (A4b) und wählt kein Muster (A4c-1), diese drei weichen also an fast
-    jedem Zug ab — von Bauart wegen, nicht als Befund. Ungefiltert überdeckte
-    das Rauschen genau die Frage, um die es geht: wird die ANTWORT besser oder
-    schlechter.
+    Verglichen werden die v2-Checks und die Antwort-Struktur (``STRUCTURE``).
+    Die Mechanik (beobachtetes Muster, Werkzeugliste) bleibt außen vor: sie
+    ist zwischen den Maschinen von Bauart wegen verschieden, und was davon
+    zählt, behauptet der ``tools_any``-Check.
     """
     ref_err, new_err = ref_turn.get("error"), new_turn.get("error")
     dev: dict[str, Any] = {
@@ -122,22 +112,18 @@ def compare_turn(
         dev["error"] = {"ref": ref_err, "new": new_err}
         return dev
 
-    kategorien = [c for c in GOLDEN_CATS
-                  if not (ignore_classification and c in CLASSIFICATION_CHECKS)]
-    felder = (*STRUCTURE,) if ignore_classification else (*CLASSIFICATION, *STRUCTURE)
-
     ref_g = ref_turn.get("golden") or {}
     new_g = new_turn.get("golden") or {}
     ref_c, new_c = ref_g.get("checks") or {}, new_g.get("checks") or {}
-    dev["regressions"] = [c for c in kategorien
+    dev["regressions"] = [c for c in GOLDEN_CATS
                           if ref_c.get(c) is True and new_c.get(c) is False]
-    dev["improvements"] = [c for c in kategorien
+    dev["improvements"] = [c for c in GOLDEN_CATS
                            if ref_c.get(c) is False and new_c.get(c) is True]
 
     ref_o, new_o = ref_g.get("observed") or {}, new_g.get("observed") or {}
     dev["changed"] = {
         field: {"ref": ref_o.get(field), "new": new_o.get(field)}
-        for field in felder
+        for field in STRUCTURE
         if ref_o.get(field) != new_o.get(field)
     }
     return dev
@@ -146,14 +132,13 @@ def compare_turn(
 def _empty_summary() -> dict[str, int]:
     return {
         "turns_compared": 0, "hard_regressions": 0, "soft_regressions": 0,
-        "improvements": 0, "classification_changes": 0, "structure_changes": 0,
+        "improvements": 0, "structure_changes": 0,
         "errors_ref": 0, "errors_new": 0,
     }
 
 
 def compare_reports(
-    ref: dict[str, Any], new: dict[str, Any], *,
-    ignore_classification: bool = False,
+    ref: dict[str, Any], new: dict[str, Any],
 ) -> dict[str, Any]:
     """Vollständiger Abweichungs-Report über zwei Golden-Reports."""
     ref_flows, new_flows = flow_ids(ref), flow_ids(new)
@@ -174,17 +159,15 @@ def compare_reports(
             continue
         ref_turn, new_turn = ref_turns[key], new_turns[key]
         summary["turns_compared"] += 1
-        dev = compare_turn(ref_turn, new_turn,
-                           ignore_classification=ignore_classification)
+        dev = compare_turn(ref_turn, new_turn)
 
         hard = [c for c in dev["regressions"] if c in GOLDEN_HARD]
         summary["hard_regressions"] += len(hard)
         summary["soft_regressions"] += len(dev["regressions"]) - len(hard)
         summary["improvements"] += len(dev["improvements"])
-        summary["classification_changes"] += sum(
-            1 for f in dev["changed"] if f in CLASSIFICATION)
-        summary["structure_changes"] += sum(
-            1 for f in dev["changed"] if f in STRUCTURE)
+        # ``changed`` enthält konstruktionsbedingt nur STRUCTURE-Felder
+        # (compare_turn) — kein zweiter Filter nötig.
+        summary["structure_changes"] += len(dev["changed"])
         if dev["error"]:
             summary["errors_ref"] += 1 if dev["error"]["ref"] else 0
             summary["errors_new"] += 1 if dev["error"]["new"] else 0
@@ -209,10 +192,6 @@ def compare_reports(
             "only_new": [f for f in new_flows if f not in ref_flows],
         },
         "turns": {"only_ref": only_ref_turns, "only_new": only_new_turns},
-        # Gehört in den Report, nicht nur in den Aufruf: ein Vergleich, dem man
-        # nicht ansieht, dass er filtert, behauptet mehr Deckungsgleichheit, als
-        # er geprüft hat.
-        "ignore_classification": ignore_classification,
         "summary": summary,
         "deviations": deviations,
     }
@@ -221,32 +200,43 @@ def compare_reports(
 def is_blocking(diff: dict[str, Any]) -> bool:
     """Was die Abnahme verhindert: eine harte Regression, ein Fehl-Turn in NEU
     oder ein Strukturbruch. Weiche Regressionen (``host``), Verbesserungen und
-    reine Klassifikations-Wechsel werden berichtet, blockieren aber nicht."""
+    reine Klassifikations-Wechsel werden berichtet, blockieren aber nicht.
+
+    0 verglichene Turns sind ebenfalls ein Strukturbruch (Review-Befund 5,
+    2026-08-22): zwei falsche Dateien — etwa versehentlich ein ``ab-…``-Report
+    statt eines Golden-Reports — verglichen sich sonst zu „Keine Abweichung"
+    mit Exit 0, und ein Bedienfehler wurde zum grünen Abnahme-Signal.
+    """
     s = diff["summary"]
     return bool(
         s["hard_regressions"] or s["errors_new"]
         or diff["flows"]["only_ref"] or diff["flows"]["only_new"]
         or diff["turns"]["only_ref"] or diff["turns"]["only_new"]
+        or s["turns_compared"] == 0
     )
 
 
 def render_console(diff: dict[str, Any]) -> str:
     s = diff["summary"]
-    gefiltert = (
-        "  (Klassifikation ausgeblendet: Persona, Intent und Muster)"
-        if diff.get("ignore_classification") else ""
-    )
+    engines = ""
+    if diff.get("engine_ref") or diff.get("engine_new"):
+        engines = (f"  ·  Engines: {diff.get('engine_ref') or '?'}"
+                   f" → {diff.get('engine_new') or '?'}")
     lines = [
         "",
         f"Verglichen: {s['turns_compared']} Turns in {len(diff['flows']['shared'])} Flows"
-        f"{gefiltert}",
+        f"{engines}",
         f"  harte Regressionen   {s['hard_regressions']}",
         f"  weiche Regressionen  {s['soft_regressions']}  (host)",
         f"  Verbesserungen       {s['improvements']}",
-        f"  Klassifikation ≠     {s['classification_changes']}",
         f"  Struktur ≠           {s['structure_changes']}",
         f"  Fehl-Turns ALT/NEU   {s['errors_ref']}/{s['errors_new']}",
     ]
+    if not s["turns_compared"]:
+        lines.append(
+            "  ⚠ 0 verglichene Turns — sind das wirklich zwei Golden-Reports?"
+            "  (Strukturbruch, Exit 1)"
+        )
     for side, label in (("only_ref", "nur in ALT"), ("only_new", "nur in NEU")):
         if diff["flows"][side]:
             lines.append(f"  Flows {label}: {', '.join(diff['flows'][side])}")
@@ -285,19 +275,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--new", required=True, help="Vergleichs-Report (NEU)")
     p.add_argument("--out", default=str(HERE / "reports"))
     p.add_argument("--label", default="", help="Dateiname-Zusatz")
-    p.add_argument(
-        "--ignore-classification", action="store_true",
-        help="Persona/Intent/Muster nicht vergleichen — für Muster-Engine "
-             "gegen Agent-Modus, wo sie von Bauart wegen abweichen",
-    )
     args = p.parse_args(argv)
 
     ref = json.loads(Path(args.ref).read_text(encoding="utf-8"))
     new = json.loads(Path(args.new).read_text(encoding="utf-8"))
-    diff = compare_reports(ref, new,
-                           ignore_classification=args.ignore_classification)
+    diff = compare_reports(ref, new)
     diff["ref"] = {"path": args.ref, "chat_url": ref.get("chat_url", "")}
     diff["new"] = {"path": args.new, "chat_url": new.get("chat_url", "")}
+    # Ungleiche Engines sind der gewollte A/B-Fall, kein Fehler — aber ein
+    # Vergleich, der nicht sagt, WELCHE Maschinen er vergleicht, ist nicht
+    # lesbar. Ältere Reports ohne engine-Feld erscheinen als "".
+    diff["engine_ref"] = str(ref.get("engine") or "")
+    diff["engine_new"] = str(new.get("engine") or "")
     diff["blocking"] = is_blocking(diff)
 
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")

@@ -12,7 +12,7 @@ stays HTTP-only. Studio-key auth is applied at the router level (do not re-add).
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Security
 from pydantic import BaseModel, Field
@@ -50,6 +50,12 @@ class LoadTestProfile(BaseModel):
     )
     p95_threshold_s: float = Field(
         default=20.0, description="p95-Schwelle für 'stabil' im Fazit",
+    )
+    # Review-Befund 7 (2026-08-22): agent/hybrid haben ein anderes
+    # Runden-Profil (H8: 4 LLM-Runden je Zug gemessen) — ohne Engine-Wahl
+    # galten die Kapazitätszahlen nur für die Server-Vorgabe.
+    engine: Literal["default", "pattern", "agent", "hybrid"] = Field(
+        "default", description="Engine für jeden Zug dieses Laufs",
     )
 
 

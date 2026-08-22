@@ -31,15 +31,33 @@ const USAGE = {
     },
     { pattern_id: "", intent_id: "", persona_id: "", count: 2, avg_conf: null },
   ],
-  by_pattern: [
-    { pattern_id: "M04", count: 12 },
-    { pattern_id: "M15", count: 5 },
-  ],
-  by_intent: [
-    { intent_id: "I01", count: 12 },
-    { intent_id: "I03", count: 5 },
-  ],
   total: 19,
+  scope: "all",
+};
+
+/** Muster UND Maschinen-Marker gemischt — wie die echten quality_logs seit dem
+ *  Agent-/Hybrid-Modus (Feedback 2026-08-22). */
+const MIXED = {
+  triples: [
+    { pattern_id: "M06", intent_id: "I03", persona_id: "P-LEH", count: 10, avg_conf: 0.9 },
+    { pattern_id: "M06", intent_id: "I03", persona_id: "P-AND", count: 4, avg_conf: 0.8 },
+    { pattern_id: "AGENT", intent_id: "I01", persona_id: "P-AND", count: 7, avg_conf: 0.1 },
+    { pattern_id: "HYBRID", intent_id: "I03", persona_id: "P-LEH", count: 3, avg_conf: null },
+  ],
+  total: 24,
+  scope: "all",
+};
+
+/** Randwerte, wie die SQL sie wirklich liefern kann (Review-Runde 3):
+ *  NULL-Kennungen aus dem GROUP BY über nullable Spalten und ein Wert, der
+ *  nur wie ein Maschinen-Marker ANFÄNGT. */
+const EDGE = {
+  triples: [
+    { pattern_id: "M06", intent_id: "I03", persona_id: "P-LEH", count: 5, avg_conf: 0.9 },
+    { pattern_id: "AGENTUR", intent_id: "I01", persona_id: "P-AND", count: 3, avg_conf: null },
+    { pattern_id: null, intent_id: null, persona_id: null, count: 2, avg_conf: null },
+  ],
+  total: 10,
   scope: "all",
 };
 
@@ -115,6 +133,69 @@ describe("EvalPatternUsageComponent", () => {
     expect(captions.some((c) => c.includes("Intent"))).toBe(true);
   });
 
+  it("trennt die Betriebsarten: der Umschalter filtert AGENT/HYBRID aus den Mustern (Feedback 2026-08-22)", async () => {
+    // AGENT/HYBRID sind keine Muster, sondern Maschinen-Marker aus den
+    // quality_logs — zwischen M01–M20 einsortiert verfälschten sie das Bild.
+    await mount(MIXED);
+    expect(text()).toContain("AGENT");
+
+    const select = h.el.querySelector<HTMLSelectElement>("#epu-engine")!;
+    select.value = "muster";
+    select.dispatchEvent(new Event("change"));
+    await h.fixture.whenStable();
+    expect(text()).toContain("M06");
+    expect(text()).not.toContain("AGENT");
+    expect(text()).not.toContain("HYBRID");
+    expect(text()).toContain("14"); // Summe nur der Muster-Turns (10 + 4)
+
+    select.value = "agent";
+    select.dispatchEvent(new Event("change"));
+    await h.fixture.whenStable();
+    expect(text()).toContain("AGENT");
+    expect(text()).not.toContain("M06");
+    // Client-seitiger Filter — KEIN neuer Request.
+    h.http.verify();
+  });
+
+  it("zeigt die Pattern-x-Persona-Matrix aus den Kombinationen (ALT-Auswertung)", async () => {
+    await mount(MIXED);
+    const matrix = h.el.querySelector(".epu-matrix");
+    expect(matrix).toBeTruthy();
+    const head = matrix!.querySelector("thead")?.textContent ?? "";
+    expect(head).toContain("P-LEH");
+    expect(head).toContain("P-AND");
+    const rows = Array.from(matrix!.querySelectorAll("tbody tr")).map(
+      (r) => r.textContent ?? "",
+    );
+    const m06 = rows.find((r) => r.includes("M06"))!;
+    expect(m06).toContain("10"); // P-LEH-Zelle
+    expect(m06).toContain("4"); // P-AND-Zelle
+    expect(m06).toContain("14"); // Zeilensumme
+  });
+
+  it("Betriebsart exakt: „AGENTUR“ ist kein Agent, NULL-Kennungen laufen unter „alle“ als „(ohne)“ (Review-Runde 3)", async () => {
+    await mount(EDGE);
+    // NULL-Kennung erscheint unter „alle" beschriftet, nicht als leere Zelle.
+    expect(text()).toContain("(ohne)");
+    expect(text()).toContain("AGENTUR");
+
+    const select = h.el.querySelector<HTMLSelectElement>("#epu-engine")!;
+    select.value = "agent";
+    select.dispatchEvent(new Event("change"));
+    await h.fixture.whenStable();
+    // Nur der EXAKTE Kopf-Token „AGENT" zählt als Agent-Schleife — ein
+    // Präfix-Vergleich hätte „AGENTUR" hier einsortiert.
+    expect(text()).not.toContain("AGENTUR");
+    expect(text()).toContain("Keine Turns dieser Betriebsart");
+
+    select.value = "muster";
+    select.dispatchEvent(new Event("change"));
+    await h.fixture.whenStable();
+    expect(text()).toContain("M06");
+    expect(text()).not.toContain("(ohne)"); // NULL-Zeile ist kein Muster
+    h.http.verify();
+  });
+
   it("re-reads when the scope changes, and sends it", async () => {
     await mount();
     const select = h.el.querySelector<HTMLSelectElement>("#epu-scope")!;
@@ -164,8 +245,6 @@ describe("EvalPatternUsageComponent", () => {
   it("says the log is empty rather than drawing empty tables", async () => {
     await mount({
       triples: [],
-      by_pattern: [],
-      by_intent: [],
       total: 0,
       scope: "all",
     });
@@ -221,8 +300,17 @@ describe("EvalPatternUsageComponent", () => {
 
   it("trennt die Tausender auch im Summen-Satz", async () => {
     // Die Zahl wählt die Mehrzahlform, der FORMATIERTE Text füllt den
-    // Platzhalter — dasselbe Muster wie `overview.snapshots`.
-    await mount({ ...USAGE, total: 12345 });
+    // Platzhalter — dasselbe Muster wie `overview.snapshots`. Seit dem
+    // Betriebsart-Filter (2026-08-22) summiert die Zeile die KOMBINATIONEN
+    // statt das Server-`total` — die Zahl muss also in den Triples stehen.
+    await mount({
+      ...USAGE,
+      triples: [
+        { ...USAGE.triples[0], count: 12338 },
+        USAGE.triples[1],
+        USAGE.triples[2],
+      ],
+    });
     expect(h.el.querySelector(".epu-total strong")?.textContent).toBe(
       "12.345 Turns",
     );
@@ -239,8 +327,6 @@ describe("EvalPatternUsageComponent", () => {
           avg_conf: 0.5,
         },
       ],
-      by_pattern: [{ pattern_id: "M04", count: 1 }],
-      by_intent: [{ intent_id: "I01", count: 1 }],
       total: 1,
       scope: "all",
     });

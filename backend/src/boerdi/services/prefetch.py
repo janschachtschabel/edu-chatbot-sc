@@ -33,7 +33,6 @@ import asyncio
 import logging
 from typing import Any, NamedTuple
 
-from boerdi.domain.search_intent import _looks_like_search_query
 from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.mcp.client import call_mcp_tool
 from boerdi.services.topic_pages import _topic_pages_with_warmup
@@ -124,21 +123,23 @@ async def run_speculative_prefetch(req, classification, safety, *, engine="patte
         return False
 
     def _startet_der_vorabruf() -> bool:
-        """Die Startbedingung — je Maschine aus einer anderen Quelle.
+        """Die Startbedingung — nur der Bestandsweg startet den Vorabruf.
 
-        Im Bestand entscheiden Intent und Slots des Klassifikators. Der Hybrid
-        (H5) hat weder das eine noch das andere: seine Ersatz-Klassifikation
-        trägt ``I01`` und leere Entities, der Vorabruf fiele also **immer** aus.
-        An ihre Stelle tritt ``_looks_like_search_query`` — dieselbe reine
-        Heuristik, die das Sicherheitsnetz des Bestandswegs schon benutzt
-        (``_fallback_inline_search``): substantieller Inhalt, und keine
-        Meta-/Begrüßungsfrage. Als Suchanker dient dann die Nachricht selbst,
-        wozu ``_spec_query_from_classification`` ohnehin zurückfällt.
+        Die Schleifen-Maschinen (agent UND hybrid) starten KEINEN: ihre
+        Ersatz-Klassifikation trägt ``I01`` und leere Entities, die Bedingung
+        unten ist dort also immer falsch. H5 hatte für den Hybrid
+        ``_looks_like_search_query`` als Ersatz-Gate eingebaut — zurückgenommen
+        (Review-Befund 2, 2026-08-22): die Verbrauchsseite wurde nie gebaut,
+        ``respond_agent._verwirf_vorabruf`` bricht ``spec_task`` unbedingt ab,
+        und jeder such-artige Hybrid-Zug bezahlte einen verworfenen
+        MCP-Roundtrip — dasselbe Muster, das die M16-/I04-Skips weiter unten
+        ausdrücklich vermeiden. Wer den Vorabruf im Hybrid will, baut zuerst
+        die Einspeisung in die Schleife (Fremdtext-Rahmen + Karten-Ernte +
+        ``tools_called``-Annotation wie in ``tool_loop_messages``), dann
+        dieses Gate.
 
         Der Zweig der Muster-Engine bleibt Ausdruck für Ausdruck derselbe.
         """
-        if engine == "hybrid":
-            return _looks_like_search_query(req.message or "")
         return (classification.intent_id in _spec_search_intents
                 and _spec_has_enough_signal())
 

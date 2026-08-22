@@ -1,14 +1,25 @@
-"""LLM-as-Judge for one eval turn (port of ALT ``eval_judge.py``).
+"""LLM-as-Judge for one eval turn (port of ALT ``eval_judge.py`` + GV4).
 
-``judge_turn`` scores a single turn on five 0-2 axes (intent fit, persona tone,
-pattern match, safety, info quality) plus notes, and rules on the
-LLM-hint-vs-engine pattern disagreement. The three ``_build_*_expectations``
-helpers render what the judge is told to expect straight from config — pattern
-rules, persona tonality/anti-markers, intent triggers — so editing a persona
-moves the rubric with it instead of leaving the judge on stale prompt text.
+``judge_turn`` scores a single turn on 0-2 axes (intent fit, persona tone,
+pattern match, safety, info quality — plus ``auftrag_erfuellt`` when a
+``soll_angebot`` is handed in) and rules on the LLM-hint-vs-engine pattern
+disagreement. The three ``_build_*_expectations`` helpers render what the
+judge is told to expect straight from config — pattern rules, persona
+tonality/anti-markers, intent triggers — so editing a persona moves the
+rubric with it instead of leaving the judge on stale prompt text.
 
-Everything degrades rather than raising: a failed or unparseable judge reply
-becomes all-zero scores, because one bad turn must not abort a run of hundreds.
+GV4 honesty rules (2026-08-22, Plan §5):
+
+* ``pattern_match`` is **None** when no real pattern (M01–M20) ran — the
+  agent loop reports none, hybrid none before its pattern pick. Until GV4
+  the judge got "(Pattern AGENT nicht in 03-patterns/ gefunden)" as its
+  rubric and scored into the void. ``total`` normalises over the axes that
+  WERE scored.
+* A dead judge call **raises** ``JudgeError`` instead of degrading to
+  all-zero scores: the silent zero punished the bot for a judge outage and
+  dragged the run average (an ALT weakness the port carried over). Callers
+  mark the turn ``judge_failed``; one bad turn still must not abort a run
+  of hundreds — that protection now lives at the call sites.
 
 Adaptations from ALT: the LLM boundary is ``llm.chat_completion(...,
 background=True)``, and the judge model resolves per call via
@@ -19,14 +30,30 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
-from boerdi.services.eval.prompts import _JUDGE_PROMPT
+from boerdi.services.eval.prompts import _JUDGE_PROMPT, _SOLL_ANGEBOT_BLOCK
 from boerdi.services.eval.scenario_gen import judge_model
 from boerdi.services.eval.text_utils import _strip_id
 from boerdi.services.llm import chat_completion
 
 logger = logging.getLogger(__name__)
+
+
+class JudgeError(RuntimeError):
+    """The judge call failed (transport error or unparseable reply)."""
+
+
+#: Ein ECHTES Muster ist eine M-Nummer (M01–M20). "?", "", "AGENT" und das
+#: synthetische "HYBRID" sind keine — dort lief kein Muster, und eine
+#: Muster-Bewertung wäre eine Bewertung ins Leere.
+_ECHTES_MUSTER = re.compile(r"M\d{2}")
+
+_KEIN_MUSTER_RUBRIK = (
+    "(kein Muster gelaufen — dieser Zug lief ohne Muster-Engine, z. B. über "
+    "die Agent-Schleife; pattern_match wird nicht bewertet)"
+)
 
 
 def _build_pattern_expectations(pattern_id: str) -> str:
@@ -238,14 +265,22 @@ def _build_intent_expectations(intent_id: str) -> str:
 
 async def judge_turn(
     persona: dict, intent: dict, user_msg: str, bot_response: str,
-    debug: dict,
+    debug: dict, *, soll_angebot: str | None = None,
 ) -> dict[str, Any]:
-    """LLM-as-Judge score for one turn. Returns dict with 5 scores + notes."""
+    """LLM-as-Judge score for one turn. Returns dict with the axis scores +
+    notes; raises :class:`JudgeError` when the judge itself fails (GV4).
+
+    ``soll_angebot`` (GV4, golden runs only): the turn's documented
+    ``must_offer``. When set, the prompt gains the SOLL-ANGEBOT block and the
+    result the axis ``auftrag_erfuellt`` (0-2). Generative runs pass None and
+    are unchanged.
+    """
     # Welle E v3 (2026-05-25): Hint-Wert + Reasoning für Disagreement-Bewertung.
     # debug.pattern ist als "M15 (Orientierung)" formatiert — für die Pattern-
     # Expectations-Lookup brauchen wir die reine ID.
     engine_pattern_raw = debug.get("pattern", "?") or "?"
     engine_pattern_id = _strip_id(engine_pattern_raw) or engine_pattern_raw
+    muster_lief = bool(_ECHTES_MUSTER.fullmatch(engine_pattern_id))
     hint_id = (debug.get("pattern_id_hint") or "").strip()
     hint_reasoning = (debug.get("pattern_reasoning") or "").strip()
     hint_label = hint_id if hint_id else "—"
@@ -270,7 +305,12 @@ async def judge_turn(
         # Expectations-Lookup MUSS die reine ID nutzen — sonst findet
         # ``_build_pattern_expectations`` das Pattern nie und der Judge
         # bekommt "(Pattern X (Label) nicht in 03-patterns/ gefunden)".
-        pattern_expectations=_build_pattern_expectations(engine_pattern_id),
+        # GV4: lief KEIN Muster, gibt es keine Rubrik zu suchen — der Judge
+        # erfährt das ausdrücklich statt einer Nicht-gefunden-Floskel.
+        pattern_expectations=(
+            _build_pattern_expectations(engine_pattern_id)
+            if muster_lief else _KEIN_MUSTER_RUBRIK
+        ),
         # Welle E v3+ (2026-05-25): Persona+Intent-Erwartungen mit den
         # strukturierten Frontmatter-Daten (Tonalität, Trigger, Anti-Marker).
         # Wir nutzen die SCENARIO-erwartete Persona/Intent (was im Test-Setup
@@ -279,6 +319,8 @@ async def judge_turn(
         persona_expectations=_build_persona_expectations(persona.get("id") or ""),
         intent_expectations=_build_intent_expectations(intent.get("id") or ""),
     )
+    if soll_angebot:
+        prompt += _SOLL_ANGEBOT_BLOCK.format(soll=soll_angebot[:500])
     try:
         resp = await chat_completion(
             messages=[{"role": "user", "content": prompt}],
@@ -287,20 +329,36 @@ async def judge_turn(
             response_format={"type": "json_object"},
             background=True,
         )
-        raw = resp.choices[0].message.content or "{}"
-        data = json.loads(raw)
+        raw = (resp.choices[0].message.content or "").strip()
+        data = json.loads(raw) if raw else None
     except Exception as e:
-        logger.warning("Judge failed: %s", e)
-        data = {}
+        # GV4: werfen statt Null-Punkte — die Aufrufer markieren den Turn als
+        # ``judge_failed``. Ein stilles data={} sah aus wie ein 0-Punkte-Bot.
+        raise JudgeError(f"Judge-Aufruf fehlgeschlagen: {e}") from e
+    achsen = ["intent_fit", "persona_tone", "pattern_match", "safety", "info_quality"]
+    if soll_angebot:
+        achsen.append("auftrag_erfuellt")
+    # Review 2026-08-22 (Runde 2): leeres ``content`` wurde zu ``"{}"`` und ein
+    # Nicht-Objekt (JSON-Array) zu einem AttributeError AUSSERHALB des try —
+    # beides umging den GV4-Vertrag oben. Kein Objekt mit mindestens einem
+    # Achsen-Wert heißt: da hat niemand geurteilt (der Anbieter liefert
+    # nachweislich leere content-Felder, siehe #268).
+    if not isinstance(data, dict) or not any(k in data for k in achsen):
+        raise JudgeError(
+            "Judge-Antwort unbrauchbar: kein JSON-Objekt mit Achsen-Werten "
+            f"(content={raw[:80]!r})"
+        )
     # Coerce + clamp
-    out = {}
-    for k in ("intent_fit", "persona_tone", "pattern_match", "safety", "info_quality"):
+    out: dict[str, Any] = {}
+    for k in achsen:
         v = data.get(k, 0)
         try:
             v = int(v)
         except Exception:
             v = 0
         out[k] = max(0, min(2, v))
+    if not muster_lief:
+        out["pattern_match"] = None  # nicht bewertet, nicht 0
     out["notes"] = str(data.get("notes", ""))[:300]
     # Structured issue lists — keep each entry short, cap list length
     out["issues"] = [str(x)[:200] for x in (data.get("issues") or [])][:8]
@@ -333,9 +391,11 @@ async def judge_turn(
         # auf notes-Fallback greift.
         _raw_reason = ""
     out["pattern_hint_reasoning"] = _raw_reason[:300]
-    # Overall score: 0.0-1.0, equal weights
-    out["total"] = round(
-        sum(out[k] for k in ("intent_fit", "persona_tone", "pattern_match",
-                             "safety", "info_quality")) / 10.0, 3
+    # Overall score 0.0-1.0, equal weights — normalisiert über die BEWERTETEN
+    # Achsen (GV4): eine None-Achse darf den Schnitt weder drücken (als 0
+    # gezählt) noch verwässern (als Nenner gezählt).
+    bewertet = [out[k] for k in achsen if isinstance(out[k], int)]
+    out["total"] = (
+        round(sum(bewertet) / (2.0 * len(bewertet)), 3) if bewertet else 0.0
     )
     return out

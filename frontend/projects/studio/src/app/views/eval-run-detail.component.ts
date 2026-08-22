@@ -38,7 +38,7 @@ import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
 import { evalStatusLabel } from './eval-status';
 import {
-  catLabel, flowGroups, hardRate, type GoldMetrics, type GoldPerTurn,
+  catLabel, flowGroups, hardCats, hardRate, type GoldMetrics, type GoldPerTurn,
 } from './gold-scorecard';
 import { RichTextComponent } from './rich-text.component';
 import { StudioFormat } from '../i18n/studio-format.service';
@@ -108,6 +108,51 @@ export class EvalRunDetailComponent {
 
   readonly groups = computed(() => flowGroups(this.metrics()?.per_turn ?? []));
 
+  /** Spalten der Turn-Tabelle aus den Kategorien DES Laufs (Review-Nachlauf
+   *  2026-08-22): die Liste war hartkodiert v1 — ein v2-Lauf hatte keine
+   *  Werkzeug-Soll-Spalte und zwei tote (Persona/Intent). ``hardCats`` liefert
+   *  für gespeicherte v1-Läufe exakt die alte Liste. */
+  readonly cats = computed(() => hardCats(this.metrics()));
+
+  /** v1 hat Persona/Intent-Solls, v2 Register/Struktur — die Kompaktspalte
+   *  zeigt, was der Lauf wirklich behauptet hat. */
+  sollText(turn: GoldPerTurn): string {
+    if (this.cats().includes('persona')) {
+      return `${this.expected(turn, 'persona')}/${this.expected(turn, 'intent')}`;
+    }
+    return `${this.expected(turn, 'register')} · ${this.expected(turn, 'structure')}`;
+  }
+
+  istText(turn: GoldPerTurn): string {
+    if (this.cats().includes('persona')) {
+      return `${this.observed(turn, 'persona')}/${this.observed(turn, 'intent')}/`;
+    }
+    return `${this.observed(turn, 'register')} · `;
+  }
+
+  /** GV5: which engine the run measured (from `summary.engine`); '' on runs
+   *  stored before the selector existed. */
+  readonly engine = computed(() => {
+    const summary = this.run()?.summary as Record<string, unknown> | undefined;
+    const engine = summary?.['engine'];
+    return typeof engine === 'string' ? engine : '';
+  });
+
+  /** GV4: judge outages are COUNTED, not averaged in as zeros. */
+  readonly judgeFailed = computed(() => {
+    const summary = this.run()?.summary as Record<string, unknown> | undefined;
+    const n = summary?.['judge_failed_turns'];
+    return typeof n === 'number' ? n : 0;
+  });
+
+  /** Review-Befund 4 (2026-08-22): Züge, die der Chat nie beantwortet hat —
+   *  ohne den Zähler stand ein Lauf mit toten Zügen grün da. */
+  readonly chatErrors = computed(() => {
+    const summary = this.run()?.summary as Record<string, unknown> | undefined;
+    const n = summary?.['chat_error_turns'];
+    return typeof n === 'number' ? n : 0;
+  });
+
   readonly conversations = computed<readonly TranscriptConv[]>(
     () => (this.run()?.conversations ?? []) as readonly TranscriptConv[]);
 
@@ -164,7 +209,8 @@ export class EvalRunDetailComponent {
   }
 
   flowRate(flow: string): string {
-    const { ok, total, rate } = hardRate(this.metrics()?.per_flow?.[flow]);
+    const { ok, total, rate } = hardRate(
+      this.metrics()?.per_flow?.[flow], hardCats(this.metrics()));
     if (rate === null) return this.t('evalDetail.flowNothing');
     return this.t('evalDetail.flowRate', { rate: this.fmt.percent(rate, 0), ok, total });
   }

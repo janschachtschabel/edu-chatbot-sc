@@ -13,6 +13,7 @@ import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import httpx
 from fastapi import HTTPException
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +32,30 @@ _STALE_RUN_HOURS = 2
 
 def _chat_url() -> str:
     return os.getenv("EVAL_CHAT_URL") or _CHAT_URL_DEFAULT
+
+
+async def _ensure_chat_reachable() -> None:
+    """Preflight vor jedem Eval-Start (Review-Nachlauf 2026-08-22).
+
+    Ein Lauf gegen ein totes ``EVAL_CHAT_URL`` (Backend auf 8100, Default
+    zeigt auf 8000) verbrannte alle Züge in "(chat error: All connection
+    attempts failed)" und stand danach als „fertig" da. Ein 3-Sekunden-GET
+    auf ``/api/health`` desselben Ursprungs bricht stattdessen den START ab
+    und nennt URL und Stellschraube. Nur Transportfehler blocken — auch ein
+    404 heißt: da antwortet etwas.
+    """
+    url = _chat_url()
+    origin = url.split("/api/", 1)[0]
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as c:
+            await c.get(origin + "/api/health")
+    except Exception as e:
+        raise HTTPException(
+            502,
+            f"Chat-Backend nicht erreichbar unter {url} — EVAL_CHAT_URL "
+            f"prüfen/setzen (Fehler: {type(e).__name__}). Der Lauf wurde "
+            "NICHT gestartet.",
+        ) from e
 
 
 async def _ensure_no_running_run(session: AsyncSession) -> None:

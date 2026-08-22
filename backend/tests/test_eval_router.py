@@ -299,7 +299,13 @@ def _patch_guard_and_spawn(monkeypatch, mod):
         spawned.append(coro)
         coro.close()  # we never run it; close to avoid "never awaited" warnings
 
+    async def reachable():
+        return None
+
     monkeypatch.setattr(mod, "_ensure_no_running_run", no_running)
+    # Preflight (Review-Nachlauf 2026-08-22): offline gibt es keinen Chat —
+    # der echte Erreichbarkeits-Check bräche jeden Start-Test mit 502 ab.
+    monkeypatch.setattr(mod, "_ensure_chat_reachable", reachable)
     monkeypatch.setattr(mod, "_spawn_background", spawn)
     return spawned
 
@@ -477,8 +483,11 @@ def test_progress_write_failure_does_not_kill_the_run(monkeypatch):
 
 
 def _golden_flows():
+    # GS-1 in v2-Form (zielgruppe, keine intents), GS-2 in Alt-Form — der
+    # Start-Weg liest beide, solange ein gespeicherter Config-Stand noch v1
+    # sein kann (Seed-Import ist Nutzer-Domäne).
     return [
-        {"id": "GS-1", "persona": "P-LEH", "intents": ["I03"],
+        {"id": "GS-1", "zielgruppe": "P-LEH",
          "turns": [{"message": "hallo"}, {"message": "mehr"}]},
         {"id": "GS-2", "persona": "P-AND", "intents": ["I01"],
          "turns": [{"message": "hi"}]},
@@ -546,18 +555,32 @@ def _wire_golden(monkeypatch, *, judge=None):
     class FakeRunner:
         def __init__(self):
             self.url = None
-            self.flows = None
+            self.headers = None
+            # Feedback 2026-08-22: der Job ruft run_flows jetzt JE Flow auf
+            # (Zwischenstände) — die Attrappe zeichnet jeden Aufruf auf und
+            # liefert wie der echte Runner nur Konversationen der übergebenen
+            # Flows (Lehre A4b: Attrappen folgen dem echten Verhalten).
+            self.calls: list[list[dict]] = []
 
-        async def run_flows(self, url, f):
-            self.url, self.flows = url, f
-            return convs
+        async def run_flows(self, url, f, *, headers=None):
+            self.url, self.headers = url, headers
+            self.calls.append(list(f))
+            ids = {str(x.get("id")) for x in f}
+            return [c for c in convs if c["flow_id"] in ids]
 
         def aggregate_golden(self, c):
-            assert c is convs
+            assert [x["flow_id"] for x in c] == [x["flow_id"] for x in convs]
             return metrics
 
     fake_runner = FakeRunner()
     monkeypatch.setattr(golden_run, "_load_golden_runner", lambda: fake_runner)
+
+    progress: list[dict] = []
+
+    async def fake_progress(session_factory, run_id, **kw):
+        progress.append({"run_id": run_id, **kw})
+
+    monkeypatch.setattr(golden_run, "_write_golden_progress", fake_progress)
     monkeypatch.setattr(eval_golden, "load_persona_definitions",
                         lambda: [{"id": "P-SYN", "label": "Synth", "description": ""}])
     monkeypatch.setattr(eval_golden, "load_intents",
@@ -565,7 +588,7 @@ def _wire_golden(monkeypatch, *, judge=None):
     if judge is not None:
         monkeypatch.setattr(eval_golden, "judge_turn", judge)
 
-    captured: dict = {}
+    captured: dict = {"progress": progress}
 
     async def fake_finalize(session, run_id, **kw):
         captured["run_id"] = run_id
@@ -579,7 +602,7 @@ def test_execute_golden_run_uses_ported_runner_and_persists_done(monkeypatch):
     flows = _golden_flows()
     judge_calls: list[tuple] = []
 
-    async def fake_judge(persona, intent, user, bot, dbg):
+    async def fake_judge(persona, intent, user, bot, dbg, *, soll_angebot=None):
         judge_calls.append((persona["id"], intent["id"], user))
         return {"total": 0.5, "notes": ""}
 
@@ -589,10 +612,17 @@ def test_execute_golden_run_uses_ported_runner_and_persists_done(monkeypatch):
     asyncio.run(svc._execute_golden_run(lambda: _FakeCtx(), "eval-g", flows, True))
 
     assert fake_runner.url == "http://backend:8100/api/chat"
-    assert fake_runner.flows is flows
+    # Feedback 2026-08-22: je Flow EIN Runner-Aufruf (Zwischenstände) — in
+    # Reihenfolge und mit genau diesem einen Flow.
+    assert [[x["id"] for x in call] for call in fake_runner.calls] == [
+        [f["id"]] for f in flows
+    ]
+    # Ohne Engine-Wahl KEINE Kopfzeile — der Lauf misst die Server-Vorgabe.
+    assert fake_runner.headers is None
+    assert captured["summary"]["engine"] == "default"
     assert captured["status"] == "done"
     assert captured["total_turns"] == 3
-    assert captured["conversations"] is convs
+    assert captured["conversations"] == [convs[0]]
     # The judge ran for real (C3) — it used to be a "not ported" note.
     assert judge_calls == [("P-SYN", "I-SYN", "hallo")]
     assert convs[0]["turns"][0]["judge"]["total"] == 0.5
@@ -604,6 +634,67 @@ def test_execute_golden_run_uses_ported_runner_and_persists_done(monkeypatch):
     assert metrics["judge_avg"] == 0.5 and metrics["judged_turns"] == 1
     # Gold runs feed the trend series too — the source is written here.
     assert "classification_metrics" in captured["summary"]
+
+
+def test_execute_golden_run_schreibt_zwischenstand_je_flow(monkeypatch):
+    """Feedback 2026-08-22: run_flows lief als EIN Block — die Lauf-Liste
+    stand bis zum Finale auf „0 von N Turns" und das Detail zeigte keinerlei
+    Teil-Transkripte. Jetzt gibt es je Flow einen Zwischenstand (und mit
+    Judge einen weiteren vor der Bewertungsphase)."""
+    fake_runner, convs, _, captured = _wire_golden(monkeypatch)
+    flows = _golden_flows()
+
+    asyncio.run(svc._execute_golden_run(lambda: _FakeCtx(), "eval-g", flows, False))
+
+    writes = captured["progress"]
+    assert len(writes) == len(flows)
+    assert writes[0]["activity"].startswith("Flow 1/2: GS-1")
+    assert writes[1]["activity"].startswith("Flow 2/2: GS-2")
+    # Der Zwischenstand trägt die bis dahin gesammelten Transkripte + Zähler.
+    assert writes[0]["turns_done"] == 1  # convs enthält nur den GS-1-Turn
+    assert writes[0]["conversations"] == [convs[0]]
+    assert writes[0]["target_turns"] == 3
+
+    # Mit Judge kommt VOR der Bewertung ein weiterer Zwischenstand dazu.
+    async def fake_judge(persona, intent, user, bot, dbg, *, soll_angebot=None):
+        return {"total": 1.0, "notes": ""}
+
+    fake_runner2, _, _, captured2 = _wire_golden(monkeypatch, judge=fake_judge)
+    asyncio.run(svc._execute_golden_run(lambda: _FakeCtx(), "eval-g2", flows, True))
+    judge_writes = [w for w in captured2["progress"] if "Judge" in w["activity"]]
+    assert len(judge_writes) == 1
+
+
+def test_execute_golden_run_passes_the_engine_header(monkeypatch):
+    """GV5 — der Kernbefund des Plans: bis dahin rief der Studio-Gold-Lauf den
+    Runner OHNE Kopfzeilen und maß still die Vorgabe aus engine.yaml, egal
+    was man messen wollte."""
+    fake_runner, _, _, captured = _wire_golden(monkeypatch)
+
+    asyncio.run(svc._execute_golden_run(
+        lambda: _FakeCtx(), "eval-g", _golden_flows(), False, engine="agent"))
+
+    assert fake_runner.headers == {"X-Boerdi-Engine": "agent"}
+    assert captured["summary"]["engine"] == "agent"
+
+
+def test_start_golden_run_stores_and_reports_the_engine(monkeypatch):
+    monkeypatch.setattr(golden_run, "load_gold_flows", _golden_flows)
+    _patch_guard_and_spawn(monkeypatch, golden_run)
+    session = _FakeSession()
+
+    out = asyncio.run(svc.start_golden_eval_run(
+        session, None, GoldenRunRequest(engine="hybrid")))
+
+    assert out["engine"] == "hybrid"
+    assert session.added[0].config["engine"] == "hybrid"
+
+
+def test_golden_run_request_rejects_unknown_engine(client, monkeypatch):
+    _fake_async(monkeypatch, "start_golden_eval_run", {"run_id": "x"})
+    r = client.post("/api/eval/runs/golden", json={"engine": "warp"},
+                    headers=_AUTH)
+    assert r.status_code == 422
 
 
 def test_execute_golden_run_keeps_the_transcript_when_judging_fails(monkeypatch):
@@ -620,7 +711,7 @@ def test_execute_golden_run_keeps_the_transcript_when_judging_fails(monkeypatch)
 
     assert captured["status"] == "failed"
     assert "judge model not deployed" in captured["error_message"]
-    assert captured["conversations"] is convs
+    assert captured["conversations"] == [convs[0]]
 
 
 def test_execute_golden_run_without_judge_calls_no_llm(monkeypatch):
@@ -643,7 +734,7 @@ def test_execute_golden_run_persists_failure_on_runner_error(monkeypatch):
         raise RuntimeError("chat backend down")
 
     class FakeRunner:
-        async def run_flows(self, url, f):
+        async def run_flows(self, url, f, *, headers=None):
             boom()
 
         def aggregate_golden(self, c):  # pragma: no cover - not reached

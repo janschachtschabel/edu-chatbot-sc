@@ -29,6 +29,8 @@ from boerdi.services.eval.judge import judge_turn
 from boerdi.services.eval.metrics import (
     _aggregate,
     _aggregate_classification_metrics,
+    count_chat_error_turns,
+    count_judge_failed_turns,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,9 +48,16 @@ def _stub(entity_id: str) -> dict[str, str]:
 async def judge_conversations(conversations: list[dict[str, Any]]) -> int:
     """Attach an LLM-judge verdict to every answered turn, in place.
 
-    Returns the number of turns judged. Turns carrying an ``error`` are skipped:
-    the chat never answered, so there is nothing to score and a zero would
-    punish the run for an outage.
+    Returns the number of turns successfully judged. Turns carrying an
+    ``error`` are skipped: the chat never answered, so there is nothing to
+    score and a zero would punish the run for an outage.
+
+    GV4: v2 records carry the Zielgruppe separately (``persona_id`` is "*" so
+    the classification metrics see no target) — the judge rubric prefers it.
+    The turn's ``must_offer`` travels to the judge as ``soll_angebot`` and
+    becomes the ``auftrag_erfuellt`` axis. A failing judge call marks the turn
+    ``judge_failed`` (no ``judge`` key), which keeps it out of ``judge_avg``
+    instead of dragging it down with a silent zero.
 
     One judge call per turn — a 12-flow gold run is roughly 40 calls, which is
     why ``judge`` is opt-in on the endpoint.
@@ -58,7 +67,7 @@ async def judge_conversations(conversations: list[dict[str, Any]]) -> int:
     judged = 0
 
     for conv in conversations:
-        flow_persona = str(conv.get("persona_id") or "*")
+        flow_persona = str(conv.get("zielgruppe") or conv.get("persona_id") or "*")
         persona = persona_defs.get(flow_persona) or _stub(flow_persona)
         for turn in conv.get("turns", []):
             if turn.get("error"):
@@ -67,18 +76,23 @@ async def judge_conversations(conversations: list[dict[str, Any]]) -> int:
             # flow shifts intent, and judging turn 3 against turn 1's target
             # would score a correct answer as wrong. An unset expectation
             # becomes an empty stub — "no target" rather than a guessed one.
+            # (v2 records carry no intent expectations at all.)
             intent_id = str(turn.get("expected_intent") or "")
             intent = intent_defs.get(intent_id) or _stub(intent_id)
+            soll = str(
+                ((turn.get("golden") or {}).get("expected") or {})
+                .get("must_offer") or ""
+            )
             try:
                 turn["judge"] = await judge_turn(
                     persona, intent, turn.get("user") or "",
                     turn.get("bot") or "", turn.get("debug") or {},
+                    soll_angebot=soll or None,
                 )
             except Exception as e:
-                # A zero-score verdict, not a dropped turn: dropping it would
-                # quietly raise the average of the turns that did get judged.
                 logger.warning("[golden] judge failed for a turn: %s", e)
-                turn["judge"] = {"total": 0.0, "notes": str(e)[:200]}
+                turn["judge_failed"] = str(e)[:200]
+                continue
             judged += 1
 
     return judged
@@ -109,5 +123,19 @@ def summarize_golden_run(
         summary["judge_avg"] = judge_avg
         golden_metrics["judge_avg"] = judge_avg
         golden_metrics["judged_turns"] = summary["total_judged_turns"]
+    # GV4: ausgefallene Judge-Aufrufe werden GEZÄHLT statt als 0 gemittelt —
+    # sonst sähe ein Gutachter-Ausfall wie ein Bot-Versagen aus. (Seit Review
+    # Runde 2 derselbe Zähler wie im generativen Summary — eine Definition.)
+    judge_failed = count_judge_failed_turns(conversations)
+    summary["judge_failed_turns"] = judge_failed
+    if judge_failed:
+        golden_metrics["judge_failed_turns"] = judge_failed
+    # Review-Befund 4 (2026-08-22): Chat-Fehler-Züge zählen wie Judge-Ausfälle.
+    # Die CLI meldet sie über Exit 1 + stderr; der GESPEICHERTE Lauf stand
+    # ohne Zähler grün da, obwohl N Züge nie stattfanden.
+    chat_errors = count_chat_error_turns(conversations)
+    summary["chat_error_turns"] = chat_errors
+    if chat_errors:
+        golden_metrics["chat_error_turns"] = chat_errors
     summary["avg_score"] = golden_metrics["overall_pass_rate"]
     return summary

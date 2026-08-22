@@ -371,3 +371,25 @@ Gib NUR ein JSON-Objekt zurueck:
   "pattern_hint_verdict": "engine_better|hint_better|equivalent|no_disagreement",
   "pattern_hint_reasoning": "<1 Satz Bewertung der Pattern-Wahl — IMMER ausfuellen>"}}
 """
+
+#: GV4 (2026-08-22): Zusatzblock NUR fuer Golden-Laeufe — das je Turn
+#: dokumentierte Soll-Angebot (``must_offer``) wird zur Judge-Achse
+#: ``auftrag_erfuellt``. Als EIGENES Template angehaengt statt in
+#: ``_JUDGE_PROMPT`` eingebaut, damit die byte-genau aus ALT portierten
+#: Templates oben unveraendert bleiben (test_eval_prompts pinnt sie).
+_SOLL_ANGEBOT_BLOCK = """
+
+SOLL-ANGEBOT dieses Zuges (aus dem Golden-Datensatz dokumentiert):
+{soll}
+
+ZUSATZ-DIMENSION auftrag_erfuellt (0-2): Hat die Bot-Antwort dieses
+Soll-Angebot geliefert?
+- 2 = erkennbar und brauchbar geliefert (der Wortlaut ist egal).
+- 1 = teilweise geliefert, oder nur angeboten statt geliefert.
+- 0 = das Soll-Angebot fehlt.
+Bewerte NUR gegen das Soll oben, nicht gegen eigene Idealvorstellungen —
+und bestrafe nichts, was das Soll gar nicht verlangt. Beruecksichtige
+dabei die als "[... — vom Nutzer sichtbar]" markierten Bloecke: Karten
+und Dokument-Boxen SIND Teil der gelieferten Antwort.
+Ergaenze im JSON-Objekt zusaetzlich das Feld "auftrag_erfuellt": 0-2.
+"""

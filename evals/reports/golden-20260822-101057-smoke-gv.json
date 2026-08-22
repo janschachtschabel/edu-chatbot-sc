@@ -1,0 +1,462 @@
+{
+  "chat_url": "http://127.0.0.1:8100/api/chat",
+  "engine": "agent",
+  "chat_headers": [
+    "X-Boerdi-Engine"
+  ],
+  "started_utc": "20260822-101057",
+  "duration_s": 28.0,
+  "golden_metrics": {
+    "categories": [
+      "register",
+      "structure",
+      "tools_any",
+      "qr",
+      "host"
+    ],
+    "totals": {
+      "register": 0,
+      "structure": 0,
+      "tools_any": 1,
+      "qr": 2,
+      "host": 0
+    },
+    "passed": {
+      "register": 0,
+      "structure": 0,
+      "tools_any": 1,
+      "qr": 2,
+      "host": 0
+    },
+    "rates": {
+      "register": null,
+      "structure": null,
+      "tools_any": 1.0,
+      "qr": 1.0,
+      "host": null
+    },
+    "overall_pass_rate": 1.0,
+    "hard_passed": 3,
+    "hard_total": 3,
+    "flows": 1,
+    "turns": 2,
+    "latency": {
+      "turns": 2,
+      "p50_ms": 11079,
+      "p95_ms": 16919,
+      "max_ms": 16919,
+      "total_ms": 27998
+    },
+    "per_turn": [
+      {
+        "flow": "GV-WIS-1",
+        "title": "Wissensfrage: interner WLO-Wissensbestand",
+        "turn": 1,
+        "message": "Ist die Nutzung von WirLernenOnline wirklich komplett kostenlos, und wer steht hinter der Plattform?",
+        "expected": {
+          "register": "any",
+          "structure": null,
+          "tools_any": [
+            "wissen_suchen",
+            "query_knowledge"
+          ],
+          "must_offer": "Eine Antwort aus dem WLO-Wissensbestand (kostenlos, offene Bildungsinhalte, Trägerschaft) — nachgeschlagen statt geraten."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "wissen_suchen"
+          ],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 0,
+          "idocs": 0,
+          "qr": 1,
+          "content_len": 1359
+        },
+        "checks": {
+          "register": null,
+          "structure": null,
+          "tools_any": true,
+          "qr": true,
+          "host": null
+        },
+        "latency_ms": 16919
+      },
+      {
+        "flow": "GV-WIS-1",
+        "title": "Wissensfrage: interner WLO-Wissensbestand",
+        "turn": 2,
+        "message": "Darf ich die Materialien für meinen Unterricht verändern und weitergeben?",
+        "expected": {
+          "register": "any",
+          "structure": null,
+          "tools_any": [],
+          "must_offer": "Eine Erklärung offener Lizenzen (CC) und was sie für Bearbeitung und Weitergabe bedeuten — ehrlich dazu, dass es je Material Unterschiede gibt."
+        },
+        "observed": {
+          "pattern": "AGENT",
+          "tools_called": [
+            "wissen_suchen"
+          ],
+          "register": "du",
+          "sie": 0,
+          "du": 5,
+          "cards": 0,
+          "idocs": 0,
+          "qr": 1,
+          "content_len": 1507
+        },
+        "checks": {
+          "register": null,
+          "structure": null,
+          "tools_any": null,
+          "qr": true,
+          "host": null
+        },
+        "latency_ms": 11079
+      }
+    ],
+    "per_flow": {
+      "GV-WIS-1": {
+        "title": "Wissensfrage: interner WLO-Wissensbestand",
+        "zielgruppe": "P-AND",
+        "register": {
+          "ok": 0,
+          "total": 0
+        },
+        "structure": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_any": {
+          "ok": 1,
+          "total": 1
+        },
+        "qr": {
+          "ok": 2,
+          "total": 2
+        },
+        "host": {
+          "ok": 0,
+          "total": 0
+        }
+      }
+    }
+  },
+  "conversations": [
+    {
+      "kind": "golden",
+      "flow_id": "GV-WIS-1",
+      "title": "Wissensfrage: interner WLO-Wissensbestand",
+      "persona_id": "*",
+      "zielgruppe": "P-AND",
+      "intent_id": "",
+      "session_id": "eval-671badab7ef8",
+      "turns": [
+        {
+          "user": "Ist die Nutzung von WirLernenOnline wirklich komplett kostenlos, und wer steht hinter der Plattform?",
+          "bot": "[ edu-sharing Skill ] Chatbot Masterskill - aktiv\n\nDie Nutzung von **WirLernenOnline (WLO) ist grundsätzlich kostenlos**: Die Plattform selbst verlangt keine Gebühren für die Suche und den Zugriff auf ihre frei zugänglichen Inhalte. „Kostenlos“ bedeutet aber nicht automatisch, dass jedes gefundene Material ohne Bedingungen weiterverwendet werden darf. Dafür gelten jeweils die angegebene Lizenz und gegebenenfalls die Bedingungen der verlinkten Quelle. Auch Internet- oder Zugangskosten können anfallen.\n\nHinter WLO stehen beziehungsweise standen mehrere gemeinnützige und öffentliche Partner:\n\n- **edu-sharing.net e.V.** ist die Trägerorganisation hinter WLO beziehungsweise WissenLebtOnline.\n- Das Projekt wurde gemeinsam mit **Wikimedia Deutschland e.V.** und dem **Bündnis Freie Bildung** aufgebaut.\n- Die technische Infrastruktur wird beziehungsweise wurde unter anderem von der **GWDG** betrieben und weiterentwickelt.\n- Die Entstehung wurde im Rahmen eines **Covid-19-Nothilfeprogramms des Bundesministeriums für Bildung und Forschung (BMBF)** öffentlich gefördert.\n\nWLO wurde inzwischen zur offenen Infrastruktur **WissenLebtOnline** weiterentwickelt beziehungsweise umbenannt. Diese Einordnung stützt sich auf die redaktionelle WLO-Wissensdatenbank. Die aktuell genaue Kosten- und Betreiberstruktur einzelner Dienste habe ich nicht separat geprüft.",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "categories": {
+                "harassment": 2.97731143841062e-06,
+                "harassment_threatening": 3.089494448007139e-07,
+                "hate": 1.2606946239951315e-06,
+                "hate_threatening": 4.450850519411503e-08,
+                "illicit": 1.2436225128319384e-05,
+                "illicit_violent": 1.3211958228877664e-06,
+                "self_harm": 1.1300808333434096e-06,
+                "self_harm_instructions": 3.3931448129766124e-07,
+                "self_harm_intent": 8.939696304799168e-07,
+                "sexual": 9.610241549947397e-06,
+                "sexual_minors": 1.1843139025979655e-06,
+                "violence": 1.3420013504783412e-06,
+                "violence_graphic": 3.3931448129766124e-07,
+                "harassment/threatening": 3.089494448007139e-07,
+                "hate/threatening": 4.450850519411503e-08,
+                "illicit/violent": 1.3211958228877664e-06,
+                "self-harm/intent": 8.939696304799168e-07,
+                "self-harm/instructions": 3.3931448129766124e-07,
+                "self-harm": 1.1300808333434096e-06,
+                "sexual/minors": 1.1843139025979655e-06,
+                "violence/graphic": 3.3931448129766124e-07
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "wissen_suchen"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 33691,
+              "completion_tokens": 535,
+              "cached_tokens": 14575,
+              "reasoning_tokens": 172,
+              "calls": 3,
+              "models": {
+                "gpt-5.6-luna": {
+                  "prompt": 33691,
+                  "completion": 535,
+                  "cached": 14575,
+                  "reasoning": 172,
+                  "calls": 3
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 30819,
+                  "completion": 373,
+                  "cached": 14575,
+                  "reasoning": 49,
+                  "calls": 2
+                },
+                "quick_replies": {
+                  "prompt": 2872,
+                  "completion": 162,
+                  "cached": 0,
+                  "reasoning": 123,
+                  "calls": 1
+                }
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S1",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            }
+          },
+          "golden": {
+            "expected": {
+              "register": "any",
+              "structure": null,
+              "tools_any": [
+                "wissen_suchen",
+                "query_knowledge"
+              ],
+              "must_offer": "Eine Antwort aus dem WLO-Wissensbestand (kostenlos, offene Bildungsinhalte, Trägerschaft) — nachgeschlagen statt geraten."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "wissen_suchen"
+              ],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 0,
+              "idocs": 0,
+              "qr": 1,
+              "content_len": 1359
+            },
+            "checks": {
+              "register": null,
+              "structure": null,
+              "tools_any": true,
+              "qr": true,
+              "host": null
+            }
+          },
+          "cards_count": 0,
+          "response_length": 1359,
+          "latency_ms": 16919
+        },
+        {
+          "user": "Darf ich die Materialien für meinen Unterricht verändern und weitergeben?",
+          "bot": "Ja — **wenn die Lizenz des jeweiligen Materials es erlaubt**. WLO bündelt Materialien verschiedener Quellen; die Nutzungsbedingungen stehen deshalb immer beim einzelnen Inhalt und nicht pauschal für die gesamte Plattform.\n\n- **CC BY / CC BY-SA:** Du darfst Materialien in der Regel für deinen Unterricht kopieren, bearbeiten, kürzen, übersetzen, kombinieren und weitergeben. Nenne dabei Urheber:in, Titel, Quelle, Lizenz und deine Änderungen. Bei **BY-SA** muss deine bearbeitete Fassung grundsätzlich unter derselben Lizenz weitergegeben werden.\n- **CC0:** Sehr freie Nutzung; eine Namensnennung ist rechtlich meist nicht erforderlich, aber aus Fairnessgründen sinnvoll.\n- **CC BY-ND / CC BY-NC-ND:** Keine inhaltlichen Bearbeitungen erlaubt. Unverändertes Weitergeben kann zulässig sein.\n- **NC („nicht kommerziell“):** Keine kommerzielle Weitergabe.\n- **Nicht offen lizenzierte oder nur verlinkte Inhalte:** Nicht automatisch bearbeiten oder weitergeben. Dann gelten die Bedingungen der Originalquelle.\n\nBeim Remixen mehrerer Materialien musst du die Lizenzen getrennt ausweisen; bei einem verschmolzenen neuen Werk kann die restriktivste Lizenz maßgeblich sein. Die Lizenzbedingungen sind verbindlich — bei Verstößen können die Nutzungsrechte entfallen.\n\nIch stütze mich auf die redaktionelle WLO-Wissensdatenbank, insbesondere die FAQ zu OER-Bearbeitung und Creative-Commons-Lizenzen. **Die Lizenz eines konkreten Materials habe ich nicht geprüft**; dafür brauche ich den WLO-Link oder die Material-ID.",
+          "debug": {
+            "pattern": "AGENT (AGENT (Werkzeug-Agent))",
+            "persona": "P-AND (Andere / Unbekannt)",
+            "intent": "I01 (Orientierung)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "categories": {
+                "harassment": 4.006369222920725e-06,
+                "harassment_threatening": 9.516251694168764e-07,
+                "hate": 1.5936620247162786e-06,
+                "hate_threatening": 3.726639284186561e-07,
+                "illicit": 0.001500019145855024,
+                "illicit_violent": 2.653023768982879e-05,
+                "self_harm": 1.9525885208642222e-06,
+                "self_harm_instructions": 9.516251694168764e-07,
+                "self_harm_intent": 2.5466403947055455e-06,
+                "sexual": 1.3552078562406772e-05,
+                "sexual_minors": 3.822911232549001e-06,
+                "violence": 2.212566909570261e-06,
+                "violence_graphic": 3.9669859149467314e-07,
+                "harassment/threatening": 9.516251694168764e-07,
+                "hate/threatening": 3.726639284186561e-07,
+                "illicit/violent": 2.653023768982879e-05,
+                "self-harm/intent": 2.5466403947055455e-06,
+                "self-harm/instructions": 9.516251694168764e-07,
+                "self-harm": 1.9525885208642222e-06,
+                "sexual/minors": 3.822911232549001e-06,
+                "violence/graphic": 3.9669859149467314e-07
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "wissen_suchen"
+            ],
+            "pattern_id_hint": null,
+            "pattern_reasoning": null,
+            "llm_engine_match": null,
+            "token_usage": {
+              "prompt_tokens": 34377,
+              "completion_tokens": 634,
+              "cached_tokens": 32191,
+              "reasoning_tokens": 199,
+              "calls": 3,
+              "models": {
+                "gpt-5.6-luna": {
+                  "prompt": 34377,
+                  "completion": 634,
+                  "cached": 32191,
+                  "reasoning": 199,
+                  "calls": 3
+                }
+              },
+              "per_phase": {
+                "agent": {
+                  "prompt": 31503,
+                  "completion": 454,
+                  "cached": 29458,
+                  "reasoning": 54,
+                  "calls": 2
+                },
+                "quick_replies": {
+                  "prompt": 2874,
+                  "completion": 180,
+                  "cached": 2733,
+                  "reasoning": 145,
+                  "calls": 1
+                }
+              }
+            },
+            "phase3_modulations": {
+              "tone": "locker",
+              "formality": "neutral",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [],
+              "skip_intro": false,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S1",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            }
+          },
+          "golden": {
+            "expected": {
+              "register": "any",
+              "structure": null,
+              "tools_any": [],
+              "must_offer": "Eine Erklärung offener Lizenzen (CC) und was sie für Bearbeitung und Weitergabe bedeuten — ehrlich dazu, dass es je Material Unterschiede gibt."
+            },
+            "observed": {
+              "pattern": "AGENT",
+              "tools_called": [
+                "wissen_suchen"
+              ],
+              "register": "du",
+              "sie": 0,
+              "du": 5,
+              "cards": 0,
+              "idocs": 0,
+              "qr": 1,
+              "content_len": 1507
+            },
+            "checks": {
+              "register": null,
+              "structure": null,
+              "tools_any": null,
+              "qr": true,
+              "host": null
+            }
+          },
+          "cards_count": 0,
+          "response_length": 1507,
+          "latency_ms": 11079
+        }
+      ]
+    }
+  ]
+}

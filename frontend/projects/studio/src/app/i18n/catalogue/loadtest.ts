@@ -53,6 +53,13 @@ export const LOADTEST: CataloguePart = {
     'lt.stages.hint': 'höchstens {stages} Stufen, je bis {concurrency} parallel',
     'lt.requests': 'Requests pro Stufe',
     'lt.threshold': 'p95-Schwelle für „stabil" (Sekunden)',
+    // Review-Befund 7: Engine je Lauf — agent/hybrid haben ein anderes
+    // Runden-Profil, ohne Wahl galten die Zahlen nur für die Vorgabe.
+    'lt.engine.legend': 'Maschine (Engine)',
+    'lt.engine.default': 'Server-Vorgabe',
+    'lt.engine.hint':
+      'Jeder Zug des Laufs fährt mit dieser Engine — die Kapazitätszahlen '
+      + 'gelten nur für die gewählte Maschine.',
     'lt.mix.legend': 'Abfrage-Mix — Gewichte 0 bis 10',
     'lt.mix.label': 'Mix-Kategorien',
 
@@ -164,6 +171,11 @@ export const LOADTEST: CataloguePart = {
     'lt.stages.hint': 'at most {stages} stages, each up to {concurrency} in parallel',
     'lt.requests': 'Requests per stage',
     'lt.threshold': 'p95 threshold for "stable" (seconds)',
+    'lt.engine.legend': 'Engine',
+    'lt.engine.default': 'Server default',
+    'lt.engine.hint':
+      'Every turn of the run uses this engine — the capacity numbers only '
+      + 'hold for the chosen machine.',
     'lt.mix.legend': 'Query mix — weights 0 to 10',
     'lt.mix.label': 'Mix categories',
 

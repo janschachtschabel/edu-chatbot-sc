@@ -30,6 +30,44 @@
   margin: 0;
 }
 
+// Feedback 2026-08-22: Achsen-Marken links neben der Kurve (oben Maximum,
+// unten 0) — vorher hingen die Linien ohne Skala im Raum.
+.et-plot {
+  display: flex;
+  align-items: stretch;
+  gap: var(--st-1);
+}
+
+// Die Marken sitzen EXAKT auf den Plot-Linien (Review-Runde 3): das SVG
+// zeichnet sein Plot-Feld mit 8/96 Innenabstand (trend-chart.ts PAD/HEIGHT)
+// und skaliert mit der Breite — ein fester Pixel-Abstand säße bei der
+// breiten Score-Kurve daneben. Prozent-Offsets der (per stretch) chart-hohen
+// Spalte + translateY(-50%) zentrieren jede Marke auf ihrer Linie,
+// unabhängig von der gerenderten Größe. `min-inline-size`, weil absolut
+// positionierte Kinder die Spalte nicht mehr aufspannen.
+.et-scale {
+  position: relative;
+  min-inline-size: 2.25rem;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--st-text-muted);
+  white-space: nowrap;
+}
+
+.et-scale > span {
+  position: absolute;
+  inset-inline-end: 0;
+  transform: translateY(-50%);
+}
+
+.et-scale > span:first-child {
+  inset-block-start: calc(100% * 8 / 96);
+}
+
+.et-scale > span:last-child {
+  inset-block-start: calc(100% * 88 / 96);
+}
+
 .et-figure figcaption {
   margin-block-end: var(--st-1);
   font-size: 0.875rem;

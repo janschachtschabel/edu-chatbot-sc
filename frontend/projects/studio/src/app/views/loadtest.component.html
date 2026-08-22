@@ -53,6 +53,23 @@
   </fieldset>
 
   <fieldset class="lt-fields">
+    <legend class="lt-legend">{{ t('lt.engine.legend') }}</legend>
+    <p class="lt-hint">{{ t('lt.engine.hint') }}</p>
+    @for (option of engines; track option) {
+      <label class="lt-pick" [attr.for]="'lt-engine-' + option">
+        <input
+          type="radio"
+          name="lt-engine"
+          [id]="'lt-engine-' + option"
+          [checked]="engine() === option"
+          (change)="setEngine(option)"
+        />
+        <span>{{ engineLabel(option) }}</span>
+      </label>
+    }
+  </fieldset>
+
+  <fieldset class="lt-fields">
     <legend class="lt-legend">{{ t('lt.mix.legend') }}</legend>
 
     <studio-async-state

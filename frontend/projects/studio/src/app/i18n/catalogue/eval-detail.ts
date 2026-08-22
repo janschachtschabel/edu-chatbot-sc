@@ -71,8 +71,10 @@ export const EVAL_DETAIL: CataloguePart = {
       'Turns je Flow, jede Gruppe mit ihrer eigenen harten Quote. Eine Zeile '
       + 'öffnen zeigt die Bot-Antwort und was gemessen wurde.',
     'evalDetail.col.turn': 'Flow · Turn',
-    'evalDetail.col.expected': 'Soll P/I',
-    'evalDetail.col.observed': 'Ist P/I/Pattern',
+    // v1-Läufe füllen die Kompaktspalten mit Persona/Intent, v2 mit
+    // Tonalität/Struktur — die Beschriftung bleibt deshalb generisch.
+    'evalDetail.col.expected': 'Soll',
+    'evalDetail.col.observed': 'Ist / Muster',
     'evalDetail.col.message': 'Nachricht',
     /** Ein Satz, nicht sechs Bruchstücke. „Sie" und „du" bleiben auch auf
      *  Englisch stehen: gezählt werden die deutschen Anredeformen, die der
@@ -89,12 +91,20 @@ export const EVAL_DETAIL: CataloguePart = {
     'evalDetail.check.skipped': 'nicht geprüft',
 
     // ── Kategorien der Scorecard ────────────────────────────────────
+    // persona/intent nur noch für GESPEICHERTE v1-Läufe; v2 prüft sie nicht.
     'evalDetail.cat.persona': 'Persona',
     'evalDetail.cat.intent': 'Intent',
     'evalDetail.cat.register': 'Tonalität',
     'evalDetail.cat.structure': 'Struktur',
+    'evalDetail.cat.tools_any': 'Werkzeug-Soll',
     'evalDetail.cat.qr': 'Quick-Replies',
     'evalDetail.cat.host': 'Link-Host',
+
+    // ── GV4/GV5: Engine des Laufs + gezählte Judge-Ausfälle ─────────
+    'evalDetail.engine': 'Engine: {engine}',
+    'evalDetail.judgeFailed': 'Judge-Ausfälle: {count}',
+    // Review-Befund 4: Züge, die der Chat nie beantwortet hat.
+    'evalDetail.chatErrors': 'Chat-Fehler: {count} Züge ohne Antwort',
 
     // ── Transkript-Zweig ────────────────────────────────────────────
     'evalDetail.noMetrics':
@@ -104,6 +114,11 @@ export const EVAL_DETAIL: CataloguePart = {
     'evalDetail.noTranscripts':
       'Auch keine Transkripte: der Lauf ist gestorben, bevor ein Turn fertig '
       + 'wurde.',
+    // Feedback 2026-08-22: bei LAUFENDEM Lauf ist „gestorben" die falsche
+    // Diagnose — Zwischenstände erscheinen je Flow, „Aktualisieren" holt sie.
+    'evalDetail.noTranscriptsYet':
+      'Noch keine Transkripte gespeichert — der Lauf schreibt seinen '
+      + 'Zwischenstand je Flow; „Aktualisieren" holt ihn.',
     'evalDetail.conversation': 'Gespräch {num}',
     'evalDetail.speaker.user': 'Nutzer',
     'evalDetail.judge': 'Judge {score}',
@@ -149,8 +164,8 @@ export const EVAL_DETAIL: CataloguePart = {
       'Turns per flow, each group with its own hard rate. Opening a row shows '
       + 'the bot answer and what was measured.',
     'evalDetail.col.turn': 'Flow · turn',
-    'evalDetail.col.expected': 'Expected P/I',
-    'evalDetail.col.observed': 'Actual P/I/pattern',
+    'evalDetail.col.expected': 'Expected',
+    'evalDetail.col.observed': 'Actual / pattern',
     'evalDetail.col.message': 'Message',
     'evalDetail.turnDetail':
       '*Expected offer:* {mustOffer} · Sie {sie} · du {du} · cards {cards} '
@@ -166,14 +181,22 @@ export const EVAL_DETAIL: CataloguePart = {
     'evalDetail.cat.intent': 'Intent',
     'evalDetail.cat.register': 'Register',
     'evalDetail.cat.structure': 'Structure',
+    'evalDetail.cat.tools_any': 'Required tool',
     'evalDetail.cat.qr': 'Quick replies',
     'evalDetail.cat.host': 'Link host',
+
+    'evalDetail.engine': 'Engine: {engine}',
+    'evalDetail.judgeFailed': 'Judge failures: {count}',
+    'evalDetail.chatErrors': 'Chat errors: {count} unanswered turns',
 
     'evalDetail.noMetrics':
       'This run carries *no gold metrics* — the deterministic scorecard only '
       + 'comes out of gold flows. Below are the transcripts the run wrote.',
     'evalDetail.noTranscripts':
       'No transcripts either: the run died before a single turn finished.',
+    'evalDetail.noTranscriptsYet':
+      'No transcripts stored yet — the run persists its progress per flow; '
+      + '"Refresh" fetches it.',
     'evalDetail.conversation': 'Conversation {num}',
     'evalDetail.speaker.user': 'User',
     'evalDetail.judge': 'Judge {score}',

@@ -356,6 +356,52 @@ describe("EvalRunDetailComponent", () => {
     expect(text()).toContain("solide");
   });
 
+  it("zeigt Chat-Fehler und Judge-Ausfälle auch ohne Gold-Metriken (Runde 2)", async () => {
+    // Review Runde 2 (2026-08-22): die Zähler-Zeile hing im metrics()-Zweig —
+    // ausgerechnet der generative Lauf (die Familie des f9cd-Ausfalls) zeigte
+    // seine toten Züge nie an.
+    await mount(
+      detail({
+        mode: "generative",
+        summary: {
+          target_turns: 3,
+          matrix: {},
+          pattern_usage: {},
+          chat_error_turns: 2,
+          judge_failed_turns: 1,
+        },
+        conversations: [
+          {
+            kind: "generative",
+            persona_id: "P-LEH",
+            intent_id: "I01",
+            turns: [{ user: "Suche Wasser", bot: "(error: down)", error: "down" }],
+          },
+        ],
+      }),
+    );
+
+    expect(text()).toContain("Chat-Fehler: 2 Züge ohne Antwort");
+    expect(text()).toContain("Judge-Ausfälle: 1");
+  });
+
+  it("nennt fehlende Transkripte bei laufendem Lauf nicht gestorben (Feedback 2026-08-22)", async () => {
+    // Der Gold-Lauf persistiert Zwischenstände je Flow — kurz nach dem Start
+    // ist „der Lauf ist gestorben" schlicht falsch.
+    await mount(
+      detail({
+        status: "running",
+        completed_at: null,
+        mode: "golden",
+        summary: { target_turns: 29, current_activity: "Starte Gold-Flows …" },
+        conversations: [],
+      }),
+    );
+
+    expect(text()).toContain("Noch keine Transkripte gespeichert");
+    expect(text()).not.toContain("gestorben");
+  });
+
   it("calls a running run a snapshot and names what it is doing", async () => {
     await mount(
       detail({
@@ -416,7 +462,9 @@ describe("EvalRunDetailComponent", () => {
     expect(text()).toContain("Scored turns"); // Kennzahlen-Liste
     expect(text()).toContain("Hit rates"); // Abschnitts-Überschrift
     expect(text()).toContain("Register"); // Kategorie der Scorecard
-    expect(text()).toContain("Expected P/I"); // Spaltenkopf
+    // Spaltenkopf — seit dem Kategorien-Fix generisch (v1 zeigt P/I,
+    // v2 Register/Struktur in der Zelle, nicht im Kopf).
+    expect(text()).toContain("Expected"); // Spaltenkopf
     expect(text()).toContain("done"); // Status, aus C1-d4b1
     // Kein deutscher Rest — der Fall, den ein Blick auf die Seite übersieht.
     expect(text()).not.toMatch(/[äöüß]/);
@@ -464,5 +512,27 @@ describe("EvalRunDetailComponent", () => {
     expect(strong).toContain("Fehler:");
     expect(strong).not.toContain("backend");
     expect(text()).toContain("chat *backend* down");
+  });
+
+  it("leitet die Tabellen-Spalten aus den Kategorien des Laufs ab (v2)", async () => {
+    // Review-Nachlauf 2026-08-22: die Spaltenliste war hartkodiert v1
+    // (persona/intent/...) - ein v2-Lauf hatte keine Werkzeug-Soll-Spalte
+    // und zwei tote Spalten.
+    await mount(
+      detail({
+        summary: {
+          golden_metrics: goldMetrics({
+            categories: ["register", "structure", "tools_any", "qr", "host"],
+          }),
+          target_turns: 3,
+        },
+      }),
+    );
+
+    const heads = Array.from(h.el.querySelectorAll("thead th"))
+      .map((th) => th.textContent ?? "")
+      .join(" | ");
+    expect(heads).toContain("Werkzeug-Soll");
+    expect(heads).not.toContain("Persona");
   });
 });

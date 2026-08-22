@@ -52,12 +52,13 @@ export interface EvalRunDetail extends Omit<EvalRunSummary,
 
 /**
  * One entry of `eval/gold-flows.yaml`, handed through unparsed by
- * `GET /eval/gold-flows`. Field names checked against the file: `title`, not
- * `name`; `persona`/`intents`, no `description`.
+ * `GET /eval/gold-flows`. v2 flows carry `zielgruppe` (GV2); `persona` and
+ * `intents` remain readable for a stored v1 config state.
  */
 export interface GoldFlow {
   readonly id: string;
   readonly title?: string;
+  readonly zielgruppe?: string;
   readonly persona?: string;
   readonly intents?: readonly string[];
   readonly turns?: readonly unknown[];
@@ -107,14 +108,16 @@ export interface EvalTrends {
 }
 
 export interface PatternUsage {
+  /** Die Kennungen kommen aus einem GROUP BY über NULLABLE Spalten — ein
+   *  unklassifizierter Turn liefert `null`, nicht `""` (Review-Runde 3).
+   *  Die ALT-Aggregate `by_pattern`/`by_intent` sind entfernt: die Ansicht
+   *  leitet beide Verteilungen aus den Kombinationen ab. */
   readonly triples: readonly {
-    readonly pattern_id: string; readonly intent_id: string;
-    readonly persona_id: string; readonly count: number;
+    readonly pattern_id: string | null; readonly intent_id: string | null;
+    readonly persona_id: string | null; readonly count: number;
     /** `null` when no turn of the triple carried a confidence — not 0. */
     readonly avg_conf?: number | null;
   }[];
-  readonly by_pattern: readonly { readonly pattern_id: string; readonly count: number }[];
-  readonly by_intent: readonly { readonly intent_id: string; readonly count: number }[];
   readonly total: number;
   readonly scope: string;
 }
@@ -139,10 +142,19 @@ export interface StartRunResult {
   readonly warnings?: readonly string[];
 }
 
+/** GV5: "default" sends no header — the run measures the server's
+ *  engine.yaml setting; the others ride as `X-Boerdi-Engine` on every turn. */
+export type GoldenEngine = 'default' | 'pattern' | 'agent' | 'hybrid';
+
+export const GOLDEN_ENGINES: readonly GoldenEngine[] = [
+  'default', 'pattern', 'agent', 'hybrid',
+];
+
 export interface GoldenRunRequest {
   readonly flow_ids: readonly string[];
   readonly judge: boolean;
   readonly config_slug: string;
+  readonly engine: GoldenEngine;
 }
 
 /** Restrict a bulk delete; both empty means "every run". */
@@ -207,9 +219,16 @@ export class EvalApi {
     });
   }
 
-  /** Removes only the `quality_logs` rows an eval run wrote, not real turns. */
-  clearEvalQualityLogs(): Promise<{ deleted: number }> {
-    return this.api.delete<{ deleted: number }>('/eval/quality-logs');
+  /** Removes only the `quality_logs` rows an eval run wrote, not real turns.
+   *
+   * Begleitfix GV5: das Backend antwortet `deleted_eval_log_rows`
+   * (`mutations.py`) — bis dahin las die Ansicht ein `deleted`-Feld, das es
+   * nie gab, und zeigte `undefined` gelöschte Zeilen an. */
+  async clearEvalQualityLogs(): Promise<{ deleted: number }> {
+    const body = await this.api.delete<{ deleted_eval_log_rows?: number }>(
+      '/eval/quality-logs',
+    );
+    return { deleted: body.deleted_eval_log_rows ?? 0 };
   }
 
   trends(): Promise<EvalTrends> {

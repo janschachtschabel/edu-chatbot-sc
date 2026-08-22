@@ -16,24 +16,33 @@
 @if (runs().length > 0) {
   <figure class="et-figure">
     <figcaption>{{ t('evalTrends.scores.caption') }}</figcaption>
-    <svg
-      class="et-chart et-chart--wide"
-      [attr.viewBox]="'0 0 ' + scores().width + ' ' + scores().height"
-      role="img"
-      [attr.aria-label]="describeScores()"
-    >
-      <line
-        class="et-axis"
-        [attr.x1]="scores().pad" [attr.y1]="scores().height - scores().pad"
-        [attr.x2]="scores().width - scores().pad" [attr.y2]="scores().height - scores().pad"
-      />
-      @if (scores().points.length > 1) {
-        <polyline class="et-line" [attr.points]="scores().line" />
-      }
-      @for (p of scores().points; track p.runId) {
-        <circle class="et-dot" [attr.cx]="p.x" [attr.cy]="p.y" r="2.5" />
-      }
-    </svg>
+    <!-- Feedback 2026-08-22: Achsen-Marken links (oben Maximum, unten 0) —
+         die gesprochene Zusammenfassung trägt die Werte schon, daher
+         aria-hidden. Scores skalieren auf ihr Maximum (trend-chart.ts). -->
+    <div class="et-plot">
+      <div class="et-scale" aria-hidden="true">
+        <span>{{ score(scores().maxY) }}</span>
+        <span>0</span>
+      </div>
+      <svg
+        class="et-chart et-chart--wide"
+        [attr.viewBox]="'0 0 ' + scores().width + ' ' + scores().height"
+        role="img"
+        [attr.aria-label]="describeScores()"
+      >
+        <line
+          class="et-axis"
+          [attr.x1]="scores().pad" [attr.y1]="scores().height - scores().pad"
+          [attr.x2]="scores().width - scores().pad" [attr.y2]="scores().height - scores().pad"
+        />
+        @if (scores().points.length > 1) {
+          <polyline class="et-line" [attr.points]="scores().line" />
+        }
+        @for (p of scores().points; track p.runId) {
+          <circle class="et-dot" [attr.cx]="p.x" [attr.cy]="p.y" r="2.5" />
+        }
+      </svg>
+    </div>
   </figure>
 
   @if (!hasClassification()) {
@@ -47,26 +56,34 @@
           <figcaption>{{ series.label }}</figcaption>
           <p class="et-hint">{{ series.hint }}</p>
           @if (series.chart.points.length > 0) {
-            <svg
-              class="et-chart"
-              [attr.viewBox]="'0 0 ' + series.chart.width + ' ' + series.chart.height"
-              role="img"
-              [attr.aria-label]="describe(series)"
-            >
-              <line
-                class="et-axis"
-                [attr.x1]="series.chart.pad"
-                [attr.y1]="series.chart.height - series.chart.pad"
-                [attr.x2]="series.chart.width - series.chart.pad"
-                [attr.y2]="series.chart.height - series.chart.pad"
-              />
-              @if (series.chart.points.length > 1) {
-                <polyline class="et-line" [attr.points]="series.chart.line" />
-              }
-              @for (p of series.chart.points; track p.runId) {
-                <circle class="et-dot" [attr.cx]="p.x" [attr.cy]="p.y" r="2.5" />
-              }
-            </svg>
+            <!-- Raten fahren die FESTE 0..1-Achse (trend-chart.ts) — die
+                 Marke sagt es dazu, statt es den Leser raten zu lassen. -->
+            <div class="et-plot">
+              <div class="et-scale" aria-hidden="true">
+                <span>{{ rateAxisTop() }}</span>
+                <span>0</span>
+              </div>
+              <svg
+                class="et-chart"
+                [attr.viewBox]="'0 0 ' + series.chart.width + ' ' + series.chart.height"
+                role="img"
+                [attr.aria-label]="describe(series)"
+              >
+                <line
+                  class="et-axis"
+                  [attr.x1]="series.chart.pad"
+                  [attr.y1]="series.chart.height - series.chart.pad"
+                  [attr.x2]="series.chart.width - series.chart.pad"
+                  [attr.y2]="series.chart.height - series.chart.pad"
+                />
+                @if (series.chart.points.length > 1) {
+                  <polyline class="et-line" [attr.points]="series.chart.line" />
+                }
+                @for (p of series.chart.points; track p.runId) {
+                  <circle class="et-dot" [attr.cx]="p.x" [attr.cy]="p.y" r="2.5" />
+                }
+              </svg>
+            </div>
           } @else {
             <p class="et-empty">{{ t('evalTrends.noData') }}</p>
           }

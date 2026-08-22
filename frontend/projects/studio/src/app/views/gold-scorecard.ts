@@ -12,7 +12,7 @@
  */
 import type { Translate } from '../i18n/studio-language.service';
 
-/** The 6 categories `aggregate_golden` reports; `host` is soft (see below). */
+/** A category `aggregate_golden` reports; `host` is soft (see below). */
 export type GoldCategory = string;
 
 export interface GoldChecks {
@@ -30,18 +30,17 @@ export interface GoldPerTurn {
 }
 
 /**
- * One `golden_metrics.per_flow` entry: `title` plus one `{ok, total}` cell per
- * category.
+ * One `golden_metrics.per_flow` entry: `title` and `zielgruppe` plus one
+ * `{ok, total}` cell per category.
  *
- * There is deliberately no `persona` id here even though the backend looks like
- * it sets one: `aggregate_golden` builds the entry as
- * `{"title": …, "persona": conv["persona_id"], **{c: {ok, total} for c in
- * GOLDEN_CATS}}`, and `GOLDEN_CATS` contains `"persona"` — so the spread
- * overwrites the id with the category cell, on every entry, in ALT too. The
- * flow's persona therefore comes from `conversations[].persona_id`.
+ * `zielgruppe` exists since GV1. Its v1 predecessor was a field named
+ * `persona` that the backend's dict spread immediately overwrote with the
+ * same-named CATEGORY cell (in ALT too) — v1 entries therefore carry the
+ * persona only as a `{ok, total}` cell, never as an id.
  */
 export interface GoldPerFlow {
   readonly title?: string;
+  readonly zielgruppe?: string;
   readonly [category: string]: unknown;
 }
 
@@ -63,13 +62,21 @@ export interface GoldMetrics {
 }
 
 /**
- * `host` is deliberately absent: `check_golden_turn` marks it soft because a
- * wrong `REPO_BASE_URL` fails it for every turn without saying anything about
- * the bot. Mirrors `GOLDEN_HARD` in `evals/run_golden.py`.
+ * The hard categories of a stored run, derived from the report's own
+ * `categories` list: everything except the soft `host` (`check_golden_turn`
+ * marks it soft because a wrong `REPO_BASE_URL` fails it for every turn
+ * without saying anything about the bot).
+ *
+ * Derived rather than hardcoded (GV5): the same scorecard then renders
+ * stored v1 runs (persona/intent/register/structure/qr) and v2 runs
+ * (register/structure/tools_any/qr) without a version switch — the report
+ * says what it asserted. Mirrors `GOLDEN_HARD` in `evals/run_golden.py`.
  */
-export const GOLD_HARD_CATS: readonly string[] = [
-  'persona', 'intent', 'register', 'structure', 'qr',
-];
+export function hardCats(
+  metrics: Pick<GoldMetrics, 'categories'> | null | undefined,
+): readonly string[] {
+  return (metrics?.categories ?? []).filter((c) => c !== 'host');
+}
 
 /**
  * Kategorie → Katalog-Schlüssel (C1-d4b2). Bis dahin standen hier die fertigen
@@ -85,6 +92,7 @@ const CAT_KEYS: Readonly<Record<string, string>> = {
   intent: 'evalDetail.cat.intent',
   register: 'evalDetail.cat.register',
   structure: 'evalDetail.cat.structure',
+  tools_any: 'evalDetail.cat.tools_any',
   qr: 'evalDetail.cat.qr',
   host: 'evalDetail.cat.host',
 };
@@ -127,11 +135,14 @@ export interface HardRate {
   readonly rate: number | null;
 }
 
-/** Hard pass rate of one flow, from the server-side `per_flow` entry. */
-export function hardRate(entry: GoldPerFlow | undefined): HardRate {
+/** Hard pass rate of one flow, from the server-side `per_flow` entry.
+ *  `cats` comes from `hardCats(metrics)` — the run's own hard set. */
+export function hardRate(
+  entry: GoldPerFlow | undefined, cats: readonly string[],
+): HardRate {
   let ok = 0;
   let total = 0;
-  for (const category of GOLD_HARD_CATS) {
+  for (const category of cats) {
     const cell = entry?.[category] as { ok?: number; total?: number } | undefined;
     ok += cell?.ok ?? 0;
     total += cell?.total ?? 0;

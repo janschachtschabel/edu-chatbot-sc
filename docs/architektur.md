@@ -617,9 +617,11 @@ sechs anderen Gründe liefern kein verlässliches Ergebnis.
 
 Dazu zwei fachliche Verfahren, die über Unit-Tests hinausgehen:
 
-* **Golden-Läufe** (`evals/`, `services/eval/golden*.py`) — feste Szenarien mit
-  festgehaltener Erwartung; ein LLM-Richter bewertet Abweichungen. Pflicht,
-  wenn sich Prompts ändern.
+* **Golden-Läufe** (`evals/`, `services/eval/golden*.py`) — feste
+  Anwendungsfall-Gespräche je Zielgruppe mit harten Ergebnis-Checks (v2:
+  engine-fair, ein Lauf je Maschine wählbar); ein LLM-Richter bewertet
+  daneben die Erfüllung des dokumentierten Soll-Angebots. Pflicht, wenn sich
+  Prompts ändern.
 * **Generative Auswertung** (`scenario_gen.py`, `judge.py`) — erzeugte Szenarien
   über Personas und Intents, mit Kosten-Band im Studio.
 

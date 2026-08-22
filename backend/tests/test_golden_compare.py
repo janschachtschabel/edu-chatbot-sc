@@ -1,9 +1,11 @@
-"""P11-4: A/B-Abweichungs-Report (§9-Schritt 4) — deterministische Teile.
+"""P11-4/GV3: A/B-Abweichungs-Report (§9-Schritt 4) — deterministische Teile.
 
 Der Vergleich muss GENAU zwei Dinge trennen: eine echte Regression (ein Check,
-der in ALT bestand und in NEU fällt) und das Rauschen eines nichtdeterministischen
-Modells (Textlänge, Sie/du-Zähler). Wer das Rauschen mitreportet, bekommt bei
-jedem Turn eine Abweichung und sieht die eine echte nicht mehr.
+der in REF bestand und in NEU fällt) und das Rauschen eines
+nichtdeterministischen Modells (Textlänge, Sie/du-Zähler). Seit v2 (GV3)
+gehört auch die Mechanik zum Rauschen: beobachtetes Muster und Werkzeugliste
+sind je Maschine von Bauart wegen anders — der Maschinen-Vergleich ist jetzt
+der Normalfall, das frühere ``--ignore-classification`` ist entfernt.
 """
 
 import importlib.util
@@ -17,12 +19,12 @@ cg = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(cg)
 
 _OBSERVED = {
-    "persona": "P-LEH", "intent": "I03", "pattern": "M06",
+    "pattern": "M06", "tools_called": ["search_wlo_all"],
     "cards": 3, "idocs": 0, "qr": 2,
     "register": "sie", "sie": 4, "du": 0, "content_len": 100,
 }
-_CHECKS = {"persona": True, "intent": True, "register": True,
-           "structure": True, "qr": True, "host": True}
+_CHECKS = {"register": True, "structure": True, "tools_any": True,
+           "qr": True, "host": True}
 
 
 def _turn(user="m1", *, checks=None, observed=None, bot="Antwort", error=None):
@@ -38,15 +40,18 @@ def _turn(user="m1", *, checks=None, observed=None, bot="Antwort", error=None):
     }
 
 
-def _report(*turns, flow="GS-1"):
+def _report(*turns, flow="GV-1", engine=""):
     """Minimal report in the shape ``run_golden.main`` writes."""
-    return {
+    rep = {
         "chat_url": "http://host/api/chat",
         "conversations": [{
             "kind": "golden", "flow_id": flow, "title": "Flow Eins",
-            "persona_id": "P-LEH", "turns": list(turns),
+            "persona_id": "*", "zielgruppe": "P-LEH", "turns": list(turns),
         }],
     }
+    if engine:
+        rep["engine"] = engine
+    return rep
 
 
 # ── Rauschen vs. Signal ──────────────────────────────────────────────────
@@ -77,25 +82,39 @@ def test_register_label_alone_is_not_a_deviation() -> None:
     assert cg.compare_reports(ref, new)["deviations"] == []
 
 
+def test_mechanik_wechsel_ist_keine_abweichung() -> None:
+    """Der Kern von GV3: Muster-Engine meldet ``M06`` + Klassifikator-Weg,
+    der Agent meldet kein Muster und andere Werkzeuge — an JEDEM Zug, von
+    Bauart wegen. Solange die Checks gleich ausgehen, ist das kein Befund;
+    was an den Werkzeugen zählt, behauptet der ``tools_any``-Check."""
+    ref = _report(_turn(observed={"pattern": "M06",
+                                  "tools_called": ["search_wlo_all (prefetch)"]}))
+    new = _report(_turn(observed={"pattern": "",
+                                  "tools_called": ["search_wlo_content"]}))
+    diff = cg.compare_reports(ref, new)
+    assert diff["deviations"] == []
+    assert cg.is_blocking(diff) is False
+
+
 # ── Regression / Verbesserung ────────────────────────────────────────────
 
 def test_true_to_false_is_a_hard_regression() -> None:
     ref = _report(_turn())
-    new = _report(_turn(checks={"persona": False}))
+    new = _report(_turn(checks={"structure": False}))
     diff = cg.compare_reports(ref, new)
     (dev,) = diff["deviations"]
-    assert dev["flow"] == "GS-1" and dev["turn"] == 1
-    assert dev["regressions"] == ["persona"]
+    assert dev["flow"] == "GV-1" and dev["turn"] == 1
+    assert dev["regressions"] == ["structure"]
     assert diff["summary"]["hard_regressions"] == 1
     assert cg.is_blocking(diff) is True
 
 
 def test_false_to_true_is_an_improvement_not_a_regression() -> None:
-    ref = _report(_turn(checks={"intent": False}))
+    ref = _report(_turn(checks={"tools_any": False}))
     new = _report(_turn())
     diff = cg.compare_reports(ref, new)
     (dev,) = diff["deviations"]
-    assert dev["improvements"] == ["intent"] and dev["regressions"] == []
+    assert dev["improvements"] == ["tools_any"] and dev["regressions"] == []
     assert diff["summary"]["hard_regressions"] == 0
     assert cg.is_blocking(diff) is False
 
@@ -110,6 +129,15 @@ def test_not_asserted_to_false_is_not_a_regression() -> None:
     assert diff["summary"]["soft_regressions"] == 0
 
 
+def test_neutral_register_none_to_false_is_not_a_regression() -> None:
+    """v2-Ehrlichkeit trägt bis hierher: ein Turn, dessen Register in REF
+    nicht messbar war (None), kann in NEU nur NEU ausfallen — nicht
+    schlechter geworden sein."""
+    ref = _report(_turn(checks={"register": None}))
+    new = _report(_turn(checks={"register": False}))
+    assert cg.compare_reports(ref, new)["summary"]["hard_regressions"] == 0
+
+
 def test_host_regression_is_soft_and_does_not_block() -> None:
     """`host` ist im Runner ausdrücklich weich — hier genauso."""
     ref = _report(_turn())
@@ -122,20 +150,7 @@ def test_host_regression_is_soft_and_does_not_block() -> None:
     assert cg.is_blocking(diff) is False
 
 
-# ── Klassifikation und Struktur ──────────────────────────────────────────
-
-def test_classification_change_is_reported_without_check_change() -> None:
-    """Beide Läufe bestehen, treffen aber ein anderes Pattern — genau das ist
-    die Abweichung, die ein reiner Pass/Fail-Vergleich verschluckt."""
-    ref = _report(_turn())
-    new = _report(_turn(observed={"pattern": "M15"}))
-    diff = cg.compare_reports(ref, new)
-    (dev,) = diff["deviations"]
-    assert dev["changed"] == {"pattern": {"ref": "M06", "new": "M15"}}
-    assert dev["regressions"] == []
-    assert diff["summary"]["classification_changes"] == 1
-    assert cg.is_blocking(diff) is False
-
+# ── Struktur ─────────────────────────────────────────────────────────────
 
 def test_structure_change_is_reported() -> None:
     ref = _report(_turn(observed={"cards": 6}))
@@ -171,7 +186,7 @@ def test_turn_missing_in_new_blocks() -> None:
     """Ein unvollständiger NEU-Lauf darf nicht als „keine Regression" gelesen
     werden — sonst belohnt der Report den Abbruch."""
     diff = cg.compare_reports(_report(_turn(), _turn("m2")), _report(_turn()))
-    assert diff["turns"]["only_ref"] == [["GS-1", 2]]
+    assert diff["turns"]["only_ref"] == [["GV-1", 2]]
     assert cg.is_blocking(diff) is True
 
 
@@ -179,15 +194,15 @@ def test_extra_turn_in_new_blocks() -> None:
     """Andersherum genauso: dann sind die Flow-Dateien auseinandergelaufen und
     der ganze Vergleich ist wertlos (README: nur synchron ändern)."""
     diff = cg.compare_reports(_report(_turn()), _report(_turn(), _turn("m2")))
-    assert diff["turns"]["only_new"] == [["GS-1", 2]]
+    assert diff["turns"]["only_new"] == [["GV-1", 2]]
     assert cg.is_blocking(diff) is True
 
 
 def test_flow_missing_in_new_is_named() -> None:
     ref = {"conversations": [*_report(_turn())["conversations"],
-                             *_report(_turn(), flow="GS-2")["conversations"]]}
+                             *_report(_turn(), flow="GV-2")["conversations"]]}
     diff = cg.compare_reports(ref, _report(_turn()))
-    assert diff["flows"]["only_ref"] == ["GS-2"]
+    assert diff["flows"]["only_ref"] == ["GV-2"]
     assert cg.is_blocking(diff) is True
 
 
@@ -196,16 +211,16 @@ def test_flow_missing_in_new_is_named() -> None:
 def test_deviating_turn_carries_both_texts_for_review() -> None:
     """§9-4 verlangt Stichproben-Redaktion: ohne die beiden Wortlaute müsste
     die Redaktion zwei Riesen-JSONs von Hand nebeneinanderlegen."""
-    ref = _report(_turn(bot="ALT-Wortlaut"))
-    new = _report(_turn(bot="NEU-Wortlaut", checks={"persona": False}))
+    ref = _report(_turn(bot="REF-Wortlaut"))
+    new = _report(_turn(bot="NEU-Wortlaut", checks={"structure": False}))
     (dev,) = cg.compare_reports(ref, new)["deviations"]
-    assert dev["texts"] == {"ref": "ALT-Wortlaut", "new": "NEU-Wortlaut"}
+    assert dev["texts"] == {"ref": "REF-Wortlaut", "new": "NEU-Wortlaut"}
 
 
 def test_main_writes_report_and_returns_exit_code(tmp_path) -> None:
-    ref_p, new_p = tmp_path / "alt.json", tmp_path / "neu.json"
+    ref_p, new_p = tmp_path / "ref.json", tmp_path / "neu.json"
     ref_p.write_text(json.dumps(_report(_turn())), encoding="utf-8")
-    new_p.write_text(json.dumps(_report(_turn(checks={"intent": False}))),
+    new_p.write_text(json.dumps(_report(_turn(checks={"tools_any": False}))),
                      encoding="utf-8")
     out = tmp_path / "out"
 
@@ -219,8 +234,8 @@ def test_main_writes_report_and_returns_exit_code(tmp_path) -> None:
 
 
 def test_main_returns_zero_when_only_improvements(tmp_path) -> None:
-    ref_p, new_p = tmp_path / "alt.json", tmp_path / "neu.json"
-    ref_p.write_text(json.dumps(_report(_turn(checks={"intent": False}))),
+    ref_p, new_p = tmp_path / "ref.json", tmp_path / "neu.json"
+    ref_p.write_text(json.dumps(_report(_turn(checks={"tools_any": False}))),
                      encoding="utf-8")
     new_p.write_text(json.dumps(_report(_turn())), encoding="utf-8")
 
@@ -228,84 +243,78 @@ def test_main_returns_zero_when_only_improvements(tmp_path) -> None:
                     "--out", str(tmp_path / "out")]) == 0
 
 
-# ── A5: Muster-Engine gegen Agent-Modus vergleichen ──────────────────────
-#
-# Der Agent-Modus klassifiziert nicht (A4b) und wählt kein Muster (A4c-1): er
-# liefert die Ersatz-Klassifikation und das Muster ``AGENT``. Persona, Intent
-# und Muster weichen deshalb an FAST JEDEM Zug ab — nicht als Befund, sondern
-# von Bauart wegen. Ungefiltert überdeckt dieses Rauschen genau das, worum es
-# geht: ob die ANTWORT besser oder schlechter wird.
+# ── GV3: der Maschinen-Vergleich ist der Normalfall ──────────────────────
+
+def test_der_report_nennt_beide_engines(tmp_path) -> None:
+    """Ungleiche Engines sind der gewollte A/B-Fall, kein Fehler — aber ein
+    Vergleich, der nicht sagt, WELCHE Maschinen er vergleicht, ist nicht
+    lesbar."""
+    ref_p, new_p = tmp_path / "ref.json", tmp_path / "neu.json"
+    ref_p.write_text(json.dumps(_report(_turn(), engine="pattern")),
+                     encoding="utf-8")
+    new_p.write_text(json.dumps(_report(_turn(), engine="agent")),
+                     encoding="utf-8")
+    out = tmp_path / "out"
+
+    code = cg.main(["--ref", str(ref_p), "--new", str(new_p), "--out", str(out)])
+
+    assert code == 0  # gleicher Befund, andere Maschine: kein Blocker
+    (written,) = list(out.glob("ab-*.json"))
+    payload = json.loads(written.read_text(encoding="utf-8"))
+    assert payload["engine_ref"] == "pattern"
+    assert payload["engine_new"] == "agent"
+    console = cg.render_console(payload)
+    assert "pattern" in console and "agent" in console
 
 
-def _pattern_turn(**kw):
-    """Der Referenz-Zug: die Muster-Engine hat klassifiziert und ein Muster
-    gewählt."""
-    return _turn(observed={"persona": "P-LEH", "intent": "I06", "pattern": "M06"}, **kw)
+def test_alte_reports_ohne_engine_bleiben_vergleichbar(tmp_path) -> None:
+    ref_p, new_p = tmp_path / "ref.json", tmp_path / "neu.json"
+    ref_p.write_text(json.dumps(_report(_turn())), encoding="utf-8")
+    new_p.write_text(json.dumps(_report(_turn())), encoding="utf-8")
+    code = cg.main(["--ref", str(ref_p), "--new", str(new_p),
+                    "--out", str(tmp_path / "out")])
+    assert code == 0
+    (written,) = list((tmp_path / "out").glob("ab-*.json"))
+    payload = json.loads(written.read_text(encoding="utf-8"))
+    assert payload["engine_ref"] == "" and payload["engine_new"] == ""
 
 
-def _agent_turn(**kw):
-    """Derselbe Zug im Agent-Modus: Ersatz-Klassifikation (``I03``, ``P-AND``)
-    und das synthetische Muster ``AGENT`` — alle drei von Bauart wegen anders."""
-    return _turn(observed={"persona": "P-AND", "intent": "I03", "pattern": "AGENT"},
-                 checks={"persona": False, "intent": False}, **kw)
-
-
-def test_ohne_flagge_ist_der_maschinenwechsel_lauter_rauschen() -> None:
-    """Die Gegenrichtung zuerst: ohne die Flagge bleibt der Vergleich streng —
-    ein Klassifikations-Wechsel IST eine Abweichung, wenn man ALT gegen NEU
-    misst (der ursprüngliche Zweck des Reports, P11-4)."""
-    diff = cg.compare_reports(_report(_pattern_turn()), _report(_agent_turn()))
-    assert diff["summary"]["hard_regressions"] == 2      # persona + intent
-    assert diff["summary"]["classification_changes"] == 3
-    assert cg.is_blocking(diff) is True
-
-
-def test_mit_flagge_bleibt_nur_die_antwort_uebrig() -> None:
-    diff = cg.compare_reports(_report(_pattern_turn()), _report(_agent_turn()),
-                              ignore_classification=True)
-    assert diff["summary"]["hard_regressions"] == 0
-    assert diff["summary"]["classification_changes"] == 0
-    assert diff["deviations"] == []
-    assert cg.is_blocking(diff) is False
-
-
-def test_die_flagge_verdeckt_keine_echte_regression() -> None:
-    """Was sie NICHT ausblenden darf: Register, Struktur, Quick-Replies, Host —
-    das ist die Antwort, und die ist der Gegenstand des Vergleichs."""
-    neu = _agent_turn()
-    neu["golden"]["checks"]["structure"] = False
-    neu["golden"]["observed"]["cards"] = 0
-    diff = cg.compare_reports(_report(_pattern_turn()), _report(neu),
-                              ignore_classification=True)
+def test_echte_regression_bleibt_im_maschinen_vergleich_sichtbar() -> None:
+    """Was der Rauschfilter NICHT verdecken darf: Register, Struktur,
+    Quick-Replies, Werkzeug-Soll — das ist die Antwort, und die ist der
+    Gegenstand des Vergleichs."""
+    neu = _turn(observed={"pattern": "", "cards": 0},
+                checks={"structure": False})
+    diff = cg.compare_reports(_report(_turn()), _report(neu))
     assert diff["summary"]["hard_regressions"] == 1
     assert diff["deviations"][0]["regressions"] == ["structure"]
     assert diff["deviations"][0]["changed"] == {"cards": {"ref": 3, "new": 0}}
     assert cg.is_blocking(diff) is True
 
 
-def test_der_report_sagt_dass_gefiltert_wurde(tmp_path) -> None:
-    """Ein Report, dem man nicht ansieht, dass er filtert, behauptet mehr
-    Deckungsgleichheit, als er geprüft hat."""
-    ref_p, new_p = tmp_path / "alt.json", tmp_path / "neu.json"
-    ref_p.write_text(json.dumps(_report(_pattern_turn())), encoding="utf-8")
-    new_p.write_text(json.dumps(_report(_agent_turn())), encoding="utf-8")
-    out = tmp_path / "out"
+def test_leere_reports_blockieren_statt_gruen(tmp_path) -> None:
+    """Review-Befund 5 (2026-08-22): zwei falsche Dateien (keine Golden-
+    Reports) verglichen sich zu "0 Turns, keine Abweichung" mit Exit 0 -
+    ein Bedienfehler erzeugte ein gruenes Abnahme-Signal. 0 verglichene
+    Turns sind ein Strukturbruch, kein sauberer Vergleich."""
+    ref_p, new_p = tmp_path / "a.json", tmp_path / "b.json"
+    ref_p.write_text("{}", encoding="utf-8")
+    new_p.write_text("{}", encoding="utf-8")
 
-    code = cg.main(["--ref", str(ref_p), "--new", str(new_p), "--out", str(out),
-                    "--ignore-classification"])
+    code = cg.main(["--ref", str(ref_p), "--new", str(new_p),
+                    "--out", str(tmp_path / "out")])
 
-    assert code == 0
-    (written,) = list(out.glob("ab-*.json"))
-    payload = json.loads(written.read_text(encoding="utf-8"))
-    assert payload["ignore_classification"] is True
-    assert "Klassifikation" in cg.render_console(payload)
+    assert code == 1
 
 
-def test_ohne_flagge_steht_es_auch_im_report(tmp_path) -> None:
-    ref_p, new_p = tmp_path / "alt.json", tmp_path / "neu.json"
+def test_echter_vergleich_bleibt_exit_0(tmp_path) -> None:
+    """Gegenprobe zum 0-Turn-Guard: ein regulaerer, deckungsgleicher
+    Vergleich bleibt gruen."""
+    ref_p, new_p = tmp_path / "ref.json", tmp_path / "neu.json"
     ref_p.write_text(json.dumps(_report(_turn())), encoding="utf-8")
     new_p.write_text(json.dumps(_report(_turn())), encoding="utf-8")
-    cg.main(["--ref", str(ref_p), "--new", str(new_p), "--out", str(tmp_path / "out")])
-    (written,) = list((tmp_path / "out").glob("ab-*.json"))
-    assert json.loads(written.read_text(encoding="utf-8"))[
-        "ignore_classification"] is False
+
+    code = cg.main(["--ref", str(ref_p), "--new", str(new_p),
+                    "--out", str(tmp_path / "out")])
+
+    assert code == 0

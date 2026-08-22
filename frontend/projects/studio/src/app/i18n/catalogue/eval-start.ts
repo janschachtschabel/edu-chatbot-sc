@@ -57,8 +57,19 @@ export const EVAL_START: CataloguePart = {
       'Diese Config enthält keine Gold-Flows (eval/gold-flows.yaml fehlt oder '
       + 'ist leer). Ohne Flows gibt es nichts abzuspielen.',
     'evalStart.gold.legend': 'Flows',
+    // Feedback 2026-08-22: „alles außer einem" (GV-RED-1 abwählen) soll zwei
+    // Klicks kosten, nicht N−1.
+    'evalStart.gold.selectAll': 'Alle auswählen',
+    'evalStart.gold.clearSelection': 'Auswahl leeren',
     'evalStart.gold.turns.one': '{count} Turn',
     'evalStart.gold.turns.other': '{count} Turns',
+    // GV5: eine Maschine je Lauf — A/B über Engines braucht je Engine
+    // einen eigenen Lauf; die Werte selbst sind technische Namen.
+    'evalStart.gold.engine.legend': 'Maschine (Engine)',
+    'evalStart.gold.engine.default': 'Server-Vorgabe',
+    'evalStart.gold.engine.hint':
+      'Gilt für jeden Zug dieses Laufs (Kopfzeile X-Boerdi-Engine). '
+      + '„Server-Vorgabe“ misst, was in engine.yaml eingestellt ist.',
     'evalStart.gold.judge.legend': 'Weiche Bewertung',
     'evalStart.gold.judge.label': 'LLM-Judge mitlaufen lassen',
     'evalStart.gold.judge.hint':
@@ -154,8 +165,15 @@ export const EVAL_START: CataloguePart = {
       'This config holds no gold flows (eval/gold-flows.yaml is missing or '
       + 'empty). Without flows there is nothing to replay.',
     'evalStart.gold.legend': 'Flows',
+    'evalStart.gold.selectAll': 'Select all',
+    'evalStart.gold.clearSelection': 'Clear selection',
     'evalStart.gold.turns.one': '{count} turn',
     'evalStart.gold.turns.other': '{count} turns',
+    'evalStart.gold.engine.legend': 'Engine',
+    'evalStart.gold.engine.default': 'Server default',
+    'evalStart.gold.engine.hint':
+      'Applies to every turn of this run (X-Boerdi-Engine header). '
+      + '"Server default" measures whatever engine.yaml says.',
     'evalStart.gold.judge.legend': 'Soft scoring',
     'evalStart.gold.judge.label': 'Run the LLM judge along',
     'evalStart.gold.judge.hint':

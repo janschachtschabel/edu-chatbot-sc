@@ -276,11 +276,16 @@ def test_pattern_usage_groups_and_scopes(test_db) -> None:
     top = all_["triples"][0]
     assert top["pattern_id"] == "M04" and top["persona_id"] == "P-AND"
     assert top["count"] == 2 and round(top["avg_conf"], 3) == 0.7
-    assert {p["pattern_id"] for p in all_["by_pattern"]} == {"M04", "M05"}
+    assert {t["pattern_id"] for t in all_["triples"]} == {"M04", "M05"}
+    # Review-Runde 3 (2026-08-22, Nutzer-Entscheid): die Betriebsart-blinden
+    # Server-Aggregate by_pattern/by_intent sind entfernt — das Studio leitet
+    # beide Verteilungen seit dem Betriebsart-Filter aus den Kombinationen ab,
+    # und einen weiteren Konsumenten gab es nie.
+    assert "by_pattern" not in all_ and "by_intent" not in all_
 
     ev = _run(scenario_eval)
     assert ev["total"] == 2  # only eval-% sessions
-    assert all(p["pattern_id"] == "M04" for p in ev["by_pattern"])
+    assert all(t["pattern_id"] == "M04" for t in ev["triples"])
 
     prod = _run(scenario_prod)
     assert prod["total"] == 1 and prod["triples"][0]["persona_id"] == "P-LEH"
@@ -320,6 +325,13 @@ def test_start_golden_eval_run_persists_running_row(test_db, monkeypatch) -> Non
         coro.close()
 
     monkeypatch.setattr(golden_run, "_spawn_background", fake_spawn)
+
+    async def reachable():
+        return None
+
+    # Preflight (Review-Nachlauf 2026-08-22): im Test läuft kein Chat — der
+    # echte Erreichbarkeits-Check bräche den Start mit 502 ab.
+    monkeypatch.setattr(golden_run, "_ensure_chat_reachable", reachable)
 
     async def scenario(session):
         out = await svc.start_golden_eval_run(

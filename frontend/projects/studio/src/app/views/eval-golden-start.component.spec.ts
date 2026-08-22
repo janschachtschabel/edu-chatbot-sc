@@ -111,6 +111,25 @@ describe("EvalGoldenStartComponent", () => {
     expect(text()).toContain("3 Chat-Anfragen");
   });
 
+  it("wählt alle Flows auf einen Klick aus und leert die Auswahl wieder (Feedback 2026-08-22)", async () => {
+    // Der Weg „alles außer einem" (z. B. GV-RED-1 abwählen) brauchte vorher
+    // N−1 Einzelklicks: leer hieß zwar alle, aber der erste Haken hieß NUR dieser.
+    await mount();
+    button("Alle auswählen")!.click();
+    await h.fixture.whenStable();
+    expect(box("flow-GS-1").checked).toBe(true);
+    expect(box("flow-GS-2").checked).toBe(true);
+
+    box("flow-GS-2").click();
+    await h.fixture.whenStable();
+    expect(text()).toContain("4 Chat-Anfragen"); // GS-1 allein
+
+    button("Auswahl leeren")!.click();
+    await h.fixture.whenStable();
+    expect(box("flow-GS-1").checked).toBe(false);
+    expect(text()).toContain("7 Chat-Anfragen"); // leer = alle
+  });
+
   it("names the judge calls the toggle adds", async () => {
     await mount();
     expect(text()).not.toContain("Judge-Aufrufe");
@@ -150,6 +169,7 @@ describe("EvalGoldenStartComponent", () => {
       flow_ids: ["GS-1"],
       judge: true,
       config_slug: "",
+      engine: "default",
     });
     req.flush({ run_id: "eval-g1", status: "running", warnings: [] });
     await settle();
@@ -157,6 +177,27 @@ describe("EvalGoldenStartComponent", () => {
     expect(started).toEqual(["eval-g1"]);
     expect(text()).toContain("eval-g1");
     expect(button("Ja, starten")).toBeNull();
+  });
+
+  it("sends the chosen engine with the run (GV5)", async () => {
+    await mount();
+    box("engine-agent").click();
+    await h.fixture.whenStable();
+    await arm();
+
+    button("Ja, starten")!.click();
+    await h.fixture.whenStable();
+    const req = h.http.expectOne(
+      (r) => r.url === START_URL && r.method === "POST",
+    );
+    expect(req.request.body).toEqual({
+      flow_ids: [],
+      judge: false,
+      config_slug: "",
+      engine: "agent",
+    });
+    req.flush({ run_id: "eval-g2", status: "running", warnings: [] });
+    await settle();
   });
 
   it("surfaces the flow ids the backend dropped", async () => {

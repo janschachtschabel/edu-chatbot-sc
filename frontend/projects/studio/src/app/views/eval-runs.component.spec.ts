@@ -277,7 +277,11 @@ describe("EvalRunsComponent", () => {
     await h.fixture.whenStable();
     h.http
       .expectOne((r) => r.url === QLOGS_URL && r.method === "DELETE")
-      .flush({ deleted: 40 });
+      // Die ECHTE Backend-Form (`mutations.py`): bis GV5 flushte dieser Test
+      // `{deleted: 40}` — ein Feld, das das Backend nie sendet — und
+      // validierte damit genau den `undefined`-Anzeige-Bug, den der
+      // Service-Fix behebt.
+      .flush({ deleted_eval_log_rows: 40 });
     await settle(h);
     expect(h.el.querySelector(".er-status")!.textContent).toContain("40");
   });

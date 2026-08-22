@@ -22,6 +22,7 @@ from boerdi.services.eval import runner
 from boerdi.services.eval.cost import _compute_target_turns, list_personas_and_intents
 from boerdi.services.eval.run_store import (
     _chat_url,
+    _ensure_chat_reachable,
     _ensure_no_running_run,
     _finalize_run,
 )
@@ -78,6 +79,7 @@ async def start_generative_run(
             f"Available intents: {sorted(known_intent_ids)}.",
         )
 
+    await _ensure_chat_reachable()
     await _ensure_no_running_run(session)
     run_id = f"eval-{uuid.uuid4().hex[:12]}"
     persona_ids = [p["id"] for p in personas]

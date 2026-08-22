@@ -100,6 +100,12 @@
   font-size: 0.8125rem;
 }
 
+// Matrix-Zellen (Feedback 2026-08-22): Zahlen rechtsbündig und spaltentreu.
+.epu-num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
 .epu-caption {
   padding: var(--st-2) var(--st-3);
   border-block-end: 1px solid var(--st-rule);

@@ -15,6 +15,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import { AsyncData, describeApiError } from '../core/async-data';
+import { GOLDEN_ENGINES, type GoldenEngine } from '../core/eval-api.service';
 import { LoadtestApi, type MixOption, type RunListItem } from '../core/loadtest-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
@@ -58,6 +59,11 @@ export class LoadtestComponent {
   readonly stagesText = signal('1, 2, 4, 8');
   readonly requestsPerStage = signal(8);
   readonly thresholdS = signal(20);
+
+  /** Review-Befund 7 (2026-08-22): Engine je Lauf, wie im Gold-Start —
+   *  'default' = keine Kopfzeile, der Lauf misst die Server-Vorgabe. */
+  readonly engine = signal<GoldenEngine>('default');
+  readonly engines = GOLDEN_ENGINES;
   readonly mix = signal<Record<string, number>>({
     wissen: 2, suche: 2, orientierung: 1, lernpfad: 0,
   });
@@ -119,6 +125,16 @@ export class LoadtestComponent {
     else this.thresholdS.set(parsed);
   }
 
+  setEngine(engine: GoldenEngine): void {
+    this.engine.set(engine);
+  }
+
+  /** Wie `eval-golden-start`: nur die Vorgabe braucht einen Namen, die drei
+   *  Maschinen heißen wie in Konfig und Kopfzeile (technische Werte). */
+  engineLabel(engine: GoldenEngine): string {
+    return engine === 'default' ? this.t('lt.engine.default') : engine;
+  }
+
   select(id: string): void {
     this.selected.set(this.selected() === id ? '' : id);
   }
@@ -135,6 +151,7 @@ export class LoadtestComponent {
         requests_per_stage: profile.requestsPerStage,
         mix: profile.mix,
         p95_threshold_s: profile.thresholdS,
+        engine: this.engine(),
       });
       this.selected.set(id);
       this.status.set(this.t('lt.started', { id }));

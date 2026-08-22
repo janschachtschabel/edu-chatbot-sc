@@ -30,6 +30,31 @@ from typing import Any
 from boerdi.services.eval.text_utils import _has_persona_marker, _strip_id
 
 
+def count_chat_error_turns(conversations: list[dict]) -> int:
+    """Turns the chat itself never answered (timeout, transport error).
+
+    Counted so a stored run can say "N Züge fehlen" instead of standing there
+    with a green rate over silently fewer turns (review finding 4,
+    2026-08-22). Shared by the golden and the generative summary — same
+    definition, same number.
+    """
+    return sum(
+        1 for c in conversations for t in (c.get("turns") or []) if t.get("error")
+    )
+
+
+def count_judge_failed_turns(conversations: list[dict]) -> int:
+    """Turns whose judge call failed (``judge_failed``, GV4) — counted, never
+    averaged in as zeros. One definition for both run families (review round 2,
+    2026-08-22): the golden summary counted them inline, the generative summary
+    not at all, and the Studio read a key that was never written there.
+    """
+    return sum(
+        1 for c in conversations for t in (c.get("turns") or [])
+        if t.get("judge_failed")
+    )
+
+
 def _aggregate(conversations: list[dict]) -> dict[str, Any]:
     """Build matrix + pattern-usage stats from finished conversations."""
     matrix: dict[str, dict[str, dict[str, Any]]] = {}  # persona -> intent -> {total, count}
@@ -405,13 +430,17 @@ def _aggregate_classification_metrics(
         ),
         "persona_achievable_total": persona_achievable_total,
         "persona_neutral_total": persona_neutral_total,
+        # GV6-Regel auch hier (Review 2026-08-22): ohne ein einziges
+        # Persona-/Intent-Soll (Golden v2 traegt persona_id "*") ist die Rate
+        # nicht messbar — None laesst die Trend-Serie eine Luecke zeigen,
+        # eine 0.0 sah wie ein Klassifikator-Absturz aus.
         "persona_correct_rate": (
-            round(persona_correct / persona_total, 3) if persona_total else 0.0
+            round(persona_correct / persona_total, 3) if persona_total else None
         ),
         "persona_total_judged": persona_total,
         "persona_confusion": persona_confusion,
         "intent_correct_rate": (
-            round(intent_correct / intent_total, 3) if intent_total else 0.0
+            round(intent_correct / intent_total, 3) if intent_total else None
         ),
         "intent_total_judged": intent_total,
         "intent_confusion": intent_confusion,
@@ -432,12 +461,15 @@ def _aggregate_classification_metrics(
         # Engine. Die Felder bleiben aus Backward-Compat (Studio + Trends-
         # Endpoint) — neue Konsumenten nutzen die ``*_final_*``-Aliase unten.
         "llm_hint_present_count": llm_hint_present,
+        # GV6: None statt 0.0, wenn kein einziger Hint vorlag (Agent-/Hybrid-
+        # Zuege liefern strukturell keinen) — eine 0.0 sah in den Trends wie
+        # ein Absturz aus, obwohl schlicht nichts gemessen wurde.
         "llm_engine_match_rate": (
-            round(llm_engine_agree / llm_hint_present, 3) if llm_hint_present else 0.0
+            round(llm_engine_agree / llm_hint_present, 3) if llm_hint_present else None
         ),
         # Alias: das gleiche wie llm_engine_match_rate, mit klarem Namen.
         "llm_hint_final_match_rate": (
-            round(llm_engine_agree / llm_hint_present, 3) if llm_hint_present else 0.0
+            round(llm_engine_agree / llm_hint_present, 3) if llm_hint_present else None
         ),
         "llm_engine_disagreement_count": llm_hint_present - llm_engine_agree,
         "llm_hint_final_disagreement_count": llm_hint_present - llm_engine_agree,
@@ -498,10 +530,12 @@ def _aggregate_classification_metrics(
             "2": pattern_match_scores.count(2),
         },
         # Tool-Compliance: wieviele Turns mit Pattern.tools auch tatsächlich
-        # mind. eines der verlangten Tools aufgerufen haben.
+        # mind. eines der verlangten Tools aufgerufen haben. GV6: None statt
+        # 0.0, wenn kein Turn eine Pflicht-Werkzeugliste trug (ohne Muster
+        # gibt es keine) — „nicht messbar" ist kein Totalausfall.
         "tool_compliance_rate": (
             round(tool_compliance_ok / tool_compliance_total, 3)
-            if tool_compliance_total else 0.0
+            if tool_compliance_total else None
         ),
         "tool_compliance_total": tool_compliance_total,
         "tool_compliance_per_pattern": tool_compliance_per_pattern,

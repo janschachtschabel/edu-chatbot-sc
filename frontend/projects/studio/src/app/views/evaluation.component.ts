@@ -6,11 +6,13 @@
  * then stays, so switching tabs does not re-fetch; each panel owns its own
  * `AsyncData` (9-5a rule: one per endpoint).
  *
- * Both start forms sit above the list rather than in a tab of their own: a run
- * takes minutes, and its only progress display is that list. The shell wires
- * them together — the list is what knows whether a run is in flight (the backend
- * allows one and answers 409), so `busy` is derived from it instead of each start
- * panel reading the same endpoint again.
+ * Both start forms live in the same panel as the list rather than in a tab of
+ * their own: a run takes minutes, and its only progress display is that list.
+ * Since the 2026-08-22 feedback they sit COLLAPSED BELOW it — whoever opens the
+ * page wants the active run, not the flow list of the next start. The shell
+ * wires them together — the list is what knows whether a run is in flight (the
+ * backend allows one and answers 409), so `busy` is derived from it instead of
+ * each start panel reading the same endpoint again.
  */
 import {
   ChangeDetectionStrategy, Component, computed, inject, signal, viewChild,

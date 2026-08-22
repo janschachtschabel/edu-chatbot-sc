@@ -41,6 +41,7 @@ const PROFILE = {
   requests_per_stage: 8,
   mix: { wissen: 2 },
   p95_threshold_s: 20,
+  engine: "default",
   total_requests: 32,
 };
 
@@ -155,6 +156,28 @@ describe("LoadtestComponent", () => {
     expect(h.el.querySelector(".lt-busy")!.textContent).toContain("lt-live99");
   });
 
+  it("sendet die gewaehlte Engine im Start-Profil mit (Review-Befund 7)", async () => {
+    const h = await mount([]);
+    (h.el.querySelector("#lt-engine-agent") as HTMLInputElement).click();
+    await h.fixture.whenStable();
+    startButton(h).click();
+    await h.fixture.whenStable();
+
+    const req = h.http.expectOne(RUNS_URL);
+    expect(req.request.body.engine).toBe("agent");
+    req.flush({ id: "lt-eng001", status: "running", profile: PROFILE });
+    await settle(h);
+    h.http.expectOne(RUNS_URL).flush({ runs: [] });
+    await settle(h);
+    h.http.expectOne("/studio/api/loadtest/runs/lt-eng001").flush({
+      ...DONE_RUN,
+      id: "lt-eng001",
+      stages: [],
+      resource_samples: [],
+    });
+    await settle(h);
+  });
+
   it("posts the effective profile and opens the new run", async () => {
     const h = await mount([]);
     startButton(h).click();
@@ -168,6 +191,8 @@ describe("LoadtestComponent", () => {
       // The zero-weight category is dropped, not sent as 0.
       mix: { wissen: 2, suche: 2, orientierung: 1 },
       p95_threshold_s: 20,
+      // Review-Befund 7: ohne Auswahl misst der Lauf die Server-Vorgabe.
+      engine: "default",
     });
     req.flush({ id: "lt-new001", status: "running", profile: PROFILE });
     await settle(h);
