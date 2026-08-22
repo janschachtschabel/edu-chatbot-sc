@@ -117,6 +117,14 @@ jobs:
       # ist gültiges CSS.
       - name: Radien auf der M3-Skala
         run: npm run check:radii
+      # Die Laufzeit-Tabelle in docs/browser-plugin-einbindung.md beantwortet
+      # die Frage, an der eine fremde Erweiterung scheitert: wirkt ein
+      # `setAttribute` nach dem Einhängen noch? Ein neues Attribut, das dort
+      # fehlt, ist schlimmer als eines ganz ohne Doku — die Tabelle sieht
+      # vollständig aus und ist es nicht. Der Wächter liest dieselbe Input-Liste
+      # wie der Vertrags-Spec, statt eine zweite Liste zu pflegen.
+      - name: Host-Attribute in der Einbindungs-Doku eingeordnet
+        run: npm run check:docs
       - name: Unit tests (ui + widget + studio)
         run: npm test
       # Allow-Liste statt Deny-Liste: §0 Regel 1 erlaubt NUR MIT/Apache-2.0/
@@ -138,7 +146,7 @@ jobs:
       - name: Build widget bundle
         run: npm run build:widget
       # Direkt das Skript: `npm run budget` würde (bewusst) erst neu bauen.
-      - name: Widget bundle budget (§5.5 — ≤420 kB raw / ≤140 kB gzip)
+      - name: Widget bundle budget (§5.5 — ≤600 kB raw / ≤175 kB gzip)
         run: node scripts/check-widget-budget.mjs
       # Der Studio-Build ist eigenständig: er hat kein Single-File-Budget (die
       # SPA lädt Routen lazy), aber ein Compile-Fehler in einer noch nicht
@@ -152,15 +160,37 @@ jobs:
       # `npx playwright test` statt `npm run e2e`: das Bundle ist zwei Schritte
       # weiter oben schon gebaut, und `npm run e2e` baut es (bewusst) selbst.
       - name: E2E (Playwright gegen das gebaute Bundle)
+        id: e2e
         run: npx playwright test
       # `test-results/` — DORT legt Playwright die `trace: retain-on-failure`-
       # Traces ab. `playwright-report/` gäbe es nur mit dem html-Reporter, den
       # die Config in CI nicht nutzt: der Upload wäre still leer geblieben.
       - name: E2E-Traces bei Fehlschlag sichern
-        if: failure()
+        if: failure() && steps.e2e.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-traces
           path: frontend/test-results/
           if-no-files-found: error
           retention-days: 7
+
+  # Das Beispiel-Plugin bringt eigene Prüfungen mit (Adress-Erkennung,
+  # Backend-Basis, Tab-Zugriff, Schema-Deckel, Kennungen) — die liefen bisher
+  # nur, wenn jemand sie tippt. Ein Wächter, den keine CI ruft, verrottet:
+  # `examples/` kam in diesem Workflow gar nicht vor (Review 2026-08-14).
+  #
+  # Eigener Job und nicht ein Schritt im Frontend: der Ordner hat keine
+  # Abhängigkeiten und braucht kein `npm ci` — er läuft in Sekunden, und ein
+  # rotes Ergebnis benennt dann auch das Beispiel und nicht „das Frontend".
+  beispiel-plugin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/chrome-plugin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prüfungen des Beispiel-Plugins
+        run: npm run check

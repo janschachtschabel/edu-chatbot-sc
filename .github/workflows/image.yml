@@ -158,7 +158,6 @@ jobs:
           docker run -d --name boerdi --network "$NET" -p 8100:8100 \
             -e DATABASE_URL="$DB_URL" \
             -e RATE_LIMIT_STORAGE_URI=valkey://valkey:6379/0 \
-            -e CORS_ORIGINS=https://smoke.example \
             -e STUDIO_API_KEY=smoke-nur-fuer-ci-kein-secret \
             boerdi-chat
 
