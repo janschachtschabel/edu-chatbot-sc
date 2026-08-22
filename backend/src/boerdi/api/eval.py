@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.deps import get_session, require_studio_key
 from boerdi.services.eval_service import (
+    cancel_run,
     clear_eval_quality_logs,
     delete_run,
     delete_runs,
@@ -169,6 +170,12 @@ async def get_eval_run(run_id: str, session: _Session) -> dict:
 @router.delete("/runs/{run_id}")
 async def delete_eval_run(run_id: str, session: _Session) -> dict:
     return await delete_run(session, run_id)
+
+
+@router.post("/runs/{run_id}/cancel")
+async def cancel_eval_run(run_id: str, session: _Session) -> dict:
+    """Laufenden Eval-Lauf abbrechen (Status → cancelled, Teilstand bleibt)."""
+    return await cancel_run(session, run_id)
 
 
 # ── quality-logs cleanup + analytics (read quality_logs) ────────────

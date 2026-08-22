@@ -36,7 +36,8 @@
 .er-clear-logs,
 .er-confirm,
 .er-cancel,
-.er-arm {
+.er-arm,
+.er-stop {
   min-block-size: 2.25rem;
   padding: var(--st-1) var(--st-3);
   border: 1px solid var(--st-rule-strong);
@@ -65,6 +66,7 @@
 .er-confirm:focus-visible,
 .er-cancel:focus-visible,
 .er-arm:focus-visible,
+.er-stop:focus-visible,
 .er-row:focus-visible {
   outline: none;
   box-shadow: var(--st-focus);
@@ -74,7 +76,8 @@
 .er-bulk:disabled,
 .er-clear-logs:disabled,
 .er-confirm:disabled,
-.er-arm:disabled {
+.er-arm:disabled,
+.er-stop:disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -191,6 +194,11 @@
   background: var(--st-danger-dot);
 }
 
+// Gestoppt ist bewusst neutral: weder Erfolg noch Fehler.
+.er-badge--cancelled::before {
+  background: var(--st-unknown-dot);
+}
+
 .er-when {
   margin-inline-start: auto;
   font-size: 0.75rem;
@@ -233,4 +241,17 @@
 
 .er-arm:hover:not(:disabled) {
   border-color: var(--st-danger-dot);
+}
+
+// Die Notbremse an laufenden Zeilen (2026-08-22): Warn-, nicht Gefahrfarbe —
+// der Teilstand bleibt ja erhalten.
+.er-stop {
+  margin-block-start: var(--st-1);
+  margin-inline-end: var(--st-2);
+  border-color: transparent;
+  color: var(--st-warn-text);
+}
+
+.er-stop:hover:not(:disabled) {
+  border-color: var(--st-warn-dot);
 }

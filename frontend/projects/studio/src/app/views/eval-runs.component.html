@@ -29,11 +29,11 @@
 </div>
 
 @if (armed(); as armedAction) {
-  @if (armedAction.kind !== 'one') {
+  @if (armedAction.kind === 'bulk' || armedAction.kind === 'logs') {
     <div class="er-danger">
       <p class="er-question" role="alert">{{ question() }}</p>
       <button type="button" class="er-confirm" [disabled]="working()" (click)="confirm()">
-        {{ t('action.confirmDelete') }}
+        {{ confirmLabel() }}
       </button>
       <button type="button" class="er-cancel" (click)="disarm()">{{ t('action.cancel') }}</button>
     </div>
@@ -106,13 +106,26 @@
           <div class="er-danger">
             <p class="er-question" role="alert">{{ question() }}</p>
             <button type="button" class="er-confirm" [disabled]="working()" (click)="confirm()">
-              {{ t('action.confirmDelete') }}
+              {{ confirmLabel() }}
             </button>
             <button type="button" class="er-cancel" (click)="disarm()">
               {{ t('action.cancel') }}
             </button>
           </div>
         } @else {
+          <!-- Notbremse (Nutzer-Befund 2026-08-22): vorher gab es KEINEN Weg,
+               einen laufenden Lauf anzuhalten. -->
+          @if (row.status === 'running') {
+            <button
+              type="button"
+              class="er-stop"
+              [disabled]="working()"
+              [attr.aria-label]="t('evalRuns.stopFor', { id: row.id })"
+              (click)="arm({ kind: 'stop', id: row.id })"
+            >
+              {{ t('evalRuns.stop') }}
+            </button>
+          }
           <!-- Der zugängliche Name nennt den Lauf, weil jede Zeile denselben
                sichtbaren Text trägt. Bis C1-d4b stand das Ziel in einem
                `<span class="sr">` daneben — ein Satz aus zwei Bruchstücken,

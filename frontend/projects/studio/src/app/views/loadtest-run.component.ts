@@ -11,11 +11,11 @@
  */
 import {
   ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output,
-  untracked,
+  signal, untracked,
 } from '@angular/core';
 import type { RichSegment } from '@boerdi/ui';
 
-import { AsyncData } from '../core/async-data';
+import { AsyncData, describeApiError } from '../core/async-data';
 import { LoadtestApi, type LoadTestRun } from '../core/loadtest-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
@@ -63,6 +63,14 @@ export class LoadtestRunComponent {
       : null;
   });
 
+  /** Die Notbremse auch hier, nicht nur in der Liste (Prod-Befund 3,
+   *  2026-08-22): wer einen Lauf beobachtet, sieht an dieser Stelle zuerst,
+   *  dass er aus dem Ruder läuft — und soll ihn dort anhalten können, wo er
+   *  ihn liest. Der Teilstand bleibt; die gemessenen Stufen sind Messwert. */
+  readonly armed = signal(false);
+  readonly working = signal(false);
+  readonly stopError = signal('');
+
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
@@ -98,6 +106,33 @@ export class LoadtestRunComponent {
   private stopPolling(): void {
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
+  }
+
+  arm(): void {
+    this.stopError.set('');
+    this.armed.set(true);
+  }
+
+  disarm(): void {
+    this.armed.set(false);
+  }
+
+  async confirmStop(): Promise<void> {
+    if (this.working()) return;
+    this.working.set(true);
+    this.stopError.set('');
+    try {
+      await this.api.cancel(this.runId());
+      this.armed.set(false);
+      // Neu lesen statt raten: die Antwort des Stopps sagt nichts über die
+      // Stufen, und die Zeile trägt danach ihren Endstand.
+      await this.load();
+      this.finished.emit();
+    } catch (err) {
+      this.stopError.set(describeApiError(err, this.t));
+    } finally {
+      this.working.set(false);
+    }
   }
 
   statusLabel(status: string): string {

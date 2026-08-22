@@ -20,6 +20,8 @@ const STATUS_KEYS: Readonly<Record<string, string>> = {
   done: 'evalRuns.status.done',
   completed: 'evalRuns.status.done',
   failed: 'evalRuns.status.failed',
+  // Der Stoppen-Knopf (2026-08-22): abgebrochen, Teilstand erhalten.
+  cancelled: 'evalRuns.status.cancelled',
 };
 
 /** Beschriftung des Status, oder der rohe Wert — ein unbekannter Status muss

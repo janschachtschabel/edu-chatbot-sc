@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from boerdi.services.eval import scenario_gen as sg
 from tests.eval_fakes import FakeLLM
 
@@ -109,6 +111,31 @@ _GEN_PERSONA = {"id": "P-LEH", "label": "Lehrkraft", "description": "unterrichte
                 "positive_markers": ["meine Klasse"]}
 _GEN_INTENT = {"id": "I01", "label": "Material suchen", "description": "sucht",
                "trigger_verbs": ["suche", "finde"]}
+
+
+def test_generate_scenarios_laesst_den_abbruch_durch(monkeypatch):
+    """Der Fortschritts-Rückruf wird hier bewusst verschluckt („darf die
+    Generierung nie brechen") — ein ABBRUCH muss trotzdem durchkommen.
+
+    Review-Befund 2026-08-22: die Szenario-Generierung ist mit 144 Kombis die
+    LÄNGSTE Phase (5–7 min LLM). Ohne diese Ausnahme von der Ausnahme hätte
+    ein Stopp sie nicht erreicht, und der Lauf hätte nach dem Klick noch
+    minutenlang Kombis generiert.
+    """
+    from boerdi.services.eval.cancel import RunCancelled
+
+    fake = FakeLLM(replies=["1. Diese Antwort darf nie angefordert werden"])
+    monkeypatch.setattr(sg, "chat_completion", fake)
+
+    async def stoppt(*_args):
+        raise RunCancelled("Lauf gestoppt")
+
+    with pytest.raises(RunCancelled):
+        _run(sg.generate_scenarios([_GEN_PERSONA], [_GEN_INTENT],
+                                   count_per_combo=1, progress_cb=stoppt))
+    # Der Rückruf läuft VOR dem LLM-Aufruf: ein durchgereichter Abbruch kostet
+    # keinen einzigen Token mehr.
+    assert fake.calls == []
 
 
 def test_generate_scenarios_parses_numbers_bullets_and_quotes(monkeypatch):

@@ -19,6 +19,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.models import EvalRun
+from boerdi.obs.tasks import cancel_run_task, register_run_task
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,17 @@ _STALE_RUN_HOURS = 2
 
 def _chat_url() -> str:
     return os.getenv("EVAL_CHAT_URL") or _CHAT_URL_DEFAULT
+
+
+# Der Abbruch-Weg liegt in ``obs/tasks``, seit der Lasttest als zweiter
+# Aufrufer dazukam (Prod-Befund 3, 2026-08-22). Hier bleiben nur die beiden
+# Namen, unter denen der Eval-Zweig sie kennt — samt seiner Protokoll-Marke.
+_register_run_task = register_run_task
+
+
+async def _cancel_run_task(run_id: str) -> bool:
+    """Beendet den registrierten Hintergrund-Task eines Eval-Laufs."""
+    return await cancel_run_task(run_id, label="eval")
 
 
 async def _ensure_chat_reachable() -> None:
@@ -83,7 +95,7 @@ async def _ensure_no_running_run(session: AsyncSession) -> None:
     if row:
         raise HTTPException(
             409,
-            f"Eval-Run {row[0]} läuft bereits — bitte abwarten oder löschen. "
+            f"Eval-Run {row[0]} läuft bereits — bitte abwarten oder abbrechen. "
             "Parallele Runs teilen sich Chat-Backend und DB und würden sich "
             "gegenseitig verfälschen.",
         )
@@ -96,14 +108,31 @@ async def _finalize_run(
     conversations: list[Any] | None = None,
     error_message: str | None = None,
     current_activity: str | None = None,
-) -> None:
-    """Terminal write for a run row (status + completed_at + JSONB fields)."""
+) -> bool:
+    """Terminal write for a run row (status + completed_at + JSONB fields).
+
+    Gibt zurück, OB geschrieben wurde. Ein ``cancelled`` ist terminal
+    (Review-Befund 2026-08-22): bis dahin schrieb diese Funktion den Status
+    bedingungslos, und ein Job, der die Cancellation erst am nächsten
+    Prüfpunkt bemerkte — oder in einer anderen Replika lief —, drehte den
+    gestoppten Lauf auf ``done`` zurück. Die Gegenrichtung ist genauso
+    gesperrt: ein Stopp darf keinen Lauf umetikettieren, der gerade regulär
+    fertig geworden ist.
+    """
     r = (
         await session.execute(select(EvalRun).where(EvalRun.id == run_id))
     ).scalar_one_or_none()
     if r is None:
         logger.warning("[eval %s] run row vanished before finalize", run_id)
-        return
+        return False
+    if status == "cancelled":
+        if r.status != "running":
+            logger.info("[eval %s] Stopp kommt zu spät (Status: %s)", run_id, r.status)
+            return False
+    elif r.status == "cancelled":
+        logger.info("[eval %s] Endstand 'cancelled' bleibt — '%s' verworfen",
+                    run_id, status)
+        return False
     r.status = status
     r.completed_at = datetime.now(UTC)
     if error_message is not None:
@@ -123,3 +152,4 @@ async def _finalize_run(
     if conversations is not None:
         r.conversations = conversations
     await session.commit()
+    return True

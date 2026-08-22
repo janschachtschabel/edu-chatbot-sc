@@ -64,9 +64,14 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
             "Er würde die echte /api/chat-Pipeline mit Live-Nutzern um LLM-Kapazität "
             "konkurrieren lassen — bitte auf einer Staging-Instanz ausführen."
         ),
-        "loadtest.alreadyRunning": "Lasttest {id} läuft bereits — bitte abwarten.",
+        "loadtest.alreadyRunning": (
+            "Lasttest {id} läuft bereits — bitte abwarten oder stoppen."
+        ),
         "loadtest.runMissing": "Run nicht gefunden.",
         "loadtest.runIsRunning": "Laufender Run kann nicht gelöscht werden.",
+        "loadtest.notRunning": (
+            "Lasttest {id} läuft nicht (Status: {status}) — nichts zu stoppen."
+        ),
         # ── Qualitäts-Logs (C1-e2) ─────────────────────────────────────
         # „wuerde"/„loeschen" ohne Umlaut ist ALT-Wortlaut (`app/routers/
         # quality.py:78`) und bleibt es — der Port ist byte-nah, nicht schöner.
@@ -129,9 +134,14 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
             "It would make the real /api/chat pipeline compete with live users for LLM "
             "capacity — please run it on a staging instance."
         ),
-        "loadtest.alreadyRunning": "Load test {id} is already running — please wait.",
+        "loadtest.alreadyRunning": (
+            "Load test {id} is already running — please wait or stop it."
+        ),
         "loadtest.runMissing": "Run not found.",
         "loadtest.runIsRunning": "A running run cannot be deleted.",
+        "loadtest.notRunning": (
+            "Load test {id} is not running (status: {status}) — nothing to stop."
+        ),
         "quality.logNotFound": "Log not found.",
         "quality.bulkDeleteNeedsConfirm": (
             "A bulk delete with neither a filter nor a scope requires ?confirm=true — "

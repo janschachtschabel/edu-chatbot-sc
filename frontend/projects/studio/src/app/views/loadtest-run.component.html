@@ -18,7 +18,28 @@
           </span>
         }
       </p>
+      @if (isRunning()) {
+        <button type="button" class="lr-stop" [disabled]="working()" (click)="arm()">
+          {{ t('lt.stop') }}
+        </button>
+      }
     </header>
+
+    @if (armed()) {
+      <p class="lr-confirm">
+        <span role="alert">{{ t('lt.askStop', { id: r.id }) }}</span>
+        <button type="button" class="lr-stop-yes" [disabled]="working()" (click)="confirmStop()">
+          {{ working() ? t('lt.stopping') : t('lt.confirmStop') }}
+        </button>
+        <button type="button" class="lr-stop-no" [disabled]="working()" (click)="disarm()">
+          {{ t('action.cancel') }}
+        </button>
+      </p>
+    }
+
+    @if (stopError()) {
+      <p class="lr-failed" role="alert">{{ stopError() }}</p>
+    }
 
     <p class="lr-profile">{{ profileLine(r.profile) }}</p>
 

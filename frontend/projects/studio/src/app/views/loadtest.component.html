@@ -167,20 +167,38 @@
             }
           </button>
 
+          <!-- Notbremse (Prod-Befund 3): ein laufender Lauf liess sich bis
+               hierher nicht anhalten — löschen weist das Backend ab (409),
+               und der Job feuerte weiter echte Chat-Anfragen. -->
+          @if (row.status === 'running') {
+            <button
+              type="button"
+              class="lt-btn lt-stop"
+              [disabled]="working()"
+              [attr.aria-label]="t('lt.stopFor', { id: row.id })"
+              (click)="arm('stop', row.id)"
+            >{{ t('lt.stop') }}</button>
+          }
+
           <button
             type="button"
             class="lt-btn lt-del"
             [disabled]="working() || row.status === 'running'"
             [attr.aria-label]="t('lt.deleteFor', { id: row.id })"
-            (click)="arm(row.id)"
+            (click)="arm('delete', row.id)"
           >{{ t('lt.delete') }}</button>
 
-          @if (armed() === row.id) {
+          @if (isArmed(row.id)) {
             <p class="lt-confirm">
-              <span role="alert">{{ t('lt.confirm') }}</span>
-              <button type="button" class="lt-btn lt-del-yes" [disabled]="working()" (click)="confirmDelete()">
-                {{ working() ? t('lt.deleting') : t('action.confirmDelete') }}
-              </button>
+              <span role="alert">{{ question() }}</span>
+              <button
+                type="button"
+                class="lt-btn"
+                [class.lt-del-yes]="armed()?.kind === 'delete'"
+                [class.lt-stop-yes]="armed()?.kind === 'stop'"
+                [disabled]="working()"
+                (click)="confirm()"
+              >{{ confirmLabel() }}</button>
               <button type="button" class="lt-btn" [disabled]="working()" (click)="disarm()">
                 {{ t('action.cancel') }}
               </button>

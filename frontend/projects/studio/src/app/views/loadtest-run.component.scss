@@ -38,6 +38,69 @@
   &--failed {
     color: var(--st-danger-text);
   }
+
+  /* Gestoppt ist kein Fehlschlag: der Lauf wurde angehalten, nicht kaputt. */
+  &--cancelled {
+    color: var(--st-warn-text);
+  }
+}
+
+.lr-stop {
+  margin-inline-start: auto;
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid transparent;
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  color: var(--st-warn-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--st-warn-dot);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--st-focus);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+}
+
+.lr-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  margin-block: var(--st-2);
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  color: var(--st-warn-text);
+  font-size: 0.875rem;
+}
+
+.lr-stop-yes,
+.lr-stop-no {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
 }
 
 .lr-progress {

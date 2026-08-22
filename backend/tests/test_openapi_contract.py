@@ -91,6 +91,7 @@ POST   /api/eval/runs
 POST   /api/eval/runs/golden
 DELETE /api/eval/runs/{run_id}
 GET    /api/eval/runs/{run_id}
+POST   /api/eval/runs/{run_id}/cancel
 GET    /api/eval/trends
 GET    /api/health
 HEAD   /api/health
@@ -98,6 +99,7 @@ GET    /api/loadtest/mix-options
 GET    /api/loadtest/runs
 POST   /api/loadtest/runs
 DELETE /api/loadtest/runs/{run_id}
+POST   /api/loadtest/runs/{run_id}/cancel
 GET    /api/loadtest/runs/{run_id}
 GET    /api/quality/degradations
 GET    /api/quality/empty-entities

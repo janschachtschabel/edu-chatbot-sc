@@ -159,6 +159,123 @@ describe("EvaluationComponent", () => {
     expect(h.el.querySelector("studio-eval-run-detail")).toBeNull();
   });
 
+  it("schließt das Detail eines Laufs, den die Liste gelöscht hat (Befund 2026-08-22)", async () => {
+    // Gemessen auf Prod: nach dem Löschen blieb das Panel offen und zeigte nur
+    // noch das rohe „run not found" mit einem Erneut-versuchen-Knopf ins Leere.
+    const h = await mount([{ id: "eval-abc" }]);
+    h.el.querySelector<HTMLButtonElement>("#panel-laeufe .er-row")!.click();
+    await h.fixture.whenStable();
+    h.http
+      .expectOne((r) => r.url === "/studio/api/eval/runs/eval-abc")
+      .flush({
+        id: "eval-abc",
+        created_at: "2026-07-26T10:00:00Z",
+        completed_at: null,
+        status: "done",
+        mode: "golden",
+        config_slug: "",
+        personas: [],
+        intents: [],
+        turns_per_conv: 0,
+        judge_model: "",
+        simulator_model: "",
+        total_turns: 0,
+        avg_score: null,
+        error_message: null,
+        summary: {},
+        conversations: [],
+      });
+    await settle(h);
+    expect(h.el.querySelector("studio-eval-run-detail")).toBeTruthy();
+
+    h.el.querySelector<HTMLButtonElement>(".er-arm")!.click();
+    await h.fixture.whenStable();
+    h.el.querySelector<HTMLButtonElement>(".er-confirm")!.click();
+    await h.fixture.whenStable();
+    h.http
+      .expectOne(
+        (r) =>
+          r.url === "/studio/api/eval/runs/eval-abc" && r.method === "DELETE",
+      )
+      .flush({ deleted: "eval-abc" });
+    await settle(h);
+    h.http.expectOne((r) => r.url === RUNS_URL).flush({ runs: [] });
+    await settle(h);
+
+    expect(h.el.querySelector("studio-eval-run-detail")).toBeNull();
+  });
+
+  it("liest das offene Detail neu, wenn die Liste seinen Lauf stoppt", async () => {
+    // Ohne das stünde im Panel weiter „läuft" samt Aktivitätszeile, obwohl der
+    // Lauf gestoppt ist (Review-Befund 2026-08-22). Schließen wäre falsch: ein
+    // gestoppter Lauf behält seinen Teilstand und bleibt lesenswert.
+    const laufend = {
+      id: "eval-abc",
+      status: "running",
+      total_turns: 5,
+      target_turns: 39,
+      current_activity: "Judge bewertet 39 Züge …",
+      avg_score: null,
+    };
+    const detail = (status: string) => ({
+      id: "eval-abc",
+      created_at: "2026-07-26T10:00:00Z",
+      completed_at: null,
+      status,
+      mode: "golden",
+      config_slug: "",
+      personas: [],
+      intents: [],
+      turns_per_conv: 0,
+      judge_model: "",
+      simulator_model: "",
+      total_turns: 5,
+      avg_score: null,
+      error_message: null,
+      summary: { current_activity: "Judge bewertet 39 Züge …" },
+      conversations: [],
+    });
+
+    const h = await mount([laufend]);
+    h.el.querySelector<HTMLButtonElement>("#panel-laeufe .er-row")!.click();
+    await h.fixture.whenStable();
+    h.http
+      .expectOne((r) => r.url === "/studio/api/eval/runs/eval-abc")
+      .flush(detail("running"));
+    await settle(h);
+    expect(h.el.querySelector("studio-eval-run-detail")!.textContent).toContain(
+      "läuft",
+    );
+
+    h.el.querySelector<HTMLButtonElement>(".er-stop")!.click();
+    await h.fixture.whenStable();
+    h.el.querySelector<HTMLButtonElement>(".er-confirm")!.click();
+    await h.fixture.whenStable();
+    h.http
+      .expectOne(
+        (r) =>
+          r.url === "/studio/api/eval/runs/eval-abc/cancel" &&
+          r.method === "POST",
+      )
+      .flush({ cancelled: "eval-abc", task_stopped: true });
+    await settle(h);
+
+    h.http
+      .expectOne((r) => r.url === RUNS_URL)
+      .flush({ runs: [runRow({ ...laufend, status: "cancelled" })] });
+    // Das Panel liest sich selbst neu — das ist der Kern dieser Prüfung.
+    h.http
+      .expectOne(
+        (r) => r.url === "/studio/api/eval/runs/eval-abc" && r.method === "GET",
+      )
+      .flush(detail("cancelled"));
+    await settle(h);
+
+    const panel = h.el.querySelector("studio-eval-run-detail")!;
+    expect(panel).toBeTruthy();
+    expect(panel.textContent).toContain("gestoppt");
+  });
+
   it("puts both start forms in the same panel as the list they feed", async () => {
     // A run takes minutes and the list is its only progress display — a start
     // button on another tab would report nothing after the click.

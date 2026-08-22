@@ -147,6 +147,15 @@ def test_delete_run_passes_run_id(client, monkeypatch):
     assert calls == [(_SESSION, "eval-1")]
 
 
+def test_cancel_run_passes_run_id(client, monkeypatch):
+    calls = _fake_async(monkeypatch, "cancel_run",
+                        {"cancelled": "eval-1", "task_stopped": True})
+    r = client.post("/api/eval/runs/eval-1/cancel", headers=_AUTH)
+    assert r.status_code == 200
+    assert r.json() == {"cancelled": "eval-1", "task_stopped": True}
+    assert calls == [(_SESSION, "eval-1")]
+
+
 def test_trends_passes_di_session_and_default_limit(client, monkeypatch):
     calls = _fake_async(monkeypatch, "get_trends", {"runs": []})
     r = client.get("/api/eval/trends", headers=_AUTH)
@@ -298,6 +307,9 @@ def _patch_guard_and_spawn(monkeypatch, mod):
     def spawn(coro):
         spawned.append(coro)
         coro.close()  # we never run it; close to avoid "never awaited" warnings
+        # Der echte _spawn_background gibt den Task zurück (Abbruch-Registry
+        # 2026-08-22) — der Fake erfüllt den Vertrag mit einem No-op-Task.
+        return asyncio.create_task(asyncio.sleep(0))
 
     async def reachable():
         return None
@@ -425,6 +437,10 @@ def test_progress_writer_throttles_the_transcript(monkeypatch):
     class Row:
         def __init__(self):
             self.totals, self.summary, self.conversations = {}, {}, None
+            # Seit dem Abbruch-Fix (2026-08-22) liest der Schreiber den Status
+            # mit: er ist der Prüfpunkt, an dem ein Lauf einen Stopp aus einem
+            # ANDEREN Prozess bemerkt. Hier der ungestörte Fall.
+            self.status = "running"
 
     row = Row()
 
@@ -579,6 +595,11 @@ def _wire_golden(monkeypatch, *, judge=None):
 
     async def fake_progress(session_factory, run_id, **kw):
         progress.append({"run_id": run_id, **kw})
+        # Der Zwischenstand-Schreiber meldet seit dem Abbruch-Fix (2026-08-22)
+        # zurück, ob der Lauf NOCH LÄUFT; ``False`` beendet ihn. Diese
+        # Attrappe steht für den ungestörten Lauf. Dass ein ``False`` den Lauf
+        # wirklich anhält, prüft test_eval_pg gegen die echte Datenbank.
+        return True
 
     monkeypatch.setattr(golden_run, "_write_golden_progress", fake_progress)
     monkeypatch.setattr(eval_golden, "load_persona_definitions",

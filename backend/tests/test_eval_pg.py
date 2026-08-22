@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from tests import pg_utils
 
@@ -220,6 +220,268 @@ def test_delete_runs_generative_means_not_golden(test_db) -> None:
     assert count == 1 and remaining_ids == {"g1"}
 
 
+# ── cancel_run + Task-Abbruch beim Löschen (Nutzer-Befund 2026-08-22) ─────
+# „Alle Läufe löschen" entfernte nur die ZEILE eines laufenden Laufs: der
+# Hintergrund-Task feuerte weiter Chat- und Judge-Aufrufe (Kosten!), seine
+# Zwischenstände liefen ins Leere, und ohne running-Zeile hätte der
+# Parallel-Wächter einen zweiten Lauf zugelassen. Abbrechen gab es gar nicht.
+
+
+def _haengender_task(run_id: str):
+    """Ein registrierter Hintergrund-Task, der nie von selbst endet."""
+    from boerdi.obs.tasks import register_run_task
+
+    async def haengt() -> None:
+        await asyncio.Event().wait()
+
+    task = asyncio.get_running_loop().create_task(haengt())
+    register_run_task(run_id, task)
+    return task
+
+
+def test_cancel_run_stoppt_task_und_schreibt_cancelled(test_db) -> None:
+    # Die Registry liegt in ``obs/tasks``, seit der Lasttest als zweiter
+    # Aufrufer dazukam; ``run_store`` führt sie nur noch unter seinen alten
+    # Namen weiter. Der Test prüft den kanonischen Ort.
+    from boerdi.obs.tasks import RUN_TASKS
+    from boerdi.services.eval_service import cancel_run, get_run
+
+    async def scenario(session):
+        await _add_run(session, "eval-c", status="running", mode="golden",
+                       summary={"current_activity": "Judge bewertet 39 Züge …"})
+        task = _haengender_task("eval-c")
+        out = await cancel_run(session, "eval-c")
+        detail = await get_run(session, "eval-c")
+        await asyncio.sleep(0)  # Done-Callback der Registry läuft per call_soon
+        return out, task.cancelled(), detail, "eval-c" in RUN_TASKS
+
+    out, cancelled, detail, registered = _run(scenario)
+    assert out == {"cancelled": "eval-c", "task_stopped": True}
+    assert cancelled
+    assert detail["status"] == "cancelled"
+    assert detail["completed_at"] is not None
+    assert detail["summary"]["current_activity"] == "Abgebrochen"
+    assert not registered
+
+
+def test_cancel_run_ohne_lebenden_task_schliesst_die_zeile(test_db) -> None:
+    # Prozess-Neustart: Zeile 'running', aber kein Task in DIESEM Prozess. Die
+    # Zeile wird trotzdem abgeschlossen — sonst bliebe der Parallel-Wächter bis
+    # zum Stale-Sweep (2 h) blockiert.
+    from boerdi.services.eval_service import cancel_run, get_run
+
+    async def scenario(session):
+        await _add_run(session, "eval-verwaist", status="running", mode="generative")
+        out = await cancel_run(session, "eval-verwaist")
+        return out, await get_run(session, "eval-verwaist")
+
+    out, detail = _run(scenario)
+    assert out == {"cancelled": "eval-verwaist", "task_stopped": False}
+    assert detail["status"] == "cancelled"
+
+
+def test_cancel_run_409_wenn_nicht_running_und_404_wenn_fehlt(test_db) -> None:
+    from boerdi.services.eval_service import cancel_run
+
+    async def fertig(session):
+        await _add_run(session, "eval-fertig", status="done", mode="golden")
+        with pytest.raises(HTTPException) as ei:
+            await cancel_run(session, "eval-fertig")
+        return ei.value.status_code, ei.value.detail
+
+    async def fehlt(session):
+        with pytest.raises(HTTPException) as ei:
+            await cancel_run(session, "eval-nix")
+        return ei.value.status_code
+
+    code, detail = _run(fertig)
+    assert code == 409 and "done" in detail
+    assert _run(fehlt) == 404
+
+
+def test_delete_run_bricht_den_lebenden_task_ab(test_db) -> None:
+    from boerdi.services.eval_service import delete_run, list_runs
+
+    async def scenario(session):
+        await _add_run(session, "eval-weg", status="running", mode="generative")
+        task = _haengender_task("eval-weg")
+        out = await delete_run(session, "eval-weg")
+        return out, task.cancelled(), await list_runs(session, 50)
+
+    out, cancelled, listed = _run(scenario)
+    assert out == {"deleted": "eval-weg"}
+    assert cancelled, "der Hintergrund-Task lief nach dem Löschen weiter"
+    assert listed["runs"] == []
+
+
+def test_finalize_run_dreht_einen_gestoppten_lauf_nicht_zurueck(test_db) -> None:
+    """Review-Befund 2026-08-22: ``_finalize_run`` schrieb den Status
+    bedingungslos. Ein Job, der die Cancellation erst am nächsten Prüfpunkt
+    bemerkt — oder in einer ANDEREN Replika läuft — drehte den gestoppten Lauf
+    damit auf ``done`` zurück: die Oberfläche meldete „gestoppt", der Lauf
+    stand danach als „fertig" da, und der Parallel-Wächter war die ganze Zeit
+    offen."""
+    from boerdi.services.eval_service import _finalize_run, get_run
+
+    async def scenario(session):
+        await _add_run(session, "eval-terminal", status="cancelled", mode="golden",
+                       summary={"current_activity": "Abgebrochen"})
+        geschrieben = await _finalize_run(
+            session, "eval-terminal", status="done", total_turns=39,
+            avg_score=0.95, summary={"current_activity": "Fertig"},
+        )
+        return geschrieben, await get_run(session, "eval-terminal")
+
+    geschrieben, detail = _run(scenario)
+    assert geschrieben is False
+    assert detail["status"] == "cancelled"
+    assert detail["summary"]["current_activity"] == "Abgebrochen"
+    assert detail["total_turns"] == 0, "der späte Job überschrieb die Zähler"
+
+
+def test_cancel_run_trifft_keinen_lauf_der_gerade_fertig_wurde(
+    test_db, monkeypatch,
+) -> None:
+    """Die Gegenrichtung: wird der Lauf WÄHREND des Abbruchs regulär fertig,
+    darf der Stopp ihn nicht nachträglich umetikettieren."""
+    import boerdi.services.eval.mutations as mut
+    from boerdi.services.eval_service import cancel_run, get_run
+
+    async def scenario(session):
+        await _add_run(session, "eval-knapp", status="running", mode="golden")
+
+        async def wird_fertig(run_id: str) -> bool:
+            # Simuliert das Zeitfenster: der Job schließt sich selbst ab,
+            # während der Abbruch auf ihn wartet.
+            await session.execute(
+                text("UPDATE eval_runs SET status='done' WHERE id=:i"),
+                {"i": run_id},
+            )
+            await session.commit()
+            return False
+
+        monkeypatch.setattr(mut, "_cancel_run_task", wird_fertig)
+        with pytest.raises(HTTPException) as ei:
+            await cancel_run(session, "eval-knapp")
+        return ei.value.status_code, await get_run(session, "eval-knapp")
+
+    code, detail = _run(scenario)
+    assert code == 409
+    assert detail["status"] == "done", "ein fertiger Lauf wurde als gestoppt geführt"
+
+
+def test_golden_lauf_haelt_am_pruefpunkt_an_wenn_die_zeile_gestoppt_ist(
+    test_db, monkeypatch,
+) -> None:
+    """Der eigentliche Schutz gegen den Replika-Fall (Review 2026-08-22).
+
+    Der In-Prozess-Abbruch erreicht nur den Task DIESES Prozesses. Deshalb
+    liest der Lauf an seinen eigenen Prüfpunkten (je Flow) mit, ob seine Zeile
+    noch ``running`` ist — und hört sonst auf. Ohne das lief ein Lauf nach dem
+    Stopp auf jeder anderen Replika weiter und verbrannte Züge.
+    """
+    import boerdi.services.eval.golden_run as golden_run
+
+    flows = [{"id": "GS-1", "turns": [{"message": "a"}]},
+             {"id": "GS-2", "turns": [{"message": "b"}]}]
+    gefeuert: list[str] = []
+
+    async def scenario(session):
+        from boerdi.db.session import make_session_factory
+        engine = _engine()
+        factory = make_session_factory(engine)
+
+        async def run_flows(_url, flow_liste, *, headers=None):
+            from boerdi.db.models import EvalRun
+            fid = str(flow_liste[0]["id"])
+            gefeuert.append(fid)
+            # Nach dem ERSTEN Flow stoppt jemand den Lauf (anderer Prozess) —
+            # genau so, wie ``cancel_run`` es täte: Status UND Schlusswort.
+            async with factory() as s:
+                r = (
+                    await s.execute(select(EvalRun).where(EvalRun.id == "eval-stop"))
+                ).scalar_one()
+                r.status = "cancelled"
+                r.summary = {**(r.summary or {}), "current_activity": "Abgebrochen"}
+                await s.commit()
+            return [{"flow_id": fid, "turns": [{"user": "a", "bot": "b"}]}]
+
+        monkeypatch.setattr(golden_run, "_load_golden_runner",
+                            lambda: type("R", (), {"run_flows": staticmethod(run_flows)}))
+        await _add_run(session, "eval-stop", status="running", mode="golden",
+                       summary={"current_activity": "Starte Gold-Flows …"})
+        try:
+            await golden_run._execute_golden_run(
+                factory, "eval-stop", flows, False, engine="pattern",
+            )
+        finally:
+            await engine.dispose()
+        from boerdi.services.eval_service import get_run
+        return await get_run(session, "eval-stop")
+
+    detail = _run(scenario)
+    assert gefeuert == ["GS-1"], f"Lauf feuerte nach dem Stopp weiter: {gefeuert}"
+    assert detail["status"] == "cancelled"
+    # Der Zwischenstand rettet weiter Zahlen und Transkripte des Flows, der noch
+    # fertig geworden ist — nur das Schlusswort gehört dem Abbrecher.
+    assert [c["flow_id"] for c in detail["conversations"]] == ["GS-1"]
+    assert detail["total_turns"] == 1
+    assert detail["summary"]["current_activity"] == "Abgebrochen"
+
+
+def test_generativer_fortschritt_meldet_den_abbruch(test_db) -> None:
+    """Dieselbe Wache für die generative Familie — ihr Prüfpunkt ist der
+    Fortschritts-Rückruf, den der Runner an vier Stellen aufruft."""
+    from boerdi.db.models import EvalRun
+    from boerdi.services.eval.cancel import RunCancelled
+    from boerdi.services.eval_service import _progress_writer, get_run
+
+    async def scenario(session):
+        from boerdi.db.session import make_session_factory
+        engine = _engine()
+        factory = make_session_factory(engine)
+        try:
+            await _add_run(session, "eval-gen", status="running", mode="generative",
+                           summary={"current_activity": "Wartet …"})
+            progress = _progress_writer(factory, "eval-gen", 10)
+            await progress([], "Dialog 1/4 …")  # läuft noch → kein Abbruch
+            # Stopp aus einem anderen Prozess, wie ``cancel_run`` ihn schreibt.
+            r = (
+                await session.execute(select(EvalRun).where(EvalRun.id == "eval-gen"))
+            ).scalar_one()
+            r.status = "cancelled"
+            r.summary = {**(r.summary or {}), "current_activity": "Abgebrochen"}
+            await session.commit()
+            with pytest.raises(RunCancelled):
+                await progress([{"turns": [{"judge": {"total": 1.0}}]}], "Dialog 2/4 …")
+            # Frische Sitzung zum Nachlesen: die Test-Sitzung hält die Zeile aus
+            # ihrer EIGENEN Änderung im Speicher und zeigte sonst deren Stand
+            # statt den, den der Fortschritts-Schreiber nebenan geschrieben hat.
+            async with factory() as pruef:
+                return await get_run(pruef, "eval-gen")
+        finally:
+            await engine.dispose()
+
+    detail = _run(scenario)
+    # Zahlen des letzten Zuges kommen noch an, das Schlusswort bleibt stehen.
+    assert detail["total_turns"] == 1
+    assert detail["summary"]["current_activity"] == "Abgebrochen"
+
+
+def test_delete_runs_bricht_lebende_tasks_ab(test_db) -> None:
+    from boerdi.services.eval_service import delete_runs
+
+    async def scenario(session):
+        await _add_run(session, "eval-bulk", status="running", mode="golden")
+        task = _haengender_task("eval-bulk")
+        out = await delete_runs(session, None, None, True)
+        return out["deleted"], task.cancelled()
+
+    count, cancelled = _run(scenario)
+    assert count == 1
+    assert cancelled, "die Sammel-Löschung ließ den Hintergrund-Task weiterlaufen"
+
+
 # ── clear_eval_quality_logs ───────────────────────────────────────────────
 
 
@@ -323,6 +585,9 @@ def test_start_golden_eval_run_persists_running_row(test_db, monkeypatch) -> Non
     def fake_spawn(coro):
         spawned.append(coro)
         coro.close()
+        # Der echte _spawn_background gibt den Task zurück (Abbruch-Registry
+        # 2026-08-22) — der Fake erfüllt den Vertrag mit einem No-op-Task.
+        return asyncio.create_task(asyncio.sleep(0))
 
     monkeypatch.setattr(golden_run, "_spawn_background", fake_spawn)
 

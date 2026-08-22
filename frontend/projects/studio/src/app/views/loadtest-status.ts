@@ -16,6 +16,7 @@ const STATUS_KEYS: Readonly<Record<string, string>> = {
   running: 'lt.status.running',
   completed: 'lt.status.completed',
   failed: 'lt.status.failed',
+  cancelled: 'lt.status.cancelled',
 };
 
 /** Beschriftung des Status, oder der rohe Wert — ein unbekannter Status muss

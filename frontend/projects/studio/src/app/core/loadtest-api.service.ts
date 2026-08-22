@@ -67,7 +67,9 @@ export interface RunSummary {
 
 export interface LoadTestRun {
   readonly id: string;
-  readonly status: 'running' | 'completed' | 'failed';
+  /** `cancelled` seit dem Stoppen-Knopf (Prod-Befund 3, 2026-08-22):
+   *  der Lauf endete vor der letzten Stufe, die gemessenen bleiben. */
+  readonly status: 'running' | 'completed' | 'failed' | 'cancelled';
   readonly created_at: string;
   readonly finished_at: string | null;
   readonly profile: RunProfile;
@@ -122,5 +124,15 @@ export class LoadtestApi {
 
   remove(id: string): Promise<unknown> {
     return this.api.delete(`/loadtest/runs/${encodeURIComponent(id)}`);
+  }
+
+  /** Stoppt einen laufenden Lauf; die gemessenen Stufen bleiben als
+   *  `cancelled` stehen. `task_stopped=false` heisst: im Backend-Prozess
+   *  lebte kein Job mehr (Neustart oder andere Replika) — die Zeile wird
+   *  trotzdem geschlossen, sonst bliebe der Ein-Lauf-Waechter zu. */
+  cancel(id: string): Promise<{ cancelled: string; task_stopped: boolean }> {
+    return this.api.post<{ cancelled: string; task_stopped: boolean }>(
+      `/loadtest/runs/${encodeURIComponent(id)}/cancel`, {},
+    );
   }
 }

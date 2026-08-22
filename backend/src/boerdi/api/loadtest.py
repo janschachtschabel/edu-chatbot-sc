@@ -20,10 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.deps import Lang, get_session, require_studio_key
 from boerdi.i18n import Locale, msg
-from boerdi.obs.tasks import _spawn_background
+from boerdi.obs.tasks import _spawn_background, register_run_task
 from boerdi.services.loadtest import (
     MIX_TEMPLATES,
     any_run_running,
+    cancel_run,
     create_run,
     delete_run,
     execute_load_test,
@@ -98,7 +99,11 @@ async def start_loadtest_run(
         raise HTTPException(400, str(e)) from e
     run_id = f"lt-{uuid.uuid4().hex[:12]}"
     await create_run(session, run_id, norm)
-    _spawn_background(execute_load_test(request.app, run_id, norm))
+    # Registriert, damit der Stoppen-Knopf den Job wirklich erreicht — ohne
+    # das schriebe ein Abbruch nur die Zeile um (Prod-Befund 3, 2026-08-22).
+    register_run_task(run_id, _spawn_background(
+        execute_load_test(request.app, run_id, norm)
+    ))
     return {"id": run_id, "status": "running", "profile": norm}
 
 
@@ -108,6 +113,25 @@ async def get_loadtest_run(run_id: str, session: _Session, lang: Lang) -> dict:
     if not run:
         raise HTTPException(404, msg(lang, "loadtest.runMissing"))
     return run
+
+
+@router.post("/runs/{run_id}/cancel")
+async def cancel_loadtest_run(run_id: str, session: _Session, lang: Lang) -> dict:
+    """Laufenden Lasttest stoppen (Status → cancelled, Teilstand bleibt).
+
+    Bis 2026-08-22 gab es keinen Weg: der Löschknopf weist eine laufende
+    Zeile ab, und ein Lauf, der aus dem Ruder lief, musste ausgefeuert
+    werden. ``task_stopped=false`` heißt, dass in diesem Prozess kein Job
+    mehr lebte — die Zeile wird trotzdem geschlossen (siehe ``cancel_run``).
+    """
+    run = await load_run(session, run_id)
+    if not run:
+        raise HTTPException(404, msg(lang, "loadtest.runMissing"))
+    if run.get("status") != "running":
+        raise HTTPException(
+            409, msg(lang, "loadtest.notRunning", id=run_id, status=run.get("status")),
+        )
+    return {"cancelled": run_id, "task_stopped": await cancel_run(session, run_id)}
 
 
 @router.delete("/runs/{run_id}")

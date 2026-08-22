@@ -23,11 +23,13 @@ from boerdi.db.models import EvalRun
 from boerdi.obs.tasks import _spawn_background
 from boerdi.services.config_loader import load_gold_flows
 from boerdi.services.eval import golden
+from boerdi.services.eval.cancel import RunCancelled
 from boerdi.services.eval.run_store import (
     _chat_url,
     _ensure_chat_reachable,
     _ensure_no_running_run,
     _finalize_run,
+    _register_run_task,
 )
 
 logger = logging.getLogger(__name__)
@@ -139,10 +141,11 @@ async def start_golden_eval_run(
         },
     ))
     await session.commit()
-    _spawn_background(
+    task = _spawn_background(
         _execute_golden_run(session_factory, run_id, flows, bool(req.judge),
                             engine=engine)
     )
+    _register_run_task(run_id, task)
     return {
         "run_id": run_id,
         "status": "running",
@@ -163,7 +166,7 @@ async def _write_golden_progress(
     target_turns: int,
     turns_done: int,
     activity: str,
-) -> None:
+) -> bool:
     """Zwischenstand eines Gold-Laufs (Feedback 2026-08-22).
 
     Bis dahin schrieb der Gold-Weg NUR beim Finale — die Lauf-Liste stand
@@ -172,6 +175,12 @@ async def _write_golden_progress(
     ``_progress_writer`` schreibt dieser die Transkripte IMMER mit: ein
     Gold-Lauf hat höchstens ~40 Züge, und der Zwischenstand kommt nur je
     Flow. Ein verlorener Zwischenstand darf den Lauf nie beenden.
+
+    Gibt zurück, ob der Lauf NOCH LÄUFT (Review-Befund 2026-08-22): der
+    In-Prozess-Abbruch erreicht nur den Task dieses Prozesses, deshalb liest
+    dieser Prüfpunkt die Zeile mit — kostet keine zusätzliche Abfrage, weil
+    er sie ohnehin lädt. Ein FEHLGESCHLAGENER Schreibvorgang meldet ``True``:
+    ein Lauf darf nicht abbrechen, nur weil die Datenbank kurz zuckte.
     """
     try:
         async with session_factory() as s:
@@ -179,16 +188,24 @@ async def _write_golden_progress(
                 await s.execute(select(EvalRun).where(EvalRun.id == run_id))
             ).scalar_one_or_none()
             if r is None:
-                return
+                return False  # Zeile gelöscht — der Lauf hat kein Ziel mehr
+            laeuft_noch = r.status == "running"
             r.totals = {**(r.totals or {}), "total_turns": turns_done}
             summary = dict(r.summary or {})
-            summary["current_activity"] = activity
+            # Zahlen und Transkripte kommen auch beim letzten Mal noch an — der
+            # Flow, der gerade fertig geworden ist, IST gemessen und wäre sonst
+            # verloren. Das Schlusswort dagegen gehört dem Abbrecher
+            # („Abgebrochen"), sobald der Lauf nicht mehr läuft.
+            if laeuft_noch:
+                summary["current_activity"] = activity
             summary["target_turns"] = target_turns
             r.summary = summary
             r.conversations = list(conversations)
             await s.commit()
+            return laeuft_noch
     except Exception:
         logger.warning("[golden %s] progress write failed", run_id, exc_info=True)
+        return True
 
 
 async def _execute_golden_run(
@@ -227,7 +244,7 @@ async def _execute_golden_run(
             flow_convs = await runner.run_flows(_chat_url(), [flow], headers=headers)
             conversations.extend(flow_convs)
             turns_done = sum(len(c.get("turns") or []) for c in conversations)
-            await _write_golden_progress(
+            if not await _write_golden_progress(
                 session_factory, run_id,
                 conversations=conversations, target_turns=target_turns,
                 turns_done=turns_done,
@@ -235,16 +252,20 @@ async def _execute_golden_run(
                     f"Flow {i}/{len(flows)}: {flow.get('id')} fertig "
                     f"({turns_done}/{target_turns} Züge)"
                 ),
-            )
+            ):
+                raise RunCancelled(f"nach Flow {i}/{len(flows)}")
         if judge_enabled:
             # Auch die Bewertungsphase dauert Minuten — ohne Ansage sähe der
-            # Lauf nach dem letzten Flow erneut eingefroren aus.
-            await _write_golden_progress(
+            # Lauf nach dem letzten Flow erneut eingefroren aus. Zugleich der
+            # letzte Prüfpunkt vor einer teuren Phase: wer JETZT stoppt, spart
+            # sich die Bewertung ganz.
+            if not await _write_golden_progress(
                 session_factory, run_id,
                 conversations=conversations, target_turns=target_turns,
                 turns_done=turns_done,
                 activity=f"Judge bewertet {turns_done} Züge …",
-            )
+            ):
+                raise RunCancelled("vor der Bewertung")
             judged = await golden.judge_conversations(conversations)
             logger.info("[golden %s] judged %d turn(s)", run_id, judged)
         summary = golden.summarize_golden_run(
@@ -266,6 +287,12 @@ async def _execute_golden_run(
             run_id, golden_metrics["overall_pass_rate"],
             golden_metrics["flows"], golden_metrics["turns"],
         )
+    except RunCancelled as e:
+        # Kein Fehlerfall: die Zeile trägt ihren Endstand bereits (``cancelled``)
+        # oder ist gelöscht. Der letzte Prüfpunkt hat die Teil-Transkripte
+        # geschrieben — daraus ein „failed" zu machen, wäre eine Lüge über
+        # alles, was bis dahin sauber gemessen wurde.
+        logger.info("[golden %s] gestoppt (%s) — Teilstand bleibt stehen", run_id, e)
     except Exception as e:
         logger.exception("[golden %s] failed", run_id)
         try:

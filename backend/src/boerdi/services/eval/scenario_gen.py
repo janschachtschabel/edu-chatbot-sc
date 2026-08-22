@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from boerdi.services.eval.cancel import RunCancelled
 from boerdi.services.eval.prompts import _SCENARIO_PROMPT
 from boerdi.services.eval.text_utils import _has_persona_marker
 from boerdi.services.llm import chat_completion
@@ -165,6 +166,13 @@ async def generate_scenarios(
                         combo_idx, total_combos,
                         p.get("id", ""), i.get("id", ""),
                     )
+                except RunCancelled:
+                    # Die eine Ausnahme von der Ausnahme (Review 2026-08-22):
+                    # ein ABBRUCH ist kein fehlgeschlagener Fortschritt. Diese
+                    # Schleife ist mit 144 Kombis die längste Phase eines
+                    # generativen Laufs (5–7 min LLM) — ohne dieses Weiterwerfen
+                    # generierte sie nach dem Stopp-Klick minutenlang weiter.
+                    raise
                 except Exception:
                     # Progress hook must never break generation
                     pass

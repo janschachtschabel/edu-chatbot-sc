@@ -48,6 +48,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.db.models import LoadtestRun
+from boerdi.obs.tasks import cancel_run_task
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,12 @@ MAX_CONCURRENCY = 32
 MAX_REQUESTS_PER_STAGE = 60
 MAX_TOTAL_REQUESTS = 200
 REQUEST_TIMEOUT_S = 120
+
+# Endstand eines gestoppten Laufs (Prod-Befund 3, 2026-08-22). Steht als
+# ``error`` in der Zeile, weil das Lauf-Panel dieses Feld ohnehin anzeigt —
+# ein gestoppter Lauf soll seinen Grund nennen, nicht bloß fehlen.
+CANCELLED_STATUS = "cancelled"
+_CANCELLED_NOTE = "Vom Studio gestoppt — der Lauf endete vor der letzten Stufe."
 
 
 def _now_iso() -> str:
@@ -208,10 +215,47 @@ async def list_runs(session: AsyncSession) -> list[dict[str, Any]]:
 
 
 async def delete_run(session: AsyncSession, run_id: str) -> bool:
-    """Delete a run row. Returns ``True`` iff a row was removed."""
+    """Delete a run row. Returns ``True`` iff a row was removed.
+
+    Erst den Task beenden, dann die Zeile: bis 2026-08-22 lief der
+    Hintergrund-Job nach dem Löschen einfach weiter und feuerte echte
+    Chat-Anfragen ins Leere (Prod-Befund 3, zuerst am Eval-Weg gefunden).
+    Der Router lässt zwar keine LAUFENDE Zeile löschen — ein gestoppter Lauf
+    kann seinen Task aber noch tragen, wenn der die Abbruch-Frist überzogen
+    hat.
+    """
+    await cancel_run_task(run_id, label="loadtest")
     res = await session.execute(delete(LoadtestRun).where(LoadtestRun.id == run_id))
     await session.commit()
     return bool(res.rowcount)
+
+
+async def cancel_run(session: AsyncSession, run_id: str) -> bool:
+    """Stoppt einen laufenden Lasttest. Gibt zurück, ob ein Task lebte.
+
+    Reihenfolge mit Absicht: erst die ZEILE auf ``cancelled``, dann der Task.
+    Der Läufer schreibt in seinem ``finally`` immer einen Endstand — stünde
+    die Zeile da noch auf ``running``, käme sein „completed" durch und der
+    gerade gestoppte Lauf wäre Sekunden später als abgeschlossen ausgewiesen.
+    Umgekehrt weist die bereits gestoppte Zeile ihn ab (``_persist``).
+
+    ``False`` heißt: in DIESEM Prozess lebte kein Task (Neustart, oder eine
+    andere Replika führt ihn). Die Zeile wird trotzdem geschlossen — sonst
+    bliebe der Ein-Lauf-Wächter bis zum nächsten Start-Sweep zu, und löschen
+    ließe sich der Lauf auch nicht (der Router weist laufende Zeilen ab).
+    Der Prüfpunkt in ``execute_load_test`` holt die andere Replika ein.
+
+    Den Status prüft der Router (404/409), bevor er hier landet.
+    """
+    row = await session.get(LoadtestRun, run_id)
+    if row is not None:
+        result = dict(row.result or {})
+        result["error"] = result.get("error") or _CANCELLED_NOTE
+        result.setdefault("finished_at", _now_iso())
+        row.status = CANCELLED_STATUS
+        row.result = result
+        await session.commit()
+    return await cancel_run_task(run_id, label="loadtest")
 
 
 async def any_run_running(session: AsyncSession) -> str | None:
@@ -231,6 +275,10 @@ async def sweep_orphaned_loadtests(session: AsyncSession) -> int:
     new run (``any_run_running`` → 409) and cannot be deleted (delete refuses a
     live run) → permanent deadlock (Audit 2026-07-03). Wired into the app
     lifespan (``main.py``), once per process start, best-effort.
+
+    Seit dem Stoppen-Knopf gibt es einen zweiten Ausgang (``cancel_run``
+    schließt die Zeile auch ohne lebenden Task); dieser hier bleibt der
+    automatische — niemand muss erst merken, dass eine Leiche im Weg liegt.
     """
     rows = (
         await session.execute(
@@ -256,17 +304,29 @@ async def _persist(
     *,
     status: str | None = None,
     result: dict[str, Any] | None = None,
-) -> None:
-    """Background-runner write: its own short-lived session from the factory."""
+) -> bool:
+    """Background-runner write: its own short-lived session from the factory.
+
+    Gibt zurück, OB geschrieben wurde — der Prüfpunkt des Läufers. ``False``
+    heißt: die Zeile ist gelöscht oder gestoppt, und dann darf dieser Job
+    weder Zwischenstand noch Endstand hinterlassen. Ohne die zweite Sperre
+    drehte sein ``finally`` einen gerade gestoppten Lauf auf „abgeschlossen"
+    zurück (Prod-Befund 3; auf dem Eval-Weg tut dasselbe ``_finalize_run``).
+    """
     async with factory() as session:
         row = await session.get(LoadtestRun, run_id)
         if row is None:
-            return
+            return False
+        if row.status == CANCELLED_STATUS:
+            logger.info("loadtest %s: Endstand 'cancelled' bleibt — '%s' verworfen",
+                        run_id, status or "Zwischenstand")
+            return False
         if status is not None:
             row.status = status
         if result is not None:
             row.result = dict(result)
         await session.commit()
+        return True
 
 
 # ── Live runner (fires the real /api/chat pipeline) ──────────────────
@@ -445,7 +505,15 @@ async def execute_load_test(app: Any, run_id: str, profile: dict[str, Any]) -> N
                                        engine=engine)
             stage_dt = time.perf_counter() - stage_t0
             result["stages"].append(_stage_stats(concurrency, n, kinds, results, stage_dt))
-            await _persist(factory, run_id, result=result)
+            if not await _persist(factory, run_id, result=result):
+                # Prüfpunkt (Prod-Befund 3): die Zeile ist gestoppt oder
+                # gelöscht. Jede weitere Stufe wären echte, verbrannte
+                # Chat-Anfragen — und niemand liest ihr Ergebnis mehr. Der
+                # ``finally``-Block räumt trotzdem ab; sein Schreibversuch
+                # prallt an derselben Sperre ab.
+                logger.info("loadtest %s am Prüfpunkt angehalten (Stufe %d)",
+                            run_id, stage_idx + 1)
+                return
         result["summary"] = _summary(result["stages"], profile["p95_threshold_s"], samples)
     except Exception as e:  # runner records the failure instead of crashing the task
         logger.exception("loadtest %s failed", run_id)

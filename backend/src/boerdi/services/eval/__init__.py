@@ -2,6 +2,8 @@
 
 Seven modules, mirroring ALT's own split so the port stays diffable:
 
+* ``cancel`` — das Abbruch-Signal ``RunCancelled`` (Blatt ohne Abhängigkeiten,
+  damit auch ``scenario_gen`` es kennen kann)
 * ``text_utils`` — marker/ID helpers shared by judge and metrics
 * ``prompts`` — the three LLM templates (scenario, simulator, judge)
 * ``scenario_gen`` — LLM scenario generation per persona×intent combo

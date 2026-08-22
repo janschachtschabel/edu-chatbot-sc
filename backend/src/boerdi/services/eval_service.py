@@ -41,6 +41,7 @@ from boerdi.services.eval.golden_run import (
     start_golden_eval_run,
 )
 from boerdi.services.eval.mutations import (
+    cancel_run,
     clear_eval_quality_logs,
     delete_run,
     delete_runs,
@@ -61,6 +62,7 @@ __all__ = [
     "_finalize_run",
     "_load_golden_runner",
     "_progress_writer",
+    "cancel_run",
     "clear_eval_quality_logs",
     "delete_run",
     "delete_runs",

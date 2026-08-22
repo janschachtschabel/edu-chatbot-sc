@@ -231,6 +231,22 @@
   &--failed {
     color: var(--st-danger-text);
   }
+
+  /* Gestoppt ist kein Fehlschlag — dieselbe Warn-Farbe wie „läuft", weil der
+     Lauf angehalten wurde und nicht kaputt ging (Prod-Befund 3). */
+  &--cancelled {
+    color: var(--st-warn-text);
+  }
+}
+
+/* Die Notbremse steht neben dem Löschen und darf nicht wie es aussehen. */
+.lt-stop {
+  border-color: transparent;
+  color: var(--st-warn-text);
+
+  &:hover:not(:disabled) {
+    border-color: var(--st-warn-dot);
+  }
 }
 
 .lt-confirm {

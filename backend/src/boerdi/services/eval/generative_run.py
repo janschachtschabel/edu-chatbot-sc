@@ -19,12 +19,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from boerdi.db.models import EvalRun
 from boerdi.obs.tasks import _spawn_background
 from boerdi.services.eval import runner
+from boerdi.services.eval.cancel import RunCancelled
 from boerdi.services.eval.cost import _compute_target_turns, list_personas_and_intents
 from boerdi.services.eval.run_store import (
     _chat_url,
     _ensure_chat_reachable,
     _ensure_no_running_run,
     _finalize_run,
+    _register_run_task,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,12 +109,13 @@ async def start_generative_run(
     await session.commit()
     # The resolved persona/intent dicts go to the job as-is: re-reading them by
     # id in the background would silently pick up a config edit made mid-run.
-    _spawn_background(_execute_generative_run(
+    task = _spawn_background(_execute_generative_run(
         session_factory, run_id,
         mode=req.mode, personas=personas, intents=intents,
         scenarios_per_combo=req.scenarios_per_combo,
         turns_per_conv=req.turns_per_conv, target_turns=target_turns,
     ))
+    _register_run_task(run_id, task)
     return {
         "run_id": run_id,
         "status": "running",
@@ -145,25 +148,45 @@ def _progress_writer(
         written += 1
         summary = runner.build_summary(conversations, target_turns, activity)
         include_conversations = written % _PERSIST_CONV_EVERY == 0
+        # Ein FEHLGESCHLAGENER Schreibvorgang lässt den Lauf weiterlaufen: er
+        # darf nicht abbrechen, nur weil die Datenbank kurz zuckte.
+        laeuft_noch = True
         try:
             async with session_factory() as s:
                 r = (
                     await s.execute(select(EvalRun).where(EvalRun.id == run_id))
                 ).scalar_one_or_none()
                 if r is None:
-                    return
-                r.totals = {
-                    **(r.totals or {}),
-                    "total_turns": summary["total_judged_turns"],
-                    "avg_score": summary["avg_score"],
-                }
-                r.summary = summary
-                if include_conversations:
-                    r.conversations = list(conversations)
-                await s.commit()
+                    laeuft_noch = False  # Zeile gelöscht — kein Ziel mehr
+                else:
+                    laeuft_noch = r.status == "running"
+                    if not laeuft_noch:
+                        # Zahlen kommen noch an (der Zug IST gemessen), das
+                        # Schlusswort gehört ab jetzt dem Abbrecher — anders als
+                        # beim Gold-Weg wird hier das GANZE Summary ersetzt, die
+                        # Aktivität muss also herübergerettet werden.
+                        summary = {
+                            **summary,
+                            "current_activity":
+                                (r.summary or {}).get("current_activity", ""),
+                        }
+                    r.totals = {
+                        **(r.totals or {}),
+                        "total_turns": summary["total_judged_turns"],
+                        "avg_score": summary["avg_score"],
+                    }
+                    r.summary = summary
+                    if include_conversations:
+                        r.conversations = list(conversations)
+                    await s.commit()
         except Exception:
             # A lost progress write must never kill the run it reports on.
             logger.warning("[eval %s] progress write failed", run_id, exc_info=True)
+        # Der Prüfpunkt gegen den Replika-Fall (Review-Befund 2026-08-22): der
+        # In-Prozess-Abbruch erreicht nur den Task DIESES Prozesses. Bewusst
+        # AUSSERHALB des try — sonst verschluckte der Fangarm den Abbruch.
+        if not laeuft_noch:
+            raise RunCancelled(activity)
 
     return progress
 
@@ -209,6 +232,10 @@ async def _execute_generative_run(
             "[eval %s] done, avg=%.2f, %d/%d turns", run_id,
             summary["avg_score"], summary["total_judged_turns"], target_turns,
         )
+    except RunCancelled as e:
+        # Kein Fehlerfall — siehe golden_run: die Zeile trägt ihren Endstand
+        # schon, und der letzte Prüfpunkt hat den Zwischenstand geschrieben.
+        logger.info("[eval %s] gestoppt (%s) — Teilstand bleibt stehen", run_id, e)
     except Exception as e:
         logger.exception("[eval %s] failed", run_id)
         try:

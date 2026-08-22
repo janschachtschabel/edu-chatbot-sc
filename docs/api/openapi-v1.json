@@ -4719,6 +4719,56 @@
         ]
       }
     },
+    "/api/eval/runs/{run_id}/cancel": {
+      "post": {
+        "description": "Laufenden Eval-Lauf abbrechen (Status → cancelled, Teilstand bleibt).",
+        "operationId": "cancel_eval_run_api_eval_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Cancel Eval Run Api Eval Runs  Run Id  Cancel Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Cancel Eval Run",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
     "/api/eval/trends": {
       "get": {
         "operationId": "eval_trends_api_eval_trends_get",
@@ -5011,6 +5061,56 @@
           }
         ],
         "summary": "Get Loadtest Run",
+        "tags": [
+          "loadtest"
+        ]
+      }
+    },
+    "/api/loadtest/runs/{run_id}/cancel": {
+      "post": {
+        "description": "Laufenden Lasttest stoppen (Status → cancelled, Teilstand bleibt).\n\nBis 2026-08-22 gab es keinen Weg: der Löschknopf weist eine laufende\nZeile ab, und ein Lauf, der aus dem Ruder lief, musste ausgefeuert\nwerden. ``task_stopped=false`` heißt, dass in diesem Prozess kein Job\nmehr lebte — die Zeile wird trotzdem geschlossen (siehe ``cancel_run``).",
+        "operationId": "cancel_loadtest_run_api_loadtest_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Cancel Loadtest Run Api Loadtest Runs  Run Id  Cancel Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Cancel Loadtest Run",
         "tags": [
           "loadtest"
         ]

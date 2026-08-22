@@ -286,4 +286,47 @@ describe("LoadtestRunComponent", () => {
     expect(text).toContain("8 requests, 1 error.");
     expect(text).not.toContain("Stabil bis");
   });
+  // ── Prod-Befund 3, übertragen: die Notbremse auch im offenen Panel ────
+  // Wer einen Lauf beobachtet, sieht hier zuerst, dass er aus dem Ruder
+  // läuft — und soll ihn dort anhalten können, wo er ihn liest.
+
+  it("bietet den Stoppen-Knopf nur an, solange der Lauf läuft", async () => {
+    const laufend = await mount(RUNNING);
+    expect(laufend.el.querySelector(".lr-stop")).not.toBeNull();
+
+    const fertig = await mount(COMPLETED);
+    expect(fertig.el.querySelector(".lr-stop")).toBeNull();
+  });
+
+  it("stoppt den bestätigten Lauf, liest ihn neu und sagt es der Liste", async () => {
+    const h = await mount(RUNNING);
+    h.el.querySelector<HTMLButtonElement>(".lr-stop")!.click();
+    await settle(h);
+    expect(h.el.textContent).toContain("gemessenen Stufen bleiben");
+
+    h.el.querySelector<HTMLButtonElement>(".lr-stop-yes")!.click();
+    await settle(h);
+
+    const req = h.http.expectOne(`${url("lt-1")}/cancel`);
+    expect(req.request.method).toBe("POST");
+    req.flush({ cancelled: "lt-1", task_stopped: true });
+    await settle(h);
+
+    h.http.expectOne(url("lt-1")).flush({
+      ...RUNNING,
+      status: "cancelled",
+      finished_at: "2026-07-24T18:02:00Z",
+      error: "Vom Studio gestoppt — der Lauf endete vor der letzten Stufe.",
+    });
+    await settle(h);
+
+    expect(h.el.querySelector(".lr-status")!.textContent).toContain("gestoppt");
+    expect(h.fixture.componentInstance.finishes).toBe(1);
+    // Die Kurve bis zum Stopp bleibt lesbar — ein halber Lauf ist Messwert.
+    expect(h.el.querySelectorAll(".lr-table tbody tr")).toHaveLength(1);
+
+    // Und danach ist Ruhe: ein gestoppter Lauf wird nicht weiter gepollt.
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2);
+    h.http.verify();
+  });
 });

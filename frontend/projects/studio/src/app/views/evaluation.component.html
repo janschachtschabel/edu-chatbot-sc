@@ -14,7 +14,11 @@
   [hidden]="active() !== 'laeufe'"
 >
   @if (shows()('laeufe')) {
-    <studio-eval-runs (runChange)="openDetail($event)" />
+    <studio-eval-runs
+      (runChange)="openDetail($event)"
+      (deleted)="onRunDeleted($event)"
+      (stopped)="onRunStopped($event)"
+    />
     @if (openRun(); as id) {
       <studio-eval-run-detail [runId]="id" (dismiss)="closeDetail()" />
     }

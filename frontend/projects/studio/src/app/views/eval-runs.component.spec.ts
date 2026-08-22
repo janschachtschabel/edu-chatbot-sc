@@ -53,10 +53,15 @@ const RUNNING = run("r-live", {
 @Component({
   selector: "studio-eval-runs-host",
   imports: [EvalRunsComponent],
-  template: '<studio-eval-runs (runChange)="opened = $event" />',
+  template:
+    '<studio-eval-runs (runChange)="opened = $event" (deleted)="lastDeleted = $event"' +
+    ' (stopped)="lastStopped = $event" />',
 })
 class HostComponent {
   opened = "";
+  /** `null` = Sammel-Löschung (Treffer unbekannt); `undefined` = nie gefeuert. */
+  lastDeleted: string | null | undefined;
+  lastStopped = "";
 }
 
 interface Harness {
@@ -207,6 +212,9 @@ describe("EvalRunsComponent", () => {
     h.http.expectOne((r) => r.url === RUNS_URL).flush({ runs: [run("r2")] });
     await settle(h);
     expect(rows(h)).toHaveLength(1);
+    // Der Besitzer des Detail-Panels erfährt die Löschung — sonst zeigte ein
+    // offenes Panel des Laufs nur noch „run not found" (Befund 2026-08-22).
+    expect(h.fixture.componentInstance.lastDeleted).toBe("r1");
   });
 
   it("refuses to offer a delete for a run that is still going", async () => {
@@ -216,6 +224,46 @@ describe("EvalRunsComponent", () => {
     expect(h.el.querySelector<HTMLButtonElement>(".er-arm")!.disabled).toBe(
       true,
     );
+  });
+
+  it("stoppt einen laufenden Lauf erst nach Rückfrage, mit eigenem Bestätigungswort", async () => {
+    // Nutzer-Befund 2026-08-22: es gab KEINEN Weg, einen Lauf anzuhalten —
+    // „Alle Läufe löschen" ließ den Hintergrund-Task sogar weiterrechnen.
+    const h = await mount([RUNNING]);
+    const stop = h.el.querySelector<HTMLButtonElement>(".er-stop")!;
+    expect(stop.getAttribute("aria-label")).toBe("Stoppen — Lauf r-live");
+    stop.click();
+    await h.fixture.whenStable();
+    expect(h.el.querySelector(".er-question")!.textContent).toContain("stoppen");
+    const confirm = h.el.querySelector<HTMLButtonElement>(".er-confirm")!;
+    // NICHT „Ja, löschen": der Teilstand bleibt ja erhalten.
+    expect(confirm.textContent).toContain("Ja, stoppen");
+    h.http.verify(); // Armieren stoppt noch nichts
+
+    confirm.click();
+    await h.fixture.whenStable();
+    h.http
+      .expectOne(
+        (r) => r.url === `${RUNS_URL}/r-live/cancel` && r.method === "POST",
+      )
+      .flush({ cancelled: "r-live", task_stopped: true });
+    await settle(h);
+    h.http
+      .expectOne((r) => r.url === RUNS_URL)
+      .flush({ runs: [run("r-live", { status: "cancelled" })] });
+    await settle(h);
+
+    expect(h.el.querySelector(".er-status")!.textContent).toContain("gestoppt");
+    expect(rows(h)[0].textContent).toContain("gestoppt");
+    // Wer das Detail des Laufs offen hat, muss es neu lesen können — sonst
+    // stünde dort weiter „läuft" (Review-Befund 2026-08-22).
+    expect(h.fixture.componentInstance.lastStopped).toBe("r-live");
+    expect(h.fixture.componentInstance.lastDeleted).toBeUndefined();
+  });
+
+  it("bietet Stoppen nur an laufenden Läufen an", async () => {
+    const h = await mount([run("r1")]);
+    expect(h.el.querySelector(".er-stop")).toBeNull();
   });
 
   it("names what a bulk delete will hit and only confirms an unrestricted one", async () => {
@@ -236,6 +284,9 @@ describe("EvalRunsComponent", () => {
     h.http.expectOne((r) => r.url === RUNS_URL).flush({ runs: [] });
     await settle(h);
     expect(h.el.querySelector(".er-status")!.textContent).toContain("3");
+    // Sammel-Löschung: welche Läufe es traf, weiß die Liste nicht → `null`,
+    // der Panel-Besitzer schließt sicherheitshalber.
+    expect(h.fixture.componentInstance.lastDeleted).toBeNull();
   });
 
   it("restricts the bulk delete to a status when one is chosen", async () => {

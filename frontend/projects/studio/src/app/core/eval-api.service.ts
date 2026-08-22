@@ -204,6 +204,16 @@ export class EvalApi {
     return this.api.delete<{ deleted: string }>(`/eval/runs/${id}`);
   }
 
+  /** Stoppt einen laufenden Lauf; der Teilstand bleibt als `cancelled` stehen.
+   *
+   * `task_stopped=false` heißt: im Backend-Prozess lebte kein Task mehr
+   * (Neustart) — die Zeile wird trotzdem abgeschlossen. */
+  cancelRun(id: string): Promise<{ cancelled: string; task_stopped: boolean }> {
+    return this.api.post<{ cancelled: string; task_stopped: boolean }>(
+      `/eval/runs/${id}/cancel`, {},
+    );
+  }
+
   /**
    * Bulk delete. `confirm=true` is required for an unrestricted wipe and is sent
    * only then — a status or mode filter already restricts the delete.

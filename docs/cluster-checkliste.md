@@ -104,6 +104,11 @@ Achtung bei der Ablesung: das Backend deckelt Profile still (Parallelität > 32,
 Stufen > 6, Requests/Stufe > 60). Die Studio-Ansicht zeigt deshalb das
 **effektive** Profil, nicht das getippte.
 
+Läuft ein Lauf aus dem Ruder, hält ihn der *Stoppen*-Knopf an (Lauf-Liste oder
+offenes Lauf-Panel; `POST /api/loadtest/runs/{run_id}/cancel`). Die bis dahin
+gemessenen Stufen bleiben als Status `gestoppt` stehen — löschen lässt sich ein
+laufender Lauf weiterhin nicht, ein gestoppter schon.
+
 ---
 
 ## Was dieses Dokument bewusst NICHT behauptet

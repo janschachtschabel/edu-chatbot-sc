@@ -375,4 +375,86 @@ describe("LoadtestComponent", () => {
     );
     expect(h.el.textContent).not.toContain("Lasttest starten");
   });
+  // ── Prod-Befund 3, übertragen: einen Lauf stoppen können ──────────────
+  // Bis hierher gab es für einen laufenden Lasttest KEINEN Knopf: löschen
+  // weist das Backend ab (409), und der Hintergrund-Job feuerte weiter echte
+  // Chat-Anfragen. Der Stoppen-Knopf ist die Notbremse.
+
+  it("bietet den Stoppen-Knopf nur an laufenden Zeilen an", async () => {
+    const laufend = await mount([RUNNING_RUN]);
+    expect(laufend.el.querySelector(".lt-stop")).not.toBeNull();
+
+    const fertig = await mount([DONE_RUN]);
+    expect(fertig.el.querySelector(".lt-stop")).toBeNull();
+  });
+
+  it("fragt vor dem Stoppen und tut nichts, wenn man es sich anders überlegt", async () => {
+    const h = await mount([RUNNING_RUN]);
+    h.el.querySelector<HTMLButtonElement>(".lt-stop")!.click();
+    await h.fixture.whenStable();
+    expect(h.el.textContent).toContain("lt-live99 stoppen");
+    // Der Teilstand bleibt — das steht in der Frage, sonst liest sich der
+    // Stopp wie ein Löschen.
+    expect(h.el.textContent).toContain("gemessenen Stufen bleiben");
+
+    h.el.querySelectorAll<HTMLButtonElement>(".lt-confirm .lt-btn")[1].click();
+    await h.fixture.whenStable();
+    h.http.verify(); // keine Anfrage abgeschickt
+  });
+
+  it("stoppt den bestätigten Lauf und liest die Liste neu", async () => {
+    const h = await mount([RUNNING_RUN]);
+    h.el.querySelector<HTMLButtonElement>(".lt-stop")!.click();
+    await h.fixture.whenStable();
+    h.el.querySelector<HTMLButtonElement>(".lt-stop-yes")!.click();
+    await h.fixture.whenStable();
+
+    const req = h.http.expectOne(`${RUNS_URL}/lt-live99/cancel`);
+    expect(req.request.method).toBe("POST");
+    req.flush({ cancelled: "lt-live99", task_stopped: true });
+    await settle(h);
+
+    h.http
+      .expectOne(RUNS_URL)
+      .flush({ runs: [{ ...RUNNING_RUN, status: "cancelled" }] });
+    await settle(h);
+
+    expect(h.el.querySelector(".lt-status")!.textContent).toContain(
+      "lt-live99 gestoppt",
+    );
+    // Der gestoppte Lauf ist beschriftet, nicht roh — und löschbar, weil er
+    // nicht mehr läuft.
+    expect(h.el.querySelector(".lt-meta")!.textContent).toContain("gestoppt");
+    expect(h.el.querySelector<HTMLButtonElement>(".lt-del")!.disabled).toBe(
+      false,
+    );
+  });
+
+  it("gibt dem Stoppen-Knopf einen Namen, der den Lauf nennt", async () => {
+    // Jede Zeile trägt denselben sichtbaren Text; ohne die Kennung im Namen
+    // klingt jeder Knopf gleich (WCAG 2.5.3: beginnt mit dem sichtbaren Wort).
+    const h = await mount([RUNNING_RUN]);
+    const button = h.el.querySelector<HTMLButtonElement>(".lt-stop")!;
+    expect(button.getAttribute("aria-label")).toBe("Stoppen — Lauf lt-live99");
+    expect(button.textContent!.trim()).toBe("Stoppen");
+  });
+
+  it("zeigt den Fehler eines misslungenen Stopps, ohne die Liste zu verlieren", async () => {
+    const h = await mount([RUNNING_RUN]);
+    h.el.querySelector<HTMLButtonElement>(".lt-stop")!.click();
+    await h.fixture.whenStable();
+    h.el.querySelector<HTMLButtonElement>(".lt-stop-yes")!.click();
+    await h.fixture.whenStable();
+
+    h.http
+      .expectOne(`${RUNS_URL}/lt-live99/cancel`)
+      .flush({ detail: "Lasttest lt-live99 läuft nicht (Status: failed)." },
+        { status: 409, statusText: "Conflict" });
+    await settle(h);
+
+    expect(h.el.querySelector(".lt-error")!.textContent).toContain(
+      "läuft nicht",
+    );
+    expect(h.el.querySelector(".lt-id")!.textContent).toContain("lt-live99");
+  });
 });

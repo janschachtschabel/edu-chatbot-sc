@@ -67,9 +67,13 @@ def _capture_runner(monkeypatch):
 
     def fake_spawn(coro):
         spawned.append(coro)
+        return "task-sentinel"  # der Router reicht ihn an die Registry weiter
 
     monkeypatch.setattr(loadtest_api, "execute_load_test", fake_exec)
     monkeypatch.setattr(loadtest_api, "_spawn_background", fake_spawn)
+    # Der Router reicht den Task an die Abbruch-Registry weiter; die Attrappe
+    # oben ist keiner. Wer die Registrierung selbst prüft, ersetzt sie danach.
+    monkeypatch.setattr(loadtest_api, "register_run_task", lambda *_: None)
     return exec_calls, spawned
 
 
@@ -289,6 +293,7 @@ def test_delete_run_404_when_nothing_deleted(client, monkeypatch):
         ("POST", "/api/loadtest/runs"),
         ("GET", "/api/loadtest/runs/lt-1"),
         ("DELETE", "/api/loadtest/runs/lt-1"),
+        ("POST", "/api/loadtest/runs/lt-1/cancel"),
     ],
 )
 def test_endpoints_require_studio_key(client, method, path):
@@ -351,3 +356,124 @@ def test_fire_request_setzt_die_engine_kopfzeile():
 
     assert c.calls[0] == {"X-Boerdi-Engine": "agent"}
     assert c.calls[1] is None
+
+
+# ── Prod-Befund 3, übertragen: Lauf stoppen statt nur die Zeile löschen ──
+# Der Lasttest hatte dieselbe Lücke wie der Eval-Weg: der Hintergrund-Job
+# lief nach einem Löschen weiter, und einen Stopp gab es nicht. Hier steht
+# die Verdrahtung; die Datenbank-Halbe steht in ``test_loadtest_pg.py``.
+
+
+def test_start_run_registriert_den_task_fuer_den_abbruch(client, monkeypatch):
+    """Ohne Registrierung wäre der Stoppen-Knopf ein reiner Zeilen-Schreiber."""
+    _afake(monkeypatch, "any_run_running", None)
+    _afake(monkeypatch, "create_run", None)
+    _capture_runner(monkeypatch)
+    registriert: list[tuple] = []
+    monkeypatch.setattr(
+        loadtest_api, "register_run_task",
+        lambda run_id, task: registriert.append((run_id, task)),
+    )
+
+    r = client.post("/api/loadtest/runs", json={}, headers=_AUTH)
+
+    assert r.status_code == 200
+    assert registriert == [(r.json()["id"], "task-sentinel")]
+
+
+def test_cancel_run_stoppt_einen_laufenden_lauf(client, monkeypatch):
+    _afake(monkeypatch, "load_run", {"id": "lt-5", "status": "running"})
+    cancelled = _afake(monkeypatch, "cancel_run", True)
+
+    r = client.post("/api/loadtest/runs/lt-5/cancel", headers=_AUTH)
+
+    assert r.status_code == 200
+    assert r.json() == {"cancelled": "lt-5", "task_stopped": True}
+    assert cancelled == [(_SESSION, "lt-5")]
+
+
+def test_cancel_run_meldet_task_stopped_false_ohne_lebenden_task(client, monkeypatch):
+    """Prozess-Neustart: die Zeile wird trotzdem geschlossen — das sagt die
+    Antwort, statt einen Erfolg zu behaupten, den niemand geprüft hat."""
+    _afake(monkeypatch, "load_run", {"id": "lt-6", "status": "running"})
+    _afake(monkeypatch, "cancel_run", False)
+
+    r = client.post("/api/loadtest/runs/lt-6/cancel", headers=_AUTH)
+
+    assert r.json() == {"cancelled": "lt-6", "task_stopped": False}
+
+
+def test_cancel_run_404_when_missing(client, monkeypatch):
+    _afake(monkeypatch, "load_run", None)
+    cancelled = _afake(monkeypatch, "cancel_run", True)
+    r = client.post("/api/loadtest/runs/ghost/cancel", headers=_AUTH)
+    assert r.status_code == 404
+    assert cancelled == []
+
+
+def test_cancel_run_409_wenn_der_lauf_nicht_laeuft(client, monkeypatch):
+    _afake(monkeypatch, "load_run", {"id": "lt-7", "status": "completed"})
+    cancelled = _afake(monkeypatch, "cancel_run", True)
+
+    r = client.post("/api/loadtest/runs/lt-7/cancel", headers=_AUTH)
+
+    assert r.status_code == 409
+    assert "completed" in r.json()["detail"]
+    assert cancelled == []  # ein fertiger Lauf wird nicht umetikettiert
+
+
+def test_cancel_gate_meldet_in_der_sprache_der_anfrage(client, monkeypatch):
+    _afake(monkeypatch, "load_run", {"id": "lt-8", "status": "failed"})
+    _afake(monkeypatch, "cancel_run", True)
+
+    de = client.post("/api/loadtest/runs/lt-8/cancel", headers=_AUTH)
+    en = client.post(
+        "/api/loadtest/runs/lt-8/cancel",
+        headers={**_AUTH, "Accept-Language": "en-GB,en;q=0.9"},
+    )
+
+    assert "läuft nicht" in de.json()["detail"]
+    assert "is not running" in en.json()["detail"]
+
+
+def test_runner_haelt_am_pruefpunkt_an_wenn_die_zeile_gestoppt_ist(monkeypatch):
+    """Der Prüfpunkt nach jeder Stufe (Gegenstück zum Gold-Läufer).
+
+    Der Abbruch über die Registry wirkt nur auf den Task DIESES Prozesses.
+    Läuft der Job in einer anderen Replika — oder hängt er gerade in einer
+    Stufe fest —, ist der Zeilen-Status das einzige Signal, das ihn erreicht:
+    schlägt der Zwischenstand-Schreiber fehl, ist die Zeile gestoppt oder
+    gelöscht, und jede weitere Stufe wären verbrannte Chat-Anfragen.
+    """
+    import asyncio as _asyncio
+
+    from boerdi.services import loadtest as svc
+
+    gefeuert: list[int] = []
+    geschrieben: list[str | None] = []
+
+    async def fake_stage(app, run_id, stage_idx, concurrency, kinds, *, engine="default"):
+        gefeuert.append(concurrency)
+        return [{"kind": k, "ok": True, "status": 200, "latency_s": 1.0} for k in kinds]
+
+    async def fake_persist(factory, run_id, *, status=None, result=None):
+        geschrieben.append(status)
+        return len(gefeuert) < 2  # nach der zweiten Stufe ist die Zeile gestoppt
+
+    monkeypatch.setattr(svc, "_run_stage", fake_stage)
+    monkeypatch.setattr(svc, "_persist", fake_persist)
+
+    class _App:
+        class state:  # noqa: N801 - Attrappe für app.state.session_factory
+            session_factory = None
+
+    _asyncio.run(svc.execute_load_test(
+        _App, "lt-stop",
+        {"stages": [1, 2, 4, 8], "requests_per_stage": 2,
+         "mix": {"wissen": 1}, "p95_threshold_s": 20.0, "engine": "default"},
+    ))
+
+    assert gefeuert == [1, 2], "der Läufer feuerte nach dem Stopp weitere Stufen"
+    # Der Endstand-Schreiber läuft trotzdem (er räumt den Sampler ab); dass die
+    # gestoppte Zeile ihn abweist, prüft ``test_loadtest_pg.py``.
+    assert geschrieben[-1] is not None

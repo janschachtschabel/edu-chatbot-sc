@@ -29,10 +29,12 @@ const STATUS_FILTERS: readonly { readonly value: string; readonly labelKey: stri
   { value: 'done', labelKey: 'evalRuns.filter.done' },
   { value: 'failed', labelKey: 'evalRuns.filter.failed' },
   { value: 'running', labelKey: 'evalRuns.filter.running' },
+  { value: 'cancelled', labelKey: 'evalRuns.filter.cancelled' },
 ];
 
 type Armed =
   | { readonly kind: 'one'; readonly id: string }
+  | { readonly kind: 'stop'; readonly id: string }
   | { readonly kind: 'bulk' }
   | { readonly kind: 'logs' }
   | null;
@@ -59,6 +61,17 @@ export class EvalRunsComponent {
   /** The id of the run to open in detail; the view above owns that panel. */
   readonly runChange = output<string>();
 
+  /** Welche Läufe die Liste gerade gelöscht hat: eine Kennung, oder `null` für
+   *  eine Sammel-Löschung (die Antwort nennt nur die Anzahl). Der Besitzer des
+   *  Detail-Panels schließt es dann — sonst zeigte es nach der Löschung nur
+   *  noch das rohe „run not found" (Befund 2026-08-22). */
+  readonly deleted = output<string | null>();
+
+  /** Welchen Lauf die Liste gerade gestoppt hat. Anders als beim Löschen bleibt
+   *  er lesenswert (Teilstand!) — das offene Detail wird also neu gelesen,
+   *  nicht geschlossen. */
+  readonly stopped = output<string>();
+
   /** Erst beim Rendern beschriftet — sonst fröre die Sprache beim Laden des
    *  Moduls ein (C1-d4b). */
   readonly statusFilters = computed(() =>
@@ -80,6 +93,7 @@ export class EvalRunsComponent {
   readonly question = computed(() => {
     const armed = this.armed();
     if (armed?.kind === 'one') return this.t('evalRuns.ask.run', { id: armed.id });
+    if (armed?.kind === 'stop') return this.t('evalRuns.ask.stop', { id: armed.id });
     if (armed?.kind === 'logs') return this.t('evalRuns.ask.logs');
     if (armed?.kind === 'bulk') {
       const chosen = this.statusFilter();
@@ -89,6 +103,11 @@ export class EvalRunsComponent {
     }
     return '';
   });
+
+  /** „Ja, löschen" passt nicht auf das Stoppen — da bleibt der Teilstand ja
+   *  erhalten; der Bestätigungsknopf sagt, was wirklich passiert. */
+  readonly confirmLabel = computed(() =>
+    this.t(this.armed()?.kind === 'stop' ? 'evalRuns.confirmStop' : 'action.confirmDelete'));
 
   private timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -122,7 +141,7 @@ export class EvalRunsComponent {
 
   isArmed(id: string): boolean {
     const armed = this.armed();
-    return armed?.kind === 'one' && armed.id === id;
+    return (armed?.kind === 'one' || armed?.kind === 'stop') && armed.id === id;
   }
 
   onStatusFilter(value: string): void {
@@ -139,6 +158,11 @@ export class EvalRunsComponent {
       if (armed.kind === 'one') {
         await this.api.deleteRun(armed.id);
         this.status.set(this.t('evalRuns.done.run', { id: armed.id }));
+        this.deleted.emit(armed.id);
+      } else if (armed.kind === 'stop') {
+        await this.api.cancelRun(armed.id);
+        this.status.set(this.t('evalRuns.done.stop', { id: armed.id }));
+        this.stopped.emit(armed.id);
       } else if (armed.kind === 'logs') {
         const { deleted } = await this.api.clearEvalQualityLogs();
         this.status.set(this.t('evalRuns.done.logs', { count: deleted }));
@@ -150,6 +174,7 @@ export class EvalRunsComponent {
           status: this.statusFilter() || undefined,
         });
         this.status.set(this.lang.plural('evalRuns.done.runs', deleted));
+        this.deleted.emit(null);
       }
       this.armed.set(null);
       await this.load();

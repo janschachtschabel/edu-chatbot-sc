@@ -41,12 +41,19 @@ export const EVALUATION: CataloguePart = {
     'evalRuns.filter.done': 'fertige',
     'evalRuns.filter.failed': 'fehlgeschlagene',
     'evalRuns.filter.running': 'laufende',
+    'evalRuns.filter.cancelled': 'gestoppte',
     'evalRuns.deleteAll': 'Alle Läufe löschen',
     'evalRuns.deleteFiltered': 'Gefilterte Läufe löschen',
     'evalRuns.clearLogs': 'Eval-Quality-Logs löschen',
 
     // ── Rückfragen und Vollzugsmeldungen ────────────────────────────
     'evalRuns.ask.run': 'Lauf {id} endgültig löschen?',
+    /** „Stoppen", nicht „Abbrechen": der Verwerfen-Knopf der Rückfrage heißt
+     *  schon `action.cancel` = „Abbrechen" — zwei gleich beschriftete Knöpfe
+     *  mit entgegengesetzter Wirkung wären eine Falle. */
+    'evalRuns.ask.stop': 'Lauf {id} stoppen? Der bisherige Teilstand bleibt erhalten.',
+    'evalRuns.done.stop': 'Lauf {id} gestoppt.',
+    'evalRuns.confirmStop': 'Ja, stoppen',
     'evalRuns.ask.logs':
       'Alle Quality-Logs löschen, die Eval-Läufe geschrieben haben? Echte '
       + 'Chat-Turns bleiben unberührt.',
@@ -74,6 +81,7 @@ export const EVALUATION: CataloguePart = {
     'evalRuns.status.running': 'läuft',
     'evalRuns.status.done': 'fertig',
     'evalRuns.status.failed': 'fehlgeschlagen',
+    'evalRuns.status.cancelled': 'gestoppt',
     'evalRuns.progress': '{done} von {total} Turns',
     'evalRuns.result': '{turns} Turns · Ø Score {score}',
     'evalRuns.noConfig': 'ohne Konfigurations-Kennung',
@@ -84,7 +92,10 @@ export const EVALUATION: CataloguePart = {
      *  sichtbare Wort. Beginnt damit (WCAG 2.5.3 „Label in Name"), wie
      *  `async.retryFor`. */
     'evalRuns.deleteFor': 'Löschen — Lauf {id}',
-    'evalRuns.deleteBlocked': 'Ein laufender Lauf kann nicht gelöscht werden',
+    'evalRuns.deleteBlocked':
+      'Ein laufender Lauf kann nicht gelöscht werden — erst stoppen',
+    'evalRuns.stop': 'Stoppen',
+    'evalRuns.stopFor': 'Stoppen — Lauf {id}',
   },
 
   en: {
@@ -98,11 +109,15 @@ export const EVALUATION: CataloguePart = {
     'evalRuns.filter.done': 'completed',
     'evalRuns.filter.failed': 'failed',
     'evalRuns.filter.running': 'in flight',
+    'evalRuns.filter.cancelled': 'stopped',
     'evalRuns.deleteAll': 'Delete all runs',
     'evalRuns.deleteFiltered': 'Delete filtered runs',
     'evalRuns.clearLogs': 'Delete eval quality logs',
 
     'evalRuns.ask.run': 'Delete run {id} for good?',
+    'evalRuns.ask.stop': 'Stop run {id}? What it measured so far is kept.',
+    'evalRuns.done.stop': 'Run {id} stopped.',
+    'evalRuns.confirmStop': 'Yes, stop it',
     'evalRuns.ask.logs':
       'Delete every quality log an eval run wrote? Real chat turns stay '
       + 'untouched.',
@@ -124,6 +139,7 @@ export const EVALUATION: CataloguePart = {
     'evalRuns.status.running': 'running',
     'evalRuns.status.done': 'done',
     'evalRuns.status.failed': 'failed',
+    'evalRuns.status.cancelled': 'stopped',
     'evalRuns.progress': '{done} of {total} turns',
     'evalRuns.result': '{turns} turns · avg score {score}',
     'evalRuns.noConfig': 'no configuration id',
@@ -131,6 +147,8 @@ export const EVALUATION: CataloguePart = {
     'evalRuns.intents': '{count} intents',
     'evalRuns.delete': 'Delete',
     'evalRuns.deleteFor': 'Delete — run {id}',
-    'evalRuns.deleteBlocked': 'A run in flight cannot be deleted',
+    'evalRuns.deleteBlocked': 'A run in flight cannot be deleted — stop it first',
+    'evalRuns.stop': 'Stop',
+    'evalRuns.stopFor': 'Stop — run {id}',
   },
 };

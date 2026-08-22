@@ -26,6 +26,8 @@ import { loadtestStatusLabel } from './loadtest-status';
 import { RichTextComponent } from './rich-text.component';
 import { StudioFormat } from '../i18n/studio-format.service';
 
+type Armed = { readonly kind: 'delete' | 'stop'; readonly id: string } | null;
+
 @Component({
   selector: 'studio-loadtest',
   imports: [AsyncStateComponent, LoadtestRunComponent, RichTextComponent],
@@ -89,7 +91,10 @@ export class LoadtestComponent {
   readonly busyRun = computed(() => this.rows().find((r) => r.status === 'running') ?? null);
 
   readonly selected = signal('');
-  readonly armed = signal('');
+  /** Welche Zeile fragt gerade nach — und wonach. Bis zum Stoppen-Knopf war
+   *  das eine blosse Kennung; jetzt gibt es zwei Fragen an derselben Zeile
+   *  (Prod-Befund 3, 2026-08-22), und die Antwort darf nicht raten. */
+  readonly armed = signal<Armed>(null);
   readonly starting = signal(false);
   readonly working = signal(false);
   readonly actionError = signal('');
@@ -163,25 +168,49 @@ export class LoadtestComponent {
     }
   }
 
-  arm(id: string): void {
+  arm(kind: 'delete' | 'stop', id: string): void {
     this.actionError.set('');
-    this.armed.set(id);
+    this.armed.set({ kind, id });
   }
 
   disarm(): void {
-    this.armed.set('');
+    this.armed.set(null);
   }
 
-  async confirmDelete(): Promise<void> {
-    const id = this.armed();
-    if (!id || this.working()) return;
+  isArmed(id: string): boolean {
+    return this.armed()?.id === id;
+  }
+
+  /** Die Frage nennt, was wirklich passiert: ein Stopp löscht nichts. */
+  readonly question = computed(() => {
+    const armed = this.armed();
+    if (!armed) return '';
+    return armed.kind === 'stop'
+      ? this.t('lt.askStop', { id: armed.id })
+      : this.t('lt.confirm');
+  });
+
+  readonly confirmLabel = computed(() => {
+    const stop = this.armed()?.kind === 'stop';
+    if (this.working()) return this.t(stop ? 'lt.stopping' : 'lt.deleting');
+    return this.t(stop ? 'lt.confirmStop' : 'action.confirmDelete');
+  });
+
+  async confirm(): Promise<void> {
+    const armed = this.armed();
+    if (!armed || this.working()) return;
     this.working.set(true);
     this.actionError.set('');
     try {
-      await this.api.remove(id);
-      if (this.selected() === id) this.selected.set('');
-      this.armed.set('');
-      this.status.set(this.t('lt.deleted', { id }));
+      if (armed.kind === 'stop') {
+        await this.api.cancel(armed.id);
+        this.status.set(this.t('lt.stopped', { id: armed.id }));
+      } else {
+        await this.api.remove(armed.id);
+        if (this.selected() === armed.id) this.selected.set('');
+        this.status.set(this.t('lt.deleted', { id: armed.id }));
+      }
+      this.armed.set(null);
       await this.runs.reload();
     } catch (err) {
       this.actionError.set(describeApiError(err, this.t));

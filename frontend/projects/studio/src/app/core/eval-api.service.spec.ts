@@ -118,6 +118,13 @@ describe("EvalApi", () => {
       .flush({ deleted: "r1" });
   });
 
+  it("stoppt einen laufenden Lauf über den Cancel-Endpunkt", async () => {
+    void api.cancelRun("r1");
+    http
+      .expectOne((r) => r.url === `${BASE}/runs/r1/cancel` && r.method === "POST")
+      .flush({ cancelled: "r1", task_stopped: true });
+  });
+
   it("confirms a bulk delete only when nothing narrows it", async () => {
     // The endpoint refuses an unrestricted wipe without `confirm=true`; a status
     // or mode filter counts as a restriction. Mirrored so the flag is sent

@@ -59,6 +59,9 @@ export class EvaluationComponent {
 
   private readonly runsPanel = viewChild(EvalRunsComponent);
 
+  /** Nur montiert, solange ein Lauf geöffnet ist — deshalb ein Signal. */
+  private readonly detailPanel = viewChild(EvalRunDetailComponent);
+
   /** The run list polls while anything runs; that is the honest source. */
   readonly busy = computed(() => this.runsPanel()?.isPolling() ?? false);
 
@@ -92,5 +95,19 @@ export class EvaluationComponent {
 
   closeDetail(): void {
     this.openRun.set('');
+  }
+
+  /** Löschungen aus der Liste (Befund 2026-08-22): das offene Detail eines
+   *  gelöschten Laufs zeigte sonst nur noch „run not found". `null` = Sammel-
+   *  Löschung, deren Treffer die Liste nicht kennt — dann vorsorglich zu. */
+  onRunDeleted(id: string | null): void {
+    if (id === null || id === this.openRun()) this.closeDetail();
+  }
+
+  /** Gestoppte Läufe (Befund 2026-08-22): das Panel ist eine Momentaufnahme
+   *  und zeigte nach dem Stopp weiter „läuft". Schließen wäre hier falsch —
+   *  der Teilstand bleibt ja erhalten —, also neu lesen. */
+  onRunStopped(id: string): void {
+    if (id === this.openRun()) this.detailPanel()?.reload();
   }
 }
