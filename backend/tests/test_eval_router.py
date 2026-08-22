@@ -753,6 +753,35 @@ def test_execute_golden_run_persists_failure_on_runner_error(monkeypatch):
     assert "chat backend down" in captured["error_message"]
 
 
+# ── service: Runner-Pfad-Auflösung (Prod-Befund 2026-08-22) ───────────────
+
+
+def test_runner_path_bevorzugt_die_umgebung(monkeypatch):
+    """Im Prod-Image ist das Paket in die venv INSTALLIERT — die Quellbaum-
+    Arithmetik (parents[5]) ergab dort '/app/.venv/lib/evals/run_golden.py'
+    und jeder Gold-Lauf starb sofort mit Errno 2. Die Umgebung muss gewinnen;
+    das Dockerfile setzt sie auf die mitkopierte Datei."""
+    monkeypatch.setenv("EVAL_RUNNER_PATH", "/app/evals/run_golden.py")
+    assert golden_run._runner_path().as_posix().endswith("/app/evals/run_golden.py")
+
+
+def test_runner_path_faellt_auf_den_quellbaum(monkeypatch):
+    monkeypatch.delenv("EVAL_RUNNER_PATH", raising=False)
+    pfad = golden_run._runner_path()
+    assert pfad.name == "run_golden.py" and pfad.parent.name == "evals"
+    assert pfad.exists()  # im Quellbaum liegt die Datei wirklich dort
+
+
+def test_load_golden_runner_nennt_die_stellschraube(monkeypatch):
+    """Fehlt die Datei, nennt der Fehler EVAL_RUNNER_PATH — der rohe Errno 2
+    aus exec_module verriet einem Betreiber nicht, woran er drehen kann."""
+    monkeypatch.setenv("EVAL_RUNNER_PATH", "/gibt/es/nicht/run_golden.py")
+    monkeypatch.setattr(golden_run, "_runner_mod", None)
+    with pytest.raises(RuntimeError) as ei:
+        golden_run._load_golden_runner()
+    assert "EVAL_RUNNER_PATH" in str(ei.value)
+
+
 # ── service: bulk delete confirm guard (pre-DB) ───────────────────────────
 
 

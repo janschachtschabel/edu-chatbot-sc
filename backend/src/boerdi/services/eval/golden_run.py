@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+import os
 import uuid
 from pathlib import Path
 from typing import Any
@@ -31,11 +32,25 @@ from boerdi.services.eval.run_store import (
 
 logger = logging.getLogger(__name__)
 
-# evals/run_golden.py lives at the repo root, NOT under src/ — it is a
-# framework-free CLI, not an installed package. Load it by path, mirroring
-# tests/test_golden_runner.py. parents[5]: eval→services→boerdi→src→backend→repo.
-_RUNNER_PATH = Path(__file__).resolve().parents[5] / "evals" / "run_golden.py"
 _runner_mod: Any = None
+
+
+def _runner_path() -> Path:
+    """Wo die framework-freie Runner-DATEI liegt (evals ist kein Paket).
+
+    Im QUELLBAUM liegt sie fünf Ebenen über diesem Modul (parents[5]:
+    eval→services→boerdi→src→backend→Repo). Im PROD-IMAGE ist das Paket in
+    die venv INSTALLIERT — dieselbe Arithmetik ergab dort
+    ``/app/.venv/lib/evals/run_golden.py`` und jeder Gold-Lauf starb sofort
+    mit Errno 2 (Prod-Befund 2026-08-22; generative Läufe waren nie
+    betroffen, ihr Runner ist ein normales Paket-Modul). Deshalb gewinnt die
+    Umgebung: das Dockerfile kopiert die Datei nach ``/app/evals/`` und setzt
+    ``EVAL_RUNNER_PATH`` darauf (Wächter in ``test_deploy_compose.py``).
+    """
+    env = os.getenv("EVAL_RUNNER_PATH")
+    if env:
+        return Path(env)
+    return Path(__file__).resolve().parents[5] / "evals" / "run_golden.py"
 
 
 def _load_golden_runner() -> Any:
@@ -44,11 +59,20 @@ def _load_golden_runner() -> Any:
     Cached after first load. Reused verbatim — never edited (READ-ONLY runner)."""
     global _runner_mod
     if _runner_mod is None:
+        runner_path = _runner_path()
+        if not runner_path.exists():
+            # Ohne diese Prüfung käme ein nackter Errno 2 aus exec_module —
+            # der Betreiber erfuhr nicht, an welcher Schraube er drehen kann.
+            raise RuntimeError(
+                f"Golden-Runner nicht gefunden: {runner_path} — "
+                "EVAL_RUNNER_PATH auf evals/run_golden.py zeigen lassen "
+                "(im Image: /app/evals/run_golden.py)."
+            )
         spec = importlib.util.spec_from_file_location(
-            "boerdi_eval_run_golden", _RUNNER_PATH
+            "boerdi_eval_run_golden", runner_path
         )
         if spec is None or spec.loader is None:
-            raise RuntimeError(f"cannot load golden runner from {_RUNNER_PATH}")
+            raise RuntimeError(f"cannot load golden runner from {runner_path}")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         _runner_mod = mod

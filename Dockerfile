@@ -73,7 +73,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     WIDGET_DIST_DIR=/app/widget_dist \
-    STUDIO_DIST_DIR=/app/studio_dist
+    STUDIO_DIST_DIR=/app/studio_dist \
+    EVAL_RUNNER_PATH=/app/evals/run_golden.py
 
 COPY --from=deps /app/.venv /app/.venv
 
@@ -88,6 +89,13 @@ COPY backend/alembic ./alembic
 # studio the way to change things — this is the starting point, not a runtime
 # dependency.
 COPY backend/seeds ./seeds
+
+# Der Gold-Runner ist eine framework-freie DATEI (kein Paket-Modul) und wird
+# zur Laufzeit per Pfad geladen. Prod-Befund 2026-08-22: ohne diese Kopie
+# starb jeder Gold-Lauf mit Errno 2, weil die Quellbaum-Arithmetik in der
+# installierten venv ins Leere zeigte — EVAL_RUNNER_PATH (ENV oben) zeigt
+# hierher. Nur die eine Datei, nicht reports/ oder __pycache__.
+COPY evals/run_golden.py ./evals/run_golden.py
 
 COPY --from=frontend /build/dist/widget/browser ./widget_dist
 COPY --from=frontend /build/dist/studio/browser ./studio_dist

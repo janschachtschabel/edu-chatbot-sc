@@ -47,6 +47,22 @@ def test_jeder_dokumentierte_schluessel_steht_in_compose() -> None:
     )
 
 
+def test_dockerfile_liefert_den_gold_runner_mit() -> None:
+    """Der Gold-Runner ist eine framework-freie DATEI (kein Paket-Modul) und
+    wird zur Laufzeit per Pfad geladen. Prod-Befund 2026-08-22: das Image
+    kopierte sie nicht, und die Quellbaum-Arithmetik zeigte in der
+    installierten venv auf ``/app/.venv/lib/evals/…`` — jeder Gold-Lauf starb
+    sofort mit Errno 2 (generative Läufe waren nie betroffen: ihr Runner ist
+    ein normales Paket-Modul in der venv). Das Image muss die Datei mitführen
+    UND ``EVAL_RUNNER_PATH`` darauf zeigen lassen.
+    """
+    text = (_DEPLOY.parent / "Dockerfile").read_text("utf-8")
+    assert "COPY evals/run_golden.py" in text, "evals/run_golden.py fehlt im Image"
+    assert "EVAL_RUNNER_PATH=/app/evals/run_golden.py" in text, (
+        "EVAL_RUNNER_PATH zeigt im Image nicht auf die mitkopierte Datei"
+    )
+
+
 def test_eval_chat_url_hat_einen_container_tauglichen_default() -> None:
     """``EVAL_CHAT_URL`` muss im Container auf den EIGENEN Port zeigen.
 
