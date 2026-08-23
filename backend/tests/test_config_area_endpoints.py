@@ -235,6 +235,50 @@ def test_context_actions_put_traegt_die_englische_fassung(cfg) -> None:
     assert g["pills"]["collection"][0]["label_en"] == "Go"
 
 
+def test_context_actions_put_loescht_nicht_was_er_nicht_kennt(cfg) -> None:
+    """Prod-Befund 2026-08-23 (zweiter Fund): dieser Editor ist jünger als sein
+    Bereich. Er kennt sechs Schlüssel und drei Seitenarten; im Bereich stehen
+    inzwischen elf und sieben — darunter ``own_hosts``, an dem hängt, ob der
+    Bot eine Seite als unsere erkennt. Weil der PUT den Bereich feldweise NEU
+    zusammenbaute, löschte jedes Speichern den Rest still mit: danach galt
+    jede Seite als fremd. Das Studio schreibt über ``/config/data/{area}`` und
+    war nie betroffen — dieser Weg blieb aber scharf.
+
+    Die Zusage lautet deshalb: ersetzen, was das Modell kennt; stehen lassen,
+    was es nicht kennt.
+    """
+    client, seed = cfg
+    seed("01-base/context-actions", {"context_actions": {
+        "enabled": True,
+        "report_url": "https://alt/report",
+        "own_hosts": ["wirlernenonline.de", "*.wirlernenonline.de"],
+        "greetings": {"collection": "alt-c", "content": "alt-i", "topic": "alt-t",
+                      "home": "Du bist bei uns.", "external": "Fremde Seite."},
+        "greetings_en": {"home": "You are on ours."},
+        "pills": {"home": [{"label": "Tour starten", "kind": "text"}]},
+        "curate_prompt": "alt-kuratiere",
+        "duplicate_greeting": "Kennen wir schon.",
+        "duplicate_pill_label": "Zeig mir den Eintrag",
+    }})
+
+    assert client.put("/api/config/context-actions", headers=_AUTH,
+                      json=_valid_context_payload()).status_code == 200
+
+    roh = config_loader.area("01-base/context-actions")["context_actions"]
+    # Was der Editor NICHT kennt, steht unveraendert da.
+    assert roh["own_hosts"] == ["wirlernenonline.de", "*.wirlernenonline.de"]
+    assert roh["greetings"]["home"] == "Du bist bei uns."
+    assert roh["greetings"]["external"] == "Fremde Seite."
+    assert roh["greetings_en"]["home"] == "You are on ours."
+    assert roh["pills"]["home"][0]["label"] == "Tour starten"
+    assert roh["duplicate_greeting"] == "Kennen wir schon."
+    assert roh["duplicate_pill_label"] == "Zeig mir den Eintrag"
+    # Was er kennt, ist ersetzt — sonst wäre der Editor wirkungslos.
+    assert roh["greetings"]["collection"] == "c"
+    assert roh["report_url"] == "https://x/report"
+    assert roh["curate_prompt"] == "kuratiere"
+
+
 def test_context_actions_put_validation(cfg) -> None:
     client, _ = cfg
     bad = _valid_context_payload()

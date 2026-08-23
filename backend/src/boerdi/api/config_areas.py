@@ -237,10 +237,30 @@ async def update_context_actions_config(
         "content": (cfg.greetings_en.content or "").strip(),
         "topic": (cfg.greetings_en.topic or "").strip(),
     }
+    # Nur ERSETZEN, was dieses Modell kennt — der Rest bleibt stehen.
+    # Der Bereich ist jünger als sein Editor: er trägt inzwischen
+    # ``own_hosts``, vier weitere Seitenarten (search/home/external/editorial)
+    # und die Dubletten-Texte. Bis 2026-08-23 baute dieser PUT den Bereich
+    # feldweise NEU zusammen und löschte alles Übrige still mit — mit
+    # ``own_hosts`` verschwand dabei die Liste, an der hängt, ob der Bot eine
+    # Seite als unsere erkennt (dann gilt jede als fremd). Das Studio schreibt
+    # über ``/config/data/{area}`` und war nie betroffen; dieser Weg blieb
+    # scharf. Den Editor stattdessen um alle elf Schlüssel zu erweitern wäre
+    # eine Vertragsänderung für einen Endpunkt, den niemand dafür nutzt.
+    vorhanden = cl.area("01-base/context-actions").get("context_actions") or {}
+
+    def _ueberlagert(schluessel: str, teil: dict) -> dict:
+        """Je Seitenart ersetzen; die unbekannten Arten behalten."""
+        bestand = vorhanden.get(schluessel)
+        return {**bestand, **teil} if isinstance(bestand, dict) else dict(teil)
+
     await cl.write_area("01-base/context-actions", {"context_actions": {
+        **vorhanden,
         "enabled": bool(cfg.enabled), "report_url": report_url,
-        "greetings": greetings, "greetings_en": greetings_en,
-        "pills": pills, "curate_prompt": curate_prompt,
+        "greetings": _ueberlagert("greetings", greetings),
+        "greetings_en": _ueberlagert("greetings_en", greetings_en),
+        "pills": _ueberlagert("pills", pills),
+        "curate_prompt": curate_prompt,
     }})
     return ContextActionsConfig(**cl.load_context_actions())
 

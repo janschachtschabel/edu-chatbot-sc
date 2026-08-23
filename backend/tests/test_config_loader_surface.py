@@ -323,3 +323,47 @@ def test_context_actions_ohne_englisch_liefern_leere_felder(seeded_store):
     assert set(cfg["greetings_en"]) == set(cfg["greetings"])
     assert all(v == "" for v in cfg["greetings_en"].values())
     assert all(p["label_en"] == "" for p in cfg["pills"]["collection"])
+
+
+def test_context_actions_reichen_die_eigenen_hosts_durch(seeded_store):
+    """Prod-Befund 2026-08-23: die Liste der eigenen Hosts stand gepflegt im
+    Bereich, kam im Chat aber nie an — dieser Lader gab sie schlicht nicht
+    zurück, und ``_decide_host_kind`` liest sie aus genau diesem
+    Rückgabewert. Folge: ``classify_page_host`` bekam IMMER eine leere Liste,
+    und damit galt jede Seite als fremd, egal was die Redaktion eintrug
+    (gemeldet für wp-test.wirlernenonline.de).
+
+    Warum keine Prüfung das fing: die Knoten-Tests ersetzen den Lader durch
+    eine Attrappe, die ``own_hosts`` von sich aus mitbringt — eine Form, die
+    der echte Lader nie erzeugte. Beide Seiten waren gegen eine erfundene
+    Schnittstelle geprüft, nie gegeneinander. Dieser Test geht deshalb durch
+    die ECHTE Kette.
+    """
+    asyncio.run(cl.write_config_file(
+        "01-base/context-actions.yaml",
+        "context_actions:\n"
+        "  enabled: true\n"
+        "  own_hosts:\n"
+        "    - wirlernenonline.de\n"
+        "    - '*.wirlernenonline.de'\n"
+        "    - '   '\n"
+        "    - 42\n",
+    ))
+    cfg = cl.load_context_actions()
+    # Leere und nicht-textliche Einträge fallen raus, der Rest kommt an.
+    assert cfg["own_hosts"] == ["wirlernenonline.de", "*.wirlernenonline.de"]
+
+
+def test_context_actions_ohne_eigene_hosts_liefern_eine_leere_liste(seeded_store):
+    """Ungepflegt heißt leer — und leer heißt „alles ist fremd".
+
+    Bewusst KEINE Vorgabe wie bei den Begrüßungen: einen Host als „unserer"
+    zu raten, wäre die teurere Sorte Fehler (der Bot böte an, WLO in WLO
+    aufzunehmen). Der Lader muss den Schlüssel aber liefern, sonst fällt der
+    Aufrufer wieder auf ``.get(...) or []`` zurück und merkt nichts.
+    """
+    asyncio.run(cl.write_config_file(
+        "01-base/context-actions.yaml", "context_actions:\n  enabled: true\n",
+    ))
+    cfg = cl.load_context_actions()
+    assert cfg["own_hosts"] == []

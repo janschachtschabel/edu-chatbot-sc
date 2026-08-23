@@ -338,9 +338,22 @@ def load_context_actions() -> dict[str, Any]:
         val = cfg.get(key)
         return val.strip() if isinstance(val, str) and val.strip() else default
 
+    # Die Liste der eigenen Hosts (Prod-Befund 2026-08-23). Sie fehlte hier,
+    # und ``_decide_host_kind`` liest sie aus genau diesem Rückgabewert: die
+    # Redaktion konnte pflegen, was sie wollte — im Chat kam eine leere Liste
+    # an, und damit galt JEDE Seite als fremd. Ungepflegt bleibt bewusst leer
+    # (kein Rateversuch, siehe ``classify_page_host``); leere und
+    # nicht-textliche Einträge fallen raus, damit eine verrutschte Zeile in
+    # der Oberfläche nicht zu einem Muster wird, das nie trifft.
+    raw_hosts = cfg.get("own_hosts")
+    if not isinstance(raw_hosts, list):
+        raw_hosts = []
+    own_hosts = [h.strip() for h in raw_hosts if isinstance(h, str) and h.strip()]
+
     return {
         "enabled": bool(cfg.get("enabled", True)),
         "report_url": report_url.strip(),
+        "own_hosts": own_hosts,
         "greetings": greetings,
         "greetings_en": greetings_en,
         "pills": pills,
