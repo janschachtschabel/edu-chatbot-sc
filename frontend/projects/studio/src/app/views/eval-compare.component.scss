@@ -1,0 +1,134 @@
+// Der Vergleich steht wie das Lauf-Detail als eigenes Panel unter der Liste —
+// gleicher Rahmen, damit die zwei als Geschwister lesbar sind.
+.cmp {
+  display: grid;
+  gap: var(--st-3);
+  margin-block: var(--st-4);
+  padding: var(--st-4);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.cmp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--st-2);
+}
+
+.cmp-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.cmp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+}
+
+.cmp-btn {
+  min-block-size: 2.25rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.cmp-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+// Warnungen stehen VOR der Tafel: sie sagen, was die Zahlen nicht tragen.
+.cmp-warnings {
+  margin: 0;
+  padding: var(--st-2) var(--st-3) var(--st-2) var(--st-5);
+  border-inline-start: 3px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+// `position: relative`: Bezugsblock für alles absolut Positionierte darin —
+// sonst entkäme es dem Scrollen und verbreiterte die Seite (wie im Detail).
+.cmp-table-wrap {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.cmp-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.cmp-table caption {
+  padding: var(--st-2) var(--st-3);
+  text-align: start;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.cmp-table th,
+.cmp-table td {
+  padding: var(--st-1) var(--st-3);
+  border-block-start: 1px solid var(--st-rule);
+  vertical-align: top;
+}
+
+.cmp-table thead th {
+  text-align: start;
+  white-space: nowrap;
+}
+
+.cmp-table tbody th {
+  font-weight: 400;
+  text-align: start;
+  min-inline-size: 14rem;
+}
+
+.cmp-table td {
+  text-align: end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cmp-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.cmp-sub {
+  margin: 0 0 var(--st-1);
+  font-size: 0.875rem;
+}
+
+.cmp-verdict {
+  margin: 0;
+  font-weight: 600;
+}
+
+.cmp-note {
+  margin: var(--st-1) 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+}
+
+.cmp-conditions ul {
+  margin: 0;
+  padding-inline-start: var(--st-5);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}

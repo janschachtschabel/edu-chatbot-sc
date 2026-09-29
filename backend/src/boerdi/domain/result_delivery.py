@@ -8,8 +8,8 @@ einem Feld ``befund``): **196 Zeichen im Chat gegen 1932 im Ergebnis**. Das ist
 keine Modell-Laune, sondern die Bauform: zwei Aufgaben teilen sich einen Aufruf,
 und das Feld, das der Gastgeber ausdrücklich benannt hat, gewinnt.
 
-Hier ist das Ergebnis ein **eigener Kanal**, virtuell wie ``zeige_dokument`` und
-``waehle_vorgehen``: die Schleife fängt den Namen ab, notiert das Ergebnis und
+Hier ist das Ergebnis ein **eigener Kanal**, virtuell wie ``zeige_dokument``:
+die Schleife fängt den Namen ab, notiert das Ergebnis und
 läuft **weiter**. Die Antwort für die Person entsteht danach als gewöhnlicher
 Zug, und der Lauf endet über ``stop_reason='text'`` wie jeder andere.
 

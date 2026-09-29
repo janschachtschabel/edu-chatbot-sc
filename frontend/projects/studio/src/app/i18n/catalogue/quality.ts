@@ -34,13 +34,6 @@ export const QUALITY: CataloguePart = {
       'Wie der Bot einordnet und antwortet: Kennzahlen und Problem-Diagnosen, die '
       + 'Pattern-Wahl je Persona und Intent, der Verlauf über die Phasen und die '
       + 'einzelnen Turns.',
-    'qual.scope.legend': 'Datenbasis',
-    'qual.scope.all': 'Alle',
-    'qual.scope.all.hint': 'Echte Gespräche und Eval-Läufe zusammen',
-    'qual.scope.production': 'Produktion',
-    'qual.scope.production.hint': 'Nur echte Gespräche',
-    'qual.scope.eval': 'Nur Eval',
-    'qual.scope.eval.hint': 'Nur simulierte Eval-Turns',
     'qual.tab.overview': 'Übersicht',
     'qual.tab.matrix': 'Routing-Matrix',
     'qual.tab.flow': 'Gesprächs-Flow',
@@ -131,13 +124,6 @@ export const QUALITY: CataloguePart = {
       'How the bot classifies and answers: key figures and problem diagnostics, the '
       + 'pattern choice per persona and intent, the course across the phases, and the '
       + 'individual turns.',
-    'qual.scope.legend': 'Data basis',
-    'qual.scope.all': 'All',
-    'qual.scope.all.hint': 'Real conversations and eval runs together',
-    'qual.scope.production': 'Production',
-    'qual.scope.production.hint': 'Real conversations only',
-    'qual.scope.eval': 'Eval only',
-    'qual.scope.eval.hint': 'Simulated eval turns only',
     'qual.tab.overview': 'Overview',
     'qual.tab.matrix': 'Routing matrix',
     'qual.tab.flow': 'Conversation flow',

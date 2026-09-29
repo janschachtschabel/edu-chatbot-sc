@@ -163,3 +163,27 @@ def test_zeitraum_braucht_den_studio_schluessel(client) -> None:
     r = client.get("/api/usage/period",
                    params={"from": "2026-01-01", "to": "2026-02-01"})
     assert r.status_code == 401
+
+
+# ── ST-9: Herkunft ──────────────────────────────────────────────────────
+_MONAT = {"from": "2026-01-01T00:00:00Z", "to": "2026-02-01T00:00:00Z"}
+
+
+def test_zeitraum_reicht_die_herkunft_durch(client, monkeypatch) -> None:
+    calls = _fake(monkeypatch, "period_usage", _ANTWORT)
+    r = client.get("/api/usage/period", headers=_AUTH, params={**_MONAT, "scope": "production"})
+    assert r.status_code == 200
+    assert calls[0][1] == {"scope": "production"}
+
+
+def test_zeitraum_ohne_herkunft_nimmt_alle(client, monkeypatch) -> None:
+    calls = _fake(monkeypatch, "period_usage", _ANTWORT)
+    assert client.get("/api/usage/period", headers=_AUTH, params=_MONAT).status_code == 200
+    assert calls[0][1] == {"scope": "all"}
+
+
+def test_zeitraum_mit_unbekannter_herkunft_wird_abgewiesen(client, monkeypatch) -> None:
+    calls = _fake(monkeypatch, "period_usage", _ANTWORT)
+    r = client.get("/api/usage/period", headers=_AUTH, params={**_MONAT, "scope": "echt"})
+    assert r.status_code == 422
+    assert calls == []

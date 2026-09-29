@@ -304,6 +304,16 @@ def test_m16_nennt_nur_das_tool_das_sein_resolver_wirklich_aufruft():
     assert _pattern_frontmatter()["M16"].get("tools") == ["get_topic_page_content"]
 
 
+def test_die_schutzmuster_erzeugen_keine_quick_replies():
+    # SF (2026-09-26): M01 und M02 verlangen im eigenen Antwortteil „keine
+    # Quick-Replies". Die Pipeline hängt nach jeder Antwort trotzdem welche an,
+    # solange das Muster ``quick_replies_mode`` nicht auf ``none`` stellt —
+    # nach einer Krisen- oder Drohungsantwort stand dann „Material suchen" da.
+    fm = _pattern_frontmatter()
+    assert {pid: fm[pid].get("quick_replies_mode") for pid in ("M01", "M02")} == {
+        "M01": "none", "M02": "none"}
+
+
 def test_config_seed_dir_zeigt_standardmaessig_auf_den_ausgelieferten_baum():
     # Ohne gesetzten Default müsste jede Installation die Umgebungsvariable
     # kennen — genau die Hürde, die W6 beseitigt.
@@ -619,8 +629,8 @@ def test_der_ausgelieferte_modus_ist_der_musterweg() -> None:
 
     Nutzer-Vorgabe 2026-08-17: „im Werksmodus sollte pattern-Modus sein." Das
     ist kein Geschmack, sondern die Zusage, dass ein Deployment den Antwortweg
-    nicht wechselt, ohne dass jemand es entscheidet — `agent` und `hybrid`
-    sind Opt-in, je Anlage über das Studio oder je Anfrage über die Kopfzeile
+    nicht wechselt, ohne dass jemand es entscheidet — `agent` ist Opt-in, je
+    Anlage über das Studio oder je Anfrage über die Kopfzeile
     `X-Boerdi-Engine`.
 
     Der Wächter steht hier, weil der Seed der einzige Ort ist, den ein

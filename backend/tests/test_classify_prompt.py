@@ -53,8 +53,30 @@ def test_personas_renders_markers_and_discriminators() -> None:
     assert "### P-LEH — Lehrkraft" in out
     assert "Lehrkräfte planen Unterricht." in out
     assert 'Positiv-Marker: "meine Klasse", "Unterrichtseinheit"' in out
-    assert 'Anti-Marker (NICHT diese Persona): "Statistik" → P-AND' in out
+    assert 'Anti-Marker (kein Positiv-Treffer für diese Persona):\n  - "Statistik" → P-AND\n' in out
     assert "Diskriminatoren:" in out and "  - vs. P-LER: Lehrer lehrt, Schüler lernt" in out
+
+
+def test_personas_anti_marker_carries_rationale_and_when() -> None:
+    # Befund 2026-09-27: jeder Anti-Marker hieß „NICHT diese Persona", auch
+    # „Arbeitsblatt" bei P-LEH — im Seed begründet mit „Allein kein
+    # Lehrkraft-Signal". Die Begründung erreichte den Klassifikator nie.
+    out = _render_personas_block([{
+        "id": "P-LEH", "label": "Lehrkraft",
+        "anti_markers": [
+            {"phrase": "mein Kind", "redirect_to": "P-ELT", "rationale": "Eltern-Indikator"},
+            {"phrase": "Arbeitsblatt", "rationale": "Allein kein Lehrkraft-Signal",
+             "when": "ohne Klassenbezug"},
+        ],
+    }])
+    assert '  - "mein Kind" → P-ELT — Eltern-Indikator\n' in out
+    assert '  - "Arbeitsblatt" (wenn ohne Klassenbezug) — Allein kein Lehrkraft-Signal\n' in out
+    assert "NICHT diese Persona" not in out
+
+
+def test_personas_legacy_anti_hints_are_listed() -> None:
+    out = _render_personas_block([{"id": "P-AND", "label": "A", "anti_hints": ["Statistik"]}])
+    assert 'Anti-Marker (kein Positiv-Treffer für diese Persona):\n  - "Statistik"\n' in out
 
 
 def test_personas_hints_alias_fallback() -> None:
@@ -109,6 +131,62 @@ def test_entities_renders_examples_and_discriminator() -> None:
     assert "  Negativ-Beispiele (Slot bleibt leer):" in out
     assert '    - "Klasse 5" — Stufe' in out
     assert "  Diskriminator vs. thema: Fach≠Thema" in out
+
+
+# ── ``null`` in optionalen Feldern (Befund 2026-09-27, ST-1) ───────────────
+# Das Studio legt einen neuen Listeneintrag mit den Schema-Vorgaben an — beim
+# Negativ-Trigger also ``when: null`` —, und ``PUT /config/data`` speichert das
+# Rohdokument, nicht den Modell-Dump. ``n.get("when", "")`` lieferte dann
+# ``None``, ``.strip()`` warf, und ``assess`` fiel für JEDEN Zug auf I01 zurück.
+# Beispiele und Diskriminatoren der Intents und Entitäten sind im Studio freie
+# JSON-Felder: ``null`` oder ein leerer YAML-Wert kommt dort genauso an.
+def test_intents_negative_trigger_with_studio_defaults_do_not_break() -> None:
+    out = _render_intents_block([{
+        "id": "I05", "label": "Erstellen",
+        "negative_triggers": [
+            {"phrase": "kürzer", "redirect_to": "I06", "rationale": "", "when": None},
+            {"phrase": "Quiz", "redirect_to": None, "rationale": None, "when": None},
+        ],
+    }])
+    assert '  - "kürzer" → I06\n' in out
+    assert '  - "Quiz"\n' in out
+    assert "None" not in out
+
+
+def test_intents_discriminator_with_null_examples_does_not_break() -> None:
+    out = _render_intents_block([{
+        "id": "I05", "label": "Erstellen",
+        "discriminators": [
+            {"vs": "I04", "rule": "neu vs vorhanden", "example_a": None, "example_b": None},
+        ],
+    }])
+    assert "  - vs. I04: neu vs vorhanden" in out
+    assert "Bsp:" not in out
+
+
+def test_entities_null_values_do_not_break() -> None:
+    out = _render_entities_block([{
+        "id": "fach", "description": "Schulfach",
+        "positive_examples": [{"text": "Mathe", "value": None}],
+        "negative_examples": [{"text": "Klasse 5", "rationale": None}],
+        "discriminators": [{"vs": "thema", "rule": None}],
+    }])
+    assert '    - "Klasse 5"\n' in out
+    assert "Diskriminator vs. thema" not in out
+    assert "None" not in out
+
+
+def test_personas_anti_marker_with_studio_defaults_do_not_break() -> None:
+    # Der Persona-Block war schon robust (``str(… or "")``); dieser Test hält
+    # das fest — ``AntiMarker`` hat drei Felder mit ``None`` als Vorgabe.
+    out = _render_personas_block([{
+        "id": "P-LEH", "label": "Lehrkraft",
+        "anti_markers": [
+            {"phrase": "Statistik", "redirect_to": None, "rationale": None, "when": None},
+        ],
+    }])
+    assert '  - "Statistik"\n' in out
+    assert "None" not in out
 
 
 def test_patterns_hint_renders_structured_fields() -> None:

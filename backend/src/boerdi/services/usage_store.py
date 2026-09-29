@@ -42,13 +42,17 @@ def _warne(session_id: str) -> None:
 
 
 async def record_turn_usage(
-    session: AsyncSession, session_id: str, acc: dict[str, Any] | None
+    session: AsyncSession, session_id: str, acc: dict[str, Any] | None,
+    engine: str | None = None,
 ) -> int:
     """Den Merkposten eines Zuges als Zeilen ablegen; Rückgabe: geschriebene Zeilen.
 
     ``acc`` ist der Merkposten aus ``obs/usage.py`` (``TurnContext.usage``).
     Ein Zug ohne LLM-Aufruf hat keine Modelle und schreibt nichts — das ist der
     Normalfall bei Tour, Kontext-Begrüßung und Drosselung, kein Fehler.
+
+    ``engine`` (AG-1) steht in jeder Zeile des Zuges; ``None`` heißt „keine
+    Maschine" (Frühausstieg) und bleibt als NULL stehen.
 
     Die beiden „davon"-Werte wandern unverändert durch: ``cached`` steckt in
     ``prompt``, ``reasoning`` in ``completion``. Wer sie hier aufaddierte,
@@ -73,6 +77,7 @@ async def record_turn_usage(
                     completion_tokens=int(m.get("completion", 0) or 0),
                     reasoning_tokens=int(m.get("reasoning", 0) or 0),
                     calls=int(m.get("calls", 0) or 0),
+                    engine=engine,
                 ))
     except Exception:
         _warne(session_id)  # kein ``raise``: siehe Modul-Docstring

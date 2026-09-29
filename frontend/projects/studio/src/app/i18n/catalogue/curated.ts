@@ -62,8 +62,9 @@ export const CURATED: CataloguePart = {
 
     // ── Domänen-Wissen ──────────────────────────────────────────────
     'curated.domainWissen.intro':
-      'Was Boerdi über die Plattform und ihre Inhalte weiß. Diese Texte gehen als '
-      + 'Systemwissen in jede Antwort ein — je konkreter, desto weniger rät das Modell.',
+      'Was Boerdi über die Plattform weiß und wohin er auf ihr führt. Die Wissenstexte '
+      + 'gehen als Systemwissen in jede Antwort ein — je konkreter, desto weniger rät das '
+      + 'Modell. Web-Tour und Lotse zeigen Wege zu Seiten.',
     'curated.domainWissen.rules.label': 'Domänen-Regeln',
     'curated.domainWissen.rules.hint': 'Fachliche Leitplanken für Antworten in dieser Domäne.',
     'curated.domainWissen.platform.label': 'Plattform-Wissen',
@@ -71,6 +72,15 @@ export const CURATED: CataloguePart = {
       'Wie WirLernenOnline aufgebaut ist: Bereiche, Begriffe, Wege.',
     'curated.domainWissen.tour.label': 'Web-Tour',
     'curated.domainWissen.tour.hint': 'Stationen der geführten Tour, ihre Gruppen und Einstiege.',
+    // ST-9: der Lotse, neben der Web-Tour (bis dahin nur unter „Alle Bereiche“)
+    'curated.domainWissen.guideMode.label': 'Lotse',
+    'curated.domainWissen.guideMode.hint':
+      'Knöpfe „Bring mich hin“ unter Antworten und Sprungziele an Karten: wie viele, zu '
+      + 'welchen Hosts und Domains.',
+    'curated.domainWissen.guideRules.label': 'Lotsen-Regeln',
+    'curated.domainWissen.guideRules.hint':
+      'Feste Sprungziele: passt eine Nachricht auf eine Regel, bietet der Lotse die '
+      + 'hinterlegte Seite an. Änderungen wirken erst nach einem Neustart des Backends.',
 
     // ── Material-Formate ────────────────────────────────────────────
     'curated.materialFormate.intro':
@@ -109,10 +119,17 @@ export const CURATED: CataloguePart = {
     'curated.dimensionen.entities.label': 'Entitäten',
     'curated.dimensionen.entities.hint':
       'Erkannte Größen wie Fach oder Bildungsstufe, mit Beispielen.',
+    'curated.dimensionen.placeholderTopics.label': 'Platzhalter-Themen',
+    'curated.dimensionen.placeholderTopics.hint':
+      'Wörter wie „Thema“ oder „Material“, die nicht als echtes Thema zählen.',
     'curated.dimensionen.signals.label': 'Signale',
     'curated.dimensionen.signals.hint': 'Feine Hinweise im Text, die die Antwort nachjustieren.',
     'curated.dimensionen.tone.label': 'Tonalität',
     'curated.dimensionen.tone.hint': 'Wie sich die Ansprache je Persona verschiebt.',
+    'curated.dimensionen.classifyOverrides.label': 'Feste Anker der Einordnung',
+    'curated.dimensionen.classifyOverrides.hint':
+      'Regeln und Beispiele für Persona, Intent und Muster. Sie stehen im Prompt des '
+      + 'Klassifikators; erzwungen wird nichts.',
 
     // ── Anzeige ─────────────────────────────────────────────────────
     'curated.anzeige.intro':
@@ -120,10 +137,23 @@ export const CURATED: CataloguePart = {
       + 'welche Kopfzeilen-Links — und was kleine Geräte davon abweichend bekommen.',
     'curated.anzeige.display.label': 'Darstellungsregeln',
     'curated.anzeige.display.hint': 'Boxen, Grenzen und Textlängen der Ergebnisdarstellung.',
+    'curated.anzeige.cardPipeline.label': 'Trefferauswahl und Links',
+    'curated.anzeige.cardPipeline.hint':
+      'Wohin Treffer-Links zeigen (wirkt immer) und eine Nachauswahl, die nur mit der '
+      + 'Umgebungsvariable CARD_PIPELINE_V2 läuft.',
+    'curated.anzeige.widgetModes.label': 'Trefferliste im Text',
+    'curated.anzeige.widgetModes.hint':
+      'Grenzen einer älteren Darstellung, die Treffer als Linkliste an die Antwort hängt. '
+      + 'Wirkt derzeit nicht, der Server schaltet sie nie ein.',
     'curated.anzeige.header.label': 'Kopfzeilen-Navigation',
     'curated.anzeige.header.hint': 'Die Links, die das Widget oben anbietet.',
-    'curated.anzeige.devices.label': 'Geräte',
-    'curated.anzeige.devices.hint': 'Abweichende Grenzen für kleine Bildschirme.',
+    'curated.anzeige.devices.label': 'Geräte & Anrede',
+    // ST-1: bis 2026-09-27 „Abweichende Grenzen für kleine Bildschirme" — die
+    // Grenze kürzt aber keine Box im Widget, sie steht nur im Muster-Prompt,
+    // und die Anrede je Zielgruppe gehört ebenfalls in diesen Bereich.
+    'curated.anzeige.devices.hint':
+      'Wie viele Ergebnisse der Muster-Modus je Gerät höchstens nennt, und die Anrede je '
+      + 'Zielgruppe.',
 
     // ── Datenschutz ─────────────────────────────────────────────────
     'curated.datenschutz.intro':
@@ -134,6 +164,17 @@ export const CURATED: CataloguePart = {
     'curated.datenschutz.qualityLog.label': 'Qualitäts-Logging',
     'curated.datenschutz.qualityLog.hint':
       'Umfang der Protokolle, aus denen die Analyse gespeist wird.',
+    'curated.datenschutz.purge.label': 'Gespräche löschen',
+    'curated.datenschutz.purge.hint':
+      'Gespeicherte Daten aller Sitzungen auf einmal löschen; dazu die Datenbank aufräumen.',
+
+    // ── ST-9: Abschnitte auf Kosten und Evaluation ─────────────────
+    'curated.kosten.pricing.label': 'Preistafel',
+    'curated.kosten.pricing.hint':
+      'Preise je Million Token und Modell. Ein Modell ohne Preis fehlt im Betrag oben.',
+    'curated.evaluation.goldFlows.label': 'Gold-Flows',
+    'curated.evaluation.goldFlows.hint':
+      'Die festen Gesprächsabläufe samt Erwartungen, die ein Gold-Lauf abspielt und prüft.',
 
     // ── Wissen ──────────────────────────────────────────────────────
     'curated.wissen.intro':
@@ -161,7 +202,10 @@ export const CURATED: CataloguePart = {
     'curated.agent.engine.label': 'Welche Maschine antwortet',
     'curated.agent.engine.hint':
       'Umschalter und die Deckel der Schleife (Runden, Frist, Token-Budget, Schreibrecht).',
-    'curated.agent.tester.label': 'Agent testen',
+    'curated.agent.masterSkill.label': 'Master-Skill',
+    'curated.agent.masterSkill.hint':
+      'Die Gesamtanleitung des Agenten. Gepflegt im Repositorium; hier steht, was gilt.',
+    'curated.agent.tester.label': 'Auftrag testen (Gastanwendungen)',
     'curated.agent.tester.hint':
       'Eine Aufgabe stellen und das Ergebnis ansehen — ohne Chat, ohne Sitzung.',
   },
@@ -202,8 +246,9 @@ export const CURATED: CataloguePart = {
       'Rules that allow or block patterns and tools per situation.',
 
     'curated.domainWissen.intro':
-      'What Boerdi knows about the platform and its content. These texts go into '
-      + 'every answer as system knowledge — the more concrete, the less the model guesses.',
+      'What Boerdi knows about the platform and where it leads people on it. The knowledge '
+      + 'texts go into every answer as system knowledge — the more concrete, the less the '
+      + 'model guesses. Site tour and guide show the way to pages.',
     'curated.domainWissen.rules.label': 'Domain rules',
     'curated.domainWissen.rules.hint': 'Subject-matter guardrails for answers in this domain.',
     'curated.domainWissen.platform.label': 'Platform knowledge',
@@ -211,6 +256,14 @@ export const CURATED: CataloguePart = {
       'How WirLernenOnline is built: areas, terms, routes.',
     'curated.domainWissen.tour.label': 'Site tour',
     'curated.domainWissen.tour.hint': 'Stops of the guided tour, their groups and entry points.',
+    'curated.domainWissen.guideMode.label': 'Guide',
+    'curated.domainWissen.guideMode.hint':
+      '“Take me there” buttons under answers and jump targets on cards: how many, to which '
+      + 'hosts and domains.',
+    'curated.domainWissen.guideRules.label': 'Guide rules',
+    'curated.domainWissen.guideRules.hint':
+      'Fixed jump targets: when a message matches a rule, the guide offers the stored page. '
+      + 'Changes only take effect after a backend restart.',
 
     'curated.materialFormate.intro':
       'Which kinds of material Boerdi can produce, and how it recognises that '
@@ -248,20 +301,37 @@ export const CURATED: CataloguePart = {
     'curated.dimensionen.entities.label': 'Entities',
     'curated.dimensionen.entities.hint':
       'Recognised quantities such as subject or education level, with examples.',
+    'curated.dimensionen.placeholderTopics.label': 'Placeholder topics',
+    'curated.dimensionen.placeholderTopics.hint':
+      'Words such as “topic” or “material” that do not count as a real topic.',
     'curated.dimensionen.signals.label': 'Signals',
     'curated.dimensionen.signals.hint': 'Faint hints in the text that readjust the answer.',
     'curated.dimensionen.tone.label': 'Tone',
     'curated.dimensionen.tone.hint': 'How the wording shifts per persona.',
+    'curated.dimensionen.classifyOverrides.label': 'Fixed classification anchors',
+    'curated.dimensionen.classifyOverrides.hint':
+      'Rules and examples for persona, intent and pattern. They go into the classifier '
+      + 'prompt; nothing is enforced.',
 
     'curated.anzeige.intro':
       'How results appear in the widget: which boxes, how many entries, which '
       + 'header links — and what small devices get instead.',
     'curated.anzeige.display.label': 'Display rules',
     'curated.anzeige.display.hint': 'Boxes, limits and text lengths of the result display.',
+    'curated.anzeige.cardPipeline.label': 'Result selection and links',
+    'curated.anzeige.cardPipeline.hint':
+      'Where result links point (always in effect) and a post-selection that only runs with '
+      + 'the CARD_PIPELINE_V2 environment variable.',
+    'curated.anzeige.widgetModes.label': 'Result list in the text',
+    'curated.anzeige.widgetModes.hint':
+      'Limits of an older display that appends results to the answer as a list of links. '
+      + 'Currently without effect, the server never switches it on.',
     'curated.anzeige.header.label': 'Header navigation',
     'curated.anzeige.header.hint': 'The links the widget offers at the top.',
-    'curated.anzeige.devices.label': 'Devices',
-    'curated.anzeige.devices.hint': 'Differing limits for small screens.',
+    'curated.anzeige.devices.label': 'Devices & form of address',
+    'curated.anzeige.devices.hint':
+      'How many results the pattern engine names at most per device, and the form of '
+      + 'address per target group.',
 
     'curated.datenschutz.intro':
       'What is recorded and for how long. Less logging means less analysis — the '
@@ -270,6 +340,17 @@ export const CURATED: CataloguePart = {
     'curated.datenschutz.privacy.hint': 'Which content may be stored at all.',
     'curated.datenschutz.qualityLog.label': 'Quality logging',
     'curated.datenschutz.qualityLog.hint': 'Extent of the logs that feed the analysis.',
+    'curated.datenschutz.purge.label': 'Delete conversations',
+    'curated.datenschutz.purge.hint':
+      'Delete the stored data of all sessions at once; plus tidying up the database.',
+
+    'curated.kosten.pricing.label': 'Price table',
+    'curated.kosten.pricing.hint':
+      'Prices per million tokens and model. A model without a price is missing from the '
+      + 'amount above.',
+    'curated.evaluation.goldFlows.label': 'Gold flows',
+    'curated.evaluation.goldFlows.hint':
+      'The fixed conversation scripts with expectations that a gold run plays and checks.',
 
     'curated.wissen.intro':
       'Where the bot gets knowledge from: its own documents (RAG) and the MCP '
@@ -295,7 +376,10 @@ export const CURATED: CataloguePart = {
     'curated.agent.engine.label': 'Which engine answers',
     'curated.agent.engine.hint':
       'The switch and the loop’s caps (rounds, deadline, token budget, write mode).',
-    'curated.agent.tester.label': 'Test the agent',
+    'curated.agent.masterSkill.label': 'Master skill',
+    'curated.agent.masterSkill.hint':
+      'The agent’s overall instructions. Maintained in the repository; this shows what applies.',
+    'curated.agent.tester.label': 'Test a task (host applications)',
     'curated.agent.tester.hint':
       'Give it a task and look at the result — no chat, no session.',
   },

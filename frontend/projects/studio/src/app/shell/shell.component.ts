@@ -10,16 +10,18 @@ import {
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { AuthService } from '../auth/auth.service';
+import { EffectsApi } from '../core/effects-api.service';
 import { LanguageSwitcherComponent } from '../i18n/language-switcher.component';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { NAV_GROUPS } from '../studio-views';
+import { BackupToolsComponent } from './backup-tools.component';
 import { StatusIndicatorComponent } from './status-indicator.component';
 
 @Component({
   selector: 'studio-shell',
   imports: [
     RouterLink, RouterLinkActive, RouterOutlet,
-    StatusIndicatorComponent, LanguageSwitcherComponent,
+    StatusIndicatorComponent, LanguageSwitcherComponent, BackupToolsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './shell.component.html',
@@ -43,6 +45,8 @@ export class ShellComponent {
 
   /** The `<main>` landmark — where focus goes after the router swaps the view. */
   private readonly mainRef = viewChild<ElementRef<HTMLElement>>('main');
+  private readonly backupTools = viewChild(BackupToolsComponent);
+  private readonly effects = inject(EffectsApi);
   /** The first activation is the page loading, not a navigation the user made. */
   private viewActivatedOnce = false;
 
@@ -60,6 +64,10 @@ export class ShellComponent {
    * focus hook does not earn the first one.
    */
   onViewActivated(): void {
+    // Auch beim ersten Laden: die Wirkungs-Zuordnung (ST-5) samt Vorgabe-
+    // Maschine frisch, die Meldung der Kopfzeilen-Werkzeuge (ST-9) weg.
+    void this.effects.refresh();
+    this.backupTools()?.dismiss();
     if (!this.viewActivatedOnce) {
       this.viewActivatedOnce = true;
       return;

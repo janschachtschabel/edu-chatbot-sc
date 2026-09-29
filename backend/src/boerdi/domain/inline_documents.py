@@ -12,7 +12,7 @@ verschob das Ergebnis in einen Zug, in dem die Vermutung nicht mehr griff. Ein
 Zwischenschritt darf ein Arbeitsergebnis nicht kosten.
 
 Hier ruft das Modell stattdessen ``zeige_dokument`` — dieselbe Mechanik wie
-``submit_result`` und ``waehle_vorgehen``: ein virtuelles Werkzeug, das die
+``submit_result``: ein virtuelles Werkzeug, das die
 Schleife am Namen abfängt, bevor irgendein MCP-Aufruf passiert. Titel, Art und
 Markdown kommen als Argumente; Länge, Überschrift, Muster und Zug sind
 gleichgültig.

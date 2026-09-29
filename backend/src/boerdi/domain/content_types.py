@@ -6,8 +6,10 @@ logic — no I/O, no config → ``domain/``.
 Produces the ``wanted_content_types`` set consumed by ``domain/cards/{normalize,select}``
 and ``services/card_pipeline``; feeds the type-focus path in the response finalizer.
 
-**NEU-Portierung:** the module has zero app imports, so it is copied byte-for-byte
-from ALT (only this docstring differs) — the whole-module AST is identical.
+**NEU-Portierung:** the module has zero app imports and was copied byte-for-byte
+from ALT. Deliberate deviations since: bilingual keywords (C1-f2c-b), „Sammlung"
+is no content type (2026-08-16), and a ``material_typ`` never becomes a raw
+filter word (2026-09-27).
 """
 
 from __future__ import annotations
@@ -141,6 +143,7 @@ def _resolve_wanted_content_types(
     for src in (classification_entities, session_entities):
         if not isinstance(src, dict):
             continue
+        aus_medientyp = bool(src.get("medientyp"))
         mt = src.get("medientyp") or src.get("material_typ") or ""
         if not isinstance(mt, str) or not mt.strip():
             continue
@@ -154,8 +157,17 @@ def _resolve_wanted_content_types(
                 wanted.add(canonical)
                 matched = True
                 break
-        if not matched and mt_lower and not medientyp_meint_sammlungen(mt_lower):
+        if (not matched and mt_lower and aus_medientyp
+                and not medientyp_meint_sammlungen(mt_lower)):
             # Fallback: das raw-Wort als Substring nutzen.
+            #
+            # NUR für ``medientyp`` (2026-09-27, ST-5-Lesart Befund 3):
+            # ``material_typ`` trägt Canvas-Typen aus
+            # ``05-canvas/material-types``, kein WLO-Vokabular. „Zusammenfassung"
+            # → ``infoblatt`` wurde so ein Filterwort, das in keinem
+            # ``learning_resource_types`` steht — der Kartenfilter warf jede
+            # Karte weg, in beiden Maschinen. Wo ein Canvas-Typ einem
+            # Ressourcentyp entspricht (Quiz, Arbeitsblatt), trifft er oben.
             #
             # NICHT bei „Sammlung"/„Themenseite" (2026-08-16): der Rueckfall
             # macht aus jedem unbekannten Medientyp ein Filterwort, gegen das

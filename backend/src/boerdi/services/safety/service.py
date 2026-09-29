@@ -12,6 +12,10 @@ Deviation vs ALT (documented in ``docs/plans/p3-safety-contract.md``): the singl
 165-line ``assess_safety`` is split — the three post-gather merges live in
 ``_merge_moderation`` / ``_merge_legal`` / ``_maybe_downgrade`` (behaviour-preserving
 extraction), and a dead ``if ...: pass`` no-op in ALT's injection stage is dropped.
+Since 2026-09-27 an EMPTY preset ``moderation``/``legal_classifier`` and an empty
+``crisis_pattern``/``threat_pattern`` count as missing (→ ``smart`` / M01 / M02).
+ALT read ``""`` as "never" and "no pattern"; the NEU Studio writes ``""`` into
+every preset it creates, so a new level checked nothing.
 """
 
 from __future__ import annotations
@@ -58,10 +62,11 @@ def _resolve_preset(cfg: dict) -> dict:
     presets = cfg.get("presets") or {}
     preset = presets.get(level)
     if preset:
+        # ``or``, not a ``.get`` default: empty means "not set", like missing.
         return {
             "level": level,
-            "moderation": preset.get("moderation", "smart"),
-            "legal_classifier": preset.get("legal_classifier", "smart"),
+            "moderation": preset.get("moderation") or "smart",
+            "legal_classifier": preset.get("legal_classifier") or "smart",
             "prompt_injection": bool(preset.get("prompt_injection", False)),
             "legal_trigger_override": bool(preset.get("legal_trigger_override", False)),
             "threshold_multiplier": float(preset.get("threshold_multiplier", 1.0)),
@@ -114,18 +119,21 @@ def _merge_moderation(
             decision.legal_flags.append(mapped)
 
     # Hard-Block-Kategorien sofort high. Pattern-Wahl: Selbstgefährdung hat
-    # immer Vorrang (M01), sonst Drohungs-Kategorien → M02, Rest → M01.
+    # immer Vorrang (M01), sonst Drohungs-Kategorien → M02, Rest → M01. Ein
+    # geleertes Muster fällt auf die Vorgabe zurück — sonst liefe ein hohes
+    # Risiko ohne erzwungenes Muster in die normale Musterwahl.
     hard_hit = [c for c in flagged_now if c in hard_blocks]
     if hard_hit:
         decision.risk_level = "high"
         threat_cats = {"hate/threatening", "harassment/threatening"}
         crisis_cats = {"self_harm", "self_harm/intent", "sexual/minors"}
+        crisis_pattern = cfg.get("crisis_pattern") or "M01"
         if set(hard_hit) & crisis_cats:
-            decision.enforced_pattern = cfg.get("crisis_pattern", "M01")
+            decision.enforced_pattern = crisis_pattern
         elif set(hard_hit) & threat_cats:
-            decision.enforced_pattern = cfg.get("threat_pattern", "M02")
+            decision.enforced_pattern = cfg.get("threat_pattern") or "M02"
         else:
-            decision.enforced_pattern = cfg.get("crisis_pattern", "M01")
+            decision.enforced_pattern = crisis_pattern
         for t in cfg.get("crisis_blocked_tools", []):
             if t not in decision.blocked_tools:
                 decision.blocked_tools.append(t)

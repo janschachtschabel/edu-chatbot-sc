@@ -238,6 +238,29 @@ def merke_laufende_anleitung(
     }
 
 
+def in_diesem_zug_geholt(entities: object, zug: object) -> dict[str, str] | None:
+    """Die Anleitung, die GENAU in diesem Zug geholt wurde — oder ``None`` (AG-5).
+
+    Liest die Notiz aus :func:`merke_laufende_anleitung`. Deren ``zug`` ist der
+    Zählerstand beim Holen, und der wächst erst in ``turn_persist``: gleich
+    heißt „in diesem Zug geholt", kleiner heißt „der Faden eines früheren".
+    Muster-Weg und Schleife schreiben dieselbe Notiz, der Leser gilt also für
+    jede Maschine.
+
+    simplify: die Notiz führt EINE Anleitung. Holt ein Zug zwei, nennt dieser
+    Leser die letzte; die volle Liste kennt nur die Schleife
+    (``AgentRun.anleitungen``).
+    """
+    if not isinstance(zug, int) or isinstance(zug, bool) or not isinstance(entities, dict):
+        return None
+    notiz = entities.get(LAUF_KEY)
+    if not isinstance(notiz, dict) or notiz.get("zug") != zug:
+        return None
+    if isinstance(notiz.get("zug"), bool) or not notiz.get("node_id"):
+        return None
+    return {"node_id": str(notiz["node_id"]), "titel": str(notiz.get("titel") or "")}
+
+
 #: Der Kopf jeder Ansage-Zeile — und das Erkennungsmerkmal beim Aufräumen:
 #: eine Zeile, die so beginnt, ist nie Fließtext.
 ANSAGE_PRAEFIX = "[ edu-sharing Skill ]"
@@ -299,7 +322,7 @@ def _mit_zeilen(text: str, titel: list[str]) -> str:
 
 
 def mit_ladehinweisen(text: str, anleitungen: object) -> str:
-    """Je in DIESEM Zug geholter Anleitung eine Zeile — der Agent-/Hybrid-Weg.
+    """Je in DIESEM Zug geholter Anleitung eine Zeile — der Agent-Weg.
 
     Nutzer-Vorgabe 2026-08-19: „Meldungen über Skill-Aufrufe sind gewollt, um zu
     verdeutlichen, was die KI nutzt — am besten hartcodiert."

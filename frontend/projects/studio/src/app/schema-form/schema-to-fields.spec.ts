@@ -19,6 +19,15 @@ function child(field: SchemaField, key: string): SchemaField {
   return found;
 }
 
+/** Paths of every text area in a real area's form. */
+function multilinePaths(area: string): string[] {
+  const paths: string[] = [];
+  walk(rootField(AREA_SCHEMAS[area]), (f, path) => {
+    if (f.kind === 'multiline') paths.push(path);
+  });
+  return paths;
+}
+
 describe('rootField — scalar kinds', () => {
   const scalars: ReadonlyArray<readonly [string, string]> = [
     ['string', 'text'],
@@ -32,44 +41,43 @@ describe('rootField — scalar kinds', () => {
     expect(child(rootField(schema), 'v').kind).toBe(kind);
   });
 
-  it('renders a string named "body" as multiline', () => {
-    // the only long-form strings in the registry are LayerDocArea.body and
-    // PatternArea.body — a whole markdown document behind a one-line input
-    const schema: JsonSchema = { type: 'object', properties: { body: { type: 'string' } } };
-    expect(child(rootField(schema), 'body').kind).toBe('multiline');
-  });
-
-  it('gibt auch den anderen Fliesstext-Schlüsseln eine Textfläche', () => {
-    // Nutzer 2026-08-13: `structure` (Material-Formate, bis 729 Zeichen) stand
-    // in einer fortlaufenden Zeile. Gemessen wurde der ganze Seed-Baum, nicht
-    // nur der eine Fall — siehe MULTILINE_KEYS.
+  it('gibt Fließtext eine Textfläche, wenn das Modell es sagt — nicht nach dem Namen (ST-2f)', () => {
+    // Bis ST-2f entschied eine Namensliste: `description` war überall eine
+    // Fläche, auch ein kurzes; eine Muster-Kennung namens `pattern` ebenso.
     const schema: JsonSchema = {
       type: 'object',
       properties: {
-        structure: { type: 'string' },
-        description: { type: 'string' },
-        label: { type: 'string' },
+        structure: { type: 'string', 'x-widget': 'textarea' },
+        description: { type: 'string' }, // der Name allein entscheidet nichts mehr
+        rolle: { anyOf: [{ type: 'string' }, { type: 'null' }], 'x-widget': 'textarea' },
       },
     };
     const root = rootField(schema);
     expect(child(root, 'structure').kind).toBe('multiline');
-    expect(child(root, 'description').kind).toBe('multiline');
-    expect(child(root, 'label').kind).toBe('text'); // kurze Felder bleiben kurz
+    expect(child(root, 'description').kind).toBe('text');
+    expect(child(root, 'rolle').kind).toBe('multiline'); // Hinweis an der Eigenschaft
   });
 
-  it('vererbt die Textfläche an die Elemente einer Fliesstext-Liste', () => {
-    // `rules:` ist eine Liste langer Sätze; das ELEMENT hat keinen eigenen
-    // Schlüssel, also kann nur der Listen-Schlüssel die Entscheidung tragen.
+  it('nimmt den Hinweis eines Listen-Elements vom Element selbst', () => {
     const schema: JsonSchema = {
       type: 'object',
       properties: {
-        rules: { type: 'array', items: { type: 'string' } },
+        rules: { type: 'array', items: { type: 'string', 'x-widget': 'textarea' } },
         tags: { type: 'array', items: { type: 'string' } },
       },
     };
     const root = rootField(schema);
     expect(child(root, 'rules').item?.kind).toBe('multiline');
     expect(child(root, 'tags').item?.kind).toBe('text');
+  });
+
+  it('trifft an den echten Bereichen die Fließtexte des Seeds', () => {
+    // Der Backend-Wächter `test_config_textarea_hints.py` hält die Hinweise
+    // aktuell; hier nur die Stichprobe, dass sie im Studio ankommen.
+    expect(multilinePaths('01-base/base-persona')).toContain('body');
+    expect(multilinePaths('03-patterns')).toEqual(
+      expect.arrayContaining(['frontmatter.core_rule', 'frontmatter.when_to_use[]', 'body']),
+    );
   });
 
   it('labels a field with its raw config key, not a prettified title', () => {
@@ -343,8 +351,53 @@ describe('rootField — against the real area schemas', () => {
       '04-entities/entities:entities[].negative_examples[]',
       '04-entities/entities:entities[].positive_examples[]',
       '04-intents/intents:intents[].discriminators[]',
+      'eval/gold-flows:flows[].environment', // dict[str, Any] — AG-5, geprüft serverseitig
       'eval/gold-flows:flows[].turns[].expect', // dict[str, Any]
     ]);
+  });
+
+  it('gibt den mehrzeiligen Musterfeldern eine Textfläche (SF-2)', () => {
+    // 15 von 20 Kernregeln im Seed sind mehrzeilig, M18 hat 1 072 Zeichen in
+    // 20 Zeilen. Die Messung von 2026-08-13 las nur `*.yaml` und sah die
+    // Frontmatter der Muster (`*.md`) nie.
+    expect(multilinePaths('03-patterns')).toEqual(
+      expect.arrayContaining([
+        'frontmatter.core_rule',
+        'frontmatter.short_purpose',
+        'frontmatter.when_to_use[]',
+        'frontmatter.when_not_to_use[]',
+        'frontmatter.discriminators[].example',
+      ]),
+    );
+  });
+
+  it('gibt der Rolle des Agenten eine Textfläche (AG-3)', () => {
+    // Ihr Vorgabetext hat drei Absätze und steht im Modell, nicht im Seed —
+    // die Messung über den Seed-Baum sieht ihn deshalb nicht.
+    expect(multilinePaths('01-base/engine')).toContain('agent_rolle.rolle');
+  });
+
+  it('gibt dem Krisentext eine Textfläche (D-14)', () => {
+    // Frei im Studio gepflegt, Vorgabe im Modell — wie die Rolle des Agenten.
+    expect(multilinePaths('01-base/safety-config')).toEqual(
+      expect.arrayContaining(['crisis_message', 'crisis_message_en']),
+    );
+  });
+
+  it('gibt jedem Feld eine Textfläche, dessen Seed-Wert Zeilenumbrüche trägt', () => {
+    // Umbrüche gehen nicht nur in langen Texten verloren: die Rate-Limit-Meldung
+    // und zwei Tour-Texte sind kurz, im Seed aber als `|`-Block mehrzeilig.
+    expect(multilinePaths('01-base/safety-config')).toEqual(
+      expect.arrayContaining(['rate_limits.blocked_message', 'rate_limits.blocked_message_en']),
+    );
+    expect(multilinePaths('01-base/website-tour')).toEqual(
+      expect.arrayContaining([
+        'website_tour.nudge',
+        'website_tour.nudge_en',
+        'website_tour.explore',
+        'website_tour.explore_en',
+      ]),
+    );
   });
 });
 
@@ -433,11 +486,11 @@ describe('rootField — Auswahl und Vorschlagsliste (S3)', () => {
     expect(treffer).toContain('03-patterns:frontmatter.tools[] → tools');
     expect(treffer).toContain('01-base/safety-config:crisis_pattern → patterns');
     expect(treffer).toContain('01-base/safety-config:escalation.mode → [off|smart|always]');
-    // Der Maschinen-Umschalter — über `enum`, nicht über `x-choices`. Seit H1
-    // sind es DREI Werte; dass hier bis zum 18.08.2026 zwei standen, lag an
-    // einer veralteten Fixture: das Studio bot `hybrid` nie zur Auswahl an.
-    // Seither hält `export_area_schemas.py --check` die Fixture aktuell.
-    expect(treffer).toContain('01-base/engine:mode → [pattern|agent|hybrid]');
+    // Der Maschinen-Umschalter — über `enum`, nicht über `x-choices`. Seit
+    // K1-1 (2026-09-27) wieder ZWEI Werte: der Hybrid ist entfernt, ein
+    // gespeichertes `hybrid` liest das Backend als `agent`. Die Fixture hält
+    // `test_area_schema_fixture.py` aktuell.
+    expect(treffer).toContain('01-base/engine:mode → [pattern|agent]');
     // S1: der RAG-Modus war ein leeres Textfeld — ein Tippfehler nahm den
     // Bereich still aus der Nutzung.
     expect(treffer).toContain('05-knowledge/rag-config:[].mode → [always|on-demand]');
@@ -447,5 +500,119 @@ describe('rootField — Auswahl und Vorschlagsliste (S3)', () => {
     expect(treffer).toContain(
       '01-base/context-actions:context_actions.pills[][].action → [browse_collection|curate_collection|generate_learning_path|show_content_text]',
     );
+  });
+});
+
+describe('rootField — Grenzen aus dem Schema (ST-2c)', () => {
+  it('übernimmt minimum und maximum an Zahlfeldern', () => {
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: { n: { type: 'integer', minimum: 70, maximum: 100 } },
+    };
+    const n = child(rootField(schema), 'n');
+    expect([n.minimum, n.maximum]).toEqual([70, 100]);
+  });
+
+  it('liest die Grenze auch hinter „| None" aus dem Nicht-null-Zweig', () => {
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: {
+        n: { anyOf: [{ type: 'number', minimum: -0.3, maximum: 0.3 }, { type: 'null' }] },
+      },
+    };
+    const n = child(rootField(schema), 'n');
+    expect([n.minimum, n.maximum]).toEqual([-0.3, 0.3]);
+  });
+
+  it('trägt am echten Bereich die Grenzen der Lader-Kappung', () => {
+    const regeln = rootField(AREA_SCHEMAS['01-base/display-rules']);
+    const schrift = child(child(child(regeln, 'display_rules'), 'inline_documents'), 'font_size_percent');
+    expect([schrift.minimum, schrift.maximum]).toEqual([70, 100]);
+  });
+});
+
+describe('rootField — Schieberegler (ST-2h)', () => {
+  it('macht ein begrenztes Zahlfeld mit Hinweis zum Regler, samt Schritt und Schwellen', () => {
+    const ton = rootField(AREA_SCHEMAS['01-base/tone-modifiers']);
+    const bias = child(child(ton, 'default_modifier'), 'length_bias');
+    expect(bias.widget).toBe('slider');
+    expect([bias.minimum, bias.maximum, bias.step]).toEqual([-0.3, 0.3, 0.05]);
+    expect(bias.thresholds).toEqual([-0.15, 0.15]);
+  });
+
+  it('liest den Hinweis auch an einem Feld mit „| None"', () => {
+    // pydantic legt `json_schema_extra` an die Eigenschaft, die Grenzen in
+    // den Nicht-null-Zweig — beides muss ankommen
+    const persona = rootField(AREA_SCHEMAS['04-personas']);
+    const bias = child(child(persona, 'frontmatter'), 'length_bias');
+    expect([bias.widget, bias.minimum, bias.maximum]).toEqual(['slider', -0.3, 0.3]);
+  });
+
+  it('bleibt ohne Grenzen ein Zahlfeld — ein Regler braucht beide Enden', () => {
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: { n: { type: 'number', 'x-widget': 'slider', minimum: 0 } },
+    };
+    expect(child(rootField(schema), 'n').widget).toBeUndefined();
+  });
+});
+
+describe('rootField — Katalog-Schlüssel der Feldtexte (ST-1)', () => {
+  it('gibt jedem Objektfeld den Schlüssel seines Modells', () => {
+    const schema: JsonSchema = {
+      title: 'WelcomeArea',
+      type: 'object',
+      properties: { greeting: { type: 'string' }, inner: { $ref: '#/$defs/Inner' } },
+      $defs: { Inner: { title: 'Inner', type: 'object', properties: { x: { type: 'integer' } } } },
+    };
+    const root = rootField(schema);
+    expect(root.textKey).toBeUndefined();
+    expect(child(root, 'greeting').textKey).toBe('feld.WelcomeArea.greeting');
+    expect(child(root, 'inner').textKey).toBe('feld.WelcomeArea.inner');
+    expect(child(child(root, 'inner'), 'x').textKey).toBe('feld.Inner.x');
+  });
+
+  it('lässt Listen- und Map-Elemente ohne Schlüssel — sie heißen nach ihrer Liste', () => {
+    const schema: JsonSchema = {
+      title: 'A',
+      type: 'object',
+      properties: {
+        rows: { type: 'array', items: { $ref: '#/$defs/Row' } },
+        byId: { type: 'object', additionalProperties: { $ref: '#/$defs/Row' } },
+      },
+      $defs: { Row: { title: 'Row', type: 'object', properties: { id: { type: 'string' } } } },
+    };
+    const root = rootField(schema);
+    const rows = child(root, 'rows');
+    expect(rows.item?.textKey).toBeUndefined();
+    expect(child(rows.item!, 'id').textKey).toBe('feld.Row.id');
+    expect(child(root, 'byId').item?.textKey).toBeUndefined();
+  });
+
+  it('vergibt keinen Schlüssel, wenn das Objekt kein Modell nennt', () => {
+    const schema: JsonSchema = { type: 'object', properties: { v: { type: 'string' } } };
+    expect(child(rootField(schema), 'v').textKey).toBeUndefined();
+  });
+
+  it('nennt ein Feld hinter „| None" nach dem Modell des Objekts, nicht nach dem Feld', () => {
+    // pydantic setzt auch an Eigenschaften ein `title` („Core Rule") — das ist
+    // die Feldüberschrift, kein Modellname, und darf nie in den Schlüssel.
+    const schema: JsonSchema = {
+      title: 'Doc',
+      type: 'object',
+      properties: {
+        meta: { anyOf: [{ $ref: '#/$defs/Meta' }, { type: 'null' }], title: 'Meta Field' },
+      },
+      $defs: { Meta: { title: 'Meta', type: 'object', properties: { core_rule: { type: 'string', title: 'Core Rule' } } } },
+    };
+    const meta = child(rootField(schema), 'meta');
+    expect(meta.textKey).toBe('feld.Doc.meta');
+    expect(child(meta, 'core_rule').textKey).toBe('feld.Meta.core_rule');
+  });
+
+  it('trifft die echten Muster: alle 20 teilen sich die Texte ihres Modells', () => {
+    const muster = rootField(AREA_SCHEMAS['03-patterns']);
+    const kernregel = child(child(muster, 'frontmatter'), 'core_rule');
+    expect(kernregel.textKey).toMatch(/^feld\.[A-Za-z]+\.core_rule$/);
   });
 });

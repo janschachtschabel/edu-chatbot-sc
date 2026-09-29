@@ -52,10 +52,10 @@ class LoadTestProfile(BaseModel):
     p95_threshold_s: float = Field(
         default=20.0, description="p95-Schwelle für 'stabil' im Fazit",
     )
-    # Review-Befund 7 (2026-08-22): agent/hybrid haben ein anderes
+    # Review-Befund 7 (2026-08-22): agent hat ein anderes
     # Runden-Profil (H8: 4 LLM-Runden je Zug gemessen) — ohne Engine-Wahl
     # galten die Kapazitätszahlen nur für die Server-Vorgabe.
-    engine: Literal["default", "pattern", "agent", "hybrid"] = Field(
+    engine: Literal["default", "pattern", "agent"] = Field(
         "default", description="Engine für jeden Zug dieses Laufs",
     )
 

@@ -6,7 +6,7 @@ description: Schüler:in, die selbst lernt — informell, ermutigend, immer duze
 tone: ermutigend
 length_bias: -0.1
 formality: duzen
-card_text_mode: explanation
+card_text_mode: highlight
 override: true
 positive_markers:
   - ich verstehe nicht

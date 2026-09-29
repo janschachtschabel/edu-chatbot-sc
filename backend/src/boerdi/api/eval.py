@@ -15,18 +15,20 @@ Both run families are LIVE (the header claiming the generative engine was
 
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Query, Request, Security
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Security
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from boerdi.api.deps import get_session, require_studio_key
+from boerdi.api.deps import Lang, get_session, require_studio_key
+from boerdi.i18n import msg
 from boerdi.services.eval_service import (
     cancel_run,
     clear_eval_quality_logs,
+    compare_runs,
     delete_run,
     delete_runs,
     estimate,
-    get_run,
+    get_run_with_profile,
     get_trends,
     list_gold_flows,
     list_personas_and_intents,
@@ -42,6 +44,13 @@ router = APIRouter(
 )
 
 _Session = Annotated[AsyncSession, Depends(get_session)]
+
+#: ST-7a: nur Läufe einer Maschine. Ohne Angabe alle — auch die, deren Maschine
+#: unbekannt ist (vor ST-7 mit Server-Vorgabe gestartet).
+_EngineFilter = Annotated[
+    Literal["pattern", "agent"] | None,
+    Query(description="Nur Läufe dieser Maschine ('pattern' | 'agent'); ohne Angabe alle"),
+]
 
 
 def _factory(request: Request) -> Any:
@@ -94,8 +103,9 @@ class StartRequest(BaseModel):
 async def list_eval_runs(
     session: _Session,
     limit: int = Query(50, ge=1, le=500),
+    engine: _EngineFilter = None,
 ) -> dict:
-    return await list_runs(session, limit)
+    return await list_runs(session, limit, engine)
 
 
 @router.post("/runs")
@@ -132,7 +142,7 @@ class GoldenRunRequest(BaseModel):
     config_slug: str = ""
     # GV5: one run per engine — "default" sends no header and measures the
     # server's engine.yaml setting; the others set X-Boerdi-Engine per turn.
-    engine: Literal["default", "pattern", "agent", "hybrid"] = Field(
+    engine: Literal["default", "pattern", "agent"] = Field(
         "default", description="engine for every turn of this run",
     )
 
@@ -158,13 +168,41 @@ async def eval_trends(
         10, ge=2, le=100,
         description="Number of most-recent completed runs to compare",
     ),
+    engine: _EngineFilter = None,
 ) -> dict:
-    return await get_trends(session, limit)
+    return await get_trends(session, limit, engine)
+
+
+# ST-7b: the stored run plus ``profile`` (quality per judge axis, turn duration,
+# tokens and costs, robustness), computed on read. A comment, not a docstring:
+# the docstring would become the operation description in the frozen contract.
+#: 2 bis 20 Lauf-Kennungen, durch Komma getrennt — nur Kennungs-Zeichen.
+_COMPARE_IDS = r"^[A-Za-z0-9_-]{1,64}(,[A-Za-z0-9_-]{1,64}){1,19}$"
+
+
+@router.get("/compare")
+async def compare_eval_runs(
+    session: _Session,
+    lang: Lang,
+    ids: str = Query(
+        ..., pattern=_COMPARE_IDS,
+        description="2 to 20 run ids, comma-separated; grouped by each run's engine",
+    ),
+) -> dict:
+    """Engine comparison over the chosen runs (ST-7c): quality per judge axis,
+    determinism across repeats, speed, cost and robustness, grouped by the
+    engine each run recorded."""
+    # Eine doppelt genannte Kennung zählt einmal — derselbe Lauf zweimal wäre
+    # eine erfundene Wiederholung und schönte die Übereinstimmung.
+    chosen = list(dict.fromkeys(ids.split(",")))
+    if len(chosen) < 2:
+        raise HTTPException(422, msg(lang, "eval.compareTooFew"))
+    return await compare_runs(session, chosen)
 
 
 @router.get("/runs/{run_id}")
 async def get_eval_run(run_id: str, session: _Session) -> dict:
-    return await get_run(session, run_id)
+    return await get_run_with_profile(session, run_id)
 
 
 @router.delete("/runs/{run_id}")

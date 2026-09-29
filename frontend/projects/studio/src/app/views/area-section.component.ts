@@ -26,11 +26,12 @@ import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AreaDocEditor } from '../schema-form/area-doc-editor';
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
 import type { CuratedAreaSection } from './curated-views';
+import { EffectBadgeComponent } from './effect-badge.component';
 import { SafetyLevelComponent } from './safety-level.component';
 
 @Component({
   selector: 'studio-area-section',
-  imports: [RouterLink, SafetyLevelComponent, SchemaFormComponent],
+  imports: [EffectBadgeComponent, RouterLink, SafetyLevelComponent, SchemaFormComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './area-section.component.html',
   styleUrl: './area-section.component.scss',

@@ -84,6 +84,11 @@ export const EVAL_TRENDS: CataloguePart = {
     'evalTrends.col.run': 'Lauf',
     'evalTrends.col.when': 'Zeitpunkt',
     'evalTrends.col.kind': 'Art',
+    'evalTrends.col.engine': 'Maschine',
+    /** ST-7a: ohne Filter zeigt jeder Wechsel der Maschine einen Sprung. */
+    'evalTrends.mixedEngines':
+      'Der Verlauf mischt beide Maschinen — ein Sprung kann auch nur ein Wechsel '
+      + 'der Maschine sein. Der Filter „Maschine“ trennt sie.',
     'evalTrends.col.turns': 'Turns',
     'evalTrends.col.score': 'Ø Score',
 
@@ -149,6 +154,10 @@ export const EVAL_TRENDS: CataloguePart = {
     'evalTrends.col.run': 'Run',
     'evalTrends.col.when': 'Time',
     'evalTrends.col.kind': 'Kind',
+    'evalTrends.col.engine': 'Engine',
+    'evalTrends.mixedEngines':
+      'This timeline mixes both engines — a jump may just be a change of engine. '
+      + 'The "Engine" filter separates them.',
     'evalTrends.col.turns': 'Turns',
     'evalTrends.col.score': 'Avg score',
 

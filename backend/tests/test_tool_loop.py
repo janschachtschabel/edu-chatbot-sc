@@ -749,6 +749,50 @@ def test_loop_select_top_cards_ack_variant_and_pattern_exclude(monkeypatch):
     assert ack == "OK — Auswahl gespeichert (1 IDs)."
 
 
+def _ack_im_betrieb(monkeypatch, muster: str) -> str:
+    """Befund 2026-09-27: der Test darüber reicht ``{"id": "PAT-9"}`` von Hand
+    herein — einen Schlüssel, den ``phase3_modulate`` bis dahin nie schrieb. Im
+    Betrieb stand die Ausnahmeliste deshalb wirkungslos im Studio. Hier kommt
+    ``pattern_output`` aus ``phase3_modulate`` und die Liste aus dem echten
+    Lader über den ausgelieferten Seed (``exclude_patterns: [M04, M15]``)."""
+    import pathlib
+
+    import yaml
+
+    from boerdi.domain.pattern_engine import PatternDef, phase3_modulate
+    from boerdi.services.config_loader import _store
+
+    seed = yaml.safe_load(
+        (pathlib.Path(__file__).resolve().parents[1] / "seeds" / "01-base"
+         / "display-rules.yaml").read_text(encoding="utf-8"))
+
+    class _NurAnzeigeRegeln:
+        def get_cached(self, area):
+            return seed if area == "01-base/display-rules" else None
+
+        def cached_areas(self):
+            return ["01-base/display-rules"]
+
+    monkeypatch.setattr(_store, "_store", _NurAnzeigeRegeln())
+    po = phase3_modulate(PatternDef(id=muster, label="X"), [], "desktop", {}, "P-AND")
+    _fake, _r, st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "select_top_cards", json.dumps({"card_ids": ["a"]}))]),
+        _resp_text("fertig"),
+    ], pattern_output=po)
+    return [m for m in st["messages"] if m.get("role") == "tool"][0]["content"]
+
+
+def test_loop_konsistenz_ausnahme_greift_im_betrieb(monkeypatch):
+    assert _ack_im_betrieb(monkeypatch, "M04") == "OK — Auswahl gespeichert (1 IDs)."
+
+
+def test_loop_konsistenz_nachsatz_bleibt_fuer_andere_muster(monkeypatch):
+    # Gegenprobe: ohne sie bestünde der Test oben auch, wenn der Nachsatz
+    # nirgends mehr ankäme.
+    assert "WICHTIG: Im nächsten ``respond_to_user``-Aufruf" in _ack_im_betrieb(
+        monkeypatch, "M05")
+
+
 def test_loop_respond_to_user_inline_final(monkeypatch):
     args = json.dumps({
         "text": "Antwort hier\n**Mehr Mathe**",
@@ -1318,3 +1362,34 @@ def test_eine_leere_inline_antwort_wird_nicht_wiederholt(monkeypatch):
     ])
     assert len(fake.calls) == 1
     assert (result[0] or "") == ""
+
+
+# -- Review 2026-09-26: nur ein echter Abruf ist eine laufende Anleitung --------
+
+
+def _skill_zug(monkeypatch, outcome):
+    import json
+
+    return _run_loop(
+        monkeypatch,
+        [_resp_tools([("c1", "get_skill", json.dumps({"nodeId": "n-1"}))]),
+         _resp_text("fertig")],
+        outcome=outcome, session_state={"turn_count": 3, "entities": {}})
+
+
+def test_ein_echter_skill_abruf_wird_gemerkt(monkeypatch):
+    _fake, _result, state = _skill_zug(
+        monkeypatch, _OutcomeFake({"get_skill": "# Stunde planen\nAblauf"}))
+    assert state["session_state"]["entities"]["_skill_lauf"]["node_id"] == "n-1"
+
+
+def test_ein_fehlgeschlagener_skill_abruf_wird_nicht_gemerkt(monkeypatch):
+    """MCP-Fehler kommen als gewoehnlicher Text zurueck. Gemerkt, angesagt und
+    im Gold-Bericht genannt (AG-5) wird nur ein echter Abruf."""
+    from boerdi.api.schemas import ToolOutcome
+
+    async def fehler(tool_name, tool_args):
+        return "Fehler: Knoten nicht gefunden", ToolOutcome(tool=tool_name, status="error")
+
+    _fake, _result, state = _skill_zug(monkeypatch, fehler)
+    assert "_skill_lauf" not in state["session_state"]["entities"]

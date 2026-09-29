@@ -3,7 +3,9 @@ persona/intent/state/entity/pattern block renderers from ALT
 ``llm_classify_prompt.py`` (Welle E YAML-driven renderers).
 
 Pure functions over already-loaded config lists (no store access) so the
-output is byte-identical to ALT for the same config. The assembly, signals,
+output is byte-identical to ALT for the same config — with one deliberate
+deviation (2026-09-27): persona anti-markers are listed one per line with their
+``rationale``/``when`` instead of all under „NICHT diese Persona". The assembly, signals,
 canvas and override renderers live in ``classify_prompt.py``; the tool half
 of the ALT module is replaced by instructor auto-generation (spec §3-2).
 
@@ -88,8 +90,12 @@ def _render_personas_block(persona_defs: list[dict]) -> str:
         if pos:
             block.append("Positiv-Marker: " + ", ".join(f'"{h}"' for h in pos))
 
-        # ``anti_markers`` ist list[{phrase, redirect_to?, rationale?}];
-        # ``anti_hints`` (legacy list[str]) als Fallback.
+        # ``anti_markers`` ist list[{phrase, redirect_to?, rationale?, when?}];
+        # ``anti_hints`` (legacy list[str]) als Fallback. Je Eintrag eine Zeile
+        # wie bei den Negativ-Triggern der Intents: bis 2026-09-27 hieß jeder
+        # Marker pauschal „NICHT diese Persona", auch „Arbeitsblatt" bei P-LEH,
+        # das der Seed mit „Allein kein Lehrkraft-Signal" begründet — die
+        # Begründung kam nie an.
         anti_raw = p.get("anti_markers") or p.get("anti_hints") or []
         anti_lines: list[str] = []
         for item in anti_raw[:_MAX_ANTI_HINTS_PER_PERSONA]:
@@ -98,11 +104,19 @@ def _render_personas_block(persona_defs: list[dict]) -> str:
                 if not phrase:
                     continue
                 rt = str(item.get("redirect_to") or "").strip()
-                anti_lines.append(f'"{phrase}"' + (f" → {rt}" if rt else ""))
+                when = str(item.get("when") or "").strip()
+                rationale = str(item.get("rationale") or "").strip()
+                line = f'  - "{phrase}"' + (f" → {rt}" if rt else "")
+                if when:
+                    line += f" (wenn {when})"
+                if rationale:
+                    line += f" — {rationale}"
+                anti_lines.append(line)
             elif isinstance(item, str) and item.strip():
-                anti_lines.append(f'"{item.strip()}"')
+                anti_lines.append(f'  - "{item.strip()}"')
         if anti_lines:
-            block.append("Anti-Marker (NICHT diese Persona): " + ", ".join(anti_lines))
+            block.append("Anti-Marker (kein Positiv-Treffer für diese Persona):")
+            block.extend(anti_lines)
 
         # Discriminators: list[{vs, rule, example_a?, example_b?}]; kompakt.
         disc_raw = p.get("discriminators") or []
@@ -167,10 +181,14 @@ def _render_intents_block(intent_defs: list[dict]) -> str:
             for n in neg:
                 if not isinstance(n, dict):
                     continue
-                phrase = n.get("phrase", "").strip()
-                target = n.get("redirect_to", "").strip()
-                rationale = n.get("rationale", "").strip()
-                when = n.get("when", "").strip()
+                # ``or ""`` statt Vorgabewert: Das Studio legt neue Einträge mit
+                # ``when: null`` an, und ein vorhandener Schlüssel mit ``null``
+                # kam als ``None`` an — ``.strip()`` warf, die Klassifikation
+                # fiel für jeden Zug auf I01 (Befund 2026-09-27). Ebenso unten.
+                phrase = str(n.get("phrase") or "").strip()
+                target = str(n.get("redirect_to") or "").strip()
+                rationale = str(n.get("rationale") or "").strip()
+                when = str(n.get("when") or "").strip()
                 line = f'  - "{phrase}" → {target}' if target else f'  - "{phrase}"'
                 if when:
                     line += f" (wenn {when})"
@@ -184,10 +202,10 @@ def _render_intents_block(intent_defs: list[dict]) -> str:
             for d in disc:
                 if not isinstance(d, dict):
                     continue
-                vs = d.get("vs", "").strip()
-                rule = d.get("rule", "").strip()
-                ex_a = d.get("example_a", "").strip()
-                ex_b = d.get("example_b", "").strip()
+                vs = str(d.get("vs") or "").strip()
+                rule = str(d.get("rule") or "").strip()
+                ex_a = str(d.get("example_a") or "").strip()
+                ex_b = str(d.get("example_b") or "").strip()
                 if vs and rule:
                     block.append(f"  - vs. {vs}: {rule}")
                 if ex_a:
@@ -264,8 +282,8 @@ def _render_entities_block(entity_defs: list[dict]) -> str:
             for ex in pos:
                 if not isinstance(ex, dict):
                     continue
-                t = ex.get("text", "").strip()
-                v = ex.get("value", "").strip()
+                t = str(ex.get("text") or "").strip()
+                v = str(ex.get("value") or "").strip()
                 if t and v:
                     block.append(f'    - "{t}" → {v}')
 
@@ -275,8 +293,8 @@ def _render_entities_block(entity_defs: list[dict]) -> str:
             for ex in neg:
                 if not isinstance(ex, dict):
                     continue
-                t = ex.get("text", "").strip()
-                r = ex.get("rationale", "").strip()
+                t = str(ex.get("text") or "").strip()
+                r = str(ex.get("rationale") or "").strip()
                 if t:
                     block.append(f'    - "{t}" — {r}' if r else f'    - "{t}"')
 
@@ -285,8 +303,8 @@ def _render_entities_block(entity_defs: list[dict]) -> str:
             for d in disc:
                 if not isinstance(d, dict):
                     continue
-                vs = d.get("vs", "").strip()
-                rule = d.get("rule", "").strip()
+                vs = str(d.get("vs") or "").strip()
+                rule = str(d.get("rule") or "").strip()
                 if vs and rule:
                     block.append(f"  Diskriminator vs. {vs}: {rule}")
 

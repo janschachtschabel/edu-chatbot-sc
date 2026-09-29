@@ -1,6 +1,8 @@
 """05-canvas/* areas. Shapes verified against the ALT tree inventory."""
 
-from boerdi.domain.config_models._shared import AreaModel
+from typing import Annotated
+
+from boerdi.domain.config_models._shared import AreaModel, Textarea
 
 
 class CanvasCreateTriggersArea(AreaModel):
@@ -27,7 +29,7 @@ class MaterialType(AreaModel):
     label_en: str = ""
     emoji: str = ""
     category: str = ""
-    structure: str = ""
+    structure: Annotated[str, Textarea()] = ""
 
 
 class CanvasMaterialTypesArea(AreaModel):

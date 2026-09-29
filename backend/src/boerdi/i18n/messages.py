@@ -105,6 +105,16 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
             "Kompaktieren fehlgeschlagen — die Datenbank ist evtl. gerade unter Last "
             "gesperrt. Bitte in einer ruhigen Phase erneut versuchen. ({error})"
         ),
+        # ── Evaluation: Läufe vergleichen (ST-7c) ──────────────────────
+        "eval.compareTooFew": "Ein Vergleich braucht mindestens zwei verschiedene Läufe.",
+        # ── Agent-Steuerzentrale: Skill-Verzeichnis (ST-8c) ─────────────
+        "agentCenter.registryFailed": (
+            "Das Repositorium hat das Skill-Verzeichnis nicht geliefert ({error})."
+        ),
+        "agentCenter.registryUnreadable": "Das Repositorium hat eine unlesbare Antwort geliefert.",
+        "agentCenter.searchFailed": (
+            "Das Repositorium hat die Skill-Suche nicht beantwortet ({error})."
+        ),
     },
     "en": {
         "field.empty": "{field} must not be empty",
@@ -163,6 +173,14 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "sessions.optimizeFailed": (
             "Compacting failed — the database may currently be locked under load. "
             "Please try again in a quiet period. ({error})"
+        ),
+        "eval.compareTooFew": "A comparison needs at least two different runs.",
+        "agentCenter.registryFailed": (
+            "The repository did not deliver the skill directory ({error})."
+        ),
+        "agentCenter.registryUnreadable": "The repository returned an unreadable answer.",
+        "agentCenter.searchFailed": (
+            "The repository did not answer the skill search ({error})."
         ),
     },
 }

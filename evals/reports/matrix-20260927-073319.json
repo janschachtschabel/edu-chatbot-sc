@@ -1,0 +1,89 @@
+{
+  "created": "20260927-073319",
+  "api": "http://127.0.0.1:8100",
+  "engines": [
+    "pattern",
+    "agent"
+  ],
+  "repeat": 3,
+  "flows": [
+    "GV-LEH-1",
+    "GV-LEH-2",
+    "GV-LER-1",
+    "GV-LER-2",
+    "GV-ELT-1",
+    "GV-ENT-1",
+    "GV-RED-2",
+    "GV-RED-3",
+    "GV-AND-1",
+    "GV-AND-2",
+    "GV-WIS-1",
+    "GV-SAFE-1",
+    "GV-SAFE-2",
+    "GV-SAFE-3",
+    "GV-SAFE-4",
+    "GV-FREI-1",
+    "GV-FREI-2",
+    "GV-FREI-3",
+    "GV-FREI-4",
+    "GV-FREI-5",
+    "GV-FREI-6"
+  ],
+  "judge": true,
+  "runs": [
+    {
+      "engine": "pattern",
+      "rep": 1,
+      "label": "k1-tor-pattern-r1",
+      "status": "done",
+      "started": "2026-09-27T07:33:20+00:00",
+      "run_id": "eval-a1bf4555bc14",
+      "finished": "2026-09-27T07:46:08+00:00"
+    },
+    {
+      "engine": "agent",
+      "rep": 1,
+      "label": "k1-tor-agent-r1",
+      "status": "done",
+      "started": "2026-09-27T07:46:08+00:00",
+      "run_id": "eval-e38db35ab81a",
+      "finished": "2026-09-27T07:59:34+00:00"
+    },
+    {
+      "engine": "pattern",
+      "rep": 2,
+      "label": "k1-tor-pattern-r2",
+      "status": "done",
+      "started": "2026-09-27T07:59:34+00:00",
+      "run_id": "eval-cb84431bc610",
+      "finished": "2026-09-27T08:13:21+00:00"
+    },
+    {
+      "engine": "agent",
+      "rep": 2,
+      "label": "k1-tor-agent-r2",
+      "status": "done",
+      "started": "2026-09-27T08:13:21+00:00",
+      "run_id": "eval-46498e9c415f",
+      "finished": "2026-09-27T08:25:24+00:00"
+    },
+    {
+      "engine": "pattern",
+      "rep": 3,
+      "label": "k1-tor-pattern-r3",
+      "status": "done",
+      "started": "2026-09-27T08:25:24+00:00",
+      "run_id": "eval-5c14bfc268fa",
+      "finished": "2026-09-27T08:38:56+00:00"
+    },
+    {
+      "engine": "agent",
+      "rep": 3,
+      "label": "k1-tor-agent-r3",
+      "status": "done",
+      "started": "2026-09-27T08:38:56+00:00",
+      "run_id": "eval-cf4bafb5c142",
+      "finished": "2026-09-27T08:52:03+00:00"
+    }
+  ]
+}

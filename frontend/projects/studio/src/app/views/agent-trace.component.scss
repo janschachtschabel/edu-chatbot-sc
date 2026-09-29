@@ -1,0 +1,109 @@
+.atr {
+  margin-block-start: var(--st-3);
+  padding-block-start: var(--st-2);
+  border-block-start: 1px solid var(--st-rule);
+  font-size: 0.8125rem;
+}
+
+.atr-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2) var(--st-4);
+  margin: 0;
+
+  > div {
+    display: flex;
+    gap: var(--st-1);
+  }
+
+  dt {
+    color: var(--st-text-muted);
+
+    &::after {
+      content: ':';
+    }
+  }
+
+  dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+}
+
+.atr-rounds {
+  margin-block-start: var(--st-2);
+
+  > summary {
+    min-block-size: 1.5rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  > summary:focus-visible {
+    border-radius: var(--st-radius);
+  }
+
+  &[open] > summary {
+    margin-block-end: var(--st-2);
+  }
+}
+
+// Bezugsblock für alles Positionierte darin — sonst verbreitert eine breite
+// Tabelle die ganze Seite statt nur ihren Rahmen (vgl. das Lauf-Detail).
+.atr-table-wrap {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.atr-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.atr-caption {
+  padding: var(--st-2) var(--st-3);
+  border-block-end: 1px solid var(--st-rule);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+  text-align: start;
+}
+
+.atr-table th,
+.atr-table td {
+  padding: var(--st-1) var(--st-2);
+  border-block-end: 1px solid var(--st-rule);
+  text-align: start;
+  vertical-align: top;
+}
+
+.atr-table thead th {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+  white-space: nowrap;
+}
+
+.atr-table .atr-num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.atr-calls {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.atr-calls code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.atr-none {
+  color: var(--st-text-muted);
+}

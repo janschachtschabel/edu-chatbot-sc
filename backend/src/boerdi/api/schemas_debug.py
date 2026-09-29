@@ -106,6 +106,10 @@ class DebugInfo(BaseModel):
     confidence: float = 1.0  # final confidence after all adjustments
     policy: PolicyDecision | None = None
     context: ContextSnapshot | None = None
+    # Seit AG-1 (2026-09-26) die Spur der Agent-Schleife (``agent_trace.spur``):
+    # je Runde ``agent_round``, zum Schluss ``agent_stop``. Seit AG-5 in jeder
+    # Maschine dazu ``skill`` für die in diesem Zug geholte Anleitung (Knoten
+    # und Titel). Ein Muster-Zug ohne Anleitung trägt eine leere Liste.
     trace: list[TraceEntry] = Field(default_factory=list)
     # NEW (Phase 1, Pattern-Hint Shadow-Mode):
     #   pattern_id_hint   = vom LLM-Klassifikator vorgeschlagenes Pattern
@@ -125,3 +129,10 @@ class DebugInfo(BaseModel):
     # ``cached_tokens``/``reasoning_tokens`` sind „davon"-Zahlen: enthalten in
     # ``prompt_tokens`` bzw. ``completion_tokens``, nicht zusätzlich dazu.
     token_usage: dict[str, Any] = Field(default_factory=dict)
+    # AG-1 (2026-09-26): die Maschine, an die der Zug ging (``pattern`` oder
+    # ``agent``; ältere Einträge auch ``hybrid``, bis K1-1). Leer bei Zügen,
+    # die vor jeder Maschine antworten (Tour, Kontext-Begrüßung,
+    # Direktaktionen, Schreib-Abnahme). Bis hier war sie nur über die
+    # Muster-Kennung zu erraten, und ein Hybrid-Zug mit gewähltem Muster sah
+    # aus wie ein Muster-Zug.
+    engine: str = ""

@@ -56,4 +56,17 @@ export interface JsonSchema {
   readonly 'x-choices'?: readonly string[];
   /** Name eines Katalogs aus `GET /api/config/choices` -> Vorschlagsliste. */
   readonly 'x-catalog'?: string;
+  /** An einer Liste (ST-2i): das Nachbarfeld, das EINEN ihrer Einträge
+   *  hervorhebt (`tour_reply`) -> ein Radio je Zeile. */
+  readonly 'x-marker'?: string;
+  /** An einem begrenzten Zahlfeld (ST-2h): `slider` -> Schieberegler. */
+  readonly 'x-widget'?: string;
+  /** Schrittweite des Reglers. */
+  readonly 'x-step'?: number;
+  /** Schwellen, an denen der Wert seine Wirkung ändert -> Zonen des Reglers. */
+  readonly 'x-thresholds'?: readonly number[];
+  /** Der Code setzt den Wert fest (ST-6) -> gesperrt, „fest aktiv". */
+  readonly 'x-fixed'?: boolean;
+  /** Der Inhalt des Bereichs (ST-4) -> sein Abschnitt steht vorn und offen. */
+  readonly 'x-primary'?: boolean;
 }

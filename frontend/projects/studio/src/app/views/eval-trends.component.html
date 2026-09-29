@@ -1,4 +1,9 @@
 <div class="et-bar">
+  <studio-engine-filter
+    inputId="et-engine"
+    [value]="engineFilter()"
+    (valueChange)="onEngineFilter($event)"
+  />
   <button type="button" class="et-reload" [disabled]="trends.loading()" (click)="reload()">
     {{ trends.loading() ? t('action.refreshing') : t('action.refresh') }}
   </button>
@@ -14,6 +19,9 @@
 />
 
 @if (runs().length > 0) {
+  @if (mixed()) {
+    <p class="et-mixed">{{ t('evalTrends.mixedEngines') }}</p>
+  }
   <figure class="et-figure">
     <figcaption>{{ t('evalTrends.scores.caption') }}</figcaption>
     <!-- Feedback 2026-08-22: Achsen-Marken links (oben Maximum, unten 0) —
@@ -99,6 +107,7 @@
         <th scope="col">{{ t('evalTrends.col.run') }}</th>
         <th scope="col">{{ t('evalTrends.col.when') }}</th>
         <th scope="col">{{ t('evalTrends.col.kind') }}</th>
+        <th scope="col">{{ t('evalTrends.col.engine') }}</th>
         <th scope="col">{{ t('evalTrends.col.turns') }}</th>
         <th scope="col">{{ t('evalTrends.col.score') }}</th>
         @for (series of rates(); track series.key) {
@@ -112,6 +121,7 @@
           <th scope="row" class="et-run-id">{{ row.id }}</th>
           <td>{{ when(row.createdAt) }}</td>
           <td>{{ row.mode }}</td>
+          <td>{{ engineName(row.engine) }}</td>
           <td class="et-num">{{ row.totalTurns }}</td>
           <td class="et-num">{{ score(row.avgScore) }}</td>
           @for (rate of row.rates; track $index) {

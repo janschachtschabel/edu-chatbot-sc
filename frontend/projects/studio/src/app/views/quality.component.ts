@@ -21,6 +21,7 @@ import { QualityFlowComponent } from './quality-flow.component';
 import { QualityLogsComponent } from './quality-logs.component';
 import { QualityMatrixComponent } from './quality-matrix.component';
 import { QualityOverviewComponent } from './quality-overview.component';
+import { OriginScopeComponent } from './origin-scope.component';
 import { TabBarComponent, type TabDef } from './tab-bar.component';
 
 /** The tab ids are also the panel ids: `#tab-x` controls `#panel-x`. */
@@ -31,19 +32,11 @@ const TABS: readonly { readonly id: string; readonly labelKey: string }[] = [
   { id: 'logs', labelKey: 'qual.tab.logs' },
 ];
 
-/** Ids and key names only: the wording is the catalogue's (C1-d4d1). */
-const SCOPES: readonly { readonly id: QualityScope; readonly labelKey: string;
-  readonly hintKey: string }[] = [
-  { id: 'all', labelKey: 'qual.scope.all', hintKey: 'qual.scope.all.hint' },
-  { id: 'production', labelKey: 'qual.scope.production', hintKey: 'qual.scope.production.hint' },
-  { id: 'eval', labelKey: 'qual.scope.eval', hintKey: 'qual.scope.eval.hint' },
-];
-
 @Component({
   selector: 'studio-quality',
   imports: [
     QualityFlowComponent, QualityLogsComponent, QualityMatrixComponent,
-    QualityOverviewComponent, TabBarComponent,
+    QualityOverviewComponent, TabBarComponent, OriginScopeComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './quality.component.html',
@@ -54,10 +47,6 @@ export class QualityComponent {
 
   readonly tabs = computed<readonly TabDef[]>(() =>
     TABS.map((tab) => ({ id: tab.id, label: this.t(tab.labelKey) })));
-
-  readonly scopes = computed(() => SCOPES.map((scope) => ({
-    id: scope.id, label: this.t(scope.labelKey), hint: this.t(scope.hintKey),
-  })));
 
   readonly active = signal<string>(TABS[0].id);
   readonly scope = signal<QualityScope>('all');

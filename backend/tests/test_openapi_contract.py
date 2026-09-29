@@ -40,6 +40,7 @@ PUT    /api/config/canvas/material-types
 GET    /api/config/choices
 GET    /api/config/context-actions
 PUT    /api/config/context-actions
+GET    /api/config/effects
 GET    /api/config/elements
 GET    /api/config/entities
 PUT    /api/config/entities
@@ -81,6 +82,7 @@ GET    /api/config/welcome
 PUT    /api/config/welcome
 GET    /api/debug/mcp-test
 GET    /api/eval/analytics/pattern-usage
+GET    /api/eval/compare
 GET    /api/eval/config
 POST   /api/eval/estimate
 GET    /api/eval/gold-flows
@@ -101,6 +103,8 @@ POST   /api/loadtest/runs
 DELETE /api/loadtest/runs/{run_id}
 POST   /api/loadtest/runs/{run_id}/cancel
 GET    /api/loadtest/runs/{run_id}
+GET    /api/master-skill
+POST   /api/master-skill/reload
 GET    /api/quality/degradations
 GET    /api/quality/empty-entities
 GET    /api/quality/logs
@@ -138,6 +142,10 @@ POST   /api/speech/synthesize
 POST   /api/speech/transcribe
 POST   /api/agent
 POST   /api/agent/stream
+GET    /api/agent-center/prompt
+GET    /api/agent-center/skills
+GET    /api/agent-center/skills/search
+GET    /api/agent-center/tools
 GET    /api/config/seed
 POST   /api/config/seed/apply
 GET    /api/usage/period

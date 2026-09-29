@@ -6,7 +6,7 @@ description: Eltern eines schulpflichtigen Kindes — warmer Ton, einfache Sprac
 tone: warm
 length_bias: 0.2
 formality: wie_user
-card_text_mode: explanation
+card_text_mode: highlight
 override: false
 positive_markers:
   - mein Kind

@@ -1,0 +1,73 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
+  </summary>
+
+  <div class="cs-body agt">
+    @if (list.error(); as fehler) {
+      <div class="cs-state cs-state--error" role="alert">
+        <p>{{ fehler }}</p>
+        <button type="button" class="cs-btn" (click)="list.reload()">{{ t('async.retry') }}</button>
+      </div>
+    } @else if (list.value()) {
+      <p class="agt-summary">{{ summary() }}</p>
+      <p class="agt-diversion" role="note">{{ t('agentTools.diversion') }}</p>
+      <div class="agt-table-wrap">
+        <table class="agt-table">
+          <caption class="agt-caption">{{ t('agentTools.caption') }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ t('agentTools.col.tool') }}</th>
+              <th scope="col">{{ t('agentTools.col.offered') }}</th>
+              <th scope="col">{{ t('agentTools.col.locks') }}</th>
+            </tr>
+          </thead>
+          @for (group of groups(); track group.kind) {
+            <tbody>
+              <tr class="agt-group">
+                <th scope="rowgroup" colspan="3">
+                  <span class="agt-group-name">{{ groupLabel(group.kind) }}</span>
+                  @if (groupHint(group.kind); as hint) {
+                    <span class="agt-group-hint">{{ hint }}</span>
+                  }
+                </th>
+              </tr>
+              @for (tool of group.tools; track tool.name) {
+                <tr>
+                  <th scope="row" class="agt-tool">
+                    <code class="agt-name">{{ tool.name }}</code>
+                    @if (firstSentence(tool.description); as satz) {
+                      <span class="agt-desc">{{ satz }}</span>
+                    }
+                  </th>
+                  <td class="agt-offered">
+                    {{ tool.offered ? t('agentTools.offered.yes') : t('agentTools.offered.no') }}
+                  </td>
+                  <td>
+                    @if (tool.locks.length === 0) {
+                      <span class="agt-none">{{ t('agentTools.noLocks') }}</span>
+                    } @else {
+                      <ul class="agt-locks">
+                        @for (lock of tool.locks; track $index) {
+                          <li>
+                            {{ lockText(lock) }}
+                            @if (lockLink(lock); as slug) {
+                              <a class="agt-link" [routerLink]="['/', slug]">{{ pageLabel(slug) }}</a>
+                            }
+                          </li>
+                        }
+                      </ul>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          }
+        </table>
+      </div>
+    } @else {
+      <p class="cs-state" aria-busy="true">{{ t('agentTools.loading') }}</p>
+    }
+  </div>
+</details>

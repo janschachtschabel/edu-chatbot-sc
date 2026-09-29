@@ -11,14 +11,18 @@
  * transcript it managed to collect before dying.
  */
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, computed, inject, output, signal,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, output, signal,
 } from '@angular/core';
 
 import { AsyncData, describeApiError } from '../core/async-data';
-import { EvalApi, type EvalRunSummary } from '../core/eval-api.service';
+import { EvalApi, type EngineFilter, type EvalRunSummary } from '../core/eval-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { CompareBarComponent } from './compare-bar.component';
+import { EngineFilterComponent } from './engine-filter.component';
+import { engineLabel } from './engine-label';
 import { evalStatusLabel } from './eval-status';
+import { RunSelection } from './run-selection';
 import { StudioFormat } from '../i18n/studio-format.service';
 
 /** Slower than the load test's 2 s: an eval run takes minutes, not seconds. */
@@ -41,7 +45,7 @@ type Armed =
 
 @Component({
   selector: 'studio-eval-runs',
-  imports: [AsyncStateComponent],
+  imports: [AsyncStateComponent, CompareBarComponent, EngineFilterComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './eval-runs.component.html',
   styleUrl: './eval-runs.component.scss',
@@ -57,6 +61,7 @@ export class EvalRunsComponent {
   protected readonly t = this.lang.t;
 
   private readonly api = inject(EvalApi);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /** The id of the run to open in detail; the view above owns that panel. */
   readonly runChange = output<string>();
@@ -72,6 +77,13 @@ export class EvalRunsComponent {
    *  nicht geschlossen. */
   readonly stopped = output<string>();
 
+  /** ST-7c: die angekreuzten Läufe sollen verglichen werden; das Panel dazu
+   *  gehört — wie das Detail — der Seite darüber. */
+  readonly compare = output<readonly string[]>();
+
+  /** Überlebt den Maschinen-Filter mit Absicht (siehe `RunSelection`). */
+  readonly selection = new RunSelection();
+
   /** Erst beim Rendern beschriftet — sonst fröre die Sprache beim Laden des
    *  Moduls ein (C1-d4b). */
   readonly statusFilters = computed(() =>
@@ -79,12 +91,17 @@ export class EvalRunsComponent {
 
   readonly statusFilter = signal('');
 
+  /** ST-7a: filtert die LISTE (serverseitig, vor der 50er-Kappung) — anders
+   *  als der Status, der nur die Sammel-Löschung eingrenzt. */
+  readonly engineFilter = signal<EngineFilter>('');
+
   readonly armed = signal<Armed>(null);
   readonly working = signal(false);
   readonly actionError = signal('');
   readonly status = signal('');
 
-  readonly runs = new AsyncData<readonly EvalRunSummary[]>(() => this.api.runs(), this.t);
+  readonly runs = new AsyncData<readonly EvalRunSummary[]>(
+    () => this.api.runs(this.engineFilter()), this.t);
 
   readonly rows = computed(() => this.runs.value() ?? []);
 
@@ -129,6 +146,16 @@ export class EvalRunsComponent {
     this.runChange.emit(id);
   }
 
+  /** Zurück zur Zeile eines Laufs — die Seite ruft es, wenn sein Detail
+   *  schließt, das unter der Liste stand. Fehlt die Zeile (gelöscht,
+   *  weggefiltert), bleibt der Fokus, wo er ist. */
+  focusRow(id: string): void {
+    // Vergleich über `dataset` statt Attribut-Selektor: die Kennung muss so
+    // nicht für CSS maskiert werden.
+    Array.from(this.host.nativeElement.querySelectorAll<HTMLButtonElement>('.er-row'))
+      .find((row) => row.dataset['run'] === id)?.focus();
+  }
+
   arm(armed: Armed): void {
     this.actionError.set('');
     this.status.set('');
@@ -149,6 +176,16 @@ export class EvalRunsComponent {
     this.armed.set(null);
   }
 
+  onEngineFilter(value: EngineFilter): void {
+    this.engineFilter.set(value);
+    this.armed.set(null);
+    void this.load();
+  }
+
+  engineName(engine: string): string {
+    return engineLabel(engine, this.t);
+  }
+
   async confirm(): Promise<void> {
     const armed = this.armed();
     if (!armed || this.working()) return;
@@ -158,6 +195,7 @@ export class EvalRunsComponent {
       if (armed.kind === 'one') {
         await this.api.deleteRun(armed.id);
         this.status.set(this.t('evalRuns.done.run', { id: armed.id }));
+        this.selection.remove(armed.id);
         this.deleted.emit(armed.id);
       } else if (armed.kind === 'stop') {
         await this.api.cancelRun(armed.id);
@@ -174,6 +212,9 @@ export class EvalRunsComponent {
           status: this.statusFilter() || undefined,
         });
         this.status.set(this.lang.plural('evalRuns.done.runs', deleted));
+        // Welche es traf, sagt die Antwort nicht — eine Auswahl darüber hinweg
+        // zeigte womöglich auf Gelöschtes.
+        this.selection.clear();
         this.deleted.emit(null);
       }
       this.armed.set(null);

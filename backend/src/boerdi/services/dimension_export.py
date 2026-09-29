@@ -127,8 +127,8 @@ def _muster_index(muster: list[tuple[str, dict[str, Any]]]) -> str:
     zeilen = [
         "# Muster", "", _HINWEIS, "",
         "Ein Muster bündelt Ton, Länge, Werkzeugliste und Anweisung für eine Art",
-        "von Zug. Im Muster-Modus wählt der Klassifikator es, im Hybrid das Modell",
-        "selbst (`waehle_vorgehen`), im Agent-Modus gibt es keins.", "",
+        "von Zug. Im Muster-Modus wählt der Klassifikator es, im Agent-Modus",
+        "gibt es keins.", "",
         "| ID | Label | Zweck | Werkzeuge | Datei |", "|---|---|---|---|---|",
     ]
     for datei, kopf in muster:

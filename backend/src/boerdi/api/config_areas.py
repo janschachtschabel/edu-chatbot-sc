@@ -51,7 +51,7 @@ class ToneModifier(BaseModel):
     tone: str = "locker"
     length_bias: float = 0.0  # [-0.3 .. +0.3]
     formality: str = "wie_user"  # duzen | siezen | wie_user
-    card_text_mode: str = "minimal"  # minimal | kurz | explanation | ausfuehrlich
+    card_text_mode: str = "minimal"  # minimal | reference | highlight (config_loader/tone.py)
     override: bool = False
 
 

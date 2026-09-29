@@ -141,8 +141,15 @@ def has_personal_auth() -> bool:
     MCP entscheidet ohnehin selbst. Für „darf **geschrieben** werden" ist es der
     ganze Unterschied: erlaubt ist das nur, wo eine echte Person mit
     WLO-Rechten dahintersteht (Nutzer-Entscheid 2026-08-12).
+
+    Der anonyme Block zählt nicht (Review 2026-09-26): er ist wohlgeformt und
+    wird für das Lesen übernommen, meint aber niemanden — dieselbe Grenze, die
+    :func:`is_personal_block` am Agent-Endpunkt zieht. Bis hier genügte er
+    für ``execute`` und hätte die anonyme Kostenbremse (AG-6) abgeschaltet.
+    Ein Beweis ist das weiterhin nicht: ob ein persönlicher Block gilt,
+    entscheidet allein der MCP-Server.
     """
-    return bool(_turn_block.get(""))
+    return is_personal_block(_turn_block.get(""))
 
 
 def caller_fingerprint() -> str:

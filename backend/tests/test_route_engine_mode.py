@@ -17,6 +17,11 @@ also *zufällig* schon nicht dran. Ein Verhalten, das nur durch eine Eigenschaft
 eines ANDEREN Knotens zustande kommt, ist nicht zugesichert, sondern geliehen.
 Deshalb prüft ``test_der_canvas_schnellweg_bleibt_im_agent_modus_aus``
 ausdrücklich mit einer I05-Klassifikation.
+
+**SF-1 (2026-09-26): die Sicherheit geht der Maschine vor.** Hat das
+Sicherheits-Gate ein Muster erzwungen (M01 Krise, M02 Drohung), wählt auch eine
+Schleifen-Maschine hier mit ``select_pattern``. Vorher nahm sie das synthetische
+Muster, und die Schutzantwort kam nie an.
 """
 
 from __future__ import annotations
@@ -54,11 +59,12 @@ def _patch(monkeypatch, seen, *, policy=None, agent_out=None):
     ``seen`` ist die Beweislage der Tests: welcher Nachbar wurde gerufen, mit
     welchen Argumenten. Ein NICHT eingetragener Schlüssel heißt „nie gerufen".
     """
-    win = PatternDef(id="M09", label="Suche")
-
     def _sel(**k):
         seen["select_pattern"] = k
-        return (win, {"tools": [], "id": "M09"}, {"M09": 1.0}, [])
+        # Wie das echte ``select_pattern``: die Erzwingung gewinnt.
+        pid = k.get("enforced_pattern_id") or "M09"
+        win = PatternDef(id=pid, label="Suche" if pid == "M09" else pid)
+        return (win, {"tools": [], "id": pid}, {pid: 1.0}, [])
 
     def _agent(**k):
         seen["agent_pattern"] = k
@@ -177,6 +183,76 @@ async def test_policy_und_werkzeug_sperren_gelten_auch_im_agent_modus(monkeypatc
     assert ctx.policy is not None
     assert ctx.session_state["persona_id"] == "P-AND"   # Persona-Merge lief
     assert ctx.context_snapshot is not None             # Kontext-Schnappschuss auch
+
+
+# ── SF-1: Die Sicherheit geht der Maschine vor ─────────────────────
+@pytest.mark.anyio
+@pytest.mark.parametrize("muster", ["M01", "M02"])
+async def test_ein_erzwungenes_muster_wird_auch_in_der_schleife_gewaehlt(
+        monkeypatch, muster):
+    """Krise und Drohung bekommen ihre Schutzantwort, gleich welche Maschine
+    gewählt ist: ``select_pattern`` mit der Erzwingung, kein synthetisches
+    Muster, und die QR-Policy wird am Schutzmuster aufgelöst."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    safety = SafetyDecision(risk_level="high", enforced_pattern=muster)
+    ctx = await route(_ctx(safety=safety), engine="agent")
+    assert "agent_pattern" not in seen
+    assert seen["select_pattern"]["enforced_pattern_id"] == muster
+    assert (ctx.winner_id, ctx.effective_pattern_id) == (muster, muster)
+    assert seen["qr_policy"] == muster
+
+
+@pytest.mark.anyio
+async def test_hohes_risiko_ohne_erzwingung_bleibt_in_der_schleife(monkeypatch):
+    """Die Grenze ist die Erzwingung, nicht die Risikostufe: ein Gefahr-Signal
+    hebt ``risk_level`` auf ``high``, erzwingt aber kein Muster."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    safety = SafetyDecision(risk_level="high", reasons=["danger_signal"])
+    await route(_ctx(safety=safety), engine="agent")
+    assert "select_pattern" not in seen
+    assert "agent_pattern" in seen
+
+
+@pytest.mark.anyio
+async def test_die_schnellwege_bleiben_bei_erzwingung_aus(monkeypatch):
+    """SF-1 holt die Musterwahl zurück, nicht die Schnellwege. Sie laufen vor
+    der Antwort und prüfen die Erzwingung nicht — ein Lernpfad-Stichwort im
+    Krisensatz darf die Schutzantwort nicht überholen."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    safety = SafetyDecision(risk_level="high", enforced_pattern="M01")
+    ctx = await route(
+        _ctx(message="Die Unterrichtseinheit schaffe ich nicht, ich will nicht "
+                     "mehr leben", classification=ClassificationResult(intent_id="I05"),
+             safety=safety),
+        engine="agent")
+    assert "detect_lp_intent" not in seen
+    assert "run_canvas_create_fast_path" not in seen
+    assert (ctx.lp_routed, ctx.canvas_routed) == (False, False)
+    assert ctx.winner_id == "M01"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("muster", ["M01", "M02"])
+async def test_im_muster_modus_ueberholt_kein_schnellweg_die_schutzantwort(
+        monkeypatch, muster):
+    """SF-1b: dieselbe Lücke in der Muster-Maschine. Der Canvas-Weg tritt allein
+    am Intent I05 ein, der Lernpfad an einem Stichwort — keiner fragt nach dem
+    gewählten Muster. Ohne eigenen Wächter erzeugte ein Krisensatz mit
+    Erstell-Auftrag Material statt der Schutzantwort."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    safety = SafetyDecision(risk_level="high", enforced_pattern=muster)
+    ctx = await route(
+        _ctx(message="Erstelle einen Lernpfad, ich will nicht mehr leben",
+             classification=ClassificationResult(intent_id="I05"), safety=safety),
+        engine="pattern")
+    assert "detect_lp_intent" not in seen
+    assert "run_canvas_create_fast_path" not in seen
+    assert (ctx.lp_routed, ctx.canvas_routed) == (False, False)
+    assert ctx.winner_id == muster
 
 
 # ── Gegenrichtung ──────────────────────────────────────────────────

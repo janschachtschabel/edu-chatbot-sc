@@ -6,7 +6,7 @@ from typing import Annotated, Any
 
 from pydantic import RootModel
 
-from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices
+from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices, Textarea
 
 
 class RagAreaDef(AreaModel):
@@ -16,8 +16,8 @@ class RagAreaDef(AreaModel):
     #: Nutzung: ``load_rag_config`` behaelt nur Eintraege MIT ``mode``, und ein
     #: leeres Textfeld sagte das niemandem.
     mode: Annotated[str, Choices("always", "on-demand")] = ""
-    description: str | None = None
-    #: Q (2026-08-18): darf die AGENT-/HYBRID-Schleife diesen Bereich
+    description: Annotated[str | None, Textarea()] = None
+    #: Q (2026-08-18): darf die Agent-Schleife diesen Bereich
     #: durchsuchen? Vorgabe ``True`` — „alle Bereiche fuer den Agenten"
     #: (Nutzer-Vorgabe). Steht NEBEN ``mode`` und ersetzt ihn nicht: ``mode``
     #: steuert den Muster-Weg (Vorabruf oder Abruf auf Zuruf), dieses Feld
@@ -34,7 +34,7 @@ class RagConfigArea(RootModel[dict[str, RagAreaDef]]):
 class McpServer(AreaModel):
     id: str
     name: str = ""
-    description: str = ""
+    description: Annotated[str, Textarea()] = ""
     enabled: bool = True
     url: str | None = None
     tools: list[str] = []
@@ -45,7 +45,7 @@ class McpServersArea(AreaModel):
 
 
 class MessageRule(AreaModel):
-    pattern: str = ""
+    pattern: Annotated[str, Textarea()] = ""
     label: str = ""
     # C1-g2a: die englische Beschriftung des Lotsen-Chips. Leer = nicht
     # gepflegt; die Wahl trifft `guide_qr_injector` im Zug, nicht der Loader.
@@ -57,7 +57,7 @@ class MessageRule(AreaModel):
 class RagAreaRule(AreaModel):
     label: str = ""
     url: str = ""
-    brand_pattern: str = ""
+    brand_pattern: Annotated[str, Textarea()] = ""
 
 
 class GuideRulesArea(AreaModel):
@@ -69,7 +69,7 @@ class GuideRulesArea(AreaModel):
 
 
 class GoldTurn(AreaModel):
-    message: str = ""
+    message: Annotated[str, Textarea()] = ""
     expect: dict[str, Any] = {}
 
 
@@ -79,6 +79,12 @@ class GoldFlow(AreaModel):
     title: str = ""
     intents: list[Annotated[str, Catalog("intents")]] = []
     turns: list[GoldTurn] = []
+    # AG-5: der Einbettungs-Kontext, den der Gold-Runner bei JEDEM Zug als
+    # ``ChatRequest.environment`` mitschickt (Seitenkontext, ``master_skill``,
+    # ``tool_mode``, Gastgeber-Auftrag …). Frei gehalten wie ``expect``: geprüft
+    # wird serverseitig gegen ``Environment``, ein ungültiger Wert wird zum
+    # Chat-Fehler des Zuges und nicht zu einem stillen Weglassen.
+    environment: dict[str, Any] = {}
 
 
 class GoldFlowsArea(AreaModel):

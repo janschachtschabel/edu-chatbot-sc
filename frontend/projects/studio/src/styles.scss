@@ -18,11 +18,23 @@ body {
   background: var(--st-bg);
 }
 
-// A visible focus ring everywhere, replacing the UA default that `border: none`
-// buttons swallow. `:focus-visible` keeps it off for mouse clicks.
+// THE focus ring — one rule for the whole studio, replacing the UA default that
+// `border: none` buttons swallow. `:focus-visible` keeps it off for mouse clicks.
+// Opaque accent: 4.63:1 on the panel (dark: 8.1:1); the offset leaves a gap in
+// the surface colour, so it also reads around a filled accent button. Views do
+// not replace it: `outline: none` + a shadow ring was 1.9:1 and vanished in
+// forced-colors mode (`check:contrast` rejects it — Review 2026-09-29).
 :focus-visible {
   outline: 2px solid var(--st-accent);
   outline-offset: 2px;
+}
+
+// Windows contrast themes repaint author colours and drop every box-shadow;
+// pin the ring to the system text colour so it keeps contrasting with Canvas.
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid CanvasText;
+  }
 }
 
 h1,

@@ -237,6 +237,23 @@ def test_put_rejects_a_value_the_area_model_forbids(cfg) -> None:
     assert reread["data"]["welcome"] == {"greeting": "Moin"}
 
 
+def test_eine_abweisung_nennt_pfad_art_und_grenze_je_feld(cfg) -> None:
+    """ST-2e: das Studio hängt jede Meldung an ihr Feld und sagt „Mindestens 70"
+    — dafür braucht es Pfad, Fehlerart und die Grenze (``ctx``), nie aber die
+    Eingabe selbst: die ist der eingereichte Konfigurationsinhalt."""
+    client, _ = cfg
+    r = client.put(
+        "/api/config/data/01-base/display-rules", headers=_AUTH,
+        json={"data": {"display_rules": {"inline_documents": {"font_size_percent": 10}}}},
+    )
+    assert r.status_code == 422
+    [fehler] = r.json()["detail"]
+    assert fehler["loc"] == ["display_rules", "inline_documents", "font_size_percent"]
+    assert fehler["type"] == "greater_than_equal"
+    assert fehler["ctx"] == {"ge": 70}
+    assert "input" not in fehler
+
+
 # ── K3: der Preis ist über das Studio einstellbar ──────────────────────────
 def test_gepflegter_preis_aendert_den_betrag(cfg) -> None:
     """Abnahmekriterium §7 des Kostenplans: „Preis einstellbar".

@@ -101,6 +101,25 @@ async def test_universal_type_filter_drops_non_matching_cards(monkeypatch):
     assert "c1" not in ids   # collection dropped by the universal medientyp filter
 
 
+async def test_im_agent_zug_bleibt_die_kartenauswahl_des_agenten(monkeypatch):
+    """Paket A (Tor E-5, GV-LER-1#3): „hast du übungen für mich?“ wird hier zum
+    Typfilter ``übung``. Der Agent hatte selbst mit ``learningResourceType:
+    "Arbeitsblatt"`` gesucht und von Übungsblättern gesprochen — ``Arbeitsblatt``
+    passt nicht zu ``übung``, und keine Karte blieb. Die Materialart legt der
+    Agent in den Filter seiner Suche (Master-Skill); eine zweite Auslegung der
+    Nachricht übersteuert ihn nicht."""
+    _no_v2(monkeypatch)
+    blatt = WloCard(node_id="a1", node_type="content",
+                    learning_resource_types=["Arbeitsblatt"],
+                    title="Brüche addieren und subtrahieren")
+    sammlung = WloCard(node_id="c1", node_type="collection", title="Besondere Brüche")
+    resp = _resp(content="Ich habe passende Übungsblätter gefunden.",
+                 cards=[blatt, sammlung], debug=DebugInfo(engine="agent"))
+    out = await _postprocess_response_for_widget_modes(
+        _req(message="hast du übungen für mich, womit ich das noch üben kann?"), resp)
+    assert sorted(_nid(c) for c in out.cards) == ["a1", "c1"]
+
+
 async def test_safety_net_injects_fallback_cards_on_delivery_claim(monkeypatch):
     _no_v2(monkeypatch)
     fb = AsyncMock(return_value=[{"node_id": "fb1", "node_type": "content",

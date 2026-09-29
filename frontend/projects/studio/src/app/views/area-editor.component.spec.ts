@@ -101,6 +101,12 @@ describe("AreaEditorComponent — loading", () => {
     expect(greetingInput(h.el).value).toBe("Moin");
   });
 
+  it("hält Speichern und Verwerfen beim Scrollen sichtbar (ST-4)", async () => {
+    const h = await mount();
+    const leiste = h.el.querySelector<HTMLElement>(".ae-actions")!;
+    expect(getComputedStyle(leiste).position).toBe("sticky");
+  });
+
   it("offers a retry instead of a dead page when loading fails", async () => {
     TestBed.resetTestingModule();
     // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen

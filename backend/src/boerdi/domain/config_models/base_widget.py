@@ -13,15 +13,19 @@ Stelle gepflegt wird.
 
 from typing import Annotated, Any
 
-from boerdi.domain.config_models._shared import AreaModel, Choices
+from pydantic import Field
+
+from boerdi.domain.config_models._shared import AreaModel, Choices, Marker, Primary, Textarea
 
 
 class WelcomeBlock(AreaModel):
-    greeting: str = ""
-    quick_replies: list[str] = []
+    # ST-4: Begrüßungstext und Start-Chips sind der Inhalt — vor den Grundwerten
+    greeting: Annotated[str, Textarea(), Primary()] = ""
+    # ST-2i: je Start-Chip ein Radio „Als Tour-Chip" — schreibt tour_reply
+    quick_replies: Annotated[list[str], Marker("tour_reply"), Primary()] = []
     tour_reply: str = ""
-    greeting_en: str = ""
-    quick_replies_en: list[str] = []
+    greeting_en: Annotated[str, Textarea()] = ""
+    quick_replies_en: Annotated[list[str], Marker("tour_reply_en")] = []
     tour_reply_en: str = ""
 
 
@@ -30,8 +34,9 @@ class WelcomeArea(AreaModel):
 
 
 class WidgetModesBlock(AreaModel):
-    cards_inline_link_limit: int = 5
-    cards_inline_link_title_max: int = 70
+    # ST-2c: Grenze = Kappung im Lader (config_loader/widget.py)
+    cards_inline_link_limit: int = Field(default=5, ge=1, le=6)
+    cards_inline_link_title_max: int = Field(default=70, ge=30, le=200)
 
 
 class WidgetModesArea(AreaModel):
@@ -63,32 +68,40 @@ class DeviceConfigArea(AreaModel):
 
 class InlineDocumentsRules(AreaModel):
     enabled: bool = True
-    font_size_percent: int = 85
+    # ST-2c: Grenze = Kappung im Lader (config_loader/widget.py)
+    font_size_percent: int = Field(default=85, ge=70, le=100)
     per_pattern: dict[str, bool] = {}
-    intro_text: str | None = None
+    # Je Muster-ID eine Vorlage — so liest es der Lader (config_loader/widget.py),
+    # so las es ALT. Als EIN Text bestand ein Eintrag die Prüfung beim Speichern
+    # und ließ danach jede Antwort scheitern (Befund 2026-09-27).
+    intro_text: dict[str, str] | None = None
 
 
 class SingleContentBoxRules(AreaModel):
     enabled: bool = True
     layout: str = "card"
-    max_count: int | None = None  # legacy alias of groups.materialien_max
+    # legacy alias of groups.materialien_max
+    max_count: int | None = Field(default=None, ge=1, le=8)
 
 
 class GroupsRules(AreaModel):
-    themenseiten_max: int = 3
-    sammlungen_max: int = 3
-    materialien_max: int = 3
-    materialien_max_lernpfad: int = 5
-    webseiten_max: int = 3
+    # ST-2c: Grenzen = Kappung im Lader (config_loader/widget.py, `_grp_int`)
+    themenseiten_max: int = Field(default=3, ge=1, le=20)
+    sammlungen_max: int = Field(default=3, ge=1, le=20)
+    materialien_max: int = Field(default=3, ge=1, le=8)
+    materialien_max_lernpfad: int = Field(default=5, ge=1, le=8)
+    webseiten_max: int = Field(default=3, ge=1, le=30)
 
 
 class InlineCardLinksRules(AreaModel):
-    limit: int = 3
-    title_max_chars: int = 70
+    # ST-2c: Grenze = Kappung im Lader (config_loader/widget.py)
+    limit: int = Field(default=3, ge=1, le=6)
+    title_max_chars: int = Field(default=70, ge=30, le=200)
 
 
 class QuickRepliesRules(AreaModel):
-    max_count: int = 4
+    # ST-2c: Grenze = Kappung im Lader (config_loader/widget.py)
+    max_count: int = Field(default=4, ge=0, le=6)
     # Wie lang eine Pille sein darf, in ZEICHEN. Der Vorgabewert 48 ist
     # gemessen, nicht geraten: die Beispiel-Vorschlaege im Generator-Prompt
     # selbst reichen bis 47 Zeichen. 0 = kein Deckel. Wirkt beim Erzeugen
@@ -143,11 +156,11 @@ class ContextActionsBlock(AreaModel):
     # „eigene Startseite" und „fremde Seite" (dort bietet der Bot später die
     # Erschliessung an). Leer heisst: alles gilt als fremd.
     own_hosts: list[str] = []
-    greetings: dict[str, str] = {}
+    greetings: dict[str, Annotated[str, Textarea()]] = {}
     # Parallel zu `greetings`, je Seitenart. Ein eigenes Feld statt Schlüssel
     # mit Suffix, weil die Schlüssel hier Seitenarten benennen (collection /
     # content / topic) — dort gehört keine Sprache hinein.
-    greetings_en: dict[str, str] = {}
+    greetings_en: dict[str, Annotated[str, Textarea()]] = {}
     pills: dict[str, list[ContextPill]] = {}
     # Zweite Lesart von `external` — die Seite liegt schon im Bestand. Bewusst
     # KEINE eigene Seitenart in `greetings`/`pills`: sonst könnte ein Widget sie
@@ -156,7 +169,7 @@ class ContextActionsBlock(AreaModel):
     duplicate_greeting_en: str = ""
     duplicate_pill_label: str = ""
     duplicate_pill_label_en: str = ""
-    curate_prompt: str = ""
+    curate_prompt: Annotated[str, Textarea()] = ""
 
 
 class ContextActionsArea(AreaModel):
@@ -205,15 +218,15 @@ class WebsiteTourBlock(AreaModel):
     start_label: str = ""
     trigger_phrases: list[str] = []
     flows: list[TourFlow] = []
-    intro: str = ""
-    intro_en: str = ""
-    nudge: str = ""
-    nudge_en: str = ""
-    explore: str = ""
-    explore_en: str = ""
+    intro: Annotated[str, Textarea()] = ""
+    intro_en: Annotated[str, Textarea()] = ""
+    nudge: Annotated[str, Textarea()] = ""
+    nudge_en: Annotated[str, Textarea()] = ""
+    explore: Annotated[str, Textarea()] = ""
+    explore_en: Annotated[str, Textarea()] = ""
     # ``entry`` und ``steps`` sind freie Dicts — dort reisen die ``_en``-
     # Schlüssel ohne Modelländerung mit (wie ``effect`` in C1-g2c).
-    entry: dict[str, str] = {}
+    entry: dict[str, Annotated[str, Textarea()]] = {}
     groups: list[TourGroup] = []
     content_sublinks: list[LabelPath] = []
     contact_links: list[LabelPath] = []

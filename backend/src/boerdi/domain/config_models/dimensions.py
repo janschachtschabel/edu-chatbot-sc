@@ -4,14 +4,17 @@ Shapes verified against the ALT tree inventory (2026-07-11).
 
 from typing import Annotated, Any
 
-from boerdi.domain.config_models._shared import AreaModel, Catalog
+from pydantic import Field
+
+from boerdi.domain.config_models._shared import AreaModel, Catalog, Primary, Textarea
+from boerdi.domain.config_models.base_governance import LENGTH_BIAS_SLIDER
 
 
 class EntityDef(AreaModel):
     id: str
     label: str = ""
     type: str = ""
-    description: str = ""
+    description: Annotated[str, Textarea()] = ""
     examples: list[str] = []
     positive_examples: list[dict[str, Any]] = []
     negative_examples: list[dict[str, Any]] = []
@@ -24,16 +27,16 @@ class EntitiesArea(AreaModel):
 
 
 class NegativeTrigger(AreaModel):
-    phrase: str = ""
+    phrase: Annotated[str, Textarea()] = ""
     redirect_to: str = ""
-    rationale: str = ""
+    rationale: Annotated[str, Textarea()] = ""
     when: str | None = None
 
 
 class IntentDef(AreaModel):
     id: str
     label: str = ""
-    description: str = ""
+    description: Annotated[str, Textarea()] = ""
     examples: list[str] = []
     trigger_verbs: list[str] = []
     negative_triggers: list[NegativeTrigger] = []
@@ -64,9 +67,9 @@ class SignalModulationsArea(AreaModel):
 class StateDef(AreaModel):
     id: str
     label: str = ""
-    description: str = ""
+    description: Annotated[str, Textarea()] = ""
     role: str = ""
-    bot_directive: str = ""
+    bot_directive: Annotated[str, Textarea()] = ""
     next_likely: list[Annotated[str, Catalog("states")]] = []
     selection_criteria: list[str] = []
 
@@ -76,15 +79,15 @@ class StatesArea(AreaModel):
 
 
 class AntiMarker(AreaModel):
-    phrase: str = ""
+    phrase: Annotated[str, Textarea()] = ""
     redirect_to: str | None = None
-    rationale: str | None = None
+    rationale: Annotated[str | None, Textarea()] = None
     when: str | None = None
 
 
 class PersonaDiscriminator(AreaModel):
     vs: str = ""
-    rule: str = ""
+    rule: Annotated[str, Textarea()] = ""
     example_a: str | None = None
     example_b: str | None = None
 
@@ -93,9 +96,12 @@ class PersonaFrontmatter(AreaModel):
     element: str = ""
     id: str = ""
     label: str = ""
-    description: str = ""
+    description: Annotated[str, Textarea()] = ""
     tone: str | None = None
-    length_bias: float | None = None
+    # ST-2c: Grenze = Kappung im Lader (config_loader/tone.py)
+    length_bias: float | None = Field(
+        default=None, ge=-0.3, le=0.3, json_schema_extra=LENGTH_BIAS_SLIDER,
+    )
     formality: str | None = None
     card_text_mode: str | None = None
     override: bool | None = None
@@ -103,10 +109,11 @@ class PersonaFrontmatter(AreaModel):
     anti_markers: list[AntiMarker] = []
     discriminators: list[PersonaDiscriminator] = []
     goals: list[str] = []
-    rules: list[str] = []
+    rules: list[Annotated[str, Textarea()]] = []
     typical_intents: list[Annotated[str, Catalog("intents")]] = []
 
 
 class PersonaArea(AreaModel):
     frontmatter: PersonaFrontmatter = PersonaFrontmatter()
-    body: str = ""
+    # ST-4: die Beschreibung der Zielgruppe ist der Inhalt — vor den Kopfangaben
+    body: Annotated[str, Textarea(), Primary()] = ""

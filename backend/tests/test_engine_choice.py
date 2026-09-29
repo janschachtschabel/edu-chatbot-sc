@@ -13,6 +13,8 @@ in einen Test statt in einen Vorsatz.
 
 from __future__ import annotations
 
+import pytest
+
 from boerdi.domain.config_models.engine import EngineArea
 from boerdi.services import engine_choice
 
@@ -46,30 +48,46 @@ def test_die_kopfzeile_uebersteuert_auch_zurueck(monkeypatch):
     assert _waehle(monkeypatch, header="pattern", engine=engine) == "pattern"
 
 
-def test_die_vorgabe_kann_auf_hybrid_stehen(monkeypatch):
-    assert _waehle(monkeypatch, engine=EngineArea(mode="hybrid")) == "hybrid"
+def test_die_kopfzeile_hybrid_gilt_als_agent(monkeypatch, caplog):
+    """K1-1 (2026-09-27): der Hybrid ist entfernt. Laufende Einbettungen, die
+    ihn noch anfordern, dürfen nicht brechen und auch nicht still auf die
+    Vorgabe fallen — sie bekommen die Schleife, mit einer Warnung im Log."""
+    engine_choice._warne_einmal.cache_clear()
+    with caplog.at_level("WARNING"):
+        assert _waehle(monkeypatch, header="hybrid") == "agent"
+        assert _waehle(monkeypatch, header="Hybrid") == "agent"
+    warnungen = [r for r in caplog.records if "hybrid" in r.getMessage().lower()]
+    assert len(warnungen) == 1  # einmal je Prozess, nicht je Zug
 
 
-def test_die_kopfzeile_uebersteuert_nach_hybrid(monkeypatch):
-    assert _waehle(monkeypatch, header="hybrid") == "hybrid"
+def test_eine_gespeicherte_hybrid_vorgabe_gilt_als_agent(monkeypatch):
+    engine = EngineArea.model_validate({"mode": "hybrid"})
+    assert _waehle(monkeypatch, engine=engine) == "agent"
 
 
-def test_die_kopfzeile_uebersteuert_aus_dem_hybrid_heraus(monkeypatch):
-    """Auch die dritte Maschine muss sich stichprobenweise gegen die beiden
-    anderen messen lassen — sonst ließe sich eine auf ``hybrid`` gestellte
-    Anlage nicht mit EINER Golden-Suite gegen den Bestand fahren."""
-    hybrid = EngineArea(mode="hybrid")
-    assert _waehle(monkeypatch, header="pattern", engine=hybrid) == "pattern"
-    assert _waehle(monkeypatch, header="agent", engine=hybrid) == "agent"
-
-
-def test_die_drei_maschinen_sind_verschieden():
-    """Wächter gegen einen Tippfehler in den Konstanten: drei Namen, drei Werte.
-    Fielen zwei zusammen, liefe eine Maschine still als die andere — und der
+def test_die_zwei_maschinen_sind_verschieden():
+    """Wächter gegen einen Tippfehler in den Konstanten: zwei Namen, zwei Werte.
+    Fielen sie zusammen, liefe eine Maschine still als die andere — und der
     A/B-Vergleich verglich einen Lauf mit sich selbst, ohne rot zu werden."""
-    drei = {engine_choice.PATTERN, engine_choice.AGENT, engine_choice.HYBRID}
-    assert len(drei) == 3
-    assert drei == set(engine_choice._ERLAUBT)
+    zwei = {engine_choice.PATTERN, engine_choice.AGENT}
+    assert len(zwei) == 2
+    assert zwei == set(engine_choice._ERLAUBT)
+    assert not hasattr(engine_choice, "HYBRID")
+
+
+@pytest.mark.parametrize(("engine", "erzwungen", "schleife"), [
+    ("agent", "", True),
+    ("agent", None, True),
+    ("pattern", "", False),
+    ("agent", "M01", False),
+    ("agent", "M02", False),
+    ("pattern", "M01", False),
+])
+def test_ein_erzwungenes_muster_holt_den_zug_aus_der_schleife(
+        engine, erzwungen, schleife):
+    """SF-1: Die Sicherheit geht der Maschine vor. ``route`` und ``respond``
+    fragen beide hier — dieselbe Tabelle für beide Knoten."""
+    assert engine_choice.zug_laeuft_ueber_die_schleife(engine, erzwungen) is schleife
 
 
 def test_unbekannte_kopfzeile_wird_ignoriert(monkeypatch):

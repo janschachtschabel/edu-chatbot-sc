@@ -65,6 +65,9 @@ describe('formSections — der Schnitt', () => {
     const [erster] = formSections(rootField(AREA_SCHEMAS['01-base/display-rules']));
     expect(erster.basePath).toEqual(['display_rules']);
     expect(erster.field.label).toBe('');
+    // ST-1: auch ohne Katalog-Schlüssel — sonst holte sich die Hülle ihre
+    // Beschriftung aus dem Katalog zurück und stünde doch über jedem Abschnitt.
+    expect(erster.field.textKey).toBeUndefined();
     expect((erster.field.children ?? []).map((c) => c.key)).not.toContain('display_rules');
   });
 
@@ -140,5 +143,23 @@ describe('formSections — an den echten Bereichen', () => {
     // `01-base/widget-modes` hat zwei Zahlen in einer Hülle — dafür braucht es
     // keine Gliederung.
     expect(formSections(rootField(AREA_SCHEMAS['01-base/widget-modes']))).toEqual([]);
+  });
+});
+
+describe('formSections — Inhalt vor Technik (ST-4)', () => {
+  it('stellt Begrüßungstext und Start-Chips vor die Grundwerte', () => {
+    // Bis ST-4 stand „Grundwerte" (tour_reply) vorn und offen, der Text dahinter.
+    expect(labels(AREA_SCHEMAS['01-base/welcome-config'])).toEqual([
+      'greeting', 'quick_replies', '', 'greeting_en', 'quick_replies_en',
+    ]);
+  });
+
+  it('stellt den Regeltext vor die Kopfangaben', () => {
+    expect(labels(AREA_SCHEMAS['01-base/base-persona'])).toEqual(['body', 'frontmatter']);
+  });
+
+  it('lässt die Schema-Reihenfolge stehen, wo nichts als Inhalt markiert ist', () => {
+    const namen = labels(AREA_SCHEMAS['01-base/safety-config']);
+    expect(namen[0]).toBe('');
   });
 });

@@ -17,19 +17,28 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
 
-import { ChoicesApi } from '../core/choices-api.service';
+import { pathKey } from '../core/field-problems';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { nextFreeKey, safeIdPart } from './field-ids';
 import type { ValuePath } from './form-value';
+import { FieldControlComponent } from './field-control.component';
 import { JsonValueComponent } from './json-value.component';
+import { ObjectListComponent } from './object-list.component';
 import type { SchemaField } from './schema-to-fields';
 
-export type FormEdit =
+/** A change to the document itself. */
+export type DocumentEdit =
   | { readonly kind: 'set'; readonly path: ValuePath; readonly value: unknown }
   | { readonly kind: 'remove'; readonly path: ValuePath }
   | { readonly kind: 'rename'; readonly path: ValuePath; readonly from: string; readonly to: string }
+  /** Several changes applied to ONE document and reported once (ST-2i). Two
+   *  edits emitted in the same tick would each start from the same stale
+   *  input, and the second would silently undo the first. */
+  | { readonly kind: 'batch'; readonly edits: readonly DocumentEdit[] };
+
+export type FormEdit =
+  | DocumentEdit
   /** Not a document change: a field reporting that its input cannot be parsed,
    *  so the form can stop a save that would silently drop it. `''` clears. */
   | { readonly kind: 'field-error'; readonly path: ValuePath; readonly message: string };
@@ -39,25 +48,23 @@ interface MapEntry {
   readonly value: unknown;
 }
 
-/** Grobe Zeichen je Zeile bei 46rem Feldbreite und Schriftgrad 0.8125rem. */
-const CHARS_PER_ROW = 70;
-/** Auch leer eine Fläche, die zum Schreiben einlädt … */
-const MIN_ROWS = 3;
-/** … und nach oben ein Bildschirm, nicht mehr. */
-const MAX_ROWS = 20;
+const NO_PROBLEMS: ReadonlyMap<string, string> = new Map();
 
 @Component({
   selector: 'studio-schema-field',
   // forwardRef: the template recurses into this very component, and a bare
-  // self-reference would read the binding before the class exists.
-  imports: [JsonValueComponent, RouterLink, forwardRef(() => SchemaFieldComponent)],
+  // self-reference would read the binding before the class exists. The object
+  // list (ST-3) renders its editor with this component in turn — same reason.
+  imports: [
+    FieldControlComponent, JsonValueComponent,
+    forwardRef(() => SchemaFieldComponent), forwardRef(() => ObjectListComponent),
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './schema-field.component.html',
   styleUrl: './schema-form.scss',
 })
 export class SchemaFieldComponent {
   private readonly lang = inject(StudioLanguageService);
-  private readonly choices = inject(ChoicesApi);
   protected readonly t = this.lang.t;
 
   readonly field = input.required<SchemaField>();
@@ -68,13 +75,32 @@ export class SchemaFieldComponent {
   /** Overrides `field.label` — a list entry is "quick_replies 2", a map entry
    * carries its own key as the heading. */
   readonly labelOverride = input<string | null>(null);
+  /** The server's messages by absolute path (ST-2e); each field takes its own. */
+  readonly problems = input<ReadonlyMap<string, string>>(NO_PROBLEMS);
+  /** `list` with a marker (ST-2i): the value of the sibling that marks a row. */
+  readonly markerValue = input<unknown>(undefined);
 
   readonly edit = output<FormEdit>();
 
   /** Refused rename, kept next to the row it belongs to. */
   readonly keyError = signal<{ readonly key: string; readonly message: string } | null>(null);
 
-  readonly label = computed(() => this.labelOverride() ?? this.field().label);
+  /** Beschriftung aus dem Katalog (ST-1), `null` ohne Eintrag. */
+  private readonly catalogueLabel = computed(() => this.catalogueText('label'));
+  readonly label = computed(
+    () => this.labelOverride() ?? this.catalogueLabel() ?? this.field().label,
+  );
+  /**
+   * Der Rohschlüssel, klein hinter einer Katalog-Beschriftung: so benennen
+   * Formular und YAML-Reiter weiter dasselbe Ding. Ohne Katalogtext IST die
+   * Beschriftung schon der Schlüssel, und ein Listeneintrag („Regeln 2") hat
+   * keinen eigenen.
+   */
+  readonly rawKey = computed(() =>
+    this.labelOverride() === null && this.catalogueLabel() !== null ? this.field().key : null,
+  );
+  /** Hilfetext: der Katalog vor dem `description` des Schemas. */
+  readonly hint = computed(() => this.catalogueText('hint') ?? this.field().description ?? null);
   /**
    * A list or map always needs a name — for its legend and for its buttons'
    * accessible names. The ROOT of a map area (`05-knowledge/rag-config`) has
@@ -88,7 +114,21 @@ export class SchemaFieldComponent {
     const suffix = this.path().map(safeIdPart).join('.');
     return suffix ? `${this.idPrefix()}-${suffix}` : this.idPrefix();
   });
-  readonly descId = computed(() => (this.field().description ? `${this.fieldId()}-desc` : null));
+  readonly descId = computed(() => (this.hint() ? `${this.fieldId()}-desc` : null));
+  /** Der Name des hervorhebenden Nachbarfelds („Tour-Chip") für die Radios. */
+  readonly markerLabel = computed(() => {
+    const key = this.field().markerTextKey;
+    return key && this.lang.has(`${key}.label`)
+      ? this.lang.t(`${key}.label`)
+      : (this.field().marker ?? '');
+  });
+  /** Die Prüfmeldung des Servers zu GENAU diesem Feld (ST-2e), sonst `null`. */
+  readonly problem = computed(() => this.problems().get(pathKey(this.path())) ?? null);
+  readonly errId = computed(() => (this.problem() ? `${this.fieldId()}-err` : null));
+  /** Hilfetext und Meldung zusammen — `aria-describedby` nimmt mehrere Kennungen. */
+  readonly describedWith = computed(
+    () => [this.descId(), this.errId()].filter(Boolean).join(' ') || null,
+  );
 
   /**
    * The stored value cannot hold what this field renders — an array where the
@@ -123,79 +163,6 @@ export class SchemaFieldComponent {
       : this.lang.t('schemaField.shape.scalar', { type: typeof value });
   });
 
-  /** Typed views of `value` — a template cannot bind `unknown` to an input. */
-  readonly asText = computed(() => {
-    const value = this.value();
-    if (typeof value === 'string') return value;
-    return value === null || value === undefined ? '' : String(value);
-  });
-  readonly asNumber = computed(() => {
-    const value = this.value();
-    return typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
-  });
-  readonly asBoolean = computed(() => this.value() === true);
-
-  /**
-   * Die Höhe einer Textfläche, aus dem Inhalt.
-   *
-   * Eine feste Höhe kann nur eines von beidem: ein leeres Feld nicht zur
-   * halben Seite aufblasen, oder einen 700-Zeichen-Text zeigen. Die Zahl
-   * wächst beim Tippen mit — ein Attribut, kein Elementwechsel, also ohne
-   * Fokusverlust. Wer selbst zieht, gewinnt: die gezogene Höhe steht als
-   * `style` und schlägt `rows`.
-   */
-  readonly rows = computed(() => {
-    const geschaetzt = Math.ceil(this.asText().length / CHARS_PER_ROW);
-    return Math.min(MAX_ROWS, Math.max(MIN_ROWS, geschaetzt));
-  });
-
-  /**
-   * Die Optionen eines Auswahlfeldes: die leere zuerst, dann der Vorrat — und
-   * ein gespeicherter Wert, den der Vorrat nicht kennt, als eigener Eintrag.
-   *
-   * Ohne diesen letzten Teil zeigte das Feld die erste Option an, obwohl etwas
-   * anderes gespeichert ist, und der nächste Speichervorgang schriebe die
-   * Anzeige fest. Ein Auswahlfeld darf einen Bestandswert nicht wegwerfen — es
-   * darf ihn nur ausweisen.
-   */
-  readonly options = computed<readonly { value: string; label: string }[]>(() => {
-    const vorrat = this.field().choices ?? [];
-    const rows = [
-      { value: '', label: this.lang.t('schemaField.noChoice') },
-      ...vorrat.map((value) => ({ value, label: value })),
-    ];
-    const current = this.asText();
-    if (current && !vorrat.includes(current)) {
-      rows.push({ value: current, label: this.lang.t('schemaField.foreignChoice', { current }) });
-    }
-    return rows;
-  });
-
-  /**
-   * Die `id` der Vorschlagsliste, oder `null` wenn das Feld keine hat. Aus dem
-   * KATALOG-Namen gebildet, nicht aus dem Feld: die Liste selbst rendert das
-   * Formular einmal je Katalog (`SchemaFormComponent`), sonst stünde derselbe
-   * Vorrat einmal je Listeneintrag in der Seite.
-   */
-  readonly datalistId = computed(() => {
-    const catalog = this.field().catalog;
-    return catalog ? `${this.idPrefix()}-cat-${catalog}` : null;
-  });
-
-  /**
-   * Der Sprung zum gewählten Element, als Routen-Segmente. `null`, solange der
-   * Wert in keinem Katalog steht oder das Element keine eigene Seite hat
-   * (Werkzeuge) — dann zeigt das Formular keinen Link statt eines toten.
-   *
-   * Segmente und nicht ein Stück: ein Bereichsschlüssel trägt einen
-   * Schrägstrich (`03-patterns/m06-…`), und als EIN Segment übergeben landet er
-   * `%2F`-kodiert in der Adresse. Ebenso in `areas.component.ts`.
-   */
-  readonly linkSegments = computed<readonly string[] | null>(() => {
-    const area = this.choices.areaFor(this.field().catalog, this.asText());
-    return area ? ['/bereich', ...area.split('/')] : null;
-  });
-
   readonly items = computed<readonly unknown[]>(() => {
     const value = this.value();
     return Array.isArray(value) ? value : [];
@@ -209,6 +176,11 @@ export class SchemaFieldComponent {
       value: entry,
     }));
   });
+
+  private catalogueText(part: 'label' | 'hint'): string | null {
+    const key = this.field().textKey;
+    return key && this.lang.has(`${key}.${part}`) ? this.lang.t(`${key}.${part}`) : null;
+  }
 
   childPath(key: string | number): ValuePath {
     return [...this.path(), key];
@@ -224,30 +196,72 @@ export class SchemaFieldComponent {
     this.edit.emit({ kind: 'set', path: this.path(), value });
   }
 
-  /** Text, Textfläche und Auswahlfeld — alle drei tragen ihren Wert in `value`. */
-  onText(event: Event): void {
-    const control = event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
-    this.setValue(control.value);
-  }
-
-  onNumber(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    // An empty numeric field is not 0 — sending null keeps "I cleared this"
-    // distinguishable, and the save surfaces a 422 naming the field if it was
-    // required. Silently substituting 0 would write a value nobody chose.
-    this.setValue(input.value === '' ? null : input.valueAsNumber);
-  }
-
-  onBoolean(event: Event): void {
-    this.setValue((event.target as HTMLInputElement).checked);
-  }
-
   addItem(): void {
     this.setValue([...this.items(), structuredClone(this.field().item?.blank ?? null)]);
   }
 
   removeItem(index: number): void {
-    this.edit.emit({ kind: 'remove', path: this.childPath(index) });
+    const remove: DocumentEdit = { kind: 'remove', path: this.childPath(index) };
+    const unmark = this.isMarked(index) ? this.markEdit('') : null;
+    // sonst zeigte der Tour-Chip auf eine Zeile, die es nicht mehr gibt
+    this.edit.emit(unmark ? { kind: 'batch', edits: [remove, unmark] } : remove);
+  }
+
+  /** Eine Liste oder Map von OBJEKTEN (ST-3): als Liste│Editor statt Wand. */
+  readonly objectItems = computed(() => this.field().item?.kind === 'group');
+
+  // ── ST-2g: eine Liste von Katalog-Namen als Chips ────────────────────
+
+  /** Werkzeuge, Wissensbereiche … — je Wert ein Chip statt je Eintrag ein Feld. */
+  readonly chipList = computed(() => {
+    const field = this.field();
+    return field.kind === 'list' && field.item?.kind === 'text' && !!field.item.catalog
+      && !field.marker;
+  });
+  /** Ein doppelter Wert, beim Eingabefeld gemeldet statt still verworfen. */
+  readonly chipError = signal('');
+
+  addChip(input: HTMLInputElement): void {
+    const value = input.value.trim();
+    if (!value) return;
+    if (this.items().includes(value)) {
+      this.chipError.set(this.lang.t('schemaField.chipTaken', { value, group: this.groupLabel() }));
+      return;
+    }
+    this.chipError.set('');
+    this.setValue([...this.items(), value]);
+    input.value = '';
+  }
+
+  // ── ST-2i: EIN Eintrag der Liste ist hervorgehoben (`x-marker`) ──────
+
+  /** Die Zeile trägt den Wert, den das Nachbarfeld hervorhebt. */
+  isMarked(index: number): boolean {
+    return !!this.field().marker && this.items()[index] === this.markerValue();
+  }
+
+  /** Schreibt den hervorgehobenen Wert ins Nachbarfeld — `''` hebt keinen hervor. */
+  mark(value: unknown): void {
+    const edit = this.markEdit(value);
+    if (edit) this.edit.emit(edit);
+  }
+
+  private markEdit(value: unknown): DocumentEdit | null {
+    const marker = this.field().marker;
+    return marker ? { kind: 'set', path: [...this.path().slice(0, -1), marker], value } : null;
+  }
+
+  /**
+   * Eine Zeile wurde bearbeitet. War sie die hervorgehobene, wandert der Marker
+   * mit — sonst verlöre eine Umbenennung des Tour-Chips still die Web-Tour.
+   * `items()` trägt hier noch den ALTEN Wert: das Dokument ist noch nicht neu.
+   */
+  onItemEdit(index: number, edit: FormEdit): void {
+    const follow = this.isMarked(index) && edit.kind === 'set'
+      && edit.path.length === this.path().length + 1
+      ? this.markEdit(edit.value)
+      : null;
+    this.edit.emit(follow && edit.kind === 'set' ? { kind: 'batch', edits: [edit, follow] } : edit);
   }
 
   addEntry(): void {

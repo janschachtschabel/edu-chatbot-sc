@@ -46,7 +46,10 @@ from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import _retrieve_task_exception
-from boerdi.services.engine_choice import laeuft_ueber_die_schleife
+from boerdi.services.engine_choice import (
+    laeuft_ueber_die_schleife,
+    zug_laeuft_ueber_die_schleife,
+)
 from boerdi.services.generate import generate_response
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
@@ -71,7 +74,11 @@ async def respond(
     ``engine`` (A4c-2b) ist die Maschine dieses Zuges. Im Agent-Modus antwortet
     ``respond_agent``, und zwar **vor** allem anderen: der Rumpf unten ist der
     Bestandsweg und bleibt unangetastet. Der Vorabruf aus ``merge`` wird dort
-    verworfen, nicht hier — sonst stünde Agent-Wissen im Bestandspfad."""
+    verworfen, nicht hier — sonst stünde Agent-Wissen im Bestandspfad.
+
+    Ausnahme (SF-1): Hat das Sicherheits-Gate ein Muster erzwungen, antwortet
+    der Rumpf mit M01/M02, gleich welche Maschine gewählt ist — ``route`` hat
+    das Schutzmuster dafür schon gewählt."""
     if not laeuft_ueber_die_schleife(engine) and ctx.req.environment.result_schema:
         # Ein Ergebnis-Schema wirkt NUR in der Agent-Schleife, und die Vorgabe
         # der Anlage ist ``pattern``. Ohne diese Zeile bekäme ein Gastgeber, der
@@ -81,13 +88,12 @@ async def respond(
         logger.warning(
             "result_schema wurde erklärt, aber diese Anfrage läuft mit der "
             "Maschine %r — es bleibt wirkungslos. Kopfzeile X-Boerdi-Engine auf "
-            "'agent' oder 'hybrid' setzen oder 01-base/engine umstellen.",
+            "'agent' setzen oder 01-base/engine umstellen.",
             engine)
-    if laeuft_ueber_die_schleife(engine):
+    if zug_laeuft_ueber_die_schleife(engine, ctx.safety.enforced_pattern):
         # ``session`` reicht nur die Wissensdatenbank durch (P) — dieselbe
         # pg-DI-Naht, die der Bestandsweg an ``generate_response`` gibt.
-        return await respond_agent(ctx, progress=progress, engine=engine,
-                                   session=session)
+        return await respond_agent(ctx, progress=progress, session=session)
 
     req = ctx.req
     history = ctx.history

@@ -153,7 +153,14 @@ async def _postprocess_response_for_widget_modes(
             session_entities=_debug_entities,
             classification_entities=classification_entities,
         )
-        if _universal_wanted and cards_for_postprocess:
+        # Nicht im Agent-Zug (Paket A, Agent-Runde 2): der Agent legt die
+        # Materialart selbst in den Filter seiner Suche (Master-Skill) und
+        # beschreibt deren Treffer. Eine zweite Auslegung der Nachricht
+        # widerspricht ihm: im Tor E-5 suchte er zu „hast du Übungen?“
+        # Arbeitsblätter, hier wurde daraus ``übung`` — keine Karte blieb.
+        # Die Muster-Maschine filtert weiter.
+        _agent_zug = getattr(resp.debug, "engine", "") == "agent"
+        if _universal_wanted and cards_for_postprocess and not _agent_zug:
             _before = len(cards_for_postprocess)
             cards_for_postprocess = [
                 c for c in cards_for_postprocess

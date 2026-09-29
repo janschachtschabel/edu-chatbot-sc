@@ -101,7 +101,8 @@ async def generate_quick_replies(
     count: int = 4,
     lang: Locale = DEFAULT,
 ) -> list[str]:
-    """Generate ``count`` context-aware quick reply suggestions using the LLM.
+    """Generate ``count`` context-aware quick reply suggestions using the LLM —
+    plus at most one guide line (``__guide__|…``) that does not count.
 
     ``usage_acc`` is optional — when threaded through, the call's tokens are
     accounted under phase ``"quick_replies"`` so the eval aggregator can break
@@ -109,6 +110,10 @@ async def generate_quick_replies(
     the caller. Best-effort: any LLM/parse failure yields ``[]`` rather than
     breaking the surrounding response."""
     count = max(1, min(6, int(count or 4)))
+    # Eine Ersatzzeile (Paket A, Agent-Runde 2): zu lange Vorschläge werden
+    # verworfen, nicht gekürzt — ohne Ersatz kostete jeder eine Pille (Tor E-5:
+    # 0 oder 1 statt 2). Zurück gehen höchstens ``count``.
+    angefragt = count + 1
     persona_id = classification.get("persona_id", "P-AND")
     intent_id = classification.get("intent_id", "")
     state_id = classification.get("next_state", session_state.get("state_id", "S1"))
@@ -131,7 +136,7 @@ async def generate_quick_replies(
     budget = _max_chars()
 
     system = _prompt.build_system_prompt(
-        count=count,
+        count=angefragt,
         persona_id=persona_id,
         intent_id=intent_id,
         state_id=state_id,
@@ -152,7 +157,7 @@ async def generate_quick_replies(
         resp = await llm.chat_completion(
             messages=messages,
             temperature=0.6,
-            max_tokens=max(80, 40 * count),
+            max_tokens=max(80, 40 * angefragt),
             usage_acc=usage_acc,
             phase="quick_replies",
         )
@@ -185,7 +190,12 @@ async def generate_quick_replies(
                 "quick_replies.max_chars: %d Vorschlag/Vorschlaege ueber %d Zeichen verworfen",
                 zu_lang, budget,
             )
-        return unique[:count]
+        # Der Lotse kommt ZUSÄTZLICH (Paket A, Agent-Runde 2): er wird nie eine
+        # Pille — ohne ``host`` entfernt ihn ``_attach_guide_qr``, sonst wird er
+        # ein Link im Text —, belegte hier aber einen der ``count`` Plätze. Bei
+        # ``max_count: 2`` blieb im Tor E-5 so eine Pille statt zwei.
+        lotse = [r for r in unique if r.startswith(GUIDE_QR_PREFIX)][:1]
+        return lotse + [r for r in unique if not r.startswith(GUIDE_QR_PREFIX)][:count]
     except Exception:
         _logger.warning("quick-reply generation failed; returning none", exc_info=True)
         return []

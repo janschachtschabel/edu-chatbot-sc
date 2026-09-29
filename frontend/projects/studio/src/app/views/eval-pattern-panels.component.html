@@ -1,0 +1,60 @@
+<details class="pp">
+  <summary>{{ t('evalClass.title') }}</summary>
+  <p class="pp-hint">{{ t('evalClass.hint') }}</p>
+
+  <dl class="pp-kpis">
+    @for (kpi of kpis(); track kpi.key) {
+      <div><dt>{{ kpi.label }}</dt><dd>{{ kpi.text }}</dd></div>
+    }
+  </dl>
+
+  @for (matrix of matrices(); track matrix.key) {
+    <!-- Eigener Scroll-Rahmen je Matrix, relativ positioniert: viele Muster
+         machen sie breit, die Seite soll es nicht werden. -->
+    <div class="pp-scroll">
+      <table class="pp-matrix">
+        <caption>{{ matrix.caption }}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{{ matrix.corner }}</th>
+            @for (col of matrix.table.cols; track col) {
+              <th scope="col">{{ col }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of matrix.table.rows; track row; let i = $index) {
+            <tr>
+              <th scope="row">{{ row }}</th>
+              @for (cell of matrix.table.cells[i]; track $index) {
+                <td [class]="cellClass(cell)">{{ cell.n }}</td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (tools().length > 0) {
+    <table class="pp-tools">
+      <caption>{{ t('evalClass.tools.caption') }}</caption>
+      <thead>
+        <tr>
+          <th scope="col">{{ t('evalClass.tools.pattern') }}</th>
+          <th scope="col">{{ t('evalClass.tools.ok') }}</th>
+          <th scope="col">{{ t('evalClass.tools.rate') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of tools(); track row.pattern) {
+          <tr [class.pp-weak]="row.weak">
+            <th scope="row">{{ row.pattern }}</th>
+            <td>{{ row.ok }} / {{ row.total }}</td>
+            <td>{{ row.rateText }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</details>

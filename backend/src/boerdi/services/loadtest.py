@@ -49,6 +49,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.db.models import LoadtestRun
 from boerdi.obs.tasks import cancel_run_task
+from boerdi.services.session_origin import LOADTEST_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,7 @@ def validate_profile(profile: dict[str, Any]) -> dict[str, Any]:
     # Literal; hier noch einmal, weil validate_profile auch die Cap-Schicht
     # für direkte Aufrufer ist.
     engine = str(profile.get("engine") or "default")
-    if engine not in ("default", "pattern", "agent", "hybrid"):
+    if engine not in ("default", "pattern", "agent"):
         raise ValueError(f"Unbekannte Engine: {engine!r}")
 
     return {
@@ -339,7 +340,7 @@ async def _fire_request(
 
     ``engine`` (Review-Befund 7): alles außer "default" reist als
     ``X-Boerdi-Engine`` mit — sonst misst der Lasttest immer die
-    Server-Vorgabe, und die Kapazitätszahlen sagen nichts über agent/hybrid.
+    Server-Vorgabe, und die Kapazitätszahlen sagen nichts über agent.
     """
     prompt = MIX_TEMPLATES[kind]["prompt"].format(topic=topic)
     payload = {
@@ -376,7 +377,7 @@ async def _run_stage(
         ip = f"198.51.100.{(i % 50) + 1}"
         transport = httpx.ASGITransport(app=app, client=(ip, 50000 + i))
         topic = _TOPICS[(stage_idx * 7 + i) % len(_TOPICS)]
-        sid = f"loadtest-{run_id[:8]}-s{stage_idx}-{i}"
+        sid = f"{LOADTEST_PREFIX}{run_id[:8]}-s{stage_idx}-{i}"
         async with sem, httpx.AsyncClient(
             transport=transport, base_url="http://loadtest.local",
         ) as client:

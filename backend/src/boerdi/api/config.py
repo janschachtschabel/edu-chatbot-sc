@@ -7,6 +7,7 @@ DB areas replace files (V2): the ``path`` parameter stays the area key
 is new (V3, JSON schema per area for the generic formly renderer).
 """
 
+from typing import Any
 from urllib.parse import urlparse
 
 import yaml
@@ -291,12 +292,26 @@ async def update_area_data(area: str, payload: AreaData, lang: Lang) -> dict:
     except ValidationError as e:
         # Hand-built detail: pydantic's own carries `input` and `url`, and the
         # input is the submitted config content — no need to echo it back.
+        # `ctx` (the bound, the expected values) lets the Studio say „Mindestens
+        # 70" at the field (ST-2e) — plain values only.
         raise HTTPException(status_code=422, detail=[
-            {"loc": list(err["loc"]), "msg": err["msg"], "type": err["type"]}
+            {"loc": list(err["loc"]), "msg": err["msg"], "type": err["type"],
+             **_plain_ctx(err)}
             for err in e.errors()
         ]) from e
     await cl.write_area(key, payload.data, updated_by="studio-form")
     return {"status": "saved", "area": key, "data": payload.data}
+
+
+def _plain_ctx(err: Any) -> dict[str, Any]:
+    """``ctx`` of a validation error with plain values only (ST-2e).
+
+    A ``value_error`` carries the raised exception there — neither JSON nor
+    anything the Studio should show. Empty result: no ``ctx`` key at all.
+    """
+    ctx = {k: v for k, v in (err.get("ctx") or {}).items()
+           if isinstance(v, (bool, int, float, str))}
+    return {"ctx": ctx} if ctx else {}
 
 
 def _mcp_auth_base() -> str:

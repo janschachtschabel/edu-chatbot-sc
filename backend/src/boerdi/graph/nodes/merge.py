@@ -19,7 +19,9 @@ What ALT ``_classify_and_merge`` also did but this node deliberately does NOT:
 NEU deviations over ALT: ``session_state``/``classification`` come off ``ctx`` and
 are mutated in place (ALT parity — no rebinding is observed downstream); the
 prefetch launcher returns a ``SpeculativePrefetch`` NamedTuple (ALT's bare 7-tuple)
-whose fields land on ``ctx``. Tests patch the four boundaries (prefetch launch, the
+whose fields land on ``ctx``. Under the agent loop (``engine``, which ALT did not
+have) the two type slots live for one turn only — no classifier, no
+``topic_switch`` to clear them. Tests patch the four boundaries (prefetch launch, the
 two material-type helpers, the placeholder-config load) on THIS module; the pure
 merge logic runs for real.
 """
@@ -32,6 +34,7 @@ from boerdi.domain.canvas.intent import extract_material_type_from_message
 from boerdi.domain.content_types import _resolve_wanted_content_types
 from boerdi.graph.state import TurnContext
 from boerdi.services.config_loader import load_placeholder_topics_config
+from boerdi.services.engine_choice import laeuft_ueber_die_schleife
 from boerdi.services.prefetch import run_speculative_prefetch
 
 logger = logging.getLogger(__name__)
@@ -40,11 +43,7 @@ logger = logging.getLogger(__name__)
 async def merge(ctx: TurnContext, engine: str = "pattern") -> TurnContext:
     """Fold the classifier's entities into ``session_state`` (per turn_type), run
     the material heuristics, launch the speculative prefetch, and enrich the I05
-    slot. Mutates ``ctx`` in place and returns it.
-
-    ``engine`` (H5) reicht nur bis zum Vorabruf: dessen Auslöser hängt im Bestand
-    am Klassifikator, und der Hybrid hat keinen. Alles andere in diesem Knoten
-    läuft in jeder Maschine gleich."""
+    slot. Mutates ``ctx`` in place and returns it."""
     req = ctx.req
     classification = ctx.classification
     session_state = ctx.session_state
@@ -146,6 +145,17 @@ async def merge(ctx: TurnContext, engine: str = "pattern") -> TurnContext:
             if v:
                 session_state["entities"][k] = v
 
+    # ── Typ-Slots unter der Agent-Schleife: nur für diesen Zug ──────
+    # Die Muster-Maschine leert sie über den Zugtyp des Klassifikators
+    # (``topic_switch``); ein ``follow_up`` behält sie absichtlich. Unter der
+    # Schleife klassifiziert niemand — sie blieben die ganze Sitzung stehen und
+    # filterten über ``debug.entities`` die Karten jedes späteren Zugs
+    # (ST-5-Lesart, Befund 3, 2026-09-27). Die Heuristik unten setzt sie aus
+    # DIESER Nachricht neu.
+    if laeuft_ueber_die_schleife(engine):
+        for _typ_slot in ("material_typ", "medientyp"):
+            (session_state.get("entities") or {}).pop(_typ_slot, None)
+
     # ── Heuristik-Anreicherung (material_typ + type-focus medientyp) ──
     # Der Classifier extrahiert ``material_typ`` nicht immer; die Alias-Heuristik
     # fängt mehr Fälle (Plurale, Synonyme). In classification.entities heben,
@@ -180,8 +190,7 @@ async def merge(ctx: TurnContext, engine: str = "pattern") -> TurnContext:
     # ── Speculative MCP prefetch (post-Classification) ──────────────
     # Für Such-Style-Intents die MCP-Suche im Hintergrund starten, während
     # Pattern/Policy/Context laufen; der ``respond``-Node konsumiert das Ergebnis.
-    sp = await run_speculative_prefetch(req, classification, ctx.safety,
-                                        engine=engine)
+    sp = await run_speculative_prefetch(req, classification, ctx.safety)
     ctx.spec_task = sp.spec_task
     ctx.spec_tool_name = sp.spec_tool_name
     ctx.spec_tool_args = sp.spec_tool_args

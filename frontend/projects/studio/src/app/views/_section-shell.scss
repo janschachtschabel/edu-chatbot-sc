@@ -69,6 +69,16 @@
   align-items: center;
   gap: var(--st-3);
   margin-block-start: var(--st-4);
+  // ST-4: am unteren Rand kleben, solange der Abschnitt offen ist — die Leiste
+  // saß sonst am Ende langer Formulare, fern der Stelle, die man gerade ändert.
+  // Grund und Linie der Hülle, damit darunter durchlaufende Felder nicht
+  // durchscheinen; ein kurzes Panel bleibt davon unberührt.
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 1;
+  padding-block: var(--st-2);
+  border-block-start: 1px solid var(--st-rule);
+  background: var(--st-panel);
 }
 
 .cs-btn {
@@ -89,7 +99,7 @@
   &--primary {
     border-color: var(--st-accent);
     background: var(--st-accent);
-    color: var(--st-accent-text);
+    color: var(--st-on-accent);
   }
 }
 

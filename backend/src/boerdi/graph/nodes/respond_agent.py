@@ -56,8 +56,6 @@ from typing import Any
 from boerdi.domain import host_capabilities, host_instruction
 from boerdi.domain.answer_notes import append_answer_notes
 from boerdi.domain.history_window import verlaufs_fenster
-from boerdi.domain.pattern_catalog import finde_muster
-from boerdi.domain.pattern_engine import PatternDef, get_patterns, phase3_modulate
 from boerdi.domain.skill_ansagen import mit_master_ansage
 from boerdi.domain.skill_precedence import (
     anleitungs_hinweis,
@@ -67,19 +65,21 @@ from boerdi.domain.skill_precedence import (
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
-from boerdi.i18n.prompt_language import language_name
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import cancel_and_drain
 from boerdi.services import llm, master_skill, page_context
+from boerdi.services.agent_deckel import fuer_diesen_zug
+from boerdi.services.agent_knowledge import WISSENS_REGEL, wissen_werkzeug
 from boerdi.services.agent_knowledge import antwort as wissen_antwort
-from boerdi.services.agent_knowledge import wissen_werkzeug
+from boerdi.services.agent_kopf import kopf
 from boerdi.services.agent_loop import AgentRun, run_agent_loop
 from boerdi.services.agent_prefetch import resolve_prefetch
-from boerdi.services.agent_tools import VIRTUELLE_WERKZEUGE, build_agent_tools
+from boerdi.services.agent_tools import build_agent_tools
+from boerdi.services.agent_trace import spur
 from boerdi.services.agent_write import enforce_write_mode
-from boerdi.services.card_collect import collect_cards
+from boerdi.services.agent_zugblock import zuletzt_gezeigt
+from boerdi.services.card_collect import collect_cards, juengste_zuerst
 from boerdi.services.config_loader import load_engine
-from boerdi.services.engine_choice import AGENT, HYBRID
 
 logger = logging.getLogger(__name__)
 
@@ -105,49 +105,11 @@ _HISTORY_TURNS = 10
 #: auslöst und in seinem eigenen Token-Budget bezahlt (dieselbe Abwägung wie in
 #: ``domain/host_instruction``). Wer die Entscheidung dreht, fängt hier an.
 
-_SYSTEM = (
-    "Du bist Boerdi, der Assistent von WirLernenOnline (WLO). Du sprichst mit "
-    "einem Menschen im Chat — kurz, freundlich und ohne Floskeln.\n\n"
-    "Arbeitsweise: hole dir die Tatsachen mit den Werkzeugen, statt sie aus dem "
-    "Gedaechtnis zu behaupten. Steht in einer Sammlung ein Skill zu deiner "
-    "Aufgabe, halte dich daran. Nenne, worauf du dich stuetzt, und sage "
-    "ausdruecklich, was du NICHT pruefen konntest.\n\n"
-    "SPRACHE DER AUSGABE: {sprache}. Formatiere mit Markdown."
-)
+# Der Rollenblock steht seit AG-3 im Studio (``01-base/engine``, ``agent_rolle``);
+# ``services/agent_kopf`` baut daraus den Kopf der Kette.
 
-#: Die Wissens-Regel — nur wenn ``wissen_suchen`` auch im Katalog steht.
-#:
-#: **Warum sie noetig ist.** Der Muster-Weg holt die ``mode: always``-Bereiche
-#: VOR dem ersten Modellzug und legt sie als erledigten Werkzeug-Aufruf in die
-#: Kette (``tool_loop_messages``): dort ist internes Wissen keine Entscheidung,
-#: sondern eine Zusage. Hier entscheidet das Modell — und traf 2026-08-19 in
-#: 2 von 3 gemessenen Zuegen richtig. Der dritte beantwortete „Was ist
-#: WissenLebtOnline?" aus dem Gedaechtnis.
-#:
-#: **Warum kein Vorabruf.** ``services/agent_knowledge`` begruendet den
-#: Verzicht: diese Schleife beantwortet auch „hallo", und eine Einbettung ohne
-#: WLO-Bezug zahlte fuer Wissen, das niemand braucht. Der Entscheid bleibt —
-#: verschaerft wird die Regel, nicht die Mechanik. Die Formulierung nimmt die
-#: Beispiel-Bauart des Muster-Wegs auf (``response_prompt_tools_text``), aber
-#: kurz: dieser Block sitzt im gecachten Praefix und wird JEDE Runde gezahlt.
-#:
-#: **Die Abgrenzung ist Teil der Regel, nicht Beiwerk** (Durchsicht 2026-08-19).
-#: Ohne sie liegt die Materialsuche gefaehrlich nah an „Fragen zu WLO" — und
-#: genau dort steht der Agent heute BESSER da als der Muster-Weg: bei „Ich
-#: suche Inhalte zu einem Thema" fragt er ohne einen einzigen Werkzeug-Aufruf
-#: zurueck (gemessen 2026-08-19). Eine zu breit gelesene Regel machte daraus
-#: eine ueberfluessige Wissenssuche und verschlechterte den einen Fall, in dem
-#: die Schleife vorn liegt. Deshalb nennt der Text beide Ausnahmen beim Namen.
-_WISSENS_REGEL = (
-    "\n\nWISSEN VOR GEDAECHTNIS: Fragen zu WLO und seinem Umfeld — was die "
-    "Plattform oder ein Projekt ist, wie die Webseite aufgebaut ist, OER, "
-    "Metadaten, Lizenzen, Qualitaet, Prozesse, Mitmachen — beantwortest du "
-    "NICHT aus dem Gedaechtnis. Rufe zuerst ``wissen_suchen``, auch wenn du "
-    "die Antwort zu kennen meinst. Findet es nichts, sage das.\n"
-    "Nicht gemeint ist die Suche nach Lernmaterial zu einem Unterrichtsthema — "
-    "die geht in den Bestand, nicht in die Wissensdatenbank. Und eine "
-    "Rueckfrage, weil dir eine Angabe fehlt, braucht ueberhaupt kein Werkzeug."
-)
+# Die Wissens-Regel (nur mit ``wissen_suchen`` im Katalog) steht seit ST-8d in
+# ``services/agent_knowledge`` — die Prompt-Vorschau des Studios liest sie dort.
 
 
 async def _verwirf_vorabruf(ctx: TurnContext) -> None:
@@ -260,46 +222,8 @@ async def _abschluss_nachholen(
     return text
 
 
-def _muster_werkzeuge(ctx: TurnContext, muster: PatternDef) -> list[str]:
-    """Die Werkzeugliste eines Musters — durch die **echte** ``phase3_modulate``.
-
-    Nicht ``muster.tools`` roh: die Modulation hängt die Helfer an, ohne die eine
-    Suche halb ist (``lookup_wlo_vocabulary``, ``get_node_details``), und sie tut
-    es nach derselben Regel wie im Bestandsweg. Eine eigene Fassung liefe beim
-    nächsten Studio-Feld auseinander — und der A/B-Vergleich maße dann einen
-    Unterschied, den er selbst gebaut hat.
-    """
-    ss = ctx.session_state or {}
-    output = phase3_modulate(
-        muster,
-        list(ctx.classification.signals or []),
-        ctx.env.get("device", "desktop"),
-        ss.get("entities") or {},
-        ss.get("persona_id") or "P-AND",
-    )
-    return list(output.get("tools") or [])
-
-
-def _werkzeuge_des_musters(
-    alle: list[dict], erlaubt: list[str]
-) -> list[dict]:
-    """``alle`` auf die Werkzeuge des Musters eingeschränkt.
-
-    Die virtuellen bleiben immer drin (siehe :data:`VIRTUELLE_WERKZEUGE`). Eine
-    **leere** Erlaubnisliste heißt „dieses Muster arbeitet ohne Werkzeuge" (M04,
-    M11, M13, M14) — dann bleiben nur die virtuellen, und das Modell kann
-    zurückwechseln oder antworten, aber nicht suchen. Genau die Zusage, die
-    ``sources: [llm]`` im Bestandsweg gibt.
-    """
-    gewuenscht = set(erlaubt)
-    return [t for t in alle
-            if t["function"]["name"] in VIRTUELLE_WERKZEUGE
-            or t["function"]["name"] in gewuenscht]
-
-
 async def respond_agent(
-    ctx: TurnContext, progress: TurnProgress = NO_PROGRESS, engine: str = AGENT,
-    session: Any = None,
+    ctx: TurnContext, progress: TurnProgress = NO_PROGRESS, session: Any = None,
 ) -> TurnContext:
     """Beantworte den Zug mit der Agent-Schleife. Mutiert ``ctx`` und gibt ihn
     zurück — gleiche Ausgangsfelder wie ``respond``, damit ``assemble`` und
@@ -316,8 +240,11 @@ async def respond_agent(
     # damit kam z.B. die Erschließungs-Regel im Agent-Modus nie an.
     # Rückfall auf das Original, falls ``setup`` nicht lief.
     seite = (ctx.env or {}).get("page_context") or ctx.req.environment.page_context or {}
+    # EIN Stand für Rolle und Deckel: ein Speichern im Studio zwischen zwei
+    # Aufrufen gäbe dem Zug sonst Rolle und Deckel aus verschiedenen Fassungen.
+    einstellung = load_engine()
     messages: list[dict] = [
-        {"role": "system", "content": _SYSTEM.format(sprache=language_name(sprache))},
+        {"role": "system", "content": kopf(einstellung.agent_rolle, sprache)},
     ]
     # N3: die redaktionelle Gesamtanleitung — GROSS und zwischen zwei Zuegen
     # unveraendert, deshalb so weit vorn wie moeglich: Anbieter mit
@@ -377,7 +304,13 @@ async def respond_agent(
     messages.extend(_fenster)
     # Anleitungen vor Gegenstand — dieselbe Reihenfolge wie im Agent-Endpunkt.
     await resolve_prefetch(messages, _vorab_aufrufe(seite), progress=progress)
-    messages.append({"role": "user", "content": ctx.req.message})
+    # Paket C: was die Person zuletzt gesehen hat, damit „der erste Treffer“ oder
+    # „die Lösungen dazu“ einen Gegenstand haben — gerahmt am ANFANG ihrer
+    # Nachricht, nicht als System-Block: den hebt LiteLLM auf dem Responses-Weg in
+    # ``instructions`` (Review 2026-09-29), und er enthält Fremdtext.
+    gezeigt = zuletzt_gezeigt(ctx.history)
+    messages.append({"role": "user",
+                     "content": f"{gezeigt}\n\n{ctx.req.message}" if gezeigt else ctx.req.message})
 
     # Erklärt der Gastgeber ein Schema, bekommt der Lauf seinen Ergebnis-Kanal
     # (2026-08-14, seit J1 ``liefere_ergebnis`` statt ``submit_result``). Nur
@@ -396,20 +329,6 @@ async def respond_agent(
             "Rueckfrage), antworte gewoehnlich und rufe es NICHT."
         )
 
-    # H6: Der Musterkatalog liegt nur im Hybrid in der Werkzeugliste — und auch
-    # dort NICHT, wenn das Sicherheits-Gate ein Muster erzwungen hat. Über M01
-    # und M02 entscheidet nicht das Modell; ein Katalog daneben machte die
-    # Krisen-Behandlung zu einem Angebot.
-    _katalog: list[PatternDef] | None = None
-    if engine == HYBRID:
-        if ctx.safety.enforced_pattern:
-            logger.info(
-                "Hybrid: %s ist vom Sicherheits-Gate erzwungen — der "
-                "Musterkatalog bleibt aus dem Werkzeugsatz.",
-                ctx.safety.enforced_pattern)
-        else:
-            _katalog = get_patterns()
-
     # P: die interne Wissensdatenbank. Bis 2026-08-18 hatte die Agent-Schleife
     # sie GAR NICHT — ``query_knowledge`` wird allein im Muster-Weg gebaut, also
     # lief hier jede Frage nach WLO, OER oder edu-sharing ins Modellgedaechtnis.
@@ -418,48 +337,37 @@ async def respond_agent(
     _wissen_tool = wissen_werkzeug(ctx.rag_config or {})
 
     # Werkzeug im Katalog ⇔ Regel im Prompt — dieselbe Kopplung wie beim
-    # ``result_schema`` oben. ``wissen_suchen`` steht in ``VIRTUELLE_WERKZEUGE``
-    # und ist damit weder sperrbar noch von der Muster-Einschraenkung des
-    # Hybrids betroffen: ist es hier gebaut, ist es in JEDER Runde da.
+    # ``result_schema`` oben. ``wissen_suchen`` ist virtuell und damit nicht
+    # sperrbar: ist es hier gebaut, ist es in JEDER Runde da.
     if _wissen_tool:
-        messages[0]["content"] += _WISSENS_REGEL
+        messages[0]["content"] += WISSENS_REGEL
 
     async def _wissen(args: dict) -> str:
         return await wissen_antwort(session, args, ctx.rag_config or {})
 
-    def _voller_satz(*, kurz: bool = False) -> list[dict]:
-        """Der Werkzeugsatz. ``kurz`` schaltet den Musterkatalog auf eine Zeile
-        je Muster (H8-2) — richtig für jede Liste, die NACH einer Wahl entsteht:
-        dort ist nur noch das Wechseln offen, und die Einsatzregeln kosteten
-        gemessen 25 251 der 31 742 Zeichen dieses Satzes."""
-        return build_agent_tools(
+    all_cards: list[dict] = []
+    ernten: list[list[dict]] = []
+    progress.start("response", "LLM response generation")
+    lauf = await run_agent_loop(
+        messages=messages,
+        tools=build_agent_tools(
             blocked_tools=ctx.safety.blocked_tools,
             # ``submit_result`` gehört seit J1 dem Agent-Endpunkt: es beendet
             # den Lauf, und im Chat kostete genau das die Prosa-Antwort.
             include_submit=False, include_ergebnis=bool(_schema),
-            result_schema=_schema,
-            muster_katalog=_katalog, include_dokument=True,
-            katalog_kurz=kurz,
+            result_schema=_schema, include_dokument=True,
             # O-A: die Erlaubnis der Einbettung. Dasselbe Wort, das ueber
             # ``host_capabilities.prompt_block`` im Prompt steht — sonst
             # verspraeche das Modell, was ihm die Liste gleich nimmt.
             tool_mode=ctx.req.environment.tool_mode,
-            wissen_tool=_wissen_tool)
-
-    all_cards: list[dict] = []
-    progress.start("response", "LLM response generation")
-    lauf = await run_agent_loop(
-        messages=messages,
-        tools=_voller_satz(),
-        limits=enforce_write_mode(load_engine().agent),
+            wissen_tool=_wissen_tool),
+        # AG-6: ohne angemeldete Person gelten die engeren anonymen Deckel.
+        # Die Schreibregel zuletzt: was auch immer davor die Deckel ändert,
+        # ``execute`` ohne Person kommt hier nicht durch.
+        limits=enforce_write_mode(fuer_diesen_zug(einstellung.agent)),
         usage_acc=ctx.usage,
         progress=progress,
-        on_tool_result=lambda name, text: collect_cards(all_cards, name, text),
-        muster_katalog=_katalog,
-        werkzeuge_fuer=(
-            lambda muster: _werkzeuge_des_musters(
-                _voller_satz(kurz=True), _muster_werkzeuge(ctx, muster))
-        ) if _katalog else None,
+        on_tool_result=lambda name, text: ernten.append(collect_cards(all_cards, name, text)),
         wissen=_wissen if _wissen_tool else None,
     )
     logger.info("Agent-Modus: %d Schritte, Ende=%s, %d Werkzeuge, %d Karten",
@@ -539,7 +447,7 @@ async def respond_agent(
             len(lauf.text or ""), lauf.stop_reason)
         _antwort = bot_text(sprache, "agent.failed")
     ctx.response_text = _antwort
-    ctx.wlo_cards_raw = all_cards
+    ctx.wlo_cards_raw = juengste_zuerst(all_cards, ernten)
     # D2: Was das Modell als Ergebnis GELIEFERT hat. ``turn_persist`` zieht es
     # der geratenen Box vor; ist die Liste leer, bleibt der Bestandsweg.
     ctx.gelieferte_dokumente = lauf.dokumente
@@ -549,19 +457,11 @@ async def respond_agent(
     if _schema:
         ctx.result = lauf.result if isinstance(lauf.result, dict) else None
         ctx.result_stop_reason = lauf.stop_reason
-    # H6/H7: Was das Modell WIRKLICH benutzt hat, überschreibt den synthetischen
-    # Anfangszustand. ``effective_pattern_id`` trägt genau diese Bedeutung schon
-    # („engine=X → executed=Y", ``route_tail.reconcile_effective_pattern``), und
-    # daran hängen drei Dinge, die sonst still ausfielen: die Inline-Kachel für
-    # M09/M10/M11 (``turn_persist``), ``_last_pattern`` für die Nachbearbeitung
-    # im Folgezug, und die Muster-Spalte der Qualitätslogs.
-    if lauf.muster_id and (_gewaehlt := finde_muster(lauf.muster_id, _katalog or [])):
-        logger.info("Hybrid: ausgefuehrtes Muster %s (%s) statt %s",
-                    _gewaehlt.id, _gewaehlt.label, ctx.effective_pattern_id)
-        ctx.effective_pattern_id = _gewaehlt.id
-        ctx.effective_pattern_label = _gewaehlt.label
     ctx.tools_called = lauf.tools_called
     ctx.debug.outcomes = lauf.outcomes
+    # AG-1: Runden, Werkzeuge samt der virtuellen, Token und Ende-Grund —
+    # bis hier gingen sie nach dem Log-Satz oben verloren.
+    ctx.debug.trace = spur(lauf.runden, lauf.stop_reason)
     ctx.debug.confidence = adjust_confidence(
         ctx.classification.intent_confidence, lauf.outcomes)
     return ctx

@@ -172,6 +172,33 @@ describe("EvalApi", () => {
     ).toBe("20");
   });
 
+  it("filtert Liste und Verlauf nur nach Maschine, wenn eine gewählt ist (ST-7a)", async () => {
+    void api.runs("agent");
+    const liste = http.expectOne((r) => r.url === `${BASE}/runs`);
+    expect(liste.request.params.get("engine")).toBe("agent");
+    expect(liste.request.params.get("limit")).toBe("50");
+    liste.flush({ runs: [] });
+
+    void api.runs();
+    const alle = http.expectOne((r) => r.url === `${BASE}/runs`);
+    // Ohne Wahl bleibt die Anfrage genau die alte — auch Läufe mit unbekannter
+    // Maschine gehören dann dazu.
+    expect(alle.request.params.has("engine")).toBe(false);
+    alle.flush({ runs: [] });
+
+    void api.trends("pattern");
+    const verlauf = http.expectOne((r) => r.url === `${BASE}/trends`);
+    expect(verlauf.request.params.get("engine")).toBe("pattern");
+    expect(verlauf.request.params.get("limit")).toBe("20");
+  });
+
+  it("vergleicht Läufe über eine Komma-Liste der Kennungen (ST-7c)", async () => {
+    void api.compare(["eval-a", "eval-b"]);
+    const req = http.expectOne((r) => r.url === `${BASE}/compare`);
+    expect(req.request.method).toBe("GET");
+    expect(req.request.params.get("ids")).toBe("eval-a,eval-b");
+  });
+
   it('scopes the pattern usage and drops an empty "since"', async () => {
     void api.patternUsage("eval", "");
     const req = http.expectOne(

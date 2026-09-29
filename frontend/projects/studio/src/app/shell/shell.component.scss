@@ -4,6 +4,8 @@
 // rem width (so it shrinks with the user's text size) and collapses to a
 // disclosure below 60rem.
 
+@use './header-button' as hb;
+
 :host {
   display: flex;
   flex-direction: column;
@@ -18,7 +20,7 @@
   padding: var(--st-2) var(--st-3);
   border-radius: var(--st-radius);
   background: var(--st-accent);
-  color: var(--st-accent-text);
+  color: var(--st-on-accent);
   transition: top 120ms ease;
 
   &:focus {
@@ -34,6 +36,7 @@
 
 .header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--st-3);
   min-height: var(--st-header-h);
@@ -55,28 +58,14 @@
 
 .header-tools {
   display: flex;
+  flex-wrap: wrap; // ST-9: three more tools — wrap instead of overflowing
   align-items: center;
+  justify-content: flex-end;
   gap: var(--st-3);
 }
 
 .btn {
-  min-height: 2.25rem; // ≥ 24px target with room to spare (SC 2.5.8)
-  padding: 0 var(--st-3);
-  border: 1px solid var(--st-text-muted);
-  border-radius: var(--st-radius);
-  background: var(--st-panel);
-  color: var(--st-text);
-  font: inherit;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: var(--st-accent-soft);
-  }
-
-  &:disabled {
-    cursor: progress;
-    color: var(--st-text-muted);
-  }
+  @include hb.header-button;
 }
 
 .nav-toggle {

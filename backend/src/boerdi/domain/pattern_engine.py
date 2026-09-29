@@ -14,7 +14,10 @@ Stil-/Inhalt-Schicht läuft IMMER — auch im Safety-Pfad.
 
 1:1-Port aus ALT ``app/services/pattern_engine.py`` (rein bzgl. Args →
 Domäne; Config-Loader werden lazy als Read-Fassade genutzt, damit Tests sie am
-``config_loader``-Modul mocken können).
+``config_loader``-Modul mocken können). Bewusste Abweichungen seit 2026-09-27,
+weil der ALT hier dieselben Fehler hatte: ``phase3_modulate`` schreibt ``id``,
+``label`` und ``output_mode`` ins Ergebnis, und der Rückfall folgt der Rangfolge
+M15 → M03 statt der sortierten Musterliste.
 """
 
 from __future__ import annotations
@@ -23,6 +26,8 @@ import logging
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+from boerdi.domain.config_models.base_governance import LENGTH_BIAS_STEP
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +53,10 @@ class PatternDef(BaseModel):
     default_length: str = "mittel"
     default_detail: str = "standard"
     response_type: str = "answer"
+    # Antwortform aus dem Seed (clarify, rerender, …). Bis 2026-09-27 fehlte das
+    # Feld hier; pydantic verwarf es still, und der M11-Block, der an
+    # ``output_mode == "rerender"`` hängt, lief nie (im ALT ebenso).
+    output_mode: str | None = None
     sources: list[str] = Field(default_factory=lambda: ["mcp"])
     rag_areas: list[str] = Field(default_factory=list)
     format_primary: str = "text"
@@ -162,9 +171,9 @@ def _apply_length_bias(default_length: str, length_bias: float) -> str:
     sonst unverändert. Clamped auf [0..2].
     """
     rank = _LENGTH_RANK.get(default_length, 1)
-    if length_bias > 0.15:
+    if length_bias > LENGTH_BIAS_STEP:
         rank += 1
-    elif length_bias < -0.15:
+    elif length_bias < -LENGTH_BIAS_STEP:
         rank -= 1
     rank = max(0, min(2, rank))
     return _LENGTH_BY_RANK[rank]
@@ -217,6 +226,13 @@ def phase3_modulate(
     )
 
     output = {
+        # Welches Muster das ist. Bis 2026-09-27 fehlten alle drei: der
+        # Musterkopf im Antwort-Prompt lautete „?", ``exclude_patterns`` der
+        # Anzeige-Konsistenz (``tool_loop``) verglich gegen nichts, und der
+        # M11-Block (``output_mode``) blieb aus.
+        "id": pattern.id,
+        "label": pattern.label,
+        "output_mode": pattern.output_mode,
         "tone": effective_tone,
         "length": effective_length,
         "detail_level": pattern.default_detail,
@@ -342,9 +358,12 @@ def select_pattern(
             pattern_id_hint,
         )
 
-    # 3. Fallback
+    # 3. Fallback — in der Rangfolge von ``_FALLBACK_PATTERN_IDS``, nicht in der
+    #    Reihenfolge der Musterliste: die ist nach Schlüssel sortiert (m03 vor
+    #    m15) und lieferte bis 2026-09-27 den Klärer statt der Orientierung.
+    by_id = {p.id: p for p in patterns}
     fallback = next(
-        (p for p in patterns if p.id in _FALLBACK_PATTERN_IDS),
+        (by_id[pid] for pid in _FALLBACK_PATTERN_IDS if pid in by_id),
         patterns[0],
     )
     output = phase3_modulate(fallback, signals, device, entities, persona_id)

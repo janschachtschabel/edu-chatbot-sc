@@ -14,7 +14,15 @@ from boerdi.services.config_loader.personas import _persona_slug, load_persona_d
 
 _MODIFIER_KEYS = ("tone", "length_bias", "formality", "card_text_mode", "override")
 _FORMALITY = ("duzen", "siezen", "wie_user")
-_CARD_TEXT_MODES = ("minimal", "kurz", "explanation", "ausfuehrlich")
+# Das Vokabular des Antwort-Prompts (``render_card_text_mode_block``) — bis
+# 2026-09-27 ließ der Lader ein anderes durch (minimal|kurz|explanation|
+# ausfuehrlich, wie im ALT), und außer ``minimal`` fand keiner dieser Werte
+# eine Regel im Prompt.
+_CARD_TEXT_MODES = ("minimal", "reference", "highlight")
+# ``explanation`` („mehr Kontext") trugen P-ELT und P-LER; gespeicherte Bereiche
+# behalten so ihre Absicht. ``kurz``/``ausfuehrlich`` stand in keinem Seed und
+# fällt wie jeder fremde Wert auf ``minimal``.
+_LEGACY_CARD_TEXT_MODES = {"explanation": "highlight"}
 
 
 def _coerce_tone_modifier(raw: dict[str, Any] | None) -> dict[str, Any]:
@@ -28,6 +36,7 @@ def _coerce_tone_modifier(raw: dict[str, Any] | None) -> dict[str, Any]:
     if formality not in _FORMALITY:
         formality = "wie_user"
     card_mode = str(raw.get("card_text_mode") or "minimal")
+    card_mode = _LEGACY_CARD_TEXT_MODES.get(card_mode, card_mode)
     if card_mode not in _CARD_TEXT_MODES:
         card_mode = "minimal"
     return {

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.db.models import EvalRun
 from boerdi.obs.tasks import _spawn_background
+from boerdi.services.engine_choice import choose_engine
 from boerdi.services.eval import runner
 from boerdi.services.eval.cancel import RunCancelled
 from boerdi.services.eval.cost import _compute_target_turns, list_personas_and_intents
@@ -98,6 +99,9 @@ async def start_generative_run(
             "mode": req.mode, "scenarios_per_combo": req.scenarios_per_combo,
             "turns_per_conv": req.turns_per_conv,
             "judge_model": "", "simulator_model": "",
+            # ST-7a: ohne Kopfzeile misst der Lauf die Server-Vorgabe — welche,
+            # hält er hier fest.
+            "engine_effective": choose_engine(None),
         },
         totals={"total_turns": 0, "avg_score": None},
         summary={

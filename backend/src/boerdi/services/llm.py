@@ -45,7 +45,7 @@ _aembedding = litellm.aembedding
 
 #: So oft wird ein **Aussetzer des Anbieters** wiederholt: eine Antwort ohne
 #: Werkzeugaufruf UND ohne Inhalt. Beide Antwort-Schleifen lesen die Zahl von
-#: hier — ``services/agent_loop`` (Agent + Hybrid) und ``services/tool_loop``
+#: hier — ``services/agent_loop`` (Agent) und ``services/tool_loop``
 #: (Muster). Sie wohnt am Transport, weil sie das Verhalten des ANBIETERS
 #: beschreibt und nicht das einer Schleife; zwei Kopien liefen auseinander.
 #:
@@ -148,11 +148,15 @@ def build_chat_kwargs(
 def route(model: str) -> tuple[str, str, str, dict[str, str] | None]:
     """(litellm_model, api_base, api_key, extra_headers) for the current
     provider. All endpoints are OpenAI-compatible -> "openai/" prefix so a
-    custom model name still routes correctly through a custom api_base."""
+    custom model name still routes correctly through a custom api_base.
+    Models flagged ``responses_api`` go to OpenAI's /v1/responses via LiteLLM's
+    ``responses/`` bridge — native OpenAI only (why: ``llm_models._GROUPS``)."""
     s = get_settings()
     provider = get_provider()
     litellm_model = f"openai/{model}"
     if provider == "openai":
+        if param_rules(model).responses_api:
+            litellm_model = f"openai/responses/{model}"
         api_base = s.openai_base_url or _DEFAULT_OPENAI_BASE
         return litellm_model, api_base, s.openai_api_key.get_secret_value(), None
     # b-api-openai / b-api-academiccloud: OpenAI-compatible proxy, dual auth

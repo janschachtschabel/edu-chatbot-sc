@@ -31,6 +31,9 @@
             </dl>
           }
         }
+        @if (message.role === 'assistant') {
+          <studio-agent-trace [debug]="message.debug" />
+        }
       </li>
     }
   </ol>

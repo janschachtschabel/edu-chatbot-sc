@@ -32,7 +32,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from boerdi.domain.agent_pattern import agent_pattern, hybrid_pattern
+from boerdi.domain import skill_bruecke
+from boerdi.domain.agent_pattern import agent_pattern
 from boerdi.domain.context import build_context
 from boerdi.domain.lp_intent import detect_lp_intent
 from boerdi.domain.pattern_engine import select_pattern
@@ -44,7 +45,7 @@ from boerdi.domain.route_head import (
     _update_persona,
 )
 from boerdi.domain.route_tail import reconcile_effective_pattern
-from boerdi.domain.skill_precedence import skill_vorrang
+from boerdi.domain.skill_precedence import laufende_anleitung, skill_vorrang
 from boerdi.domain.state_machine import validate_transition
 from boerdi.domain.turn_frame import clarification_exhausted, resolve_frame
 from boerdi.graph.state import TurnContext
@@ -55,8 +56,11 @@ from boerdi.services.canvas_fast_path import (
     CanvasFastPathResult,
     run_canvas_create_fast_path,
 )
-from boerdi.services.config_loader import load_rag_config
-from boerdi.services.engine_choice import HYBRID, laeuft_ueber_die_schleife
+from boerdi.services.config_loader import load_engine, load_rag_config
+from boerdi.services.engine_choice import (
+    laeuft_ueber_die_schleife,
+    zug_laeuft_ueber_die_schleife,
+)
 from boerdi.services.lp_fast_path import run_lp_fast_path
 
 logger = logging.getLogger(__name__)
@@ -74,7 +78,8 @@ async def route(
 
     ``engine`` (A4c) ist die Maschine dieses Zuges. Im Agent-Modus entfallen die
     Musterwahl und beide Schnellwege; alles andere — Persona-Merge, Policy samt
-    Werkzeug-Sperren, RAG-Whitelist, QR-Policy — gilt unverändert."""
+    Werkzeug-Sperren, RAG-Whitelist, QR-Policy — gilt unverändert. Ein vom
+    Sicherheits-Gate erzwungenes Muster wird auch dort gewählt (SF-1)."""
     cls = ctx.classification
     safety = ctx.safety
     ss = ctx.session_state
@@ -143,12 +148,11 @@ async def route(
     #    gibt es nichts zu wählen — der Agent sucht sich sein Werkzeug selbst.
     #    Die Rückgabe-Form bleibt dieselbe, damit alles Nachgelagerte unverändert
     #    weiterläuft (Präzedenz A4b: gleiche Form, anderer Erzeuger).
-    if laeuft_ueber_die_schleife(engine):
-        # Im Hybrid (H6) fällt die Wahl später — in der Schleife, wenn die
-        # Trefferlage bekannt ist. Hier steht nur der Anfangszustand; eigene
-        # Kennung, damit die beiden Maschinen im A/B unterscheidbar bleiben.
-        _synthetisch = hybrid_pattern if engine == HYBRID else agent_pattern
-        winner, pattern_output, scores, eliminated = _synthetisch(
+    #    SF-1: Hat das Sicherheits-Gate ein Muster erzwungen, wählt auch eine
+    #    Schleifen-Maschine hier regulär — Krise und Drohung gehen über den
+    #    Muster-Weg (Begründung in ``engine_choice``).
+    if zug_laeuft_ueber_die_schleife(engine, safety.enforced_pattern):
+        winner, pattern_output, scores, eliminated = agent_pattern(
             signals=new_signals,
             device=ctx.env.get("device", "desktop"),
             entities=ss.get("entities") or {},
@@ -175,6 +179,25 @@ async def route(
             t for t in pattern_output["tools"] if t not in safety.blocked_tools
         ]
         logger.info("Safety/Policy blocked tools: %s", safety.blocked_tools)
+
+    # 4c. E-6 Skill-Brücke: Sind freigegebene Skills im Spiel (Seite oder
+    #     Gespräch — derselbe Vorrang, der unten die Schnellwege abschaltet) oder
+    #     läuft gerade einer, bekommt ein Werkzeug-Muster ``get_skill_registry``
+    #     und ``get_skill`` dazu, wenn der Betreiber es im Studio zugelassen hat.
+    #     Nach 4b, damit die Sperren auch hier gelten.
+    vorrang = skill_vorrang(
+        (page_context.get_cached(ss) or {}).get("context_facts"),
+        ss.get("entities"),
+    )
+    _zusatz = skill_bruecke.zuschalten(
+        pattern_output,
+        zugelassen=load_engine().muster_skills,
+        im_spiel=vorrang.greift or bool(
+            laufende_anleitung(ss.get("entities"), ss.get("turn_count"))),
+        gesperrt=safety.blocked_tools,
+    )
+    if _zusatz:
+        logger.info("Skill-Brücke: %s zugeschaltet", _zusatz)
 
     # 5. RAG-Whitelist je Pattern + Memory-Render.
     rag_config = load_rag_config()
@@ -208,14 +231,19 @@ async def route(
     #    Gespräch. Wer über die Suche kommt, steht auf keiner Sammlungsseite —
     #    dort blieb der Vorrang bis dahin wirkungslos, obwohl der Treffer die
     #    Anleitungen längst meldete (``merke_skill_sammlung`` im assemble-Knoten).
-    vorrang = skill_vorrang(
-        (page_context.get_cached(ss) or {}).get("context_facts"),
-        ss.get("entities"),
-    )
+    #    SF-1b (2026-09-26): Eine erzwungene Schutzantwort (M01/M02) schaltet
+    #    beide Schnellwege auch in der Muster-Maschine ab. Sie treten am Intent
+    #    bzw. an einem Stichwort ein, nie am gewählten Muster — ein Krisensatz
+    #    mit Erstell-Auftrag bekam sonst Material statt der Hilfsnummern.
+    #    ``vorrang`` steht seit E-6 in Schritt 4c.
     if vorrang.greift:
         logger.info("Skill-Vorrang (%s): %d freigegebene Skills "
                     "→ Schnellwege treten zurück", vorrang.quelle, vorrang.anzahl)
-    fast_paths_on = not laeuft_ueber_die_schleife(engine) and not vorrang.greift
+    fast_paths_on = (
+        not laeuft_ueber_die_schleife(engine)
+        and not safety.enforced_pattern
+        and not vorrang.greift
+    )
     fp_response_local = ""
     fp_cards_local: list[dict[str, Any]] = []
     has_lp_intent, thema = detect_lp_intent(

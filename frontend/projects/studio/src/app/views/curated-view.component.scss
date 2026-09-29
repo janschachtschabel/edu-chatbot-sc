@@ -23,6 +23,19 @@
   color: var(--st-text-muted);
 }
 
+// ST-5: die Vorgabe-Maschine nutzt keine Einstellung dieser Seite. Ein Hinweis,
+// kein Fehler — Warn-Farbe am Rand, der Satz selbst trägt die Aussage.
+.cv-banner {
+  margin: var(--st-3) 0 0;
+  max-inline-size: 62ch;
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 4px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-warn-text);
+  font-size: 0.875rem;
+}
+
 .cv-sections {
   display: grid;
   gap: var(--st-3);

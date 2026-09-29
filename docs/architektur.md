@@ -15,7 +15,7 @@ Quelltext erhoben; Fundstellen stehen in Klammern.
 | Bauplan/Spezifikation (Quelle der Wahrheit) | [`plans/2026-07-10-boerdi-chat-neubau.md`](plans/2026-07-10-boerdi-chat-neubau.md) |
 | Widget in fremde Seiten einbetten | [`browser-plugin-einbindung.md`](browser-plugin-einbindung.md) · [`edu-sharing-einbindung.md`](edu-sharing-einbindung.md) |
 | Agent-Schleife | [`agent-modus.md`](agent-modus.md) |
-| Master-Skill (Suchdisziplin, 30 Anwendungsfälle) | [`skills/vorgehen.md`](skills/vorgehen.md) |
+| Master-Skill (Vorgehen, Zielgruppen, Suchdisziplin, 30 Anwendungsfälle) | [`skills/vorgehen.md`](skills/vorgehen.md) |
 | Eingefrorener HTTP-Vertrag | [`api/openapi-v1.json`](api/openapi-v1.json) |
 
 ---
@@ -42,7 +42,7 @@ Drei Bestandteile, ein Auslieferungsartefakt:
    (Studio-Login)   │  BACKEND                                 │
                     │  FastAPI + LangGraph, Python 3.12        │
                     │  ├── Zug-Graph (13 Knoten)               │
-                    │  ├── Muster │ Agent │ Hybrid             │
+                    │  ├── Muster │ Agent                      │
                     │  ├── MCP-Client · RAG · Safety           │
                     │  └── Config-Store (37 Bereiche)          │
                     └──┬────────┬─────────┬────────────┬───────┘
@@ -230,16 +230,21 @@ Ende läuft, nicht braucht.
 fürs Streaming werden je Anfrage per `functools.partial` gebunden. Es gibt keine
 modul-globale Engine.
 
-### 4.3 Drei Maschinen im `respond`-Knoten
+### 4.3 Zwei Maschinen im `respond`-Knoten
 
-| | **Muster-Engine** (Vorgabe) | **Agent-Schleife** | **Hybrid** |
-|---|---|---|---|
-| Modul | `respond.py` → `tool_loop.py` | `respond_agent.py` → `agent_loop.py` | wie Agent |
-| Klassifikator | ja (größter Prompt des Zuges) | nein | nein |
-| Werkzeugwahl | pro Muster gebunden (`response_tool_selection`) | voller Katalog | Katalog **plus** `waehle_vorgehen`: das Modell wählt ein redaktionelles Muster als Werkzeug, dessen Body wird Anweisung, die Werkzeugliste wechselt mit |
-| Vorabruf | über Intent (`prefetch.py`) | — | deterministisch (`_looks_like_search_query`) |
-| Ende | eine Antwort | `submit_result`, Prosa oder Deckel | wie Agent |
-| Deckel | Muster-Grenzen | `max_iterations`, `deadline_s`, `token_budget` | wie Agent |
+| | **Muster-Engine** (Vorgabe) | **Agent-Schleife** |
+|---|---|---|
+| Modul | `respond.py` → `tool_loop.py` | `respond_agent.py` → `agent_loop.py` |
+| Klassifikator | ja (größter Prompt des Zuges) | nein |
+| Werkzeugwahl | pro Muster gebunden (`response_tool_selection`) | voller Katalog |
+| Vorabruf | über Intent (`prefetch.py`) | — |
+| Ende | eine Antwort | `submit_result`, Prosa oder Deckel |
+| Deckel | Muster-Grenzen | `max_iterations`, `deadline_s`, `token_budget` |
+
+Eine dritte Maschine, den **Hybrid** (die Schleife mit dem Musterkatalog als
+Werkzeug `waehle_vorgehen`), gibt es seit K1-1 (2026-09-27) nicht mehr: die
+K0-Messung zeigte ihn zwischen den beiden anderen, ohne eigenen Mehrwert.
+`hybrid` aus Attribut, Kopfzeile oder gespeicherter Vorgabe gilt als `agent`.
 
 Gewählt wird in `engine_choice.py` — Studio-Vorgabe (`01-base/engine`),
 überschreibbar je Einbau (Attribut `engine`) und je Anfrage (Kopfzeile
@@ -410,9 +415,13 @@ Skills sind im Repositorium gepflegte Arbeitsanleitungen (Inhaltsart
   schlägt die mitgelieferte Systemvorlage (Skill-Vorrang,
   `domain/skill_precedence.py`): steht an einer Sammlung „Stunde planen", plant
   der Bot nach dieser Anleitung, nicht nach seinem Standardmuster.
+* Im **Muster-Modus** führen nur sechs Muster die Skill-Werkzeuge. Die
+  **Skill-Brücke** (`domain/skill_bruecke.py`, Studio-Schalter `muster_skills`,
+  Vorgabe aus) hängt sie an jedes andere Werkzeug-Muster, sobald Skills im Spiel
+  sind; ohne Werkzeuge steht im Prompt nur die Übersicht, kein Ladeweg.
 * Der **Master-Skill** selbst (`vorgehen.md`, ~30 Anwendungsfälle) liegt als
-  Knoten im Repositorium und reist als Prompt-Kopf in Agent- und Hybrid-Zügen
-  mit (`services/master_skill.py`; Einbettung schaltet mit `master-skill`).
+  Knoten im Repositorium und reist als Prompt-Kopf in Agent-Zügen mit
+  (`services/master_skill.py`; Einbettung schaltet mit `master-skill`).
 
 ### 5.4 Schreiben und Kuratieren
 
@@ -444,6 +453,15 @@ der Anbieter ist Konfiguration (`LLM_PROVIDER`), nicht Code:
 | `openai` | gpt-5.6-luna | text-embedding-3-small (1536) | ja |
 | `b-api-openai` | gpt-5.6-luna | text-embedding-3-small (1536) | ja |
 | `b-api-academiccloud` | mistral-large-3-675b | e5-mistral-7b-instruct (4096) | **nein** — Speech ehrlich abgeschaltet, Moderation degradiert kontrolliert |
+
+**Endpunkt je Modell.** Chat-Completions ist der gemeinsame Nenner, die
+AcademicCloud braucht genau diesen Weg. Die neuen OpenAI-Modelle (ab `gpt-6`)
+laufen im Modus `openai` ausdrücklich über `/v1/responses` (LiteLLM-Präfix
+`responses/`): `/v1/chat/completions` nimmt bei ihnen Werkzeuge nur ohne
+Reasoning an. gpt-5.4 bis 5.6 leitet LiteLLM bei Werkzeugen mit gesetztem
+`reasoning_effort` von sich aus dorthin um, und zwar in beiden OpenAI-Modi, weil
+die App jeden Anbieter als `openai/…` anspricht. Regeln je Modellgruppe:
+`services/llm_models.py`.
 
 Die Embedding-Dimension bestimmt das pgvector-Schema (`EMBED_DIM`); alternativ
 laufen Embeddings und Reranking **lokal** auf onnxruntime (§4.5) — dann braucht

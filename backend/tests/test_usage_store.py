@@ -179,3 +179,35 @@ def test_zwei_modelle_ergeben_zwei_zeilen(db) -> None:
     assert erste.prompt_tokens == 100 and erste.cached_tokens == 64
     assert erste.completion_tokens == 20 and erste.reasoning_tokens == 8
     assert erste.calls == 2
+
+
+@pytest.mark.pg
+@pytest.mark.skipif(not pg_utils.pg_available(), reason=pg_utils.SKIP_REASON)
+def test_die_maschine_steht_in_jeder_zeile(db) -> None:
+    """AG-1: Kosten lassen sich erst nach Maschine trennen, wenn jede Zeile sie
+    traegt. Ohne Angabe bleibt die Spalte leer (NULL) statt geraten."""
+    from sqlalchemy import select
+
+    from boerdi.db.models import ChatSession, UsageEvent
+    from boerdi.services import usage_store
+
+    zeile = {"prompt": 1, "completion": 1, "cached": 0, "reasoning": 0, "calls": 1}
+
+    async def szenario() -> list[tuple[str, str | None]]:
+        engine, factory = _factory(db)
+        try:
+            async with factory() as s:
+                s.add(ChatSession(session_id="bb-ag1-1"))
+                await s.commit()
+            async with factory() as s:
+                await usage_store.record_turn_usage(
+                    s, "bb-ag1-1", _acc({"a": zeile, "b": zeile}), engine="agent")
+                await usage_store.record_turn_usage(s, "bb-ag1-1", _acc({"c": zeile}))
+            async with factory() as s:
+                return [(z.model, z.engine) for z in (await s.execute(
+                    select(UsageEvent).where(UsageEvent.session_id == "bb-ag1-1")
+                    .order_by(UsageEvent.model))).scalars()]
+        finally:
+            await engine.dispose()
+
+    assert _run(szenario()) == [("a", "agent"), ("b", "agent"), ("c", None)]

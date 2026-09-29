@@ -38,6 +38,7 @@ from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
 from boerdi.services.config_loader import load_website_tour_config
 from boerdi.services.db_sessions import save_message, update_session
+from boerdi.services.safety.regex_gate import regex_gate
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,16 @@ async def tour(ctx: TurnContext, session: AsyncSession) -> TurnContext:
             debug=DebugInfo(pattern="TOUR:inactive", tools_called=["website_tour"]),
             tour={"active": False, "step": "", "group": ""},
         )
+        return ctx
+
+    # SF-1c (2026-09-26): Freier Text mit Krise oder Drohung gehört dem
+    # Safety-Gate. Die Tour antwortet vor ``assess`` — im Gruppen-Schritt auf
+    # jeden Satz, sonst auf jeden mit Auslöser-Phrase —, und die Hilfsnummern
+    # kämen einen Zug zu spät. Nur das lokale Regex-Gate: kein Netz, kein LLM.
+    if action == "" and regex_gate(req.message, []).enforced_pattern:
+        if active:
+            state["active"] = False
+            await update_session(session, req.session_id, tour_state=state)
         return ctx
 
     is_group_reply = active and step == "group" and action == ""

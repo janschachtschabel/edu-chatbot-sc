@@ -27,6 +27,7 @@ import { AreaDocEditor, describeAreaError } from '../schema-form/area-doc-editor
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
 import { rootField } from '../schema-form/schema-to-fields';
 import type { CuratedAreaSection } from './curated-views';
+import { EffectBadgeComponent } from './effect-badge.component';
 import { type FieldTab, patternFieldTabs } from './pattern-field-tabs';
 import { TabBarComponent } from './tab-bar.component';
 
@@ -43,7 +44,7 @@ interface ElementsResponse {
 
 @Component({
   selector: 'studio-group-section',
-  imports: [SchemaFormComponent, TabBarComponent],
+  imports: [EffectBadgeComponent, SchemaFormComponent, TabBarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './group-section.component.html',
   styleUrl: './group-section.component.scss',

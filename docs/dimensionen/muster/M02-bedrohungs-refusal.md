@@ -11,6 +11,7 @@
 | `default_tone` | sachlich |
 | `default_length` | kurz |
 | `response_type` | refusal |
+| `quick_replies_mode` | none |
 
 ### Kernregel
 

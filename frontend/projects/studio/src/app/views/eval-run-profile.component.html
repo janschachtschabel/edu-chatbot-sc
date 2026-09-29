@@ -1,0 +1,47 @@
+<section class="rp" aria-labelledby="rp-title">
+  <h4 class="rp-title" id="rp-title">{{ t('evalProfile.title') }}</h4>
+  <p class="rp-hint">{{ t('evalProfile.hint') }}</p>
+
+  @if (axes().length > 0) {
+    <!-- Eine Tabelle, weil die Zahlen der Inhalt sind; der Balken macht die
+         Skala nur überfliegbar und ist für Hilfstechnik verborgen. -->
+    <table class="rp-axes">
+      <caption>{{ t('evalProfile.axesCaption') }}</caption>
+      <!-- Nur für Screenreader: auf dem Schirm sprechen die zwei Spalten für sich. -->
+      <thead class="sr">
+        <tr>
+          <th scope="col">{{ t('evalProfile.col.axis') }}</th>
+          <th scope="col">{{ t('evalProfile.col.value') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of axes(); track row.axis) {
+          <tr [class.rp-axis--weak]="row.weak">
+            <th scope="row">{{ row.label }}</th>
+            <td>
+              <div class="rp-axis-cell">
+                <span class="rp-bar" aria-hidden="true">
+                  <span class="rp-bar-fill" [style.inline-size.%]="row.share"></span>
+                </span>
+                <span class="rp-axis-value">{{ row.text }}</span>
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+
+  <dl class="rp-facts">
+    @if (speed(); as text) {
+      <div><dt>{{ t('evalProfile.speed') }}</dt><dd>{{ text }}</dd></div>
+    }
+    @if (tokens(); as text) {
+      <div><dt>{{ t('evalProfile.tokens') }}</dt><dd>{{ text }}</dd></div>
+    }
+    @if (cost(); as text) {
+      <div><dt>{{ t('evalProfile.cost') }}</dt><dd>{{ text }}</dd></div>
+    }
+    <div><dt>{{ t('evalProfile.robustness') }}</dt><dd>{{ robustness() }}</dd></div>
+  </dl>
+</section>

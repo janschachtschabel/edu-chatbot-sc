@@ -233,4 +233,58 @@ describe("AreaDocEditor", () => {
     expect(editor.dirty()).toBe(true);
     expect(editor.saveError()).toContain("greeting");
   });
+
+  // ── ST-2e: Prüffehler je Feld ─────────────────────────────────────
+  const SCHRIFT = ["display_rules", "inline_documents", "font_size_percent"];
+  const MATERIAL = ["display_rules", "groups", "materialien_max"];
+  const falsch = (schrift: number, material: number) => ({
+    display_rules: {
+      inline_documents: { font_size_percent: schrift },
+      groups: { materialien_max: material },
+    },
+  });
+
+  /** Ein Speicherversuch, den der Server mit zwei Feldfehlern abweist. */
+  async function abgewiesen(): Promise<AreaDocEditor> {
+    const editor = makeEditor();
+    const load = editor.load(OTHER);
+    await tick();
+    answerLoad(OTHER, falsch(85, 3));
+    await load;
+    editor.setDoc(falsch(10, 99));
+    const saved = editor.save(OTHER);
+    await tick();
+    http.expectOne(dataUrl(OTHER)).flush(
+      {
+        detail: [
+          { loc: SCHRIFT, msg: "m", type: "greater_than_equal", ctx: { ge: 70 } },
+          { loc: MATERIAL, msg: "m", type: "less_than_equal", ctx: { le: 8 } },
+        ],
+      },
+      { status: 422, statusText: "Unprocessable Content" },
+    );
+    expect(await saved).toBe(false);
+    return editor;
+  }
+
+  it("merkt sich die Prüffehler je Feld und nennt oben jedes Feld mit Grund", async () => {
+    // Die Zeile oben ist die Live-Region, die ein Screenreader ansagt — die
+    // Markierungen am Feld sagt er nicht von selbst an.
+    const editor = await abgewiesen();
+    expect(editor.problems().map((p) => p.path)).toEqual([SCHRIFT, MATERIAL]);
+    expect(editor.saveError()).toContain(`${SCHRIFT.join(".")}: Mindestens 70`);
+    expect(editor.saveError()).toContain(`${MATERIAL.join(".")}: Höchstens 8`);
+  });
+
+  it("vergisst einen Prüffehler, sobald sein Feld geändert ist — die anderen bleiben", async () => {
+    const editor = await abgewiesen();
+    editor.setDoc(falsch(80, 99));
+    expect(editor.problems().map((p) => p.path)).toEqual([MATERIAL]);
+  });
+
+  it("räumt die Prüffehler beim Verwerfen", async () => {
+    const editor = await abgewiesen();
+    editor.discard();
+    expect(editor.problems()).toEqual([]);
+  });
 });

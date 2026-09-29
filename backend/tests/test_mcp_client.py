@@ -24,8 +24,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 
 import pytest
+from mcp.types import CallToolResult, TextContent
 
 from boerdi.services.mcp import arg_resolvers as ar
 from boerdi.services.mcp import client, tool_cache, transport
@@ -222,6 +224,87 @@ def test_der_string_wrapper_bleibt_unveraendert(mcp_state, monkeypatch):
     _wire_tool_url(monkeypatch)
     _wire_transport(monkeypatch, [_result([_text_part("OK")])])
     assert asyncio.run(client.call_mcp_tool("unknown_probe_tool", {"q": "x"})) == "OK"
+
+
+# ── Wiederholt wird nur, wenn keine Antwort kam (Review 2026-09-29) ─────
+#
+# Die Wiederholung stammt aus ALT, wo eine abgelaufene Sitzung den Aufruf
+# scheitern liess. Hat der Server dagegen GEANTWORTET und abgelehnt
+# (``kind == "tool"``), sagt ein zweiter Aufruf dasselbe noch einmal. Gemessen
+# an der Skill-Suche im Studio gegen einen Server ohne ``search_skill``: zwei
+# Sitzungen und vier ERROR-Zeilen für einen Zustand, der kein Fehler ist.
+
+
+def test_eine_ablehnung_wird_nicht_wiederholt(mcp_state, monkeypatch, caplog):
+    _wire_tool_url(monkeypatch)
+    calls = _wire_transport(monkeypatch, [
+        {"error": {"message": "MCP error -32602: Tool search_skill not found",
+                   "kind": "tool"}},
+    ])
+    with caplog.at_level("INFO"):
+        text, art = asyncio.run(
+            client.call_mcp_tool_status("search_skill", {"query": "Optik"}))
+    assert len(calls) == 1
+    assert (text, art) == ("MCP error: MCP error -32602: Tool search_skill not found", "tool")
+    assert "Retrying" not in caplog.text
+    assert "retry failed" not in caplog.text
+
+
+def test_eine_ablehnung_kostet_eine_sitzung_und_eine_fehlerzeile(mcp_state, monkeypatch, caplog):
+    # Die Messung aus dem Review, eine Ebene tiefer: der echte Transport läuft
+    # mit, gefälscht ist nur die SDK-Sitzung. Vorher: 2 Sitzungen, 4 ERROR-Zeilen.
+    sitzungen: list[str] = []
+
+    class _Sitzung:
+        async def call_tool(self, name, arguments=None):
+            return CallToolResult(isError=True, content=[
+                TextContent(type="text", text=f"MCP error -32602: Tool {name} not found")])
+
+    @asynccontextmanager
+    async def _oeffnen(url):
+        sitzungen.append(url)
+        yield _Sitzung()
+
+    _wire_tool_url(monkeypatch)
+    monkeypatch.setattr(transport, "_open_session", _oeffnen)
+    with caplog.at_level("INFO"):
+        _text, art = asyncio.run(
+            client.call_mcp_tool_status("search_skill", {"query": "Optik"}))
+    assert art == "tool"
+    assert len(sitzungen) == 1
+    assert [r.levelname for r in caplog.records].count("ERROR") == 1
+
+
+def test_eine_ablehnung_behaelt_den_grund_des_ersten_aufrufs(mcp_state, monkeypatch):
+    # Die Schreib-Abnahme (``services/write_approval``). Der MCP-Server löscht
+    # einen ``confirmToken`` bei jedem Einlöseversuch (``consumeToken``), eine
+    # Wiederholung bekäme also immer „unbekannt oder bereits benutzt" — und
+    # verdeckte den Grund, aus dem der erste Aufruf abgelehnt wurde.
+    _wire_tool_url(monkeypatch)
+    calls = _wire_transport(monkeypatch, [
+        {"error": {"message": "Der Bestätigungsschlüssel ist abgelaufen (zehn Minuten).",
+                   "kind": "tool"}},
+        {"error": {"message": "Der Bestätigungsschlüssel ist unbekannt oder wurde "
+                              "bereits benutzt.", "kind": "tool"}},
+    ])
+    text, art = asyncio.run(client.call_mcp_tool_status(
+        "unknown_probe_tool", {"title": "Bruchrechnen", "confirmToken": "T" * 24}))
+    assert len(calls) == 1
+    assert (text, art) == (
+        "MCP error: Der Bestätigungsschlüssel ist abgelaufen (zehn Minuten).", "tool")
+
+
+def test_ein_ausfall_wird_weiter_wiederholt(mcp_state, monkeypatch):
+    # Gegenprobe: kam keine Antwort, bleibt es bei einem zweiten Versuch.
+    _wire_tool_url(monkeypatch)
+    calls = _wire_transport(monkeypatch, [
+        {"error": {"message": "read timeout", "kind": "transport"}},
+        _result([_text_part("OK")]),
+    ])
+    text, art = asyncio.run(
+        client.call_mcp_tool_status("unknown_probe_tool", {"q": "x"}))
+    assert (text, art) == ("OK", "")
+    assert len(calls) == 2
 
 
 def test_call_mcp_tool_extrahiert_query_meta_in_contextvar(mcp_state, monkeypatch):

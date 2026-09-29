@@ -2,6 +2,8 @@
   <summary class="cs-summary">
     <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
     <p class="cs-hint">{{ t(section().hintKey) }}</p>
+    <!-- ST-5: wo dieser Bereich wirkt — aus der Zuordnung im Backend -->
+    <studio-effect-badge class="cs-effect" [area]="section().area" />
     @if (editor.dirty()) {
       <!-- visible on the closed panel too: a collapsed section with unsaved
            edits is exactly the case someone navigates away from -->
@@ -25,6 +27,7 @@
         [schema]="schema"
         [value]="editor.doc()"
         [idPrefix]="idPrefix()"
+        [problems]="editor.problems()"
         (valueChange)="editor.setDoc($event)"
         (errorsChange)="editor.setFieldErrors($event)"
       />

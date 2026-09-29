@@ -378,23 +378,36 @@ async def test_ein_thema_im_slot_laesst_die_karten_stehen():
     assert len(ergebnis[0]) == 1
 
 
-async def test_die_schleifen_maschinen_behalten_ihre_karten():
-    """Live gemessen 2026-08-17: der Hybrid erntete acht Karten, und dieser
-    Filter löschte alle acht — die Slots sind dort leer, weil das MODELL den
-    Suchbegriff als Werkzeug-Argument übergibt statt eines Klassifikators.
+async def test_die_agent_schleife_behaelt_ihre_karten():
+    """Live gemessen 2026-08-17 (damals am Hybrid, K1-1 hat ihn entfernt): die
+    Schleife erntete acht Karten, und dieser Filter löschte alle acht — die
+    Slots sind dort leer, weil das MODELL den Suchbegriff als
+    Werkzeug-Argument übergibt statt eines Klassifikators.
 
-    ``agent`` steht mit im Test, obwohl er bis heute durchkam: das lag allein
-    daran, dass sein Modell meist ``search_wlo_all`` wählt, dessen
-    Themenseiten-Karten die Ausnahme darüber treffen. Geliehen, nicht zugesichert.
+    ``agent`` kam bis dahin nur durch, weil sein Modell meist ``search_wlo_all``
+    wählt, dessen Themenseiten-Karten die Ausnahme darüber treffen. Geliehen,
+    nicht zugesichert.
     """
-    for maschine in ("HYBRID", "AGENT"):
-        ergebnis = await _call(wlo_cards_raw=[dict(_INHALTS_KARTE)],
-                               winner=type("W", (), {"id": maschine})(),
-                               session_state={"entities": {}})
-        assert len(ergebnis[0]) == 1, f"{maschine} verliert seine Karten"
+    ergebnis = await _call(wlo_cards_raw=[dict(_INHALTS_KARTE)],
+                           winner=type("W", (), {"id": "AGENT"})(),
+                           session_state={"entities": {}})
+    assert len(ergebnis[0]) == 1, "AGENT verliert seine Karten"
 
 
 # ── O-B2: Mix-Modus (Host-Chips + KI-Auffuellung) ──────────────────
+async def test_qr_mix_lotse_belegt_keinen_platz(monkeypatch):
+    """Review 2026-09-29: der Generator gibt einen Lotsen ZUSÄTZLICH zurück, vorn.
+    Er wird nie eine Pille (ohne Host entfernt, mit Host ein Link) und belegte
+    doch einen der Plätze des Gastgebers — aus vier wurden drei."""
+    async def _gen(**_k):
+        return ["__guide__|Hin|https://wirlernenonline.de/x", "KI1", "KI2"]
+
+    monkeypatch.setattr(ta, "generate_quick_replies", _gen)
+    _c, qr, _pa, _pg, _rt = await _call(
+        _canvas_forced_quick_replies=["A", "B"], _host_qr_max=4)
+    assert [q for q in qr if not q.startswith("__guide__|")] == ["A", "B", "KI1", "KI2"]
+
+
 async def test_qr_mix_fuellt_mit_generator_bis_zur_gesamtzahl(monkeypatch):
     gesehen = {}
 
@@ -453,7 +466,7 @@ async def test_qr_mix_dedupe_gegen_die_host_chips(monkeypatch):
 
 
 async def test_qr_mix_nutzt_inline_qrs_ohne_generator_call(monkeypatch):
-    """Agent-/Hybrid-Zuege liefern Inline-QRs aus der Antwort mit — die
+    """Agent-Zuege liefern Inline-QRs aus der Antwort mit — die
     Fuellung ist dann gratis (kein zweiter LLM-Call)."""
     aufgerufen = {"gen": False}
 

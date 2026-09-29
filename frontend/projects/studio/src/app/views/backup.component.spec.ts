@@ -96,6 +96,14 @@ describe("BackupComponent", () => {
     expect(h.el.querySelector("studio-factory-panel")).toBeTruthy();
   });
 
+  it("trägt die Sprungziele der Kopfzeile (ST-9)", async () => {
+    // „Backup einspielen …" und „Zu den Snapshots" führen hierher; ohne die
+    // Ziele landete man am Seitenanfang.
+    const h = await mount();
+    expect(h.el.querySelector("#voll-backup #bk-file")).not.toBeNull();
+    expect(h.el.querySelector("#snapshots")).not.toBeNull();
+  });
+
   it("sagt, was in einem Backup steckt und was nicht", async () => {
     const h = await mount();
     // Config areas only — the Postgres dump is deferred to P10. Without this

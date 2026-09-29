@@ -20,7 +20,7 @@
 
 .qd-pattern {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--st-accent-text);
+  color: var(--st-accent);
 }
 
 .qd-close {
@@ -34,11 +34,6 @@
   font: inherit;
   font-size: 0.8125rem;
   cursor: pointer;
-}
-
-.qd-close:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
 }
 
 .qd-when {

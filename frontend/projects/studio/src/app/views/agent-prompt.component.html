@@ -1,0 +1,61 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
+  </summary>
+
+  <div class="cs-body agp">
+    <fieldset class="agp-locale">
+      <legend class="agp-legend">{{ t('agentPrompt.language') }}</legend>
+      @for (sprache of locales; track sprache) {
+        <label class="agp-radio">
+          <input
+            type="radio"
+            name="agp-locale"
+            [value]="sprache"
+            [checked]="locale() === sprache"
+            (change)="onLocale($event)"
+          />
+          {{ t('agentPrompt.language.' + sprache) }}
+        </label>
+      }
+    </fieldset>
+
+    @if (preview.error(); as fehler) {
+      <div class="cs-state cs-state--error" role="alert">
+        <p>{{ fehler }}</p>
+        <button type="button" class="cs-btn" (click)="preview.reload()">{{ t('async.retry') }}</button>
+      </div>
+    } @else if (preview.value(); as vorschau) {
+      <p class="agp-intro">{{ t('agentPrompt.intro') }}</p>
+      <ol class="agp-chain" [attr.aria-busy]="preview.loading() ? 'true' : null">
+        @for (glied of vorschau.chain; track glied.id) {
+          <li class="agp-step">
+            <p class="agp-name">{{ name(glied) }}</p>
+            @if (meta(glied); as angabe) {
+              <p class="agp-meta">{{ angabe }}</p>
+            }
+            @if (when(glied); as wann) {
+              <p class="agp-when">{{ wann }}</p>
+            }
+            @if (glied.text) {
+              <details class="agp-text">
+                <summary class="agp-text-toggle">{{ t('agentPrompt.showText') }}</summary>
+                <!-- tabindex: ein langer Text in einer Scroll-Box muss per Tastatur
+                     scrollbar sein (WCAG 2.1.1), wie im Master-Skill-Panel. -->
+                <pre
+                  class="agp-pre"
+                  tabindex="0"
+                  [attr.aria-label]="t('agentPrompt.textLabel', { name: name(glied) })"
+                >{{ glied.text }}</pre>
+              </details>
+            }
+          </li>
+        }
+      </ol>
+      <p class="agp-tools">{{ toolsLine() }}</p>
+    } @else {
+      <p class="cs-state" aria-busy="true">{{ t('agentPrompt.loading') }}</p>
+    }
+  </div>
+</details>

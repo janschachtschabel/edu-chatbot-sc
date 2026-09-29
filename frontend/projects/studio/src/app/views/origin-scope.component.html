@@ -1,0 +1,16 @@
+<fieldset class="os">
+  <legend>{{ t('origin.legend') }}</legend>
+  @for (option of options(); track option.id) {
+    <label class="os-option">
+      <input
+        type="radio"
+        [name]="name()"
+        [value]="option.id"
+        [checked]="value() === option.id"
+        (change)="valueChange.emit(option.id)"
+      />
+      <span class="os-label">{{ option.label }}</span>
+      <span class="os-hint">{{ option.hint }}</span>
+    </label>
+  }
+</fieldset>

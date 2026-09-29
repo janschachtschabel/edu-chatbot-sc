@@ -40,13 +40,12 @@ export const EVAL_PATTERN: CataloguePart = {
     'evalPattern.scope.production': 'nur echte Nutzung',
     'evalPattern.since.label': 'Ab Datum',
     'evalPattern.since.hint': 'leer = das ganze Log',
-    // Feedback 2026-08-22: AGENT/HYBRID sind Maschinen-Marker, keine Muster —
+    // Feedback 2026-08-22: AGENT ist ein Maschinen-Marker, kein Muster —
     // der Umschalter trennt die Betriebsarten, client-seitig.
     'evalPattern.engine.label': 'Betriebsart',
     'evalPattern.engine.all': 'alle Betriebsarten',
     'evalPattern.engine.muster': 'nur Muster (M01–M20)',
     'evalPattern.engine.agent': 'nur Agent-Schleife',
-    'evalPattern.engine.hybrid': 'nur Hybrid',
     'evalPattern.engine.none':
       'Keine Turns dieser Betriebsart im gewählten Bereich.',
 
@@ -101,7 +100,6 @@ export const EVAL_PATTERN: CataloguePart = {
     'evalPattern.engine.all': 'all modes',
     'evalPattern.engine.muster': 'patterns only (M01-M20)',
     'evalPattern.engine.agent': 'agent loop only',
-    'evalPattern.engine.hybrid': 'hybrid only',
     'evalPattern.engine.none': 'No turns of this mode in the chosen scope.',
 
     'evalPattern.empty':

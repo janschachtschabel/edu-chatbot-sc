@@ -160,3 +160,26 @@ def collect_cards(
         else:
             all_cards.append(c)
     return cards
+
+
+def juengste_zuerst(all_cards: list[dict], ernten: list[list[dict]]) -> list[dict]:
+    """``all_cards`` so geordnet, dass die Treffer der jüngsten Suche vorn stehen.
+
+    ``ernten`` sind die Rückgaben von :func:`collect_cards`, eine je Aufruf.
+    Jede Karte steht dort, wo sie zuletzt gefunden wurde, in der Reihenfolge
+    dieses Aufrufs; zurück kommen die angereicherten Objekte aus ``all_cards``.
+
+    Nur für die Agent-Schleife (Paket A, Agent-Runde 2): der Agent verengt mit
+    einer NEUEN Suche (Master-Skill: „Verengen = neue Suche") und beschreibt
+    deren Treffer, ``turn_persist`` zeigt aber je Box nur die ersten N. In
+    Fundreihenfolge fielen genau die beschriebenen heraus.
+    """
+    nach_id = {c["node_id"]: c for c in all_cards if c.get("node_id")}
+    vorn: list[dict] = []
+    for ernte in reversed(ernten):
+        for karte in ernte:
+            gefunden = nach_id.pop(karte.get("node_id") or "", None)
+            if gefunden is not None:
+                vorn.append(gefunden)
+    gesetzt = {id(c) for c in vorn}
+    return vorn + [c for c in all_cards if id(c) not in gesetzt]

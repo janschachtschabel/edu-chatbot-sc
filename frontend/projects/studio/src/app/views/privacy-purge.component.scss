@@ -1,0 +1,52 @@
+// Lösch-Karten und Aufräumen (ST-6). Hülle aus dem Abschnitts-Partial, Knöpfe,
+// Rückfragen und Ergebniszeile aus dem Partial der Schreib-Panels.
+@use './section-shell';
+@use './ops-panel';
+
+.pp-cards {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-3);
+}
+
+.pp-card {
+  display: grid;
+  gap: var(--st-2);
+  justify-items: start;
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+
+  > .op-confirm {
+    justify-self: stretch;
+    margin: 0;
+  }
+}
+
+.pp-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.pp-desc,
+.pp-facts {
+  margin: 0;
+  font-size: 0.875rem;
+  max-inline-size: 65ch;
+}
+
+.pp-desc {
+  color: var(--st-text-muted);
+}
+
+.pp-facts {
+  font-variant-numeric: tabular-nums;
+}
+
+// Die letzte Stufe trägt die Gefahr auch im Rand — nicht nur im Wort (SC 1.4.1
+// verlangt, dass Farbe nicht ALLEIN spricht; hier sprechen Text und Knopf mit).
+.pp-final {
+  border-color: var(--st-danger-dot);
+}

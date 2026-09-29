@@ -328,7 +328,11 @@ def test_validate_profile_engine_default_und_passthrough():
     from boerdi.services.loadtest import validate_profile
 
     assert validate_profile({})["engine"] == "default"
-    assert validate_profile({"engine": "hybrid"})["engine"] == "hybrid"
+    assert validate_profile({"engine": "agent"})["engine"] == "agent"
+    # K1-1: der Hybrid ist entfernt — ein Lasttest misst die Maschine, die er
+    # nennt, und keine stille Umdeutung.
+    with pytest.raises(ValueError):
+        validate_profile({"engine": "hybrid"})
 
 
 def test_fire_request_setzt_die_engine_kopfzeile():

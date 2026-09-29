@@ -32,11 +32,6 @@
 
 .sp-names summary {
   cursor: pointer;
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--st-focus);
-  }
 }
 
 .sp-group {

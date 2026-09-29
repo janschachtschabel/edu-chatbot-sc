@@ -2,13 +2,6 @@
   padding-block-start: var(--st-4);
 }
 
-// The panel is focusable so keyboard users land in the content after the tabs;
-// that focus must be visible.
-.ev-panel:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
-}
-
 // Nutzer-Feedback 2026-08-22: die Start-Formulare stehen zugeklappt UNTER der
 // Lauf-Liste — der Deckel macht sie als bewusste zweite Ebene erkennbar.
 .ev-start {
@@ -22,11 +15,6 @@
   cursor: pointer;
   padding: var(--st-3);
   font-weight: 600;
-}
-
-.ev-start > summary:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
 }
 
 .ev-start[open] > summary {

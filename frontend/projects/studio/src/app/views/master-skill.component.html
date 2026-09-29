@@ -1,0 +1,108 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
+  </summary>
+
+  <div class="cs-body ms">
+    @if (loading()) {
+      <p class="cs-state" aria-busy="true">{{ t('masterSkill.loading') }}</p>
+    } @else if (loadError()) {
+      <div class="cs-state cs-state--error" role="alert">
+        <p>{{ loadError() }}</p>
+        <button type="button" class="cs-btn" (click)="load()">{{ t('async.retry') }}</button>
+      </div>
+    } @else if (skill(); as s) {
+      @if (!s.node_id) {
+        <p class="cs-state ms-empty">{{ t('masterSkill.noNode') }}</p>
+      } @else {
+        <dl class="ms-facts">
+          <div class="ms-fact">
+            <dt>{{ t('masterSkill.state') }}</dt>
+            <dd>{{ s.enabled ? t('masterSkill.state.on') : t('masterSkill.state.off') }}</dd>
+          </div>
+          <div class="ms-fact">
+            <dt>{{ t('masterSkill.node') }}</dt>
+            <dd><code class="ms-code">{{ s.node_id }}</code></dd>
+          </div>
+          <div class="ms-fact">
+            <dt>{{ t('masterSkill.fetched') }}</dt>
+            <dd>{{ s.fetched_at ? fmt.dateTime(s.fetched_at) : t('masterSkill.notFetched') }}</dd>
+          </div>
+          @if (s.length !== null) {
+            <div class="ms-fact">
+              <dt>{{ t('masterSkill.length') }}</dt>
+              <dd>{{ plural('masterSkill.chars', s.length, { n: fmt.whole(s.length) }) }}</dd>
+            </div>
+          }
+          @if (shortSum()) {
+            <div class="ms-fact">
+              <dt>{{ t('masterSkill.checksum') }}</dt>
+              <dd><code class="ms-code">{{ shortSum() }}</code></dd>
+            </div>
+          }
+        </dl>
+
+        @if (!s.enabled) {
+          <p class="ms-note ms-off-note">{{ t('masterSkill.offNote') }}</p>
+        }
+        @if (s.last_error) {
+          <p class="cs-state cs-state--error ms-error">
+            {{ t('masterSkill.lastError', { error: s.last_error }) }}
+          </p>
+        }
+
+        <div class="cs-actions">
+          <button
+            type="button"
+            class="cs-btn ms-reload"
+            [disabled]="reloading()"
+            (click)="reload()"
+          >
+            {{ reloading() ? t('masterSkill.reloading') : t('masterSkill.reload') }}
+          </button>
+          @if (s.edit_url) {
+            <a
+              class="cs-btn cs-btn--primary ms-edit"
+              [href]="s.edit_url"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-describedby="ms-edit-hint"
+            >
+              {{ t('masterSkill.edit') }}<span class="sr">{{ t('masterSkill.linkOf') }} {{ t('masterSkill.newTab') }}</span>
+            </a>
+          }
+          @if (s.view_url) {
+            <a
+              class="cs-btn ms-view"
+              [href]="s.view_url"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {{ t('masterSkill.view') }}<span class="sr">{{ t('masterSkill.linkOf') }} {{ t('masterSkill.newTab') }}</span>
+            </a>
+          }
+        </div>
+        @if (s.edit_url) {
+          <p class="ms-note ms-edit-hint" id="ms-edit-hint">{{ t('masterSkill.editHint') }}</p>
+        }
+        @if (reloadError()) {
+          <p class="cs-state cs-state--error ms-reload-error" role="alert">{{ reloadError() }}</p>
+        }
+
+        <p class="ms-note">{{ t('masterSkill.cacheNote', { minutes: minutes() }) }}</p>
+
+        @if (s.text) {
+          <details class="ms-text">
+            <summary class="ms-text-toggle">{{ t('masterSkill.showText') }}</summary>
+            <!-- tabindex: ein langer Text in einer Scroll-Box muss per Tastatur
+                 scrollbar sein (WCAG 2.1.1). -->
+            <pre class="ms-pre" tabindex="0" [attr.aria-label]="t('masterSkill.textLabel')">{{ s.text }}</pre>
+          </details>
+        }
+      }
+    }
+
+    <p class="cs-status" aria-live="polite">{{ status() }}</p>
+  </div>
+</details>

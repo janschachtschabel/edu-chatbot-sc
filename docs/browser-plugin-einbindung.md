@@ -215,7 +215,7 @@ kann ich hineinreichen":
 
 | Seite | Wozu |
 |---|---|
-| `/widget/edu-sharing-demo.html` | Redaktionsumgebung nachgestellt: 440-px-Seitenleiste mit Chat (⅔) und strukturierter Ausgabe (⅓), Hybrid-Modus. Begrüßung und Schnellantworten von der Seite überschreiben, Kontext (Sammlung/Themenseite/Einzelinhalt) beim Aufbau **oder** live nachreichen, Anweisung über `startTask()`, `result-schema` bearbeiten, alle fünf Ereignisse mitlesen |
+| `/widget/edu-sharing-demo.html` | Redaktionsumgebung nachgestellt: 440-px-Seitenleiste mit Chat (⅔) und strukturierter Ausgabe (⅓), Agent-Modus. Begrüßung und Schnellantworten von der Seite überschreiben, Kontext (Sammlung/Themenseite/Einzelinhalt) beim Aufbau **oder** live nachreichen, Anweisung über `startTask()`, `result-schema` bearbeiten, alle fünf Ereignisse mitlesen |
 
 Sie ist eine einzelne Datei (`frontend/projects/widget/src/edu-sharing-demo.html`),
 ausgeliefert über die Asset-Route des Widget-Builds — deshalb ohne eigene Route und
@@ -932,9 +932,9 @@ Beides zusammen ist die übliche Plugin-Einbettung:
 
 Vier Eigenschaften, auf die ihr euch verlassen könnt:
 
-* **Wirkt in allen drei Maschinen.** Der Block sitzt in *beiden* Prompt-Wegen —
+* **Wirkt in beiden Maschinen.** Der Block sitzt in *beiden* Prompt-Wegen —
   `services/response_prompt_builder.py` (Muster) und
-  `graph/nodes/respond_agent.py` (Agent *und* Hybrid). Anders als das
+  `graph/nodes/respond_agent.py` (Agent). Anders als das
   `result-schema`, das nur über die Schleife wirkt.
 * **Ein Kontext-Ping isst ihn nicht auf.** Wechselt die Seite gerade, während
   der Rahmen wartet, geht der automatische Kontext-Zug **ohne** ihn los; der
@@ -945,7 +945,7 @@ Vier Eigenschaften, auf die ihr euch verlassen könnt:
 * **Kein Zeichendeckel** (seit 18.08.2026; vorher 2000 mit `422`). Lange
   Anleitungen samt Angaben über die Gastseite gehören hier hinein. Gekürzt
   wird nichts — was ihr schickt, steht im Prompt. Der Preis ist eures: der
-  Rahmen reist in **jeden** Modellaufruf des Zuges, im Agent-/Hybrid-Modus
+  Rahmen reist in **jeden** Modellaufruf des Zuges, im Agent-Modus
   also bis zu `max_iterations` mal, und zählt jedes Mal aufs Token-Budget.
 
 Warum `'now'` seinen Zug **zeigt**, obwohl der Rahmen unsichtbar bleibt: das
@@ -965,7 +965,7 @@ Die Boxen entstehen **im Widget** aus Feldern der Antwort (`cards` mit ihrem
 `node_type`, `topic_pages`, `collection_link`, dazu `query_metas` für den
 Absprung in die Suche). Diese Felder füllt der Zug unabhängig von der Maschine:
 die Karten werden in der Schleife aus den Werkzeug-Treffern geerntet
-(`collect_cards`), und `assemble` sowie `persist` laufen für alle drei Maschinen
+(`collect_cards`), und `assemble` sowie `persist` laufen für beide Maschinen
 denselben Weg.
 
 **Live gemessen am 18.08.2026**, ein Zug mit `X-Boerdi-Engine: agent` auf
@@ -1072,7 +1072,7 @@ sondern gemessen (2026-08-17, derselbe Artikel, derselbe Auftrag):
 |---|---|---|---|
 | `pattern` (Vorgabe) | M04 Wissens-Antwort | keins | „Ein gültiger WLO-Fachwert konnte nicht gegen das `discipline`-Vokabular geprüft werden" |
 | `agent` | – | `lookup_wlo_vocabulary` ×2 | Fach mit URI; Stufe „nicht eindeutig bestimmbar" |
-| `hybrid` | M20 Erschließen | `lookup_wlo_vocabulary` ×2 | **beide** Werte mit URI |
+| `hybrid` (seit K1-1 entfernt) | M20 Erschließen | `lookup_wlo_vocabulary` ×2 | **beide** Werte mit URI |
 
 Im Muster-Modus entscheidet das **Muster** über die Werkzeugliste, und M04 führt
 `lookup_wlo_vocabulary` nicht. Das Modell hat das ehrlich gesagt statt zu raten —

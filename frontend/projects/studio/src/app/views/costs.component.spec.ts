@@ -6,9 +6,11 @@ import {
 } from "@angular/common/http/testing";
 import { provideZonelessChangeDetection } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { provideRouter } from "@angular/router";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { STUDIO_LOCALE_STORAGE_KEY } from "../i18n/studio-language.service";
+import { AREA_SCHEMAS } from "../schema-form/area-schemas.fixture";
 import { CostsComponent, dayEnd, dayStart, isoDay } from "./costs.component";
 
 const URL = "/studio/api/usage/period";
@@ -101,6 +103,8 @@ async function mount(
       provideZonelessChangeDetection(),
       provideHttpClient(withXhr()),
       provideHttpClientTesting(),
+      // ST-9: der eingebettete Preistafel-Abschnitt verlinkt auf den Rohtext
+      provideRouter([]),
     ],
   });
   const fixture = TestBed.createComponent(CostsComponent);
@@ -381,5 +385,68 @@ describe("Kostenschau — Zustände", () => {
     expect(h.el.querySelector(".cst-amount-value")?.textContent?.trim()).toBe(
       "€4.92",
     );
+  });
+});
+
+describe("Kostenschau — Preistafel (ST-9)", () => {
+  const OHNE_PREIS = {
+    ...REPORT,
+    amount: null,
+    price_unavailable: ["gpt-5.4-mini"],
+    models: [{ ...REPORT.models[0], amount: null }],
+    sessions: [],
+  };
+
+  it("trägt die Preistafel als Abschnitt der Seite", async () => {
+    // Bis ST-9 stand sie nur als Dateiname unter „Alle Bereiche“ — neben
+    // einer Seite, die ohne sie keinen Betrag zeigen kann.
+    await mount();
+    expect(h.el.querySelector("studio-area-section .cs-title")?.textContent).toContain(
+      "Preistafel",
+    );
+  });
+
+  it("zeigt beim fehlenden Preis auf den Abschnitt, nicht auf „Alle Bereiche“", async () => {
+    await mount(OHNE_PREIS);
+    const wo = h.el.querySelector(".cst-amount-where")?.textContent ?? "";
+    expect(wo).toContain("Preistafel");
+    expect(wo).not.toContain("Alle Bereiche");
+  });
+
+  it("meldet ungespeicherte Änderungen der Preistafel", async () => {
+    await mount();
+    const kosten = h.fixture.componentInstance;
+    expect(kosten.dirty()).toBe(false);
+
+    const abschnitt = kosten.pricing()!;
+    abschnitt.ensureLoaded();
+    await settle();
+    h.http.expectOne("/studio/api/config/schema/01-base/pricing")
+      .flush(AREA_SCHEMAS["01-base/pricing"]);
+    h.http.expectOne("/studio/api/config/data/01-base/pricing")
+      .flush({ area: "01-base/pricing", data: { currency: "USD", models: {} }, type: "yaml" });
+    await settle();
+
+    abschnitt.editor.setDoc({ currency: "EUR", models: {} });
+    await settle();
+    expect(kosten.dirty()).toBe(true);
+  });
+});
+
+describe("Kostenschau — Herkunft (ST-9)", () => {
+  it("fragt ohne Auswahl nach allen Sitzungen, wie bisher", async () => {
+    await mount();
+    expect(h.query.has("scope")).toBe(false);
+  });
+
+  it("fragt nach einem Wechsel mit der gewählten Herkunft neu", async () => {
+    // Eval- und Lasttest-Züge kosten Geld, sind aber kein Betrieb.
+    await mount();
+    const produktion = Array.from(h.el.querySelectorAll("label")).find((l) =>
+      l.textContent?.includes("Produktion"))!.querySelector("input")!;
+    produktion.click();
+    await settle();
+    await answer(REPORT);
+    expect(h.query.get("scope")).toBe("production");
   });
 });

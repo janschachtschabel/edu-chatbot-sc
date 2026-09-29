@@ -1,0 +1,86 @@
+# ════════════════════════════════════════════════════════════════════
+# Nachweis-Flows der Skill-Brücke (E-6) — NICHT Teil der Tor-Suite
+# ════════════════════════════════════════════════════════════════════
+#
+# Plan docs/plans/2026-09-26-betriebsmodi-und-studio.md §7 K1-2b: misst, ob der
+# Muster-Modus mit dem Studio-Haken 01-base/engine.muster_skills freigegebene
+# Skills auch in Mustern laden kann, die die Skill-Werkzeuge nicht selbst
+# führen (etwa M05). Format wie backend/seeds/eval/gold-flows.yaml, aber eine
+# eigene Datei: die Maschinen-Matrix liest die Seed-Suite, und neue Flows dort
+# machten ihre Zahlen mit den früheren Läufen unvergleichbar.
+# Format-Wächter: backend/tests/test_golden_runner.py
+# (test_nachweis_flows_der_skill_bruecke_sind_wohlgeformt).
+#
+# Messung — Muster-Maschine, Haken aus gegen an, verschränkt (aus, an, aus …):
+#   cd backend
+#   uv run python ../evals/run_golden.py --flows ../evals/skill-bruecke-flows.yaml \
+#       --engine pattern --label e6-aus-1
+#   dann den Haken im Studio („Agent & Maschine") umlegen, --label e6-an-1 usw.
+#
+# Die Sammlung „Geometrische Optik" (Staging) führt die Registry des
+# Lehrtoolkits mit 28 Skills, darunter „Stunde planen", „Neues Lernmaterial
+# erstellen" und „OER-Recherche in WirLernenOnline" (geprüft am 2026-09-27).
+# Verliert sie die Registry, misst das Set nichts mehr: GV-EMB-3 fällt dann
+# in beiden Einstellungen durch und zeigt das an.
+# ════════════════════════════════════════════════════════════════════
+version: 2
+
+flows:
+  - id: GV-EMB-1
+    zielgruppe: P-LEH
+    title: "Sammlungsseite: Stunde planen mit Rückfrage (Fall vom 16.08.)"
+    environment:
+      page_context: {page_kind: collection, collection_id: "f35c17d1-a29e-4b26-9d22-802682fad43d"}
+    turns:
+      - message: "Ich möchte morgen eine Stunde zur Lichtbrechung halten. Können Sie mir helfen, sie zu planen?"
+        expect:
+          register: sie
+          tools_any: [get_skill]
+          must_offer: "Arbeit nach der Anleitung „Stunde planen“: eine gezielte Rückfrage (Dauer, Klasse, Vorwissen) oder gleich ein Verlaufsplan."
+      # Der unterscheidende Zug, im Wortlaut vom 16.08.: der Klassifikator hielt
+      # die knappe Antwort auf die Rückfrage für eine Materialsuche. Ohne Brücke
+      # fehlt dem Suchmuster get_skill, und die Anleitung reißt ab. Eine höfliche
+      # Umformulierung („45 Minuten, Physik, 8. Klasse am Gymnasium …") landete
+      # am 2026-09-27 sechsmal in M09, das get_skill selbst führt — sie maß nichts.
+      # Bis 2026-09-27 verlangte dieser Zug zusätzlich „Verlaufsplan" oder
+      # „Sozialform" im Text. Das war falsch erwartet: die Anleitung fragt nach
+      # Dauer und Klasse noch die Stellung in der Reihe und die Vorstunde ab und
+      # plant erst danach (12 von 12 Läufen). Gemessen wird hier, ob sie
+      # weiterläuft — nicht, wann sie fertig ist.
+      - message: "45 min physik sek 1"
+        expect:
+          register: sie
+          tools_any: [get_skill]
+          must_offer: "Die Anleitung „Stunde planen“ läuft weiter: ihre nächste Rückfrage (etwa Stellung in der Reihe, Vorstunde) oder gleich der Verlaufsplan — keine bloße Materialliste."
+
+  - id: GV-EMB-2
+    zielgruppe: P-LEH
+    title: "Sammlungsseite: Videosuche bleibt Suche (Wächter)"
+    environment:
+      page_context: {page_kind: collection, collection_id: "f35c17d1-a29e-4b26-9d22-802682fad43d"}
+    turns:
+      # Rolle und Anrede müssen in der Nachricht stecken: ohne sie stuft der
+      # Bot die Person als P-AND ein und duzt (Probelauf 2026-09-27).
+      - message: "Haben Sie hier ein Video zur Lichtbrechung für den Einstieg in meine 8. Klasse?"
+        expect:
+          register: sie
+          structure: cards
+          tools_any: [search_wlo_content, search_wlo_all]
+          # Suchzüge der Muster-Maschine hatten in den Tor-Läufen vom
+          # 2026-09-27 zwei bis acht Einträge (samt Vorabruf und
+          # select_top_cards); dazu die zwei Werkzeuge der Brücke.
+          tools_max: 10
+          must_offer: "Video-Treffer zur Lichtbrechung für Klasse 8 als Karten. Lädt das Modell dabei die Anleitung „OER-Recherche“, bleibt das Ergebnis trotzdem die Trefferliste."
+
+  - id: GV-EMB-3
+    zielgruppe: P-LEH
+    title: "Sammlungsseite: Arbeitsblatt (Kontrolle — M10 führt die Skill-Werkzeuge selbst)"
+    environment:
+      page_context: {page_kind: collection, collection_id: "f35c17d1-a29e-4b26-9d22-802682fad43d"}
+    turns:
+      - message: "Erstellen Sie mir bitte ein Arbeitsblatt zur Lichtbrechung für meine 8. Klasse, mit Lösungen."
+        expect:
+          register: sie
+          structure: idoc
+          tools_any: [get_skill]
+          must_offer: "Ein Arbeitsblatt zur Lichtbrechung für Klasse 8 mit Lösungsteil als Dokument-Box, nach der Anleitung „Neues Lernmaterial erstellen“."

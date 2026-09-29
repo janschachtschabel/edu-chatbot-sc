@@ -14,8 +14,10 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild
   from '@angular/core';
 
 import { AsyncData, describeApiError } from '../core/async-data';
+import type { OriginScope } from '../core/origin-scope';
 import { SessionsApi, type SessionRow } from '../core/sessions-api.service';
 import { AsyncStateComponent } from './async-state.component';
+import { OriginScopeComponent } from './origin-scope.component';
 import { SessionTranscriptComponent } from './session-transcript.component';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { StudioFormat } from '../i18n/studio-format.service';
@@ -28,7 +30,7 @@ interface Armed {
 
 @Component({
   selector: 'studio-sessions',
-  imports: [AsyncStateComponent, SessionTranscriptComponent],
+  imports: [AsyncStateComponent, OriginScopeComponent, SessionTranscriptComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sessions.component.html',
   styleUrl: './sessions.component.scss',
@@ -45,7 +47,10 @@ export class SessionsComponent {
 
   private readonly api = inject(SessionsApi);
 
-  readonly sessions = new AsyncData<SessionRow[]>(() => this.api.list(), this.t);
+  /** ST-9: nach Herkunft — serverseitig, die Liste kappt bei 100. */
+  readonly scope = signal<OriginScope>('all');
+
+  readonly sessions = new AsyncData<SessionRow[]>(() => this.api.list(this.scope()), this.t);
   readonly rows = computed(() => this.sessions.value() ?? []);
 
   /** Bis C1-d4e2 stand die deutsche Mehrzahl-Regel in der Vorlage. */
@@ -67,6 +72,12 @@ export class SessionsComponent {
 
   reload(): void {
     void this.sessions.reload();
+  }
+
+  setScope(scope: OriginScope): void {
+    if (scope === this.scope()) return;
+    this.scope.set(scope);
+    this.reload();
   }
 
   select(id: string): void {

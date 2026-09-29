@@ -31,7 +31,9 @@ from boerdi.api.schemas import (
     PolicyDecision,
     SafetyDecision,
 )
+from boerdi.domain.config_models.engine import EngineArea
 from boerdi.domain.pattern_engine import PatternDef
+from boerdi.domain.skill_bruecke import ZUSATZ_KEY
 from boerdi.graph import state as state_mod
 from boerdi.graph.nodes import route as route_mod
 from boerdi.graph.nodes.route import route
@@ -71,17 +73,22 @@ def _ctx(*, message=BEFUND, skills=None, classification=None, bestand=None):
     return ctx
 
 
-def _patch(monkeypatch, seen):
+def _patch(monkeypatch, seen, *, tools=(), muster_skills=False):
     """Die Nachbarn abfangen; ``seen`` ist die Beweislage.
 
     Ein NICHT eingetragener Schlüssel heißt „nie gerufen" — dieselbe Bauart wie
-    in ``test_route_engine_mode.py``.
+    in ``test_route_engine_mode.py``. ``tools`` ist die Werkzeugliste des
+    gewählten Musters, ``muster_skills`` der Studio-Schalter (E-6).
     """
     win = PatternDef(id="M09", label="Suche")
 
     def _sel(**k):
         seen["select_pattern"] = k
-        return (win, {"tools": [], "id": "M09"}, {"M09": 1.0}, [])
+        return (win, {"tools": list(tools), "id": "M09"}, {"M09": 1.0}, [])
+
+    # ``load_engine`` ist SYNCHRON — die Attrappe folgt der echten Signatur.
+    monkeypatch.setattr(route_mod, "load_engine",
+                        lambda: EngineArea(muster_skills=muster_skills))
 
     def _dli(**k):
         seen["detect_lp_intent"] = k
@@ -219,3 +226,69 @@ async def test_eine_notiz_ueber_null_anleitungen_ist_wie_keine(monkeypatch):
     _patch(monkeypatch, seen)
     await route(_ctx(bestand={"anzahl": 0, "titel": "", "node_id": ""}))
     assert seen["run_lp_fast_path"]["has_lp_intent"] is True
+
+
+# ── Skill-Brücke (E-6, 2026-09-27) ──────────────────────────────────
+# Der Vorrang nimmt die Schnellwege aus dem Weg — aber nur sechs von zwanzig
+# Mustern führen ``get_skill``. Mit dem Studio-Schalter bekommt auch ein anderes
+# Werkzeug-Muster die zwei Skill-Werkzeuge, sobald Skills im Spiel sind.
+
+_SUCHE = ("search_wlo_content",)
+
+
+@pytest.mark.anyio
+async def test_zugelassen_bekommt_das_muster_die_skill_werkzeuge(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen, tools=_SUCHE, muster_skills=True)
+    ctx = await route(_ctx(skills=28))
+    assert ctx.pattern_output[ZUSATZ_KEY] == ["get_skill_registry", "get_skill"]
+    assert ctx.pattern_output["tools"] == list(_SUCHE)   # die Pflichtliste bleibt
+
+
+@pytest.mark.anyio
+async def test_die_bruecke_greift_auch_ueber_das_gespraech(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen, tools=_SUCHE, muster_skills=True)
+    ctx = await route(_ctx(bestand={
+        "anzahl": 28, "titel": "Geometrische Optik", "node_id": "f35c17d1"}))
+    assert ZUSATZ_KEY in ctx.pattern_output
+
+
+@pytest.mark.anyio
+async def test_eine_laufende_anleitung_haelt_die_bruecke_offen(monkeypatch):
+    """Der Befund vom 2026-08-16: die Antwort auf die Rückfrage eines Skills
+    („45 min physik sek 1") landete in einem Suchmuster ohne ``get_skill``."""
+    seen: dict = {}
+    _patch(monkeypatch, seen, tools=_SUCHE, muster_skills=True)
+    ctx = _ctx(message="45 min physik sek 1")
+    ctx.session_state["entities"]["_skill_lauf"] = {"node_id": "5b29f470", "zug": 3}
+    ctx.session_state["turn_count"] = 4
+    ctx = await route(ctx)
+    assert ZUSATZ_KEY in ctx.pattern_output
+
+
+@pytest.mark.anyio
+async def test_ohne_zulassung_bleibt_das_muster_wie_es_ist(monkeypatch):
+    """Die Vorgabe ist aus: ohne Pflege ändert sich am Muster-Modus nichts."""
+    seen: dict = {}
+    _patch(monkeypatch, seen, tools=_SUCHE, muster_skills=False)
+    ctx = await route(_ctx(skills=28))
+    assert ZUSATZ_KEY not in ctx.pattern_output
+
+
+@pytest.mark.anyio
+async def test_ohne_skills_im_spiel_keine_bruecke(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen, tools=_SUCHE, muster_skills=True)
+    ctx = await route(_ctx())
+    assert ZUSATZ_KEY not in ctx.pattern_output
+
+
+@pytest.mark.anyio
+async def test_gesperrte_skill_werkzeuge_bleiben_gesperrt(monkeypatch):
+    seen: dict = {}
+    _patch(monkeypatch, seen, tools=_SUCHE, muster_skills=True)
+    ctx = _ctx(skills=28)
+    ctx.safety = SafetyDecision(risk_level="low", blocked_tools=["get_skill"])
+    ctx = await route(ctx)
+    assert ZUSATZ_KEY not in ctx.pattern_output

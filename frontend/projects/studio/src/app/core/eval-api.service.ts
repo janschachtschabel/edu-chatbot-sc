@@ -13,6 +13,7 @@
  */
 import { Injectable, inject } from '@angular/core';
 
+import type { EngineComparison, RunProfile } from './eval-profile';
 import { StudioApi, type QueryValue } from './studio-api.service';
 
 /** ALT's list window; the endpoint allows 500. */
@@ -22,6 +23,10 @@ const TREND_LIMIT = 20;
 
 export type EvalMode = 'scenarios' | 'conversations' | 'both';
 
+/** ST-7a: the engine filter of the run list and the trends; `''` = all runs,
+ *  including those whose engine was never recorded. */
+export type EngineFilter = '' | 'pattern' | 'agent';
+
 /** `''` while a run is queued; the backend fills it when the run finishes. */
 export interface EvalRunSummary {
   readonly id: string;
@@ -29,6 +34,8 @@ export interface EvalRunSummary {
   readonly completed_at: string | null;
   readonly status: string;
   readonly mode: string;
+  /** ST-7a: `pattern` | `agent` | `hybrid` (runs before K1-1) | `''` unknown. */
+  readonly engine: string;
   readonly config_slug: string;
   readonly total_turns: number;
   readonly avg_score: number | null;
@@ -48,6 +55,9 @@ export interface EvalRunDetail extends Omit<EvalRunSummary,
   /** Free-form per-run metrics; `classification_metrics` is the interesting part. */
   readonly summary: Record<string, unknown>;
   readonly conversations: readonly Record<string, unknown>[];
+  /** ST-7b: judge axes, duration, tokens and costs — computed on read. Optional
+   *  because an older backend does not send it. */
+  readonly profile?: RunProfile;
 }
 
 /**
@@ -97,6 +107,7 @@ export interface TrendPoint {
 export interface EvalTrends {
   readonly runs: readonly {
     readonly id: string; readonly created_at: string; readonly mode: string;
+    readonly engine: string;
     readonly config_slug: string; readonly total_turns: number;
     readonly avg_score: number | null;
   }[];
@@ -144,10 +155,11 @@ export interface StartRunResult {
 
 /** GV5: "default" sends no header — the run measures the server's
  *  engine.yaml setting; the others ride as `X-Boerdi-Engine` on every turn. */
-export type GoldenEngine = 'default' | 'pattern' | 'agent' | 'hybrid';
+export type GoldenEngine = 'default' | 'pattern' | 'agent';
 
+/** K1-1 (2026-09-27): `hybrid` ist entfernt; der Server weist ihn hier mit 422 ab. */
 export const GOLDEN_ENGINES: readonly GoldenEngine[] = [
-  'default', 'pattern', 'agent', 'hybrid',
+  'default', 'pattern', 'agent',
 ];
 
 export interface GoldenRunRequest {
@@ -175,9 +187,9 @@ export class EvalApi {
     return this.api.post<EvalEstimate>('/eval/estimate', request);
   }
 
-  async runs(): Promise<readonly EvalRunSummary[]> {
+  async runs(engine: EngineFilter = ''): Promise<readonly EvalRunSummary[]> {
     const body = await this.api.get<{ runs?: readonly EvalRunSummary[] }>(
-      '/eval/runs', { limit: RUN_LIMIT },
+      '/eval/runs', { limit: RUN_LIMIT, engine: engine || undefined },
     );
     return body.runs ?? [];
   }
@@ -241,8 +253,15 @@ export class EvalApi {
     return { deleted: body.deleted_eval_log_rows ?? 0 };
   }
 
-  trends(): Promise<EvalTrends> {
-    return this.api.get<EvalTrends>('/eval/trends', { limit: TREND_LIMIT });
+  /** ST-7c: K0-1's engine comparison over 2–20 runs, grouped by engine. */
+  compare(ids: readonly string[]): Promise<EngineComparison> {
+    return this.api.get<EngineComparison>('/eval/compare', { ids: ids.join(',') });
+  }
+
+  trends(engine: EngineFilter = ''): Promise<EvalTrends> {
+    return this.api.get<EvalTrends>('/eval/trends', {
+      limit: TREND_LIMIT, engine: engine || undefined,
+    });
   }
 
   patternUsage(scope: string, since: string): Promise<PatternUsage> {

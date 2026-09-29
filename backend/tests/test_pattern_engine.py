@@ -24,9 +24,30 @@ from boerdi.services import config_loader
     ("lang", 0.2, "lang"),        # Clamp bei 2
     ("kurz", -0.2, "kurz"),       # Clamp bei 0
     ("unbekannt", 0.0, "mittel"),  # Default-Rank 1
+    # 8 Muster-Seeds führen „standard"; es wirkt wie mittel — so sagt es auch
+    # die Studio-Hilfe (Befund 2026-09-27 geprüft: kein Fehler im Verhalten).
+    ("standard", 0.0, "mittel"),
+    ("standard", 0.2, "lang"),
 ])
 def test_apply_length_bias(default, bias, exp):
     assert pe._apply_length_bias(default, bias) == exp
+
+
+def test_die_schwelle_ist_die_des_studio_reglers():
+    """ST-2h: der Regler im Studio zeigt „kürzer / wie im Muster / länger" an
+    DERSELBEN Schwelle, an der die Engine die Länge verschiebt — eine
+    Konstante für beide, sonst läge die Anzeige still neben der Wirkung."""
+    from boerdi.domain.config_models.base_governance import LENGTH_BIAS_STEP, ToneModifier
+    from boerdi.domain.config_models.dimensions import PersonaFrontmatter
+
+    s = LENGTH_BIAS_STEP
+    assert pe._apply_length_bias("mittel", s) == "mittel"  # die Grenze selbst verschiebt nicht
+    assert pe._apply_length_bias("mittel", s + 0.01) == "lang"
+    assert pe._apply_length_bias("mittel", -s - 0.01) == "kurz"
+    for model in (ToneModifier, PersonaFrontmatter):
+        prop = model.model_json_schema()["properties"]["length_bias"]
+        assert prop["x-widget"] == "slider", model.__name__
+        assert prop["x-thresholds"] == [-s, s], model.__name__
 
 
 # ── _pattern_from_dict ─────────────────────────────────────────────
@@ -118,6 +139,23 @@ def test_select_unknown_hint_uses_fallback_id(monkeypatch):
                                   pe.PatternDef(id="M15", label="Orient")])
     w, _o, _s, _e = _call(pattern_id_hint="M-UNKNOWN")
     assert w.id == "M15"
+
+
+def test_select_fallback_follows_the_fallback_order_not_the_list_order(monkeypatch):
+    # Die Musterliste kommt nach Schlüssel SORTIERT (m03 vor m15). Bis
+    # 2026-09-27 nahm der Rückfall ihr erstes Rückfall-Muster und damit den
+    # Klärer M03 — Docstring und Klassifikator-Prompt versprechen M15.
+    _mock_selection(monkeypatch, [pe.PatternDef(id="M03", label="Klaerung"),
+                                  pe.PatternDef(id="M15", label="Orient")])
+    w, _o, _s, _e = _call()
+    assert w.id == "M15"
+
+
+def test_select_fallback_takes_m03_when_m15_is_missing(monkeypatch):
+    _mock_selection(monkeypatch, [pe.PatternDef(id="M01", label="Krise"),
+                                  pe.PatternDef(id="M03", label="Klaerung")])
+    w, _o, _s, _e = _call(pattern_id_hint="M-UNKNOWN")
+    assert w.id == "M03"
 
 
 def test_select_enforced_unknown_falls_through_to_hint(monkeypatch):

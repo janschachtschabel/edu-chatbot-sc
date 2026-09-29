@@ -1,6 +1,11 @@
 @if (shapeMismatch()) {
   <div class="sf-row">
-    <label class="sf-label" [for]="fieldId()">{{ label() }}</label>
+    <label class="sf-label" [for]="fieldId()">
+      {{ label() }}
+      @if (rawKey(); as key) {
+        <span class="sf-key">{{ key }}</span>
+      }
+    </label>
     <p class="sf-mismatch" [id]="fieldId() + '-shape'">
       {{ t('schemaField.mismatch', { actual: actualShape(), expected: expectedShape() }) }}
     </p>
@@ -15,12 +20,20 @@
 } @else {
 @switch (field().kind) {
   @case ('group') {
-    <fieldset class="sf-group">
+    <fieldset class="sf-group" [attr.aria-describedby]="describedWith()">
       @if (label()) {
-        <legend class="sf-legend">{{ label() }}</legend>
+        <legend class="sf-legend">
+          {{ label() }}
+          @if (rawKey(); as key) {
+            <span class="sf-key">{{ key }}</span>
+          }
+        </legend>
       }
-      @if (field().description) {
-        <p class="sf-desc" [id]="descId()">{{ field().description }}</p>
+      @if (hint(); as text) {
+        <p class="sf-desc" [id]="descId()">{{ text }}</p>
+      }
+      @if (problem(); as meldung) {
+        <p class="sf-error" [id]="errId()">{{ meldung }}</p>
       }
       @for (child of field().children; track child.key) {
         <studio-schema-field
@@ -28,6 +41,8 @@
           [path]="childPath(child.key)"
           [value]="childValue(child.key)"
           [idPrefix]="idPrefix()"
+          [problems]="problems()"
+          [markerValue]="child.marker ? childValue(child.marker) : undefined"
           (edit)="edit.emit($event)"
         />
       }
@@ -35,59 +50,159 @@
   }
 
   @case ('list') {
-    <fieldset class="sf-group">
+    <fieldset class="sf-group" [attr.aria-describedby]="describedWith()">
       <legend class="sf-legend">
-        {{ groupLabel() }} <span class="sf-count">({{ items().length }})</span>
+        {{ groupLabel() }}
+        @if (rawKey(); as key) {
+          <span class="sf-key">{{ key }}</span>
+        }
+        <span class="sf-count">({{ items().length }})</span>
       </legend>
-      @if (field().description) {
-        <p class="sf-desc" [id]="descId()">{{ field().description }}</p>
+      @if (hint(); as text) {
+        <p class="sf-desc" [id]="descId()">{{ text }}</p>
       }
-      @if (items().length === 0) {
-        <p class="sf-empty">{{ t('schemaField.emptyList') }}</p>
-      } @else {
-        <ol class="sf-entries" role="list">
-          @for (item of items(); track $index) {
-            <li class="sf-entry">
-              <!-- „Tools 2": ein Name aus einem schon übersetzten Wort und einer
-                   Zahl. Kein Satz, also auch kein Katalog-Eintrag — hier ist
-                   nichts zu übersetzen, was nicht schon übersetzt wäre. -->
-              <studio-schema-field
-                [field]="field().item!"
-                [path]="childPath($index)"
-                [value]="item"
-                [idPrefix]="idPrefix()"
-                [labelOverride]="groupLabel() + ' ' + ($index + 1)"
-                (edit)="edit.emit($event)"
-              />
-              <button
-                type="button"
-                class="sf-remove"
-                [attr.aria-label]="
-                  t('schemaField.removeIndex', { index: $index + 1, group: groupLabel() })
-                "
-                (click)="removeItem($index)"
-              >{{ t('schemaField.remove') }}</button>
-            </li>
+      @if (problem(); as meldung) {
+        <p class="sf-error" [id]="errId()">{{ meldung }}</p>
+      }
+      @if (chipList()) {
+        <!-- ST-2g: Katalog-Namen als Chips. EIN Eingabefeld mit der
+             Vorschlagsliste des Katalogs; ein Name, der noch in keinem
+             Katalog steht, darf trotzdem hinein (vgl. field-control). -->
+        @if (items().length === 0) {
+          <p class="sf-empty">{{ t('schemaField.emptyList') }}</p>
+        } @else {
+          <ul class="sf-chips" role="list">
+            @for (item of items(); track $index) {
+              <li class="sf-chip">
+                <span class="sf-chip-text">{{ item }}</span>
+                <button
+                  type="button"
+                  class="sf-chip-remove"
+                  [attr.aria-label]="t('schemaField.removeChip', { value: '' + item, group: groupLabel() })"
+                  (click)="removeItem($index)"
+                >×</button>
+              </li>
+            }
+          </ul>
+        }
+        <div class="sf-chip-add">
+          <input
+            #neu
+            class="sf-input"
+            type="text"
+            [id]="fieldId() + '-neu'"
+            [attr.list]="idPrefix() + '-cat-' + field().item!.catalog"
+            [attr.aria-label]="t('schemaField.addTo', { group: groupLabel() })"
+            (keydown.enter)="$event.preventDefault(); addChip(neu)"
+          />
+          <button type="button" class="sf-add" (click)="addChip(neu)">
+            {{ t('schemaField.add') }}
+          </button>
+          @if (chipError()) {
+            <p class="sf-error" aria-live="polite">{{ chipError() }}</p>
           }
-        </ol>
+        </div>
+      } @else if (objectItems()) {
+        <!-- ST-3: Objekte als Liste│Editor statt voll aufgeklappt untereinander -->
+        <studio-object-list
+          [field]="field()"
+          [path]="path()"
+          [value]="value()"
+          [label]="groupLabel()"
+          [idPrefix]="idPrefix()"
+          [problems]="problems()"
+          (edit)="edit.emit($event)"
+        />
+      } @else {
+        @if (items().length === 0) {
+          <p class="sf-empty">{{ t('schemaField.emptyList') }}</p>
+        } @else {
+          <ol class="sf-entries" role="list">
+            @for (item of items(); track $index) {
+              <li class="sf-entry">
+                <!-- „Tools 2": ein Name aus einem schon übersetzten Wort und einer
+                     Zahl. Kein Satz, also auch kein Katalog-Eintrag — hier ist
+                     nichts zu übersetzen, was nicht schon übersetzt wäre. -->
+                <studio-schema-field
+                  [field]="field().item!"
+                  [path]="childPath($index)"
+                  [value]="item"
+                  [idPrefix]="idPrefix()"
+                  [problems]="problems()"
+                  [labelOverride]="groupLabel() + ' ' + ($index + 1)"
+                  (edit)="onItemEdit($index, $event)"
+                />
+                @if (field().marker) {
+                  <label class="sf-marker">
+                    <input
+                      type="radio"
+                      [name]="fieldId() + '-marker'"
+                      [checked]="isMarked($index)"
+                      [attr.aria-label]="t('schemaField.markItemAs', { value: '' + item, label: markerLabel() })"
+                      (change)="mark(item)"
+                    />
+                    {{ t('schemaField.markAs', { label: markerLabel() }) }}
+                  </label>
+                }
+                <button
+                  type="button"
+                  class="sf-remove"
+                  [attr.aria-label]="
+                    t('schemaField.removeIndex', { index: $index + 1, group: groupLabel() })
+                  "
+                  (click)="removeItem($index)"
+                >{{ t('schemaField.remove') }}</button>
+              </li>
+            }
+          </ol>
+        }
+        <button
+          type="button"
+          class="sf-add"
+          [attr.aria-label]="t('schemaField.addTo', { group: groupLabel() })"
+          (click)="addItem()"
+        >{{ t('schemaField.add') }}</button>
+        @if (field().marker) {
+          <label class="sf-marker">
+            <input
+              type="radio"
+              [name]="fieldId() + '-marker'"
+              [checked]="!markerValue()"
+              (change)="mark('')"
+            />
+            {{ t('schemaField.markNone', { label: markerLabel() }) }}
+          </label>
+        }
       }
-      <button
-        type="button"
-        class="sf-add"
-        [attr.aria-label]="t('schemaField.addTo', { group: groupLabel() })"
-        (click)="addItem()"
-      >{{ t('schemaField.add') }}</button>
     </fieldset>
   }
 
   @case ('map') {
-    <fieldset class="sf-group">
+    <fieldset class="sf-group" [attr.aria-describedby]="describedWith()">
       <legend class="sf-legend">
-        {{ groupLabel() }} <span class="sf-count">({{ entries().length }})</span>
+        {{ groupLabel() }}
+        @if (rawKey(); as key) {
+          <span class="sf-key">{{ key }}</span>
+        }
+        <span class="sf-count">({{ entries().length }})</span>
       </legend>
-      @if (field().description) {
-        <p class="sf-desc" [id]="descId()">{{ field().description }}</p>
+      @if (hint(); as text) {
+        <p class="sf-desc" [id]="descId()">{{ text }}</p>
       }
+      @if (problem(); as meldung) {
+        <p class="sf-error" [id]="errId()">{{ meldung }}</p>
+      }
+      @if (objectItems()) {
+        <studio-object-list
+            [field]="field()"
+            [path]="path()"
+            [value]="value()"
+            [label]="groupLabel()"
+            [idPrefix]="idPrefix()"
+            [problems]="problems()"
+            (edit)="edit.emit($event)"
+          />
+      } @else {
       @if (entries().length === 0) {
         <p class="sf-empty">{{ t('schemaField.emptyList') }}</p>
       } @else {
@@ -124,6 +239,7 @@
                 [path]="childPath(entry.key)"
                 [value]="entry.value"
                 [idPrefix]="idPrefix()"
+                [problems]="problems()"
                 [labelOverride]="entry.key"
                 (edit)="edit.emit($event)"
               />
@@ -143,6 +259,7 @@
         [attr.aria-label]="t('schemaField.addTo', { group: groupLabel() })"
         (click)="addEntry()"
       >{{ t('schemaField.add') }}</button>
+      }
     </fieldset>
   }
 
@@ -150,105 +267,28 @@
     <div class="sf-row" [class.sf-row--check]="field().kind === 'boolean'">
       <label class="sf-label" [for]="fieldId()">
         {{ label() }}
+        @if (rawKey(); as key) {
+          <span class="sf-key">{{ key }}</span>
+        }
         @if (field().required) {
           <span class="sf-required">{{ t('schemaField.required') }}</span>
         }
       </label>
-      @if (field().description) {
-        <p class="sf-desc" [id]="descId()">{{ field().description }}</p>
+      @if (hint(); as text) {
+        <p class="sf-desc" [id]="descId()">{{ text }}</p>
       }
-      @switch (field().kind) {
-        @case ('text') {
-          <input
-            class="sf-input"
-            type="text"
-            [id]="fieldId()"
-            [value]="asText()"
-            [attr.list]="datalistId()"
-            [attr.aria-describedby]="descId()"
-            [attr.aria-required]="field().required ? 'true' : null"
-            (input)="onText($event)"
-          />
-          <!-- Eine Vorschlagsliste (vom Formular gerendert), kein Auswahlfeld:
-               ein Muster entsteht durch Anlegen, ein RAG-Bereich durch
-               Einlesen — wer den Namen schon kennt, muss ihn tippen dürfen. -->
-          @if (linkSegments(); as ziel) {
-            <a class="sf-jump" [routerLink]="ziel">
-              {{ t('schemaField.openTarget', { value: asText() }) }}
-            </a>
-          }
-        }
-        @case ('select') {
-          <select
-            class="sf-input sf-select"
-            [id]="fieldId()"
-            [attr.aria-describedby]="descId()"
-            [attr.aria-required]="field().required ? 'true' : null"
-            (change)="onText($event)"
-          >
-            @for (option of options(); track option.value) {
-              <option [value]="option.value" [selected]="option.value === asText()">
-                {{ option.label }}
-              </option>
-            }
-          </select>
-        }
-        @case ('multiline') {
-          <textarea
-            class="sf-input sf-multiline"
-            [rows]="rows()"
-            [id]="fieldId()"
-            [value]="asText()"
-            [attr.aria-describedby]="descId()"
-            [attr.aria-required]="field().required ? 'true' : null"
-            (input)="onText($event)"
-          ></textarea>
-        }
-        @case ('integer') {
-          <input
-            class="sf-input sf-number"
-            type="number"
-            step="1"
-            inputmode="numeric"
-            [id]="fieldId()"
-            [value]="asNumber()"
-            [attr.aria-describedby]="descId()"
-            [attr.aria-required]="field().required ? 'true' : null"
-            (input)="onNumber($event)"
-          />
-        }
-        @case ('number') {
-          <input
-            class="sf-input sf-number"
-            type="number"
-            step="any"
-            inputmode="decimal"
-            [id]="fieldId()"
-            [value]="asNumber()"
-            [attr.aria-describedby]="descId()"
-            [attr.aria-required]="field().required ? 'true' : null"
-            (input)="onNumber($event)"
-          />
-        }
-        @case ('boolean') {
-          <input
-            class="sf-check"
-            type="checkbox"
-            [id]="fieldId()"
-            [checked]="asBoolean()"
-            [attr.aria-describedby]="descId()"
-            (change)="onBoolean($event)"
-          />
-        }
-        @default {
-          <studio-json-value
-            [fieldId]="fieldId()"
-            [value]="value()"
-            [describedByBase]="descId()"
-            (valueChange)="setValue($event)"
-            (errorChange)="onJsonError($event)"
-          />
-        }
+      <studio-field-control
+        [field]="field()"
+        [value]="value()"
+        [controlId]="fieldId()"
+        [describedBy]="describedWith()"
+        [invalid]="problem() !== null"
+        [idPrefix]="idPrefix()"
+        (valueChange)="setValue($event)"
+        (errorChange)="onJsonError($event)"
+      />
+      @if (problem(); as meldung) {
+        <p class="sf-error" [id]="errId()">{{ meldung }}</p>
       }
     </div>
   }

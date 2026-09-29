@@ -22,8 +22,8 @@
 import { Injectable, inject } from '@angular/core';
 
 import {
-  formatDateTime, formatDecimal, formatMoney, formatPercent, formatRelative, formatUsd,
-  formatWhole,
+  formatBytes, formatDateTime, formatDecimal, formatMoney, formatPercent, formatRelative,
+  formatSeconds, formatUsd, formatWhole,
 } from '../core/format';
 import { StudioLanguageService } from './studio-language.service';
 
@@ -41,6 +41,13 @@ export class StudioFormat {
 
   /** Eine Anzahl: „12.345" / „12,345". */
   readonly whole = (value: number): string => formatWhole(this.locale(), value);
+
+  /** Eine Größe in Byte: „20,5 MB" / „20.5 MB" (ST-6, Datenbank-Wartung). */
+  readonly bytes = (value: number): string => formatBytes(this.locale(), value);
+
+  /** Eine Dauer aus Millisekunden: „12,3 s" (ST-7b, Zugdauer der Eval-Läufe). */
+  readonly seconds = (milliseconds: number): string =>
+    formatSeconds(this.locale(), milliseconds);
 
   /** Eine Kostenschätzung: „0,14 $" / „US$0.14". */
   readonly usd = (value: number): string => formatUsd(this.locale(), value);

@@ -49,3 +49,49 @@ def Catalog(name: str) -> Any:  # noqa: N802 — s.o.
         rag_areas: list[Annotated[str, Catalog("rag_areas")]] | None = None
     """
     return Field(json_schema_extra={"x-catalog": name})
+
+
+def Textarea() -> Any:  # noqa: N802 — s.o.
+    """Fließtext: das Studio zeigt eine Textfläche statt einer Zeile (ST-2f).
+
+    Bis ST-2f entschied eine Namensliste im Studio (``MULTILINE_KEYS``) — per
+    Hand gemessen, und wo die Messung fehlte, plättete ein einzeiliges Feld
+    mehrzeilige Kernregeln (SF-2). Jetzt sagt es das Modell; der Wächter
+    ``tests/test_config_textarea_hints.py`` misst jeden langen Seed-Text und
+    jede lange Vorgabe dagegen. An einer Liste oder Map gehört der Hinweis an
+    den EINTRAG::
+
+        core_rule: Annotated[str, Textarea()] = ""
+        when_to_use: list[Annotated[str, Textarea()]] = []
+    """
+    return Field(json_schema_extra={"x-widget": "textarea"})
+
+
+def Primary() -> Any:  # noqa: N802 — s.o.
+    """Der Inhalt des Bereichs — das Studio stellt ihn vor die übrigen Felder (ST-4).
+
+    Bis ST-4 stand „Grundwerte" bzw. „Kopfangaben" zuerst und offen, der
+    Begrüßungstext und die Regeltexte dahinter und zugeklappt. Neben anderen
+    Hinweisen zu schreiben, pydantic behält beide::
+
+        greeting: Annotated[str, Textarea(), Primary()] = ""
+
+    Bewusst sparsam: der Wächter ``tests/test_config_primary_hint.py`` führt
+    die Liste — ein Hinweis an jedem Feld ordnete nichts mehr.
+    """
+    return Field(json_schema_extra={"x-primary": True})
+
+
+def Marker(target: str) -> Any:  # noqa: N802 — s.o.
+    """Eine Liste, die EINEN ihrer Einträge hervorhebt; der Wert steht im
+    Nachbarfeld ``target`` (ST-2i, Plan 2026-09-26 §9.3).
+
+    ``tour_reply`` muss wörtlich einem Start-Chip gleichen — als Freitext eine
+    Stolperfalle, die beim Speichern niemand prüft. Das Studio zeigt deshalb je
+    Eintrag ein Radio und schreibt den gewählten Text ins Nachbarfeld. Die
+    Auszeichnung gehört an die LISTE (anders als ``Catalog``); der Wächter
+    ``tests/test_config_markers.py`` hält fest, dass das Nachbarfeld existiert::
+
+        quick_replies: Annotated[list[str], Marker("tour_reply")] = []
+    """
+    return Field(json_schema_extra={"x-marker": target})

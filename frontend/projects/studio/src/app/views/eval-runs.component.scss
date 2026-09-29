@@ -19,16 +19,11 @@
 .er-field select {
   min-block-size: 2.25rem;
   padding: var(--st-1) var(--st-2);
-  border: 1px solid var(--st-rule-strong);
+  border: 1px solid var(--st-text-muted);
   border-radius: var(--st-radius);
   background: var(--st-panel);
   color: var(--st-text);
   font: inherit;
-}
-
-.er-field select:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
 }
 
 .er-reload,
@@ -60,18 +55,6 @@
   color: var(--st-danger-text);
 }
 
-.er-reload:focus-visible,
-.er-bulk:focus-visible,
-.er-clear-logs:focus-visible,
-.er-confirm:focus-visible,
-.er-cancel:focus-visible,
-.er-arm:focus-visible,
-.er-stop:focus-visible,
-.er-row:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
-}
-
 .er-reload:disabled,
 .er-bulk:disabled,
 .er-clear-logs:disabled,
@@ -98,6 +81,14 @@
   margin: 0;
   flex: 1 1 18rem;
   font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+// ST-7a: eigene Zeile vor den Knöpfen — sie gehört zur Frage, nicht daneben.
+.er-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.8125rem;
   line-height: 1.45;
 }
 
@@ -158,10 +149,26 @@
   font-size: 0.8125rem;
 }
 
+// Accent as TEXT holds 4.5:1 only on white — the row stays on the panel even on
+// hover (only its border turns accent).
 .er-mode {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-weight: 600;
-  color: var(--st-accent-text);
+  color: var(--st-accent);
+}
+
+// ST-7a: die Maschine als gerahmtes Wort — sie trennt Läufe, die sich nicht
+// ohne Weiteres vergleichen lassen. Unbekannt bleibt leise (gestrichelt).
+.er-engine {
+  padding: 0 var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  font-size: 0.75rem;
+}
+
+.er-engine--unknown {
+  border-style: dashed;
+  color: var(--st-text-muted);
 }
 
 // The state is a word first; the dot is the second, redundant signal (SC 1.4.1).
@@ -231,6 +238,25 @@
   font-size: 0.8125rem;
   line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+// ST-7c: Ankreuzen zum Vergleich — eine Zeile mit den Knöpfen darunter, gleich hoch.
+.er-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-1);
+  min-block-size: 2.25rem;
+  margin-block-start: var(--st-1);
+  margin-inline-end: var(--st-2);
+  padding-inline: var(--st-2);
+  border-radius: var(--st-radius);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.er-pick:has(input:focus-visible) {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 2px;
 }
 
 .er-arm {

@@ -16,6 +16,19 @@ Seitenbereich einbetten, und den Endpunkt `POST /api/agent` direkt ansprechen.
 Die Vorgabe ist bewusst `pattern`: ohne Pflege ändert sich am ausgelieferten
 Chatbot nichts.
 
+**Eine Ausnahme gilt in jeder Maschine:** Erzwingt das Sicherheits-Gate ein
+Muster (M01 bei Krise, M02 bei Drohung), beantwortet der Muster-Weg diesen Zug,
+auch bei `agent` (SF-1, 2026-09-26). Die Muster-Kennung des Zuges
+ist dann `M01` bzw. `M02`, nicht `AGENT`; die Pattern-Nutzung im
+Studio zählt ihn deshalb unter „Muster". Die Maschine selbst steht seit AG-1 im
+Debug-Block (`engine`, siehe unten), die Pattern-Nutzung wertet sie noch nicht
+aus. Ein erklärtes `result-schema` bleibt für diesen Zug ohne Wirkung:
+er liefert weder `result` noch einen Ende-Grund, also auch kein
+`boerdi:agent-result`. Bei einer Erzwingung bleiben außerdem die Schnellwege
+(Lernpfad, Canvas) in jeder Maschine aus (SF-1b), die Website-Tour überlässt
+Krise und Drohung dem Gate (SF-1c), und beide Schutzmuster erzeugen keine
+Quick-Replies (`quick_replies_mode: none`).
+
 ---
 
 ## 2. Agent-Schleife im Chat einschalten
@@ -25,7 +38,7 @@ Chatbot nichts.
 **Studio → Agent & Maschine → „Welche Maschine antwortet"** (Bereich `01-base/engine`)
 
 ```yaml
-mode: agent            # pattern | agent | hybrid
+mode: agent            # pattern | agent  (gespeichertes hybrid gilt als agent)
 
 agent:
   max_iterations: 30     # 1 . 50
@@ -33,7 +46,62 @@ agent:
   token_budget: 900000   # ≥ 1000
   write_mode: propose    # propose | execute
   safety: true
+  anonymous:             # AG-6: Deckel ohne angemeldete Person
+    max_iterations: 30   # 1 . 50, vorbelegt wie oben
+    deadline_s: 900      # 5 . 1800
+    token_budget: 900000 # ≥ 1000
+
+agent_rolle:             # AG-3: der Kopf des Agenten
+  rolle: |               # Rolle, Arbeitsweise, Antwortform (Vorgabe im Modell)
+    Du bist Boerdi, der Assistent von WirLernenOnline (WLO). …
+  schutzregeln: [R-05, R-08, R-13, R-15]   # Kennungen aus 01-base/guardrails
+
+muster_skills: false     # E-6: Skill-Werkzeuge auch in anderen Werkzeug-Mustern
 ```
+
+**`anonymous` (AG-6)** gilt im Chat für Züge, hinter denen keine angemeldete Person
+steht (kein persönlicher Zugangsblock; der öffentliche anonyme Block zählt nicht).
+Die Maschine wählt jeder Client über `X-Boerdi-Engine`. Vorbelegt ist sie mit den
+aktuellen Werten (Nutzer-Entscheid 2026-09-27: nicht hart deckeln, aber anbieten) —
+die Vorgabe ändert also nichts. Wer sie senkt, bremst anonyme Züge; jeder Wert wirkt
+als Minimum, ein anonymer Wert über dem normalen hebt nichts an, ein geleertes Feld
+heißt „wie angemeldet". Die K0-Messung als Anhalt: kein Agent-Zug brauchte mehr als
+75 s, 2 von 126 mehr als 400 000 Token. `/api/agent` ist nicht betroffen, er
+verlangt einen Aufruferschlüssel.
+
+Zwei Grenzen, die dazugehören (Review 2026-09-27):
+
+* **Wer die normalen Deckel über die Vorgabe hebt, hebt die anonymen mit an oder
+  leert sie.** Sonst bleiben anonyme Züge bei 30 Runden, 900 s und 900 000 Token —
+  das Minimum macht die alte Vorgabe dann still zum Deckel.
+* **„Angemeldet" prüft der Chatbot nur an der Form des Zugangsblocks.** Ein
+  gefälschter Block hebt die anonymen Deckel auf; der MCP-Server weist ihn zwar ab,
+  die Modellrunden bis dahin sind aber bezahlt. Die Mengenbremse gegen Missbrauch
+  bleibt das Rate-Limit (`RATE_LIMIT_CHAT`), nicht dieser Deckel.
+
+**`agent_rolle` (AG-3)** ist der Kopf jeder Agent-Kette im Chat und steht vor dem
+Master-Skill. Daraus und aus zwei bestehenden Studio-Bereichen setzt
+`services/agent_kopf.py` zusammen: die Rolle; die Anrede je Zielgruppe aus den
+Persona-Einstellungen (`formality`: Lehrkraft und Entscheider siezen, Lerner:innen
+duzen, Eltern und Redaktion wie die Person selbst); die Schutzregeln im Wortlaut der
+Leitplanken, nur die genannten Kennungen (D-5); „antworte in der Sprache der Person,
+sonst in der des Widgets". Die übrigen Leitplanken sind Arbeitsregeln der
+Muster-Maschine und gelten im Agenten nicht.
+
+**`muster_skills` (E-6)** gilt für die **Muster-Maschine**. Von Haus aus führen nur
+M08, M09, M10, M18, M19 und M20 die Skill-Werkzeuge `get_skill_registry` und
+`get_skill`. Mit dem Schalter bekommt jedes andere Muster, das ohnehin Werkzeuge
+nutzt, beide dazu — aber nur, wenn Skills im Spiel sind: die Seite oder das Gespräch
+meldet freigegebene Skills, oder ein Skill läuft gerade. Ob einer passt, entscheidet
+das Modell. Nie dazu kommen sie bei Krise und Drohung (M01/M02), bei den Mustern ohne
+Werkzeuge und bei einer Werkzeug-Sperre aus Safety oder Policy. Vorgabe aus. Kosten
+nur in Zügen mit Skills: rund 600 Token je Modellaufruf für die zwei Beschreibungen,
+dazu die Abrufe, wenn das Modell sie nutzt.
+
+Unabhängig vom Schalter stehen Ladeweg, Vorrang-Regel und „Laufender Skill" nur noch
+im Muster-Prompt, wenn der Zug die Werkzeuge hat. Die Übersicht der freigegebenen
+Skills bleibt, mit dem Satz, dass sich in diesem Zug keiner laden lässt. Bis dahin
+bekam ein Suchmuster die Anweisung „hol ihn mit `get_skill`" ohne `get_skill`.
 
 Wirkt ohne Neustart. Alle vier Deckel sind nötig: ein MCP-Aufruf steht gemessen
 bis 23 s, ohne Frist koennte ein Lauf mit 30 Runden eine halbe Stunde dauern.
@@ -78,14 +146,22 @@ X-Boerdi-Engine: agent
 Undeklariert gelesen, steht also **nicht** im OpenAPI-Dokument. Ein unbekannter
 Wert bricht nichts: er fällt auf die Vorgabe zurück und wird nur protokolliert.
 
+**`hybrid` ist entfernt** (K1-1, 2026-09-27: die K0-Messung zeigte ihn zwischen
+den beiden anderen Maschinen, ohne eigenen Mehrwert). Eine Einbettung, die ihn
+noch anfordert — Attribut, Kopfzeile oder gespeichertes `mode: hybrid` —, bekommt
+die Agent-Schleife, mit einer Warnung je Herkunft und Prozess im Log. Gold-Start
+und Lasttest nehmen ihn dagegen nicht mehr an (422): ein Mess-Lauf misst die
+Maschine, die er nennt.
+
 > **Zum Ausprobieren ohne Code:** auf jeder Demo-Seite (`/widget/classic`,
 > `/widget/inline`, `/widget/frameless`) steht im Bedienpult ein Schalter
 > **„Maschine"**.
 
 **Messen statt vermuten:** dieselbe Kopfzeile treibt die Golden-Suite v2 —
-`evals/run_golden.py --engine pattern|agent|hybrid` fährt je Engine einen Lauf
+`evals/run_golden.py --engine pattern|agent` fährt je Engine einen Lauf
 über 12 Anwendungsfall-Flows, `compare_golden.py` stellt zwei Läufe gegenüber
-(Checks + Latenz je Zug). Im Studio wählt der Gold-Start die Engine direkt.
+(Checks und Antwort-Struktur je Zug, keine Latenz — p50/p95 stehen nur im
+Bericht des einzelnen Laufs). Im Studio wählt der Gold-Start die Engine direkt.
 Details: `evals/README.md`.
 
 ---
@@ -219,9 +295,20 @@ abgeschnittener Lauf sähe von außen sonst aus wie einer, der fertig wurde.
 | `no_progress` | Stillstand: die Schleife kam nicht mehr voran |
 | `empty` | Das Modell lieferte dreimal weder Werkzeug noch Text |
 | `error` | Fehler in der Schleife |
+| `safety` | Das Sicherheits-Gate hat den Auftrag gestoppt, die Schleife lief nicht (AG-4 Teil B) |
 
 Die vier Deckel stehen in `01-base/engine`; `submit` und `text` sind die beiden
 Ziellinien.
+
+**Sicherheits-Gate (AG-4 Teil B, 2026-09-27).** Der Auftrag durchläuft vor allem
+anderen dasselbe Gate wie eine Chat-Nachricht (Regex, Moderation, Rechtsprüfung je
+Stufe; fällt eine LLM-Stufe aus, bleibt das Regex-Gate). Eine Krise bekommt den
+Krisentext aus dem Studio (`01-base/safety-config`, `crisis_message` und
+`crisis_message_en`; Vorgabe: an die Familie oder die Ansprechperson der Einrichtung
+wenden, ohne Telefonnummern), jedes andere hohe Risiko die Abweisung. Beides endet
+mit `stop_reason: "safety"`, ohne Vorabruf und ohne LLM-Lauf. Mittleres Risiko
+lässt den Lauf zu, ohne die gesperrten Werkzeuge. Der Chat antwortet auf eine Krise
+weiter über das Muster M01.
 
 **`empty` — der Aussetzer des Anbieters.** Kommt eine Antwort ohne
 Werkzeugaufruf *und* ohne Inhalt, ist das keine Ziellinie: die Schleife
@@ -364,9 +451,33 @@ wie ein Lasttest, nicht wie eine Suche.
 | `result` ist `null` | Kein `result_schema` mitgegeben — dann gibt es nur `text` |
 | Schreiben passiert nicht | `write_mode: execute` ohne persönliche Anmeldung → still auf `propose` zurückgefallen |
 
+## Maschine und Spur im Debug-Block (AG-1, 2026-09-26)
+
+- **`debug.engine`** nennt die Maschine, an die der Zug ging: `pattern` oder
+  `agent` (in Zügen vor K1-1 auch `hybrid`). Leer bleibt sie bei Zügen, die vor
+  jeder Maschine antworten (Tour, Kontext-Begrüßung, Direktaktionen,
+  Schreib-Abnahme). Ein Krisenzug nach
+  SF-1 trägt die gewählte Maschine; die Umleitung zeigt das Muster `M01`/`M02`.
+- **`debug.trace`** führt im Agent-Modus je Runde eine Zeile
+  `agent_round` und zum Schluss `agent_stop` mit Ende-Grund und Rundenzahl. Eine
+  Runde nennt ihre Werkzeuge in Aufrufreihenfolge, auch die virtuellen
+  (`zeige_dokument`, `liefere_ergebnis`, `wissen_suchen` …), dazu Dauer und Token.
+  Von den Argumenten stehen nur die **Namen** darin, nie die Werte: der
+  Debug-Block ist für jeden lesbar, der die Sitzungskennung hat, und ein Wert kann
+  Nutzerinhalt tragen. Das Debug-Panel des Widgets zeigt die Zeilen an. Der
+  Muster-Weg führt keine Runden-Spur.
+- **Zeile `skill`** (AG-5), in jeder Maschine: die Anleitung, die dieser Zug
+  geholt hat, mit Knoten-Kennung und Titel. Das sind Angaben aus dem
+  Repositorium und kein Nutzerinhalt; der Titel steht ohnehin in der Ansage über
+  der Antwort. Holt ein Zug zwei Anleitungen, steht nur die letzte da, und ein
+  fehlgeschlagener Abruf zählt nicht als geholt.
+- **Nutzungsbuchung:** `usage_events.engine` (Migration 0004) übernimmt die
+  Maschine aus dem Debug-Block. Auswertungen nach Maschine im Studio kommen mit
+  den Studio-Paketen ST-7 und ST-9.
+
 ## Master-Skill als Prompt-Kopf (2026-08-18)
 
-Im Agent- **und** Hybrid-Modus kann eine im Repositorium gepflegte
+Im Agent-Modus kann eine im Repositorium gepflegte
 Gesamtanleitung als stabiler Kopf des Systemprompts laufen — die Vorlage dafür
 ist [`docs/skills/vorgehen.md`](skills/vorgehen.md).
 
@@ -390,9 +501,43 @@ aber weder Leitplanken noch Sicherheitsregeln auf.
 
 **Wenn der Abruf scheitert** — MCP weg, Knoten gelöscht, leerer Text — läuft der
 Zug **ohne** Anleitung weiter, mit einer Warnung im Log. Ein Fehlschlag wird
-nicht zwischengespeichert, damit eine kurze Störung nicht eine Viertelstunde
-nachwirkt. Der Erfolgsfall bleibt 15 Minuten im Prozess: je Zug erneut zu holen
-wäre bei 1,2–23,3 s je MCP-Aufruf unbrauchbar.
+nicht zwischengespeichert, damit eine kurze Störung nicht fünf Minuten
+nachwirkt. Der Erfolgsfall bleibt 5 Minuten im Prozess (seit 2026-08-20, vorher
+15; `services/master_skill.py`): je Zug erneut zu holen wäre bei 1,2–23,3 s je
+MCP-Aufruf unbrauchbar.
+
+**Was in den Master-Skill gehört (2026-09-28).** Er ist die Steuerfläche des
+Agenten, die die Redaktion ohne Deployment ändert — so war er angelegt (Auftrag
+2026-08-18: auch „die chatbot-eigenen Anteile … Ergebnisfenster,
+Schnellantwort-Pillen, Struktur"). Hinein gehört deshalb, was flexibel bleiben
+muss: das Vorgehen je Anliegen, Anrede-Regel und Arbeitsweise je Zielgruppe,
+Suchstrategie, Didaktik und die Bedienung der Chat-Flächen. Beschreibt er
+Mechanik, muss sie für den **Agent-Zug** stimmen — eine Dokument-Box entsteht dort
+nur über `zeige_dokument`, der Überschriften-Rückfall gilt allein im Muster-Weg.
+Woanders hin gehört:
+
+| Was | Wo | Warum |
+|---|---|---|
+| Zuordnung Zielgruppe → du/Sie | Studio, Personas (`formality`); der Kopf listet sie | eine Quelle für beide Maschinen — die Kopien in den Mustern M09/M15 sind veraltet |
+| was der Agent vom vorigen Zug sieht | Code (Verlauf, gespeicherte Dokumente) | kein Text wirkt auf etwas, das nicht im Prompt steht |
+| ob Karten und Schnellantworten erscheinen | Code | ein Fehler dort ist keiner des Textes |
+| Schutz-Umleitung, Schreib-Bestätigung, Ansage-Zeile | Code | muss auch ohne Master-Skill gelten |
+
+**Übertragen.** `vorgehen.md` ist der Rumpf des Knotens; Titel, `nodeId` und den
+Abschnitt „Aktivierung" davor erzeugt der MCP-Server. Die Redaktion ersetzt den
+Rumpf im Knoten — im Studio über „Im Editor bearbeiten" auf der Master-Skill-Karte
+(md-editor des Repositoriums) —, der Chat übernimmt ihn nach spätestens fünf Minuten
+oder sofort über „Neu laden" auf der Agent-Seite des Studios. Wächter-Tests
+(`test_master_skill_vorlage.py`, dazu drei in `test_mcp_tool_defs.py`) halten die
+Regeln aus gemessenen Fehlern in der Vorlage fest.
+
+**Nach dem Übertragen prüfen.** `uv run python scripts/check_master_skill.py` (aus
+`backend/`, nur lesend) holt den Knoten wie der Chat und wendet die Wächter aus
+`test_master_skill_vorlage.py` auf den Text unter dem Vorspann an; Rückgabe 0 = alle
+Regeln erfüllt, 1 = mindestens eine verletzt, 2 = nicht abrufbar. Die drei
+Werkzeug-Wächter in `test_mcp_tool_defs.py` laufen dort nicht mit. Der md-editor
+formatiert beim Speichern um (Absätze einzeilig, `**M09**` statt `(M09)`); die
+Wächter tragen beide Schreibweisen.
 
 ## Interne Wissensdatenbank (2026-08-18)
 
@@ -402,7 +547,7 @@ also jede Frage nach WLO, OER oder edu-sharing ins Modellgedächtnis. Seither
 liegt `wissen_suchen` im Werkzeugsatz — sichtbar, sobald in
 `05-knowledge/rag-config` Bereiche gepflegt sind.
 
-| | Muster-Weg | Agent und Hybrid |
+| | Muster-Weg | Agent-Schleife |
 |---|---|---|
 | Werkzeug | `query_knowledge(area, query)` — **ein** Bereich, Pflichtfeld | `wissen_suchen(frage, bereiche?, ohne?)` — ohne Angabe **alle** |
 | Vorabruf | `mode: always`-Bereiche vor dem ersten Modellzug | keiner |
@@ -429,7 +574,7 @@ Schalter, und sie meinen verschiedene Maschinen:
 ```yaml
 Interna:
   mode: on-demand   # Muster-Weg: Vorabruf oder Abruf auf Zuruf
-  agent: false      # Agent + Hybrid: gar nicht
+  agent: false      # Agent-Schleife: gar nicht
 ```
 
 `agent` fehlt = `true`. Die Vorgabe bleibt also „alle Bereiche für den Agenten";
@@ -454,7 +599,7 @@ eine Freigabe im Betrieb.
 ## Was die Einbettung hart überschreibt (Paket O, 2026-08-18)
 
 Drei Angaben reisen seit diesem Tag im `environment` mit und wirken **nur** in
-Agent und Hybrid:
+der Agent-Schleife:
 
 | Attribut | Wirkung |
 |---|---|

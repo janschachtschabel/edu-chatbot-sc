@@ -1,0 +1,113 @@
+.pp {
+  margin-block-end: var(--st-3);
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.pp > summary {
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.pp > summary:focus-visible {
+  border-radius: var(--st-radius);
+}
+
+.pp[open] > summary {
+  margin-block-end: var(--st-3);
+}
+
+.pp-hint {
+  margin: 0 0 var(--st-3);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+}
+
+.pp-kpis {
+  display: grid;
+  gap: var(--st-2) var(--st-4);
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  margin: 0 0 var(--st-4);
+}
+
+.pp-kpis dt {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.pp-kpis dd {
+  margin: 0;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+// Bezugsblock für alles Positionierte darin — sonst verbreitert eine breite
+// Matrix die ganze Seite statt nur ihren Rahmen (vgl. das Lauf-Detail).
+.pp-scroll {
+  position: relative;
+  overflow-x: auto;
+  margin-block-end: var(--st-4);
+}
+
+.pp-matrix,
+.pp-tools {
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-matrix caption,
+.pp-tools caption {
+  padding-block-end: var(--st-2);
+  text-align: start;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.pp-matrix th,
+.pp-matrix td,
+.pp-tools th,
+.pp-tools td {
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid var(--st-rule);
+}
+
+.pp-matrix th,
+.pp-tools th {
+  font-weight: 400;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.pp-matrix td {
+  min-inline-size: 2rem;
+  text-align: center;
+}
+
+// Treffer, Fehlgriff, nichts — die Zahl steht immer da; die Farbe hilft nur
+// beim Überfliegen.
+.pp-hit {
+  background: var(--st-accent-soft);
+  font-weight: 600;
+}
+
+.pp-miss {
+  color: var(--st-danger-text);
+  font-weight: 600;
+}
+
+.pp-zero {
+  color: var(--st-text-muted);
+}
+
+.pp-tools td {
+  text-align: end;
+}
+
+.pp-weak td {
+  color: var(--st-danger-text);
+  font-weight: 600;
+}

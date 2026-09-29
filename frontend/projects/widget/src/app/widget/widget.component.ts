@@ -198,8 +198,8 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    *
    * Drei Zustaende: `"on"` an, `"off"` aus, **fehlt** = die Vorgabe des
    * Betreibers (`MASTER_SKILL_ENABLED`). Das nackte Attribut ohne Wert gilt als
-   * „fehlt" — Begruendung an `_attrTriState`. Wirkt nur mit den Maschinen
-   * `agent` und `hybrid`; der Mustermodus hat seine Anweisungen aus der Config.
+   * „fehlt" — Begruendung an `_attrTriState`. Wirkt nur mit der Maschine
+   * `agent`; der Mustermodus hat seine Anweisungen aus der Config.
    */
   readonly masterSkill = input('');
   /**
@@ -207,7 +207,7 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
    * `curate` (auch anlegen und einsortieren, weiterhin zweistufig) oder `full`
    * (Vorgabe). Der Wert wirkt zweifach: er nimmt die Werkzeuge aus der Liste
    * UND sagt es dem Modell — sonst verspraeche es eine Aenderung, die es gleich
-   * nicht ausfuehren kann. Nur mit `engine=agent|hybrid`.
+   * nicht ausfuehren kann. Nur mit `engine=agent`.
    */
   readonly toolMode = input('');
   /**

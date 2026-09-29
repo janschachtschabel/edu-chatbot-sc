@@ -1,0 +1,146 @@
+<details class="cs" [open]="open()">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
+  </summary>
+
+  <div class="cs-body ags">
+    <form #suchform class="ags-form" novalidate (submit)="$event.preventDefault(); submit()">
+      <fieldset class="ags-mode">
+        <legend class="ags-label">{{ t('agentSkills.mode') }}</legend>
+        <label class="ags-radio">
+          <input
+            type="radio"
+            name="ags-mode"
+            value="collection"
+            [checked]="mode() === 'collection'"
+            (change)="setMode('collection')"
+          />
+          {{ t('agentSkills.mode.collection') }}
+        </label>
+        <label class="ags-radio">
+          <input
+            type="radio"
+            name="ags-mode"
+            value="term"
+            [checked]="mode() === 'term'"
+            [disabled]="searchOff()"
+            [attr.aria-describedby]="searchOff() ? 'ags-search-off' : null"
+            (change)="setMode('term')"
+          />
+          {{ t('agentSkills.mode.term') }}
+        </label>
+        @if (searchOff()) {
+          <p class="ags-note ags-search-off" id="ags-search-off" role="note">{{ t('agentSkills.searchOff') }}</p>
+        }
+      </fieldset>
+
+      <label class="ags-label" for="ags-collection">
+        {{ mode() === 'term' ? t('agentSkills.termField') : t('agentSkills.field') }}
+      </label>
+      <p class="ags-hint" id="ags-collection-hint">
+        {{ mode() === 'term' ? t('agentSkills.termHint') : t('agentSkills.fieldHint') }}
+      </p>
+      <div class="ags-row">
+        <input
+          #collectionField
+          id="ags-collection"
+          class="ags-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          [value]="mode() === 'term' ? term() : collection()"
+          [attr.aria-invalid]="fieldError() ? 'true' : null"
+          [attr.aria-describedby]="fieldError() ? 'ags-collection-hint ags-collection-error' : 'ags-collection-hint'"
+          (input)="onInput($event)"
+        />
+        <button type="submit" class="cs-btn cs-btn--primary" [disabled]="loading()">
+          @if (mode() === 'term') {
+            {{ loading() ? t('agentSkills.searching') : t('agentSkills.search') }}
+          } @else {
+            {{ loading() ? t('agentSkills.loading') : t('agentSkills.lookup') }}
+          }
+        </button>
+      </div>
+      @if (fieldError()) {
+        <p class="ags-field-error" id="ags-collection-error" role="alert">{{ fieldError() }}</p>
+      }
+    </form>
+
+    <!-- Das Suchergebnis („N gefunden“, „Keine Skills zu …“) steht NUR hier —
+         sichtbar und vorgelesen zugleich, nicht noch einmal darunter. -->
+    <p class="cs-status" aria-live="polite">{{ status() }}</p>
+
+    @if (error()) {
+      <p class="cs-state cs-state--error" role="alert">{{ error() }}</p>
+    }
+
+    @if (found(); as f) {
+      @if (f.truncated) {
+        <p class="ags-note" role="note">{{ t('agentSkills.searchTruncated', { count: f.entries.length }) }}</p>
+      }
+    }
+
+    @if (result(); as r) {
+      @if (r.registry; as dokument) {
+        <p class="ags-doc">
+          {{ t('agentSkills.document') }}
+          <a [href]="dokument.url" target="_blank" rel="noopener noreferrer">
+            {{ dokument.title || dokument.node_id }}<span class="sr"> {{ t('agentSkills.newTab') }}</span>
+          </a>
+        </p>
+        <p class="ags-count">{{ plural('agentSkills.count', r.entries.length) }}</p>
+        @if (r.truncated) {
+          <p class="ags-note" role="note">{{ t('agentSkills.truncated') }}</p>
+        }
+      } @else {
+        <p class="cs-state ags-empty">{{ reasonText(r.reason) }}</p>
+      }
+    }
+
+    <!-- Eine Liste für Verzeichnis und Suche: dieselben Einträge, dieselben Links. -->
+    @if (eintraege().length > 0) {
+      <ul class="ags-list">
+        <!-- $index: ein Dokument darf denselben Skill zweimal nennen. -->
+        @for (eintrag of eintraege(); track $index) {
+          <li class="ags-entry">
+            <a class="ags-title" [href]="eintrag.url" target="_blank" rel="noopener noreferrer">
+              {{ eintrag.title || eintrag.node_id }}<span class="sr"> {{ t('agentSkills.newTab') }}</span>
+            </a>
+            @if (eintrag.edit_url) {
+              <a class="ags-edit" [href]="eintrag.edit_url" target="_blank" rel="noopener noreferrer">
+                {{ t('agentSkills.edit') }}<span class="sr">{{ t('agentSkills.editOf', { title: eintrag.title || eintrag.node_id }) }} {{ t('agentSkills.newTab') }}</span>
+              </a>
+            }
+            @if (eintrag.context) {
+              <span class="ags-context">{{ t('agentSkills.context', { context: eintrag.context }) }}</span>
+            }
+            @if (eintrag.description) {
+              <p class="ags-desc">{{ eintrag.description }}</p>
+            }
+            @if (eintrag.keywords.length > 0) {
+              <p class="ags-keywords">{{ t('agentSkills.keywords', { keywords: list(eintrag.keywords) }) }}</p>
+            }
+          </li>
+        }
+      </ul>
+    }
+
+    @if (result(); as r) {
+      @if (r.registry && r.unresolved.length > 0) {
+        <div class="ags-unresolved">
+          <h4 class="ags-sub">{{ t('agentSkills.unresolved') }}</h4>
+          <ul>
+            @for (offen of r.unresolved; track $index) {
+              @if (offen.node_id) {
+                <li>{{ offen.title || offen.node_id }} <code>{{ offen.node_id }}</code></li>
+              } @else {
+                <li>{{ t('agentSkills.unresolvedNoNode', { title: offen.title }) }}</li>
+              }
+            }
+          </ul>
+        </div>
+      }
+    }
+  </div>
+</details>

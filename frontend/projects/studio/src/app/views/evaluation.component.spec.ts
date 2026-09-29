@@ -6,10 +6,12 @@ import {
 } from "@angular/common/http/testing";
 import { provideZonelessChangeDetection } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { provideRouter } from "@angular/router";
 import { describe, expect, it } from "vitest";
 
 import { routes } from "../app.routes";
 import { STUDIO_LOCALE_STORAGE_KEY } from "../i18n/studio-language.service";
+import { AREA_SCHEMAS } from "../schema-form/area-schemas.fixture";
 import { EvaluationComponent } from "./evaluation.component";
 
 const RUNS_URL = "/studio/api/eval/runs";
@@ -63,6 +65,8 @@ async function mount(
       provideZonelessChangeDetection(),
       provideHttpClient(withXhr()),
       provideHttpClientTesting(),
+      // ST-9: der Gold-Flow-Abschnitt verlinkt auf den Rohtext
+      provideRouter([]),
     ],
   });
   const fixture = TestBed.createComponent(EvaluationComponent);
@@ -99,6 +103,7 @@ describe("EvaluationComponent", () => {
       "Läufe",
       "Trends",
       "Pattern-Nutzung",
+      "Gold-Flows",
     ]);
     // Trends must not fetch before it is opened.
     h.http.verify();
@@ -116,6 +121,7 @@ describe("EvaluationComponent", () => {
       "Runs",
       "Trends",
       "Pattern usage",
+      "Gold flows",
     ]);
   });
 
@@ -157,6 +163,53 @@ describe("EvaluationComponent", () => {
     await settle(h);
 
     expect(h.el.querySelector("studio-eval-run-detail")).toBeNull();
+  });
+
+  it("bringt den Fokus beim Schließen des Details zur Zeile des Laufs zurück", async () => {
+    // Das Detail steht unter der Liste; ohne Rücksprung landete man nach dem
+    // Schließen irgendwo unten auf der Seite.
+    const h = await mount([{ id: "eval-abc" }, { id: "eval-def" }]);
+    const rows = h.el.querySelectorAll<HTMLButtonElement>("#panel-laeufe .er-row");
+    rows[1].click();
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === "/studio/api/eval/runs/eval-def").flush({
+      id: "eval-def", created_at: "2026-07-26T10:00:00Z", completed_at: null,
+      status: "done", mode: "golden", engine: "", config_slug: "", personas: [],
+      intents: [], turns_per_conv: 0, judge_model: "", simulator_model: "",
+      total_turns: 0, avg_score: null, error_message: null, summary: {},
+      conversations: [],
+    });
+    await settle(h);
+
+    Array.from(h.el.querySelectorAll("button"))
+      .find((b) => b.textContent?.trim() === "Schließen")!.click();
+    await settle(h);
+
+    expect(document.activeElement).toBe(
+      h.el.querySelectorAll<HTMLButtonElement>("#panel-laeufe .er-row")[1]);
+  });
+
+  it("öffnet den Vergleich der Läufe, die die Liste gewählt hat (ST-7c)", async () => {
+    const h = await mount([{ id: "eval-a" }, { id: "eval-b" }]);
+    const boxes = h.el.querySelectorAll<HTMLInputElement>("#panel-laeufe .er-pick input");
+    boxes[0].click();
+    boxes[1].click();
+    await h.fixture.whenStable();
+    Array.from(h.el.querySelectorAll("button"))
+      .find((b) => b.textContent?.trim() === "Gewählte vergleichen")!.click();
+    await h.fixture.whenStable();
+
+    const req = h.http.expectOne((r) => r.url === "/studio/api/eval/compare");
+    expect(req.request.params.get("ids")).toBe("eval-a,eval-b");
+    req.flush({ engines: {}, rules: {}, currency: null, conditions: [], runs: [],
+                warnings: [] });
+    await settle(h);
+    expect(h.el.querySelector("studio-eval-compare")).toBeTruthy();
+
+    Array.from(h.el.querySelectorAll("button"))
+      .find((b) => b.textContent?.trim() === "Vergleich schließen")!.click();
+    await settle(h);
+    expect(h.el.querySelector("studio-eval-compare")).toBeNull();
   });
 
   it("schließt das Detail eines Laufs, den die Liste gelöscht hat (Befund 2026-08-22)", async () => {
@@ -371,11 +424,56 @@ describe("EvaluationComponent", () => {
 
   it("wires each panel to its tab for assistive technology", async () => {
     const h = await mount();
-    for (const id of ["laeufe", "trends", "pattern"]) {
+    for (const id of ["laeufe", "trends", "pattern", "goldflows"]) {
       const panel = h.el.querySelector(`#panel-${id}`)!;
       expect(panel.getAttribute("role")).toBe("tabpanel");
       expect(panel.getAttribute("aria-labelledby")).toBe(`tab-${id}`);
       expect(panel.getAttribute("tabindex")).toBe("0");
     }
+  });
+
+  // ── ST-9: die Gold-Flows neben den Läufen, die sie abspielen ──────────
+
+  async function goldFlowsOeffnen(h: Harness): Promise<void> {
+    tabs(h)[3].click();
+    await settle(h);
+    h.http.expectOne("/studio/api/config/schema/eval/gold-flows")
+      .flush(AREA_SCHEMAS["eval/gold-flows"]);
+    h.http.expectOne("/studio/api/config/data/eval/gold-flows")
+      .flush({ area: "eval/gold-flows", data: { version: 1, flows: [] }, type: "yaml" });
+    await settle(h);
+  }
+
+  it("bearbeitet die Gold-Flows im vierten Reiter (ST-9)", async () => {
+    // Bis ST-9 nur als Dateiname unter „Alle Bereiche“ — neben einer Seite,
+    // die genau diese Flows startet.
+    const h = await mount();
+    await goldFlowsOeffnen(h);
+    const panel = h.el.querySelector("#panel-goldflows")!;
+    expect(panel.hasAttribute("hidden")).toBe(false);
+    expect(panel.querySelector("studio-area-section .cs-title")?.textContent).toContain(
+      "Gold-Flows",
+    );
+  });
+
+  it("liest die Flow-Liste des Starts neu, wenn man von den Gold-Flows zurückkommt", async () => {
+    // Sonst stünde nach dem Speichern eines neuen Flows die alte Liste im
+    // Start-Formular — auf derselben Seite.
+    const h = await mount();
+    await goldFlowsOeffnen(h);
+    tabs(h)[0].click();
+    await settle(h);
+    h.http.expectOne((r) => r.url === FLOWS_URL).flush({ flows: [], count: 0 });
+    await settle(h);
+  });
+
+  it("meldet ungespeicherte Änderungen der Gold-Flows", async () => {
+    const h = await mount();
+    await goldFlowsOeffnen(h);
+    const ev = h.fixture.componentInstance;
+    expect(ev.dirty()).toBe(false);
+    ev.goldFlows()!.editor.setDoc({ version: 2, flows: [] });
+    await settle(h);
+    expect(ev.dirty()).toBe(true);
   });
 });

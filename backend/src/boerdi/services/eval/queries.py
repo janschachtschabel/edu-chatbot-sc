@@ -15,19 +15,26 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.models import EvalRun
+from boerdi.services.eval.run_engine import engine_matches, run_engine
+from boerdi.services.session_origin import scope_sql
 
 
 def _iso(dt: datetime | None) -> str | None:
     return dt.isoformat() if dt else None
 
 
-async def list_runs(session: AsyncSession, limit: int) -> dict[str, Any]:
-    """Recent runs, newest first. ALT list shape reconstructed from JSONB."""
-    rows = (
-        await session.execute(
-            select(EvalRun).order_by(EvalRun.created_at.desc()).limit(limit)
-        )
-    ).scalars().all()
+async def list_runs(
+    session: AsyncSession, limit: int, engine: str | None = None,
+) -> dict[str, Any]:
+    """Recent runs, newest first. ALT list shape reconstructed from JSONB.
+
+    ``engine`` (ST-7a) filters in SQL, before the limit — filtering the loaded
+    window afterwards would hide older runs of that engine behind newer ones.
+    """
+    stmt = select(EvalRun).order_by(EvalRun.created_at.desc()).limit(limit)
+    if engine:
+        stmt = stmt.where(engine_matches(engine))
+    rows = (await session.execute(stmt)).scalars().all()
     runs: list[dict[str, Any]] = []
     for r in rows:
         config = r.config or {}
@@ -39,6 +46,7 @@ async def list_runs(session: AsyncSession, limit: int) -> dict[str, Any]:
             "completed_at": _iso(r.completed_at),
             "status": r.status,
             "mode": r.mode,
+            "engine": run_engine(config),
             "config_slug": config.get("config_slug", ""),
             "total_turns": totals.get("total_turns", 0),
             "avg_score": totals.get("avg_score"),
@@ -66,6 +74,7 @@ async def get_run(session: AsyncSession, run_id: str) -> dict[str, Any]:
         "completed_at": _iso(r.completed_at),
         "status": r.status,
         "mode": r.mode,
+        "engine": run_engine(config),
         "config_slug": config.get("config_slug", ""),
         "personas": config.get("personas", []),
         "intents": config.get("intents", []),
@@ -80,19 +89,24 @@ async def get_run(session: AsyncSession, run_id: str) -> dict[str, Any]:
     }
 
 
-async def get_trends(session: AsyncSession, limit: int) -> dict[str, Any]:
+async def get_trends(
+    session: AsyncSession, limit: int, engine: str | None = None,
+) -> dict[str, Any]:
     """Cross-run trend series over the last ``limit`` completed runs (ALT port).
 
     Reads only summaries (``classification_metrics``); transcripts stay untouched.
+    ``engine`` (ST-7a) narrows to one engine before the limit: a series mixing
+    both engines shows every switch between them as a jump in quality.
     """
-    rows = (
-        await session.execute(
-            select(EvalRun)
-            .where(EvalRun.status == "done")
-            .order_by(EvalRun.created_at.desc())
-            .limit(limit)
-        )
-    ).scalars().all()
+    stmt = (
+        select(EvalRun)
+        .where(EvalRun.status == "done")
+        .order_by(EvalRun.created_at.desc())
+        .limit(limit)
+    )
+    if engine:
+        stmt = stmt.where(engine_matches(engine))
+    rows = (await session.execute(stmt)).scalars().all()
 
     runs_meta: list[dict[str, Any]] = []
     pattern_trend: dict[str, list[dict[str, Any]]] = {}
@@ -114,6 +128,7 @@ async def get_trends(session: AsyncSession, limit: int) -> dict[str, Any]:
             "created_at": created_at,
             "completed_at": _iso(r.completed_at),
             "mode": r.mode,
+            "engine": run_engine(config),
             "config_slug": config.get("config_slug", ""),
             "total_turns": totals.get("total_turns", 0),
             "avg_score": totals.get("avg_score"),
@@ -217,10 +232,10 @@ async def pattern_usage_stats(
         except ValueError as e:
             raise HTTPException(400, f"invalid 'since' timestamp: {since!r}") from e
         conds.append("created_at >= :since")
-    if scope == "eval":
-        conds.append("session_id LIKE 'eval-%'")
-    elif scope == "production":
-        conds.append("session_id NOT LIKE 'eval-%'")
+    # ST-9: dieselbe Herkunft wie Analyse, Kosten und Sessions — `production`
+    # schliesst seitdem auch Lasttest-Sitzungen aus
+    if origin := scope_sql(scope):
+        conds.append(origin)
     where_sql = ("WHERE " + " AND ".join(conds)) if conds else ""
 
     triples = [

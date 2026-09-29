@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from boerdi.api.schemas import (
     ChatRequest,
     ClassificationResult,
@@ -156,6 +158,30 @@ def test_die_boxen_des_musterwegs_kommen_aus_dem_session_state(monkeypatch):
     assert c.pbr[1]["gelieferte_dokumente"] == [_BOX]
 
 
+@pytest.mark.parametrize("quelle", ["schleife", "musterweg"])
+def test_die_boxen_stehen_nicht_im_sitzungszustand(monkeypatch, quelle):
+    """Review 2026-09-29: bis dahin legte ``persist`` die gelieferten Boxen unter
+    ``_last_documents`` in den Sitzungszustand — vorbei am Datenschutz-Schalter
+    ``logging.messages`` und an jedem Löschen der Nachrichten; ein Zeugnis samt
+    Namen blieb stehen. Sie reisen jetzt mit der gespeicherten Antwort
+    (``turn_persist``), der nächste Zug liest sie aus dem Verlauf."""
+    _patch(monkeypatch)
+    gesehen: dict = {}
+
+    async def _fake_bd(*_a, **k):
+        gesehen["dokumente"] = k["session_state"]["entities"].get("_last_documents")
+        return "DEBUG_SENTINEL"
+
+    monkeypatch.setattr(persist_mod, "build_debug_and_update_session", _fake_bd)
+    ctx = _ctx()
+    if quelle == "schleife":
+        ctx.gelieferte_dokumente = [dict(_BOX)]
+    else:
+        ctx.session_state["_gelieferte_dokumente"] = [dict(_BOX)]
+    asyncio.run(persist(ctx, _SESSION))
+    assert gesehen["dokumente"] is None
+
+
 def test_der_merker_gehoert_diesem_zug(monkeypatch):
     """Bliebe er im ``session_state`` stehen, zeigte der nächste Zug dieselbe
     Box noch einmal — dieselbe Begründung wie bei ``_write_preview``."""
@@ -251,3 +277,18 @@ def test_ein_ende_ohne_ergebnis_wird_trotzdem_gemeldet(monkeypatch):
     asyncio.run(persist(ctx, _SESSION))
     assert ctx.response.result is None
     assert ctx.response.result_stop_reason == "text"
+
+
+def test_maschine_und_spur_gehen_in_den_debug_bau(monkeypatch):
+    """AG-1: die Maschine kommt aus dem Graphen, die Spur legt ``respond_agent``
+    an ``ctx.debug`` ab. Beide muessen den Neubau des Debug-Blocks erreichen,
+    der ``trace`` bisher fest leer setzte."""
+    from boerdi.api.schemas import TraceEntry
+
+    c = _patch(monkeypatch)
+    ctx = _ctx()
+    ctx.debug.trace = [TraceEntry(step="agent_stop", label="Ende: text")]
+    asyncio.run(persist(ctx, _SESSION, engine="agent"))
+    _args, kwargs = c.bd
+    assert kwargs["engine"] == "agent"
+    assert kwargs["trace"] == ctx.debug.trace

@@ -18,12 +18,15 @@ import {
 } from '@angular/core';
 
 import { ChoicesApi } from '../core/choices-api.service';
+import { describeProblem, type FieldProblem, pathKey } from '../core/field-problems';
+import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
+import { fieldAt } from './field-at';
 import { type FormSection, formSections } from './form-sections';
 import { removeAt, renameKeyAt, setAt } from './form-value';
 import type { JsonSchema } from './json-schema';
 import { pickFields } from './pick-fields';
-import { type FormEdit, SchemaFieldComponent } from './schema-field.component';
+import { type DocumentEdit, type FormEdit, SchemaFieldComponent } from './schema-field.component';
 import { rootField, type SchemaField } from './schema-to-fields';
 
 @Component({
@@ -36,17 +39,27 @@ import { rootField, type SchemaField } from './schema-to-fields';
         keys: unmapped().join(', '),
       }) }}</p>
     }
+    @if (problemsElsewhere().length) {
+      <p class="sf-note sf-error">{{ t('schemaForm.problemsElsewhere', {
+        list: problemsElsewhere().join('; '),
+      }) }}</p>
+    }
     @if (sections().length) {
       @for (section of sections(); track section.id) {
         <details class="sf-section" [open]="$first">
           <summary class="sf-section-head">
-            {{ section.key || t('schemaForm.basics') }}
+            @let kopf = sectionHead(section);
+            {{ kopf.label }}
+            @if (kopf.key) {
+              <span class="sf-key">{{ kopf.key }}</span>
+            }
           </summary>
           <studio-schema-field
             [field]="section.field"
             [path]="section.basePath"
             [value]="valueAt(section.basePath)"
             [idPrefix]="idPrefix()"
+            [problems]="problemTexts()"
             (edit)="apply($event)"
           />
         </details>
@@ -57,6 +70,7 @@ import { rootField, type SchemaField } from './schema-to-fields';
         [path]="[]"
         [value]="value()"
         [idPrefix]="idPrefix()"
+        [problems]="problemTexts()"
         (edit)="apply($event)"
       />
     }
@@ -91,10 +105,13 @@ import { rootField, type SchemaField } from './schema-to-fields';
 export class SchemaFormComponent {
   private readonly lang = inject(StudioLanguageService);
   protected readonly choices = inject(ChoicesApi);
+  private readonly format = inject(StudioFormat);
   protected readonly plural = this.lang.plural;
   protected readonly t = this.lang.t;
 
   readonly schema = input.required<JsonSchema>();
+  /** What the server refused at the last save (ST-2e) — shown at each field. */
+  readonly problems = input<readonly FieldProblem[]>([]);
   readonly value = input.required<Record<string, unknown>>();
   /** Makes `<label for>` ids unique — the area key, so they are stable too. */
   readonly idPrefix = input('sf');
@@ -126,6 +143,17 @@ export class SchemaFormComponent {
     this.visiblePaths() ? [] : formSections(this.field()),
   );
 
+  /** Die Meldungen, die an einem Feld stehen können: Pfad → Satz (ST-2e). */
+  readonly problemTexts = computed<ReadonlyMap<string, string>>(() => new Map(
+    this.problems()
+      .filter((problem) => fieldAt(this.field(), problem.path))
+      .map((problem) => [pathKey(problem.path), this.describe(problem)]),
+  ));
+  /** … und die ohne ein Feld, das sie tragen könnte — über dem Formular. */
+  readonly problemsElsewhere = computed<readonly string[]>(() => this.problems()
+    .filter((problem) => !fieldAt(this.field(), problem.path))
+    .map((problem) => `${pathKey(problem.path)}: ${this.describe(problem)}`));
+
   /** Die Kataloge, aus denen dieses Schema Vorschläge zieht (S4). */
   readonly catalogsInUse = computed<readonly string[]>(() => [
     ...collectCatalogs(this.field(), new Set<string>()),
@@ -140,6 +168,24 @@ export class SchemaFormComponent {
   private readonly primeCatalogs = effect(() => {
     if (this.catalogsInUse().length > 0) void this.choices.prime();
   });
+
+  /**
+   * Kopf eines Abschnitts (ST-1): die Katalog-Beschriftung seines Feldes mit
+   * dem Schlüssel klein dahinter, wie am Feld selbst. Ohne Katalogtext bleibt
+   * der Schlüssel die Überschrift; der Sammel-Abschnitt heißt „Grundwerte".
+   */
+  protected sectionHead(section: FormSection): { label: string; key: string | null } {
+    if (!section.key) return { label: this.t('schemaForm.basics'), key: null };
+    const feld = section.field.children?.find((child) => child.key === section.key);
+    const text = feld?.textKey ? `${feld.textKey}.label` : null;
+    return text && this.lang.has(text)
+      ? { label: this.t(text), key: section.key }
+      : { label: section.key, key: null };
+  }
+
+  private describe(problem: FieldProblem): string {
+    return describeProblem(problem, this.t, this.format.decimal);
+  }
 
   /** Der Ausschnitt des Dokuments, an dem ein Abschnitt ansetzt. */
   protected valueAt(path: readonly string[]): unknown {
@@ -163,21 +209,11 @@ export class SchemaFormComponent {
   readonly errorsChange = output<readonly string[]>();
 
   apply(edit: FormEdit): void {
-    const current = this.value();
-    switch (edit.kind) {
-      case 'set':
-        this.valueChange.emit(setAt(current, edit.path, edit.value));
-        return;
-      case 'remove':
-        this.valueChange.emit(removeAt(current, edit.path));
-        return;
-      case 'rename':
-        this.valueChange.emit(renameKeyAt(current, edit.path, edit.from, edit.to));
-        return;
-      case 'field-error':
-        this.setFieldError(edit.path.join('.') || this.lang.t('schemaForm.root'), edit.message);
-        return;
+    if (edit.kind === 'field-error') {
+      this.setFieldError(edit.path.join('.') || this.lang.t('schemaForm.root'), edit.message);
+      return;
     }
+    this.valueChange.emit(applyEdit(this.value(), edit));
   }
 
   private setFieldError(where: string, message: string): void {
@@ -186,6 +222,20 @@ export class SchemaFormComponent {
     else delete next[where];
     this.fieldErrors.set(next);
     this.errorsChange.emit(Object.keys(next));
+  }
+}
+
+/** A document change applied — a `batch` one after the other to the SAME document. */
+function applyEdit(doc: Record<string, unknown>, edit: DocumentEdit): Record<string, unknown> {
+  switch (edit.kind) {
+    case 'set':
+      return setAt(doc, edit.path, edit.value);
+    case 'remove':
+      return removeAt(doc, edit.path);
+    case 'rename':
+      return renameKeyAt(doc, edit.path, edit.from, edit.to);
+    case 'batch':
+      return edit.edits.reduce(applyEdit, doc);
   }
 }
 

@@ -40,6 +40,7 @@ from boerdi.db.models import (
     QualityLog,
     SafetyLog,
 )
+from boerdi.services.config_loader import load_privacy_config
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,17 @@ async def update_session(session: AsyncSession, session_id: str, **kwargs: Any) 
 
 # ── Message helpers ────────────────────────────────────────────
 
+def _messages_enabled() -> bool:
+    """``privacy-config.logging.messages``. A failing lookup keeps storing —
+    ALT's stance ("loader failure → default to logging"), and the same one the
+    memory gate in ``api/sessions.py`` takes."""
+    try:
+        return bool(load_privacy_config().get("messages", True))
+    except Exception:  # noqa: BLE001 — privacy check is best-effort, never blocks
+        logger.debug("privacy-config check failed; storing the message", exc_info=True)
+        return True
+
+
 async def save_message(
     session: AsyncSession,
     session_id: str,
@@ -100,12 +112,22 @@ async def save_message(
     content: str,
     cards: list | None = None,
     debug: dict | None = None,
-) -> int:
+) -> int | None:
     """Append one chat message. ``cards``/``debug`` land as native JSONB.
 
     Returns the new row's id so a caller can complete the row afterwards with
     ``finalize_message`` — see the F-6 note there.
+
+    Honors ``01-base/privacy-config``: with ``logging.messages: false`` nothing
+    is stored, for every role, and the result is ``None`` (ALT
+    ``chat_session_utils.save_message``). The session row, memory and the
+    quality/safety logs are not affected — they have gates of their own. The
+    gate sits here rather than at the callers because every message write in
+    the app goes through this function; one caller that forgot it would store
+    text the switch forbids.
     """
+    if not _messages_enabled():
+        return None
     obj = ChatMessage(
         session_id=session_id,
         role=role,

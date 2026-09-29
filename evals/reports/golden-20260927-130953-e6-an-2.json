@@ -1,0 +1,1212 @@
+{
+  "chat_url": "http://127.0.0.1:8100/api/chat",
+  "engine": "pattern",
+  "chat_headers": [
+    "X-Boerdi-Engine"
+  ],
+  "started_utc": "20260927-130953",
+  "duration_s": 89.8,
+  "golden_metrics": {
+    "categories": [
+      "register",
+      "structure",
+      "tools_any",
+      "tools_none",
+      "tools_max",
+      "text",
+      "qr",
+      "host"
+    ],
+    "totals": {
+      "register": 3,
+      "structure": 2,
+      "tools_any": 4,
+      "tools_none": 0,
+      "tools_max": 1,
+      "text": 1,
+      "qr": 4,
+      "host": 3
+    },
+    "passed": {
+      "register": 2,
+      "structure": 2,
+      "tools_any": 4,
+      "tools_none": 0,
+      "tools_max": 1,
+      "text": 0,
+      "qr": 4,
+      "host": 3
+    },
+    "rates": {
+      "register": 0.667,
+      "structure": 1.0,
+      "tools_any": 1.0,
+      "tools_none": null,
+      "tools_max": 1.0,
+      "text": 0.0,
+      "qr": 1.0,
+      "host": 1.0
+    },
+    "overall_pass_rate": 0.867,
+    "hard_passed": 13,
+    "hard_total": 15,
+    "flows": 3,
+    "turns": 4,
+    "latency": {
+      "turns": 4,
+      "p50_ms": 22797,
+      "p95_ms": 29025,
+      "max_ms": 29025,
+      "total_ms": 89791
+    },
+    "per_turn": [
+      {
+        "flow": "GV-EMB-1",
+        "title": "Sammlungsseite: Stunde planen mit Rückfrage (Fall vom 16.08.)",
+        "turn": 1,
+        "message": "Ich möchte morgen eine Stunde zur Lichtbrechung halten. Können Sie mir helfen, sie zu planen?",
+        "expected": {
+          "register": "sie",
+          "structure": null,
+          "tools_any": [
+            "get_skill"
+          ],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "qr": true,
+          "must_offer": "Arbeit nach der Anleitung „Stunde planen“: eine gezielte Rückfrage (Dauer, Klasse, Vorwissen) oder gleich ein Verlaufsplan."
+        },
+        "observed": {
+          "pattern": "M09",
+          "tools_called": [
+            "get_skill_registry",
+            "get_skill",
+            "get_collection_contents",
+            "lookup_wlo_vocabulary",
+            "lookup_wlo_vocabulary",
+            "search_wlo_collections",
+            "search_wlo_content"
+          ],
+          "tool_calls": 7,
+          "skills": [
+            "Stunde planen"
+          ],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 8,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 256,
+          "text_found": [],
+          "text_forbidden": []
+        },
+        "checks": {
+          "register": null,
+          "structure": null,
+          "tools_any": true,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "qr": true,
+          "host": true
+        },
+        "latency_ms": 22797
+      },
+      {
+        "flow": "GV-EMB-1",
+        "title": "Sammlungsseite: Stunde planen mit Rückfrage (Fall vom 16.08.)",
+        "turn": 2,
+        "message": "45 Minuten, Physik, 8. Klasse am Gymnasium. Reflexion hatten wir schon.",
+        "expected": {
+          "register": "sie",
+          "structure": null,
+          "tools_any": [
+            "get_skill"
+          ],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [
+            "Verlaufsplan",
+            "Sozialform"
+          ],
+          "text_none": [],
+          "qr": true,
+          "must_offer": "Ein Verlaufsplan für 45 Minuten zur Lichtbrechung in Klasse 8 mit Phasen, Minuten, Sozialform und Material nach der geladenen Anleitung — keine bloße Materialliste."
+        },
+        "observed": {
+          "pattern": "M09",
+          "tools_called": [
+            "get_skill",
+            "lookup_wlo_vocabulary",
+            "lookup_wlo_vocabulary",
+            "get_skill_registry",
+            "search_wlo_collections",
+            "search_wlo_content",
+            "get_skill_registry",
+            "get_collection_contents"
+          ],
+          "tool_calls": 8,
+          "skills": [
+            "Stunde planen"
+          ],
+          "register": "sie",
+          "sie": 2,
+          "du": 0,
+          "cards": 8,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 315,
+          "text_found": [],
+          "text_forbidden": []
+        },
+        "checks": {
+          "register": true,
+          "structure": null,
+          "tools_any": true,
+          "tools_none": null,
+          "tools_max": null,
+          "text": false,
+          "qr": true,
+          "host": true
+        },
+        "latency_ms": 23213
+      },
+      {
+        "flow": "GV-EMB-2",
+        "title": "Sammlungsseite: Videosuche bleibt Suche (Wächter)",
+        "turn": 1,
+        "message": "Haben Sie hier ein Video zur Lichtbrechung für den Einstieg in meine 8. Klasse?",
+        "expected": {
+          "register": "sie",
+          "structure": "cards",
+          "tools_any": [
+            "search_wlo_content",
+            "search_wlo_all"
+          ],
+          "tools_none": [],
+          "tools_max": 10,
+          "text_any": [],
+          "text_none": [],
+          "qr": true,
+          "must_offer": "Video-Treffer zur Lichtbrechung für Klasse 8 als Karten. Lädt das Modell dabei die Anleitung „OER-Recherche“, bleibt das Ergebnis trotzdem die Trefferliste."
+        },
+        "observed": {
+          "pattern": "M05",
+          "tools_called": [
+            "search_wlo_content",
+            "lookup_wlo_vocabulary",
+            "lookup_wlo_vocabulary",
+            "lookup_wlo_vocabulary"
+          ],
+          "tool_calls": 4,
+          "skills": [],
+          "register": "du",
+          "sie": 0,
+          "du": 1,
+          "cards": 3,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 96,
+          "text_found": [],
+          "text_forbidden": []
+        },
+        "checks": {
+          "register": false,
+          "structure": true,
+          "tools_any": true,
+          "tools_none": null,
+          "tools_max": true,
+          "text": null,
+          "qr": true,
+          "host": true
+        },
+        "latency_ms": 14756
+      },
+      {
+        "flow": "GV-EMB-3",
+        "title": "Sammlungsseite: Arbeitsblatt (Kontrolle — M10 führt die Skill-Werkzeuge selbst)",
+        "turn": 1,
+        "message": "Erstellen Sie mir bitte ein Arbeitsblatt zur Lichtbrechung für meine 8. Klasse, mit Lösungen.",
+        "expected": {
+          "register": "sie",
+          "structure": "idoc",
+          "tools_any": [
+            "get_skill"
+          ],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "qr": true,
+          "must_offer": "Ein Arbeitsblatt zur Lichtbrechung für Klasse 8 mit Lösungsteil als Dokument-Box, nach der Anleitung „Neues Lernmaterial erstellen“."
+        },
+        "observed": {
+          "pattern": "M10",
+          "tools_called": [
+            "get_skill_registry",
+            "get_skill"
+          ],
+          "tool_calls": 2,
+          "skills": [
+            "Neues Lernmaterial erstellen"
+          ],
+          "register": "sie",
+          "sie": 1,
+          "du": 0,
+          "cards": 0,
+          "idocs": 1,
+          "qr": 2,
+          "content_len": 182,
+          "text_found": [],
+          "text_forbidden": []
+        },
+        "checks": {
+          "register": true,
+          "structure": true,
+          "tools_any": true,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "qr": true,
+          "host": null
+        },
+        "latency_ms": 29025
+      }
+    ],
+    "per_flow": {
+      "GV-EMB-1": {
+        "title": "Sammlungsseite: Stunde planen mit Rückfrage (Fall vom 16.08.)",
+        "zielgruppe": "P-LEH",
+        "register": {
+          "ok": 1,
+          "total": 1
+        },
+        "structure": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_any": {
+          "ok": 2,
+          "total": 2
+        },
+        "tools_none": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_max": {
+          "ok": 0,
+          "total": 0
+        },
+        "text": {
+          "ok": 0,
+          "total": 1
+        },
+        "qr": {
+          "ok": 2,
+          "total": 2
+        },
+        "host": {
+          "ok": 2,
+          "total": 2
+        }
+      },
+      "GV-EMB-2": {
+        "title": "Sammlungsseite: Videosuche bleibt Suche (Wächter)",
+        "zielgruppe": "P-LEH",
+        "register": {
+          "ok": 0,
+          "total": 1
+        },
+        "structure": {
+          "ok": 1,
+          "total": 1
+        },
+        "tools_any": {
+          "ok": 1,
+          "total": 1
+        },
+        "tools_none": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_max": {
+          "ok": 1,
+          "total": 1
+        },
+        "text": {
+          "ok": 0,
+          "total": 0
+        },
+        "qr": {
+          "ok": 1,
+          "total": 1
+        },
+        "host": {
+          "ok": 1,
+          "total": 1
+        }
+      },
+      "GV-EMB-3": {
+        "title": "Sammlungsseite: Arbeitsblatt (Kontrolle — M10 führt die Skill-Werkzeuge selbst)",
+        "zielgruppe": "P-LEH",
+        "register": {
+          "ok": 1,
+          "total": 1
+        },
+        "structure": {
+          "ok": 1,
+          "total": 1
+        },
+        "tools_any": {
+          "ok": 1,
+          "total": 1
+        },
+        "tools_none": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_max": {
+          "ok": 0,
+          "total": 0
+        },
+        "text": {
+          "ok": 0,
+          "total": 0
+        },
+        "qr": {
+          "ok": 1,
+          "total": 1
+        },
+        "host": {
+          "ok": 0,
+          "total": 0
+        }
+      }
+    }
+  },
+  "conversations": [
+    {
+      "kind": "golden",
+      "flow_id": "GV-EMB-1",
+      "title": "Sammlungsseite: Stunde planen mit Rückfrage (Fall vom 16.08.)",
+      "persona_id": "*",
+      "zielgruppe": "P-LEH",
+      "intent_id": "",
+      "session_id": "eval-4c6da4f7b679",
+      "turns": [
+        {
+          "user": "Ich möchte morgen eine Stunde zur Lichtbrechung halten. Können Sie mir helfen, sie zu planen?",
+          "bot": "[ edu-sharing Skill ] Stunde planen - wird geladen\n\nFür den Verlaufsplan setze ich zunächst 45 Minuten an; welche Jahrgangsstufe und Schulform ist es, und ist die Stunde eine Einführung, Vertiefung, Übung oder Anwendung (was kam zuletzt, was folgt danach)?\n\n---\n[Material-Cards — vom Nutzer sichtbar, 8 Treffer]\n  - **Brechung** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=c6200d4c-443c-4f32-b9d3-e6ff2f362e71&q=Lichtbrechung\n  - **Farben** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=95f2002f-1745-4b47-889d-8376af38fe41&q=Lichtbrechung\n  - **Optik** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=9e7ae956-e9df-430f-bace-f3db4b910013&q=Lichtbrechung\n  - **Phänomenbasierter Anfangsunterricht Optik** — https://repository.staging.openeduhub.net/edu-sharing/components/render/0da50522-234e-4151-a265-8b82cd76a20e\n    Diese an der HU Berlin entwickelte Unterrichtseinheit für den Anfangsunterricht in der Optik entwickelt tragfähige Vorstellungen zur geometrischen Optik entlang des Prinzips Ameise, bei dem die Schüle\n  - **Wie funktioniert eine konkave und wie eine konvexe Linse? - YouTube** — https://repository.staging.openeduhub.net/edu-sharing/components/render/bbe5c997-7f13-4727-babe-addae801e2a9\n    Braucht Philipp vielleicht eine Brille? Dieses Video erklärt, wie die Linsen unserer Augen arbeiten und wie konvexe und konkave Linsen funktionieren!\n  - **Unterrichtsreihe zum Licht** — https://repository.staging.openeduhub.net/edu-sharing/components/render/d9d732a9-2c3c-4f75-b8ae-f4197f317b90\n    Diese Seite kann als Einstieg in eine Unterrichtsreihe zur Optik genutzt werden.\n  - **Lichtbrechung an Grenzflächen mit PhET Animationen** — https://repository.staging.openeduhub.net/edu-sharing/components/render/f13e4ad7-44ea-49ee-b0bb-65ef134ca39b\n    In dieser Unterrichtseinheit arbeiten die Schülerinnen und Schüler mit dem Notebook oder PC und lernen mit einem Lernvideo und interaktiven Simulationen die Lichtbrechung kennen. Dazu arbeiten die Sch\n  - **Lichtbrechung an Grenzflächen mit PhET Animationen** — https://repository.staging.openeduhub.net/edu-sharing/components/render/b21af419-5f8a-40c6-9b27-adc73bd8f379\n    In dieser Unterrichtseinheit arbeiten die Schülerinnen und Schüler mit dem Notebook oder PC und lernen mit einem Lernvideo und interaktiven Simulationen die Lichtbrechung kennen. Dazu arbeiten die Sch",
+          "debug": {
+            "pattern": "M09 (Lernpfad-Erstellung)",
+            "persona": "P-LEH (Lehrkraft)",
+            "intent": "I04 (Lernpfad)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "categories": {
+                "harassment": 9.547317110805593e-05,
+                "harassment_threatening": 3.569706350376584e-05,
+                "hate": 5.7031570707833595e-05,
+                "hate_threatening": 1.1235328063870752e-05,
+                "illicit": 0.01664583022787941,
+                "illicit_violent": 0.0020469553704995126,
+                "self_harm": 0.004799596736307936,
+                "self_harm_instructions": 0.00030506497931875756,
+                "self_harm_intent": 0.004508108791285088,
+                "sexual": 0.00014550629385328434,
+                "sexual_minors": 5.193048644949271e-05,
+                "violence": 0.0005794095367164778,
+                "violence_graphic": 1.6865275398914433e-05,
+                "harassment/threatening": 3.569706350376584e-05,
+                "hate/threatening": 1.1235328063870752e-05,
+                "illicit/violent": 0.0020469553704995126,
+                "self-harm/intent": 0.004508108791285088,
+                "self-harm/instructions": 0.00030506497931875756,
+                "self-harm": 0.004799596736307936,
+                "sexual/minors": 5.193048644949271e-05,
+                "violence/graphic": 1.6865275398914433e-05
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "get_skill_registry",
+              "get_skill",
+              "get_collection_contents",
+              "lookup_wlo_vocabulary",
+              "lookup_wlo_vocabulary",
+              "search_wlo_collections",
+              "search_wlo_content"
+            ],
+            "pattern_id_hint": "M09",
+            "pattern_reasoning": "Der Nutzer möchte eine Stunde planen; das explizite Planungsanliegen ist I04 und das konkrete Thema ist Lichtbrechung. Fach und Stufe folgen aus dem aktuellen Sammlungs-Kontext Geometrische Optik (Physik, Sekundarstufe I); M09 passt für die Zusammenstellung einer Unterrichtsstunde.",
+            "llm_engine_match": true,
+            "token_usage": {
+              "prompt_tokens": 128264,
+              "completion_tokens": 1467,
+              "cached_tokens": 122764,
+              "reasoning_tokens": 848,
+              "calls": 7,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 128264,
+                  "completion": 1467,
+                  "cached": 122764,
+                  "reasoning": 848,
+                  "calls": 7
+                }
+              },
+              "per_phase": {
+                "classify": {
+                  "prompt": 21661,
+                  "completion": 188,
+                  "cached": 21528,
+                  "reasoning": 0,
+                  "calls": 1
+                },
+                "tool_loop": {
+                  "prompt": 77524,
+                  "completion": 666,
+                  "cached": 74100,
+                  "reasoning": 318,
+                  "calls": 4
+                },
+                "response": {
+                  "prompt": 26131,
+                  "completion": 448,
+                  "cached": 24287,
+                  "reasoning": 393,
+                  "calls": 1
+                },
+                "quick_replies": {
+                  "prompt": 2948,
+                  "completion": 165,
+                  "cached": 2849,
+                  "reasoning": 137,
+                  "calls": 1
+                }
+              }
+            },
+            "phase3_modulations": {
+              "tone": "sachlich",
+              "formality": "siezen",
+              "length": "kurz",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "cards",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [
+                "search_wlo_collections",
+                "get_collection_contents",
+                "search_wlo_content",
+                "get_node_details",
+                "lookup_wlo_vocabulary",
+                "get_skill",
+                "get_skill_registry"
+              ],
+              "skip_intro": true,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "Strukturierter Plan mit 4–6 Schritten, jeder Schritt mit 1 konkretem\nWLO-Material. Direkt im Chat als Markdown — keine Such-CTA, keine\n„Quizze schau in die Suche unten\"-Fallbacks.\n",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": [
+                  "S2",
+                  "S3"
+                ]
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            }
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": null,
+              "tools_any": [
+                "get_skill"
+              ],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "qr": true,
+              "must_offer": "Arbeit nach der Anleitung „Stunde planen“: eine gezielte Rückfrage (Dauer, Klasse, Vorwissen) oder gleich ein Verlaufsplan."
+            },
+            "observed": {
+              "pattern": "M09",
+              "tools_called": [
+                "get_skill_registry",
+                "get_skill",
+                "get_collection_contents",
+                "lookup_wlo_vocabulary",
+                "lookup_wlo_vocabulary",
+                "search_wlo_collections",
+                "search_wlo_content"
+              ],
+              "tool_calls": 7,
+              "skills": [
+                "Stunde planen"
+              ],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 8,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 256,
+              "text_found": [],
+              "text_forbidden": []
+            },
+            "checks": {
+              "register": null,
+              "structure": null,
+              "tools_any": true,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "qr": true,
+              "host": true
+            }
+          },
+          "cards_count": 8,
+          "response_length": 256,
+          "latency_ms": 22797
+        },
+        {
+          "user": "45 Minuten, Physik, 8. Klasse am Gymnasium. Reflexion hatten wir schon.",
+          "bot": "[ edu-sharing Skill ] Stunde planen - wird geladen\n\nIch habe passende Materialien zur Lichtbrechung für Sek I gefunden, darunter eine Unterrichtseinheit mit Video, Arbeitsblatt und PhET-Simulation sowie eine interaktive Simulation. Sie eignen sich als Grundlage für die Erarbeitung nach Ihrer Einheit zur Reflexion.\n\n---\n[Material-Cards — vom Nutzer sichtbar, 8 Treffer]\n  - **Brechung** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=c6200d4c-443c-4f32-b9d3-e6ff2f362e71&q=Lichtbrechung\n  - **Farben** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=95f2002f-1745-4b47-889d-8376af38fe41&q=Lichtbrechung\n  - **Optik** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=9e7ae956-e9df-430f-bace-f3db4b910013&q=Lichtbrechung\n  - **Lichtbrechung an Grenzflächen mit PhET Animationen** — https://repository.staging.openeduhub.net/edu-sharing/components/render/b21af419-5f8a-40c6-9b27-adc73bd8f379\n    In dieser Unterrichtseinheit arbeiten die Schülerinnen und Schüler mit dem Notebook oder PC und lernen mit einem Lernvideo und interaktiven Simulationen die Lichtbrechung kennen. Dazu arbeiten die Sch\n  - **Lichtbrechung** — https://repository.staging.openeduhub.net/edu-sharing/components/render/9ddd3f55-4dbe-49c0-9cd7-8ecf1cb49027\n    Das Brechen von Licht zwischen zwei Medien mit unterschiedlichen Brechungsindizes. Wie sich der Brechungswinkel ändert mit dem Wechsel von Luft zu Wasser und zu Glas, lässt sich beobachten. Mit den ve\n  - **Lichtbrechung an Grenzflächen mit PhET Animationen** — https://repository.staging.openeduhub.net/edu-sharing/components/render/f13e4ad7-44ea-49ee-b0bb-65ef134ca39b\n    In dieser Unterrichtseinheit arbeiten die Schülerinnen und Schüler mit dem Notebook oder PC und lernen mit einem Lernvideo und interaktiven Simulationen die Lichtbrechung kennen. Dazu arbeiten die Sch\n  - **Totalreflexion** — https://repository.staging.openeduhub.net/edu-sharing/components/render/0f9595e2-a648-4447-97b1-7ce4a6ba2588\n    Gebrochener und reflektierter Strahl\n\nTritt ein Lichtstrahl von einem Medium in ein zweites Medium mit einer anderen optischen Dichte, so treten an der Grenzfläche wie in Bild 1 meist zwei Phänomene a\n  - **Der gebogene Lichtstrahl** — https://repository.staging.openeduhub.net/edu-sharing/components/render/ed7bf934-cdda-4ff0-8a12-4a2239a7b05d\n    Versuchsaufbau\n\nEin großes, durchsichtiges Gefäß wie ein Aquarium wird zunächst zur Hälfte mit einer stark gesalzenem (oder gezuckertem) Wasser gefüllt. Anschließend wird hierüber vorsichtig normales ",
+          "debug": {
+            "pattern": "M09 (Lernpfad-Erstellung)",
+            "persona": "P-LEH (Lehrkraft)",
+            "intent": "I04 (Lernpfad)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "categories": {
+                "harassment": 7.437028637763686e-05,
+                "harassment_threatening": 6.40200641038395e-06,
+                "hate": 6.605214485464791e-06,
+                "hate_threatening": 1.0451548051737735e-06,
+                "illicit": 2.234163601827719e-05,
+                "illicit_violent": 1.0391067562761452e-05,
+                "self_harm": 1.2533751425646102e-05,
+                "self_harm_instructions": 1.0129990980873922e-06,
+                "self_harm_intent": 0.00021207146066617245,
+                "sexual": 0.00013045066466158166,
+                "sexual_minors": 9.915273115920183e-06,
+                "violence": 0.0005147819588703148,
+                "violence_graphic": 6.40200641038395e-06,
+                "harassment/threatening": 6.40200641038395e-06,
+                "hate/threatening": 1.0451548051737735e-06,
+                "illicit/violent": 1.0391067562761452e-05,
+                "self-harm/intent": 0.00021207146066617245,
+                "self-harm/instructions": 1.0129990980873922e-06,
+                "self-harm": 1.2533751425646102e-05,
+                "sexual/minors": 9.915273115920183e-06,
+                "violence/graphic": 6.40200641038395e-06
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "get_skill",
+              "lookup_wlo_vocabulary",
+              "lookup_wlo_vocabulary",
+              "get_skill_registry",
+              "search_wlo_collections",
+              "search_wlo_content",
+              "get_skill_registry",
+              "get_collection_contents"
+            ],
+            "pattern_id_hint": "M09",
+            "pattern_reasoning": "Der Nutzer beantwortet die Rückfrage mit vollständigen Angaben zur Planung einer 45-minütigen Physikstunde über Lichtbrechung; damit kann der Lernpfad/Verlaufsplan erstellt werden. M03 ist nicht mehr erforderlich.",
+            "llm_engine_match": true,
+            "token_usage": {
+              "prompt_tokens": 158682,
+              "completion_tokens": 1382,
+              "cached_tokens": 106399,
+              "reasoning_tokens": 733,
+              "calls": 8,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 158682,
+                  "completion": 1382,
+                  "cached": 106399,
+                  "reasoning": 733,
+                  "calls": 8
+                }
+              },
+              "per_phase": {
+                "classify": {
+                  "prompt": 21789,
+                  "completion": 209,
+                  "cached": 21541,
+                  "reasoning": 0,
+                  "calls": 1
+                },
+                "tool_loop": {
+                  "prompt": 110419,
+                  "completion": 367,
+                  "cached": 84858,
+                  "reasoning": 12,
+                  "calls": 5
+                },
+                "fallback_summary": {
+                  "prompt": 23477,
+                  "completion": 475,
+                  "cached": 0,
+                  "reasoning": 418,
+                  "calls": 1
+                },
+                "quick_replies": {
+                  "prompt": 2997,
+                  "completion": 331,
+                  "cached": 0,
+                  "reasoning": 303,
+                  "calls": 1
+                }
+              }
+            },
+            "phase3_modulations": {
+              "tone": "sachlich",
+              "formality": "siezen",
+              "length": "lang",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "cards",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [
+                "search_wlo_collections",
+                "get_collection_contents",
+                "search_wlo_content",
+                "get_node_details",
+                "lookup_wlo_vocabulary",
+                "get_skill",
+                "get_skill_registry"
+              ],
+              "skip_intro": true,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "Strukturierter Plan mit 4–6 Schritten, jeder Schritt mit 1 konkretem\nWLO-Material. Direkt im Chat als Markdown — keine Such-CTA, keine\n„Quizze schau in die Suche unten\"-Fallbacks.\n",
+              "state_transition": {
+                "prev": "S3",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            }
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": null,
+              "tools_any": [
+                "get_skill"
+              ],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [
+                "Verlaufsplan",
+                "Sozialform"
+              ],
+              "text_none": [],
+              "qr": true,
+              "must_offer": "Ein Verlaufsplan für 45 Minuten zur Lichtbrechung in Klasse 8 mit Phasen, Minuten, Sozialform und Material nach der geladenen Anleitung — keine bloße Materialliste."
+            },
+            "observed": {
+              "pattern": "M09",
+              "tools_called": [
+                "get_skill",
+                "lookup_wlo_vocabulary",
+                "lookup_wlo_vocabulary",
+                "get_skill_registry",
+                "search_wlo_collections",
+                "search_wlo_content",
+                "get_skill_registry",
+                "get_collection_contents"
+              ],
+              "tool_calls": 8,
+              "skills": [
+                "Stunde planen"
+              ],
+              "register": "sie",
+              "sie": 2,
+              "du": 0,
+              "cards": 8,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 315,
+              "text_found": [],
+              "text_forbidden": []
+            },
+            "checks": {
+              "register": true,
+              "structure": null,
+              "tools_any": true,
+              "tools_none": null,
+              "tools_max": null,
+              "text": false,
+              "qr": true,
+              "host": true
+            }
+          },
+          "cards_count": 8,
+          "response_length": 315,
+          "latency_ms": 23213
+        }
+      ]
+    },
+    {
+      "kind": "golden",
+      "flow_id": "GV-EMB-2",
+      "title": "Sammlungsseite: Videosuche bleibt Suche (Wächter)",
+      "persona_id": "*",
+      "zielgruppe": "P-LEH",
+      "intent_id": "",
+      "session_id": "eval-56bc77ab8980",
+      "turns": [
+        {
+          "user": "Haben Sie hier ein Video zur Lichtbrechung für den Einstieg in meine 8. Klasse?",
+          "bot": "Für Videos zu „Lichtbrechung schau in die Suche unten — dort findest du die gefilterten Treffer.\n\n---\n[Material-Cards — vom Nutzer sichtbar, 3 Treffer]\n  - **Lichtbrechung beim Übergang von Luft zu Wasser** — https://repository.staging.openeduhub.net/edu-sharing/components/render/036c4f64-39ef-43a3-bead-2ce9b57ddf9e\n    Ein Lichtstrahl wird erst durch Staubteilchen im Strahlengang sichtbar. Beim Übergang von Luft zu Wasser wird er zum Lot hin gebrochen. Physik, Thema Optik, Klasse 7, Lehrplan Hessen.\n  - **Lichtbrechung -  Übergang Glas zu Luft - Trick, um sich das vorzustellen** — https://repository.staging.openeduhub.net/edu-sharing/components/render/6e30fd3d-34df-4636-9738-29b408bedd55\n    Uploads from Philipp Wichtrup\n  - **Lichtbrechung - Übergang von Glas in Luft - Experiment** — https://repository.staging.openeduhub.net/edu-sharing/components/render/e6504cd5-e465-4430-9a55-be1c32c08715\n    In diesem Video seht ihr die Lichtbrechung beim Übergang von Glas in Luft.",
+          "debug": {
+            "pattern": "M05 (Material-Suche gefiltert)",
+            "persona": "P-LEH (Lehrkraft)",
+            "intent": "I03 (Inhalte-Suchen)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "categories": {
+                "harassment": 0.000635218674589875,
+                "harassment_threatening": 2.234163601827719e-05,
+                "hate": 2.868540823874629e-05,
+                "hate_threatening": 5.307507822667365e-06,
+                "illicit": 0.007586396135652737,
+                "illicit_violent": 9.547317110805593e-05,
+                "self_harm": 0.0004692818134867376,
+                "self_harm_instructions": 0.00021416662909256432,
+                "self_harm_intent": 0.00023996139648439313,
+                "sexual": 0.00013670256456563558,
+                "sexual_minors": 6.878511550552459e-05,
+                "violence": 0.0012013235565837077,
+                "violence_graphic": 3.625900662832244e-05,
+                "harassment/threatening": 2.234163601827719e-05,
+                "hate/threatening": 5.307507822667365e-06,
+                "illicit/violent": 9.547317110805593e-05,
+                "self-harm/intent": 0.00023996139648439313,
+                "self-harm/instructions": 0.00021416662909256432,
+                "self-harm": 0.0004692818134867376,
+                "sexual/minors": 6.878511550552459e-05,
+                "violence/graphic": 3.625900662832244e-05
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "search_wlo_content (prefetch)",
+              "lookup_wlo_vocabulary",
+              "lookup_wlo_vocabulary",
+              "lookup_wlo_vocabulary"
+            ],
+            "pattern_id_hint": "M05",
+            "pattern_reasoning": "Der Nutzer sucht mit „Haben Sie hier“ nach einem vorhandenen Video zu einem konkreten Thema; Medientyp und Klassenstufe filtern die Suche. „8. Klasse“ entspricht Sekundarstufe I. Die Erwähnung des Einstiegs in die Klasse beschreibt den Einsatzkontext, nicht den Auftrag, einen Lernpfad zu erstellen.",
+            "llm_engine_match": true,
+            "token_usage": {
+              "prompt_tokens": 57355,
+              "completion_tokens": 1511,
+              "cached_tokens": 37387,
+              "reasoning_tokens": 1052,
+              "calls": 5,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 57355,
+                  "completion": 1511,
+                  "cached": 37387,
+                  "reasoning": 1052,
+                  "calls": 5
+                }
+              },
+              "per_phase": {
+                "classify": {
+                  "prompt": 21661,
+                  "completion": 259,
+                  "cached": 21528,
+                  "reasoning": 0,
+                  "calls": 1
+                },
+                "tool_loop": {
+                  "prompt": 12983,
+                  "completion": 116,
+                  "cached": 0,
+                  "reasoning": 37,
+                  "calls": 1
+                },
+                "quick_replies": {
+                  "prompt": 6011,
+                  "completion": 869,
+                  "cached": 2879,
+                  "reasoning": 808,
+                  "calls": 2
+                },
+                "response": {
+                  "prompt": 16700,
+                  "completion": 267,
+                  "cached": 12980,
+                  "reasoning": 207,
+                  "calls": 1
+                }
+              }
+            },
+            "phase3_modulations": {
+              "tone": "sachlich",
+              "formality": "siezen",
+              "length": "mittel",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "cards",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [
+                "search_wlo_content",
+                "lookup_wlo_vocabulary",
+                "get_node_details",
+                "lookup_wlo_publishers"
+              ],
+              "skip_intro": true,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "Direkte MCP-Suche mit den vom User gelieferten Filtern. 3–5 Treffer als\nKacheln zurückgeben.\n",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": [
+                  "S2",
+                  "S3"
+                ]
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            }
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": "cards",
+              "tools_any": [
+                "search_wlo_content",
+                "search_wlo_all"
+              ],
+              "tools_none": [],
+              "tools_max": 10,
+              "text_any": [],
+              "text_none": [],
+              "qr": true,
+              "must_offer": "Video-Treffer zur Lichtbrechung für Klasse 8 als Karten. Lädt das Modell dabei die Anleitung „OER-Recherche“, bleibt das Ergebnis trotzdem die Trefferliste."
+            },
+            "observed": {
+              "pattern": "M05",
+              "tools_called": [
+                "search_wlo_content",
+                "lookup_wlo_vocabulary",
+                "lookup_wlo_vocabulary",
+                "lookup_wlo_vocabulary"
+              ],
+              "tool_calls": 4,
+              "skills": [],
+              "register": "du",
+              "sie": 0,
+              "du": 1,
+              "cards": 3,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 96,
+              "text_found": [],
+              "text_forbidden": []
+            },
+            "checks": {
+              "register": false,
+              "structure": true,
+              "tools_any": true,
+              "tools_none": null,
+              "tools_max": true,
+              "text": null,
+              "qr": true,
+              "host": true
+            }
+          },
+          "cards_count": 3,
+          "response_length": 96,
+          "latency_ms": 14756
+        }
+      ]
+    },
+    {
+      "kind": "golden",
+      "flow_id": "GV-EMB-3",
+      "title": "Sammlungsseite: Arbeitsblatt (Kontrolle — M10 führt die Skill-Werkzeuge selbst)",
+      "persona_id": "*",
+      "zielgruppe": "P-LEH",
+      "intent_id": "",
+      "session_id": "eval-dd5e9ff9169d",
+      "turns": [
+        {
+          "user": "Erstellen Sie mir bitte ein Arbeitsblatt zur Lichtbrechung für meine 8. Klasse, mit Lösungen.",
+          "bot": "[ edu-sharing Skill ] Neues Lernmaterial erstellen - wird geladen\n\nDas Arbeitsblatt zur Lichtbrechung für Ihre 8. Klasse enthält fünf Aufgaben, Lösungen und einen Erwartungshorizont.\n\n---\n[Inline-Document — vom Nutzer sichtbar: Arbeitsblatt: Lichtbrechung (Klasse 8)]\n\n# Arbeitsblatt: Lichtbrechung\n\n**Fach:** Physik · **Stufe:** Sekundarstufe I, Klasse 8  \n**Name:** ______________________________ · **Datum:** _______________\n\n## Lernziel\nSie erklären die Lichtbrechung mithilfe des Übergangs zwischen Stoffen und wenden das Modell auf Alltagssituationen an.\n\n**Arbeitszeit:** etwa 25–30 Minuten · **Vorwissen:** geradlinige Ausbreitung des Lichts; Lichtstrahl und Lot\n\n---\n\n## Schülerfassung\n\n### Aufgabe 1 – Beschreiben und zuordnen\nErgänzen Sie die Sätze mit **zum Lot hin**, **vom Lot weg** oder **ohne Richtungsänderung**.\n\n1. Ein Lichtstrahl tritt schräg aus der Luft in Wasser ein: ____________________\n2. Ein Lichtstrahl tritt schräg aus Wasser in Luft aus: ____________________\n3. Ein Lichtstrahl trifft genau senkrecht auf die Wasseroberfläche: ____________________\n\n**Hilfe:** Das Lot steht senkrecht auf der Grenzfläche zwischen den Stoffen.\n\nAntwort/Begründung: ______________________________________________________\n\n________________________________________________________________________\n\n### Aufgabe 2 – Skizzieren und erklären\nZeichnen Sie eine waagerechte Grenzfläche zwischen Luft und Glas. Ein Lichtstrahl kommt schräg aus der Luft und tritt in das Glas ein. Zeichnen Sie das Lot, den einfallenden und den gebrochenen Strahl. Beschriften Sie alle drei.\n\n**Hilfe:** Beim Übergang von Luft in Glas wird der Strahl zum Lot hin gebrochen.\n\nSkizzenfeld:\n\n________________________________________________________________________\n\n________________________________________________________________________\n\n________________________________________________________________________\n\nErklären Sie mit einem Satz, woran man in Ihrer Skizze die Brechung erkennt:\n\n________________________________________________________________________\n\n### Aufgabe 3 – Erklären: der scheinbar verbogene Strohhalm\nEin Strohhalm steckt schräg in einem Glas Wasser. Von der Seite betrachtet scheint er an der Wasseroberfläche abgeknickt.\n\nErklären Sie die Beobachtung mithilfe des Weges des Lichts vom Strohhalm zu Ihrem Auge.\n\n**Hilfe:** Licht vom untergetauchten Teil tritt aus dem Wasser in die Luft aus.\n\n________________________________________________________________________\n\n________________________________________________________________________\n\n________________________________________________________________________\n\n### Aufgabe 4 – Fehler finden und korrigieren\nMara sagt: „Wenn Licht von Wasser in Luft übergeht, wird es immer zum Lot hin gebrochen.“\n\n1. **Prüfen** Sie Maras Aussage: Ist sie richtig oder falsch?\n2. **Korrigieren** Sie die Aussage und erklären Sie kurz, woran die Richtung der Brechung zu erkennen ist.\n\n________________________________________________________________________\n\n________________________________________________________________________\n\n________________________________________________________________________\n\n### Aufgabe 5 – Übertragen und begründen\nEine Münze liegt auf dem Boden einer mit Wasser gefüllten Schale. Von der Seite blickend erscheint sie höher, als sie tatsächlich liegt. Eine Person schlägt vor, beim Zugreifen etwas näher an der Wasseroberfläche zu zielen.\n\n**Beurteilen** Sie den Vorschlag. Erklären Sie Ihre Entscheidung mithilfe der Lichtbrechung.\n\n**Hilfe:** Licht von der Münze wird an der Wasseroberfläche gebrochen, bevor es ins Auge gelangt. Das Auge verlängert die Lichtstrahlen gedanklich geradlinig zurück.\n\n________________________________________________________________________\n\n________________________________________________________________________\n\n________________________________________________________________________\n\n________________________________________________________________________\n\n---\n\n## Lehrerfassung\n\n### Lösungen und Erwartungshorizont\n\n1. **Zuordnen:** 1. zum Lot hin; 2. vom Lot weg; 3. ohne Richtungsänderung. Bei senkrechtem Einfall ändert der Strahl seine Richtung nicht. Die Ausbreitungsgeschwindigkeit und Wellenlänge ändern sich beim Stoffübergang dennoch.\n2. **Skizze:** Grenzfläche Luft/Glas, Lot senkrecht zur Grenzfläche, einfallender Strahl in der Luft und gebrochener Strahl im Glas. Der gebrochene Strahl verläuft näher am Lot. Erwartet wird eine erkennbare Richtungsänderung am Übergang sowie eine korrekte Beschriftung.\n3. **Strohhalm:** Licht vom untergetauchten Teil tritt aus dem Wasser in die Luft aus und wird dabei vom Lot weg gebrochen. Das Auge nimmt Licht geradlinig ankommend wahr und verlängert seine Richtung zurück; dadurch erscheint der untergetauchte Teil verschoben. Der Strohhalm selbst ist nicht geknickt.\n4. **Fehlerkorrektur:** Maras Aussage ist falsch. Beim schrägen Übergang von Wasser in Luft wird Licht vom Lot weg gebrochen. Die Richtung wird relativ zum Lot beurteilt, nicht danach, ob der Strahl „nach oben“ oder „nach unten“ verläuft.\n5. **Beurteilung:** Der Vorschlag ist sinnvoll: Die Münze erscheint durch die Brechung höher beziehungsweise näher an der Oberfläche, als sie tatsächlich liegt. Beim Zielen sollte die Person daher näher an der Oberfläche ansetzen als an der scheinbaren Position der Münze. Die Begründung muss den Lichtweg Wasser–Luft und die scheinbare Verschiebung verknüpfen.\n\n### AFB-Bilanz\n\n| Aufgabe | Schwerpunkt | AFB und Begründung |\n|---|---|---|\n| 1 | Grundregeln wiedergeben | I – bekannte Brechungsrichtungen zuordnen |\n| 2 | Modell darstellen | II – Regel auf eine Skizze anwenden und fachgerecht beschriften |\n| 3 | Alltagsbeobachtung erklären | II – Lichtweg und scheinbare Lage verknüpfen |\n| 4 | Fehlvorstellung prüfen | II – Aussage am Modell prüfen und korrigieren |\n| 5 | Vorschlag beurteilen | III – Modell auf eine Situation übertragen und die Entscheidung begründen |\n\n**Typische Fehler:** Lot mit der Grenzfläche verwechseln; Brechungsrichtung statt zum Lot hin/vom Lot weg mit „oben/unten“ beschreiben; annehmen, bei senkrechtem Einfall gebe es überhaupt keine Änderung beim Stoffübergang; scheinbare Verschiebung mit einer tatsächlichen Bewegung der Münze verwechseln.\n\n**Didaktischer Hinweis:** Aufgabe 2 kann vor Aufgabe 3 gemeinsam an einem Beispiel gesichert werden. Bei Unterstützungsbedarf das Lot bereits in die Skizze einzeichnen lassen; als Erweiterung kann die Lerngruppe den Strahlengang von einer Münze bis zum Auge ergänzen.\n\n**Quellen- und Herkunftsprotokoll:** Aufgaben und Lösungen wurden für dieses Arbeitsblatt neu formuliert; es wurden keine externen Texte oder Abbildungen übernommen. Fachliche Grundlage: grundlegendes Modell der Lichtbrechung an einer Grenzfläche. KI-generierter Entwurf; vor einer Veröffentlichung bitte fachlich prüfen und Lizenz-/Kennzeichnungsfragen für den konkreten Verwendungszweck klären.",
+          "debug": {
+            "pattern": "M10 (KI-Inhalt-Generierung)",
+            "persona": "P-LEH (Lehrkraft)",
+            "intent": "I05 (Inhalt-Generieren)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "categories": {
+                "harassment": 0.0005502683110505684,
+                "harassment_threatening": 1.971694219622292e-05,
+                "hate": 2.6947915555885546e-05,
+                "hate_threatening": 6.302758756443267e-06,
+                "illicit": 0.02010509175637996,
+                "illicit_violent": 0.0020194050134869097,
+                "self_harm": 0.0004596405007964144,
+                "self_harm_instructions": 0.0002192952538064642,
+                "self_harm_intent": 0.00025729272261606426,
+                "sexual": 4.442183589214344e-05,
+                "sexual_minors": 3.9821309061635425e-05,
+                "violence": 0.000565024317150732,
+                "violence_graphic": 1.8522574326531083e-05,
+                "harassment/threatening": 1.971694219622292e-05,
+                "hate/threatening": 6.302758756443267e-06,
+                "illicit/violent": 0.0020194050134869097,
+                "self-harm/intent": 0.00025729272261606426,
+                "self-harm/instructions": 0.0002192952538064642,
+                "self-harm": 0.0004596405007964144,
+                "sexual/minors": 3.9821309061635425e-05,
+                "violence/graphic": 1.8522574326531083e-05
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "get_skill_registry",
+              "get_skill"
+            ],
+            "pattern_id_hint": "M10",
+            "pattern_reasoning": "Create-Verb und einzelnes Artefakt (Arbeitsblatt) mit konkretem Thema und Stufe; alle Pflicht-Slots sind vorhanden. M03 kommt nicht infrage, weil Arbeitsblatt und Lichtbrechung genannt sind.",
+            "llm_engine_match": true,
+            "token_usage": {
+              "prompt_tokens": 103258,
+              "completion_tokens": 2603,
+              "cached_tokens": 101277,
+              "reasoning_tokens": 705,
+              "calls": 6,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 103258,
+                  "completion": 2603,
+                  "cached": 101277,
+                  "reasoning": 705,
+                  "calls": 6
+                }
+              },
+              "per_phase": {
+                "classify": {
+                  "prompt": 21663,
+                  "completion": 167,
+                  "cached": 21530,
+                  "reasoning": 0,
+                  "calls": 1
+                },
+                "tool_loop": {
+                  "prompt": 55174,
+                  "completion": 2082,
+                  "cached": 55042,
+                  "reasoning": 413,
+                  "calls": 3
+                },
+                "response": {
+                  "prompt": 23479,
+                  "completion": 152,
+                  "cached": 21844,
+                  "reasoning": 119,
+                  "calls": 1
+                },
+                "quick_replies": {
+                  "prompt": 2942,
+                  "completion": 202,
+                  "cached": 2861,
+                  "reasoning": 173,
+                  "calls": 1
+                }
+              }
+            },
+            "phase3_modulations": {
+              "tone": "sachlich",
+              "formality": "siezen",
+              "length": "lang",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "answer",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "llm"
+              ],
+              "rag_areas": [],
+              "tools": [
+                "get_skill",
+                "get_skill_registry",
+                "get_wikipedia_summary",
+                "get_url_text"
+              ],
+              "skip_intro": true,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "Slots gefüllt → die Bot-Antwort IST der vollständige Markdown-Inhalt\nmit kurzem inhaltsspezifischem 1-Satz-Lead VOR dem ersten H1 (NICHT\n„Hier ist dein Material — sag Bescheid\" — das ist verboten Generic).\nDer Lead landet als Chat-Bubble-Text, der Body ab H1 in der Inline-\nDoc-Box. Niemals zurückfragen, niemals auf Vorhandenes verweisen,\nniemals Such-CTA.\n\n**Bei Quiz / Test / Arbeitsblatt / Übung: PFLICHT-Abschnitt\n`## Lösungen` am Ende des Markdowns** — mit Lösung pro Aufgabe und\nbei Quiz zusätzlich kurze Begründung. Ohne Lösungen ist das Material\nunfertig.\n",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": [
+                  "S2",
+                  "S3"
+                ]
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            }
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": "idoc",
+              "tools_any": [
+                "get_skill"
+              ],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "qr": true,
+              "must_offer": "Ein Arbeitsblatt zur Lichtbrechung für Klasse 8 mit Lösungsteil als Dokument-Box, nach der Anleitung „Neues Lernmaterial erstellen“."
+            },
+            "observed": {
+              "pattern": "M10",
+              "tools_called": [
+                "get_skill_registry",
+                "get_skill"
+              ],
+              "tool_calls": 2,
+              "skills": [
+                "Neues Lernmaterial erstellen"
+              ],
+              "register": "sie",
+              "sie": 1,
+              "du": 0,
+              "cards": 0,
+              "idocs": 1,
+              "qr": 2,
+              "content_len": 182,
+              "text_found": [],
+              "text_forbidden": []
+            },
+            "checks": {
+              "register": true,
+              "structure": true,
+              "tools_any": true,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "qr": true,
+              "host": null
+            }
+          },
+          "cards_count": 0,
+          "response_length": 182,
+          "latency_ms": 29025
+        }
+      ]
+    }
+  ]
+}

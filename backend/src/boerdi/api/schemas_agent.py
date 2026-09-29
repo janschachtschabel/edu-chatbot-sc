@@ -65,3 +65,27 @@ class AgentResponse(BaseModel):
     stop_reason: str
     iterations: int
     tools_called: list[str] = Field(default_factory=list)
+
+
+class MasterSkillStatus(BaseModel):
+    """Der Master-Skill, wie das Studio ihn zeigt (AG-2) — nur lesend.
+
+    Er bleibt im Repositorium: ``edit_url`` öffnet ihn im md-editor des
+    Repositoriums, ``view_url`` zeigt den Knoten (Paket F, 2026-09-29; bis dahin
+    führte ``edit_url`` auf die Render-Seite). ``sha256`` und ``length``
+    beschreiben den Text im Speicher dieses Prozesses, ``text`` ist derselbe
+    Wortlaut. ``None`` heißt: keine Kennung gepflegt oder Abruf gescheitert (dann
+    steht der Grund in ``last_error``).
+    """
+
+    enabled: bool
+    node_id: str
+    cached: bool
+    fetched_at: str | None = None
+    length: int | None = None
+    sha256: str | None = None
+    last_error: str | None = None
+    ttl_seconds: int
+    text: str | None = None
+    edit_url: str | None = None
+    view_url: str | None = None

@@ -1,6 +1,6 @@
 /**
- * „Agent testen" — ein Formular auf `POST /api/agent`, und darunter, was
- * herauskam (2026-08-13).
+ * „Auftrag testen" (bis ST-8e „Agent testen") — ein Formular auf `POST /api/agent`,
+ * und darunter, was herauskam (2026-08-13).
  *
  * Der Nutzer wollte „eine Seite zum Testen des Endpunkts, wo man Formularfelder
  * hat, um die Anfrage zu machen und den Output sieht". Bis dahin liess sich der

@@ -461,8 +461,8 @@ def _aggregate_classification_metrics(
         # Engine. Die Felder bleiben aus Backward-Compat (Studio + Trends-
         # Endpoint) — neue Konsumenten nutzen die ``*_final_*``-Aliase unten.
         "llm_hint_present_count": llm_hint_present,
-        # GV6: None statt 0.0, wenn kein einziger Hint vorlag (Agent-/Hybrid-
-        # Zuege liefern strukturell keinen) — eine 0.0 sah in den Trends wie
+        # GV6: None statt 0.0, wenn kein einziger Hint vorlag (Agent-Zuege
+        # liefern strukturell keinen) — eine 0.0 sah in den Trends wie
         # ein Absturz aus, obwohl schlicht nichts gemessen wurde.
         "llm_engine_match_rate": (
             round(llm_engine_agree / llm_hint_present, 3) if llm_hint_present else None

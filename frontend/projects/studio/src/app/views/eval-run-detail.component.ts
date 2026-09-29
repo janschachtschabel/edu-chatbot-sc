@@ -27,8 +27,8 @@
  * `<studio-rich>` (C1-d4b2).
  */
 import {
-  ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal,
-  untracked,
+  ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect,
+  inject, input, output, signal, untracked, viewChild,
 } from '@angular/core';
 import type { RichSegment } from '@boerdi/ui';
 
@@ -36,6 +36,9 @@ import { AsyncData } from '../core/async-data';
 import { EvalApi, type EvalRunDetail } from '../core/eval-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { engineLabel } from './engine-label';
+import { EvalPatternPanelsComponent } from './eval-pattern-panels.component';
+import { EvalRunProfileComponent } from './eval-run-profile.component';
 import { evalStatusLabel } from './eval-status';
 import {
   catLabel, flowGroups, hardCats, hardRate, type GoldMetrics, type GoldPerTurn,
@@ -52,6 +55,12 @@ const MODE_KEYS: Readonly<Record<string, string>> = {
   golden: 'evalDetail.mode.golden',
   generative: 'evalDetail.mode.generative',
 };
+
+/** A counter from the free-form summary; anything but a number counts as 0. */
+function countAt(summary: Readonly<Record<string, unknown>>, key: string): number {
+  const n = summary[key];
+  return typeof n === 'number' ? n : 0;
+}
 
 /** One turn of a persisted conversation, as much of it as this view reads. */
 interface TranscriptTurn {
@@ -71,7 +80,9 @@ interface TranscriptConv {
 
 @Component({
   selector: 'studio-eval-run-detail',
-  imports: [AsyncStateComponent, RichTextComponent],
+  imports: [
+    AsyncStateComponent, EvalPatternPanelsComponent, EvalRunProfileComponent, RichTextComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './eval-run-detail.component.html',
   styleUrl: './eval-run-detail.component.scss',
@@ -94,17 +105,21 @@ export class EvalRunDetailComponent {
   readonly runId = input.required<string>();
   readonly dismiss = output<void>();
 
+  private readonly injector = inject(Injector);
+  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+
   readonly detail = new AsyncData<EvalRunDetail>(() => this.api.run(this.runId()), this.t);
   readonly run = computed(() => this.detail.value());
 
   /** Which `flow·turn` row is open; '' = none. */
   readonly openTurn = signal('');
 
-  readonly metrics = computed<GoldMetrics | null>(() => {
-    const summary = this.run()?.summary as Record<string, unknown> | undefined;
-    const metrics = summary?.['golden_metrics'];
-    return metrics ? (metrics as GoldMetrics) : null;
-  });
+  /** The free-form run summary; each figure below reads one key of it. */
+  private readonly summary = computed(
+    () => (this.run()?.summary ?? {}) as Readonly<Record<string, unknown>>);
+
+  readonly metrics = computed<GoldMetrics | null>(
+    () => (this.summary()['golden_metrics'] as GoldMetrics | undefined) ?? null);
 
   readonly groups = computed(() => flowGroups(this.metrics()?.per_turn ?? []));
 
@@ -130,28 +145,34 @@ export class EvalRunDetailComponent {
     return `${this.observed(turn, 'register')} · `;
   }
 
-  /** GV5: which engine the run measured (from `summary.engine`); '' on runs
-   *  stored before the selector existed. */
+  /** ST-7a: die Maschine, die den Lauf beantwortet hat. Bis dahin stand hier
+   *  die WAHL aus `summary.engine` — bei „Server-Vorgabe" also „default", ohne
+   *  zu sagen, was gemessen wurde. Die Vorgabe bleibt als Zusatz sichtbar:
+   *  ein generativer Lauf misst sie immer, ein Gold-Lauf, wenn er sie wählte. */
   readonly engine = computed(() => {
-    const summary = this.run()?.summary as Record<string, unknown> | undefined;
-    const engine = summary?.['engine'];
-    return typeof engine === 'string' ? engine : '';
+    const run = this.run();
+    if (!run) return '';
+    const label = engineLabel(run.engine, this.t);
+    const vorgabe = run.mode === 'generative' || this.summary()['engine'] === 'default';
+    return vorgabe ? this.t('evalDetail.engineDefault', { engine: label }) : label;
   });
 
-  /** GV4: judge outages are COUNTED, not averaged in as zeros. */
-  readonly judgeFailed = computed(() => {
-    const summary = this.run()?.summary as Record<string, unknown> | undefined;
-    const n = summary?.['judge_failed_turns'];
-    return typeof n === 'number' ? n : 0;
+  /** ST-7d: die Muster-Tafeln — nicht bei Agent-Läufen, dort gibt es weder
+   *  Hinweis noch Musterwahl zu zeigen. */
+  readonly classification = computed(() => {
+    const cm = this.summary()['classification_metrics'];
+    return this.run()?.engine !== 'agent' && cm && typeof cm === 'object'
+      ? cm as Record<string, unknown> : null;
   });
+
+  readonly agentRun = computed(() => this.run()?.engine === 'agent');
+
+  /** GV4: judge outages are COUNTED, not averaged in as zeros. */
+  readonly judgeFailed = computed(() => countAt(this.summary(), 'judge_failed_turns'));
 
   /** Review-Befund 4 (2026-08-22): Züge, die der Chat nie beantwortet hat —
    *  ohne den Zähler stand ein Lauf mit toten Zügen grün da. */
-  readonly chatErrors = computed(() => {
-    const summary = this.run()?.summary as Record<string, unknown> | undefined;
-    const n = summary?.['chat_error_turns'];
-    return typeof n === 'number' ? n : 0;
-  });
+  readonly chatErrors = computed(() => countAt(this.summary(), 'chat_error_turns'));
 
   readonly conversations = computed<readonly TranscriptConv[]>(
     () => (this.run()?.conversations ?? []) as readonly TranscriptConv[]);
@@ -159,8 +180,7 @@ export class EvalRunDetailComponent {
   readonly isRunning = computed(() => this.run()?.status === 'running');
 
   readonly activity = computed(() => {
-    const summary = this.run()?.summary as Record<string, unknown> | undefined;
-    const activity = summary?.['current_activity'];
+    const activity = this.summary()['current_activity'];
     return typeof activity === 'string' ? activity : '';
   });
 
@@ -184,6 +204,10 @@ export class EvalRunDetailComponent {
       untracked(() => {
         this.openTurn.set('');
         void this.detail.reload();
+        // Nutzer-Befund 2026-09-27: das Detail steht unter der ganzen Liste —
+        // bei 21 Läufen 3.000 px tiefer; ohne Sprung sah ein Klick aus, als
+        // geschehe nichts. Der Fokus zieht die Überschrift ins Bild.
+        afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
       });
     });
   }
@@ -273,6 +297,15 @@ export class EvalRunDetailComponent {
       idocs: this.observed(turn, 'idocs'),
       qr: this.observed(turn, 'qr'),
     });
+  }
+
+  /** AG-5: die Skills, die der Zug geladen hat, als eine Zeile — leer, wenn
+   *  keiner geladen wurde (dann steht die Zeile gar nicht erst da). */
+  skills(turn: GoldPerTurn): string {
+    const liste = turn.observed['skills'];
+    return Array.isArray(liste)
+      ? liste.filter((s): s is string => typeof s === 'string' && s !== '').join(', ')
+      : '';
   }
 
   private field(source: Readonly<Record<string, unknown>>, key: string): string {

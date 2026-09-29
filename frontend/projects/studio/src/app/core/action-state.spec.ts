@@ -91,4 +91,13 @@ describe('ActionState', () => {
     await pending;
     expect(state.message()).toEqual({ kind: 'error', text: 'Snapshot not found' });
   });
+
+  it('lässt eine Meldung wegräumen, ohne eine Aktion zu starten (ST-9)', async () => {
+    // Die Kopfzeile überlebt jeden Seitenwechsel; ihre Meldung soll das nicht.
+    const state = new ActionState(de());
+    await state.run('create', async () => 'Snapshot angelegt.');
+    state.dismiss();
+    expect(state.message()).toBeNull();
+    expect(state.busy()).toBe(false);
+  });
 });

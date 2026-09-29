@@ -23,7 +23,7 @@ module-level bare names, so their AST is byte-identical to ALT with zero body ed
 and no import swaps (pure stdlib ``asyncio``). The ALT siblings live elsewhere:
 ``_retrieve_task_exception`` in ``obs/tasks``; ``_peer_ip`` in ``api/ratelimit``;
 ``_spawn_background``/``_BG_TASKS`` deferred with their consumer (the quality-log
-spawner, 3-5); ``save_message`` is DB-gated (a later slice).
+spawner, 3-5); ``save_message`` with its privacy gate in ``services/db_sessions``.
 """
 
 from __future__ import annotations

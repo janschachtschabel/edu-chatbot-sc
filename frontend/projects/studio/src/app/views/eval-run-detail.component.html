@@ -1,6 +1,8 @@
 <section class="erd" aria-labelledby="erd-title">
   <header class="erd-head">
-    <h3 class="erd-title" id="erd-title">{{ t('evalDetail.title', { id: runId() }) }}</h3>
+    <h3 class="erd-title" id="erd-title" tabindex="-1" #heading>
+      {{ t('evalDetail.title', { id: runId() }) }}
+    </h3>
     <div class="erd-actions">
       <button type="button" class="erd-btn" [disabled]="detail.loading()" (click)="reload()">
         {{ detail.loading() ? t('action.refreshing') : t('action.refresh') }}
@@ -26,6 +28,7 @@
         <dd>{{ statusLabel(detail.status) }}</dd>
       </div>
       <div><dt>{{ t('evalDetail.fact.mode') }}</dt><dd>{{ modeLabel(detail.mode) }}</dd></div>
+      <div><dt>{{ t('evalDetail.fact.engine') }}</dt><dd>{{ engine() }}</dd></div>
       <div>
         <dt>{{ t('evalDetail.fact.started') }}</dt><dd>{{ when(detail.created_at) }}</dd>
       </div>
@@ -63,6 +66,16 @@
       </p>
     }
 
+    @if (detail.profile; as profile) {
+      <studio-eval-run-profile [profile]="profile" />
+    }
+
+    @if (classification(); as cm) {
+      <studio-eval-pattern-panels [metrics]="cm" />
+    } @else if (agentRun()) {
+      <p class="erd-hint">{{ t('evalDetail.noPatternPanels') }}</p>
+    }
+
     @if (metrics(); as gm) {
       <section class="erd-card" aria-labelledby="erd-rates">
         <div class="erd-card-head">
@@ -75,9 +88,6 @@
               ·
               <studio-rich [parts]="rich('evalDetail.rates.judge', {
                 score: score(gm.judge_avg), turns: gm.judged_turns ?? gm.turns })" />
-            }
-            @if (engine()) {
-              · {{ t('evalDetail.engine', { engine: engine() }) }}
             }
             @if (judgeFailed() > 0) {
               · {{ t('evalDetail.judgeFailed', { count: judgeFailed() }) }}
@@ -151,6 +161,9 @@
                   <tr class="erd-detail-row">
                     <td [attr.colspan]="4 + cats().length">
                       <p class="erd-hint"><studio-rich [parts]="turnDetail(turn)" /></p>
+                      @if (skills(turn); as liste) {
+                        <p class="erd-hint">{{ t('evalDetail.skills', { skills: liste }) }}</p>
+                      }
                       <p class="erd-bot">{{ botText(turnKey(turn.flow, turn.turn)) }}</p>
                     </td>
                   </tr>

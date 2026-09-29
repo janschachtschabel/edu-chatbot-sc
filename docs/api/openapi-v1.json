@@ -756,6 +756,11 @@
               }
             ]
           },
+          "engine": {
+            "default": "",
+            "title": "Engine",
+            "type": "string"
+          },
           "entities": {
             "additionalProperties": true,
             "title": "Entities",
@@ -1115,8 +1120,7 @@
             "enum": [
               "default",
               "pattern",
-              "agent",
-              "hybrid"
+              "agent"
             ],
             "title": "Engine",
             "type": "string"
@@ -1201,8 +1205,7 @@
             "enum": [
               "default",
               "pattern",
-              "agent",
-              "hybrid"
+              "agent"
             ],
             "title": "Engine",
             "type": "string"
@@ -1278,6 +1281,112 @@
           "open"
         ],
         "title": "LoginResponse",
+        "type": "object"
+      },
+      "MasterSkillStatus": {
+        "description": "Der Master-Skill, wie das Studio ihn zeigt (AG-2) — nur lesend.\n\nEr bleibt im Repositorium: ``edit_url`` öffnet ihn im md-editor des\nRepositoriums, ``view_url`` zeigt den Knoten (Paket F, 2026-09-29; bis dahin\nführte ``edit_url`` auf die Render-Seite). ``sha256`` und ``length``\nbeschreiben den Text im Speicher dieses Prozesses, ``text`` ist derselbe\nWortlaut. ``None`` heißt: keine Kennung gepflegt oder Abruf gescheitert (dann\nsteht der Grund in ``last_error``).",
+        "properties": {
+          "cached": {
+            "title": "Cached",
+            "type": "boolean"
+          },
+          "edit_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edit Url"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "length": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "ttl_seconds": {
+            "title": "Ttl Seconds",
+            "type": "integer"
+          },
+          "view_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View Url"
+          }
+        },
+        "required": [
+          "enabled",
+          "node_id",
+          "cached",
+          "ttl_seconds"
+        ],
+        "title": "MasterSkillStatus",
         "type": "object"
       },
       "McpServerUpdate": {
@@ -2231,6 +2340,199 @@
         ]
       }
     },
+    "/api/agent-center/prompt": {
+      "get": {
+        "description": "Der stabile Anfang der Kette eines Chat-Zugs im Agent-Modus (ST-8d): der Kopf\nim Wortlaut (Rolle, Anrede, Grenzen, Sprache, Wissens-Regel), der Master-Skill\nmit Zustand, danach die Blöcke je Zug als Kennungen, dazu Zahl und Umfang der\nWerkzeug-Beschreibungen.",
+        "operationId": "agent_prompt_api_agent_center_prompt_get",
+        "parameters": [
+          {
+            "description": "widget language; the head names it as the fallback language",
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "default": "de",
+              "description": "widget language; the head names it as the fallback language",
+              "enum": [
+                "de",
+                "en"
+              ],
+              "title": "Locale",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Agent Prompt Api Agent Center Prompt Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Agent Prompt",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/agent-center/skills": {
+      "get": {
+        "description": "Das Skill-Verzeichnis einer Sammlung aus ``get_skill_registry``: das\nRegistry-Dokument, die freigegebenen Skills und nicht aufgelöste Einträge\n(ST-8c). Antwortet der MCP nicht oder unlesbar: 502 mit dem Grund.",
+        "operationId": "agent_skills_api_agent_center_skills_get",
+        "parameters": [
+          {
+            "description": "nodeId of the collection whose approved skills are listed",
+            "in": "query",
+            "name": "collection",
+            "required": true,
+            "schema": {
+              "description": "nodeId of the collection whose approved skills are listed",
+              "pattern": "^[A-Za-z0-9-]{1,64}$",
+              "title": "Collection",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Agent Skills Api Agent Center Skills Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Agent Skills",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/agent-center/skills/search": {
+      "get": {
+        "description": "Skills per Suchbegriff im Skill-Bestand des MCP-Servers (``search_skill``,\nPaket F3): die konfigurierte Skills-Sammlung samt Skillsets, ohne sie das ganze\nRepositorium; höchstens 25 Treffer, ``truncated`` bei voller Seite. Bietet der\nMCP-Server das Werkzeug nicht an: ``available: false`` — das Studio verweist\ndann auf die Suche per Sammlungs-ID. Antwortet der MCP nicht oder unlesbar:\n502 mit dem Grund.",
+        "operationId": "agent_skill_suche_api_agent_center_skills_search_get",
+        "parameters": [
+          {
+            "description": "search term; the MCP server's search_skill takes at most 200 characters",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "search term; the MCP server's search_skill takes at most 200 characters",
+              "maxLength": 200,
+              "pattern": "\\S",
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Agent Skill Suche Api Agent Center Skills Search Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Agent Skill Suche",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/agent-center/tools": {
+      "get": {
+        "description": "Die Werkzeuge eines Chat-Zugs im Agent-Modus, je mit Art, Beschreibung,\nob ein gewöhnlicher Zug es bekommt, und den Sperren, die es nehmen können\n(ST-8b).",
+        "operationId": "agent_werkzeuge_api_agent_center_tools_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Agent Werkzeuge Api Agent Center Tools Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Agent Werkzeuge",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
     "/api/agent/stream": {
       "post": {
         "description": "Stream one agent task as Server-Sent-Events (connected → result | error).",
@@ -2664,6 +2966,35 @@
         "summary": "Update Area Data",
         "tags": [
           "config"
+        ]
+      }
+    },
+    "/api/config/effects": {
+      "get": {
+        "description": "Je Bereich die Wirkung in Muster-Maschine und Agent-Schleife, dazu die Vorgabe-Maschine.",
+        "operationId": "get_effects_api_config_effects_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Effects Api Config Effects Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Effects",
+        "tags": [
+          "config-effects"
         ]
       }
     },
@@ -4255,6 +4586,59 @@
         ]
       }
     },
+    "/api/eval/compare": {
+      "get": {
+        "description": "Engine comparison over the chosen runs (ST-7c): quality per judge axis,\ndeterminism across repeats, speed, cost and robustness, grouped by the\nengine each run recorded.",
+        "operationId": "compare_eval_runs_api_eval_compare_get",
+        "parameters": [
+          {
+            "description": "2 to 20 run ids, comma-separated; grouped by each run's engine",
+            "in": "query",
+            "name": "ids",
+            "required": true,
+            "schema": {
+              "description": "2 to 20 run ids, comma-separated; grouped by each run's engine",
+              "pattern": "^[A-Za-z0-9_-]{1,64}(,[A-Za-z0-9_-]{1,64}){1,19}$",
+              "title": "Ids",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Compare Eval Runs Api Eval Compare Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Compare Eval Runs",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
     "/api/eval/config": {
       "get": {
         "description": "Current personas + intents from the active chatbot config.",
@@ -4490,6 +4874,28 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Nur Läufe dieser Maschine ('pattern' | 'agent'); ohne Angabe alle",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Läufe dieser Maschine ('pattern' | 'agent'); ohne Angabe alle",
+              "title": "Engine"
             }
           }
         ],
@@ -4785,6 +5191,28 @@
               "minimum": 2,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Nur Läufe dieser Maschine ('pattern' | 'agent'); ohne Angabe alle",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Läufe dieser Maschine ('pattern' | 'agent'); ohne Angabe alle",
+              "title": "Engine"
             }
           }
         ],
@@ -5113,6 +5541,60 @@
         "summary": "Cancel Loadtest Run",
         "tags": [
           "loadtest"
+        ]
+      }
+    },
+    "/api/master-skill": {
+      "get": {
+        "description": "Zustand und Wortlaut; holt den Text, wenn keiner im Speicher ist.",
+        "operationId": "master_skill_anzeigen_api_master_skill_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MasterSkillStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Master Skill Anzeigen",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/master-skill/reload": {
+      "post": {
+        "description": "Speicher verwerfen und frisch holen — wirkt in diesem Prozess sofort,\nin weiteren Workern spätestens nach der Speicherdauer (5 Minuten).",
+        "operationId": "master_skill_neu_laden_api_master_skill_reload_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MasterSkillStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Master Skill Neu Laden",
+        "tags": [
+          "agent"
         ]
       }
     },
@@ -6403,6 +6885,25 @@
       "get": {
         "description": "List the most recently active sessions (newest first, capped at 100).",
         "operationId": "list_sessions_api_sessions__get",
+        "parameters": [
+          {
+            "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+              "enum": [
+                "all",
+                "production",
+                "eval"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -6418,6 +6919,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -7073,6 +7584,23 @@
             "schema": {
               "format": "date-time",
               "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+              "enum": [
+                "all",
+                "production",
+                "eval"
+              ],
+              "title": "Scope",
               "type": "string"
             }
           }

@@ -110,6 +110,13 @@ jobs:
       # (49 von 69 th, 9 von 11 Seiten-Views) — genau das kehrt ohne Gate zurück.
       - name: Studio-Struktur (Überschriften-Ebene, Tabellen-Köpfe)
         run: npm run check:a11y
+      # Fokusring und Kontrast-Paare sind gültiges CSS, auch wenn sie nichts
+      # zeigen: `outline: none` mit Schatten-Ersatz (1,9:1, im Forced-Colors-
+      # Modus unsichtbar) stand an 50 Stellen, `--st-on-accent` (Weiß) als
+      # Schrift auf dem Panel an sieben, Feldrahmen unter 3:1 an 17 (Review
+      # 2026-09-29). Kein Linter sieht das; jsdom rechnet keine var()-Kaskade.
+      - name: Studio-Fokusring, Akzent-Paare, Feldrahmen
+        run: npm run check:contrast
       # Radien driften lautlos: 3px hier, 5px dort, 6px im nächsten Bauteil —
       # jeder Wert für sich plausibel, zusammen sieht die Oberfläche
       # zusammengestückelt aus. Vor U4c waren es elf verschiedene Werte, die

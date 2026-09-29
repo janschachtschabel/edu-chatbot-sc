@@ -30,16 +30,11 @@
   inline-size: 5rem;
   min-block-size: 2rem;
   padding: var(--st-1) var(--st-2);
-  border: 1px solid var(--st-rule-strong);
+  border: 1px solid var(--st-text-muted);
   border-radius: var(--st-radius);
   background: var(--st-panel);
   color: var(--st-text);
   font: inherit;
-}
-
-.qf-field input:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
 }
 
 .qf-grid {
@@ -81,11 +76,6 @@
   font: inherit;
   font-size: 0.8125rem;
   cursor: pointer;
-}
-
-.qf-reload:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
 }
 
 .qf-reload:disabled {

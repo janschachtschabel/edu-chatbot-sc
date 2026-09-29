@@ -18,9 +18,13 @@
       (runChange)="openDetail($event)"
       (deleted)="onRunDeleted($event)"
       (stopped)="onRunStopped($event)"
+      (compare)="openCompare($event)"
     />
     @if (openRun(); as id) {
       <studio-eval-run-detail [runId]="id" (dismiss)="closeDetail()" />
+    }
+    @if (compareIds().length > 0) {
+      <studio-eval-compare [runIds]="compareIds()" (dismiss)="closeCompare()" />
     }
     <!-- Nutzer-Feedback 2026-08-22: Läufe zuerst — wer die Seite öffnet, will
          den AKTIVEN Lauf sehen, nicht die Flow-Liste des nächsten Starts.
@@ -59,5 +63,18 @@
 >
   @if (shows()('pattern')) {
     <studio-eval-pattern-usage />
+  }
+</div>
+
+<div
+  id="panel-goldflows"
+  class="ev-panel"
+  role="tabpanel"
+  aria-labelledby="tab-goldflows"
+  tabindex="0"
+  [hidden]="active() !== 'goldflows'"
+>
+  @if (shows()('goldflows')) {
+    <studio-area-section [section]="goldFlowsSection" [open]="true" />
   }
 </div>

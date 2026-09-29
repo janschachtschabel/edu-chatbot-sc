@@ -114,6 +114,19 @@ describe('catLabel', () => {
     expect(catLabel('tools_any', en)).toBe('Required tool');
   });
 
+  it('names the K0-3 categories too, not by their raw key', () => {
+    // „Prüfung" statt „Soll": die Kategorie trägt auch reine Verbote (text_none).
+    expect(catLabel('text', de)).toBe('Text-Prüfung');
+    expect(catLabel('tools_none', de)).toBe('Werkzeug-Verbot');
+    expect(catLabel('text', en)).toBe('Text check');
+    expect(catLabel('tools_none', en)).toBe('Forbidden tool');
+  });
+
+  it('names the AG-5 cap on tool calls too', () => {
+    expect(catLabel('tools_max', de)).toBe('Werkzeug-Deckel');
+    expect(catLabel('tools_max', en)).toBe('Tool cap');
+  });
+
   it('falls back to the raw key so a new category is visible, not hidden', () => {
     // Erlaubnisliste statt `'evalDetail.cat.' + category`: ein zusammengesetzter
     // Schlüssel gäbe hier „evalDetail.cat.brandneu" als Beschriftung aus.

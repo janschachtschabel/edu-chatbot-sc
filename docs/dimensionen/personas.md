@@ -83,7 +83,7 @@ NICHT mehr P-AND. Bei expliziter Selbst-ID umklassifizieren mit
 - **tone**: warm
 - **length_bias**: 0.2
 - **formality**: wie_user
-- **card_text_mode**: explanation
+- **card_text_mode**: highlight
 - **override**: False
 
 ### Marker und Listen
@@ -354,7 +354,7 @@ weil das LLM die User-Eröffnung („Hallo!") als duzende Eröffnung las.
 - **tone**: ermutigend
 - **length_bias**: -0.1
 - **formality**: duzen
-- **card_text_mode**: explanation
+- **card_text_mode**: highlight
 - **override**: True
 
 ### Marker und Listen

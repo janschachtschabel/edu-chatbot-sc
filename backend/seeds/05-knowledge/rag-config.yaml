@@ -4,7 +4,7 @@
 #        on-demand = nur, wenn das Modell danach fragt. Ein Eintrag OHNE `mode`
 #        wird vom Loader ganz verworfen — das Feld ist der Schluessel, nicht nur
 #        eine Einstellung.
-# agent: gilt fuer die AGENT- und HYBRID-Schleife. Vorgabe `true`; dort werden
+# agent: gilt fuer die Agent-Schleife. Vorgabe `true`; dort werden
 #        ohne weitere Angabe ALLE Bereiche zugleich durchsucht (kostet eine
 #        Einbettung, nicht neun). `agent: false` nimmt einen Bereich nur aus der
 #        Schleife, nicht aus dem Muster-Weg. Weglassen heisst „dabei".

@@ -51,6 +51,29 @@ export function formatWhole(locale: string, value: number): string {
   return numberFormat(locale, 'whole', { maximumFractionDigits: 0 }).format(value);
 }
 
+/** Largest unit first; `Intl` names each one in the interface language. */
+const BYTE_UNITS = ['gigabyte', 'megabyte', 'kilobyte'] as const;
+
+/**
+ * A size: "20,5 MB" / "20.5 MB" (ST-6, database maintenance).
+ *
+ * Steps of 1024 under the SI names, like PostgreSQL's `pg_size_pretty` — the
+ * database reports its own size that way, and the studio must not answer the
+ * same database with a second number. The unit follows the magnitude, so a
+ * difference of two sizes reads "-8 kB", not "-8.192 Byte".
+ */
+export function formatBytes(locale: string, value: number): string {
+  for (const [index, unit] of BYTE_UNITS.entries()) {
+    const step = 1024 ** (BYTE_UNITS.length - index);
+    if (Math.abs(value) >= step) {
+      return numberFormat(locale, `bytes:${unit}`, {
+        style: 'unit', unit, maximumFractionDigits: 1,
+      }).format(value / step);
+    }
+  }
+  return numberFormat(locale, 'bytes:byte', { style: 'unit', unit: 'byte' }).format(value);
+}
+
 /**
  * A cost estimate: "0,14 $" / "US$0.14".
  *
@@ -64,6 +87,20 @@ export function formatUsd(locale: string, value: number): string {
     style: 'currency', currency: 'USD',
     minimumFractionDigits: 2, maximumFractionDigits: 2,
   }).format(value);
+}
+
+/**
+ * A duration in seconds from milliseconds, one place: "12,3 s" / "12.3 s" (ST-7b).
+ *
+ * The unit is the SI symbol with a no-break space, not `Intl`'s unit style: ICU
+ * writes "Sek." or "s" for German depending on its version, and a turn duration
+ * should look the same in every browser — and in the tests.
+ */
+export function formatSeconds(locale: string, milliseconds: number): string {
+  const seconds = numberFormat(locale, 'seconds', {
+    minimumFractionDigits: 1, maximumFractionDigits: 1,
+  }).format(milliseconds / 1000);
+  return `${seconds}\u00a0s`;
 }
 
 /** A currency code `Intl` will accept — three ASCII letters, nothing else. */

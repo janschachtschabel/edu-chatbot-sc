@@ -47,25 +47,34 @@ const BASICS_ID = 'sec';
 /**
  * Die Abschnitte dieses Formulars, oder `[]` wenn nicht gegliedert werden soll.
  *
- * Reihenfolge ist die des Schemas — mit **einer** bewussten Ausnahme: die
- * einfachen Felder werden zu einem führenden Sammel-Abschnitt zusammengezogen,
- * auch wenn sie im Schema verstreut stehen. Sie einzeln aufzuklappen wäre
- * absurd, und zwei gleich benannte Sammel-Abschnitte wären verwirrend. Dieselbe
- * Freiheit nimmt sich der Reiter-Schnitt in `pattern-field-tabs.ts`.
+ * Reihenfolge ist die des Schemas — mit **zwei** bewussten Ausnahmen: die
+ * einfachen Felder werden zu einem Sammel-Abschnitt zusammengezogen, auch wenn
+ * sie im Schema verstreut stehen. Sie einzeln aufzuklappen wäre absurd, und zwei
+ * gleich benannte Sammel-Abschnitte wären verwirrend. Dieselbe Freiheit nimmt
+ * sich der Reiter-Schnitt in `pattern-field-tabs.ts`. Und seit ST-4 stehen
+ * Blöcke, die das Modell als Inhalt markiert (`x-primary`: Begrüßungstext,
+ * Regeltext), VOR diesem Sammel-Abschnitt — offen ist der erste, und das soll
+ * der Inhalt sein, nicht die Technik.
  */
 export function formSections(root: SchemaField): readonly FormSection[] {
   const scope = sectionScope(root);
   const basePath = scope === root ? [] : [scope.key];
 
   const basics: string[] = [];
+  const content: string[] = [];
   const blocks: string[] = [];
   for (const child of scope.children ?? []) {
-    (COMPACT.has(child.kind) ? basics : blocks).push(child.key);
+    if (COMPACT.has(child.kind)) basics.push(child.key);
+    else (child.primary ? content : blocks).push(child.key);
   }
-  if (blocks.length < MIN_SECTIONS) return [];
+  if (content.length + blocks.length < MIN_SECTIONS) return [];
 
-  const cuts = blocks.map((key) => ({ id: `sec-${key}`, key, keys: [key] }));
-  if (basics.length > 0) cuts.unshift({ id: BASICS_ID, key: '', keys: basics });
+  const cut = (key: string) => ({ id: `sec-${key}`, key, keys: [key] });
+  const cuts = [
+    ...content.map(cut),
+    ...(basics.length > 0 ? [{ id: BASICS_ID, key: '', keys: basics }] : []),
+    ...blocks.map(cut),
+  ];
 
   return cuts.map(({ id, key, keys }) => ({
     id,
@@ -105,5 +114,7 @@ function sectionScope(root: SchemaField): SchemaField {
  */
 function sectionRoot(scope: SchemaField, keys: ReadonlySet<string>): SchemaField {
   const children = (scope.children ?? []).filter((child) => keys.has(child.key));
-  return { ...scope, key: '', label: '', children };
+  // Auch der Katalog-Schlüssel (ST-1) fällt weg: an ihm holte sich das Feld
+  // seine Beschriftung sonst aus dem Katalog zurück.
+  return { ...scope, key: '', label: '', textKey: undefined, children };
 }

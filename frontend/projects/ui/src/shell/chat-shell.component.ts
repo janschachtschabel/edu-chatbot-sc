@@ -748,7 +748,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
 
   /** **Public API** (G1) — der Gastanwendung ihren Rahmen mitgeben: „so bist du
    *  hier zu verstehen". Der Text erscheint NICHT im Verlauf; er reist als
-   *  System-Block mit und wirkt in allen drei Maschinen.
+   *  System-Block mit und wirkt in beiden Maschinen.
    *
    *  `trigger` unterscheidet die beiden Fälle, nach denen gefragt wurde:
    *

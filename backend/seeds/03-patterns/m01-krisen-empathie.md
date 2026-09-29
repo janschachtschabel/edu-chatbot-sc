@@ -6,6 +6,7 @@ priority: 999
 default_tone: warm
 default_length: kurz
 response_type: empathy
+quick_replies_mode: none
 core_rule: Empathisch, kurz, KEINE Bildungsantwort. Hilfsnummer immer mitliefern.
 when_to_use:
   - Safety-Layer erkennt akute psychische Not / Selbstgefährdung

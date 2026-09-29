@@ -25,10 +25,9 @@ _EMPTY_SP = SpeculativePrefetch(None, None, None, "", [], False, [])
 
 
 def _patch(monkeypatch, sp=None, mt=None, wanted=None, placeholders=None):
-    # ``engine`` (H5) gehört zur echten Signatur — dieselbe A4b-Regel wie
-    # überall: eine Attrappe wird nach der ECHTEN Signatur gebaut, nicht nach
-    # dem eigenen Aufruf.
-    async def _fake_prefetch(req, classification, safety, *, engine="pattern"):
+    # Die A4b-Regel: eine Attrappe wird nach der ECHTEN Signatur gebaut, nicht
+    # nach dem eigenen Aufruf.
+    async def _fake_prefetch(req, classification, safety):
         return sp if sp is not None else _EMPTY_SP
 
     monkeypatch.setattr(merge_mod, "run_speculative_prefetch", _fake_prefetch)
@@ -152,6 +151,37 @@ def test_medientyp_type_focus_injected(monkeypatch):
     out = _run(ctx)
     assert out.classification.entities["medientyp"] == "video"
     assert out.session_state["entities"]["medientyp"] == "video"
+
+
+# ── Typ-Slots unter der Agent-Schleife (ST-5-Lesart, Befund 3) ───
+
+def test_loop_drops_the_previous_turns_type_slots(monkeypatch):
+    # Ohne Klassifikator kommt nie ein topic_switch, der sie leert.
+    _patch(monkeypatch)  # kein Typwort in diesem Zug
+    ctx = _ctx(intent_id="I01", ss_entities={
+        "material_typ": "arbeitsblatt", "medientyp": "arbeitsblatt",
+        "thema": "Photosynthese"})
+    out = asyncio.run(merge(ctx, engine="agent"))
+    assert "material_typ" not in out.session_state["entities"]
+    assert "medientyp" not in out.session_state["entities"]
+    assert out.session_state["entities"]["thema"] == "Photosynthese"  # nur die Typ-Slots
+
+
+def test_loop_keeps_the_type_of_this_turn(monkeypatch):
+    _patch(monkeypatch, mt="quiz", wanted=["quiz"])
+    ctx = _ctx(intent_id="I01", ss_entities={"medientyp": "arbeitsblatt"})
+    out = asyncio.run(merge(ctx, engine="agent"))
+    assert out.session_state["entities"]["material_typ"] == "quiz"
+    assert out.session_state["entities"]["medientyp"] == "quiz"
+
+
+def test_pattern_engine_keeps_the_sticky_type_slots(monkeypatch):
+    # Dort entscheidet der Klassifikator über den Zugtyp (follow_up behält).
+    _patch(monkeypatch)
+    ctx = _ctx(ss_entities={"medientyp": "video", "material_typ": "quiz"})
+    out = asyncio.run(merge(ctx, engine="pattern"))
+    assert out.session_state["entities"]["medientyp"] == "video"
+    assert out.session_state["entities"]["material_typ"] == "quiz"
 
 
 # ── I05 slot enrichment ──────────────────────────────────────────

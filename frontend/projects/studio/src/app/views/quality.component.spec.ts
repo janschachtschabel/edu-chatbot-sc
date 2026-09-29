@@ -244,13 +244,16 @@ describe("QualityComponent", () => {
     expect(h.el.querySelector("fieldset legend")!.textContent).toContain(
       "Data basis",
     );
-    const hints = Array.from(h.el.querySelectorAll(".qv-scope-hint")).map(
-      (s) => s.textContent,
+    // ST-9: die Wahl ist eine geteilte Komponente (Analyse, Kosten, Sessions),
+    // und „Produktion“ schliesst seitdem auch Lasttest-Sitzungen aus — seit
+    // ST-8e auch den Chat-Probelauf der Agent-Seite (`studio-`).
+    const hints = Array.from(h.el.querySelectorAll(".os-hint")).map(
+      (s) => s.textContent?.trim(),
     );
     expect(hints).toEqual([
-      "Real conversations and eval runs together",
-      "Real conversations only",
-      "Simulated eval turns only",
+      "Real conversations, eval runs, load tests and trial runs together",
+      "Without eval, load-test and trial-run sessions (the widget preview in the studio counts)",
+      "Only the sessions of eval runs",
     ]);
   });
 });

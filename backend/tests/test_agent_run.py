@@ -5,8 +5,10 @@ gelten, was vorab aufgelöst wird, und ob ``execute`` an einer persönlichen
 Anmeldung hängt statt an der Behauptung des Aufrufers.
 
 Gefälscht: ``agent_loop.run_agent_loop`` (die Scheibe darunter, in A2 belegt),
-``outcome_service.call_with_outcome`` (MCP-Netzaufruf) und ``load_engine``
-(Datenbank).
+``outcome_service.call_with_outcome`` (MCP-Netzaufruf), ``load_engine``
+(Datenbank) und seit AG-4 Teil B die Safety-Prüfung des Gates (ihre
+Moderations-Stufe ist ein Netzaufruf). Was das Gate daraus macht, belegt
+``test_agent_gate.py``.
 """
 
 from __future__ import annotations
@@ -17,9 +19,10 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from boerdi.api.schemas import SafetyDecision
 from boerdi.api.schemas_agent import AgentRequest
 from boerdi.domain.config_models.engine import AgentLimits, EngineArea
-from boerdi.services import agent_loop, agent_run, agent_write, outcome_service
+from boerdi.services import agent_gate, agent_loop, agent_run, agent_write, outcome_service
 from boerdi.services.agent_loop import AgentRun
 from boerdi.services.mcp import auth
 
@@ -50,12 +53,18 @@ class _OutcomeFake:
             tool=tool_name, status="success", item_count=1)
 
 
-def _lauf(monkeypatch, req, *, engine=None, loop=None, outcome=None, personal=False):
+def _lauf(monkeypatch, req, *, engine=None, loop=None, outcome=None, personal=False,
+          sicherheit=None):
     loop = loop or _LoopFake()
     out = outcome or _OutcomeFake()
     monkeypatch.setattr(agent_loop, "run_agent_loop", loop)
     monkeypatch.setattr(agent_run, "run_agent_loop", loop)
     monkeypatch.setattr(outcome_service, "call_with_outcome", out)
+
+    async def _pruefung(text, signals=None, usage_acc=None):
+        return sicherheit or SafetyDecision(risk_level="low")
+
+    monkeypatch.setattr(agent_gate, "assess_safety", _pruefung)
 
     # Synchron wie das Original — siehe die Lehre in test_engine_choice.
     monkeypatch.setattr(agent_run, "load_engine", lambda: engine or EngineArea())

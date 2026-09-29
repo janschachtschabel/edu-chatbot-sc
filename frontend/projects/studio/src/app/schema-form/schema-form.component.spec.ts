@@ -5,7 +5,8 @@ import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ChoicesApi } from '../core/choices-api.service';
-import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
+import type { FieldProblem } from '../core/field-problems';
+import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from '../i18n/studio-language.service';
 import { AREA_SCHEMAS } from './area-schemas.fixture';
 import type { JsonSchema } from './json-schema';
 import { SchemaFormComponent } from './schema-form.component';
@@ -40,8 +41,12 @@ async function mount(schema: JsonSchema, value: Record<string, unknown>): Promis
 }
 
 function inputFor(el: HTMLElement, labelText: string): HTMLInputElement {
-  const label = Array.from(el.querySelectorAll('label')).find((l) =>
-    l.textContent?.trim().startsWith(labelText),
+  // ST-1: vorn steht die Katalog-Beschriftung, klein dahinter der Rohschlüssel
+  // — ein Feld ist über beides zu finden.
+  const label = Array.from(el.querySelectorAll('label')).find(
+    (l) =>
+      l.textContent?.trim().startsWith(labelText)
+      || l.querySelector('.sf-key')?.textContent?.trim() === labelText,
   );
   if (!label) throw new Error(`no label starting with "${labelText}"`);
   const control = byId(el, label.htmlFor);
@@ -111,6 +116,47 @@ describe('SchemaFormComponent — scalars', () => {
     expect(h.emitted.at(-1)?.['max']).toBeNull();
   });
 
+  it('zeigt einen Wahrheitswert als Schalter — das native Kästchen mit der Rolle „switch"', () => {
+    // ST-2b: das Kästchen bleibt, damit Leertaste, Fokus und der angesagte
+    // Zustand vom Browser kommen; `role="switch"` lässt es „an/aus" heißen.
+    const check = inputFor(h.el, 'enabled');
+    expect(check.type).toBe('checkbox');
+    expect(check.getAttribute('role')).toBe('switch');
+    expect(check.classList).toContain('sf-switch');
+  });
+
+  it('zeigt die Grenzen eines Zahlfelds und setzt sie als min/max (ST-2c)', async () => {
+    const mitGrenzen: JsonSchema = {
+      type: 'object',
+      properties: { prozent: { type: 'integer', minimum: 70, maximum: 100 } },
+    };
+    const g = await mount(mitGrenzen, { prozent: 85 });
+    const feld = inputFor(g.el, 'prozent');
+    expect([feld.getAttribute('min'), feld.getAttribute('max')]).toEqual(['70', '100']);
+    const beschreibung = (feld.getAttribute('aria-describedby') ?? '')
+      .split(' ')
+      .map((id) => byId(g.el, id)?.textContent?.trim());
+    expect(beschreibung).toContain('Erlaubt: 70 bis 100');
+  });
+
+  it('zeigt einen vom Code festgesetzten Schalter gesperrt als „fest aktiv" (ST-6)', async () => {
+    // Das Sicherheitsprotokoll setzt der Lader fest auf an; ein bedienbarer
+    // Schalter stellte sich wirkungslos auf „aus" — auch ein gespeichertes
+    // `false` zeigt deshalb, was WIRKT.
+    const fest: JsonSchema = {
+      type: 'object',
+      properties: { safety: { type: 'boolean', 'x-fixed': true } },
+    };
+    const g = await mount(fest, { safety: false });
+    const schalter = inputFor(g.el, 'safety');
+    expect(schalter.disabled).toBe(true);
+    expect(schalter.checked).toBe(true);
+    expect(g.el.textContent).toContain('fest aktiv');
+    schalter.click();
+    await g.fixture.whenStable();
+    expect(g.emitted).toEqual([]);
+  });
+
   it('toggles a checkbox', async () => {
     const check = inputFor(h.el, 'enabled');
     check.checked = false;
@@ -174,23 +220,27 @@ describe('SchemaFormComponent — the preservation guarantee', () => {
 
 describe('SchemaFormComponent — lists', () => {
   let h: Harness;
+  /** Der Name der Liste — seit ST-1 aus dem Katalog („Start-Chips"), nicht mehr
+   *  der Rohschlüssel. Einträge und Knöpfe heißen danach. */
+  let liste: string;
   beforeEach(async () => {
     h = await mount(WELCOME, { welcome: { quick_replies: ['a', 'b'] } });
+    liste = TestBed.inject(StudioLanguageService).t('feld.WelcomeBlock.quick_replies.label');
   });
 
   it('renders one control per entry', () => {
-    expect(inputFor(h.el, 'quick_replies 1').value).toBe('a');
-    expect(inputFor(h.el, 'quick_replies 2').value).toBe('b');
+    expect(inputFor(h.el, `${liste} 1`).value).toBe('a');
+    expect(inputFor(h.el, `${liste} 2`).value).toBe('b');
   });
 
   it('appends the blank value of the item type', async () => {
-    buttonWithLabel(h.el, 'Eintrag zu quick_replies hinzufügen').click();
+    buttonWithLabel(h.el, `Eintrag zu ${liste} hinzufügen`).click();
     await h.fixture.whenStable();
     expect(h.emitted.at(-1)).toEqual({ welcome: { quick_replies: ['a', 'b', ''] } });
   });
 
   it('removes an entry and shifts the rest down', async () => {
-    buttonWithLabel(h.el, 'Eintrag 1 aus quick_replies entfernen').click();
+    buttonWithLabel(h.el, `Eintrag 1 aus ${liste} entfernen`).click();
     await h.fixture.whenStable();
     expect(h.emitted.at(-1)).toEqual({ welcome: { quick_replies: ['b'] } });
   });
@@ -219,17 +269,19 @@ describe('SchemaFormComponent — maps', () => {
     expect(h.emitted.at(-1)).toEqual({ Fragen: { mode: 'always' }, OER: { mode: 'nie' } });
   });
 
+  // Seit ST-3 ist eine Map von Objekten ein Liste│Editor: die Knöpfe heißen
+  // „Neu" und „Löschen", die Wirkung ist dieselbe.
   it('adds an entry under a free placeholder key', async () => {
     const h = await mount(RAG, {});
     // the root of a map area has no key; its buttons must still be named
-    buttonWithLabel(h.el, 'Eintrag zu Einträge hinzufügen').click();
+    buttonWithLabel(h.el, 'Neu in Einträge').click();
     await h.fixture.whenStable();
     expect(Object.keys(h.emitted.at(-1) ?? {})).toEqual(['neuer_eintrag']);
   });
 
   it('removes an entry', async () => {
     const h = await mount(RAG, { FAQ: { mode: 'always' } });
-    buttonWithLabel(h.el, 'Eintrag FAQ entfernen').click();
+    buttonWithLabel(h.el, 'Löschen: FAQ').click();
     await h.fixture.whenStable();
     expect(h.emitted.at(-1)).toEqual({});
   });
@@ -533,17 +585,70 @@ describe('SchemaFormComponent — Vorschlagsliste (S3)', () => {
       },
     };
     const h = await mount(listenFeld, { tools: ['a', 'b', 'c'] });
+    // Seit ST-2g Chips: drei Chips, EIN Eingabefeld — an der einen Liste.
+    expect(h.el.querySelectorAll('.sf-chip')).toHaveLength(3);
     const felder = h.el.querySelectorAll<HTMLInputElement>('input.sf-input[type="text"]');
-    expect(felder).toHaveLength(3);
-    expect(new Set(Array.from(felder).map((f) => f.getAttribute('list'))).size).toBe(1);
+    expect(felder).toHaveLength(1);
+    expect(byId(h.el, felder[0].getAttribute('list')!)?.tagName).toBe('DATALIST');
     expect(h.el.querySelectorAll('datalist')).toHaveLength(1);
   });
 });
 
+describe('SchemaFormComponent — Chips aus Katalogen (ST-2g)', () => {
+  const WERKZEUGE: JsonSchema = {
+    type: 'object',
+    properties: { tools: { type: 'array', items: { type: 'string', 'x-catalog': 'tools' } } },
+  };
+
+  function neu(el: HTMLElement): HTMLInputElement {
+    return el.querySelector<HTMLInputElement>('.sf-chip-add input')!;
+  }
+
+  it('zeigt jeden Wert als Chip mit eigenem Entfernen-Knopf', async () => {
+    const h = await mount(WERKZEUGE, { tools: ['search_wlo_content', 'get_skill'] });
+    const chips = Array.from(h.el.querySelectorAll('.sf-chip'));
+    expect(chips.map((c) => c.querySelector('.sf-chip-text')?.textContent?.trim()))
+      .toEqual(['search_wlo_content', 'get_skill']);
+    const knopf = chips[1].querySelector('button')!;
+    expect(knopf.getAttribute('aria-label')).toContain('get_skill');
+    knopf.click();
+    await h.fixture.whenStable();
+    expect(h.emitted.at(-1)).toEqual({ tools: ['search_wlo_content'] });
+  });
+
+  it('hängt einen Wert an — per Knopf und per Eingabetaste — und leert das Feld', async () => {
+    const h = await mount(WERKZEUGE, { tools: ['a'] });
+    const feld = neu(h.el);
+    feld.value = ' b ';
+    h.el.querySelector<HTMLButtonElement>('.sf-chip-add button')!.click();
+    await h.fixture.whenStable();
+    expect(h.emitted.at(-1)).toEqual({ tools: ['a', 'b'] });
+    expect(feld.value).toBe('');
+    feld.value = 'c';
+    feld.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    await h.fixture.whenStable();
+    expect(h.emitted.at(-1)).toEqual({ tools: ['a', 'c'] });
+  });
+
+  it('nimmt einen Wert nicht doppelt auf und sagt warum', async () => {
+    const h = await mount(WERKZEUGE, { tools: ['a'] });
+    const vorher = h.emitted.length;
+    neu(h.el).value = 'a';
+    h.el.querySelector<HTMLButtonElement>('.sf-chip-add button')!.click();
+    await h.fixture.whenStable();
+    expect(h.emitted.length).toBe(vorher);
+    expect(h.el.querySelector('.sf-chip-add .sf-error')?.textContent).toContain('„a“');
+  });
+});
+
 describe('SchemaFormComponent — Textfläche (Fliesstext)', () => {
+  // Seit ST-2f entscheidet der Hinweis des Modells, nicht der Name.
   const MIT_STRUKTUR: JsonSchema = {
     type: 'object',
-    properties: { structure: { type: 'string' }, label: { type: 'string' } },
+    properties: {
+      structure: { type: 'string', 'x-widget': 'textarea' },
+      label: { type: 'string' },
+    },
   };
 
   it('wächst mit dem Inhalt statt bei einer festen Höhe zu bleiben', async () => {
@@ -562,6 +667,22 @@ describe('SchemaFormComponent — Textfläche (Fliesstext)', () => {
     const h = await mount(MIT_STRUKTUR, { structure: '', label: 'Automatisch' });
     const label = inputFor(h.el, 'label');
     expect(label.tagName).toBe('INPUT');
+  });
+
+  it('hält die Zeilenumbrüche einer Kernregel über eine Bearbeitung (SF-2)', async () => {
+    // Ein einzeiliges Feld entfernt Umbrüche aus seinem Wert, und die erste
+    // Eingabe schrieb den geplätteten Text ins Dokument zurück. Gegen das
+    // ECHTE Musterschema: dort stand `core_rule` in einem `input`.
+    const kernregel = 'Erst fragen.\nDann suchen.';
+    const h = await mount(AREA_SCHEMAS['03-patterns'], {
+      frontmatter: { id: 'M99', core_rule: kernregel },
+      body: '',
+    });
+    const feld = inputFor(h.el, 'core_rule');
+    type(feld, `${feld.value} Dann zeigen.`);
+    await h.fixture.whenStable();
+    const doc = h.emitted.at(-1) as { frontmatter: Record<string, unknown> };
+    expect(doc.frontmatter['core_rule']).toBe(`${kernregel} Dann zeigen.`);
   });
 });
 
@@ -602,3 +723,257 @@ describe('SchemaFormComponent — Sprung zum Element (S4)', () => {
     expect(link.getAttribute('href')).toBe('/bereich/03-patterns/m06-material');
   });
 });
+
+describe('SchemaFormComponent — Schieberegler mit Bedeutung (ST-2h)', () => {
+  const TON = AREA_SCHEMAS['01-base/tone-modifiers'];
+
+  async function ton(bias: number | null): Promise<Harness> {
+    return mount(TON, { default_modifier: { length_bias: bias } });
+  }
+
+  function regler(el: HTMLElement): HTMLInputElement {
+    return el.querySelector<HTMLInputElement>('input[type="range"][id$="length_bias"]')!;
+  }
+
+  it('zeigt einen Regler mit den Grenzen und dem Schritt aus dem Schema', async () => {
+    const h = await ton(0);
+    const r = regler(h.el);
+    expect([r.min, r.max, r.step]).toEqual(['-0.3', '0.3', '0.05']);
+  });
+
+  it('sagt, was der Wert bewirkt — sichtbar und als aria-valuetext', async () => {
+    const t = TestBed.inject(StudioLanguageService).t;
+    const laenger = t('feld.ToneModifier.length_bias.zone.ueber');
+    const h = await ton(0.2);
+    expect(regler(h.el).getAttribute('aria-valuetext')).toContain(laenger);
+    expect(h.el.textContent).toContain(laenger);
+    const g = await ton(0.15); // die Schwelle selbst verschiebt noch nicht
+    expect(regler(g.el).getAttribute('aria-valuetext'))
+      .toContain(t('feld.ToneModifier.length_bias.zone.mitte'));
+  });
+
+  it('schreibt beim Ziehen eine Zahl', async () => {
+    const h = await ton(0);
+    const r = regler(h.el);
+    r.value = '-0.2';
+    r.dispatchEvent(new Event('input'));
+    await h.fixture.whenStable();
+    const doc = h.emitted.at(-1)?.['default_modifier'] as Record<string, unknown>;
+    expect(doc['length_bias']).toBe(-0.2);
+  });
+});
+
+describe('SchemaFormComponent — Tour-Chip als Radio je Zeile (ST-2i)', () => {
+  const chips = ['Hallo', 'Web-Tour starten', 'Suche'];
+
+  async function welcome(tour: string): Promise<Harness> {
+    return mount(WELCOME, { welcome: { quick_replies: [...chips], tour_reply: tour } });
+  }
+
+  function radios(el: HTMLElement): HTMLInputElement[] {
+    return Array.from(el.querySelectorAll<HTMLInputElement>('input[type="radio"]'))
+      .filter((r) => r.name.includes('quick_replies') && !r.name.includes('_en'));
+  }
+
+  it('setzt je Chip ein Radio und eins für „ohne" — das zum Tour-Chip ist gewählt', async () => {
+    const h = await welcome('Web-Tour starten');
+    const r = radios(h.el);
+    expect(r).toHaveLength(chips.length + 1);
+    expect(r.map((x) => x.checked)).toEqual([false, true, false, false]);
+    // der Text der Zeile gehört in den zugänglichen Namen, sonst hieße jedes
+    // Radio gleich
+    expect(r[0].getAttribute('aria-label')).toContain('Hallo');
+  });
+
+  it('schreibt den gewählten Chip in den Tour-Chip', async () => {
+    const h = await welcome('');
+    radios(h.el)[2].click();
+    await h.fixture.whenStable();
+    expect((h.emitted.at(-1)?.['welcome'] as Record<string, unknown>)['tour_reply']).toBe('Suche');
+  });
+
+  it('„ohne" leert den Tour-Chip', async () => {
+    const h = await welcome('Suche');
+    radios(h.el).at(-1)!.click();
+    await h.fixture.whenStable();
+    expect((h.emitted.at(-1)?.['welcome'] as Record<string, unknown>)['tour_reply']).toBe('');
+  });
+
+  it('nimmt den Tour-Chip mit, wenn sein Text geändert wird', async () => {
+    const h = await welcome('Suche');
+    const liste = TestBed.inject(StudioLanguageService).t('feld.WelcomeBlock.quick_replies.label');
+    type(inputFor(h.el, `${liste} 3`), 'Suchen');
+    await h.fixture.whenStable();
+    const doc = h.emitted.at(-1)?.['welcome'] as Record<string, unknown>;
+    expect(doc['quick_replies']).toEqual(['Hallo', 'Web-Tour starten', 'Suchen']);
+    expect(doc['tour_reply']).toBe('Suchen');
+  });
+
+  it('räumt den Tour-Chip, wenn seine Zeile gelöscht wird', async () => {
+    const h = await welcome('Suche');
+    const liste = TestBed.inject(StudioLanguageService).t('feld.WelcomeBlock.quick_replies.label');
+    buttonWithLabel(h.el, `Eintrag 3 aus ${liste} entfernen`).click();
+    await h.fixture.whenStable();
+    const doc = h.emitted.at(-1)?.['welcome'] as Record<string, unknown>;
+    expect(doc['quick_replies']).toEqual(['Hallo', 'Web-Tour starten']);
+    expect(doc['tour_reply']).toBe('');
+  });
+});
+
+describe('SchemaFormComponent — Prüffehler am Feld (ST-2e)', () => {
+  const SCHEMA: JsonSchema = {
+    type: 'object',
+    properties: {
+      prozent: { type: 'integer', minimum: 70, maximum: 100 },
+      gruppe: { type: 'object', properties: { x: { type: 'string' } } },
+    },
+  };
+
+  async function mitFehlern(problems: FieldProblem[]): Promise<Harness> {
+    const h = await mount(SCHEMA, { prozent: 10, gruppe: { x: 'a' } });
+    h.fixture.componentRef.setInput('problems', problems);
+    await h.fixture.whenStable();
+    return h;
+  }
+
+  function beschreibung(el: HTMLElement, control: Element): (string | undefined)[] {
+    return (control.getAttribute('aria-describedby') ?? '')
+      .split(' ')
+      .map((id) => byId(el, id)?.textContent?.trim());
+  }
+
+  it('hängt die Meldung an ihr Feld und markiert es als ungültig', async () => {
+    const h = await mitFehlern([
+      { path: ['prozent'], type: 'greater_than_equal', msg: 'm', ctx: { ge: 70 } },
+    ]);
+    const feld = inputFor(h.el, 'prozent');
+    expect(feld.getAttribute('aria-invalid')).toBe('true');
+    expect(beschreibung(h.el, feld).some((t) => t?.includes('Mindestens 70.'))).toBe(true);
+  });
+
+  it('hängt die Meldung einer Gruppe unter ihre Überschrift', async () => {
+    const h = await mitFehlern([{ path: ['gruppe'], type: 'dict_type', msg: 'm', ctx: {} }]);
+    // nicht der erste Rahmen: das ist die Wurzel des Formulars
+    const gruppe = Array.from(h.el.querySelectorAll('fieldset.sf-group')).find(
+      (f) => f.querySelector(':scope > legend')?.textContent?.includes('gruppe'),
+    )!;
+    expect(beschreibung(h.el, gruppe).some((t) => t?.includes('Einträge mit Schlüsseln'))).toBe(true);
+  });
+
+  it('nennt eine Meldung ohne eigenes Feld über dem Formular', async () => {
+    const h = await mitFehlern([{ path: ['gibt_es_nicht'], type: 'missing', msg: 'm', ctx: {} }]);
+    expect(h.el.textContent).toContain('gibt_es_nicht: Dieses Feld muss ausgefüllt sein.');
+  });
+
+  it('markiert ohne Meldung nichts', async () => {
+    const h = await mitFehlern([]);
+    expect(inputFor(h.el, 'prozent').getAttribute('aria-invalid')).toBeNull();
+  });
+});
+
+describe('SchemaFormComponent — Feldtexte aus dem Katalog (ST-1)', () => {
+  // Das echte Modell der vier Schichtdokumente — sein Schema trägt die
+  // Modellnamen, aus denen die Katalog-Schlüssel entstehen.
+  const LAYER_DOC = AREA_SCHEMAS['01-base/base-persona'];
+
+  function labelOf(el: HTMLElement, control: Element): HTMLLabelElement {
+    const label = el.querySelector<HTMLLabelElement>(`label[for="${control.id}"]`);
+    if (!label) throw new Error(`kein <label for="${control.id}">`);
+    return label;
+  }
+
+  it('beschriftet ein Feld mit dem Katalogtext und nennt den Schlüssel klein dahinter', async () => {
+    const h = await mount(LAYER_DOC, { frontmatter: { version: '4.0.0' }, body: 'x' });
+    const t = TestBed.inject(StudioLanguageService).t;
+    const control = h.el.querySelector('[id$="frontmatter.version"]')!;
+    const label = labelOf(h.el, control);
+    expect(label.textContent).toContain(t('feld.LayerDocFrontmatter.version.label'));
+    expect(label.querySelector('.sf-key')?.textContent?.trim()).toBe('version');
+  });
+
+  it('hängt den Hilfetext an das Feld — sichtbar und für Screenreader verknüpft', async () => {
+    const h = await mount(LAYER_DOC, { frontmatter: {}, body: 'x' });
+    const t = TestBed.inject(StudioLanguageService).t;
+    const control = h.el.querySelector('[id$="frontmatter.priority"]')!;
+    const describedBy = control.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    expect(byId(h.el, describedBy!)?.textContent?.trim())
+      .toBe(t('feld.LayerDocFrontmatter.priority.hint'));
+  });
+
+  it('beschriftet auch Gruppen aus dem Katalog', async () => {
+    const h = await mount(LAYER_DOC, { frontmatter: {}, body: 'x' });
+    const t = TestBed.inject(StudioLanguageService).t;
+    const legenden = Array.from(h.el.querySelectorAll('legend')).map((l) => l.textContent ?? '');
+    expect(legenden.some((l) => l.includes(t('feld.LayerDocArea.frontmatter.label')))).toBe(true);
+  });
+
+  it('überschreibt Abschnitte mit der Katalog-Beschriftung, den Schlüssel klein dahinter', async () => {
+    const h = await mount(AREA_SCHEMAS['01-base/welcome-config'], { welcome: {} });
+    const t = TestBed.inject(StudioLanguageService).t;
+    const kopf = Array.from(h.el.querySelectorAll('details.sf-section > summary')).find(
+      (s) => s.querySelector('.sf-key')?.textContent?.trim() === 'greeting',
+    );
+    expect(kopf?.textContent).toContain(t('feld.WelcomeBlock.greeting.label'));
+  });
+
+  it('lässt die Hülle der Abschnitte ohne Überschrift — sonst stünde sie über jedem', async () => {
+    const h = await mount(AREA_SCHEMAS['01-base/welcome-config'], { welcome: {} });
+    const t = TestBed.inject(StudioLanguageService).t;
+    const legenden = Array.from(h.el.querySelectorAll('legend')).map((l) => l.textContent?.trim());
+    expect(legenden).not.toContain(t('feld.WelcomeArea.welcome.label'));
+  });
+
+  it('nennt die Optionen einer Auswahl im Klartext, den Wert dahinter (ST-2d)', async () => {
+    const h = await mount(AREA_SCHEMAS['01-base/engine'], { mode: 'pattern' });
+    const t = TestBed.inject(StudioLanguageService).t;
+    const auswahl = h.el.querySelector<HTMLSelectElement>('select[id$="-mode"]')!;
+    const texte = Array.from(auswahl.options).map((o) => o.textContent?.trim());
+    expect(texte).toContain(`${t('feld.EngineArea.mode.wahl.pattern')} (pattern)`);
+    // der gespeicherte Wert bleibt der Rohwert — nur die Anzeige ist Klartext
+    expect(auswahl.value).toBe('pattern');
+  });
+
+  it('bleibt ohne Katalogtext beim Rohschlüssel — ohne ihn doppelt zu nennen', async () => {
+    const schema: JsonSchema = {
+      title: 'OhneTexteModell', type: 'object', properties: { notiz: { type: 'string' } },
+    };
+    const h = await mount(schema, { notiz: '' });
+    const label = labelOf(h.el, h.el.querySelector('[id$="notiz"]')!);
+    expect(label.textContent?.trim()).toBe('notiz');
+    expect(label.querySelector('.sf-key')).toBeNull();
+  });
+});
+
+describe('SchemaFormComponent — Liste│Editor für Objekte (ST-3)', () => {
+  const OBJEKT: JsonSchema = {
+    type: 'object', title: 'Regel',
+    properties: { id: { type: 'string' }, label: { type: 'string' } },
+  };
+  const SCHEMA: JsonSchema = {
+    type: 'object',
+    properties: {
+      regeln: { type: 'array', items: { $ref: '#/$defs/Regel' } },
+      karte: { type: 'object', additionalProperties: { $ref: '#/$defs/Regel' } },
+      woerter: { type: 'array', items: { type: 'string' } },
+    },
+    $defs: { Regel: OBJEKT },
+  };
+
+  it('zeigt Listen und Maps von Objekten als Liste│Editor, Text-Listen wie bisher', async () => {
+    const h = await mount(SCHEMA, {
+      regeln: [{ id: 'r1', label: 'Erste' }, { id: 'r2', label: 'Zweite' }],
+      karte: { a: { label: 'A' } },
+      woerter: ['eins', 'zwei'],
+    });
+    const listen = h.el.querySelectorAll('studio-object-list');
+    expect(listen).toHaveLength(2);
+    expect([...listen[0].querySelectorAll('.ol-title')].map((s) => s.textContent?.trim()))
+      .toEqual(['Erste', 'Zweite']);
+    // nur der gewählte Eintrag steht im Editor, nicht beide untereinander
+    expect(listen[0].querySelectorAll('.ol-editor input[id$="label"]')).toHaveLength(1);
+    // Text-Listen behalten ihre Zeilen
+    expect(h.el.querySelectorAll('.sf-entries')).toHaveLength(1);
+  });
+});
+

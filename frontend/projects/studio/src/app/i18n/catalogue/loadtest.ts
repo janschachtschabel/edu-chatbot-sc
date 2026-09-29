@@ -53,7 +53,7 @@ export const LOADTEST: CataloguePart = {
     'lt.stages.hint': 'höchstens {stages} Stufen, je bis {concurrency} parallel',
     'lt.requests': 'Requests pro Stufe',
     'lt.threshold': 'p95-Schwelle für „stabil" (Sekunden)',
-    // Review-Befund 7: Engine je Lauf — agent/hybrid haben ein anderes
+    // Review-Befund 7: Engine je Lauf — agent hat ein anderes
     // Runden-Profil, ohne Wahl galten die Zahlen nur für die Vorgabe.
     'lt.engine.legend': 'Maschine (Engine)',
     'lt.engine.default': 'Server-Vorgabe',

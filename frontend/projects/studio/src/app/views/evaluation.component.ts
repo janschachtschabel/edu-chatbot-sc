@@ -15,10 +15,14 @@
  * each start panel reading the same endpoint again.
  */
 import {
-  ChangeDetectionStrategy, Component, computed, inject, signal, viewChild,
+  ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, inject, signal,
+  viewChild,
 } from '@angular/core';
 
 import { StudioLanguageService } from '../i18n/studio-language.service';
+import { DASHBOARD_SECTIONS } from './area-homes';
+import { AreaSectionComponent } from './area-section.component';
+import { EvalCompareComponent } from './eval-compare.component';
 import { EvalGenerativeStartComponent } from './eval-generative-start.component';
 import { EvalGoldenStartComponent } from './eval-golden-start.component';
 import { EvalPatternUsageComponent } from './eval-pattern-usage.component';
@@ -26,6 +30,7 @@ import { EvalRunDetailComponent } from './eval-run-detail.component';
 import { EvalRunsComponent } from './eval-runs.component';
 import { EvalTrendsComponent } from './eval-trends.component';
 import { TabBarComponent, type TabDef } from './tab-bar.component';
+import { warnOnUnload } from './unsaved-changes.guard';
 
 /**
  * Nur die Kennungen und ihre Schlüssel — die Beschriftungen entstehen erst beim
@@ -36,6 +41,8 @@ const TAB_KEYS: readonly { readonly id: string; readonly labelKey: string }[] = 
   { id: 'laeufe', labelKey: 'eval.tab.laeufe' },
   { id: 'trends', labelKey: 'eval.tab.trends' },
   { id: 'pattern', labelKey: 'eval.tab.pattern' },
+  // ST-9: die Flows neben den Läufen, die sie abspielen
+  { id: 'goldflows', labelKey: 'eval.tab.goldflows' },
 ];
 
 @Component({
@@ -43,7 +50,7 @@ const TAB_KEYS: readonly { readonly id: string; readonly labelKey: string }[] = 
   imports: [
     TabBarComponent, EvalRunsComponent, EvalTrendsComponent,
     EvalGenerativeStartComponent, EvalGoldenStartComponent, EvalRunDetailComponent,
-    EvalPatternUsageComponent,
+    EvalPatternUsageComponent, AreaSectionComponent, EvalCompareComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './evaluation.component.html',
@@ -51,6 +58,8 @@ const TAB_KEYS: readonly { readonly id: string; readonly labelKey: string }[] = 
 })
 export class EvaluationComponent {
   protected readonly t = inject(StudioLanguageService).t;
+
+  private readonly injector = inject(Injector);
 
   readonly tabs = computed<readonly TabDef[]>(() =>
     TAB_KEYS.map((tab) => ({ id: tab.id, label: this.t(tab.labelKey) })));
@@ -61,6 +70,19 @@ export class EvaluationComponent {
 
   /** Nur montiert, solange ein Lauf geöffnet ist — deshalb ein Signal. */
   private readonly detailPanel = viewChild(EvalRunDetailComponent);
+
+  private readonly goldenStart = viewChild(EvalGoldenStartComponent);
+
+  /** Die Gold-Flows als Bereich (ST-9) — derselbe Abschnitt wie auf den
+   *  Konfigurationsseiten, mit Speichern, Verwerfen und Rohtext. */
+  readonly goldFlowsSection = DASHBOARD_SECTIONS.evaluation[0];
+  readonly goldFlows = viewChild(AreaSectionComponent);
+  /** Für den Verlassen-Schutz: die Seite bearbeitet seit ST-9 einen Bereich. */
+  readonly dirty = computed(() => this.goldFlows()?.dirty() ?? false);
+
+  constructor() {
+    warnOnUnload(() => this.dirty());
+  }
 
   /** The run list polls while anything runs; that is the honest source. */
   readonly busy = computed(() => this.runsPanel()?.isPolling() ?? false);
@@ -74,6 +96,11 @@ export class EvaluationComponent {
   });
 
   select(id: string): void {
+    // Wer von den Gold-Flows kommt, hat sie womöglich geändert: das
+    // Start-Formular liest seine Flow-Liste selbst und nur einmal.
+    if (this.active() === 'goldflows' && id !== 'goldflows') {
+      void this.goldenStart()?.flowList.reload();
+    }
     this.active.set(id);
     if (!this.visited().has(id)) {
       this.visited.update((seen) => new Set(seen).add(id));
@@ -93,8 +120,25 @@ export class EvaluationComponent {
     this.openRun.update((current) => (current === id ? '' : id));
   }
 
+  /** Schließt das Detail und holt den Fokus zur Zeile seines Laufs zurück —
+   *  das Detail stand unter der ganzen Liste. */
   closeDetail(): void {
+    const id = this.openRun();
     this.openRun.set('');
+    if (id) {
+      afterNextRender(() => this.runsPanel()?.focusRow(id), { injector: this.injector });
+    }
+  }
+
+  /** ST-7c: welche Läufe der Vergleich zeigt; leer = keiner offen. */
+  readonly compareIds = signal<readonly string[]>([]);
+
+  openCompare(ids: readonly string[]): void {
+    this.compareIds.set(ids);
+  }
+
+  closeCompare(): void {
+    this.compareIds.set([]);
   }
 
   /** Löschungen aus der Liste (Befund 2026-08-22): das offene Detail eines

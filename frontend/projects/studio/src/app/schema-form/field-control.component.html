@@ -1,0 +1,158 @@
+@switch (field().kind) {
+  @case ('text') {
+    <input
+      class="sf-input"
+      type="text"
+      [id]="controlId()"
+      [value]="asText()"
+      [attr.list]="datalistId()"
+      [attr.aria-describedby]="describedBy()"
+      [attr.aria-invalid]="invalid() ? 'true' : null"
+      [attr.aria-required]="field().required ? 'true' : null"
+      (input)="onText($event)"
+    />
+    <!-- Eine Vorschlagsliste (vom Formular gerendert), kein Auswahlfeld:
+         ein Muster entsteht durch Anlegen, ein RAG-Bereich durch
+         Einlesen — wer den Namen schon kennt, muss ihn tippen dürfen. -->
+    @if (linkSegments(); as ziel) {
+      <a class="sf-jump" [routerLink]="ziel">
+        {{ t('schemaField.openTarget', { value: asText() }) }}
+      </a>
+    }
+  }
+  @case ('select') {
+    <select
+      class="sf-input sf-select"
+      [id]="controlId()"
+      [attr.aria-describedby]="describedBy()"
+      [attr.aria-invalid]="invalid() ? 'true' : null"
+      [attr.aria-required]="field().required ? 'true' : null"
+      (change)="onText($event)"
+    >
+      @for (option of options(); track option.value) {
+        <option [value]="option.value" [selected]="option.value === asText()">
+          {{ option.label }}
+        </option>
+      }
+    </select>
+  }
+  @case ('multiline') {
+    <textarea
+      class="sf-input sf-multiline"
+      [rows]="rows()"
+      [id]="controlId()"
+      [value]="asText()"
+      [attr.aria-describedby]="describedBy()"
+      [attr.aria-invalid]="invalid() ? 'true' : null"
+      [attr.aria-required]="field().required ? 'true' : null"
+      (input)="onText($event)"
+    ></textarea>
+  }
+  @case ('integer') {
+    <input
+      class="sf-input sf-number"
+      type="number"
+      step="1"
+      inputmode="numeric"
+      [id]="controlId()"
+      [value]="asNumber()"
+      [attr.min]="field().minimum ?? null"
+      [attr.max]="field().maximum ?? null"
+      [attr.aria-describedby]="describedByAll()"
+      [attr.aria-invalid]="invalid() ? 'true' : null"
+      [attr.aria-required]="field().required ? 'true' : null"
+      (input)="onNumber($event)"
+    />
+    @if (range(); as grenzen) {
+      <span class="sf-range" [id]="rangeId()">{{ grenzen }}</span>
+    }
+  }
+  @case ('number') {
+    @if (field().widget === 'slider') {
+      <!-- ST-2h: Regler. Was der Wert bewirkt, steht daneben und im
+           aria-valuetext — ein Screenreader sagte sonst nur die Zahl. -->
+      <div class="sf-slider">
+        <input
+          class="sf-slider-input"
+          type="range"
+          [id]="controlId()"
+          [min]="field().minimum!"
+          [max]="field().maximum!"
+          [step]="field().step ?? 'any'"
+          [value]="sliderValue()"
+          [attr.aria-describedby]="describedByAll()"
+          [attr.aria-invalid]="invalid() ? 'true' : null"
+          [attr.aria-valuetext]="sliderText()"
+          (input)="onNumber($event)"
+        />
+        <output class="sf-slider-value" [attr.for]="controlId()">{{ sliderText() }}</output>
+        @if (field().nullable && value() !== null && value() !== undefined) {
+          <button type="button" class="sf-remove" (click)="valueChange.emit(null)">
+            {{ t('schemaField.sliderClear') }}
+          </button>
+        }
+      </div>
+      @if (range(); as grenzen) {
+        <span class="sf-range" [id]="rangeId()">{{ grenzen }}</span>
+      }
+    } @else {
+      <input
+        class="sf-input sf-number"
+        type="number"
+        step="any"
+        inputmode="decimal"
+        [id]="controlId()"
+        [value]="asNumber()"
+        [attr.min]="field().minimum ?? null"
+        [attr.max]="field().maximum ?? null"
+        [attr.aria-describedby]="describedByAll()"
+        [attr.aria-invalid]="invalid() ? 'true' : null"
+        [attr.aria-required]="field().required ? 'true' : null"
+        (input)="onNumber($event)"
+      />
+      @if (range(); as grenzen) {
+        <span class="sf-range" [id]="rangeId()">{{ grenzen }}</span>
+      }
+    }
+  }
+  @case ('boolean') {
+    @if (field().fixed) {
+      <!-- ST-6: vom Code festgesetzt — zeigt, was WIRKT, auch wenn gespeichert
+           etwas anderes steht; nicht bedienbar. -->
+      <span class="sf-fixed-row">
+        <input
+          class="sf-check sf-switch"
+          type="checkbox"
+          role="switch"
+          [id]="controlId()"
+          [checked]="true"
+          disabled
+          [attr.aria-describedby]="describedBy()"
+        />
+        <span class="sf-fixed">{{ t('schemaField.fixedOn') }}</span>
+      </span>
+    } @else {
+      <!-- Das native Kästchen als Schalter (ST-2b): Leertaste, Fokus und der
+           angesagte Zustand kommen vom Browser, `role="switch"` sagt „an/aus". -->
+      <input
+        class="sf-check sf-switch"
+        type="checkbox"
+        role="switch"
+        [id]="controlId()"
+        [checked]="asBoolean()"
+        [attr.aria-describedby]="describedBy()"
+        [attr.aria-invalid]="invalid() ? 'true' : null"
+        (change)="onBoolean($event)"
+      />
+    }
+  }
+  @default {
+    <studio-json-value
+      [fieldId]="controlId()"
+      [value]="value()"
+      [describedByBase]="describedBy()"
+      (valueChange)="valueChange.emit($event)"
+      (errorChange)="errorChange.emit($event)"
+    />
+  }
+}

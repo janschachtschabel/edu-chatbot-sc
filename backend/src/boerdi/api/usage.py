@@ -17,7 +17,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from boerdi.api.deps import Lang, get_session, require_studio_key
+from boerdi.api.deps import Lang, OriginScope, get_session, require_studio_key
 from boerdi.i18n import msg
 from boerdi.services.usage_analytics import period_usage, session_usage
 
@@ -66,6 +66,7 @@ async def usage_for_period(
     lang: Lang,
     start: Annotated[datetime, Query(alias="from")],
     end: Annotated[datetime, Query(alias="to")],
+    scope: OriginScope = "all",
 ) -> dict:
     """Dasselbe über einen Zeitraum, Grenzen einschließlich.
 
@@ -84,4 +85,4 @@ async def usage_for_period(
             status_code=422,
             detail=msg(lang, "usage.periodTooLong", max=MAX_PERIOD_DAYS),
         )
-    return await period_usage(session, start, end)
+    return await period_usage(session, start, end, scope=scope)

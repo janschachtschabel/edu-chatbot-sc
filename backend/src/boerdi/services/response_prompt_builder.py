@@ -25,7 +25,7 @@ import json
 import logging
 from typing import Any
 
-from boerdi.domain import host_instruction
+from boerdi.domain import host_instruction, skill_bruecke
 from boerdi.domain.skill_precedence import anleitungs_hinweis, laufende_anleitung
 from boerdi.i18n import resolve_locale
 from boerdi.services import page_context
@@ -53,6 +53,39 @@ def _get_state_meta_safe(state_id: str) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         _logger.warning("state-directive lookup failed for %s: %s", state_id, exc)
         return {}
+
+
+def _tools_layer(
+    pattern_output: dict[str, Any],
+    session_state: dict,
+    available_rag_areas: list[str] | None,
+    rag_config: dict[str, Any] | None,
+    lang: Any,
+    *,
+    degradation_no_tools: bool,
+) -> str:
+    """Die Werkzeug-Schicht: entweder das Angebot oder die Sperre (ALT P8).
+
+    Ausgelagert beim Cache-Umbau 2026-08-23, damit die Entscheidung an EINER
+    Stelle bleibt, obwohl der Block jetzt weit vorne im Prompt steht. Die
+    Verzweigung ist ALT-treu übernommen: eine Degradation oder ein
+    ausdrücklich LEERES Werkzeug-Set (ohne MCP-Quelle) sperrt die Werkzeuge und
+    erzwingt eine reine Textantwort.
+    """
+    hat_leeres_set = "tools" in pattern_output and not pattern_output["tools"]
+    keine_werkzeuge = degradation_no_tools or (
+        hat_leeres_set
+        and not (pattern_output.get("sources") and "mcp" in pattern_output["sources"])
+    )
+    if not keine_werkzeuge:
+        return _tools_text.render_tools_block(
+            session_state, available_rag_areas, rag_config, lang,
+        )
+    regeln = (
+        _tools_text.DEGRADATION_NO_TOOLS_RULES if degradation_no_tools
+        else _tools_text.M15_NO_TOOLS_RULES
+    )
+    return regeln + _tools_text.render_output_language(lang)
 
 
 def _build_system_prompt(
@@ -97,9 +130,39 @@ def _build_system_prompt(
         k: v for k, v in (classification.get('entities') or {}).items()
         if not k.startswith('_')
     })
+    # P5-Flags vorgezogen (Cache-Umbau 2026-08-23): der Werkzeug-Block hängt an
+    # ihnen und steht jetzt weit vorne — also müssen sie hier schon feststehen.
+    # Sie lesen ausschließlich ``pattern_output``/``environment``/``pattern_label``,
+    # hängen also an nichts, was weiter unten erst entsteht.
+    _card_mode = pattern_output.get("card_text_mode", "minimal")
+    _cards_inline_mode = environment.get("cards_enabled") is False
+    _inline_grouping_mode = (
+        _cards_inline_mode
+        and environment.get("inline_result_grouping") is not False
+    )
+    _pattern_id = ((pattern_label or "").strip().split(" ")[0] or "").upper()
+    _is_search_pattern = _pattern_id in {"M05", "M06", "M07", "M08"}
+    _degradation_no_tools = bool(
+        pattern_output.get("degradation")
+        and pattern_output.get("missing_slots")
+    )
+
     system_parts = [
         base_persona,  # Layer 1: Identity
         domain_rules,  # Layer 2: Domain rules
+        # Werkzeug-Schicht: konstant über alle Züge einer Installation (nur die
+        # RAG-Bereiche der Konfiguration ändern sie), rund 1.700 Token groß.
+        # Sie stand bis 2026-08-23 als P8 fast am Ende — hinter der
+        # Muster-Schicht, die bei jedem Zug wechselt. Damit brach das
+        # Prompt-Cache-Präfix VOR ihr ab und sie wurde jedes Mal neu bezahlt.
+        # Hier vorn verlängert sie den stabilen Präfix von ~2.400 auf ~4.100
+        # Token. Inhaltlich ist sie Nachschlagewerk, keine Zug-Anweisung — die
+        # verhaltenssteuernden Schichten (Persona, Muster, Kontext) folgen
+        # unverändert dahinter und behalten damit die Nähe zur Nutzerfrage.
+        _tools_layer(
+            pattern_output, session_state, available_rag_areas, rag_config,
+            lang, degradation_no_tools=_degradation_no_tools,
+        ),
         persona_prompt,  # Layer 3: Persona
         render_pattern_layer(pattern_output, persona_id),  # Layer 4: Pattern + Anrede
         f"""## Kontext
@@ -124,9 +187,14 @@ Rolle in dieser Phase: {_resp_state_meta.get('role', '—')}
     # fällt P3c auf die Gesprächs-Notiz zurück — der einzige Skill-Hinweis, der
     # dann noch zu haben ist.
     _pm: dict[str, Any] | None = None
+    # E-6: Skill-Anweisungen nur, wenn dieser Zug die Werkzeuge dazu hat — eigene
+    # des Musters oder die Skill-Brücke aus ``route``. Sonst hiesse es „hol ihn
+    # mit get_skill" in einem Muster ohne get_skill.
+    _skill_weg = skill_bruecke.verfuegbar(pattern_output)
     try:
         _pm = page_context.get_cached(session_state)
-        _pb = page_context.render_for_prompt(_pm, environment.get("page_context"))
+        _pb = page_context.render_for_prompt(
+            _pm, environment.get("page_context"), skill_weg=_skill_weg)
         if _pb:
             system_parts.append(_pb)
         else:
@@ -157,7 +225,7 @@ Rolle in dieser Phase: {_resp_state_meta.get('role', '—')}
     # überhaupt kennen.
     _lauf = laufende_anleitung(
         session_state.get("entities"), session_state.get("turn_count"))
-    if _lauf:
+    if _lauf and _skill_weg:
         system_parts.append(
             "## Laufender Skill\n"
             f"In diesem Gespräch ist der freigegebene Skill `{_lauf}` in "
@@ -174,7 +242,7 @@ Rolle in dieser Phase: {_resp_state_meta.get('role', '—')}
     # Routing liest, hier für den zweiten Leser.
     _skills = anleitungs_hinweis(
         (_pm or {}).get("context_facts"), session_state.get("entities"))
-    if _skills:
+    if _skills and _skill_weg:
         system_parts.append(_skills)
 
     # P4: M11 Edit needs the pre-edit canvas content explicitly in the prompt.
@@ -182,21 +250,8 @@ Rolle in dieser Phase: {_resp_state_meta.get('role', '—')}
     if _m11:
         system_parts.append(_m11)
 
-    # P5: display modes. Flags computed early — the search-prompt blocks and the
-    # tool lock (P8) all depend on them.
-    _card_mode = pattern_output.get("card_text_mode", "minimal")
-    _cards_inline_mode = environment.get("cards_enabled") is False
-    _inline_grouping_mode = (
-        _cards_inline_mode
-        and environment.get("inline_result_grouping") is not False
-    )
-    _pattern_id = ((pattern_label or "").strip().split(" ")[0] or "").upper()
-    _is_search_pattern = _pattern_id in {"M05", "M06", "M07", "M08"}
-    _degradation_no_tools = bool(
-        pattern_output.get("degradation")
-        and pattern_output.get("missing_slots")
-    )
-
+    # P5: display modes. Die Flags stehen seit dem Cache-Umbau ganz oben (die
+    # Werkzeug-Schicht braucht sie dort schon); hier folgen nur noch die Blöcke.
     _card_block = _display.render_card_text_mode_block(_card_mode)
     if _card_block:
         system_parts.append(_card_block)
@@ -230,28 +285,8 @@ Rolle in dieser Phase: {_resp_state_meta.get('role', '—')}
         system_parts.append(f"\n{rag_context}")
     system_parts.append(guardrails)
 
-    # P8: tools vs no-tools. Degradation or an explicitly empty (non-mcp) tool
-    # set locks tools and forces a pure-text reply.
-    has_explicit_empty_tools = ("tools" in pattern_output and not pattern_output["tools"])
-    pattern_wants_no_tools = _degradation_no_tools or (
-        has_explicit_empty_tools and not (
-            pattern_output.get("sources") and "mcp" in pattern_output["sources"]
-        )
-    )
-    if pattern_wants_no_tools:
-        if _degradation_no_tools:
-            system_parts.append(
-                _tools_text.DEGRADATION_NO_TOOLS_RULES
-                + _tools_text.render_output_language(lang)
-            )
-        else:
-            system_parts.append(
-                _tools_text.M15_NO_TOOLS_RULES + _tools_text.render_output_language(lang)
-            )
-    else:
-        system_parts.append(_tools_text.render_tools_block(
-            session_state, available_rag_areas, rag_config, lang,
-        ))
+    # P8 ist nach oben gewandert (``_tools_layer`` in der Anfangsliste) — der
+    # Block ist konstant und verlängert dort den Prompt-Cache-Präfix.
 
     # E3 (2026-08-10): Hat das Muster kuratierende Werkzeuge verlangt, die es
     # mangels Zugangsblock nicht bekommt, weiss das Modell davon sonst nichts —

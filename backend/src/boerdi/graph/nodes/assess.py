@@ -87,9 +87,7 @@ async def assess(
     async def _classify():
         # A4b: Der Agent-Modus hat keinen Klassifikator — das ist sein Zweck
         # („eine einfachere und schnellere Variante ohne Klassifikationsprompt").
-        # H6: der Hybrid ebenso. Er holt die Muster zurück, aber nicht über den
-        # Klassifikator, sondern als Werkzeug in der Schleife — genau deshalb
-        # fragt die Bedingung nach der Schleife und nicht nach einem Namen.
+        # Die Bedingung fragt nach der Schleife und nicht nach einem Namen.
         # Die nachgelagerten Knoten brauchen trotzdem eine gültige Form, und die
         # gibt es hier schon: dieselbe Funktion trägt den Krisen-Kurzschluss und
         # den Classify-Fehlerfall. Die Verzweigung sitzt IN der Coroutine und

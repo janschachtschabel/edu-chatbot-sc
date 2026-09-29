@@ -394,3 +394,24 @@ def test_delete_and_clear(test_db) -> None:
     n_eval, n_m15, n_all, remaining = _run(clear_scenario)
     assert (n_eval, n_m15, n_all) == (1, 1, 1)
     assert remaining == []
+
+
+# ── ST-9: Lasttest-Züge sind keine echten Gespräche ─────────────────────
+def test_production_schliesst_lasttest_sitzungen_aus(test_db) -> None:
+    """Bis ST-9 zählten sie unter „Nur echte Gespräche“ mit (nur ``eval-`` fiel heraus)."""
+    from boerdi.services.quality_analytics import get_quality_logs, get_quality_stats
+
+    async def scenario(session):
+        await _seed(session, session_id="bb-echt")
+        await _seed(session, session_id="eval-1")
+        await _seed(session, session_id="loadtest-lt-3fa9c-s1-4")
+        return (
+            await get_quality_stats(session, scope="production"),
+            await get_quality_logs(session, scope="production"),
+            await get_quality_stats(session, scope="eval"),
+        )
+
+    echt, echt_logs, ev = _run(scenario)
+    assert echt["total_turns"] == 1
+    assert [r["session_id"] for r in echt_logs] == ["bb-echt"]
+    assert ev["total_turns"] == 1

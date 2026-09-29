@@ -44,8 +44,6 @@ from boerdi.domain.inline_documents import (
     ZEIGE_DOKUMENT,
     dokument_aus_argumenten,
 )
-from boerdi.domain.pattern_catalog import finde_muster
-from boerdi.domain.pattern_engine import PatternDef
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
 from boerdi.domain.result_delivery import (
     BEREITS_GELIEFERT,
@@ -60,7 +58,8 @@ from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.usage import new_accumulator
 from boerdi.services import llm, outcome_service
 from boerdi.services.agent_knowledge import WISSEN_SUCHEN
-from boerdi.services.agent_tools import SUBMIT_RESULT, WAEHLE_VORGEHEN
+from boerdi.services.agent_tools import SUBMIT_RESULT
+from boerdi.services.agent_trace import Rundenbuch
 from boerdi.services.agent_write import WriteGate
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 
@@ -75,16 +74,6 @@ _ARGUMENT_FEHLER = (
     "den Aufruf mit vollstaendigem, gueltigem JSON."
 )
 
-#: Der Kopf, unter dem ein gewaehltes Muster in die Kette geht. Er sagt dem
-#: Modell, dass dies eine Anweisung ist und kein Fund — anders als bei einem
-#: MCP-Ergebnis, das der Fremdtext-Rahmen ausdruecklich als Daten kennzeichnet.
-_VORGEHEN_KOPF = (
-    "Ab jetzt gilt dieses Vorgehen ({kennung} — {label}). Es ist die "
-    "verbindliche Arbeitsanweisung der Redaktion; halte dich daran, bis du ein "
-    "anderes waehlst.\n\n"
-)
-
-
 _DOKUMENT_FEHLER = (
     "Fehler: Das Dokument war unbrauchbar — ``titel`` und ``markdown`` muessen "
     "nichtleere Zeichenketten sein. Wiederhole den Aufruf mit dem "
@@ -95,21 +84,6 @@ _DOKUMENT_DECKEL = (
     "Hinweis: Fuer diesen Zug sind bereits genug Boxen geliefert. Schreibe "
     "jetzt deinen Begleitsatz."
 )
-
-
-def _unbekanntes_vorgehen(kennung: object) -> str:
-    """Antwort auf eine Kennung, die es nicht gibt oder die gesperrt ist.
-
-    Ein Werkzeugfehler, kein Laufende (wie B8 bei unlesbaren Argumenten): das
-    Modell soll es richtig wiederholen oder ohne Muster weiterarbeiten koennen.
-    Der Text nennt **nicht**, welche Muster gesperrt sind — das ``enum`` fuehrt
-    die waehlbaren, und eine Aufzaehlung der verbotenen waere eine Einladung.
-    """
-    return (
-        f"Fehler: '{kennung}' ist kein waehlbares Vorgehen. Nimm eine der "
-        "Kennungen aus der Liste des Werkzeugs — oder arbeite ohne Vorgehen "
-        "weiter und antworte direkt."
-    )
 
 
 @dataclass(slots=True)
@@ -129,10 +103,6 @@ class AgentRun:
     iterations: int = 0
     tools_called: list[str] = field(default_factory=list)
     outcomes: list[Any] = field(default_factory=list)
-    #: Das zuletzt gewaehlte Muster (H3) — leer, wenn keines gewaehlt wurde.
-    #: Es ist das TATSAECHLICH benutzte und damit die ehrlichere Angabe fuer
-    #: Qualitaetslogs als eine Vermutung im Voraus.
-    muster_id: str = ""
     #: Die vom Modell GELIEFERTEN Ergebnis-Boxen (D2), in Aufrufreihenfolge.
     #: Leer heisst: dieser Zug hat keine geliefert — dann greift weiter die
     #: geratene Box aus ``turn_persist``.
@@ -144,9 +114,14 @@ class AgentRun:
     #:
     #: **Warum ueber den Lauf und nicht direkt in die Sitzung.** Der Bestandsweg
     #: schreibt an derselben Stelle in ``entities`` (``tool_loop``:744); diese
-    #: Schleife bedient auch den Agent-Endpunkt, der keine Sitzung hat. Gleiche
-    #: Bauart wie ``muster_id``: die Schleife berichtet, der Aufrufer verbucht.
+    #: Schleife bedient auch den Agent-Endpunkt, der keine Sitzung hat. Die
+    #: Schleife berichtet, der Aufrufer verbucht.
     anleitungen: list[dict[str, str]] = field(default_factory=list)
+    #: AG-1: je Runde ein Eintrag — Nummer, Dauer, Werkzeuge SAMT der
+    #: virtuellen (je Aufruf nur die Argument-Namen) und die Token der Runde.
+    #: Geführt von ``agent_trace.Rundenbuch``; ``tools_called`` bleibt davon
+    #: unberührt die Liste der echten Werkzeuge.
+    runden: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _spent(acc: dict[str, Any]) -> int:
@@ -221,8 +196,6 @@ async def run_agent_loop(
     progress: TurnProgress = NO_PROGRESS,
     clock: Callable[[], float] = time.monotonic,
     on_tool_result: Callable[[str, str], None] | None = None,
-    muster_katalog: list[PatternDef] | None = None,
-    werkzeuge_fuer: Callable[[PatternDef], list[dict[str, Any]]] | None = None,
     wissen: Callable[[dict[str, Any]], Awaitable[str]] | None = None,
 ) -> AgentRun:
     """Fahre die Schleife, bis ein Grund sie beendet.
@@ -238,25 +211,10 @@ async def run_agent_loop(
     ist **redigiert, aber ungerahmt**: ein Bestätigungs-Schlüssel darf diese
     Naht nicht passieren, der Fremdtext-Rahmen ist dagegen eine Anweisung ans
     Modell und für einen Parser nur Störung.
-
-    ``muster_katalog`` (H3) macht aus der Schleife den **Hybrid**: das Modell darf
-    über ``waehle_vorgehen`` ein redaktionelles Muster ziehen, dessen Body als
-    Anweisung in die Kette geht. Ohne den Katalog gibt es den Sonderfall nicht —
-    dann ist der Name ein unbekanntes Werkzeug wie jeder andere.
-
-    ``werkzeuge_fuer`` (H4) liefert die Werkzeugliste **des gewählten Musters**.
-    Ohne sie bleibt die mitgegebene Liste stehen; mit ihr wechselt sie im Moment
-    der Wahl. Als Rückruf und nicht als Katalog-Parameter, weil nur der Aufrufer
-    weiß, was sonst noch in die Liste gehört (Sperren aus Safety/Policy, ob eine
-    Anmeldung vorliegt) — diese Schleife soll davon nichts wissen müssen.
     """
     acc = usage_acc if usage_acc is not None else new_accumulator()
     gate = WriteGate(limits.write_mode)
     run = AgentRun()
-    # Die Werkzeugliste dieses Augenblicks. Sie beginnt bei der mitgegebenen und
-    # wechselt erst, wenn ein Muster gewählt wurde — neu gebaut wird sie also bei
-    # der WAHL und nicht in jeder Runde, weil sie sich sonst nicht ändert.
-    aktive_tools = tools
     start = clock()
     # Der Nullpunkt des Budgets, nicht der Zählerstand: im Chat-Modus trägt der
     # Zug-Zähler bereits Token früherer Schritte (Safety), und die gehören dem
@@ -267,16 +225,28 @@ async def run_agent_loop(
     # und nicht global — wie ``_reflection_done`` im Muster-Weg (``tool_loop``,
     # Phase A1), nur als Zaehler, weil hier mehr als ein Anlauf erlaubt ist.
     _leerlaeufe = 0
+    buch = Rundenbuch(run.runden, acc)
+
+    def schluss(reason: str) -> AgentRun:
+        # Jeder Ausgang geht hier durch: die Runde, in der der Lauf endet, hat
+        # keine naechste, die sie schliessen koennte (AG-1).
+        buch.schliessen(clock())
+        return _ended(run, reason)
 
     for _ in range(limits.max_iterations):
-        if clock() - start >= limits.deadline_s:
+        # EIN Uhrwert je Runde: Frist-Pruefung, Ende der vorigen und Beginn
+        # dieser Runde zugleich.
+        jetzt = clock()
+        buch.schliessen(jetzt)
+        if jetzt - start >= limits.deadline_s:
             logger.info("Agent-Schleife: Frist von %s s erreicht", limits.deadline_s)
-            return _ended(run, "deadline")
+            return schluss("deadline")
         if _spent(acc) - start_tokens >= limits.token_budget:
             logger.info("Agent-Schleife: Token-Budget von %s erreicht", limits.token_budget)
-            return _ended(run, "token_budget")
+            return schluss("token_budget")
 
         run.iterations += 1
+        buch.beginnen(run.iterations, jetzt)
         progress.record("agent_iteration", f"Agent-Schritt {run.iterations}",
                         {"iteration": run.iterations})
         try:
@@ -286,11 +256,11 @@ async def run_agent_loop(
             # und deshalb dort begründet selbst gebucht wird. Eine Buchungs-
             # stelle weniger ist eine Driftquelle weniger.
             resp = await llm.chat_completion(
-                messages=messages, tools=aktive_tools, temperature=0.4,
+                messages=messages, tools=tools, temperature=0.4,
                 usage_acc=acc, phase=USAGE_PHASE)
         except Exception as e:
             logger.error("Agent-Schleife: LLM-Fehler — %s", e)
-            return _ended(run, "error")
+            return schluss("error")
 
         choice = resp.choices[0]
         calls = getattr(choice.message, "tool_calls", None)
@@ -298,7 +268,7 @@ async def run_agent_loop(
             _prosa = strip_reasoning_markers(choice.message.content or "")
             if _prosa.strip():
                 run.text = _prosa
-                return _ended(run, "text")
+                return schluss("text")
             # Weder Werkzeug noch Text — das ist KEINE Ziellinie, sondern ein
             # Aussetzer des Anbieters. Live gemessen 2026-08-21 an derselben
             # Volltext-Frage: 3 von 8 Zuegen kamen so zurueck, auffaellig
@@ -331,13 +301,14 @@ async def run_agent_loop(
             logger.warning(
                 "Agent-Schleife: auch nach %d Anlaeufen weder Werkzeug noch "
                 "Text — Lauf endet leer", llm.LEERLAUF_VERSUCHE)
-            return _ended(run, "empty")
+            return schluss("empty")
 
         messages.append(_assistant_turn(choice.message, calls))
 
         for tc in calls:
             name = tc.function.name
             args, fehler = _arguments(tc.function.arguments)
+            buch.aufruf(name, args)
             if fehler:
                 logger.info("Agent-Schleife: unlesbare Argumente für %s", name)
                 messages.append(_tool_turn(tc.id, fehler))
@@ -349,7 +320,7 @@ async def run_agent_loop(
             if name == SUBMIT_RESULT:
                 run.text = strip_reasoning_markers(str(args.get("text") or ""))
                 run.result = args.get("result")
-                return _ended(run, "submit")
+                return schluss("submit")
 
             # Das Ergebnis als eigener Kanal (J1): virtuell wie ``submit_result``
             # — aber es beendet den Lauf NICHT. Die Antwort für die Person
@@ -390,7 +361,7 @@ async def run_agent_loop(
                 logger.info(
                     "Agent-Schleife: %s zweimal hintereinander mit denselben "
                     "Argumenten — Stillstand", name)
-                return _ended(run, "no_progress")
+                return schluss("no_progress")
             last_call = key
 
             # Das Ergebnis-Dokument (D2): virtuell wie die beiden anderen, und
@@ -428,39 +399,7 @@ async def run_agent_loop(
                     f"Begleitsatz — NICHT den Inhalt noch einmal."))
                 continue
 
-            # Der Musterwechsel ist virtuell wie ``submit_result`` — nur beendet
-            # er den Lauf nicht, sondern richtet ihn aus. Er steht NACH der
-            # Stillstands-Prüfung, damit zweimal dasselbe Muster als Stillstand
-            # zählt und ein Wechsel als Fortschritt; beides fällt damit ohne
-            # eigene Logik heraus. Und er steht VOR ``call_with_outcome``, denn
-            # es gibt kein Werkzeug dieses Namens am MCP.
-            if muster_katalog and name == WAEHLE_VORGEHEN:
-                gewaehlt = finde_muster(args.get("muster_id"), muster_katalog)
-                if gewaehlt is None:
-                    logger.info("Hybrid: Vorgehen %r nicht waehlbar",
-                                args.get("muster_id"))
-                    messages.append(_tool_turn(
-                        tc.id, _unbekanntes_vorgehen(args.get("muster_id"))))
-                    continue
-                run.muster_id = gewaehlt.id
-                if werkzeuge_fuer is not None:
-                    aktive_tools = werkzeuge_fuer(gewaehlt)
-                logger.info("Hybrid: Vorgehen %s (%s) gewaehlt — %d Werkzeuge",
-                            gewaehlt.id, gewaehlt.label, len(aktive_tools))
-                progress.record("agent_pattern", f"Vorgehen: {gewaehlt.label}",
-                                {"pattern": gewaehlt.id})
-                # Ohne Fremdtext-Rahmen, und das ist keine Auslassung: der Body
-                # stammt aus dem eigenen Konfigurations-Bestand, nicht vom MCP.
-                # Ihn als Fremdtext zu kennzeichnen hieße dem Modell zu sagen,
-                # es solle unsere eigene Anweisung als bloße Daten behandeln.
-                messages.append(_tool_turn(
-                    tc.id,
-                    _VORGEHEN_KOPF.format(kennung=gewaehlt.id, label=gewaehlt.label)
-                    + gewaehlt.body_md,
-                ))
-                continue
-
-            # Die Wissensdatenbank (P): virtuell wie die vier davor — sie liegt
+            # Die Wissensdatenbank (P): virtuell wie die drei davor — sie liegt
             # in der eigenen Datenbank, nicht am MCP. Ginge der Name durch,
             # meldete der Server ein unbekanntes Werkzeug, und das Modell lernte,
             # dass es kein internes Wissen gibt. Die Naht ist eine Rueckrufkarte
@@ -470,7 +409,8 @@ async def run_agent_loop(
                 progress.record("agent_tool", f"Werkzeug: {name}", {"tool": name})
                 run.tools_called.append(name)
                 # Ohne Fremdtext-Rahmen: der Bestand ist redaktionell gepflegt
-                # und liegt bei uns — dieselbe Begruendung wie beim Muster-Body.
+                # und liegt bei uns. Ihn als Fremdtext zu kennzeichnen hiesse,
+                # die eigene Redaktion als blosse Daten zu behandeln.
                 messages.append(_tool_turn(tc.id, await wissen(args)))
                 continue
 
@@ -489,8 +429,10 @@ async def run_agent_loop(
                 on_tool_result(name, beobachtet)
             # Nur bei ECHTEM Ergebnis — ein Fehlschlag ist keine geholte
             # Anleitung, und eine Meldung darueber waere eine Behauptung statt
-            # eines Belegs. Dieselbe Bedingung wie im Bestandsweg.
-            if name == "get_skill" and beobachtet:
+            # eines Belegs. Dieselbe Bedingung wie im Bestandsweg. Ein
+            # MCP-Fehler kommt als gewoehnlicher Text zurueck, deshalb zaehlt
+            # der Befund und nicht nur ein nichtleerer Text (Review 2026-09-26).
+            if name == "get_skill" and beobachtet and outcome.status == "success":
                 run.anleitungen.append({
                     "node_id": str(args.get("nodeId") or ""),
                     "titel": skill_titel(beobachtet),
@@ -511,4 +453,4 @@ async def run_agent_loop(
             ))
 
     logger.info("Agent-Schleife: Iterationsdeckel von %s erreicht", limits.max_iterations)
-    return _ended(run, "max_iterations")
+    return schluss("max_iterations")

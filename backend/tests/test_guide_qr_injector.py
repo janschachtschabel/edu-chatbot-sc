@@ -285,14 +285,19 @@ def test_inject_weak_domain_root_message_match(monkeypatch):
     assert out[0] == "__guide__|WLO|https://wirlernenonline.de/"
 
 
-def test_inject_respects_max_qrs(monkeypatch):
+def test_inject_zaehlt_den_lotsen_nicht_gegen_max_qrs(monkeypatch):
+    """Review 2026-09-29: der Lotse wird nie eine Pille — der Widget-Nachlauf
+    macht ihn zum Link oder nimmt ihn heraus (``domain/widget_postprocess``).
+    Bis dahin verdrängte er hier eine normale Pille (Erwartung: ``len == 4``),
+    und bei ``max_count: 2`` blieb in der Einbettung eine stehen. Gekappt werden
+    nur die normalen Vorschläge."""
     monkeypatch.setattr(gqi, "_COMPILED", [
         (re.compile("klima", re.I), "Klima", "",
          "https://wirlernenonline.de/themenseite/klima", 90),
     ])
-    out = gqi.inject_guide_qr("klima", ["a", "b", "c", "d"], max_qrs=4)
-    assert len(out) == 4
+    out = gqi.inject_guide_qr("klima", ["a", "b", "c", "d", "e"], max_qrs=4)
     assert out[0].startswith("__guide__|")
+    assert out[1:] == ["a", "b", "c", "d"]
 
 
 # ── C1-f2b3: Sprache der erzeugten Ersatz-Beschriftung ─────────────

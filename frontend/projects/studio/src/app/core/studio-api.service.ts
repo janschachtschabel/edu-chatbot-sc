@@ -16,6 +16,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, firstValueFrom, throwError } from 'rxjs';
 
+import { parseProblems } from './field-problems';
 import { StudioApiError } from './studio-api-error';
 
 /** Query values; `null`/`undefined` are dropped rather than sent as "null". */
@@ -32,8 +33,14 @@ export class StudioApi {
     return this.send(this.http.get<T>(this.url(path), { params: toParams(params) }), path);
   }
 
-  post<T>(path: string, body: unknown, params?: Record<string, QueryValue>): Promise<T> {
-    return this.send(this.http.post<T>(this.url(path), body, { params: toParams(params) }), path);
+  /** `headers` for the few calls that must carry one — the chat probe picks the
+   *  engine via `X-Boerdi-Engine` (ST-8e). The BFF still sets the key. */
+  post<T>(
+    path: string, body: unknown, params?: Record<string, QueryValue>,
+    headers?: Record<string, string>,
+  ): Promise<T> {
+    return this.send(
+      this.http.post<T>(this.url(path), body, { params: toParams(params), headers }), path);
   }
 
   put<T>(path: string, body: unknown, params?: Record<string, QueryValue>): Promise<T> {
@@ -93,7 +100,12 @@ function toApiError(err: HttpErrorResponse, path: string): StudioApiError {
   if (err.status === 0) {
     return new StudioApiError(0, 'Backend nicht erreichbar.', path);
   }
-  return new StudioApiError(err.status, detailOf(err), path);
+  // ST-2e: a 422 keeps its entries with their paths, next to the joined line.
+  const body: unknown = err.error;
+  const problems = err.status === 422 && body && typeof body === 'object' && 'detail' in body
+    ? parseProblems((body as { detail: unknown }).detail)
+    : [];
+  return new StudioApiError(err.status, detailOf(err), path, problems);
 }
 
 /**

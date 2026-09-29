@@ -628,68 +628,6 @@ def test_compendium_buendel_ist_auf_neun_begrenzt():
     assert MaxLen(9) in CompendiumTextArgs.model_fields["nodeIds"].metadata
 
 
-def _vorgehen_text() -> str:
-    from pathlib import Path
-
-    return (Path(__file__).parents[2] / "docs" / "skills" / "vorgehen.md").read_text(
-        encoding="utf-8")
-
-
-def test_vorgehen_md_nennt_nur_existierende_werkzeuge():
-    """Wächter für den Master-Skill (docs/skills/vorgehen.md): jeder als
-    Backtick-Code genannte Name mit Unterstrich muss ein Werkzeug des Katalogs
-    oder ein virtuelles Werkzeug des Chat-Zuges sein. Ein Tippfehler dort ist
-    ein Phantom-Werkzeug im wichtigsten Prompt-Dokument — das Modell ruft es,
-    bekommt einen Fehler und rät weiter (gemessen 2026-08-16 bei den
-    erfundenen get_skill-IDs)."""
-    import re
-
-    text = _vorgehen_text()
-    from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
-
-    genannt = {t for t in re.findall(r"`([a-z][a-z0-9_]+)`", text) if "_" in t}
-    katalog = {d["function"]["name"]
-               for d in (*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS)}
-    virtuell = {"wissen_suchen", "liefere_ergebnis"}
-    # ``search_skill`` nennt der Skill nur, um es zu VERNEINEN („existiert
-    # nicht") — die Nennung ist gewollt, das Werkzeug bleibt draußen.
-    unbekannt = genannt - katalog - virtuell - {"search_skill"}
-    assert not unbekannt, unbekannt
-
-
-def test_vorgehen_md_traegt_die_kernbegriff_suchregel():
-    """Y1 (2026-08-20, Live-Befund Repo-Einbettung): das Modell reichte den
-    ganzen Nutzersatz als ``query`` durch ("ich suche nur arbeitsblätter zu
-    optik") — Ranking verwässert, und der Satz landet in den Such-Links der
-    Oberfläche. Die Regel „query = Kernbegriff, Materialart/Fach/Stufe in die
-    Filter" muss im Finden-Teil des Master-Skills stehen und dort bleiben."""
-    text = _vorgehen_text()
-    finden = text.split("## Finden", 1)[1]
-    assert "Kernbegriff" in finden
-    assert 'query: "Optik"' in finden
-    assert 'learningResourceType: "Arbeitsblatt"' in finden
-    # Z1: alle drei Filter-Dimensionen beim Namen — das Modell soll wissen,
-    # WOHIN Fach und Stufe gehoeren, nicht nur, dass sie nicht in die query.
-    assert "discipline" in finden
-    assert "educationalContext" in finden
-
-
-def test_vorgehen_md_traegt_die_ansage_regel():
-    """Ansage-Echo (2026-08-21, live 4 von 12 Zuegen): der MCP-Server bittet im
-    Kopf jedes Skill-Dokuments, die Aktivierungszeile woertlich auszugeben —
-    das Modell antwortete in jedem dritten Zug NUR mit dieser Zeile, und nach
-    dem Abzug der Modell-Kopie (``mit_master_ansage``) blieb eine leere Blase.
-    Behoben redaktionell statt im Code (Nutzer-Entscheid 2026-08-21): die
-    Gegen-Regel im Master-Skill uebersteuert die Bitte — gemessen danach 0 von
-    15. Sie muss in der ranghoechsten Sektion stehen und dort bleiben; die
-    sichtbare Ansage setzt der Server (``skill_ansagen``) und haengt nicht an
-    dieser Regel."""
-    text = _vorgehen_text()
-    handeln = text.split("## Zuerst handeln, dann reden", 1)[1].split("\n## ", 1)[0]
-    assert "Aktivierungszeilen tippst du nie selbst" in handeln
-    assert "gilt diese Bitte hier nicht" in handeln
-
-
 def test_query_beschreibungen_lehren_den_kernbegriff_nicht_den_satz():
     """Z1 (2026-08-20): die ``query``-Beispiele von search_wlo_content
     ("Bruchrechnung Grundschule") und search_wlo_all ("Bruchrechnung Klasse 7")

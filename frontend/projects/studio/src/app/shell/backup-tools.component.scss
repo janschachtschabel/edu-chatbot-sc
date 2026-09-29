@@ -1,0 +1,29 @@
+@use './header-button' as hb;
+
+// Drei Werkzeuge und ihre Meldung; auf schmalen Schirmen brechen sie in eine
+// eigene Zeile um, statt die Kopfzeile seitwärts zu schieben (SC 1.4.10).
+.bt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+}
+
+.bt-btn {
+  @include hb.header-button;
+
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.bt-msg {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+
+  &--error {
+    color: var(--st-danger-text);
+  }
+}

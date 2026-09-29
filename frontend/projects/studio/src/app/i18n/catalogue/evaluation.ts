@@ -34,6 +34,7 @@ export const EVALUATION: CataloguePart = {
     'eval.tab.laeufe': 'Läufe',
     'eval.tab.trends': 'Trends',
     'eval.tab.pattern': 'Pattern-Nutzung',
+    'eval.tab.goldflows': 'Gold-Flows',
 
     // ── Lauf-Liste: Leiste ──────────────────────────────────────────
     'evalRuns.filter.label': 'Status',
@@ -61,6 +62,9 @@ export const EVALUATION: CataloguePart = {
     /** `{label}` ist der Name des gewählten Filters, übersetzt und in der
      *  Stellung, die die Sprache ihm gibt. */
     'evalRuns.ask.filtered': 'Alle {label} Eval-Läufe löschen?',
+    /** ST-7a: die Liste ist nach Maschine gefiltert, das Löschen nicht. */
+    'evalRuns.ask.engineNote':
+      'Der Maschinen-Filter gilt beim Löschen nicht — nur der Status.',
     'evalRuns.done.run': 'Lauf {id} gelöscht.',
     'evalRuns.done.logs': '{count} Eval-Quality-Logs gelöscht.',
     'evalRuns.done.runs.one': '{count} Lauf gelöscht.',
@@ -96,6 +100,14 @@ export const EVALUATION: CataloguePart = {
       'Ein laufender Lauf kann nicht gelöscht werden — erst stoppen',
     'evalRuns.stop': 'Stoppen',
     'evalRuns.stopFor': 'Stoppen — Lauf {id}',
+
+    // ── ST-7a: die Maschine eines Laufs (Liste, Verlauf, Detail) ────
+    // Muster-Maschine und Agent-Schleife heißen wie am Umschalter
+    // (`effect.engine.*`); hier nur, was es dort nicht gibt.
+    'evalEngine.hybrid': 'Hybrid (entfernt)',
+    'evalEngine.unknown': 'Maschine unbekannt',
+    'evalEngine.filter.label': 'Maschine',
+    'evalEngine.filter.all': 'alle Maschinen',
   },
 
   en: {
@@ -103,6 +115,7 @@ export const EVALUATION: CataloguePart = {
     'eval.tab.laeufe': 'Runs',
     'eval.tab.trends': 'Trends',
     'eval.tab.pattern': 'Pattern usage',
+    'eval.tab.goldflows': 'Gold flows',
 
     'evalRuns.filter.label': 'Status',
     'evalRuns.filter.all': 'all statuses',
@@ -123,6 +136,8 @@ export const EVALUATION: CataloguePart = {
       + 'untouched.',
     'evalRuns.ask.all': 'Delete ALL eval runs — including the ones in flight?',
     'evalRuns.ask.filtered': 'Delete all {label} eval runs?',
+    'evalRuns.ask.engineNote':
+      'The engine filter does not apply to deleting — only the status does.',
     'evalRuns.done.run': 'Run {id} deleted.',
     'evalRuns.done.logs': '{count} eval quality logs deleted.',
     'evalRuns.done.runs.one': '{count} run deleted.',
@@ -150,5 +165,10 @@ export const EVALUATION: CataloguePart = {
     'evalRuns.deleteBlocked': 'A run in flight cannot be deleted — stop it first',
     'evalRuns.stop': 'Stop',
     'evalRuns.stopFor': 'Stop — run {id}',
+
+    'evalEngine.hybrid': 'Hybrid (removed)',
+    'evalEngine.unknown': 'Engine unknown',
+    'evalEngine.filter.label': 'Engine',
+    'evalEngine.filter.all': 'all engines',
   },
 };

@@ -17,12 +17,13 @@ export function safeIdPart(part: string | number): string {
   return String(part).replace(/[^\w.-]/g, (char) => `_${char.codePointAt(0)!.toString(36)}_`);
 }
 
-/** Der erste freie `neuer_eintrag`-Schlüssel einer Karte. */
-export function nextFreeKey(existing: readonly string[]): string {
+/** Der erste freie Schlüssel einer Karte: `stem`, sonst `stem_2`, `stem_3` …
+ *  Ohne Stamm `neuer_eintrag`; beim Duplizieren (ST-3) `<schlüssel>_kopie`. */
+export function nextFreeKey(existing: readonly string[], stem = 'neuer_eintrag'): string {
   const taken = new Set(existing);
-  if (!taken.has('neuer_eintrag')) return 'neuer_eintrag';
+  if (!taken.has(stem)) return stem;
   for (let n = 2; ; n += 1) {
-    const candidate = `neuer_eintrag_${n}`;
+    const candidate = `${stem}_${n}`;
     if (!taken.has(candidate)) return candidate;
   }
 }

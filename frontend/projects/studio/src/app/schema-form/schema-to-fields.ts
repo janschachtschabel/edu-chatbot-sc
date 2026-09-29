@@ -13,6 +13,7 @@
  * classify overrides, tour steps …), so `raw` is rendered as a JSON text area.
  * Free-form config stays editable; it just gets no typed controls.
  */
+import { bounds, fixed, primary, slider, stringKind, withTextKey } from './field-hints';
 import type { JsonSchema } from './json-schema';
 
 export type FieldKind =
@@ -45,37 +46,49 @@ export interface SchemaField {
   readonly choices?: readonly string[];
   /** `text` with a live suggestion list — the catalog name to look up. */
   readonly catalog?: string;
+  /**
+   * Katalog-Schlüssel der Feldtexte (ST-1): `feld.<Modell>.<feld>`, darunter
+   * `.label` und `.hint`. Nach dem MODELL und nicht nach Bereich und Pfad:
+   * vier Bereiche teilen sich `LayerDocFrontmatter`, alle Muster ein Modell —
+   * so steht jede Bedeutung einmal im Katalog. Fehlt, wo es keinen Namen gibt:
+   * an der Wurzel und an den Elementen einer Liste oder Map.
+   */
+  readonly textKey?: string;
+  /**
+   * `select` only (ST-2d): Präfix der Klartexte seiner Werte,
+   * `<choiceKey>.wahl.<wert>`. Der eigene `textKey` — bei einem Element einer
+   * Liste (`sources`) der der Liste, denn das Element hat keinen eigenen.
+   */
+  readonly choiceKey?: string;
+  /**
+   * `list` only (ST-2i): the sibling field that marks ONE of this list's
+   * entries (`tour_reply` for the start chips) — rendered as a radio per row.
+   * `markerTextKey` names that sibling in the catalogue, for the radio's label.
+   */
+  readonly marker?: string;
+  readonly markerTextKey?: string;
+  /** `boolean` only (ST-6): the code fixes the value (the safety log is always
+   *  written) — shown locked as "fest aktiv", never editable. */
+  readonly fixed?: boolean;
+  /** The area's content (ST-4, `x-primary`) — its section comes first and open. */
+  readonly primary?: boolean;
+  /** `number` only (ST-2h): drawn as a slider — only with both bounds. `step`
+   *  is its step; `thresholds` are where the value changes what it does (the
+   *  slider names the zone the value is in). */
+  readonly widget?: 'slider';
+  readonly step?: number;
+  readonly thresholds?: readonly number[];
+  /** `integer`/`number` only (ST-2c): the schema's bounds, shown at the field and
+   *  set as `min`/`max`. The server stays the authority — a PUT out of range is
+   *  refused there. */
+  readonly minimum?: number;
+  readonly maximum?: number;
   /** Value for a fresh entry — used when adding a list/map element. */
   readonly blank: unknown;
 }
 
 /** Stops a `$ref` cycle; the deepest real chain in the registry is 2 hops. */
 const MAX_REF_HOPS = 10;
-
-/**
- * Schlüssel, die Fließtext tragen und deshalb eine Textfläche bekommen.
- *
- * **Gemessen, nicht geraten** (Nutzer-Befund 2026-08-13: `structure` in den
- * Material-Formaten stand in einer fortlaufenden Zeile). Aufgenommen ist jeder
- * Schlüssel, unter dem im ausgelieferten Seed-Baum ein String über 120 Zeichen
- * steht — `structure` bis 729, `description` bis 671, `pattern` bis 1013.
- * Neu messen:
- *
- * ```
- * cd backend && python -c "import pathlib,yaml,collections; ..."   # siehe §9 im Plan
- * ```
- *
- * Nach dem SCHLÜSSELNAMEN und nicht nach dem Wert: sonst wechselte ein Feld
- * beim Tippen die Bauart und verlöre den Fokus. Ein zu großzügiger Treffer
- * kostet nur Höhe — ein verpasster kostet die Bearbeitbarkeit.
- */
-const MULTILINE_KEYS = new Set([
-  'body', 'bot_directive', 'brand_pattern', 'curate_prompt', 'description',
-  'greeting', 'greeting_en', 'intent_conflict_rule', 'intro', 'intro_en',
-  'message', 'pattern', 'phrase', 'rationale', 'rule', 'rules', 'solutions',
-  'solutions_en', 'structure', 'text', 'text_en', 'unsure_text',
-  'unsure_text_en',
-]);
 
 /** Describe a whole area document. The root is a `group` for every area but
  * `05-knowledge/rag-config`, whose model is a `RootModel[dict[str, …]]`. */
@@ -97,6 +110,7 @@ function fieldFor(
     required,
     nullable,
     description: raw.description ?? node?.description,
+    ...primary(raw, node),
   };
   const blank = (fallback: unknown): unknown => {
     if (raw.default !== undefined) return raw.default;
@@ -108,19 +122,20 @@ function fieldFor(
 
   switch (node.type) {
     case 'string':
-      return { ...base, ...stringKind(key, node), blank: blank('') };
+      return { ...base, ...stringKind(raw, node), blank: blank('') };
     case 'integer':
-      return { ...base, kind: 'integer', blank: blank(0) };
+      return { ...base, kind: 'integer', ...bounds(node), blank: blank(0) };
     case 'number':
-      return { ...base, kind: 'number', blank: blank(0) };
+      return { ...base, kind: 'number', ...bounds(node), ...slider(raw, node), blank: blank(0) };
     case 'boolean':
-      return { ...base, kind: 'boolean', blank: blank(false) };
+      return { ...base, kind: 'boolean', ...fixed(raw, node), blank: blank(false) };
     case 'array': {
       if (!node.items) return { ...base, kind: 'raw', blank: blank(null) };
       return {
         ...base,
         kind: 'list',
-        item: inheritMultiline(fieldFor('', node.items, root, false), key),
+        item: fieldFor('', node.items, root, false),
+        ...(node['x-marker'] ? { marker: node['x-marker'] } : {}),
         blank: blank([]),
       };
     }
@@ -131,44 +146,9 @@ function fieldFor(
   }
 }
 
-type FieldBase = Pick<SchemaField, 'key' | 'label' | 'required' | 'nullable' | 'description'>;
-
-/**
- * Which control a string gets (S3). Read from the RESOLVED node, not from the
- * raw property: for a `str | None` field pydantic puts the annotation into the
- * non-null `anyOf` branch, not onto the property itself.
- *
- * `enum` and `x-choices` both mean "closed vocabulary" and both become a
- * select. They differ only in what a save does: `enum` comes from a `Literal`
- * and the server rejects anything else, `x-choices` does not (see
- * `config_models/_shared.py`). `enum` first — where the model really enforces
- * a list, that list is the authority.
- *
- * An empty list stays a text field: a select without options could not be
- * operated, and free text is the better fallback.
- */
-function stringKind(
-  key: string,
-  node: JsonSchema,
-): Pick<SchemaField, 'kind' | 'choices' | 'catalog'> {
-  const choices = node.enum?.length ? node.enum : node['x-choices'];
-  if (choices?.length) return { kind: 'select', choices };
-  const kind = MULTILINE_KEYS.has(key) ? 'multiline' : 'text';
-  const catalog = node['x-catalog'];
-  return catalog ? { kind, catalog } : { kind };
-}
-
-/**
- * Ein Listen-Element erbt die Textflächen-Entscheidung vom Listen-Schlüssel.
- *
- * Das Element selbst hat keinen Schlüssel (`key: ''`) — bei `rules:`, einer
- * Liste langer Sätze, könnte es die Entscheidung sonst gar nicht treffen.
- */
-function inheritMultiline(item: SchemaField, listKey: string): SchemaField {
-  return item.kind === 'text' && MULTILINE_KEYS.has(listKey)
-    ? { ...item, kind: 'multiline' }
-    : item;
-}
+type FieldBase = Pick<
+  SchemaField, 'key' | 'label' | 'required' | 'nullable' | 'description' | 'primary'
+>;
 
 function objectField(
   base: FieldBase,
@@ -178,9 +158,13 @@ function objectField(
 ): SchemaField {
   if (node.properties) {
     const required = new Set(node.required ?? []);
-    const children = Object.entries(node.properties).map(([childKey, childSchema]) =>
-      fieldFor(childKey, childSchema, root, required.has(childKey)),
-    );
+    // `node.title` ist der Modellname (pydantic setzt ihn an jedes Modell).
+    // Das `title` einer EIGENSCHAFT („Core Rule") ist nur ihre Überschrift und
+    // kommt hier nicht an: `node` ist bereits das aufgelöste Objekt.
+    const children = Object.entries(node.properties).map(([childKey, childSchema]) => {
+      const child = fieldFor(childKey, childSchema, root, required.has(childKey));
+      return node.title ? withTextKey(child, `feld.${node.title}.${childKey}`) : child;
+    });
     const fromChildren = Object.fromEntries(children.map((c) => [c.key, c.blank]));
     return { ...base, kind: 'group', children, blank: blank(fromChildren) };
   }

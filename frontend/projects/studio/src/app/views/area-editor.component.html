@@ -32,6 +32,7 @@
         [schema]="loaded"
         [value]="doc()"
         [idPrefix]="'ae'"
+        [problems]="editor.problems()"
         (valueChange)="onDoc($event)"
         (errorsChange)="onFieldErrors($event)"
       />

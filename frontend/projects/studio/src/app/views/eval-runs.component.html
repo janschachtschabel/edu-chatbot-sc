@@ -1,4 +1,9 @@
 <div class="er-bar">
+  <studio-engine-filter
+    inputId="er-engine"
+    [value]="engineFilter()"
+    (valueChange)="onEngineFilter($event)"
+  />
   <label class="er-field" for="er-status">
     {{ t('evalRuns.filter.label') }}
     <select
@@ -32,6 +37,11 @@
   @if (armedAction.kind === 'bulk' || armedAction.kind === 'logs') {
     <div class="er-danger">
       <p class="er-question" role="alert">{{ question() }}</p>
+      @if (armedAction.kind === 'bulk' && engineFilter()) {
+        <!-- ST-7a: die Liste ist gefiltert, das Löschen nicht — gesagt, bevor
+             es zu spät ist. -->
+        <p class="er-note">{{ t('evalRuns.ask.engineNote') }}</p>
+      }
       <button type="button" class="er-confirm" [disabled]="working()" (click)="confirm()">
         {{ confirmLabel() }}
       </button>
@@ -64,12 +74,19 @@
     }
   </p>
 
+  @if (selection.count() > 0) {
+    <studio-compare-bar [selection]="selection" (compare)="compare.emit($event)" />
+  }
+
   <ul class="er-items">
     @for (row of rows(); track row.id) {
       <li class="er-item">
-        <button type="button" class="er-row" (click)="open(row.id)">
+        <button type="button" class="er-row" [attr.data-run]="row.id" (click)="open(row.id)">
           <span class="er-row-top">
             <span class="er-mode">{{ row.mode }}</span>
+            <span class="er-engine" [class.er-engine--unknown]="!row.engine">
+              {{ engineName(row.engine) }}
+            </span>
             <span class="er-badge" [class]="'er-badge--' + row.status">
               {{ statusLabel(row.status) }}
             </span>
@@ -113,6 +130,20 @@
             </button>
           </div>
         } @else {
+          @if (row.status === 'done') {
+            <!-- ST-7c: nur fertige Läufe lassen sich vergleichen. Das sichtbare
+                 Wort ist für Screenreader verborgen, der Name trägt es schon. -->
+            <label class="er-pick">
+              <input
+                type="checkbox"
+                [checked]="selection.has(row.id)"
+                [disabled]="!selection.has(row.id) && selection.full()"
+                [attr.aria-label]="t('evalCompare.pickFor', { id: row.id })"
+                (change)="selection.toggle(row.id)"
+              />
+              <span aria-hidden="true">{{ t('evalCompare.pick') }}</span>
+            </label>
+          }
           <!-- Notbremse (Nutzer-Befund 2026-08-22): vorher gab es KEINEN Weg,
                einen laufenden Lauf anzuhalten. -->
           @if (row.status === 'running') {
