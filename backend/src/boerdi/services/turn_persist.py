@@ -11,8 +11,10 @@ NEU-Deviationen ggü. ALT (frischer Port → Signatur selbst gewählt):
 * ``session`` ist erster Parameter (pg-DI für ``update_session``).
 * ``winner_id: str`` statt eines ``winner``-Objekts — NEU hält die Pattern-ID
   als String (kein ``PatternDef``); der einzige Zugriff war ``winner.id``.
-* der Tracer ist in NEU gedroppt (assess/respond-Präzedenz) → ``trace`` bleibt
-  leer statt ``tracer.entries``.
+* der Tracer ist in NEU gedroppt (assess/respond-Präzedenz) → statt
+  ``tracer.entries`` trägt ``trace`` seit AG-1/AG-5 nur die Spur der
+  Agent-Schleife und in jeder Maschine die Zeile ``skill`` (die in diesem Zug
+  geholte Anleitung).
 * ``update_session`` ist jsonb-nativ: ``entities`` (dict) und ``signal_history``
   (list) gehen DIREKT durch — KEIN ``json.dumps`` (ALT nutzte sqlite TEXT).
 
@@ -51,11 +53,18 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo, PreparedWriteOut
+from boerdi.api.schemas import (
+    ChatRequest,
+    ChatResponse,
+    DebugInfo,
+    PreparedWriteOut,
+    TraceEntry,
+)
 from boerdi.domain.cards.build import _is_themenseite_card
 from boerdi.domain.inline_rendering import _build_inline_document
 from boerdi.domain.prepared_write import single_prepared_write
 from boerdi.domain.quick_reply_policy import _apply_state_auto_followup
+from boerdi.domain.skill_precedence import in_diesem_zug_geholt
 from boerdi.domain.turn_frame import (
     CLARIFIER_PATTERN_ID,
     clear_frame,
@@ -64,9 +73,11 @@ from boerdi.domain.turn_frame import (
 from boerdi.domain.write_confirm import preview_for_display
 from boerdi.i18n import CLAIM_WORDS, DEFAULT, resolve_locale
 from boerdi.i18n.bot_text import bot_text
+from boerdi.services.agent_zugblock import DOKUMENTE_DEBUG_KEY, dokumente_fuer_die_nachricht
 from boerdi.services.config_loader import load_display_rules_config
 from boerdi.services.db_sessions import finalize_message, save_message, update_session
 from boerdi.services.guide_markers import _attach_guide_urls
+from boerdi.services.guide_qr_injector import begrenze_pillen
 from boerdi.services.mcp.client import get_prepared_writes
 from boerdi.services.topic_pages import _resolve_m16_topic_page_view
 from boerdi.services.turn_quality import log_turn_quality
@@ -111,10 +122,17 @@ async def build_debug_and_update_session(
     scores: Any,
     response_outcomes: list,
     final_confidence: Any,
+    engine: str = "",
+    trace: list | None = None,
 ) -> DebugInfo:
     """Phasen P25-26: DebugInfo-Zusammenbau + ``_last_pattern``-Echo + der einzige
     ``update_session``-DB-Write dieses Turns. Mutiert ``session_state`` in-place
-    (entities._last_pattern). Returns ``debug``."""
+    (entities._last_pattern). Returns ``debug``.
+
+    ``engine`` und ``trace`` (AG-1) kommen vom Persistenz-Knoten: die Maschine
+    des Zugs und die Spur der Agent-Schleife. Hier, weil der Debug-Block an
+    dieser EINEN Stelle entsteht — danach wird er gespeichert und ins
+    Qualitätslog geschrieben."""
     # 10. Debug info — resolve human-readable labels for IDs
     from boerdi.services.config_loader import (
         load_intents,
@@ -127,6 +145,15 @@ async def build_debug_and_update_session(
 
     _pid = session_state["persona_id"]
     _iid = classification.intent_id
+
+    # AG-5: die Anleitung, die dieser Zug geholt hat, als Spur-Zeile ``skill`` —
+    # in jeder Maschine, damit der Gold-Bericht sie nennen kann.
+    _spur = list(trace or [])
+    _geholt = in_diesem_zug_geholt(session_state.get("entities"),
+                                   session_state.get("turn_count"))
+    if _geholt:
+        _spur.append(TraceEntry(step="skill", label=_geholt["titel"] or _geholt["node_id"],
+                                data=_geholt))
 
     debug = DebugInfo(
         persona=f"{_pid} ({_persona_labels.get(_pid, _pid)})",
@@ -180,7 +207,10 @@ async def build_debug_and_update_session(
         confidence=final_confidence,
         policy=policy,
         context=context_snapshot,
-        # NEU-Deviation: kein Tracer → trace bleibt leer (Default []).
+        # NEU-Deviation: kein Tracer. Die Spur der Agent-Schleife kommt vom
+        # Knoten (AG-1), die Zeile ``skill`` von oben (AG-5, jede Maschine).
+        trace=_spur,
+        engine=engine,
         # Phase-1-Pattern-Hint (Shadow-Mode): LLM-Vorschlag + Engine-Match
         pattern_id_hint=getattr(classification, "pattern_id_hint", None),
         pattern_reasoning=getattr(classification, "pattern_reasoning", None),
@@ -464,12 +494,16 @@ async def persist_and_build_response(
         _qr_trim_max = max(0, min(6, _qr_trim_max))
         if _qr_max is not None:
             _qr_trim_max = _qr_max
-        if quick_replies and len(quick_replies) > _qr_trim_max:
-            logger.info(
-                "quick_replies.max_count: trimmed %d → %d",
-                len(quick_replies), _qr_trim_max,
-            )
-            quick_replies = quick_replies[:_qr_trim_max]
+        # Der Lotse zählt nicht mit — er wird nie eine Pille (Review 2026-09-29,
+        # ``begrenze_pillen``); ``0`` heißt weiter: gar nichts.
+        if quick_replies:
+            _gekuerzt = begrenze_pillen(quick_replies, _qr_trim_max) if _qr_trim_max else []
+            if len(_gekuerzt) < len(quick_replies):
+                logger.info(
+                    "quick_replies.max_count: trimmed %d → %d",
+                    len(quick_replies), len(_gekuerzt),
+                )
+                quick_replies = _gekuerzt
     except Exception as _e:
         logger.warning("quick_replies trim failed: %s", _e)
 
@@ -622,12 +656,21 @@ async def persist_and_build_response(
     # Fehler dort den GANZEN Zug. Jetzt steht der ausgelieferte Endstand fest,
     # also wird die Zeile nachgezogen — sonst zeigt ``GET /messages`` nach einem
     # Reload eine andere Kartenmenge als das Gespräch und bei einem M16-Zug die
-    # Schwimmlinien-Ansicht gar nicht.
+    # Schwimmlinien-Ansicht gar nicht. Keine Id = der Datenschutz-Schalter
+    # ``messages`` hat das Speichern unterbunden; dann gibt es nichts nachzuziehen.
     _cards_final = [c.model_dump() for c in cards]
     _debug_final = dict(_debug_for_save)
     if _topic_page_view is not None:
         _debug_final["_topic_page_view"] = _topic_page_view.model_dump()
-    if _needs_finalize(_cards_for_save, _cards_final, _debug_for_save, _debug_final):
+    # Paket C (Review 2026-09-29): die gezeigten Boxen reisen mit der Nachricht —
+    # der nächste Agent-Zug liest sie aus dem Verlauf (``agent_zugblock``). Hier
+    # gelten der Schalter ``messages`` und jedes Löschen von selbst.
+    _dokumente = dokumente_fuer_die_nachricht(inline_documents)
+    if _dokumente:
+        _debug_final[DOKUMENTE_DEBUG_KEY] = _dokumente
+    if _message_id is not None and _needs_finalize(
+        _cards_for_save, _cards_final, _debug_for_save, _debug_final,
+    ):
         await finalize_message(
             session, _message_id, cards=_cards_final, debug=_debug_final,
         )

@@ -22,15 +22,20 @@
  * dazu. Dieselbe Entscheidung wie in `eval-pattern-usage.component.ts`.
  */
 import {
-  ChangeDetectionStrategy, Component, computed, inject, signal,
+  ChangeDetectionStrategy, Component, computed, inject, signal, viewChild,
 } from '@angular/core';
 
 import { AsyncData } from '../core/async-data';
+import type { OriginScope } from '../core/origin-scope';
 import { UsageApi, type UsageReport } from '../core/usage-api.service';
 import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
+import { DASHBOARD_SECTIONS } from './area-homes';
+import { AreaSectionComponent } from './area-section.component';
 import { AsyncStateComponent } from './async-state.component';
+import { OriginScopeComponent } from './origin-scope.component';
 import { RichTextComponent } from './rich-text.component';
+import { warnOnUnload } from './unsaved-changes.guard';
 
 /** Womit die Ansicht aufmacht: der zurückliegende Monat. */
 const DEFAULT_DAYS = 30;
@@ -91,7 +96,7 @@ export function dayEnd(day: string): string {
 
 @Component({
   selector: 'studio-costs',
-  imports: [AsyncStateComponent, RichTextComponent],
+  imports: [AreaSectionComponent, AsyncStateComponent, OriginScopeComponent, RichTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './costs.component.html',
   styleUrl: './costs.component.scss',
@@ -105,9 +110,11 @@ export class CostsComponent {
 
   readonly from = signal(isoDay(Date.now() - DEFAULT_DAYS * DAY_MS));
   readonly to = signal(isoDay(Date.now()));
+  /** ST-9: Eval- und Lasttest-Züge kosten Geld, sind aber kein Betrieb. */
+  readonly scope = signal<OriginScope>('all');
 
   readonly report = new AsyncData<UsageReport>(
-    () => this.api.period(dayStart(this.from()), dayEnd(this.to())), this.t);
+    () => this.api.period(dayStart(this.from()), dayEnd(this.to()), this.scope()), this.t);
 
   readonly value = computed(() => this.report.value());
   readonly models = computed(() => this.value()?.models ?? []);
@@ -154,8 +161,18 @@ export class CostsComponent {
       : '';
   });
 
+  /**
+   * Die Preistafel (ST-9) — ohne sie bleibt der Betrag leer, darum steht sie
+   * neben den Kosten, die sie beziffert, und nicht nur unter „Alle Bereiche“.
+   */
+  readonly pricingSection = DASHBOARD_SECTIONS.kosten[0];
+  readonly pricing = viewChild(AreaSectionComponent);
+  /** Für den Verlassen-Schutz: die Seite bearbeitet seit ST-9 einen Bereich. */
+  readonly dirty = computed(() => this.pricing()?.dirty() ?? false);
+
   constructor() {
     void this.report.reload();
+    warnOnUnload(() => this.dirty());
   }
 
   reload(): void {
@@ -166,6 +183,12 @@ export class CostsComponent {
   setFrom(value: string): void {
     if (value === this.from()) return;
     this.from.set(value);
+    this.reload();
+  }
+
+  setScope(scope: OriginScope): void {
+    if (scope === this.scope()) return;
+    this.scope.set(scope);
     this.reload();
   }
 

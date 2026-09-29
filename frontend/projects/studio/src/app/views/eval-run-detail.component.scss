@@ -40,11 +40,6 @@
   cursor: pointer;
 }
 
-.erd-btn:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
-}
-
 .erd-btn:disabled {
   opacity: 0.6;
   cursor: default;
@@ -166,7 +161,12 @@
 
 // The table is the densest thing in the view: it scrolls inside its own box so
 // the page itself never scrolls sideways.
+// `position: relative` macht den Rahmen zum Bezugsblock der `.sr`-Wörter in
+// den Prüfzellen: absolut positioniert, entkamen sie sonst dem `overflow-x`
+// und machten bei schmalem Fenster die ganze Seite waagerecht scrollbar
+// (ST-7, gemessen: 294 Wörter, Dokument 911 statt 629 px breit).
 .erd-table-wrap {
+  position: relative;
   overflow-x: auto;
   border: 1px solid var(--st-rule);
   border-radius: var(--st-radius);
@@ -221,11 +221,6 @@
   font-weight: 600;
   text-align: start;
   cursor: pointer;
-}
-
-.erd-open:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
 }
 
 .erd-open::before {

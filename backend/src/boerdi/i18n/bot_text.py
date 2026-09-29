@@ -210,29 +210,52 @@ BOT_TEXT: Final[Catalogue] = {
         # beendet dort die f-Zeichenkette, statt sie zu schließen). Nach der
         # Regel „ALT-Wortlaut schlägt Rechtschreibung" bleibt es stehen;
         # Englisch erbt den Fehler nicht.
+        #
+        # ``.sie`` (GV-EMB-2, 2026-09-27): die Sie-Fassung, die ``turn_links``
+        # nach ``formality`` wählt (``_SIE_FASSUNG``). Ohne Endung steht
+        # weiter der ALT-Wortlaut im Du — deshalb kein ``.du``/``.sie``-Paar
+        # wie bei ``completion.``. Die Sie-Fassung hat kein ALT-Vorbild und
+        # schließt das Anführungszeichen.
         "links.typeFocus.ctaTopic": (
             "Für {label} zu „{topic} schau in die Suche unten — dort findest "
             "du die gefilterten Treffer."
         ),
+        "links.typeFocus.ctaTopic.sie": (
+            "Für {label} zu „{topic}“ schauen Sie in die Suche unten — dort "
+            "finden Sie die gefilterten Treffer."
+        ),
         "links.typeFocus.ctaPlain": (
             "Für {label} zum Thema schau in die Suche unten — dort findest "
             "du die gefilterten Treffer."
+        ),
+        "links.typeFocus.ctaPlain.sie": (
+            "Für {label} zum Thema schauen Sie in die Suche unten — dort "
+            "finden Sie die gefilterten Treffer."
         ),
         "guide.label.sourcePage": "Quell-Seite",
         "guide.label.learnMore": "Mehr erfahren",
         # ── Ersatztexte des Anti-Halluzinations-Wächters ────────────────
         # Alle drei werden MITTEN in einen bestehenden Satz gesetzt bzw.
         # ersetzen einen ganzen Satz; die abschließenden Leerzeichen sind
-        # ALT-verbatim und Teil der Fügung — nicht wegräumen.
+        # ALT-verbatim und Teil der Fügung — nicht wegräumen. Die
+        # ``.sie``-Fassungen (s. oben) tragen sie aus demselben Grund.
         "links.claim.typeFocusCta": (
             "Für {label} zum Thema klick auf die Suche unten — dort findest "
             "du die gefilterten Treffer. "
+        ),
+        "links.claim.typeFocusCta.sie": (
+            "Für {label} zum Thema klicken Sie auf die Suche unten — dort "
+            "finden Sie die gefilterten Treffer. "
         ),
         "links.claim.fallbackLabel": "Materialien",
         "links.claim.searchHits": "passende Treffer in der Suche",
         "links.claim.searchPointer": (
             "Schau in die verlinkte Suche unten — dort findest du passende "
             "Treffer zum Thema. "
+        ),
+        "links.claim.searchPointer.sie": (
+            "Schauen Sie in die verlinkte Suche unten — dort finden Sie "
+            "passende Treffer zum Thema. "
         ),
         # ── Titel der Inline-Box (M09/M10/M11) ─────────────────────────
         # Der Box-Titel entsteht aus diesem Wort plus dem Thema
@@ -487,7 +510,15 @@ BOT_TEXT: Final[Catalogue] = {
             "For {label} on “{topic}” check the search below — that is where "
             "you will find the filtered results."
         ),
+        "links.typeFocus.ctaTopic.sie": (
+            "For {label} on “{topic}” check the search below — that is where "
+            "you will find the filtered results."
+        ),
         "links.typeFocus.ctaPlain": (
+            "For {label} on this topic check the search below — that is where "
+            "you will find the filtered results."
+        ),
+        "links.typeFocus.ctaPlain.sie": (
             "For {label} on this topic check the search below — that is where "
             "you will find the filtered results."
         ),
@@ -497,9 +528,17 @@ BOT_TEXT: Final[Catalogue] = {
             "For {label} on this topic, click the search below — that is "
             "where you will find the filtered results. "
         ),
+        "links.claim.typeFocusCta.sie": (
+            "For {label} on this topic, click the search below — that is "
+            "where you will find the filtered results. "
+        ),
         "links.claim.fallbackLabel": "materials",
         "links.claim.searchHits": "matching results in the search",
         "links.claim.searchPointer": (
+            "Look at the linked search below — that is where you will find "
+            "matching results on this topic. "
+        ),
+        "links.claim.searchPointer.sie": (
             "Look at the linked search below — that is where you will find "
             "matching results on this topic. "
         ),

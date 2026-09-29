@@ -13,6 +13,7 @@ prompt-size telemetry (P9) is simplify-deferred, so it is not asserted here.
 from __future__ import annotations
 
 import json
+import os.path
 
 import pytest
 
@@ -54,18 +55,55 @@ def _build(**over):
 
 
 # ── layer order (P2/P7/P8/P9) ──────────────────────────────────────────────
-def test_layer_order_base_domain_persona_pattern_context_rag_guardrails_tools_recency(_cfg):
+def test_layer_order_base_domain_tools_persona_pattern_context_rag_guardrails_recency(_cfg):
+    """Reihenfolge seit dem Cache-Umbau 2026-08-23.
+
+    Der Werkzeug-Block ist NACH VORN gewandert (hinter die Domänenregeln), weil
+    er über Züge hinweg konstant ist und dort das cachebare Präfix verlängert —
+    gemessen von ~2.400 auf ~4.100 Token. Alles Zugbezogene (Persona, Muster,
+    Kontext, RAG) bleibt dahinter, und ``GUARDRAILS_BLOCK`` steht damit sogar
+    NÄHER am Ende als vorher: seine Zusage „zuletzt, nicht überschreibbar" wird
+    durch den Umbau stärker, nicht schwächer.
+    """
     system, *_ = _build(
         rag_context="<<RAGCTX>>",
         pattern_output={"label": "M05 (Material)", "body_md": "BODY_RECAP"},
     )
     order = [
-        "BASE_PERSONA", "DOMAIN_RULES", "PERSONA_PROMPT[P-AND]",
-        "## Aktives Pattern: M05 (Material)", "## Kontext", "<<RAGCTX>>",
-        "GUARDRAILS_BLOCK", "## Verfuegbare Werkzeuge", "## ⚡ LETZTE ERINNERUNG",
+        "BASE_PERSONA", "DOMAIN_RULES", "## Verfuegbare Werkzeuge",
+        "PERSONA_PROMPT[P-AND]", "## Aktives Pattern: M05 (Material)",
+        "## Kontext", "<<RAGCTX>>", "GUARDRAILS_BLOCK", "## ⚡ LETZTE ERINNERUNG",
     ]
     idxs = [system.index(m) for m in order]
     assert idxs == sorted(idxs), f"layer order broken: {list(zip(order, idxs, strict=True))}"
+
+
+def test_stabile_bloecke_liegen_im_gemeinsamen_praefix_zweier_zuege(_cfg):
+    """Der eigentliche Zweck des Umbaus, als Verhalten geprüft.
+
+    Prompt-Caching greift nur auf einem BYTEGLEICHEN Präfix: sobald sich ein
+    Zeichen unterscheidet, ist ab dort Schluss. Bis 2026-08-23 stand die
+    Muster-Schicht an vierter Stelle — bei jedem Musterwechsel (also fast jedem
+    Zug) brach der Präfix dort ab, und der 1.700 Token große Werkzeug-Block
+    dahinter wurde jedes Mal neu bezahlt. Dieser Test prüft die Eigenschaft
+    statt einer Zahl: die konstanten Blöcke müssen im gemeinsamen Präfix zweier
+    Züge mit VERSCHIEDENEM Muster liegen.
+    """
+    a, *_ = _build(pattern_output={"label": "M05 (Material)", "body_md": ""},
+                   pattern_label="M05 (Material-Suche)")
+    b, *_ = _build(pattern_output={"label": "M09 (Lernpfad)", "body_md": ""},
+                   pattern_label="M09 (Lernpfad)")
+    gemeinsam = a[:len(os.path.commonprefix([a, b]))]
+
+    assert "BASE_PERSONA" in gemeinsam
+    assert "DOMAIN_RULES" in gemeinsam
+    assert "## Verfuegbare Werkzeuge" in gemeinsam, (
+        "der Werkzeug-Block liegt hinter der ersten Abweichung — er wird bei "
+        "jedem Musterwechsel neu berechnet und neu bezahlt"
+    )
+    # Gegenprobe: das Zugbezogene gehört NICHT ins Präfix, sonst wäre der Test
+    # blind für eine Umstellung, die die Muster-Schicht versehentlich einfriert.
+    assert "## Aktives Pattern: M05" not in gemeinsam
 
 
 # ── context block (P2 Layer 5) ─────────────────────────────────────────────
@@ -153,11 +191,21 @@ def test_page_context_block_failure_is_swallowed(_cfg):
 # „45 min physik sek 1" ging beim Klassifikator in ein fremdes Muster, das
 # Modell holte eine ANDERE Anleitung und lieferte einen Material-Fund statt des
 # Verlaufsplans. Der Block sagt dem Modell, welche Anleitung noch läuft.
+#
+# Seit E-6 (2026-09-27) nur, wenn der Zug die Skill-Werkzeuge HAT — eigene des
+# Musters oder zugeschaltete. Die Fälle hier laufen deshalb mit einem Muster,
+# das sie führt; den Fall ohne prüft der Abschnitt „Skill-Brücke" unten.
+
+#: Ein Muster mit eigenen Skill-Werkzeugen (wie M08, M09, M10, M18–M20).
+_MIT_SKILLS = {"label": "M08 (Sammlung)", "body_md": "",
+               "tools": ["get_collection_contents", "get_skill_registry", "get_skill"]}
+
 
 def test_laufende_anleitung_steht_im_prompt(_cfg):
     ss = {"entities": {"_skill_lauf": {"node_id": "5b29f470", "zug": 3}},
           "turn_count": 4}
-    system, *_ = _build(session_state=ss, environment={"page_context": {}})
+    system, *_ = _build(pattern_output=_MIT_SKILLS, session_state=ss,
+                        environment={"page_context": {}})
     assert "## Laufender Skill" in system
     assert 'get_skill("5b29f470")' in system
 
@@ -167,12 +215,14 @@ def test_abgelaufene_anleitung_steht_nicht_mehr_im_prompt(_cfg):
     auch bei ganz anderem Thema."""
     ss = {"entities": {"_skill_lauf": {"node_id": "5b29f470", "zug": 3}},
           "turn_count": 99}
-    system, *_ = _build(session_state=ss, environment={"page_context": {}})
+    system, *_ = _build(pattern_output=_MIT_SKILLS, session_state=ss,
+                        environment={"page_context": {}})
     assert "## Laufender Skill" not in system
 
 
 def test_ohne_notiz_kein_block(_cfg):
-    system, *_ = _build(session_state={"entities": {}}, environment={"page_context": {}})
+    system, *_ = _build(pattern_output=_MIT_SKILLS, session_state={"entities": {}},
+                        environment={"page_context": {}})
     assert "## Laufender Skill" not in system
 
 
@@ -195,7 +245,8 @@ def _hat_notiz_block(system: str) -> bool:
 def test_anleitungen_aus_dem_gespraech_stehen_im_prompt(_cfg):
     ss = {"entities": {"_skill_bestand": {
         "anzahl": 28, "titel": "Geometrische Optik", "node_id": "f35c17d1"}}}
-    system, *_ = _build(session_state=ss, environment={"page_context": {}})
+    system, *_ = _build(pattern_output=_MIT_SKILLS, session_state=ss,
+                        environment={"page_context": {}})
     assert _hat_notiz_block(system)
     assert 'collectionId="f35c17d1"' in system
     assert 'get_skill("<nodeId>")' in system
@@ -209,14 +260,58 @@ def test_auf_der_sammlungsseite_bleibt_es_beim_seitenblock(_cfg):
         "_skill_bestand": {"anzahl": 28, "titel": "Optik", "node_id": "f35c17d1"},
     }}
     system, *_ = _build(
-        session_state=ss, environment={"page_context": {"page_kind": "collection"}})
+        pattern_output=_MIT_SKILLS, session_state=ss,
+        environment={"page_context": {"page_kind": "collection"}})
     assert not _hat_notiz_block(system)
     assert "### Freigegebene Skills dieser Sammlung" in system
 
 
 def test_ohne_gespraechs_notiz_kein_anleitungs_block(_cfg):
-    system, *_ = _build(session_state={"entities": {}}, environment={"page_context": {}})
+    system, *_ = _build(pattern_output=_MIT_SKILLS, session_state={"entities": {}},
+                        environment={"page_context": {}})
     assert not _hat_notiz_block(system)
+
+
+# ── Skill-Brücke (E-6, 2026-09-27) ───────────────────────────────────────
+# Bis hier standen die Skill-Hinweise in JEDEM Muster-Prompt, sobald Skills
+# bekannt waren — die Werkzeuge dazu führen aber nur sechs von zwanzig Mustern.
+# Ein Suchmuster bekam „hol ihn mit get_skill" ohne get_skill. Jetzt: Werkzeug
+# im Zug ⇔ Anweisung im Prompt.
+
+_OHNE_SKILLS = {"label": "M06 (Suche)", "body_md": "", "tools": ["search_wlo_content"]}
+
+_SKILLS_IM_SPIEL = {"entities": {
+    "_skill_lauf": {"node_id": "5b29f470", "zug": 3},
+    "_skill_bestand": {"anzahl": 28, "titel": "Geometrische Optik", "node_id": "f35c17d1"},
+}, "turn_count": 4}
+
+
+def test_ohne_skill_werkzeuge_keine_anweisung_auf_sie(_cfg):
+    system, *_ = _build(pattern_output=_OHNE_SKILLS, session_state=_SKILLS_IM_SPIEL,
+                        environment={"page_context": {}})
+    assert "## Laufender Skill" not in system
+    assert not _hat_notiz_block(system)
+    assert "get_skill" not in system       # trifft auch get_skill_registry
+
+
+def test_zugeschaltete_skill_werkzeuge_bringen_die_hinweise_zurueck(_cfg):
+    from boerdi.domain.skill_bruecke import ZUSATZ_KEY
+    po = {**_OHNE_SKILLS, ZUSATZ_KEY: ["get_skill_registry", "get_skill"]}
+    system, *_ = _build(pattern_output=po, session_state=_SKILLS_IM_SPIEL,
+                        environment={"page_context": {}})
+    assert "## Laufender Skill" in system
+    assert _hat_notiz_block(system)
+
+
+def test_ohne_skill_werkzeuge_bleibt_die_seiten_uebersicht_ohne_ladeweg(_cfg):
+    """Die Übersicht bleibt (Nutzer-Vorgabe 2026-08-14), nur ohne Ladeweg."""
+    system, *_ = _build(
+        pattern_output=_OHNE_SKILLS, session_state=_sammlung_mit_bestand(),
+        environment={"page_context": {"page_kind": "collection", "collection_id": "C1"}},
+    )
+    assert "Stunde planen" in system and "35 Materialien" in system
+    assert "get_skill" not in system
+    assert "laden lässt sich in diesem Zug keiner" in system
 
 
 # ── M11 re-render (P4) ─────────────────────────────────────────────────────
@@ -451,6 +546,7 @@ def _sammlung_mit_bestand() -> dict:
 
 def test_bestand_und_skillkatalog_stehen_im_muster_prompt(_cfg):
     system, *_ = _build(
+        pattern_output=_MIT_SKILLS,
         session_state=_sammlung_mit_bestand(),
         environment={"page_context": {"page_kind": "collection", "collection_id": "C1"}},
     )

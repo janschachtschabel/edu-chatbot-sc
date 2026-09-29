@@ -144,7 +144,7 @@ openssl rand -base64 32
 ```
 
 Optional, aber oft gefragt: `MASTER_SKILL_ENABLED=true` schaltet die
-redaktionelle Gesamtanleitung als Prompt-Kopf ein (Agent-/Hybrid-Modus,
+redaktionelle Gesamtanleitung als Prompt-Kopf ein (Agent-Modus,
 Knoten in `MASTER_SKILL_NODE_ID`). Vorgabe ist aus - Begruendung und
 Wirkung in `docs/agent-modus.md`.
 

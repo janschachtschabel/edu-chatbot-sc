@@ -1,0 +1,22 @@
+<div class="bt" role="group" [attr.aria-label]="t('view.sicherung.label')">
+  <button type="button" class="bt-btn" [disabled]="action.busy()" (click)="snapshot()">
+    {{ action.isRunning('snapshot') ? t('snapshots.creating') : t('snapshots.create') }}
+  </button>
+  <button type="button" class="bt-btn" [disabled]="action.busy()" (click)="backup()">
+    {{ action.isRunning('backup') ? t('backup.packing') : t('backup.download') }}
+  </button>
+  <a class="bt-btn" routerLink="/sicherung" fragment="voll-backup">{{ t('backupTools.restore') }}</a>
+
+  @if (action.message(); as msg) {
+    <p
+      class="bt-msg"
+      [class.bt-msg--error]="msg.kind === 'error'"
+      [attr.role]="msg.kind === 'error' ? 'alert' : 'status'"
+    >
+      {{ msg.kind === 'error' ? '⚠ ' : '✓ ' }}{{ msg.text }}
+      @if (snapshotMade()) {
+        <a routerLink="/sicherung" fragment="snapshots">{{ t('backupTools.toSnapshots') }}</a>
+      }
+    </p>
+  }
+</div>

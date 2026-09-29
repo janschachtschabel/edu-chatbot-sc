@@ -13,8 +13,11 @@ in-function from arg_resolvers, so they are patched at that source module.
 
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from boerdi.api.schemas import WloCard
 from boerdi.services.turn_links import _finalize_links_and_metas
@@ -74,6 +77,21 @@ async def test_topic_page_card_bypasses_off_topic_filter(monkeypatch):
     (out, _tr) = await _call(monkeypatch, winner=None, message="Klimawandel",
                              cards=cards, response_text="Text.")
     assert "tp" in _ids(out[0])   # topic-page cards are always kept
+
+
+@pytest.mark.parametrize(("gewinner", "erwartet"), [("AGENT", ["a", "b"]), ("M06", [])])
+async def test_im_agent_zug_bleiben_die_karten_des_agenten(monkeypatch, gewinner, erwartet):
+    """Review 2026-09-29 (Tor E-5, GV-AND-1#3): unter der Agent-Schleife gibt es
+    keine Klassifikator-Entitäten, das Signal war allein die Nachricht. „Eher für
+    die Mittelstufe bitte.“ → {eher, mittelstufe, bitte}; die Klimawandel-Treffer
+    der verengten Suche fielen heraus (nachgestellt: 9 → 2, im Tor gespeichert 0).
+    Der Agent wählt seine Suche selbst — wie beim Medientyp-Nachfilter. Die
+    Muster-Maschine filtert weiter (Gegenprobe)."""
+    cards = [_card("a", "Klimawandel Grundlagen"), _card("b", "Extremwetter verstehen")]
+    (out, _tr) = await _call(monkeypatch, winner=SimpleNamespace(id=gewinner),
+                             effective=gewinner, message="Eher für die Mittelstufe bitte.",
+                             cards=cards, response_text="Text.")
+    assert _ids(out[0]) == erwartet
 
 
 async def test_type_focus_strips_collections_and_rewrites_text(monkeypatch):
@@ -312,3 +330,111 @@ async def test_watchdog_german_unaffected_by_english_patterns(monkeypatch):
     nicht anfassen (die Kataloge sind getrennt, nicht vereinigt)."""
     text = "Hier sind Collections zum Thema."
     assert await _watch(monkeypatch, text) == text
+
+
+# ── GV-EMB-2 (2026-09-27): die Anrede der Such-Hinweise ────────────
+# Beide Rewriter setzen eigene Saetze ein — der Typ-Fokus die ganze Antwort,
+# der Waechter einen Satz darin. Bis hier duzten sie jede Person, auch die
+# Lehrkraft, die das Modell im selben Zug gesiezt hatte (Goldlauf
+# ``evals/skill-bruecke-flows.yaml``, GV-EMB-2: Register-Check ``sie`` rot).
+#
+# Die Anrede steht in ``pattern_output["formality"]``, aufgeloest von
+# ``phase3_modulate`` (Persona-Modifier; bei ``wie_user`` die
+# ``persona_formality`` der device-config). Zur Sie-Fassung fuehren ``siezen``
+# (P-LEH, P-ENT), ``Sie`` (P-ELT, P-RED ueber die device-config) und
+# ``neutral`` (P-AND) — Begruendung bei ``turn_links._SIE_FASSUNG``.
+# Der Du-Wortlaut bleibt ALT-verbatim: oben mit leerem ``pattern_output``
+# festgehalten, hier zusaetzlich mit ausdruecklichem Du.
+_SIE_WERTE = ("siezen", "Sie", "neutral")
+_DU_WOERTER = re.compile(r"\b(?:du|dich|dir|dein\w*|schau|findest|klick)\b", re.IGNORECASE)
+_GV_EMB_2 = "Haben Sie hier ein Video zur Lichtbrechung für den Einstieg in meine 8. Klasse?"
+
+
+@pytest.mark.parametrize("formality", _SIE_WERTE)
+async def test_type_focus_cta_sie(monkeypatch, formality):
+    """Die Sie-Fassung hat kein ALT-Vorbild und schliesst das
+    Anfuehrungszeichen hinter dem Thema (die Du-Fassung nicht, s. oben)."""
+    (out, _tr) = await _call(
+        monkeypatch, winner=_M06, message=_GV_EMB_2,
+        classification={"entities": {"thema": "Lichtbrechung"}},
+        pattern_output={"formality": formality},
+        response_text="Hier sind passende Videos.", mock_vocab=True)
+    assert not _DU_WOERTER.search(out[1]), out[1]
+    assert out[1] == (
+        "Für Videos zu „Lichtbrechung“ schauen Sie in die Suche unten — dort "
+        "finden Sie die gefilterten Treffer."
+    )
+
+
+async def test_type_focus_cta_sie_without_topic(monkeypatch):
+    (out, _tr) = await _call(
+        monkeypatch, winner=_M06, message=_GV_EMB_2,
+        pattern_output={"formality": "siezen"},
+        response_text="Hier sind passende Videos.", mock_vocab=True)
+    assert not _DU_WOERTER.search(out[1]), out[1]
+    assert out[1] == (
+        "Für Videos zum Thema schauen Sie in die Suche unten — dort finden "
+        "Sie die gefilterten Treffer."
+    )
+
+
+@pytest.mark.parametrize("formality", ["duzen", "du"])
+async def test_type_focus_cta_du_stays_alt_verbatim(monkeypatch, formality):
+    (out, _tr) = await _call(
+        monkeypatch, winner=_M06, message="hast du Videos?",
+        classification={"entities": {"thema": "Klima"}},
+        pattern_output={"formality": formality},
+        response_text="Hier sind ein paar Videos.", mock_vocab=True)
+    assert out[1] == _CTA_DE_TOPIC
+
+
+async def test_type_focus_cta_english_ignores_formality(monkeypatch):
+    """Englisch kennt kein Sie/du. Der Satz muss trotzdem ankommen: fehlte
+    der ``.sie``-Schluessel, laese der Nutzer den Schluesselnamen."""
+    (out, _tr) = await _call(
+        monkeypatch, locale="en-GB", winner=_M06, message="do you have videos?",
+        classification={"entities": {"thema": "Climate"}},
+        pattern_output={"formality": "siezen"},
+        response_text="Here are a few videos.", mock_vocab=True)
+    assert out[1] == (
+        "For Videos on “Climate” check the search below — that is where "
+        "you will find the filtered results."
+    )
+
+
+async def test_watchdog_delivery_claim_sie(monkeypatch):
+    (out, _tr) = await _call(
+        monkeypatch, winner=_M06, message="Lichtbrechung", tools_called=_SEARCHED,
+        pattern_output={"formality": "siezen"},
+        cards=[], response_text="Ich habe Ihnen etwas rausgesucht.")
+    assert not _DU_WOERTER.search(out[1]), out[1]
+    assert out[1] == (
+        "Schauen Sie in die verlinkte Suche unten — dort finden Sie passende "
+        "Treffer zum Thema. "
+    )
+
+
+# ``Aufgaben`` ist ein Typ-Wort des Waechters, aber keins der Typ-Tabelle
+# (``_CONTENT_TYPE_KEYWORDS``): nur so erreicht der Satz den Waechter, statt
+# vorher vom Typ-Fokus ganz ersetzt zu werden. Der Folgesatz bleibt stehen.
+async def test_watchdog_type_focus_claim_du_stays_alt_verbatim(monkeypatch):
+    (out, _tr) = await _call(
+        monkeypatch, winner=_M06, message="Hast du Aufgaben zur Lichtbrechung?",
+        tools_called=_SEARCHED, cards=[],
+        response_text="Hier ist eine passende Sammlung. Willst du mehr?")
+    assert out[1] == (
+        "Für Aufgaben zum Thema klick auf die Suche unten — dort findest "
+        "du die gefilterten Treffer. Willst du mehr?"
+    )
+
+
+async def test_watchdog_type_focus_claim_sie(monkeypatch):
+    (out, _tr) = await _call(
+        monkeypatch, winner=_M06, message="Haben Sie Aufgaben zur Lichtbrechung?",
+        tools_called=_SEARCHED, pattern_output={"formality": "siezen"}, cards=[],
+        response_text="Hier ist eine passende Sammlung. Möchten Sie mehr?")
+    assert not _DU_WOERTER.search(out[1]), out[1]
+    assert out[1] == (
+        "Für Aufgaben zum Thema klicken Sie auf die Suche unten — dort finden "
+        "Sie die gefilterten Treffer. Möchten Sie mehr?"
+    )

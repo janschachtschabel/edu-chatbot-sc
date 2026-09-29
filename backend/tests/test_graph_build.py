@@ -114,14 +114,15 @@ def _order(calls):
     return [name for name, _ in calls]
 
 
-@pytest.mark.parametrize("knoten", ["assess", "route", "respond"])
+@pytest.mark.parametrize("knoten", ["assess", "route", "respond", "persist"])
 def test_die_engine_naht_erreicht_ihre_knoten(monkeypatch, knoten):
     """A4b/A4c: ``engine`` darf nicht der neunte Fall „dokumentiert ohne
     Konsumenten" werden. Der Wächter prüft beide Richtungen — die Vorgabe kommt
-    als ``pattern`` an, ein gesetzter Wert unverändert — und alle drei Knoten,
-    die ihn auswerten: ``assess`` (ohne Klassifikator), ``route`` (ohne
-    Musterwahl und ohne Schnellwege) und ``respond`` (reicht an
-    ``respond_agent`` weiter)."""
+    als ``pattern`` an, ein gesetzter Wert unverändert — und alle Knoten, die
+    ihn auswerten: ``assess`` (ohne Klassifikator), ``route`` (ohne
+    Musterwahl und ohne Schnellwege), ``respond`` (reicht an
+    ``respond_agent`` weiter) und ``persist`` (schreibt ihn in den
+    Debug-Block, AG-1)."""
     calls: list = []
     _patch(monkeypatch, calls)
     graph = build_turn_graph(session=object(), engine="agent")

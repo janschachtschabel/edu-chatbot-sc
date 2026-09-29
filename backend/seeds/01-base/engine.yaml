@@ -4,11 +4,10 @@
 #   agent    Eine freie Werkzeugschleife — Systemprompt plus voller Katalog,
 #            kein Muster, kein Klassifikator. Fuer Einbettungen ohne Chat-Rahmen
 #            und als Versuchsaufbau fuer die Frage, ob sie im Chat besser ist.
-#   hybrid   Dieselbe Schleife, aber der Musterkatalog liegt als Werkzeug darin:
-#            das Modell zieht ein Muster, wenn es die Trefferlage kennt, und kann
-#            mitten im Zug wechseln (Suche → 0 Treffer → Eskalations-Muster).
-#            Spart den Klassifikator wie `agent`, behaelt die redaktionell
-#            gepflegten Muster wie `pattern`.
+#
+# `hybrid` (die Schleife mit dem Musterkatalog als Werkzeug) ist seit K1-1
+# (2026-09-27) entfernt: die K0-Messung zeigte ihn zwischen den beiden anderen,
+# ohne eigenen Mehrwert. Ein gespeichertes `hybrid` wird als `agent` gelesen.
 #
 # Die Vorgabe ist bewusst `pattern`: ohne Pflege aendert sich am ausgelieferten
 # Chatbot nichts. Je Anfrage laesst sie sich mit der Kopfzeile `X-Boerdi-Engine`
@@ -16,7 +15,7 @@
 # Golden-Durchgang fahren muss.
 mode: pattern
 
-# Die Deckel gelten fuer `agent` UND `hybrid` — es ist dieselbe Schleife.
+# Die Deckel der Agent-Schleife.
 agent:
   # Deckel der Schleife. Alle vier sind noetig, weil ein MCP-Aufruf gemessen bis
   # 23 s steht: ohne Frist koennte ein Lauf mit 20 Iterationen zehn Minuten

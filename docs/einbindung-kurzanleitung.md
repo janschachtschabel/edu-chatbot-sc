@@ -44,10 +44,10 @@ Das war's. Alles Weitere sind Vorgaben, die ihr überschreiben könnt.
 | `api-url` | — | **Pflicht.** Backend-Basis-URL |
 | `embed-mode` | `panel` | `panel` \| `frameless` (ohne Rahmen, FAB und Kopfzeile) |
 | `size` | `small` | `small` \| `large` — Anfangsgröße, zur Laufzeit umschaltbar |
-| `engine` | *(leer)* | `pattern` \| `agent` \| `hybrid`; leer = Vorgabe aus `01-base/engine` |
+| `engine` | *(leer)* | `pattern` \| `agent`; leer = Vorgabe aus `01-base/engine`. `hybrid` ist entfernt (K1-1) und gilt als `agent` |
 | `result-schema` | *(leer)* | JSON-Schema als **String**; schaltet den strukturierten Ausgang ein |
-| `master-skill` | *(leer)* | `on` \| `off`; fehlt = Betreiber-Vorgabe. Nur `agent`/`hybrid` |
-| `tool-mode` | `full` | `read-only` \| `curate` \| `full`. Nur `agent`/`hybrid` |
+| `master-skill` | *(leer)* | `on` \| `off`; fehlt = Betreiber-Vorgabe. Nur `agent` |
+| `tool-mode` | `full` | `read-only` \| `curate` \| `full`. Nur `agent` |
 | `ticket` | — | EDU-TICKET; der Bot handelt dann als die angemeldete Person |
 
 ### Darstellung
@@ -125,7 +125,7 @@ chat.setQuickRepliesMax(4);
 nicht als Etikett. Höchstens sechs (überzählige fallen weg, der Text wird nie
 gekürzt). Die Liste bleibt gesetzt, bis ihr sie ersetzt oder leert.
 
-### Vorrang (gemessen, gilt in allen drei Maschinen)
+### Vorrang (gemessen, gilt in beiden Maschinen)
 
 | | Begrüßungstext | Start-Chips |
 |---|---|---|
@@ -185,7 +185,7 @@ ohne Neustart und ohne Deployment.
 
 Die Begrüßung ist **kein Modellzug**: das Widget baut sie aus den Attributen bzw.
 aus `GET /api/config/guide-mode`. `engine` kommt in diesem Weg nicht vor —
-`pattern`, `agent` und `hybrid` verhalten sich identisch (im Agent-Modus
+`pattern` und `agent` verhalten sich identisch (im Agent-Modus
 nachgemessen, 2026-08-19).
 
 ---
@@ -321,7 +321,7 @@ chat.addEventListener('boerdi:agent-result', (e) => {
 });
 ```
 
-Nur mit `engine="agent"` oder `hybrid`; kostet einen zusätzlichen Modellzug (2–9 s
+Nur mit `engine="agent"`; kostet einen zusätzlichen Modellzug (2–9 s
 gemessen), deshalb opt-in. Der Chat antwortet **zusätzlich** in Prosa — das
 Ergebnis geht an eure Anwendung, nicht an die Person. Höchstens 200 000 Zeichen,
 sonst `422`. Ohne Schema gibt es das Werkzeug nicht.
@@ -346,7 +346,7 @@ chat.setMasterSkill(null);    // zurück auf die Betreiber-Vorgabe
 `tool-mode` wirkt zweifach: die verbotenen Werkzeuge fehlen in der Liste **und**
 das Modell erfährt es, damit es nichts verspricht, was es nicht kann.
 
-Beide nur mit `engine=agent|hybrid` — im Mustermodus wirkungslos.
+Beide nur mit `engine=agent` — im Mustermodus wirkungslos.
 
 ---
 

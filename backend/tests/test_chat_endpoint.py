@@ -303,8 +303,8 @@ def test_unbrauchbare_kopfzeile_meldet_niemanden_an(monkeypatch, client, caplog)
 def _spy_usage(monkeypatch):
     calls: list[tuple] = []
 
-    async def _fake(session, session_id, acc):
-        calls.append((session, session_id, acc))
+    async def _fake(session, session_id, acc, engine=None):
+        calls.append((session, session_id, acc, engine))
         return 1
 
     monkeypatch.setattr(chat_api, "record_turn_usage", _fake)
@@ -318,7 +318,7 @@ def test_verbrauch_wird_am_zugende_geschrieben(monkeypatch, client):
     calls = _spy_usage(monkeypatch)
     assert _post(client).status_code == 200
     assert len(calls) == 1
-    session, session_id, uebergeben = calls[0]
+    session, session_id, uebergeben, _maschine = calls[0]
     assert session is _SESSION and session_id == "bb-1"
     assert uebergeben is acc  # Identität: derselbe Merkposten, keine Kopie
 
@@ -339,10 +339,34 @@ def test_verbrauch_auch_bei_direkt_aktion_mit_frueh_antwort(monkeypatch, client)
 def test_schreibfehler_beim_verbrauch_kippt_die_antwort_nicht(monkeypatch, client):
     _patch(monkeypatch, result={**_ok("HI"), "usage": {"models": {"m": {}}}})
 
-    async def _boom(session, session_id, acc):
+    async def _boom(session, session_id, acc, engine=None):
         raise RuntimeError("DB weg")
 
     monkeypatch.setattr(chat_api, "record_turn_usage", _boom)
     r = _post(client)
     # Die Buchhaltung ist nachrangig: die Antwort geht trotzdem raus.
     assert r.status_code == 200 and r.json()["content"] == "HI"
+
+
+def test_der_verbrauch_traegt_die_maschine_des_debug_blocks(monkeypatch, client):
+    """AG-1: Buchung und Debug-Block sagen dasselbe — die Maschine kommt aus
+    ``response.debug.engine`` und nicht ein zweites Mal aus der Kopfzeile."""
+    from boerdi.api.schemas import DebugInfo
+
+    antwort = ChatResponse(session_id="bb-1", content="HI",
+                           debug=DebugInfo(engine="agent"))
+    _patch(monkeypatch, result={"response": antwort, "usage": {"models": {}}})
+    calls = _spy_usage(monkeypatch)
+    assert _post(client).status_code == 200
+    assert calls[0][3] == "agent"
+
+
+def test_fruehausstieg_bucht_ohne_maschine(monkeypatch, client):
+    """Eine Direktaktion antwortet vor jeder Maschine; ihr Verbrauch gehört
+    keiner der drei (AG-1)."""
+    _patch(monkeypatch, result={
+        "early_response": ChatResponse(session_id="bb-1", content="EARLY"),
+        "usage": {"models": {}}})
+    calls = _spy_usage(monkeypatch)
+    _post(client)
+    assert calls[0][3] is None

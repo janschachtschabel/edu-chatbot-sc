@@ -4,26 +4,26 @@ Common base = 12 keys; optional extensions per inventory (2026-07-11).
 
 from typing import Annotated
 
-from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices
+from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices, Textarea
 
 
 class PatternDiscriminator(AreaModel):
     vs: str = ""
-    rule: str = ""
-    example: str = ""
+    rule: Annotated[str, Textarea()] = ""
+    example: Annotated[str, Textarea()] = ""
 
 
 class PatternFrontmatter(AreaModel):
     id: str = ""
     label: str = ""
-    short_purpose: str = ""
+    short_purpose: Annotated[str, Textarea()] = ""
     priority: int = 50
     default_tone: str = ""
     default_length: str = ""
     response_type: str = ""
-    core_rule: str = ""
-    when_to_use: list[str] = []
-    when_not_to_use: list[str] = []
+    core_rule: Annotated[str, Textarea()] = ""
+    when_to_use: list[Annotated[str, Textarea()]] = []
+    when_not_to_use: list[Annotated[str, Textarea()]] = []
     trigger_phrases: list[str] = []
     discriminators: list[PatternDiscriminator] = []
     # optional extensions (subset per pattern)
@@ -50,4 +50,4 @@ class PatternFrontmatter(AreaModel):
 
 class PatternArea(AreaModel):
     frontmatter: PatternFrontmatter = PatternFrontmatter()
-    body: str = ""
+    body: Annotated[str, Textarea()] = ""

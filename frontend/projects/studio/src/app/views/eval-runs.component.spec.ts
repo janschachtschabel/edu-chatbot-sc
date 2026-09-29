@@ -55,10 +55,11 @@ const RUNNING = run("r-live", {
   imports: [EvalRunsComponent],
   template:
     '<studio-eval-runs (runChange)="opened = $event" (deleted)="lastDeleted = $event"' +
-    ' (stopped)="lastStopped = $event" />',
+    ' (stopped)="lastStopped = $event" (compare)="compared = $event" />',
 })
 class HostComponent {
   opened = "";
+  compared: readonly string[] = [];
   /** `null` = Sammel-Löschung (Treffer unbekannt); `undefined` = nie gefeuert. */
   lastDeleted: string | null | undefined;
   lastStopped = "";
@@ -149,6 +150,105 @@ describe("EvalRunsComponent", () => {
     // Now nothing is running, so no further poll may be scheduled.
     await vi.advanceTimersByTimeAsync(POLL_MS * 3);
     h.http.verify();
+  });
+
+  it("nennt je Zeile die Maschine, die den Lauf beantwortet hat (ST-7a)", async () => {
+    const h = await mount([run("r1", { engine: "agent" }), run("r2", { engine: "" })]);
+    expect(rows(h)[0].textContent).toContain("Agent-Schleife");
+    // Vor ST-7 mit Server-Vorgabe gestartet: nicht geraten, sondern gesagt.
+    expect(rows(h)[1].textContent).toContain("Maschine unbekannt");
+  });
+
+  it("filtert nach Maschine auf dem Server, auch beim Nachladen (ST-7a)", async () => {
+    const h = await mount([RUNNING]);
+    const select = h.el.querySelector<HTMLSelectElement>("#er-engine")!;
+    select.value = "agent";
+    select.dispatchEvent(new Event("change"));
+    await h.fixture.whenStable();
+
+    const req = h.http.expectOne((r) => r.url === RUNS_URL);
+    expect(req.request.params.get("engine")).toBe("agent");
+    req.flush({ runs: [{ ...RUNNING, engine: "agent" }] });
+    await settle(h);
+
+    // Der laufende Lauf lässt die Liste weiter nachladen — mit demselben Filter,
+    // sonst stünde nach drei Sekunden wieder alles da.
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    const poll = h.http.expectOne((r) => r.url === RUNS_URL);
+    expect(poll.request.params.get("engine")).toBe("agent");
+    poll.flush({ runs: [run("r-live", { engine: "agent" })] });
+    await settle(h);
+  });
+
+  it("sagt beim Sammel-Löschen, dass der Maschinen-Filter dafür nicht gilt (ST-7a)", async () => {
+    const h = await mount([run("r1", { engine: "agent" })]);
+    const select = h.el.querySelector<HTMLSelectElement>("#er-engine")!;
+    select.value = "agent";
+    select.dispatchEvent(new Event("change"));
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === RUNS_URL).flush({ runs: [run("r1", { engine: "agent" })] });
+    await settle(h);
+
+    h.el.querySelector<HTMLButtonElement>(".er-bulk")!.click();
+    await h.fixture.whenStable();
+    expect(h.el.querySelector(".er-danger")!.textContent).toContain(
+      "Der Maschinen-Filter gilt beim Löschen nicht",
+    );
+  });
+
+  it("bietet fertige Läufe zum Vergleich an, laufende nicht (ST-7c)", async () => {
+    const h = await mount([run("r1"), RUNNING]);
+    const boxes = h.el.querySelectorAll<HTMLInputElement>(".er-pick input[type=checkbox]");
+    expect(boxes).toHaveLength(1);
+    // Das sichtbare Wort steht am Anfang des Namens (WCAG 2.5.3).
+    expect(boxes[0].getAttribute("aria-label")).toBe("Vergleichen — Lauf r1");
+  });
+
+  it("vergleicht erst ab zwei Läufen und reicht die Auswahl weiter (ST-7c)", async () => {
+    const h = await mount([run("r1"), run("r2"), run("r3")]);
+    const box = (i: number) => h.el.querySelectorAll<HTMLInputElement>(".er-pick input")[i];
+    const start = () => Array.from(h.el.querySelectorAll("button"))
+      .find((b) => b.textContent?.trim() === "Gewählte vergleichen")!;
+
+    box(0).click();
+    await h.fixture.whenStable();
+    expect(h.el.querySelector(".cb")!.textContent).toContain("1 Lauf zum Vergleich gewählt");
+    expect(start().disabled).toBe(true);
+    expect(h.el.querySelector(".cb")!.textContent).toContain("mindestens zwei Läufe");
+
+    box(2).click();
+    await h.fixture.whenStable();
+    expect(start().disabled).toBe(false);
+    start().click();
+    expect(h.fixture.componentInstance.compared).toEqual(["r1", "r3"]);
+  });
+
+  it("behält die Auswahl über einen Wechsel des Maschinen-Filters (ST-7c)", async () => {
+    // So vergleicht man: Muster-Läufe ankreuzen, Filter wechseln, Agent-Läufe ankreuzen.
+    const h = await mount([run("r1", { engine: "pattern" })]);
+    h.el.querySelector<HTMLInputElement>(".er-pick input")!.click();
+    await h.fixture.whenStable();
+    const select = h.el.querySelector<HTMLSelectElement>("#er-engine")!;
+    select.value = "agent";
+    select.dispatchEvent(new Event("change"));
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === RUNS_URL).flush({ runs: [run("r2", { engine: "agent" })] });
+    await settle(h);
+    h.el.querySelector<HTMLInputElement>(".er-pick input")!.click();
+    await h.fixture.whenStable();
+
+    expect(h.el.querySelector(".cb")!.textContent).toContain("2 Läufe zum Vergleich gewählt");
+  });
+
+  it("hebt die Auswahl auf Zuruf auf", async () => {
+    const h = await mount([run("r1"), run("r2")]);
+    h.el.querySelectorAll<HTMLInputElement>(".er-pick input")[0].click();
+    await h.fixture.whenStable();
+    Array.from(h.el.querySelectorAll("button"))
+      .find((b) => b.textContent?.trim() === "Auswahl aufheben")!.click();
+    await h.fixture.whenStable();
+    expect(h.el.querySelector(".cb")).toBeNull();
+    expect(h.el.querySelector<HTMLInputElement>(".er-pick input")!.checked).toBe(false);
   });
 
   it("does not poll at all when no run is in flight", async () => {

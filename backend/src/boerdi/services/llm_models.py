@@ -78,17 +78,32 @@ class ParamRules(NamedTuple):
     effort_with_tools: bool
     #: ``temperature`` erlaubt, wenn das Reasoning abgeschaltet ist
     temperature_on_none: bool
+    #: ueber OpenAIs ``/v1/responses`` statt ``/v1/chat/completions`` fuehren.
+    #: Wirkt nur beim Anbieter ``openai``; die b-api bleibt auf Chat-Completions.
+    responses_api: bool = False
 
 
 _CLASSIC = ParamRules(gpt5_params=False, effort_with_tools=False, temperature_on_none=False)
 
 #: Praefix -> Regeln; der LAENGSTE passende Praefix gewinnt (``gpt-5.6`` vor ``gpt-5``).
 _GROUPS: dict[str, ParamRules] = {
+    # 2026-09-26 gegen OpenAI direkt gemessen (13 Proben, identisch zu gpt-5.6-luna):
+    # /v1/chat/completions nimmt Function Tools nur mit `reasoning_effort=none` an
+    # und verweist selbst auf /v1/responses. LiteLLM 1.91 erkennt gpt-6 nicht als
+    # GPT-5-Modell, seine stille Umleitung (siehe gpt-5.6) greift also nicht —
+    # daher der Responses-Weg ausdruecklich. Nutzer-Vorgabe desselben Tages: neue
+    # OpenAI-Modelle ueber Responses, Chat-Completions vor allem fuer die AcademicCloud.
+    "gpt-6": ParamRules(gpt5_params=True, effort_with_tools=True,
+                        temperature_on_none=False, responses_api=True),
     # W12b, gegen die echte API gemessen (2026-08-09): luna weist eine Anfrage
     # MIT Werkzeugen ab, wenn `reasoning_effort` FEHLT — dann gilt das
     # Vorgabe-Reasoning des Anbieters, und das vertraegt sich nicht mit Function
     # Tools auf /v1/chat/completions. Mit ausdruecklichem Wert (`low` wie `none`)
     # kommt sauber ein tool_call zurueck.
+    # Nachmessung 2026-09-26: `low` gelingt nur ueber LiteLLM. Das leitet ab
+    # gpt-5.4 jeden Aufruf mit Werkzeugen UND effort still auf /v1/responses um
+    # (litellm/main.py ``responses_api_bridge_check``); /v1/chat/completions
+    # selbst weist `low` mit Werkzeugen ab.
     "gpt-5.6": ParamRules(gpt5_params=True, effort_with_tools=True, temperature_on_none=False),
     # ALT-verbatim (llm_provider.py:702-827): kein Reasoning bei Werkzeugen,
     # dafuer `temperature` neben abgeschaltetem Reasoning.

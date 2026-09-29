@@ -442,6 +442,20 @@ def test_elements_browser_groups(cfg) -> None:
     assert isinstance(els["base_files"], list) and els["base_files"]
 
 
+def test_elements_nennt_die_echte_datei_einer_persona(cfg) -> None:
+    """ST-3: eine Persona, deren Datei nicht nach ihrer Kennung heißt — so legt
+    das Studio neue an („Neue Zielgruppe" → ``04-personas/neue-zielgruppe``,
+    ``id: neue``). Bis dahin bildete der Browser den Dateinamen aus der
+    Kennung, und die Liste zeigte auf einen Bereich, den es nicht gibt."""
+    client, seed = cfg
+    seed("04-personas/neue-zielgruppe",
+         {"frontmatter": {"id": "neue", "label": "Neue Zielgruppe"}, "body": ""})
+    els = client.get("/api/config/elements", headers=_AUTH).json()
+    eintrag = next(p for p in els["personas"] if p["id"] == "neue")
+    assert eintrag["file"] == "04-personas/neue-zielgruppe.md"
+    assert "_source_file" not in eintrag
+
+
 def test_elements_browser_faerbt_den_bereich_nicht_ein(cfg) -> None:
     """Der Element-Browser hängt jedem Eintrag seine Quelldatei an — das ist
     Anzeige, kein Konfigurationswert.

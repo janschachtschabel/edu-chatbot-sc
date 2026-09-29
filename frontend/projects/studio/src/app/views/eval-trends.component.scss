@@ -1,7 +1,21 @@
 .et-bar {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: var(--st-3);
   margin-block-end: var(--st-3);
+}
+
+// ST-7a: ein Hinweis, keine Warnung — der Verlauf stimmt, er mischt nur.
+.et-mixed {
+  margin: 0 0 var(--st-3);
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  font-size: 0.875rem;
+  line-height: 1.45;
 }
 
 .et-reload {
@@ -14,11 +28,6 @@
   font: inherit;
   font-size: 0.8125rem;
   cursor: pointer;
-}
-
-.et-reload:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
 }
 
 .et-reload:disabled {
@@ -206,9 +215,4 @@
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-}
-
-.et-details summary:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
 }

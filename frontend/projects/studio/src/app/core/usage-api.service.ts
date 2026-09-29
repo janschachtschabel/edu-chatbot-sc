@@ -17,6 +17,7 @@
  */
 import { Injectable, inject } from '@angular/core';
 
+import { type OriginScope, scopeParams } from './origin-scope';
 import { StudioApi } from './studio-api.service';
 
 /** Die Zahlen einer Gruppe — je Modell wie je Sitzung dieselbe Form. */
@@ -62,8 +63,9 @@ export interface UsageReport extends UsageTotals {
 export class UsageApi {
   private readonly api = inject(StudioApi);
 
-  /** `from`/`to` als ISO-Zeitpunkte; beide Grenzen zählen mit. */
-  period(from: string, to: string): Promise<UsageReport> {
-    return this.api.get<UsageReport>('/usage/period', { from, to });
+  /** `from`/`to` als ISO-Zeitpunkte; beide Grenzen zählen mit. `scope` (ST-9)
+   *  trennt nach Herkunft — ohne Angabe gilt „alle", wie vor dem Filter. */
+  period(from: string, to: string, scope: OriginScope = 'all'): Promise<UsageReport> {
+    return this.api.get<UsageReport>('/usage/period', { from, to, ...scopeParams(scope) });
   }
 }

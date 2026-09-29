@@ -26,14 +26,19 @@
   // schemes because the M3 token flips with prefers-color-scheme.
   --st-surface-variant: var(--boerdi-surface-variant);
   --st-rule: #e5e7eb; // hairline; 1.35:1 — decorative, never carries meaning
-  --st-rule-strong: #9ca3af; // form borders; 2.6:1 vs white … see note below
+  --st-rule-strong: #9ca3af; // separators; 2.5:1 vs white — NOT for form fields, see note below
   --st-text: var(--boerdi-on-surface); // 15.9:1 on white
   --st-text-muted: #545a63; // 7.0:1 on white (ALT's #6B7280 was 4.8 — kept AA
   // but failed as soon as it sat on --st-bg)
 
   // ── Accent ──────────────────────────────────────────────────────────
-  --st-accent: var(--boerdi-primary); // #1f6feb, 4.63:1 on white ✓ AA text
-  --st-accent-text: var(--boerdi-on-primary);
+  // #1f6feb: 4.63:1 on white ✓ AA text — but ONLY on white. On --st-bg 4.43:1,
+  // on --st-surface-variant 4.17:1, on --st-accent-soft 4.15:1: fine for rings
+  // and borders (3:1), too weak for body text on those surfaces.
+  --st-accent: var(--boerdi-primary);
+  // Text ON the accent fill (white here, 4.63:1). Never text on a panel: that
+  // was white on white (Review 2026-09-29). `check:contrast` keeps the pair.
+  --st-on-accent: var(--boerdi-on-primary);
   --st-accent-soft: #ebf3ff; // active-nav / selected-row wash
 
   // ── Semantic pairs: -text meets 4.5:1, -dot meets 3:1 ───────────────
@@ -57,16 +62,18 @@
   --st-radius: var(--boerdi-radius-sm);
   --st-sidebar-w: 17.5rem; // rem, not px: survives 200 % zoom by reflowing
   --st-header-h: 3.5rem;
-  // A `box-shadow` VALUE, not a colour — `outline: 2px solid var(--st-focus)`
-  // is invalid and the whole declaration is dropped. Ten stylesheets did that
-  // (found in 9-5b); the visible ring came from the global `:focus-visible`
-  // rule in styles.scss the whole time. For a ring, use `--st-accent`.
-  --st-focus: 0 0 0 3px rgb(31 111 235 / 45%);
+  // No focus token, on purpose: the ring is ONE rule, `:focus-visible` in
+  // styles.scss. The former `--st-focus` was a 45 %-alpha box-shadow (1.9:1 on
+  // white, below SC 1.4.11) that forced-colors mode drops entirely; read as an
+  // outline colour it made the declaration invalid at computed-value time, which
+  // unset the outline and took the global ring with it (Review 2026-09-29).
 }
 
-// `--st-rule-strong` note: 2.6:1 is BELOW the 3:1 non-text floor, so it is used
-// only for decorative separators. Every input border uses `--st-text-muted`
-// (7.0:1) — a form field's boundary is a meaningful UI component (SC 1.4.11).
+// `--st-rule-strong` note: 2.5:1 (dark: 2.7:1) is BELOW the 3:1 non-text floor,
+// so it is used only for decorative separators and for text-labelled buttons
+// (their label identifies them). Every form-field border uses `--st-text-muted`
+// (7.0:1) — a field's boundary is what identifies it (SC 1.4.11); the
+// `feldrahmen` rule of `check:contrast` enforces this.
 
 @media (prefers-color-scheme: dark) {
   :root {
@@ -75,11 +82,10 @@
     --st-rule-strong: #5b6067;
     --st-text-muted: #b6bcc4; // 9.4:1 on --st-bg
     --st-accent: #8ab4f8; // 8.1:1 on dark (the light-mode blue is 3.7:1 → fails)
-    --st-accent-text: #0b1420;
+    --st-on-accent: #0b1420;
     --st-accent-soft: #1d2733;
     --st-ok-text: #6ee7b7;
     --st-warn-text: #fcd34d;
     --st-danger-text: #fca5a5;
-    --st-focus: 0 0 0 3px rgb(138 180 248 / 55%);
   }
 }

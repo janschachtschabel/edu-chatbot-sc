@@ -122,6 +122,39 @@ export const AREA_EDITOR: CataloguePart = {
      *  weitergeführt statt weggeworfen, aber als Fremdkörper ausgewiesen. */
     'schemaField.foreignChoice': '{current} — nicht in der Auswahl',
     'schemaField.openTarget': '{value} öffnen',
+    // ST-2c: die Grenzen eines Zahlfelds aus dem Schema, sichtbar am Feld.
+    'schemaField.range': 'Erlaubt: {min} bis {max}',
+    'schemaField.rangeMin': 'Erlaubt: ab {min}',
+    'schemaField.rangeMax': 'Erlaubt: bis {max}',
+    // ST-2i: EIN Eintrag einer Liste ist hervorgehoben (Tour-Chip). „Ohne"
+    // statt „Kein/Keine": der Name des Nachbarfelds hat ein Geschlecht.
+    'schemaField.markAs': 'Als {label}',
+    'schemaField.markItemAs': '„{value}“ als {label}',
+    'schemaField.markNone': 'Ohne {label}',
+    // ST-2h: ein Regler ohne Wert (`| None`) — die Vorgabe greift.
+    'schemaField.sliderUnset': 'nicht gesetzt — es gilt die Vorgabe',
+    'schemaField.sliderClear': 'Leeren',
+    // ST-2g: Katalog-Namen als Chips.
+    'schemaField.removeChip': '„{value}“ aus {group} entfernen',
+    'schemaField.chipTaken': '„{value}“ steht schon in {group}.',
+    // ST-6: vom Code festgesetzt — der gesperrte Schalter zeigt, was wirkt.
+    'schemaField.fixedOn': 'fest aktiv',
+    // ST-3: Listen und Maps von Objekten als Liste│Editor
+    'objectList.count.one': '{count} Eintrag',
+    'objectList.count.other': '{count} Einträge',
+    'objectList.countFiltered': '{shown} von {count}',
+    'objectList.search': 'Suchen',
+    'objectList.searchIn': 'In {group} suchen',
+    'objectList.entries': 'Einträge in {group}',
+    'objectList.noMatch': 'Kein Eintrag passt zur Suche.',
+    'objectList.entry': 'Eintrag {index}',
+    'objectList.hasProblem': 'enthält einen Fehler',
+    'objectList.new': 'Neu',
+    'objectList.newIn': 'Neu in {group}',
+    'objectList.duplicate': 'Duplizieren',
+    'objectList.duplicateEntry': 'Duplizieren: {title}',
+    'objectList.remove': 'Löschen',
+    'objectList.removeEntry': 'Löschen: {title}',
 
     // ── Sicherheitslevel-Wähler ─────────────────────────────────────
     // Die NAMEN der fünf Stufen („Off", „Regex", „Standard", „Strict",
@@ -222,6 +255,32 @@ export const AREA_EDITOR: CataloguePart = {
     'schemaField.noChoice': '— not set —',
     'schemaField.foreignChoice': '{current} — not in the list',
     'schemaField.openTarget': 'Open {value}',
+    'schemaField.range': 'Allowed: {min} to {max}',
+    'schemaField.rangeMin': 'Allowed: {min} or more',
+    'schemaField.rangeMax': 'Allowed: up to {max}',
+    'schemaField.markAs': 'As {label}',
+    'schemaField.markItemAs': '"{value}" as {label}',
+    'schemaField.markNone': 'No {label}',
+    'schemaField.sliderUnset': 'not set — the default applies',
+    'schemaField.sliderClear': 'Clear',
+    'schemaField.removeChip': 'Remove "{value}" from {group}',
+    'schemaField.chipTaken': '"{value}" is already in {group}.',
+    'schemaField.fixedOn': 'always on',
+    'objectList.count.one': '{count} entry',
+    'objectList.count.other': '{count} entries',
+    'objectList.countFiltered': '{shown} of {count}',
+    'objectList.search': 'Search',
+    'objectList.searchIn': 'Search in {group}',
+    'objectList.entries': 'Entries in {group}',
+    'objectList.noMatch': 'No entry matches the search.',
+    'objectList.entry': 'Entry {index}',
+    'objectList.hasProblem': 'contains an error',
+    'objectList.new': 'New',
+    'objectList.newIn': 'New in {group}',
+    'objectList.duplicate': 'Duplicate',
+    'objectList.duplicateEntry': 'Duplicate: {title}',
+    'objectList.remove': 'Delete',
+    'objectList.removeEntry': 'Delete: {title}',
 
     'safetyLevel.legend': 'Safety level',
     'safetyLevel.hint':

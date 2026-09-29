@@ -273,3 +273,22 @@ def test_usage_event_orm_passt_auf_die_migrierte_tabelle(migrated_db) -> None:
             await engine.dispose()
 
     _run(roundtrip())
+
+
+# -- AG-1: die Maschine je Buchungszeile (Migration 0004) -----------------------
+
+def test_usage_events_tragen_die_maschine(migrated_db) -> None:
+    """Migration 0004: ``engine`` nullbar, denn Zeilen von vor der Migration
+    und Fruehausstiege (Direktaktionen) tragen keine Maschine."""
+    async def spalte():
+        conn = await asyncpg.connect(migrated_db)
+        try:
+            return await conn.fetchrow(
+                "SELECT data_type, is_nullable FROM information_schema.columns "
+                "WHERE table_name='usage_events' AND column_name='engine'")
+        finally:
+            await conn.close()
+
+    row = _run(spalte())
+    assert row is not None, "Spalte usage_events.engine fehlt"
+    assert row["data_type"] == "text" and row["is_nullable"] == "YES"

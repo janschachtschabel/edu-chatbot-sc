@@ -154,7 +154,7 @@ export class EvalGoldenStartComponent {
   }
 
   engineLabel(engine: GoldenEngine): string {
-    // Nur die Vorgabe braucht einen Namen — die drei Maschinen heißen im
+    // Nur die Vorgabe braucht einen Namen — die Maschinen heißen im
     // Studio wie in der Konfig und der Kopfzeile (technische Werte).
     return engine === 'default' ? this.t('evalStart.gold.engine.default') : engine;
   }

@@ -15,6 +15,7 @@ npm start          # Widget-Dev-Server auf :4200 (Proxy auf das Backend :8100)
 npm run start:studio   # Studio-Dev-Server auf :4300 (gleicher Proxy)
 npm run lint       # eslint + angular-eslint (Templates inkl. a11y-Regeln)
 npm run check:tokens   # jedes gelesene var(--token) muss definiert sein (s. u.)
+npm run check:contrast # Studio: Fokusring, Akzent-Paare, Feldrahmen (s. u.)
 npm test           # Unit-Tests: ng test ui && ng test widget && ng test studio
 npm run build:widget   # Single-File-Bundle → dist/widget/browser/main.js
 npm run build:studio   # Studio-SPA → dist/studio/browser/
@@ -41,6 +42,24 @@ prüfbar ist — dieselbe Naht wie bei `check-widget-budget.mjs`.
 **Bewusste Grenze:** die Definitionen werden über den ganzen Baum gepoolt, nicht
 je `@use`-Graph aufgelöst. Das findet „nirgends definiert" (die obige Fehlerklasse)
 und nicht „nur in einem Stylesheet definiert, das diese Datei nie lädt".
+
+### `check:contrast` — Fokus und Kontrast im Studio
+
+`scripts/check-studio-contrast.mjs` prüft drei Regeln in allen Studio-Stylesheets
+(auch Inline-`styles` in `.ts`), jede aus dem Review 2026-09-29:
+
+- **`fokus`** — kein `outline: none`. Den Ring zeichnet genau eine Regel
+  (`:focus-visible` in `styles.scss`); ein Schatten als Ersatz war 1,9:1 und
+  verschwindet im Forced-Colors-Modus. Begründete Ausnahmen stehen im Skript
+  (bisher nur das Skip-Link-Ziel `<main tabindex="-1">`).
+- **`auf-akzent`** — `--st-on-accent` (die Schrift AUF der Akzentfläche, hell:
+  Weiß) nur im selben Block wie `background: var(--st-accent)`, und Text auf der
+  Akzentfläche nur in `--st-on-accent`.
+- **`feldrahmen`** — `<input>`, `<select>`, `<textarea>` (Klassen aus den
+  Templates gelesen) rahmen nicht mit `--st-rule`/`--st-rule-strong` (unter 3:1),
+  sondern mit `--st-text-muted`.
+
+Gleiche Wurzel-Naht wie die anderen Gates: `node scripts/check-studio-contrast.mjs <dir>`.
 
 ## Studio
 

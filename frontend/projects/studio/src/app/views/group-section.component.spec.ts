@@ -315,11 +315,17 @@ describe("GroupSectionComponent", () => {
 /**
  * Beschriftungen der sichtbaren Felder — der Reiter-Schnitt in einem Wort.
  * Skalare stehen in `<label>`, Listen/Gruppen in `<legend>`
- * (`schema-field.component.html`); beides zählt als sichtbares Feld.
+ * (`schema-field.component.html`); beides zählt als sichtbares Feld. Seit ST-1
+ * steht der Rohschlüssel klein hinter der Katalog-Beschriftung (`.sf-key`) —
+ * gezählt wird er, damit der Schnitt am Schlüssel prüfbar bleibt.
  */
 function fieldLabels(el: HTMLElement): string[] {
   return Array.from(el.querySelectorAll("label, legend"))
-    .map((l) => l.textContent?.trim().split(/\s+/)[0] ?? "")
+    .map((l) => (
+      l.querySelector(".sf-key")?.textContent?.trim()
+      ?? l.textContent?.trim().split(/\s+/)[0]
+      ?? ""
+    ))
     .filter(Boolean);
 }
 

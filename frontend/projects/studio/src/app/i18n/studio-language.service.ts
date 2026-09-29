@@ -86,6 +86,15 @@ export class StudioLanguageService {
     this.i18n.t(key, params);
 
   /**
+   * Steht ein Text im Katalog? (ST-1) `t()` kann das nicht beantworten: sein
+   * letzter Rückfall ist der Schlüssel selbst, und ein Formularfeld ohne
+   * Katalogtext soll seinen Rohschlüssel zeigen, nicht `feld.<Modell>.….label`.
+   * Gefragt wird der deutsche Katalog — er ist die Vorgabe, und `parts.spec.ts`
+   * hält den englischen schlüsselgleich.
+   */
+  readonly has = (key: string): boolean => Object.hasOwn(STUDIO_DE, key);
+
+  /**
    * Mehrzahl (C1-d3a): wählt `<key>.one` oder `<key>.other` nach der Regel der
    * aktiven Sprache und reicht die Anzahl als `{count}` durch.
    *
@@ -118,6 +127,11 @@ export class StudioLanguageService {
    */
   readonly list = (parts: readonly string[]): string =>
     new Intl.ListFormat(this.i18n.locale(), { style: 'long', type: 'conjunction' })
+      .format(parts);
+
+  /** Dieselbe Regel als Auswahl — „A, B oder C" (ST-8b: wann ein Werkzeug fehlt). */
+  readonly listOr = (parts: readonly string[]): string =>
+    new Intl.ListFormat(this.i18n.locale(), { style: 'long', type: 'disjunction' })
       .format(parts);
 
   /**

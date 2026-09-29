@@ -9,8 +9,9 @@ import {
   provideZonelessChangeDetection,
 } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import { Router, provideRouter } from "@angular/router";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionStore } from "../auth/session-store";
 import {
@@ -18,6 +19,7 @@ import {
   StudioLanguageService,
 } from "../i18n/studio-language.service";
 import { STUDIO_VIEWS } from "../studio-views";
+import { BackupToolsComponent } from "./backup-tools.component";
 import { ShellComponent } from "./shell.component";
 
 /**
@@ -99,6 +101,27 @@ describe("ShellComponent", () => {
     expect(el.querySelector(`#${target}`)?.tagName).toBe("MAIN");
   });
 
+  it("liest die Wirkungs-Zuordnung bei jedem Seitenwechsel neu (ST-5)", async () => {
+    // Bei JEDEM Wechsel: wer auf der Agent-Seite die Vorgabe-Maschine
+    // umstellt, soll auf der nächsten Seite das passende Banner sehen.
+    const router = TestBed.inject(Router);
+    for (const slug of ["begruessung", "anzeige"]) {
+      await router.navigateByUrl(`/${slug}`);
+      await fixture.whenStable();
+      http.expectOne("/studio/api/config/effects")
+        .flush({ engine: "pattern", areas: {} });
+    }
+  });
+
+  it("räumt beim Seitenwechsel die Meldung der Kopfzeilen-Werkzeuge weg (ST-9)", async () => {
+    const werkzeuge = fixture.debugElement
+      .query(By.directive(BackupToolsComponent)).componentInstance as BackupToolsComponent;
+    const weg = vi.spyOn(werkzeuge, "dismiss");
+    await TestBed.inject(Router).navigateByUrl("/begruessung");
+    await fixture.whenStable();
+    expect(weg).toHaveBeenCalled();
+  });
+
   it("marks no nav item as current while no view is open", () => {
     expect(el.querySelector('[aria-current="page"]')).toBeNull();
   });
@@ -174,6 +197,11 @@ describe("ShellComponent", () => {
     expect(
       el.querySelector(".header-tools studio-language-switcher"),
     ).not.toBeNull();
+  });
+
+  it("trägt Snapshot, Backup und Einspielen in der Kopfzeile (ST-9)", () => {
+    const gruppe = el.querySelector(".header-tools studio-backup-tools [role='group']");
+    expect(gruppe?.getAttribute("aria-label")).toBe("Sicherung");
   });
 
   it("holt die Texte der Hülle aus dem Katalog, nicht aus dem Markup", async () => {

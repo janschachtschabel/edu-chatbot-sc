@@ -4,6 +4,10 @@
   @if (definition(); as def) {
     <p class="cv-intro">{{ t(def.introKey) }}</p>
   }
+  @if (banner(); as hinweis) {
+    <!-- ST-5: die Vorgabe-Maschine nutzt diese Seite nicht -->
+    <p class="cv-banner" role="note">{{ hinweis }}</p>
+  }
 </header>
 
 @if (definition()) {
@@ -28,6 +32,24 @@
           }
           @case ('agent-tester') {
             <studio-agent-tester [section]="entry.panel" [open]="entry.first" />
+          }
+          @case ('master-skill') {
+            <studio-master-skill [section]="entry.panel" [open]="entry.first" />
+          }
+          @case ('privacy-purge') {
+            <studio-privacy-purge [section]="entry.panel" [open]="entry.first" />
+          }
+          @case ('agent-tools') {
+            <studio-agent-tools [section]="entry.panel" [open]="entry.first" />
+          }
+          @case ('agent-skills') {
+            <studio-agent-skills [section]="entry.panel" [open]="entry.first" />
+          }
+          @case ('agent-prompt') {
+            <studio-agent-prompt [section]="entry.panel" [open]="entry.first" />
+          }
+          @case ('agent-probe') {
+            <studio-agent-probe [section]="entry.panel" [open]="entry.first" />
           }
         }
       }

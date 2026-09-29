@@ -1,0 +1,107 @@
+@use './section-shell';
+
+.agt-summary {
+  margin: 0 0 var(--st-2);
+  font-size: 0.875rem;
+}
+
+.agt-diversion {
+  margin: 0 0 var(--st-3);
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-rule-strong);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+}
+
+// Bezugsblock für alles Positionierte darin — sonst verbreitert eine breite
+// Tabelle die ganze Seite statt nur ihren Rahmen (vgl. das Lauf-Detail).
+.agt-table-wrap {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.agt-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.agt-caption {
+  padding: var(--st-2) var(--st-3);
+  border-block-end: 1px solid var(--st-rule);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+  text-align: start;
+}
+
+.agt-table th,
+.agt-table td {
+  padding: var(--st-2);
+  border-block-end: 1px solid var(--st-rule);
+  text-align: start;
+  vertical-align: top;
+}
+
+.agt-table thead th {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--st-text-muted);
+  white-space: nowrap;
+}
+
+.agt-group th {
+  background: var(--st-surface-variant);
+}
+
+.agt-group-name {
+  font-weight: 600;
+}
+
+.agt-group-hint {
+  margin-inline-start: var(--st-2);
+  font-weight: 400;
+  color: var(--st-text-muted);
+}
+
+.agt-tool {
+  font-weight: 400;
+  min-inline-size: 14rem;
+}
+
+.agt-name {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.agt-desc {
+  display: block;
+  margin-block-start: var(--st-1);
+  color: var(--st-text-muted);
+  line-height: 1.45;
+}
+
+.agt-offered {
+  white-space: nowrap;
+}
+
+.agt-locks {
+  display: grid;
+  gap: var(--st-1);
+  margin: 0;
+  padding-inline-start: var(--st-4);
+  line-height: 1.45;
+}
+
+.agt-link:focus-visible {
+  border-radius: 2px;
+}
+
+.agt-none {
+  color: var(--st-text-muted);
+}

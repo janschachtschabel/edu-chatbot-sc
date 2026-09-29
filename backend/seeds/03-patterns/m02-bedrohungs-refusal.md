@@ -6,6 +6,7 @@ priority: 998
 default_tone: sachlich
 default_length: kurz
 response_type: refusal
+quick_replies_mode: none
 core_rule: Sachlich-bestimmt zurückweisen. Kein Sermon, keine Eskalation.
 when_to_use:
   - Safety-Layer erkennt Bedrohung Dritter / Aufruf zu illegalen Handlungen

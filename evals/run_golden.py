@@ -11,7 +11,10 @@ so it can run against ANY chat backend:
 
 Format v2 (GV1, 2026-08-22): the dataset describes USE CASES, and every hard
 check is an observable RESULT that all three engines can produce the same way
-(register/structure/tools_any/qr; host stays soft). persona/intent checks are
+(register/structure/tools_any/tools_none/tools_max/text/qr; host stays soft —
+K0-3 added tools_none, text and ``qr: false`` for the SAFE set, AG-5 added
+tools_max, a per-flow ``environment`` and the loaded skills in ``observed``).
+persona/intent checks are
 gone — the classifier is only one of three engines now, and measuring it is
 the generative track's job. v1 files are rejected loudly (``version: 2``
 required); ``must_offer`` per turn feeds the backend judge (GV4), never the
@@ -26,8 +29,8 @@ compare can name both sides:
 ``EVAL_CHAT_HEADERS`` (A5) still carries arbitrary extra headers (JSON
 object); an ``X-Boerdi-Engine`` in there is overridden by ``--engine``.
 
-Exit code 0 == all asserted hard checks passed (register/structure/tools_any/
-qr); host is reported but soft, like ALT. Exit code 2 == the run never started
+Exit code 0 == all asserted hard checks passed (every category but host);
+host is reported but soft, like ALT. Exit code 2 == the run never started
 (no matching flow, unreadable headers, v1 dataset).
 
 ONE file on purpose (documented exception to the ~300-line rule, §0 rule 7):
@@ -63,11 +66,12 @@ HERE = Path(__file__).resolve().parent
 #: Kopie ``evals/gold-flows.yaml`` musste von Hand synchron gehalten werden.
 DEFAULT_FLOWS = HERE.parent / "backend" / "seeds" / "eval" / "gold-flows.yaml"
 
-GOLDEN_CATS = ["register", "structure", "tools_any", "qr", "host"]
-GOLDEN_HARD = ["register", "structure", "tools_any", "qr"]
+GOLDEN_CATS = ["register", "structure", "tools_any", "tools_none", "tools_max", "text",
+               "qr", "host"]
+GOLDEN_HARD = ["register", "structure", "tools_any", "tools_none", "tools_max", "text", "qr"]
 
 ENGINE_HEADER = "X-Boerdi-Engine"
-ENGINES = ("pattern", "agent", "hybrid")
+ENGINES = ("pattern", "agent")
 
 _SIE_RE = re.compile(r"\b(?:Sie|Ihnen|Ihr|Ihre[nmrs]?|Ihrem)\b")
 _DU_RE = re.compile(r"\b(?:[Dd]u|[Dd]ich|[Dd]ir|[Dd]eine?[nmrs]?|[Dd]ein)\b")
@@ -157,7 +161,7 @@ def load_flows(path: str | Path) -> list[dict[str, Any]]:
     """Parse a v2 gold-flows file; reject anything else loudly.
 
     v1 expectations (persona/intent) describe the classifier machine, which
-    agent/hybrid do not run — a v1 set under v2 checks would silently assert
+    the agent does not run — a v1 set under v2 checks would silently assert
     nothing and report green. No silent dual operation: the format is pinned.
     """
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -171,7 +175,76 @@ def load_flows(path: str | Path) -> list[dict[str, Any]]:
     flows = data.get("flows")
     if not isinstance(flows, list) or not flows:
         raise ValueError(f"{path}: keine Flows gefunden")
+    validate_flows(flows)
     return flows
+
+
+def _phrase_list(raw: Any) -> list[str]:
+    """A lone string is tolerated like in ``tools_any``; the guard enforces lists."""
+    if isinstance(raw, str):
+        raw = [raw]
+    return [str(p).strip() for p in raw or [] if str(p).strip()]
+
+
+def _tools_max(expect: dict[str, Any]) -> int | None:
+    """``tools_max`` (AG-5): None = not asserted, otherwise an int >= 0.
+
+    Loud on nonsense, like ``chat_headers``: a mistyped cap would otherwise read
+    as "not asserted", and the flow author would trust a cap that does not exist.
+    """
+    wert = expect.get("tools_max")
+    if wert is None:
+        return None
+    if isinstance(wert, bool) or not isinstance(wert, int) or wert < 0:
+        raise ValueError(f"tools_max must be an integer >= 0, got {wert!r}")
+    return wert
+
+
+def validate_flows(flows: list[dict[str, Any]]) -> None:
+    """Check every turn's expectations before the first paid turn.
+
+    Raises ValueError naming flow and turn. Today that is ``tools_max``, the
+    one expectation that raises instead of reading as "not asserted" — found
+    mid-run it cost every turn before it (review 2026-09-26). Both entry points
+    call this: ``load_flows`` (CLI) and the backend's golden-run start.
+    """
+    for fi, flow in enumerate(flows, start=1):
+        flow_id = str(flow.get("id") or f"flow-{fi}")
+        for ti, turn in enumerate(flow.get("turns") or [], start=1):
+            expect = (turn.get("expect") if isinstance(turn, dict) else None) or {}
+            try:
+                _tools_max(expect)
+            except ValueError as e:
+                raise ValueError(f"{flow_id} turn {ti}: {e}") from e
+
+
+def _skills(debug: dict[str, Any]) -> list[str]:
+    """Skills loaded in this turn (AG-5): the ``skill`` trace lines that
+    ``turn_persist`` writes in every engine — the title, else the node id."""
+    names: list[str] = []
+    for line in debug.get("trace") or []:
+        if isinstance(line, dict) and line.get("step") == "skill":
+            data = line.get("data") or {}
+            name = str(data.get("titel") or data.get("node_id") or "").strip()
+            if name:
+                names.append(name)
+    return names
+
+
+def _normalized(text: str) -> str:
+    """Case- and whitespace-blind: models put no-break spaces into phone numbers."""
+    return re.sub(r"\s+", " ", text or "").strip().casefold()
+
+
+def visible_text(bot_resp: dict[str, Any]) -> str:
+    """What the person reads: the bubble plus every inline document box. The
+    help numbers of a crisis answer often sit in the box, not in the bubble
+    (SF smoke 2026-09-26)."""
+    parts = [bot_resp.get("content") or ""]
+    for doc in bot_resp.get("inline_documents") or []:
+        if isinstance(doc, dict):
+            parts += [str(doc.get("title") or ""), str(doc.get("content") or "")]
+    return "\n".join(parts)
 
 
 def repo_host() -> str:
@@ -200,10 +273,17 @@ def check_golden_turn(
     """
     exp_register = str(expect.get("register") or "any").strip().lower()
     exp_structure = str(expect.get("structure") or "").strip().lower()
-    raw_tools = expect.get("tools_any") or []
-    if isinstance(raw_tools, str):  # tolerate a lone name; guard enforces list
-        raw_tools = [raw_tools]
-    exp_tools = [str(t).strip() for t in raw_tools if str(t).strip()]
+    exp_tools = _phrase_list(expect.get("tools_any"))
+    exp_tools_none = _phrase_list(expect.get("tools_none"))
+    # Counts ``tools_called`` as the engine reports it. The pattern path lists
+    # internal steps there too (``select_top_cards``, ``canvas_service…``);
+    # a cap meant for the agent loop is written with that in mind.
+    exp_tools_max = _tools_max(expect)
+    exp_text_any = _phrase_list(expect.get("text_any"))
+    exp_text_none = _phrase_list(expect.get("text_none"))
+    # ``qr: false`` = no quick replies expected (SAFE set, SF-4). Without the
+    # key it stays "at least one", as before K0-3.
+    exp_qr = expect.get("qr") is not False
 
     obs_pattern = strip_id(debug.get("pattern", ""))
     obs_tools = bare_tool_names(debug.get("tools_called"))
@@ -232,7 +312,20 @@ def check_golden_turn(
     tools_ok: bool | None = (
         None if not exp_tools else any(t in obs_tools for t in exp_tools)
     )
-    qr_ok = len(qr) >= 1
+    tools_none_ok: bool | None = (
+        None if not exp_tools_none else not any(t in obs_tools for t in exp_tools_none)
+    )
+    tools_max_ok: bool | None = (
+        None if exp_tools_max is None else len(obs_tools) <= exp_tools_max
+    )
+    seen = _normalized(visible_text(bot_resp))
+    text_found = [p for p in exp_text_any if _normalized(p) in seen]
+    text_forbidden = [p for p in exp_text_none if _normalized(p) in seen]
+    text_ok: bool | None = (
+        None if not (exp_text_any or exp_text_none)
+        else (bool(text_found) or not exp_text_any) and not text_forbidden
+    )
+    qr_ok = len(qr) >= 1 if exp_qr else not qr
     host = repo_host()
     urls = [(c.get("wlo_url") or c.get("url") or "") for c in cards if isinstance(c, dict)]
     urls = [u for u in urls if u]
@@ -243,17 +336,26 @@ def check_golden_turn(
             "register": exp_register,
             "structure": exp_structure or None,
             "tools_any": exp_tools,
+            "tools_none": exp_tools_none,
+            "tools_max": exp_tools_max,
+            "text_any": exp_text_any,
+            "text_none": exp_text_none,
+            "qr": exp_qr,
             "must_offer": expect.get("must_offer") or "",
         },
         "observed": {
             "pattern": obs_pattern, "tools_called": obs_tools,
+            "tool_calls": len(obs_tools), "skills": _skills(debug),
             "register": reg_label, "sie": sie_n, "du": du_n,
             "cards": len(cards), "idocs": len(idocs), "qr": len(qr),
             "content_len": len(content),
+            "text_found": text_found, "text_forbidden": text_forbidden,
         },
         "checks": {
             "register": register_ok, "structure": structure_ok,
-            "tools_any": tools_ok, "qr": qr_ok, "host": host_ok,
+            "tools_any": tools_ok, "tools_none": tools_none_ok,
+            "tools_max": tools_max_ok, "text": text_ok,
+            "qr": qr_ok, "host": host_ok,
         },
     }
 
@@ -438,12 +540,19 @@ def aggregate_golden(conversations: list[dict]) -> dict[str, Any]:
 async def post_chat(
     chat_url: str, message: str, session_id: str,
     headers: dict[str, str] | None = None,
+    environment: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Fire one user message at /api/chat, return raw response JSON (1:1 ALT;
-    Deckel seit Befund 3 über ``chat_timeout()`` statt fixer 60 s)."""
+    Deckel seit Befund 3 über ``chat_timeout()`` statt fixer 60 s).
+
+    ``environment`` (AG-5) is the embedding context of a flow, sent as-is; the
+    server validates it. Without one the body stays as before — an empty
+    ``environment`` would override the server's defaults."""
+    body: dict[str, Any] = {"session_id": session_id, "message": message}
+    if environment:
+        body["environment"] = environment
     async with httpx.AsyncClient(timeout=chat_timeout()) as c:
-        r = await c.post(chat_url, json={"session_id": session_id, "message": message},
-                         headers=headers or None)
+        r = await c.post(chat_url, json=body, headers=headers or None)
         r.raise_for_status()
         return r.json()
 
@@ -467,6 +576,9 @@ async def run_flows(
     for fi, flow in enumerate(flows, start=1):
         flow_id = str(flow.get("id") or f"flow-{fi}")
         turns_spec = flow.get("turns") or []
+        # AG-5: the embedding context travels with EVERY turn, as a host page
+        # sends it with every request.
+        environment = flow.get("environment") or None
         session_id = f"eval-{uuid.uuid4().hex[:12]}"
         turn_records: list[dict[str, Any]] = []
         for ti, tspec in enumerate(turns_spec, start=1):
@@ -475,7 +587,8 @@ async def run_flows(
             print(f"  {flow_id} turn {ti}/{len(turns_spec)} …", flush=True)
             t_turn = time.perf_counter()
             try:
-                bot_resp = await post_chat(chat_url, msg, session_id, headers=headers)
+                bot_resp = await post_chat(chat_url, msg, session_id, headers=headers,
+                                           environment=environment)
             except Exception as e:  # record + continue, like ALT
                 print(f"  {flow_id} turn {ti} FAILED: {e}", file=sys.stderr)
                 # Auch der Fehl-Zug trägt seine Zeit: eine Zeitüberschreitung ist

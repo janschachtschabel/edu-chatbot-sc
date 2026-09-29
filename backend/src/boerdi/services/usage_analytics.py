@@ -41,6 +41,7 @@ from boerdi.db.models import UsageEvent
 from boerdi.domain.config_models.pricing import PricingArea
 from boerdi.domain.pricing import TokenCounts, cost_for
 from boerdi.services.config_loader import load_pricing
+from boerdi.services.session_origin import scope_clause
 
 #: Wie viele Sitzungen die Spitzenliste nennt. Eine Konstante und kein
 #: Parameter: es gibt genau einen Aufrufer, und eine einstellbare Zahl ohne
@@ -246,7 +247,7 @@ async def session_usage(session: AsyncSession, session_id: str) -> dict[str, Any
 
 
 async def period_usage(
-    session: AsyncSession, start: datetime, end: datetime
+    session: AsyncSession, start: datetime, end: datetime, scope: str = "all",
 ) -> dict[str, Any]:
     """Verbrauch eines Zeitraums, Grenzen einschließlich.
 
@@ -258,8 +259,13 @@ async def period_usage(
     Zusätzlich zur Modelltabelle steht hier ``sessions``: die teuersten
     Sitzungen des Zeitraums. Bei der Einzelsitzung fehlt das Feld bewusst —
     „die teuersten Sitzungen dieser Sitzung" ist keine Frage.
+
+    ``scope`` (ST-9) trennt nach Herkunft (``session_origin``) — für Summen
+    UND Spitzenliste, sonst passten die beiden nicht zueinander.
     """
-    fenster = (UsageEvent.created_at >= start, UsageEvent.created_at <= end)
+    herkunft = scope_clause(scope, UsageEvent.session_id)
+    fenster = (UsageEvent.created_at >= start, UsageEvent.created_at <= end,
+               *(() if herkunft is None else (herkunft,)))
     antwort = _assemble(await _grouped_by_model(session, *fenster))
     antwort["sessions"] = _top_sessions(
         await _grouped_by_session(session, *fenster), load_pricing() or PricingArea(),

@@ -1,0 +1,278 @@
+{
+  "engines": {
+    "pattern": {
+      "runs": 3,
+      "quality": {
+        "hard_rate": 0.9790940766550522,
+        "hard_passed": 281,
+        "hard_total": 287,
+        "axes": {
+          "intent_fit": 1.8333333333333333,
+          "persona_tone": 1.2301587301587302,
+          "pattern_match": 1.8492063492063493,
+          "safety": 2.0,
+          "info_quality": 1.2777777777777777,
+          "auftrag_erfuellt": 1.0873015873015872
+        }
+      },
+      "hard_rate_runs": [
+        0.9893617021276596,
+        0.9690721649484536,
+        0.9791666666666666
+      ],
+      "determinism": {
+        "turns_compared": 42,
+        "check_agreement": 0.6428571428571429,
+        "tool_jaccard": 0.8579365079365079,
+        "text_similarity": 0.5846103772549831,
+        "judge_spread": 0.4010535782814953
+      },
+      "speed": {
+        "p50_ms": 14693,
+        "p95_ms": 33511,
+        "over_30s": 0.07936507936507936,
+        "over_90s": 0
+      },
+      "cost": {
+        "turns_with_usage": 126,
+        "prompt": 52863.1746031746,
+        "cached": 27076.761904761905,
+        "completion": 1137.0396825396826,
+        "cost_per_turn": 0.003421631111111111,
+        "cost_total": 0.43112552,
+        "price_unavailable": []
+      },
+      "robustness": {
+        "turns": 126,
+        "chat_errors": 0,
+        "judge_failed": 0,
+        "empty": 0,
+        "fallback": 0
+      },
+      "safe": {
+        "hard_rate": 1.0,
+        "hard_passed": 30,
+        "hard_total": 30,
+        "axes": {
+          "intent_fit": 1.0,
+          "persona_tone": 0.5,
+          "pattern_match": 2.0,
+          "safety": 2.0,
+          "info_quality": 1.3333333333333333,
+          "auftrag_erfuellt": 1.4166666666666667
+        }
+      },
+      "frei": {
+        "hard_rate": 0.9666666666666667,
+        "hard_passed": 58,
+        "hard_total": 60,
+        "axes": {
+          "intent_fit": 1.7777777777777777,
+          "persona_tone": 1.0,
+          "pattern_match": 1.6296296296296295,
+          "safety": 2.0,
+          "info_quality": 1.0740740740740742,
+          "auftrag_erfuellt": 0.5555555555555556
+        }
+      }
+    },
+    "agent": {
+      "runs": 3,
+      "quality": {
+        "hard_rate": 0.8904593639575972,
+        "hard_passed": 252,
+        "hard_total": 283,
+        "axes": {
+          "intent_fit": 1.7380952380952381,
+          "persona_tone": 1.0,
+          "pattern_match": 2.0,
+          "safety": 2.0,
+          "info_quality": 1.3333333333333333,
+          "auftrag_erfuellt": 0.9841269841269841
+        }
+      },
+      "hard_rate_runs": [
+        0.8736842105263158,
+        0.8936170212765957,
+        0.9042553191489362
+      ],
+      "determinism": {
+        "turns_compared": 42,
+        "check_agreement": 0.6428571428571429,
+        "tool_jaccard": 0.7807193247669438,
+        "text_similarity": 0.5146075496931909,
+        "judge_spread": 0.473606119334556
+      },
+      "speed": {
+        "p50_ms": 12959,
+        "p95_ms": 50639,
+        "over_30s": 0.10317460317460317,
+        "over_90s": 0
+      },
+      "cost": {
+        "turns_with_usage": 126,
+        "prompt": 63262.25396825397,
+        "cached": 55045.22222222222,
+        "completion": 919.0555555555555,
+        "cost_per_turn": 0.0018316831746031748,
+        "cost_total": 0.23079208,
+        "price_unavailable": []
+      },
+      "robustness": {
+        "turns": 126,
+        "chat_errors": 0,
+        "judge_failed": 0,
+        "empty": 0,
+        "fallback": 2
+      },
+      "safe": {
+        "hard_rate": 1.0,
+        "hard_passed": 30,
+        "hard_total": 30,
+        "axes": {
+          "intent_fit": 1.5833333333333333,
+          "persona_tone": 0.5,
+          "pattern_match": 2.0,
+          "safety": 2.0,
+          "info_quality": 1.4166666666666667,
+          "auftrag_erfuellt": 1.5
+        }
+      },
+      "frei": {
+        "hard_rate": 0.95,
+        "hard_passed": 57,
+        "hard_total": 60,
+        "axes": {
+          "intent_fit": 1.7777777777777777,
+          "persona_tone": 0.8148148148148148,
+          "pattern_match": null,
+          "safety": 2.0,
+          "info_quality": 1.2592592592592593,
+          "auftrag_erfuellt": 0.7407407407407407
+        }
+      }
+    },
+    "hybrid": {
+      "runs": 3,
+      "quality": {
+        "hard_rate": 0.9326241134751773,
+        "hard_passed": 263,
+        "hard_total": 282,
+        "axes": {
+          "intent_fit": 1.7301587301587302,
+          "persona_tone": 1.0476190476190477,
+          "pattern_match": 1.6779661016949152,
+          "safety": 2.0,
+          "info_quality": 1.2301587301587302,
+          "auftrag_erfuellt": 0.873015873015873
+        }
+      },
+      "hard_rate_runs": [
+        0.9052631578947369,
+        0.9565217391304348,
+        0.9368421052631579
+      ],
+      "determinism": {
+        "turns_compared": 42,
+        "check_agreement": 0.7380952380952381,
+        "tool_jaccard": 0.865230536659108,
+        "text_similarity": 0.5042399443506033,
+        "judge_spread": 0.44895668646764925
+      },
+      "speed": {
+        "p50_ms": 13742,
+        "p95_ms": 35704,
+        "over_30s": 0.0873015873015873,
+        "over_90s": 1
+      },
+      "cost": {
+        "turns_with_usage": 126,
+        "prompt": 75362.62698412698,
+        "cached": 62595.04761904762,
+        "completion": 962.1349206349206,
+        "cost_per_turn": 0.0023837758730158734,
+        "cost_total": 0.30035576,
+        "price_unavailable": []
+      },
+      "robustness": {
+        "turns": 126,
+        "chat_errors": 0,
+        "judge_failed": 0,
+        "empty": 0,
+        "fallback": 3
+      },
+      "safe": {
+        "hard_rate": 1.0,
+        "hard_passed": 30,
+        "hard_total": 30,
+        "axes": {
+          "intent_fit": 1.5,
+          "persona_tone": 0.5,
+          "pattern_match": 2.0,
+          "safety": 2.0,
+          "info_quality": 1.3333333333333333,
+          "auftrag_erfuellt": 1.4166666666666667
+        }
+      },
+      "frei": {
+        "hard_rate": 0.95,
+        "hard_passed": 57,
+        "hard_total": 60,
+        "axes": {
+          "intent_fit": 1.7037037037037037,
+          "persona_tone": 0.7407407407407407,
+          "pattern_match": 1.7037037037037037,
+          "safety": 2.0,
+          "info_quality": 1.1851851851851851,
+          "auftrag_erfuellt": 0.3333333333333333
+        }
+      }
+    }
+  },
+  "rules": {
+    "R1": {
+      "bleibt": false,
+      "d_auftrag": -0.11111111111111105,
+      "d_hard": 0.04216474951758009,
+      "kosten_faktor": 1.301412769450321,
+      "p50_faktor": 1.060421328806235
+    },
+    "R2a": {
+      "erfuellt": false,
+      "gruende": [],
+      "d_agreement": 0.0,
+      "kosten_faktor": 1.868025627222563,
+      "p50_faktor": 1.1338066208812407
+    }
+  },
+  "warnings": [],
+  "currency": "USD",
+  "conditions": [
+    {
+      "provider": "openai",
+      "chat_model": "gpt-6-luna",
+      "judge_model": "gpt-4o-mini",
+      "master_skill": {
+        "enabled": true,
+        "sha256": "8bbf014fa385"
+      },
+      "agent_limits": {
+        "deadline_s": 300,
+        "write_mode": "propose",
+        "token_budget": 400000,
+        "max_iterations": 20
+      },
+      "runs": [
+        "k0-pattern-r1",
+        "k0-agent-r1",
+        "k0-hybrid-r1",
+        "k0-pattern-r2",
+        "k0-agent-r2",
+        "k0-hybrid-r2",
+        "k0-pattern-r3",
+        "k0-agent-r3",
+        "k0-hybrid-r3"
+      ]
+    }
+  ]
+}

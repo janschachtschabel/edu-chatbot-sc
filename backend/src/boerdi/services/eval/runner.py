@@ -45,6 +45,7 @@ from boerdi.services.eval.scenario_gen import (
     simulator_model,
 )
 from boerdi.services.llm import chat_completion
+from boerdi.services.session_origin import EVAL_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ async def _post_chat(
     single-turn scenarios that do not carry their own.
     """
     if not session_id:
-        session_id = f"eval-{uuid.uuid4().hex[:12]}"
+        session_id = f"{EVAL_PREFIX}{uuid.uuid4().hex[:12]}"
     payload: dict[str, Any] = {"session_id": session_id, "message": message}
     async with httpx.AsyncClient(timeout=_chat_timeout_s()) as c:
         r = await c.post(chat_url, json=payload)
@@ -235,7 +236,7 @@ async def simulate_conversation(
     Returns ``{session_id, persona_id, intent_id, turns, ended_early}``. The
     simulator may end the dialogue early by answering ``[ENDE]``.
     """
-    session_id = f"eval-{uuid.uuid4().hex[:12]}"
+    session_id = f"{EVAL_PREFIX}{uuid.uuid4().hex[:12]}"
     # The marker block comes from the persona definitions — same source as the
     # classifier and the scenario generator (ALT Welle E).
     markers_block = _build_persona_markers_block(persona, load_persona_definitions())
@@ -343,7 +344,7 @@ async def _prime_i06_session(chat_url: str, run_id: str, persona_id: str) -> tup
     Returns ``(session_id, priming_meta)``; ``(None, None)`` when priming failed,
     in which case the scenario runs unprimed and shows I06's raw behaviour.
     """
-    session_id = f"eval-{uuid.uuid4().hex[:12]}"
+    session_id = f"{EVAL_PREFIX}{uuid.uuid4().hex[:12]}"
     try:
         resp = await _post_chat(chat_url, _I06_PRIMING_MSG, session_id=session_id)
     except Exception as e:

@@ -19,7 +19,7 @@ each metric from its own column (``final_confidence``, ``degradation``,
 
 Only bound parameters carry user values; the WHERE fragments interpolated into
 the SQL are static constants (``_scope_clause`` returns one of three fixed
-strings — its ``'eval-%'`` literal is not user input). ``created_at`` is a native
+strings — its prefix literals are not user input). ``created_at`` is a native
 timestamptz here (ALT stored ISO text), so it is serialised to ISO on the way out
 to keep the ALT response shape.
 """
@@ -32,6 +32,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from boerdi.services.session_origin import scope_sql
+
 # Static jsonb WHERE fragments reused across queries (no user data, no params).
 _DEGRADATION_TRUE = "(data->>'degradation')::boolean IS TRUE"
 _ENTITIES_EMPTY = "data->'entities' = '{}'::jsonb"
@@ -40,16 +42,14 @@ _ENTITIES_EMPTY = "data->'entities' = '{}'::jsonb"
 def _scope_clause(scope: str) -> str:
     """WHERE fragment for the ``quality_logs`` scope filter (static SQL, no params).
 
-    scope='production' → session_id NOT LIKE 'eval-%'
+    scope='production' → neither eval nor load-test sessions (ST-9: load tests
+                          counted as real conversations until then)
     scope='eval'       → session_id LIKE 'eval-%'
     scope='all'/unknown → '' (no restriction)
+
+    One definition for every scope filter: ``services/session_origin.py``.
     """
-    s = (scope or "all").strip().lower()
-    if s == "production":
-        return "session_id NOT LIKE 'eval-%'"
-    if s == "eval":
-        return "session_id LIKE 'eval-%'"
-    return ""
+    return scope_sql(scope)
 
 
 def _iso(value: Any) -> Any:

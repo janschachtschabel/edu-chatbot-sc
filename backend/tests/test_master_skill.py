@@ -14,6 +14,8 @@ anderen Pakets:
 
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from boerdi.services import master_skill
@@ -49,7 +51,7 @@ async def test_block_traegt_text_und_rangfolge(monkeypatch) -> None:
     _schalter(monkeypatch, an=True)
     aufrufe: list[tuple[str, dict]] = []
 
-    async def _fake(name, args):
+    async def _fake(name, args, **_kw):
         aufrufe.append((name, args))
         return "# Vorgehen\n\nSuche breit, bevor du eng suchst."
 
@@ -68,7 +70,7 @@ async def test_zweiter_zug_holt_nicht_erneut(monkeypatch) -> None:
     _schalter(monkeypatch, an=True)
     zaehler = {"n": 0}
 
-    async def _fake(name, args):
+    async def _fake(name, args, **_kw):
         zaehler["n"] += 1
         return "# Anleitung\n\nInhalt."
 
@@ -83,7 +85,7 @@ async def test_zweiter_zug_holt_nicht_erneut(monkeypatch) -> None:
 async def test_abgeschaltet_wird_nicht_geholt(monkeypatch) -> None:
     _schalter(monkeypatch, an=False)
 
-    async def _fake(name, args):
+    async def _fake(name, args, **_kw):
         raise AssertionError("darf nicht gerufen werden")
 
     monkeypatch.setattr(master_skill, "call_mcp_tool", _fake)
@@ -102,7 +104,7 @@ async def test_ohne_kennung_kein_block(monkeypatch) -> None:
 async def test_ausfall_bricht_den_zug_nicht(monkeypatch, ausgang: str) -> None:
     _schalter(monkeypatch, an=True)
 
-    async def _fake(name, args):
+    async def _fake(name, args, **_kw):
         if ausgang == "fehler":
             raise TimeoutError("MCP weg")
         return "" if ausgang == "leer" else "MCP-Fehler: kein solcher Knoten"
@@ -113,12 +115,36 @@ async def test_ausfall_bricht_den_zug_nicht(monkeypatch, ausgang: str) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("antwort", [
+    "Skill knoten-1 ist nicht abrufbar (unbekannte nodeId oder kein Zugriff).",
+    "# Chatbot Masterskill\nnodeId: knoten-1\n\n---\n\n"
+    "_Für diesen Skill ist kein Anleitungstext abrufbar (https://repo.example/x)._",
+])
+async def test_ohne_anleitung_gilt_der_abruf_als_gescheitert(monkeypatch, antwort) -> None:
+    """Review 2026-09-29: ``get_skill`` meldet eine unbekannte Kennung, fehlende
+    Rechte oder einen Skill ohne Text als gewöhnlichen Erfolgstext, ohne
+    Fehlerkennung (``tools/skills.ts``). Als Anleitung übernommen, stand dieser
+    Satz fünf Minuten lang als „Gesamtanleitung“ im Prompt — und das Studio
+    zeigte ihn mit Prüfsumme und ohne Fehler."""
+    _schalter(monkeypatch, an=True)
+
+    async def _fake(name, args, **_kw):
+        return antwort
+
+    monkeypatch.setattr(master_skill, "call_mcp_tool", _fake)
+    assert await master_skill.prompt_block(None) is None
+    zustand = master_skill.zustand()
+    assert zustand["cached"] is False
+    assert zustand["last_error"]
+
+
+@pytest.mark.asyncio
 async def test_ein_fehlschlag_wird_nicht_gecacht(monkeypatch) -> None:
     """Sonst bliebe eine kurze MCP-Stoerung eine Viertelstunde lang wirksam."""
     _schalter(monkeypatch, an=True)
     versuche = {"n": 0}
 
-    async def _fake(name, args):
+    async def _fake(name, args, **_kw):
         versuche["n"] += 1
         if versuche["n"] == 1:
             raise TimeoutError("MCP kurz weg")
@@ -192,3 +218,139 @@ def test_ttl_ist_fuenf_minuten():
     from boerdi.services import master_skill as m
 
     assert m._TTL_SEKUNDEN == 5 * 60
+
+
+# ── 5. Zustand für Anzeige (AG-2) und Messung (K0-2) ─────────────────────
+@pytest.mark.asyncio
+async def test_zustand_nennt_abrufzeit_laenge_und_pruefsumme(monkeypatch) -> None:
+    """Studio und Gold-Lauf müssen sagen können, WELCHER Text galt. Ohne
+    Prüfsumme wären zwei Messläufe mit verschiedenem Master-Skill nicht zu
+    unterscheiden."""
+    _schalter(monkeypatch, an=True)
+    text = "# Anleitung\n\nInhalt."
+
+    async def _fake(name, args, **_kw):
+        return text
+
+    monkeypatch.setattr(master_skill, "call_mcp_tool", _fake)
+    await master_skill.prompt_block(None)
+    z = master_skill.zustand()
+
+    assert (z["cached"], z["length"]) == (True, len(text))
+    assert z["sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest()
+    assert z["fetched_at"] and z["last_error"] is None
+    assert z["ttl_seconds"] == 300
+
+
+@pytest.mark.asyncio
+async def test_zustand_nennt_den_letzten_fehler(monkeypatch) -> None:
+    _schalter(monkeypatch, an=True)
+
+    async def _fake(name, args, **_kw):
+        raise TimeoutError("MCP weg")
+
+    monkeypatch.setattr(master_skill, "call_mcp_tool", _fake)
+    await master_skill.prompt_block(None)
+    z = master_skill.zustand()
+
+    assert (z["cached"], z["length"], z["sha256"]) == (False, None, None)
+    assert "MCP weg" in z["last_error"]
+
+
+@pytest.mark.asyncio
+async def test_anzeige_zeigt_den_wortlaut_auch_abgeschaltet(monkeypatch) -> None:
+    """Das Studio zeigt, was gelten WÜRDE: wer ihn einschalten will, sieht den
+    Wortlaut vorher. Ein Zug holt abgeschaltet weiterhin nichts."""
+    _schalter(monkeypatch, an=False)
+
+    async def _fake(name, args, **_kw):
+        return "# Anleitung\n\nInhalt."
+
+    monkeypatch.setattr(master_skill, "call_mcp_tool", _fake)
+    anzeige = await master_skill.anzeige()
+
+    assert (anzeige["enabled"], anzeige["text"]) == (False, "# Anleitung\n\nInhalt.")
+    assert await master_skill.prompt_block(None) is None
+
+
+@pytest.mark.asyncio
+async def test_anzeige_ohne_kennung_holt_nichts(monkeypatch) -> None:
+    # Leerzeichen statt "": ein leerer Wert gilt als ungesetzt, dann griffe die
+    # Kennung aus einer lokalen backend/.env.
+    _schalter(monkeypatch, an=True, kennung="   ")
+
+    async def _fake(name, args, **_kw):
+        raise AssertionError("darf nicht gerufen werden")
+
+    monkeypatch.setattr(master_skill, "call_mcp_tool", _fake)
+    anzeige = await master_skill.anzeige()
+    assert (anzeige["node_id"], anzeige["text"]) == ("", None)
+
+
+@pytest.mark.asyncio
+async def test_neu_laden_holt_trotz_frischem_speicher(monkeypatch) -> None:
+    """„Neu laden" im Studio: eine Änderung im Repositorium soll nicht bis zu
+    fünf Minuten warten."""
+    _schalter(monkeypatch, an=True)
+    antworten = iter(["# Alt\n\nv1", "# Neu\n\nv2"])
+
+    async def _fake(name, args, **_kw):
+        return next(antworten)
+
+    monkeypatch.setattr(master_skill, "call_mcp_tool", _fake)
+    await master_skill.prompt_block(None)
+    anzeige = await master_skill.neu_laden()
+
+    assert anzeige["text"] == "# Neu\n\nv2"
+    assert "v2" in (await master_skill.prompt_block(None) or "")
+
+
+def _transport_liefert(monkeypatch, *antworten) -> list:
+    """Echter ``call_mcp_tool`` samt Werkzeug-Cache; gefälscht ist nur der
+    Transport DARUNTER — genau dort lag der Fehler, den eine Attrappe über
+    dem Cache nie gesehen hätte."""
+    from boerdi.services.mcp import tool_cache, transport
+
+    tool_cache.clear_tool_cache()
+    aufrufe: list = []
+    folge = iter(antworten)
+
+    async def call_tool(name, args, *, url=None):
+        aufrufe.append(name)
+        antwort = next(folge)
+        if isinstance(antwort, Exception):
+            return {"error": {"message": str(antwort), "kind": "transport"}}
+        return {"result": {"content": [{"type": "text", "text": antwort}]}}
+
+    monkeypatch.setattr(transport, "call_tool", call_tool)
+    return aufrufe
+
+
+@pytest.mark.asyncio
+async def test_neu_laden_umgeht_auch_den_mcp_werkzeug_cache(monkeypatch) -> None:
+    """Review-Befund 2026-09-26: der MCP-Client hält ``get_skill`` selbst 180 s
+    vor. „Neu laden" bekam dort den alten Text und stempelte ihn als frisch."""
+    _schalter(monkeypatch, an=True)
+    aufrufe = _transport_liefert(monkeypatch, "# Alt\n\nv1", "# Neu\n\nv2")
+    await master_skill.prompt_block(None)
+
+    anzeige = await master_skill.neu_laden()
+
+    assert anzeige["text"] == "# Neu\n\nv2"
+    assert aufrufe == ["get_skill", "get_skill"]
+
+
+@pytest.mark.asyncio
+async def test_ein_gescheitertes_neu_laden_behaelt_den_bisherigen_text(monkeypatch) -> None:
+    """Sonst antwortete der Agent nach einem MCP-Aussetzer ohne Anleitung, obwohl
+    eine gültige im Speicher lag."""
+    _schalter(monkeypatch, an=True)
+    _transport_liefert(monkeypatch, "# Alt\n\nv1", TimeoutError("MCP weg"),
+                       TimeoutError("MCP weg"))
+    await master_skill.prompt_block(None)
+
+    anzeige = await master_skill.neu_laden()
+
+    assert anzeige["text"] == "# Alt\n\nv1"
+    assert anzeige["last_error"]
+    assert "v1" in (await master_skill.prompt_block(None) or "")

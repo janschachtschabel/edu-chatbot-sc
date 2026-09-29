@@ -11,7 +11,7 @@ rubric with it instead of leaving the judge on stale prompt text.
 GV4 honesty rules (2026-08-22, Plan §5):
 
 * ``pattern_match`` is **None** when no real pattern (M01–M20) ran — the
-  agent loop reports none, hybrid none before its pattern pick. Until GV4
+  agent loop reports none. Until GV4
   the judge got "(Pattern AGENT nicht in 03-patterns/ gefunden)" as its
   rubric and scored into the void. ``total`` normalises over the axes that
   WERE scored.
@@ -49,6 +49,13 @@ class JudgeError(RuntimeError):
 #: synthetische "HYBRID" sind keine — dort lief kein Muster, und eine
 #: Muster-Bewertung wäre eine Bewertung ins Leere.
 _ECHTES_MUSTER = re.compile(r"M\d{2}")
+
+#: So viel der sichtbaren Antwort sieht der Judge (K0-2, 2026-09-26; vorher
+#: 1 500). Die Reihenfolge ist Blase → Dokumente → Karten; bei 1 500 Zeichen
+#: fielen die Karten hinter jedem längeren Dokument weg, und ``auftrag_erfuellt``
+#: bestrafte die ausführlichere Maschine. 8 000 Zeichen kosten beim Judge-Modell
+#: rund 2 000 Token je Zug.
+_ANTWORT_ZEICHEN = 8000
 
 _KEIN_MUSTER_RUBRIK = (
     "(kein Muster gelaufen — dieser Zug lief ohne Muster-Engine, z. B. über "
@@ -294,7 +301,7 @@ async def judge_turn(
         intent_label=intent.get("label", ""),
         intent_desc=(intent.get("description") or "")[:300],
         user_msg=user_msg[:800],
-        bot_response=bot_response[:1500],
+        bot_response=bot_response[:_ANTWORT_ZEICHEN],
         debug_persona=debug.get("persona", "?"),
         debug_intent=debug.get("intent", "?"),
         debug_pattern=engine_pattern_raw,

@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+
 from boerdi.api.schemas import (
     ChatRequest,
     ChatResponse,
@@ -61,7 +63,7 @@ def _patch(monkeypatch, upd: _UpdSpy):
 
 def _run(monkeypatch, *, session_state=None, classification=None, winner_id="M09",
          eff_id="M09", eff_label="Lernpfad", new_state="S3", signal_history=None,
-         final_confidence=0.77):
+         final_confidence=0.77, extra=None):
     upd = _UpdSpy()
     _patch(monkeypatch, upd)
     ss = session_state if session_state is not None else {
@@ -97,6 +99,7 @@ def _run(monkeypatch, *, session_state=None, classification=None, winner_id="M09
         {"M09": 1.0},            # scores
         [],                      # response_outcomes
         final_confidence,
+        **(extra or {}),
     ))
     return debug, upd
 
@@ -139,8 +142,23 @@ def test_debug_phase3_modulations_and_state_transition(monkeypatch):
 
 def test_debug_trace_empty_tracer_dropped(monkeypatch):
     debug, _ = _run(monkeypatch)
-    assert debug.trace == []  # NEU dropped the tracer → trace stays empty
+    # Ohne Spur (der Muster-Weg führt keine, NEU hat den Tracer gedroppt) bleibt
+    # trace leer und die Maschine unbenannt.
+    assert debug.trace == []
+    assert debug.engine == ""
     assert debug.token_usage == {"calls": 3}
+
+
+def test_debug_traegt_maschine_und_spur(monkeypatch):
+    """AG-1: beides kommt vom Persistenz-Knoten und landet mit dem Debug-Block
+    in ``messages.debug`` und im Qualitätslog (``data.debug``)."""
+    from boerdi.api.schemas import TraceEntry
+
+    zeilen = [TraceEntry(step="agent_round", label="Runde 1: search_wlo_all"),
+              TraceEntry(step="agent_stop", label="Ende: text")]
+    debug, _ = _run(monkeypatch, extra={"engine": "agent", "trace": zeilen})
+    assert debug.engine == "agent"
+    assert [z.step for z in debug.trace] == ["agent_round", "agent_stop"]
 
 
 def test_debug_llm_engine_match(monkeypatch):
@@ -383,6 +401,53 @@ def test_persist_quality_log_skipped_when_privacy_off(monkeypatch):
     assert sp.quality.calls == []
 
 
+def _nachtrag_spion(monkeypatch) -> _ASpy:
+    """F-6-Nachtrag abhören und erzwingen, dass er fällig wäre."""
+    nachtrag = _ASpy(ret=True)
+    monkeypatch.setattr(tp_mod, "finalize_message", nachtrag)
+    monkeypatch.setattr(tp_mod, "_needs_finalize", lambda *_a: True)
+    return nachtrag
+
+
+def test_persist_ohne_gespeicherte_nachricht_kein_nachtrag(monkeypatch):
+    """Datenschutz-Schalter ``messages`` aus: ``save_message`` liefert ``None`` —
+    dann gibt es keine Zeile, die der F-6-Nachtrag vervollständigen könnte."""
+    sp = _patch2(monkeypatch)
+    nachtrag = _nachtrag_spion(monkeypatch)
+    _run2(monkeypatch, sp=sp)
+    assert nachtrag.calls == []
+
+
+def test_persist_mit_gespeicherter_nachricht_zieht_nach(monkeypatch):
+    """Gegenprobe: mit Zeilen-Id läuft der Nachtrag auf genau diese Zeile."""
+    sp = _patch2(monkeypatch)
+    sp.save._ret = 17
+    nachtrag = _nachtrag_spion(monkeypatch)
+    _run2(monkeypatch, sp=sp)
+    assert len(nachtrag.calls) == 1
+    args, _ = nachtrag.calls[0]
+    assert args[1] == 17
+
+
+def test_die_gezeigten_boxen_reisen_mit_der_nachricht(monkeypatch):
+    """Review 2026-09-29 (Paket C): der nächste Agent-Zug liest die Boxen aus dem
+    Verlauf (``agent_zugblock``). An der gespeicherten Nachricht gelten der
+    Schalter ``messages`` (ohne Zeile kein Nachtrag, s. o.) und jedes Löschen von
+    selbst — gedeckelt, und eine Kürzung ist vermerkt."""
+    from boerdi.services.agent_zugblock import DOKUMENT_ZEICHEN
+
+    sp = _patch2(monkeypatch)
+    sp.save._ret = 17
+    nachtrag = _ASpy(ret=True)
+    monkeypatch.setattr(tp_mod, "finalize_message", nachtrag)
+    lang = "x" * (DOKUMENT_ZEICHEN + 1)
+    _run2(monkeypatch, sp=sp,
+          gelieferte_dokumente=[{"kind": "quiz", "title": "Brüche", "content": lang}])
+    ((_args, kw),) = nachtrag.calls
+    assert kw["debug"]["_dokumente"] == [
+        {"kind": "quiz", "title": "Brüche", "content": "x" * DOKUMENT_ZEICHEN, "gekuerzt": True}]
+
+
 def test_persist_never_logs_safety(monkeypatch):
     # Deviation pin: the main safety-log is a turn_setup/merge concern in ALT,
     # NOT part of P29-33 — persist must never touch log_safety_event.
@@ -465,6 +530,25 @@ def test_persist_qr_max_count_trim(monkeypatch):
         quick_replies=["A", "B", "C", "D"], _qr_mode="none",
     )
     assert resp.quick_replies == ["A", "B"]
+
+
+_LOTSE = "__guide__|Hin|https://wirlernenonline.de/x"
+
+
+@pytest.mark.parametrize(("max_count", "erwartet"), [(2, [_LOTSE, "A", "B"]), (0, [])])
+def test_persist_qr_deckel_zaehlt_den_lotsen_nicht(monkeypatch, max_count, erwartet):
+    """Review 2026-09-29: mit Host setzt der Injektor den Lotsen auf Platz 0; die
+    Kürzung zählte ihn mit, und erst der Widget-Nachlauf nahm ihn heraus — bei
+    ``max_count: 2`` blieb eine Pille. ``0`` heißt weiter: gar nichts."""
+    dr = {
+        "groups": {}, "quick_replies": {"max_count": max_count},
+        "single_content_box": {"enabled": True},
+    }
+    resp, _ = _run2(
+        monkeypatch, sp=_patch2(monkeypatch, dr=dr),
+        quick_replies=[_LOTSE, "A", "B", "C"], _qr_mode="none",
+    )
+    assert resp.quick_replies == erwartet
 
 
 def test_persist_qr_max_policy_override(monkeypatch):
@@ -809,3 +893,31 @@ def test_der_globale_schalter_gilt_auch_fuer_gelieferte_boxen(monkeypatch):
     # Prosa geschrieben, weil das Werkzeug ihm genau das untersagt.
     assert resp.content.startswith("Der Begleitsatz.")
     assert "Kurz, ohne Raute." in resp.content
+
+
+# -- AG-5: die in diesem Zug geholte Anleitung steht in der Spur --------------
+
+
+def _mit_notiz(zug: int, turn_count: int) -> dict:
+    from boerdi.domain.skill_precedence import LAUF_KEY
+
+    return {"persona_id": "P-AND", "state_id": "S2", "turn_count": turn_count,
+            "entities": {LAUF_KEY: {"node_id": "n-1", "zug": zug,
+                                    "titel": "Stunde planen"}}}
+
+
+def test_die_geholte_anleitung_steht_in_der_spur(monkeypatch):
+    """In jeder Maschine: die Notiz schreiben Muster-Weg und Schleife
+    gleichermassen, und ihr ``zug`` ist der Zaehlerstand dieses Zugs."""
+    from boerdi.api.schemas import TraceEntry
+
+    debug, _ = _run(monkeypatch, session_state=_mit_notiz(4, 4),
+                    extra={"trace": [TraceEntry(step="agent_stop", label="Ende: text")]})
+    assert [(z.step, z.label) for z in debug.trace] == [
+        ("agent_stop", "Ende: text"), ("skill", "Stunde planen")]
+    assert debug.trace[-1].data == {"node_id": "n-1", "titel": "Stunde planen"}
+
+
+def test_eine_frueher_geholte_anleitung_steht_nicht_in_der_spur(monkeypatch):
+    debug, _ = _run(monkeypatch, session_state=_mit_notiz(4, 5))
+    assert debug.trace == []

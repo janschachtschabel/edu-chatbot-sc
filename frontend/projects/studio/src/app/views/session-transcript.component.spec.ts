@@ -121,3 +121,37 @@ describe("SessionTranscriptComponent — Sprache (C1-d4e2)", () => {
     expect(h.el.textContent).not.toContain("Werkzeuge");
   });
 });
+
+describe("SessionTranscriptComponent — Spur (ST-8a)", () => {
+  const AGENT_TURN = {
+    id: 1,
+    role: "assistant",
+    content: "Hier sind drei Materialien.",
+    debug: {
+      pattern: "AGENT",
+      engine: "agent",
+      token_usage: { prompt_tokens: 1200, cached_tokens: 0, completion_tokens: 90 },
+      trace: [
+        {
+          step: "agent_round",
+          duration_ms: 800,
+          data: { runde: 1, dauer_ms: 800, werkzeuge: [{ name: "search_wlo_content", argumente: ["query"] }] },
+        },
+        { step: "agent_stop", duration_ms: 800, data: { stop_reason: "text", runden: 1 } },
+      ],
+    },
+  };
+
+  it("zeigt unter einer Antwort Maschine und Runden des Zugs", async () => {
+    const h = await mount([AGENT_TURN]);
+    const spur = h.el.querySelector(".st-turn--bot studio-agent-trace .atr");
+    expect(spur).not.toBeNull();
+    expect(spur!.textContent).toContain("Agent-Schleife");
+    expect(spur!.querySelector(".atr-table tbody tr")!.textContent).toContain("search_wlo_content");
+  });
+
+  it("zeigt unter einer Frage der Person keine Spur", async () => {
+    const h = await mount([{ id: 2, role: "user", content: "Hallo", debug: {} }]);
+    expect(h.el.querySelector("studio-agent-trace")).toBeNull();
+  });
+});

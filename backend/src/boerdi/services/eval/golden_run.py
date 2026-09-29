@@ -22,8 +22,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from boerdi.db.models import EvalRun
 from boerdi.obs.tasks import _spawn_background
 from boerdi.services.config_loader import load_gold_flows
+from boerdi.services.engine_choice import choose_engine
 from boerdi.services.eval import golden
 from boerdi.services.eval.cancel import RunCancelled
+from boerdi.services.eval.run_conditions import (
+    fresh_tool_cache,
+    run_conditions,
+    tool_cache_stats,
+)
 from boerdi.services.eval.run_store import (
     _chat_url,
     _ensure_chat_reachable,
@@ -31,6 +37,7 @@ from boerdi.services.eval.run_store import (
     _finalize_run,
     _register_run_task,
 )
+from boerdi.services.eval.scenario_gen import judge_model
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +116,14 @@ async def start_golden_eval_run(
             f"{sorted({str(f.get('id')) for f in all_flows})}",
         )
 
+    # Vor dem ersten bezahlten Zug: ein vertippter Deckel (``tools_max``) fiele
+    # sonst erst mitten im Lauf auf, und der Lauf endete ``failed`` (Review
+    # 2026-09-26). Dieselbe Prüfung, die der CLI-Weg in ``load_flows`` macht.
+    try:
+        _load_golden_runner().validate_flows(flows)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
     await _ensure_chat_reachable()
     await _ensure_no_running_run(session)
     run_id = f"eval-{uuid.uuid4().hex[:12]}"
@@ -131,7 +146,12 @@ async def start_golden_eval_run(
             "personas": persona_ids, "intents": intent_ids,
             "flows": flow_ids_used, "judge": bool(req.judge),
             "engine": engine,
-            "turns_per_conv": 0, "judge_model": "", "simulator_model": "",
+            # ST-7a: welche Maschine die Züge bekommen — aufgelöst wie im Chat,
+            # damit auch „Server-Vorgabe" sagt, was sie gemessen hat.
+            "engine_effective": choose_engine(None if engine == "default" else engine),
+            # K0-2: bis dahin hart "" — die Lauf-Details verschwiegen das Modell.
+            "turns_per_conv": 0, "simulator_model": "",
+            "judge_model": judge_model() if req.judge else "",
         },
         totals={"total_turns": 0, "avg_score": None},
         summary={
@@ -166,6 +186,7 @@ async def _write_golden_progress(
     target_turns: int,
     turns_done: int,
     activity: str,
+    conditions: dict[str, Any] | None = None,
 ) -> bool:
     """Zwischenstand eines Gold-Laufs (Feedback 2026-08-22).
 
@@ -199,6 +220,8 @@ async def _write_golden_progress(
             if laeuft_noch:
                 summary["current_activity"] = activity
             summary["target_turns"] = target_turns
+            if conditions is not None:  # K0-2: auch ein Teilstand sagt, womit er lief
+                summary["messbedingungen"] = conditions
             r.summary = summary
             r.conversations = list(conversations)
             await s.commit()
@@ -234,6 +257,9 @@ async def _execute_golden_run(
     conversations: list[dict[str, Any]] = []
     try:
         runner = _load_golden_runner()
+        # K0-2: frisch messen und festhalten, womit gemessen wird.
+        fresh_tool_cache(run_id)
+        conditions = await run_conditions(judge_enabled=judge_enabled)
         headers = {"X-Boerdi-Engine": engine} if engine != "default" else None
         # Feedback 2026-08-22: Flow für Flow statt EIN Block — nur so gibt es
         # Zwischenstände und Teil-Transkripte. ``run_flows`` öffnet je Flow
@@ -252,6 +278,7 @@ async def _execute_golden_run(
                     f"Flow {i}/{len(flows)}: {flow.get('id')} fertig "
                     f"({turns_done}/{target_turns} Züge)"
                 ),
+                conditions=conditions,
             ):
                 raise RunCancelled(f"nach Flow {i}/{len(flows)}")
         if judge_enabled:
@@ -274,6 +301,8 @@ async def _execute_golden_run(
             golden_metrics=runner.aggregate_golden(conversations),
         )
         summary["engine"] = engine
+        summary["messbedingungen"] = conditions
+        summary["tool_cache"] = tool_cache_stats()
         golden_metrics = summary["golden_metrics"]
         async with session_factory() as s:
             await _finalize_run(

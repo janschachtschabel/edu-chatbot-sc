@@ -61,7 +61,7 @@ describe('rateChart', () => {
 
 describe('scoreChart', () => {
   const R = (avg: number | null) => ({
-    id: 'r', created_at: '', mode: 'golden', config_slug: '',
+    id: 'r', created_at: '', mode: 'golden', engine: '', config_slug: '',
     total_turns: 1, avg_score: avg,
   });
 

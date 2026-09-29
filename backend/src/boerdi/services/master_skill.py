@@ -8,8 +8,9 @@ Redaktion das Verhalten ohne Deployment ändern kann.
 **Warum ganz vorn.** Der Block ist groß und zwischen zwei Zügen unverändert.
 Anbieter mit Präfix-Caching berechnen ihn dann nur einmal; alles Wechselnde
 (Seitenkontext, Gastgeber-Rahmen, Verlauf) steht dahinter. Genau **eine**
-Abweichung von „ganz am Anfang": der eigene Rollen-Block des Chats
-(``respond_agent._SYSTEM``) bleibt davor. Er ist ebenso stabil, kostet also keinen
+Abweichung von „ganz am Anfang": der eigene Kopf des Chats (seit AG-3 Rolle,
+Anrede, Schutzregeln und Sprache aus dem Studio, ``services/agent_kopf``) bleibt
+davor. Er ist ebenso stabil, kostet also keinen
 Cache-Treffer, und die eigenen Regeln gehören vor fremden Text — dieselbe
 Rangfolge wie überall sonst.
 
@@ -26,9 +27,11 @@ wäre schlechter als einer ohne sie.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import time
+from datetime import UTC, datetime
 from typing import Any, Final
 
 from boerdi.services.mcp.client import call_mcp_tool, is_mcp_error
@@ -46,6 +49,12 @@ _TTL_SEKUNDEN: Final = 5 * 60
 #: ``{nodeId: (geholt_um, text)}`` — Prozess-Cache, absichtlich ohne obere
 #: Schranke: es gibt genau eine Kennung je Anlage.
 _zwischenspeicher: dict[str, tuple[float, str]] = {}
+
+#: Nur für die Anzeige (AG-2) und die Messdaten (K0-2): wann zuletzt geholt
+#: (Unix-Zeit — die Frische misst weiter die monotone Uhr) und warum der letzte
+#: Abruf scheiterte. Ein Erfolg löscht die Meldung.
+_abgerufen_um: dict[str, float] = {}
+_letzter_fehler: dict[str, str] = {}
 
 _KOPF: Final = "## Gesamtanleitung dieser Anlage"
 
@@ -69,9 +78,27 @@ def ist_aktiv(ueberschreibung: bool | None) -> bool:
     return bool(get_settings().master_skill_enabled)
 
 
+#: So meldet ``get_skill``, dass es KEINE Anleitung gibt — als gewöhnlicher
+#: Erfolgstext, ohne Fehlerkennung (``tools/skills.ts`` des MCP-Servers, geprüft
+#: 2026-09-29): eine unbekannte Kennung oder fehlende Rechte als eine einzige
+#: Zeile, ein Skill ohne lesbaren Text als Platzhalter unter der Trennlinie.
+_NICHT_ABRUFBAR: Final = "ist nicht abrufbar"
+_KEIN_TEXT: Final = "_Für diesen Skill ist kein Anleitungstext abrufbar"
+
+
+def _keine_anleitung(text: str) -> bool:
+    """Ist ``text`` die Auskunft „keine Anleitung“ statt eines Dokuments?"""
+    zeilen = [z.strip() for z in text.splitlines() if z.strip()]
+    if len(zeilen) == 1 and zeilen[0].startswith("Skill ") and _NICHT_ABRUFBAR in zeilen[0]:
+        return True
+    return bool(zeilen) and zeilen[-1].startswith(_KEIN_TEXT)
+
+
 def leere_den_zwischenspeicher() -> None:
     """Für Tests und für einen Neustart ohne Prozesswechsel."""
     _zwischenspeicher.clear()
+    _abgerufen_um.clear()
+    _letzter_fehler.clear()
 
 
 def _frisch(kennung: str) -> str | None:
@@ -84,24 +111,40 @@ def _frisch(kennung: str) -> str | None:
     return text
 
 
-async def _hole(kennung: str) -> str | None:
-    """Den Anleitungstext holen — oder ``None``, wenn es nicht geht."""
-    gecacht = _frisch(kennung)
-    if gecacht is not None:
-        return gecacht
+async def _hole(kennung: str, *, frisch: bool = False) -> str | None:
+    """Den Anleitungstext holen — oder ``None``, wenn es nicht geht.
+
+    ``frisch=True`` („Neu laden") übergeht beide Speicher: diesen und den
+    Werkzeug-Cache des MCP-Clients, der ``get_skill`` selbst 180 s vorhält.
+    Scheitert der Abruf, bleibt ein bisher gültiger Text stehen.
+    """
+    if not frisch:
+        gecacht = _frisch(kennung)
+        if gecacht is not None:
+            return gecacht
     try:
-        roh = await call_mcp_tool("get_skill", {"nodeId": kennung, "includeFiles": False})
+        roh = await call_mcp_tool(
+            "get_skill", {"nodeId": kennung, "includeFiles": False}, use_cache=not frisch)
     except Exception as fehler:  # Transport, Zeitüberschreitung, Programmfehler
         logger.warning("Master-Skill %s nicht abrufbar: %s", kennung, fehler)
+        _letzter_fehler[kennung] = f"{type(fehler).__name__}: {fehler}"[:200]
         return None
     if not roh or is_mcp_error(roh):
         logger.warning("Master-Skill %s: Server lehnte ab (%s)", kennung, (roh or "")[:120])
+        _letzter_fehler[kennung] = f"Server lehnte ab: {(roh or '')[:120]}"
         return None
     text = roh.strip()
     if not text:
         logger.warning("Master-Skill %s ist leer", kennung)
+        _letzter_fehler[kennung] = "leer"
+        return None
+    if _keine_anleitung(text):
+        logger.warning("Master-Skill %s: keine Anleitung (%s)", kennung, text[-160:])
+        _letzter_fehler[kennung] = f"keine Anleitung: {text[-160:]}"
         return None
     _zwischenspeicher[kennung] = (time.monotonic(), text)
+    _abgerufen_um[kennung] = time.time()
+    _letzter_fehler.pop(kennung, None)
     logger.info("Master-Skill %s geladen (%d Zeichen)", kennung, len(text))
     return text
 
@@ -149,12 +192,52 @@ def aktivierungszeile(block: str | None) -> str:
     return treffer.group(0).strip() if treffer else ""
 
 
+def _kennung() -> str:
+    return (get_settings().master_skill_node_id or "").strip()
+
+
 def zustand() -> dict[str, Any]:
-    """Was gerade gilt — für ``/api/health`` und die Fehlersuche im Betrieb."""
+    """Was gerade gilt — für die Studio-Anzeige (AG-2), die Messdaten eines
+    Gold-Laufs (K0-2) und die Fehlersuche im Betrieb.
+
+    ``sha256`` und ``length`` beschreiben den Text im Speicher; ist keiner frisch,
+    stehen sie auf ``None``. Holt nichts — dafür gibt es :func:`anzeige`.
+    """
     einst = get_settings()
-    kennung = (einst.master_skill_node_id or "").strip()
+    kennung = _kennung()
+    text = _frisch(kennung) if kennung else None
+    um = _abgerufen_um.get(kennung) if text is not None else None
     return {
         "enabled": bool(einst.master_skill_enabled),
         "node_id": kennung,
-        "cached": _frisch(kennung) is not None if kennung else False,
+        "cached": text is not None,
+        "fetched_at": datetime.fromtimestamp(um, UTC).isoformat() if um else None,
+        "length": len(text) if text is not None else None,
+        "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest() if text is not None else None,
+        "last_error": _letzter_fehler.get(kennung),
+        "ttl_seconds": _TTL_SEKUNDEN,
     }
+
+
+async def anzeige() -> dict[str, Any]:
+    """:func:`zustand` plus Wortlaut — holt ihn nötigenfalls.
+
+    Holt auch bei abgeschaltetem Skill: das Studio zeigt, was gelten WÜRDE, und
+    wer ihn einschalten will, soll den Text vorher lesen können.
+    """
+    kennung = _kennung()
+    text = await _hole(kennung) if kennung else None
+    return {**zustand(), "text": text}
+
+
+async def neu_laden() -> dict[str, Any]:
+    """Frisch holen („Neu laden" im Studio), an beiden Speichern vorbei.
+
+    Wirkt in DIESEM Prozess. Laufen mehrere Worker, holen die übrigen spätestens
+    nach :data:`_TTL_SEKUNDEN` neu. Scheitert der Abruf, bleibt der bisherige
+    Text, und ``last_error`` sagt warum.
+    """
+    kennung = _kennung()
+    if kennung:
+        await _hole(kennung, frisch=True)
+    return await anzeige()

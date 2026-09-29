@@ -22,8 +22,11 @@
 import { computed, signal } from '@angular/core';
 
 import type { ConfigApi } from '../core/config-api.service';
+import { describeProblem, type FieldProblem, pathKey } from '../core/field-problems';
+import { formatDecimal } from '../core/format';
 import { StudioApiError } from '../core/studio-api-error';
 import type { Translate } from '../i18n/studio-language.service';
+import { getAt } from './form-value';
 import type { JsonSchema } from './json-schema';
 
 export class AreaDocEditor {
@@ -45,6 +48,12 @@ export class AreaDocEditor {
   readonly status = signal('');
   /** Form fields whose input cannot be parsed — a save would drop them. */
   readonly fieldErrors = signal<readonly string[]>([]);
+  /**
+   * What the server refused at the last save, per field (ST-2e). An entry
+   * leaves as soon as the value at ITS path changes — fixing one field must
+   * not wipe the markers on the others.
+   */
+  readonly problems = signal<readonly FieldProblem[]>([]);
 
   private readonly savedDoc = signal('{}');
   readonly dirty = computed(() => JSON.stringify(this.doc()) !== this.savedDoc());
@@ -76,6 +85,7 @@ export class AreaDocEditor {
     this.status.set('');
     this.saveError.set('');
     this.fieldErrors.set([]);
+    this.problems.set([]);
     try {
       const [schema, document] = await Promise.all([
         this.config.schema(area),
@@ -112,18 +122,41 @@ export class AreaDocEditor {
       if (!this.isCurrent(generation)) return false;
       this.adopt(saved.data);
       this.docType.set(saved.type);
+      this.problems.set([]);
       this.status.set(this.t('editor.saved'));
       return true;
     } catch (err) {
       // the edit stays in `doc` — clearing it would lose what was typed
-      if (this.isCurrent(generation)) this.saveError.set(describeAreaError(err, this.t));
+      if (!this.isCurrent(generation)) return false;
+      const problems = err instanceof StudioApiError ? err.problems : [];
+      this.problems.set(problems);
+      this.saveError.set(problems.length
+        ? this.problemSummary(problems)
+        : describeAreaError(err, this.t));
       return false;
     } finally {
       if (this.isCurrent(generation)) this.saving.set(false);
     }
   }
 
+  /**
+   * Every refused field WITH its reason (ST-2e). This line is the live region a
+   * screen reader announces — the markers at the fields are not, and a problem
+   * no field can carry is shown nowhere else.
+   */
+  private problemSummary(problems: readonly FieldProblem[]): string {
+    const zahl = (wert: number) => formatDecimal(this.t('format.locale'), wert);
+    const zeilen = problems.map(
+      (p) => `${pathKey(p.path)}: ${describeProblem(p, this.t, zahl).replace(/\.$/, '')}`,
+    );
+    return this.t('editor.invalidFields', { fields: zeilen.join('; ') });
+  }
+
   setDoc(next: Record<string, unknown>): void {
+    const before = this.doc();
+    this.problems.update((problems) => problems.filter(
+      (p) => JSON.stringify(getAt(before, p.path)) === JSON.stringify(getAt(next, p.path)),
+    ));
     this.doc.set(next);
     this.status.set('');
     this.saveError.set('');
@@ -136,6 +169,7 @@ export class AreaDocEditor {
 
   discard(): void {
     this.doc.set(JSON.parse(this.savedDoc()) as Record<string, unknown>);
+    this.problems.set([]);
     this.saveError.set('');
     this.status.set(this.t('editor.discarded'));
   }

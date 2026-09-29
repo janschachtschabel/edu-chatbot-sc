@@ -1,0 +1,100 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
+  </summary>
+
+  <div class="cs-body">
+    <p class="op-lead">{{ t('purge.lead') }}</p>
+
+    <ul class="pp-cards">
+      @for (card of cards; track card.id) {
+        <li class="pp-card" [attr.data-card]="card.id">
+          <h4 class="pp-title">{{ t('purge.card.' + card.id + '.title') }}</h4>
+          <p class="pp-desc">{{ t('purge.card.' + card.id + '.desc') }}</p>
+          @switch (step(card.id)) {
+            @case (1) {
+              <p class="op-confirm" role="alert">
+                <span>{{ t('purge.step1') }}</span>
+                <button type="button" class="op-btn" (click)="advance(card.id)">
+                  {{ t('purge.next') }}
+                </button>
+                <button type="button" class="op-btn pp-cancel" (click)="disarm(card.id)">
+                  {{ t('action.cancel') }}
+                </button>
+              </p>
+            }
+            @case (2) {
+              <p class="op-confirm pp-final" role="alert">
+                <span>{{ t('purge.step2', { title: t('purge.card.' + card.id + '.title') }) }}</span>
+                <button type="button" class="op-btn op-btn--danger" (click)="purge(card)">
+                  {{ t('purge.go') }}
+                </button>
+                <button type="button" class="op-btn pp-cancel" (click)="disarm(card.id)">
+                  {{ t('action.cancel') }}
+                </button>
+              </p>
+            }
+            @default {
+              <button
+                type="button"
+                class="op-btn op-btn--danger pp-start"
+                [disabled]="action.busy()"
+                (click)="arm(card.id)"
+              >
+                {{
+                  action.isRunning(card.id) ? t('purge.busy') : t('purge.card.' + card.id + '.start')
+                }}
+              </button>
+            }
+          }
+        </li>
+      }
+
+      <li class="pp-card" data-card="db">
+        <h4 class="pp-title">{{ t('purge.db.title') }}</h4>
+        <p class="pp-desc">{{ t('purge.db.desc') }}</p>
+        @if (stats(); as s) {
+          <p class="pp-facts">
+            {{ t('purge.db.size', { size: fmt.bytes(s.size_bytes) }) }} ·
+            @if (s.reclaimable_bytes > 0) {
+              {{ t('purge.db.reclaimable', { size: fmt.bytes(s.reclaimable_bytes) }) }}
+            } @else {
+              {{ t('purge.db.reclaimableNone') }}
+            }
+          </p>
+        } @else if (statsError()) {
+          <div class="cs-state cs-state--error" role="alert">
+            <p>{{ statsError() }}</p>
+            <button type="button" class="op-btn" (click)="loadStats()">{{ t('async.retry') }}</button>
+          </div>
+        } @else {
+          <p class="cs-state" aria-busy="true">{{ t('purge.db.loading') }}</p>
+        }
+        @if (step('db') === 1) {
+          <p class="op-confirm" role="alert">
+            <span>{{ t('purge.db.confirm') }}</span>
+            <button type="button" class="op-btn op-btn--primary" (click)="optimize()">
+              {{ t('purge.db.go') }}
+            </button>
+            <button type="button" class="op-btn pp-cancel" (click)="disarm('db')">
+              {{ t('action.cancel') }}
+            </button>
+          </p>
+        } @else {
+          <button type="button" class="op-btn pp-start" [disabled]="action.busy()" (click)="arm('db')">
+            {{ action.isRunning('db') ? t('purge.db.busy') : t('purge.db.start') }}
+          </button>
+        }
+      </li>
+    </ul>
+
+    @if (action.message(); as msg) {
+      <p
+        class="op-msg"
+        [class.op-msg--error]="msg.kind === 'error'"
+        [attr.role]="msg.kind === 'error' ? 'alert' : 'status'"
+      >{{ msg.kind === 'error' ? '⚠ ' : '✓ ' }}{{ msg.text }}</p>
+    }
+  </div>
+</details>

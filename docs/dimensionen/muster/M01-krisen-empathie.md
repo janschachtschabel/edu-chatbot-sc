@@ -11,6 +11,7 @@
 | `default_tone` | warm |
 | `default_length` | kurz |
 | `response_type` | empathy |
+| `quick_replies_mode` | none |
 
 ### Kernregel
 

@@ -61,7 +61,8 @@ def test_list_passes_di_session_and_returns_service_list(client, monkeypatch):
     r = client.get("/api/sessions/", headers=_AUTH)
     assert r.status_code == 200
     assert r.json() == rows
-    assert calls == [((_SESSION,), {})]
+    # ST-9: die Herkunft reist mit; ohne Angabe gilt „alle“
+    assert calls == [((_SESSION,), {"scope": "all"})]
 
 
 # ── GET /db-stats ────────────────────────────────────────────────────────
@@ -276,3 +277,18 @@ def test_public_messages_returns_200_under_active_rate_limit(monkeypatch):
     assert r.json() == []
     assert "x-ratelimit-limit" in {k.lower() for k in r.headers}
     get_settings.cache_clear()
+
+
+# ── ST-9: Herkunft ──
+def test_list_reicht_die_herkunft_durch(client, monkeypatch):
+    calls = _fake(monkeypatch, "list_sessions_admin", [])
+    r = client.get("/api/sessions/", headers=_AUTH, params={"scope": "production"})
+    assert r.status_code == 200
+    assert calls == [((_SESSION,), {"scope": "production"})]
+
+
+def test_list_mit_unbekannter_herkunft_wird_abgewiesen(client, monkeypatch):
+    calls = _fake(monkeypatch, "list_sessions_admin", [])
+    r = client.get("/api/sessions/", headers=_AUTH, params={"scope": "echt"})
+    assert r.status_code == 422
+    assert calls == []

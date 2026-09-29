@@ -448,8 +448,23 @@ MAX_SKILL_CHARS = 3500
 _REST_ZEILE_RESERVE = 120
 
 
-def _bestands_zeilen(fakten: Any) -> list[str]:
+#: Der Satz unter der Skill-Übersicht, wenn der Zug die Skill-Werkzeuge NICHT
+#: hat (E-6). Ohne ihn arbeitete das Modell womöglich nach einem Titel, dessen
+#: Wortlaut es nie gesehen hat.
+_OHNE_SKILL_WEG = (
+    "Nur zur Orientierung: laden lässt sich in diesem Zug keiner. Passt einer "
+    "zur Frage, nenne ihn — arbeite aber nicht nach einem Skill, dessen Wortlaut "
+    "du nicht hast."
+)
+
+
+def _bestands_zeilen(fakten: Any, *, skill_weg: bool = True) -> list[str]:
     """Der Bestandsabschnitt: Zahlen + Skill-Übersicht — oder gar nichts.
+
+    ``skill_weg=False`` (E-6, 2026-09-27): der Zug hat die Skill-Werkzeuge nicht
+    — im Muster-Modus führen sie nur sechs von zwanzig Mustern. Die Übersicht
+    bleibt (Nutzer-Vorgabe unten), Ladeweg und Vorrang fallen weg; eine
+    Anweisung auf ein Werkzeug, das nicht im Katalog steht, gibt es nicht.
 
     Nutzer-Vorgabe 2026-08-14: „Inhaltsanzahl und Skillregistry muss man in
     beiden Modi aktiv rein geben — pattern und agent loop". Beide Engines lesen
@@ -521,7 +536,7 @@ def _bestands_zeilen(fakten: Any) -> list[str]:
         "samt Verwendungshinweis der Redaktion, dann liefert ``get_skill`` mit "
         "dieser ``nodeId`` den Wortlaut — und arbeite danach, statt den Ablauf "
         "selbst zu erfinden."
-    )
+    ) if skill_weg else _OHNE_SKILL_WEG
     # Das Budget gilt dem ABSCHNITT, nicht nur der Liste — es ist die Zusage
     # „höchstens eine A4-Seite". Überschrift, Hinweis und die Rest-Zeile stehen
     # fest, also gehen sie vorweg ab; was bleibt, ist für Titel.
@@ -538,9 +553,9 @@ def _bestands_zeilen(fakten: Any) -> list[str]:
     zeilen.append(ueberschrift)
     zeilen.extend(f"- {t}" for t in gezeigt)
     if skills > len(gezeigt):
-        zeilen.append(
-            f"- … und {skills - len(gezeigt)} weitere — die vollständige Liste "
-            f"liefert ``get_skill_registry``.")
+        rest = f"- … und {skills - len(gezeigt)} weitere"
+        zeilen.append(rest + (" — die vollständige Liste liefert "
+                              "``get_skill_registry``." if skill_weg else "."))
     zeilen.append(hinweis)
     zeilen.append("")
     return zeilen
@@ -566,6 +581,7 @@ def render_for_prompt(
     *,
     include_stock: bool = True,
     text_budget: int = TEXT_PROMPT_BUDGET,
+    skill_weg: bool = True,
 ) -> str:
     """Human-readable block for the system prompt.
 
@@ -593,6 +609,10 @@ def render_for_prompt(
     ``text_budget`` deckelt jeden Textabschnitt des Blocks — Seitentext,
     Volltext, Kompendium (EK10/EK10b): Vorgabe ist :data:`TEXT_PROMPT_BUDGET`;
     der Klassifikator übergibt 3000.
+
+    ``skill_weg=False`` (E-6): der Zug hat die Skill-Werkzeuge nicht — die
+    Skill-Übersicht bleibt, Ladeweg und Vorrang fallen weg. Vorgabe AN: die
+    Agent-Schleife hat die Werkzeuge immer.
     """
     if not isinstance(meta, dict):
         return ""
@@ -678,7 +698,7 @@ def render_for_prompt(
         lines.append(f"Materialtypen auf der Seite: {', '.join(lrt[:6])}")
 
     if include_stock:
-        lines.extend(_bestands_zeilen(meta.get("context_facts")))
+        lines.extend(_bestands_zeilen(meta.get("context_facts"), skill_weg=skill_weg))
 
     # IDs für direkte MCP-Tool-Calls. ``collection_id`` ist die Sammlungs-
     # Node-ID auf edu-sharing — das LLM kann ``get_collection_contents``

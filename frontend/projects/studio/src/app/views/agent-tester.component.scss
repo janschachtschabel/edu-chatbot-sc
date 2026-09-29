@@ -31,7 +31,7 @@
   font: inherit;
   font-size: 0.875rem;
   padding: var(--st-2);
-  border: 1px solid var(--st-rule-strong);
+  border: 1px solid var(--st-text-muted);
   border-radius: var(--st-radius);
   background: var(--st-panel);
   color: var(--st-text);
@@ -74,17 +74,12 @@
   border: 0;
   border-radius: var(--st-radius);
   background: var(--st-accent);
-  color: var(--st-accent-text);
+  color: var(--st-on-accent);
   cursor: pointer;
 
   &:disabled {
     cursor: progress;
     opacity: 0.7;
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--st-focus);
-    outline-offset: 2px;
   }
 }
 

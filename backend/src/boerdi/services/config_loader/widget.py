@@ -4,9 +4,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from boerdi.services.config_loader._store import area
+
+logger = logging.getLogger(__name__)
 
 
 def load_device_config() -> dict[str, Any]:
@@ -71,11 +74,15 @@ def load_website_tour_config() -> dict[str, Any]:
     return cfg
 
 
+# Wortgleich mit der Seed-Begrüßung, samt KI-Hinweis (W12, EU AI Act Art. 50):
+# Auch der Rückfall ist der erste Kontakt, den die Verordnung meint.
 _WELCOME_DEFAULT_GREETING = (
     "Hey, schön dass du da bist! Ich bin Boerdi, die schlaue Eule von "
     "WissenLebtOnline.\nIch kann dir zeigen, wie du deine Wissens- oder "
     "Lerninhalte ins KI-Zeitalter bringst? Oder ich kann dir helfen "
-    "vorhandene Inhalte in unserer Datenbasis zu finden."
+    "vorhandene Inhalte in unserer Datenbasis zu finden.\n"
+    "Damit du es weißt: Ich bin kein Mensch, sondern ein KI-Assistent. "
+    "Meine Antworten sind KI-generiert und können Fehler enthalten."
 )
 _WELCOME_DEFAULT_REPLIES = [
     "Wie bringe ich meine Inhalte ins KI-Zeitalter?",
@@ -382,7 +389,18 @@ def load_display_rules_config() -> dict[str, Any]:
     for pid in ("M09", "M10", "M11"):
         per_pattern.setdefault(pid, True)
     intro_text: dict[str, str] = {}
-    for k, v in (ind.get("intro_text") or {}).items():
+    raw_intro = ind.get("intro_text") or {}
+    if not isinstance(raw_intro, dict):
+        # Bis 2026-09-27 nahm das Modell hier EINEN Text an. So ein Bestand soll
+        # auffallen, aber nicht mehr jede Antwort scheitern lassen: dieser Lader
+        # läuft ungeschützt in ``turn_persist``.
+        logger.warning(
+            "display-rules: inline_documents.intro_text ist keine Zuordnung "
+            "Muster-ID → Text (%s) — es gilt der Vorspann aus der Antwort",
+            type(raw_intro).__name__,
+        )
+        raw_intro = {}
+    for k, v in raw_intro.items():
         s = str(v or "").strip()
         if s:
             intro_text[str(k).strip().upper()] = s
@@ -427,8 +445,16 @@ def load_display_rules_config() -> dict[str, Any]:
     }
 
     qr = cfg.get("quick_replies") or {}
+    # Zeichen-Deckel der Pillen (``quick_replies_llm``). Fehlte hier bis
+    # 2026-09-27 — der Generator fiel darum immer auf 48 zurück, egal was im
+    # Studio stand. 0 (und, wie im Generator, negativ) = kein Deckel.
+    try:
+        max_chars = max(0, int(qr.get("max_chars", 48)))
+    except (TypeError, ValueError):
+        max_chars = 48
     quick_replies = {
         "max_count": _clamped_int(qr.get("max_count"), 4, 0, 6),
+        "max_chars": max_chars,
         "inline_fallback_enabled": bool(qr.get("inline_fallback_enabled", True)),
     }
 

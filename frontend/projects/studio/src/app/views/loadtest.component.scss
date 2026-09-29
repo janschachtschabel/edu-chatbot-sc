@@ -71,7 +71,7 @@
 .lt-input {
   min-block-size: 2.5rem;
   padding: var(--st-1) var(--st-2);
-  border: 1px solid var(--st-rule-strong);
+  border: 1px solid var(--st-text-muted);
   border-radius: var(--st-radius);
   background: var(--st-panel);
   color: var(--st-text);
@@ -149,7 +149,7 @@
   &--go {
     border-color: var(--st-accent);
     background: var(--st-accent);
-    color: var(--st-accent-text);
+    color: var(--st-on-accent);
     font-weight: 600;
   }
 }

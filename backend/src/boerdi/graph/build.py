@@ -147,9 +147,12 @@ def build_turn_graph(
     bound to this session. ``engine`` (A4) picks the machine that answers this
     turn — ``"pattern"`` (the default, and the shipped one) or ``"agent"``;
     ``services/engine_choice.choose_engine`` resolves it at the HTTP edge. It
-    reaches ``assess`` (no classifier), ``route`` (no pattern selection, no
-    fast-paths) and ``respond`` (delegates to ``respond_agent``); every other
-    node runs the same either way.
+    reaches ``assess`` (no classifier), ``merge`` (the type slots last one
+    turn), ``route`` (no pattern selection, no fast-paths), ``respond``
+    (delegates to ``respond_agent``) and ``persist`` (records it in the debug
+    block, AG-1); every other node runs the same either way. A pattern enforced by the safety gate
+    (M01/M02) overrides it in ``route`` and ``respond``: that turn is answered
+    by the pattern path whatever the engine (SF-1).
     Returns a compiled graph whose
     ``.ainvoke(TurnContext(req=...))`` runs the turn and yields a state dict — read
     ``early_response or response`` from it.
@@ -167,18 +170,14 @@ def build_turn_graph(
     g.add_node("assess", functools.partial(
         assess, memory_fetch=memory_fetch, progress=progress, engine=engine))
     g.add_node("safety_log", functools.partial(_log_turn_safety, session=session))
-    # H5: ``merge`` startet den spekulativen Vorabruf, und dessen Auslöser hängt
-    # im Bestand am Klassifikator (``intent_id in {I03, I04}``). Der Hybrid
-    # klassifiziert nicht — ohne diese Naht fiele der Vorabruf dort still aus,
-    # und der Tempogewinn wäre gegen eine gemessen bis 23 s stehende MCP-Suche
-    # eingetauscht.
     g.add_node("merge", functools.partial(merge, engine=engine))
     g.add_node("route", functools.partial(route, progress=progress, engine=engine))
     g.add_node("respond", functools.partial(
         respond, session=session, on_token=on_token, progress=progress,
         engine=engine))
     g.add_node("assemble", assemble)
-    g.add_node("persist", functools.partial(persist, session=session, progress=progress))
+    g.add_node("persist", functools.partial(
+        persist, session=session, progress=progress, engine=engine))
 
     g.add_edge(START, "setup")
     g.add_edge("setup", "tour")

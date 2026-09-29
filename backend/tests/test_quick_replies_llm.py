@@ -87,10 +87,12 @@ def test_qr_reasoning_markers_stripped_before_parsing(_qr_env) -> None:
 
 
 def test_qr_count_clamped_into_1_to_6(_qr_env) -> None:
+    # Geklammert wird die Zahl der PILLEN; der Prompt fragt eine Ersatzzeile
+    # mehr an (Paket A, 2026-09-29).
     _, c1 = _run(_qr_env, "A", count=0)
-    assert "Du generierst genau 4 kurze" in _system_of(c1)
+    assert "Du generierst genau 5 kurze" in _system_of(c1)
     _, c2 = _run(_qr_env, "A", count=99)
-    assert "Du generierst genau 6 kurze" in _system_of(c2)
+    assert "Du generierst genau 7 kurze" in _system_of(c2)
 
 
 def test_qr_prompt_context_entities_and_filled_hints(_qr_env) -> None:
@@ -220,11 +222,26 @@ def test_qr_englisch_haengt_den_hinweis_an(_qr_env):
 _ZU_LANG = "Erstelle ein Arbeitsblatt zu Kompetenzen geometrischer Optik"
 
 
-def _budget(monkeypatch, value: int) -> None:
-    monkeypatch.setattr(
-        qr, "load_display_rules_config",
-        lambda: {"quick_replies": {"max_chars": value}},
-    )
+class _NurAnzeigeRegeln:
+    """Speicher-Attrappe mit einem einzigen Bereich — gelesen wird er vom ECHTEN
+    Lader. Bis 2026-09-27 ersetzte ``_budget`` den Lader selbst durch eine
+    Attrappe, die ``max_chars`` von sich aus mitbrachte; dass der Lader das Feld
+    gar nicht zurückgab (Deckel im Betrieb immer 48), blieb so verborgen."""
+
+    def __init__(self, quick_replies: dict) -> None:
+        self._bereich = {"display_rules": {"quick_replies": quick_replies}}
+
+    def get_cached(self, area: str) -> dict | None:
+        return self._bereich if area == "01-base/display-rules" else None
+
+    def cached_areas(self) -> list[str]:
+        return ["01-base/display-rules"]
+
+
+def _budget(monkeypatch, value) -> None:
+    from boerdi.services.config_loader import _store
+
+    monkeypatch.setattr(_store, "_store", _NurAnzeigeRegeln({"max_chars": value}))
 
 
 def test_qr_verwirft_zu_lange_vorschlaege(_qr_env) -> None:
@@ -257,6 +274,53 @@ def test_qr_prompt_nennt_dieselbe_zahl_wie_der_filter(_qr_env) -> None:
     system = _system_of(cap)
     assert "44 Zeichen" in system
     assert "Woerter" not in system
+
+
+@pytest.mark.parametrize("gespeichert,deckel", [
+    (30, 30), (0, 0), (-5, 0), (None, 48), ("kaputt", 48),
+])
+def test_qr_deckel_kommt_durch_den_lader(_qr_env, gespeichert, deckel) -> None:
+    # Negativ heißt wie 0 „kein Deckel" — so rechnete der Generator schon immer.
+    _budget(_qr_env, gespeichert)
+    assert qr._max_chars() == deckel
+
+
+def test_qr_ohne_eintrag_gilt_die_vorgabe(_qr_env) -> None:
+    from boerdi.services.config_loader import _store
+
+    _qr_env.setattr(_store, "_store", _NurAnzeigeRegeln({"max_count": 2}))
+    assert qr._max_chars() == qr.QR_MAX_CHARS_DEFAULT
+
+
+# ── Paket A (Agent-Runde 2): verlorene Plätze ────────────────────────────
+# Tor E-5: bei Wissensfragen kamen 0 oder 1 Pillen statt 2 (GV-WIS-1, GV-RED-3,
+# GV-AND-2). Nachgespielt mit ``max_count: 2``: Regel 11 verlangte den Lotsen
+# INNERHALB der zwei Plätze — er wird nie eine Pille (ohne ``host`` entfernt,
+# sonst ein Link im Text) —, und ein zu langer Vorschlag fiel ersatzlos weg.
+
+_LOTSE = "__guide__|Ueber WLO|https://wirlernenonline.de/ueber-uns"
+
+
+def test_qr_ein_lotsen_eintrag_kostet_keinen_platz(_qr_env) -> None:
+    out, _ = _run(_qr_env, f"{_LOTSE}\nWas bedeuten die Lizenzen?\nZeig mir OER-Material",
+                  count=2)
+    assert out == [_LOTSE, "Was bedeuten die Lizenzen?", "Zeig mir OER-Material"]
+
+
+def test_qr_lotse_ist_eine_zusaetzliche_zeile(_qr_env) -> None:
+    system = _system_of(_run(_qr_env, "A", count=2)[1])
+    assert "ZUSAETZLICH zu den normalen Vorschlaegen" in system
+    assert "davon 1 Guide" not in system
+    assert "EINEN der 4" not in system
+
+
+def test_qr_fragt_einen_ersatz_fuer_zu_lange_vorschlaege_an(_qr_env) -> None:
+    """Ein zu langer Vorschlag wird verworfen, nicht gekürzt — mit einer
+    Ersatzzeile kostet er keine Pille."""
+    _budget(_qr_env, 40)
+    out, cap = _run(_qr_env, f"{_ZU_LANG}\nZeig mir mehr Videos\nAnderes Thema", count=2)
+    assert "Du generierst genau 3 kurze" in _system_of(cap)
+    assert out == ["Zeig mir mehr Videos", "Anderes Thema"]
 
 
 def test_qr_unlesbare_config_faellt_auf_die_vorgabe_zurueck(_qr_env) -> None:

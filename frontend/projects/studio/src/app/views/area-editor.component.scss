@@ -47,7 +47,6 @@
 .ae-raw:focus-visible {
   outline: 2px solid var(--st-accent);
   outline-offset: 1px;
-  box-shadow: var(--st-focus);
 }
 
 .ae-actions {
@@ -56,8 +55,14 @@
   align-items: center;
   gap: var(--st-3);
   margin-block-start: var(--st-5);
-  padding-block-start: var(--st-4);
+  padding-block: var(--st-4) var(--st-2);
   border-block-start: 1px solid var(--st-rule);
+  // ST-4: am unteren Rand kleben — wie `.cs-actions` auf den Formularseiten;
+  // der Seitengrund, damit darunter durchlaufende Felder nicht durchscheinen.
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 1;
+  background: var(--st-bg);
 }
 
 .ae-btn {
@@ -74,7 +79,7 @@
 .ae-btn--primary {
   border-color: var(--st-accent);
   background: var(--st-accent);
-  color: var(--st-accent-text);
+  color: var(--st-on-accent);
   font-weight: 600;
 }
 

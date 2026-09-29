@@ -103,8 +103,12 @@ async def get_elements() -> dict:
     personas = []
     for p in cl.load_persona_definitions():
         entry = dict(p)
-        entry["file"] = f"04-personas/{cl._persona_slug(p['id'])}.md"
-        entry.pop("_source_file", None)
+        # Die echte Quelle, wie bei den Mustern. Bis ST-3 stand hier der Name
+        # aus der Kennung — für den Seed dasselbe, für eine im Studio angelegte
+        # Persona („Neue Zielgruppe" → id `neue`) aber ein Bereich, den es nicht
+        # gibt: die Liste zeigte ins Leere.
+        source = entry.pop("_source_file", None)
+        entry["file"] = source or f"04-personas/{cl._persona_slug(p['id'])}.md"
         personas.append(entry)
 
     intents = _with_source(cl.load_intents(), "04-intents/intents.yaml")

@@ -1,0 +1,89 @@
+<details class="cs" [open]="open()">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
+  </summary>
+
+  <div class="cs-body apr">
+    <p class="apr-cost">{{ t('agentProbe.cost') }}</p>
+    <p class="apr-session">
+      <span class="apr-session-label">{{ t('agentProbe.session') }}</span>
+      <code>{{ sessionId() }}</code>
+    </p>
+
+    @if (turns().length > 0) {
+      <ol class="apr-turns" [attr.aria-label]="t('agentProbe.transcript')">
+        @for (zug of turns(); track $index) {
+          <li class="apr-turn">
+            <p class="apr-who">{{ t('agentProbe.you') }}</p>
+            <p class="apr-message">{{ zug.message }}</p>
+            <p class="apr-who">{{ t('st.role.assistant') }}</p>
+            <p class="apr-answer">{{ zug.answer || t('agentProbe.noAnswer') }}</p>
+            <dl class="apr-facts">
+              <div>
+                <dt>{{ t('agentProbe.duration') }}</dt>
+                <dd>{{ fmt.seconds(zug.durationMs) }}</dd>
+              </div>
+              @if (zug.cards > 0) {
+                <div>
+                  <dt>{{ t('agentProbe.cards') }}</dt>
+                  <dd>{{ fmt.whole(zug.cards) }}</dd>
+                </div>
+              }
+              @if (zug.documents.length > 0) {
+                <div>
+                  <dt>{{ t('agentProbe.documents') }}</dt>
+                  <dd>{{ list(zug.documents) }}</dd>
+                </div>
+              }
+            </dl>
+            <studio-agent-trace [debug]="zug.debug" />
+          </li>
+        }
+      </ol>
+    }
+
+    <form class="apr-form" novalidate (submit)="$event.preventDefault(); send()">
+      <div class="apr-locale">
+        <label class="apr-label" for="apr-locale">{{ t('agentProbe.language') }}</label>
+        <select id="apr-locale" class="apr-select" (change)="onLocale($event)">
+          @for (sprache of locales; track sprache) {
+            <option [value]="sprache" [selected]="locale() === sprache">
+              {{ t('agentProbe.language.' + sprache) }}
+            </option>
+          }
+        </select>
+      </div>
+
+      <label class="apr-label" for="apr-message">{{ t('agentProbe.message') }}</label>
+      <p class="apr-hint" id="apr-message-hint">{{ t('agentProbe.messageHint') }}</p>
+      <textarea
+        #messageField
+        id="apr-message"
+        class="apr-textarea"
+        rows="3"
+        [value]="message()"
+        [attr.aria-invalid]="fieldError() ? 'true' : null"
+        [attr.aria-describedby]="fieldError() ? 'apr-message-hint apr-message-error' : 'apr-message-hint'"
+        (input)="onMessage($event)"
+      ></textarea>
+      @if (fieldError()) {
+        <p class="apr-field-error" id="apr-message-error" role="alert">{{ fieldError() }}</p>
+      }
+
+      <div class="apr-actions">
+        <button type="submit" class="cs-btn cs-btn--primary" [disabled]="running()">
+          {{ running() ? t('agentProbe.running') : t('agentProbe.send') }}
+        </button>
+        <button type="button" class="cs-btn apr-reset" [disabled]="running()" (click)="reset()">
+          {{ t('agentProbe.reset') }}
+        </button>
+      </div>
+    </form>
+
+    <p class="cs-status" aria-live="polite">{{ status() }}</p>
+    @if (error()) {
+      <p class="cs-state cs-state--error" role="alert">{{ error() }}</p>
+    }
+  </div>
+</details>

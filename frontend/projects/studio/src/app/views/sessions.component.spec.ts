@@ -269,4 +269,20 @@ describe("SessionsComponent", () => {
     expect(rows[1].textContent).toContain("unknown");
     expect(h.el.textContent).not.toContain("Verlauf leeren");
   });
+  it("filtert die Liste serverseitig nach Herkunft (ST-9)", async () => {
+    // Serverseitig, weil die Liste bei 100 kappt: ein Lasttest drängte sonst
+    // jede echte Sitzung hinaus, bevor der Browser filtern könnte.
+    const h = await mount();
+    const produktion = Array.from(h.el.querySelectorAll("label")).find((l) =>
+      l.textContent?.includes("Produktion"))!.querySelector("input")!;
+    produktion.click();
+    await h.fixture.whenStable();
+    h.http
+      .expectOne((r) => r.url === "/studio/api/sessions/"
+        && r.params.get("scope") === "production")
+      .flush([SESSIONS[0]]);
+    await tick();
+    await h.fixture.whenStable();
+    expect(h.el.querySelectorAll(".sv-pick")).toHaveLength(1);
+  });
 });

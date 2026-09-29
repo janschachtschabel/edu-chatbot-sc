@@ -9,6 +9,7 @@ import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { provideRouter } from "@angular/router";
 import { describe, expect, it } from "vitest";
 
+import { EffectsApi } from "../core/effects-api.service";
 import { STUDIO_DE } from "../i18n/de";
 import { STUDIO_EN } from "../i18n/en";
 import {
@@ -17,6 +18,7 @@ import {
 } from "../i18n/studio-language.service";
 import { AREA_KEYS, AREA_SCHEMAS } from "../schema-form/area-schemas.fixture";
 import { STUDIO_VIEWS, type StudioView } from "../studio-views";
+import { DASHBOARD_SECTIONS, areasWithPage } from "./area-homes";
 import { CURATED_VIEWS, curatedView, isAreaSection } from "./curated-views";
 import { CuratedViewComponent } from "./curated-view.component";
 
@@ -88,14 +90,32 @@ describe("CURATED_VIEWS declaration", () => {
     expect(unknown).toEqual([]);
   });
 
+  it("gibt jedem Bereich eine Seite außer „Alle Bereiche“ (ST-9)", () => {
+    // Gemessen vor ST-9: acht Bereiche — darunter Preistafel, Gold-Flows und
+    // Karten-Pipeline — standen nur als Dateiname unter „Alle Bereiche“.
+    const ohneSeite = AREA_KEYS.filter((area) => !areasWithPage().has(area));
+    expect(ohneSeite).toEqual([]);
+  });
+
   it("renders every declared panel — no silently empty section", () => {
     // A panel id with no `@case` in the template renders nothing at all: the
     // heading and hint would be gone too, so the page just looks shorter.
-    const RENDERED = ["rag-areas", "rag-ingest", "mcp-registry", "agent-tester"];
+    const RENDERED = [
+      "rag-areas", "rag-ingest", "mcp-registry", "agent-tester", "master-skill",
+      "privacy-purge", "agent-tools", "agent-skills", "agent-prompt", "agent-probe",
+    ];
     const declared = CURATED_VIEWS.flatMap((view) =>
       view.sections.flatMap((s) => (isAreaSection(s) ? [] : [s.panel])),
     );
     expect(declared.filter((panel) => !RENDERED.includes(panel))).toEqual([]);
+  });
+
+  it("führt auf der Agent-Seite die Kette entlang, dann die beiden Probeläufe (ST-8)", () => {
+    const agent = CURATED_VIEWS.find((view) => view.slug === "agent")!;
+    const panels = agent.sections.flatMap((s) => (isAreaSection(s) ? [] : [s.panel]));
+    expect(panels).toEqual([
+      "agent-prompt", "master-skill", "agent-tools", "agent-skills", "agent-probe", "agent-tester",
+    ]);
   });
 
   it("names only slugs the view registry actually routes here", () => {
@@ -161,13 +181,19 @@ describe("CURATED_VIEWS declaration", () => {
     // Schlüssel, und ein Tippfehler darin wäre unsichtbar bis jemand die Seite
     // öffnet: `t()` gibt den Schlüssel selbst als Überschrift aus. Dieselbe
     // Prüfung wie `views-i18n.spec.ts` für die Ansichts-Registry.
-    const keys = CURATED_VIEWS.flatMap((view) => [
-      view.introKey,
-      ...view.sections.flatMap((section) => [
-        section.labelKey,
-        section.hintKey,
+    const keys = [
+      ...CURATED_VIEWS.flatMap((view) => [
+        view.introKey,
+        ...view.sections.flatMap((section) => [
+          section.labelKey,
+          section.hintKey,
+        ]),
       ]),
-    ]);
+      // ST-9: die auf Kosten und Evaluation eingebetteten Abschnitte
+      ...Object.values(DASHBOARD_SECTIONS).flatMap((sections) =>
+        sections.flatMap((section) => [section.labelKey, section.hintKey]),
+      ),
+    ];
     expect(
       keys.filter((key) => !(key in STUDIO_DE)),
       "fehlt auf Deutsch",
@@ -209,8 +235,10 @@ describe("CuratedViewComponent", () => {
     );
     expect(headings).toEqual([
       "Darstellungsregeln",
+      "Trefferauswahl und Links",
+      "Trefferliste im Text",
       "Kopfzeilen-Navigation",
-      "Geräte",
+      "Geräte & Anrede",
     ]);
   });
 
@@ -233,14 +261,18 @@ describe("CuratedViewComponent", () => {
       Array.from(el.querySelectorAll("summary .cs-title")).map((h) =>
         h.textContent?.trim(),
       ),
-    ).toEqual(["Display rules", "Header navigation", "Devices"]);
+    ).toEqual([
+      "Display rules", "Result selection and links", "Result list in the text",
+      "Header navigation",
+      "Devices & form of address",
+    ]);
   });
 
   it("loads only the section that is open", async () => {
     // Three areas mean six requests on arrival if every section loads eagerly.
     const { http } = await mount("anzeige");
     answer(http, "01-base/display-rules", { display_rules: {} });
-    http.verify(); // nothing for header-nav or device-config yet
+    http.verify(); // nothing for the other four sections yet
   });
 
   it("loads a section the first time it is opened, and not again", async () => {
@@ -251,7 +283,7 @@ describe("CuratedViewComponent", () => {
     second.open = true;
     second.dispatchEvent(new Event("toggle"));
     await fixture.whenStable();
-    answer(http, "01-base/header-nav", { header_nav: {} });
+    answer(http, "01-base/card-pipeline", { card_pipeline: {} });
 
     second.open = false;
     second.dispatchEvent(new Event("toggle"));
@@ -269,16 +301,75 @@ describe("CuratedViewComponent", () => {
     second.open = true;
     second.dispatchEvent(new Event("toggle"));
     await fixture.whenStable();
-    answer(http, "01-base/header-nav", { header_nav: { links: [] } });
+    answer(http, "01-base/card-pipeline", { card_pipeline: { pool_size: 20 } });
     await tick();
     await fixture.whenStable();
 
     expect(fixture.componentInstance.dirty()).toBe(false);
     fixture.componentInstance
       .sections()[1]
-      .editor.setDoc({ header_nav: { links: ["x"] } });
+      .editor.setDoc({ card_pipeline: { pool_size: 30 } });
     await fixture.whenStable();
     expect(fixture.componentInstance.dirty()).toBe(true);
+  });
+
+  it("zeigt im Kopf jedes Abschnitts, wo er wirkt (ST-5)", async () => {
+    const { el, http, fixture } = await mount("datenschutz");
+    answer(http, "01-base/privacy-config", { logging: {} });
+    TestBed.inject(EffectsApi).effects.set({
+      engine: "pattern",
+      areas: {
+        "01-base/privacy-config": { pattern: "voll", agent: "teilweise" },
+        "01-base/quality-log-config": { pattern: "voll", agent: "voll" },
+      },
+    });
+    await tick();
+    await fixture.whenStable();
+    const koepfe = Array.from(el.querySelectorAll("studio-area-section summary"))
+      .map((s) => s.textContent?.replace(/\s+/g, " ") ?? "");
+    expect(koepfe[0]).toContain("Wirkt in: Muster-Maschine · Agent-Schleife (teilweise)");
+    expect(koepfe[1]).toContain("Wirkt in: Muster-Maschine · Agent-Schleife");
+  });
+
+  it("warnt, wenn die Vorgabe-Maschine keine Einstellung der Seite nutzt (ST-5)", async () => {
+    const { el, fixture } = await mount("material-formate");
+    const nurMuster = Object.fromEntries(
+      curatedView("material-formate")!.sections.filter(isAreaSection)
+        .map((s) => [s.area, { pattern: "voll" as const, agent: "keine" as const }]),
+    );
+    const effects = TestBed.inject(EffectsApi).effects;
+    effects.set({ engine: "agent", areas: nurMuster });
+    await fixture.whenStable();
+    expect(el.querySelector(".cv-banner")?.textContent).toContain("Agent-Schleife");
+
+    effects.set({ engine: "pattern", areas: nurMuster });
+    await fixture.whenStable();
+    expect(el.querySelector(".cv-banner")).toBeNull();
+  });
+
+  it("sagt im Banner, wenn eine Seite unter der Agent-Schleife nur Krisen-Züge trägt (ST-5)", async () => {
+    // Die Muster-Seite: unter der Agent-Schleife beantwortet der Muster-Weg
+    // nur Krisen- und Drohungs-Züge (SF-1). „Wirkt nicht" wäre dort falsch.
+    const { el, fixture } = await mount("patterns");
+    TestBed.inject(EffectsApi).effects.set({
+      engine: "agent",
+      areas: { "03-patterns": { pattern: "voll", agent: "krise" } },
+    });
+    await fixture.whenStable();
+    const banner = el.querySelector(".cv-banner")?.textContent ?? "";
+    expect(banner).toContain("Krisen");
+    expect(banner).not.toContain("keine Einstellung");
+  });
+
+  it("hält Speichern und Verwerfen beim Scrollen sichtbar (ST-4)", async () => {
+    // Bis ST-4 saß die Leiste am Ende langer Formulare — wer oben änderte,
+    // musste zum Speichern ans Ende scrollen und sah dabei die Änderung nicht mehr.
+    const { el, http, fixture } = await mount("datenschutz");
+    answer(http, "01-base/privacy-config", { logging: {} });
+    await tick();
+    await fixture.whenStable();
+    const leiste = el.querySelector<HTMLElement>(".cs-actions")!;
+    expect(getComputedStyle(leiste).position).toBe("sticky");
   });
 
   it("saves one area at a time — a section never writes its neighbour", async () => {
@@ -311,6 +402,38 @@ describe("CuratedViewComponent", () => {
     });
     await fixture.whenStable();
     http.verify(); // quality-log-config was never touched
+  });
+
+  it("zeigt eine Abweisung des Servers am Feld, nicht nur als Zeile (ST-2e)", async () => {
+    const { el, http, fixture } = await mount("anzeige");
+    const schrift = (wert: number) => ({
+      display_rules: { inline_documents: { font_size_percent: wert } },
+    });
+    answer(http, "01-base/display-rules", schrift(85));
+    await tick();
+    await fixture.whenStable();
+
+    fixture.componentInstance.sections()[0].editor.setDoc(schrift(10));
+    await fixture.whenStable();
+    el.querySelector<HTMLButtonElement>(".cs-save")?.click();
+    await fixture.whenStable();
+    http.expectOne("/studio/api/config/data/01-base/display-rules").flush(
+      {
+        detail: [{
+          loc: ["display_rules", "inline_documents", "font_size_percent"],
+          msg: "Input should be greater than or equal to 70",
+          type: "greater_than_equal",
+          ctx: { ge: 70 },
+        }],
+      },
+      { status: 422, statusText: "Unprocessable Content" },
+    );
+    await tick();
+    await fixture.whenStable();
+
+    const feld = el.querySelector<HTMLInputElement>('input[id$="font_size_percent"]')!;
+    expect(feld.getAttribute("aria-invalid")).toBe("true");
+    expect(el.textContent).toContain("Mindestens 70.");
   });
 
   it("offers the raw source of each area, because the form cannot reach every key", async () => {

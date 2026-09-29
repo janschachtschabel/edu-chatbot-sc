@@ -32,6 +32,14 @@ describe("StudioApi", () => {
     expect(await done).toEqual({ ok: true });
   });
 
+  it("sends extra headers on a POST when asked (ST-8e: the engine header)", async () => {
+    const done = api.post("/chat", { message: "hallo" }, undefined, { "X-Boerdi-Engine": "agent" });
+    const req = http.expectOne("/studio/api/chat");
+    expect(req.request.headers.get("X-Boerdi-Engine")).toBe("agent");
+    req.flush({ content: "ok" });
+    await done;
+  });
+
   it("keeps a trailing slash — /api/sessions/ only exists WITH one", async () => {
     // ALT needed a special case in its proxy for exactly this (route.ts:27-35):
     // dropping the slash makes FastAPI answer 307 instead of data.
@@ -131,6 +139,35 @@ describe("StudioApi", () => {
     // both entries, separated — a single-entry test would not notice a lost join
     expect(err.detail).toContain("; ");
     expect(err.detail).toContain("welcome.tour_reply");
+  });
+
+  it("keeps a validation failure as field problems the form can attach (ST-2e)", async () => {
+    const done = api.put("/config/data/01-base/display-rules", { data: {} });
+    http.expectOne("/studio/api/config/data/01-base/display-rules").flush(
+      {
+        detail: [
+          {
+            loc: ["display_rules", "inline_documents", "font_size_percent"],
+            msg: "Input should be greater than or equal to 70",
+            type: "greater_than_equal",
+            ctx: { ge: 70 },
+          },
+        ],
+      },
+      { status: 422, statusText: "Unprocessable Content" },
+    );
+    const err = (await done.then(
+      () => null,
+      (e: unknown) => e,
+    )) as StudioApiError;
+    expect(err.problems).toEqual([
+      {
+        path: ["display_rules", "inline_documents", "font_size_percent"],
+        type: "greater_than_equal",
+        msg: "Input should be greater than or equal to 70",
+        ctx: { ge: 70 },
+      },
+    ]);
   });
 
   it("strips only the LEADING body segment — `body` is a real config key", async () => {

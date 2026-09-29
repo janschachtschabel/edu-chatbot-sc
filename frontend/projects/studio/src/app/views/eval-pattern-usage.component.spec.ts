@@ -36,7 +36,8 @@ const USAGE = {
 };
 
 /** Muster UND Maschinen-Marker gemischt — wie die echten quality_logs seit dem
- *  Agent-/Hybrid-Modus (Feedback 2026-08-22). */
+ *  Agent-Modus (Feedback 2026-08-22). `HYBRID` steht in Zügen vor K1-1
+ *  (2026-09-27) und bleibt in den Logs stehen. */
 const MIXED = {
   triples: [
     { pattern_id: "M06", intent_id: "I03", persona_id: "P-LEH", count: 10, avg_conf: 0.9 },
@@ -138,8 +139,12 @@ describe("EvalPatternUsageComponent", () => {
     // quality_logs — zwischen M01–M20 einsortiert verfälschten sie das Bild.
     await mount(MIXED);
     expect(text()).toContain("AGENT");
+    expect(text()).toContain("HYBRID"); // alte Züge bleiben unter „alle" sichtbar
 
     const select = h.el.querySelector<HTMLSelectElement>("#epu-engine")!;
+    // K1-1 (2026-09-27): der Hybrid ist entfernt, also auch sein Filter.
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(["alle", "muster", "agent"]);
+
     select.value = "muster";
     select.dispatchEvent(new Event("change"));
     await h.fixture.whenStable();
@@ -153,6 +158,8 @@ describe("EvalPatternUsageComponent", () => {
     await h.fixture.whenStable();
     expect(text()).toContain("AGENT");
     expect(text()).not.toContain("M06");
+    // Der alte Hybrid-Marker ist keine Agent-Schleife — er zählt dort nicht mit.
+    expect(text()).not.toContain("HYBRID");
     // Client-seitiger Filter — KEIN neuer Request.
     h.http.verify();
   });

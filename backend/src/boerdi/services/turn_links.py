@@ -26,8 +26,10 @@ patch them here; the vocab helpers stay lazy in-function so tests patch them at 
 ``_label_map`` (f2b3); the anti-hallucination watchdog reads its claim words, its
 determiner prefix and its delivery verbs from ``i18n/output_patterns`` and its three
 replacement sentences from ``i18n/bot_text`` instead of in-function literals (f2b4).
-The German output of both is unchanged and pinned byte-for-byte in
-``tests/test_turn_links.py``. Everything else is still verbatim.
+The German du output of both is unchanged and pinned byte-for-byte in
+``tests/test_turn_links.py``; since GV-EMB-2 (2026-09-27) the search pointers also
+exist in a Sie wording, picked by ``pattern_output["formality"]`` (``_SIE_FASSUNG``).
+Everything else is still verbatim.
 
 Still German on purpose inside the watchdog: ``_type_words_re``, which reads the USER's
 message rather than our own output, and ``_medientyp_classif``, which is elsewhere the
@@ -40,6 +42,7 @@ import logging
 from typing import Any, Final
 
 from boerdi.api.schemas import ChatRequest
+from boerdi.domain.agent_pattern import AGENT_PATTERN_ID
 from boerdi.domain.content_types import _resolve_wanted_content_types
 from boerdi.domain.url_helpers import _extract_web_links_from_text
 from boerdi.i18n import (
@@ -99,6 +102,27 @@ _TYPE_LABELS: Final[dict[Locale, dict[str, str]]] = {
         "simulation": "Simulations",
     },
 }
+
+
+#: Welche ``formality``-Werte die Sie-Fassung der Such-Hinweise bekommen
+#: (GV-EMB-2, 2026-09-27). Der Wert kommt aus ``phase3_modulate``, also aus
+#: derselben Quelle wie die Anrede im Antworttext: Persona-Modifier, bei
+#: ``wie_user`` die ``persona_formality`` der device-config. Die ersten vier
+#: sind das Sie-Vokabular, das auch ``response_prompt_pattern`` liest.
+#:
+#: ``neutral`` (P-AND, die Person ist unklar) bekommt ebenfalls Sie. Das Modell
+#: soll dann ohne direkte Anrede schreiben, der Agent „möglichst ohne" — ein
+#: fester Satz, der zum Klicken auffordert, kann sie nicht weglassen. Muss sie
+#: stehen, ist Sie der kleinere Fehler: ein Sie zu einer Schülerin ist förmlich,
+#: ein Du zu einer Lehrkraft ist der Registerfehler aus GV-EMB-2. Fehlt der
+#: Wert, bleibt der ALT-Wortlaut im Du.
+_SIE_FASSUNG: Final[frozenset[str]] = frozenset(
+    {"sie", "siezen", "formal", "foermlich", "neutral"})
+
+
+def _anrede_suffix(formality: object) -> str:
+    """``".sie"`` für die Sie-Schlüssel in ``i18n/bot_text``, sonst ``""`` (Du)."""
+    return ".sie" if str(formality or "").strip().lower() in _SIE_FASSUNG else ""
 
 
 async def _finalize_links_and_metas(
@@ -169,7 +193,11 @@ async def _finalize_links_and_metas(
     # Cards ohne Token-Overlap aus ``cards`` (in-place).
     # Cards ohne thema/fach/Nachricht-Signal werden NICHT gefiltert
     # (zu wenig Kontext für Relevanz-Urteil).
-    if _grouping_on_impl and cards:
+    # Nicht im Agent-Zug (Review 2026-09-29, Tor E-5 GV-AND-1#3): dort gibt es
+    # keine Klassifikator-Entitäten, das Signal wäre allein die Nachricht —
+    # „Eher für die Mittelstufe bitte.“ warf die Treffer der verengten Suche
+    # hinaus. Der Agent wählt seine Suche selbst, wie beim Medientyp-Nachfilter.
+    if _grouping_on_impl and cards and getattr(winner, "id", "") != AGENT_PATTERN_ID:
         try:
             import re as _re_tf
             _classif_entities = classification_dict.get("entities", {}) or {}
@@ -268,6 +296,9 @@ async def _finalize_links_and_metas(
         _po_for_rewriters.get("degradation")
         and _po_for_rewriters.get("missing_slots")
     )
+    # Beide Rewriter setzen eigene Such-Hinweise ein; deren Anrede folgt
+    # ``formality`` (``_SIE_FASSUNG``).
+    _anrede = _anrede_suffix(_po_for_rewriters.get("formality"))
     _type_focus_label = ""
     _type_focus_vocab = ""   # dasselbe Label auf Deutsch — s. ``_TYPE_LABELS``
     if _grouping_on_impl and _is_search_pattern_active and not _rewriters_degraded:
@@ -324,7 +355,7 @@ async def _finalize_links_and_metas(
                     _new_response = bot_text(
                         _lang,
                         ("links.typeFocus.ctaTopic" if _topic_for_text
-                         else "links.typeFocus.ctaPlain"),
+                         else "links.typeFocus.ctaPlain") + _anrede,
                         label=_type_focus_label,
                         topic=_topic_for_text,
                     )
@@ -451,7 +482,7 @@ async def _finalize_links_and_metas(
                     rf"(?is)^[^.!?]*?{_claim_words}[^.!?]*?[.!?]\s*",
                 )
                 _replacement = bot_text(
-                    _lang, "links.claim.typeFocusCta", label=_type_label,
+                    _lang, "links.claim.typeFocusCta" + _anrede, label=_type_label,
                 )
                 _patched = _first_sentence_with_claim.sub(
                     _replacement, _new_text, count=1,
@@ -534,7 +565,7 @@ async def _finalize_links_and_metas(
                 _new_text = _re_wd.sub(
                     rf"(?im)^.*?(?:{DELIVERY_VERBS.get(_lang, DELIVERY_VERBS[DEFAULT])})"
                     r".*?[.!?]\s*",
-                    bot_text(_lang, "links.claim.searchPointer"),
+                    bot_text(_lang, "links.claim.searchPointer" + _anrede),
                     _new_text,
                     count=1,
                 )

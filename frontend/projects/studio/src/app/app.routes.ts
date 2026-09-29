@@ -14,6 +14,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 import { StudioLanguageService } from './i18n/studio-language.service';
 import { DEFAULT_VIEW, STUDIO_VIEWS, type StudioView } from './studio-views';
+import { DASHBOARD_SECTIONS } from './views/area-homes';
 import { curatedView } from './views/curated-views';
 import { unsavedChangesGuard } from './views/unsaved-changes.guard';
 
@@ -81,8 +82,10 @@ export const routes: Routes = [
         // withComponentInputBinding(); 9-5 replaces the remaining placeholders.
         data: { view },
         // Only where something can be edited: the guard calls `dirty()`, which
-        // an index or a placeholder does not have.
-        canDeactivate: curatedView(view.slug) ? [unsavedChangesGuard] : [],
+        // an index or a placeholder does not have. Since ST-9 that includes two
+        // dashboards (price table on Kosten, gold flows on Evaluation).
+        canDeactivate: curatedView(view.slug) || view.slug in DASHBOARD_SECTIONS
+          ? [unsavedChangesGuard] : [],
         loadComponent: () => loadViewComponent(view),
       })),
       {

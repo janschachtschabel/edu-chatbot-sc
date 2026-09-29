@@ -1,0 +1,151 @@
+/**
+ * Feldtexte (ST-1) der Seite „Agent & Maschine“, Bereich `01-base/engine`:
+ * Maschinenwahl, Deckel der Agent-Schleife, anonyme Deckel, Rolle und Schutzregeln,
+ * Skill-Brücke der Muster-Engine. Ausführlich: `docs/agent-modus.md`.
+ *
+ * Schlüsselschema wie in `fields-layer-doc.ts`. `agent.safety` wertet der Code nicht
+ * aus: das Sicherheits-Gate läuft in jeder Maschine (`graph/nodes/assess.py`) und am
+ * Endpunkt (`services/agent_gate.py`). Die anonymen Deckel gelten nur im Chat
+ * (`services/agent_deckel.py`), `agent_rolle` nur für die Schleife im Chat
+ * (`services/agent_kopf.py`) — `/api/agent` hat einen festen Systemtext.
+ */
+import type { CataloguePart } from './catalogue-part';
+
+export const FIELDS_AGENT: CataloguePart = {
+  de: {
+    'feld.EngineArea.mode.label': 'Maschine',
+    'feld.EngineArea.mode.hint':
+      'Wer Chat-Züge beantwortet: pattern = Muster-Engine (Klassifikator, Musterwahl), agent '
+      + '= Agent-Schleife mit vollem Werkzeugkatalog. Einbettungen können übersteuern. Krise '
+      + 'und Drohung beantwortet stets die Muster-Engine.',
+    'feld.EngineArea.agent.label': 'Deckel der Agent-Schleife',
+    'feld.EngineArea.agent.hint':
+      'Grenzen und Schreibrecht jedes Laufs der Agent-Schleife, im Chat wie am Endpunkt '
+      + '/api/agent. Welcher der drei Deckel zuerst greift, beendet den Lauf.',
+    'feld.AgentLimits.max_iterations.label': 'Höchstzahl Runden',
+    'feld.AgentLimits.max_iterations.hint':
+      'Wie viele Runden (je ein Modellaufruf samt Werkzeugen) ein Lauf höchstens hat; danach '
+      + 'endet er mit max_iterations. 1 bis 50, Vorgabe 30.',
+    'feld.AgentLimits.deadline_s.label': 'Frist (Sekunden)',
+    'feld.AgentLimits.deadline_s.hint':
+      'Zeitgrenze je Lauf in Sekunden, 5 bis 1800, Vorgabe 900. Geprüft vor jeder Runde: eine '
+      + 'laufende Runde wird nicht abgebrochen, der Lauf endet danach mit deadline.',
+    'feld.AgentLimits.token_budget.label': 'Token-Budget',
+    'feld.AgentLimits.token_budget.hint':
+      'Höchstzahl Tokens je Lauf, Eingabe plus Ausgabe über alle Runden zusammen; mindestens '
+      + '1000, Vorgabe 900.000. Geprüft vor jeder Runde. Deckelt die Kosten der Schleife.',
+    'feld.AgentLimits.write_mode.label': 'Schreibrecht',
+    'feld.AgentLimits.write_mode.hint':
+      'propose = kuratierende Werkzeuge kommen nur bis zur Vorschau, bestätigen muss ein '
+      + 'Mensch. execute = der Lauf darf selbst bestätigen, aber nur mit angemeldeter Person; '
+      + 'sonst gilt propose.',
+    'feld.AgentLimits.safety.label': 'Sicherheits-Gate',
+    'feld.AgentLimits.safety.hint':
+      'Gedacht als Schalter für das Sicherheits-Gate im Agent-Modus. Wird derzeit nicht '
+      + 'ausgewertet: das Gate läuft in beiden Maschinen und am Endpunkt immer.',
+    'feld.AgentLimits.anonymous.label': 'Deckel ohne Anmeldung',
+    'feld.AgentLimits.anonymous.hint':
+      'Engere Deckel für Chat-Züge ohne persönliche Anmeldung; je Deckel gilt der kleinere '
+      + 'Wert. Beim Anheben der normalen Deckel diese mit anheben oder leeren. Nicht für '
+      + '/api/agent.',
+    'feld.AnonymousLimits.max_iterations.label': 'Höchstzahl Runden',
+    'feld.AnonymousLimits.max_iterations.hint':
+      'Runden-Deckel für Chat-Züge ohne Anmeldung, 1 bis 50. Wirkt nur, wenn kleiner als der '
+      + 'normale Deckel; leer = wie angemeldet.',
+    'feld.AnonymousLimits.deadline_s.label': 'Frist (Sekunden)',
+    'feld.AnonymousLimits.deadline_s.hint':
+      'Frist in Sekunden für Chat-Züge ohne Anmeldung, 5 bis 1800. Wirkt nur, wenn kleiner '
+      + 'als der normale Deckel; leer = wie angemeldet.',
+    'feld.AnonymousLimits.token_budget.label': 'Token-Budget',
+    'feld.AnonymousLimits.token_budget.hint':
+      'Token-Budget für Chat-Züge ohne Anmeldung, mindestens 1000. Wirkt nur, wenn kleiner '
+      + 'als der normale Deckel; leer = wie angemeldet.',
+    'feld.EngineArea.agent_rolle.label': 'Rolle und Grenzen',
+    'feld.EngineArea.agent_rolle.hint':
+      'Kopf jeder Agent-Kette im Chat: Rolle und Schutzregeln, ergänzt um Anrede je '
+      + 'Zielgruppe und Sprache. Steht vor dem Master-Skill und geht ihm vor. Am Endpunkt '
+      + '/api/agent ohne Wirkung.',
+    'feld.AgentRolle.rolle.label': 'Rolle',
+    'feld.AgentRolle.rolle.hint':
+      'Erster Systemtext der Agent-Schleife im Chat: wer der Agent ist, wie er arbeitet und '
+      + 'antwortet. Leer = die mitgelieferte Vorgabe.',
+    'feld.AgentRolle.schutzregeln.label': 'Schutzregeln',
+    'feld.AgentRolle.schutzregeln.hint':
+      'Kennungen aus den Leitplanken (etwa R-05), die auch im Agent-Modus gelten; ihr '
+      + 'Wortlaut samt Erläuterung kommt in den Kopf. Unbekannte Kennungen entfallen, die '
+      + 'übrigen Leitplanken gelten dort nicht.',
+    'feld.EngineArea.muster_skills.label': 'Skills im Muster-Modus',
+    'feld.EngineArea.muster_skills.hint':
+      'Gibt Werkzeug-Mustern der Muster-Engine get_skill_registry und get_skill dazu, wenn '
+      + 'freigegebene Skills im Spiel sind. Nicht bei Mustern ohne Werkzeuge (Krise, '
+      + 'Drohung). Vorgabe aus.',
+  },
+  en: {
+    'feld.EngineArea.mode.label': 'Engine',
+    'feld.EngineArea.mode.hint':
+      'Who answers chat turns: pattern = pattern engine (classifier, pattern choice), agent = '
+      + 'agent loop with the full tool catalogue. Embeddings can override this. Crisis and '
+      + 'threat always go to the pattern engine.',
+    'feld.EngineArea.agent.label': 'Agent loop limits',
+    'feld.EngineArea.agent.hint':
+      'Limits and write mode of every agent loop run, in the chat and at the /api/agent '
+      + 'endpoint. Whichever of the three limits is reached first ends the run.',
+    'feld.AgentLimits.max_iterations.label': 'Maximum rounds',
+    'feld.AgentLimits.max_iterations.hint':
+      'How many rounds (one model call plus its tools each) a run may have at most; then it '
+      + 'ends with max_iterations. 1 to 50, default 30.',
+    'feld.AgentLimits.deadline_s.label': 'Deadline (seconds)',
+    'feld.AgentLimits.deadline_s.hint':
+      'Time limit per run in seconds, 5 to 1800, default 900. Checked before each round: a '
+      + 'running round is not cut off, the run then ends with deadline.',
+    'feld.AgentLimits.token_budget.label': 'Token budget',
+    'feld.AgentLimits.token_budget.hint':
+      'Maximum tokens per run, input plus output summed over all rounds; at least 1000, '
+      + 'default 900,000. Checked before each round. Caps the cost of the loop.',
+    'feld.AgentLimits.write_mode.label': 'Write mode',
+    'feld.AgentLimits.write_mode.hint':
+      'propose = curating tools only get as far as the preview; a person must confirm. '
+      + 'execute = the run may confirm by itself, but only with a signed-in person; otherwise '
+      + 'propose applies.',
+    'feld.AgentLimits.safety.label': 'Safety gate',
+    'feld.AgentLimits.safety.hint':
+      'Intended as the switch for the safety gate in agent mode. Currently not evaluated: the '
+      + 'gate always runs, in both engines and at the endpoint.',
+    'feld.AgentLimits.anonymous.label': 'Limits without sign-in',
+    'feld.AgentLimits.anonymous.hint':
+      'Tighter limits for chat turns without a personal sign-in; for each limit the smaller '
+      + 'value applies. When raising the normal limits, raise or clear these too. Not for '
+      + '/api/agent.',
+    'feld.AnonymousLimits.max_iterations.label': 'Maximum rounds',
+    'feld.AnonymousLimits.max_iterations.hint':
+      'Round limit for chat turns without sign-in, 1 to 50. Only takes effect if smaller than '
+      + 'the normal limit; empty = as signed in.',
+    'feld.AnonymousLimits.deadline_s.label': 'Deadline (seconds)',
+    'feld.AnonymousLimits.deadline_s.hint':
+      'Deadline in seconds for chat turns without sign-in, 5 to 1800. Only takes effect if '
+      + 'smaller than the normal limit; empty = as signed in.',
+    'feld.AnonymousLimits.token_budget.label': 'Token budget',
+    'feld.AnonymousLimits.token_budget.hint':
+      'Token budget for chat turns without sign-in, at least 1000. Only takes effect if '
+      + 'smaller than the normal limit; empty = as signed in.',
+    'feld.EngineArea.agent_rolle.label': 'Role and boundaries',
+    'feld.EngineArea.agent_rolle.hint':
+      'Head of every agent chain in the chat: role and safeguard rules, plus form of address '
+      + 'per audience and language. Comes before the master skill and takes precedence. No '
+      + 'effect at /api/agent.',
+    'feld.AgentRolle.rolle.label': 'Role',
+    'feld.AgentRolle.rolle.hint':
+      'First system text of the agent loop in the chat: who the agent is, how it works and '
+      + 'answers. Empty = the shipped default.',
+    'feld.AgentRolle.schutzregeln.label': 'Safeguard rules',
+    'feld.AgentRolle.schutzregeln.hint':
+      'Identifiers from the guardrails (such as R-05) that also apply in agent mode; their '
+      + 'wording and explanation go into the head. Unknown identifiers are dropped; the other '
+      + 'guardrails do not apply there.',
+    'feld.EngineArea.muster_skills.label': 'Skills in pattern mode',
+    'feld.EngineArea.muster_skills.hint':
+      'Adds get_skill_registry and get_skill to tool patterns of the pattern engine when '
+      + 'released skills are in play. Not for patterns without tools (crisis, threat). '
+      + 'Default off.',
+  },
+};

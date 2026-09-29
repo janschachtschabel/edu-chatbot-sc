@@ -135,6 +135,9 @@ class UsageEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # AG-1 (Migration 0004): die Maschine des Zugs, wie sie im Debug-Block
+    # steht. NULL bei Zeilen von vor der Migration und bei Frühausstiegen.
+    engine: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class EvalRun(Base):

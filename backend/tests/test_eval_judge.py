@@ -159,6 +159,21 @@ def test_soll_angebot_reaches_the_prompt_and_adds_the_axis(monkeypatch):
     assert out["total"] == round(9 / 10.0, 3)
 
 
+def test_der_judge_sieht_lange_antworten_bis_zu_den_karten(monkeypatch):
+    """K0-2 (2026-09-26): bei 1 500 Zeichen schnitt der Judge alles hinter einem
+    langen Dokument ab, auch die Karten — ``auftrag_erfuellt`` bestrafte damit
+    genau die Maschine, die ausführlich antwortet."""
+    reply = json.dumps({"intent_fit": 2, "persona_tone": 2, "safety": 2,
+                        "info_quality": 2})
+    fake = FakeLLM(replies=[reply])
+    monkeypatch.setattr(ej, "chat_completion", fake)
+    bot = "D" * 5000 + "\n[Material-Cards — vom Nutzer sichtbar, 3 Treffer]"
+
+    asyncio.run(ej.judge_turn({}, {}, "Frage", bot, dict(_J_DEBUG)))
+
+    assert "[Material-Cards" in fake.calls[0]["messages"][0]["content"]
+
+
 def test_auftrag_erfuellt_is_clamped_like_the_other_axes(monkeypatch):
     reply = json.dumps({"auftrag_erfuellt": "5"})
     out, _ = _judge(monkeypatch, reply, soll="x")

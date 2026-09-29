@@ -17,11 +17,12 @@ import hmac
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request, Security, status
+from fastapi import Depends, HTTPException, Query, Request, Security, status
 from fastapi.security import APIKeyHeader
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.i18n import Locale, resolve_locale
+from boerdi.services.session_origin import Scope
 from boerdi.settings import get_settings
 
 _HEADER = "X-Studio-Key"
@@ -103,6 +104,15 @@ def request_locale(request: Request) -> Locale:
 
 
 Lang = Annotated[Locale, Depends(request_locale)]
+
+#: Herkunft der Sitzungen (ST-9) an Kosten und Sitzungsliste — ein Literal statt
+#: eines freien Strings wie bei ``/api/quality/*``: ein Tippfehler soll 422
+#: ergeben, nicht still „alle". Bedeutung in ``services/session_origin.py``.
+OriginScope = Annotated[
+    Scope,
+    Query(description="Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- "
+                      "und Studio-Probe-Sitzungen) | 'eval'"),
+]
 
 
 def todo(package: str) -> HTTPException:

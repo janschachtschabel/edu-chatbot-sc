@@ -1,0 +1,117 @@
+{
+  "created": "20260926-204339",
+  "api": "http://127.0.0.1:8100",
+  "engines": [
+    "pattern",
+    "agent",
+    "hybrid"
+  ],
+  "repeat": 3,
+  "flows": [
+    "GV-LEH-1",
+    "GV-LEH-2",
+    "GV-LER-1",
+    "GV-LER-2",
+    "GV-ELT-1",
+    "GV-ENT-1",
+    "GV-RED-2",
+    "GV-RED-3",
+    "GV-AND-1",
+    "GV-AND-2",
+    "GV-WIS-1",
+    "GV-SAFE-1",
+    "GV-SAFE-2",
+    "GV-SAFE-3",
+    "GV-SAFE-4",
+    "GV-FREI-1",
+    "GV-FREI-2",
+    "GV-FREI-3",
+    "GV-FREI-4",
+    "GV-FREI-5",
+    "GV-FREI-6"
+  ],
+  "judge": true,
+  "runs": [
+    {
+      "engine": "pattern",
+      "rep": 1,
+      "label": "k0-pattern-r1",
+      "status": "done",
+      "started": "2026-09-26T20:43:39+00:00",
+      "run_id": "eval-57b83274d4b5",
+      "finished": "2026-09-26T20:57:02+00:00"
+    },
+    {
+      "engine": "agent",
+      "rep": 1,
+      "label": "k0-agent-r1",
+      "status": "done",
+      "started": "2026-09-26T20:57:03+00:00",
+      "run_id": "eval-ebf71a47ebf7",
+      "finished": "2026-09-26T21:09:16+00:00"
+    },
+    {
+      "engine": "hybrid",
+      "rep": 1,
+      "label": "k0-hybrid-r1",
+      "status": "done",
+      "started": "2026-09-26T21:09:16+00:00",
+      "run_id": "eval-21e9528d4aad",
+      "finished": "2026-09-26T21:22:50+00:00"
+    },
+    {
+      "engine": "pattern",
+      "rep": 2,
+      "label": "k0-pattern-r2",
+      "status": "done",
+      "started": "2026-09-26T21:22:50+00:00",
+      "run_id": "eval-18bb8af164b5",
+      "finished": "2026-09-26T21:36:14+00:00"
+    },
+    {
+      "engine": "agent",
+      "rep": 2,
+      "label": "k0-agent-r2",
+      "status": "done",
+      "started": "2026-09-26T21:36:14+00:00",
+      "run_id": "eval-01ea61acac1d",
+      "finished": "2026-09-26T21:50:08+00:00"
+    },
+    {
+      "engine": "hybrid",
+      "rep": 2,
+      "label": "k0-hybrid-r2",
+      "status": "done",
+      "started": "2026-09-26T21:50:08+00:00",
+      "run_id": "eval-b3b55c51f381",
+      "finished": "2026-09-26T22:03:12+00:00"
+    },
+    {
+      "engine": "pattern",
+      "rep": 3,
+      "label": "k0-pattern-r3",
+      "status": "done",
+      "started": "2026-09-26T22:03:12+00:00",
+      "run_id": "eval-ba6150c8863b",
+      "finished": "2026-09-26T22:15:56+00:00"
+    },
+    {
+      "engine": "agent",
+      "rep": 3,
+      "label": "k0-agent-r3",
+      "status": "done",
+      "started": "2026-09-26T22:15:56+00:00",
+      "run_id": "eval-f178d0b0df3d",
+      "finished": "2026-09-26T22:29:19+00:00"
+    },
+    {
+      "engine": "hybrid",
+      "rep": 3,
+      "label": "k0-hybrid-r3",
+      "status": "done",
+      "started": "2026-09-26T22:29:19+00:00",
+      "run_id": "eval-39b663a531e7",
+      "finished": "2026-09-26T22:42:13+00:00"
+    }
+  ]
+}

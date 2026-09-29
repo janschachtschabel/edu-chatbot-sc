@@ -56,11 +56,10 @@ def spec_mcp(monkeypatch):
     return calls
 
 
-async def _drive_spec(req, classification, safety, engine="pattern"):
+async def _drive_spec(req, classification, safety):
     """Funktion treiben und die gestarteten Fake-Tasks abräumen (sonst warnt
     asyncio.run beim Loop-Close über pending Tasks)."""
-    out = await run_speculative_prefetch(req, classification, safety,
-                                         engine=engine)
+    out = await run_speculative_prefetch(req, classification, safety)
     pending = ([out[0]] if out[0] is not None else []) + [t for _, t in out[4]]
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
@@ -68,14 +67,14 @@ async def _drive_spec(req, classification, safety, engine="pattern"):
 
 
 def _launch(message="Material zu Brüchen", intent="I03", entities=None,
-            pattern_hint=None, tool_hint=None, risk="low", engine="pattern"):
+            pattern_hint=None, tool_hint=None, risk="low"):
     req = ChatRequest(session_id="s", message=message)
     classification = ClassificationResult(
         intent_id=intent, entities=entities or {},
         pattern_id_hint=pattern_hint, tool_id_hint=tool_hint,
     )
     return asyncio.run(_drive_spec(req, classification,
-                                   SafetyDecision(risk_level=risk), engine))
+                                   SafetyDecision(risk_level=risk)))
 
 
 # ── Start-Bedingung: Skip-Zweige (Default-Tupel, kein MCP-Call) ──────────
@@ -345,46 +344,19 @@ def test_spec_sammlung_keyword_has_no_observable_effect(spec_mcp):
     assert _comparable(a) == _comparable(b)
 
 
-# ── H5 zurückgenommen (Review-Befund 2, 2026-08-22) ─────────────────────
+# ── Die Ersatz-Klassifikation der Agent-Schleife ───────────────────────
 #
-# H5 hatte den Vorabruf für den Hybrid an ``_looks_like_search_query``
-# gehängt — aber die Verbrauchsseite wurde nie gebaut: ``respond_agent``
-# verwirft ``ctx.spec_task`` unbedingt (``_verwirf_vorabruf``), für agent
-# UND hybrid. Ergebnis war ein verworfener MCP-Roundtrip je such-artigem
-# Hybrid-Zug — genau das Muster, das dieselbe Datei an den M16-/I04-Skips
-# ausdrücklich vermeidet. Bis eine Einspeisung in die Schleife existiert
-# (Framing + Karten-Ernte + tools_called-Annotation), startet der Hybrid
-# KEINEN Vorabruf. Die alten Zusicherungen sind damit absichtlich
-# umgekehrt; die Begründung steht in ``_startet_der_vorabruf``.
+# Die Schleife klassifiziert nicht; ``assess`` legt ``I01`` und leere Entities
+# an. Damit startet kein Vorabruf, und das ist richtig: ``respond_agent``
+# verwirft ``ctx.spec_task`` unbedingt (``_verwirf_vorabruf``). Bis K1-1
+# prüften drei Tests dasselbe für den Hybrid, der seit H5 (zurückgenommen,
+# Review-Befund 2, 2026-08-22) an keiner eigenen Bedingung mehr hing.
 
 
-def _hybrid(message, risk="low"):
-    """Wie der Hybrid wirklich ankommt: Ersatz-Klassifikation, leere Entities."""
-    return _launch(message=message, intent="I01", entities={},
-                   risk=risk, engine="hybrid")
-
-
-def test_hybrid_startet_keinen_vorabruf(spec_mcp):
-    """Auch bei einem klaren Suchsatz: kein spekulativer MCP-Aufruf, denn
-    ``respond_agent`` würde ihn ohnehin verwerfen — Start ohne Verbrauch
-    wäre bezahlte, weggeworfene Arbeit."""
-    _hybrid("Material zur Optik für Klasse 8")
-    assert spec_mcp == []
-
-
-def test_hybrid_laesst_meta_fragen_liegen(spec_mcp):
-    _hybrid("Was kannst du?")
-    assert spec_mcp == []
-
-
-def test_hybrid_haelt_sich_an_das_sicherheits_gate(spec_mcp):
-    _hybrid("Material zur Optik", risk="high")
-    assert spec_mcp == []
-
-
-def test_die_musterengine_bleibt_am_klassifikator(spec_mcp):
-    """Gegenrichtung: derselbe Satz, aber mit I01 und leeren Entities im
-    BESTANDSWEG — dort entscheidet weiterhin der Klassifikator, und der sagt
-    nein. Ohne diese Zusicherung hätte H5 den Bestandspfad mitverändert."""
-    _launch(message="Material zur Optik für Klasse 8", intent="I01", entities={})
+@pytest.mark.parametrize("risk", ["low", "high"])
+def test_die_ersatz_klassifikation_startet_keinen_vorabruf(spec_mcp, risk):
+    """Auch bei einem klaren Suchsatz: kein spekulativer MCP-Aufruf — Start
+    ohne Verbrauch wäre bezahlte, weggeworfene Arbeit."""
+    _launch(message="Material zur Optik für Klasse 8", intent="I01",
+            entities={}, risk=risk)
     assert spec_mcp == []

@@ -741,8 +741,9 @@ async def _run_tool_loop(
                 # „45 min physik sek 1" landete beim Klassifikator in einem
                 # fremden Muster, und das Modell holte eine andere Anleitung.
                 # Nur bei ECHTEM Ergebnis merken — ein Fehlschlag ist keine
-                # laufende Anleitung.
-                if tool_name == "get_skill" and result_text:
+                # laufende Anleitung. Ein MCP-Fehler kommt als gewöhnlicher
+                # Text zurück, deshalb zählt der Befund (Review 2026-09-26).
+                if tool_name == "get_skill" and result_text and outcome.status == "success":
                     merke_laufende_anleitung(
                         session_state.setdefault("entities", {}),
                         tool_args.get("nodeId"),

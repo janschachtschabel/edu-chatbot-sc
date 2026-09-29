@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  formatDateTime, formatDecimal, formatMoney, formatPercent, formatRelative, formatUsd,
-  formatWhole,
+  formatBytes, formatDateTime, formatDecimal, formatMoney, formatPercent, formatRelative,
+  formatSeconds, formatUsd, formatWhole,
 } from './format';
 
 /** German typography puts a NO-BREAK space before the percent sign. */
@@ -44,6 +44,46 @@ describe('formatWhole', () => {
 
   it('groups them the English way', () => {
     expect(formatWhole(EN, 12345)).toBe('12,345');
+  });
+});
+
+describe('formatBytes', () => {
+  it('picks the largest unit that keeps the number at one or more', () => {
+    expect(formatBytes(DE, 512)).toBe('512 Byte');
+    expect(formatBytes(DE, 1536)).toBe('1,5 kB');
+    expect(formatBytes(DE, 20.47 * 1024 ** 2)).toBe('20,5 MB');
+    // ICU's German data joins "GB" (only "GB") with a no-break space
+    expect(formatBytes(DE, 2 * 1024 ** 3)).toBe(`2${NBSP}GB`);
+  });
+
+  it('counts in steps of 1024, as PostgreSQL reports its sizes', () => {
+    // pg_size_pretty says "8192 bytes" → "8 kB"; the studio must not answer
+    // the same database with a second, decimal number.
+    expect(formatBytes(DE, 8192)).toBe('8 kB');
+    expect(formatBytes(DE, 1023)).toBe('1.023 Byte');
+  });
+
+  it('follows English typography', () => {
+    expect(formatBytes(EN, 1536)).toBe('1.5 kB');
+    expect(formatBytes(EN, 512)).toBe('512 byte');
+  });
+
+  it('picks the unit by magnitude, so a negative difference keeps its unit', () => {
+    expect(formatBytes(DE, -8192)).toBe('-8 kB');
+  });
+});
+
+describe('formatSeconds (ST-7b)', () => {
+  it('turns milliseconds into seconds with one place and the SI symbol', () => {
+    // Das Einheitenzeichen ist sprachneutral; ICU schreibt „Sek." oder „s" je
+    // nach Version — die Zugdauer soll überall gleich aussehen.
+    expect(formatSeconds(DE, 12340)).toBe(`12,3${NBSP}s`);
+    expect(formatSeconds(DE, 960)).toBe(`1,0${NBSP}s`);
+    expect(formatSeconds(EN, 21800)).toBe(`21.8${NBSP}s`);
+  });
+
+  it('groups thousands in long runs', () => {
+    expect(formatSeconds(DE, 1_234_000)).toBe(`1.234,0${NBSP}s`);
   });
 });
 

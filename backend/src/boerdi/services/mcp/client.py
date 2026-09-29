@@ -7,8 +7,9 @@ hier nur der EIGEN-Code des Clients verbleibt:
 
 * ``call_mcp_tool`` — die Orchestrierung: Server-URL-Lookup → ``validate_tool_args``
   → ``TOOL_PREPROCESSORS``-Pipeline → outputFormat-json-Injektion → Cache-Lookup
-  (Blocklist/Meta-Re-Emit) → ``transport.call_tool`` → Fehler→Retry-once →
-  ``_queryMeta``-Extraktion → ``get_subject_portals``-Kompaktierung → cache_set.
+  (Blocklist/Meta-Re-Emit) → ``transport.call_tool`` → Fehler→Retry-once (nur
+  ohne Antwort, nie nach einer Ablehnung) → ``_queryMeta``-Extraktion →
+  ``get_subject_portals``-Kompaktierung → cache_set.
 * ``_query_metas`` (ContextVar) + ``reset_query_metas`` + ``get_query_metas`` —
   Per-Request-Akkumulator der ``_queryMeta``-Blöcke (die Route/SSE-Schicht liest
   + leert ihn pro Turn). Wie ``_request_hints`` in arg_resolvers per-Task-scoped.
@@ -193,19 +194,24 @@ def _compact_subject_portals(raw_response: str) -> str:
     return json.dumps(out, ensure_ascii=False)
 
 
-async def call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> str:
+async def call_mcp_tool(
+    tool_name: str, arguments: dict[str, Any], *, use_cache: bool = True,
+) -> str:
     """Call a WLO MCP tool via the SDK transport, with parity-preserving wiring.
 
     Der Vertrag für die 25 Aufrufstellen und für das Modell: **immer** eine
     Zeichenkette, auch im Fehlerfall (:func:`is_mcp_error`). Wer zusätzlich
     wissen muss, WIE es schiefging, nimmt :func:`call_mcp_tool_status`.
+
+    ``use_cache=False`` liest den Werkzeug-Cache nicht, legt das frische
+    Ergebnis aber wieder ab — für „jetzt neu holen" (Master-Skill im Studio).
     """
-    text, _art = await call_mcp_tool_status(tool_name, arguments)
+    text, _art = await call_mcp_tool_status(tool_name, arguments, use_cache=use_cache)
     return text
 
 
 async def call_mcp_tool_status(
-    tool_name: str, arguments: dict[str, Any]
+    tool_name: str, arguments: dict[str, Any], *, use_cache: bool = True,
 ) -> tuple[str, str]:
     """Wie :func:`call_mcp_tool`, sagt aber zusätzlich die **Art** des Fehlers.
 
@@ -282,7 +288,7 @@ async def call_mcp_tool_status(
     cache_key = None
     if tool_name not in _TOOL_CACHE_BLOCKLIST:
         cache_key = _cache_key(tool_name, arguments)
-        cached = _cache_get(cache_key)
+        cached = _cache_get(cache_key) if use_cache else None
         if cached is not None:
             logger.info("MCP tool %s cache HIT (%d entries)", tool_name, len(_TOOL_CACHE))
             # Cached queryMetas auch wieder in den Per-Request-Akkumulator
@@ -305,22 +311,33 @@ async def call_mcp_tool_status(
     # ``_json_rpc``-Form (``{"result": {"content": …}}`` / ``{"error": …}``).
     result = await transport.call_tool(tool_name, arguments, url=target_url)
 
-    if "error" in result:
+    # Einmal wiederholen — aber nur, wenn KEINE Antwort kam (Review 2026-09-29).
+    # Hat der Server geantwortet und abgelehnt (``kind == "tool"``: unbekanntes
+    # Werkzeug, zod-Validierung, abgelaufener Schlüssel), sagt ein zweiter
+    # Aufruf dasselbe noch einmal: eine zweite Sitzung und doppelte
+    # ERROR-Zeilen für nichts. Bei einem bestätigten Schreibzugriff schadet er
+    # sogar — der Server löscht den ``confirmToken`` beim ersten
+    # Einlöseversuch, die Wiederholung meldete „unbekannt oder bereits
+    # benutzt" und verdeckte den Grund. Die Ablehnung protokolliert der
+    # Transport; eine Zeile hier wäre dieselbe noch einmal. Ohne ``kind`` wird
+    # wiederholt: unbekannt zählt wie „keine Antwort" (Docstring).
+    if "error" in result and result["error"].get("kind") != "tool":
         error_msg = result["error"].get("message", "Unknown error")
         logger.error("MCP tool %s error @ %s: %s", tool_name, target_url, error_msg)
-        # Retry once with a fresh session (der Transport öffnet sie ohnehin neu).
         logger.info("Retrying MCP tool %s with fresh session @ %s...", tool_name, target_url)
         result = await transport.call_tool(tool_name, arguments, url=target_url)
         if "error" in result:
             error_msg = result["error"].get("message", "Unknown error")
             logger.error("MCP tool %s retry failed @ %s: %s", tool_name, target_url, error_msg)
-            # Ohne ``kind`` gilt „keine Antwort" — siehe Docstring: „abgelehnt"
-            # ist die stärkere Behauptung und braucht einen Beleg.
-            _art = result["error"].get("kind")
-            return (
-                f"{_MCP_ERROR_PREFIX}: {error_msg}",
-                _art if _art in ("tool", "transport") else "transport",
-            )
+
+    if "error" in result:
+        # Ohne ``kind`` gilt „keine Antwort" — siehe Docstring: „abgelehnt"
+        # ist die stärkere Behauptung und braucht einen Beleg.
+        _art = result["error"].get("kind")
+        return (
+            f"{_MCP_ERROR_PREFIX}: {result['error'].get('message', 'Unknown error')}",
+            _art if _art in ("tool", "transport") else "transport",
+        )
 
     # Extract text content from result, separating _queryMeta blocks.
     result_data = result.get("result", {})

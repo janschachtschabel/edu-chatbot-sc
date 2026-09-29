@@ -27,6 +27,7 @@ from boerdi.domain.skill_precedence import (
     MAX_BESTAND_SAMMLUNGEN,
     MAX_TITEL_ZEICHEN,
     anleitungs_hinweis,
+    in_diesem_zug_geholt,
     laufende_anleitung,
     merke_laufende_anleitung,
     merke_skill_sammlung,
@@ -544,3 +545,30 @@ def test_eine_antwort_aus_lauter_ansagen_behaelt_die_belegte_zeile():
     assert mit_ladehinweisen(nur_ansage, [{"node_id": "a", "titel": "Stunde planen"}]) == (
         "[ edu-sharing Skill ] Stunde planen - wird geladen")
     assert mit_ladehinweisen(nur_ansage, []) == ""
+
+
+# -- AG-5: welche Anleitung DIESER Zug geholt hat -----------------------------
+
+
+def test_in_diesem_zug_geholt_liest_die_notiz_des_zugs():
+    entities: dict = {}
+    merke_laufende_anleitung(entities, "5b29f470", zug=3, titel="Stunde planen")
+    assert in_diesem_zug_geholt(entities, 3) == {
+        "node_id": "5b29f470", "titel": "Stunde planen"}
+
+
+def test_eine_notiz_aus_einem_frueheren_zug_zaehlt_nicht():
+    """Die Notiz ueberdauert den Zug, weil sie den Faden einer Rueckfrage
+    traegt. Geholt wurde die Anleitung aber im Zug davor."""
+    entities: dict = {}
+    merke_laufende_anleitung(entities, "5b29f470", zug=3)
+    assert in_diesem_zug_geholt(entities, 4) is None
+
+
+@pytest.mark.parametrize("entities", [
+    None, {}, {LAUF_KEY: "kaputt"}, {LAUF_KEY: {"zug": 3}},
+    {LAUF_KEY: {"node_id": "n", "zug": True}},
+])
+def test_ohne_brauchbare_notiz_nichts(entities):
+    assert in_diesem_zug_geholt(entities, 3) is None
+    assert in_diesem_zug_geholt(entities, True) is None

@@ -42,10 +42,11 @@ from typing import Any
 CLARIFIER_PATTERN_ID = "M03"
 
 # Wohin der erschöpfte Vorgang aufgelöst wird: Orientierung statt einer vierten
-# wortgleichen Frage. Bewusst NICHT über das Fallenlassen des Klassifikator-
-# Hinweises gelöst — der Rückfall von ``select_pattern`` iteriert die nach
-# Schlüssel SORTIERTE Musterliste, in der ``m03…`` vor ``m15…`` steht, und
-# liefert damit wieder den Klärer (siehe Notiz im Plan).
+# wortgleichen Frage. Bewusst ausdrücklich erzwungen statt über das Fallenlassen
+# des Klassifikator-Hinweises: bis 2026-09-27 lieferte der Rückfall von
+# ``select_pattern`` dabei wieder den Klärer (er ging die nach Schlüssel
+# sortierte Musterliste durch, ``m03…`` vor ``m15…``). An die Rangfolge des
+# Rückfalls soll der Frame sich nicht wieder koppeln.
 _EXHAUSTED_TARGET_PATTERN_ID = "M15"
 
 # Zwei wortgleiche Rückfragen darf der Bot stellen, die dritte nicht mehr: die

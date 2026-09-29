@@ -184,6 +184,36 @@ def test_group_reply_miss_twice_ends_tour(monkeypatch):
     assert save.calls == []  # user message left for the normal flow
 
 
+@pytest.mark.parametrize("message", [
+    "ich will nicht mehr leben",      # Krise → M01
+    "Ich werde dich umbringen",       # Drohung → M02
+])
+def test_group_schritt_ueberlaesst_krise_und_drohung_dem_safety_gate(
+        monkeypatch, message):
+    """SF-1c (2026-09-26): Im Gruppen-Schritt galt jeder freie Satz als
+    Gruppen-Antwort, auch ein Krisensatz. Er bekam „Für wen suchst du?" statt
+    der Hilfsnummern und erreichte das Safety-Gate erst einen Zug später. Jetzt
+    endet die Tour, und der normale Weg antwortet mit M01/M02."""
+    upd, save = _patch(monkeypatch)
+    state = {"active": True, "step": "group", "group": "", "misses": 0}
+    out = _run(_ctx(None, message=message, page="/home/", tour_state=state))
+
+    assert out.early_response is None
+    assert upd.calls[-1]["kwargs"]["tour_state"]["active"] is False
+    assert save.calls == []  # die Nachricht bleibt dem normalen Weg
+
+
+def test_ausloeser_phrase_startet_die_tour_nicht_ueber_einen_krisensatz(monkeypatch):
+    """SF-1c, zweiter Weg: Ein Auslöser im Satz startete die Tour, bevor das
+    Safety-Gate den Krisenteil desselben Satzes sah."""
+    upd, save = _patch(monkeypatch)
+    out = _run(_ctx(None, message="zeig mir die seite bitte, ich will nicht mehr leben",
+                    page="/"))
+
+    assert out.early_response is None
+    assert upd.calls == [] and save.calls == []
+
+
 # ── fall-through / soft-exit ────────────────────────────────────
 
 def test_soft_exit_active_tour_on_normal_message(monkeypatch):

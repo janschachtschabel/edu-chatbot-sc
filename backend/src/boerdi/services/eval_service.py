@@ -5,6 +5,9 @@ import point (spec rule 4). The implementation is split by responsibility:
 
 * ``eval/cost`` — config snapshot + cost estimate (pure, no DB)
 * ``eval/queries`` — ``eval_runs`` reads + pattern analytics over quality_logs
+* ``eval/run_profile`` — the run detail's profile (ST-7b), K0-1's arithmetic
+  from ``eval/engine_metrics``
+* ``eval/engine_compare`` — K0-1's evaluation over runs the Studio picks (ST-7c)
 * ``eval/mutations`` — the delete paths
 * ``eval/run_store`` — what both run families share: chat URL, parallel-guard,
   terminal write
@@ -30,6 +33,7 @@ from boerdi.services.eval.cost import (
     list_gold_flows,
     list_personas_and_intents,
 )
+from boerdi.services.eval.engine_compare import compare_runs
 from boerdi.services.eval.generative_run import (
     _execute_generative_run,
     _progress_writer,
@@ -52,6 +56,7 @@ from boerdi.services.eval.queries import (
     list_runs,
     pattern_usage_stats,
 )
+from boerdi.services.eval.run_profile import get_run_with_profile
 from boerdi.services.eval.run_store import _ensure_no_running_run, _finalize_run
 
 __all__ = [
@@ -64,11 +69,13 @@ __all__ = [
     "_progress_writer",
     "cancel_run",
     "clear_eval_quality_logs",
+    "compare_runs",
     "delete_run",
     "delete_runs",
     "estimate",
     "estimate_cost",
     "get_run",
+    "get_run_with_profile",
     "get_trends",
     "list_gold_flows",
     "list_personas_and_intents",

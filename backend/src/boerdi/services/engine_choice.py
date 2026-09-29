@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 from typing import Final
 
+from boerdi.domain.config_models.engine import warne_hybrid_einmal as _warne_einmal
 from boerdi.services.config_loader import load_engine
 
 logger = logging.getLogger(__name__)
@@ -34,33 +35,50 @@ ENGINE_HEADER: Final = "X-Boerdi-Engine"
 PATTERN: Final = "pattern"
 AGENT: Final = "agent"
 
-#: Die dritte Maschine: Agent-Schleife, aber mit dem Musterkatalog als Werkzeug.
-#: Sie wählt kein Muster im Voraus, sondern lässt das Modell eines ziehen, wenn es
-#: die Trefferlage kennt — deshalb steht sie zwischen den beiden anderen und nicht
-#: neben ihnen.
-HYBRID: Final = "hybrid"
+_ERLAUBT: Final = frozenset({PATTERN, AGENT})
 
-_ERLAUBT: Final = frozenset({PATTERN, AGENT, HYBRID})
-
-#: Die Maschinen, die einen Zug über die Agent-Schleife beantworten.
-_UEBER_DIE_SCHLEIFE: Final = frozenset({AGENT, HYBRID})
+#: K1-1 (2026-09-27): der Hybrid ist entfernt — die K0-Messung zeigte ihn
+#: zwischen den beiden anderen, ohne eigenen Mehrwert. Eine Einbettung, die ihn
+#: noch anfordert, bekommt die Schleife statt der Vorgabe: sie hatte eine
+#: Schleife bestellt, und still auf die Muster-Maschine zu fallen, wäre der
+#: größere Bruch.
+_ALIASE: Final = {"hybrid": AGENT}
 
 
 def laeuft_ueber_die_schleife(engine: str) -> bool:
     """Beantwortet diese Maschine den Zug über die Agent-Schleife?
 
-    ``agent`` und ``hybrid`` teilen sich die Schleife, ihre Deckel und den
-    Verzicht auf den Klassifikator; verschieden ist allein, ob der Musterkatalog
-    als Werkzeug danebenliegt. **Vier** Knoten fragen danach (``assess``,
-    ``route`` zweimal, ``respond``) — als Vergleich gegen Literale geschrieben,
-    wäre der nächste Modus vier stille Auslassungen, und jede einzelne davon
-    ließe den Zug halb über die eine und halb über die andere Maschine laufen.
+    Vier Knoten fragen danach (``assess``, ``merge``, ``route``, ``respond``) —
+    an einer Stelle statt als Vergleich gegen Literale je Knoten, damit ein
+    künftiger Modus keine stille Auslassung wird.
+
+    Ob die Schleife einen einzelnen ZUG beantwortet, sagt
+    :func:`zug_laeuft_ueber_die_schleife` — dort geht die Sicherheit vor.
     """
-    return engine in _UEBER_DIE_SCHLEIFE
+    return engine == AGENT
+
+
+def zug_laeuft_ueber_die_schleife(engine: str, erzwungenes_muster: str | None) -> bool:
+    """Beantwortet die Schleife DIESEN Zug? (SF-1, 2026-09-26)
+
+    Nein, sobald das Sicherheits-Gate ein Muster erzwungen hat (M01 Krise, M02
+    Drohung) — gleich, welche Maschine gewählt ist. Die Schutzantworten gibt es
+    nur im Muster-Weg; in der Schleife kamen von ihnen allein die gesperrten
+    Such-Werkzeuge an, die Hilfsnummern und die Ablehnung nie.
+
+    ``route`` (Musterwahl) und ``respond`` (Übergabe an ``respond_agent``)
+    fragen beide HIER. Fragte einer nach der Maschine und der andere nach dem
+    Zug, bekäme die Schleife das Schutzmuster oder der Muster-Weg das
+    synthetische. Die Schnellwege fragen bewusst weiter nach der Maschine und
+    bleiben in den Schleifen aus; zusätzlich schaltet ``route`` sie bei jeder
+    Erzwingung ab, auch in der Muster-Maschine (SF-1b). Ein erzwungener Zug
+    bekommt die Musterwahl, keinen Lernpfad und kein Canvas-Material.
+    """
+    return laeuft_ueber_die_schleife(engine) and not erzwungenes_muster
 
 
 def choose_engine(header: str | None) -> str:
-    """``"pattern"``, ``"agent"`` oder ``"hybrid"`` für diesen Zug.
+    """``"pattern"`` oder ``"agent"`` für diesen Zug.
 
     Ein unlesbarer Konfigurationsbereich endet bei der Muster-Engine: der
     Bestand ist der sichere Weg, und ein Zug soll nicht deshalb anders
@@ -69,6 +87,9 @@ def choose_engine(header: str | None) -> str:
     gewuenscht = (header or "").strip().lower()
     if gewuenscht in _ERLAUBT:
         return gewuenscht
+    if gewuenscht in _ALIASE:
+        _warne_einmal(f"Kopfzeile {ENGINE_HEADER}")
+        return _ALIASE[gewuenscht]
     if gewuenscht:
         logger.info(
             "Kopfzeile %s mit unbekanntem Wert vorgelegt — es gilt die Vorgabe "

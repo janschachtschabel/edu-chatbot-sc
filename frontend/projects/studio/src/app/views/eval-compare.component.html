@@ -1,0 +1,86 @@
+<section class="cmp" aria-labelledby="cmp-title">
+  <header class="cmp-head">
+    <h3 class="cmp-title" id="cmp-title" tabindex="-1" #heading>{{ title() }}</h3>
+    <div class="cmp-actions">
+      <button type="button" class="cmp-btn" [disabled]="comparison.loading()" (click)="reload()">
+        {{ comparison.loading() ? t('action.refreshing') : t('action.refresh') }}
+      </button>
+      <button type="button" class="cmp-btn" (click)="dismiss.emit()">
+        {{ t('evalCompare.close') }}
+      </button>
+    </div>
+  </header>
+
+  @if (comparison.loading()) {
+    <p class="cmp-note cmp-computing" role="status">{{ t('evalCompare.computing') }}</p>
+  }
+
+  <studio-async-state
+    [label]="t('evalCompare.state')"
+    [loading]="comparison.loading() && !data()"
+    [error]="comparison.error()"
+    (retry)="reload()"
+  />
+
+  @if (data()) {
+    @if (warnings().length > 0) {
+      <ul class="cmp-warnings" [attr.aria-label]="t('evalCompare.warnings')">
+        @for (warning of warnings(); track $index) {
+          <li>{{ warning }}</li>
+        }
+      </ul>
+    }
+
+    @if (columns().length > 0) {
+      <div class="cmp-table-wrap">
+        <table class="cmp-table">
+          <caption>{{ t('evalCompare.caption') }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ t('evalCompare.col.criterion') }}</th>
+              @for (header of headers(); track $index) {
+                <th scope="col">{{ header }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.key) {
+              <tr>
+                <th scope="row">
+                  {{ row.label }}
+                  @if (row.hint) {
+                    <span class="cmp-hint">{{ row.hint }}</span>
+                  }
+                </th>
+                @for (cell of row.cells; track $index) {
+                  <td>{{ cell }}</td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="cmp-note">{{ t('evalCompare.legend') }}</p>
+    }
+
+    <section class="cmp-rule" aria-labelledby="cmp-rule-title">
+      <h4 class="cmp-sub" id="cmp-rule-title">{{ t('evalCompare.r2a.title') }}</h4>
+      <p class="cmp-verdict">{{ rule() }}</p>
+      @if (factors(); as text) {
+        <p class="cmp-note">{{ text }}</p>
+      }
+      <p class="cmp-note">{{ t('evalCompare.r2b') }}</p>
+    </section>
+
+    @if (conditions().length > 0) {
+      <section class="cmp-conditions" aria-labelledby="cmp-conditions-title">
+        <h4 class="cmp-sub" id="cmp-conditions-title">{{ t('evalCompare.conditions.title') }}</h4>
+        <ul>
+          @for (condition of conditions(); track $index) {
+            <li>{{ condition }}</li>
+          }
+        </ul>
+      </section>
+    }
+  }
+</section>

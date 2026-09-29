@@ -107,6 +107,15 @@ describe('StudioLanguageService', () => {
     expect(lang.switchLabel()).toBe('Switch to German');
   });
 
+  it('weiß, ob ein Text im Katalog steht — sonst zeigte ein Feld seinen Katalog-Schlüssel', () => {
+    // ST-1: ein Feld ohne Katalogtext soll seinen ROHSCHLÜSSEL zeigen
+    // („core_rule"), nicht den Katalog-Schlüssel, den `t()` als letzten
+    // Rückfall zurückgibt („feld.PatternFrontmatter.core_rule.label").
+    const lang = service();
+    expect(lang.has('schemaField.noChoice')).toBe(true);
+    expect(lang.has('feld.GibtEsNicht.feld.label')).toBe(false);
+  });
+
   // ── Mehrzahl (C1-d3a) ───────────────────────────────────────────────
   //
   // Bis C1-d2 stand die Mehrzahl handgeschrieben in den Ansichten
@@ -152,6 +161,19 @@ describe('StudioLanguageService', () => {
 
     it('ein einzelnes Glied steht für sich, ohne Binder', () => {
       expect(service().list(['eine Datei'])).toBe('eine Datei');
+    });
+  });
+
+  // ST-8b: „fällt weg bei einer Krise, einer Drohung ODER …" — dieselbe
+  // Plattform-Antwort, nur als Auswahl statt als Aufzählung.
+  describe('listOr', () => {
+    it('verbindet als Auswahl nach der Regel der aktiven Sprache', () => {
+      const lang = service();
+      expect(lang.listOr(['eine Krise', 'eine Drohung', 'persönliche Daten']))
+        .toBe('eine Krise, eine Drohung oder persönliche Daten');
+
+      lang.toggle();
+      expect(lang.listOr(['a crisis', 'a threat'])).toBe('a crisis or a threat');
     });
   });
 

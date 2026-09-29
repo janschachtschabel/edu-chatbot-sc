@@ -63,9 +63,16 @@ async def _record_usage(session: AsyncSession, session_id: str, state: dict) -> 
     Antwort trotzdem raus (``usage_store`` schluckt seine eigenen Fehler; das
     ``try`` hier fängt zusätzlich alles, was davor schiefgeht — etwa ein
     unerwartet geformter Zustand).
+
+    Die Maschine (AG-1) kommt aus dem Debug-Block der Antwort und nicht noch
+    einmal aus der Kopfzeile: so sagen Buchung und Debug-Block dasselbe, und
+    ein Frühausstieg (leeres ``engine``) bucht ohne Maschine.
     """
     try:
-        await record_turn_usage(session, session_id, state.get("usage"))
+        antwort = state.get("early_response") or state.get("response")
+        debug = getattr(antwort, "debug", None)
+        await record_turn_usage(session, session_id, state.get("usage"),
+                                engine=getattr(debug, "engine", "") or None)
     except Exception:
         logger.warning("usage: Verbrauch dieses Zuges nicht erfasst", exc_info=True)
 

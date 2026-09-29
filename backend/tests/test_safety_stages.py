@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+import pytest
 from pydantic import SecretStr
 
 from boerdi.obs.usage import new_accumulator
@@ -154,6 +155,47 @@ def test_moderate_parses_flagged_categories_and_scores(monkeypatch):
     assert out["flagged"] is True
     assert out["categories"] == {"violence": True, "hate": False}
     assert out["scores"] == {"violence": 0.9, "hate": 0.1}
+
+
+# ── Schreibweise der Kategorien (Befund 2026-09-27) ──────────────────────
+# Die 13 Kategorien von omni-moderation-latest, wie die API sie nennt …
+_API = {
+    "harassment": 0.01, "harassment/threatening": 0.02, "hate": 0.03,
+    "hate/threatening": 0.04, "illicit": 0.05, "illicit/violent": 0.06,
+    "self-harm": 0.07, "self-harm/intent": 0.30, "self-harm/instructions": 0.09,
+    "sexual": 0.10, "sexual/minors": 0.11, "violence": 0.12, "violence/graphic": 0.13,
+}
+# … wie das OpenAI-SDK sie als Feldnamen führt …
+_SDK = {k.replace("-", "_").replace("/", "_"): v for k, v in _API.items()}
+# … und was tatsächlich ankommt: BEIDES, 21 Schlüssel (golden-20260927-131857-
+# e6b-an-3.json; das SDK legt die API-Namen neben den Feldnamen als Extras ab).
+_GEMISCHT = {**_SDK, **_API}
+# Die eine Schreibweise, die Seed und Code benutzen: API-Name, "_" statt "-".
+_KANON = {k.replace("-", "_"): v for k, v in _API.items()}
+
+
+@pytest.mark.parametrize("eingang", [_GEMISCHT, _API, _SDK],
+                         ids=["gemischt-wie-gemessen", "api", "sdk"])
+def test_moderate_fuehrt_jede_schreibweise_auf_die_des_seeds_zurueck(monkeypatch, eingang):
+    """Der Seed prüft ``self_harm/intent`` (Schwelle 0,25, harte Kategorie). Die
+    Moderation meldete ``self-harm/intent`` UND ``self_harm_intent`` — nie die
+    Mischform. Also galt für Suizid-Absicht die Vorgabe 0,95, und die harte
+    Kategorie griff nie. Gleich ist nicht genug: auch kein Duplikat darf
+    bleiben, sonst zählt dieselbe Kategorie doppelt in Debug und Protokoll."""
+    monkeypatch.setattr(mod, "_moderation_target",
+                        lambda: ("https://api.openai.com/v1", "sk-x", None))
+
+    async def _fake(**_kwargs):
+        return _fake_moderation_response(
+            flagged=True,
+            categories={k: v >= 0.25 for k, v in eingang.items()},
+            scores=eingang,
+        )
+
+    monkeypatch.setattr(mod, "_amoderation", _fake)
+    out = asyncio.run(mod.moderate("x"))
+    assert out["scores"] == _KANON
+    assert out["categories"] == {k: v >= 0.25 for k, v in _KANON.items()}
 
 
 def test_moderate_no_target_returns_empty(monkeypatch):

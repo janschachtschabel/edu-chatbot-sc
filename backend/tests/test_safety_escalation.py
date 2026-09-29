@@ -12,11 +12,20 @@ Trigger-Override.
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
+import yaml
+
+from boerdi.domain.config_models.base_governance import KRISENTEXT_VORGABE
 from boerdi.obs.usage import new_accumulator
+from boerdi.services import agent_gate
 from boerdi.services.safety import legal as legal_mod
 from boerdi.services.safety import moderation as moderation_mod
 from boerdi.services.safety import service as ss
+
+_SEED = Path(__file__).resolve().parents[1] / "seeds" / "01-base" / "safety-config.yaml"
 
 _CFG = {
     "security_level": "max",
@@ -124,3 +133,79 @@ def test_assess_safety_ohne_merkposten_bleibt_lauffaehig(monkeypatch):
     d = _run(monkeypatch, "harmlos", seen=seen)
     assert seen["usage_acc"] is None
     assert d.risk_level in {"low", "medium", "high"}
+
+
+# ── Suizid-Absicht mit dem ausgelieferten Seed (Befund 2026-09-27) ────────
+
+def _gemessene_form(scores: dict[str, float]) -> dict[str, float]:
+    """``scores`` (API-Namen) so, wie die Moderation sie liefert: SDK-Feldname
+    UND API-Name nebeneinander (golden-20260927-131857-e6b-an-3.json)."""
+    sdk = {k.replace("-", "_").replace("/", "_"): v for k, v in scores.items()}
+    return {**sdk, **scores}
+
+
+def test_suizid_absicht_greift_mit_seed_schwelle_und_harter_kategorie(monkeypatch):
+    """Seed: ``self_harm/intent`` Schwelle 0,25 und harte Kategorie. Die
+    Moderation meldete die Kategorie aber nur als ``self-harm/intent`` und
+    ``self_harm_intent`` — so galt die Vorgabe 0,95, und eine Absicht mit 0,30
+    blieb „gering", solange ``self_harm`` unter 0,5 lag. Echter Seed, echtes
+    Parsing, nur der Netzaufruf ist ersetzt."""
+    seed = yaml.safe_load(_SEED.read_text(encoding="utf-8"))
+    monkeypatch.setattr(ss, "load_safety_config", lambda: seed)
+    monkeypatch.setattr(agent_gate, "load_safety_config", lambda: seed)
+    monkeypatch.setattr(moderation_mod, "_moderation_target",
+                        lambda: ("https://api.openai.com/v1", "sk-x", None))
+    scores = _gemessene_form({"self-harm": 0.10, "self-harm/intent": 0.30, "violence": 0.02})
+
+    async def _fake(**_kwargs):
+        ergebnis = SimpleNamespace(flagged=True,
+                                   categories={k: v >= 0.25 for k, v in scores.items()},
+                                   category_scores=scores)
+        return SimpleNamespace(results=[ergebnis])
+
+    monkeypatch.setattr(moderation_mod, "_amoderation", _fake)
+    d = asyncio.run(ss.assess_safety("harmlos klingende nachricht"))
+    assert d.flagged_categories == ["self_harm/intent"]
+    assert d.risk_level == "high"
+    assert d.enforced_pattern == "M01"
+    assert "hard_block:self_harm/intent" in d.reasons
+    assert "jugendschutz" in d.legal_flags
+    # Der Agent-Endpunkt erkennt die Krise an derselben Kategorie.
+    assert agent_gate.stopp_text(d, "de") == KRISENTEXT_VORGABE
+
+
+# ── Leere Werte aus dem Studio wie fehlende behandeln ─────────────────────
+
+@pytest.mark.parametrize("wert", ["", None], ids=["leer", "null"])
+def test_leerer_preset_wert_wirkt_wie_fehlender(wert):
+    """Ein im Studio neu angelegtes Preset trägt ``moderation: ""`` und
+    ``legal_classifier: ""`` (Vorgabe des Modells). Das galt als ``never``:
+    die neue Stufe prüfte gar nichts. Wie ein fehlender Schlüssel: ``smart``."""
+    cfg = {"security_level": "neu", "presets": {"neu": {
+        "prompt_injection": True, "moderation": wert, "legal_classifier": wert,
+    }}}
+    preset = ss._resolve_preset(cfg)
+    assert (preset["moderation"], preset["legal_classifier"]) == ("smart", "smart")
+
+
+def test_gesetzter_preset_wert_bleibt():
+    cfg = {"security_level": "s", "presets": {"s": {
+        "moderation": "never", "legal_classifier": "always",
+    }}}
+    preset = ss._resolve_preset(cfg)
+    assert (preset["moderation"], preset["legal_classifier"]) == ("never", "always")
+
+
+@pytest.mark.parametrize("scores,muster", [
+    ({"self_harm": 0.9}, "M01"),          # Krise
+    ({"hate/threatening": 0.8}, "M02"),   # Drohung
+    ({"violence": 0.9}, "M01"),           # sonstige harte Kategorie
+], ids=["krise", "drohung", "rest"])
+def test_leeres_muster_faellt_auf_die_vorgabe_zurueck(monkeypatch, scores, muster):
+    """Geleertes ``crisis_pattern``/``threat_pattern``: bisher erzwang eine harte
+    Kategorie dann gar kein Muster — hohes Risiko, aber die normale
+    Musterwahl. Leer heißt jetzt „nicht gepflegt" → M01 bzw. M02."""
+    cfg = dict(_CFG, crisis_pattern="", threat_pattern="")
+    d = _run(monkeypatch, "harmlos", mod={"scores": scores}, cfg=cfg)
+    assert d.risk_level == "high"
+    assert d.enforced_pattern == muster

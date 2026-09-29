@@ -1,15 +1,9 @@
-"""Die Werkzeugliste der Agent-Schleife (A1) und des Hybrid (H2).
+"""Die Werkzeugliste der Agent-Schleife (A1).
 
 Die Muster-Engine lässt ein Muster auswählen, welche Werkzeuge das Modell sieht
 (``response_tool_selection._select_active_tools``). Die Agent-Schleife tut das
 ausdrücklich nicht: sie gibt den GANZEN Katalog und überlässt die Wahl dem
 Modell — das ist der Unterschied, um den es geht.
-
-Der **Hybrid** (``muster_katalog``) setzt einen dritten Weg daneben: er gibt
-ebenfalls den ganzen Katalog, legt aber ``waehle_vorgehen`` davor. Damit wählt
-weiterhin ein Muster die Werkzeuge — nur zieht es nicht der Klassifikator im
-Voraus, sondern das Modell selbst, wenn es die Lage kennt. Die redaktionell
-gepflegten Muster bleiben dabei die Quelle; neu ist nur, wer sie aufschlägt.
 
 **Eine Regel wird trotzdem übernommen**, und zwar aus ``_nameable_tools``:
 kuratierende Werkzeuge nur mit hinterlegtem Zugangsblock. Ohne ihn verweigert der
@@ -30,11 +24,8 @@ from __future__ import annotations
 from typing import Any
 
 from boerdi.domain.host_capabilities import erlaubt
-from boerdi.domain.inline_documents import ZEIGE_DOKUMENT, dokument_werkzeug
-from boerdi.domain.pattern_catalog import katalog_kurz, katalog_text, waehlbare_muster
-from boerdi.domain.pattern_engine import PatternDef
-from boerdi.domain.result_delivery import LIEFERE_ERGEBNIS, ergebnis_werkzeug
-from boerdi.services.agent_knowledge import WISSEN_SUCHEN
+from boerdi.domain.inline_documents import dokument_werkzeug
+from boerdi.domain.result_delivery import ergebnis_werkzeug
 from boerdi.services.mcp.auth import has_auth_token
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
@@ -42,27 +33,6 @@ from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 #: Der Name, an dem die Schleife das Ende erkennt. Konstante statt Literal, weil
 #: ihn zwei Module vergleichen (hier gebaut, in ``agent_loop`` erkannt).
 SUBMIT_RESULT = "submit_result"
-
-#: Der Name, an dem die Schleife den Musterwechsel erkennt (H2/H3). Gleiche
-#: Begründung wie oben: hier gebaut, in ``agent_loop`` erkannt.
-WAEHLE_VORGEHEN = "waehle_vorgehen"
-
-#: Die Werkzeuge, die nie an den MCP gehen. Ein Muster, das seine Werkzeugliste
-#: einschränkt, darf sie nicht mitnehmen: ohne ``waehle_vorgehen`` käme der Lauf
-#: aus dem gewählten Muster nicht mehr heraus, ohne ``submit_result`` verlöre er
-#: seine Ziellinie. Beides wäre eine Sackgasse, die wie eine Regel aussieht.
-#:
-#: ``liefere_ergebnis`` (J1) gehört aus demselben Grund dazu: fehlte es hier,
-#: verschwände der Ergebnis-Kanal in dem Augenblick, in dem das Hybrid-Modell
-#: ein Muster zieht — der Gastgeber bekäme also genau dann kein JSON, wenn
-#: gearbeitet wurde.
-#: ``wissen_suchen`` (P) gehoert ebenfalls dazu, und das ist eine BENANNTE
-#: Abweichung vom Muster-Weg: dort schaltet ``sources`` ohne ``rag`` die
-#: Wissensdatenbank ab. In der Schleife bleibt sie immer erreichbar — Vorgabe des
-#: Nutzers („immer alle Wissensbereiche, ausser man nennt oder schliesst einzelne
-#: aus"). Sie liegt ohnehin in der eigenen Datenbank, nicht am MCP.
-VIRTUELLE_WERKZEUGE = frozenset(
-    {WAEHLE_VORGEHEN, SUBMIT_RESULT, ZEIGE_DOKUMENT, LIEFERE_ERGEBNIS, WISSEN_SUCHEN})
 
 #: Werkzeuge, die im Katalog stehen, aber KEINEM Lauf angeboten werden.
 #:
@@ -120,72 +90,6 @@ def submit_result_tool(result_schema: dict[str, Any] | None = None) -> dict[str,
     }
 
 
-_VORGEHEN_KOPF = (
-    "Waehle das redaktionell gepflegte Vorgehen fuer diese Anfrage und erhalte "
-    "seine verbindliche Arbeitsanweisung. Rufe dieses Werkzeug, sobald du weisst, "
-    "worum es geht — die Anweisung schaltet zugleich die Werkzeuge frei, die zu "
-    "diesem Vorgehen gehoeren. Du darfst mitten im Lauf wechseln, wenn die Lage es "
-    "verlangt (Beispiel: eine Suche liefert keine Treffer). Passt keines der "
-    "Vorgehen, arbeite ohne und antworte direkt.\n\n"
-    "VERFUEGBARE VORGEHEN:\n\n"
-)
-
-#: Der Kopfsatz NACH der Wahl (H8-2). Der obere fordert eine Entscheidung; blieb
-#: er stehen, forderte er sie in jeder Runde erneut — ein Lauf, der schon gewaehlt
-#: hat, waehlte dann wieder statt zu arbeiten.
-_VORGEHEN_KOPF_KURZ = (
-    "Du arbeitest bereits nach einem Vorgehen und hast seine Anweisung erhalten. "
-    "Rufe dieses Werkzeug nur noch, wenn du WECHSELN musst, weil die Lage sich "
-    "geaendert hat (Beispiel: die Suche liefert keine Treffer). Sonst arbeite "
-    "weiter und antworte.\n\n"
-    "VORGEHEN, ZU DENEN DU WECHSELN KANNST:\n\n"
-)
-
-_MUSTER_ID_DESCRIPTION = (
-    "Kennung des gewaehlten Vorgehens, genau wie in der Liste oben aufgefuehrt."
-)
-
-
-def waehle_vorgehen_tool(
-    muster: list[PatternDef], *, kurz: bool = False
-) -> dict[str, Any] | None:
-    """Das Musterwerkzeug — oder ``None``, wenn nichts waehlbar ist.
-
-    ``None`` statt eines Werkzeugs mit leerem ``enum``: ein Anbieter wuerde das
-    leere ``enum`` entweder ablehnen oder das Werkzeug unaufrufbar machen. Beides
-    waere ein angekuendigtes Koennen, das der naechste Schritt zuruecknimmt —
-    dieselbe Regel wie bei den kuratierenden Werkzeugen.
-
-    ``kurz`` (H8-2) ist die Fassung fuer einen Lauf, der schon gewaehlt hat: eine
-    Zeile je Muster statt der Einsatzregeln. **Das ``enum`` bleibt dasselbe** —
-    gespart wird an der Beschreibung, nicht an der Auswahl, sonst waere ein
-    Muster nach der ersten Wahl unerreichbar.
-    """
-    waehlbar = waehlbare_muster(muster)
-    if not waehlbar:
-        return None
-    kopf, katalog = ((_VORGEHEN_KOPF_KURZ, katalog_kurz) if kurz
-                     else (_VORGEHEN_KOPF, katalog_text))
-    return {
-        "type": "function",
-        "function": {
-            "name": WAEHLE_VORGEHEN,
-            "description": kopf + katalog(muster),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "muster_id": {
-                        "type": "string",
-                        "enum": [m.id for m in waehlbar],
-                        "description": _MUSTER_ID_DESCRIPTION,
-                    },
-                },
-                "required": ["muster_id"],
-            },
-        },
-    }
-
-
 def build_agent_tools(
     *,
     result_schema: dict[str, Any] | None = None,
@@ -193,9 +97,7 @@ def build_agent_tools(
     blocked_tools: list[str] | None = None,
     include_submit: bool = True,
     include_ergebnis: bool = False,
-    muster_katalog: list[PatternDef] | None = None,
     include_dokument: bool = False,
-    katalog_kurz: bool = False,
     tool_mode: str | None = None,
     wissen_tool: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
@@ -206,8 +108,8 @@ def build_agent_tools(
     verlangen, und eine Qualitaetspruefung aendert nichts.
 
     ``blocked_tools`` (A4c-2b) ist die Werkzeug-Sperre aus Safety/Policy. Der
-    Chat-Zug bringt sie mit; der Agent-Endpunkt hat keine und reicht nichts
-    herein. Sie greift VOR ``submit_result``, denn das Abschluss-Werkzeug ist
+    Chat-Zug bringt sie mit, der Agent-Endpunkt seit AG-4 Teil B aus seinem
+    eigenen Gate (``agent_gate``). Sie greift VOR ``submit_result``, denn das Abschluss-Werkzeug ist
     virtuell — es geht nie an den MCP und darf nicht sperrbar sein, sonst nimmt
     eine Sperre dem Lauf seine Ziellinie.
 
@@ -215,16 +117,6 @@ def build_agent_tools(
     das strukturierte ``result``, und seine Beschreibung verlangt einen
     zusaetzlichen Modellzug, nur um zu sagen, was die Prosa-Antwort schon sagt.
     ``run_agent_loop`` endet dort ueber ``stop_reason='text'``.
-
-    ``muster_katalog`` (H2) macht aus der Agent-Schleife den **Hybrid**: die
-    waehlbaren Muster kommen als ``waehle_vorgehen`` an den Anfang der Liste.
-    Ohne den Parameter aendert sich nichts — ``agent`` und ``/api/agent`` bleiben
-    die Maschine ohne Muster. Das Werkzeug steht **vorn**, weil die Reihenfolge
-    der Liste die Reihenfolge der Arbeit spiegelt (erst das Vorgehen waehlen,
-    dann arbeiten, zuletzt ``submit_result``), und **nach** dem Sperrfilter, weil
-    es virtuell ist: eine Sperre darauf naehme dem Lauf die Wahl seines Vorgehens
-    statt eine Gefahr abzuwenden. Die Gefahr sitzt in den Werkzeugen, die ein
-    Muster freigibt — und die filtert ``blocked_tools`` weiterhin.
 
     ``include_ergebnis`` (J1) legt ``liefere_ergebnis`` dazu — den Kanal des
     **Chat-Zuges** fuer das maschinenlesbare Ergebnis. Er schliesst sich mit
@@ -284,10 +176,6 @@ def build_agent_tools(
         tools.append(wissen_tool)
     if include_dokument:
         tools.append(dokument_werkzeug())
-    if muster_katalog and (
-        vorgehen := waehle_vorgehen_tool(muster_katalog, kurz=katalog_kurz)
-    ):
-        tools.insert(0, vorgehen)
     if include_submit:
         tools.append(submit_result_tool(result_schema))
     if include_ergebnis:

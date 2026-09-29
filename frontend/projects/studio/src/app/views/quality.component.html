@@ -4,22 +4,7 @@
   <p class="qv-intro">{{ t('qual.intro') }}</p>
 </header>
 
-<fieldset class="qv-scope">
-  <legend>{{ t('qual.scope.legend') }}</legend>
-  @for (option of scopes(); track option.id) {
-    <label class="qv-scope-option">
-      <input
-        type="radio"
-        name="qv-scope"
-        [value]="option.id"
-        [checked]="scope() === option.id"
-        (change)="setScope(option.id)"
-      />
-      <span class="qv-scope-label">{{ option.label }}</span>
-      <span class="qv-scope-hint">{{ option.hint }}</span>
-    </label>
-  }
-</fieldset>
+<studio-origin-scope [value]="scope()" name="qv-scope" (valueChange)="setScope($event)" />
 
 <studio-tab-bar
   [label]="t('nav.group.auswertung')"

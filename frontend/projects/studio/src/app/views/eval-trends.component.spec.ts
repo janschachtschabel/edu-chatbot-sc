@@ -162,6 +162,7 @@ describe("EvalTrendsComponent", () => {
       "Lauf",
       "Zeitpunkt",
       "Art",
+      "Maschine",
       "Turns",
       "Ø Score",
       "Cache-Hit-Rate",
@@ -172,6 +173,41 @@ describe("EvalTrendsComponent", () => {
     const firstRow = table.querySelectorAll("tbody tr")[0];
     expect(firstRow.querySelector("th")!.textContent).toContain("r1");
     expect(firstRow.textContent).toContain("0,83");
+  });
+
+  it("filtert den Verlauf nach Maschine und nennt sie je Lauf (ST-7a)", async () => {
+    await mount(body({
+      runs: [runMeta("r1", { engine: "pattern" }), runMeta("r2", { engine: "agent" })],
+    }));
+    const zeilen = h.el.querySelectorAll("table.et-table tbody tr");
+    expect(zeilen[0].textContent).toContain("Muster-Maschine");
+    expect(zeilen[1].textContent).toContain("Agent-Schleife");
+
+    const select = h.el.querySelector<HTMLSelectElement>("#et-engine")!;
+    select.value = "agent";
+    select.dispatchEvent(new Event("change"));
+    await h.fixture.whenStable();
+    const req = h.http.expectOne((r) => r.url === TRENDS_URL);
+    expect(req.request.params.get("engine")).toBe("agent");
+    expect(req.request.params.get("limit")).toBe("20");
+    req.flush(body({ runs: [runMeta("r2", { engine: "agent" })] }));
+    await settle();
+    expect(h.el.querySelectorAll("table.et-table tbody tr")).toHaveLength(1);
+  });
+
+  it("warnt, wenn der ungefilterte Verlauf beide Maschinen mischt (ST-7a)", async () => {
+    // Ein Wechsel der Maschine sieht in der Kurve aus wie ein Qualitätssprung.
+    await mount(body({
+      runs: [runMeta("r1", { engine: "pattern" }), runMeta("r2", { engine: "agent" })],
+    }));
+    expect(h.el.querySelector(".et-mixed")!.textContent).toContain("mischt beide Maschinen");
+  });
+
+  it("schweigt dazu, solange nur eine Maschine im Verlauf steht", async () => {
+    await mount(body({
+      runs: [runMeta("r1", { engine: "agent" }), runMeta("r2", { engine: "" })],
+    }));
+    expect(h.el.querySelector(".et-mixed")).toBeNull();
   });
 
   it("says why the classification series are empty when only gold ran", async () => {
@@ -293,6 +329,7 @@ describe("EvalTrendsComponent", () => {
       "Run",
       "Time",
       "Kind",
+      "Engine",
       "Turns",
       "Avg score",
       "Cache hit rate",

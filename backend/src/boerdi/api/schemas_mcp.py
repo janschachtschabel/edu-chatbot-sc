@@ -320,15 +320,25 @@ class SkillSearchArgs(BaseModel):
     2026-08-10), nicht geraten. Ohne Argumente listet der Server den ganzen
     Katalog auf — deshalb ist nichts Pflicht.
 
-    ``outputFormat`` fehlt bewusst: das setzt ``call_mcp_tool`` zentral
-    (gleiche Begründung wie bei ``NodeCollectionsArgs``).
+    ``outputFormat`` wie bei :class:`SkillRegistryArgs`: nicht fürs Modell,
+    sondern für die Skill-Suche des Studios (``agent_skill_directory``).
+    ``search_skill`` steht NICHT in ``_JSON_CAPABLE_TOOLS`` — das Modell liest
+    den Markdown-Katalog —, und ein Feld, das hier fehlt, verwirft
+    ``validate_tool_args`` still (Review 2026-09-29: jede Suche endete
+    „unlesbar“).
+
+    ``includeSubcollections`` bleibt ungesetzt, wenn niemand es nennt: die
+    Vorgabe des Servers hängt davon ab, woher die Sammlung kommt (genannt → nur
+    diese; die konfigurierte Skills-Sammlung → mit ihren Skillsets). Ein festes
+    ``False`` hob sie auf, und die Skillsets fielen aus jeder Suche.
     """
     query: str = ""
     collectionId: str = ""
     discipline: str = ""
     educationalContext: str = ""
-    includeSubcollections: bool = False
+    includeSubcollections: bool | None = None
     maxResults: int = Field(default=10, ge=1, le=25)
+    outputFormat: Literal["markdown", "json"] = "markdown"
 
 
 class SkillGetArgs(BaseModel):

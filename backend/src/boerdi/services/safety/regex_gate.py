@@ -6,6 +6,16 @@ safety-critical hard floor: even if every LLM stage fails, the regex gate still
 blocks crisis/threat/PII. The ALT lines are verbatim security assets — do not
 reflow them (the escalation tests pin exact matches).
 
+**Three expressions are no longer byte-identical (2026-09-27) — same verdicts,
+linear time.** The two PII lines (``head.*tail``) and the injection line
+``<\\|.*?\\|>`` backtracked quadratically: ``re.search`` restarts at every
+further head on a line and re-reads the rest of that line (measured 20,000
+characters ≈ 1 s, so ≈ 100 s at 200,000 — synchronously in the event loop, and
+the chat message has no length cap). The PII lines are now ``(head, tail)`` pairs
+searched by ``_gap_search``; the injection line starts only at the first ``<|``
+of a line. ``tests/test_safety_regex_gate_linear.py`` pins the timing and
+compares the verdicts with the old expressions.
+
 **C1-f2c added English counterparts — as a union, never as a switch.** Unlike
 the watchdogs over our own output (``i18n/output_patterns``), this gate does not
 know the language of what it reads and must not: a user with ``locale=de-DE``
@@ -29,8 +39,20 @@ public because the orchestrator (``service``) consumes them in later stages.
 from __future__ import annotations
 
 import re
+from typing import Final
 
 from boerdi.api.schemas import SafetyDecision
+
+#: Was eine erkannte Krise oder Drohung sperrt: die Materialsuche — die
+#: Schutzantwort bietet kein Material an. In der Agent-Schleife kommt es dazu
+#: nicht: das erzwungene Muster antwortet statt ihrer (SF-1).
+SPERRE_KRISE: Final = (
+    "search_wlo_collections", "search_wlo_content", "get_collection_contents",
+)
+#: Persönliche Daten in der Nachricht: keine Volltextsuche damit. Die
+#: Werkzeugliste des Studios nennt sie (ST-8b) und liest sie hier, statt sie
+#: abzuschreiben.
+SPERRE_PERSOENLICH: Final = ("search_wlo_content",)
 
 # ── Stage 1: Regex patterns ─────────────────────────────────────────
 # Crisis = Nutzer richtet Gewalt/Suizid gegen SICH SELBST.  Ein reines
@@ -103,11 +125,14 @@ _THREAT_PATTERNS = [
     r"\b(stab|shoot|strangle|behead)\w*\b[^.?!]{0,40}\b(you|him|her|them)\b",
 ]
 
+# PII = Schlüsselwort, dahinter auf DERSELBEN Zeile Kopula oder Possessiv.
+# ALT schrieb das als ``KOPF.*SCHWANZ``; hier steht es als Paar (KOPF,
+# SCHWANZ), beide Hälften verbatim, ausgewertet von ``_gap_search`` (Grund dort).
 _PII_PATTERNS = [
-    r"\b(passwort|password|kreditkart|sozialvers|geburtsdatum)\b.*\b(meine?|ist|lautet)\b",
+    (r"\b(passwort|password|kreditkart|sozialvers|geburtsdatum)\b", r"\b(meine?|ist|lautet)\b"),
     # C1-f2c: dieselbe Zeile mit englischen Kopula/Possessiv. ``password``
     # stand schon in der deutschen Zeile — nur „is" statt „ist" fehlte.
-    r"\b(password|credit\s*card|social\s*security|date\s+of\s+birth)\b.*\b(my|is|are)\b",
+    (r"\b(password|credit\s*card|social\s*security|date\s+of\s+birth)\b", r"\b(my|is|are)\b"),
 ]
 # Heuristik-Trigger: wenn eines dieser Wörter auftaucht, soll der Legal-Classifier
 # auch im "smart"-Mode laufen, selbst wenn das Risiko sonst noch low wäre.
@@ -139,9 +164,38 @@ INJECTION_PATTERNS = [
     # Known jailbreak modes — keep lowercase!
     r"\b(jailbreak|dan\s*mode|developer\s*mode|do\s*anything\s*now)\b",
     r"\bantworte\s+ohne\s+filter\b",
-    r"<\|.*?\|>",
+    # ALT: r"<\|.*?\|>". Gleiche Treffer, aber nur ab dem ERSTEN ``<|`` einer
+    # Zeile (atomare Gruppe): ein späteres ``<|`` derselben Zeile sieht nur
+    # einen Teil dessen, was das erste sieht. ALT setzte an jedem ``<|`` neu an
+    # und las jedes Mal den Rest der Zeile — quadratisch (2026-09-27).
+    r"(?m)^(?>[^\n]*?<\|)[^\n]*?\|>",
     r"```\s*system",
 ]
+
+
+def _gap_search(head: str, tail: str, text: str) -> bool:
+    """Whether ``re.search(head + ".*" + tail, text)`` matches — in linear time.
+
+    ``.`` stops at ``\\n``, so the tail must start on the line where a head match
+    ends, at or after that end. ``re.search`` restarts at every head and re-reads
+    the rest of the line each time: quadratic on one long line full of heads. A
+    later head on an already searched line sees only part of what the earlier
+    one saw, so each line is searched once. Exact for the PII pairs: their head
+    matches have one possible end and never overlap, their tails never span a
+    line break. ``tests/test_safety_regex_gate_linear.py`` compares it with the
+    joined expressions.
+    """
+    tail_re = re.compile(tail)
+    line_end = -1
+    for m in re.finditer(head, text):
+        if m.end() <= line_end:
+            continue
+        line_end = text.find("\n", m.end())
+        if line_end < 0:
+            line_end = len(text)
+        if tail_re.search(text, m.end(), line_end):
+            return True
+    return False
 
 
 def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
@@ -164,10 +218,7 @@ def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
         if re.search(pat, msg):
             decision.risk_level = "high"
             decision.enforced_pattern = "M01"
-            decision.blocked_tools = [
-                "search_wlo_collections", "search_wlo_content",
-                "get_collection_contents",
-            ]
+            decision.blocked_tools = list(SPERRE_KRISE)
             decision.reasons.append("crisis_signal_detected")
             decision.legal_flags.append("jugendschutz")
             return decision
@@ -176,18 +227,15 @@ def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
         if re.search(pat, msg):
             decision.risk_level = "high"
             decision.enforced_pattern = "M02"
-            decision.blocked_tools = [
-                "search_wlo_collections", "search_wlo_content",
-                "get_collection_contents",
-            ]
+            decision.blocked_tools = list(SPERRE_KRISE)
             decision.reasons.append("threat_signal_detected")
             decision.legal_flags.append("strafrecht")
             return decision
 
-    for pat in _PII_PATTERNS:
-        if re.search(pat, msg):
+    for head, tail in _PII_PATTERNS:
+        if _gap_search(head, tail, msg):
             decision.risk_level = "medium"
-            decision.blocked_tools.append("search_wlo_content")
+            decision.blocked_tools.extend(SPERRE_PERSOENLICH)
             decision.reasons.append("pii_in_message")
             decision.legal_flags.append("datenschutz")
             break

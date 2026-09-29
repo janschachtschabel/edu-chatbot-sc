@@ -115,6 +115,21 @@ def test_the_new_default_model_gets_no_temperature(monkeypatch) -> None:
     assert "temperature" not in kw
 
 
+def test_gpt6_bekommt_den_gpt5_vertrag_samt_effort_bei_werkzeugen(monkeypatch) -> None:
+    """Gemessen 2026-09-26 gegen OpenAI direkt: gpt-6-luna weist ``max_tokens``
+    und ``temperature`` != 1 ab wie gpt-5.6-luna, und Werkzeuge ohne
+    ``reasoning_effort`` ebenso. Ohne eigene Regelgruppe fiel es auf die
+    klassischen Regeln — jeder Werkzeug-Zug ein 400er."""
+    monkeypatch.setenv("LLM_CHAT_MODEL", "gpt-6-luna")
+    get_settings.cache_clear()
+    kw = llm.build_chat_kwargs(
+        messages=[{"role": "user", "content": "x"}], tools=_TOOLS,
+        temperature=0.4, max_tokens=512)
+    assert kw["model"] == "gpt-6-luna"
+    assert (kw["reasoning_effort"], kw["verbosity"]) == ("low", "low")
+    assert "temperature" not in kw and "max_tokens" not in kw
+
+
 def test_gpt5_temperature_dropped_when_effort_not_none() -> None:
     kw = llm.build_chat_kwargs(messages=[{"role": "user", "content": "x"}], temperature=0.7)
     assert "temperature" not in kw  # effort=low (default) drops temperature
@@ -203,6 +218,30 @@ def test_route_openai_native(monkeypatch) -> None:
     assert api_base == "https://api.openai.com/v1"
     assert api_key == "sk-native"
     assert headers is None
+
+
+def test_route_openai_nativ_fuehrt_gpt6_ueber_den_responses_weg(monkeypatch) -> None:
+    """``/v1/chat/completions`` nimmt bei gpt-6-luna Werkzeuge nur mit
+    ``reasoning_effort=none`` an und verweist selbst auf ``/v1/responses`` (400,
+    gemessen 2026-09-26). ``openai/responses/<modell>`` ist LiteLLMs Brücke
+    dorthin; die Antwort kommt in der gewohnten Chat-Form zurück."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-native")
+    get_settings.cache_clear()
+    model, api_base, _key, headers = llm.route("gpt-6-luna")
+    assert model == "openai/responses/gpt-6-luna"
+    assert api_base == "https://api.openai.com/v1"
+    assert headers is None
+
+
+@pytest.mark.parametrize("provider", ["b-api-openai", "b-api-academiccloud"])
+def test_route_b_api_bleibt_auf_chat_completions(monkeypatch, provider) -> None:
+    """Den Responses-Weg bekommt allein OpenAI direkt. Für die b-api ist nur
+    ``/chat/completions`` belegt, und die AcademicCloud braucht genau diesen
+    (Nutzer-Vorgabe 2026-09-26)."""
+    monkeypatch.setenv("LLM_PROVIDER", provider)
+    get_settings.cache_clear()
+    model, *_ = llm.route("gpt-6-luna")
+    assert model == "openai/gpt-6-luna"
 
 
 def test_route_b_api_openai_dual_auth(monkeypatch) -> None:

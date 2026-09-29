@@ -37,6 +37,14 @@
     <p class="cst-hint" id="cst-period-hint">{{ t('costs.period.hint') }}</p>
   </fieldset>
 
+  <!-- ST-9: dieselbe Wahl wie in der Analyse, serverseitig gefiltert -->
+  <studio-origin-scope
+    class="cst-origin"
+    [value]="scope()"
+    name="cst-scope"
+    (valueChange)="setScope($event)"
+  />
+
   <button
     type="submit"
     class="cst-btn"
@@ -179,3 +187,7 @@
     }
   }
 }
+
+<!-- ST-9: die Preistafel neben den Kosten, die sie beziffert. Der Hinweis am
+     Betrag („weiter unten in der Preistafel“) zeigt hierher. -->
+<studio-area-section class="cst-pricing" [section]="pricingSection" />

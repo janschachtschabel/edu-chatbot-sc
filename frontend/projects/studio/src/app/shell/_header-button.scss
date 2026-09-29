@@ -1,0 +1,22 @@
+// Ein Knopf der Kopfzeile — die Shell (Abmelden, Navigation) und die
+// Sicherungs-Werkzeuge (ST-9) teilen ihn, statt ihn zu kopieren. Den Fokusring
+// setzt das globale `:focus-visible` (styles.scss).
+@mixin header-button {
+  min-height: 2.25rem; // ≥ 24px target with room to spare (SC 2.5.8)
+  padding: 0 var(--st-3);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--st-accent-soft);
+  }
+
+  &:disabled {
+    cursor: progress;
+    color: var(--st-text-muted);
+  }
+}

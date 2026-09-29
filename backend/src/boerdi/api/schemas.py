@@ -212,8 +212,8 @@ class Environment(BaseModel):
 
     # G1 — der Rahmen, den die einbettende Anwendung diesem Zug mitgibt: „so bist
     # du hier zu verstehen". Unsichtbar im Verlauf, weil es KEIN Zug ist, sondern
-    # Kontext — dieselbe Sorte Wissen wie der Seitenblock daneben. Wirkt in allen
-    # drei Maschinen, weil beide Prompt-Wege denselben Block einsetzen
+    # Kontext — dieselbe Sorte Wissen wie der Seitenblock daneben. Wirkt in
+    # beiden Maschinen, weil beide Prompt-Wege denselben Block einsetzen
     # (``domain/host_instruction``).
     #
     # Wie ``result_schema`` geht dieses Feld NICHT durch die Sicherheitsprüfung —

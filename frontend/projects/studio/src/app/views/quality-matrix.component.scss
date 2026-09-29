@@ -29,16 +29,11 @@
   // anyway or its arrows are unusable on touch.
   min-block-size: 2rem;
   padding: var(--st-1) var(--st-2);
-  border: 1px solid var(--st-rule-strong);
+  border: 1px solid var(--st-text-muted);
   border-radius: var(--st-radius);
   background: var(--st-panel);
   color: var(--st-text);
   font: inherit;
-}
-
-.qm-field input:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
 }
 
 // The grid is the one place in the studio that legitimately scrolls sideways:
@@ -112,11 +107,6 @@
   background: var(--st-accent-soft);
 }
 
-.qm-cell:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
-}
-
 .qm-pair {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.6875rem;
@@ -181,11 +171,6 @@
   font: inherit;
   font-size: 0.8125rem;
   cursor: pointer;
-}
-
-.qm-reload:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
 }
 
 .qm-reload:disabled {

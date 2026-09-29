@@ -64,6 +64,7 @@ from typing import Any
 from boerdi.domain.content_types import medientyp_meint_sammlungen
 from boerdi.domain.inline_documents import dokument_werkzeug
 from boerdi.domain.inline_grouping import MAX_SELECTABLE_CARDS
+from boerdi.domain.skill_bruecke import ZUSATZ_KEY as SKILL_ZUSATZ_KEY
 from boerdi.domain.write_confirm import CURATION_TOOLS
 from boerdi.services.agent_tools import AUS_DEM_KATALOG
 from boerdi.services.mcp.auth import has_auth_token
@@ -169,8 +170,11 @@ def _select_active_tools(
     has_mcp_source = pattern_output.get("sources") and "mcp" in pattern_output["sources"]
 
     if pattern_output.get("tools"):
-        # Pattern defines specific tools → use those
-        tool_names = set(pattern_output["tools"]) | INFO_TOOLS
+        # Pattern defines specific tools → use those. Dazu die Skill-Brücke
+        # (E-6): sie steht neben ``tools``, weil die Reflexions-Schleife jene
+        # Liste als Pflicht liest — siehe ``domain/skill_bruecke``.
+        tool_names = (set(pattern_output["tools"]) | INFO_TOOLS
+                      | set(pattern_output.get(SKILL_ZUSATZ_KEY) or ()))
         active_tools = [t for t in _nameable_tools() if t["function"]["name"] in tool_names]
         # E3: der Verlust bekommt eine Stimme — für den, der ihn beheben kann.
         # Ein Betreiber sieht sonst nur, dass „der Bot nicht kuratiert", ohne

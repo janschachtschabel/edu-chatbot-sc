@@ -29,6 +29,7 @@ from boerdi.domain.config_models.engine import AgentLimits
 from boerdi.i18n.locale import resolve_locale
 from boerdi.i18n.prompt_language import language_name
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
+from boerdi.services import agent_gate
 from boerdi.services.agent_loop import run_agent_loop
 from boerdi.services.agent_prefetch import resolve_prefetch
 from boerdi.services.agent_tools import build_agent_tools
@@ -81,9 +82,17 @@ async def run_agent(
     usage_acc: dict[str, Any] | None = None,
 ) -> AgentResponse:
     """Führe einen Agent-Lauf aus und gib sein Ergebnis zurück."""
+    sprache = resolve_locale(req.locale)
+    # AG-4 Teil B: das Gate VOR allem anderen — kein Vorabruf, kein LLM-Aufruf
+    # für einen Auftrag, der gar nicht bearbeitet wird.
+    entscheid = await agent_gate.pruefe(req.instruction, usage_acc)
+    stopp = agent_gate.stopp_text(entscheid, sprache)
+    if stopp is not None:
+        return AgentResponse(text=stopp, result=None, stop_reason="safety",
+                             iterations=0, tools_called=[])
+
     engine = load_engine()
     limits = _limits(engine.agent, req)
-    sprache = resolve_locale(req.locale)
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": _SYSTEM.format(sprache=language_name(sprache))},
@@ -94,7 +103,8 @@ async def run_agent(
     lauf = await run_agent_loop(
         messages=messages,
         tools=build_agent_tools(
-            result_schema=req.result_schema, allow_curation=req.allow_curation),
+            result_schema=req.result_schema, allow_curation=req.allow_curation,
+            blocked_tools=entscheid.blocked_tools),
         limits=limits,
         usage_acc=usage_acc,
         progress=progress,

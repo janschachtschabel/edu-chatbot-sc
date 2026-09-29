@@ -29,7 +29,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from boerdi.api.deps import Lang, require_studio_key
+from boerdi.api.deps import Lang, OriginScope, require_studio_key
 from boerdi.api.deps import get_session as get_db_session
 from boerdi.api.ratelimit import public_rate_limit
 from boerdi.i18n import msg
@@ -74,9 +74,10 @@ def _validate_session_id(session_id: str) -> None:
 @router.get("/")
 async def list_sessions(
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    scope: OriginScope = "all",
 ) -> list[dict]:
     """List the most recently active sessions (newest first, capped at 100)."""
-    return await list_sessions_admin(session)
+    return await list_sessions_admin(session, scope=scope)
 
 
 @router.get("/db-stats")

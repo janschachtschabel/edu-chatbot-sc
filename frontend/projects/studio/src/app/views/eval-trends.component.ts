@@ -15,13 +15,17 @@
  * accessible source for every number (same split as the load-test chart).
  */
 import {
-  ChangeDetectionStrategy, Component, computed, inject,
+  ChangeDetectionStrategy, Component, computed, inject, signal,
 } from '@angular/core';
 
 import { AsyncData } from '../core/async-data';
-import { EvalApi, type EvalTrends, type TrendPoint } from '../core/eval-api.service';
+import {
+  EvalApi, type EngineFilter, type EvalTrends, type TrendPoint,
+} from '../core/eval-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { EngineFilterComponent } from './engine-filter.component';
+import { engineLabel } from './engine-label';
 import { RichTextComponent } from './rich-text.component';
 import { type TrendChart, rateChart, scoreChart } from './trend-chart';
 import { StudioFormat } from '../i18n/studio-format.service';
@@ -44,6 +48,7 @@ interface RunRow {
   readonly id: string;
   readonly createdAt: string;
   readonly mode: string;
+  readonly engine: string;
   readonly totalTurns: number;
   readonly avgScore: number | null;
   readonly rates: readonly (number | null)[];
@@ -94,7 +99,7 @@ const EMPTY: EvalTrends = {
 
 @Component({
   selector: 'studio-eval-trends',
-  imports: [AsyncStateComponent, RichTextComponent],
+  imports: [AsyncStateComponent, EngineFilterComponent, RichTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './eval-trends.component.html',
   styleUrl: './eval-trends.component.scss',
@@ -112,7 +117,12 @@ export class EvalTrendsComponent {
 
   private readonly api = inject(EvalApi);
 
-  readonly trends = new AsyncData<EvalTrends>(() => this.api.trends(), this.t);
+  /** ST-7a: serverseitig, vor der 20er-Kappung — ein Verlauf über beide
+   *  Maschinen zeigt jeden Wechsel als Sprung. */
+  readonly engineFilter = signal<EngineFilter>('');
+
+  readonly trends = new AsyncData<EvalTrends>(
+    () => this.api.trends(this.engineFilter()), this.t);
 
   /** `AsyncData` never fetches on its own — the first read is triggered here. */
   constructor() {
@@ -135,6 +145,10 @@ export class EvalTrendsComponent {
     }));
   });
 
+  /** Der ungefilterte Verlauf enthält Läufe beider Maschinen. */
+  readonly mixed = computed(() => !this.engineFilter()
+    && new Set(this.runs().map((run) => run.engine).filter(Boolean)).size > 1);
+
   /** True once any classification series carries a point. */
   readonly hasClassification = computed(() =>
     this.rates().some((series) => series.chart.points.length > 0));
@@ -156,6 +170,7 @@ export class EvalTrendsComponent {
       id: run.id,
       createdAt: run.created_at,
       mode: run.mode,
+      engine: run.engine,
       totalTurns: run.total_turns,
       avgScore: run.avg_score,
       rates: byRun.map((map) => map.get(run.id) ?? null),
@@ -164,6 +179,15 @@ export class EvalTrendsComponent {
 
   reload(): void {
     void this.trends.reload();
+  }
+
+  onEngineFilter(value: EngineFilter): void {
+    this.engineFilter.set(value);
+    this.reload();
+  }
+
+  engineName(engine: string): string {
+    return engineLabel(engine, this.t);
   }
 
   /**

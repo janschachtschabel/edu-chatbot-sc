@@ -33,6 +33,7 @@ export const EVAL_DETAIL: CataloguePart = {
     // ── Kennzahlen-Liste ────────────────────────────────────────────
     'evalDetail.fact.status': 'Status',
     'evalDetail.fact.mode': 'Art',
+    'evalDetail.fact.engine': 'Maschine',
     'evalDetail.fact.started': 'Gestartet',
     'evalDetail.fact.finished': 'Beendet',
     'evalDetail.fact.turns': 'Bewertete Turns',
@@ -82,6 +83,9 @@ export const EVAL_DETAIL: CataloguePart = {
     'evalDetail.turnDetail':
       '*Soll-Angebot:* {mustOffer} · Sie {sie} · du {du} · Karten {cards} '
       + '· Inline-Dokumente {idocs} · Quick-Replies {qr}',
+    /** AG-5: nur bei Zügen, die eine Anleitung geholt haben. `{skills}` ist
+     *  die Liste der Titel, durch Komma getrennt. */
+    'evalDetail.skills': 'Geladene Skills: {skills}',
     'evalDetail.flowTotal': '{flow} Gesamt',
     'evalDetail.flowRate': '{rate} · {ok}/{total} Checks',
     /** Kein „0 %": nichts geprüft heisst nicht alles gescheitert. */
@@ -97,11 +101,19 @@ export const EVAL_DETAIL: CataloguePart = {
     'evalDetail.cat.register': 'Tonalität',
     'evalDetail.cat.structure': 'Struktur',
     'evalDetail.cat.tools_any': 'Werkzeug-Soll',
+    'evalDetail.cat.tools_none': 'Werkzeug-Verbot',
+    'evalDetail.cat.tools_max': 'Werkzeug-Deckel',
+    'evalDetail.cat.text': 'Text-Prüfung',
     'evalDetail.cat.qr': 'Quick-Replies',
     'evalDetail.cat.host': 'Link-Host',
 
-    // ── GV4/GV5: Engine des Laufs + gezählte Judge-Ausfälle ─────────
-    'evalDetail.engine': 'Engine: {engine}',
+    // ── ST-7a: die Maschine; GV4: gezählte Judge-Ausfälle ──────────
+    /** Der Lauf maß, was `01-base/engine` sagte — `{engine}` ist die
+     *  Maschine, die es war. */
+    'evalDetail.engineDefault': '{engine} (Server-Vorgabe)',
+    /** ST-7d: statt der Muster-Tafeln bei einem Agent-Lauf. */
+    'evalDetail.noPatternPanels':
+      'Muster-Tafeln entfallen: die Agent-Schleife wählt kein Muster und gibt keinen Hinweis.',
     'evalDetail.judgeFailed': 'Judge-Ausfälle: {count}',
     // Review-Befund 4: Züge, die der Chat nie beantwortet hat.
     'evalDetail.chatErrors': 'Chat-Fehler: {count} Züge ohne Antwort',
@@ -132,6 +144,7 @@ export const EVAL_DETAIL: CataloguePart = {
 
     'evalDetail.fact.status': 'Status',
     'evalDetail.fact.mode': 'Type',
+    'evalDetail.fact.engine': 'Engine',
     'evalDetail.fact.started': 'Started',
     'evalDetail.fact.finished': 'Finished',
     'evalDetail.fact.turns': 'Scored turns',
@@ -170,6 +183,7 @@ export const EVAL_DETAIL: CataloguePart = {
     'evalDetail.turnDetail':
       '*Expected offer:* {mustOffer} · Sie {sie} · du {du} · cards {cards} '
       + '· inline documents {idocs} · quick replies {qr}',
+    'evalDetail.skills': 'Loaded skills: {skills}',
     'evalDetail.flowTotal': '{flow} total',
     'evalDetail.flowRate': '{rate} · {ok}/{total} checks',
     'evalDetail.flowNothing': 'nothing checked',
@@ -182,10 +196,15 @@ export const EVAL_DETAIL: CataloguePart = {
     'evalDetail.cat.register': 'Register',
     'evalDetail.cat.structure': 'Structure',
     'evalDetail.cat.tools_any': 'Required tool',
+    'evalDetail.cat.tools_none': 'Forbidden tool',
+    'evalDetail.cat.tools_max': 'Tool cap',
+    'evalDetail.cat.text': 'Text check',
     'evalDetail.cat.qr': 'Quick replies',
     'evalDetail.cat.host': 'Link host',
 
-    'evalDetail.engine': 'Engine: {engine}',
+    'evalDetail.engineDefault': '{engine} (server default)',
+    'evalDetail.noPatternPanels':
+      'No pattern panels: the agent loop picks no pattern and gives no hint.',
     'evalDetail.judgeFailed': 'Judge failures: {count}',
     'evalDetail.chatErrors': 'Chat errors: {count} unanswered turns',
 

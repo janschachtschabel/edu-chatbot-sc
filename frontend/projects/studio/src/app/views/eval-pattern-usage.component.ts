@@ -41,28 +41,26 @@ const SCOPES: readonly { readonly value: string; readonly key: string }[] = [
   { value: 'production', key: 'evalPattern.scope.production' },
 ];
 
-/** Feedback 2026-08-22: AGENT/HYBRID sind keine Muster, sondern
- *  Maschinen-Marker in `quality_logs.pattern_id` — zwischen M01–M20
- *  einsortiert verfälschten sie das Bild. Der Filter läuft CLIENT-seitig
- *  über die Kombinationen (der Server aggregiert Betriebsart-blind). */
+/** Feedback 2026-08-22: AGENT ist kein Muster, sondern ein Maschinen-Marker
+ *  in `quality_logs.pattern_id` — zwischen M01–M20 einsortiert verfälschte er
+ *  das Bild. Der Filter läuft CLIENT-seitig über die Kombinationen (der Server
+ *  aggregiert Betriebsart-blind). */
 const ENGINES: readonly { readonly value: string; readonly key: string }[] = [
   { value: 'alle', key: 'evalPattern.engine.all' },
   { value: 'muster', key: 'evalPattern.engine.muster' },
   { value: 'agent', key: 'evalPattern.engine.agent' },
-  { value: 'hybrid', key: 'evalPattern.engine.hybrid' },
 ];
 
 /** Betriebsart eines `pattern_id`-Werts. Alles, was weder M-Nummer noch
- *  Maschinen-Marker ist (Direkt-Aktionen `ACTION:…`, unklassifiziert ``/NULL),
- *  erscheint nur unter „alle". Verglichen wird der KOPF-Token vor dem ersten
- *  Leerzeichen (verziert wie `M15 (Orientierung)` bleibt lesbar), und zwar
- *  EXAKT — ein Präfix-Vergleich sortierte „AGENTUR" als Agent ein
- *  (Review-Runde 3). */
+ *  Maschinen-Marker ist (Direkt-Aktionen `ACTION:…`, unklassifiziert ``/NULL,
+ *  der Marker `HYBRID` aus Zügen vor K1-1 am 2026-09-27), erscheint nur unter
+ *  „alle". Verglichen wird der KOPF-Token vor dem ersten Leerzeichen (verziert
+ *  wie `M15 (Orientierung)` bleibt lesbar), und zwar EXAKT — ein
+ *  Präfix-Vergleich sortierte „AGENTUR" als Agent ein (Review-Runde 3). */
 function betriebsartOf(patternId: string | null | undefined): string {
   const kopf = (patternId ?? '').trim().toUpperCase().split(' ')[0] ?? '';
   if (/^M\d{2}$/.test(kopf)) return 'muster';
   if (kopf === 'AGENT') return 'agent';
-  if (kopf === 'HYBRID') return 'hybrid';
   return 'sonst';
 }
 

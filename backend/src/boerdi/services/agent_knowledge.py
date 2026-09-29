@@ -52,6 +52,43 @@ WISSEN_SUCHEN: Final = "wissen_suchen"
 #: vielfach.
 MAX_ZEICHEN: Final = 6000
 
+#: Die Wissens-Regel — nur wenn ``wissen_suchen`` auch im Katalog steht.
+#: ``respond_agent`` hängt sie an den Kopf der Kette; die Prompt-Vorschau des
+#: Studios (ST-8d) zeigt sie dort. Bis ST-8d stand sie im Graph-Knoten.
+#:
+#: **Warum sie noetig ist.** Der Muster-Weg holt die ``mode: always``-Bereiche
+#: VOR dem ersten Modellzug und legt sie als erledigten Werkzeug-Aufruf in die
+#: Kette (``tool_loop_messages``): dort ist internes Wissen keine Entscheidung,
+#: sondern eine Zusage. Hier entscheidet das Modell — und traf 2026-08-19 in
+#: 2 von 3 gemessenen Zuegen richtig. Der dritte beantwortete „Was ist
+#: WissenLebtOnline?" aus dem Gedaechtnis.
+#:
+#: **Warum kein Vorabruf.** Der Modulkopf begruendet den
+#: Verzicht: diese Schleife beantwortet auch „hallo", und eine Einbettung ohne
+#: WLO-Bezug zahlte fuer Wissen, das niemand braucht. Der Entscheid bleibt —
+#: verschaerft wird die Regel, nicht die Mechanik. Die Formulierung nimmt die
+#: Beispiel-Bauart des Muster-Wegs auf (``response_prompt_tools_text``), aber
+#: kurz: dieser Block sitzt im gecachten Praefix und wird JEDE Runde gezahlt.
+#:
+#: **Die Abgrenzung ist Teil der Regel, nicht Beiwerk** (Durchsicht 2026-08-19).
+#: Ohne sie liegt die Materialsuche gefaehrlich nah an „Fragen zu WLO" — und
+#: genau dort steht der Agent heute BESSER da als der Muster-Weg: bei „Ich
+#: suche Inhalte zu einem Thema" fragt er ohne einen einzigen Werkzeug-Aufruf
+#: zurueck (gemessen 2026-08-19). Eine zu breit gelesene Regel machte daraus
+#: eine ueberfluessige Wissenssuche und verschlechterte den einen Fall, in dem
+#: die Schleife vorn liegt. Deshalb nennt der Text beide Ausnahmen beim Namen.
+WISSENS_REGEL: Final = (
+    "\n\nWISSEN VOR GEDAECHTNIS: Fragen zu WLO und seinem Umfeld — was die "
+    "Plattform oder ein Projekt ist, wie die Webseite aufgebaut ist, OER, "
+    "Metadaten, Lizenzen, Qualitaet, Prozesse, Mitmachen — beantwortest du "
+    "NICHT aus dem Gedaechtnis. Rufe zuerst ``wissen_suchen``, auch wenn du "
+    "die Antwort zu kennen meinst. Findet es nichts, sage das.\n"
+    "Nicht gemeint ist die Suche nach Lernmaterial zu einem Unterrichtsthema — "
+    "die geht in den Bestand, nicht in die Wissensdatenbank. Und eine "
+    "Rueckfrage, weil dir eine Angabe fehlt, braucht ueberhaupt kein Werkzeug."
+)
+
+
 _KOPF: Final = (
     "Durchsuche die interne, redaktionell gepflegte Wissensdatenbank. Nimm sie "
     "fuer Fragen zu WLO und seinem Umfeld: Prozesse, Richtlinien, Qualitaets"
@@ -72,7 +109,7 @@ _OHNE: Final = "Diese Bereiche auslassen. Weglassen = keinen."
 
 
 def fuer_die_schleife(rag_config: dict[str, Any]) -> list[str]:
-    """Die Bereichsnamen, die in Agent und Hybrid ueberhaupt zaehlen (Q).
+    """Die Bereichsnamen, die in der Agent-Schleife ueberhaupt zaehlen (Q).
 
     Vorgabe ist ALLES; nur ein ausdrueckliches ``agent: false`` nimmt einen
     Bereich heraus. Ein fehlendes Feld heisst „dabei" — sonst haette das

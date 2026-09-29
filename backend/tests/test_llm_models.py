@@ -66,6 +66,18 @@ def test_supports_gpt5_params_provider_gate(monkeypatch):
     assert lm.supports_gpt5_params("gpt-5.6-luna") is False  # provider excluded
 
 
+def test_gpt6_hat_eine_eigene_regelgruppe():
+    # Ohne Gruppe fiel gpt-6-luna auf _CLASSIC: temperature und max_tokens gingen
+    # mit, reasoning_effort fehlte — jedes davon allein ein 400er (gemessen
+    # 2026-09-26). Nur gpt-6 nimmt den Responses-Weg; gpt-5.6 leitet LiteLLM bei
+    # Werkzeugen schon selbst dorthin um.
+    assert lm.param_rules("gpt-6-luna") == lm.ParamRules(
+        gpt5_params=True, effort_with_tools=True, temperature_on_none=False,
+        responses_api=True)
+    assert lm.param_rules("gpt-5.6-luna").responses_api is False
+    assert lm.is_gpt5_model("gpt-6-luna") is True
+
+
 def test_embed_dim_resolution(monkeypatch):
     assert lm.get_embed_dim() == 1536  # default model
     assert lm.get_embed_dim("text-embedding-3-large") == 3072

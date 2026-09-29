@@ -3,9 +3,11 @@ quality-log-config, guide-mode, classify-overrides, tone-modifiers,
 card-pipeline. Shapes verified against the ALT tree inventory (2026-07-11).
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Final
 
-from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices
+from pydantic import Field
+
+from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices, Textarea
 
 #: Wann die jeweilige Prüfstufe läuft. Gemessen im Seed 2026-08-13; ``smart``
 #: kommt beim Rechts-Klassifikator vor, bei der Moderation nur ``never``/
@@ -52,16 +54,32 @@ class RateLimitsBlock(AreaModel):
     per_session: RateLimitWindow = RateLimitWindow()
     per_ip: RateLimitWindow = RateLimitWindow()
     ip_whitelist: list[str] = []
-    blocked_message: str = ""
+    blocked_message: Annotated[str, Textarea()] = ""
     # C1-g2c: leer heißt „nicht gepflegt" — dann zeigt der Bot den deutschen
     # Satz, nie eine leere Blase.
-    blocked_message_en: str = ""
+    blocked_message_en: Annotated[str, Textarea()] = ""
 
 
 class SafetyLoggingBlock(AreaModel):
     enabled: bool = True
     log_all_turns: bool = False
     retention_days: int = 30
+
+
+#: D-14 (Nutzer, 2026-09-27): die Antwort des Agent-Endpunkts auf eine Krise —
+#: im Studio frei konfigurierbar, vorbelegt mit dem Verweis an Familie und
+#: Einrichtung. Bewusst ohne Telefonnummern: eine Nummer im Code wäre eine
+#: Behauptung, die niemand pflegt. Der Chat antwortet weiter über das Muster M01.
+KRISENTEXT_VORGABE = (
+    "Es tut mir leid, dass es dir gerade nicht gut geht. Bitte wende dich an "
+    "deine Familie oder an die Ansprechperson in deiner Einrichtung — du musst "
+    "das nicht allein tragen."
+)
+KRISENTEXT_VORGABE_EN = (
+    "I'm sorry you're going through a hard time. Please reach out to your "
+    "family or to the contact person at your institution — you don't have to "
+    "carry this alone."
+)
 
 
 class SafetyConfigArea(AreaModel):
@@ -76,6 +94,10 @@ class SafetyConfigArea(AreaModel):
     crisis_blocked_tools: list[Annotated[str, Catalog("tools")]] = []
     crisis_pattern: Annotated[str, Catalog("patterns")] = ""
     threat_pattern: Annotated[str, Catalog("patterns")] = ""
+    # AG-4 Teil B: der Text des Agent-Endpunkts bei einer Krise. Leer heißt
+    # „nicht gepflegt" — dann gilt die Vorgabe, nie eine leere Antwort.
+    crisis_message: Annotated[str, Textarea()] = KRISENTEXT_VORGABE
+    crisis_message_en: Annotated[str, Textarea()] = KRISENTEXT_VORGABE_EN
     escalation: EscalationBlock = EscalationBlock()
     confidence_adjustments: dict[str, float] = {}
     rate_limits: RateLimitsBlock = RateLimitsBlock()
@@ -84,7 +106,7 @@ class SafetyConfigArea(AreaModel):
 
 class PolicyRule(AreaModel):
     id: str
-    description: str = ""
+    description: Annotated[str, Textarea()] = ""
     match: dict[str, Any] = {}
     effect: dict[str, Any] = {}
 
@@ -97,7 +119,10 @@ class PrivacyLoggingBlock(AreaModel):
     messages: bool = True
     memory: bool = True
     quality: bool = True
-    safety: bool = True  # loader forces True regardless (audit trail)
+    # Der Lader gibt True fest zurück (Audit-Pfad) — `x-fixed` lässt das Studio
+    # einen gesperrten Schalter „fest aktiv" zeigen statt eines, der sich
+    # wirkungslos auf „aus" stellen ließe (ST-6).
+    safety: bool = Field(default=True, json_schema_extra={"x-fixed": True})
 
 
 class PrivacyConfigArea(AreaModel):
@@ -123,7 +148,8 @@ class QualityLogConfigArea(AreaModel):
 class GuideModeBlock(AreaModel):
     default_enabled: bool = True
     max_guide_targets_per_turn: int = 5
-    max_guide_quick_replies: int = 2
+    # ST-2c: Grenze = Kappung im Lader (config_loader/safety.py)
+    max_guide_quick_replies: int = Field(default=2, ge=1, le=3)
     url_fields_priority: list[str] = []
     allowed_hosts: list[str] = []
     trusted_domains: list[str] = []
@@ -135,7 +161,7 @@ class GuideModeArea(AreaModel):
 
 class PersonaOverride(AreaModel):
     id: str
-    description: str = ""
+    description: Annotated[str, Textarea()] = ""
     # Ein Vorschlagsfeld, kein Auswahlfeld: `*` ist hier ein zulässiger Wert
     # (Platzhalter für „jede Persona") und steht in keinem Katalog.
     persona: Annotated[str, Catalog("personas")] = ""
@@ -147,7 +173,7 @@ class PersonaOverride(AreaModel):
 
 class IntentOverride(AreaModel):
     id: str
-    description: str = ""
+    description: Annotated[str, Textarea()] = ""
     intent: Annotated[str, Catalog("intents")] = ""
     triggers: list[str] = []
 
@@ -162,21 +188,35 @@ class FewShotExample(AreaModel):
 class ClassifyOverridesArea(AreaModel):
     persona_overrides: list[PersonaOverride] = []
     intent_overrides: list[IntentOverride] = []
-    intent_conflict_rule: str = ""
+    intent_conflict_rule: Annotated[str, Textarea()] = ""
     topic_overrides: dict[str, Any] = {}
     pattern_disambiguators_legacy: list[dict[str, Any]] = []
     few_shot_examples: list[FewShotExample] = []
 
 
+#: Ab diesem Betrag verschiebt ``length_bias`` die Länge um eine Stufe
+#: (``pattern_engine._apply_length_bias``). EINE Zahl für Engine und
+#: Studio-Regler (ST-2h) — sonst läge die Anzeige still neben der Wirkung.
+LENGTH_BIAS_STEP: Final = 0.15
+#: Der Regler im Studio: Schritte von 0,05, Zonen an den Schwellen.
+LENGTH_BIAS_SLIDER: Final = {
+    "x-widget": "slider", "x-step": 0.05,
+    "x-thresholds": [-LENGTH_BIAS_STEP, LENGTH_BIAS_STEP],
+}
+
+
 class ToneModifier(AreaModel):
     # Bewusst OHNE Auswahl, obwohl der Vorrat klein aussieht: `formality` wird
     # in `completion_messages` gegen ("sie","siezen","formal","foermlich")
-    # geprüft — mehr Werte, als jeder Kommentar nennt. Und `card_text_mode` ist
-    # an zwei Stellen UNTERSCHIEDLICH dokumentiert (`config_areas.py`:
-    # minimal|kurz|explanation|ausfuehrlich, `pattern_engine.py`:
-    # minimal|reference|highlight). Eine Auswahl wäre hier eine Behauptung.
+    # geprüft — mehr Werte, als jeder Kommentar nennt. `card_text_mode` hatte
+    # bis 2026-09-27 zwei Vokabulare (Lader vs. Antwort-Prompt); seitdem gilt
+    # minimal|reference|highlight (`config_loader/tone.py`). Die Auswahl dafür
+    # ist offen — sie ändert das Studio-Formular (Fixture).
     tone: str = "locker"
-    length_bias: float = 0.0
+    # ST-2c: Grenze = Kappung im Lader (config_loader/tone.py)
+    length_bias: float = Field(
+        default=0.0, ge=-0.3, le=0.3, json_schema_extra=LENGTH_BIAS_SLIDER,
+    )
     formality: str = "wie_user"
     card_text_mode: str = "minimal"
     override: bool = False

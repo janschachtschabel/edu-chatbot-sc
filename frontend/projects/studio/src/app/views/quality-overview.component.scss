@@ -95,11 +95,6 @@
   cursor: pointer;
 }
 
-.qo-reload:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
-}
-
 .qo-reload:disabled {
   opacity: 0.6;
   cursor: default;

@@ -95,7 +95,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "structure": {
             "default": "",
             "title": "Structure",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           }
         },
         "required": [
@@ -281,7 +282,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "description": {
             "default": "",
             "title": "Description",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "intent": {
             "default": "",
@@ -314,7 +316,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "description": {
             "default": "",
             "title": "Description",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "persona": {
             "default": "",
@@ -383,7 +386,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       "intent_conflict_rule": {
         "default": "",
         "title": "Intent Conflict Rule",
-        "type": "string"
+        "type": "string",
+        "x-widget": "textarea"
       },
       "topic_overrides": {
         "additionalProperties": true,
@@ -437,7 +441,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           },
           "greetings": {
             "additionalProperties": {
-              "type": "string"
+              "type": "string",
+              "x-widget": "textarea"
             },
             "default": {},
             "title": "Greetings",
@@ -445,7 +450,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           },
           "greetings_en": {
             "additionalProperties": {
-              "type": "string"
+              "type": "string",
+              "x-widget": "textarea"
             },
             "default": {},
             "title": "Greetings En",
@@ -485,7 +491,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "curate_prompt": {
             "default": "",
             "title": "Curate Prompt",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           }
         },
         "title": "ContextActionsBlock",
@@ -667,26 +674,36 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "properties": {
           "themenseiten_max": {
             "default": 3,
+            "maximum": 20,
+            "minimum": 1,
             "title": "Themenseiten Max",
             "type": "integer"
           },
           "sammlungen_max": {
             "default": 3,
+            "maximum": 20,
+            "minimum": 1,
             "title": "Sammlungen Max",
             "type": "integer"
           },
           "materialien_max": {
             "default": 3,
+            "maximum": 8,
+            "minimum": 1,
             "title": "Materialien Max",
             "type": "integer"
           },
           "materialien_max_lernpfad": {
             "default": 5,
+            "maximum": 8,
+            "minimum": 1,
             "title": "Materialien Max Lernpfad",
             "type": "integer"
           },
           "webseiten_max": {
             "default": 3,
+            "maximum": 30,
+            "minimum": 1,
             "title": "Webseiten Max",
             "type": "integer"
           }
@@ -699,11 +716,15 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "properties": {
           "limit": {
             "default": 3,
+            "maximum": 6,
+            "minimum": 1,
             "title": "Limit",
             "type": "integer"
           },
           "title_max_chars": {
             "default": 70,
+            "maximum": 200,
+            "minimum": 30,
             "title": "Title Max Chars",
             "type": "integer"
           }
@@ -721,6 +742,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           },
           "font_size_percent": {
             "default": 85,
+            "maximum": 100,
+            "minimum": 70,
             "title": "Font Size Percent",
             "type": "integer"
           },
@@ -735,7 +758,10 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "intro_text": {
             "anyOf": [
               {
-                "type": "string"
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
               },
               {
                 "type": "null"
@@ -773,6 +799,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "properties": {
           "max_count": {
             "default": 4,
+            "maximum": 6,
+            "minimum": 0,
             "title": "Max Count",
             "type": "integer"
           },
@@ -806,6 +834,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "max_count": {
             "anyOf": [
               {
+                "maximum": 8,
+                "minimum": 1,
                 "type": "integer"
               },
               {
@@ -901,27 +931,107 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "default": true,
             "title": "Safety",
             "type": "boolean"
+          },
+          "anonymous": {
+            "$ref": "#/$defs/AnonymousLimits"
           }
         },
         "title": "AgentLimits",
         "type": "object"
+      },
+      "AgentRolle": {
+        "additionalProperties": true,
+        "description": "Rolle und Grenzen des Agenten (AG-3): was der Betreiber im Studio setzt.\n\nDie Arbeitsweise im Einzelnen setzt die Redaktion im Repositorium (der\nMaster-Skill); der Kopf aus diesen Feldern steht davor und geht ihm vor\n(``services/agent_kopf``). ``schutzregeln`` sind Kennungen aus\n``01-base/guardrails``: nur diese gelten für den Agenten. Die übrigen sind\nArbeitsregeln der Muster-Maschine (etwa „max. 5 Treffer\"), die die Schleife\neher bremsen.",
+        "properties": {
+          "rolle": {
+            "default": "Du bist Boerdi, der Assistent von WirLernenOnline (WLO). Du sprichst mit einem Menschen im Chat — kurz, freundlich und ohne Floskeln.\n\nArbeitsweise: Hole dir die Tatsachen mit den Werkzeugen, statt sie aus dem Gedächtnis zu behaupten. Steht in einer Sammlung ein Skill zu deiner Aufgabe, halte dich daran. Nenne, worauf du dich stützt, und sage ausdrücklich, was du NICHT prüfen konntest.\n\nAntwortform: Fragt jemand nach Material, suche zuerst mit dem, was du weißt (Thema, Fach, Klassenstufe, Anlass) — die Treffer erscheinen als Karten; eine Rückfrage höchstens danach. Ein eigenes Material erstellst du nur, wenn es verlangt ist oder im Bestand nichts passt — dann sag, dass es selbst erstellt ist. Wird ein fertiges Ergebnis verlangt (ein erstelltes Material, eine Stunden- oder Lernpfad-Planung, der Volltext eines Materials), liefere es mit zeige_dokument als Box; fehlt ein fertiger Lernpfad oder Stundenablauf, stelle ihn aus den Treffern zusammen.",
+            "title": "Rolle",
+            "type": "string",
+            "x-widget": "textarea"
+          },
+          "schutzregeln": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Schutzregeln",
+            "type": "array"
+          }
+        },
+        "title": "AgentRolle",
+        "type": "object"
+      },
+      "AnonymousLimits": {
+        "additionalProperties": true,
+        "description": "Engere Deckel für Züge ohne angemeldete Person (AG-6, Entscheid D-9).\n\nJeder Client wählt die Maschine über die Kopfzeile ``X-Boerdi-Engine``; ohne\ndiese Deckel gelten für einen anonymen Zug dieselben wie für eine angemeldete\nEinbettung. **Vorbelegt mit den aktuellen Werten** (Nutzer, 2026-09-27: nicht\nhart deckeln, aber im Studio anbieten) — die Vorgabe ändert also nichts.\nAngewandt als Minimum (``services/agent_deckel``): ein Wert über dem normalen\nDeckel hebt nichts an, ein geleertes Feld heißt „wie angemeldet\". Grenzen wie\ndort, aus demselben Grund (das Studio schreibt direkt gegen dieses Modell).",
+        "properties": {
+          "max_iterations": {
+            "anyOf": [
+              {
+                "maximum": 50,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 30,
+            "title": "Max Iterations"
+          },
+          "deadline_s": {
+            "anyOf": [
+              {
+                "maximum": 1800,
+                "minimum": 5,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 900,
+            "title": "Deadline S"
+          },
+          "token_budget": {
+            "anyOf": [
+              {
+                "minimum": 1000,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 900000,
+            "title": "Token Budget"
+          }
+        },
+        "title": "AnonymousLimits",
+        "type": "object"
       }
     },
     "additionalProperties": true,
-    "description": "Der Umschalter plus die Deckel der Agent-Schleife.",
+    "description": "Der Umschalter, die Deckel der Agent-Schleife und ihre Rolle (AG-3),\ndazu die Skill-Brücke der Muster-Maschine (E-6).",
     "properties": {
       "mode": {
         "default": "pattern",
         "enum": [
           "pattern",
-          "agent",
-          "hybrid"
+          "agent"
         ],
         "title": "Mode",
         "type": "string"
       },
       "agent": {
         "$ref": "#/$defs/AgentLimits"
+      },
+      "agent_rolle": {
+        "$ref": "#/$defs/AgentRolle"
+      },
+      "muster_skills": {
+        "default": false,
+        "title": "Muster Skills",
+        "type": "boolean"
       }
     },
     "title": "EngineArea",
@@ -949,7 +1059,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "description": {
             "default": "",
             "title": "Description",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "examples": {
             "default": [],
@@ -1053,6 +1164,12 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             },
             "title": "Turns",
             "type": "array"
+          },
+          "environment": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Environment",
+            "type": "object"
           }
         },
         "title": "GoldFlow",
@@ -1064,7 +1181,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "message": {
             "default": "",
             "title": "Message",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "expect": {
             "additionalProperties": true,
@@ -1113,6 +1231,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           },
           "max_guide_quick_replies": {
             "default": 2,
+            "maximum": 3,
+            "minimum": 1,
             "title": "Max Guide Quick Replies",
             "type": "integer"
           },
@@ -1170,7 +1290,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "pattern": {
             "default": "",
             "title": "Pattern",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "label": {
             "default": "",
@@ -1212,7 +1333,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "brand_pattern": {
             "default": "",
             "title": "Brand Pattern",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           }
         },
         "title": "RagAreaRule",
@@ -1332,7 +1454,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "description": {
             "default": "",
             "title": "Description",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "examples": {
             "default": [],
@@ -1380,7 +1503,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "phrase": {
             "default": "",
             "title": "Phrase",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "redirect_to": {
             "default": "",
@@ -1390,7 +1514,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "rationale": {
             "default": "",
             "title": "Rationale",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "when": {
             "anyOf": [
@@ -1523,7 +1648,9 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       "body": {
         "default": "",
         "title": "Body",
-        "type": "string"
+        "type": "string",
+        "x-primary": true,
+        "x-widget": "textarea"
       }
     },
     "title": "LayerDocArea",
@@ -1546,7 +1673,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "description": {
             "default": "",
             "title": "Description",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "enabled": {
             "default": true,
@@ -1608,12 +1736,14 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "rule": {
             "default": "",
             "title": "Rule",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "example": {
             "default": "",
             "title": "Example",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           }
         },
         "title": "PatternDiscriminator",
@@ -1635,7 +1765,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "short_purpose": {
             "default": "",
             "title": "Short Purpose",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "priority": {
             "default": 50,
@@ -1660,12 +1791,14 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "core_rule": {
             "default": "",
             "title": "Core Rule",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "when_to_use": {
             "default": [],
             "items": {
-              "type": "string"
+              "type": "string",
+              "x-widget": "textarea"
             },
             "title": "When To Use",
             "type": "array"
@@ -1673,7 +1806,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "when_not_to_use": {
             "default": [],
             "items": {
-              "type": "string"
+              "type": "string",
+              "x-widget": "textarea"
             },
             "title": "When Not To Use",
             "type": "array"
@@ -1869,7 +2003,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       "body": {
         "default": "",
         "title": "Body",
-        "type": "string"
+        "type": "string",
+        "x-widget": "textarea"
       }
     },
     "title": "PatternArea",
@@ -1883,7 +2018,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "phrase": {
             "default": "",
             "title": "Phrase",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "redirect_to": {
             "anyOf": [
@@ -1907,7 +2043,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
-            "title": "Rationale"
+            "title": "Rationale",
+            "x-widget": "textarea"
           },
           "when": {
             "anyOf": [
@@ -1936,7 +2073,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "rule": {
             "default": "",
             "title": "Rule",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "example_a": {
             "anyOf": [
@@ -1987,7 +2125,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "description": {
             "default": "",
             "title": "Description",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "tone": {
             "anyOf": [
@@ -2004,6 +2143,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "length_bias": {
             "anyOf": [
               {
+                "maximum": 0.3,
+                "minimum": -0.3,
                 "type": "number"
               },
               {
@@ -2011,7 +2152,13 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
-            "title": "Length Bias"
+            "title": "Length Bias",
+            "x-step": 0.05,
+            "x-thresholds": [
+              -0.15,
+              0.15
+            ],
+            "x-widget": "slider"
           },
           "formality": {
             "anyOf": [
@@ -2091,7 +2238,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "rules": {
             "default": [],
             "items": {
-              "type": "string"
+              "type": "string",
+              "x-widget": "textarea"
             },
             "title": "Rules",
             "type": "array"
@@ -2135,7 +2283,9 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       "body": {
         "default": "",
         "title": "Body",
-        "type": "string"
+        "type": "string",
+        "x-primary": true,
+        "x-widget": "textarea"
       }
     },
     "title": "PersonaArea",
@@ -2173,7 +2323,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "description": {
             "default": "",
             "title": "Description",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "match": {
             "additionalProperties": true,
@@ -2282,7 +2433,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "safety": {
             "default": true,
             "title": "Safety",
-            "type": "boolean"
+            "type": "boolean",
+            "x-fixed": true
           }
         },
         "title": "PrivacyLoggingBlock",
@@ -2391,7 +2543,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
-            "title": "Description"
+            "title": "Description",
+            "x-widget": "textarea"
           },
           "agent": {
             "default": true,
@@ -2520,12 +2673,14 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "blocked_message": {
             "default": "",
             "title": "Blocked Message",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "blocked_message_en": {
             "default": "",
             "title": "Blocked Message En",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           }
         },
         "title": "RateLimitsBlock",
@@ -2652,6 +2807,18 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "title": "Threat Pattern",
         "type": "string",
         "x-catalog": "patterns"
+      },
+      "crisis_message": {
+        "default": "Es tut mir leid, dass es dir gerade nicht gut geht. Bitte wende dich an deine Familie oder an die Ansprechperson in deiner Einrichtung — du musst das nicht allein tragen.",
+        "title": "Crisis Message",
+        "type": "string",
+        "x-widget": "textarea"
+      },
+      "crisis_message_en": {
+        "default": "I'm sorry you're going through a hard time. Please reach out to your family or to the contact person at your institution — you don't have to carry this alone.",
+        "title": "Crisis Message En",
+        "type": "string",
+        "x-widget": "textarea"
       },
       "escalation": {
         "$ref": "#/$defs/EscalationBlock",
@@ -2839,7 +3006,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "description": {
             "default": "",
             "title": "Description",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "role": {
             "default": "",
@@ -2849,7 +3017,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "bot_directive": {
             "default": "",
             "title": "Bot Directive",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "next_likely": {
             "default": [],
@@ -2902,8 +3071,16 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           },
           "length_bias": {
             "default": 0.0,
+            "maximum": 0.3,
+            "minimum": -0.3,
             "title": "Length Bias",
-            "type": "number"
+            "type": "number",
+            "x-step": 0.05,
+            "x-thresholds": [
+              -0.15,
+              0.15
+            ],
+            "x-widget": "slider"
           },
           "formality": {
             "default": "wie_user",
@@ -3094,36 +3271,43 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "intro": {
             "default": "",
             "title": "Intro",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "intro_en": {
             "default": "",
             "title": "Intro En",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "nudge": {
             "default": "",
             "title": "Nudge",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "nudge_en": {
             "default": "",
             "title": "Nudge En",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "explore": {
             "default": "",
             "title": "Explore",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "explore_en": {
             "default": "",
             "title": "Explore En",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "entry": {
             "additionalProperties": {
-              "type": "string"
+              "type": "string",
+              "x-widget": "textarea"
             },
             "default": {},
             "title": "Entry",
@@ -3202,7 +3386,9 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "greeting": {
             "default": "",
             "title": "Greeting",
-            "type": "string"
+            "type": "string",
+            "x-primary": true,
+            "x-widget": "textarea"
           },
           "quick_replies": {
             "default": [],
@@ -3210,7 +3396,9 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               "type": "string"
             },
             "title": "Quick Replies",
-            "type": "array"
+            "type": "array",
+            "x-marker": "tour_reply",
+            "x-primary": true
           },
           "tour_reply": {
             "default": "",
@@ -3220,7 +3408,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "greeting_en": {
             "default": "",
             "title": "Greeting En",
-            "type": "string"
+            "type": "string",
+            "x-widget": "textarea"
           },
           "quick_replies_en": {
             "default": [],
@@ -3228,7 +3417,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               "type": "string"
             },
             "title": "Quick Replies En",
-            "type": "array"
+            "type": "array",
+            "x-marker": "tour_reply_en"
           },
           "tour_reply_en": {
             "default": "",
@@ -3264,11 +3454,15 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "properties": {
           "cards_inline_link_limit": {
             "default": 5,
+            "maximum": 6,
+            "minimum": 1,
             "title": "Cards Inline Link Limit",
             "type": "integer"
           },
           "cards_inline_link_title_max": {
             "default": 70,
+            "maximum": 200,
+            "minimum": 30,
             "title": "Cards Inline Link Title Max",
             "type": "integer"
           }

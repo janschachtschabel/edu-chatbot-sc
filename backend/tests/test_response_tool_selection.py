@@ -111,6 +111,15 @@ def test_explicit_empty_tools_yields_no_base_tools(monkeypatch):
     assert _names({"tools": []}) == []
 
 
+def test_zugeschaltete_skill_werkzeuge_werden_angeboten(monkeypatch):
+    """E-6: die Skill-Brücke steht neben ``tools`` und kommt trotzdem an."""
+    from boerdi.domain.skill_bruecke import ZUSATZ_KEY
+    _disable_cards(monkeypatch)
+    names = _names({"tools": ["search_wlo_content"],
+                    ZUSATZ_KEY: ["get_skill_registry", "get_skill"]})
+    assert {"search_wlo_content", "get_skill_registry", "get_skill"} <= set(names)
+
+
 def test_mcp_source_offers_all_tool_defs(monkeypatch):
     _disable_cards(monkeypatch)
     assert _names({"sources": ["mcp"]}) == _ALL_TOOL_NAMES

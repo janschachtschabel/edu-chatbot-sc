@@ -165,7 +165,7 @@ in der Bewertung & Feedback eine Probing-Frage, in der Slot-Erfassung wahrschein
 {chr(10).join(f"- {h}" for h in filled_hints)}
 
 ## Perspektive (STRIKT — wichtigste Regel)
-Die 4 Vorschlaege sind **Saetze, die der NUTZER dem Bot sagt**, nicht der Bot
+Die {count} Vorschlaege sind **Saetze, die der NUTZER dem Bot sagt**, nicht der Bot
 zum Nutzer. Schreib aus Ich-/Du-Perspektive des Users. Bot-imperative
 ("Mach", "Zeige", "Filtere"...) sind nur dann ok, wenn der NUTZER damit etwas
 vom Bot verlangt ("Zeig mir nur Videos") — nicht als Bot-Selbstbefehl
@@ -231,6 +231,7 @@ Waehle {count} aus den folgenden Kategorien (mindestens {min(3, count)} untersch
 
 ## Regeln
 1. Genau {count} Vorschlaege, einer pro Zeile, KEINE Nummerierung, KEINE Bullets.
+   Eine Lotsen-Zeile nach Regel 11 zaehlt NICHT mit.
 2. **Laenge — HARTE Grenze**: jeder Vorschlag {_len_rule}. Zaehle die Zeichen,
    bevor du eine Zeile abgibst. Zu lange Vorschlaege werden VERWORFEN; der
    Nutzer sieht dann eine Pille weniger. Beim Lotsen-Format (Regel 11) zaehlt
@@ -257,12 +258,13 @@ Waehle {count} aus den folgenden Kategorien (mindestens {min(3, count)} untersch
     GUT: "Mehr Mathe-Videos zeigen" / "Anderes Thema waehlen"
 11. **Bring-mich-hin-Vorschlag (Webseiten-Lotse — sehr oft nutzbar)**:
     Wenn die NUTZER-NACHRICHT zu einer dieser konkreten WLO-Seiten passt,
-    MUSST du EINEN der 4 Vorschlaege als Spezialformat schreiben:
+    schreibst du ZUSAETZLICH zu den normalen Vorschlaegen EINE Zeile im
+    Spezialformat:
 
        ``__guide__|<kurzer Anzeigetext>|<vollstaendige URL>``
 
     Frontend rendert das als dunkelblauen Same-Tab-Navigations-Button.
-    Die anderen 3 Vorschlaege bleiben normale Folgesaetze.
+    Die {count} normalen Vorschlaege bleiben vollzaehlig.
 
     NUTZER-FRAGE → ANZUBIETENDE WLO-URL (verlaesslich; erfinde KEINE
     weiteren Pfade ausserhalb dieser Liste):
@@ -286,12 +288,12 @@ Waehle {count} aus den folgenden Kategorien (mindestens {min(3, count)} untersch
 
     REGELN:
     - URL muss vollstaendig sein (https://...), kein relativer Pfad.
-    - Maximal 1 Guide-QR pro Antwort. Insgesamt also {count} Zeilen davon 1 Guide.
+    - Maximal 1 Guide-QR pro Antwort, zusaetzlich zu den {count} normalen.
     - Wenn KEINE der oben gelisteten Frage-Kategorien passt, KEINEN Guide-QR
-      einbauen — dann {count} normale Vorschlaege.
+      einbauen — dann nur die {count} normalen Vorschlaege.
     - Themenseiten-Slugs nur fuer Themen die der User EXPLIZIT genannt hat
       (z.B. „klimawandel", „photosynthese") — keine Slugs erfinden.
     - Anzeigetext kurz, konkret, deutsch. KEINE generische „Bring mich hin"
       ohne Kontext.
 
-Gib NUR die {count} Zeilen zurueck, sonst nichts.""" + template_hint(lang)
+Gib NUR die {count} Vorschlaege zurueck (dazu hoechstens eine Lotsen-Zeile), sonst nichts.""" + template_hint(lang)

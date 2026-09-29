@@ -4,20 +4,22 @@
  *
  * The debug block is the reason this view exists at all: pattern, intent, state
  * and the tools that ran are how an editor tells "the bot chose the wrong
- * pattern" from "the pattern is worded badly".
+ * pattern" from "the pattern is worded badly". Since ST-8a each answer also
+ * shows its engine, tokens and — in agent mode — the rounds of the loop.
  */
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, untracked }
   from '@angular/core';
 
 import { AsyncData } from '../core/async-data';
 import { SessionsApi, type SessionMessage } from '../core/sessions-api.service';
+import { AgentTraceComponent } from './agent-trace.component';
 import { AsyncStateComponent } from './async-state.component';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { StudioFormat } from '../i18n/studio-format.service';
 
 @Component({
   selector: 'studio-session-transcript',
-  imports: [AsyncStateComponent],
+  imports: [AgentTraceComponent, AsyncStateComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './session-transcript.component.html',
   styleUrl: './session-transcript.component.scss',

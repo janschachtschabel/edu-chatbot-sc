@@ -68,6 +68,41 @@ export const AGENT: CataloguePart = {
     'agent.result.structured': 'Strukturiertes Ergebnis',
     'agent.result.noStructured':
       'Keines — das entsteht nur, wenn ein Ergebnis-Schema mitgegeben wurde.',
+
+    // AG-2 (2026-09-26): der Master-Skill, nur lesend — er bleibt im Repositorium.
+    'masterSkill.loading': 'Lade den Master-Skill …',
+    'masterSkill.noNode':
+      'Kein Master-Skill hinterlegt. Die Kennung setzt der Betrieb in der Umgebung '
+      + 'des Backends (MASTER_SKILL_NODE_ID).',
+    'masterSkill.state': 'Zustand',
+    'masterSkill.state.on': 'Aktiv',
+    'masterSkill.state.off': 'Abgeschaltet',
+    'masterSkill.node': 'Knoten im Repositorium',
+    'masterSkill.fetched': 'Zuletzt geholt',
+    'masterSkill.notFetched': 'noch nicht',
+    'masterSkill.length': 'Länge',
+    'masterSkill.chars.one': '{n} Zeichen',
+    'masterSkill.chars.other': '{n} Zeichen',
+    'masterSkill.checksum': 'Prüfsumme (SHA-256)',
+    'masterSkill.offNote':
+      'Abgeschaltet (MASTER_SKILL_ENABLED): der Agent nutzt ihn nur dort, wo eine '
+      + 'Einbettung ihn ausdrücklich einschaltet. Der Wortlaut zeigt, was gelten würde.',
+    'masterSkill.lastError': 'Der letzte Abruf ist gescheitert: {error}',
+    'masterSkill.reload': 'Neu laden',
+    'masterSkill.reloading': 'Lädt neu …',
+    'masterSkill.reloaded': 'Neu geladen.',
+    'masterSkill.reloadFailed': 'Neu laden ist gescheitert: {error}',
+    'masterSkill.edit': 'Im Editor bearbeiten',
+    'masterSkill.view': 'Im Repositorium ansehen',
+    'masterSkill.editHint': 'Speichern setzt eine edu-sharing-Anmeldung in diesem Browser voraus.',
+    'masterSkill.linkOf': ': Master-Skill',
+    'masterSkill.newTab': '(öffnet einen neuen Tab)',
+    'masterSkill.cacheNote':
+      'Das Backend hält den Text bis zu {minutes} min vor. „Neu laden“ holt ihn '
+      + 'sofort in diesem Backend-Prozess; weitere Prozesse folgen spätestens nach '
+      + '{minutes} min.',
+    'masterSkill.showText': 'Wortlaut anzeigen',
+    'masterSkill.textLabel': 'Wortlaut des Master-Skills',
   },
 
   en: {
@@ -128,5 +163,39 @@ export const AGENT: CataloguePart = {
     'agent.result.structured': 'Structured result',
     'agent.result.noStructured':
       'None — this only appears when a result schema was supplied.',
+
+    'masterSkill.loading': 'Loading the master skill …',
+    'masterSkill.noNode':
+      'No master skill configured. Operations set its ID in the backend '
+      + 'environment (MASTER_SKILL_NODE_ID).',
+    'masterSkill.state': 'State',
+    'masterSkill.state.on': 'Active',
+    'masterSkill.state.off': 'Switched off',
+    'masterSkill.node': 'Node in the repository',
+    'masterSkill.fetched': 'Last fetched',
+    'masterSkill.notFetched': 'not yet',
+    'masterSkill.length': 'Length',
+    'masterSkill.chars.one': '{n} character',
+    'masterSkill.chars.other': '{n} characters',
+    'masterSkill.checksum': 'Checksum (SHA-256)',
+    'masterSkill.offNote':
+      'Switched off (MASTER_SKILL_ENABLED): the agent only uses it where an embedding '
+      + 'explicitly switches it on. The text shows what would apply.',
+    'masterSkill.lastError': 'The last fetch failed: {error}',
+    'masterSkill.reload': 'Reload',
+    'masterSkill.reloading': 'Reloading …',
+    'masterSkill.reloaded': 'Reloaded.',
+    'masterSkill.reloadFailed': 'Reload failed: {error}',
+    'masterSkill.edit': 'Edit in the editor',
+    'masterSkill.view': 'View in the repository',
+    'masterSkill.editHint': 'Saving requires an edu-sharing login in this browser.',
+    'masterSkill.linkOf': ': master skill',
+    'masterSkill.newTab': '(opens a new tab)',
+    'masterSkill.cacheNote':
+      'The backend keeps the text for up to {minutes} min. “Reload” fetches it '
+      + 'right away in this backend process; other processes follow within '
+      + '{minutes} min.',
+    'masterSkill.showText': 'Show the text',
+    'masterSkill.textLabel': 'Text of the master skill',
   },
 };

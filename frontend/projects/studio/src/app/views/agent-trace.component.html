@@ -1,0 +1,57 @@
+@if (visible()) {
+  <div class="atr">
+    @if (facts().length > 0) {
+      <dl class="atr-facts">
+        @for (fact of facts(); track $index) {
+          <div>
+            <dt>{{ fact.label }}</dt>
+            <dd>{{ fact.value }}</dd>
+          </div>
+        }
+      </dl>
+    }
+
+    @if (trace().rounds.length > 0) {
+      <details class="atr-rounds">
+        <summary>{{ t('trace.detail', { count: trace().rounds.length }) }}</summary>
+        <div class="atr-table-wrap">
+          <table class="atr-table">
+            <caption class="atr-caption">{{ t('trace.caption') }}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{{ t('trace.col.round') }}</th>
+                <th scope="col">{{ t('trace.col.tools') }}</th>
+                <th scope="col" class="atr-num">{{ t('trace.col.duration') }}</th>
+                <th scope="col" class="atr-num">{{ t('trace.col.prompt') }}</th>
+                <th scope="col" class="atr-num">{{ t('trace.col.cached') }}</th>
+                <th scope="col" class="atr-num">{{ t('trace.col.completion') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (round of trace().rounds; track $index) {
+                <tr>
+                  <th scope="row">{{ round.round }}</th>
+                  <td>
+                    @if (round.tools.length === 0) {
+                      <span class="atr-none">{{ t('trace.noTool') }}</span>
+                    } @else {
+                      <ul class="atr-calls">
+                        @for (call of round.tools; track $index) {
+                          <li><code>{{ callText(call) }}</code></li>
+                        }
+                      </ul>
+                    }
+                  </td>
+                  <td class="atr-num">{{ fmt.seconds(round.durationMs) }}</td>
+                  <td class="atr-num">{{ fmt.whole(round.promptTokens) }}</td>
+                  <td class="atr-num">{{ fmt.whole(round.cachedTokens) }}</td>
+                  <td class="atr-num">{{ fmt.whole(round.completionTokens) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </details>
+    }
+  </div>
+}

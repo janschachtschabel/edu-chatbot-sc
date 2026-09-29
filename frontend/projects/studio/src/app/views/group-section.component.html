@@ -2,6 +2,8 @@
   <summary class="cs-summary">
     <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
     <p class="cs-hint">{{ t(section().hintKey) }}</p>
+    <!-- ST-5: wo dieser Bereich wirkt — aus der Zuordnung im Backend -->
+    <studio-effect-badge class="cs-effect" [area]="section().area" />
     @if (editor.dirty()) {
       <span class="cs-flag">{{ t('editor.unsavedShort') }}</span>
     }
@@ -103,6 +105,7 @@
               [value]="editor.doc()"
               [idPrefix]="idPrefix()"
               [visiblePaths]="visiblePaths()"
+              [problems]="editor.problems()"
               (valueChange)="editor.setDoc($event)"
               (errorsChange)="editor.setFieldErrors($event)"
             />

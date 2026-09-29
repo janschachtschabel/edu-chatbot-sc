@@ -41,11 +41,6 @@
   min-block-size: 2.5rem;
   font: inherit;
   color: var(--st-text);
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--st-focus);
-  }
 }
 
 .op-actions {

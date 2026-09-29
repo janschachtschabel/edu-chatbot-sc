@@ -220,3 +220,23 @@ def test_ein_unbekannter_medientyp_faellt_weiter_aufs_rohwort_zurueck():
     Nur die Sammlung ist ausgenommen — sie ist kein Inhaltstyp."""
     assert "lehrfilmreihe" in ct._resolve_wanted_content_types(
         "", classification_entities={"medientyp": "Lehrfilmreihe"})
+
+
+# ── Ein Canvas-Typ ist kein Ressourcentyp (ST-5-Lesart, Befund 3, 2026-09-27) ──
+# ``material_typ`` setzt allein die Canvas-Heuristik (``graph/nodes/merge``) —
+# ihre Werte sind Schlüssel aus ``05-canvas/material-types``, nicht aus dem
+# WLO-Vokabular. Der Rohwort-Rueckfall machte aus „infoblatt" (Alias
+# „Zusammenfassung") ein Filterwort, das in keinem ``learning_resource_types``
+# steht: der Kartenfilter warf danach jede Karte weg.
+
+def test_material_typ_ohne_wlo_typ_wird_kein_wunsch_typ():
+    for quelle in ("classification_entities", "session_entities"):
+        for typ in ("infoblatt", "struktur", "factsheet"):
+            assert ct._resolve_wanted_content_types(
+                "", **{quelle: {"material_typ": typ}}) == set(), (quelle, typ)
+
+
+def test_material_typ_mit_wlo_typ_bleibt_ein_wunsch_typ():
+    """Gegenrichtung: wo der Canvas-Typ einem Ressourcentyp entspricht, filtert er."""
+    assert ct._resolve_wanted_content_types(
+        "", session_entities={"material_typ": "praesentation"}) == {"präsentation"}

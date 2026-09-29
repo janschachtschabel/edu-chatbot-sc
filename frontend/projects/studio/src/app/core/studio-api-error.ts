@@ -7,6 +7,8 @@
  * view here needs that distinction to pick between "bitte neu anmelden" and
  * "erneut versuchen", so the status is a field.
  */
+import type { FieldProblem } from './field-problems';
+
 export class StudioApiError extends Error {
   constructor(
     /** HTTP status, or 0 when the request never reached the server. */
@@ -14,6 +16,9 @@ export class StudioApiError extends Error {
     /** Short, already-truncated German or backend-supplied explanation. */
     readonly detail: string,
     readonly url: string,
+    /** A 422's entries, each with its document path (ST-2e) — so the form can
+     *  put every message next to its field instead of in one line below it. */
+    readonly problems: readonly FieldProblem[] = [],
   ) {
     super(`HTTP ${status} ${url} — ${detail}`);
     this.name = 'StudioApiError';

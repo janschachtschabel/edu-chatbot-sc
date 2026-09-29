@@ -47,6 +47,12 @@ export class ActionState {
     return this.running() === key;
   }
 
+  /** Clears what the last action reported — for a message that should not
+   *  outlive its context (the header's, across a page change). */
+  dismiss(): void {
+    this.last.set(null);
+  }
+
   /** Runs `work`, shows what it returned, and answers whether it succeeded. */
   async run(key: string, work: () => Promise<string>): Promise<boolean> {
     this.running.set(key);

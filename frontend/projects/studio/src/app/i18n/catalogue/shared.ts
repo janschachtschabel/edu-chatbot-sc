@@ -21,6 +21,15 @@ export const SHARED: CataloguePart = {
      *  blosses Substantiv. */
     'async.loading': 'Lade {label} …',
     'async.retry': 'Erneut versuchen',
+    // ST-9: Herkunft der Sitzungen — Analyse, Kosten, Sessions (`studio-origin-scope`)
+    'origin.legend': 'Datenbasis',
+    'origin.all': 'Alle',
+    'origin.all.hint': 'Echte Gespräche, Eval-Läufe, Lasttests und Probeläufe zusammen',
+    'origin.production': 'Produktion',
+    'origin.production.hint':
+      'Ohne Eval-, Lasttest- und Probelauf-Sitzungen (die Widget-Vorschau im Studio zählt mit)',
+    'origin.eval': 'Nur Eval',
+    'origin.eval.hint': 'Nur die Sitzungen der Eval-Läufe',
     /** Zugänglicher Name desselben Knopfs. Mehrere Streifen auf einer Seite
      *  tragen denselben sichtbaren Text; ohne das Ziel sind ihre Knöpfe für
      *  einen Screenreader nicht unterscheidbar. Beginnt mit dem sichtbaren
@@ -91,6 +100,14 @@ export const SHARED: CataloguePart = {
   en: {
     'async.loading': 'Loading {label} …',
     'async.retry': 'Try again',
+    'origin.legend': 'Data basis',
+    'origin.all': 'All',
+    'origin.all.hint': 'Real conversations, eval runs, load tests and trial runs together',
+    'origin.production': 'Production',
+    'origin.production.hint':
+      'Without eval, load-test and trial-run sessions (the widget preview in the studio counts)',
+    'origin.eval': 'Eval only',
+    'origin.eval.hint': 'Only the sessions of eval runs',
     'async.retryFor': 'Try again — {label}',
     'async.empty': 'Nothing here yet.',
 

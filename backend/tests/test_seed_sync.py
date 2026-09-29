@@ -39,7 +39,7 @@ def test_gleicher_inhalt_ist_gleich_und_wird_nicht_geschrieben():
 
 def test_abweichender_inhalt_ist_abweichend():
     d = vergleiche({"01-base/engine": {"mode": "pattern"}},
-                   {"01-base/engine": {"mode": "hybrid"}})
+                   {"01-base/engine": {"mode": "agent"}})
     assert d.abweichend == ["01-base/engine"]
 
 

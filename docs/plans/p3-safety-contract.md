@@ -71,6 +71,11 @@ sind aus der ~165-Z.-Funktion in drei Helfer gezogen (verhaltens-erhaltend, je e
    decision.legal_flags: pass` — reines No-op, nicht portiert.
 4. **Merge-Extraktion** (siehe §5) — reine Bewegung, keine Umschrift.
 5. `zip(tasks, results, strict=True)` (ruff B905) statt ALTs `zip(...)` — Längen sind per Konstruktion gleich.
+6. **Linear statt quadratisch (2026-09-27):** die beiden PII-Zeilen (`KOPF.*SCHWANZ`) stehen als Paar
+   `(KOPF, SCHWANZ)` und laufen über `_gap_search` (je Zeile einmal gesucht); die Injection-Zeile
+   `<\|.*?\|>` setzt nur am ersten `<|` einer Zeile an (atomare Gruppe). Gleiche Urteile, belegt im
+   Zufalls- und Kantenvergleich gegen die alten Ausdrücke; Laufzeit 200.000 Zeichen ≈ 0,1 s statt hochgerechnet ≈ 100 s
+   (`test_safety_regex_gate_linear.py`).
 Kein `simplify:`-Defer nötig. `escalation.confidence_adjustments`/`rate_limits`/`logging` aus der
 YAML sind NICHT Teil von `assess_safety` (werden andernorts konsumiert — Rate-Limit P1-4, Logging P3-5).
 
@@ -84,4 +89,5 @@ YAML sind NICHT Teil von `assess_safety` (werden andernorts konsumiert — Rate-
 - `test_safety_stages.py` — NEU (neuer Transport): `_moderation_target`-Routing (3 Provider ×
   Key-Präsenz), `moderate()`-Parsing + Fail-open (None-Target/Ausnahme) + B-API-Header-Weitergabe,
   `classify_legal()`-Parsing + Fail-open. Boundaries: `moderation._amoderation`, `legal.chat_completion`.
-- 40 Tests. Regex-Assets bleiben verbatim (per-file `E501`-Ignore für `regex_gate.py`).
+- 40 Tests. Regex-Assets bleiben verbatim (per-file `E501`-Ignore für `regex_gate.py`) — bis auf die
+  drei in §6 Nr. 6 linearisierten Ausdrücke.

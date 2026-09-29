@@ -42,8 +42,7 @@ export const COSTS: CataloguePart = {
     'costs.amount.broken': 'Die Preistafel ist nicht lesbar und wird ignoriert.',
     'costs.amount.partial': 'Teilsumme — ohne {models}',
     'costs.amount.where':
-      'Preise pflegst du unter *Alle Bereiche* im Bereich `01-base/pricing`, '
-      + 'je Million Token.',
+      'Preise pflegst du weiter unten in der *Preistafel*, je Million Token.',
 
     // ── Summenband ──────────────────────────────────────────────────
     'costs.band.prompt': 'Eingabe',
@@ -90,8 +89,7 @@ export const COSTS: CataloguePart = {
     'costs.amount.broken': 'The price table is unreadable and is being ignored.',
     'costs.amount.partial': 'Partial sum — without {models}',
     'costs.amount.where':
-      'Prices are maintained under *All areas* in the `01-base/pricing` area, '
-      + 'per million tokens.',
+      'Prices are maintained further down in the *price table*, per million tokens.',
 
     'costs.band.prompt': 'Input',
     'costs.band.cached': 'of which cached',

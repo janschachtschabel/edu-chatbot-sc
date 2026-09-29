@@ -88,7 +88,7 @@
   <div>
     <h1>BOERDi in edu-sharing — was die Gastseite hineinreichen kann</h1>
     <p class="hinweis">
-      Backend: <code id="api"></code> · Maschine: <code id="motor">hybrid</code> ·
+      Backend: <code id="api"></code> · Maschine: <code id="motor">agent</code> ·
       Einbau: <code>embed-mode="frameless"</code> in einer 440-px-Leiste.
     </p>
     <p class="hinweis" id="rechte">Rechte: wird geprüft …</p>
@@ -195,7 +195,7 @@
       gezeigt — die lange Anweisung bleibt trotzdem unsichtbar.
     </p>
     <p class="hinweis">
-      Wirkt in <strong>allen drei Maschinen</strong> — der Block sitzt in beiden
+      Wirkt in <strong>beiden Maschinen</strong> — der Block sitzt in beiden
       Prompt-Wegen. Er hebt Leitplanken und Sicherheitsregeln <em>nicht</em> auf; das steht
       im Block selbst. Kein Zeichendeckel — der Rahmen reist aber in jeden Modellaufruf des Zuges mit.
     </p>
@@ -205,7 +205,6 @@
     <summary><h2>4 · Maschine, Ergebnis-Schema, Anmeldung</h2></summary>
     <label for="engine">Maschine (Attribut <code>engine</code>)</label>
     <select id="engine">
-      <option value="hybrid">hybrid</option>
       <option value="agent">agent</option>
       <option value="pattern">pattern</option>
     </select>
@@ -408,7 +407,7 @@
     $('motor').textContent = $('engine').value;
     $('ergebnis').textContent = $('engine').value === 'pattern'
       ? 'Maschine „pattern" — ein Ergebnis-Schema bleibt hier wirkungslos. Es wirkt '
-        + 'nur über die Schleife, also in „agent" und „hybrid".'
+        + 'nur über die Schleife, also in „agent".'
       : (schema
         ? 'Noch kein Ergebnis. Es erscheint, sobald der Bot es übergibt — er '
           + 'antwortet danach im Chat weiter, das Ergebnis beendet den Lauf nicht.'

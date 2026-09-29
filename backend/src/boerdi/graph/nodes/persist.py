@@ -19,9 +19,11 @@ turns (preflight/tour/fast-path) set ``ctx.early_response`` and skip this node.
 Two NEU seams, both established by sibling nodes:
 * ``winner``: the two verbatim callees read only ``winner.id`` (assemble precedent) →
   a one-field ``SimpleNamespace`` shim carries ``ctx.winner_id``.
-* the tracer: NEU dropped the ALT ``Tracer`` (Sub-Slice 1 → ``debug.trace=[]``), but the
-  verbatim ``_finalize_links_and_metas`` still calls ``tracer.record`` → a no-op
-  ``_NullTracer`` keeps the port unchanged while the trace entry is intentionally dropped.
+* the tracer: NEU dropped the ALT ``Tracer`` (Sub-Slice 1), but the verbatim
+  ``_finalize_links_and_metas`` still calls ``tracer.record`` → ``_ProgressTracer``
+  keeps the port unchanged and forwards to the progress seam. ``debug.trace`` is
+  filled elsewhere since AG-1/AG-5: the agent loop's rounds (``respond_agent``) and
+  the ``skill`` line (``turn_persist``), both passed through here.
 
 The main safety-log (ALT ``chat_turn_setup``) is deliberately NOT here — it is a
 turn_setup/merge concern (fires before any route fast-path early-exit) and is wired in
@@ -54,8 +56,8 @@ class _ProgressTracer:
 
     Bis C9 war das ein No-op — der Aufruf lief ins Leere, und das Widget bekam sein
     ``query_meta``-Label nie. Jetzt leitet er auf die Fortschritts-Naht um, ohne den
-    Port anzufassen. ``debug.trace`` bleibt weiterhin leer: Einträge zu sammeln ist
-    Aufgabe des zurückgestellten Tracer-Subsystems, nicht des Fortschritts.
+    Port anzufassen. In ``debug.trace`` landet von hier nichts: die Spur führen
+    seit AG-1/AG-5 die Agent-Schleife und ``turn_persist``, nicht der Fortschritt.
     """
 
     def __init__(self, progress: TurnProgress) -> None:
@@ -68,10 +70,15 @@ class _ProgressTracer:
 
 async def persist(
     ctx: TurnContext, session: AsyncSession, progress: TurnProgress = NO_PROGRESS,
+    engine: str = "pattern",
 ) -> TurnContext:
     """Turn-Persistenz P25-33: DebugInfo + update_session (P25-26) → Links/Metas-
     Finalisierung (P27-28) → Assistant-Persist + finale ``ChatResponse`` (P29-33).
-    Schreibt die fertige Antwort nach ``ctx.response`` und gibt ``ctx`` zurück."""
+    Schreibt die fertige Antwort nach ``ctx.response`` und gibt ``ctx`` zurück.
+
+    ``engine`` (AG-1) ist die Maschine des Zugs aus ``build_turn_graph``; sie
+    geht mit der Spur, die ``respond_agent`` an ``ctx.debug`` abgelegt hat, in
+    den Debug-Block."""
     debug = await build_debug_and_update_session(
         session,
         req=ctx.req,
@@ -96,6 +103,8 @@ async def persist(
         # build_debug baut die volle DebugInfo damit neu.
         response_outcomes=ctx.debug.outcomes,
         final_confidence=ctx.debug.confidence,
+        engine=engine,
+        trace=ctx.debug.trace,
     )
 
     (

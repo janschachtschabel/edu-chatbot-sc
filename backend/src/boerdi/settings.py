@@ -67,14 +67,14 @@ class Settings(BaseSettings):
     )
     # ── Master-Skill (N3, 2026-08-18) ───────────────────────────────
     # Eine redaktionelle Gesamtanleitung aus dem Repositorium, die im
-    # Agent-/Hybrid-Modus als stabiler Prompt-Kopf laeuft. Vorgabe AUS: sie
+    # Agent-Modus als stabiler Prompt-Kopf laeuft. Vorgabe AUS: sie
     # kostet einen MCP-Abruf und aendert das Verhalten, das gehoert zu einer
     # bewussten Handlung. Die Kennung ist vorbelegt, damit Anschalten ein
     # Schalter ist und keine Suche. Je Einbettung uebersteuert
     # ``environment.master_skill`` (Rangfolge in ``services/master_skill``).
     master_skill_enabled: bool = Field(
         False, validation_alias=_env("MASTER_SKILL_ENABLED"),
-        description="load the master skill as the first system block (agent/hybrid)",
+        description="load the master skill as the first system block (agent)",
     )
     master_skill_node_id: str = Field(
         "535cabca-47e4-4cbf-9cab-ca47e40cbf4e",

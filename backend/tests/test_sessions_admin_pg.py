@@ -131,3 +131,22 @@ def test_optimize_database_runs_vacuum_without_raising(test_db) -> None:
     assert all(isinstance(result[k], int) for k in result)
     assert result["before_bytes"] > 0 and result["after_bytes"] > 0
     assert result["reclaimed_bytes"] >= 0  # plain VACUUM: typically 0 (no OS shrink)
+
+
+def test_list_laesst_sich_nach_herkunft_filtern(test_db) -> None:
+    """ST-9: serverseitig, weil die Liste bei 100 kappt — ein Lasttest mit 200
+    Sitzungen drängte im Browser gefiltert jede echte hinaus."""
+    from boerdi.services.db_sessions import get_or_create_session
+    from boerdi.services.session_admin import list_sessions_admin
+
+    async def scenario(session):
+        for sid in ("bb-1", "eval-1", "loadtest-lt-abcde-s1-0"):
+            await get_or_create_session(session, sid)
+        return (await list_sessions_admin(session, scope="production"),
+                await list_sessions_admin(session, scope="eval"),
+                await list_sessions_admin(session))
+
+    echt, ev, alle = _run(scenario)
+    assert [r["session_id"] for r in echt] == ["bb-1"]
+    assert [r["session_id"] for r in ev] == ["eval-1"]
+    assert len(alle) == 3

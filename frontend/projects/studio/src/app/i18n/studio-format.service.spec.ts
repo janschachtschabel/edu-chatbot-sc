@@ -25,6 +25,11 @@ describe('StudioFormat', () => {
     expect(make('en').fmt.dateTime('2026-07-24T10:00:00Z')).toContain('24/07/2026');
   });
 
+  it('formatiert Größen nach der aktiven Sprache', () => {
+    expect(make('de').fmt.bytes(1536)).toBe('1,5 kB');
+    expect(make('en').fmt.bytes(1536)).toBe('1.5 kB');
+  });
+
   it('nimmt den Text unter einer Minute aus dem Katalog', () => {
     const now = Date.parse('2026-07-26T12:00:00Z');
     const eben = new Date(now - 5_000).toISOString();

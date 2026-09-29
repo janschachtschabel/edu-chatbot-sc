@@ -32,15 +32,18 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.models import ChatSession
+from boerdi.services.session_origin import scope_clause
 
 _LIST_LIMIT = 100
 
 
-async def list_sessions_admin(session: AsyncSession) -> list[dict]:
+async def list_sessions_admin(session: AsyncSession, scope: str = "all") -> list[dict]:
     """The 100 most-recently-updated sessions, newest first (ALT's list handler).
 
     Same column set and order ALT selected; timestamps are serialised to ISO
     strings (Postgres ``timestamptz`` vs ALT's sqlite TEXT) for a stable body.
+    ``scope`` (ST-9) filters by origin BEFORE the cap — filtered in the browser,
+    a load test's burst would push every real session out of the 100.
     """
     stmt = (
         select(
@@ -54,6 +57,9 @@ async def list_sessions_admin(session: AsyncSession) -> list[dict]:
         .order_by(ChatSession.updated_at.desc())
         .limit(_LIST_LIMIT)
     )
+    herkunft = scope_clause(scope, ChatSession.session_id)
+    if herkunft is not None:
+        stmt = stmt.where(herkunft)
     rows = (await session.execute(stmt)).all()
     return [
         {

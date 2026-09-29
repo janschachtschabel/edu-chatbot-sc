@@ -52,10 +52,14 @@ export interface CuratedAreaSection {
  * knowledge areas live in the database, ingesting a document is an upload, and
  * the MCP registry has endpoints of its own that add live tool descriptions and
  * an SSRF check on write. None of the three can be a schema form, and all three
- * belong on the same page as the config that describes them.
+ * belong on the same page as the config that describes them. The same holds
+ * for `privacy-purge` (ST-6): deleting across all sessions is an action on the
+ * database, next to the settings that decide what gets stored.
  */
 export interface CuratedPanelSection {
-  readonly panel: 'rag-areas' | 'rag-ingest' | 'mcp-registry' | 'agent-tester';
+  readonly panel:
+    | 'rag-areas' | 'rag-ingest' | 'mcp-registry' | 'agent-tester' | 'master-skill'
+    | 'privacy-purge' | 'agent-tools' | 'agent-skills' | 'agent-prompt' | 'agent-probe';
   readonly labelKey: string;
   readonly hintKey: string;
 }
@@ -144,6 +148,18 @@ export const CURATED_VIEWS: readonly CuratedView[] = [
         labelKey: 'curated.domainWissen.tour.label',
         hintKey: 'curated.domainWissen.tour.hint',
       },
+      // ST-9: der Lotse zeigt wie die Web-Tour Wege auf die Plattform — bis
+      // dahin nur als Dateiname unter „Alle Bereiche“ zu finden.
+      {
+        area: '01-base/guide-mode',
+        labelKey: 'curated.domainWissen.guideMode.label',
+        hintKey: 'curated.domainWissen.guideMode.hint',
+      },
+      {
+        area: '02-domain/guide-rules',
+        labelKey: 'curated.domainWissen.guideRules.label',
+        hintKey: 'curated.domainWissen.guideRules.hint',
+      },
     ],
   },
   {
@@ -215,6 +231,12 @@ export const CURATED_VIEWS: readonly CuratedView[] = [
         labelKey: 'curated.dimensionen.entities.label',
         hintKey: 'curated.dimensionen.entities.hint',
       },
+      // ST-9: welche Wörter NICHT als Thema zählen — gehört zu den Entitäten.
+      {
+        area: '01-base/placeholder-topics',
+        labelKey: 'curated.dimensionen.placeholderTopics.label',
+        hintKey: 'curated.dimensionen.placeholderTopics.hint',
+      },
       {
         area: '04-signals/signal-modulations',
         labelKey: 'curated.dimensionen.signals.label',
@@ -224,6 +246,13 @@ export const CURATED_VIEWS: readonly CuratedView[] = [
         area: '01-base/tone-modifiers',
         labelKey: 'curated.dimensionen.tone.label',
         hintKey: 'curated.dimensionen.tone.hint',
+      },
+      // ST-9: feste Anker der Einordnung, zuletzt — sie übersteuern die Achsen
+      // darüber und setzen voraus, dass man diese kennt.
+      {
+        area: '01-base/classify-overrides',
+        labelKey: 'curated.dimensionen.classifyOverrides.label',
+        hintKey: 'curated.dimensionen.classifyOverrides.hint',
       },
     ],
   },
@@ -235,6 +264,17 @@ export const CURATED_VIEWS: readonly CuratedView[] = [
         area: '01-base/display-rules',
         labelKey: 'curated.anzeige.display.label',
         hintKey: 'curated.anzeige.display.hint',
+      },
+      // ST-9: welche Treffer überhaupt zu Karten werden, und die Links darin.
+      {
+        area: '01-base/card-pipeline',
+        labelKey: 'curated.anzeige.cardPipeline.label',
+        hintKey: 'curated.anzeige.cardPipeline.hint',
+      },
+      {
+        area: '01-base/widget-modes',
+        labelKey: 'curated.anzeige.widgetModes.label',
+        hintKey: 'curated.anzeige.widgetModes.hint',
       },
       {
         area: '01-base/header-nav',
@@ -261,6 +301,11 @@ export const CURATED_VIEWS: readonly CuratedView[] = [
         area: '01-base/quality-log-config',
         labelKey: 'curated.datenschutz.qualityLog.label',
         hintKey: 'curated.datenschutz.qualityLog.hint',
+      },
+      {
+        panel: 'privacy-purge',
+        labelKey: 'curated.datenschutz.purge.label',
+        hintKey: 'curated.datenschutz.purge.hint',
       },
     ],
   },
@@ -304,6 +349,41 @@ export const CURATED_VIEWS: readonly CuratedView[] = [
         area: '01-base/engine',
         labelKey: 'curated.agent.engine.label',
         hintKey: 'curated.agent.engine.hint',
+      },
+      {
+        // ST-8d: the start of a turn's chain as the model reads it — our own
+        // rules first, then the master skill below, then what each turn adds.
+        panel: 'agent-prompt',
+        labelKey: 'curated.agent.prompt.label',
+        hintKey: 'curated.agent.prompt.hint',
+      },
+      {
+        // AG-2: lives in the repository, shown here read-only (user decision
+        // 2026-09-26) — a panel because its source is `/api/master-skill`.
+        panel: 'master-skill',
+        labelKey: 'curated.agent.masterSkill.label',
+        hintKey: 'curated.agent.masterSkill.hint',
+      },
+      {
+        // ST-8b: what the loop gets and what can take a tool away — read-only,
+        // each lock stays where it is maintained.
+        panel: 'agent-tools',
+        labelKey: 'curated.agent.tools.label',
+        hintKey: 'curated.agent.tools.hint',
+      },
+      {
+        // ST-8c: which skills a collection approves — its registry document,
+        // fetched on request (one MCP call per collection).
+        panel: 'agent-skills',
+        labelKey: 'curated.agent.skills.label',
+        hintKey: 'curated.agent.skills.hint',
+      },
+      {
+        // ST-8e (AG-4 part A): a conversation over the real chat path with the
+        // agent engine — the task tester below drives `/api/agent` instead.
+        panel: 'agent-probe',
+        labelKey: 'curated.agent.probe.label',
+        hintKey: 'curated.agent.probe.hint',
       },
       {
         panel: 'agent-tester',

@@ -21,10 +21,12 @@
  */
 import { Injectable, inject } from '@angular/core';
 
+import type { OriginScope } from './origin-scope';
 import { StudioApi, type QueryValue } from './studio-api.service';
 
-/** Production and eval turns share one table; `session_id LIKE 'eval-%'` splits them. */
-export type QualityScope = 'all' | 'production' | 'eval';
+/** Production, eval and load-test turns share one table; the session-id prefix
+ *  splits them (ST-9: `production` excludes load tests too). */
+export type QualityScope = OriginScope;
 
 /** Prefix matches on the server ("M04" finds M04a); the session id is exact. */
 export interface LogFilters {

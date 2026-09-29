@@ -536,3 +536,30 @@ def test_bekannte_kosten_schlagen_viele_token(db, monkeypatch) -> None:
     assert [z["session_id"] for z in zeilen] == ["k5r-bepreist", "k5r-unbekannt"]
     assert zeilen[0]["amount"] == "0"
     assert zeilen[1]["amount"] is None
+
+
+# ── ST-9: Herkunft ──────────────────────────────────────────────────────
+def test_zeitraum_laesst_sich_auf_echte_gespraeche_beschraenken(db, keine_preise) -> None:
+    """Eval- und Lasttest-Züge kosten Geld, sind aber kein Betrieb. Serverseitig
+    gefiltert, weil die Sitzungsliste gekappt ist (Top 10): im Browser gefiltert
+    fehlten echte Sitzungen, die ein Lasttest aus der Liste gedrängt hat."""
+    from boerdi.services.usage_analytics import period_usage
+
+    tag = datetime(2026, 3, 10, 12, 0, tzinfo=UTC)
+    zeile = {"model": "a", "prompt_tokens": 10, "cached_tokens": 0,
+             "completion_tokens": 1, "reasoning_tokens": 0, "calls": 1, "created_at": tag}
+
+    async def szenario(factory):
+        for sid in ("bb-st9-echt", "eval-st9", "loadtest-lt-st9-s1-0"):
+            await _saee(factory, sid, [zeile])
+        von, bis = tag - timedelta(hours=1), tag + timedelta(hours=1)
+        async with factory() as s:
+            return (await period_usage(s, von, bis, scope="production"),
+                    await period_usage(s, von, bis, scope="eval"),
+                    await period_usage(s, von, bis))
+
+    echt, ev, alle = _lauf(db, szenario)
+    assert echt["calls"] == 1
+    assert [z["session_id"] for z in echt["sessions"]] == ["bb-st9-echt"]
+    assert [z["session_id"] for z in ev["sessions"]] == ["eval-st9"]
+    assert alle["calls"] == 3

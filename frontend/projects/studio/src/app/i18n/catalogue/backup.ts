@@ -34,6 +34,9 @@ export const BACKUP: CataloguePart = {
       + 'Stand. Bereiche, die nicht darin liegen, bleiben, wie sie sind.',
     'backup.confirmRestoreYes': 'Ja, einspielen',
     'backup.downloaded': 'Backup heruntergeladen.',
+    // ST-9: die Kopfzeile. Einspielen führt zur Sicherungs-Seite — daher „…".
+    'backupTools.restore': 'Backup einspielen …',
+    'backupTools.toSnapshots': 'Zu den Snapshots',
     /** Einer für zwei: Voll-Backup und Snapshot melden denselben Satz, weil
      *  beide dasselbe tun — Bereiche aus einer ZIP schreiben. */
     'backup.areasRestored.one': '{count} Konfigurationsbereich aus „{name}“ eingespielt.',
@@ -168,6 +171,8 @@ export const BACKUP: CataloguePart = {
       + 'ZIP does not contain stay as they are.',
     'backup.confirmRestoreYes': 'Yes, restore',
     'backup.downloaded': 'Backup downloaded.',
+    'backupTools.restore': 'Restore backup …',
+    'backupTools.toSnapshots': 'Go to snapshots',
     'backup.areasRestored.one': 'Restored {count} configuration area from “{name}”.',
     'backup.areasRestored.other': 'Restored {count} configuration areas from “{name}”.',
 

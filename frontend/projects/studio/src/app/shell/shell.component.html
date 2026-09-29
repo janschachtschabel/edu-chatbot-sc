@@ -23,13 +23,13 @@
 
   <div class="header-tools">
     <studio-status-indicator />
+    <!-- ST-9: ALT's three header tools are back — snapshot and backup act from
+         any page, restoring leads to the "Sicherung" view (backup-tools.component). -->
+    <studio-backup-tools />
     <!-- Der Umschalter steht bewusst AUSSERHALB des `@if (!gateOpen())`:
          ein Studio ohne Passwort hätte sonst gar keine Sprachwahl (C1-d1). -->
     <studio-language-switcher />
-    <!-- ALT's three header tools (Snapshots, Backup, Restore) are the "Sicherung"
-         view since 9-6 — reachable from the sidebar, deep-linkable, and without a
-         hand-rolled modal (backup.component.ts). A second entry point here would
-         only duplicate it. The logout button is §5.6's V8 addition (auth). -->
+    <!-- The logout button is §5.6's V8 addition (auth). -->
     @if (!gateOpen()) {
       <button type="button" class="btn logout" (click)="logout()" [disabled]="loggingOut()">
         {{ loggingOut() ? t('studio.loggingOut') : t('studio.logout') }}

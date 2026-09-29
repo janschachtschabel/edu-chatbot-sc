@@ -1,0 +1,117 @@
+@use './visually-hidden';
+
+// Das Profil ist Beiwerk zur Scorecard: gleicher Rahmen wie `.erd-card`, aber
+// ohne eigene Farbfläche — hervorgehoben ist nur, was schwach ist.
+.rp {
+  display: grid;
+  gap: var(--st-3);
+  margin-block-end: var(--st-3);
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.rp-title {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.rp-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+}
+
+.rp-axes {
+  inline-size: 100%;
+  max-inline-size: 40rem;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.rp-axes caption {
+  margin-block-end: var(--st-2);
+  text-align: start;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.rp-axes th,
+.rp-axes td {
+  padding-block: var(--st-1);
+}
+
+.rp-axes th {
+  padding-inline-end: var(--st-3);
+  font-weight: 400;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.rp-axes td {
+  inline-size: 100%;
+}
+
+// Ein Block im Feld statt `display: flex` am `<td>` selbst — das nähme der
+// Zelle in manchen Browsern ihre Tabellen-Rolle.
+.rp-axis-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--st-3);
+}
+
+// Feste Skala 0–2: ein Balken bis zur Hälfte heißt „1", nicht „die Hälfte des
+// besten Werts" — anders als die Rangliste in `studio-quality-bars`.
+.rp-bar {
+  display: block;
+  flex: 1 1 auto;
+  min-inline-size: 4rem;
+  block-size: 0.5rem;
+  border-radius: 999px;
+  background: var(--st-surface-variant);
+  overflow: hidden;
+}
+
+.rp-bar-fill {
+  display: block;
+  block-size: 100%;
+  background: var(--st-accent);
+}
+
+.rp-axis-value {
+  flex: 0 0 auto;
+  min-inline-size: 7rem;
+  text-align: end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+// Schwach heißt: Wort UND Farbe (SC 1.4.1) — das Wort steht im Wert.
+.rp-axis--weak .rp-bar-fill {
+  background: var(--st-warn-dot);
+}
+
+.rp-axis--weak .rp-axis-value {
+  font-weight: 600;
+  color: var(--st-warn-text);
+}
+
+.rp-facts {
+  display: grid;
+  gap: var(--st-2) var(--st-4);
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  margin: 0;
+}
+
+.rp-facts dt {
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.rp-facts dd {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}

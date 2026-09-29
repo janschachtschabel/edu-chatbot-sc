@@ -1,0 +1,72 @@
+@use './section-shell';
+@use './visually-hidden';
+
+.ms-facts {
+  display: grid;
+  // Fluid, not breakpoint-based: the panel also sits in a narrow column.
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--st-3);
+  margin: 0 0 var(--st-3);
+}
+
+.ms-fact {
+  display: grid;
+  gap: var(--st-1);
+
+  dt {
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.ms-code,
+.ms-pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.ms-code {
+  overflow-wrap: anywhere;
+}
+
+.ms-note {
+  margin: var(--st-2) 0 0;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.ms-error {
+  margin-block-start: var(--st-2);
+}
+
+// A link dressed as a button: `.cs-btn` was written for <button>.
+.ms-edit,
+.ms-view {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.ms-text {
+  margin-block-start: var(--st-4);
+}
+
+.ms-text-toggle {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.ms-pre {
+  max-block-size: 24rem;
+  overflow: auto;
+  margin: var(--st-2) 0 0;
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

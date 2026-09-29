@@ -75,6 +75,12 @@ describe('STUDIO_EN', () => {
       'evalDetail.cat.persona',
       'evalDetail.cat.intent',
       'evalDetail.judge',
+      // ST-7c: „Judge: {axis}" — die Achse wird übersetzt eingesetzt, das
+      // Wort davor ist in beiden Sprachen dasselbe.
+      'evalCompare.row.axis',
+      // ST-8a: „{reason} · {rounds} · {duration}" — nur Platzhalter und Trenner,
+      // die eingesetzten Werte sind übersetzt.
+      'trace.end.value',
       // Fünf aus der Pattern-Nutzung (C1-d4b3). Vier Spaltenköpfe und die
       // voreingestellte Einheit der Balken-Tabelle: „Pattern", „Intent",
       // „Persona" und „Turns" führt das deutsche Studio durchgehend englisch
@@ -215,6 +221,15 @@ describe('STUDIO_EN', () => {
       // GV5: „Engine" ist in beiden Sprachen dasselbe Fachwort, der Rest der
       // Zeile ist ein Platzhalter.
       'evalDetail.engine',
+      // ST-1 Feldtexte: Beschriftungen, die sich in beiden Sprachen gleich
+      // schreiben („Text", „Version") — eine Abweichung wäre eine Erfindung.
+      'feld.LayerDocArea.body.label',
+      'feld.LayerDocFrontmatter.version.label',
+      // „Intents" führt das deutsche Studio ohnehin englisch — dieselbe Lage
+      // wie bei `curated.dimensionen.intents.label`. „Moderation" schreibt
+      // sich in beiden Sprachen gleich (der Dienst heißt so).
+      'feld.IntentsArea.intents.label',
+      'feld.SafetyPreset.moderation.label',
     ]);
     const kopien = Object.keys(STUDIO_DE)
       .filter((k) => !gleichErlaubt.has(k) && STUDIO_EN[k] === STUDIO_DE[k]);

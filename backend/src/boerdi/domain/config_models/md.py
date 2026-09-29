@@ -2,7 +2,9 @@
 wlo-plattform-wissen): {frontmatter, body} with the shared layer header.
 """
 
-from boerdi.domain.config_models._shared import AreaModel
+from typing import Annotated
+
+from boerdi.domain.config_models._shared import AreaModel, Primary, Textarea
 
 
 class LayerDocFrontmatter(AreaModel):
@@ -17,4 +19,5 @@ class LayerDocFrontmatter(AreaModel):
 
 class LayerDocArea(AreaModel):
     frontmatter: LayerDocFrontmatter = LayerDocFrontmatter()
-    body: str = ""
+    # ST-4: der Regeltext ist der Inhalt — vor den Kopfangaben
+    body: Annotated[str, Textarea(), Primary()] = ""

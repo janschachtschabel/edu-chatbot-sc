@@ -38,7 +38,7 @@ import logging
 from typing import Any
 
 from boerdi.api.schemas import ChatRequest, PaginationInfo
-from boerdi.domain.agent_pattern import AGENT_PATTERN_ID, HYBRID_PATTERN_ID
+from boerdi.domain.agent_pattern import AGENT_PATTERN_ID
 from boerdi.domain.auth_qr import inject_auth_qr
 from boerdi.domain.cards.build import (
     PAGE_SIZE,
@@ -52,6 +52,7 @@ from boerdi.i18n import resolve_locale
 from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.guide_markers import _attach_guide_qr
+from boerdi.services.guide_qr_injector import ist_lotse
 from boerdi.services.quick_replies_llm import generate_quick_replies
 from boerdi.services.response_tool_selection import curation_blocked_by_mode
 
@@ -231,9 +232,12 @@ async def _assemble_cards_and_qrs(
                     _fill = []
             _kenne = {q.strip().casefold() for q in quick_replies}
             for _q in _fill or []:
-                if len(quick_replies) >= _host_qr_max:
-                    break
                 if (_q or "").strip().casefold() in _kenne:
+                    continue
+                # Ein Lotse belegt keinen Platz — er wird nie eine Pille
+                # (Review 2026-09-29, ``begrenze_pillen``).
+                if not ist_lotse(_q) and sum(
+                        not ist_lotse(q) for q in quick_replies) >= _host_qr_max:
                     continue
                 _kenne.add((_q or "").strip().casefold())
                 quick_replies.append(_q)
@@ -392,22 +396,22 @@ async def _assemble_cards_and_qrs(
         # und werden nicht unterdrückt.
         _is_discovery_pattern = winner.id in ("M07", "M08")
         _has_topic_page_cards = any(_is_themenseite_card(c) for c in cards)
-        # Ausnahme 2 (H6, live gemessen): die Schleifen-Maschinen. Der Filter
+        # Ausnahme 2 (H6, live gemessen): die Agent-Schleife. Der Filter
         # schliesst von „kein Slot" auf „die Suche lief ohne Thema". Im Bestand
         # stimmt das, denn dort füllt der Klassifikator die Slots und die Suche
-        # wird daraus gebaut. ``agent``/``hybrid`` klassifizieren nicht: dort
+        # wird daraus gebaut. ``agent`` klassifiziert nicht: dort
         # wählt das MODELL Suchbegriff und Filter selbst und übergibt sie als
         # Werkzeug-Argumente (gemessen: ``search_wlo_content(query='Optik',
         # educationalContext=…, discipline=…)``). Die Slots sind dann leer,
         # obwohl die Suche sehr wohl ein Thema hatte — der Schluss geht ins
         # Leere und löschte acht bereits geerntete Karten.
         #
-        # ``agent`` kam bisher nur ZUFÄLLIG durch: sein Modell greift meist zu
-        # ``search_wlo_all``, dessen Themenseiten-Karten die Ausnahme darüber
-        # treffen. Wählt es ``search_wlo_content``, fielen die Karten genauso
-        # weg. Ein Verhalten, das nur aus der Werkzeugwahl eines Laufs folgt,
-        # ist geliehen und nicht zugesichert.
-        _ist_schleifen_lauf = winner.id in (AGENT_PATTERN_ID, HYBRID_PATTERN_ID)
+        # Ohne die Ausnahme käme ``agent`` nur ZUFÄLLIG durch: sein Modell
+        # greift meist zu ``search_wlo_all``, dessen Themenseiten-Karten die
+        # Ausnahme darüber treffen. Wählt es ``search_wlo_content``, fielen die
+        # Karten weg. Ein Verhalten, das nur aus der Werkzeugwahl eines Laufs
+        # folgt, ist geliehen und nicht zugesichert.
+        _ist_schleifen_lauf = winner.id == AGENT_PATTERN_ID
         _wuerde_greifen = (not _has_real_topic and not _is_discovery_pattern
                            and not _has_topic_page_cards)
         if _wuerde_greifen and not _ist_schleifen_lauf:

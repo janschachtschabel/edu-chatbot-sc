@@ -57,7 +57,7 @@ def _antwort() -> dict:
 def test_kopfzeilen_erreichen_jeden_zug(monkeypatch) -> None:
     gesehen: list = []
 
-    async def fake_post(url, message, session_id, headers=None):
+    async def fake_post(url, message, session_id, headers=None, environment=None):
         gesehen.append(headers)
         return _antwort()
 
@@ -72,7 +72,7 @@ def test_gegenrichtung_ohne_kopfzeilen_bleibt_der_lauf_wie_bisher(monkeypatch) -
     Kopfzeilen herein und darf sich nicht ändern."""
     gesehen: list = []
 
-    async def fake_post(url, message, session_id, headers=None):
+    async def fake_post(url, message, session_id, headers=None, environment=None):
         gesehen.append(headers)
         return _antwort()
 
@@ -140,7 +140,7 @@ def test_der_report_nennt_die_kopfzeilen_namen_ohne_werte(
 
 
 def test_jeder_zug_traegt_seine_latenz(monkeypatch) -> None:
-    async def fake_post(url, message, session_id, headers=None):
+    async def fake_post(url, message, session_id, headers=None, environment=None):
         return _antwort()
 
     monkeypatch.setattr(rg, "post_chat", fake_post)
@@ -153,7 +153,7 @@ def test_jeder_zug_traegt_seine_latenz(monkeypatch) -> None:
 def test_auch_ein_fehl_zug_traegt_seine_latenz(monkeypatch) -> None:
     """Eine Zeitüberschreitung ist der teuerste Zug des Laufs — ausgerechnet den
     nicht zu messen wäre die falsche Auslassung."""
-    async def broken_post(url, message, session_id, headers=None):
+    async def broken_post(url, message, session_id, headers=None, environment=None):
         raise RuntimeError("down")
 
     monkeypatch.setattr(rg, "post_chat", broken_post)

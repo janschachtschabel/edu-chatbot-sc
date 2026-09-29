@@ -234,6 +234,23 @@ describe("EvalRunDetailComponent", () => {
     expect(text()).toContain("26.7.2026");
   });
 
+  it("springt beim Öffnen zur Überschrift — das Detail steht unter der ganzen Liste", async () => {
+    // Nutzer-Befund 2026-09-27: bei 21 Läufen erschien das Detail 3.000 px
+    // tiefer; ein Klick auf einen Lauf sah aus, als geschehe nichts.
+    await mount();
+    expect(document.activeElement?.id).toBe("erd-title");
+  });
+
+  it("springt auch beim Wechsel zu einem anderen Lauf wieder hin", async () => {
+    await mount();
+    (document.activeElement as HTMLElement).blur();
+    h.fixture.componentRef.setInput("runId", "eval-xyz");
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === url("eval-xyz")).flush(detail({ id: "eval-xyz" }));
+    await settle();
+    expect(document.activeElement?.id).toBe("erd-title");
+  });
+
   it("re-reads when the input names a different run", async () => {
     await mount();
     h.fixture.componentRef.setInput("runId", "eval-xyz");
@@ -245,6 +262,65 @@ describe("EvalRunDetailComponent", () => {
 
     expect(text()).toContain("eval-xyz");
     expect(text()).not.toContain("eval-abc");
+  });
+
+  it("nennt die Maschine des Laufs bei den Kennzahlen, nicht mehr „default“ (ST-7a)", async () => {
+    await mount(detail({
+      engine: "pattern",
+      summary: { golden_metrics: goldMetrics(), target_turns: 3, engine: "default" },
+    }));
+    const fakt = Array.from(h.el.querySelectorAll(".erd-facts > div"))
+      .find((d) => d.querySelector("dt")?.textContent?.trim() === "Maschine");
+    // Gewählt war die Server-Vorgabe — gemessen hat sie die Muster-Maschine.
+    expect(fakt?.querySelector("dd")?.textContent?.trim()).toBe("Muster-Maschine (Server-Vorgabe)");
+    expect(text()).not.toContain("default");
+  });
+
+  it("zeigt das Profil des Laufs, wenn der Server eines mitschickt (ST-7b)", async () => {
+    await mount(detail({
+      profile: {
+        quality: { hard_rate: 0.8, hard_passed: 8, hard_total: 10,
+                   axes: { auftrag_erfuellt: 1.5, intent_fit: null, persona_tone: null,
+                           info_quality: null, safety: null, pattern_match: null } },
+        speed: { p50_ms: 1000, p95_ms: 2000, over_30s: 0, over_90s: 0 },
+        cost: { turns_with_usage: 0, prompt: null, cached: null, completion: null,
+                cost_per_turn: null, cost_total: null, price_unavailable: [] },
+        robustness: { turns: 3, chat_errors: 0, judge_failed: 0, empty: 0, fallback: 0 },
+        currency: "USD",
+      },
+    }));
+    expect(h.el.querySelector("studio-eval-run-profile")).not.toBeNull();
+    expect(text()).toContain("Profil des Laufs");
+  });
+
+  it("zeigt die Muster-Tafeln bei einem Muster-Lauf (ST-7d)", async () => {
+    await mount(detail({
+      engine: "pattern",
+      summary: { golden_metrics: goldMetrics(), target_turns: 3,
+                 classification_metrics: { judged_turns: 3, tool_compliance_rate: 1,
+                                           tool_compliance_total: 2 } },
+    }));
+    expect(h.el.querySelector("studio-eval-pattern-panels")).not.toBeNull();
+    expect(text()).not.toContain("Muster-Tafeln entfallen");
+  });
+
+  it("sagt bei einem Agent-Lauf, warum die Muster-Tafeln fehlen (ST-7d)", async () => {
+    await mount(detail({
+      engine: "agent",
+      summary: { golden_metrics: goldMetrics(), target_turns: 3,
+                 classification_metrics: { judged_turns: 3 } },
+    }));
+    expect(h.el.querySelector("studio-eval-pattern-panels")).toBeNull();
+    expect(text()).toContain("Muster-Tafeln entfallen");
+  });
+
+  it("nennt eine ausdrücklich gewählte Maschine ohne Zusatz", async () => {
+    await mount(detail({
+      engine: "agent",
+      summary: { golden_metrics: goldMetrics(), target_turns: 3, engine: "agent" },
+    }));
+    expect(text()).toContain("Agent-Schleife");
+    expect(text()).not.toContain("Server-Vorgabe");
   });
 
   it("shows why a run failed instead of an empty scorecard", async () => {
@@ -534,5 +610,30 @@ describe("EvalRunDetailComponent", () => {
       .join(" | ");
     expect(heads).toContain("Werkzeug-Soll");
     expect(heads).not.toContain("Persona");
+  });
+
+  it("nennt die Skills, die ein Zug geladen hat, und schweigt ohne (AG-5)", async () => {
+    const metrics = goldMetrics();
+    const perTurn = (metrics["per_turn"] as Record<string, unknown>[]).map((turn, i) =>
+      i === 0
+        ? { ...turn, observed: { ...(turn["observed"] as object), skills: ["Stunde planen", "n-2"] } }
+        : turn,
+    );
+    await mount(
+      detail({ summary: { golden_metrics: { ...metrics, per_turn: perTurn }, target_turns: 3 } }),
+    );
+
+    const opener = rows()[0].querySelector("button")!;
+    opener.click();
+    await h.fixture.whenStable();
+    expect(text()).toContain("Geladene Skills: Stunde planen, n-2");
+
+    opener.click();
+    await h.fixture.whenStable();
+    rows()[1].querySelector("button")!.click();
+    await h.fixture.whenStable();
+    // Keine leere Zeile „Geladene Skills: –“ bei Zügen ohne Skill.
+    expect(text()).toContain("Ich brauche noch das Thema.");
+    expect(text()).not.toContain("Geladene Skills");
   });
 });

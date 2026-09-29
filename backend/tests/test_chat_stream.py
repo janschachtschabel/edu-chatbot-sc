@@ -423,7 +423,7 @@ def test_verbrauch_wird_auch_im_stream_geschrieben(monkeypatch, client):
     _patch(monkeypatch, result={**_ok("HI"), "usage": acc})
     calls: list[tuple] = []
 
-    async def _fake(session, session_id, uebergeben):
+    async def _fake(session, session_id, uebergeben, engine=None):
         calls.append((session, session_id, uebergeben))
         return 1
 

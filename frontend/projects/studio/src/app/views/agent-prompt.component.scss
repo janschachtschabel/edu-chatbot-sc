@@ -1,0 +1,92 @@
+@use './section-shell';
+
+.agp-locale {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2) var(--st-4);
+  margin: 0 0 var(--st-3);
+  padding: 0;
+  border: 0;
+}
+
+.agp-legend {
+  margin-block-end: var(--st-1);
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.agp-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-1);
+  min-block-size: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.agp-intro {
+  margin: 0 0 var(--st-3);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+}
+
+.agp-chain {
+  display: grid;
+  gap: var(--st-3);
+  margin: 0 0 var(--st-3);
+  padding-inline-start: var(--st-5);
+}
+
+.agp-step {
+  padding-inline-start: var(--st-1);
+}
+
+.agp-name {
+  margin: 0;
+  font-weight: 600;
+}
+
+.agp-meta,
+.agp-when {
+  margin: var(--st-1) 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.agp-when {
+  color: var(--st-text-muted);
+}
+
+.agp-text {
+  margin-block-start: var(--st-2);
+}
+
+.agp-text-toggle {
+  min-block-size: 1.5rem;
+  cursor: pointer;
+  font-size: 0.8125rem;
+
+  &:focus-visible {
+    border-radius: var(--st-radius);
+  }
+}
+
+.agp-pre {
+  max-block-size: 24rem;
+  overflow: auto;
+  margin: var(--st-2) 0 0;
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agp-tools {
+  margin: 0;
+  font-size: 0.875rem;
+}

@@ -72,11 +72,6 @@
   margin-block-start: 0.2rem;
 }
 
-.egd-pick input:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
-}
-
 .egd-flow {
   display: grid;
   gap: 0.1rem;
@@ -124,20 +119,17 @@
   cursor: pointer;
 }
 
-.egd-btn:focus-visible {
-  outline: none;
-  box-shadow: var(--st-focus);
-}
-
 .egd-btn:disabled {
   opacity: 0.6;
   cursor: default;
 }
 
+// Filled, like every primary action: its white label needs the accent fill (on
+// the soft wash it was 1.1:1).
 .egd-btn--go {
   border-color: var(--st-accent);
-  background: var(--st-accent-soft);
-  color: var(--st-accent-text);
+  background: var(--st-accent);
+  color: var(--st-on-accent);
   font-weight: 600;
 }
 

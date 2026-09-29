@@ -97,7 +97,7 @@ def test_list_runs_passes_di_session_and_default_limit(client, monkeypatch):
     calls = _fake_async(monkeypatch, "list_runs", {"runs": []})
     r = client.get("/api/eval/runs", headers=_AUTH)
     assert r.status_code == 200 and r.json() == {"runs": []}
-    assert calls == [(_SESSION, 50)]
+    assert calls == [(_SESSION, 50, None)]  # ST-7a: ohne Maschinen-Filter
 
 
 def test_start_run_passes_session_factory_and_body(client, monkeypatch):
@@ -134,7 +134,9 @@ def test_start_golden_run_passes_session_factory_and_body(client, monkeypatch):
 
 
 def test_get_run_passes_run_id(client, monkeypatch):
-    calls = _fake_async(monkeypatch, "get_run", {"id": "eval-1", "status": "done"})
+    # ST-7b: das Detail kommt mit seinem Profil (Judge-Achsen, Dauer, Kosten).
+    calls = _fake_async(monkeypatch, "get_run_with_profile",
+                        {"id": "eval-1", "status": "done"})
     r = client.get("/api/eval/runs/eval-1", headers=_AUTH)
     assert r.status_code == 200 and r.json()["status"] == "done"
     assert calls == [(_SESSION, "eval-1")]
@@ -160,7 +162,7 @@ def test_trends_passes_di_session_and_default_limit(client, monkeypatch):
     calls = _fake_async(monkeypatch, "get_trends", {"runs": []})
     r = client.get("/api/eval/trends", headers=_AUTH)
     assert r.status_code == 200 and r.json() == {"runs": []}
-    assert calls == [(_SESSION, 10)]
+    assert calls == [(_SESSION, 10, None)]  # ST-7a: ohne Maschinen-Filter
 
 
 def test_gold_flows_returns_service_payload(client, monkeypatch):
@@ -616,7 +618,14 @@ def _wire_golden(monkeypatch, *, judge=None):
         captured.update(kw)
 
     monkeypatch.setattr(golden_run, "_finalize_run", fake_finalize)
+    monkeypatch.setattr(golden_run, "run_conditions", _offline_conditions)
     return fake_runner, convs, metrics, captured
+
+
+async def _offline_conditions(*, judge_enabled):
+    """K0-2: die echten Messbedingungen holen den Master-Skill per MCP — offline
+    eine feste Antwort (was sie enthalten, prüft test_golden_messdaten.py)."""
+    return {"chat_model": "fake", "judge_model": ""}
 
 
 def test_execute_golden_run_uses_ported_runner_and_persists_done(monkeypatch):
@@ -705,10 +714,35 @@ def test_start_golden_run_stores_and_reports_the_engine(monkeypatch):
     session = _FakeSession()
 
     out = asyncio.run(svc.start_golden_eval_run(
-        session, None, GoldenRunRequest(engine="hybrid")))
+        session, None, GoldenRunRequest(engine="agent")))
 
-    assert out["engine"] == "hybrid"
-    assert session.added[0].config["engine"] == "hybrid"
+    assert out["engine"] == "agent"
+    assert session.added[0].config["engine"] == "agent"
+
+
+def test_hybrid_ist_keine_engine_fuer_den_goldlauf_mehr():
+    """K1-1 (2026-09-27): ein Goldlauf misst die Maschine, die er nennt. Still
+    als ``agent`` gemessen, stünde im Bericht ein Hybrid, den es nicht gibt —
+    anders als im Chat, wo die Kopfzeile ``hybrid`` weiter als ``agent`` gilt."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        GoldenRunRequest(engine="hybrid")
+
+
+def test_start_golden_run_nennt_das_judge_modell(monkeypatch):
+    """K0-2: ``judge_model`` stand hart auf "" — die Lauf-Details verschwiegen,
+    wer bewertet hat."""
+    monkeypatch.setattr(golden_run, "load_gold_flows", _golden_flows)
+    monkeypatch.setattr(golden_run, "judge_model", lambda: "gpt-4o-mini")
+    _patch_guard_and_spawn(monkeypatch, golden_run)
+    mit, ohne = _FakeSession(), _FakeSession()
+
+    asyncio.run(svc.start_golden_eval_run(mit, None, GoldenRunRequest(judge=True)))
+    asyncio.run(svc.start_golden_eval_run(ohne, None, GoldenRunRequest(judge=False)))
+
+    assert mit.added[0].config["judge_model"] == "gpt-4o-mini"
+    assert ohne.added[0].config["judge_model"] == ""
 
 
 def test_golden_run_request_rejects_unknown_engine(client, monkeypatch):
@@ -768,6 +802,7 @@ def test_execute_golden_run_persists_failure_on_runner_error(monkeypatch):
         captured.update(kw)
 
     monkeypatch.setattr(golden_run, "_finalize_run", fake_finalize)
+    monkeypatch.setattr(golden_run, "run_conditions", _offline_conditions)
     asyncio.run(svc._execute_golden_run(lambda: _FakeCtx(), "eval-g",
                                         _golden_flows(), False))
     assert captured["status"] == "failed"
@@ -810,3 +845,16 @@ def test_delete_runs_requires_confirm_without_filter():
     with pytest.raises(HTTPException) as ei:
         asyncio.run(svc.delete_runs(_FakeSession(), None, None, False))
     assert ei.value.status_code == 400
+
+
+def test_start_golden_run_400_bei_falschem_tools_max(monkeypatch):
+    """Review 2026-09-26: ein vertippter Deckel faellt VOR dem Lauf auf und
+    nicht mitten in bezahlten Zuegen."""
+    kaputt = [{"id": "GS-1", "turns": [{"message": "a", "expect": {"tools_max": "3"}}]}]
+    monkeypatch.setattr(golden_run, "load_gold_flows", lambda: kaputt)
+    spawned = _patch_guard_and_spawn(monkeypatch, golden_run)
+    with pytest.raises(HTTPException) as ei:
+        asyncio.run(svc.start_golden_eval_run(_FakeSession(), None, GoldenRunRequest()))
+    assert ei.value.status_code == 400
+    assert "tools_max" in str(ei.value.detail)
+    assert spawned == []

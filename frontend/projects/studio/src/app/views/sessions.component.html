@@ -4,6 +4,9 @@
   <p class="sv-intro">{{ t('sv.intro') }}</p>
 </header>
 
+<!-- ST-9: dieselbe Wahl wie in der Analyse, serverseitig gefiltert -->
+<studio-origin-scope [value]="scope()" name="sv-scope" (valueChange)="setScope($event)" />
+
 <div class="sv-actions">
   <button type="button" class="sv-btn sv-reload" [disabled]="sessions.loading()" (click)="reload()">
     {{ sessions.loading() ? t('action.refreshing') : t('action.refresh') }}

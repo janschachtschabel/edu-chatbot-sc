@@ -1,0 +1,89 @@
+<div class="ol">
+  <div class="ol-side">
+    <p class="ol-count" [id]="baseId() + '-count'" aria-live="polite">{{ countText() }}</p>
+    <input
+      class="sf-input ol-search"
+      type="search"
+      [id]="baseId() + '-search'"
+      [value]="query()"
+      [attr.aria-label]="t('objectList.searchIn', { group: label() })"
+      [attr.placeholder]="t('objectList.search')"
+      (input)="onSearch($event)"
+    />
+    @if (shown().length) {
+      <ul class="ol-entries" [attr.aria-label]="t('objectList.entries', { group: label() })">
+        @for (entry of shown(); track entry.id) {
+          <li>
+            <button
+              type="button"
+              class="ol-entry"
+              [attr.aria-current]="entry.id === current()?.id ? 'true' : null"
+              (click)="select(entry.id)"
+            >
+              <span class="ol-title">{{ entry.title }}</span>
+              @if (entry.problem) {
+                <span class="ol-problem" aria-hidden="true">⚠</span>
+                <span class="visually-hidden">{{ t('objectList.hasProblem') }}</span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="sf-empty">{{ query() ? t('objectList.noMatch') : t('schemaField.emptyList') }}</p>
+    }
+    <div class="ol-actions">
+      <button
+        type="button"
+        class="sf-add"
+        [attr.aria-label]="t('objectList.newIn', { group: label() })"
+        (click)="add()"
+      >{{ t('objectList.new') }}</button>
+      @if (current(); as entry) {
+        <button
+          type="button"
+          class="sf-add"
+          [attr.aria-label]="t('objectList.duplicateEntry', { title: entry.title })"
+          (click)="duplicate()"
+        >{{ t('objectList.duplicate') }}</button>
+        <button
+          type="button"
+          class="sf-remove"
+          [attr.aria-label]="t('objectList.removeEntry', { title: entry.title })"
+          (click)="remove()"
+        >{{ t('objectList.remove') }}</button>
+      }
+    </div>
+  </div>
+
+  @if (current(); as entry) {
+    <div class="ol-editor">
+      @if (isMap()) {
+        <div class="sf-row">
+          <label class="sf-label" [for]="baseId() + '-key'">{{ t('schemaField.key') }}</label>
+          <input
+            class="sf-input ol-key"
+            type="text"
+            [id]="baseId() + '-key'"
+            [value]="entry.id"
+            [attr.aria-invalid]="keyError() ? 'true' : null"
+            [attr.aria-describedby]="keyError() ? baseId() + '-key-err' : null"
+            (change)="rename($event)"
+          />
+          @if (keyError()) {
+            <p class="sf-error" [id]="baseId() + '-key-err'" aria-live="polite">{{ keyError() }}</p>
+          }
+        </div>
+      }
+      <studio-schema-field
+        [field]="field().item!"
+        [path]="entry.path"
+        [value]="entry.value"
+        [idPrefix]="idPrefix()"
+        [problems]="problems()"
+        [labelOverride]="entry.title"
+        (edit)="edit.emit($event)"
+      />
+    </div>
+  }
+</div>

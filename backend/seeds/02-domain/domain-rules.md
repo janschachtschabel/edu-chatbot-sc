@@ -50,7 +50,7 @@ für alle Bildungsstufen.
 ## Text vs. Cards
 Suchergebnisse rendern als Kacheln (Titel, Beschreibung, Vorschau).
 Wiederhole diese Infos **NICHT** im Antworttext. Pattern definiert den
-Card-Text-Modus (minimal/explanation/highlight).
+Card-Text-Modus (minimal/reference/highlight).
 
 ## 3-Stufen-Eskalation — nie „kenne ich nicht" alleine
 

@@ -58,7 +58,7 @@ class SpeculativePrefetch(NamedTuple):
     search_all_extras: list[dict]
 
 
-async def run_speculative_prefetch(req, classification, safety, *, engine="pattern"):
+async def run_speculative_prefetch(req, classification, safety):
     """Spekulativen MCP-Prefetch hinter der Pre-Route-Engine starten (Verbatim-
     Port ALT ``chat_prefetch._launch_speculative_prefetch``). Startet je nach
     Intent/Hint/Entities einen primaeren + optionale Extra-MCP-Such-Tasks (O1:
@@ -125,18 +125,15 @@ async def run_speculative_prefetch(req, classification, safety, *, engine="patte
     def _startet_der_vorabruf() -> bool:
         """Die Startbedingung — nur der Bestandsweg startet den Vorabruf.
 
-        Die Schleifen-Maschinen (agent UND hybrid) starten KEINEN: ihre
-        Ersatz-Klassifikation trägt ``I01`` und leere Entities, die Bedingung
-        unten ist dort also immer falsch. H5 hatte für den Hybrid
-        ``_looks_like_search_query`` als Ersatz-Gate eingebaut — zurückgenommen
-        (Review-Befund 2, 2026-08-22): die Verbrauchsseite wurde nie gebaut,
-        ``respond_agent._verwirf_vorabruf`` bricht ``spec_task`` unbedingt ab,
-        und jeder such-artige Hybrid-Zug bezahlte einen verworfenen
-        MCP-Roundtrip — dasselbe Muster, das die M16-/I04-Skips weiter unten
-        ausdrücklich vermeiden. Wer den Vorabruf im Hybrid will, baut zuerst
-        die Einspeisung in die Schleife (Fremdtext-Rahmen + Karten-Ernte +
-        ``tools_called``-Annotation wie in ``tool_loop_messages``), dann
-        dieses Gate.
+        Die Agent-Schleife startet KEINEN: ihre Ersatz-Klassifikation trägt
+        ``I01`` und leere Entities, die Bedingung unten ist dort also immer
+        falsch. Richtig so, denn ``respond_agent._verwirf_vorabruf`` bricht
+        ``spec_task`` unbedingt ab — ein Start bezahlte einen verworfenen
+        MCP-Roundtrip, dasselbe Muster, das die M16-/I04-Skips weiter unten
+        ausdrücklich vermeiden (Review-Befund 2, 2026-08-22). Wer den
+        Vorabruf in der Schleife will, baut zuerst die Einspeisung
+        (Fremdtext-Rahmen + Karten-Ernte + ``tools_called``-Annotation wie in
+        ``tool_loop_messages``), dann ein eigenes Gate.
 
         Der Zweig der Muster-Engine bleibt Ausdruck für Ausdruck derselbe.
         """

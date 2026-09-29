@@ -52,6 +52,29 @@ logger = logging.getLogger(__name__)
 GUIDE_QR_PREFIX = "__guide__|"
 
 
+def ist_lotse(qr: object) -> bool:
+    return isinstance(qr, str) and qr.startswith(GUIDE_QR_PREFIX)
+
+
+def begrenze_pillen(qrs: list, max_pillen: int) -> list:
+    """Höchstens ``max_pillen`` Pillen — Lotsen zählen nicht mit und bleiben.
+
+    Ein Lotse wird nie eine Pille: der Widget-Nachlauf macht ihn zum Link oder
+    nimmt ihn heraus (``domain/widget_postprocess``). Zählte er beim Kürzen mit,
+    verdrängte er eine echte Pille — bei ``max_count: 2`` blieb in der Einbettung
+    eine (Review 2026-09-29). Die Reihenfolge bleibt.
+    """
+    pillen = 0
+    behalten = []
+    for qr in qrs:
+        if ist_lotse(qr):
+            behalten.append(qr)
+        elif pillen < max_pillen:
+            behalten.append(qr)
+            pillen += 1
+    return behalten
+
+
 # Reihenfolge: spezifischere Patterns ZUERST, generische zuletzt.
 # Jedes Tupel: (regex, label, url, priority).
 # - regex: re.IGNORECASE wird automatisch angewendet
@@ -531,8 +554,9 @@ def inject_guide_qr(
       ``guide_mode`` toggle here so the injector is a no-op when
       Lotsen-Modus deaktiviert ist.
     - Match gefunden → der Guide-QR wird an Position 0 eingefügt;
-      bei Überschreitung von ``max_qrs`` (default 4) wird der letzte
-      normale Eintrag entfernt (statistisch der schwächste).
+      ``max_qrs`` (default 4) deckelt nur die NORMALEN Einträge — über dem
+      Deckel fallen die letzten weg (statistisch die schwächsten). Der Lotse
+      zählt nicht mit, er wird nie eine Pille (:func:`begrenze_pillen`).
     - Nichts matcht und Liste hat keinen Guide-QR → unverändert.
     """
     if not enabled:
@@ -637,8 +661,8 @@ def inject_guide_qr(
     for label, url, _src in reversed(picks):
         qrs.insert(0, _format_qr(label, url))
 
-    if max_qrs and len(qrs) > max_qrs:
-        qrs = qrs[:max_qrs]
+    if max_qrs:
+        qrs = begrenze_pillen(qrs, max_qrs)
 
     if logger.isEnabledFor(logging.DEBUG):
         for label, url, src in picks:

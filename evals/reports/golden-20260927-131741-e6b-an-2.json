@@ -1,0 +1,633 @@
+{
+  "chat_url": "http://127.0.0.1:8100/api/chat",
+  "engine": "pattern",
+  "chat_headers": [
+    "X-Boerdi-Engine"
+  ],
+  "started_utc": "20260927-131741",
+  "duration_s": 53.4,
+  "golden_metrics": {
+    "categories": [
+      "register",
+      "structure",
+      "tools_any",
+      "tools_none",
+      "tools_max",
+      "text",
+      "qr",
+      "host"
+    ],
+    "totals": {
+      "register": 1,
+      "structure": 0,
+      "tools_any": 2,
+      "tools_none": 0,
+      "tools_max": 0,
+      "text": 1,
+      "qr": 2,
+      "host": 2
+    },
+    "passed": {
+      "register": 1,
+      "structure": 0,
+      "tools_any": 2,
+      "tools_none": 0,
+      "tools_max": 0,
+      "text": 0,
+      "qr": 2,
+      "host": 2
+    },
+    "rates": {
+      "register": 1.0,
+      "structure": null,
+      "tools_any": 1.0,
+      "tools_none": null,
+      "tools_max": null,
+      "text": 0.0,
+      "qr": 1.0,
+      "host": 1.0
+    },
+    "overall_pass_rate": 0.833,
+    "hard_passed": 5,
+    "hard_total": 6,
+    "flows": 1,
+    "turns": 2,
+    "latency": {
+      "turns": 2,
+      "p50_ms": 25853,
+      "p95_ms": 27581,
+      "max_ms": 27581,
+      "total_ms": 53434
+    },
+    "per_turn": [
+      {
+        "flow": "GV-EMB-1",
+        "title": "Sammlungsseite: Stunde planen mit Rückfrage (Fall vom 16.08.)",
+        "turn": 1,
+        "message": "Ich möchte morgen eine Stunde zur Lichtbrechung halten. Können Sie mir helfen, sie zu planen?",
+        "expected": {
+          "register": "sie",
+          "structure": null,
+          "tools_any": [
+            "get_skill"
+          ],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [],
+          "text_none": [],
+          "qr": true,
+          "must_offer": "Arbeit nach der Anleitung „Stunde planen“: eine gezielte Rückfrage (Dauer, Klasse, Vorwissen) oder gleich ein Verlaufsplan."
+        },
+        "observed": {
+          "pattern": "M09",
+          "tools_called": [
+            "get_skill_registry",
+            "get_skill",
+            "lookup_wlo_vocabulary",
+            "lookup_wlo_vocabulary",
+            "get_collection_contents",
+            "search_wlo_collections"
+          ],
+          "tool_calls": 6,
+          "skills": [
+            "Stunde planen"
+          ],
+          "register": "neutral",
+          "sie": 0,
+          "du": 0,
+          "cards": 6,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 238,
+          "text_found": [],
+          "text_forbidden": []
+        },
+        "checks": {
+          "register": null,
+          "structure": null,
+          "tools_any": true,
+          "tools_none": null,
+          "tools_max": null,
+          "text": null,
+          "qr": true,
+          "host": true
+        },
+        "latency_ms": 25853
+      },
+      {
+        "flow": "GV-EMB-1",
+        "title": "Sammlungsseite: Stunde planen mit Rückfrage (Fall vom 16.08.)",
+        "turn": 2,
+        "message": "45 min physik sek 1",
+        "expected": {
+          "register": "sie",
+          "structure": null,
+          "tools_any": [
+            "get_skill"
+          ],
+          "tools_none": [],
+          "tools_max": null,
+          "text_any": [
+            "Verlaufsplan",
+            "Sozialform"
+          ],
+          "text_none": [],
+          "qr": true,
+          "must_offer": "Ein Verlaufsplan für 45 Minuten zur Lichtbrechung in Klasse 8 mit Phasen, Minuten, Sozialform und Material nach der geladenen Anleitung — keine bloße Materialliste."
+        },
+        "observed": {
+          "pattern": "M09",
+          "tools_called": [
+            "get_skill",
+            "get_skill_registry",
+            "lookup_wlo_vocabulary",
+            "lookup_wlo_vocabulary",
+            "search_wlo_collections",
+            "search_wlo_content",
+            "get_collection_contents",
+            "get_collection_contents"
+          ],
+          "tool_calls": 8,
+          "skills": [
+            "Stunde planen"
+          ],
+          "register": "sie",
+          "sie": 1,
+          "du": 0,
+          "cards": 8,
+          "idocs": 0,
+          "qr": 2,
+          "content_len": 210,
+          "text_found": [],
+          "text_forbidden": []
+        },
+        "checks": {
+          "register": true,
+          "structure": null,
+          "tools_any": true,
+          "tools_none": null,
+          "tools_max": null,
+          "text": false,
+          "qr": true,
+          "host": true
+        },
+        "latency_ms": 27581
+      }
+    ],
+    "per_flow": {
+      "GV-EMB-1": {
+        "title": "Sammlungsseite: Stunde planen mit Rückfrage (Fall vom 16.08.)",
+        "zielgruppe": "P-LEH",
+        "register": {
+          "ok": 1,
+          "total": 1
+        },
+        "structure": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_any": {
+          "ok": 2,
+          "total": 2
+        },
+        "tools_none": {
+          "ok": 0,
+          "total": 0
+        },
+        "tools_max": {
+          "ok": 0,
+          "total": 0
+        },
+        "text": {
+          "ok": 0,
+          "total": 1
+        },
+        "qr": {
+          "ok": 2,
+          "total": 2
+        },
+        "host": {
+          "ok": 2,
+          "total": 2
+        }
+      }
+    }
+  },
+  "conversations": [
+    {
+      "kind": "golden",
+      "flow_id": "GV-EMB-1",
+      "title": "Sammlungsseite: Stunde planen mit Rückfrage (Fall vom 16.08.)",
+      "persona_id": "*",
+      "zielgruppe": "P-LEH",
+      "intent_id": "",
+      "session_id": "eval-ffe6f98d584b",
+      "turns": [
+        {
+          "user": "Ich möchte morgen eine Stunde zur Lichtbrechung halten. Können Sie mir helfen, sie zu planen?",
+          "bot": "[ edu-sharing Skill ] Stunde planen - wird geladen\n\nFür eine passgenaue 60‑Minuten-Planung: Welche Jahrgangsstufe und Schulform ist es, und ist die Stunde eine Einführung, Übung oder Anwendung – was kam davor beziehungsweise folgt danach?\n\n---\n[Material-Cards — vom Nutzer sichtbar, 6 Treffer]\n  - **Brechung** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=c6200d4c-443c-4f32-b9d3-e6ff2f362e71&q=Lichtbrechung\n  - **Farben** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=95f2002f-1745-4b47-889d-8376af38fe41&q=Lichtbrechung\n  - **Optik** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=9e7ae956-e9df-430f-bace-f3db4b910013&q=Lichtbrechung\n  - **Phänomenbasierter Anfangsunterricht Optik** — https://repository.staging.openeduhub.net/edu-sharing/components/render/0da50522-234e-4151-a265-8b82cd76a20e\n    Diese an der HU Berlin entwickelte Unterrichtseinheit für den Anfangsunterricht in der Optik entwickelt tragfähige Vorstellungen zur geometrischen Optik entlang des Prinzips Ameise, bei dem die Schüle\n  - **Wie funktioniert eine konkave und wie eine konvexe Linse? - YouTube** — https://repository.staging.openeduhub.net/edu-sharing/components/render/bbe5c997-7f13-4727-babe-addae801e2a9\n    Braucht Philipp vielleicht eine Brille? Dieses Video erklärt, wie die Linsen unserer Augen arbeiten und wie konvexe und konkave Linsen funktionieren!\n  - **Unterrichtsreihe zum Licht** — https://repository.staging.openeduhub.net/edu-sharing/components/render/d9d732a9-2c3c-4f75-b8ae-f4197f317b90\n    Diese Seite kann als Einstieg in eine Unterrichtsreihe zur Optik genutzt werden.",
+          "debug": {
+            "pattern": "M09 (Lernpfad-Erstellung)",
+            "persona": "P-LEH (Lehrkraft)",
+            "intent": "I04 (Lernpfad)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "categories": {
+                "harassment": 9.547317110805593e-05,
+                "harassment_threatening": 3.569706350376584e-05,
+                "hate": 5.7031570707833595e-05,
+                "hate_threatening": 1.1061159714638084e-05,
+                "illicit": 0.01664583022787941,
+                "illicit_violent": 0.002044103180732924,
+                "self_harm": 0.004799596736307936,
+                "self_harm_instructions": 0.00030506497931875756,
+                "self_harm_intent": 0.004505386299215689,
+                "sexual": 0.00014325365947100792,
+                "sexual_minors": 5.193048644949271e-05,
+                "violence": 0.0005775117631028116,
+                "violence_graphic": 1.6865275398914433e-05,
+                "harassment/threatening": 3.569706350376584e-05,
+                "hate/threatening": 1.1061159714638084e-05,
+                "illicit/violent": 0.002044103180732924,
+                "self-harm/intent": 0.004505386299215689,
+                "self-harm/instructions": 0.00030506497931875756,
+                "self-harm": 0.004799596736307936,
+                "sexual/minors": 5.193048644949271e-05,
+                "violence/graphic": 1.6865275398914433e-05
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "get_skill_registry",
+              "get_skill",
+              "lookup_wlo_vocabulary",
+              "lookup_wlo_vocabulary",
+              "get_collection_contents",
+              "search_wlo_collections"
+            ],
+            "pattern_id_hint": "M09",
+            "pattern_reasoning": "Die Nutzerin möchte eine Stunde planen; Plan-Verb und expliziter Stundenkontext sprechen für I04/M09. Thema, Fach und Stufe sind durch die Anfrage und den Seitentext hinreichend klar; morgen zeigt Zeitdruck an.",
+            "llm_engine_match": true,
+            "token_usage": {
+              "prompt_tokens": 102605,
+              "completion_tokens": 2031,
+              "cached_tokens": 98446,
+              "reasoning_tokens": 1521,
+              "calls": 6,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 102605,
+                  "completion": 2031,
+                  "cached": 98446,
+                  "reasoning": 1521,
+                  "calls": 6
+                }
+              },
+              "per_phase": {
+                "classify": {
+                  "prompt": 21661,
+                  "completion": 189,
+                  "cached": 21528,
+                  "reasoning": 0,
+                  "calls": 1
+                },
+                "tool_loop": {
+                  "prompt": 53216,
+                  "completion": 599,
+                  "cached": 53084,
+                  "reasoning": 358,
+                  "calls": 3
+                },
+                "response": {
+                  "prompt": 24791,
+                  "completion": 567,
+                  "cached": 20992,
+                  "reasoning": 516,
+                  "calls": 1
+                },
+                "quick_replies": {
+                  "prompt": 2937,
+                  "completion": 676,
+                  "cached": 2842,
+                  "reasoning": 647,
+                  "calls": 1
+                }
+              }
+            },
+            "phase3_modulations": {
+              "tone": "sachlich",
+              "formality": "siezen",
+              "length": "kurz",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "cards",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [
+                "search_wlo_collections",
+                "get_collection_contents",
+                "search_wlo_content",
+                "get_node_details",
+                "lookup_wlo_vocabulary",
+                "get_skill",
+                "get_skill_registry"
+              ],
+              "skip_intro": true,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "Strukturierter Plan mit 4–6 Schritten, jeder Schritt mit 1 konkretem\nWLO-Material. Direkt im Chat als Markdown — keine Such-CTA, keine\n„Quizze schau in die Suche unten\"-Fallbacks.\n",
+              "state_transition": {
+                "prev": "S1",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": [
+                  "S2",
+                  "S3"
+                ]
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            }
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": null,
+              "tools_any": [
+                "get_skill"
+              ],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [],
+              "text_none": [],
+              "qr": true,
+              "must_offer": "Arbeit nach der Anleitung „Stunde planen“: eine gezielte Rückfrage (Dauer, Klasse, Vorwissen) oder gleich ein Verlaufsplan."
+            },
+            "observed": {
+              "pattern": "M09",
+              "tools_called": [
+                "get_skill_registry",
+                "get_skill",
+                "lookup_wlo_vocabulary",
+                "lookup_wlo_vocabulary",
+                "get_collection_contents",
+                "search_wlo_collections"
+              ],
+              "tool_calls": 6,
+              "skills": [
+                "Stunde planen"
+              ],
+              "register": "neutral",
+              "sie": 0,
+              "du": 0,
+              "cards": 6,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 238,
+              "text_found": [],
+              "text_forbidden": []
+            },
+            "checks": {
+              "register": null,
+              "structure": null,
+              "tools_any": true,
+              "tools_none": null,
+              "tools_max": null,
+              "text": null,
+              "qr": true,
+              "host": true
+            }
+          },
+          "cards_count": 6,
+          "response_length": 238,
+          "latency_ms": 25853
+        },
+        {
+          "user": "45 min physik sek 1",
+          "bot": "[ edu-sharing Skill ] Stunde planen - wird geladen\n\nSoll die Stunde zur Lichtbrechung eine Einführung, eine Übungs- oder eine Anwendungsstunde sein – und was haben Ihre Schüler:innen in der Vorstunde behandelt?\n\n---\n[Material-Cards — vom Nutzer sichtbar, 8 Treffer]\n  - **Brechung** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=c6200d4c-443c-4f32-b9d3-e6ff2f362e71&q=Lichtbrechung\n  - **Farben** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=95f2002f-1745-4b47-889d-8376af38fe41&q=Lichtbrechung\n  - **Optik** — https://repository.staging.openeduhub.net/edu-sharing/components/collections?id=9e7ae956-e9df-430f-bace-f3db4b910013&q=Lichtbrechung\n  - **Lichtbrechung an Grenzflächen mit PhET Animationen** — https://repository.staging.openeduhub.net/edu-sharing/components/render/b21af419-5f8a-40c6-9b27-adc73bd8f379\n    In dieser Unterrichtseinheit arbeiten die Schülerinnen und Schüler mit dem Notebook oder PC und lernen mit einem Lernvideo und interaktiven Simulationen die Lichtbrechung kennen. Dazu arbeiten die Sch\n  - **Lichtbrechung** — https://repository.staging.openeduhub.net/edu-sharing/components/render/9ddd3f55-4dbe-49c0-9cd7-8ecf1cb49027\n    Das Brechen von Licht zwischen zwei Medien mit unterschiedlichen Brechungsindizes. Wie sich der Brechungswinkel ändert mit dem Wechsel von Luft zu Wasser und zu Glas, lässt sich beobachten. Mit den ve\n  - **Lichtbrechung beim Übergang von Luft zu Wasser mit Milch sichtbar gemacht** — https://repository.staging.openeduhub.net/edu-sharing/components/render/a4844504-4e1a-4edb-9edc-ad17d63d1b34\n    In diesem Video zeige ich dir mit einem Laser und mit milchgefärbtem Wasser, wie das Licht beim Übergang von Luft in Wasser gebrochen wird.\n  - **Lichtbrechung beim Übergang von Wasser in Luft - Experiment** — https://repository.staging.openeduhub.net/edu-sharing/components/render/feb363e9-bf0e-4272-b100-e4c61e05db87\n    In diesem Video seht ihr die Brechung von Lichtstrahlen beim Übergang von Wasser in Luft.\n  - **Lichtbrechung an Grenzflächen mit PhET Animationen** — https://repository.staging.openeduhub.net/edu-sharing/components/render/f13e4ad7-44ea-49ee-b0bb-65ef134ca39b\n    In dieser Unterrichtseinheit arbeiten die Schülerinnen und Schüler mit dem Notebook oder PC und lernen mit einem Lernvideo und interaktiven Simulationen die Lichtbrechung kennen. Dazu arbeiten die Sch",
+          "debug": {
+            "pattern": "M09 (Lernpfad-Erstellung)",
+            "persona": "P-LEH (Lehrkraft)",
+            "intent": "I04 (Lernpfad)",
+            "safety": {
+              "risk_level": "low",
+              "blocked_tools": [],
+              "enforced_pattern": "",
+              "reasons": [
+                "level:standard"
+              ],
+              "stages_run": [
+                "regex",
+                "prompt_injection",
+                "openai_moderation"
+              ],
+              "categories": {
+                "harassment": 8.220189478350845e-06,
+                "harassment_threatening": 1.6187581436151335e-06,
+                "hate": 1.4738981974494932e-06,
+                "hate_threatening": 2.332074525844782e-07,
+                "illicit": 3.770285666951213e-05,
+                "illicit_violent": 2.3782205064034188e-05,
+                "self_harm": 4.069457790466838e-06,
+                "self_harm_instructions": 1.5206840370677115e-06,
+                "self_harm_intent": 3.4808121961114687e-06,
+                "sexual": 6.771942330385674e-05,
+                "sexual_minors": 6.814872211615988e-06,
+                "violence": 9.314593042575101e-06,
+                "violence_graphic": 1.5689549727726036e-06,
+                "harassment/threatening": 1.6187581436151335e-06,
+                "hate/threatening": 2.332074525844782e-07,
+                "illicit/violent": 2.3782205064034188e-05,
+                "self-harm/intent": 3.4808121961114687e-06,
+                "self-harm/instructions": 1.5206840370677115e-06,
+                "self-harm": 4.069457790466838e-06,
+                "sexual/minors": 6.814872211615988e-06,
+                "violence/graphic": 1.5689549727726036e-06
+              },
+              "flagged_categories": [],
+              "legal_flags": [],
+              "escalated": true
+            },
+            "tools_called": [
+              "get_skill",
+              "get_skill_registry",
+              "lookup_wlo_vocabulary",
+              "lookup_wlo_vocabulary",
+              "search_wlo_collections",
+              "search_wlo_content",
+              "get_collection_contents",
+              "get_collection_contents"
+            ],
+            "pattern_id_hint": "M09",
+            "pattern_reasoning": "Die Person ergänzt die zuvor erfragte Dauer und Bildungsstufe zur Planung einer Stunde über Lichtbrechung; Thema und Fach sind bereits bekannt. M03 wäre nur bei fehlendem Planungsthema relevant.",
+            "llm_engine_match": true,
+            "token_usage": {
+              "prompt_tokens": 134932,
+              "completion_tokens": 1677,
+              "cached_tokens": 103651,
+              "reasoning_tokens": 1056,
+              "calls": 7,
+              "models": {
+                "gpt-6-luna": {
+                  "prompt": 134932,
+                  "completion": 1677,
+                  "cached": 103651,
+                  "reasoning": 1056,
+                  "calls": 7
+                }
+              },
+              "per_phase": {
+                "classify": {
+                  "prompt": 21772,
+                  "completion": 187,
+                  "cached": 21541,
+                  "reasoning": 0,
+                  "calls": 1
+                },
+                "tool_loop": {
+                  "prompt": 82122,
+                  "completion": 913,
+                  "cached": 56651,
+                  "reasoning": 552,
+                  "calls": 4
+                },
+                "response": {
+                  "prompt": 28086,
+                  "completion": 299,
+                  "cached": 25459,
+                  "reasoning": 257,
+                  "calls": 1
+                },
+                "quick_replies": {
+                  "prompt": 2952,
+                  "completion": 278,
+                  "cached": 0,
+                  "reasoning": 247,
+                  "calls": 1
+                }
+              }
+            },
+            "phase3_modulations": {
+              "tone": "sachlich",
+              "formality": "siezen",
+              "length": "lang",
+              "detail_level": "standard",
+              "max_items": 4,
+              "card_text_mode": "minimal",
+              "response_type": "cards",
+              "format_primary": "text",
+              "format_follow_up": "quick_replies",
+              "sources": [
+                "mcp"
+              ],
+              "rag_areas": [],
+              "tools": [
+                "search_wlo_collections",
+                "get_collection_contents",
+                "search_wlo_content",
+                "get_node_details",
+                "lookup_wlo_vocabulary",
+                "get_skill",
+                "get_skill_registry"
+              ],
+              "skip_intro": true,
+              "one_option": false,
+              "add_sources": false,
+              "degradation": false,
+              "missing_slots": [],
+              "blocked_patterns": [],
+              "core_rule": "Strukturierter Plan mit 4–6 Schritten, jeder Schritt mit 1 konkretem\nWLO-Material. Direkt im Chat als Markdown — keine Such-CTA, keine\n„Quizze schau in die Suche unten\"-Fallbacks.\n",
+              "state_transition": {
+                "prev": "S3",
+                "next": "S3",
+                "plausible": true,
+                "reason": "",
+                "expected_next_likely": []
+              },
+              "selected_card_ids": [],
+              "selected_card_reasoning": ""
+            }
+          },
+          "golden": {
+            "expected": {
+              "register": "sie",
+              "structure": null,
+              "tools_any": [
+                "get_skill"
+              ],
+              "tools_none": [],
+              "tools_max": null,
+              "text_any": [
+                "Verlaufsplan",
+                "Sozialform"
+              ],
+              "text_none": [],
+              "qr": true,
+              "must_offer": "Ein Verlaufsplan für 45 Minuten zur Lichtbrechung in Klasse 8 mit Phasen, Minuten, Sozialform und Material nach der geladenen Anleitung — keine bloße Materialliste."
+            },
+            "observed": {
+              "pattern": "M09",
+              "tools_called": [
+                "get_skill",
+                "get_skill_registry",
+                "lookup_wlo_vocabulary",
+                "lookup_wlo_vocabulary",
+                "search_wlo_collections",
+                "search_wlo_content",
+                "get_collection_contents",
+                "get_collection_contents"
+              ],
+              "tool_calls": 8,
+              "skills": [
+                "Stunde planen"
+              ],
+              "register": "sie",
+              "sie": 1,
+              "du": 0,
+              "cards": 8,
+              "idocs": 0,
+              "qr": 2,
+              "content_len": 210,
+              "text_found": [],
+              "text_forbidden": []
+            },
+            "checks": {
+              "register": true,
+              "structure": null,
+              "tools_any": true,
+              "tools_none": null,
+              "tools_max": null,
+              "text": false,
+              "qr": true,
+              "host": true
+            }
+          },
+          "cards_count": 8,
+          "response_length": 210,
+          "latency_ms": 27581
+        }
+      ]
+    }
+  ]
+}

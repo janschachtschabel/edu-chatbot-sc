@@ -286,6 +286,30 @@ def test_der_bestandsabschnitt_laesst_sich_abschalten():
     assert "Sammlungs-ID (collection_id): C1" in ohne
 
 
+def test_ohne_skill_werkzeuge_bleibt_die_uebersicht_ohne_ladeweg():
+    """E-6 (2026-09-27): Im Muster-Modus führen nur sechs von zwanzig Mustern die
+    Skill-Werkzeuge. Ein Suchmuster bekam bis hier „geh die zwei Stufen weiter"
+    samt Vorrang-Regel — und keins der beiden Werkzeuge.
+
+    Die Übersicht bleibt (Nutzer-Vorgabe 2026-08-14: Bestand und Skillkatalog in
+    beiden Modi); ohne Werkzeuge fallen nur Ladeweg und Vorrang weg, und der
+    Block sagt, dass sich hier keiner laden lässt. Sonst arbeitete das Modell
+    womöglich nach einem Titel, dessen Wortlaut es nie gesehen hat.
+    """
+    meta = {"title": "Geometrische Optik",
+            "context_facts": {"materials": 35, "skills": 28,
+                              "skill_titles": ["Stunde planen"]}}
+    pc = {"page_kind": "collection", "collection_id": "C1"}
+    ohne = p.render_for_prompt(meta, pc, skill_weg=False)
+    assert "35 Materialien" in ohne and "Stunde planen" in ohne
+    assert "get_skill" not in ohne          # trifft auch get_skill_registry
+    assert "Vorlage" not in ohne            # der Vorrang-Satz
+    assert "27 weitere" in ohne             # die Kappung bleibt benannt
+    assert "laden lässt sich in diesem Zug keiner" in ohne
+    # Die Vorgabe bleibt der volle Weg — der Agent hat die Werkzeuge immer.
+    assert "get_skill_registry" in p.render_for_prompt(meta, pc)
+
+
 def test_render_ohne_bestandsfakten_bleibt_wie_bisher():
     """Gegenprobe: ohne die Fakten darf kein leerer Abschnitt entstehen —
     eine Überschrift ohne Inhalt liest sich wie ein Ausfall."""

@@ -109,6 +109,56 @@ def test_list_and_get_run_reconstruct_alt_shape_from_jsonb(test_db) -> None:
     assert detail["turns_per_conv"] == 0
 
 
+def test_maschinen_filter_liest_die_aufgeloeste_maschine_vor_der_wahl(test_db) -> None:
+    """ST-7a: die SQL-Bedingung folgt derselben Reihenfolge wie ``run_engine``
+    — erst ``engine_effective``, dann die ausdrückliche Wahl älterer Läufe.
+    Ein „default"-Lauf ohne Auflösung gehört zu keiner Maschine."""
+    from boerdi.services.eval_service import get_trends, list_runs
+
+    async def scenario(session):
+        laeufe = {
+            "eval-neu-agent": {"engine": "default", "engine_effective": "agent"},
+            "eval-neu-muster": {"engine": "pattern", "engine_effective": "pattern"},
+            "eval-alt-agent": {"engine": "agent"},
+            "eval-alt-vorgabe": {"engine": "default"},
+            "eval-alt-generativ": {},
+        }
+        for run_id, config in laeufe.items():
+            await _add_run(session, run_id, status="done", mode="golden", config=config,
+                           totals={"total_turns": 1, "avg_score": 1.0}, summary={})
+        return (await list_runs(session, 50, "agent"), await list_runs(session, 50, None),
+                await get_trends(session, 10, "agent"))
+
+    agent, alle, verlauf = _run(scenario)
+    assert sorted(r["id"] for r in agent["runs"]) == ["eval-alt-agent", "eval-neu-agent"]
+    assert len(alle["runs"]) == 5
+    assert sorted(m["id"] for m in verlauf["runs"]) == ["eval-alt-agent", "eval-neu-agent"]
+
+
+def test_vergleich_liest_genau_die_gewaehlten_laeufe(test_db) -> None:
+    """ST-7c: die Auswahl ist SQL (``id IN …``) — ein nicht gewählter Lauf darf
+    in keiner Maschine mitzählen, eine unbekannte Kennung wird genannt."""
+    from boerdi.services.eval_service import compare_runs
+
+    zug = {"user": "u", "bot": "Antwort", "latency_ms": 1000, "debug": {},
+           "golden": {"checks": {"qr": True}, "observed": {"content_len": 7}}}
+
+    async def scenario(session):
+        for run_id, engine in (("eval-m1", "pattern"), ("eval-a1", "agent"),
+                               ("eval-a2", "agent"), ("eval-fremd", "agent")):
+            await _add_run(session, run_id, status="done", mode="golden",
+                           config={"engine": engine, "engine_effective": engine},
+                           totals={"total_turns": 1, "avg_score": 1.0}, summary={},
+                           conversations=[{"flow_id": "GV-LEH-1", "turns": [zug]}])
+        return await compare_runs(session, ["eval-m1", "eval-a1", "eval-a2", "eval-weg"])
+
+    out = _run(scenario)
+    assert out["engines"]["agent"]["runs"] == 2
+    assert out["engines"]["pattern"]["runs"] == 1
+    assert [r["id"] for r in out["runs"]] == ["eval-m1", "eval-a1", "eval-a2"]
+    assert {"code": "not_found", "run": "eval-weg"} in out["warnings"]
+
+
 def test_get_run_404_for_missing_id(test_db) -> None:
     from boerdi.services.eval_service import get_run
 
@@ -408,6 +458,11 @@ def test_golden_lauf_haelt_am_pruefpunkt_an_wenn_die_zeile_gestoppt_ist(
 
         monkeypatch.setattr(golden_run, "_load_golden_runner",
                             lambda: type("R", (), {"run_flows": staticmethod(run_flows)}))
+
+        async def offline_conditions(*, judge_enabled):
+            return {}  # K0-2: sonst holte der Job den Master-Skill per MCP
+
+        monkeypatch.setattr(golden_run, "run_conditions", offline_conditions)
         await _add_run(session, "eval-stop", status="running", mode="golden",
                        summary={"current_activity": "Starte Gold-Flows …"})
         try:

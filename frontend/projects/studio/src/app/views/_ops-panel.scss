@@ -43,16 +43,11 @@
 .op-input {
   min-block-size: 2.5rem;
   padding: var(--st-2) var(--st-3);
-  border: 1px solid var(--st-rule-strong);
+  border: 1px solid var(--st-text-muted);
   border-radius: var(--st-radius);
   background: var(--st-bg);
   color: var(--st-text);
   font: inherit;
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--st-focus);
-  }
 }
 
 .op-btn {
@@ -65,11 +60,6 @@
   font: inherit;
   cursor: pointer;
 
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--st-focus);
-  }
-
   &:disabled {
     cursor: not-allowed;
     opacity: 0.55;
@@ -78,7 +68,7 @@
   &--primary {
     border-color: var(--st-accent);
     background: var(--st-accent);
-    color: var(--st-accent-text);
+    color: var(--st-on-accent);
   }
 
   // Colour is never the only signal here: the label names the action and the
