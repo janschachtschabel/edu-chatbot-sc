@@ -116,6 +116,10 @@ Die zugehörigen Pläne:
 - `services/tool_loop_messages.py:112` nennt 15 / 0,30 als Vorgabe, richtig ist 10. Gehört zu ST-5-Befund 2.
 - Der Docstring von `_unbestaetigt` in `write_approval.py` ist seit `kind` überholt. Ablehnung und Zeitüberschreitung lassen sich inzwischen unterscheiden.
 - Ein Server, der „Tool not found“ als JSON-RPC-Fehler meldet, landet als `transport` in der Wiederholung. Der eingestellte Server meldet es als Werkzeug-Ergebnis und ist deshalb nicht betroffen.
+- **Frontend-Tests kippen unter Last.**
+  - Im vollen Lauf am 2026-09-29 fielen 5 Studio-Dateien um: `i18n/en.spec.ts`, `agent-skills`, `eval-trends`, `loadtest` und `rag-ingest`. Dazu kam 1 UI-Datei, `print/print-utils.spec.ts`. Gleichzeitig ließ eine andere Sitzung Chrome/Selenium laufen.
+  - Einzeln waren alle grün, im Wiederholungslauf ebenfalls (UI 832, Studio 1320). In dieser Runde kam das zweimal vor.
+  - Die Ursache ist nicht untersucht, etwa Zeitlimits oder `Intl`/Datum. Tests, die unter Last kippen, sind Testfehler und sollten unabhängig von der Laufzeit werden.
 - Dem Studio fehlt `color-scheme: light dark`.
   - Folge: Ungestylte Steuerelemente bleiben im Dunkelmodus hell.
   - Das Select `.ri-area-pick` besteht trotzdem mit 3,76:1.
