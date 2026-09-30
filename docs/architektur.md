@@ -144,7 +144,7 @@ Das eine Bild bedient damit drei Oberflächen:
            │
      ┌─────▼──────┐   replicas: 3 (Vorgabe)
      │  backend   │◀── zustandslos: Sitzung + Config in Postgres,
-     └──┬───┬───┬─┘    Sperre per pg_advisory_xact_lock → keine Sticky Sessions
+     └──┬───┬───┬─┘    Sperre je Sitzung nur prozessintern (§8, offen)
         │   │   └──────────────▶ jaeger 2.19
         │   └──────▶ valkey 8   (Drossel-Zähler)
         ▼
@@ -394,8 +394,9 @@ Drei Wege, gestaffelt nach Quelle:
 
 * **Einzelmaterial:** `get_wlo_content_text` liefert den extrahierten Volltext
   eines Materials — als LLM-Werkzeug und als deterministische Direkt-Aktion
-  („Inhalt anzeigen"-Knopf an jeder Karte, Muster M17). Der Client deckelt auf
-  `CONTENT_TEXT_MAX_CHARS` = 50 000 Zeichen (`services/mcp/tool_args.py:205`).
+  („Inhalt anzeigen"-Knopf an jeder Karte, Muster M17). Der Client setzt keinen
+  eigenen Deckel mehr (seit 2026-08-21, Begründung in `services/mcp/tool_args.py`);
+  es gilt die Server-Vorgabe von 200 000 Zeichen.
 * **Sammlung:** das Kompendium (5.1) — redaktionelle Prosa statt Extraktion,
   dreiteilig (Weltwissen · Lehrplanbezüge je Stufe/Bundesland · Inhalte).
 * **Eigenes Wissen:** der RAG-Ingest (`services/rag/ingest.py`) konvertiert
@@ -564,9 +565,12 @@ statt zu 404en (`studio_static.py`); die drei echten Auth-Routen unter
 | `rag_documents` | Quelldokumente |
 | `rag_chunks` | Abschnitte + **pgvector**-Einbettung |
 
-Nebenläufigkeit über `pg_advisory_xact_lock` je Sitzung (`db/locks.py`) — zwei
-gleichzeitige Züge derselben Sitzung serialisieren sich, ohne dass das Backend
-Zustand halten müsste. Genau das macht die Repliken austauschbar.
+Nebenläufigkeit: Züge derselben Sitzung serialisiert **heute nur eine
+prozessinterne Sperre** (`api/session_locks.py`, `asyncio.Lock`). Der Helfer
+`db/locks.acquire_session_lock` (`pg_advisory_xact_lock`) existiert, wird aber
+im Produktivcode nirgends gerufen, und als transaktionsgebundene Sperre hielte er
+ohnehin nur bis zum ersten Commit des Zugs. Über mehrere Repliken hinweg können
+zwei Züge derselben Sitzung also parallel laufen (Audit 2026-09-29, offen).
 
 ---
 

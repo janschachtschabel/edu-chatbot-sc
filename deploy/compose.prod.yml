@@ -124,9 +124,10 @@ services:
     restart: unless-stopped
     logging: *logging
     deploy:
-      # Zustandslos (Sessions/Config in Postgres, Lock per pg_advisory_xact_lock
-      # — V2/V6), deshalb keine Sticky-Sessions nötig. Auf kleinen Servern
-      # BACKEND_REPLICAS=1 setzen.
+      # Zustandslos (Sessions/Config in Postgres). ACHTUNG (Audit 2026-09-29):
+      # Züge derselben Sitzung sperrt heute nur ein prozessinterner Lock — über
+      # Repliken hinweg können sie parallel laufen (docs/architektur.md §8).
+      # Auf kleinen Servern BACKEND_REPLICAS=1 setzen.
       replicas: ${BACKEND_REPLICAS:-3}
     # Länger als das --timeout-graceful-shutdown des Images (30 s), sonst
     # schießt Docker einen Stream ab, den uvicorn gerade sauber beendet.

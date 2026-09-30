@@ -250,18 +250,17 @@ async def _unbestaetigt(
 ) -> ChatResponse:
     """Die ehrliche Antwort, wenn keine Bestätigung zurückkam.
 
-    **Warum genau ein Text für beide Fehlerwege.** Von hier aus sind „der
-    Server hat abgelehnt" und „die Antwort kam nie an" nicht zu unterscheiden:
-    ``transport.call_tool`` macht aus einer Zeitüberschreitung dieselbe
-    Fehler-Antwort wie aus einem Werkzeug-Fehler. Ein Satz, der „es wurde
-    nichts geändert" behauptet, wäre im Zeitüberschreitungs-Fall falsch — und
-    zwar in der teuren Richtung: die Person legt dieselbe Sache erneut an, und
-    der kuratierte Bestand trägt eine Dublette.
+    **Wann dieser Text kommt.** Seit ``kind`` unterscheidet der Transport „der
+    Server hat abgelehnt" (``tool`` — dann antwortet ``write.executeRejected``
+    oben) von „die Antwort kam nie an" (``transport``). Hier landen nur noch
+    dieser zweite Fall und Ausnahmen: der Aufruf kann angekommen und ausgeführt
+    sein. Ein Satz, der „es wurde nichts geändert" behauptet, wäre dann falsch —
+    und zwar in der teuren Richtung: die Person legt dieselbe Sache erneut an,
+    und der kuratierte Bestand trägt eine Dublette. (Bestätigte Aufrufe
+    wiederholt der Client deshalb auch nicht mehr, ``services/mcp/client``.)
 
     Also sagt der Text nur, was feststeht, und nennt den Schritt, der die
-    Unsicherheit auflöst. Wer die beiden Fälle wirklich trennen will, muss
-    zuerst den Transport dazu bringen, sie zu unterscheiden — der Text ist die
-    Folge dieser Grenze, nicht ihre Ursache.
+    Unsicherheit auflöst: in WLO nachsehen.
     """
     debug.entities["reason"] = "mcp_error"
     antwort = ChatResponse(
