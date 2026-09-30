@@ -28,6 +28,9 @@ on:
   # Merge-Commit selbst keine der Dateien unten berührt.
   push:
     branches: [main]
+    # Release-Tags (z. B. `Sommercamp-26-postfix1`): das Image bekommt zusätzlich
+    # den Tag-Namen als Marke — ein lesbarer Name für einen festen Stand.
+    tags: ["*"]
   # Im PR nur, wenn das Image sich überhaupt ändern kann. Nicht gelistet und
   # damit übersprungen: `backend/tests/**`, `docs/**`, `evals/**`, `deploy/**`,
   # Markdown — alles im `.dockerignore` oder außerhalb jedes COPY.
@@ -260,11 +263,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Zwei Marken: die Commit-genaue (`sha-…`) ist die, auf die ein Deploy
+      # Bis zu drei Marken: die Commit-genaue (`sha-…`) ist die, auf die ein Deploy
       # zeigen sollte — sie ist unveränderlich und macht ein Rollback zu einer
       # Frage der Zeile in der `.env`. `latest` gibt es nur auf `main` und ist
       # Bequemlichkeit, keine Deploy-Empfehlung: worauf sie zeigt, ändert sich
-      # unter einem laufenden Server.
+      # unter einem laufenden Server. Auf einem Git-Tag kommt dessen Name dazu —
+      # wie `sha-…` unveränderlich, solange niemand den Tag neu setzt.
       - name: Veröffentlichen (ghcr.io)
         if: github.event_name != 'pull_request'
         run: |
@@ -279,6 +283,12 @@ jobs:
             docker tag boerdi-chat "ghcr.io/$repo:latest"
             docker push "ghcr.io/$repo:latest"
             echo "veröffentlicht: \`ghcr.io/$repo:latest\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            ver_tag="ghcr.io/$repo:${GITHUB_REF_NAME}"
+            docker tag boerdi-chat "$ver_tag"
+            docker push "$ver_tag"
+            echo "veröffentlicht: \`$ver_tag\`" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       # Ohne das zeigt ein roter Lauf nur „exit 1". Der Grund steht im
