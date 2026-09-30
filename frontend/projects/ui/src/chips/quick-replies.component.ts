@@ -71,7 +71,7 @@ import { guideQuickReplyLabel, isGuideQuickReply, shouldHideGuideQuickReply } fr
                 matButton="filled"
                 type="button"
                 class="qr-btn qr-btn--guide"
-                title="Im aktuellen Tab zur Seite navigieren"
+                [title]="translate()('chips.guideTitle')"
                 (click)="guideQuickReply.emit(qr)"
               >
                 <span class="bb-icon" [innerHTML]="exploreIcon | safeSvg"></span>

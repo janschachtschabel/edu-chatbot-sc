@@ -145,6 +145,7 @@ export const EN: Catalogue = {
 
   // ── Quick-reply chips (C1-b4) ──────────────────────────────────────
   'chips.guideFallback': 'Take me there',
+  'chips.guideTitle': 'Go to the page in this tab',
 
   // ── Bot error bubbles (C1-b4) ──────────────────────────────────────
   'error.browseCollection': 'Sorry, I could not load the contents of “{title}”. Please try again!',
