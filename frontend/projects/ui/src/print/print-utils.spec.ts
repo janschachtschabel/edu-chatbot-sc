@@ -104,7 +104,10 @@ describe('Druckfenster: Oberflächentexte, Sprache, Datumsformat (C1-b4)', () =>
     return { written, alerts };
   }
 
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 
   it('Canvas-Material: Knopf, Kopf-Datum und Fußzeile kommen aus dem Übersetzer', () => {
     const { written } = captureOpen();
@@ -137,14 +140,19 @@ describe('Druckfenster: Oberflächentexte, Sprache, Datumsformat (C1-b4)', () =>
   });
 
   it('das Datum folgt dem Katalog-Tag: de-DE schreibt „2. August", en-GB „2 August"', () => {
+    // Fest auf einen Märztag (Audit 2026-09-29): das Druckdatum kommt aus der
+    // Uhr, und „März" ist das eine Monatswort mit Umlaut. Mit der echten Uhr
+    // war der Test elf Monate grün und im März rot.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-03-02T12:00:00Z'));
     const deutsch = captureOpen();
     printCanvasMaterial(bot(SENTINEL), t);
-    expect(deutsch.written[0]).toMatch(/\d{1,2}\.\s\w+\s\d{4}/);
+    expect(deutsch.written[0]).toMatch(/\d{1,2}\.\s\p{L}+\s\d{4}/u);
 
     vi.unstubAllGlobals();
     const englisch = captureOpen();
     printCanvasMaterial(bot(SENTINEL), createTranslator({ 'format.dateLocale': 'en-GB' }, DE));
-    expect(englisch.written[0]).not.toMatch(/\d{1,2}\.\s\w+\s\d{4}/);
+    expect(englisch.written[0]).not.toMatch(/\d{1,2}\.\s\p{L}+\s\d{4}/u);
   });
 
   it('der Datums-Tag des Katalogs ist für Intl brauchbar (C1-c ergänzt hier Englisch)', () => {

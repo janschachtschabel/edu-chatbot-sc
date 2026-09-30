@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { saveBlob } from './download';
 
@@ -22,8 +22,23 @@ function stubObjectUrl(): UrlStub {
   return stub;
 }
 
+// Die Worker laufen nicht isoliert (Angular-Vorgabe `isolate: false`): was
+// diese Datei an `HTMLAnchorElement.prototype` oder `URL` ändert, sehen die
+// Specs, die danach im selben Worker laufen — etwa die Navigation in
+// `shell.component.spec`. Welche das sind, hängt von der Auslastung ab
+// (offene Befunde §5, Audit 2026-09-29). Deshalb wird alles zurückgestellt.
+const ORIGINAL_CLICK = HTMLAnchorElement.prototype.click;
+const ORIGINAL_CREATE = (URL as unknown as Record<string, unknown>)['createObjectURL'];
+const ORIGINAL_REVOKE = (URL as unknown as Record<string, unknown>)['revokeObjectURL'];
+
 describe('saveBlob', () => {
   let url: UrlStub;
+
+  afterAll(() => {
+    expect(HTMLAnchorElement.prototype.click).toBe(ORIGINAL_CLICK);
+    expect((URL as unknown as Record<string, unknown>)['createObjectURL']).toBe(ORIGINAL_CREATE);
+    expect((URL as unknown as Record<string, unknown>)['revokeObjectURL']).toBe(ORIGINAL_REVOKE);
+  });
 
   beforeEach(() => {
     url = stubObjectUrl();
@@ -32,6 +47,14 @@ describe('saveBlob', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    HTMLAnchorElement.prototype.click = ORIGINAL_CLICK;
+    const urlStatics = URL as unknown as Record<string, unknown>;
+    for (const [name, original] of [
+      ['createObjectURL', ORIGINAL_CREATE], ['revokeObjectURL', ORIGINAL_REVOKE],
+    ] as const) {
+      if (original === undefined) delete urlStatics[name];
+      else urlStatics[name] = original;
+    }
   });
 
   it('lädt über einen benannten Anker herunter und lässt das Dokument sauber zurück', () => {
