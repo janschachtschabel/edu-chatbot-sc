@@ -158,8 +158,14 @@ def create_app() -> FastAPI:
     # so the LAST one added is outermost — CORS must wrap this gate, or a
     # cross-origin preflight (which by definition carries no cookie) would be
     # answered with 401 instead of the CORS headers.
+    #
+    # Die Rumpf-Grenze (Audit 2026-09-29) steht VOR dem Proxy, also innerhalb
+    # von ihm und von CORS: sie sieht den umgeschriebenen /api-Pfad, und ihre
+    # 413 trägt die CORS-Kopfzeilen. Begründung in api/body_limit.py.
+    from boerdi.api.body_limit import BodySizeLimitMiddleware
     from boerdi.api.studio_proxy import StudioProxyMiddleware
 
+    app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(StudioProxyMiddleware)
 
     cors_origins = settings.cors_effective_origins
