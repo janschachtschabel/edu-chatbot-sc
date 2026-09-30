@@ -136,6 +136,30 @@ async def test_browse_collection_paginates_and_builds_page_action(monkeypatch) -
     assert resp.debug.pattern == "ACTION: browse_collection"
 
 
+async def test_interne_merkposten_erreichen_den_debug_block_nicht(monkeypatch) -> None:
+    # Audit 2026-09-29 (B-M7). Der Debug-Block geht in die Antwort, in
+    # ``messages.debug`` und damit an ``GET /api/sessions/{id}/messages`` — der
+    # einzige Ausweis dort ist die Sitzungskennung. Ein offener Schreib-Vorgang
+    # (Schlüssel, Argumente samt Upload) hat dort nichts zu suchen; der
+    # Normalweg filterte ``_``-Schlüssel schon immer (``turn_persist``), die
+    # Direkt-Aktionen nicht.
+    _fake_mcp, save = _patch_browse_boundaries(monkeypatch, cards=_raw_cards(2), total=2)
+    state = _state()
+    state["entities"] = {
+        "thema": "Bruchrechnung",
+        "_pending_write": {"tool": "wlo_create_content", "token": "T" * 24,
+                           "args": {"title": "Arbeitsblatt"}},
+    }
+
+    resp = await direct_actions._handle_browse_collection(
+        object(), _req("browse_collection", collection_id="col-1", title="Bio"), state
+    )
+
+    assert resp.debug.entities == {"thema": "Bruchrechnung"}
+    assert save.calls[0]["debug"]["entities"] == {"thema": "Bruchrechnung"}
+    assert "_pending_write" in state["entities"], "der Zustand selbst bleibt unberührt"
+
+
 async def test_browse_collection_append_flag_and_skip_window(monkeypatch) -> None:
     # A second page (skip_count=5): window label shifts, append=True so the
     # frontend appends instead of replacing.

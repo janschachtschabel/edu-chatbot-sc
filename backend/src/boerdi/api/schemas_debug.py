@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ToolOutcome(BaseModel):
@@ -136,3 +136,18 @@ class DebugInfo(BaseModel):
     # Muster-Kennung zu erraten, und ein Hybrid-Zug mit gewähltem Muster sah
     # aus wie ein Muster-Zug.
     engine: str = ""
+
+    @field_validator("entities", mode="after")
+    @classmethod
+    def _ohne_interne_schluessel(cls, value: dict[str, Any]) -> dict[str, Any]:
+        """``_``-Schlüssel sind Zustand, keine Auskunft (Audit 2026-09-29).
+
+        Der Debug-Block geht in die Antwort, in ``messages.debug`` und damit an
+        ``GET /api/sessions/{id}/messages``. Unter ``_`` liegen Merkposten wie
+        der offene Schreib-Vorgang samt Schlüssel und Upload. Die Leser
+        filterten sie jeder für sich (``turn_persist``, ``widget_postprocess``);
+        ein Erzeuger, der es vergass (die Direkt-Aktionen), gab sie heraus.
+        Deshalb hier, an der einen Stelle, die jeder Erzeuger passiert. Gebaut
+        wird ein neues Dict — der übergebene Sitzungszustand bleibt unberührt.
+        """
+        return {k: v for k, v in value.items() if not str(k).startswith("_")}
