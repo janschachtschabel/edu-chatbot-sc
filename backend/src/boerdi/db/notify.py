@@ -17,6 +17,7 @@ import logging
 from collections.abc import Callable
 
 import asyncpg
+from sqlalchemy.engine import make_url
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +26,19 @@ _HEALTH_POLL_S = 1.0
 
 
 def asyncpg_dsn(sqlalchemy_url: str) -> str:
-    """Strip the SQLAlchemy driver suffix: postgresql+asyncpg://... -> postgresql://..."""
-    return sqlalchemy_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    """The same URL for asyncpg: ``postgresql+asyncpg://…`` -> ``postgresql://…``.
+
+    Rebuilt through SQLAlchemy's own parser rather than a string replace
+    (Audit 2026-09-29): ``POSTGRES_PASSWORD`` goes into ``DATABASE_URL`` raw,
+    and SQLAlchemy reads a ``/`` (or ``@``, ``#``, ``?``) in the password
+    fine — asyncpg splits the URL with ``urllib.parse`` and cut the host at the
+    first ``/``. The listener never connected and startup aborted. Rendering
+    percent-encodes the credentials, which asyncpg decodes again.
+    """
+    url = make_url(sqlalchemy_url)
+    if url.drivername.startswith("postgresql+"):
+        url = url.set(drivername="postgresql")
+    return url.render_as_string(hide_password=False)
 
 
 class ConfigChangeListener:
