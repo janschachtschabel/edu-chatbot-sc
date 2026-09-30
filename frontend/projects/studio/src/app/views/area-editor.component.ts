@@ -201,10 +201,13 @@ export class AreaEditorComponent {
     this.editor.saving.set(true);
     this.editor.saveError.set('');
     this.editor.status.set('');
+    // The text as SENT: whatever is typed during the round-trips was never
+    // written and must stay unsaved (Audit 2026-09-29).
+    const sent = this.rawText();
     try {
-      await this.config.saveFileText(this.filePath(), this.rawText());
+      await this.config.saveFileText(this.filePath(), sent);
       if (!this.editor.isCurrent(generation)) return;
-      this.savedRaw.set(this.rawText());
+      this.savedRaw.set(sent);
       const document = await this.config.data(area);
       if (!this.editor.isCurrent(generation)) return;
       this.editor.adopt(document.data);
