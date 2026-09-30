@@ -89,3 +89,26 @@ async def test_ein_fehler_beim_buchen_bricht_den_zug_nicht(monkeypatch):
 
     monkeypatch.setattr("boerdi.obs.quality_events.log_quality_event", _kaputt)
     await tq.log_turn_quality(None, _req(), DebugInfo(pattern="M18"))  # wirft nicht
+
+
+@pytest.mark.asyncio
+async def test_ein_fehler_beim_buchen_rollt_die_sitzung_zurueck(monkeypatch):
+    # Audit 2026-09-29 (F-1-Klasse): der Commit in ``log_quality_event`` kann
+    # scheitern und die geteilte Zug-Sitzung abgebrochen hinterlassen. Ohne
+    # Rollback verfallen danach die Verbrauchszeilen (``record_turn_usage``)
+    # und der Nachtrag der Nachricht (``finalize_message``).
+    _konfig(monkeypatch)
+
+    class _Sitzung:
+        rollbacks = 0
+
+        async def rollback(self):
+            self.rollbacks += 1
+
+    async def _kaputt(*_a, **_k):
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr("boerdi.obs.quality_events.log_quality_event", _kaputt)
+    sitzung = _Sitzung()
+    await tq.log_turn_quality(sitzung, _req(), DebugInfo(pattern="M18"))
+    assert sitzung.rollbacks == 1

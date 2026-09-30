@@ -318,6 +318,31 @@ def test_generate_error_degrades_and_salvages_cards(monkeypatch):
     assert out.wlo_cards_raw == [{"title": "salv"}]
 
 
+class _RollbackSitzung:
+    """Sitzung, die nur ``rollback`` kennt — und mitzählt."""
+
+    def __init__(self):
+        self.rollbacks = 0
+
+    async def rollback(self):
+        self.rollbacks += 1
+
+
+def test_generate_error_rolls_the_shared_session_back(monkeypatch):
+    # Audit 2026-09-29 (F-1-Klasse). Ein DB-Fehler im Antwortweg (etwa aus
+    # der RAG-Abfrage) lässt die geteilte Zug-Sitzung in einer abgebrochenen
+    # Transaktion zurück. Ohne Rollback scheitert danach ``persist`` — Zustand
+    # und Antwort gehen verloren, obwohl hier freundlich degradiert wurde.
+    rec = _Rec()
+    _install(monkeypatch, rec, gen_raises=RuntimeError("InFailedSQLTransaction"))
+    sitzung = _RollbackSitzung()
+
+    out = asyncio.run(respond(_ctx(), sitzung))
+
+    assert out.tools_called == ["error"]
+    assert sitzung.rollbacks == 1
+
+
 def test_resolve_discipline_labels_not_imported(monkeypatch):
     # ALT imported resolve_discipline_labels at module level and awaited it in the
     # salvage path; NEU drops it (No-op stub). Guard the deviation.
