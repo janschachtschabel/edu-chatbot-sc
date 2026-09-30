@@ -39,6 +39,7 @@ public because the orchestrator (``service``) consumes them in later stages.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Final
 
 from boerdi.api.schemas import SafetyDecision
@@ -198,6 +199,22 @@ def _gap_search(head: str, tail: str, text: str) -> bool:
     return False
 
 
+def normalize_for_matching(text: str | None) -> str:
+    """Die Eingabe so, wie die Regeln sie lesen (Audit 2026-09-29).
+
+    ``NFKC`` setzt zerlegte Umlaute zusammen (NFD, etwa aus kopiertem Text)
+    und bildet Vollbreite- und Kompatibilitätszeichen auf ihre Grundform ab;
+    danach fallen unsichtbare Formatzeichen (Kategorie ``Cf``: Zero-Width-Space,
+    weiches Trennzeichen, Richtungsmarken) weg. Ohne beides lief jede Regel
+    ins Leere, sobald ein solches Zeichen im Wort stand — auch die Krisen-
+    Erkennung, die auf Anbietern ohne Moderation der einzige Boden ist.
+    ``lower()`` wie bisher, nicht ``casefold()``: das machte aus „ß" „ss", und
+    die Muster führen „ß".
+    """
+    flach = unicodedata.normalize("NFKC", text or "")
+    return "".join(z for z in flach if unicodedata.category(z) != "Cf").lower()
+
+
 def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
     """Stage 1: fast regex assessment.
 
@@ -210,7 +227,7 @@ def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
     side of the fence — never respond with hostility if there's any
     self-harm signal).
     """
-    msg = (message or "").lower()
+    msg = normalize_for_matching(message)
     decision = SafetyDecision()
     decision.stages_run.append("regex")
 
