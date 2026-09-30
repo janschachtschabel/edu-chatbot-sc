@@ -80,6 +80,14 @@ jobs:
           uv run pip-licenses --partial-match
           --fail-on "GPL;AGPL;LGPL;SSPL;Elastic;BUSL"
           --ignore-packages psycopg psycopg-pool
+      # Bekannte CVEs im gesperrten Laufzeit-Baum (Audit 2026-09-29: der Schritt
+      # fehlte, und sechs CVEs in anyio/pyjwt/soupsieve blieben unbemerkt).
+      # Geprüft wird der Lock-Export, nicht das venv: genau das, was ins Image
+      # geht. Version fest, damit ein neuer pip-audit nicht still anders zählt.
+      - name: Bekannte Schwachstellen (pip-audit)
+        run: |
+          uv export --locked --no-dev --no-emit-project --format requirements-txt > "$RUNNER_TEMP/req.txt"
+          uvx pip-audit==2.10.1 --strict --disable-pip -r "$RUNNER_TEMP/req.txt"
 
   frontend:
     runs-on: ubuntu-latest
