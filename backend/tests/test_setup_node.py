@@ -13,7 +13,8 @@ session + peer IP, like ``assess``/``preflight``). NEU deviation over ALT:
 ``tour_state`` as native jsonb (dict/list), so ALT's ``json.loads`` wrappers are
 dropped; ``tour_state`` rides along in ``session_state`` because the built tour
 node reads ``ctx.session_state['tour_state']``. Tests patch the two DB boundaries
-+ ``reset_query_metas`` on THIS module; ``session`` is a sentinel.
+on THIS module; ``session`` is a sentinel. The per-turn accumulators are bound
+before the graph (``graph/build.begin_turn``), not here — see the tests below.
 """
 
 from __future__ import annotations
@@ -57,22 +58,12 @@ class _Spy:
         return self._ret
 
 
-class _SyncSpy:
-    def __init__(self):
-        self.calls = 0
-
-    def __call__(self, *args, **kwargs):
-        self.calls += 1
-
-
 def _patch(monkeypatch, row=None, history=None):
     getsess = _Spy(ret=row if row is not None else dict(_ROW))
     getmsg = _Spy(ret=history if history is not None else list(_HISTORY))
-    reset = _SyncSpy()
     monkeypatch.setattr(setup_mod, "get_or_create_session", getsess)
     monkeypatch.setattr(setup_mod, "get_messages", getmsg)
-    monkeypatch.setattr(setup_mod, "reset_query_metas", reset)
-    return getsess, getmsg, reset
+    return getsess, getmsg
 
 
 def _ctx(message="was ist photosynthese?", page="/", page_context=None) -> state_mod.TurnContext:
@@ -128,7 +119,7 @@ def test_defaults_when_row_fields_falsy(monkeypatch):
 # ── history ──────────────────────────────────────────────────────
 
 def test_history_loaded_with_limit_20(monkeypatch):
-    _, getmsg, _ = _patch(monkeypatch)
+    _, getmsg = _patch(monkeypatch)
     out = _run(_ctx())
 
     assert out.history == _HISTORY
@@ -170,13 +161,7 @@ def test_client_ip_empty_when_neither(monkeypatch):
     assert out.client_ip == ""
 
 
-# ── query-meta reset + pass-through ──────────────────────────────
-
-def test_reset_query_metas_called_once(monkeypatch):
-    _, _, reset = _patch(monkeypatch)
-    _run(_ctx())
-    assert reset.calls == 1
-
+# ── pass-through ─────────────────────────────────────────────────
 
 def test_returns_same_ctx_no_early_response(monkeypatch):
     _patch(monkeypatch)
@@ -184,54 +169,3 @@ def test_returns_same_ctx_no_early_response(monkeypatch):
     out = _run(ctx)
     assert out is ctx
     assert out.early_response is None
-
-
-# ── K1e: der Merkposten des Zuges ist aus der Tiefe erreichbar ───────────
-
-def test_setup_bindet_den_merkposten_des_zuges_und_ein_blatt_bucht_hinein(
-        monkeypatch):
-    """Die Verbindung, nicht die beiden Enden.
-
-    Der Vokabular-Abgleich sitzt hinter ``TOOL_PREPROCESSORS`` und
-    ``call_mcp_tool`` — er bekommt den Merkposten nicht als Parameter, sondern
-    aus dem ContextVar, das DIESER Knoten bindet. Zwei getrennt grüne Tests
-    („setup bindet" + „das Blatt bucht") hätten genau den Fehler M0 nicht
-    gefunden; deshalb fährt dieser Test beides in EINER Task-Kette.
-
-    ``asyncio.run`` kopiert den Kontext, also muss die Prüfung INNERHALB des
-    Laufs stehen — ein Binden im Task ist draußen nicht sichtbar.
-    """
-    from types import SimpleNamespace
-
-    from boerdi.services import llm
-    from boerdi.services.mcp import arg_resolvers as ar
-
-    _patch(monkeypatch)
-
-    async def fake_acompletion(**kwargs):
-        return SimpleNamespace(
-            model="gpt-5.6-luna",
-            choices=[SimpleNamespace(
-                message=SimpleNamespace(content="http://x/im"))],
-            usage=SimpleNamespace(
-                prompt_tokens=10, completion_tokens=5,
-                prompt_tokens_details=SimpleNamespace(cached_tokens=0)),
-        )
-
-    monkeypatch.setattr(llm, "_acompletion", fake_acompletion)
-    ar._label_to_uri_cache["lrt"]["interaktiv"] = "http://x/im"
-    ctx = _ctx()
-
-    async def zug():
-        await setup(ctx, _SESSION, peer_ip="")
-        return await ar._llm_vocab_match("lrt", "Simulation")
-
-    try:
-        assert asyncio.run(zug()) == "http://x/im"
-    finally:
-        ar._label_to_uri_cache["lrt"].clear()
-        ar._llm_vocab_cache.clear()
-
-    # Die Token stehen im Merkposten DIESES Zuges — dort liest turn_persist.
-    assert ctx.usage["calls"] == 1
-    assert ctx.usage["per_phase"]["vocab_match"]["prompt"] == 10

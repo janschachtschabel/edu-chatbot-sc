@@ -1,9 +1,12 @@
 """Setup node — turn-init base state (P4-2 / R4b), the graph entry.
 
 Port of the base half of ALT ``chat_turn_setup._setup_turn`` (P0-3): the work that
-runs unconditionally before any early-exit — clear the per-request MCP query-meta
-accumulator, load-or-create the session, load the last 20 messages as history,
-parse the stored ``session_state``, dump ``env``, and resolve ``client_ip``.
+runs unconditionally before any early-exit — load-or-create the session, load the
+last 20 messages as history, parse the stored ``session_state``, dump ``env``, and
+resolve ``client_ip``. The per-turn accumulators (query metas, prepared writes, the
+usage ledger) are bound BEFORE the graph, in ``graph/build.begin_turn``: LangGraph
+runs every node in a copy of the context, so a binding made here never reached the
+later nodes (Audit 2026-09-29).
 
 What ALT's ``_setup_turn`` also did but this node deliberately does NOT, because
 each is its own graph node or a later slice:
@@ -29,7 +32,7 @@ NEU deviations over ALT, both forced by the SQLite→Postgres move:
   the raw session row to the tour handler): the NEU tour node reads
   ``ctx.session_state['tour_state']``, so setup seeds it here.
 
-Tests patch the two DB boundaries + ``reset_query_metas`` on THIS module.
+Tests patch the two DB boundaries on THIS module.
 """
 
 from __future__ import annotations
@@ -39,9 +42,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.graph.state import TurnContext
-from boerdi.obs.usage import bind_turn_usage
 from boerdi.services.db_sessions import get_messages, get_or_create_session
-from boerdi.services.mcp.client import reset_prepared_writes, reset_query_metas
 
 logger = logging.getLogger(__name__)
 
@@ -55,22 +56,6 @@ async def setup(ctx: TurnContext, session: AsyncSession, peer_ip: str = "") -> T
     saw none). Returns the same mutated ``ctx``.
     """
     req = ctx.req
-
-    # Clear the per-request MCP query-meta accumulator so each turn starts fresh.
-    reset_query_metas()
-    # Dasselbe für die vorbereiteten Schreibzugriffe (E3): eine Änderung, die
-    # im vorigen Zug beschrieben und dort ausgeliefert wurde, darf im nächsten
-    # nicht ein zweites Mal auftauchen.
-    reset_prepared_writes()
-
-    # Den Merkposten dieses Zuges binden (K1e). Er ist der einzige Weg, auf dem
-    # Blätter ohne Zug-Kontext buchen können — allen voran der Vokabular-
-    # Abgleich hinter ``call_mcp_tool``. Hier, weil dieser Knoten der Eingang
-    # des Graphen ist (``START → setup``): jeder spätere Knoten und jede von
-    # ihm erzeugte Task erbt die Bindung. Wie ``reset_query_metas`` gehört das
-    # zur Grundhygiene des Zuges — ein Zug darf nie am Merkposten des vorigen
-    # hängen.
-    bind_turn_usage(ctx.usage)
 
     row = await get_or_create_session(session, req.session_id)
     ctx.history = await get_messages(session, req.session_id, limit=20)

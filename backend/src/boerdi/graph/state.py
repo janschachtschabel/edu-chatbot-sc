@@ -40,7 +40,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SkipValidation
 
 from boerdi.api.schemas import (
     ChatRequest,
@@ -97,7 +97,14 @@ class TurnContext(BaseModel):
     # der in einem Node-Test direkt konstruierte. Ein leeres Dict ist hier kein
     # harmloser Default: ``add_usage`` kehrt bei falsy ``acc`` still zurück, d.h.
     # ohne Merkposten bucht niemand und ``debug.token_usage`` bleibt leer.
-    usage: dict[str, Any] = Field(default_factory=new_accumulator)
+    #
+    # ``SkipValidation``, weil die IDENTITÄT zählt (Audit 2026-09-29): LangGraph
+    # validiert den Zustand vor jedem Knoten neu, und ein validiertes
+    # ``dict[str, Any]`` ist eine flache Kopie. Der Merkposten, den
+    # ``graph/build.begin_turn`` für die Blätter bindet, wäre dann ab dem
+    # zweiten Knoten ein anderes Objekt — deren Buchungen gingen in den
+    # Summenzählern verloren.
+    usage: SkipValidation[dict[str, Any]] = Field(default_factory=new_accumulator)
 
     # ── Speculative MCP prefetch (merge produziert, respond konsumiert — P5) ──
     # ALT ``_launch_speculative_prefetch``-Ausgabe (``SpeculativePrefetch``-Tupel):

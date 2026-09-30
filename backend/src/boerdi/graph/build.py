@@ -72,8 +72,10 @@ from boerdi.graph.nodes.tour import tour
 from boerdi.graph.state import TurnContext
 from boerdi.obs.progress import TurnProgress
 from boerdi.obs.quality_events import log_safety_event
+from boerdi.obs.usage import bind_turn_usage
 from boerdi.services.config_loader import load_safety_config
 from boerdi.services.db_sessions import get_memory, save_message
+from boerdi.services.mcp.client import reset_prepared_writes, reset_query_metas
 
 logger = logging.getLogger(__name__)
 
@@ -199,3 +201,36 @@ def build_turn_graph(
     g.add_edge("persist", END)
 
     return g.compile()
+
+
+def begin_turn(ctx: TurnContext) -> None:
+    """Die Zug-Sammler binden — VOR dem Graphen, nicht in einem seiner Knoten.
+
+    Drei Sammler leben in ContextVars, weil ihre Erzeuger tief unten ohne
+    Zug-Kontext laufen: die Query-Metas und die vorbereiteten Schreibzugriffe
+    (``services/mcp/client``) und der Verbrauchs-Merkposten, in den der
+    Vokabular-Abgleich bucht (``obs/usage``). **LangGraph startet jeden Knoten
+    in einer Kopie des Kontexts.** Was ein Knoten bindet, sieht der nächste
+    deshalb nicht — bis 2026-09-29 band ``setup`` die drei, und was ``respond``
+    sammelte, kam in ``persist`` nie an (Audit 2026-09-29, gemessen an
+    LangGraph 1.2.9): keine Facetten-Chips aus Query-Metas, kein
+    vorbereiteter Schreibzugriff aus dem Tool-Loop, keine Buchung des
+    Vokabular-Abgleichs.
+
+    Hier gebunden, erbt jeder Knoten dieselben Objekte: seine Kopie zeigt auf
+    die Liste bzw. das Dict dieses Zuges, und Anhängen/Buchen landet dort.
+    """
+    reset_query_metas()
+    reset_prepared_writes()
+    bind_turn_usage(ctx.usage)
+
+
+async def run_turn(graph: CompiledStateGraph, ctx: TurnContext) -> dict[str, Any]:
+    """Einen Zug durch ``graph`` laufen lassen — mit gebundenen Sammlern.
+
+    Der einzige Weg, auf dem die Endpunkte den Graphen starten
+    (``api/chat.py``: ``POST /api/chat`` und der Stream). Gibt das Zustands-Dict
+    von ``ainvoke`` zurück.
+    """
+    begin_turn(ctx)
+    return await graph.ainvoke(ctx)
