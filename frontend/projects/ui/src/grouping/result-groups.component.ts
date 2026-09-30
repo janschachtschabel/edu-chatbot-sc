@@ -7,18 +7,17 @@ import { getCardCollectionUrl, getCardIcon, getCardPrimaryUrl } from '../cards/c
 import { ICONS } from '../icons/icons';
 import { SafeSvgPipe } from '../icons/safe-svg.pipe';
 import type { TranslationParams } from '../i18n/dictionary';
-import { ChatMessage, WebLink } from './message-types';
+import { ChatMessage } from './message-types';
 import {
   cardTooltip as cardTooltipUtil,
   groupedCollectionCards,
   groupedContentCards,
   groupedTopicCards,
-  groupedWebLinks,
   hasGroupedResults,
-  itemTooltip as itemTooltipUtil,
   ResultGroupsContext,
 } from './result-grouping';
 import { SearchCtaComponent } from './search-cta.component';
+import { WebLinksComponent } from './web-links.component';
 
 /**
  * ResultGroups — der Inline-Result-Grouping-Block: statt einer flachen
@@ -48,7 +47,7 @@ import { SearchCtaComponent } from './search-cta.component';
 @Component({
   selector: 'boerdi-result-groups',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, SafeSvgPipe, SearchCtaComponent],
+  imports: [MatButtonModule, SafeSvgPipe, SearchCtaComponent, WebLinksComponent],
   styleUrl: './result-groups.component.scss',
   template: `
     @if (hasResults()) {
@@ -153,28 +152,9 @@ import { SearchCtaComponent } from './search-cta.component';
           </div>
         }
 
-        @if (webLinks().length) {
-          <div class="result-group result-group--web">
-            <div class="result-group__heading">
-              <span class="bb-icon" [innerHTML]="webIcon | safeSvg"></span>
-              {{ t('groups.web') }}
-            </div>
-            <div class="result-group__items">
-              @for (link of webLinks(); track $index) {
-                <a
-                  class="result-group__item"
-                  [href]="webLinkUrl(link)"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  [attr.title]="webLinkTooltip(link)"
-                >
-                  <span class="result-group__item-icon" [innerHTML]="webIcon | safeSvg"></span>
-                  <span class="result-group__item-title">{{ link.title }}</span>
-                </a>
-              }
-            </div>
-          </div>
-        }
+        <!-- Webseiten-Inhalte: eigene Komponente, weil das Kachelraster (großes
+             Fenster) sie ebenfalls zeigt — Web-Links sind keine Karten. -->
+        <boerdi-web-links [message]="message()" [ctx]="ctx()" />
 
         <!-- Der Such-Absprung steht seit U6b in einer eigenen Komponente: das
              Kachelraster zeigt ihn jetzt ebenfalls, und zwei Abschriften
@@ -205,7 +185,7 @@ export class ResultGroupsComponent {
   // auch die Themenseiten-Karten, die in diesem Kasten als Sammlung stehen.
   protected readonly collectionItemIcon = ICONS.auto_stories;
   protected readonly materialIcon = ICONS.description;
-  protected readonly webIcon = ICONS.language;
+  // Das Web-Symbol steht seit 2026-09-30 in `web-links.component`.
   // `visibility` (Auge = „anzeigen") und bewusst KEIN Dokument-Symbol:
   // vorn in der Zeile steht der Inhaltstyp, und dessen Menge enthält
   // `article`/`description`. Mit einem davon las sich die Zeile, als stünde
@@ -223,7 +203,6 @@ export class ResultGroupsComponent {
   protected readonly topicCards = computed(() => groupedTopicCards(this.message()));
   protected readonly collectionCards = computed(() => groupedCollectionCards(this.message()));
   protected readonly contentCards = computed(() => groupedContentCards(this.message()));
-  protected readonly webLinks = computed(() => groupedWebLinks(this.message(), this.ctx()));
 
   /** ALT `ChatComponent.cardUrl` = `withBsid(getCardPrimaryUrl(card))`. */
   protected cardUrl(card: WloCard): string {
@@ -247,21 +226,5 @@ export class ResultGroupsComponent {
     return cardTooltipUtil(
       card, this.collectionUrl(card), this.ctx(), this.t('contentType.collection'),
     );
-  }
-
-  /** ALT `ChatComponent.webLinkUrl` = `withBsid(link.url)`. Idempotent — die
-   *  URL trägt aus `groupedWebLinks` bereits `?bsid` (trusted-host bricht bei
-   *  vorhandenem bsid ab), der Zweit-Aufruf ist ein No-Op-Passthrough. */
-  protected webLinkUrl(link: WebLink): string {
-    return this.ctx().withBsid(link.url);
-  }
-
-  /** ALT-Template-Inline: `itemTooltip(link.title ? link.title + ' (Webseite)'
-   *  : 'Webseite', webLinkUrl(link))` — hierher gezogen statt in den Markup. */
-  protected webLinkTooltip(link: WebLink): string | null {
-    const label = link.title
-      ? this.t('groups.webItem', { title: link.title })
-      : this.t('groups.webItemUntitled');
-    return itemTooltipUtil(label, this.webLinkUrl(link), this.ctx());
   }
 }
