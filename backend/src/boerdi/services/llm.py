@@ -25,6 +25,7 @@ from uuid import uuid4
 import litellm
 
 from boerdi.obs import usage as _usage
+from boerdi.services.llm_choices import vereinige_choices
 from boerdi.services.llm_models import (
     get_chat_model,
     get_embed_model,
@@ -229,6 +230,9 @@ async def chat_completion(
 
     async with _semaphore("bg" if background else "live"):
         resp = await _acompletion(**kwargs)
+    # Responses-Brücke: Text und Aufrufe können auf zwei Choices liegen — jeder
+    # Aufrufer liest choices[0] (siehe services/llm_choices).
+    resp = vereinige_choices(resp)
 
     if usage_acc is not None:
         _usage.add_usage(usage_acc, _usage.extract_usage(resp), phase)
