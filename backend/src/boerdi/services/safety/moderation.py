@@ -12,6 +12,7 @@ regex gate stays the hard safety floor (moderation is free but best-effort).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -24,6 +25,12 @@ logger = logging.getLogger(__name__)
 
 _MOD_MODEL = "omni-moderation-latest"
 _DEFAULT_OPENAI_BASE = "https://api.openai.com/v1"
+# Obergrenze je Moderations-Aufruf (Audit 2026-09-29). ``litellm.amoderation``
+# baut seinen OpenAI-Client ohne Zeitlimit (``httpx.Timeout(None)``) und reicht
+# ``timeout`` nicht durch: ein Anbieter, der annimmt und nie antwortet, hielt
+# sonst jeden Zug samt Sitzungssperre an. Üblich sind weit unter einer Sekunde;
+# die Stufe ist fail-open, nach der Frist gilt „kein Befund" (Regex-Boden bleibt).
+_MOD_TIMEOUT_SECONDS = 8.0
 
 #: Die 13 Kategorien von omni-moderation-latest in der Schreibweise, die der
 #: Seed (``escalation.thresholds``/``hard_block_categories``) und der Code
@@ -129,7 +136,7 @@ async def moderate(message: str) -> dict[str, Any]:
         }
         if extra_headers:
             kwargs["extra_headers"] = extra_headers
-        result = await _amoderation(**kwargs)
+        result = await asyncio.wait_for(_amoderation(**kwargs), _MOD_TIMEOUT_SECONDS)
         r = result.results[0]
         return {
             "flagged": bool(r.flagged),

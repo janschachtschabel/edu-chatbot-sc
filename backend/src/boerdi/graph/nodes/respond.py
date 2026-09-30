@@ -430,6 +430,16 @@ async def respond(
             # Stattdessen freundlich degradieren + spekulativ-geholte Karten
             # behalten, damit der User noch etwas Nützliches sieht.
             logger.error("generate_response failed: %s", _gen_err)
+            # Kam der Fehler aus der Datenbank (etwa der RAG-Abfrage), steht die
+            # geteilte Zug-Sitzung jetzt in einer abgebrochenen Transaktion —
+            # ohne Rollback scheiterte danach ``persist``, und die freundliche
+            # Antwort ginge mit dem Zustand verloren (F-1-Klasse, Audit
+            # 2026-09-29). Offen sind hier nur Lesevorgänge.
+            try:
+                await session.rollback()
+            except Exception:
+                logger.debug("rollback after generate_response failure failed",
+                             exc_info=True)
             response_text = (
                 "Ich konnte gerade keine Antwort erzeugen "
                 f"({type(_gen_err).__name__}). Versuch es nochmal — meistens "

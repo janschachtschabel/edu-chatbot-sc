@@ -2,7 +2,7 @@
 
 ## Dev (P0-7)
 
-```powershell
+```bash
 docker compose -f deploy/compose.dev.yml up -d --build
 # backend http://localhost:8100/health · Jaeger UI http://localhost:16686
 docker compose -f deploy/compose.dev.yml down          # Daten bleiben (Volume pgdata)
@@ -17,7 +17,7 @@ docker compose -f deploy/compose.dev.yml down -v       # inkl. DB-Daten
 
 ## Prod-Image (P10-1)
 
-```powershell
+```bash
 docker build -t boerdi-chat .    # Kontext ist die Repo-Wurzel, nicht backend/
 ```
 
@@ -35,7 +35,7 @@ es diesen Schritt nicht mehr — das Bündel kann nur das aus demselben Commit s
 Migrationen laufen aus demselben Image, aber als **eigener Lauf** — nie aus dem
 Web-Prozess, sonst fahren N Replikas gleichzeitig `alembic upgrade head`:
 
-```powershell
+```bash
 docker run --rm -e DATABASE_URL=... boerdi-chat alembic upgrade head
 ```
 
@@ -56,7 +56,7 @@ mit `condition: service_healthy`).
 
 ## Prod-Stack (P10-2)
 
-```powershell
+```bash
 cd deploy
 docker build -t boerdi-chat ..
 docker compose -f compose.prod.yml --env-file .env up -d
@@ -84,8 +84,8 @@ ein Compose-Default für ein Passwort wäre ein ausgeliefertes Dev-Secret:
 `PUBLIC_HOST`, `ACME_EMAIL`. `CORS_ORIGINS` **wirkt erst mit**
 `CORS_ALLOW_ALL=false` — die Vorgabe ist offen, siehe Abnahme-Zeile unten. Prüfen ohne zu starten:
 
-```powershell
-docker compose -f compose.prod.yml --env-file .env config > $null   # Exit 0 = vollständig
+```bash
+docker compose -f compose.prod.yml --env-file .env config > /dev/null   # Exit 0 = vollständig
 ```
 
 Alles Weitere ist optional und leer = Code-Default; die kanonischen Namen
@@ -183,22 +183,23 @@ ein Chatbot ohne Muster, ohne Begrüssung und ohne Vokabulare — technisch gesu
 inhaltlich leer. Automatisch passiert das mit Absicht nicht: bei N Replikas
 schrieben alle gleichzeitig.
 
-```powershell
-docker compose -f compose.prod.yml --env-file .env run --rm --no-deps `
+```bash
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
   migrate boerdi import-config
 ```
 
 Der Seed-Baum liegt **im Image** (`/app/seeds`, `CONFIG_SEED_DIR`), kommt also
-aus demselben Commit wie der Code. `--no-deps` überschreibt den Befehl des
-`migrate`-Dienstes; ohne die Option liefe wieder `alembic upgrade head`.
+aus demselben Commit wie der Code. Die Wörter hinter dem Dienstnamen ersetzen den
+Befehl des `migrate`-Dienstes (sonst liefe wieder `alembic upgrade head`);
+`--no-deps` startet die abhängigen Dienste nicht mit.
 
 **Und der Wissensbestand dazu** (RAG, seit 2026-08-19). Ohne diesen Schritt
 startet die Anlage mit leeren Wissensbereichen: das Studio zeigt sie mit
 `0 Dokumente`, und der Chatbot antwortet aus Modellwissen statt aus euren
 Dokumenten — eine Antwort, die gut aussieht und nichts belegt.
 
-```powershell
-docker compose -f compose.prod.yml --env-file .env run --rm --no-deps `
+```bash
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
   backend boerdi import-rag
 ```
 
@@ -223,14 +224,20 @@ Brücke aus dem Altsystem bestehen.
 
 ### Deployen / aktualisieren
 
-```powershell
+```bash
+docker compose -f compose.prod.yml exec pg-backup \
+  pg_dump -Fc -f /backup/vor-deploy-$(date +%Y%m%d-%H%M%S).dump   # 0. Sicherung
 docker build -t boerdi-chat ..                                     # 1. Image
 docker compose -f compose.prod.yml --env-file .env up -d migrate   # 2. Migration allein
-docker compose -f compose.prod.yml --env-file .env up -d           # 3. Rest rollierend
+docker compose -f compose.prod.yml --env-file .env up -d           # 3. Rest (NICHT rollierend)
 ```
 
-Schritt 2 getrennt, weil ein Migrationsfehler dann sichtbar ist, bevor
-Replikas neu starten. Der `migrate`-Dienst ist ein Einmal-Lauf; die Backends
+Schritt 0, weil die Tagessicherung bis zu 24 h alt ist und „der sichere Weg ist
+der Restore" (Rollback unten) sonst einen Tag kostet. Schritt 2 getrennt, weil
+ein Migrationsfehler dann sichtbar ist, bevor Replikas neu starten. Schritt 3 ist
+**kein** rollierendes Update: außerhalb von Swarm erzeugt `up -d` alle
+`backend`-Replikas gleichzeitig neu — laufende Streams brechen ab, und bis die
+neuen den HEALTHCHECK bestehen, hat traefik kein Ziel. Der `migrate`-Dienst ist ein Einmal-Lauf; die Backends
 warten per `service_completed_successfully` auf ihn.
 
 **Hier KEIN `import-config`.** Ab dem ersten Import ist die Datenbank die
@@ -274,8 +281,8 @@ redis`. Ergebnis: `limits.errors.ConfigurationError: 'redis' prerequisite not
 available` und drei Container in `Restarting (1)` statt `healthy`. `docker
 compose ps` zeigt nur die Schleife, den Grund zeigt erst:
 
-```powershell
-docker compose -f compose.prod.yml logs backend | Select-Object -Last 20
+```bash
+docker compose -f compose.prod.yml logs --tail 20 backend
 ```
 
 **Seit P10-5 fängt CI genau das ab, bevor es auf den Server kommt.**
@@ -307,13 +314,13 @@ BSD-3-Clause). Ein neues Image also erst upstream nachlesen, dann dort eintragen
 Beim Umbenennen eines Dienstes bleibt der alte Container als Waise zurück und
 hält seinen Port. Einmalig:
 
-```powershell
+```bash
 docker compose -f compose.prod.yml --env-file .env up -d --remove-orphans
 ```
 
 ### Skalieren
 
-```powershell
+```bash
 docker compose -f compose.prod.yml --env-file .env up -d --scale backend=5
 ```
 
@@ -330,7 +337,7 @@ Postgres-Image bringt keinen Cron-Daemon mit, und ein zweites Image dafür wäre
 mehr Lieferkette als Nutzen. Preis: der Takt verschiebt sich bei jedem Neustart
 des Containers.
 
-```powershell
+```bash
 docker compose -f compose.prod.yml exec pg-backup ls -lh /backup   # Dumps ansehen
 docker compose -f compose.prod.yml exec pg-backup pg_dump -Fc -f /backup/vor-deploy.dump
 ```
@@ -341,9 +348,9 @@ wäre schlimmer als keine, weil sie wie ein Backup aussieht.
 
 ### Restore
 
-```powershell
+```bash
 docker compose -f compose.prod.yml --env-file .env stop backend
-docker compose -f compose.prod.yml exec pg-backup `
+docker compose -f compose.prod.yml exec pg-backup \
   sh -c 'pg_restore --clean --if-exists -d "$PGDATABASE" /backup/<datei>.dump'
 docker compose -f compose.prod.yml --env-file .env start backend
 ```
@@ -355,20 +362,26 @@ Prozess-Caches werden erst durch das nächste NOTIFY frisch).
 
 ### Rollback
 
-```powershell
+```bash
 docker tag boerdi-chat boerdi-chat:vorher        # VOR dem Build, sonst ist er weg
 docker compose -f compose.prod.yml --env-file .env up -d
 # zurück:
-$env:BOERDI_IMAGE="boerdi-chat:vorher"; docker compose -f compose.prod.yml --env-file .env up -d
+BOERDI_IMAGE=boerdi-chat:vorher docker compose -f compose.prod.yml --env-file .env up -d
 ```
 
-**Migrationen rollen nicht mit zurück.** Es gibt genau eine Migration (0001);
-sobald eine zweite dazukommt, gehört zu jedem Rollback die Frage, ob das alte
-Image mit dem neuen Schema läuft. Der sichere Weg ist der Restore oben.
+Dauerhaft wird der Rollback erst mit `BOERDI_IMAGE=boerdi-chat:vorher` in der
+`.env` — die Zeile oben gilt nur für diesen einen Aufruf.
+
+**Migrationen rollen nicht mit zurück.** Es gibt vier (0001–0004). Brachte der
+neue Stand eine Migration mit, scheitert der `migrate`-Dienst des alten Images
+(`Can't locate revision`), und die Backends werden nicht ersetzt. Dann ZUERST
+mit dem NEUEN Image zurückmigrieren (`run --rm --no-deps migrate alembic
+downgrade <revision>`; 0002–0004 haben ein `downgrade()`), danach das Image
+wechseln — oder den Restore oben nehmen (Sicherung aus Schritt 0 beim Deploy).
 
 ### Logs & Traces
 
-```powershell
+```bash
 docker compose -f compose.prod.yml logs -f backend      # alle Replikas gemischt
 ssh -L 16686:127.0.0.1:16686 <server>                   # dann http://localhost:16686
 ```
@@ -394,7 +407,7 @@ Aus dem Audit-Erbe (`../badboerdi/docs/audits/`), auf diesen Stack übersetzt.
 | — | Agenten-Endpunkt | ⚠️ `AGENT_OPEN` **nicht** setzen — es öffnet `/api/agent` ohne jede Anmeldung und ist für Testläufe gedacht. Der normale Weg herein ist die Anmeldung der Person (`WLO-Access-Block`), Server-zu-Server der `STUDIO_API_KEY`. Die Drosselung greift in allen drei Fällen. |
 | — | Master-Skill | Aus, solange `MASTER_SKILL_ENABLED` nicht `true` ist. Angeschaltet laedt der Agent-Modus die Anleitung aus `MASTER_SKILL_NODE_ID` als Prompt-Kopf (Abnahme: eine Zeile `Master-Skill ... geladen` im Log des ersten Zuges). Scheitert der Abruf, antwortet der Chat ohne sie und warnt - kein Ausfall. |
 | — | CORS | ⚠️ **Die Vorgabe ist OFFEN.** Zum Schließen `CORS_ALLOW_ALL=false` **und** `CORS_ORIGINS` mit den einbettenden Domänen setzen — die Liste allein bleibt sonst wirkungslos. Der Start warnt, wenn eine gesetzte Liste übersteuert wird; diese Zeile ist die Abnahme. Browser-Erweiterungen (`safari-web-extension://`, `chrome-extension://`) dürfen auch bei enger Liste — `CORS_ALLOW_EXTENSIONS=false` nimmt ihnen das. |
-| — | Lasttest | ✅ `BOERDI_ALLOW_LOADTEST` leer = auf Prod abgelehnt; er teilt sonst den LLM-Pool mit Live-Nutzern. |
+| — | Lasttest | ✅ `BOERDI_ALLOW_LOADTEST` ohne Eintrag = `false` (compose.prod) = auf Prod abgelehnt; er teilt sonst den LLM-Pool mit Live-Nutzern. Bis 2026-09-29 lieferte das leere `${…:-}` den Code-Default `true`. |
 | — | TLS | ⚠️ Nach dem ersten Start prüfen, dass ACME wirklich ein Zertifikat gezogen hat (`docker compose logs traefik`), sonst hängt die Seite an der Selbstsignatur. |
 
 Die §8-Cluster-Abnahme (Advisory-Lock, NOTIFY-Schranke, Rate-Limit, SSE über

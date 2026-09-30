@@ -32,7 +32,7 @@ from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
 from boerdi.api.session_locks import _get_session_lock, _release_session_lock
 from boerdi.api.sse import sse_turn
 from boerdi.api.turn_auth import adopt_turn_auth_block
-from boerdi.graph.build import build_turn_graph
+from boerdi.graph.build import build_turn_graph, run_turn
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.progress import TurnProgress
@@ -103,7 +103,7 @@ async def chat(
                     session=session, peer_ip=peer_ip(request),
                     engine=choose_engine(request.headers.get(ENGINE_HEADER)),
                 )
-                result = await graph.ainvoke(TurnContext(req=req))
+                result = await run_turn(graph, TurnContext(req=req))
                 await _record_usage(session, req.session_id, result)
                 resp = result.get("early_response") or result.get("response")
                 return await _postprocess_response_for_widget_modes(req, resp)
@@ -172,7 +172,7 @@ async def _stream_turn(
                         progress=progress,
                         engine=engine,
                     )
-                    state = await graph.ainvoke(TurnContext(req=req))
+                    state = await run_turn(graph, TurnContext(req=req))
                     await _record_usage(session, req.session_id, state)
                     return state.get("early_response") or state.get("response")
                 except Exception as impl_err:

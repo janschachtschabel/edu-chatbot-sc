@@ -109,8 +109,8 @@ async def _assemble_messages(
     knowledge_prefetched = False
     always_areas: list[str] = []  # tracked for redundant-call guard in tool loop
     # Retrieval-Defaults — ueberschreibbar via ENV oder rag-retrieval.yaml
-    # (siehe boerdi.services.rag.retrieval.get_retrieval_settings). Aktuelle
-    # Werte bleiben 15 / 0.30, damit bestehende Installationen unveraendert laufen.
+    # (siehe boerdi.services.rag.retrieval.get_retrieval_settings). Vorgabe dort:
+    # top_k 10 (seit W10, vorher 15) und min_score 0.30.
     from boerdi.services.rag.retrieval import get_retrieval_settings as _get_rag_settings
     _rag_settings = _get_rag_settings()
     _RAG_TOP_K = _rag_settings["top_k"]

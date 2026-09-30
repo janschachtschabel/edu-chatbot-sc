@@ -201,6 +201,14 @@ async def antwort(session: Any, args: dict[str, Any], rag_config: dict[str, Any]
         )
     except Exception as fehler:  # noqa: BLE001 - der Zug laeuft ohne weiter
         logger.warning("wissen_suchen(%d Bereiche): %s", len(bereiche), fehler)
+        # Ein DB-Fehler hinterlaesst die geteilte Zug-Sitzung abgebrochen; ohne
+        # Rollback scheiterte danach das Speichern des ganzen Zugs (F-1-Klasse,
+        # Audit 2026-09-29). Offen sind hier nur Lesevorgaenge.
+        try:
+            if session is not None:
+                await session.rollback()
+        except Exception:  # noqa: BLE001 - Aufraeumen darf den Zug nicht kippen
+            logger.debug("wissen_suchen: rollback fehlgeschlagen", exc_info=True)
         return ("Die Wissensdatenbank ist gerade nicht erreichbar. Sage das, "
                 "statt zu raten.")
     if not text:

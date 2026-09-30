@@ -142,6 +142,22 @@ def test_clear_scope_not_all_bypasses_guard(client, monkeypatch):
     assert kwargs == {"session_id": "", "pattern_id": "", "intent_id": "", "scope": "eval"}
 
 
+@pytest.mark.parametrize("params", [
+    {"scope": "prod"}, {"scope": "ALL"}, {"scope": "irgendwas"},
+    {"pattern_id": "%"}, {"intent_id": "_"},
+])
+def test_ein_wirkungsloser_filter_braucht_trotzdem_die_bestaetigung(
+        client, monkeypatch, params):
+    # Audit 2026-09-29. Ein unbekannter ``scope`` schränkt in ``scope_sql``
+    # nichts ein, und ``%``/``_`` sind LIKE-Platzhalter, die alles treffen —
+    # beide zählten als Filter, und das DELETE lief ohne ``confirm`` über die
+    # ganze Tabelle.
+    calls = _fake(monkeypatch, "clear_quality_logs_svc", 99)
+    r = client.post("/api/quality/logs/clear", params=params, headers=_AUTH)
+    assert r.status_code == 400
+    assert calls == []
+
+
 # ── GET analytics passthrough (dict returned verbatim) ───────────────────
 @pytest.mark.parametrize(
     ("path", "svc_name", "params", "expected_kwargs"),

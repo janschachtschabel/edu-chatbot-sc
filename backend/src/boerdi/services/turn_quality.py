@@ -87,3 +87,13 @@ async def log_turn_quality(
         )
     except Exception as err:
         logger.warning("quality log failed: %s", err)
+        # Wie ``_log_turn_safety``: ein gescheiterter Commit hinterlässt die
+        # geteilte Zug-Sitzung abgebrochen, und danach verfielen Verbrauch
+        # (``record_turn_usage``) und Nachtrag (``finalize_message``) still
+        # (F-1-Klasse, Audit 2026-09-29). Zustand und Antwort sind hier schon
+        # gespeichert; zurückgerollt wird nur der gescheiterte Eintrag.
+        if session is not None:
+            try:
+                await session.rollback()
+            except Exception:
+                logger.debug("quality log: rollback failed too", exc_info=True)

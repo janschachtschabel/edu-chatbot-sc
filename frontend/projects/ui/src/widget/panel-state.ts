@@ -63,6 +63,7 @@ export class PanelState {
 
   private _owlHintDone = false;
   private _owlHintTries = 0;
+  private readonly _owlHintTimers = new Set<ReturnType<typeof setTimeout>>();
 
   constructor(private readonly ctx: PanelStateContext) {}
 
@@ -137,6 +138,22 @@ export class PanelState {
     this._maybeShowOwlHint();
   }
 
+  /** Beim Entfernen des Widgets: offene Hinweis-Timer abräumen (Audit
+   *  2026-09-29) — die Gastseite kann das Custom Element jederzeit aushängen. */
+  destroy(): void {
+    this._owlHintDone = true;
+    for (const t of this._owlHintTimers) clearTimeout(t);
+    this._owlHintTimers.clear();
+  }
+
+  private _owlHintTimer(fn: () => void, ms: number): void {
+    const t = setTimeout(() => {
+      this._owlHintTimers.delete(t);
+      fn();
+    }, ms);
+    this._owlHintTimers.add(t);
+  }
+
   /** Einmaliger Owl-Hinweis beim ersten Öffnen einer Session: Kopf wackelt +
    *  Sprechblase 3 s, dann weg. Das localStorage-Flag hängt an der Session-ID —
    *  „Neuer Chat" (neue ID) hintet erneut, Reopen/Reload derselben Session
@@ -146,7 +163,7 @@ export class PanelState {
     const sid = this.ctx.sessionId();
     if (!sid) {
       // Shell/sessionId noch nicht bereit → kurz später erneut (max ~4 s).
-      if (this._owlHintTries++ < 20) setTimeout(() => this._maybeShowOwlHint(), 200);
+      if (this._owlHintTries++ < 20) this._owlHintTimer(() => this._maybeShowOwlHint(), 200);
       return;
     }
     this._owlHintDone = true;
@@ -155,6 +172,6 @@ export class PanelState {
     if (last === sid) return;  // diese Session schon gehinted
     try { localStorage.setItem(OWL_HINT_KEY, sid); } catch { /* ignore */ }
     this.hintActive.set(true);
-    setTimeout(() => this.hintActive.set(false), 3000);
+    this._owlHintTimer(() => this.hintActive.set(false), 3000);
   }
 }

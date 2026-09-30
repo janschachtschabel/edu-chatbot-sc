@@ -99,6 +99,14 @@ describe('QuickRepliesComponent', () => {
     expect(host.querySelector('button.qr-btn--guide')!.textContent?.trim()).toBe('Take me there');
   });
 
+  it('der Tooltip des Guide-Chips folgt der Sprache (Audit 2026-09-29)', async () => {
+    // Einziger fest deutscher Text dieser Chips — auf Englisch blieb er deutsch.
+    const en = createTranslator({ 'chips.guideTitle': 'Go to the page in this tab' }, DE);
+    const host = (await render({ quickReplies: [GUIDE_QR], translate: en })).nativeElement as HTMLElement;
+    expect(host.querySelector('button.qr-btn--guide')!.getAttribute('title'))
+      .toBe('Go to the page in this tab');
+  });
+
   it('Guide-QR wird bei ausgeschaltetem Lotsen-Modus komplett ausgeblendet', async () => {
     const host = (await render({ quickReplies: [GUIDE_QR, 'Normal'], guideModeActive: false })).nativeElement as HTMLElement;
     const btns = host.querySelectorAll('button.qr-btn');

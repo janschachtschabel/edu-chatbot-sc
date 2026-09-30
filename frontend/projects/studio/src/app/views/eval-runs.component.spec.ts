@@ -152,6 +152,21 @@ describe("EvalRunsComponent", () => {
     h.http.verify();
   });
 
+  it("pollt nach dem Verlassen der Ansicht nicht weiter (Audit 2026-09-29)", async () => {
+    // Zerstört während eine Abfrage läuft: `stopPolling()` findet dann keinen
+    // Timer, und die späte Antwort bewaffnete einen neuen, den niemand mehr
+    // löscht — ein Zombie-GET alle drei Sekunden je unglücklicher Navigation.
+    const h = await mount([RUNNING]);
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    const imFlug = h.http.expectOne((r) => r.url === RUNS_URL);
+
+    h.fixture.destroy();
+    imFlug.flush({ runs: [RUNNING] });
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3);
+
+    h.http.expectNone((r) => r.url === RUNS_URL);
+  });
+
   it("nennt je Zeile die Maschine, die den Lauf beantwortet hat (ST-7a)", async () => {
     const h = await mount([run("r1", { engine: "agent" }), run("r2", { engine: "" })]);
     expect(rows(h)[0].textContent).toContain("Agent-Schleife");

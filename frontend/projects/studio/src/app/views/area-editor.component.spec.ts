@@ -304,6 +304,37 @@ describe("AreaEditorComponent — the two tabs", () => {
     );
   });
 
+  it("markiert Getipptes während des Speicherns nicht als gespeichert (Audit 2026-09-29)", async () => {
+    // Bis hier wurde nach dem PUT der AKTUELLE Text als gespeichert
+    // vermerkt — auch was erst während des Speicherns dazukam und nie
+    // gesendet wurde. Danach warnte weder die Wegnavigation noch
+    // `beforeunload`, und die Eingabe ging beim Verlassen verloren.
+    const h = await mount();
+    button(h.el, "Rohtext").click();
+    await h.fixture.whenStable();
+    const box = h.el.querySelector<HTMLTextAreaElement>("#ae-raw")!;
+    box.value = "welcome:\n  greeting: Tach\n";
+    box.dispatchEvent(new Event("input"));
+    await h.fixture.whenStable();
+    button(h.el, "Speichern").click();
+    await h.fixture.whenStable();
+    const put = h.http.expectOne((r) => r.url === FILE_URL && r.method === "PUT");
+
+    box.value = "welcome:\n  greeting: Tach auch\n";
+    box.dispatchEvent(new Event("input"));
+    put.flush({ status: "saved" });
+    await tick();
+    await h.fixture.whenStable();
+    h.http.expectOne(DATA_URL).flush({
+      area: AREA, type: "yaml", data: { welcome: { greeting: "Tach" } },
+    });
+    await tick();
+    await h.fixture.whenStable();
+
+    expect(h.fixture.componentInstance.rawDirty()).toBe(true);
+    expect(box.value).toBe("welcome:\n  greeting: Tach auch\n");
+  });
+
   it("reports a YAML syntax error instead of failing silently", async () => {
     const h = await mount();
     button(h.el, "Rohtext").click();

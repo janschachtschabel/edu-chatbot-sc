@@ -72,13 +72,19 @@ export class LoadtestRunComponent {
   readonly stopError = signal('');
 
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** Set on destroy: a request still in flight must not re-arm the poll —
+   *  `stopPolling()` found no timer then (Audit 2026-09-29). */
+  private destroyed = false;
 
   constructor() {
     effect(() => {
       this.runId();
       untracked(() => void this.load());
     });
-    inject(DestroyRef).onDestroy(() => this.stopPolling());
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
+      this.stopPolling();
+    });
   }
 
   async load(): Promise<void> {
@@ -88,7 +94,7 @@ export class LoadtestRunComponent {
 
   private scheduleNextPoll(): void {
     this.stopPolling();
-    if (!this.isRunning()) return;
+    if (this.destroyed || !this.isRunning()) return;
     this.timer = setTimeout(() => void this.poll(), POLL_MS);
   }
 
@@ -96,6 +102,7 @@ export class LoadtestRunComponent {
     this.timer = null;
     const wasRunning = this.isRunning();
     await this.run.reload();
+    if (this.destroyed) return;
     if (wasRunning && !this.isRunning()) {
       this.finished.emit();
       return;

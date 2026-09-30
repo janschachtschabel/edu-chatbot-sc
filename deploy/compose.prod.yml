@@ -109,6 +109,12 @@ services:
     logging: *logging
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-boerdi}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt}@postgres:5432/${POSTGRES_DB:-boerdi}
+      # Migration 0001 legt ``vector(dim)`` aus diesen drei an — dieselben
+      # Werte wie beim Backend, sonst passt die Spalte nicht zu den
+      # Einbettungen (Audit 2026-09-29).
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_EMBED_MODEL: ${LLM_EMBED_MODEL:-}
+      EMBED_DIM: ${EMBED_DIM:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -118,9 +124,10 @@ services:
     restart: unless-stopped
     logging: *logging
     deploy:
-      # Zustandslos (Sessions/Config in Postgres, Lock per pg_advisory_xact_lock
-      # — V2/V6), deshalb keine Sticky-Sessions nötig. Auf kleinen Servern
-      # BACKEND_REPLICAS=1 setzen.
+      # Zustandslos (Sessions/Config in Postgres). ACHTUNG (Audit 2026-09-29):
+      # Züge derselben Sitzung sperrt heute nur ein prozessinterner Lock — über
+      # Repliken hinweg können sie parallel laufen (docs/architektur.md §8).
+      # Auf kleinen Servern BACKEND_REPLICAS=1 setzen.
       replicas: ${BACKEND_REPLICAS:-3}
     # Länger als das --timeout-graceful-shutdown des Images (30 s), sonst
     # schießt Docker einen Stream ab, den uvicorn gerade sauber beendet.
@@ -177,7 +184,10 @@ services:
       BOERDI_MAX_INGEST_MB: ${BOERDI_MAX_INGEST_MB:-}
       # Der Studio-Lasttest treibt die echte Chat-Pipeline und teilt den
       # LLM-Pool mit Live-Nutzern — auf Prod aus, er gehört auf Staging.
-      BOERDI_ALLOW_LOADTEST: ${BOERDI_ALLOW_LOADTEST:-}
+      # Ausdrücklich ``false``: ``${VAR:-}`` liefert einen leeren String, und
+      # den liest settings.py als „nicht gesetzt" = Code-Default ``True``
+      # (Audit 2026-09-29). Auf Staging ``BOERDI_ALLOW_LOADTEST=true`` setzen.
+      BOERDI_ALLOW_LOADTEST: ${BOERDI_ALLOW_LOADTEST:-false}
       # Ziel der Eval-Läufe = der EIGENE Chat im selben Container (Selbstaufruf,
       # kein Umweg über traefik/TLS). Der Code-Default zeigt auf ALT-Port 8000,
       # das Image lauscht auf 8100 — ohne diesen Default brach jeder Eval-Start
@@ -254,11 +264,13 @@ services:
           f="/backup/boerdi-$$(date +%Y%m%d-%H%M%S).dump"
           if pg_dump -Fc -f "$$f"; then
             echo "backup ok: $$f"
+            # Aufräumen NUR nach einer neuen Sicherung: sonst löschten
+            # KEEP_DAYS stille Fehlschläge jede gute (Audit 2026-09-29).
+            find /backup -name 'boerdi-*.dump' -mtime "+$$KEEP_DAYS" -delete
           else
             echo "BACKUP FEHLGESCHLAGEN" >&2
             rm -f "$$f"
           fi
-          find /backup -name 'boerdi-*.dump' -mtime "+$$KEEP_DAYS" -delete
           sleep 86400
         done
 

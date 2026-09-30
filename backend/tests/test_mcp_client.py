@@ -307,6 +307,48 @@ def test_ein_ausfall_wird_weiter_wiederholt(mcp_state, monkeypatch):
     assert len(calls) == 2
 
 
+def test_ein_bestaetigter_schreibaufruf_wird_nach_ausfall_nicht_wiederholt(
+        mcp_state, monkeypatch):
+    # Offener Befund 1.2 (2026-09-29): Der erste Aufruf kann angekommen und
+    # ausgeführt sein, nur die Antwort ging verloren. Der Server löscht den
+    # ``confirmToken`` beim ersten Einlöseversuch — eine Wiederholung bekäme
+    # „unbekannt oder bereits benutzt" (``kind == "tool"``), und die Abnahme
+    # meldete „nichts geändert", obwohl geschrieben wurde. Wer dann neu anlegt,
+    # erzeugt eine Dublette. Ohne Wiederholung bleibt es bei ``transport``, und
+    # ``write_approval`` schickt die Person zum Nachsehen.
+    _wire_tool_url(monkeypatch)
+    calls = _wire_transport(monkeypatch, [
+        {"error": {"message": "read timeout", "kind": "transport"}},
+        {"error": {"message": "Der Bestätigungsschlüssel ist unbekannt oder wurde "
+                              "bereits benutzt.", "kind": "tool"}},
+    ])
+    text, art = asyncio.run(client.call_mcp_tool_status(
+        "unknown_probe_tool", {"title": "Bruchrechnen", "confirmToken": "T" * 24}))
+    assert len(calls) == 1
+    assert (text, art) == ("MCP error: read timeout", "transport")
+
+
+def test_der_bestaetigungsschluessel_steht_nicht_im_protokoll(
+        mcp_state, monkeypatch, caplog):
+    # Offener Befund 1.3: die Argument-Zeile protokollierte die rohen
+    # Argumente — bei einem bestätigten Schreibzugriff also den Schlüssel, der
+    # die Änderung auslöst, und bei einem Upload die ganze Nutzlast. Das
+    # Werkzeug und die kurzen Argumente bleiben lesbar, denn für die
+    # Fehlersuche an Filtern ist die Zeile da.
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [_result([_text_part("OK")])])
+    geheim = "S3cr3tT0k3n" * 3
+    nutzlast = "Q" * 5000
+    with caplog.at_level("INFO"):
+        asyncio.run(client.call_mcp_tool_status(
+            "unknown_probe_tool",
+            {"title": "Bruchrechnen", "confirmToken": geheim, "content": nutzlast}))
+    protokoll = "\n".join(r.getMessage() for r in caplog.records)
+    assert geheim not in protokoll
+    assert nutzlast not in protokoll
+    assert "Bruchrechnen" in protokoll
+
+
 def test_call_mcp_tool_extrahiert_query_meta_in_contextvar(mcp_state, monkeypatch):
     _wire_tool_url(monkeypatch)
     meta_text = '{"_queryMeta": {"queryType": "content", "filters": {"discipline": "d"}}}'

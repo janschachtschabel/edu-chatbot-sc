@@ -39,7 +39,6 @@ Ports ALT ``rag_service.py`` / ``db_rag.py``:
 
 from __future__ import annotations
 
-import asyncio
 import os
 
 from sqlalchemy import select
@@ -199,17 +198,18 @@ async def get_rag_context(session: AsyncSession, query: str,
     if not areas:
         areas = ["general"]
 
-    # Embed the query ONCE and search all areas concurrently — previously each
-    # area re-embedded the same query and ran serially (N embed round-trips +
-    # serial searches per RAG turn, T-7). Scores are re-sorted globally below,
-    # so the concurrent completion order does not affect the result.
+    # Embed the query ONCE (T-7) — previously each area re-embedded the same
+    # query. The searches run one after another on purpose (Audit 2026-09-29):
+    # they share ONE ``AsyncSession``, which does not support concurrent
+    # operations. An ``asyncio.gather`` here raised ``InvalidRequestError``
+    # whenever the session had no connection yet (e.g. right after the
+    # safety-log commit); with a connection, the asyncpg adapter serialised
+    # the statements anyway. Scores are re-sorted globally below.
     query_emb = await embed_text(query, kind="query")
-    per_area = await asyncio.gather(
-        *(query_rag(session, query, area, top_k, query_emb=query_emb) for area in areas)
-    )
     all_results = []
-    for results in per_area:
-        all_results.extend(results)
+    for bereich in areas:
+        all_results.extend(
+            await query_rag(session, query, bereich, top_k, query_emb=query_emb))
 
     if not all_results:
         return ""

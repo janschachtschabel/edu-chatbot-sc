@@ -148,6 +148,28 @@ describe('PanelState Owl-Hint', () => {
     expect(p.hintActive()).toBe(true);
   });
 
+  it('räumt seine Timer ab, wenn das Widget entfernt wird (Audit 2026-09-29)', () => {
+    // Custom Element: die Gastseite kann es jederzeit aus dem DOM nehmen. Die
+    // Poll-Kette (bis ~4 s) und der 3-s-Hinweis liefen sonst auf einer toten
+    // Instanz weiter. Geprüft wird, dass kein Rückruf mehr läuft — die bloße
+    // Zahl der Timer taugt nicht: jsdom stellt `storage`-Ereignisse selbst
+    // per Timer zu.
+    let abfragen = 0;
+    const polling = new PanelState(mkCtx(() => { abfragen++; return undefined; }).ctx);
+    polling.setExpanded(true);
+    const vorher = abfragen;
+    polling.destroy();
+    vi.advanceTimersByTime(10_000);
+    expect(abfragen).toBe(vorher);
+
+    const hinting = new PanelState(mkCtx(() => VALID_SID).ctx);
+    hinting.setExpanded(true);
+    expect(hinting.hintActive()).toBe(true);
+    hinting.destroy();
+    vi.advanceTimersByTime(3000);
+    expect(hinting.hintActive()).toBe(true);  // der Aus-Timer lief nicht mehr
+  });
+
   it('gibt nach ~4s Polling auf (kein Endlos-Timer)', () => {
     const p = new PanelState(mkCtx(() => undefined).ctx);
     p.setExpanded(true);

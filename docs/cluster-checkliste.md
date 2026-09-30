@@ -12,7 +12,7 @@ Load-Balancer" schon.
 
 | # | §8-Zusage | Beleg | Automatisiert |
 |---|---|---|---|
-| 1 | Session-Turns serialisiert (Advisory-Lock) | `test_pg_locks_notify.py::test_same_session_turns_serialize` + `::test_different_sessions_run_parallel` | ✅ (pg) |
+| 1 | Session-Turns serialisiert (Advisory-Lock) | Der Test prüft nur den Helfer `db/locks.acquire_session_lock`; die Endpunkte rufen ihn nicht (nur prozessinterne Sperre, Audit 2026-09-29) | ❌ offen |
 | 2 | Config-Änderung propagiert < 2 s | `test_cluster_checklist.py::test_config_change_propagates_within_the_two_second_bound` | ✅ (pg) |
 | 3 | Rate-Limit konsistent über den geteilten Zähler | `test_cluster_checklist.py::test_two_replicas_share_one_budget_over_a_shared_store` + `::test_a_replica_started_later_inherits_the_running_count` | ✅ (valkey) |
 | 4 | SSE über den Load-Balancer stabil | Live-Protokoll unten | ❌ |
@@ -97,8 +97,9 @@ ist, während die Replika geht:
 
 Gehört dem Nutzer (Studio → *Lasttest*, oder `POST /api/loadtest/runs`), weil
 der Lauf echte LLM-Aufrufe kostet und die Pipeline mit Live-Verkehr teilt.
-Deshalb ist `BOERDI_ALLOW_LOADTEST` im Prod-Compose per Default **leer** — der
-Lasttest gehört auf eine Staging-Instanz.
+Deshalb ist `BOERDI_ALLOW_LOADTEST` im Prod-Compose per Default **`false`** — der
+Lasttest gehört auf eine Staging-Instanz. (Bis 2026-09-29 stand dort ein leerer
+Wert; `settings.py` liest leer als „nicht gesetzt" = Code-Default `true`.)
 
 Achtung bei der Ablesung: das Backend deckelt Profile still (Parallelität > 32,
 Stufen > 6, Requests/Stufe > 60). Die Studio-Ansicht zeigt deshalb das

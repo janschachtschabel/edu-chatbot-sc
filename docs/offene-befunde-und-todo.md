@@ -8,6 +8,7 @@ Die zugehörigen Pläne:
 - **Betriebsmodi-Plan:** [`2026-09-26-betriebsmodi-und-studio.md`](plans/2026-09-26-betriebsmodi-und-studio.md)
 - **Runde-2-Plan:** [`2026-09-28-agent-runde-2.md`](plans/2026-09-28-agent-runde-2.md)
 - **Responses-Plan:** [`2026-09-29-responses-systemteil-und-cache.md`](plans/2026-09-29-responses-systemteil-und-cache.md)
+- **Audit 2026-09-29:** [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md) — behoben dort: der Transport-Retry mit `confirmToken` und das Token im INFO-Log (früher §1.2/§1.3), `pip-audit` (jetzt in der CI), zwei Aufräumpunkte aus §5 und eine der unter Last kippenden Test-Dateien (siehe §5).
 
 ## 1 Befunde mit Wirkung im Betrieb
 
@@ -16,16 +17,7 @@ Die zugehörigen Pläne:
    - Seit D-15 ist der Agent im Chat die Vorgabe.
    - Beleg: zwei strikte `xfail` in `backend/tests/test_agent_schreib_abnahme.py`.
    - Stand: Der Vorschlag steht im Runde-2-Plan unter „Nebenbefund außerhalb dieser Runde“ und ist noch nicht gebaut.
-2. **Bestätigte Schreibaufrufe werden nach einem Transportfehler wiederholt.**
-   - Ablauf: Der erste Aufruf kommt an, nur die Antwort geht verloren. Die Wiederholung bekommt dann „Schlüssel unbekannt oder bereits benutzt“, weil der MCP-Server den `confirmToken` bei jedem Einlöseversuch löscht.
-   - Folge: Die Abnahme meldet „nichts geändert“, obwohl geschrieben wurde. Wer erneut anlegt, erzeugt eine Dublette.
-   - Betroffen sind die Werkzeugschleife und der Agent-Weg.
-   - Vorschlag: Aufrufe mit `confirmToken` nie automatisch wiederholen (die Wiederholung steht in `services/mcp/client.py` um Z. 324).
-   - Quelle: Sitzung „MCP-Client: Werkzeugfehler nicht wiederholen“.
-3. **`confirmToken` im INFO-Log.**
-   - `services/mcp/client.py:248` protokolliert die rohen Werkzeug-Argumente, bei bestätigten Schreibzugriffen also auch den Schlüssel.
-   - Vorschlag: den Schlüssel in dieser Zeile schwärzen.
-4. **Seitentext und System-Blöcke auf dem Responses-Weg.**
+2. **Seitentext und System-Blöcke auf dem Responses-Weg.**
    - Zusammenfügen: LiteLLM verbindet die `system`-Blöcke mit einem Leerzeichen zu `instructions`, Überschriften stehen dadurch mitten in der Zeile.
    - Fremdtext:
      - Ein Satz aus dem Seitentext stand wörtlich in `instructions`, also Fremdtext auf Systemebene.
@@ -37,9 +29,10 @@ Die zugehörigen Pläne:
      - Gegen OpenAI direkt gemessen (`gpt-6-luna`).
      - Die b-api-openai ist wahrscheinlich ebenso betroffen, dort aber nicht gemessen. LiteLLM leitet ab gpt-5.4 Aufrufe mit Werkzeugen über `/v1/responses`.
    - Vorschläge A–D und N stehen im Responses-Plan.
-5. **`retention_days` ohne Wirkung.**
+3. **`retention_days` ohne Wirkung.**
    - Das Feld steht zweimal in `domain/config_models/base_governance.py` (Z. 66 und 134). Kein Code liest es, einen Lösch-Job gibt es nicht.
    - Die Einstellung verspricht also eine Aufbewahrungsfrist, die niemand durchsetzt.
+4. **Befunde aus dem Audit 2026-09-29**, die noch offen sind: siehe [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md), Abschnitte 6–9. Behoben sind die Punkte der Tabelle in Abschnitt 4a (Änderungen liegen uncommittet vor).
 
 ## 2 Entscheidungen des Nutzers
 
@@ -80,6 +73,14 @@ Die zugehörigen Pläne:
 - **Audit 2026-08-12:**
   - F-2: Die zwei High-CVEs in Angular und DOMPurify anheben oder als Restrisiko festhalten?
   - F-6: Persistenz-Reihenfolge im Zug-Abschluss.
+- **Audit 2026-09-29, Abschnitt 10** (Details dort):
+  - B-H3: Kuration unter dem Dienst-Token nur mit persönlicher Anmeldung oder mit ausdrücklichem Schalter?
+  - C-H1: clusterweite Sitzungssperre (Advisory-Lock, Valkey-Lease oder `turn_count`-CAS)? Bis dahin nur eine Replik?
+  - CSP/HSTS für `/studio` oder eigener Ursprung?
+  - `markitdown`-Extras für PDF/DOCX-Ingest; MPL-2.0 als Lizenz-Ausnahme?
+  - SSE-Abbruch: verlassenen Zug zu Ende führen oder abbrechen?
+  - `retention_days` (§1.3): Lösch-Job bauen oder Feld streichen?
+  - B-API-Moderation: reicht Bearer allein?
 - **Moderations-Schwellen:** Andeutungen blieben live unter den Seed-Schwellen (self_harm 0,45 und 0,28). Ein Nachjustieren wäre ein eigener Entscheid.
 
 ## 3 Messungen und Prüfungen (startet der Nutzer)
@@ -91,7 +92,6 @@ Die zugehörigen Pläne:
     - Die Kosten je Zug liegen unter 0,00303 USD (E-5).
   - Danach über B1–B3 (Anrede) entscheiden.
 - **Responses-Plan, Paket C:** die Folgezüge mit den Rundendaten nachmessen, bevor über B entschieden wird.
-- **`pip-audit`** ist nie gelaufen und steht nicht in der CI (Audit 2026-08-12).
 - **Einbettung mit Ticket (zweite Betriebsform):** Die Live-Probe steht aus, siehe [`2026-08-12-einbettung-ohne-repo-aenderung.md`](plans/2026-08-12-einbettung-ohne-repo-aenderung.md).
 - **Studio:**
   - Einen Screenreader-Test gab es bisher nicht.
@@ -113,13 +113,10 @@ Die zugehörigen Pläne:
   - Backend: `graph/nodes/respond_agent.py` (467).
   - Studio: `schema-form/schema-form.scss` (432), `views/curated-views.ts` (399), `i18n/catalogue/curated.ts` (386), `views/eval-run-detail.component.ts` (315), `schema-form/schema-field.component.ts` (311).
   - Die Schnitte stehen im Betriebsmodi-Plan §9.3.
-- `services/tool_loop_messages.py:112` nennt 15 / 0,30 als Vorgabe, richtig ist 10. Gehört zu ST-5-Befund 2.
-- Der Docstring von `_unbestaetigt` in `write_approval.py` ist seit `kind` überholt. Ablehnung und Zeitüberschreitung lassen sich inzwischen unterscheiden.
 - Ein Server, der „Tool not found“ als JSON-RPC-Fehler meldet, landet als `transport` in der Wiederholung. Der eingestellte Server meldet es als Werkzeug-Ergebnis und ist deshalb nicht betroffen.
 - **Frontend-Tests kippen unter Last.**
-  - Im vollen Lauf am 2026-09-29 fielen 5 Studio-Dateien um: `i18n/en.spec.ts`, `agent-skills`, `eval-trends`, `loadtest` und `rag-ingest`. Dazu kam 1 UI-Datei, `print/print-utils.spec.ts`. Gleichzeitig ließ eine andere Sitzung Chrome/Selenium laufen.
-  - Einzeln waren alle grün, im Wiederholungslauf ebenfalls (UI 832, Studio 1320). In dieser Runde kam das zweimal vor.
-  - Die Ursache ist nicht untersucht, etwa Zeitlimits oder `Intl`/Datum. Tests, die unter Last kippen, sind Testfehler und sollten unabhängig von der Laufzeit werden.
+  - Im vollen Lauf am 2026-09-29 fielen 5 Studio-Dateien um (`i18n/en.spec.ts`, `agent-skills`, `eval-trends`, `loadtest`, `rag-ingest`) und `ui/print/print-utils.spec.ts`; einzeln und im Wiederholungslauf grün.
+  - Audit 2026-09-29: `print-utils.spec.ts` läuft jetzt mit fester Uhr, `studio/core/download.spec.ts` stellt die veränderten Globals zurück (`isolate: false`). Die übrigen Kipper ließen sich nicht reproduzieren; bei erneutem Auftreten Datei und Fehlermeldung festhalten.
 - Dem Studio fehlt `color-scheme: light dark`.
   - Folge: Ungestylte Steuerelemente bleiben im Dunkelmodus hell.
   - Das Select `.ri-area-pick` besteht trotzdem mit 3,76:1.

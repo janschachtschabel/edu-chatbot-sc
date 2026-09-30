@@ -117,10 +117,19 @@ export class AreaDocEditor {
     this.saving.set(true);
     this.saveError.set('');
     this.status.set('');
+    // What was SENT, frozen before the await: the answer echoes it. A field
+    // can change while the request is in flight — adopting the echo then
+    // reverted that edit silently (Audit 2026-09-29). Only the baseline
+    // moves in that case, so the edit stays and counts as unsaved.
+    const sent = JSON.stringify(this.doc());
     try {
-      const saved = await this.config.saveData(area, this.doc());
+      const saved = await this.config.saveData(area, JSON.parse(sent));
       if (!this.isCurrent(generation)) return false;
-      this.adopt(saved.data);
+      if (JSON.stringify(this.doc()) === sent) {
+        this.adopt(saved.data);
+      } else {
+        this.savedDoc.set(JSON.stringify(saved.data));
+      }
       this.docType.set(saved.type);
       this.problems.set([]);
       this.status.set(this.t('editor.saved'));

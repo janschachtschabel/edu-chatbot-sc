@@ -32,6 +32,7 @@ from boerdi.services.safety import legal, moderation
 from boerdi.services.safety.regex_gate import (
     INJECTION_PATTERNS,
     LEGAL_TRIGGER_PATTERNS,
+    normalize_for_matching,
     regex_gate,
 )
 
@@ -211,7 +212,7 @@ async def assess_safety(
     preset = _resolve_preset(cfg)
     esc = cfg.get("escalation", {}) or {}
     decision.reasons.append(f"level:{preset['level']}")
-    msg_lower = (message or "").lower()
+    msg_lower = normalize_for_matching(message)
 
     # Stage: Prompt-Injection (regex, optional per preset).
     if preset["prompt_injection"]:

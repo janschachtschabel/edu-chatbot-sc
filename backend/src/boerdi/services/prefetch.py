@@ -142,6 +142,9 @@ async def run_speculative_prefetch(req, classification, safety):
 
     if (
         safety.risk_level != "high"
+        # Gesperrte Suche (persönliche Daten): kein Vorabruf, auch nicht mit der
+        # aus der Klassifikation gebauten Anfrage (Audit 2026-09-29).
+        and not {"search_wlo_content", "search_wlo_all"} & set(safety.blocked_tools)
         and _startet_der_vorabruf()
         # Bedarfssteuerung: M16 (Themenseiten-Inhalt) macht weiter unten seine
         # EIGENE gezielte Auflösung (Sammlung → get_topic_page_content). Die

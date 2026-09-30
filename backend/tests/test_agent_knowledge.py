@@ -140,6 +140,25 @@ class TestAntwort:
         assert "nicht erreichbar" in text
 
     @pytest.mark.anyio
+    async def test_ein_fehler_rollt_die_geteilte_sitzung_zurueck(self, monkeypatch):
+        """Audit 2026-09-29 (F-1-Klasse): ein DB-Fehler hinterlässt die
+        Zug-Sitzung abgebrochen — ohne Rollback scheitert danach das
+        Speichern des ganzen Zugs."""
+        class _Sitzung:
+            rollbacks = 0
+
+            async def rollback(self):
+                self.rollbacks += 1
+
+        async def _fake(session, query, **kw):
+            raise RuntimeError("pgvector weg")
+
+        monkeypatch.setattr(ak, "get_rag_context", _fake)
+        sitzung = _Sitzung()
+        await ak.antwort(sitzung, {"frage": "x"}, _CONFIG)
+        assert sitzung.rollbacks == 1
+
+    @pytest.mark.anyio
     async def test_der_text_ist_gedeckelt(self, monkeypatch):
         async def _fake(session, query, **kw):
             return "A" * 20000

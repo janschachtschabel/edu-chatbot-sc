@@ -74,6 +74,46 @@ logger = logging.getLogger(__name__)
 _PATTERN_ID = "M18"
 
 
+async def discard_stale_approval(
+    session: AsyncSession | None,
+    req: ChatRequest,
+    session_state: dict,
+) -> bool:
+    """Den offenen Vorgang verwerfen, wenn dieser Zug ihn nicht bestätigen kann.
+
+    Bestätigen kann ihn nur die Antwort **direkt** auf die Vorschau (Audit
+    2026-09-29). Bis dahin überdauerte er jeden Zwischenzug bis zum Fristende,
+    und ein beliebiges späteres „Ja …" führte ihn aus — etwa der Chip „Ja, zeig
+    mir mehr Videos" zwei Züge nach einer Vorschau, zu der die Person nie etwas
+    gesagt hatte. Verworfen wird deshalb in jedem Zug, der eine Direkt-Aktion
+    trägt oder keine glatte Zustimmung ist (:func:`is_affirmation`). Kommt das
+    Anliegen wieder, zeigt das Modell eine neue Vorschau: der Preis ist eine
+    zweite Frage, nicht eine Änderung ohne Zustimmung.
+
+    Eine glatte Zustimmung lässt den Vorgang stehen — ihn löst
+    :func:`redeem_write_approval` ein oder, ohne gemerkte Argumente, der
+    Fingerabdruck-Weg im Tool-Loop. Weil jeder Tool-Loop-Zug diesen Vorlauf
+    passiert, sieht auch jener Weg nur noch Vorgänge des direkt vorigen Zugs.
+
+    Gespeichert wird sofort: nicht jeder Weg nach dem Vorlauf schreibt
+    ``entities`` zurück (die Direkt-Aktionen nicht), und ein nur im Speicher
+    verworfener Vorgang stünde beim nächsten Zug wieder in der Datenbank.
+    Gibt zurück, ob verworfen wurde.
+    """
+    entities = session_state.setdefault("entities", {})
+    pending = entities.get("_pending_write")
+    if not pending:
+        return False
+    if not req.action and is_affirmation(req.message):
+        return False
+    entities.pop("_pending_write", None)
+    logger.info(
+        "offener Vorgang für %s verworfen — dieser Zug ist keine Antwort auf die Vorschau",
+        pending.get("tool") if isinstance(pending, dict) else "?")
+    await update_session(session, req.session_id, entities=entities)
+    return True
+
+
 async def redeem_write_approval(
     session: AsyncSession | None,
     req: ChatRequest,
@@ -210,18 +250,17 @@ async def _unbestaetigt(
 ) -> ChatResponse:
     """Die ehrliche Antwort, wenn keine Bestätigung zurückkam.
 
-    **Warum genau ein Text für beide Fehlerwege.** Von hier aus sind „der
-    Server hat abgelehnt" und „die Antwort kam nie an" nicht zu unterscheiden:
-    ``transport.call_tool`` macht aus einer Zeitüberschreitung dieselbe
-    Fehler-Antwort wie aus einem Werkzeug-Fehler. Ein Satz, der „es wurde
-    nichts geändert" behauptet, wäre im Zeitüberschreitungs-Fall falsch — und
-    zwar in der teuren Richtung: die Person legt dieselbe Sache erneut an, und
-    der kuratierte Bestand trägt eine Dublette.
+    **Wann dieser Text kommt.** Seit ``kind`` unterscheidet der Transport „der
+    Server hat abgelehnt" (``tool`` — dann antwortet ``write.executeRejected``
+    oben) von „die Antwort kam nie an" (``transport``). Hier landen nur noch
+    dieser zweite Fall und Ausnahmen: der Aufruf kann angekommen und ausgeführt
+    sein. Ein Satz, der „es wurde nichts geändert" behauptet, wäre dann falsch —
+    und zwar in der teuren Richtung: die Person legt dieselbe Sache erneut an,
+    und der kuratierte Bestand trägt eine Dublette. (Bestätigte Aufrufe
+    wiederholt der Client deshalb auch nicht mehr, ``services/mcp/client``.)
 
     Also sagt der Text nur, was feststeht, und nennt den Schritt, der die
-    Unsicherheit auflöst. Wer die beiden Fälle wirklich trennen will, muss
-    zuerst den Transport dazu bringen, sie zu unterscheiden — der Text ist die
-    Folge dieser Grenze, nicht ihre Ursache.
+    Unsicherheit auflöst: in WLO nachsehen.
     """
     debug.entities["reason"] = "mcp_error"
     antwort = ChatResponse(

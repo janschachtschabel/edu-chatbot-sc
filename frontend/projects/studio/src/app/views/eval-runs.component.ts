@@ -127,10 +127,16 @@ export class EvalRunsComponent {
     this.t(this.armed()?.kind === 'stop' ? 'evalRuns.confirmStop' : 'action.confirmDelete'));
 
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** Set on destroy: a request still in flight must not re-arm the poll —
+   *  `stopPolling()` found no timer then (Audit 2026-09-29). */
+  private destroyed = false;
 
   constructor() {
     void this.load();
-    inject(DestroyRef).onDestroy(() => this.stopPolling());
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
+      this.stopPolling();
+    });
   }
 
   async load(): Promise<void> {
@@ -247,7 +253,7 @@ export class EvalRunsComponent {
 
   private scheduleNextPoll(): void {
     this.stopPolling();
-    if (!this.isPolling()) return;
+    if (this.destroyed || !this.isPolling()) return;
     this.timer = setTimeout(() => void this.poll(), POLL_MS);
   }
 

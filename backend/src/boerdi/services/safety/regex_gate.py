@@ -39,6 +39,7 @@ public because the orchestrator (``service``) consumes them in later stages.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Final
 
 from boerdi.api.schemas import SafetyDecision
@@ -46,13 +47,16 @@ from boerdi.api.schemas import SafetyDecision
 #: Was eine erkannte Krise oder Drohung sperrt: die Materialsuche — die
 #: Schutzantwort bietet kein Material an. In der Agent-Schleife kommt es dazu
 #: nicht: das erzwungene Muster antwortet statt ihrer (SF-1).
+#: ``search_wlo_all`` ist die Standard-Suche und eine Obermenge von
+#: ``search_wlo_content`` — ohne sie liefe die Sperre ins Leere (Audit 2026-09-29).
 SPERRE_KRISE: Final = (
     "search_wlo_collections", "search_wlo_content", "get_collection_contents",
+    "search_wlo_all",
 )
 #: Persönliche Daten in der Nachricht: keine Volltextsuche damit. Die
 #: Werkzeugliste des Studios nennt sie (ST-8b) und liest sie hier, statt sie
 #: abzuschreiben.
-SPERRE_PERSOENLICH: Final = ("search_wlo_content",)
+SPERRE_PERSOENLICH: Final = ("search_wlo_content", "search_wlo_all")
 
 # ── Stage 1: Regex patterns ─────────────────────────────────────────
 # Crisis = Nutzer richtet Gewalt/Suizid gegen SICH SELBST.  Ein reines
@@ -198,6 +202,22 @@ def _gap_search(head: str, tail: str, text: str) -> bool:
     return False
 
 
+def normalize_for_matching(text: str | None) -> str:
+    """Die Eingabe so, wie die Regeln sie lesen (Audit 2026-09-29).
+
+    ``NFKC`` setzt zerlegte Umlaute zusammen (NFD, etwa aus kopiertem Text)
+    und bildet Vollbreite- und Kompatibilitätszeichen auf ihre Grundform ab;
+    danach fallen unsichtbare Formatzeichen (Kategorie ``Cf``: Zero-Width-Space,
+    weiches Trennzeichen, Richtungsmarken) weg. Ohne beides lief jede Regel
+    ins Leere, sobald ein solches Zeichen im Wort stand — auch die Krisen-
+    Erkennung, die auf Anbietern ohne Moderation der einzige Boden ist.
+    ``lower()`` wie bisher, nicht ``casefold()``: das machte aus „ß" „ss", und
+    die Muster führen „ß".
+    """
+    flach = unicodedata.normalize("NFKC", text or "")
+    return "".join(z for z in flach if unicodedata.category(z) != "Cf").lower()
+
+
 def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
     """Stage 1: fast regex assessment.
 
@@ -210,7 +230,7 @@ def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
     side of the fence — never respond with hostility if there's any
     self-harm signal).
     """
-    msg = (message or "").lower()
+    msg = normalize_for_matching(message)
     decision = SafetyDecision()
     decision.stages_run.append("regex")
 

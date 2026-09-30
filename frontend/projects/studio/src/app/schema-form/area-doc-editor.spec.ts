@@ -124,6 +124,29 @@ describe("AreaDocEditor", () => {
     expect(editor.status()).toContain("espeichert");
   });
 
+  it("behält, was während des Speicherns getippt wurde (Audit 2026-09-29)", async () => {
+    // Die Antwort des Servers ist das Echo des GESENDETEN Stands. Sie als
+    // neuen Inhalt zu übernehmen, setzte eine Eingabe zurück, die während
+    // des Speicherns entstand — still, ohne Hinweis auf ungespeicherte Arbeit.
+    const editor = makeEditor();
+    const load = editor.load(AREA);
+    await tick();
+    answerLoad(AREA, { welcome: { greeting: "Moin" } });
+    await load;
+
+    editor.setDoc({ welcome: { greeting: "Servus" } });
+    const saved = editor.save(AREA);
+    await tick();
+    editor.setDoc({ welcome: { greeting: "Servus, schön dich zu sehen" } });
+    http.expectOne(dataUrl(AREA)).flush({
+      area: AREA, data: { welcome: { greeting: "Servus" } }, type: "yaml",
+    });
+
+    expect(await saved).toBe(true);
+    expect(editor.doc()).toEqual({ welcome: { greeting: "Servus, schön dich zu sehen" } });
+    expect(editor.dirty()).toBe(true);
+  });
+
   it("refuses to save while a field holds unparseable input", async () => {
     // Saving anyway would PUT the last parseable value and report success —
     // the edit would be gone with nothing saying so.

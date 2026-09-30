@@ -199,6 +199,8 @@ export const DE: Catalogue = {
    *  dich zu … bringen?"), hier steht der Chip für sich. Eine andere Sprache
    *  darf die Antwort kürzer fassen als den freistehenden Aufruf. */
   'chips.guideFallback': 'Bring mich hin',
+  /** Tooltip des Guide-Chips: er navigiert im selben Tab, nicht in einem neuen. */
+  'chips.guideTitle': 'Im aktuellen Tab zur Seite navigieren',
 
   // ── Fehler-Bubbles des Bots (C1-b4) ────────────────────────────────
   /** `{title}` ist der Sammlungs-/Material-Titel aus der Karte, also

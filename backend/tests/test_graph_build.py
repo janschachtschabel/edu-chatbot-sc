@@ -301,3 +301,128 @@ def test_progress_defaults_to_the_no_op_when_not_streaming(monkeypatch):
     for name, seams in calls:
         if name in REPORTING_NODES:
             assert isinstance(seams.get("progress"), TurnProgress)
+
+
+# ── Zug-Sammler über Knotengrenzen (Audit 2026-09-29) ─────────────────────
+
+def _sammler_knoten(gesehen):
+    """``respond`` bucht wie ``call_mcp_tool`` und der Vokabular-Abgleich;
+    ``persist`` liest wie ``turn_links``/``turn_persist``. Die Signatur ist die
+    der Spione oben — ohne ``**kwargs``, sonst injizierte LangGraph ``config``."""
+    from boerdi.domain.prepared_write import PreparedWrite
+    from boerdi.obs.usage import add_usage, current_turn_usage
+    from boerdi.services.mcp import client
+
+    async def _respond(ctx, session=None, peer_ip="", memory_fetch=None, on_token=None,
+                       progress=None, engine="pattern"):
+        metas = client._query_metas.get([])
+        metas.append({"queryType": "content"})
+        client._query_metas.set(metas)
+        offene = client._prepared_writes.get([])
+        offene.append(PreparedWrite(method="POST", path="/edu-sharing/rest/x",
+                                    body=None, done_message="erledigt"))
+        client._prepared_writes.set(offene)
+        add_usage(current_turn_usage(),
+                  {"prompt": 100, "completion": 10, "model": "vocab-model"}, phase="vocab")
+        return ctx
+
+    async def _persist(ctx, session=None, peer_ip="", memory_fetch=None, on_token=None,
+                       progress=None, engine="pattern"):
+        gesehen["metas"] = client.get_query_metas()
+        gesehen["writes"] = client.get_prepared_writes()
+        gesehen["calls"] = ctx.usage["calls"]
+        ctx.response = ChatResponse(session_id="bb-1", content="DONE")
+        return ctx
+
+    return _respond, _persist
+
+
+def test_zug_sammler_erreichen_den_persist_knoten(monkeypatch):
+    """LangGraph startet jeden Knoten in einer KOPIE des Kontexts: was ein Knoten
+    in einen ContextVar setzt, sieht der nächste nicht. Die Zug-Sammler wurden
+    im ``setup``-Knoten gebunden — Query-Metas und vorbereitete
+    Schreibzugriffe aus ``respond`` kamen deshalb in ``persist`` nie an, und
+    Buchungen über den Merkposten (Vokabular-Abgleich) verfielen. Gebunden wird
+    jetzt vor dem Graphen (``run_turn``); geprüft wird am echten Graphen."""
+    calls: list = []
+    _patch(monkeypatch, calls)
+    gesehen: dict = {}
+    _respond, _persist = _sammler_knoten(gesehen)
+    monkeypatch.setattr(build_mod, "respond", _respond)
+    monkeypatch.setattr(build_mod, "persist", _persist)
+
+    graph = build_turn_graph(session=object())
+    result = asyncio.run(build_mod.run_turn(graph, _ctx()))
+
+    assert gesehen["metas"] == [{"queryType": "content"}]
+    assert len(gesehen["writes"]) == 1
+    assert gesehen["calls"] == 1
+    assert result["usage"]["calls"] == 1
+
+
+def test_begin_turn_startet_mit_leeren_sammlern_und_bindet_den_merkposten():
+    """Ein Zug darf nie an den Sammlern des vorigen hängen — auch nicht, wenn
+    der Kontext noch Werte trägt."""
+    from boerdi.domain.prepared_write import PreparedWrite
+    from boerdi.obs.usage import current_turn_usage
+    from boerdi.services.mcp import client
+
+    async def zug():
+        client._query_metas.set([{"queryType": "alt"}])
+        client._prepared_writes.set([PreparedWrite(
+            method="POST", path="/alt", body=None, done_message="alt")])
+        ctx = _ctx()
+        build_mod.begin_turn(ctx)
+        return (client.get_query_metas(), client.get_prepared_writes(),
+                current_turn_usage() is ctx.usage)
+
+    assert asyncio.run(zug()) == ([], [], True)
+
+
+def test_der_zugbeginn_bindet_den_merkposten_und_ein_blatt_bucht_hinein(monkeypatch):
+    """Die Verbindung, nicht die beiden Enden (K1e, aus ``test_setup_node``
+    hierher gezogen).
+
+    Der Vokabular-Abgleich sitzt hinter ``TOOL_PREPROCESSORS`` und
+    ``call_mcp_tool`` — er bekommt den Merkposten nicht als Parameter, sondern
+    aus dem ContextVar. Bis 2026-09-29 band ihn der ``setup``-Knoten, und dieser
+    Test fuhr ``setup`` und das Blatt in EINER Task-Kette — im Graphen laufen
+    sie in zwei Kontext-Kopien, dort kam die Buchung nie an. Gebunden wird jetzt
+    in ``begin_turn``; dass die Bindung über die Knotengrenzen trägt, prüft
+    ``test_zug_sammler_erreichen_den_persist_knoten`` am echten Graphen.
+
+    ``asyncio.run`` kopiert den Kontext, also muss die Prüfung INNERHALB des
+    Laufs stehen — ein Binden im Task ist draußen nicht sichtbar.
+    """
+    from types import SimpleNamespace
+
+    from boerdi.services import llm
+    from boerdi.services.mcp import arg_resolvers as ar
+
+    async def fake_acompletion(**kwargs):
+        return SimpleNamespace(
+            model="gpt-5.6-luna",
+            choices=[SimpleNamespace(
+                message=SimpleNamespace(content="http://x/im"))],
+            usage=SimpleNamespace(
+                prompt_tokens=10, completion_tokens=5,
+                prompt_tokens_details=SimpleNamespace(cached_tokens=0)),
+        )
+
+    monkeypatch.setattr(llm, "_acompletion", fake_acompletion)
+    ar._label_to_uri_cache["lrt"]["interaktiv"] = "http://x/im"
+    ctx = _ctx()
+
+    async def zug():
+        build_mod.begin_turn(ctx)
+        return await ar._llm_vocab_match("lrt", "Simulation")
+
+    try:
+        assert asyncio.run(zug()) == "http://x/im"
+    finally:
+        ar._label_to_uri_cache["lrt"].clear()
+        ar._llm_vocab_cache.clear()
+
+    # Die Token stehen im Merkposten DIESES Zuges — dort liest turn_persist.
+    assert ctx.usage["calls"] == 1
+    assert ctx.usage["per_phase"]["vocab_match"]["prompt"] == 10
