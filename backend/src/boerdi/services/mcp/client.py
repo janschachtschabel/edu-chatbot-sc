@@ -39,6 +39,7 @@ import time as _time
 from typing import Any
 
 from boerdi.domain.prepared_write import PreparedWrite, read_prepared_write
+from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD
 from boerdi.services.mcp import transport
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
 from boerdi.services.mcp.tool_args import (
@@ -80,6 +81,30 @@ def is_mcp_error(text: str | None) -> bool:
     irgendwo in der Mitte führt, ist ein Ergebnis.
     """
     return bool(text) and str(text).startswith(_MCP_ERROR_PREFIX)
+
+
+# Die Argument-Zeile in ``call_mcp_tool`` ist für die Fehlersuche an Filtern da,
+# und Filter sind kurz. Zwei Dinge gehören trotzdem nicht ins INFO-Protokoll
+# (offener Befund 1.3, 2026-09-29): der ``confirmToken`` — er löst eine
+# bestätigte Änderung aus — und lange Nutzlasten wie ``content``/``fileBase64``
+# (bis 256 KB, also ein hochgeladenes Dokument). Beide werden ersetzt; die
+# Schlüssel bleiben stehen, damit sichtbar ist, WAS mitgeschickt wurde.
+_LOG_VALUE_MAX_CHARS = 500
+
+
+def _args_for_log(arguments: Any) -> Any:
+    """``arguments`` fürs Protokoll: Schlüssel geschwärzt, lange Werte gekürzt."""
+    if not isinstance(arguments, dict):
+        return arguments
+    zeile: dict[str, Any] = {}
+    for key, value in arguments.items():
+        if key == CONFIRM_TOKEN_FIELD:
+            zeile[key] = "‹geschwärzt›"
+        elif isinstance(value, str) and len(value) > _LOG_VALUE_MAX_CHARS:
+            zeile[key] = f"‹{len(value)} Zeichen›"
+        else:
+            zeile[key] = value
+    return zeile
 
 
 # Per-request accumulator for MCP query metadata (_queryMeta blocks).
@@ -244,8 +269,8 @@ async def call_mcp_tool_status(
     # Debug: log raw LLM-supplied arguments BEFORE validation/resolution so we
     # can see exactly what the model wanted to send. Keeps this at INFO — the
     # cost is ~100 bytes per tool call and it's indispensable for diagnosing
-    # filter bugs.
-    logger.info("MCP tool %s args: %s", tool_name, arguments)
+    # filter bugs. Schlüssel und lange Nutzlasten ausgenommen (``_args_for_log``).
+    logger.info("MCP tool %s args: %s", tool_name, _args_for_log(arguments))
 
     # Validate arguments before sending to MCP server
     arguments = validate_tool_args(tool_name, arguments)
@@ -321,14 +346,30 @@ async def call_mcp_tool_status(
     # benutzt" und verdeckte den Grund. Die Ablehnung protokolliert der
     # Transport; eine Zeile hier wäre dieselbe noch einmal. Ohne ``kind`` wird
     # wiederholt: unbekannt zählt wie „keine Antwort" (Docstring).
+    #
+    # **Ein bestätigter Schreibaufruf wird nie wiederholt** (offener Befund 1.2,
+    # 2026-09-29). „Keine Antwort" heisst nicht „nicht angekommen": der erste
+    # Aufruf kann geschrieben haben, nur die Antwort ging verloren. Die
+    # Wiederholung verbrauchte dann den schon eingelösten Schlüssel, bekam
+    # „unbekannt oder bereits benutzt" (``kind == "tool"``), und die Abnahme
+    # meldete „nichts geändert" — wer daraufhin neu anlegt, erzeugt eine
+    # Dublette. So bleibt es bei ``transport``, und ``write_approval`` bittet
+    # darum, in WLO nachzusehen.
     if "error" in result and result["error"].get("kind") != "tool":
         error_msg = result["error"].get("message", "Unknown error")
         logger.error("MCP tool %s error @ %s: %s", tool_name, target_url, error_msg)
-        logger.info("Retrying MCP tool %s with fresh session @ %s...", tool_name, target_url)
-        result = await transport.call_tool(tool_name, arguments, url=target_url)
-        if "error" in result:
-            error_msg = result["error"].get("message", "Unknown error")
-            logger.error("MCP tool %s retry failed @ %s: %s", tool_name, target_url, error_msg)
+        if CONFIRM_TOKEN_FIELD in arguments:
+            logger.warning(
+                "MCP tool %s: bestätigter Schreibaufruf wird nicht wiederholt — ob "
+                "er den Server erreicht hat, ist offen", tool_name)
+        else:
+            logger.info("Retrying MCP tool %s with fresh session @ %s...",
+                        tool_name, target_url)
+            result = await transport.call_tool(tool_name, arguments, url=target_url)
+            if "error" in result:
+                error_msg = result["error"].get("message", "Unknown error")
+                logger.error("MCP tool %s retry failed @ %s: %s",
+                             tool_name, target_url, error_msg)
 
     if "error" in result:
         # Ohne ``kind`` gilt „keine Antwort" — siehe Docstring: „abgelehnt"
