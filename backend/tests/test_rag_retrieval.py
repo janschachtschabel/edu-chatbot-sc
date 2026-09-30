@@ -289,6 +289,31 @@ def test_ctx_embeds_once_and_searches_every_area(monkeypatch):
     assert "A" in out and "B" in out
 
 
+def test_ctx_fragt_die_bereiche_nacheinander_auf_derselben_sitzung(monkeypatch):
+    # Audit 2026-09-29. Eine ``AsyncSession`` verträgt keine gleichzeitigen
+    # Abfragen: hat sie gerade keine Verbindung (etwa direkt nach dem Commit
+    # des Safety-Protokolls), wirft der zweite Zweig eines ``gather``
+    # ``InvalidRequestError`` ("concurrent operations are not permitted") —
+    # und der Zug endet mit "keine Antwort". Mit Verbindung serialisiert der
+    # asyncpg-Adapter ohnehin, Parallelität gab es also nie zu gewinnen.
+    _wire(monkeypatch, {})
+    im_flug = 0
+    hoechstens = 0
+
+    async def fake_search(session, area, query_embedding, top_k=3):
+        nonlocal im_flug, hoechstens
+        im_flug += 1
+        hoechstens = max(hoechstens, im_flug)
+        await asyncio.sleep(0)
+        im_flug -= 1
+        return [_chunk(area.upper(), 0.9, area=area)]
+
+    monkeypatch.setattr(rr, "search_rag_chunks", fake_search)
+    out = asyncio.run(rr.get_rag_context("sess", "Eiszeit", areas=["a", "b", "c"]))
+    assert hoechstens == 1, "gleichzeitige Abfragen auf einer Sitzung"
+    assert "A" in out and "B" in out and "C" in out
+
+
 def test_ctx_merges_and_sorts_globally_across_areas(monkeypatch):
     _wire(monkeypatch, {
         "a": [_chunk("weak", 0.5, area="a")], "b": [_chunk("strong", 0.9, area="b")],
