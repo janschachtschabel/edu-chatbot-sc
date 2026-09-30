@@ -471,7 +471,11 @@ def _select_active_tools(
     # VOR dem Degradations-Wipe und damit von ihm erfasst — anders als
     # ``respond_to_user`` unten: fehlt ein Pflicht-Slot, stellt der Zug die
     # Rückfrage, und ein Ergebnis, das zu liefern wäre, gibt es dann nicht.
-    active_tools.append(dokument_werkzeug())
+    # Aus demselben Grund nicht im Rückfrage-Muster (``output_mode: clarify``,
+    # M03): der Zug fragt nach, was fehlt. Stand das Werkzeug im Angebot, legte
+    # das Modell die Rückfrage selbst in die Box (live 2026-09-30).
+    if pattern_output.get("output_mode") != "clarify":
+        active_tools.append(dokument_werkzeug())
 
     # Degradation (Pflicht-Slot fehlt): Tool-Liste wirklich leeren statt nur
     # per Prompt-Regel zu bitten — gegen einen Pattern-Body mit

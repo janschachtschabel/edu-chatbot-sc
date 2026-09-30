@@ -382,6 +382,16 @@ def test_bei_degradation_gibt_es_nichts_zu_liefern():
         {"tools": ["search_wlo_content"]}, degradation=True)
 
 
+def test_im_rueckfrage_muster_gibt_es_nichts_zu_liefern():
+    """Das Rückfrage-Muster (``output_mode: clarify``, M03) fragt nach, was
+    fehlt — ein Arbeitsergebnis entsteht dort nicht. Stand ``zeige_dokument``
+    trotzdem im Angebot, legte das Modell die Rückfrage selbst in die Box
+    (live 2026-09-30: „Thema für die Inhaltssuche“ statt einer Rückfrage)."""
+    assert "zeige_dokument" not in _alle_namen({"tools": [], "output_mode": "clarify"})
+    # Gegenprobe: wo ein Ergebnis entsteht, bleibt das Werkzeug.
+    assert "zeige_dokument" in _alle_namen({"tools": [], "output_mode": "rerender"})
+
+
 def test_der_medientyp_strip_nimmt_das_ergebnis_werkzeug_nicht_mit():
     """Der Strip zielt auf SUCH-Werkzeuge. Das Ergebnis-Dokument ist keines —
     fiele es mit heraus, verlöre ausgerechnet der Typ-Fokus-Zug seine Box."""
