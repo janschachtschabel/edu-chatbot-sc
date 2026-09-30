@@ -215,6 +215,18 @@ describe("LoadtestRunComponent", () => {
     h.http.verify();
   });
 
+  it("pollt nicht weiter, wenn das Panel während einer Abfrage verschwindet (Audit 2026-09-29)", async () => {
+    const h = await mount(RUNNING);
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    const imFlug = h.http.expectOne(url("lt-1"));
+
+    h.fixture.destroy();
+    imFlug.flush(RUNNING);
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3);
+
+    h.http.expectNone(url("lt-1"));
+  });
+
   it("follows the selection to another run", async () => {
     const h = await mount(COMPLETED);
     h.fixture.componentInstance.id.set("lt-2");
