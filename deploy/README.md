@@ -394,7 +394,7 @@ Aus dem Audit-Erbe (`../badboerdi/docs/audits/`), auf diesen Stack übersetzt.
 | — | Agenten-Endpunkt | ⚠️ `AGENT_OPEN` **nicht** setzen — es öffnet `/api/agent` ohne jede Anmeldung und ist für Testläufe gedacht. Der normale Weg herein ist die Anmeldung der Person (`WLO-Access-Block`), Server-zu-Server der `STUDIO_API_KEY`. Die Drosselung greift in allen drei Fällen. |
 | — | Master-Skill | Aus, solange `MASTER_SKILL_ENABLED` nicht `true` ist. Angeschaltet laedt der Agent-Modus die Anleitung aus `MASTER_SKILL_NODE_ID` als Prompt-Kopf (Abnahme: eine Zeile `Master-Skill ... geladen` im Log des ersten Zuges). Scheitert der Abruf, antwortet der Chat ohne sie und warnt - kein Ausfall. |
 | — | CORS | ⚠️ **Die Vorgabe ist OFFEN.** Zum Schließen `CORS_ALLOW_ALL=false` **und** `CORS_ORIGINS` mit den einbettenden Domänen setzen — die Liste allein bleibt sonst wirkungslos. Der Start warnt, wenn eine gesetzte Liste übersteuert wird; diese Zeile ist die Abnahme. Browser-Erweiterungen (`safari-web-extension://`, `chrome-extension://`) dürfen auch bei enger Liste — `CORS_ALLOW_EXTENSIONS=false` nimmt ihnen das. |
-| — | Lasttest | ✅ `BOERDI_ALLOW_LOADTEST` leer = auf Prod abgelehnt; er teilt sonst den LLM-Pool mit Live-Nutzern. |
+| — | Lasttest | ✅ `BOERDI_ALLOW_LOADTEST` ohne Eintrag = `false` (compose.prod) = auf Prod abgelehnt; er teilt sonst den LLM-Pool mit Live-Nutzern. Bis 2026-09-29 lieferte das leere `${…:-}` den Code-Default `true`. |
 | — | TLS | ⚠️ Nach dem ersten Start prüfen, dass ACME wirklich ein Zertifikat gezogen hat (`docker compose logs traefik`), sonst hängt die Seite an der Selbstsignatur. |
 
 Die §8-Cluster-Abnahme (Advisory-Lock, NOTIFY-Schranke, Rate-Limit, SSE über

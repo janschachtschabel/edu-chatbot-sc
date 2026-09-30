@@ -97,8 +97,9 @@ ist, während die Replika geht:
 
 Gehört dem Nutzer (Studio → *Lasttest*, oder `POST /api/loadtest/runs`), weil
 der Lauf echte LLM-Aufrufe kostet und die Pipeline mit Live-Verkehr teilt.
-Deshalb ist `BOERDI_ALLOW_LOADTEST` im Prod-Compose per Default **leer** — der
-Lasttest gehört auf eine Staging-Instanz.
+Deshalb ist `BOERDI_ALLOW_LOADTEST` im Prod-Compose per Default **`false`** — der
+Lasttest gehört auf eine Staging-Instanz. (Bis 2026-09-29 stand dort ein leerer
+Wert; `settings.py` liest leer als „nicht gesetzt" = Code-Default `true`.)
 
 Achtung bei der Ablesung: das Backend deckelt Profile still (Parallelität > 32,
 Stufen > 6, Requests/Stufe > 60). Die Studio-Ansicht zeigt deshalb das

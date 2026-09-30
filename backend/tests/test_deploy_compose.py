@@ -110,3 +110,42 @@ def test_die_cors_schalter_erreichen_den_backend_dienst() -> None:
     assert isinstance(umgebung, dict), "environment als Liste — Test anpassen"
     for name in ("CORS_ORIGINS", "CORS_ALLOW_ALL", "CORS_ALLOW_EXTENSIONS"):
         assert name in umgebung, f"{name} erreicht den Backend-Container nicht"
+
+
+# ── Audit 2026-09-29: drei Befunde auf demselben Weg ─────────────────────
+
+def _dienste() -> dict:
+    return yaml.safe_load(_COMPOSE.read_text("utf-8"))["services"]
+
+
+def test_der_lasttest_ist_auf_prod_ohne_eintrag_aus() -> None:
+    """Kommentar, ``.env.example``, Runbook und Cluster-Checkliste sagen: leer
+    = auf Prod abgelehnt. ``${VAR:-}`` liefert aber einen LEEREN String, und
+    ``env_ignore_empty`` macht daraus „nicht gesetzt" — also den Code-Default
+    ``True``. Der Lasttest (bis 32 parallele echte Züge im LLM-Pool der
+    Live-Nutzer) lief damit auf Prod."""
+    wert = _dienste()["backend"]["environment"]["BOERDI_ALLOW_LOADTEST"]
+    assert wert == "${BOERDI_ALLOW_LOADTEST:-false}"
+
+
+def test_migrate_kennt_die_embedding_dimension_des_backends() -> None:
+    """Migration 0001 legt ``vector(dim)`` aus ``get_embed_dim()`` an — das
+    liest ``EMBED_DIM``, ``LLM_EMBED_MODEL`` und ``LLM_PROVIDER``. ``migrate``
+    bekam nur ``DATABASE_URL`` und legte bei jedem anderen Anbieter 1536 an,
+    während das Backend mit einer anderen Dimension einbettete: jede
+    RAG-Abfrage schlug fehl."""
+    dienste = _dienste()
+    for name in ("LLM_PROVIDER", "LLM_EMBED_MODEL", "EMBED_DIM"):
+        assert dienste["migrate"]["environment"].get(name) == \
+            dienste["backend"]["environment"][name], name
+
+
+def test_alte_sicherungen_verschwinden_nur_nach_einer_neuen() -> None:
+    """Das ``find … -delete`` lief auch nach einem gescheiterten ``pg_dump``:
+    nach ``BACKUP_KEEP_DAYS`` stiller Fehlschläge war jede gute Sicherung
+    gelöscht. Aufgeräumt wird nur im Erfolgszweig."""
+    skript = _dienste()["pg-backup"]["command"][0]
+    erfolg = skript.index("then")
+    fehler = skript.index("else")
+    aufraeumen = skript.index("-delete")
+    assert erfolg < aufraeumen < fehler
