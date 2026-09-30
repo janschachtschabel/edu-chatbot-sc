@@ -214,6 +214,26 @@ def test_moderate_error_returns_empty(monkeypatch):
     assert asyncio.run(mod.moderate("x")) == {}
 
 
+def test_moderate_haengt_nie_laenger_als_seine_frist(monkeypatch):
+    # Audit 2026-09-29. ``litellm.amoderation`` baut seinen Client ohne
+    # Zeitlimit (``httpx.Timeout(None)``). Ein Anbieter, der die Verbindung
+    # annimmt und nie antwortet, hielt damit JEDEN Zug an — samt der
+    # Sitzungssperre. Die Stufe ist fail-open: nach der Frist gilt ``{}``.
+    monkeypatch.setattr(mod, "_moderation_target",
+                        lambda: ("https://api.openai.com/v1", "sk-x", None))
+    monkeypatch.setattr(mod, "_MOD_TIMEOUT_SECONDS", 0.05)
+
+    async def _schweigt(**kwargs):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(mod, "_amoderation", _schweigt)
+
+    async def _lauf():
+        return await asyncio.wait_for(mod.moderate("x"), timeout=2.0)
+
+    assert asyncio.run(_lauf()) == {}
+
+
 def test_moderate_passes_b_api_headers(monkeypatch):
     monkeypatch.setattr(mod, "_moderation_target",
                         lambda: ("https://b-api.example/openai", "b-key", {"X-API-KEY": "b-key"}))
