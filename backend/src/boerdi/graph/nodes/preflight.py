@@ -67,7 +67,7 @@ from boerdi.services.rate_limits import check_rate_limit
 from boerdi.services.safety import assess_safety
 from boerdi.services.safety.regex_gate import regex_gate
 from boerdi.services.turn_quality import log_turn_quality
-from boerdi.services.write_approval import redeem_write_approval
+from boerdi.services.write_approval import discard_stale_approval, redeem_write_approval
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +120,11 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     #
     # Nur ohne ``action``: ein Zug mit Direkt-Aktion beauftragt etwas anderes,
     # und ein „ja" im Textfeld daneben ist dann keine Abnahme.
+    #
+    # Davor verfällt ein Vorgang, den dieser Zug nicht bestätigen kann
+    # (Direkt-Aktion oder keine glatte Zustimmung): bestätigen darf nur die
+    # Antwort direkt auf die Vorschau, kein späteres „Ja …" (Audit 2026-09-29).
+    await discard_stale_approval(session, req, ctx.session_state)
     if not req.action:
         eingeloest = await redeem_write_approval(session, req, ctx.session_state)
         if eingeloest is not None:

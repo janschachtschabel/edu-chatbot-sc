@@ -13,6 +13,7 @@ for real (pure) as the safety-assess fallback.
 from __future__ import annotations
 
 import asyncio
+import time
 
 import pytest
 
@@ -162,6 +163,76 @@ def test_eine_direktaktion_loest_keine_abnahme_ein(monkeypatch):
 
     assert einloesung.calls == []
     assert out.early_response.content == "BROWSE-OK"
+
+
+def _liegengelassene_abnahme(monkeypatch):
+    """Ein offener Vorgang aus einem früheren Zug, echte Einlösung dahinter.
+
+    Gepatcht sind nur die Außenkanten von ``services/write_approval`` — das
+    Zusammenspiel beider Vorlauf-Schritte (Verwerfen, dann Einlösen) läuft echt.
+    """
+    from boerdi.domain.write_confirm import remember_pending
+    from boerdi.services import write_approval as wa_mod
+
+    _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low"))
+    monkeypatch.setattr(pf_mod, "_log_early_quality", _Spy())
+    schreiben = _Spy(("Der Datensatz wurde angelegt.", ""))
+    monkeypatch.setattr(wa_mod, "call_mcp_tool_status", schreiben)
+    monkeypatch.setattr(wa_mod, "update_session", _Spy())
+    monkeypatch.setattr(wa_mod, "save_message", _Spy())
+    zustand = {"persona_id": "P-AND", "entities": {"_pending_write": remember_pending(
+        "wlo_create_content", {"title": "Arbeitsblatt Bruchrechnung"},
+        "Ax9-_QmZ2kLpWvRt7NbYcE4s", now=time.time())}}
+    return schreiben, zustand
+
+
+def test_ein_spaeteres_ja_loest_einen_liegengelassenen_vorgang_nicht_aus(monkeypatch):
+    """Audit 2026-09-29. Die Vorschau stand, die Person ging zu etwas anderem
+    über — und ein späterer Chip „Ja, zeig mir mehr Videos" ist eine glatte
+    Zustimmung (kurz, ohne Vorbehalt). Bis hier überdauerte der Vorgang die
+    Zwischenzüge (Frist zehn Minuten) und wurde von diesem „ja" ausgeführt:
+    eine Änderung, der niemand zugestimmt hat. Bestätigen kann ihn nur die
+    Antwort direkt auf die Vorschau."""
+    from boerdi.domain.write_confirm import is_affirmation
+
+    schreiben, zustand = _liegengelassene_abnahme(monkeypatch)
+
+    asyncio.run(preflight(
+        _ctx(None, message="Zeig mir erst Videos zu Brüchen", session_state=zustand),
+        _SESSION))
+    assert is_affirmation("Ja, zeig mir mehr Videos"), "sonst prüfte der Test nichts"
+    out = asyncio.run(preflight(
+        _ctx(None, message="Ja, zeig mir mehr Videos", session_state=zustand), _SESSION))
+
+    assert schreiben.calls == [], "Ein liegengelassener Vorgang wurde ausgeführt"
+    assert out.early_response is None
+
+
+def test_eine_direktaktion_dazwischen_laesst_den_vorgang_verfallen(monkeypatch):
+    """Dasselbe über einen Knopf: ein Klick auf „Sammlung ansehen" ist ein
+    anderer Auftrag. Danach darf ein „ja" die alte Vorschau nicht mehr
+    bestätigen."""
+    schreiben, zustand = _liegengelassene_abnahme(monkeypatch)
+
+    asyncio.run(preflight(
+        _ctx("browse_collection", message="", session_state=zustand, collection_id="c1"),
+        _SESSION))
+    asyncio.run(preflight(_ctx(None, message="ja", session_state=zustand), _SESSION))
+
+    assert schreiben.calls == []
+
+
+def test_die_antwort_direkt_auf_die_vorschau_bestaetigt_weiterhin(monkeypatch):
+    """Gegenprobe: die unmittelbare Zustimmung löst den Vorgang wie bisher ein."""
+    schreiben, zustand = _liegengelassene_abnahme(monkeypatch)
+
+    out = asyncio.run(preflight(
+        _ctx(None, message="Ja, so ausführen", session_state=zustand), _SESSION))
+
+    assert len(schreiben.calls) == 1
+    assert out.early_response is not None
 
 
 def test_die_drosselung_kommt_vor_der_abnahme(monkeypatch):

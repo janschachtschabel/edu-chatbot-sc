@@ -35,7 +35,7 @@ from boerdi.api.schemas import ChatRequest, Environment
 from boerdi.domain.write_confirm import remember_pending
 from boerdi.i18n.bot_text import bot_text
 from boerdi.services import write_approval as wa_mod
-from boerdi.services.write_approval import redeem_write_approval
+from boerdi.services.write_approval import discard_stale_approval, redeem_write_approval
 
 _SESSION = object()  # Sentinel — jede DB-Grenze ist gepatcht.
 
@@ -152,6 +152,64 @@ class TestZurueckhaltung:
         zustand["entities"]["_pending_write"].pop("args")
         assert await redeem_write_approval(_SESSION, _req(), zustand) is None
         assert mcp.calls == []
+
+
+# ── Wann ein offener Vorgang verfällt (Audit 2026-09-29) ─────────────────
+
+
+class TestVerfall:
+    """Bestätigen kann nur die Antwort DIREKT auf die Vorschau.
+
+    Ein Vorgang, der einen Zug mit anderem Anliegen überdauert, wartete bis
+    hier bis zum Fristende (zehn Minuten) — und ein beliebiges späteres „Ja …"
+    führte ihn aus. Der Preis der engen Regel ist eine zweite Frage; der Preis
+    der weiten eine Änderung, der niemand zugestimmt hat (``is_affirmation``).
+    """
+
+    @pytest.mark.asyncio
+    async def test_ein_anderes_anliegen_verwirft_den_vorgang(self, _grenzen):
+        _mcp, update, _s = _grenzen
+        zustand = _zustand()
+        verworfen = await discard_stale_approval(
+            _SESSION, _req("Zeig mir erst Videos zu Brüchen"), zustand)
+        assert verworfen is True
+        assert "_pending_write" not in zustand["entities"]
+        # Sofort gespeichert: nicht jeder Weg nach dem Vorlauf schreibt
+        # ``entities`` zurück (Direkt-Aktionen), der Verfall muss es trotzdem.
+        assert len(update.calls) == 1
+        assert "_pending_write" not in update.calls[0][1]["entities"]
+
+    @pytest.mark.asyncio
+    async def test_ein_vorbehalt_verwirft_den_vorgang(self, _grenzen):
+        zustand = _zustand()
+        assert await discard_stale_approval(
+            _SESSION, _req("ja, aber nenn es anders"), zustand) is True
+        assert "_pending_write" not in zustand["entities"]
+
+    @pytest.mark.asyncio
+    async def test_eine_direktaktion_verwirft_den_vorgang(self, _grenzen):
+        zustand = _zustand()
+        assert await discard_stale_approval(
+            _SESSION, _req("ja", action="browse_collection"), zustand) is True
+        assert "_pending_write" not in zustand["entities"]
+
+    @pytest.mark.asyncio
+    async def test_eine_glatte_zustimmung_laesst_den_vorgang_stehen(self, _grenzen):
+        # Den Rest entscheidet die Einlösung — oder, ohne gemerkte Argumente,
+        # der Fingerabdruck-Weg im Tool-Loop. Beide brauchen den Vorgang noch.
+        _mcp, update, _s = _grenzen
+        zustand = _zustand()
+        assert await discard_stale_approval(_SESSION, _req(), zustand) is False
+        assert "_pending_write" in zustand["entities"]
+        assert update.calls == []
+
+    @pytest.mark.asyncio
+    async def test_ohne_vorgang_wird_nichts_geschrieben(self, _grenzen):
+        _mcp, update, _s = _grenzen
+        zustand = {"persona_id": "P-AND", "entities": {}}
+        assert await discard_stale_approval(
+            _SESSION, _req("such mir was zu Optik"), zustand) is False
+        assert update.calls == []
 
 
 # ── Die Einlösung selbst ─────────────────────────────────────────────────

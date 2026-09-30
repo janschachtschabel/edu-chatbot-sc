@@ -74,6 +74,46 @@ logger = logging.getLogger(__name__)
 _PATTERN_ID = "M18"
 
 
+async def discard_stale_approval(
+    session: AsyncSession | None,
+    req: ChatRequest,
+    session_state: dict,
+) -> bool:
+    """Den offenen Vorgang verwerfen, wenn dieser Zug ihn nicht bestätigen kann.
+
+    Bestätigen kann ihn nur die Antwort **direkt** auf die Vorschau (Audit
+    2026-09-29). Bis dahin überdauerte er jeden Zwischenzug bis zum Fristende,
+    und ein beliebiges späteres „Ja …" führte ihn aus — etwa der Chip „Ja, zeig
+    mir mehr Videos" zwei Züge nach einer Vorschau, zu der die Person nie etwas
+    gesagt hatte. Verworfen wird deshalb in jedem Zug, der eine Direkt-Aktion
+    trägt oder keine glatte Zustimmung ist (:func:`is_affirmation`). Kommt das
+    Anliegen wieder, zeigt das Modell eine neue Vorschau: der Preis ist eine
+    zweite Frage, nicht eine Änderung ohne Zustimmung.
+
+    Eine glatte Zustimmung lässt den Vorgang stehen — ihn löst
+    :func:`redeem_write_approval` ein oder, ohne gemerkte Argumente, der
+    Fingerabdruck-Weg im Tool-Loop. Weil jeder Tool-Loop-Zug diesen Vorlauf
+    passiert, sieht auch jener Weg nur noch Vorgänge des direkt vorigen Zugs.
+
+    Gespeichert wird sofort: nicht jeder Weg nach dem Vorlauf schreibt
+    ``entities`` zurück (die Direkt-Aktionen nicht), und ein nur im Speicher
+    verworfener Vorgang stünde beim nächsten Zug wieder in der Datenbank.
+    Gibt zurück, ob verworfen wurde.
+    """
+    entities = session_state.setdefault("entities", {})
+    pending = entities.get("_pending_write")
+    if not pending:
+        return False
+    if not req.action and is_affirmation(req.message):
+        return False
+    entities.pop("_pending_write", None)
+    logger.info(
+        "offener Vorgang für %s verworfen — dieser Zug ist keine Antwort auf die Vorschau",
+        pending.get("tool") if isinstance(pending, dict) else "?")
+    await update_session(session, req.session_id, entities=entities)
+    return True
+
+
 async def redeem_write_approval(
     session: AsyncSession | None,
     req: ChatRequest,
