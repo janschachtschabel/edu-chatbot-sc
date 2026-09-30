@@ -537,6 +537,7 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.bridges.destroy();
+    this.panel.destroy();
   }
 
   // ── Öffnen/Schließen ────────────────────────────────────────────
