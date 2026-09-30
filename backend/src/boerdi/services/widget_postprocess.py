@@ -148,6 +148,14 @@ async def _postprocess_response_for_widget_modes(
                     }
         except Exception:
             _debug_entities = {}
+        # Hat das Gate die Volltextsuche gesperrt (persönliche Daten, Krise),
+        # darf keine Rückfall-Suche die ROHE Nachricht doch an den MCP-Server
+        # schicken (Audit 2026-09-29). ``debug.safety`` legt ``turn_persist`` ab.
+        _dbg_safety = getattr(resp.debug, "safety", None) if resp.debug else None
+        _suche_gesperrt = bool(
+            {"search_wlo_content", "search_wlo_all"}
+            & set(getattr(_dbg_safety, "blocked_tools", None) or [])
+        )
         _universal_wanted = _resolve_wanted_content_types(
             req.message or "",
             session_entities=_debug_entities,
@@ -239,6 +247,7 @@ async def _postprocess_response_for_widget_modes(
         if (
             _claim
             and _query_like
+            and not _suche_gesperrt
             and (not cards_for_postprocess or _selection_collapses)
         ):
             _mode_label = "inline" if not modes["cards_enabled"] else "kacheln"
@@ -387,7 +396,7 @@ async def _postprocess_response_for_widget_modes(
                 )
                 # SCHRITT 2: Reicht der In-Memory-Pool noch nicht? Fallback
                 # auf frischen search_wlo_content-Call.
-                if _added < _needed:
+                if _added < _needed and not _suche_gesperrt:
                     try:
                         _extra = await _fallback_inline_search(
                             _user_msg, classification_entities or {},

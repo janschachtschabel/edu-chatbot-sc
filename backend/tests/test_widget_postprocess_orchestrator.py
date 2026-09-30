@@ -134,6 +134,25 @@ async def test_safety_net_injects_fallback_cards_on_delivery_claim(monkeypatch):
     assert "fb1" in [_nid(c) for c in out.cards]
 
 
+async def test_safety_net_sucht_nicht_mit_gesperrter_nachricht(monkeypatch):
+    # Audit 2026-09-29. Die Rückfall-Suche schickt die ROHE Nachricht als
+    # ``query`` an den MCP-Server. Hat das Gate persönliche Daten erkannt
+    # (Passwort, Geburtsdatum, Kartennummer) und die Volltextsuche gesperrt,
+    # darf dieser Weg sie nicht doch hinaustragen.
+    from boerdi.api.schemas import SafetyDecision
+    _no_v2(monkeypatch)
+    fb = AsyncMock(return_value=[{"node_id": "fb1"}])
+    monkeypatch.setattr(f"{MOD}._fallback_inline_search", fb)
+    dbg = DebugInfo(phase3_modulations={"tools": ["search_wlo_content"],
+                                        "sources": ["mcp"]},
+                    safety=SafetyDecision(risk_level="medium",
+                                          blocked_tools=["search_wlo_content"]))
+    resp = _resp(content="Ich habe dir etwas rausgesucht.", cards=[], debug=dbg)
+    await _postprocess_response_for_widget_modes(
+        _req(message="mein passwort ist geheim123 photosynthese"), resp)
+    fb.assert_not_awaited()
+
+
 async def test_safety_net_skipped_for_rag_only_pattern(monkeypatch):
     _no_v2(monkeypatch)
     fb = AsyncMock(return_value=[{"node_id": "fb1"}])

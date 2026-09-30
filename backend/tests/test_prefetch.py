@@ -85,6 +85,18 @@ def test_spec_skips_on_high_risk(spec_mcp):
     assert spec_mcp == []
 
 
+def test_spec_skips_when_the_search_is_blocked(spec_mcp):
+    # Audit 2026-09-29: persönliche Daten → mittleres Risiko, Suche gesperrt.
+    # Der Vorabruf startete trotzdem; ``respond`` brach ihn erst ab, als die
+    # Anfrage schon beim MCP-Server lag.
+    req = ChatRequest(session_id="s", message="Material zu Brüchen")
+    classification = ClassificationResult(intent_id="I03", entities={"thema": "Brüche"})
+    safety = SafetyDecision(risk_level="medium",
+                            blocked_tools=["search_wlo_content", "search_wlo_all"])
+    assert asyncio.run(_drive_spec(req, classification, safety)) == _SPEC_DEFAULTS
+    assert spec_mcp == []
+
+
 def test_spec_skips_on_non_search_intent(spec_mcp):
     assert _launch(intent="I01", entities={"thema": "Brüche"}) == _SPEC_DEFAULTS
     assert spec_mcp == []

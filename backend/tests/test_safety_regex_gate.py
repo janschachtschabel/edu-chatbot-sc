@@ -85,6 +85,15 @@ def test_injection_mit_unsichtbarem_zeichen_wird_erkannt(monkeypatch):
     assert "possible_prompt_injection" in d.reasons
 
 
+def test_die_sperren_decken_auch_die_standard_suche():
+    # Audit 2026-09-29: ``search_wlo_all`` ist die Standard-Suche und eine
+    # Obermenge von ``search_wlo_content``. Stand sie nicht in den Sperren,
+    # lief eine Nachricht mit persönlichen Daten (oder in der Krise) über sie
+    # doch in die Volltextsuche.
+    assert "search_wlo_all" in rg.regex_gate("mein passwort ist geheim123", []).blocked_tools
+    assert "search_wlo_all" in rg.regex_gate("ich will mich umbringen", []).blocked_tools
+
+
 def test_pii_volunteered_is_medium_not_high():
     d = rg.regex_gate("mein passwort ist geheim123", [])
     assert d.risk_level == "medium"

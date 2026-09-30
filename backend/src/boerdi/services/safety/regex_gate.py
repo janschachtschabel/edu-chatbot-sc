@@ -47,13 +47,16 @@ from boerdi.api.schemas import SafetyDecision
 #: Was eine erkannte Krise oder Drohung sperrt: die Materialsuche — die
 #: Schutzantwort bietet kein Material an. In der Agent-Schleife kommt es dazu
 #: nicht: das erzwungene Muster antwortet statt ihrer (SF-1).
+#: ``search_wlo_all`` ist die Standard-Suche und eine Obermenge von
+#: ``search_wlo_content`` — ohne sie liefe die Sperre ins Leere (Audit 2026-09-29).
 SPERRE_KRISE: Final = (
     "search_wlo_collections", "search_wlo_content", "get_collection_contents",
+    "search_wlo_all",
 )
 #: Persönliche Daten in der Nachricht: keine Volltextsuche damit. Die
 #: Werkzeugliste des Studios nennt sie (ST-8b) und liest sie hier, statt sie
 #: abzuschreiben.
-SPERRE_PERSOENLICH: Final = ("search_wlo_content",)
+SPERRE_PERSOENLICH: Final = ("search_wlo_content", "search_wlo_all")
 
 # ── Stage 1: Regex patterns ─────────────────────────────────────────
 # Crisis = Nutzer richtet Gewalt/Suizid gegen SICH SELBST.  Ein reines
