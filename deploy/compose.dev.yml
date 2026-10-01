@@ -5,6 +5,8 @@
 #   jaeger:   http://localhost:16686
 #
 # Dependency-Änderung => Image neu bauen (docker compose ... build backend).
+# Alle Ports nur auf 127.0.0.1 (Audit 2026-09-29 §7): sonst erreichte jeder im
+# selben Netz die Dev-Datenbank mit dem Dev-Passwort und das ungeschützte Backend.
 # TEI-Reranker-Sidecar kommt in P6-3 (RERANK_URL-Wiring).
 name: boerdi-chat-dev
 
@@ -16,7 +18,7 @@ services:
       POSTGRES_PASSWORD: boerdi   # dev-only; prod creds via secrets (P10)
       POSTGRES_DB: boerdi
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./initdb:/docker-entrypoint-initdb.d:ro
@@ -29,8 +31,8 @@ services:
   jaeger:
     image: jaegertracing/jaeger:2.19.0
     ports:
-      - "16686:16686"   # UI
-      - "4318:4318"     # OTLP/HTTP (backend exporter, P1-5)
+      - "127.0.0.1:16686:16686"   # UI
+      - "127.0.0.1:4318:4318"     # OTLP/HTTP (backend exporter, P1-5)
 
   valkey:
     # Nur für den §8-Cluster-Test (tests/test_cluster_checklist.py, Marker
@@ -43,7 +45,7 @@ services:
     image: valkey/valkey:8-alpine
     command: ["valkey-server", "--save", "", "--appendonly", "no"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
   backend:
     build:
@@ -62,7 +64,7 @@ services:
       # dieser Container lauscht auf 8100 (Begründung: compose.prod.yml).
       EVAL_CHAT_URL: http://127.0.0.1:8100/api/chat
     ports:
-      - "8100:8100"
+      - "127.0.0.1:8100:8100"
     volumes:
       - ../backend/src:/app/src:ro
     depends_on:
