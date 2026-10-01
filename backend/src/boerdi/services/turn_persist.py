@@ -70,7 +70,7 @@ from boerdi.domain.turn_frame import (
     clear_frame,
     note_clarification,
 )
-from boerdi.domain.write_confirm import preview_for_display
+from boerdi.domain.write_confirm import is_affirmation, preview_for_display
 from boerdi.i18n import CLAIM_WORDS, DEFAULT, resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.zeiten import spur_zeilen
@@ -488,7 +488,11 @@ async def persist_and_build_response(
     # dort, wo die Box entsteht.
     if session_state.get("_write_preview"):
         _confirm_chip = bot_text(_lang, "action.write.confirmChip")
-        quick_replies = [_confirm_chip, *(q for q in quick_replies if q != _confirm_chip)]
+        # Keine zweite glatte Zustimmung daneben: der Vorlauf löste sie im
+        # Folgezug genauso ein, auch wenn sie etwas anderes meint („Ja, zeig mir
+        # mehr Videos“; Review Paket 2, Befund 2).
+        quick_replies = [_confirm_chip, *(
+            q for q in quick_replies if q != _confirm_chip and not is_affirmation(q))]
 
     # Welle E — Quick-Replies-Limit aus display_rules; per-Pattern ``_qr_max``
     # überschreibt den globalen Deckel. max_count: 0 → keine Pillen.
