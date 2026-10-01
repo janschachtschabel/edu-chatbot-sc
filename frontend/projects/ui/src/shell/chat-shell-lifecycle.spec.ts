@@ -67,6 +67,15 @@ describe('ChatShellComponent — Lifecycle-Wiring (8-4S-e5)', () => {
     expect(s2l).toHaveBeenCalledTimes(1);
   });
 
+  it('Sprachwechsel: ngOnChanges(locale) lässt die Startnachricht neu setzen (Paket 1, T2)', () => {
+    const { c } = make();
+    (c as unknown as { _api: unknown })._api = { setUiLocale: vi.fn() };
+    const lc = (c as unknown as { _lifecycle: Record<string, () => void> })._lifecycle;
+    const spy = vi.spyOn(lc, 'relocalizeWelcome').mockImplementation(() => {});
+    c.ngOnChanges({ locale: { previousValue: 'de', currentValue: 'en', firstChange: false } });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it('ngAfterViewChecked delegiert an ScrollFollowController.afterViewChecked', () => {
     const { c } = make();
     const spy = vi.spyOn((c as unknown as { _scroll: Record<string, () => void> })._scroll, 'afterViewChecked');

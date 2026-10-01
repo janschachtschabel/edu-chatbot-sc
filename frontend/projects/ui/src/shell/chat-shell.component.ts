@@ -817,6 +817,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     if (sprache && !sprache.firstChange && sprache.previousValue !== sprache.currentValue) {
       this.render.clearCache();
       this._api.setUiLocale(this.locale());  // C1-f1: ab dem nächsten Zug
+      this._lifecycle.relocalizeWelcome();   // Startnachricht vor der ersten Frage
     }
   }
 

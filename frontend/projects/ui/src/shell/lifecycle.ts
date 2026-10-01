@@ -160,6 +160,11 @@ export class ShellLifecycle {
     this._willkommen.show();
   }
 
+  /** Sprachwechsel vor der ersten Frage: Startnachricht in der neuen Sprache. */
+  relocalizeWelcome(): void {
+    this._willkommen.relocalize();
+  }
+
   /** Frische Session + Begrüßung (Header-Restart). Verbatim aus ALT 1262-1270. */
   restart(): void {
     const id = generateSessionId();
