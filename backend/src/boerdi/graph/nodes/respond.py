@@ -38,6 +38,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from boerdi.domain.answer_notes import append_answer_notes
+from boerdi.domain.antwort_werkzeug import inline_anzahl
 from boerdi.domain.quick_reply_policy import _qr_default_count, _spec_qr_response_block
 from boerdi.domain.skill_precedence import mit_ladehinweis
 from boerdi.graph.nodes.respond_agent import respond_agent
@@ -353,9 +354,12 @@ async def respond(
 
         # QR-Policy speculative: QR-Generator PARALLEL zum Antwort-LLM starten.
         # Er kennt Pattern/Entities/CE-gegatete Treffer — nicht den Antworttext.
-        # Der Konsistenz-/Fallback-Check folgt im Assembly-Slice.
+        # Der Konsistenz-/Fallback-Check folgt im Assembly-Slice. Nicht, wenn
+        # der Antwort-Aufruf die Vorschläge selbst liefert (``respond_to_user``):
+        # die Zusammenstellung nähme ihn ohnehin nie (Plan 2026-09-30, T4).
         _qr_count_eff = _qr_max if _qr_max is not None else _qr_default_count()
-        if _qr_mode == "speculative" and _qr_spec_task is None and _qr_count_eff > 0:
+        if (_qr_mode == "speculative" and _qr_spec_task is None and _qr_count_eff > 0
+                and not inline_anzahl(pattern_output)):
             try:
                 _spec_titles: list[str] = []
                 _spec_payloads = (

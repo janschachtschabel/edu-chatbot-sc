@@ -44,6 +44,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from boerdi.domain.antwort_werkzeug import RESPOND_TO_USER, antwort_aus_argumenten
 from boerdi.domain.inline_documents import (
     MAX_DOKUMENTE_JE_ZUG,
     ZEIGE_DOKUMENT,
@@ -72,6 +73,7 @@ from boerdi.domain.write_confirm import (
     token_for,
 )
 from boerdi.obs.usage import add_usage, extract_usage
+from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm
 from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
 from boerdi.services.card_collect import collect_cards
@@ -275,6 +277,7 @@ async def _run_tool_loop(
             verbosity=_verbosity,
         )
 
+        _t0 = time.perf_counter()
         try:
             if on_token is not None:
                 # Phase-2 Streaming — same kwargs but tokens arrive progressively
@@ -292,12 +295,16 @@ async def _run_tool_loop(
             # A2.1 — Phase-Label je Iteration: tool-Iteration vs final response.
             # Hilft bei der Cache-Hit-Rate-Diagnose: "response"-Calls haben oft
             # keinen Cache-Hit, weil Tool-Output-Messages den Prompt variieren.
+            # Eine Runde mit ``respond_to_user`` IST die Antwort (Vorgabe seit
+            # 2026-09-30), auch wenn sie als Werkzeugaufruf kommt.
             _phase = (
                 "tool_loop"
-                if (choice.finish_reason == "tool_calls" and choice.message.tool_calls)
+                if (choice.finish_reason == "tool_calls" and choice.message.tool_calls
+                    and not any(tc.function.name == "respond_to_user"
+                                for tc in choice.message.tool_calls))
                 else "response"
             )
-            add_usage(usage_acc, extract_usage(resp), phase=_phase)
+            add_usage(usage_acc, extract_usage(resp), phase=_phase, ms=seit_ms(_t0))
 
         # Track whether the model used the optional respond_to_user tool —
         # if so, the for-loop's tool-handling falls through and we treat it
@@ -483,15 +490,13 @@ async def _run_tool_loop(
                     continue
 
                 # ── Combined-output: model emitted FINAL answer + quick_replies ─
-                # See env CHAT_INLINE_QUICK_REPLIES + the respond_to_user tool
-                # definition above. Treat this as the equivalent of a
-                # finish_reason == "stop" with the extracted text.
-                if tool_name == "respond_to_user":
-                    _inline_response_text = strip_reasoning_markers((tool_args.get("text") or "").strip())  # noqa: E501
-                    qr = tool_args.get("quick_replies") or []
-                    _inline_quick_replies = [
-                        str(r).strip() for r in qr if isinstance(r, str) and str(r).strip()
-                    ][:4]
+                # See ``domain/antwort_werkzeug``. Treat this as the equivalent
+                # of a finish_reason == "stop" with the extracted text. Count and
+                # length are capped at assembly (``filtere_vorschlaege``), where
+                # the pattern's count is known.
+                if tool_name == RESPOND_TO_USER:
+                    _inline_response_text, _inline_quick_replies = antwort_aus_argumenten(
+                        tool_args)
                     # Safety net: the model occasionally ALSO writes the quick-
                     # replies / "Bring mich hin"-link as bold lines at the END of
                     # the answer text. They belong only in quick_replies (rendered

@@ -125,9 +125,12 @@ class DebugInfo(BaseModel):
     # Format: {"prompt_tokens": int, "completion_tokens": int,
     #          "cached_tokens": int, "reasoning_tokens": int, "calls": int,
     #          "models": {"<model_name>": {"prompt": …, "completion": …, …}},
-    #          "per_phase": {"<phase>": {"prompt": …, "completion": …, …}}}
+    #          "per_phase": {"<phase>": {"prompt": …, "completion": …, …, "ms": int}},
+    #          "zeiten_ms": {"<knoten>" | "<knoten>.<schritt>": int}}
     # ``cached_tokens``/``reasoning_tokens`` sind „davon"-Zahlen: enthalten in
     # ``prompt_tokens`` bzw. ``completion_tokens``, nicht zusätzlich dazu.
+    # ``ms``/``zeiten_ms`` (2026-09-30): Wanduhr-Dauer je LLM-Phase bzw. je
+    # Graph-Knoten und Teilschritt — siehe ``obs/zeiten``.
     token_usage: dict[str, Any] = Field(default_factory=dict)
     # AG-1 (2026-09-26): die Maschine, an die der Zug ging (``pattern`` oder
     # ``agent``; ältere Einträge auch ``hybrid``, bis K1-1). Leer bei Zügen,

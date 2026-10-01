@@ -641,6 +641,9 @@ def test_loop_usage_phase_labels_per_iteration(monkeypatch):
     ], active_tools=_ACTIVE, usage_acc=acc)
     assert acc["per_phase"]["tool_loop"]["calls"] == 1   # tool round
     assert acc["per_phase"]["response"]["calls"] == 1    # final round
+    # Plan 2026-09-30 (T7): jede Runde bringt ihre Dauer mit.
+    assert acc["per_phase"]["tool_loop"]["ms"] >= 0
+    assert acc["per_phase"]["response"]["ms"] >= 0
     assert acc["calls"] == 2
 
 
@@ -793,10 +796,27 @@ def test_loop_konsistenz_nachsatz_bleibt_fuer_andere_muster(monkeypatch):
         monkeypatch, "M05")
 
 
+def test_die_antwortrunde_ueber_respond_to_user_bucht_als_response(monkeypatch):
+    """Plan 2026-09-30: Seit die Antwort per ``respond_to_user`` kommt (Vorgabe),
+    endet die letzte Runde mit ``finish_reason == "tool_calls"``. Sie ist aber die
+    Antwort — als ``tool_loop`` gebucht, stünde im Golden-Bericht „response:
+    0 Aufrufe" und die Cache-Quote der Antwort verschwände in der Werkzeugrunde."""
+    from boerdi.obs import usage as usage_mod
+    acc = usage_mod.new_accumulator()
+    u = SimpleNamespace(prompt_tokens=10, completion_tokens=5, prompt_tokens_details=None)
+    args = json.dumps({"text": "Antwort", "quick_replies": ["A", "B"]})
+    _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "search_wlo_content", "{}")], usage=u),
+        _resp_tools([("tc2", "respond_to_user", args)], usage=u),
+    ], active_tools=_ACTIVE, usage_acc=acc, _inline_qr_enabled=True)
+    assert acc["per_phase"]["tool_loop"]["calls"] == 1
+    assert acc["per_phase"]["response"]["calls"] == 1
+
+
 def test_loop_respond_to_user_inline_final(monkeypatch):
     args = json.dumps({
         "text": "Antwort hier\n**Mehr Mathe**",
-        "quick_replies": ["Mehr Mathe", "Zeig Videos", "", 3, "a", "b"],
+        "quick_replies": ["Mehr Mathe", "Zeig Videos", "", 3, "a", "b", "c"],
     })
     fake, result, st = _run_loop(monkeypatch, [
         _resp_tools([("tc1", "respond_to_user", args),
@@ -805,7 +825,7 @@ def test_loop_respond_to_user_inline_final(monkeypatch):
     text, _cards, tools, _outs = result
     assert text == "Antwort hier"  # trailing QR option line stripped
     assert st["session_state"]["_inline_quick_replies"] == [
-        "Mehr Mathe", "Zeig Videos", "a", "b"]  # strings only, max 4
+        "Mehr Mathe", "Zeig Videos", "a", "b", "c"]  # strings only; capped at assembly
     assert len(fake.calls) == 1    # inline final ends the loop
     assert tools == ["respond_to_user"]  # tc2 after the break is NOT processed
     tool_msgs = [m for m in st["messages"] if m.get("role") == "tool"]

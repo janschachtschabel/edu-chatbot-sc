@@ -331,3 +331,27 @@ def test_qr_unlesbare_config_faellt_auf_die_vorgabe_zurueck(_qr_env) -> None:
     out, cap = _run(_qr_env, f"{_ZU_LANG}\nZeig mir mehr")
     assert out == ["Zeig mir mehr"]
     assert f"{qr.QR_MAX_CHARS_DEFAULT} Zeichen" in _system_of(cap)
+
+
+# ── Plan 2026-09-30 (T3): EINE Regel für beide Wege ─────────────────────
+# Die Vorschläge aus dem Antwort-Aufruf (``respond_to_user``) liefen bisher
+# ungefiltert durch: gekappt auf 4, ohne Zeichengrenze. Jetzt gilt dieselbe
+# Regel wie für den eigenen Aufruf — eine Funktion, keine Kopie.
+
+def test_filter_verwirft_zu_lange_ohne_zu_kuerzen() -> None:
+    assert qr.filtere_vorschlaege([_ZU_LANG, "Zeig mir mehr"], anzahl=2, max_zeichen=40) == [
+        "Zeig mir mehr"]
+
+
+def test_filter_entfernt_dubletten_in_anderer_schreibweise() -> None:
+    assert qr.filtere_vorschlaege(["Zeig mir mehr", "zeig mir MEHR", "Anderes Thema"],
+                                  anzahl=2, max_zeichen=48) == ["Zeig mir mehr", "Anderes Thema"]
+
+
+def test_filter_kappt_auf_die_anzahl_und_der_lotse_kommt_dazu() -> None:
+    out = qr.filtere_vorschlaege(["A", "B", _LOTSE, "C"], anzahl=2, max_zeichen=48)
+    assert out == [_LOTSE, "A", "B"]
+
+
+def test_filter_deckel_null_heisst_kein_deckel() -> None:
+    assert qr.filtere_vorschlaege([_ZU_LANG], anzahl=2, max_zeichen=0) == [_ZU_LANG]

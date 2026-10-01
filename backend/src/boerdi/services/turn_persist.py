@@ -73,6 +73,7 @@ from boerdi.domain.turn_frame import (
 from boerdi.domain.write_confirm import preview_for_display
 from boerdi.i18n import CLAIM_WORDS, DEFAULT, resolve_locale
 from boerdi.i18n.bot_text import bot_text
+from boerdi.obs.zeiten import spur_zeilen
 from boerdi.services.agent_zugblock import DOKUMENTE_DEBUG_KEY, dokumente_fuer_die_nachricht
 from boerdi.services.config_loader import load_display_rules_config
 from boerdi.services.db_sessions import finalize_message, save_message, update_session
@@ -154,6 +155,9 @@ async def build_debug_and_update_session(
     if _geholt:
         _spur.append(TraceEntry(step="skill", label=_geholt["titel"] or _geholt["node_id"],
                                 data=_geholt))
+    # Plan 2026-09-30 (T9): die Zeiten des Zuges — das Debug-Panel zeigt
+    # Trace-Zeilen mit Dauer schon an.
+    _spur += [TraceEntry(**zeile) for zeile in spur_zeilen(usage_acc)]
 
     debug = DebugInfo(
         persona=f"{_pid} ({_persona_labels.get(_pid, _pid)})",

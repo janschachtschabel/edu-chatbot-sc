@@ -63,7 +63,7 @@ def _patch(monkeypatch, upd: _UpdSpy):
 
 def _run(monkeypatch, *, session_state=None, classification=None, winner_id="M09",
          eff_id="M09", eff_label="Lernpfad", new_state="S3", signal_history=None,
-         final_confidence=0.77, extra=None):
+         final_confidence=0.77, extra=None, usage_acc=None):
     upd = _UpdSpy()
     _patch(monkeypatch, upd)
     ss = session_state if session_state is not None else {
@@ -86,7 +86,7 @@ def _run(monkeypatch, *, session_state=None, classification=None, winner_id="M09
         SafetyDecision(risk_level="low"),
         None,   # policy
         None,   # context_snapshot
-        {"calls": 3},  # usage_acc
+        usage_acc if usage_acc is not None else {"calls": 3},
         winner_id,
         {"tone": "warm", "format_follow_up": "quick_replies", "sources": ["mcp"]},
         new_state,
@@ -159,6 +159,25 @@ def test_debug_traegt_maschine_und_spur(monkeypatch):
     debug, _ = _run(monkeypatch, extra={"engine": "agent", "trace": zeilen})
     assert debug.engine == "agent"
     assert [z.step for z in debug.trace] == ["agent_round", "agent_stop"]
+
+
+def test_die_zeiten_des_zuges_stehen_in_der_spur(monkeypatch):
+    """Plan 2026-09-30 (T9): Das Debug-Panel zeigt Trace-Zeilen mit Dauer schon
+    an — die Zeiten des Zuges kommen dorthin, hinter die Zeilen der Maschine."""
+    from boerdi.api.schemas import TraceEntry
+
+    acc = {"calls": 1, "zeiten_ms": {"assess": 3500, "respond": 4200},
+           "per_phase": {"response": {"calls": 1, "ms": 3700}}}
+    zeilen = [TraceEntry(step="agent_round", label="Runde 1")]
+    debug, _ = _run(monkeypatch, usage_acc=acc, extra={"trace": zeilen})
+
+    assert [(z.step, z.label, z.duration_ms) for z in debug.trace] == [
+        ("agent_round", "Runde 1", 0),
+        ("zeit", "gesamt", 7700),
+        ("zeit", "assess", 3500),
+        ("zeit", "respond", 4200),
+        ("llm", "response · 1×", 3700),
+    ]
 
 
 def test_debug_llm_engine_match(monkeypatch):

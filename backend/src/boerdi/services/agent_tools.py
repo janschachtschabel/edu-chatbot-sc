@@ -100,8 +100,14 @@ def build_agent_tools(
     include_dokument: bool = False,
     tool_mode: str | None = None,
     wissen_tool: dict[str, Any] | None = None,
+    antwort_tool: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Der volle Katalog plus ``submit_result``.
+
+    ``antwort_tool`` (Plan 2026-09-30) legt ``respond_to_user`` dazu — die
+    Antwort samt Schnellantworten in einem Aufruf, gebaut von
+    ``domain/antwort_werkzeug``. Eine Ziellinie wie ``submit_result`` und
+    deshalb wie die anderen virtuellen Werkzeuge nach Sperre und Modus.
 
     ``allow_curation=False`` nimmt die kuratierenden Werkzeuge auch dann heraus,
     wenn eine Anmeldung vorliegt — ein Gastgeber darf einen rein lesenden Lauf
@@ -180,4 +186,6 @@ def build_agent_tools(
         tools.append(submit_result_tool(result_schema))
     if include_ergebnis:
         tools.append(ergebnis_werkzeug(result_schema))
+    if antwort_tool:
+        tools.append(antwort_tool)
     return tools

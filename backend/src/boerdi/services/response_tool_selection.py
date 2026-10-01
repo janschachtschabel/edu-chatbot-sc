@@ -61,6 +61,7 @@ import logging
 import os
 from typing import Any
 
+from boerdi.domain.antwort_werkzeug import antwort_werkzeug, inline_anzahl
 from boerdi.domain.content_types import medientyp_meint_sammlungen
 from boerdi.domain.inline_documents import dokument_werkzeug
 from boerdi.domain.inline_grouping import MAX_SELECTABLE_CARDS
@@ -70,6 +71,7 @@ from boerdi.services.agent_tools import AUS_DEM_KATALOG
 from boerdi.services.mcp.auth import has_auth_token
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
+from boerdi.services.quick_replies_llm import _max_chars
 
 _logger = logging.getLogger(__name__)
 
@@ -140,7 +142,7 @@ def _select_active_tools(
     """Stellt die aktive Tool-Liste fuer ``generate_response`` zusammen
     (Phasen P10-P11: pattern.tools / tools=[] / mcp-Source / Fallback,
     medientyp-Strip, RAG-Gate + query_knowledge-Tool, select_top_cards
-    (ENV-Gate), Degradation-Tool-Wipe, respond_to_user (ENV-Gate)).
+    (ENV-Gate), Degradation-Tool-Wipe, respond_to_user (Vorgabe, abschaltbar)).
 
     Parameter-Reihenfolge: classification, pattern_output,
     available_rag_areas, rag_config, _cards_inline_mode,
@@ -450,8 +452,13 @@ def _select_active_tools(
     # Re-Rank-Hint (sonst wählt das Backend deterministisch nach MCP-Ranking).
     # Mit CHAT_DISABLE_SELECT_TOP_CARDS=1 lässt sich dieser zusätzliche
     # LLM-Tool-Turn abschalten → ~1 Round-Trip/Such-Turn schneller (zum
-    # Messen/Tunen). Default: an (Verhalten unverändert).
-    if (os.getenv("CHAT_DISABLE_SELECT_TOP_CARDS") or "").strip() not in ("1", "true", "True"):
+    # Messen/Tunen). Default: an (Verhalten unverändert). Nie im Rückfrage-
+    # Muster (``output_mode: clarify``, M03): dort gibt es keine Treffer
+    # auszuwählen — das Modell nahm sonst die Seitenkontext-Sammlung als Karte
+    # und zahlte eine ganze Runde dafür (~5 s, Plan 2026-09-30, T6).
+    if pattern_output.get("output_mode") == "clarify":
+        _logger.debug("select_top_cards: Rückfrage-Muster — keine Treffer auszuwählen")
+    elif (os.getenv("CHAT_DISABLE_SELECT_TOP_CARDS") or "").strip() not in ("1", "true", "True"):
         active_tools.append(select_cards_tool)
     else:
         _logger.info(
@@ -491,86 +498,13 @@ def _select_active_tools(
         )
         active_tools = []
 
-    # Combined-output tool (opt-in) — see env CHAT_INLINE_QUICK_REPLIES.
-    # When enabled, the model is instructed to call ``respond_to_user`` for
-    # the FINAL answer instead of plain content, with both ``text`` and
-    # ``quick_replies`` in one shot. This saves the separate quick_replies
-    # LLM round-trip (~1-2s) for ~70% of turns. Default OFF until measured.
-    _inline_qr_enabled = (
-        (os.getenv("CHAT_INLINE_QUICK_REPLIES") or "").strip() in ("1", "true", "yes")
-    )
+    # Schnellantworten im Antwort-Aufruf (``respond_to_user``) — Vorgabe seit
+    # 2026-09-30, abschaltbar (``CHAT_INLINE_QUICK_REPLIES=0``). Muster ohne
+    # Schnellantworten (Krise, Bedrohung) bekommen das Werkzeug nicht; Anzahl
+    # und Zeichengrenze kommen aus der Konfiguration (``domain/antwort_werkzeug``).
+    # Nach der Degradation-Leerung angehängt: es bleibt der Antwortkanal.
+    _inline_anzahl = inline_anzahl(pattern_output)
+    _inline_qr_enabled = _inline_anzahl > 0
     if _inline_qr_enabled:
-        respond_tool = {
-            "type": "function",
-            "function": {
-                "name": "respond_to_user",
-                "description": (
-                    "FINALE Antwort an den Nutzer. Nutze dieses Tool NUR wenn du "
-                    "alle nötigen Such-/Vokabular-/Knowledge-Tools bereits gerufen "
-                    "hast und die finale Antwort fertig ist. Liefere die Markdown-"
-                    "formatierte Antwort als ``text`` und 2-4 kurze nutzerseitige "
-                    "Folgevorschläge als ``quick_replies`` (max 6-8 Wörter pro "
-                    "Vorschlag, vom NUTZER formuliert — der Text MUSS so klingen, "
-                    "als würde der Nutzer ihn selbst tippen, z.B. 'Mehr davon "
-                    "zeigen', 'Anderes Thema wählen', 'Ja, gerne', 'Nein danke'). "
-                    "ANREDE-REGEL (kritisch): Der Nutzer spricht BOERDi mit DU an, "
-                    "nicht mit Sie — auch wenn die Persona-Modulation 'siezen' "
-                    "auf den BOT-Text gesetzt ist (das gilt nur für die Antwort "
-                    "des Bots an den Nutzer, NICHT für die Pillen-Vorschläge). "
-                    "Quick-Replies dürfen daher NICHT 'Können Sie mir helfen?' "
-                    "enthalten, sondern 'Kannst du mir helfen?' / 'Zeig mir mehr' / "
-                    "'Erklär mir den Unterschied'. Du-Form ist Pflicht. "
-                    "Wenn keine Folgevorschläge passen (z.B. CRISIS), gib leere Liste. "
-                    "BRING-MICH-HIN-VORSCHLAG: Wenn deine Antwort eine konkrete "
-                    "WLO-Webseiten-URL adressiert (z.B. /themenseite/<slug>, "
-                    "/fachportale, /mitmachen, /ueber-uns), darfst du EINEN Eintrag "
-                    "in folgendem Spezialformat einfügen: "
-                    "``__guide__|<kurzer Anzeigetext>|<vollständige URL>`` — "
-                    "Frontend rendert das als hervorgehobenen Same-Tab-Navigations-"
-                    "Button. Beispiel: "
-                    "``__guide__|Themenseite Klimawandel|https://wirlernenonline.de/themenseite/klimawandel``. "
-                    "Nutze NUR vollständige URLs (Schema + Host), keine relativen "
-                    "Pfade. Maximal EIN solcher Eintrag pro Antwort."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "text": {
-                            "type": "string",
-                            "description": (
-                                "Die Markdown-formatierte Antwort an den Nutzer. "
-                                "WICHTIG: Schreibe die Folgevorschläge (quick_replies) "
-                                "und den ``__guide__``-Link NICHT zusätzlich in den "
-                                "text — die erscheinen separat als Pillen/Buttons UNTER "
-                                "der Antwort. Der text endet mit dem letzten "
-                                "inhaltlichen Satz; KEINE aufgelisteten Klick-Optionen "
-                                "am Ende (kein 'Zeig mir mehr' / 'Anderes Thema wählen' "
-                                "und keine 'Bring mich hin:'-Zeile)."
-                            ),
-                        },
-                        "quick_replies": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": (
-                                "2-4 kurze Folgevorschläge. Jeder Vorschlag ist ein "
-                                "Satz, den der Nutzer als nächste Eingabe sagen würde "
-                                "(NICHT was der Bot vorschlägt zu tun). "
-                                "ANREDE: Du-Form, weil der Nutzer den Bot duzt — "
-                                "auch dann, wenn die Bot-Antwort selbst siezt. "
-                                "Beispiele: 'Zeig mir mehr', 'Anderes Thema wählen', "
-                                "'Kannst du das genauer erklären?'. KEINE Sie-Form "
-                                "wie 'Können Sie mir ...?' / 'Zeigen Sie mir ...'. "
-                                "EIN Eintrag darf optional ein Bring-mich-hin-"
-                                "Spezialformat sein: ``__guide__|<Label>|<URL>`` — "
-                                "siehe Tool-Description."
-                            ),
-                            "minItems": 0,
-                            "maxItems": 4,
-                        },
-                    },
-                    "required": ["text"],
-                },
-            },
-        }
-        active_tools = active_tools + [respond_tool]
+        active_tools = active_tools + [antwort_werkzeug(_inline_anzahl, _max_chars())]
     return active_tools, _pattern_sources_decl, _rag_allowed_for_pattern, _inline_qr_enabled

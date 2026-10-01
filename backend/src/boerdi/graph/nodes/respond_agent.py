@@ -55,6 +55,7 @@ from typing import Any
 
 from boerdi.domain import host_capabilities, host_instruction
 from boerdi.domain.answer_notes import append_answer_notes
+from boerdi.domain.antwort_werkzeug import antwort_werkzeug, inline_anzahl
 from boerdi.domain.history_window import verlaufs_fenster
 from boerdi.domain.skill_ansagen import mit_master_ansage
 from boerdi.domain.skill_precedence import (
@@ -80,8 +81,24 @@ from boerdi.services.agent_write import enforce_write_mode
 from boerdi.services.agent_zugblock import zuletzt_gezeigt
 from boerdi.services.card_collect import collect_cards, juengste_zuerst
 from boerdi.services.config_loader import load_engine
+from boerdi.services.quick_replies_llm import _max_chars
+from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _antwort_werkzeug(ctx: TurnContext) -> dict[str, Any] | None:
+    """``respond_to_user`` für den Agenten — nur mit ``AGENT_INLINE_QUICK_REPLIES``.
+
+    Vorgabe aus: der Master-Skill beschreibt die alte Mechanik („ein zweiter
+    Modellaufruf schreibt die Pillen"), und Werkzeug und Anleitung dürfen sich
+    nicht widersprechen. ``inline_anzahl`` trägt den globalen Schalter und die
+    Anzahl — dieselbe wie im Muster-Weg (Plan 2026-09-30).
+    """
+    if not get_settings().agent_inline_quick_replies:
+        return None
+    anzahl = inline_anzahl(ctx.pattern_output or {})
+    return antwort_werkzeug(anzahl, _max_chars()) if anzahl else None
 
 #: Wie viele Züge des Verlaufs mitgehen — dieselbe Zahl wie im Bestandsweg
 #: (``tool_loop._assemble_messages``), damit der A/B-Vergleich nicht schon am
@@ -360,7 +377,8 @@ async def respond_agent(
             # ``host_capabilities.prompt_block`` im Prompt steht — sonst
             # verspraeche das Modell, was ihm die Liste gleich nimmt.
             tool_mode=ctx.req.environment.tool_mode,
-            wissen_tool=_wissen_tool),
+            wissen_tool=_wissen_tool,
+            antwort_tool=_antwort_werkzeug(ctx)),
         # AG-6: ohne angemeldete Person gelten die engeren anonymen Deckel.
         # Die Schreibregel zuletzt: was auch immer davor die Deckel ändert,
         # ``execute`` ohne Person kommt hier nicht durch.
@@ -451,6 +469,10 @@ async def respond_agent(
     # D2: Was das Modell als Ergebnis GELIEFERT hat. ``turn_persist`` zieht es
     # der geratenen Box vor; ist die Liste leer, bleibt der Bestandsweg.
     ctx.gelieferte_dokumente = lauf.dokumente
+    # Plan 2026-09-30: Schnellantworten aus ``respond_to_user`` — die
+    # Zusammenstellung nimmt sie vor dem eigenen Aufruf (und filtert sie gleich).
+    if lauf.vorschlaege:
+        ctx.session_state["_inline_quick_replies"] = lauf.vorschlaege
     # Ergebnis und Ende-Grund weiterreichen. Der Grund geht MIT, auch wenn kein
     # Ergebnis kam: sonst sähe ein an der Frist abgeschnittener Lauf für die
     # Gastseite aus wie einer, der nichts zu sagen hatte.

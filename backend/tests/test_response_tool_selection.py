@@ -33,7 +33,11 @@ _RAG_CFG = {"recht": {"description": "Rechtsfragen"}}
 def _clean_env_and_tools(monkeypatch):
     # ENV-Gates werden zur Call-Zeit gelesen → für Determinismus leeren.
     monkeypatch.delenv("CHAT_DISABLE_SELECT_TOP_CARDS", raising=False)
-    monkeypatch.delenv("CHAT_INLINE_QUICK_REPLIES", raising=False)
+    # Das Antwort-Werkzeug ist seit 2026-09-30 Vorgabe. Die Fälle dieser Datei
+    # charakterisieren die AUSWAHL der Such-/RAG-Werkzeuge; es hier mitzuführen
+    # verlängerte jede Erwartungsliste, ohne etwas zu belegen. Seine eigenen
+    # Fälle (P11e) schalten es ausdrücklich ein oder prüfen die Vorgabe.
+    monkeypatch.setenv("CHAT_INLINE_QUICK_REPLIES", "0")
     # Safety-Net gegen den verbatim portierten ALT-Quirk (mcp-Zweig aliast
     # TOOL_DEFINITIONS): Inhalt nach jedem Test wiederherstellen, damit kein
     # ``.append`` in andere Tests / andere Importeure leakt.
@@ -264,6 +268,16 @@ def test_select_top_cards_appended_by_default():
     assert names == ["search_wlo_content", "select_top_cards"]
 
 
+def test_im_rueckfrage_muster_gibt_es_keine_kartenauswahl():
+    """Plan 2026-09-30 (T6): Im Rückfrage-Muster (``output_mode: clarify``, M03)
+    wählte das Modell per ``select_top_cards`` die Sammlung aus dem
+    Seitenkontext als Karte — eine ganze Modellrunde (~5 s) ohne Nutzen. Eine
+    Rückfrage hat keine Treffer auszuwählen."""
+    assert "select_top_cards" not in _names({"output_mode": "clarify"})
+    # Gegenprobe: wo Treffer entstehen, bleibt die Auswahl.
+    assert "select_top_cards" in _names({"output_mode": "rerender"})
+
+
 def test_select_top_cards_disabled_via_env(monkeypatch):
     monkeypatch.setenv("CHAT_DISABLE_SELECT_TOP_CARDS", "1")
     assert "select_top_cards" not in _names({"tools": ["search_wlo_content"]})
@@ -334,9 +348,40 @@ def test_degradation_then_respond_to_user_when_inline_qr(monkeypatch):
     assert _names({"tools": ["search_wlo_content"]}, degradation=True) == ["respond_to_user"]
 
 
-# ═══ P11e — respond_to_user (ENV-Gate) ═════════════════════════════════════
-def test_respond_to_user_absent_by_default():
+# ═══ P11e — respond_to_user (Vorgabe seit 2026-09-30, abschaltbar) ═════════
+def test_respond_to_user_ist_vorgabe(monkeypatch):
+    """Ohne Einstellung steht das Antwort-Werkzeug im Angebot — der Muster-Weg
+    spart damit den eigenen Schnellantwort-Aufruf (Plan 2026-09-30)."""
+    monkeypatch.delenv("CHAT_INLINE_QUICK_REPLIES", raising=False)
+    names = _names({"tools": ["search_wlo_content"]})
+    assert names[-1] == "respond_to_user"
+
+
+def test_respond_to_user_ist_abschaltbar():
+    # Die Fixture setzt CHAT_INLINE_QUICK_REPLIES=0 — der Betreiber-Schalter.
     assert "respond_to_user" not in _names({"tools": ["search_wlo_content"]})
+
+
+def test_respond_to_user_nennt_die_anzahl_des_musters(monkeypatch):
+    from boerdi.domain import antwort_werkzeug as aw
+
+    monkeypatch.setenv("CHAT_INLINE_QUICK_REPLIES", "1")
+    monkeypatch.setattr(aw, "_qr_policy", lambda pid: ("speculative", 3))
+    active, *_ = _select({"id": "M03", "tools": []})
+    werkzeug = next(t for t in active if t["function"]["name"] == "respond_to_user")
+    # Drei Pillen laut Muster → vier angefragt (eine Ersatzzeile, T1).
+    assert "4 kurze nutzerseitige Folgevorschläge" in werkzeug["function"]["description"]
+
+
+def test_das_krisen_muster_bekommt_kein_antwort_werkzeug(monkeypatch):
+    """M01/M02 wollen keine Schnellantworten (``quick_replies_mode: none``)."""
+    from boerdi.domain import antwort_werkzeug as aw
+
+    monkeypatch.setenv("CHAT_INLINE_QUICK_REPLIES", "1")
+    monkeypatch.setattr(aw, "_qr_policy", lambda pid: ("none", None))
+    active, _decl, _allowed, qr = _select({"id": "M01", "tools": []})
+    assert "respond_to_user" not in [t["function"]["name"] for t in active]
+    assert qr is False
 
 
 def test_respond_to_user_appended_last_when_inline_qr_env(monkeypatch):

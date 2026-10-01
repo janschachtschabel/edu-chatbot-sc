@@ -190,3 +190,21 @@ def test_assess_reicht_den_merkposten_an_die_sicherheitspruefung(monkeypatch):
     asyncio.run(assess(ctx, _memory_ok))
 
     assert seen["usage_acc"] is ctx.usage
+
+
+def test_die_sicherheitspruefung_bucht_ihre_dauer(monkeypatch):
+    """Plan 2026-09-30 (T8): Regex und Moderation laufen ohne eigenen
+    LLM-Aufruf und fehlten deshalb im Debug-Block. Die Klassifikation braucht
+    keinen Schritt — sie steht mit ihrer Dauer in ``per_phase.classify``."""
+    async def _safety(msg, signals, **kwargs):
+        return SafetyDecision(risk_level="low", stages_run=["regex"])
+
+    async def _classify(*a, **k):
+        return ClassificationResult(persona_id="P-LER", intent_id="I02", intent_confidence=0.9)
+
+    monkeypatch.setattr(assess_mod, "assess_safety", _safety)
+    monkeypatch.setattr(assess_mod, "classify_input", _classify)
+
+    out = asyncio.run(assess(_ctx("wie erkläre ich bruchrechnung?"), _memory_ok))
+
+    assert out.usage["zeiten_ms"]["assess.safety"] >= 0

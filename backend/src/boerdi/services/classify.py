@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 import instructor
@@ -35,6 +36,7 @@ from instructor.core import InstructorRetryException
 
 from boerdi.api.schemas import ClassificationResult
 from boerdi.obs import usage as _usage
+from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm as _llm
 from boerdi.services.classify_prompt import build_classify_system_prompt
 from boerdi.services.llm_models import get_chat_model
@@ -86,6 +88,7 @@ async def classify_input(
     # (Review-Befund).
     _llm.wire_transport(model, kwargs)
 
+    t0 = time.perf_counter()
     try:
         async with _llm.semaphore():
             result, raw = await _acreate(
@@ -99,7 +102,7 @@ async def classify_input(
         return _salvage(exc)
 
     if usage_acc is not None:
-        _usage.add_usage(usage_acc, _usage.extract_usage(raw), "classify")
+        _usage.add_usage(usage_acc, _usage.extract_usage(raw), "classify", ms=seit_ms(t0))
     return result
 
 

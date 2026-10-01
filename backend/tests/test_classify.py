@@ -133,6 +133,7 @@ def test_usage_folded_with_classify_phase(monkeypatch) -> None:
     assert acc["prompt_tokens"] == 100 and acc["completion_tokens"] == 20
     assert acc["cached_tokens"] == 10
     assert acc["per_phase"]["classify"]["calls"] == 1
+    assert acc["per_phase"]["classify"]["ms"] >= 0  # Plan 2026-09-30 (T7)
 
 
 # ── Layer-A fallback (InstructorRetryException) ────────────────────────────

@@ -37,6 +37,7 @@ def _boundaries(monkeypatch):
     """Deterministic external boundaries; individual tests override as needed."""
     monkeypatch.setattr(ta, "get_repo_base_url", lambda: "https://repo.example")
     monkeypatch.setattr(ta, "_qr_default_count", lambda: 4)
+    monkeypatch.setattr(ta, "_max_chars", lambda: 48)
     # Guide-attach: identity by default (isolate the rest of the cascade).
     monkeypatch.setattr(ta, "_attach_guide_qr",
                         lambda req, qrs, ss, response_text=None: qrs)
@@ -142,6 +143,24 @@ async def test_qr_inline_wins_and_pops_session_key():
     ss = {"entities": {}, "_inline_quick_replies": ["I1"]}
     _c, qr, _pa, _pg, _rt = await _call(session_state=ss)
     assert qr == ["I1"]
+    assert "_inline_quick_replies" not in ss
+
+
+async def test_qr_inline_laeuft_durch_denselben_filter_wie_der_exakte_aufruf():
+    """Plan 2026-09-30 (T3): zu lang, doppelt oder zu viele — dieselbe Regel wie
+    im eigenen Aufruf (``quick_replies_llm.filtere_vorschlaege``)."""
+    ss = {"entities": {}, "_inline_quick_replies": [
+        "A" * 60, "Zeig mir mehr", "zeig mir MEHR", "Anderes Thema", "Noch eins"]}
+    _c, qr, _pa, _pg, _rt = await _call(session_state=ss, _qr_max=2)
+    assert qr == ["Zeig mir mehr", "Anderes Thema"]
+
+
+async def test_qr_inline_ganz_verworfen_faellt_auf_den_exakten_aufruf_zurueck():
+    """Bleibt nach dem Filter nichts übrig, fehlen keine Pillen — dann zahlt
+    der Zug den eigenen Aufruf wie vor 2026-09-30."""
+    ss = {"entities": {}, "_inline_quick_replies": ["A" * 60]}
+    _c, qr, _pa, _pg, _rt = await _call(session_state=ss)
+    assert qr == ["genQR1", "genQR2"]
     assert "_inline_quick_replies" not in ss
 
 

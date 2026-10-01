@@ -59,14 +59,17 @@ def _seed_frontmatter() -> list[dict]:
 
 @pytest.fixture(autouse=True)
 def _ohne_select_top_cards(monkeypatch):
-    # Isoliert die Basis-Auswahl; select_top_cards hängt unabhängig vom Zweig an.
+    # Isoliert die Basis-Auswahl; select_top_cards und das Antwort-Werkzeug
+    # (``respond_to_user``, Vorgabe seit 2026-09-30) hängen unabhängig vom Zweig an.
     monkeypatch.setenv("CHAT_DISABLE_SELECT_TOP_CARDS", "1")
+    monkeypatch.setenv("CHAT_INLINE_QUICK_REPLIES", "0")
 
 
 def _basis(aktiv: list[dict]) -> list[dict]:
     """Die BASIS-Auswahl — ohne das unbedingt angehängte Ergebnis-Werkzeug.
 
-    ``select_top_cards`` nimmt die Fixture oben per ENV heraus; ``zeige_dokument``
+    ``select_top_cards`` und ``respond_to_user`` nimmt die Fixture oben per ENV
+    heraus; ``zeige_dokument``
     (D3) hat keinen Schalter und wird hier gefiltert. Beide hängen unabhängig
     vom gewählten Zweig an und sagen über die Naht, um die es hier geht, nichts.
     """

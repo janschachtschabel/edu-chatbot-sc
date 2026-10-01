@@ -868,3 +868,69 @@ def test_ein_fehlschlag_mit_text_ist_keine_geladene_anleitung(monkeypatch):
         outcome=fehler,
     )
     assert lauf.anleitungen == []
+
+
+# ── Plan 2026-09-30: die Antwort samt Schnellantworten (respond_to_user) ────
+# Im Agent-Modus wartete jeder Zug nach der Antwort im Median 4,4 s auf den
+# eigenen Schnellantwort-Aufruf (gemessen 2026-10-01). ``respond_to_user`` ist
+# dieselbe Ziellinie wie Prosa — nur mit den Vorschlägen dazu.
+
+
+def test_respond_to_user_beendet_den_lauf_mit_text_und_vorschlaegen(monkeypatch):
+    out = _OutcomeFake()
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("respond_to_user", {
+            "text": "Photosynthese ist ...",
+            "quick_replies": ["Erklär es einfacher", "", "Zeig mir Videos"]})]),
+    ], outcome=out)
+
+    assert run.stop_reason == "text"
+    assert run.text == "Photosynthese ist ..."
+    assert run.vorschlaege == ["Erklär es einfacher", "Zeig mir Videos"]
+    assert out.calls == []  # virtuell: nie an den MCP
+
+
+def test_ein_dokument_derselben_runde_wird_noch_geliefert(monkeypatch):
+    """Die Box darf nicht verloren gehen, nur weil das Modell die Antwort vor
+    das Dokument gestellt hat."""
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([
+            _tool_call("respond_to_user", {"text": "Hier ist der Plan.",
+                                           "quick_replies": ["Kürzer bitte"]}, "c1"),
+            _tool_call("zeige_dokument", _dok_args(), "c2"),
+        ]),
+    ])
+
+    assert run.stop_reason == "text"
+    assert run.text == "Hier ist der Plan."
+    assert len(run.dokumente) == 1
+
+
+def test_nach_der_antwort_laeuft_kein_echtes_werkzeug_mehr(monkeypatch):
+    out = _OutcomeFake()
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([
+            _tool_call("respond_to_user", {"text": "Fertig."}, "c1"),
+            _tool_call("search_wlo_content", {"query": "x"}, "c2"),
+        ]),
+    ], outcome=out)
+
+    assert run.stop_reason == "text"
+    assert out.calls == []
+    # Jeder Aufruf bekommt seine Werkzeug-Nachricht — OpenAI verlangt sie.
+    assert {m["tool_call_id"] for m in msgs if m.get("role") == "tool"} == {"c1", "c2"}
+
+
+def test_respond_to_user_ohne_text_endet_leer(monkeypatch):
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("respond_to_user", {"text": " ", "quick_replies": ["A"]})]),
+    ])
+
+    assert run.stop_reason == "empty"
+
+
+def test_eine_prosa_antwort_hat_keine_vorschlaege(monkeypatch):
+    _fake, run, _msgs = _lauf(monkeypatch, [_resp_text("Antwort in Prosa.")])
+
+    assert run.stop_reason == "text"
+    assert run.vorschlaege == []

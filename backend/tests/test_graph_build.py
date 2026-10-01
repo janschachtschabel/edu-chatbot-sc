@@ -148,6 +148,18 @@ def test_normal_path_runs_every_node_in_order(monkeypatch):
     assert result.get("early_response") is None
 
 
+def test_jeder_knoten_bucht_seine_dauer_in_den_zug(monkeypatch):
+    """Plan 2026-09-30 (T8): der Debug-Block zeigt, wo ein Zug seine Zeit lässt —
+    je Knoten, in der Reihenfolge der Kette."""
+    result, _calls, _, _ = _run(monkeypatch)
+    zeiten = result["usage"]["zeiten_ms"]
+    assert list(zeiten) == [
+        "setup", "tour", "page_context_enrich", "context_greeting", "persist_user",
+        "preflight", "assess", "safety_log", "merge", "route", "respond", "assemble", "persist",
+    ]
+    assert all(isinstance(ms, int) and ms >= 0 for ms in zeiten.values())
+
+
 def test_tour_early_exit_skips_rest_and_does_not_persist_user(monkeypatch):
     tour_resp = ChatResponse(session_id="bb-1", content="TOUR")
     result, calls, _, _ = _run(monkeypatch, tour_early=tour_resp)

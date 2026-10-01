@@ -29,6 +29,7 @@ from typing import Any
 from boerdi.api.schemas import ClassificationResult
 from boerdi.graph.state import TurnContext
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
+from boerdi.obs.zeiten import schritt
 from boerdi.services.classify import classify_input
 from boerdi.services.engine_choice import laeuft_ueber_die_schleife
 from boerdi.services.safety import assess_safety
@@ -82,7 +83,10 @@ async def assess(
     # Safety + Classify + Memory-Fetch parallel — Memory hängt nur an der
     # session_id, ist also unabhängig von Klassifikation/Safety.
     async def _safety():
-        return await assess_safety(ctx.req.message, signals, usage_acc=ctx.usage)
+        # Regex + Moderation ohne eigenen LLM-Aufruf — steht sonst nirgends im
+        # Debug-Block (Plan 2026-09-30, T8).
+        with schritt("assess.safety", ctx.usage):
+            return await assess_safety(ctx.req.message, signals, usage_acc=ctx.usage)
 
     async def _classify():
         # A4b: Der Agent-Modus hat keinen Klassifikator — das ist sein Zweck
