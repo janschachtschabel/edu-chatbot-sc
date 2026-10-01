@@ -114,6 +114,18 @@ async def discard_stale_approval(
     return True
 
 
+def merke_abnahme(session_state: dict, merkposten: dict, vorschau: str) -> None:
+    """Eine offene Abnahme der Agent-Schleife ablegen (Paket 2, Runde-2-Plan).
+
+    An dieselben zwei Stellen, die ``services/tool_loop`` setzt: der Merkposten
+    in ``entities`` überdauert den Zug und wird hier im nächsten eingelöst, die
+    Vorschau auf oberster Ebene gilt nur für diesen Zug (Box und Knopf in
+    ``turn_persist``).
+    """
+    session_state.setdefault("entities", {})["_pending_write"] = merkposten
+    session_state["_write_preview"] = vorschau
+
+
 async def redeem_write_approval(
     session: AsyncSession | None,
     req: ChatRequest,
