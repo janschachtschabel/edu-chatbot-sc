@@ -2,8 +2,10 @@
 #
 # Bewusst kein „Deploy from a branch“ mit /docs — dann wäre der ganze docs-Ordner
 # öffentlich, samt Plänen und Audit-Berichten. Einmalig einschalten unter
-# Settings → Pages → Source: „GitHub Actions“ (Anleitung:
-# docs/architektur-grafiken/README.md).
+# Settings → Pages → Source: „GitHub Actions“ und die Repo-Variable
+# PAGES_AKTIV=true setzen (Anleitung: docs/architektur-grafiken/README.md).
+# Ohne die Variable wird der Lauf übersprungen statt zu scheitern: Für ein
+# privates Repo ohne bezahlten Plan gibt es kein Pages.
 name: pages
 
 on:
@@ -25,6 +27,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || vars.PAGES_AKTIV == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

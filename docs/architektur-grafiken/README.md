@@ -12,18 +12,33 @@ aus dem Quellstand `989ae75`. Die Startseite ist [`index.html`](index.html).
 Die Seiten sind in sich geschlossen: Sie laden keine externen Skripte und keine Web-Fonts.
 Jede Komponente verlinkt auf ihre Quellstelle im Repository; die Links setzen dort Zugang voraus.
 
+## Lokal nutzen
+
+`index.html` im Browser öffnen, per Doppelklick oder über *Datei → Öffnen*. Alles läuft aus dem
+Dateisystem und offline; die Startseite verlinkt die drei Grafiken relativ. Über das Menü
+**Exportieren** lassen sich die Grafiken zusätzlich als Bild für Folien speichern.
+
+Wer lieber eine Adresse im lokalen Netz zeigt, startet im Ordner einen einfachen Webserver und
+öffnet `http://localhost:8000`:
+
+```bash
+python -m http.server 8000
+```
+
 ## Veröffentlichen mit GitHub Pages
 
 Der Workflow [`pages.yml`](../../.github/workflows/pages.yml) veröffentlicht **nur die HTML-Seiten
-dieses Ordners**. Er läuft bei jedem Push auf `main`, der den Ordner ändert, und auf Knopfdruck.
+dieses Ordners**. Ohne die Repo-Variable `PAGES_AKTIV` wird er übersprungen, statt zu scheitern.
 
-- **Einmalig einschalten:** *Settings → Pages → Build and deployment → Source:* **GitHub Actions**.
-- **Nicht** „Deploy from a branch“ mit dem Ordner `/docs` wählen. Dann wäre der ganze
-  `docs/`-Ordner öffentlich, samt Plänen und Audit-Berichten.
-- **Privates Repository:** Pages braucht dafür einen bezahlten GitHub-Plan. Die Seite selbst ist
-  trotzdem öffentlich erreichbar.
-- **Erster Lauf:** Ist Pages beim Merge noch nicht eingeschaltet, scheitert der Workflow. Danach
-  einschalten und ihn unter *Actions → pages → Run workflow* einmal von Hand starten.
+1. **Voraussetzung:** Das Repository ist öffentlich, oder der GitHub-Plan ist bezahlt; für ein
+   privates Repository auf GitHub Free gibt es kein Pages. Die Seite selbst ist in jedem Fall
+   öffentlich erreichbar.
+2. **Einschalten:** *Settings → Pages → Build and deployment → Source:* **GitHub Actions**.
+   **Nicht** „Deploy from a branch“ mit dem Ordner `/docs` wählen. Dann wäre der ganze
+   `docs/`-Ordner öffentlich, samt Plänen und Audit-Berichten.
+3. **Freigeben:** *Settings → Secrets and variables → Actions → Variables:* `PAGES_AKTIV` = `true`.
+4. **Erster Lauf:** *Actions → pages → Run workflow*. Danach veröffentlicht jeder Push auf `main`,
+   der diesen Ordner ändert, von selbst.
 
 ## Neu erzeugen
 
