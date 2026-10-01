@@ -1,0 +1,6 @@
+# Prüfbelege von `archify finalize`: tragen absolute lokale Pfade und gehören
+# nicht ins Repository (und nicht auf die Pages-Seite).
+*.delivery.json
+*.finalize.json
+*.finalize-summary.json
+*.browser-check.json
