@@ -204,7 +204,10 @@ def test_error_frame_on_graph_exception(monkeypatch, client):
     r = _post(client)
     assert r.status_code == 200  # SSE is always 200; failure is an ``error`` frame
     assert "event: error\n" in r.text
-    assert "RuntimeError" in r.text
+    # Audit 2026-09-29 A-M4: kein Innenleben (Typ, Text der Ausnahme) an
+    # anonyme Clients — das Widget zeigt ohnehin seinen eigenen Fehlertext.
+    assert "RuntimeError" not in r.text
+    assert "boom" not in r.text
     assert "event: result" not in r.text
 
 

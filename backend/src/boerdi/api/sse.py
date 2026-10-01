@@ -120,7 +120,10 @@ async def sse_turn(
     if isinstance(result, Exception):
         nachricht = f"{type(result).__name__}: {result}"[:400]
         logger.warning("%s END status=error %s", label or "sse_turn", nachricht)
-        yield _frame("error", {"message": nachricht})
+        # Audit 2026-09-29 A-M4: Typ und Text der Ausnahme bleiben im Log — der
+        # Rahmen geht auch an anonyme Clients. Das Widget zeigt ohnehin seinen
+        # eigenen, übersetzten Fehlertext.
+        yield _frame("error", {"message": "internal error"})
         return
     try:
         payload = await to_payload(result)
