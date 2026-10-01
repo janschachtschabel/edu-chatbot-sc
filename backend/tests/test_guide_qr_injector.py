@@ -244,6 +244,33 @@ def test_compiled_from_yaml_carries_english_label(monkeypatch):
     assert compiled[0][2] == "What is OER?"
 
 
+def _eine_regel(monkeypatch, stand):
+    from boerdi.services import config_loader
+    monkeypatch.setattr(config_loader, "load_guide_rules_config", lambda: {
+        "message_rules": [{
+            "pattern": "oer", "label": stand["label"], "label_en": "",
+            "url": "https://wirlernenonline.de/oer", "priority": 60,
+        }],
+    })
+
+
+def test_geaenderte_regeln_wirken_ohne_neustart(monkeypatch):
+    """§1.6 (2026-10-01): der Cache übersetzter Regeln lebte pro Prozess, und
+    ``reset_compiled_cache`` rief nur ein Test auf — ein Speichern im Studio
+    wirkte erst nach einem Neustart jeder Instanz."""
+    stand = {"label": "Alt"}
+    _eine_regel(monkeypatch, stand)
+    assert gqi._compiled()[0][1] == "Alt"
+    stand["label"] = "Neu"
+    assert gqi._compiled()[0][1] == "Neu"
+
+
+def test_unveraenderte_regeln_werden_nicht_neu_uebersetzt(monkeypatch):
+    _eine_regel(monkeypatch, {"label": "OER"})
+    erstes = gqi._compiled()
+    assert gqi._compiled() is erstes
+
+
 # ── inject_guide_qr (Orchestrator) ─────────────────────────────────
 def test_inject_disabled_is_identity():
     assert gqi.inject_guide_qr("klimawandel themenseite", ["a", "b"], enabled=False) == ["a", "b"]
