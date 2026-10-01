@@ -165,6 +165,17 @@ def test_dokumente_gehen_ueber_das_werkzeug(text: str) -> None:
         assert mechanik not in flach, mechanik
 
 
+
+def test_die_aenderungs_vorschau_zeigt_der_chat_selbst(text: str) -> None:
+    """Paket 2 (Runde-2-Plan, N-3): den Kasten mit der Vorschau einer Änderung
+    zeigt der Chat selbst, seit 2026-10-01 auch im Agent-Zug — so sagt es die
+    Muster-Datei M18 schon. Die Vorfassung ließ das Modell die Vorschau
+    „wörtlich als gerahmten Kasten“ vorlegen; über `zeige_dokument` stünden
+    dann zwei Kästen da."""
+    m18 = _unterabschnitt(text, "M18")
+    assert "zeigt der Chat von selbst" in m18
+    assert "gerahmten Kasten" not in m18
+
 # ── Seit dem Review 2026-09-29 hier statt in ``test_mcp_tool_defs.py`` ─────
 # Sie lasen die Vorlage selbst ein und liefen deshalb weder gegen die
 # Editor-Fassung noch im Prüfskript (``scripts/check_master_skill.py``) mit —
