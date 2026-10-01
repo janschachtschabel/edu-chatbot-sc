@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -1379,7 +1379,7 @@ wheels = [
 
 [[package]]
 name = "litellm"
-version = "1.91.1"
+version = "1.91.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1395,9 +1395,9 @@ dependencies = [
     { name = "tiktoken" },
     { name = "tokenizers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/70/1b419158085e0cc1615642dd62c7a5d4c3254db3de77df65dade3b25165b/litellm-1.91.1.tar.gz", hash = "sha256:49a24593df7e37262c52243a8e07572d451d37c100aa1b1f347d80d501d2e386", size = 14872532, upload-time = "2026-07-08T23:07:04.559Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8c/97/e68511e3dff7d18c99faf39258096cd2fc0b59540b2523e9eef43d33922a/litellm-1.91.5.tar.gz", hash = "sha256:f3a69ce82f61216903ca5e08aabe76a535862d4b935d7a7863953cbc8947e2f7", size = 14877642, upload-time = "2026-08-09T02:01:45.825Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3d/52/166a934d194afcff2a7ec4e1928f1865504ade2e26f62e24d49aaec400d1/litellm-1.91.1-py3-none-any.whl", hash = "sha256:bf8e3d23cddf0eb4c05714dffcaafd8a944adf0f9c9b01c6c863b2637309de2e", size = 16670790, upload-time = "2026-07-08T23:07:01.151Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/21/268c8febd55265d9bbb611c06496356186bdea37b64e1142eb92e9d48b7e/litellm-1.91.5-py3-none-any.whl", hash = "sha256:db09c6ea0b7c7de034b6c8b628208b000b54e02ef557468f84c2e63fbd7c8560", size = 16675846, upload-time = "2026-08-09T02:01:43.257Z" },
 ]
 
 [[package]]
@@ -2402,11 +2402,11 @@ wheels = [
 
 [[package]]
 name = "pyjwt"
-version = "2.14.0"
+version = "2.15.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/af/c3/8a3b59c25070cc61dc517fbdfa5dc0904670c96f605cc69759dc09166b99/pyjwt-2.14.0.tar.gz", hash = "sha256:77283c83fb56ecf566a886c757a714bc83668e38156de2cce8263302f42e0b86", size = 113177, upload-time = "2026-09-11T13:11:54.638Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/02/a5/5197bfd06417837ac079921c66fa6393f1dea3557272a263cebfef69e432/pyjwt-2.15.0.tar.gz", hash = "sha256:b11c5f9791d7bf51c2b39a81ed669f6b2dbbd669df2942f6c60167e9e3d1abe4", size = 120513, upload-time = "2026-09-23T16:56:00.689Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9c/97/672cb32ce0dfea44b740cb7b4f97038463b9cf7c0ead1aacf595572851d6/pyjwt-2.14.0-py3-none-any.whl", hash = "sha256:ad0cef71c756a56e74863c2919cf0985f72decbcfcb550ee2f422e7c62b5eedc", size = 32896, upload-time = "2026-09-11T13:11:53.409Z" },
+    { url = "https://files.pythonhosted.org/packages/e8/55/40e45bf052ee8ee12a4dfd785519660f8effa7b065442b91646ec6828619/pyjwt-2.15.0-py3-none-any.whl", hash = "sha256:7a3742debf6b879e912dbb9819ceec1594be812452b78c5f2e2dfc56564954f8", size = 33680, upload-time = "2026-09-23T16:55:59.241Z" },
 ]
 
 [package.optional-dependencies]
@@ -3072,11 +3072,11 @@ wheels = [
 
 [[package]]
 name = "urllib3"
-version = "2.7.0"
+version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/53/0c/06f8b233b8fd13b9e5ee11424ef85419ba0d8ba0b3138bf360be2ff56953/urllib3-2.7.0.tar.gz", hash = "sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c", size = 433602, upload-time = "2026-05-07T16:13:18.596Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/05/b17359e1cefb4f909b5e40b1b90a496d987258916dbbf88e842c729f510e/urllib3-2.8.0.tar.gz", hash = "sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63", size = 458972, upload-time = "2026-09-15T19:29:36.253Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897", size = 131087, upload-time = "2026-05-07T16:13:17.151Z" },
+    { url = "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl", hash = "sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3", size = 135717, upload-time = "2026-09-15T19:29:34.577Z" },
 ]
 
 [[package]]
