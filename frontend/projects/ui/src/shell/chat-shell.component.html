@@ -160,6 +160,9 @@
               (showMore)="showMoreCards($event)"
               (loadMore)="loadMoreCards($event)"
             />
+            <!-- Web-Links sind keine Karten: ohne diese Box fielen sie im großen
+                 Fenster ganz weg (Befund 2026-09-30). Tour-Tor liegt in der Komponente. -->
+            <boerdi-web-links [message]="msg" [ctx]="render.resultGroupsCtx" [standalone]="true" />
           }
 
           <!-- Bubble-Aktionen: Vorlesen. Die beiden Print-Buttons, die hier in

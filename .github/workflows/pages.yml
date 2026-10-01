@@ -1,0 +1,47 @@
+# GitHub Pages: veröffentlicht NUR die HTML-Seiten aus docs/architektur-grafiken/.
+#
+# Bewusst kein „Deploy from a branch“ mit /docs — dann wäre der ganze docs-Ordner
+# öffentlich, samt Plänen und Audit-Berichten. Einmalig einschalten unter
+# Settings → Pages → Source: „GitHub Actions“ und die Repo-Variable
+# PAGES_AKTIV=true setzen (Anleitung: docs/architektur-grafiken/README.md).
+# Ohne die Variable wird der Lauf übersprungen statt zu scheitern: Für ein
+# privates Repo ohne bezahlten Plan gibt es kein Pages.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/architektur-grafiken/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || vars.PAGES_AKTIV == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v6
+      # Nur die Seiten — Quellen, README und .gitignore bleiben im Repository.
+      - name: Seiten zusammenstellen
+        run: |
+          mkdir -p _site
+          cp docs/architektur-grafiken/*.html _site/
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -8,6 +8,7 @@ Die zugehörigen Pläne:
 - **Betriebsmodi-Plan:** [`2026-09-26-betriebsmodi-und-studio.md`](plans/2026-09-26-betriebsmodi-und-studio.md)
 - **Runde-2-Plan:** [`2026-09-28-agent-runde-2.md`](plans/2026-09-28-agent-runde-2.md)
 - **Responses-Plan:** [`2026-09-29-responses-systemteil-und-cache.md`](plans/2026-09-29-responses-systemteil-und-cache.md)
+- **Kette-Plan (Tempo):** [`2026-09-30-muster-kette-zeit.md`](plans/2026-09-30-muster-kette-zeit.md)
 - **Audit 2026-09-29:** [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md) — behoben dort: der Transport-Retry mit `confirmToken` und das Token im INFO-Log (früher §1.2/§1.3), `pip-audit` (jetzt in der CI), zwei Aufräumpunkte aus §5 und eine der unter Last kippenden Test-Dateien (siehe §5).
 
 ## 1 Befunde mit Wirkung im Betrieb
@@ -82,8 +83,23 @@ Die zugehörigen Pläne:
   - `retention_days` (§1.3): Lösch-Job bauen oder Feld streichen?
   - B-API-Moderation: reicht Bearer allein?
 - **Moderations-Schwellen:** Andeutungen blieben live unter den Seed-Schwellen (self_harm 0,45 und 0,28). Ein Nachjustieren wäre ein eigener Entscheid.
+- **Vorgabe-Maschine neuer Anlagen:** Der Seed setzt `01-base/engine.yaml` bewusst auf `mode: pattern` („ohne Pflege ändert sich nichts“), D-15 macht dagegen die Agent-Schleife im Betrieb zur Vorgabe.
+  - Folge: Eine Anlage ohne gespeicherte Einstellung antwortet mit der Muster-Maschine, und der Master-Skill wirkt dort nicht. So war es im lokalen Testcontainer am 2026-09-30.
+  - Entscheidung: die Seed-Vorgabe auf `agent` stellen oder je Anlage im Studio („Agent & Maschine“) umschalten?
+
+- **Kette-Plan, Agent-Schnellantworten:** `AGENT_INLINE_QUICK_REPLIES` ist gebaut und steht auf aus.
+  - Gemessen: Agent-Zug 12,2 → 6,8 s im Median, 8 von 8 Zügen per `respond_to_user`.
+  - Zum Einschalten zuerst den Master-Skill-Abschnitt „Schnellantworten“ anpassen. Der Text steht im Kette-Plan unter „Agent-Modus“, danach in die Vorlage `docs/skills/vorgehen.md` übernehmen.
+- **Kette-Plan, Fast-Modus (`LLM_SERVICE_TIER=fast`):** einsetzen oder nicht?
+  - Gemessen: Muster-Zug 9,1 → 7,7 s im Median.
+  - Dagegen stehen 4- bis 5-facher Tokenpreis und keine EU-Datenresidenz. Über die b-api ist er ungemessen, er wirkt nur bei `LLM_PROVIDER=openai`.
+- **Kette-Plan, nächste Hebel:** Token-Streaming zum Widget (größter Hebel für die gefühlte Wartezeit, eigener Plan) und RAG parallel zur Klassifikation (M15: bis 2,0 s).
 
 ## 3 Messungen und Prüfungen (startet der Nutzer)
+
+- **Kette-Plan:** ein Golden-Lauf im Muster-Modus mit den Schnellantworten im Antwort-Aufruf.
+  - Ob Inline getroffen hat, zeigt `per_phase` je Zug: Fehlt die Phase `quick_replies`, kamen sie aus dem Antwort-Aufruf.
+  - Die neuen Zeit-Zeilen im Debug-Block (`zeit`/`llm`) zeigen je Zug, wo die Zeit liegt.
 
 - **Nachmessung der Agent-Runde 2 (E2):** Golden-Läufe im Agent-Modus mit dem übertragenen Master-Skill.
   - Erfolg laut Runde-2-Plan:
@@ -110,13 +126,15 @@ Die zugehörigen Pläne:
 ## 5 Aufräumen
 
 - **Dateien über der 300-Zeilen-Regel** (Audit F-8), aus diesen Runden:
-  - Backend: `graph/nodes/respond_agent.py` (467).
+  - Backend: `graph/nodes/respond_agent.py` (489; 2026-10-01 +22 für den Agent-Schnellantwort-Weg), `services/agent_loop.py` (483).
   - Studio: `schema-form/schema-form.scss` (432), `views/curated-views.ts` (399), `i18n/catalogue/curated.ts` (386), `views/eval-run-detail.component.ts` (315), `schema-form/schema-field.component.ts` (311).
   - Die Schnitte stehen im Betriebsmodi-Plan §9.3.
 - Ein Server, der „Tool not found“ als JSON-RPC-Fehler meldet, landet als `transport` in der Wiederholung. Der eingestellte Server meldet es als Werkzeug-Ergebnis und ist deshalb nicht betroffen.
 - **Frontend-Tests kippen unter Last.**
   - Im vollen Lauf am 2026-09-29 fielen 5 Studio-Dateien um (`i18n/en.spec.ts`, `agent-skills`, `eval-trends`, `loadtest`, `rag-ingest`) und `ui/print/print-utils.spec.ts`; einzeln und im Wiederholungslauf grün.
   - Audit 2026-09-29: `print-utils.spec.ts` läuft jetzt mit fester Uhr, `studio/core/download.spec.ts` stellt die veränderten Globals zurück (`isolate: false`). Die übrigen Kipper ließen sich nicht reproduzieren; bei erneutem Auftreten Datei und Fehlermeldung festhalten.
+- Der Klassifikator läuft über `instructor` statt über `llm.chat_completion` und liest im Fehlerpfad nur `choices[0]` (`services/classify.py:123`).
+  - Auf dem Responses-Weg liefe ein Text mit Aufruf dort ins Leere. Der Aufruf ist aber erzwungen, und ein Ausfall ist nicht beobachtet. Das ist ein Restrisiko, kein Befund.
 - Dem Studio fehlt `color-scheme: light dark`.
   - Folge: Ungestylte Steuerelemente bleiben im Dunkelmodus hell.
   - Das Select `.ri-area-pick` besteht trotzdem mit 3,76:1.

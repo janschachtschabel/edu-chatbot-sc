@@ -92,6 +92,45 @@ def _display_length(reply: str) -> int:
     return len(text.strip())
 
 
+def filtere_vorschlaege(vorschlaege: list[str], *, anzahl: int, max_zeichen: int) -> list[str]:
+    """Die EINE Regel für Schnellantworten — aus dem eigenen Aufruf wie aus dem
+    Antwort-Aufruf (``respond_to_user``, Plan 2026-09-30).
+
+    Dubletten (ohne Rücksicht auf Groß-/Kleinschreibung) und Vorschläge über
+    ``max_zeichen`` fallen weg. Verworfen und NICHT gekürzt: der Pillentext IST
+    die Nachricht, die der Klick abschickt (``sendMessage`` im Widget), ein
+    abgeschnittener Satz wäre schlimmer als eine Pille weniger. ``max_zeichen``
+    0 heißt: kein Deckel.
+
+    Zurück gehen höchstens ``anzahl`` Vorschläge — plus vorn höchstens EIN Lotse,
+    der keinen Platz kostet (Paket A, Agent-Runde 2): er wird nie eine Pille
+    (ohne ``host`` entfernt ihn ``_attach_guide_qr``, sonst wird er ein Link im
+    Text), belegte aber einen Platz; bei ``max_count: 2`` blieb im Tor E-5 so
+    eine Pille statt zwei.
+    """
+    gesehen: set[str] = set()
+    behalten: list[str] = []
+    zu_lang = 0
+    for vorschlag in vorschlaege:
+        schluessel = vorschlag.lower()
+        if not schluessel or schluessel in gesehen:
+            continue
+        if max_zeichen and _display_length(vorschlag) > max_zeichen:
+            zu_lang += 1
+            continue
+        gesehen.add(schluessel)
+        behalten.append(vorschlag)
+    if zu_lang:
+        # Nur die Anzahl, nicht der Text: der Vorschlag trägt das Thema des
+        # Nutzers und gehört damit nicht ungefiltert ins Log.
+        _logger.info(
+            "quick_replies.max_chars: %d Vorschlag/Vorschlaege ueber %d Zeichen verworfen",
+            zu_lang, max_zeichen,
+        )
+    lotse = [v for v in behalten if v.startswith(GUIDE_QR_PREFIX)][:1]
+    return lotse + [v for v in behalten if not v.startswith(GUIDE_QR_PREFIX)][:anzahl]
+
+
 async def generate_quick_replies(
     message: str,
     response_text: str,
@@ -166,36 +205,7 @@ async def generate_quick_replies(
             line.strip().lstrip("-•*0123456789. ")
             for line in text.strip().split("\n") if line.strip()
         ]
-        # Drop duplicates while preserving order — und alles, was ueber dem
-        # Zeichen-Deckel liegt. Verworfen und NICHT gekuerzt: der Pillentext
-        # IST die Nachricht, die der Klick abschickt (``sendMessage`` im
-        # Widget), ein abgeschnittener Satz waere schlimmer als eine Pille
-        # weniger.
-        seen: set[str] = set()
-        unique: list[str] = []
-        zu_lang = 0
-        for r in replies:
-            k = r.lower()
-            if not k or k in seen:
-                continue
-            if budget and _display_length(r) > budget:
-                zu_lang += 1
-                continue
-            seen.add(k)
-            unique.append(r)
-        if zu_lang:
-            # Nur die Anzahl, nicht der Text: der Vorschlag traegt das Thema
-            # des Nutzers und gehoert damit nicht ungefiltert ins Log.
-            _logger.info(
-                "quick_replies.max_chars: %d Vorschlag/Vorschlaege ueber %d Zeichen verworfen",
-                zu_lang, budget,
-            )
-        # Der Lotse kommt ZUSÄTZLICH (Paket A, Agent-Runde 2): er wird nie eine
-        # Pille — ohne ``host`` entfernt ihn ``_attach_guide_qr``, sonst wird er
-        # ein Link im Text —, belegte hier aber einen der ``count`` Plätze. Bei
-        # ``max_count: 2`` blieb im Tor E-5 so eine Pille statt zwei.
-        lotse = [r for r in unique if r.startswith(GUIDE_QR_PREFIX)][:1]
-        return lotse + [r for r in unique if not r.startswith(GUIDE_QR_PREFIX)][:count]
+        return filtere_vorschlaege(replies, anzahl=count, max_zeichen=budget)
     except Exception:
         _logger.warning("quick-reply generation failed; returning none", exc_info=True)
         return []

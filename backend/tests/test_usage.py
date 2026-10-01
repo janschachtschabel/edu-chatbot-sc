@@ -137,6 +137,20 @@ def test_add_usage_without_phase_skips_per_phase() -> None:
     assert acc["models"]["m"]["prompt"] == 10
 
 
+def test_die_dauer_summiert_sich_je_phase() -> None:
+    """Plan 2026-09-30 (T7): wie lange jede Phase dauerte — für den Debug-Block."""
+    acc = usage.new_accumulator()
+    usage.add_usage(acc, usage.extract_usage(_resp(10, 5, 0, "m")), phase="response", ms=1200)
+    usage.add_usage(acc, usage.extract_usage(_resp(10, 5, 0, "m")), phase="response", ms=800)
+    assert acc["per_phase"]["response"]["ms"] == 2000
+
+
+def test_ohne_dauer_bleibt_die_phase_wie_bisher() -> None:
+    acc = usage.new_accumulator()
+    usage.add_usage(acc, usage.extract_usage(_resp(10, 5, 0, "m")), phase="response")
+    assert "ms" not in acc["per_phase"]["response"]
+
+
 def test_unknown_model_bucketed() -> None:
     acc = usage.new_accumulator()
     usage.add_usage(acc, {"prompt": 3, "completion": 1, "cached": 0, "model": ""})

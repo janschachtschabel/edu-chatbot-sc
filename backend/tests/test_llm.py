@@ -209,6 +209,43 @@ def test_wire_transport_clear_cache_abschaltbar(monkeypatch) -> None:
         assert "extra_body" not in kw, provider
 
 
+# ── OpenAI-Fast-Modus (Nutzer 2026-10-01) ──────────────────────────────────
+def test_wire_transport_setzt_den_tarif_nur_bei_openai(monkeypatch) -> None:
+    """Gemessen 2026-10-01 direkt bei OpenAI: gpt-6-luna nimmt
+    ``service_tier: "fast"`` an (die Antwort meldet ``fast``), eine Antwort mit
+    ~250 Token kam im Median in 3,1 statt 4,3 s — zum 4- bis 5-fachen Preis.
+    Über die b-api ist das ungemessen; ihre Pfade bleiben unberührt."""
+    monkeypatch.setenv("LLM_SERVICE_TIER", "fast")
+    monkeypatch.setenv("B_API_KEY", "bkey")
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    get_settings.cache_clear()
+    kw = {}
+    llm.wire_transport("m", kw)
+    assert kw["service_tier"] == "fast"
+    for provider in ("b-api-openai", "b-api-academiccloud"):
+        monkeypatch.setenv("LLM_PROVIDER", provider)
+        get_settings.cache_clear()
+        kw = {}
+        llm.wire_transport("m", kw)
+        assert "service_tier" not in kw, provider
+
+
+def test_wire_transport_ohne_tarif_sendet_keinen(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    get_settings.cache_clear()
+    kw = {}
+    llm.wire_transport("m", kw)
+    assert "service_tier" not in kw
+
+
+def test_ein_unbekannter_tarif_faellt_auf_den_standard_zurueck(monkeypatch) -> None:
+    # Wie Verbosity/Reasoning: ein Tippfehler darf nicht jeden Aufruf mit 400
+    # scheitern lassen — er fällt auf den Standard (nichts senden) zurück.
+    monkeypatch.setenv("LLM_SERVICE_TIER", "schnell")
+    get_settings.cache_clear()
+    assert get_settings().llm_service_tier == ""
+
+
 # ── provider routing ───────────────────────────────────────────────────────
 def test_route_openai_native(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-native")
@@ -316,6 +353,10 @@ def test_chat_completion_folds_usage_into_accumulator(monkeypatch) -> None:
     assert acc["prompt_tokens"] == 120 and acc["completion_tokens"] == 30
     assert acc["cached_tokens"] == 64 and acc["calls"] == 1
     assert acc["per_phase"]["classify"]["calls"] == 1
+    # Plan 2026-09-30 (T7): die Wanduhr-Dauer des Aufrufs, einschliesslich
+    # Warteschlange, landet bei der Phase.
+    assert isinstance(acc["per_phase"]["classify"]["ms"], int)
+    assert acc["per_phase"]["classify"]["ms"] >= 0
 
 
 def test_chat_completion_b_api_sends_extra_headers(monkeypatch) -> None:

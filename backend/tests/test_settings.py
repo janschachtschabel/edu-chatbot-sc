@@ -132,7 +132,10 @@ def test_defaults_match_alt(clean_env) -> None:
     assert s.card_ce_gate_collection == 0.0
     assert s.card_ce_gate_content == -1.5
     assert s.chat_disable_select_top_cards is False
-    assert s.chat_inline_quick_replies is False
+    # ALT-Treue bewusst gebrochen (Nutzer-Freigabe 2026-09-30, Plan
+    # docs/plans/2026-09-30-muster-kette-zeit.md): Schnellantworten im
+    # Antwort-Aufruf sind Vorgabe — gemessen 15,9 → 9,3 s je Zug.
+    assert s.chat_inline_quick_replies is True
     # Guide (None => guide-mode.yaml wins, env replaces yaml entirely)
     assert s.guide_trusted_domains is None
     # Eval / Loadtest

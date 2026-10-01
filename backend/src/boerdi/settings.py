@@ -33,6 +33,9 @@ _VERBOSITY = {"low", "medium", "high"}
 # (none|minimal|low|medium|high|xhigh|max). Fehlte hier, ein gueltiger Wert
 # waere also beim Start als Tippfehler abgewiesen worden.
 _REASONING = {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
+# OpenAI ``service_tier`` (Fast-Mode-Leitfaden 2026-10: ``priority`` ist der
+# ältere Name für ``fast``).
+_SERVICE_TIERS = {"auto", "default", "flex", "priority", "fast"}
 
 
 class Settings(BaseSettings):
@@ -115,6 +118,11 @@ class Settings(BaseSettings):
     # steht schon auf `low`.
     llm_verbosity: str = Field("low", validation_alias=_env("LLM_VERBOSITY"))
     llm_reasoning_effort: str = Field("low", validation_alias=_env("LLM_REASONING_EFFORT"))
+    # OpenAI-Tarif (``service_tier``), leer = Standard. ``fast`` gemessen
+    # 2026-10-01 mit gpt-6-luna: eine Antwort mit ~250 Token im Median 3,1 statt
+    # 4,3 s, zum 4- bis 5-fachen Preis; nicht mit EU-Datenresidenz. Wirkt nur bei
+    # ``LLM_PROVIDER=openai`` — über die b-api ungemessen (services/llm.py).
+    llm_service_tier: str = Field("", validation_alias=_env("LLM_SERVICE_TIER"))
     openai_api_key: SecretStr = Field(SecretStr(""), validation_alias=_env("OPENAI_API_KEY"))
     openai_base_url: str = Field(
         "", validation_alias=_env("OPENAI_BASE_URL"),
@@ -298,8 +306,18 @@ class Settings(BaseSettings):
     chat_disable_select_top_cards: bool = Field(
         False, validation_alias=_env("CHAT_DISABLE_SELECT_TOP_CARDS")
     )
+    # Schnellantworten im Antwort-Aufruf (``respond_to_user``) — Vorgabe seit
+    # 2026-09-30: gemessen 15,9 → 9,3 s je Zug und passende Vorschläge
+    # (Plan ``docs/plans/2026-09-30-muster-kette-zeit.md``).
     chat_inline_quick_replies: bool = Field(
-        False, validation_alias=_env("CHAT_INLINE_QUICK_REPLIES")
+        True, validation_alias=_env("CHAT_INLINE_QUICK_REPLIES")
+    )
+    # Derselbe Weg im Agent-Modus — Vorgabe AUS: der Master-Skill beschreibt
+    # dort die alte Mechanik („ein zweiter Modellaufruf schreibt die Pillen").
+    # Erst einschalten, wenn sein Abschnitt „Schnellantworten" angepasst ist
+    # (Plan 2026-09-30, Agent-Teil). ``CHAT_INLINE_QUICK_REPLIES=0`` gilt auch hier.
+    agent_inline_quick_replies: bool = Field(
+        False, validation_alias=_env("AGENT_INLINE_QUICK_REPLIES")
     )
 
     # ── Guide mode ──────────────────────────────────────────────────────
@@ -383,6 +401,12 @@ class Settings(BaseSettings):
     def _coerce_reasoning(cls, v: str) -> str:
         v = v.lower()
         return v if v in _REASONING else "low"
+
+    @field_validator("llm_service_tier")
+    @classmethod
+    def _coerce_service_tier(cls, v: str) -> str:
+        v = v.strip().lower()
+        return v if v in _SERVICE_TIERS else ""
 
     @field_validator("llm_max_concurrency")
     @classmethod

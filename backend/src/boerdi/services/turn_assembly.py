@@ -53,7 +53,11 @@ from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.guide_markers import _attach_guide_qr
 from boerdi.services.guide_qr_injector import ist_lotse
-from boerdi.services.quick_replies_llm import generate_quick_replies
+from boerdi.services.quick_replies_llm import (
+    _max_chars,
+    filtere_vorschlaege,
+    generate_quick_replies,
+)
 from boerdi.services.response_tool_selection import curation_blocked_by_mode
 
 logger = logging.getLogger(__name__)
@@ -188,11 +192,11 @@ async def _assemble_cards_and_qrs(
     #    - "none": skip quick replies (rare — only for terminal patterns)
     #    - Canvas degradation (material-type missing): use forced 12-chip list
     follow_up_mode = pattern_output.get("format_follow_up", "quick_replies")
-    # Inline quick-replies (CHAT_INLINE_QUICK_REPLIES) — when generate_response()
-    # produced both the answer AND quick_replies in a single LLM call via the
-    # respond_to_user tool, the result lands here. Saves the separate ~1-2s
-    # quick_replies LLM round-trip. Only honour it when at least one reply
-    # came back; an empty list still falls through to the regular generator.
+    # Inline quick-replies (``respond_to_user``, Vorgabe seit 2026-09-30) — when
+    # generate_response() produced both the answer AND quick_replies in a single
+    # LLM call, the result lands here. Saves the separate quick_replies call
+    # (measured ~5 s wait). They pass the SAME filter as the exact call; if
+    # nothing survives, the turn falls through to the regular generator.
     _inline_qr = (
         session_state.get("_inline_quick_replies")
         if isinstance(session_state, dict) else None
@@ -200,6 +204,11 @@ async def _assemble_cards_and_qrs(
     if isinstance(_inline_qr, list) and _inline_qr:
         # Strip from session_state so the next turn doesn't reuse stale QR.
         session_state.pop("_inline_quick_replies", None)
+        _inline_qr = filtere_vorschlaege(
+            _inline_qr,
+            anzahl=_qr_max if _qr_max is not None else _qr_default_count(),
+            max_zeichen=_max_chars(),
+        ) or None
     else:
         _inline_qr = None
     _qr_spec_consumed = False

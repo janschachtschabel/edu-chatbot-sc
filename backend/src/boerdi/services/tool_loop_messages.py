@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 from boerdi.domain.inline_grouping import _ui_box_state_footer
 from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
 from boerdi.domain.untrusted_text import frame_untrusted
+from boerdi.obs.zeiten import schritt
 from boerdi.services.card_collect import parse_cards_for_tool
 from boerdi.services.mcp.parsers import skill_registry_note
 
@@ -137,12 +138,13 @@ async def _assemble_messages(
             # the EXACT source URL via ``rag_url_index``, instead of the
             # generic Domain-Hauptseite.
             _prefetch_sources: list[str] = []
-            prefetch_ctx = await _get_rag_ctx(
-                session, message, areas=always_areas, top_k=_RAG_TOP_K,
-                min_score=_RAG_MIN_SCORE,
-                max_chars_per_area=_RAG_MAX_CHARS_PER_AREA,
-                out_sources=_prefetch_sources,
-            )
+            with schritt("respond.rag"):  # ohne LLM-Aufruf: fehlt sonst im Debug-Block
+                prefetch_ctx = await _get_rag_ctx(
+                    session, message, areas=always_areas, top_k=_RAG_TOP_K,
+                    min_score=_RAG_MIN_SCORE,
+                    max_chars_per_area=_RAG_MAX_CHARS_PER_AREA,
+                    out_sources=_prefetch_sources,
+                )
             if _prefetch_sources:
                 used_src = session_state.setdefault("_rag_top_sources", [])
                 for s in _prefetch_sources:

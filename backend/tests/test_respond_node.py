@@ -392,6 +392,9 @@ def test_ohne_geladene_anleitung_keine_ladezeile(monkeypatch):
 # ── speculative QR start ─────────────────────────────────────────
 
 def test_speculative_qr_started(monkeypatch):
+    # Nur ohne Antwort-Werkzeug: liefert der Antwort-Aufruf die Vorschläge
+    # (Vorgabe seit 2026-09-30), wäre der Parallel-Aufruf verschenkt.
+    monkeypatch.setenv("CHAT_INLINE_QUICK_REPLIES", "0")
     rec = _Rec()
     _install(monkeypatch, rec)
 
@@ -408,6 +411,22 @@ def test_speculative_qr_started(monkeypatch):
     assert rec.qr_called is True
     # C1-f2a: die Ausgabe-Sprache kommt aus ``req.environment.locale``.
     assert rec.qr_kwargs["lang"] == "de"
+
+
+def test_kein_spekulativer_aufruf_wenn_die_antwort_die_vorschlaege_liefert(monkeypatch):
+    """Plan 2026-09-30 (T4): In 16 von 16 Messzügen kamen die Vorschläge aus
+    dem Antwort-Aufruf; alle 8 spekulativen Aufrufe liefen umsonst mit."""
+    monkeypatch.delenv("CHAT_INLINE_QUICK_REPLIES", raising=False)
+    rec = _Rec()
+    _install(monkeypatch, rec)
+
+    async def _go():
+        task = asyncio.create_task(_mktask("SPECTEXT"))
+        return await respond(_ctx(spec_task=task, qr_mode="speculative"), _SESSION)
+
+    out = asyncio.run(_go())
+    assert out.qr_spec_task is None
+    assert rec.qr_called is False
 
 
 def test_returns_same_ctx(monkeypatch):

@@ -10,6 +10,7 @@ import { DebugPanelComponent } from '../debug/debug-panel.component';
 import { _attrEnum, _attrIsTrue, PanelSizeStep } from '../element/attr';
 import { ChatResponse, DebugInfo, PreparedWriteOut } from '../grouping/message-types';
 import { ResultGroupsComponent } from '../grouping/result-groups.component';
+import { WebLinksComponent } from '../grouping/web-links.component';
 import { SwimlanesComponent } from '../grouping/swimlanes.component';
 import { ICONS } from '../icons/icons';
 import { SafeSvgPipe } from '../icons/safe-svg.pipe';
@@ -84,7 +85,7 @@ import { ShellRender } from './shell-render';
   styleUrl: './chat-shell.component.scss',
   imports: [
     SafeSvgPipe, CardListComponent, DebugPanelComponent, InlineDocumentsComponent,
-    QuickRepliesComponent, ResultGroupsComponent, SwimlanesComponent,
+    QuickRepliesComponent, ResultGroupsComponent, SwimlanesComponent, WebLinksComponent,
   ],
 })
 export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, OnDestroy {

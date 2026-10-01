@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>boerdi-chat — Technik im Überblick</title>
+<meta name="description" content="Architektur und Abläufe des WLO-Chatbots boerdi-chat als interaktive Grafiken.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9;
+    --fg: #14171c;
+    --muted: #4a5260;
+    --card: #ffffff;
+    --line: #d5d9e0;
+    --accent: #1c4587;
+    --focus: #1c4587;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216;
+      --fg: #e8ebf0;
+      --muted: #aab3c0;
+      --card: #171b21;
+      --line: #2c333d;
+      --accent: #8fb4f0;
+      --focus: #8fb4f0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.5;
+  }
+  main { max-width: 64rem; margin: 0 auto; padding: 2.5rem 1rem 3rem; }
+  h1 { font-size: clamp(1.6rem, 3vw, 2.2rem); line-height: 1.2; margin: 0 0 .75rem; }
+  .einleitung { color: var(--muted); max-width: 46rem; margin: 0 0 2rem; }
+  .karten {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  }
+  .karten a {
+    display: block;
+    height: 100%;
+    padding: 1.25rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: .75rem;
+    color: inherit;
+    text-decoration: none;
+  }
+  .karten a:hover { border-color: var(--accent); }
+  .karten a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .karten h2 { font-size: 1.15rem; margin: 0 0 .4rem; color: var(--accent); }
+  .karten p { margin: 0; color: var(--muted); font-size: .95rem; }
+  footer { margin-top: 2.5rem; color: var(--muted); font-size: .875rem; max-width: 46rem; }
+  code { font-size: .9em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>boerdi-chat — Technik im Überblick</h1>
+  <p class="einleitung">
+    Der Chatbot von WirLernenOnline (WLO) in drei interaktiven Grafiken: das Zusammenspiel
+    der Bausteine und der Weg eines Zuges in den beiden Betriebsarten. Jede Grafik lässt sich
+    zoomen, auf einzelne Bausteine fokussieren und exportieren.
+  </p>
+  <ul class="karten">
+    <li>
+      <a href="architektur.html">
+        <h2>Architektur</h2>
+        <p>Widget, Studio, Backend mit LangGraph-Zuggraph, PostgreSQL mit pgvector,
+          LLM-Anbieter, WLO-MCP-Server und edu-sharing.</p>
+      </a>
+    </li>
+    <li>
+      <a href="ablauf-muster-modus.html">
+        <h2>Ablauf im Muster-Modus</h2>
+        <p>Vorlauf, Sicherheit und Klassifikation, Musterwahl, RAG, Werkzeugschleife und
+          Antwort samt Schnellantworten.</p>
+      </a>
+    </li>
+    <li>
+      <a href="ablauf-agent-schleife.html">
+        <h2>Ablauf in der Agent-Schleife</h2>
+        <p>Sicherheitsprüfung, Schutz-Umleitung, Master-Skill, LLM-Runden mit dem vollen
+          Werkzeug-Katalog und Abschluss.</p>
+      </a>
+    </li>
+  </ul>
+  <footer>
+    <p>Stand 1. Oktober 2026, erzeugt mit archify aus dem Quellstand <code>989ae75</code>.
+      Die Quell-Links in den Grafiken führen ins Repository <code>edu-chatbot-sc</code> und
+      setzen dort Zugang voraus.</p>
+  </footer>
+</main>
+</body>
+</html>

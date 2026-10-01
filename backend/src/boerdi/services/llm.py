@@ -19,12 +19,15 @@ The network boundaries are the module attributes ``_acompletion`` (chat) and
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 from uuid import uuid4
 
 import litellm
 
 from boerdi.obs import usage as _usage
+from boerdi.obs.zeiten import seit_ms
+from boerdi.services.llm_choices import vereinige_choices
 from boerdi.services.llm_models import (
     get_chat_model,
     get_embed_model,
@@ -199,6 +202,11 @@ def wire_transport(resolved: str, kwargs: dict[str, Any]) -> None:
             # (gemessen 21.08.). Ein Zufallswert je Request schaltet den
             # Cache also auch hier ab.
             kwargs.setdefault("extra_body", {})["user"] = f"boerdi-nc-{uuid4().hex}"
+    # OpenAI-Tarif (``LLM_SERVICE_TIER``, z. B. ``fast``) — nur direkt bei
+    # OpenAI gemessen (2026-10-01, LiteLLM reicht ihn auch über die
+    # Responses-Brücke durch); die b-api-Pfade bleiben unberührt.
+    if s.llm_service_tier and get_provider() == "openai":
+        kwargs["service_tier"] = s.llm_service_tier
 
 
 async def chat_completion(
@@ -227,11 +235,16 @@ async def chat_completion(
     )
     wire_transport(resolved, kwargs)
 
+    t0 = time.perf_counter()  # Wanduhr samt Warteschlange — so wartet der Zug
     async with _semaphore("bg" if background else "live"):
         resp = await _acompletion(**kwargs)
+    ms = seit_ms(t0)
+    # Responses-Brücke: Text und Aufrufe können auf zwei Choices liegen — jeder
+    # Aufrufer liest choices[0] (siehe services/llm_choices).
+    resp = vereinige_choices(resp)
 
     if usage_acc is not None:
-        _usage.add_usage(usage_acc, _usage.extract_usage(resp), phase)
+        _usage.add_usage(usage_acc, _usage.extract_usage(resp), phase, ms=ms)
     return resp
 
 

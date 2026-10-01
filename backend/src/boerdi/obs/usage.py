@@ -107,10 +107,13 @@ def new_accumulator() -> dict[str, Any]:
 
 
 def add_usage(
-    acc: dict[str, Any] | None, usage: dict[str, Any], phase: str | None = None
+    acc: dict[str, Any] | None, usage: dict[str, Any], phase: str | None = None,
+    ms: int | None = None,
 ) -> None:
     """Fold one extracted usage record into the accumulator (totals + the
-    per-model bucket + optionally the per-phase bucket)."""
+    per-model bucket + optionally the per-phase bucket). ``ms`` is the call's
+    wall-clock duration; it sums into ``per_phase[phase]["ms"]`` so the debug
+    block shows where a turn's time went (plan 2026-09-30, T7)."""
     if not acc or not usage:
         return
     p = int(usage.get("prompt", 0) or 0)
@@ -138,3 +141,5 @@ def add_usage(
         ph["cached"] += cached
         ph["reasoning"] += reasoning
         ph["calls"] += 1
+        if ms is not None:
+            ph["ms"] = ph.get("ms", 0) + ms

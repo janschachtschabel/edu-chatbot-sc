@@ -220,3 +220,21 @@ def test_der_modus_erreicht_die_virtuellen_werkzeuge_nicht() -> None:
         tool_mode="read-only", include_dokument=True, include_submit=True))
     assert SUBMIT_RESULT in namen
     assert "zeige_dokument" in namen
+
+
+# ── Plan 2026-09-30: das Antwort-Werkzeug ────────────────────────────────────
+
+
+def test_das_antwort_werkzeug_ist_virtuell_und_nicht_sperrbar() -> None:
+    """``respond_to_user`` ist eine Ziellinie wie ``submit_result`` — weder eine
+    Sperre noch der Einbettungs-Modus dürfen sie dem Lauf nehmen."""
+    from boerdi.domain.antwort_werkzeug import antwort_werkzeug
+
+    namen = _namen(build_agent_tools(
+        include_submit=False, antwort_tool=antwort_werkzeug(anzahl=2, max_zeichen=48),
+        blocked_tools=["respond_to_user"], tool_mode="read-only"))
+    assert "respond_to_user" in namen
+
+
+def test_ohne_antwort_werkzeug_bleibt_der_katalog_wie_bisher() -> None:
+    assert "respond_to_user" not in _namen(build_agent_tools(include_submit=False))

@@ -158,5 +158,7 @@ def test_kuration_bucht_unter_eigener_phase(monkeypatch):
         usage_acc=acc))
 
     assert acc["calls"] == 1
-    assert acc["per_phase"]["curation"] == {
+    eintrag = dict(acc["per_phase"]["curation"])
+    assert isinstance(eintrag.pop("ms"), int)  # Dauer seit 2026-09-30 (T7)
+    assert eintrag == {
         "prompt": 50, "completion": 20, "cached": 0, "reasoning": 0, "calls": 1}

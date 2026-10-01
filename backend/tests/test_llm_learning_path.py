@@ -173,7 +173,9 @@ def test_lp_bucht_unter_eigener_phase(monkeypatch):
         "Bruchrechnung", "1. [Video A](https://x)", {}, usage_acc=acc))
 
     assert acc["calls"] == 1
-    assert acc["per_phase"]["learning_path"] == {
+    eintrag = dict(acc["per_phase"]["learning_path"])
+    assert isinstance(eintrag.pop("ms"), int)  # Dauer seit 2026-09-30 (T7)
+    assert eintrag == {
         "prompt": 50, "completion": 20, "cached": 0, "reasoning": 0, "calls": 1}
 
 

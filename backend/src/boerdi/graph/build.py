@@ -73,6 +73,7 @@ from boerdi.graph.state import TurnContext
 from boerdi.obs.progress import TurnProgress
 from boerdi.obs.quality_events import log_safety_event
 from boerdi.obs.usage import bind_turn_usage
+from boerdi.obs.zeiten import messe_knoten
 from boerdi.services.config_loader import load_safety_config
 from boerdi.services.db_sessions import get_memory, save_message
 from boerdi.services.mcp.client import reset_prepared_writes, reset_query_metas
@@ -163,22 +164,27 @@ def build_turn_graph(
     progress = progress or TurnProgress()
 
     g: StateGraph = StateGraph(TurnContext)
-    g.add_node("setup", functools.partial(setup, session=session, peer_ip=peer_ip))
-    g.add_node("tour", functools.partial(tour, session=session))
-    g.add_node("page_context_enrich", page_context_enrich)
-    g.add_node("context_greeting", functools.partial(context_greeting, session=session))
-    g.add_node("persist_user", functools.partial(_persist_user_message, session=session))
-    g.add_node("preflight", functools.partial(preflight, session=session))
-    g.add_node("assess", functools.partial(
+
+    def knoten(name: str, action: Any) -> None:
+        # Jeder Knoten bucht seine Dauer in den Debug-Block (Plan 2026-09-30, T8).
+        g.add_node(name, messe_knoten(name, action))
+
+    knoten("setup", functools.partial(setup, session=session, peer_ip=peer_ip))
+    knoten("tour", functools.partial(tour, session=session))
+    knoten("page_context_enrich", page_context_enrich)
+    knoten("context_greeting", functools.partial(context_greeting, session=session))
+    knoten("persist_user", functools.partial(_persist_user_message, session=session))
+    knoten("preflight", functools.partial(preflight, session=session))
+    knoten("assess", functools.partial(
         assess, memory_fetch=memory_fetch, progress=progress, engine=engine))
-    g.add_node("safety_log", functools.partial(_log_turn_safety, session=session))
-    g.add_node("merge", functools.partial(merge, engine=engine))
-    g.add_node("route", functools.partial(route, progress=progress, engine=engine))
-    g.add_node("respond", functools.partial(
+    knoten("safety_log", functools.partial(_log_turn_safety, session=session))
+    knoten("merge", functools.partial(merge, engine=engine))
+    knoten("route", functools.partial(route, progress=progress, engine=engine))
+    knoten("respond", functools.partial(
         respond, session=session, on_token=on_token, progress=progress,
         engine=engine))
-    g.add_node("assemble", assemble)
-    g.add_node("persist", functools.partial(
+    knoten("assemble", assemble)
+    knoten("persist", functools.partial(
         persist, session=session, progress=progress, engine=engine))
 
     g.add_edge(START, "setup")

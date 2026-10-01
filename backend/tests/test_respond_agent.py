@@ -1192,3 +1192,47 @@ async def test_die_ansage_vor_einer_echten_antwort_bleibt(monkeypatch):
     assert ctx.response_text.startswith(
         "[ edu-sharing Skill ] Chatbot Masterskill - aktiv")
     assert ctx.response_text.count("[ edu-sharing Skill ]") == 1
+
+
+# ── Plan 2026-09-30: Schnellantworten im Antwort-Aufruf (Agent) ─────────────
+
+
+@pytest.mark.anyio
+async def test_ohne_schalter_bleibt_der_agent_beim_eigenen_aufruf(monkeypatch):
+    """Der Master-Skill beschreibt heute: die Pillen schreibt ein zweiter
+    Aufruf. Solange er das sagt, bekommt der Agent das Werkzeug nicht —
+    Werkzeug und Anleitung widersprächen sich."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+
+    await respond_agent(_ctx())
+
+    assert "respond_to_user" not in _namen(seen["run_agent_loop"]["tools"])
+
+
+@pytest.mark.anyio
+async def test_mit_schalter_liefert_der_agent_die_vorschlaege_selbst(monkeypatch):
+    monkeypatch.setenv("AGENT_INLINE_QUICK_REPLIES", "1")
+    seen: dict = {}
+    _patch(monkeypatch, seen, lauf=AgentRun(
+        text="Antwort", stop_reason="text", iterations=1,
+        vorschlaege=["Zeig mir Videos", "Erklär es einfacher"]))
+    ctx = _ctx()
+
+    await respond_agent(ctx)
+
+    assert "respond_to_user" in _namen(seen["run_agent_loop"]["tools"])
+    assert ctx.session_state["_inline_quick_replies"] == [
+        "Zeig mir Videos", "Erklär es einfacher"]
+
+
+@pytest.mark.anyio
+async def test_der_globale_schalter_gilt_auch_fuer_den_agenten(monkeypatch):
+    monkeypatch.setenv("AGENT_INLINE_QUICK_REPLIES", "1")
+    monkeypatch.setenv("CHAT_INLINE_QUICK_REPLIES", "0")
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+
+    await respond_agent(_ctx())
+
+    assert "respond_to_user" not in _namen(seen["run_agent_loop"]["tools"])

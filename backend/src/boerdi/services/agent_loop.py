@@ -38,6 +38,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from boerdi.domain.antwort_werkzeug import RESPOND_TO_USER, antwort_aus_argumenten
 from boerdi.domain.config_models.engine import AgentLimits
 from boerdi.domain.inline_documents import (
     MAX_DOKUMENTE_JE_ZUG,
@@ -85,6 +86,10 @@ _DOKUMENT_DECKEL = (
     "jetzt deinen Begleitsatz."
 )
 
+# Ehrlich statt „OK": ein Werkzeug NACH der Antwort ist nicht gelaufen. Die
+# Kette endet hier zwar, aber jeder Aufruf braucht seine Werkzeug-Nachricht.
+_NACH_DER_ANTWORT = "Nicht ausgeführt: Die Antwort wurde bereits mit respond_to_user gegeben."
+
 
 @dataclass(slots=True)
 class AgentRun:
@@ -122,6 +127,9 @@ class AgentRun:
     #: Geführt von ``agent_trace.Rundenbuch``; ``tools_called`` bleibt davon
     #: unberührt die Liste der echten Werkzeuge.
     runden: list[dict[str, Any]] = field(default_factory=list)
+    #: Die Schnellantworten aus ``respond_to_user`` (Plan 2026-09-30) — leer,
+    #: wenn der Lauf in Prosa endete; dann schreibt sie der eigene Aufruf.
+    vorschlaege: list[str] = field(default_factory=list)
 
 
 def _spent(acc: dict[str, Any]) -> int:
@@ -305,6 +313,7 @@ async def run_agent_loop(
 
         messages.append(_assistant_turn(choice.message, calls))
 
+        antwort: dict[str, Any] | None = None
         for tc in calls:
             name = tc.function.name
             args, fehler = _arguments(tc.function.arguments)
@@ -312,6 +321,18 @@ async def run_agent_loop(
             if fehler:
                 logger.info("Agent-Schleife: unlesbare Argumente für %s", name)
                 messages.append(_tool_turn(tc.id, fehler))
+                continue
+
+            # Die Antwort samt Schnellantworten (Plan 2026-09-30): virtuell, eine
+            # Ziellinie wie Prosa — ausgewertet erst am Ende der Runde, damit ein
+            # Dokument oder Ergebnis DERSELBEN Runde noch ankommt. Echte
+            # Werkzeuge danach laufen nicht mehr: wer antwortet, ist fertig.
+            if name == RESPOND_TO_USER:
+                antwort = args
+                messages.append(_tool_turn(tc.id, "OK"))
+                continue
+            if antwort is not None and name not in (ZEIGE_DOKUMENT, LIEFERE_ERGEBNIS):
+                messages.append(_tool_turn(tc.id, _NACH_DER_ANTWORT))
                 continue
 
             # Das Abschluss-Werkzeug ist virtuell: es geht nie an den MCP.
@@ -451,6 +472,12 @@ async def run_agent_loop(
                 frame_untrusted(name, redigiere_strukturell(name, beobachtet))
                 + skill_registry_note(beobachtet, tool_name=name, args=args),
             ))
+
+        if antwort is not None:
+            run.text, run.vorschlaege = antwort_aus_argumenten(antwort)
+            # Ohne Text ist es keine Antwort — ``empty`` bekommt in
+            # ``respond_agent`` den ehrlichen Satz statt einer leeren Blase.
+            return schluss("text" if run.text else "empty")
 
     logger.info("Agent-Schleife: Iterationsdeckel von %s erreicht", limits.max_iterations)
     return schluss("max_iterations")
