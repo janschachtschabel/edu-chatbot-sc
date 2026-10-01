@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>boerdi-chat — Technik im Überblick</title>
-<meta name="description" content="Architektur und Abläufe des WLO-Chatbots boerdi-chat als interaktive Grafiken.">
+<meta name="description" content="Architektur, Software-Stack, Abläufe und Konfiguration des WLO-Chatbots boerdi-chat als interaktive Grafiken.">
 <style>
   :root {
     color-scheme: light dark;
@@ -38,6 +38,8 @@
   main { max-width: 64rem; margin: 0 auto; padding: 2.5rem 1rem 3rem; }
   h1 { font-size: clamp(1.6rem, 3vw, 2.2rem); line-height: 1.2; margin: 0 0 .75rem; }
   .einleitung { color: var(--muted); max-width: 46rem; margin: 0 0 2rem; }
+  section + section { margin-top: 2rem; }
+  section > h2 { font-size: 1.25rem; margin: 0 0 .75rem; }
   .karten {
     list-style: none;
     padding: 0;
@@ -58,7 +60,7 @@
   }
   .karten a:hover { border-color: var(--accent); }
   .karten a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-  .karten h2 { font-size: 1.15rem; margin: 0 0 .4rem; color: var(--accent); }
+  .karten h3 { font-size: 1.15rem; margin: 0 0 .4rem; color: var(--accent); }
   .karten p { margin: 0; color: var(--muted); font-size: .95rem; }
   footer { margin-top: 2.5rem; color: var(--muted); font-size: .875rem; max-width: 46rem; }
   code { font-size: .9em; }
@@ -68,35 +70,71 @@
 <main>
   <h1>boerdi-chat — Technik im Überblick</h1>
   <p class="einleitung">
-    Der Chatbot von WirLernenOnline (WLO) in drei interaktiven Grafiken: das Zusammenspiel
-    der Bausteine und der Weg eines Zuges in den beiden Betriebsarten. Jede Grafik lässt sich
-    zoomen, auf einzelne Bausteine fokussieren und exportieren.
+    Der Chatbot von WirLernenOnline (WLO) in sechs interaktiven Grafiken: woraus er besteht,
+    welche Bibliotheken darin stecken, wie ein Zug in den beiden Betriebsarten abläuft und welche
+    Einstellungen ihn dabei lenken. Jede Grafik lässt sich zoomen, auf einzelne Bausteine
+    fokussieren und exportieren.
   </p>
-  <ul class="karten">
-    <li>
-      <a href="architektur.html">
-        <h2>Architektur</h2>
-        <p>Widget, Studio, Backend mit LangGraph-Zuggraph, PostgreSQL mit pgvector,
-          LLM-Anbieter, WLO-MCP-Server und edu-sharing.</p>
-      </a>
-    </li>
-    <li>
-      <a href="ablauf-muster-modus.html">
-        <h2>Ablauf im Muster-Modus</h2>
-        <p>Vorlauf, Sicherheit und Klassifikation, Musterwahl, RAG, Werkzeugschleife und
-          Antwort samt Schnellantworten.</p>
-      </a>
-    </li>
-    <li>
-      <a href="ablauf-agent-schleife.html">
-        <h2>Ablauf in der Agent-Schleife</h2>
-        <p>Sicherheitsprüfung, Schutz-Umleitung, Master-Skill, LLM-Runden mit dem vollen
-          Werkzeug-Katalog und Abschluss.</p>
-      </a>
-    </li>
-  </ul>
+  <section aria-labelledby="aufbau">
+    <h2 id="aufbau">Aufbau</h2>
+    <ul class="karten">
+      <li>
+        <a href="architektur.html">
+          <h3>Architektur</h3>
+          <p>Widget, Studio, Backend mit LangGraph-Zuggraph, PostgreSQL mit pgvector,
+            LLM-Anbieter, WLO-MCP-Server und edu-sharing.</p>
+        </a>
+      </li>
+      <li>
+        <a href="software-stack.html">
+          <h3>Software-Stack</h3>
+          <p>Angular, FastAPI, LangGraph, LiteLLM, MCP-SDK, SQLAlchemy, onnxruntime und die
+            Dienste im Betrieb, jeweils mit Version und Zusammenspiel.</p>
+        </a>
+      </li>
+    </ul>
+  </section>
+  <section aria-labelledby="ablaeufe">
+    <h2 id="ablaeufe">Abläufe</h2>
+    <ul class="karten">
+      <li>
+        <a href="ablauf-muster-modus.html">
+          <h3>Ablauf im Muster-Modus</h3>
+          <p>Vorlauf, Sicherheit und Klassifikation, Musterwahl, RAG, Werkzeugschleife und
+            Antwort samt Schnellantworten.</p>
+        </a>
+      </li>
+      <li>
+        <a href="ablauf-agent-schleife.html">
+          <h3>Ablauf in der Agent-Schleife</h3>
+          <p>Sicherheitsprüfung, Schutz-Umleitung, Master-Skill, LLM-Runden mit dem vollen
+            Werkzeug-Katalog und Abschluss.</p>
+        </a>
+      </li>
+    </ul>
+  </section>
+  <section aria-labelledby="konfiguration">
+    <h2 id="konfiguration">Konfiguration</h2>
+    <ul class="karten">
+      <li>
+        <a href="konfiguration-muster-modus.html">
+          <h3>Konfiguration im Muster-Modus</h3>
+          <p>Welche Studio-Bereiche, Umgebungsvariablen und Einbettungs-Attribute in welchem
+            Schritt wirken: Muster, Personas, Sicherheit, Wissen, Anzeige.</p>
+        </a>
+      </li>
+      <li>
+        <a href="konfiguration-agent-schleife.html">
+          <h3>Konfiguration in der Agent-Schleife</h3>
+          <p>Rolle, Schutzregeln, Master-Skill, Grenzen, Schreibrechte und Werkzeug-Rechte,
+            dazu was im Agent-Modus nicht wirkt.</p>
+        </a>
+      </li>
+    </ul>
+  </section>
   <footer>
-    <p>Stand 1. Oktober 2026, erzeugt mit archify aus dem Quellstand <code>989ae75</code>.
+    <p>Stand 1. Oktober 2026, erzeugt mit archify aus den Quellständen <code>989ae75</code>
+      (Architektur, Abläufe) und <code>1f069e9</code> (Software-Stack, Konfiguration).
       Die Quell-Links in den Grafiken führen ins Repository <code>edu-chatbot-sc</code> und
       setzen dort Zugang voraus.</p>
   </footer>
