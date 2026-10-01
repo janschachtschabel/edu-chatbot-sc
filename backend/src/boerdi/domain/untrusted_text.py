@@ -44,6 +44,8 @@ sie besser nach: ``grep -rn frame_untrusted src/``.
 
 from __future__ import annotations
 
+import re
+
 # Werkzeuge, deren Nutzlast Langform-Prosa von Dritten ist.
 FREE_TEXT_TOOLS = frozenset({
     # Volltext eines hochgeladenen Materials (M17). Beliebiger Fremdtext.
@@ -107,6 +109,20 @@ GESEHEN_FRAME_START = (
 )
 GESEHEN_FRAME_END = "[ENDE ZULETZT GEZEIGT]"
 
+#: Audit 2026-09-29 B-M4: eine Endmarke IM Fremdtext schloss den Rahmen
+#: vorzeitig — alles danach stand scheinbar ausserhalb, auf Anweisungsebene.
+#: Erfasst auch Gross-/Kleinschreibung und zusaetzliche Leerzeichen.
+_ENDMARKE = re.compile(r"\[\s*ENDE\s+(FREMDINHALT|ZULETZT\s+GEZEIGT)\s*\]", re.IGNORECASE)
+
+
+def entschaerfe_endmarken(text: str) -> str:
+    """Endmarken der Rahmen im Text unwirksam machen, bevor er gerahmt wird.
+
+    Aus den eckigen werden runde Klammern: der Inhalt bleibt lesbar, aber er
+    gleicht der echten Marke am Rahmenende nicht mehr.
+    """
+    return _ENDMARKE.sub(lambda m: f"(ENDE {m.group(1).upper()})", text)
+
 
 def frame_untrusted(tool_name: str, text: str) -> str:
     """Kennzeichne ``text`` als Fremdinhalt, wenn ``tool_name`` Prosa liefert.
@@ -120,7 +136,7 @@ def frame_untrusted(tool_name: str, text: str) -> str:
     if not text.strip():
         return text
     if tool_name in FREE_TEXT_TOOLS:
-        return f"{FRAME_START}\n{text}\n{FRAME_END}"
+        return f"{FRAME_START}\n{entschaerfe_endmarken(text)}\n{FRAME_END}"
     if tool_name in WEB_TEXT_TOOLS:
-        return f"{WEB_FRAME_START}\n{text}\n{FRAME_END}"
+        return f"{WEB_FRAME_START}\n{entschaerfe_endmarken(text)}\n{FRAME_END}"
     return text
