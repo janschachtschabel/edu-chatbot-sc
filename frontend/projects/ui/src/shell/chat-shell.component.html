@@ -43,11 +43,19 @@
             <div class="host-label">{{ t('chat.hostTask') }}</div>
           }
 
-          <!-- Lade-Punkte + Live-Phasen-Label (aus POST /api/chat/stream) -->
+          <!-- Lade-Punkte + Live-Phasen-Label (aus POST /api/chat/stream).
+               Token-Streaming (Plan 2026-10-01): der vorläufige Antworttext steht
+               darüber — für Screenreader verborgen und nicht fokussierbar, denn
+               angesagt wird wie bisher genau die fertige Antwort (role="log").
+               Ohne Render-Cache: er ändert sich mit jedem Rahmen. -->
           @if (msg.isLoading) {
+            @if (msg.streamText) {
+              <div class="msg-content" aria-hidden="true" inert
+                   [innerHTML]="render.markdown(msg.streamText, 'bot', false)"></div>
+            }
             <div class="typing-row">
               <div class="typing-dots"><span></span><span></span><span></span></div>
-              @if (msg.loadingPhase) {
+              @if (msg.loadingPhase && !msg.streamText) {
                 <span class="typing-phase">{{ msg.loadingPhase }}</span>
               }
             </div>

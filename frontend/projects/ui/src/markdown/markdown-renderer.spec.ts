@@ -54,6 +54,23 @@ describe('MarkdownRenderer — sanitization (security floor)', () => {
   });
 });
 
+describe('MarkdownRenderer — Render-Cache', () => {
+  // Token-Streaming (Plan 2026-10-01, T17): vorläufiger Text ändert sich mit
+  // jedem Rahmen. Durch den Cache (300 Einträge) schöbe er fertige Bubbles hinaus.
+  it('cache=false: gleiche Ausgabe, aber nichts landet im Cache', () => {
+    // Jede Freigabe ein neues Objekt — so zeigt die Identität, ob der Cache traf.
+    const r = new MarkdownRenderer(makeCtx({
+      bypassSecurityTrustHtml: (h: string) => ({ h }) as unknown as SafeHtml,
+    }));
+    const inhalt = (x: SafeHtml) => (x as unknown as { h: string }).h;
+    const ohne = r.render('**live**', 'bot', false);
+    const mit = r.render('**live**');
+    expect(inhalt(ohne)).toBe(inhalt(mit));
+    expect(mit).not.toBe(ohne);                  // der erste Aufruf hat nichts abgelegt
+    expect(r.render('**live**')).toBe(mit);      // der Cache selbst arbeitet weiter
+  });
+});
+
 describe('MarkdownRenderer — markdown + link handling', () => {
   it('renders emphasis and wraps bot output in a block <p>', () => {
     const out = html(new MarkdownRenderer(makeCtx()).render('**fett**'));

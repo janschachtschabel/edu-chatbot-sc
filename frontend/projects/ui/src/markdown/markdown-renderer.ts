@@ -96,13 +96,17 @@ export class MarkdownRenderer {
     this._renderCache.clear();
   }
 
-  render(text: string, sender: 'bot' | 'user' = 'bot'): SafeHtml {
+  /** `cache = false` für Text, der sich gleich wieder ändert — den
+   *  vorläufigen Antworttext beim Token-Streaming (Plan 2026-10-01): jeder
+   *  Rahmen ein neuer Schlüssel, er schöbe fertige Bubbles aus dem Cache.
+   *  Bereinigt wird genauso (DOMPurify), nur nichts abgelegt. */
+  render(text: string, sender: 'bot' | 'user' = 'bot', cache = true): SafeHtml {
     if (!text) return this.ctx.bypassSecurityTrustHtml('');
     // sessionId Teil des Cache-Keys: nach resetSession() ändert sich die
     // bsid, die ``withBsid`` in die Link-hrefs einbaut — ohne sessionId im
     // Key würde eine gecachte Bubble mit ALTER bsid wiederverwendet.
     const cacheKey = sender + '|' + (this.ctx.sessionId() || '') + '|' + text;
-    const cached = this._renderCache.get(cacheKey);
+    const cached = cache ? this._renderCache.get(cacheKey) : undefined;
     if (cached) return cached;
     // Backend-Sentinel ``<!-- boerdi:printable-canvas|... -->`` strippen,
     // bevor marked parsed wird. Diese Marker signalisieren dem Frontend, dass
@@ -228,6 +232,7 @@ export class MarkdownRenderer {
       } catch { /* fall back to unprocessed clean */ }
     }
     const safe = this.ctx.bypassSecurityTrustHtml(final);
+    if (!cache) return safe;
     // FIFO-Cap — die Map wuchs sonst unbegrenzt (ein Eintrag pro einzigartiger
     // Nachricht, Widget lebt die ganze Seiten-Session). 300 deckt sehr lange
     // Chats; Älteste fliegen raus.

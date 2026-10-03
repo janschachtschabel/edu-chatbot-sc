@@ -121,6 +121,53 @@ describe('MessageStore — State-Core', () => {
     expect(byId(doneId).loadingPhase).toBeUndefined();
   });
 
+  // Token-Streaming (Plan 2026-10-01, T14): `pos` ist die Länge des bisher
+  // gesendeten Texts. Passt er nicht, fehlt ein Stück — dann wird nichts mehr
+  // angehängt, und `result` bringt am Ende den ganzen Text.
+  it('appendStreamText: hängt an, solange pos zur bisherigen Länge passt', () => {
+    const s = new MessageStore();
+    const loadingId = s.addBotMessage('', true);
+    const byId = (id: string) => s.messages().find(m => m.id === id)!;
+
+    s.appendStreamText(loadingId, 'Hal', 0);
+    s.appendStreamText(loadingId, 'lo', 3);
+    expect(byId(loadingId).streamText).toBe('Hallo');
+
+    s.appendStreamText(loadingId, ' Welt', 9);   // Lücke: pos 9 statt 5
+    s.appendStreamText(loadingId, '!', 5);        // danach bleibt der Strom stehen
+    expect(byId(loadingId).streamText).toBe('Hallo');
+  });
+
+  // Review Token-Streaming, M1: `pos` zählt Unicode-Zeichen (Python `len`),
+  // JavaScript-`length` dagegen UTF-16-Einheiten — ein Emoji zählt dort doppelt.
+  it('appendStreamText: Emoji im Strom zählt als ein Zeichen wie beim Server', () => {
+    const s = new MessageStore();
+    const loadingId = s.addBotMessage('', true);
+    const emoji = String.fromCodePoint(0x1F600);
+    s.appendStreamText(loadingId, 'Grüße ' + emoji, 0);
+    s.appendStreamText(loadingId, ' und mehr', 7);
+    expect(s.messages()[0].streamText).toBe('Grüße ' + emoji + ' und mehr');
+  });
+
+  it('appendStreamText: nur auf der ladenden Bubble mit passender id', () => {
+    const s = new MessageStore();
+    const doneId = s.addBotMessage('fertig', false);
+    s.appendStreamText(doneId, 'x', 0);
+    expect(s.messages()[0].streamText).toBeUndefined();
+  });
+
+  it('clearStreamText: leert den vorläufigen Text und hebt die Sperre nach einer Lücke auf', () => {
+    const s = new MessageStore();
+    const loadingId = s.addBotMessage('', true);
+    const byId = (id: string) => s.messages().find(m => m.id === id)!;
+    s.appendStreamText(loadingId, 'Hal', 0);
+    s.appendStreamText(loadingId, 'x', 7);        // Lücke
+    s.clearStreamText(loadingId);
+    expect(byId(loadingId).streamText).toBeUndefined();
+    s.appendStreamText(loadingId, 'Neu', 0);
+    expect(byId(loadingId).streamText).toBe('Neu');
+  });
+
   it('set/update: ersetzt bzw. transformiert den Verlauf (Lifecycle-/History-Pfade)', () => {
     const s = new MessageStore();
     s.addBotMessage('a');

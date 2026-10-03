@@ -256,6 +256,10 @@ export interface ChatMessage {
   /** Live-Status aus POST /api/chat/stream während `isLoading`. Von der Shell
    *  pro Tracer-`phase`-Event gesetzt (updateLoadingPhase). */
   loadingPhase?: string;
+  /** Vorläufiger Antworttext aus `text_delta`-Rahmen, während `isLoading`
+   *  (Token-Streaming, Plan 2026-10-01). Die fertige Antwort ersetzt die
+   *  ganze Bubble; für Screenreader bleibt er verborgen (`aria-hidden`). */
+  streamText?: string;
   /** Paginierung + client-seitiges Karten-Fenster — von den Cards-Aktionen
    *  (loadMore/showMoreCards) gelesen und fortgeschrieben. */
   pagination?: PaginationInfo | null;
