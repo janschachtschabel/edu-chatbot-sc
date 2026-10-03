@@ -118,15 +118,21 @@ function frame(event: string, data: unknown): string {
  * Full SSE body for one turn: the same frame sequence the backend emits
  * (connected → phase → text_delta* → result). Sent in one chunk — the parser
  * splits on blank lines, so chunk boundaries are irrelevant to it.
+ *
+ * `text_delta` carries `{text, pos}` like `services/token_stream`: only
+ * non-empty pieces, `pos` counted in Unicode code points (Python `len`).
  */
 export function sseBody(response: Record<string, unknown>): string {
-  const content = String(response['content'] ?? '');
-  const half = Math.ceil(content.length / 2);
+  const zeichen = Array.from(String(response['content'] ?? ''));
+  const half = Math.ceil(zeichen.length / 2);
+  const deltas: string[] = [];
+  for (const [von, bis] of [[0, half], [half, zeichen.length]]) {
+    if (bis > von) deltas.push(frame('text_delta', { text: zeichen.slice(von, bis).join(''), pos: von }));
+  }
   return [
     frame('connected', { session_id: response['session_id'] }),
     frame('phase', { step: 'wlo_search' }),
-    frame('text_delta', { delta: content.slice(0, half) }),
-    frame('text_delta', { delta: content.slice(half) }),
+    ...deltas,
     frame('result', response),
   ].join('');
 }
