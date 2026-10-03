@@ -99,9 +99,12 @@ def test_lp_reasoning_markers_stripped(monkeypatch):
     assert _run(monkeypatch, cap) == "Pfad fertig"
 
 
-def test_lp_exception_embedded_in_error_message(monkeypatch):
+def test_lp_exception_stays_out_of_the_message(monkeypatch):
+    # Audit 2026-09-29 (6.3): der Ausnahmetext gehört ins Log, nicht in die Blase.
     cap = _Capture(raises=RuntimeError("boom"))
-    assert _run(monkeypatch, cap) == "Fehler beim Erstellen des Lernpfads: boom"
+    text = _run(monkeypatch, cap)
+    assert text.startswith("Fehler beim Erstellen des Lernpfads")
+    assert "boom" not in text
 
 
 # ── Ausgabe-Sprache (C1-f2a) ───────────────────────────────────────────────
@@ -155,7 +158,7 @@ def test_lp_error_message_english(monkeypatch):
     monkeypatch.setattr(llm, "_acompletion", cap)
     out = asyncio.run(lp.generate_learning_path_text(
         "Fractions", "1. [Video A](https://x)", {}, lang="en"))
-    assert out == "Error while creating the learning path: boom"
+    assert out == "Error while creating the learning path. Please try again."
 
 
 # ── K1b: der Lernpfad bucht seine Token ───────────────────────────────────

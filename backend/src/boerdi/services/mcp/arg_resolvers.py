@@ -283,13 +283,22 @@ async def _ensure_label_cache(vocab: str) -> None:
         return  # unknown vocab, do nothing
     try:
         raw = await call_mcp_tool("lookup_wlo_vocabulary", {"vocabulary": vocab})
-    except Exception as e:  # pragma: no cover — network failure
+    except Exception as e:  # unerwartet — Netzfehler kommen als Text, s. u.
         # B5 (2026-06-10): NICHT als geladen markieren — vorher latchte ein
         # einziger Netzwerkfehler beim Start den Cache permanent leer
         # (Filter-Auflösung degradiert bis zum Neustart). Ohne Latch
         # versucht der nächste Bedarfs-Aufruf es einfach erneut.
         logger.warning("%s vocabulary preload failed (retry on next use): %s",
                        vocab, e)
+        return
+    # Der Normalfall eines Fehlschlags (Audit 2026-09-29, 6.3): ``call_mcp_tool``
+    # wirft nicht, es liefert den Fehler als Text. Ohne diese Prüfung ergab er
+    # null Einträge, und der Latch unten griff trotzdem — B5 lief ins Leere.
+    from boerdi.services.mcp.client import is_mcp_error
+
+    if is_mcp_error(raw):
+        logger.warning("%s vocabulary preload failed (retry on next use): %s",
+                       vocab, raw[:200])
         return
 
     # Output format (from real MCP response):

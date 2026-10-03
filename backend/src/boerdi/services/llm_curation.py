@@ -10,11 +10,14 @@ verbatim ALT. Precedent: llm_learning_path.py / quick_replies_llm.py.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
 from boerdi.i18n import DEFAULT, Locale, bot_text, language_name, template_hint
 from boerdi.services import llm
+
+logger = logging.getLogger(__name__)
 
 
 async def generate_curation_text(
@@ -84,4 +87,6 @@ async def generate_curation_text(
             or bot_text(lang, "curation.failed")
         )
     except Exception as e:
-        return bot_text(lang, "curation.error", error=e)
+        # Der Grund ins Log, nicht in die Blase (Audit 2026-09-29, 6.3).
+        logger.error("curation analysis failed: %s", e)
+        return bot_text(lang, "curation.error")

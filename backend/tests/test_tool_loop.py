@@ -554,6 +554,13 @@ def _run_loop(monkeypatch, responses, *, raises=None, outcome=None,
         usage_acc=None,
         on_token=None,
     )
+    if "active_tools" not in kw:
+        # Angeboten ist, was das Modell im Skript ruft: so rufen die Tests nur
+        # Angebotenes, wie im Betrieb. Wer die Sperre fuer nicht Angebotenes
+        # prueft (B-M1), reicht ``active_tools`` ausdruecklich herein.
+        namen = sorted({tc.function.name for r in responses
+                        for c in r.choices for tc in (c.message.tool_calls or [])})
+        state["active_tools"] = [{"type": "function", "function": {"name": n}} for n in namen]
     state.update(kw)
     result = asyncio.run(tool_loop._run_tool_loop(_SESSION, **state))
     return fake, result, state
@@ -624,9 +631,15 @@ def test_loop_verbosity_mapping_and_rag_bump(monkeypatch):
 
 
 def test_loop_api_error_returns_error_tuple(monkeypatch):
+    # Audit 2026-09-29 (6.3): der Ausnahmetext gehört ins Log, nicht in die
+    # Antwort. Die Person sieht die Fehlerblase des Chats mit dem Typ — dieselbe,
+    # die die Auswertung als Ersatzsatz erkennt (``eval/run_profile``).
+    from boerdi.i18n.bot_text import bot_text
+
     _fake, result, st = _run_loop(monkeypatch, [], raises=RuntimeError("boom"))
     text, cards, _tools, outs = result
-    assert text == "Fehler bei der Verarbeitung: boom"
+    assert "boom" not in text
+    assert text == bot_text("de", "error.internal", kind="RuntimeError")
     assert cards is st["all_cards"] and outs is st["outcomes"]
 
 
@@ -961,6 +974,42 @@ def test_loop_blocked_tool_refused(monkeypatch):
         error="blocked by safety layer")]
     msg = [m for m in st["messages"] if m.get("role") == "tool"][0]
     assert msg["content"] == "Tool wurde aus Sicherheitsgruenden blockiert."
+
+
+def test_loop_nicht_angebotenes_werkzeug_verworfen(monkeypatch):
+    """B-M1 (Audit 2026-09-29): ein Name ausserhalb des Katalogs geht nicht an
+    den MCP. Er kommt aus einer Halluzination oder einer Einschleusung im
+    Fremdtext."""
+    from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
+
+    out = _OutcomeFake()
+    _fake, _r, st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "wlo_create_collection", json.dumps({"title": "Neu"})),
+                     ("tc2", "search_wlo_content", json.dumps({"query": "Brüche"}))]),
+        _resp_text("fertig"),
+    ], outcome=out, active_tools=_ACTIVE)
+    # Ohne Zugangsblock steht das Kurations-Werkzeug nicht im Katalog.
+    assert [name for name, _args in out.calls] == ["search_wlo_content"]
+    antworten = {m["tool_call_id"]: m["content"]
+                 for m in st["messages"] if m.get("role") == "tool"}
+    assert antworten["tc1"] == NICHT_ANGEBOTEN
+    # Review 2026-10-03: eine Abweisung ist kein Werkzeug-Ergebnis. Als
+    # ``error`` gebucht, senkte sie die Zuversicht und kippte als einziges
+    # Ergebnis den Zustand auf Rückfrage.
+    assert all(o.tool != "wlo_create_collection" for o in st["outcomes"])
+
+
+def test_loop_katalog_werkzeug_ausserhalb_der_musterliste_laeuft(monkeypatch):
+    # Review 2026-10-03: Muster-Texte verlangen Werkzeuge, die ihre ``tools``-
+    # Liste nicht nennt (M10 ``get_node_details``, M18 ``get_compendium_text``),
+    # und gespeicherte Muster ändert kein Seed. Gesperrt wird deshalb, was nicht
+    # im Katalog steht, nicht, was das Muster nicht aufzählt.
+    out = _OutcomeFake()
+    _fake, _r, _st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "get_node_details", json.dumps({"nodeId": "n1"}))]),
+        _resp_text("fertig"),
+    ], outcome=out, active_tools=_ACTIVE)
+    assert [name for name, _args in out.calls] == ["get_node_details"]
 
 
 def test_loop_max_results_clamped_to_five(monkeypatch):

@@ -100,7 +100,7 @@ class _Sammler:
 def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
           limits=None, usage_acc=None, progress=None, clock=None, raises=None,
           echter_transport=False, on_tool_result=None, wissen=None,
-          on_offene_abnahme=None):
+          on_offene_abnahme=None, tools=None):
     """``echter_transport=True`` fälscht eine Ebene tiefer (``llm._acompletion``).
 
     Nötig für alles, was die **Buchung** prüft: die Schleife reicht ``usage_acc``
@@ -129,9 +129,16 @@ def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
         kwargs["wissen"] = wissen
     if on_offene_abnahme is not None:
         kwargs["on_offene_abnahme"] = on_offene_abnahme
+    if tools is None:
+        # Angeboten ist, was das Modell im Skript ruft: so rufen die Tests nur
+        # Angebotenes, wie im Betrieb. Wer die Sperre fuer nicht Angebotenes
+        # prueft (B-M1), reicht ``tools`` ausdruecklich herein.
+        tools = sorted({tc.function.name for r in responses
+                        for tc in (r.choices[0].message.tool_calls or [])}
+                       or {"search_wlo_content"})
     run = asyncio.run(agent_loop.run_agent_loop(
         messages=msgs,
-        tools=[{"type": "function", "function": {"name": "search_wlo_content"}}],
+        tools=[{"type": "function", "function": {"name": n}} for n in tools],
         limits=limits or AgentLimits(),
         usage_acc=usage_acc,
         **kwargs,
@@ -1131,3 +1138,50 @@ def test_nur_eine_antwortrunde_je_zug_streamt_auch_im_agenten(monkeypatch):
     assert len(gestreamt) == 1
     assert len(fake.calls) == 1
     assert run.text == "Zweite Antwort"
+
+
+# ── Nur Angebotenes geht an den MCP (Audit 2026-09-29, B-M1) ─────────────
+
+
+def test_nicht_angebotenes_werkzeug_geht_nicht_an_den_mcp(monkeypatch):
+    """Ein Name ausserhalb des Angebots kommt aus einer Halluzination oder einer
+    Einschleusung im Fremdtext. Ausgefuehrt umginge er etwa den Anonym-Deckel,
+    der Schreibwerkzeuge gar nicht erst anbietet."""
+    from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
+
+    out = _OutcomeFake()
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("wlo_create_collection", {"title": "Neu"})]),
+        _resp_text("Das kann ich hier nicht anlegen."),
+    ], outcome=out, tools=["search_wlo_content"])
+
+    assert out.calls == []
+    assert run.tools_called == []
+    werkzeug_antworten = [m for m in msgs if m.get("role") == "tool"]
+    assert [m["content"] for m in werkzeug_antworten] == [NICHT_ANGEBOTEN]
+    assert run.stop_reason == "text"
+
+
+def test_angebotenes_werkzeug_derselben_runde_laeuft_weiter(monkeypatch):
+    out = _OutcomeFake()
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("wlo_create_collection", {"title": "Neu"}, "c1"),
+                     _tool_call("search_wlo_content", {"query": "Brüche"}, "c2")]),
+        _resp_text("Hier sind Treffer."),
+    ], outcome=out, tools=["search_wlo_content"])
+
+    assert [name for name, _args in out.calls] == ["search_wlo_content"]
+    assert run.tools_called == ["search_wlo_content"]
+
+
+def test_ein_wiederholter_abgewiesener_aufruf_ist_stillstand(monkeypatch):
+    # Review 2026-10-03: Vor der Sperre beendete der zweite gleiche Aufruf den
+    # Lauf als ``no_progress``; abgewiesen lief er bis zum Deckel weiter.
+    out = _OutcomeFake()
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("wlo_create_collection", {"title": "Neu"}, "c1")]),
+        _resp_tools([_tool_call("wlo_create_collection", {"title": "Neu"}, "c2")]),
+        _resp_text("nie erreicht"),
+    ], outcome=out, tools=["search_wlo_content"])
+    assert run.stop_reason == "no_progress"
+    assert out.calls == []

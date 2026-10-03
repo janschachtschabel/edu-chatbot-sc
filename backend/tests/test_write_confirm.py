@@ -410,6 +410,25 @@ class TestNaht:
             "Ein verbrauchter Vorgang muss weg — sonst laesst er sich erneut ausloesen"
         )
 
+    def test_bestaetigung_auch_ohne_das_werkzeug_im_angebot(self, monkeypatch):
+        # B-M1 (Audit 2026-09-29): Ausgefuehrt wird nur Angebotenes. Das
+        # Werkzeug des offenen Vorgangs aus dem vorigen Zug bleibt rufbar:
+        # bietet das Muster des Ja-Zugs keine Kuration an, liefe die
+        # Zustimmung ueber den Fingerabdruck-Weg sonst ins Leere.
+        from tests.test_tool_loop import _OutcomeFake, _resp_text, _resp_tools, _run_loop
+
+        vorher = {"entities": {"_pending_write": remember_pending(
+            _WERKZEUG, {"title": "Bruchrechnung Klasse 6"}, _TOKEN, now=time.time())}}
+        outcome = _OutcomeFake({_WERKZEUG: "Die Sammlung wurde angelegt."})
+        _run_loop(
+            monkeypatch,
+            [_resp_tools([("tc1", _WERKZEUG, _ARGS)]), _resp_text("fertig")],
+            outcome=outcome,
+            active_tools=[{"type": "function", "function": {"name": "search_wlo_content"}}],
+            session_state=vorher,
+        )
+        assert outcome.calls[0][1].get("confirmToken") == _TOKEN
+
     def test_anderes_vorhaben_bekommt_keinen_schluessel(self, monkeypatch):
         vorher = {"entities": {"_pending_write": remember_pending(
             _WERKZEUG, {"title": "Etwas ganz anderes"}, _TOKEN, now=time.time())}}

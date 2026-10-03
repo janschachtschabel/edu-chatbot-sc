@@ -27,7 +27,8 @@ Handshake→Call→Result):
 liefert die Fabrik, die den Zugangsblock als ``Authorization``-Kopfzeile
 mitschickt (ohne Block ist es die SDK-Standardfabrik, unverändert). Alle
 Aufrufwege — ``call_tool`` wie ``discover_server_tools`` — laufen über
-``_open_session``, also über genau diese eine Naht.
+``_open_session``, also über genau diese eine Naht. Den Block bekommt dort nur
+der primäre Server (:func:`_client_fabrik`).
 
 ``simplify:`` (Perf-Feinschliff, spätere P5-Iteration): geteilter httpx-Keep-
 Alive-Pool — dieselbe Fabrik könnte einen wiederverwendeten Client liefern und
@@ -44,9 +45,9 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import create_mcp_http_client, streamablehttp_client
 
-from boerdi.services.mcp.auth import build_http_client_factory
+from boerdi.services.mcp.auth import McpHttpClientFactory, build_http_client_factory
 from boerdi.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,18 @@ def resolve_mcp_url(url: str | None = None) -> str:
     return configured or _DEFAULT_MCP_URL
 
 
+def _client_fabrik(url: str) -> McpHttpClientFactory:
+    """Die httpx-Fabrik für ``url``: mit Zugangsblock nur für den primären Server.
+
+    Weitere Server der Registry und die Discover-Adresse aus dem Studio sind
+    fremde Gegenstellen. Mit derselben Fabrik bekämen sie das Dienst-Token oder
+    den persönlichen Zugangsblock der Person (Audit 2026-09-29, A-M2/B-M2).
+    """
+    if url.rstrip("/") == resolve_mcp_url().rstrip("/"):
+        return build_http_client_factory()
+    return create_mcp_http_client
+
+
 @asynccontextmanager
 async def _open_session(url: str) -> AsyncIterator[ClientSession]:
     """Öffne eine frisch initialisierte ``ClientSession`` gegen ``url``.
@@ -91,7 +104,7 @@ async def _open_session(url: str) -> AsyncIterator[ClientSession]:
     in Tests durch eine Fake-Session ersetzt.
     """
     async with streamablehttp_client(
-        url, httpx_client_factory=build_http_client_factory()
+        url, httpx_client_factory=_client_fabrik(url)
     ) as (read_stream, write_stream, _get_session_id):
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()

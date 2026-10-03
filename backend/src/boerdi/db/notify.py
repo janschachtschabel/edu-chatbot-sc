@@ -5,8 +5,9 @@ A dedicated asyncpg connection LISTENs on ``config_changed`` (fired by the
 to a callback — P2's config_store drops its process cache per area.
 
 Dedicated raw connection on purpose: LISTEN must outlive pooled checkouts.
-The background task reconnects with backoff when the connection drops;
-callback errors are logged and never kill the listener.
+The background task reconnects with backoff when the connection drops and then
+reports the reconnect (``on_reconnect``), because notifications sent in between
+are lost; callback errors are logged and never kill the listener.
 """
 
 from __future__ import annotations
@@ -46,12 +47,24 @@ class ConfigChangeListener:
         self._dsn = dsn
         self._channel = channel
         self._on_change: Callable[[str], None] | None = None
+        self._on_reconnect: Callable[[], None] | None = None
         self._task: asyncio.Task | None = None
         self._stopped = False
         self._connected = asyncio.Event()
 
-    async def start(self, on_change: Callable[[str], None]) -> None:
+    async def start(
+        self,
+        on_change: Callable[[str], None],
+        on_reconnect: Callable[[], None] | None = None,
+    ) -> None:
+        """``on_reconnect`` runs after every RE-connect, not the first connect.
+
+        Notifications sent while the connection was down are lost, so the owner
+        has to reload what it caches (audit 2026-09-29, C-M NOTIFY). It runs
+        after ``LISTEN`` is back, so no change can slip between the two.
+        """
         self._on_change = on_change
+        self._on_reconnect = on_reconnect
         self._stopped = False
         self._task = asyncio.create_task(self._run(), name="config-notify-listener")
 
@@ -74,7 +87,15 @@ class ConfigChangeListener:
         except Exception:
             logger.exception("config-change callback failed for area %r", payload)
 
+    def _report_reconnect(self) -> None:
+        try:
+            if self._on_reconnect is not None:
+                self._on_reconnect()
+        except Exception:
+            logger.exception("config reconnect callback failed")
+
     async def _run(self) -> None:
+        connected_before = False
         while not self._stopped:
             conn: asyncpg.Connection | None = None
             try:
@@ -82,6 +103,9 @@ class ConfigChangeListener:
                 await conn.add_listener(self._channel, self._dispatch)
                 self._connected.set()
                 logger.info("LISTEN %s established", self._channel)
+                if connected_before:
+                    self._report_reconnect()
+                connected_before = True
                 while not self._stopped and not conn.is_closed():
                     await asyncio.sleep(_HEALTH_POLL_S)
             except asyncio.CancelledError:

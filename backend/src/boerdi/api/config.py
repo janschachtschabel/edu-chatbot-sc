@@ -16,6 +16,7 @@ from pydantic import BaseModel, ValidationError
 
 from boerdi.api.deps import Lang, require_studio_key
 from boerdi.api.schemas import ConfigFile
+from boerdi.domain.config_models.patterns import ist_reservierte_kennung
 from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
 from boerdi.services import seed_io
@@ -71,6 +72,14 @@ async def update_config_file(file: ConfigFile, lang: Lang) -> dict:
         except yaml.YAMLError as e:
             raise HTTPException(400, msg(lang, "file.unreadable", error=e)) from e
         _assert_area_document_safe(key, parsed, lang)
+    elif key.startswith(_PATTERN_PREFIX):
+        # Same reason: the pattern id is checked before anything is persisted
+        # (reserved id ``AGENT``, review 2026-10-03).
+        try:
+            frontmatter, body = seed_io.split_frontmatter(file.content)
+        except yaml.YAMLError as e:
+            raise HTTPException(400, msg(lang, "file.unreadable", error=e)) from e
+        _assert_area_document_safe(key, {"frontmatter": frontmatter, "body": body}, lang)
     try:
         await cl.write_config_file(file.path, file.content)
     except (yaml.YAMLError, ValueError) as e:
@@ -109,6 +118,8 @@ class McpServerUpdate(BaseModel):
 #: The area the MCP registry is stored in. Named here because three endpoints
 #: can write it and only one of them is *about* MCP.
 _MCP_AREA = "05-knowledge/mcp-servers"
+#: One area per pattern below this prefix (``03-patterns/<name>``).
+_PATTERN_PREFIX = "03-patterns/"
 
 
 def _assert_servers_public(servers: object, lang: Locale) -> None:
@@ -137,16 +148,28 @@ def _assert_servers_public(servers: object, lang: Locale) -> None:
 
 
 def _assert_area_document_safe(key: str, data: object, lang: Locale) -> None:
-    """Per-area egress checks the GENERIC write paths must not skip.
+    """Per-area document checks the GENERIC write paths must not skip.
 
     ``PUT /config/data/{area}`` and ``PUT /config/file`` accept any area, so
     without this the guard on ``PUT /mcp-servers`` was only a guard against
     using that one endpoint — the studio's schema form and its raw-text tab
     reach the same document and neither is about MCP. Found while building the
     9-4 "Wissen" view; pinned by the two ``*_rejects_internal_url`` tests.
+
+    Since review 2026-10-03 also the reserved pattern id ``AGENT``: the model
+    rejects it on a typed write only, and the loader drops such a pattern
+    silently — a write that reports "saved" must not end there. The restore
+    paths (``config_snapshots``) run this check as well.
     """
     if key == _MCP_AREA and isinstance(data, dict):
         _assert_servers_public(data.get("servers"), lang)
+    if key.startswith(_PATTERN_PREFIX) and isinstance(data, dict):
+        frontmatter = data.get("frontmatter")
+        kennung = frontmatter.get("id") if isinstance(frontmatter, dict) else None
+        if ist_reservierte_kennung(kennung):
+            raise HTTPException(
+                400, msg(lang, "patterns.idReserved", value=repr(str(kennung).strip()))
+            )
 
 
 @router.put("/mcp-servers")
@@ -236,6 +259,23 @@ def _resolve_area(area: str, *, file_key: bool = False) -> tuple[str, type[BaseM
     if model is None or (file_key and not _is_file_key(key)):
         raise HTTPException(status_code=404, detail=f"unknown config area: {area}")
     return key, model
+
+
+def is_restorable_area_key(key: str) -> bool:
+    """May a restore write ``key``? The path rule of the raw file write
+    (``PUT /config/file``), not the model allow-list of a typed write.
+
+    Audit 2026-09-29, A-M7: ``../…`` from a crafted ZIP must not land in the
+    store, ``export_tree`` would write it outside its folder. The model list is
+    too narrow for a restore (review 2026-10-03): areas without a model exist —
+    ``01-base/rag-retrieval`` is read but not registered — and must come back.
+    """
+    try:
+        if cl._validate_config_path(key) != key:
+            return False
+    except ValueError:
+        return False
+    return all(key.split("/"))
 
 
 @router.get("/schema/{area:path}")

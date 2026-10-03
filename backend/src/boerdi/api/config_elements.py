@@ -27,6 +27,7 @@ from boerdi.api.config_element_models import (
     StatesPayload,
 )
 from boerdi.api.deps import Lang, require_studio_key
+from boerdi.domain.config_models.patterns import ist_reservierte_kennung
 from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
 
@@ -245,6 +246,12 @@ async def put_patterns_route(payload: PatternsPayload, lang: Lang) -> dict:
             raise HTTPException(
                 400,
                 msg(lang, "patterns.qrModeInvalid", value=repr(e.quick_replies_mode)),
+            )
+        # ``AGENT`` marks agent turns; the loader would drop the pattern
+        # silently after this endpoint said "saved" (review 2026-10-03).
+        if ist_reservierte_kennung(e.id):
+            raise HTTPException(
+                400, msg(lang, "patterns.idReserved", value=repr(e.id.strip())),
             )
 
     existing_key_by_id = {

@@ -37,10 +37,13 @@ class EscalationBlock(AreaModel):
     # — hier stehen sie so, dass das Studio sie anbieten kann.
     mode: Annotated[str, Choices("off", "smart", "always")] = ""
     provider: Annotated[str, Choices("openai", "none")] = ""
-    legal_classifier: bool = False
+    # ``True`` wie der Rückfall in ``services/safety/service.py`` (Audit
+    # 2026-09-29, 6.9): mit ``False`` zeigte das Studio beide Schalter aus,
+    # während sie wirkten.
+    legal_classifier: bool = True
     thresholds: dict[str, float] = {}
     hard_block_categories: list[str] = []
-    downgrade_false_positives: bool = False
+    downgrade_false_positives: bool = True
 
 
 class RateLimitWindow(AreaModel):

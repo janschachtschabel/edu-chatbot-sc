@@ -61,6 +61,7 @@ from boerdi.domain.skill_precedence import merke_laufende_anleitung
 from boerdi.domain.tool_pflicht import fehlende_pflichtwerkzeuge, gerufene_werkzeuge
 from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
 from boerdi.domain.untrusted_text import frame_untrusted
+from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN, angebotene_namen
 from boerdi.domain.write_confirm import (
     CONFIRM_TOKEN_FIELD,
     confirmed_args,
@@ -73,6 +74,7 @@ from boerdi.domain.write_confirm import (
     strip_confirm_token,
     token_for,
 )
+from boerdi.i18n import DEFAULT, bot_text
 from boerdi.obs.usage import add_usage, extract_usage
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm
@@ -80,6 +82,7 @@ from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_T
 from boerdi.services.card_collect import collect_cards
 from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
+from boerdi.services.response_tool_selection import _nameable_tools
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -212,6 +215,17 @@ async def _run_tool_loop(
     # Bis 2026-08-11 stand er dort — dadurch war dies immer ``None`` und
     # keine Bestätigung je einlösbar.
     _pending_at_turn_start = (session_state.get("entities") or {}).get("_pending_write")
+    # An den MCP geht nur, was im Katalog des Muster-Wegs steht (Audit
+    # 2026-09-29, B-M1) — nicht nur, was dieses Muster aufzählt: Muster-Texte
+    # verlangen Werkzeuge ausserhalb ihrer ``tools``-Liste (M10
+    # ``get_node_details``, M18 ``get_compendium_text``), und gespeicherte
+    # Muster ändert kein Seed (Review 2026-10-03). Ohne Zugangsblock fehlen dem
+    # Katalog die kuratierenden Werkzeuge. Dazu das Werkzeug des offenen
+    # Vorgangs aus dem vorigen Zug, sonst liefe eine Zustimmung über den
+    # Fingerabdruck-Weg ins Leere; ob zugestimmt wurde, entscheidet die Wall.
+    _angeboten = angebotene_namen(active_tools) | angebotene_namen(_nameable_tools())
+    if isinstance(_pending_at_turn_start, dict) and _pending_at_turn_start.get("tool"):
+        _angeboten = _angeboten | {str(_pending_at_turn_start["tool"])}
     # S4 (2026-08-14): Die Zustimmung steht in der Nachricht des Menschen, nicht
     # in den Argumenten des Modells — siehe ``domain/write_confirm``. Die letzte
     # Nachricht mit ``role: "user"`` IST die dieses Zugs: ``_assemble_messages``
@@ -296,7 +310,13 @@ async def _run_tool_loop(
                 resp = await llm.chat_completion(**kwargs)
         except Exception as e:
             _logger.error("LLM API error: %s", e)
-            return f"Fehler bei der Verarbeitung: {e}", all_cards, tools_called, outcomes
+            # Der Grund steht im Log, die Person sieht die Fehlerblase des Chats
+            # mit dem Typ (Audit 2026-09-29, 6.3). Vorher stand hier „Fehler bei
+            # der Verarbeitung: {e}“ — mit Interna aus der Anbieter-Meldung.
+            # simplify: Der Loop kennt die Oberflächensprache nicht und nimmt die
+            # Vorgabe; wer ``_run_tool_loop`` die Sprache mitgibt, ersetzt DEFAULT.
+            text = bot_text(DEFAULT, "error.internal", kind=type(e).__name__)
+            return text, all_cards, tools_called, outcomes
 
         choice = resp.choices[0]
         if _strom_runde and any(tc.function.name == RESPOND_TO_USER
@@ -616,6 +636,17 @@ async def _run_tool_loop(
                     messages.append({
                         "role": "tool", "tool_call_id": tc.id,
                         "content": "Tool wurde aus Sicherheitsgruenden blockiert.",
+                    })
+                    continue
+                # Nur Katalog-Werkzeuge gehen an den MCP (B-M1, s. o.): ein
+                # fremder Name kommt aus einer Halluzination oder einer
+                # Einschleusung im Fremdtext. Kein ``outcomes``-Eintrag: es lief
+                # nichts, und ein ``error`` senkte Zuversicht und Zustand
+                # (Review 2026-10-03).
+                if tool_name not in _angeboten:
+                    _logger.warning("tool-call %s: nicht im Katalog, verworfen", tool_name)
+                    messages.append({
+                        "role": "tool", "tool_call_id": tc.id, "content": NICHT_ANGEBOTEN,
                     })
                     continue
 

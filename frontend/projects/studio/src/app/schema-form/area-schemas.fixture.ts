@@ -2587,7 +2587,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             ]
           },
           "legal_classifier": {
-            "default": false,
+            "default": true,
             "title": "Legal Classifier",
             "type": "boolean"
           },
@@ -2608,7 +2608,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "type": "array"
           },
           "downgrade_false_positives": {
-            "default": false,
+            "default": true,
             "title": "Downgrade False Positives",
             "type": "boolean"
           }
@@ -2825,10 +2825,10 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "default": {
           "mode": "",
           "provider": "",
-          "legal_classifier": false,
+          "legal_classifier": true,
           "thresholds": {},
           "hard_block_categories": [],
-          "downgrade_false_positives": false
+          "downgrade_false_positives": true
         }
       },
       "confidence_adjustments": {

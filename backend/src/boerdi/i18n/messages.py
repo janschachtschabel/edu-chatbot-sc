@@ -49,6 +49,10 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         # „Persona"): ein Bezeichner aus dem Aufrufer, kein Satzteil.
         "entries.invalid": "Ungültige {label}-Daten.",
         "patterns.qrModeInvalid": "quick_replies_mode ungültig: {value}",
+        "patterns.idReserved": (
+            "Die Muster-Kennung {value} ist reserviert: Sie kennzeichnet die Züge "
+            "der Agent-Schleife."
+        ),
         # ── Sicherung: Snapshots + Werksstand (C1-e2) ──────────────────
         "upload.tooLarge": "Datei zu groß (max {mb} MB).",
         "snapshots.notFound": "Snapshot nicht gefunden.",
@@ -131,6 +135,9 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "mcp.urlRequired": "Please provide a server URL.",
         "entries.invalid": "Invalid {label} data.",
         "patterns.qrModeInvalid": "quick_replies_mode is invalid: {value}",
+        "patterns.idReserved": (
+            "The pattern id {value} is reserved: it marks the turns of the agent loop."
+        ),
         "upload.tooLarge": "File too large (max {mb} MB).",
         "snapshots.notFound": "Snapshot not found.",
         "snapshots.limitReached": "Snapshot limit reached (max {max}) — delete old snapshots.",

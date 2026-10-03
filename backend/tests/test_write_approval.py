@@ -260,6 +260,28 @@ class TestEinloesung:
         assert "_pending_write" not in update.calls[0][1]["entities"]
 
     @pytest.mark.asyncio
+    async def test_der_verbrauch_steht_in_der_db_bevor_gerufen_wird(self, monkeypatch):
+        # Audit 2026-09-29, B-M3: Bricht der Zug während des MCP-Aufrufs ab
+        # (Absturz, Neustart des Workers), darf der Merkposten nicht mehr in
+        # der Datenbank stehen. Sonst setzte ein zweites „ja" dieselbe
+        # Änderung erneut ab.
+        folge: list[str] = []
+
+        async def update(_session, _sid, **kwargs):
+            offen = "_pending_write" in kwargs.get("entities", {})
+            folge.append("gespeichert mit Vorgang" if offen else "gespeichert")
+
+        async def mcp(_tool, _args):
+            folge.append("aufruf")
+            return _SERVERTEXT, ""
+
+        monkeypatch.setattr(wa_mod, "update_session", update)
+        monkeypatch.setattr(wa_mod, "save_message", _Spy())
+        monkeypatch.setattr(wa_mod, "call_mcp_tool_status", mcp)
+        await redeem_write_approval(_SESSION, _req(), _zustand())
+        assert folge[:2] == ["gespeichert", "aufruf"]
+
+    @pytest.mark.asyncio
     async def test_ein_zweites_ja_loest_nichts_erneut_aus(self, _grenzen):
         mcp, _u, _s = _grenzen
         zustand = _zustand()

@@ -288,6 +288,26 @@ def test_ensure_label_cache_fehler_latcht_nicht(ar_state, monkeypatch):
     assert len(versuche) == 2
 
 
+def test_ensure_label_cache_mcp_fehlertext_latcht_nicht(ar_state, monkeypatch):
+    # Audit 2026-09-29 (6.3): ``call_mcp_tool`` wirft nicht, es liefert den
+    # Fehler als Text. Der Test darüber fälscht eine Ausnahme, die es im Betrieb
+    # nicht gibt — und B5 griff deshalb nie: Der Fehlertext ergab null Einträge,
+    # und der Cache galt bis zum Neustart als geladen.
+    from boerdi.services.mcp.client import _MCP_ERROR_PREFIX
+
+    versuche = []
+
+    async def fehlertext(tool, args):
+        versuche.append(tool)
+        return f"{_MCP_ERROR_PREFIX}: lookup_wlo_vocabulary nicht erreichbar"
+
+    monkeypatch.setattr(ar, "call_mcp_tool", fehlertext)
+    asyncio.run(ar._ensure_label_cache("lrt"))
+    assert ar._label_cache_loaded["lrt"] is False
+    asyncio.run(ar._ensure_label_cache("lrt"))
+    assert len(versuche) == 2
+
+
 def test_ensure_label_cache_unbekanntes_vokabular_ist_noop(ar_state, monkeypatch):
     calls = _wire_call(monkeypatch, _PORTALS_JSON)
     asyncio.run(ar._ensure_label_cache("gibtsnicht"))

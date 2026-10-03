@@ -105,10 +105,20 @@ async def import_tree(
 
 
 def export_tree(areas: dict[str, dict[str, Any]], dst: Path) -> None:
-    """Write every area back as a file (MD areas -> .md, others -> .yaml)."""
+    """Write every area back as a file (MD areas -> .md, others -> .yaml).
+
+    Raises ``ValueError`` before writing anything if a key would land outside
+    ``dst`` (audit 2026-09-29, A-M7): a half-written export looks complete.
+    """
+    base = dst.resolve()
+    targets: list[tuple[Path, str, dict[str, Any]]] = []
     for key, data in sorted(areas.items()):
         suffix = ".md" if is_md_area(data) else ".yaml"
         path = dst / f"{key}{suffix}"
+        if not path.resolve().is_relative_to(base):
+            raise ValueError(f"area key escapes the export folder: {key!r}")
+        targets.append((path, suffix, data))
+    for path, suffix, data in targets:
         path.parent.mkdir(parents=True, exist_ok=True)
         if suffix == ".md":
             path.write_text(

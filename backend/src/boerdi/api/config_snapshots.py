@@ -11,6 +11,7 @@ config areas, which is what the Studio edits.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from pathlib import Path
 
@@ -18,11 +19,14 @@ from fastapi import APIRouter, HTTPException, Security, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from boerdi.api.config import _assert_area_document_safe, is_restorable_area_key
 from boerdi.api.deps import Lang, require_studio_key
 from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
 from boerdi.services import seed_sync, snapshots
 from boerdi.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/config", tags=["config-snapshots"],
@@ -41,15 +45,29 @@ def _zip_response(blob: bytes, filename: str) -> StreamingResponse:
     )
 
 
-async def _apply_config(blob: bytes) -> int:
-    """Parse a config ZIP (with caps) and write every area. 413 on cap breach."""
+async def _apply_config(blob: bytes, lang: Locale) -> int:
+    """Parse a config ZIP (with caps) and write its areas. 413 on cap breach.
+
+    Two checks, both over ALL areas before anything is written — a half-restored
+    store would be worse than none: keys must be valid area paths (audit
+    2026-09-29, A-M7; others are skipped with a warning), and documents pass
+    the egress checks of a Studio write (``_assert_area_document_safe``, review
+    2026-10-03; a failure answers 400). Returns the number of areas written.
+    """
     try:
         areas = snapshots.parse_config_zip(blob)
     except snapshots.SnapshotTooLarge as e:
         raise HTTPException(status_code=413, detail=str(e)) from None
+    valid: dict[str, dict] = {}
     for key, data in areas.items():
+        if not is_restorable_area_key(key):
+            logger.warning("restore: skipping %r, not a valid config area path", key)
+            continue
+        _assert_area_document_safe(key, data, lang)
+        valid[key] = data
+    for key, data in valid.items():
         await cl.write_area(key, data, updated_by="restore")
-    return len(areas)
+    return len(valid)
 
 
 async def _read_upload_capped(file: UploadFile, lang: Locale) -> bytes:
@@ -107,7 +125,7 @@ async def restore_snapshot(snap_id: str, lang: Lang) -> dict:
         raise HTTPException(
             status_code=404, detail=msg(lang, "snapshots.notFound"),
         )
-    return {"status": "restored", "areas": await _apply_config(snap["blob"])}
+    return {"status": "restored", "areas": await _apply_config(snap["blob"], lang)}
 
 
 # ── factory (the row with id 'factory') ────────────────────────────────────
@@ -140,7 +158,7 @@ async def restore_factory(lang: Lang) -> dict:
     snap = await snapshots.get_snapshot(cl.store_engine(), snapshots.FACTORY_ID)
     if snap is None:
         raise HTTPException(404, msg(lang, "factory.missing"))
-    return {"status": "restored", "areas": await _apply_config(snap["blob"])}
+    return {"status": "restored", "areas": await _apply_config(snap["blob"], lang)}
 
 
 @router.post("/factory/upload")
@@ -241,4 +259,4 @@ async def download_backup() -> StreamingResponse:
 @router.post("/restore")
 async def restore_backup(file: UploadFile, lang: Lang) -> dict:
     blob = await _read_upload_capped(file, lang)
-    return {"status": "restored", "areas": await _apply_config(blob)}
+    return {"status": "restored", "areas": await _apply_config(blob, lang)}

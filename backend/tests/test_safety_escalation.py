@@ -209,3 +209,26 @@ def test_leeres_muster_faellt_auf_die_vorgabe_zurueck(monkeypatch, scores, muste
     d = _run(monkeypatch, "harmlos", mod={"scores": scores}, cfg=cfg)
     assert d.risk_level == "high"
     assert d.enforced_pattern == muster
+
+
+# ── Audit 2026-09-29 (6.9): die Studio-Vorgabe ist die der Laufzeit ──────────
+# ``service`` liest ``legal_classifier`` und ``downgrade_false_positives`` mit dem
+# Rückfall ``True``. Stand das Modell auf ``False``, zeigte das Studio beide
+# Schalter aus, während sie wirkten.
+
+
+def test_ein_block_mit_den_modell_vorgaben_wirkt_wie_ein_leerer():
+    from boerdi.api.schemas import SafetyDecision
+    from boerdi.domain.config_models.base_governance import EscalationBlock
+
+    gefuellt = EscalationBlock().model_dump()
+    altweg = {"security_level": "ohne-voreinstellung"}
+    assert (ss._resolve_preset({**altweg, "escalation": gefuellt})["legal_classifier"]
+            == ss._resolve_preset({**altweg, "escalation": {}})["legal_classifier"])
+
+    def stufe_nach_dem_abgleich(esc: dict) -> str:
+        entscheidung = SafetyDecision(risk_level="medium")
+        ss._maybe_downgrade(entscheidung, esc, {})
+        return entscheidung.risk_level
+
+    assert stufe_nach_dem_abgleich(gefuellt) == stufe_nach_dem_abgleich({})

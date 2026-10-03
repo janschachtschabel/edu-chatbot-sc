@@ -4,7 +4,22 @@ Common base = 12 keys; optional extensions per inventory (2026-07-11).
 
 from typing import Annotated
 
+from pydantic import field_validator
+
 from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices, Textarea
+
+#: Kennungen, die kein Muster tragen darf (Befundliste §2, ST-5 Befund 4).
+#: ``AGENT`` kennzeichnet die Züge der Agent-Schleife
+#: (``domain/agent_pattern.AGENT_PATTERN_ID``, ein Test hält beide gleich). Eine
+#: Muster-Datei mit dieser Kennung schaltete in der Muster-Maschine den
+#: Karten-Schutz ab. Hier und nicht dort, weil ``agent_pattern`` die
+#: Muster-Maschine importiert.
+RESERVIERTE_KENNUNGEN: frozenset[str] = frozenset({"AGENT"})
+
+
+def ist_reservierte_kennung(kennung: object) -> bool:
+    """Gross/klein und Leerraum zählen nicht: auch ``" agent "`` ist belegt."""
+    return str(kennung or "").strip().upper() in RESERVIERTE_KENNUNGEN
 
 
 class PatternDiscriminator(AreaModel):
@@ -46,6 +61,15 @@ class PatternFrontmatter(AreaModel):
     ] | None = None
     forbidden_phrases: list[str] | None = None
     anti_patterns: list[str] | None = None
+
+    @field_validator("id")
+    @classmethod
+    def _nicht_reserviert(cls, kennung: str) -> str:
+        """Das Tor für ``PUT /api/config/data/03-patterns/…``; den gespeicherten
+        Bestand siebt ``load_pattern_definitions`` aus."""
+        if ist_reservierte_kennung(kennung):
+            raise ValueError(f"pattern id {kennung.strip()!r} is reserved for agent turns")
+        return kennung
 
 
 class PatternArea(AreaModel):

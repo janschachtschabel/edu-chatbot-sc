@@ -164,7 +164,10 @@ def test_graph_exception_becomes_graceful_bubble(monkeypatch, client):
     assert body["quick_replies"] == ["Nochmal versuchen"]
     assert body["debug"]["pattern"] == "ERROR: unhandled_chat_exception"
     assert saves and saves[0]["role"] == "assistant"
-    assert "unhandled error: RuntimeError" in saves[0]["content"]
+    # Gespeichert wird, was die Person sah (Audit 2026-09-29, 6.3): der Verlauf
+    # zeigt nach dem Neuladen dieselbe Blase, und die Modell-Historie bekommt
+    # keinen internen Fehlertext.
+    assert saves[0]["content"] == body["content"]
 
 
 def test_error_persist_failure_never_masks_bubble(monkeypatch, client):

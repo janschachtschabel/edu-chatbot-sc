@@ -517,7 +517,7 @@ async def run_canvas_create_fast_path(
                 logger.error("M10 canvas generation failed: %s", _e)
                 response_text = bot_text(
                     _lang, "material.genFailed",
-                    label=_label, topic=_c_topic, error=type(_e).__name__,
+                    label=_label, topic=_c_topic, kind=type(_e).__name__,
                 )
                 tools_called = ["canvas_service.generate_canvas_content", "error"]
                 wlo_cards_raw = []
