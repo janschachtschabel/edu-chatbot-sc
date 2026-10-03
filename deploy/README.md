@@ -325,9 +325,13 @@ docker compose -f compose.prod.yml --env-file .env up -d --scale backend=5
 ```
 
 Oder dauerhaft `BACKEND_REPLICAS=5` in der `.env`. Zustandslos, deshalb keine
-Sticky-Sessions nötig — Session und Config liegen in Postgres (V2/V6). **Auf
-einem 2-Kern-Server `BACKEND_REPLICAS=1`**: drei Replikas teilen sich dieselben
-zwei Kerne und machen es langsamer, nicht schneller.
+Sticky-Sessions nötig — Session und Config liegen in Postgres (V2/V6).
+
+**Vorgabe ist 1 (Paket 4, L4).** Züge derselben Sitzung sperrt bisher nur ein
+prozessinterner Lock; über Replikas hinweg können zwei Züge einer Sitzung
+parallel laufen (Befundliste, C-H1). Mehr Replikas also erst danach — und auch
+dann auf einem 2-Kern-Server nicht: drei Replikas teilen sich dieselben zwei
+Kerne und machen es langsamer, nicht schneller.
 
 ### Backup
 

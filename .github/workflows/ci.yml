@@ -77,14 +77,13 @@ jobs:
           cache-dependency-glob: backend/uv.lock
       - name: Sync (locked)
         run: uv sync --locked
-      # psycopg/psycopg-pool: documented narrow exception (LGPL-3.0-only,
-      # unmodified use, pulled in by langgraph-checkpoint-postgres) — spec §0
-      # rule 1. Every OTHER GPL/AGPL/LGPL/SSPL/Elastic dependency fails.
+      # Every GPL/AGPL/LGPL/SSPL/Elastic/BUSL dependency fails — spec §0 rule 1.
+      # The former psycopg/psycopg-pool exception (LGPL-3.0-only) left with the
+      # unused langgraph-checkpoint-postgres that pulled them in (Paket 4, D7).
       - name: License gate (spec §0 rule 1)
         run: >
           uv run pip-licenses --partial-match
           --fail-on "GPL;AGPL;LGPL;SSPL;Elastic;BUSL"
-          --ignore-packages psycopg psycopg-pool
       # Bekannte CVEs im gesperrten Laufzeit-Baum (Audit 2026-09-29: der Schritt
       # fehlte, und sechs CVEs in anyio/pyjwt/soupsieve blieben unbemerkt).
       # Geprüft wird der Lock-Export, nicht das venv: genau das, was ins Image
@@ -155,12 +154,19 @@ jobs:
       # fehlschlägt.
       #
       # Drei dokumentierte Erweiterungen der §0-Liste (alle permissiv, ohne
-      # Copyleft-Pflichten, Muster wie die psycopg-Ausnahme im Backend-Gate):
+      # Copyleft-Pflichten, je mit Begründung — wie es die frühere psycopg-Ausnahme war):
       #   - ISC        (funktional BSD-2-Clause, nur kürzer formuliert)
       #   - 0BSD       (tslib; BSD ohne Namensnennungs-Pflicht)
       #   - (MPL-2.0 OR Apache-2.0)  dompurify, dual → genutzt wird Apache-2.0
       - name: License gate (npm, §0 Regel 1)
         run: npm run licenses
+      # Bekannte Schwachstellen im npm-Baum (Paket 4, L2; externes Audit F20):
+      # ab `high` rot, außer eine GHSA steht mit Grund und Ablaufdatum in
+      # `audit-ausnahmen.json`. Erst die Bewertung ohne Netz, dann der echte Baum.
+      - name: npm-Audit-Gate (Bewertung)
+        run: node --test scripts/check-audit.test.mjs
+      - name: npm-Audit-Gate (ab high)
+        run: npm run check:audit
       # Bundle bauen, BEVOR Budget und E2E laufen: beide messen bzw. fahren das
       # ausgelieferte Single-File-Artefakt, nicht die Quellen.
       - name: Build widget bundle

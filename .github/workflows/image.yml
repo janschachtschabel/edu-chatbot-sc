@@ -17,20 +17,29 @@
 # Gate auf jedem Push, und dieser Workflow darf eine eigene
 # `concurrency`-Politik haben.
 #
-# **Kein `needs:` auf backend/frontend.** Wäre technisch nur im selben Workflow
-# möglich und würde den Bau serialisieren: der grüne Normalfall (die große
-# Mehrheit) würde dadurch etwa doppelt so lange dauern, um im roten Fall Minuten
-# zu sparen. Beide Workflows laufen parallel.
+# **Veröffentlicht wird erst nach grünem `ci` (Paket 4, L3).** Bis dahin liefen
+# beide Workflows parallel, und `latest` erschien auf main auch dann, wenn `ci`
+# für denselben Commit rot wurde (externes Audit F21). Jetzt startet ein Push
+# auf main oder ein Release-Tag diesen Workflow nicht mehr direkt, sondern
+# `workflow_run` nach Abschluss von `ci` — und nur bei `success` eines
+# `push`-Laufs. Preis: das Image kommt um die Dauer von `ci` später. Im PR
+# bleibt es beim parallelen Bau samt Smokes, ohne Veröffentlichen.
+#
+# Bei `workflow_run` zeigen `github.sha`/`github.ref` auf den Standard-Branch,
+# nicht auf den geprüften Commit. Commit und Marken kommen deshalb aus
+# `workflow_run.head_sha`/`head_branch` (Job `stand`). Nur `push`-Läufe:
+# der `ci`-Lauf eines Fork-PRs löst `workflow_run` ebenfalls aus, und Fremd-Code
+# bekäme hier `packages: write`.
 name: image
 
 on:
-  # Auf main OHNE Pfad-Filter: was gemergt ist, wird gebaut — auch wenn der
-  # Merge-Commit selbst keine der Dateien unten berührt.
-  push:
-    branches: [main]
-    # Release-Tags (z. B. `Sommercamp-26-postfix1`): das Image bekommt zusätzlich
-    # den Tag-Namen als Marke — ein lesbarer Name für einen festen Stand.
-    tags: ["*"]
+  # Nach `ci` (läuft auf jedem Push, auch auf Tags). Auf main OHNE Pfad-Filter:
+  # was gemergt ist, wird gebaut. Release-Tags (z. B. `Sommercamp-26-postfix1`)
+  # bekommen zusätzlich den Tag-Namen als Marke. Andere Branches überspringt
+  # der Job `stand`.
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
   # Im PR nur, wenn das Image sich überhaupt ändern kann. Nicht gelistet und
   # damit übersprungen: `backend/tests/**`, `docs/**`, `evals/**`, `deploy/**`,
   # Markdown — alles im `.dockerignore` oder außerhalb jedes COPY.
@@ -58,14 +67,72 @@ on:
   # der keine Datei im Repo anfasst).
   workflow_dispatch:
 
-# Ein laufender Bau auf demselben Ref wird abgebrochen, wenn nachgeschoben wird.
-# Nur hier, nicht in ci.yml: dort kostet ein Doppellauf Sekunden, hier Minuten.
+# Im PR bricht ein neuer Push den laufenden Bau ab — nur hier, nicht in ci.yml:
+# dort kostet ein Doppellauf Sekunden, hier Minuten. Nach `ci` (`workflow_run`)
+# wird NICHT abgebrochen, sondern eingereiht: `ci`-Läufe enden nicht in
+# Push-Reihenfolge, und ein später fertiger älterer Lauf bräche sonst den Bau
+# des neueren ab. Ereignis und Herkunfts-Repo gehören zur Gruppe, sonst teilte
+# der PR eines Forks von dessen `main` die Gruppe mit main (Prüfer 2026-10-04).
 concurrency:
-  group: image-${{ github.ref }}
-  cancel-in-progress: true
+  group: >-
+    image-${{ github.event.workflow_run.event || github.event_name }}-${{
+    github.event.workflow_run.head_repository.full_name || github.repository }}-${{
+    github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Welcher Stand, welche Marken? Billig und vor dem Bau: ein Push auf einen
+  # Feature-Branch läuft durch `ci`, bekommt aber (wie bisher) kein Image.
+  stand:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      art: ${{ steps.art.outputs.art }}
+      sha: ${{ steps.art.outputs.sha }}
+      name: ${{ steps.art.outputs.name }}
+    steps:
+      - id: art
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != workflow_run ]; then
+            # pull_request: nur bauen und prüfen; workflow_dispatch: der gewählte Ref.
+            { echo "art=$EVENT"; echo "sha=$GITHUB_SHA"; echo "name=$GITHUB_REF_NAME"; } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          { echo "sha=$HEAD_SHA"; echo "name=$HEAD_BRANCH"; } >> "$GITHUB_OUTPUT"
+          if [ "$HEAD_BRANCH" = main ]; then
+            echo "art=main" >> "$GITHUB_OUTPUT"
+          elif ziel=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$HEAD_BRANCH" \n                        --jq '.object.type + " " + .object.sha' 2>/dev/null); then
+            # Ein annotierter Tag zeigt auf ein Tag-Objekt, erst das auf den Commit.
+            read -r typ obj <<< "$ziel"
+            if [ "$typ" = tag ]; then
+              obj=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$obj" --jq .object.sha)
+            fi
+            # Ein Branch, der nur so heißt wie ein Tag, ist kein Tag-Push: er
+            # hätte die unveränderliche Tag-Marke neu belegt (Prüfer 2026-10-04).
+            if [ "$obj" = "$HEAD_SHA" ]; then
+              echo "art=tag" >> "$GITHUB_OUTPUT"
+            else
+              echo "art=sonst" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "art=sonst" >> "$GITHUB_OUTPUT"
+          fi
+
   build-and-smoke:
+    needs: stand
+    if: needs.stand.outputs.art != 'sonst'
     runs-on: ubuntu-latest
     # Der Bau liegt bei ~5–8 min; 30 ist Reißleine gegen einen hängenden
     # Container, nicht das erwartete Maß.
@@ -88,6 +155,9 @@ jobs:
       BASE: http://localhost:8100
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Der Commit, für den `ci` grün war — nicht `github.sha` (s. Kopf).
+          ref: ${{ needs.stand.outputs.sha }}
 
       - uses: docker/setup-buildx-action@v3
 
@@ -271,21 +341,34 @@ jobs:
       # wie `sha-…` unveränderlich, solange niemand den Tag neu setzt.
       - name: Veröffentlichen (ghcr.io)
         if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ART: ${{ needs.stand.outputs.art }}
+          SHA: ${{ needs.stand.outputs.sha }}
+          NAME: ${{ needs.stand.outputs.name }}
         run: |
           set -euo pipefail
           # GHCR verlangt Kleinschreibung; GitHub-Kontonamen dürfen Grossbuchstaben haben.
           repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          sha_tag="ghcr.io/$repo:sha-${GITHUB_SHA::7}"
+          sha_tag="ghcr.io/$repo:sha-${SHA::7}"
           docker tag boerdi-chat "$sha_tag"
           docker push "$sha_tag"
           echo "veröffentlicht: \`$sha_tag\`" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            docker tag boerdi-chat "ghcr.io/$repo:latest"
-            docker push "ghcr.io/$repo:latest"
-            echo "veröffentlicht: \`ghcr.io/$repo:latest\`" >> "$GITHUB_STEP_SUMMARY"
+          # main: nach grünem `ci` oder von Hand auf main gestartet. `latest` nur
+          # für die aktuelle Spitze: ein älterer `ci`-Lauf, der später endet oder
+          # wiederholt wird, setzte es sonst zurück (Prüfer 2026-10-04).
+          if [ "$ART" = main ] || { [ "$ART" = workflow_dispatch ] && [ "$GITHUB_REF" = refs/heads/main ]; }; then
+            spitze=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+            if [ "$spitze" = "$SHA" ]; then
+              docker tag boerdi-chat "ghcr.io/$repo:latest"
+              docker push "ghcr.io/$repo:latest"
+              echo "veröffentlicht: \`ghcr.io/$repo:latest\`" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "\`latest\` bleibt: ${SHA::7} ist nicht mehr die Spitze von main (${spitze::7})." >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            ver_tag="ghcr.io/$repo:${GITHUB_REF_NAME}"
+          if [ "$ART" = tag ] || { [ "$ART" = workflow_dispatch ] && [ "${GITHUB_REF_TYPE}" = tag ]; }; then
+            ver_tag="ghcr.io/$repo:${NAME}"
             docker tag boerdi-chat "$ver_tag"
             docker push "$ver_tag"
             echo "veröffentlicht: \`$ver_tag\`" >> "$GITHUB_STEP_SUMMARY"
