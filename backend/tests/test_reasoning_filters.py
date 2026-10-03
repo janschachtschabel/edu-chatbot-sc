@@ -100,3 +100,15 @@ def test_streamer_none_callback_is_noop() -> None:
     s = ThinkSafeStreamer(None)
     s("anything")
     s.flush()  # no callback, no error
+
+
+def test_streamer_verschiebt_nichts_bei_fuehrendem_leerraum():
+    """Review L2 (Token-Streaming): ``strip_reasoning_markers`` strippt nur auf
+    dem langsamen Weg (sobald ein ``<`` im Text steht). Der Streamer führt einen
+    Index — begann der Text mit Leerraum, fehlte danach ein Zeichen."""
+    out: list[str] = []
+    s = ThinkSafeStreamer(out.append)
+    s(" Ein sehr langer Anfang ohne jede Markierung,")
+    s(" dann a < b am Ende.")
+    s.flush()
+    assert "".join(out) == "Ein sehr langer Anfang ohne jede Markierung, dann a < b am Ende."

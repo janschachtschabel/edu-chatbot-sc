@@ -319,6 +319,13 @@ class Settings(BaseSettings):
     agent_inline_quick_replies: bool = Field(
         False, validation_alias=_env("AGENT_INLINE_QUICK_REPLIES")
     )
+    # Token-Streaming der Antwort ins Widget (``text_delta``) — Vorgabe AUS bis
+    # zur Live-Probe (Plan ``docs/plans/2026-10-01-token-streaming.md``, E-S5).
+    # Gestreamt wird nur der Text von ``respond_to_user``: der Muster-Weg braucht
+    # ``CHAT_INLINE_QUICK_REPLIES``, der Agent zusätzlich ``AGENT_INLINE_QUICK_REPLIES``.
+    chat_token_streaming: bool = Field(
+        False, validation_alias=_env("CHAT_TOKEN_STREAMING")
+    )
 
     # ── Guide mode ──────────────────────────────────────────────────────
     guide_trusted_domains: str | None = Field(

@@ -63,12 +63,12 @@ async def generate_response(
     Returns (response_text, wlo_cards, tools_called, outcomes).
     Outcomes is a list of ToolOutcome objects (Triple-Schema T-23).
 
-    ``on_token`` is the Phase-2 streaming hook (POST /api/chat/stream). When
-    provided, the LLM call inside the tool-loop runs with ``stream=True``
-    and forwards each text-delta to the callback — both for plain content
-    responses AND for ``respond_to_user`` tool args (where the ``text``
-    field is extracted progressively from the JSON arg-stream). Default
-    ``None`` keeps the regular non-streaming POST /api/chat unchanged.
+    ``on_token`` is the streaming hook (POST /api/chat/stream, Plan
+    2026-10-01-token-streaming). When provided, the answer round of the
+    tool-loop runs with ``stream=True`` and forwards only the ``text`` field of
+    ``respond_to_user`` (extracted progressively from the JSON arg-stream);
+    plain content is collected but not forwarded (E-S1). Default ``None``
+    keeps the regular non-streaming POST /api/chat unchanged.
 
     ``session`` is the request-scoped AsyncSession (NEU pg-DI); it is only
     forwarded to the phases that reach the database (RAG retrieval inside the

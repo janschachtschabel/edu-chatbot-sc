@@ -17,6 +17,10 @@ Two NEU-deviations vs ALT, both at the transport seam of ``_stream_completion``
   ``ThinkSafeStreamer(on_token)`` from domain/reasoning_filters (same
   callable + ``flush()`` protocol).
 
+Seit dem Plan Token-Streaming (2026-10-03) weicht NEU in zwei weiteren Punkten
+ab: freier Inhaltstext geht nicht mehr an ``on_token``, und der Extraktor läuft
+hinter ``ThinkSafeStreamer`` und dekodiert Unicode-Escapes (``_escape_at``).
+
 Boundary: the tool loop imports ``_stream_completion`` as a top-level name —
 tests driving the loop patch it on ``services.tool_loop`` (ALT convention);
 tests driving THIS module patch ``llm._acompletion``.
@@ -24,6 +28,7 @@ tests driving THIS module patch ``llm._acompletion``.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -70,6 +75,48 @@ class _StreamedResponse:
         self.model: str = ""
 
 
+_RUECKSTRICH = chr(92)
+
+
+def _hex(ziffern: str) -> int:
+    try:
+        return int(ziffern, 16)
+    except ValueError:
+        return -1
+
+
+def _escape_at(buf: str, i: int) -> tuple[str, int | None]:
+    """Das JSON-Escape ab ``buf[i]`` (dem Rückstrich): ``(Zeichen, Index danach)``,
+    oder ``("", None)``, solange es noch nicht vollständig im Puffer steht.
+
+    NEU gegen ALT (Audit 2026-09-29, Plan Token-Streaming T1): ALT übersetzte nur
+    die Ein-Zeichen-Escapes, ein Unicode-Escape (Rückstrich, ``u``, vier
+    Hexziffern) kam ohne Rückstrich beim Client an. Dekodiert wird mit ``json``;
+    ein Surrogatpaar wird zusammengesetzt, ein einsames Surrogat sichtbar ersetzt.
+    """
+    if i + 1 >= len(buf):
+        return "", None
+    if buf[i + 1] != "u":
+        laenge = 2
+    elif len(buf) < i + 6:
+        return "", None
+    elif not 0xD800 <= _hex(buf[i + 2:i + 6]) <= 0xDBFF:
+        laenge = 6
+    elif len(buf) < i + 8:
+        return "", None
+    elif buf[i + 6:i + 8] != _RUECKSTRICH + "u":
+        laenge = 6  # einsames hohes Surrogat
+    elif len(buf) < i + 12:
+        return "", None
+    else:
+        laenge = 12
+    try:
+        zeichen = json.loads('"' + buf[i:i + laenge] + '"')
+    except ValueError:
+        return chr(0xFFFD), i + laenge
+    return "".join(chr(0xFFFD) if 0xD800 <= ord(z) <= 0xDFFF else z for z in zeichen), i + laenge
+
+
 class _RespondToUserExtractor:
     """Progressive parser for the ``respond_to_user`` tool's JSON args.
 
@@ -92,7 +139,6 @@ class _RespondToUserExtractor:
         self._on_token = on_token
         self._scan_pos = 0       # next char index to inspect
         self._mode = "search"    # search | text | done
-        self._escape_next = False
 
     def feed(self, chunk: str) -> None:
         if not chunk or self._mode == "done":
@@ -130,37 +176,28 @@ class _RespondToUserExtractor:
             self._scan_pos = cur + 1
             self._mode = "text"
 
-        # ── Phase 2: stream characters until unescaped ``"`` ──
+        # ── Phase 2: stream characters until the unescaped closing quote ──
         if self._mode == "text":
-            buf_len = len(self._buf)
+            buf = self._buf
             out: list[str] = []
             i = self._scan_pos
-            while i < buf_len:
-                ch = self._buf[i]
-                if self._escape_next:
-                    # Translate JSON escape to actual char
-                    out.append({
-                        '"': '"', '\\': '\\', '/': '/',
-                        'n': '\n', 't': '\t', 'r': '\r',
-                        'b': '\b', 'f': '\f',
-                    }.get(ch, ch))
-                    self._escape_next = False
-                    i += 1
-                    continue
-                if ch == '\\':
-                    self._escape_next = True
-                    i += 1
-                    continue
+            while i < len(buf):
+                ch = buf[i]
                 if ch == '"':
                     # Closing quote — text field complete
-                    self._scan_pos = i + 1
                     self._mode = "done"
+                    i += 1
                     break
-                out.append(ch)
-                i += 1
-            else:
-                # Loop exhausted without break — partial text, more coming
-                self._scan_pos = i
+                if ch != _RUECKSTRICH:
+                    out.append(ch)
+                    i += 1
+                    continue
+                zeichen, weiter = _escape_at(buf, i)
+                if weiter is None:
+                    break  # Escape noch unvollständig — der nächste Chunk bringt den Rest
+                out.append(zeichen)
+                i = weiter
+            self._scan_pos = i
             if out:
                 try:
                     self._on_token("".join(out))
@@ -182,13 +219,12 @@ async def _stream_completion(
     path consumes via the same attributes (``choices[0].message.content``,
     ``choices[0].message.tool_calls``, ``choices[0].finish_reason``).
 
-    Tokens are forwarded via ``on_token(text_chunk)``:
-      * For plain content responses → each ``delta.content`` chunk goes
-        straight through.
-      * For ``respond_to_user`` tool calls → the JSON args buffer is fed
-        through ``_RespondToUserExtractor``, which extracts the ``text``
-        field characters and emits them. Other tool calls (search_*,
-        get_*) accumulate silently — they are not user-visible text.
+    Tokens are forwarded via ``on_token(text_chunk)`` only for the ``text``
+    field of a ``respond_to_user`` call: ``_RespondToUserExtractor`` reads it
+    from the streamed JSON args, ``ThinkSafeStreamer`` keeps reasoning markers
+    out. Plain ``delta.content`` is accumulated into the message but NOT
+    forwarded (Plan Token-Streaming, E-S1 — a preamble before tool calls would
+    flash and vanish). Other tool calls accumulate silently.
     """
     built = llm.build_chat_kwargs(**kwargs)
     llm.wire_transport(built["model"], built)
@@ -226,8 +262,9 @@ async def _stream_completion(
             if getattr(delta, "role", None):
                 msg.role = delta.role
             if getattr(delta, "content", None):
+                # Gesammelt, nicht gesendet (Plan Token-Streaming, E-S1): eine
+                # Vorrede vor Werkzeugaufrufen blitzte sonst auf und verschwände.
                 content_parts.append(delta.content)
-                _safe_on_token(delta.content)
             if getattr(delta, "tool_calls", None):
                 for tc_delta in delta.tool_calls:
                     idx = getattr(tc_delta, "index", 0) or 0
@@ -242,7 +279,7 @@ async def _stream_completion(
                             slot["name"] = fn.name
                             # Lazily attach the JSON-stream extractor for respond_to_user
                             if slot["name"] == "respond_to_user" and slot["extractor"] is None:
-                                slot["extractor"] = _RespondToUserExtractor(on_token)
+                                slot["extractor"] = _RespondToUserExtractor(_safe_on_token)
                                 # Replay any args we received before the name arrived
                                 if slot["args_buf"]:
                                     slot["extractor"].feed(slot["args_buf"])

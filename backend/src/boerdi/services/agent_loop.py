@@ -56,12 +56,14 @@ from boerdi.domain.result_delivery import (
 from boerdi.domain.tool_result_redaction import redigiere_strukturell
 from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
-from boerdi.obs.usage import new_accumulator
+from boerdi.obs.usage import add_usage, extract_usage, new_accumulator
+from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm, outcome_service
 from boerdi.services.agent_knowledge import WISSEN_SUCHEN
 from boerdi.services.agent_tools import SUBMIT_RESULT
 from boerdi.services.agent_trace import Rundenbuch
 from boerdi.services.agent_write import WriteGate
+from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 
 logger = logging.getLogger(__name__)
@@ -206,6 +208,7 @@ async def run_agent_loop(
     on_tool_result: Callable[[str, str], None] | None = None,
     wissen: Callable[[dict[str, Any]], Awaitable[str]] | None = None,
     on_offene_abnahme: Callable[[dict[str, Any], str], None] | None = None,
+    on_token: Callable[[str], None] | None = None,
 ) -> AgentRun:
     """Fahre die Schleife, bis ein Grund sie beendet.
 
@@ -225,8 +228,16 @@ async def run_agent_loop(
     nicht eingelösten Schreib-Vorgang als ``(merkposten, vorschau)``. Es ist die
     einzige Naht, über die ein Schlüssel die Schleife verlässt — in die Sitzung
     des Chat-Zugs, nie zum Modell. Der Agent-Endpunkt reicht nichts herein.
+
+    ``on_token`` (Token-Streaming, Plan 2026-10-01) macht die Runden zu
+    gestreamten Aufrufen. Hinaus geht allein der Text von ``respond_to_user``
+    (E-S1). Eine Runde mit dieser Antwort beendet den Lauf in aller Regel; tut
+    sie es nicht (unlesbare Argumente, Stillstand), läuft jede weitere Runde
+    ungestreamt, und ``result`` ersetzt den Text (Review L1). Der Chat-Zug
+    reicht den Strom nur herein, wenn das Werkzeug im Angebot ist.
     """
     acc = usage_acc if usage_acc is not None else new_accumulator()
+    strom_verbraucht = False
     gate = WriteGate(limits.write_mode)
     run = AgentRun()
     start = clock()
@@ -270,16 +281,29 @@ async def run_agent_loop(
             # nicht mit eigener Hand: das Etikett steht hier im Voraus fest —
             # anders als im Tool-Loop, wo es erst aus ``finish_reason`` folgt
             # und deshalb dort begründet selbst gebucht wird. Eine Buchungs-
-            # stelle weniger ist eine Driftquelle weniger.
-            resp = await llm.chat_completion(
-                messages=messages, tools=tools, temperature=0.4,
-                usage_acc=acc, phase=USAGE_PHASE)
+            # stelle weniger ist eine Driftquelle weniger. Der Strom hat keinen
+            # Transport, der bucht — dort dieselbe Buchung von Hand.
+            strom_runde = on_token is not None and not strom_verbraucht
+            if strom_runde:
+                _t0 = time.perf_counter()
+                resp = await _stream_completion(
+                    on_token, messages=messages, tools=tools, temperature=0.4)
+                add_usage(acc, extract_usage(resp), USAGE_PHASE, ms=seit_ms(_t0))
+            else:
+                resp = await llm.chat_completion(
+                    messages=messages, tools=tools, temperature=0.4,
+                    usage_acc=acc, phase=USAGE_PHASE)
         except Exception as e:
             logger.error("Agent-Schleife: LLM-Fehler — %s", e)
             return schluss("error")
 
         choice = resp.choices[0]
         calls = getattr(choice.message, "tool_calls", None)
+        if strom_runde and any(tc.function.name == RESPOND_TO_USER for tc in calls or []):
+            # Höchstens EINE gestreamte Antwortrunde je Zug (Review L1): endet
+            # sie nicht — unlesbare Argumente, Stillstand —, liefe eine zweite
+            # Antwort sichtbar hinter der ersten her.
+            strom_verbraucht = True
         if not calls:
             _prosa = strip_reasoning_markers(choice.message.content or "")
             if _prosa.strip():

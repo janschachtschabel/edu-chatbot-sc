@@ -1057,3 +1057,77 @@ def test_eine_prosa_antwort_hat_keine_vorschlaege(monkeypatch):
 
     assert run.stop_reason == "text"
     assert run.vorschlaege == []
+
+
+# ── Token-Streaming (Plan 2026-10-01-token-streaming, T21) ─────────────────
+
+def _strom_transport(monkeypatch, args_json: str):
+    """``llm._acompletion`` als Strom: der Antwort-Aufruf, die Argumente in
+    Häppchen, die Usage im letzten Chunk (so lieferte es die Brücke im Spike)."""
+    def _chunk(tool_calls=None, finish=None, usage=None, ohne_wahl=False):
+        if ohne_wahl:
+            return SimpleNamespace(usage=usage, model="m", choices=[])
+        delta = SimpleNamespace(role="assistant", content=None, tool_calls=tool_calls)
+        return SimpleNamespace(usage=None, model="m",
+                               choices=[SimpleNamespace(delta=delta, finish_reason=finish)])
+
+    def _tc(**kw):
+        fn = SimpleNamespace(name=kw.get("name"), arguments=kw.get("arguments"))
+        return SimpleNamespace(index=0, id=kw.get("id"), function=fn)
+
+    async def _acompletion(**_kw):
+        async def _gen():
+            yield _chunk([_tc(id="r1", name="respond_to_user")])
+            for i in range(0, len(args_json), 4):
+                yield _chunk([_tc(arguments=args_json[i:i + 4])])
+            yield _chunk(finish="tool_calls")
+            yield _chunk(usage=SimpleNamespace(prompt_tokens=12, completion_tokens=7,
+                                               prompt_tokens_details=None), ohne_wahl=True)
+        return _gen()
+
+    get_settings.cache_clear()
+    llm.reset()
+    monkeypatch.setattr(llm, "_acompletion", _acompletion)
+
+
+def test_mit_strom_kommt_der_antworttext_stueckweise_und_wird_gebucht(monkeypatch):
+    from boerdi.domain.antwort_werkzeug import antwort_werkzeug
+    from boerdi.obs.usage import new_accumulator
+
+    _strom_transport(monkeypatch, json.dumps({"text": "Hallo Welt", "quick_replies": ["Mehr"]}))
+    stuecke: list[str] = []
+    acc = new_accumulator()
+    run = asyncio.run(agent_loop.run_agent_loop(
+        messages=[{"role": "system", "content": "sys"}],
+        tools=[antwort_werkzeug(3, 60)], limits=AgentLimits(), usage_acc=acc,
+        on_token=stuecke.append))
+
+    assert run.stop_reason == "text"
+    assert run.text == "Hallo Welt"
+    assert "".join(stuecke) == "Hallo Welt"
+    assert acc["per_phase"][agent_loop.USAGE_PHASE]["calls"] == 1
+    assert (acc["prompt_tokens"], acc["completion_tokens"]) == (12, 7)
+
+
+def test_nur_eine_antwortrunde_je_zug_streamt_auch_im_agenten(monkeypatch):
+    """Review L1: unlesbare Argumente an ``respond_to_user`` führen in eine
+    weitere Runde — sie läuft ungestreamt, sonst hinge die zweite Antwort
+    sichtbar an der ersten."""
+    gestreamt: list[dict] = []
+
+    async def _strom(on_token, **kwargs):
+        gestreamt.append(kwargs)
+        return _resp_tools([("r1", "respond_to_user", '{"text": "Erste Antw')])
+
+    monkeypatch.setattr(agent_loop, "_stream_completion", _strom)
+    zweite = json.dumps({"text": "Zweite Antwort", "quick_replies": []})
+    fake = _SeqLLM([_resp_tools([("r2", "respond_to_user", zweite)])])
+    monkeypatch.setattr(llm, "chat_completion", fake)
+
+    run = asyncio.run(agent_loop.run_agent_loop(
+        messages=[{"role": "system", "content": "sys"}], tools=[], limits=AgentLimits(),
+        on_token=lambda _s: None))
+
+    assert len(gestreamt) == 1
+    assert len(fake.calls) == 1
+    assert run.text == "Zweite Antwort"

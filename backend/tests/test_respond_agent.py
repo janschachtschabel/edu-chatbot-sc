@@ -87,13 +87,16 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
 
     # Die ECHTE Signatur — dieselbe A4b-Regel wie unten bei ``load_engine``.
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
-                    clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None):
+                    clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None,
+                    on_token=None):
         seen["run_agent_loop"] = {
             "messages": messages, "tools": tools, "limits": limits,
             "usage_acc": usage_acc, "progress": progress,
             "on_tool_result": on_tool_result, "wissen": wissen,
-            "on_offene_abnahme": on_offene_abnahme,
+            "on_offene_abnahme": on_offene_abnahme, "on_token": on_token,
         }
+        if on_token is not None:
+            on_token("Hallo [Li")  # wie ein Antwort-Aufruf mit offenem Link am Ende
         aufrufe = ([ruft_werkzeug] if ruft_werkzeug is not None else []) + list(ruft_werkzeuge)
         if on_tool_result is not None:
             for aufruf in aufrufe:
@@ -383,7 +386,7 @@ async def test_respond_reicht_im_agent_modus_frueh_weiter(monkeypatch):
     gar nicht erst anlaufen."""
     seen: dict = {}
 
-    async def _agent(ctx, progress=None, session=None):
+    async def _agent(ctx, progress=None, session=None, on_token=None):
         seen["respond_agent"] = {"progress": progress, "session": session}
         ctx.response_text = "vom Agenten"
         return ctx
@@ -409,7 +412,7 @@ async def test_gegenrichtung_ohne_angabe_laeuft_der_bestandsweg(monkeypatch):
     nie betreten."""
     seen: dict = {}
 
-    async def _agent(ctx, progress=None):        # pragma: no cover — darf nie laufen
+    async def _agent(ctx, progress=None, session=None, on_token=None):  # pragma: no cover
         seen["respond_agent"] = True
         return ctx
 
@@ -1238,3 +1241,47 @@ async def test_der_globale_schalter_gilt_auch_fuer_den_agenten(monkeypatch):
     await respond_agent(_ctx())
 
     assert "respond_to_user" not in _namen(seen["run_agent_loop"]["tools"])
+
+
+# ── Token-Streaming (Plan 2026-10-01-token-streaming, T22) ──────────────────
+
+def _strom():
+    from boerdi.obs.progress import TurnProgress
+    from boerdi.services.token_stream import TokenStrom
+    ereignisse: list[dict] = []
+    return TokenStrom(TurnProgress(ereignisse.append)), ereignisse
+
+
+@pytest.mark.anyio
+async def test_mit_antwort_werkzeug_geht_der_strom_an_die_schleife(monkeypatch):
+    """Offen nur mit ``respond_to_user`` im Angebot; nach dem Lauf sendet
+    ``schliessen`` auch den zurückgehaltenen Rest (hier ein offener Link)."""
+    from boerdi.settings import get_settings
+    monkeypatch.setenv("CHAT_TOKEN_STREAMING", "1")
+    monkeypatch.setenv("AGENT_INLINE_QUICK_REPLIES", "1")
+    get_settings.cache_clear()
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    strom, ereignisse = _strom()
+
+    await respond_agent(_ctx(), on_token=strom)
+
+    assert seen["run_agent_loop"]["on_token"] is strom
+    assert "".join(e["data"]["text"] for e in ereignisse if e["kind"] == "text") == "Hallo [Li"
+
+
+@pytest.mark.anyio
+async def test_ohne_antwort_werkzeug_streamt_der_agent_nicht(monkeypatch):
+    from boerdi.settings import get_settings
+    monkeypatch.setenv("CHAT_TOKEN_STREAMING", "1")
+    monkeypatch.setenv("AGENT_INLINE_QUICK_REPLIES", "0")
+    get_settings.cache_clear()
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    strom, ereignisse = _strom()
+
+    await respond_agent(_ctx(), on_token=strom)
+
+    assert seen["run_agent_loop"]["on_token"] is None
+    assert ereignisse == []
+    assert strom.abschluss("x")["gesperrt"] == "ohne_antwort_werkzeug"

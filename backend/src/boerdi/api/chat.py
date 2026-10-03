@@ -38,8 +38,10 @@ from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.progress import TurnProgress
 from boerdi.services.db_sessions import save_message
 from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
+from boerdi.services.token_stream import TokenStrom
 from boerdi.services.usage_store import record_turn_usage
 from boerdi.services.widget_postprocess import _postprocess_response_for_widget_modes
+from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +151,8 @@ async def _stream_turn(
     The turn runs as a cancellable task so an abandoned connection stops burning an
     LLM/MCP concurrency slot on work nobody is listening for. While it runs, this
     generator drains the progress queue the graph writes into (C9) and forwards each
-    event as a ``phase`` frame — that is what turns the widget's bare 6-10 s spinner
+    event as a ``phase`` frame (answer text as ``text_delta``, behind
+    ``CHAT_TOKEN_STREAMING``) — that is what turns the widget's bare 6-10 s spinner
     into "Verstehe deine Anfrage …" → "Durchsuche WLO-Inhalte …" → "Formuliere
     Antwort …" (``ui/stream/phase-label.ts``).
 
@@ -159,18 +162,26 @@ async def _stream_turn(
     otherwise a flood of progress could crowd out ``_DONE`` and delay the answer by
     a whole keepalive interval.
     """
+    # Token-Streaming (Plan 2026-10-01, T12): ein Strom je Anfrage, nur mit
+    # Schalter. ``respond`` öffnet oder sperrt ihn; ``_to_payload`` misst ihn.
+    strom: TokenStrom | None = None
+
     async def _run_impl(progress: TurnProgress) -> ChatResponse | Exception:
+        nonlocal strom
         # Serialised per session_id, exactly like POST /api/chat; the finally
         # frees the lock even when the task is cancelled on client disconnect.
         lock = await _get_session_lock(req.session_id)
         try:
             async with lock:
                 try:
+                    if get_settings().chat_token_streaming:
+                        strom = TokenStrom(progress)
                     graph = build_turn_graph(
                         session=session,
                         peer_ip=peer_ip(request),
                         progress=progress,
                         engine=engine,
+                        on_token=strom,
                     )
                     state = await run_turn(graph, TurnContext(req=req))
                     await _record_usage(session, req.session_id, state)
@@ -188,6 +199,8 @@ async def _stream_turn(
             result = await _postprocess_response_for_widget_modes(req, result)
         except Exception as pp_err:
             logger.warning("stream widget-modes postprocess failed: %s", pp_err)
+        if strom is not None:
+            strom.abschluss(result.content or "")  # Kennzahlen + Drift-Logzeile
         return result.model_dump()
 
     async for frame in sse_turn(

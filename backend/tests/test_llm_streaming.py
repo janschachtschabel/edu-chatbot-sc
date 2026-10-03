@@ -88,7 +88,10 @@ def _run_stream(monkeypatch, chunks, **kwargs):
 # _stream_completion — ported ALT pins
 # ════════════════════════════════════════════════════════════════════════
 
-def test_stream_content_tokens_and_reconstruction(monkeypatch):
+def test_stream_content_wird_rekonstruiert_aber_nicht_gesendet(monkeypatch):
+    # Plan Token-Streaming, E-S1: freier Inhaltstext geht nicht an ``on_token`` —
+    # eine Vorrede vor Werkzeugaufrufen blitzte sonst auf und verschwände wieder.
+    # Gestreamt wird nur das ``text``-Feld von ``respond_to_user``.
     u = _usage_obj(10, 5)
     fake, out, resp = _run_stream(monkeypatch, [
         _chunk(role="assistant", content="Hal", model="gpt-x"),
@@ -99,8 +102,8 @@ def test_stream_content_tokens_and_reconstruction(monkeypatch):
     # kwargs werden auf Streaming gezwungen (stream + include_usage).
     assert fake.calls[0]["stream"] is True
     assert fake.calls[0]["stream_options"] == {"include_usage": True}
-    # Tokens live durchgereicht + Message rekonstruiert.
-    assert "".join(out) == "Hallo"
+    # Nichts live gesendet, die Message trotzdem vollständig rekonstruiert.
+    assert out == []
     msg = resp.choices[0].message
     assert msg.content == "Hallo"
     assert msg.role == "assistant"
@@ -110,17 +113,18 @@ def test_stream_content_tokens_and_reconstruction(monkeypatch):
     assert resp.model == "gpt-x"
 
 
-def test_stream_think_block_filtered_live_but_kept_in_content(monkeypatch):
-    # NOTE: pinnt IST-Verhalten — der ThinkSafe-Streamer filtert nur die
-    # LIVE-Emission; der aggregierte msg.content behält den <think>-Block roh
-    # (der finale Strip passiert erst downstream in generate_response).
+def test_antwort_text_laeuft_durch_den_denkfilter(monkeypatch):
+    # Plan Token-Streaming, T2: der Extraktor bekam das rohe ``on_token`` und
+    # umging den Denkmarken-Filter. Die Argumente behalten den Block roh — den
+    # fertigen Text räumt ``antwort_aus_argumenten`` ab.
     _fake, out, resp = _run_stream(monkeypatch, [
-        _chunk(content="vor"), _chunk(content="<think>"),
-        _chunk(content="geheim"), _chunk(content="</think>"),
-        _chunk(content="nach"), _chunk(finish="stop"),
+        _chunk(tool_calls=[_tc_delta(0, id="tc1", name="respond_to_user",
+                                     arguments='{"text": "vor<think>')]),
+        _chunk(tool_calls=[_tc_delta(0, arguments='geheim</think>nach", "quick_replies": []}')]),
+        _chunk(finish="tool_calls"),
     ])
     assert "".join(out) == "vornach"
-    assert resp.choices[0].message.content == "vor<think>geheim</think>nach"
+    assert "geheim" in resp.choices[0].message.tool_calls[0].function.arguments
 
 
 def test_stream_respond_to_user_streams_text_field(monkeypatch):
@@ -189,6 +193,29 @@ def test_extractor_translates_json_escapes():
     assert "".join(out) == 'a\nb "q"'
 
 
+
+def _als_escape(text: str) -> str:
+    """So schreibt ein Modell, das jedes Nicht-ASCII-Zeichen escapt."""
+    return json.dumps({"text": text}, ensure_ascii=True)
+
+
+@pytest.mark.parametrize("text", [
+    "Grüße", chr(0x1F600) + "!", 'a"b/c', chr(0xD83D) + "x",
+])
+def test_extraktor_dekodiert_escapes_an_jeder_chunk_grenze(text):
+    """Audit 2026-09-29: Unicode-Escapes kamen ohne Dekodierung beim Client an
+    (Plan Token-Streaming, T1). Geprüft wird jede Schnittstelle zwischen zwei
+    Chunks, also auch mitten im Escape und mitten im Surrogatpaar. Ein einsames
+    hohes Surrogat wird sichtbar ersetzt statt geraten."""
+    roh = _als_escape(text)
+    erwartet = text.replace(chr(0xD83D), chr(0xFFFD))
+    for schnitt in range(1, len(roh)):
+        out: list[str] = []
+        ex = lls._RespondToUserExtractor(out.append)
+        ex.feed(roh[:schnitt])
+        ex.feed(roh[schnitt:])
+        assert "".join(out) == erwartet, f"Schnitt bei {schnitt}: {roh[:schnitt]!r}"
+
 def test_extractor_null_text_gives_up_silently():
     out: list[str] = []
     ex = lls._RespondToUserExtractor(out.append)
@@ -229,7 +256,7 @@ def test_stream_wires_routing_timeout_retries(monkeypatch):
     monkeypatch.setattr(llm, "_acompletion", fake)
 
     out: list[str] = []
-    asyncio.run(lls._stream_completion(
+    resp = asyncio.run(lls._stream_completion(
         out.append, messages=[{"role": "user", "content": "hi"}]))
     sent = fake.calls[0]
     assert sent["model"] == "openai/gpt-5.6-luna"
@@ -238,7 +265,9 @@ def test_stream_wires_routing_timeout_retries(monkeypatch):
     assert sent["num_retries"] == 2
     assert sent["timeout"] == 75.0
     assert sent["verbosity"] == "low"  # GPT-5 gating flowed through
-    assert "".join(out) == "ok"
+    # Der Strom lief durch; freier Inhaltstext geht nicht an ``on_token`` (E-S1).
+    assert resp.choices[0].message.content == "ok"
+    assert out == []
 
 
 def test_stream_holds_live_semaphore_for_whole_consumption(monkeypatch):

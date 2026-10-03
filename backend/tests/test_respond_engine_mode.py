@@ -47,8 +47,9 @@ def _ctx(safety: SafetyDecision, message: str = "Ich will nicht mehr leben"):
 
 def _patch(monkeypatch, seen):
     """Beide Wege abfangen; ``seen`` vermerkt, welcher lief und womit."""
-    async def _agent(ctx, progress=None, session=None):
+    async def _agent(ctx, progress=None, session=None, on_token=None):
         seen["respond_agent"] = True
+        seen["on_token"] = on_token
         ctx.response_text = "vom Agenten"
         return ctx
 
@@ -86,3 +87,15 @@ async def test_ohne_erzwingung_antwortet_weiter_die_schleife(monkeypatch):
     assert seen["respond_agent"] is True
     assert "generate_response" not in seen
     assert ctx.response_text == "vom Agenten"
+
+
+@pytest.mark.anyio
+async def test_der_strom_reist_mit_in_den_agent_zug(monkeypatch):
+    """Token-Streaming (Plan 2026-10-01, T20): die Naht endet nicht im
+    Muster-Weg — ``respond_agent`` entscheidet selbst, ob es streamt."""
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    strom = object()
+    await respond(_ctx(SafetyDecision(risk_level="low"), message="frage"),
+                  session=object(), engine="agent", on_token=strom)
+    assert seen["on_token"] is strom

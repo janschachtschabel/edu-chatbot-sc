@@ -42,6 +42,7 @@ from boerdi.domain.antwort_werkzeug import inline_anzahl
 from boerdi.domain.quick_reply_policy import _qr_default_count, _spec_qr_response_block
 from boerdi.domain.skill_precedence import mit_ladehinweis
 from boerdi.graph.nodes.respond_agent import respond_agent
+from boerdi.graph.nodes.respond_strom import strom_fuer_muster_zug
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
@@ -93,8 +94,10 @@ async def respond(
             engine)
     if zug_laeuft_ueber_die_schleife(engine, ctx.safety.enforced_pattern):
         # ``session`` reicht nur die Wissensdatenbank durch (P) — dieselbe
-        # pg-DI-Naht, die der Bestandsweg an ``generate_response`` gibt.
-        return await respond_agent(ctx, progress=progress, session=session)
+        # pg-DI-Naht, die der Bestandsweg an ``generate_response`` gibt. Den
+        # Strom öffnet oder sperrt ``respond_agent`` selbst (Token-Streaming).
+        return await respond_agent(ctx, progress=progress, session=session,
+                                   on_token=on_token)
 
     req = ctx.req
     history = ctx.history
@@ -404,6 +407,9 @@ async def respond(
                 logger.warning("speculative QR start failed: %s", _sqr_err)
                 _qr_spec_task = None
 
+        # Token-Streaming (Plan 2026-10-01, T11): offen → der Strom geht an die
+        # Antwortrunde; gesperrt oder ohne Strom → ``None`` wie bisher.
+        _antwort_strom = strom_fuer_muster_zug(on_token, ctx, pattern_output)
         progress.start("response", "LLM response generation")
         try:
             (
@@ -425,8 +431,10 @@ async def respond(
                 prefetched_extras=prefetched_extras_payload,
                 canvas_state=req.canvas_state,
                 usage_acc=usage_acc,
-                on_token=on_token,
+                on_token=_antwort_strom,
             )
+            if _antwort_strom is not None:
+                _antwort_strom.schliessen()  # den zurückgehaltenen Rest senden
         except Exception as _gen_err:
             # Der Antwort-LLM-Call ist die größte Quelle intermittierender Fehler
             # (Rate-Limit, Netz, JSON). Ohne Guard wird jeder Blip ein 500 →

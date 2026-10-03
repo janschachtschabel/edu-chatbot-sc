@@ -33,11 +33,9 @@ _HARMONY_MARKERS = (
 )
 
 
-def strip_reasoning_markers(text: str) -> str:
-    """Remove chain-of-thought leaked into visible ``content``:
-    closed ``<think>…</think>`` / ``<thinking>`` / ``<reasoning>`` blocks, an
-    unclosed ``<think>…`` tail, the unicode ``◁think▷…◁/think▷`` variant, and
-    gpt-oss harmony channel markers. Clean text returns unchanged (fast path)."""
+def _ohne_marker(text: str) -> str:
+    """The marker removal of :func:`strip_reasoning_markers` without the final
+    strip — the streamer needs a text whose start does not move."""
     if not text:
         return text
     if "<" not in text and "◁" not in text and "assistantfinal" not in text:
@@ -48,7 +46,17 @@ def strip_reasoning_markers(text: str) -> str:
     out = _THINK_UNI_TAIL_RE.sub("", out)
     for marker in _HARMONY_MARKERS:
         out = out.replace(marker, "")
-    return out.strip()
+    return out
+
+
+def strip_reasoning_markers(text: str) -> str:
+    """Remove chain-of-thought leaked into visible ``content``:
+    closed ``<think>…</think>`` / ``<thinking>`` / ``<reasoning>`` blocks, an
+    unclosed ``<think>…`` tail, the unicode ``◁think▷…◁/think▷`` variant, and
+    gpt-oss harmony channel markers. Clean text returns unchanged (fast path)."""
+    if not text or ("<" not in text and "◁" not in text and "assistantfinal" not in text):
+        return text
+    return _ohne_marker(text).strip()
 
 
 class ThinkSafeStreamer:
@@ -88,11 +96,18 @@ class ThinkSafeStreamer:
             self._acc += chunk
         if self._on is None:
             return
-        visible = strip_reasoning_markers(self._acc)
+        visible = self._sichtbar()
         self._emit(visible, len(visible) - self._HOLDBACK)
 
     def flush(self) -> None:
         if self._on is None:
             return
-        visible = strip_reasoning_markers(self._acc)
+        visible = self._sichtbar()
         self._emit(visible, len(visible))
+
+    def _sichtbar(self) -> str:
+        # Führender Leerraum fällt IMMER weg, der Rest wird nie gestrippt: so
+        # bleibt der Anfang stehen, und ``_emitted`` zeigt in jedem Aufruf auf
+        # dieselbe Stelle (Review L2 — ``strip_reasoning_markers`` strippt nur
+        # auf dem langsamen Weg, sonst verrutschte der Index um ein Zeichen).
+        return _ohne_marker(self._acc).lstrip()
