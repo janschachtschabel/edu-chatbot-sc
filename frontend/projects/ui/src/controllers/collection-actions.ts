@@ -25,6 +25,7 @@ import {
   QueryMetaEntry, WebLink, InlineDocument, TopicPageView,
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
+import { sitzungsWache } from '../session/session-id';
 
 /** Live-Zustand/Seiteneffekte der ChatComponent, die die Aktionen
  *  brauchen — als deferred Arrows (Muster: ``TourContext``). */
@@ -36,6 +37,9 @@ export interface CollectionActionsContext {
     message: string, env: any, action?: string,
     actionParams?: Record<string, any>,
   ) => Promise<ChatResponse>;
+  /** LIVE-Sitzungs-ID: ein Vorgang gehört der Sitzung, in der er begann
+   *  (`sitzungsWache`, Paket 3 T6). */
+  sessionId: () => string;
   /** Globales ``isLoading``-Flag der Komponente (Turn-Serialisierung). */
   isLoading: () => boolean;
   setLoading: (v: boolean) => void;
@@ -70,6 +74,7 @@ export async function browseCollection(
   nodeId: string, title: string, ctx: CollectionActionsContext,
 ): Promise<void> {
   if (ctx.isLoading()) return;
+  const veraltet = sitzungsWache(() => ctx.sessionId());
   ctx.setLoading(true);
   const loadingId = ctx.addBotMessage('', true);
 
@@ -80,12 +85,14 @@ export async function browseCollection(
       'browse_collection',
       { collection_id: nodeId, title },
     );
+    if (veraltet()) return;
     ctx.removeMessage(loadingId);
     const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.debug, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
     ctx.setScrollTarget(botMsgId);
     ctx.setLatestDebug(resp.debug);
     ctx.dispatchPageAction(resp.page_action);
   } catch {
+    if (veraltet()) return;
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(ctx.t('error.browseCollection', { title }));
     ctx.setScrollTarget(errId);
@@ -112,6 +119,7 @@ export async function showContentText(
   nodeId: string, title: string, ctx: CollectionActionsContext,
 ): Promise<void> {
   if (ctx.isLoading()) return;
+  const veraltet = sitzungsWache(() => ctx.sessionId());
   ctx.setLoading(true);
   const loadingId = ctx.addBotMessage('', true);
 
@@ -122,12 +130,14 @@ export async function showContentText(
       'show_content_text',
       { node_id: nodeId, title },
     );
+    if (veraltet()) return;
     ctx.removeMessage(loadingId);
     const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.debug, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
     ctx.setScrollTarget(botMsgId);
     ctx.setLatestDebug(resp.debug);
     ctx.dispatchPageAction(resp.page_action);
   } catch {
+    if (veraltet()) return;
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(ctx.t('error.contentText', { title }));
     ctx.setScrollTarget(errId);
@@ -140,6 +150,7 @@ export async function generateLearningPath(
   nodeId: string, title: string, ctx: CollectionActionsContext,
 ): Promise<void> {
   if (ctx.isLoading()) return;
+  const veraltet = sitzungsWache(() => ctx.sessionId());
   ctx.setLoading(true);
   const loadingId = ctx.addBotMessage('', true);
 
@@ -150,12 +161,14 @@ export async function generateLearningPath(
       'generate_learning_path',
       { collection_id: nodeId, title },
     );
+    if (veraltet()) return;
     ctx.removeMessage(loadingId);
     const botMsgId = ctx.addBotMessage(resp.content, false, resp.cards, resp.quick_replies, resp.debug, resp.pagination, undefined, resp.web_links, resp.inline_documents, resp.display_rules);
     ctx.setScrollTarget(botMsgId);
     ctx.setLatestDebug(resp.debug);
     ctx.dispatchPageAction(resp.page_action);
   } catch {
+    if (veraltet()) return;
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(ctx.t('error.learningPath', { title }));
     ctx.setScrollTarget(errId);
@@ -211,6 +224,7 @@ export async function loadMore(msgId: string, ctx: CollectionActionsContext): Pr
   const p = msg.pagination;
   const newSkip = p.skip_count + p.page_size;
 
+  const veraltet = sitzungsWache(() => ctx.sessionId());
   ctx.setLoading(true);
 
   try {
@@ -220,6 +234,7 @@ export async function loadMore(msgId: string, ctx: CollectionActionsContext): Pr
       'browse_collection',
       { collection_id: p.collection_id, title: p.collection_title, skip_count: newSkip },
     );
+    if (veraltet()) return;
 
     // Append new cards to existing message and reveal them immediately
     ctx.updateMessages(all => all.map(m => {
@@ -234,6 +249,7 @@ export async function loadMore(msgId: string, ctx: CollectionActionsContext): Pr
       };
     }));
   } catch (err) {
+    if (veraltet()) return;
     console.error('Load more failed:', err);
   }
 

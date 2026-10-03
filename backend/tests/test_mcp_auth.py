@@ -140,12 +140,14 @@ class TestTransportVerdrahtung:
     def test_open_session_uebergibt_die_fabrik(self, monkeypatch, mit_block):
         import asyncio
 
-        from boerdi.services.mcp.transport import _open_session
+        from boerdi.services.mcp.transport import _open_session, resolve_mcp_url
 
         gefangen = self._fang_kwargs(monkeypatch)
 
+        # Die primäre Adresse: nur sie bekommt den Block (siehe
+        # ``TestNurPrimaererServer``).
         async def _lauf():
-            async with _open_session("https://beispiel.test/mcp"):
+            async with _open_session(resolve_mcp_url()):
                 pass
 
         with pytest.raises(AssertionError, match="Naht geprüft"):
@@ -173,6 +175,80 @@ class TestTransportVerdrahtung:
         with pytest.raises(AssertionError, match="Naht geprüft"):
             asyncio.run(_lauf())
 
+        assert gefangen["kwargs"]["httpx_client_factory"] is create_mcp_http_client
+
+
+# ── Nur der primäre Server bekommt den Block (Audit 2026-09-29, A-M2/B-M2) ──
+# Weitere Server der Registry und die Discover-Adresse aus dem Studio sind
+# fremde Gegenstellen. Vorher bekamen sie das Dienst-Token oder den
+# persönlichen Zugangsblock der Person, weil ``_open_session`` die Fabrik für
+# jede Adresse gleich baute.
+
+_FREMD = "https://fremd.example/mcp"
+
+
+def _oeffne(url: str) -> None:
+    import asyncio
+
+    from boerdi.services.mcp.transport import _open_session
+
+    async def _lauf():
+        async with _open_session(url):
+            pass
+
+    with pytest.raises(AssertionError, match="Naht geprüft"):
+        asyncio.run(_lauf())
+
+
+class TestNurPrimaererServer:
+    def test_primaere_adresse_bekommt_den_block(self, monkeypatch, mit_block):
+        from boerdi.services.mcp.transport import resolve_mcp_url
+
+        gefangen = TestTransportVerdrahtung._fang_kwargs(monkeypatch)
+        _oeffne(resolve_mcp_url())
+        client = gefangen["kwargs"]["httpx_client_factory"]()
+        assert client.headers["authorization"] == f"Bearer {_BLOCK}"
+
+    def test_schraegstrich_am_ende_bleibt_primaer(self, monkeypatch, mit_block):
+        from boerdi.services.mcp.transport import resolve_mcp_url
+
+        gefangen = TestTransportVerdrahtung._fang_kwargs(monkeypatch)
+        _oeffne(resolve_mcp_url() + "/")
+        client = gefangen["kwargs"]["httpx_client_factory"]()
+        assert client.headers["authorization"] == f"Bearer {_BLOCK}"
+
+    def test_fremde_adresse_bekommt_keinen_block(self, monkeypatch, mit_block):
+        from mcp.client.streamable_http import create_mcp_http_client
+
+        gefangen = TestTransportVerdrahtung._fang_kwargs(monkeypatch)
+        _oeffne(_FREMD)
+        assert gefangen["kwargs"]["httpx_client_factory"] is create_mcp_http_client
+
+    def test_werkzeug_eines_weiteren_servers_ohne_block(self, monkeypatch, mit_block):
+        # Der Weg der Registry: ``call_tool(..., url=<weiterer Server>)``. Der
+        # Transportfehler des Fakes wird dort zum Fehler-Dict, die Naht ist
+        # trotzdem durchlaufen.
+        import asyncio
+
+        from mcp.client.streamable_http import create_mcp_http_client
+
+        from boerdi.services.mcp.transport import call_tool
+
+        gefangen = TestTransportVerdrahtung._fang_kwargs(monkeypatch)
+        ergebnis = asyncio.run(call_tool("search_wlo_all", {}, url=_FREMD))
+        assert ergebnis["error"]["kind"] == "transport"
+        assert gefangen["kwargs"]["httpx_client_factory"] is create_mcp_http_client
+
+    def test_discover_an_fremde_adresse_ohne_block(self, monkeypatch, mit_block):
+        import asyncio
+
+        from mcp.client.streamable_http import create_mcp_http_client
+
+        from boerdi.services.mcp.transport import discover_server_tools
+
+        gefangen = TestTransportVerdrahtung._fang_kwargs(monkeypatch)
+        with pytest.raises(AssertionError, match="Naht geprüft"):
+            asyncio.run(discover_server_tools(_FREMD))
         assert gefangen["kwargs"]["httpx_client_factory"] is create_mcp_http_client
 
 

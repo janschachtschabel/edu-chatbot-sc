@@ -55,6 +55,7 @@ from boerdi.domain.result_delivery import (
 )
 from boerdi.domain.tool_result_redaction import redigiere_strukturell
 from boerdi.domain.untrusted_text import frame_untrusted
+from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN, angebotene_namen
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.usage import add_usage, extract_usage, new_accumulator
 from boerdi.obs.zeiten import seit_ms
@@ -238,6 +239,7 @@ async def run_agent_loop(
     """
     acc = usage_acc if usage_acc is not None else new_accumulator()
     strom_verbraucht = False
+    angeboten = angebotene_namen(tools)
     gate = WriteGate(limits.write_mode)
     run = AgentRun()
     start = clock()
@@ -404,6 +406,21 @@ async def run_agent_loop(
                 progress.record("agent_result", "Ergebnis an die Anwendung übergeben",
                                 {"felder": len(ergebnis)})
                 messages.append(_tool_turn(tc.id, ERGEBNIS_UEBERNOMMEN))
+                continue
+
+            # Nur Angebotenes läuft weiter (Audit 2026-09-29, B-M1), und zwar
+            # VOR der Wall: die setzt bei einem Schreibwerkzeug womöglich einen
+            # Schlüssel ein. Die virtuellen Werkzeuge oben sind lokal und
+            # bleiben davon unberührt. Der Stillstand zählt auch hier: ein
+            # zweites gleiches Abgewiesenes beendet den Lauf (Review 2026-10-03).
+            if name not in angeboten:
+                key = _call_key(name, args)
+                if key == last_call:
+                    logger.info("Agent-Schleife: %s zweimal abgewiesen — Stillstand", name)
+                    return schluss("no_progress")
+                last_call = key
+                logger.warning("Agent-Schleife: nicht angebotenes Werkzeug %s verworfen", name)
+                messages.append(_tool_turn(tc.id, NICHT_ANGEBOTEN))
                 continue
 
             # Die Wall zuerst: sie kann einen Schlüssel einsetzen, und der

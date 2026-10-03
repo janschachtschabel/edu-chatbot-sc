@@ -22,6 +22,7 @@ import {
   TopicPageView,
   WebLink,
 } from '../grouping/message-types';
+import { sitzungsWache } from '../session/session-id';
 
 /** Live-Zustand/Seiteneffekte der Chat-Shell, die der Kontext-Ping braucht. */
 export interface ContextGreetingContext {
@@ -29,6 +30,9 @@ export interface ContextGreetingContext {
   sendMessage: (message: string, env: any) => Promise<ChatResponse>;
   /** `parsedPageContext` — Seiten-Kontext für den Ping. */
   pageContext: () => Record<string, any>;
+  /** LIVE-Sitzungs-ID: ein Vorgang gehört der Sitzung, in der er begann
+   *  (`sitzungsWache`, Paket 3 T6). */
+  sessionId: () => string;
   /** Globales `isLoading`-Flag der Shell (Turn-Serialisierung). */
   isLoading: () => boolean;
   setLoading: (v: boolean) => void;
@@ -77,6 +81,7 @@ export class ContextGreetingController {
   ): Promise<boolean> {
     if (this.ctx.isLoading() || this._pinged) return false;
     this._pinged = true;
+    const veraltet = sitzungsWache(() => this.ctx.sessionId());
     this.ctx.setLoading(true);
     let rendered = false;
     try {
@@ -84,6 +89,7 @@ export class ContextGreetingController {
         page_event: event,
         page_context: this.ctx.pageContext(),
       });
+      if (veraltet()) return false;
       const hasContent = !!(resp.content || '').trim()
         || !!(resp.quick_replies && resp.quick_replies.length);
       if (hasContent) {
@@ -97,6 +103,7 @@ export class ContextGreetingController {
         rendered = true;
       }
     } catch {
+      if (veraltet()) return false;
       // Ping-Fehler still schlucken (kein Error-Bubble). Beim Erstaufruf holt
       // der Aufrufer daraufhin die normale Begrüßung nach.
     }

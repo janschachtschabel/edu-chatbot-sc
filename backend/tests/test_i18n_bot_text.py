@@ -31,6 +31,15 @@ def test_jeder_schluessel_hat_in_beiden_sprachen_dieselben_platzhalter():
         assert set(_PLATZHALTER.findall(deutsch)) == set(_PLATZHALTER.findall(englisch)), key
 
 
+def test_kein_satz_reicht_einen_ausnahmetext_durch():
+    # Audit 2026-09-29 (6.3): ``{error}`` setzte den Text einer Ausnahme in die
+    # Blase, mit Interna aus Anbieter- oder MCP-Meldungen. Der Grund gehört ins
+    # Log; die Person bekommt einen festen Satz.
+    for lang, katalog in BOT_TEXT.items():
+        for key, satz in katalog.items():
+            assert "error" not in _PLATZHALTER.findall(satz), f"{lang}/{key}"
+
+
 def test_kein_satz_ist_leer():
     for lang, katalog in BOT_TEXT.items():
         for key, satz in katalog.items():

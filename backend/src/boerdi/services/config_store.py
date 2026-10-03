@@ -65,8 +65,29 @@ class ConfigStore:
 
     async def start(self) -> None:
         """Attach the NOTIFY listener (call once in app lifespan)."""
-        await self._listener.start(self._on_area_changed)
+        await self._listener.start(self._on_area_changed, on_reconnect=self._on_reconnect)
         await self._listener.wait_connected()
+
+    def _on_reconnect(self) -> None:
+        # Notifications sent while LISTEN was down are lost: reload everything
+        # this process may hold, or a replica keeps stale config — privacy
+        # switches included — until restart (audit 2026-09-29, C-M NOTIFY).
+        try:
+            asyncio.get_running_loop().create_task(self._resync())
+        except RuntimeError:  # no loop — listener callbacks run on the loop
+            logger.warning("config resync after reconnect skipped: no running loop")
+
+    async def _resync(self) -> None:
+        # Cached areas AND the database list: an area created during the
+        # outage is not in the cache yet.
+        areas = set(self._cache)
+        try:
+            areas |= {meta["area"] for meta in await self.list_areas()}
+        except Exception as e:
+            logger.warning("config resync could not list areas: %s", e)
+        logger.info("config resync after reconnect: %d areas", len(areas))
+        for area in sorted(areas):
+            self._on_area_changed(area)
 
     async def stop(self) -> None:
         await self._listener.stop()

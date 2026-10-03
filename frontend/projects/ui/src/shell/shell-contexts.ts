@@ -96,6 +96,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
   const tour: TourContext = {
     sendMessage: send,
     pageContext: () => host.pageContext(),
+    sessionId: () => host.sessionId(),
     isLoading: () => host.isLoading(),
     setLoading: (v) => host.setLoading(v),
     addUserMessage: (content) => host.addUserMessage(content),
@@ -109,6 +110,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
   const contextGreeting: ContextGreetingContext = {
     sendMessage: send,
     pageContext: () => host.pageContext(),
+    sessionId: () => host.sessionId(),
     isLoading: () => host.isLoading(),
     setLoading: (v) => host.setLoading(v),
     addBotMessage: (...args) => host.addBotMessage(...args),
@@ -119,6 +121,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
 
   const collectionActions: CollectionActionsContext = {
     sendMessage: post,
+    sessionId: () => host.sessionId(),
     isLoading: () => host.isLoading(),
     setLoading: (v) => host.setLoading(v),
     messages: () => host.messages(),

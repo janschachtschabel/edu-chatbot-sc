@@ -101,7 +101,9 @@ BOT_TEXT: Final[Catalogue] = {
         "action.browse.header": "**{title}** — Ergebnisse {range}{total}:",
         "action.browse.ofTotal": " von {total}",
         "action.browse.empty": 'In der Sammlung "{title}" habe ich leider keine Inhalte gefunden.',
-        "action.browse.loadFailed": 'Fehler beim Laden der Inhalte von "{title}": {error}',
+        "action.browse.loadFailed": (
+            'Fehler beim Laden der Inhalte von "{title}". Versuch es bitte noch einmal.'
+        ),
         "action.browse.canvasTitle": "Inhalte: {title}",
         "action.browse.canvasTitleFallback": "Sammlungs-Inhalte",
         "action.curate.searchPill": "Fehlende Inhalte zu {title} suchen",
@@ -120,7 +122,9 @@ BOT_TEXT: Final[Catalogue] = {
             'Leider keine Inhalte in der Sammlung "{title}" gefunden, '
             "aus denen ein Lernpfad erstellt werden koennte."
         ),
-        "action.lp.failed": 'Fehler beim Erstellen des Lernpfads für "{title}": {error}',
+        "action.lp.failed": (
+            'Fehler beim Erstellen des Lernpfads für "{title}". Versuch es bitte noch einmal.'
+        ),
         # ── Material erstellen: Rückfragen, Fehler, Lösungen-Stub ───────
         # Das genannte Stichwort MUSS ein Alias aus
         # ``05-canvas/type-aliases.yaml`` sein, sonst gibt der Satz eine
@@ -139,7 +143,7 @@ BOT_TEXT: Final[Catalogue] = {
         ),
         "material.genFailed": (
             "Ich konnte das **{label}** zum Thema *{topic}* gerade "
-            "nicht erstellen ({error}). Versuch es nochmal — "
+            "nicht erstellen ({kind}). Versuch es nochmal — "
             "meistens klappt es beim zweiten Anlauf."
         ),
         "material.createFailed": "Fehler beim Erstellen",
@@ -365,9 +369,9 @@ BOT_TEXT: Final[Catalogue] = {
         "context.stock.materials": "Ich sehe {materials} Materialien darin.",
         "context.stock.skills": "Ich sehe {skills} freigegebene Skills dazu.",
         "curation.failed": "Die Kuratier-Analyse konnte nicht erstellt werden.",
-        "curation.error": "Fehler bei der Kuratier-Analyse: {error}",
+        "curation.error": "Fehler bei der Kuratier-Analyse. Versuch es bitte noch einmal.",
         "learningPath.failed": "Lernpfad konnte nicht erstellt werden.",
-        "learningPath.error": "Fehler beim Erstellen des Lernpfads: {error}",
+        "learningPath.error": "Fehler beim Erstellen des Lernpfads. Versuch es bitte noch einmal.",
         # ── C5-c2: die Anmelde-Rückfrage ──────────────────────────────
         # Nur der ablehnende Chip steht hier. Der anmeldende trägt seine
         # Beschriftung im Widget-Katalog, weil er nichts absendet, sondern dort
@@ -421,7 +425,7 @@ BOT_TEXT: Final[Catalogue] = {
         "action.browse.header": "**{title}** — results {range}{total}:",
         "action.browse.ofTotal": " of {total}",
         "action.browse.empty": 'I found no content in the collection "{title}".',
-        "action.browse.loadFailed": 'Failed to load the content of "{title}": {error}',
+        "action.browse.loadFailed": 'Failed to load the content of "{title}". Please try again.',
         "action.browse.canvasTitle": "Content of {title}",
         "action.browse.canvasTitleFallback": "Collection content",
         "action.curate.searchPill": "Search for content missing from {title}",
@@ -438,7 +442,7 @@ BOT_TEXT: Final[Catalogue] = {
             'I found no content in the collection "{title}" that a learning path '
             "could be built from."
         ),
-        "action.lp.failed": 'Failed to build the learning path for "{title}": {error}',
+        "action.lp.failed": 'Failed to build the learning path for "{title}". Please try again.',
         "material.askType": (
             "Which kind of material should I create on **{topic}**? Pick a type "
             "from the suggestions, or write \"Automatic\" and I will choose a "
@@ -450,7 +454,7 @@ BOT_TEXT: Final[Catalogue] = {
         ),
         "material.genFailed": (
             "I could not create the **{label}** on *{topic}* just now "
-            "({error}). Please try again — it usually works on the second attempt."
+            "({kind}). Please try again — it usually works on the second attempt."
         ),
         "material.createFailed": "Could not create this material",
         "material.solutionsStub": (
@@ -592,9 +596,9 @@ BOT_TEXT: Final[Catalogue] = {
         "context.stock.materials": "I can see {materials} materials in it.",
         "context.stock.skills": "I can see {skills} approved guides for it.",
         "curation.failed": "The curation analysis could not be created.",
-        "curation.error": "Error during the curation analysis: {error}",
+        "curation.error": "Error during the curation analysis. Please try again.",
         "learningPath.failed": "The learning path could not be created.",
-        "learningPath.error": "Error while creating the learning path: {error}",
+        "learningPath.error": "Error while creating the learning path. Please try again.",
         "auth.readOnly": "Just search, no sign-in",
     },
 }

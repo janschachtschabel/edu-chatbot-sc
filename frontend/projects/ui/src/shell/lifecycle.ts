@@ -99,6 +99,9 @@ export interface LifecycleContext {
     queryMetas?: QueryMetaEntry[], webLinks?: WebLink[],
   ) => string;
   setLatestDebug: (d: DebugInfo | null) => void;
+  /** Globales `isLoading` der Shell. Ein Neustart gibt es frei, auch wenn
+   *  noch ein Zug läuft: der verwirft sein Ergebnis selbst (`send-message.ts`). */
+  setLoading: (v: boolean) => void;
   // ── Controller + Scroll ──
   tour: TourController;
   contextGreeting: ContextGreetingController;
@@ -165,17 +168,21 @@ export class ShellLifecycle {
     this._willkommen.relocalize();
   }
 
-  /** Frische Session + Begrüßung (Header-Restart). Verbatim aus ALT 1262-1270. */
+  /** Frische Session + Begrüßung (Header-Restart). Verbatim aus ALT 1262-1270,
+   *  dazu die Freigabe des Ladens (Befundliste §1.4): ein laufender Zug gehört
+   *  der alten Sitzung und verwirft sein Ergebnis (`send-message.ts`). */
   restart(): void {
     const id = generateSessionId();
     this.ctx.setSessionId(id);
     writeSessionEverywhere(id, this._cookieCfg());
     this.ctx.setMessages([]);
     this.ctx.setLatestDebug(null);
+    this.ctx.setLoading(false);
     this.showGreeting();
   }
 
-  /** Public API: Session leeren und frisch starten. Verbatim aus ALT 402-410. */
+  /** Public API: Session leeren und frisch starten. Verbatim aus ALT 402-410,
+   *  dazu die Freigabe des Ladens wie in `restart()` (Befundliste §1.4). */
   resetSession(): void {
     try { localStorage.removeItem(this.ctx.sessionKey()); } catch { /* ignore */ }
     deleteSessionCookie(this.ctx.sessionKey(), this.ctx.sessionCookieDomain());
@@ -184,6 +191,7 @@ export class ShellLifecycle {
     writeSessionEverywhere(id, this._cookieCfg());
     this.ctx.setMessages([]);
     this.ctx.setLatestDebug(null);
+    this.ctx.setLoading(false);
     // Eigener Text (`greeting.reset`), deshalb ein eigenes Tor — geleert wird
     // trotzdem, nur die Nachricht bleibt aus.
     if (!this.ctx.showWelcome()) return;

@@ -85,9 +85,12 @@ def test_cur_reasoning_markers_stripped(monkeypatch):
     assert _run(monkeypatch, cap) == "Analyse fertig"
 
 
-def test_cur_exception_embedded_in_error_message(monkeypatch):
+def test_cur_exception_stays_out_of_the_message(monkeypatch):
+    # Audit 2026-09-29 (6.3): der Ausnahmetext gehört ins Log, nicht in die Blase.
     cap = _Capture(raises=RuntimeError("boom"))
-    assert _run(monkeypatch, cap) == "Fehler bei der Kuratier-Analyse: boom"
+    text = _run(monkeypatch, cap)
+    assert text.startswith("Fehler bei der Kuratier-Analyse")
+    assert "boom" not in text
 
 
 # ── Ausgabe-Sprache (C1-f2a) ───────────────────────────────────────────────
@@ -141,7 +144,7 @@ def test_cur_error_message_english(monkeypatch):
     monkeypatch.setattr(llm, "_acompletion", cap)
     out = asyncio.run(cur.generate_curation_text(
         "Fractions", "target", "- Video A", "Name the gaps.", {}, lang="en"))
-    assert out == "Error during the curation analysis: boom"
+    assert out == "Error during the curation analysis. Please try again."
 
 
 # ── K1c: die Kuration bucht ihre Token ────────────────────────────────────

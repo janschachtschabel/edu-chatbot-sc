@@ -209,5 +209,6 @@ def test_integration_llm_error_returns_graceful_message(monkeypatch):
     # message instead of crashing the whole turn.
     text, cards, tools, outcomes = _integ(
         monkeypatch, [], raises=RuntimeError("upstream down"))
-    assert "Fehler bei der Verarbeitung" in text
+    assert "upstream down" not in text          # Audit 2026-09-29: nicht an die Person
+    assert "RuntimeError" in text
     assert isinstance(cards, list) and isinstance(tools, list)

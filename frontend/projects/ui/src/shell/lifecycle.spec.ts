@@ -22,12 +22,16 @@ const KEY = 'boerdi_session_id';
 interface Rec {
   speech: boolean[]; parsedPC: Record<string, any>[]; sessionIds: string[];
   viaBsid: boolean[]; messages: unknown[]; latestDebug: unknown[]; bots: unknown[][]; scroll: number;
+  loading: boolean[];
 }
 
 function makeCtx(overrides: Partial<LifecycleContext> = {}): {
   ctx: LifecycleContext; rec: Rec; tour: any; cg: any; api: any;
 } {
-  const rec: Rec = { speech: [], parsedPC: [], sessionIds: [], viaBsid: [], messages: [], latestDebug: [], bots: [], scroll: 0 };
+  const rec: Rec = {
+    speech: [], parsedPC: [], sessionIds: [], viaBsid: [], messages: [], latestDebug: [], bots: [], scroll: 0,
+    loading: [],
+  };
   let pc: Record<string, any> = {};
   let sid = '';
   const tour = { isTourFlagSet: vi.fn(() => false), sendTourTick: vi.fn(async () => {}) };
@@ -48,6 +52,7 @@ function makeCtx(overrides: Partial<LifecycleContext> = {}): {
     addUserMessage: () => { /* nur im Restore relevant */ },
     addBotMessage: (...a: unknown[]) => { rec.bots.push(a); return 'id'; },
     setLatestDebug: (d) => { rec.latestDebug.push(d); },
+    setLoading: (v) => { rec.loading.push(v); },
     tour: tour as unknown as TourController,
     contextGreeting: cg as unknown as ContextGreetingController,
     scrollToLatest: () => { rec.scroll++; },
@@ -139,6 +144,18 @@ describe('ShellLifecycle (8-4S-e4)', () => {
     lc.resetSession();
     expect(rec.bots.length).toBe(0);
     expect(rec.messages).toEqual([[], []]);   // geleert wird trotzdem
+  });
+
+  it('restart und resetSession geben das Laden frei (Befundliste §1.4)', () => {
+    // Ein Neustart mitten im Zug: der alte Zug verwirft sein Ergebnis selbst
+    // (`send-message.ts`). Ohne die Freigabe bliebe die Eingabe bis zu dessen
+    // Ende gesperrt. Mit `showWelcome=false`, weil `resetSession` dann früh
+    // zurückkehrt — die Freigabe muss davor stehen.
+    const { ctx, rec } = makeCtx({ showWelcome: () => false });
+    const lc = new ShellLifecycle(ctx);
+    lc.restart();
+    lc.resetSession();
+    expect(rec.loading).toEqual([false, false]);
   });
 
   it('showWelcome=false hält den Erstaufruf leer, ohne den Kontext-Ping zu unterdrücken', async () => {

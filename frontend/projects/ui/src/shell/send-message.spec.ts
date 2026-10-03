@@ -39,6 +39,8 @@ interface Rec {
   loading: boolean[]; cleared: number; focus: number;
   streamCalls: Array<{ msg: string; env: unknown; action?: string; actionParams?: unknown }>;
   postCalls: Array<{ msg: string; env: unknown; action?: string; actionParams?: unknown }>;
+  /** Neustart von aussen (resetSession/Neustart-Knopf): neue Sitzungs-ID. */
+  setSession: (id: string) => void;
 }
 
 interface Opts {
@@ -60,12 +62,16 @@ function makeCtx(opts: Opts = {}): Rec {
     users: [], bots: [], removed: [], scroll: [], phases: [], results: [],
     streamTexts: [], streamCleared: [],
     loading: [], cleared: 0, focus: 0, streamCalls: [], postCalls: [],
+    setSession: () => undefined,
   };
+  let sitzung = 'bb-sitzung-1';
+  rec.setSession = (id) => { sitzung = id; };
   let currentLoading = opts.isLoading ?? false;
   let n = 0;
   rec.ctx = {
     currentInput: () => opts.input ?? '',
     clearInput: () => { rec.cleared++; },
+    sessionId: () => sitzung,
     isLoading: () => currentLoading,
     setLoading: (v) => { currentLoading = v; rec.loading.push(v); },
     addUserMessage: (content) => { rec.users.push(content); },
@@ -330,5 +336,56 @@ describe('Abgelehnte Anfrage: kein zweiter Versuch (Nutzer-Meldung 2026-08-19)',
     });
     await runSendMessage('Frage', undefined, undefined, r.ctx);
     expect(r.postCalls).toHaveLength(1);
+  });
+});
+
+// Befundliste §1.4: resetSession() oder der Neustart-Knopf mitten im Zug. Der
+// Zug gehört der Sitzung, in der er begann — sein Ausgang darf den frischen
+// Verlauf nicht anfassen: keine Blase, kein onResult, kein Laden/Fokus (das
+// Freigeben gehört dem Neustart, `lifecycle.ts`), und KEIN POST-Rückfall, der
+// die alte Frage unter der neuen Sitzungs-ID noch einmal stellte.
+describe('runSendMessage — Neustart mitten im Zug', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('die Antwort eines Zugs aus der alten Sitzung wird verworfen', async () => {
+    const r: Rec = makeCtx({
+      input: '',
+      stream: () => { r.setSession('bb-sitzung-2'); return Promise.resolve(makeResp()); },
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+
+    expect(r.bots.map((b) => b.content)).toEqual(['']);   // nur die Ladeblase vom Start
+    expect(r.removed).toEqual([]);
+    expect(r.results).toEqual([]);
+    expect(r.loading).toEqual([true]);
+    expect(r.focus).toBe(0);
+  });
+
+  it('scheitert der Stream nach dem Neustart, stellt kein POST die alte Frage neu', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r: Rec = makeCtx({
+      input: '',
+      stream: () => { r.setSession('bb-sitzung-2'); return Promise.reject(new Error('network')); },
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+
+    expect(r.postCalls).toEqual([]);
+    expect(r.bots.map((b) => b.content)).toEqual(['']);   // auch keine Fehlerblase
+    expect(r.loading).toEqual([true]);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('auch die Antwort des POST-Rückfalls wird nach einem Neustart verworfen', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r: Rec = makeCtx({
+      input: '',
+      stream: () => Promise.reject(new Error('network')),
+      post: () => { r.setSession('bb-sitzung-2'); return Promise.resolve(makeResp({ content: 'via POST' })); },
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+
+    expect(r.bots.map((b) => b.content)).toEqual(['']);
+    expect(r.results).toEqual([]);
+    expect(r.loading).toEqual([true]);
   });
 });

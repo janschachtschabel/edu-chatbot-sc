@@ -143,6 +143,41 @@ def test_restore_rejects_zip_bomb(cfg, monkeypatch) -> None:
     assert up.status_code == 413
 
 
+def test_restore_ueberspringt_nur_ungueltige_pfade(cfg) -> None:
+    # Audit 2026-09-29, A-M7: ``../…`` aus einer ZIP-Datei landet nicht mehr im
+    # Bestand. Review 2026-10-03: Bereiche ohne Modell überstehen das
+    # Wiederherstellen — ``01-base/rag-retrieval`` wird gelesen, ist aber nicht
+    # registriert. Es gilt die Pfadregel des rohen Datei-Schreibens.
+    client, _ = cfg
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("config/01-base/welcome-config.yaml", "welcome:\n  greeting: Gut\n")
+        z.writestr("config/01-base/rag-retrieval.yaml", "top_k: 7\n")
+        z.writestr("config/../../boese.yaml", "x: 1\n")
+    up = client.post("/api/config/restore", headers=_AUTH,
+                     files={"file": ("teil.zip", buf.getvalue(), "application/zip")})
+    assert up.status_code == 200
+    assert up.json()["areas"] == 2
+    assert sorted(config_loader.current_config()) == [
+        "01-base/rag-retrieval", "01-base/welcome-config"]
+
+
+def test_restore_weist_interne_mcp_adressen_ab_und_schreibt_nichts(cfg) -> None:
+    # Review 2026-10-03: dieselbe Ausgangsprüfung wie beim Schreiben im Studio
+    # (``_assert_area_document_safe``), und zwar für alles, bevor etwas
+    # geschrieben wird — sonst bliebe ein halb wiederhergestellter Stand.
+    client, _ = cfg
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("config/01-base/welcome-config.yaml", "welcome:\n  greeting: Gut\n")
+        z.writestr("config/05-knowledge/mcp-servers.yaml",
+                   "servers:\n  - id: extra\n    url: http://169.254.169.254/mcp\n")
+    up = client.post("/api/config/restore", headers=_AUTH,
+                     files={"file": ("teil.zip", buf.getvalue(), "application/zip")})
+    assert up.status_code == 400
+    assert config_loader.current_config() == {}
+
+
 def test_snapshot_endpoints_require_studio_key(cfg) -> None:
     client, _ = cfg
     assert client.get("/api/config/snapshots").status_code == 401

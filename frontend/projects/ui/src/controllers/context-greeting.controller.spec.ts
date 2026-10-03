@@ -23,6 +23,7 @@ function makeCtx(over: Partial<ContextGreetingContext> = {}): { ctx: ContextGree
   const ctx: ContextGreetingContext = {
     sendMessage: over.sendMessage ?? (async () => makeResp()),
     pageContext: over.pageContext ?? (() => ({})),
+    sessionId: over.sessionId ?? (() => 'bb-1'),
     isLoading: over.isLoading ?? (() => loading),
     setLoading: (v) => {
       loading = v;
@@ -100,5 +101,20 @@ describe('ContextGreetingController', () => {
     await new ContextGreetingController(ctx).sendContextPing();
     expect(calls.bot.length).toBe(0);
     expect(calls.loading).toEqual([true, false]);
+  });
+});
+
+// Paket 3, T6 (Review 2026-10-03): der Ping gehört der Sitzung, in der er begann.
+describe('ContextGreetingController nach einem Neustart', () => {
+  it('kein Rendern, keine Freigabe, gemeldet als nicht gerendert', async () => {
+    let sitzung = 'bb-1';
+    const { ctx, calls } = makeCtx({
+      sessionId: () => sitzung,
+      sendMessage: async () => { sitzung = 'bb-2'; return makeResp({ content: 'Hallo Seite' }); },
+    });
+    const gerendert = await new ContextGreetingController(ctx).sendContextPing();
+    expect(gerendert).toBe(false);
+    expect(calls.bot.length).toBe(0);
+    expect(calls.loading).toEqual([true]);
   });
 });

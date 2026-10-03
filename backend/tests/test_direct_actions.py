@@ -482,6 +482,7 @@ async def test_lp_generation_error_degrades_to_chat_bubble(monkeypatch) -> None:
     )
 
     assert resp.content.startswith("Fehler beim Erstellen des Lernpfads")
+    assert "B-API down" not in resp.content     # Audit 2026-09-29: ins Log, nicht in die Blase
     assert "error" in resp.debug.tools_called
     assert resp.inline_documents == []  # error branch returns before inline-doc build
     # even on failure the (error) turn is still persisted + canvas state advanced

@@ -93,6 +93,21 @@ def test_export_tree_writes_back_structurally_equal(tmp_path: Path) -> None:
     assert fm == {"id": "base"} and body == "Text.\n"
 
 
+def test_export_tree_bleibt_im_zielordner(tmp_path: Path) -> None:
+    # Audit 2026-09-29, A-M7: Ein Bereichsschlüssel mit ``..`` landete sonst
+    # ausserhalb des Ordners. Geschrieben wird dann gar nichts: ein halber
+    # Export sähe vollständig aus.
+    areas = {
+        "01-base/welcome-config": {"welcome": {"greeting": "Moin"}},
+        "../boese": {"x": "1"},
+    }
+    out = tmp_path / "export"
+    with pytest.raises(ValueError, match="boese"):
+        seed_io.export_tree(areas, out)
+    assert not (tmp_path / "boese.yaml").exists()
+    assert not out.exists() or not any(out.rglob("*.yaml"))
+
+
 @pytest.mark.skipif(not ALT_TREE.exists(), reason="ALT-Baum nicht vorhanden (CI)")
 def test_alt_tree_import_export_roundtrip(tmp_path: Path) -> None:
     """Acceptance (spec 2-4): import of the REAL ALT tree (55 files), export,

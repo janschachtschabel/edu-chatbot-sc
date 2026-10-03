@@ -171,7 +171,7 @@ async def _handle_browse_collection(
     except Exception as e:
         logger.error("browse_collection error: %s", e)
         cards = []
-        response_text = bot_text(lang, "action.browse.loadFailed", title=title, error=e)
+        response_text = bot_text(lang, "action.browse.loadFailed", title=title)
         tools_called.append("error")
 
     # Quick-replies are pure UX sugar — a B-API blip on the QR-LLM call must
@@ -466,7 +466,7 @@ async def _handle_generate_learning_path(
     except Exception as e:
         logger.error("generate_learning_path error: %s", e)
         cards = []
-        response_text = bot_text(lang, "action.lp.failed", title=title, error=e)
+        response_text = bot_text(lang, "action.lp.failed", title=title)
         lp_failed = True
         tools_called.append("error")
 

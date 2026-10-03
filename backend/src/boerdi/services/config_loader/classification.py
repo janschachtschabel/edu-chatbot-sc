@@ -8,9 +8,13 @@ pattern files carry full frontmatter (inventory 2026-07-11).
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
+from boerdi.domain.config_models.patterns import ist_reservierte_kennung
 from boerdi.services.config_loader._store import area, cached_keys
+
+logger = logging.getLogger(__name__)
 
 _SIGNAL_KNOWN_KEYS = (
     "tone", "length", "skip_intro", "one_option", "add_sources",
@@ -100,6 +104,13 @@ def load_pattern_definitions() -> list[dict[str, Any]]:
         data = area(key)
         meta = dict(data.get("frontmatter") or {})
         if not meta.get("id"):
+            continue
+        # Befundliste §2, ST-5 Befund 4: ``AGENT`` kennzeichnet Agent-Züge. Das
+        # Modell weist die Kennung beim Speichern ab; was vorher oder per Import
+        # in den Bestand kam, bleibt hier draussen.
+        if ist_reservierte_kennung(meta["id"]):
+            logger.warning("pattern %s skipped: id %r is reserved for agent turns",
+                           key, meta["id"])
             continue
         for field in ("when_to_use", "when_not_to_use", "trigger_phrases"):
             meta[field] = _normalize_list(meta.get(field))

@@ -117,22 +117,24 @@ async def chat(
                 err_debug = DebugInfo(
                     pattern="ERROR: unhandled_chat_exception", tools_called=["error"],
                 )
+                _err_lang = resolve_locale(
+                    getattr(req.environment, "locale", None))
+                # Saved is what the person sees (audit 2026-09-29, 6.3): the
+                # history shows the same bubble after a reload, and the model
+                # history gets no internal marker like ``[unhandled error: …]``.
+                err_text = bot_text(
+                    _err_lang, "error.internal", kind=type(impl_err).__name__,
+                )
                 try:
                     await save_message(
-                        session, req.session_id, "assistant",
-                        f"[unhandled error: {type(impl_err).__name__}]",
+                        session, req.session_id, "assistant", err_text,
                         debug=err_debug.model_dump(),
                     )
                 except Exception:
                     pass  # never let a DB-write failure mask the original error
-                _err_lang = resolve_locale(
-                    getattr(req.environment, "locale", None))
                 return ChatResponse(
                     session_id=req.session_id,
-                    content=bot_text(
-                        _err_lang, "error.internal",
-                        kind=type(impl_err).__name__,
-                    ),
+                    content=err_text,
                     quick_replies=[bot_text(_err_lang, "error.retryChip")],
                     debug=err_debug,
                 )

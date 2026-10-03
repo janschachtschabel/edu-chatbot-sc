@@ -11,11 +11,14 @@ hint, no-LaTeX formatting). Precedent: quick_replies_llm.py.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
 from boerdi.i18n import DEFAULT, Locale, bot_text, language_name, template_hint
 from boerdi.services import llm
+
+logger = logging.getLogger(__name__)
 
 
 async def generate_learning_path_text(
@@ -152,4 +155,6 @@ um Luecken zu fuellen."""
         )
         return strip_reasoning_markers(resp.choices[0].message.content or "") or bot_text(lang, "learningPath.failed")
     except Exception as e:
-        return bot_text(lang, "learningPath.error", error=e)
+        # Der Grund ins Log, nicht in die Blase (Audit 2026-09-29, 6.3).
+        logger.error("learning path generation failed: %s", e)
+        return bot_text(lang, "learningPath.error")

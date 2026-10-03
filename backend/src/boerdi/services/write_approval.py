@@ -162,7 +162,13 @@ async def redeem_write_approval(
     # hier aus nicht feststellbar. Ihn liegen zu lassen hiesse, ein zweites „ja"
     # könnte dieselbe Änderung erneut absetzen — die Richtung, in der ein Irrtum
     # teuer wird. Eine verworfene Abnahme kostet eine Wiederholung.
+    #
+    # Und zwar in der Datenbank, nicht nur hier im Speicher (Audit 2026-09-29,
+    # B-M3): Bricht der Zug während des Aufrufs ab, stünde der Merkposten sonst
+    # beim nächsten „ja" wieder bereit. Ein Schreibfehler hier bricht ab, bevor
+    # etwas geändert wurde.
     entities.pop("_pending_write", None)
+    await update_session(session, req.session_id, entities=entities)
 
     lang = resolve_locale(req.environment.locale)
     debug = DebugInfo(pattern=_PATTERN_ID, tools_called=[tool], entities={"tool": tool})
