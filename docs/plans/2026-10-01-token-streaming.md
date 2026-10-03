@@ -540,6 +540,16 @@ erst mit rotem Test.
 - **Nicht behoben, selten:** HTML-Links `<a href>` im Modelltext und führender Leerraum vor
   dem ersten Link. Beide stauen bis `result`.
 
+**Zweite Live-Probe nach dem Review** (Image `fac4f53ae27d`):
+- Der erste Neubau war still gescheitert, weil `docker build | tail` den Fehler und den
+  Exit-Code verdeckt hatte. Er ist neu gebaut mit Log-Datei; dass die Fixes im Container
+  liegen, ist geprüft.
+- SSE-Probe: 6 von 8 Zügen gestreamt, M05 gesperrt, Drift 0/6, `pos` lückenlos 6/6.
+  Vorsprung des ersten Stücks: Median 1,3 s (0,4–1,6 s).
+- Bildfolge: Die Blase wächst von 119 auf 917 Zeichen (6,3–8,4 s); die fertige Antwort kommt
+  bei 9,2 s mit 959 Zeichen. Das erste Stück stand damit 2,9 s vor der fertigen Antwort, ohne
+  sichtbaren Sprung.
+
 **T25 Empfehlung zur Vorgabe des Schalters:**
 - Code-Vorgabe bleibt **aus**.
 - Auf Staging per Umgebung `CHAT_TOKEN_STREAMING=1` einschalten und dort die Logzeilen
