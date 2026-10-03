@@ -114,10 +114,26 @@
       },
       "AreaData": {
         "properties": {
+          "create": {
+            "default": false,
+            "title": "Create",
+            "type": "boolean"
+          },
           "data": {
             "additionalProperties": true,
             "title": "Data",
             "type": "object"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
           }
         },
         "required": [
@@ -516,6 +532,22 @@
           "content": {
             "title": "Content",
             "type": "string"
+          },
+          "create": {
+            "default": false,
+            "title": "Create",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
           },
           "file_type": {
             "default": "markdown",
@@ -1391,6 +1423,17 @@
       },
       "McpServerUpdate": {
         "properties": {
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
+          },
           "servers": {
             "items": {
               "additionalProperties": true,
@@ -2863,7 +2906,7 @@
     },
     "/api/config/data/{area}": {
       "get": {
-        "description": "The area's stored document as JSON — the counterpart /schema needs.\n\n``/config/file`` returns YAML *text*, which a form cannot bind to. An area\nthat has a model but no row yields ``{}`` rather than 404: the schema is\nthere, so the form renders defaults and the first save creates it.\n\n``type`` says which file the raw editor must ask for, served from the same\n``seed_io.is_md_area`` predicate ``read_config_file`` uses to decide how to\nserialize. The studio therefore never guesses it from the document shape,\nand the two sides cannot disagree about a document.",
+        "description": "The area's stored document as JSON — the counterpart /schema needs.\n\n``/config/file`` returns YAML *text*, which a form cannot bind to. An area\nthat has a model but no row yields ``{}`` rather than 404: the schema is\nthere, so the form renders defaults and the first save creates it.\n\n``type`` says which file the raw editor must ask for, served from the same\n``seed_io.is_md_area`` predicate ``read_config_file`` uses to decide how to\nserialize. The studio therefore never guesses it from the document shape,\nand the two sides cannot disagree about a document.\n\n``version`` is what a save names as ``expected_version`` (Paket 4, D5),\n``None`` while no row exists — then the save names ``create``. Read from\nthe database, not the cache: after a conflict, \"reload\" must show the\nstored state even while another replica's NOTIFY is still on its way.",
         "operationId": "get_area_data_api_config_data__area__get",
         "parameters": [
           {
@@ -3306,6 +3349,7 @@
         ]
       },
       "get": {
+        "description": "Raw file text plus its ``version`` — read from the database, so the\nversion the raw editor saves against is the stored one (Paket 4, D5).",
         "operationId": "get_config_file_api_config_file_get",
         "parameters": [
           {
@@ -3353,7 +3397,7 @@
         ]
       },
       "put": {
-        "description": "Persist raw file text.\n\nMalformed YAML is the caller's mistake, not a server fault: ``safe_load``\nraises ``yaml.YAMLError`` (a subclass of neither ``ValueError`` nor\nanything else caught here), so before 9-3 a typo in the studio's raw editor\nproduced a 500 with a stack trace instead of a message the editor could\nact on. The parser's own message names the line and column.",
+        "description": "Persist raw file text.\n\nMalformed YAML is the caller's mistake, not a server fault: ``safe_load``\nraises ``yaml.YAMLError`` (a subclass of neither ``ValueError`` nor\nanything else caught here), so before 9-3 a typo in the studio's raw editor\nproduced a 500 with a stack trace instead of a message the editor could\nact on. The parser's own message names the line and column.\n\nThe text is parsed BEFORE anything is persisted, so the document checks\n(MCP egress, reserved pattern id) and the model gate see exactly what would\nbe stored. Since Paket 4 (D3, external audit F07) that gate is the one the\nform tab passes too (422), and the key follows the restore rule — one leaf\nper pattern or persona, no ``.`` segment.\n\n``expected_version`` / ``create`` make the write conditional (D5): 409\ninstead of overwriting a save made since the editor loaded the text.",
         "operationId": "update_config_file_api_config_file_put",
         "requestBody": {
           "content": {
@@ -3531,6 +3575,7 @@
     },
     "/api/config/mcp-servers": {
       "get": {
+        "description": "The registry. Its version rides in ``X-Config-Version`` (Paket 4, D5):\nthe body is a list, and the Studio saves against that version. The fresh\nread also refreshes the cache the list is built from.",
         "operationId": "get_mcp_servers_api_config_mcp_servers_get",
         "responses": {
           "200": {
@@ -6568,7 +6613,7 @@
     },
     "/api/rag/embed": {
       "post": {
-        "description": "Generate embeddings for all chunks that don't have one yet.\n\nA backfill for chunks that reached the DB without a vector (restored dump,\nmanual insert) — the ingest endpoints always embed inline. ALT additionally\nran this at startup after its seed import; NEU has no RAG seed importer, so\nthere is no such caller.\n\nReturns the number of chunks that were embedded.",
+        "description": "Generate embeddings for all chunks that don't have one yet.\n\nA backfill for chunks that reached the DB without a vector: an import whose\nembedding failed for some chunks (Paket 4, C2 — the import reports them as\n``missing``, and the Studio offers this call), a restored dump, a manual\ninsert. ALT additionally ran this at startup after its seed import; NEU has\nno RAG seed importer, so there is no such caller.\n\nReturns the number of chunks that were embedded.",
         "operationId": "rag_embed_api_rag_embed_post",
         "responses": {
           "200": {

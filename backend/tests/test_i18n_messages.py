@@ -154,6 +154,10 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'File not found'": "404 — der Studio zeigt `error.noSuchArea`",
         "'Invalid path'": "Protokoll-Marker: `area-doc-editor` bildet den 400er "
                             "per Präfix auf `error.badAreaKey` ab",
+    },
+    # Paket 4, D3: Schlüsselprüfung aus `config.py` hierher gezogen, unverändert.
+    "config_guards.py": {
+        "'Invalid path'": "wie in `config.py` — derselbe Protokoll-Marker",
         "f'unknown config area: {area}'": "404 — wie `File not found`",
     },
     "config_areas.py": {

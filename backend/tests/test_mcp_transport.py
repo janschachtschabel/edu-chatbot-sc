@@ -142,6 +142,37 @@ def test_ein_transport_fehler_traegt_die_art_transport(monkeypatch):
     )
 
 
+class _HaengendeSession(_FakeSession):
+    async def call_tool(self, name, arguments=None):
+        self.received = (name, arguments)
+        await asyncio.sleep(5)
+
+
+def test_ohne_antwort_binnen_der_frist_traegt_die_art_timeout(monkeypatch):
+    """Paket 4, B2 (externes Audit F04): Es gab keine Frist je Aufruf, nur die
+    SDK-Vorgaben (30 s Verbindung, 300 s je Lesevorgang, keine Gesamtgrenze).
+    Jetzt endet ein Aufruf nach ``MCP_CALL_TIMEOUT_S``. Die eigene Art sagt dem
+    Client: nicht wiederholen — ein zweiter Versuch hinge genauso."""
+    import time
+
+    _patch_session(monkeypatch, _HaengendeSession())
+    monkeypatch.setattr(transport_mod, "_frist_s", lambda: 0.2)
+
+    beginn = time.monotonic()
+    out = asyncio.run(call_tool("search_wlo_content", {"query": "x"}))
+
+    assert out["error"]["kind"] == "timeout"
+    assert time.monotonic() - beginn < 1.0
+
+
+def test_die_frist_kommt_aus_den_einstellungen(monkeypatch):
+    monkeypatch.setenv("MCP_CALL_TIMEOUT_S", "42")
+    from boerdi.settings import get_settings
+
+    get_settings.cache_clear()
+    assert transport_mod._frist_s() == 42.0
+
+
 def test_die_meldung_bleibt_neben_der_art_stehen(monkeypatch):
     # Gegenprobe: die Art kommt HINZU, sie ersetzt nichts. Der Text reist
     # weiter zum Modell und in die Protokolle.

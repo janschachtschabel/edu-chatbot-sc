@@ -17,9 +17,13 @@ from boerdi.services.config_loader._store import (
     delete_area,
     invalidate_yaml_cache,
     list_config_files,
+    parse_config_file,
+    read_area,
     read_config_file,
+    serialize_area,
     store_engine,
     write_area,
+    write_areas,
     write_config_file,
 )
 from boerdi.services.config_loader.canvas import (
@@ -94,8 +98,9 @@ from boerdi.services.config_loader.widget import (
 
 __all__ = [
     "_persona_slug", "_strip_ext", "_validate_config_path", "area", "area_exists",
-    "bind_store", "cached_keys", "current_config", "delete_area", "store_engine",
-    "write_area",
+    "bind_store", "cached_keys", "current_config", "delete_area", "parse_config_file",
+    "read_area", "serialize_area",
+    "store_engine", "write_area", "write_areas",
     "card_pipeline_v2_enabled", "get_all_rag_areas", "get_always_on_rag_areas",
     "get_enabled_mcp_servers", "get_on_demand_rag_areas", "get_repo_base_url",
     "get_state_directive", "get_tone_modifier_for_persona", "invalidate_yaml_cache",

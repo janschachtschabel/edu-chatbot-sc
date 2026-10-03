@@ -159,6 +159,29 @@ class TestAntwort:
         assert sitzung.rollbacks == 1
 
     @pytest.mark.anyio
+    async def test_die_frist_rollt_die_geteilte_sitzung_zurueck(self, monkeypatch):
+        """Prüfer 2026-10-04 (B1): Läuft die Agent-Frist mitten in der Abfrage
+        ab, kommt ``CancelledError`` — keine ``Exception``, also am Rollback
+        vorbei. SQLAlchemy verwirft dann die Verbindung, ``persist`` scheitert
+        mit ``PendingRollbackError``, und der ganze Zug geht verloren."""
+        import asyncio
+
+        class _Sitzung:
+            rollbacks = 0
+
+            async def rollback(self):
+                self.rollbacks += 1
+
+        async def _fake(session, query, **kw):
+            raise asyncio.CancelledError
+
+        monkeypatch.setattr(ak, "get_rag_context", _fake)
+        sitzung = _Sitzung()
+        with pytest.raises(asyncio.CancelledError):
+            await ak.antwort(sitzung, {"frage": "x"}, _CONFIG)
+        assert sitzung.rollbacks == 1
+
+    @pytest.mark.anyio
     async def test_der_text_ist_gedeckelt(self, monkeypatch):
         async def _fake(session, query, **kw):
             return "A" * 20000

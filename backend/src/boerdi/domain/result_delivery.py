@@ -86,8 +86,8 @@ def ergebnis_werkzeug(result_schema: dict[str, Any] | None = None) -> dict[str, 
 
     Ohne Schema ist ``result`` ein freies Objekt — der Gastgeber bekommt dann,
     was das Modell für nennenswert hält. Mit Schema reist es **wörtlich** in die
-    Parameter, und der Anbieter erzwingt die Form über seine eigene
-    Werkzeug-Validierung; dieser Code muss über die Struktur nichts wissen.
+    Parameter. Der Anbieter erzwingt die Form nicht (kein ``strict``); die
+    Schleife prüft das Ergebnis dagegen (``domain/ergebnis_schema``, Paket 4 A3).
     """
     return {
         "type": "function",

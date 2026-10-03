@@ -96,6 +96,18 @@ def test_anweisung_wird_zur_nutzernachricht(monkeypatch):
     assert messages[-1] == {"role": "user", "content": "Bewerte die Sachrichtigkeit."}
 
 
+def test_die_startzeit_des_auftrags_geht_an_die_schleife(monkeypatch):
+    """Paket 4, B1: Gate und Vorabruf laufen vor der Schleife und zählen zur
+    Frist. Ohne Startzeit begann die Uhr erst in der Schleife."""
+    import time
+
+    vorher = time.monotonic()
+    loop, _out, _a = _lauf(monkeypatch, AgentRequest(instruction="Prüfe X."))
+    start = loop.kwargs.get("start")
+    assert start is not None
+    assert vorher <= start <= time.monotonic()
+
+
 def test_result_schema_erreicht_die_werkzeugliste(monkeypatch):
     schema = {"type": "object", "properties": {"sachrichtigkeit": {"type": "integer"}}}
     loop, _out, _a = _lauf(monkeypatch, AgentRequest(

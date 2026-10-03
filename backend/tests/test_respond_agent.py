@@ -88,12 +88,13 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
     # Die ECHTE Signatur — dieselbe A4b-Regel wie unten bei ``load_engine``.
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
                     clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None,
-                    on_token=None):
+                    on_token=None, start=None):
         seen["run_agent_loop"] = {
             "messages": messages, "tools": tools, "limits": limits,
             "usage_acc": usage_acc, "progress": progress,
             "on_tool_result": on_tool_result, "wissen": wissen,
             "on_offene_abnahme": on_offene_abnahme, "on_token": on_token,
+            "start": start,
         }
         if on_token is not None:
             on_token("Hallo [Li")  # wie ein Antwort-Aufruf mit offenem Link am Ende
@@ -141,6 +142,20 @@ async def test_die_schleife_antwortet_statt_generate_response(monkeypatch):
     assert out is ctx
     assert ctx.response_text == "Antwort des Agenten"
     assert ctx.tools_called == ["search_wlo_all"]
+
+
+@pytest.mark.anyio
+async def test_die_startzeit_des_zugs_geht_an_die_schleife(monkeypatch):
+    """Paket 4, B1: Der Vorabruf läuft vor der Schleife und zählt zur Frist."""
+    import time
+
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    vorher = time.monotonic()
+    await respond_agent(_ctx())
+    start = seen["run_agent_loop"]["start"]
+    assert start is not None
+    assert vorher <= start <= time.monotonic()
 
 
 @pytest.mark.anyio

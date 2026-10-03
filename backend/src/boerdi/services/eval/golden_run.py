@@ -35,6 +35,7 @@ from boerdi.services.eval.run_store import (
     _ensure_chat_reachable,
     _ensure_no_running_run,
     _finalize_run,
+    _lauf_anlegen,
     _register_run_task,
 )
 from boerdi.services.eval.scenario_gen import judge_model
@@ -139,7 +140,8 @@ async def start_golden_eval_run(
     turns_total = sum(len(f.get("turns") or []) for f in flows)
     flow_ids_used = [str(f.get("id")) for f in flows]
 
-    session.add(EvalRun(
+    # Paket 4, E2: der Index aus 0006 entscheidet ein Rennen zweier Starts.
+    await _lauf_anlegen(session, EvalRun(
         id=run_id, status="running", mode="golden",
         config={
             "config_slug": req.config_slug,
@@ -160,7 +162,6 @@ async def start_golden_eval_run(
             "avg_score": 0.0, "total_judged_turns": 0,
         },
     ))
-    await session.commit()
     task = _spawn_background(
         _execute_golden_run(session_factory, run_id, flows, bool(req.judge),
                             engine=engine)

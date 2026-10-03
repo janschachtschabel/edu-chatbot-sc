@@ -39,13 +39,91 @@ def test_default_path_calls_the_api_transport(monkeypatch):
     monkeypatch.delenv("EMBED_BACKEND", raising=False)
     gesehen: list[str] = []
 
-    async def fake(text):
+    async def fake(text, *, kanal="live"):
         gesehen.append(text)
         return [0.1, 0.2]
 
     monkeypatch.setattr(eb, "_api_embedding", fake)
     assert asyncio.run(eb.embed_text("Bruchrechnung", kind="passage")) == [0.1, 0.2]
     assert gesehen == ["Bruchrechnung"]
+
+
+# ── Eigener Kanal für den Import (Paket 4, C4; externes Audit F16) ───────
+
+
+def _gleichzeitigkeit_messen(monkeypatch):
+    """``llm._aembedding`` als Attrappe, die mitzählt, was gleichzeitig läuft
+    und wie viele Live-Plätze dabei frei sind."""
+    from types import SimpleNamespace
+
+    from boerdi.services import llm
+
+    llm.reset()
+    stand = {"jetzt": 0, "max": 0, "live_frei": []}
+
+    async def fake_aembedding(**_kwargs):
+        stand["jetzt"] += 1
+        stand["max"] = max(stand["max"], stand["jetzt"])
+        stand["live_frei"].append(llm._semaphore("live")._value)
+        await asyncio.sleep(0.01)
+        stand["jetzt"] -= 1
+        return SimpleNamespace(data=[{"embedding": [0.1]}])
+
+    monkeypatch.setattr(llm, "_aembedding", fake_aembedding)
+    monkeypatch.setattr(llm, "route", lambda _m: ("openai/x", "http://x", "k", None))
+    return stand
+
+
+def test_ein_import_belegt_keine_live_plaetze(monkeypatch):
+    """Der Import legte je Aufruf einen eigenen Semaphor an, nahm aber in
+    ``llm.embedding`` zusätzlich einen Live-Platz. Fünf Importe belegten so alle
+    Plätze des Chats (Probe). Jetzt läuft er in einem eigenen, prozessweiten
+    Kanal der Größe ``EMBED_INGEST_PARALLEL``."""
+    monkeypatch.delenv("EMBED_BACKEND", raising=False)
+    monkeypatch.setenv("EMBED_INGEST_PARALLEL", "2")
+    monkeypatch.setenv("LLM_MAX_CONCURRENCY", "4")
+    stand = _gleichzeitigkeit_messen(monkeypatch)
+
+    async def zwei_importe():
+        return await asyncio.gather(eb.embed_many(["a"] * 6), eb.embed_many(["b"] * 6))
+
+    erster, zweiter = asyncio.run(zwei_importe())
+    assert erster == zweiter == [[0.1]] * 6
+    assert stand["max"] <= 2                  # prozessweit, über beide Importe
+    assert min(stand["live_frei"]) == 4       # kein Live-Platz belegt
+
+
+def test_der_lokale_import_stellt_den_rerank_pool_nicht_voll(monkeypatch):
+    """Prüfer 2026-10-04: Beim lokalen Backend ging jeder Abschnitt eines
+    Imports sofort in den Rerank-Pool (FIFO, Vorgabe ein Arbeiter) — vor jede
+    Suche eines echten Zugs. Jetzt gilt auch dort der Ingest-Deckel."""
+    from boerdi.services import llm
+    from boerdi.services.rag import rerank
+
+    monkeypatch.setenv("EMBED_BACKEND", "local")
+    monkeypatch.setenv("EMBED_INGEST_PARALLEL", "2")
+    llm.reset()
+    stand = {"jetzt": 0, "max": 0}
+
+    async def fake_pool(_fn, *_args):
+        stand["jetzt"] += 1
+        stand["max"] = max(stand["max"], stand["jetzt"])
+        await asyncio.sleep(0.01)
+        stand["jetzt"] -= 1
+        return [0.1]
+
+    monkeypatch.setattr(rerank, "run_in_rerank_pool", fake_pool)
+    assert asyncio.run(eb.embed_many(["a"] * 8)) == [[0.1]] * 8
+    assert stand["max"] <= 2
+
+
+def test_die_suchanfrage_bleibt_im_live_kanal(monkeypatch):
+    monkeypatch.delenv("EMBED_BACKEND", raising=False)
+    monkeypatch.setenv("LLM_MAX_CONCURRENCY", "4")
+    stand = _gleichzeitigkeit_messen(monkeypatch)
+
+    asyncio.run(eb.embed_text("Wie suche ich?", kind="query"))
+    assert stand["live_frei"] == [3]           # genau ein Live-Platz belegt
 
 
 def test_unknown_backend_is_an_error_not_a_silent_fallback(monkeypatch):

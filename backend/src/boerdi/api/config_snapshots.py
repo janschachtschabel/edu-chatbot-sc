@@ -19,7 +19,11 @@ from fastapi import APIRouter, HTTPException, Security, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from boerdi.api.config import _assert_area_document_safe, is_restorable_area_key
+from boerdi.api.config_guards import (
+    _assert_area_document_safe,
+    is_restorable_area_key,
+    modell_fehler,
+)
 from boerdi.api.deps import Lang, require_studio_key
 from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
@@ -48,25 +52,31 @@ def _zip_response(blob: bytes, filename: str) -> StreamingResponse:
 async def _apply_config(blob: bytes, lang: Locale) -> int:
     """Parse a config ZIP (with caps) and write its areas. 413 on cap breach.
 
-    Two checks, both over ALL areas before anything is written — a half-restored
-    store would be worse than none: keys must be valid area paths (audit
-    2026-09-29, A-M7; others are skipped with a warning), and documents pass
+    Three checks, all over ALL areas before anything is written — a
+    half-restored store would be worse than none: keys must be valid area paths
+    (audit 2026-09-29, A-M7; others are skipped with a warning), documents pass
     the egress checks of a Studio write (``_assert_area_document_safe``, review
-    2026-10-03; a failure answers 400). Returns the number of areas written.
+    2026-10-03; a failure answers 400), and every area with a model passes it
+    (Paket 4, D3; one 422 listing all objections, each with its ``area``).
+    Returns the number of areas written.
     """
     try:
         areas = snapshots.parse_config_zip(blob)
     except snapshots.SnapshotTooLarge as e:
         raise HTTPException(status_code=413, detail=str(e)) from None
     valid: dict[str, dict] = {}
+    objections: list[dict] = []
     for key, data in areas.items():
         if not is_restorable_area_key(key):
             logger.warning("restore: skipping %r, not a valid config area path", key)
             continue
         _assert_area_document_safe(key, data, lang)
+        objections += [{"area": key, **f} for f in modell_fehler(key, data)]
         valid[key] = data
-    for key, data in valid.items():
-        await cl.write_area(key, data, updated_by="restore")
+    if objections:
+        raise HTTPException(status_code=422, detail=objections)
+    # One transaction for all (Paket 4, D4): a failing area leaves none written.
+    await cl.write_areas(valid, updated_by="restore")
     return len(valid)
 
 
@@ -94,7 +104,7 @@ async def create_snapshot(payload: SnapshotCreate, lang: Lang) -> dict:
             400, msg(lang, "snapshots.limitReached", max=snapshots.MAX_SNAPSHOTS)
         )
     snap_id = f"snap-{uuid.uuid4().hex[:12]}"
-    blob = snapshots.build_config_zip(cl.current_config())
+    blob = snapshots.build_config_zip(await cl.current_config())
     await snapshots.save_snapshot(engine, snap_id, payload.label.strip(), blob)
     return {"id": snap_id, "label": payload.label.strip()}
 
@@ -148,7 +158,7 @@ async def download_factory(lang: Lang) -> StreamingResponse:
 
 @router.post("/factory/save")
 async def save_factory() -> dict:
-    blob = snapshots.build_config_zip(cl.current_config())
+    blob = snapshots.build_config_zip(await cl.current_config())
     await snapshots.save_snapshot(cl.store_engine(), snapshots.FACTORY_ID, "factory", blob)
     return {"status": "saved", "id": snapshots.FACTORY_ID}
 
@@ -203,7 +213,7 @@ async def seed_status() -> dict:
         return {"available": False, "area_count": 0,
                 "neu": [], "gleich": [], "abweichend": [], "nur_in_db": []}
     seed = await seed_sync.seed_lesen(pfad)
-    diff = seed_sync.vergleiche(seed, cl.current_config())
+    diff = seed_sync.vergleiche(seed, await cl.current_config())
     return {"available": True, "area_count": len(seed), "neu": diff.neu,
             "gleich": diff.gleich, "abweichend": diff.abweichend,
             "nur_in_db": diff.nur_in_db}
@@ -231,28 +241,34 @@ async def seed_apply(payload: SeedApply, lang: Lang) -> dict:
         snap_id = f"snap-{uuid.uuid4().hex[:12]}"
         await snapshots.save_snapshot(
             engine, snap_id, "vor Auslieferungsstand",
-            snapshots.build_config_zip(cl.current_config()),
+            snapshots.build_config_zip(await cl.current_config()),
         )
 
     seed = await seed_sync.seed_lesen(pfad)
-    diff = seed_sync.vergleiche(seed, cl.current_config())
+    diff = seed_sync.vergleiche(seed, await cl.current_config())
+
+    # ``anwenden`` decides what to write and drop; the store then does both in
+    # ONE transaction (Paket 4, D4) — a failing area leaves the old state whole.
+    zu_schreiben: dict[str, dict] = {}
+    zu_loeschen: list[str] = []
 
     async def _schreiben(area: str, data: dict) -> None:
-        await cl.write_area(area, data, updated_by="seed-apply")
+        zu_schreiben[area] = data
 
     async def _loeschen(area: str) -> None:
-        await cl.delete_area(area)
+        zu_loeschen.append(area)
 
     bericht = await seed_sync.anwenden(
         diff, seed, payload.mode, schreiben=_schreiben, loeschen=_loeschen
     )
+    await cl.write_areas(zu_schreiben, updated_by="seed-apply", delete=zu_loeschen)
     return {**bericht, "snapshot_id": snap_id}
 
 
 # ── full backup / restore (live config ZIP) ────────────────────────────────
 @router.get("/backup")
 async def download_backup() -> StreamingResponse:
-    blob = snapshots.build_config_zip(cl.current_config())
+    blob = snapshots.build_config_zip(await cl.current_config())
     return _zip_response(blob, "boerdi-config-backup.zip")
 
 

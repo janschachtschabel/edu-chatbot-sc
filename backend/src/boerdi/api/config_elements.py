@@ -281,10 +281,14 @@ def _pattern_frontmatter(e: PatternEntry) -> dict[str, Any]:
         v = getattr(e, k)
         if v:
             fm[k] = v
-    for k in ("sources", "rag_areas", "tools", "precondition_slots"):
+    for k in ("sources", "tools", "precondition_slots"):
         v = getattr(e, k)
         if v:
             fm[k] = list(v)
+    # Auch leer geschrieben: ``[]`` heißt „keine Bereiche“, das Fehlen „erben“
+    # (Paket 4, C6) — ein GET→PUT kippte sonst das eine in das andere.
+    if e.rag_areas is not None:
+        fm["rag_areas"] = list(e.rag_areas)
     if e.card_text_link_required:
         fm["card_text_link_required"] = True
     if e.quick_replies_mode and e.quick_replies_mode != "exact":

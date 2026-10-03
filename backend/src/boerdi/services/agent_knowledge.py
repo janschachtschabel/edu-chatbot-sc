@@ -37,6 +37,7 @@ Drei Entscheidungen, die daraus folgen:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Final
 
@@ -177,13 +178,28 @@ def bereiche_aufloesen(args: dict[str, Any], rag_config: dict[str, Any]) -> list
     return [b for b in gewaehlt if b not in ohne]
 
 
+async def _zurueckrollen(session: Any) -> None:
+    """Die geteilte Zug-Sitzung nach einer abgebrochenen Abfrage zuruecksetzen.
+
+    Ein DB-Fehler oder Abbruch hinterlaesst sie abgebrochen; ohne Rollback
+    scheiterte danach das Speichern des ganzen Zugs (F-1-Klasse, Audit
+    2026-09-29). Offen sind hier nur Lesevorgaenge.
+    """
+    try:
+        if session is not None:
+            await session.rollback()
+    except Exception:  # noqa: BLE001 - Aufraeumen darf den Zug nicht kippen
+        logger.debug("wissen_suchen: rollback fehlgeschlagen", exc_info=True)
+
+
 async def antwort(session: Any, args: dict[str, Any], rag_config: dict[str, Any]) -> str:
     """Ein Aufruf des Werkzeugs, als Text fuer die Nachrichtenkette.
 
     Gibt IMMER einen Text zurueck, nie eine Ausnahme: dieselbe Regel wie beim
     Master-Skill — ein Chat, der wegen einer Wissensquelle nicht antwortet, ist
     schlechter als einer ohne sie. Das Modell erfaehrt den Ausfall im Klartext
-    und kann es sagen, statt Erfundenes an die Stelle zu setzen.
+    und kann es sagen, statt Erfundenes an die Stelle zu setzen. Einzige
+    Ausnahme ist der Abbruch (Agent-Frist): er geht weiter, nach dem Rollback.
     """
     frage = str(args.get("frage") or "").strip()
     if not frage:
@@ -199,16 +215,16 @@ async def antwort(session: Any, args: dict[str, Any], rag_config: dict[str, Any]
             min_score=einstellungen["min_score"],
             max_chars_per_area=einstellungen["max_chars_per_area"],
         )
+    except asyncio.CancelledError:
+        # Die Agent-Frist (Paket 4, B1) kann mitten in einer Abfrage zuschlagen.
+        # Das ist keine ``Exception``: SQLAlchemy verwirft dann die Verbindung,
+        # und ohne Rollback scheiterte ``persist`` mit ``PendingRollbackError``
+        # — der ganze Zug ginge verloren (Prüfer 2026-10-04).
+        await _zurueckrollen(session)
+        raise
     except Exception as fehler:  # noqa: BLE001 - der Zug laeuft ohne weiter
         logger.warning("wissen_suchen(%d Bereiche): %s", len(bereiche), fehler)
-        # Ein DB-Fehler hinterlaesst die geteilte Zug-Sitzung abgebrochen; ohne
-        # Rollback scheiterte danach das Speichern des ganzen Zugs (F-1-Klasse,
-        # Audit 2026-09-29). Offen sind hier nur Lesevorgaenge.
-        try:
-            if session is not None:
-                await session.rollback()
-        except Exception:  # noqa: BLE001 - Aufraeumen darf den Zug nicht kippen
-            logger.debug("wissen_suchen: rollback fehlgeschlagen", exc_info=True)
+        await _zurueckrollen(session)
         return ("Die Wissensdatenbank ist gerade nicht erreichbar. Sage das, "
                 "statt zu raten.")
     if not text:

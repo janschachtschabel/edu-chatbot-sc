@@ -386,6 +386,21 @@ def test_patterns_put_validation_and_roundtrip(cfg) -> None:
     assert "_source_file" not in m05
 
 
+def test_patterns_put_haelt_keine_und_leere_wissensbereiche_auseinander(cfg) -> None:
+    """Prüfer 2026-10-04 (C6): „nicht gesetzt“ erbt alle Bereiche, wenn ``rag``
+    unter den Quellen steht; eine leere Liste heißt „keine“. Diese Route machte
+    aus der leeren Liste „nicht gesetzt“ — ein GET→PUT kippte „kein RAG“ in
+    „alles erben“."""
+    client, _ = cfg
+    r = client.put("/api/config/patterns", headers=_AUTH, json={"patterns": [
+        {"id": "M05", "label": "Ohne", "sources": ["rag"], "rag_areas": []},
+        {"id": "M06", "label": "Erbt", "sources": ["rag"]}]})
+    assert r.status_code == 200
+    got = {p["id"]: p for p in client.get("/api/config/patterns", headers=_AUTH).json()["patterns"]}
+    assert got["M05"]["rag_areas"] == []
+    assert got["M06"].get("rag_areas") is None
+
+
 # ── tone-modifiers (persona frontmatter + default) ─────────────────
 def test_tone_modifiers_get_and_put(cfg) -> None:
     client, seed = cfg

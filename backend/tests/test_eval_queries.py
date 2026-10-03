@@ -90,3 +90,32 @@ async def test_gemischte_laeufe_ueberspringen_nur_die_unmessbaren():
     assert [p["run_id"] for p in out["intent_correct_trend"]] == ["eval-gen"]
     # Beide Läufe stehen in der Meta-Zeitachse (reversed → älteste zuerst).
     assert [m["id"] for m in out["runs"]] == ["eval-gold", "eval-gen"]
+
+
+# ── Paket 4, E1 (externes Audit F22): die Liste lädt keine Transkripte ─────────
+# `list_runs` und `get_trends` luden ganze Zeilen samt `conversations` — und das
+# Studio fragt alle 3 s, solange ein Lauf läuft. Geprüft wird das SQL, das die
+# Abfrage wirklich schickt.
+
+class _ErfassendeSession(_FakeSession):
+    def __init__(self, rows):
+        super().__init__(rows)
+        self.sql: list[str] = []
+
+    async def execute(self, stmt):
+        from sqlalchemy.dialects import postgresql
+
+        self.sql.append(str(stmt.compile(dialect=postgresql.dialect())))
+        return _FakeResult(self.rows)
+
+
+@pytest.mark.parametrize("abfrage", ["list_runs", "get_trends"])
+def test_die_eval_liste_laedt_keine_transkripte(abfrage):
+    import asyncio
+
+    from boerdi.services.eval import queries
+
+    session = _ErfassendeSession([])
+    asyncio.run(getattr(queries, abfrage)(session, 20))
+    assert session.sql
+    assert all("conversations" not in sql for sql in session.sql), session.sql

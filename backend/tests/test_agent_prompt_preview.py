@@ -62,7 +62,7 @@ async def test_kopf_und_master_skill_sind_wortgleich_mit_dem_zug(quellen, monkey
     # Die ECHTE Signatur von ``run_agent_loop`` (A4b-Regel für Attrappen).
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
                     clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None,
-                    on_token=None):
+                    on_token=None, start=None):
         gesehen["messages"] = [dict(m) for m in messages]
         return AgentRun(text="ok", stop_reason="text", iterations=1)
 
@@ -166,7 +166,7 @@ async def test_die_bloecke_je_zug_stehen_in_der_reihenfolge_des_echten_zugs(quel
 
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
                     clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None,
-                    on_token=None):
+                    on_token=None, start=None):
         gesehen["messages"] = [dict(m) for m in messages]
         return AgentRun(text="ok", stop_reason="text", iterations=1)
 

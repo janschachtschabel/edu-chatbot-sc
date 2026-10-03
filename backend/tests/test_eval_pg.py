@@ -672,3 +672,73 @@ def svc_golden_req(*, judge: bool):
     from boerdi.api.eval import GoldenRunRequest
 
     return GoldenRunRequest(judge=judge)
+
+
+# ── Paket 4, E2 (externes Audit F22): der Start ist atomar ────────────────────
+
+def test_zwei_gleichzeitige_starts_ergeben_genau_einen_lauf_und_eine_409(
+    test_db, monkeypatch,
+) -> None:
+    """`_ensure_no_running_run` prüfte, angelegt wurde danach — ohne Index und
+    ohne Sperre. Zwei Starts zur selben Zeit sahen beide keinen laufenden Lauf
+    und legten beide einen an. Die Schranke lässt beide Starts die Prüfung
+    bestehen, bevor einer anlegt: genau der Fall, den nur die Datenbank
+    entscheiden kann (Index aus Migration 0006)."""
+    import boerdi.services.eval.golden_run as golden_run
+    from boerdi.db.models import EvalRun
+
+    flows = [{"id": "GS-1", "turns": [{"message": "a"}]}]
+    monkeypatch.setattr(golden_run, "load_gold_flows", lambda: flows)
+    monkeypatch.setattr(golden_run, "_load_golden_runner", lambda: type(
+        "R", (), {"validate_flows": staticmethod(lambda _flows: None)}))
+
+    async def erreichbar():
+        return None
+
+    monkeypatch.setattr(golden_run, "_ensure_chat_reachable", erreichbar)
+
+    def ohne_hintergrund(coro):
+        coro.close()  # der Lauf selbst ist hier nicht Gegenstand
+
+        async def nichts():
+            return None
+
+        return asyncio.ensure_future(nichts())
+
+    monkeypatch.setattr(golden_run, "_spawn_background", ohne_hintergrund)
+    echt = golden_run._ensure_no_running_run
+
+    async def scenario(session):
+        from boerdi.db.session import make_session_factory
+
+        schranke = asyncio.Barrier(2)
+
+        async def beide_bestehen(s):
+            await echt(s)
+            await schranke.wait()
+
+        monkeypatch.setattr(golden_run, "_ensure_no_running_run", beide_bestehen)
+        engine = _engine()
+        factory = make_session_factory(engine)
+        req = type("Req", (), {"flow_ids": [], "judge": False, "engine": "pattern",
+                               "config_slug": "test"})()
+        try:
+            async with factory() as a, factory() as b:
+                ergebnisse = await asyncio.gather(
+                    golden_run.start_golden_eval_run(a, factory, req),
+                    golden_run.start_golden_eval_run(b, factory, req),
+                    return_exceptions=True,
+                )
+        finally:
+            await engine.dispose()
+        laufend = (await session.execute(
+            select(EvalRun.id).where(EvalRun.status == "running"))).scalars().all()
+        return ergebnisse, laufend
+
+    ergebnisse, laufend = _run(scenario)
+    abgewiesen = [e for e in ergebnisse if isinstance(e, HTTPException)]
+    angelegt = [e for e in ergebnisse if isinstance(e, dict)]
+    assert len(laufend) == 1
+    assert len(angelegt) == 1 and angelegt[0]["run_id"] == laufend[0]
+    assert [e.status_code for e in abgewiesen] == [409]
+    assert laufend[0] in abgewiesen[0].detail  # dieselbe Meldung wie bisher

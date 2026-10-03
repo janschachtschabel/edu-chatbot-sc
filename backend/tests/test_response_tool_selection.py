@@ -115,6 +115,22 @@ def test_explicit_empty_tools_yields_no_base_tools(monkeypatch):
     assert _names({"tools": []}) == []
 
 
+def test_tool_mode_read_only_nimmt_dem_muster_die_schreibwerkzeuge(monkeypatch):
+    """P4-1 (Paket 4, A2): Die Erlaubnis der Einbettung (``tool_mode``) galt nur
+    im Agent-Weg. Ein Gastgeber mit ``read-only`` bekam im Muster-Weg trotzdem
+    schreibende Werkzeuge angeboten."""
+    _disable_cards(monkeypatch)
+    monkeypatch.setattr(rts, "has_auth_token", lambda: True)
+    muster = {"tools": ["search_wlo_content", "wlo_create_collection"]}
+    assert "wlo_create_collection" in _names(muster), "Voraussetzung: angeboten ohne Modus"
+
+    active, *_ = rts._select_active_tools(
+        {"entities": {}}, muster, None, None, False, False, tool_mode="read-only")
+    namen = [t["function"]["name"] for t in active]
+    assert "search_wlo_content" in namen
+    assert "wlo_create_collection" not in namen
+
+
 def test_zugeschaltete_skill_werkzeuge_werden_angeboten(monkeypatch):
     """E-6: die Skill-Brücke steht neben ``tools`` und kommt trotzdem an."""
     from boerdi.domain.skill_bruecke import ZUSATZ_KEY

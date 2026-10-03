@@ -40,12 +40,13 @@ def geschrieben(monkeypatch) -> list[str]:
     """Die beiden Schreib-Grenzen; was hier ankommt, wäre gespeichert."""
     aufrufe: list[str] = []
 
-    async def _area(key, data, updated_by="studio"):
+    async def _area(key, data, updated_by="studio", **_bedingung):  # D5: Version/Anlegen
         aufrufe.append(key)
         return 1
 
-    async def _datei(rel_path, content):
+    async def _datei(rel_path, content, **_bedingung):  # Paket 4 D5: Version/Anlegen
         aufrufe.append(rel_path)
+        return 1
 
     monkeypatch.setattr(config_loader, "write_area", _area)
     monkeypatch.setattr(config_loader, "write_config_file", _datei)

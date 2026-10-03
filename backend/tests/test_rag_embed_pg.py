@@ -134,6 +134,45 @@ def test_embed_missing_fills_every_null_vector(test_db, monkeypatch) -> None:
     assert nulls == 0
 
 
+def test_ein_import_mit_ausfall_wird_vom_nachholen_vervollstaendigt(
+        test_db, monkeypatch) -> None:
+    """Paket 4, C2 (externes Audit F06): Fiel beim Import ein Vektor aus, war
+    der Text verloren — das Nachholen fand ihn nicht. Jetzt liegt er ohne
+    Vektor in der Tabelle, und das Nachholen ergänzt genau ihn."""
+    import boerdi.services.rag.ingest as ri
+
+    aufrufe = {"n": 0}
+
+    async def wackelig(_text, *, kind="query"):
+        aufrufe["n"] += 1
+        if aufrufe["n"] == 2:
+            raise RuntimeError("Anbieter weg")
+        return [0.25] * _dim()
+
+    async def gut(_text, *, kind="query"):
+        return [0.75] * _dim()
+
+    async def scenario(session):
+        # Der Seed vergibt feste IDs; die Sequenzen muessen dahinter weiterzaehlen.
+        for tabelle in ("rag_documents", "rag_chunks"):
+            await session.execute(text(
+                f"SELECT setval(pg_get_serial_sequence('{tabelle}', 'id'), "
+                f"(SELECT MAX(id) FROM {tabelle}))"))
+        md = "# A\n\n" + "x" * 600 + "\n\n# B\n\n" + "y" * 600
+        zahlen = await ri.ingest_document(session, "bio", "Neu", "neu.md", md)
+        nulls_danach = await _count(session, "embedding IS NULL AND area = 'bio' "
+                                             "AND document_id <> 1")
+        monkeypatch.setattr(ri, "embed_many", _als_many(gut))
+        nachgeholt = await ri.embed_missing_chunks(session)
+        return zahlen, nulls_danach, nachgeholt, await _count(session, "embedding IS NULL")
+
+    zahlen, nulls_danach, nachgeholt, nulls_zuletzt = _run(scenario, monkeypatch, wackelig)
+    assert (zahlen.chunks, zahlen.embedded) == (2, 1)
+    assert nulls_danach == 1          # der Text ist da, nur ohne Vektor
+    assert nachgeholt == (3, 3)       # die zwei aus dem Seed + der eine aus dem Import
+    assert nulls_zuletzt == 0
+
+
 def test_embed_missing_savepoint_survives_a_real_dimension_mismatch(test_db, monkeypatch) -> None:
     import boerdi.services.rag.ingest as ri
 

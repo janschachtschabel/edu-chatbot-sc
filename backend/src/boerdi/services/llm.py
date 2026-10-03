@@ -7,7 +7,12 @@ accounting). Two deliberate ALT-deviations, both documented in the contract:
   bulkhead); LiteLLM has no pool bulkhead, so an explicit asyncio.Semaphore
   per event loop is the correct NEU equivalent (LLM_MAX_CONCURRENCY live /
   BG_LLM_MAX_CONCURRENCY background).
-- ALT relied on the OpenAI SDK default max_retries=2; here num_retries=2.
+- Retries: like ALT, the OpenAI SDK default ``max_retries=2`` — and NO
+  ``num_retries``. Until Paket 4 (B3) this said ``num_retries=2``; LiteLLM
+  1.91.5 turned that into two retry layers (SDK plus ``acompletion_with_retries``):
+  5 attempts on chat completions, 6 on the Responses bridge (measured
+  2026-10-03, ``tests/test_llm_wiederholungen.py``). Without it: 3 on chat,
+  2 (connect) / 1 (read timeout) on the Responses bridge.
 
 ``embedding`` (P6-1) is the RAG embedding sibling of ``chat_completion``: same
 routing/timeout/retry/semaphore wiring, over LiteLLM's ``aembedding``.
@@ -79,7 +84,10 @@ def _semaphore(kind: str) -> asyncio.Semaphore:
     sem = _semaphores.get(key)
     if sem is None:
         s = get_settings()
-        size = s.bg_llm_max_concurrency if kind == "bg" else s.llm_max_concurrency
+        # ``ingest`` (Paket 4, C4): der eigene Kanal der Import-Embeddings,
+        # prozessweit. Vorher nahm jeder Import zusätzlich einen Live-Platz.
+        size = {"bg": s.bg_llm_max_concurrency,
+                "ingest": s.embed_ingest_parallel}.get(kind, s.llm_max_concurrency)
         sem = asyncio.Semaphore(size)
         _semaphores[key] = sem
     return sem
@@ -90,6 +98,13 @@ def semaphore(*, background: bool = False) -> asyncio.Semaphore:
     point (chat_completion here, the instructor classify path in
     services/classify.py) acquires this so they share one limit."""
     return _semaphore("bg" if background else "live")
+
+
+def ingest_semaphore() -> asyncio.Semaphore:
+    """Der Deckel der Import-Embeddings (``EMBED_INGEST_PARALLEL``). Den nimmt
+    ``embedding(kanal="ingest")`` selbst; das lokale Backend, das nicht über
+    ``embedding`` läuft, braucht ihn von außen (Prüfer 2026-10-04)."""
+    return _semaphore("ingest")
 
 
 def build_chat_kwargs(
@@ -182,7 +197,7 @@ def wire_transport(resolved: str, kwargs: dict[str, Any]) -> None:
     kwargs["api_base"] = api_base
     kwargs["api_key"] = api_key
     kwargs["timeout"] = s.llm_read_timeout
-    kwargs["num_retries"] = 2
+    # Keine ``num_retries``: siehe Modulkopf (Paket 4, B3).
     if extra_headers is not None:
         kwargs["extra_headers"] = extra_headers
     # b-api-Antwort-Cache umgehen (Sommercamp-Entscheid 2026-08-21, GENERELL —
@@ -248,10 +263,17 @@ async def chat_completion(
     return resp
 
 
-async def embedding(text: str, *, model: str | None = None) -> list[float]:
+async def embedding(
+    text: str, *, model: str | None = None, kanal: str = "live",
+) -> list[float]:
     """One embedding vector for ``text`` — the RAG embedding boundary (P6-1),
     sibling of ``chat_completion``: same provider routing, timeout, retries and
-    live concurrency semaphore. Errors propagate — the caller owns the policy.
+    concurrency semaphore. Errors propagate — the caller owns the policy.
+
+    ``kanal`` (Paket 4, C4) picks the semaphore: ``live`` for the query
+    embedding of a chat turn, ``ingest`` for imports and the backfill — their
+    own process-wide channel (``EMBED_INGEST_PARALLEL``), so an import never
+    takes the chat's slots.
 
     NEU-deviation vs ALT ``rag_service.get_embedding``: ALT hand-picked a native
     OpenAI side-channel client (``llm_provider.get_embedding_client``) so its
@@ -288,12 +310,12 @@ async def embedding(text: str, *, model: str | None = None) -> list[float]:
         "api_base": api_base,
         "api_key": api_key,
         "timeout": get_settings().llm_read_timeout,
-        "num_retries": 2,
+        # Keine ``num_retries``: siehe Modulkopf (Paket 4, B3).
     }
     if extra_headers is not None:
         kwargs["extra_headers"] = extra_headers
 
-    async with _semaphore("live"):
+    async with _semaphore(kanal):
         resp = await _aembedding(**kwargs)
     item = resp.data[0]
     return item["embedding"] if isinstance(item, dict) else item.embedding

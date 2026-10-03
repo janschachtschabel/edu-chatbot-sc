@@ -351,3 +351,24 @@ def test_inject_uses_translated_label_fallback(monkeypatch):
     assert gqi.inject_guide_qr("x", [], response_text=text, lang="en")[0] == (
         "__guide__|Source Page|https://wirlernenonline.de/"
     )
+
+
+def test_ein_ungueltiges_muster_kostet_nur_seine_regel(monkeypatch, caplog):
+    """Paket 4, D6 (externes Audit F08): ``re.compile`` lief über alle Regeln
+    in einem Zug; EIN kaputtes Muster warf ``re.error``, und der Aufrufer schaltete
+    damit alle Lotsen-Knöpfe ab. Das Speichern weist es inzwischen ab — ein alter
+    Stand darf trotzdem nicht alles abschalten."""
+    from boerdi.services import config_loader
+    monkeypatch.setattr(config_loader, "load_guide_rules_config", lambda: {
+        "message_rules": [
+            {"pattern": "(", "label": "Kaputt", "label_en": "",
+             "url": "https://wirlernenonline.de/x", "priority": 90},
+            {"pattern": "oer", "label": "OER", "label_en": "",
+             "url": "https://wirlernenonline.de/oer", "priority": 60},
+        ],
+    })
+    gqi.reset_compiled_cache()
+    with caplog.at_level("WARNING"):
+        compiled = gqi._compiled()
+    assert [entry[1] for entry in compiled] == ["OER"]
+    assert "Kaputt" in caplog.text

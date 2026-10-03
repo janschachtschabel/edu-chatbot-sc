@@ -75,7 +75,8 @@ class FakeStore:
     def __init__(self) -> None:
         self.areas: dict[str, dict[str, Any]] = {}
 
-    async def put(self, area: str, data: dict, updated_by: str = "") -> int:
+    async def put(self, area: str, data: dict, updated_by: str = "", **_bedingung) -> int:
+        # ``expected_version``/``create_only`` seit Paket 4 (D5) — hier ohne Prüfung
         self.areas[area] = data
         return 1
 

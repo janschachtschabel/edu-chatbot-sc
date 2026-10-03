@@ -92,7 +92,7 @@ def test_wires_phases_threads_session_and_normalizes_blocked_tools(monkeypatch):
     CLASSIF = {"persona_id": "P-AND"}
     PATTERN = {"tools": []}
     SSTATE = {"k": "v"}
-    ENV = {"e": 1}
+    ENV = {"e": 1, "tool_mode": "read-only"}
     HIST = [{"role": "user", "content": "x"}]
     PREF_TOOL = {"pt": 1}
     PREF_EXTRAS = [{"pe": 1}]
@@ -115,7 +115,8 @@ def test_wires_phases_threads_session_and_normalizes_blocked_tools(monkeypatch):
     assert select.args == (CLASSIF, PATTERN, ["a"], {"r": 1}, CIM, DNT)
     # …plus die Muster-Bezeichnung als Schlüsselwort (F-neu): ``pattern_output``
     # trägt keine Kennung, die E3-Warnung stand ohne sie als „Muster ?" da.
-    assert select.kwargs == {"pattern_label": "M05"}
+    # Und die Erlaubnis der Einbettung (Paket 4, P4-1), für Auswahl UND Schleife.
+    assert select.kwargs == {"pattern_label": "M05", "tool_mode": "read-only"}
     # P12/P14: assemble — session FIRST, blocked_tools normalized to [],
     # system + inline_grouping + sources_decl + rag_allowed from prior phases.
     assert assemble.args == (
@@ -128,6 +129,7 @@ def test_wires_phases_threads_session_and_normalizes_blocked_tools(monkeypatch):
         _SESSION, "msg", CLASSIF, PATTERN, "M05", SSTATE, "RAG", [],
         ACTIVE, IQE, IGM, MSGS, CARDS, TOOLS, OUTS, KP, MCP, AA,
         TOPK, MINSC, MAXCH, USAGE, TOKENCB)
+    assert loop.kwargs == {"tool_mode": "read-only"}
     # loop returned non-None ⇒ that result is returned, fallback untouched.
     assert out is LOOP_RESULT
     assert fallback.args is None

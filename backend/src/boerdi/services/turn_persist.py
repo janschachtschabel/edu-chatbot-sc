@@ -182,7 +182,9 @@ async def build_debug_and_update_session(
             "format_primary": pattern_output.get("format_primary"),
             "format_follow_up": pattern_output.get("format_follow_up"),
             "sources": pattern_output.get("sources", []),
-            "rag_areas": pattern_output.get("rag_areas", []),
+            # ``None`` (keine Angabe im Muster, Paket 4 C6) bleibt hier eine Liste —
+            # Debug-Ansicht und Gastgeber-Ereignis lesen sie als solche.
+            "rag_areas": pattern_output.get("rag_areas") or [],
             "tools": pattern_output.get("tools", []),
             "skip_intro": pattern_output.get("skip_intro"),
             "one_option": pattern_output.get("one_option", False),

@@ -58,7 +58,11 @@ class PatternDef(BaseModel):
     # ``output_mode == "rerender"`` hängt, lief nie (im ALT ebenso).
     output_mode: str | None = None
     sources: list[str] = Field(default_factory=lambda: ["mcp"])
-    rag_areas: list[str] = Field(default_factory=list)
+    # ``None`` = keine Angabe: der Route-Kopf vergibt die Vorgabe der Bereiche
+    # (``route_head._resolve_rag_areas``); ``[]`` = bewusst keine. Bis Paket 4
+    # (C6) machte ``default_factory=list`` aus beidem eine leere Liste, und die
+    # Vorgabe griff auf diesem Weg nie.
+    rag_areas: list[str] | None = None
     format_primary: str = "text"
     format_follow_up: str = "quick_replies"
     card_text_mode: str = "minimal"  # minimal | reference | highlight
@@ -260,7 +264,7 @@ def phase3_modulate(
         "discriminators": list(pattern.discriminators),
         "forbidden_phrases": list(pattern.forbidden_phrases),
         "anti_patterns": list(pattern.anti_patterns),
-        "rag_areas": list(pattern.rag_areas),
+        "rag_areas": None if pattern.rag_areas is None else list(pattern.rag_areas),
         "skip_intro": False,
         "one_option": False,
         "add_sources": False,

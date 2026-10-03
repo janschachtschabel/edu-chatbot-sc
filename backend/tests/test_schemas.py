@@ -135,6 +135,27 @@ def test_result_schema_nimmt_nur_objekte() -> None:
         Environment(result_schema=[{"type": "object"}])  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("kaputt", [
+    {"type": "intger"},
+    {"type": "object", "properties": {"a": {"$ref": "https://example.org/s.json"}}},
+])
+def test_result_schema_muss_ein_gueltiges_schema_sein(kaputt) -> None:
+    """Paket 4, A3: Das Ergebnis wird jetzt gegen das Schema geprüft. Ein
+    kaputtes Schema oder ein Verweis nach draußen fällt deshalb schon am Rand
+    auf (422), statt mitten im Lauf. Für den Agent-Endpunkt gilt dasselbe; sein
+    Größendeckel bleibt bewusst offen (siehe ``MAX_RESULT_SCHEMA_CHARS``)."""
+    from boerdi.api.schemas_agent import AgentRequest
+
+    with pytest.raises(ValidationError):
+        Environment(result_schema=kaputt)
+    with pytest.raises(ValidationError):
+        AgentRequest(instruction="Bewerte", result_schema=kaputt)
+    # Ein gültiges geht an beiden Stellen durch.
+    gut = {"type": "object", "properties": {"score": {"type": "integer"}}}
+    assert Environment(result_schema=gut).result_schema == gut
+    assert AgentRequest(instruction="Bewerte", result_schema=gut).result_schema == gut
+
+
 def test_chat_request_message_ohne_zeichendeckel() -> None:
     """Deckel entfernt (Nutzer-Entscheid 2026-08-18) — er lag bei 10000.
 

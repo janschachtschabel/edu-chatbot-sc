@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import HTTPException
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from boerdi.db.models import EvalRun
 from boerdi.services.eval.run_engine import engine_matches, run_engine
@@ -31,7 +32,12 @@ async def list_runs(
     ``engine`` (ST-7a) filters in SQL, before the limit — filtering the loaded
     window afterwards would hide older runs of that engine behind newer ones.
     """
-    stmt = select(EvalRun).order_by(EvalRun.created_at.desc()).limit(limit)
+    # Without the transcripts (Paket 4, E1): the Studio polls this list every
+    # 3 s while a run is going, and `conversations` is the heavy column.
+    stmt = (
+        select(EvalRun).options(defer(EvalRun.conversations))
+        .order_by(EvalRun.created_at.desc()).limit(limit)
+    )
     if engine:
         stmt = stmt.where(engine_matches(engine))
     rows = (await session.execute(stmt)).scalars().all()
@@ -100,6 +106,7 @@ async def get_trends(
     """
     stmt = (
         select(EvalRun)
+        .options(defer(EvalRun.conversations))  # Paket 4, E1
         .where(EvalRun.status == "done")
         .order_by(EvalRun.created_at.desc())
         .limit(limit)

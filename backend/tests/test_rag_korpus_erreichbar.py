@@ -87,6 +87,17 @@ def test_wissens_muster_erreicht_die_wissens_korpora(korpus):
     assert korpus in _abgefragte_bereiche(m04, rag_config)
 
 
+@pytest.mark.parametrize("fm", _muster(), ids=lambda fm: str(fm.get("id")))
+def test_jedes_seed_muster_behaelt_seine_bereiche(fm):
+    """Paket 4, C6: „keine Liste“ erbt seither die Vorgabe der Bereiche. Für den
+    Seed ändert das nichts — ein Muster mit ``rag`` nennt seine Bereiche selbst,
+    eines ohne ``rag`` bekommt keine. Verglichen wird mit der Regel bis dahin:
+    genau die genannten, die die Konfiguration kennt."""
+    rag_config = _rag_config()
+    bisher = [b for b in fm.get("rag_areas") or [] if b in rag_config]
+    assert _abgefragte_bereiche(fm, rag_config) == bisher
+
+
 def test_bereiche_stehen_wirklich_in_der_konfiguration():
     """Gegenrichtung: ein Tippfehler in ``rag_areas`` fällt sonst nicht auf —
     ``_resolve_rag_areas`` filtert unbekannte Namen still weg."""

@@ -64,29 +64,79 @@ def test_convert_error_becomes_fehler_string_not_raise(monkeypatch):
     assert out == "Fehler beim Konvertieren: RuntimeError: kaputt"
 
 
-# ── convert_url_to_markdown (verbatim ALT; SSRF-Guard via url_safety) ────
+def _gescheitert_an(ausnahme: Exception):
+    """markitdowns Form: der Wandler scheiterte, die Ursache steht im Versuch."""
+    import sys
+
+    from markitdown._exceptions import FailedConversionAttempt, FileConversionException
+
+    try:
+        raise ausnahme
+    except type(ausnahme):
+        info = sys.exc_info()
+    return FileConversionException(
+        attempts=[FailedConversionAttempt(converter=object(), exc_info=info)])
+
+
+@pytest.mark.parametrize("ursache", ["fehlende Abhängigkeit", "unbekanntes Format"])
+def test_ein_nicht_lesbares_format_wird_als_solches_gemeldet(monkeypatch, ursache):
+    """Paket 4, C5 (externes Audit F17a): Das Image enthält keine
+    markitdown-Extras; DOCX, PDF, PPTX und XLSX scheitern mit
+    ``MissingDependencyException``. Das ist keine kaputte Datei, sondern ein
+    Format, das dieser Server nicht liest — der Router macht daraus 415."""
+    from markitdown._exceptions import (
+        MissingDependencyException,
+        UnsupportedFormatException,
+    )
+
+    fehler = (_gescheitert_an(MissingDependencyException("docx fehlt"))
+              if ursache == "fehlende Abhängigkeit"
+              else UnsupportedFormatException("kein Wandler"))
+    monkeypatch.setattr("markitdown.MarkItDown", lambda: _FakeMid(raise_exc=fehler))
+    out = asyncio.run(ri.convert_to_markdown("a.docx"))
+    assert out.startswith(ri.FORMAT_NICHT_LESBAR)
+
+
+# ── convert_url_to_markdown (SSRF-Guard via url_safety) ──────────────────
+#
+# Seit Paket 4 (C5) holt nicht mehr markitdown selbst, sondern
+# ``url_safety.hole_begrenzt`` (Frist, Bytedeckel, dieselbe SSRF-Sitzung);
+# markitdown wandelt nur noch den Rumpf (``convert_stream``). Die Attrappen
+# sitzen deshalb an beiden Grenzen.
 class _FakeUrlMid:
     def __init__(self, requests_session, text, raise_exc):
         self.requests_session = requests_session
         self.text, self.raise_exc = text, raise_exc
+        self.gesehen: list[tuple[bytes, object]] = []
 
-    def convert_url(self, url):
+    def convert_stream(self, stream, *, stream_info=None):
+        self.gesehen.append((stream.read(), stream_info))
         if self.raise_exc:
             raise self.raise_exc
         from types import SimpleNamespace
         return SimpleNamespace(text_content=self.text)
 
 
-def _wire_url_markitdown(monkeypatch, text="# Seite", raise_exc=None):
-    """Patch the markitdown boundary; return the list of constructed fakes
-    (empty = never constructed = no fetch was attempted)."""
+def _wire_url_markitdown(monkeypatch, text="# Seite", raise_exc=None,
+                         rumpf=b"<h1>Seite</h1>", typ="text/html; charset=utf-8",
+                         abruf_fehler=None):
+    """Patch both boundaries — the bounded fetch and markitdown; return the list
+    of constructed fakes (empty = never constructed = nothing was converted)."""
+    from boerdi.services import url_safety
+
     built: list[_FakeUrlMid] = []
 
     def _factory(requests_session=None):
         built.append(_FakeUrlMid(requests_session, text, raise_exc))
         return built[-1]
 
+    def _abruf(url, *, max_bytes, frist_s):
+        if abruf_fehler is not None:
+            raise abruf_fehler
+        return rumpf, typ
+
     monkeypatch.setattr("markitdown.MarkItDown", _factory)
+    monkeypatch.setattr(url_safety, "hole_begrenzt", _abruf)
     return built
 
 
@@ -117,10 +167,15 @@ def test_convert_url_returns_text_content_via_guarded_session(monkeypatch):
     built = _wire_url_markitdown(monkeypatch, text="# Wikipedia")
     out = asyncio.run(ri.convert_url_to_markdown("http://8.8.8.8/seite"))
     assert out == "# Wikipedia"
-    # N-2: die Guard-Session MUSS durchgereicht werden — sonst folgt markitdown
-    # einem 302 auf ein internes Ziel ungeprüft.
+    # N-2: die Guard-Session MUSS durchgereicht werden — markitdown holt bei
+    # manchen Formaten selbst nach, und einem 302 auf ein internes Ziel folgte
+    # es sonst ungeprüft.
     adapter = built[0].requests_session.get_adapter("http://8.8.8.8/")
     assert type(adapter).__name__ == "_SsrfGuardAdapter"
+    rumpf, info = built[0].gesehen[0]
+    assert rumpf == b"<h1>Seite</h1>"
+    assert (info.url, info.mimetype, info.charset) == (
+        "http://8.8.8.8/seite", "text/html", "utf-8")
 
 
 def test_convert_url_error_becomes_fehler_string_not_raise(monkeypatch):
@@ -129,6 +184,34 @@ def test_convert_url_error_becomes_fehler_string_not_raise(monkeypatch):
     # ALT-Asymmetrie verbatim erhalten: der URL-Pfad formatiert OHNE
     # type(e).__name__ (der Datei-Pfad oben MIT).
     assert out == "Fehler beim Konvertieren: timeout"
+
+
+def test_ein_abgebrochener_abruf_wird_benannt(monkeypatch):
+    """Paket 4, C5: zu groß oder zu langsam — ein klarer Satz statt eines
+    hängenden Threads oder eines vollen Speichers."""
+    from boerdi.services.url_safety import DownloadAbgebrochen
+
+    built = _wire_url_markitdown(
+        monkeypatch, abruf_fehler=DownloadAbgebrochen("Die Seite ist größer als 25 MB."))
+    out = asyncio.run(ri.convert_url_to_markdown("http://8.8.8.8/riesig"))
+    assert out == "Fehler: Die Seite ist größer als 25 MB."
+    assert built == []  # nichts umgewandelt
+
+
+def test_die_dns_pruefung_laeuft_nicht_im_event_loop(monkeypatch):
+    """Paket 4, C5 (externes Audit F17c): ``getaddrinfo`` blockierte den
+    Event-Loop — und damit jeden Chat-Zug auf diesem Worker, solange ein
+    langsamer Nameserver brauchte."""
+    import threading
+
+    from boerdi.services import url_safety
+
+    _wire_url_markitdown(monkeypatch)
+    threads: list[str] = []
+    monkeypatch.setattr(url_safety, "assert_public_url",
+                        lambda url: threads.append(threading.current_thread().name))
+    asyncio.run(ri.convert_url_to_markdown("http://8.8.8.8/seite"))
+    assert threads and threads[0] != threading.main_thread().name
 
 
 def test_real_markitdown_honours_requests_session_kwarg():
@@ -191,6 +274,9 @@ def _wire_embedding(monkeypatch):
         return [0.1, float(len(calls))]
 
     monkeypatch.setattr(ri, "embed_many", _als_many(fake_embedding))
+    # Die Attrappe liefert zwei Dimensionen; seit Paket 4 (C2) prüft der Import
+    # die Länge gegen die Spalte.
+    monkeypatch.setattr(ri, "expected_dim", lambda: 2)
     return calls
 
 
@@ -206,7 +292,8 @@ def test_ingest_creates_document_and_linked_chunks(monkeypatch):
     n = asyncio.run(ri.ingest_document(sess, "erdkunde", "Klima", "klima.md", md))
     docs = [o for o in sess.added if isinstance(o, RagDocument)]
     chunks = [o for o in sess.added if isinstance(o, RagChunk)]
-    assert n == 2 and len(docs) == 1 and len(chunks) == 2
+    assert n == ri.ImportZahlen(chunks=2, embedded=2)
+    assert len(docs) == 1 and len(chunks) == 2
     assert (docs[0].area, docs[0].title, docs[0].source) == ("erdkunde", "Klima", "klima.md")
     assert all(c.document_id == 77 and c.area == "erdkunde" for c in chunks)
     assert [c.chunk_index for c in chunks] == [0, 1]
@@ -219,6 +306,61 @@ def test_ingest_commits_once_transactional(monkeypatch):
     sess = _FakeSession()
     asyncio.run(ri.ingest_document(sess, "a", "t", "s", "Eins.\n\nZwei.\n\nDrei."))
     assert sess.commits == 1  # ALT committed per chunk; NEU: all-or-nothing
+
+
+# ── Kein Textverlust, wenn Vektoren fehlen (Paket 4, C2; externes Audit F06) ──
+
+_ZWEI_ABSCHNITTE = "# A\n\n" + "x" * 600 + "\n\n# B\n\n" + "y" * 600
+
+
+def _import_mit(monkeypatch, einbetter, dim=2):
+    monkeypatch.setattr(ri, "embed_many", _als_many(einbetter))
+    monkeypatch.setattr(ri, "expected_dim", lambda: dim)
+    sess = _FakeSession()
+    zahlen = asyncio.run(ri.ingest_document(sess, "a", "t", "s", _ZWEI_ABSCHNITTE))
+    return zahlen, [o for o in sess.added if isinstance(o, RagChunk)]
+
+
+def test_ein_fehlgeschlagener_vektor_verliert_keinen_text(monkeypatch):
+    """Probe: zwei Abschnitte gemeldet, einer gespeichert — der Text des
+    anderen fehlte danach, und das Nachholen fand ihn nicht, weil es nur
+    vorhandene Zeilen ohne Vektor sucht."""
+    aufrufe = {"n": 0}
+
+    async def wackelig(text, *, kind="query"):
+        aufrufe["n"] += 1
+        if aufrufe["n"] == 2:
+            raise RuntimeError("Anbieter weg")
+        return [0.1, 0.2]
+
+    zahlen, chunks = _import_mit(monkeypatch, wackelig)
+    assert [c.chunk_index for c in chunks] == [0, 1]   # beide Texte gespeichert
+    assert chunks[0].embedding == [0.1, 0.2]
+    assert chunks[1].embedding is None                 # nachholbar
+    assert (zahlen.chunks, zahlen.embedded, zahlen.missing) == (2, 1, 1)
+
+
+def test_fallen_alle_vektoren_aus_bleiben_alle_texte(monkeypatch):
+    async def weg(text, *, kind="query"):
+        raise RuntimeError("Anbieter weg")
+
+    zahlen, chunks = _import_mit(monkeypatch, weg)
+    assert len(chunks) == 2 and all(c.embedding is None for c in chunks)
+    assert (zahlen.embedded, zahlen.missing) == (0, 2)
+
+
+def test_ein_vektor_falscher_laenge_wird_nicht_gespeichert(monkeypatch, caplog):
+    """C5(d): ``expected_dim`` hatte keinen Leser. Ein Vektor, der nicht zur
+    Spalte passt, ließe den ganzen Import scheitern; jetzt bleibt der Text
+    ohne Vektor stehen, und das Protokoll nennt die Ursache."""
+    async def zu_lang(text, *, kind="query"):
+        return [0.1, 0.2, 0.3]
+
+    with caplog.at_level(logging.WARNING, logger="boerdi.services.rag.ingest"):
+        zahlen, chunks = _import_mit(monkeypatch, zu_lang, dim=2)
+    assert all(c.embedding is None for c in chunks)
+    assert zahlen.missing == 2
+    assert any("EMBED_DIM" in r.getMessage() for r in caplog.records)
 
 
 # ── get_rag_chunks (pg rewrite) ──────────────────────────────────────────
@@ -358,3 +500,21 @@ def test_embed_missing_commits_once_after_the_loop(monkeypatch):
     sess = _EmbedSession(rows=[_null_row(1, "a"), _null_row(2, "b")])
     asyncio.run(ri.embed_missing_chunks(sess))
     assert sess.commits == 1
+
+
+@pytest.mark.parametrize("ursache", ["fehlende Abhängigkeit", "unbekanntes Format"])
+def test_eine_url_auf_ein_nicht_lesbares_format_wird_als_solches_gemeldet(monkeypatch, ursache):
+    """Prüfer 2026-10-04: Der Datei-Weg meldete das seit C5, der URL-Weg gab
+    weiter 400 mit der rohen markitdown-Meldung (etwa ein Link auf ein PDF)."""
+    from markitdown._exceptions import (
+        MissingDependencyException,
+        UnsupportedFormatException,
+    )
+
+    fehler = (_gescheitert_an(MissingDependencyException("pdf fehlt"))
+              if ursache == "fehlende Abhängigkeit"
+              else UnsupportedFormatException("kein Wandler"))
+    _wire_url_markitdown(monkeypatch, raise_exc=fehler, rumpf=b"%PDF-1.7",
+                         typ="application/pdf")
+    out = asyncio.run(ri.convert_url_to_markdown("http://8.8.8.8/heft.pdf"))
+    assert out.startswith(ri.FORMAT_NICHT_LESBAR)

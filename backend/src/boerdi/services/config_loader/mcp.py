@@ -49,9 +49,13 @@ def get_enabled_mcp_servers() -> list[dict[str, Any]]:
     return [s for s in load_mcp_servers() if s.get("enabled", True)]
 
 
-async def save_mcp_servers(servers: list[dict[str, Any]]) -> None:
+async def save_mcp_servers(
+    servers: list[dict[str, Any]], *, expected_version: int | None = None,
+) -> int:
     """Persist the registry: strip UI meta + primary URL; primary always
-    restored at index 0 (ALT protection against dropping it)."""
+    restored at index 0 (ALT protection against dropping it). Returns the
+    new version; with ``expected_version`` a ``ConfigConflict`` instead of
+    overwriting someone else's save (Paket 4, D5)."""
     cleaned: list[dict[str, Any]] = []
     for raw in servers or []:
         if not isinstance(raw, dict) or not raw.get("id"):
@@ -75,6 +79,7 @@ async def save_mcp_servers(servers: list[dict[str, Any]]) -> None:
 
     if _store._store is None:
         raise RuntimeError("config store not bound")
-    await _store._store.put(
-        "05-knowledge/mcp-servers", {"servers": cleaned}, updated_by="studio"
+    return await _store._store.put(
+        "05-knowledge/mcp-servers", {"servers": cleaned}, updated_by="studio",
+        expected_version=expected_version,
     )

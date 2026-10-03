@@ -238,7 +238,7 @@ def change_fingerprint(tool_name: str, args: dict[str, Any]) -> str:
 
 
 def remember_pending(
-    tool_name: str, args: dict[str, Any], token: str, *, now: float
+    tool_name: str, args: dict[str, Any], token: str, *, now: float, caller: str = ""
 ) -> dict[str, Any]:
     """Der Merkposten für einen offenen Bestätigungsvorgang.
 
@@ -246,6 +246,13 @@ def remember_pending(
     ``services/page_context.py`` es für seinen Zwischenspeicher tut): dieses
     Modul ist rein und hat keine Uhr. Der Zeitpunkt trägt die Frist aus
     :func:`is_expired`.
+
+    ``caller`` ist das Kennzeichen des Aufrufers (``services/mcp/auth.
+    caller_fingerprint``), ebenfalls hereingereicht, weil dieses Modul keine
+    Zugangsdaten kennt. Der Schlüssel des MCP-Servers ist an keine Identität
+    gebunden; eingelöst wird deshalb nur unter demselben Kennzeichen
+    (``services/write_approval``, Paket 4 A1). Die Vorgabe ``""`` ist der
+    anonyme Aufrufer — sie gibt keinem anderen etwas frei.
 
     Ein reines Dict, weil es als JSONB in ``session_state["entities"]`` liegt
     — der Konvention für zugübergreifenden Zustand: ``_``-präfigierter
@@ -290,6 +297,7 @@ def remember_pending(
         "fingerprint": change_fingerprint(tool_name, args),
         "token": token,
         "minted_at": now,
+        "caller": caller,
     }
     if len(json.dumps(sauber, ensure_ascii=False, default=str)) <= MAX_REMEMBERED_ARGS_BYTES:
         merkposten["args"] = sauber

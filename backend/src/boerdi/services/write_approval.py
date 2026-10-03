@@ -37,9 +37,15 @@ Züge. Ein in diesem Zug entstandener kann hier gar nicht auftauchen.
 
 **Was hier bewusst NICHT geprüft wird:** ob der Aufrufer schreiben darf. Das
 entscheidet der MCP-Server anhand des Zugangsblocks (``services/mcp/auth``), und
-zwar bei jedem Aufruf — auch bei der Vorschau. Wer keine Vorschau bekam, hat
-hier nichts einzulösen. Eine zweite Rechteprüfung an dieser Stelle wäre eine
-Kopie mit eigener Driftgefahr.
+zwar bei jedem Aufruf — auch bei der Vorschau. Eine zweite Rechteprüfung an
+dieser Stelle wäre eine Kopie mit eigener Driftgefahr.
+
+**Was dagegen geprüft wird: ob es DERSELBE Aufrufer ist** (Paket 4, A1). Der
+Schlüssel des Servers ist an keine Identität gebunden. Eine Vorschau, die unter
+einer Anmeldung entstand, löste ein „ja“ ohne diese Anmeldung sonst mit dem
+Dienst-Block der Anlage ein — der Server prüfte dann die Rechte des
+Dienstkontos, nicht die der Person, der die Vorschau galt. Der Merkposten trägt
+deshalb das Kennzeichen seines Aufrufers (:func:`_gehoert_dem_aufrufer`).
 
 Tests patchen die drei Aussenkanten (MCP, Sitzung, Nachricht) auf DIESEM Modul.
 """
@@ -60,6 +66,7 @@ from boerdi.domain.write_confirm import (
 )
 from boerdi.i18n import Locale, bot_text, resolve_locale
 from boerdi.services.db_sessions import save_message, update_session
+from boerdi.services.mcp.auth import caller_fingerprint
 from boerdi.services.mcp.client import (
     call_mcp_tool_status,
     get_prepared_writes,
@@ -72,6 +79,15 @@ logger = logging.getLogger(__name__)
 # Das Muster hat ihn nur nicht ausgewählt, weil ein „ja" für sich genommen
 # nichts über den Bestand aussagt.
 _PATTERN_ID = "M18"
+
+
+def _gehoert_dem_aufrufer(pending: object) -> bool:
+    """Stammt der offene Vorgang vom Aufrufer DIESES Zugs?
+
+    Ein Merkposten ohne Kennzeichen (vor Paket 4 gemerkt) gilt als fremd: Er
+    verfällt, statt unter unbekannter Identität eingelöst zu werden.
+    """
+    return isinstance(pending, dict) and pending.get("caller") == caller_fingerprint()
 
 
 async def discard_stale_approval(
@@ -101,17 +117,24 @@ async def discard_stale_approval(
     ``entities`` zurück (die Direkt-Aktionen nicht), und ein nur im Speicher
     verworfener Vorgang stünde beim nächsten Zug wieder in der Datenbank.
     Gibt zurück, ob verworfen wurde.
+
+    Verworfen wird auch der Vorgang eines ANDEREN Aufrufers (Paket 4, A1) —
+    hier, damit ihn keiner der beiden Einlöse-Wege (Vorlauf, Fingerabdruck-Weg
+    im Tool-Loop) je zu sehen bekommt.
     """
     entities = session_state.setdefault("entities", {})
     pending = entities.get("_pending_write")
     if not pending:
         return False
-    if not req.action and is_affirmation(req.message):
+    fremd = not _gehoert_dem_aufrufer(pending)
+    if not fremd and not req.action and is_affirmation(req.message):
         return False
     entities.pop("_pending_write", None)
     logger.info(
-        "offener Vorgang für %s verworfen — dieser Zug ist keine Antwort auf die Vorschau",
-        pending.get("tool") if isinstance(pending, dict) else "?")
+        "offener Vorgang für %s verworfen — %s",
+        pending.get("tool") if isinstance(pending, dict) else "?",
+        "anderer Aufrufer als bei der Vorschau" if fremd
+        else "dieser Zug ist keine Antwort auf die Vorschau")
     await update_session(session, req.session_id, entities=entities)
     return True
 
@@ -148,6 +171,11 @@ async def redeem_write_approval(
     entities = session_state.setdefault("entities", {})
     pending = entities.get("_pending_write")
     if not pending or not is_affirmation(req.message):
+        return None
+    if not _gehoert_dem_aufrufer(pending):
+        # Im Graphen hat ``setup`` ihn schon verworfen; diese Wache gilt für
+        # jeden Weg, der den Vorlauf ohne ``setup`` erreicht (Paket 4, A1).
+        logger.warning("offener Vorgang eines anderen Aufrufers — nicht eingelöst")
         return None
 
     tool = str(pending.get("tool") or "")

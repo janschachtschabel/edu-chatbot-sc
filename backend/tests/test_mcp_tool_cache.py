@@ -38,6 +38,16 @@ def test_cache_key_differs_by_tool_and_args():
     assert _cache_key("t1", {"a": 1}) != _cache_key("t1", {"a": 2})
 
 
+def test_cache_key_unterscheidet_den_server():
+    """Paket 4, C3 (externes Audit F12): Werkzeug, Aufrufer und Argumente
+    reichten nicht — ein Registry-Server, dessen Adresse das Studio umstellt,
+    lieferte bis zu 30 min (Vokabular 24 h) die Treffer des alten Servers."""
+    a = _cache_key("get_node_details", {"nodeId": "n1"}, url="https://a.example/mcp")
+    b = _cache_key("get_node_details", {"nodeId": "n1"}, url="https://b.example/mcp")
+    assert a != b
+    assert a[0] == b[0] == "get_node_details"  # die TTL hängt am Werkzeug
+
+
 # ── Der Zwischenspeicher trennt nach Aufrufer (S6, 2026-08-15) ──────────
 #
 # Gemessen am Server, nicht angenommen: ``wlo_auth_status`` liefert

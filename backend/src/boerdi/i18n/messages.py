@@ -41,6 +41,17 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "tone.partial": "Tone-Modifier teilweise gespeichert — fehlgeschlagen für: {failed}",
         # ── Rohtext-Editor + MCP-Registry (C1-e2) ──────────────────────
         "file.unreadable": "Inhalt nicht lesbar: {error}",
+        # Paket 4, D5: Speichern mit Konfliktschutz
+        "config.conflict": (
+            "Dieser Bereich wurde inzwischen geändert (Version {version}, von {who}, "
+            "{when} UTC). Neu laden oder trotzdem speichern."
+        ),
+        "config.conflictGone": "Dieser Bereich wurde inzwischen gelöscht.",
+        "guide.patternInvalid": (
+            "Lotsen-Regel {nr} ({label}): Das Muster ist kein gültiger regulärer "
+            "Ausdruck ({error})."
+        ),
+        "config.exists": "Unter der Kennung {area} gibt es schon ein Dokument.",
         "mcp.serverRejected": "MCP-Server '{id}': {error}",
         "mcp.connectFailed": "Verbindung fehlgeschlagen: {error}",
         "mcp.urlRequired": "Bitte eine Server-URL angeben.",
@@ -99,6 +110,11 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
             "Wenn der Server genug RAM hat, setze BOERDI_MAX_INGEST_MB höher "
             "(oder 0 für unbegrenzt)."
         ),
+        # Paket 4, C5: das Image enthält keine markitdown-Extras.
+        "ingest.formatUnsupported": (
+            "Dieses Dateiformat kann der Server nicht lesen. Möglich sind HTML, "
+            "Markdown, Text, CSV und JSON."
+        ),
         # ── Sitzungen: Purge + Kompaktieren (C1-e2) ────────────────────
         # „Bestaetigung" ohne Umlaut: ALT-Wortlaut (`app/routers/sessions.py:112`).
         "sessions.purgeNeedsConfirm": (
@@ -130,6 +146,16 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "pills.none": "{field} needs at least one pill",
         "tone.partial": "Tone modifiers partly saved — failed for: {failed}",
         "file.unreadable": "Content is not readable: {error}",
+        "config.conflict": (
+            "This area was changed in the meantime (version {version}, by {who}, "
+            "{when} UTC). Reload or save anyway."
+        ),
+        "config.conflictGone": "This area was deleted in the meantime.",
+        "guide.patternInvalid": (
+            "Guide rule {nr} ({label}): the pattern is not a valid regular "
+            "expression ({error})."
+        ),
+        "config.exists": "A document with the id {area} already exists.",
         "mcp.serverRejected": "MCP server '{id}': {error}",
         "mcp.connectFailed": "Connection failed: {error}",
         "mcp.urlRequired": "Please provide a server URL.",
@@ -172,6 +198,10 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "ingest.raiseLimit": (
             "If the server has enough RAM, raise BOERDI_MAX_INGEST_MB "
             "(or set it to 0 for no limit)."
+        ),
+        "ingest.formatUnsupported": (
+            "The server cannot read this file format. Possible are HTML, "
+            "Markdown, text, CSV and JSON."
         ),
         "sessions.purgeNeedsConfirm": (
             "Purging requires ?confirm=true as a guard against accidental nukes. "

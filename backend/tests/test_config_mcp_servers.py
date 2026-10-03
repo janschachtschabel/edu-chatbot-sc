@@ -43,14 +43,24 @@ def client(monkeypatch):
 
 @pytest.fixture()
 def saved(monkeypatch) -> list[list]:
-    """Spy on the persistence boundary; returns the list of payloads written."""
-    calls: list[list] = []
+    """Spy on the persistence boundary; returns the list of payloads written.
 
-    async def _save(servers):
+    Since Paket 4 (D5) the boundary also takes ``expected_version`` and answers
+    the new version; the spy records the former in ``_SEEN_VERSIONS``.
+    """
+    calls: list[list] = []
+    _SEEN_VERSIONS.clear()
+
+    async def _save(servers, *, expected_version=None):
         calls.append(servers)
+        _SEEN_VERSIONS.append(expected_version)
+        return 4
 
     monkeypatch.setattr(config_loader, "save_mcp_servers", _save)
     return calls
+
+
+_SEEN_VERSIONS: list[int | None] = []
 
 
 @pytest.fixture()
@@ -96,10 +106,56 @@ def test_put_accepts_public_url_and_hands_the_payload_over_verbatim(client, save
     body = _body("http://8.8.8.8/mcp")
     r = client.put("/api/config/mcp-servers", headers=_AUTH, json=body)
     assert r.status_code == 200
-    assert r.json() == {"status": "saved", "count": 1}
+    # ``version`` since Paket 4 (D5): what the store answered.
+    assert r.json() == {"status": "saved", "count": 1, "version": 4}
     # The router only validates. Stripping meta fields and restoring the primary
     # is the loader's job, so it must receive the payload untouched.
     assert saved == [body["servers"]]
+
+
+def test_put_hands_the_expected_version_to_the_store(client, saved) -> None:
+    # Paket 4, D5: the Studio sends the version it loaded.
+    body = {**_body("http://8.8.8.8/mcp"), "expected_version": 3}
+    assert client.put("/api/config/mcp-servers", headers=_AUTH, json=body).status_code == 200
+    assert _SEEN_VERSIONS == [3]
+
+
+def test_a_conflict_is_a_409_with_who_and_when(client, monkeypatch) -> None:
+    from datetime import UTC, datetime
+
+    from boerdi.services.config_conflict import ConfigConflict
+
+    async def _save(servers, *, expected_version=None):
+        raise ConfigConflict("05-knowledge/mcp-servers", {
+            "version": 5, "updated_by": "studio",
+            "updated_at": datetime(2026, 10, 3, 20, 41, tzinfo=UTC)})
+
+    monkeypatch.setattr(config_loader, "save_mcp_servers", _save)
+    r = client.put("/api/config/mcp-servers", headers=_AUTH,
+                   json={**_body("http://8.8.8.8/mcp"), "expected_version": 3})
+    assert r.status_code == 409
+    d = r.json()["detail"]
+    assert d["version"] == 5 and d["updated_by"] == "studio"
+    assert d["updated_at"].startswith("2026-10-03T20:41")
+    assert d["message"]
+
+
+def test_get_names_the_version_in_a_header(client, monkeypatch) -> None:
+    # The body stays a list (only the Studio reads it, but a list is the
+    # contract); the version rides in ``X-Config-Version``.
+    from boerdi.services.mcp import tool_descriptions
+
+    async def _read(key):
+        return {"servers": []}, 7
+
+    async def _load():
+        return []
+
+    monkeypatch.setattr(config_loader, "read_area", _read)
+    monkeypatch.setattr(tool_descriptions, "load_mcp_servers_with_descriptions", _load)
+    r = client.get("/api/config/mcp-servers", headers=_AUTH)
+    assert r.status_code == 200
+    assert r.headers["X-Config-Version"] == "7"
 
 
 def test_put_skips_primary_url_validation(client, saved) -> None:
@@ -171,6 +227,29 @@ def test_discover_returns_the_tools_on_success(client, discovered) -> None:
     assert discovered == ["http://8.8.8.8/mcp"]  # handshaked exactly the given URL
 
 
+def test_discover_prueft_den_namen_nicht_im_event_loop(client, monkeypatch) -> None:
+    """Paket 4, C5 (externes Audit F17c): ``getaddrinfo`` blockierte den
+    Event-Loop — samt jedem Chat-Zug auf diesem Worker, solange ein langsamer
+    Nameserver brauchte."""
+    import threading
+
+    from boerdi.api import config as config_api
+
+    faeden: dict[str, int] = {}
+    monkeypatch.setattr(config_api, "assert_public_url",
+                        lambda url: faeden.setdefault("pruefung", threading.get_ident()))
+
+    async def _discover(url: str) -> list[dict[str, str]]:
+        faeden["schleife"] = threading.get_ident()
+        return []
+
+    monkeypatch.setattr(transport, "discover_server_tools", _discover)
+    r = client.post("/api/config/mcp-servers/discover", headers=_AUTH,
+                    params={"url": "http://8.8.8.8/mcp"})
+    assert r.status_code == 200
+    assert faeden["pruefung"] != faeden["schleife"]
+
+
 def test_discover_maps_a_connection_failure_to_502(client, monkeypatch) -> None:
     async def _boom(url: str) -> list[dict[str, str]]:
         raise RuntimeError("kaputt")
@@ -195,7 +274,7 @@ def area_written(monkeypatch) -> list[tuple]:
     """Spy on the generic area write boundary."""
     calls: list[tuple] = []
 
-    async def _write(area_key, data, updated_by="studio"):
+    async def _write(area_key, data, updated_by="studio", **_condition):  # D5: version
         calls.append((area_key, data))
         return 1
 
@@ -208,8 +287,9 @@ def file_written(monkeypatch) -> list[tuple]:
     """Spy on the raw-text write boundary."""
     calls: list[tuple] = []
 
-    async def _write(rel_path, content):
+    async def _write(rel_path, content, **_condition):  # Paket 4 D5: version/create
         calls.append((rel_path, content))
+        return 1
 
     monkeypatch.setattr(config_loader, "write_config_file", _write)
     return calls

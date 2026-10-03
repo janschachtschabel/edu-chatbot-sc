@@ -10,8 +10,11 @@ dependencies = [
     "fastapi>=0.139.0",
     "httpx>=0.28.1",
     "instructor>=1.15.4",
+    # Paket 4 A3 (2026-10-03): Ergebnis-Schemata der Gastgeber serverseitig
+    # prüfen (domain/ergebnis_schema). Kam bisher nur transitiv über litellm
+    # und mcp mit — seit wir es direkt importieren, gehört es hierher. MIT.
+    "jsonschema>=4.26.0",
     "langgraph>=1.2.9",
-    "langgraph-checkpoint-postgres>=3.1.0",
     # C6 (2026-07-31): der Fenster-Zähler der Safety-Config-Bremse
     # (services/rate_limits). Kam bisher nur transitiv über slowapi mit — seit
     # wir es direkt importieren, gehört es hierher, sonst hängt unser Code an

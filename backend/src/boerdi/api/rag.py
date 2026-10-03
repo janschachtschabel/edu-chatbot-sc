@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from boerdi.api.deps import Lang, get_session, require_studio_key
 from boerdi.api.schemas import RagQuery, RagResult
 from boerdi.domain.rag_areas import zusammenfuehren
-from boerdi.i18n import msg
+from boerdi.i18n import Locale, msg
 from boerdi.services.config_loader import load_rag_config
 from boerdi.services.rag.admin import (
     delete_area,
@@ -22,6 +22,8 @@ from boerdi.services.rag.admin import (
     list_areas,
 )
 from boerdi.services.rag.ingest import (
+    FORMAT_NICHT_LESBAR,
+    ImportZahlen,
     convert_to_markdown,
     convert_url_to_markdown,
     embed_missing_chunks,
@@ -95,12 +97,10 @@ async def ingest_file(
 
     try:
         markdown = await convert_to_markdown(tmp_path)
-        if markdown.startswith("Fehler"):
-            raise HTTPException(status_code=400, detail=markdown)
+        _pruefe_umwandlung(markdown, lang)
 
-        chunks = await ingest_document(session, area, title, file.filename or "", markdown)
-        return {"status": "ok", "title": title, "area": area, "chunks": chunks,
-                "preview": markdown[:500]}
+        zahlen = await ingest_document(session, area, title, file.filename or "", markdown)
+        return _import_antwort(title, area, zahlen, preview=markdown[:500])
     finally:
         os.unlink(tmp_path)
 
@@ -109,6 +109,7 @@ async def ingest_file(
 async def ingest_url(
     url: Annotated[str, Form()],
     session: Annotated[AsyncSession, Depends(get_session)],
+    lang: Lang,
     area: Annotated[str, Form()] = "general",
     title: Annotated[str, Form()] = "",
 ):
@@ -117,12 +118,10 @@ async def ingest_url(
         title = url
 
     markdown = await convert_url_to_markdown(url)
-    if markdown.startswith("Fehler"):
-        raise HTTPException(status_code=400, detail=markdown)
+    _pruefe_umwandlung(markdown, lang)
 
-    chunks = await ingest_document(session, area, title, url, markdown)
-    return {"status": "ok", "title": title, "area": area, "chunks": chunks,
-            "preview": markdown[:500]}
+    zahlen = await ingest_document(session, area, title, url, markdown)
+    return _import_antwort(title, area, zahlen, preview=markdown[:500])
 
 
 @router.post("/ingest/text")
@@ -134,8 +133,28 @@ async def ingest_text(
     source: Annotated[str, Form()] = "manual",
 ):
     """Ingest raw markdown/text into a knowledge area."""
-    chunks = await ingest_document(session, area, title or "Manueller Eintrag", source, content)
-    return {"status": "ok", "title": title, "area": area, "chunks": chunks}
+    zahlen = await ingest_document(session, area, title or "Manueller Eintrag", source, content)
+    return _import_antwort(title, area, zahlen)
+
+
+def _pruefe_umwandlung(markdown: str, lang: Locale) -> None:
+    """Ein ``Fehler…``-Text der Umwandlung wird zur HTTP-Antwort.
+
+    Ein Format, das der Server nicht liest, ist 415 mit klarem Satz (Paket 4,
+    C5) — keine kaputte Datei, sondern ein fehlender Wandler im Image. Alles
+    andere bleibt 400 mit der Meldung, wie sie kam (C1-e).
+    """
+    if markdown.startswith(FORMAT_NICHT_LESBAR):
+        raise HTTPException(status_code=415, detail=msg(lang, "ingest.formatUnsupported"))
+    if markdown.startswith("Fehler"):
+        raise HTTPException(status_code=400, detail=markdown)
+
+
+def _import_antwort(title: str, area: str, zahlen: ImportZahlen, **extra: Any) -> dict:
+    """Die Antwort eines Imports. Seit Paket 4 (C2) mit ``embedded`` und
+    ``missing``: Abschnitte ohne Vektor holt ``POST /api/rag/embed`` nach."""
+    return {"status": "ok", "title": title, "area": area, "chunks": zahlen.chunks,
+            "embedded": zahlen.embedded, "missing": zahlen.missing, **extra}
 
 
 @router.post("/query", response_model=list[RagResult])
@@ -149,10 +168,11 @@ async def rag_query(req: RagQuery, session: Annotated[AsyncSession, Depends(get_
 async def rag_embed(session: Annotated[AsyncSession, Depends(get_session)]) -> dict:
     """Generate embeddings for all chunks that don't have one yet.
 
-    A backfill for chunks that reached the DB without a vector (restored dump,
-    manual insert) — the ingest endpoints always embed inline. ALT additionally
-    ran this at startup after its seed import; NEU has no RAG seed importer, so
-    there is no such caller.
+    A backfill for chunks that reached the DB without a vector: an import whose
+    embedding failed for some chunks (Paket 4, C2 — the import reports them as
+    ``missing``, and the Studio offers this call), a restored dump, a manual
+    insert. ALT additionally ran this at startup after its seed import; NEU has
+    no RAG seed importer, so there is no such caller.
 
     Returns the number of chunks that were embedded.
     """

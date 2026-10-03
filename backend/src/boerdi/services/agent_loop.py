@@ -38,8 +38,10 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from boerdi.api.schemas import ToolOutcome
 from boerdi.domain.antwort_werkzeug import RESPOND_TO_USER, antwort_aus_argumenten
 from boerdi.domain.config_models.engine import AgentLimits
+from boerdi.domain.ergebnis_schema import argument_fehler, ergebnis_ungueltig
 from boerdi.domain.inline_documents import (
     MAX_DOKUMENTE_JE_ZUG,
     ZEIGE_DOKUMENT,
@@ -55,11 +57,24 @@ from boerdi.domain.result_delivery import (
 )
 from boerdi.domain.tool_result_redaction import redigiere_strukturell
 from boerdi.domain.untrusted_text import frame_untrusted
-from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN, angebotene_namen
+from boerdi.domain.werkzeug_angebot import (
+    NICHT_ANGEBOTEN,
+    angebotene_namen,
+    angebotene_parameter,
+)
+from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD, is_confirmable
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.usage import add_usage, extract_usage, new_accumulator
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm, outcome_service
+from boerdi.services.agent_frist import (
+    ABGEBROCHEN_FRIST,
+    NICHT_AUSGEFUEHRT_FRIST,
+    NICHT_AUSGEFUEHRT_STILLSTAND,
+    FristAbgelaufen,
+    frist_ende,
+    innerhalb,
+)
 from boerdi.services.agent_knowledge import WISSEN_SUCHEN
 from boerdi.services.agent_tools import SUBMIT_RESULT
 from boerdi.services.agent_trace import Rundenbuch
@@ -210,6 +225,7 @@ async def run_agent_loop(
     wissen: Callable[[dict[str, Any]], Awaitable[str]] | None = None,
     on_offene_abnahme: Callable[[dict[str, Any], str], None] | None = None,
     on_token: Callable[[str], None] | None = None,
+    start: float | None = None,
 ) -> AgentRun:
     """Fahre die Schleife, bis ein Grund sie beendet.
 
@@ -236,13 +252,20 @@ async def run_agent_loop(
     sie es nicht (unlesbare Argumente, Stillstand), läuft jede weitere Runde
     ungestreamt, und ``result`` ersetzt den Text (Review L1). Der Chat-Zug
     reicht den Strom nur herein, wenn das Werkzeug im Angebot ist.
+
+    ``start`` (Paket 4, B1) ist der Beginn des Zugs auf derselben Uhr wie
+    ``clock``: Gate und Vorabruf laufen vor der Schleife und zählen zur Frist.
+    Ohne ihn beginnt die Uhr hier. Die Frist gilt auch IN laufenden Modell- und
+    Werkzeugaufrufen (``services/agent_frist``), nicht nur am Rundenanfang.
     """
     acc = usage_acc if usage_acc is not None else new_accumulator()
     strom_verbraucht = False
     angeboten = angebotene_namen(tools)
     gate = WriteGate(limits.write_mode)
     run = AgentRun()
-    start = clock()
+    jetzt0 = clock()
+    start = jetzt0 if start is None else start
+    ende = frist_ende(limits.deadline_s, jetzt0 - start)
     # Der Nullpunkt des Budgets, nicht der Zählerstand: im Chat-Modus trägt der
     # Zug-Zähler bereits Token früherer Schritte (Safety), und die gehören dem
     # Zug, nicht der Schleife.
@@ -261,6 +284,24 @@ async def run_agent_loop(
         if on_offene_abnahme is not None and (offen := gate.offene_abnahme()) is not None:
             on_offene_abnahme(*offen)
         return _ended(run, reason)
+
+    def quittiere(offen: list[Any], text: str) -> None:
+        # Endet der Lauf mitten in einer Runde, bekommt jeder ihrer Aufrufe eine
+        # Antwort. Sonst wiese der Anbieter die Kette ab — etwa beim Abschluss-
+        # Aufruf, den ``respond_agent`` nach einem Deckel noch macht.
+        for rest in offen:
+            messages.append(_tool_turn(rest.id, text))
+
+    def ueber_budget_gemeldet() -> None:
+        # P4-2: Eine fertige Antwort wird geliefert, auch wenn ihr Aufruf das
+        # Budget gerissen hat — sie ist bezahlt. Unbemerkt bleibt das nicht.
+        verbraucht = _spent(acc) - start_tokens
+        if verbraucht > limits.token_budget:
+            logger.warning("Agent-Schleife: Token-Budget von %s überschritten (%s) "
+                           "— die fertige Antwort wird geliefert",
+                           limits.token_budget, verbraucht)
+            progress.record("agent_budget", "Token-Budget überschritten",
+                            {"budget": limits.token_budget, "verbraucht": verbraucht})
 
     for _ in range(limits.max_iterations):
         # EIN Uhrwert je Runde: Frist-Pruefung, Ende der vorigen und Beginn
@@ -288,13 +329,17 @@ async def run_agent_loop(
             strom_runde = on_token is not None and not strom_verbraucht
             if strom_runde:
                 _t0 = time.perf_counter()
-                resp = await _stream_completion(
-                    on_token, messages=messages, tools=tools, temperature=0.4)
+                resp = await innerhalb(ende, _stream_completion(
+                    on_token, messages=messages, tools=tools, temperature=0.4))
                 add_usage(acc, extract_usage(resp), USAGE_PHASE, ms=seit_ms(_t0))
             else:
-                resp = await llm.chat_completion(
+                resp = await innerhalb(ende, llm.chat_completion(
                     messages=messages, tools=tools, temperature=0.4,
-                    usage_acc=acc, phase=USAGE_PHASE)
+                    usage_acc=acc, phase=USAGE_PHASE))
+        except FristAbgelaufen:
+            logger.info("Agent-Schleife: Frist von %s s im Modellaufruf erreicht",
+                        limits.deadline_s)
+            return schluss("deadline")
         except Exception as e:
             logger.error("Agent-Schleife: LLM-Fehler — %s", e)
             return schluss("error")
@@ -310,6 +355,7 @@ async def run_agent_loop(
             _prosa = strip_reasoning_markers(choice.message.content or "")
             if _prosa.strip():
                 run.text = _prosa
+                ueber_budget_gemeldet()
                 return schluss("text")
             # Weder Werkzeug noch Text — das ist KEINE Ziellinie, sondern ein
             # Aussetzer des Anbieters. Live gemessen 2026-08-21 an derselben
@@ -347,14 +393,41 @@ async def run_agent_loop(
 
         messages.append(_assistant_turn(choice.message, calls))
 
+        def frist_mitten_in_der_runde(laufend: int, calls: list[Any] = calls) -> AgentRun:
+            # Der laufende Aufruf ist abgebrochen, die übrigen der Runde haben
+            # nicht begonnen — beides sagt die Antwort ans Modell ehrlich.
+            logger.info("Agent-Schleife: Frist von %s s im Werkzeugaufruf erreicht",
+                        limits.deadline_s)
+            quittiere(calls[laufend:laufend + 1], ABGEBROCHEN_FRIST)
+            quittiere(calls[laufend + 1:], NICHT_AUSGEFUEHRT_FRIST)
+            return schluss("deadline")
+
         antwort: dict[str, Any] | None = None
-        for tc in calls:
+        for i, tc in enumerate(calls):
             name = tc.function.name
             args, fehler = _arguments(tc.function.arguments)
             buch.aufruf(name, args)
             if fehler:
                 logger.info("Agent-Schleife: unlesbare Argumente für %s", name)
                 messages.append(_tool_turn(tc.id, fehler))
+                continue
+
+            # Nur Angebotenes läuft (Audit 2026-09-29, B-M1), und zwar VOR allem
+            # anderen: vor der Wall, die bei einem Schreibwerkzeug womöglich
+            # einen Schlüssel einsetzt, und vor den virtuellen Werkzeugen unten.
+            # Die stehen bei legitimer Nutzung im Angebot (``agent_tools``);
+            # ungeprüft beendete ``submit_result`` sonst den Lauf mit einem
+            # Ergebnis, das niemand verlangt hatte (Paket 4, A2). Der Stillstand
+            # zählt auch hier: ein zweites gleiches Abgewiesenes beendet den Lauf.
+            if name not in angeboten:
+                key = _call_key(name, args)
+                if key == last_call:
+                    logger.info("Agent-Schleife: %s zweimal abgewiesen — Stillstand", name)
+                    quittiere(calls[i:], NICHT_AUSGEFUEHRT_STILLSTAND)
+                    return schluss("no_progress")
+                last_call = key
+                logger.warning("Agent-Schleife: nicht angebotenes Werkzeug %s verworfen", name)
+                messages.append(_tool_turn(tc.id, NICHT_ANGEBOTEN))
                 continue
 
             # Die Antwort samt Schnellantworten (Plan 2026-09-30): virtuell, eine
@@ -372,9 +445,28 @@ async def run_agent_loop(
             # Das Abschluss-Werkzeug ist virtuell: es geht nie an den MCP.
             # Weitere Aufrufe derselben Runde fallen weg — wer „fertig" sagt,
             # hat nichts mehr zu tun.
+            #
+            # Vorher die Form (Paket 4, A3): Das Schema des Gastgebers erzwingt
+            # der Anbieter nicht (``domain/ergebnis_schema``). Passt das Ergebnis
+            # nicht, geht die Abweichung ans Modell zurück, und der Lauf geht
+            # weiter; dasselbe Ungültige zweimal ist Stillstand.
             if name == SUBMIT_RESULT:
+                abweichungen = argument_fehler(angebotene_parameter(tools, name), args)
+                if abweichungen:
+                    key = _call_key(name, args)
+                    if key == last_call:
+                        logger.info("Agent-Schleife: dasselbe ungültige Ergebnis zweimal "
+                                    "— Stillstand")
+                        quittiere(calls[i:], NICHT_AUSGEFUEHRT_STILLSTAND)
+                        return schluss("no_progress")
+                    last_call = key
+                    logger.info("Agent-Schleife: Ergebnis passt nicht zum Schema "
+                                "(%d Abweichungen)", len(abweichungen))
+                    messages.append(_tool_turn(tc.id, ergebnis_ungueltig(abweichungen)))
+                    continue
                 run.text = strip_reasoning_markers(str(args.get("text") or ""))
                 run.result = args.get("result")
+                ueber_budget_gemeldet()
                 return schluss("submit")
 
             # Das Ergebnis als eigener Kanal (J1): virtuell wie ``submit_result``
@@ -398,6 +490,12 @@ async def run_agent_loop(
                     logger.info("Ergebnis-Werkzeug: unbrauchbare Argumente")
                     messages.append(_tool_turn(tc.id, ERGEBNIS_UNBRAUCHBAR))
                     continue
+                abweichungen = argument_fehler(angebotene_parameter(tools, name), args)
+                if abweichungen:
+                    logger.info("Ergebnis-Werkzeug: Ergebnis passt nicht zum Schema "
+                                "(%d Abweichungen)", len(abweichungen))
+                    messages.append(_tool_turn(tc.id, ergebnis_ungueltig(abweichungen)))
+                    continue
                 run.result = ergebnis
                 # Nur die Zahl der Felder: der Inhalt ist Modell-Ausgabe aus
                 # Nutzer-Inhalt, und das Server-Log unterliegt keiner
@@ -408,21 +506,6 @@ async def run_agent_loop(
                 messages.append(_tool_turn(tc.id, ERGEBNIS_UEBERNOMMEN))
                 continue
 
-            # Nur Angebotenes läuft weiter (Audit 2026-09-29, B-M1), und zwar
-            # VOR der Wall: die setzt bei einem Schreibwerkzeug womöglich einen
-            # Schlüssel ein. Die virtuellen Werkzeuge oben sind lokal und
-            # bleiben davon unberührt. Der Stillstand zählt auch hier: ein
-            # zweites gleiches Abgewiesenes beendet den Lauf (Review 2026-10-03).
-            if name not in angeboten:
-                key = _call_key(name, args)
-                if key == last_call:
-                    logger.info("Agent-Schleife: %s zweimal abgewiesen — Stillstand", name)
-                    return schluss("no_progress")
-                last_call = key
-                logger.warning("Agent-Schleife: nicht angebotenes Werkzeug %s verworfen", name)
-                messages.append(_tool_turn(tc.id, NICHT_ANGEBOTEN))
-                continue
-
             # Die Wall zuerst: sie kann einen Schlüssel einsetzen, und der
             # gehört zur Identität des Aufrufs (siehe ``_call_key``).
             args = gate.prepare(name, args)
@@ -431,6 +514,7 @@ async def run_agent_loop(
                 logger.info(
                     "Agent-Schleife: %s zweimal hintereinander mit denselben "
                     "Argumenten — Stillstand", name)
+                quittiere(calls[i:], NICHT_AUSGEFUEHRT_STILLSTAND)
                 return schluss("no_progress")
             last_call = key
 
@@ -481,11 +565,29 @@ async def run_agent_loop(
                 # Ohne Fremdtext-Rahmen: der Bestand ist redaktionell gepflegt
                 # und liegt bei uns. Ihn als Fremdtext zu kennzeichnen hiesse,
                 # die eigene Redaktion als blosse Daten zu behandeln.
-                messages.append(_tool_turn(tc.id, await wissen(args)))
+                try:
+                    wissen_text = await innerhalb(ende, wissen(args))
+                except FristAbgelaufen:
+                    return frist_mitten_in_der_runde(i)
+                messages.append(_tool_turn(tc.id, wissen_text))
                 continue
 
             progress.record("agent_tool", f"Werkzeug: {name}", {"tool": name})
-            text, outcome = await outcome_service.call_with_outcome(name, args)
+            # Ein bestätigter Schreibaufruf läuft zu Ende, gedeckelt durch
+            # ``MCP_CALL_TIMEOUT_S`` (B2): mitten im Flug abgeschnitten wüsste
+            # niemand, ob er geschrieben hat, und ein neuer Versuch schriebe
+            # doppelt (Prüfer 2026-10-04).
+            aufruf = outcome_service.call_with_outcome(name, args)
+            bestaetigt = is_confirmable(name) and CONFIRM_TOKEN_FIELD in args
+            try:
+                text, outcome = await (aufruf if bestaetigt else innerhalb(ende, aufruf))
+            except FristAbgelaufen:
+                # Auch abgebrochen gehört er ins Protokoll — sonst sähen
+                # Gastgeber und Qualitätslog nicht, dass er lief.
+                run.tools_called.append(name)
+                run.outcomes.append(ToolOutcome(tool=name, status="timeout",
+                                                error="Frist abgelaufen"))
+                return frist_mitten_in_der_runde(i)
             run.tools_called.append(name)
             run.outcomes.append(outcome)
             # Rückweg: erst den Schlüssel aus dem Text nehmen, dann Fremdtext
@@ -524,6 +626,7 @@ async def run_agent_loop(
 
         if antwort is not None:
             run.text, run.vorschlaege = antwort_aus_argumenten(antwort)
+            ueber_budget_gemeldet()
             # Ohne Text ist es keine Antwort — ``empty`` bekommt in
             # ``respond_agent`` den ehrlichen Satz statt einer leeren Blase.
             return schluss("text" if run.text else "empty")

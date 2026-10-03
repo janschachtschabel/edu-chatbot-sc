@@ -297,3 +297,31 @@ async def test_ohne_anmeldung_bleibt_es_bei_der_vorschau(welt, monkeypatch):
     zug2 = await _chat_zug(_folgezug("ja", zug1))
     assert zug2.early_response is None
     assert welt.ausgefuehrt == []
+
+
+async def test_ein_ja_ohne_die_anmeldung_des_vorzugs_fuehrt_nichts_aus(
+        welt, angemeldet, monkeypatch):
+    """Paket 4, A1 (Gegenprüfung des externen Audits, F05): Gemerkt wird nur mit
+    Anmeldung — eingelöst wurde aber ohne Blick auf die Identität. Ein „ja“ im
+    Folgezug OHNE persönlichen Block lief dann mit dem Dienst-Block und dem
+    Schlüssel, den die angemeldete Person ausgelöst hatte. Der Vorgang gehört
+    dem Aufrufer, der ihn auslöste."""
+    monkeypatch.setattr(llm, "chat_completion", _Modell([
+        *_drehbuch_zug_1(),
+        _text_antwort("Dafür musst du angemeldet sein."),
+    ]))
+    monkeypatch.setattr(agent_write, "caller_fingerprint", lambda: "person-a")
+
+    zug1 = await _chat_zug(_zug(_WUNSCH, entities={}))
+    assert (zug1.session_state.get("entities") or {}).get("_pending_write"), (
+        "Voraussetzung: der angemeldete Zug hat einen Vorgang gemerkt")
+
+    # Zug 2: dieselbe Sitzung, aber ohne die Anmeldung von Zug 1.
+    for modul in (agent_write, agent_deckel, agent_mod):
+        monkeypatch.setattr(modul, "has_personal_auth", lambda: False)
+    monkeypatch.setattr(agent_write, "caller_fingerprint", lambda: "")
+    monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "")
+
+    zug2 = await _chat_zug(_folgezug("ja", zug1))
+    assert zug2.early_response is None
+    assert welt.ausgefuehrt == []

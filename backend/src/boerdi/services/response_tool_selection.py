@@ -63,6 +63,7 @@ from typing import Any
 
 from boerdi.domain.antwort_werkzeug import antwort_werkzeug, inline_anzahl
 from boerdi.domain.content_types import medientyp_meint_sammlungen
+from boerdi.domain.host_capabilities import erlaubt
 from boerdi.domain.inline_documents import dokument_werkzeug
 from boerdi.domain.inline_grouping import MAX_SELECTABLE_CARDS
 from boerdi.domain.skill_bruecke import ZUSATZ_KEY as SKILL_ZUSATZ_KEY
@@ -138,6 +139,7 @@ def _select_active_tools(
     _degradation_no_tools: bool,
     *,
     pattern_label: str = "",
+    tool_mode: str | None = None,
 ) -> tuple[list[dict], Any, bool, bool]:
     """Stellt die aktive Tool-Liste fuer ``generate_response`` zusammen
     (Phasen P10-P11: pattern.tools / tools=[] / mcp-Source / Fallback,
@@ -154,6 +156,10 @@ def _select_active_tools(
     nicht, im Betrieb stand dort also immer „?". Schlüsselwort mit Vorgabe,
     damit kein Aufrufer angefasst werden muss; ohne ihn bleibt der Eintrag,
     was er war.
+
+    ``tool_mode`` ist die Erlaubnis der Einbettung (``environment.tool_mode``,
+    Paket 4 P4-1), dieselbe wie im Agent-Weg (``agent_tools``): ``read-only``
+    nimmt dem Angebot alles Schreibende.
 
     Returns ``(active_tools, _pattern_sources_decl,
     _rag_allowed_for_pattern, _inline_qr_enabled)`` — die Tool-Liste plus
@@ -302,10 +308,11 @@ def _select_active_tools(
                     break
 
     # ── Pattern-Sources-Gate (Welle C.5+, 2026-05-22) ─────────────
-    # Wenn das aktive Pattern ``sources`` deklariert hat UND "rag" NICHT
-    # darin steht, schalten wir die RAG-Pipeline komplett aus — weder
-    # Prefetch noch ``query_knowledge``-Tool werden bereitgestellt.
-    # Patterns ohne ``sources``-Deklaration (Default) bekommen alles.
+    # Steht "rag" NICHT in den ``sources`` des Musters, ist die RAG-Pipeline
+    # aus — weder Prefetch noch ``query_knowledge``-Tool. Ein Muster ohne
+    # ``sources``-Angabe hat die Vorgabe ``["mcp"]`` (``PatternDef``), also
+    # KEIN RAG; ``None`` kommt nur aus einer Muster-Ausgabe ohne den Schlüssel.
+    # (Bis Paket 4 stand hier, solche Muster bekämen alles.)
     _pattern_sources_decl = pattern_output.get("sources")
     _rag_allowed_for_pattern = (
         _pattern_sources_decl is None
@@ -507,4 +514,6 @@ def _select_active_tools(
     _inline_qr_enabled = _inline_anzahl > 0
     if _inline_qr_enabled:
         active_tools = active_tools + [antwort_werkzeug(_inline_anzahl, _max_chars())]
+    if tool_mode:
+        active_tools = [t for t in active_tools if erlaubt(t["function"]["name"], tool_mode)]
     return active_tools, _pattern_sources_decl, _rag_allowed_for_pattern, _inline_qr_enabled

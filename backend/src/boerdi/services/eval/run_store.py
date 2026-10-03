@@ -16,6 +16,7 @@ from typing import Any
 import httpx
 from fastapi import HTTPException
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.models import EvalRun
@@ -87,18 +88,43 @@ async def _ensure_no_running_run(session: AsyncSession) -> None:
         {"cutoff": cutoff},
     )
     await session.commit()
+    running = await _laufender_run(session)
+    if running:
+        raise _laeuft_schon(running)
+
+
+async def _laufender_run(session: AsyncSession) -> str | None:
     row = (
         await session.execute(
             select(EvalRun.id).where(EvalRun.status == "running").limit(1)
         )
     ).first()
-    if row:
-        raise HTTPException(
-            409,
-            f"Eval-Run {row[0]} läuft bereits — bitte abwarten oder abbrechen. "
-            "Parallele Runs teilen sich Chat-Backend und DB und würden sich "
-            "gegenseitig verfälschen.",
-        )
+    return row[0] if row else None
+
+
+def _laeuft_schon(run_id: str | None) -> HTTPException:
+    return HTTPException(
+        409,
+        f"Eval-Run {run_id or '?'} läuft bereits — bitte abwarten oder abbrechen. "
+        "Parallele Runs teilen sich Chat-Backend und DB und würden sich "
+        "gegenseitig verfälschen.",
+    )
+
+
+async def _lauf_anlegen(session: AsyncSession, run: EvalRun) -> None:
+    """Insert the new run row — the database decides a race (Paket 4, E2).
+
+    ``_ensure_no_running_run`` checks first, but two starts at the same moment
+    both passed that check and both inserted. The unique partial index from
+    migration 0006 lets only one ``running`` row exist; the loser gets the same
+    409 as the check, naming the run that won.
+    """
+    session.add(run)
+    try:
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        raise _laeuft_schon(await _laufender_run(session)) from e
 
 
 async def _finalize_run(

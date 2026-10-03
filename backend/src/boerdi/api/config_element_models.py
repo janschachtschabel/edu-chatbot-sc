@@ -136,7 +136,8 @@ class PatternEntry(BaseModel):
     default_length: str | None = None
     response_type: str | None = None
     sources: list[str] = []
-    rag_areas: list[str] = []
+    # ``None`` = nicht gesetzt (erbt die Bereiche, Paket 4 C6), ``[]`` = keine.
+    rag_areas: list[str] | None = None
     tools: list[str] = []
     output_mode: str | None = None
     precondition_slots: list[str] = []

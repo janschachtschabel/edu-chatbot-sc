@@ -27,6 +27,7 @@ from boerdi.services.eval.run_store import (
     _ensure_chat_reachable,
     _ensure_no_running_run,
     _finalize_run,
+    _lauf_anlegen,
     _register_run_task,
 )
 
@@ -91,7 +92,8 @@ async def start_generative_run(
         req.mode, len(personas), len(intents),
         req.scenarios_per_combo, req.turns_per_conv,
     )
-    session.add(EvalRun(
+    # Paket 4, E2: der Index aus 0006 entscheidet ein Rennen zweier Starts.
+    await _lauf_anlegen(session, EvalRun(
         id=run_id, status="running", mode="generative",
         config={
             "config_slug": req.config_slug,
@@ -110,7 +112,6 @@ async def start_generative_run(
             "avg_score": 0.0, "total_judged_turns": 0,
         },
     ))
-    await session.commit()
     # The resolved persona/intent dicts go to the job as-is: re-reading them by
     # id in the background would silently pick up a config edit made mid-run.
     task = _spawn_background(_execute_generative_run(
