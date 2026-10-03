@@ -10,6 +10,7 @@ Die zugehörigen Pläne:
 - **Responses-Plan:** [`2026-09-29-responses-systemteil-und-cache.md`](plans/2026-09-29-responses-systemteil-und-cache.md)
 - **Kette-Plan (Tempo):** [`2026-09-30-muster-kette-zeit.md`](plans/2026-09-30-muster-kette-zeit.md)
 - **Paket 1 (Sprache, Kleinbefunde):** [`2026-10-01-paket-1-sprache-und-kleinbefunde.md`](plans/2026-10-01-paket-1-sprache-und-kleinbefunde.md) — erledigt dort: Schnellantworten in der Antwortsprache, Startnachricht beim Sprachwechsel, Guide-Regeln ohne Neustart, Quick Wins aus Audit §7.
+- **Token-Streaming-Plan:** [`2026-10-01-token-streaming.md`](plans/2026-10-01-token-streaming.md) — freigegeben 2026-10-03 (alle Empfehlungen), Bau läuft; Stand im Log des Plans.
 - **Audit 2026-09-29:** [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md) — behoben dort: der Transport-Retry mit `confirmToken` und das Token im INFO-Log (früher §1.2/§1.3), `pip-audit` (jetzt in der CI), zwei Aufräumpunkte aus §5 und eine der unter Last kippenden Test-Dateien (siehe §5).
 
 ## 1 Befunde mit Wirkung im Betrieb
@@ -91,7 +92,7 @@ Die zugehörigen Pläne:
 - **Kette-Plan, Fast-Modus (`LLM_SERVICE_TIER=fast`):** einsetzen oder nicht?
   - Gemessen: Muster-Zug 9,1 → 7,7 s im Median.
   - Dagegen stehen 4- bis 5-facher Tokenpreis und keine EU-Datenresidenz. Über die b-api ist er ungemessen, er wirkt nur bei `LLM_PROVIDER=openai`.
-- **Kette-Plan, nächste Hebel:** Token-Streaming zum Widget (größter Hebel für die gefühlte Wartezeit, eigener Plan) und RAG parallel zur Klassifikation (M15: bis 2,0 s).
+- **Kette-Plan, nächste Hebel:** Token-Streaming zum Widget (Plan siehe oben, im Bau) und RAG parallel zur Klassifikation (M15: bis 2,0 s).
 - **Antwortsprache im Muster-Modus** (Paket 1, E1; gemessen 2026-10-01):
   - Der Muster-Modus antwortet in der Sprache der Oberfläche, auch wenn die Person anders schreibt: „Antworte auf Deutsch“ (`services/response_prompt_tools_text.py:63-69`).
   - Der Agent folgt der Sprache der Person und nimmt die Oberflächensprache als Rückfall.
@@ -141,7 +142,8 @@ Die zugehörigen Pläne:
 ## 5 Aufräumen
 
 - **Dateien über der 300-Zeilen-Regel** (Audit F-8), aus diesen Runden:
-  - Backend: `graph/nodes/respond_agent.py` (499; 2026-10-01 +22 für den Agent-Schnellantwort-Weg, +10 für Paket 2), `services/agent_loop.py` (491), `services/write_approval.py` (316; vorher 304, Paket 2 +12 für `merke_abnahme`).
+  - Backend: `graph/nodes/respond_agent.py` (508; 2026-10-01 +22 für den Agent-Schnellantwort-Weg, +10 für Paket 2, 2026-10-03 +9 für das Token-Streaming), `services/agent_loop.py` (507; +16 Token-Streaming), `services/write_approval.py` (316; vorher 304, Paket 2 +12 für `merke_abnahme`), `services/llm_streaming.py` (302; vorher 266, Token-Streaming T1/T2).
+  - Ältere Fidelity-Port-Dateien, die das Token-Streaming um wenige Zeilen verlängert hat: `graph/nodes/respond.py` (528), `services/tool_loop.py` (973), `domain/write_confirm.py` (439; Paket 2 +13), Widget `shell/chat-shell.component.ts` (862), `chat-shell.component.html` (323). Die neue Logik liegt in eigenen Modulen (`domain/stream_gate`, `domain/stream_preview`, `domain/tool_pflicht`, `services/token_stream`, `graph/nodes/respond_strom`).
   - Studio: `schema-form/schema-form.scss` (432), `views/curated-views.ts` (399), `i18n/catalogue/curated.ts` (386), `views/eval-run-detail.component.ts` (315), `schema-form/schema-field.component.ts` (311).
   - Die Schnitte stehen im Betriebsmodi-Plan §9.3.
 - Der Abnahme-Zug steht im Debug- und Qualitätsprotokoll auch im Agent-Modus als `M18` (Runde-2-Plan, N-5; kosmetisch).
