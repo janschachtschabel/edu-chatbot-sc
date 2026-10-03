@@ -44,7 +44,10 @@ Replika erbt den laufenden Zählerstand, statt ihn zurückzusetzen.
 
 ## Live-Protokoll (braucht den laufenden Prod-Stack)
 
-Voraussetzung: `deploy/compose.prod.yml` läuft mit `BACKEND_REPLICAS=3`.
+Voraussetzung: `deploy/compose.prod.yml` läuft mit `BACKEND_REPLICAS=3`. Das
+ist bewusst gesetzt: die Vorgabe ist 1 (Paket 4, L4), solange Züge einer Sitzung
+nur prozessintern gesperrt sind (Befundliste, C-H1) — die Protokolle hier prüfen
+den Mehr-Replika-Betrieb, sie empfehlen ihn noch nicht.
 
 ```powershell
 cd deploy
