@@ -564,8 +564,8 @@ erst mit rotem Test.
   - Mit einer verzögerten Antwort ließ sich das sicher nachstellen: Die alte Reihenfolge
     scheitert genau wie in der CI, die neue besteht.
   - Der Test wartet jetzt die fertige Antwort ab.
-  - Das Verhalten im Widget dahinter ist älter als das Streaming und steht als offener Befund
-    in `offene-befunde-und-todo.md` §1.4.
+  - Das Verhalten im Widget dahinter ist älter als das Streaming. Es stand als Befund §1.4 in
+    `offene-befunde-und-todo.md` und ist in Paket 3 (T6) behoben.
 - **E2E-Harness:** `sseBody` sendete `text_delta` noch als `{delta}`, und das Widget verwarf
   diese Rahmen. Es sendet jetzt den Vertrag `{text, pos}` (nur nichtleere Stücke, `pos` in
   Unicode-Zeichen).

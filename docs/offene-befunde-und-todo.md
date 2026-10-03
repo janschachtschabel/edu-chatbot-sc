@@ -11,6 +11,7 @@ Die zugehörigen Pläne:
 - **Kette-Plan (Tempo):** [`2026-09-30-muster-kette-zeit.md`](plans/2026-09-30-muster-kette-zeit.md)
 - **Paket 1 (Sprache, Kleinbefunde):** [`2026-10-01-paket-1-sprache-und-kleinbefunde.md`](plans/2026-10-01-paket-1-sprache-und-kleinbefunde.md) — erledigt dort: Schnellantworten in der Antwortsprache, Startnachricht beim Sprachwechsel, Guide-Regeln ohne Neustart, Quick Wins aus Audit §7.
 - **Token-Streaming-Plan:** [`2026-10-01-token-streaming.md`](plans/2026-10-01-token-streaming.md) — freigegeben 2026-10-03 (alle Empfehlungen), gebaut hinter `CHAT_TOKEN_STREAMING` (PR #9); Stand im Log des Plans.
+- **Paket 3 (offene Befunde, erste Runde):** [`2026-10-03-paket-3-offene-befunde.md`](plans/2026-10-03-paket-3-offene-befunde.md) — erledigt dort: Neustart mitten im Zug (früher §1.4), EscalationBlock-Vorgaben und Kennung `AGENT` (früher §2) sowie sieben Befunde aus dem Audit 2026-09-29 (Nachtrag dort in §7).
 - **Audit 2026-09-29:** [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md) — behoben dort: der Transport-Retry mit `confirmToken` und das Token im INFO-Log (früher §1.2/§1.3), `pip-audit` (jetzt in der CI), zwei Aufräumpunkte aus §5 und eine der unter Last kippenden Test-Dateien (siehe §5).
 
 ## 1 Befunde mit Wirkung im Betrieb
@@ -31,12 +32,6 @@ Die zugehörigen Pläne:
    - Das Feld steht zweimal in `domain/config_models/base_governance.py` (Z. 66 und 134). Kein Code liest es, einen Lösch-Job gibt es nicht.
    - Die Einstellung verspricht also eine Aufbewahrungsfrist, die niemand durchsetzt.
 3. **Befunde aus dem Audit 2026-09-29**, die noch offen sind: siehe [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md), Abschnitte 6–9. Behoben sind die Punkte der Tabelle in Abschnitt 4a (seit Tag `0.3`).
-4. **Neustart mitten im Zug bricht den Zug nicht ab.**
-   - `resetSession()` (Host-API) und der Neustart-Knopf leeren den Verlauf, der laufende Zug in `shell/send-message.ts` läuft aber weiter. Seine Antwort landet danach im frischen Verlauf, samt den Folgen aus `onResult` (Tour, Debug, Seitenaktion, Vorlesen). Laut Code bleibt die Eingabe bis dahin gesperrt.
-   - Der Kommentar am Neustart-Knopf (`chat-shell.component.html`) verspricht das Gegenteil: Gerade dann wolle man einen festgefahrenen Zug abbrechen.
-   - Ruft ein Host beim Abmelden `resetSession()`, während ein Zug läuft, sieht die nächste Person die Antwort der vorigen.
-   - Nachgewiesen am 2026-10-03 mit einer Playwright-Probe, die Antwort 1,5 s verzögert: Nach dem Reset standen „Moin! …“ und „Zweite Antwort.“ da. Aufgefallen als CI-Kippler in `e2e/embed.spec.ts` (PR #9). Der Test wartet seitdem den Zug ab; der Befund im Widget bleibt.
-   - Vorschlag: den Zug an die Sitzung binden (Sitzungs-ID beim Start merken, Ergebnis verwerfen, wenn sie sich geändert hat) und den Stream beim Neustart abbrechen. Vorher prüfen, ob der Rahmen `connected` die Sitzungs-ID mitten im Zug setzt.
 
 ## 2 Entscheidungen des Nutzers
 
@@ -48,17 +43,13 @@ Die zugehörigen Pläne:
   - „Zuletzt gezeigt“: so lassen oder umbauen? Der Block steht vor der Nachricht. Ab dem Folgezug trifft der Cache deshalb nur noch den Systemteil.
   - Paket D: der UI-Box-Status wandert an die Werkzeug-Nachricht und weicht damit bewusst von ALT ab.
   - Offen ist auch, ob AcademicCloud zwei `user`-Nachrichten hintereinander verträgt.
-- **ST-5-Lesart, Befunde 1, 2 und 4** (Betriebsmodi-Plan §13, Zeile „ST-5-Lesart: vier Befunde“):
+- **ST-5-Lesart, Befunde 1 und 2** (Betriebsmodi-Plan §13, Zeile „ST-5-Lesart: vier Befunde“; Befund 4 erledigt in Paket 3):
   - **Befund 1:** `create-triggers` und `edit-triggers` sind überholt.
     - Im ALT sind sie seit Welle E stillgelegt; die Erstell-Verben wirken heute über `classify-overrides`.
     - Empfehlung: bereinigen, also Modell, Seeds, Lader, Heuristiken, Studio-Abschnitte, Texte und Tests. Dabei fallen Dateien weg.
   - **Befund 2:** `01-base/rag-retrieval` wird von beiden Maschinen gelesen, ist aber nicht registriert.
     - Empfehlung: mit leerem Seed registrieren. Das Studio weist dann darauf hin, dass Umgebungsvariablen Vorrang haben.
     - Alternative: den nie beschreibbaren YAML-Zweig streichen.
-  - **Befund 4:** Die Muster-Kennung `AGENT` ist nicht reserviert.
-    - Eine Muster-Datei mit dieser Kennung setzte die Chip-Politik der Agent-Züge. In der Muster-Maschine schaltete sie den Karten-Schutz ab.
-    - Seit Runde 2 knüpft auch `turn_links.py` an diese Kennung an.
-    - Empfehlung: die Kennung reservieren. Der Lader überspringt sie mit Warnung, das Studio weist sie ab.
 - **D-10 und D-11** (Betriebsmodi-Plan §11):
   - D-10: Ersetzt oder ergänzt der Master-Skill im Muster-Modus Grundpersona und Domänen-Regeln?
   - D-11: In welcher Währung rechnet die Preistafel? Lokal steht sie auf USD.
@@ -66,9 +57,6 @@ Die zugehörigen Pläne:
 - **Studio-Akzent als Textfarbe:**
   - `--st-accent` erreicht 4,5:1 nur auf Weiß. Der aktive Navigationspunkt liegt bei 4,15:1, Links auf `--st-bg` bei 4,43:1.
   - Ein dunklerer Akzent wie `#1b64d9` läge überall bei mindestens 4,86:1. Das ist eine Frage der Markenfarbe.
-- **EscalationBlock-Vorgaben:**
-  - Im Modell stehen `legal_classifier` und `downgrade_false_positives` auf `False` (`base_governance.py:40/43`). Der Code fällt auf `True` zurück (`services/safety/service.py:81/177`).
-  - Angleichen hieße: im Modell `True` setzen und `area-schemas.fixture.ts` neu erzeugen.
 - **`AgentLimits.safety`** (`domain/config_models/engine.py:119`) hat keinen Leser, das Sicherheits-Gate läuft immer.
   - Entweder das Feld entfernen oder es bewusst stehen lassen. Der heutige Zustand ist der sichere.
 - **Ablehnungen als ERROR** (`services/mcp/transport.py:166`):
