@@ -285,6 +285,22 @@ describe("EvalGenerativeStartComponent", () => {
     expect(live?.querySelector("button")).toBeNull();
   });
 
+  // Paket 4, S1 (Audit 2026-09-29, F-M6): Die Region entstand erst MIT der
+  // Schätzung — eine Live-Region, die mit ihrem Text geboren wird, sagen
+  // Screenreader oft nicht an. Sie steht deshalb leer bereit.
+  it("hält die Kosten-Region leer bereit, bevor die Schätzung kommt", async () => {
+    await mount();
+    const region = h.el.querySelector<HTMLElement>(".egs-confirm [aria-live='polite']");
+    expect(region).not.toBeNull();
+    expect(region!.textContent).toBe(""); // ganz leer, sonst greift `:empty` nicht
+    expect(button("Ja, Lauf starten")).toBeNull(); // nicht scharf, keine Knöpfe
+
+    await check();
+
+    expect(h.el.querySelector(".egs-confirm [aria-live='polite']")).toBe(region);
+    expect(region!.textContent).toContain("Chat-Aufrufe");
+  });
+
   // ── C1-d4c ──────────────────────────────────────────────────────────
   //
   // Vier Anzahlen in einem Satz, jede mit eigener Mehrzahl. Eine

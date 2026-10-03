@@ -70,9 +70,7 @@
             [attr.aria-describedby]="keyError() ? baseId() + '-key-err' : null"
             (change)="rename($event)"
           />
-          @if (keyError()) {
-            <p class="sf-error" [id]="baseId() + '-key-err'" aria-live="polite">{{ keyError() }}</p>
-          }
+          <p class="sf-error live" [id]="baseId() + '-key-err'" aria-live="polite">{{ keyError() }}</p>
         </div>
       }
       <studio-schema-field

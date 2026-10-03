@@ -24,11 +24,31 @@ export interface AreaDocument {
   readonly data: Record<string, unknown>;
   /** `md` | `yaml` — decided by the store, never guessed from the shape. */
   readonly type: string;
+  /**
+   * The stored version (Paket 4, D5) — what a save names as `expected_version`.
+   * `null`: no row yet, a save creates it. Absent: the server did not say, and
+   * a save stays unconditional.
+   */
+  readonly version?: number | null;
 }
 
 export interface ConfigFileText {
   readonly path: string;
   readonly content: string;
+  /** As `AreaDocument.version`. */
+  readonly version?: number | null;
+}
+
+/** What a save asserts about the stored state (Paket 4, D5): 409 if untrue. */
+export type SaveCondition =
+  | { readonly expected_version: number }
+  | { readonly create: true }
+  | Record<string, never>;
+
+/** The condition for a document loaded at `version` (see `AreaDocument`). */
+export function saveCondition(version: number | null | undefined): SaveCondition {
+  if (typeof version === 'number') return { expected_version: version };
+  return version === null ? { create: true } : {};
 }
 
 @Injectable({ providedIn: 'root' })
@@ -48,16 +68,22 @@ export class ConfigApi {
   }
 
   /** `data` is the WHOLE document — the endpoint replaces, it does not merge. */
-  saveData(area: string, data: Record<string, unknown>): Promise<AreaDocument> {
-    return this.api.put<AreaDocument>(`/config/data/${encodeAreaPath(area)}`, { data });
+  saveData(
+    area: string, data: Record<string, unknown>, condition: SaveCondition = {},
+  ): Promise<AreaDocument> {
+    return this.api.put<AreaDocument>(
+      `/config/data/${encodeAreaPath(area)}`, { data, ...condition });
   }
 
   fileText(path: string): Promise<ConfigFileText> {
     return this.api.get<ConfigFileText>('/config/file', { path });
   }
 
-  saveFileText(path: string, content: string): Promise<{ status: string }> {
-    return this.api.put<{ status: string }>('/config/file', { path, content });
+  saveFileText(
+    path: string, content: string, condition: SaveCondition = {},
+  ): Promise<{ status: string; version?: number }> {
+    return this.api.put<{ status: string; version?: number }>(
+      '/config/file', { path, content, ...condition });
   }
 }
 

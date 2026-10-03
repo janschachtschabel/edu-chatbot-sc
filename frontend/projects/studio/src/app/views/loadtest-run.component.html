@@ -12,11 +12,11 @@
       <h3 class="lr-title">{{ t('ltRun.title', { id: r.id }) }}</h3>
       <p class="lr-status" [class]="'lr-status--' + r.status">
         {{ statusLabel(r.status) }}
-        @if (isRunning()) {
-          <span class="lr-progress" aria-live="polite">
+        <span class="lr-progress live" aria-live="polite">
+          @if (isRunning()) {
             {{ t('ltRun.progress', { done: r.stages.length, total: r.profile.stages.length }) }}
-          </span>
-        }
+          }
+        </span>
       </p>
       @if (isRunning()) {
         <button type="button" class="lr-stop" [disabled]="working()" (click)="arm()">

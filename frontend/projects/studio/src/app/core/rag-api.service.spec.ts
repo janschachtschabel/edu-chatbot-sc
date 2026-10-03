@@ -141,4 +141,15 @@ describe("RagApi", () => {
       "Fehler beim Konvertieren: kaputt",
     );
   });
+
+  it("nennt bei einem nicht lesbaren Format, was geht (Paket 4, C5)", () => {
+    // 415 heißt: keine kaputte Datei, sondern ein Format, das der Server nicht
+    // liest. Der Satz des Backends nennt die lesbaren; ohne ihn der eigene.
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, "de");
+    const { t } = setup().lang;
+    const mitSatz = new StudioApiError(415, "Dieses Dateiformat kann …", "/rag/ingest/file");
+    expect(describeRagError(mitSatz, t)).toBe("Dieses Dateiformat kann …");
+    const ohneSatz = new StudioApiError(415, "", "/rag/ingest/file");
+    expect(describeRagError(ohneSatz, t)).toContain("Markdown");
+  });
 });

@@ -150,7 +150,7 @@ export class ObjectListComponent {
     }
     const at = (entry.id as number) + 1;
     const items = [...this.items()];
-    items.splice(at, 0, copy);
+    items.splice(at, 0, mitFreierKennung(copy, items));
     this.select(at);
     this.edit.emit({ kind: 'set', path: this.path(), value: items });
   }
@@ -190,4 +190,21 @@ export class ObjectListComponent {
   private keys(): string[] {
     return this.entries().map((entry) => String(entry.id));
   }
+}
+
+/**
+ * Eine Listen-Kopie mit eigener Kennung (Paket 4, D5; externes Audit F14).
+ * Trug die Kopie die `id` des Originals, gab es sie zweimal — Regeln, Server
+ * und Flows werden über sie angesprochen. Einträge ohne `id` bleiben, wie sie
+ * sind; vergeben wird wie bei Map-Schlüsseln: `<id>_kopie`, `_kopie_2` …
+ */
+function mitFreierKennung(copy: unknown, items: readonly unknown[]): unknown {
+  if (!copy || typeof copy !== 'object' || Array.isArray(copy)) return copy;
+  const id = (copy as { id?: unknown }).id;
+  if (typeof id !== 'string' || !id) return copy;
+  const vergeben = items.flatMap((item) => {
+    const andere = item && typeof item === 'object' ? (item as { id?: unknown }).id : undefined;
+    return typeof andere === 'string' ? [andere] : [];
+  });
+  return { ...copy, id: nextFreeKey(vergeben, `${id}_kopie`) };
 }

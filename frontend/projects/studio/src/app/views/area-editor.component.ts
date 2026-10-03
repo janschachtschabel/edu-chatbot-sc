@@ -20,10 +20,12 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 
-import { ConfigApi } from '../core/config-api.service';
+import { ConfigApi, saveCondition } from '../core/config-api.service';
+import { StudioApiError } from '../core/studio-api-error';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AreaDocEditor, describeAreaError } from '../schema-form/area-doc-editor';
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
+import { SaveConflictComponent } from './save-conflict.component';
 import { TabBarComponent, type TabDef } from './tab-bar.component';
 import { warnOnUnload } from './unsaved-changes.guard';
 
@@ -34,7 +36,7 @@ const TAB_ID: Readonly<Record<Tab, string>> = { form: 'ae-form', raw: 'ae-raw' }
 
 @Component({
   selector: 'studio-area-editor',
-  imports: [SchemaFormComponent, TabBarComponent],
+  imports: [SaveConflictComponent, SchemaFormComponent, TabBarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './area-editor.component.html',
   styleUrl: './area-editor.component.scss',
@@ -58,6 +60,13 @@ export class AreaEditorComponent {
   readonly rawText = signal('');
   readonly filePath = signal('');
   private readonly savedRaw = signal('');
+  /**
+   * The version the raw text was read or saved as — its own, not the form's
+   * (Paket 4, D5). Between the two reads someone may save; one shared version
+   * then guarded content from the other read, and a save overwrote that change
+   * without a 409 (review 2026-10-04).
+   */
+  private readonly rawVersion = signal<number | null | undefined>(undefined);
 
   readonly activeTab = computed(() => TAB_ID[this.tab()]);
   /** The raw tab names the format it is about to show — md and yaml save through
@@ -77,6 +86,7 @@ export class AreaEditorComponent {
   readonly loadError = this.editor.loadError;
   readonly saving = this.editor.saving;
   readonly saveError = this.editor.saveError;
+  readonly conflict = this.editor.conflict;
   readonly status = this.editor.status;
   readonly schema = this.editor.schema;
   readonly doc = this.editor.doc;
@@ -137,6 +147,7 @@ export class AreaEditorComponent {
       this.filePath.set(path);
       this.rawText.set(file.content);
       this.savedRaw.set(file.content);
+      this.rawVersion.set(file.version);
     } catch (err) {
       if (this.editor.isCurrent(generation)) {
         this.editor.loadError.set(describeAreaError(err, this.t));
@@ -180,21 +191,24 @@ export class AreaEditorComponent {
     }
     this.rawText.set(this.savedRaw());
     this.editor.saveError.set('');
+    // A hint over the old state would offer a save that has nothing to save.
+    this.editor.conflict.set(null);
     this.editor.status.set(this.t('editor.discarded'));
   }
 
-  async save(): Promise<void> {
+  /** `force`: „Trotzdem speichern" after a conflict (Paket 4, D5). */
+  async save(force = false): Promise<void> {
     if (this.saving() || !this.dirty()) return;
     if (this.tab() === 'form') {
-      if (!(await this.editor.save(this.area()))) return;
+      if (!(await this.editor.save(this.area(), { force }))) return;
       // the YAML view is now stale — reload it rather than let it lie
       await this.loadRaw(this.area(), this.editor.currentGeneration);
       return;
     }
-    await this.saveRaw();
+    await this.saveRaw(force);
   }
 
-  private async saveRaw(): Promise<void> {
+  private async saveRaw(force: boolean): Promise<void> {
     if (this.blocked()) return;
     const area = this.area();
     const generation = this.editor.nextGeneration();
@@ -204,17 +218,30 @@ export class AreaEditorComponent {
     // The text as SENT: whatever is typed during the round-trips was never
     // written and must stay unsaved (Audit 2026-09-29).
     const sent = this.rawText();
+    const conflict = this.editor.conflict();
+    // Against the loaded version — or, saving anyway, exactly the one the
+    // conflict reported (Paket 4, D5).
+    const condition = saveCondition(
+      force && conflict ? conflict.version : this.rawVersion());
     try {
-      await this.config.saveFileText(this.filePath(), sent);
+      const written = await this.config.saveFileText(this.filePath(), sent, condition);
       if (!this.editor.isCurrent(generation)) return;
       this.savedRaw.set(sent);
+      this.editor.conflict.set(null);
+      this.rawVersion.set(written.version);
       const document = await this.config.data(area);
       if (!this.editor.isCurrent(generation)) return;
       this.editor.adopt(document.data);
       this.editor.docType.set(document.type);
+      if (document.version !== undefined) this.editor.version.set(document.version);
       this.editor.status.set(this.t('editor.saved'));
     } catch (err) {
-      if (this.editor.isCurrent(generation)) {
+      if (!this.editor.isCurrent(generation)) return;
+      if (err instanceof StudioApiError && err.status === 409) {
+        // the draft stays in the box; the hint offers reload or save anyway
+        this.editor.conflict.set(
+          err.conflict ?? { version: null, updatedBy: null, updatedAt: null });
+      } else {
         this.editor.saveError.set(describeAreaError(err, this.t));
       }
     } finally {

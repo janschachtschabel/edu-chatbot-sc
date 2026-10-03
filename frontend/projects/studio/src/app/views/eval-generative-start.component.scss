@@ -134,7 +134,9 @@
   font-weight: 600;
 }
 
-.egs-confirm {
+// The box exists unarmed too (its live region must precede the estimate);
+// it only takes shape once armed.
+.egs-confirm--armed {
   display: flex;
   flex-direction: column;
   gap: var(--st-2);

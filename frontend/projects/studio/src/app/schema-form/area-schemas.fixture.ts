@@ -2774,16 +2774,20 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       "extra_crisis_terms": {
         "default": [],
         "items": {
+          "maxLength": 100,
           "type": "string"
         },
+        "maxItems": 200,
         "title": "Extra Crisis Terms",
         "type": "array"
       },
       "extra_pii_terms": {
         "default": [],
         "items": {
+          "maxLength": 100,
           "type": "string"
         },
+        "maxItems": 200,
         "title": "Extra Pii Terms",
         "type": "array"
       },

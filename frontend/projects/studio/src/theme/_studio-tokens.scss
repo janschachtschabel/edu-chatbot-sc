@@ -17,6 +17,13 @@
 @use 'theme/tokens';
 
 :root {
+  // Both schemes are defined here (dark: the media block below). Telling the
+  // browser lets its own parts follow — select popups, checkboxes, scrollbars,
+  // date pickers — instead of staying light on a dark page (Paket 4, S2).
+  // The widget preview (`theme` auto) inherits it, as on any host page that
+  // declares both schemes.
+  color-scheme: light dark;
+
   // ── Surfaces ────────────────────────────────────────────────────────
   --st-bg: #f8fafc; // page behind the panels (ALT --bg)
   --st-panel: var(--boerdi-surface); // cards, sidebar, header

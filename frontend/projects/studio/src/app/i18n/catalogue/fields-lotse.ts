@@ -6,9 +6,10 @@
  * Nicht ausgewertet werden `default_enabled` (das Widget hat keinen
  * Lotsen-Schalter mehr, `ui/src/widget/guide-boot.ts`) und die ganzen
  * `rag_area_rules`: der Lotse nimmt dafür die eingebaute Liste `_RAG_AREA_URLS`
- * in `services/guide_qr_injector.py`. Derselbe Dienst übernimmt die
- * `message_rules` nur einmal je Prozess, Änderungen wirken erst nach einem
- * Neustart. `max_guide_targets_per_turn` wirkt nur mit 0 oder über 20, weil
+ * in `services/guide_qr_injector.py`. Derselbe Dienst übersetzt die
+ * `message_rules` neu, sobald sie sich ändern (2026-10-01) — ohne Neustart; ein
+ * ungültiges Muster weist schon das Speichern ab (Paket 4, D6).
+ * `max_guide_targets_per_turn` wirkt nur mit 0 oder über 20, weil
  * `services/widget_postprocess.py` ohnehin bis zu 20 Karten ein Sprungziel gibt;
  * dieses Ziel (`guide_url`) nutzt das Widget nur ohne eigenen Kartenlink
  * (`ui/src/cards/card-utils.ts`). `trusted_domains` ersetzt die
@@ -57,8 +58,7 @@ export const FIELDS_LOTSE: CataloguePart = {
     'feld.GuideRulesArea.message_rules.label': 'Nachrichten-Regeln',
     'feld.GuideRulesArea.message_rules.hint':
       'Passt eine Nutzernachricht auf eine Regel, bietet der Lotse einen Knopf „Bring mich hin“ '
-      + 'zur hinterlegten Seite an; leer = eingebaute Regeln. Änderungen wirken erst nach einem '
-      + 'Neustart des Backends.',
+      + 'zur hinterlegten Seite an; leer = eingebaute Regeln. Änderungen wirken sofort.',
     'feld.GuideRulesArea.rag_area_rules.label': 'Regeln je Wissensbereich',
     'feld.GuideRulesArea.rag_area_rules.hint':
       'Gedacht: Knopf zur Webseite eines Wissensbereichs, wenn die Antwort ihn beim Namen nennt '
@@ -67,7 +67,7 @@ export const FIELDS_LOTSE: CataloguePart = {
     'feld.MessageRule.pattern.label': 'Suchausdruck',
     'feld.MessageRule.pattern.hint':
       'Regulärer Ausdruck, der in der Nutzernachricht gesucht wird, Groß-/Kleinschreibung egal; '
-      + 'leer = Regel fällt weg. Ein ungültiger Ausdruck setzt alle Regeln außer Kraft.',
+      + 'leer = Regel fällt weg. Ein ungültiger Ausdruck wird beim Speichern abgewiesen.',
     'feld.MessageRule.label.label': 'Beschriftung',
     'feld.MessageRule.label.hint':
       'Text auf dem Knopf, etwa „Themenseite Klimawandel“; leer = Regel fällt weg.',
@@ -137,7 +137,7 @@ export const FIELDS_LOTSE: CataloguePart = {
     'feld.GuideRulesArea.message_rules.label': 'Message rules',
     'feld.GuideRulesArea.message_rules.hint':
       'If a user message matches a rule, the guide offers a “Take me there” button to the '
-      + 'stored page; empty = built-in rules. Changes only take effect after a backend restart.',
+      + 'stored page; empty = built-in rules. Changes take effect immediately.',
     'feld.GuideRulesArea.rag_area_rules.label': 'Rules per knowledge area',
     'feld.GuideRulesArea.rag_area_rules.hint':
       'Intended: a button to the website of a knowledge area when the answer names it (key = '
@@ -145,7 +145,7 @@ export const FIELDS_LOTSE: CataloguePart = {
     'feld.MessageRule.pattern.label': 'Search expression',
     'feld.MessageRule.pattern.hint':
       'Regular expression searched for in the user message, case-insensitive; empty = the rule '
-      + 'is dropped. A single invalid expression disables all rules.',
+      + 'is dropped. An invalid expression is refused on save.',
     'feld.MessageRule.label.label': 'Label',
     'feld.MessageRule.label.hint':
       'Text on the button, such as “Themenseite Klimawandel”; empty = the rule is dropped.',

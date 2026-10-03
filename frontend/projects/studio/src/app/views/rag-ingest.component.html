@@ -85,6 +85,7 @@
             #fileInput
             type="file"
             class="ri-file"
+            [accept]="lesbareFormate"
             [id]="idPrefix + '-file'"
             [attr.aria-describedby]="idPrefix + '-file-help'"
             (change)="onFile($event)"
@@ -141,11 +142,22 @@
     @if (error()) {
       <p class="cs-state cs-state--error" role="alert">{{ error() }}</p>
     }
-    @if (result(); as done) {
-      <p class="cs-state ri-result" aria-live="polite">
+    <!-- Die Lücke gehört in dieselbe angesagte Zeile: ein Absatz, der erst mit
+         dem Ergebnis entsteht, wird oft nicht vorgelesen (Paket 4, C2/S1). -->
+    <p class="cs-state ri-result live" aria-live="polite">
+      @if (result(); as done) {
         {{ plural('rag.ingest.done', done.chunks, {
              title: done.title || t('rag.ingest.untitled'), area: done.area }) }}
-      </p>
+        @if (done.missing) {
+          {{ plural('rag.embedMissing.hint', done.missing) }}
+        }
+      }
+    </p>
+    @if (result(); as done) {
+      @if (done.missing) {
+        <!-- Paket 4, C2: ohne Vektor findet die Suche diese Abschnitte erst nach dem Nachholen -->
+        <studio-rag-embed-missing />
+      }
       @if (done.preview) {
         <details class="ri-preview">
           <summary>{{ t('rag.ingest.previewTitle') }}</summary>

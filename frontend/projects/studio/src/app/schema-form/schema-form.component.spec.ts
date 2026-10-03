@@ -332,8 +332,10 @@ describe('SchemaFormComponent — free-form (raw) fields', () => {
     box.dispatchEvent(new Event('change'));
     await h.fixture.whenStable();
     const described = box.getAttribute('aria-describedby') ?? '';
-    expect(described).toContain(`${box.id}-err`);
-    expect(byId(h.el, `${box.id}-err`)).not.toBeNull();
+    // `-json-err`, not `-err`: that one names the server's problem with the
+    // field — the parse error has its own region since Paket 4 (S1).
+    expect(described).toContain(`${box.id}-json-err`);
+    expect(byId(h.el, `${box.id}-json-err`)?.textContent).toContain('JSON');
   });
 });
 
@@ -390,6 +392,26 @@ describe('SchemaFormComponent — refused map renames', () => {
     expect(h.emitted).toHaveLength(0);
     expect(key.value).toBe('FAQ');
     expect(h.el.textContent).toContain('darf nicht leer sein');
+  });
+
+  it('die Fehlerzeile einer einfachen Karte steht leer bereit (Paket 4, S1)', async () => {
+    // Karten mit einfachen Werten benennt das Feld selbst um, nicht die Liste.
+    const LABELS: JsonSchema = {
+      type: 'object',
+      properties: { labels: { type: 'object', additionalProperties: { type: 'string' } } },
+    };
+    const h = await mount(LABELS, { labels: { FAQ: 'a', OER: 'b' } });
+    const key = inputFor(h.el, 'Schlüssel');
+    const region = byId(h.el, `${key.id}-err`);
+    expect(region?.getAttribute('aria-live')).toBe('polite');
+    expect(region!.textContent).toBe(''); // ganz leer, sonst greift `:empty` nicht
+
+    key.value = 'OER';
+    key.dispatchEvent(new Event('change'));
+    await h.fixture.whenStable();
+
+    expect(byId(h.el, `${key.id}-err`)).toBe(region);
+    expect(region!.textContent).toContain('ist schon vergeben');
   });
 });
 
@@ -638,6 +660,20 @@ describe('SchemaFormComponent — Chips aus Katalogen (ST-2g)', () => {
     await h.fixture.whenStable();
     expect(h.emitted.length).toBe(vorher);
     expect(h.el.querySelector('.sf-chip-add .sf-error')?.textContent).toContain('„a“');
+  });
+
+  it('die Fehlerzeile steht leer bereit, bevor sie etwas meldet (Paket 4, S1)', async () => {
+    // Eine Live-Region, die erst mit ihrem Text entsteht, sagen Screenreader
+    // oft nicht an (Audit 2026-09-29, F-M6).
+    const h = await mount(WERKZEUGE, { tools: ['a'] });
+    const region = h.el.querySelector<HTMLElement>('.sf-chip-add .sf-error[aria-live="polite"]');
+    expect(region).not.toBeNull();
+    expect(region!.textContent).toBe(''); // ganz leer, sonst greift `:empty` nicht
+    neu(h.el).value = 'a';
+    h.el.querySelector<HTMLButtonElement>('.sf-chip-add button')!.click();
+    await h.fixture.whenStable();
+    expect(h.el.querySelector('.sf-chip-add .sf-error[aria-live="polite"]')).toBe(region);
+    expect(region!.textContent).toContain('„a“');
   });
 });
 

@@ -214,6 +214,18 @@ describe("RagIngestComponent", () => {
     );
   });
 
+  it("bietet nur Formate an, die der Server liest (Paket 4, C5)", async () => {
+    // Das Image enthält keine markitdown-Extras: DOCX, PDF, PPTX und XLSX
+    // scheitern. Hilfetext und Dateiauswahl versprachen sie trotzdem.
+    const { el } = await mount();
+    const input = el.querySelector<HTMLInputElement>(".ri-file");
+    expect(input?.getAttribute("accept")).toBe(".html,.htm,.md,.markdown,.txt,.csv,.json");
+    const hilfe = el.querySelector("#ri-file-help")?.textContent ?? "";
+    expect(hilfe).toContain("Markdown");
+    expect(hilfe).not.toContain("PDF");
+    expect(hilfe).not.toContain("DOCX");
+  });
+
   it("uploads a chosen file into the named area", async () => {
     const h = await mount();
     await type(h, ".ri-area", "recht");
@@ -258,6 +270,43 @@ describe("RagIngestComponent", () => {
     await tick();
     await h.fixture.whenStable();
     expect(h.el.querySelector(".ri-result")?.textContent).toContain("3");
+  });
+
+  // ── Paket 4, C2: Abschnitte ohne Einbettung ───────────────────────────
+  async function einlesenMit(missing: number): Promise<Harness> {
+    const h = await mount();
+    await pickMode(h, "text");
+    await type(h, ".ri-area", "wlo");
+    await type(h, ".ri-text", "Ein Satz.");
+    await submit(h);
+    h.http.expectOne("/studio/api/rag/ingest/text").flush({
+      status: "ok", area: "wlo", title: "Notiz", chunks: 3,
+      embedded: 3 - missing, missing,
+    });
+    await tick();
+    await h.fixture.whenStable();
+    return h;
+  }
+
+  it("bietet das Nachholen an, wenn Vektoren fehlten", async () => {
+    // Vorher stand der Erfolgssatz allein da, und Abschnitte ohne Vektor
+    // fand die Suche nie — niemand erfuhr davon.
+    const h = await einlesenMit(2);
+    expect(h.el.querySelector("studio-rag-embed-missing")).not.toBeNull();
+  });
+
+  it("ohne Lücke bietet es nichts an", async () => {
+    const h = await einlesenMit(0);
+    expect(h.el.querySelector("studio-rag-embed-missing")).toBeNull();
+  });
+
+  it("sagt die Lücke in der Ergebniszeile mit an", async () => {
+    // Prüfer 2026-10-04: Der Satz stand in einem Absatz, der mit dem Ergebnis
+    // entstand — ein Screenreader hörte „eingelesen“ und nie von der Lücke.
+    const h = await einlesenMit(2);
+    const zeile = h.el.querySelector(".ri-result[aria-live='polite']")!.textContent ?? "";
+    expect(zeile).toContain("2 Abschnitte ohne Einbettung");
+    expect(h.el.textContent!.split("ohne Einbettung").length - 1).toBe(1); // nur dort
   });
 
   it("beugt den Erfolgssatz als Ganzes, nicht nur ein Wort darin", async () => {
@@ -333,5 +382,28 @@ describe("RagIngestComponent", () => {
     );
     await submit(h);
     h.http.expectOne("/studio/api/rag/ingest/text"); // exactly one, not two
+  });
+});
+
+// ── Paket 4, S1 (Audit 2026-09-29, F-M6) ─────────────────────────────────────
+describe("RagIngestComponent — Live-Region", () => {
+  it("die Ergebniszeile steht leer bereit und bekommt den Satz danach", async () => {
+    // Sie entstand erst mit dem Ergebnis — und blieb dann oft stumm.
+    const h = await mount();
+    const region = h.el.querySelector<HTMLElement>(".ri-result[aria-live='polite']");
+    expect(region).not.toBeNull();
+    expect(region!.textContent).toBe(""); // ganz leer, sonst greift `:empty` nicht
+
+    await pickMode(h, "text");
+    await type(h, ".ri-area", "wlo");
+    await type(h, ".ri-text", "Ein Satz.");
+    await submit(h);
+    h.http.expectOne("/studio/api/rag/ingest/text")
+      .flush({ status: "ok", area: "wlo", title: "Notiz", chunks: 3 });
+    await tick();
+    await h.fixture.whenStable();
+
+    expect(h.el.querySelector(".ri-result[aria-live='polite']")).toBe(region);
+    expect(region!.textContent).toContain("3");
   });
 });

@@ -342,3 +342,32 @@ describe("LoadtestRunComponent", () => {
     h.http.verify();
   });
 });
+
+// ── Paket 4, S1 (Audit 2026-09-29, F-M6) ─────────────────────────────────────
+// Die Fortschrittszeile stand in `@if (isRunning())` und entstand damit samt
+// Text. Wechselt die Ansicht auf einen laufenden Lauf, sagte der Screenreader
+// die erste Meldung nicht an. Die Region steht jetzt leer bereit.
+describe("LoadtestRunComponent — Live-Region", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("steht leer bereit und bekommt den Fortschritt danach", async () => {
+    const h = await mount(COMPLETED);
+    const region = h.el.querySelector<HTMLElement>(".lr-progress[aria-live='polite']");
+    expect(region).not.toBeNull();
+    expect(region!.textContent).toBe(""); // ganz leer, sonst greift `:empty` nicht
+
+    h.fixture.componentInstance.id.set("lt-2");
+    await settle(h);
+    h.http.expectOne(url("lt-2")).flush({ ...RUNNING, id: "lt-2" });
+    await settle(h);
+
+    expect(h.el.querySelector(".lr-progress[aria-live='polite']")).toBe(region);
+    expect(region!.textContent).toContain("Stufe 1 von 2 fertig");
+  });
+});

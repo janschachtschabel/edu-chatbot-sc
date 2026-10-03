@@ -125,12 +125,30 @@ describe('ObjectListComponent — Liste│Editor (ST-3)', () => {
   });
 
   it('dupliziert den gewählten Eintrag direkt dahinter und wählt die Kopie', async () => {
+    // Bis Paket 4 (D5) trug die Kopie dieselbe Kennung wie das Original — und
+    // dieser Test sagte das zu (externes Audit F14). Jetzt: eine freie.
     const h = await mount(LISTE, FLOWS);
     knopf(h, 'Duplizieren').click();
     const edit = h.emitted.at(-1) as { value: unknown[] };
-    expect(edit.value).toEqual([FLOWS[0], FLOWS[0], FLOWS[1], FLOWS[2]]);
+    expect(edit.value).toEqual([
+      FLOWS[0], { ...FLOWS[0], id: 'GV-1_kopie' }, FLOWS[1], FLOWS[2],
+    ]);
     await neuerWert(h, edit.value);
     expect(h.el.querySelectorAll('.ol-entry')[1].getAttribute('aria-current')).toBe('true');
+  });
+
+  it('vergibt beim zweiten Duplikat die nächste freie Kennung', async () => {
+    const h = await mount(LISTE, [FLOWS[0], { ...FLOWS[0], id: 'GV-1_kopie' }]);
+    knopf(h, 'Duplizieren').click();
+    const edit = h.emitted.at(-1) as { value: { id: string }[] };
+    expect(edit.value[1].id).toBe('GV-1_kopie_2');
+  });
+
+  it('lässt einen Eintrag ohne Kennung beim Duplizieren, wie er ist', async () => {
+    const h = await mount(LISTE, [{ title: 'ohne' }]);
+    knopf(h, 'Duplizieren').click();
+    const edit = h.emitted.at(-1) as { value: unknown[] };
+    expect(edit.value).toEqual([{ title: 'ohne' }, { title: 'ohne' }]);
   });
 
   it('löscht den gewählten Eintrag — eine Formular-Änderung, Verwerfen holt ihn zurück', async () => {
@@ -161,5 +179,23 @@ describe('ObjectListComponent — Liste│Editor (ST-3)', () => {
     const h = await mount(KARTE, { alpha: { title: 'A' } });
     knopf(h, 'Duplizieren').click();
     expect(h.emitted.at(-1)).toEqual({ kind: 'set', path: ['rules', 'alpha_kopie'], value: { title: 'A' } });
+  });
+});
+
+// ── Paket 4, S1 (Audit 2026-09-29, F-M6) ─────────────────────────────────────
+describe('ObjectListComponent — Live-Region', () => {
+  it('der Schlüssel-Fehler steht leer bereit und bekommt den Text danach', async () => {
+    const h = await mount(KARTE, { alpha: { title: 'A' }, beta: { title: 'B' } });
+    const region = h.el.querySelector<HTMLElement>('.ol-editor .sf-error[aria-live="polite"]');
+    expect(region).not.toBeNull();
+    expect(region!.textContent).toBe(''); // ganz leer, sonst greift `:empty` nicht
+
+    const schluessel = h.el.querySelector<HTMLInputElement>('.ol-editor .ol-key')!;
+    schluessel.value = 'beta'; // vergeben
+    schluessel.dispatchEvent(new Event('change'));
+    await h.fixture.whenStable();
+
+    expect(h.el.querySelector('.ol-editor .sf-error[aria-live="polite"]')).toBe(region);
+    expect(region!.textContent).toContain('beta');
   });
 });

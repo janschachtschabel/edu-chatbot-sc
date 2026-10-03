@@ -6,10 +6,11 @@
  *
  * Schlüsselschema wie in `fields-layer-doc.ts`: `feld.<Modell>.<feld>.{label,hint}`.
  * Geprüft gegen `services/safety/service.py`, `services/safety/regex_gate.py` und
- * `services/agent_gate.py`. Vier Felder wertet der Code nicht aus, und der Text
- * sagt das: `double_check` (gelesen, nie genutzt), `extra_crisis_terms` und
- * `extra_pii_terms` (der Regex-Filter hat feste Listen), `confidence_adjustments`
- * (`services/outcome_service.py` rechnet mit festen Werten). `escalation.provider`
+ * `services/agent_gate.py`. Zwei Felder wertet der Code nicht aus, und der Text
+ * sagt das: `double_check` (gelesen, nie genutzt) und `confidence_adjustments`
+ * (`services/outcome_service.py` rechnet mit festen Werten). `extra_crisis_terms`
+ * und `extra_pii_terms` prüft das Regex-Gate seit Paket 4 (D8) nach seinen festen
+ * Listen (`services/safety/zusatz_begriffe.py`). `escalation.provider`
  * ist nur beschreibend; `escalation.mode` und `escalation.legal_classifier` wirken
  * nur als Rückfall, wenn `security_level` kein Preset findet.
  */
@@ -55,12 +56,15 @@ export const FIELDS_SICHERHEIT: CataloguePart = {
       + 'Wert, aber keine Prüfstufe nutzt ihn.',
     'feld.SafetyConfigArea.extra_crisis_terms.label': 'Zusätzliche Krisenbegriffe',
     'feld.SafetyConfigArea.extra_crisis_terms.hint':
-      'Weitere Wörter, die als Krisensignal gelten sollen. Wird derzeit nicht ausgewertet: '
-      + 'der Regex-Filter erkennt Krisen nur an seinen fest eingebauten Mustern.',
+      'Weitere Wörter, die als Krisensignal gelten — wie die eingebauten Muster: Es folgt die '
+      + 'Schutzantwort, die Materialsuche ist gesperrt. Ein Begriff trifft ab Wortanfang '
+      + '(„klinge“ trifft „klingenscharf“), Groß-/Kleinschreibung egal; höchstens 200 Begriffe '
+      + 'zu je 100 Zeichen.',
     'feld.SafetyConfigArea.extra_pii_terms.label': 'Zusätzliche PII-Begriffe',
     'feld.SafetyConfigArea.extra_pii_terms.hint':
-      'Weitere Begriffe für persönliche Daten (PII). Wird derzeit nicht ausgewertet: der '
-      + 'Regex-Filter erkennt persönliche Daten nur an seinen fest eingebauten Mustern.',
+      'Weitere Begriffe für persönliche Daten (PII). Ein Treffer sperrt die Volltextsuche, wie '
+      + 'die eingebauten Muster. Ein Begriff trifft ab Wortanfang, Groß-/Kleinschreibung egal; '
+      + 'höchstens 200 Begriffe zu je 100 Zeichen.',
     'feld.SafetyConfigArea.crisis_blocked_tools.label': 'Gesperrte Werkzeuge bei Krise',
     'feld.SafetyConfigArea.crisis_blocked_tools.hint':
       'Werkzeuge, die gesperrt werden, wenn die Moderation eine harte Kategorie meldet. Der '
@@ -163,12 +167,14 @@ export const FIELDS_SICHERHEIT: CataloguePart = {
       + 'value, but no check stage uses it.',
     'feld.SafetyConfigArea.extra_crisis_terms.label': 'Extra crisis terms',
     'feld.SafetyConfigArea.extra_crisis_terms.hint':
-      'Further words meant to count as a crisis signal. Currently not evaluated: the regex '
-      + 'filter detects a crisis only by its built-in patterns.',
+      'Further words that count as a crisis signal — like the built-in patterns: the protective '
+      + 'reply follows and material search is blocked. A term matches from the start of a word '
+      + '(“blade” matches “bladed”), case-insensitive; at most 200 terms of 100 characters each.',
     'feld.SafetyConfigArea.extra_pii_terms.label': 'Extra PII terms',
     'feld.SafetyConfigArea.extra_pii_terms.hint':
-      'Further terms for personal data (PII). Currently not evaluated: the regex filter '
-      + 'detects personal data only by its built-in patterns.',
+      'Further terms for personal data (PII). A match blocks full-text search, like the '
+      + 'built-in patterns. A term matches from the start of a word, case-insensitive; at most '
+      + '200 terms of 100 characters each.',
     'feld.SafetyConfigArea.crisis_blocked_tools.label': 'Crisis-blocked tools',
     'feld.SafetyConfigArea.crisis_blocked_tools.hint':
       'Tools that are blocked when moderation reports a hard-block category. On a crisis or '

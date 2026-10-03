@@ -6,6 +6,8 @@
 // by a stack of shadowed cards: at four levels deep (policy -> rules -> item ->
 // match) shadows read as noise, a rule reads as structure.
 
+@use '../views/live-region'; // error lines stand empty before their message (F-M6)
+
 // Ein aufklappbarer Abschnitt (S5). `<details>` und kein eigener Umschalter:
 // nativ per Tastatur bedienbar und nativ angesagt (auf/zu), ohne eigenes ARIA.
 .sf-section {

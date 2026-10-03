@@ -9,6 +9,17 @@
  */
 import type { FieldProblem } from './field-problems';
 
+/**
+ * What a 409 says about the stored state (Paket 4, D5): someone saved since
+ * the editor loaded. `version` is `null` when the area was deleted meanwhile;
+ * `updatedAt` is ISO in UTC, formatted where it is shown.
+ */
+export interface SaveConflict {
+  readonly version: number | null;
+  readonly updatedBy: string | null;
+  readonly updatedAt: string | null;
+}
+
 export class StudioApiError extends Error {
   constructor(
     /** HTTP status, or 0 when the request never reached the server. */
@@ -19,6 +30,8 @@ export class StudioApiError extends Error {
     /** A 422's entries, each with its document path (ST-2e) — so the form can
      *  put every message next to its field instead of in one line below it. */
     readonly problems: readonly FieldProblem[] = [],
+    /** A 409's stored state — who saved, when, which version. */
+    readonly conflict: SaveConflict | null = null,
   ) {
     super(`HTTP ${status} ${url} — ${detail}`);
     this.name = 'StudioApiError';

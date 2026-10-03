@@ -35,9 +35,7 @@ import {
       (input)="onInput($event)"
       (change)="commit($event)"
     ></textarea>
-    @if (error()) {
-      <p class="sf-error" [id]="fieldId() + '-err'" aria-live="polite">{{ error() }}</p>
-    }
+    <p class="sf-error live" [id]="errorId()" aria-live="polite">{{ error() }}</p>
   `,
   styleUrl: './schema-form.scss',
 })
@@ -73,8 +71,13 @@ export class JsonValueComponent {
 
   readonly text = computed(() => this.draft() ?? serialize(this.value()));
   readonly rows = computed(() => Math.min(20, Math.max(3, this.text().split('\n').length)));
+  /** Its own suffix: the field names its server problem `<id>-err`, and since
+   *  this region stands permanently the two would share an id (review
+   *  2026-10-04) — `aria-describedby` then found the empty region. */
+  readonly errorId = computed(() => `${this.fieldId()}-json-err`);
+
   readonly describedBy = computed(() => {
-    const ids = [this.describedByBase(), this.error() ? `${this.fieldId()}-err` : null];
+    const ids = [this.describedByBase(), this.error() ? this.errorId() : null];
     return ids.filter(Boolean).join(' ') || null;
   });
 

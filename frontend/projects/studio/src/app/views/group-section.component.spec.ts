@@ -406,3 +406,84 @@ describe("GroupSectionComponent mit Feld-Reitern", () => {
     expect(fieldLabels(el)).toEqual(expect.arrayContaining(["label", "tools"]));
   });
 });
+
+// ── Paket 4, D5 (externes Audit F14) ──────────────────────────────────────────
+
+async function neuesDokument(h: Harness, name: string): Promise<void> {
+  const input = h.el.querySelector<HTMLInputElement>(".gs-new-name");
+  input!.value = name;
+  input!.dispatchEvent(new Event("input"));
+  await h.fixture.whenStable();
+  h.el.querySelector<HTMLButtonElement>(".gs-new-go")?.click();
+  await h.fixture.whenStable();
+}
+
+describe("GroupSectionComponent — Anlegen und Konflikt (Paket 4, D5)", () => {
+  it("legt nur an und nimmt die Kennung aus dem ganzen Titel", async () => {
+    // „Neue Zielgruppe" und „Neue Lehrkraft" ergaben beide die Kennung `neue`,
+    // und das Speichern war ein Upsert: das zweite ersetzte ein Bestehendes.
+    const h = await mount();
+    await neuesDokument(h, "Neue Zielgruppe");
+    const req = h.http.expectOne("/studio/api/config/file");
+    expect(req.request.body.create).toBe(true);
+    expect(req.request.body.path).toBe("03-patterns/neue-zielgruppe.md");
+    expect(req.request.body.content).toContain('id: "neue-zielgruppe"\n');
+  });
+
+  it("schreibt die Kennung als Zeichenkette, auch wenn sie wie eine Zahl aussieht", async () => {
+    // Prüfer 2026-10-04: YAML 1.1 liest `2024` als Zahl und `no` als
+    // Wahrheitswert; das Modell verlangt eine Zeichenkette, und das Anlegen
+    // scheiterte mit 422 „passt nicht zum Schema“.
+    const h = await mount();
+    await neuesDokument(h, "2024");
+    const req = h.http.expectOne("/studio/api/config/file");
+    expect(req.request.body.content).toContain('id: "2024"\n');
+  });
+
+  it("sagt bei 409, dass es die Kennung schon gibt", async () => {
+    // Die Liste im Browser kann veraltet sein — der Server entscheidet.
+    const h = await mount();
+    await neuesDokument(h, "Neue Zielgruppe");
+    h.http.expectOne("/studio/api/config/file").flush(
+      { detail: { message: "x", version: 1, updated_by: "studio-form",
+                  updated_at: "2026-10-03T20:41:00+00:00" } },
+      { status: 409, statusText: "Conflict" });
+    await tick();
+    await h.fixture.whenStable();
+    expect(h.el.textContent).toContain("gibt es schon");
+  });
+
+  it("zeigt nach einem Konflikt beim Speichern den Hinweis und speichert trotzdem", async () => {
+    const h = await mount();
+    h.el.querySelectorAll<HTMLButtonElement>(".gs-entry")[0].click();
+    await h.fixture.whenStable();
+    const key = "03-patterns/m01-orientierung";
+    h.http.expectOne(`/studio/api/config/schema/${key}`).flush(AREA_SCHEMAS["03-patterns"]);
+    h.http.expectOne(`/studio/api/config/data/${key}`).flush({
+      area: key, data: { frontmatter: { id: "M01" }, body: "alt" }, type: "md", version: 2,
+    });
+    await tick();
+    await h.fixture.whenStable();
+    settleChoices(h.http);
+    h.fixture.componentInstance.editor.setDoc({ frontmatter: { id: "M01" }, body: "neu" });
+    await h.fixture.whenStable();
+    h.el.querySelector<HTMLButtonElement>(".gs-save")?.click();
+    await h.fixture.whenStable();
+    const erster = h.http.expectOne(`/studio/api/config/data/${key}`);
+    expect(erster.request.body.expected_version).toBe(2);
+    erster.flush(
+      { detail: { message: "x", version: 3, updated_by: "studio-form",
+                  updated_at: "2026-10-03T20:41:00+00:00" } },
+      { status: 409, statusText: "Conflict" });
+    await tick();
+    await h.fixture.whenStable();
+    expect(h.el.querySelector("studio-save-conflict")?.textContent).toContain("inzwischen");
+
+    const trotzdem = [...h.el.querySelectorAll<HTMLButtonElement>("studio-save-conflict button")]
+      .find((b) => b.textContent?.includes("Trotzdem speichern"));
+    trotzdem!.click();
+    await h.fixture.whenStable();
+    expect(h.http.expectOne(`/studio/api/config/data/${key}`).request.body.expected_version)
+      .toBe(3);
+  });
+});

@@ -3,6 +3,7 @@ import { provideHttpClient, withXhr } from "@angular/common/http";
 import {
   HttpTestingController,
   provideHttpClientTesting,
+  type TestRequest,
 } from "@angular/common/http/testing";
 import { provideZonelessChangeDetection } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
@@ -30,6 +31,10 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 async function mount(
   data: Record<string, unknown> = { welcome: { greeting: "Moin" } },
   raw = "welcome:\n  greeting: Moin\n",
+  /** Paket 4, D5: die gespeicherte Version; ohne Angabe sagt der Server keine. */
+  version?: number,
+  /** Die Version, die der Rohtext-Abruf meldet — anders, wenn dazwischen gespeichert wurde. */
+  rawVersion = version,
 ): Promise<Harness> {
   TestBed.resetTestingModule();
   // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen
@@ -56,12 +61,12 @@ async function mount(
   const http = TestBed.inject(HttpTestingController);
   await fixture.whenStable();
   http.expectOne(SCHEMA_URL).flush(AREA_SCHEMAS[AREA]);
-  http.expectOne(DATA_URL).flush({ area: AREA, data, type: "yaml" });
+  http.expectOne(DATA_URL).flush({ area: AREA, data, type: "yaml", version });
   await tick();
   await fixture.whenStable();
   http
     .expectOne((r) => r.url === FILE_URL)
-    .flush({ path: `${AREA}.yaml`, content: raw });
+    .flush({ path: `${AREA}.yaml`, content: raw, version: rawVersion });
   await tick();
   await fixture.whenStable();
   return { fixture, el: fixture.nativeElement as HTMLElement, http };
@@ -507,5 +512,131 @@ describe("AreaEditorComponent — markdown areas", () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       "Markdown",
     );
+  });
+});
+
+// ── Paket 4, D5 (externes Audit F14): Speichern mit Konfliktschutz ────────────
+// Wer als zweites speichert, überschrieb bisher still. Jetzt: 409, der Hinweis
+// erscheint, der Entwurf bleibt — und die Wahl liegt beim Redakteur.
+
+const KONFLIKT = {
+  detail: {
+    message: "Dieser Bereich wurde inzwischen geändert.",
+    version: 5,
+    updated_by: "config-file-api",
+    updated_at: "2026-10-03T20:41:00+00:00",
+  },
+};
+
+async function rohtextGeaendert(h: Harness, text: string): Promise<HTMLTextAreaElement> {
+  button(h.el, "Rohtext").click();
+  await h.fixture.whenStable();
+  const box = h.el.querySelector<HTMLTextAreaElement>("#ae-raw")!;
+  box.value = text;
+  box.dispatchEvent(new Event("input"));
+  await h.fixture.whenStable();
+  return box;
+}
+
+async function antworte(h: Harness, req: TestRequest, body: object, status = 200): Promise<void> {
+  req.flush(body, status === 200 ? undefined : { status, statusText: "Conflict" });
+  await tick();
+  await h.fixture.whenStable();
+}
+
+const hinweis = (h: Harness): HTMLElement | null =>
+  h.el.querySelector<HTMLElement>("studio-save-conflict [role='group']");
+
+describe("AreaEditorComponent — Konflikt beim Speichern (Paket 4, D5)", () => {
+  it("sendet beim Rohtext die geladene Version mit", async () => {
+    const h = await mount(undefined, undefined, 3);
+    await rohtextGeaendert(h, "welcome:\n  greeting: Tach\n");
+    button(h.el, "Speichern").click();
+    await h.fixture.whenStable();
+    const put = h.http.expectOne((r) => r.url === FILE_URL && r.method === "PUT");
+    expect(put.request.body).toEqual({
+      path: `${AREA}.yaml`, content: "welcome:\n  greeting: Tach\n", expected_version: 3,
+    });
+  });
+
+  it("zeigt den Hinweis und behält den Entwurf", async () => {
+    const h = await mount(undefined, undefined, 3);
+    await editGreeting(h, "Mein Entwurf");
+    button(h.el, "Speichern").click();
+    await h.fixture.whenStable();
+    await antworte(h, h.http.expectOne(DATA_URL), KONFLIKT, 409);
+    expect(hinweis(h)?.textContent).toContain("inzwischen");
+    expect(hinweis(h)?.textContent).toContain("Rohtext"); // der Weg, ausgeschrieben
+    expect(greetingInput(h.el).value).toBe("Mein Entwurf");
+  });
+
+  it("speichert den Rohtext trotzdem — gegen die gemeldete Version", async () => {
+    const h = await mount(undefined, undefined, 3);
+    await rohtextGeaendert(h, "welcome:\n  greeting: Tach\n");
+    button(h.el, "Speichern").click();
+    await h.fixture.whenStable();
+    await antworte(h, h.http.expectOne((r) => r.url === FILE_URL && r.method === "PUT"),
+      KONFLIKT, 409);
+    button(h.el, "Trotzdem speichern").click();
+    await h.fixture.whenStable();
+    const put = h.http.expectOne((r) => r.url === FILE_URL && r.method === "PUT");
+    expect(put.request.body.expected_version).toBe(5);
+    await antworte(h, put, { status: "saved", version: 6 });
+    await antworte(h, h.http.expectOne(DATA_URL), {
+      area: AREA, type: "yaml", data: { welcome: { greeting: "Tach" } }, version: 6,
+    });
+    expect(hinweis(h)).toBeNull();
+  });
+
+  it("Neu laden holt Formular und Rohtext neu und nimmt den Hinweis weg", async () => {
+    const h = await mount(undefined, undefined, 3);
+    await editGreeting(h, "Mein Entwurf");
+    button(h.el, "Speichern").click();
+    await h.fixture.whenStable();
+    await antworte(h, h.http.expectOne(DATA_URL), KONFLIKT, 409);
+    button(h.el, "Neu laden").click();
+    await h.fixture.whenStable();
+    h.http.expectOne(SCHEMA_URL).flush(AREA_SCHEMAS[AREA]);
+    await antworte(h, h.http.expectOne(DATA_URL), {
+      area: AREA, type: "yaml", data: { welcome: { greeting: "Vom anderen" } }, version: 5,
+    });
+    await antworte(h, h.http.expectOne((r) => r.url === FILE_URL), {
+      path: `${AREA}.yaml`, content: "welcome:\n  greeting: Vom anderen\n", version: 5,
+    });
+    expect(hinweis(h)).toBeNull();
+    expect(greetingInput(h.el).value).toBe("Vom anderen");
+  });
+
+  // Prüfer 2026-10-04: Zwischen den beiden Lesevorgängen speicherte jemand. Die
+  // spätere Version (5) galt dann für beide Reiter — das Formular zeigte aber
+  // Stand 4 und überschrieb die fremde Änderung ohne 409.
+  it("speichert das Formular gegen die Version seines eigenen Lesevorgangs", async () => {
+    const h = await mount(undefined, undefined, 4, 5);
+    await editGreeting(h, "Hallo");
+    button(h.el, "Speichern").click();
+    await h.fixture.whenStable();
+    expect(h.http.expectOne(DATA_URL).request.body.expected_version).toBe(4);
+  });
+
+  it("speichert den Rohtext gegen die Version seines eigenen Lesevorgangs", async () => {
+    const h = await mount(undefined, undefined, 4, 5);
+    await rohtextGeaendert(h, "welcome:\n  greeting: Tach\n");
+    button(h.el, "Speichern").click();
+    await h.fixture.whenStable();
+    const put = h.http.expectOne((r) => r.url === FILE_URL && r.method === "PUT");
+    expect(put.request.body.expected_version).toBe(5);
+  });
+
+  it("Verwerfen nimmt den Konflikt-Hinweis weg", async () => {
+    // Sonst stand er über dem alten Stand, und „Trotzdem speichern“ tat nichts.
+    const h = await mount(undefined, undefined, 3);
+    await editGreeting(h, "Mein Entwurf");
+    button(h.el, "Speichern").click();
+    await h.fixture.whenStable();
+    await antworte(h, h.http.expectOne(DATA_URL), KONFLIKT, 409);
+    expect(hinweis(h)).not.toBeNull();
+    button(h.el, "Verwerfen").click();
+    await h.fixture.whenStable();
+    expect(hinweis(h)).toBeNull();
   });
 });

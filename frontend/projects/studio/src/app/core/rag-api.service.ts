@@ -56,7 +56,18 @@ export interface IngestResult {
   readonly area: string;
   readonly title: string;
   readonly chunks: number;
+  /** Seit Paket 4 (C2): Abschnitte mit Vektor und ohne. Ohne Vektor findet sie
+   *  die Suche erst nach {@link RagApi.embedMissing}. */
+  readonly embedded?: number;
+  readonly missing?: number;
   readonly preview?: string;
+}
+
+/** Antwort von `POST /api/rag/embed`; `total` fehlt, wenn nichts zu tun war. */
+export interface EmbedMissingResult {
+  readonly status: string;
+  readonly embedded: number;
+  readonly total?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -122,6 +133,11 @@ export class RagApi {
     form.set('content', content);
     return this.api.post<IngestResult>('/rag/ingest/text', form);
   }
+
+  /** Abschnitte ohne Vektor nachträglich einbetten — über alle Bereiche. */
+  embedMissing(): Promise<EmbedMissingResult> {
+    return this.api.post<EmbedMissingResult>('/rag/embed', {});
+  }
 }
 
 /** The endpoints read `area`/`title` from the form body, not the query string. */
@@ -154,6 +170,10 @@ export function describeRagError(err: unknown, t: Translate): string {
       return err.detail || t('rag.error.unreadable');
     case 413:
       return t('rag.error.tooLarge');
+    case 415:
+      // Ein Format, das der Server nicht liest (Paket 4, C5) — keine kaputte
+      // Datei. Der Satz des Backends nennt die lesbaren Formate.
+      return err.detail || t('rag.error.format');
     default:
       return err.detail || t('error.unknown');
   }

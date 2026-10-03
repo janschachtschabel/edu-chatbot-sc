@@ -32,6 +32,41 @@ describe("StudioApi", () => {
     expect(await done).toEqual({ ok: true });
   });
 
+  it("liest einen Konflikt (409) mit Version, Wer und Wann (Paket 4, D5)", async () => {
+    const done = api.put("/config/data/01-base/welcome-config", { data: {} });
+    http.expectOne("/studio/api/config/data/01-base/welcome-config").flush(
+      {
+        detail: {
+          message: "Dieser Bereich wurde inzwischen geändert.",
+          version: 5,
+          updated_by: "studio-form",
+          updated_at: "2026-10-03T20:41:00+00:00",
+        },
+      },
+      { status: 409, statusText: "Conflict" },
+    );
+    const err = (await done.then(
+      () => null,
+      (e: unknown) => e,
+    )) as StudioApiError;
+    expect(err.status).toBe(409);
+    // the sentence, not "Conflict" — an object detail fell through to statusText
+    expect(err.detail).toBe("Dieser Bereich wurde inzwischen geändert.");
+    expect(err.conflict).toEqual({
+      version: 5,
+      updatedBy: "studio-form",
+      updatedAt: "2026-10-03T20:41:00+00:00",
+    });
+  });
+
+  it("liest die Version einer Liste aus X-Config-Version (Paket 4, D5)", async () => {
+    const done = api.getVersioned<unknown[]>("/config/mcp-servers");
+    http
+      .expectOne("/studio/api/config/mcp-servers")
+      .flush([{ id: "a" }], { headers: { "X-Config-Version": "7" } });
+    expect(await done).toEqual({ body: [{ id: "a" }], version: 7 });
+  });
+
   it("sends extra headers on a POST when asked (ST-8e: the engine header)", async () => {
     const done = api.post("/chat", { message: "hallo" }, undefined, { "X-Boerdi-Engine": "agent" });
     const req = http.expectOne("/studio/api/chat");
@@ -168,6 +203,31 @@ describe("StudioApi", () => {
         ctx: { ge: 70 },
       },
     ]);
+  });
+
+  it("nennt beim Wiederherstellen den Bereich jedes Einwands (Paket 4, D3)", async () => {
+    // Eine Sicherung trägt dreißig Bereiche; „frontmatter.priority“ allein sagt
+    // nicht, welches Muster gemeint ist.
+    const done = api.post("/config/snapshots/s1/restore", null);
+    http.expectOne("/studio/api/config/snapshots/s1/restore").flush(
+      {
+        detail: [
+          {
+            area: "03-patterns/m04-wissens-antwort",
+            loc: ["frontmatter", "priority"],
+            msg: "Input should be a valid integer",
+          },
+        ],
+      },
+      { status: 422, statusText: "Unprocessable Content" },
+    );
+    const err = (await done.then(
+      () => null,
+      (e: unknown) => e,
+    )) as StudioApiError;
+    expect(err.detail).toBe(
+      "03-patterns/m04-wissens-antwort › frontmatter.priority: Input should be a valid integer",
+    );
   });
 
   it("strips only the LEADING body segment — `body` is a real config key", async () => {

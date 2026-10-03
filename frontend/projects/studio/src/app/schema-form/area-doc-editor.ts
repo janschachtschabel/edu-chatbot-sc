@@ -21,10 +21,10 @@
  */
 import { computed, signal } from '@angular/core';
 
-import type { ConfigApi } from '../core/config-api.service';
+import { type ConfigApi, saveCondition } from '../core/config-api.service';
 import { describeProblem, type FieldProblem, pathKey } from '../core/field-problems';
 import { formatDecimal } from '../core/format';
-import { StudioApiError } from '../core/studio-api-error';
+import { type SaveConflict, StudioApiError } from '../core/studio-api-error';
 import type { Translate } from '../i18n/studio-language.service';
 import { getAt } from './form-value';
 import type { JsonSchema } from './json-schema';
@@ -54,6 +54,16 @@ export class AreaDocEditor {
    * not wipe the markers on the others.
    */
   readonly problems = signal<readonly FieldProblem[]>([]);
+  /**
+   * The stored version this document was loaded or saved as (Paket 4, D5) —
+   * a save asserts it. `null`: no row yet; `undefined`: the server did not say.
+   */
+  readonly version = signal<number | null | undefined>(undefined);
+  /**
+   * Set by a 409: someone saved since this document was loaded. The draft
+   * stays; the editor decides between reloading and saving anyway.
+   */
+  readonly conflict = signal<SaveConflict | null>(null);
 
   private readonly savedDoc = signal('{}');
   readonly dirty = computed(() => JSON.stringify(this.doc()) !== this.savedDoc());
@@ -86,6 +96,7 @@ export class AreaDocEditor {
     this.saveError.set('');
     this.fieldErrors.set([]);
     this.problems.set([]);
+    this.conflict.set(null);
     try {
       const [schema, document] = await Promise.all([
         this.config.schema(area),
@@ -95,6 +106,7 @@ export class AreaDocEditor {
       this.schema.set(schema);
       this.adopt(document.data);
       this.docType.set(document.type);
+      this.version.set(document.version);
       return true;
     } catch (err) {
       if (this.isCurrent(generation)) this.loadError.set(describeAreaError(err, this.t));
@@ -104,8 +116,14 @@ export class AreaDocEditor {
     }
   }
 
-  /** `true` when the document was written and the clean state moved with it. */
-  async save(area: string): Promise<boolean> {
+  /**
+   * `true` when the document was written and the clean state moved with it.
+   *
+   * `force` after a conflict: save anyway, against exactly the version the
+   * conflict reported — another save since then is a new conflict, not
+   * something to overwrite unseen.
+   */
+  async save(area: string, options: { force?: boolean } = {}): Promise<boolean> {
     if (this.saving() || !this.dirty()) return false;
     if (this.blocked()) {
       this.saveError.set(
@@ -122,8 +140,12 @@ export class AreaDocEditor {
     // reverted that edit silently (Audit 2026-09-29). Only the baseline
     // moves in that case, so the edit stays and counts as unsaved.
     const sent = JSON.stringify(this.doc());
+    const conflict = this.conflict();
+    const condition = options.force && conflict
+      ? saveCondition(conflict.version)
+      : saveCondition(this.version());
     try {
-      const saved = await this.config.saveData(area, JSON.parse(sent));
+      const saved = await this.config.saveData(area, JSON.parse(sent), condition);
       if (!this.isCurrent(generation)) return false;
       if (JSON.stringify(this.doc()) === sent) {
         this.adopt(saved.data);
@@ -131,12 +153,19 @@ export class AreaDocEditor {
         this.savedDoc.set(JSON.stringify(saved.data));
       }
       this.docType.set(saved.type);
+      this.version.set(saved.version);
+      this.conflict.set(null);
       this.problems.set([]);
       this.status.set(this.t('editor.saved'));
       return true;
     } catch (err) {
       // the edit stays in `doc` — clearing it would lose what was typed
       if (!this.isCurrent(generation)) return false;
+      if (err instanceof StudioApiError && err.status === 409) {
+        // The hint names who saved when; a second, generic line would repeat it.
+        this.conflict.set(err.conflict ?? { version: null, updatedBy: null, updatedAt: null });
+        return false;
+      }
       const problems = err instanceof StudioApiError ? err.problems : [];
       this.problems.set(problems);
       this.saveError.set(problems.length
@@ -180,6 +209,8 @@ export class AreaDocEditor {
     this.doc.set(JSON.parse(this.savedDoc()) as Record<string, unknown>);
     this.problems.set([]);
     this.saveError.set('');
+    // A hint over the old state would offer a save that has nothing to save.
+    this.conflict.set(null);
     this.status.set(this.t('editor.discarded'));
   }
 
