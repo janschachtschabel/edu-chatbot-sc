@@ -86,10 +86,8 @@ test('resetSession() und updateContext() wirken wirklich, nicht nur am Typ', asy
   await w.waitForTurns(2);
   expect(w.turnRequests()[1].environment.page_context.thema).toBe('Bruchrechnen');
   // Erst den zweiten Zug zu Ende laufen lassen: `waitForTurns` kennt nur die
-  // Anfrage, und die Ladeblase zählt selbst als `.msg-bubble`. Lief
-  // `resetSession()` mitten in den Zug, landete dessen Antwort im frischen
-  // Verlauf (CI-Kippler 2026-10-03, PR #9; das Widget-Verhalten dahinter ist
-  // offen: docs/offene-befunde-und-todo.md §1.4).
+  // Anfrage, und die Ladeblase zählt selbst als `.msg-bubble` (CI-Kippler
+  // 2026-10-03, PR #9). Der Reset MITTEN im Zug hat seinen eigenen Test unten.
   await expect(page.locator('.msg-bubble').last()).toContainText('Zweite Antwort.');
   await expect(page.locator('.typing-row')).toHaveCount(0);
 
@@ -103,6 +101,43 @@ test('resetSession() und updateContext() wirken wirklich, nicht nur am Typ', asy
   await page.locator('.btn-send').click();
   await w.waitForTurns(3);
   expect(w.turnRequests()[2].session_id).not.toBe(before);
+});
+
+test('resetSession() mitten im Zug: die späte Antwort landet nicht im frischen Verlauf', async ({ page }) => {
+  // Paket 3, T6 (früher Befundliste §1.4). Der Browser hält die Antwort 1,5 s zurück, NACHDEM der
+  // Harness die Anfrage erfüllt hat — so läuft der Zug noch, wenn der Host
+  // zurücksetzt. Die Marke sagt, wann die späte Antwort beim Widget ankommt.
+  await page.addInitScript(() => {
+    const orig = window.fetch.bind(window);
+    window.fetch = async (input: any, init?: any) => {
+      const res = await orig(input, init);
+      const url = typeof input === 'string' ? input : input.url;
+      if (String(url).includes('/api/chat/stream')) {
+        await new Promise((r) => setTimeout(r, 1500));
+        (window as any).__spaeteAntwortDa = true;
+      }
+      return res;
+    };
+  });
+  const w = await mount(page);
+  w.enqueue(chatResponse({ content: 'Späte Antwort.' }));
+  await w.open();
+  await page.locator('.chat-input').fill('Frage');
+  await page.locator('.btn-send').click();
+  await w.waitForTurns(1);
+  await expect(page.locator('.typing-row')).toHaveCount(1);   // der Zug läuft
+
+  await page.locator('boerdi-chat').evaluate((n: any) => n.resetSession());
+  await expect(page.locator('.msg-bubble')).toHaveCount(1);
+  // Frei sofort, nicht erst nach dem alten Zug: die Frist liegt unter dessen
+  // 1,5 s (mit der Vorgabe von 5 s bestand das auch ohne die Freigabe).
+  await expect(page.locator('.chat-input')).toBeEnabled({ timeout: 500 });
+
+  await page.waitForFunction(() => (window as any).__spaeteAntwortDa === true);
+  // Dem Widget Zeit für Verarbeitung und Darstellung geben.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 50))));
+  await expect(page.locator('.msg-bubble')).toHaveCount(1);
+  await expect(page.getByText('Späte Antwort.')).toHaveCount(0);
 });
 
 test('das Panel wird erst beim ersten Öffnen gemountet (Lazy-Mount) und bleibt dann erhalten', async ({ page }) => {

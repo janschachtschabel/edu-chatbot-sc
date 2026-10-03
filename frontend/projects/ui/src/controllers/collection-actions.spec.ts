@@ -34,6 +34,7 @@ interface Calls {
 interface CtxOpts {
   respond?: (message: string, env: any, action?: string, actionParams?: any) => ChatResponse | Promise<ChatResponse>;
   isLoading?: () => boolean;
+  sessionId?: () => string;
   initialMessages?: ChatMessage[];
   messagesContainer?: () => HTMLElement | undefined;
   t?: CollectionActionsContext['t'];
@@ -49,6 +50,7 @@ function makeCtx(opts: CtxOpts = {}): { ctx: CollectionActionsContext; calls: Ca
       calls.sent.push({ message, env, action, actionParams });
       return opts.respond ? opts.respond(message, env, action, actionParams) : makeResp();
     },
+    sessionId: opts.sessionId ?? (() => 'bb-1'),
     isLoading: opts.isLoading ?? (() => loading),
     setLoading: (v) => {
       loading = v;
@@ -348,5 +350,56 @@ describe('loadMore', () => {
     expect(calls.loading).toEqual([true, false]);
     expect(getMessages()[0].cards).toEqual([{ id: 'a' }]); // unverändert
     spy.mockRestore();
+  });
+});
+
+// Paket 3, T6 (Review 2026-10-03): eine Karten-Aktion gehört der Sitzung, in der
+// sie begann. Ein Lernpfad braucht 10–20 s; kam er nach einem Neustart an,
+// landete er im frischen Verlauf und gab die Eingabe mitten im neuen Zug frei.
+describe('Karten-Aktionen nach einem Neustart', () => {
+  const aktionen: Array<[string, (ctx: CollectionActionsContext) => Promise<void>]> = [
+    ['browseCollection', (ctx) => browseCollection('c1', 'Mathe', ctx)],
+    ['showContentText', (ctx) => showContentText('n1', 'Mathe', ctx)],
+    ['generateLearningPath', (ctx) => generateLearningPath('c1', 'Mathe', ctx)],
+  ];
+
+  it.each(aktionen)('%s: kein Rendern, keine Freigabe', async (_name, aktion) => {
+    let sitzung = 'bb-1';
+    const { ctx, calls } = makeCtx({
+      sessionId: () => sitzung,
+      respond: () => { sitzung = 'bb-2'; return makeResp({ content: 'Spät' }); },
+    });
+    await aktion(ctx);
+    expect(calls.bot.map((b) => b.content)).toEqual(['']);   // nur die Ladeblase
+    expect(calls.loading).toEqual([true]);
+  });
+
+  it.each(aktionen)('%s: auch der Fehlerweg bleibt still', async (_name, aktion) => {
+    let sitzung = 'bb-1';
+    const { ctx, calls } = makeCtx({
+      sessionId: () => sitzung,
+      respond: () => { sitzung = 'bb-2'; throw new Error('weg'); },
+    });
+    await aktion(ctx);
+    expect(calls.bot.map((b) => b.content)).toEqual(['']);
+    expect(calls.loading).toEqual([true]);
+  });
+
+  it('loadMore: kein Zusammenführen, keine Freigabe', async () => {
+    let sitzung = 'bb-1';
+    const pagination: PaginationInfo = {
+      total_count: 12, skip_count: 5, page_size: 5, has_more: true, collection_id: 'c1', collection_title: 'Mathe',
+    };
+    const { ctx, calls, getMessages } = makeCtx({
+      sessionId: () => sitzung,
+      initialMessages: [makeMsg({ id: 'm1', cards: [{ id: 'a' }] as unknown as WloCard[], pagination })],
+      respond: () => {
+        sitzung = 'bb-2';
+        return makeResp({ cards: [{ id: 'b' }] as unknown as WloCard[] });
+      },
+    });
+    await loadMore('m1', ctx);
+    expect(calls.loading).toEqual([true]);
+    expect(getMessages()[0].cards).toEqual([{ id: 'a' }]);
   });
 });

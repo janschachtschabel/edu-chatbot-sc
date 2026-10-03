@@ -27,6 +27,7 @@ function makeCtx(over: Partial<TourContext> = {}): { ctx: TourContext; calls: Ca
   const ctx: TourContext = {
     sendMessage: over.sendMessage ?? (async () => makeResp()),
     pageContext: over.pageContext ?? (() => ({})),
+    sessionId: over.sessionId ?? (() => 'bb-1'),
     isLoading: over.isLoading ?? (() => loading),
     setLoading: (v) => {
       loading = v;
@@ -145,5 +146,37 @@ describe('TourController', () => {
     expect(empty.tourEnv('start')).toEqual({ tour_action: 'start' });
     const full = new TourController(makeCtx({ pageContext: () => ({ nodeId: 'n1' }) }).ctx);
     expect(full.tourEnv('tick')).toEqual({ tour_action: 'tick', page_context: { nodeId: 'n1' } });
+  });
+});
+
+// Paket 3, T6 (Review 2026-10-03): ein Tour-Aufruf gehört der Sitzung, in der er
+// begann. Nach einem Neustart fasst sein Ausgang den frischen Verlauf nicht an
+// und gibt das Laden nicht frei — sonst gäbe er die Eingabe mitten in einem
+// neuen Zug frei.
+describe('TourController nach einem Neustart', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('startTour: kein Rendern, keine Freigabe, kein Tour-Merker', async () => {
+    let sitzung = 'bb-1';
+    const { ctx, calls } = makeCtx({
+      sessionId: () => sitzung,
+      sendMessage: async () => { sitzung = 'bb-2'; return makeResp({ content: 'Tour' }); },
+    });
+    const tc = new TourController(ctx);
+    await tc.startTour();
+    expect(calls.bot.map((b) => b.content)).toEqual(['']);   // nur die Ladeblase
+    expect(calls.loading).toEqual([true]);
+    expect(tc.isTourFlagSet()).toBe(false);
+  });
+
+  it('sendTourTick: kein Rendern, keine Freigabe', async () => {
+    let sitzung = 'bb-1';
+    const { ctx, calls } = makeCtx({
+      sessionId: () => sitzung,
+      sendMessage: async () => { sitzung = 'bb-2'; return makeResp({ content: 'Station' }); },
+    });
+    await new TourController(ctx).sendTourTick();
+    expect(calls.bot.map((b) => b.content)).toEqual(['']);
+    expect(calls.loading).toEqual([true]);
   });
 });

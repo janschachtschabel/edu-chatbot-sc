@@ -17,6 +17,7 @@
  */
 import { ChatResponse } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
+import { sitzungsWache } from '../session/session-id';
 import { ChatStreamEvent } from '../stream/stream-client';
 
 /** Live-Zustand/Seiteneffekte der Shell, die der Orchestrator braucht — als
@@ -26,6 +27,8 @@ export interface SendMessageContext {
   currentInput: () => string;
   /** `this.userInput = ''`. */
   clearInput: () => void;
+  /** LIVE-Sitzungs-ID. Ein Zug gehört der Sitzung, in der er begann. */
+  sessionId: () => string;
   /** Globales `isLoading`-Flag (Turn-Serialisierung). */
   isLoading: () => boolean;
   setLoading: (v: boolean) => void;
@@ -86,6 +89,13 @@ export async function runSendMessage(
   ctx.addUserMessage(msg);
   ctx.setLoading(true);
 
+  // Der Zug gehört der Sitzung, in der er begann (`sitzungsWache`, Paket 3 T6):
+  // nach einem Neustart keine Blase, kein `onResult`, kein Laden/Fokus — und vor
+  // allem kein POST-Rückfall, der die alte Frage unter der neuen Sitzungs-ID
+  // noch einmal stellte. Der Stream läuft im Hintergrund aus; ihn abzubrechen
+  // liefe in genau diesen Rückfall.
+  const veraltet = sitzungsWache(() => ctx.sessionId());
+
   // Loading-Bubble + Scroll dorthin.
   const loadingId = ctx.addBotMessage('', true);
   ctx.setScrollTarget(loadingId);
@@ -99,6 +109,7 @@ export async function runSendMessage(
     // Antwort ersetzt sie unten wie bisher. Eine Nutzlast ohne Text oder ohne
     // Position (`pos`) wird verworfen.
     const onEvent = (evt: ChatStreamEvent) => {
+      if (veraltet()) return;
       if (evt.event === 'text_delta') {
         const text = evt.data?.text;
         const pos = evt.data?.pos;
@@ -116,6 +127,7 @@ export async function runSendMessage(
     try {
       resp = await ctx.stream(msg, onEvent, env, action, actionParams);
     } catch (streamErr) {
+      if (veraltet()) return;
       // B10: Server lebt, wird aber nicht fertig → KEIN Fallback-POST (würde
       // den hängenden Turn erneut anstoßen); ehrliche Meldung, Antwort wird
       // serverseitig fertig gespeichert und steht im Verlauf.
@@ -151,6 +163,7 @@ export async function runSendMessage(
       resp = await ctx.post(msg, env, action, actionParams);
     }
 
+    if (veraltet()) return;
     // Loading entfernen, echte Antwort anhängen.
     ctx.removeMessage(loadingId);
     const botMsgId = ctx.addBotMessage(
@@ -164,6 +177,7 @@ export async function runSendMessage(
     // autoSpeak) — Shell-verdrahtet.
     ctx.onResult(resp, msg);
   } catch {
+    if (veraltet()) return;
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(ctx.t('error.generic'));
     ctx.setScrollTarget(errId);

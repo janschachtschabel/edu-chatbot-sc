@@ -139,3 +139,17 @@ export function generateSessionId(): string {
   // Last-resort fallback for very old browsers
   return 'bb-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
 }
+
+/**
+ * Ein Vorgang gehört der Sitzung, in der er begann (Paket 3, T6). Nach
+ * `restart()`/`resetSession()` fasst sein Ausgang den frischen Verlauf nicht an:
+ * keine Blase, kein `onResult`, keine Freigabe des Ladens — die gehört dem
+ * Neustart (`shell/lifecycle.ts`). Ohne die Wache gäbe ein später Ausgang die
+ * Eingabe mitten in einem neuen Zug frei (Review 2026-10-03).
+ *
+ * Beim Start rufen, bevor das Laden gesetzt wird; liefert `veraltet()`.
+ */
+export function sitzungsWache(sessionId: () => string): () => boolean {
+  const sitzung = sessionId();
+  return () => sessionId() !== sitzung;
+}

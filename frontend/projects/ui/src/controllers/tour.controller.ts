@@ -25,6 +25,7 @@ import {
   WebLink,
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
+import { sitzungsWache } from '../session/session-id';
 
 /** Exakter Text des Start-Chips, der die Web-Tour direkt startet. */
 export const TOUR_START_LABEL = 'Web-Tour starten';
@@ -38,6 +39,9 @@ export interface TourContext {
   sendMessage: (message: string, env: any) => Promise<ChatResponse>;
   /** `parsedPageContext` — Seiten-Kontext für `tourEnv`. */
   pageContext: () => Record<string, any>;
+  /** LIVE-Sitzungs-ID: ein Vorgang gehört der Sitzung, in der er begann
+   *  (`sitzungsWache`, Paket 3 T6). */
+  sessionId: () => string;
   /** Globales `isLoading`-Flag der Shell (Turn-Serialisierung). */
   isLoading: () => boolean;
   setLoading: (v: boolean) => void;
@@ -115,17 +119,20 @@ export class TourController {
   /** Startet die geführte Web-Tour (Klick auf den Startbutton). */
   async startTour(): Promise<void> {
     if (this.ctx.isLoading()) return;
+    const veraltet = sitzungsWache(() => this.ctx.sessionId());
     this.ctx.addUserMessage(TOUR_START_LABEL);
     this.ctx.setLoading(true);
     const loadingId = this.ctx.addBotMessage('', true);
     this.ctx.setScrollTarget(loadingId);
     try {
       const resp = await this.ctx.sendMessage('Web-Tour starten', this.tourEnv('start'));
+      if (veraltet()) return;
       this.ctx.removeMessage(loadingId);
       this.setTourFlag(true);
       this.applyTourState(resp);
       this.renderTourResponse(resp);
     } catch {
+      if (veraltet()) return;
       this.ctx.removeMessage(loadingId);
       this.ctx.addBotMessage(this.ctx.t('error.tourStart'));
     }
@@ -137,17 +144,20 @@ export class TourController {
   async sendTourTick(): Promise<void> {
     if (this.ctx.isLoading() || this._tourTicked) return;
     this._tourTicked = true;
+    const veraltet = sitzungsWache(() => this.ctx.sessionId());
     this.ctx.setLoading(true);
     const loadingId = this.ctx.addBotMessage('', true);
     this.ctx.setScrollTarget(loadingId);
     try {
       const resp = await this.ctx.sendMessage('[tour-tick]', this.tourEnv('tick'));
+      if (veraltet()) return;
       this.ctx.removeMessage(loadingId);
       this.applyTourState(resp);
       const hasContent = !!(resp.content || '').trim()
         || !!(resp.quick_replies && resp.quick_replies.length);
       if (hasContent) this.renderTourResponse(resp);
     } catch {
+      if (veraltet()) return;
       this.ctx.removeMessage(loadingId);
       // Tick-Fehler beim Page-Load still schlucken (kein Error-Bubble).
     }
