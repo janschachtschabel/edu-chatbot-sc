@@ -297,6 +297,19 @@ def remember_pending(
 
 
 
+def entities_for_display(entities: dict[str, Any]) -> dict[str, Any]:
+    """``entities`` für eine Anzeige außerhalb des Zugs (Studio-Sitzungsansicht).
+
+    Der Merkposten bleibt sichtbar — Werkzeug, Argumente, Frist —, nur sein
+    Schlüssel weicht :data:`TOKEN_PLACEHOLDER`: er löst eine bestätigte Änderung
+    aus und gehört allein dem Vorlauf (Review Paket 2, 2026-10-01). Eine Kopie;
+    die Sitzung selbst bleibt unberührt.
+    """
+    merkposten = entities.get("_pending_write")
+    if not isinstance(merkposten, dict) or "token" not in merkposten:
+        return entities
+    return {**entities, "_pending_write": {**merkposten, "token": TOKEN_PLACEHOLDER}}
+
 def is_expired(pending: dict[str, Any] | None, *, now: float) -> bool:
     """Ist die Frist des Schlüssels verstrichen? (E4)
 

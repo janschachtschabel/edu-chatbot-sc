@@ -29,6 +29,7 @@ from boerdi.domain.write_confirm import (
     TOKEN_TTL_SECONDS,
     change_fingerprint,
     confirmed_args,
+    entities_for_display,
     extract_confirm_token,
     is_affirmation,
     is_confirmable,
@@ -736,3 +737,16 @@ class TestNahtFrist:
         assert "abgelaufen" in caplog.text
         assert "Argumente weichen" not in caplog.text
         assert _TOKEN not in caplog.text, "Der Schlüssel gehört nie ins Protokoll"
+
+
+def test_anzeige_ersetzt_nur_den_schluessel_und_laesst_die_sitzung_stehen():
+    merkposten = {"tool": "wlo_create_collection", "token": "Ax9-_QmZ2kLpWvRt7NbYcE4s",
+                  "minted_at": 1.0}
+    entities = {"thema": "Bruchrechnung", "_pending_write": merkposten}
+
+    anzeige = entities_for_display(entities)
+
+    assert anzeige["_pending_write"]["token"] != "Ax9-_QmZ2kLpWvRt7NbYcE4s"
+    assert anzeige["_pending_write"]["tool"] == "wlo_create_collection"
+    assert merkposten["token"] == "Ax9-_QmZ2kLpWvRt7NbYcE4s", "die Sitzung selbst bleibt unberührt"
+    assert entities_for_display({"thema": "x"}) == {"thema": "x"}

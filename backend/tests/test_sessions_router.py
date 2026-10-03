@@ -145,6 +145,28 @@ def test_get_session_returns_alt_shape_without_reparsing(client, monkeypatch):
     assert calls == [((_SESSION, "bb-1"), {})]
 
 
+
+def test_get_session_zeigt_den_bestaetigungsschluessel_nicht(client, monkeypatch):
+    """Review Paket 2: ein offener Schreib-Vorgang trägt in ``entities`` seinen
+    Bestätigungsschlüssel (einmal gültig, zehn Minuten). Das Studio sieht den
+    Vorgang, den Schlüssel nicht."""
+    schluessel = "Ax9-_QmZ2kLpWvRt7NbYcE4s"
+    _fake(monkeypatch, "get_or_create_session", {
+        "session_id": "bb-1", "entities": {
+            "thema": "Bruchrechnung",
+            "_pending_write": {"tool": "wlo_create_collection", "token": schluessel,
+                               "minted_at": 1.0, "args": {"name": "B"}},
+        },
+    })
+    r = client.get("/api/sessions/bb-1", headers=_AUTH)
+
+    assert r.status_code == 200
+    assert schluessel not in r.text
+    entities = r.json()["entities"]
+    assert entities["thema"] == "Bruchrechnung"
+    assert entities["_pending_write"]["tool"] == "wlo_create_collection"
+    assert entities["_pending_write"]["args"] == {"name": "B"}
+
 # ── DELETE /{session_id} ─────────────────────────────────────────────────
 def test_delete_session_reports_per_table_counts(client, monkeypatch):
     counts = {"messages": 2, "memory": 1, "quality_logs": 0, "safety_logs": 0, "sessions": 1}

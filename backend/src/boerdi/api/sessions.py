@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from boerdi.api.deps import Lang, OriginScope, require_studio_key
 from boerdi.api.deps import get_session as get_db_session
 from boerdi.api.ratelimit import public_rate_limit
+from boerdi.domain.write_confirm import entities_for_display
 from boerdi.i18n import msg
 from boerdi.services.config_loader import load_privacy_config
 from boerdi.services.db_sessions import (
@@ -152,7 +153,8 @@ async def get_session(
         "session_id": s["session_id"],
         "persona_id": s.get("persona_id", ""),
         "state_id": s.get("state_id", "S1"),
-        "entities": s.get("entities") or {},
+        # Ohne Bestätigungsschlüssel eines offenen Vorgangs (Review Paket 2).
+        "entities": entities_for_display(s.get("entities") or {}),
         "signal_history": s.get("signal_history") or [],
         "turn_count": s.get("turn_count", 0),
     }
