@@ -20,11 +20,13 @@ before the graph (``graph/build.begin_turn``), not here — see the tests below.
 from __future__ import annotations
 
 import asyncio
+import time
 
 from boerdi.api.schemas import ChatRequest, Environment
 from boerdi.graph import state as state_mod
 from boerdi.graph.nodes import setup as setup_mod
 from boerdi.graph.nodes.setup import setup
+from boerdi.services import write_approval as wa_mod
 
 _SESSION = object()
 
@@ -169,3 +171,38 @@ def test_returns_same_ctx_no_early_response(monkeypatch):
     out = _run(ctx)
     assert out is ctx
     assert out.early_response is None
+
+
+# ── offener Schreib-Vorgang (Review Paket 2, Befundliste §1.3) ───────────────
+# Bestätigen darf nur die Antwort direkt auf die Vorschau. Tour und Kontext-Gruß
+# beenden den Zug aber vor dem Vorlauf — ein dort erst verworfener Vorgang
+# überdauerte sie, und ein späteres „ok" führte ihn aus.
+
+def _row_mit_abnahme() -> dict:
+    from boerdi.domain.write_confirm import remember_pending
+    row = dict(_ROW)
+    row["entities"] = {"_pending_write": remember_pending(
+        "wlo_create_collection", {"name": "Bruchrechnen"},
+        "Ax9-_QmZ2kLpWvRt7NbYcE4s", now=time.time())}
+    return row
+
+
+def test_ein_offener_vorgang_verfaellt_vor_jedem_fruehen_ausgang(monkeypatch):
+    _patch(monkeypatch, row=_row_mit_abnahme())
+    gespeichert = _Spy()
+    monkeypatch.setattr(wa_mod, "update_session", gespeichert)
+
+    out = _run(_ctx(message="Website-Tour starten"))
+
+    assert "_pending_write" not in out.session_state["entities"]
+    # Verworfen heißt gespeichert: die Tour schreibt ``entities`` nicht zurück.
+    assert len(gespeichert.calls) == 1
+
+
+def test_eine_glatte_zustimmung_laesst_den_vorgang_stehen(monkeypatch):
+    _patch(monkeypatch, row=_row_mit_abnahme())
+    monkeypatch.setattr(wa_mod, "update_session", _Spy())
+
+    out = _run(_ctx(message="ja"))
+
+    assert "_pending_write" in out.session_state["entities"]

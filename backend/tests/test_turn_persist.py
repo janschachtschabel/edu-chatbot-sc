@@ -622,6 +622,20 @@ def test_persist_vorschau_fragt_und_bietet_beides_an(monkeypatch):
     )
 
 
+
+def test_persist_vorschau_laesst_keine_zweite_zustimmung_stehen(monkeypatch):
+    # Review Paket 2, Befund 2: der Vorlauf löst im Folgezug JEDE glatte
+    # Zustimmung ein (``is_affirmation``) — auch einen Chip wie „Ja, zeig mir
+    # mehr Videos“, der etwas anderes meint. Neben dem Knopf bleibt deshalb nur,
+    # was keine Zustimmung ist.
+    resp, _ = _run2(
+        monkeypatch,
+        session_state={"turn_count": 4, "entities": {}, "_write_preview": _VORSCHAU},
+        quick_replies=["Ja, zeig mir mehr Videos", "Nein, abbrechen", "Andere Sammlung"],
+        _final_text="x", _qr_mode="none",
+    )
+    assert resp.quick_replies == ["Ja, so ausführen", "Nein, abbrechen", "Andere Sammlung"]
+
 def test_persist_vorschau_chip_beugt_sich_dem_deckel(monkeypatch):
     # ``max_count: 0`` heisst „keine Pillen" — eine Entscheidung der Redaktion
     # und kein Platzproblem. Auch die Zustimmung ist dann ein Satz, kein Knopf.

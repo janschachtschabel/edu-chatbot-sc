@@ -50,6 +50,7 @@ _REGELN = {
     "test_verengen_ist_suche_und_kritik_ist_rueckmeldung",
     "test_rueckfrage_erst_nach_der_suche",
     "test_dokumente_gehen_ueber_das_werkzeug",
+    "test_die_aenderungs_vorschau_zeigt_der_chat_selbst",
     "test_vorgehen_md_nennt_nur_existierende_werkzeuge",
     "test_vorgehen_md_traegt_die_kernbegriff_suchregel",
     "test_vorgehen_md_traegt_die_ansage_regel",

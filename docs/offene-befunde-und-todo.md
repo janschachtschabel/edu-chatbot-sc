@@ -6,7 +6,7 @@ trägt ihn im Log des zugehörigen Plans ein. Zeilennummern gelten für den Stan
 
 Die zugehörigen Pläne:
 - **Betriebsmodi-Plan:** [`2026-09-26-betriebsmodi-und-studio.md`](plans/2026-09-26-betriebsmodi-und-studio.md)
-- **Runde-2-Plan:** [`2026-09-28-agent-runde-2.md`](plans/2026-09-28-agent-runde-2.md)
+- **Runde-2-Plan:** [`2026-09-28-agent-runde-2.md`](plans/2026-09-28-agent-runde-2.md) — erledigt dort (Paket 2, 2026-10-01): die Schreib-Abnahme im Agent-Modus (früher §1.1), Log unter „Nebenbefund außerhalb dieser Runde“.
 - **Responses-Plan:** [`2026-09-29-responses-systemteil-und-cache.md`](plans/2026-09-29-responses-systemteil-und-cache.md)
 - **Kette-Plan (Tempo):** [`2026-09-30-muster-kette-zeit.md`](plans/2026-09-30-muster-kette-zeit.md)
 - **Paket 1 (Sprache, Kleinbefunde):** [`2026-10-01-paket-1-sprache-und-kleinbefunde.md`](plans/2026-10-01-paket-1-sprache-und-kleinbefunde.md) — erledigt dort: Schnellantworten in der Antwortsprache, Startnachricht beim Sprachwechsel, Guide-Regeln ohne Neustart, Quick Wins aus Audit §7.
@@ -14,12 +14,7 @@ Die zugehörigen Pläne:
 
 ## 1 Befunde mit Wirkung im Betrieb
 
-1. **Schreiben im Agent-Modus endet im Chat bei der Vorschau.**
-   - Ursache: Den Merkposten `_pending_write` und die Vorschau-Box `_write_preview` setzt nur die Werkzeugschleife der Muster-Maschine. Die Abnahme im Vorlauf („ja“ → ausführen) findet im Agent-Modus deshalb nichts vor.
-   - Seit D-15 ist der Agent im Chat die Vorgabe.
-   - Beleg: zwei strikte `xfail` in `backend/tests/test_agent_schreib_abnahme.py`.
-   - Stand: Der Vorschlag steht im Runde-2-Plan unter „Nebenbefund außerhalb dieser Runde“ und ist noch nicht gebaut.
-2. **Seitentext und System-Blöcke auf dem Responses-Weg.**
+1. **Seitentext und System-Blöcke auf dem Responses-Weg.**
    - Zusammenfügen: LiteLLM verbindet die `system`-Blöcke mit einem Leerzeichen zu `instructions`, Überschriften stehen dadurch mitten in der Zeile.
    - Fremdtext:
      - Ein Satz aus dem Seitentext stand wörtlich in `instructions`, also Fremdtext auf Systemebene.
@@ -31,10 +26,10 @@ Die zugehörigen Pläne:
      - Gegen OpenAI direkt gemessen (`gpt-6-luna`).
      - Die b-api-openai ist wahrscheinlich ebenso betroffen, dort aber nicht gemessen. LiteLLM leitet ab gpt-5.4 Aufrufe mit Werkzeugen über `/v1/responses`.
    - Vorschläge A–D und N stehen im Responses-Plan.
-3. **`retention_days` ohne Wirkung.**
+2. **`retention_days` ohne Wirkung.**
    - Das Feld steht zweimal in `domain/config_models/base_governance.py` (Z. 66 und 134). Kein Code liest es, einen Lösch-Job gibt es nicht.
    - Die Einstellung verspricht also eine Aufbewahrungsfrist, die niemand durchsetzt.
-4. **Befunde aus dem Audit 2026-09-29**, die noch offen sind: siehe [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md), Abschnitte 6–9. Behoben sind die Punkte der Tabelle in Abschnitt 4a (Änderungen liegen uncommittet vor).
+3. **Befunde aus dem Audit 2026-09-29**, die noch offen sind: siehe [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md), Abschnitte 6–9. Behoben sind die Punkte der Tabelle in Abschnitt 4a (seit Tag `0.3`).
 
 ## 2 Entscheidungen des Nutzers
 
@@ -71,17 +66,19 @@ Die zugehörigen Pläne:
   - Entweder das Feld entfernen oder es bewusst stehen lassen. Der heutige Zustand ist der sichere.
 - **Ablehnungen als ERROR** (`services/mcp/transport.py:166`):
   - Senkt man sie auf WARNING, verlieren auch edu-sharing-Ausfälle den ERROR-Alarm, die der MCP-Server als Werkzeugfehler meldet.
-- **GV-RED-1** schreibt real auf Staging. Soll der Fall im Standard-Set der Golden-Suite bleiben?
+- **GV-RED-1** schreibt real auf Staging (Muster-Modus; im Agent-Modus nur mit persönlicher Anmeldung, die Golden-Läufe nicht haben). Soll der Fall im Standard-Set der Golden-Suite bleiben?
 - **Audit 2026-08-12:**
   - F-2: Die zwei High-CVEs in Angular und DOMPurify anheben oder als Restrisiko festhalten?
   - F-6: Persistenz-Reihenfolge im Zug-Abschluss.
 - **Audit 2026-09-29, Abschnitt 10** (Details dort):
   - B-H3: Kuration unter dem Dienst-Token nur mit persönlicher Anmeldung oder mit ausdrücklichem Schalter?
+    - Stand Paket 2 (2026-10-01): Der Agent-Zug reicht eine Schreib-Abnahme nur bei persönlicher Anmeldung in die Sitzung (Nutzer-Entscheid 2026-08-12).
+    - Der Muster-Weg (S5) bietet die Kuration weiter schon mit dem Dienst-Token an, und der Vorlauf löst dort ein „ja“ ohne Rechteprüfung ein (`services/write_approval.py`, bewusst).
   - C-H1: clusterweite Sitzungssperre (Advisory-Lock, Valkey-Lease oder `turn_count`-CAS)? Bis dahin nur eine Replik?
   - CSP/HSTS für `/studio` oder eigener Ursprung?
   - `markitdown`-Extras für PDF/DOCX-Ingest; MPL-2.0 als Lizenz-Ausnahme?
   - SSE-Abbruch: verlassenen Zug zu Ende führen oder abbrechen?
-  - `retention_days` (§1.3): Lösch-Job bauen oder Feld streichen?
+  - `retention_days` (§1.2): Lösch-Job bauen oder Feld streichen?
   - B-API-Moderation: reicht Bearer allein?
 - **Moderations-Schwellen:** Andeutungen blieben live unter den Seed-Schwellen (self_harm 0,45 und 0,28). Ein Nachjustieren wäre ein eigener Entscheid.
 - **Vorgabe-Maschine neuer Anlagen:** Der Seed setzt `01-base/engine.yaml` bewusst auf `mode: pattern` („ohne Pflege ändert sich nichts“), D-15 macht dagegen die Agent-Schleife im Betrieb zur Vorgabe.
@@ -136,13 +133,18 @@ Die zugehörigen Pläne:
 - **Golden-Seeds** nach dem Deploy auf Staging importieren.
 - **Master-Skill:** nach jedem Übertragen `cd backend && uv run python scripts/check_master_skill.py` ausführen.
   - Die Rückgabe 0 heißt: alle Regeln erfüllt. 1 heißt: mindestens eine verletzt. 2 heißt: nicht abrufbar.
+- **Master-Skill „Ändern“ übertragen** (Paket 2, Runde-2-Plan N-3):
+  - Mit Paket 2 zeigt der Chat die Vorschau einer Änderung auch im Agent-Zug von selbst als Kasten mit Knopf. Der Knoten sagt noch, das Modell lege sie „wörtlich als gerahmten Kasten“ vor; folgt es dem mit `zeige_dokument`, stehen zwei Kästen da.
+  - Die Vorlage `docs/skills/vorgehen.md` ist berichtigt (Abschnitt „Im Bestand ändern (M18)“). Übertragen in den Knoten `535cabca…` machen Nutzer bzw. Redaktion.
+  - Bis dahin meldet das Prüfskript die neue Regel `test_die_aenderungs_vorschau_zeigt_der_chat_selbst` als verletzt (Rückgabe 1).
 
 ## 5 Aufräumen
 
 - **Dateien über der 300-Zeilen-Regel** (Audit F-8), aus diesen Runden:
-  - Backend: `graph/nodes/respond_agent.py` (489; 2026-10-01 +22 für den Agent-Schnellantwort-Weg), `services/agent_loop.py` (483).
+  - Backend: `graph/nodes/respond_agent.py` (499; 2026-10-01 +22 für den Agent-Schnellantwort-Weg, +10 für Paket 2), `services/agent_loop.py` (491), `services/write_approval.py` (316; vorher 304, Paket 2 +12 für `merke_abnahme`).
   - Studio: `schema-form/schema-form.scss` (432), `views/curated-views.ts` (399), `i18n/catalogue/curated.ts` (386), `views/eval-run-detail.component.ts` (315), `schema-form/schema-field.component.ts` (311).
   - Die Schnitte stehen im Betriebsmodi-Plan §9.3.
+- Der Abnahme-Zug steht im Debug- und Qualitätsprotokoll auch im Agent-Modus als `M18` (Runde-2-Plan, N-5; kosmetisch).
 - Ein Server, der „Tool not found“ als JSON-RPC-Fehler meldet, landet als `transport` in der Wiederholung. Der eingestellte Server meldet es als Werkzeug-Ergebnis und ist deshalb nicht betroffen.
 - **Frontend-Tests kippen unter Last.**
   - Im vollen Lauf am 2026-09-29 fielen 5 Studio-Dateien um (`i18n/en.spec.ts`, `agent-skills`, `eval-trends`, `loadtest`, `rag-ingest`) und `ui/print/print-utils.spec.ts`; einzeln und im Wiederholungslauf grün.
@@ -158,7 +160,7 @@ Die zugehörigen Pläne:
   - Die übrigen Funde hat `npm audit fix` am 2026-10-01 behoben (Paket 1).
 - **Einstellungen ohne Leser** (gefunden 2026-10-01 beim Bau der Konfigurations-Grafiken, Stand `1f069e9`). Das Studio bietet sie an, der Code liest sie nicht:
   - `01-base/engine`: `agent.safety` (nur in `domain/config_models/engine.py:119`).
-  - `01-base/safety-config`: `extra_crisis_terms`, `extra_pii_terms`, `confidence_adjustments` (nur in `domain/config_models/base_governance.py:92-102`); `retention_days` siehe §1.3.
+  - `01-base/safety-config`: `extra_crisis_terms`, `extra_pii_terms`, `confidence_adjustments` (nur in `domain/config_models/base_governance.py:92-102`); `retention_days` siehe §1.2.
   - `01-base/display-rules`: `quick_replies.inline_fallback_enabled` (der Lader gibt es weiter, niemand wertet es aus).
   - `01-base/guide-mode`: `default_enabled` (so auch in `domain/area_effects.py:65`).
   - Attribut `inline_result_grouping` im Muster-Prompt: Der Block hängt zusätzlich an `cards_enabled` (`services/response_prompt_builder.py:138-141`), und dieses Feld hat `Environment` nicht. Der Block entsteht also nie; im Agent-Weg wirkt das Attribut.

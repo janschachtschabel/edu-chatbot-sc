@@ -99,7 +99,8 @@ class _Sammler:
 
 def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
           limits=None, usage_acc=None, progress=None, clock=None, raises=None,
-          echter_transport=False, on_tool_result=None, wissen=None):
+          echter_transport=False, on_tool_result=None, wissen=None,
+          on_offene_abnahme=None):
     """``echter_transport=True`` fälscht eine Ebene tiefer (``llm._acompletion``).
 
     Nötig für alles, was die **Buchung** prüft: die Schleife reicht ``usage_acc``
@@ -126,6 +127,8 @@ def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
         kwargs["on_tool_result"] = on_tool_result
     if wissen is not None:
         kwargs["wissen"] = wissen
+    if on_offene_abnahme is not None:
+        kwargs["on_offene_abnahme"] = on_offene_abnahme
     run = asyncio.run(agent_loop.run_agent_loop(
         messages=msgs,
         tools=[{"type": "function", "function": {"name": "search_wlo_content"}}],
@@ -503,6 +506,126 @@ def test_die_naht_bekommt_keinen_bestaetigungs_schluessel(monkeypatch):
     assert ernte.gesehen
     assert "aBcD1234eFgH5678iJkL9012" not in ernte.gesehen[0][1]
 
+
+# ── Offene Abnahme an den Chat-Zug (Paket 2, Runde-2-Plan) ─────────────────
+# In ``propose`` bestätigt die Schleife nie — die Person nimmt im nächsten Zug
+# an. Dafür braucht der Chat-Zug Merkposten und Vorschau; die einzige Naht, über
+# die ein Schlüssel die Schleife verlässt (in die Sitzung, nie zum Modell).
+
+class _Abnahme:
+    def __init__(self):
+        self.gesehen: list[tuple[dict, str]] = []
+
+    def __call__(self, merkposten, vorschau):
+        self.gesehen.append((merkposten, vorschau))
+
+
+class _ZweistufigFake(_OutcomeFake):
+    """Wie der Server: ohne Schlüssel eine Vorschau, mit Schlüssel ausgeführt."""
+
+    async def __call__(self, tool_name, tool_args):
+        from boerdi.api.schemas import ToolOutcome
+        self.calls.append((tool_name, dict(tool_args)))
+        text = "Die Sammlung wurde angelegt." if "confirmToken" in tool_args else _VORSCHAU
+        return text, ToolOutcome(tool=tool_name, status="success", item_count=1)
+
+
+def test_offene_abnahme_geht_am_ende_genau_einmal_an_die_naht(monkeypatch):
+    abnahme = _Abnahme()
+    out = _ZweistufigFake()
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("wlo_create_collection", {"name": "B"})]),
+        _resp_text("Soll ich die Sammlung anlegen?"),
+    ], outcome=out, limits=AgentLimits(write_mode="propose"), on_offene_abnahme=abnahme)
+    assert run.stop_reason == "text"
+    assert len(abnahme.gesehen) == 1
+    merkposten, vorschau = abnahme.gesehen[0]
+    assert merkposten["tool"] == "wlo_create_collection"
+    assert merkposten["args"] == {"name": "B"}
+    assert "Die Sammlung wird angelegt." in vorschau
+    assert "aBcD1234eFgH5678iJkL9012" not in vorschau
+    assert "confirmToken" not in out.calls[0][1]  # propose setzt weiter nie ein
+
+
+def test_ohne_offenen_vorgang_ruft_niemand_die_naht(monkeypatch):
+    abnahme = _Abnahme()
+    _lauf(monkeypatch, [
+        _resp_tools([_tool_call("search_wlo_content", {"query": "a"})]),
+        _resp_text("fertig"),
+    ], on_offene_abnahme=abnahme)
+    assert abnahme.gesehen == []
+
+
+def test_execute_verbraucht_den_vorgang_und_laesst_nichts_offen(monkeypatch):
+    """Keine Box über einer schon ausgeführten Änderung."""
+    abnahme = _Abnahme()
+    out = _ZweistufigFake()
+    ruf = _resp_tools([_tool_call("wlo_create_collection", {"name": "Bruchrechnen"})])
+    _lauf(monkeypatch, [ruf, ruf, _resp_text("Angelegt.")], outcome=out,
+          limits=AgentLimits(write_mode="execute"), on_offene_abnahme=abnahme)
+    assert out.calls[1][1]["confirmToken"] == "aBcD1234eFgH5678iJkL9012"
+    assert abnahme.gesehen == []
+
+
+def test_die_letzte_vorschau_gewinnt(monkeypatch):
+    abnahme = _Abnahme()
+    _lauf(monkeypatch, [
+        _resp_tools([_tool_call("wlo_create_collection", {"name": "Bruchrechnen"})]),
+        _resp_tools([_tool_call("wlo_create_collection", {"name": "Geometrie"})]),
+        _resp_text("Welche Sammlung soll es sein?"),
+    ], outcome=_ZweistufigFake(), limits=AgentLimits(write_mode="propose"),
+        on_offene_abnahme=abnahme)
+    assert [m["args"] for m, _v in abnahme.gesehen] == [{"name": "Geometrie"}]
+
+
+def test_der_lauf_selbst_traegt_keinen_schluessel(monkeypatch):
+    """Der Schlüssel verlässt die Schleife nur über die Naht — nicht über den
+    Lauf, den der Agent-Endpunkt zurückgibt."""
+    abnahme = _Abnahme()
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("wlo_create_collection", {"name": "B"})]),
+        _resp_text("Soll ich?"),
+    ], outcome=_ZweistufigFake(), limits=AgentLimits(write_mode="propose"),
+        on_offene_abnahme=abnahme)
+    assert "aBcD1234eFgH5678iJkL9012" not in repr(run)  # alle Felder, rekursiv
+
+
+
+def test_offene_abnahme_auch_beim_stillstand(monkeypatch):
+    """Jeder Ausgang läuft durch ``schluss`` — auch ``no_progress`` (zweimal
+    derselbe Aufruf). Die Person sieht die Vorschau trotzdem als Box."""
+    abnahme = _Abnahme()
+    ruf = _resp_tools([_tool_call("wlo_create_collection", {"name": "B"})])
+    _fake, run, _msgs = _lauf(monkeypatch, [ruf, ruf], outcome=_ZweistufigFake(),
+                              limits=AgentLimits(write_mode="propose"),
+                              on_offene_abnahme=abnahme)
+    assert run.stop_reason == "no_progress"
+    assert len(abnahme.gesehen) == 1
+
+
+def test_offene_abnahme_auch_am_schrittdeckel(monkeypatch):
+    abnahme = _Abnahme()
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("wlo_create_collection", {"name": "B"})]),
+        _resp_tools([_tool_call("search_wlo_content", {"query": "b"})]),
+    ], outcome=_ZweistufigFake(),
+        limits=AgentLimits(write_mode="propose", max_iterations=2),
+        on_offene_abnahme=abnahme)
+    assert run.stop_reason == "max_iterations"
+    assert [m["tool"] for m, _v in abnahme.gesehen] == ["wlo_create_collection"]
+
+
+def test_execute_ohne_einloesung_im_lauf_reicht_den_vorgang_weiter(monkeypatch):
+    """Fragt das Modell in ``execute`` nach, statt im Lauf einzulösen (so
+    verlangt es der Master-Skill: „Dann beendest du den Zug“), gilt der Weg von
+    ``propose``: die Person nimmt im nächsten Zug an."""
+    abnahme = _Abnahme()
+    _lauf(monkeypatch, [
+        _resp_tools([_tool_call("wlo_create_collection", {"name": "B"})]),
+        _resp_text("Soll ich die Sammlung anlegen?"),
+    ], outcome=_ZweistufigFake(), limits=AgentLimits(write_mode="execute"),
+        on_offene_abnahme=abnahme)
+    assert [m["tool"] for m, _v in abnahme.gesehen] == ["wlo_create_collection"]
 
 def test_das_abschluss_werkzeug_geht_nicht_durch_die_naht(monkeypatch):
     """``submit_result`` ist virtuell — es hat kein Ergebnis zu ernten."""

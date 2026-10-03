@@ -450,6 +450,7 @@ wie ein Lasttest, nicht wie eine Suche.
 | 429 | Drosselung, `RATE_LIMIT_CHAT` |
 | `result` ist `null` | Kein `result_schema` mitgegeben — dann gibt es nur `text` |
 | Schreiben passiert nicht | `write_mode: execute` ohne persönliche Anmeldung → still auf `propose` zurückgefallen |
+| Im Chat keine Vorschau-Box mit Knopf „Ja, so ausführen“ | Keine persönliche Anmeldung: der Agent-Zug reicht eine Schreib-Vorschau nur für eine angemeldete Person in die Sitzung (Paket 2, Nutzer-Entscheid 2026-08-12) — sonst bliebe das „ja“ beim Dienstkonto der Anlage |
 
 ## Maschine und Spur im Debug-Block (AG-1, 2026-09-26)
 

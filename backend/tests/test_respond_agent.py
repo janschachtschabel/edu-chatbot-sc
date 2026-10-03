@@ -87,11 +87,12 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
 
     # Die ECHTE Signatur — dieselbe A4b-Regel wie unten bei ``load_engine``.
     async def _loop(*, messages, tools, limits, usage_acc=None, progress=None,
-                    clock=None, on_tool_result=None, wissen=None):
+                    clock=None, on_tool_result=None, wissen=None, on_offene_abnahme=None):
         seen["run_agent_loop"] = {
             "messages": messages, "tools": tools, "limits": limits,
             "usage_acc": usage_acc, "progress": progress,
             "on_tool_result": on_tool_result, "wissen": wissen,
+            "on_offene_abnahme": on_offene_abnahme,
         }
         aufrufe = ([ruft_werkzeug] if ruft_werkzeug is not None else []) + list(ruft_werkzeuge)
         if on_tool_result is not None:
@@ -120,6 +121,7 @@ def _patch(monkeypatch, seen, *, lauf=None, limits=None, personal=False,
     monkeypatch.setattr(agent_mod, "run_agent_loop", _loop)
     monkeypatch.setattr(agent_mod, "load_engine", _engine)
     monkeypatch.setattr(agent_write, "has_personal_auth", lambda: personal)
+    monkeypatch.setattr(agent_mod, "has_personal_auth", lambda: personal)
 
 
 def _namen(tools):

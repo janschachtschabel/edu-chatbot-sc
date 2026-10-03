@@ -1,14 +1,16 @@
-"""Befund 2026-09-28: im Agent-Modus kommt eine kuratierende Änderung im Chat
-nie über die Vorschau hinaus — auch nicht nach „ja“.
+"""Befund 2026-09-28, behoben in Paket 2 (2026-10-01): im Agent-Modus kam eine
+kuratierende Änderung im Chat nie über die Vorschau hinaus — auch nicht nach „ja“.
 
 Die Abnahme im Vorlauf (``graph/nodes/preflight`` → ``services/write_approval``,
 S5) ist maschinenunabhängig: sie läuft vor der Engine-Weiche. Einlösen kann sie
-ein „ja“ aber nur über den Merkposten ``entities["_pending_write"]``, und den
-setzt allein die Werkzeugschleife der Muster-Maschine (``services/tool_loop``).
-Die Agent-Schleife (``services/agent_write.WriteGate``) merkt sich in der
-Vorgabe ``write_mode: propose`` nichts, und ihr eigener Merkposten stirbt mit
+ein „ja“ aber nur über den Merkposten ``entities["_pending_write"]``. Den setzte
+anfangs allein die Werkzeugschleife der Muster-Maschine (``services/tool_loop``);
+die Agent-Schleife (``services/agent_write.WriteGate``) merkte sich in der
+Vorgabe ``write_mode: propose`` nichts, und ihr eigener Merkposten starb mit
 dem Lauf. Folge: keine Vorschau-Box, kein Zustimmungs-Knopf, und ein „ja“ im
-Folgezug erzeugt eine neue Vorschau statt der Ausführung.
+Folgezug erzeugte eine neue Vorschau statt der Ausführung. Seit Paket 2 reicht
+die Schleife den offenen Vorgang am Ende hinaus (``on_offene_abnahme`` →
+``write_approval.merke_abnahme``).
 
 Gefälscht wird nur, was eine Prozessgrenze überschreitet: das Modell
 (``llm.chat_completion``), der MCP-Server (``transport.call_tool``, zweistufig
@@ -18,11 +20,10 @@ Argumentprüfung. Den Zugwechsel spielt der Test nach: von ``session_state``
 überdauert nur ``entities`` (JSONB), alles auf oberster Ebene stirbt mit der
 Anfrage (``graph/nodes/setup``).
 
-``xfail(strict=True)`` an den beiden Soll-Tests: sie sind heute rot, der Umbau
-wartet auf die Freigabe des Vorschlags (Plan ``2026-09-28-agent-runde-2``,
-„Nebenbefund außerhalb dieser Runde“). Nach dem Umbau melden sie XPASS — dann
-den Marker entfernen. Der dritte Test ist die Zusicherung, die heute gilt und
-nach dem Umbau weiter gelten muss.
+Die beiden Soll-Tests standen bis zum Umbau als ``xfail(strict=True)``; seit
+Paket 2 (2026-10-01, Plan ``2026-09-28-agent-runde-2``, „Nebenbefund außerhalb
+dieser Runde“) sind sie grün und tragen keinen Marker mehr. Der dritte Test ist
+die Zusicherung, die vorher galt und weiter gelten muss.
 """
 
 from __future__ import annotations
@@ -56,10 +57,6 @@ _SITZUNG = object()  # Sentinel — jede DB-Grenze ist gepatcht.
 _WUNSCH = "Leg mir bitte eine Sammlung Bruchrechnen an"
 _WERKZEUG = "wlo_create_collection"
 _ARGS = {"title": "Bruchrechnen"}
-_OFFEN = (
-    "Befund 2026-09-28: der Agent-Zug setzt keinen Merkposten und keine "
-    "Vorschau-Box — Umbau wartet auf Freigabe"
-)
 
 
 class _WloServer:
@@ -150,6 +147,7 @@ def welt(monkeypatch) -> _WloServer:
     monkeypatch.setattr(agent_tools, "has_auth_token", lambda: True)
     monkeypatch.setattr(agent_write, "has_personal_auth", lambda: False)
     monkeypatch.setattr(agent_deckel, "has_personal_auth", lambda: False)
+    monkeypatch.setattr(agent_mod, "has_personal_auth", lambda: False)
 
     async def _frei(*_a, **_k):
         return RateVerdict(allowed=True)
@@ -162,6 +160,15 @@ def welt(monkeypatch) -> _WloServer:
     monkeypatch.setattr(wa_mod, "update_session", _nichts)
     monkeypatch.setattr(wa_mod, "save_message", _nichts)
     return server
+
+
+@pytest.fixture
+def angemeldet(monkeypatch) -> None:
+    """Eine angemeldete Person mit WLO-Rechten (Ticket oder persönlicher
+    Zugang) — nur dann reicht der Chat-Zug die Abnahme in die Sitzung
+    (Nutzer-Entscheid 2026-08-12, ``services/mcp/auth.has_personal_auth``)."""
+    for modul in (agent_write, agent_deckel, agent_mod):
+        monkeypatch.setattr(modul, "has_personal_auth", lambda: True)
 
 
 def _zug(nachricht: str, *, entities: dict, verlauf: list | None = None):
@@ -206,8 +213,7 @@ def _drehbuch_zug_1() -> list:
     ]
 
 
-@pytest.mark.xfail(strict=True, reason=_OFFEN)
-async def test_ja_im_folgezug_fuehrt_die_gezeigte_aenderung_aus(welt, monkeypatch):
+async def test_ja_im_folgezug_fuehrt_die_gezeigte_aenderung_aus(welt, angemeldet, monkeypatch):
     """Der gemeldete Fall, Ende zu Ende über zwei Züge."""
     monkeypatch.setattr(llm, "chat_completion", _Modell([
         *_drehbuch_zug_1(),
@@ -232,8 +238,8 @@ async def test_ja_im_folgezug_fuehrt_die_gezeigte_aenderung_aus(welt, monkeypatc
     )
 
 
-@pytest.mark.xfail(strict=True, reason=_OFFEN)
-async def test_der_agent_zug_legt_vorschau_box_und_merkposten_an(welt, monkeypatch):
+async def test_der_agent_zug_legt_vorschau_box_und_merkposten_an(welt, angemeldet,
+                                                                 monkeypatch):
     """Dieselben zwei Stellen, die ``tool_loop`` setzt: ``_write_preview`` speist
     Box und Zustimmungs-Knopf (``turn_persist``), ``_pending_write`` die
     Abnahme im nächsten Zug (``write_approval``)."""
@@ -271,3 +277,23 @@ async def test_ohne_zustimmung_wird_nichts_ausgefuehrt_und_das_modell_sieht_kein
     assert welt.gepraegt, "Voraussetzung: der Server hat einen Schlüssel geprägt"
     alle_ketten = "\n".join(modell.ketten)
     assert not any(s in alle_ketten for s in welt.gepraegt)
+
+
+async def test_ohne_anmeldung_bleibt_es_bei_der_vorschau(welt, monkeypatch):
+    """Review Paket 2, Befund 1: ohne angemeldete Person liefe das „ja“ unter
+    dem Dienstkonto der Anlage (Audit B-H3) — gegen den Nutzer-Entscheid
+    2026-08-12, dass nur schreibt, wer selbst WLO-Rechte hat. Also weder Box
+    noch Merkposten, und ein „ja“ im Folgezug führt nichts aus."""
+    monkeypatch.setattr(llm, "chat_completion", _Modell([
+        *_drehbuch_zug_1(),
+        _werkzeug_antwort(_WERKZEUG, _ARGS, "c2"),
+        _text_antwort("Soll ich die Sammlung „Bruchrechnen“ anlegen?"),
+    ]))
+
+    zug1 = await _chat_zug(_zug(_WUNSCH, entities={}))
+    assert not zug1.session_state.get("_write_preview")
+    assert "_pending_write" not in (zug1.session_state.get("entities") or {})
+
+    zug2 = await _chat_zug(_folgezug("ja", zug1))
+    assert zug2.early_response is None
+    assert welt.ausgefuehrt == []

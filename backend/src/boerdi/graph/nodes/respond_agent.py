@@ -81,7 +81,9 @@ from boerdi.services.agent_write import enforce_write_mode
 from boerdi.services.agent_zugblock import zuletzt_gezeigt
 from boerdi.services.card_collect import collect_cards, juengste_zuerst
 from boerdi.services.config_loader import load_engine
+from boerdi.services.mcp.auth import has_personal_auth
 from boerdi.services.quick_replies_llm import _max_chars
+from boerdi.services.write_approval import merke_abnahme
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -387,6 +389,14 @@ async def respond_agent(
         progress=progress,
         on_tool_result=lambda name, text: ernten.append(collect_cards(all_cards, name, text)),
         wissen=_wissen if _wissen_tool else None,
+        # Paket 2: eine nicht eingelöste Schreib-Vorschau nimmt die Person im
+        # nächsten Zug an — Box und Merkposten wie im Muster-Weg. Nur mit
+        # angemeldeter Person (Nutzer-Entscheid 2026-08-12): sonst liefe das
+        # „ja“ unter dem Dienstkonto der Anlage (Audit 2026-09-29, B-H3).
+        on_offene_abnahme=(
+            (lambda merkposten, vorschau: merke_abnahme(
+                ctx.session_state, merkposten, vorschau))
+            if has_personal_auth() else None),
     )
     logger.info("Agent-Modus: %d Schritte, Ende=%s, %d Werkzeuge, %d Karten",
                 lauf.iterations, lauf.stop_reason, len(lauf.tools_called),

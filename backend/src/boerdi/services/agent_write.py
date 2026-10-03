@@ -87,6 +87,8 @@ class WriteGate:
         self._execute = mode == "execute"
         self._now = now
         self._pending: dict[str, Any] | None = None
+        #: Die redigierte Vorschau zum offenen Vorgang — für die Box im Chat-Zug.
+        self._vorschau = ""
 
     def prepare(self, tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         """Die Argumente, wie sie abgesetzt werden dürfen.
@@ -104,6 +106,7 @@ class WriteGate:
             return sauber
         # Ein Schlüssel gilt genau einmal; der Merkposten ist damit verbraucht.
         self._pending = None
+        self._vorschau = ""
         logger.info("Agent-Schleife: bestätige %s im selben Lauf (write_mode=execute)",
                     tool_name)
         return {**sauber, "confirmToken": schluessel}
@@ -112,16 +115,21 @@ class WriteGate:
         """Das Ergebnis, wie es das Modell sehen darf — und was wir uns merken.
 
         Redigiert wird **zuerst**: danach kann kein Pfad mehr den rohen Text
-        weiterreichen. In ``propose`` wird nichts gemerkt, weil es dort nichts
-        einzulösen gibt; der Schlüssel verfällt beim Server.
+        weiterreichen. Gemerkt wird in **beiden** Betriebsarten (Paket 2): in
+        ``execute`` löst die Schleife selbst ein (:meth:`prepare`), in
+        ``propose`` nimmt die Person im nächsten Zug an — dafür reicht
+        :meth:`offene_abnahme` den Vorgang hinaus. ``prepare`` setzt in
+        ``propose`` trotzdem nie einen Schlüssel ein.
         """
         if not is_confirmable(tool_name):
             return result_text
         gepraegt = extract_confirm_token(result_text)
         text = redact_confirm_token(result_text)
-        if gepraegt and self._execute:
+        if gepraegt:
+            # Die letzte Vorschau gewinnt: ein neuer Schlüssel ersetzt den alten.
             self._pending = remember_pending(tool_name, args, gepraegt, now=self._now())
-        elif not gepraegt and "confirmToken:" in text:
+            self._vorschau = text
+        elif "confirmToken:" in text:
             # Der Server kündigt einen Schlüssel an, wir lesen keinen heraus:
             # sein Vorschautext hat sich geändert. Die Folge ist ein Ausfall,
             # kein Loch — der Hinweg trägt die Zusicherung —, aber ein stiller
@@ -130,3 +138,13 @@ class WriteGate:
                 "Vorschautext von %s nennt confirmToken, enthält aber keinen "
                 "lesbaren Schlüssel — Bestätigung nicht möglich", tool_name)
         return text
+
+    def offene_abnahme(self) -> tuple[dict[str, Any], str] | None:
+        """Der nicht eingelöste Vorgang samt redigierter Vorschau — oder ``None``.
+
+        Der Merkposten trägt den Schlüssel: er gehört in die Sitzung
+        (``entities``), nie in die Kette des Modells. Eingelöst heißt verbraucht.
+        """
+        if self._pending is None:
+            return None
+        return self._pending, self._vorschau

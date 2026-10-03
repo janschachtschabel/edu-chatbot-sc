@@ -347,6 +347,7 @@ setzt der Bestand den Menschen am Zugwechsel wieder ein“). Als eigene Aufgabe 
 der Abschnitt „Ändern“ des Master-Skills beschreibt das Soll richtig.
 
 **Stand 2026-09-28 — belegt, Vorschlag zur Freigabe, nicht gebaut** (`/better-coding-debug`).
+Gebaut am 2026-10-01 als Paket 2, siehe „Stand 2026-10-01“ am Ende dieses Abschnitts.
 
 *Beleg.* `backend/tests/test_agent_schreib_abnahme.py` (neu) spielt zwei Chat-Züge im
 Agent-Modus durch. Echt laufen Vorlauf samt Abnahme, `respond_agent`, Agent-Schleife samt
@@ -438,6 +439,59 @@ streicht `_`-Schlüssel (`turn_persist.py:163`).
   im Muster-Modus.
 - **N-5 (kosmetisch):** der Abnahme-Zug steht im Debug- und Qualitätsprotokoll auch im
   Agent-Modus als `M18`.
+
+**Stand 2026-10-01 — gebaut (Paket 2, `/better-coding-workflow`), Vorschlag 1–3 wie oben.**
+- `services/agent_write.py`: `WriteGate.observe` merkt sich den Vorgang samt geschwärzter
+  Vorschau in beiden Betriebsarten; `offene_abnahme()` gibt ihn heraus, solange er nicht
+  eingelöst ist. `prepare` bleibt unverändert: in `propose` setzt die Schleife nie einen
+  Schlüssel ein.
+- `services/agent_loop.py`: Naht `on_offene_abnahme(merkposten, vorschau)` in `schluss()`.
+  Jeder Ausgang der Schleife läuft dort durch, die Naht kommt also höchstens einmal je Lauf.
+- `services/write_approval.py`: `merke_abnahme()` legt `entities["_pending_write"]` und
+  `session_state["_write_preview"]` ab, neben dem Leser.
+- `graph/nodes/respond_agent.py`: reicht die Naht nur im Chat-Zug herein; `/api/agent`
+  bleibt unverändert.
+- Tests:
+  - Die beiden `xfail` in `test_agent_schreib_abnahme.py` sind grün, die Marker sind entfernt.
+  - Neu in `test_agent_loop.py`: Naht einmal am Ende; ohne Vorgang kein Aufruf; `execute`
+    verbraucht, nichts bleibt offen; die letzte Vorschau gewinnt; kein Schlüssel im
+    `AgentRun`.
+  - Die Attrappen von `run_agent_loop` in `test_respond_agent.py` und
+    `test_agent_prompt_preview.py` tragen die neue Signatur (A4b-Regel).
+- N-3: die Vorlage `docs/skills/vorgehen.md` ist berichtigt („Den Kasten mit dieser Vorschau
+  zeigt der Chat von selbst …“). Neuer Wächter `test_die_aenderungs_vorschau_zeigt_der_chat_selbst`;
+  er läuft auch im Prüfskript, das damit 12 Regeln prüft. Übertragen in den Knoten machen
+  Nutzer bzw. Redaktion.
+- N-1 und N-2 hat das Audit 2026-09-29 erledigt:
+  - N-1: `discard_stale_approval` im Vorlauf verwirft den Merkposten, sobald ein Zug keine
+    Zustimmung ist. Das gilt damit für beide Maschinen.
+  - N-2: `_args_for_log` schwärzt den Schlüssel in der INFO-Zeile (`services/mcp/client.py`).
+- Review mit frischem Blick (2026-10-01), vier Befunde:
+  1. **Hoch:** Ohne angemeldete Person lief das „ja“ unter dem Dienstkonto der Anlage. Vor
+     Paket 2 hielt das nur der Zufall auf, dass `propose` nichts merkte. Behoben:
+     `respond_agent` reicht die Naht nur bei `has_personal_auth()` herein (Nutzer-Entscheid
+     2026-08-12); neuer Abnahme-Test `test_ohne_anmeldung_bleibt_es_bei_der_vorschau`, die
+     beiden Soll-Tests laufen mit angemeldeter Person. B-H3 für den Muster-Weg bleibt offen
+     (Befundliste §2).
+  2. **Niedrig:** Ein weiterer Chip, der als glatte Zustimmung gilt („Ja, zeig mir mehr
+     Videos“), hätte im Folgezug ebenfalls ausgeführt. Behoben in `turn_persist`: neben dem
+     Knopf bleibt keine zweite Zustimmung stehen (gilt für beide Maschinen).
+  3. **Niedrig, älter:** Ein Merkposten überdauert Tour- und Kontext-Gruß-Züge → Befundliste §1.
+  4. **Tests:** `/api/agent` ohne Naht; Übergabe auch bei `no_progress` und am Schrittdeckel;
+     `execute` ohne Einlösung im Lauf reicht weiter.
+- N-4 gilt damit nur noch für den Muster-Modus: im Agent-Modus schreibt GV-RED-1 ohne
+  persönliche Anmeldung nicht.
+- Offen: N-5 (kosmetisch, Befundliste §5) und die Live-Probe. Bis zur Vorschau schreibt sie
+  nichts; das „ja“ schreibt echt dorthin, wohin der MCP-Server zeigt, also nur mit Freigabe.
+- Nachweis: Backend-Suite 4873 passed, 4 skipped; `ruff` sauber.
+- Nachtrag 2026-10-03 (Nutzer: „Befunde beheben“):
+  - Review-Befund 3 behoben: `discard_stale_approval` läuft jetzt in `graph/nodes/setup`, dem
+    ersten Knoten, vor Tour und Kontext-Gruß; der Vorlauf ruft es nicht mehr. Neue Tests in
+    `test_setup_node.py`; die Verfalls-Tests in `test_preflight_node.py` laufen in
+    Graph-Reihenfolge (`setup` → `preflight`).
+  - Nebenbefund behoben: `GET /api/sessions/{id}` ersetzt den Schlüssel eines offenen Vorgangs
+    durch den Platzhalter (`domain/write_confirm.entities_for_display`); Werkzeug, Argumente und
+    Frist bleiben sichtbar.
 
 ## Offene Fragen an den Nutzer
 

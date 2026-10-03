@@ -205,6 +205,7 @@ async def run_agent_loop(
     clock: Callable[[], float] = time.monotonic,
     on_tool_result: Callable[[str, str], None] | None = None,
     wissen: Callable[[dict[str, Any]], Awaitable[str]] | None = None,
+    on_offene_abnahme: Callable[[dict[str, Any], str], None] | None = None,
 ) -> AgentRun:
     """Fahre die Schleife, bis ein Grund sie beendet.
 
@@ -219,6 +220,11 @@ async def run_agent_loop(
     ist **redigiert, aber ungerahmt**: ein Bestätigungs-Schlüssel darf diese
     Naht nicht passieren, der Fremdtext-Rahmen ist dagegen eine Anweisung ans
     Modell und für einen Parser nur Störung.
+
+    ``on_offene_abnahme`` (Paket 2) bekommt beim Laufende höchstens einmal den
+    nicht eingelösten Schreib-Vorgang als ``(merkposten, vorschau)``. Es ist die
+    einzige Naht, über die ein Schlüssel die Schleife verlässt — in die Sitzung
+    des Chat-Zugs, nie zum Modell. Der Agent-Endpunkt reicht nichts herein.
     """
     acc = usage_acc if usage_acc is not None else new_accumulator()
     gate = WriteGate(limits.write_mode)
@@ -239,6 +245,8 @@ async def run_agent_loop(
         # Jeder Ausgang geht hier durch: die Runde, in der der Lauf endet, hat
         # keine naechste, die sie schliessen koennte (AG-1).
         buch.schliessen(clock())
+        if on_offene_abnahme is not None and (offen := gate.offene_abnahme()) is not None:
+            on_offene_abnahme(*offen)
         return _ended(run, reason)
 
     for _ in range(limits.max_iterations):

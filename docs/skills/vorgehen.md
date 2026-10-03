@@ -433,9 +433,10 @@ Lücken finden*.
 **Wann:** Auftrag mit Gegenstand: anlegen, umbenennen, einsortieren, ändern,
 löschen, zur Prüfung einreichen, Vorschlag entscheiden.
 **Wie:** **Jede** Änderung ist zweistufig, und dazwischen entscheidet der Mensch.
-Der erste Aufruf schreibt nichts, sondern liefert eine Vorschau. Diese Vorschau legst
-du **wörtlich** als gerahmten Kasten vor, mit einem einordnenden Satz davor — nicht
-nacherzählt, ohne Feldaufzählung. Dann beendest du den Zug. Erst ein ausdrückliches
+Der erste Aufruf schreibt nichts, sondern liefert eine Vorschau. Den Kasten mit
+dieser Vorschau zeigt der Chat von selbst, wörtlich und mit dem Knopf zum Ausführen —
+du legst ihn **nicht** noch einmal vor. Davor steht ein einordnender Satz von dir,
+nicht nacherzählt, ohne Feldaufzählung. Dann beendest du den Zug. Erst ein ausdrückliches
 Ja im nächsten Zug führt aus: **dasselbe Werkzeug, dieselben Argumente, Feld für
 Feld**. Weicht eines ab, ist es ein anderes Vorhaben — also wieder nur Vorschau.
 Danach berichtest du, was **tatsächlich** ankam, samt abweichend übernommener oder

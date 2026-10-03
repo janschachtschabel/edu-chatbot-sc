@@ -106,6 +106,13 @@ def test_result_schema_erreicht_die_werkzeugliste(monkeypatch):
     assert "result" in submit["function"]["parameters"]["required"]
 
 
+
+def test_der_agent_endpunkt_reicht_keine_abnahme_herein(monkeypatch):
+    """Paket 2: die Übergabe des offenen Vorgangs gehört dem Chat-Zug — der
+    sitzungslose Endpunkt hat keinen nächsten Zug, in dem jemand annimmt."""
+    loop, _out, _a = _lauf(monkeypatch, AgentRequest(instruction="Prüfe X."))
+    assert loop.kwargs.get("on_offene_abnahme") is None
+
 # ── Vorabauflösung ───────────────────────────────────────────────────────
 
 

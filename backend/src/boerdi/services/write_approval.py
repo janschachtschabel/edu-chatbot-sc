@@ -92,8 +92,10 @@ async def discard_stale_approval(
 
     Eine glatte Zustimmung lässt den Vorgang stehen — ihn löst
     :func:`redeem_write_approval` ein oder, ohne gemerkte Argumente, der
-    Fingerabdruck-Weg im Tool-Loop. Weil jeder Tool-Loop-Zug diesen Vorlauf
-    passiert, sieht auch jener Weg nur noch Vorgänge des direkt vorigen Zugs.
+    Fingerabdruck-Weg im Tool-Loop. Gerufen wird im ersten Knoten
+    (``graph/nodes/setup``), vor jedem frühen Ausgang — Tour und Kontext-Gruß
+    beenden den Zug vor dem Vorlauf. So sieht jeder Weg nur Vorgänge des direkt
+    vorigen Zugs.
 
     Gespeichert wird sofort: nicht jeder Weg nach dem Vorlauf schreibt
     ``entities`` zurück (die Direkt-Aktionen nicht), und ein nur im Speicher
@@ -112,6 +114,18 @@ async def discard_stale_approval(
         pending.get("tool") if isinstance(pending, dict) else "?")
     await update_session(session, req.session_id, entities=entities)
     return True
+
+
+def merke_abnahme(session_state: dict, merkposten: dict, vorschau: str) -> None:
+    """Eine offene Abnahme der Agent-Schleife ablegen (Paket 2, Runde-2-Plan).
+
+    An dieselben zwei Stellen, die ``services/tool_loop`` setzt: der Merkposten
+    in ``entities`` überdauert den Zug und wird hier im nächsten eingelöst, die
+    Vorschau auf oberster Ebene gilt nur für diesen Zug (Box und Knopf in
+    ``turn_persist``).
+    """
+    session_state.setdefault("entities", {})["_pending_write"] = merkposten
+    session_state["_write_preview"] = vorschau
 
 
 async def redeem_write_approval(

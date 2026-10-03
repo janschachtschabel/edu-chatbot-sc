@@ -3,7 +3,8 @@
 Stand 2026-10-01. Auftrag des Nutzers: „wie empfohlen fortfahren“. Gemeint ist die
 Reihenfolge aus der Befundliste:
 1. Paket 1: §1.5, §1.6 und die Quick Wins aus dem Audit.
-2. Danach die Schreib-Abnahme im Agent-Modus (§1.1).
+2. Danach die Schreib-Abnahme im Agent-Modus (§1.1). Gebaut als Paket 2 am 2026-10-01;
+   das Log steht im Runde-2-Plan unter „Nebenbefund außerhalb dieser Runde“.
 3. Dann ein Plan für das Token-Streaming.
 
 Vorgabe zu den Schnellantworten: Sie sollen konsistent sein und in derselben Sprache stehen

@@ -19,6 +19,10 @@ each is its own graph node or a later slice:
   a tour/greeting early-exit turn),
 * the preflight direct-action dispatch → ``graph/nodes/preflight`` (R2a, built).
 
+What it does beyond ALT: it drops a pending write approval this turn cannot
+confirm (``services/write_approval.discard_stale_approval``) — here, because the
+tour and the context greeting end the turn before the preflight.
+
 DI (Regel 3): ``session`` and ``peer_ip`` are injected — the graph-build (P4-6)
 binds the request ``AsyncSession`` and the real peer IP, mirroring ALT
 ``_setup_turn(req, peer_ip)`` and how ``assess``/``preflight`` take their seams.
@@ -43,6 +47,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.graph.state import TurnContext
 from boerdi.services.db_sessions import get_messages, get_or_create_session
+from boerdi.services.write_approval import discard_stale_approval
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +73,11 @@ async def setup(ctx: TurnContext, session: AsyncSession, peer_ip: str = "") -> T
         "turn_count": row.get("turn_count") or 0,
         "tour_state": row.get("tour_state") or {},
     }
+    # Ein offener Schreib-Vorgang gilt nur für den direkt folgenden Zug. Verworfen
+    # wird HIER, vor jedem frühen Ausgang: Tour und Kontext-Gruß beenden den Zug
+    # vor dem Vorlauf, und ein erst dort verworfener Vorgang überdauerte sie
+    # (Review Paket 2, 2026-10-01).
+    await discard_stale_approval(session, req, ctx.session_state)
 
     ctx.env = req.environment.model_dump()
 
