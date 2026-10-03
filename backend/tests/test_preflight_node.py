@@ -20,7 +20,9 @@ import pytest
 from boerdi.api.schemas import ChatRequest, ChatResponse, Environment, SafetyDecision
 from boerdi.graph import state as state_mod
 from boerdi.graph.nodes import preflight as pf_mod
+from boerdi.graph.nodes import setup as setup_mod
 from boerdi.graph.nodes.preflight import preflight
+from boerdi.graph.nodes.setup import setup
 from boerdi.services.rate_limits import RateVerdict
 
 _SESSION = object()  # sentinel — every DB boundary is patched
@@ -185,7 +187,25 @@ def _liegengelassene_abnahme(monkeypatch):
     zustand = {"persona_id": "P-AND", "entities": {"_pending_write": remember_pending(
         "wlo_create_content", {"title": "Arbeitsblatt Bruchrechnung"},
         "Ax9-_QmZ2kLpWvRt7NbYcE4s", now=time.time())}}
+
+    # ``setup`` lädt die Sitzung je Zug neu — hier immer dieselben ``entities``,
+    # damit ein Verwerfen im ersten Zug auch im zweiten gilt (wie in der DB).
+    async def _sitzung(*_a, **_k):
+        return {"persona_id": "P-AND", "entities": zustand["entities"]}
+
+    async def _kein_verlauf(*_a, **_k):
+        return []
+
+    monkeypatch.setattr(setup_mod, "get_or_create_session", _sitzung)
+    monkeypatch.setattr(setup_mod, "get_messages", _kein_verlauf)
     return schreiben, zustand
+
+
+def _zug(ctx) -> state_mod.TurnContext:
+    """Ein Zug in Graph-Reihenfolge: ``setup`` verwirft einen Vorgang, den dieser
+    Zug nicht bestätigen kann (vor Tour und Kontext-Gruß), dann der Vorlauf."""
+    ctx = asyncio.run(setup(ctx, _SESSION, peer_ip="1.2.3.4"))
+    return asyncio.run(preflight(ctx, _SESSION))
 
 
 def test_ein_spaeteres_ja_loest_einen_liegengelassenen_vorgang_nicht_aus(monkeypatch):
@@ -199,12 +219,9 @@ def test_ein_spaeteres_ja_loest_einen_liegengelassenen_vorgang_nicht_aus(monkeyp
 
     schreiben, zustand = _liegengelassene_abnahme(monkeypatch)
 
-    asyncio.run(preflight(
-        _ctx(None, message="Zeig mir erst Videos zu Brüchen", session_state=zustand),
-        _SESSION))
+    _zug(_ctx(None, message="Zeig mir erst Videos zu Brüchen", session_state=zustand))
     assert is_affirmation("Ja, zeig mir mehr Videos"), "sonst prüfte der Test nichts"
-    out = asyncio.run(preflight(
-        _ctx(None, message="Ja, zeig mir mehr Videos", session_state=zustand), _SESSION))
+    out = _zug(_ctx(None, message="Ja, zeig mir mehr Videos", session_state=zustand))
 
     assert schreiben.calls == [], "Ein liegengelassener Vorgang wurde ausgeführt"
     assert out.early_response is None
@@ -216,10 +233,8 @@ def test_eine_direktaktion_dazwischen_laesst_den_vorgang_verfallen(monkeypatch):
     bestätigen."""
     schreiben, zustand = _liegengelassene_abnahme(monkeypatch)
 
-    asyncio.run(preflight(
-        _ctx("browse_collection", message="", session_state=zustand, collection_id="c1"),
-        _SESSION))
-    asyncio.run(preflight(_ctx(None, message="ja", session_state=zustand), _SESSION))
+    _zug(_ctx("browse_collection", message="", session_state=zustand, collection_id="c1"))
+    _zug(_ctx(None, message="ja", session_state=zustand))
 
     assert schreiben.calls == []
 
@@ -228,8 +243,7 @@ def test_die_antwort_direkt_auf_die_vorschau_bestaetigt_weiterhin(monkeypatch):
     """Gegenprobe: die unmittelbare Zustimmung löst den Vorgang wie bisher ein."""
     schreiben, zustand = _liegengelassene_abnahme(monkeypatch)
 
-    out = asyncio.run(preflight(
-        _ctx(None, message="Ja, so ausführen", session_state=zustand), _SESSION))
+    out = _zug(_ctx(None, message="Ja, so ausführen", session_state=zustand))
 
     assert len(schreiben.calls) == 1
     assert out.early_response is not None

@@ -92,8 +92,10 @@ async def discard_stale_approval(
 
     Eine glatte Zustimmung lässt den Vorgang stehen — ihn löst
     :func:`redeem_write_approval` ein oder, ohne gemerkte Argumente, der
-    Fingerabdruck-Weg im Tool-Loop. Weil jeder Tool-Loop-Zug diesen Vorlauf
-    passiert, sieht auch jener Weg nur noch Vorgänge des direkt vorigen Zugs.
+    Fingerabdruck-Weg im Tool-Loop. Gerufen wird im ersten Knoten
+    (``graph/nodes/setup``), vor jedem frühen Ausgang — Tour und Kontext-Gruß
+    beenden den Zug vor dem Vorlauf. So sieht jeder Weg nur Vorgänge des direkt
+    vorigen Zugs.
 
     Gespeichert wird sofort: nicht jeder Weg nach dem Vorlauf schreibt
     ``entities`` zurück (die Direkt-Aktionen nicht), und ein nur im Speicher

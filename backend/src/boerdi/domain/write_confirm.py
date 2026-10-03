@@ -296,13 +296,15 @@ def remember_pending(
     return merkposten
 
 
+
 def is_expired(pending: dict[str, Any] | None, *, now: float) -> bool:
     """Ist die Frist des Schlüssels verstrichen? (E4)
 
     Der Merkposten überdauert höchstens bis zum nächsten Zug: entfernt wird er
     auf dem Bestätigungspfad, durch eine neue Vorschau desselben Werkzeugs und
-    im Vorlauf jedes Zugs, der ihn nicht bestätigen kann
-    (``services/write_approval.discard_stale_approval``, Audit 2026-09-29).
+    zu Beginn jedes Zugs, der ihn nicht bestätigen kann
+    (``services/write_approval.discard_stale_approval`` in ``graph/nodes/setup``,
+    Audit 2026-09-29).
     Fragt jemand Stunden später zufällig **exakt** dasselbe erneut an, wurde
     der alte Schlüssel bis E4 eingesetzt, vom Server abgelehnt und durch eine
     neue Vorschau beantwortet: ein überflüssiger Werkzeugaufruf, keine falsche
