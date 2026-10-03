@@ -35,6 +35,7 @@ interface Rec {
   ctx: SendMessageContext;
   users: string[]; bots: Bot[]; removed: string[]; scroll: string[];
   phases: Array<[string, string]>; results: Array<{ resp: ChatResponse; msg: string }>;
+  streamTexts: Array<[string, string, number]>; streamCleared: string[];
   loading: boolean[]; cleared: number; focus: number;
   streamCalls: Array<{ msg: string; env: unknown; action?: string; actionParams?: unknown }>;
   postCalls: Array<{ msg: string; env: unknown; action?: string; actionParams?: unknown }>;
@@ -57,6 +58,7 @@ function makeCtx(opts: Opts = {}): Rec {
   const rec: Rec = {
     ctx: null as unknown as SendMessageContext,
     users: [], bots: [], removed: [], scroll: [], phases: [], results: [],
+    streamTexts: [], streamCleared: [],
     loading: [], cleared: 0, focus: 0, streamCalls: [], postCalls: [],
   };
   let currentLoading = opts.isLoading ?? false;
@@ -74,6 +76,8 @@ function makeCtx(opts: Opts = {}): Rec {
     },
     removeMessage: (id) => { rec.removed.push(id); },
     updateLoadingPhase: (loadingId, label) => { rec.phases.push([loadingId, label]); },
+    appendStreamText: (loadingId, text, pos) => { rec.streamTexts.push([loadingId, text, pos]); },
+    clearStreamText: (loadingId) => { rec.streamCleared.push(loadingId); },
     setScrollTarget: (id) => { rec.scroll.push(id); },
     focusInput: () => { rec.focus++; },
     pageContextEnv: () => opts.env,
@@ -217,12 +221,11 @@ describe('runSendMessage — Lifecycle', () => {
     expect(warn).toHaveBeenCalled();
   });
 
-  it('onEvent: phase-Event → updateLoadingPhase(loadingId, label); text_delta + null-Label ignoriert', async () => {
+  it('onEvent: phase-Event → updateLoadingPhase(loadingId, label); null-Label ignoriert', async () => {
     const r = makeCtx({
       input: '',
       formatPhaseLabel: (evt) => (evt.event === 'phase' ? (evt.data?.label ?? null) : null),
       stream: (_msg, onEvent) => {
-        onEvent({ event: 'text_delta', data: { t: 'x' } }); // ignoriert (früher return)
         onEvent({ event: 'phase', data: { label: 'sucht…' } }); // → updateLoadingPhase
         onEvent({ event: 'connected', data: {} }); // formatPhaseLabel → null → ignoriert
         return Promise.resolve(makeResp());
@@ -231,6 +234,42 @@ describe('runSendMessage — Lifecycle', () => {
     await runSendMessage('Frage', undefined, undefined, r.ctx);
     const loadingId = r.bots[0].id;
     expect(r.phases).toEqual([[loadingId, 'sucht…']]);
+  });
+
+  // Token-Streaming (Plan 2026-10-01, T15): `text_delta` füllt die Ladeblase;
+  // die fertige Antwort ersetzt sie wie bisher.
+  it('onEvent: text_delta → appendStreamText(loadingId, text, pos); kaputte Nutzlast ignoriert', async () => {
+    const r = makeCtx({
+      input: '',
+      stream: (_msg, onEvent) => {
+        onEvent({ event: 'text_delta', data: { text: 'Hal', pos: 0 } });
+        onEvent({ event: 'text_delta', data: { text: 'lo', pos: 3 } });
+        onEvent({ event: 'text_delta', data: { t: 'x' } });              // ALT-fremde Form
+        onEvent({ event: 'text_delta', data: { text: 'y', pos: '4' } }); // pos keine Zahl
+        return Promise.resolve(makeResp({ content: 'Hallo' }));
+      },
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    const loadingId = r.bots[0].id;
+    expect(r.streamTexts).toEqual([[loadingId, 'Hal', 0], [loadingId, 'lo', 3]]);
+    expect(r.phases).toEqual([]);
+    expect(r.removed).toEqual([loadingId]);   // die Ladeblase samt Teiltext geht
+    expect(r.bots[1].content).toBe('Hallo');  // die fertige Antwort kommt neu
+  });
+
+  it('Rückfall auf POST leert den vorläufigen Text, bevor der zweite Weg läuft', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r = makeCtx({
+      input: '',
+      stream: (_msg, onEvent) => {
+        onEvent({ event: 'text_delta', data: { text: 'Hal', pos: 0 } });
+        return Promise.reject(new Error('network'));
+      },
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.streamCleared).toEqual([r.bots[0].id]);
+    expect(r.bots[1].content).toBe('via POST');
+    expect(warn).toHaveBeenCalledOnce();
   });
 });
 

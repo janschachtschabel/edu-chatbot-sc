@@ -339,10 +339,16 @@ Schnellwege sehen ihn nie. Gemessen wurde der Aussetzer dort in 10 Zügen
 Stelle: `services/llm.LEERLAUF_VERSUCHE`.
 
 Eine Einschränkung gilt nur dort: **auf dem Inline-Pfad (`respond_to_user`)
-wird nicht wiederholt.** Der Text ist dort schon zeichenweise beim Client
-gestreamt — eine zweite Antwort hängte sich sichtbar hinter die erste. Bleibt
-er leer (erreichbar, wenn die Antwort nur aus Optionszeilen bestand), endet der
-Zug leer und bekommt den ehrlichen Satz statt einer Wiederholung.
+wird nicht wiederholt.** Mit `CHAT_TOKEN_STREAMING` ist der Text dort schon
+zeichenweise beim Client (`text_delta`, Plan `2026-10-01-token-streaming`) — eine
+zweite Antwort hängte sich sichtbar hinter die erste. Bleibt er leer (erreichbar,
+wenn die Antwort nur aus Optionszeilen bestand), endet der Zug leer und bekommt
+den ehrlichen Satz statt einer Wiederholung.
+
+**Token-Streaming im Agent-Modus.** Gestreamt wird nur der Text von
+`respond_to_user`, also nur mit `AGENT_INLINE_QUICK_REPLIES=1` (und
+`CHAT_TOKEN_STREAMING=1`). Eine Runde mit dieser Antwort ist immer die letzte, ihr
+Text wird nie verworfen. Freier Text vor einem Werkzeugaufruf geht nie hinaus.
 
 **Das Ansage-Echo — die tatsächlich gemessene Live-Ursache.** Die stummen Züge
 vom 21.08.2026 waren am Ende kein Aussetzer: das Modell antwortete, aber die

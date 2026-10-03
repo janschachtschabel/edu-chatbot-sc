@@ -40,6 +40,10 @@ export interface SendMessageContext {
   ) => string;
   removeMessage: (id: string) => void;
   updateLoadingPhase: (loadingId: string, label: string) => void;
+  /** Token-Streaming: ein `text_delta`-Stück an die Ladeblase (MessageStore). */
+  appendStreamText: (loadingId: string, text: string, pos: number) => void;
+  /** Den vorläufigen Text verwerfen (vor dem Rückfall auf POST). */
+  clearStreamText: (loadingId: string) => void;
   /** Setzt `scrollTargetId` (in `ngAfterViewChecked` konsumiert, 8-4S-e). */
   setScrollTarget: (id: string) => void;
   /** `setTimeout(() => inputField.focus(), 100)` — Shell-seitig. */
@@ -90,10 +94,19 @@ export async function runSendMessage(
     const env = ctx.pageContextEnv();
 
     // Phase-1-Streaming: SSE-`phase`-Events aktualisieren live das Lade-Label,
-    // statt eines statischen Spinners. `text_delta` ist ein bewusster No-Op
-    // (Phase-2-Token-Streaming zurückgerollt — flackerte).
+    // statt eines statischen Spinners. `text_delta` füllt die Ladeblase mit dem
+    // vorläufigen Antworttext (Token-Streaming, Plan 2026-10-01); die fertige
+    // Antwort ersetzt sie unten wie bisher. Eine Nutzlast ohne Text oder ohne
+    // Position (`pos`) wird verworfen.
     const onEvent = (evt: ChatStreamEvent) => {
-      if (evt.event === 'text_delta') return;
+      if (evt.event === 'text_delta') {
+        const text = evt.data?.text;
+        const pos = evt.data?.pos;
+        if (typeof text === 'string' && typeof pos === 'number') {
+          ctx.appendStreamText(loadingId, text, pos);
+        }
+        return;
+      }
       const label = ctx.formatPhaseLabel(evt);
       if (!label) return;
       ctx.updateLoadingPhase(loadingId, label);
@@ -132,6 +145,9 @@ export async function runSendMessage(
       // auf den non-stream Endpoint, damit der User trotzdem eine Antwort
       // bekommt (deckt auch ältere Backends ohne /stream-Route ab).
       console.warn('chat stream failed, falling back to POST /chat:', streamErr);
+      // Der zweite Weg beantwortet die Frage neu — ein Teiltext des ersten
+      // stünde sonst bis dahin als Antwort da.
+      ctx.clearStreamText(loadingId);
       resp = await ctx.post(msg, env, action, actionParams);
     }
 

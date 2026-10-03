@@ -93,4 +93,37 @@ export class MessageStore {
       m.id === loadingId && m.isLoading ? { ...m, loadingPhase: label } : m,
     ));
   }
+
+  /** Bubbles, deren Strom eine Lücke hatte — dort wird nichts mehr angehängt. */
+  private readonly _stromLuecke = new Set<string>();
+
+  /** Token-Streaming (Plan 2026-10-01): ein Stück Antworttext an die ladende
+   *  Bubble hängen. `pos` ist die Länge des bisher gesendeten Texts; passt er
+   *  nicht, fehlt ein Stück — dann bleibt der Strom stehen, und `result`
+   *  bringt den ganzen Text. */
+  appendStreamText(loadingId: string, text: string, pos: number): void {
+    if (this._stromLuecke.has(loadingId)) return;
+    const msg = this.messages().find(m => m.id === loadingId);
+    if (!msg || !msg.isLoading) return;
+    const bisher = msg.streamText ?? '';
+    // `pos` zählt Unicode-Zeichen wie der Server (Python `len`), nicht
+    // UTF-16-Einheiten: ein Emoji ist ein Zeichen, `length` zählte zwei.
+    if (pos !== Array.from(bisher).length) {
+      this._stromLuecke.add(loadingId);
+      return;
+    }
+    this.messages.update(msgs => msgs.map(m =>
+      m.id === loadingId ? { ...m, streamText: bisher + text } : m,
+    ));
+  }
+
+  /** Den vorläufigen Text verwerfen (Rückfall auf POST) — samt einer Lücke. */
+  clearStreamText(loadingId: string): void {
+    this._stromLuecke.delete(loadingId);
+    this.messages.update(msgs => msgs.map(m => {
+      if (m.id !== loadingId || m.streamText === undefined) return m;
+      const { streamText: _verworfen, ...rest } = m;
+      return rest;
+    }));
+  }
 }

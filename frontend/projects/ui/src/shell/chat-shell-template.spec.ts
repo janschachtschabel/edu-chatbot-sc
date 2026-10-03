@@ -48,6 +48,7 @@ function store(c: ChatShellComponent) {
       addBotMessage: (...args: unknown[]) => string;
       set: (m: ChatMessage[]) => void;
       updateLoadingPhase: (id: string, label: string) => void;
+      appendStreamText: (id: string, text: string, pos: number) => void;
     };
   })._store;
 }
@@ -97,6 +98,26 @@ describe('ChatShellComponent — Message-Row-Template (8-4S-f3)', () => {
     store(c).updateLoadingPhase(id, 'sucht Inhalte…');
     f.detectChanges();
     expect(el.querySelector('.typing-phase')?.textContent).toContain('sucht Inhalte…');
+  });
+
+  // Token-Streaming (Plan 2026-10-01, T16): der vorläufige Text steht in der
+  // Ladeblase, ist aber für Screenreader verborgen und nicht fokussierbar —
+  // angesagt wird wie bisher genau die fertige Antwort (`role="log"`).
+  it('Lade-Bubble mit Strom: Text sichtbar, verborgen für Screenreader, Phase weicht, Punkte bleiben', () => {
+    const { c, f, el } = make();
+    const id = store(c).addBotMessage('', true);
+    store(c).updateLoadingPhase(id, 'Formuliere Antwort…');
+    store(c).appendStreamText(id, 'Photosynthese ist **wichtig**', 0);
+    f.detectChanges();
+
+    const strom = el.querySelector('.message-row [aria-hidden="true"]') as HTMLElement | null;
+    expect(strom).not.toBeNull();
+    expect(strom!.hasAttribute('inert')).toBe(true);
+    expect(strom!.textContent).toContain('Photosynthese ist wichtig');
+    expect(strom!.querySelector('strong')).not.toBeNull();   // Markdown fortlaufend
+    expect(el.querySelector('.typing-dots')).not.toBeNull();
+    expect(el.querySelector('.typing-phase')).toBeNull();
+    expect(el.querySelector('.ai-notice')).toBeNull();       // erst an der fertigen Antwort
   });
 
   it('Inhalts-Bubble: Markdown gerendert (kein Roh-Markdown im DOM)', () => {

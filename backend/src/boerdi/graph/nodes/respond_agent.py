@@ -40,10 +40,11 @@ Satz darüber. Beides zusammen oder gar nicht — eine Anweisung auf ein Werkzeu
 das nicht im Katalog steht, wäre genau der Widerspruch, den C1-f1 gelehrt hat.
 Wer die 2–9 s zahlt, hat sie bestellt.
 
-**Kein Streaming.** ``run_agent_loop`` kennt keinen ``on_token``-Haken; der
-SSE-Strom trägt im Agent-Modus die ``phase``-Ereignisse und am Ende die ganze
-Antwort. Bewusst: ein Streaming-Weg in die Schleife wäre ein zweiter Umbau, und
-der A/B-Vergleich misst Inhalt und Dauer, nicht die Tropfgeschwindigkeit.
+**Token-Streaming** (Plan 2026-10-01): nur der Text von ``respond_to_user``,
+also nur mit ``AGENT_INLINE_QUICK_REPLIES`` und ``CHAT_TOKEN_STREAMING``.
+``graph/nodes/respond_strom`` öffnet oder sperrt den Strom, ``run_agent_loop``
+streamt höchstens eine Antwortrunde. Sonst trägt der SSE-Strom die
+``phase``-Ereignisse und am Ende die ganze Antwort.
 
 Randkonvention wie bei den Nachbarknoten: Nachbarn sind AN DIESEM Modul patchbar.
 """
@@ -63,6 +64,7 @@ from boerdi.domain.skill_precedence import (
     merke_laufende_anleitung,
     mit_ladehinweisen,
 )
+from boerdi.graph.nodes.respond_strom import strom_fuer_agent_zug
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
@@ -243,6 +245,7 @@ async def _abschluss_nachholen(
 
 async def respond_agent(
     ctx: TurnContext, progress: TurnProgress = NO_PROGRESS, session: Any = None,
+    on_token: Any = None,
 ) -> TurnContext:
     """Beantworte den Zug mit der Agent-Schleife. Mutiert ``ctx`` und gibt ihn
     zurück — gleiche Ausgangsfelder wie ``respond``, damit ``assemble`` und
@@ -366,6 +369,10 @@ async def respond_agent(
 
     all_cards: list[dict] = []
     ernten: list[list[dict]] = []
+    _antwort_tool = _antwort_werkzeug(ctx)
+    # Token-Streaming (Plan 2026-10-01, T22): nur mit ``respond_to_user`` im
+    # Angebot — dessen Text ist das Einzige, was hinausgeht (E-S1).
+    _strom = strom_fuer_agent_zug(on_token, ctx, antwort_werkzeug=_antwort_tool is not None)
     progress.start("response", "LLM response generation")
     lauf = await run_agent_loop(
         messages=messages,
@@ -380,7 +387,7 @@ async def respond_agent(
             # verspraeche das Modell, was ihm die Liste gleich nimmt.
             tool_mode=ctx.req.environment.tool_mode,
             wissen_tool=_wissen_tool,
-            antwort_tool=_antwort_werkzeug(ctx)),
+            antwort_tool=_antwort_tool),
         # AG-6: ohne angemeldete Person gelten die engeren anonymen Deckel.
         # Die Schreibregel zuletzt: was auch immer davor die Deckel ändert,
         # ``execute`` ohne Person kommt hier nicht durch.
@@ -397,7 +404,10 @@ async def respond_agent(
             (lambda merkposten, vorschau: merke_abnahme(
                 ctx.session_state, merkposten, vorschau))
             if has_personal_auth() else None),
+        on_token=_strom,
     )
+    if _strom is not None:
+        _strom.schliessen()  # den zurückgehaltenen Rest senden
     logger.info("Agent-Modus: %d Schritte, Ende=%s, %d Werkzeuge, %d Karten",
                 lauf.iterations, lauf.stop_reason, len(lauf.tools_called),
                 len(all_cards))

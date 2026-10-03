@@ -1,4 +1,4 @@
-"""Der SSE-Rahmen: connected → phase* → result | error (A3b1).
+"""Der SSE-Rahmen: connected → (phase | text_delta)* → result | error (A3b1).
 
 Herausgezogen aus ``api/chat.py``, unverändert im Verhalten. Anlass ist der
 zweite Verbraucher (``api/agent.py``): die knifflige Hälfte dieser Schleife —
@@ -13,7 +13,10 @@ nur, dass etwas läuft, dabei Fortschritt meldet und am Ende ein Ergebnis oder
 eine Ausnahme hat.
 
 Die Rahmennamen sind Vertrag (Spezifikation Regel 6): ``connected`` /
-``phase`` / ``result`` / ``error``. ``end`` sendet NEU bewusst nicht.
+``phase`` / ``result`` / ``error``. ``end`` sendet NEU bewusst nicht. Dazu kommt
+``text_delta`` mit ``{"text", "pos"}`` für das Token-Streaming (Name und ``text``
+wie ALT, ``pos`` neu; Plan ``2026-10-01-token-streaming``) — ein Client, der ihn
+nicht kennt, verhält sich wie zuvor.
 """
 
 from __future__ import annotations
@@ -50,6 +53,14 @@ ToPayload = Callable[[Any], Awaitable[dict[str, Any]]]
 
 def _frame(name: str, data: dict[str, Any]) -> str:
     return f"event: {name}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
+
+
+def _rahmen_fuer(evt: dict[str, Any]) -> str:
+    """Ein Sink-Ereignis als Rahmen: Antworttext wird ``text_delta``, alles
+    andere ``phase``."""
+    if evt.get("kind") == "text":
+        return _frame("text_delta", evt.get("data") or {})
+    return _frame("phase", evt)
 
 
 async def sse_turn(
@@ -108,13 +119,13 @@ async def sse_turn(
             continue
         if evt is _DONE:
             break
-        yield _frame("phase", evt)
+        yield _rahmen_fuer(evt)
     # Was zwischen dem letzten ``get()`` und ``_DONE`` einging (der Zug meldet
     # ohne zu warten, ein Schwall kann also noch hier liegen).
     while not queue.empty():
         evt = queue.get_nowait()
         if evt is not _DONE:
-            yield _frame("phase", evt)
+            yield _rahmen_fuer(evt)
 
     result = await impl_task
     if isinstance(result, Exception):

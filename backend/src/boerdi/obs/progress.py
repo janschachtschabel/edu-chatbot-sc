@@ -8,7 +8,9 @@ also 6-10 s Spinner ohne Rückmeldung. Der Konsument war längst gebaut —
 
 Vertrag (ALT ``trace_service.Tracer`` + Listener in ``chat.py:405``): je Ereignis
 ein ``{"kind", "step", "label", "data"}``-Dict. ``kind`` ist ``"start"`` oder
-``"record"``; ``"end"`` sendet NEU bewusst nicht (simplify: der einzige Konsument
+``"record"`` — oder ``"text"`` für ein Stück Antworttext (Token-Streaming,
+:meth:`TurnProgress.text`; ``api/sse`` macht daraus ``text_delta``).
+``"end"`` sendet NEU bewusst nicht (simplify: der einzige Konsument
 verwirft ``kind === "end"``, und ALTs ``end`` trug ``duration_ms`` für die
 Studio-Trace-Ansicht, die NEU mit dem Tracer gedroppt hat — kommt der Tracer
 zurück, kommt ``end`` mit ihm).
@@ -53,6 +55,12 @@ class TurnProgress:
     def record(self, step: str, label: str = "", data: dict[str, Any] | None = None) -> None:
         """Ein Schritt ist als Punkt-Ereignis passiert (ALT ``Tracer.record``)."""
         self._emit("record", step, label, dict(data or {}))
+
+    def text(self, text: str, pos: int) -> None:
+        """Ein Stück des Antworttexts (Token-Streaming): ``pos`` ist die Länge des
+        bisher gesendeten Texts in Unicode-Zeichen (``len``, nicht UTF-16).
+        ``api/sse`` macht daraus den Rahmen ``text_delta``."""
+        self._emit("text", "", "", {"text": text, "pos": pos})
 
     def _emit(self, kind: str, step: str, label: str, data: dict[str, Any]) -> None:
         """Zustellen und Sink-Ausnahmen schlucken.

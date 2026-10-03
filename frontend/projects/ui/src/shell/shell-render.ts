@@ -51,9 +51,10 @@ export class ShellRender {
     });
   }
 
-  /** Markdown → sanitisiertes SafeHtml (mit Render-Cache). ALT `renderMarkdown`. */
-  markdown(text: string, sender: 'bot' | 'user' = 'bot'): SafeHtml {
-    return this._markdown.render(text, sender);
+  /** Markdown → sanitisiertes SafeHtml (mit Render-Cache). ALT `renderMarkdown`.
+   *  `cache = false` für den vorläufigen Text beim Token-Streaming. */
+  markdown(text: string, sender: 'bot' | 'user' = 'bot', cache = true): SafeHtml {
+    return this._markdown.render(text, sender, cache);
   }
 
   /** Render-Cache verwerfen — Aufrufer: die Shell, wenn die Trusted-Hosts-Liste

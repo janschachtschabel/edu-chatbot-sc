@@ -394,6 +394,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     addBotMessage: (...args) => this._store.addBotMessage(...args),
     removeMessage: (id) => this._store.removeMessage(id),
     updateLoadingPhase: (id, label) => this._store.updateLoadingPhase(id, label),
+    appendStreamText: (id, text, pos) => this._store.appendStreamText(id, text, pos),
+    clearStreamText: (id) => this._store.clearStreamText(id),
     setScrollTarget: (id) => { this._scroll.setScrollTarget(id); },
     focusInput: () => this.focusInput(),
     pageContextEnv: () => Object.keys(this.parsedPageContext).length

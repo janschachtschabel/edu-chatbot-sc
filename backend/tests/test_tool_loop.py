@@ -647,6 +647,38 @@ def test_loop_usage_phase_labels_per_iteration(monkeypatch):
     assert acc["calls"] == 2
 
 
+
+def test_gestreamte_runde_bucht_wie_ungestreamte(monkeypatch):
+    """Plan Token-Streaming, T3: beim Streamen kommt die Usage im letzten Chunk.
+    Gemessen 2026-10-03 an ``gpt-6-luna`` über die Responses-Brücke: dasselbe
+    ``Usage``-Objekt wie ohne Streaming. Die Runde bucht also wie jede andere —
+    echt laufen ``_stream_completion`` und die Buchung, gefälscht ist nur der
+    Transport."""
+    from boerdi.obs import usage as usage_mod
+    acc = usage_mod.new_accumulator()
+    u = SimpleNamespace(prompt_tokens=10, completion_tokens=5, prompt_tokens_details=None)
+
+    def _stueck(*, content=None, finish=None, usage=None, ohne_wahl=False):
+        if ohne_wahl:
+            return SimpleNamespace(usage=usage, model="m", choices=[])
+        delta = SimpleNamespace(role="assistant", content=content, tool_calls=None)
+        return SimpleNamespace(usage=None, model="m",
+                               choices=[SimpleNamespace(delta=delta, finish_reason=finish)])
+
+    async def _strom(**_kw):
+        async def _gen():
+            for c in (_stueck(content="fertig"), _stueck(finish="stop"),
+                      _stueck(usage=u, ohne_wahl=True)):
+                yield c
+        return _gen()
+
+    monkeypatch.setattr(llm, "_acompletion", _strom)
+    _fake, result, _st = _run_loop(monkeypatch, [], on_token=lambda _s: None, usage_acc=acc)
+
+    assert result[0] == "fertig"
+    assert acc["per_phase"]["response"]["calls"] == 1
+    assert (acc["prompt_tokens"], acc["completion_tokens"]) == (10, 5)
+
 def test_loop_streaming_branch_uses_stream_completion(monkeypatch):
     seen: dict = {}
 
@@ -1039,6 +1071,62 @@ def test_loop_reflection_retries_once_when_required_tool_missing(monkeypatch):
         "⚠ KORREKTUR: Du hast PAT-X gewählt, aber KEINEN der verlangten "
         "Tools genutzt: search_wlo_content.")
     assert "mindestens EINEN" in corr
+
+
+def _strom_attrappe(monkeypatch, antwort="fertig"):
+    """``_stream_completion`` — hält fest, welche Runden gestreamt liefen."""
+    gestreamt: list[dict] = []
+
+    async def _strom(on_token, **kwargs):
+        gestreamt.append(kwargs)
+        return _resp_text(antwort)
+
+    monkeypatch.setattr(tool_loop, "_stream_completion", _strom)
+    return gestreamt
+
+
+def test_runde_mit_drohender_reflexion_streamt_nicht(monkeypatch):
+    """Plan Token-Streaming, T10: fehlt ein Pflichtwerkzeug, kann die
+    A1-Reflexion die Antwort dieser Runde verwerfen — ihr Text darf dann nicht
+    schon beim Client stehen. Nach der Reflexion streamt die Runde wieder."""
+    gestreamt = _strom_attrappe(monkeypatch)
+    fake, result, _st = _run_loop(monkeypatch, [_resp_text("ohne Werkzeug")],
+                                  pattern_output={"force_tool_use": True,
+                                                  "tools": ["search_wlo_content"]},
+                                  on_token=lambda _s: None)
+    assert len(fake.calls) == 1   # erste Runde ungestreamt, dann die Reflexion
+    assert len(gestreamt) == 1    # die Runde danach gestreamt
+    assert result[0] == "fertig"
+
+
+def test_runde_nach_erfuellter_pflicht_streamt(monkeypatch):
+    gestreamt = _strom_attrappe(monkeypatch)
+    fake, result, _st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "search_wlo_content", "{}")]),
+    ], pattern_output={"force_tool_use": True, "tools": ["search_wlo_content"]},
+        active_tools=_ACTIVE, on_token=lambda _s: None)
+    assert len(fake.calls) == 1   # die Suchrunde ungestreamt
+    assert len(gestreamt) == 1    # die Antwortrunde gestreamt
+    assert result[0] == "fertig"
+
+
+def test_nur_eine_antwortrunde_je_zug_streamt(monkeypatch):
+    """Review L1: kam ``respond_to_user`` mit unlesbaren Argumenten (B8), fragt
+    die Schleife neu — und die zweite Antwort hinge sichtbar an der ersten.
+    Nach einer gestreamten Antwortrunde läuft jede weitere ungestreamt."""
+    gestreamt: list[dict] = []
+
+    async def _strom(on_token, **kwargs):
+        gestreamt.append(kwargs)
+        return _resp_tools([("tc1", "respond_to_user", '{"text": "Erste Antw')])
+
+    monkeypatch.setattr(tool_loop, "_stream_completion", _strom)
+    zweite = json.dumps({"text": "Zweite Antwort", "quick_replies": []})
+    fake, result, _st = _run_loop(monkeypatch, [_resp_tools([("tc2", "respond_to_user", zweite)])],
+                                  _inline_qr_enabled=True, on_token=lambda _s: None)
+    assert len(gestreamt) == 1
+    assert len(fake.calls) == 1
+    assert result[0] == "Zweite Antwort"
 
 
 def test_loop_reflection_satisfied_by_prefetch_bare_name(monkeypatch):

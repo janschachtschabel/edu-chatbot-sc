@@ -58,6 +58,7 @@ from boerdi.domain.inline_grouping import (
 from boerdi.domain.inline_grouping import max_selectable_cards as _max_selectable
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
 from boerdi.domain.skill_precedence import merke_laufende_anleitung
+from boerdi.domain.tool_pflicht import fehlende_pflichtwerkzeuge, gerufene_werkzeuge
 from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
 from boerdi.domain.untrusted_text import frame_untrusted
 from boerdi.domain.write_confirm import (
@@ -195,6 +196,8 @@ async def _run_tool_loop(
     _reflection_done = False
     # Verbrauchte Wiederholungen nach einem Aussetzer des Anbieters (s.u.).
     _leerlaeufe = 0
+    # Token-Streaming: höchstens EINE gestreamte Antwortrunde je Zug (Review L1).
+    _strom_verbraucht = False
     # E1 (2026-08-10): der offene Bestätigungsvorgang, wie er beim EINTRITT in
     # diesen Zug aussah. Genau das macht ihn zur Zeitgrenze: eine Vorschau, die
     # weiter unten in diesem Zug entsteht, landet in ``session_state`` — aber
@@ -277,9 +280,14 @@ async def _run_tool_loop(
             verbosity=_verbosity,
         )
 
+        # Gestreamt wird eine Runde nur, wenn die A1-Reflexion ihre Antwort nicht
+        # mehr verwerfen kann — sonst stünde verworfener Text schon beim Client
+        # (Plan Token-Streaming, T10).
+        _strom_runde = on_token is not None and not _strom_verbraucht and (
+            _reflection_done or not fehlende_pflichtwerkzeuge(pattern_output, tools_called))
         _t0 = time.perf_counter()
         try:
-            if on_token is not None:
+            if _strom_runde:
                 # Phase-2 Streaming — same kwargs but tokens arrive progressively
                 # via on_token. The reconstructed _StreamedResponse exposes the
                 # same attributes so the tool-loop body below is unchanged.
@@ -291,6 +299,12 @@ async def _run_tool_loop(
             return f"Fehler bei der Verarbeitung: {e}", all_cards, tools_called, outcomes
 
         choice = resp.choices[0]
+        if _strom_runde and any(tc.function.name == RESPOND_TO_USER
+                                for tc in (choice.message.tool_calls or [])):
+            # Endet diese Runde nicht (etwa mit unlesbaren Argumenten, B8),
+            # hinge die nächste Antwort sichtbar an der ersten — sie läuft
+            # deshalb ungestreamt, und ``result`` ersetzt den Text.
+            _strom_verbraucht = True
         if usage_acc is not None:
             # A2.1 — Phase-Label je Iteration: tool-Iteration vs final response.
             # Hilft bei der Cache-Hit-Rate-Diagnose: "response"-Calls haben oft
@@ -886,19 +900,15 @@ async def _run_tool_loop(
             #   - greift nur wenn pattern_output.force_tool_use == True
             #   - greift nur wenn pattern_output.tools eine echte Liste ist
             #   - greift nur wenn keines der erwarteten Tools im tools_called auftaucht
-            requires_tools = bool(pattern_output.get("force_tool_use"))
+            # B1: requires_all_tools=true → vollständige Coverage; sonst Schnittmenge.
+            # Die Bedingung selbst wohnt in ``domain/tool_pflicht`` — der Strom fragt
+            # sie vor jeder Runde (Plan Token-Streaming, T10).
             required_tools = list(pattern_output.get("tools") or [])
             requires_all = bool(pattern_output.get("requires_all_tools"))
-            actual_bare = {(t or "").split(" ", 1)[0].strip() for t in tools_called}
-            # B1: requires_all_tools=true → vollständige Coverage; sonst Schnittmenge
-            if requires_all:
-                missing_tools = [t for t in required_tools if t not in actual_bare]
-                tool_satisfied = not missing_tools
-            else:
-                missing_tools = list(required_tools) if not (set(required_tools) & actual_bare) else []  # noqa: E501
-                tool_satisfied = bool(set(required_tools) & actual_bare)
+            actual_bare = gerufene_werkzeuge(tools_called)
+            missing_tools = fehlende_pflichtwerkzeuge(pattern_output, tools_called)
 
-            if (not _reflection_done) and requires_tools and required_tools and not tool_satisfied:
+            if (not _reflection_done) and missing_tools:
                 _logger.info(
                     "Reflection-Loop: Pattern %s verlangt Tools %s (mode=%s), aufgerufen %s, fehlend %s — Retry",  # noqa: E501
                     pattern_label, required_tools,

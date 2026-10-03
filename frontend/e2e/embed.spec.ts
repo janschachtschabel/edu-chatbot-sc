@@ -85,6 +85,13 @@ test('resetSession() und updateContext() wirken wirklich, nicht nur am Typ', asy
   await page.locator('.btn-send').click();
   await w.waitForTurns(2);
   expect(w.turnRequests()[1].environment.page_context.thema).toBe('Bruchrechnen');
+  // Erst den zweiten Zug zu Ende laufen lassen: `waitForTurns` kennt nur die
+  // Anfrage, und die Ladeblase zählt selbst als `.msg-bubble`. Lief
+  // `resetSession()` mitten in den Zug, landete dessen Antwort im frischen
+  // Verlauf (CI-Kippler 2026-10-03, PR #9; das Widget-Verhalten dahinter ist
+  // offen: docs/offene-befunde-und-todo.md §1.4).
+  await expect(page.locator('.msg-bubble').last()).toContainText('Zweite Antwort.');
+  await expect(page.locator('.typing-row')).toHaveCount(0);
 
   // resetSession: neue Session-ID, Verlauf wieder auf die Begrüßung.
   const before = w.turnRequests()[1].session_id;

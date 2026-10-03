@@ -21,7 +21,7 @@ export interface ChatStreamEvent {
 }
 
 /** Stale-Abbruch: 100 s lang kein BENANNTES Server-Event (connected/phase/
- *  result/error). Der Aufrufer zeigt eine ehrliche Meldung statt still auf
+ *  text_delta/result/error). Der Aufrufer zeigt eine ehrliche Meldung statt still auf
  *  POST /chat zu fallen (was die Wartezeit verdoppeln würde). Klasse statt
  *  ALTs `Error`+`err.name=` — `.name`-Kontrakt identisch, zusätzlich
  *  `instanceof`-fähig. */

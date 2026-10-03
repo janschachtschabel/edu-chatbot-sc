@@ -148,6 +148,34 @@ describe('streamChat Watchdogs (fake timers)', () => {
     await vi.advanceTimersByTimeAsync(105); // Stale feuert bei 100 vor Idle (140)
     await assertion;
   });
+
+  // Token-Streaming (Plan 2026-10-01, T18): ein `text_delta` ist ein benanntes
+  // Ereignis — eine lange, gestreamte Antwort läuft nicht in den Stillstand.
+  it('Stale-Watchdog: text_delta-Rahmen zählen als Fortschritt', async () => {
+    vi.useFakeTimers();
+    const enc = new TextEncoder();
+    const stueck = (text: string, pos: number) =>
+      enc.encode(`event: text_delta\ndata: ${JSON.stringify({ text, pos })}\n\n`);
+    const seen: string[] = [];
+    const p = streamChat({
+      url: 'x',
+      body: {},
+      onEvent: (e) => seen.push(e.event),
+      fetchImpl: abortableFetch((controller) => {
+        setTimeout(() => controller.enqueue(stueck('Hal', 0)), 60);
+        setTimeout(() => controller.enqueue(stueck('lo', 3)), 120);
+        setTimeout(() => {
+          controller.enqueue(enc.encode('event: result\ndata: {"content":"Hallo"}\n\n'));
+          controller.close();
+        }, 180);
+      }),
+      idleMs: 90,
+      staleMs: 100,
+    });
+    await vi.advanceTimersByTimeAsync(185);   // länger als staleMs, aber nie 100 ohne Rahmen
+    await expect(p).resolves.toEqual({ content: 'Hallo' });
+    expect(seen).toEqual(['text_delta', 'text_delta']);
+  });
 });
 
 describe('postChat', () => {

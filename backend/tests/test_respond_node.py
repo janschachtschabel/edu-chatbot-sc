@@ -488,3 +488,51 @@ def test_eine_leere_antwort_bleibt_nicht_stumm(monkeypatch):
     out = _run(_ctx())
     assert out.response_text.strip()
     assert "keine Antwort erzeugen" in out.response_text
+
+
+# ── Token-Streaming (Plan 2026-10-01-token-streaming, T11) ──────────────────
+
+def _strom_an(monkeypatch):
+    from boerdi.graph.nodes import respond_strom as rs_mod
+    from boerdi.settings import get_settings
+    monkeypatch.setenv("CHAT_TOKEN_STREAMING", "1")
+    get_settings.cache_clear()
+    monkeypatch.setattr(rs_mod, "inline_anzahl", lambda _po: 3)
+
+
+def _strom():
+    from boerdi.services.token_stream import TokenStrom
+    ereignisse: list[dict] = []
+    return TokenStrom(TurnProgress(ereignisse.append)), ereignisse
+
+
+def test_der_strom_geht_an_die_antwortrunde_und_wird_geschlossen(monkeypatch):
+    """Ein offener Strom geht an ``generate_response``; nach der Runde sendet
+    ``schliessen`` auch den zurückgehaltenen Rest (hier ein offener Link)."""
+    _strom_an(monkeypatch)
+    rec = _Rec()
+    _install(monkeypatch, rec)
+
+    async def _gen_mit_strom(session, **kw):
+        rec.gen_kwargs = kw
+        kw["on_token"]("Hallo [Li")
+        return ("Hallo [Li", [], [], [])
+
+    monkeypatch.setattr(respond_mod, "generate_response", _gen_mit_strom)
+    strom, ereignisse = _strom()
+    asyncio.run(respond(_ctx(winner_id="M04", pattern_output={}), _SESSION, on_token=strom))
+
+    assert rec.gen_kwargs["on_token"] is strom
+    assert "".join(e["data"]["text"] for e in ereignisse if e["kind"] == "text") == "Hallo [Li"
+
+
+def test_ein_gesperrter_zug_reicht_keinen_strom_weiter(monkeypatch):
+    _strom_an(monkeypatch)
+    rec = _Rec()
+    _install(monkeypatch, rec)
+    strom, ereignisse = _strom()
+    _ctx_m05 = _ctx(winner_id="M05")
+    asyncio.run(respond(_ctx_m05, _SESSION, on_token=strom))
+
+    assert rec.gen_kwargs["on_token"] is None
+    assert strom.abschluss("x")["gesperrt"] == "suchmuster"

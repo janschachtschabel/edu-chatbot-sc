@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 
 import pytest
 from fastapi.testclient import TestClient
@@ -231,8 +232,53 @@ async def test_stream_binds_session_peer_ip_and_no_on_token(monkeypatch):
     frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
     assert builds[0]["session"] is _SESSION
     assert builds[0]["peer_ip"] == "7.7.7.7"
-    assert builds[0]["on_token"] is None  # token streaming stays rolled back (as in ALT)
+    # Vorgabe: Schalter aus → kein Strom (Plan Token-Streaming, E-S5).
+    assert builds[0]["on_token"] is None
     assert frames[0] == "event: connected\ndata: {}\n\n"
+
+
+async def test_mit_schalter_bindet_der_stream_einen_tokenstrom(monkeypatch):
+    """Plan Token-Streaming, T12: nur mit ``CHAT_TOKEN_STREAMING`` legt der
+    Endpunkt den Strom an — eine Instanz je Anfrage."""
+    from boerdi.services.token_stream import TokenStrom
+    monkeypatch.setenv("CHAT_TOKEN_STREAMING", "1")
+    get_settings.cache_clear()
+    _, builds = _patch(monkeypatch, result=_ok())
+    _fake_locks(monkeypatch)
+    await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    get_settings.cache_clear()
+    assert isinstance(builds[0]["on_token"], TokenStrom)
+
+
+async def test_der_abschluss_misst_den_strom_gegen_das_ergebnis(monkeypatch, caplog):
+    monkeypatch.setenv("CHAT_TOKEN_STREAMING", "1")
+    get_settings.cache_clear()
+    holder: dict = {}
+
+    class _StreamenderGraph:
+        async def ainvoke(self, state):
+            strom = holder["on_token"]
+            strom.oeffnen(lambda t: t, muster="M04")
+            strom("Hallo Welt")
+            strom.schliessen()
+            return _ok("Hallo Welt — mit Hinweis")
+
+    def _build(**kw):
+        holder["on_token"] = kw["on_token"]
+        return _StreamenderGraph()
+
+    monkeypatch.setattr(chat_api, "build_turn_graph", _build)
+    monkeypatch.setattr(chat_api, "peer_ip", lambda request: "7.7.7.7")
+    monkeypatch.setattr(chat_api, "_postprocess_response_for_widget_modes", _passthrough_pp)
+    _fake_locks(monkeypatch)
+    with caplog.at_level(logging.INFO):
+        frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    get_settings.cache_clear()
+
+    assert [f.split("\n", 1)[0] for f in frames] == [
+        "event: connected", "event: text_delta", "event: result"]
+    assert "Token-Strom: muster=M04" in caplog.text
+    assert "drift=nein" in caplog.text
 
 
 async def test_session_lock_acquired_and_released(monkeypatch):
@@ -352,6 +398,35 @@ async def test_umlauts_survive_the_phase_frame(monkeypatch):
     phase = next(f for f in frames if f.startswith("event: phase"))
     assert "Lade Sitzungs-Kontext …" in phase
 
+
+
+async def test_text_ereignis_wird_text_delta_rahmen(monkeypatch):
+    """Plan Token-Streaming, T5: ``TurnProgress.text`` wird zum Rahmen
+    ``text_delta`` mit ``{"text", "pos"}`` — Name und ``text`` wie ALT, ``pos``
+    neu. Er steht in Reihenfolge zwischen den ``phase``-Rahmen, und Umlaute
+    bleiben lesbar."""
+    holder = _patch_emitting(monkeypatch, [])
+
+    class _Strom:
+        async def ainvoke(self, state):
+            holder["progress"].start("response", "Formuliere Antwort")
+            holder["progress"].text("Grüße ", 0)
+            holder["progress"].text("aus WLO", 6)
+            return _ok("DONE")
+
+    monkeypatch.setattr(
+        chat_api, "build_turn_graph",
+        lambda **kw: (holder.__setitem__("progress", kw["progress"]), _Strom())[1],
+    )
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+
+    kinds = [f.split("\n", 1)[0] for f in frames]
+    assert kinds == ["event: connected", "event: phase", "event: text_delta",
+                     "event: text_delta", "event: result"]
+    deltas = [json.loads(f.split("data: ", 1)[1]) for f in frames
+              if f.startswith("event: text_delta")]
+    assert deltas == [{"text": "Grüße ", "pos": 0}, {"text": "aus WLO", "pos": 6}]
+    assert "Grüße" in frames[2]
 
 async def test_a_flooded_queue_drops_events_but_still_finishes_the_turn(monkeypatch):
     """Cost control (ALT ``Queue(maxsize=200)``): a slow client must not let the
