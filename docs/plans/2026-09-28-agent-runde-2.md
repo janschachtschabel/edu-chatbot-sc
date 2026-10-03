@@ -484,6 +484,14 @@ streicht `_`-Schlüssel (`turn_persist.py:163`).
 - Offen: N-5 (kosmetisch, Befundliste §5) und die Live-Probe. Bis zur Vorschau schreibt sie
   nichts; das „ja“ schreibt echt dorthin, wohin der MCP-Server zeigt, also nur mit Freigabe.
 - Nachweis: Backend-Suite 4873 passed, 4 skipped; `ruff` sauber.
+- Nachtrag 2026-10-03 (Nutzer: „Befunde beheben“):
+  - Review-Befund 3 behoben: `discard_stale_approval` läuft jetzt in `graph/nodes/setup`, dem
+    ersten Knoten, vor Tour und Kontext-Gruß; der Vorlauf ruft es nicht mehr. Neue Tests in
+    `test_setup_node.py`; die Verfalls-Tests in `test_preflight_node.py` laufen in
+    Graph-Reihenfolge (`setup` → `preflight`).
+  - Nebenbefund behoben: `GET /api/sessions/{id}` ersetzt den Schlüssel eines offenen Vorgangs
+    durch den Platzhalter (`domain/write_confirm.entities_for_display`); Werkzeug, Argumente und
+    Frist bleiben sichtbar.
 
 ## Offene Fragen an den Nutzer
 

@@ -29,12 +29,7 @@ Die zugehörigen Pläne:
 2. **`retention_days` ohne Wirkung.**
    - Das Feld steht zweimal in `domain/config_models/base_governance.py` (Z. 66 und 134). Kein Code liest es, einen Lösch-Job gibt es nicht.
    - Die Einstellung verspricht also eine Aufbewahrungsfrist, die niemand durchsetzt.
-3. **Ein Merkposten überdauert Züge, die vor dem Vorlauf enden** (Review Paket 2, 2026-10-01; niedrig, älter als Paket 2).
-   - Tour- und Kontext-Gruß-Züge enden vor `preflight` (`graph/build.py:117-125`), dort läuft `discard_stale_approval` also nicht. `context_greeting` schreibt `entities` samt `_pending_write` zurück.
-   - Folge: Vorschau → Tour → ein glattes „ok“ binnen 10 Minuten führt die alte Änderung aus. Die Regel „nur die direkte Antwort auf die Vorschau bestätigt“ gilt also nicht über diese Züge hinweg.
-   - Vorschlag: in beiden frühen Ausgängen `_pending_write` verwerfen oder `discard_stale_approval` vor die Tour ziehen.
-   - Nebenbei: `GET /api/sessions/{id}` (nur mit Studio-Schlüssel) gibt die rohen `entities` samt Bestätigungsschlüssel aus (einmal gültig, 10 Minuten).
-4. **Befunde aus dem Audit 2026-09-29**, die noch offen sind: siehe [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md), Abschnitte 6–9. Behoben sind die Punkte der Tabelle in Abschnitt 4a (seit Tag `0.3`).
+3. **Befunde aus dem Audit 2026-09-29**, die noch offen sind: siehe [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md), Abschnitte 6–9. Behoben sind die Punkte der Tabelle in Abschnitt 4a (seit Tag `0.3`).
 
 ## 2 Entscheidungen des Nutzers
 
