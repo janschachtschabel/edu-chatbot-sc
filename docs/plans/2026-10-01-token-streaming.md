@@ -555,3 +555,21 @@ erst mit rotem Test.
 - Auf Staging per Umgebung `CHAT_TOKEN_STREAMING=1` einschalten und dort die Logzeilen
   `Token-Strom:` (Drift, Rückschritte) sowie den Proxy-Weg (R5) beobachten.
 - Danach die Vorgabe umstellen. Die Entscheidung trifft der Nutzer.
+
+### CI im PR #9 (2026-10-03)
+
+- **E2E-Kippler `embed.spec.ts:68`:** Der Test rief `resetSession()` direkt nach
+  `waitForTurns(2)`. Das wartet nur auf die Anfrage, und die Ladeblase zählt selbst als
+  `.msg-bubble`. Kam die Antwort erst nach dem Reset an, standen zwei Blasen da.
+  - Mit einer verzögerten Antwort ließ sich das sicher nachstellen: Die alte Reihenfolge
+    scheitert genau wie in der CI, die neue besteht.
+  - Der Test wartet jetzt die fertige Antwort ab.
+  - Das Verhalten im Widget dahinter ist älter als das Streaming und steht als offener Befund
+    in `offene-befunde-und-todo.md` §1.4.
+- **E2E-Harness:** `sseBody` sendete `text_delta` noch als `{delta}`, und das Widget verwarf
+  diese Rahmen. Es sendet jetzt den Vertrag `{text, pos}` (nur nichtleere Stücke, `pos` in
+  Unicode-Zeichen).
+- **Nachweis:**
+  - Der Reset-Test bestand zehnmal in Folge.
+  - Die ganze E2E-Suite lief dreimal durch (147 passed).
+  - `eslint` ist sauber, `check:docs` grün.
