@@ -441,6 +441,37 @@ async def test_qr_mix_fuellt_mit_generator_bis_zur_gesamtzahl(monkeypatch):
     assert gesehen["count"] == 2   # nur der Rest wird generiert
 
 
+# ── Sprache der Nachgeneratoren (§1.5, 2026-10-01) ─────────────────
+# Beide Aufrufe nach der Antwort bekamen kein ``lang`` — der Prompt fiel auf
+# Deutsch zurück, auch in einer englischen Oberfläche.
+def _englisch():
+    return ChatRequest(session_id="s1", message="question", environment={"locale": "en-GB"})
+
+
+async def test_qr_nachgenerator_bekommt_die_sprache_des_zuges(monkeypatch):
+    gesehen = {}
+
+    async def _gen(**k):
+        gesehen.update(k)
+        return ["Q1", "Q2"]
+
+    monkeypatch.setattr(ta, "generate_quick_replies", _gen)
+    await _call(req=_englisch())
+    assert gesehen.get("lang") == "en"
+
+
+async def test_qr_mix_aufruf_bekommt_die_sprache_des_zuges(monkeypatch):
+    gesehen = {}
+
+    async def _gen(**k):
+        gesehen.update(k)
+        return ["KI1"]
+
+    monkeypatch.setattr(ta, "generate_quick_replies", _gen)
+    await _call(req=_englisch(), _canvas_forced_quick_replies=["A"], _host_qr_max=2)
+    assert gesehen.get("lang") == "en"
+
+
 async def test_qr_mix_ohne_zahl_bleibt_hartes_ueberschreiben(monkeypatch):
     """Der O-B-Vertrag: keine Gesamtzahl -> forced ersetzt alles."""
     aufgerufen = {"gen": False}

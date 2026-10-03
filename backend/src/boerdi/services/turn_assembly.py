@@ -212,6 +212,8 @@ async def _assemble_cards_and_qrs(
     else:
         _inline_qr = None
     _qr_spec_consumed = False
+    # Rückfall-Sprache der Nachgeneratoren; maßgeblich ist die Sprache der Antwort.
+    _qr_lang = resolve_locale(getattr(req.environment, "locale", None))
     if _canvas_forced_quick_replies:
         quick_replies = list(_canvas_forced_quick_replies)
         # O-B2 (2026-08-20): nennt der Gastgeber zu seinen Chips eine
@@ -233,6 +235,7 @@ async def _assemble_cards_and_qrs(
                         session_state=session_state,
                         usage_acc=usage_acc,
                         count=_fill_n,
+                        lang=_qr_lang,
                     )
                 except Exception as _mix_err:
                     # Wie beim exakten Nach-Call unten: QRs sind optionale
@@ -307,6 +310,7 @@ async def _assemble_cards_and_qrs(
                         session_state=session_state,
                         usage_acc=usage_acc,
                         count=_qr_call_count,
+                        lang=_qr_lang,
                     )
                 except Exception as _qr_err:
                     # Quick replies are optional UX — never crash a successful main

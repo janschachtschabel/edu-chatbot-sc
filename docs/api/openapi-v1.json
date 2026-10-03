@@ -6783,7 +6783,7 @@
     },
     "/api/safety/logs": {
       "get": {
-        "description": "Return recent safety-log entries.\n\nQuery params:\n  limit: max rows (default 100)\n  risk_min: '' | 'medium' | 'high' — filter by minimum risk level\n  session_id: filter to a single session",
+        "description": "Return recent safety-log entries.\n\nQuery params:\n  limit: max rows (default 100, 1–500 — Audit 2026-09-29 §7)\n  risk_min: '' | 'medium' | 'high' — filter by minimum risk level\n  session_id: filter to a single session",
         "operationId": "list_safety_logs_api_safety_logs_get",
         "parameters": [
           {
@@ -6792,6 +6792,8 @@
             "required": false,
             "schema": {
               "default": 100,
+              "maximum": 500,
+              "minimum": 1,
               "title": "Limit",
               "type": "integer"
             }

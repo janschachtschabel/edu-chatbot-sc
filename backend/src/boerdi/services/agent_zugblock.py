@@ -28,7 +28,11 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-from boerdi.domain.untrusted_text import GESEHEN_FRAME_END, GESEHEN_FRAME_START
+from boerdi.domain.untrusted_text import (
+    GESEHEN_FRAME_END,
+    GESEHEN_FRAME_START,
+    entschaerfe_endmarken,
+)
 
 #: An der gespeicherten Antwort, neben den übrigen internen ``debug``-Schlüsseln.
 DOKUMENTE_DEBUG_KEY: Final = "_dokumente"
@@ -142,4 +146,6 @@ def zuletzt_gezeigt(verlauf: list[Any] | None) -> str:
     teile += _dokument_teile(_dokumente(antworten))
     if not teile:
         return ""
-    return "\n\n".join([GESEHEN_FRAME_START, *teile, GESEHEN_FRAME_END])
+    # Dokumente können Fremdtext enthalten — der darf den Block nicht schließen.
+    innen = [entschaerfe_endmarken(t) for t in teile]
+    return "\n\n".join([GESEHEN_FRAME_START, *innen, GESEHEN_FRAME_END])

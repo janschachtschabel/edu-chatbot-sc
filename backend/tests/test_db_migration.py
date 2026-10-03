@@ -217,6 +217,24 @@ def test_usage_events_tabelle_und_indizes(migrated_db) -> None:
     assert fehlend == set(), f"fehlende Indizes: {sorted(fehlend)}"
 
 
+# ── Audit 2026-09-29 §6.4/§7: Log-Tabellen + Konfig-Historie (Migration 0005) ──
+def test_logs_und_historie_haben_ihre_abfrage_indizes(migrated_db) -> None:
+    """Gefragt wird nach Sitzung (Sicherheits-Log, Löschen einer Sitzung) und
+    nach Bereich + Version (Historie). Ohne Index liest Postgres dafür jeweils
+    die ganze, mit jedem Zug wachsende Tabelle."""
+    definitionen = _run(_fetch_set(
+        migrated_db,
+        "SELECT indexname || ' ' || indexdef FROM pg_indexes WHERE schemaname='public'",
+    ))
+    erwartet = {
+        "idx_safety_session": "safety_logs USING btree (session_id)",
+        "idx_quality_session": "quality_logs USING btree (session_id)",
+        "idx_config_history_area": "config_history USING btree (area, version)",
+    }
+    for name, teil in erwartet.items():
+        assert any(d.startswith(f"{name} ") and teil in d for d in definitionen), name
+
+
 def test_usage_events_verschwinden_mit_der_sitzung(migrated_db) -> None:
     """DSGVO-Zusage des Plans (§8): eine Sitzung ist ein Mensch, und die
     Verbrauchszahlen sind ein Profil. Sie müssen mit der Sitzung gelöscht

@@ -17,15 +17,7 @@ import { deleteSessionCookie, generateSessionId, writeSessionEverywhere } from '
 import { ChatApiClient } from '../stream/chat-api';
 import { restoreHistory } from './history-restore';
 import { bootSession } from './session-boot';
-
-/** Katalog-Schlüssel der vier Einstiegs-Quick-Replies (ALT 337-342) — greifen
- *  nur, wenn `startReplies` leer ist. Die Reihenfolge ist die von ALT. */
-const DEFAULT_REPLY_KEYS = [
-  'greeting.reply.aiAge',
-  'greeting.reply.search',
-  'greeting.reply.tour',
-  'greeting.reply.about',
-];
+import { WelcomeMessage } from './welcome-message';
 
 /**
  * Welche Backend-Seitenarten das Ping-Gate unten erreichen soll. Ein
@@ -118,7 +110,11 @@ export interface LifecycleContext {
 }
 
 export class ShellLifecycle {
-  constructor(private readonly ctx: LifecycleContext) {}
+  private readonly _willkommen: WelcomeMessage;
+
+  constructor(private readonly ctx: LifecycleContext) {
+    this._willkommen = new WelcomeMessage(ctx);
+  }
 
   /** `ngOnInit`: Base-URL, Speech-Probe, pageContext-Parse, 3-Stufen-Session-
    *  Kaskade, dann Resume (History + afterResume) oder frische Begrüßung + Tour-
@@ -159,19 +155,14 @@ export class ShellLifecycle {
     }
   }
 
-  /** Zentrale Begrüßung mit Einstiegs-Quick-Replies. Verbatim aus ALT 322-344,
-   *  davor das Tor aus `show-welcome` (2026-08-14).
-   *
-   *  Der Ausstieg sitzt HIER und nicht bei den drei Aufrufern, weil sie alle
-   *  dasselbe meinen — Erstaufruf, Neustart, leerer Verlauf. Ein Tor je
-   *  Aufrufer wäre dreimal dieselbe Bedingung und beim vierten vergessen. */
+  /** Feste Startnachricht samt Einstiegs-Chips — `welcome-message.ts`. */
   showGreeting(): void {
-    if (!this.ctx.showWelcome()) return;
-    const text = this.ctx.greeting() || this.ctx.t('greeting.default');
-    const replies = (this.ctx.startReplies() && this.ctx.startReplies().length)
-      ? this.ctx.startReplies()
-      : DEFAULT_REPLY_KEYS.map(k => this.ctx.t(k));
-    this.ctx.addBotMessage(text, false, undefined, replies);
+    this._willkommen.show();
+  }
+
+  /** Sprachwechsel vor der ersten Frage: Startnachricht in der neuen Sprache. */
+  relocalizeWelcome(): void {
+    this._willkommen.relocalize();
   }
 
   /** Frische Session + Begrüßung (Header-Restart). Verbatim aus ALT 1262-1270. */

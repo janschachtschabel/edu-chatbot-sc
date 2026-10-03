@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Security
+from fastapi import APIRouter, Depends, Query, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.deps import get_session, require_studio_key
@@ -29,14 +29,14 @@ router = APIRouter(
 @router.get("/logs")
 async def list_safety_logs(
     session: Annotated[AsyncSession, Depends(get_session)],
-    limit: int = 100,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
     risk_min: str = "",
     session_id: str = "",
 ) -> dict:
     """Return recent safety-log entries.
 
     Query params:
-      limit: max rows (default 100)
+      limit: max rows (default 100, 1–500 — Audit 2026-09-29 §7)
       risk_min: '' | 'medium' | 'high' — filter by minimum risk level
       session_id: filter to a single session
     """

@@ -168,7 +168,10 @@ def test_ein_fehler_wird_zum_error_rahmen(monkeypatch, client):
     r = client.post("/api/agent/stream", json={"instruction": "Pruefe."})
     rahmen = _frames(r.text)
     assert [n for n, _ in rahmen] == ["connected", "error"]
-    assert "RuntimeError" in json.loads(rahmen[-1][1])["message"]
+    # Audit 2026-09-29 A-M4: Typ und Text der Ausnahme bleiben im Server-Log.
+    meldung = json.loads(rahmen[-1][1])["message"]
+    assert "RuntimeError" not in meldung
+    assert "kaputt" not in meldung
 
 
 # ── Wer darf rufen? (Nutzer-Entscheid 2026-08-12) ────────────────────────

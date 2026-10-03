@@ -184,11 +184,13 @@ def test_analytical_personas_default_when_config_empty(monkeypatch) -> None:
     assert qr._analytical_personas() == frozenset({"P-Z"})
 
 
-# ── Ausgabe-Sprache (C1-f2a) ───────────────────────────────────────────────
-# Quick-Replies sind Sätze, die der NUTZER liest und anklickt. Anders als bei
-# Kuration/Lernpfad/Canvas gab es hier NIE eine Sprach-Direktive — das Modell
-# schloss die Sprache aus dem deutschen Prompt. Für Deutsch bleibt das so
-# (Prompt bytegleich); für Englisch kommt der Hinweis-Block dazu.
+# ── Ausgabe-Sprache (C1-f2a, neu gefasst 2026-10-01) ──────────────────────
+# Quick-Replies sind Sätze, die der NUTZER liest und anklickt — und zwar direkt
+# unter der Antwort. Sie folgen deshalb der Sprache der Bot-Antwort, nicht der
+# Oberfläche: der Agent antwortet in der Sprache der Person, auch in einer
+# anderssprachigen Oberfläche. Die Oberflächensprache ist nur der Rückfall.
+# Ein zweiter, fester Sprach-Befehl (früher `template_hint` für Englisch)
+# widerspräche dann genau diesem Fall und entfällt.
 
 
 def _qr_system(_qr_env, **kw):
@@ -206,11 +208,21 @@ def test_qr_deutsch_bleibt_wortgleich(_qr_env):
     assert "Englisch" not in mit
 
 
-def test_qr_englisch_haengt_den_hinweis_an(_qr_env):
-    from boerdi.i18n import template_hint
+@pytest.mark.parametrize(("lang", "rueckfall"), [
+    ("de", "Deutsch"), ("en", "Englisch (British English)"),
+])
+def test_qr_folgen_der_sprache_der_antwort(_qr_env, lang, rueckfall):
+    system = _qr_system(_qr_env, lang=lang)
+    assert "in der Sprache der Bot-Antwort" in system
+    assert f"nicht erkennbar, auf {rueckfall}" in system
+    # Kein fester Sprach-Befehl daneben — er widerspräche einer Antwort in der
+    # anderen Sprache.
+    assert "SPRACHE DER AUSGABE" not in system
+
+
+def test_qr_lotsen_zeile_ist_nicht_fest_deutsch(_qr_env):
     system = _qr_system(_qr_env, lang="en")
-    assert system.endswith(template_hint("en").strip())
-    assert "Englisch (British English)" in system
+    assert "konkret, deutsch" not in system
 
 
 # ── Laengen-Deckel (display_rules.quick_replies.max_chars) ─────────────────

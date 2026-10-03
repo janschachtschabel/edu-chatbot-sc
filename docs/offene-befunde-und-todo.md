@@ -9,6 +9,7 @@ Die zugehörigen Pläne:
 - **Runde-2-Plan:** [`2026-09-28-agent-runde-2.md`](plans/2026-09-28-agent-runde-2.md)
 - **Responses-Plan:** [`2026-09-29-responses-systemteil-und-cache.md`](plans/2026-09-29-responses-systemteil-und-cache.md)
 - **Kette-Plan (Tempo):** [`2026-09-30-muster-kette-zeit.md`](plans/2026-09-30-muster-kette-zeit.md)
+- **Paket 1 (Sprache, Kleinbefunde):** [`2026-10-01-paket-1-sprache-und-kleinbefunde.md`](plans/2026-10-01-paket-1-sprache-und-kleinbefunde.md) — erledigt dort: Schnellantworten in der Antwortsprache, Startnachricht beim Sprachwechsel, Guide-Regeln ohne Neustart, Quick Wins aus Audit §7.
 - **Audit 2026-09-29:** [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md) — behoben dort: der Transport-Retry mit `confirmToken` und das Token im INFO-Log (früher §1.2/§1.3), `pip-audit` (jetzt in der CI), zwei Aufräumpunkte aus §5 und eine der unter Last kippenden Test-Dateien (siehe §5).
 
 ## 1 Befunde mit Wirkung im Betrieb
@@ -34,13 +35,6 @@ Die zugehörigen Pläne:
    - Das Feld steht zweimal in `domain/config_models/base_governance.py` (Z. 66 und 134). Kein Code liest es, einen Lösch-Job gibt es nicht.
    - Die Einstellung verspricht also eine Aufbewahrungsfrist, die niemand durchsetzt.
 4. **Befunde aus dem Audit 2026-09-29**, die noch offen sind: siehe [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md), Abschnitte 6–9. Behoben sind die Punkte der Tabelle in Abschnitt 4a (Änderungen liegen uncommittet vor).
-5. **Nachgeneratoren für Schnellantworten kennen die Sprache nicht** (gefunden 2026-10-01 beim Bau der Konfigurations-Grafiken, Stand `1f069e9`).
-   - Der eigene Aufruf nach der Antwort und der Misch-Aufruf für Host-Chips übergeben kein `lang` (`services/turn_assembly.py:229-236` und `:303-310`). Es gilt die Vorgabe Deutsch (`services/quick_replies_llm.py:141`); der englische Sprachhinweis (`template_hint`) fehlt dann.
-   - Nur der spekulative Aufruf reicht die Sprache durch (`graph/nodes/respond.py:395`).
-   - Folge: Englische Sitzungen bekommen dort deutsch gemeinte Vorschläge. Im Agent-Modus ist dieser Aufruf der Normalfall, solange `AGENT_INLINE_QUICK_REPLIES` aus ist.
-6. **Guide-Regeln wirken erst nach einem Neustart.**
-   - `services/guide_qr_injector.py:227-242` hält die übersetzten Regeln prozessweit. `reset_compiled_cache()` (Z. 274) ruft nur ein Test auf, kein Speichern im Studio.
-   - Eine Änderung an `02-domain/guide-rules` greift daher erst, wenn jede Backend-Instanz neu startet.
 
 ## 2 Entscheidungen des Nutzers
 
@@ -101,6 +95,14 @@ Die zugehörigen Pläne:
   - Gemessen: Muster-Zug 9,1 → 7,7 s im Median.
   - Dagegen stehen 4- bis 5-facher Tokenpreis und keine EU-Datenresidenz. Über die b-api ist er ungemessen, er wirkt nur bei `LLM_PROVIDER=openai`.
 - **Kette-Plan, nächste Hebel:** Token-Streaming zum Widget (größter Hebel für die gefühlte Wartezeit, eigener Plan) und RAG parallel zur Klassifikation (M15: bis 2,0 s).
+- **Antwortsprache im Muster-Modus** (Paket 1, E1; gemessen 2026-10-01):
+  - Der Muster-Modus antwortet in der Sprache der Oberfläche, auch wenn die Person anders schreibt: „Antworte auf Deutsch“ (`services/response_prompt_tools_text.py:63-69`).
+  - Der Agent folgt der Sprache der Person und nimmt die Oberflächensprache als Rückfall.
+  - Frage: Soll der Muster-Modus es wie der Agent halten? Das wäre eine Prompt-Änderung, danach braucht es einen Golden-Lauf.
+- **Kontext-Gruß beim Sprachwechsel** (Paket 1, T2):
+  - Die feste Startnachricht wechselt jetzt die Sprache, der Seitengruß des Backends nicht.
+  - Grund: Er ist gespeichert, und ein zweiter Ping in derselben Sitzung wird unterdrückt (`graph/nodes/context_greeting.py`, Gate 4).
+  - Frage: Lohnt ein eigener Weg, etwa ein Ping mit „neu in dieser Sprache“, der den Gruß ersetzt?
 - **RAG im Muster-Weg nur für M04 und M15 – so gewollt?** (gefunden 2026-10-01)
   - `phase3_modulate` schreibt `rag_areas` immer als Liste (`domain/pattern_engine.py:263`), auch leer. `domain/route_head.py:33` nimmt deshalb stets die Liste des Musters; der Zweig „alle `always`-Bereiche“ (Z. 37–44) wird nie erreicht.
   - Im Seed tragen nur M04 und M15 eine Bereichsliste. Alle anderen Muster antworten ohne Wissensbereiche, auch wenn ein Bereich auf `mode: always` steht.
@@ -125,7 +127,9 @@ Die zugehörigen Pläne:
 
 ## 4 Beim nächsten Deploy
 
-- **Migration `0004`** (`usage_events.engine`, nullbar, reine Katalogänderung): `alembic upgrade head` ausführen.
+- **Migrationen `0004` und `0005`** — `alembic upgrade head` ausführen; der Dienst `migrate` in `compose.prod.yml` erledigt das beim Start:
+  - `0004`: `usage_events.engine`, nullbar, reine Katalogänderung.
+  - `0005`: drei Indizes auf Sitzungs-Log, Qualitäts-Log und Konfig-Historie.
 - **Geänderte Seeds** wirken nur in Bereichen, die nicht gespeichert sind:
   - Betroffen sind `01-base/engine.yaml`, `02-domain/domain-rules.md`, `03-patterns/m01-krisen-empathie.md`, `03-patterns/m02-bedrohungs-refusal.md`, `04-personas/elt.md`, `04-personas/ler.md`, `05-knowledge/rag-config.yaml` und `eval/gold-flows.yaml`.
   - Gespeicherte Bereiche im Studio abgleichen. Sicher betroffen ist die Rolle auf „Agent & Maschine“, wo sie schon gespeichert wurde.
@@ -148,6 +152,10 @@ Die zugehörigen Pläne:
 - Dem Studio fehlt `color-scheme: light dark`.
   - Folge: Ungestylte Steuerelemente bleiben im Dunkelmodus hell.
   - Das Select `.ri-area-pick` besteht trotzdem mit 3,76:1.
+- **Angular 22.1 → 22.2:** `npm audit` meldet `@angular/router` als „high“ (GHSA-ff3f-86qr-9cv3).
+  - Der Fund betrifft nur serverseitiges Rendering. Studio und Widget laufen im Browser und sind deshalb nicht betroffen.
+  - Der Fix verlangt `@angular/core`, `common` und `platform-browser` in derselben Version. Also alle `@angular/*` gemeinsam anheben (`ng update`), danach Tests, Builds und Budget prüfen.
+  - Die übrigen Funde hat `npm audit fix` am 2026-10-01 behoben (Paket 1).
 - **Einstellungen ohne Leser** (gefunden 2026-10-01 beim Bau der Konfigurations-Grafiken, Stand `1f069e9`). Das Studio bietet sie an, der Code liest sie nicht:
   - `01-base/engine`: `agent.safety` (nur in `domain/config_models/engine.py:119`).
   - `01-base/safety-config`: `extra_crisis_terms`, `extra_pii_terms`, `confidence_adjustments` (nur in `domain/config_models/base_governance.py:92-102`); `retention_days` siehe §1.3.

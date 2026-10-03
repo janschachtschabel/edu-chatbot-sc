@@ -80,6 +80,15 @@ def test_logs_forwards_query_params(client, monkeypatch):
     assert kwargs == {"limit": 5, "risk_min": "high", "session_id": "abc"}
 
 
+@pytest.mark.parametrize(("limit", "status"), [(0, 422), (501, 422), (500, 200)])
+def test_logs_limit_ist_gedeckelt(client, monkeypatch, limit, status):
+    """Audit 2026-09-29 §7: ``limit`` war unbegrenzt — eine Anfrage konnte die
+    ganze Tabelle auf einmal ziehen. Das Studio fragt mit 200."""
+    _fake_logs(monkeypatch, [])
+    r = client.get("/api/safety/logs", params={"limit": limit}, headers=_AUTH)
+    assert r.status_code == status
+
+
 def test_logs_envelope_counts_rows_and_passes_them_through(client, monkeypatch):
     rows = [_row(risk_level="high"), _row(risk_level="medium"), _row()]
     _fake_logs(monkeypatch, rows)

@@ -226,10 +226,15 @@ _RAG_AREA_URLS: dict[str, tuple[str, str, str]] = {
 # und ist sprachunabhängig, die Sprache gehört aber zum Zug (C1-g2a).
 _COMPILED: list[tuple[re.Pattern, str, str, str, int]] | None = None
 _COMPILED_SOURCE: str = ""  # "yaml" | "hardcoded" — fürs Logging
+#: Die Regeln, aus denen ``_COMPILED`` gebaut ist. Ändern sie sich, wird neu
+#: übersetzt (§1.6, 2026-10-01): vorher galt ein Speichern im Studio erst nach
+#: einem Neustart jeder Instanz. Die Quelle selbst ist billig — der Bereich
+#: liegt im Prozess-Cache des Config-Stores, den NOTIFY auf jeder Instanz leert.
+_COMPILED_FROM: list[tuple[str, str, str, str, int]] | None = None
 
 
-def _compiled() -> list[tuple[re.Pattern, str, str, str, int]]:
-    """Liefert die kompilierten Lotsen-Regex-Regeln.
+def _regel_quelle() -> tuple[list[tuple[str, str, str, str, int]], str]:
+    """Die Regeln als ``(pattern, label, label_en, url, priority)`` samt Herkunft.
 
     Welle E (2026-05-23) — Vorrang hat ``02-domain/guide-rules.yaml``
     via ``load_guide_rules_config()``. Wenn die YAML leer ist oder
@@ -237,48 +242,55 @@ def _compiled() -> list[tuple[re.Pattern, str, str, str, int]]:
     (sicherer Fallback — Studio kann YAML versehentlich kaputt machen,
     ohne dass der Lotsen-Pfad komplett ausfällt).
     """
-    global _COMPILED, _COMPILED_SOURCE
-    if _COMPILED is not None:
-        return _COMPILED
-
     rules_source: list[tuple[str, str, str, str, int]] = []
     try:
         from boerdi.services.config_loader import load_guide_rules_config
         cfg = load_guide_rules_config() or {}
-        yaml_msgs = cfg.get("message_rules") or []
-        for item in yaml_msgs:
+        for item in cfg.get("message_rules") or []:
             rules_source.append((
                 item["pattern"], item["label"], item.get("label_en", ""),
                 item["url"], int(item["priority"]),
             ))
-        if rules_source:
-            _COMPILED_SOURCE = "yaml"
-            logger.info("guide-rules: %d message_rules loaded from YAML", len(rules_source))
     except Exception as e:  # pragma: no cover — defensive
         logger.warning("guide-rules YAML load failed (%s) — using hardcoded fallback", e)
+        rules_source = []
+    if rules_source:
+        return rules_source, "yaml"
+    # Der hartkodierte Rückfall bleibt einsprachig: er ist die Notbremse für
+    # eine kaputte YAML, kein Pflegeort. Das leere Feld heißt „nicht
+    # gepflegt" und lässt `pick_localized` das deutsche Label nehmen.
+    return [(pat, label, "", url, prio) for (pat, label, url, prio) in _RULES], "hardcoded"
 
-    if not rules_source:
-        # Der hartkodierte Rückfall bleibt einsprachig: er ist die Notbremse für
-        # eine kaputte YAML, kein Pflegeort. Das leere Feld heißt „nicht
-        # gepflegt" und lässt `pick_localized` das deutsche Label nehmen.
-        rules_source = [(pat, label, "", url, prio) for (pat, label, url, prio) in _RULES]
-        _COMPILED_SOURCE = "hardcoded"
+
+def _compiled() -> list[tuple[re.Pattern, str, str, str, int]]:
+    """Liefert die kompilierten Lotsen-Regex-Regeln — neu übersetzt, sobald
+    sich die Regeln geändert haben (siehe ``_COMPILED_FROM``)."""
+    global _COMPILED, _COMPILED_SOURCE, _COMPILED_FROM
+    if _COMPILED is not None and _COMPILED_FROM is None:
+        # Ohne bekannte Quelle von außen gesetzt — so pinnen die Tests
+        # kontrollierte Regeln. Im Betrieb setzt nur diese Funktion beides.
+        return _COMPILED
+    rules_source, herkunft = _regel_quelle()
+    if _COMPILED is not None and rules_source == _COMPILED_FROM:
+        return _COMPILED
 
     _COMPILED = [
         (re.compile(pat, re.IGNORECASE), label, label_en, url, prio)
         for (pat, label, label_en, url, prio) in rules_source
     ]
+    _COMPILED_FROM = rules_source
+    _COMPILED_SOURCE = herkunft
+    logger.info("guide-rules: %d message_rules compiled (%s)", len(rules_source), herkunft)
     return _COMPILED
 
 
 def reset_compiled_cache() -> None:
-    """Studio-Hook: nach Edit von 02-domain/guide-rules.yaml den Regex-
-    Cache invalidieren, damit der nächste Request neu lädt. Aufrufbar
-    z.B. aus dem Config-File-Watcher.
-    """
-    global _COMPILED, _COMPILED_SOURCE
+    """Den Regex-Cache verwerfen — für Tests. Im Betrieb übersetzt
+    ``_compiled`` von selbst neu, sobald sich die Regeln ändern."""
+    global _COMPILED, _COMPILED_SOURCE, _COMPILED_FROM
     _COMPILED = None
     _COMPILED_SOURCE = ""
+    _COMPILED_FROM = None
 
 
 def _has_guide_qr(qrs: Iterable[str]) -> bool:

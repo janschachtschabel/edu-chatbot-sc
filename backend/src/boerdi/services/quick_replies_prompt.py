@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from boerdi.i18n import Locale, template_hint
+from boerdi.i18n import Locale, language_name
 
 # ── Persona-abhaengige Quick-Reply-Menues (Capability-Hints) ──────────
 # Diese Listen geben dem LLM einen konkreten Vorrat an plausiblen
@@ -293,7 +293,22 @@ Waehle {count} aus den folgenden Kategorien (mindestens {min(3, count)} untersch
       einbauen — dann nur die {count} normalen Vorschlaege.
     - Themenseiten-Slugs nur fuer Themen die der User EXPLIZIT genannt hat
       (z.B. „klimawandel", „photosynthese") — keine Slugs erfinden.
-    - Anzeigetext kurz, konkret, deutsch. KEINE generische „Bring mich hin"
-      ohne Kontext.
+    - Anzeigetext kurz, konkret, in derselben Sprache wie die Vorschlaege.
+      KEINE generische „Bring mich hin" ohne Kontext.
 
-Gib NUR die {count} Vorschlaege zurueck (dazu hoechstens eine Lotsen-Zeile), sonst nichts.""" + template_hint(lang)
+Gib NUR die {count} Vorschlaege zurueck (dazu hoechstens eine Lotsen-Zeile), sonst nichts.""" + _sprach_regel(lang)
+
+
+def _sprach_regel(lang: Locale) -> str:
+    """Die Vorschläge stehen direkt unter der Antwort und folgen IHRER Sprache.
+
+    Nicht der Oberfläche: der Agent antwortet in der Sprache der Person, auch in
+    einer anderssprachigen Oberfläche. Die Oberflächensprache ist nur der
+    Rückfall. Ein zweiter, fester Sprach-Befehl daneben (bis 2026-10-01
+    ``template_hint`` für Englisch) widerspräche genau diesem Fall.
+    """
+    return (
+        "\n\nSPRACHE: Schreibe die Vorschlaege in der Sprache der Bot-Antwort (unten), "
+        "auch wenn die Vorgaben und Beispiele oben deutsch sind — uebersetze sie dann mit. "
+        f"Ist sie nicht erkennbar, auf {language_name(lang)}."
+    )
