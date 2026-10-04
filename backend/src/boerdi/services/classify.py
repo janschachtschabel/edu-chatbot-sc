@@ -27,12 +27,14 @@ from __future__ import annotations
 import json
 import logging
 import time
+from types import SimpleNamespace
 from typing import Any
 
 import instructor
 import litellm
 from instructor import Mode
 from instructor.core import InstructorRetryException
+from pydantic import ValidationError
 
 from boerdi.api.schemas import ClassificationResult
 from boerdi.obs import usage as _usage
@@ -99,6 +101,9 @@ async def classify_input(
             )
     except InstructorRetryException as exc:
         _logger.warning("classify validation exhausted: %s", exc)
+        # Die gescheiterten Versuche kosteten trotzdem (Paket 4, C1; F09):
+        # instructor liefert ihren Verbrauch an der Ausnahme mit.
+        _buche_fehlversuche(exc, usage_acc, t0)
         return _salvage(exc)
 
     if usage_acc is not None:
@@ -106,17 +111,45 @@ async def classify_input(
     return result
 
 
+def _buche_fehlversuche(
+    exc: InstructorRetryException, usage_acc: dict[str, Any] | None, t0: float,
+) -> None:
+    """Den Verbrauch der gescheiterten Versuche als ``classify`` buchen."""
+    if usage_acc is None:
+        return
+    letzte = getattr(exc, "last_completion", None)
+    verbrauch = _usage.extract_usage(SimpleNamespace(
+        usage=getattr(exc, "total_usage", None),
+        model=getattr(letzte, "model", "") or ""))
+    if verbrauch["prompt"] or verbrauch["completion"]:
+        _usage.add_usage(usage_acc, verbrauch, "classify", ms=seit_ms(t0))
+
+
 def _salvage(exc: InstructorRetryException) -> ClassificationResult:
-    """ALT Layer-A: keep the valid subset of the model's raw tool args
-    (model_construct); missing/invalid fields take schema defaults. The raw
-    args live on the last completion after instructor's retries are exhausted;
-    if none can be recovered, return pure schema defaults."""
+    """ALT Layer-A: keep the valid subset of the model's raw tool args; invalid
+    fields take schema defaults. The raw args live on the last completion after
+    instructor's retries are exhausted; if none can be recovered, return pure
+    schema defaults.
+
+    Jedes Feld wird einzeln geprüft (Paket 4, C1; externes Audit F10). ALT nahm
+    ``model_construct`` und filterte damit nur die Feldnamen — gerade die Werte,
+    an denen instructor gescheitert war, kamen so durch (``entities`` als Liste
+    endete in ``merge`` in einer Ausnahme). Der Fehler ist aus ALT übernommen.
+    """
     raw = _extract_tool_args(getattr(exc, "last_completion", None))
     if not raw:
         return ClassificationResult()
-    return ClassificationResult.model_construct(**{
-        k: v for k, v in raw.items() if k in ClassificationResult.model_fields
-    })
+    gueltig: dict[str, Any] = {}
+    for feld, wert in raw.items():
+        if feld not in ClassificationResult.model_fields:
+            continue
+        try:
+            ClassificationResult.model_validate({feld: wert})
+        except ValidationError:
+            _logger.info("classify salvage: Feld %s verworfen (ungültig)", feld)
+            continue
+        gueltig[feld] = wert
+    return ClassificationResult.model_validate(gueltig)
 
 
 def _extract_tool_args(completion: Any) -> dict | None:

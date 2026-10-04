@@ -112,6 +112,7 @@ async def generate_response(
         # Nur fürs Protokoll: ``pattern_output`` trägt keine Kennung, die
         # E3-Warnung stand deshalb im Betrieb als „Muster ?" da (F-neu).
         pattern_label=pattern_label,
+        tool_mode=environment.get("tool_mode"),
     )
 
     # Phasen-Split Teil 2: Messages-Aufbau + Prefetch-Injektion (P12+P14)
@@ -175,6 +176,7 @@ async def generate_response(
         _RAG_MAX_CHARS_PER_AREA,
         usage_acc,
         on_token,
+        tool_mode=environment.get("tool_mode"),
     )
     if result is not None:
         return result

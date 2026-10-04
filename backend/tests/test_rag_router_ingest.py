@@ -64,12 +64,14 @@ def _fake_convert(monkeypatch, text="# Doc", seen=None, name="convert_to_markdow
     monkeypatch.setattr(rag_api, name, fake)
 
 
-def _fake_ingest(monkeypatch, chunks=3):
+def _fake_ingest(monkeypatch, chunks=3, embedded=None):
+    from boerdi.services.rag.ingest import ImportZahlen
+
     calls: list[tuple] = []
 
     async def fake(session, area, title, source, markdown):
         calls.append((session, area, title, source, markdown))
-        return chunks
+        return ImportZahlen(chunks=chunks, embedded=chunks if embedded is None else embedded)
 
     monkeypatch.setattr(rag_api, "ingest_document", fake)
     return calls
@@ -219,6 +221,23 @@ def test_ingest_file_converter_error_becomes_400_and_still_unlinks(
     assert list(tmp_path.iterdir()) == []  # finally runs on the error path too
 
 
+def test_ein_nicht_lesbares_format_ist_415_mit_klarem_satz(client, monkeypatch, tmp_path):
+    """Paket 4, C5 (F17a): Eine DOCX-Datei ist nicht kaputt — der Server liest
+    das Format nicht. 415 sagt das, und der Satz nennt, was geht."""
+    from boerdi.services.rag.ingest import FORMAT_NICHT_LESBAR
+
+    _fake_convert(monkeypatch, text=f"{FORMAT_NICHT_LESBAR}: MissingDependencyException")
+    calls = _fake_ingest(monkeypatch)
+    r = client.post(
+        "/api/rag/ingest/file", files={"file": ("a.docx", b"x")}, headers=_AUTH
+    )
+    assert r.status_code == 415
+    assert "Markdown" in r.json()["detail"]          # nennt, was geht
+    assert "MissingDependency" not in r.json()["detail"]
+    assert calls == []
+    assert list(tmp_path.iterdir()) == []
+
+
 # ── POST /api/rag/ingest/url ─────────────────────────────────────────────
 def test_ingest_url_converts_stores_and_returns_ok(client, monkeypatch):
     _fake_convert(monkeypatch, text="# Seite", name="convert_url_to_markdown")
@@ -230,8 +249,23 @@ def test_ingest_url_converts_stores_and_returns_ok(client, monkeypatch):
     )
     assert r.status_code == 200
     assert r.json() == {"status": "ok", "title": "Zelle", "area": "bio",
-                        "chunks": 2, "preview": "# Seite"}
+                        "chunks": 2, "embedded": 2, "missing": 0, "preview": "# Seite"}
     assert calls == [(_SESSION, "bio", "Zelle", "https://example.org/a", "# Seite")]
+
+
+def test_der_import_meldet_abschnitte_ohne_einbettung(client, monkeypatch):
+    """Paket 4, C2: Fehlen Vektoren, sagt die Antwort wie viele — das Studio
+    bietet dann das Nachholen an (``POST /api/rag/embed``)."""
+    _fake_convert(monkeypatch)
+    _fake_ingest(monkeypatch, chunks=5, embedded=3)
+    r = client.post(
+        "/api/rag/ingest/file",
+        files={"file": ("a.md", b"# A", "text/markdown")},
+        data={"area": "bio", "title": "A"},
+        headers=_AUTH,
+    )
+    assert r.status_code == 200
+    assert (r.json()["chunks"], r.json()["embedded"], r.json()["missing"]) == (5, 3, 2)
 
 
 def test_ingest_url_title_defaults_to_the_url(client, monkeypatch):
@@ -271,8 +305,10 @@ def test_ingest_text_stores_raw_markdown_without_conversion(client, monkeypatch)
         headers=_AUTH,
     )
     assert r.status_code == 200
-    # no `preview` key here — ALT's text response is the short one
-    assert r.json() == {"status": "ok", "title": "T", "area": "bio", "chunks": 1}
+    # no `preview` key here — ALT's text response is the short one. Seit
+    # Paket 4 (C2) mit ``embedded``/``missing`` wie die anderen Importe.
+    assert r.json() == {"status": "ok", "title": "T", "area": "bio", "chunks": 1,
+                        "embedded": 1, "missing": 0}
     assert calls == [(_SESSION, "bio", "T", "wiki", "# Notiz")]
 
 

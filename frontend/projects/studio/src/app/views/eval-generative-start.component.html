@@ -130,11 +130,13 @@
     </div>
   </form>
 
-  @if (armed()) {
-    <div class="egs-confirm">
-      <!-- Only the prose is live. With the buttons inside, every label change
-           ("Startet …") would re-announce the whole cost paragraph. -->
-      <div aria-live="polite">
+  <!-- The box stays in the DOM, unarmed and empty: its live region has to exist
+       before the estimate arrives, or the announcement is unreliable (Paket 4,
+       S1). Only the prose is live. With the buttons inside, every label change
+       ("Startet …") would re-announce the whole cost paragraph. -->
+  <div class="egs-confirm" [class.egs-confirm--armed]="armed()">
+    <div aria-live="polite">
+      @if (armed()) {
         @if (estimate()) {
           <p class="egs-cost"><studio-rich [parts]="costParts()" /></p>
           <p class="egs-band"><studio-rich [parts]="bandParts()" /></p>
@@ -142,8 +144,10 @@
         } @else {
           <p class="egs-cost egs-cost--blind"><studio-rich [parts]="blindParts()" /></p>
         }
-      </div>
+      }
+    </div>
 
+    @if (armed()) {
       <div class="egs-actions">
         <button type="button" class="egs-btn egs-btn--go" [disabled]="starting() || busy()"
                 (click)="start()">
@@ -153,8 +157,8 @@
           {{ t('action.cancel') }}
         </button>
       </div>
-    </div>
-  }
+    }
+  </div>
 
   <div class="egs-live" aria-live="polite">
     @if (status()) {

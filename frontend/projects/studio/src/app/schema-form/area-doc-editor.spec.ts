@@ -310,4 +310,98 @@ describe("AreaDocEditor", () => {
     editor.discard();
     expect(editor.problems()).toEqual([]);
   });
+
+  // ── Paket 4, D5 (externes Audit F14): Speichern mit Konfliktschutz ──────────
+  // Zwei Redakteure laden denselben Stand; wer als zweites speichert, bekommt
+  // 409 und entscheidet — statt still den ersten zu überschreiben.
+
+  async function geladen(version: number | null): Promise<AreaDocEditor> {
+    const editor = makeEditor();
+    const load = editor.load(AREA);
+    await tick();
+    http.expectOne(schemaUrl(AREA)).flush(AREA_SCHEMAS[AREA]);
+    http.expectOne(dataUrl(AREA)).flush({
+      area: AREA, data: { welcome: { greeting: "Moin" } }, type: "yaml", version,
+    });
+    await load;
+    editor.setDoc({ welcome: { greeting: "Mein Entwurf" } });
+    return editor;
+  }
+
+  const KONFLIKT = {
+    message: "Dieser Bereich wurde inzwischen geändert.",
+    version: 5,
+    updated_by: "studio-form",
+    updated_at: "2026-10-03T20:41:00+00:00",
+  };
+
+  async function imKonflikt(): Promise<AreaDocEditor> {
+    const editor = await geladen(3);
+    const saved = editor.save(AREA);
+    await tick();
+    http.expectOne(dataUrl(AREA)).flush(
+      { detail: KONFLIKT }, { status: 409, statusText: "Conflict" });
+    expect(await saved).toBe(false);
+    return editor;
+  }
+
+  it("speichert gegen die geladene Version und übernimmt die neue", async () => {
+    const editor = await geladen(3);
+    const saved = editor.save(AREA);
+    await tick();
+    const req = http.expectOne(dataUrl(AREA));
+    expect(req.request.body).toEqual({
+      data: { welcome: { greeting: "Mein Entwurf" } }, expected_version: 3,
+    });
+    req.flush({ area: AREA, data: req.request.body.data, type: "yaml", version: 4 });
+    expect(await saved).toBe(true);
+    expect(editor.version()).toBe(4);
+  });
+
+  it("legt einen Bereich ohne gespeicherte Zeile ausdrücklich an", async () => {
+    // `version: null` heißt: es gibt noch keine Zeile. Wer zeitgleich anlegt,
+    // soll den anderen nicht überschreiben.
+    const editor = await geladen(null);
+    void editor.save(AREA);
+    await tick();
+    expect(http.expectOne(dataUrl(AREA)).request.body).toEqual({
+      data: { welcome: { greeting: "Mein Entwurf" } }, create: true,
+    });
+  });
+
+  it("hält bei einem Konflikt den Entwurf und meldet, wer wann gespeichert hat", async () => {
+    const editor = await imKonflikt();
+    expect(editor.conflict()).toEqual({
+      version: 5, updatedBy: "studio-form", updatedAt: "2026-10-03T20:41:00+00:00",
+    });
+    expect(editor.doc()).toEqual({ welcome: { greeting: "Mein Entwurf" } });
+    expect(editor.dirty()).toBe(true);
+  });
+
+  it("speichert trotzdem — gegen genau die gemeldete Version", async () => {
+    // Nicht bedingungslos: kam inzwischen noch eine Änderung, gibt es wieder 409.
+    const editor = await imKonflikt();
+    const saved = editor.save(AREA, { force: true });
+    await tick();
+    const req = http.expectOne(dataUrl(AREA));
+    expect(req.request.body.expected_version).toBe(5);
+    req.flush({ area: AREA, data: req.request.body.data, type: "yaml", version: 6 });
+    expect(await saved).toBe(true);
+    expect(editor.conflict()).toBeNull();
+    expect(editor.version()).toBe(6);
+  });
+
+  it("Neu laden verwirft den Entwurf und räumt den Konflikt", async () => {
+    const editor = await imKonflikt();
+    const load = editor.load(AREA);
+    await tick();
+    http.expectOne(schemaUrl(AREA)).flush(AREA_SCHEMAS[AREA]);
+    http.expectOne(dataUrl(AREA)).flush({
+      area: AREA, data: { welcome: { greeting: "Vom anderen" } }, type: "yaml", version: 5,
+    });
+    await load;
+    expect(editor.conflict()).toBeNull();
+    expect(editor.doc()).toEqual({ welcome: { greeting: "Vom anderen" } });
+    expect(editor.version()).toBe(5);
+  });
 });

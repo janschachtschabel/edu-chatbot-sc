@@ -54,6 +54,9 @@
    `--ignore-packages`-Ausnahme; JEDE weitere GPL/AGPL/LGPL/SSPL/Elastic-Dependency
    bricht den Build. Rückbau-Pfad: eigener asyncpg-Checkpointer, falls die Ausnahme
    fallen soll.
+   **Entfallen (Paket 4, D7, 2026-10-03):** `langgraph-checkpoint-postgres` wurde nie
+   importiert (der Graph läuft bewusst ohne Checkpointer). Mit ihm sind `psycopg`/
+   `psycopg-pool` aus dem Baum, die CI-Ausnahme ist gestrichen.
 2. **Parität vor Schönheit:** Die Inventare in §5 sind die Checkliste. Kein Feld, kein
    Endpoint, kein Attribut wird weggelassen, ohne dass §5 hier im Doc geändert wurde.
 3. **Kein modul-globaler veränderlicher State** im Backend (Cluster!). Caches nur über die
@@ -129,7 +132,7 @@ Domänen-Module (die Zerlegungs-Kampagne 2026-07 hat genau diese Schnitte gescha
 |---|---|---|---|
 | HTTP/API, SSE | FastAPI + uvicorn | MIT / BSD-3 | bleibt |
 | Settings/Validierung | pydantic v2 + pydantic-settings | MIT | config_loader-Validierung, os.getenv-Streu |
-| Turn-Orchestrierung | **LangGraph** (Library) + langgraph-checkpoint-postgres | MIT | `_chat_impl`-Phasenkette, Session-State-Wiring |
+| Turn-Orchestrierung | **LangGraph** (Library), ohne Checkpointer (Paket 4, D7) | MIT | `_chat_impl`-Phasenkette, Session-State-Wiring |
 | LLM-Transport (B-API/OpenAI-kompat., Retry, Timeout) | **LiteLLM** (SDK, nicht Proxy) | MIT | llm_provider, Retry-Eigenbau |
 | Structured Output (Classify) | **instructor** (`from_litellm`) | MIT | Hand-Parsing + Validierungs-Retries |
 | MCP-Client | offizielles `mcp`-Python-SDK (streamable HTTP) | MIT | mcp_transport.py |
@@ -579,8 +582,9 @@ BEGIN PERFORM pg_notify('config_changed', NEW.area); RETURN NEW; END $$ LANGUAGE
 CREATE TRIGGER trg_config_notify AFTER INSERT OR UPDATE ON config_areas
   FOR EACH ROW EXECUTE FUNCTION notify_config_changed();
 ```
-Zusätzlich: LangGraph-Checkpointer-Tabellen (liefert `langgraph-checkpoint-postgres` per
-`.setup()` — eigene Migration 0002 ruft das auf). Session-Lock:
+Zusätzlich geplant: LangGraph-Checkpointer-Tabellen (`langgraph-checkpoint-postgres`,
+`.setup()`). Nie gebaut — der Graph läuft ohne Checkpointer, Migration 0002 ist
+`usage_events`; das Paket ist seit Paket 4 (D7) entfernt. Session-Lock:
 `SELECT pg_advisory_xact_lock(hashtext(:session_id))` zu Turn-Beginn in `db/locks.py`.
 Privacy-Gates wie ALT: privacy-config-Toggles schalten messages/memory/quality-Writes ab
 (safety immer an).

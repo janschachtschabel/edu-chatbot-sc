@@ -85,6 +85,10 @@ KRISENTEXT_VORGABE_EN = (
 )
 
 
+#: Ein zusätzlicher Krisen- oder PII-Begriff — Text, kein Muster.
+_Begriff = Annotated[str, Field(max_length=100)]
+
+
 class SafetyConfigArea(AreaModel):
     # Bewusst ohne Auswahl: die Stufe zeigt auf einen Schlüssel in `presets`
     # derselben Datei, und `presets` ist eine offene Zuordnung — wer dort eine
@@ -92,8 +96,11 @@ class SafetyConfigArea(AreaModel):
     # ausgelieferten gibt es ohnehin die eigene Studio-Ansicht.
     security_level: str = "standard"
     presets: dict[str, SafetyPreset] = {}
-    extra_crisis_terms: list[str] = []
-    extra_pii_terms: list[str] = []
+    # Paket 4, D8: Begriffe, die das Regex-Gate nach seinen eigenen Listen
+    # prüft (`services/safety/zusatz_begriffe.py`). Gedeckelt, weil jeder
+    # Begriff bei jeder Nachricht geprüft wird.
+    extra_crisis_terms: list[_Begriff] = Field(default=[], max_length=200)
+    extra_pii_terms: list[_Begriff] = Field(default=[], max_length=200)
     crisis_blocked_tools: list[Annotated[str, Catalog("tools")]] = []
     crisis_pattern: Annotated[str, Catalog("patterns")] = ""
     threat_pattern: Annotated[str, Catalog("patterns")] = ""

@@ -27,6 +27,11 @@ def _resolve_rag_areas(
        gefiltert (Tippschutz); leer bleibt leer.
     2) ``sources`` ohne ``rag`` → gar kein RAG.
     3) Default → always-on-Areas (+ on-demand, wenn ``sources`` „rag" enthält).
+
+    ``rag_areas=None`` („keine Angabe") kommt erst seit Paket 4 (C6) aus
+    ``phase3_modulate`` an; bis dahin schrieb die Engine immer eine Liste, und
+    Zweig 3 war auf dem Muster-Weg tot. Dort ist ``sources`` nie ``None``
+    (Vorgabe ``["mcp"]``) — „nur always-on" erreicht kein Muster.
     """
     pattern_sources = pattern_output.get("sources")
     pattern_rag_areas = pattern_output.get("rag_areas")

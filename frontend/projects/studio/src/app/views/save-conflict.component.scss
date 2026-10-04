@@ -1,0 +1,18 @@
+@use './section-shell';
+
+.sk {
+  display: grid;
+  justify-items: start;
+  gap: var(--st-2);
+}
+
+.sk-text,
+.sk-hint {
+  margin: 0;
+}
+
+.sk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+}

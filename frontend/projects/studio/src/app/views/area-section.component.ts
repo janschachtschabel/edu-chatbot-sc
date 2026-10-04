@@ -28,10 +28,14 @@ import { SchemaFormComponent } from '../schema-form/schema-form.component';
 import type { CuratedAreaSection } from './curated-views';
 import { EffectBadgeComponent } from './effect-badge.component';
 import { SafetyLevelComponent } from './safety-level.component';
+import { SaveConflictComponent } from './save-conflict.component';
 
 @Component({
   selector: 'studio-area-section',
-  imports: [EffectBadgeComponent, RouterLink, SafetyLevelComponent, SchemaFormComponent],
+  imports: [
+    EffectBadgeComponent, RouterLink, SafetyLevelComponent, SaveConflictComponent,
+    SchemaFormComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './area-section.component.html',
   styleUrl: './area-section.component.scss',
@@ -75,7 +79,8 @@ export class AreaSectionComponent {
     void this.editor.load(this.area());
   }
 
-  save(): void {
-    void this.editor.save(this.area());
+  /** `force`: „Trotzdem speichern" after a conflict (Paket 4, D5). */
+  save(force = false): void {
+    void this.editor.save(this.area(), { force });
   }
 }

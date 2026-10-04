@@ -29,3 +29,19 @@ def angebotene_namen(tools: Iterable[dict[str, Any]] | None) -> frozenset[str]:
         if isinstance(name, str) and name:
             namen.add(name)
     return frozenset(namen)
+
+
+def angebotene_parameter(
+    tools: Iterable[dict[str, Any]] | None, name: str
+) -> dict[str, Any] | None:
+    """Das Parameter-Schema, mit dem ``name`` angeboten wurde — oder ``None``.
+
+    Gegen genau diese Form prüft die Agent-Schleife ein Ergebnis (Paket 4, A3):
+    Es ist die, die das Modell gesehen hat.
+    """
+    for werkzeug in tools or ():
+        funktion = werkzeug.get("function") or {}
+        if funktion.get("name") == name:
+            parameter = funktion.get("parameters")
+            return parameter if isinstance(parameter, dict) else None
+    return None

@@ -129,6 +129,15 @@
       @if (incomplete()) {
         <p class="cs-state cs-state--error" role="alert">{{ t('mcp.incomplete') }}</p>
       }
+      @if (conflict(); as konflikt) {
+        <!-- Paket 4, D5: jemand hat inzwischen gespeichert; der Entwurf bleibt -->
+        <studio-save-conflict
+          [conflict]="konflikt"
+          [busy]="saving()"
+          (reload)="load()"
+          (force)="save(true)"
+        />
+      }
       @if (saveError()) {
         <p class="cs-state cs-state--error" role="alert">{{ saveError() }}</p>
       }

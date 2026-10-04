@@ -106,7 +106,7 @@ def test_call_mcp_tool_setzt_output_format_fuer_json_faehige_tools(mcp_state, mo
     sent = calls[0]["arguments"]
     assert sent["outputFormat"] == "json" and sent["query"] == "x"
     # Cache-Key wird NACH der outputFormat-Injektion gebildet.
-    key = tool_cache._cache_key("search_wlo_all", sent)
+    key = tool_cache._cache_key("search_wlo_all", sent, url=FAKE_URL)
     assert tool_cache._cache_get(key) is not None
 
 
@@ -294,6 +294,21 @@ def test_eine_ablehnung_behaelt_den_grund_des_ersten_aufrufs(mcp_state, monkeypa
         "MCP error: Der Bestätigungsschlüssel ist abgelaufen (zehn Minuten).", "tool")
 
 
+def test_eine_zeitueberschreitung_wird_nicht_wiederholt(mcp_state, monkeypatch):
+    """Paket 4, B2: Lief die Frist je Aufruf ab, hinge ein zweiter Versuch
+    genauso lange — die doppelte Wartezeit, die der Befund F04 beschreibt.
+    Nach außen bleibt es „keine Antwort“: ob geschrieben wurde, ist offen."""
+    _wire_tool_url(monkeypatch)
+    calls = _wire_transport(monkeypatch, [
+        {"error": {"message": "keine Antwort binnen 60 s", "kind": "timeout"}},
+        _result([_text_part("OK")]),
+    ])
+    text, art = asyncio.run(
+        client.call_mcp_tool_status("unknown_probe_tool", {"q": "x"}))
+    assert len(calls) == 1
+    assert (text, art) == ("MCP error: keine Antwort binnen 60 s", "timeout")
+
+
 def test_ein_ausfall_wird_weiter_wiederholt(mcp_state, monkeypatch):
     # Gegenprobe: kam keine Antwort, bleibt es bei einem zweiten Versuch.
     _wire_tool_url(monkeypatch)
@@ -364,8 +379,26 @@ def test_call_mcp_tool_extrahiert_query_meta_in_contextvar(mcp_state, monkeypatc
     assert out == "BODY"  # Meta-Block verschmutzt den LLM-Text nicht
     assert metas == [{"queryType": "content", "filters": {"discipline": "d"}}]
     # Metas werden mitgecached (für Re-Emit bei Cache-Hits).
-    key = tool_cache._cache_key("unknown_probe_tool", {"q": "x"})
+    key = tool_cache._cache_key("unknown_probe_tool", {"q": "x"}, url=FAKE_URL)
     assert tool_cache._TOOL_META_CACHE[key] == metas
+
+
+def test_der_cache_trennt_die_server(mcp_state, monkeypatch):
+    """Paket 4, C3: Stellt das Studio einen Registry-Server um, holt der
+    nächste Aufruf beim neuen Server — nicht den Treffer des alten."""
+    adresse = {"jetzt": "https://a.example/mcp"}
+    monkeypatch.setattr(client, "_get_server_url_for_tool", lambda _t: adresse["jetzt"])
+    calls = _wire_transport(monkeypatch, [
+        _result([_text_part("VON-A")]),
+        _result([_text_part("VON-B")]),
+    ])
+
+    erst, _ = asyncio.run(client.call_mcp_tool_status("get_node_details", {"nodeId": "n1"}))
+    adresse["jetzt"] = "https://b.example/mcp"
+    dann, _ = asyncio.run(client.call_mcp_tool_status("get_node_details", {"nodeId": "n1"}))
+
+    assert (erst, dann) == ("VON-A", "VON-B")
+    assert [c["url"] for c in calls] == ["https://a.example/mcp", "https://b.example/mcp"]
 
 
 def test_call_mcp_tool_cache_hit_reemittiert_metas(mcp_state, monkeypatch):

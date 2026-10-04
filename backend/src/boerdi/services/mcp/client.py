@@ -242,8 +242,10 @@ async def call_mcp_tool_status(
 
     Rückgabe ``(text, art)`` mit ``art`` aus ``""`` (kein Fehler) · ``"tool"``
     (der Server hat geantwortet und abgelehnt) · ``"transport"`` (es kam keine
-    Antwort). Die Unterscheidung stammt aus ``transport.call_tool``, wo sie als
-    Einzige noch vorliegt.
+    Antwort) · ``"timeout"`` (keine Antwort binnen ``MCP_CALL_TIMEOUT_S``; für
+    die Frage „wurde geschrieben?" dasselbe wie ``transport``). Die
+    Unterscheidung stammt aus ``transport.call_tool``, wo sie als Einzige noch
+    vorliegt.
 
     **Wofür.** Ein Aufrufer mit einem Modell dahinter braucht sie nicht — das
     Modell liest den Text und ordnet ihn ein. Ein *deterministischer* Aufrufer
@@ -312,7 +314,7 @@ async def call_mcp_tool_status(
     # SDK-Handshake+Call). Blocklist-Tools (Health-Checks) umgehen den Cache.
     cache_key = None
     if tool_name not in _TOOL_CACHE_BLOCKLIST:
-        cache_key = _cache_key(tool_name, arguments)
+        cache_key = _cache_key(tool_name, arguments, url=target_url)
         cached = _cache_get(cache_key) if use_cache else None
         if cached is not None:
             logger.info("MCP tool %s cache HIT (%d entries)", tool_name, len(_TOOL_CACHE))
@@ -355,7 +357,11 @@ async def call_mcp_tool_status(
     # meldete „nichts geändert" — wer daraufhin neu anlegt, erzeugt eine
     # Dublette. So bleibt es bei ``transport``, und ``write_approval`` bittet
     # darum, in WLO nachzusehen.
-    if "error" in result and result["error"].get("kind") != "tool":
+    #
+    # **Eine abgelaufene Frist wird ebenfalls nicht wiederholt** (Paket 4, B2):
+    # der zweite Versuch hinge genauso lange — die doppelte Wartezeit, die das
+    # externe Audit (F04) beschreibt.
+    if "error" in result and result["error"].get("kind") not in ("tool", "timeout"):
         error_msg = result["error"].get("message", "Unknown error")
         logger.error("MCP tool %s error @ %s: %s", tool_name, target_url, error_msg)
         if CONFIRM_TOKEN_FIELD in arguments:
@@ -377,7 +383,7 @@ async def call_mcp_tool_status(
         _art = result["error"].get("kind")
         return (
             f"{_MCP_ERROR_PREFIX}: {result['error'].get('message', 'Unknown error')}",
-            _art if _art in ("tool", "transport") else "transport",
+            _art if _art in ("tool", "transport", "timeout") else "transport",
         )
 
     # Extract text content from result, separating _queryMeta blocks.

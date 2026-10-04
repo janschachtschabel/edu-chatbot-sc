@@ -39,6 +39,7 @@ einfachste, cluster-saubere Variante.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -111,6 +112,11 @@ async def _open_session(url: str) -> AsyncIterator[ClientSession]:
             yield session
 
 
+def _frist_s() -> float:
+    """Gesamtfrist eines Werkzeugaufrufs (``MCP_CALL_TIMEOUT_S``) — Test-Naht."""
+    return get_settings().mcp_call_timeout_s
+
+
 def _cause_text(exc: BaseException) -> str:
     """Die lesbare Ursache einer Transport-Ausnahme.
 
@@ -159,6 +165,9 @@ async def call_tool(
       Schreibwerkzeug steht damit fest, dass nichts geändert wurde.
     * ``"transport"`` — es kam **keine Antwort** (Verbindung, Zeitüberschreitung,
       Abbruch). Ob geschrieben wurde, ist offen.
+    * ``"timeout"`` — Sonderfall davon (Paket 4, B2): die Gesamtfrist
+      ``MCP_CALL_TIMEOUT_S`` lief ab. Ob geschrieben wurde, ist ebenso offen; ein
+      zweiter Versuch hinge aber genauso lange und unterbleibt deshalb.
 
     Nur diese Funktion kann das unterscheiden: eine Ebene höher sind beide Fälle
     dasselbe Dict und danach derselbe String. Gelesen wird es über
@@ -166,10 +175,20 @@ async def call_tool(
     Nutzer „es wurde nichts geändert" sagen darf oder „bitte nachsehen".
     """
     target_url = resolve_mcp_url(url)
+    frist = _frist_s()
+    grenze = asyncio.timeout(frist)
     try:
-        async with _open_session(target_url) as session:
+        async with grenze, _open_session(target_url) as session:
             result = await session.call_tool(tool_name, arguments or {})
     except Exception as exc:  # noqa: BLE001 — Transportfehler → Fehler-Dict (ALT-Parität)
+        if isinstance(exc, TimeoutError) and grenze.expired():
+            # Die EIGENE Frist (Paket 4, B2) — nicht eine Zeitüberschreitung aus
+            # dem SDK, die bleibt ``transport``. Eigene Art, weil ein zweiter
+            # Versuch genauso lange hinge (``client.call_mcp_tool_status``).
+            logger.error("MCP tool %s @ %s: keine Antwort binnen %g s",
+                         tool_name, target_url, frist)
+            return {"error": {"message": f"keine Antwort binnen {frist:g} s",
+                              "kind": "timeout"}}
         grund = _cause_text(exc)
         logger.error("MCP tool %s transport error @ %s: %s", tool_name, target_url, grund)
         return {"error": {"message": grund, "kind": "transport"}}

@@ -60,6 +60,23 @@ export const SHARED: CataloguePart = {
     'editor.loading': 'Wird geladen …',
     'editor.blocked': 'Nicht speicherbar: {fields} enthält kein gültiges JSON.',
     'editor.notSaved': 'Nicht gespeichert: {fields} enthält kein gültiges JSON.',
+    // ── Konflikt beim Speichern (Paket 4, D5) ───────────────────────
+    /** {via}: der Weg, nicht die Person — das Studio teilt eine Anmeldung. */
+    'conflict.changed':
+      'Dieser Bereich wurde inzwischen anderswo gespeichert ({when}, Weg: {via}).',
+    'conflict.gone': 'Dieser Bereich wurde inzwischen gelöscht.',
+    'conflict.recently': 'gerade eben',
+    'conflict.unknownVia': 'unbekannt',
+    'conflict.via.form': 'Formular',
+    'conflict.via.raw': 'Rohtext',
+    'conflict.via.studio': 'Studio',
+    'conflict.via.restore': 'Wiederherstellung',
+    'conflict.via.seed': 'Auslieferungsstand',
+    'conflict.choice':
+      '„Neu laden“ zeigt den gespeicherten Stand und verwirft den Entwurf. '
+      + '„Trotzdem speichern“ ersetzt die andere Änderung durch den Entwurf.',
+    'conflict.reload': 'Neu laden',
+    'conflict.force': 'Trotzdem speichern',
     'guard.confirmLeave':
       'Es gibt ungespeicherte Änderungen. Diese Seite trotzdem verlassen und die '
       + 'Änderungen verwerfen?',
@@ -129,6 +146,20 @@ export const SHARED: CataloguePart = {
     'editor.loading': 'Loading …',
     'editor.blocked': 'Cannot save: {fields} does not hold valid JSON.',
     'editor.notSaved': 'Not saved: {fields} does not hold valid JSON.',
+    'conflict.changed': 'This area was saved elsewhere in the meantime ({when}, via: {via}).',
+    'conflict.gone': 'This area was deleted in the meantime.',
+    'conflict.recently': 'just now',
+    'conflict.unknownVia': 'unknown',
+    'conflict.via.form': 'form',
+    'conflict.via.raw': 'raw text',
+    'conflict.via.studio': 'Studio',
+    'conflict.via.restore': 'restore',
+    'conflict.via.seed': 'shipped state',
+    'conflict.choice':
+      '“Reload” shows the stored state and discards the draft. '
+      + '“Save anyway” replaces the other change with the draft.',
+    'conflict.reload': 'Reload',
+    'conflict.force': 'Save anyway',
     'guard.confirmLeave':
       'There are unsaved changes. Leave this page anyway and discard them?',
 

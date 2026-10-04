@@ -15,8 +15,9 @@ export const FIELDS_WISSENSBEREICHE: CataloguePart = {
     'feld.RagAreaDef.mode.label': 'Abrufart',
     'feld.RagAreaDef.mode.hint':
       'Muster-Engine: always = wird vor der Antwort vorab durchsucht; on-demand = nur auf '
-      + 'Abruf des Modells und nur in Mustern, die Wissen anfordern. Nicht gesetzt: nur in '
-      + 'Mustern, die den Bereich ausdrücklich nennen.',
+      + 'Abruf des Modells. Beides nur in Mustern, die den Bereich nennen oder ohne eigene '
+      + 'Liste Wissen (rag) anfordern. Nicht gesetzt: nur in Mustern, die den Bereich '
+      + 'ausdrücklich nennen.',
     'feld.RagAreaDef.description.label': 'Beschreibung',
     'feld.RagAreaDef.description.hint':
       'Kurzbeschreibung des Bereichs. Beide Maschinen zeigen sie dem Modell im '
@@ -30,8 +31,8 @@ export const FIELDS_WISSENSBEREICHE: CataloguePart = {
     'feld.RagAreaDef.mode.label': 'Retrieval mode',
     'feld.RagAreaDef.mode.hint':
       'Pattern engine: always = searched in advance before the answer; on-demand = only when '
-      + 'the model asks, and only in patterns that request knowledge. Not set: only in '
-      + 'patterns that name the area explicitly.',
+      + 'the model asks. Both only in patterns that name the area, or request knowledge (rag) '
+      + 'without a list of their own. Not set: only in patterns that name the area explicitly.',
     'feld.RagAreaDef.description.label': 'Description',
     'feld.RagAreaDef.description.hint':
       'Short description of the area. Both engines show it to the model in the knowledge '

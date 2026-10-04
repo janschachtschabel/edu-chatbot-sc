@@ -62,6 +62,15 @@
           {{ t('editor.blocked', { fields: editor.fieldErrors().join(', ') }) }}
         </p>
       }
+      @if (editor.conflict(); as konflikt) {
+        <!-- Paket 4, D5: jemand hat inzwischen gespeichert; der Entwurf bleibt -->
+        <studio-save-conflict
+          [conflict]="konflikt"
+          [busy]="editor.saving()"
+          (reload)="reload()"
+          (force)="save(true)"
+        />
+      }
       @if (editor.saveError()) {
         <p class="cs-state cs-state--error" role="alert">{{ editor.saveError() }}</p>
       }

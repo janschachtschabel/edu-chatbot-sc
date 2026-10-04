@@ -22,6 +22,8 @@
  * `maximum` und `pattern` liest der Mapper NICHT: der Server weist eine
  * Verletzung auf PUT zurück, und dort gehört die Prüfung hin. Sie stehen hier
  * nur, damit der Typ ehrlich beschreibt, was wirklich ausgeliefert wird.
+ * Ebenso `maxLength` und `maxItems` (Paket 4, D8: die Deckel der zusätzlichen
+ * Krisen- und PII-Begriffe in `01-base/safety-config`).
  *
  * Dazu kommen mit S2 `x-choices` und `x-catalog`. Sie sind KEIN
  * JSON-Schema-Vokabular, sondern eine Erweiterung dieses Projekts — daher der
@@ -50,6 +52,8 @@ export interface JsonSchema {
   readonly minimum?: number;
   readonly maximum?: number;
   readonly pattern?: string;
+  readonly maxLength?: number;
+  readonly maxItems?: number;
   /** Aus einem `Literal` im Modell — geschlossen UND vom Server erzwungen. */
   readonly enum?: readonly string[];
   /** Geschlossener Wertevorrat ohne Speichersperre -> ebenfalls Auswahlfeld. */

@@ -17,7 +17,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, firstValueFrom, throwError } from 'rxjs';
 
 import { parseProblems } from './field-problems';
-import { StudioApiError } from './studio-api-error';
+import { type SaveConflict, StudioApiError } from './studio-api-error';
 
 /** Query values; `null`/`undefined` are dropped rather than sent as "null". */
 export type QueryValue = string | number | boolean | null | undefined;
@@ -31,6 +31,17 @@ export class StudioApi {
 
   get<T>(path: string, params?: Record<string, QueryValue>): Promise<T> {
     return this.send(this.http.get<T>(this.url(path), { params: toParams(params) }), path);
+  }
+
+  /**
+   * A GET whose version rides in `X-Config-Version` (Paket 4, D5) — for a list
+   * endpoint, whose body cannot carry it. `version` is `null` when absent.
+   */
+  async getVersioned<T>(path: string): Promise<{ body: T; version: number | null }> {
+    const response = await this.send(
+      this.http.get<T>(this.url(path), { observe: 'response' }), path);
+    const version = Number(response.headers.get('X-Config-Version') ?? Number.NaN);
+    return { body: response.body as T, version: Number.isInteger(version) ? version : null };
   }
 
   /** `headers` for the few calls that must carry one — the chat probe picks the
@@ -105,7 +116,21 @@ function toApiError(err: HttpErrorResponse, path: string): StudioApiError {
   const problems = err.status === 422 && body && typeof body === 'object' && 'detail' in body
     ? parseProblems((body as { detail: unknown }).detail)
     : [];
-  return new StudioApiError(err.status, detailOf(err), path, problems);
+  const conflict = err.status === 409 ? conflictOf(body) : null;
+  return new StudioApiError(err.status, detailOf(err), path, problems, conflict);
+}
+
+/** A 409's `detail` object (Paket 4, D5) -> who saved, when, which version. */
+function conflictOf(body: unknown): SaveConflict | null {
+  const detail = body && typeof body === 'object' && 'detail' in body
+    ? (body as { detail: unknown }).detail : null;
+  if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return null;
+  const { version, updated_by, updated_at } = detail as Record<string, unknown>;
+  return {
+    version: typeof version === 'number' ? version : null,
+    updatedBy: typeof updated_by === 'string' ? updated_by : null,
+    updatedAt: typeof updated_at === 'string' ? updated_at : null,
+  };
 }
 
 /**
@@ -145,15 +170,22 @@ function detailOf(err: HttpErrorResponse): string {
     if (Array.isArray(detail) && detail.length > 0) {
       return detail.map(describeValidationError).join('; ').slice(0, MAX_DETAIL);
     }
+    // A conflict (409, Paket 4 D5) answers with an object carrying the sentence.
+    const message = detail && typeof detail === 'object'
+      ? (detail as { message?: unknown }).message : undefined;
+    if (typeof message === 'string' && message.trim()) return message.slice(0, MAX_DETAIL);
   }
   if (typeof body === 'string' && body.trim()) return body.trim().slice(0, MAX_DETAIL);
   return (err.statusText || 'Unbekannter Fehler').slice(0, MAX_DETAIL);
 }
 
-/** `{loc: ['body', 'welcome', 'quick_replies'], msg: '…'}` -> `welcome.quick_replies: …` */
+/**
+ * `{loc: ['body', 'welcome', 'quick_replies'], msg: '…'}` -> `welcome.quick_replies: …`.
+ * A restore names the area of each entry (Paket 4, D3); it leads as a breadcrumb.
+ */
 function describeValidationError(entry: unknown): string {
   if (!entry || typeof entry !== 'object') return String(entry);
-  const { loc, msg } = entry as { loc?: unknown; msg?: unknown };
+  const { loc, msg, area } = entry as { loc?: unknown; msg?: unknown; area?: unknown };
   const parts = Array.isArray(loc) ? [...loc] : [];
   // Only the LEADING segment is FastAPI's request-part envelope. `body` is also
   // a real config key — the whole markdown document of every layer doc and
@@ -161,5 +193,6 @@ function describeValidationError(entry: unknown): string {
   if (parts[0] === 'body') parts.shift();
   const where = parts.join('.');
   const what = typeof msg === 'string' ? msg : 'ungültig';
-  return where ? `${where}: ${what}` : what;
+  const line = where ? `${where}: ${what}` : what;
+  return typeof area === 'string' && area ? `${area} › ${line}` : line;
 }

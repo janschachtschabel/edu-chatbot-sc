@@ -99,7 +99,8 @@ def test_gpt5_gating_sets_verbosity_drops_temperature(monkeypatch) -> None:
     assert kw["model"] == "openai/gpt-5.6-luna"
     assert kw["api_base"] == "https://api.openai.com/v1"
     assert kw["api_key"] == "sk-x"
-    assert kw["timeout"] == 75.0 and kw["num_retries"] == 2
+    # Paket 4 B3: eine Wiederholungsschicht (SDK-Vorgabe), kein ``num_retries``.
+    assert kw["timeout"] == 75.0 and "num_retries" not in kw
     assert kw["verbosity"] == "low"  # W12  # GPT-5 gating flowed through
     assert "temperature" not in kw  # effort=low drops it (tool-call branch)
     assert "tools" not in kw  # der Gating-Marker ist gestrippt
@@ -176,6 +177,47 @@ def test_fallback_on_malformed_arguments_returns_defaults(monkeypatch) -> None:
     _raise(monkeypatch, _retry_exc(raw))
     result = asyncio.run(classify.classify_input("hi", [], {}, {}))
     assert result.persona_id == "P-AND"  # unparseable → defaults, no crash
+
+
+def _letzte_antwort(args: dict):
+    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+        tool_calls=[SimpleNamespace(function=SimpleNamespace(arguments=json.dumps(args)))]))])
+
+
+def test_fallback_verwirft_ungueltige_typen_und_werte(monkeypatch) -> None:
+    """Paket 4, C1 (externes Audit F10): ``model_construct`` filterte nur die
+    Feldnamen. Ein ``entities`` als Liste endete in ``merge`` in einer
+    Ausnahme — genau die Werte, an denen instructor gescheitert war, kamen so
+    durch. Jetzt gilt der Docstring: ungültige Felder nehmen die Vorgabe."""
+    _raise(monkeypatch, _retry_exc(_letzte_antwort({
+        "persona_id": "P-LEH", "signals": "abc", "entities": [1, 2],
+        "intent_confidence": 99})))
+    result = asyncio.run(classify.classify_input("hi", [], {}, {}))
+    assert result.persona_id == "P-LEH"          # gültiges Feld bleibt
+    assert result.signals == []                  # str statt Liste → Vorgabe
+    assert result.entities == {}                 # Liste statt Dict → Vorgabe
+    assert result.intent_confidence == 0.8       # außerhalb 0..1 → Vorgabe
+
+
+def test_fallback_bucht_den_verbrauch_der_fehlversuche(monkeypatch) -> None:
+    """Paket 4, C1 (F09-Teil): Der Rettungsweg kehrte vor der Buchung zurück;
+    die gescheiterten Versuche kosteten trotzdem. instructor liefert ihren
+    Verbrauch an der Ausnahme mit."""
+    from instructor.core import InstructorRetryException
+    from openai.types import CompletionUsage
+
+    from boerdi.obs.usage import new_accumulator
+
+    exc = InstructorRetryException(
+        "validation exhausted", last_completion=None, n_attempts=3,
+        total_usage=CompletionUsage(prompt_tokens=300, completion_tokens=40,
+                                    total_tokens=340))
+    _raise(monkeypatch, exc)
+    acc = new_accumulator()
+    asyncio.run(classify.classify_input("hi", [], {}, {}, usage_acc=acc))
+    assert acc["prompt_tokens"] == 300
+    assert acc["completion_tokens"] == 40
+    assert "classify" in acc["per_phase"]
 
 
 def test_transport_traegt_den_b_api_cache_bust(monkeypatch) -> None:

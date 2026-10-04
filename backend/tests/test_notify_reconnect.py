@@ -91,7 +91,8 @@ def test_der_store_laedt_nach_der_wiederverbindung_alle_bereiche(monkeypatch):
         return [{"area": "01-base/privacy-config"}, {"area": "01-base/neu"}]
 
     async def fetch(area):
-        return {"stand": "neu", "area": area}
+        # ``(data, version)`` seit Paket 4 (D1)
+        return {"stand": "neu", "area": area}, 1
 
     monkeypatch.setattr(store, "list_areas", list_areas)
     monkeypatch.setattr(store, "_fetch", fetch)

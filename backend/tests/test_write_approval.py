@@ -79,10 +79,16 @@ def _req(message: str = "Ja, so ausführen", action: str | None = None) -> ChatR
     )
 
 
-def _zustand(*, args=None, token=_TOKEN, tool=_WERKZEUG, alter: float = 0.0) -> dict:
-    """Sitzungszustand mit einem offenen Vorgang, wie ``setup`` ihn lädt."""
+def _zustand(*, args=None, token=_TOKEN, tool=_WERKZEUG, alter: float = 0.0,
+             caller: str = "") -> dict:
+    """Sitzungszustand mit einem offenen Vorgang, wie ``setup`` ihn lädt.
+
+    ``caller`` ist das Kennzeichen des Aufrufers, der die Vorschau auslöste. Die
+    Vorgabe ``""`` (anonym) entspricht dem Testlauf ohne Block und Dienst-Token.
+    """
     merkposten = remember_pending(
-        tool, args if args is not None else _ARGS, token, now=time.time() - alter)
+        tool, args if args is not None else _ARGS, token, now=time.time() - alter,
+        caller=caller)
     return {"persona_id": "P-AND", "entities": {"_pending_write": merkposten}}
 
 
@@ -210,6 +216,59 @@ class TestVerfall:
         assert await discard_stale_approval(
             _SESSION, _req("such mir was zu Optik"), zustand) is False
         assert update.calls == []
+
+
+class TestFremderAufrufer:
+    """Ein offener Vorgang gehört dem Aufrufer, der ihn auslöste (Paket 4, A1).
+
+    Der Schlüssel des MCP-Servers ist an keine Identität gebunden. Ohne diese
+    Bindung löste ein „ja“ im Folgezug OHNE Anmeldung eine Vorschau ein, die
+    unter Anmeldung entstand — und der Aufruf liefe mit dem Dienst-Block der
+    Anlage (Gegenprüfung des externen Audits, F05).
+    """
+
+    @pytest.mark.asyncio
+    async def test_ein_anderer_aufrufer_verwirft_den_vorgang(self, monkeypatch, _grenzen):
+        _mcp, update, _s = _grenzen
+        zustand = _zustand(caller="person-a")
+        monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "")
+        assert await discard_stale_approval(_SESSION, _req(), zustand) is True
+        assert "_pending_write" not in zustand["entities"]
+        assert len(update.calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_derselbe_aufrufer_behaelt_den_vorgang(self, monkeypatch, _grenzen):
+        zustand = _zustand(caller="person-a")
+        monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "person-a")
+        assert await discard_stale_approval(_SESSION, _req(), zustand) is False
+        assert "_pending_write" in zustand["entities"]
+
+    @pytest.mark.asyncio
+    async def test_ein_vorgang_ohne_kennzeichen_gilt_als_fremd(self, monkeypatch, _grenzen):
+        # Vor dem Deploy gemerkte Vorgänge tragen kein Kennzeichen.
+        zustand = _zustand()
+        del zustand["entities"]["_pending_write"]["caller"]
+        monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "")
+        assert await discard_stale_approval(_SESSION, _req(), zustand) is True
+
+    @pytest.mark.asyncio
+    async def test_die_einloesung_ruft_fuer_einen_fremden_vorgang_nichts(
+            self, monkeypatch, _grenzen):
+        # Zweite Wache am Einlöse-Weg selbst: Wer ohne den Verfall in ``setup``
+        # hierher kommt, löst trotzdem nichts Fremdes ein.
+        mcp, _u, _s = _grenzen
+        zustand = _zustand(caller="person-a")
+        monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "")
+        assert await redeem_write_approval(_SESSION, _req(), zustand) is None
+        assert mcp.calls == []
+
+    @pytest.mark.asyncio
+    async def test_derselbe_aufrufer_loest_ein(self, monkeypatch, _grenzen):
+        mcp, _u, _s = _grenzen
+        zustand = _zustand(caller="person-a")
+        monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "person-a")
+        assert await redeem_write_approval(_SESSION, _req(), zustand) is not None
+        assert len(mcp.calls) == 1
 
 
 # ── Die Einlösung selbst ─────────────────────────────────────────────────

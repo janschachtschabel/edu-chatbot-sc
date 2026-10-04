@@ -177,6 +177,10 @@ class Settings(BaseSettings):
         "https://wlo-mcp.87.106.195.152.nip.io/mcp",
         validation_alias=_env("MCP_SERVER_URL"),
     )
+    # Paket 4 B2 (externes Audit F04): Gesamtfrist EINES Werkzeugaufrufs samt
+    # Verbindung und Handshake. Vorher galten nur die SDK-Vorgaben (30 s
+    # Verbindung, 300 s je Lesevorgang, keine Gesamtgrenze) plus ein Retry.
+    mcp_call_timeout_s: float = Field(60.0, validation_alias=_env("MCP_CALL_TIMEOUT_S"))
     mcp_max_connections: int = Field(50, validation_alias=_env("MCP_MAX_CONNECTIONS"))
     mcp_auth_token: SecretStr = Field(
         SecretStr(""),
@@ -424,6 +428,12 @@ class Settings(BaseSettings):
     @classmethod
     def _floor_timeout(cls, v: float) -> float:
         return max(15.0, v)
+
+    @field_validator("mcp_call_timeout_s")
+    @classmethod
+    def _floor_mcp_timeout(cls, v: float) -> float:
+        # Unter 5 s endete schon ein gewöhnlicher Handshake in der Frist.
+        return max(5.0, v)
 
     @field_validator("bg_llm_max_concurrency")
     @classmethod

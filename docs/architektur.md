@@ -85,8 +85,8 @@ steht daneben.
 | Reranking / lokale Embeddings | **onnxruntime** + `tokenizers` + `numpy` | CPU, kein Torch |
 | Dokument-Konvertierung | **markitdown** | RAG-Ingest |
 | Beobachtbarkeit | **OpenTelemetry** → Jaeger | FastAPI, HTTPX, SQLAlchemy instrumentiert |
-| Konfiguration | **pydantic-settings** | 65 Felder |
-| Tests / Lint | **pytest** (208 Dateien) · **ruff** | |
+| Konfiguration | **pydantic-settings** | 74 Felder (Stand 2026-10-03) |
+| Tests / Lint | **pytest** (285 Dateien, Stand 2026-10-03) · **ruff** | |
 
 ### Widget (`frontend/projects/widget` + `ui`)
 
@@ -327,7 +327,7 @@ Ziel der Ausbreitung: **unter 2 Sekunden**, ohne Neustart, über alle Repliken.
 Lesende Zugriffe laufen über die Fassade `services/config_loader/` — 13
 Submodule mit Prozess-Cache, damit ein Zug nicht dutzendfach die DB fragt.
 
-Der **Seed-Baum** `backend/seeds/` (61 Dateien) ist der Auslieferungsstand;
+Der **Seed-Baum** `backend/seeds/` (69 Dateien, Stand 2026-10-03) ist der Auslieferungsstand;
 `boerdi import-config` bringt ihn in die DB. Er ist die Import-Quelle — nicht
 der ALT-Baum.
 
@@ -629,8 +629,8 @@ sechs anderen Gründe liefern kein verlässliches Ergebnis.
 
 | Ebene | Werkzeug | Umfang |
 |---|---|---|
-| Backend-Unit/Integration | pytest | **208 Testdateien**, > 3400 Tests |
-| Frontend-Unit | Vitest | **154 Spec-Dateien** (ui, widget, studio) |
+| Backend-Unit/Integration | pytest | **285 Testdateien**, > 5100 Tests (Stand 2026-10-03) |
+| Frontend-Unit | Vitest | **195 Spec-Dateien** (ui 77, widget 4, studio 114; Stand 2026-10-03) |
 | E2E | Playwright | Einbettungs- und Chat-Szenarien |
 | Lint / Typen | ruff · ESLint · `tsc` | |
 | Vertrags-Wächter | `test_openapi_contract.py` | die `/api`-Fläche ist eingefroren |

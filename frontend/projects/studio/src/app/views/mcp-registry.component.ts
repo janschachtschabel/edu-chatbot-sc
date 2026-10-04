@@ -13,9 +13,11 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, si
   from '@angular/core';
 
 import { describeApiError } from '../core/async-data';
+import { type SaveConflict, StudioApiError } from '../core/studio-api-error';
 import { StudioApi } from '../core/studio-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import type { CuratedPanelSection } from './curated-views';
+import { SaveConflictComponent } from './save-conflict.component';
 
 export interface McpServer {
   id: string;
@@ -66,6 +68,7 @@ function sameAddress(a: string, b: string): boolean {
 @Component({
   selector: 'studio-mcp-registry',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SaveConflictComponent],
   templateUrl: './mcp-registry.component.html',
   styleUrl: './mcp-registry.component.scss',
 })
@@ -82,6 +85,10 @@ export class McpRegistryComponent {
   readonly saving = signal(false);
   readonly saveError = signal('');
   readonly status = signal('');
+  /** The stored version (Paket 4, D5), from `X-Config-Version`; a save asserts it. */
+  readonly version = signal<number | null>(null);
+  /** Set by a 409: someone saved since. The draft stays until reload or force. */
+  readonly conflict = signal<SaveConflict | null>(null);
 
   readonly discoverUrl = signal('');
   readonly discovering = signal(false);
@@ -140,8 +147,10 @@ export class McpRegistryComponent {
     this.loading.set(true);
     this.loadError.set('');
     try {
-      const servers = await this.api.get<McpServer[]>('/config/mcp-servers');
-      this.adopt(servers);
+      const { body, version } = await this.api.getVersioned<McpServer[]>('/config/mcp-servers');
+      this.adopt(body);
+      this.version.set(version);
+      this.conflict.set(null);
     } catch (err) {
       this.loadError.set(describeApiError(err, this.t));
     } finally {
@@ -177,19 +186,32 @@ export class McpRegistryComponent {
     this.status.set('');
   }
 
-  async save(): Promise<void> {
+  /**
+   * `force`: „Trotzdem speichern" after a conflict — against exactly the
+   * version the conflict reported, not unconditionally (Paket 4, D5).
+   */
+  async save(force = false): Promise<void> {
     if (this.incomplete() || this.saving()) return;
     this.saving.set(true);
     this.saveError.set('');
     this.status.set('');
     try {
-      await this.api.put('/config/mcp-servers', { servers: this.servers() });
+      const conflict = this.conflict();
+      const expected = force && conflict ? conflict.version : this.version();
+      await this.api.put('/config/mcp-servers', {
+        servers: this.servers(),
+        ...(expected === null ? {} : { expected_version: expected }),
+      });
       // Re-read rather than trust the local copy: the backend strips UI meta,
       // restores the primary if it went missing, and re-enriches descriptions.
       await this.load();
       this.status.set(this.t('editor.saved'));
     } catch (err) {
-      this.saveError.set(describeApiError(err, this.t));
+      if (err instanceof StudioApiError && err.status === 409) {
+        this.conflict.set(err.conflict ?? { version: null, updatedBy: null, updatedAt: null });
+      } else {
+        this.saveError.set(describeApiError(err, this.t));
+      }
     } finally {
       this.saving.set(false);
     }

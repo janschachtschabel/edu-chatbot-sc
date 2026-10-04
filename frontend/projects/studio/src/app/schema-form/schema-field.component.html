@@ -98,9 +98,7 @@
           <button type="button" class="sf-add" (click)="addChip(neu)">
             {{ t('schemaField.add') }}
           </button>
-          @if (chipError()) {
-            <p class="sf-error" aria-live="polite">{{ chipError() }}</p>
-          }
+          <p class="sf-error live" aria-live="polite">{{ chipError() }}</p>
         </div>
       } @else if (objectItems()) {
         <!-- ST-3: Objekte als Liste│Editor statt voll aufgeklappt untereinander -->
@@ -224,15 +222,15 @@
                   "
                   (change)="renameEntry(entry.key, $event)"
                 />
-                @if (keyError()?.key === entry.key) {
-                  <p
-                    class="sf-error"
-                    [id]="fieldId() + '-key-' + $index + '-err'"
-                    aria-live="polite"
-                  >
+                <p
+                  class="sf-error live"
+                  [id]="fieldId() + '-key-' + $index + '-err'"
+                  aria-live="polite"
+                >
+                  @if (keyError()?.key === entry.key) {
                     {{ keyError()?.message }}
-                  </p>
-                }
+                  }
+                </p>
               </div>
               <studio-schema-field
                 [field]="field().item!"

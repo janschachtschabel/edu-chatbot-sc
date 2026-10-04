@@ -21,6 +21,7 @@ import {
 } from '@angular/core';
 
 import { ConfigApi } from '../core/config-api.service';
+import { StudioApiError } from '../core/studio-api-error';
 import { StudioApi } from '../core/studio-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AreaDocEditor, describeAreaError } from '../schema-form/area-doc-editor';
@@ -29,6 +30,7 @@ import { rootField } from '../schema-form/schema-to-fields';
 import type { CuratedAreaSection } from './curated-views';
 import { EffectBadgeComponent } from './effect-badge.component';
 import { type FieldTab, patternFieldTabs } from './pattern-field-tabs';
+import { SaveConflictComponent } from './save-conflict.component';
 import { TabBarComponent } from './tab-bar.component';
 
 interface GroupEntry {
@@ -44,7 +46,7 @@ interface ElementsResponse {
 
 @Component({
   selector: 'studio-group-section',
-  imports: [EffectBadgeComponent, SchemaFormComponent, TabBarComponent],
+  imports: [EffectBadgeComponent, SaveConflictComponent, SchemaFormComponent, TabBarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './group-section.component.html',
   styleUrl: './group-section.component.scss',
@@ -165,11 +167,17 @@ export class GroupSectionComponent {
     void this.editor.load(key);
   }
 
-  save(): void {
+  /** `force`: „Trotzdem speichern" after a conflict (Paket 4, D5). */
+  save(force = false): void {
     // A refusal notice outlives what it referred to unless it is cleared here;
     // the live region would keep announcing "please save first" after saving.
     this.notice.set('');
-    void this.editor.save(this.selected());
+    void this.editor.save(this.selected(), { force });
+  }
+
+  /** „Neu laden" after a conflict: the stored state replaces the draft. */
+  reloadDocument(): void {
+    void this.editor.load(this.selected());
   }
 
   onNewName(event: Event): void {
@@ -196,14 +204,18 @@ export class GroupSectionComponent {
     this.creating.set(true);
     this.newError.set('');
     try {
-      await this.config.saveFileText(`${key}.md`, newDocument(this.newName()));
+      // `create`: the server refuses a taken key (409) instead of replacing an
+      // existing document — the list above may be stale (Paket 4, D5).
+      await this.config.saveFileText(`${key}.md`, newDocument(this.newName()), { create: true });
       this.newName.set('');
       await this.loadList();
       this.selected.set(key);
       await this.editor.load(key);
       this.notice.set(this.t('groupSection.created'));
     } catch (err) {
-      this.newError.set(describeAreaError(err, this.t));
+      this.newError.set(err instanceof StudioApiError && err.status === 409
+        ? this.t('groupSection.duplicate', { name: key })
+        : describeAreaError(err, this.t));
     } finally {
       this.creating.set(false);
     }
@@ -230,8 +242,12 @@ function slugify(name: string): string {
  * The label is JSON-encoded (valid YAML for a scalar): a name containing a
  * colon makes the frontmatter unparseable, and one containing a newline adds
  * keys of its own.
+ *
+ * The id is the WHOLE title's slug, like the document key (Paket 4, D5). The
+ * first word alone gave „Neue Zielgruppe" and „Neue Lehrkraft" the same id.
+ * It is JSON-encoded too: YAML 1.1 reads a bare `2024` as a number and `no` as
+ * a boolean, and the model wants a string (review 2026-10-04).
  */
 function newDocument(name: string): string {
-  const id = slugify(name).split('-')[0] || slugify(name);
-  return `---\nid: ${id}\nlabel: ${JSON.stringify(name.trim())}\n---\n\n`;
+  return `---\nid: ${JSON.stringify(slugify(name))}\nlabel: ${JSON.stringify(name.trim())}\n---\n\n`;
 }

@@ -13,10 +13,11 @@ sonst ein Können angekündigt wird, das der nächste Schritt zurücknimmt.
 ``submit_result`` löst zwei Aufgaben mit einem Mittel: es ist das **saubere
 Abbruchsignal** (der Agent sagt selbst, dass er fertig ist) und der Träger der
 **strukturierten Ausgabe**. Gibt der Aufrufer ein ``result_schema`` mit, wird es
-wörtlich zu den ``parameters`` des Feldes ``result`` — dann erzwingt der Anbieter
-die Form über seine eigene Werkzeug-Validierung, und wir müssen über die Struktur
-nichts wissen und nichts parsen. „Bewerte die Sachrichtigkeit von 0–5" ist damit
-ausdrückbar, ohne dass dieser Code je von Sachrichtigkeit gehört hat.
+wörtlich zu den ``parameters`` des Feldes ``result``, und wir müssen über die
+Struktur nichts wissen. „Bewerte die Sachrichtigkeit von 0–5" ist damit
+ausdrückbar, ohne dass dieser Code je von Sachrichtigkeit gehört hat. Der
+Anbieter erzwingt die Form NICHT (kein ``strict``): Die Schleife prüft das
+Ergebnis gegen genau diese Parameter (``domain/ergebnis_schema``, Paket 4 A3).
 """
 
 from __future__ import annotations

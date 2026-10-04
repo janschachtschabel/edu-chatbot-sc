@@ -158,7 +158,7 @@ def test_restore_ueberspringt_nur_ungueltige_pfade(cfg) -> None:
                      files={"file": ("teil.zip", buf.getvalue(), "application/zip")})
     assert up.status_code == 200
     assert up.json()["areas"] == 2
-    assert sorted(config_loader.current_config()) == [
+    assert sorted(asyncio.run(config_loader.current_config())) == [
         "01-base/rag-retrieval", "01-base/welcome-config"]
 
 
@@ -175,7 +175,74 @@ def test_restore_weist_interne_mcp_adressen_ab_und_schreibt_nichts(cfg) -> None:
     up = client.post("/api/config/restore", headers=_AUTH,
                      files={"file": ("teil.zip", buf.getvalue(), "application/zip")})
     assert up.status_code == 400
-    assert config_loader.current_config() == {}
+    assert asyncio.run(config_loader.current_config()) == {}
+
+
+def test_restore_schreibt_alles_oder_nichts(cfg) -> None:
+    # Paket 4, D4 (externes Audit F07): je Bereich eine eigene Transaktion —
+    # scheiterte der dritte, waren die ersten beiden schon neu. Postgres weist
+    # ``\u0000`` in jsonb ab, nach allen Prüfungen davor.
+    from sqlalchemy.exc import DBAPIError
+
+    client, seed = cfg
+    seed("01-base/welcome-config", {"welcome": {"greeting": "Vorher"}})
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("config/01-base/welcome-config.yaml", "welcome:\n  greeting: Nachher\n")
+        z.writestr("config/01-base/rag-retrieval.yaml", "top_k: 7\n")
+        z.writestr("config/01-base/zz-kaputt.yaml", 'x: "\\0"\n')
+    with pytest.raises(DBAPIError):
+        client.post("/api/config/restore", headers=_AUTH,
+                    files={"file": ("teil.zip", buf.getvalue(), "application/zip")})
+    assert asyncio.run(config_loader.current_config()) == {
+        "01-base/welcome-config": {"welcome": {"greeting": "Vorher"}}}
+
+
+def test_restore_prueft_gegen_das_modell_und_schreibt_nichts(cfg) -> None:
+    # Paket 4, D3 (externes Audit F07): Wiederherstellen schrieb ohne
+    # ``model_validate``. Ein Bereich, den das heutige Modell abweist, lief
+    # durch und schaltete danach still auf Vorgaben zurück. Jetzt: 422 mit
+    # Liste über ALLE Bereiche, und nichts ist geschrieben.
+    client, _ = cfg
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("config/01-base/rag-retrieval.yaml", "top_k: 7\n")  # ohne Modell
+        z.writestr("config/01-base/welcome-config.yaml",
+                   "welcome:\n  quick_replies: not-a-list\n")
+    up = client.post("/api/config/restore", headers=_AUTH,
+                     files={"file": ("teil.zip", buf.getvalue(), "application/zip")})
+    assert up.status_code == 422
+    fehler = up.json()["detail"]
+    assert [f["area"] for f in fehler] == ["01-base/welcome-config"]
+    assert fehler[0]["loc"] == ["welcome", "quick_replies"]
+    assert asyncio.run(config_loader.current_config()) == {}
+
+
+def test_die_sicherung_kommt_aus_der_datenbank_nicht_aus_dem_cache(cfg) -> None:
+    # Paket 4, D2 (externes Audit F08): Schnappschuss, Sicherung und
+    # Seed-Vergleich entstanden aus dem Prozess-Cache. Hing er einer anderen
+    # Replik hinterher, sicherte das Studio einen alten Stand.
+    from sqlalchemy import text
+
+    from boerdi.services import snapshots
+
+    client, seed = cfg
+    seed("01-base/welcome-config", {"welcome": {"greeting": "alt"}})
+
+    async def _andere_replik_schreibt() -> None:
+        # Direkt in die Tabelle: die NOTIFY erreicht diesen Prozess hier nicht.
+        async with config_loader.store_engine().begin() as conn:
+            await conn.execute(text(
+                "UPDATE config_areas SET data = CAST(:d AS jsonb), version = version + 1 "
+                "WHERE area = '01-base/welcome-config'"),
+                {"d": '{"welcome": {"greeting": "neu"}}'})
+    asyncio.run(_andere_replik_schreibt())
+    assert config_loader.area("01-base/welcome-config") == {"welcome": {"greeting": "alt"}}
+
+    r = client.get("/api/config/backup", headers=_AUTH)
+    assert r.status_code == 200
+    assert snapshots.parse_config_zip(r.content)["01-base/welcome-config"] == {
+        "welcome": {"greeting": "neu"}}
 
 
 def test_snapshot_endpoints_require_studio_key(cfg) -> None:
@@ -304,6 +371,26 @@ def test_unbekannter_modus_wird_am_rand_abgewiesen(cfg, seed_baum) -> None:
     seed_baum("01-base/neu.yaml", "a: 1\n")
     assert client.post("/api/config/seed/apply", headers=_AUTH,
                        json={"mode": "alles"}).status_code == 422
+
+
+def test_seed_anwenden_schreibt_alles_oder_nichts(cfg, seed_baum) -> None:
+    # Paket 4, D4 (externes Audit F07): Das Anwenden schrieb Bereich für
+    # Bereich. Scheiterte einer, war die Begrüßung schon überschrieben, und das
+    # Löschen lief nie — ein Stand, den weder Seed noch Datenbank je hatten.
+    from sqlalchemy.exc import DBAPIError
+
+    client, seed = cfg
+    seed_baum("01-base/welcome-config.yaml", "welcome:\n  greeting: Seed\n")
+    seed_baum("01-base/zz-kaputt.yaml", 'x: "\\0"\n')
+    seed("01-base/welcome-config", {"welcome": {"greeting": "Gepflegt"}})
+    seed("01-base/eigenbau", {"x": 1})
+
+    with pytest.raises(DBAPIError):
+        client.post("/api/config/seed/apply", headers=_AUTH, json={"mode": "exact"})
+    assert asyncio.run(config_loader.current_config()) == {
+        "01-base/eigenbau": {"x": 1},
+        "01-base/welcome-config": {"welcome": {"greeting": "Gepflegt"}},
+    }
 
 
 def test_seed_endpunkte_verlangen_den_studio_schluessel(cfg) -> None:

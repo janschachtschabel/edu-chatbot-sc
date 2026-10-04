@@ -45,6 +45,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from boerdi.domain.antwort_werkzeug import RESPOND_TO_USER, antwort_aus_argumenten
+from boerdi.domain.host_capabilities import erlaubt
 from boerdi.domain.inline_documents import (
     MAX_DOKUMENTE_JE_ZUG,
     ZEIGE_DOKUMENT,
@@ -81,6 +82,7 @@ from boerdi.services import llm
 from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
 from boerdi.services.card_collect import collect_cards
 from boerdi.services.llm_streaming import _stream_completion
+from boerdi.services.mcp.auth import caller_fingerprint
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 from boerdi.services.response_tool_selection import _nameable_tools
 
@@ -100,6 +102,9 @@ CARD_YIELDING_TOOLS = _CARD_YIELDING_TOOLS
 #: bei ``_selected_card_ids`` und ``_write_preview``. Der Merker gehört DIESEM
 #: Zug — ``graph/nodes/persist`` holt ihn mit ``pop`` ab.
 GELIEFERTE_DOKUMENTE_KEY = "_gelieferte_dokumente"
+
+#: Lokale Werkzeuge, die nur laufen, wenn dieser Zug sie anbietet (Paket 4, A2).
+_DARSTELLUNGS_WERKZEUGE = frozenset({"select_top_cards", RESPOND_TO_USER, ZEIGE_DOKUMENT})
 
 _DOKUMENT_FEHLER = (
     "Fehler: Das Dokument war unbrauchbar — ``titel`` und ``markdown`` muessen "
@@ -170,6 +175,8 @@ async def _run_tool_loop(
     _RAG_MAX_CHARS_PER_AREA: int,
     usage_acc: dict[str, Any] | None,
     on_token: Any,
+    *,
+    tool_mode: str | None = None,
 ) -> tuple[str, list[dict], list[str], list] | None:
     """Tool-Calling-Loop (Phase P15) fuer ``generate_response`` — verbatim port
     of ALT llm_tool_loop.py:565-1158: tool_choice-Gates, Stream-vs-Create,
@@ -226,6 +233,14 @@ async def _run_tool_loop(
     _angeboten = angebotene_namen(active_tools) | angebotene_namen(_nameable_tools())
     if isinstance(_pending_at_turn_start, dict) and _pending_at_turn_start.get("tool"):
         _angeboten = _angeboten | {str(_pending_at_turn_start["tool"])}
+    # Die Erlaubnis der Einbettung gilt auch hier, wie im Agent-Weg (Paket 4,
+    # P4-1): ``read-only`` nimmt dem Katalog alles Schreibende, auch das
+    # Werkzeug eines offenen Vorgangs.
+    _angeboten = {name for name in _angeboten if erlaubt(name, tool_mode)}
+    # Die Darstellungswerkzeuge laufen nur, wenn dieser Zug sie anbietet
+    # (Paket 4, A2): die Auswahl hält sie bewusst zurück, etwa im Rückfrage-
+    # Muster oder bei abgeschalteter Karten-Auswahl (``response_tool_selection``).
+    _direkt_angeboten = angebotene_namen(active_tools)
     # S4 (2026-08-14): Die Zustimmung steht in der Nachricht des Menschen, nicht
     # in den Argumenten des Modells — siehe ``domain/write_confirm``. Die letzte
     # Nachricht mit ``role: "user"`` IST die dieses Zugs: ``_assemble_messages``
@@ -400,6 +415,12 @@ async def _run_tool_loop(
                 if tc.function.name != ZEIGE_DOKUMENT:
                     continue
                 _dokument_calls.add(tc.id)
+                if ZEIGE_DOKUMENT not in _direkt_angeboten:
+                    _logger.warning("tool-call %s: nicht angeboten, verworfen", ZEIGE_DOKUMENT)
+                    messages.append({
+                        "role": "tool", "tool_call_id": tc.id, "content": NICHT_ANGEBOTEN,
+                    })
+                    continue
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
@@ -426,6 +447,17 @@ async def _run_tool_loop(
                         "content": ("Fehler: Die Tool-Argumente waren kein "
                                     "gültiges JSON. Bitte denselben Aufruf "
                                     "mit korrektem JSON wiederholen."),
+                    })
+                    continue
+                # Darstellungswerkzeuge nur mit Angebot (Paket 4, A2, s. o.).
+                # ``query_knowledge`` ist bewusst ausgenommen: Die Domänen-Regeln
+                # verlangen es musterübergreifend, M10 als Pflicht für Berichte —
+                # auch wo es nicht angeboten ist. Eine Sperre änderte diese
+                # Antworten und braucht erst einen Golden-Lauf.
+                if tool_name in _DARSTELLUNGS_WERKZEUGE and tool_name not in _direkt_angeboten:
+                    _logger.warning("tool-call %s: nicht angeboten, verworfen", tool_name)
+                    messages.append({
+                        "role": "tool", "tool_call_id": tc.id, "content": NICHT_ANGEBOTEN,
                     })
                     continue
                 tools_called.append(tool_name)
@@ -820,7 +852,8 @@ async def _run_tool_loop(
                         # In ``entities``, weil der Merkposten den Zug
                         # überdauern MUSS — siehe Zug-Eintritt oben.
                         session_state.setdefault("entities", {})["_pending_write"] = (
-                            remember_pending(tool_name, tool_args, _minted, now=time.time()))
+                            remember_pending(tool_name, tool_args, _minted, now=time.time(),
+                                             caller=caller_fingerprint()))
                         # S1: derselbe Text ein zweites Mal — diesmal für den
                         # Menschen. Der Server formuliert die Abnahme bereits
                         # vollständig und auf Deutsch; bisher endete sie in der

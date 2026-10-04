@@ -24,7 +24,7 @@ from boerdi.api.schemas import (
     PolicyDecision,
     SafetyDecision,
 )
-from boerdi.domain.pattern_engine import PatternDef
+from boerdi.domain.pattern_engine import PatternDef, phase3_modulate
 from boerdi.domain.turn_frame import CLARIFICATION_ATTEMPT_LIMIT, note_clarification
 from boerdi.graph import state as state_mod
 from boerdi.graph.nodes import route as route_mod
@@ -438,6 +438,30 @@ def test_resolve_rag_areas_default_always_plus_on_demand():
     assert _resolve_rag_areas({}, cfg) == ["a", "c"]
     # sources enthält "rag" → always + on-demand ergänzt
     assert _resolve_rag_areas({"sources": ["rag"]}, cfg) == ["a", "c", "b"]
+
+
+def _bereiche_ueber_die_engine(pattern: PatternDef, cfg: dict) -> list[str]:
+    """Der echte Weg: Musterwahl schreibt die Ausgabe, der Kopf liest sie."""
+    out = phase3_modulate(pattern, signals=[], device="desktop", entities={},
+                          persona_id="P-AND")
+    return _resolve_rag_areas(out, cfg)
+
+
+def test_ein_rag_muster_ohne_liste_erbt_die_vorgabe_der_bereiche():
+    # Paket 4, C6 (F13): ``phase3_modulate`` schrieb ``rag_areas`` immer als
+    # Liste — auch ohne Angabe im Muster. Der Zweig oben, der die
+    # ``always``-Bereiche vergibt, war auf diesem Weg deshalb tot; die Tests
+    # darüber reichten ihre Ausgabe von Hand herein und sahen es nicht.
+    cfg = {"a": {"mode": "always"}, "b": {"mode": "on-demand"}}
+    muster = PatternDef(id="MX", label="neu", sources=["rag"])
+    assert _bereiche_ueber_die_engine(muster, cfg) == ["a", "b"]
+
+
+def test_eine_leere_liste_bleibt_kein_rag():
+    # ``[]`` und „keine Angabe“ sind zweierlei (Studio-Modell, rag-config).
+    cfg = {"a": {"mode": "always"}}
+    muster = PatternDef(id="MX", label="neu", sources=["rag"], rag_areas=[])
+    assert _bereiche_ueber_die_engine(muster, cfg) == []
 
 
 # ── Reiner Helfer: Memory-Render ───────────────────────────────────

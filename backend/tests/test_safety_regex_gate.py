@@ -271,3 +271,76 @@ def test_german_compounds_shield_the_topic_case_english_cannot():
     als Grundlage."""
     assert rg.regex_gate("wir behandeln suizidprävention", []).risk_level == "low"
     assert rg.regex_gate("a lesson on suicide prevention", []).enforced_pattern == "M01"
+
+
+# ── Paket 4, D8 (externes Audit F15): zusätzliche Begriffe aus dem Studio ──────
+# `extra_crisis_terms` / `extra_pii_terms` standen im Modell und im Studio, aber
+# nichts las sie — auch ALT nicht. Jetzt prüft das Gate sie nach den eigenen
+# Listen: als Begriff ab Wortanfang, normalisiert wie die Nachricht.
+
+def _zusatz(monkeypatch, *, krise=(), pii=()):
+    from boerdi.services import config_loader
+    monkeypatch.setattr(config_loader, "load_safety_config", lambda: {
+        "extra_crisis_terms": list(krise), "extra_pii_terms": list(pii),
+    })
+
+
+def test_ein_zusaetzlicher_krisenbegriff_fuehrt_zu_m01(monkeypatch):
+    _zusatz(monkeypatch, krise=["Brückengeländer"])
+    d = rg.regex_gate("ich stehe am brückengeländer", [])
+    assert d.risk_level == "high"
+    assert d.enforced_pattern == "M01"
+    assert "search_wlo_all" in d.blocked_tools
+    assert "crisis_signal_detected" in d.reasons
+
+
+@pytest.mark.parametrize("nachricht", [
+    "ich stehe am brücken​geländer",                 # Nullbreite-Zeichen
+    "ich stehe am brückengeländer",            # NFD: u + Trema
+])
+def test_der_krisenbegriff_trifft_auch_verschleiert(monkeypatch, nachricht):
+    _zusatz(monkeypatch, krise=["Brückengeländer"])
+    assert rg.regex_gate(nachricht, []).enforced_pattern == "M01"
+
+
+def test_ein_zusaetzlicher_pii_begriff_ergibt_die_mittlere_stufe(monkeypatch):
+    _zusatz(monkeypatch, pii=["Schülernummer"])
+    d = rg.regex_gate("meine schülernummer ist 4711", [])
+    assert d.risk_level == "medium"
+    assert not d.enforced_pattern  # kein Muster erzwungen (Vorgabe: "")
+    assert "search_wlo_content" in d.blocked_tools
+    assert "pii_in_message" in d.reasons
+
+
+def test_ein_begriff_trifft_nur_ab_wortanfang(monkeypatch):
+    _zusatz(monkeypatch, krise=["klinge"])
+    assert rg.regex_gate("die glocken verklingen", []).risk_level == "low"
+    assert rg.regex_gate("eine klingenscharfe idee", []).enforced_pattern == "M01"
+
+
+def test_leere_begriffe_zaehlen_nicht(monkeypatch):
+    # Ein leerer Eintrag ergäbe eine leere Alternative — die träfe JEDE Nachricht.
+    _zusatz(monkeypatch, krise=["", "   "], pii=[""])
+    assert rg.regex_gate("hallo, wie geht's?", []).risk_level == "low"
+
+
+def test_ohne_zusaetzliche_begriffe_bleibt_alles_wie_es_war(monkeypatch):
+    _zusatz(monkeypatch)
+    assert rg.regex_gate("ich stehe am brückengeländer", []).risk_level == "low"
+    assert rg.regex_gate("ich will mich umbringen", []).enforced_pattern == "M01"
+
+
+@pytest.mark.parametrize(("feld", "zu_viel", "genug"), [
+    ("extra_crisis_terms", ["x" * 101], ["x" * 100]),   # ein Begriff, kein Aufsatz
+    ("extra_pii_terms", [f"b{i}" for i in range(201)], [f"b{i}" for i in range(200)]),
+])
+def test_das_modell_deckelt_laenge_und_anzahl(feld, zu_viel, genug):
+    # Jeder Begriff wird bei jeder Nachricht geprüft; ohne Deckel trüge die
+    # Liste beliebig viel Rechenzeit in jeden Zug.
+    from pydantic import ValidationError
+
+    from boerdi.domain.config_models.base_governance import SafetyConfigArea
+
+    with pytest.raises(ValidationError):
+        SafetyConfigArea.model_validate({feld: zu_viel})
+    SafetyConfigArea.model_validate({feld: genug})

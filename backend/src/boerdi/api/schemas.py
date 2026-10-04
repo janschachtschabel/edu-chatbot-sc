@@ -78,6 +78,7 @@ from boerdi.api.schemas_mcp_curation import (
     SuggestionsListArgs,
     TopicPageSetArgs,
 )
+from boerdi.api.schemas_result import pruefe_ergebnis_schema
 
 __all__ = [
     "ChatRequest", "ChatResponse", "ClassificationResult", "CollectionContentsArgs",
@@ -208,7 +209,7 @@ class Environment(BaseModel):
             raise ValueError(
                 f"result_schema ist {laenge} Zeichen lang, erlaubt sind "
                 f"{MAX_RESULT_SCHEMA_CHARS}")
-        return wert
+        return pruefe_ergebnis_schema(wert)
 
     # G1 — der Rahmen, den die einbettende Anwendung diesem Zug mitgibt: „so bist
     # du hier zu verstehen". Unsichtbar im Verlauf, weil es KEIN Zug ist, sondern
@@ -405,6 +406,11 @@ class ConfigFile(BaseModel):
     path: str
     content: str
     file_type: str = "markdown"
+    # Paket 4, D5: the version the editor loaded (409 if the stored one is
+    # newer), or ``create`` for a new document (409 if the key is taken).
+    # Both optional: without them the write stays an unconditional upsert.
+    expected_version: int | None = None
+    create: bool = False
 
 
 class PageAction(BaseModel):

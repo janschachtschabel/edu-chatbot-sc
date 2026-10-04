@@ -63,7 +63,7 @@ def _patch(monkeypatch, upd: _UpdSpy):
 
 def _run(monkeypatch, *, session_state=None, classification=None, winner_id="M09",
          eff_id="M09", eff_label="Lernpfad", new_state="S3", signal_history=None,
-         final_confidence=0.77, extra=None, usage_acc=None):
+         final_confidence=0.77, extra=None, usage_acc=None, pattern_output=None):
     upd = _UpdSpy()
     _patch(monkeypatch, upd)
     ss = session_state if session_state is not None else {
@@ -88,7 +88,8 @@ def _run(monkeypatch, *, session_state=None, classification=None, winner_id="M09
         None,   # context_snapshot
         usage_acc if usage_acc is not None else {"calls": 3},
         winner_id,
-        {"tone": "warm", "format_follow_up": "quick_replies", "sources": ["mcp"]},
+        pattern_output if pattern_output is not None else {
+            "tone": "warm", "format_follow_up": "quick_replies", "sources": ["mcp"]},
         new_state,
         ["signal_a"],           # new_signals
         signal_history if signal_history is not None else ["signal_a", "signal_old"],
@@ -138,6 +139,13 @@ def test_debug_phase3_modulations_and_state_transition(monkeypatch):
     }
     assert mod["selected_card_ids"] == ["a", "b"]
     assert mod["selected_card_reasoning"] == "weil"
+
+
+def test_bereiche_ohne_angabe_stehen_als_leere_liste_im_debug(monkeypatch):
+    # Paket 4, C6: die Engine reicht ``rag_areas=None`` durch („keine Angabe“).
+    # Debug-Ansicht und Gastgeber-Ereignis lesen das Feld als Liste.
+    debug, _ = _run(monkeypatch, pattern_output={"sources": ["mcp"], "rag_areas": None})
+    assert debug.phase3_modulations["rag_areas"] == []
 
 
 def test_debug_trace_empty_tracer_dropped(monkeypatch):

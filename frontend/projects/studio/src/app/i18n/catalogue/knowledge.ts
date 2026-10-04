@@ -80,9 +80,10 @@ export const KNOWLEDGE: CataloguePart = {
       + 'durchsucht, muss er zusätzlich in rag-config stehen (das Formular '
       + 'weiter unten auf dieser Seite).',
     'rag.ingest.title': 'Titel (optional)',
+    // Paket 4, C5: nur, was das Image ohne markitdown-Extras liest.
     'rag.ingest.fileHelp':
-      'PDF, DOCX, PPTX, XLSX, HTML, Markdown oder Text. Große Dateien lehnt der '
-      + 'Server ab, statt am Speicher zu scheitern.',
+      'HTML, Markdown, Text, CSV oder JSON. Große Dateien lehnt der Server ab, '
+      + 'statt am Speicher zu scheitern.',
     'rag.ingest.url': 'Adresse der Webseite',
     'rag.ingest.urlHelp': 'Öffentlich erreichbare Adresse — interne Adressen weist der Server ab.',
     'rag.ingest.busy': 'Wird eingelesen …',
@@ -101,9 +102,24 @@ export const KNOWLEDGE: CataloguePart = {
     'rag.ingest.untitled': 'Dokument',
     'rag.ingest.previewTitle': 'Anfang des eingelesenen Textes',
 
+    // ── Abschnitte ohne Einbettung (Paket 4, C2) ─────────────────────
+    'rag.embedMissing.hint.one':
+      'Davon {count} Abschnitt ohne Einbettung — die Suche findet ihn erst nach dem Nachholen.',
+    'rag.embedMissing.hint.other':
+      'Davon {count} Abschnitte ohne Einbettung — die Suche findet sie erst nach dem Nachholen.',
+    'rag.embedMissing.go': 'Fehlende Einbettungen nachholen',
+    'rag.embedMissing.busy': 'Wird nachgeholt …',
+    'rag.embedMissing.done.one': '{count} Abschnitt nachgeholt.',
+    'rag.embedMissing.done.other': '{count} Abschnitte nachgeholt.',
+    'rag.embedMissing.partial':
+      '{embedded} von {total} nachgeholt. Der Rest scheiterte erneut — bitte später noch einmal versuchen.',
+
     // ── Fehlschläge des Einlesens ───────────────────────────────────
     'rag.error.unreadable': 'Die Datei oder Adresse konnte nicht gelesen werden.',
     'rag.error.tooLarge': 'Die Datei ist größer als das Upload-Limit des Servers.',
+    'rag.error.format':
+      'Dieses Dateiformat kann der Server nicht lesen. Möglich sind HTML, Markdown, '
+      + 'Text, CSV und JSON.',
   },
 
   en: {
@@ -159,8 +175,8 @@ export const KNOWLEDGE: CataloguePart = {
       + 'this page).',
     'rag.ingest.title': 'Title (optional)',
     'rag.ingest.fileHelp':
-      'PDF, DOCX, PPTX, XLSX, HTML, Markdown or text. The server rejects large '
-      + 'files rather than running out of memory.',
+      'HTML, Markdown, text, CSV or JSON. The server rejects large files rather '
+      + 'than running out of memory.',
     'rag.ingest.url': 'Address of the web page',
     'rag.ingest.urlHelp': 'A publicly reachable address — internal ones are refused by the server.',
     'rag.ingest.busy': 'Ingesting …',
@@ -175,7 +191,21 @@ export const KNOWLEDGE: CataloguePart = {
     'rag.ingest.untitled': 'Document',
     'rag.ingest.previewTitle': 'Beginning of the ingested text',
 
+    'rag.embedMissing.hint.one':
+      'Of these, {count} section has no embedding — search finds it only after it is added.',
+    'rag.embedMissing.hint.other':
+      'Of these, {count} sections have no embedding — search finds them only after they are added.',
+    'rag.embedMissing.go': 'Add missing embeddings',
+    'rag.embedMissing.busy': 'Adding …',
+    'rag.embedMissing.done.one': '{count} section added.',
+    'rag.embedMissing.done.other': '{count} sections added.',
+    'rag.embedMissing.partial':
+      '{embedded} of {total} added. The rest failed again — please try again later.',
+
     'rag.error.unreadable': 'The file or address could not be read.',
     'rag.error.tooLarge': 'The file is larger than the server’s upload limit.',
+    'rag.error.format':
+      'The server cannot read this file format. Possible are HTML, Markdown, text, '
+      + 'CSV and JSON.',
   },
 };

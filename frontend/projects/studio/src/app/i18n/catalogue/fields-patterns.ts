@@ -8,9 +8,11 @@
  * `phase3_modulate` die Vorgaben des Zuges. Die Agent-Schleife wählt kein Muster,
  * außer die Sicherheit erzwingt eine Schutzantwort (`services/engine_choice.py`).
  * Zwei Stolpersteine, die die Hilfetexte deshalb offen nennen: was `PatternDef` nicht
- * kennt, fällt still weg (bis 2026-09-27 traf das `output_mode`), und `tools` wie
- * `rag_areas` kommen immer als Liste an — ein leeres Feld heißt „keine“, nicht „alle“
- * (`services/response_tool_selection.py`, `domain/route_head.py`).
+ * kennt, fällt still weg (bis 2026-09-27 traf das `output_mode`), und `tools` kommt
+ * immer als Liste an — ein leeres Feld heißt „keine“, nicht „alle“
+ * (`services/response_tool_selection.py`). `rag_areas` unterscheidet seit Paket 4 (C6)
+ * dagegen „nie gesetzt“ (alle Bereiche) von der leeren Liste (keine,
+ * `domain/route_head.py`); das Formular zeigt beides gleich, der Hilfetext nennt es.
  */
 import type { CataloguePart } from './catalogue-part';
 
@@ -108,8 +110,9 @@ export const FIELDS_PATTERNS: CataloguePart = {
       + 'gestartete Suche; Werkzeuge gibt nur die Werkzeugliste frei.',
     'feld.PatternFrontmatter.rag_areas.label': 'Wissensbereiche',
     'feld.PatternFrontmatter.rag_areas.hint':
-      'Wissensbereiche, die das Muster durchsuchen darf, Namen wie unter Wissen; leer heißt '
-      + 'keine. Wirkt nur mit rag unter Quellen, always-Bereiche werden vorab geholt.',
+      'Wissensbereiche, die das Muster durchsuchen darf, Namen wie unter Wissen. Wirkt nur '
+      + 'mit rag unter Quellen, always-Bereiche werden vorab geholt. Nie gesetzt heißt alle '
+      + 'Bereiche, eine geleerte Liste heißt keine.',
     'feld.PatternFrontmatter.tools.label': 'Werkzeuge',
     'feld.PatternFrontmatter.tools.hint':
       'Werkzeuge, die das Modell in diesem Muster aufrufen darf; leer heißt keine '
@@ -230,8 +233,9 @@ export const FIELDS_PATTERNS: CataloguePart = {
       + 'pre-started search; only the tool list grants tools.',
     'feld.PatternFrontmatter.rag_areas.label': 'Knowledge areas',
     'feld.PatternFrontmatter.rag_areas.hint':
-      'Knowledge areas the pattern may search, named as under Knowledge; empty means none. '
-      + 'Only effective with rag under sources, always areas are fetched in advance.',
+      'Knowledge areas the pattern may search, named as under Knowledge. Only effective with '
+      + 'rag under sources, always areas are fetched in advance. Never set means all areas, '
+      + 'an emptied list means none.',
     'feld.PatternFrontmatter.tools.label': 'Tools',
     'feld.PatternFrontmatter.tools.hint':
       'Tools the model may call in this pattern; empty means no WLO tools. Writing tools only '

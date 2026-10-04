@@ -1,0 +1,26 @@
+@use './visually-hidden';
+
+// A live region stands empty in the DOM before its message arrives (Paket 4,
+// S1 — audit 2026-09-29, F-M6). One that is born together with its text is
+// often not announced by screen readers.
+//
+// The template keeps the region and makes only its content conditional:
+//
+//   <p class="sf-error live" aria-live="polite">{{ meldung() }}</p>
+//
+// While empty, the region takes no space and paints nothing (no margin, no ⚠
+// from `::before`), but stays in the accessibility tree — the `.sr` technique,
+// not `display: none`. `:empty` fails on a single space, so the content goes
+// either in `{{ … }}` without surrounding whitespace or inside an `@if` block,
+// whose surrounding whitespace Angular drops.
+.live:empty {
+  @extend .sr;
+}
+
+// The region stays in the accessibility tree — and with it any generated
+// content: the ⚠ of `.sf-error::before` was read out as "warning" in front of
+// every idle field (review 2026-10-04).
+.live:empty::before,
+.live:empty::after {
+  content: none;
+}

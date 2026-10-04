@@ -26,6 +26,7 @@ import {
 import { RagApi, type IngestResult, describeRagError } from '../core/rag-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import type { CuratedPanelSection } from './curated-views';
+import { RagEmbedMissingComponent } from './rag-embed-missing.component';
 
 type Source = 'file' | 'url' | 'text';
 
@@ -60,6 +61,7 @@ const NEED_KEY: Record<Source, string> = {
 @Component({
   selector: 'studio-rag-ingest',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RagEmbedMissingComponent],
   templateUrl: './rag-ingest.component.html',
   styleUrl: './rag-ingest.component.scss',
 })
@@ -97,6 +99,9 @@ export class RagIngestComponent {
 
   /** A unique prefix so several panels on one page keep distinct label targets. */
   readonly idPrefix = 'ri';
+  /** Was der Server ohne markitdown-Extras liest (Paket 4, C5). DOCX, PDF, PPTX
+   *  und XLSX scheitern im Image; der Server antwortet dann mit 415. */
+  readonly lesbareFormate = '.html,.htm,.md,.markdown,.txt,.csv,.json';
   /** Fürs Template — der Wert der Option „neuen Bereich anlegen". */
   readonly NEUER_BEREICH = NEUER_BEREICH;
 

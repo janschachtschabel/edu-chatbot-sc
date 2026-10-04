@@ -99,8 +99,10 @@ def _is_empty_response(value: str) -> bool:
     return False
 
 
-def _cache_key(tool_name: str, arguments: dict[str, Any]) -> tuple[str, str]:
-    """Stable cache key: tool name + caller + sorted JSON-serialisation of args.
+def _cache_key(
+    tool_name: str, arguments: dict[str, Any], url: str = ""
+) -> tuple[str, str]:
+    """Stable cache key: tool name + caller + server + sorted JSON of args.
 
     **Der Aufrufer gehört in den Schlüssel** (S6, 2026-08-15). Der MCP-Server
     antwortet identitätsabhängig — ``anonymous`` sieht nur Öffentliches,
@@ -113,16 +115,23 @@ def _cache_key(tool_name: str, arguments: dict[str, Any]) -> tuple[str, str]:
     der sie vergisst, öffnet das Loch wieder. Genau eine Produktions-Aufrufstelle
     gibt es (``client.call_mcp_tool``) — sie soll gar nicht daran denken müssen.
 
+    **Der Server gehört ebenso hinein** (Paket 4, C3; externes Audit F12):
+    ``url`` ist die Zieladresse des Aufrufs. Ein Registry-Server, dessen
+    Adresse das Studio live umstellt, lieferte sonst bis zur TTL die Treffer des
+    alten Servers. Hereingereicht statt geholt, weil die Adresse vom Werkzeug
+    abhängt und erst der Client sie kennt; seine eine Aufrufstelle pinnt
+    ``tests/test_mcp_client.py::test_der_cache_trennt_die_server``.
+
     Das Werkzeug bleibt ``key[0]``: ``_cache_get`` liest daraus die
-    Per-Tool-TTL. Kennzeichen und Argumente stehen zusammen als **Liste** im
-    zweiten Element, nicht ineinandergemischt — ein Argument namens ``_caller``
-    könnte sonst die Trennung überschreiben.
+    Per-Tool-TTL. Kennzeichen, Server und Argumente stehen zusammen als
+    **Liste** im zweiten Element, nicht ineinandergemischt — ein Argument namens
+    ``_caller`` könnte sonst die Trennung überschreiben.
     """
     caller = caller_fingerprint()
     try:
-        canonical = json.dumps([caller, arguments], sort_keys=True, ensure_ascii=False)
+        canonical = json.dumps([caller, url, arguments], sort_keys=True, ensure_ascii=False)
     except Exception:
-        canonical = str((caller, sorted(arguments.items())))
+        canonical = str((caller, url, sorted(arguments.items())))
     return (tool_name, canonical)
 
 

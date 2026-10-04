@@ -4,7 +4,7 @@ Port of the ALT transport contract (docs/plans/p3-llm-transport-contract.md):
 - build_chat_kwargs GPT-5 gating (verbosity / reasoning_effort / temperature
   drop rules) — the load-bearing piece;
 - provider routing (api_base + api_key + X-API-KEY header per provider);
-- the chat_completion wrapper wires routed model + timeout + num_retries and
+- the chat_completion wrapper wires routed model + timeout (no num_retries) and
   folds usage into the accumulator.
 
 The network boundary is the module attribute ``llm._acompletion`` — tests
@@ -338,7 +338,8 @@ def test_chat_completion_wires_routing_timeout_retries(monkeypatch) -> None:
     assert sent["model"] == "openai/gpt-5.6-luna"
     assert sent["api_base"] == "https://api.openai.com/v1"
     assert sent["api_key"] == "sk-x"
-    assert sent["num_retries"] == 2
+    # Paket 4 B3: eine Wiederholungsschicht (SDK-Vorgabe), kein ``num_retries``.
+    assert "num_retries" not in sent
     assert sent["timeout"] == 75.0
     assert sent["verbosity"] == "low"  # gating flowed through
 
@@ -445,7 +446,8 @@ def test_embedding_returns_vector_and_wires_routing(monkeypatch) -> None:
     assert sent["model"] == "openai/text-embedding-3-small"  # embed model, not chat
     assert sent["api_base"] == "https://api.openai.com/v1"
     assert sent["api_key"] == "sk-x"
-    assert sent["num_retries"] == 2
+    # Paket 4 B3: eine Wiederholungsschicht (SDK-Vorgabe), kein ``num_retries``.
+    assert "num_retries" not in sent
     assert sent["timeout"] == 75.0
     assert sent["input"] == "hallo welt"
 

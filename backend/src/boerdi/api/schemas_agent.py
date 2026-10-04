@@ -7,9 +7,11 @@ eine Anweisung, wahlweise Knoten und eine Sammlung, und die Erwartung, ein
 wäre jedes zweite Feld unwahr.
 
 ``result_schema`` ist absichtlich ein freies Dict: es reist wörtlich in die
-Parameter von ``submit_result``, der Anbieter erzwingt die Form, und dieser Code
-muss über die Struktur nichts wissen. „Bewerte die Sachrichtigkeit von 0–5" ist
-damit ausdrückbar, ohne dass hier je von Sachrichtigkeit die Rede war.
+Parameter von ``submit_result``, und dieser Code muss über die Struktur nichts
+wissen. „Bewerte die Sachrichtigkeit von 0–5" ist damit ausdrückbar, ohne dass
+hier je von Sachrichtigkeit die Rede war. Der Anbieter erzwingt die Form NICHT
+(kein ``strict``); geprüft wird das Ergebnis deshalb in der Schleife
+(``domain/ergebnis_schema``, Paket 4 A3), das Schema selbst schon hier.
 """
 
 from __future__ import annotations
@@ -17,6 +19,8 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+from boerdi.api.schemas_result import pruefe_ergebnis_schema
 
 #: Die Obergrenze von ``get_nodes_details`` (gemessen an der Werkzeug-
 #: beschreibung). Der Deckel steht hier am Rand und nicht erst beim Abruf: eine
@@ -50,6 +54,13 @@ class AgentRequest(BaseModel):
         if not wert.strip():
             raise ValueError("instruction darf nicht leer sein")
         return wert
+
+    @field_validator("result_schema")
+    @classmethod
+    def _gueltiges_schema(cls, wert: dict[str, Any] | None) -> dict[str, Any] | None:
+        # Nur die Gültigkeit, kein Größendeckel: der bleibt hier bewusst offen
+        # (siehe ``api/schemas.MAX_RESULT_SCHEMA_CHARS``).
+        return None if wert is None else pruefe_ergebnis_schema(wert)
 
 
 class AgentResponse(BaseModel):

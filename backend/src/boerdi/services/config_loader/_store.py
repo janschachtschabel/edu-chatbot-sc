@@ -13,6 +13,7 @@ version/NOTIFY; ``invalidate_yaml_cache`` clears the process cache.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 from boerdi.services import seed_io
@@ -55,12 +56,42 @@ def area_exists(key: str) -> bool:
     return _store is not None and key in _store.cached_areas()
 
 
-async def write_area(area_key: str, data: dict[str, Any], updated_by: str = "studio") -> int:
+async def write_area(
+    area_key: str, data: dict[str, Any], updated_by: str = "studio", *,
+    expected_version: int | None = None, create_only: bool = False,
+) -> int:
     """Persist a config area as a dict (typed-endpoint write path, P2-5).
-    Counterpart to write_config_file, which takes raw file TEXT."""
+    Counterpart to write_config_file, which takes raw file TEXT.
+
+    ``expected_version``/``create_only`` make it conditional (Paket 4, D5):
+    ``ConfigConflict`` instead of overwriting someone else's save."""
     if _store is None:
         raise RuntimeError("config store not bound")
-    return await _store.put(area_key, data, updated_by=updated_by)
+    return await _store.put(area_key, data, updated_by=updated_by,
+                            expected_version=expected_version, create_only=create_only)
+
+
+async def read_area(area_key: str) -> tuple[dict[str, Any], int] | None:
+    """``(data, version)`` from the database, for editors (Paket 4, D5).
+
+    ``None`` when the row is missing — or, like every read of this facade,
+    when no store is bound (writes raise instead).
+    """
+    if _store is None:
+        return None
+    return await _store.read(area_key)
+
+
+async def write_areas(
+    items: dict[str, dict[str, Any]], updated_by: str = "studio", delete: Iterable[str] = (),
+) -> dict[str, int]:
+    """Write ``items`` and drop ``delete`` in ONE transaction — all or nothing.
+
+    For restore and seed apply (Paket 4, D4). Returns the version per written area.
+    """
+    if _store is None:
+        raise RuntimeError("config store not bound")
+    return await _store.put_many(items, updated_by=updated_by, delete=delete)
 
 
 async def delete_area(area_key: str) -> bool:
@@ -76,9 +107,15 @@ def store_engine():
     return _store.engine
 
 
-def current_config() -> dict[str, dict[str, Any]]:
-    """All loaded config areas as {key: data} — the snapshot/backup source."""
-    return {key: area(key) for key in cached_keys()}
+async def current_config() -> dict[str, dict[str, Any]]:
+    """All stored config areas as {key: data} — the snapshot/backup source.
+
+    Read from the database, not from the process cache (Paket 4, D2): the
+    cache may trail another replica's write. ``{}`` when unbound.
+    """
+    if _store is None:
+        return {}
+    return await _store.all_data()
 
 
 def invalidate_yaml_cache(rel_path: str | None = None) -> None:
@@ -104,8 +141,11 @@ def _validate_config_path(rel_path: str) -> str:
 
 def read_config_file(rel_path: str) -> str:
     """Serialize an area back to file text — ``""`` when missing (ALT)."""
-    key = _strip_ext(_validate_config_path(rel_path))
-    data = area(key)
+    return serialize_area(area(_strip_ext(_validate_config_path(rel_path))))
+
+
+def serialize_area(data: dict[str, Any]) -> str:
+    """An area document as file text: markdown with frontmatter, or YAML."""
     if not data:
         return ""
     if seed_io.is_md_area(data):
@@ -115,11 +155,27 @@ def read_config_file(rel_path: str) -> str:
     return _yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
 
 
-async def write_config_file(rel_path: str, content: str) -> None:
-    """Parse + persist raw file text as an area (ASYNC — DB write)."""
-    key = _strip_ext(_validate_config_path(rel_path))
+async def write_config_file(
+    rel_path: str, content: str, *,
+    expected_version: int | None = None, create_only: bool = False,
+) -> int:
+    """Parse + persist raw file text as an area (ASYNC — DB write); returns
+    the new version. Conditional like ``write_area`` (Paket 4, D5)."""
     if _store is None:
         raise RuntimeError("config store not bound")
+    key, data = parse_config_file(rel_path, content)
+    return await _store.put(key, data, updated_by="config-file-api",
+                            expected_version=expected_version, create_only=create_only)
+
+
+def parse_config_file(rel_path: str, content: str) -> tuple[str, dict[str, Any]]:
+    """Raw file text -> ``(area key, document)``, exactly as it would be stored.
+
+    Separate from the write so a caller can check the document first (Paket 4,
+    D3: the model gate of ``PUT /config/file``). Raises ``ValueError`` for a bad
+    path or a non-mapping root, ``yaml.YAMLError`` for unreadable text.
+    """
+    key = _strip_ext(_validate_config_path(rel_path))
     if rel_path.endswith(".md") or seed_io.is_md_area(area(key)):
         frontmatter, body = seed_io.split_frontmatter(content)
         data: dict[str, Any] = {
@@ -133,7 +189,7 @@ async def write_config_file(rel_path: str, content: str) -> None:
         if not isinstance(parsed, dict):
             raise ValueError("YAML root must be a mapping")
         data = seed_io.normalize_json_keys(parsed)
-    await _store.put(key, data, updated_by="config-file-api")
+    return key, data
 
 
 def list_config_files() -> list[dict[str, str]]:

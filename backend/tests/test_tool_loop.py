@@ -19,6 +19,8 @@ import json
 import logging
 from types import SimpleNamespace
 
+import pytest
+
 from boerdi.services import (
     card_collect,
     llm,
@@ -1010,6 +1012,67 @@ def test_loop_katalog_werkzeug_ausserhalb_der_musterliste_laeuft(monkeypatch):
         _resp_text("fertig"),
     ], outcome=out, active_tools=_ACTIVE)
     assert [name for name, _args in out.calls] == ["get_node_details"]
+
+
+# ── Paket 4, A2: Darstellungswerkzeuge und ``tool_mode`` ─────────────────
+
+
+@pytest.mark.parametrize("aufruf", [
+    ("tc1", "zeige_dokument", json.dumps({
+        "titel": "T", "art": "stundenplanung", "markdown": "# T\n\nText"})),
+    ("tc1", "select_top_cards", json.dumps({"card_ids": ["a"], "reasoning": "x"})),
+    ("tc1", "respond_to_user", json.dumps({"text": "Antwort", "quick_replies": []})),
+])
+def test_loop_darstellungswerkzeuge_laufen_nur_angeboten(monkeypatch, aufruf):
+    """Externes Audit F03: Die lokalen Werkzeuge liefen ohne Angebot. Die
+    Auswahl der Werkzeuge hält sie aber bewusst zurück — im Rückfrage-Muster
+    landete die Rückfrage sonst in der Dokument-Box, eine abgeschaltete
+    Karten-Auswahl kostete trotzdem eine Runde (``response_tool_selection``).
+    Die Sperre setzt diese Absicht durch."""
+    from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
+
+    _fake, result, st = _run_loop(monkeypatch, [
+        _resp_tools([aufruf]),
+        _resp_text("Antwort ohne Werkzeug."),
+    ], active_tools=_ACTIVE)
+    assert result[0] == "Antwort ohne Werkzeug."
+    antworten = [m["content"] for m in st["messages"] if m.get("role") == "tool"]
+    assert antworten == [NICHT_ANGEBOTEN]
+    assert not st["session_state"].get("_gelieferte_dokumente")
+    assert "_selected_card_ids" not in st["session_state"]
+
+
+def test_loop_query_knowledge_bleibt_ohne_angebot_rufbar(monkeypatch):
+    """Bewusste Ausnahme (Paket 4, A2): Die Domänen-Regeln verlangen
+    ``query_knowledge`` musterübergreifend, M10 als Pflicht für Berichte — auch
+    wo das Werkzeug nicht angeboten ist (``sources: [llm]``). Eine Sperre
+    änderte die Antworten dieser Muster und braucht erst einen Golden-Lauf."""
+    from boerdi.services.rag import retrieval
+
+    rag = _RagCtx("Wissen.")
+    monkeypatch.setattr(retrieval, "get_rag_context", rag)
+    _fake, _r, _st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "query_knowledge",
+                      json.dumps({"area": "hilfe", "query": "wie"}))]),
+        _resp_text("fertig"),
+    ], active_tools=_ACTIVE)
+    assert len(rag.calls) == 1
+
+
+def test_loop_tool_mode_read_only_sperrt_schreibwerkzeuge(monkeypatch):
+    """P4-1: Ein Gastgeber mit ``read-only`` bekommt auch im Muster-Weg nichts
+    Schreibendes ausgeführt, selbst wenn das Muster es aufzählt."""
+    from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
+
+    out = _OutcomeFake()
+    schreibend = [{"type": "function", "function": {"name": "wlo_create_collection"}}]
+    _fake, _r, st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "wlo_create_collection", json.dumps({"title": "Neu"}))]),
+        _resp_text("fertig"),
+    ], outcome=out, active_tools=schreibend, tool_mode="read-only")
+    assert out.calls == []
+    antworten = [m["content"] for m in st["messages"] if m.get("role") == "tool"]
+    assert antworten == [NICHT_ANGEBOTEN]
 
 
 def test_loop_max_results_clamped_to_five(monkeypatch):

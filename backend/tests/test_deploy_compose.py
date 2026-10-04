@@ -149,3 +149,14 @@ def test_alte_sicherungen_verschwinden_nur_nach_einer_neuen() -> None:
     fehler = skript.index("else")
     aufraeumen = skript.index("-delete")
     assert erfolg < aufraeumen < fehler
+
+
+def test_ohne_eintrag_laeuft_genau_eine_replik() -> None:
+    """Paket 4, L4 (externes Audit F01, Zwischenmaßnahme): Züge derselben Sitzung
+    sperrt heute nur ein prozessinterner Lock (Befundliste C-H1). Über Repliken
+    hinweg können sie parallel laufen — die Vorgabe darf also nicht 3 sein.
+    Mehr Repliken bleiben möglich, aber nur als bewusster Eintrag."""
+    text = _COMPOSE.read_text("utf-8")
+    assert "replicas: ${BACKEND_REPLICAS:-1}" in text
+    # Die Beispiel-`.env` nennt dieselbe Vorgabe, nicht mehr „3 (= Default)“.
+    assert "# BACKEND_REPLICAS=1" in _ENV_BEISPIEL.read_text("utf-8")

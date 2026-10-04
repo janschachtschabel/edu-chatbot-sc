@@ -79,7 +79,8 @@ AREA_EFFECTS: Final[dict[str, dict[str, Effect]]] = {
     "01-base/welcome-config": _e("voll", "voll"),
     # Der einzige Leser steckt in einem Zweig, der nie läuft (ST-9).
     "01-base/widget-modes": _e("keine", "keine"),
-    # `message_rules` wirken erst nach einem Neustart; `rag_area_rules` ohne Leser.
+    # `message_rules` wirken ohne Neustart (2026-10-01; ein ungültiges Muster weist
+    # das Speichern ab, Paket 4 D6); `rag_area_rules` ohne Leser.
     "02-domain/guide-rules": _e("teilweise", "teilweise"),
     # E-4: `formality` und `label` jeder Persona im Anrede-Block des Agent-Kopfs.
     "04-personas": _e("voll", "teilweise"),

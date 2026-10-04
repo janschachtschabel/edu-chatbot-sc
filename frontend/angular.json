@@ -16,7 +16,8 @@
           "builder": "@angular/build:unit-test",
           "options": {
             "tsConfig": "projects/ui/tsconfig.spec.json",
-            "buildTarget": "widget:build:development"
+            "buildTarget": "widget:build:development",
+            "runnerConfig": "vitest-base.config.ts"
           }
         }
       }
@@ -136,7 +137,8 @@
           "builder": "@angular/build:unit-test",
           "options": {
             "tsConfig": "projects/widget/tsconfig.spec.json",
-            "buildTarget": "widget:build:development"
+            "buildTarget": "widget:build:development",
+            "runnerConfig": "vitest-base.config.ts"
           }
         }
       }
@@ -174,8 +176,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "600kb",
-                  "maximumError": "900kb"
+                  "maximumWarning": "1.1mb",
+                  "maximumError": "1.2mb"
                 }
               ],
               "outputHashing": "all"
@@ -207,7 +209,8 @@
           "builder": "@angular/build:unit-test",
           "options": {
             "tsConfig": "projects/studio/tsconfig.spec.json",
-            "buildTarget": "studio:build:development"
+            "buildTarget": "studio:build:development",
+            "runnerConfig": "vitest-base.config.ts"
           }
         }
       }

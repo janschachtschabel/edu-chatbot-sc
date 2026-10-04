@@ -7,20 +7,28 @@ DB areas replace files (V2): the ``path`` parameter stays the area key
 is new (V3, JSON schema per area for the generic formly renderer).
 """
 
-from typing import Any
+import asyncio
 from urllib.parse import urlparse
 
 import yaml
-from fastapi import APIRouter, HTTPException, Security
-from pydantic import BaseModel, ValidationError
+from fastapi import APIRouter, HTTPException, Response, Security
+from pydantic import BaseModel
 
+from boerdi.api.config_guards import (
+    _MCP_AREA,
+    _assert_area_document_safe,
+    _assert_servers_public,
+    _resolve_area,
+    is_restorable_area_key,
+    konflikt_antwort,
+    modell_fehler,
+)
 from boerdi.api.deps import Lang, require_studio_key
 from boerdi.api.schemas import ConfigFile
-from boerdi.domain.config_models.patterns import ist_reservierte_kennung
-from boerdi.i18n import Locale, msg
+from boerdi.i18n import msg
 from boerdi.services import config_loader as cl
 from boerdi.services import seed_io
-from boerdi.services.config_loader.mcp import _PRIMARY_ID
+from boerdi.services.config_conflict import ConfigConflict
 from boerdi.services.mcp import tool_descriptions, transport
 from boerdi.services.url_safety import UnsafeUrlError, assert_public_url
 from boerdi.settings import get_settings
@@ -40,13 +48,17 @@ async def list_config_files() -> list[dict]:
 
 @router.get("/file")
 async def get_config_file(path: str) -> dict:
+    """Raw file text plus its ``version`` — read from the database, so the
+    version the raw editor saves against is the stored one (Paket 4, D5)."""
     try:
-        cl._validate_config_path(path)
+        key = cl._strip_ext(cl._validate_config_path(path))
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid path") from None
-    if not cl.area_exists(cl._strip_ext(path)):
+    row = await cl.read_area(key)
+    if row is None:
         raise HTTPException(status_code=404, detail="File not found")
-    return {"path": path, "content": cl.read_config_file(path)}
+    data, version = row
+    return {"path": path, "content": cl.serialize_area(data), "version": version}
 
 
 @router.put("/file")
@@ -58,33 +70,39 @@ async def update_config_file(file: ConfigFile, lang: Lang) -> dict:
     anything else caught here), so before 9-3 a typo in the studio's raw editor
     produced a 500 with a stack trace instead of a message the editor could
     act on. The parser's own message names the line and column.
+
+    The text is parsed BEFORE anything is persisted, so the document checks
+    (MCP egress, reserved pattern id) and the model gate see exactly what would
+    be stored. Since Paket 4 (D3, external audit F07) that gate is the one the
+    form tab passes too (422), and the key follows the restore rule — one leaf
+    per pattern or persona, no ``.`` segment.
+
+    ``expected_version`` / ``create`` make the write conditional (D5): 409
+    instead of overwriting a save made since the editor loaded the text.
     """
     try:
-        cl._validate_config_path(file.path)
+        key = cl._strip_ext(cl._validate_config_path(file.path))
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid path") from None
-    key = cl._strip_ext(file.path)
-    if key == _MCP_AREA:
-        # Parsed here rather than after the write, because the check has to
-        # happen BEFORE anything is persisted. Only this one area pays for it.
-        try:
-            parsed = yaml.safe_load(file.content) or {}
-        except yaml.YAMLError as e:
-            raise HTTPException(400, msg(lang, "file.unreadable", error=e)) from e
-        _assert_area_document_safe(key, parsed, lang)
-    elif key.startswith(_PATTERN_PREFIX):
-        # Same reason: the pattern id is checked before anything is persisted
-        # (reserved id ``AGENT``, review 2026-10-03).
-        try:
-            frontmatter, body = seed_io.split_frontmatter(file.content)
-        except yaml.YAMLError as e:
-            raise HTTPException(400, msg(lang, "file.unreadable", error=e)) from e
-        _assert_area_document_safe(key, {"frontmatter": frontmatter, "body": body}, lang)
+    if not is_restorable_area_key(key):
+        raise HTTPException(status_code=400, detail="Invalid path")
     try:
-        await cl.write_config_file(file.path, file.content)
+        key, data = cl.parse_config_file(file.path, file.content)
     except (yaml.YAMLError, ValueError) as e:
         raise HTTPException(400, msg(lang, "file.unreadable", error=e)) from e
-    return {"status": "saved", "path": file.path}
+    _assert_area_document_safe(key, data, lang)
+    fehler = modell_fehler(key, data)
+    if fehler:
+        raise HTTPException(status_code=422, detail=fehler)
+    # Parses the same text the same way again — no await in between, so the
+    # stored document is the one just checked.
+    try:
+        version = await cl.write_config_file(
+            file.path, file.content,
+            expected_version=file.expected_version, create_only=file.create)
+    except ConfigConflict as e:
+        raise konflikt_antwort(e, lang, anlegen=file.create) from e
+    return {"status": "saved", "path": file.path, "version": version}
 
 
 @router.delete("/file")
@@ -103,73 +121,26 @@ async def delete_config_file(path: str) -> dict:
 # errors"); the fetch + cache live in services/mcp/tool_descriptions.py — spec §4
 # keeps the network I/O out of the router.
 @router.get("/mcp-servers")
-async def get_mcp_servers() -> list[dict]:
+async def get_mcp_servers(response: Response) -> list[dict]:
+    """The registry. Its version rides in ``X-Config-Version`` (Paket 4, D5):
+    the body is a list, and the Studio saves against that version. The fresh
+    read also refreshes the cache the list is built from."""
+    row = await cl.read_area(_MCP_AREA)
+    if row is not None:
+        response.headers["X-Config-Version"] = str(row[1])
     return await tool_descriptions.load_mcp_servers_with_descriptions()
 
 
 class AreaData(BaseModel):
     data: dict
+    # Paket 4, D5 — both optional; see ``ConfigFile``.
+    expected_version: int | None = None
+    create: bool = False
 
 
 class McpServerUpdate(BaseModel):
     servers: list[dict]
-
-
-#: The area the MCP registry is stored in. Named here because three endpoints
-#: can write it and only one of them is *about* MCP.
-_MCP_AREA = "05-knowledge/mcp-servers"
-#: One area per pattern below this prefix (``03-patterns/<name>``).
-_PATTERN_PREFIX = "03-patterns/"
-
-
-def _assert_servers_public(servers: object, lang: Locale) -> None:
-    """Reject a registry that would point the backend at an internal address.
-
-    Stored SSRF (ALT audit T8): the backend POSTs to every enabled server on
-    each chat turn, so one accepted ``http://169.254.169.254`` fires once per
-    conversation.
-
-    The primary (``wlo-mcp``) is exempt: its URL comes from ``MCP_SERVER_URL``
-    and may deliberately point inside the network — ``save_mcp_servers`` strips
-    it before writing regardless.
-    """
-    for srv in servers if isinstance(servers, list) else []:
-        if not isinstance(srv, dict) or srv.get("id") == _PRIMARY_ID:
-            continue
-        srv_url = (srv.get("url") or "").strip()
-        if not srv_url:
-            continue
-        try:
-            assert_public_url(srv_url)
-        except UnsafeUrlError as e:
-            raise HTTPException(
-                400, msg(lang, "mcp.serverRejected", id=srv.get("id") or "?", error=e)
-            ) from e
-
-
-def _assert_area_document_safe(key: str, data: object, lang: Locale) -> None:
-    """Per-area document checks the GENERIC write paths must not skip.
-
-    ``PUT /config/data/{area}`` and ``PUT /config/file`` accept any area, so
-    without this the guard on ``PUT /mcp-servers`` was only a guard against
-    using that one endpoint — the studio's schema form and its raw-text tab
-    reach the same document and neither is about MCP. Found while building the
-    9-4 "Wissen" view; pinned by the two ``*_rejects_internal_url`` tests.
-
-    Since review 2026-10-03 also the reserved pattern id ``AGENT``: the model
-    rejects it on a typed write only, and the loader drops such a pattern
-    silently — a write that reports "saved" must not end there. The restore
-    paths (``config_snapshots``) run this check as well.
-    """
-    if key == _MCP_AREA and isinstance(data, dict):
-        _assert_servers_public(data.get("servers"), lang)
-    if key.startswith(_PATTERN_PREFIX) and isinstance(data, dict):
-        frontmatter = data.get("frontmatter")
-        kennung = frontmatter.get("id") if isinstance(frontmatter, dict) else None
-        if ist_reservierte_kennung(kennung):
-            raise HTTPException(
-                400, msg(lang, "patterns.idReserved", value=repr(str(kennung).strip()))
-            )
+    expected_version: int | None = None
 
 
 @router.put("/mcp-servers")
@@ -185,8 +156,11 @@ async def update_mcp_servers(data: McpServerUpdate, lang: Lang) -> dict:
     before writing regardless.
     """
     _assert_servers_public(data.servers, lang)
-    await cl.save_mcp_servers(data.servers)
-    return {"status": "saved", "count": len(data.servers)}
+    try:
+        version = await cl.save_mcp_servers(data.servers, expected_version=data.expected_version)
+    except ConfigConflict as e:
+        raise konflikt_antwort(e, lang) from e
+    return {"status": "saved", "count": len(data.servers), "version": version}
 
 
 @router.post("/mcp-servers/discover")
@@ -202,7 +176,9 @@ async def discover_mcp_tools(lang: Lang, url: str = "") -> dict:
     if not url:
         raise HTTPException(status_code=400, detail=msg(lang, "mcp.urlRequired"))
     try:
-        assert_public_url(url)
+        # Im Thread (Paket 4, C5): ``getaddrinfo`` blockierte sonst den
+        # Event-Loop samt allen Chat-Zügen dieses Workers.
+        await asyncio.to_thread(assert_public_url, url)
     except UnsafeUrlError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     try:
@@ -216,68 +192,7 @@ async def discover_mcp_tools(lang: Lang, url: str = "") -> dict:
 
 
 # ── NEW (V3): JSON schema + JSON data per area, for the generic studio form ──
-#: The two areas whose model covers a whole DIRECTORY of files. They are legal
-#: as a schema target (one model describes every file) but never as a document
-#: key — no row is stored under them.
-_GROUPED_AREAS = ("03-patterns", "04-personas")
-
-
-def _is_file_key(key: str) -> bool:
-    """Does this key address exactly one stored document?
-
-    ``model_for`` answers for *any* ``03-patterns/…`` key, so on its own it
-    accepts ``03-patterns/``, ``03-patterns/a/b/c`` and the bare group key —
-    each of which would create a junk row that then shows up in the area list
-    and, for a `03-patterns/`-shaped one, in pattern classification.
-    """
-    from boerdi.domain.config_models import AREA_MODELS
-
-    for group in _GROUPED_AREAS:
-        if key.startswith(f"{group}/"):
-            leaf = key[len(group) + 1:]
-            return bool(leaf) and "/" not in leaf
-    return key in AREA_MODELS and key not in _GROUPED_AREAS
-
-
-def _resolve_area(area: str, *, file_key: bool = False) -> tuple[str, type[BaseModel]]:
-    """Area key -> (validated key, area model), or the matching HTTP error.
-
-    ``model_for`` is an allow-list and would be guard enough on its own, except
-    for the two grouped prefixes: it answers for *any* ``03-patterns/…`` key,
-    so ``03-patterns/../../evil`` would pass and create a junk row.
-
-    ``file_key=True`` additionally demands a key that addresses one document —
-    required for reading and writing, not for the schema, which is per model.
-    """
-    from boerdi.domain.config_models import model_for
-
-    try:
-        key = cl._validate_config_path(area)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid path") from None
-    model = model_for(key)
-    if model is None or (file_key and not _is_file_key(key)):
-        raise HTTPException(status_code=404, detail=f"unknown config area: {area}")
-    return key, model
-
-
-def is_restorable_area_key(key: str) -> bool:
-    """May a restore write ``key``? The path rule of the raw file write
-    (``PUT /config/file``), not the model allow-list of a typed write.
-
-    Audit 2026-09-29, A-M7: ``../…`` from a crafted ZIP must not land in the
-    store, ``export_tree`` would write it outside its folder. The model list is
-    too narrow for a restore (review 2026-10-03): areas without a model exist —
-    ``01-base/rag-retrieval`` is read but not registered — and must come back.
-    """
-    try:
-        if cl._validate_config_path(key) != key:
-            return False
-    except ValueError:
-        return False
-    return all(key.split("/"))
-
-
+# The key and document rules these endpoints apply live in config_guards.py.
 @router.get("/schema/{area:path}")
 async def get_area_schema(area: str) -> dict:
     """JSON schema of the area's pydantic model (P2-6) — grouped file keys
@@ -297,10 +212,17 @@ async def get_area_data(area: str) -> dict:
     ``seed_io.is_md_area`` predicate ``read_config_file`` uses to decide how to
     serialize. The studio therefore never guesses it from the document shape,
     and the two sides cannot disagree about a document.
+
+    ``version`` is what a save names as ``expected_version`` (Paket 4, D5),
+    ``None`` while no row exists — then the save names ``create``. Read from
+    the database, not the cache: after a conflict, "reload" must show the
+    stored state even while another replica's NOTIFY is still on its way.
     """
     key, _ = _resolve_area(area, file_key=True)
-    data = cl.area(key)
-    return {"area": key, "data": data, "type": "md" if seed_io.is_md_area(data) else "yaml"}
+    row = await cl.read_area(key)
+    data, version = row if row is not None else ({}, None)
+    return {"area": key, "data": data, "version": version,
+            "type": "md" if seed_io.is_md_area(data) else "yaml"}
 
 
 @router.put("/data/{area:path}")
@@ -325,33 +247,19 @@ async def update_area_data(area: str, payload: AreaData, lang: Lang) -> dict:
     persisted, never the model dump — dumping would inject defaults for every
     absent optional field and rewrite the document the editor saw.
     """
-    key, model = _resolve_area(area, file_key=True)
+    key, _ = _resolve_area(area, file_key=True)
     _assert_area_document_safe(key, payload.data, lang)
+    # One gate for the form, the raw text and the restore (Paket 4, D3).
+    fehler = modell_fehler(key, payload.data)
+    if fehler:
+        raise HTTPException(status_code=422, detail=fehler)
     try:
-        model.model_validate(payload.data)
-    except ValidationError as e:
-        # Hand-built detail: pydantic's own carries `input` and `url`, and the
-        # input is the submitted config content — no need to echo it back.
-        # `ctx` (the bound, the expected values) lets the Studio say „Mindestens
-        # 70" at the field (ST-2e) — plain values only.
-        raise HTTPException(status_code=422, detail=[
-            {"loc": list(err["loc"]), "msg": err["msg"], "type": err["type"],
-             **_plain_ctx(err)}
-            for err in e.errors()
-        ]) from e
-    await cl.write_area(key, payload.data, updated_by="studio-form")
-    return {"status": "saved", "area": key, "data": payload.data}
-
-
-def _plain_ctx(err: Any) -> dict[str, Any]:
-    """``ctx`` of a validation error with plain values only (ST-2e).
-
-    A ``value_error`` carries the raised exception there — neither JSON nor
-    anything the Studio should show. Empty result: no ``ctx`` key at all.
-    """
-    ctx = {k: v for k, v in (err.get("ctx") or {}).items()
-           if isinstance(v, (bool, int, float, str))}
-    return {"ctx": ctx} if ctx else {}
+        version = await cl.write_area(
+            key, payload.data, updated_by="studio-form",
+            expected_version=payload.expected_version, create_only=payload.create)
+    except ConfigConflict as e:
+        raise konflikt_antwort(e, lang, anlegen=payload.create) from e
+    return {"status": "saved", "area": key, "data": payload.data, "version": version}
 
 
 def _mcp_auth_base() -> str:

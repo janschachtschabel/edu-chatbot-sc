@@ -4,10 +4,11 @@ Von einem frischen Server bis zum laufenden Chatbot **mit den Seed-Daten**.
 Betrieb danach (Skalieren, Backup, Restore, Rollback, Sicherheits-Checkliste)
 steht in [deploy/README.md](deploy/README.md); diese Datei ist der Weg dorthin.
 
-**Der Schritt, den man übersieht:** die Migration legt die Tabellen an, füllt
-aber **nichts**. Ohne Schritt 7 läuft ein Chatbot ohne Muster, ohne Begrüssung
-und ohne Vokabulare — technisch gesund, inhaltlich leer. Es gibt bewusst keinen
-Auto-Import beim Start: bei N Replikas würden alle gleichzeitig schreiben.
+**Der Schritt, den man übersieht:** Schritt 7. Der Dienst `migrate` legt die
+Tabellen an und füllt dabei fehlende Bereiche aus dem Seed im Image
+(`import-config --only-missing`) — einmal, vor den Backends, nicht je Replika.
+Ohne diesen Lauf läuft ein Chatbot ohne Muster, ohne Begrüssung und ohne
+Vokabulare — technisch gesund, inhaltlich leer.
 
 ## Was der Server braucht
 
@@ -18,7 +19,8 @@ Auto-Import beim Start: bei N Replikas würden alle gleichzeitig schreiben.
 | Platte | 20 GB | 200 GB |
 
 Dazu ein **DNS-A-Record**, der auf die Server-IP zeigt — traefik holt das
-Zertifikat über HTTP-01, das geht erst, wenn der Name auflöst.
+Zertifikat über TLS-ALPN-01 auf Port 443 (`tlschallenge` in `compose.prod.yml`),
+das geht erst, wenn der Name auflöst.
 
 Das Image wird **nicht** auf dem Server gebaut (siehe Schritt 5); Node und der
 Quellbaum werden dort also nie gebraucht.
@@ -148,16 +150,16 @@ redaktionelle Gesamtanleitung als Prompt-Kopf ein (Agent-Modus,
 Knoten in `MASTER_SKILL_NODE_ID`). Vorgabe ist aus - Begruendung und
 Wirkung in `docs/agent-modus.md`.
 
-**Für Ihre 6 Kerne** zusätzlich eintragen:
+Zusätzlich eintragen:
 
 ```
-BACKEND_REPLICAS=3
 BOERDI_IMAGE=ghcr.io/<konto>/<repo>:sha-1234567
 ```
 
-Drei Replikas auf sechs Kernen lassen jedem zwei. (Die Empfehlung „1" im
-Runbook gilt für einen 2-Kern-Server — dort machen drei Replikas es langsamer,
-nicht schneller.)
+`BACKEND_REPLICAS` bleibt bei der Vorgabe 1 (Paket 4, L4): Züge derselben
+Sitzung sperrt bisher nur ein prozessinterner Lock, über Replikas hinweg
+könnten sie parallel laufen (Befundliste, C-H1). Ist das behoben, lassen drei
+Replikas auf sechs Kernen jedem zwei; auf einem 2-Kern-Server bleibt es bei 1.
 
 Vollständigkeit prüfen, ohne zu starten:
 

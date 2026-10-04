@@ -338,6 +338,15 @@ class TestNaht:
         assert offen["token"] == _TOKEN
         assert offen["tool"] == _WERKZEUG
 
+    def test_der_vorgang_traegt_das_kennzeichen_des_aufrufers(self, monkeypatch):
+        # Paket 4, A1: Eingelöst wird nur unter derselben Identität
+        # (``services/write_approval``); dafür muss der Merkposten sie kennen.
+        from boerdi.services import tool_loop as tl_mod
+
+        monkeypatch.setattr(tl_mod, "caller_fingerprint", lambda: "person-a")
+        _outcome, st = _lauf(monkeypatch, [("tc1", _WERKZEUG, _ARGS)])
+        assert st["session_state"]["entities"]["_pending_write"]["caller"] == "person-a"
+
     def test_offener_vorgang_liegt_im_gespeicherten_teil(self, monkeypatch):
         # DER Befund (2026-08-11). ``session_state`` wird jeden Zug NEU aus
         # fuenf Spalten gebaut (``graph/nodes/setup.py``), und

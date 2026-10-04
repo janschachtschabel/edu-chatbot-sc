@@ -16,6 +16,7 @@ import asyncio
 import json
 from types import SimpleNamespace
 
+from boerdi.domain.inline_documents import dokument_werkzeug
 from boerdi.services import card_collect, llm, tool_loop
 
 _DOKUMENT = {"titel": "Vereinfachte Fassung", "art": "dokument",
@@ -54,7 +55,9 @@ def test_text_und_zeige_dokument_auf_zwei_choices_liefert_die_box(monkeypatch) -
         object(),
         message="Formuliere es einfacher", classification={}, pattern_output={},
         pattern_label="Iterative Nachbearbeitung", session_state=sitzung,
-        rag_context="", blocked_tools=[], active_tools=[],
+        # Angeboten wie im Betrieb (außer im Rückfrage-Muster): Seit Paket 4
+        # (A2) läuft ``zeige_dokument`` nur, wenn es im Angebot steht.
+        rag_context="", blocked_tools=[], active_tools=[dokument_werkzeug()],
         _inline_qr_enabled=False, _inline_grouping_mode=False,
         messages=[{"role": "system", "content": "sys"}], all_cards=[],
         tools_called=[], outcomes=[], knowledge_prefetched=False,

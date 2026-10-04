@@ -1,0 +1,13 @@
+@use './section-shell';
+
+.rem {
+  display: grid;
+  justify-items: start;
+  gap: var(--st-2);
+}
+
+/* Die leere Statuszeile bleibt sichtbar im Baum (keine Höhe, kein Rand):
+   `display: none` nähme die Live-Region aus dem Zugänglichkeitsbaum. */
+.rem-status {
+  margin: 0;
+}

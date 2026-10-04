@@ -43,6 +43,7 @@ import unicodedata
 from typing import Final
 
 from boerdi.api.schemas import SafetyDecision
+from boerdi.services.safety.zusatz_begriffe import zusatz_muster
 
 #: Was eine erkannte Krise oder Drohung sperrt: die Materialsuche — die
 #: Schutzantwort bietet kein Material an. In der Agent-Schleife kommt es dazu
@@ -229,19 +230,25 @@ def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
     Crisis takes priority over Threat when both would match (conservative
     side of the fence — never respond with hostility if there's any
     self-harm signal).
+
+    After the built-in crisis and PII lists, the terms an editor added in
+    ``01-base/safety-config`` count the same way (Paket 4, D8;
+    ``zusatz_begriffe``).
     """
     msg = normalize_for_matching(message)
     decision = SafetyDecision()
     decision.stages_run.append("regex")
+    krise_zusatz, pii_zusatz = zusatz_muster(normalize_for_matching)
 
-    for pat in _CRISIS_PATTERNS:
-        if re.search(pat, msg):
-            decision.risk_level = "high"
-            decision.enforced_pattern = "M01"
-            decision.blocked_tools = list(SPERRE_KRISE)
-            decision.reasons.append("crisis_signal_detected")
-            decision.legal_flags.append("jugendschutz")
-            return decision
+    if any(re.search(pat, msg) for pat in _CRISIS_PATTERNS) or (
+        krise_zusatz is not None and krise_zusatz.search(msg)
+    ):
+        decision.risk_level = "high"
+        decision.enforced_pattern = "M01"
+        decision.blocked_tools = list(SPERRE_KRISE)
+        decision.reasons.append("crisis_signal_detected")
+        decision.legal_flags.append("jugendschutz")
+        return decision
 
     for pat in _THREAT_PATTERNS:
         if re.search(pat, msg):
@@ -252,13 +259,13 @@ def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
             decision.legal_flags.append("strafrecht")
             return decision
 
-    for head, tail in _PII_PATTERNS:
-        if _gap_search(head, tail, msg):
-            decision.risk_level = "medium"
-            decision.blocked_tools.extend(SPERRE_PERSOENLICH)
-            decision.reasons.append("pii_in_message")
-            decision.legal_flags.append("datenschutz")
-            break
+    if any(_gap_search(head, tail, msg) for head, tail in _PII_PATTERNS) or (
+        pii_zusatz is not None and pii_zusatz.search(msg)
+    ):
+        decision.risk_level = "medium"
+        decision.blocked_tools.extend(SPERRE_PERSOENLICH)
+        decision.reasons.append("pii_in_message")
+        decision.legal_flags.append("datenschutz")
 
     if "bedroht" in signals or "in_gefahr" in signals:
         decision.risk_level = "high"

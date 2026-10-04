@@ -14,7 +14,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from types import SimpleNamespace
+
+import pytest
 
 from boerdi.domain.config_models.engine import AgentLimits
 from boerdi.domain.write_confirm import extract_confirm_token
@@ -138,7 +141,10 @@ def _lauf(monkeypatch, responses, *, outcome=None, messages=None,
                        or {"search_wlo_content"})
     run = asyncio.run(agent_loop.run_agent_loop(
         messages=msgs,
-        tools=[{"type": "function", "function": {"name": n}} for n in tools],
+        # Namen werden zu minimalen Definitionen; ganze Definitionen (mit
+        # ``parameters``, etwa dem Ergebnis-Schema) reisen unverändert.
+        tools=[t if isinstance(t, dict) else {"type": "function", "function": {"name": t}}
+               for t in tools],
         limits=limits or AgentLimits(),
         usage_acc=usage_acc,
         **kwargs,
@@ -214,6 +220,169 @@ def test_wanduhr_frist_bricht_vor_dem_naechsten_aufruf_ab(monkeypatch):
                              clock=_uhr(0.0, 0.0, 40.0))
     assert run.stop_reason == "deadline"
     assert len(fake.calls) == 1
+
+
+# ── Frist greift in laufende Aufrufe (Paket 4, B1; externes Audit F04) ───
+
+
+class _LangsamesModell(_SeqLLM):
+    """Antwortet erst nach ``dauer`` Sekunden — wie ein hängender Anbieter."""
+
+    def __init__(self, responses, dauer):
+        super().__init__(responses)
+        self.dauer = dauer
+
+    async def __call__(self, **kwargs):
+        await asyncio.sleep(self.dauer)
+        return await super().__call__(**kwargs)
+
+
+class _LangsamesWerkzeug(_OutcomeFake):
+    def __init__(self, dauer):
+        super().__init__()
+        self.dauer = dauer
+
+    async def __call__(self, tool_name, tool_args):
+        await asyncio.sleep(self.dauer)
+        return await super().__call__(tool_name, tool_args)
+
+
+def _kurze_frist(sekunden):
+    # ``deadline_s`` hat im Modell ``ge=5``; für den Test genügt die Laufzeit.
+    return AgentLimits.model_construct(deadline_s=sekunden)
+
+
+def test_die_frist_beendet_einen_haengenden_modellaufruf(monkeypatch):
+    """Bis Paket 4 prüfte die Schleife die Frist nur am Rundenanfang: Ein
+    Aufruf, der länger lief, endete trotzdem mit ``text`` (Probe: Frist 5 s,
+    Antwort nach 6 s)."""
+    langsam = _LangsamesModell([_resp_text("zu spät")], dauer=0.5)
+    monkeypatch.setattr(llm, "chat_completion", langsam)
+    monkeypatch.setattr(outcome_service, "call_with_outcome", _OutcomeFake())
+
+    beginn = time.monotonic()
+    run = asyncio.run(agent_loop.run_agent_loop(
+        messages=[{"role": "system", "content": "sys"}], tools=[],
+        limits=_kurze_frist(0.2)))
+
+    assert run.stop_reason == "deadline"
+    assert run.text == ""
+    assert time.monotonic() - beginn < 0.45
+
+
+def test_die_frist_beendet_auch_werkzeuge_derselben_runde(monkeypatch):
+    """Probe: drei Werkzeuge à 4 s bei 5 s Frist liefen alle. Jetzt endet der
+    Lauf zur Frist, und jeder Aufruf der Runde bekommt eine Antwort — sonst
+    wiese der Anbieter den Abschluss-Aufruf im Chat (``respond_agent``) ab."""
+    aufrufe = [_tool_call("search_wlo_content", {"query": f"q{i}"}, f"c{i}")
+               for i in range(3)]
+    werkzeug = _LangsamesWerkzeug(dauer=0.15)
+    monkeypatch.setattr(llm, "chat_completion", _SeqLLM([_resp_tools(aufrufe)]))
+    monkeypatch.setattr(outcome_service, "call_with_outcome", werkzeug)
+    msgs = [{"role": "system", "content": "sys"}]
+
+    beginn = time.monotonic()
+    run = asyncio.run(agent_loop.run_agent_loop(
+        messages=msgs, tools=[{"type": "function", "function": {"name": "search_wlo_content"}}],
+        limits=_kurze_frist(0.25)))
+
+    from boerdi.services.agent_frist import ABGEBROCHEN_FRIST, NICHT_AUSGEFUEHRT_FRIST
+
+    assert run.stop_reason == "deadline"
+    assert time.monotonic() - beginn < 0.45
+    antworten = {m["tool_call_id"]: m["content"] for m in msgs if m.get("role") == "tool"}
+    assert set(antworten) == {"c0", "c1", "c2"}
+    assert antworten["c1"] == ABGEBROCHEN_FRIST      # lief bei Fristende
+    assert antworten["c2"] == NICHT_AUSGEFUEHRT_FRIST  # hatte nicht begonnen
+    assert werkzeug.calls[0][0] == "search_wlo_content"
+
+
+def test_ein_abgebrochener_aufruf_steht_im_protokoll(monkeypatch):
+    """Prüfer 2026-10-04: Der von der Frist abgebrochene Aufruf fehlte in
+    ``tools_called`` und ``outcomes`` — Gastgeber und Protokoll sahen nicht,
+    dass er lief."""
+    aufrufe = [_tool_call("search_wlo_content", {"query": f"q{i}"}, f"c{i}")
+               for i in range(3)]
+    monkeypatch.setattr(llm, "chat_completion", _SeqLLM([_resp_tools(aufrufe)]))
+    monkeypatch.setattr(outcome_service, "call_with_outcome", _LangsamesWerkzeug(dauer=0.15))
+    run = asyncio.run(agent_loop.run_agent_loop(
+        messages=[{"role": "system", "content": "sys"}],
+        tools=[{"type": "function", "function": {"name": "search_wlo_content"}}],
+        limits=_kurze_frist(0.25)))
+    assert run.tools_called == ["search_wlo_content", "search_wlo_content"]
+    assert [o.status for o in run.outcomes] == ["success", "timeout"]
+
+
+def test_ein_bestaetigter_schreibaufruf_laeuft_trotz_frist_zu_ende(monkeypatch):
+    """Prüfer 2026-10-04: Mitten im Flug abgeschnitten wüsste niemand, ob er
+    geschrieben hat — und ein neuer Versuch schriebe doppelt. Er läuft zu
+    Ende, gedeckelt durch ``MCP_CALL_TIMEOUT_S`` (B2)."""
+
+    class _LangsamesSchreiben(_ZweistufigFake):
+        async def __call__(self, tool_name, tool_args):
+            if "confirmToken" in tool_args:
+                await asyncio.sleep(0.4)
+            return await super().__call__(tool_name, tool_args)
+
+    out = _LangsamesSchreiben()
+    ruf = _resp_tools([_tool_call("wlo_create_collection", {"name": "Bruchrechnen"})])
+    monkeypatch.setattr(llm, "chat_completion", _SeqLLM([ruf, ruf, _resp_text("Angelegt.")]))
+    monkeypatch.setattr(outcome_service, "call_with_outcome", out)
+    msgs = [{"role": "system", "content": "sys"}]
+    run = asyncio.run(agent_loop.run_agent_loop(
+        messages=msgs,
+        tools=[{"type": "function", "function": {"name": "wlo_create_collection"}}],
+        limits=AgentLimits.model_construct(deadline_s=0.25, write_mode="execute")))
+    assert out.calls[1][1]["confirmToken"] == "aBcD1234eFgH5678iJkL9012"
+    assert [o.status for o in run.outcomes] == ["success", "success"]
+    antworten = [m["content"] for m in msgs if m.get("role") == "tool"]
+    assert "wurde angelegt" in antworten[-1]
+    assert run.stop_reason == "deadline"
+
+
+def test_die_startzeit_des_zugs_zaehlt_mit(monkeypatch):
+    """Gate und Vorabruf laufen vor der Schleife. Ohne hereingereichte
+    Startzeit begann die Uhr erst danach."""
+    fake = _SeqLLM([_resp_text("nie erreicht")])
+    monkeypatch.setattr(llm, "chat_completion", fake)
+
+    run = asyncio.run(agent_loop.run_agent_loop(
+        messages=[{"role": "system", "content": "sys"}], tools=[],
+        limits=AgentLimits(deadline_s=10), clock=lambda: 100.0, start=85.0))
+
+    assert run.stop_reason == "deadline"
+    assert fake.calls == []
+
+
+def test_eine_fertige_antwort_ueber_dem_budget_wird_geliefert_und_gemeldet(
+        monkeypatch, caplog):
+    """P4-2: Die Antwort ist bezahlt; sie zu verwerfen hilft niemandem. Die
+    Überschreitung bleibt aber nicht unbemerkt (Probe: Budget 1000,
+    Verbrauch 1500, gemeldet wurde nur ``text``)."""
+    acc = new_accumulator()
+    with caplog.at_level("WARNING", logger="boerdi.services.agent_loop"):
+        _fake, run, _msgs = _lauf(monkeypatch, [
+            _resp_text("Die Antwort.", usage=_usage(prompt=1200, completion=300)),
+        ], limits=AgentLimits(token_budget=1000), usage_acc=acc, echter_transport=True)
+
+    assert run.stop_reason == "text"
+    assert run.text == "Die Antwort."
+    assert any("Token-Budget" in r.getMessage() for r in caplog.records)
+
+
+def test_stillstand_beantwortet_alle_aufrufe_der_runde(monkeypatch):
+    """Audit 2026-09-29 (6.3): ``no_progress`` ließ die übrigen Aufrufe der
+    Runde unbeantwortet — der Abschluss-Aufruf im Chat scheiterte daran."""
+    gleich = _tool_call("search_wlo_content", {"query": "a"}, "c1")
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([gleich]),
+        _resp_tools([_tool_call("search_wlo_content", {"query": "a"}, "c2"),
+                     _tool_call("search_wlo_content", {"query": "b"}, "c3")]),
+    ])
+
+    assert run.stop_reason == "no_progress"
+    beantwortet = {m["tool_call_id"] for m in msgs if m.get("role") == "tool"}
+    assert beantwortet == {"c1", "c2", "c3"}
 
 
 def test_token_budget_bricht_ab(monkeypatch):
@@ -1131,9 +1300,13 @@ def test_nur_eine_antwortrunde_je_zug_streamt_auch_im_agenten(monkeypatch):
     fake = _SeqLLM([_resp_tools([("r2", "respond_to_user", zweite)])])
     monkeypatch.setattr(llm, "chat_completion", fake)
 
+    # Angeboten wie im Betrieb: Seit Paket 4 (A2) läuft auch ``respond_to_user``
+    # nur, wenn es im Angebot steht.
+    from boerdi.domain.antwort_werkzeug import antwort_werkzeug
+
     run = asyncio.run(agent_loop.run_agent_loop(
-        messages=[{"role": "system", "content": "sys"}], tools=[], limits=AgentLimits(),
-        on_token=lambda _s: None))
+        messages=[{"role": "system", "content": "sys"}], tools=[antwort_werkzeug(3, 60)],
+        limits=AgentLimits(), on_token=lambda _s: None))
 
     assert len(gestreamt) == 1
     assert len(fake.calls) == 1
@@ -1172,6 +1345,93 @@ def test_angebotenes_werkzeug_derselben_runde_laeuft_weiter(monkeypatch):
 
     assert [name for name, _args in out.calls] == ["search_wlo_content"]
     assert run.tools_called == ["search_wlo_content"]
+
+
+@pytest.mark.parametrize(("name", "args"), [
+    ("submit_result", {"text": "fertig", "result": {"score": 1}}),
+    ("liefere_ergebnis", {"result": {"score": 1}}),
+    ("respond_to_user", {"text": "Hallo", "quick_replies": []}),
+])
+def test_virtuelle_werkzeuge_laufen_nur_angeboten(monkeypatch, name, args):
+    """Paket 4, A2 (externes Audit F03): Die drei virtuellen Werkzeuge liefen vor
+    der Sperre. Mit leerem Angebot endete der Lauf so per ``submit`` mit einem
+    ungeprüften Ergebnis, oder ``liefere_ergebnis`` setzte eines, wo nur
+    ``submit_result`` angeboten war (``/api/agent``)."""
+    from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
+
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call(name, args)]),
+        _resp_text("Antwort ohne Werkzeug."),
+    ], tools=["search_wlo_content"])
+
+    assert run.stop_reason == "text"
+    assert run.result is None
+    assert run.text == "Antwort ohne Werkzeug."
+    assert [m["content"] for m in msgs if m.get("role") == "tool"] == [NICHT_ANGEBOTEN]
+
+
+# ── Ergebnis-Schema (Paket 4, A3; externes Audit F11) ────────────────────
+
+_SCORE_SCHEMA = {
+    "type": "object",
+    "properties": {"score": {"type": "integer", "minimum": 0, "maximum": 5}},
+    "required": ["score"],
+}
+
+
+def test_ein_ergebnis_gegen_das_schema_geht_zurueck_ans_modell(monkeypatch):
+    from boerdi.services.agent_tools import submit_result_tool
+
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("submit_result",
+                                {"text": "fertig", "result": {"score": "bad"}}, "c1")]),
+        _resp_tools([_tool_call("submit_result",
+                                {"text": "fertig", "result": {"score": 3}}, "c2")]),
+    ], tools=[submit_result_tool(_SCORE_SCHEMA)])
+
+    assert run.stop_reason == "submit"
+    assert run.result == {"score": 3}
+    erste = [m for m in msgs if m.get("role") == "tool"][0]["content"]
+    assert "result.score" in erste
+
+
+def test_ohne_gueltiges_ergebnis_bleibt_result_leer(monkeypatch):
+    from boerdi.services.agent_tools import submit_result_tool
+
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("submit_result",
+                                {"text": "fertig", "result": {"score": "bad"}})]),
+        _resp_text("Ich kann keine Note vergeben."),
+    ], tools=[submit_result_tool(_SCORE_SCHEMA)])
+
+    assert run.stop_reason == "text"
+    assert run.result is None
+
+
+def test_liefere_ergebnis_prueft_das_schema(monkeypatch):
+    from boerdi.domain.result_delivery import ergebnis_werkzeug
+
+    _fake, run, msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("liefere_ergebnis", {"result": {"score": 99}})]),
+        _resp_text("Antwort."),
+    ], tools=[ergebnis_werkzeug(_SCORE_SCHEMA)])
+
+    assert run.result is None
+    assert "result.score" in [m for m in msgs if m.get("role") == "tool"][0]["content"]
+
+
+def test_dasselbe_ungueltige_ergebnis_zweimal_ist_stillstand(monkeypatch):
+    from boerdi.services.agent_tools import submit_result_tool
+
+    ungueltig = {"text": "fertig", "result": {"score": "bad"}}
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_tools([_tool_call("submit_result", ungueltig, "c1")]),
+        _resp_tools([_tool_call("submit_result", ungueltig, "c2")]),
+        _resp_text("nie erreicht"),
+    ], tools=[submit_result_tool(_SCORE_SCHEMA)])
+
+    assert run.stop_reason == "no_progress"
+    assert run.result is None
 
 
 def test_ein_wiederholter_abgewiesener_aufruf_ist_stillstand(monkeypatch):

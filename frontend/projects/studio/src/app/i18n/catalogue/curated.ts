@@ -188,7 +188,8 @@ export const CURATED: CataloguePart = {
     'curated.wissen.ingest.hint': 'Datei, Webseite oder Text einlesen und in einen Bereich legen.',
     'curated.wissen.ragConfig.label': 'Bereichs-Einstellungen',
     'curated.wissen.ragConfig.hint':
-      '„always" legt einen Bereich in jeden Prompt, „on-demand" nur bei Bedarf.',
+      '„always" wird vor der Antwort vorab durchsucht, „on-demand" nur auf Abruf — jeweils in '
+      + 'den Mustern, die den Bereich nutzen.',
     'curated.wissen.mcp.label': 'MCP-Server',
     'curated.wissen.mcp.hint': 'Werkzeug-Server, die der Bot im Gespräch aufrufen darf.',
 
@@ -363,7 +364,8 @@ export const CURATED: CataloguePart = {
     'curated.wissen.ingest.hint': 'Ingest a file, a web page or text and put it into an area.',
     'curated.wissen.ragConfig.label': 'Area settings',
     'curated.wissen.ragConfig.hint':
-      '“always” puts an area into every prompt, “on-demand” only when needed.',
+      '“always” is searched before the answer, “on-demand” only on request — in each case in '
+      + 'the patterns that use the area.',
     'curated.wissen.mcp.label': 'MCP servers',
     'curated.wissen.mcp.hint': 'Tool servers the bot may call during a conversation.',
 

@@ -4,6 +4,10 @@
 #        on-demand = nur, wenn das Modell danach fragt. Ein Eintrag OHNE `mode`
 #        wird vom Loader ganz verworfen — das Feld ist der Schluessel, nicht nur
 #        eine Einstellung.
+#        Beides nur in Mustern, die den Bereich nutzen: mit `rag_areas` genau
+#        die genannten (eine leere Liste heisst keine); ohne `rag_areas` alle
+#        mit always oder on-demand, wenn `sources` `rag` enthaelt, sonst keinen.
+#        Im Seed nennen M04 und M15 ihre Bereiche selbst (Paket 4, C6).
 # agent: gilt fuer die Agent-Schleife. Vorgabe `true`; dort werden
 #        ohne weitere Angabe ALLE Bereiche zugleich durchsucht (kostet eine
 #        Einbettung, nicht neun). `agent: false` nimmt einen Bereich nur aus der

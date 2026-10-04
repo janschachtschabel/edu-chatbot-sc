@@ -52,6 +52,7 @@ Randkonvention wie bei den Nachbarknoten: Nachbarn sind AN DIESEM Modul patchbar
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from boerdi.domain import host_capabilities, host_instruction
@@ -250,6 +251,8 @@ async def respond_agent(
     """Beantworte den Zug mit der Agent-Schleife. Mutiert ``ctx`` und gibt ihn
     zurück — gleiche Ausgangsfelder wie ``respond``, damit ``assemble`` und
     ``persist`` unverändert weiterlaufen."""
+    # Die Frist der Schleife zählt ab hier, mit Vorabruf (Paket 4, B1).
+    beginn = time.monotonic()
     await _verwirf_vorabruf(ctx)
 
     sprache = resolve_locale(ctx.req.environment.locale)
@@ -405,6 +408,7 @@ async def respond_agent(
                 ctx.session_state, merkposten, vorschau))
             if has_personal_auth() else None),
         on_token=_strom,
+        start=beginn,
     )
     if _strom is not None:
         _strom.schliessen()  # den zurückgehaltenen Rest senden

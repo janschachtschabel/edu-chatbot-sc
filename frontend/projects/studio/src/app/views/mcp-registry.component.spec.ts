@@ -49,7 +49,11 @@ interface Harness {
   http: HttpTestingController;
 }
 
-async function mount(servers: unknown[] = SERVERS): Promise<Harness> {
+async function mount(
+  servers: unknown[] = SERVERS,
+  /** Paket 4, D5: die Version im Kopf `X-Config-Version`. */
+  version?: number,
+): Promise<Harness> {
   TestBed.resetTestingModule();
   // Siehe rag-ingest.component.spec.ts — jsdom meldet `en-US`.
   sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, "de");
@@ -69,7 +73,10 @@ async function mount(servers: unknown[] = SERVERS): Promise<Harness> {
   fixture.componentRef.setInput("open", true);
   const http = TestBed.inject(HttpTestingController);
   await fixture.whenStable();
-  http.expectOne("/studio/api/config/mcp-servers").flush(servers);
+  http.expectOne("/studio/api/config/mcp-servers").flush(
+    servers,
+    version === undefined ? undefined : { headers: { "X-Config-Version": String(version) } },
+  );
   await tick();
   await fixture.whenStable();
   return { fixture, el: fixture.nativeElement as HTMLElement, http };
@@ -362,5 +369,45 @@ describe("McpRegistryComponent — Abgleich mit der Registry", () => {
     expect(harness.el.querySelector(".mr-compare")?.textContent).toContain(
       "nicht in der Liste",
     );
+  });
+});
+
+// ── Paket 4, D5 (externes Audit F14): Speichern mit Konfliktschutz ────────────
+
+async function zweitenEinschalten(h: Harness): Promise<void> {
+  const toggle = h.el.querySelectorAll<HTMLInputElement>(".mr-enabled")[1];
+  toggle.checked = true;
+  toggle.dispatchEvent(new Event("change"));
+  await h.fixture.whenStable();
+  h.el.querySelector<HTMLButtonElement>(".mr-save")?.click();
+  await h.fixture.whenStable();
+}
+
+describe("McpRegistryComponent — Konflikt beim Speichern (Paket 4, D5)", () => {
+  it("speichert gegen die Version aus X-Config-Version", async () => {
+    const h = await mount(SERVERS, 4);
+    await zweitenEinschalten(h);
+    const req = h.http.expectOne("/studio/api/config/mcp-servers");
+    expect(req.request.body.expected_version).toBe(4);
+  });
+
+  it("zeigt nach 409 den Hinweis und speichert trotzdem gegen die gemeldete Version", async () => {
+    const h = await mount(SERVERS, 4);
+    await zweitenEinschalten(h);
+    h.http.expectOne("/studio/api/config/mcp-servers").flush(
+      { detail: { message: "x", version: 6, updated_by: "studio",
+                  updated_at: "2026-10-03T20:41:00+00:00" } },
+      { status: 409, statusText: "Conflict" });
+    await tick();
+    await h.fixture.whenStable();
+    expect(h.el.querySelector("studio-save-conflict")?.textContent).toContain("inzwischen");
+    expect(h.fixture.componentInstance.dirty()).toBe(true);
+
+    const trotzdem = [...h.el.querySelectorAll<HTMLButtonElement>("studio-save-conflict button")]
+      .find((b) => b.textContent?.includes("Trotzdem speichern"));
+    trotzdem!.click();
+    await h.fixture.whenStable();
+    const req = h.http.expectOne("/studio/api/config/mcp-servers");
+    expect(req.request.body.expected_version).toBe(6);
   });
 });

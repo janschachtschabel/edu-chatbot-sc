@@ -274,13 +274,20 @@ def _compiled() -> list[tuple[re.Pattern, str, str, str, int]]:
     if _COMPILED is not None and rules_source == _COMPILED_FROM:
         return _COMPILED
 
-    _COMPILED = [
-        (re.compile(pat, re.IGNORECASE), label, label_en, url, prio)
-        for (pat, label, label_en, url, prio) in rules_source
-    ]
+    # Je Regel einzeln (Paket 4, D6): EIN ungültiges Muster warf sonst
+    # ``re.error`` aus der ganzen Liste, und der Aufrufer schaltete alle
+    # Lotsen-Knöpfe ab. Das Speichern weist es ab; ein alter Stand kostet hier
+    # nur seine Regel.
+    compiled: list[tuple[re.Pattern, str, str, str, int]] = []
+    for (pat, label, label_en, url, prio) in rules_source:
+        try:
+            compiled.append((re.compile(pat, re.IGNORECASE), label, label_en, url, prio))
+        except re.error as e:
+            logger.warning("guide-rules: rule %r skipped, invalid pattern (%s)", label, e)
+    _COMPILED = compiled
     _COMPILED_FROM = rules_source
     _COMPILED_SOURCE = herkunft
-    logger.info("guide-rules: %d message_rules compiled (%s)", len(rules_source), herkunft)
+    logger.info("guide-rules: %d message_rules compiled (%s)", len(compiled), herkunft)
     return _COMPILED
 
 

@@ -35,6 +35,7 @@ describe('STUDIO_EN', () => {
   it('kein Text ist eine wörtliche Kopie des deutschen — ausser den benannten', () => {
     const gleichErlaubt = new Set([
       'studio.title',           // Produktname
+      'conflict.via.studio',    // derselbe Produktname, als Weg einer Änderung (D5)
       'studio.nav.label',       // „Navigation" ist in beiden Sprachen dasselbe Wort
       'studio.status.offline',  // „Offline" ebenso — im Deutschen ein Lehnwort
       'login.passwordEnv',      // Name der Umgebungsvariablen, kein Satz

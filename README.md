@@ -2,7 +2,7 @@
 
 Cleaner Neubau des WLO-Chatbots **BadBoerdi** (Arbeitstitel „BadBoerdi 2.0"):
 
-- **Backend:** FastAPI + LangGraph, PostgreSQL 17 + pgvector — clusterfähig (N stateless Replikas)
+- **Backend:** FastAPI + LangGraph, PostgreSQL 17 + pgvector — clusterfähig angelegt (N stateless Replikas; Vorgabe 1, bis Züge einer Sitzung auch über Replikas gesperrt sind)
 - **Chat-Widget:** Angular-22-Webkomponente `<boerdi-chat>` (zoneless, Single-File-Bundle)
 - **Studio/Webadmin:** Angular-SPA im selben Workspace (Schema-getriebene Formulare)
 

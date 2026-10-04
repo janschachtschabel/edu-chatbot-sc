@@ -26,6 +26,7 @@ import asyncio
 import logging
 
 from boerdi.services.llm import embedding as _api_embedding
+from boerdi.services.llm import ingest_semaphore
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -43,19 +44,28 @@ def embed_backend() -> str:
     return gewaehlt
 
 
-async def embed_text(text: str, *, kind: str = "query") -> list[float]:
+async def embed_text(text: str, *, kind: str = "query", kanal: str = "live") -> list[float]:
     """Ein Vektor für ``text``.
 
     ``kind`` ist ``"query"`` (Suchtext) oder ``"passage"`` (gespeicherter
     Abschnitt). Fehler laufen durch — die Aufrufer besitzen die Politik.
+    ``kanal`` wählt beim Anbieter den Deckel (``llm.embedding``): ``live`` für
+    die Suchanfrage eines Zugs, ``ingest`` für Import und Nachholen.
     """
     if embed_backend() == "local":
         from boerdi.services.rag.rerank import run_in_rerank_pool
 
         # Im gedeckelten Pool: lokale Inferenz ist CPU-Arbeit und teilt sich das
         # Budget mit dem Reranker. Direkt im Event-Loop stünde der Worker.
-        return await run_in_rerank_pool(_embed_local_sync, text, kind)
-    return await _api_embedding(text)
+        if kanal != "ingest":
+            return await run_in_rerank_pool(_embed_local_sync, text, kind)
+        # Ein Import darf den Pool nicht vollstellen: der arbeitet der Reihe
+        # nach, und jede Suche eines echten Zugs stünde hinter allen
+        # Abschnitten (Prüfer 2026-10-04). Der API-Weg nimmt denselben Deckel
+        # in ``llm.embedding``.
+        async with ingest_semaphore():
+            return await run_in_rerank_pool(_embed_local_sync, text, kind)
+    return await _api_embedding(text, kanal=kanal)
 
 
 def _embed_local_sync(text: str, kind: str) -> list[float]:
@@ -87,28 +97,29 @@ async def embed_many(texts: list[str], *, kind: str = "passage") -> list[list[fl
     Bei 906 Chunks sind das 906 Wartezeiten hintereinander. Nebenläufig
     schrumpft das auf ``ceil(n / EMBED_INGEST_PARALLEL)`` Runden.
 
-    **Warum ein EIGENER Deckel und nicht der Semaphor aus ``llm.py``.** Der
-    dort (``LLM_MAX_CONCURRENCY``, Vorgabe 20) gehört dem Chat. Liesse man den
+    **Warum ein EIGENER Deckel und nicht der Live-Semaphor aus ``llm.py``.**
+    Der (``LLM_MAX_CONCURRENCY``, Vorgabe 20) gehört dem Chat. Liesse man den
     Ingest hineinlaufen, könnte ein Redaktions-Import alle 20 Plätze belegen und
-    die Züge echter Nutzer warten lassen — genau das Blockieren, das hier
-    vermieden werden soll. Der eigene, kleinere Deckel ist die Trennlinie.
+    die Züge echter Nutzer warten lassen. Der eigene, kleinere Deckel ist die
+    Trennlinie: der Kanal ``ingest`` in ``llm._semaphore``, prozessweit. Bis
+    Paket 4 (C4) stand hier ein Semaphor je Aufruf, und ``llm.embedding`` nahm
+    trotzdem einen Live-Platz — fünf Importe belegten so den ganzen Chat.
 
-    Beim lokalen Backend läuft ohnehin alles durch den Rerank-Pool; die
-    Nebenläufigkeit ist dann die des Pools, nicht diese hier.
+    Beim lokalen Backend läuft alles durch den Rerank-Pool; derselbe Deckel
+    hält dort den Import davon ab, ihn vor die Suchen der Züge zu stellen.
 
     Rückgabe: je Text ein Vektor oder ``None``, wenn genau dieser fehlschlug —
-    ein kaputter Chunk darf den Import nicht abbrechen (ALT-Verhalten).
+    ein kaputter Chunk bricht den Import nicht ab. (ALT brach ihn ab;
+    ``ingest_document`` speichert den Text dann ohne Vektor, Paket 4 C2.)
     """
     if not texts:
         return []
-    deckel = asyncio.Semaphore(max(1, get_settings().embed_ingest_parallel))
 
     async def einer(text: str) -> list[float] | None:
-        async with deckel:
-            try:
-                return await embed_text(text, kind=kind)
-            except Exception as err:  # noqa: BLE001 — je Chunk isoliert
-                logger.warning("Embedding fehlgeschlagen: %s", err)
-                return None
+        try:
+            return await embed_text(text, kind=kind, kanal="ingest")
+        except Exception as err:  # noqa: BLE001 — je Chunk isoliert
+            logger.warning("Embedding fehlgeschlagen: %s", err)
+            return None
 
     return await asyncio.gather(*(einer(t) for t in texts))

@@ -22,6 +22,7 @@ vorab geholt wird.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from boerdi.api.schemas_agent import AgentRequest, AgentResponse
@@ -82,6 +83,8 @@ async def run_agent(
     usage_acc: dict[str, Any] | None = None,
 ) -> AgentResponse:
     """Führe einen Agent-Lauf aus und gib sein Ergebnis zurück."""
+    # Die Frist der Schleife zählt ab hier, mit Gate und Vorabruf (Paket 4, B1).
+    beginn = time.monotonic()
     sprache = resolve_locale(req.locale)
     # AG-4 Teil B: das Gate VOR allem anderen — kein Vorabruf, kein LLM-Aufruf
     # für einen Auftrag, der gar nicht bearbeitet wird.
@@ -108,6 +111,7 @@ async def run_agent(
         limits=limits,
         usage_acc=usage_acc,
         progress=progress,
+        start=beginn,
     )
     return AgentResponse(
         text=lauf.text, result=lauf.result, stop_reason=lauf.stop_reason,
