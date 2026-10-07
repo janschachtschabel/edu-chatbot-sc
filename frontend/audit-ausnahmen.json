@@ -1,10 +1,4 @@
 {
   "_hinweis": "Ausnahmen für das npm-Audit-Gate (scripts/check-audit.mjs, Paket 4 L2). Je Eintrag: ghsa, grund, bis (YYYY-MM-DD, inklusive). Abgelaufene Einträge lassen das Gate scheitern — prüfen, dann streichen oder bewusst verlängern.",
-  "ausnahmen": [
-    {
-      "ghsa": "GHSA-ch52-4w7c-c8xp",
-      "grund": "http-cache-semantics <=4.2.0 kommt nur über den Lizenz-Prüfer license-checker-rseidelsohn (devDependency, CI) via @npmcli/arborist → npm-registry-fetch → make-fetch-happen. Die Lücke betrifft einen von mehreren Nutzern geteilten HTTP-Cache; den gibt es dort nicht. Eine behobene Version gibt es nicht (4.2.0 ist die letzte, Stand 2026-10-03); npm schlägt nur ein Major-Downgrade des Prüfers vor.",
-      "bis": "2026-12-31"
-    }
-  ]
+  "ausnahmen": []
 }
