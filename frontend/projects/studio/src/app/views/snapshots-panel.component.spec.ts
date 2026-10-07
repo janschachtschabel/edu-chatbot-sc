@@ -118,6 +118,9 @@ describe("SnapshotsPanelComponent", () => {
 
   it("legt an, leert das Feld und liest die Liste neu", async () => {
     const h = await mount([]);
+    // Paket 4b, B3: die Rückmeldung steht leer bereit.
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    expect(region?.textContent).toBe("");
     const input = h.el.querySelector<HTMLInputElement>('input[type="text"]')!;
     input.value = "vor dem Remix";
     input.dispatchEvent(new Event("input"));
@@ -136,6 +139,7 @@ describe("SnapshotsPanelComponent", () => {
     await settle(h);
     expect(input.value).toBe("");
     expect(text(h)).toContain("vor dem Remix");
+    expect(region!.textContent).toContain("angelegt");
   });
 
   it("fragt vor dem Wiederherstellen zurück und nennt den Snapshot", async () => {

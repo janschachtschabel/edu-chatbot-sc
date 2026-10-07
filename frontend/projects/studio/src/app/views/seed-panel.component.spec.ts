@@ -128,12 +128,16 @@ describe("SeedPanelComponent", () => {
 
   it("zieht Fehlendes ohne Rückfrage nach und meldet die Zahl", async () => {
     const h = await mount({ ...LEER, area_count: 3, neu: ["a", "b"] });
+    // Paket 4b, B3: die Rückmeldung steht leer bereit.
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    expect(region?.textContent).toBe("");
     await click(h, "Fehlende nachziehen");
     const req = h.http.expectOne(`${SEED}/apply`);
     expect(req.request.body).toEqual({ mode: "missing" });
     req.flush({ written: 2, deleted: 0, snapshot_id: null });
     await settle(h);
     expect(text(h)).toContain("2 Bereiche nachgezogen");
+    expect(region!.textContent).toContain("2 Bereiche nachgezogen");
     // Die Zählung muss danach stimmen, sonst zeigt die Karte Arbeit an, die
     // schon getan ist.
     h.http.expectOne(SEED).flush(LEER);

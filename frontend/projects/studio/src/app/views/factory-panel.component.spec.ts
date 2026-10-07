@@ -128,6 +128,9 @@ describe("FactoryPanelComponent", () => {
       created_at: "2026-07-20T09:30:00Z",
       label: "x",
     });
+    // Paket 4b, B3: die Rückmeldung steht leer bereit.
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    expect(region?.textContent).toBe("");
     await click(h, "Zurücksetzen");
     // ALT warned that the database, sessions, memory, quality logs and RAG
     // chunks would be replaced. `_apply_config` writes config areas and nothing
@@ -141,6 +144,7 @@ describe("FactoryPanelComponent", () => {
       .flush({ status: "restored", areas: 35 });
     await settle(h);
     expect(text(h)).toContain("35");
+    expect(region!.textContent).toContain("35");
   });
 
   it("lädt einen Werksstand erst nach Rückfrage hoch", async () => {

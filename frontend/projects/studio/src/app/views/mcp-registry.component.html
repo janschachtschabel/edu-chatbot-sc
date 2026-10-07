@@ -183,13 +183,14 @@
           }
 
           <!-- Der Abgleich: was für diese Adresse eingetragen ist, gegen das,
-               was sie wirklich führt. `role="status"` und nicht `alert` — es ist
-               das Ergebnis eines Knopfdrucks, auf den die Person schon schaut. -->
+               was sie wirklich führt. Angesagt wird er unten in `.mr-ansage`
+               (Status, nicht Alarm: das Ergebnis eines Knopfdrucks, auf den die
+               Person schon schaut). -->
           <div class="mr-compare">
             @if (comparedServer()) {
               @if (divergence(); as diff) {
                 @if (diff.missing.length > 0) {
-                  <p class="cs-state cs-state--error" role="status">
+                  <p class="cs-state cs-state--error">
                     {{ t('mcp.compare.missing') }}
                   </p>
                   <ul class="mr-tools mr-compare-missing">
@@ -199,7 +200,7 @@
                   </ul>
                   <p class="mr-help">{{ t('mcp.compare.missingWhy') }}</p>
                 } @else {
-                  <p class="cs-state" role="status">{{ t('mcp.compare.match') }}</p>
+                  <p class="cs-state">{{ t('mcp.compare.match') }}</p>
                 }
                 @if (diff.extra.length > 0) {
                   <p class="mr-help">{{ t('mcp.compare.extra') }}</p>
@@ -211,13 +212,18 @@
                 }
               }
             } @else {
-              <p class="mr-help" role="status">{{ t('mcp.compare.unregistered') }}</p>
+              <p class="mr-help">{{ t('mcp.compare.unregistered') }}</p>
             }
           </div>
         }
       </section>
     }
 
+    <!-- Paket 4b, B2: das Ergebnis des Abgleichs als ein Satz in einer Region,
+         die schon vor dem Abruf steht. Außerhalb des Lade-Zweigs, sonst entstünde
+         sie nach jedem Neuladen neu, schon mit dem neuen Satz (Review 4b). Die
+         sichtbaren Absätze beim Abgleich entstehen mit ihm und tragen keine Rolle. -->
+    <p class="sr mr-ansage" role="status">{{ abgleichAnsage() }}</p>
     <p class="cs-status" aria-live="polite">{{ status() }}</p>
   </div>
 </details>

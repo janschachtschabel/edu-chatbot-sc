@@ -50,9 +50,9 @@
   }
 }
 
-@if (status()) {
-  <p class="er-status" role="status">{{ status() }}</p>
-}
+<!-- Dauerhaft, nur der Text ist bedingt: eine Live-Region, die mit ihrem Text
+     entsteht, sagen Screenreader oft nicht an (Paket 4b, B1). -->
+<p class="er-status live" role="status">{{ status() }}</p>
 @if (actionError()) {
   <p class="er-error" role="alert">{{ actionError() }}</p>
 }

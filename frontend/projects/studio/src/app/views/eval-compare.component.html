@@ -11,9 +11,13 @@
     </div>
   </header>
 
-  @if (comparison.loading()) {
-    <p class="cmp-note cmp-computing" role="status">{{ t('evalCompare.computing') }}</p>
-  }
+  <!-- Dauerhaft, nur der Text ist bedingt: rechnet das offene Panel nach einem
+       Auswahlwechsel neu, wird die Zeile so angesagt (Paket 4b, B1). -->
+  <p class="cmp-note cmp-computing live" role="status">
+    @if (comparison.loading()) {
+      {{ t('evalCompare.computing') }}
+    }
+  </p>
 
   <studio-async-state
     [label]="t('evalCompare.state')"

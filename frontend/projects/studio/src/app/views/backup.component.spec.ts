@@ -175,6 +175,9 @@ describe("BackupComponent", () => {
 
   it("zählt die eingespielten Bereiche in der Form der aktiven Sprache", async () => {
     const h = await mount();
+    // Paket 4b, B3: die Rückmeldung steht leer bereit.
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    expect(region?.textContent).toBe("");
     h.fixture.componentInstance.onFile({
       target: { files: [new File(["PK"], "eins.zip")] },
     } as unknown as Event);
@@ -186,6 +189,7 @@ describe("BackupComponent", () => {
     // Einzahl, nicht „1 Konfigurationsbereiche" — die Grenze zwischen den
     // Formen entscheidet die Sprache, nicht ein `=== 1` im Code.
     expect(text(h)).toContain("1 Konfigurationsbereich aus");
+    expect(region!.textContent).toContain("1 Konfigurationsbereich aus");
   });
 
   it("zeigt den Satz des Backends, wenn die ZIP abgelehnt wird", async () => {

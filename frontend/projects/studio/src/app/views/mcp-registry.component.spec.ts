@@ -370,6 +370,66 @@ describe("McpRegistryComponent — Abgleich mit der Registry", () => {
       "nicht in der Liste",
     );
   });
+
+  // ── Paket 4b, B2: das Ergebnis wird angesagt ───────────────────────────
+  // Die Absätze des Abgleichs entstehen mit dem Abruf, und eine Live-Region,
+  // die mit ihrem Text entsteht, sagen Screenreader oft nicht an. Eine
+  // dauerhafte Region sagt das Ergebnis als einen Satz an; die sichtbaren
+  // Absätze bleiben bei ihren Listen und tragen keine zweite Ansage.
+  const ansage = (h: Harness): HTMLElement | null =>
+    h.el.querySelector<HTMLElement>(".mr-ansage[role='status']");
+
+  it("sagt das Ergebnis in einer Region an, die schon vorher da war", async () => {
+    const harness = await mount();
+    const region = ansage(harness);
+    expect(region?.textContent).toBe("");
+    await pruefe(harness, "http://intern:8080/mcp", [
+      { name: "get_skill", description: "" },
+    ]);
+    expect(ansage(harness)).toBe(region);
+    expect(region!.textContent).toContain("nicht angeboten");
+    expect(region!.textContent).toContain("search_wlo_all");
+    expect(harness.el.querySelectorAll(".mr-compare [role='status']").length).toBe(0);
+  });
+
+  it("sagt auch „alles da“ und „nicht eingetragen“ an", async () => {
+    const harness = await mount();
+    await pruefe(harness, "http://intern:8080/mcp", [
+      { name: "search_wlo_all", description: "" },
+      { name: "get_skill", description: "" },
+    ]);
+    expect(ansage(harness)!.textContent).toContain("bietet alles an");
+    await pruefe(harness, "https://neu.example/mcp", [
+      { name: "t", description: "d" },
+    ]);
+    expect(ansage(harness)!.textContent).toContain("nicht in der Liste");
+  });
+
+  it("behält die Region über ein Neuladen — nach dem Speichern ändert sich der Abgleich", async () => {
+    // Review 4b: `load()` läuft nach dem Speichern, nach „Neu laden“ und beim
+    // Wiederholen. Stand die Region im Lade-Zweig, entstand sie danach neu,
+    // schon mit dem geänderten Satz — und der wurde nicht zuverlässig angesagt.
+    const harness = await mount();
+    await pruefe(harness, "https://neu.example/mcp", [
+      { name: "t", description: "d" },
+    ]);
+    const region = ansage(harness);
+    expect(region!.textContent).toContain("nicht in der Liste");
+
+    void harness.fixture.componentInstance.load();
+    await harness.fixture.whenStable();
+    expect(ansage(harness)).toBe(region); // auch während des Ladens
+
+    harness.http.expectOne("/studio/api/config/mcp-servers").flush([
+      ...SERVERS,
+      { id: "neu", name: "Neu", url: "https://neu.example/mcp", description: "",
+        enabled: true, tools: ["t"] },
+    ]);
+    await tick();
+    await harness.fixture.whenStable();
+    expect(ansage(harness)).toBe(region);
+    expect(region!.textContent).toContain("bietet alles an");
+  });
 });
 
 // ── Paket 4, D5 (externes Audit F14): Speichern mit Konfliktschutz ────────────

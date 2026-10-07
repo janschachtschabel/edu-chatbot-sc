@@ -56,6 +56,9 @@ describe('QualityLogsComponent — löschen', () => {
 
   it('sends the bulk delete with the filters that are actually applied', async () => {
     const h = await mount();
+    // Paket 4b, B1: die Statuszeile steht leer bereit (Live-Region vorab).
+    const region = h.el.querySelector<HTMLElement>('.ql-status[role="status"]');
+    expect(region?.textContent).toBe('');
     type(h, '#ql-intent', 'I02');
     await submit(h);
     h.http.expectOne((r) => r.url === LOGS_URL).flush({ count: 1, logs: [log(1)] });
@@ -75,7 +78,8 @@ describe('QualityLogsComponent — löschen', () => {
 
     h.http.expectOne((r) => r.url === LOGS_URL).flush({ count: 0, logs: [] });
     await settle(h);
-    expect(h.el.querySelector('.ql-status')!.textContent).toContain('2');
+    expect(h.el.querySelector('.ql-status')).toBe(region);
+    expect(region!.textContent).toContain('2');
   });
 
   it('reports a failed delete and keeps the list standing', async () => {

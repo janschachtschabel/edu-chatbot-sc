@@ -57,9 +57,8 @@
   }
 }
 
-@if (status()) {
-  <p class="ql-status" role="status">{{ status() }}</p>
-}
+<!-- Dauerhaft, nur der Text ist bedingt (Paket 4b, B1). -->
+<p class="ql-status live" role="status">{{ status() }}</p>
 @if (actionError()) {
   <p class="ql-error" role="alert">{{ actionError() }}</p>
 }

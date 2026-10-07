@@ -107,6 +107,9 @@ describe('PrivacyPurgeComponent (ST-6)', () => {
 
   it('löscht erst nach zwei Rückfragen', async () => {
     const h = await mount();
+    // Paket 4b, B3: die Rückmeldung steht leer bereit.
+    const region = h.el.querySelector<HTMLElement>('.op-msg[role="status"]');
+    expect(region?.textContent).toBe('');
     const inhalte = (): HTMLElement => card(h.el, 'Gesprächsinhalte');
 
     await press(h, inhalte(), 'Gesprächsinhalte löschen …');
@@ -124,8 +127,8 @@ describe('PrivacyPurgeComponent (ST-6)', () => {
     h.http.expectOne(STATS_URL).flush(STATS);
     await settle(h.fixture);
 
-    const status = h.el.querySelector('[role="status"]')?.textContent ?? '';
-    expect(status).toContain('Gelöscht: 12 Nachrichten und 1 Gedächtnis-Eintrag.');
+    expect(h.el.querySelector('[role="status"]')).toBe(region);
+    expect(region!.textContent).toContain('Gelöscht: 12 Nachrichten und 1 Gedächtnis-Eintrag.');
   });
 
   it('löscht je Karte genau ihre Tabellen', async () => {

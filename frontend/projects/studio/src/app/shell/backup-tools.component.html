@@ -7,16 +7,22 @@
   </button>
   <a class="bt-btn" routerLink="/sicherung" fragment="voll-backup">{{ t('backupTools.restore') }}</a>
 
-  @if (action.message(); as msg) {
-    <p
-      class="bt-msg"
-      [class.bt-msg--error]="msg.kind === 'error'"
-      [attr.role]="msg.kind === 'error' ? 'alert' : 'status'"
-    >
-      {{ msg.kind === 'error' ? '⚠ ' : '✓ ' }}{{ msg.text }}
-      @if (snapshotMade()) {
-        <a routerLink="/sicherung" fragment="snapshots">{{ t('backupTools.toSnapshots') }}</a>
+  <!-- Paket 4b, B3: Ein Erfolg steht in einer dauerhaften Status-Region; eine, die
+       mit ihrem Text entsteht, sagen Screenreader oft nicht an. Ein Fehler bleibt
+       ein bedingter Alarm, der beim Einfügen zuverlässig angesagt wird. -->
+  <p class="bt-msg live" role="status">
+    @if (action.message(); as msg) {
+      @if (msg.kind === 'ok') {
+        ✓ {{ msg.text }}
+        @if (snapshotMade()) {
+          <a routerLink="/sicherung" fragment="snapshots">{{ t('backupTools.toSnapshots') }}</a>
+        }
       }
-    </p>
+    }
+  </p>
+  @if (action.message(); as msg) {
+    @if (msg.kind === 'error') {
+      <p class="bt-msg bt-msg--error" role="alert">⚠ {{ msg.text }}</p>
+    }
   }
 </div>
