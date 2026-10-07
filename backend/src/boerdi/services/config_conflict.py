@@ -12,9 +12,12 @@ optional on the server, the Studio always sends it.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 # A new row continues the count of a deleted one — history survives the DELETE.
@@ -55,6 +58,41 @@ class ConfigConflict(Exception):
         super().__init__(f"config conflict on {area!r}")
         self.area = area
         self.current = current
+
+
+class BereichNichtSpeicherbar(Exception):
+    """Postgres weist den Inhalt eines Bereichs zurück (Paket 4b, A4).
+
+    SQLSTATE-Klasse 22, etwa ``\\u0000`` in jsonb (``22P05``): ein Fehler der
+    Daten, nicht der Datenbank. Bis dahin endete er als 500 ohne Hinweis, welcher
+    Bereich es war. Die Transaktion fällt ganz zurück.
+
+    ``ganzer_vorgang``: Die Transaktion trug mehr als diesen Bereich
+    (Wiederherstellen, Seed), verworfen ist also der ganze Vorgang. Sonst war
+    es nur dieser Bereich; eine Route, die je Bereich schreibt, hat davor schon
+    gespeichert (Review 4b).
+    """
+
+    def __init__(self, area: str, *, ganzer_vorgang: bool = False) -> None:
+        super().__init__(f"config area {area!r} cannot be stored")
+        self.area = area
+        self.ganzer_vorgang = ganzer_vorgang
+
+
+@contextmanager
+def als_bereichsfehler(area: str, *, ganzer_vorgang: bool = False) -> Iterator[None]:
+    """Einen Datenfehler beim Schreiben von ``area`` als :class:`BereichNichtSpeicherbar`.
+
+    Erkannt am SQLSTATE: Der asyncpg-Adapter reicht ihn als allgemeinen
+    ``DBAPIError`` durch, nicht als ``DataError``. Andere Fehler (Verbindung,
+    Sperren) gehen unverändert weiter.
+    """
+    try:
+        yield
+    except DBAPIError as err:
+        if str(getattr(err.orig, "sqlstate", "") or "").startswith("22"):
+            raise BereichNichtSpeicherbar(area, ganzer_vorgang=ganzer_vorgang) from err
+        raise
 
 
 async def write_checked(

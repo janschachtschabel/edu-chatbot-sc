@@ -181,9 +181,8 @@ def test_restore_weist_interne_mcp_adressen_ab_und_schreibt_nichts(cfg) -> None:
 def test_restore_schreibt_alles_oder_nichts(cfg) -> None:
     # Paket 4, D4 (externes Audit F07): je Bereich eine eigene Transaktion —
     # scheiterte der dritte, waren die ersten beiden schon neu. Postgres weist
-    # ``\u0000`` in jsonb ab, nach allen Prüfungen davor.
-    from sqlalchemy.exc import DBAPIError
-
+    # ``\u0000`` in jsonb ab, nach allen Prüfungen davor. Seit Paket 4b (A4)
+    # nennt die Antwort den Bereich (400) statt als 500 zu enden.
     client, seed = cfg
     seed("01-base/welcome-config", {"welcome": {"greeting": "Vorher"}})
     buf = io.BytesIO()
@@ -191,9 +190,12 @@ def test_restore_schreibt_alles_oder_nichts(cfg) -> None:
         z.writestr("config/01-base/welcome-config.yaml", "welcome:\n  greeting: Nachher\n")
         z.writestr("config/01-base/rag-retrieval.yaml", "top_k: 7\n")
         z.writestr("config/01-base/zz-kaputt.yaml", 'x: "\\0"\n')
-    with pytest.raises(DBAPIError):
-        client.post("/api/config/restore", headers=_AUTH,
+    r = client.post("/api/config/restore", headers=_AUTH,
                     files={"file": ("teil.zip", buf.getvalue(), "application/zip")})
+    assert r.status_code == 400, r.text
+    assert "01-base/zz-kaputt" in r.json()["detail"]
+    # Das Studio zeigt nur diesen Text: Er muss sagen, dass nichts zurückkam.
+    assert "Der ganze Vorgang wurde verworfen" in r.json()["detail"]
     assert asyncio.run(config_loader.current_config()) == {
         "01-base/welcome-config": {"welcome": {"greeting": "Vorher"}}}
 
@@ -377,16 +379,17 @@ def test_seed_anwenden_schreibt_alles_oder_nichts(cfg, seed_baum) -> None:
     # Paket 4, D4 (externes Audit F07): Das Anwenden schrieb Bereich für
     # Bereich. Scheiterte einer, war die Begrüßung schon überschrieben, und das
     # Löschen lief nie — ein Stand, den weder Seed noch Datenbank je hatten.
-    from sqlalchemy.exc import DBAPIError
-
+    # Seit Paket 4b (A4) nennt die Antwort den Bereich (400) statt 500.
     client, seed = cfg
     seed_baum("01-base/welcome-config.yaml", "welcome:\n  greeting: Seed\n")
     seed_baum("01-base/zz-kaputt.yaml", 'x: "\\0"\n')
     seed("01-base/welcome-config", {"welcome": {"greeting": "Gepflegt"}})
     seed("01-base/eigenbau", {"x": 1})
 
-    with pytest.raises(DBAPIError):
-        client.post("/api/config/seed/apply", headers=_AUTH, json={"mode": "exact"})
+    r = client.post("/api/config/seed/apply", headers=_AUTH, json={"mode": "exact"})
+    assert r.status_code == 400, r.text
+    assert "01-base/zz-kaputt" in r.json()["detail"]
+    assert "Der ganze Vorgang wurde verworfen" in r.json()["detail"]
     assert asyncio.run(config_loader.current_config()) == {
         "01-base/eigenbau": {"x": 1},
         "01-base/welcome-config": {"welcome": {"greeting": "Gepflegt"}},

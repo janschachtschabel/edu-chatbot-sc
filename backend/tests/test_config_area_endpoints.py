@@ -370,6 +370,24 @@ def test_personas_put_writes_per_area(cfg) -> None:
     assert by_id["P-LER"]["positive_markers"] == ["ich lerne"]
 
 
+def test_personas_put_names_only_the_area_that_was_not_saved(cfg) -> None:
+    """Review Paket 4b: this route writes one transaction per persona (ALT).
+    When the second holds a value Postgres cannot store, the first is already
+    saved — the 400 must not claim that nothing was written."""
+    client, _ = cfg
+    r = client.put("/api/config/personas", headers={**_AUTH, "Accept-Language": "en"},
+                   json={"personas": [{"id": "P-AAA", "label": "A"},
+                                      {"id": "P-BBB", "label": "B\x00"}]})
+    assert r.status_code == 400, r.text
+    detail = r.json()["detail"]
+    assert "04-personas/bbb" in detail
+    assert "This area was not saved." in detail
+    assert "nothing was written" not in detail
+    ids = {p["id"] for p in client.get("/api/config/personas", headers=_AUTH).json()["personas"]}
+    assert "P-AAA" in ids
+    assert "P-BBB" not in ids
+
+
 def test_patterns_put_validation_and_roundtrip(cfg) -> None:
     client, _ = cfg
     assert client.put("/api/config/patterns", headers=_AUTH, json={"patterns": [
