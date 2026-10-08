@@ -217,6 +217,19 @@ class TestVerfall:
             _SESSION, _req("such mir was zu Optik"), zustand) is False
         assert update.calls == []
 
+    @pytest.mark.asyncio
+    async def test_ein_hintergrund_zug_verwirft_nur_im_speicher(self, _grenzen):
+        # Befund 2026-10-08: ein stummer Kontext-Ping verwarf den Vorgang in
+        # der Datenbank, und das „bestätigen“ danach traf nichts mehr an. Im
+        # Zug selbst ist er weg — einlösen kann ein Ping nichts —, die Zeile
+        # schreibt nur, wer etwas zeigt.
+        _mcp, update, _s = _grenzen
+        zustand = _zustand()
+        assert await discard_stale_approval(
+            _SESSION, _req("[context-open]"), zustand, hintergrund=True) is True
+        assert "_pending_write" not in zustand["entities"]
+        assert update.calls == []
+
 
 class TestFremderAufrufer:
     """Ein offener Vorgang gehört dem Aufrufer, der ihn auslöste (Paket 4, A1).

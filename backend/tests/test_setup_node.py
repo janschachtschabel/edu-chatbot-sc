@@ -22,6 +22,8 @@ from __future__ import annotations
 import asyncio
 import time
 
+import pytest
+
 from boerdi.api.schemas import ChatRequest, Environment
 from boerdi.graph import state as state_mod
 from boerdi.graph.nodes import setup as setup_mod
@@ -206,3 +208,54 @@ def test_eine_glatte_zustimmung_laesst_den_vorgang_stehen(monkeypatch):
     out = _run(_ctx(message="ja"))
 
     assert "_pending_write" in out.session_state["entities"]
+
+
+# ── Hintergrund-Züge des Widgets (Befund 2026-10-08) ─────────────────────────
+# Kontext-Ping und Tour-Tick zeigt das Widget nur mit Inhalt. Sie nehmen den
+# Vorgang aus dem Zug, schreiben aber nichts: zeigt ihr Weg etwas, schreibt er
+# ``entities`` selbst zurück (``test_abnahme_nach_kontext_ping``).
+
+def _hintergrund(message: str, *, tour_aktiv: bool, **umgebung):
+    row = _row_mit_abnahme()
+    row["tour_state"] = {"active": True, "step": "group"} if tour_aktiv else {}
+    return row, state_mod.TurnContext(req=ChatRequest(
+        session_id="bb-1", message=message, environment=Environment(**umgebung)))
+
+
+@pytest.mark.parametrize("message, umgebung", [
+    ("[context-open]", {"page_event": "context_open"}),
+    ("[context-open]", {"page_event": "context_open_initial"}),
+    ("[tour-tick]", {"tour_action": "tick"}),
+])
+def test_ein_hintergrund_zug_ohne_tour_schreibt_den_verfall_nicht(
+        monkeypatch, message, umgebung):
+    row, ctx = _hintergrund(message, tour_aktiv=False, **umgebung)
+    _patch(monkeypatch, row=row)
+    gespeichert = _Spy()
+    monkeypatch.setattr(wa_mod, "update_session", gespeichert)
+
+    out = _run(ctx)
+
+    assert "_pending_write" not in out.session_state["entities"]
+    assert gespeichert.calls == []
+
+
+@pytest.mark.parametrize("message, umgebung, tour_aktiv", [
+    # Mit laufender Tour antwortet die Tour und zeigt etwas, schreibt aber nur
+    # ``tour_state`` zurück — also verfällt der Vorgang wie bisher sofort.
+    ("[context-open]", {"page_event": "context_open"}, True),
+    ("[tour-tick]", {"tour_action": "tick"}, True),
+    # Kein Ping: ein unbekanntes Ereignis läuft als gewöhnlicher Zug weiter.
+    ("[context-open]", {"page_event": "irgendwas"}, False),
+])
+def test_waehrend_einer_tour_oder_ohne_ping_bleibt_der_verfall_sofort(
+        monkeypatch, message, umgebung, tour_aktiv):
+    row, ctx = _hintergrund(message, tour_aktiv=tour_aktiv, **umgebung)
+    _patch(monkeypatch, row=row)
+    gespeichert = _Spy()
+    monkeypatch.setattr(wa_mod, "update_session", gespeichert)
+
+    out = _run(ctx)
+
+    assert "_pending_write" not in out.session_state["entities"]
+    assert len(gespeichert.calls) == 1

@@ -45,11 +45,32 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from boerdi.api.schemas import ChatRequest
+from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.state import TurnContext
 from boerdi.services.db_sessions import get_messages, get_or_create_session
 from boerdi.services.write_approval import discard_stale_approval
 
 logger = logging.getLogger(__name__)
+
+
+def _hintergrund_zug(req: ChatRequest, session_state: dict) -> bool:
+    """Schickt das Widget diesen Zug von sich aus, sichtbar nur mit Inhalt?
+
+    Kontext-Ping oder Tour-Tick (``domain/hintergrund_zug``). Endet so ein Zug
+    stumm, hat die Person zwischen Vorschau und Antwort nichts gesehen
+    (Befund 2026-10-08).
+
+    Während einer Tour gilt keiner von beiden als Hintergrund: der Tick wird
+    zum Tour-Schritt, der Ping je nach Schritt zur Gruppenantwort oder zum Ende
+    der Tour. Ob dann etwas erscheint, entscheidet die Tour, und sie schreibt
+    nur ``tour_state`` zurück, nie ``entities``. Also verfällt der Vorgang wie
+    bisher sofort — die vorsichtige Richtung.
+    """
+    tour = session_state.get("tour_state")
+    if isinstance(tour, dict) and tour.get("active"):
+        return False
+    return ist_hintergrund_anfrage(req.environment)
 
 
 async def setup(ctx: TurnContext, session: AsyncSession, peer_ip: str = "") -> TurnContext:
@@ -76,8 +97,11 @@ async def setup(ctx: TurnContext, session: AsyncSession, peer_ip: str = "") -> T
     # Ein offener Schreib-Vorgang gilt nur für den direkt folgenden Zug. Verworfen
     # wird HIER, vor jedem frühen Ausgang: Tour und Kontext-Gruß beenden den Zug
     # vor dem Vorlauf, und ein erst dort verworfener Vorgang überdauerte sie
-    # (Review Paket 2, 2026-10-01).
-    await discard_stale_approval(session, req, ctx.session_state)
+    # (Review Paket 2, 2026-10-01). Ein Hintergrund-Zug verwirft nur im Speicher
+    # (Befund 2026-10-08, ``discard_stale_approval``).
+    await discard_stale_approval(
+        session, req, ctx.session_state,
+        hintergrund=_hintergrund_zug(req, ctx.session_state))
 
     ctx.env = req.environment.model_dump()
 

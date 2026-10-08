@@ -321,11 +321,12 @@ def entities_for_display(entities: dict[str, Any]) -> dict[str, Any]:
 def is_expired(pending: dict[str, Any] | None, *, now: float) -> bool:
     """Ist die Frist des Schlüssels verstrichen? (E4)
 
-    Der Merkposten überdauert höchstens bis zum nächsten Zug: entfernt wird er
-    auf dem Bestätigungspfad, durch eine neue Vorschau desselben Werkzeugs und
-    zu Beginn jedes Zugs, der ihn nicht bestätigen kann
+    Der Merkposten überdauert höchstens bis zum nächsten Zug der Person: entfernt
+    wird er auf dem Bestätigungspfad, durch eine neue Vorschau desselben
+    Werkzeugs und zu Beginn jedes Zugs, der ihn nicht bestätigen kann
     (``services/write_approval.discard_stale_approval`` in ``graph/nodes/setup``,
-    Audit 2026-09-29).
+    Audit 2026-09-29). Stumme Hintergrund-Züge des Widgets zählen nicht
+    (Befund 2026-10-08) — über sie hinweg begrenzt ihn allein diese Frist.
     Fragt jemand Stunden später zufällig **exakt** dasselbe erneut an, wurde
     der alte Schlüssel bis E4 eingesetzt, vom Server abgelehnt und durch eine
     neue Vorschau beantwortet: ein überflüssiger Werkzeugaufruf, keine falsche

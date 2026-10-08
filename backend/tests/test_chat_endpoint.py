@@ -182,6 +182,24 @@ def test_error_persist_failure_never_masks_bubble(monkeypatch, client):
     assert "schiefgelaufen" in r.json()["content"]
 
 
+@pytest.mark.parametrize("umgebung", [
+    {"page_event": "context_open"},
+    {"tour_action": "tick"},
+])
+def test_ein_hintergrund_zug_scheitert_stumm(monkeypatch, client, umgebung):
+    # Befund 2026-10-08 (Review): Kontext-Ping und Tour-Tick schickt das Widget
+    # von sich aus. Die Fehlerblase zeigte es trotzdem an — eine Antwort auf eine
+    # Frage, die niemand gestellt hat, und ein sichtbarer Zug, der einen offenen
+    # Schreibvorgang nicht verfallen lässt.
+    _, _, saves = _patch(monkeypatch, exc=RuntimeError("boom"))
+    r = _post(client, message="[context-open]", environment=umgebung)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["content"] == ""
+    assert body["quick_replies"] == []
+    assert saves == []
+
+
 # ── Per-session lock ────────────────────────────────────────────────────────
 
 def test_session_lock_acquired_and_released(monkeypatch, client):
