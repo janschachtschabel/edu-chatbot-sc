@@ -99,6 +99,17 @@ Dieselbe Schwäche wie F-M6: Eine Live-Region, die mit ihrem Text entsteht, sage
   - Die Ausnahme ist gestrichen, `audit-ausnahmen.json` ist leer. Eine ungenutzte Ausnahme hätte das Gate am 2027-01-01 mit „abgelaufen“ rot gemacht, obwohl der Fund längst weg wäre.
 - **Nachweis:** `npm audit` meldet 0 Funde. `check:audit` ist grün ohne Ausnahme; `check-audit.test.mjs` 10/10; das Lizenz-Gate ist grün.
 
+### pip-audit · neu in der CI des PR, erledigt
+- **Befund:** Im PR war `licenses-backend` rot; die Lizenzliste selbst war grün. `pip-audit` meldete zwei neue CVEs im gesperrten Laufzeit-Baum, beide transitiv:
+  - `langgraph-sdk` 0.4.2 (`CVE-2026-104873`, behoben ab 0.4.4), über `langgraph`;
+  - `multidict` 6.7.1 (`CVE-2026-104874`, behoben ab 6.9.1), über `aiohttp`/`yarl` (litellm, instructor).
+  - Mit 4b hat das nichts zu tun; main ist genauso betroffen.
+- **Umsetzung:** `uv lock --upgrade-package langgraph-sdk --upgrade-package multidict`. Nur diese zwei Pakete ändern sich: `langgraph-sdk` 0.4.6 (die neueste Patch-Version derselben Linie), `multidict` 6.9.1. `pyproject.toml` bleibt unverändert, die Lizenzen auch (MIT, Apache 2.0).
+- **Nachweis:** `pip-audit` meldet wie in der CI „No known vulnerabilities found“, das Lizenz-Gate ist grün. Die volle Backend-Suite läuft auf den neuen Versionen grün: 5180 passed, 4 skipped. `ruff` ist sauber, der OpenAPI-Vertrag unverändert.
+- **Nebenbefund, nicht in diesem Paket:** In einem von drei vollen Läufen standen nach der Zusammenfassung OTel-Exportfehler im Log.
+  - Ursache: `test_otel.py` setzt den OTLP-Endpunkt und ruft `create_app()`. Das richtet einen prozessweiten Exporter auf `localhost:4318` ein, wo nichts lauscht, und er bleibt für den Rest des Laufs aktiv.
+  - Älter als 4b, das Ergebnis bleibt grün. Als eigene Aufgabe vorgeschlagen.
+
 ### Review mit frischem Blick (2026-10-08)
 Ein frischer Prüfer las den ganzen Diff gegen main. Er fand keinen Blocker und nichts Schweres, aber vier kleine Befunde. Alle vier sind am Code bestätigt und behoben, jeweils Test zuerst.
 
@@ -131,4 +142,6 @@ Ein frischer Prüfer las den ganzen Diff gegen main. Er fand keinen Blocker und 
   - Unit ui 867, widget 71, studio 1381, je zweimal.
   - E2E 50: zweimal vor dem Review, einmal danach.
   - Der Studio-Build hat keine Warnung. Die `.live`-Regeln stehen in jedem Chunk mit einer neuen Statuszeile.
-- **Upload:** Branch `paket-4b-folgebefunde`, vier Commits nach Bereichen (Backend, Studio, Frontend-Werkzeuge, Doku); der Abgleich zeigt 0 Abweichungen. Den Merge macht der Nutzer.
+- **Upload:** Branch `paket-4b-folgebefunde`, PR #12, Commits nach Bereichen (Backend, Studio, Frontend-Werkzeuge, Doku). Dazu kamen die Backend-Abhängigkeiten aus der PR-CI (pip-audit, siehe oben) und dieser Nachtrag. Der Abgleich zeigt 0 Abweichungen. Den Merge macht der Nutzer.
+- **Testcontainer:** aus dem Branch gebaut (`edu-chatbot-sc:paket4b-lokal`), die Datenbank steht auf `0006` (Kopf).
+  - Live geprüft: `/studio/` ist `no-cache`, auch beim Rückfall und bei 304. Die gehashte Stildatei ist `immutable`, eine fehlende `.js` ergibt 404.
