@@ -141,11 +141,9 @@ async def ingest_text(
 def _pruefe_umwandlung(markdown: str, lang: Locale) -> None:
     """Ein Fehlertext der Umwandlung wird zur HTTP-Antwort.
 
-    Erkannt am Typ, nicht am Präfix „Fehler“ (Paket 4b, A3): ein Dokument, das
-    so beginnt, ist ein Dokument. Ein Format, das der Server nicht liest, ist
-    415 mit klarem Satz (Paket 4, C5) — keine kaputte Datei, sondern ein
-    fehlender Wandler im Image. Alles andere bleibt 400 mit der Meldung, wie sie
-    kam (C1-e).
+    Erkannt am Typ, nicht am Präfix „Fehler“ (Paket 4b, A3): ein Dokument, das so
+    beginnt, ist ein Dokument. Ein Format ohne Wandler im Image (keine kaputte
+    Datei) ist 415 mit klarem Satz (Paket 4, C5), alles andere 400 (C1-e).
     """
     if not isinstance(markdown, Umwandlungsfehler):
         return

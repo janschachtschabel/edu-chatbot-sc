@@ -6,6 +6,7 @@ write paths (``config.py``) and the restore paths (``config_snapshots.py``).
 Also the answer to a write that lost the race (409, Paket 4 D5).
 """
 
+import logging
 import re
 from datetime import UTC
 from typing import Any
@@ -21,6 +22,8 @@ from boerdi.services import config_loader as cl
 from boerdi.services.config_conflict import BereichNichtSpeicherbar, ConfigConflict
 from boerdi.services.config_loader.mcp import _PRIMARY_ID
 from boerdi.services.url_safety import UnsafeUrlError, assert_public_url
+
+logger = logging.getLogger(__name__)
 
 #: The area the MCP registry is stored in. Named here because three endpoints
 #: can write it and only one of them is *about* MCP.
@@ -231,8 +234,13 @@ async def nicht_speicherbar_antwort(request: Request, exc: Exception) -> JSONRes
     request (review 4b): restore and seed apply write every area in one
     transaction, the ALT bulk routes (personas, patterns, tone modifiers) one
     per area, so earlier areas stay saved. The message says which case it is.
+
+    The log line names the area and the SQLSTATE, never the content: the 500's
+    traceback used to be the only trail of the cause (second review 4b).
     """
     fehler = exc if isinstance(exc, BereichNichtSpeicherbar) else BereichNichtSpeicherbar("?")
+    logger.warning("config area %r not storable (SQLSTATE %s)",
+                   fehler.area, fehler.sqlstate or "?")
     key = "config.notStorableAll" if fehler.ganzer_vorgang else "config.notStorable"
     text = msg(request_locale(request), key, area=fehler.area)
     return JSONResponse(status_code=400, content={"detail": text})

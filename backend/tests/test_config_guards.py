@@ -91,3 +91,22 @@ def test_der_formular_weg_weist_punkt_blaetter_ab(key):
     with pytest.raises(HTTPException) as err:
         _resolve_area(key, file_key=True)
     assert err.value.status_code in (400, 404)
+
+
+def test_ein_nicht_speicherbarer_bereich_steht_mit_sqlstate_im_log(caplog):
+    # Zweites Review 4b: Die 400 verschluckte die Ursache. Vorher stand die 500
+    # samt Traceback im Log; jetzt steht dort Bereich und SQLSTATE, nie der Inhalt.
+    import asyncio
+
+    from starlette.requests import Request
+
+    from boerdi.api.config_guards import nicht_speicherbar_antwort
+    from boerdi.services.config_conflict import BereichNichtSpeicherbar
+
+    anfrage = Request({"type": "http", "method": "PUT", "path": "/", "headers": []})
+    fehler = BereichNichtSpeicherbar("01-base/x", sqlstate="22P02")
+    with caplog.at_level("WARNING", logger="boerdi.api.config_guards"):
+        antwort = asyncio.run(nicht_speicherbar_antwort(anfrage, fehler))
+    assert antwort.status_code == 400
+    assert [(r.levelname, r.getMessage()) for r in caplog.records] == [
+        ("WARNING", "config area '01-base/x' not storable (SQLSTATE 22P02)")]

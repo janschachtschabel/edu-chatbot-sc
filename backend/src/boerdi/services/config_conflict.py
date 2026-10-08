@@ -71,12 +71,16 @@ class BereichNichtSpeicherbar(Exception):
     (Wiederherstellen, Seed), verworfen ist also der ganze Vorgang. Sonst war
     es nur dieser Bereich; eine Route, die je Bereich schreibt, hat davor schon
     gespeichert (Review 4b).
+
+    ``sqlstate``: der Code der Datenbank, fürs Log. Klasse 22 ist mehr als ein
+    Nullzeichen, etwa ``NaN`` in jsonb (``22P02``) — zweites Review 4b.
     """
 
-    def __init__(self, area: str, *, ganzer_vorgang: bool = False) -> None:
+    def __init__(self, area: str, *, ganzer_vorgang: bool = False, sqlstate: str = "") -> None:
         super().__init__(f"config area {area!r} cannot be stored")
         self.area = area
         self.ganzer_vorgang = ganzer_vorgang
+        self.sqlstate = sqlstate
 
 
 @contextmanager
@@ -90,8 +94,10 @@ def als_bereichsfehler(area: str, *, ganzer_vorgang: bool = False) -> Iterator[N
     try:
         yield
     except DBAPIError as err:
-        if str(getattr(err.orig, "sqlstate", "") or "").startswith("22"):
-            raise BereichNichtSpeicherbar(area, ganzer_vorgang=ganzer_vorgang) from err
+        sqlstate = str(getattr(err.orig, "sqlstate", "") or "")
+        if sqlstate.startswith("22"):
+            raise BereichNichtSpeicherbar(
+                area, ganzer_vorgang=ganzer_vorgang, sqlstate=sqlstate) from err
         raise
 
 
