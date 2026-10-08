@@ -128,12 +128,16 @@ describe("SeedPanelComponent", () => {
 
   it("zieht Fehlendes ohne Rückfrage nach und meldet die Zahl", async () => {
     const h = await mount({ ...LEER, area_count: 3, neu: ["a", "b"] });
+    // Paket 4b, B3: die Rückmeldung steht leer bereit.
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    expect(region?.textContent).toBe("");
     await click(h, "Fehlende nachziehen");
     const req = h.http.expectOne(`${SEED}/apply`);
     expect(req.request.body).toEqual({ mode: "missing" });
     req.flush({ written: 2, deleted: 0, snapshot_id: null });
     await settle(h);
     expect(text(h)).toContain("2 Bereiche nachgezogen");
+    expect(region!.textContent).toContain("2 Bereiche nachgezogen");
     // Die Zählung muss danach stimmen, sonst zeigt die Karte Arbeit an, die
     // schon getan ist.
     h.http.expectOne(SEED).flush(LEER);
@@ -166,13 +170,19 @@ describe("SeedPanelComponent", () => {
     // Ein abgelehnter Lauf (kein Platz für den Schnappschuss) darf die Karte
     // nicht in ihrem alten Zustand einfrieren.
     const h = await mount({ ...LEER, area_count: 1, nur_in_db: ["b"] });
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
     await click(h, "Alles auf Auslieferungsstand");
     await click(h, "Ja, herstellen");
     h.http
       .expectOne(`${SEED}/apply`)
       .flush({ detail: "Snapshot-Limit erreicht (max 50)" }, { status: 400, statusText: "Bad Request" });
     await settle(h);
-    expect(text(h)).toContain("Snapshot-Limit");
+    // Zweites Review 4b: nur im Alarm, die Status-Region bleibt leer.
+    expect(h.el.querySelector(".op-msg--error[role='alert']")?.textContent).toContain(
+      "Snapshot-Limit",
+    );
+    expect(h.el.querySelector(".op-msg[role='status']")).toBe(region);
+    expect(region!.textContent).toBe("");
     h.http.expectOne(SEED).flush(LEER);
   });
 });

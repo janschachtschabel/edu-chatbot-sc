@@ -8,6 +8,8 @@
 // its own emitted copy; the class names stay identical across the three
 // templates on purpose. Values from the studio tokens only.
 
+@use './live-region'; // Rückmeldungen stehen leer bereit (Paket 4b, B3)
+
 .op-panel {
   display: block;
   padding: var(--st-4);

@@ -75,6 +75,10 @@ describe('BackupToolsComponent (ST-9, Kopfzeile)', () => {
 
   it('legt einen Snapshot sofort an und führt zur Liste', async () => {
     const h = await mount();
+    // Paket 4b, B3: die Rückmeldung steht leer bereit — eine Live-Region, die
+    // mit ihrem Text entsteht, sagen Screenreader oft nicht an.
+    const region = h.el.querySelector<HTMLElement>('.bt-msg[role="status"]');
+    expect(region?.textContent).toBe('');
     button(h, 'Snapshot anlegen').click();
     await settle(h);
     const req = h.http.expectOne(`${BASE}/snapshots`);
@@ -83,7 +87,8 @@ describe('BackupToolsComponent (ST-9, Kopfzeile)', () => {
     req.flush({ id: 'snap-7', label: '' });
     await settle(h);
 
-    expect(h.el.querySelector('[role="status"]')?.textContent).toContain('Snapshot „snap-7“ angelegt.');
+    expect(h.el.querySelector('[role="status"]')).toBe(region);
+    expect(region!.textContent).toContain('Snapshot „snap-7“ angelegt.');
     expect(link(h, 'Zu den Snapshots').getAttribute('href')).toBe('/sicherung#snapshots');
   });
 
@@ -118,6 +123,7 @@ describe('BackupToolsComponent (ST-9, Kopfzeile)', () => {
       .flush({ detail: 'kaputt' }, { status: 500, statusText: 'Server Error' });
     await settle(h);
     expect(h.el.querySelector('[role="alert"]')?.textContent).toContain('⚠');
+    expect(h.el.querySelector('.bt-msg[role="status"]')?.textContent).toBe('');
   });
 
   it('räumt die Meldung auf Zuruf weg — die Shell ruft das beim Seitenwechsel', async () => {
@@ -129,10 +135,16 @@ describe('BackupToolsComponent (ST-9, Kopfzeile)', () => {
     await settle(h);
     h.http.expectOne(`${BASE}/snapshots`).flush({ id: 'snap-9', label: '' });
     await settle(h);
-    expect(h.el.querySelector('[role="status"]')).not.toBeNull();
+    // Die Region steht immer da (Paket 4b, B3) — belegt wird die Meldung am Text.
+    const region = h.el.querySelector<HTMLElement>('.bt-msg[role="status"]');
+    expect(region?.textContent).toContain('snap-9');
+    expect(link(h, 'Zu den Snapshots')).toBeTruthy();
 
     h.fixture.componentInstance.dismiss();
     await settle(h);
-    expect(h.el.querySelector('[role="status"]')).toBeNull();
+    // Leer statt weg: die Region bleibt für die nächste Meldung (Paket 4b, B3).
+    expect(h.el.querySelector('[role="status"]')).toBe(region);
+    expect(region!.textContent).toBe('');
+    expect(() => link(h, 'Zu den Snapshots')).toThrow();
   });
 });

@@ -128,6 +128,9 @@ describe("FactoryPanelComponent", () => {
       created_at: "2026-07-20T09:30:00Z",
       label: "x",
     });
+    // Paket 4b, B3: die Rückmeldung steht leer bereit.
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    expect(region?.textContent).toBe("");
     await click(h, "Zurücksetzen");
     // ALT warned that the database, sessions, memory, quality logs and RAG
     // chunks would be replaced. `_apply_config` writes config areas and nothing
@@ -141,6 +144,29 @@ describe("FactoryPanelComponent", () => {
       .flush({ status: "restored", areas: 35 });
     await settle(h);
     expect(text(h)).toContain("35");
+    expect(region!.textContent).toContain("35");
+  });
+
+  it("meldet einen Fehlschlag nur als Alarm, die Status-Region bleibt leer", async () => {
+    // Zweites Review 4b: Landete der Fehler auch in der Status-Region, würde
+    // er doppelt angesagt.
+    const h = await mount({
+      exists: true,
+      created_at: "2026-07-20T09:30:00Z",
+      label: "x",
+    });
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    await click(h, "Zurücksetzen");
+    await click(h, "Ja, zurücksetzen");
+    h.http
+      .expectOne(`${FACTORY}/restore`)
+      .flush({ detail: "kaputt" }, { status: 500, statusText: "Server Error" });
+    await settle(h);
+    const alarm = h.el.querySelector(".op-msg--error[role='alert']")?.textContent ?? "";
+    expect(alarm).toContain("⚠");
+    expect(alarm).toContain("kaputt");
+    expect(h.el.querySelector(".op-msg[role='status']")).toBe(region);
+    expect(region!.textContent).toBe("");
   });
 
   it("lädt einen Werksstand erst nach Rückfrage hoch", async () => {

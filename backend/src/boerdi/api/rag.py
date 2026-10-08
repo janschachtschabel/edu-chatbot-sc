@@ -24,6 +24,7 @@ from boerdi.services.rag.admin import (
 from boerdi.services.rag.ingest import (
     FORMAT_NICHT_LESBAR,
     ImportZahlen,
+    Umwandlungsfehler,
     convert_to_markdown,
     convert_url_to_markdown,
     embed_missing_chunks,
@@ -138,16 +139,17 @@ async def ingest_text(
 
 
 def _pruefe_umwandlung(markdown: str, lang: Locale) -> None:
-    """Ein ``Fehler…``-Text der Umwandlung wird zur HTTP-Antwort.
+    """Ein Fehlertext der Umwandlung wird zur HTTP-Antwort.
 
-    Ein Format, das der Server nicht liest, ist 415 mit klarem Satz (Paket 4,
-    C5) — keine kaputte Datei, sondern ein fehlender Wandler im Image. Alles
-    andere bleibt 400 mit der Meldung, wie sie kam (C1-e).
+    Erkannt am Typ, nicht am Präfix „Fehler“ (Paket 4b, A3): ein Dokument, das so
+    beginnt, ist ein Dokument. Ein Format ohne Wandler im Image (keine kaputte
+    Datei) ist 415 mit klarem Satz (Paket 4, C5), alles andere 400 (C1-e).
     """
+    if not isinstance(markdown, Umwandlungsfehler):
+        return
     if markdown.startswith(FORMAT_NICHT_LESBAR):
         raise HTTPException(status_code=415, detail=msg(lang, "ingest.formatUnsupported"))
-    if markdown.startswith("Fehler"):
-        raise HTTPException(status_code=400, detail=markdown)
+    raise HTTPException(status_code=400, detail=str(markdown))
 
 
 def _import_antwort(title: str, area: str, zahlen: ImportZahlen, **extra: Any) -> dict:

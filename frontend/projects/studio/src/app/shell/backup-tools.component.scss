@@ -1,4 +1,5 @@
 @use './header-button' as hb;
+@use '../views/live-region';
 
 // Drei Werkzeuge und ihre Meldung; auf schmalen Schirmen brechen sie in eine
 // eigene Zeile um, statt die Kopfzeile seitwärts zu schieben (SC 1.4.10).

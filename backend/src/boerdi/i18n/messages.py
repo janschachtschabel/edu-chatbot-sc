@@ -52,6 +52,18 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
             "Ausdruck ({error})."
         ),
         "config.exists": "Unter der Kennung {area} gibt es schon ein Dokument.",
+        # Paket 4b, A4: ein Wert, den Postgres nicht speichert (etwa ein Nullzeichen).
+        # Zwei Fassungen (Review 4b): Wiederherstellen und Seed schreiben alles in
+        # einer Transaktion, die Sammel-Routen einen Bereich je Transaktion.
+        "config.notStorable": (
+            "Der Bereich {area} enthält einen Wert, den die Datenbank nicht speichern "
+            "kann, etwa ein Nullzeichen. Dieser Bereich wurde nicht gespeichert."
+        ),
+        "config.notStorableAll": (
+            "Der Bereich {area} enthält einen Wert, den die Datenbank nicht speichern "
+            "kann, etwa ein Nullzeichen. Der ganze Vorgang wurde verworfen, geschrieben "
+            "wurde nichts."
+        ),
         "mcp.serverRejected": "MCP-Server '{id}': {error}",
         "mcp.connectFailed": "Verbindung fehlgeschlagen: {error}",
         "mcp.urlRequired": "Bitte eine Server-URL angeben.",
@@ -156,6 +168,14 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
             "expression ({error})."
         ),
         "config.exists": "A document with the id {area} already exists.",
+        "config.notStorable": (
+            "Area {area} holds a value the database cannot store, such as a NUL "
+            "character. This area was not saved."
+        ),
+        "config.notStorableAll": (
+            "Area {area} holds a value the database cannot store, such as a NUL "
+            "character. The whole operation was discarded; nothing was written."
+        ),
         "mcp.serverRejected": "MCP server '{id}': {error}",
         "mcp.connectFailed": "Connection failed: {error}",
         "mcp.urlRequired": "Please provide a server URL.",

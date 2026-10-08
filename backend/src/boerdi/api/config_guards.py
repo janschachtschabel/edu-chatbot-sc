@@ -6,19 +6,24 @@ write paths (``config.py``) and the restore paths (``config_snapshots.py``).
 Also the answer to a write that lost the race (409, Paket 4 D5).
 """
 
+import logging
 import re
 from datetime import UTC
 from typing import Any
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
+from boerdi.api.deps import request_locale
 from boerdi.domain.config_models.patterns import ist_reservierte_kennung
 from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
-from boerdi.services.config_conflict import ConfigConflict
+from boerdi.services.config_conflict import BereichNichtSpeicherbar, ConfigConflict
 from boerdi.services.config_loader.mcp import _PRIMARY_ID
 from boerdi.services.url_safety import UnsafeUrlError, assert_public_url
+
+logger = logging.getLogger(__name__)
 
 #: The area the MCP registry is stored in. Named here because three endpoints
 #: can write it and only one of them is *about* MCP.
@@ -217,6 +222,28 @@ def _plain_ctx(err: Any) -> dict[str, Any]:
     ctx = {k: v for k, v in (err.get("ctx") or {}).items()
            if isinstance(v, (bool, int, float, str))}
     return {"ctx": ctx} if ctx else {}
+
+
+async def nicht_speicherbar_antwort(request: Request, exc: Exception) -> JSONResponse:
+    """400 for a value Postgres refuses to store (Paket 4b, A4).
+
+    One handler for every config write — restore, seed apply, form and raw
+    text. Before, such a write ended as a 500 without naming the area.
+
+    The failed transaction writes nothing, but it is not always the whole
+    request (review 4b): restore and seed apply write every area in one
+    transaction, the ALT bulk routes (personas, patterns, tone modifiers) one
+    per area, so earlier areas stay saved. The message says which case it is.
+
+    The log line names the area and the SQLSTATE, never the content: the 500's
+    traceback used to be the only trail of the cause (second review 4b).
+    """
+    fehler = exc if isinstance(exc, BereichNichtSpeicherbar) else BereichNichtSpeicherbar("?")
+    logger.warning("config area %r not storable (SQLSTATE %s)",
+                   fehler.area, fehler.sqlstate or "?")
+    key = "config.notStorableAll" if fehler.ganzer_vorgang else "config.notStorable"
+    text = msg(request_locale(request), key, area=fehler.area)
+    return JSONResponse(status_code=400, content={"detail": text})
 
 
 def konflikt_antwort(e: ConfigConflict, lang: Locale, *, anlegen: bool = False) -> HTTPException:

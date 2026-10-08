@@ -152,6 +152,11 @@ def create_app() -> FastAPI:
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    # A config value Postgres refuses (Paket 4b, A4): 400 naming the area.
+    from boerdi.api.config_guards import nicht_speicherbar_antwort
+    from boerdi.services.config_conflict import BereichNichtSpeicherbar
+
+    app.add_exception_handler(BereichNichtSpeicherbar, nicht_speicherbar_antwort)
 
     # studio-bff (P9-1): /studio/api/* → /api/* with key injection, cookie-gated.
     # Registered BEFORE CORS on purpose: ``add_middleware`` inserts at the front,

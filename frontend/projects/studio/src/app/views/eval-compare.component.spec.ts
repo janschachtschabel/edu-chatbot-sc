@@ -128,7 +128,24 @@ describe('EvalCompareComponent (ST-7c)', () => {
     TestBed.inject(HttpTestingController).expectOne((r) => r.url === URL).flush(vergleich());
     await new Promise((resolve) => setTimeout(resolve, 0));
     await fixture.whenStable();
-    expect(el.querySelector('.cmp-computing')).toBeNull();
+    // Leer statt weg: die Region bleibt für das nächste Laden (Paket 4b, B1).
+    expect(el.querySelector('.cmp-computing')?.textContent).toBe('');
+  });
+
+  it('sagt auch ein neues Rechnen in derselben Region an', async () => {
+    // Ändert sich die Auswahl, rechnet das offene Panel neu. Die Zeile entstand
+    // dabei jedes Mal neu — und eine Live-Region, die mit ihrem Text entsteht,
+    // sagen Screenreader oft nicht an.
+    const h = await mount();
+    const region = h.el.querySelector<HTMLElement>('.cmp-computing[role="status"]');
+    expect(region?.textContent).toBe('');
+
+    h.fixture.componentInstance.ids.set(['eval-m1', 'eval-a1']);
+    await h.fixture.whenStable();
+
+    expect(h.el.querySelector('.cmp-computing')).toBe(region);
+    expect(region!.textContent).toContain('einige Sekunden');
+    h.http.expectOne((r) => r.url === URL).flush(vergleich());
   });
 
   it('stellt je Maschine eine Spalte, die Muster-Maschine zuerst', async () => {

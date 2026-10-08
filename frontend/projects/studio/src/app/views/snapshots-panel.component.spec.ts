@@ -118,6 +118,9 @@ describe("SnapshotsPanelComponent", () => {
 
   it("legt an, leert das Feld und liest die Liste neu", async () => {
     const h = await mount([]);
+    // Paket 4b, B3: die Rückmeldung steht leer bereit.
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    expect(region?.textContent).toBe("");
     const input = h.el.querySelector<HTMLInputElement>('input[type="text"]')!;
     input.value = "vor dem Remix";
     input.dispatchEvent(new Event("input"));
@@ -136,6 +139,31 @@ describe("SnapshotsPanelComponent", () => {
     await settle(h);
     expect(input.value).toBe("");
     expect(text(h)).toContain("vor dem Remix");
+    expect(region!.textContent).toContain("angelegt");
+  });
+
+  it("meldet einen Fehlschlag nur als Alarm, die Status-Region bleibt leer", async () => {
+    // Zweites Review 4b: Landete der Fehler auch in der Status-Region, würde
+    // er doppelt angesagt.
+    const h = await mount([]);
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    const input = h.el.querySelector<HTMLInputElement>('input[type="text"]')!;
+    input.value = "zu viele";
+    input.dispatchEvent(new Event("input"));
+    await settle(h);
+
+    await click(h, "Snapshot anlegen");
+    h.http
+      .expectOne(LIST)
+      .flush({ detail: "Snapshot-Limit erreicht (max 50)" }, { status: 400, statusText: "Bad Request" });
+    await settle(h);
+    expect(h.el.querySelector(".op-msg--error[role='alert']")?.textContent).toContain(
+      "Snapshot-Limit",
+    );
+    expect(h.el.querySelector(".op-msg[role='status']")).toBe(region);
+    expect(region!.textContent).toBe("");
+    expect(input.value).toBe("zu viele"); // der Entwurf bleibt
+    h.http.verify(); // kein Neuladen nach einem Fehlschlag
   });
 
   it("fragt vor dem Wiederherstellen zurück und nennt den Snapshot", async () => {

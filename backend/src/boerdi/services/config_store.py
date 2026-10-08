@@ -26,7 +26,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from boerdi.db.notify import ConfigChangeListener
-from boerdi.services.config_conflict import FIRST_VERSION, write_checked
+from boerdi.services.config_conflict import FIRST_VERSION, als_bereichsfehler, write_checked
 
 logger = logging.getLogger(__name__)
 
@@ -228,10 +228,11 @@ class ConfigStore:
             return (await self.put_many({area: data}, updated_by=updated_by))[area]
         payload = json.dumps(data, ensure_ascii=False)
         async with self._engine.begin() as conn:
-            version = await write_checked(
-                conn, area=area, payload=payload, updated_by=updated_by,
-                expected_version=expected_version, create_only=create_only,
-            )
+            with als_bereichsfehler(area):
+                version = await write_checked(
+                    conn, area=area, payload=payload, updated_by=updated_by,
+                    expected_version=expected_version, create_only=create_only,
+                )
             await conn.execute(
                 _HISTORY_INSERT,
                 {"area": area, "version": version, "data": payload, "updated_by": updated_by},
@@ -255,11 +256,12 @@ class ConfigStore:
         versions: dict[str, int] = {}
         async with self._engine.begin() as conn:
             for area, payload in payloads.items():
-                versions[area] = (
-                    await conn.execute(
-                        _UPSERT, {"area": area, "data": payload, "updated_by": updated_by}
-                    )
-                ).scalar_one()
+                with als_bereichsfehler(area, ganzer_vorgang=len(payloads) + len(gone) > 1):
+                    versions[area] = (
+                        await conn.execute(
+                            _UPSERT, {"area": area, "data": payload, "updated_by": updated_by}
+                        )
+                    ).scalar_one()
                 await conn.execute(
                     _HISTORY_INSERT,
                     {"area": area, "version": versions[area], "data": payload,

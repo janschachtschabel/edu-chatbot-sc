@@ -71,11 +71,19 @@
     </p>
   }
 
+  <!-- Paket 4b, B3: Ein Erfolg steht in einer dauerhaften Status-Region; eine,
+       die mit ihrem Text entsteht, sagen Screenreader oft nicht an. Ein Fehler
+       bleibt ein bedingter Alarm, der beim Einfügen zuverlässig angesagt wird. -->
+  <p class="op-msg live" role="status">
+    @if (action.message(); as msg) {
+      @if (msg.kind === 'ok') {
+        ✓ {{ msg.text }}
+      }
+    }
+  </p>
   @if (action.message(); as msg) {
-    <p
-      class="op-msg"
-      [class.op-msg--error]="msg.kind === 'error'"
-      [attr.role]="msg.kind === 'error' ? 'alert' : 'status'"
-    >{{ msg.kind === 'error' ? '⚠ ' : '✓ ' }}{{ msg.text }}</p>
+    @if (msg.kind === 'error') {
+      <p class="op-msg op-msg--error" role="alert">⚠ {{ msg.text }}</p>
+    }
   }
 </section>

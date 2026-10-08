@@ -232,13 +232,14 @@ def test_notify_from_other_writer_drops_cache(test_db) -> None:
 # dritten Bereich, nach zwei gelungenen Schreibvorgängen.
 
 def test_put_many_schreibt_alles_oder_nichts(test_db) -> None:
-    from sqlalchemy.exc import DBAPIError
+    # Paket 4b, A4: der Datenfehler nennt seinen Bereich, statt als 500 zu enden.
+    from boerdi.services.config_conflict import BereichNichtSpeicherbar
 
     async def scenario():
         store, engine = _make_store(test_db)
         try:
             await store.put("01-base/d4-a", {"v": 1})
-            with pytest.raises(DBAPIError):
+            with pytest.raises(BereichNichtSpeicherbar) as fehler:
                 await store.put_many({
                     "01-base/d4-a": {"v": 2},
                     "01-base/d4-b": {"v": 2},
@@ -246,13 +247,52 @@ def test_put_many_schreibt_alles_oder_nichts(test_db) -> None:
                 }, updated_by="restore")
             gespeichert = (await store._fetch("01-base/d4-a"), await store._fetch("01-base/d4-b"))
             im_cache = (store.get_cached("01-base/d4-a"), store.get_cached("01-base/d4-b"))
-            return gespeichert, im_cache
+            return gespeichert, im_cache, fehler.value
         finally:
             await engine.dispose()
 
-    gespeichert, im_cache = asyncio.run(scenario())
+    gespeichert, im_cache, fehler = asyncio.run(scenario())
     assert gespeichert == (({"v": 1}, 1), None)
     assert im_cache == ({"v": 1}, None)
+    assert fehler.area == "01-base/d4-kaputt"
+    assert fehler.ganzer_vorgang is True  # drei Bereiche, eine Transaktion: alle verworfen
+
+
+def test_ein_bedingter_put_meldet_den_datenfehler_mit_bereich(test_db) -> None:
+    from boerdi.services.config_conflict import BereichNichtSpeicherbar
+
+    async def scenario():
+        store, engine = _make_store(test_db)
+        try:
+            v1 = await store.put("01-base/d4-c", {"v": 1})
+            with pytest.raises(BereichNichtSpeicherbar) as fehler:
+                await store.put("01-base/d4-c", {"x": "\x00"}, expected_version=v1)
+            return fehler.value, await store._fetch("01-base/d4-c")
+        finally:
+            await engine.dispose()
+
+    fehler, gespeichert = asyncio.run(scenario())
+    assert fehler.area == "01-base/d4-c"
+    assert fehler.ganzer_vorgang is False  # nur dieser eine Bereich
+    assert gespeichert == ({"v": 1}, 1)
+
+
+def test_ein_einzelner_put_ist_kein_ganzer_vorgang(test_db) -> None:
+    """Review 4b: ``put`` läuft über ``put_many`` mit einem Bereich — eine
+    Route, die je Bereich ``put`` ruft, hat davor schon geschrieben."""
+    from boerdi.services.config_conflict import BereichNichtSpeicherbar
+
+    async def scenario():
+        store, engine = _make_store(test_db)
+        try:
+            with pytest.raises(BereichNichtSpeicherbar) as fehler:
+                await store.put("01-base/d4-d", {"x": "\x00"})
+            return fehler.value
+        finally:
+            await engine.dispose()
+
+    fehler = asyncio.run(scenario())
+    assert (fehler.area, fehler.ganzer_vorgang) == ("01-base/d4-d", False)
 
 
 def test_put_many_loescht_in_derselben_transaktion(test_db) -> None:

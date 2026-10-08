@@ -345,6 +345,10 @@ describe("EvalRunsComponent", () => {
     // Nutzer-Befund 2026-08-22: es gab KEINEN Weg, einen Lauf anzuhalten —
     // „Alle Läufe löschen" ließ den Hintergrund-Task sogar weiterrechnen.
     const h = await mount([RUNNING]);
+    // Paket 4b, B1: die Statuszeile steht leer bereit — eine, die erst mit
+    // ihrem Text entsteht, sagen Screenreader oft nicht an.
+    const region = h.el.querySelector<HTMLElement>(".er-status[role='status']");
+    expect(region?.textContent).toBe("");
     const stop = h.el.querySelector<HTMLButtonElement>(".er-stop")!;
     expect(stop.getAttribute("aria-label")).toBe("Stoppen — Lauf r-live");
     stop.click();
@@ -368,7 +372,8 @@ describe("EvalRunsComponent", () => {
       .flush({ runs: [run("r-live", { status: "cancelled" })] });
     await settle(h);
 
-    expect(h.el.querySelector(".er-status")!.textContent).toContain("gestoppt");
+    expect(h.el.querySelector(".er-status")).toBe(region);
+    expect(region!.textContent).toContain("gestoppt");
     expect(rows(h)[0].textContent).toContain("gestoppt");
     // Wer das Detail des Laufs offen hat, muss es neu lesen können — sonst
     // stünde dort weiter „läuft" (Review-Befund 2026-08-22).

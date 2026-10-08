@@ -7,11 +7,20 @@ test can leak env-dependent state into the next.
 Und die Suite BESITZT ihre Konfiguration: ``backend/.env`` bleibt draussen.
 """
 
+import os
+import sys
 from pathlib import Path
 
 import pytest
 
 from boerdi.settings import Settings, get_settings
+
+# Ein OTLP-Endpunkt aus der Shell gehört nicht in die Suite: Jedes
+# ``create_app()`` baute sonst einen Exporter dorthin, und ``_reset_otel`` wartete
+# beim Herunterfahren je Test 9–14 s auf einen Endpunkt ohne Empfänger (gemessen
+# 2026-10-08, zweites Review 4b). Hier auf Modulebene, weil schon das Einsammeln
+# ``boerdi.main`` lädt (``app = create_app()``). ``test_otel_live.py`` setzt ihn selbst.
+os.environ.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)
 
 _ENV_DATEI = Path(__file__).resolve().parents[1] / ".env"
 
@@ -82,3 +91,36 @@ def _no_startup_warmups(monkeypatch):
     """
     import boerdi.main as main_mod
     monkeypatch.setattr(main_mod, "spawn_startup_warmups", lambda: None)
+
+
+@pytest.fixture(autouse=True)
+def _reset_otel():
+    """OTel nach jedem Test zurücknehmen.
+
+    ``setup_otel`` richtet prozessweit ein: einen TracerProvider mit
+    BatchSpanProcessor (eigener Worker-Thread, Flush beim Prozessende) und die
+    HTTPX-/SQLAlchemy-Instrumentierung. **Befund 2026-10-08:** ``test_otel.py``
+    ließ so einen OTLP-Exporter auf ``localhost:4318`` stehen; jeder spätere
+    Test reihte Spans für einen Endpunkt ein, an dem niemand lauscht, und je
+    nach Timing standen Exportfehler hinter der pytest-Zusammenfassung.
+
+    Der globale TracerProvider bleibt registriert, denn OTel erlaubt
+    ``set_tracer_provider`` nur einmal je Prozess. Ein späteres ``setup_otel``
+    baut einen frischen Provider und reicht ihn den Instrumentierungen
+    ausdrücklich durch; ``set_tracer_provider`` warnt dann nur.
+
+    Geprüft wird über ``sys.modules``, defensiv: Ohne geladenes Modul gibt es
+    nichts zurückzunehmen. (Praktisch ist es immer geladen, ``_no_startup_warmups``
+    importiert ``boerdi.main``.)
+    """
+    yield
+    otel = sys.modules.get("boerdi.obs.otel")
+    if otel is None or otel._provider is None:
+        return
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+    from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+    HTTPXClientInstrumentor().uninstrument()
+    SQLAlchemyInstrumentor().uninstrument()
+    otel._provider.shutdown()
+    otel._provider = None

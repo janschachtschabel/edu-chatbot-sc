@@ -259,7 +259,10 @@ async def update_area_data(area: str, payload: AreaData, lang: Lang) -> dict:
             expected_version=payload.expected_version, create_only=payload.create)
     except ConfigConflict as e:
         raise konflikt_antwort(e, lang, anlegen=payload.create) from e
-    return {"status": "saved", "area": key, "data": payload.data, "version": version}
+    # ``type`` as in GET (Paket 4b, A2): without it the area editor fetched a
+    # Markdown area's raw text as ``.yaml`` after a form save.
+    return {"status": "saved", "area": key, "data": payload.data, "version": version,
+            "type": "md" if seed_io.is_md_area(payload.data) else "yaml"}
 
 
 def _mcp_auth_base() -> str:

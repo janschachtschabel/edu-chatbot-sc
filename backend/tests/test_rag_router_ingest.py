@@ -210,7 +210,9 @@ async def test_ingest_file_cap_zero_means_unlimited(monkeypatch, tmp_path):
 def test_ingest_file_converter_error_becomes_400_and_still_unlinks(
     client, monkeypatch, tmp_path
 ):
-    _fake_convert(monkeypatch, text="Fehler beim Konvertieren: boom")
+    from boerdi.services.rag.ingest import Umwandlungsfehler
+
+    _fake_convert(monkeypatch, text=Umwandlungsfehler("Fehler beim Konvertieren: boom"))
     calls = _fake_ingest(monkeypatch)
     r = client.post(
         "/api/rag/ingest/file", files={"file": ("a.pdf", b"x")}, headers=_AUTH
@@ -224,9 +226,10 @@ def test_ingest_file_converter_error_becomes_400_and_still_unlinks(
 def test_ein_nicht_lesbares_format_ist_415_mit_klarem_satz(client, monkeypatch, tmp_path):
     """Paket 4, C5 (F17a): Eine DOCX-Datei ist nicht kaputt — der Server liest
     das Format nicht. 415 sagt das, und der Satz nennt, was geht."""
-    from boerdi.services.rag.ingest import FORMAT_NICHT_LESBAR
+    from boerdi.services.rag.ingest import FORMAT_NICHT_LESBAR, Umwandlungsfehler
 
-    _fake_convert(monkeypatch, text=f"{FORMAT_NICHT_LESBAR}: MissingDependencyException")
+    _fake_convert(monkeypatch,
+                  text=Umwandlungsfehler(f"{FORMAT_NICHT_LESBAR}: MissingDependencyException"))
     calls = _fake_ingest(monkeypatch)
     r = client.post(
         "/api/rag/ingest/file", files={"file": ("a.docx", b"x")}, headers=_AUTH
@@ -236,6 +239,19 @@ def test_ein_nicht_lesbares_format_ist_415_mit_klarem_satz(client, monkeypatch, 
     assert "MissingDependency" not in r.json()["detail"]
     assert calls == []
     assert list(tmp_path.iterdir()) == []
+
+
+def test_ein_dokument_das_mit_fehler_beginnt_wird_eingelesen(client, monkeypatch, tmp_path):
+    """Paket 4b, A3: Der Router erkannte Umwandlungsfehler am Präfix „Fehler“.
+    Ein Dokument über Fehlerkultur wurde deshalb mit 400 abgewiesen — der
+    Fehlertext war sein eigener Inhalt."""
+    _fake_convert(monkeypatch, text="Fehlerkultur im Unterricht. Fehler sind Lernanlässe.")
+    calls = _fake_ingest(monkeypatch)
+    r = client.post(
+        "/api/rag/ingest/file", files={"file": ("a.md", b"x")}, headers=_AUTH
+    )
+    assert r.status_code == 200, r.text
+    assert len(calls) == 1
 
 
 # ── POST /api/rag/ingest/url ─────────────────────────────────────────────
@@ -282,9 +298,11 @@ def test_ingest_url_title_defaults_to_the_url(client, monkeypatch):
 def test_ingest_url_guard_error_becomes_400(client, monkeypatch):
     # url_safety rejects internal targets by returning a "Fehler:" string
     # (never raising) — the router is what turns it into a 400.
+    from boerdi.services.rag.ingest import Umwandlungsfehler
+
     _fake_convert(
         monkeypatch,
-        text="Fehler: Internal network URLs not allowed",
+        text=Umwandlungsfehler("Fehler: Internal network URLs not allowed"),
         name="convert_url_to_markdown",
     )
     calls = _fake_ingest(monkeypatch)

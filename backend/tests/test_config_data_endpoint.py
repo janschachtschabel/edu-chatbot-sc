@@ -124,6 +124,41 @@ def test_get_reports_which_file_the_raw_editor_must_ask_for(cfg) -> None:
                       headers=_AUTH).json()["type"] == "md"
 
 
+def test_put_reports_the_file_type_like_get(cfg) -> None:
+    """Paket 4b, A2: the answer carried no `type`. After a form save the area
+    editor then fetched a Markdown area's raw text as `.yaml` and labelled the
+    tab "YAML" — nothing broke, but the raw view showed the wrong format."""
+    client, seed = cfg
+    seed("03-patterns/m01-krisen", {"frontmatter": {"id": "m01", "label": "Krise"}, "body": "x"})
+    md = client.put("/api/config/data/03-patterns/m01-krisen", headers=_AUTH,
+                    json={"data": {"frontmatter": {"id": "m01", "label": "Krise"}, "body": "neu"}})
+    assert md.status_code == 200, md.text
+    assert md.json()["type"] == "md"
+    yaml_ = client.put(f"/api/config/data/{_WELCOME}", headers=_AUTH,
+                       json={"data": {"welcome": {"greeting": "Moin"}}})
+    assert yaml_.json()["type"] == "yaml"
+
+
+def test_a_value_postgres_cannot_store_is_400_naming_the_area(cfg, caplog) -> None:
+    """Paket 4b, A4: a NUL character in jsonb ended as a 500 without saying
+    which area. One handler covers every config write; this is the form path.
+    The log names the area and Postgres' code, not the content (second review)."""
+    client, seed = cfg
+    seed(_WELCOME, {"welcome": {"greeting": "Moin"}})
+    with caplog.at_level("WARNING", logger="boerdi.api.config_guards"):
+        r = client.put(f"/api/config/data/{_WELCOME}", headers=_AUTH,
+                       json={"data": {"welcome": {"greeting": "geheim\x00text"}}})
+    assert r.status_code == 400, r.text
+    assert f"config area '{_WELCOME}' not storable (SQLSTATE 22P05)" in caplog.text
+    assert "geheim" not in caplog.text
+    assert _WELCOME in r.json()["detail"]
+    # One area in its own transaction: the message speaks of this area only.
+    assert "Dieser Bereich wurde nicht gespeichert." in r.json()["detail"]
+    assert "verworfen" not in r.json()["detail"]
+    assert client.get(f"/api/config/data/{_WELCOME}", headers=_AUTH).json()["data"] == {
+        "welcome": {"greeting": "Moin"}}
+
+
 def test_a_frontmatter_body_document_with_an_extra_key_is_not_markdown(cfg) -> None:
     """The exact-match rule, at the boundary that a superset test gets wrong."""
     client, seed = cfg

@@ -22,13 +22,14 @@ def test_off_by_default() -> None:
     assert otel.setup_otel(app) is False  # empty endpoint => no-op
 
 
-def test_spans_emitted_when_configured(monkeypatch) -> None:
+def test_spans_emitted_when_configured() -> None:
     from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
         InMemorySpanExporter,
     )
 
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
-    get_settings.cache_clear()
+    # Configured by the exporter alone. With OTEL_EXPORTER_OTLP_ENDPOINT set,
+    # create_app() would also build an OTLP exporter for a localhost:4318
+    # nobody listens on (finding 2026-10-08).
     exporter = InMemorySpanExporter()
     app = create_app()
     assert otel.setup_otel(app, exporter=exporter) is True

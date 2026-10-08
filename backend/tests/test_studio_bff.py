@@ -462,3 +462,55 @@ def test_spa_fallback_never_swallows_the_bff(monkeypatch, tmp_path) -> None:
     wrong_method = client.get("/studio/api/auth/login")
     assert wrong_method.status_code == 404
     assert wrong_method.headers["content-type"].startswith("application/json")
+
+
+# ── Paket 4b, A1: Caching der Studio-Auslieferung (Befundliste §1.5) ─────
+
+
+def _studio_mit_dist(monkeypatch, tmp_path) -> TestClient:
+    dist = tmp_path / "studio_dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<h1>Studio</h1>", encoding="utf-8")
+    (dist / "main-3SIIJNXP.js").write_text("console.log(1)", encoding="utf-8")
+    (dist / "chunk-5__k7NOB.js").write_text("console.log(2)", encoding="utf-8")
+    (dist / "favicon.ico").write_bytes(b"ico")
+    monkeypatch.setenv("STUDIO_DIST_DIR", str(dist))
+    get_settings.cache_clear()
+    return TestClient(create_app())
+
+
+def test_die_startseite_kommt_nie_ungeprueft_aus_dem_cache(monkeypatch, tmp_path) -> None:
+    """Ohne `Cache-Control` durfte der Browser die `index.html` heuristisch
+    behalten und zeigte nach einem Deploy den alten Stand — samt Verweisen auf
+    Dateien, die es nicht mehr gibt (2026-10-04 beim Testcontainer gesehen)."""
+    client = _studio_mit_dist(monkeypatch, tmp_path)
+    for pfad in ("/studio/", "/studio/index.html", "/studio/bereich/01-base/welcome-config"):
+        antwort = client.get(pfad)
+        assert antwort.text == "<h1>Studio</h1>", pfad
+        assert antwort.headers.get("cache-control") == "no-cache", pfad
+    # Auch die Antwort auf die Nachfrage trägt die Regel weiter.
+    erst = client.get("/studio/")
+    zweit = client.get("/studio/", headers={"if-none-match": erst.headers["etag"]})
+    assert zweit.status_code == 304
+    assert zweit.headers.get("cache-control") == "no-cache"
+
+
+def test_gehashte_dateien_sind_unveraenderlich(monkeypatch, tmp_path) -> None:
+    client = _studio_mit_dist(monkeypatch, tmp_path)
+    for pfad in ("/studio/main-3SIIJNXP.js", "/studio/chunk-5__k7NOB.js"):
+        assert client.get(pfad).headers.get("cache-control") == (
+            "public, max-age=31536000, immutable"), pfad
+    # Ohne Hash im Namen kein Jahr im Cache.
+    assert "immutable" not in client.get("/studio/favicon.ico").headers.get("cache-control", "")
+
+
+def test_eine_fehlende_datei_ist_404_nicht_die_startseite(monkeypatch, tmp_path) -> None:
+    """Der SPA-Rückfall beantwortete auch eine nicht mehr vorhandene
+    `styles-*.css` mit der `index.html` (200, text/html). Wegen `nosniff`
+    verwarf der Browser sie, und das Studio stand ohne Stil da."""
+    client = _studio_mit_dist(monkeypatch, tmp_path)
+    for pfad in ("/studio/styles-ALT00000.css", "/studio/chunk-WEG12345.js",
+                 "/studio/media/schrift.woff2"):
+        antwort = client.get(pfad)
+        assert antwort.status_code == 404, pfad
+        assert "Studio" not in antwort.text, pfad

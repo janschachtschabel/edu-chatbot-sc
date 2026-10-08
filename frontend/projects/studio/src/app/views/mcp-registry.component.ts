@@ -115,6 +115,21 @@ export class McpRegistryComponent {
     return compareToolsets(server.tools ?? [], tools.map((t) => t.name));
   });
 
+  /**
+   * Das Ergebnis des Abgleichs als ein Satz, für die dauerhafte Live-Region
+   * (Paket 4b, B2). Sichtbar steht es weiter bei seinen Listen: Die Absätze
+   * dort entstehen mit dem Abruf und würden nicht angesagt.
+   */
+  readonly abgleichAnsage = computed(() => {
+    if (this.discoverError() || !this.found()) return '';
+    if (!this.comparedServer()) return this.t('mcp.compare.unregistered');
+    const diff = this.divergence();
+    if (!diff) return '';
+    return diff.missing.length > 0
+      ? `${this.t('mcp.compare.missing')} ${diff.missing.join(', ')}`
+      : this.t('mcp.compare.match');
+  });
+
   private readonly saved = signal('[]');
   readonly dirty = computed(() => JSON.stringify(this.servers()) !== this.saved());
 

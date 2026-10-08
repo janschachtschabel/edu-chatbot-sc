@@ -57,11 +57,33 @@ def test_convert_returns_text_content(monkeypatch, tmp_path):
     assert asyncio.run(ri.convert_to_markdown(str(f))) == "# Ergebnis"
 
 
+def test_ein_dokument_das_mit_fehler_beginnt_ist_kein_umwandlungsfehler(monkeypatch, tmp_path):
+    """Paket 4b, A3: Der Router erkennt Fehler am Typ, nicht am Präfix."""
+    f = tmp_path / "doc.txt"
+    f.write_text("x", encoding="utf-8")
+    monkeypatch.setattr("markitdown.MarkItDown", lambda: _FakeMid("Fehlerkultur im Unterricht"))
+    out = asyncio.run(ri.convert_to_markdown(str(f)))
+    assert out == "Fehlerkultur im Unterricht"
+    assert not isinstance(out, ri.Umwandlungsfehler)
+
+
 def test_convert_error_becomes_fehler_string_not_raise(monkeypatch):
     monkeypatch.setattr(
         "markitdown.MarkItDown", lambda: _FakeMid(raise_exc=RuntimeError("kaputt")))
     out = asyncio.run(ri.convert_to_markdown("fehlt.pdf"))
     assert out == "Fehler beim Konvertieren: RuntimeError: kaputt"
+    assert isinstance(out, ri.Umwandlungsfehler)  # der Router prüft den Typ (4b, A3)
+
+
+def test_ein_fehlendes_markitdown_ist_ein_umwandlungsfehler(monkeypatch):
+    """Fehlt markitdown im Image, darf der Fehlertext nicht als Dokument
+    gespeichert werden (Review 4b: dieser Weg war ohne Test)."""
+    import sys
+
+    monkeypatch.setitem(sys.modules, "markitdown", None)  # Import scheitert
+    out = asyncio.run(ri.convert_to_markdown("a.txt"))
+    assert out.startswith("Fehler beim Konvertieren (ImportError): ")
+    assert isinstance(out, ri.Umwandlungsfehler)
 
 
 def _gescheitert_an(ausnahme: Exception):
@@ -95,6 +117,7 @@ def test_ein_nicht_lesbares_format_wird_als_solches_gemeldet(monkeypatch, ursach
     monkeypatch.setattr("markitdown.MarkItDown", lambda: _FakeMid(raise_exc=fehler))
     out = asyncio.run(ri.convert_to_markdown("a.docx"))
     assert out.startswith(ri.FORMAT_NICHT_LESBAR)
+    assert isinstance(out, ri.Umwandlungsfehler)
 
 
 # ── convert_url_to_markdown (SSRF-Guard via url_safety) ──────────────────
@@ -151,7 +174,9 @@ def _wire_url_markitdown(monkeypatch, text="# Seite", raise_exc=None,
     ],
 )
 def test_convert_url_guard_blocks_internal_and_bad_scheme(url):
-    assert asyncio.run(ri.convert_url_to_markdown(url)).startswith("Fehler")
+    out = asyncio.run(ri.convert_url_to_markdown(url))
+    assert out.startswith("Fehler")
+    assert isinstance(out, ri.Umwandlungsfehler)
 
 
 def test_convert_url_guard_returns_before_any_fetch(monkeypatch):
@@ -160,6 +185,7 @@ def test_convert_url_guard_returns_before_any_fetch(monkeypatch):
     # Die exakte Meldung (statt nur des "Fehler"-Präfixes) beweist den frühen
     # Return: der markitdown-Pfad liefert "Fehler beim Konvertieren: …".
     assert out == "Fehler: Internal network URLs not allowed"
+    assert isinstance(out, ri.Umwandlungsfehler)
     assert built == []  # markitdown nie konstruiert → kein Netz-Fetch versucht
 
 
@@ -184,6 +210,7 @@ def test_convert_url_error_becomes_fehler_string_not_raise(monkeypatch):
     # ALT-Asymmetrie verbatim erhalten: der URL-Pfad formatiert OHNE
     # type(e).__name__ (der Datei-Pfad oben MIT).
     assert out == "Fehler beim Konvertieren: timeout"
+    assert isinstance(out, ri.Umwandlungsfehler)
 
 
 def test_ein_abgebrochener_abruf_wird_benannt(monkeypatch):
@@ -195,7 +222,19 @@ def test_ein_abgebrochener_abruf_wird_benannt(monkeypatch):
         monkeypatch, abruf_fehler=DownloadAbgebrochen("Die Seite ist größer als 25 MB."))
     out = asyncio.run(ri.convert_url_to_markdown("http://8.8.8.8/riesig"))
     assert out == "Fehler: Die Seite ist größer als 25 MB."
+    assert isinstance(out, ri.Umwandlungsfehler)
     assert built == []  # nichts umgewandelt
+
+
+def test_ein_gescheiterter_abruf_ist_ein_umwandlungsfehler(monkeypatch):
+    """Jeder andere Abruffehler (Verbindung, TLS …) ist ebenfalls ein
+    Umwandlungsfehler, kein Dokument (Review 4b: dieser Weg war ohne Test)."""
+    built = _wire_url_markitdown(
+        monkeypatch, abruf_fehler=ConnectionError("Verbindung abgelehnt"))
+    out = asyncio.run(ri.convert_url_to_markdown("http://8.8.8.8/seite"))
+    assert out == "Fehler beim Konvertieren: Verbindung abgelehnt"
+    assert isinstance(out, ri.Umwandlungsfehler)
+    assert built == []
 
 
 def test_die_dns_pruefung_laeuft_nicht_im_event_loop(monkeypatch):
@@ -518,3 +557,4 @@ def test_eine_url_auf_ein_nicht_lesbares_format_wird_als_solches_gemeldet(monkey
                          typ="application/pdf")
     out = asyncio.run(ri.convert_url_to_markdown("http://8.8.8.8/heft.pdf"))
     assert out.startswith(ri.FORMAT_NICHT_LESBAR)
+    assert isinstance(out, ri.Umwandlungsfehler)

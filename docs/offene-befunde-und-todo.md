@@ -1,6 +1,6 @@
 # Offene Befunde und Todo
 
-Stand 2026-09-29 (Zwischenstand), nachgezogen 2026-10-03 nach Paket 4. Diese Liste sammelt an einer Stelle, was nach diesem Stand offen ist, jeweils mit Quelle.
+Stand 2026-09-29 (Zwischenstand), nachgezogen 2026-10-03 nach Paket 4 und 2026-10-08 nach Paket 4b. Diese Liste sammelt an einer Stelle, was nach diesem Stand offen ist, jeweils mit Quelle.
 Erledigtes steht in den Logs der Pläne, nicht hier. Wer einen Punkt erledigt, streicht ihn hier und
 trägt ihn im Log des zugehörigen Plans ein. Zeilennummern gelten für den Stand 2026-09-29.
 
@@ -12,6 +12,7 @@ Die zugehörigen Pläne:
 - **Paket 1 (Sprache, Kleinbefunde):** [`2026-10-01-paket-1-sprache-und-kleinbefunde.md`](plans/2026-10-01-paket-1-sprache-und-kleinbefunde.md) — erledigt dort: Schnellantworten in der Antwortsprache, Startnachricht beim Sprachwechsel, Guide-Regeln ohne Neustart, Quick Wins aus Audit §7.
 - **Token-Streaming-Plan:** [`2026-10-01-token-streaming.md`](plans/2026-10-01-token-streaming.md) — freigegeben 2026-10-03 (alle Empfehlungen), gebaut hinter `CHAT_TOKEN_STREAMING` (PR #9); Stand im Log des Plans.
 - **Paket 3 (offene Befunde, erste Runde):** [`2026-10-03-paket-3-offene-befunde.md`](plans/2026-10-03-paket-3-offene-befunde.md) — erledigt dort: Neustart mitten im Zug (früher §1.4), EscalationBlock-Vorgaben und Kennung `AGENT` (früher §2) sowie sieben Befunde aus dem Audit 2026-09-29 (Nachtrag dort in §7).
+- **Paket 4b (Folgebefunde aus Paket 4):** [`2026-10-08-paket-4b-folgebefunde.md`](plans/2026-10-08-paket-4b-folgebefunde.md) — erledigt dort: Studio-Auslieferung mit `Cache-Control` (früher §1.5), zehn `role="status"`-Stellen, `type` beim Speichern, Umwandlungsfehler am Typ statt am Präfix, Datenbankfehler als 400 mit Bereich.
 - **Paket 4 (externes Audit und Restliste):** [`2026-10-03-paket-4-audit-extern.md`](plans/2026-10-03-paket-4-audit-extern.md).
   - Status: freigegeben und umgesetzt 2026-10-03 (Phasen V, A–E, L, S; Log im Plan). Zurückgestellt an Paket 5 bzw. ins Backlog: siehe Plan §5/§6.
   - Er gleicht das externe Audit [`audits/2026-10-03-audit-extern.md`](audits/2026-10-03-audit-extern.md) (Stand `610abec`) mit `e38006d` ab.
@@ -47,10 +48,6 @@ Die zugehörigen Pläne:
      - MCP-Cache ohne Server;
      - Konfig-Abrufe überholen sich.
    - Paket 4 (2026-10-03/04) hat alle Befunde behoben, die nicht auf eine Entscheidung warten. Offen sind die Paket-5-Punkte (Plan §5) und das Backlog (Plan §6).
-5. **Studio nach einem Deploy: alter Stand oder eine Seite ohne Stil** (gefunden 2026-10-04 beim Neubau des Testcontainers).
-   - `index.html` kommt ohne `Cache-Control`. Der Browser darf sie heuristisch zwischenspeichern; nach dem Neubau zeigte er den alten Stand, bis neu geladen wurde.
-   - `SpaFiles` (`api/studio_static.py`) beantwortet jeden 404 außerhalb von `api/` mit der `index.html`, auch eine nicht mehr vorhandene `styles-*.css` oder `chunk-*.js`: 200 mit `text/html`. Wegen `nosniff` verwirft der Browser die Antwort. Liegt die alte Datei nicht mehr im Cache, steht das Studio ohne Stil oder Skript da.
-   - Vorschlag, wie beim Widget (`api/widget.py`): `index.html` mit `Cache-Control: no-cache`, Dateien mit Hash im Namen `immutable`, und für Pfade mit Dateiendung kein SPA-Rückfall (404).
 
 ## 2 Entscheidungen des Nutzers
 
@@ -158,7 +155,7 @@ Die zugehörigen Pläne:
 ## 5 Aufräumen
 
 - **Dateien über der 300-Zeilen-Regel** (Audit F-8), aus diesen Runden:
-  - Backend: `graph/nodes/respond_agent.py` (508; 2026-10-01 +22 für den Agent-Schnellantwort-Weg, +10 für Paket 2, 2026-10-03 +9 für das Token-Streaming), `services/agent_loop.py` (635; +16 Token-Streaming, Paket 4 B1 +116 für Frist und Quittungen, Review +12), `services/config_store.py` (309; Paket 4 D1/D4/D5 — Cache-Frische, `put_many`, Konfliktschutz; der bedingte Schreibweg liegt schon in `services/config_conflict.py`), `services/write_approval.py` (316; vorher 304, Paket 2 +12 für `merke_abnahme`), `services/llm_streaming.py` (302; vorher 266, Token-Streaming T1/T2).
+  - Backend: `graph/nodes/respond_agent.py` (508; 2026-10-01 +22 für den Agent-Schnellantwort-Weg, +10 für Paket 2, 2026-10-03 +9 für das Token-Streaming), `services/agent_loop.py` (635; +16 Token-Streaming, Paket 4 B1 +116 für Frist und Quittungen, Review +12), `services/config_store.py` (311; Paket 4 D1/D4/D5, Paket 4b A4 +2 — Cache-Frische, `put_many`, Konfliktschutz; der bedingte Schreibweg liegt schon in `services/config_conflict.py`), `services/write_approval.py` (316; vorher 304, Paket 2 +12 für `merke_abnahme`), `services/llm_streaming.py` (302; vorher 266, Token-Streaming T1/T2), `services/rag/ingest.py` (318; schon vorher 304 und hier nicht geführt, Paket 4b A3 +14 — die ALT-treuen Umwandler und der Speicherweg in einer Datei; ein Schnitt: die Umwandler nach `services/rag/umwandeln.py`).
   - Ältere Fidelity-Port-Dateien, die das Token-Streaming um wenige Zeilen verlängert hat: `graph/nodes/respond.py` (528), `services/tool_loop.py` (973), `domain/write_confirm.py` (439; Paket 2 +13), Widget `shell/chat-shell.component.ts` (862), `chat-shell.component.html` (323). Die neue Logik liegt in eigenen Modulen (`domain/stream_gate`, `domain/stream_preview`, `domain/tool_pflicht`, `services/token_stream`, `graph/nodes/respond_strom`).
   - CI: `.github/workflows/image.yml` (386; Paket 4 L3 samt Review, überwiegend Begründungs-Kommentar).
   - Studio: `schema-form/schema-form.scss` (432), `views/curated-views.ts` (399), `i18n/catalogue/curated.ts` (386), `views/eval-run-detail.component.ts` (315), `schema-form/schema-field.component.ts` (311).
@@ -170,24 +167,20 @@ Die zugehörigen Pläne:
   - Audit 2026-09-29: `print-utils.spec.ts` läuft jetzt mit fester Uhr, `studio/core/download.spec.ts` stellt die veränderten Globals zurück (`isolate: false`). Die übrigen Kipper ließen sich nicht reproduzieren; bei erneutem Auftreten Datei und Fehlermeldung festhalten.
 - Der Klassifikator läuft über `instructor` statt über `llm.chat_completion` und liest im Fehlerpfad nur `choices[0]` (`services/classify.py:123`).
   - Auf dem Responses-Weg liefe ein Text mit Aufruf dort ins Leere. Der Aufruf ist aber erzwungen, und ein Ausfall ist nicht beobachtet. Das ist ein Restrisiko, kein Befund.
-- **`role="status"` entsteht samt Inhalt** (gefunden 2026-10-04 beim Bau von Paket 4, S1). Das ist dieselbe Schwäche wie F-M6: Eine Live-Region, die mit ihrem Text entsteht, sagen Screenreader oft nicht an. S1 hat die sieben `aria-live`-Stellen behoben, offen sind zehn mit `role="status"`:
-  - Einfache Statuszeilen in einem `@if`: `eval-runs` (`.er-status`), `quality-logs` (`.ql-status`), `eval-compare` (`.cmp-computing`). Mechanisch nach dem S1-Muster (`views/_live-region.scss`).
-  - `mcp-registry`: Das Abgleich-Ergebnis (drei Absätze) entsteht zusammen mit dem Abruf-Ergebnis. Es braucht eine dauerhafte Region für die Zusammenfassung.
-  - Die Rückmeldung `action.message()` in sechs Panels (`shell/backup-tools`, `backup`, `factory-panel`, `privacy-purge`, `seed-panel`, `snapshots-panel`) wechselt die Rolle zwischen `alert` und `status`. Vorschlag: eine dauerhafte Status-Region für Erfolge; Fehler bleiben ein bedingtes `role="alert"`, das beim Einfügen zuverlässig angesagt wird.
+
 - **Aus dem Review von Paket 4 (2026-10-04), älter als das Paket:**
   - **ReDoS in Lotsen-Regeln.** D6 prüft nur, ob ein Muster kompiliert. Ein ungünstiges Muster wie `^(\w+\s?)*$` blockiert bei einer langen Nachricht den Worker, und die Nachricht kommt von jedem Client. Vorschlag: ein Regex-Motor mit Zeitgrenze (`regex`, steht über `tiktoken` schon im Lock) oder verschachtelte Quantoren beim Speichern abweisen. Derselbe Motor könnte dann auch `pattern` in Ergebnis-Schemata prüfen; heute sind Muster dort nur ein Hinweis an das Modell (A3, Review R-2).
   - **URL-Import: tröpfelnde Kopfzeilen.** Die Gesamtfrist schneidet den Rumpf ab (Review R-7), Kopfzeilen und einzelne Umleitungen aber nicht, weil es dann noch keine Antwort gibt. Nur über das Studio erreichbar. Vorschlag: den Abruf über `httpx` (async) unter `asyncio.timeout` legen.
-  - **Markdown-Bereich nach dem Speichern im Formular als YAML.** `PUT /config/data` liefert kein `type`; der Bereichs-Editor holt den Rohtext danach als `.yaml` und nennt den Reiter „YAML“. Es geht nichts kaputt. Vorschlag: die Antwort um `type` ergänzen wie bei GET.
-  - **Dokumente, die mit „Fehler“ beginnen** (`api/rag.py`, `_pruefe_umwandlung`): Die Umwandlung meldet Fehler als Text mit diesem Präfix, ein echtes Dokument mit diesem Anfang wird deshalb mit 400 abgewiesen. Vorschlag: Fehler als Ausnahme statt Präfix.
-- **npm-Audit-Gate, eine Ausnahme mit Ablaufdatum** (Paket 4, L2): `GHSA-ch52-4w7c-c8xp` (http-cache-semantics ≤ 4.2.0) bis 2026-12-31 in `frontend/audit-ausnahmen.json`.
-  - Kommt nur über den Lizenz-Prüfer `license-checker-rseidelsohn` (dev, CI). Eine behobene Version gab es am 2026-10-03 nicht.
-  - Bewertet wird in `frontend/scripts/audit-bewertung.mjs`; ein Bericht in fremdem Format ist rot (Review R-22).
-  - Läuft die Ausnahme ab, wird das Gate rot: dann neue Version prüfen oder bewusst verlängern.
+- **Aus dem zweiten Review von Paket 4b (2026-10-08), älter als das Paket:**
+  - **URL-Import ohne markitdown wird eine 500.** `convert_url_to_markdown` lädt `markitdown` außerhalb des `try` (`services/rag/ingest.py:153`), obwohl der Modulkopf sagt, die Umwandler werfen nie. Der Datei-Weg meldet denselben Fall als `Umwandlungsfehler`. Vorschlag: den Import in den `try` holen, wie beim Datei-Weg.
+  - **Ein Wert, der kein JSON ist, wird eine 500 ohne Bereich.** `json.dumps` läuft in `put`/`put_many` vor dem Schreiben und außerhalb von `als_bereichsfehler` (`services/config_store.py:229`, `:254`). Beispiel: ein ungequotetes YAML-Datum in einem Bereich ohne Modell, über den Rohtext oder eine Sicherung. Vorschlag: je Bereich serialisieren und `TypeError`/`ValueError` als `BereichNichtSpeicherbar` melden.
+  - **Studio: „Server erreichbar, meldet aber kein Werkzeug“ wird nicht angesagt.** Bei einer neuen Adresse ohne Werkzeuge hört man nur „nicht in der Liste“ (`mcp-registry`).
+  - **Testinstanz: MCP-Registry gegen den Server.** Die Registry erwartet `search_skill`; der installierte WLO-MCP-Server läuft mit `WLO_DISABLE_SKILL_SEARCH` und bietet es nicht an. Damit scheitert die Skill-Suche im Studio. Eine Konfigurationsfrage für den Betrieb: das Werkzeug in der Registry streichen oder die Skill-Suche am Server einschalten.
 - **Studio-Startpaket 1,08 MB** (gemessen 2026-10-03, Paket 4 L1). Angular 22.2 weist den gemeinsamen Chunk (`@angular/core` u. a.) richtig als initial aus; 22.1 nannte ihn „lazy“, geladen wurde er schon immer beim Start.
   - Größter Posten: beide Sprach-Kataloge des Studios, 434 kB, eager (`i18n/de.ts`, `i18n/en.ts`).
   - Das Budget ist an den echten Stand angepasst (Warnung 1,1 MB, Fehler 1,2 MB). Ein möglicher Schnitt: `en` erst beim Umschalten laden.
 - **Wissensbereiche eines Musters im Formular** (Paket 4, C6): „nie gesetzt“ (= alle Bereiche, wenn `rag` unter den Quellen steht) und eine geleerte Liste (= keine) sehen im Formular gleich aus. Wer den letzten Bereich entfernt, schaltet das Erben ab, ohne es zu sehen. Die Anzeige der wirksamen Bereiche je Muster steht aus (externes Audit F13).
-- **Datenbankfehler beim Wiederherstellen oder Seed-Anwenden** ergibt 500 (Paket 4, D4: geschrieben wird dann nichts). Ein Wert, den Postgres nicht speichern kann (etwa `\u0000`), wäre als 400 mit dem Bereich hilfreicher.
+
 - **Einstellungen ohne Leser** (gefunden 2026-10-01 beim Bau der Konfigurations-Grafiken, Stand `1f069e9`). Das Studio bietet sie an, der Code liest sie nicht:
   - `01-base/engine`: `agent.safety` (nur in `domain/config_models/engine.py:119`).
   - `01-base/safety-config`: `confidence_adjustments` (nur in `domain/config_models/base_governance.py`); `retention_days` siehe §1.2. `extra_crisis_terms` und `extra_pii_terms` wirken seit Paket 4 (D8).
