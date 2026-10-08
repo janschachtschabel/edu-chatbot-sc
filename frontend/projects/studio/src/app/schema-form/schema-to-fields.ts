@@ -13,7 +13,9 @@
  * classify overrides, tour steps …), so `raw` is rendered as a JSON text area.
  * Free-form config stays editable; it just gets no typed controls.
  */
-import { bounds, fixed, primary, slider, stringKind, withTextKey } from './field-hints';
+import {
+  bounds, fixed, primary, slider, stringKind, vorgabe, withTextKey,
+} from './field-hints';
 import type { JsonSchema } from './json-schema';
 
 export type FieldKind =
@@ -72,6 +74,9 @@ export interface SchemaField {
   readonly fixed?: boolean;
   /** The area's content (ST-4, `x-primary`) — its section comes first and open. */
   readonly primary?: boolean;
+  /** A nullable list whose `null` means "the default applies", not "empty"
+   *  (Paket 4c, B2, `x-vorgabe`) — the form shows which case holds. */
+  readonly vorgabe?: boolean;
   /** `number` only (ST-2h): drawn as a slider — only with both bounds. `step`
    *  is its step; `thresholds` are where the value changes what it does (the
    *  slider names the zone the value is in). */
@@ -111,6 +116,7 @@ function fieldFor(
     nullable,
     description: raw.description ?? node?.description,
     ...primary(raw, node),
+    ...vorgabe(raw),
   };
   const blank = (fallback: unknown): unknown => {
     if (raw.default !== undefined) return raw.default;
@@ -147,7 +153,7 @@ function fieldFor(
 }
 
 type FieldBase = Pick<
-  SchemaField, 'key' | 'label' | 'required' | 'nullable' | 'description' | 'primary'
+  SchemaField, 'key' | 'label' | 'required' | 'nullable' | 'description' | 'primary' | 'vorgabe'
 >;
 
 function objectField(

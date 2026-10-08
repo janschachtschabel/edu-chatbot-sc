@@ -168,6 +168,9 @@ export class SchemaFieldComponent {
     return Array.isArray(value) ? value : [];
   });
 
+  /** Paket 4c, B2: nicht gesetzt — es gilt die Vorgabe, nicht „keine“. */
+  readonly unset = computed(() => this.field().vorgabe === true && this.value() == null);
+
   readonly entries = computed<readonly MapEntry[]>(() => {
     const value = this.value();
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return [];
@@ -194,6 +197,12 @@ export class SchemaFieldComponent {
 
   setValue(value: unknown): void {
     this.edit.emit({ kind: 'set', path: this.path(), value });
+  }
+
+  /** `aria-disabled` statt `disabled`: der Knopf behält den Fokus, wirkt aber nur, wenn gesetzt.
+   *  Entfernt den Schlüssel statt `null` zu schreiben — fehlend liest die Laufzeit als Vorgabe. */
+  restoreDefault(): void {
+    if (!this.unset()) this.edit.emit({ kind: 'remove', path: this.path() });
   }
 
   addItem(): void {

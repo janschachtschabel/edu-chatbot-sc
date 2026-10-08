@@ -12,6 +12,7 @@ optional on the server, the Studio always sends it.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -61,7 +62,8 @@ class ConfigConflict(Exception):
 
 
 class BereichNichtSpeicherbar(Exception):
-    """Postgres weist den Inhalt eines Bereichs zurück (Paket 4b, A4).
+    """Der Inhalt eines Bereichs lässt sich nicht speichern: Postgres weist ihn ab
+    (Paket 4b, A4), oder er ist gar kein JSON (Paket 4c, A2, :func:`als_json`).
 
     SQLSTATE-Klasse 22, etwa ``\\u0000`` in jsonb (``22P05``): ein Fehler der
     Daten, nicht der Datenbank. Bis dahin endete er als 500 ohne Hinweis, welcher
@@ -99,6 +101,20 @@ def als_bereichsfehler(area: str, *, ganzer_vorgang: bool = False) -> Iterator[N
             raise BereichNichtSpeicherbar(
                 area, ganzer_vorgang=ganzer_vorgang, sqlstate=sqlstate) from err
         raise
+
+
+def als_json(area: str, data: Any, *, ganzer_vorgang: bool = False) -> str:
+    """Der Inhalt von ``area`` als JSON-Text, oder :class:`BereichNichtSpeicherbar`.
+
+    Paket 4c, A2: ``json.dumps`` lief vor dem Schreiben und außerhalb von
+    :func:`als_bereichsfehler`. Ein Wert, den JSON nicht kennt — etwa ein
+    ungequotetes YAML-Datum in einem Bereich ohne Modell —, endete als 500
+    ohne Bereich. ``NaN`` lässt ``json.dumps`` durch; das weist Postgres ab (22P02).
+    """
+    try:
+        return json.dumps(data, ensure_ascii=False)
+    except (TypeError, ValueError) as err:
+        raise BereichNichtSpeicherbar(area, ganzer_vorgang=ganzer_vorgang) from err
 
 
 async def write_checked(

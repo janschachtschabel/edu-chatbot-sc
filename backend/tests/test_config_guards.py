@@ -110,3 +110,21 @@ def test_ein_nicht_speicherbarer_bereich_steht_mit_sqlstate_im_log(caplog):
     assert antwort.status_code == 400
     assert [(r.levelname, r.getMessage()) for r in caplog.records] == [
         ("WARNING", "config area '01-base/x' not storable (SQLSTATE 22P02)")]
+
+
+def test_ein_wert_ohne_json_steht_mit_der_fehlerart_im_log(caplog):
+    # Paket 4c, A2: Ohne SQLSTATE nennt das Log die Art des Fehlers, nie den Inhalt.
+    import asyncio
+
+    from starlette.requests import Request
+
+    from boerdi.api.config_guards import nicht_speicherbar_antwort
+    from boerdi.services.config_conflict import BereichNichtSpeicherbar
+
+    fehler = BereichNichtSpeicherbar("01-base/x")
+    fehler.__cause__ = TypeError("Object of type date is not JSON serializable")
+    anfrage = Request({"type": "http", "method": "PUT", "path": "/", "headers": []})
+    with caplog.at_level("WARNING", logger="boerdi.api.config_guards"):
+        asyncio.run(nicht_speicherbar_antwort(anfrage, fehler))
+    assert [r.getMessage() for r in caplog.records] == [
+        "config area '01-base/x' not storable (TypeError)"]

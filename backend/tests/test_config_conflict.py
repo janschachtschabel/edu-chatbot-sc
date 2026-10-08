@@ -11,7 +11,11 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy.exc import DBAPIError
 
-from boerdi.services.config_conflict import BereichNichtSpeicherbar, als_bereichsfehler
+from boerdi.services.config_conflict import (
+    BereichNichtSpeicherbar,
+    als_bereichsfehler,
+    als_json,
+)
 
 
 def _db_fehler(sqlstate: str | None) -> DBAPIError:
@@ -33,3 +37,18 @@ def test_andere_datenbankfehler_reichen_unveraendert_durch(sqlstate: str | None)
         with als_bereichsfehler("01-base/x"):
             raise original
     assert fehler.value is original
+
+
+def test_ein_wert_ohne_json_wird_zum_bereichsfehler() -> None:
+    """Paket 4c, A2: ein ungequotetes YAML-Datum in einem Bereich ohne Modell
+    erreichte ``json.dumps`` und endete als 500 ohne Bereich."""
+    from datetime import date
+
+    with pytest.raises(BereichNichtSpeicherbar) as fehler:
+        als_json("01-base/x", {"stand": date(2026, 10, 8)}, ganzer_vorgang=True)
+    assert (fehler.value.area, fehler.value.ganzer_vorgang) == ("01-base/x", True)
+    assert isinstance(fehler.value.__cause__, TypeError)
+
+
+def test_als_json_schreibt_wie_bisher() -> None:
+    assert als_json("01-base/x", {"gruß": "ä", "n": [1, None]}) == '{"gruß": "ä", "n": [1, null]}'

@@ -64,6 +64,26 @@ def test_pattern_from_dict_drops_legacy_fields():
     assert (p.id, p.label) == ("M01", "X")  # Legacy-Felder ignoriert, kein Crash
 
 
+def test_null_heisst_wie_ein_fehlender_schluessel_die_vorgabe():
+    """Review Paket 4c: Das Speichern nimmt ``null`` an (``PatternFrontmatter``),
+    ``PatternDef`` kannte es nur bei ``rag_areas``. Ein ``sources: null`` oder ein
+    ``tools:`` ohne Wert aus dem Rohtext oder einer Sicherung warf beim Laden
+    aller Muster — und damit jeden Zug, der ein Muster wählt."""
+    p = pe._pattern_from_dict({"id": "X", "sources": None, "tools": None, "rag_areas": None})
+    assert (p.sources, p.tools, p.rag_areas) == (["mcp"], [], None)
+
+
+def test_jedes_feld_das_das_studio_als_null_speichert_laedt():
+    # Wächter: was das Speichern als ``None`` annimmt, lädt die Laufzeit.
+    from boerdi.domain.config_models.patterns import PatternFrontmatter
+
+    nullbar = [name for name, feld in PatternFrontmatter.model_fields.items()
+               if feld.default is None]
+    assert {"sources", "rag_areas", "tools"} <= set(nullbar)
+    for name in nullbar:
+        pe._pattern_from_dict({"id": "X", name: None})  # wirft nicht
+
+
 # ── phase3_modulate (Config-Tabellen + Tone-Modifier gemockt) ──────
 def _mock_tables(monkeypatch, modulations, reduce_items, device_max, formality):
     monkeypatch.setattr(pe, "_load_config_tables",

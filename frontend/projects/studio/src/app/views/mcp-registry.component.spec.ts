@@ -405,6 +405,17 @@ describe("McpRegistryComponent — Abgleich mit der Registry", () => {
     expect(ansage(harness)!.textContent).toContain("nicht in der Liste");
   });
 
+  it("sagt auch an, wenn der Server kein Werkzeug meldet", async () => {
+    // Paket 4c, B1: Sichtbar stand „… meldet aber kein Werkzeug.", angesagt
+    // wurde nur „nicht in der Liste" bzw. der Abgleich.
+    const harness = await mount();
+    await pruefe(harness, "https://leer.example/mcp", []);
+    const satz = ansage(harness)!.textContent!;
+    expect(satz).toContain("meldet aber kein Werkzeug");
+    expect(satz).toContain("nicht in der Liste");
+    expect(satz.indexOf("kein Werkzeug")).toBeLessThan(satz.indexOf("nicht in der Liste"));
+  });
+
   it("behält die Region über ein Neuladen — nach dem Speichern ändert sich der Abgleich", async () => {
     // Review 4b: `load()` läuft nach dem Speichern, nach „Neu laden“ und beim
     // Wiederholen. Stand die Region im Lade-Zweig, entstand sie danach neu,

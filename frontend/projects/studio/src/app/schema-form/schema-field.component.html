@@ -56,7 +56,7 @@
         @if (rawKey(); as key) {
           <span class="sf-key">{{ key }}</span>
         }
-        <span class="sf-count">({{ items().length }})</span>
+        @if (!unset()) { <span class="sf-count">({{ items().length }})</span> }
       </legend>
       @if (hint(); as text) {
         <p class="sf-desc" [id]="descId()">{{ text }}</p>
@@ -64,12 +64,18 @@
       @if (problem(); as meldung) {
         <p class="sf-error" [id]="errId()">{{ meldung }}</p>
       }
+      @if (field().vorgabe) {
+        <!-- Paket 4c, B2: „nicht gesetzt“ (Vorgabe) und „leer“ (keine) sahen gleich aus. -->
+        <p class="sf-vorgabe"><span class="live" role="status">{{ unset() ? t('schemaField.unset') : '' }}</span>
+          <button type="button" class="sf-add" [attr.aria-disabled]="unset()" (click)="restoreDefault()"
+            [attr.aria-label]="t('schemaField.restoreDefaultFor', { group: groupLabel() })">{{ t('schemaField.restoreDefault') }}</button></p>
+      }
       @if (chipList()) {
         <!-- ST-2g: Katalog-Namen als Chips. EIN Eingabefeld mit der
              Vorschlagsliste des Katalogs; ein Name, der noch in keinem
              Katalog steht, darf trotzdem hinein (vgl. field-control). -->
         @if (items().length === 0) {
-          <p class="sf-empty">{{ t('schemaField.emptyList') }}</p>
+          @if (!unset()) { <p class="sf-empty">{{ t('schemaField.emptyList') }}</p> }
         } @else {
           <ul class="sf-chips" role="list">
             @for (item of items(); track $index) {
@@ -113,7 +119,7 @@
         />
       } @else {
         @if (items().length === 0) {
-          <p class="sf-empty">{{ t('schemaField.emptyList') }}</p>
+          @if (!unset()) { <p class="sf-empty">{{ t('schemaField.emptyList') }}</p> }
         } @else {
           <ol class="sf-entries" role="list">
             @for (item of items(); track $index) {

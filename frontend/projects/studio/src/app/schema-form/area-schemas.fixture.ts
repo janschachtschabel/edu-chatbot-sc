@@ -1858,7 +1858,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
-            "title": "Sources"
+            "title": "Sources",
+            "x-vorgabe": true
           },
           "rag_areas": {
             "anyOf": [
@@ -1874,7 +1875,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               }
             ],
             "default": null,
-            "title": "Rag Areas"
+            "title": "Rag Areas",
+            "x-vorgabe": true
           },
           "tools": {
             "anyOf": [

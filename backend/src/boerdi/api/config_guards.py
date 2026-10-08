@@ -225,7 +225,8 @@ def _plain_ctx(err: Any) -> dict[str, Any]:
 
 
 async def nicht_speicherbar_antwort(request: Request, exc: Exception) -> JSONResponse:
-    """400 for a value Postgres refuses to store (Paket 4b, A4).
+    """400 for a value that cannot be stored — refused by Postgres (Paket 4b, A4)
+    or not JSON at all (Paket 4c, A2).
 
     One handler for every config write — restore, seed apply, form and raw
     text. Before, such a write ended as a 500 without naming the area.
@@ -235,12 +236,16 @@ async def nicht_speicherbar_antwort(request: Request, exc: Exception) -> JSONRes
     transaction, the ALT bulk routes (personas, patterns, tone modifiers) one
     per area, so earlier areas stay saved. The message says which case it is.
 
-    The log line names the area and the SQLSTATE, never the content: the 500's
-    traceback used to be the only trail of the cause (second review 4b).
+    The log line names the area and the cause, never the content: the 500's
+    traceback used to be the only trail (second review 4b). The cause is the
+    SQLSTATE, or for a value JSON cannot hold the error type (Paket 4c, A2).
     """
     fehler = exc if isinstance(exc, BereichNichtSpeicherbar) else BereichNichtSpeicherbar("?")
-    logger.warning("config area %r not storable (SQLSTATE %s)",
-                   fehler.area, fehler.sqlstate or "?")
+    if fehler.sqlstate:
+        ursache = f"SQLSTATE {fehler.sqlstate}"
+    else:
+        ursache = type(fehler.__cause__).__name__ if fehler.__cause__ else "?"
+    logger.warning("config area %r not storable (%s)", fehler.area, ursache)
     key = "config.notStorableAll" if fehler.ganzer_vorgang else "config.notStorable"
     text = msg(request_locale(request), key, area=fehler.area)
     return JSONResponse(status_code=400, content={"detail": text})
