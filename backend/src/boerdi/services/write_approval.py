@@ -94,6 +94,8 @@ async def discard_stale_approval(
     session: AsyncSession | None,
     req: ChatRequest,
     session_state: dict,
+    *,
+    hintergrund: bool = False,
 ) -> bool:
     """Den offenen Vorgang verwerfen, wenn dieser Zug ihn nicht bestätigen kann.
 
@@ -111,7 +113,7 @@ async def discard_stale_approval(
     Fingerabdruck-Weg im Tool-Loop. Gerufen wird im ersten Knoten
     (``graph/nodes/setup``), vor jedem frühen Ausgang — Tour und Kontext-Gruß
     beenden den Zug vor dem Vorlauf. So sieht jeder Weg nur Vorgänge des direkt
-    vorigen Zugs.
+    vorigen Zugs der Person (stumme Hintergrund-Züge zählen nicht, siehe unten).
 
     Gespeichert wird sofort: nicht jeder Weg nach dem Vorlauf schreibt
     ``entities`` zurück (die Direkt-Aktionen nicht), und ein nur im Speicher
@@ -121,11 +123,29 @@ async def discard_stale_approval(
     Verworfen wird auch der Vorgang eines ANDEREN Aufrufers (Paket 4, A1) —
     hier, damit ihn keiner der beiden Einlöse-Wege (Vorlauf, Fingerabdruck-Weg
     im Tool-Loop) je zu sehen bekommt.
+
+    **Ein Hintergrund-Zug verwirft nur im Speicher** (``hintergrund``, Befund
+    2026-10-08). Kontext-Ping und Tour-Tick schickt das Widget von sich aus und
+    zeigt ihre Antwort nur, wenn sie Inhalt hat. Bis hier verwarf schon ein
+    stummer Ping den Vorgang in der Datenbank: Die Person sah zwischen Vorschau
+    und ihrem „bestätigen“ nichts, und doch kam statt der Ausführung eine neue
+    Vorschau. Einlösen kann diesen Zug nichts; im Speicher fällt der Vorgang
+    deshalb immer. Sichtbar endet ein Hintergrund-Zug nur mit einer
+    gespeicherten Begrüßung, und die schreibt ``entities`` samt Verfall zurück;
+    Fehler und ein ungespeicherter Gruß enden stumm (``api/chat``,
+    ``graph/nodes/context_greeting``). Bleibt er stumm, schreibt niemand, und
+    die Antwort der Person trifft den Vorgang an — längstens bis zur Frist.
     """
     entities = session_state.setdefault("entities", {})
     pending = entities.get("_pending_write")
     if not pending:
         return False
+    if hintergrund:
+        entities.pop("_pending_write", None)
+        logger.info(
+            "offener Vorgang für %s ruht — Hintergrund-Zug, nur im Speicher verworfen",
+            pending.get("tool") if isinstance(pending, dict) else "?")
+        return True
     fremd = not _gehoert_dem_aufrufer(pending)
     if not fremd and not req.action and is_affirmation(req.message):
         return False

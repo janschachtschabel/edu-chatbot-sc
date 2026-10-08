@@ -14,6 +14,7 @@ Die zugehörigen Pläne:
 - **Paket 3 (offene Befunde, erste Runde):** [`2026-10-03-paket-3-offene-befunde.md`](plans/2026-10-03-paket-3-offene-befunde.md) — erledigt dort: Neustart mitten im Zug (früher §1.4), EscalationBlock-Vorgaben und Kennung `AGENT` (früher §2) sowie sieben Befunde aus dem Audit 2026-09-29 (Nachtrag dort in §7).
 - **Paket 4b (Folgebefunde aus Paket 4):** [`2026-10-08-paket-4b-folgebefunde.md`](plans/2026-10-08-paket-4b-folgebefunde.md) — erledigt dort: Studio-Auslieferung mit `Cache-Control` (früher §1.5), zehn `role="status"`-Stellen, `type` beim Speichern, Umwandlungsfehler am Typ statt am Präfix, Datenbankfehler als 400 mit Bereich.
 - **Paket 4c (Rest aus den Reviews):** [`2026-10-08-paket-4c-rest-aus-den-reviews.md`](plans/2026-10-08-paket-4c-rest-aus-den-reviews.md) — erledigt dort: URL-Import ohne markitdown, Wert ohne JSON als 400 mit Bereich, Ansage „kein Werkzeug“ im MCP-Abgleich, „nicht gesetzt“ und „leer“ im Formular unterscheidbar.
+- **Befund Kontext-Ping (2026-10-08):** [`2026-10-08-befund-abnahme-nach-kontext-ping.md`](plans/2026-10-08-befund-abnahme-nach-kontext-ping.md) — erledigt dort: Die Schreib-Abnahme verfiel an einem Zug, den die Person nie sah (Kontext-Ping, Tour-Tick ohne Tour). Auf „bestätigen“ kam deshalb wieder eine Vorschau.
 - **Paket 4 (externes Audit und Restliste):** [`2026-10-03-paket-4-audit-extern.md`](plans/2026-10-03-paket-4-audit-extern.md).
   - Status: freigegeben und umgesetzt 2026-10-03 (Phasen V, A–E, L, S; Log im Plan). Zurückgestellt an Paket 5 bzw. ins Backlog: siehe Plan §5/§6.
   - Er gleicht das externe Audit [`audits/2026-10-03-audit-extern.md`](audits/2026-10-03-audit-extern.md) (Stand `610abec`) mit `e38006d` ab.
@@ -116,6 +117,10 @@ Die zugehörigen Pläne:
   - Der Muster-Text verlangt `query_knowledge` als Pflicht für Berichte. M10 steht aber auf `sources: [llm]`, und ohne `rag` bietet die Auswahl das Werkzeug nie an (`03-patterns/m10-ki-inhalt-generierung.md`).
   - Bis zur Entscheidung bleibt `query_knowledge` auch ohne Angebot rufbar (Ausnahme in der Werkzeug-Sperre, ein Test pinnt sie).
   - Frage: `rag` zu M10s Quellen nehmen oder die Pflicht aus dem Text streichen? Beides ändert Antworten; danach braucht es einen Golden-Lauf.
+- **„Freigabe“ als Zustimmung** (gefunden 2026-10-08, Befund Kontext-Ping):
+  - Ein Sammlungs-Gatekeeper-Skill bittet um „Freigabe“. `is_affirmation` (`domain/write_confirm.py`, `_ZUSTIMMUNG`) kennt „ja“, „bestätigen“, „ok“ usw., aber kein „Freigabe“/„freigeben“.
+  - Ein „Freigabe erteilt“ ohne „ja“ verwirft deshalb den offenen Vorgang, und es kommt eine neue Vorschau.
+  - Empfehlung: die Stämme `freigabe`, `freigeben`, `freigegeben` aufnehmen, nicht `frei` allein (sonst zählte „ist das frei verfügbar?“). Das ist eine Änderung an einer Sicherheitsregel, deshalb Nutzer-Entscheid.
 
 ## 3 Messungen und Prüfungen (startet der Nutzer)
 
@@ -131,6 +136,10 @@ Die zugehörigen Pläne:
   - Danach über B1–B3 (Anrede) entscheiden.
 - **Responses-Plan, Paket C:** die Folgezüge mit den Rundendaten nachmessen, bevor über B entschieden wird.
 - **Einbettung mit Ticket (zweite Betriebsform):** Die Live-Probe steht aus, siehe [`2026-08-12-einbettung-ohne-repo-aenderung.md`](plans/2026-08-12-einbettung-ohne-repo-aenderung.md).
+- **Befund Kontext-Ping (2026-10-08):**
+  - Im Staging-Log nach der Zeile `offener Vorgang für wlo_add_to_collection verworfen — dieser Zug ist keine Antwort auf die Vorschau` sehen. Sie belegt die Ursache.
+  - Nach dem Deploy denselben Ablauf wiederholen: erschließen, in die Sammlung aufnehmen, bestätigen.
+  - Nebenbefund: Der Gatekeeper-Skill der Sammlung „Optik“ ließ sich laut Verlauf mit seiner Knoten-ID nicht abrufen (`get_skill`). Das ist nicht untersucht.
 - **Studio:**
   - Einen Screenreader-Test gab es bisher nicht.
   - Den Start-Knopf des generativen Laufs hat niemand im Browser gesehen. Sein CSS gleicht dem gemessenen Gold-Knopf, und der Kontrast-Wächter deckt ihn ab.
@@ -156,8 +165,8 @@ Die zugehörigen Pläne:
 ## 5 Aufräumen
 
 - **Dateien über der 300-Zeilen-Regel** (Audit F-8), aus diesen Runden:
-  - Backend: `graph/nodes/respond_agent.py` (508; 2026-10-01 +22 für den Agent-Schnellantwort-Weg, +10 für Paket 2, 2026-10-03 +9 für das Token-Streaming), `services/agent_loop.py` (635; +16 Token-Streaming, Paket 4 B1 +116 für Frist und Quittungen, Review +12), `services/config_store.py` (316; Paket 4 D1/D4/D5, Paket 4b A4 +2, Paket 4c A2 +5 — Cache-Frische, `put_many`, Konfliktschutz; der bedingte Schreibweg und die Fehlerabbildung liegen schon in `services/config_conflict.py`), `services/write_approval.py` (316; vorher 304, Paket 2 +12 für `merke_abnahme`), `services/llm_streaming.py` (302; vorher 266, Token-Streaming T1/T2), `services/rag/ingest.py` (321; schon vorher 304 und hier nicht geführt, Paket 4b A3 +14, Paket 4c A1 +3 — die ALT-treuen Umwandler und der Speicherweg in einer Datei; ein Schnitt: die Umwandler nach `services/rag/umwandeln.py`), `domain/pattern_engine.py` (385; schon vorher 374 und hier nicht geführt, Paket 4c Review +11 — Fidelity-Port, Laden und Wählen der Muster in einer Datei).
-  - Ältere Fidelity-Port-Dateien, die das Token-Streaming um wenige Zeilen verlängert hat: `graph/nodes/respond.py` (528), `services/tool_loop.py` (973), `domain/write_confirm.py` (439; Paket 2 +13), Widget `shell/chat-shell.component.ts` (862), `chat-shell.component.html` (323). Die neue Logik liegt in eigenen Modulen (`domain/stream_gate`, `domain/stream_preview`, `domain/tool_pflicht`, `services/token_stream`, `graph/nodes/respond_strom`).
+  - Backend: `graph/nodes/respond_agent.py` (508; 2026-10-01 +22 für den Agent-Schnellantwort-Weg, +10 für Paket 2, 2026-10-03 +9 für das Token-Streaming), `services/agent_loop.py` (635; +16 Token-Streaming, Paket 4 B1 +116 für Frist und Quittungen, Review +12), `services/config_store.py` (316; Paket 4 D1/D4/D5, Paket 4b A4 +2, Paket 4c A2 +5 — Cache-Frische, `put_many`, Konfliktschutz; der bedingte Schreibweg und die Fehlerabbildung liegen schon in `services/config_conflict.py`), `services/write_approval.py` (372; vorher 304, Paket 2 +12 für `merke_abnahme`, Paket 4 A1 +36 für das Aufrufer-Kennzeichen, Befund 2026-10-08 +20 für Hintergrund-Züge — überwiegend Docstrings), `graph/nodes/context_greeting.py` (492; schon vorher 476 und hier nicht geführt, Befund 2026-10-08 +16 — stumme Fehlerwege des Pings), `services/llm_streaming.py` (302; vorher 266, Token-Streaming T1/T2), `services/rag/ingest.py` (321; schon vorher 304 und hier nicht geführt, Paket 4b A3 +14, Paket 4c A1 +3 — die ALT-treuen Umwandler und der Speicherweg in einer Datei; ein Schnitt: die Umwandler nach `services/rag/umwandeln.py`), `domain/pattern_engine.py` (385; schon vorher 374 und hier nicht geführt, Paket 4c Review +11 — Fidelity-Port, Laden und Wählen der Muster in einer Datei).
+  - Ältere Fidelity-Port-Dateien, die das Token-Streaming um wenige Zeilen verlängert hat: `graph/nodes/respond.py` (528), `services/tool_loop.py` (973), `domain/write_confirm.py` (448; Paket 2 +13, Befund 2026-10-08 +1), Widget `shell/chat-shell.component.ts` (862), `chat-shell.component.html` (323). Die neue Logik liegt in eigenen Modulen (`domain/stream_gate`, `domain/stream_preview`, `domain/tool_pflicht`, `services/token_stream`, `graph/nodes/respond_strom`).
   - CI: `.github/workflows/image.yml` (386; Paket 4 L3 samt Review, überwiegend Begründungs-Kommentar).
   - Studio: `schema-form/schema-form.scss` (458; Paket 4c B2 +24), `views/curated-views.ts` (399), `i18n/catalogue/curated.ts` (386), `views/eval-run-detail.component.ts` (315), `schema-form/schema-field.component.ts` (320; Paket 4c B2 +9; seine Vorlage steht mit 300 genau an der Grenze), `i18n/catalogue/area-editor.ts` (306; vorher 299, Paket 4c B2 +7). Schnitte für `schema-form` und `schema-field` stehen im Betriebsmodi-Plan §9.3 (entlang der Bausteine bzw. Feldarten).
 - Der Abnahme-Zug steht im Debug- und Qualitätsprotokoll auch im Agent-Modus als `M18` (Runde-2-Plan, N-5; kosmetisch).

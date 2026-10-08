@@ -49,6 +49,11 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
+from boerdi.domain.hintergrund_zug import (
+    KONTEXT_PING_ERSTLADEN,
+    KONTEXT_PING_FORTSETZUNG,
+    ist_kontext_ping,
+)
 from boerdi.domain.quick_reply_policy import CONTEXT_GREETING_MARKER
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import DEFAULT, Locale, pick_localized, resolve_locale
@@ -76,10 +81,10 @@ _GREETED_CAP = 20
 # ``context_open_initial`` is the very first load, where an empty history is the
 # normal state rather than the sign of a stray ping — so only the first of the
 # two is subject to the history gate. Both are plain strings in a free-form
-# contract field, so neither costs an OpenAPI change.
-_EVENT_CONTINUE = "context_open"
-_EVENT_INITIAL = "context_open_initial"
-_CONTEXT_EVENTS = (_EVENT_CONTINUE, _EVENT_INITIAL)
+# contract field, so neither costs an OpenAPI change. Defined once in
+# ``domain/hintergrund_zug``, which ``setup`` and the chat endpoint read too.
+_EVENT_CONTINUE = KONTEXT_PING_FORTSETZUNG
+_EVENT_INITIAL = KONTEXT_PING_ERSTLADEN
 
 
 def _empty_response(session_id: str) -> ChatResponse:
@@ -357,7 +362,7 @@ async def maybe_context_greeting(
     """See the module docstring. Returns ``None`` only without a ``context_open``
     signal; otherwise always a ChatResponse (greeting or empty)."""
     event = (env.get("page_event") or "").strip().lower()
-    if event not in _CONTEXT_EVENTS:
+    if not ist_kontext_ping(event):
         return None  # no context signal → normal flow
 
     # From here on: always return a ChatResponse (never None).
@@ -434,14 +439,21 @@ async def maybe_context_greeting(
         greeted = greeted[-_GREETED_CAP:]
     entities[_GREETED_KEY] = greeted
 
+    # Persistence must not break the turn — but an unsaved greeting stays silent
+    # (Befund 2026-10-08): without the dedup marker the next ping would greet
+    # again, and a pending write approval would survive a visible message.
     try:
         await update_session(session, req.session_id, entities=entities)
+    except Exception as exc:
+        logger.warning("context greeting persist failed: %s", exc)
+        return _empty_response(req.session_id)
+    try:
         await save_message(
             session, req.session_id, "assistant", greeting,
             debug={"pattern": f"{CONTEXT_GREETING_MARKER}{marker}"},
         )
-    except Exception as exc:  # pragma: no cover — persistence must not break the turn
-        logger.warning("context greeting persist failed: %s", exc)
+    except Exception as exc:  # pragma: no cover — the history line only
+        logger.warning("context greeting message persist failed: %s", exc)
 
     logger.info("context_greeting fired page_kind=%s sig=%s", page_kind, signature)
     return ChatResponse(
@@ -462,7 +474,10 @@ async def context_greeting(ctx: TurnContext, session: AsyncSession) -> TurnConte
     Sets ``ctx.early_response`` when ``maybe_context_greeting`` returns a response
     (greeting or empty) so a ``context_open`` ping never reaches persist/assess.
     Wrapped defensively (ALT wrapped the call-site the same way): a greeting bug
-    must never break the turn — on error the turn falls through to the normal flow.
+    must never break the turn. Unlike ALT, a ping then ends silently instead of
+    falling through to the normal flow (Befund 2026-10-08): it is no message of
+    the person, and an answer to "[context-open]" would be visible without
+    persisting what the turn dropped — a pending write approval among it.
     """
     try:
         resp = await maybe_context_greeting(
@@ -470,7 +485,8 @@ async def context_greeting(ctx: TurnContext, session: AsyncSession) -> TurnConte
         )
     except Exception as err:
         logger.warning("context greeting skipped: %s", err)
-        resp = None
+        ping = ist_kontext_ping(ctx.env.get("page_event"))
+        resp = _empty_response(ctx.req.session_id) if ping else None
     if resp is not None:
         ctx.early_response = resp
     return ctx

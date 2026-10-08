@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatResponse, DebugInfo
 from boerdi.domain import tour as tour_domain
+from boerdi.domain.hintergrund_zug import TOUR_TICK
 from boerdi.domain.tour_i18n import localize as localize_tour
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
@@ -58,7 +59,7 @@ async def tour(ctx: TurnContext, session: AsyncSession) -> TurnContext:
 
     # Stale tick: the frontend flag is still set but the tour is server-side
     # over. Empty answer + tour.active=false → the frontend clears its flag.
-    if action == "tick" and not active:
+    if action == TOUR_TICK and not active:
         ctx.early_response = ChatResponse(
             session_id=req.session_id,
             content="",
@@ -103,7 +104,7 @@ async def tour(ctx: TurnContext, session: AsyncSession) -> TurnContext:
             logger.debug("website-tour trigger check failed", exc_info=True)
 
     handle = (
-        (action == "start") or (action == "tick" and active)
+        (action == "start") or (action == TOUR_TICK and active)
         or is_group_reply or wiederholen
     )
     if not handle:
@@ -141,7 +142,7 @@ async def tour(ctx: TurnContext, session: AsyncSession) -> TurnContext:
         # gemacht, er hat die Tour bestätigt.
         persist_user = True
 
-    elif action == "tick":
+    elif action == TOUR_TICK:
         if step == "group":
             # Page-load on /home/ during group → re-show the group QRs.
             persist_assistant = False

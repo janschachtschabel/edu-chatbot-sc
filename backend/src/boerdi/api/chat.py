@@ -6,7 +6,8 @@ LangGraph turn graph (``graph/build.build_turn_graph``), runs it under the
 per-session lock, and returns ``early_response or response`` after the widget-modes
 postprocess — the same shape ALT's ``_chat_impl`` produced, now graph-driven. Any
 unhandled error inside the turn is converted into a graceful chat bubble, never an
-HTTP 500 (ALT ``chat.py`` top-level safety net).
+HTTP 500 (ALT ``chat.py`` top-level safety net) — for the widget's background
+turns (``domain/hintergrund_zug``) into an empty answer instead.
 
 ``POST /api/chat/stream`` (R4f-2) is the SSE sibling: the same turn, streamed as
 Server-Sent-Events (``connected`` handshake → ``phase`` progress + keepalives →
@@ -32,6 +33,7 @@ from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
 from boerdi.api.session_locks import _get_session_lock, _release_session_lock
 from boerdi.api.sse import sse_turn
 from boerdi.api.turn_auth import adopt_turn_auth_block
+from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.build import build_turn_graph, run_turn
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import bot_text, resolve_locale
@@ -117,6 +119,16 @@ async def chat(
                 err_debug = DebugInfo(
                     pattern="ERROR: unhandled_chat_exception", tools_called=["error"],
                 )
+                if ist_hintergrund_anfrage(req.environment):
+                    # Kontext-Ping und Tour-Tick schickt das Widget von sich aus und
+                    # schluckt ihre Fehler still — eine Blase zeigte es trotzdem an:
+                    # eine Antwort auf eine Frage, die niemand gestellt hat, und ein
+                    # sichtbarer Zug, der einen offenen Schreibvorgang nicht verfallen
+                    # lässt (Befund 2026-10-08). Also stumm und ohne Eintrag im Verlauf.
+                    return ChatResponse(
+                        session_id=req.session_id, content="", follow_up="none",
+                        debug=err_debug,
+                    )
                 _err_lang = resolve_locale(
                     getattr(req.environment, "locale", None))
                 # Saved is what the person sees (audit 2026-09-29, 6.3): the

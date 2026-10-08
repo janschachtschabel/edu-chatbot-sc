@@ -267,13 +267,48 @@ def test_node_no_page_event_leaves_early_response_none(monkeypatch):
 
 
 def test_node_swallows_dispatcher_exception(monkeypatch):
+    # A greeting bug must not break the turn — and a ping is no message of the
+    # person: it ends silently instead of running "[context-open]" through the
+    # normal flow (Befund 2026-10-08, review: a visible answer there would keep
+    # a pending write approval alive).
     async def boom(*a, **k):
         raise RuntimeError("greeting exploded")
 
     monkeypatch.setattr(g, "maybe_context_greeting", boom)
     ctx = _node_ctx(_env(page_context=_collection_ctx()), _state(_resolved()), ["prev"])
     out = asyncio.run(g.context_greeting(ctx, _SESSION))
-    assert out.early_response is None  # a greeting bug must not break the turn
+    assert out.early_response is not None
+    assert out.early_response.content == ""
+    assert not out.early_response.quick_replies
+
+
+def test_node_exception_without_ping_falls_through(monkeypatch):
+    async def boom(*a, **k):
+        raise RuntimeError("greeting exploded")
+
+    monkeypatch.setattr(g, "maybe_context_greeting", boom)
+    ctx = _node_ctx(
+        {"page_event": None, "page_context": _collection_ctx()}, _state(_resolved()), ["prev"])
+    out = asyncio.run(g.context_greeting(ctx, _SESSION))
+    assert out.early_response is None
+
+
+def test_ein_nicht_gespeicherter_gruss_bleibt_stumm(monkeypatch):
+    """Befund 2026-10-08 (Review): Scheitert das Speichern, zeigte der Knoten den
+    Gruß trotzdem. Dann fehlt der Entdopplungs-Merker, und ein offener
+    Schreibvorgang stünde nach einer sichtbaren Nachricht noch in der Zeile."""
+    calls = _patch_io(monkeypatch)
+
+    async def kaputt(session, session_id, **kw):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(g, "update_session", kaputt)
+    resp = asyncio.run(g.maybe_context_greeting(
+        _SESSION, _req(), _env(page_context=_collection_ctx()),
+        _state(_resolved(title="Optik")), ["prev"]))
+    assert resp.content == ""
+    assert not resp.quick_replies
+    assert calls["save"] == []
 
 
 # ── C1-g2b: Begrüßung und Chips je Sprache ──────────────────────────────────
