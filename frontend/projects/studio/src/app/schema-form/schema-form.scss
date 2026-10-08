@@ -126,6 +126,30 @@
   color: var(--st-text-muted);
 }
 
+// Paket 4c, B2: Liste mit Vorgabe — der Satz „nicht gesetzt“ (leer, wenn gesetzt)
+// und der Knopf „Vorgabe wiederherstellen“ in einer Zeile.
+.sf-vorgabe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  margin: var(--st-2) 0;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+// `aria-disabled` statt `disabled`: der Knopf bleibt fokussierbar. Gestrichelt,
+// damit „ohne Wirkung“ nicht nur an der Farbe hängt.
+.sf-add[aria-disabled='true'] {
+  border-style: dashed;
+  color: var(--st-text-muted);
+  cursor: not-allowed;
+
+  &:hover {
+    background: var(--st-panel);
+  }
+}
+
 .sf-input {
   inline-size: 100%;
   min-block-size: 2.25rem; // ≥ 24px target (SC 2.5.8), comfortable at 36px

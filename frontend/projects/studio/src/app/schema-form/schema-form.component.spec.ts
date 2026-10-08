@@ -1013,3 +1013,90 @@ describe('SchemaFormComponent — Liste│Editor für Objekte (ST-3)', () => {
   });
 });
 
+
+describe('SchemaFormComponent — Vorgabe oder leer (Paket 4c, B2)', () => {
+  // „Nie gesetzt“ (es gilt die Vorgabe) und „leer“ (ausdrücklich keine) sahen
+  // gleich aus: „Noch keine Einträge.“ Wer den letzten Wissensbereich eines
+  // Musters entfernte, schaltete das Erben ab, ohne es zu sehen (Paket 4, C6).
+  const BEREICHE: JsonSchema = {
+    type: 'object',
+    properties: {
+      rag_areas: {
+        anyOf: [{ type: 'array', items: { type: 'string', 'x-catalog': 'rag_areas' } },
+                { type: 'null' }],
+        default: null,
+        'x-vorgabe': true,
+      },
+    },
+  };
+  const zustand = (el: HTMLElement): HTMLElement | null =>
+    el.querySelector<HTMLElement>('.sf-vorgabe [role="status"]');
+  const knopf = (el: HTMLElement): HTMLButtonElement =>
+    el.querySelector<HTMLButtonElement>('.sf-vorgabe button')!;
+
+  it('sagt „nicht gesetzt“, solange die Vorgabe gilt — und nicht „keine Einträge“', async () => {
+    const h = await mount(BEREICHE, { rag_areas: null });
+    expect(zustand(h.el)?.textContent).toContain('Nicht gesetzt');
+    expect(h.el.textContent).not.toContain('Noch keine Einträge');
+    expect(h.el.querySelector('.sf-count')).toBeNull(); // „(0)“ stünde neben „es gilt die Vorgabe“
+    expect(knopf(h.el).getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('zeigt die geleerte Liste als leer und bietet die Vorgabe an', async () => {
+    const h = await mount(BEREICHE, { rag_areas: [] });
+    expect(zustand(h.el)?.textContent).toBe(''); // leer bereit, für die nächste Ansage
+    expect(h.el.textContent).toContain('Noch keine Einträge');
+    expect(h.el.querySelector('.sf-count')?.textContent).toBe('(0)');
+    expect(knopf(h.el).getAttribute('aria-disabled')).toBe('false');
+    expect(knopf(h.el).getAttribute('aria-label')).toContain('rag_areas');
+  });
+
+  it('stellt die Vorgabe wieder her — und tut nichts, solange sie schon gilt', async () => {
+    const h = await mount(BEREICHE, { rag_areas: ['a'] });
+    knopf(h.el).click();
+    await h.fixture.whenStable();
+    // Review 4c: Der Schlüssel fällt weg, statt `null` zu werden. Fehlend liest
+    // die Laufzeit als Vorgabe; `sources: null` legte die Musterwahl lahm.
+    expect(h.emitted.at(-1)).toEqual({});
+
+    const g = await mount(BEREICHE, { rag_areas: null });
+    knopf(g.el).click();
+    await g.fixture.whenStable();
+    expect(g.emitted).toEqual([]);
+  });
+
+  it('bleibt in derselben Region — von gesetzt über leer zurück zur Vorgabe', async () => {
+    // Review 4c: Angesagt wird das Zurücksetzen nur, weil die Region bleibt;
+    // eine Region, die mit ihrem Text entsteht, sagen Screenreader oft nicht an.
+    const h = await mount(BEREICHE, { rag_areas: ['a'] });
+    const region = zustand(h.el);
+    expect(region?.textContent).toBe('');
+    h.el.querySelector<HTMLButtonElement>('.sf-chip-remove')!.click();
+    await h.fixture.whenStable();
+    expect(h.emitted.at(-1)).toEqual({ rag_areas: [] });
+    h.fixture.componentRef.setInput('value', h.emitted.at(-1));
+    await h.fixture.whenStable();
+    expect(h.el.textContent).toContain('Noch keine Einträge');
+    expect(knopf(h.el).getAttribute('aria-disabled')).toBe('false');
+
+    knopf(h.el).click();
+    await h.fixture.whenStable();
+    h.fixture.componentRef.setInput('value', h.emitted.at(-1));
+    await h.fixture.whenStable();
+    expect(zustand(h.el)).toBe(region);
+    expect(region!.textContent).toContain('Nicht gesetzt');
+    expect(knopf(h.el).getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('zeigt nichts davon an Listen ohne den Hinweis', async () => {
+    const OHNE: JsonSchema = {
+      type: 'object',
+      properties: {
+        tools: { anyOf: [{ type: 'array', items: { type: 'string' } }, { type: 'null' }], default: null },
+      },
+    };
+    const h = await mount(OHNE, { tools: null });
+    expect(h.el.querySelector('.sf-vorgabe')).toBeNull();
+    expect(h.el.textContent).toContain('Noch keine Einträge');
+  });
+});

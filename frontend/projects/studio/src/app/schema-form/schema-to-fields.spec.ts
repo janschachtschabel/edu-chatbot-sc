@@ -616,3 +616,14 @@ describe('rootField — Katalog-Schlüssel der Feldtexte (ST-1)', () => {
     expect(kernregel.textKey).toMatch(/^feld\.[A-Za-z]+\.core_rule$/);
   });
 });
+
+describe('rootField — Vorgabe oder leer (Paket 4c, B2)', () => {
+  it('trägt den Vorgabe-Hinweis an `sources` und `rag_areas`, nicht an `tools`', () => {
+    // Nur dort heißt „nicht gesetzt“ etwas anderes als „leer“ (der Wächter
+    // `test_config_vorgabe_hint.py` hält die Liste im Backend).
+    const kopf = child(rootField(AREA_SCHEMAS['03-patterns']), 'frontmatter');
+    expect(child(kopf, 'sources').vorgabe).toBe(true);
+    expect(child(kopf, 'rag_areas').vorgabe).toBe(true);
+    expect(child(kopf, 'tools').vorgabe).toBeUndefined();
+  });
+});

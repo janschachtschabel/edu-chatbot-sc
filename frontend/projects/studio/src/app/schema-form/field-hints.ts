@@ -96,6 +96,12 @@ export function primary(raw: JsonSchema, node: JsonSchema | null): Pick<SchemaFi
   return (raw['x-primary'] ?? node?.['x-primary']) ? { primary: true } : {};
 }
 
+/** „Nicht gesetzt“ heißt hier: es gilt die Vorgabe (Paket 4c, B2, `x-vorgabe`).
+ *  Der Hinweis steht neben `anyOf` an der Eigenschaft, nicht im aufgelösten Zweig. */
+export function vorgabe(raw: JsonSchema): Pick<SchemaField, 'vorgabe'> {
+  return raw['x-vorgabe'] ? { vorgabe: true } : {};
+}
+
 /** The bounds of a number, read from the RESOLVED node like `stringKind`. */
 export function bounds(node: JsonSchema): Pick<SchemaField, 'minimum' | 'maximum'> {
   return {

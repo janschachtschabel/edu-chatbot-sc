@@ -103,6 +103,10 @@ export const AREA_EDITOR: CataloguePart = {
      *  stünde in der Legende und im Knopf-Namen eine Lücke. */
     'schemaField.fallbackGroup': 'Einträge',
     'schemaField.emptyList': 'Noch keine Einträge.',
+    // Paket 4c, B2: Listen, bei denen „nicht gesetzt“ die Vorgabe heißt (`x-vorgabe`).
+    'schemaField.unset': 'Nicht gesetzt – es gilt die Vorgabe.',
+    'schemaField.restoreDefault': 'Vorgabe wiederherstellen',
+    'schemaField.restoreDefaultFor': 'Vorgabe wiederherstellen: {group}',
     'schemaField.remove': 'Entfernen',
     'schemaField.removeIndex': 'Eintrag {index} aus {group} entfernen',
     'schemaField.removeKey': 'Eintrag {key} entfernen',
@@ -242,6 +246,9 @@ export const AREA_EDITOR: CataloguePart = {
       + 'as JSON so that nothing is lost silently.',
     'schemaField.fallbackGroup': 'Entries',
     'schemaField.emptyList': 'No entries yet.',
+    'schemaField.unset': 'Not set – the default applies.',
+    'schemaField.restoreDefault': 'Restore default',
+    'schemaField.restoreDefaultFor': 'Restore default: {group}',
     'schemaField.remove': 'Remove',
     'schemaField.removeIndex': 'Remove entry {index} from {group}',
     'schemaField.removeKey': 'Remove entry {key}',

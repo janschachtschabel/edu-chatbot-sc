@@ -73,4 +73,6 @@ export interface JsonSchema {
   readonly 'x-fixed'?: boolean;
   /** Der Inhalt des Bereichs (ST-4) -> sein Abschnitt steht vorn und offen. */
   readonly 'x-primary'?: boolean;
+  /** Paket 4c, B2 (`Vorgabe()`): bei dieser Liste heißt `null` „es gilt die Vorgabe“. */
+  readonly 'x-vorgabe'?: boolean;
 }

@@ -118,16 +118,19 @@ export class McpRegistryComponent {
   /**
    * Das Ergebnis des Abgleichs als ein Satz, für die dauerhafte Live-Region
    * (Paket 4b, B2). Sichtbar steht es weiter bei seinen Listen: Die Absätze
-   * dort entstehen mit dem Abruf und würden nicht angesagt.
+   * dort entstehen mit dem Abruf und würden nicht angesagt. Meldet der Server
+   * kein Werkzeug, steht das sichtbar davor — und so auch hier (Paket 4c, B1).
    */
   readonly abgleichAnsage = computed(() => {
-    if (this.discoverError() || !this.found()) return '';
-    if (!this.comparedServer()) return this.t('mcp.compare.unregistered');
+    const tools = this.found();
+    if (this.discoverError() || !tools) return '';
+    const vorweg = tools.length === 0 ? `${this.t('mcp.discover.none')} ` : '';
+    if (!this.comparedServer()) return vorweg + this.t('mcp.compare.unregistered');
     const diff = this.divergence();
     if (!diff) return '';
-    return diff.missing.length > 0
+    return vorweg + (diff.missing.length > 0
       ? `${this.t('mcp.compare.missing')} ${diff.missing.join(', ')}`
-      : this.t('mcp.compare.match');
+      : this.t('mcp.compare.match'));
   });
 
   private readonly saved = signal('[]');
