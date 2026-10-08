@@ -17,7 +17,6 @@ write-through from ``put``.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from collections.abc import Callable, Iterable
 from typing import Any
@@ -26,7 +25,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from boerdi.db.notify import ConfigChangeListener
-from boerdi.services.config_conflict import FIRST_VERSION, als_bereichsfehler, write_checked
+from boerdi.services.config_conflict import (
+    FIRST_VERSION,
+    als_bereichsfehler,
+    als_json,
+    write_checked,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +230,7 @@ class ConfigStore:
         """
         if expected_version is None and not create_only:
             return (await self.put_many({area: data}, updated_by=updated_by))[area]
-        payload = json.dumps(data, ensure_ascii=False)
+        payload = als_json(area, data)
         async with self._engine.begin() as conn:
             with als_bereichsfehler(area):
                 version = await write_checked(
@@ -251,12 +255,13 @@ class ConfigStore:
         third failed. Returns the new version per written area. The NOTIFY
         trigger fires per row; Postgres delivers at commit.
         """
-        payloads = {area: json.dumps(data, ensure_ascii=False) for area, data in items.items()}
         gone = list(delete)
+        ganz = len(items) + len(gone) > 1  # mehr als ein Bereich: alles fällt zurück
+        payloads = {area: als_json(area, data, ganzer_vorgang=ganz) for area, data in items.items()}
         versions: dict[str, int] = {}
         async with self._engine.begin() as conn:
             for area, payload in payloads.items():
-                with als_bereichsfehler(area, ganzer_vorgang=len(payloads) + len(gone) > 1):
+                with als_bereichsfehler(area, ganzer_vorgang=ganz):
                     versions[area] = (
                         await conn.execute(
                             _UPSERT, {"area": area, "data": payload, "updated_by": updated_by}

@@ -124,12 +124,23 @@ def _load_config_tables() -> tuple[
 
 # ── Pattern loading ──────────────────────────────────────────
 
+#: Felder, deren Vorgabe selbst ``None`` ist — nur dort bleibt ein ``null`` stehen.
+_NONE_ERLAUBT = frozenset(
+    name for name, feld in PatternDef.model_fields.items() if feld.default is None
+)
+
+
 def _pattern_from_dict(d: dict[str, Any]) -> PatternDef:
     """Create a PatternDef from a frontmatter dict.
 
     Welle E v4: deprecated Gate-/Signal-/Page-Bonus-Felder werden still
     ignoriert falls noch in MDs vorhanden (Backward-Compat).
+
+    ``null`` heißt wie ein fehlender Schlüssel: es gilt die Vorgabe (Review
+    Paket 4c). Das Speichern nimmt ``null`` an, ``PatternDef`` kannte es nur bei
+    ``rag_areas`` — ein ``tools:`` ohne Wert legte sonst die ganze Musterwahl lahm.
     """
+    d = {k: v for k, v in d.items() if v is not None or k in _NONE_ERLAUBT}
     # Ensure label falls back to id if missing
     if "label" not in d:
         d = {**d, "label": d["id"]}

@@ -6,7 +6,7 @@ from typing import Annotated
 
 from pydantic import field_validator
 
-from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices, Textarea
+from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices, Textarea, Vorgabe
 
 #: Kennungen, die kein Muster tragen darf (Befundliste §2, ST-5 Befund 4).
 #: ``AGENT`` kennzeichnet die Züge der Agent-Schleife
@@ -45,12 +45,14 @@ class PatternFrontmatter(AreaModel):
     output_mode: str | None = None
     # Die drei Quellen, auf die der Code prüft (`"mcp" in sources` in
     # response_tool_selection/respond, `"rag"` im RAG-Gate). Ein vertippter
-    # vierter Wert fällt still durch — deshalb hier eine Auswahl.
-    sources: list[Annotated[str, Choices("llm", "mcp", "rag")]] | None = None
+    # vierter Wert fällt still durch — deshalb hier eine Auswahl. Ohne Angabe
+    # gilt `["mcp"]` (`PatternDef`), eine leere Liste heißt keine Quelle.
+    sources: Annotated[list[Annotated[str, Choices("llm", "mcp", "rag")]] | None, Vorgabe()] = None
     # Die Auszeichnung sitzt am EINTRAG: gewählt wird eine Zeile, nicht die
     # Liste. `rag_areas` deckt sich mit den Schlüsseln von
-    # `05-knowledge/rag-config`, `tools` mit der Server-Registry.
-    rag_areas: list[Annotated[str, Catalog("rag_areas")]] | None = None
+    # `05-knowledge/rag-config`, `tools` mit der Server-Registry. Ohne Angabe
+    # gelten alle Bereiche (bei `rag` in `sources`), eine leere Liste heißt keine.
+    rag_areas: Annotated[list[Annotated[str, Catalog("rag_areas")]] | None, Vorgabe()] = None
     tools: list[Annotated[str, Catalog("tools")]] | None = None
     precondition_slots: list[Annotated[str, Catalog("entities")]] | None = None
     card_text_link_required: bool | None = None

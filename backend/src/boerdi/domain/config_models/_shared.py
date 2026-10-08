@@ -82,6 +82,22 @@ def Primary() -> Any:  # noqa: N802 — s.o.
     return Field(json_schema_extra={"x-primary": True})
 
 
+def Vorgabe() -> Any:  # noqa: N802 — s.o.
+    """Eine Liste, bei der „nicht gesetzt“ etwas anderes heißt als „leer“ (Paket 4c, B2).
+
+    Fehlt der Schlüssel (oder steht ``null``), gilt die Vorgabe; ``[]`` heißt:
+    keine. Das Studio zeigt, welcher Fall vorliegt, und stellt die Vorgabe wieder
+    her, indem es den Schlüssel entfernt (``null`` liest die Laufzeit ebenso,
+    ``pattern_engine._pattern_from_dict``). Die Auszeichnung gehört an die LISTE
+    (anders als ``Catalog``)::
+
+        rag_areas: Annotated[list[Annotated[str, Catalog("rag_areas")]] | None, Vorgabe()] = None
+
+    Der Wächter ``tests/test_config_vorgabe_hint.py`` führt die Liste.
+    """
+    return Field(json_schema_extra={"x-vorgabe": True})
+
+
 def Marker(target: str) -> Any:  # noqa: N802 — s.o.
     """Eine Liste, die EINEN ihrer Einträge hervorhebt; der Wert steht im
     Nachbarfeld ``target`` (ST-2i, Plan 2026-09-26 §9.3).

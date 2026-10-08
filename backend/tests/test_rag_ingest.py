@@ -237,6 +237,23 @@ def test_ein_gescheiterter_abruf_ist_ein_umwandlungsfehler(monkeypatch):
     assert built == []
 
 
+def test_ein_fehlendes_markitdown_beim_url_import_ist_ein_umwandlungsfehler(monkeypatch):
+    """Paket 4c, A1: wie beim Datei-Weg ein Umwandlungsfehler statt einer 500 —
+    und ohne Abruf, denn umwandeln ließe sich ohnehin nichts."""
+    import sys
+
+    from boerdi.services import url_safety
+
+    def _kein_abruf(*args, **kwargs):
+        raise AssertionError("ohne markitdown darf nichts abgerufen werden")
+
+    monkeypatch.setattr(url_safety, "hole_begrenzt", _kein_abruf)
+    monkeypatch.setitem(sys.modules, "markitdown", None)  # Import scheitert
+    out = asyncio.run(ri.convert_url_to_markdown("http://8.8.8.8/seite"))
+    assert out.startswith("Fehler beim Konvertieren (ImportError): ")
+    assert isinstance(out, ri.Umwandlungsfehler)
+
+
 def test_die_dns_pruefung_laeuft_nicht_im_event_loop(monkeypatch):
     """Paket 4, C5 (externes Audit F17c): ``getaddrinfo`` blockierte den
     Event-Loop — und damit jeden Chat-Zug auf diesem Worker, solange ein

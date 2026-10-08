@@ -150,10 +150,13 @@ async def convert_url_to_markdown(url: str) -> str:
     """
     import io
 
-    from markitdown import MarkItDown, StreamInfo
-
     from boerdi.services import url_safety
 
+    try:  # wie beim Datei-Weg: melden statt werfen, und dann ohne Abruf (Paket 4c, A1)
+        from markitdown import MarkItDown, StreamInfo
+    except ImportError as e:
+        logger.exception("markitdown ImportError beim URL-Import — Paket im Image prüfen")
+        return Umwandlungsfehler(f"Fehler beim Konvertieren (ImportError): {e}")
     try:
         await asyncio.to_thread(url_safety.assert_public_url, url)
     except url_safety.UnsafeUrlError as e:

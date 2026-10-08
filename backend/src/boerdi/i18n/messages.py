@@ -57,12 +57,13 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         # einer Transaktion, die Sammel-Routen einen Bereich je Transaktion.
         "config.notStorable": (
             "Der Bereich {area} enthält einen Wert, den die Datenbank nicht speichern "
-            "kann, etwa ein Nullzeichen. Dieser Bereich wurde nicht gespeichert."
+            "kann, etwa ein Nullzeichen oder ein Datum ohne Anführungszeichen. Dieser "
+            "Bereich wurde nicht gespeichert."
         ),
         "config.notStorableAll": (
             "Der Bereich {area} enthält einen Wert, den die Datenbank nicht speichern "
-            "kann, etwa ein Nullzeichen. Der ganze Vorgang wurde verworfen, geschrieben "
-            "wurde nichts."
+            "kann, etwa ein Nullzeichen oder ein Datum ohne Anführungszeichen. Der ganze "
+            "Vorgang wurde verworfen, geschrieben wurde nichts."
         ),
         "mcp.serverRejected": "MCP-Server '{id}': {error}",
         "mcp.connectFailed": "Verbindung fehlgeschlagen: {error}",
@@ -170,11 +171,12 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "config.exists": "A document with the id {area} already exists.",
         "config.notStorable": (
             "Area {area} holds a value the database cannot store, such as a NUL "
-            "character. This area was not saved."
+            "character or an unquoted date. This area was not saved."
         ),
         "config.notStorableAll": (
             "Area {area} holds a value the database cannot store, such as a NUL "
-            "character. The whole operation was discarded; nothing was written."
+            "character or an unquoted date. The whole operation was discarded; "
+            "nothing was written."
         ),
         "mcp.serverRejected": "MCP server '{id}': {error}",
         "mcp.connectFailed": "Connection failed: {error}",

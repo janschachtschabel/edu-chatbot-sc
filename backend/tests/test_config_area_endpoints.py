@@ -112,6 +112,19 @@ def test_file_write_traversal_400(cfg) -> None:
     assert r.status_code == 400
 
 
+def test_file_write_with_a_value_json_cannot_hold_is_400_naming_the_area(cfg) -> None:
+    """Paket 4c, A2: an unquoted YAML date in an area without a model reached
+    ``json.dumps`` and ended as a 500 that named no area."""
+    client, _ = cfg
+    body = {"path": "01-base/rag-retrieval.yaml", "content": "stand: 2026-10-08\n"}
+    r = client.put("/api/config/file", json=body, headers=_AUTH)
+    assert r.status_code == 400, r.text
+    assert "01-base/rag-retrieval" in r.json()["detail"]
+    assert "Datum" in r.json()["detail"]
+    assert client.get("/api/config/file", params={"path": body["path"]},
+                      headers=_AUTH).status_code == 404
+
+
 # ── welcome ────────────────────────────────────────────────────────
 def test_welcome_get_default_and_put_roundtrip(cfg) -> None:
     client, seed = cfg
