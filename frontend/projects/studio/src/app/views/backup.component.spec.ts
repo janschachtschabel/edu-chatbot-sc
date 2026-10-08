@@ -194,6 +194,7 @@ describe("BackupComponent", () => {
 
   it("zeigt den Satz des Backends, wenn die ZIP abgelehnt wird", async () => {
     const h = await mount();
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
     h.fixture.componentInstance.onFile({
       target: { files: [new File(["x"], "kaputt.zip")] },
     } as unknown as Event);
@@ -210,5 +211,9 @@ describe("BackupComponent", () => {
     expect(h.el.querySelector('[role="alert"]')!.textContent).toContain(
       "Keine gültige ZIP-Datei.",
     );
+    // Zweites Review 4b: der Fehler steht nur im Alarm, die Status-Region
+    // bleibt leer — sonst wird er doppelt angesagt.
+    expect(h.el.querySelector(".op-msg[role='status']")).toBe(region);
+    expect(region!.textContent).toBe("");
   });
 });

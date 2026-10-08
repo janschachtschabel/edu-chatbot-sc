@@ -147,6 +147,28 @@ describe("FactoryPanelComponent", () => {
     expect(region!.textContent).toContain("35");
   });
 
+  it("meldet einen Fehlschlag nur als Alarm, die Status-Region bleibt leer", async () => {
+    // Zweites Review 4b: Landete der Fehler auch in der Status-Region, würde
+    // er doppelt angesagt.
+    const h = await mount({
+      exists: true,
+      created_at: "2026-07-20T09:30:00Z",
+      label: "x",
+    });
+    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    await click(h, "Zurücksetzen");
+    await click(h, "Ja, zurücksetzen");
+    h.http
+      .expectOne(`${FACTORY}/restore`)
+      .flush({ detail: "kaputt" }, { status: 500, statusText: "Server Error" });
+    await settle(h);
+    const alarm = h.el.querySelector(".op-msg--error[role='alert']")?.textContent ?? "";
+    expect(alarm).toContain("⚠");
+    expect(alarm).toContain("kaputt");
+    expect(h.el.querySelector(".op-msg[role='status']")).toBe(region);
+    expect(region!.textContent).toBe("");
+  });
+
   it("lädt einen Werksstand erst nach Rückfrage hoch", async () => {
     // Same consequence as "Aus Live-Stand sichern": the stored baseline is
     // replaced and the old one is gone. Both are confirmed, so the rule is

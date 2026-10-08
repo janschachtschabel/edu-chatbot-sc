@@ -209,12 +209,16 @@ describe('PrivacyPurgeComponent (ST-6)', () => {
 
   it('meldet einen Fehlschlag als Alarm und lässt die Größe stehen', async () => {
     const h = await mount();
+    const region = h.el.querySelector<HTMLElement>('.op-msg[role="status"]');
     await armFully(h, 'Gesprächsinhalte', 'Gesprächsinhalte löschen …');
     h.http.expectOne((r) => r.url === PURGE)
       .flush({ detail: 'kaputt' }, { status: 500, statusText: 'Server Error' });
     await settle(h.fixture);
     h.http.expectNone(STATS_URL);
     expect(h.el.querySelector('[role="alert"]')?.textContent).toContain('⚠');
+    // Zweites Review 4b: nur im Alarm, die Status-Region bleibt leer.
+    expect(h.el.querySelector('.op-msg[role="status"]')).toBe(region);
+    expect(region!.textContent).toBe('');
   });
 
   it('sagt es, wenn es nichts zu löschen gab', async () => {
