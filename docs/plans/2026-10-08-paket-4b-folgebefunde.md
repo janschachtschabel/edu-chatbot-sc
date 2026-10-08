@@ -108,7 +108,7 @@ Dieselbe Schwäche wie F-M6: Eine Live-Region, die mit ihrem Text entsteht, sage
 - **Nachweis:** `pip-audit` meldet wie in der CI „No known vulnerabilities found“, das Lizenz-Gate ist grün. Die volle Backend-Suite läuft auf den neuen Versionen grün: 5180 passed, 4 skipped. `ruff` ist sauber, der OpenAPI-Vertrag unverändert.
 - **Nebenbefund, nicht in diesem Paket:** In einem von drei vollen Läufen standen nach der Zusammenfassung OTel-Exportfehler im Log.
   - Ursache: `test_otel.py` setzt den OTLP-Endpunkt und ruft `create_app()`. Das richtet einen prozessweiten Exporter auf `localhost:4318` ein, wo nichts lauscht, und er bleibt für den Rest des Laufs aktiv.
-  - Älter als 4b, das Ergebnis bleibt grün. Als eigene Aufgabe vorgeschlagen.
+  - Älter als 4b, das Ergebnis bleibt grün. Als eigene Aufgabe vorgeschlagen; erledigt, siehe „OTel-Exporter aus `test_otel.py`“ weiter unten.
 
 ### Review mit frischem Blick (2026-10-08)
 Ein frischer Prüfer las den ganzen Diff gegen main. Er fand keinen Blocker und nichts Schweres, aber vier kleine Befunde. Alle vier sind am Code bestätigt und behoben, jeweils Test zuerst.
@@ -145,3 +145,68 @@ Ein frischer Prüfer las den ganzen Diff gegen main. Er fand keinen Blocker und 
 - **Upload:** Branch `paket-4b-folgebefunde`, PR #12, Commits nach Bereichen (Backend, Studio, Frontend-Werkzeuge, Doku). Dazu kamen die Backend-Abhängigkeiten aus der PR-CI (pip-audit, siehe oben) und dieser Nachtrag. Der Abgleich zeigt 0 Abweichungen. Den Merge macht der Nutzer.
 - **Testcontainer:** aus dem Branch gebaut (`edu-chatbot-sc:paket4b-lokal`), die Datenbank steht auf `0006` (Kopf).
   - Live geprüft: `/studio/` ist `no-cache`, auch beim Rückfall und bei 304. Die gehashte Stildatei ist `immutable`, eine fehlende `.js` ergibt 404.
+
+### OTel-Exporter aus `test_otel.py` · Nebenbefund, nach dem Abschluss erledigt (2026-10-08)
+- **Befund am Code:** `test_spans_emitted_when_configured` setzte `OTEL_EXPORTER_OTLP_ENDPOINT`. Damit richtete schon `create_app()` einen prozessweiten TracerProvider mit einem OTLP-Exporter auf `localhost:4318/v1/traces` ein, dazu die HTTPX- und SQLAlchemy-Instrumentierung. Nichts nahm das zurück.
+  - Spätere Tests reihten Spans für diesen Endpunkt ein, der Worker versuchte alle 5 s den Export. Ob beim Prozessende noch Spans in der Schlange lagen, hing am Timing der letzten Tests; lagen welche dort, versuchte der atexit-Flush des Providers den Export hinter der Zusammenfassung. Daher nur in einem von drei Läufen.
+  - Nachgestellt mit einer Probe direkt hinter `test_otel.py`, die eine SQLite-Abfrage macht: Die zwei Logzeilen kamen in beiden Läufen, das Prozessende verzögerte sich um rund 12 s.
+  - Der Test selbst dauerte 12–13 s. `force_flush()` wartete auf den OTLP-Export samt Wiederholungen, denn `BatchProcessor.force_flush` hält seine Frist nicht ein (open-telemetry/opentelemetry-python#4568).
+  - Der Behelf `OTEL_TRACES_EXPORTER=none` aus älteren Logs wirkt hier nicht: Nur die Auto-Konfiguration des SDK liest ihn, `setup_otel` baut den Exporter selbst.
+- **Umsetzung:**
+  - `test_otel.py`: Der Test setzt keinen Endpunkt mehr, konfiguriert ist er über den In-Memory-Exporter. Die Zusicherungen bleiben (Spans, `service.name` `boerdi-backend`, ein `/health`-Span); der Endpunkt trug zu keiner bei.
+  - `conftest.py`: neue autouse-Fixture `_reset_otel`. Nach jedem Test nimmt sie die HTTPX- und SQLAlchemy-Instrumentierung zurück, fährt den Provider herunter (das meldet auch den atexit-Flush ab) und setzt `otel._provider` auf `None`.
+  - Der globale TracerProvider bleibt gesetzt, OTel erlaubt das nur einmal je Prozess. Ein zweites `setup_otel` warnt „Overriding of current TracerProvider is not allowed“ und arbeitet trotzdem, weil es den neuen Provider den Instrumentierungen ausdrücklich übergibt. Belegt mit `--keep-duplicates`: beide Tests zweimal im selben Prozess, grün.
+  - `test_otel_live.py` (läuft nur mit Jaeger) hatte dasselbe Muster ohne Aufräumen; die Fixture deckt ihn mit ab. Er lief nicht, weil kein Jaeger lief. Nebenbei hängt er zwei OTLP-Exporter an (`create_app()` und sein eigenes `setup_otel`), jeder Span geht also zweimal an Jaeger. Für seine Zusicherung ist das harmlos, geändert ist es nicht.
+- **Nachweis:**
+  - Probe vorher: Provider mit OTLP- und In-Memory-Prozessor, beide Worker laufen, atexit-Flush angemeldet, HTTPX und SQLAlchemy instrumentiert. Nach „3 passed“ standen die zwei Exportfehler.
+  - Probe nachher: `otel._provider` ist `None`, nichts ist instrumentiert, nach der Zusammenfassung steht nichts. Der Test dauert 0,02 s.
+  - `uv run pytest -q tests/test_otel.py`: 2 passed. `ruff` ist sauber.
+  - Volle Suite: 5180 passed, 4 skipped in 22 min 16 s (vorher rund 22 min; die 12 s des Tests gehen in der Streuung unter). Im ganzen Log steht keine OTel-Zeile, nach der Zusammenfassung nichts, und das Prozessende kommt ohne Verzögerung. Unter den 15 langsamsten Tests (ab 8,45 s) steht der OTel-Test nicht mehr.
+  - Während des Laufs (08:42–08:45) kamen die Korrekturen aus dem zweiten Review dazu (Abschnitt unten). Gesammelt war vorher; belegt ist also PR #12 mit dieser Änderung, die R2-Korrekturen nicht.
+
+### Zweites Review vor dem Merge (2026-10-08)
+Zwei frische Prüfer (Backend, Studio) haben den PR gelesen. Dazu kamen Browser-Tests gegen den Testcontainer, mit Anmeldung, die der Nutzer freigegeben hat.
+
+**Browser-Tests (live):**
+- Alle Punkte A1–A4 und B1–B3 verhalten sich wie geplant.
+- Dazu D5 aus Paket 4: Konflikt in zwei Tabs. Der Entwurf bleibt, der Fokus geht auf den Hinweis, „Neu laden“ verwirft.
+
+Kein Blocker. Vier kleine Befunde und eine Kleinigkeit sind behoben:
+- **R2-1 · 300-Zeilen-Regel:**
+  - A3 verlängerte `api/rag.py` auf 301 und `services/rag/ingest.py` auf 318 Zeilen, keine stand in §5.
+  - `rag.py` ist mit einem knapperen Docstring wieder bei 299.
+  - `ingest.py` (schon vorher 304) steht jetzt in §5, mit Schnittvorschlag: die Umwandler in eine eigene Datei.
+- **R2-2 · Durchreich-Zweig ohne Test:** Andere Datenbankfehler bleiben eine 500, aber kein Test hielt das fest.
+  - Neu ist `tests/test_config_conflict.py`, ohne Datenbank. `22P02` wird `BereichNichtSpeicherbar` samt SQLSTATE; `40P01`, `23505`, `08006` und ein fehlender Code reichen unverändert durch.
+  - Gegenprobe: Mit dem Präfix „2“ statt „22“ wird 1 Test rot, ohne jede Prüfung 4.
+- **R2-3 · kein Log:** Die 400 verschluckte die Ursache; vorher stand die 500 samt Traceback im Log.
+  - Die Ausnahme trägt jetzt `sqlstate`. Der Handler schreibt `config area '<Bereich>' not storable (SQLSTATE <Code>)` als Warnung, nie den Inhalt.
+  - **Tests:** einer ohne Datenbank für den Handler; der Formularweg prüft mit echter Datenbank `22P05` im Log und keinen Inhalt.
+  - Gegenprobe (Warnung → Debug): 2 rot.
+- **R2-4 · Fehlerfall der Panels:** Die Regel „Fehler nur im Alarm, Status-Region leer“ war nur in `backup-tools` getestet.
+  - Jetzt prüfen alle fünf Panels (Backup, Werksstand, Datenschutz, Seed, Snapshots) den Fehlerfall: die Region ist dieselbe und leer, der Fehler steht im Alarm. Drei bestehende Fehlertests sind ergänzt, zwei sind neu.
+  - Gegenprobe: Mit `@if (true)` statt `@if (msg.kind === 'ok')` in allen fünf Vorlagen sind genau die fünf Fehlertests rot.
+- **R2-7 · Testaufbau doppelt:** Der Eval-Vergleich-Test nutzt `mount()`, statt es nachzubauen.
+
+**Bewusst gelassen, Kleinigkeiten:**
+- **R2-5:** Bei den ALT-Sammelrouten (nur API) speichern auch die Bereiche nach dem fehlerhaften nicht. Die Meldung nennt nur den einen. Für das Studio, das nur einzeln speichert, ist sie so am klarsten.
+- **R2-6:** Die MCP-Ansage folgt der ungespeicherten Liste wie der sichtbare Text. Sie ändert sich also auch beim Tippen, wenn man die geprüfte Adresse bearbeitet.
+
+**Älter als 4b**, in die Befundliste übernommen:
+- Der URL-Import lädt `markitdown` außerhalb des `try`.
+- `json.dumps` läuft vor `als_bereichsfehler`; ein Wert, der kein JSON ist, wird eine 500 ohne Bereich.
+- „Server erreichbar, meldet aber kein Werkzeug“ wird nicht angesagt.
+
+**Testinstanz:** Die MCP-Registry erwartet `search_skill`. Der installierte WLO-MCP-Server läuft aber nur mit Registry (`WLO_DISABLE_SKILL_SEARCH`) und bietet `search_skill` nicht an. Das ist eine Konfigurationsfrage, kein Code-Fehler.
+
+**Prüfung der Korrekturen** durch einen dritten frischen Prüfer (Diff der Korrekturen samt OTel-Änderungen): kein Blocker, ein kleiner Befund, zwei Kleinigkeiten, alle behoben.
+- **R3-1 · Endpunkt aus der Shell:**
+  - Die Suite entfernt nur Schlüssel aus `backend/.env`. Ist `OTEL_EXPORTER_OTLP_ENDPOINT` in der Shell gesetzt und lauscht dort niemand, wartete `_reset_otel` beim Herunterfahren je Test 9–14 s.
+  - Nachgestellt: `test_studio_bff.py` brauchte damit 296 s für 34 Tests.
+  - `conftest.py` entfernt die Variable jetzt auf Modulebene, vor dem Einsammeln. Danach: 18,7 s für dieselben Tests samt `test_otel.py`, der langsamste 0,56 s.
+- **R3-2:** Der Docstring von `_reset_otel` versprach eine Ersparnis, die nie eintritt; jetzt heißt die Prüfung „defensiv“.
+- **R3-3:** In diesem Log hieß es „mittlere“ statt „kleine“ Befunde, und ein Verweis auf das „Ende des Logs“ stimmte nicht mehr.
+- **Nachweis:**
+  - Volle Backend-Suite auf dem Stand mit R2 und den OTel-Änderungen: 5186 passed, 4 skipped (sechs neue Tests). Keine OTel-Zeile, `ruff` sauber, OpenAPI unverändert.
+  - Frontend: ui 867, widget 71, studio 1383, je zweimal. lint und alle `check:*` grün.
+  - Die Korrektur R3-1 ist mit gesetzter und ohne gesetzte Variable gezielt nachgeprüft; die CI fährt die volle Suite.
