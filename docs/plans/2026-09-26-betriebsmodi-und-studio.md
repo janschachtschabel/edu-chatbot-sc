@@ -776,9 +776,9 @@ damit alle Pakete aus §9.2; offen bleiben nur die zurückgestellten Teile 4c, 3
 Architektur-Referenz (ST-5). Mit Z2 (D-15, 2026-09-28) stehen sie an: die Muster-Seiten
 bleiben, und die Architektur-Referenz beschreibt beide Maschinen. ST-6 ohne den Schalter
 „Chatnachrichten": Der hat keinen Leser (Chip Datenschutz/Moderation), sein Hilfetext sagt das
-seit ST-1. Offen als Aufräumpunkte: `schema-form.scss` (433 Zeilen)
-entlang der Bausteine in Teildateien; `curated.ts` (386) und `curated-views.ts` (399, ST-8 brachte
-fünf Panels auf die Agent-Seite) nach Seitengruppen teilen; `schema-field.component.ts` (311) und seine Vorlage (296) entlang der Feldarten; `eval-run-detail.component.ts` (315) und `.scss` (305): die Gold-Zug-Tabelle als eigene Komponente.
+seit ST-1. Die Aufräumpunkte von hier (`schema-form.scss` in Teildateien, `curated.ts` und
+`curated-views.ts` nach Seitengruppen, `schema-field` nach Feldarten, `eval-run-detail` mit der
+Gold-Zug-Tabelle als eigener Komponente) sind in Paket 6 erledigt (Log dort, R2/R3 und S1/S2).
 
 **ST-4 Schritte** (je Schritt Test zuerst):
 - *4a Inhalt zuerst:* Modell-Hinweis `Primary()` (`x-primary`) an `WelcomeBlock.greeting` und
@@ -942,7 +942,7 @@ Neue Routen: Vertrag, Routen-Inventar, Zeile unter „Die Zusätze". Reihenfolge
 | D-5 | Welche Leitplanken gelten für alle Maschinen (AG-3)? | R-05, R-08, R-13, R-15 als Schutzregeln; der Rest bleibt Arbeitsregel | **wie empfohlen** (2026-09-27, mit D-13), umgesetzt in E-4 |
 | D-6 | Master-Skill ins Studio (AG-2)? | ja, Umgebung bleibt Vorgabe | **geändert:** nur anzeigen, mit Verweis zum Bearbeiten im Repositorium |
 | D-7 | Studio-Weg | C | angenommen |
-| D-8 | Unabhängige Studio-Pakete (ST-1, ST-2, ST-6, ST-9) schon parallel zu K0? | deine Wahl; sie sind in jedem Zielbild nötig | offen |
+| D-8 | Unabhängige Studio-Pakete (ST-1, ST-2, ST-6, ST-9) schon parallel zu K0? | deine Wahl; sie sind in jedem Zielbild nötig | **erledigt** — ST-1, ST-2, ST-6 und ST-9 sind gebaut (§9.3, Stand 2026-09-27); vermerkt 2026-10-08 (Paket 6) |
 | D-9 | Kostenbremse für anonymen Verkehr (AG-6)? | ja, Zahl nach K0 | **geändert** (2026-09-27): kein harter Deckel, Studio-Option mit den aktuellen Werten als Vorgabe (E-1) |
 | D-10 | Master-Skill im Muster-Modus: ersetzt er Grundpersona und Domänen-Regeln oder ergänzt er sie? | erst nach K0, nur bei Z2 | neu, offen |
 | D-11 | Währung der Preistafel: USD wie der Anbieter oder EUR mit Umrechnung? | USD — keine schwankende Umrechnung in der Tafel | neu, offen (lokal für K0 auf USD gestellt) |
