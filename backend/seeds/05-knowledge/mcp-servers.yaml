@@ -25,6 +25,11 @@
 # verweigern erst beim Aufruf. Sie stehen deshalb hier, obwohl der Katalog
 # (``tool_defs.py``) sie dem Modell noch nicht anbietet: diese Liste beschreibt,
 # WELCHER SERVER ein Werkzeug bedient, nicht, was das Modell darf.
+#
+# Was das Modell darf, steht je Server in `werkzeuge_aus` (Paket 7, S5): fehlt
+# das Feld, gilt die Vorgabe (`search_skill` verborgen — Skills kommen ueber die
+# Freigabeliste der Sammlung); eine Liste ersetzt sie, eine leere schaltet alles
+# ein. Im Studio: Wissen → MCP-Server, je Werkzeug ein Haken.
 
 servers:
 - id: wlo-mcp

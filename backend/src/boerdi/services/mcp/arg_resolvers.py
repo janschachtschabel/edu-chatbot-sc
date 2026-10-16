@@ -33,6 +33,7 @@ from typing import Any
 
 from boerdi.obs.usage import current_turn_usage
 from boerdi.services import llm
+from boerdi.services.mcp.lizenz_abgleich import lizenz_filter
 
 logger = logging.getLogger(__name__)
 
@@ -261,12 +262,15 @@ _label_to_uri_cache: dict[str, dict[str, str]] = {
     "discipline": {},
     "educationalContext": {},
     "userRole": {},
+    # Paket 11 L: Lizenz-Schlüssel (CC_BY …) statt URIs, eigener strenger Abgleich.
+    "license": {},
 }
 _label_cache_loaded: dict[str, bool] = {
     "lrt": False,
     "discipline": False,
     "educationalContext": False,
     "userRole": False,
+    "license": False,
 }
 
 
@@ -322,8 +326,8 @@ async def _ensure_label_cache(vocab: str) -> None:
             aliases_str = m_label.group(2) or ""
             current_aliases = [a.strip() for a in aliases_str.split(",") if a.strip()]
             continue
-        # URI line: "URI: http://..."
-        m_uri = _re.match(r"URI:\s*(https?://\S+)", line)
+        # URI line: "URI: http://..." — beim Lizenz-Vokabular ein Schlüssel ("URI: CC_BY").
+        m_uri = _re.match(r"URI:\s*(\S+)", line)
         if m_uri and current_label:
             uri = m_uri.group(1).strip()
             cache.setdefault(_norm_label(current_label), uri)
@@ -340,13 +344,14 @@ async def prewarm_vocabularies() -> None:
     """O3: Vokabular-Caches beim Backend-Start vorladen, damit schon der ERSTE
     Such-Turn warm ist (sonst mehrere MCP-Round-Trips beim ersten Nutzer).
 
-    Lädt die vier genutzten Vokabulare parallel und best-effort: Fehler (z.B.
+    Lädt die fünf genutzten Vokabulare (seit Paket 11 L auch die Lizenz) parallel
+    und best-effort: Fehler (z.B.
     MCP gerade kalt/nicht erreichbar) werden geschluckt — der bestehende
     Lazy-Fallback (``_ensure_label_cache`` beim ersten echten Bedarf) greift
     dann weiterhin. Die Result-TTL für ``lookup_wlo_vocabulary`` liegt bei 24h.
     """
     import asyncio as _asyncio
-    vocabs = ["lrt", "discipline", "educationalContext", "userRole"]
+    vocabs = ["lrt", "discipline", "educationalContext", "userRole", "license"]
     results = await _asyncio.gather(
         *[_ensure_label_cache(v) for v in vocabs], return_exceptions=True,
     )
@@ -363,35 +368,52 @@ def _fuzzy_lookup(cache: dict[str, str], needle: str) -> tuple[str, str] | None:
 
     Strategy:
     1. Exact match on normalized form ("Video" → cache["video"]).
-    2. Substring containment either way — cache key contains needle OR
-       needle contains cache key. This catches "Interaktives Material"
-       vs. cache entry "interaktiv" (alias of "Interaktives medium"):
-       needle contains the alias, so it matches.
-    3. Longest-substring wins when multiple keys match, to prefer
-       specific over generic (e.g. "interaktives medium" over "medium").
+    2. A cache key contained in the needle as a WHOLE word or word sequence, optionally with a
+       German inflection ending ("interaktiv" in "interaktives material", "bild" in "bilder") —
+       the longest such key wins (specific over generic), if the longest ones agree on one URI.
+    3. The needle at a word start inside cache keys — only if all those keys point to ONE URI
+       ("info" → "informatik"/"informationstechnologie"; not "sicherheit" → "arbeitssicherheit").
+    Keys and needles shorter than :data:`_MIN_TEILWORT` never match partially.
+
+    Review 2026-10-16 (#1), measured against the real vocabularies: without word boundaries short
+    aliases hit inside other words — "Literatur"/"Sicherheit" → Informatik ("it"), "Realschule"
+    → Schule, "Hörspiel" → Lernspiel, "Bildungsplan" → Bild; in Paket 11 J "Wirtschaft" became
+    "Ernährung und Hauswirtschaft" (longest key containing the needle). Ambiguous values return
+    ``None`` so the LLM fallback chooses from the full list.
 
     Returns (matched_key, uri) on hit, None otherwise.
     """
     if not needle:
         return None
     nn = _norm_label(needle)
-    # 1. exact
+    if not nn:
+        return None
     if nn in cache:
         return nn, cache[nn]
-    # 2. substring
-    best_key: str | None = None
-    best_len = 0
-    for key in cache:
-        if not key:
-            continue
-        # key appears in needle (e.g. "interaktiv" in "interaktives material")
-        if key in nn or nn in key:
-            if len(key) > best_len:
-                best_key = key
-                best_len = len(key)
-    if best_key is not None:
-        return best_key, cache[best_key]
+    enthalten = [key for key in cache if len(key) >= _MIN_TEILWORT and _als_wort_in(key, nn)]
+    if enthalten:
+        laengste = max(len(key) for key in enthalten)
+        kandidaten = [key for key in enthalten if len(key) == laengste]
+        if len({cache[key] for key in kandidaten}) == 1:
+            return kandidaten[0], cache[kandidaten[0]]
+        return None
+    if len(nn) < _MIN_TEILWORT:
+        return None
+    umfassend = [key for key in cache if key and re.search(rf"(?<!\w){re.escape(nn)}", key)]
+    if umfassend and len({cache[key] for key in umfassend}) == 1:
+        best = min(umfassend, key=len)
+        return best, cache[best]
     return None
+
+
+#: Wie beim MCP-Server (``vocabs.ts``): kürzere Teile treffen nie über ein Teilwort.
+_MIN_TEILWORT = 4
+_BEUGUNG = r"(?:e|em|en|er|es|n|s)?"
+
+
+def _als_wort_in(key: str, text: str) -> bool:
+    """``key`` steht in ``text`` als ganzes Wort (bzw. Wortfolge), höchstens mit Beugungsendung."""
+    return re.search(rf"(?<!\w){re.escape(key)}{_BEUGUNG}(?!\w)", text) is not None
 
 
 # ── LLM-gestütztes Vocab-Mapping (Fallback wenn fuzzy_lookup leer ausgeht) ──
@@ -499,8 +521,9 @@ async def _llm_vocab_match(vocab: str, value: str) -> str | None:
         )
         content = (resp.choices[0].message.content or "").strip()
     except Exception as e:
+        # Nicht merken (Paket 10, Audit L-1): ein vorübergehender Fehler sperrte den
+        # Wert sonst für die ganze Prozesslaufzeit als „kein Treffer“.
         logger.warning("LLM vocab-match for %s=%r failed: %s", vocab, value, e)
-        _cache_vocab(cache_key, None)
         return None
 
     if not content or content.upper() == "NONE":
@@ -530,6 +553,9 @@ async def _llm_vocab_match(vocab: str, value: str) -> str | None:
     _cache_vocab(cache_key, candidate)
     logger.info("LLM resolved vocab %s=%r → %s", vocab, value, candidate)
     return candidate
+
+
+_KLASSENANGABE = re.compile(r"^(?:klasse|kl\.?)\s*\d{1,2}$|^\d{1,2}\.?\s*klasse$")
 
 
 async def _resolve_filter_uris(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -562,6 +588,10 @@ async def _resolve_filter_uris(arguments: dict[str, Any]) -> dict[str, Any]:
             continue
         if val.startswith(("http://", "https://")):
             continue  # already a URI
+        if vocab == "educationalContext" and _KLASSENANGABE.match(_norm_label(val)):
+            # Review #4: der Server kennt „Klasse 7“ exakt; in der gekürzten Alias-Liste von
+            # lookup_wlo_vocabulary (4 je Eintrag) fehlt sie — sonst kostete jede einen LLM-Aufruf.
+            continue
         await _ensure_label_cache(vocab)
         cache = _label_to_uri_cache.get(vocab) or {}
         match = _fuzzy_lookup(cache, val)
@@ -582,6 +612,17 @@ async def _resolve_filter_uris(arguments: dict[str, Any]) -> dict[str, Any]:
             out[key] = llm_uri
             continue
         logger.info("no URI for %s=%r (vocab=%s); passing label through", key, val, vocab)
+    lizenz = out.get("license")
+    if isinstance(lizenz, str) and lizenz.strip():
+        await _ensure_label_cache("license")
+        wert = lizenz_filter(_label_to_uri_cache.get("license") or {}, lizenz)
+        if wert is None:
+            # Review 2026-10-16 (#2): roh weitergereicht träfe der Server über ein Teilwort eine
+            # andere Lizenz — weggelassen filtert die Suche nicht, wie die Beschreibung sagt.
+            logger.info("license=%r passt zu keinem Lizenzwert — Filter weggelassen", lizenz)
+            del out["license"]
+        else:
+            out["license"] = wert
     return out
 
 
@@ -599,6 +640,7 @@ TOOL_PREPROCESSORS: dict[str, Any] = {
     "search_wlo_content":      _resolve_filter_uris,
     "search_wlo_collections":  _resolve_filter_uris,
     "search_wlo_all":          _resolve_filter_uris,
+    "search_wlo_within_collection": _resolve_filter_uris,
     "browse_collection_tree":  _resolve_browse_node_id,
     "get_collection_contents": _resolve_collection_node_id,
 }

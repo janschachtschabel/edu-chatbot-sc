@@ -14,10 +14,11 @@ Two adaptations from ALT, both deliberate:
 * the model names resolve **per call** from settings instead of being bound to
   module-level ``os.getenv`` at import time. ALT's own test file lists its
   import-time ``DEFAULT_*_MODEL`` constants as explicitly unpinnable; as
-  functions they are ordinary testable code. ALT's ``or "gpt-4o-mini"`` guard is
-  kept deliberately: docker-compose passes ``${VAR:-}`` through, so in the
-  container the variable is SET BUT EMPTY, and an empty model reaches the
-  provider as ``model=""`` (HTTP 400) and kills the whole generation stage.
+  functions they are ordinary testable code. The empty-value guard is kept
+  deliberately: docker-compose passes ``${VAR:-}`` through, so in the container
+  the variable is SET BUT EMPTY, and an empty model reaches the provider as
+  ``model=""`` (HTTP 400) and kills the whole generation stage. Since Paket 7
+  (L4) it falls back to the chat model instead of ALT's ``gpt-4o-mini``.
 """
 
 from __future__ import annotations
@@ -29,23 +30,25 @@ from boerdi.services.eval.cancel import RunCancelled
 from boerdi.services.eval.prompts import _SCENARIO_PROMPT
 from boerdi.services.eval.text_utils import _has_persona_marker
 from boerdi.services.llm import chat_completion
+from boerdi.services.llm_models import get_chat_model
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Light by default: gpt-4o-mini is plenty for judging, and the persona simulator
-# is realistic enough with it at a fraction of the main chat model's cost.
-_MODEL_FALLBACK = "gpt-4o-mini"
+# Paket 7 (L4, Nutzer 2026-10-09): ohne eigene Angabe laufen Simulator und Judge
+# mit dem Chat-Modell. Bis dahin fest gpt-4o-mini — billiger, aber hinter der
+# AcademicCloud gar nicht vorhanden, und es bewertete mit einem anderen Modell
+# als dem, das antwortet.
 
 
 def simulator_model() -> str:
     """Model that plays the user (scenario openings + conversation turns)."""
-    return get_settings().eval_simulator_model or _MODEL_FALLBACK
+    return get_settings().eval_simulator_model or get_chat_model()
 
 
 def judge_model() -> str:
     """Model that scores a turn. Lives here because it shares the rationale."""
-    return get_settings().eval_judge_model or _MODEL_FALLBACK
+    return get_settings().eval_judge_model or get_chat_model()
 
 
 # Cache für das gerenderte Persona-Markers-Block pro Persona. Wird

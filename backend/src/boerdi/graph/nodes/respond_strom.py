@@ -22,8 +22,8 @@ from boerdi.domain.skill_precedence import mit_ladehinweis, mit_ladehinweisen
 from boerdi.domain.stream_gate import sperrgrund
 from boerdi.domain.url_helpers import _extract_web_links_from_text
 from boerdi.graph.state import TurnContext
+from boerdi.services import betriebsschalter
 from boerdi.services.token_stream import TokenStrom
-from boerdi.settings import get_settings
 
 
 def _links_zu_labels(ctx: TurnContext, text: str) -> str:
@@ -38,7 +38,7 @@ def _links_zu_labels(ctx: TurnContext, text: str) -> str:
 def _oeffnen_oder_sperren(strom: TokenStrom, ctx: TurnContext, *, antwort_werkzeug: bool,
                           muster: str, umformen: Callable[[str], str]) -> TokenStrom | None:
     grund = sperrgrund(
-        eingeschaltet=get_settings().chat_token_streaming,
+        eingeschaltet=betriebsschalter.token_streaming(),
         antwort_werkzeug=antwort_werkzeug,
         muster_id=muster,
         risiko=ctx.safety.risk_level,

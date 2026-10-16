@@ -1,7 +1,7 @@
 ---
 id: M12
 label: Null-Treffer-Eskalation
-short_purpose: MCP-Suche lieferte 0 Treffer → Synonym-Lookup, breitere Suche, dann Alternativ-Pfad. Niemals 'kann ich nicht'.
+short_purpose: MCP-Suche lieferte 0 Treffer → Synonym aus eigenem Wissen, breitere Suche, dann Alternativ-Pfad. Niemals 'kann ich nicht'.
 priority: 590
 default_tone: kollegial
 default_length: standard
@@ -18,7 +18,7 @@ tools:
   - lookup_wlo_publishers
 core_rule: |
   Drei-Stufen-Rettung statt Verweigerung:
-  1. `lookup_wlo_vocabulary` für Synonym/Oberbegriff → Retry mit anderem Wort
+  1. Synonym/Oberbegriff wählen → Retry mit anderem Wort (das Vokabular ist kein Thesaurus)
   2. Filter lockern (Stufe weglassen, breiteres Fach)
   3. Alternativ-Pfad: Sammlung statt Material, Themenseite statt Sammlung
 forbidden_phrases:
@@ -40,7 +40,7 @@ discriminators:
     rule: M06 vor Such-Versuch. M12 erst NACH leerem Suchergebnis (Eskalation).
     example: Material zu X → M06. M06 liefert leer → M12-Eskalation.
   - vs: M03
-    rule: Such-Treffer leer wegen unbekanntem Begriff → M12 (Synonym-Lookup). Slot fehlt → M03 (Klärung).
+    rule: Such-Treffer leer wegen unbekanntem Begriff → M12 (Synonym aus eigenem Wissen). Slot fehlt → M03 (Klärung).
     example: Suche zu Phantasie-Begriff → M12. Suche zu (kein Topic) → M03.
 ---
 

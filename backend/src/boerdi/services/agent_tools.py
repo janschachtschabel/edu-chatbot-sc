@@ -27,6 +27,10 @@ from typing import Any
 from boerdi.domain.host_capabilities import erlaubt
 from boerdi.domain.inline_documents import dokument_werkzeug
 from boerdi.domain.result_delivery import ergebnis_werkzeug
+from boerdi.domain.werkzeug_freigabe import VORGABE_AUS, verborgen
+from boerdi.services.config_loader import load_mcp_servers
+from boerdi.services.config_loader.mcp import _PRIMARY_ID
+from boerdi.services.mcp import fremdwerkzeuge
 from boerdi.services.mcp.auth import has_auth_token
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
@@ -35,13 +39,17 @@ from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 #: ihn zwei Module vergleichen (hier gebaut, in ``agent_loop`` erkannt).
 SUBMIT_RESULT = "submit_result"
 
-#: Werkzeuge, die im Katalog stehen, aber KEINEM Lauf angeboten werden.
-#:
-#: ``search_skill`` (Nutzer-Entscheid 2026-08-13): der Weg zu einer Anleitung
-#: fuehrt ueber die Sammlung, die sie freigegeben hat. Die Definition bleibt im
-#: Katalog — sie beschreibt ein Werkzeug, das der MCP-Server hat, und ein
-#: Bestands-Waechter nennt sie —, aber kein Pfad reicht sie dem Modell.
-AUS_DEM_KATALOG = frozenset({"search_skill"})
+#: Werkzeuge, die ohne Pflege KEINEM Lauf angeboten werden — die Vorgabe der
+#: Schalter je MCP-Server (:func:`verborgene_werkzeuge`); Begründung an
+#: ``domain/werkzeug_freigabe.VORGABE_AUS``.
+AUS_DEM_KATALOG = VORGABE_AUS
+
+
+def verborgene_werkzeuge() -> frozenset[str]:
+    """Was kein Pfad dem Modell reicht — je MCP-Server im Studio gepflegt
+    (``werkzeuge_aus``), ohne Pflege :data:`AUS_DEM_KATALOG`. Dieselbe Menge für
+    Agent-Schleife, Muster-Weg und die Werkzeugübersicht."""
+    return verborgen(load_mcp_servers(), primaer_id=_PRIMARY_ID, vorgabe=AUS_DEM_KATALOG)
 
 _SUBMIT_DESCRIPTION = (
     "Schliesse die Arbeit ab. Rufe dieses Werkzeug GENAU EINMAL, wenn du fertig "
@@ -89,6 +97,38 @@ def submit_result_tool(result_schema: dict[str, Any] | None = None) -> dict[str,
             },
         },
     }
+
+
+def _mcp_werkzeuge(
+    *, allow_curation: bool, blocked_tools: list[str] | None, tool_mode: str | None,
+) -> list[dict[str, Any]]:
+    """Die MCP-Werkzeuge eines Laufs: ohne verborgene, ohne kuratierende ohne
+    Schreibrecht, ohne gesperrte, nur was der Modus der Einbettung erlaubt."""
+    aus = verborgene_werkzeuge()
+    tools = [t for t in TOOL_DEFINITIONS if t["function"]["name"] not in aus]
+    if allow_curation and has_auth_token():
+        tools.extend(t for t in CURATION_TOOL_DEFINITIONS if t["function"]["name"] not in aus)
+    # Paket 11 (E): lesende Werkzeuge fremder MCP-Server, im eigenen Namensraum.
+    tools.extend(fremdwerkzeuge.definitionen())
+    if blocked_tools:
+        gesperrt = set(blocked_tools)
+        tools = [t for t in tools if t["function"]["name"] not in gesperrt]
+    if tool_mode:
+        tools = [t for t in tools if erlaubt(t["function"]["name"], tool_mode)]
+    return tools
+
+
+def angebotene_mcp_werkzeuge(
+    *, allow_curation: bool, blocked_tools: list[str] | None, tool_mode: str | None,
+) -> frozenset[str]:
+    """Die Namen der MCP-Werkzeuge, die ein Lauf mit diesen Angaben angeboten bekommt.
+
+    Für den Vorabruf des Chat-Zugs (Paket 9, Review Paket 7 MAJOR 11): er holte
+    ``get_skill_registry`` auch, wenn das Studio es verborgen oder die Sicherheit es
+    gesperrt hatte — vorgeholt wird nur, was der Lauf selbst rufen dürfte.
+    """
+    return frozenset(t["function"]["name"] for t in _mcp_werkzeuge(
+        allow_curation=allow_curation, blocked_tools=blocked_tools, tool_mode=tool_mode))
 
 
 def build_agent_tools(
@@ -163,22 +203,16 @@ def build_agent_tools(
     angehaengt, und eine Referenz schriebe in den Katalog. Genau so wuchs er im
     E2-Fund bei jedem Zug um einen Eintrag.
 
-    **``search_skill`` faellt heraus** (Nutzer-Entscheid 2026-08-13). Der Weg zu
-    einer Anleitung fuehrt ueber die Sammlung, die sie freigegeben hat, nicht
-    ueber eine freie Suche. Gemessen am selben Tag: mit der nodeId einer
-    Fachsammlung liefert das Werkzeug ohnehin nichts (die Anleitungen liegen im
-    Arbeitsbereich, die Sammlung fuehrt nur die Freigabeliste) — und es sagt dem
-    Modell dann, das Nichts sei normal. Ein Lauf ohne Anleitung, der nicht
-    merkt, dass es eine gab, ist der schlechteste Ausgang.
+    **``search_skill`` faellt von Haus aus heraus** (Nutzer-Entscheid 2026-08-13).
+    Der Weg zu einer Anleitung fuehrt ueber die Sammlung, die sie freigegeben
+    hat, nicht ueber eine freie Suche. Gemessen am selben Tag: mit der nodeId
+    einer Fachsammlung liefert das Werkzeug ohnehin nichts (die Anleitungen
+    liegen im Arbeitsbereich, die Sammlung fuehrt nur die Freigabeliste) — und
+    es sagt dem Modell dann, das Nichts sei normal. Seit Paket 7 (S5) schaltet
+    das Studio je MCP-Server ein und aus, auch schreibende Werkzeuge.
     """
-    tools = [t for t in TOOL_DEFINITIONS if t["function"]["name"] not in AUS_DEM_KATALOG]
-    if allow_curation and has_auth_token():
-        tools.extend(CURATION_TOOL_DEFINITIONS)
-    if blocked_tools:
-        gesperrt = set(blocked_tools)
-        tools = [t for t in tools if t["function"]["name"] not in gesperrt]
-    if tool_mode:
-        tools = [t for t in tools if erlaubt(t["function"]["name"], tool_mode)]
+    tools = _mcp_werkzeuge(allow_curation=allow_curation, blocked_tools=blocked_tools,
+                           tool_mode=tool_mode)
     if wissen_tool:
         tools.append(wissen_tool)
     if include_dokument:

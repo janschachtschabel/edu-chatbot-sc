@@ -25,7 +25,9 @@ from typing import Any
 from fastapi import APIRouter, Security
 
 from boerdi.api.deps import require_studio_key
+from boerdi.domain.werkzeug_freigabe import uebernommen
 from boerdi.services import config_loader as cl
+from boerdi.services.mcp import fremdwerkzeuge
 
 router = APIRouter(
     prefix="/api/config", tags=["config-choices"],
@@ -84,8 +86,10 @@ def _tools() -> list[Choice]:
         str(t).strip()
         for server in cl.get_enabled_mcp_servers()
         for t in (server.get("tools") or [])
-        if str(t).strip()
+        if str(t).strip() and str(t).strip() not in uebernommen(server)
     }
+    # Paket 11 (E): fremde Werkzeuge unter dem Namen, unter dem das Modell sie sieht.
+    namen.update(t["function"]["name"] for t in fremdwerkzeuge.definitionen())
     return _sorted([_entry(name, name, "") for name in namen])
 
 

@@ -35,6 +35,7 @@ from typing import Any
 from boerdi.domain import skill_bruecke
 from boerdi.domain.agent_pattern import agent_pattern
 from boerdi.domain.context import build_context
+from boerdi.domain.kuration_umleitung import umleitung
 from boerdi.domain.lp_intent import detect_lp_intent
 from boerdi.domain.pattern_engine import select_pattern
 from boerdi.domain.policy import assess_policy
@@ -56,7 +57,11 @@ from boerdi.services.canvas_fast_path import (
     CanvasFastPathResult,
     run_canvas_create_fast_path,
 )
-from boerdi.services.config_loader import load_engine, load_rag_config
+from boerdi.services.config_loader import (
+    load_classify_overrides_config,
+    load_engine,
+    load_rag_config,
+)
 from boerdi.services.engine_choice import (
     laeuft_ueber_die_schleife,
     zug_laeuft_ueber_die_schleife,
@@ -143,6 +148,16 @@ async def route(
                 frame_target,
             )
             enforced_pattern_id = frame_target
+
+    # 3c. Kurations-Umleitung (Paket 10, S-7): ein Auftrag, der den Bestand
+    #     ändert, braucht die Schreibwerkzeuge — die hat nur M18/M20.
+    if not enforced_pattern_id and not laeuft_ueber_die_schleife(engine):
+        hint = getattr(cls, "pattern_id_hint", None)
+        ziel = umleitung(ctx.req.message, hint,
+                         load_classify_overrides_config().get("curation_reroute"))
+        if ziel:
+            logger.info("Kurations-Auftrag: %s → %s umgeleitet", hint or "-", ziel)
+            enforced_pattern_id = ziel
 
     # 4. Pattern-Selektion (Enforce > Hint > Fallback). Im Agent-Modus (A4c)
     #    gibt es nichts zu wählen — der Agent sucht sich sein Werkzeug selbst.

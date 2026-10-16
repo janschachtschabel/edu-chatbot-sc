@@ -29,11 +29,19 @@ threat_pattern: M02
 # Stufe 2: LLM-Moderation
 escalation:
   mode: smart                  # off | smart | always
-  provider: openai             # openai | none — omni-moderation-latest, kostenfrei
   legal_classifier: true       # GPT-mini für DE-Rechtskategorien
 
   thresholds:
-    self_harm: 0.50
+    # Paket 7 (K8): 0.50 → 0.25 nach Messung 2026-10-09 (omni-moderation-latest).
+    # „Abschiedsbrief schon geschrieben“ lag bei 0.436 und lief bei 0.50 durch;
+    # der höchste harmlose Wert (Arbeitsblatt zur Suizidprävention) lag bei 0.123.
+    # `self_harm/intent` bleibt: dort lag dieselbe Unterrichtsanfrage (0.126)
+    # über echten Andeutungen. Werte und Satzliste: Plan Paket 7, K8.
+    # Paket 8 (K): nachgemessen mit 28 Andeutungen und 28 Gegenproben — 0.25 bleibt.
+    # Romeo und Julia im Unterricht liegt bei 0.158, mitten zwischen Andeutungen;
+    # Senken brächte nur Fehlalarme. Die Lücke schließen Krisen-Wendungen im
+    # Regex-Gate (services/safety/krisen_wendungen.py). Plan Paket 8, K.
+    self_harm: 0.25
     self_harm/intent: 0.25
     sexual: 0.70
     sexual/minors: 0.20
@@ -55,13 +63,6 @@ escalation:
     - harassment/threatening
 
   downgrade_false_positives: true
-
-# Stufe 3: Confidence-Anpassung aus Tool-Outcomes
-confidence_adjustments:
-  error: -0.20
-  empty: -0.10
-  timeout: -0.15
-  success: 0.05
 
 # Rate-Limits (0 = unlimited) — wirken auf die ECHTE Verbindungs-IP (server-
 # seitig), nicht auf client-gelieferte Werte.

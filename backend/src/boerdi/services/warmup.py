@@ -6,7 +6,8 @@ Warum: der erste Zug einer frischen Instanz zahlt sonst die kalten Kosten. Am
 (``compose.prod.yml``: backend ×N) — jede Replica und jedes Rolling-Deploy zahlt
 den Aufschlag erneut, und echte Nutzer treffen kalte Replicas.
 
-Zwei Warmups, beide fire-and-forget:
+Mehrere Warmups, alle fire-and-forget (dazu seit Paket 11 der Bezug des
+Reranker-Modells, ``rag/reranker_bezug.bereitstellen``):
 
 * ``warm_vocabularies`` — lädt die vier WLO-Vokabular-Caches. ``prewarm_vocabularies``
   war bereits gebaut und getestet, und ``mcp/tool_cache.py`` beschrieb sie als „beim
@@ -38,6 +39,7 @@ from typing import Any
 
 from boerdi.obs.tasks import _spawn_background
 from boerdi.services.mcp.arg_resolvers import prewarm_vocabularies
+from boerdi.services.rag import reranker_bezug
 from boerdi.services.rag.rerank import run_in_rerank_pool, warm_reranker
 from boerdi.services.safety.moderation import moderate
 
@@ -100,6 +102,9 @@ def spawn_startup_warmups(tasks: list[Coroutine[Any, Any, None]] | None = None) 
     die starke Referenz (der Loop hält nur Weak-Refs) und holt die Exception ab.
     ``tasks`` ist die Test-Naht; im Betrieb bleibt sie leer.
     """
-    vorgabe = [warm_vocabularies(), warm_llm_connection(), warm_cross_encoder()]
+    # Paket 11 (Nutzer 2026-10-15): eingeschaltet und Modell fehlt → selbst beziehen;
+    # ohne Frist, ein Download dauert länger als jede Vorwärmung.
+    vorgabe = [warm_vocabularies(), warm_llm_connection(), warm_cross_encoder(),
+               reranker_bezug.bereitstellen()]
     for coro in tasks if tasks is not None else vorgabe:
         _spawn_background(coro)

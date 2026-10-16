@@ -123,8 +123,10 @@ class UsageEvent(Base):
     __tablename__ = "usage_events"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    session_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("sessions.session_id", ondelete="CASCADE")
+    # Paket 7 (P3, Migration 0009): NULL bei Aufträgen der Agent-API — sie
+    # gehören keiner Chat-Sitzung; ``quelle`` sagt dann, woher die Zeile kommt.
+    session_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("sessions.session_id", ondelete="CASCADE"), nullable=True
     )
     model: Mapped[str] = mapped_column(Text)  # aufgelöster Modellname der Antwort
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
@@ -138,6 +140,9 @@ class UsageEvent(Base):
     # AG-1 (Migration 0004): die Maschine des Zugs, wie sie im Debug-Block
     # steht. NULL bei Zeilen von vor der Migration und bei Frühausstiegen.
     engine: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Paket 7 (P3, Migration 0009): ``agent-api`` bei Aufträgen ohne Sitzung;
+    # Chat-Zeilen lassen sie leer.
+    quelle: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class EvalRun(Base):
@@ -181,6 +186,21 @@ class ConfigArea(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     updated_by: Mapped[str] = mapped_column(Text, default="")
+    # Paket 12 (0011): Werksfassung, auf der der Bereich steht, und die stillgelegte eigene Fassung.
+    werk_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    eigene_fassung: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    eigene_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ConfigWerkEntfernt(Base):
+    """Im Studio gelöschte Werksbereiche — der Werksabgleich legt sie nicht wieder an (0011)."""
+
+    __tablename__ = "config_werk_entfernt"
+
+    area: Mapped[str] = mapped_column(Text, primary_key=True)
+    entfernt_am: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class ConfigHistory(Base):
@@ -206,6 +226,7 @@ class ConfigSnapshot(Base):
     label: Mapped[str] = mapped_column(Text, default="")
     include_db: Mapped[bool] = mapped_column(Boolean, default=False)
     blob: Mapped[bytes] = mapped_column(LargeBinary)  # ZIP bytes
+    art: Mapped[str] = mapped_column(Text, server_default="hand")  # 'hand' | 'auto' (0011)
 
 
 class RagDocument(Base):

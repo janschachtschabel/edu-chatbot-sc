@@ -136,3 +136,25 @@ async def write_checked(
         meta = (await conn.execute(_SELECT_META, {"area": area})).mappings().first()
         raise ConfigConflict(area, dict(meta) if meta is not None else None)
     return int(row[0])
+
+
+_DELETE_IF_VERSION = text(
+    "DELETE FROM config_areas WHERE area = :area AND version = :version RETURNING area"
+)
+
+
+async def delete_checked(conn: AsyncConnection, *, area: str, expected_version: int) -> bool:
+    """Löscht nur, wenn die Zeile noch ``expected_version`` trägt (Review Paket 6).
+
+    ``True``: gelöscht. ``False``: den Bereich gibt es nicht (mehr). Bei einer
+    anderen Version ``ConfigConflict`` mit dem gespeicherten Stand — wie beim
+    bedingten Schreiben, damit das Studio dieselbe Antwort bekommt.
+    """
+    row = (await conn.execute(_DELETE_IF_VERSION,
+                              {"area": area, "version": expected_version})).first()
+    if row is not None:
+        return True
+    meta = (await conn.execute(_SELECT_META, {"area": area})).mappings().first()
+    if meta is None:
+        return False
+    raise ConfigConflict(area, dict(meta))

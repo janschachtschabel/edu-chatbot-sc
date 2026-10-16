@@ -48,7 +48,7 @@ from boerdi.domain.write_confirm import (
     strip_confirm_token,
     token_for,
 )
-from boerdi.services.mcp.auth import caller_fingerprint, has_personal_auth
+from boerdi.services.mcp.auth import aufrufer_kennung, has_personal_auth
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,7 @@ class WriteGate:
         if gepraegt:
             # Die letzte Vorschau gewinnt: ein neuer Schlüssel ersetzt den alten.
             self._pending = remember_pending(
-                tool_name, args, gepraegt, now=self._now(), caller=caller_fingerprint())
+                tool_name, args, gepraegt, now=self._now(), caller=aufrufer_kennung())
             self._vorschau = text
         elif "confirmToken:" in text:
             # Der Server kündigt einen Schlüssel an, wir lesen keinen heraus:

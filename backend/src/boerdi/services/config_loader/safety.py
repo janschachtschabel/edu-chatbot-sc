@@ -59,7 +59,6 @@ def load_guide_mode_config() -> dict[str, Any]:
             trusted_domains.append(s)
 
     return {
-        "default_enabled": bool(cfg.get("default_enabled", True)),
         "allowed_hosts": [
             str(h).strip().lower() for h in (cfg.get("allowed_hosts") or []) if str(h).strip()
         ],

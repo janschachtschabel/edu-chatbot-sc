@@ -314,7 +314,7 @@ def redigiere_strukturell(tool_name: str, raw_text: str) -> str:
     return raw_text
 
 
-def _katalog_aus_markdown(raw_text: str) -> list[dict]:
+def katalog_aus_markdown(raw_text: str) -> list[dict]:
     """Die Katalog-Einträge aus der Markdown-Form; leere Liste, wenn keine.
 
     Die Vorgabe des Werkzeugs ist ``markdown`` und das ist eine Entscheidung
@@ -340,7 +340,13 @@ def _katalog_aus_markdown(raw_text: str) -> list[dict]:
                 node_id = z[len("nodeId:"):].strip()
             elif z.startswith("Keywords:") or z.startswith("#"):
                 break
-            elif z.strip():
+            elif not z.strip():
+                # Der Server schließt jeden Eintrag mit einer Leerzeile ab. Ohne
+                # diese Grenze hing seine Schlussnotiz an der Beschreibung des
+                # letzten Eintrags, wenn der keine Keywords hatte (Paket 6, G3).
+                if node_id:
+                    break
+            else:
                 zweck.append(z.strip())
         if node_id:
             eintraege.append(
@@ -391,7 +397,7 @@ def _redigiere_skill_registry(raw_text: str) -> str | None:
     registry = daten.get("registry") if isinstance(daten, dict) else None
     eintraege = registry.get("entries") if isinstance(registry, dict) else None
     if not isinstance(eintraege, list) or not eintraege:
-        eintraege = _katalog_aus_markdown(raw_text)
+        eintraege = katalog_aus_markdown(raw_text)
     if not eintraege:
         return None
 

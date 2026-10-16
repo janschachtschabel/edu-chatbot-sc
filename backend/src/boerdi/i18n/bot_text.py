@@ -276,6 +276,7 @@ BOT_TEXT: Final[Catalogue] = {
         "inline.title.writePreview": "Änderung zur Abnahme",
         # Die Frage hat ZWEI Ausgänge, und der zweite steht ausdrücklich da:
         # ohne ihn ist die Vorschau eine Ja/Nein-Sperre statt eines Angebots.
+        "inline.writePreview.frist": "Die Freigabe gilt {minuten} Minuten ab dieser Vorschau.",
         "inline.writePreview.ask": (
             "Soll ich das so ausführen? Wenn etwas nicht stimmt, sag mir, "
             "was anders sein soll."
@@ -298,6 +299,14 @@ BOT_TEXT: Final[Catalogue] = {
         # Der Server hat geantwortet und abgelehnt. Hier DARF „nichts geändert"
         # stehen: der Beleg dafür ist seine Antwort. Den Grund nennt der Satz
         # nicht — er ist ein Interna-Auszug und steht im Protokoll.
+        # Paket 10 (Kurzaudit S-1/S-3/S-4): Zustimmung zu einer Vorschau, die unter
+        # einer anderen Anmeldung entstand (``services/abnahme_hinweis``).
+        "write.callerChanged": (
+            "Das kann ich hier nicht ausführen: Die Vorschau entstand unter einer "
+            "WLO-Anmeldung, die in diesem Fenster gerade nicht gilt — etwa in einem neuen "
+            "Tab oder nach einer abgelaufenen Anmeldung. Es wurde nichts geändert. Melde "
+            "dich an und bitte mich dann noch einmal darum."
+        ),
         "write.executeRejected": (
             "Das ist so nicht durchgegangen — WLO hat die Änderung abgelehnt, "
             "es wurde nichts geändert. Sag mir, was ich anders machen soll; "
@@ -551,10 +560,17 @@ BOT_TEXT: Final[Catalogue] = {
         "inline.title.editedVersion": "Edited version",
         "inline.title.content": "Content",
         "inline.title.writePreview": "Change awaiting your approval",
+        "inline.writePreview.frist": (
+            "This approval is valid for {minuten} minutes from this preview."),
         "inline.writePreview.ask": (
             "Shall I go ahead? If something is off, tell me what to change."
         ),
         "action.write.confirmChip": "Yes, go ahead",
+        "write.callerChanged": (
+            "I cannot carry that out here: the preview was made under a WLO sign-in that "
+            "does not apply in this window right now — for example in a new tab or after "
+            "the sign-in expired. Nothing was changed. Sign in, then ask me again."
+        ),
         "write.executeRejected": (
             "That did not go through — WLO rejected the change, and nothing "
             "was modified. Tell me what to do differently and I will put it "

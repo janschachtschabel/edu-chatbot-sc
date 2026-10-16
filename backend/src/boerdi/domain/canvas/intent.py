@@ -1,9 +1,11 @@
 """Canvas intent heuristics — ported 1:1 from ALT
-``app/services/canvas_intent.py``: the 7 pure regex helpers
-(``_phrase_matches`` / ``looks_like_create_intent`` / ``looks_like_edit_intent`` /
-``has_explicit_new_create_override`` / ``resolve_material_type`` /
+``app/services/canvas_intent.py``: the pure regex helpers
+(``_phrase_matches`` / ``resolve_material_type`` /
 ``extract_material_type_from_message`` / ``named_artifact_label``) plus the
-trigger/nouns constants and regex. Consumes the canvas_types getters
+nouns constants and regex. The three trigger heuristics
+(``looks_like_create_intent`` / ``looks_like_edit_intent`` /
+``has_explicit_new_create_override``) had no production caller and went with
+their areas in Paket 7 (K4). Consumes the canvas_types getters
 sideways (acyclic). Pure (stdlib re + the config-driven type getters) ->
 ``domain/``.
 """
@@ -12,9 +14,6 @@ from __future__ import annotations
 import re
 
 from boerdi.domain.canvas.types import (
-    get_create_triggers,
-    get_edit_triggers,
-    get_explicit_create_overrides,
     get_short_alias_whitelist,
     get_type_aliases,
 )
@@ -157,56 +156,4 @@ def _phrase_matches(haystack: str, needle: str) -> bool:
         if left_ok and right_ok:
             return True
         idx = pos + 1
-    return False
-
-
-def looks_like_create_intent(msg: str) -> bool:
-    """Return True if the message opens with a clear 'create new material' verb.
-
-    Used as a safeguard override for the LLM classifier, which sometimes
-    picks I04 (Unterrichtsplanung) or I03 (Inhalte abrufen) even when the
-    user explicitly says 'Erstelle mir ein Arbeitsblatt'.
-    """
-    if not msg:
-        return False
-    low = msg.lstrip().lower()
-    # Only trigger when a create verb is in the first ~60 chars — avoids
-    # false positives when users mention "erstelle" mid-sentence in a
-    # different context.
-    window = low[:60]
-    for verb in get_create_triggers():
-        if _phrase_matches(window, verb):
-            return True
-    return False
-
-
-def looks_like_edit_intent(msg: str) -> bool:
-    """Return True if the message is a Canvas refinement (edit) request.
-
-    Only meaningful when S3 is active AND there is existing Canvas
-    markdown. Triggers include 'mach es einfacher', 'füge Lösungen hinzu',
-    'kürzer fassen', 'ersetze …', etc.
-    """
-    if not msg:
-        return False
-    low = msg.lstrip().lower()
-    for verb in get_edit_triggers():
-        if _phrase_matches(low, verb):
-            return True
-    return False
-
-
-def has_explicit_new_create_override(msg: str) -> bool:
-    """Return True if the user explicitly asks for a NEW create despite S3.
-
-    Examples: 'erstelle mir ein neues Quiz', 'fang nochmal an mit …',
-    'zu einem anderen thema: …'. When this is True, we IGNORE the edit
-    heuristic and go to CREATE even if S3 is active.
-    """
-    if not msg:
-        return False
-    low = msg.lower()
-    for phrase in get_explicit_create_overrides():
-        if _phrase_matches(low, phrase):
-            return True
     return False

@@ -175,6 +175,8 @@ flows:
   # ── Redaktion ──────────────────────────────────────────────────────
   - id: GV-RED-1
     zielgruppe: P-RED
+    # Nimmt real Inhalte auf Staging auf: läuft nur ausdrücklich gewählt (Paket 7).
+    auf_abruf: true
     title: "Redaktion: fremde Seite prüfen → Metadaten → zweistufig anlegen"
     turns:
       - message: "Ich bin in der Redaktion und prüfe diese Seite für den Bestand: https://klexikon.zum.de/wiki/Wasser — was steht dort, und eignet sie sich für WLO?"

@@ -49,6 +49,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
+from boerdi.domain import gruss_vermerk
 from boerdi.domain.hintergrund_zug import (
     KONTEXT_PING_ERSTLADEN,
     KONTEXT_PING_FORTSETZUNG,
@@ -389,20 +390,21 @@ async def maybe_context_greeting(
     title = fields["title"]
     meta = page_context.get_cached(session_state) or {}
 
-    # Gate 4: page not greeted before (dedup over the greeting signature).
+    # Gate 4: page not greeted before (dedup over the greeting signature) — in
+    # THIS language (T2, Paket 7: after a language switch it greets anew).
+    lang = resolve_locale(env.get("locale"))
     signature = _greeting_signature(page_kind, page_ctx, fields)
     entities = session_state.setdefault("entities", {})
     greeted = entities.get(_GREETED_KEY)
     if not isinstance(greeted, list):
         greeted = []
-    if signature in greeted:
+    if gruss_vermerk.schon_begruesst(greeted, signature, lang):
         return _empty_response(req.session_id)
 
     cfg = load_context_actions()
     if not cfg.get("enabled", True):
         return _empty_response(req.session_id)
 
-    lang = resolve_locale(env.get("locale"))
     fields = {**fields, "bestand": _stock_sentence(meta, lang)}
     known = await _known_page(page_kind, page_ctx)
     if known:
@@ -433,10 +435,9 @@ async def maybe_context_greeting(
         quick_replies = _build_quick_replies(cfg, page_kind, page_ctx, meta, title, lang)
 
     # Record the dedup marker (FIFO cap — a list, because entities is jsonb-
-    # persisted) and persist it explicitly on the short-circuit path.
-    greeted.append(signature)
-    if len(greeted) > _GREETED_CAP:
-        greeted = greeted[-_GREETED_CAP:]
+    # persisted; one entry per page, in its latest language — ``gruss_vermerk``)
+    # and persist it explicitly on the short-circuit path.
+    greeted = gruss_vermerk.vermerken(greeted, signature, lang, _GREETED_CAP)
     entities[_GREETED_KEY] = greeted
 
     # Persistence must not break the turn — but an unsaved greeting stays silent

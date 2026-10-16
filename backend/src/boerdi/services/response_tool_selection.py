@@ -59,6 +59,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Collection
 from typing import Any
 
 from boerdi.domain.antwort_werkzeug import antwort_werkzeug, inline_anzahl
@@ -68,13 +69,22 @@ from boerdi.domain.inline_documents import dokument_werkzeug
 from boerdi.domain.inline_grouping import MAX_SELECTABLE_CARDS
 from boerdi.domain.skill_bruecke import ZUSATZ_KEY as SKILL_ZUSATZ_KEY
 from boerdi.domain.write_confirm import CURATION_TOOLS
-from boerdi.services.agent_tools import AUS_DEM_KATALOG
-from boerdi.services.mcp.auth import has_auth_token
+from boerdi.services.agent_tools import verborgene_werkzeuge
+from boerdi.services.mcp import fremdwerkzeuge
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
 from boerdi.services.quick_replies_llm import _max_chars
+from boerdi.services.schreibrecht import schreiben_erlaubt
 
 _logger = logging.getLogger(__name__)
+
+
+def rag_erlaubt(pattern_output: dict[str, Any]) -> bool:
+    """Darf dieses Muster die Wissensbasis nutzen? Ohne ``sources``-Schlüssel ja, sonst nur mit
+    ``rag`` darin. EINE Regel für Werkzeugauswahl und Prompt (Befundliste §1.4, Paket 11): der
+    Prompt nannte Bereiche auch dann, wenn ``query_knowledge`` gesperrt war."""
+    quellen = pattern_output.get("sources")
+    return quellen is None or "rag" in quellen
 
 
 def _nameable_tools() -> list[dict]:
@@ -90,7 +100,9 @@ def _nameable_tools() -> list[dict]:
     bekäme sie jedes Muster mit ``sources: [mcp]`` — also auch die reinen
     Suchmuster. Kuratieren muss ein Muster ausdrücklich nennen.
 
-    **``AUS_DEM_KATALOG`` fällt hier heraus** (P3, Nutzer-Entscheid 2026-08-13).
+    **Die verborgenen Werkzeuge fallen hier heraus** (P3, Nutzer-Entscheid
+    2026-08-13; seit Paket 7, S5, je MCP-Server im Studio gepflegt —
+    ``agent_tools.verborgene_werkzeuge``).
     Die Agent-Schleife filtert dieselbe Menge in ``build_agent_tools``; für den
     Muster-Weg hing die Entscheidung bis dahin allein daran, dass kein Seed das
     Werkzeug mehr nennt. Muster leben aber in der Datenbank: bis zum
@@ -100,10 +112,28 @@ def _nameable_tools() -> list[dict]:
     die Daten.
     """
     katalog = (
-        TOOL_DEFINITIONS if not has_auth_token()
+        TOOL_DEFINITIONS if not schreiben_erlaubt()
         else [*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS]
     )
-    return [t for t in katalog if t["function"]["name"] not in AUS_DEM_KATALOG]
+    aus = verborgene_werkzeuge()
+    # Paket 11 (E): auch lesende Werkzeuge fremder MCP-Server, wenn ein Muster sie nennt.
+    return [*(t for t in katalog if t["function"]["name"] not in aus),
+            *fremdwerkzeuge.definitionen()]
+
+
+def wissensbereiche(tools: list[dict[str, Any]]) -> frozenset[str]:
+    """Die Bereiche, die ``query_knowledge`` in diesem Zug anbietet (sein ``enum``).
+
+    Paket 9 (V2, Review Paket 7): die Werkzeugschleife prüfte den Bereich nicht, den
+    das Modell nannte — jeder Bereich der Datenbank war abfragbar. Ohne das Werkzeug
+    im Angebot: keiner.
+    """
+    for t in tools:
+        fn = t.get("function") or {}
+        if fn.get("name") == "query_knowledge":
+            bereich = ((fn.get("parameters") or {}).get("properties") or {}).get("area") or {}
+            return frozenset(bereich.get("enum") or ())
+    return frozenset()
 
 
 def _pattern_curates(pattern_output: dict[str, Any]) -> bool:
@@ -127,7 +157,7 @@ def curation_blocked_by_mode(pattern_output: dict[str, Any]) -> bool:
     Nur der namentliche Zweig kann betroffen sein: die anderen bieten
     kuratierende Werkzeuge ohnehin nie an.
     """
-    return _pattern_curates(pattern_output) and not has_auth_token()
+    return _pattern_curates(pattern_output) and not schreiben_erlaubt()
 
 
 def _select_active_tools(
@@ -140,6 +170,7 @@ def _select_active_tools(
     *,
     pattern_label: str = "",
     tool_mode: str | None = None,
+    gesperrt: Collection[str] = (),
 ) -> tuple[list[dict], Any, bool, bool]:
     """Stellt die aktive Tool-Liste fuer ``generate_response`` zusammen
     (Phasen P10-P11: pattern.tools / tools=[] / mcp-Source / Fallback,
@@ -160,6 +191,11 @@ def _select_active_tools(
     ``tool_mode`` ist die Erlaubnis der Einbettung (``environment.tool_mode``,
     Paket 4 P4-1), dieselbe wie im Agent-Weg (``agent_tools``): ``read-only``
     nimmt dem Angebot alles Schreibende.
+
+    ``gesperrt`` sind die Sperren der Sicherheit dieses Zugs: der Nachschub der
+    Inhaltssuche beim Medientyp bringt kein gesperrtes Werkzeug zurück (Review
+    Paket 9). Was ein Muster selbst nennt, bleibt im Angebot (ALT, T-19); den
+    Aufruf weist die Schleife ab.
 
     Returns ``(active_tools, _pattern_sources_decl,
     _rag_allowed_for_pattern, _inline_qr_enabled)`` — die Tool-Liste plus
@@ -185,21 +221,21 @@ def _select_active_tools(
                       | set(pattern_output.get(SKILL_ZUSATZ_KEY) or ()))
         active_tools = [t for t in _nameable_tools() if t["function"]["name"] in tool_names]
         # E3: der Verlust bekommt eine Stimme — für den, der ihn beheben kann.
-        # Ein Betreiber sieht sonst nur, dass „der Bot nicht kuratiert", ohne
-        # Hinweis darauf, dass sein Block fehlt oder nicht greift.
         #
-        # Seit C5-a hat der Satz zwei Ursachen, und keine ist von hier aus von
-        # der anderen zu unterscheiden: hier anzukommen heisst, dass WEDER die
-        # Person angemeldet ist NOCH die Anlage einen Block hat. Beide werden
-        # deshalb genannt.
-        if not has_auth_token():
+        # Seit Paket 7 (S4, P5-9) schreibt nur, wer persönlich angemeldet ist;
+        # der Block der Anlage (MCP_AUTH_TOKEN) nur mit der Gastkonto-Erlaubnis
+        # im Studio. Ohne Anmeldung hier zu landen ist damit der Normalfall und
+        # keine Störung — INFO statt WARNING. Die Person bekommt die Anmelde-Chips
+        # (``domain/auth_qr``); der Betreiber liest hier beide Stellschrauben.
+        if not schreiben_erlaubt():
             _verloren = sorted(tool_names & CURATION_TOOLS)
             if _verloren:
-                _logger.warning(
-                    "Muster %s verlangt kuratierende Werkzeuge %s, aber für diesen "
-                    "Zug gilt kein Zugangsblock — weder von der Person (nicht beim "
-                    "MCP-Server angemeldet) noch von der Anlage (MCP_AUTH_TOKEN). "
-                    "Sie werden dem Modell nicht angeboten. Siehe deploy/README.md.",
+                _logger.info(
+                    "Muster %s verlangt kuratierende Werkzeuge %s, aber in diesem "
+                    "Zug ist niemand persönlich angemeldet. Ohne Anmeldung schreibt "
+                    "der Bot nur mit dem Block der Anlage (MCP_AUTH_TOKEN) und der "
+                    "Studio-Erlaubnis „Gastkonto darf schreiben“ — sie werden dem "
+                    "Modell nicht angeboten.",
                     pattern_label or "?",
                     _verloren,
                 )
@@ -266,12 +302,18 @@ def _select_active_tools(
     # ='Sammlung' → alle drei Werkzeuge weg → Inhaltssuche mit
     # learningResourceType='Sammlung' → keine Sammlungskarte → keine Skill-Notiz
     # → kein Vorrang der freigegebenen Anleitungen.
+    #
+    # Paket 7 (2026-10-09): NICHT bei einem Erzeugungs-Muster (M10). „Erstelle ein
+    # Arbeitsblatt" legt den Typ als ``medientyp`` ab; er ist dort das Format des
+    # Ergebnisses, kein Suchfilter — und der Nachschub unten gab M10 eine Suche,
+    # die es sich selbst verbietet (``TestKiErzeugungSuchtNicht``).
     _classif_entities_top = classification.get("entities", {}) or {}
     _medientyp = _classif_entities_top.get("medientyp")
     if (
         _medientyp
         and not medientyp_meint_sammlungen(_medientyp)
         and not _pattern_curates(pattern_output)
+        and pattern_output.get("output_mode") != "generate"
     ):
         before = {t["function"]["name"] for t in active_tools}
         # Welle C.5+ (2026-05-22): zusätzlich ``search_wlo_topic_pages``
@@ -299,13 +341,18 @@ def _select_active_tools(
                 "medientyp=%r → removed %s from active_tools to force content search",
                 _classif_entities_top.get("medientyp"), sorted(removed),
             )
-        # Ensure search_wlo_content is available even if pattern didn't list it.
-        if not any(t["function"]["name"] == "search_wlo_content" for t in active_tools):
-            for td in TOOL_DEFINITIONS:
-                if td["function"]["name"] == "search_wlo_content":
-                    active_tools.append(td)
-                    _logger.info("medientyp set — added search_wlo_content to active_tools")
-                    break
+        # Die gefilterte Inhaltssuche ersetzt, was gestrichen wurde — nur dann
+        # (Paket 9, Review Paket 7 MINOR 34: M01, M03, M04, M11 und M15 haben keine
+        # Werkzeuge und bekamen trotzdem eine Suche), und nur aus dem Katalog, den
+        # ein Muster nennen darf (MAJOR 11: ein im Studio verborgenes Werkzeug kam
+        # hier direkt aus ``TOOL_DEFINITIONS`` zurück).
+        if removed and "search_wlo_content" not in gesperrt and not any(
+                t["function"]["name"] == "search_wlo_content" for t in active_tools):
+            ersatz = [t for t in _nameable_tools()
+                      if t["function"]["name"] == "search_wlo_content"]
+            if ersatz:
+                active_tools.append(ersatz[0])
+                _logger.info("medientyp set — added search_wlo_content to active_tools")
 
     # ── Pattern-Sources-Gate (Welle C.5+, 2026-05-22) ─────────────
     # Steht "rag" NICHT in den ``sources`` des Musters, ist die RAG-Pipeline
@@ -314,10 +361,7 @@ def _select_active_tools(
     # KEIN RAG; ``None`` kommt nur aus einer Muster-Ausgabe ohne den Schlüssel.
     # (Bis Paket 4 stand hier, solche Muster bekämen alles.)
     _pattern_sources_decl = pattern_output.get("sources")
-    _rag_allowed_for_pattern = (
-        _pattern_sources_decl is None
-        or "rag" in _pattern_sources_decl
-    )
+    _rag_allowed_for_pattern = rag_erlaubt(pattern_output)
     # ── Add RAG knowledge areas as virtual tools ──────────────────
     if available_rag_areas and rag_config and _rag_allowed_for_pattern:
         area_descriptions = []

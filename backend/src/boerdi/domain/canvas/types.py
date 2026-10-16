@@ -1,6 +1,6 @@
 """Canvas material-type registry — ported 1:1 from ALT
 ``app/services/canvas_types.py``: the ``_DEFAULT_*`` in-code fallback data
-(material types, aliases, triggers, personas, LRT mapping) + the 8
+(material types, aliases, personas, LRT mapping) + the 5
 config-driven getters (``get_material_types`` ... ``get_analytical_personas``).
 Each getter reads the ``config_loader.load_canvas_*`` studio-editable
 read-facade and falls back to its ``_DEFAULT_*`` block on empty/failed load.
@@ -396,58 +396,6 @@ _DEFAULT_TYPE_ALIASES: dict[str, str] = {
 _DEFAULT_SHORT_ALIAS_WHITELIST = {"quiz", "test", "kpi", "pm"}
 
 
-# Verbs that strongly indicate a "create me new material" intent. Checked at
-# message start or early in the sentence as an override for classifier drift.
-_DEFAULT_CREATE_TRIGGERS: tuple[str, ...] = (
-    # Imperative
-    "erstelle",
-    "erstell ",
-    "erstell mir",
-    "generiere",
-    "generier mir",
-    "mach mir ein",
-    "mach mir eine",
-    "mach ein",
-    "mach eine",
-    "bau mir",
-    "schreib mir ein",
-    "schreib mir eine",
-    "schreib ein",
-    "schreib eine",
-    "entwirf",
-    "produziere",
-    # Indikativ/Wunsch (Verwaltung, Politik, Presse formulieren oft so)
-    "ich brauche ein",
-    "ich brauche eine",
-    "ich brauche einen",
-    "brauche ein",
-    "brauche eine",
-    "brauche einen",
-    "hätte gern ein",
-    "hätte gern eine",
-    "hätte gern einen",
-    "hätte gerne ein",
-    "hätte gerne eine",
-    "hätte gerne einen",
-    "ich möchte ein",
-    "ich möchte eine",
-    "ich möchte einen",
-    "möchte ein",
-    "möchte eine",
-    "möchte einen",
-    "gib mir ein",
-    "gib mir eine",
-    "gib mir einen",
-    "kannst du mir ein",
-    "kannst du mir eine",
-    "kannst du mir einen",
-    "kannst du einen",
-    "kannst du ein",
-    "fasse zusammen als",
-    "wandle um in",
-)
-
-
 # Personas, die analytische Formate (Bericht / Factsheet / …) bevorzugen.
 # Für diese wird die Quick-Reply-Auswahl im Canvas so sortiert, dass die
 # analytischen Typen zuerst erscheinen.
@@ -606,70 +554,6 @@ def get_lrt_mapping() -> dict[str, str]:
         if isinstance(k, str) and isinstance(v, str):
             merged[k.lower()] = v
     return merged
-
-
-def get_create_triggers() -> tuple[str, ...]:
-    """Verb phrases that flag a "create new material" intent."""
-    try:
-        bundle = config_loader.load_canvas_create_triggers()
-    except Exception:
-        return tuple(_DEFAULT_CREATE_TRIGGERS)
-    items = bundle.get("create_triggers") or []
-    if not items:
-        return tuple(_DEFAULT_CREATE_TRIGGERS)
-    return tuple(str(x) for x in items if x)
-
-
-# (Der Getter ``get_search_verbs`` [Negative-Liste "Suche statt Create",
-# las den ``search_verbs``-Key desselben YAML-Bundles] stand hier —
-# entfernt 2026-07-09: 0 Produktions-Aufrufer in app/ + scripts/.)
-_DEFAULT_EDIT_TRIGGERS: tuple[str, ...] = (
-    "mach es einfacher", "mach das einfacher", "einfacher formulieren",
-    "vereinfachen", "vereinfache", "kürzer", "kürzer fassen", "kürzer formulieren",
-    "knapper", "ausführlicher", "detaillierter", "länger", "mehr details",
-    "füge hinzu", "ergänze", "ergänze um", "nimm noch", "nimm zusätzlich",
-    "zusätzlich", "dazu noch", "mehr übungen", "mehr aufgaben", "mehr beispiele",
-    "füge lösungen", "füge eine lösung", "mit lösungen", "mit lösung",
-    "streiche", "entferne", "lösche", "weg mit", "ohne",
-    "formuliere um", "schreib um", "anders formulieren", "umformulieren",
-    "neu formulieren", "stil anpassen", "förmlicher", "formeller", "lockerer",
-    "persönlicher", "ändere", "ändere den titel", "ändere die überschrift",
-    "ändere die reihenfolge", "sortiere um", "tausch", "ersetze",
-    "pass es an", "passe es an", "überarbeite", "verbessere", "optimiere",
-    "verfeinere",
-)
-
-
-_DEFAULT_EXPLICIT_CREATE_OVERRIDES: tuple[str, ...] = (
-    "neues arbeitsblatt", "neues infoblatt", "neues quiz", "neuen bericht",
-    "neues factsheet", "neue präsentation", "neuen steckbrief",
-    "neue pressemitteilung", "neuen vergleich", "anderes thema",
-    "zu einem anderen thema", "fang nochmal an", "fang von vorne",
-)
-
-
-def get_edit_triggers() -> tuple[str, ...]:
-    """Verb phrases that flag a Canvas-EDIT (refinement) intent."""
-    try:
-        bundle = config_loader.load_canvas_edit_triggers()
-    except Exception:
-        return _DEFAULT_EDIT_TRIGGERS
-    items = bundle.get("edit_triggers") or []
-    if not items:
-        return _DEFAULT_EDIT_TRIGGERS
-    return tuple(str(x) for x in items if x)
-
-
-def get_explicit_create_overrides() -> tuple[str, ...]:
-    """Phrases that force CREATE even in S3 (e.g. 'neues Quiz')."""
-    try:
-        bundle = config_loader.load_canvas_edit_triggers()
-    except Exception:
-        return _DEFAULT_EXPLICIT_CREATE_OVERRIDES
-    items = bundle.get("explicit_create_overrides") or []
-    if not items:
-        return _DEFAULT_EXPLICIT_CREATE_OVERRIDES
-    return tuple(str(x) for x in items if x)
 
 
 def get_analytical_personas() -> frozenset[str]:

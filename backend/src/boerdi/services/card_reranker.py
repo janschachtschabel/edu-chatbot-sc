@@ -13,7 +13,7 @@ Cross-Encoder gibt rohe Logits; relevante Sammlungen/Themenseiten liegen klar
 Query „Klimawandel" = −4,02). Einzelinhalte sind verrauschter → milderes Gate.
 
 Schwellen (Logit), per ENV überschreibbar:
-  * Sammlungen + Themenseiten : ``CARD_CE_GATE_COLLECTION``  (Default 0.0)
+  * Sammlungen + Themenseiten : ``CARD_CE_GATE_COLLECTION``  (Default −1.0 seit 2026-08-16)
   * Einzelinhalte             : ``CARD_CE_GATE_CONTENT``     (Default −1.5)
 Top-N je Box: ``CARD_CE_TOP_N`` (Default 3).
 

@@ -79,6 +79,7 @@ from boerdi.api.schemas_mcp_curation import (
     TopicPageSetArgs,
 )
 from boerdi.api.schemas_result import pruefe_ergebnis_schema
+from boerdi.domain.seitenkontext_eingang import deckle_seitenkontext
 
 __all__ = [
     "ChatRequest", "ChatResponse", "ClassificationResult", "CollectionContentsArgs",
@@ -159,10 +160,19 @@ class ClassificationResult(BaseModel):
 #: hat einen Fehler, keinen Wunsch.
 MAX_RESULT_SCHEMA_CHARS = 200000
 
+#: Form einer Sitzungskennung — am Chat-Eingang wie an der offenen Lesestelle
+#: (``api/sessions``). Echte Kennungen: ``bb-<uuid>`` (Widget), ``eval-…``,
+#: ``loadtest-…``, ``studio-<uuid>`` (``services/session_origin``). Die Kennung ist
+#: zugleich der Schlüssel der Sitzungssperre; Läufe sperren unter ``__lauf:<name>``,
+#: und einen Doppelpunkt hat keine Kennung (Paket 9: der Chat konnte den Löschlauf
+#: mit genau dieser Kennung blockieren).
+SITZUNGSKENNUNG = r"[A-Za-z0-9_-]{1,128}"
+
 
 # ── Environment (sent by frontend every turn) ──────────────────────
 class Environment(BaseModel):
     page: str = "/"
+    # Gedeckelt am Eingang (Paket 9, ``domain/seitenkontext_eingang``).
     page_context: dict[str, Any] = Field(default_factory=dict)
     device: str = "desktop"
     locale: str = "de-DE"
@@ -272,10 +282,16 @@ class Environment(BaseModel):
     # bei "context_open"; getippte Rückfragen laufen weiter den Normalfluss.
     page_event: str | None = None
 
+    @field_validator("page_context")
+    @classmethod
+    def _seitenkontext_gedeckelt(cls, wert: dict[str, Any]) -> dict[str, Any]:
+        gedeckelt: dict[str, Any] = deckle_seitenkontext(wert)
+        return gedeckelt
+
 
 # ── Chat request / response ────────────────────────────────────────
 class ChatRequest(BaseModel):
-    session_id: str
+    session_id: str = Field(pattern=f"^{SITZUNGSKENNUNG}$")
     # Ohne Deckel (Nutzer-Entscheid 2026-08-18; vorher 10000). Eine
     # Gastanwendung reicht hier ganze Seiteninhalte herein.
     message: str
@@ -355,6 +371,10 @@ class ChatResponse(BaseModel):
     # Anfrage, die das Widget mit der Anmeldung der Seite absetzt. None im
     # Normalbetrieb, in dem der MCP-Server selbst schreibt.
     prepared_write: PreparedWriteOut | None = None
+    # Paket 10 (Kurzaudit A-3): der MCP-Server hat den Zugangsblock dieses Zuges
+    # abgewiesen — abgelaufen oder widerrufen. Der Zug lief ohne ihn weiter; das
+    # Widget räumt ihn und bietet die Anmeldung neu an.
+    auth_invalid: bool = False
 
 
 # ── Session / Memory ──────────────────────────────────────────────

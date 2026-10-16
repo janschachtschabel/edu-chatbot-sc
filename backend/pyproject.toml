@@ -21,8 +21,11 @@ dependencies = [
     # der Abhängigkeitswahl eines Fremdpakets. MIT, Gate-konform.
     "limits>=5.8.0",
     "litellm>=1.91.1",
-    "markitdown>=0.1.6",
-    "mcp>=1.28.1",
+    # Paket 7, P6 (P5-8, Nutzer-Entscheid 2026-10-09): PDF, Word, PowerPoint und
+    # Excel in die Wissensbasis. Ohne Extras scheiterten die vier mit 415
+    # (Paket 4, C5). Lizenzen der Zusatzpakete: siehe Lizenz-Tor in ci.yml.
+    "markitdown[docx,pdf,pptx,xlsx]>=0.1.6",
+    "mcp>=1.30.0",
     "numpy>=2.5.1",
     "onnxruntime>=1.20.1",
     "opentelemetry-exporter-otlp>=1.43.0",
@@ -40,6 +43,10 @@ dependencies = [
     "pydantic-settings>=2.14.2",
     "python-multipart>=0.0.32",
     "pyyaml>=6.0.3",
+    # Paket 6 B1 (2026-10-08): Studio-Regeln (Lotse, Policy) laufen gegen jede
+    # Nachricht — ``regex`` bietet eine Zeitgrenze je Suche (domain/regel_regex).
+    # Kam bisher nur transitiv über tiktoken mit. Apache-2.0 AND CNRI-Python.
+    "regex>=2026.7.10",
     "slowapi>=0.1.10",
     "sqlalchemy[asyncio]>=2.0.51",
     "tokenizers>=0.23.1",

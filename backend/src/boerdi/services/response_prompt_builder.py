@@ -9,9 +9,11 @@ and its load-bearing ``"\\n".join`` separators — is byte-identical to ALT.
 
 Deliberate NEU-deviations (all documented):
 - ``simplify:`` the P9 ``_log_system_prompt_size`` telemetry (no tiktoken infra in
-  NEU, non-behavioural) is omitted; seam marked below. The P3 semantic page-context
-  block IS wired (R6): ``page_context.get_cached`` + ``render_for_prompt``, off the
-  ``_page_metadata`` cache the ``page_context_enrich`` node populates.
+  NEU, non-behavioural) is omitted; seam marked below.
+- The P3 page-context block is no longer part of the system prompt (Paket 7, E-E):
+  only the fixed page rules stay here (``seitenkontext_prompt.seiten_regeln``, when
+  the turn has page data); the page data themselves go, framed, as a user message
+  in front of the history (``tool_loop_messages``).
 - three dead ALT locals (``_pattern_id_for_m11``, ``has_rag_tools``, and the
   per-area ``mode``) are not carried — assigned but never read (F841 in NEU).
 - ``_select_active_tools`` (P10-P11) is NOT here: it is blocked on P5/P6
@@ -25,10 +27,10 @@ import json
 import logging
 from typing import Any
 
-from boerdi.domain import host_instruction, skill_bruecke
+from boerdi.domain import host_capabilities, host_instruction, skill_bruecke
 from boerdi.domain.skill_precedence import anleitungs_hinweis, laufende_anleitung
 from boerdi.i18n import resolve_locale
-from boerdi.services import page_context
+from boerdi.services import page_context, seitenkontext_prompt
 from boerdi.services import response_prompt_display_blocks as _display
 from boerdi.services import response_prompt_tools_text as _tools_text
 from boerdi.services.config_loader import (
@@ -39,7 +41,7 @@ from boerdi.services.config_loader import (
     load_persona_prompt,
 )
 from boerdi.services.response_prompt_pattern import render_pattern_layer
-from boerdi.services.response_tool_selection import curation_blocked_by_mode
+from boerdi.services.response_tool_selection import curation_blocked_by_mode, rag_erlaubt
 
 _logger = logging.getLogger(__name__)
 
@@ -78,9 +80,9 @@ def _tools_layer(
         and not (pattern_output.get("sources") and "mcp" in pattern_output["sources"])
     )
     if not keine_werkzeuge:
-        return _tools_text.render_tools_block(
-            session_state, available_rag_areas, rag_config, lang,
-        )
+        # Bereiche nur, wenn das Muster die Wissensbasis überhaupt nutzen darf (Paket 11).
+        bereiche = available_rag_areas if rag_erlaubt(pattern_output) else None
+        return _tools_text.render_tools_block(session_state, bereiche, rag_config, lang)
     regeln = (
         _tools_text.DEGRADATION_NO_TOOLS_RULES if degradation_no_tools
         else _tools_text.M15_NO_TOOLS_RULES
@@ -97,11 +99,17 @@ def _build_system_prompt(
     rag_context: str,
     available_rag_areas: list[str] | None,
     rag_config: dict[str, Any] | None,
+    *,
+    seiten_daten: str | None = None,
 ) -> tuple[str, bool, bool, bool]:
     """Compose the response system prompt (P1-P9). Returns ``(system,
     _cards_inline_mode, _inline_grouping_mode, _degradation_no_tools)`` — the
     finished prompt plus the three flags later phases (tool selection,
-    inline-grouping closures) read."""
+    inline-grouping closures) read.
+
+    ``seiten_daten`` (E-E): the framed page data ``generate`` computed once for
+    this turn — it decides whether the page rules go in; ``None`` computes it
+    here (direct callers)."""
     # C1-f1: Die Ausgabe-Sprache kommt aus ``environment.locale`` — dem Feld,
     # das der Vertrag seit je fuehrt und das bis hierher niemand ausgewertet hat.
     # ``resolve_locale`` ist derselbe Parser wie fuer ``Accept-Language`` (C1-e1):
@@ -193,18 +201,18 @@ Rolle in dieser Phase: {_resp_state_meta.get('role', '—')}
     _skill_weg = skill_bruecke.verfuegbar(pattern_output)
     try:
         _pm = page_context.get_cached(session_state)
-        _pb = page_context.render_for_prompt(
-            _pm, environment.get("page_context"), skill_weg=_skill_weg)
-        if _pb:
-            system_parts.append(_pb)
-        else:
-            # Fallback: the widget's DOM-detector saw visible page text but MCP
-            # could not resolve platform metadata — use the heuristic block.
-            _raw_pb = page_context.render_raw_for_prompt(environment.get("page_context"))
-            if _raw_pb:
-                system_parts.append(_raw_pb)
     except Exception:  # noqa: BLE001 — a page-block failure must never break the prompt
-        _logger.debug("page-context prompt block failed", exc_info=True)
+        _logger.debug("page-context cache read failed", exc_info=True)
+    # E-E (Plan 2026-09-29, Nutzer-Entscheid 2026-10-09): wie im Agent-Zug
+    # (Paket B) stehen hier nur die festen Regeln; die Daten der Seite gehen
+    # gerahmt als Nachricht vor den Verlauf (``tool_loop_messages``). Bis dahin
+    # stand der Seitenblock samt Fremdtext hier — auf dem Responses-Weg also in
+    # ``instructions``. ``seiten_daten`` wirft nicht (``prompt_block``).
+    if seiten_daten is None:
+        seiten_daten = seitenkontext_prompt.seiten_daten(
+            session_state, environment.get("page_context"))
+    if seiten_daten:
+        system_parts.append(seitenkontext_prompt.seiten_regeln(skill_weg=_skill_weg))
 
     # G1: der Auftrag der einbettenden Anwendung. Steht NACH dem Seitenblock:
     # erst wo die Person ist, dann was die Anwendung will — die Anweisung bezieht
@@ -213,6 +221,14 @@ Rolle in dieser Phase: {_resp_state_meta.get('role', '—')}
     _hb = host_instruction.prompt_block(environment.get("host_instruction"))
     if _hb:
         system_parts.append(_hb)
+    # Paket 7 (P4): was die Anwendung anzeigt und erlaubt, wie im Schleifen-Weg —
+    # bis dahin hing ``inline_result_grouping`` hier am nie gesendeten ``cards_enabled``.
+    _cap = host_capabilities.prompt_block(
+        inline_result_grouping=environment.get("inline_result_grouping"),
+        tool_mode=environment.get("tool_mode"),
+    )
+    if _cap:
+        system_parts.append(_cap)
 
     # P3b: die Anleitung, die noch in Arbeit ist. Ein Skill, der eine Rückfrage
     # stellt, bekommt die Antwort erst im NÄCHSTEN Zug — und der entschied bis

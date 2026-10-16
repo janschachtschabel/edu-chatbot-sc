@@ -13,6 +13,7 @@ DB-include (full Postgres dump) is deferred to P10 operational backup —
 from __future__ import annotations
 
 import io
+import uuid
 import zipfile
 from pathlib import PurePosixPath
 from typing import Any
@@ -34,6 +35,15 @@ FACTORY_ID = "factory"
 
 class SnapshotTooLarge(Exception):
     """Upload exceeds a size/decompression cap (maps to HTTP 413)."""
+
+
+class SicherungUngueltig(Exception):
+    """A backup member that cannot be read: not UTF-8, broken YAML or YAML aliases
+    (Paket 9, V5; maps to HTTP 400 — it ended in a 500 before). ``datei`` names it."""
+
+    def __init__(self, datei: str) -> None:
+        super().__init__(datei)
+        self.datei = datei
 
 
 def _copy_zip_member_capped(src, dst, budget: list[int], chunk: int = 1 << 20) -> None:
@@ -81,29 +91,35 @@ def parse_config_zip(blob: bytes) -> dict[str, dict[str, Any]]:
             out = io.BytesIO()
             with zf.open(name) as src:
                 _copy_zip_member_capped(src, out, budget)
-            text_content = out.getvalue().decode("utf-8")
             rel = name[len(_CONFIG_PREFIX):]
             key = PurePosixPath(rel).with_suffix("").as_posix()
-            if rel.endswith(".md"):
-                fm, body = seed_io.split_frontmatter(text_content)
-                areas[key] = {"frontmatter": seed_io.normalize_json_keys(fm), "body": body}
-            else:
-                parsed = yaml.safe_load(text_content) or {}
-                if isinstance(parsed, dict):
-                    areas[key] = seed_io.normalize_json_keys(parsed)
+            try:
+                # ``-sig``: ein vorangestelltes BOM verschluckte sonst das Frontmatter
+                # (Review Paket 9).
+                text_content = out.getvalue().decode("utf-8-sig")
+                if rel.endswith(".md"):
+                    fm, body = seed_io.split_frontmatter(
+                        text_content, laden=seed_io.lade_ohne_alias)
+                    areas[key] = {"frontmatter": seed_io.normalize_json_keys(fm), "body": body}
+                else:
+                    parsed = seed_io.lade_ohne_alias(text_content) or {}
+                    if isinstance(parsed, dict):
+                        areas[key] = seed_io.normalize_json_keys(parsed)
+            except (UnicodeDecodeError, yaml.YAMLError, seed_io.YamlAlias):
+                raise SicherungUngueltig(rel) from None
     return areas
 
 
 # ── config_snapshots table CRUD ────────────────────────────────────────────
 _INSERT = text("""
-    INSERT INTO config_snapshots (id, label, include_db, blob)
-    VALUES (:id, :label, :include_db, :blob)
+    INSERT INTO config_snapshots (id, label, include_db, blob, art)
+    VALUES (:id, :label, :include_db, :blob, :art)
     ON CONFLICT (id) DO UPDATE
       SET label = EXCLUDED.label, include_db = EXCLUDED.include_db,
-          blob = EXCLUDED.blob, created_at = now()
+          blob = EXCLUDED.blob, art = EXCLUDED.art, created_at = now()
 """)
 _LIST = text("""
-    SELECT id, created_at, label, include_db FROM config_snapshots
+    SELECT id, created_at, label, include_db, art FROM config_snapshots
     WHERE id <> :factory ORDER BY created_at DESC
 """)
 _GET = text("SELECT id, created_at, label, include_db, blob FROM config_snapshots WHERE id = :id")
@@ -113,10 +129,11 @@ _COUNT = text("SELECT count(*) FROM config_snapshots WHERE id <> :factory")
 
 async def save_snapshot(
     engine: AsyncEngine, snap_id: str, label: str, blob: bytes, include_db: bool = False,
+    art: str = "hand",
 ) -> None:
     async with engine.begin() as conn:
         await conn.execute(_INSERT, {
-            "id": snap_id, "label": label, "include_db": include_db, "blob": blob,
+            "id": snap_id, "label": label, "include_db": include_db, "blob": blob, "art": art,
         })
 
 
@@ -141,3 +158,28 @@ async def delete_snapshot(engine: AsyncEngine, snap_id: str) -> bool:
 async def count_snapshots(engine: AsyncEngine) -> int:
     async with engine.connect() as conn:
         return (await conn.execute(_COUNT, {"factory": FACTORY_ID})).scalar_one()
+
+
+class SchnappschussGrenze(Exception):
+    """Kein Platz für einen weiteren Schnappschuss (``MAX_SNAPSHOTS``)."""
+
+
+async def schnappschuss_anlegen(
+    engine: AsyncEngine, label: str, stand: dict, *, art: str = "hand",
+) -> str:
+    """Einen Schnappschuss von ``stand`` anlegen; gibt seine Kennung zurück.
+
+    Ist die Grenze erreicht, ``SchnappschussGrenze`` — ohne etwas zu schreiben.
+    Eine Stelle für Grenze, Kennung und Speichern (Review Paket 6): Studio,
+    Auslieferungsstand und Kommandozeile hielten je eine Kopie davon. Die
+    Fehlerform bestimmt der Aufrufer (HTTP 400 oder eine Zeile auf stderr).
+
+    ``art`` (Paket 12): ``hand`` für den Studio-Knopf, ``auto`` für die Sicherung, die ein Lauf
+    vor dem Überschreiben selbst anlegt — das Studio zeigt beides getrennt.
+    """
+    if await count_snapshots(engine) >= MAX_SNAPSHOTS:
+        raise SchnappschussGrenze(MAX_SNAPSHOTS)
+    snap_id = f"snap-{uuid.uuid4().hex[:12]}"
+    await save_snapshot(engine, snap_id, label, build_config_zip(stand), art=art)
+    return snap_id
+

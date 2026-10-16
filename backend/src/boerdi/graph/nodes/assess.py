@@ -29,9 +29,11 @@ from typing import Any
 from boerdi.api.schemas import ClassificationResult
 from boerdi.graph.state import TurnContext
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
+from boerdi.obs.tasks import cancel_and_drain
 from boerdi.obs.zeiten import schritt
 from boerdi.services.classify import classify_input
 from boerdi.services.engine_choice import laeuft_ueber_die_schleife
+from boerdi.services.rag.vorab import rag_einbettung_vorab
 from boerdi.services.safety import assess_safety
 from boerdi.services.safety.regex_gate import regex_gate
 
@@ -39,6 +41,26 @@ logger = logging.getLogger(__name__)
 
 # (session_id) -> Erinnerungs-Dicts. Gebunden an die App-Engine in P4-6.
 MemoryFetch = Callable[[str], Awaitable[list[dict[str, Any]]]]
+
+#: Wie lange ``assess`` nach Sicherheit und Klassifikation noch auf die Vorab-
+#: Einbettung (T1) wartet — Review Paket 7, B-1. Gemessen läuft sie in 0,3–1 s, die
+#: Klassifikation in 2–4 s: fast immer ist sie vorher fertig. Hängt der Dienst,
+#: kostet es den Zug höchstens diese Frist; der Abruf bettet dann selbst ein.
+_EINBETTUNG_NACHFRIST_S = 0.5
+
+
+async def _nach_der_frist(vorab: asyncio.Task) -> Any:
+    """Das Ergebnis der Vorab-Einbettung — oder ``None`` nach der Nachfrist bzw.
+    bei einem Fehler. Eine nicht fertige Aufgabe wird abgebrochen, nicht liegen
+    gelassen."""
+    try:
+        return await asyncio.wait_for(asyncio.shield(vorab), _EINBETTUNG_NACHFRIST_S)
+    except TimeoutError:
+        await cancel_and_drain([vorab])
+        return None
+    except Exception as e:  # noqa: BLE001 — Vorarbeit; der Abruf bettet dann selbst ein
+        logger.warning("rag embedding ahead failed: %s", e)
+        return None
 
 
 def _fallback_classification(
@@ -107,9 +129,24 @@ async def assess(
     async def _memory():
         return await memory_fetch(ctx.req.session_id)
 
-    safety, classification, memories = await asyncio.gather(
-        _safety(), _classify(), _memory(), return_exceptions=True,
-    )
+    async def _einbettung():
+        # T1 (Paket 7): die Einbettung für den RAG-Vorabruf des Muster-Wegs —
+        # neben der Klassifikation statt nach der Musterwahl (``rag/vorab``). Die
+        # Schleife holt Wissen nur auf Zuruf, mit der Suchanfrage des Modells.
+        if laeuft_ueber_die_schleife(engine):
+            return None
+        return await rag_einbettung_vorab(ctx.req.message)
+
+    haupt = asyncio.gather(_safety(), _classify(), _memory(), return_exceptions=True)
+    # Erst nach dem Hauptteil gestartet: hinter der b-api teilen sich alle Aufrufe
+    # wenige Plätze — Sicherheit und Klassifikation reihen sich zuerst ein (B-1).
+    vorab = asyncio.create_task(_einbettung())
+    try:
+        safety, classification, memories = await haupt
+        einbettung = await _nach_der_frist(vorab)
+    finally:
+        if not vorab.done():
+            vorab.cancel()
     if isinstance(safety, Exception):
         logger.error("safety task failed: %s", safety)
         safety = regex_gate(ctx.req.message, signals)
@@ -123,4 +160,5 @@ async def assess(
     ctx.safety = safety
     ctx.classification = classification
     ctx.memories = memories
+    ctx.rag_einbettung = einbettung
     return ctx

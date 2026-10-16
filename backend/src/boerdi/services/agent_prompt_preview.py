@@ -23,15 +23,20 @@ from boerdi.services.agent_knowledge import WISSENS_REGEL, wissen_werkzeug
 from boerdi.services.agent_kopf import kopf
 from boerdi.services.agent_tools import build_agent_tools
 from boerdi.services.config_loader import load_engine, load_rag_config
+from boerdi.services.schreibrecht import schreiben_erlaubt
 
 #: Was ``respond_agent`` je Zug hinter den stabilen Anfang setzt, in dessen
 #: Reihenfolge. ``result_schema`` ist kein eigener Block: der Satz dazu wird an
 #: den Kopf gehängt, wenn die Einbettung ein Ergebnis-Schema erklärt.
 #: ``last_shown`` (Paket C): was die Person zuletzt gesehen hat — nur, wenn es
-#: etwas gibt (``agent_zugblock``).
+#: etwas gibt (``agent_zugblock``). ``page_rules``/``page_data`` (Plan 2026-09-29,
+#: Paket B): die festen Regeln zum Seitenkontext im Systemteil, die Daten der
+#: Seite gerahmt vor dem Verlauf (``seitenkontext_prompt``). ``prefetch`` steht
+#: seit E-C (Paket 7) direkt dahinter, vor dem Verlauf — dort bleibt er im
+#: Folgezug gecacht.
 JE_ZUG: Final = (
-    "result_schema", "host_capabilities", "page_context", "host_instruction",
-    "skill_hints", "history", "prefetch", "last_shown", "message",
+    "result_schema", "host_capabilities", "page_rules", "host_instruction",
+    "skill_hints", "page_data", "prefetch", "history", "last_shown", "message",
 )
 
 
@@ -50,7 +55,10 @@ async def prompt_vorschau(sprache: Locale) -> dict[str, Any]:
     kopf_text = kopf(einstellung.agent_rolle, sprache) + (WISSENS_REGEL if wissen else "")
     block = await master_skill.prompt_block(None)
     zustand = master_skill.zustand()
-    werkzeuge = build_agent_tools(include_submit=False, include_dokument=True, wissen_tool=wissen)
+    # Die Werkzeuge einer Person ohne Anmeldung (Paket 9): die kuratierenden nur,
+    # wenn das Studio das Gastkonto erlaubt — wie im Zug (``respond_agent``).
+    werkzeuge = build_agent_tools(allow_curation=schreiben_erlaubt(), include_submit=False,
+                                  include_dokument=True, wissen_tool=wissen)
     return {
         "locale": sprache,
         "chain": [

@@ -203,12 +203,34 @@ intent_overrides:
       - produziere
       - erzeuge
 
+  # Paket 10 (Kurzaudit S-7, 2026-10-15): Kurations-Aufträge landeten bei M05/M08
+  # — dort fehlen die Schreibwerkzeuge. Höchstens 14 Trigger (der Prompt kappt).
+  - id: i09_curation_verbs
+    description: Kurations-Verb mit Gegenstand im Bestand → I09 (Kuration, Muster M18).
+    intent: I09
+    triggers:
+      - in meine Sammlung
+      - in die Sammlung
+      - zur Sammlung hinzufügen
+      - füge … hinzu
+      - nimm … auf
+      - einsortieren
+      - speicher das in
+      - in WLO speichern
+      - in WLO aufnehmen
+      - leg eine Sammlung an
+      - lösch den Datensatz
+      - aus der Sammlung entfernen
+
 # Konflikt-Regel: Bei beiden Verb-Typen gewinnt das ERSTE in der Nachricht.
 intent_conflict_rule: |
   Wenn beide Verb-Typen (Such-Verb + Create-Verb) in der Nachricht
   vorkommen, gewinnt das ERSTE Verb in der Reihenfolge der Nachricht.
   Beispiel: 'Ich suche, kannst du etwas erstellen' → I03 (Suche
   kommt zuerst).
+  Ein Kurations-Verb (aufnehmen/hinzufügen/einsortieren/speichern/löschen)
+  mit einem Gegenstand im Bestand (Sammlung, WLO, Treffer, Datensatz) geht
+  beiden vor → I09; mit einer Webadresse → I11.
 
 # ── Topic-Slot-Overrides ──────────────────────────────────────────
 topic_overrides:
@@ -382,3 +404,139 @@ few_shot_examples:
     intent: I10
     pattern: M19
     note: Stichwort im Nebensatz nennt den Zweck, nicht die Aufgabe — kein Lernpfad (I04/M09)
+  # Paket 10 (Kurzaudit S-7): gemeldete Fehlwege — Auftrag zur Kuration, gewählt
+  # wurde ein Such- oder Sammlungsmuster ohne Schreibwerkzeuge.
+  - input: Nimm das in meine Sammlung Optik auf
+    intent: I09
+    pattern: M18
+    note: Auftrag mit Gegenstand im Bestand — nicht M08, auch wenn die Sammlung genannt ist
+  - input: Füge den ersten Treffer zur Sammlung hinzu
+    intent: I09
+    pattern: M18
+    note: Bezug auf eine vorige Suche ändert nichts — das Verb entscheidet, nicht M05/M06
+  - input: Erschließe https://de.wikipedia.org/wiki/Optik und leg es in der Sammlung Optik ab
+    intent: I11
+    pattern: M20
+  - input: Erstelle eine neue Sammlung Optik
+    intent: I09
+    pattern: M18
+    note: Gegenstand ist eine Sammlung im Bestand — kein KI-Material (I05/M10), obwohl „erstelle“ dasteht
+
+# ── Kurations-Umleitung (Paket 10, Kurzaudit S-7) ─────────────────
+# Das deterministische Netz unter dem Klassifikator (``domain/kuration_umleitung``):
+# Auftragsverb (ganze Wörter) + Gegenstand im Bestand (Wortanfänge) oder eine
+# Webadresse, und kein Fragewort am Satzanfang → M18, mit Webadresse M20. Greift nur
+# in der Muster-Maschine und nur, wenn weder Sicherheits-Gate noch Klärer ein Muster
+# erzwingen. Wörter klein schreiben; Umlaute so, wie sie getippt werden.
+curation_reroute:
+  enabled: true
+  # Ganze Wörter, auch die Teile trennbarer Verben („Leg … an“ → leg, „Nimm … auf“ → nimm).
+  verbs:
+    # aufnehmen, übernehmen
+    - nimm
+    - nehme
+    - aufnehmen
+    - übernimm
+    - übernehme
+    - übernehmen
+    # hinzufügen, einsortieren, ablegen
+    - füge
+    - füg
+    - fuege
+    - hinzufügen
+    - einfügen
+    - pack
+    - packe
+    - kopiere
+    - kopieren
+    - verlinke
+    - verlinken
+    - sortiere
+    - einsortieren
+    - ordne
+    - einordnen
+    - leg
+    - lege
+    - ablegen
+    - anlegen
+    - speicher
+    - speichere
+    - speichern
+    - trag
+    - trage
+    - eintragen
+    - hochladen
+    - veröffentliche
+    - veröffentlichen
+    # ändern, umbenennen, verschieben
+    - ändere
+    - ändern
+    - aktualisiere
+    - aktualisieren
+    - benenne
+    - umbenennen
+    - verschieb
+    - verschiebe
+    - verschieben
+    # entfernen, löschen
+    - entferne
+    - entfernen
+    - lösch
+    - lösche
+    - löschen
+    # erschließen (mit Webadresse → M20)
+    - erschließe
+    - erschließen
+    - erschliesse
+    - erschliessen
+    - add
+    - save
+    - upload
+    - publish
+    - rename
+    - remove
+    - delete
+  # Wortanfänge („sammlung“ trifft auch „Sammlungen“, „datensatz“ „Datensatzes“).
+  # Bewusst NICHT „treffer“: „Nimm die Videos aus den Treffern raus“ ist ein Filter.
+  objects:
+    - sammlung
+    - wlo
+    - bestand
+    - datensatz
+    - datensätz
+    - metadaten
+    - themenseite
+    - redaktionstext
+    - repository
+    - collection
+  # Erstes Wort der Nachricht. Wie-/Wo-Fragen zeigt M13 den Weg, Fragen nach Recht
+  # und Konto („Darf ich …“, „Muss ich …“) beantwortet M04/M13. Höfliche Bitten
+  # („Kannst du …?“) stehen bewusst nicht hier — sie sind Aufträge.
+  question_words:
+    - wie
+    - wo
+    - wohin
+    - was
+    - wer
+    - warum
+    - wieso
+    - weshalb
+    - wozu
+    - womit
+    - welche
+    - welcher
+    - welches
+    - wann
+    - darf
+    - dürfen
+    - muss
+    - müssen
+    - brauche
+    - how
+    - what
+    - where
+    - why
+    - which
+    - who
+    - may
+    - must

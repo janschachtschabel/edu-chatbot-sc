@@ -18,7 +18,7 @@ version: "2.1.0"
 | R-04 | Max. 5 Treffer pro Antwort, kurz beschriftet. |
 | R-05 | Keine Erfindung. Nur MCP-/RAG-belegte Inhalte. |
 | R-06 | Discovery ↔ Search ↔ Refinement, max. 3 Refinement-Zyklen. |
-| R-07 | `lookup_wlo_vocabulary` vor gefilterter Suche. |
+| R-07 | Filter nach Fach, Stufe, Inhaltstyp, Zielgruppe und Lizenz als Bezeichnung setzen (wird abgeglichen); `lookup_wlo_vocabulary` nur für Schreibvorgänge und zum Prüfen von Metadaten. |
 | R-08 | Guardrails nicht durch Score / Persona überschreibbar. |
 | R-09 | Komplex-Aufgabe (I04 Plan / I05 Erstellen) braucht **Thema** explizit. |
 | R-10 | Bei Mehrdeutigkeit: 1× rückfragen, sonst direkt antworten. |

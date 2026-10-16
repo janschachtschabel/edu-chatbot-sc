@@ -27,13 +27,15 @@ import re
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, Security
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from boerdi.api.deps import Lang, OriginScope, require_studio_key
+from boerdi.api.deps import Lang, OriginScope, get_session_factory, require_studio_key
 from boerdi.api.deps import get_session as get_db_session
 from boerdi.api.ratelimit import public_rate_limit
-from boerdi.domain.write_confirm import entities_for_display
+from boerdi.api.schemas import SITZUNGSKENNUNG
+from boerdi.domain.write_anzeige import entities_for_display
 from boerdi.i18n import msg
+from boerdi.services import aufbewahrung
 from boerdi.services.config_loader import load_privacy_config
 from boerdi.services.db_sessions import (
     delete_messages_for_session,
@@ -60,13 +62,15 @@ public_router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 # chars is accepted (back-compat), but control/special chars and absurd lengths
 # are rejected. This is NOT ownership proof — anyone holding a valid high-entropy
 # id can still read that history (architectural, ALT T2) — only shape + DoS bound.
-_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+# The same shape as the chat entrance (``schemas.SITZUNGSKENNUNG``, Paket 9);
+# ``fullmatch``, because ``$`` let a trailing newline through.
+_SESSION_ID_RE = re.compile(SITZUNGSKENNUNG)
 _MAX_MESSAGES_LIMIT = 200
 
 
 def _validate_session_id(session_id: str) -> None:
     """Raise 400 for a malformed/oversized session id on the open endpoint."""
-    if not _SESSION_ID_RE.match(session_id or ""):
+    if not _SESSION_ID_RE.fullmatch(session_id or ""):
         raise HTTPException(status_code=400, detail="Invalid session id")
 
 
@@ -136,6 +140,27 @@ async def optimize_db(
     except Exception as e:  # noqa: BLE001 — surface lock/IO errors to the UI
         raise HTTPException(503, msg(lang, "sessions.optimizeFailed", error=e)) from e
     return {"status": "optimized", **result}
+
+
+@router.get("/retention")
+async def retention_overview(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Retention per log: period in days (0 = unlimited), entries due now, oldest entry."""
+    return {"fristen": await aufbewahrung.ueberblick(session)}
+
+
+@router.post("/retention")
+async def retention_run(
+    request: Request,
+    lang: Lang,
+    sitzungen: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)],
+) -> dict:
+    """Delete the entries due now — the same run the backend makes every 6 hours."""
+    geloescht = await aufbewahrung.lauf(request.app.state.engine, sitzungen)
+    if geloescht is None:
+        raise HTTPException(409, msg(lang, "retention.busy"))
+    return {"status": "done", "deleted": geloescht}
 
 
 # ── Dynamic routes ───────────────────────────────────────────────────────

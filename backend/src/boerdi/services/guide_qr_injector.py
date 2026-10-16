@@ -42,6 +42,9 @@ import logging
 import re
 from collections.abc import Iterable
 
+import regex
+
+from boerdi.domain import regel_regex
 from boerdi.i18n import DEFAULT, Locale, bot_text, pick_localized
 
 logger = logging.getLogger(__name__)
@@ -224,7 +227,7 @@ _RAG_AREA_URLS: dict[str, tuple[str, str, str]] = {
 # Eintrag: ``(regex, label, label_en, url, priority)``. Die englische
 # Beschriftung reist MIT statt aufgelöst zu werden: der Cache lebt pro Prozess
 # und ist sprachunabhängig, die Sprache gehört aber zum Zug (C1-g2a).
-_COMPILED: list[tuple[re.Pattern, str, str, str, int]] | None = None
+_COMPILED: list[tuple[regex.Pattern, str, str, str, int]] | None = None
 _COMPILED_SOURCE: str = ""  # "yaml" | "hardcoded" — fürs Logging
 #: Die Regeln, aus denen ``_COMPILED`` gebaut ist. Ändern sie sich, wird neu
 #: übersetzt (§1.6, 2026-10-01): vorher galt ein Speichern im Studio erst nach
@@ -262,7 +265,7 @@ def _regel_quelle() -> tuple[list[tuple[str, str, str, str, int]], str]:
     return [(pat, label, "", url, prio) for (pat, label, url, prio) in _RULES], "hardcoded"
 
 
-def _compiled() -> list[tuple[re.Pattern, str, str, str, int]]:
+def _compiled() -> list[tuple[regex.Pattern, str, str, str, int]]:
     """Liefert die kompilierten Lotsen-Regex-Regeln — neu übersetzt, sobald
     sich die Regeln geändert haben (siehe ``_COMPILED_FROM``)."""
     global _COMPILED, _COMPILED_SOURCE, _COMPILED_FROM
@@ -278,11 +281,13 @@ def _compiled() -> list[tuple[re.Pattern, str, str, str, int]]:
     # ``re.error`` aus der ganzen Liste, und der Aufrufer schaltete alle
     # Lotsen-Knöpfe ab. Das Speichern weist es ab; ein alter Stand kostet hier
     # nur seine Regel.
-    compiled: list[tuple[re.Pattern, str, str, str, int]] = []
+    # Motor mit Zeitgrenze (Paket 6, B1): das Muster pflegt das Studio, die
+    # Nachricht schickt jeder Client.
+    compiled: list[tuple[regex.Pattern, str, str, str, int]] = []
     for (pat, label, label_en, url, prio) in rules_source:
         try:
-            compiled.append((re.compile(pat, re.IGNORECASE), label, label_en, url, prio))
-        except re.error as e:
+            compiled.append((regel_regex.uebersetze(pat), label, label_en, url, prio))
+        except regel_regex.RegexFehler as e:
             logger.warning("guide-rules: rule %r skipped, invalid pattern (%s)", label, e)
     _COMPILED = compiled
     _COMPILED_FROM = rules_source
@@ -342,7 +347,7 @@ def find_guide_match(message: str, lang: Locale = DEFAULT) -> tuple[str, str] | 
         return None
     best: tuple[str, str, int] | None = None  # (label, url, prio)
     for pat, label, label_en, url, prio in _compiled():
-        if pat.search(message):
+        if regel_regex.trifft(pat, message):
             if best is None or prio > best[2]:
                 best = (pick_localized(label, label_en, lang), url, prio)
     if best is None:

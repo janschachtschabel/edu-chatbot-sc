@@ -9,11 +9,12 @@
 # (2026-09-27) entfernt: die K0-Messung zeigte ihn zwischen den beiden anderen,
 # ohne eigenen Mehrwert. Ein gespeichertes `hybrid` wird als `agent` gelesen.
 #
-# Die Vorgabe ist bewusst `pattern`: ohne Pflege aendert sich am ausgelieferten
-# Chatbot nichts. Je Anfrage laesst sie sich mit der Kopfzeile `X-Boerdi-Engine`
-# uebersteuern — das braucht der A/B-Lauf, der alle Maschinen in EINEM
+# Die Vorgabe ist `agent` (Nutzer-Entscheid 2026-10-09, folgt D-15: im Betrieb
+# ist die Agent-Schleife die Vorgabe; Krise und Bedrohung beantwortet weiter die
+# Muster-Maschine). Je Anlage im Studio umschaltbar, je Anfrage mit der Kopfzeile
+# `X-Boerdi-Engine` — das braucht der A/B-Lauf, der alle Maschinen in EINEM
 # Golden-Durchgang fahren muss.
-mode: pattern
+mode: agent
 
 # Die Deckel der Agent-Schleife.
 agent:
@@ -61,6 +62,24 @@ agent:
   # standardmaessig an.
   write_mode: propose
 
-  # Sicherheits-Gate (Regex + Moderation). Es haengt nicht am Klassifikator,
-  # kostet also nichts, was der Agent-Modus einspart.
-  safety: true
+# Schalter des laufenden Betriebs (Paket 7, Nutzer-Entscheid 2026-10-09). Wirken
+# ohne Neustart. Ist die Umgebungsvariable dahinter gesetzt, geht sie vor
+# (Betrieb ohne Studio, Notbremse) — leer gilt als nicht gesetzt.
+betrieb:
+  # LLM_SERVICE_TIER: OpenAI-Stufe `fast`, gemessen ~30 % schneller, zum 4- bis
+  # 5-fachen Tokenpreis und ohne EU-Datenhaltung. Nur OpenAI direkt, gpt-5/gpt-6.
+  fast_modus: false
+  # CHAT_TOKEN_STREAMING: die Antwort erscheint, waehrend das Modell schreibt.
+  # Live-Proben 2026-10-03: kein sichtbarer Sprung (Drift 0/6). Im Agent-Modus
+  # erst mit den Agent-Schnellantworten (die Antwort kommt dann ueber
+  # `respond_to_user`).
+  token_streaming: true
+  # AGENT_INLINE_QUICK_REPLIES: der Agent schreibt die Schnellantworten gleich
+  # mit (Zug 12,2 → 6,8 s). Erst einschalten, wenn der Master-Skill-Abschnitt
+  # „Schnellantworten" angepasst ist (Text: docs/plans/2026-09-30-muster-kette-zeit.md).
+  agent_schnellantworten: false
+  # Ohne persoenliche Anmeldung mit dem Dienstkonto der Anlage (MCP_AUTH_TOKEN)
+  # schreiben — in beiden Modi, fuer jede Person im Chat. Vorgabe aus: schreiben
+  # kann nur, wer mit dem eigenen WLO-Konto angemeldet ist (P5-9). Bewusst ohne
+  # Umgebungsvariable.
+  gastkonto_schreibt: false

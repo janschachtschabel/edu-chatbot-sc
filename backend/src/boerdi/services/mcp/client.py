@@ -38,9 +38,11 @@ import logging
 import time as _time
 from typing import Any
 
+from boerdi.domain.fremdwerkzeug import ist_fremd
 from boerdi.domain.prepared_write import PreparedWrite, read_prepared_write
-from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD
-from boerdi.services.mcp import transport
+from boerdi.domain.werkzeug_freigabe import uebernommen
+from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD, is_curation_tool
+from boerdi.services.mcp import anmeldung, fremdwerkzeuge, transport
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
 from boerdi.services.mcp.tool_args import (
     _JSON_CAPABLE_TOOLS,
@@ -53,6 +55,7 @@ from boerdi.services.mcp.tool_cache import (
     _cache_get,
     _cache_key,
     _cache_set,
+    darf_cachen,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,16 +95,22 @@ def is_mcp_error(text: str | None) -> bool:
 _LOG_VALUE_MAX_CHARS = 500
 
 
-def _args_for_log(arguments: Any) -> Any:
-    """``arguments`` fürs Protokoll: Schlüssel geschwärzt, lange Werte gekürzt."""
+def _args_for_log(arguments: Any, *, nur_laengen: bool = False) -> Any:
+    """``arguments`` fürs Protokoll: Schlüssel geschwärzt, lange Werte gekürzt.
+
+    ``nur_laengen`` (Paket 10, Audit 2026-10-10 A-8): bei kuratierenden Werkzeugen
+    sind die Werte Titel, Beschreibungen und Schlagwörter unveröffentlichter Inhalte
+    — auf INFO stehen dann nur Schlüssel und Längen, die Werte erst auf DEBUG."""
     if not isinstance(arguments, dict):
         return arguments
     zeile: dict[str, Any] = {}
     for key, value in arguments.items():
         if key == CONFIRM_TOKEN_FIELD:
             zeile[key] = "‹geschwärzt›"
-        elif isinstance(value, str) and len(value) > _LOG_VALUE_MAX_CHARS:
+        elif isinstance(value, str) and (nur_laengen or len(value) > _LOG_VALUE_MAX_CHARS):
             zeile[key] = f"‹{len(value)} Zeichen›"
+        elif nur_laengen and isinstance(value, list | dict):
+            zeile[key] = f"‹{len(value)} Einträge›"
         else:
             zeile[key] = value
     return zeile
@@ -155,6 +164,9 @@ def get_prepared_writes() -> list[PreparedWrite]:
 # ``MCP_URL`` (Import-Zeit) wird durch ``transport.resolve_mcp_url()`` ersetzt:
 # gleiche Semantik (konfigurierte oder Default-MCP-URL, Trailing-Slash-frei),
 # aber pro Aufruf ausgewertet → kein modul-globaler URL-State.
+_PRIMAER = "wlo-mcp"
+
+
 def _get_server_url_for_tool(tool_name: str) -> str:
     """Look up which MCP server provides a given tool.
 
@@ -165,6 +177,10 @@ def _get_server_url_for_tool(tool_name: str) -> str:
     default_url = transport.resolve_mcp_url()
     for server in get_enabled_mcp_servers():
         server_tools = server.get("tools", [])
+        # Review Paket 11, #1: übernommene Werkzeuge eines weiteren Servers laufen über
+        # ``fremdwerkzeuge`` — ihr Name leitet keinen gleichnamigen WLO-Aufruf um.
+        if server.get("id") != _PRIMAER and tool_name in uebernommen(server):
+            continue
         if tool_name in server_tools:
             return server.get("url", default_url)
 
@@ -243,7 +259,8 @@ async def call_mcp_tool_status(
     Rückgabe ``(text, art)`` mit ``art`` aus ``""`` (kein Fehler) · ``"tool"``
     (der Server hat geantwortet und abgelehnt) · ``"transport"`` (es kam keine
     Antwort) · ``"timeout"`` (keine Antwort binnen ``MCP_CALL_TIMEOUT_S``; für
-    die Frage „wurde geschrieben?" dasselbe wie ``transport``). Die
+    die Frage „wurde geschrieben?" dasselbe wie ``transport``) · ``"auth"`` (der
+    Zugangsblock wurde abgewiesen, Paket 10 — nichts ausgeführt). Die
     Unterscheidung stammt aus ``transport.call_tool``, wo sie als Einzige noch
     vorliegt.
 
@@ -264,6 +281,12 @@ async def call_mcp_tool_status(
     zurück — Backward-Compat für Tools, die im Code registriert sind aber
     (noch) nicht in der YAML.
     """
+    # Paket 11 (E): ein Werkzeug eines fremden Servers geht seinen eigenen Weg —
+    # nichts von dem, was unten an WLO-Namen hängt, gilt für ihn.
+    if ist_fremd(tool_name):
+        text, art = await fremdwerkzeuge.rufen(tool_name, arguments)
+        return (f"{_MCP_ERROR_PREFIX}: {text}", art) if art else (text, "")
+
     # Per-Call-Server-URL: zuerst aus der Studio-Registry, sonst Default.
     target_url = _get_server_url_for_tool(tool_name)
     _call_t0 = _time.perf_counter()  # für Tool-Laufzeit-Logging (#3 Debug-Timing)
@@ -272,7 +295,11 @@ async def call_mcp_tool_status(
     # can see exactly what the model wanted to send. Keeps this at INFO — the
     # cost is ~100 bytes per tool call and it's indispensable for diagnosing
     # filter bugs. Schlüssel und lange Nutzlasten ausgenommen (``_args_for_log``).
-    logger.info("MCP tool %s args: %s", tool_name, _args_for_log(arguments))
+    kuratierend = is_curation_tool(tool_name)
+    logger.info("MCP tool %s args: %s", tool_name,
+                _args_for_log(arguments, nur_laengen=kuratierend))
+    if kuratierend:
+        logger.debug("MCP tool %s args (Werte): %s", tool_name, _args_for_log(arguments))
 
     # Validate arguments before sending to MCP server
     arguments = validate_tool_args(tool_name, arguments)
@@ -360,8 +387,9 @@ async def call_mcp_tool_status(
     #
     # **Eine abgelaufene Frist wird ebenfalls nicht wiederholt** (Paket 4, B2):
     # der zweite Versuch hinge genauso lange — die doppelte Wartezeit, die das
-    # externe Audit (F04) beschreibt.
-    if "error" in result and result["error"].get("kind") not in ("tool", "timeout"):
+    # externe Audit (F04) beschreibt. **Ein abgewiesener Zugang auch nicht**
+    # (Paket 10, Kurzaudit A-3): derselbe Block würde wieder abgewiesen.
+    if "error" in result and result["error"].get("kind") not in ("tool", "timeout", "auth"):
         error_msg = result["error"].get("message", "Unknown error")
         logger.error("MCP tool %s error @ %s: %s", tool_name, target_url, error_msg)
         if CONFIRM_TOKEN_FIELD in arguments:
@@ -381,9 +409,12 @@ async def call_mcp_tool_status(
         # Ohne ``kind`` gilt „keine Antwort" — siehe Docstring: „abgelehnt"
         # ist die stärkere Behauptung und braucht einen Beleg.
         _art = result["error"].get("kind")
+        if _art == "auth":
+            # Der Rest des Zuges läuft ohne den Block, das Widget erfährt es.
+            anmeldung.markiere_abgelehnt()
         return (
             f"{_MCP_ERROR_PREFIX}: {result['error'].get('message', 'Unknown error')}",
-            _art if _art in ("tool", "transport", "timeout") else "transport",
+            _art if _art in ("tool", "transport", "timeout", "auth") else "transport",
         )
 
     # Extract text content from result, separating _queryMeta blocks.
@@ -461,7 +492,7 @@ async def call_mcp_tool_status(
 
     # Successful response into cache (only if we have a key, i.e. the tool
     # isn't in the blocklist).
-    if cache_key is not None:
+    if cache_key is not None and darf_cachen(tool_name, response):
         _cache_set(cache_key, response)
         # Auch die extrahierten queryMetas mit-cachen, damit Cache-Hits die
         # strukturierten Filter-Daten (URI-resolved discipline /

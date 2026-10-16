@@ -11,9 +11,8 @@ Auswertung → Domäne; ``load_policy_config`` ist eine Read-Fassade).
 
 from __future__ import annotations
 
-import re
-
 from boerdi.api.schemas import PolicyDecision
+from boerdi.domain import regel_regex
 from boerdi.i18n import DEFAULT, Locale, pick_localized
 from boerdi.services.config_loader import load_policy_config
 
@@ -48,12 +47,18 @@ def assess_policy(
             continue
         if "intent" in match and match["intent"] != intent_id:
             continue
-        regex = match.get("message_regex")
-        if regex:
+        muster = match.get("message_regex")
+        if muster:
+            # Kein Text trifft nie: die Speicherprüfung weist ihn ab, ein alter
+            # Bestand bräche sonst jeden Zug mit TypeError (Review Paket 6).
+            if not isinstance(muster, str):
+                continue
+            # Mit Zeitgrenze (Paket 6, B1); wie bisher ohne IGNORECASE, die
+            # Nachricht ist schon klein geschrieben.
             try:
-                if not re.search(regex, msg):
+                if not regel_regex.trifft(regel_regex.uebersetze(muster, ignore_case=False), msg):
                     continue
-            except re.error:
+            except regel_regex.RegexFehler:
                 continue
 
         effect = rule.get("effect", {}) or {}

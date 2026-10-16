@@ -45,10 +45,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import create_mcp_http_client, streamablehttp_client
+from mcp.shared.exceptions import McpError
+from mcp.types import INVALID_PARAMS, METHOD_NOT_FOUND
 
-from boerdi.services.mcp.auth import McpHttpClientFactory, build_http_client_factory
+from boerdi.services.mcp.http_fabrik import McpHttpClientFactory, build_http_client_factory
 from boerdi.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -93,7 +96,19 @@ def _client_fabrik(url: str) -> McpHttpClientFactory:
     """
     if url.rstrip("/") == resolve_mcp_url().rstrip("/"):
         return build_http_client_factory()
-    return create_mcp_http_client
+    return _ohne_umleitung
+
+
+def _ohne_umleitung(headers=None, timeout=None, auth=None):  # noqa: ANN001 — SDK-Fabrikform
+    """Die SDK-Fabrik ohne Umleitungen (Review Paket 11, #2).
+
+    ``create_mcp_http_client`` folgt Umleitungen immer. Ein fremder Server könnte mit 307/308 —
+    Methode und Rumpf bleiben — auf eine interne Adresse weiterleiten und so die Adressprüfung
+    (``assert_public_url``) umgehen; die Antwort käme ins Modell.
+    """
+    client = create_mcp_http_client(headers=headers, timeout=timeout, auth=auth)
+    client.follow_redirects = False
+    return client
 
 
 @asynccontextmanager
@@ -135,6 +150,42 @@ def _cause_text(exc: BaseException) -> str:
     return str(exc)
 
 
+#: JSON-RPC-Fehler, bei denen der Server nachweislich nichts ausgeführt hat:
+#: unbekannte Methode bzw. unbekanntes Werkzeug, ungültige Parameter.
+_NICHT_AUSGEFUEHRT = frozenset({METHOD_NOT_FOUND, INVALID_PARAMS})
+
+
+def _abgelehnt_ohne_ausfuehrung(exc: BaseException) -> McpError | None:
+    """Der ``McpError`` in ``exc``, wenn der Server damit ablehnte, ohne
+    auszuführen (Paket 6, B4) — auch in einer ``ExceptionGroup`` des SDK.
+
+    Ein interner Fehler (-32603) zählt nicht: der Server kann mitten im
+    Werkzeug gescheitert sein, ob geschrieben wurde, ist offen.
+    """
+    if isinstance(exc, McpError):
+        return exc if exc.error.code in _NICHT_AUSGEFUEHRT else None
+    for sub in getattr(exc, "exceptions", None) or ():
+        treffer = _abgelehnt_ohne_ausfuehrung(sub)
+        if treffer is not None:
+            return treffer
+    return None
+
+
+#: HTTP-Status, mit dem der Server den Zugangsblock abweist (Paket 10, Kurzaudit A-3).
+_ABGEWIESEN = frozenset({401, 403})
+
+
+def _abgewiesen(exc: BaseException) -> int | None:
+    """Der HTTP-Status, wenn der Server den Zugang abwies — auch tief in einer
+    ``ExceptionGroup`` des SDK (die ``initialize``-Anfrage läuft dort als Kind-Task)."""
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in _ABGEWIESEN:
+        return exc.response.status_code
+    for sub in getattr(exc, "exceptions", None) or ():
+        if (status := _abgewiesen(sub)) is not None:
+            return status
+    return None
+
+
 def _text_blocks(result: Any) -> list[dict[str, str]]:
     """Text-Content-Blöcke eines ``CallToolResult`` in die ALT-Dict-Form bringen.
 
@@ -168,6 +219,8 @@ async def call_tool(
     * ``"timeout"`` — Sonderfall davon (Paket 4, B2): die Gesamtfrist
       ``MCP_CALL_TIMEOUT_S`` lief ab. Ob geschrieben wurde, ist ebenso offen; ein
       zweiter Versuch hinge aber genauso lange und unterbleibt deshalb.
+    * ``"auth"`` — der Server weist den Zugangsblock ab (401/403, Paket 10). Nichts
+      wurde ausgeführt; ein zweiter Versuch mit demselben Block hülfe nicht.
 
     Nur diese Funktion kann das unterscheiden: eine Ebene höher sind beide Fälle
     dasselbe Dict und danach derselbe String. Gelesen wird es über
@@ -189,6 +242,20 @@ async def call_tool(
                          tool_name, target_url, frist)
             return {"error": {"message": f"keine Antwort binnen {frist:g} s",
                               "kind": "timeout"}}
+        status = _abgewiesen(exc)
+        if status is not None:
+            # Kein Block im Log — nur, dass er abgewiesen wurde (``services/mcp/auth``).
+            logger.warning("MCP tool %s @ %s: Zugang abgewiesen (%s)",
+                           tool_name, target_url, status)
+            return {"error": {"message": f"Zugang abgewiesen ({status})", "kind": "auth"}}
+        abgelehnt = _abgelehnt_ohne_ausfuehrung(exc)
+        if abgelehnt is not None:
+            # Der Server hat geantwortet und nichts ausgeführt — wie ``isError``
+            # unten, nur als JSON-RPC-Fehler gemeldet. Kein ``transport``: der
+            # Aufrufer wiederholte sonst dieselbe Ablehnung.
+            logger.error("MCP tool %s rejected @ %s: %s", tool_name, target_url,
+                         abgelehnt.error.message)
+            return {"error": {"message": abgelehnt.error.message, "kind": "tool"}}
         grund = _cause_text(exc)
         logger.error("MCP tool %s transport error @ %s: %s", tool_name, target_url, grund)
         return {"error": {"message": grund, "kind": "transport"}}
@@ -211,14 +278,18 @@ async def call_tool(
 async def discover_server_tools(url: str) -> list[dict[str, str]]:
     """Verbinde zu einem MCP-Server, handshake, liste die Tools.
 
-    Liefert ``[{"name", "description"}, …]`` (namenlose Tools verworfen). Genutzt
+    Liefert ``[{"name", "description", "input_schema", "read_only"}, …]`` (namenlose Tools
+    verworfen). Genutzt
     vom Studio beim Registrieren eines neuen MCP-Servers. Transportfehler
     propagieren (der aufrufende Endpoint fängt sie) — wie ALTs raise-on-failure.
     """
     async with _open_session(resolve_mcp_url(url)) as session:
         listing = await session.list_tools()
+    # Paket 11 (E): Schema und Lesend-Markierung für „Werkzeuge übernehmen“ im Studio.
     return [
-        {"name": tool.name, "description": tool.description or ""}
+        {"name": tool.name, "description": tool.description or "",
+         "input_schema": dict(tool.inputSchema or {}),
+         "read_only": bool(tool.annotations and tool.annotations.readOnlyHint is True)}
         for tool in listing.tools
         if getattr(tool, "name", "")
     ]

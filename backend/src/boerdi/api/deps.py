@@ -19,7 +19,7 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Query, Request, Security, status
 from fastapi.security import APIKeyHeader
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.i18n import Locale, resolve_locale
 from boerdi.services.session_origin import Scope
@@ -36,6 +36,14 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     """
     async with request.app.state.session_factory() as session:
         yield session
+
+
+def get_session_factory(request: Request) -> async_sessionmaker[AsyncSession]:
+    """The factory itself — for work that may outlive the request (Review Paket 7,
+    A-1): a streamed turn finishes after the client hung up (P2), but FastAPI
+    closes the request-scoped session as soon as the response ends."""
+    return request.app.state.session_factory
+
 
 studio_key_header = APIKeyHeader(
     name=_HEADER, auto_error=False, scheme_name="StudioKey"

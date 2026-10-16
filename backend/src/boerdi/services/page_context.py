@@ -32,6 +32,9 @@ import re
 import time
 from typing import Any
 
+# Das Budget je Textabschnitt steht seit Paket 9 neben dem Deckel am Eingang — dort
+# mit Begründung (EK10b); hier wie bisher als ``page_context.TEXT_PROMPT_BUDGET``.
+from boerdi.domain.seitenkontext_eingang import TEXT_PROMPT_BUDGET
 from boerdi.services.mcp.client import call_mcp_tool, is_mcp_error
 
 logger = logging.getLogger(__name__)
@@ -448,23 +451,8 @@ MAX_SKILL_CHARS = 3500
 _REST_ZEILE_RESERVE = 120
 
 
-#: Der Satz unter der Skill-Übersicht, wenn der Zug die Skill-Werkzeuge NICHT
-#: hat (E-6). Ohne ihn arbeitete das Modell womöglich nach einem Titel, dessen
-#: Wortlaut es nie gesehen hat.
-_OHNE_SKILL_WEG = (
-    "Nur zur Orientierung: laden lässt sich in diesem Zug keiner. Passt einer "
-    "zur Frage, nenne ihn — arbeite aber nicht nach einem Skill, dessen Wortlaut "
-    "du nicht hast."
-)
-
-
-def _bestands_zeilen(fakten: Any, *, skill_weg: bool = True) -> list[str]:
+def _bestands_zeilen(fakten: Any) -> list[str]:
     """Der Bestandsabschnitt: Zahlen + Skill-Übersicht — oder gar nichts.
-
-    ``skill_weg=False`` (E-6, 2026-09-27): der Zug hat die Skill-Werkzeuge nicht
-    — im Muster-Modus führen sie nur sechs von zwanzig Mustern. Die Übersicht
-    bleibt (Nutzer-Vorgabe unten), Ladeweg und Vorrang fallen weg; eine
-    Anweisung auf ein Werkzeug, das nicht im Katalog steht, gibt es nicht.
 
     Nutzer-Vorgabe 2026-08-14: „Inhaltsanzahl und Skillregistry muss man in
     beiden Modi aktiv rein geben — pattern und agent loop". Beide Engines lesen
@@ -476,33 +464,19 @@ def _bestands_zeilen(fakten: Any, *, skill_weg: bool = True) -> list[str]:
     Die beiden Zahlen der Vorgabe — vollständig bis 100, höchstens eine
     A4-Seite — gehen nur so zusammen; an der echten Registry nachgemessen
     (28 Einträge, Titel im Schnitt 30,6 Zeichen): 100 Titel sind 3 361 Zeichen
-    (eine Seite), 100 Titel mit ``nodeId`` wären 7 161 (gut zwei).
+    (eine Seite), 100 Titel mit ``nodeId`` wären 7 161 (gut zwei). Der Preis ist
+    ein Aufruf mehr: ohne ID muss das Modell ``get_skill_registry`` voranstellen
+    — mit der Sammlungs-ID, die derselbe Block weiter unten nennt.
 
-    Der Preis ist ein Aufruf mehr: ohne ID muss das Modell
-    ``get_skill_registry`` voranstellen — mit der Sammlungs-ID, die derselbe
-    Block wenige Zeilen weiter unten nennt. Das ist ohnehin der Weg, den die
-    Werkzeugbeschreibung vorgibt („der zweite Schritt nach
-    get_skill_registry") — deshalb nennt der Block beide.
-
-    **Bis 2026-08-15 stand hier ``search_skill``**, und das war ein Verweis ins
-    Leere: das Werkzeug ist seit dem 2026-08-13 aus jedem Pfad genommen
-    (``agent_tools.AUS_DEM_KATALOG``, ``_NICHT_UEBER_PATTERN``), dieser Block
-    entstand einen Tag später. Der Agent-Lauf merkte nichts davon, weil
-    ``respond_agent`` die Registry vorab in die Kette holt; der Mustermodus hat
-    keinen Vorabruf, und für ihn endete der Weg damit vor dem ersten Schritt.
-    Gepinnt von ``test_der_block_nennt_den_weg_den_das_modell_auch_gehen_kann``.
-
-    **Der Rang der Anleitungen steht seit 2026-08-16 im Hinweis** (Nutzer-Regel:
-    „skills stehen dabei über den mustern die der chatbot von haus aus
-    mitbringt"). Vorher nannte der Block den Weg zur Anleitung, aber nicht ihren
-    Vorrang — im selben Prompt stand die mitgelieferte Muster-Vorlage, und keine
-    Regel sagte, welche gewinnt. Der Befund: der Bot nahm seine eigene. Der
-    Hinweis wächst dadurch, das Titel-Budget schrumpft entsprechend — die
-    A4-Zusage rechnet ihn ab (``budget`` unten), sie bricht also nicht.
-
-    Der Routing-Teil derselben Regel wohnt in ``domain/skill_precedence``: er
-    nimmt die Schnellwege aus dem Weg, damit dieser Block überhaupt gelesen
-    wird. Ein Schnellweg baut nie einen Antwort-Prompt.
+    **Weg und Rang stehen nicht mehr hier.** Bis Paket 7 hing unter der Liste
+    ein Hinweis: der zweistufige Ladeweg (``get_skill_registry`` → ``get_skill``,
+    bis 2026-08-15 fälschlich ``search_skill``), der Vorrang vor den
+    mitgelieferten Vorlagen (Nutzer-Regel 2026-08-16) und, ohne Skill-Werkzeuge,
+    „laden lässt sich in diesem Zug keiner“ (E-6). Seit Paket B/E-E sind das
+    feste Regeln im Systemteil (``seitenkontext_prompt``); hier stehen nur die
+    Fakten, gerahmt als Daten. Der Routing-Teil der Vorrang-Regel wohnt in
+    ``domain/skill_precedence``: er nimmt die Schnellwege aus dem Weg, damit
+    dieser Block überhaupt gelesen wird.
 
     Ohne Fakten eine leere Liste: eine Überschrift ohne Inhalt liest sich für
     das Modell wie ein Ausfall und lädt zum Erfinden ein.
@@ -525,23 +499,10 @@ def _bestands_zeilen(fakten: Any, *, skill_weg: bool = True) -> list[str]:
         return zeilen
 
     ueberschrift = f"### Freigegebene Skills dieser Sammlung — {skills}"
-    hinweis = (
-        "Diese Skills sind für GENAU diese Sammlung freigegeben und gehen "
-        "deinen mitgelieferten Vorlagen VOR: Deckt einer von ihnen die Frage ab, "
-        "arbeite nach ihm — auch dann, wenn du für dieselbe Ausgabe eine eigene "
-        "Vorlage hättest. Dies ist "
-        "die Teil-Registry dieser Seite: Titel, ohne IDs und ohne Inhalt. Passt "
-        "einer zur Frage, geh die zwei Stufen weiter — ``get_skill_registry`` mit "
-        "der unten genannten Sammlungs-ID nennt zu jedem Titel die ``nodeId`` "
-        "samt Verwendungshinweis der Redaktion, dann liefert ``get_skill`` mit "
-        "dieser ``nodeId`` den Wortlaut — und arbeite danach, statt den Ablauf "
-        "selbst zu erfinden."
-    ) if skill_weg else _OHNE_SKILL_WEG
     # Das Budget gilt dem ABSCHNITT, nicht nur der Liste — es ist die Zusage
-    # „höchstens eine A4-Seite". Überschrift, Hinweis und die Rest-Zeile stehen
-    # fest, also gehen sie vorweg ab; was bleibt, ist für Titel.
-    budget = (MAX_SKILL_CHARS - len(ueberschrift) - len(hinweis)
-              - _REST_ZEILE_RESERVE)
+    # „höchstens eine A4-Seite". Überschrift und Rest-Zeile stehen fest, also
+    # gehen sie vorweg ab; was bleibt, ist für Titel.
+    budget = MAX_SKILL_CHARS - len(ueberschrift) - _REST_ZEILE_RESERVE
     gezeigt: list[str] = []
     for t in titel[:MAX_SKILL_ENTRIES]:
         budget -= len(t) + 3          # „- " plus Zeilenumbruch
@@ -553,26 +514,20 @@ def _bestands_zeilen(fakten: Any, *, skill_weg: bool = True) -> list[str]:
     zeilen.append(ueberschrift)
     zeilen.extend(f"- {t}" for t in gezeigt)
     if skills > len(gezeigt):
-        rest = f"- … und {skills - len(gezeigt)} weitere"
-        zeilen.append(rest + (" — die vollständige Liste liefert "
-                              "``get_skill_registry``." if skill_weg else "."))
-    zeilen.append(hinweis)
+        zeilen.append(f"- … und {skills - len(gezeigt)} weitere.")
     zeilen.append("")
     return zeilen
 
 
-#: Budget je TEXTABSCHNITT des Seitenblocks (Gastgeber-Seitentext, gespeicherter
-#: Volltext, kompendialer Text, Heuristik-Rohblock) in den ANTWORT-Prompts
-#: (Muster-Antwort + Agent). Nutzer-Entscheid 2026-08-21 (EK10, auf 200 000
-#: erweitert in EK10b): der Transport ist seit L1 ungedeckelt, und hinter
-#: Login-Wänden, in Intranets und auf dem Prüftisch ist dieser Text die EINZIGE
-#: Inhaltsquelle — ein knappes Budget verwarf den Rest stillschweigend. 200 000
-#: ist die Skala des letzten Vertrags-Deckels (``MAX_RESULT_SCHEMA_CHARS`` und
-#: seit EK10b auch ``AgentRequest.instruction``) — praktisch „kein Limit", nur
-#: eine Notbremse gegen Unfälle. Einzige Ausnahme bleibt der Klassifikator
-#: (übergibt 3000): er wählt nur ein Muster, ein Volltext wäre dort reine
-#: Kostenlast bei JEDEM Zug und riskierte das Kontextfenster des kleinen Modells.
-TEXT_PROMPT_BUDGET = 200_000
+#: Der Befund einer gescheiterten Auflösung, ohne Anweisungen daran (Plan
+#: 2026-09-29, Paket B). Was daraus folgt (nicht nach der ID fragen, keine
+#: Titelsuche, Quell-URL auf dem Prüftisch …), steht in
+#: ``seitenkontext_prompt.SEITEN_REGELN``.
+_UNAUFGELOEST_BEFUND = (
+    "Hinweis: Die Metadaten dieser Seite konnten nicht aus dem Bestand aufgelöst "
+    "werden — vermutlich fehlen dem (anonymen) Zugriff die Leserechte, z. B. bei "
+    "unveröffentlichtem Material."
+)
 
 
 def render_for_prompt(
@@ -581,9 +536,8 @@ def render_for_prompt(
     *,
     include_stock: bool = True,
     text_budget: int = TEXT_PROMPT_BUDGET,
-    skill_weg: bool = True,
 ) -> str:
-    """Human-readable block for the system prompt.
+    """Die Fakten der Seite als lesbarer Block — für den gerahmten Datenteil.
 
     Returns empty string if no usable metadata. Otherwise returns a
     German-language block the LLM can reference directly.
@@ -610,9 +564,12 @@ def render_for_prompt(
     Volltext, Kompendium (EK10/EK10b): Vorgabe ist :data:`TEXT_PROMPT_BUDGET`;
     der Klassifikator übergibt 3000.
 
-    ``skill_weg=False`` (E-6): der Zug hat die Skill-Werkzeuge nicht — die
-    Skill-Übersicht bleibt, Ladeweg und Vorrang fallen weg. Vorgabe AN: die
-    Agent-Schleife hat die Werkzeuge immer.
+    **Nur Fakten, keine Anweisungen** (Plan 2026-09-29, Paket B; E-E). Bis Paket
+    7 hing an diesem Block je Seite ein Abschnitt „Regeln:“ mit eingesetzten
+    Werten, und er stand im Systemprompt aller drei Verbraucher — samt Fremdtext
+    der Seite, auf dem Responses-Weg also in ``instructions``. Jetzt gehen die
+    Fakten gerahmt als Daten vor den Verlauf (``seitenkontext_prompt.seiten_daten``),
+    und die Regeln stehen als fester Text im Systemteil (``SEITEN_REGELN``).
     """
     if not isinstance(meta, dict):
         return ""
@@ -646,6 +603,10 @@ def render_for_prompt(
         # EK2: der Prüftisch des Repositoriums — die Person ERSCHLIESST den
         # Inhalt gerade, sie schaut ihn nicht an.
         "editorial": "Erschließung eines Einzelinhalts (Prüftisch/Redaktion)",
+        # N-1 (Plan 2026-09-29, Paket 7): ``domain/page_host`` — fehlten, der
+        # Kopf hieß dann „Aktuelle Seite — Aktuelle Seite“.
+        "home": "Website (eigene, WirLernenOnline)",
+        "external": "Website (extern, Widget eingebettet)",
     }
     heading = heading_map.get(page_kind, "Aktuelle Seite")
     lines: list[str] = [f"## Aktuelle Seite — {heading}"]
@@ -698,7 +659,7 @@ def render_for_prompt(
         lines.append(f"Materialtypen auf der Seite: {', '.join(lrt[:6])}")
 
     if include_stock:
-        lines.extend(_bestands_zeilen(meta.get("context_facts"), skill_weg=skill_weg))
+        lines.extend(_bestands_zeilen(meta.get("context_facts")))
 
     # IDs für direkte MCP-Tool-Calls. ``collection_id`` ist die Sammlungs-
     # Node-ID auf edu-sharing — das LLM kann ``get_collection_contents``
@@ -708,60 +669,15 @@ def render_for_prompt(
     elif node_id:
         lines.append(f"Node-ID: {node_id}")
 
-    # Gescheiterte Auflösung, ZWEI voneinander unabhängige Regeln (EK3,
-    # 2026-08-20). Sie standen bis dahin ineinander verschachtelt, und das war
-    # der Fehler: der Seitentext hing an einer Bedingung, mit der er nichts zu
-    # tun hat.
-    #
-    # (1) Rechte-Note — nur MIT ID (Z2). Ohne diese Zeilen fragte das Modell den
-    #     Nutzer nach genau der ID, die im Block steht, oder suchte chancenlos
-    #     nach dem Titel (der Index kennt nur Öffentliches). Auf einer Seite
-    #     OHNE ID wäre sie sachlich falsch — dort fehlen keine Leserechte, die
-    #     Seite ist schlicht kein WLO-Objekt.
-    # (2) Sichtbarer Seitentext — sobald er da ist. Seit Z2 ist der unaufgelöste
-    #     Block nie mehr leer, also griff der ``or``-Rückfall auf
-    #     ``render_raw_for_prompt`` (der einzige Renderer, der ``page_text``
-    #     kannte) in den drei Verbrauchern nicht mehr. Mit ID war das der
-    #     Prüftisch-Befund (EK1); ohne ID trifft es fast jede fremde Seite, wo
-    #     der Browser-Harvest die einzige Textquelle ist — hinter Login-Wänden
-    #     und in Schul-Intranets erreicht ``get_url_text`` die Seite nie.
+    # Gescheiterte Auflösung (EK3, Z2): der Befund — nur MIT ID. Ohne ihn fragte
+    # das Modell nach genau der ID, die im Block steht, oder suchte chancenlos
+    # nach dem Titel (der Index kennt nur Öffentliches); was daraus folgt, steht
+    # in ``SEITEN_REGELN``. Auf einer Seite OHNE ID wäre er sachlich falsch —
+    # dort fehlen keine Leserechte, die Seite ist schlicht kein WLO-Objekt. Der
+    # sichtbare Seitentext darunter hängt davon nicht ab: sobald er da ist, steht
+    # er im Block (EK1 Prüftisch; fremde Seiten hinter Login-Wänden).
     if _unaufgeloest and (collection_id or node_id):
-        if _redaktionsmaske:
-            # EK9: „arbeite mit dem Text unten" wäre hier eine Irreführung —
-            # innerText der Maske trägt Feldnamen und Hilfetexte, eingetragene
-            # Formularwerte (etwa die Quell-URL des Materials) nie.
-            _weg = (
-                (
-                    "Der sichtbare Text unten ist NUR die Erschließungsmaske "
-                    "(Feldnamen und Hilfetexte) — eingetragene Formularwerte "
-                    "und der eigentliche Inhalt stehen NICHT darin. "
-                    if _seitentext else ""
-                )
-                + "Für Aussagen zum Inhalt bitte die Person um die Quell-URL "
-                "des Materials (oder nimm sie aus ihrer Nachricht) und hole "
-                "den Text mit get_url_text. Steht die Quell-URL bereits im "
-                "sichtbaren Text (vom Rahmen angehängte Feldwerte), nutze sie "
-                "DIREKT mit get_url_text, ohne nachzufragen."
-            )
-        elif _seitentext:
-            _weg = (
-                "Der sichtbare Text der Seite steht unten in diesem Block — "
-                "arbeite damit, statt nach dem Inhalt zu fragen."
-            )
-        else:
-            _weg = (
-                "Wird der Inhalt gebraucht, bitte um den Text bzw. das "
-                "Transkript oder verweise auf die Anmeldung, damit der "
-                "Zugriff mit Rechten läuft."
-            )
-        lines.append(
-            "Hinweis: Die Metadaten dieser Seite konnten NICHT aus dem Bestand "
-            "aufgelöst werden — vermutlich fehlen dem (anonymen) Zugriff die "
-            "Leserechte, z. B. bei unveröffentlichtem Material. Die ID oben "
-            "liegt bereits vor: NICHT beim Nutzer danach fragen, und keine "
-            "Titelsuche versuchen (der Suchindex kennt nur Öffentliches). "
-            + _weg
-        )
+        lines.append(_UNAUFGELOEST_BEFUND)
 
     if _seitentext:
         lines.append("")
@@ -777,19 +693,15 @@ def render_for_prompt(
         lines.append("")
 
     # Aktive URL-Filter (?q=…) — auf Sammlungs-Browse-Seiten der Filter
-    # innerhalb der Sammlung. Bot soll diesen Filter weitergeben wenn er
-    # innerhalb der Sammlung sucht.
+    # innerhalb der Sammlung.
     if search_query:
         lines.append(f"Aktiver Filter / Suchbegriff in der URL: {search_query}")
 
-    # Bezugsquellen-Filter aus der URL (edu-sharing ?filters=…publisher…) —
-    # bei Folgesuchen als publisher weiterreichen.
+    # Bezugsquellen-Filter aus der URL (edu-sharing ?filters=…publisher…) — wie
+    # er weitergereicht wird, sagt ``SEITEN_REGELN``.
     publisher = (pc.get("search_filters") or {}).get("publisher") or []
     if publisher:
-        lines.append(
-            f"Aktiver Bezugsquellen-Filter: {', '.join(str(x) for x in publisher)} "
-            f"(bei Folgesuchen als publisher weiterreichen)"
-        )
+        lines.append(f"Aktiver Bezugsquellen-Filter: {', '.join(str(x) for x in publisher)}")
 
     if meta.get("url"):
         lines.append(f"URL: {meta['url']}")
@@ -804,90 +716,12 @@ def render_for_prompt(
             )
         )
 
-    lines.append("")
-    lines.append(
-        "Der Nutzer ist auf dieser Seite eingebettet. Regeln:"
-    )
-    if _redaktionsmaske:
-        lines.append(
-            "- Bei Fragen wie 'Auf welcher Seite bin ich?', 'Was siehst du?', "
-            "'Worum geht es hier?' -> Du bist auf dem Prüftisch der Redaktion; "
-            "erschlossen wird ein Einzelinhalt, dessen Titel noch nicht "
-            "ermittelbar ist. Den Titel der Redaktionsoberfläche NICHT als "
-            "Inhaltstitel ausgeben."
-        )
-    else:
-        lines.append(
-            "- Bei Fragen wie 'Auf welcher Seite bin ich?', 'Wo bin ich?', "
-            "'Worum geht es hier?', 'Was ist das?', 'In welcher Sammlung?' "
-            "-> beziehe dich direkt + KONKRET auf Titel + Seitentyp ('Du bist "
-            f"hier in der {heading.split()[0]} \"{title}\"'). Nutze den "
-            "Sammlungstitel namentlich, NICHT generische WLO-Floskeln."
-        )
-    if collection_id:
-        lines.append(
-            f"- Wenn der Nutzer nach 'Materialien hier', 'was ist in dieser "
-            f"Sammlung' fragt -> rufe ``get_collection_contents`` mit "
-            f"``nodeId={collection_id}`` auf, NICHT eine offene Suche."
-        )
-    if compendium:
-        lines.append(
-            "- Der kompendiale Text beschreibt das inhaltliche SOLL der Sammlung. "
-            "Wenn der Nutzer fragt, was noch FEHLT / ob die Sammlung vollständig "
-            "ist / was man kuratieren sollte -> vergleiche das Soll (Kompendium) "
-            "mit dem Ist (``get_collection_contents``) und nenne konkrete Lücken "
-            "samt Suchvorschlägen."
-        )
-    if search_query:
-        lines.append(
-            f"- Aktueller URL-Filter ist '{search_query}'. Wenn der Nutzer "
-            f"'mehr dazu' / 'weiter' / 'andere Treffer' sagt, suche INNERHALB "
-            f"der Sammlung mit diesem Filter."
-        )
-    if _redaktionsmaske:
-        # EK9: „Seitentitel als Thema" / „Suche mit Titel" zeigte hier wieder
-        # auf die Oberfläche — beide Generik-Regeln laufen über den Kernbegriff
-        # des Materials, sobald er (Quell-URL/Nachricht) bekannt ist.
-        lines.append(
-            "- Bei Create-Anfragen ohne eigenes Thema ('Erstelle mir ein "
-            "Arbeitsblatt dazu', 'Mach ein Quiz hierzu') -> erst das Thema "
-            "klären (Quell-URL bzw. Kernbegriff des Materials erfragen); den "
-            "Seitentitel der Oberfläche NICHT als Thema verwenden."
-        )
-        lines.append(
-            "- Bei 'mehr Material dazu', 'weitere Inhalte', 'andere "
-            "Materialtypen' -> mit dem Kernbegriff des Materials suchen "
-            "(aus Quell-URL oder Nachricht), nicht mit dem Seitentitel."
-        )
-    else:
-        lines.append(
-            "- Bei Create-Anfragen ohne eigenes Thema ('Erstelle mir ein "
-            "Arbeitsblatt dazu', 'Mach ein Quiz hierzu') -> nimm den Seitentitel "
-            "als Thema."
-        )
-        lines.append(
-            "- Bei 'mehr Material dazu', 'weitere Inhalte', 'andere Materialtypen' "
-            "-> Suche mit Titel/Schlagworten starten, passend zu den Bildungsstufen."
-        )
-    if page_kind == "editorial":
-        _quelle = (
-            "über die Quell-URL des Materials: erfragen bzw. aus der "
-            "Nachricht nehmen, dann get_url_text"
-            if _unaufgeloest else
-            "aus den Metadaten und dem Volltext oben"
-        )
-        lines.append(
-            "- Die Person ERSCHLIESST diesen Inhalt gerade redaktionell "
-            f"(Prüftisch): gib auf Wunsch Hinweise zum Inhalt ({_quelle}), "
-            "schlage passende Sammlungen vor (suche danach mit dem Kernbegriff "
-            "des Inhalts, statt zu raten) und hilf bei Metadaten-Feldern wie "
-            "Fach, Stufe, Materialtyp oder Beschreibung."
-        )
-    return "\n".join(lines)
+    return "\n".join(lines).rstrip()
 
 
 def prompt_block(
-    session_state: dict[str, Any], page_context: dict[str, Any] | None
+    session_state: dict[str, Any], page_context: dict[str, Any] | None,
+    *, include_stock: bool = True, text_budget: int = TEXT_PROMPT_BUDGET,
 ) -> str:
     """Der Seitenblock für einen Prompt — aufgelöst, sonst heuristisch, sonst "".
 
@@ -906,8 +740,10 @@ def prompt_block(
     Vorabruf nebenan; auf ``debug`` liefe der Rueckschritt unbemerkt mit.
     """
     try:
-        block = render_for_prompt(get_cached(session_state), page_context)
-        return block or render_raw_for_prompt(page_context)
+        block = render_for_prompt(
+            get_cached(session_state), page_context,
+            include_stock=include_stock, text_budget=text_budget)
+        return block or render_raw_for_prompt(page_context, text_budget=text_budget)
     except Exception:  # noqa: BLE001 — siehe Docstring
         logger.warning("page-context prompt block failed", exc_info=True)
         return ""
@@ -945,6 +781,8 @@ def render_raw_for_prompt(
             "subject": "Fachportal",
             "search": "Such-Ergebnisseite",
             "editorial": "Erschließung eines Einzelinhalts (Prüftisch)",
+            "home": "Website (eigene, WirLernenOnline)",          # N-1
+            "external": "Website (extern, Widget eingebettet)",   # N-1
         }
         lines.append(f"Seitentyp: {kind_labels.get(kind, kind)}")
 
@@ -961,12 +799,7 @@ def render_raw_for_prompt(
     snippet = _trim_text(text, text_budget)
     lines.append("")
     lines.append("Sichtbarer Text der Seite (gekürzt):")
+    # Wie die Person darauf Bezug nimmt („hier“, „dazu“) und wie das Modell davon
+    # spricht („Seiteninhalt“), sagt ``SEITEN_REGELN`` (Plan 2026-09-29, Paket B).
     lines.append(snippet)
-    lines.append("")
-    lines.append(
-        "Regeln: Wenn der Nutzer mit 'hier', 'auf dieser Seite', 'das "
-        "Thema', 'dazu' o.ä. referenziert, beziehe dich auf diese Inhalte. "
-        "Sprich vom 'Seiteninhalt', NICHT von 'Auszug' oder 'Heuristik' — "
-        "das sind interne Begriffe."
-    )
     return "\n".join(lines)

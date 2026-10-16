@@ -43,7 +43,8 @@ für alle Bildungsstufen.
 - Nach Collection-Treffer: `search_wlo_topic_pages(collectionId=...)` für Themenseiten-URL
 
 **Helfer:**
-- `lookup_wlo_vocabulary` VOR jeder gefilterten Suche (discipline / educationalContext / lrt / userRole / license / targetGroup)
+- Filter `discipline` / `educationalContext` / `learningResourceType` / `userRole` / `license` als Bezeichnung setzen — der Client gleicht sie ab, kein Nachschlagen davor
+- `lookup_wlo_vocabulary` nur für Schreibvorgänge (echte URIs für Metadaten) und zum Prüfen von Metadaten
 - `get_node_details(outputFormat="json")` für Detail-Metadaten
 - `get_nodes_details(nodeIds)` Bulk statt N einzelne Calls
 

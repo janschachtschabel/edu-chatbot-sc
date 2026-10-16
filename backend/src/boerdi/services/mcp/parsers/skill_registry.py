@@ -327,6 +327,22 @@ def _anstoss(
     ])
 
 
+def _katalog_hat_eintraege(raw_text: str) -> bool:
+    """Nennt diese ``get_skill_registry``-Antwort mindestens einen abrufbaren Skill?
+
+    In beiden Formen des Werkzeugs: der JSON-Hülle und Markdown, der Vorgabe.
+    Die erste Fassung las nur die Hülle — im Betrieb kam Markdown, und der
+    Nachfass stand nie da (Paket 6, G2). Dieselbe Gültigkeitsregel wie überall
+    im Modul: ohne ``nodeId`` ist ein Eintrag nicht abrufbar.
+    """
+    from boerdi.domain.tool_result_redaction import katalog_aus_markdown
+
+    daten = load_envelope(raw_text)
+    if isinstance(daten, dict):
+        return bool(_gueltige_eintraege(daten.get("registry")))
+    return bool(katalog_aus_markdown(raw_text or ""))
+
+
 def _nachfassen(tool_name: str, raw_text: str) -> str:
     """Der Anstoss zum ZWEITEN Schritt, direkt am Katalog-Ergebnis (2026-08-16).
 
@@ -371,10 +387,7 @@ def _nachfassen(tool_name: str, raw_text: str) -> str:
     """
     if tool_name != "get_skill_registry":
         return ""
-    daten = load_envelope(raw_text)
-    # Dieselbe Gueltigkeitsregel wie ueberall im Modul: ohne ``nodeId`` ist ein
-    # Eintrag nicht abrufbar, also kein Grund, zum Abruf aufzufordern.
-    if not isinstance(daten, dict) or not _gueltige_eintraege(daten.get("registry")):
+    if not _katalog_hat_eintraege(raw_text):
         return ""
     return "\n".join([
         "",

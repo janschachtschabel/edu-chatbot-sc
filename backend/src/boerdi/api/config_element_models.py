@@ -135,7 +135,9 @@ class PatternEntry(BaseModel):
     default_tone: str | None = None
     default_length: str | None = None
     response_type: str | None = None
-    sources: list[str] = []
+    # ``None`` = nicht gesetzt (die Engine nimmt ``["mcp"]``), ``[]`` = keine
+    # Quelle (Paket 6, B5) — wie bei ``rag_areas``.
+    sources: list[str] | None = None
     # ``None`` = nicht gesetzt (erbt die Bereiche, Paket 4 C6), ``[]`` = keine.
     rag_areas: list[str] | None = None
     tools: list[str] = []

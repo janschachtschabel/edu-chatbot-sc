@@ -1,4 +1,6 @@
-"""01-base/engine — welche Maschine antwortet, als gepflegte Vorgabe.
+"""01-base/engine — welche Maschine antwortet, als gepflegte Vorgabe; seit Paket 7
+auch die Schalter des laufenden Betriebs (``betrieb``, gelesen von
+``services/betriebsschalter``).
 
 **Ein unlesbarer Bereich liefert die Vorgabe, nicht ``None``.** Das ist der
 Unterschied zum Nachbarn ``pricing``: dort heißt „unlesbar" *kein Preis
@@ -6,7 +8,8 @@ angesetzt*, und der Aufrufer muss das wissen. Hier gibt es keinen dritten
 Zustand — irgendeine Maschine muss den Zug beantworten. Und welche das im
 Zweifel ist, ist eine Sicherheitsfrage: ein Tippfehler im YAML darf den
 ausgelieferten Chatbot nicht auf einen anderen Antwortweg schalten. Also fällt
-jeder Fehler auf ``EngineArea()`` zurück, und das ist die Muster-Engine.
+jeder Fehler auf ``EngineArea()`` zurück, und das ist die Muster-Engine — mit den
+Betriebsschaltern auf ihren Vorgaben (das Gastkonto schreibt dann nicht).
 """
 
 from __future__ import annotations

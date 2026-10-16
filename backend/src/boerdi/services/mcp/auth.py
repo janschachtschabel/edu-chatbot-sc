@@ -34,10 +34,7 @@ from __future__ import annotations
 import contextvars as _ctxvars
 import hashlib
 import re
-
-import httpx
-from mcp.client.streamable_http import create_mcp_http_client
-from mcp.shared._httpx_utils import McpHttpClientFactory
+from dataclasses import dataclass
 
 from boerdi.settings import get_settings
 
@@ -45,6 +42,38 @@ from boerdi.settings import get_settings
 # Züge sich nicht gegenseitig anmelden. Der Standard ist unveränderlich (str),
 # gesetzt wird immer neu gebunden — nichts kann aus dem Standard auslaufen.
 _turn_block: _ctxvars.ContextVar[str] = _ctxvars.ContextVar("_turn_block", default="")
+
+# Was der MCP-Server zu DIESEM Block gesagt hat (Paket 10, Kurzaudit A-1/S-1):
+# ``(fingerabdruck, person, kennung)``, ``None`` = noch nicht gefragt. An den
+# Fingerabdruck gebunden: ein anderer Block gilt erst nach eigener Bestätigung.
+# Gesetzt von ``services/mcp/anmeldung`` zu Beginn jedes Zuges.
+_bestaetigung: _ctxvars.ContextVar[tuple[str, bool, str] | None] = _ctxvars.ContextVar(
+    "_bestaetigung", default=None)
+
+
+@dataclass
+class _ZugStand:
+    """Was im Lauf des Zuges zu seinem Block bekannt wird — EIN Objekt je Zug.
+
+    LangGraph lässt jeden Knoten als eigene Task laufen; ein ``ContextVar.set`` dort
+    käme beim nächsten Knoten und beim Endpunkt nicht an (``graph/build``,
+    ``begin_turn``). Das Objekt wird beim Übernehmen des Blocks gebunden, also vor
+    dem Graphen — jeder Knoten erbt dasselbe und ändert es an Ort und Stelle.
+    """
+
+    abgewiesen: bool = False
+
+
+_zug_stand: _ctxvars.ContextVar[_ZugStand | None] = _ctxvars.ContextVar(
+    "_zug_stand", default=None)
+
+
+def _block_des_zuges() -> str:
+    """Der Block dieses Zuges — leer, wenn der Server ihn abgewiesen hat."""
+    stand = _zug_stand.get()
+    if stand is not None and stand.abgewiesen:
+        return ""
+    return _turn_block.get("")
 
 # Prüfung am Rand: der Block kommt aus einer Kopfzeile, also aus unvertrauter
 # Hand. Das Muster erzwingt beides in einem Ausdruck —
@@ -82,7 +111,7 @@ def _token() -> str:
 
 def _effective_token() -> str:
     """Der Block, der für den laufenden Aufruf gilt — Zug vor Anlage."""
-    return _turn_block.get("") or _token()
+    return _block_des_zuges() or _token()
 
 
 def set_turn_auth_block(raw: str | None) -> bool:
@@ -99,11 +128,55 @@ def set_turn_auth_block(raw: str | None) -> bool:
     liegt.
     """
     block = (raw or "").strip()
+    _bestaetigung.set(None)
+    _zug_stand.set(_ZugStand())
     if not _ist_wohlgeformt(block):
         _turn_block.set("")
         return False
     _turn_block.set(block)
     return True
+
+
+def setze_bestaetigung(*, person: bool, kennung: str = "") -> None:
+    """Das Ergebnis der Echtheitsprüfung (``services/mcp/anmeldung``) für den gerade
+    gesetzten Block — ``kennung`` ist ein Streuwert der Person, nie der Block."""
+    _bestaetigung.set((caller_fingerprint(), person, kennung))
+
+
+def verwirf_zug_block() -> None:
+    """Der Server weist den Block zurück: für den Rest des Zuges ohne ihn — wie ohne
+    Kopfzeile, also anonym oder unter der Anlage (Paket 10, Kurzaudit A-3). Gilt
+    über alle Knoten des Zuges (:class:`_ZugStand`)."""
+    stand = _zug_stand.get()
+    if stand is None:
+        stand = _ZugStand()
+        _zug_stand.set(stand)
+    stand.abgewiesen = True
+    _bestaetigung.set(None)
+
+
+def zug_block_abgewiesen() -> bool:
+    """Hat der Server in diesem Zug den Block der Person abgewiesen?"""
+    stand = _zug_stand.get()
+    return stand is not None and stand.abgewiesen
+
+
+def zug_block_wirkt_persoenlich() -> bool:
+    """Liegt diesem Zug ein Block vor, der eine Person meinen KANN (Form, nicht anonym)?"""
+    return is_personal_block(_block_des_zuges())
+
+
+def hat_zug_block() -> bool:
+    """Gilt für diesen Zug ein eigener Block (statt dem der Anlage oder keinem)?"""
+    return bool(_block_des_zuges())
+
+
+def _bestaetigt() -> tuple[bool, str]:
+    """``(person, kennung)`` für den aktuellen Block — ``(False, "")`` ohne Bestätigung."""
+    stand = _bestaetigung.get()
+    if stand is None or stand[0] != caller_fingerprint():
+        return False, ""
+    return stand[1], stand[2]
 
 
 def is_personal_block(raw: str | None) -> bool:
@@ -132,6 +205,13 @@ def has_auth_token() -> bool:
     return bool(_effective_token())
 
 
+def handelt_mit_dem_block_der_anlage() -> bool:
+    """Gilt für diesen Aufruf der Block der ANLAGE — kein eigener Zug-Block, aber einer
+    gesetzt? Der Zug-Block geht vor, auch der anonyme (Paket 9: das Gastkonto schreibt
+    nur hier, sonst handelte der Bot unter der anonymen Kennung)."""
+    return not _block_des_zuges() and bool(_token())
+
+
 def has_personal_auth() -> bool:
     """Steht hinter DIESEM Zug eine angemeldete Person? (A3a)
 
@@ -144,12 +224,15 @@ def has_personal_auth() -> bool:
 
     Der anonyme Block zählt nicht (Review 2026-09-26): er ist wohlgeformt und
     wird für das Lesen übernommen, meint aber niemanden — dieselbe Grenze, die
-    :func:`is_personal_block` am Agent-Endpunkt zieht. Bis hier genügte er
-    für ``execute`` und hätte die anonyme Kostenbremse (AG-6) abgeschaltet.
-    Ein Beweis ist das weiterhin nicht: ob ein persönlicher Block gilt,
-    entscheidet allein der MCP-Server.
+    :func:`is_personal_block` am Agent-Endpunkt zieht.
+
+    **Seit Paket 10 (Kurzaudit A-1) nur mit Bestätigung des MCP-Servers:** die Form
+    allein hob mit ``WLO-Access-Block: wlo2.x`` die anonymen Deckel auf, und ein
+    abgelaufener Block bot weiter Schreibwerkzeuge an. ``services/mcp/anmeldung``
+    fragt zu Beginn jedes Zuges ``wlo_auth_status``; ohne diese Antwort gilt der
+    Zug als anonym.
     """
-    return is_personal_block(_turn_block.get(""))
+    return zug_block_wirkt_persoenlich() and _bestaetigt()[0]
 
 
 def caller_fingerprint() -> str:
@@ -188,6 +271,17 @@ def caller_fingerprint() -> str:
     return hashlib.sha256(block.encode("utf-8")).hexdigest()[:16]
 
 
+def aufrufer_kennung() -> str:
+    """Wem eine Abnahme gehört (Paket 10, Kurzaudit S-1): einer bestätigten Person
+    ihre Kennung — der Server verschlüsselt jeden Block neu, ein Ticket-Tausch
+    zwischen Vorschau und „Ja“ änderte sonst den Fingerabdruck —, sonst der
+    Fingerabdruck des Blocks (:func:`caller_fingerprint`)."""
+    person, kennung = _bestaetigt()
+    if person and kennung and zug_block_wirkt_persoenlich():
+        return kennung
+    return caller_fingerprint()
+
+
 def auth_mode() -> str:
     """Betriebsart der ANLAGE — ``"service"`` oder ``"anonymous"``.
 
@@ -196,38 +290,3 @@ def auth_mode() -> str:
     mitlaufender Anfrage eine andere Betriebsart. Enthält den Block nie.
     """
     return "service" if _token() else "anonymous"
-
-
-def build_http_client_factory() -> McpHttpClientFactory:
-    """Die httpx-Fabrik, die das SDK je Verbindung aufruft.
-
-    Ohne Block ist das der SDK-Standard, unverändert. Mit Block ergänzt die
-    Fabrik die ``Authorization``-Kopfzeile und lässt alles andere durch, was das
-    SDK mitgibt (eigene Kopfzeilen, Timeout, ``auth``).
-
-    Welcher Block gilt, entscheidet :func:`_effective_token` — Zug vor Anlage.
-    Die Fabrik wird je Aufruf in ``transport._open_session`` neu gebaut, also
-    liest sie den Block des gerade laufenden Zuges und nicht den beim Start.
-
-    Bewusst ``httpx_client_factory`` und NICHT der ``headers=``-Parameter von
-    ``streamablehttp_client``: der ist im SDK als veraltet markiert
-    („Parameters headers, timeout, sse_read_timeout, and auth are deprecated").
-    ``create_mcp_http_client`` kommt aus demselben öffentlichen Modul wie
-    ``streamablehttp_client`` — kein privater SDK-Pfad.
-    """
-    block = _effective_token()
-    if not block:
-        return create_mcp_http_client
-
-    def factory(
-        headers: dict[str, str] | None = None,
-        timeout: httpx.Timeout | None = None,
-        auth: httpx.Auth | None = None,
-    ) -> httpx.AsyncClient:
-        return create_mcp_http_client(
-            headers={**(headers or {}), "Authorization": f"Bearer {block}"},
-            timeout=timeout,
-            auth=auth,
-        )
-
-    return factory

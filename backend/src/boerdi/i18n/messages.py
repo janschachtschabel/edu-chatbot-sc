@@ -25,8 +25,9 @@ from typing import Final
 
 from boerdi.i18n.catalogue import render
 from boerdi.i18n.locale import Locale
+from boerdi.i18n.messages_dokumente import DOKUMENTE
 
-MESSAGES: Final[dict[Locale, dict[str, str]]] = {
+_GRUND: Final[dict[Locale, dict[str, str]]] = {
     "de": {
         # ── Bereichs-Editor: Begrüßung ─────────────────────────────────
         "field.empty": "{field} darf nicht leer sein",
@@ -51,6 +52,10 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
             "Lotsen-Regel {nr} ({label}): Das Muster ist kein gültiger regulärer "
             "Ausdruck ({error})."
         ),
+        "policy.regexInvalid": (
+            "Policy-Regel {nr} ({id}): message_regex ist kein gültiger regulärer "
+            "Ausdruck ({error})."
+        ),
         "config.exists": "Unter der Kennung {area} gibt es schon ein Dokument.",
         # Paket 4b, A4: ein Wert, den Postgres nicht speichert (etwa ein Nullzeichen).
         # Zwei Fassungen (Review 4b): Wiederherstellen und Seed schreiben alles in
@@ -68,6 +73,8 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "mcp.serverRejected": "MCP-Server '{id}': {error}",
         "mcp.connectFailed": "Verbindung fehlgeschlagen: {error}",
         "mcp.urlRequired": "Bitte eine Server-URL angeben.",
+        # Paket 7 (P1): ein anderer Zug derselben Sitzung läuft noch.
+        "chat.sessionBusy": "Sitzung beschäftigt — die vorige Nachricht wird noch beantwortet.",
         # ── Element-Editoren (C1-e2) ───────────────────────────────────
         # `{label}` ist der Gattungsname, den die Route mitgibt („Pattern",
         # „Persona"): ein Bezeichner aus dem Aufrufer, kein Satzteil.
@@ -77,14 +84,52 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
             "Die Muster-Kennung {value} ist reserviert: Sie kennzeichnet die Züge "
             "der Agent-Schleife."
         ),
+        # Paket 8 (A): der Lauf läuft schon — auf dieser oder einer anderen Kopie.
+        "retention.busy": "Die Bereinigung läuft gerade schon. Gleich noch einmal versuchen.",
         # ── Sicherung: Snapshots + Werksstand (C1-e2) ──────────────────
         "upload.tooLarge": "Datei zu groß (max {mb} MB).",
         "snapshots.notFound": "Snapshot nicht gefunden.",
         "snapshots.limitReached": "Snapshot-Limit erreicht (max {max}) — alte Snapshots löschen.",
-        "factory.missing": "Kein Factory-Stand gesetzt",
+        "snapshots.exactEmpty": (
+            "Die Sicherung enthält keinen Konfigurationsbereich — „exakt“ würde alles "
+            "löschen. Nichts wurde geändert."
+        ),
+        # Etiketten der Schnappschüsse, die der Server selbst anlegt (Review
+        # Paket 7, C-11) — in der Sprache der Person, die den Lauf auslöst.
+        "snapshots.invalidFile": (
+            "Die Sicherung lässt sich nicht lesen: {file} ist kein gültiges YAML in "
+            "UTF-8 oder verwendet YAML-Verweise (Anker/Aliasse). Nichts wurde geändert."
+        ),
+        "snapshots.label.exactRestore": "vor Wiederherstellen (exakt)",
+        "snapshots.label.seedApply": "vor Werksfassung",
+        "factory.missing": "Kein eigener Grundstand gesichert",
         "seed.missing": (
-            "Dieses Abbild bringt keinen Auslieferungsstand mit "
+            "Dieses Abbild bringt keine Werksfassung mit "
             "(CONFIG_SEED_DIR zeigt auf kein Verzeichnis)."
+        ),
+        # ── Werk und eigene Fassung (Paket 12) ─────────────────────────
+        "fassung.keinWerk": "Für {area} gibt es keine Werksfassung.",
+        "fassung.keineEigene": (
+            "Für {area} ist keine eigene Fassung stillgelegt — es gibt nichts zurückzuholen."
+        ),
+        "fassung.versionFehlt": (
+            "Die Version fehlt — bitte die Ansicht neu laden und noch einmal umschalten."
+        ),
+        "fassung.unbekannt": "Den Bereich {area} gibt es weder im Werk noch in der Datenbank.",
+        "fassung.zweiEigene": (
+            "Für {area} liegt schon eine eigene Fassung still, und die gelebte ist ebenfalls "
+            "angepasst — mit der Werksfassung ginge eine verloren. Erst „Eigene Fassung "
+            "verwenden“ (tauscht beide) oder eine der beiden von Hand zusammenführen."
+        ),
+        "fassung.inzwischenDa": (
+            "{area} wurde inzwischen angelegt — bitte die Ansicht neu laden."
+        ),
+        "fassung.nichtsZuPruefen": (
+            "{area} ist nicht angepasst oder steht schon auf der aktuellen Werksfassung."
+        ),
+        "fassung.loeschenMitEigener": (
+            "{area} trägt eine stillgelegte eigene Fassung, die beim Löschen verloren ginge — "
+            "erst unter Sicherung → „Werk und eigene Fassung“ zurückholen."
         ),
         # ── Lasttest (C1-e2) ───────────────────────────────────────────
         "loadtest.disabled": (
@@ -112,21 +157,6 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "usage.periodReversed": "'from' liegt nach 'to' — der Zeitraum ist leer.",
         "usage.periodTooLong": (
             "Der Zeitraum umfasst mehr als {max} Tage. Bitte enger fassen."
-        ),
-        # ── RAG-Ingest (C1-e2) ─────────────────────────────────────────
-        # Zwei Sätze statt eines langen: dieselbe Grenze meldet der schnelle
-        # Vorab-Check (mit Hinweis) und die Prüfung nach dem Lesen (ohne).
-        # Getrennt, damit der Katalog denselben Satz nicht zweimal trägt;
-        # zusammengesetzt wird an der Satzgrenze, nie im Satz.
-        "ingest.tooLarge": "Datei zu groß: {size} MB > {max} MB Limit.",
-        "ingest.raiseLimit": (
-            "Wenn der Server genug RAM hat, setze BOERDI_MAX_INGEST_MB höher "
-            "(oder 0 für unbegrenzt)."
-        ),
-        # Paket 4, C5: das Image enthält keine markitdown-Extras.
-        "ingest.formatUnsupported": (
-            "Dieses Dateiformat kann der Server nicht lesen. Möglich sind HTML, "
-            "Markdown, Text, CSV und JSON."
         ),
         # ── Sitzungen: Purge + Kompaktieren (C1-e2) ────────────────────
         # „Bestaetigung" ohne Umlaut: ALT-Wortlaut (`app/routers/sessions.py:112`).
@@ -168,6 +198,10 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
             "Guide rule {nr} ({label}): the pattern is not a valid regular "
             "expression ({error})."
         ),
+        "policy.regexInvalid": (
+            "Policy rule {nr} ({id}): message_regex is not a valid regular "
+            "expression ({error})."
+        ),
         "config.exists": "A document with the id {area} already exists.",
         "config.notStorable": (
             "Area {area} holds a value the database cannot store, such as a NUL "
@@ -181,18 +215,51 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "mcp.serverRejected": "MCP server '{id}': {error}",
         "mcp.connectFailed": "Connection failed: {error}",
         "mcp.urlRequired": "Please provide a server URL.",
+        "chat.sessionBusy": "Session busy — the previous message is still being answered.",
         "entries.invalid": "Invalid {label} data.",
         "patterns.qrModeInvalid": "quick_replies_mode is invalid: {value}",
         "patterns.idReserved": (
             "The pattern id {value} is reserved: it marks the turns of the agent loop."
         ),
+        "retention.busy": "Cleanup is already running. Try again in a moment.",
         "upload.tooLarge": "File too large (max {mb} MB).",
         "snapshots.notFound": "Snapshot not found.",
         "snapshots.limitReached": "Snapshot limit reached (max {max}) — delete old snapshots.",
-        "factory.missing": "No factory state has been saved",
+        "snapshots.exactEmpty": (
+            "The backup contains no configuration area — “exact” would delete "
+            "everything. Nothing was changed."
+        ),
+        "snapshots.invalidFile": (
+            "The backup cannot be read: {file} is not valid UTF-8 YAML or uses YAML "
+            "references (anchors/aliases). Nothing was changed."
+        ),
+        "snapshots.label.exactRestore": "before restore (exact)",
+        "snapshots.label.seedApply": "before factory version",
+        "factory.missing": "No baseline has been saved",
         "seed.missing": (
             "This image ships no factory config tree "
             "(CONFIG_SEED_DIR points to no directory)."
+        ),
+        "fassung.keinWerk": "There is no factory version of {area}.",
+        "fassung.keineEigene": (
+            "No own version of {area} is set aside — there is nothing to bring back."
+        ),
+        "fassung.versionFehlt": "The version is missing — please reload the view and switch again.",
+        "fassung.unbekannt": (
+            "The area {area} exists neither in the factory set nor in the database."
+        ),
+        "fassung.zweiEigene": (
+            "An own version of {area} is already set aside and the live one is customized too — "
+            "switching to the factory version would lose one. Use “Use own version” first (it "
+            "swaps both) or merge them by hand."
+        ),
+        "fassung.inzwischenDa": "{area} was created meanwhile — please reload the view.",
+        "fassung.nichtsZuPruefen": (
+            "{area} is not customized or is already based on the current factory version."
+        ),
+        "fassung.loeschenMitEigener": (
+            "{area} has an own version set aside that deleting would lose — bring it back first "
+            "under Backup → “Factory and own version”."
         ),
         "loadtest.disabled": (
             "The load test is disabled on this instance (BOERDI_ALLOW_LOADTEST). "
@@ -216,15 +283,6 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
         "usage.periodTooLong": (
             "The period spans more than {max} days. Please narrow it."
         ),
-        "ingest.tooLarge": "File too large: {size} MB > {max} MB limit.",
-        "ingest.raiseLimit": (
-            "If the server has enough RAM, raise BOERDI_MAX_INGEST_MB "
-            "(or set it to 0 for no limit)."
-        ),
-        "ingest.formatUnsupported": (
-            "The server cannot read this file format. Possible are HTML, "
-            "Markdown, text, CSV and JSON."
-        ),
         "sessions.purgeNeedsConfirm": (
             "Purging requires ?confirm=true as a guard against accidental nukes. "
             "The studio sends the parameter automatically after the double confirmation."
@@ -242,6 +300,14 @@ MESSAGES: Final[dict[Locale, dict[str, str]]] = {
             "The repository did not answer the skill search ({error})."
         ),
     },
+}
+
+# Paket 6: die Meldungen der Ordner-Dokumente und des Wissens-Imports stehen in
+# ``messages_dokumente.py`` (die Datei wuchs sonst über 300 Zeilen). Ein Schlüssel
+# darf nur in einem Teil stehen — sonst gewönne still der spätere
+# (``test_i18n_messages.py`` prüft das).
+MESSAGES: Final[dict[Locale, dict[str, str]]] = {
+    sprache: {**_GRUND[sprache], **DOKUMENTE[sprache]} for sprache in _GRUND
 }
 
 

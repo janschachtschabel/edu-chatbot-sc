@@ -5,8 +5,8 @@ Builds on services/llm_models.py (name resolution) and obs/usage.py (token
 accounting). Two deliberate ALT-deviations, both documented in the contract:
 - ALT had NO app-level semaphore (httpx pool max_connections was the
   bulkhead); LiteLLM has no pool bulkhead, so an explicit asyncio.Semaphore
-  per event loop is the correct NEU equivalent (LLM_MAX_CONCURRENCY live /
-  BG_LLM_MAX_CONCURRENCY background).
+  per event loop is the correct NEU equivalent — per provider since Paket 7
+  (``services/llm_parallel.py``).
 - Retries: like ALT, the OpenAI SDK default ``max_retries=2`` — and NO
   ``num_retries``. Until Paket 4 (B3) this said ``num_retries=2``; LiteLLM
   1.91.5 turned that into two retry layers (SDK plus ``acompletion_with_retries``):
@@ -23,7 +23,6 @@ The network boundaries are the module attributes ``_acompletion`` (chat) and
 
 from __future__ import annotations
 
-import asyncio
 import time
 from typing import Any
 from uuid import uuid4
@@ -32,6 +31,7 @@ import litellm
 
 from boerdi.obs import usage as _usage
 from boerdi.obs.zeiten import seit_ms
+from boerdi.services.betriebsschalter import service_tier
 from boerdi.services.llm_choices import vereinige_choices
 from boerdi.services.llm_models import (
     get_chat_model,
@@ -41,6 +41,18 @@ from boerdi.services.llm_models import (
     get_verbosity,
     param_rules,
 )
+from boerdi.services.llm_nachrichten import nachrichten_fuer
+
+# Re-Export: Aufrufer und Tests sprechen ``llm.semaphore()`` / ``llm.reset()``
+# an; die Grenzen je Anbieter stehen seit Paket 7 (L3) in ``llm_parallel``.
+from boerdi.services.llm_parallel import (  # noqa: F401
+    _semaphore,
+    ingest_semaphore,
+    platz,
+    reset,
+    semaphore,
+)
+from boerdi.services.llm_responses import RESPONSES_PRAEFIX, denkparameter_verlegen
 from boerdi.settings import get_settings
 
 # Let LiteLLM drop params the concrete target model doesn't accept — replaces
@@ -66,46 +78,6 @@ _aembedding = litellm.aembedding
 LEERLAUF_VERSUCHE = 2
 
 _DEFAULT_OPENAI_BASE = "https://api.openai.com/v1"
-
-# Per-event-loop semaphores: (loop_id, "live"|"bg") -> Semaphore. A single
-# module-level Semaphore would bind to the first loop and break under
-# asyncio.run in tests; production has one loop so this is one entry.
-_semaphores: dict[tuple[int, str], asyncio.Semaphore] = {}
-
-
-def reset() -> None:
-    """Drop cached semaphores (hot-reload / test isolation)."""
-    _semaphores.clear()
-
-
-def _semaphore(kind: str) -> asyncio.Semaphore:
-    loop = asyncio.get_running_loop()
-    key = (id(loop), kind)
-    sem = _semaphores.get(key)
-    if sem is None:
-        s = get_settings()
-        # ``ingest`` (Paket 4, C4): der eigene Kanal der Import-Embeddings,
-        # prozessweit. Vorher nahm jeder Import zusätzlich einen Live-Platz.
-        size = {"bg": s.bg_llm_max_concurrency,
-                "ingest": s.embed_ingest_parallel}.get(kind, s.llm_max_concurrency)
-        sem = asyncio.Semaphore(size)
-        _semaphores[key] = sem
-    return sem
-
-
-def semaphore(*, background: bool = False) -> asyncio.Semaphore:
-    """Public accessor for the per-loop concurrency bulkhead. Every LLM entry
-    point (chat_completion here, the instructor classify path in
-    services/classify.py) acquires this so they share one limit."""
-    return _semaphore("bg" if background else "live")
-
-
-def ingest_semaphore() -> asyncio.Semaphore:
-    """Der Deckel der Import-Embeddings (``EMBED_INGEST_PARALLEL``). Den nimmt
-    ``embedding(kanal="ingest")`` selbst; das lokale Backend, das nicht über
-    ``embedding`` läuft, braucht ihn von außen (Prüfer 2026-10-04)."""
-    return _semaphore("ingest")
-
 
 def build_chat_kwargs(
     *,
@@ -168,17 +140,21 @@ def route(model: str) -> tuple[str, str, str, dict[str, str] | None]:
     provider. All endpoints are OpenAI-compatible -> "openai/" prefix so a
     custom model name still routes correctly through a custom api_base.
     Models flagged ``responses_api`` go to OpenAI's /v1/responses via LiteLLM's
-    ``responses/`` bridge — native OpenAI only (why: ``llm_models._GROUPS``)."""
+    ``responses/`` bridge — OpenAI direct and behind the b-api; the AcademicCloud
+    gets the classic rules and stays on chat/completions (why: ``llm_models._GROUPS``)."""
     s = get_settings()
     provider = get_provider()
     litellm_model = f"openai/{model}"
+    if param_rules(model).responses_api:
+        litellm_model = f"{RESPONSES_PRAEFIX}{model}"
     if provider == "openai":
-        if param_rules(model).responses_api:
-            litellm_model = f"openai/responses/{model}"
         api_base = s.openai_base_url or _DEFAULT_OPENAI_BASE
         return litellm_model, api_base, s.openai_api_key.get_secret_value(), None
-    # b-api-openai / b-api-academiccloud: OpenAI-compatible proxy, dual auth
-    suffix = "/academiccloud" if provider == "b-api-academiccloud" else "/openai"
+    # b-api-openai / b-api-academiccloud: OpenAI-compatible proxy, dual auth. Paket 8 (L8):
+    # OpenAI embeddings take the OpenAI path even on the AcademicCloud — it has no embedding
+    # model, and the knowledge base lives in the text-embedding-3-small space (ALT: side channel).
+    academiccloud = provider == "b-api-academiccloud" and not model.startswith("text-embedding-")
+    suffix = "/academiccloud" if academiccloud else "/openai"
     api_base = s.b_api_base_url.rstrip("/") + suffix
     b_key = s.b_api_key.get_secret_value().strip()
     api_key = b_key or "unused"  # SDK requires a truthy key
@@ -217,11 +193,15 @@ def wire_transport(resolved: str, kwargs: dict[str, Any]) -> None:
             # (gemessen 21.08.). Ein Zufallswert je Request schaltet den
             # Cache also auch hier ab.
             kwargs.setdefault("extra_body", {})["user"] = f"boerdi-nc-{uuid4().hex}"
-    # OpenAI-Tarif (``LLM_SERVICE_TIER``, z. B. ``fast``) — nur direkt bei
-    # OpenAI gemessen (2026-10-01, LiteLLM reicht ihn auch über die
-    # Responses-Brücke durch); die b-api-Pfade bleiben unberührt.
-    if s.llm_service_tier and get_provider() == "openai":
-        kwargs["service_tier"] = s.llm_service_tier
+    # Paket 7, L2: Denktiefe und Ausführlichkeit kommen sonst nicht an (gpt-6).
+    rules = param_rules(resolved)
+    denkparameter_verlegen(kwargs, gpt5_familie=rules.gpt5_familie)
+    # Tarif (Umgebung oder Studio-Fast-Modus, Paket 7 S1): nur OpenAI direkt, gpt-5/6 (L1).
+    if get_provider() == "openai" and rules.gpt5_familie and (tarif := service_tier()):
+        kwargs["service_tier"] = tarif
+    # Die Form der Folge je Anbieter (Responses-Plan E-A1, E-AC): ``llm_nachrichten``.
+    if "messages" in kwargs:
+        kwargs["messages"] = nachrichten_fuer(get_provider(), kwargs["messages"])
 
 
 async def chat_completion(
@@ -251,7 +231,7 @@ async def chat_completion(
     wire_transport(resolved, kwargs)
 
     t0 = time.perf_counter()  # Wanduhr samt Warteschlange — so wartet der Zug
-    async with _semaphore("bg" if background else "live"):
+    async with platz("bg" if background else "live"):
         resp = await _acompletion(**kwargs)
     ms = seit_ms(t0)
     # Responses-Brücke: Text und Aufrufe können auf zwei Choices liegen — jeder
@@ -315,7 +295,7 @@ async def embedding(
     if extra_headers is not None:
         kwargs["extra_headers"] = extra_headers
 
-    async with _semaphore(kanal):
+    async with platz(kanal):
         resp = await _aembedding(**kwargs)
     item = resp.data[0]
     return item["embedding"] if isinstance(item, dict) else item.embedding
