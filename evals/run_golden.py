@@ -660,6 +660,15 @@ def render_console(metrics: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def flows_fuer_lauf(flows: list[dict], only: str) -> list[dict]:
+    """Ohne ``--only`` alle Flows außer denen „auf Abruf“ (Paket 7, K3; Zwilling von
+    ``boerdi.services.eval.flow_wahl.flows_waehlen``); mit ``--only`` genau die genannten."""
+    if not only:
+        return [f for f in flows if not f.get("auf_abruf")]
+    wanted = {x.strip() for x in only.split(",") if x.strip()}
+    return [f for f in flows if str(f.get("id")) in wanted]
+
+
 def main(argv: list[str] | None = None) -> int:
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -695,12 +704,10 @@ def main(argv: list[str] | None = None) -> int:
     except (ValueError, OSError) as e:
         print(str(e), file=sys.stderr)
         return 2
-    if args.only:
-        wanted = {x.strip() for x in args.only.split(",") if x.strip()}
-        flows = [f for f in flows if str(f.get("id")) in wanted]
-        if not flows:
-            print(f"no flows match --only {args.only}", file=sys.stderr)
-            return 2
+    flows = flows_fuer_lauf(flows, args.only)
+    if args.only and not flows:
+        print(f"no flows match --only {args.only}", file=sys.stderr)
+        return 2
 
     kopf = f" mit Kopfzeilen {', '.join(sorted(headers))}" if headers else ""
     print(f"Golden-Runner: {len(flows)} Flow(s) gegen {args.url}"

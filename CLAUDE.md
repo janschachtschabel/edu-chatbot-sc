@@ -3,7 +3,7 @@
 ## Was dieses Projekt ist
 
 **Cleaner Neubau des WLO-Chatbots „BadBoerdi"** als Monorepo: FastAPI-Backend (LangGraph-
-Orchestrierung, Postgres 17 + pgvector, clusterfähig/stateless), Chat-Widget als Angular-21-
+Orchestrierung, Postgres 17 + pgvector, clusterfähig/stateless), Chat-Widget als Angular-22-
 Webkomponente `<boerdi-chat>` (zoneless) und Studio/Webadmin als Angular-SPA — alle drei
 Frontend-Teile in EINEM Angular-Workspace mit geteilter `ui`-Lib. Prinzip: möglichst wenig
 Eigencode, maximale Nachnutzung etablierter OSS (NUR MIT/Apache-2.0/BSD-artige Lizenzen),

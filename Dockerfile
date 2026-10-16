@@ -67,6 +67,10 @@ FROM python:3.12-slim AS runtime
 # and the only runtime write is a tempfile under /tmp during RAG file ingest —
 # so the process needs no writable application directory at all.
 RUN useradd --create-home --uid 1000 boerdi
+# Paket 11 (2026-10-15): der einzige beschreibbare Ort außer /tmp — das Backend bezieht das
+# Reranker-Modell selbst nach /models. Ein benanntes Volume übernimmt beim ersten Einhängen
+# die Rechte dieses Verzeichnisses; ohne es gehörte das Volume root und der Bezug scheiterte.
+RUN mkdir -p /models && chown boerdi:boerdi /models
 
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH" \

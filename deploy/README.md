@@ -141,7 +141,13 @@ Zwei Betriebsarten, kein dritter Zustand:
 | `MCP_AUTH_TOKEN` | Betriebsart | Wirkung |
 |---|---|---|
 | leer (Default) | `anonymous` | nur lesend. Der Server antwortet weiter mit `200` und der vollen Werkzeugliste |
-| gesetzt | `service` | jeder Aufruf trägt `Authorization: Bearer …`; die kuratierenden Werkzeuge stehen dem hinterlegten Konto offen |
+| gesetzt | `service` | jeder Aufruf trägt `Authorization: Bearer …`. Lesend wirkt er immer; schreiben (kuratierende Werkzeuge) nur mit dem Studio-Schalter „Gastkonto darf schreiben" (Agent & Maschine → Betrieb, Vorgabe aus) |
+
+**Schreiben ohne persönliche Anmeldung ist seit Paket 7 aus** (P5-9, Nutzer-Entscheid
+2026-10-09). In beiden Modi schreibt nur, wer mit dem eigenen WLO-Konto angemeldet ist
+(Anmelde-Knopf im Widget). Der Schalter oben erlaubt dem Dienstkonto das Schreiben für
+jede Person im Chat — eine bewusste Entscheidung, deshalb nur im Studio und nicht per
+Umgebung.
 
 Ein `401` kommt laut Server-Doku **nur bei einem vorgelegten, aber
 unbrauchbaren** Block — anonym zu bleiben ist kein Fehler.
@@ -155,18 +161,18 @@ curl -s http://localhost:8000/api/health
 Das Feld `mcp_auth` nennt `service` oder `anonymous`.
 
 **Wenn der Bot nicht kuratiert**, obwohl ein Muster es vorsieht, steht der Grund
-im Protokoll — die Zeile nennt das Muster, die fehlenden Werkzeuge und
-`MCP_AUTH_TOKEN`:
+im Protokoll (INFO — ohne Anmeldung ist das der Normalfall). Die Zeile nennt das
+Muster, die fehlenden Werkzeuge und beide Stellschrauben:
 
 ```
-Muster M13 verlangt kuratierende Werkzeuge ['wlo_create_collection'], aber es ist
-kein Zugangsblock hinterlegt (MCP_AUTH_TOKEN) — sie werden dem Modell nicht
-angeboten.
+Muster M13 verlangt kuratierende Werkzeuge ['wlo_create_collection'], aber in diesem
+Zug ist niemand persönlich angemeldet. Ohne Anmeldung schreibt der Bot nur mit dem
+Block der Anlage (MCP_AUTH_TOKEN) und der Studio-Erlaubnis „Gastkonto darf
+schreiben" — sie werden dem Modell nicht angeboten.
 ```
 
-Im Chat selbst erscheint **keine** Anmelde-Adresse: der Block gehört dem
-Betrieb, nicht der Lehrkraft am Widget. Der Bot sagt dort nur offen, dass er
-derzeit nur lesend angebunden ist.
+Im Chat selbst erscheint **keine** Adresse und kein Block: der Bot sagt offen, dass
+Anlegen und Ändern eine Anmeldung brauchen, und bietet den Anmelde-Knopf an.
 
 ---
 
@@ -178,10 +184,11 @@ Ein neuer Server folgt **[../INSTALL.md](../INSTALL.md)** — dort steht der Weg
 vom leeren Debian bis zum laufenden Stack, inklusive des Schrittes, der hier
 unten bewusst FEHLT: dem einmaligen `boerdi import-config`.
 
-**Die Migration legt Tabellen an und füllt nichts.** Ohne den Seed-Import läuft
-ein Chatbot ohne Muster, ohne Begrüssung und ohne Vokabulare — technisch gesund,
-inhaltlich leer. Automatisch passiert das mit Absicht nicht: bei N Replikas
-schrieben alle gleichzeitig.
+**Der `migrate`-Dienst füllt die Konfiguration selbst** (seit Paket 12:
+`alembic upgrade head && boerdi import-config --werksabgleich`) — einmal vor den
+Backends, nicht je Replika. Er legt an, was fehlt, hebt unberührte Bereiche auf
+eine neue Werksfassung und lässt im Studio Angepasstes und Gelöschtes stehen. Den
+vollen Import, der **jeden** Bereich überschreibt, gibt es nur ausdrücklich:
 
 ```bash
 docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
@@ -222,6 +229,42 @@ das `--force` ausdrücklich — es leert die betroffenen Bereiche vorher, also m
 Backup davor. `--sqlite <KOPIE der ALT-badboerdi.db>` bleibt als einmalige
 Brücke aus dem Altsystem bestehen.
 
+### Einbettungsmodell wechseln (etwa auf die AcademicCloud)
+
+Die Wissensbasis liegt im Vektorraum von `text-embedding-3-small` (1536 Dimensionen). Ein anderes
+Modell ist kein Schalter: Die Spalte hat eine feste Dimension, und Vektoren verschiedener Modelle
+lassen sich nicht vergleichen. `boerdi rag-einbettung-wechseln` überführt **alle** Abschnitte — Seed
+und Studio-Uploads — in den neuen Raum (Paket 11).
+
+1. Sicherung ziehen (`pg-backup`, siehe „Restore“).
+2. In der `.env` das Modell setzen. Über die AcademicCloud leitet das Backend Modelle, deren Name
+   nicht mit `text-embedding-` beginnt, nur bei `LLM_PROVIDER=b-api-academiccloud` dorthin:
+   ```
+   LLM_EMBED_MODEL=<Modell>
+   EMBED_DIM=<Dimension>   # nur, wenn das Modell nicht in llm_models._EMBED_MODEL_DIMS steht
+   ```
+3. Probe — misst die Dimension mit einem Aufruf und zählt, ändert nichts:
+   ```bash
+   docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
+     backend boerdi rag-einbettung-wechseln --probe
+   ```
+   Bricht ab, wenn die gemessene Dimension nicht zu `EMBED_DIM` passt oder über 2000 liegt (Grenze
+   des Suchindex).
+4. Backend mit der neuen `.env` neu starten und **direkt danach** wechseln:
+   ```bash
+   docker compose -f compose.prod.yml --env-file .env up -d backend
+   docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
+     backend boerdi rag-einbettung-wechseln
+   ```
+   Bis der Lauf fertig ist, findet die Wissenssuche nur schon neu eingebettete Abschnitte (906
+   Seed-Abschnitte: wenige Minuten). Bleiben Abschnitte ohne Vektor (Ausgabe und Rückgabewert 1),
+   mit `--fortsetzen` erneut laufen lassen.
+
+Zurück geht es genauso mit dem alten Modell. Am `backend`-Dienst, nicht am `migrate`: nur das Backend
+hat die LLM-Zugangsdaten. Stand 2026-10-15 führt die AcademicCloud über die b-api **kein**
+Einbettungsmodell. Für e5-Modelle setzt der Anbieter-Weg die Präfixe `query:`/`passage:` nicht —
+vor einem Wechsel auf ein e5-Modell nachrüsten.
+
 ### Deployen / aktualisieren
 
 ```bash
@@ -247,15 +290,19 @@ gesetzt werden, gehört ein Backup davor (siehe unten).
 
 ### Den mitgelieferten Konfigurationsstand übernehmen — im Studio
 
-Seit 17.08.2026 braucht das keinen SSH-Zugang mehr: **Sicherung → „Auslieferungs­stand
-aus dem Abbild"** liest denselben Baum (`/app/seeds`) aus dem laufenden Abbild,
+Seit 17.08.2026 braucht das keinen SSH-Zugang mehr: **Sicherung → „Werksfassung
+aus dem Repository"** (bis Paket 12 „Auslieferungsstand aus dem Abbild“) liest denselben Baum (`/app/seeds`) aus dem laufenden Abbild,
 zeigt vorher die Zählung (wie viele Bereiche fehlen, weichen ab, stehen nur in
 der Datenbank) und bietet zwei Wege an:
 
 | Knopf | Wirkung | Verlust |
 |---|---|---|
-| „Fehlende nachziehen" | schreibt nur Bereiche, die es in der Datenbank **nicht** gibt | keiner |
-| „Alles auf Auslieferungsstand" | schreibt neue **und abweichende**, löscht Bereiche, die nur in der Datenbank stehen | ja — vorher legt das Backend selbst einen Schnappschuss „vor Auslieferungsstand" an |
+| „Fehlende nachziehen" | schreibt nur Bereiche, die es in der Datenbank **nicht** gibt — im Studio gelöschte Werksbereiche nicht | keiner |
+| „Alles auf die Werksfassung" | schreibt neue **und abweichende**, löscht Bereiche, die nur in der Datenbank stehen (außer solchen mit stillgelegter eigener Fassung) | ja — vorher legt das Backend selbst einen Schnappschuss „vor Werksfassung" an |
+
+Je Bereich umschalten, vergleichen oder „Als geprüft markieren“ geht in der Karte
+**„Werk und eigene Fassung“** darüber — meist der bessere Weg als einer der beiden
+Knöpfe.
 
 **Das Abbild bleibt die Quelle.** Der Knopf lädt nichts aus dem Repository nach;
 er zeigt den Stand des Commits, aus dem *dieses* Abbild gebaut wurde. „Neueste
@@ -265,9 +312,84 @@ im Studio drücken.
 Ein Neustart ist danach nicht nötig — der DB-Trigger benachrichtigt jede Replika
 (seit Migration `0003` auch beim Löschen).
 
-Der Weg über `docker compose … run --rm --no-deps migrate boerdi import-config`
-bleibt für die Erstinstallation und für den Fall, dass das Studio nicht
-erreichbar ist.
+Seit Paket 6 (2026-10-08) prüft „Alles auf die Werksfassung" den Seed vorher
+wie ein Wiederherstellen (Modell, Schlüssel, Lotsen- und Policy-Regex): ein
+ungültiger Baum wird mit 422 abgewiesen, ohne Schnappschuss und ohne dass etwas
+geschrieben wird.
+
+### Werkszustand per Kommandozeile
+
+Derselbe Ablauf wie „Alles auf die Werksfassung", für den Fall, dass das Studio
+nicht erreichbar ist oder ein Skript den Reset fährt:
+
+```bash
+# Erst ansehen, was sich ändern würde (schreibt nichts):
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
+  migrate boerdi import-config --exact --dry-run
+# Dann herstellen: Schnappschuss, schreiben, löschen — eine Transaktion:
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
+  migrate boerdi import-config --exact
+```
+
+Der Rückweg ist der Schnappschuss „vor Werksfassung (Kommandozeile)" im
+Studio unter Sicherung. Ist die Grenze von 50 Schnappschüssen erreicht, verweigert
+der Lauf ohne Änderung. Der Import ohne Option überschreibt nur, löscht nichts und
+sichert nicht — ein im Studio angelegtes Muster überlebt ihn; für einen echten
+Werkszustand also `--exact`.
+
+### Einen einzelnen Bereich aus dem Abbild nachziehen
+
+Seit Paket 12 meist unnötig: `migrate` ruft `import-config --werksabgleich`, und ein
+**unberührter** Bereich folgt der neuen Werksfassung beim Start von selbst. Ein im
+Studio **angepasster** Bereich bleibt — das Studio zeigt ihn unter Sicherung →
+„Werk und eigene Fassung“ als „neue Werksfassung verfügbar“, mit Unterschied und
+Knopf „Werksfassung verwenden“ (die eigene Fassung wird stillgelegt, nicht gelöscht).
+Der Weg über die Kommandozeile bleibt für Server ohne Studio-Zugang:
+
+```bash
+# 0. Rückweg: im Studio unter Sicherung einen Schnappschuss anlegen.
+# 1. Was weicht ab? (schreibt nichts; der Bereich muss unter „abweichend“ stehen)
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
+  migrate boerdi import-config --exact --dry-run
+# 2. Nur diesen einen Bereich aus /app/seeds schreiben:
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps migrate \
+  sh -c 'mkdir -p /tmp/nur/01-base \
+    && cp /app/seeds/01-base/classify-overrides.yaml /tmp/nur/01-base/ \
+    && boerdi import-config --from /tmp/nur'
+# Erwartet: „imported 1 areas (1 yaml, 0 md)“
+```
+
+`--from` auf einen Teilbaum schreibt genau die Dateien darin; der Bereichsname
+ergibt sich aus dem Pfad unterhalb von `--from`. Wirksam ohne Neustart (DB-Trigger).
+Hat die Redaktion denselben Bereich im Studio geändert, überschreibt der Import
+diese Änderungen — dann stattdessen im Studio unter „Alle Bereiche“ den Bereich
+öffnen und die neuen Blöcke im Rohtext von Hand übernehmen.
+
+### Werk und eigene Fassung beim Umzug
+
+Sicherungen, Snapshots und `export-config` enthalten die **gelebte** Fassung je Bereich — eine im
+Studio stillgelegte eigene Fassung (Sicherung → „Werk und eigene Fassung“) und die gemerkte
+Werksbasis reisen nicht mit. Auf dem neuen Server gilt ein eingespielter Bereich deshalb als
+angepasst, bis er der Werksfassung gleicht; wer eine stillgelegte Fassung behalten will, holt sie
+vor dem Umzug zurück („Eigene Fassung verwenden“).
+
+### Was der Werkszustand umfasst — und was nicht
+
+| Umfasst (Seed-Baum, 61 Bereiche) | Bleibt unberührt |
+|---|---|
+| alle Muster (`03-patterns`), Personas (`04-personas`), Domänen-Regeln, Lotse und Lotsen-Regeln, Begrüßung, Anzeige-, Sicherheits- und Datenschutz-Einstellungen, Dimensionen, Wissens- und MCP-Registry, Preistafel, Gold-Flows, Maschine (`01-base/engine`) | Wissensbasis-Dokumente (`boerdi import-rag`), Master-Skill und Skills (kommen aus edu-sharing), Umgebungsvariablen, Sitzungen, Logs, Eval- und Lasttest-Läufe, Schnappschüsse |
+
+**Achtung, Maschine:** Der Seed stellt `01-base/engine` auf `mode: agent`
+(seit Paket 7). Ein Werkszustand stellt eine Anlage, die im Studio auf die
+Muster-Maschine umgestellt ist, also auf den Agenten zurück. Danach unter
+„Agent & Maschine" wieder umstellen.
+
+**Achtung, Wissensbereiche:** Der Werkszustand schreibt auch den Wissens-Katalog
+(`05-knowledge/rag-config`) zurück. Ein Bereich, der erst nach der Auslieferung
+im Studio angelegt wurde, verschwindet daraus — seine Dokumente bleiben in der
+Wissensbasis, werden aber nicht mehr durchsucht, bis der Bereich wieder im
+Katalog steht. Vorher unter „Wissen“ notieren oder danach aus dem Schnappschuss
+„vor Werksfassung“ zurückholen.
 
 **Image aus der Registry statt selbst gebaut.** `image.yml` veröffentlicht nach
 bestandenem Smoke nach GHCR; dann entfällt Schritt 1 und `BOERDI_IMAGE` in der
@@ -333,6 +455,24 @@ parallel laufen (Befundliste, C-H1). Mehr Replikas also erst danach — und auch
 dann auf einem 2-Kern-Server nicht: drei Replikas teilen sich dieselben zwei
 Kerne und machen es langsamer, nicht schneller.
 
+### Vor einem CDN oder weiteren Proxy
+
+`TRUST_FORWARDED_FOR: "true"` (in `compose.prod.yml`) nimmt für Rate-Limit, Login-Drossel
+und Logs den **ersten** Eintrag von `X-Forwarded-For`. Das stimmt nur, solange traefik
+direkt am Netz steht: von nicht vertrauten Quellen verwirft traefik fremde
+`X-Forwarded-*`-Kopfzeilen und setzt die echte Adresse selbst (Audit 2026-10-10, L-5).
+
+Steht ein CDN oder ein weiterer Proxy davor, der Einträge **anhängt**, ist der erste
+Eintrag vom Client frei wählbar — Chat-Limit und Login-Drossel ließen sich dann mit
+einer erfundenen Adresse je Anfrage umgehen. In dem Fall:
+
+* in traefik `entryPoints.<name>.forwardedHeaders.trustedIPs` auf die Adressen des
+  vorgeschalteten Proxys setzen (nicht `insecure: true`), und
+* prüfen, welcher Eintrag dann die Adresse des Clients ist. Das Backend nimmt heute
+  fest den ersten; „rechts minus vertraute Hops“ ist nicht eingebaut — bis dahin
+  `TRUST_FORWARDED_FOR` nur einschalten, wenn der erste Eintrag verlässlich vom
+  eigenen Proxy stammt.
+
 ### Backup
 
 Läuft von selbst (`pg-backup`, täglich, Aufbewahrung `BACKUP_KEEP_DAYS`, Default
@@ -349,6 +489,36 @@ docker compose -f compose.prod.yml exec pg-backup pg_dump -Fc -f /backup/vor-dep
 Ein **fehlgeschlagener** Dump wird gelöscht statt halb liegen gelassen und
 protokolliert `BACKUP FEHLGESCHLAGEN` — eine 0-Byte-Datei im Backup-Verzeichnis
 wäre schlimmer als keine, weil sie wie ein Backup aussieht.
+
+### Was der Server von selbst löscht
+
+Ein Lauf im Backend (alle 6 Stunden, der erste 5 Minuten nach dem Start, über alle
+Kopien nur einer zugleich) löscht, was älter ist als seine Frist — **unwiderruflich**:
+
+| Was | Frist (Vorgabe) | Gepflegt in |
+|---|---|---|
+| Chatnachrichten und Sitzungsgedächtnis | 30 Tage | Studio → Datenschutz (`01-base/privacy-config`) |
+| Gesprächsstand ruhender Sitzungen (Thema, Seitentitel, Suchbegriffe, Signale, Tour) | dieselbe, ab der letzten Aktivität | wie oben |
+| Sicherheitsprotokoll | 90 Tage | Studio → Sicherheit (`01-base/safety-config`) |
+| Qualitätsprotokoll | 180 Tage | Studio → Qualität (`01-base/quality-log-config`) |
+
+Beide Protokolle halten die ersten 500 Zeichen der Nachricht, das Sicherheitsprotokoll
+dazu die IP (riskante und gedrosselte Züge, mit `log_all_turns` alle) — also länger als
+die Nachrichten selbst; bei Bedarf die Fristen angleichen.
+
+`0` heißt unbegrenzt. Die Sitzungen selbst und ihre Verbrauchszahlen bleiben (sonst
+ginge die Kostenübersicht mit); löschen lassen sie sich einzeln in der Studio-Ansicht
+„Sessions“ oder über „Gespräche löschen“. Das Studio zeigt unter Datenschutz →
+Aufbewahrung je Bereich, was fällig ist, und löst den Lauf auf Wunsch sofort aus.
+**Die Sicherungen** (`pg-backup`) enthalten gelöschte Daten noch bis zu
+`BACKUP_KEEP_DAYS` Tage — eine Auskunft oder Löschung auf Anfrage muss sie mitdenken.
+
+**Auf `b-api-academiccloud`** gibt es keine Moderation (die Nachrichten bleiben dort),
+aber die Einbettungen für die Wissenssuche gehen über den OpenAI-Pfad der b-api an
+OpenAI — die Wissensbasis liegt in deren Vektorraum, und die AcademicCloud führt kein
+Einbettungsmodell. Das betrifft jede Muster-Nachricht, für die die Wissenssuche
+vorab eingebettet wird. So entschieden (2026-10-15); ein Wechsel auf ein Einbettungsmodell der
+AcademicCloud: Abschnitt „Einbettungsmodell wechseln“.
 
 ### Restore
 
@@ -410,9 +580,12 @@ Aus dem Audit-Erbe (`../badboerdi/docs/audits/`), auf diesen Stack übersetzt.
 | — | Admin-Oberfläche | ⚠️ Prüfen, dass `STUDIO_API_KEY` **und** `STUDIO_PASSWORD` gesetzt sind und `BOERDI_ALLOW_OPEN_ADMIN` **nicht** gesetzt ist. |
 | — | Agenten-Endpunkt | ⚠️ `AGENT_OPEN` **nicht** setzen — es öffnet `/api/agent` ohne jede Anmeldung und ist für Testläufe gedacht. Der normale Weg herein ist die Anmeldung der Person (`WLO-Access-Block`), Server-zu-Server der `STUDIO_API_KEY`. Die Drosselung greift in allen drei Fällen. |
 | — | Master-Skill | Aus, solange `MASTER_SKILL_ENABLED` nicht `true` ist. Angeschaltet laedt der Agent-Modus die Anleitung aus `MASTER_SKILL_NODE_ID` als Prompt-Kopf (Abnahme: eine Zeile `Master-Skill ... geladen` im Log des ersten Zuges). Scheitert der Abruf, antwortet der Chat ohne sie und warnt - kein Ausfall. |
-| — | CORS | ⚠️ **Die Vorgabe ist OFFEN.** Zum Schließen `CORS_ALLOW_ALL=false` **und** `CORS_ORIGINS` mit den einbettenden Domänen setzen — die Liste allein bleibt sonst wirkungslos. Der Start warnt, wenn eine gesetzte Liste übersteuert wird; diese Zeile ist die Abnahme. Browser-Erweiterungen (`safari-web-extension://`, `chrome-extension://`) dürfen auch bei enger Liste — `CORS_ALLOW_EXTENSIONS=false` nimmt ihnen das. |
+| — | CORS | ⚠️ **Die Vorgabe ist OFFEN.** Zum Schließen `CORS_ALLOW_ALL=false` **und** `CORS_ORIGINS` mit den einbettenden Domänen setzen — die Liste allein bleibt sonst wirkungslos. Der Start warnt, wenn eine gesetzte Liste übersteuert wird; diese Zeile ist die Abnahme. Browser-Erweiterungen (`safari-web-extension://`, `chrome-extension://`) dürfen auch bei enger Liste — `CORS_ALLOW_EXTENSIONS=false` nimmt ihnen das. Geschlossen bietet das Widget die WLO-Anmeldung (Knopf, Ticket-Tausch) nur den gelisteten Seiten an (`/api/config/guide-mode` liefert sonst kein `mcp_auth_base`); Abnahme: von einer nicht gelisteten Seite ist kein Anmeldeknopf zu sehen. |
+| — | Reranker | Vorgabe **aus** (`off` in `/api/health`). Eingeschaltet (`RAG_RERANKER_ENABLED=true`) bezieht das Backend das Modell beim Start selbst ins Volume `reranker_models` — Status `downloading`, dann `ready`; `download-failed` heißt Netz/Prüfwert, Protokoll lesen. Auf 2 Kernen `RERANK_INTRA_OP_THREADS=2`, `RERANK_MAX_CONCURRENCY=1`. Ablauf: `INSTALL.md` §8. |
 | — | Lasttest | ✅ `BOERDI_ALLOW_LOADTEST` ohne Eintrag = `false` (compose.prod) = auf Prod abgelehnt; er teilt sonst den LLM-Pool mit Live-Nutzern. Bis 2026-09-29 lieferte das leere `${…:-}` den Code-Default `true`. |
 | — | TLS | ⚠️ Nach dem ersten Start prüfen, dass ACME wirklich ein Zertifikat gezogen hat (`docker compose logs traefik`), sonst hängt die Seite an der Selbstsignatur. |
+| — | HSTS | ✅ Jede Antwort trägt `Strict-Transport-Security: max-age=86400` (Paket 8). Läuft HTTPS stabil, `HSTS_MAX_AGE=31536000` setzen; `0` schaltet ab. Abnahme: `curl -sI https://<host>/health` zeigt die Zeile. |
+| — | Studio-CSP | ✅ Die Studio-Seite trägt eine `Content-Security-Policy`: Skripte nur vom eigenen Ursprung (Paket 8, Audit 2026-09-29 A-M6/F-M5). Steht das Studio leer oder ohne Stil da, nennt die Browser-Konsole den Verstoß; `STUDIO_CSP=report` lässt die Seite laufen und meldet nur. Abnahme: `curl -sI https://<host>/studio/` zeigt `content-security-policy`. |
 
 Die §8-Cluster-Abnahme (Advisory-Lock, NOTIFY-Schranke, Rate-Limit, SSE über
 LB, Graceful Shutdown) steht getrennt in

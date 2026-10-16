@@ -97,14 +97,15 @@ services:
     # `alembic upgrade head` aus.
     #
     # Der Seed hängt dran, damit eine frische Installation ohne Handgriff
-    # lauffähig ist. `--only-missing` macht ihn idempotent: er legt an, was
-    # fehlt, und rührt Bestehendes nicht an — sonst drehte jeder Neustart die
-    # redaktionelle Arbeit im Studio auf den Auslieferungsstand zurück. Der
-    # Seed-Baum liegt im Image unter /app/seeds, kommt also aus demselben
-    # Commit wie der Code. Beim Aktualisieren wirkt das als Nachzug: neue
-    # Bereiche einer Version kommen dazu, gepflegte bleiben unberührt.
+    # lauffähig ist. `--werksabgleich` (Paket 12) legt an, was fehlt, und hebt
+    # unberührte Bereiche auf eine neue Werksfassung; im Studio Angepasstes und
+    # Gelöschtes bleibt, wie es ist — sonst drehte jeder Neustart die
+    # redaktionelle Arbeit auf den Auslieferungsstand zurück. Der Seed-Baum
+    # liegt im Image unter /app/seeds, kommt also aus demselben Commit wie der
+    # Code. Was angepasst ist und eine neue Werksfassung hat, zeigt das Studio
+    # unter Sicherung → „Werk und eigene Fassung“.
     image: ${BOERDI_IMAGE:-boerdi-chat}
-    command: ["sh", "-c", "alembic upgrade head && boerdi import-config --only-missing"]
+    command: ["sh", "-c", "alembic upgrade head && boerdi import-config --werksabgleich"]
     restart: "no"
     logging: *logging
     environment:
@@ -124,15 +125,17 @@ services:
     restart: unless-stopped
     logging: *logging
     deploy:
-      # Zustandslos (Sessions/Config in Postgres). ACHTUNG (Audit 2026-09-29):
-      # Züge derselben Sitzung sperrt heute nur ein prozessinterner Lock — über
-      # Repliken hinweg können sie parallel laufen (docs/architektur.md §8).
-      # Deshalb ist die Vorgabe 1 (Paket 4, L4); mehr Repliken erst, wenn die
-      # Sitzungssperre über Repliken trägt (Befundliste, C-H1).
+      # Zustandslos (Sessions/Config in Postgres). Seit Paket 7 (P1, Audit C-H1)
+      # sperrt eine Lease in Postgres die Züge einer Sitzung über alle Repliken
+      # (docs/architektur.md §8) — mehrere sind damit möglich. Vorgabe bleibt 1
+      # (Paket 4, L4): die b-api zählt je Schlüssel, nicht je Replik; Faustregel
+      # und Teilung von LLM_MAX_CONCURRENCY in .env.example.
       replicas: ${BACKEND_REPLICAS:-1}
-    # Länger als das --timeout-graceful-shutdown des Images (30 s), sonst
-    # schießt Docker einen Stream ab, den uvicorn gerade sauber beendet.
-    stop_grace_period: 40s
+    # Nacheinander: uvicorn wartet bis --timeout-graceful-shutdown (30 s) auf offene
+    # Ströme, danach der Lifespan bis NACHLAUF_FRIST_S (25 s) auf nachlaufende Züge,
+    # 5 s auf ihren Abbruch, dann das Aufräumen. Kürzer schösse Docker mitten in das
+    # Warten (Review Paket 9; Wächter in tests/test_deploy_compose.py).
+    stop_grace_period: 65s
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-boerdi}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt}@postgres:5432/${POSTGRES_DB:-boerdi}
       # Das Schema wählt auch den Client: ``limits`` liest ``valkey://`` mit
@@ -160,6 +163,10 @@ services:
       STUDIO_API_KEY: ${STUDIO_API_KEY:?STUDIO_API_KEY fehlt}
       STUDIO_PASSWORD: ${STUDIO_PASSWORD:?STUDIO_PASSWORD fehlt}
       STUDIO_COOKIE_SECURE: ${STUDIO_COOKIE_SECURE:-1}
+      # Paket 8 (P1/P2), leer = Code-Vorgabe: HSTS einen Tag (0 = aus), CSP der
+      # Studio-Seite durchgesetzt (report = nur beobachten, off = aus).
+      HSTS_MAX_AGE: ${HSTS_MAX_AGE:-}
+      STUDIO_CSP: ${STUDIO_CSP:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # ── LLM / MCP / RAG — Namen aus settings.py, leer = Code-Default ──
@@ -175,18 +182,37 @@ services:
       LLM_MAX_CONCURRENCY: ${LLM_MAX_CONCURRENCY:-}
       BG_LLM_MAX_CONCURRENCY: ${BG_LLM_MAX_CONCURRENCY:-}
       LLM_READ_TIMEOUT: ${LLM_READ_TIMEOUT:-}
+      CLASSIFY_TIMEOUT_S: ${CLASSIFY_TIMEOUT_S:-}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-}
       LLM_SERVICE_TIER: ${LLM_SERVICE_TIER:-}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
+      LLM_VERBOSITY: ${LLM_VERBOSITY:-}
+      B_API_CLEAR_CACHE: ${B_API_CLEAR_CACHE:-}
       CHAT_INLINE_QUICK_REPLIES: ${CHAT_INLINE_QUICK_REPLIES:-}
       AGENT_INLINE_QUICK_REPLIES: ${AGENT_INLINE_QUICK_REPLIES:-}
+      # Paket 7 (L6): dokumentiert, aber bis dahin nie im Container.
+      CHAT_TOKEN_STREAMING: ${CHAT_TOKEN_STREAMING:-}
+      RAG_TOP_K: ${RAG_TOP_K:-}
+      # Paket 11 (Nutzer 2026-10-15): Reranker, Vorgabe aus. Eingeschaltet bezieht das
+      # Backend das Modell selbst ins Volume unten (RERANK_AUTO_DOWNLOAD, Vorgabe an).
+      # Bis dahin standen die Schalter nicht hier und erreichten den Container nie.
+      RAG_RERANKER_ENABLED: ${RAG_RERANKER_ENABLED:-}
+      RERANK_AUTO_DOWNLOAD: ${RERANK_AUTO_DOWNLOAD:-}
+      RERANK_INTRA_OP_THREADS: ${RERANK_INTRA_OP_THREADS:-}
+      RERANK_MAX_CONCURRENCY: ${RERANK_MAX_CONCURRENCY:-}
+      RAG_MIN_SCORE: ${RAG_MIN_SCORE:-}
+      RAG_MAX_CHARS_PER_AREA: ${RAG_MAX_CHARS_PER_AREA:-}
       MCP_SERVER_URL: ${MCP_SERVER_URL:-}
       MCP_CALL_TIMEOUT_S: ${MCP_CALL_TIMEOUT_S:-}
-      MCP_MAX_CONNECTIONS: ${MCP_MAX_CONNECTIONS:-}
       # Geheimnis (C2): Zugangsblock des MCP-Servers, aus der .env auf dem
       # Server. Leer = anonym lesend. Siehe deploy/README.md.
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
       REPO_BASE_URL: ${REPO_BASE_URL:-}
       GUIDE_TRUSTED_DOMAINS: ${GUIDE_TRUSTED_DOMAINS:-}
       BOERDI_MAX_INGEST_MB: ${BOERDI_MAX_INGEST_MB:-}
+      RAG_UMWANDLUNG_FRIST_S: ${RAG_UMWANDLUNG_FRIST_S:-}
+      RAG_UMWANDLUNG_MAX_MB: ${RAG_UMWANDLUNG_MAX_MB:-}
       # Der Studio-Lasttest treibt die echte Chat-Pipeline und teilt den
       # LLM-Pool mit Live-Nutzern — auf Prod aus, er gehört auf Staging.
       # Ausdrücklich ``false``: ``${VAR:-}`` liefert einen leeren String, und
@@ -206,17 +232,13 @@ services:
       RERANK_MODEL_DIR: /models
     volumes:
       # Das Reranker-Modell liegt NICHT im Image — es ist ein heruntergeladenes
-      # Artefakt (~135 MB), kein Quellstand, und eine 113-MB-Datei gehört weder
-      # in git noch in jede Image-Schicht. Bezugsweg: INSTALL.md, „Reranker-Modell".
-      #
-      # OPTIONAL im Wortsinn: fehlt das Verzeichnis oder ist es leer, findet
-      # `rerank._reranker_model_dir()` keine `.onnx` und der Reranker bleibt aus
-      # — kein Startfehler, die Suche ordnet dann ohne ihn. Docker legt einen
-      # fehlenden Host-Pfad als leeres Verzeichnis an, also genau dieser Fall.
-      #
-      # `:ro`, weil das Backend nur liest — es braucht überhaupt kein
-      # beschreibbares Volume (siehe deploy/README.md).
-      - ${RERANK_MODEL_HOST_DIR:-./models}:/models:ro
+      # Artefakt (~135 MB), kein Quellstand. Seit Paket 11 (2026-10-15) bezieht
+      # das Backend es selbst, sobald RAG_RERANKER_ENABLED an ist und es fehlt
+      # (Hugging Face, fest gepinnt, Prüfwert). Dafür ist /models beschreibbar:
+      # ein benanntes Volume, dessen Rechte Docker aus dem Image übernimmt; alle
+      # Kopien teilen es, eine lädt (Sperrdatei). RERANK_MODEL_HOST_DIR hängt
+      # stattdessen einen Ordner ein (Handinstallation, Server ohne Internet).
+      - ${RERANK_MODEL_HOST_DIR:-reranker_models}:/models
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -282,4 +304,6 @@ services:
 volumes:
   pgdata:
   pgbackup:
+  # Paket 11: das selbst bezogene Reranker-Modell (siehe backend.volumes).
+  reranker_models:
   traefik-acme:

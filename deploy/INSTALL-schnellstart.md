@@ -8,7 +8,7 @@ Begründung jedes Schritts steht in [../INSTALL.md](../INSTALL.md), der Betrieb
 danach (Skalieren, Backup, Rollback) in [README.md](README.md).
 
 **Was hier eingerichtet wird:** b-api staging als LLM-Anbieter mit
-`gpt-5.6-luna`, kein Reranker, eine Backend-Replika, Hostname über nip.io mit
+`gpt-6-luna`, kein Reranker, eine Backend-Replika, Hostname über nip.io mit
 Let's-Encrypt-Zertifikat.
 
 ---
@@ -91,10 +91,8 @@ BACKEND_REPLICAS=1
 LLM_PROVIDER=b-api-openai
 B_API_BASE_URL=https://b-api.staging.openeduhub.net/api/v1/llm
 B_API_KEY=${B_API_KEY_IN}
-LLM_CHAT_MODEL=gpt-5.6-luna
+LLM_CHAT_MODEL=gpt-6-luna
 LLM_EMBED_MODEL=text-embedding-3-small
-LLM_MAX_CONCURRENCY=2
-BG_LLM_MAX_CONCURRENCY=1
 LLM_READ_TIMEOUT=75
 LOG_LEVEL=INFO
 EOF
@@ -106,10 +104,19 @@ Drei Werte sind nicht beliebig:
 * **`POSTGRES_PASSWORD` in Hex, nicht Base64.** Es landet in der DSN
   `postgresql+asyncpg://user:PASS@postgres:5432/db`; ein `/` aus
   `openssl rand -base64` zerlegt die URL.
-* **`LLM_MAX_CONCURRENCY=2`** — die b-api erlaubt exakt zwei parallele Aufrufe
-  und antwortet darüber mit 429 ohne `retry-after`. Der Code-Default ist 20.
+* **Kein `LLM_MAX_CONCURRENCY`** — ohne Eintrag gilt die Vorgabe je Anbieter
+  (Nutzer-Vorgabe 2026-10-09): `b-api-openai` und OpenAI direkt 20,
+  `b-api-academiccloud` 2 — für Chat, Hintergrund und Import zusammen;
+  Hintergrund und Import bekommen davon höchstens einen Platz weniger, damit der
+  Chat nie hinter einem Import wartet.
 * **`BACKEND_REPLICAS=1`** — das b-api-Limit gilt pro Schlüssel, nicht pro
-  Prozess. Zwei Replikas mit je zwei Aufrufen wären vier.
+  Prozess. Zwei Replikas mit je 20 Aufrufen wären 40; mit mehr Replikas
+  `LLM_MAX_CONCURRENCY` entsprechend teilen.
+
+**Datenschutz:** Das Backend löscht von selbst — Gesprächsverläufe nach 30 Tagen,
+Sicherheitsprotokoll nach 90, Qualitätsprotokoll nach 180 (im Studio änderbar, 0 =
+unbegrenzt). Einzelheiten und was in den Sicherungen bleibt: `deploy/README.md`,
+Abschnitt „Was der Server von selbst löscht“.
 
 **Kein Reranker:** es gibt kein `RERANK_MODEL_HOST_DIR` und kein
 `deploy/models`. Ohne Modell findet der Code keine `.onnx` und sortiert nicht
@@ -121,13 +128,14 @@ um — kein Startfehler.
 cd /opt/boerdi/deploy && docker compose -f compose.prod.yml --env-file .env up -d postgres && sleep 10 && docker compose -f compose.prod.yml --env-file .env up migrate
 ```
 
-Erwartet: zwei Alembic-Upgrades, dann
-`imported 61 areas (31 yaml, 30 md) from seeds`.
+Erwartet: die Alembic-Upgrades, dann
+`Werksabgleich: 61 neu, 0 aktualisiert, …` (bei einer frischen Datenbank ist alles neu).
 
 Der `migrate`-Dienst führt `alembic upgrade head` **und**
-`boerdi import-config --only-missing` aus. Das `--only-missing` ist der Grund,
-warum er automatisch laufen darf: er legt nur an, was fehlt. Ein Lauf ohne die
-Option überschreibt jede redaktionelle Änderung aus dem Studio.
+`boerdi import-config --werksabgleich` aus. Das `--werksabgleich` ist der Grund,
+warum er automatisch laufen darf: er legt an, was fehlt, hebt Unberührtes auf die
+neue Werksfassung und lässt im Studio Angepasstes stehen. Ein Lauf ohne Option
+überschreibt jede redaktionelle Änderung aus dem Studio.
 
 ## 8. Stack starten
 
@@ -147,7 +155,7 @@ Erwartet:
 {
     "status": "ok",
     "provider": "b-api-openai",
-    "chat_model": "gpt-5.6-luna",
+    "chat_model": "gpt-6-luna",
     "embed_model": "text-embedding-3-small",
     "mcp_auth": "anonymous",
     "reranker": "model-missing"
@@ -221,7 +229,9 @@ festschreiben.
 
 Das funktioniert **ohne Zutun aus jeder Domäne**: CORS ist standardmäßig offen
 (`CORS_ALLOW_ALL=true`). Wer zumachen will, setzt den Schalter auf `false` — dann
-gilt `CORS_ORIGINS`, und nur dann. Mehrere Domänen kommagetrennt:
+gilt `CORS_ORIGINS`, und nur dann. Folge: das Widget läuft nur noch auf diesen Seiten (und in
+Browser-Erweiterungen, solange `CORS_ALLOW_EXTENSIONS=true`), und nur dort bietet es die
+WLO-Anmeldung an. Mehrere Domänen kommagetrennt:
 
 ```bash
 cd /opt/boerdi/deploy && sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=https://${HOST},https://wirlernenonline.de|;s|^CORS_ALLOW_ALL=.*|CORS_ALLOW_ALL=false|" .env && docker compose -f compose.prod.yml --env-file .env up -d backend
@@ -281,3 +291,8 @@ zu hoch — siehe Schritt 6.
 **Das Studio meldet 401 trotz richtigem Passwort.** `STUDIO_COOKIE_SECURE` steht
 auf 1 und der Cookie kommt nur über HTTPS zurück. Prüfen, dass die Seite
 tatsächlich über `https://` aufgerufen wird.
+
+**Das Studio steht leer oder ohne Stil da.** Die Browser-Konsole nennt dann einen
+Verstoß gegen die Content-Security-Policy der Studio-Seite. Übergangsweise
+`STUDIO_CSP=report` in die `.env` und das Backend neu starten — die Seite läuft,
+der Verstoß steht weiter in der Konsole — und den Verstoß melden.
