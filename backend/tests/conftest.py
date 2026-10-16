@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from boerdi.settings import Settings, get_settings
+from tests import db_tor
 
 # Ein OTLP-Endpunkt aus der Shell gehört nicht in die Suite: Jedes
 # ``create_app()`` baute sonst einen Exporter dorthin, und ``_reset_otel`` wartete
@@ -94,6 +95,41 @@ def _no_startup_warmups(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _anmeldung_ohne_netz(monkeypatch):
+    """Die Echtheitsprüfung des Zugangsblocks ohne Netz (Paket 10, Kurzaudit A-1).
+
+    Jeder Zug mit persönlichem Block fragt ``wlo_auth_status`` — in Tests ginge das
+    an den echten MCP-Server. Ersetzt wird nur diese Netzgrenze: ein wohlgeformter
+    persönlicher Block gilt als Person, ihre Kennung ist sein Fingerabdruck — also
+    die Bedeutung, die er vor Paket 10 hatte. Die Prüfung selbst testet
+    ``test_mcp_anmeldung.py`` und holt sich dafür die echte Funktion zurück.
+    """
+    from boerdi.services.mcp import anmeldung, auth
+
+    async def _als_person() -> anmeldung.Befund:
+        return anmeldung.Befund(person=True, kennung=f"p:{auth.caller_fingerprint()}")
+
+    monkeypatch.setattr(anmeldung, "_fragen", _als_person)
+    anmeldung._cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _zustimmung_ohne_netz(monkeypatch):
+    """Die LLM-Prüfung einer freien Zustimmung ohne Netz (Paket 10, A-6).
+
+    Ersetzt wird nur der Modell-Aufruf, und zwar durch „keine Zustimmung“ — es gilt
+    also die Erlaubnisliste wie vor Paket 10. ``test_zustimmung_pruefen.py`` holt sich
+    die echte Funktion zurück.
+    """
+    from boerdi.services import zustimmung_pruefen
+
+    async def _nein(_nachricht: str, _werkzeug: str) -> bool:
+        return False
+
+    monkeypatch.setattr(zustimmung_pruefen, "_llm_urteil", _nein)
+
+
+@pytest.fixture(autouse=True)
 def _reset_otel():
     """OTel nach jedem Test zurücknehmen.
 
@@ -124,3 +160,17 @@ def _reset_otel():
     SQLAlchemyInstrumentor().uninstrument()
     otel._provider.shutdown()
     otel._provider = None
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """In der CI wird ein Überspringen durch ein DB-Tor ein Fehler (Paket 6, B3).
+
+    Siehe ``tests/db_tor.py``: Die Datenbank ist dort bereitgestellt, ein still
+    übersprungenes Modul hieße „grün, obwohl nicht geprüft“.
+    """
+    outcome = yield
+    report = outcome.get_result()
+    if db_tor.ist_verbotener_sprung(report, os.environ):
+        report.outcome = "failed"
+        report.longrepr = db_tor.FEHLERTEXT.format(grund=db_tor.sprung_grund(report))

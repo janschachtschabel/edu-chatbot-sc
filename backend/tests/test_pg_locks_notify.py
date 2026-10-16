@@ -1,5 +1,8 @@
-"""P1-2: session serialization via advisory locks + config NOTIFY listener,
-against the live Compose-Postgres (fresh throwaway DB).
+"""P1-2: config NOTIFY listener against the live Compose-Postgres (fresh throwaway DB).
+
+The session-serialisation half (``db/locks.acquire_session_lock``, an xact
+advisory lock no endpoint ever called) is gone: since Paket 7 (P1) the chat
+endpoints take a lock row in ``session_locks`` — ``test_sitzungssperre.py``.
 
 Timing margins are deliberately generous (hold 0.6s vs. start offset 0.15s)
 — concurrency semantics cannot be tested without real parallel waits.
@@ -34,62 +37,6 @@ def _engine(db: str):
     from boerdi.settings import Settings
 
     return make_engine(Settings(_env_file=None, database_url=pg_utils.sqlalchemy_url(db)))
-
-
-def test_same_session_turns_serialize(test_db) -> None:
-    from boerdi.db.locks import acquire_session_lock
-
-    async def scenario() -> list[str]:
-        engine = _engine(test_db)
-        order: list[str] = []
-
-        async def worker(tag: str, hold: float) -> None:
-            async with engine.connect() as conn:
-                async with conn.begin():
-                    await acquire_session_lock(conn, "bb-lock-same")
-                    order.append(f"{tag}-in")
-                    await asyncio.sleep(hold)
-                    order.append(f"{tag}-out")
-
-        try:
-            t1 = asyncio.create_task(worker("a", 0.6))
-            await asyncio.sleep(0.15)  # ensure a holds the lock first
-            t2 = asyncio.create_task(worker("b", 0.0))
-            await asyncio.gather(t1, t2)
-        finally:
-            await engine.dispose()
-        return order
-
-    assert asyncio.run(scenario()) == ["a-in", "a-out", "b-in", "b-out"]
-
-
-def test_different_sessions_run_parallel(test_db) -> None:
-    from boerdi.db.locks import acquire_session_lock
-
-    async def scenario() -> list[str]:
-        engine = _engine(test_db)
-        order: list[str] = []
-
-        async def worker(tag: str, sid: str, hold: float) -> None:
-            async with engine.connect() as conn:
-                async with conn.begin():
-                    await acquire_session_lock(conn, sid)
-                    order.append(f"{tag}-in")
-                    await asyncio.sleep(hold)
-                    order.append(f"{tag}-out")
-
-        try:
-            t1 = asyncio.create_task(worker("a", "bb-p-1", 0.6))
-            await asyncio.sleep(0.15)
-            t2 = asyncio.create_task(worker("b", "bb-p-2", 0.0))
-            await asyncio.gather(t1, t2)
-        finally:
-            await engine.dispose()
-        return order
-
-    order = asyncio.run(scenario())
-    # b (other session) finished while a still held its lock
-    assert order.index("b-in") < order.index("a-out")
 
 
 def test_notify_listener_receives_area_names(test_db) -> None:

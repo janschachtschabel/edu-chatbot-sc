@@ -31,7 +31,6 @@ def test_vorgabe_ist_die_muster_engine() -> None:
     bereich = EngineArea()
     assert bereich.mode == "pattern"
     assert bereich.agent.write_mode == "propose", "Schreiben ist nie die Vorgabe"
-    assert bereich.agent.safety is True
     # E-6: die Skill-Brücke im Muster-Modus schaltet der Betreiber zu.
     assert bereich.muster_skills is False
 

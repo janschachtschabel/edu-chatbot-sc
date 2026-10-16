@@ -115,8 +115,9 @@ def test_wires_phases_threads_session_and_normalizes_blocked_tools(monkeypatch):
     assert select.args == (CLASSIF, PATTERN, ["a"], {"r": 1}, CIM, DNT)
     # …plus die Muster-Bezeichnung als Schlüsselwort (F-neu): ``pattern_output``
     # trägt keine Kennung, die E3-Warnung stand ohne sie als „Muster ?" da.
-    # Und die Erlaubnis der Einbettung (Paket 4, P4-1), für Auswahl UND Schleife.
-    assert select.kwargs == {"pattern_label": "M05", "tool_mode": "read-only"}
+    # Und die Erlaubnis der Einbettung (Paket 4, P4-1), für Auswahl UND Schleife;
+    # dazu die Sperren der Sicherheit für den Nachschub der Suche (Review Paket 9).
+    assert select.kwargs == {"pattern_label": "M05", "tool_mode": "read-only", "gesperrt": []}
     # P12/P14: assemble — session FIRST, blocked_tools normalized to [],
     # system + inline_grouping + sources_decl + rag_allowed from prior phases.
     assert assemble.args == (
@@ -129,11 +130,32 @@ def test_wires_phases_threads_session_and_normalizes_blocked_tools(monkeypatch):
         _SESSION, "msg", CLASSIF, PATTERN, "M05", SSTATE, "RAG", [],
         ACTIVE, IQE, IGM, MSGS, CARDS, TOOLS, OUTS, KP, MCP, AA,
         TOPK, MINSC, MAXCH, USAGE, TOKENCB)
-    assert loop.kwargs == {"tool_mode": "read-only"}
+    # Paket 9 (V2): die konfigurierten Bereiche für ``query_knowledge`` ohne Angebot.
+    assert loop.kwargs == {"tool_mode": "read-only", "rag_bereiche": frozenset({"r"})}
     # loop returned non-None ⇒ that result is returned, fallback untouched.
     assert out is LOOP_RESULT
     assert fallback.args is None
 
+
+
+def test_die_seitendaten_rechnet_generate_einmal_fuer_prompt_und_kette(monkeypatch):
+    """E-E: der Prompt-Bauer entscheidet damit über die Regeln, die Kette setzt
+    die Daten vor den Verlauf — beides aus EINER Rechnung."""
+    build = _Spy(("SYS", False, False, False))
+    select = _Spy(([], None, False, False))
+    assemble = _Spy(([], [], [], [], False, [], False, 1, 0.1, 1))
+    loop = _Spy(("final", [], [], []))
+    fallback = _Spy(("unused", [], [], []))
+    _patch_phases(monkeypatch, build=build, select=select, assemble=assemble,
+                  loop=loop, fallback=fallback)
+    env = {"page_context": {"page_kind": "other", "page_text": "Text der Gastseite."}}
+    asyncio.run(generate.generate_response(
+        _SESSION, "msg", [], {}, {"tools": []}, "M05", {"entities": {}}, env,
+        rag_einbettung=("msg", [0.4])))
+    daten = build.kwargs["seiten_daten"]
+    assert daten.startswith("[SEITENKONTEXT") and "Text der Gastseite." in daten
+    # T1: die Einbettung aus ``assess`` geht unverändert an die Kette.
+    assert assemble.kwargs == {"seiten_daten": daten, "rag_einbettung": ("msg", [0.4])}
 
 def test_returns_fallback_when_loop_returns_none(monkeypatch):
     MSGS, CARDS, TOOLS, OUTS = (object() for _ in range(4))

@@ -100,7 +100,8 @@ class TestAntwort:
         text = await ak.antwort(None, {"frage": "Was ist OER?"}, _CONFIG)
         assert gesehen["areas"] == list(_CONFIG)
         assert gesehen["query"] == "Was ist OER?"
-        assert text == "Treffer-Text"
+        from boerdi.domain.untrusted_text import frame_wissen
+        assert text == frame_wissen("Treffer-Text")  # Paket 9 (V6): gerahmt
 
     @pytest.mark.anyio
     async def test_ohne_treffer_sagt_es_der_text(self, monkeypatch):

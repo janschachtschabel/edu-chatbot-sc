@@ -309,6 +309,32 @@ def test_eine_zeitueberschreitung_wird_nicht_wiederholt(mcp_state, monkeypatch):
     assert (text, art) == ("MCP error: keine Antwort binnen 60 s", "timeout")
 
 
+def test_ein_abgewiesener_zugang_wird_nicht_wiederholt_und_faellt_weg(mcp_state, monkeypatch):
+    """Paket 10 (Kurzaudit A-3): ein 401 ging als ``transport`` durch, der Client
+    wiederholte denselben Block, und der Rest des Zuges scheiterte genauso. Jetzt:
+    ein Aufruf, der Block fällt für den Zug weg, das Widget erfährt es."""
+    from boerdi.services.mcp import anmeldung, auth
+
+    _wire_tool_url(monkeypatch)
+    calls = _wire_transport(monkeypatch, [
+        {"error": {"message": "Zugang abgewiesen (401)", "kind": "auth"}},
+        _result([_text_part("OK")]),
+    ])
+
+    async def zug():
+        auth.set_turn_auth_block("wlo2.abgelaufen")
+        ergebnis = await client.call_mcp_tool_status("unknown_probe_tool", {"q": "x"})
+        return ergebnis, auth.has_auth_token(), anmeldung.abgelehnt_in_diesem_zug()
+
+    try:
+        (text, art), mit_block, abgelehnt = asyncio.run(zug())
+    finally:
+        anmeldung._cache.clear()
+    assert len(calls) == 1
+    assert art == "auth" and "abgewiesen" in text
+    assert not mit_block and abgelehnt
+
+
 def test_ein_ausfall_wird_weiter_wiederholt(mcp_state, monkeypatch):
     # Gegenprobe: kam keine Antwort, bleibt es bei einem zweiten Versuch.
     _wire_tool_url(monkeypatch)
@@ -545,3 +571,46 @@ def test_strukturierter_teil_ohne_schreibzugriff_bleibt_still(mcp_state, monkeyp
     with caplog.at_level("WARNING"):
         asyncio.run(client.call_mcp_tool("get_url_text", {"url": "https://e.org/"}))
     assert not [r for r in caplog.records if "strukturierten Teil" in r.message]
+
+
+def test_ein_nicht_abrufbarer_skill_wird_nicht_gecached(mcp_state, monkeypatch):
+    """Paket 6, G1 (Befund Gatekeeper-Skill, 2026-10-08): Der MCP-Server meldet
+    jede Störung beim Laden eines Skills — falsche Kennung, fehlende Rechte, ein
+    vorübergehender 5xx — mit demselben Satz als gewöhnliches Ergebnis. Der Cache
+    hielt ihn 180 s als Treffer fest; ein erneuter Versuch spielte den Fehler ab."""
+    _wire_tool_url(monkeypatch)
+    kennung = "5400fc80-85dd-4240-8974-5485dd124076"
+    fehl = f"Skill {kennung} ist nicht abrufbar (unbekannte nodeId oder kein Zugriff)."
+    calls = _wire_transport(monkeypatch, [
+        _result([_text_part(fehl)]),
+        _result([_text_part("# Gatekeeper für Sammlungen")]),
+    ])
+    args = {"nodeId": kennung}
+    assert asyncio.run(client.call_mcp_tool("get_skill", args)) == fehl
+    assert asyncio.run(client.call_mcp_tool("get_skill", args)) == "# Gatekeeper für Sammlungen"
+    assert len(calls) == 2
+    # Ein Treffer bleibt im Cache wie bisher.
+    assert asyncio.run(client.call_mcp_tool("get_skill", args)) == "# Gatekeeper für Sammlungen"
+    assert len(calls) == 2
+
+
+# ═══ Paket 10 (Audit 2026-10-10, A-8): Inhalte von Schreibvorgängen im Log ═══
+def test_kurations_argumente_stehen_auf_info_nur_als_laengen(mcp_state, monkeypatch, caplog):
+    # Titel, Beschreibungen und Schlagwörter unveröffentlichter Inhalte standen bis
+    # 500 Zeichen im Klartext auf INFO; jetzt dort nur Schlüssel und Längen.
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [_result([_text_part("Vorschau")])])
+    with caplog.at_level("INFO", logger="boerdi.services.mcp.client"):
+        asyncio.run(client.call_mcp_tool("wlo_create_content", {
+            "title": "Geheimer Entwurf", "keywords": ["Optik", "Linse"]}))
+    info = " ".join(r.getMessage() for r in caplog.records if r.levelname == "INFO")
+    assert "Geheimer Entwurf" not in info and "Linse" not in info
+    assert "‹16 Zeichen›" in info and "‹2 Einträge›" in info
+
+
+def test_such_argumente_bleiben_auf_info_lesbar(mcp_state, monkeypatch, caplog):
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [_result([_text_part("Treffer")])])
+    with caplog.at_level("INFO", logger="boerdi.services.mcp.client"):
+        asyncio.run(client.call_mcp_tool("search_wlo_content", {"query": "Optik"}))
+    assert "Optik" in caplog.text

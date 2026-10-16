@@ -15,6 +15,7 @@ import asyncio
 import pytest
 
 from boerdi.services.eval import scenario_gen as sg
+from boerdi.settings import get_settings
 from tests.eval_fakes import FakeLLM
 
 
@@ -28,17 +29,26 @@ def _run(coro):
 def test_models_come_from_settings(monkeypatch):
     monkeypatch.setenv("EVAL_SIMULATOR_MODEL", "gpt-5-sim")
     monkeypatch.setenv("EVAL_JUDGE_MODEL", "gpt-5-judge")
+    # Läuft die Datei als erste, hat der Import von ``boerdi.main`` die
+    # Einstellungen schon vor dem setenv gecacht (Paket 7, nebenbei gefunden).
+    get_settings.cache_clear()
     assert sg.simulator_model() == "gpt-5-sim"
     assert sg.judge_model() == "gpt-5-judge"
 
 
-def test_empty_env_var_falls_back_instead_of_sending_model_empty(monkeypatch):
+def test_empty_env_var_falls_back_to_the_chat_model(monkeypatch):
     # docker-compose passes ${VAR:-} through: SET BUT EMPTY. Without the guard
     # the provider gets model="" → HTTP 400 and the whole stage dies.
+    # Paket 7 (L4, Nutzer 2026-10-09): Evaluationen laufen mit dem Modell, das für
+    # den Chat eingestellt ist — vorher fest gpt-4o-mini, das es hinter der
+    # AcademicCloud nicht gibt.
     monkeypatch.setenv("EVAL_SIMULATOR_MODEL", "")
     monkeypatch.setenv("EVAL_JUDGE_MODEL", "")
-    assert sg.simulator_model() == "gpt-4o-mini"
-    assert sg.judge_model() == "gpt-4o-mini"
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_CHAT_MODEL", "gpt-6-luna")
+    get_settings.cache_clear()
+    assert sg.simulator_model() == "gpt-6-luna"
+    assert sg.judge_model() == "gpt-6-luna"
 
 
 # ── _build_persona_markers_block ────────────────────────────────────

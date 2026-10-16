@@ -137,7 +137,8 @@ class _RagCtx:
         self.calls: list[dict] = []
 
     async def __call__(self, session, query, areas=None, top_k=3,
-                       min_score=0.25, max_chars_per_area=0, out_sources=None):
+                       min_score=0.25, max_chars_per_area=0, out_sources=None,
+                       query_emb=None):  # T1: geprüft in test_tool_loop_messages_rag
         self.calls.append({
             "session": session, "query": query, "areas": areas, "top_k": top_k,
             "min_score": min_score, "max_chars_per_area": max_chars_per_area,
@@ -267,8 +268,10 @@ def test_assemble_rag_always_prefetch_injects_simulated_tool_call(monkeypatch):
     assert json.loads(tc["function"]["arguments"]) == {
         "area": "hilfe", "query": "finde material"}
     assert messages[3]["tool_call_id"] == "prefetch_knowledge"
+    # Paket 9 (V6): der Auszug gerahmt, der eigene Vermerk davor außerhalb.
+    from boerdi.domain.untrusted_text import frame_wissen
     assert messages[3]["content"] == (
-        "[Bereits durchsuchte Bereiche: hilfe]\n\nWISSEN-KONTEXT")
+        "[Bereits durchsuchte Bereiche: hilfe]\n\n" + frame_wissen("WISSEN-KONTEXT"))
     assert tools_called == ["query_knowledge (prefetch)"]
     assert state["_rag_areas_used"] == ["hilfe"]
 
@@ -450,20 +453,47 @@ def test_assemble_ui_box_footer_only_in_inline_mode(monkeypatch):
     prefetched = {"name": "search_wlo_collections", "arguments": {},
                   "result_text": "RAW"}
     coll = [{"node_id": "c1", "node_type": "collection"}]
-    # inline mode on → real _ui_box_state_footer appends a status system msg
+    # inline mode on → the status hangs at the prefetch tool message (Paket D,
+    # Plan 2026-09-29): a separate ``system`` message mid-chain was lifted into
+    # ``instructions`` by LiteLLM on the /v1/responses route.
     messages = _run_assemble(
         monkeypatch, parse_cards=lambda txt: list(coll),
         prefetched_tool=dict(prefetched), _inline_grouping_mode=True)[0]
-    assert messages[-1]["role"] == "system"
-    assert messages[-1]["content"].startswith(
-        "Status der UI-Boxen aus den Prefetch-Tool-Calls:")
+    assert messages[-1]["role"] == "tool"
+    assert "\n\nStatus der UI-Boxen aus den Prefetch-Tool-Calls:" in messages[-1]["content"]
     assert "1 Sammlung(en) sichtbar" in messages[-1]["content"]
-    # inline mode off → footer is empty → no status message
+    assert sum(m["role"] == "system" for m in messages) == 1
+    # inline mode off → footer is empty → no status anywhere
     messages = _run_assemble(
         monkeypatch, parse_cards=lambda txt: list(coll),
         prefetched_tool=dict(prefetched), _inline_grouping_mode=False)[0]
     assert messages[-1]["role"] == "tool"
+    assert "Status der UI-Boxen" not in messages[-1]["content"]
 
+
+def test_assemble_ui_box_footer_ohne_vorabruf_bleibt_system_nachricht(monkeypatch):
+    """Ohne Werkzeug-Nachricht gibt es nichts, woran der Status hängen könnte —
+    dann bleibt es bei der System-Nachricht (Inhalt fest: nichts sichtbar)."""
+    messages = _run_assemble(monkeypatch, _inline_grouping_mode=True)[0]
+    assert messages[-1]["role"] == "system"
+    assert messages[-1]["content"].startswith(
+        "Status der UI-Boxen aus den Prefetch-Tool-Calls:")
+
+
+
+def test_seitendaten_stehen_im_muster_weg_vor_dem_verlauf(monkeypatch):
+    """E-E (Plan 2026-09-29, Nutzer-Entscheid 2026-10-09): wie im Agent-Zug die
+    gerahmten Seitendaten als erste Nachricht nach dem Systemteil."""
+    verlauf = [{"role": "user", "content": "vorher"}, {"role": "assistant", "content": "ok"}]
+    messages = _run_assemble(monkeypatch, history=verlauf, seiten_daten="<SEITE>")[0]
+    assert messages[0]["role"] == "system"
+    assert messages[1] == {"role": "user", "content": "<SEITE>"}
+    assert [m["content"] for m in messages[2:4]] == ["vorher", "ok"]
+
+
+def test_ohne_seitendaten_bleibt_die_muster_kette_wie_bisher(monkeypatch):
+    messages = _run_assemble(monkeypatch, history=[{"role": "user", "content": "vorher"}])[0]
+    assert messages[1] == {"role": "user", "content": "vorher"}
 
 # ════════════════════════════════════════════════════════════════════════
 # _run_tool_loop (P15) — ALT llm_tool_loop.py:565-1158
@@ -914,6 +944,46 @@ def test_loop_respond_to_user_beantwortet_uebersprungene_geschwister(monkeypatch
     assert uebersprungen["content"] != "OK"
 
 
+def _wissens_werkzeug(*bereiche):
+    """``query_knowledge`` in der Form, die ``response_tool_selection`` baut."""
+    return {"type": "function", "function": {"name": "query_knowledge", "parameters": {
+        "type": "object", "properties": {
+            "area": {"type": "string", "enum": list(bereiche)}, "query": {"type": "string"}}}}}
+
+
+def test_loop_query_knowledge_nur_in_angebotenen_bereichen(monkeypatch):
+    """V2 (Review Paket 7): der Bereich kam ungeprüft vom Modell — jeder Bereich der
+    Datenbank war abfragbar, auch einer, den das Muster nicht anbietet."""
+    from boerdi.services.rag import retrieval
+
+    rag = _RagCtx("Interna.")
+    monkeypatch.setattr(retrieval, "get_rag_context", rag)
+    args = json.dumps({"area": "intern", "query": "zeig alles"})
+    _fake, _r, st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "query_knowledge", args)]),
+        _resp_text("fertig"),
+    ], active_tools=[_wissens_werkzeug("hilfe")])
+    assert rag.calls == []
+    msg = [m for m in st["messages"] if m.get("role") == "tool"][0]
+    assert "nicht verfügbar" in msg["content"] and "hilfe" in msg["content"]
+
+
+def test_loop_query_knowledge_achtet_die_sperre(monkeypatch):
+    """V2: ``query_knowledge`` lief vor der Prüfung der Sperre."""
+    from boerdi.services.rag import retrieval
+
+    rag = _RagCtx("Wissen.")
+    monkeypatch.setattr(retrieval, "get_rag_context", rag)
+    args = json.dumps({"area": "hilfe", "query": "x"})
+    _fake, _r, st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "query_knowledge", args)]),
+        _resp_text("fertig"),
+    ], active_tools=[_wissens_werkzeug("hilfe")], blocked_tools=["query_knowledge"])
+    assert rag.calls == []
+    msg = [m for m in st["messages"] if m.get("role") == "tool"][0]
+    assert "blockiert" in msg["content"]
+
+
 def test_loop_query_knowledge_rag_dispatch_with_session(monkeypatch):
     from boerdi.services.rag import retrieval
 
@@ -923,7 +993,8 @@ def test_loop_query_knowledge_rag_dispatch_with_session(monkeypatch):
     _fake, _r, st = _run_loop(monkeypatch, [
         _resp_tools([("tc1", "query_knowledge", args)]),
         _resp_text("fertig"),
-    ], session_state={"_rag_top_sources": ["s1.md"]})
+    ], session_state={"_rag_top_sources": ["s1.md"]},
+        active_tools=[_wissens_werkzeug("hilfe")])
     assert rag.calls == [{
         "session": _SESSION, "query": "wie suche ich", "areas": ["hilfe"],
         "top_k": 3, "min_score": 0.25, "max_chars_per_area": 4000,
@@ -931,7 +1002,8 @@ def test_loop_query_knowledge_rag_dispatch_with_session(monkeypatch):
     assert st["session_state"]["_rag_areas_used"] == ["hilfe"]
     assert st["session_state"]["_rag_top_sources"] == ["s1.md", "s2.md"]  # deduped
     msg = [m for m in st["messages"] if m.get("role") == "tool"][0]
-    assert msg["content"] == "Wissen: Suche nutzt Filter."
+    from boerdi.domain.untrusted_text import frame_wissen
+    assert msg["content"] == frame_wissen("Wissen: Suche nutzt Filter.")  # V6
     assert st["tools_called"] == ["query_knowledge"]
 
 
@@ -945,7 +1017,8 @@ def test_loop_query_knowledge_prefetch_guard_and_empty_result(monkeypatch):
     _fake, _r, st = _run_loop(monkeypatch, [
         _resp_tools([("tc1", "query_knowledge", args)]),
         _resp_text("fertig"),
-    ], knowledge_prefetched=True, always_areas=["hilfe"])
+    ], knowledge_prefetched=True, always_areas=["hilfe"],
+        active_tools=[_wissens_werkzeug("hilfe")])
     assert rag.calls == []
     msg = [m for m in st["messages"] if m.get("role") == "tool"][0]
     assert msg["content"] == (
@@ -956,7 +1029,7 @@ def test_loop_query_knowledge_prefetch_guard_and_empty_result(monkeypatch):
     _fake, _r, st = _run_loop(monkeypatch, [
         _resp_tools([("tc1", "query_knowledge", args)]),
         _resp_text("fertig"),
-    ])
+    ], active_tools=[_wissens_werkzeug("anders")])
     msg = [m for m in st["messages"] if m.get("role") == "tool"][0]
     assert msg["content"] == (
         "Keine relevanten Informationen im Bereich 'anders' gefunden.")
@@ -999,6 +1072,26 @@ def test_loop_nicht_angebotenes_werkzeug_verworfen(monkeypatch):
     # ``error`` gebucht, senkte sie die Zuversicht und kippte als einziges
     # Ergebnis den Zustand auf Rückfrage.
     assert all(o.tool != "wlo_create_collection" for o in st["outcomes"])
+
+
+def test_loop_verborgenes_werkzeug_gilt_wie_nicht_angebotenes(monkeypatch):
+    """Review Paket 9 (MINOR 10): ein im Studio verborgenes Werkzeug stand in der
+    Sicherheitssperre — sein Aufruf buchte ein ``error`` und meldete dem Modell
+    „aus Sicherheitsgruenden blockiert“. Es läuft nicht und gilt wie ein Werkzeug
+    außerhalb des Katalogs (Review 2026-10-03) — auch wenn ein Zweig der Auswahl
+    es doch anbietet (``sources: [mcp]`` reicht den ganzen Katalog weiter)."""
+    from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN
+
+    monkeypatch.setattr(tool_loop, "verborgene_werkzeuge",
+                        lambda: frozenset({"search_wlo_content"}))
+    out = _OutcomeFake()
+    _fake, _r, st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "search_wlo_content", json.dumps({"query": "Brüche"}))]),
+        _resp_text("fertig"),
+    ], outcome=out, active_tools=_ACTIVE)
+    assert out.calls == []
+    assert [m["content"] for m in st["messages"] if m.get("role") == "tool"] == [NICHT_ANGEBOTEN]
+    assert st["outcomes"] == []
 
 
 def test_loop_katalog_werkzeug_ausserhalb_der_musterliste_laeuft(monkeypatch):
@@ -1055,8 +1148,50 @@ def test_loop_query_knowledge_bleibt_ohne_angebot_rufbar(monkeypatch):
         _resp_tools([("tc1", "query_knowledge",
                       json.dumps({"area": "hilfe", "query": "wie"}))]),
         _resp_text("fertig"),
-    ], active_tools=_ACTIVE)
+    ], active_tools=_ACTIVE, rag_bereiche=frozenset({"hilfe"}))
     assert len(rag.calls) == 1
+    # Paket 9 (V2): aber nur in einem konfigurierten Bereich, nicht in jedem der Datenbank.
+    _fake, _r, st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "query_knowledge",
+                      json.dumps({"area": "intern", "query": "wie"}))]),
+        _resp_text("fertig"),
+    ], active_tools=_ACTIVE, rag_bereiche=frozenset({"hilfe"}))
+    assert len(rag.calls) == 1
+    assert "nicht verfügbar" in [m for m in st["messages"] if m.get("role") == "tool"][0]["content"]
+
+
+def test_loop_suche_nach_der_wissensabfrage_bleibt_im_katalog(monkeypatch):
+    """Review Paket 9 (kritisch): die Prüfung des Wissensbereichs überschrieb den
+    Werkzeug-Katalog des Zuges — nach ``query_knowledge`` galt jede Suche als
+    „nicht im Katalog“, in derselben Runde wie in den folgenden."""
+    from boerdi.services.rag import retrieval
+
+    monkeypatch.setattr(retrieval, "get_rag_context", _RagCtx("Wissen."))
+    out = _OutcomeFake()
+    wissen = json.dumps({"area": "hilfe", "query": "wie"})
+    suche = json.dumps({"query": "Brüche"})
+    _fake, _r, _st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "query_knowledge", wissen), ("tc2", "search_wlo_content", suche)]),
+        _resp_tools([("tc3", "search_wlo_content", suche)]),
+        _resp_text("fertig"),
+    ], outcome=out, active_tools=[*_ACTIVE, _wissens_werkzeug("hilfe")])
+    assert [name for name, _args in out.calls] == ["search_wlo_content", "search_wlo_content"]
+
+
+def test_loop_query_knowledge_bereich_als_liste_wird_abgewiesen(monkeypatch):
+    """Review Paket 9 (NIT): ein Bereich als Liste warf beim Mengen-Test einen
+    ``TypeError`` — der ganze Zug fiel auf den Fehlerpfad."""
+    from boerdi.services.rag import retrieval
+
+    rag = _RagCtx("Wissen.")
+    monkeypatch.setattr(retrieval, "get_rag_context", rag)
+    _fake, result, st = _run_loop(monkeypatch, [
+        _resp_tools([("tc1", "query_knowledge", json.dumps({"area": ["hilfe"], "query": "x"}))]),
+        _resp_text("fertig"),
+    ], active_tools=[_wissens_werkzeug("hilfe")])
+    assert rag.calls == []
+    assert result[0] == "fertig"
+    assert "nicht verfügbar" in [m for m in st["messages"] if m.get("role") == "tool"][0]["content"]
 
 
 def test_loop_tool_mode_read_only_sperrt_schreibwerkzeuge(monkeypatch):

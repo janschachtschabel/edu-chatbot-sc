@@ -47,6 +47,20 @@ def test_der_ausdruck_fuer_core_abfragen_sagt_dasselbe() -> None:
     assert scope_clause("all", column("session_id")) is None
 
 
+def test_production_schliesst_probelaeufe_ohne_sitzung_aus() -> None:
+    """Paket 9 (Review Paket 7, MINOR 31): Aufträge ohne Sitzung zählen zum Betrieb,
+    Probeläufe des Studios (Quelle ``studio-probe``) nicht."""
+    from sqlalchemy import Column, String
+    from sqlalchemy.dialects import postgresql
+
+    from boerdi.services.session_origin import STUDIO_QUELLE
+
+    sitzung, quelle = Column("session_id", String), Column("quelle", String)
+    sql = str(scope_clause("production", sitzung, quelle).compile(
+        dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    assert f"'{STUDIO_QUELLE}'" in sql and "quelle IS NULL" in sql
+
+
 def test_production_schliesst_auch_den_studio_probelauf_aus() -> None:
     """ST-8e: der Chat-Probelauf der Agent-Seite ist Test-Verkehr des Betreibers."""
     assert STUDIO_PREFIX == "studio-"

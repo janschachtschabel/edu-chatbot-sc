@@ -249,6 +249,51 @@ def test_fuzzy_lookup_substring_und_laengster_treffer_gewinnt():
         "kunstgeschichte", "u2")
 
 
+# Gemessen 2026-10-15 mit den echten Vokabularen (Paket 11 J): steckte der Wert in mehreren
+# Schlüsseln, gewann der längste — „Wirtschaft“ wurde zu „Ernährung und Hauswirtschaft“.
+_FAECHER = {
+    "ernährung und hauswirtschaft": "u-hauswirtschaft",
+    "hauswirtschaft": "u-hauswirtschaft",
+    "wirtschaftskunde": "u-wirtschaft",
+    "wirtschaft und verwaltung": "u-verwaltung",
+    "farbtechnik und raumgestaltung": "u-farbtechnik",
+    "elektrotechnik": "u-elektro",
+    "informatik": "u-informatik",
+    "informationstechnologie": "u-informatik",
+}
+
+
+def test_fuzzy_lookup_mehrdeutiger_teilwert_ist_kein_treffer():
+    """Mehrere Fächer enthalten den Wert → nicht raten; der LLM-Rückfall wählt mit der Liste."""
+    assert ar._fuzzy_lookup(_FAECHER, "Wirtschaft") is None
+    assert ar._fuzzy_lookup(_FAECHER, "Technik") is None
+    lrt = {"textbausteine": "u-text", "textbaustein": "u-text", "textbook": "u-lehrbuch"}
+    assert ar._fuzzy_lookup(lrt, "Text") is None
+
+
+def test_fuzzy_lookup_eindeutiger_teilwert_bleibt_ein_treffer():
+    """Alle Schlüssel, die den Wert enthalten, zeigen auf dieselbe URI → eindeutig."""
+    assert ar._fuzzy_lookup(_FAECHER, "Info") == ("informatik", "u-informatik")
+    assert ar._fuzzy_lookup(_FAECHER, "Elektro") == ("elektrotechnik", "u-elektro")
+
+
+def test_resolve_filter_uris_mehrdeutiges_fach_geht_an_den_llm(ar_state, monkeypatch):
+    async def fake_ensure(vocab):
+        ar._label_to_uri_cache[vocab] = dict(_FAECHER)
+
+    monkeypatch.setattr(ar, "_ensure_label_cache", fake_ensure)
+    gefragt: list[str] = []
+
+    async def fake_llm(vocab, value):
+        gefragt.append(value)
+        return "u-wirtschaft"
+
+    monkeypatch.setattr(ar, "_llm_vocab_match", fake_llm)
+    out = asyncio.run(ar._resolve_filter_uris({"discipline": "Wirtschaft"}))
+    assert out["discipline"] == "u-wirtschaft"
+    assert gefragt == ["Wirtschaft"]
+
+
 # ═══ _ensure_label_cache ══════════════════════════════════════════════════
 _VOCAB_MD = (
     "- **Video**\n"
@@ -315,7 +360,8 @@ def test_ensure_label_cache_unbekanntes_vokabular_ist_noop(ar_state, monkeypatch
 
 
 # ═══ prewarm_vocabularies ═════════════════════════════════════════════════
-def test_prewarm_laedt_alle_vier_vokabulare_best_effort(ar_state, monkeypatch):
+def test_prewarm_laedt_alle_fuenf_vokabulare_best_effort(ar_state, monkeypatch):
+    """Seit Paket 11 L auch die Lizenz — sonst zahlt die erste Lizenzsuche je Prozess den Abruf."""
     geladen = []
 
     async def fake_ensure(vocab):
@@ -326,7 +372,7 @@ def test_prewarm_laedt_alle_vier_vokabulare_best_effort(ar_state, monkeypatch):
     monkeypatch.setattr(ar, "_ensure_label_cache", fake_ensure)
     asyncio.run(ar.prewarm_vocabularies())  # darf trotz Fehler nicht werfen
     assert sorted(geladen) == sorted(
-        ["lrt", "discipline", "educationalContext", "userRole"])
+        ["lrt", "discipline", "educationalContext", "userRole", "license"])
 
 
 # ═══ _llm_vocab_match ═════════════════════════════════════════════════════
@@ -368,13 +414,18 @@ def test_llm_vocab_match_nicht_uri_antwort_und_exception(ar_state, monkeypatch):
     assert asyncio.run(ar._llm_vocab_match("lrt", "Dings")) is None
     assert ar._llm_vocab_cache[("lrt", "dings")] is None
 
-    # LLM-Transport wirft → None + Negativ-Cache.
+    # LLM-Transport wirft → None, aber KEIN Eintrag (Paket 10, Audit L-1): ein
+    # vorübergehender Fehler sperrte den Wert sonst für die ganze Prozesslaufzeit
+    # als „kein Treffer“. Der nächste Aufruf fragt neu.
     async def _boom(**kwargs):
         raise RuntimeError("kein key")
 
     monkeypatch.setattr(llm, "_acompletion", _boom)
     assert asyncio.run(ar._llm_vocab_match("lrt", "Anderes")) is None
-    assert ar._llm_vocab_cache[("lrt", "anderes")] is None
+    assert ("lrt", "anderes") not in ar._llm_vocab_cache
+    zaehler = _wire_llm(monkeypatch, "http://x/im")
+    assert asyncio.run(ar._llm_vocab_match("lrt", "Anderes")) == "http://x/im"
+    assert zaehler["calls"] == 1
 
 
 # ═══ _resolve_filter_uris ═════════════════════════════════════════════════
@@ -481,3 +532,56 @@ def test_llm_vocab_match_ohne_zug_bucht_nicht_und_faellt_nicht_um(
     _wire_llm(monkeypatch, "http://x/im")
     usage_mod.bind_turn_usage(None)
     assert asyncio.run(ar._llm_vocab_match("lrt", "Simulation")) == "http://x/im"
+
+
+# Review 2026-10-16 (#1): Ausschnitt der echten Vokabulare — kurze Aliasse wie „it“, „geo“,
+# „schule“, „spiel“, „bild“ trafen mitten in fremde Wörter.
+_ECHT = {
+    "informatik": "u-inf", "it": "u-inf", "kunst": "u-kunst", "art": "u-kunst",
+    "geschichte": "u-gesch", "geografie": "u-geo", "geo": "u-geo",
+    "hochschule": "u-hs", "uni": "u-hs", "schule": "u-schule",
+    "lernspiel": "u-spiel", "spiel": "u-spiel", "bild": "u-bild",
+    "interaktiv": "u-int", "mathematik": "u-mathe", "mathe": "u-mathe",
+}
+
+
+@pytest.mark.parametrize("wert", [
+    "Literatur", "Sicherheit", "Arbeit und Beruf", "Startup", "Geometrie", "Kunstgeschichte",
+    "Kommunikation", "Volkshochschule", "Realschule", "Hörspiel", "Spielfilm", "Bildungsplan",
+    "Tafelbild",
+])
+def test_fuzzy_lookup_trifft_nicht_mitten_ins_wort(wert):
+    assert ar._fuzzy_lookup(_ECHT, wert) is None
+
+
+def test_fuzzy_lookup_wert_im_schluessel_nur_am_wortanfang():
+    """Live 2026-10-16: „Sicherheit“ → „Arbeitssicherheit“ über die dritte Regel."""
+    cache = {"arbeitssicherheit": "u-as", "informatik": "u-inf"}
+    assert ar._fuzzy_lookup(cache, "Sicherheit") is None
+    assert ar._fuzzy_lookup(cache, "Info") == ("informatik", "u-inf")
+
+
+def test_fuzzy_lookup_nimmt_ganze_woerter_samt_beugung():
+    assert ar._fuzzy_lookup(_ECHT, "Interaktives Material") == ("interaktiv", "u-int")
+    assert ar._fuzzy_lookup(_ECHT, "Mathe Klasse 11 Gym") == ("mathe", "u-mathe")
+    assert ar._fuzzy_lookup(_ECHT, "Bilder") == ("bild", "u-bild")
+
+
+def test_klassenangaben_gehen_unveraendert_an_den_server(ar_state, monkeypatch):
+    """Review #4: der Server kennt „Klasse 7“ exakt (sein Alias fehlt nur in der gekürzten
+    Liste von lookup_wlo_vocabulary) — kein LLM-Aufruf dafür."""
+    async def fake_ensure(vocab):
+        pass
+
+    gefragt = []
+
+    async def fake_llm(vocab, value):
+        gefragt.append(value)
+        return None
+
+    monkeypatch.setattr(ar, "_ensure_label_cache", fake_ensure)
+    monkeypatch.setattr(ar, "_llm_vocab_match", fake_llm)
+    for wert in ("Klasse 7", "7. Klasse", "Kl. 10"):
+        out = asyncio.run(ar._resolve_filter_uris({"educationalContext": wert}))
+        assert out["educationalContext"] == wert
+    assert gefragt == []

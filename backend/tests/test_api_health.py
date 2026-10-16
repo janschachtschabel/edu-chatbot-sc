@@ -26,7 +26,7 @@ def test_api_health_shape_gpt5(monkeypatch):
     body = r.json()
     assert body["status"] == "ok"
     assert body["provider"] == "openai"
-    assert body["chat_model"] == "gpt-5.6-luna"
+    assert body["chat_model"] == "gpt-6-luna"  # Paket 8: die Vorgabe
     assert body["embed_model"] == "text-embedding-3-small"
     assert body["gpt5_params_active"] is True
     assert body["verbosity"] == "low"  # W12

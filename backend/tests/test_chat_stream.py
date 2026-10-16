@@ -7,7 +7,8 @@ keepalives while the turn runs, and a final ``result`` (or ``error``) frame.
 Since C9 the stream also carries ``phase`` frames: the graph gets a
 ``TurnProgress`` bound to a queue, and this generator drains that queue while the
 turn runs. The frame byte-format is contract (spec rule 6):
-``event: connected\\ndata: {}\\n\\n``, ``event: phase\\ndata: <json>\\n\\n``,
+``event: connected\\ndata: <json>\\n\\n`` (the handshake, ``chat_handschlag``),
+``event: phase\\ndata: <json>\\n\\n``,
 ``: keepalive\\n\\n``, ``event: result\\ndata: <json>\\n\\n``,
 ``event: error\\ndata: <json>\\n\\n``.
 
@@ -31,13 +32,45 @@ from fastapi.testclient import TestClient
 
 import boerdi.api.chat as chat_api
 import boerdi.api.sse as sse_api
-from boerdi.api.deps import get_session
+from boerdi.api.deps import get_session_factory
 from boerdi.api.schemas import ChatRequest, ChatResponse
 from boerdi.main import create_app
 from boerdi.obs.progress import TurnProgress
 from boerdi.settings import get_settings
 
-_SESSION = object()  # sentinel: whatever get_session yields must reach build_turn_graph
+_SESSION = object()  # sentinel: the session the turn opens must reach build_turn_graph
+
+#: Der Handschlag dieses Moduls (Review Paket 7, A-7/C-4). Der echte liest den
+#: Verlauf — geprüft in ``test_chat_handschlag.py``; hier fest, damit die
+#: Rahmen-Tests nicht an einer Datenbank hängen.
+_CONNECTED = 'event: connected\ndata: {"history": true, "after_id": 7}\n\n'
+
+
+@pytest.fixture(autouse=True)
+def _fester_handschlag(monkeypatch):
+    async def _fest(session_id, sitzungen):
+        return {"history": True, "after_id": 7}
+
+    monkeypatch.setattr(chat_api, "handschlag", _fest)
+
+
+def _fabrik(log: list | None = None):
+    """Stand-in for ``app.state.session_factory`` (Review A-1): the stream turn
+    opens its OWN session — the request-scoped one closes when the response ends,
+    while the turn may still be finishing (P2)."""
+    import contextlib
+
+    @contextlib.asynccontextmanager
+    async def _sitzung():
+        if log is not None:
+            log.append("open")
+        try:
+            yield _SESSION
+        finally:
+            if log is not None:
+                log.append("close")
+
+    return _sitzung
 
 
 def _ok(content="X"):
@@ -101,21 +134,83 @@ def _patch(monkeypatch, *, result=None, exc=None):
     return graph, builds
 
 
-def _fake_locks(monkeypatch):
-    """Isolate the per-session lock and record acquire/release order."""
+def _fake_locks(monkeypatch, *, beschaeftigt: bool = False):
+    """Isolate the per-session lock (seit Paket 7, P1, die Naht ``sitzung_sperren``)
+    and record acquire/release order — or report the session as busy."""
+    import contextlib
+
+    from boerdi.services.sitzungssperre import SitzungBeschaeftigt
+
     events: list = []
-    lock = asyncio.Lock()
 
-    async def _acq(session_id):
+    @contextlib.asynccontextmanager
+    async def _fake(request, session_id):
+        if beschaeftigt:
+            raise SitzungBeschaeftigt(session_id)
         events.append(("acquire", session_id))
-        return lock
+        try:
+            yield
+        finally:
+            events.append(("release", session_id))
 
-    async def _rel(session_id):
-        events.append(("release", session_id))
-
-    monkeypatch.setattr(chat_api, "_get_session_lock", _acq)
-    monkeypatch.setattr(chat_api, "_release_session_lock", _rel)
+    monkeypatch.setattr(chat_api, "sitzung_sperren", _fake)
     return events
+
+
+async def test_eine_beschaeftigte_sitzung_meldet_das_im_strom(monkeypatch):
+    """Paket 7 (P1): im Strom steht der HTTP-Status schon fest — die Kennung
+    reist im ``error``-Rahmen, das Widget zeigt dazu seinen eigenen Text."""
+    _patch(monkeypatch, result=_ok())
+    _fake_locks(monkeypatch, beschaeftigt=True)
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
+    fehler = [f for f in frames if f.startswith("event: error")]
+    assert fehler and '"code": "session_busy"' in fehler[0]
+
+
+async def test_eine_beschaeftigte_sitzung_ist_keine_warnung(monkeypatch, caplog):
+    """Paket 9 (Review Paket 7, NIT): ein Doppelversand oder ein Ping während eines
+    Zugs ist erwartbar — er steht auf INFO im Log, nicht zwischen echten Fehlern."""
+    import logging
+
+    _patch(monkeypatch, result=_ok())
+    _fake_locks(monkeypatch, beschaeftigt=True)
+    with caplog.at_level(logging.INFO, logger="boerdi.api.sse"):
+        await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
+    eintraege = [r for r in caplog.records if r.name == "boerdi.api.sse"]
+    assert eintraege and all(r.levelno == logging.INFO for r in eintraege)
+
+
+class _Gespeichert:
+    def __init__(self):
+        self.calls: list[tuple] = []
+
+    async def __call__(self, session, session_id, role, content, **kw):
+        self.calls.append((session_id, role, content, kw))
+
+
+async def test_ein_gescheiterter_zug_hinterlaesst_die_fehlerblase_im_verlauf(monkeypatch):
+    """Review Paket 7 (MINOR 28): rechnete ein Zug nach dem Auflegen weiter und
+    scheiterte, stand im Verlauf die Frage ohne Antwort — das Widget fragte bis zur
+    Frist nach. Der POST-Weg speichert die Blase seit jeher."""
+    _patch(monkeypatch, exc=RuntimeError("boom"))
+    _fake_locks(monkeypatch)
+    gespeichert = _Gespeichert()
+    monkeypatch.setattr(chat_api, "save_message", gespeichert)
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
+    assert any(f.startswith("event: error") for f in frames)
+    assert [(sid, rolle) for sid, rolle, _t, _k in gespeichert.calls] == [("bb-1", "assistant")]
+    assert "boom" not in gespeichert.calls[0][2]      # der Satz, nicht das Innenleben
+
+
+async def test_ein_hintergrund_ping_hinterlaesst_keine_blase(monkeypatch):
+    _patch(monkeypatch, exc=RuntimeError("boom"))
+    _fake_locks(monkeypatch)
+    gespeichert = _Gespeichert()
+    monkeypatch.setattr(chat_api, "save_message", gespeichert)
+    req = ChatRequest.model_validate({"session_id": "bb-1", "message": "[context-open]",
+                                      "environment": {"page_event": "context_open"}})
+    await _drain(chat_api._stream_turn(req, _Req(), _fabrik()))
+    assert gespeichert.calls == []
 
 
 # ── Endpoint via TestClient ─────────────────────────────────────────────────
@@ -125,7 +220,7 @@ def client(monkeypatch):
     monkeypatch.setenv("RATE_LIMIT_CHAT", "off")  # deterministic: no limiter interference
     get_settings.cache_clear()
     app = create_app()
-    app.dependency_overrides[get_session] = lambda: _SESSION
+    app.dependency_overrides[get_session_factory] = lambda: _fabrik()
     yield TestClient(app)
     get_settings.cache_clear()
 
@@ -145,7 +240,7 @@ def test_content_type_is_event_stream(monkeypatch, client):
 def test_connected_is_first_frame(monkeypatch, client):
     _patch(monkeypatch, result=_ok("HI"))
     r = _post(client)
-    assert r.text.startswith("event: connected\ndata: {}\n\n")
+    assert r.text.startswith(_CONNECTED)
 
 
 def test_result_frame_carries_the_response(monkeypatch, client):
@@ -175,7 +270,7 @@ def test_early_response_wins_in_stream(monkeypatch, client):
 def test_der_block_gilt_auch_im_gestreamten_zug(monkeypatch, client):
     from pydantic import SecretStr
 
-    from boerdi.services.mcp.auth import build_http_client_factory
+    from boerdi.services.mcp.http_fabrik import build_http_client_factory
 
     monkeypatch.setattr(get_settings(), "mcp_auth_token", SecretStr(""),
                         raising=False)
@@ -226,15 +321,39 @@ def test_widget_postprocess_is_applied_to_result(monkeypatch, client):
 
 # ── _stream_turn generator (fakes, no HTTP) ─────────────────────────────────
 
-async def test_stream_binds_session_peer_ip_and_no_on_token(monkeypatch):
+async def test_stream_binds_session_peer_ip_and_a_token_stream_by_default(monkeypatch):
+    from boerdi.services.token_stream import TokenStrom
+    monkeypatch.delenv("CHAT_TOKEN_STREAMING", raising=False)
+    get_settings.cache_clear()
     _, builds = _patch(monkeypatch, result=_ok())
     _fake_locks(monkeypatch)
-    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
     assert builds[0]["session"] is _SESSION
     assert builds[0]["peer_ip"] == "7.7.7.7"
-    # Vorgabe: Schalter aus → kein Strom (Plan Token-Streaming, E-S5).
+    # Paket 7 (S2, Nutzer-Entscheid 2026-10-09): Vorgabe an — ohne Umgebung und
+    # ohne Studio-Eintrag legt der Endpunkt den Strom an.
+    assert isinstance(builds[0]["on_token"], TokenStrom)
+    assert frames[0] == _CONNECTED
+
+
+@pytest.mark.parametrize(("umgebung", "studio"), [(None, False), ("0", True)])
+async def test_studio_oder_umgebung_schalten_den_strom_ab(monkeypatch, umgebung, studio):
+    """Paket 7 (S2): im Studio abschaltbar (``betrieb.token_streaming``); eine
+    gesetzte Umgebung geht vor — auch gegen ein eingeschaltetes Studio."""
+    from boerdi.domain.config_models.engine import EngineArea
+    from boerdi.services import betriebsschalter
+    if umgebung is None:
+        monkeypatch.delenv("CHAT_TOKEN_STREAMING", raising=False)
+    else:
+        monkeypatch.setenv("CHAT_TOKEN_STREAMING", umgebung)
+    get_settings.cache_clear()
+    monkeypatch.setattr(betriebsschalter, "load_engine", lambda: EngineArea.model_validate(
+        {"betrieb": {"token_streaming": studio}}))
+    _, builds = _patch(monkeypatch, result=_ok())
+    _fake_locks(monkeypatch)
+    await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
+    get_settings.cache_clear()
     assert builds[0]["on_token"] is None
-    assert frames[0] == "event: connected\ndata: {}\n\n"
 
 
 async def test_mit_schalter_bindet_der_stream_einen_tokenstrom(monkeypatch):
@@ -245,7 +364,7 @@ async def test_mit_schalter_bindet_der_stream_einen_tokenstrom(monkeypatch):
     get_settings.cache_clear()
     _, builds = _patch(monkeypatch, result=_ok())
     _fake_locks(monkeypatch)
-    await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
     get_settings.cache_clear()
     assert isinstance(builds[0]["on_token"], TokenStrom)
 
@@ -272,7 +391,7 @@ async def test_der_abschluss_misst_den_strom_gegen_das_ergebnis(monkeypatch, cap
     monkeypatch.setattr(chat_api, "_postprocess_response_for_widget_modes", _passthrough_pp)
     _fake_locks(monkeypatch)
     with caplog.at_level(logging.INFO):
-        frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+        frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
     get_settings.cache_clear()
 
     assert [f.split("\n", 1)[0] for f in frames] == [
@@ -284,36 +403,144 @@ async def test_der_abschluss_misst_den_strom_gegen_das_ergebnis(monkeypatch, cap
 async def test_session_lock_acquired_and_released(monkeypatch):
     _patch(monkeypatch, result=_ok())
     events = _fake_locks(monkeypatch)
-    await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
     assert ("acquire", "bb-1") in events
     assert ("release", "bb-1") in events
 
 
-async def test_disconnect_cancels_turn_and_releases_lock(monkeypatch):
-    # A hung turn + a client that has gone away must be cancelled, not run to
-    # completion on full LLM/MCP cost for nobody — and the lock must be freed.
-    class _HangGraph:
-        def __init__(self):
-            self.cancelled = False
+class _GatedGraph:
+    """Ein Zug, der erst nach ``frei`` fertig wird — und merkt, ob man ihn abbricht."""
 
-        async def ainvoke(self, state):
-            try:
-                await asyncio.Event().wait()  # never completes
-            except asyncio.CancelledError:
-                self.cancelled = True
-                raise
+    def __init__(self):
+        self.frei = asyncio.Event()
+        self.abgebrochen = False
 
-    graph = _HangGraph()
+    async def ainvoke(self, state):
+        try:
+            await self.frei.wait()
+        except asyncio.CancelledError:
+            self.abgebrochen = True
+            raise
+        return _ok("FERTIG")
+
+
+async def _bis(bedingung, frist_s: float = 2.0) -> None:
+    ende = asyncio.get_running_loop().time() + frist_s
+    while not bedingung():
+        assert asyncio.get_running_loop().time() < ende, "Bedingung nie erreicht"
+        await asyncio.sleep(0.01)
+
+
+async def test_nach_dem_abbruch_rechnet_der_zug_zu_ende(monkeypatch):
+    """Paket 7 (P2, P5-2): schließt jemand den Chat mitten in der Antwort, rechnet
+    der Server sauber zu Ende — die Antwort steht dann im Verlauf, und das Widget
+    holt sie von dort, statt die Frage ein zweites Mal zu schicken. Die Sperre
+    hält bis zum Ende: ein erneutes Senden hört „beschäftigt“ statt doppelt zu
+    rechnen. (Bis dahin brach der Abbruch den Zug ab.)"""
+    graph = _GatedGraph()
     monkeypatch.setattr(chat_api, "build_turn_graph", lambda **k: graph)
     monkeypatch.setattr(chat_api, "peer_ip", lambda request: "7.7.7.7")
     monkeypatch.setattr(sse_api, "KEEPALIVE_SECONDS", 0.01)
     events = _fake_locks(monkeypatch)
 
-    frames = await _drain(chat_api._stream_turn(_req(), _Req(disconnected=True), _SESSION))
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(disconnected=True), _fabrik()))
 
-    assert frames == ["event: connected\ndata: {}\n\n"]  # no result/error frame
-    assert ("release", "bb-1") in events  # finally ran during cancel cleanup
-    assert graph.cancelled  # the hung turn was actually cancelled
+    assert frames == [_CONNECTED]  # kein result: niemand hört zu
+    assert ("release", "bb-1") not in events               # der Zug läuft noch
+    graph.frei.set()
+    await _bis(lambda: ("release", "bb-1") in events)
+    assert not graph.abgebrochen
+
+
+async def test_auch_ein_geschlossener_strom_laesst_den_zug_zu_ende_rechnen(monkeypatch):
+    """Starlette schließt den Generator, wenn das Senden scheitert — derselbe
+    Abbruch auf anderem Weg."""
+    graph = _GatedGraph()
+    monkeypatch.setattr(chat_api, "build_turn_graph", lambda **k: graph)
+    monkeypatch.setattr(chat_api, "peer_ip", lambda request: "7.7.7.7")
+    monkeypatch.setattr(sse_api, "KEEPALIVE_SECONDS", 0.01)
+    events = _fake_locks(monkeypatch)
+
+    agen = chat_api._stream_turn(_req(), _Req(disconnected=False), _fabrik())
+    await agen.__anext__()          # connected
+    await agen.__anext__()          # keepalive — der Zug läuft
+    await agen.aclose()
+    assert ("release", "bb-1") not in events
+    graph.frei.set()
+    await _bis(lambda: ("release", "bb-1") in events)
+    assert not graph.abgebrochen
+
+
+
+async def test_der_nachlauf_rechnet_auf_einer_eigenen_sitzung_zu_ende(monkeypatch):
+    """Review A-1: FastAPI schließt die anfragegebundene Sitzung, sobald die
+    Antwort endet — beim Auflegen also mitten im Nachlauf. Der Zug öffnet seine
+    Sitzung deshalb selbst und schließt sie erst nach dem letzten Schreiben."""
+    graph = _GatedGraph()
+    builds: list = []
+
+    def _bau(**k):
+        builds.append(k["session"])
+        return graph
+
+    monkeypatch.setattr(chat_api, "build_turn_graph", _bau)
+    monkeypatch.setattr(chat_api, "peer_ip", lambda request: "7.7.7.7")
+    monkeypatch.setattr(sse_api, "KEEPALIVE_SECONDS", 0.01)
+    events = _fake_locks(monkeypatch)
+    log: list = []
+
+    await _drain(chat_api._stream_turn(_req(), _Req(disconnected=True), _fabrik(log)))
+
+    assert log == ["open"]                       # der Strom ist zu, die Sitzung nicht
+    assert builds == [_SESSION]
+    graph.frei.set()
+    await _bis(lambda: ("release", "bb-1") in events)
+    assert log == ["open", "close"]
+
+async def test_im_agent_endpunkt_bricht_der_abbruch_weiter_ab():
+    """``/api/agent`` hat keinen Verlauf, aus dem jemand nachlädt — dort spart
+    der Abbruch weiter Kosten (Vorgabe von ``sse_turn``)."""
+    lauf = _GatedGraph()
+
+    async def _run(progress):
+        return await lauf.ainvoke({})
+
+    async def _payload(result):
+        return {}
+
+    frames = []
+    alt = sse_api.KEEPALIVE_SECONDS
+    sse_api.KEEPALIVE_SECONDS = 0.01
+    try:
+        async for frame in sse_api.sse_turn(_Req(disconnected=True), _run, _payload):
+            frames.append(frame)
+    finally:
+        sse_api.KEEPALIVE_SECONDS = alt
+    assert frames == ["event: connected\ndata: {}\n\n"]
+    assert lauf.abgebrochen
+
+
+async def test_im_agent_endpunkt_bricht_auch_ein_geschlossener_strom_ab():
+    """Bis Paket 7 lief die Arbeit nach dem Schließen verwaist weiter — für den
+    Agent-Endpunkt Kosten für niemanden."""
+    lauf = _GatedGraph()
+
+    async def _run(progress):
+        return await lauf.ainvoke({})
+
+    async def _payload(result):
+        return {}
+
+    alt = sse_api.KEEPALIVE_SECONDS
+    sse_api.KEEPALIVE_SECONDS = 0.01
+    try:
+        agen = sse_api.sse_turn(_Req(disconnected=False), _run, _payload)
+        await agen.__anext__()   # connected
+        await agen.__anext__()   # keepalive
+        await agen.aclose()
+    finally:
+        sse_api.KEEPALIVE_SECONDS = alt
+    await _bis(lambda: lauf.abgebrochen)
 
 
 # ── C9: phase frames ────────────────────────────────────────────────────────
@@ -349,13 +576,13 @@ async def test_stream_binds_a_progress_object(monkeypatch):
     the stream always supplies one (POST /api/chat gets a sink-less default)."""
     _, builds = _patch(monkeypatch, result=_ok())
     _fake_locks(monkeypatch)
-    await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
     assert isinstance(builds[0]["progress"], TurnProgress)
 
 
 async def test_phase_frames_are_emitted_in_order_before_the_result(monkeypatch):
     _patch_emitting(monkeypatch, ["safety_classify", "pattern", "response"])
-    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
 
     kinds = [f.split("\n", 1)[0] for f in frames]
     assert kinds == [
@@ -371,7 +598,7 @@ async def test_phase_payload_carries_the_four_contract_keys(monkeypatch):
     """``ui/stream/phase-label.ts`` reads ``data.kind`` and ``data.step``; ALT's
     listener shape (``chat.py:405``) is ``{kind, step, label, data}``."""
     _patch_emitting(monkeypatch, ["wlo_search"])
-    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
 
     phase = next(f for f in frames if f.startswith("event: phase"))
     assert phase.endswith("\n\n")
@@ -394,7 +621,7 @@ async def test_umlauts_survive_the_phase_frame(monkeypatch):
         chat_api, "build_turn_graph",
         lambda **kw: (holder.__setitem__("progress", kw["progress"]), _Umlaut())[1],
     )
-    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
     phase = next(f for f in frames if f.startswith("event: phase"))
     assert "Lade Sitzungs-Kontext …" in phase
 
@@ -418,7 +645,7 @@ async def test_text_ereignis_wird_text_delta_rahmen(monkeypatch):
         chat_api, "build_turn_graph",
         lambda **kw: (holder.__setitem__("progress", kw["progress"]), _Strom())[1],
     )
-    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
 
     kinds = [f.split("\n", 1)[0] for f in frames]
     assert kinds == ["event: connected", "event: phase", "event: text_delta",
@@ -433,7 +660,7 @@ async def test_a_flooded_queue_drops_events_but_still_finishes_the_turn(monkeypa
     queue grow without bound. Overflow drops progress — never the answer."""
     monkeypatch.setattr(sse_api, "PROGRESS_QUEUE_MAX", 2)
     _patch_emitting(monkeypatch, [f"s{i}" for i in range(50)])
-    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
 
     phases = [f for f in frames if f.startswith("event: phase")]
     assert 0 < len(phases) <= 2  # capped, not 50
@@ -459,7 +686,7 @@ async def test_progress_after_an_exception_still_yields_the_error_frame(monkeypa
     monkeypatch.setattr(chat_api, "peer_ip", lambda request: "7.7.7.7")
     _fake_locks(monkeypatch)
 
-    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _SESSION))
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
     assert any(f.startswith("event: phase") for f in frames)
     assert any(f.startswith("event: error\n") for f in frames)
 
@@ -479,13 +706,13 @@ async def test_keepalive_emitted_during_slow_turn(monkeypatch):
     monkeypatch.setattr(sse_api, "KEEPALIVE_SECONDS", 0.01)
     _fake_locks(monkeypatch)
 
-    agen = chat_api._stream_turn(_req(), _Req(disconnected=False), _SESSION)
+    agen = chat_api._stream_turn(_req(), _Req(disconnected=False), _fabrik())
     first = await agen.__anext__()   # connected handshake
     second = await agen.__anext__()  # turn still gated -> keepalive on timeout
     release.set()
     rest = await _drain(agen)        # turn completes -> result frame
 
-    assert first == "event: connected\ndata: {}\n\n"
+    assert first == _CONNECTED
     assert second == ": keepalive\n\n"
     assert any(chunk.startswith("event: result\n") for chunk in rest)
 

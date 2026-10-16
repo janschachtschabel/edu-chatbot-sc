@@ -1,7 +1,8 @@
 """Characterization tests for domain/canvas/types.py (P4-5 canvas leaf).
 
 ALT origin: ``app/services/canvas_types.py`` — the ``_DEFAULT_*`` fallback data
-+ the 8 config-driven getters. Each getter reads the ``config_loader.load_canvas_*``
++ the 5 config-driven getters (the 3 trigger getters went with their areas in
+Paket 7, K4). Each getter reads the ``config_loader.load_canvas_*``
 read-facade (studio-editable, mtime/NOTIFY-cached) and falls back to the in-code
 ``_DEFAULT_*`` block on empty result or load failure. In ALT these were only
 integration-tested via ``canvas_service`` re-export (test_canvas_service_pure.py:
@@ -30,10 +31,6 @@ def _patch_cl(monkeypatch, **loaders):
         load_canvas_material_types=_make(loaders.get("material_types", [])),
         load_canvas_type_aliases=_make(loaders.get(
             "type_aliases", {"aliases": {}, "short_whitelist": [], "lrt_to_type": {}})),
-        load_canvas_create_triggers=_make(loaders.get(
-            "create_triggers", {"create_triggers": [], "search_verbs": []})),
-        load_canvas_edit_triggers=_make(loaders.get(
-            "edit_triggers", {"edit_triggers": [], "explicit_create_overrides": []})),
         load_canvas_persona_priorities=_make(loaders.get(
             "persona_priorities", {"analytical_personas": []})),
     )
@@ -145,29 +142,6 @@ class TestLrtMapping:
         assert len(out) == len(ct._DEFAULT_LRT_TO_MATERIAL_TYPE) + 1
 
 
-class TestTriggerGetters:
-    def test_create_triggers_default_and_override(self, monkeypatch):
-        _patch_cl(monkeypatch)
-        assert ct.get_create_triggers() == tuple(ct._DEFAULT_CREATE_TRIGGERS)
-        _patch_cl(monkeypatch, create_triggers={
-            "create_triggers": ["baue", "", "erzeuge"], "search_verbs": []})
-        assert ct.get_create_triggers() == ("baue", "erzeuge")
-
-    def test_edit_triggers_default_and_override(self, monkeypatch):
-        _patch_cl(monkeypatch)
-        assert ct.get_edit_triggers() == ct._DEFAULT_EDIT_TRIGGERS
-        _patch_cl(monkeypatch, edit_triggers={
-            "edit_triggers": ["ändere"], "explicit_create_overrides": []})
-        assert ct.get_edit_triggers() == ("ändere",)
-
-    def test_explicit_create_overrides_default_and_override(self, monkeypatch):
-        _patch_cl(monkeypatch)
-        assert ct.get_explicit_create_overrides() == ct._DEFAULT_EXPLICIT_CREATE_OVERRIDES
-        _patch_cl(monkeypatch, edit_triggers={
-            "edit_triggers": [], "explicit_create_overrides": ["neues quiz"]})
-        assert ct.get_explicit_create_overrides() == ("neues quiz",)
-
-
 class TestAnalyticalPersonas:
     def test_empty_returns_defaults(self, monkeypatch):
         _patch_cl(monkeypatch)
@@ -190,8 +164,6 @@ class TestTypeContracts:
 
     def test_config_getter_types(self, monkeypatch):
         _patch_cl(monkeypatch)
-        assert isinstance(ct.get_create_triggers(), tuple)
-        assert isinstance(ct.get_edit_triggers(), tuple)
         assert isinstance(ct.get_type_aliases(), dict)
         assert isinstance(ct.get_analytical_personas(), frozenset)
         assert isinstance(ct.get_short_alias_whitelist(), set)

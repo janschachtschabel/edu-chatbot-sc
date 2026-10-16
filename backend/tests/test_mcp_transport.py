@@ -17,6 +17,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
+import pytest
 from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool
 
 from boerdi.services.mcp import transport as transport_mod
@@ -210,9 +211,28 @@ def test_discover_maps_tools_and_filters_unnamed(monkeypatch):
     _patch_session(monkeypatch, _FakeSession(tools=tools))
     out = asyncio.run(discover_server_tools("https://u/mcp"))
     assert out == [
-        {"name": "search_wlo_content", "description": "d1"},
-        {"name": "wlo_health_check", "description": ""},
+        {"name": "search_wlo_content", "description": "d1",
+         "input_schema": {"type": "object"}, "read_only": False},
+        {"name": "wlo_health_check", "description": "",
+         "input_schema": {"type": "object"}, "read_only": False},
     ]
+
+
+def test_discover_liefert_schema_und_lesend_markierung(monkeypatch):
+    """Paket 11 (E): „Server prüfen“ liefert, was das Studio übernimmt — Eingabeschema und
+    ``annotations.readOnlyHint``. Nur ein ausdrückliches ``true`` gilt als lesend."""
+    from mcp.types import ToolAnnotations
+
+    tools = [
+        Tool(name="suche", description="d", inputSchema={"type": "object", "properties": {}},
+             annotations=ToolAnnotations(readOnlyHint=True)),
+        Tool(name="aendere", description="d", inputSchema={"type": "object"},
+             annotations=ToolAnnotations(readOnlyHint=False)),
+    ]
+    _patch_session(monkeypatch, _FakeSession(tools=tools))
+    out = asyncio.run(discover_server_tools("https://u/mcp"))
+    assert [(t["name"], t["read_only"]) for t in out] == [("suche", True), ("aendere", False)]
+    assert out[0]["input_schema"] == {"type": "object", "properties": {}}
 
 
 # ── Die Vorgabe-Adresse steht an EINER Stelle ───────────────────────────
@@ -240,3 +260,68 @@ def test_die_vorgabe_adresse_steht_nur_an_einer_stelle():
     )
     # Und der Rückfall zeigt trotzdem dorthin.
     assert _DEFAULT_MCP_URL == vorgabe
+
+
+# ── Paket 6, B4: JSON-RPC-Fehler, bei denen nichts ausgeführt wurde ──────────
+# Ein Server, der „Tool not found“ als JSON-RPC-Fehler meldet (statt als
+# Werkzeug-Ergebnis mit ``isError``), hat geantwortet — das SDK wirft dann
+# ``McpError``. Vorher landete das als ``transport`` in der Wiederholung: eine
+# zweite Sitzung und doppelte ERROR-Zeilen für dieselbe Ablehnung.
+
+
+def _json_rpc_fehler(code: int, text: str):
+    from mcp.shared.exceptions import McpError
+    from mcp.types import ErrorData
+
+    return McpError(ErrorData(code=code, message=text))
+
+
+@pytest.mark.parametrize("code_name", ["METHOD_NOT_FOUND", "INVALID_PARAMS"])
+def test_ein_json_rpc_fehler_ohne_ausfuehrung_traegt_die_art_tool(monkeypatch, code_name):
+    import mcp.types as mcp_types
+
+    fehler = _json_rpc_fehler(getattr(mcp_types, code_name), "Tool not found: wlo_x")
+    _patch_session(monkeypatch, _FakeSession(call_exc=fehler))
+    out = asyncio.run(call_tool("wlo_x", {}))
+    assert out["error"]["kind"] == "tool"
+    assert "Tool not found" in out["error"]["message"]
+
+
+def test_ein_json_rpc_fehler_in_einer_ausnahmegruppe_traegt_die_art_tool(monkeypatch):
+    # Das SDK bündelt Fehler aus seiner TaskGroup (siehe ``_cause_text``).
+    from mcp.types import METHOD_NOT_FOUND
+
+    gruppe = ExceptionGroup("unhandled errors in a TaskGroup",
+                            [_json_rpc_fehler(METHOD_NOT_FOUND, "Unknown tool: wlo_x")])
+    _patch_session(monkeypatch, _FakeSession(call_exc=gruppe))
+    out = asyncio.run(call_tool("wlo_x", {}))
+    assert out["error"]["kind"] == "tool"
+    assert "Unknown tool" in out["error"]["message"]
+
+
+def test_ein_interner_json_rpc_fehler_bleibt_transport(monkeypatch):
+    # „Interner Fehler“: der Server kann mitten im Werkzeug gescheitert sein —
+    # ob geschrieben wurde, ist offen. Das bleibt ``transport``.
+    from mcp.types import INTERNAL_ERROR
+
+    _patch_session(monkeypatch, _FakeSession(call_exc=_json_rpc_fehler(INTERNAL_ERROR, "boom")))
+    out = asyncio.run(call_tool("wlo_x", {}))
+    assert out["error"]["kind"] == "transport"
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_ein_abgewiesener_zugang_traegt_die_art_auth(monkeypatch, status):
+    """Paket 10 (Kurzaudit A-3): das SDK meldet 401/403 als ``HTTPStatusError`` in
+    seiner Ausnahmegruppe. Als ``transport`` wiederholte der Client denselben
+    abgewiesenen Block — doppelte Last, und das Widget erfuhr nichts."""
+    import httpx
+
+    anfrage = httpx.Request("POST", "https://mcp.example/mcp")
+    fehler = httpx.HTTPStatusError(
+        f"Client error '{status}'", request=anfrage,
+        response=httpx.Response(status, request=anfrage))
+    gruppe = ExceptionGroup("unhandled errors in a TaskGroup", [
+        ExceptionGroup("unhandled errors in a TaskGroup", [fehler])])
+    _patch_session(monkeypatch, _FakeSession(call_exc=gruppe))
+    out = asyncio.run(call_tool("wlo_x", {}))
+    assert out["error"]["kind"] == "auth"

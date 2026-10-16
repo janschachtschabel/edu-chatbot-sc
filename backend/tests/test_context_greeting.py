@@ -861,3 +861,44 @@ def test_editorial_wird_je_knoten_nur_einmal_begruesst(monkeypatch):
     r2 = asyncio.run(g.maybe_context_greeting(
         _SESSION, _req(), _env(page_context=pc), state, ["prev"]))
     assert r2.content == ""
+
+
+# ── T2 (Paket 7): der Seitengruß nach einem Sprachwechsel ───────────────────
+# Nutzer-Entscheid 2026-10-09: „bei Sprachwechsel passenden Seitengruß“. Bis
+# hier galt eine schon begrüßte Seite in JEDER Sprache als begrüßt — nach dem
+# Wechsel blieb der Gruß in der alten Sprache stehen. Jetzt gehört die Sprache
+# zum Schlüssel, und gemerkt wird je Seite nur die zuletzt begrüßte.
+
+def _gruss(state, sprache):
+    env = _env(page_context=_collection_ctx())
+    env["locale"] = sprache
+    return asyncio.run(g.maybe_context_greeting(_SESSION, _req(), env, state, ["prev"]))
+
+
+def test_nach_dem_wechsel_kommt_der_gruss_in_der_neuen_sprache(monkeypatch):
+    _patch_io(monkeypatch)
+    monkeypatch.setattr(g, "load_context_actions", _cfg_zweisprachig)
+    state = _state(_resolved(title="Optik"))
+    assert _gruss(state, "de").content == "Du bist in der Sammlung „Optik“."
+    assert _gruss(state, "en").content == "You are in the “Optik” collection."
+    assert _gruss(state, "en").content == ""          # in derselben Sprache: still
+
+
+def test_zurueck_in_die_erste_sprache_gruesst_wieder(monkeypatch):
+    _patch_io(monkeypatch)
+    monkeypatch.setattr(g, "load_context_actions", _cfg_zweisprachig)
+    state = _state(_resolved(title="Optik"))
+    _gruss(state, "de")
+    _gruss(state, "en")
+    assert _gruss(state, "de").content == "Du bist in der Sammlung „Optik“."
+    # Je Seite nur ein Eintrag — die FIFO-Liste füllt sich nicht mit Sprachen.
+    assert len(state["entities"]["_greeted_pages"]) == 1
+
+
+def test_laufende_deutsche_sitzungen_werden_nicht_erneut_begruesst(monkeypatch):
+    """Der Schlüssel der Vorgabe-Sprache bleibt der alte — nach dem Deploy grüßt
+    eine schon begrüßte Seite einer laufenden Sitzung nicht ein zweites Mal."""
+    _patch_io(monkeypatch)
+    monkeypatch.setattr(g, "load_context_actions", _cfg_zweisprachig)
+    state = _state(_resolved(title="Optik"), greeted=[_sig_collection("Optik")])
+    assert _gruss(state, "de").content == ""

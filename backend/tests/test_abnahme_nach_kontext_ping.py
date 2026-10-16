@@ -56,8 +56,8 @@ from boerdi.services import llm
 from boerdi.services import write_approval as wa_mod
 from boerdi.services.mcp import client as mcp_client
 from boerdi.services.mcp import transport
-from boerdi.services.mcp.auth import set_turn_auth_block
 from boerdi.services.rate_limits import RateVerdict
+from tests.helfer_anmeldung import als_person
 
 _SITZUNG = object()  # Sentinel — jede DB-Grenze ist gefälscht.
 _SID = "s-kontext-ping"
@@ -197,10 +197,10 @@ def welt(monkeypatch) -> tuple[_WloServer, _Ablage]:
 
 
 def _angemeldet() -> None:
-    """Die Anmeldung, wie ``api/turn_auth`` sie je Anfrage übernimmt — echt, damit
-    Kennzeichen und ``has_personal_auth`` aus derselben Quelle kommen.
-    Im Test-Task gesetzt; der Kontext endet mit dem Test."""
-    assert set_turn_auth_block(_BLOCK)
+    """Die Anmeldung, wie ``api/turn_auth`` sie je Anfrage übernimmt und der Server
+    sie bestätigt — echt, damit Kennzeichen und ``has_personal_auth`` aus derselben
+    Quelle kommen. Im Test-Task gesetzt; der Kontext endet mit dem Test."""
+    assert als_person(_BLOCK)
 
 
 async def _zug(ablage: _Ablage, nachricht: str, *, seite: dict = _SEITE,

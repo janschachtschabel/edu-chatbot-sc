@@ -161,3 +161,26 @@ class _FakeApp:
 
     def __init__(self):
         self.state = _FakeApp._State()
+
+
+async def test_spawn_startet_auch_den_bezug_des_reranker_modells(monkeypatch):
+    """Paket 11 (Nutzer 2026-10-15): eingeschaltet und Modell fehlt → beim Start beziehen."""
+    import asyncio
+
+    from boerdi.services.rag import reranker_bezug
+
+    gelaufen: list[str] = []
+
+    async def _bezug():
+        gelaufen.append("bezug")
+
+    async def _nichts():
+        return None
+
+    monkeypatch.setattr(reranker_bezug, "bereitstellen", _bezug)
+    monkeypatch.setattr(warmup_mod, "warm_vocabularies", _nichts)
+    monkeypatch.setattr(warmup_mod, "warm_llm_connection", _nichts)
+    monkeypatch.setattr(warmup_mod, "warm_cross_encoder", _nichts)
+    warmup_mod.spawn_startup_warmups()
+    await asyncio.sleep(0.05)
+    assert gelaufen == ["bezug"]

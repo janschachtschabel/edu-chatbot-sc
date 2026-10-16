@@ -58,3 +58,25 @@ def test_ein_wert_ausserhalb_wird_abgewiesen(modell, feld, unten, oben) -> None:
         with pytest.raises(ValidationError):
             modell(**{feld: wert})
     assert getattr(modell(**{feld: oben}), feld) == oben
+
+
+def _rohe_grenzen(knoten: object, pfad: str = "") -> list[str]:
+    if isinstance(knoten, list):
+        return [f for i, k in enumerate(knoten) for f in _rohe_grenzen(k, f"{pfad}[{i}]")]
+    if not isinstance(knoten, dict):
+        return []
+    eigen = [f"{pfad}.{k}" for k in ("ge", "gt", "le", "lt")
+             if isinstance(knoten.get(k), int | float)]
+    return eigen + [f for k, v in knoten.items() for f in _rohe_grenzen(v, f"{pfad}/{k}")]
+
+
+def test_keine_grenze_bleibt_als_rohes_stichwort_im_schema() -> None:
+    # Paket 9: steht ``Field(ge=0)`` in ``Annotated`` HINTER einem
+    # ``BeforeValidator``, schreibt pydantic ``"ge": 0`` statt ``"minimum": 0`` —
+    # das Studio-Formular kennt die Grenze dann nicht (und die Fixture übersetzt
+    # nicht mehr). Die Reihenfolge ist die Falle, nicht der Validator.
+    from boerdi.domain.config_models import AREA_MODELS
+
+    funde = [f"{key}{f}" for key, model in AREA_MODELS.items()
+             for f in _rohe_grenzen(model.model_json_schema())]
+    assert funde == []

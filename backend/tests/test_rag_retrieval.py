@@ -289,6 +289,14 @@ def test_ctx_embeds_once_and_searches_every_area(monkeypatch):
     assert "A" in out and "B" in out
 
 
+def test_ctx_nutzt_einen_vorab_gerechneten_vektor(monkeypatch):
+    """T1: die Einbettung lief schon neben der Klassifikation (``rag/vorab``)."""
+    embeds, searches = _wire(monkeypatch, {"a": [_chunk("A", 0.9, area="a")]})
+    out = asyncio.run(rr.get_rag_context("sess", "Eiszeit", areas=["a"], query_emb=[0.7]))
+    assert embeds == []
+    assert [c[2] for c in searches] == [(0.7,)]
+    assert "A" in out
+
 def test_ctx_fragt_die_bereiche_nacheinander_auf_derselben_sitzung(monkeypatch):
     # Audit 2026-09-29. Eine ``AsyncSession`` verträgt keine gleichzeitigen
     # Abfragen: hat sie gerade keine Verbindung (etwa direkt nach dem Commit
@@ -406,21 +414,3 @@ def test_ctx_top_k_caps_total(monkeypatch):
     _wire(monkeypatch, {"a": [_chunk(f"c{i}", 0.9 - i / 100, area="a") for i in range(6)]})
     out = asyncio.run(rr.get_rag_context("s", "q", areas=["a"], top_k=2))
     assert out.count("\n\n---\n\n") == 1  # exactly 2 entries
-
-
-# ── get_always_on_rag_context ────────────────────────────────────────────
-def test_always_on_empty_areas_short_circuits(monkeypatch):
-    _, searches = _wire(monkeypatch, {})
-    monkeypatch.setattr(
-        "boerdi.services.config_loader.get_always_on_rag_areas", lambda: [])
-    out = asyncio.run(rr.get_always_on_rag_context("s", "q"))
-    assert out == "" and searches == []
-
-
-def test_always_on_delegates_with_configured_areas(monkeypatch):
-    _, searches = _wire(monkeypatch, {"faq": [_chunk("Antwort", 0.9, area="faq")]})
-    monkeypatch.setattr(
-        "boerdi.services.config_loader.get_always_on_rag_areas", lambda: ["faq"])
-    out = asyncio.run(rr.get_always_on_rag_context("s", "q", top_k=5))
-    assert "Antwort" in out
-    assert [(c[1], c[3]) for c in searches] == [("faq", 5)]

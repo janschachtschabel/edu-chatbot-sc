@@ -16,8 +16,6 @@ real Postgres. ``get_session`` is overridden, so it is never called.
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -202,23 +200,63 @@ def test_ein_hintergrund_zug_scheitert_stumm(monkeypatch, client, umgebung):
 
 # ── Per-session lock ────────────────────────────────────────────────────────
 
+def _sperre(monkeypatch, *, beschaeftigt: bool = False) -> list:
+    """Die Naht ``sitzung_sperren`` (Paket 7, P1): zeichnet auf oder meldet belegt."""
+    import contextlib
+
+    from boerdi.services.sitzungssperre import SitzungBeschaeftigt
+
+    events: list = []
+
+    @contextlib.asynccontextmanager
+    async def _fake(request, session_id):
+        if beschaeftigt:
+            raise SitzungBeschaeftigt(session_id)
+        events.append(("acquire", session_id))
+        try:
+            yield
+        finally:
+            events.append(("release", session_id))
+
+    monkeypatch.setattr(chat_api, "sitzung_sperren", _fake)
+    return events
+
+
 def test_session_lock_acquired_and_released(monkeypatch, client):
     _patch(monkeypatch, result=_ok())
-    events: list = []
-    lock = asyncio.Lock()
-
-    async def _acq(session_id):
-        events.append(("acquire", session_id))
-        return lock
-
-    async def _rel(session_id):
-        events.append(("release", session_id))
-
-    monkeypatch.setattr(chat_api, "_get_session_lock", _acq)
-    monkeypatch.setattr(chat_api, "_release_session_lock", _rel)
+    events = _sperre(monkeypatch)
     _post(client)
-    assert ("acquire", "bb-1") in events
-    assert ("release", "bb-1") in events
+    assert events == [("acquire", "bb-1"), ("release", "bb-1")]
+
+
+def test_eine_beschaeftigte_sitzung_bekommt_409(monkeypatch, client):
+    """Paket 7 (P1, P5-1): ein zweiter Zug derselben Sitzung — auch auf einer
+    anderen Kopie — läuft nicht parallel, sondern hört „beschäftigt“."""
+    _patch(monkeypatch, result=_ok())
+    _sperre(monkeypatch, beschaeftigt=True)
+    r = client.post("/api/chat", json={"session_id": "bb-1", "message": "hi"})
+    assert r.status_code == 409
+    assert "beschäftigt" in r.json()["detail"]
+
+
+def test_ein_datenbankfehler_an_der_sperre_wird_zur_blase(monkeypatch, client):
+    """Review Paket 7 (MINOR 30): gefangen war nur „beschäftigt“ — ein Datenbankfehler
+    beim Sperren endete in HTTP 500, und das Widget zeigte nichts Brauchbares."""
+    import contextlib
+
+    _patch(monkeypatch, result=_ok())
+
+    @contextlib.asynccontextmanager
+    async def _kaputt(request, session_id):
+        raise ConnectionError("Datenbank weg")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(chat_api, "sitzung_sperren", _kaputt)
+    r = client.post("/api/chat", json={"session_id": "bb-1", "message": "hi"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["debug"]["pattern"] == "ERROR: unhandled_chat_exception"
+    assert "Datenbank weg" not in body["content"]
 
 
 # ── C1-f2b6b: die Fehler-Blase folgt der Widget-Sprache ─────────────────────
@@ -250,7 +288,7 @@ def _mit_block_beobachter(monkeypatch):
     """Fährt einen Zug und hält fest, welcher Block dabei wirklich gilt."""
     from pydantic import SecretStr
 
-    from boerdi.services.mcp.auth import build_http_client_factory
+    from boerdi.services.mcp.http_fabrik import build_http_client_factory
     from boerdi.settings import get_settings
 
     # Ohne das hinge der Test an der Entwicklungs-Umgebung: ein gesetztes
@@ -303,6 +341,22 @@ def test_ein_zug_ohne_kopfzeile_erbt_nichts_vom_vorigen(monkeypatch, client):
 
     _post_mit(client)  # derselbe Prozess — aber ohne Kopfzeile
     assert gesehen["auth"] == ""
+
+
+def test_ein_abgewiesener_block_faellt_weg_und_die_antwort_sagt_es(monkeypatch, client):
+    """Paket 10 (Kurzaudit A-1/A-3): die Form allein reicht nicht mehr. Weist der
+    Server den Block ab, läuft der Zug ohne ihn — und das Widget erfährt es."""
+    from boerdi.services.mcp import anmeldung
+
+    async def _abgewiesen():
+        return anmeldung.Befund(person=False, abgelehnt=True)
+
+    monkeypatch.setattr(anmeldung, "_fragen", _abgewiesen)
+    gesehen = _mit_block_beobachter(monkeypatch)
+    r = _post_mit(client, {_BLOCK_HEADER: "wlo2.erfunden"})
+    assert r.status_code == 200
+    assert gesehen["auth"] == ""
+    assert r.json()["auth_invalid"] is True
 
 
 def test_unbrauchbare_kopfzeile_meldet_niemanden_an(monkeypatch, client, caplog):

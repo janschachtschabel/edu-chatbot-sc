@@ -226,7 +226,7 @@ class TestKurationskatalogErreichbar:
 
     def test_mit_zugangsblock_sind_alle_vierzehn_da(self, monkeypatch):
         from boerdi.domain.write_confirm import CURATION_TOOLS
-        monkeypatch.setattr(rts, "has_auth_token", lambda: True)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: True)
 
         aktiv, *_ = rts._select_active_tools(
             {}, self._m18(), None, None, False, False, pattern_label="M18",
@@ -238,7 +238,7 @@ class TestKurationskatalogErreichbar:
 
     def test_ohne_zugangsblock_ist_keins_dabei(self, monkeypatch):
         from boerdi.domain.write_confirm import CURATION_TOOLS
-        monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
 
         aktiv, *_ = rts._select_active_tools(
             {}, self._m18(), None, None, False, False, pattern_label="M18",
@@ -250,9 +250,9 @@ class TestKurationskatalogErreichbar:
         assert "get_node_details" in namen
 
     def test_und_genau_dann_meldet_die_e3_warnung(self, monkeypatch):
-        monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
         assert rts.curation_blocked_by_mode(self._m18())
-        monkeypatch.setattr(rts, "has_auth_token", lambda: True)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: True)
         assert not rts.curation_blocked_by_mode(self._m18())
 
 
@@ -279,7 +279,7 @@ class TestVierFaehigkeitenErreichbar:
         """Die Kernfunktion von M19: der Kompendiumstext ist das Soll, die
         Inhaltsliste das Ist. Fehlt eines von beiden, ist kein Abgleich möglich
         — dann bliebe nur eine Aufzählung."""
-        monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
         namen = self._aktiv("M19")
         assert {"get_compendium_text", "get_collection_contents"} <= namen
         assert "get_collection_stats" in namen
@@ -290,31 +290,46 @@ class TestVierFaehigkeitenErreichbar:
     def test_erschliessung_hat_den_ganzen_weg(self, monkeypatch):
         """M20 führt von einer fremden Adresse bis in eine Sammlung. Fehlt ein
         Glied, bricht der Weg an einer Stelle ab, an der die Person schon
-        Arbeit hineingesteckt hat."""
-        monkeypatch.setattr(rts, "has_auth_token", lambda: True)
+        Arbeit hineingesteckt hat. (Mit Schreibrecht: seit Paket 7, S4, heißt
+        das persönliche Anmeldung oder Gastkonto-Erlaubnis.)"""
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: True)
         namen = self._aktiv("M20")
         assert "get_url_text" in namen                       # Text holen
         assert {"search_wlo_content", "search_wlo_all"} <= namen  # Dublette
         assert "lookup_wlo_vocabulary" in namen              # Metadaten belegen
         assert {"wlo_create_content", "wlo_add_to_collection"} <= namen
 
+    def test_der_dienstblock_allein_schreibt_nicht_mehr(self, monkeypatch):
+        """Paket 7 (S4, P5-9, B-H3): bis dahin genügte ``MCP_AUTH_TOKEN``, und
+        der Muster-Modus nahm ohne Anmeldung in Sammlungen auf."""
+        from boerdi.settings import get_settings
+        # Der echte Fall: der Block der Anlage gesetzt, keine Person im Zug.
+        monkeypatch.setenv("MCP_AUTH_TOKEN", "dienstkonto-block-zum-test")
+        get_settings.cache_clear()
+        try:
+            namen = self._aktiv("M20")
+        finally:
+            get_settings.cache_clear()
+        assert not ({"wlo_create_content", "wlo_add_to_collection"} & namen)
+        assert "get_url_text" in namen  # lesend bleibt der Weg brauchbar
+
     def test_erschliessung_bleibt_ohne_block_lesend_brauchbar(self, monkeypatch):
         """Lesen, Prüfen und Vorschlagen brauchen kein Konto — nur das Ablegen.
         Das Muster muss anonym so weit kommen, dass es das SAGEN kann."""
-        monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
         namen = self._aktiv("M20")
         assert {"get_url_text", "search_wlo_content", "lookup_wlo_vocabulary"} <= namen
         assert "wlo_create_content" not in namen
 
     def test_ki_erzeugung_kann_gegenpruefen(self, monkeypatch):
         """Nutzer-Vorgabe: Wikipedia als Gegenprobe bei KI-Erzeugung."""
-        monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
         assert "get_wikipedia_summary" in self._aktiv("M10")
 
     def test_kuration_kennt_den_eigenen_anmeldestatus(self, monkeypatch):
         """Vor dem Ankündigen einer Änderung ist die Auskunft besser als die
         Vermutung — und erklärt bei authenticated=false, warum alles scheitert."""
-        monkeypatch.setattr(rts, "has_auth_token", lambda: True)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: True)
         assert "wlo_auth_status" in self._aktiv("M18")
 
 
@@ -340,18 +355,18 @@ class TestMedientypStrip(TestVierFaehigkeitenErreichbar):
     MIT_TYP = {"entities": {"medientyp": "Arbeitsblatt"}}
 
     def test_kuration_behaelt_die_sammlungssuche(self, monkeypatch):
-        monkeypatch.setattr(rts, "has_auth_token", lambda: True)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: True)
         assert "search_wlo_collections" in self._aktiv("M18", self.MIT_TYP)
 
     def test_erschliessung_behaelt_die_kombinierte_suche(self, monkeypatch):
         """M20 braucht sie für die Dublettenprüfung vor dem Anlegen."""
-        monkeypatch.setattr(rts, "has_auth_token", lambda: True)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: True)
         assert "search_wlo_all" in self._aktiv("M20", self.MIT_TYP)
 
     def test_suchmuster_verlieren_sie_weiterhin(self, monkeypatch):
         """Die Gegenprobe. Ohne sie wäre der Fix eine pauschale Abschaltung —
         und das Nutzer-Feedback, das den Strip veranlasst hat, wieder offen."""
-        monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
         namen = self._aktiv("M06", self.MIT_TYP)
         assert not ({"search_wlo_collections", "search_wlo_topic_pages",
                      "search_wlo_all"} & namen)
@@ -373,7 +388,7 @@ class TestKiErzeugungSuchtNicht(TestVierFaehigkeitenErreichbar):
     """
 
     def test_keine_suchwerkzeuge(self, monkeypatch):
-        monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
         suchend = {n for n in self._aktiv("M10") if n.startswith("search_wlo")}
         assert suchend == set(), (
             f"M10 verbietet Such-Tool-Calls, bekommt aber {sorted(suchend)}."
@@ -382,11 +397,48 @@ class TestKiErzeugungSuchtNicht(TestVierFaehigkeitenErreichbar):
     def test_die_gegenprobe_bleibt(self, monkeypatch):
         """Was M10 sehr wohl braucht: die unabhängige Quelle und die
         Redaktions-Anleitungen."""
-        monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
         namen = self._aktiv("M10")
         assert {"get_wikipedia_summary", "get_url_text"} <= namen
         assert {"get_skill", "get_skill_registry"} <= namen
         assert "search_skill" not in namen
+
+    def test_auch_mit_medientyp_keine_suche(self, monkeypatch):
+        """Der Normalfall von M10 nennt einen Typ („Erstelle ein Arbeitsblatt“),
+        und der Klassifikator legt ihn als ``medientyp`` ab. Der Medientyp-Zweig
+        schob dann ``search_wlo_content`` nach (gefunden 2026-10-09, Paket 7) —
+        bei einem Erzeugungs-Muster ist der Typ aber das Format des Ergebnisses,
+        kein Suchfilter."""
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
+        namen = self._aktiv("M10", {"entities": {"medientyp": "Arbeitsblatt"}})
+        assert {n for n in namen if n.startswith("search_wlo")} == set()
+
+    def test_inhaltsabrufe_fuer_den_remix(self, monkeypatch):
+        """Paket 7 (K5, Nutzer-Entscheid 2026-10-09): M10 verlangt im eigenen
+        Text ``get_node_details`` für die Remix-Quelle, bekam es aber nie.
+        Abrufen ist nicht suchen — der Knoten ist schon bekannt."""
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
+        namen = self._aktiv("M10")
+        assert {"get_node_details", "get_nodes_details", "get_wlo_content_text",
+                "get_compendium_text"} <= namen
+
+    def test_die_wissensbasis_ist_erlaubt_und_gezielt(self, monkeypatch):
+        """Der Bericht-Zweig verlangt ``query_knowledge(area="Plattformwissen")``;
+        bis Paket 7 sperrte ``sources: [llm]`` die Wissensbasis ganz."""
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
+        fm = next(f for f in _seed_frontmatter() if f.get("id") == "M10")
+        assert {"mcp", "rag", "llm"} <= set(fm["sources"])
+        assert "Plattformwissen" in fm["rag_areas"]
+        po = phase3_modulate(
+            PatternDef(**{k: v for k, v in fm.items() if k in PatternDef.model_fields}),
+            signals=[], device="desktop", entities={}, persona_id="P-AND",
+        )
+        aktiv, _decl, rag_erlaubt, _qr = rts._select_active_tools(
+            {}, po, ["Plattformwissen"], {"Plattformwissen": {"description": "x"}},
+            False, False, pattern_label="M10",
+        )
+        assert rag_erlaubt is True
+        assert "query_knowledge" in {t["function"]["name"] for t in aktiv}
 
 
 class TestSkillProzess:

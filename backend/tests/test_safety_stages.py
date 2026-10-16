@@ -71,14 +71,107 @@ def test_target_b_api_openai_no_keys_is_none(monkeypatch):
     assert mod._moderation_target() is None
 
 
-def test_target_academiccloud_uses_native_openai(monkeypatch):
+def test_target_academiccloud_ist_aus_auch_mit_openai_schluessel(monkeypatch):
+    # Paket 7 (L5, Nutzer 2026-10-09): Die AcademicCloud hat keine Moderation
+    # (B-API ``/academiccloud/moderations`` → 404, gemessen 2026-10-09). Bis dahin
+    # gingen die Nachrichten dann an OpenAI — wer AcademicCloud wählt, will das
+    # nicht. Es bleibt der Regex-Boden.
     monkeypatch.setattr(mod, "get_provider", lambda: "b-api-academiccloud")
     monkeypatch.setattr(mod, "get_settings",
                         lambda: _settings(openai="sk-x", openai_base="https://proxy/v1/"))
-    base, key, headers = mod._moderation_target()
-    assert base == "https://proxy/v1"  # explizite openai_base_url gewinnt (Trailing-Slash gestript)
-    assert key == "sk-x"
-    assert headers is None
+    assert mod._moderation_target() is None
+
+
+def _ok_moderation(**_kwargs):
+    return _fake_moderation_response(flagged=False, categories={"hate": False},
+                                     scores={"hate": 0.01})
+
+
+def test_die_moderation_wartet_nicht_hinter_antwort_stroemen(monkeypatch):
+    """Review Paket 7 (MAJOR 8): die Moderation wartete innerhalb ihrer Frist auf einen
+    Platz am Anbieter-Deckel. Ein Antwort-Strom hält seinen Platz bis zum Ende — bei
+    20 gleichzeitigen Antworten lief die Frist ab, und jede Nachricht ging ungeprüft
+    durch. Sie hat jetzt eigene Plätze."""
+    from boerdi.services import llm, llm_parallel
+
+    monkeypatch.setattr(llm_parallel, "_anbieter_deckel", lambda: 1)
+    monkeypatch.setattr(mod, "_moderation_target", lambda: ("https://b/openai", "k", None))
+    monkeypatch.setattr(mod, "_MOD_TIMEOUT_SECONDS", 0.2)
+
+    async def _fake(**kwargs):
+        return _ok_moderation(**kwargs)
+
+    monkeypatch.setattr(mod, "_amoderation", _fake)
+
+    async def _lauf():
+        llm_parallel.reset()
+        async with llm.semaphore():               # der eine Platz: ein laufender Strom
+            return await mod.moderate("Hallo")
+
+    assert asyncio.run(_lauf())["scores"] == {"hate": 0.01}
+
+
+def test_die_moderation_hat_eine_eigene_grenze(monkeypatch):
+    from boerdi.services import llm_parallel
+
+    monkeypatch.setattr(llm_parallel, "MODERATION_PARALLEL", 2)
+    monkeypatch.setattr(mod, "_moderation_target", lambda: ("https://b/openai", "k", None))
+    gleichzeitig = [0, 0]
+
+    async def _fake(**kwargs):
+        gleichzeitig[0] += 1
+        gleichzeitig[1] = max(gleichzeitig)
+        await asyncio.sleep(0.02)
+        gleichzeitig[0] -= 1
+        return _ok_moderation(**kwargs)
+
+    monkeypatch.setattr(mod, "_amoderation", _fake)
+
+    async def _lauf():
+        llm_parallel.reset()
+        return await asyncio.gather(*(mod.moderate(f"n{i}") for i in range(6)))
+
+    assert all(asyncio.run(_lauf()))
+    assert gleichzeitig[1] == 2
+
+
+def test_das_warten_auf_einen_platz_zaehlt_zur_frist(monkeypatch):
+    """Review Paket 9 (MAJOR 4): die Frist galt nur dem Aufruf. Hing der Anbieter,
+    warteten weitere Züge ohne Grenze auf einen der Plätze — samt Sitzungssperre."""
+    from boerdi.services import llm_parallel
+
+    monkeypatch.setattr(llm_parallel, "MODERATION_PARALLEL", 1)
+    monkeypatch.setattr(mod, "_moderation_target", lambda: ("https://b/openai", "k", None))
+    monkeypatch.setattr(mod, "_MOD_TIMEOUT_SECONDS", 0.2)
+
+    async def _fake(**kwargs):
+        return _ok_moderation(**kwargs)
+
+    monkeypatch.setattr(mod, "_amoderation", _fake)
+
+    async def _lauf():
+        llm_parallel.reset()
+        async with llm_parallel.moderations_semaphore():   # der eine Platz ist belegt
+            try:
+                return await asyncio.wait_for(mod.moderate("x"), 2.0)
+            except TimeoutError:
+                return "wartet noch"
+
+    assert asyncio.run(_lauf()) == {}
+
+
+def test_ein_uebersprungener_lauf_nennt_den_grund(monkeypatch, caplog):
+    """Im Log stand nur „moderation failed: “ — ``str(TimeoutError())`` ist leer."""
+    monkeypatch.setattr(mod, "_moderation_target", lambda: ("https://b/openai", "k", None))
+    monkeypatch.setattr(mod, "_MOD_TIMEOUT_SECONDS", 0.05)
+
+    async def _schweigt(**kwargs):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(mod, "_amoderation", _schweigt)
+    with caplog.at_level("WARNING", logger=mod.__name__):
+        assert asyncio.run(mod.moderate("x")) == {}
+    assert "moderation skipped" in caplog.text and "TimeoutError" in caplog.text
 
 
 def test_target_academiccloud_without_openai_key_is_none(monkeypatch):

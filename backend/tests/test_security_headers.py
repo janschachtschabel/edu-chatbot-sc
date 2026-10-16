@@ -187,3 +187,14 @@ def test_leerzeichen_nach_dem_komma_toeten_den_eintrag_nicht_mehr(monkeypatch):
     for o in ("https://a.example", "https://b.example"):
         r = client.get("/health", headers={"Origin": o})
         assert r.headers.get("access-control-allow-origin") == o, o
+
+
+def test_retry_after_ist_fuer_fremde_seiten_lesbar(monkeypatch):
+    # Paket 9 (Review Paket 7, MINOR 26): das Widget läuft auf fremden Seiten und
+    # liest nach einem 429 ``Retry-After`` — ohne Freigabe sieht es den Kopf nicht
+    # und wartet starr 15 s.
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    client = TestClient(create_app())
+    r = client.get("/health", headers={"Origin": "https://embedder.example"})
+    freigegeben = r.headers.get("access-control-expose-headers", "").lower()
+    assert "retry-after" in freigegeben

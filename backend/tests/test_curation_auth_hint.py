@@ -28,6 +28,12 @@ denselben Verlust gibt:
 Der Verweis auf ``/auth`` gehört damit doch in die Antwort — aber als
 zweistufige Rückfrage („anmelden" / „nur lesen") und nicht als nackte Adresse.
 Das ist C5-c, nicht diese Datei.
+
+**Seit Paket 7 (S4, P5-9) heißt die Bedingung „darf nicht schreiben“**
+(``services/schreibrecht``): ohne persönliche Anmeldung genügt der Block der
+Anlage nur mit der Studio-Erlaubnis für das Gastkonto. Ohne Anmeldung hier zu
+landen ist damit der Normalfall — das Protokoll steht auf INFO und nennt beide
+Stellschrauben.
 """
 
 from __future__ import annotations
@@ -44,7 +50,7 @@ from boerdi.services.response_tool_selection import curation_blocked_by_mode
 class TestBedingung:
     @pytest.fixture(autouse=True)
     def _ohne_block(self, monkeypatch):
-        monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
 
     def test_muster_will_kuratieren_ohne_block(self):
         assert curation_blocked_by_mode({"tools": ["wlo_create_collection"]})
@@ -61,8 +67,8 @@ class TestBedingung:
         assert not curation_blocked_by_mode({})
         assert not curation_blocked_by_mode({"sources": ["mcp"]})
 
-    def test_mit_block_kein_hinweis(self, monkeypatch):
-        monkeypatch.setattr(rts, "has_auth_token", lambda: True)
+    def test_mit_schreibrecht_kein_hinweis(self, monkeypatch):
+        monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: True)
         assert not curation_blocked_by_mode({"tools": ["wlo_create_collection"]})
 
 
@@ -101,8 +107,8 @@ class TestHinweisAnDasModell:
 
 def test_verlust_wird_protokolliert(monkeypatch, caplog):
     """Der stille Verlust bekommt eine Stimme — für den, der ihn beheben kann."""
-    monkeypatch.setattr(rts, "has_auth_token", lambda: False)
-    with caplog.at_level("WARNING"):
+    monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
+    with caplog.at_level("INFO"):
         aktiv, *_ = rts._select_active_tools(
             classification={}, pattern_output={"tools": [
                 "wlo_create_collection", "search_wlo_content"]},
@@ -113,7 +119,10 @@ def test_verlust_wird_protokolliert(monkeypatch, caplog):
     assert "wlo_create_collection" not in namen, "Werkzeug darf nicht durchrutschen"
     assert "search_wlo_content" in namen, "Der Rest des Musters bleibt unberührt"
     assert "MCP_AUTH_TOKEN" in caplog.text, "Der Betreiber braucht den Namen der Stellschraube"
+    assert "Gastkonto" in caplog.text, "…und seit Paket 7 den Studio-Schalter"
     assert "wlo_create_collection" in caplog.text, "…und welches Werkzeug fehlte"
+    # Kein WARNING mehr: ohne Anmeldung ist das der Normalfall (Paket 7, S4).
+    assert not [r for r in caplog.records if r.levelname == "WARNING"]
 
 
 def test_protokoll_benennt_das_muster(monkeypatch, caplog):
@@ -123,13 +132,13 @@ def test_protokoll_benennt_das_muster(monkeypatch, caplog):
     informativ aus und sagte dem Betreiber nicht, wo er nachsehen soll."""
     from boerdi.domain.pattern_engine import PatternDef, phase3_modulate
 
-    monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+    monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
     betrieblich = phase3_modulate(
         PatternDef(id="M13", label="Inhalt-Einreichen", priority=540,
                    tools=["wlo_create_collection"]),
         signals=[], device="desktop", entities={}, persona_id="P-AND",
     )
-    with caplog.at_level("WARNING"):
+    with caplog.at_level("INFO"):
         rts._select_active_tools(
             classification={}, pattern_output=betrieblich,
             available_rag_areas=None, rag_config=None,
@@ -140,9 +149,9 @@ def test_protokoll_benennt_das_muster(monkeypatch, caplog):
     assert "Muster ?" not in caplog.text
 
 
-def test_mit_block_kein_protokolleintrag(monkeypatch, caplog):
-    monkeypatch.setattr(rts, "has_auth_token", lambda: True)
-    with caplog.at_level("WARNING"):
+def test_mit_schreibrecht_kein_protokolleintrag(monkeypatch, caplog):
+    monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: True)
+    with caplog.at_level("INFO"):
         rts._select_active_tools(
             classification={}, pattern_output={"tools": ["wlo_create_collection"]},
             available_rag_areas=None, rag_config=None,

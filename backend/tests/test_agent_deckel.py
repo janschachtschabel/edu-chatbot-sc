@@ -111,10 +111,10 @@ def _im_zug(block, fn):
     """Im eigenen Kontext wie ein Zug: der Block bleibt nicht am Test haengen."""
     import contextvars
 
-    from boerdi.services.mcp import auth
+    from tests.helfer_anmeldung import als_person
 
     def lauf():
-        auth.set_turn_auth_block(block)
+        als_person(block)   # bestätigt, wenn er eine Person meinen kann (Paket 10)
         return fn()
 
     return contextvars.copy_context().run(lauf)

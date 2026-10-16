@@ -39,7 +39,7 @@ def _clean(monkeypatch):
 # ── build_chat_kwargs: GPT-5 gating ────────────────────────────────────────
 def test_gpt5_default_sends_verbosity_and_effort_no_tools() -> None:
     kw = llm.build_chat_kwargs(messages=[{"role": "user", "content": "hi"}])
-    assert kw["model"] == "gpt-5.6-luna"
+    assert kw["model"] == "gpt-6-luna"  # Paket 8: die Vorgabe
     assert kw["verbosity"] == "low"  # W12: Vorgabe auf Geschwindigkeit
     assert kw["reasoning_effort"] == "low"
     assert "max_tokens" not in kw and "temperature" not in kw
@@ -60,7 +60,7 @@ def test_gpt54_group_still_drops_reasoning_effort_on_tool_calls(monkeypatch) -> 
     assert kw["tools"] and kw["tool_choice"] == "required"
 
 
-def test_luna_group_MUST_send_reasoning_effort_on_tool_calls() -> None:
+def test_luna_group_MUST_send_reasoning_effort_on_tool_calls(monkeypatch) -> None:
     """W12b — gemessen gegen die echte API, nicht abgeleitet.
 
     ``gpt-5.6-luna`` weist eine Anfrage mit Werkzeugen ab, wenn ``reasoning_effort``
@@ -69,7 +69,12 @@ def test_luna_group_MUST_send_reasoning_effort_on_tool_calls() -> None:
     gemeint ist das Gegenteil — ohne Angabe gilt das Vorgabe-Reasoning des
     Anbieters, und DAS vertraegt sich nicht mit Function Tools. Mit einem
     ausdruecklichen Wert (``low`` wie ``none``) kommt sauber ein tool_call zurueck.
+
+    Seit Paket 8 ist gpt-6-luna die Vorgabe; das Modell steht hier deshalb
+    ausdrücklich, damit der Test weiter die 5.6-Gruppe prüft.
     """
+    monkeypatch.setenv("LLM_CHAT_MODEL", "gpt-5.6-luna")
+    get_settings.cache_clear()
     kw = llm.build_chat_kwargs(
         messages=[{"role": "user", "content": "x"}], tools=_TOOLS, tool_choice="required",
     )
@@ -101,7 +106,8 @@ def test_gpt5_temperature_only_when_effort_none_and_gpt54(monkeypatch) -> None:
 
 
 def test_the_new_default_model_gets_no_temperature(monkeypatch) -> None:
-    """W12: gpt-5.6-luna faellt NICHT unter die 5.4-Ausnahme — und das ist richtig.
+    """W12: das Standardmodell (seit Paket 8 gpt-6-luna, vorher gpt-5.6-luna) faellt
+    NICHT unter die 5.4-Ausnahme — und das ist richtig.
 
     Ob das Modell `temperature` neben abgeschaltetem Reasoning annimmt, steht in
     der Modellkarte nicht. Die schmale Erlaubnis bleibt deshalb bei der Familie,
@@ -111,7 +117,7 @@ def test_the_new_default_model_gets_no_temperature(monkeypatch) -> None:
     monkeypatch.setenv("LLM_REASONING_EFFORT", "none")
     get_settings.cache_clear()
     kw = llm.build_chat_kwargs(messages=[{"role": "user", "content": "x"}], temperature=0.5)
-    assert kw["model"] == "gpt-5.6-luna"
+    assert kw["model"] == "gpt-6-luna"
     assert "temperature" not in kw
 
 
@@ -136,11 +142,11 @@ def test_gpt5_temperature_dropped_when_effort_not_none() -> None:
 
 
 def test_classic_branch_passes_temperature_and_max_tokens(monkeypatch) -> None:
-    monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")  # mistral, non-gpt5
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")  # qwen, non-gpt5
     get_settings.cache_clear()
     kw = llm.build_chat_kwargs(
         messages=[{"role": "user", "content": "x"}], temperature=0.3, max_tokens=512)
-    assert kw["model"] == "mistral-large-3-675b-instruct-2512"
+    assert kw["model"] == "qwen3-30b-a3b-instruct-2507"
     assert kw["temperature"] == 0.3 and kw["max_tokens"] == 512
     assert "verbosity" not in kw and "reasoning_effort" not in kw
 
@@ -220,13 +226,17 @@ def test_wire_transport_setzt_den_tarif_nur_bei_openai(monkeypatch) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     get_settings.cache_clear()
     kw = {}
-    llm.wire_transport("m", kw)
+    llm.wire_transport("gpt-6-luna", kw)
     assert kw["service_tier"] == "fast"
+    # Paket 7, L1: nur die gpt-5-/gpt-6-Familie — Judge-Modelle nicht.
+    kw = {}
+    llm.wire_transport("gpt-4o-mini", kw)
+    assert "service_tier" not in kw
     for provider in ("b-api-openai", "b-api-academiccloud"):
         monkeypatch.setenv("LLM_PROVIDER", provider)
         get_settings.cache_clear()
         kw = {}
-        llm.wire_transport("m", kw)
+        llm.wire_transport("gpt-6-luna", kw)
         assert "service_tier" not in kw, provider
 
 
@@ -235,6 +245,27 @@ def test_wire_transport_ohne_tarif_sendet_keinen(monkeypatch) -> None:
     get_settings.cache_clear()
     kw = {}
     llm.wire_transport("m", kw)
+    assert "service_tier" not in kw
+
+
+def test_der_studio_schalter_fast_modus_setzt_den_tarif(monkeypatch) -> None:
+    """Paket 7 (S1): ohne ``LLM_SERVICE_TIER`` entscheidet das Studio
+    (``01-base/engine`` → ``betrieb.fast_modus``) — weiter nur OpenAI direkt."""
+    from boerdi.domain.config_models.engine import EngineArea
+    from boerdi.services import betriebsschalter
+
+    monkeypatch.delenv("LLM_SERVICE_TIER", raising=False)
+    monkeypatch.setattr(betriebsschalter, "load_engine",
+                        lambda: EngineArea.model_validate({"betrieb": {"fast_modus": True}}))
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    get_settings.cache_clear()
+    kw = {}
+    llm.wire_transport("gpt-6-luna", kw)
+    assert kw["service_tier"] == "fast"
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
+    get_settings.cache_clear()
+    kw = {}
+    llm.wire_transport("gpt-6-luna", kw)
     assert "service_tier" not in kw
 
 
@@ -250,8 +281,11 @@ def test_ein_unbekannter_tarif_faellt_auf_den_standard_zurueck(monkeypatch) -> N
 def test_route_openai_native(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-native")
     get_settings.cache_clear()
-    model, api_base, api_key, headers = llm.route("gpt-5.6-luna")
-    assert model == "openai/gpt-5.6-luna"  # LiteLLM OpenAI-compatible prefix
+    model, api_base, api_key, headers = llm.route("gpt-4.1-mini")
+    assert model == "openai/gpt-4.1-mini"  # LiteLLM OpenAI-compatible prefix
+    # Paket 7, L2: gpt-5.6 geht bei OpenAI direkt wie gpt-6 ausdrücklich über
+    # Responses — nur dort kommen Denktiefe und Ausführlichkeit verlässlich an.
+    assert llm.route("gpt-5.6-luna")[0] == "openai/responses/gpt-5.6-luna"
     assert api_base == "https://api.openai.com/v1"
     assert api_key == "sk-native"
     assert headers is None
@@ -270,15 +304,25 @@ def test_route_openai_nativ_fuehrt_gpt6_ueber_den_responses_weg(monkeypatch) -> 
     assert headers is None
 
 
-@pytest.mark.parametrize("provider", ["b-api-openai", "b-api-academiccloud"])
-def test_route_b_api_bleibt_auf_chat_completions(monkeypatch, provider) -> None:
-    """Den Responses-Weg bekommt allein OpenAI direkt. Für die b-api ist nur
-    ``/chat/completions`` belegt, und die AcademicCloud braucht genau diesen
-    (Nutzer-Vorgabe 2026-09-26)."""
-    monkeypatch.setenv("LLM_PROVIDER", provider)
+def test_route_b_api_openai_fuehrt_gpt6_ueber_den_responses_weg(monkeypatch) -> None:
+    """Paket 9 (Review, CRITICAL): Hinter der b-api steht dasselbe OpenAI. Auf
+    ``/openai/chat/completions`` weist gpt-6-luna Werkzeuge ab („use /v1/responses
+    or set reasoning_effort to 'none'“, Probe 2026-10-09), ``/openai/responses``
+    antwortet 200 (Paket 7, §1). Ohne den Responses-Weg scheiterte mit der
+    Vorgabe aus Paket 8 jeder Werkzeugaufruf."""
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
     get_settings.cache_clear()
-    model, *_ = llm.route("gpt-6-luna")
-    assert model == "openai/gpt-6-luna"
+    assert llm.route("gpt-6-luna")[0] == "openai/responses/gpt-6-luna"
+    assert llm.route("gpt-5.6-luna")[0] == "openai/responses/gpt-5.6-luna"
+    assert llm.route("gpt-4.1-mini")[0] == "openai/gpt-4.1-mini"
+
+
+def test_route_academiccloud_bleibt_auf_chat_completions(monkeypatch) -> None:
+    """Die AcademicCloud bleibt auf ``/chat/completions`` (Nutzer-Vorgabe
+    2026-09-26); dort gelten ohnehin die klassischen Regeln (``param_rules``)."""
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")
+    get_settings.cache_clear()
+    assert llm.route("gpt-6-luna")[0] == "openai/gpt-6-luna"
 
 
 def test_route_b_api_openai_dual_auth(monkeypatch) -> None:
@@ -286,7 +330,7 @@ def test_route_b_api_openai_dual_auth(monkeypatch) -> None:
     monkeypatch.setenv("B_API_KEY", "bkey")
     get_settings.cache_clear()
     model, api_base, api_key, headers = llm.route("gpt-5.6-luna")
-    assert model == "openai/gpt-5.6-luna"
+    assert model == "openai/responses/gpt-5.6-luna"
     assert api_base == "https://b-api.staging.openeduhub.net/api/v1/llm/openai"
     assert api_key == "bkey"  # Bearer
     assert headers == {"X-API-KEY": "bkey"}  # and X-API-KEY
@@ -296,8 +340,22 @@ def test_route_academiccloud_suffix(monkeypatch) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")
     monkeypatch.setenv("B_API_KEY", "bkey")
     get_settings.cache_clear()
-    _model, api_base, _key, _headers = llm.route("mistral-large-3-675b-instruct-2512")
+    _model, api_base, _key, _headers = llm.route("qwen3-30b-a3b-instruct-2507")
     assert api_base.endswith("/academiccloud")
+
+
+def test_auf_der_academiccloud_bettet_der_openai_pfad_ein(monkeypatch) -> None:
+    """Paket 8 (M1): die AcademicCloud führt kein Einbettungsmodell (Probe
+    2026-10-09), und die Wissensbasis liegt im Raum von text-embedding-3-small.
+    Ein Einbettungsmodell von OpenAI geht deshalb auf den OpenAI-Pfad der b-api —
+    derselbe Schlüssel, gemessen 200 mit 1 536 Dimensionen."""
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")
+    monkeypatch.setenv("B_API_KEY", "bkey")
+    get_settings.cache_clear()
+    model, api_base, api_key, headers = llm.route("text-embedding-3-small")
+    assert model == "openai/text-embedding-3-small"
+    assert api_base == "https://b-api.staging.openeduhub.net/api/v1/llm/openai"
+    assert (api_key, headers) == ("bkey", {"X-API-KEY": "bkey"})
 
 
 def test_route_b_api_without_key_uses_unused_placeholder(monkeypatch) -> None:
@@ -335,13 +393,14 @@ def test_chat_completion_wires_routing_timeout_retries(monkeypatch) -> None:
     resp = asyncio.run(llm.chat_completion(messages=[{"role": "user", "content": "hi"}]))
     assert resp.choices[0].message.content == "ok"
     sent = fake.calls[0]
-    assert sent["model"] == "openai/gpt-5.6-luna"
+    assert sent["model"] == "openai/responses/gpt-6-luna"
     assert sent["api_base"] == "https://api.openai.com/v1"
     assert sent["api_key"] == "sk-x"
     # Paket 4 B3: eine Wiederholungsschicht (SDK-Vorgabe), kein ``num_retries``.
     assert "num_retries" not in sent
     assert sent["timeout"] == 75.0
-    assert sent["verbosity"] == "low"  # gating flowed through
+    # gating flowed through — seit Paket 7 (L2) als ``text.verbosity``
+    assert sent["extra_body"]["text"] == {"verbosity": "low"}
 
 
 def test_chat_completion_folds_usage_into_accumulator(monkeypatch) -> None:
@@ -516,8 +575,9 @@ def test_embedding_b_api_routes_and_sends_extra_headers(monkeypatch) -> None:
     asyncio.run(llm.embedding("x"))
     sent = fake.calls[0]
     assert sent["extra_headers"] == {"X-API-KEY": "bkey"}
-    assert sent["model"] == "openai/e5-mistral-7b-instruct"  # academiccloud embed default
-    assert sent["api_base"].endswith("/academiccloud")
+    # Paket 8 (L8): die AcademicCloud führt kein Einbettungsmodell.
+    assert sent["model"] == "openai/text-embedding-3-small"
+    assert sent["api_base"].endswith("/openai")
 
 
 def test_embedding_propagates_errors(monkeypatch) -> None:

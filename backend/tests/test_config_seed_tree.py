@@ -624,14 +624,13 @@ def test_m09_holt_die_anleitung_im_pflicht_ablauf_und_nicht_erst_danach():
         "Anleitung zuruecktritt — dann gewinnt sie auch mit geladener Anleitung.")
 
 
-def test_der_ausgelieferte_modus_ist_der_musterweg() -> None:
-    """Eine frische Installation antwortet über die Muster-Engine.
+def test_der_ausgelieferte_modus_ist_die_agent_schleife() -> None:
+    """Eine frische Installation antwortet über die Agent-Schleife.
 
-    Nutzer-Vorgabe 2026-08-17: „im Werksmodus sollte pattern-Modus sein." Das
-    ist kein Geschmack, sondern die Zusage, dass ein Deployment den Antwortweg
-    nicht wechselt, ohne dass jemand es entscheidet — `agent` ist Opt-in, je
-    Anlage über das Studio oder je Anfrage über die Kopfzeile
-    `X-Boerdi-Engine`.
+    Nutzer-Entscheid 2026-10-09 (Paket 7, K6): der Seed folgt D-15 — im Betrieb
+    ist der Agent die Vorgabe. Bis dahin galt die Vorgabe vom 2026-08-17 („im
+    Werksmodus sollte pattern-Modus sein“). `pattern` bleibt je Anlage über das
+    Studio oder je Anfrage über die Kopfzeile `X-Boerdi-Engine` wählbar.
 
     Der Wächter steht hier, weil der Seed der einzige Ort ist, den ein
     `boerdi import-config` in eine leere Datenbank schreibt. Wer den Wert dort
@@ -645,4 +644,4 @@ def test_der_ausgelieferte_modus_ist_der_musterweg() -> None:
     auf den Modus zu schauen.
     """
     daten = yaml.safe_load((_SEEDS / "01-base" / "engine.yaml").read_text("utf-8"))
-    assert daten["mode"] == "pattern"
+    assert daten["mode"] == "agent"

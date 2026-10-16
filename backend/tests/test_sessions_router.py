@@ -240,7 +240,8 @@ def test_public_messages_accepts_valid_id_and_passes_di_session(client, monkeypa
 
 def test_public_messages_rejects_malformed_id(client, monkeypatch):
     _fake(monkeypatch, "get_messages", [])
-    for bad in ["has space", "bad!bang", "a" * 200, "semi;colon"]:
+    # ``abc%0A``: ``re.match`` mit ``$`` ließ einen Zeilenumbruch am Ende durch (Paket 9).
+    for bad in ["has space", "bad!bang", "a" * 200, "semi;colon", "abc%0A"]:
         r = client.get(f"/api/sessions/{bad}/messages")
         assert r.status_code == 400, f"expected 400 for {bad!r}, got {r.status_code}"
 

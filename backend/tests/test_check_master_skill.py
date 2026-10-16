@@ -54,6 +54,8 @@ _REGELN = {
     "test_vorgehen_md_nennt_nur_existierende_werkzeuge",
     "test_vorgehen_md_traegt_die_kernbegriff_suchregel",
     "test_vorgehen_md_traegt_die_ansage_regel",
+    "test_platzhalter_ueberstehen_den_editor",
+    "test_ein_platzhalter_fragt_nach_dem_thema_auch_auf_einer_sammlung",
 }
 
 

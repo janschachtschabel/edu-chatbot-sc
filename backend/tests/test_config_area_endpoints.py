@@ -98,10 +98,18 @@ def test_file_write_and_delete(cfg) -> None:
     # now readable
     assert "Servus" in client.get("/api/config/file",
                                   params={"path": body["path"]}, headers=_AUTH).json()["content"]
+    # Paket 6, S1: ein fester Bereich der Registry bleibt stehen (vorher löschte
+    # die Route jeden Bereich) — zurücksetzen geht über den Auslieferungsstand.
     d = client.request("DELETE", "/api/config/file",
                        params={"path": body["path"]}, headers=_AUTH)
+    assert d.status_code == 400
+    # Ein Bereich ohne Modell (etwa ein Tippfehler aus dem Rohtext) bleibt löschbar.
+    junk = {"path": "01-base/eigenbau.yaml", "content": "x: 1\n"}
+    assert client.put("/api/config/file", json=junk, headers=_AUTH).json()["status"] == "saved"
+    d = client.request("DELETE", "/api/config/file",
+                       params={"path": junk["path"]}, headers=_AUTH)
     assert d.status_code == 200 and d.json()["status"] == "deleted"
-    assert client.get("/api/config/file", params={"path": body["path"]},
+    assert client.get("/api/config/file", params={"path": junk["path"]},
                       headers=_AUTH).status_code == 404
 
 
@@ -116,10 +124,10 @@ def test_file_write_with_a_value_json_cannot_hold_is_400_naming_the_area(cfg) ->
     """Paket 4c, A2: an unquoted YAML date in an area without a model reached
     ``json.dumps`` and ended as a 500 that named no area."""
     client, _ = cfg
-    body = {"path": "01-base/rag-retrieval.yaml", "content": "stand: 2026-10-08\n"}
+    body = {"path": "01-base/ohne-modell.yaml", "content": "stand: 2026-10-08\n"}
     r = client.put("/api/config/file", json=body, headers=_AUTH)
     assert r.status_code == 400, r.text
-    assert "01-base/rag-retrieval" in r.json()["detail"]
+    assert "01-base/ohne-modell" in r.json()["detail"]
     assert "Datum" in r.json()["detail"]
     assert client.get("/api/config/file", params={"path": body["path"]},
                       headers=_AUTH).status_code == 404
@@ -430,6 +438,20 @@ def test_patterns_put_haelt_keine_und_leere_wissensbereiche_auseinander(cfg) -> 
     got = {p["id"]: p for p in client.get("/api/config/patterns", headers=_AUTH).json()["patterns"]}
     assert got["M05"]["rag_areas"] == []
     assert got["M06"].get("rag_areas") is None
+
+
+def test_patterns_put_haelt_keine_quelle_und_nicht_gesetzt_auseinander(cfg) -> None:
+    """Paket 6, B5 (Review 4c): ``sources: []`` heißt „keine Quelle“, das Fehlen
+    „Vorgabe“ (``["mcp"]`` in der Engine). Die Route schrieb ``sources`` nur, wenn
+    die Liste nicht leer war — ein GET→PUT machte aus „keine“ also „mcp“."""
+    client, _ = cfg
+    r = client.put("/api/config/patterns", headers=_AUTH, json={"patterns": [
+        {"id": "M05", "label": "Ohne", "sources": []},
+        {"id": "M06", "label": "Vorgabe"}]})
+    assert r.status_code == 200
+    got = {p["id"]: p for p in client.get("/api/config/patterns", headers=_AUTH).json()["patterns"]}
+    assert got["M05"]["sources"] == []
+    assert got["M06"].get("sources") is None
 
 
 # ── tone-modifiers (persona frontmatter + default) ─────────────────

@@ -76,11 +76,15 @@ def test_chat_response_field_parity_spec_5_1() -> None:
     # ein an der Frist abgeschnittener Lauf sähe sonst aus wie einer, der fertig
     # geworden ist. Ohne Schema bleiben beide leer; jede Bestands-Antwort sieht
     # aus wie zuvor.
+    #
+    # ``auth_invalid`` (Paket 10, Kurzaudit A-3): der MCP-Server hat den
+    # Zugangsblock des Zuges abgewiesen; das Widget räumt ihn und bietet die
+    # Anmeldung neu an. Vorgabe ``False``.
     assert set(ChatResponse.model_fields) == {
         "session_id", "content", "cards", "follow_up", "quick_replies", "debug",
         "page_action", "pagination", "query_metas", "web_links",
         "inline_documents", "topic_page", "display_rules", "tour",
-        "prepared_write", "result", "result_stop_reason",
+        "prepared_write", "result", "result_stop_reason", "auth_invalid",
     }
 
 
@@ -224,3 +228,58 @@ def test_collection_contents_legacy_max_items() -> None:
 def test_lookup_vocabulary_legacy_field() -> None:
     assert LookupVocabularyArgs(field="discipline").vocabulary == "discipline"
     assert LookupVocabularyArgs(vocabulary="lrt").vocabulary == "lrt"
+
+
+# ── Paket 9 (Review Paket 7, CRITICAL 2 / MINOR 14 / V3): Eingang begrenzen ──
+@pytest.mark.parametrize("sid", [
+    "bb-0f8fad5b-d9cb-469f-a165-70867728950e", "eval-1a2b3c4d5e6f",
+    "loadtest-1a2b3c4d-s0-12", "studio-0f8fad5b-d9cb-469f-a165-70867728950e",
+    "a" * 128, "s_1",
+])
+def test_echte_sitzungskennungen_gehen_durch(sid) -> None:
+    assert ChatRequest(session_id=sid, message="hallo").session_id == sid
+
+
+@pytest.mark.parametrize("sid", [
+    "", "a" * 129, "__lauf:aufbewahrung", "x y", "bb-ä", "../etc", "a\nb",
+])
+def test_andere_sitzungskennungen_werden_abgewiesen(sid) -> None:
+    """Dieselbe Form wie an der offenen Lesestelle (``api/sessions``). Eine
+    Kennung ist zugleich der Schlüssel der Sitzungssperre: ``__lauf:aufbewahrung``
+    blockierte sonst den Löschlauf (Lease-Raum geteilt)."""
+    with pytest.raises(ValidationError):
+        ChatRequest(session_id=sid, message="hallo")
+
+
+def test_seitenkontext_wird_am_eintritt_gedeckelt() -> None:
+    """Ein Suchbegriff mit zwei Megabyte lief ungebremst durch Entschärfung,
+    Klassifikator und beide Prompt-Wege. Gekürzt statt abgewiesen: der
+    Seitenkontext ist Zusatzwissen, kein Auftrag — der Zug soll laufen."""
+    from boerdi.services.page_context import TEXT_PROMPT_BUDGET
+
+    env = Environment(page_context={
+        "search_query": "q" * 100_000,
+        "page_url": "https://x.de/" + "p" * 5000,
+        "page_text": "t" * 300_000,
+        "page_kind": "collection",
+        "widget": True,
+        "zahl": 3,
+        "search_filters": {"publisher": ["v" * 1000] * 100},
+        "tief": {"a": {"b": {"c": {"d": "zu tief"}}}},
+    })
+    pc = env.page_context
+    assert len(pc["search_query"]) == 500
+    assert len(pc["page_url"]) == 2048
+    # Eins über dem Budget, damit ``_trim_text`` das Kürzen noch bemerkt („…“).
+    assert len(pc["page_text"]) == TEXT_PROMPT_BUDGET + 1
+    assert pc["page_kind"] == "collection" and pc["widget"] is True and pc["zahl"] == 3
+    assert len(pc["search_filters"]["publisher"]) == 50
+    assert all(len(v) == 500 for v in pc["search_filters"]["publisher"])
+    assert pc["tief"] == {"a": {"b": {}}}
+
+
+def test_ein_gewoehnlicher_seitenkontext_bleibt_wortgleich() -> None:
+    pc = {"node_id": "0f8fad5b-d9cb-469f-a165-70867728950e", "page_kind": "content",
+          "search_query": "Photosynthese", "search_filters": {"publisher": ["Serlo"]},
+          "page_text": "Titel\nText", "page_host": "wirlernenonline.de"}
+    assert Environment(page_context=pc).page_context == pc

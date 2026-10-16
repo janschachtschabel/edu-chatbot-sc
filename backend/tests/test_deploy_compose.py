@@ -25,8 +25,10 @@ _COMPOSE = _DEPLOY / "compose.prod.yml"
 
 
 def _dokumentierte_schluessel() -> list[str]:
-    """Die Namen, die ``deploy/.env.example`` einem Betreiber anbietet."""
-    return re.findall(r"^([A-Z_][A-Z0-9_]*)=", _ENV_BEISPIEL.read_text("utf-8"), re.M)
+    """Die Namen, die ``deploy/.env.example`` einem Betreiber anbietet — auch die
+    auskommentierten (``# CHAT_TOKEN_STREAMING=``): Paket 7 (L6) fand genau so
+    einen Schalter, dokumentiert und doch nie im Container."""
+    return re.findall(r"^#?\s*([A-Z_][A-Z0-9_]*)=", _ENV_BEISPIEL.read_text("utf-8"), re.M)
 
 
 def test_jeder_dokumentierte_schluessel_steht_in_compose() -> None:
@@ -160,3 +162,60 @@ def test_ohne_eintrag_laeuft_genau_eine_replik() -> None:
     assert "replicas: ${BACKEND_REPLICAS:-1}" in text
     # Die Beispiel-`.env` nennt dieselbe Vorgabe, nicht mehr „3 (= Default)“.
     assert "# BACKEND_REPLICAS=1" in _ENV_BEISPIEL.read_text("utf-8")
+
+
+def test_hsts_und_studio_csp_erreichen_den_backend_dienst() -> None:
+    """Paket 8 (P1/P2): beide Schalter stehen in der Umgebung des Backends und in
+    der Beispiel-``.env`` — leer heißt Code-Vorgabe (1 Tag HSTS, CSP durchgesetzt)."""
+    umgebung = _dienste()["backend"]["environment"]
+    beispiel = _ENV_BEISPIEL.read_text("utf-8")
+    for name in ("HSTS_MAX_AGE", "STUDIO_CSP"):
+        assert umgebung.get(name) == f"${{{name}:-}}", f"{name} erreicht den Container nicht"
+        assert re.search(rf"^#?\s*{name}=", beispiel, re.M), f"{name} fehlt in .env.example"
+
+
+def test_das_herunterfahren_passt_in_die_gnadenfrist() -> None:
+    """Review Paket 9: uvicorn wartet zuerst bis ``--timeout-graceful-shutdown`` auf
+    offene Verbindungen, erst danach wartet der Lifespan ``NACHLAUF_FRIST_S`` auf
+    nachlaufende Züge (und 5 s auf ihren Abbruch). Lag die Summe über
+    ``stop_grace_period``, kam SIGKILL mitten im Warten — ohne Warnung im Log, ohne
+    ``store.stop`` und ``engine.dispose``."""
+    from boerdi.api.sse import NACHLAUF_FRIST_S
+
+    dockerfile = (_DEPLOY.parent / "Dockerfile").read_text("utf-8")
+    uvicorn_s = int(re.search(r'"--timeout-graceful-shutdown",\s*"(\d+)"', dockerfile).group(1))
+    gnade = re.search(r"stop_grace_period:\s*(\d+)s", _COMPOSE.read_text("utf-8"))
+    abbruch_s, aufraeumen_s = 5, 5     # hängende Züge abbrechen; Takt, Store, Engine
+    assert uvicorn_s + NACHLAUF_FRIST_S + abbruch_s + aufraeumen_s <= int(gnade.group(1))
+
+
+def test_das_reranker_modell_hat_ein_beschreibbares_volume() -> None:
+    """Paket 11 (Nutzer 2026-10-15): eingeschaltet bezieht das Backend das Modell selbst —
+    dafür muss ``/models`` beschreibbar sein. Vorgabe ist ein benanntes Volume (Docker übernimmt
+    die Rechte aus dem Image); ``RERANK_MODEL_HOST_DIR`` kann weiter einen Ordner einhängen."""
+    backend = _dienste()["backend"]
+    mount = next(v for v in backend["volumes"] if str(v).endswith(":/models")
+                 or ":/models:" in str(v))
+    assert not str(mount).endswith(":ro"), mount
+    assert "reranker_models" in str(mount)
+    assert "reranker_models" in yaml.safe_load(_COMPOSE.read_text(encoding="utf-8"))["volumes"]
+    dockerfile = (_DEPLOY.parent / "Dockerfile").read_text(encoding="utf-8")
+    assert re.search(r"mkdir -p /models && chown boerdi(:boerdi)? /models", dockerfile), \
+        "ohne Verzeichnis im Image gehört ein neues Volume root — der Bezug scheitert"
+
+
+def test_die_reranker_schalter_erreichen_den_backend_dienst() -> None:
+    """Paket 11: ohne Eintrag unter ``environment:`` käme ``RAG_RERANKER_ENABLED`` aus der
+    ``.env`` nie im Container an — der Schalter wäre wirkungslos (Befund 2026-10-15)."""
+    umgebung = _dienste()["backend"]["environment"]
+    for schluessel in ("RAG_RERANKER_ENABLED", "RERANK_AUTO_DOWNLOAD",
+                       "RERANK_INTRA_OP_THREADS", "RERANK_MAX_CONCURRENCY"):
+        assert schluessel in umgebung, schluessel
+
+
+def test_migrate_zieht_die_werksfassung_nach() -> None:
+    """Paket 12: beim Hochfahren der Werksabgleich, nicht mehr nur das Fehlende — unberührte
+    Bereiche kommen so ohne Handgriff auf die neue Werksfassung, Angepasstes bleibt."""
+    befehl = " ".join(_dienste()["migrate"]["command"])
+    assert "boerdi import-config --werksabgleich" in befehl
+    assert "--only-missing" not in befehl

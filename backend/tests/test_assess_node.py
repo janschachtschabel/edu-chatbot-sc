@@ -208,3 +208,102 @@ def test_die_sicherheitspruefung_bucht_ihre_dauer(monkeypatch):
     out = asyncio.run(assess(_ctx("wie erkläre ich bruchrechnung?"), _memory_ok))
 
     assert out.usage["zeiten_ms"]["assess.safety"] >= 0
+
+
+# ── T1 (Paket 7): die Einbettung der Nachricht neben der Klassifikation ────
+def test_die_einbettung_laeuft_neben_der_klassifikation(monkeypatch):
+    """Nebenläufig, nicht danach: die Klassifikation wartet hier auf ein Zeichen,
+    das erst die Einbettung gibt. Liefe sie danach, stünde der Zug (Frist)."""
+    gestartet = asyncio.Event()
+
+    async def _einbettung(text):
+        gestartet.set()
+        return text, [0.5]
+
+    async def _safety(msg, signals, **k):
+        return SafetyDecision(risk_level="low")
+
+    async def _classify(*a, **k):
+        await asyncio.wait_for(gestartet.wait(), timeout=2)
+        return ClassificationResult(intent_id="I02")
+
+    monkeypatch.setattr(assess_mod, "assess_safety", _safety)
+    monkeypatch.setattr(assess_mod, "classify_input", _classify)
+    monkeypatch.setattr(assess_mod, "rag_einbettung_vorab", _einbettung)
+    out = asyncio.run(assess(_ctx("Was ist WLO?"), _memory_ok))
+    assert out.classification.intent_id == "I02"
+    assert out.rag_einbettung == ("Was ist WLO?", [0.5])
+
+
+def test_im_agent_modus_wird_nicht_vorab_eingebettet(monkeypatch):
+    """Die Schleife holt Wissen nur auf Zuruf, mit der Suchanfrage des Modells."""
+    aufrufe: list[str] = []
+
+    async def _einbettung(text):
+        aufrufe.append(text)
+        return text, [0.5]
+
+    async def _safety(msg, signals, **k):
+        return SafetyDecision(risk_level="low")
+
+    monkeypatch.setattr(assess_mod, "assess_safety", _safety)
+    monkeypatch.setattr(assess_mod, "rag_einbettung_vorab", _einbettung)
+    out = asyncio.run(assess(_ctx("Was ist WLO?"), _memory_ok, engine="agent"))
+    assert aufrufe == [] and out.rag_einbettung is None
+
+
+def test_eine_gescheiterte_einbettung_kostet_den_zug_nicht(monkeypatch):
+    async def _kaputt(text):
+        raise RuntimeError("Einbettung weg")
+
+    async def _safety(msg, signals, **k):
+        return SafetyDecision(risk_level="low")
+
+    async def _classify(*a, **k):
+        return ClassificationResult(intent_id="I02")
+
+    monkeypatch.setattr(assess_mod, "assess_safety", _safety)
+    monkeypatch.setattr(assess_mod, "classify_input", _classify)
+    monkeypatch.setattr(assess_mod, "rag_einbettung_vorab", _kaputt)
+    out = asyncio.run(assess(_ctx("Was ist WLO?"), _memory_ok))
+    assert out.classification.intent_id == "I02"
+    assert out.rag_einbettung is None
+
+
+def test_eine_langsame_einbettung_haelt_den_zug_nicht_auf(monkeypatch):
+    """Review Paket 7 (B-1): die Vorarbeit war gegen Fehler geschützt, nicht gegen
+    Zeit — ein langsamer Einbettungsdienst hielt JEDEN Muster-Zug auf, auch
+    Suchzüge ohne RAG. Jetzt wartet ``assess`` nach der Klassifikation nur kurz
+    nach und verwirft die Einbettung dann; der Abruf bettet selbst ein."""
+    import time
+
+    abgebrochen = asyncio.Event()
+
+    async def _langsam(text):
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            abgebrochen.set()
+            raise
+        return text, [0.5]
+
+    async def _safety(msg, signals, **k):
+        return SafetyDecision(risk_level="low")
+
+    async def _classify(*a, **k):
+        return ClassificationResult(intent_id="I02")
+
+    monkeypatch.setattr(assess_mod, "assess_safety", _safety)
+    monkeypatch.setattr(assess_mod, "classify_input", _classify)
+    monkeypatch.setattr(assess_mod, "rag_einbettung_vorab", _langsam)
+
+    async def _lauf():
+        t0 = time.perf_counter()
+        out = await assess(_ctx("Was ist WLO?"), _memory_ok)
+        return out, time.perf_counter() - t0, abgebrochen.is_set()
+
+    out, dauer, weg = asyncio.run(_lauf())
+    assert out.classification.intent_id == "I02"
+    assert out.rag_einbettung is None
+    assert dauer < 2, dauer          # Nachfrist, nicht die 5 s der Einbettung
+    assert weg                       # keine Aufgabe bleibt liegen

@@ -182,3 +182,80 @@ def test_seed_pfad_findet_den_ausgelieferten_baum():
     unter ``backend/seeds``. Beide Wege müssen den echten Seed finden."""
     gefunden = seed_pfad("seeds")
     assert gefunden is not None and (gefunden / "01-base").is_dir()
+
+
+# ── Paket 6, W2: ein Ablauf für Studio und Kommandozeile ───────────────────
+#
+# ``herstellen`` liest den Seed, prüft ihn, liest den gelebten Stand EINMAL
+# (Schnappschuss und Vergleich aus demselben Lesevorgang — vorher zwei, und ein
+# Speichern dazwischen wurde überschrieben, stand aber nicht im Schnappschuss)
+# und schreibt dann in einem Rutsch. Die Rückrufe halten das Modul frei von
+# Studio, Datenbank und Kommandozeile.
+
+
+def _herstellen(tmp_path, modus, *, live=None, pruefen=None, protokoll=None):
+    from boerdi.services.seed_sync import herstellen
+
+    (tmp_path / "01-base").mkdir(exist_ok=True)
+    (tmp_path / "01-base" / "neu.yaml").write_text("a: 1\n", encoding="utf-8")
+    (tmp_path / "01-base" / "anders.yaml").write_text("b: 2\n", encoding="utf-8")
+    protokoll = [] if protokoll is None else protokoll
+    gelebt = live if live is not None else {"01-base/anders": {"b": 1}, "01-base/alt": {"c": 3}}
+
+    async def lesen():
+        protokoll.append(("lesen",))
+        return gelebt
+
+    async def sichern(stand):
+        protokoll.append(("sichern", stand))
+        return "snap-1"
+
+    async def schreiben(bereiche, loeschen):
+        protokoll.append(("schreiben", bereiche, loeschen))
+
+    def pruefe(seed):
+        protokoll.append(("pruefen", sorted(seed)))
+        return seed
+
+    bericht = asyncio.run(herstellen(
+        tmp_path, modus, pruefen=pruefen or pruefe, lesen=lesen, sichern=sichern,
+        schreiben=schreiben))
+    return bericht, protokoll, gelebt
+
+
+def test_exact_prueft_liest_einmal_sichert_denselben_stand_und_schreibt_einmal(tmp_path):
+    bericht, protokoll, gelebt = _herstellen(tmp_path, "exact")
+    arten = [p[0] for p in protokoll]
+    assert arten == ["pruefen", "lesen", "sichern", "schreiben"]
+    assert protokoll[2][1] is gelebt  # der Schnappschuss ist der verglichene Stand
+    _, bereiche, loeschen = protokoll[3]
+    assert bereiche == {"01-base/neu": {"a": 1}, "01-base/anders": {"b": 2}}
+    assert loeschen == ["01-base/alt"]
+    assert bericht == {"written": 2, "deleted": 1, "snapshot_id": "snap-1", "behalten": []}
+
+
+def test_missing_sichert_nicht_und_loescht_nicht(tmp_path):
+    bericht, protokoll, _ = _herstellen(tmp_path, "missing")
+    assert [p[0] for p in protokoll] == ["pruefen", "lesen", "schreiben"]
+    assert protokoll[2][1:] == ({"01-base/neu": {"a": 1}}, [])
+    assert bericht == {"written": 1, "deleted": 0, "snapshot_id": None, "behalten": []}
+
+
+def test_ein_abgewiesener_seed_liest_sichert_und_schreibt_nichts(tmp_path):
+    class Abgewiesen(Exception):
+        pass
+
+    def pruefe(seed):
+        raise Abgewiesen
+
+    protokoll: list[tuple] = []
+    with pytest.raises(Abgewiesen):
+        _herstellen(tmp_path, "exact", pruefen=pruefe, protokoll=protokoll)
+    assert protokoll == []
+
+
+def test_herstellen_weist_einen_unbekannten_modus_vor_allem_anderen_ab(tmp_path):
+    protokoll: list[tuple] = []
+    with pytest.raises(ValueError):
+        _herstellen(tmp_path, "alles", protokoll=protokoll)
+    assert protokoll == []

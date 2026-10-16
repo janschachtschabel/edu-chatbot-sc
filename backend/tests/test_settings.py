@@ -23,7 +23,7 @@ SPEC_ENV_VARS = [
     # Speech
     "SPEECH_FORCE_ENABLE", "STT_MODEL", "TTS_MODEL",
     # MCP
-    "MCP_SERVER_URL", "MCP_MAX_CONNECTIONS", "REPO_BASE_URL",
+    "MCP_SERVER_URL", "REPO_BASE_URL",
     # RAG / Rerank
     "RAG_RERANKER_ENABLED", "BOERDI_MAX_INGEST_MB", "TEXT_EXTRACTION_URL",
     "RAG_TOP_K", "RAG_MIN_SCORE", "RAG_MAX_CHARS_PER_AREA",
@@ -95,7 +95,8 @@ def test_defaults_match_alt(clean_env) -> None:
     assert s.openai_model == ""
     assert s.llm_embed_model == ""
     assert s.embed_dim is None  # None => derived from embed model (P3)
-    assert s.llm_max_concurrency == 20
+    # Paket 7 (L3): ungesetzt — die Vorgabe hängt vom Anbieter ab (llm_parallel).
+    assert s.llm_max_concurrency is None
     assert s.llm_read_timeout == 75.0
     assert s.bg_llm_max_concurrency == 4
     assert s.llm_verbosity == "low"  # W12: Nutzer-Vorgabe „hohe Geschwindigkeit"
@@ -113,14 +114,14 @@ def test_defaults_match_alt(clean_env) -> None:
     # ``transport._DEFAULT_MCP_URL`` muss denselben Wert tragen; das pinnt
     # ``test_die_beiden_mcp_defaults_zeigen_auf_denselben_server``.
     assert s.mcp_server_url == "https://wlo-mcp.87.106.195.152.nip.io/mcp"
-    assert s.mcp_max_connections == 50
     # 2026-08-19: Staging ist die Vorgabe, nicht Produktion — siehe
     # ``TestVorgabeIstStaging`` in test_repo_config.py fuer den Befund.
     assert s.repo_base_url == "https://repository.staging.openeduhub.net"
     # RAG (None => yaml layer decides, ALT _RAG_DEFAULTS live in the rag service)
-    # W11 (Nutzer-Korrektur): wieder AN, wie ALT. Bezahlbar durch 10 Kandidaten
-    # und die Latenz-Verteilung 1 Worker x 3 Threads.
-    assert s.rag_reranker_enabled is True
+    # Reranker: W11 schaltete ihn an (wie ALT); seit 2026-10-15 wieder AUS (Nutzer) —
+    # das Modell bezieht sich beim Einschalten selbst (``reranker_bezug``).
+    assert s.rag_reranker_enabled is False  # Nutzer-Entscheid 2026-10-15: Vorgabe aus
+    assert s.rerank_auto_download is True
     assert s.max_ingest_mb == 25
     assert s.text_extraction_url == "https://text-extraction.staging.openeduhub.net"
     assert s.rag_top_k is None
@@ -129,22 +130,25 @@ def test_defaults_match_alt(clean_env) -> None:
     # Cards
     assert s.card_pipeline_v2 is False
     assert s.card_ce_top_n == 3
-    assert s.card_ce_gate_collection == 0.0
+    assert s.card_ce_gate_collection == -1.0  # wie card_reranker (seit 2026-08-16)
     assert s.card_ce_gate_content == -1.5
     assert s.chat_disable_select_top_cards is False
     # ALT-Treue bewusst gebrochen (Nutzer-Freigabe 2026-09-30, Plan
     # docs/plans/2026-09-30-muster-kette-zeit.md): Schnellantworten im
     # Antwort-Aufruf sind Vorgabe — gemessen 15,9 → 9,3 s je Zug.
     assert s.chat_inline_quick_replies is True
-    # Token-Streaming (Plan 2026-10-01, E-S5): Vorgabe aus bis zur Live-Probe.
-    assert s.chat_token_streaming is False
+    # Paket 7 (S2/S3): ungesetzt — dann entscheidet das Studio
+    # (``services/betriebsschalter``; Streaming Vorgabe an, Agent-QR aus).
+    assert s.chat_token_streaming is None
+    assert s.agent_inline_quick_replies is None
     # Guide (None => guide-mode.yaml wins, env replaces yaml entirely)
     assert s.guide_trusted_domains is None
     # Eval / Loadtest
     assert s.allow_loadtest is True
     assert s.eval_chat_url == "http://localhost:8000/api/chat"
-    assert s.eval_simulator_model == "gpt-4o-mini"
-    assert s.eval_judge_model == "gpt-4o-mini"
+    # Paket 7 (L4): leer — dann gilt das Chat-Modell (eval/scenario_gen).
+    assert s.eval_simulator_model == ""
+    assert s.eval_judge_model == ""
     # NEW
     assert s.database_url == "postgresql+asyncpg://boerdi:boerdi@localhost:5432/boerdi"
     assert s.rate_limit_storage_uri == "memory://"
@@ -172,7 +176,7 @@ def test_alt_env_names_bind_fields(clean_env) -> None:
 def test_empty_env_value_means_unset(clean_env) -> None:
     s = fresh(EMBED_DIM="", LLM_MAX_CONCURRENCY="", RAG_TOP_K="")
     assert s.embed_dim is None
-    assert s.llm_max_concurrency == 20
+    assert s.llm_max_concurrency is None
     assert s.rag_top_k is None
 
 
@@ -181,12 +185,10 @@ def test_numeric_floors_like_alt(clean_env) -> None:
         LLM_MAX_CONCURRENCY="1",
         LLM_READ_TIMEOUT="5",
         BG_LLM_MAX_CONCURRENCY="0",
-        MCP_MAX_CONNECTIONS="2",
     )
     assert s.llm_max_concurrency == 2
     assert s.llm_read_timeout == 15.0
     assert s.bg_llm_max_concurrency == 1
-    assert s.mcp_max_connections == 5
 
 
 def test_enum_coercion_like_alt(clean_env) -> None:

@@ -47,7 +47,7 @@ from boerdi.graph.nodes import preflight as pf_mod
 from boerdi.graph.nodes import respond_agent as agent_mod
 from boerdi.graph.nodes.preflight import preflight
 from boerdi.graph.nodes.respond_agent import respond_agent
-from boerdi.services import agent_deckel, agent_tools, agent_write, llm
+from boerdi.services import agent_deckel, agent_tools, agent_write, llm, schreibrecht
 from boerdi.services import write_approval as wa_mod
 from boerdi.services.mcp import client as mcp_client
 from boerdi.services.mcp import transport
@@ -147,7 +147,10 @@ def welt(monkeypatch) -> _WloServer:
     monkeypatch.setattr(agent_tools, "has_auth_token", lambda: True)
     monkeypatch.setattr(agent_write, "has_personal_auth", lambda: False)
     monkeypatch.setattr(agent_deckel, "has_personal_auth", lambda: False)
-    monkeypatch.setattr(agent_mod, "has_personal_auth", lambda: False)
+    # Paket 7 (S4): die Schreibregel steht in ``schreibrecht`` — der Block der
+    # Anlage ist da, eine Person nicht.
+    monkeypatch.setattr(schreibrecht, "handelt_mit_dem_block_der_anlage", lambda: True)
+    monkeypatch.setattr(schreibrecht, "has_personal_auth", lambda: False)
 
     async def _frei(*_a, **_k):
         return RateVerdict(allowed=True)
@@ -167,7 +170,7 @@ def angemeldet(monkeypatch) -> None:
     """Eine angemeldete Person mit WLO-Rechten (Ticket oder persönlicher
     Zugang) — nur dann reicht der Chat-Zug die Abnahme in die Sitzung
     (Nutzer-Entscheid 2026-08-12, ``services/mcp/auth.has_personal_auth``)."""
-    for modul in (agent_write, agent_deckel, agent_mod):
+    for modul in (agent_write, agent_deckel, schreibrecht):
         monkeypatch.setattr(modul, "has_personal_auth", lambda: True)
 
 
@@ -260,10 +263,11 @@ async def test_der_agent_zug_legt_vorschau_box_und_merkposten_an(welt, angemelde
 
 
 async def test_ohne_zustimmung_wird_nichts_ausgefuehrt_und_das_modell_sieht_keinen_schluessel(
-        welt, monkeypatch):
+        welt, angemeldet, monkeypatch):
     """Die Zusicherung, die heute gilt und nach dem Umbau weiter gelten muss:
     ein „nein“ führt nichts aus, und kein geprägter Schlüssel erreicht je die
-    Kette des Modells — auch nicht über einen gespeicherten Merkposten."""
+    Kette des Modells — auch nicht über einen gespeicherten Merkposten.
+    (Angemeldet: ohne Schreibrecht entsteht seit Paket 7, S4, gar keine Vorschau.)"""
     modell = _Modell([
         *_drehbuch_zug_1(),
         _text_antwort("Alles klar, ich lege nichts an."),
@@ -299,6 +303,26 @@ async def test_ohne_anmeldung_bleibt_es_bei_der_vorschau(welt, monkeypatch):
     assert welt.ausgefuehrt == []
 
 
+async def test_mit_gastkonto_erlaubnis_schreibt_der_agent_ohne_anmeldung(welt, monkeypatch):
+    """Paket 7 (S4, P5-9): erlaubt das Studio das Gastkonto, nimmt der Agent die
+    Abnahme auch ohne Anmeldung an — geschrieben wird dann mit dem Block der
+    Anlage. Ohne die Erlaubnis bleibt es bei der Vorschau (Test oben)."""
+    from boerdi.services import betriebsschalter
+    monkeypatch.setattr(betriebsschalter, "load_engine", lambda: EngineArea.model_validate(
+        {"betrieb": {"gastkonto_schreibt": True}}))
+    monkeypatch.setattr(llm, "chat_completion", _Modell([
+        *_drehbuch_zug_1(),
+        _werkzeug_antwort(_WERKZEUG, _ARGS, "c2"),
+        _text_antwort("Soll ich die Sammlung „Bruchrechnen“ anlegen?"),
+    ]))
+
+    zug1 = await _chat_zug(_zug(_WUNSCH, entities={}))
+    assert (zug1.session_state.get("entities") or {}).get("_pending_write")
+
+    await _chat_zug(_folgezug("ja", zug1))
+    assert welt.ausgefuehrt == [(_WERKZEUG, _ARGS)]
+
+
 async def test_ein_ja_ohne_die_anmeldung_des_vorzugs_fuehrt_nichts_aus(
         welt, angemeldet, monkeypatch):
     """Paket 4, A1 (Gegenprüfung des externen Audits, F05): Gemerkt wird nur mit
@@ -310,18 +334,63 @@ async def test_ein_ja_ohne_die_anmeldung_des_vorzugs_fuehrt_nichts_aus(
         *_drehbuch_zug_1(),
         _text_antwort("Dafür musst du angemeldet sein."),
     ]))
-    monkeypatch.setattr(agent_write, "caller_fingerprint", lambda: "person-a")
+    monkeypatch.setattr(agent_write, "aufrufer_kennung", lambda: "person-a")
 
     zug1 = await _chat_zug(_zug(_WUNSCH, entities={}))
     assert (zug1.session_state.get("entities") or {}).get("_pending_write"), (
         "Voraussetzung: der angemeldete Zug hat einen Vorgang gemerkt")
 
     # Zug 2: dieselbe Sitzung, aber ohne die Anmeldung von Zug 1.
-    for modul in (agent_write, agent_deckel, agent_mod):
+    for modul in (agent_write, agent_deckel, schreibrecht):
         monkeypatch.setattr(modul, "has_personal_auth", lambda: False)
-    monkeypatch.setattr(agent_write, "caller_fingerprint", lambda: "")
-    monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "")
+    monkeypatch.setattr(agent_write, "aufrufer_kennung", lambda: "")
+    monkeypatch.setattr(wa_mod, "aufrufer_kennung", lambda: "")
 
     zug2 = await _chat_zug(_folgezug("ja", zug1))
     assert zug2.early_response is None
     assert welt.ausgefuehrt == []
+
+
+async def test_eine_freie_zustimmung_fuehrt_die_gezeigte_aenderung_aus(
+        welt, angemeldet, monkeypatch):
+    """Paket 10, A-6 (Kurzaudit S-5): „Ja, das kann noch rein“ steht in keiner Liste.
+    Bis hier kam darauf eine neue Vorschau; jetzt prüft ``setup`` die Zustimmung mit
+    dem Modell, und der Vorlauf löst ein. Gefälscht ist nur das Urteil."""
+    from boerdi.services import zustimmung_pruefen
+
+    async def _ja(_nachricht, _werkzeug):
+        return True
+
+    monkeypatch.setattr(zustimmung_pruefen, "_llm_urteil", _ja)
+    monkeypatch.setattr(llm, "chat_completion", _Modell(_drehbuch_zug_1()))
+
+    zug1 = await _chat_zug(_zug(_WUNSCH, entities={}))
+    zug2 = _folgezug("Ja, das kann noch rein", zug1)
+    await wa_mod.discard_stale_approval(_SITZUNG, zug2.req, zug2.session_state)
+    zug2 = await _chat_zug(zug2)
+
+    assert zug2.early_response is not None
+    assert welt.ausgefuehrt == [(_WERKZEUG, _ARGS)]
+
+
+async def test_ein_fremdwerkzeug_laeuft_durch_die_agent_schleife(welt, monkeypatch):
+    """Paket 11 (E), Lücke aus dem Review: der Name im Namensraum erreicht den fremden Server mit
+    seinem Originalnamen, und das Modell sieht die Antwort eingerahmt."""
+    from boerdi.domain.untrusted_text import FREMDSERVER_FRAME_START
+    from boerdi.services.mcp import fremdwerkzeuge
+
+    fremd = {"id": "wikidata", "name": "Wikidata", "enabled": True,
+             "url": "https://wd.example/mcp",
+             "tool_schemas": [{"name": "search_entities", "read_only": True}]}
+    monkeypatch.setattr(fremdwerkzeuge, "_registry", lambda: [fremd])
+    monkeypatch.setattr(fremdwerkzeuge, "assert_public_url", lambda _u: None)
+    modell = _Modell([
+        _werkzeug_antwort("wikidata__search_entities", {"q": "Optik"}, "f1"),
+        _text_antwort("Wikidata kennt dazu Q14620."),
+    ])
+    monkeypatch.setattr(llm, "chat_completion", modell)
+
+    await _chat_zug(_zug("Was sagt Wikidata zu Optik?", entities={}))
+
+    assert welt.aufrufe[0] == ("search_entities", {"q": "Optik"}, False)
+    assert FREMDSERVER_FRAME_START in modell.ketten[-1]

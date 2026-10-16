@@ -34,12 +34,8 @@ import pytest
 from pydantic import SecretStr
 
 from boerdi.services.mcp import auth as auth_mod
-from boerdi.services.mcp.auth import (
-    auth_mode,
-    build_http_client_factory,
-    has_auth_token,
-    set_turn_auth_block,
-)
+from boerdi.services.mcp.auth import auth_mode, has_auth_token, set_turn_auth_block
+from boerdi.services.mcp.http_fabrik import build_http_client_factory
 
 _EINSTELLUNG = "wlo2.aus-der-einstellung"
 _ZUG = "wlo2.vom-menschen-dieses-zuges"

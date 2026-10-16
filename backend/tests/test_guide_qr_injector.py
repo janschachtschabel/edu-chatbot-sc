@@ -15,10 +15,9 @@ graceful (try/except). Der Test kommt mit dem ``rag_url_index``-Port zurück.
 
 from __future__ import annotations
 
-import re
-
 import pytest
 
+from boerdi.domain import regel_regex
 from boerdi.services import guide_qr_injector as gqi
 
 _ALLOWED = (
@@ -99,8 +98,8 @@ def test_allow_listed_host():
 # ── find_guide_match (kontrolliertes _COMPILED) ────────────────────
 def test_find_guide_match_highest_priority(monkeypatch):
     monkeypatch.setattr(gqi, "_COMPILED", [
-        (re.compile("klima", re.I), "Klima", "", "https://wirlernenonline.de/klima", 50),
-        (re.compile("klimawandel", re.I), "KW", "", "https://wirlernenonline.de/kw", 90),
+        (regel_regex.uebersetze("klima"), "Klima", "", "https://wirlernenonline.de/klima", 50),
+        (regel_regex.uebersetze("klimawandel"), "KW", "", "https://wirlernenonline.de/kw", 90),
     ])
     assert gqi.find_guide_match("erzähl über klimawandel") == ("KW", "https://wirlernenonline.de/kw")
 
@@ -119,7 +118,7 @@ def test_find_guide_match_none(monkeypatch):
 
 def test_find_guide_match_picks_maintained_english(monkeypatch):
     monkeypatch.setattr(gqi, "_COMPILED", [
-        (re.compile("oer", re.I), "OER-Erklärung", "What is OER?",
+        (regel_regex.uebersetze("oer"), "OER-Erklärung", "What is OER?",
          "https://wirlernenonline.de/oer", 60),
     ])
     assert gqi.find_guide_match("was ist oer", "en") == (
@@ -133,7 +132,7 @@ def test_find_guide_match_unmaintained_english_falls_back_to_german(monkeypatch)
     # „nicht gepflegt", nicht „leerer Knopftext". Ein leerer Chip waere ein
     # unbeschrifteter Knopf, also schlimmer als ein deutscher.
     monkeypatch.setattr(gqi, "_COMPILED", [
-        (re.compile("oer", re.I), "OER-Erklärung", "",
+        (regel_regex.uebersetze("oer"), "OER-Erklärung", "",
          "https://wirlernenonline.de/oer", 60),
     ])
     assert gqi.find_guide_match("was ist oer", "en") == (
@@ -142,7 +141,7 @@ def test_find_guide_match_unmaintained_english_falls_back_to_german(monkeypatch)
 
 def test_inject_guide_qr_uses_english_label(monkeypatch):
     monkeypatch.setattr(gqi, "_COMPILED", [
-        (re.compile("themenseite.*klimawandel", re.I), "Themenseite Klimawandel",
+        (regel_regex.uebersetze("themenseite.*klimawandel"), "Themenseite Klimawandel",
          "Topic page on climate change",
          "https://wirlernenonline.de/themenseite/klimawandel", 90),
     ])
@@ -278,7 +277,7 @@ def test_inject_disabled_is_identity():
 
 def test_inject_message_regex_specific(monkeypatch):
     monkeypatch.setattr(gqi, "_COMPILED", [
-        (re.compile("themenseite.*klimawandel", re.I), "Klima", "",
+        (regel_regex.uebersetze("themenseite.*klimawandel"), "Klima", "",
          "https://wirlernenonline.de/themenseite/klimawandel", 90),
     ])
     out = gqi.inject_guide_qr("zeig die themenseite zu klimawandel", ["Andere Frage"])
@@ -306,7 +305,7 @@ def test_inject_existing_llm_guide_specific_kept(monkeypatch):
 
 def test_inject_weak_domain_root_message_match(monkeypatch):
     monkeypatch.setattr(gqi, "_COMPILED", [
-        (re.compile("wlo allgemein", re.I), "WLO", "", "https://wirlernenonline.de/", 50),
+        (regel_regex.uebersetze("wlo allgemein"), "WLO", "", "https://wirlernenonline.de/", 50),
     ])
     out = gqi.inject_guide_qr("erzähl mir wlo allgemein", ["a"])
     assert out[0] == "__guide__|WLO|https://wirlernenonline.de/"
@@ -319,7 +318,7 @@ def test_inject_zaehlt_den_lotsen_nicht_gegen_max_qrs(monkeypatch):
     und bei ``max_count: 2`` blieb in der Einbettung eine stehen. Gekappt werden
     nur die normalen Vorschläge."""
     monkeypatch.setattr(gqi, "_COMPILED", [
-        (re.compile("klima", re.I), "Klima", "",
+        (regel_regex.uebersetze("klima"), "Klima", "",
          "https://wirlernenonline.de/themenseite/klima", 90),
     ])
     out = gqi.inject_guide_qr("klima", ["a", "b", "c", "d", "e"], max_qrs=4)

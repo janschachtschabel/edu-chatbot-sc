@@ -58,6 +58,10 @@ class _Motor:
         return _Verbindung(self)
 
     async def ausfuehren(self, sql: str, params: dict[str, Any]) -> _Ergebnis:
+        if sql.startswith("SELECT eigene_fassung IS NOT NULL"):
+            # Paket 12: die Prüfung vor dem Löschen — hier liegt nie eine Fassung still; sie
+            # verbraucht keinen der vorbereiteten Stände.
+            return _Ergebnis(zeile=(False,))
         if sql.startswith("SELECT"):
             self.gelesen += 1
             tor, zeile = self.staende.pop(0)

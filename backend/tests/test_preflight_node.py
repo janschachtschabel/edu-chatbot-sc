@@ -184,6 +184,8 @@ def _liegengelassene_abnahme(monkeypatch):
     monkeypatch.setattr(wa_mod, "call_mcp_tool_status", schreiben)
     monkeypatch.setattr(wa_mod, "update_session", _Spy())
     monkeypatch.setattr(wa_mod, "save_message", _Spy())
+    # Eine angemeldete Person: seit Paket 7 (S4) die Bedingung jeder Einlösung.
+    monkeypatch.setattr(wa_mod, "schreiben_erlaubt", lambda: True)
     zustand = {"persona_id": "P-AND", "entities": {"_pending_write": remember_pending(
         "wlo_create_content", {"title": "Arbeitsblatt Bruchrechnung"},
         "Ax9-_QmZ2kLpWvRt7NbYcE4s", now=time.time())}}
@@ -210,18 +212,19 @@ def _zug(ctx) -> state_mod.TurnContext:
 
 def test_ein_spaeteres_ja_loest_einen_liegengelassenen_vorgang_nicht_aus(monkeypatch):
     """Audit 2026-09-29. Die Vorschau stand, die Person ging zu etwas anderem
-    über — und ein späterer Chip „Ja, zeig mir mehr Videos" ist eine glatte
+    über — und ein späterer Chip „Ja, zeig mir mehr Videos" war eine glatte
     Zustimmung (kurz, ohne Vorbehalt). Bis hier überdauerte der Vorgang die
     Zwischenzüge (Frist zehn Minuten) und wurde von diesem „ja" ausgeführt:
     eine Änderung, der niemand zugestimmt hat. Bestätigen kann ihn nur die
-    Antwort direkt auf die Vorschau."""
-    from boerdi.domain.write_confirm import is_affirmation
+    Antwort direkt auf die Vorschau. Seit Review Paket 9 zählt jener Satz nicht
+    mehr als Zustimmung; der Test nimmt deshalb einen, der es bleibt."""
+    from boerdi.domain.zustimmung import is_affirmation
 
     schreiben, zustand = _liegengelassene_abnahme(monkeypatch)
 
     _zug(_ctx(None, message="Zeig mir erst Videos zu Brüchen", session_state=zustand))
-    assert is_affirmation("Ja, zeig mir mehr Videos"), "sonst prüfte der Test nichts"
-    out = _zug(_ctx(None, message="Ja, zeig mir mehr Videos", session_state=zustand))
+    assert is_affirmation("Ja, gerne"), "sonst prüfte der Test nichts"
+    out = _zug(_ctx(None, message="Ja, gerne", session_state=zustand))
 
     assert schreiben.calls == [], "Ein liegengelassener Vorgang wurde ausgeführt"
     assert out.early_response is None
@@ -528,3 +531,38 @@ def test_high_risk_block_message_english(monkeypatch):
         "I could not process this request — it breaks our safety or content "
         "rules. Please try rephrasing it."
     )
+
+
+def test_ein_ja_ohne_die_anmeldung_der_vorschau_bekommt_einen_hinweis(monkeypatch):
+    """Paket 10 (Kurzaudit S-1/S-3/S-4/S-9): die Vorschau entstand unter einer
+    Anmeldung, die in diesem Zug nicht gilt — neuer Tab, abgelaufen, Ticket noch
+    nicht getauscht. Bis hier ging das „ja“ ohne Zusammenhang an das Modell, und es
+    kam eine neue Vorschau: die gemeldete Schleife. Jetzt ein fester Satz samt
+    Anmelde-Chip, und geschrieben wird nichts."""
+    from boerdi.domain.auth_qr import AUTH_QR_MARKER
+    from boerdi.i18n.bot_text import bot_text
+    from boerdi.services import abnahme_hinweis
+
+    monkeypatch.setattr(abnahme_hinweis, "save_message", _Spy())
+    schreiben, zustand = _liegengelassene_abnahme(monkeypatch)
+    zustand["entities"]["_pending_write"]["caller"] = "p:andere-anmeldung"
+
+    out = _zug(_ctx(None, message="Ja, so ausführen", session_state=zustand))
+
+    assert schreiben.calls == []
+    assert out.early_response is not None
+    assert out.early_response.content == bot_text("de", "write.callerChanged")
+    assert AUTH_QR_MARKER in out.early_response.quick_replies
+
+
+def test_ein_anderes_anliegen_bekommt_keinen_hinweis(monkeypatch):
+    """Gegenprobe: wer zu etwas anderem übergeht, meint die Vorschau nicht."""
+    from boerdi.services import abnahme_hinweis
+
+    monkeypatch.setattr(abnahme_hinweis, "save_message", _Spy())
+    _schreiben, zustand = _liegengelassene_abnahme(monkeypatch)
+    zustand["entities"]["_pending_write"]["caller"] = "p:andere-anmeldung"
+
+    out = _zug(_ctx(None, message="Zeig mir Videos zu Brüchen", session_state=zustand))
+
+    assert out.early_response is None

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import time
 
+from boerdi.domain.write_anzeige import entities_for_display, preview_for_display
 from boerdi.domain.write_confirm import (
     CONFIRMABLE_TOOLS,
     CURATION_TOOLS,
@@ -29,17 +30,15 @@ from boerdi.domain.write_confirm import (
     TOKEN_TTL_SECONDS,
     change_fingerprint,
     confirmed_args,
-    entities_for_display,
     extract_confirm_token,
-    is_affirmation,
     is_confirmable,
     is_expired,
-    preview_for_display,
     redact_confirm_token,
     remember_pending,
     strip_confirm_token,
     token_for,
 )
+from boerdi.domain.zustimmung import is_affirmation
 
 # Der Wortlaut stammt aus ``previewReply`` (curation-shared.ts) des Servers —
 # abgeschrieben statt erfunden, denn genau an diesem Text hängt die Extraktion.
@@ -343,7 +342,7 @@ class TestNaht:
         # (``services/write_approval``); dafür muss der Merkposten sie kennen.
         from boerdi.services import tool_loop as tl_mod
 
-        monkeypatch.setattr(tl_mod, "caller_fingerprint", lambda: "person-a")
+        monkeypatch.setattr(tl_mod, "aufrufer_kennung", lambda: "person-a")
         _outcome, st = _lauf(monkeypatch, [("tc1", _WERKZEUG, _ARGS)])
         assert st["session_state"]["entities"]["_pending_write"]["caller"] == "person-a"
 
@@ -621,6 +620,72 @@ class TestZustimmung:
     def test_leer_ist_keine_zustimmung(self):
         assert not is_affirmation("")
         assert not is_affirmation("   ")
+
+    def test_eine_freigabe_ist_eine_zustimmung(self):
+        # Paket 7 (K1, Nutzer 2026-10-09): Ein Gatekeeper-Skill fragt nach
+        # „Freigabe“; „Freigabe erteilt“ verwarf bis dahin den offenen
+        # Schreibvorgang, und es kam eine neue Vorschau. „frei“ allein nicht.
+        for satz in ("Freigabe erteilt", "freigeben", "ist freigegeben", "Freigabe!",
+                     "ich freigebe"):
+            assert is_affirmation(satz), satz
+        for satz in ("keine Freigabe", "noch nicht freigeben", "frei"):
+            assert not is_affirmation(satz), satz
+
+    def test_eine_ablehnung_ist_keine_zustimmung(self):
+        """Review Paket 7 (MAJOR 4, V1): Die Stämme „freigabe/freigeben“ (K1) trugen
+        auch Ablehnungen, und der Schreibvorgang lief, obwohl die Person ablehnte.
+        Englische Verneinungen fehlten schon vorher („Do not proceed“)."""
+        for satz in ("Freigabe verweigert", "Freigabe abgelehnt", "Ich verweigere die Freigabe",
+                     "Freigabe widerrufen", "Die Freigabe fehlt noch", "Bestätigung verweigert",
+                     "Do not proceed", "don't proceed", "Freigabe entzogen",
+                     "Freigabe steht noch aus", "Freigabe zurückgezogen", "Ausführung abgelehnt",
+                     "Freigabe storniert", "Confirmation denied", "I refuse to confirm",
+                     "declined, ok", "never proceed", "ok, später"):
+            assert not is_affirmation(satz), satz
+
+    def test_eine_rueckfrage_ist_keine_zustimmung(self):
+        """Review Paket 7 (A-3): „Welche Freigabe?“ zählte als Zustimmung, und die
+        Rückfrage zur Vorschau führte den offenen Schreibvorgang aus. „Passt das
+        so?“ hatte dieselbe Lücke schon vorher. Ein Fragezeichen oder ein Fragewort
+        heißt: die Person ist noch nicht fertig — die zweite Frage ist billiger als
+        eine Änderung, der niemand zugestimmt hat."""
+        for satz in ("Welche Freigabe?", "Was ist eine Freigabe?", "Wer muss das freigeben?",
+                     "Passt das so?", "ja?", "Ok？", "welche Freigabe", "wie freigeben",
+                     "what should I confirm", "Which one, confirm"):
+            assert not is_affirmation(satz), satz
+
+    def test_eine_absage_ist_keine_zustimmung(self):
+        """Review Paket 9 (MAJOR 2): Eine Liste verbotener Wörter wird nie vollständig —
+        diese Absagen trugen einen Zustimmungs-Stamm und führten den Schreibvorgang aus.
+        Die letzten drei können „nein danke“ oder „gleich, nicht jetzt“ heißen."""
+        for satz in ("Freigabe abgesagt", "Freigabe aufgehoben", "Freigabe zurückgewiesen",
+                     "Ausführung abgebrochen", "Freigabe gestoppt", "ok, vergiss es",
+                     "Ja nee, lass mal", "Ja, Moment", "yes but use another title",
+                     "ok, cancelled", "ok nevermind", "ok, hold on",
+                     "ok, danke", "Ok, alles gut", "Ja, gleich"):
+            assert not is_affirmation(satz), satz
+
+    def test_gewoehnliche_zustimmungen_bleiben(self):
+        # Der Preis einer engen Regel ist eine zweite Frage. Bei diesen Sätzen wäre er
+        # die Schleife, die K1 (Paket 7) beendet hat — sie bleiben Zustimmungen.
+        for satz in ("Ja bitte", "ja, mach das", "Ja gerne", "Passt so", "Ja, das passt",
+                     "Ja genau", "Ja klar, anlegen", "Ich gebe die Freigabe",
+                     "Ich erteile die Freigabe", "Hiermit freigegeben",
+                     "Ja, bitte speichern und hinzufügen", "yes please", "yes, save it",
+                     "ok, do it", "Go ahead", "I confirm", "please proceed"):
+            assert is_affirmation(satz), satz
+
+    def test_die_bestaetigungsformeln_des_servers_gelten(self):
+        # Der MCP-Server schreibt „Zum <Verb> bitte bestätigen.“ in die Vorschau, und
+        # Skills geben solche Sätze vor („Zum Aufnehmen bestätigen“, live 2026-10-08).
+        # Ein abgewiesener Satz, den der Bot selbst verlangt hat, wäre eine Schleife.
+        # „Zum Ablehnen …“ bleibt eine zweite Frage: „ablehnen“ ist dort Vorgang und
+        # Absage zugleich — die Zustimmung trägt dann der Knopf.
+        for verb in ("Anlegen", "Übernehmen", "Aufnehmen", "Herausnehmen", "Entfernen",
+                     "Annehmen", "Hinterlegen", "Umstellen"):
+            assert is_affirmation(f"Zum {verb} bitte bestätigen"), verb
+            assert is_affirmation(f"{verb} bestätigen"), verb
+        assert not is_affirmation("Zum Ablehnen bestätigen")
 
     def test_die_knopfbeschriftungen_gelten(self):
         # Der Knopf aus ``turn_persist`` ist der Normalweg. Dieses Modul kennt

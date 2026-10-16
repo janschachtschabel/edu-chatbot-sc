@@ -53,7 +53,9 @@ def test_unset_env_falls_through_to_the_settings_default(monkeypatch):
     """
     monkeypatch.delenv("RAG_RERANKER_ENABLED", raising=False)
     get_settings.cache_clear()
-    assert _reranker_enabled_via_env() is True  # = Vorgabe seit W11 (wie ALT)
+    # Nutzer-Entscheid 2026-10-15: Vorgabe wieder AUS — eingeschaltet bezieht sich das
+    # Modell selbst (``reranker_bezug``).
+    assert _reranker_enabled_via_env() is False
 
 
 def test_disabled_values_case_and_whitespace_insensitive(monkeypatch):
@@ -116,7 +118,7 @@ def test_the_standard_config_of_a_six_core_server(monkeypatch):
     assert _rerank_intra_op_threads() == 3
     assert _rerank_max_concurrency() * _rerank_intra_op_threads() == 3  # halbe CPU
     assert rk.rerank_candidates() == 10
-    assert _reranker_enabled_via_env() is True
+    assert _reranker_enabled_via_env() is False  # Vorgabe aus seit 2026-10-15
 
 
 def test_intra_op_from_env_wins(monkeypatch):

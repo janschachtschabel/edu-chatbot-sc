@@ -36,7 +36,9 @@ def test_geschlossene_auswahl_steht_im_schema() -> None:
     schema = SafetyConfigArea.model_json_schema()
     block = schema["$defs"]["EscalationBlock"]
     assert block["properties"]["mode"]["x-choices"] == ["off", "smart", "always"]
-    assert block["properties"]["provider"]["x-choices"] == ["openai", "none"]
+    # ``provider`` stand hier als zweites Beispiel — das Feld hatte keinen Leser
+    # und ist gestrichen (Paket 7, L7).
+    assert "provider" not in block["properties"]
 
 
 def test_verweis_steht_am_listeneintrag_nicht_an_der_liste() -> None:

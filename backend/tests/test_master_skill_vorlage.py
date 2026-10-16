@@ -41,10 +41,33 @@ def _wie_im_editor(text: str) -> str:
     return _KENNUNG_IN_KLAMMERN.sub(lambda m: f"{m.group(1)} **{m.group(2)}**", text)
 
 
-@pytest.fixture(scope="module", params=["vorlage", "editor"])
+#: Gemessen 2026-10-17 an der übertragenen Kurzfassung: der Editor setzt jede
+#: Überschrift fett — „## **Entscheiden**“, auch geteilt um Code
+#: („### **Internes Wissen zuerst (**`wissen_suchen`**)**“). Die Wächter suchen
+#: Überschriften deshalb ohne Fettdruck.
+_UEBERSCHRIFT = re.compile(r"^(#{1,6} )(.+)$", re.MULTILINE)
+
+
+def _fett_wie_im_editor(text: str) -> str:
+    return _UEBERSCHRIFT.sub(lambda m: f"{m.group(1)}**{m.group(2)}**", text)
+
+
+def _ohne_fett_in_ueberschriften(text: str) -> str:
+    return _UEBERSCHRIFT.sub(lambda m: m.group(1) + m.group(2).replace("**", ""), text)
+
+
+#: Die Kurzfassung (2026-10-17: Stichpunkte statt Prosa, weniger Token) muss dieselben tragenden
+#: Sätze halten — sonst kehren die gemessenen Fehler zurück, sobald sie im Knoten steht.
+_KURZFASSUNG = _VORLAGE.with_name("vorgehen-knapp.md")
+_FASSUNGEN = {"": lambda t: t, "-editor": _wie_im_editor, "-fett": _fett_wie_im_editor}
+
+
+@pytest.fixture(scope="module", params=[
+    f"{datei}{art}" for datei in ("vorlage", "knapp") for art in _FASSUNGEN])
 def text(request: pytest.FixtureRequest) -> str:
-    vorlage = _VORLAGE.read_text(encoding="utf-8")
-    return vorlage if request.param == "vorlage" else _wie_im_editor(vorlage)
+    datei, _, art = request.param.partition("-")
+    vorlage = (_KURZFASSUNG if datei == "knapp" else _VORLAGE).read_text(encoding="utf-8")
+    return _FASSUNGEN[f"-{art}" if art else ""](vorlage)
 
 
 def test_die_editor_fassung_schreibt_die_kennungen_um() -> None:
@@ -52,6 +75,15 @@ def test_die_editor_fassung_schreibt_die_kennungen_um() -> None:
     umgeschrieben = _wie_im_editor(_VORLAGE.read_text(encoding="utf-8"))
     assert "### Neues Material **M10**" in umgeschrieben
     assert "(M10)" not in umgeschrieben
+
+
+def test_die_fett_fassung_setzt_jede_ueberschrift_fett() -> None:
+    """Dasselbe für den Parameter ``fett`` — und der Rückweg trifft wieder die Vorlage."""
+    vorlage = _KURZFASSUNG.read_text(encoding="utf-8")
+    fett = _fett_wie_im_editor(vorlage)
+    assert "\n## **Entscheiden**\n" in fett
+    assert "\n## Entscheiden\n" not in fett
+    assert _ohne_fett_in_ueberschriften(fett) == vorlage
 
 
 def _flach(text: str) -> str:
@@ -63,6 +95,7 @@ def _flach(text: str) -> str:
 def _abschnitt(text: str, titel: str) -> str:
     """Der Rumpf unter ``## titel`` bis zur nächsten h2-Überschrift, flach."""
     kopf = f"\n## {titel}\n"
+    text = _ohne_fett_in_ueberschriften(text)
     assert kopf in text, titel
     return _flach(text.split(kopf, 1)[1].split("\n## ", 1)[0])
 
@@ -73,8 +106,8 @@ def _unterabschnitt(text: str, kopfzeile: str) -> str:
     der Querverweis zur Muster-Maschine — beide Maschinen bleiben (Z2). Gesucht
     wird die Kennung ohne Klammern: die Vorlage schreibt „(M09)“, der md-editor
     „**M09**“."""
-    treffer = re.search(rf"^### [^\n]*{re.escape(kopfzeile)}[^\n]*\n(.*?)(?=^##)", text,
-                        re.MULTILINE | re.DOTALL)
+    treffer = re.search(rf"^### [^\n]*{re.escape(kopfzeile)}[^\n]*\n(.*?)(?=^##)",
+                        _ohne_fett_in_ueberschriften(text), re.MULTILINE | re.DOTALL)
     assert treffer, kopfzeile
     return _flach(treffer.group(1))
 
@@ -86,6 +119,7 @@ def test_anrede_steht_direkt_nach_der_ranghoechsten_regel(text: str) -> None:
     der Hinweis im Anleitungstext, dass die Vorgabe überall gilt und zitierte
     Sätze sie nicht setzen — und dass der Begleitsatz die Person im Chat
     anspricht, auch wenn das Blatt die Kinder duzt (GV-LEH-1#3)."""
+    text = _ohne_fett_in_ueberschriften(text)
     nach_der_regel = text.split("\n## Zuerst handeln, dann reden\n", 1)[1]
     assert re.search(r"^## (.+)$", nach_der_regel, re.MULTILINE).group(1) == (
         "Anrede und Zielgruppen")
@@ -152,6 +186,20 @@ def test_rueckfrage_erst_nach_der_suche(text: str) -> None:
     assert "suchst du zuerst" in _abschnitt(text, "Nachfragen")
 
 
+def test_ein_platzhalter_fragt_nach_dem_thema_auch_auf_einer_sammlung(text: str) -> None:
+    """Live 2026-10-17 auf der Sammlung Optik: „Ich suche Inhalte zu einem Thema.“
+    → der Agent suchte nach „Optik“ und fragte erst danach. Bis 2026-10-04 fragte
+    er zuerst. Drei Stellen zogen zur Suche: „Suchen → Finden“ steht vor „kein
+    Thema → Nachfragen“, „reicht das Bekannte … suchst du zuerst“ nahm die Seite
+    als das Bekannte, und die Seitenregel liest „das Thema“ als Seiteninhalt."""
+    reihenfolge = _unterabschnitt(text, "Reihenfolge der Prüfung")
+    finden = re.search(r"→ \*\*Finden\*\*[;,][^\n]*?→ \*\*Nachfragen\*\*", reihenfolge)
+    assert finden and "Platzhalter" in finden.group(0)
+    nachfragen = _abschnitt(text, "Nachfragen")
+    assert "auch auf einer Sammlung oder Themenseite" in nachfragen
+    assert "meint nicht die Seite" in nachfragen
+
+
 def test_dokumente_gehen_ueber_das_werkzeug(text: str) -> None:
     """Im Agent-Zug entsteht eine Box nur über ``zeige_dokument``. Der Rückfall
     „Text ab der ersten Überschrift“ greift in ``turn_persist`` nur für die
@@ -175,6 +223,14 @@ def test_die_aenderungs_vorschau_zeigt_der_chat_selbst(text: str) -> None:
     m18 = _unterabschnitt(text, "M18")
     assert "zeigt der Chat von selbst" in m18
     assert "gerahmten Kasten" not in m18
+
+
+def test_platzhalter_ueberstehen_den_editor(text: str) -> None:
+    """Gemessen 2026-10-17: der md-editor löscht ``<N>`` und ``<Thema>`` als
+    HTML-Tags — im Knoten stand „Material für Klasse“. In Backticks bleiben sie
+    stehen; außerhalb schreibt die Vorlage Platzhalter ohne spitze Klammern."""
+    ohne_code = re.sub(r"`[^`\n]*`", "", text)
+    assert not re.findall(r"<[^<>\n]+>", ohne_code)
 
 # ── Seit dem Review 2026-09-29 hier statt in ``test_mcp_tool_defs.py`` ─────
 # Sie lasen die Vorlage selbst ein und liefen deshalb weder gegen die
@@ -211,7 +267,7 @@ def test_vorgehen_md_traegt_die_kernbegriff_suchregel(text: str) -> None:
     optik") — Ranking verwässert, und der Satz landet in den Such-Links der
     Oberfläche. Die Regel „query = Kernbegriff, Materialart/Fach/Stufe in die
     Filter" muss im Finden-Teil des Master-Skills stehen und dort bleiben."""
-    finden = text.split("## Finden", 1)[1]
+    finden = _ohne_fett_in_ueberschriften(text).split("## Finden", 1)[1]
     assert "Kernbegriff" in finden
     assert 'query: "Optik"' in finden
     assert 'learningResourceType: "Arbeitsblatt"' in finden
@@ -231,6 +287,7 @@ def test_vorgehen_md_traegt_die_ansage_regel(text: str) -> None:
     15. Sie muss in der ranghoechsten Sektion stehen und dort bleiben; die
     sichtbare Ansage setzt der Server (``skill_ansagen``) und haengt nicht an
     dieser Regel."""
-    handeln = text.split("## Zuerst handeln, dann reden", 1)[1].split("\n## ", 1)[0]
+    handeln = _ohne_fett_in_ueberschriften(text).split(
+        "## Zuerst handeln, dann reden", 1)[1].split("\n## ", 1)[0]
     assert "Aktivierungszeilen tippst du nie selbst" in handeln
     assert "gilt diese Bitte hier nicht" in handeln

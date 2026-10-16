@@ -19,11 +19,8 @@ import pytest
 from pydantic import SecretStr
 
 from boerdi.services.mcp import auth as auth_mod
-from boerdi.services.mcp.auth import (
-    auth_mode,
-    build_http_client_factory,
-    has_auth_token,
-)
+from boerdi.services.mcp.auth import auth_mode, has_auth_token
+from boerdi.services.mcp.http_fabrik import build_http_client_factory
 
 _BLOCK = "wlo2.geheim-nur-im-test"
 
@@ -162,9 +159,7 @@ class TestTransportVerdrahtung:
     def test_ohne_block_bleibt_die_sdk_fabrik(self, monkeypatch, ohne_block):
         import asyncio
 
-        from mcp.client.streamable_http import create_mcp_http_client
-
-        from boerdi.services.mcp.transport import _open_session
+        from boerdi.services.mcp.transport import _ohne_umleitung, _open_session
 
         gefangen = self._fang_kwargs(monkeypatch)
 
@@ -175,7 +170,10 @@ class TestTransportVerdrahtung:
         with pytest.raises(AssertionError, match="Naht geprüft"):
             asyncio.run(_lauf())
 
-        assert gefangen["kwargs"]["httpx_client_factory"] is create_mcp_http_client
+        # Paket 11 (Review #2): die SDK-Fabrik ohne Umleitungen — weiter ohne Block.
+        fabrik = gefangen["kwargs"]["httpx_client_factory"]
+        assert fabrik is _ohne_umleitung
+        assert "authorization" not in fabrik().headers
 
 
 # ── Nur der primäre Server bekommt den Block (Audit 2026-09-29, A-M2/B-M2) ──
@@ -218,11 +216,14 @@ class TestNurPrimaererServer:
         assert client.headers["authorization"] == f"Bearer {_BLOCK}"
 
     def test_fremde_adresse_bekommt_keinen_block(self, monkeypatch, mit_block):
-        from mcp.client.streamable_http import create_mcp_http_client
+        from boerdi.services.mcp.transport import _ohne_umleitung
 
         gefangen = TestTransportVerdrahtung._fang_kwargs(monkeypatch)
         _oeffne(_FREMD)
-        assert gefangen["kwargs"]["httpx_client_factory"] is create_mcp_http_client
+        # Paket 11 (Review #2): die SDK-Fabrik ohne Umleitungen — weiter ohne Block.
+        fabrik = gefangen["kwargs"]["httpx_client_factory"]
+        assert fabrik is _ohne_umleitung
+        assert "authorization" not in fabrik().headers
 
     def test_werkzeug_eines_weiteren_servers_ohne_block(self, monkeypatch, mit_block):
         # Der Weg der Registry: ``call_tool(..., url=<weiterer Server>)``. Der
@@ -230,26 +231,28 @@ class TestNurPrimaererServer:
         # trotzdem durchlaufen.
         import asyncio
 
-        from mcp.client.streamable_http import create_mcp_http_client
-
-        from boerdi.services.mcp.transport import call_tool
+        from boerdi.services.mcp.transport import _ohne_umleitung, call_tool
 
         gefangen = TestTransportVerdrahtung._fang_kwargs(monkeypatch)
         ergebnis = asyncio.run(call_tool("search_wlo_all", {}, url=_FREMD))
         assert ergebnis["error"]["kind"] == "transport"
-        assert gefangen["kwargs"]["httpx_client_factory"] is create_mcp_http_client
+        # Paket 11 (Review #2): die SDK-Fabrik ohne Umleitungen — weiter ohne Block.
+        fabrik = gefangen["kwargs"]["httpx_client_factory"]
+        assert fabrik is _ohne_umleitung
+        assert "authorization" not in fabrik().headers
 
     def test_discover_an_fremde_adresse_ohne_block(self, monkeypatch, mit_block):
         import asyncio
 
-        from mcp.client.streamable_http import create_mcp_http_client
-
-        from boerdi.services.mcp.transport import discover_server_tools
+        from boerdi.services.mcp.transport import _ohne_umleitung, discover_server_tools
 
         gefangen = TestTransportVerdrahtung._fang_kwargs(monkeypatch)
         with pytest.raises(AssertionError, match="Naht geprüft"):
             asyncio.run(discover_server_tools(_FREMD))
-        assert gefangen["kwargs"]["httpx_client_factory"] is create_mcp_http_client
+        # Paket 11 (Review #2): die SDK-Fabrik ohne Umleitungen — weiter ohne Block.
+        fabrik = gefangen["kwargs"]["httpx_client_factory"]
+        assert fabrik is _ohne_umleitung
+        assert "authorization" not in fabrik().headers
 
 
 # ── Lesbare Ursache bei Transportfehlern ─────────────────────────────────
