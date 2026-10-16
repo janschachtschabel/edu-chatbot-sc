@@ -1,6 +1,7 @@
 /**
- * Der generische Bereichs-Editor (C1-d3a): Bereichsliste, Bereichs-,
- * Abschnitts- und Gruppen-Editor, Schema-Formular und dessen Felder.
+ * Der generische Bereichs-Editor (C1-d3a): Bereichsliste, Bereichs- und
+ * Abschnitts-Editor, Schema-Formular und dessen Felder. Der Gruppen-Abschnitt
+ * (Muster, Personas) steht seit Paket 6 in `group-section.ts`.
  *
  * Was sich diese Ansichten mit allen anderen teilen — Zustands-Streifen,
  * Fehlertexte, Speichern/Verwerfen — steht in `shared.ts`.
@@ -52,26 +53,6 @@ export const AREA_EDITOR: CataloguePart = {
     // ── Abschnitt einer kuratierten Ansicht ─────────────────────────
     'areaSection.rawLink': 'Rohtext bearbeiten',
     'areaSection.rawLinkFor': 'Rohtext bearbeiten — {label}',
-
-    // ── Gruppen-Abschnitt: mehrere Dokumente eines Bereichs ─────────
-    'groupSection.listLoading': 'Lade Liste …',
-    'groupSection.docs': 'Dokumente',
-    'groupSection.empty': 'Noch keine Dokumente. Unten eines anlegen.',
-    'groupSection.new': 'Neues Dokument',
-    'groupSection.newKey': 'Wird angelegt als {file}',
-    'groupSection.newHint': 'Der Name wird zum Dateinamen.',
-    'groupSection.create': 'Anlegen',
-    'groupSection.creating': 'Wird angelegt …',
-    'groupSection.created': 'Angelegt.',
-    'groupSection.pick': 'Links ein Dokument wählen, um es zu bearbeiten.',
-    'groupSection.needName': 'Bitte einen Namen angeben.',
-    'groupSection.duplicate': '„{name}“ gibt es schon — bitte einen anderen Namen wählen.',
-    'groupSection.switchBlocked':
-      'Bitte erst speichern oder verwerfen — sonst gehen die Änderungen an diesem '
-      + 'Dokument verloren.',
-    'groupSection.createBlocked':
-      'Erst das offene Dokument speichern oder verwerfen — sonst gehen die Änderungen '
-      + 'beim Wechsel verloren.',
 
     // ── Schema-Formular ─────────────────────────────────────────────
     // Mehrzahl über `plural()`: nicht nur das Substantiv unterscheidet die
@@ -210,24 +191,6 @@ export const AREA_EDITOR: CataloguePart = {
 
     'areaSection.rawLink': 'Edit source',
     'areaSection.rawLinkFor': 'Edit source — {label}',
-
-    'groupSection.listLoading': 'Loading list …',
-    'groupSection.docs': 'Documents',
-    'groupSection.empty': 'No documents yet. Create one below.',
-    'groupSection.new': 'New document',
-    'groupSection.newKey': 'Will be created as {file}',
-    'groupSection.newHint': 'The name becomes the file name.',
-    'groupSection.create': 'Create',
-    'groupSection.creating': 'Creating …',
-    'groupSection.created': 'Created.',
-    'groupSection.pick': 'Pick a document on the left to edit it.',
-    'groupSection.needName': 'Please enter a name.',
-    'groupSection.duplicate': '“{name}” already exists — please pick another name.',
-    'groupSection.switchBlocked':
-      'Please save or discard first — otherwise the changes to this document would be lost.',
-    'groupSection.createBlocked':
-      'Save or discard the open document first — otherwise its changes would be lost when '
-      + 'switching.',
 
     'schemaForm.unmapped.one':
       'One key is not shown here because the area model does not know it: {keys}. It '

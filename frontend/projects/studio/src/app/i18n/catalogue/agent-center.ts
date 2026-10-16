@@ -36,12 +36,18 @@ export const AGENT_CENTER: CataloguePart = {
     'agentTools.group.read.hint': 'Repositorium und Web',
     'agentTools.group.curation': 'Kuratierend',
     'agentTools.group.curation.hint': 'schreiben im Repositorium, brauchen einen hinterlegten Zugang',
+    'agentTools.group.external': 'Extern',
+    'agentTools.group.external.hint':
+      'lesende Werkzeuge weiterer MCP-Server, übernommen unter Wissen → MCP-Server',
     'agentTools.group.virtual': 'Virtuell',
     'agentTools.group.virtual.hint': 'beantwortet der Server selbst, nicht sperrbar',
     'agentTools.pageLink': 'Seite {page}',
     'agentTools.signal.pii': 'persönliche Daten in der Nachricht',
-    'agentTools.lock.never': 'Nie angeboten: der Weg zu einer Anleitung führt über ihre Sammlung.',
-    'agentTools.lock.needsAccess': 'Fehlt ohne hinterlegten Zugang zum Repositorium.',
+    'agentTools.lock.hidden':
+      'Abgeschaltet unter „MCP-Server“ (search_skill von Haus aus) — dort einschaltbar.',
+    'agentTools.lock.needsAccess':
+      'Nur mit persönlicher WLO-Anmeldung — oder mit dem Gastkonto, wenn es unter '
+      + '„Betrieb“ schreiben darf.',
     'agentTools.lock.toolMode': 'Fehlt in Einbettungen mit tool-mode {modes}.',
     'agentTools.lock.safetyFixed':
       'Fällt weg, wenn das Regex-Gate {signals} erkennt (fest im Code).',
@@ -99,57 +105,6 @@ export const AGENT_CENTER: CataloguePart = {
       'Es können mehr als {count} Skills passen; ein genauerer Suchbegriff grenzt die Liste ein.',
     'agentSkills.edit': 'Bearbeiten',
     'agentSkills.editOf': ': {title} im Editor',
-
-    'curated.agent.prompt.label': 'Was das Modell zuerst liest',
-    'curated.agent.prompt.hint':
-      'Der Anfang der Kette eines Chat-Zugs im Agent-Modus: eigene Regeln, dann der '
-      + 'Master-Skill, dann was jeder Zug dazulegt.',
-    'agentPrompt.language': 'Widget-Sprache',
-    'agentPrompt.language.de': 'Deutsch',
-    'agentPrompt.language.en': 'Englisch',
-    'agentPrompt.loading': 'Vorschau wird gebaut …',
-    'agentPrompt.intro':
-      'Die ersten beiden Glieder stehen in jedem Zug gleich da und liegen im gecachten Anfang; '
-      + 'die übrigen hängen am einzelnen Zug.',
-    'agentPrompt.showText': 'Wortlaut anzeigen',
-    'agentPrompt.textLabel': 'Wortlaut: {name}',
-    'agentPrompt.chars.one': '{n} Zeichen',
-    'agentPrompt.chars.other': '{n} Zeichen',
-    'agentPrompt.checksum': '{chars} im Prompt · Prüfsumme des Dokuments {sum}',
-    'agentPrompt.skill.off': 'Aus: der Agent arbeitet ohne Master-Skill.',
-    'agentPrompt.skill.no_node': 'An, aber kein Knoten gepflegt (MASTER_SKILL_NODE_ID).',
-    'agentPrompt.skill.failed': 'An, aber nicht geladen: {error}. Der Zug läuft ohne.',
-    'agentPrompt.step.head': 'Kopf: Rolle, Anrede, Grenzen, Sprache',
-    'agentPrompt.step.master_skill': 'Master-Skill',
-    'agentPrompt.step.result_schema': 'Satz zum Ergebnis-Schema',
-    'agentPrompt.when.result_schema':
-      'Wird an den Kopf gehängt, wenn die Einbettung ein Ergebnis-Schema erklärt.',
-    'agentPrompt.step.host_capabilities': 'Grenzen der Einbettung',
-    'agentPrompt.when.host_capabilities':
-      'Wenn die Einbettung etwas einschränkt (tool-mode, Gliederung der Ergebnisse).',
-    'agentPrompt.step.page_context': 'Seitenkontext',
-    'agentPrompt.when.page_context':
-      'Wenn die Seite eine Sammlung, einen Inhalt oder eine Themenseite zeigt.',
-    'agentPrompt.step.host_instruction': 'Auftrag der Gastanwendung',
-    'agentPrompt.when.host_instruction': 'Wenn die einbettende Anwendung einen Auftrag mitgibt.',
-    'agentPrompt.step.skill_hints': 'Hinweis auf Skills aus dem Gespräch',
-    'agentPrompt.when.skill_hints': 'Wenn das Gespräch freigegebene Skills kennt oder einer läuft.',
-    'agentPrompt.step.history': 'Verlauf',
-    'agentPrompt.when.history': 'Bis zu zehn frühere Nachrichten, in der Größe gedeckelt.',
-    'agentPrompt.step.prefetch': 'Vorab geholter Freigabe-Katalog',
-    'agentPrompt.when.prefetch':
-      'Wenn die Seite eine Sammlung zeigt: ihre Skills, bevor das Modell danach fragen könnte.',
-    'agentPrompt.step.last_shown': 'Zuletzt gezeigt',
-    'agentPrompt.when.last_shown':
-      'Wenn die Person in den letzten drei Antworten etwas gesehen hat: die angezeigten Karten mit '
-      + 'Kennung und bis zu drei Dokumente (zusammen höchstens 6 000 Zeichen, Kürzungen vermerkt) — '
-      + 'als Daten gerahmt am Anfang ihrer Nachricht, für Bezüge wie „der erste Treffer“.',
-    'agentPrompt.step.message': 'Nachricht der Person',
-    'agentPrompt.when.message': 'Immer, als letztes Glied.',
-    'agentPrompt.tools.one':
-      'Dazu geht {count} Werkzeug-Beschreibung mit {chars} Zeichen mit — in jeder Runde.',
-    'agentPrompt.tools.other':
-      'Dazu gehen {count} Werkzeug-Beschreibungen mit {chars} Zeichen mit — in jeder Runde.',
   },
   en: {
     'curated.agent.tools.label': 'Tools and locks',
@@ -177,12 +132,17 @@ export const AGENT_CENTER: CataloguePart = {
     'agentTools.group.read.hint': 'repository and web',
     'agentTools.group.curation': 'Curating',
     'agentTools.group.curation.hint': 'write to the repository, need a stored access',
+    'agentTools.group.external': 'External',
+    'agentTools.group.external.hint': 'read-only tools of further MCP servers, adopted under Knowledge → MCP servers',
     'agentTools.group.virtual': 'Virtual',
     'agentTools.group.virtual.hint': 'answered by the server itself, cannot be locked',
     'agentTools.pageLink': 'Page {page}',
     'agentTools.signal.pii': 'personal data in the message',
-    'agentTools.lock.never': 'Never offered: the way to a guide leads through its collection.',
-    'agentTools.lock.needsAccess': 'Missing without a stored access to the repository.',
+    'agentTools.lock.hidden':
+      'Switched off under “MCP servers” (search_skill by default) — can be switched on there.',
+    'agentTools.lock.needsAccess':
+      'Only with a personal WLO sign-in — or with the guest account, if it may write '
+      + '(see “Operation”).',
     'agentTools.lock.toolMode': 'Missing in embeddings with tool-mode {modes}.',
     'agentTools.lock.safetyFixed':
       'Dropped when the regex gate detects {signals} (fixed in code).',
@@ -239,55 +199,5 @@ export const AGENT_CENTER: CataloguePart = {
     'agentSkills.searchTruncated': 'More than {count} skills may match; a more specific term narrows the list.',
     'agentSkills.edit': 'Edit',
     'agentSkills.editOf': ': {title} in the editor',
-
-    'curated.agent.prompt.label': 'What the model reads first',
-    'curated.agent.prompt.hint':
-      'The start of the chain of a chat turn in agent mode: our own rules, then the master '
-      + 'skill, then what each turn adds.',
-    'agentPrompt.language': 'Widget language',
-    'agentPrompt.language.de': 'German',
-    'agentPrompt.language.en': 'English',
-    'agentPrompt.loading': 'Building the preview …',
-    'agentPrompt.intro':
-      'The first two links are the same in every turn and sit in the cached start; the others '
-      + 'depend on the single turn.',
-    'agentPrompt.showText': 'Show the wording',
-    'agentPrompt.textLabel': 'Wording: {name}',
-    'agentPrompt.chars.one': '{n} character',
-    'agentPrompt.chars.other': '{n} characters',
-    'agentPrompt.checksum': '{chars} in the prompt · document checksum {sum}',
-    'agentPrompt.skill.off': 'Off: the agent works without the master skill.',
-    'agentPrompt.skill.no_node': 'On, but no node maintained (MASTER_SKILL_NODE_ID).',
-    'agentPrompt.skill.failed': 'On, but not loaded: {error}. The turn runs without it.',
-    'agentPrompt.step.head': 'Head: role, form of address, limits, language',
-    'agentPrompt.step.master_skill': 'Master skill',
-    'agentPrompt.step.result_schema': 'Sentence on the result schema',
-    'agentPrompt.when.result_schema':
-      'Appended to the head when the embedding declares a result schema.',
-    'agentPrompt.step.host_capabilities': 'Limits of the embedding',
-    'agentPrompt.when.host_capabilities':
-      'When the embedding restricts something (tool-mode, grouping of results).',
-    'agentPrompt.step.page_context': 'Page context',
-    'agentPrompt.when.page_context': 'When the page shows a collection, a content item or a topic page.',
-    'agentPrompt.step.host_instruction': 'Task of the host application',
-    'agentPrompt.when.host_instruction': 'When the embedding application passes a task.',
-    'agentPrompt.step.skill_hints': 'Hint at skills from the conversation',
-    'agentPrompt.when.skill_hints': 'When the conversation knows approved skills or one is running.',
-    'agentPrompt.step.history': 'History',
-    'agentPrompt.when.history': 'Up to ten earlier messages, capped in size.',
-    'agentPrompt.step.prefetch': 'Prefetched approval catalogue',
-    'agentPrompt.when.prefetch':
-      'When the page shows a collection: its skills, before the model could ask for them.',
-    'agentPrompt.step.last_shown': 'Last shown',
-    'agentPrompt.when.last_shown':
-      'When the person saw something in the last three answers: the cards shown, with their '
-      + 'identifiers, and up to three documents (6,000 characters in total, cuts marked) — framed '
-      + 'as data at the start of their message, for references like “the first hit”.',
-    'agentPrompt.step.message': 'The person’s message',
-    'agentPrompt.when.message': 'Always, as the last link.',
-    'agentPrompt.tools.one':
-      'Plus {count} tool description with {chars} characters — in every round.',
-    'agentPrompt.tools.other':
-      'Plus {count} tool descriptions with {chars} characters — in every round.',
   },
 };

@@ -4,10 +4,11 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from "@angular/common/http/testing";
-import { provideZonelessChangeDetection } from "@angular/core";
+import { ApplicationRef, provideZonelessChangeDetection } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { describe, expect, it } from "vitest";
 
+import { EffectsApi } from "../core/effects-api.service";
 import { STUDIO_LOCALE_STORAGE_KEY } from "../i18n/studio-language.service";
 import { ArchitectureReferenceComponent } from "./architecture-reference.component";
 import {
@@ -65,13 +66,17 @@ describe("ArchitectureReferenceComponent", () => {
     }
   });
 
-  it("opens on the pipeline and leaves the rest closed", () => {
+  it("opens on the two engines and leaves the rest closed", () => {
+    // Paket 6, S3: seit Z2 (D-15) bleiben beide Maschinen im Betrieb — der
+    // Abschnitt über sie steht vorn und offen; die Pipeline darunter ist die
+    // der Muster-Maschine und sagt das.
     const el = mount();
     const open = Array.from(el.querySelectorAll("details")).filter(
       (d) => d.open,
     );
     expect(open).toHaveLength(1);
-    expect(open[0].textContent).toContain("Verarbeitungs-Pipeline");
+    expect(open[0].textContent).toContain("Zwei Maschinen");
+    expect(el.textContent).toContain("Muster-Maschine: die Verarbeitungs-Pipeline");
   });
 
   it("documents every host attribute the element accepts", () => {
@@ -178,7 +183,7 @@ describe("ArchitectureReferenceComponent", () => {
     // und Tabellenkopf —, weil jede einen anderen Weg durch die Vorlage nimmt.
     const text = mount("en").textContent ?? "";
     expect(text).toContain("Architecture reference");
-    expect(text).toContain("The processing pipeline");
+    expect(text).toContain("Pattern engine: the processing pipeline");
     expect(text).toContain("Token behaviour");
     expect(text).not.toContain("Verarbeitungs-Pipeline");
   });
@@ -257,5 +262,68 @@ describe("ArchitectureReferenceComponent", () => {
       (c) => c.textContent,
     );
     expect(codes).toContain("signal_*_fit");
+  });
+});
+
+// ── Paket 6, S3: die Referenz beschreibt beide Maschinen ──────────────────
+describe("ArchitectureReferenceComponent — zwei Maschinen", () => {
+  it("stellt Muster-Maschine und Agent-Schleife Zeile für Zeile gegenüber", () => {
+    const el = mount();
+    const tabelle = el.querySelector("studio-reference-machines table")!;
+    const zeilen = Array.from(tabelle.querySelectorAll("tbody th")).map(
+      (th) => th.textContent!.trim());
+    expect(zeilen).toEqual(["Einordnung", "Steuerung", "Werkzeuge", "Ablauf", "Schreiben"]);
+    expect(tabelle.textContent).toContain("wissen_suchen");
+    expect(tabelle.textContent).toContain("nur mit persönlicher Anmeldung");
+  });
+
+  it("sagt, dass Krise und Bedrohung auch im Agent-Modus die Muster-Maschine beantwortet", () => {
+    const el = mount();
+    expect(el.querySelector("studio-reference-machines")?.textContent)
+      .toContain("auch im Agent-Modus die Muster-Maschine");
+  });
+
+  it("nennt die Vorgabe dieser Anlage, sobald sie bekannt ist — sonst nichts", () => {
+    const el = mount();
+    expect(el.querySelector(".rm-current")).toBeNull();
+    TestBed.inject(EffectsApi).effects.set({ engine: "agent", areas: {} });
+    TestBed.inject(ApplicationRef).tick();
+    expect(el.querySelector(".rm-current")?.textContent).toContain("Agent-Schleife");
+  });
+
+  it("trägt keine Port-Notizen und keine feste Werkzeugzahl mehr", () => {
+    // „ALT nannte …“ war eine Notiz für die Portierung, keine für die Redaktion;
+    // die Zahl 12 stimmte längst nicht mehr (Werkzeugliste: Agent-Seite).
+    const el = mount();
+    expect(el.textContent).not.toContain("ALT nannte");
+    expect(el.textContent).not.toMatch(/stellt \d+ Werkzeug/);
+    expect(el.textContent).toContain("Werkzeuge und Sperren");
+  });
+
+  it("beschreibt die beiden Maschinen auch auf Englisch", () => {
+    const el = mount("en");
+    expect(el.textContent).toContain("Two engines: pattern and agent");
+    expect(el.textContent).toContain("Pattern engine: the processing pipeline");
+  });
+
+  it("zeigt den Weg eines Zugs mit den 13 Knoten des Graphen und seinen drei frühen Ausgängen", () => {
+    // Paket 6, S3 (Review): `graph/build.py` — nur tour, context_greeting und
+    // preflight beenden einen Zug früh; der Seitenkontext läuft immer weiter.
+    const el = mount();
+    const schritte = Array.from(el.querySelectorAll(".rm-flow > li"));
+    expect(schritte.map((li) => li.querySelector("code")?.textContent)).toEqual([
+      "setup", "tour", "page_context_enrich", "context_greeting", "persist_user", "preflight",
+      "assess", "safety_log", "merge", "route", "respond", "assemble", "persist",
+    ]);
+    const frueh = schritte.filter((li) => li.textContent!.includes("Kann den Zug hier beenden."));
+    expect(frueh.map((li) => li.querySelector("code")?.textContent))
+      .toEqual(["tour", "context_greeting", "preflight"]);
+    expect(el.querySelector("studio-reference-machines")?.textContent)
+      .toContain("der Seitenkontext läuft immer weiter");
+  });
+
+  it("nennt die sieben Phasen als Sicht auf die Muster-Maschine, nicht als Ablauf jeder Nachricht", () => {
+    const el = mount();
+    expect(el.textContent).not.toContain("durchläuft jede Nutzernachricht sieben Phasen");
   });
 });

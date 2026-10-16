@@ -64,10 +64,13 @@ describe('firstSentence (ST-8b)', () => {
 describe('lockText (ST-8b)', () => {
   it('sagt je Sperre, wann das Werkzeug fehlt', () => {
     const de = wörter('de');
-    expect(lockText({ code: 'never' }, de))
-      .toBe('Nie angeboten: der Weg zu einer Anleitung führt über ihre Sammlung.');
+    // Paket 7 (S5): im Studio je MCP-Server ein- und abschaltbar.
+    expect(lockText({ code: 'hidden' }, de))
+      .toBe('Abgeschaltet unter „MCP-Server“ (search_skill von Haus aus) — dort einschaltbar.');
+    // Paket 7 (S4): schreiben nur mit persönlicher Anmeldung oder Gastkonto-Erlaubnis.
     expect(lockText({ code: 'needs_access' }, de))
-      .toBe('Fehlt ohne hinterlegten Zugang zum Repositorium.');
+      .toBe('Nur mit persönlicher WLO-Anmeldung — oder mit dem Gastkonto, wenn es unter '
+        + '„Betrieb“ schreiben darf.');
     expect(lockText({ code: 'tool_mode', modes: ['read-only'] }, de))
       .toBe('Fehlt in Einbettungen mit tool-mode read-only.');
     expect(lockText({ code: 'safety_fixed', signals: ['pii'] }, de))

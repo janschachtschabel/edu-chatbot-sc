@@ -82,3 +82,12 @@ export async function runTicketLogin(ctx: TicketLoginContext): Promise<TicketLog
   // Speicher, sondern in diesem Ausgang.
   return writeAccessBlock(data.block) ? 'done' : 'store-failed';
 }
+
+/** Eine Sperre für frühe Züge, bis der Tausch endet (Paket 10, Kurzaudit S-4) —
+ *  höchstens `fristMs`, damit eine Anlage ohne Anmeldung nicht jeden Zug aufhält. */
+export function anmeldeSperre(fristMs = 5_000): { sperre: Promise<void>; freigeben: () => void } {
+  let freigeben!: () => void;
+  const sperre = new Promise<void>((resolve) => { freigeben = resolve; });
+  setTimeout(freigeben, fristMs);
+  return { sperre, freigeben };
+}

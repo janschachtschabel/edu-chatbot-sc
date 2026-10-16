@@ -450,3 +450,52 @@ describe("Kostenschau — Herkunft (ST-9)", () => {
     expect(h.query.get("scope")).toBe("production");
   });
 });
+
+// ── Paket 7 (P3, P5-3): Aufträge der Agent-API ohne Sitzung ──────────────────
+describe("Kostenschau — Agent-API", () => {
+  it("nennt die Zeile ohne Sitzung „Agent-API“ statt einer leeren Kennung", async () => {
+    await mount({
+      ...REPORT,
+      sessions: [
+        ...REPORT.sessions,
+        {
+          session_id: null,
+          source: "agent-api",
+          calls: 3,
+          prompt_tokens: 500,
+          cached_tokens: 0,
+          completion_tokens: 50,
+          reasoning_tokens: 0,
+          amount: null,
+          price_unavailable: ["m-p3"],
+        },
+      ],
+    });
+    const zeilen = Array.from(h.el.querySelectorAll(".cst-session-id")).map(
+      (z) => z.textContent?.trim(),
+    );
+    expect(zeilen).toEqual(["bb-teuer", "Agent-API (Aufträge ohne Sitzung)"]);
+  });
+
+  it("benennt Zeilen ohne Sitzung nach ihrer Quelle (Paket 9)", async () => {
+    // Review Paket 7 (MINOR 31, 36): seit die Probeläufe des Auftragstesters
+    // eigens gebucht werden, gibt es zwei Zeilen ohne Sitzung — beide hießen
+    // „Agent-API“ und teilten sich den Schlüssel der Liste.
+    const ohneSitzung = (source: string, calls: number) => ({
+      session_id: null, source, calls, prompt_tokens: 10 * calls, cached_tokens: 0,
+      completion_tokens: calls, reasoning_tokens: 0, amount: null, price_unavailable: [],
+    });
+    await mount({
+      ...REPORT,
+      sessions: [...REPORT.sessions, ohneSitzung("agent-api", 3), ohneSitzung("studio-probe", 2)],
+    });
+    const zeilen = Array.from(h.el.querySelectorAll(".cst-session-id")).map(
+      (z) => z.textContent?.trim(),
+    );
+    expect(zeilen).toEqual([
+      "bb-teuer",
+      "Agent-API (Aufträge ohne Sitzung)",
+      "Studio: „Auftrag testen“ (Probeläufe ohne Sitzung)",
+    ]);
+  });
+});

@@ -22,7 +22,9 @@ export interface PipelinePhase {
   readonly descKey: string;
 }
 
-/** ALT InfoView:132-139. Names match the graph nodes in `graph/build.py`. */
+/** ALT InfoView:132-139 — ALT's seven phases of the PATTERN engine, not the
+ *  nodes of `graph/build.py` (13 nodes, three early exits — listed in the machines
+ *  section of the reference, `reference-machines.component.ts`). */
 export const PIPELINE: readonly PipelinePhase[] = [
   { step: 1, labelKey: 'arch.row.pipe.1.label', descKey: 'arch.row.pipe.1.desc' },
   { step: 2, labelKey: 'arch.row.pipe.2.label', descKey: 'arch.row.pipe.2.desc' },

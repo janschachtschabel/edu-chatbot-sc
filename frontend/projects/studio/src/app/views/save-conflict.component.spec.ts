@@ -45,6 +45,17 @@ describe("SaveConflictComponent", () => {
     expect(text).toContain("2026"); // die Zeit, ortsüblich formatiert
   });
 
+  it("übersetzt die Wege der Werksfassung (Paket 12)", async () => {
+    for (const [weg, text] of [
+      ["werksabgleich", "Werksabgleich"], ["werkfassung", "Werksfassung"],
+      ["eigene-fassung", "eigene Fassung"], ["seed-apply-cli", "Werksfassung"],
+      ["import-cli", "Import"]] as const) {
+      const h = await mount({ ...GEAENDERT, updatedBy: weg });
+      expect(h.el.textContent).toContain(text);
+      expect(h.el.textContent).not.toContain(weg);
+    }
+  });
+
   it("zeigt eine unbekannte Quelle so, wie sie kam", async () => {
     const h = await mount({ ...GEAENDERT, updatedBy: "skript-x" });
     expect(h.el.textContent).toContain("skript-x");

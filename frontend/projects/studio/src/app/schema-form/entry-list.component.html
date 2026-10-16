@@ -1,0 +1,36 @@
+<p class="ol-count" [id]="baseId() + '-count'" aria-live="polite">{{ countText() }}</p>
+<input
+  class="sf-input ol-search"
+  type="search"
+  [id]="baseId() + '-search'"
+  [value]="query()"
+  [attr.aria-label]="t('objectList.searchIn', { group: label() })"
+  [attr.placeholder]="t('objectList.search')"
+  (input)="onSearch($event)"
+/>
+@if (entries().length) {
+  <ul class="ol-entries" [attr.aria-label]="t('objectList.entries', { group: label() })">
+    @for (entry of entries(); track entry.id) {
+      <li>
+        <button
+          type="button"
+          class="ol-entry"
+          [attr.aria-current]="entry.id === current() ? 'true' : null"
+          (click)="pick.emit(entry.id)"
+        >
+          <span class="ol-title">{{ entry.title }}</span>
+          @if (entry.note) {
+            <span class="ol-note">{{ entry.note }}</span>
+          }
+          @if (entry.problem) {
+            <span class="ol-problem" aria-hidden="true">⚠</span>
+            <span class="sr">{{ t('objectList.hasProblem') }}</span>
+          }
+        </button>
+      </li>
+    }
+  </ul>
+} @else {
+  <p class="ol-empty">{{ emptyText() }}</p>
+}
+<ng-content />

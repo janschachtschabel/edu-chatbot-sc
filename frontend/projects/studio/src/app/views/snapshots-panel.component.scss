@@ -50,3 +50,15 @@
 .sp-row .op-confirm {
   margin-block-start: 0;
 }
+
+// Paket 12: von Hand oder automatisch — als Wort, die Form hebt nur hervor.
+.sp-art {
+  font-weight: 600;
+  color: var(--st-text);
+}
+
+.sp-art--auto {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--st-text-muted);
+}

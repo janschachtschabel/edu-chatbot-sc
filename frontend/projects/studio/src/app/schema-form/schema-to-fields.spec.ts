@@ -287,10 +287,13 @@ describe('rootField — against the real area schemas', () => {
   // vom 2026-08-12) fehlte in der Fixture, weil sie danach nicht neu erzeugt
   // worden war. Diese Zahl ist deshalb kein Zierrat — sie ist das Einzige, was
   // eine veraltete Fixture überhaupt bemerkbar macht.
-  // Regenerate the fixture after adding one:
+  // 32 seit Paket 7 (K4, 2026-10-09): `05-canvas/create-triggers` und
+  // `05-canvas/edit-triggers` gestrichen — ihre Leser rief kein Produktionscode.
+  // Regenerate the fixture after adding or removing one:
   //   cd backend && uv run python scripts/export_area_schemas.py
-  it('covers all 34 distinct area models', () => {
-    expect(areas).toHaveLength(34);
+  // 33 seit Paket 7 (P4): `01-base/rag-retrieval` bekam sein Modell.
+  it('covers all 33 distinct area models', () => {
+    expect(areas).toHaveLength(33);
   });
 
   it.each(areas)('maps %s without throwing', (area) => {
@@ -351,6 +354,8 @@ describe('rootField — against the real area schemas', () => {
       '04-entities/entities:entities[].negative_examples[]',
       '04-entities/entities:entities[].positive_examples[]',
       '04-intents/intents:intents[].discriminators[]',
+      // Paket 11 (E): das Eingabeschema eines fremden Werkzeugs, aus „Server prüfen“ übernommen.
+      '05-knowledge/mcp-servers:servers[].tool_schemas[].input_schema', // dict[str, Any]
       'eval/gold-flows:flows[].environment', // dict[str, Any] — AG-5, geprüft serverseitig
       'eval/gold-flows:flows[].turns[].expect', // dict[str, Any]
     ]);

@@ -72,6 +72,8 @@ export interface GoldFlow {
   readonly persona?: string;
   readonly intents?: readonly string[];
   readonly turns?: readonly unknown[];
+  /** Paket 7 (K3): läuft nur ausdrücklich gewählt, nicht bei „alle“. */
+  readonly auf_abruf?: boolean;
 }
 
 export interface EvalEstimate {
@@ -81,9 +83,14 @@ export interface EvalEstimate {
   readonly chat_calls: number;
   readonly judge_calls: number;
   readonly simulator_calls: number;
-  readonly est_usd: number;
-  readonly est_usd_min: number;
-  readonly est_usd_max: number;
+  /** Paket 7 (K7): in der Währung der Preistafel, als Zeichenkette wie jeder
+   *  Betrag vom Server (K4). `null`, sobald ein aufgerufenes Modell keinen
+   *  gepflegten Preis hat — `price_missing` nennt es. */
+  readonly currency: string | null;
+  readonly est: string | null;
+  readonly est_min: string | null;
+  readonly est_max: string | null;
+  readonly price_missing: readonly string[];
 }
 
 export interface EvalConfig {

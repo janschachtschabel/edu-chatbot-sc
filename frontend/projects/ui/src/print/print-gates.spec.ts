@@ -91,8 +91,14 @@ describe('printInlineDocument (ALT 901-904)', () => {
   // direkt bindet. So läuft der echte Pfad bis in das geschriebene HTML.
   function captureOpen(): { written: string[] } {
     const written: string[] = [];
+    // `addEventListener`: das Dokument druckt sich nach dem Laden (Paket 8) —
+    // die Attrappe lädt nie, also druckt sie auch nicht. Uhr und Druck sind die
+    // des Fensters (Paket 9), also braucht auch die Attrappe beide.
     const fakeWin = {
       document: { write: (html: string) => { written.push(html); }, close: () => {} },
+      addEventListener: () => {},
+      setTimeout: () => 0,
+      print: () => {},
     };
     vi.stubGlobal('open', () => fakeWin);
     return { written };

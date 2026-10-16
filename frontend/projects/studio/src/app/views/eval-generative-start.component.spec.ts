@@ -33,9 +33,11 @@ const ESTIMATE = {
   chat_calls: 20,
   judge_calls: 20,
   simulator_calls: 16,
-  est_usd: 0.14,
-  est_usd_min: 0.08,
-  est_usd_max: 0.28,
+  currency: "EUR",
+  est: "0.140000",
+  est_min: "0.084000",
+  est_max: "0.280000",
+  price_missing: [],
 };
 
 interface Harness {
@@ -301,6 +303,36 @@ describe("EvalGenerativeStartComponent", () => {
     expect(region!.textContent).toContain("Chat-Aufrufe");
   });
 
+  // ── Paket 7, K7: Kosten in der Währung der Preistafel ────────────────
+  it("nennt die Spanne in der Währung der Preistafel", async () => {
+    await mount();
+    await check();
+    const band = h.el.querySelector(".egs-band")!.textContent!.replace(/\s+/g, " ").trim();
+    expect(band).toBe("Geschätzte Kosten 0,08 € bis 0,28 €, erwartet 0,14 €.");
+    expect(text()).not.toContain("$");
+  });
+
+  it("sagt, für welches Modell kein Preis gepflegt ist, statt eine Zahl zu raten", async () => {
+    await mount();
+    await check({
+      ...ESTIMATE, est: null, est_min: null, est_max: null,
+      price_missing: ["gpt-6-luna"],
+    });
+    const band = h.el.querySelector(".egs-band")!.textContent!.replace(/\s+/g, " ").trim();
+    expect(band).toContain("gpt-6-luna");
+    expect(band).toContain("kein Preis gepflegt");
+    expect(band).not.toMatch(/\d,\d\d/);
+    // Review Paket 7 (NIT): der Satz „Schätzung …, bepreist nach der Preistafel“
+    // stand auch hier — unter „Keine Kostenschätzung“.
+    expect(h.el.querySelector(".egs-confirm .egs-hint")).toBeNull();
+  });
+
+  it("erklärt die Schätzung nur, wenn es eine gibt (Paket 9)", async () => {
+    await mount();
+    await check();
+    expect(h.el.querySelector(".egs-confirm .egs-hint")?.textContent).toContain("Preistafel");
+  });
+
   // ── C1-d4c ──────────────────────────────────────────────────────────
   //
   // Vier Anzahlen in einem Satz, jede mit eigener Mehrzahl. Eine
@@ -318,9 +350,11 @@ describe("EvalGenerativeStartComponent", () => {
       chat_calls: 1,
       judge_calls: 1,
       simulator_calls: 1,
-      est_usd: 0.01,
-      est_usd_min: 0.01,
-      est_usd_max: 0.02,
+      currency: "EUR",
+      est: "0.010000",
+      est_min: "0.006000",
+      est_max: "0.020000",
+      price_missing: [],
     });
     expect(
       h.el.querySelector(".egs-cost")!.textContent!.replace(/\s+/g, " ").trim(),

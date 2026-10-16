@@ -52,6 +52,7 @@ function makeCtx(overrides: Partial<LifecycleContext> = {}): {
     addUserMessage: () => { /* nur im Restore relevant */ },
     addBotMessage: (...a: unknown[]) => { rec.bots.push(a); return 'id'; },
     setLatestDebug: (d) => { rec.latestDebug.push(d); },
+    isLoading: () => false,
     setLoading: (v) => { rec.loading.push(v); },
     tour: tour as unknown as TourController,
     contextGreeting: cg as unknown as ContextGreetingController,
@@ -385,6 +386,75 @@ describe('ShellLifecycle — Tour besitzt den Load (X1)', () => {
     await vi.runAllTimersAsync();
     expect(made.tour.sendTourTick).toHaveBeenCalled();
     expect(made.cg.sendContextPing).not.toHaveBeenCalled();
+  });
+
+  // Paket 7, T2 (Nutzer-Entscheid 2026-10-09: „bei Sprachwechsel passenden
+  // Seitengruß“): das Backend merkt sich je Seite die zuletzt begrüßte Sprache —
+  // in der neuen ist die Seite für es neu. Dieselben Tore wie nach einer
+  // SPA-Navigation.
+  it('regreetForLocale: Ping-Gate zurück, Gruß neu anfragen (ohne Frage: Erstlade-Fall)', () => {
+    vi.useFakeTimers();
+    const { ctx, cg } = makeCtx({ parsedPageContext: () => ({ collection_id: 'c1' }) });
+    new ShellLifecycle(ctx).regreetForLocale();
+    expect(cg.resetForNewPage).toHaveBeenCalled();
+    vi.runAllTimers();
+    expect(cg.sendContextPing).toHaveBeenCalledWith('context_open_initial');
+  });
+
+  it('regreetForLocale: laufende Unterhaltung → Ping als context_open', () => {
+    vi.useFakeTimers();
+    const { ctx, cg } = makeCtx({
+      parsedPageContext: () => ({ collection_id: 'c1' }), hasUserMessages: () => true });
+    new ShellLifecycle(ctx).regreetForLocale();
+    vi.runAllTimers();
+    expect(cg.sendContextPing).toHaveBeenCalledWith('context_open');
+  });
+
+  it('regreetForLocale: laufende Tour oder nicht adressierbare Seite → kein Ping', () => {
+    vi.useFakeTimers();
+    const mitTour = makeCtx({ parsedPageContext: () => ({ collection_id: 'c1' }) });
+    mitTour.tour.isTourFlagSet.mockReturnValue(true);
+    new ShellLifecycle(mitTour.ctx).regreetForLocale();
+    const fachportal = makeCtx({ parsedPageContext: () => ({ page_kind: 'subject' }) });
+    new ShellLifecycle(fachportal.ctx).regreetForLocale();
+    vi.runAllTimers();
+    expect(mitTour.cg.sendContextPing).not.toHaveBeenCalled();
+    expect(fachportal.cg.sendContextPing).not.toHaveBeenCalled();
+  });
+
+  // Review Paket 7, C-5: am `isLoading`-Tor des Pings fiel der Neugruß still weg —
+  // während eines Zuges, der Nachfrage im Verlauf oder des Erstlade-Pings.
+  it('regreetForLocale während eines Zuges → nach dem Laden nachgeholt', () => {
+    vi.useFakeTimers();
+    let laedt = true;
+    const { ctx, cg } = makeCtx({
+      parsedPageContext: () => ({ collection_id: 'c1' }), isLoading: () => laedt });
+    const lc = new ShellLifecycle(ctx);
+    lc.regreetForLocale();
+    vi.runAllTimers();
+    expect(cg.sendContextPing).not.toHaveBeenCalled();
+    laedt = false;
+    lc.loadingEnded();
+    vi.runAllTimers();
+    expect(cg.resetForNewPage).toHaveBeenCalledOnce();
+    expect(cg.sendContextPing).toHaveBeenCalledWith('context_open_initial');
+    lc.loadingEnded();                     // nur einmal
+    vi.runAllTimers();
+    expect(cg.sendContextPing).toHaveBeenCalledOnce();
+  });
+
+  it('ein Neustart verwirft den zurückgestellten Neugruß', () => {
+    vi.useFakeTimers();
+    let laedt = true;
+    const { ctx, cg } = makeCtx({
+      parsedPageContext: () => ({ collection_id: 'c1' }), isLoading: () => laedt });
+    const lc = new ShellLifecycle(ctx);
+    lc.regreetForLocale();
+    lc.restart();                          // gibt das Laden frei und begrüßt selbst
+    laedt = false;
+    lc.loadingEnded();
+    vi.runAllTimers();
+    expect(cg.sendContextPing).not.toHaveBeenCalled();
   });
 
   it('onSpaContextChange: laufende Tour → Kontext ersetzt, aber kein Ping', () => {

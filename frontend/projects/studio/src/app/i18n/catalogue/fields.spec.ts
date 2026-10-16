@@ -118,4 +118,18 @@ describe('Feldtexte der kuratierten Seiten (ST-1)', () => {
     for (const area of KURATIERT) anzahl += textKeys(rootField(schemaOf(area)), new Set()).size;
     expect(anzahl).toBeGreaterThan(250);
   });
+
+  it('Betrieb: eine Umgebungsvariable geht nur vor, wo der Schalter sie nennt (Paket 9)', () => {
+    // Review Paket 7 (MINOR 35): „Ist die genannte Umgebungsvariable gesetzt, gilt
+    // sie“ stand auch über dem Gastkonto — dessen Text nennt MCP_AUTH_TOKEN, und
+    // das übersteuert den Schalter nicht.
+    const faelle = [
+      [STUDIO_DE, '„Umgebung:“', 'keine Umgebungsvariable'],
+      [STUDIO_EN, '“Environment:”', 'no environment variable'],
+    ] as const;
+    for (const [katalog, marke, keine] of faelle) {
+      expect(katalog['feld.EngineArea.betrieb.hint']).toContain(marke);
+      expect(katalog['feld.Betrieb.gastkonto_schreibt.hint']).toContain(keine);
+    }
+  });
 });

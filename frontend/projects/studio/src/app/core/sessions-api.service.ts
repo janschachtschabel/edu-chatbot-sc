@@ -80,6 +80,24 @@ export interface OptimizeResult {
   readonly reclaimed_bytes: number;
 }
 
+/** What has a retention period (Paket 8, A): the conversations — messages and
+ *  session memory — and the two logs. Since Paket 9 (V7) also the state of idle
+ *  sessions (entities, signals, tour), which is cleared rather than deleted. */
+export type RetentionLog =
+  'messages' | 'memory' | 'session_state' | 'safety_logs' | 'quality_logs';
+
+/** `GET /sessions/retention`, one row per log: period in days (0 = unlimited),
+ *  entries due now, oldest entry as ISO time (`null` = the log is empty). */
+export interface RetentionRow {
+  readonly bereich: RetentionLog;
+  readonly tage: number;
+  readonly faellig: number;
+  readonly aeltester: string | null;
+}
+
+/** Rows deleted per log by one retention run. */
+export type RetentionCounts = Partial<Record<RetentionLog, number>>;
+
 /** The endpoint's own cap (`_MAX_MESSAGES_LIMIT`), asked for explicitly: the
  *  studio reads a whole conversation, not the widget's 50-message restore. */
 const TRANSCRIPT_LIMIT = 200;
@@ -128,5 +146,17 @@ export class SessionsApi {
 
   optimize(): Promise<OptimizeResult> {
     return this.api.post<OptimizeResult>('/sessions/optimize', null);
+  }
+
+  async retention(): Promise<RetentionRow[]> {
+    const answer = await this.api.get<{ fristen: RetentionRow[] }>('/sessions/retention');
+    return answer.fristen;
+  }
+
+  /** Brings forward the run the backend makes every six hours; 409 while one
+   *  is already running. */
+  async runRetention(): Promise<RetentionCounts> {
+    const answer = await this.api.post<{ deleted: RetentionCounts }>('/sessions/retention', null);
+    return answer.deleted;
   }
 }

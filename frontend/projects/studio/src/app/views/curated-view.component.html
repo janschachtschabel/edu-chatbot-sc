@@ -10,7 +10,10 @@
   }
 </header>
 
-@if (definition()) {
+@if (definition()?.layout === 'tabs') {
+  <!-- ST-4c (Paket 6): Reiter mit Zählern statt gestapelter Abschnitte -->
+  <studio-curated-tabs [sections]="tabSections()" [label]="t(view().labelKey)" />
+} @else if (definition()) {
   <div class="cv-sections">
     @for (entry of entries(); track entry.key) {
       @if (entry.kind === 'area') {
@@ -38,6 +41,9 @@
           }
           @case ('privacy-purge') {
             <studio-privacy-purge [section]="entry.panel" [open]="entry.first" />
+          }
+          @case ('retention') {
+            <studio-retention [section]="entry.panel" [open]="entry.first" />
           }
           @case ('agent-tools') {
             <studio-agent-tools [section]="entry.panel" [open]="entry.first" />

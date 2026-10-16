@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formatBytes, formatDateTime, formatDecimal, formatMoney, formatPercent, formatRelative,
-  formatSeconds, formatUsd, formatWhole,
+  formatSeconds, formatWhole,
 } from './format';
 
 /** German typography puts a NO-BREAK space before the percent sign. */
@@ -84,15 +84,6 @@ describe('formatSeconds (ST-7b)', () => {
 
   it('groups thousands in long runs', () => {
     expect(formatSeconds(DE, 1_234_000)).toBe(`1.234,0${NBSP}s`);
-  });
-});
-
-describe('formatUsd', () => {
-  it('keeps the currency and moves only the symbol', () => {
-    // The provider quotes USD; the language decides where the sign stands, and
-    // hardcoding "$0.14" would get that wrong in German.
-    expect(formatUsd(DE, 0.14)).toBe(`0,14${NBSP}$`);
-    expect(formatUsd(EN, 0.14)).toBe('US$0.14');
   });
 });
 

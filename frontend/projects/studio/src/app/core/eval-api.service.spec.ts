@@ -69,7 +69,7 @@ describe("EvalApi", () => {
       scenarios_per_combo: 2,
       turns_per_conv: 3,
     });
-    req.flush({ est_usd: 1.2 });
+    req.flush({ est: "1.2" });
   });
 
   it("starts a generative run with the config slug included", async () => {

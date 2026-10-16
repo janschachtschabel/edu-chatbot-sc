@@ -62,24 +62,6 @@ export const FIELDS_MATERIAL: CataloguePart = {
       'Ordnet WLO-Ressourcentypen einem Material-Typ zu, gedacht für das Umarbeiten '
       + 'vorhandener Inhalte. Wird derzeit nicht ausgewertet.',
 
-    // ── Auslöser ────────────────────────────────────────────────────
-    'feld.CanvasCreateTriggersArea.create_triggers.label': 'Erstell-Auslöser',
-    'feld.CanvasCreateTriggersArea.create_triggers.hint':
-      'Wendungen wie „erstelle" oder „generiere", die einen Erstell-Auftrag anzeigen sollen. '
-      + 'Wird derzeit nicht ausgewertet: ob erstellt wird, entscheidet der Klassifikator (I05).',
-    'feld.CanvasCreateTriggersArea.search_verbs.label': 'Such-Verben',
-    'feld.CanvasCreateTriggersArea.search_verbs.hint':
-      'Verben wie „zeig" oder „suche", die eine Suche statt eines Erstell-Auftrags anzeigen '
-      + 'sollten. Wird derzeit nicht ausgewertet.',
-    'feld.CanvasEditTriggersArea.edit_triggers.label': 'Überarbeitungs-Auslöser',
-    'feld.CanvasEditTriggersArea.edit_triggers.hint':
-      'Wendungen wie „mach es einfacher" oder „kürzer", die ein bestehendes Material '
-      + 'überarbeiten sollen. Wird derzeit nicht ausgewertet: das erkennt der Klassifikator (I06).',
-    'feld.CanvasEditTriggersArea.explicit_create_overrides.label': 'Vorrang: neu erstellen',
-    'feld.CanvasEditTriggersArea.explicit_create_overrides.hint':
-      'Wendungen wie „neues Quiz" oder „anderes Thema", die trotz laufender Überarbeitung '
-      + 'einen Neuanfang verlangen sollen. Wird derzeit nicht ausgewertet.',
-
     // ── Vorrang je Persona ──────────────────────────────────────────
     'feld.CanvasPersonaPrioritiesArea.analytical_personas.label': 'Analytische Personas',
     'feld.CanvasPersonaPrioritiesArea.analytical_personas.hint':
@@ -134,24 +116,6 @@ export const FIELDS_MATERIAL: CataloguePart = {
     'feld.CanvasTypeAliasesArea.lrt_to_type.hint':
       'Maps WLO resource types to a material type, intended for reworking existing content. '
       + 'Currently not evaluated.',
-
-    // ── Triggers ────────────────────────────────────────────────────
-    'feld.CanvasCreateTriggersArea.create_triggers.label': 'Create triggers',
-    'feld.CanvasCreateTriggersArea.create_triggers.hint':
-      'Phrases such as "erstelle" or "generiere" meant to signal an order to create. Currently '
-      + 'not evaluated: whether to create is decided by the classifier (I05).',
-    'feld.CanvasCreateTriggersArea.search_verbs.label': 'Search verbs',
-    'feld.CanvasCreateTriggersArea.search_verbs.hint':
-      'Verbs such as "zeig" or "suche" that were meant to mark a search instead of an order to '
-      + 'create. Currently not evaluated.',
-    'feld.CanvasEditTriggersArea.edit_triggers.label': 'Edit triggers',
-    'feld.CanvasEditTriggersArea.edit_triggers.hint':
-      'Phrases such as "make it simpler" or "shorter" meant to revise an existing material. '
-      + 'Currently not evaluated: the classifier recognises revisions (I06).',
-    'feld.CanvasEditTriggersArea.explicit_create_overrides.label': 'Override: create new',
-    'feld.CanvasEditTriggersArea.explicit_create_overrides.hint':
-      'Phrases such as "neues Quiz" or "anderes Thema" meant to force a fresh start despite an '
-      + 'ongoing revision. Currently not evaluated.',
 
     // ── Priority per persona ────────────────────────────────────────
     'feld.CanvasPersonaPrioritiesArea.analytical_personas.label': 'Analytical personas',

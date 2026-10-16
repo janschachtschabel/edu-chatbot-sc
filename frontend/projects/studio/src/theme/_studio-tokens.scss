@@ -39,11 +39,12 @@
   // but failed as soon as it sat on --st-bg)
 
   // ── Accent ──────────────────────────────────────────────────────────
-  // #1f6feb: 4.63:1 on white ✓ AA text — but ONLY on white. On --st-bg 4.43:1,
-  // on --st-surface-variant 4.17:1, on --st-accent-soft 4.15:1: fine for rings
-  // and borders (3:1), too weak for body text on those surfaces.
-  --st-accent: var(--boerdi-primary);
-  // Text ON the accent fill (white here, 4.63:1). Never text on a panel: that
+  // #1b64d9 (user decision 2026-10-15): 5.42:1 on white, 5.18 on --st-bg, 4.88 on
+  // --st-surface-variant, 4.86 on --st-accent-soft — AA text on every Studio
+  // surface. The widget brand (#1f6feb, --boerdi-primary) stays: it is
+  // customer-overridable and reached only 4.15–4.63:1 here.
+  --st-accent: #1b64d9;
+  // Text ON the accent fill (white here, 5.42:1). Never text on a panel: that
   // was white on white (Review 2026-09-29). `check:contrast` keeps the pair.
   --st-on-accent: var(--boerdi-on-primary);
   --st-accent-soft: #ebf3ff; // active-nav / selected-row wash

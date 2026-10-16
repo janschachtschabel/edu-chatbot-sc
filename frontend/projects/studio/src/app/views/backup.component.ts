@@ -22,15 +22,21 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 
 import { ActionState } from '../core/action-state';
 import { saveBlob } from '../core/download';
-import { SnapshotsApi } from '../core/snapshots-api.service';
+import { injectFocus } from '../core/inject-focus';
+import { SnapshotsApi, type RestoreMode } from '../core/snapshots-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { FactoryPanelComponent } from './factory-panel.component';
+import { FassungenPanelComponent } from './fassungen-panel.component';
+import { RestoreModeComponent, geloeschtZusatz } from './restore-mode.component';
 import { SeedPanelComponent } from './seed-panel.component';
 import { SnapshotsPanelComponent } from './snapshots-panel.component';
 
 @Component({
   selector: 'studio-backup',
-  imports: [SnapshotsPanelComponent, FactoryPanelComponent, SeedPanelComponent],
+  imports: [
+    FassungenPanelComponent, SnapshotsPanelComponent, FactoryPanelComponent, SeedPanelComponent,
+    RestoreModeComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './backup.component.html',
   styleUrl: './backup.component.scss',
@@ -43,6 +49,11 @@ export class BackupComponent {
   readonly action = new ActionState(this.t);
   readonly file = signal<File | null>(null);
   readonly armed = signal(false);
+  /** Paket 7 (P5-5): jede Rückfrage beginnt bei „ergänzend" — „exakt" löscht
+   *  und wird deshalb jedes Mal ausdrücklich gewählt, nie vom letzten Mal geerbt. */
+  readonly mode = signal<RestoreMode>('merge');
+  /** Paket 9 (V8): Rückfrage → „Abbrechen“, danach zurück auf „Backup einspielen“. */
+  private readonly focus = injectFocus();
 
   onFile(event: Event): void {
     this.file.set((event.target as HTMLInputElement).files?.[0] ?? null);
@@ -50,11 +61,14 @@ export class BackupComponent {
   }
 
   arm(): void {
+    this.mode.set('merge');
     this.armed.set(true);
+    this.focus('.bk-cancel');
   }
 
   disarm(): void {
     this.armed.set(false);
+    this.focus('.bk-restore');
   }
 
   async download(): Promise<void> {
@@ -73,8 +87,10 @@ export class BackupComponent {
     // to use it, and clearing the input element too takes a DOM reach-around for
     // no gain — applying the same ZIP twice writes the same areas.
     await this.action.run('restore', async () => {
-      const { areas } = await this.api.restoreBackup(chosen);
-      return this.lang.plural('backup.areasRestored', areas, { name: chosen.name });
+      const r = await this.api.restoreBackup(chosen, this.mode());
+      return this.lang.plural('backup.areasRestored', r.areas, { name: chosen.name })
+        + geloeschtZusatz(this.lang, r);
     });
+    this.focus('.bk-restore');
   }
 }

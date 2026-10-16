@@ -102,7 +102,7 @@ describe("CURATED_VIEWS declaration", () => {
     // heading and hint would be gone too, so the page just looks shorter.
     const RENDERED = [
       "rag-areas", "rag-ingest", "mcp-registry", "agent-tester", "master-skill",
-      "privacy-purge", "agent-tools", "agent-skills", "agent-prompt", "agent-probe",
+      "privacy-purge", "retention", "agent-tools", "agent-skills", "agent-prompt", "agent-probe",
     ];
     const declared = CURATED_VIEWS.flatMap((view) =>
       view.sections.flatMap((s) => (isAreaSection(s) ? [] : [s.panel])),

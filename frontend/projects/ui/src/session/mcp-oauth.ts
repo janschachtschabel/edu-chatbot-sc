@@ -40,6 +40,8 @@ export interface OauthEndpoints {
 /** Injizierbare Ränder — Netz und Fenster; im Test beide ersetzt. */
 export interface OauthDeps {
   fetchImpl?: typeof fetch;
+  /** Öffnet das Anmeldefenster — gerufen mit `about:blank` im Takt des Klicks;
+   *  die Adresse setzt `signIn` danach (Paket 10, H-3). */
   openWindow?: (url: string) => Window | null;
   /** Wartezeit auf die Rückmeldung; Default 5 Minuten (eine Anmeldung dauert). */
   timeoutMs?: number;
@@ -181,17 +183,43 @@ function warteAufRueckmeldung(
 }
 
 /**
- * Der ganze Vorgang: Discovery → Registrierung → Zustimmungsfenster → Tausch →
+ * Der ganze Vorgang: Fenster → Discovery → Registrierung → Zustimmung → Tausch →
  * Block ablegen.
  *
- * `openWindow` muss aus einer **Nutzergeste** heraus gerufen werden (Klick),
- * sonst blockt der Browser das Fenster — deshalb ist `popup-blocked` ein
- * eigener Fall und keine allgemeine Panne.
+ * `signIn` muss aus einer **Nutzergeste** heraus gerufen werden (Klick), sonst
+ * blockt der Browser das Fenster — deshalb ist `popup-blocked` ein eigener Fall
+ * und keine allgemeine Panne. Das Fenster öffnet sich darum SOFORT, im selben
+ * Takt wie der Klick, und bekommt seine Adresse, sobald sie feststeht (Paket 10,
+ * Audit H-3): hinter Discovery, Registrierung und Prüfsumme war die Geste
+ * verbraucht, und Safari und Firefox blockten es. Jeder Ausstieg schließt es.
  */
 export async function signIn(
   mcpBaseUrl: string,
   redirectUri: string,
   deps: OauthDeps = {},
+): Promise<SignInResult> {
+  const oeffnen = deps.openWindow ?? ((u: string) => window.open(u, 'boerdi-wlo-anmeldung',
+    'width=520,height=680'));
+  const fenster = oeffnen('about:blank');
+  if (!fenster) return { ok: false, reason: 'popup-blocked' };
+  try {
+    return await anmelden(fenster, mcpBaseUrl, redirectUri, deps);
+  } finally {
+    schliessen(fenster);
+  }
+}
+
+function schliessen(fenster: Window): void {
+  try {
+    fenster.close();
+  } catch {
+    /* schon zu — kein Grund, den Vorgang scheitern zu lassen */
+  }
+}
+
+/** Der Vorgang hinter dem schon offenen Fenster (siehe {@link signIn}). */
+async function anmelden(
+  fenster: Window, mcpBaseUrl: string, redirectUri: string, deps: OauthDeps,
 ): Promise<SignInResult> {
   const endpunkte = await discoverEndpoints(mcpBaseUrl, deps);
   if (!endpunkte?.registration_endpoint) return { ok: false, reason: 'unavailable' };
@@ -201,7 +229,7 @@ export async function signIn(
 
   const verifier = createCodeVerifier();
   const state = createState();
-  const url = buildAuthorizeUrl({
+  fenster.location.href = buildAuthorizeUrl({
     authorizationEndpoint: endpunkte.authorization_endpoint,
     clientId,
     redirectUri,
@@ -210,17 +238,8 @@ export async function signIn(
     scope: 'wlo',
   });
 
-  const oeffnen = deps.openWindow ?? ((u: string) => window.open(u, 'boerdi-wlo-anmeldung',
-    'width=520,height=680'));
-  const fenster = oeffnen(url);
-  if (!fenster) return { ok: false, reason: 'popup-blocked' };
-
   const antwort = await warteAufRueckmeldung(fenster, state, deps.timeoutMs ?? 300_000);
-  try {
-    fenster.close();
-  } catch {
-    /* schon zu — kein Grund, den Vorgang scheitern zu lassen */
-  }
+  schliessen(fenster);  // gleich nach der Rückmeldung, nicht erst nach dem Tausch
 
   if (!antwort) return { ok: false, reason: 'timeout' };
   if (antwort.error) return { ok: false, reason: 'denied' };

@@ -17,7 +17,7 @@ export interface ToolGroup {
 }
 
 /** Lesend vorn: das sind die Werkzeuge, die jeder Zug hat. */
-const KIND_ORDER = ['read', 'curation', 'virtual'];
+const KIND_ORDER = ['read', 'curation', 'external', 'virtual'];
 
 export function groupTools(tools: readonly AgentTool[]): ToolGroup[] {
   const kinds = [...KIND_ORDER, ...new Set(tools.map((t) => t.kind).filter((k) => !KIND_ORDER.includes(k)))];
@@ -50,8 +50,8 @@ const SIGNAL_KEYS: ReadonlyMap<string, string> = new Map([
 /** Wann das Werkzeug fehlt, als Satz. Ein unbekannter Code kommt roh durch. */
 export function lockText(lock: AgentToolLock, w: LockWords): string {
   switch (lock.code) {
-    case 'never':
-      return w.t('agentTools.lock.never');
+    case 'hidden':
+      return w.t('agentTools.lock.hidden');
     case 'needs_access':
       return w.t('agentTools.lock.needsAccess');
     case 'tool_mode':

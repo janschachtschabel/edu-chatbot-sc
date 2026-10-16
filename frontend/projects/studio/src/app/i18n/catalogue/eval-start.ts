@@ -38,6 +38,9 @@ export const EVAL_START: CataloguePart = {
   de: {
     // ── Was sich beide Panels teilen ────────────────────────────────
     'evalStart.nothingChosen': 'Nichts ausgewählt = alle.',
+    /** Paket 7 (K3): Gold-Flows wie GV-RED-1 laufen nur ausdrücklich gewählt. */
+    'evalStart.gold.nothingChosen': 'Nichts ausgewählt = alle außer denen „nur auf Abruf“.',
+    'evalStart.gold.onDemand': 'nur auf Abruf',
     'evalStart.busy':
       'Es läuft schon ein Lauf — es kann immer nur einer gleichzeitig laufen.',
     /** Der Ja-Knopf, während er startet. */
@@ -132,9 +135,13 @@ export const EVAL_START: CataloguePart = {
       'Dieser Lauf feuert *{chat}* durch die echte Pipeline, *{judge}* und '
       + '{sim} — {turns}.',
     'evalStart.gen.band': 'Geschätzte Kosten *{min} bis {max}*, erwartet {expected}.',
+    /** Paket 7 (K7): kein Preis gepflegt — `{models}` kommt vom Server. */
+    'evalStart.gen.noPrice':
+      'Keine Kostenschätzung: für *{models}* ist in der Preistafel (Seite „Kosten“) '
+      + 'kein Preis gepflegt.',
     'evalStart.gen.bandHint':
-      'Schätzung mit festen Preisannahmen je Aufruf — die echte Rechnung hängt '
-      + 'an Prompt-Länge, Antwort-Länge und Tool-Ergebnissen.',
+      'Schätzung mit festen Token-Annahmen je Aufruf, bepreist nach der Preistafel — '
+      + 'die echte Rechnung hängt an Prompt-Länge, Antwort-Länge und Tool-Ergebnissen.',
     /** Der Fehlersatz des Backends kommt als `{error}` herein — geteilt wird
      *  der Katalog-Text, eingesetzt wird danach, er kann also keine
      *  Auszeichnung erzeugen (C1-d4b2). */
@@ -150,6 +157,8 @@ export const EVAL_START: CataloguePart = {
 
   en: {
     'evalStart.nothingChosen': 'Nothing selected = all.',
+    'evalStart.gold.nothingChosen': 'Nothing selected = all except those “on demand only”.',
+    'evalStart.gold.onDemand': 'on demand only',
     'evalStart.busy': 'A run is already in flight — only one can run at a time.',
     'evalStart.starting': 'Starting …',
     'evalStart.judgeCalls.one': '{count} judge call',
@@ -233,9 +242,11 @@ export const EVAL_START: CataloguePart = {
       'This run fires *{chat}* through the real pipeline, *{judge}* and {sim} '
       + '— {turns}.',
     'evalStart.gen.band': 'Estimated cost *{min} to {max}*, expected {expected}.',
+    'evalStart.gen.noPrice':
+      'No cost estimate: the price table (page “Costs”) has no price for *{models}*.',
     'evalStart.gen.bandHint':
-      'An estimate with fixed price assumptions per call — the real bill hangs '
-      + 'on prompt length, answer length and tool results.',
+      'An estimate with fixed token assumptions per call, priced by the price table — '
+      + 'the real bill hangs on prompt length, answer length and tool results.',
     'evalStart.gen.blind.one':
       'Starting *without a cost estimate*: {error} The run costs money all the '
       + 'same — {count} combination.',

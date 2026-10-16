@@ -1,0 +1,47 @@
+// Aufbewahrung (Paket 8, A). Hülle aus dem Abschnitts-Partial, Knöpfe,
+// Rückfrage und Ergebniszeile aus dem Partial der Schreib-Panels.
+@use './section-shell';
+@use './ops-panel';
+
+// Der Rahmen scrollt, nicht die Seite — vier Spalten passen nicht auf 320 px.
+.rt-table-wrap {
+  position: relative;
+  overflow-x: auto;
+  margin-block-end: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}
+
+.rt-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rt-caption {
+  padding: var(--st-2) var(--st-3);
+  border-block-end: 1px solid var(--st-rule);
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+  text-align: start;
+}
+
+.rt-table th,
+.rt-table td {
+  padding: var(--st-2) var(--st-3);
+  border-block-end: 1px solid var(--st-rule);
+  text-align: start;
+  vertical-align: top;
+}
+
+.rt-table tbody tr:last-child > * {
+  border-block-end: 0;
+}
+
+.rt-table thead th {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--st-text-muted);
+  white-space: nowrap;
+}

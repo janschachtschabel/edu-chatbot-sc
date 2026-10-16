@@ -14,7 +14,8 @@ export const BACKUP: CataloguePart = {
     // Die Überschrift ist `view.sicherung.label` — dieselbe Ansicht, derselbe
     // Name.
     'backup.intro':
-      'Alle drei Wege sichern dasselbe: die Konfigurationsbereiche des Chatbots. '
+      'Oben, welche Bereiche der Werksfassung folgen und welche angepasst sind; darunter die '
+      + 'Sicherungen. Alle sichern dasselbe: die Konfigurationsbereiche des Chatbots. '
       + 'Gespräche, Auswertungen und RAG-Inhalte gehören nicht dazu — ein eingespieltes '
       + 'Backup lässt sie unberührt.',
     'backup.full.title': 'Voll-Backup',
@@ -30,8 +31,7 @@ export const BACKUP: CataloguePart = {
      *  das Objekt hinter dem Verb, im Deutschen davor — aus Bruchstücken ist
      *  das nicht zusammenzusetzen. */
     'backup.confirmRestore':
-      '„{name}“ einspielen? Jeder Bereich aus der ZIP überschreibt seinen aktuellen '
-      + 'Stand. Bereiche, die nicht darin liegen, bleiben, wie sie sind.',
+      '„{name}“ einspielen? Jeder Bereich aus der ZIP überschreibt seinen aktuellen Stand.',
     'backup.confirmRestoreYes': 'Ja, einspielen',
     'backup.downloaded': 'Backup heruntergeladen.',
     // ST-9: die Kopfzeile. Einspielen führt zur Sicherungs-Seite — daher „…".
@@ -59,10 +59,13 @@ export const BACKUP: CataloguePart = {
       'Noch keine Snapshots. Ein Snapshot sichert die Konfiguration in ihrem jetzigen '
       + 'Stand — sinnvoll, bevor größere Änderungen anstehen.',
     'snapshots.restore': 'Wiederherstellen',
+    // Paket 12: selbst angelegt oder vom Server vor einem Überschreiben.
+    'snapshots.art.hand': 'von Hand',
+    'snapshots.art.auto': 'automatisch',
     'snapshots.delete': 'Löschen',
     'snapshots.confirmRestore':
       '„{name}“ einspielen? Die Konfigurationsbereiche aus diesem Snapshot überschreiben '
-      + 'den aktuellen Stand. Bereiche, die er nicht enthält, bleiben unverändert.',
+      + 'den aktuellen Stand.',
     'snapshots.confirmRestoreYes': 'Ja, wiederherstellen',
     'snapshots.confirmDelete':
       '„{name}“ endgültig löschen? Der gesicherte Stand ist danach nur noch über eine '
@@ -72,55 +75,55 @@ export const BACKUP: CataloguePart = {
     'snapshots.downloaded': '„{name}“ heruntergeladen.',
 
     // ── Werksstand ──────────────────────────────────────────────────
-    'factory.title': 'Werkseinstellungen',
+    'factory.title': 'Eigener Grundstand',
     'factory.lead':
-      'Der Werksstand ist die Konfiguration, mit der eine frisch aufgesetzte Installation '
-      + 'startet. Er liegt als eigener Stand auf dem Server und lässt sich jederzeit '
-      + 'wieder einspielen.',
-    'factory.checking': 'Werksstand wird geprüft …',
+      'Ein selbst gesicherter Stand der gelebten Konfiguration, auf den du jederzeit '
+      + 'zurücksetzen kannst. Er kommt nicht aus dem Repository — die Werksfassung steht in '
+      + 'der Karte „Werk und eigene Fassung“.',
+    'factory.checking': 'Grundstand wird geprüft …',
     'factory.savedAt': 'Gesichert am {date}',
     'factory.none':
-      'Kein Werksstand gesichert. Sichere den aktuellen Stand, sobald die Konfiguration '
-      + 'ausgeliefert werden soll.',
+      'Kein Grundstand gesichert. Sichere den aktuellen Stand, wenn du einen Punkt zum '
+      + 'Zurücksetzen brauchst.',
     'factory.save': 'Aus Live-Stand sichern',
     'factory.saving': 'Wird gesichert …',
     'factory.reset': 'Zurücksetzen',
     'factory.resetting': 'Wird eingespielt …',
     'factory.confirmSave':
-      'Den aktuellen Live-Stand als Werksstand sichern? Der bisher gesicherte Werksstand '
+      'Den aktuellen Live-Stand als Grundstand sichern? Der bisher gesicherte Grundstand '
       + 'wird dabei überschrieben.',
-    'factory.confirmSaveYes': 'Ja, Werksstand ersetzen',
+    'factory.confirmSaveYes': 'Ja, Grundstand ersetzen',
     'factory.confirmReset':
-      'Auf den Werksstand zurücksetzen? Die Konfigurationsbereiche aus dem gesicherten '
+      'Auf den Grundstand zurücksetzen? Die Konfigurationsbereiche aus dem gesicherten '
       + 'Stand überschreiben den aktuellen — laufende Gespräche und Auswertungen bleiben '
       + 'unberührt.',
     'factory.confirmResetYes': 'Ja, zurücksetzen',
-    'factory.uploadLabel': 'Werksstand aus einer ZIP übernehmen',
+    'factory.uploadLabel': 'Grundstand aus einer ZIP übernehmen',
     'factory.upload': 'Hochladen',
     'factory.uploading': 'Wird übernommen …',
     'factory.confirmUpload':
-      '„{name}“ als neuen Werksstand übernehmen? Der bisher gesicherte Werksstand wird '
+      '„{name}“ als neuen Grundstand übernehmen? Der bisher gesicherte Grundstand wird '
       + 'überschrieben.',
     'factory.confirmUploadYes': 'Ja, übernehmen',
-    'factory.saved': 'Werksstand aus dem aktuellen Live-Stand gesichert.',
-    'factory.wasReset.one': '{count} Konfigurationsbereich auf den Werksstand zurückgesetzt.',
-    'factory.wasReset.other': '{count} Konfigurationsbereiche auf den Werksstand zurückgesetzt.',
-    'factory.downloaded': 'Werksstand heruntergeladen.',
-    'factory.uploaded': '„{name}“ als Werksstand übernommen.',
+    'factory.saved': 'Grundstand aus dem aktuellen Live-Stand gesichert.',
+    'factory.wasReset.one': '{count} Konfigurationsbereich auf den Grundstand zurückgesetzt.',
+    'factory.wasReset.other': '{count} Konfigurationsbereiche auf den Grundstand zurückgesetzt.',
+    'factory.downloaded': 'Grundstand heruntergeladen.',
+    'factory.uploaded': '„{name}“ als Grundstand übernommen.',
 
-    // ── Auslieferungsstand aus dem Abbild (S4) ──────────────────────
-    // Der Unterschied zum Werksstand darüber muss im Text stehen, sonst
+    // ── Werksfassung aus dem Repository (S4; bis Paket 12 „Auslieferungsstand“) ──
+    // Der Unterschied zum Grundstand darüber muss im Text stehen, sonst
     // stehen zwei Karten mit fast gleichem Wort nebeneinander und niemand
     // weiss, welche was tut.
-    'seed.title': 'Auslieferungsstand aus dem Abbild',
+    'seed.title': 'Werksfassung aus dem Repository',
     'seed.lead':
-      'Der Konfigurationsstand, mit dem dieses Abbild gebaut wurde. Er liegt im '
-      + 'Abbild selbst — es wird nichts aus dem Repository nachgeladen. Nach einem '
-      + 'neuen Deployment ist das der Weg, die mitgelieferte Konfiguration zu '
-      + 'übernehmen, ohne über SSH zu gehen.',
-    'seed.checking': 'Auslieferungsstand wird gelesen …',
+      'Die Werksfassung, mit der dieses Abbild gebaut wurde — sie liegt im Abbild selbst, '
+      + 'nachgeladen wird nichts. Unberührte Bereiche folgen ihr beim Start von selbst; '
+      + 'hier lässt sich zählen und im Ganzen herstellen. Je Bereich umschalten geht in der '
+      + 'Karte „Werk und eigene Fassung“.',
+    'seed.checking': 'Werksfassung wird gelesen …',
     'seed.unavailable':
-      'Dieses Abbild bringt keinen Auslieferungsstand mit. Nichts zu tun.',
+      'Dieses Abbild bringt keine Werksfassung mit. Nichts zu tun.',
     /** Beschriftung vor der Zahl, nicht dahinter: „1 fehlen in der Datenbank"
      *  wäre falsch, und für fünf Zeilen sechs Pluralschlüssel anzulegen, nur
      *  damit die Verben stimmen, wäre teurer als die Umstellung. So ist jede
@@ -133,12 +136,12 @@ export const BACKUP: CataloguePart = {
     'seed.names': 'Bereiche im Einzelnen',
     'seed.fill': 'Fehlende nachziehen',
     'seed.filling': 'Wird nachgezogen …',
-    'seed.exact': 'Alles auf Auslieferungsstand',
+    'seed.exact': 'Alles auf die Werksfassung',
     'seed.exacting': 'Wird hergestellt …',
     /** Der scharfe Knopf. Der Satz nennt beide Folgen — Überschreiben *und*
      *  Löschen — weil die zweite die ist, die niemand erwartet. */
     'seed.confirmExact':
-      'Alles auf den Auslieferungsstand bringen? Abweichende Bereiche werden '
+      'Alles auf die Werksfassung bringen? Abweichende Bereiche werden '
       + 'überschrieben und Bereiche, die es nur in der Datenbank gibt, gelöscht. '
       + 'Vorher wird automatisch ein Schnappschuss angelegt — das ist der Rückweg.',
     'seed.confirmExactYes': 'Ja, herstellen',
@@ -149,12 +152,13 @@ export const BACKUP: CataloguePart = {
      *  oben, statt vier Pluralformen für eine Meldung. */
     'seed.applied':
       'Geschrieben: {written}, gelöscht: {deleted}. Der Stand davor liegt als '
-      + 'Schnappschuss „vor Auslieferungsstand“ oben in der Liste.',
+      + 'Schnappschuss „vor Werksfassung“ oben in der Liste.',
   },
 
   en: {
     'backup.intro':
-      'All three routes back up the same thing: the chatbot’s configuration areas. '
+      'At the top, which areas follow the factory version and which are customized; below, '
+      + 'the backups. They all back up the same thing: the chatbot’s configuration areas. '
       + 'Conversations, monitoring data and RAG content are not included — restoring a '
       + 'backup leaves them untouched.',
     'backup.full.title': 'Full backup',
@@ -167,8 +171,7 @@ export const BACKUP: CataloguePart = {
     'backup.restore': 'Restore backup',
     'backup.restoring': 'Restoring …',
     'backup.confirmRestore':
-      'Restore “{name}”? Every area in the ZIP overwrites its current state. Areas the '
-      + 'ZIP does not contain stay as they are.',
+      'Restore “{name}”? Every area in the ZIP overwrites its current state.',
     'backup.confirmRestoreYes': 'Yes, restore',
     'backup.downloaded': 'Backup downloaded.',
     'backupTools.restore': 'Restore backup …',
@@ -190,10 +193,12 @@ export const BACKUP: CataloguePart = {
       'No snapshots yet. A snapshot preserves the configuration as it stands right now — '
       + 'worth doing before larger changes.',
     'snapshots.restore': 'Restore',
+    'snapshots.art.hand': 'manual',
+    'snapshots.art.auto': 'automatic',
     'snapshots.delete': 'Delete',
     'snapshots.confirmRestore':
       'Restore “{name}”? The configuration areas from this snapshot overwrite the current '
-      + 'state. Areas it does not contain stay unchanged.',
+      + 'state.',
     'snapshots.confirmRestoreYes': 'Yes, restore',
     'snapshots.confirmDelete':
       'Delete “{name}” for good? The preserved state is then only available through a '
@@ -202,47 +207,48 @@ export const BACKUP: CataloguePart = {
     'snapshots.deleted': 'Snapshot “{name}” deleted.',
     'snapshots.downloaded': '“{name}” downloaded.',
 
-    'factory.title': 'Factory settings',
+    'factory.title': 'Own baseline',
     'factory.lead':
-      'The factory state is the configuration a freshly installed system starts from. It '
-      + 'lives as its own state on the server and can be restored at any time.',
-    'factory.checking': 'Checking the factory state …',
+      'A state of the live configuration you saved yourself and can reset to at any time. It '
+      + 'does not come from the repository — the factory version is in the card “Factory and '
+      + 'own version”.',
+    'factory.checking': 'Checking the baseline …',
     'factory.savedAt': 'Saved on {date}',
     'factory.none':
-      'No factory state saved. Save the current state once the configuration is ready to '
+      'No baseline saved. Save the current state once the configuration is ready to '
       + 'ship.',
     'factory.save': 'Save from live state',
     'factory.saving': 'Saving …',
     'factory.reset': 'Reset',
     'factory.resetting': 'Restoring …',
     'factory.confirmSave':
-      'Save the current live state as the factory state? The factory state saved so far '
+      'Save the current live state as the baseline? The baseline saved so far '
       + 'will be overwritten.',
-    'factory.confirmSaveYes': 'Yes, replace the factory state',
+    'factory.confirmSaveYes': 'Yes, replace the baseline',
     'factory.confirmReset':
-      'Reset to the factory state? The configuration areas from the saved state overwrite '
+      'Reset to the baseline? The configuration areas from the saved state overwrite '
       + 'the current ones — ongoing conversations and monitoring data stay untouched.',
     'factory.confirmResetYes': 'Yes, reset',
-    'factory.uploadLabel': 'Take a factory state from a ZIP',
+    'factory.uploadLabel': 'Take a baseline from a ZIP',
     'factory.upload': 'Upload',
     'factory.uploading': 'Applying …',
     'factory.confirmUpload':
-      'Take “{name}” as the new factory state? The factory state saved so far will be '
+      'Take “{name}” as the new baseline? The baseline saved so far will be '
       + 'overwritten.',
     'factory.confirmUploadYes': 'Yes, take it',
-    'factory.saved': 'Factory state saved from the current live state.',
-    'factory.wasReset.one': 'Reset {count} configuration area to the factory state.',
-    'factory.wasReset.other': 'Reset {count} configuration areas to the factory state.',
-    'factory.downloaded': 'Factory state downloaded.',
-    'factory.uploaded': 'Took “{name}” as the factory state.',
+    'factory.saved': 'Baseline saved from the current live state.',
+    'factory.wasReset.one': 'Reset {count} configuration area to the baseline.',
+    'factory.wasReset.other': 'Reset {count} configuration areas to the baseline.',
+    'factory.downloaded': 'Baseline downloaded.',
+    'factory.uploaded': 'Took “{name}” as the baseline.',
 
-    'seed.title': 'Shipped configuration',
+    'seed.title': 'Factory version from the repository',
     'seed.lead':
-      'The configuration state this image was built from. It travels inside the image — '
-      + 'nothing is fetched from the repository. After a new deployment this is how the '
-      + 'shipped configuration is applied without going through SSH.',
-    'seed.checking': 'Reading the shipped configuration …',
-    'seed.unavailable': 'This image ships no configuration state. Nothing to do.',
+      'The factory version this image was built from — it travels inside the image, nothing '
+      + 'is fetched. Untouched areas follow it on every start; here you can count and apply '
+      + 'it as a whole. Switching per area is in the card “Factory and own version”.',
+    'seed.checking': 'Reading the factory version …',
+    'seed.unavailable': 'This image ships no factory version. Nothing to do.',
     'seed.areaCount': 'Areas in the image: {count}',
     'seed.same': 'unchanged: {count}',
     'seed.new': 'missing: {count}',
@@ -251,10 +257,10 @@ export const BACKUP: CataloguePart = {
     'seed.names': 'Areas in detail',
     'seed.fill': 'Add what is missing',
     'seed.filling': 'Adding …',
-    'seed.exact': 'Match the shipped state exactly',
+    'seed.exact': 'Match the factory version exactly',
     'seed.exacting': 'Applying …',
     'seed.confirmExact':
-      'Match the shipped state exactly? Differing areas are overwritten and areas that '
+      'Match the factory version exactly? Differing areas are overwritten and areas that '
       + 'exist only in the database are deleted. A snapshot is taken first — that is the '
       + 'way back.',
     'seed.confirmExactYes': 'Yes, apply it',
@@ -263,6 +269,6 @@ export const BACKUP: CataloguePart = {
     'seed.nothingToFill': 'Nothing to add — no area is missing.',
     'seed.applied':
       'Written: {written}, deleted: {deleted}. The previous state is at the top of the '
-      + 'snapshot list as “vor Auslieferungsstand”.',
+      + 'snapshot list as “before factory version”.',
   },
 };

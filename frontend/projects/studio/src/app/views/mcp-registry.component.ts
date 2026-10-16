@@ -30,11 +30,22 @@ export interface McpServer {
   tool_descriptions?: Record<string, string>;
   url_env_var?: string;
   url_readonly?: boolean;
+  /** Paket 7 (S5): Werkzeuge, die das Modell nicht bekommt — der GET liefert die
+   *  wirksame Liste (Vorgabe: `search_skill`), gespeichert wird sie so. */
+  werkzeuge_aus?: string[];
+  /** Nur diese Werkzeuge kennt der Chatbot; nur sie tragen einen Schalter. */
+  werkzeuge_im_katalog?: string[];
+  /** Paket 11 (E): übernommene Werkzeuge eines weiteren Servers. */
+  tool_schemas?: DiscoveredTool[];
+  /** Paket 11: Katalog-Werkzeuge, die der Server laut Live-Abfrage nicht führt. */
+  werkzeuge_fehlen_am_server?: string[];
 }
 
 interface DiscoveredTool {
   readonly name: string;
   readonly description: string;
+  readonly input_schema?: Record<string, unknown>;
+  readonly read_only?: boolean;
 }
 
 /**
@@ -133,6 +144,40 @@ export class McpRegistryComponent {
       : this.t('mcp.compare.match'));
   });
 
+  /**
+   * Paket 11 (E): die geprüften Werkzeuge in den eingetragenen Server übernehmen — nicht beim
+   * WLO-Server, dessen Katalog fest im Chatbot steht (seine Adresse kommt aus der Umgebung).
+   */
+  readonly canAdopt = computed(() => {
+    const server = this.comparedServer();
+    return !!server && !server.url_readonly && (this.found()?.length ?? 0) > 0;
+  });
+
+  adoptTools(): void {
+    const server = this.comparedServer();
+    const tools = this.found();
+    if (!server || server.url_readonly || !tools) return;
+    const index = this.servers().indexOf(server);
+    this.edit(index, {
+      tools: tools.map((t) => t.name),
+      tool_schemas: tools.map((t) => ({
+        name: t.name, description: t.description,
+        input_schema: t.input_schema ?? {}, read_only: t.read_only === true,
+      })),
+    });
+    this.status.set(this.t('mcp.adopt.done'));
+  }
+
+  /** Der Server führt das Werkzeug derzeit nicht — eingeschaltet scheiterte jeder Aufruf. */
+  fehltAmServer(server: McpServer, name: string): boolean {
+    return (server.werkzeuge_fehlen_am_server ?? []).includes(name);
+  }
+
+  /** Übernommen, aber schreibend — warum es keinen Schalter trägt. */
+  isWriting(server: McpServer, name: string): boolean {
+    return (server.tool_schemas ?? []).some((t) => t.name === name && t.read_only !== true);
+  }
+
   private readonly saved = signal('[]');
   readonly dirty = computed(() => JSON.stringify(this.servers()) !== this.saved());
 
@@ -181,6 +226,23 @@ export class McpRegistryComponent {
       name,
       description: server.tool_descriptions?.[name] ?? '',
     }));
+  }
+
+  /** Paket 7 (S5): bietet der Chatbot dieses Werkzeug dem Modell an? */
+  isOffered(server: McpServer, name: string): boolean {
+    return !(server.werkzeuge_aus ?? []).includes(name);
+  }
+
+  /** Ein Schalter nur, wo er wirkt: bei Werkzeugen, die der Chatbot kennt. */
+  hasSwitch(server: McpServer, name: string): boolean {
+    return (server.werkzeuge_im_katalog ?? []).includes(name);
+  }
+
+  setOffered(index: number, name: string, offered: boolean): void {
+    const aus = new Set(this.servers()[index]?.werkzeuge_aus ?? []);
+    if (offered) aus.delete(name);
+    else aus.add(name);
+    this.edit(index, { werkzeuge_aus: [...aus].sort() });
   }
 
   /** Replace one field of one server — the list is treated as immutable. */

@@ -26,7 +26,7 @@ const LISTE: AgentToolList = {
     { name: 'get_skill', kind: 'read', offered: true, description: 'Lädt eine Anleitung.', locks: [] },
     {
       name: 'search_skill', kind: 'read', offered: false, description: 'Findet Skills.',
-      locks: [{ code: 'never' }],
+      locks: [{ code: 'hidden' }],
     },
     {
       name: 'wlo_create_content', kind: 'curation', offered: false,
@@ -156,5 +156,26 @@ describe('AgentToolsComponent (ST-8b)', () => {
     await h.fixture.whenStable();
     expect(h.el.querySelector('[role="alert"]')).toBeNull();
     expect(h.el.querySelector('.agt-table')).not.toBeNull();
+  });
+});
+
+describe('AgentToolsComponent — Werkzeuge fremder MCP-Server (Paket 11, E)', () => {
+  it('zeigt sie als eigene Gruppe „Extern“ nach den WLO-Werkzeugen', async () => {
+    const h = await mount(true);
+    h.http.expectOne(URL).flush({
+      tools: [
+        ...LISTE.tools,
+        {
+          name: 'wikidata__search_entities', kind: 'external', offered: true,
+          description: '[Externer Dienst: Wikidata] Sucht Einträge.',
+          locks: [{ code: 'tool_mode', modes: ['curate'] }],
+        },
+      ],
+    });
+    await tick();
+    await h.fixture.whenStable();
+    const köpfe = Array.from(h.el.querySelectorAll('.agt-group th'))
+      .map((th) => text(th.querySelector('.agt-group-name')));
+    expect(köpfe).toEqual(['Lesend', 'Kuratierend', 'Extern', 'Virtuell']);
   });
 });

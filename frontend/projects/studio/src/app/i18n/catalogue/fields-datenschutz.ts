@@ -4,9 +4,11 @@
  *
  * Schlüsselschema wie in `fields-layer-doc.ts`. Hier besonders genau, weil es um
  * Speicherung geht — und nicht jeder Schalter wirkt: `logging.safety` setzt der
- * Lader fest auf an, keine der beiden `retention_days` löscht etwas, und die drei
- * `alerts`-Schwellen liest niemand. Wirksam sind `logging.messages` (in
- * `services/db_sessions.save_message`, durch das jede Chatnachricht geht),
+ * Lader fest auf an, und die drei `alerts`-Schwellen liest niemand. Die beiden
+ * `retention_days` (Gesprächsverläufe, Qualitätsprotokoll) setzt seit Paket 8
+ * `services/aufbewahrung.py` durch. Wirksam
+ * sind außerdem `logging.messages` (in `services/db_sessions.save_message`,
+ * durch das jede Chatnachricht geht),
  * `logging.memory` (nur am Endpunkt `POST /api/sessions/{id}/memory`),
  * `logging.quality` und `quality-log-config.logging.enabled` (beide in
  * `services/turn_quality.py`).
@@ -37,6 +39,11 @@ export const FIELDS_DATENSCHUTZ: CataloguePart = {
     'feld.PrivacyLoggingBlock.safety.hint':
       'Immer an: der Code setzt den Wert fest, das Sicherheitsprotokoll lässt sich hier nicht '
       + 'abschalten. Seinen Umfang regelt „Sicherheit“ unter „Identität & Schutz“.',
+    'feld.PrivacyLoggingBlock.retention_days.label': 'Aufbewahrung der Gesprächsverläufe (Tage)',
+    'feld.PrivacyLoggingBlock.retention_days.hint':
+      'Ältere Chatnachrichten und Gedächtnis-Einträge löscht das Backend alle sechs Stunden '
+      + 'endgültig; 0 = unbegrenzt aufbewahren. Die Sitzungen und ihre Verbrauchszahlen '
+      + 'bleiben. Was gerade fällig ist, zeigt „Aufbewahrung“ auf dieser Seite.',
     'feld.QualityLogConfigArea.logging.label': 'Protokollierung',
     'feld.QualityLogConfigArea.logging.hint':
       'Ob je Chat-Zug ein Auswertungseintrag gespeichert wird; daraus speist sich die '
@@ -48,8 +55,8 @@ export const FIELDS_DATENSCHUTZ: CataloguePart = {
       + '„Qualitätsprotokoll“ an ist.',
     'feld.QualityLoggingBlock.retention_days.label': 'Aufbewahrung (Tage)',
     'feld.QualityLoggingBlock.retention_days.hint':
-      'Gedachte Aufbewahrungsdauer in Tagen. Wird derzeit nicht ausgewertet: nichts wird '
-      + 'automatisch gelöscht, Einträge bleiben, bis sie von Hand gelöscht werden.',
+      'Ältere Einträge löscht das Backend alle sechs Stunden endgültig; 0 = unbegrenzt '
+      + 'aufbewahren. Was gerade fällig ist, zeigt „Aufbewahrung“ auf dieser Seite.',
     'feld.QualityLogConfigArea.alerts.label': 'Warnschwellen',
     'feld.QualityLogConfigArea.alerts.hint':
       'Schwellen, ab denen die Auswertung warnen soll. Werden derzeit nicht ausgewertet: kein '
@@ -89,6 +96,11 @@ export const FIELDS_DATENSCHUTZ: CataloguePart = {
     'feld.PrivacyLoggingBlock.safety.hint':
       'Always on: the code fixes the value, the safety log cannot be switched off here. Its '
       + 'scope is set under "Safety" in "Identity & safeguards".',
+    'feld.PrivacyLoggingBlock.retention_days.label': 'Conversation retention (days)',
+    'feld.PrivacyLoggingBlock.retention_days.hint':
+      'The backend deletes older chat messages and memory entries for good every six hours; '
+      + '0 = keep without limit. Sessions and their usage figures stay. What is due right now is '
+      + 'shown under “Retention” on this page.',
     'feld.QualityLogConfigArea.logging.label': 'Logging',
     'feld.QualityLogConfigArea.logging.hint':
       'Whether an analysis entry is stored per chat turn; the analysis draws on it.',
@@ -99,8 +111,8 @@ export const FIELDS_DATENSCHUTZ: CataloguePart = {
       + '"Privacy".',
     'feld.QualityLoggingBlock.retention_days.label': 'Retention (days)',
     'feld.QualityLoggingBlock.retention_days.hint':
-      'Intended retention period in days. Currently not evaluated: nothing is deleted '
-      + 'automatically; entries remain until they are deleted by hand.',
+      'The backend deletes older entries for good every six hours; 0 = keep without '
+      + 'limit. What is due right now is shown under “Retention” on this page.',
     'feld.QualityLogConfigArea.alerts.label': 'Alert thresholds',
     'feld.QualityLogConfigArea.alerts.hint':
       'Thresholds from which the analysis is meant to warn. Currently not evaluated: no code '

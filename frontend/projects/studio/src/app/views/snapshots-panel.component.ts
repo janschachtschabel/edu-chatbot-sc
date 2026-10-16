@@ -11,24 +11,26 @@
  * three would therefore be false claims here and are not ported — the same class
  * as the factory card in A5 and the tight-races counter in C2.
  *
- * Two more ALT interactions have no counterpart: the wipe/merge question (NEU's
- * `_apply_config` always merges — it writes what is in the ZIP and touches
- * nothing else) and "als Factory übernehmen" per row (`save_factory` takes no
- * `from_snapshot`; it always packs the live config).
+ * ALT's wipe/merge question is back as „ergänzend/exakt" (Paket 7, P5-5): exact
+ * deletes the areas the snapshot does not carry — config areas only, never the
+ * database ALT's wipe replaced. "als Factory übernehmen" per row still has no
+ * counterpart (`save_factory` takes no `from_snapshot`; it packs the live config).
  *
  * ALT's three `confirm()` dialogs are inline confirmations, as in every other
  * writing view since 9-5a.
  */
 import {
-  ChangeDetectionStrategy, Component, computed, inject, signal,
+  ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked,
 } from '@angular/core';
 
 import { ActionState } from '../core/action-state';
 import { AsyncData } from '../core/async-data';
 import { saveBlob } from '../core/download';
-import { SnapshotsApi, type SnapshotRow } from '../core/snapshots-api.service';
+import { injectFocus } from '../core/inject-focus';
+import { SnapshotsApi, type RestoreMode, type SnapshotRow } from '../core/snapshots-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { RestoreModeComponent, geloeschtZusatz } from './restore-mode.component';
 import { StudioFormat } from '../i18n/studio-format.service';
 
 /**
@@ -40,7 +42,7 @@ const MAX_SNAPSHOTS = 50;
 
 @Component({
   selector: 'studio-snapshots-panel',
-  imports: [AsyncStateComponent],
+  imports: [AsyncStateComponent, RestoreModeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './snapshots-panel.component.html',
   styleUrl: './snapshots-panel.component.scss',
@@ -56,10 +58,14 @@ export class SnapshotsPanelComponent {
 
   readonly snapshots = new AsyncData<SnapshotRow[]>(() => this.api.list(), this.t);
   readonly action = new ActionState(this.t);
+  /** Paket 9 (V8): Rückfrage → „Abbrechen“, danach zurück auf den Knopf der Zeile. */
+  private readonly focus = injectFocus();
   readonly label = signal('');
 
   /** `${kind}:${id}` of the confirmation that is armed, or ''. */
   private readonly armedKey = signal('');
+  /** Paket 7 (P5-5): jede Rückfrage beginnt bei „ergänzend". */
+  readonly mode = signal<RestoreMode>('merge');
 
   readonly limit = MAX_SNAPSHOTS;
   readonly rows = computed(() => this.snapshots.value() ?? []);
@@ -67,14 +73,24 @@ export class SnapshotsPanelComponent {
 
   constructor() {
     void this.snapshots.reload();
+    // Legt der Server nebenbei einen Snapshot an (exaktes Wiederherstellen, auch
+    // aus einem Nachbar-Panel), steht er ohne „Aktualisieren" in der Liste.
+    const anfang = this.api.stand();
+    effect(() => {
+      if (this.api.stand() !== anfang) untracked(() => void this.snapshots.reload());
+    });
   }
 
-  arm(kind: string, id: string): void {
+  arm(kind: 'restore' | 'delete', id: string): void {
+    this.mode.set('merge');
     this.armedKey.set(`${kind}:${id}`);
+    this.focus(`${row(id)} .sp-cancel`);
   }
 
-  disarm(): void {
+  /** „Abbrechen“: zurück auf den Knopf, der die Rückfrage öffnete. */
+  disarm(kind: 'restore' | 'delete', id: string): void {
     this.armedKey.set('');
+    this.focus(`${row(id)} .sp-${kind}`);
   }
 
   isArmed(kind: string, id: string): boolean {
@@ -95,23 +111,27 @@ export class SnapshotsPanelComponent {
     await this.snapshots.reload();
   }
 
-  async restore(row: SnapshotRow): Promise<void> {
-    this.disarm();
-    await this.action.run(`restore:${row.id}`, async () => {
-      const { areas } = await this.api.restore(row.id);
+  async restore(snap: SnapshotRow): Promise<void> {
+    this.armedKey.set('');
+    await this.action.run(`restore:${snap.id}`, async () => {
+      const r = await this.api.restore(snap.id, this.mode());
       // Derselbe Satz wie beim Voll-Backup — beide schreiben Bereiche aus einer
       // ZIP, und zwei Einträge könnten voneinander abdriften.
-      return this.lang.plural('backup.areasRestored', areas, { name: this.name(row) });
+      return this.lang.plural('backup.areasRestored', r.areas, { name: this.name(snap) })
+        + geloeschtZusatz(this.lang, r);
     });
+    this.focus(`${row(snap.id)} .sp-restore`, '#sp-title');
   }
 
-  async remove(row: SnapshotRow): Promise<void> {
-    this.disarm();
-    const ok = await this.action.run(`delete:${row.id}`, async () => {
-      await this.api.remove(row.id);
-      return this.t('snapshots.deleted', { name: this.name(row) });
+  async remove(snap: SnapshotRow): Promise<void> {
+    this.armedKey.set('');
+    const ok = await this.action.run(`delete:${snap.id}`, async () => {
+      await this.api.remove(snap.id);
+      return this.t('snapshots.deleted', { name: this.name(snap) });
     });
     if (ok) await this.snapshots.reload();
+    // Nach dem Löschen fehlt die Zeile — dann die Überschrift.
+    this.focus(`${row(snap.id)} .sp-delete`, '#sp-title');
   }
 
   async download(row: SnapshotRow): Promise<void> {
@@ -129,4 +149,10 @@ export class SnapshotsPanelComponent {
   when(iso: string): string {
     return this.fmt.dateTime(iso);
   }
+}
+
+/** Die Zeile eines Snapshots. Kennungen sind `snap-` und zwölf Hex-Zeichen
+ *  (`services/snapshots.create_snapshot`), im Selektor also unbedenklich. */
+function row(id: string): string {
+  return `[data-row="${id}"]`;
 }

@@ -1,7 +1,11 @@
 <h3 class="ar-title">{{ t('arch.title') }}</h3>
 <p class="ar-intro">{{ t('arch.intro') }}</p>
 
-<details class="cs ar-section" open>
+<!-- Paket 6, S3: beide Maschinen zuerst — die Abschnitte darunter beschreiben
+     die Muster-Maschine und sagen das. -->
+<studio-reference-machines />
+
+<details class="cs ar-section">
   <summary class="cs-summary">
     <h4 class="cs-title">{{ t('arch.pipeline.title') }}</h4>
   </summary>
@@ -119,7 +123,6 @@
     <p class="ar-text"><studio-rich [parts]="rich('arch.selection.gone')" /></p>
     <h5 class="ar-sub">{{ t('arch.selection.personaTitle') }}</h5>
     <p class="ar-text"><studio-rich [parts]="rich('arch.selection.personaText')" /></p>
-    <p class="ar-note"><studio-rich [parts]="rich('arch.selection.note')" /></p>
   </div>
 </details>
 

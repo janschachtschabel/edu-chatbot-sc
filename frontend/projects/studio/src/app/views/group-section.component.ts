@@ -9,44 +9,52 @@
  * the whole set, so a key no model field covers is gone after one save. The
  * per-document route `PUT /api/config/data/03-patterns/x` replaces the
  * document with exactly what was read, which is the rule 9-3 arrived at.
+ *
+ * Since Paket 6 (ST-3d) a list│editor: the side list is `studio-entry-list`
+ * (count, search, the id beside each name), with Duplicate and Delete beside
+ * New. The traffic with the server — load, create, copy, delete, „shipped?" —
+ * lives in `GroupDocuments`; the server derives the key of a new document.
  */
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
   computed,
   effect,
   inject,
   input,
+  output,
   signal,
+  viewChild,
 } from '@angular/core';
 
 import { ConfigApi } from '../core/config-api.service';
+import { SnapshotsApi } from '../core/snapshots-api.service';
 import { StudioApiError } from '../core/studio-api-error';
 import { StudioApi } from '../core/studio-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AreaDocEditor, describeAreaError } from '../schema-form/area-doc-editor';
+import {
+  EntryListComponent, type EntryId, filterEntries,
+} from '../schema-form/entry-list.component';
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
-import { rootField } from '../schema-form/schema-to-fields';
 import type { CuratedAreaSection } from './curated-views';
 import { EffectBadgeComponent } from './effect-badge.component';
-import { type FieldTab, patternFieldTabs } from './pattern-field-tabs';
+import { FeldReiter } from './feld-reiter';
+import { GroupDocuments, type GroupEntry, slugify } from './group-documents';
+import { LoeschRueckfrage } from './loesch-rueckfrage';
 import { SaveConflictComponent } from './save-conflict.component';
 import { TabBarComponent } from './tab-bar.component';
-
-interface GroupEntry {
-  /** Area key without extension — how the document is addressed. */
-  readonly key: string;
-  readonly label: string;
-}
-
-interface ElementsResponse {
-  readonly patterns?: readonly { id?: string; label?: string; file?: string }[];
-  readonly personas?: readonly { id?: string; label?: string; file?: string }[];
-}
+import { RagHinweis } from './wirksame-bereiche';
 
 @Component({
   selector: 'studio-group-section',
-  imports: [EffectBadgeComponent, SaveConflictComponent, SchemaFormComponent, TabBarComponent],
+  imports: [
+    EffectBadgeComponent, EntryListComponent, SaveConflictComponent, SchemaFormComponent,
+    TabBarComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './group-section.component.html',
   styleUrl: './group-section.component.scss',
@@ -54,67 +62,65 @@ interface ElementsResponse {
 export class GroupSectionComponent {
   readonly section = input.required<CuratedAreaSection>();
   readonly open = input(false);
+  /** After a save, create, copy or delete — a tabbed page counts again (ST-4c). */
+  readonly changed = output<void>();
 
-  private readonly api = inject(StudioApi);
   private readonly config = inject(ConfigApi);
-  protected readonly t = inject(StudioLanguageService).t;
+  private readonly lang = inject(StudioLanguageService);
+  private readonly injector = inject(Injector);
+  protected readonly t = this.lang.t;
   readonly editor = new AreaDocEditor(this.config, this.t);
+  readonly docs = new GroupDocuments(
+    inject(StudioApi), this.config, inject(SnapshotsApi), () => this.area());
+  /** Die Rückfrage vor dem Löschen — an EIN Dokument gebunden (Review Paket 6). */
+  readonly rueckfrage = new LoeschRueckfrage(this.docs);
 
-  readonly entries = signal<readonly GroupEntry[]>([]);
   readonly selected = signal('');
-  readonly listLoading = signal(false);
   readonly listError = signal('');
+  readonly query = signal('');
   readonly newName = signal('');
   readonly newError = signal('');
   readonly creating = signal(false);
+  readonly copying = signal(false);
   readonly notice = signal('');
+  /** Läuft Anlegen, Duplizieren oder Löschen, bleiben Wahl und Knöpfe stehen:
+   *  sonst landete das Ergebnis über einem inzwischen gewählten Dokument. */
+  readonly beschaeftigt = computed(
+    () => this.creating() || this.copying() || this.rueckfrage.busy());
+
+  private readonly loeschKnopf = viewChild<ElementRef<HTMLElement>>('loeschKnopf');
+  private readonly abbrechenKnopf = viewChild<ElementRef<HTMLElement>>('abbrechenKnopf');
+  private readonly listTitel = viewChild<ElementRef<HTMLElement>>('listTitel');
 
   readonly area = computed(() => this.section().area);
   readonly dirty = this.editor.dirty;
 
+  readonly shown = computed(() => filterEntries(this.docs.entries(), this.query()));
+  readonly current = computed<GroupEntry | null>(
+    () => this.docs.entries().find((entry) => entry.id === this.selected()) ?? null);
+  readonly countText = computed(() => {
+    const total = this.docs.entries().length;
+    const shown = this.shown().length;
+    return shown === total
+      ? this.lang.plural('objectList.count', total)
+      : this.t('objectList.countFiltered', { shown, count: total });
+  });
+
   // ── Feld-Reiter (A7, nur mit `feature: 'pattern-tabs'`) ───────────
-  /** Welcher Reiter offen ist; leer = der erste. Er bleibt beim Wechsel des
-   *  Dokuments stehen: alle Dokumente der Gruppe teilen ein Schema, und wer
-   *  „Anweisungen" vergleicht, will nicht bei jedem Muster neu klicken. */
-  private readonly wantedTab = signal('');
-
-  readonly fieldTabs = computed<readonly FieldTab[]>(() => {
-    const schema = this.editor.schema();
-    if (!schema || this.section().feature !== 'pattern-tabs') return [];
-    return patternFieldTabs(rootField(schema));
-  });
-
-  readonly activeTab = computed(() => {
-    const tabs = this.fieldTabs();
-    const wanted = this.wantedTab();
-    return tabs.some((tab) => tab.id === wanted) ? wanted : (tabs[0]?.id ?? '');
-  });
-
-  readonly visiblePaths = computed<readonly string[] | null>(() => {
-    const active = this.activeTab();
-    return this.fieldTabs().find((tab) => tab.id === active)?.paths ?? null;
-  });
-
-  /**
-   * Die gesperrten Felder mit ihrem Reiter. Ohne den Namen suchte man ein
-   * gesperrtes Speichern in fünf Reitern; der Fehler steht ja unter dem
-   * Formular, nicht bei seinem Feld.
-   */
-  readonly blockedFields = computed<readonly string[]>(() =>
-    this.editor.fieldErrors().map((path) => {
-      const tab = this.fieldTabs().find((entry) => entry.paths.some((p) => isUnder(path, p)));
-      return tab ? `${path} (Reiter „${tab.label}")` : path;
-    }),
+  readonly reiter = new FeldReiter(
+    () => this.editor.schema(),
+    () => this.section().feature === 'pattern-tabs',
+    () => this.editor.fieldErrors(),
+  );
+  /** S4 (externes Audit F13): die Wissensbereiche, die ein Muster tatsächlich nutzt. */
+  readonly rag = new RagHinweis(
+    this.config, () => this.area() === '03-patterns', () => this.editor.doc(),
+    () => this.reiter.active(), this.t, this.lang.list,
   );
 
-  selectTab(id: string): void {
-    this.wantedTab.set(id);
-  }
   readonly idPrefix = computed(() => `gs-${this.area().replace(/[^\w-]/g, '-')}`);
-  readonly newKey = computed(() => {
-    const slug = slugify(this.newName());
-    return slug ? `${this.area()}/${slug}` : '';
-  });
+  /** Die Kennung eines neuen Dokuments — den Schlüssel leitet der Server ab. */
+  readonly newId = computed(() => slugify(this.newName()));
 
   private loaded = false;
 
@@ -135,36 +141,26 @@ export class GroupSectionComponent {
   }
 
   async loadList(): Promise<void> {
-    this.listLoading.set(true);
     this.listError.set('');
     try {
-      const elements = await this.api.get<ElementsResponse>('/config/elements');
-      const raw = this.area() === '04-personas' ? elements.personas : elements.patterns;
-      this.entries.set(
-        (raw ?? [])
-          .map((entry) => ({
-            // `file` is always `<key>.md` (config_loader sets it from the key)
-            key: String(entry.file ?? '').replace(/\.md$/, ''),
-            label: `${entry.id ?? ''} — ${entry.label ?? entry.id ?? ''}`,
-          }))
-          .filter((entry) => entry.key.startsWith(`${this.area()}/`)),
-      );
+      await this.docs.load();
     } catch (err) {
       this.listError.set(describeAreaError(err, this.t));
-    } finally {
-      this.listLoading.set(false);
     }
   }
 
-  select(key: string): void {
-    if (key === this.selected()) return;
+  select(id: EntryId): void {
+    const key = String(id);
+    if (key === this.selected() || this.beschaeftigt()) return;
     if (this.editor.dirty()) {
       this.notice.set(this.t('groupSection.switchBlocked'));
       return;
     }
     this.notice.set('');
+    this.rueckfrage.schliessen();
     this.selected.set(key);
     void this.editor.load(key);
+    this.rag.laden();
   }
 
   /** `force`: „Trotzdem speichern" after a conflict (Paket 4, D5). */
@@ -172,7 +168,9 @@ export class GroupSectionComponent {
     // A refusal notice outlives what it referred to unless it is cleared here;
     // the live region would keep announcing "please save first" after saving.
     this.notice.set('');
-    void this.editor.save(this.selected(), { force });
+    void this.editor.save(this.selected(), { force }).then((saved) => {
+      if (saved) this.changed.emit();
+    });
   }
 
   /** „Neu laden" after a conflict: the stored state replaces the draft. */
@@ -186,13 +184,13 @@ export class GroupSectionComponent {
   }
 
   async create(): Promise<void> {
-    const key = this.newKey();
-    if (!key) {
+    const id = this.newId();
+    if (!id) {
       this.newError.set(this.t('groupSection.needName'));
       return;
     }
-    if (this.entries().some((entry) => entry.key === key)) {
-      this.newError.set(this.t('groupSection.duplicate', { name: key }));
+    if (this.docs.taken(id)) {
+      this.newError.set(this.t('groupSection.duplicate', { name: id }));
       return;
     }
     if (this.editor.dirty()) {
@@ -204,50 +202,96 @@ export class GroupSectionComponent {
     this.creating.set(true);
     this.newError.set('');
     try {
-      // `create`: the server refuses a taken key (409) instead of replacing an
-      // existing document — the list above may be stale (Paket 4, D5).
-      await this.config.saveFileText(`${key}.md`, newDocument(this.newName()), { create: true });
+      // The server derives the key and creates only (409 for a taken id or
+      // key) — the list above may be stale (Paket 4, D5).
+      const key = await this.docs.create(id, this.newName().trim());
       this.newName.set('');
-      await this.loadList();
-      this.selected.set(key);
-      await this.editor.load(key);
-      this.notice.set(this.t('groupSection.created'));
+      const geoeffnet = await this.openCreated(key);
+      this.notice.set(this.t(geoeffnet ? 'groupSection.created' : 'groupSection.createdNotOpened'));
+      this.changed.emit();
     } catch (err) {
       this.newError.set(err instanceof StudioApiError && err.status === 409
-        ? this.t('groupSection.duplicate', { name: key })
+        ? this.t('groupSection.duplicate', { name: id })
         : describeAreaError(err, this.t));
     } finally {
       this.creating.set(false);
     }
   }
-}
 
-/** Fehlerpfad `frontmatter.tools` bzw. ein Kind davon (`…tools.0`)? */
-function isUnder(path: string, field: string): boolean {
-  return path === field || path.startsWith(`${field}.`);
-}
+  /** Eine Kopie des gewählten Dokuments, aus dem GESPEICHERTEN Stand (ST-3d). */
+  async duplicate(): Promise<void> {
+    const entry = this.current();
+    if (!entry) return;
+    if (this.editor.dirty()) {
+      this.notice.set(this.t('groupSection.copyBlocked'));
+      return;
+    }
+    this.copying.set(true);
+    this.notice.set('');
+    try {
+      const label = this.t('groupSection.copyLabel', { label: entry.name });
+      const key = await this.docs.create(this.docs.freeCopyId(entry.kennung), label, entry.id);
+      const geoeffnet = await this.openCreated(key);
+      this.notice.set(geoeffnet
+        ? this.t('groupSection.copied', { title: label })
+        : this.t('groupSection.createdNotOpened'));
+      this.changed.emit();
+    } catch (err) {
+      this.notice.set(describeAreaError(err, this.t));
+    } finally {
+      this.copying.set(false);
+    }
+  }
 
-/** `M03 Kuratieren` → `m03-kuratieren`. Empty when nothing usable is left. */
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[äöüß]/g, (c) => ({ ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss' })[c] ?? c)
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+  /** Erster Schritt: die Rückfrage, dazu ob das Dokument zum Auslieferungsstand
+   *  gehört. Der Fokus geht auf „Abbrechen“ — die sichere Wahl. */
+  askRemove(): void {
+    const entry = this.current();
+    if (!entry) return;
+    this.rueckfrage.fragen(entry.id);
+    this.fokus(this.abbrechenKnopf);
+  }
 
-/**
- * The smallest document the area model accepts — every field is optional.
- *
- * The label is JSON-encoded (valid YAML for a scalar): a name containing a
- * colon makes the frontmatter unparseable, and one containing a newline adds
- * keys of its own.
- *
- * The id is the WHOLE title's slug, like the document key (Paket 4, D5). The
- * first word alone gave „Neue Zielgruppe" and „Neue Lehrkraft" the same id.
- * It is JSON-encoded too: YAML 1.1 reads a bare `2024` as a number and `no` as
- * a boolean, and the model wants a string (review 2026-10-04).
- */
-function newDocument(name: string): string {
-  return `---\nid: ${JSON.stringify(slugify(name))}\nlabel: ${JSON.stringify(name.trim())}\n---\n\n`;
+  cancelRemove(): void {
+    this.rueckfrage.schliessen();
+    this.fokus(this.loeschKnopf);
+  }
+
+  async remove(): Promise<void> {
+    const entry = this.current();
+    if (!entry) return;
+    const geloescht = await this.rueckfrage.loeschen(entry.id, this.editor.version() ?? null,
+      (err) => err instanceof StudioApiError && err.status === 409
+        ? this.t('groupSection.removeConflict') : describeAreaError(err, this.t));
+    if (!geloescht) {
+      this.fokus(this.loeschKnopf);
+      return;
+    }
+    // Ein gelöschtes Dokument hat keinen Entwurf mehr — ohne `discard` hielte
+    // ein offener den Wechsel- und Verlassen-Schutz fest.
+    this.editor.discard();
+    this.selected.set('');
+    this.notice.set(this.t('groupSection.removed', { title: entry.name }));
+    this.changed.emit();
+    await this.loadList();
+    this.fokus(this.listTitel);
+  }
+
+  /** Öffnet ein eben angelegtes Dokument — nicht, wenn während der Anfrage
+   *  Änderungen am offenen entstanden: die blieben sonst still auf der Strecke. */
+  private async openCreated(key: string): Promise<boolean> {
+    this.rueckfrage.schliessen();
+    this.query.set('');
+    await this.loadList();
+    if (this.editor.dirty()) return false;
+    this.selected.set(key);
+    this.rag.laden();
+    await this.editor.load(key);
+    return true;
+  }
+
+  /** Der Knopf, der den Fokus hatte, verschwindet oft mit der Aktion (WCAG 2.4.3). */
+  private fokus(ziel: () => ElementRef<HTMLElement> | undefined): void {
+    afterNextRender(() => ziel()?.nativeElement.focus(), { injector: this.injector });
+  }
 }

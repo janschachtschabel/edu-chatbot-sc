@@ -3,8 +3,8 @@
  * und Lotsen-Regeln (`02-domain/guide-rules`).
  *
  * Schlüsselschema wie in allen `fields-*.ts` (siehe `fields-layer-doc.ts`).
- * Nicht ausgewertet werden `default_enabled` (das Widget hat keinen
- * Lotsen-Schalter mehr, `ui/src/widget/guide-boot.ts`) und die ganzen
+ * `default_enabled` ist gestrichen (Paket 7; das Widget hat keinen Lotsen-Schalter
+ * mehr, `ui/src/widget/guide-boot.ts`). Nicht ausgewertet werden die ganzen
  * `rag_area_rules`: der Lotse nimmt dafür die eingebaute Liste `_RAG_AREA_URLS`
  * in `services/guide_qr_injector.py`. Derselbe Dienst übersetzt die
  * `message_rules` neu, sobald sie sich ändern (2026-10-01) — ohne Neustart; ein
@@ -25,10 +25,6 @@ export const FIELDS_LOTSE: CataloguePart = {
       'Wie der Lotse auf Seiten der Plattform führt: Knöpfe „Bring mich hin“ unter Antworten '
       + 'und Sprungziele an Karten, dazu die freigegebenen Hosts und die Domains, zu denen das '
       + 'Gespräch mitwandert.',
-    'feld.GuideModeBlock.default_enabled.label': 'Lotse anfangs an',
-    'feld.GuideModeBlock.default_enabled.hint':
-      'Gedacht als Startzustand des Lotsen-Schalters im Widget. Wird derzeit nicht ausgewertet: '
-      + 'das Widget hat keinen solchen Schalter mehr, der Lotse ist dort immer an.',
     'feld.GuideModeBlock.max_guide_targets_per_turn.label': 'Karten mit Sprungziel',
     'feld.GuideModeBlock.max_guide_targets_per_turn.hint':
       'Höchstzahl der Karten je Antwort mit Sprungziel; 0 = unbegrenzt, ohne Eintrag 5. Werte '
@@ -104,10 +100,6 @@ export const FIELDS_LOTSE: CataloguePart = {
       'How the guide leads to platform pages: “Take me there” buttons below answers and jump '
       + 'targets on cards, plus the allowed hosts and the domains the conversation carries over '
       + 'to.',
-    'feld.GuideModeBlock.default_enabled.label': 'Guide on at start',
-    'feld.GuideModeBlock.default_enabled.hint':
-      'Intended as the initial state of the guide switch in the widget. Currently not '
-      + 'evaluated: the widget no longer has such a switch; the guide is always on there.',
     'feld.GuideModeBlock.max_guide_targets_per_turn.label': 'Cards with jump target',
     'feld.GuideModeBlock.max_guide_targets_per_turn.hint':
       'Maximum number of cards per answer with a jump target; 0 = unlimited, 5 without an '

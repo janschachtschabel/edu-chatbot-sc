@@ -1,0 +1,179 @@
+// Die Bausteine aus ST-2: Radio je Zeile, Chips, Schieberegler, Grenzen,
+// Schalter, festgesetzte Werte (aus schema-form.scss herausgelöst, Paket 6).
+
+// Radio „Als Tour-Chip" je Listenzeile (ST-2i). Ziel ≥ 24px hoch (SC 2.5.8):
+// die ganze Beschriftung ist klickbar, nicht nur der Kreis.
+.sf-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-1);
+  min-block-size: 1.5rem;
+  font-size: 0.8125rem;
+  color: var(--st-text);
+  cursor: pointer;
+
+  input { accent-color: var(--st-accent); margin: 0; }
+}
+
+// Katalog-Namen als Chips (ST-2g). Technische Namen → Schreibmaschinenschrift;
+// das ✕ ist ein eigener Knopf mit ≥ 24px Zielfläche (SC 2.5.8).
+.sf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+  margin: var(--st-2) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-1);
+  padding-inline-start: var(--st-2);
+  border: 1px solid var(--st-text-muted);
+  border-radius: 999px;
+  background: var(--st-panel);
+}
+
+.sf-chip-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  color: var(--st-text);
+}
+
+.sf-chip-remove {
+  min-inline-size: 1.5rem;
+  min-block-size: 1.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--st-text-muted);
+  cursor: pointer;
+
+  &:hover { color: var(--st-danger-text); }
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 1px;
+  }
+}
+
+.sf-chip-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  max-inline-size: 46rem;
+
+  .sf-input { flex: 1 1 14rem; }
+  .sf-error { flex-basis: 100%; }
+}
+
+// Schieberegler (ST-2h): Bahn, daneben was der Wert bewirkt.
+.sf-slider {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  max-inline-size: 46rem;
+}
+
+.sf-slider-input {
+  flex: 1 1 12rem;
+  min-inline-size: 10rem;
+  accent-color: var(--st-accent);
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 2px;
+  }
+}
+
+.sf-slider-value {
+  font-size: 0.8125rem;
+  color: var(--st-text);
+  font-variant-numeric: tabular-nums;
+}
+
+// Die Grenzen eines Zahlfelds (ST-2c), klein unter dem Feld wie ein Hilfetext.
+.sf-range {
+  display: block;
+  margin-block-start: var(--st-1);
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+// Schalter (ST-2b). Den Zustand trägt die LAGE des Knopfes, nicht nur die
+// Farbe (SC 1.4.1); die Bahn hat `--st-text-muted` als Rand (≥ 7:1, SC 1.4.11).
+.sf-switch {
+  appearance: none;
+  position: relative;
+  inline-size: 2.25rem;
+  block-size: 1.25rem;
+  margin: 0;
+  border: 1px solid var(--st-text-muted);
+  border-radius: 999px;
+  background: var(--st-panel);
+  cursor: pointer;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: 0.1875rem;
+    inline-size: 0.8125rem;
+    block-size: 0.8125rem;
+    border-radius: 50%;
+    background: var(--st-text-muted);
+    transform: translateY(-50%);
+    transition: transform 150ms ease;
+  }
+
+  &:checked {
+    border-color: var(--st-accent);
+    background: var(--st-accent);
+
+    &::before {
+      background: var(--st-on-accent);
+      transform: translate(1rem, -50%);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before { transition: none; }
+  }
+
+  // Hochkontrast (Windows): selbst gezeichnete Teile verlieren sonst ihre Farbe.
+  @media (forced-colors: active) {
+    border-color: CanvasText;
+
+    &::before { background: CanvasText; }
+    &:checked { background: Highlight; }
+    &:checked::before { background: HighlightText; }
+  }
+}
+
+// Vom Code festgesetzt (ST-6). Der Schalter bleibt in Farbe „an" — er zeigt,
+// was wirkt; dass er gesperrt ist, sagt das Wort daneben, nicht ein
+// verblasster Knopf (SC 1.4.1).
+.sf-fixed-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-2);
+}
+
+.sf-fixed {
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+

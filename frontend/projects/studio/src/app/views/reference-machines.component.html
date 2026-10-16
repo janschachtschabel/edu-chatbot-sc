@@ -1,0 +1,57 @@
+<details class="cs ar-section" open>
+  <summary class="cs-summary">
+    <h4 class="cs-title">{{ t('rm.title') }}</h4>
+  </summary>
+  <div class="cs-body">
+    <p class="ar-text"><studio-rich [parts]="rich('rm.lead')" /></p>
+    <p class="ar-text"><studio-rich [parts]="rich('rm.choice')" /></p>
+    @if (currentKey(); as key) {
+      <p class="ar-text rm-current"><studio-rich [parts]="rich(key)" /></p>
+    }
+
+    <h5 class="ar-sub">{{ t('rm.sharedTitle') }}</h5>
+    <ul class="ar-list">
+      <li><studio-rich [parts]="rich('rm.shared.before')" /></li>
+      <li><studio-rich [parts]="rich('rm.shared.safety')" /></li>
+      <li><studio-rich [parts]="rich('rm.shared.after')" /></li>
+    </ul>
+
+    <h5 class="ar-sub">{{ t('rm.flowTitle') }}</h5>
+    <p class="ar-text"><studio-rich [parts]="rich('rm.flowLead')" /></p>
+    <ol class="ar-list rm-flow">
+      @for (knoten of graph; track knoten.id) {
+        <li>
+          <code>{{ knoten.id }}</code> — {{ t('rm.node.' + knoten.id) }}
+          @if (knoten.frueh) {
+            <strong class="rm-exit">{{ t('rm.node.exit') }}</strong>
+          }
+        </li>
+      }
+    </ol>
+
+    <h5 class="ar-sub">{{ t('rm.diffTitle') }}</h5>
+    <div class="ar-scroll">
+      <table class="ar-table">
+        <thead>
+          <tr>
+            <th scope="col">{{ t('rm.col.aspect') }}</th>
+            <th scope="col">{{ t('rm.col.pattern') }}</th>
+            <th scope="col">{{ t('rm.col.agent') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows; track row) {
+            <tr>
+              <th scope="row">{{ t('rm.row.' + row) }}</th>
+              <td><studio-rich [parts]="rich('rm.row.' + row + '.pattern')" /></td>
+              <td><studio-rich [parts]="rich('rm.row.' + row + '.agent')" /></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <p class="ar-text"><studio-rich [parts]="rich('rm.crisis')" /></p>
+    <p class="ar-note">{{ t('rm.effects') }}</p>
+  </div>
+</details>

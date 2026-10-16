@@ -226,6 +226,10 @@ export interface ChatResponse {
    *  Ergebnis: ein an der Frist abgeschnittener Lauf sähe sonst aus wie einer,
    *  der nichts zu sagen hatte. */
   result_stop_reason?: string;
+  /** Der MCP-Server hat den Zugangsblock dieses Zuges abgewiesen — abgelaufen oder
+   *  widerrufen (Paket 10, Kurzaudit A-3). Der Zug lief ohne ihn weiter; das Widget
+   *  räumt ihn und bietet die Anmeldung neu an. */
+  auth_invalid?: boolean;
 }
 
 export interface ChatMessage {

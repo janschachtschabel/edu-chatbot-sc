@@ -22,12 +22,15 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActionState } from '../core/action-state';
 import { AsyncData } from '../core/async-data';
 import { saveBlob } from '../core/download';
-import { SnapshotsApi, type FactoryInfo } from '../core/snapshots-api.service';
+import { injectFocus } from '../core/inject-focus';
+import { SnapshotsApi, type FactoryInfo, type RestoreMode } from '../core/snapshots-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { StudioFormat } from '../i18n/studio-format.service';
+import { RestoreModeComponent, geloeschtZusatz } from './restore-mode.component';
 
 @Component({
   selector: 'studio-factory-panel',
+  imports: [RestoreModeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './factory-panel.component.html',
   styleUrl: './factory-panel.component.scss',
@@ -45,7 +48,11 @@ export class FactoryPanelComponent {
   readonly file = signal<File | null>(null);
 
   /** Which confirmation is armed ('save' | 'restore' | 'upload'), or ''. */
-  readonly armed = signal('');
+  readonly armed = signal<Confirmation | ''>('');
+  /** Paket 9 (V8): Rückfrage → „Abbrechen“, danach zurück auf den Knopf, der sie öffnete. */
+  private readonly focus = injectFocus();
+  /** Paket 7 (P5-5): jede Rückfrage zum Zurücksetzen beginnt bei „ergänzend". */
+  readonly mode = signal<RestoreMode>('merge');
 
   readonly exists = computed(() => this.factory.value()?.exists === true);
   readonly saved = computed(() => {
@@ -58,34 +65,42 @@ export class FactoryPanelComponent {
     void this.factory.reload();
   }
 
-  arm(what: string): void {
+  arm(what: Confirmation): void {
+    this.mode.set('merge');
     this.armed.set(what);
+    this.focus('.fp-cancel');
   }
 
+  /** „Abbrechen“: zurück auf den Knopf, der die Rückfrage öffnete. */
   disarm(): void {
+    const what = this.armed();
+    this.armed.set('');
+    if (what) this.focusOpener(what);
+  }
+
+  /** Eine neue Datei schließt die Rückfrage — der Fokus bleibt in der Dateiwahl. */
+  onFile(event: Event): void {
+    this.file.set((event.target as HTMLInputElement).files?.[0] ?? null);
     this.armed.set('');
   }
 
-  onFile(event: Event): void {
-    this.file.set((event.target as HTMLInputElement).files?.[0] ?? null);
-    this.disarm();
-  }
-
   async save(): Promise<void> {
-    this.disarm();
+    this.armed.set('');
     const ok = await this.action.run('save', async () => {
       await this.api.saveFactory();
       return this.t('factory.saved');
     });
     if (ok) await this.factory.reload();
+    this.focusOpener('save');
   }
 
   async restore(): Promise<void> {
-    this.disarm();
+    this.armed.set('');
     await this.action.run('restore', async () => {
-      const { areas } = await this.api.restoreFactory();
-      return this.lang.plural('factory.wasReset', areas);
+      const r = await this.api.restoreFactory(this.mode());
+      return this.lang.plural('factory.wasReset', r.areas) + geloeschtZusatz(this.lang, r);
     });
+    this.focusOpener('restore');
   }
 
   async download(): Promise<void> {
@@ -98,7 +113,7 @@ export class FactoryPanelComponent {
   async upload(): Promise<void> {
     const chosen = this.file();
     if (!chosen) return;
-    this.disarm();
+    this.armed.set('');
     // The file stays chosen — see backup.component.ts for why clearing it alone
     // would put the picker and the button at odds.
     const ok = await this.action.run('upload', async () => {
@@ -106,5 +121,12 @@ export class FactoryPanelComponent {
       return this.t('factory.uploaded', { name: chosen.name });
     });
     if (ok) await this.factory.reload();
+    this.focusOpener('upload');
+  }
+
+  private focusOpener(what: Confirmation): void {
+    this.focus(`[data-opens="${what}"]`, '#fp-title');
   }
 }
+
+type Confirmation = 'save' | 'restore' | 'upload';

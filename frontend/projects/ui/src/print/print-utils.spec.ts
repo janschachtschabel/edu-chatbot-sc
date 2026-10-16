@@ -3,7 +3,8 @@ import { afterEach, describe, it, expect, vi } from 'vitest';
 import { ChatMessage } from '../grouping/message-types';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
-import { printCanvasMaterial, printLearningPath, printMdToHtml, safePrintHref } from './print-utils';
+import { printLearningPath } from './print-lernpfad';
+import { printCanvasMaterial, printMdToHtml, safePrintHref } from './print-utils';
 
 /**
  * Charakterisierungstests für ``printMdToHtml`` — den (vormals 3× inline
@@ -96,8 +97,13 @@ describe('Druckfenster: Oberflächentexte, Sprache, Datumsformat (C1-b4)', () =>
   function captureOpen(blocked = false): { written: string[]; alerts: string[] } {
     const written: string[] = [];
     const alerts: string[] = [];
+    // `querySelector`: den Druckknopf verdrahtet das Widget von außen (Paket 8);
+    // ohne geparstes Dokument findet es keinen — das prüft `print-fenster.spec`.
     const fakeWin = {
-      document: { open: () => {}, write: (h: string) => { written.push(h); }, close: () => {} },
+      document: {
+        open: () => {}, write: (h: string) => { written.push(h); }, close: () => {},
+        querySelector: () => null,
+      },
     };
     vi.stubGlobal('open', () => (blocked ? null : fakeWin));
     vi.stubGlobal('alert', (m: string) => { alerts.push(m); });

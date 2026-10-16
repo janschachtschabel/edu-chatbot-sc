@@ -250,7 +250,7 @@ describe("OverviewComponent", () => {
     // ALT read four fields NEU does not have (size/mtime/has_db/config_files) and
     // would have rendered "— · 0 Configs · ohne DB" for every state.
     const h = await mount({ factory: { exists: false } });
-    expect(text(h)).toContain("kein Werksstand gesichert");
+    expect(text(h)).toContain("kein Grundstand gesichert");
     expect(text(h)).not.toContain("0 Configs");
     expect(text(h)).not.toContain("ohne DB");
   });

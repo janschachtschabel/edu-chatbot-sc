@@ -30,6 +30,7 @@ import {
 } from './reference-data';
 import { ReferenceFlowComponent } from './reference-flow.component';
 import { ReferenceKnowledgeComponent } from './reference-knowledge.component';
+import { ReferenceMachinesComponent } from './reference-machines.component';
 import { ReferenceWidgetComponent } from './reference-widget.component';
 import { RichTextComponent } from './rich-text.component';
 
@@ -37,7 +38,7 @@ import { RichTextComponent } from './rich-text.component';
   selector: 'studio-architecture-reference',
   imports: [
     ReferenceFlowComponent, ReferenceCatalogsComponent, ReferenceKnowledgeComponent,
-    ReferenceWidgetComponent, RichTextComponent,
+    ReferenceMachinesComponent, ReferenceWidgetComponent, RichTextComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './architecture-reference.component.html',

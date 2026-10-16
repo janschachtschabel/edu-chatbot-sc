@@ -46,6 +46,25 @@ export const FIELDS_KLASSIFIKATION: CataloguePart = {
       'Beispielsätze mit erwartetem Intent und Muster. Alle stehen als verbindliche Beispiele im '
       + 'Klassifikator-Prompt: bei ähnlichen Eingaben soll das Modell dasselbe Muster wählen.',
 
+    // ── Kurations-Umleitung (Paket 10, S-7) ─────────────────────────
+    'feld.ClassifyOverridesArea.curation_reroute.label': 'Kurations-Umleitung',
+    'feld.ClassifyOverridesArea.curation_reroute.hint':
+      'Netz unter dem Klassifikator (nur Muster-Modus): ein Auftrag mit Kurationsverb und '
+      + 'Gegenstand im Bestand geht nach M18, mit Webadresse nach M20 — dort liegen die '
+      + 'Schreibwerkzeuge. Wie-Fragen bleiben beim Klassifikator.',
+    'feld.CurationReroute.enabled.label': 'Eingeschaltet',
+    'feld.CurationReroute.enabled.hint': 'Aus: es entscheidet allein der Klassifikator.',
+    'feld.CurationReroute.verbs.label': 'Auftragsverben',
+    'feld.CurationReroute.verbs.hint':
+      'Ganze Wörter, klein geschrieben, auch Teile trennbarer Verben („nimm“ für „nimm … auf“).',
+    'feld.CurationReroute.objects.label': 'Gegenstände im Bestand',
+    'feld.CurationReroute.objects.hint':
+      'Wortanfänge, klein geschrieben: „sammlung“ trifft auch „Sammlungen“. Eine Webadresse '
+      + 'zählt immer als Gegenstand.',
+    'feld.CurationReroute.question_words.label': 'Fragewörter am Satzanfang',
+    'feld.CurationReroute.question_words.hint':
+      'Steht eines davon vorn, ist es eine Frage nach dem Weg (M13) und keine Kuration.',
+
     // ── Zuordnungsbeispiel (FewShotExample) ─────────────────────────
     'feld.FewShotExample.input.label': 'Beispielsatz',
     'feld.FewShotExample.input.hint':
@@ -147,6 +166,25 @@ export const FIELDS_KLASSIFIKATION: CataloguePart = {
     'feld.ClassifyOverridesArea.few_shot_examples.hint':
       'Example sentences with the expected intent and pattern. All go into the classifier '
       + 'prompt as binding examples: for similar input the model should choose the same pattern.',
+
+    // ── Curation rerouting (Paket 10, S-7) ──────────────────────────
+    'feld.ClassifyOverridesArea.curation_reroute.label': 'Curation rerouting',
+    'feld.ClassifyOverridesArea.curation_reroute.hint':
+      'Safety net under the classifier (pattern mode only): a request with a curation verb and '
+      + 'an object in the repository goes to M18, with a web address to M20 — where the writing '
+      + 'tools are. How-questions stay with the classifier.',
+    'feld.CurationReroute.enabled.label': 'Switched on',
+    'feld.CurationReroute.enabled.hint': 'Off: the classifier alone decides.',
+    'feld.CurationReroute.verbs.label': 'Request verbs',
+    'feld.CurationReroute.verbs.hint':
+      'Whole words, lower case, including parts of separable verbs („nimm“ for „nimm … auf“).',
+    'feld.CurationReroute.objects.label': 'Objects in the repository',
+    'feld.CurationReroute.objects.hint':
+      'Word beginnings, lower case: „sammlung“ also matches „Sammlungen“. A web address always '
+      + 'counts as an object.',
+    'feld.CurationReroute.question_words.label': 'Question words at the start',
+    'feld.CurationReroute.question_words.hint':
+      'If one of them comes first, it is a question about the way (M13), not curation.',
 
     // ── Few-shot example (FewShotExample) ───────────────────────────
     'feld.FewShotExample.input.label': 'Example sentence',

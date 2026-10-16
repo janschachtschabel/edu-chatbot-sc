@@ -17,7 +17,7 @@
       </div>
     } @else {
       <ul class="mr-list">
-        @for (server of servers(); track $index) {
+        @for (server of servers(); track $index; let si = $index) {
           <li class="mr-row">
             <div class="mr-grid">
               <label class="mr-check">
@@ -85,13 +85,39 @@
               <ul class="mr-tools">
                 @for (tool of toolsOf(server); track tool.name) {
                   <li class="mr-tool" [attr.title]="tool.description || null">
-                    <span class="mr-tool-name">{{ tool.name }}</span>
+                    <!-- Review Paket 7, C-10: der Name ist Teil der Klickfläche,
+                         der Hinweis unter der Liste die Beschreibung des Schalters. -->
+                    @if (hasSwitch(server, tool.name)) {
+                      <label class="mr-tool-switch">
+                        <input
+                          type="checkbox"
+                          class="mr-tool-on"
+                          [attr.data-werkzeug]="tool.name"
+                          [checked]="isOffered(server, tool.name)"
+                          [attr.aria-label]="t('mcp.tool.offer', { name: tool.name })"
+                          [attr.aria-describedby]="'mr-tool-hint-' + si"
+                          (change)="setOffered(si, tool.name, $any($event.target).checked)"
+                        />
+                        <span class="mr-tool-name">{{ tool.name }}</span>
+                      </label>
+                    } @else {
+                      <span class="mr-tool-name">{{ tool.name }}</span>
+                    }
                     @if (tool.description) {
                       <span class="mr-tool-desc">{{ tool.description }}</span>
+                    }
+                    @if (fehltAmServer(server, tool.name)) {
+                      <span class="mr-tool-desc">{{ t('mcp.tool.serverMissing') }}</span>
+                    }
+                    @if (isWriting(server, tool.name)) {
+                      <span class="mr-tool-desc">{{ t('mcp.tool.writing') }}</span>
+                    } @else if (!hasSwitch(server, tool.name)) {
+                      <span class="mr-tool-desc">{{ t('mcp.tool.unknown') }}</span>
                     }
                   </li>
                 }
               </ul>
+              <p class="mr-help" [id]="'mr-tool-hint-' + si">{{ t('mcp.tool.hint') }}</p>
             } @else if (server.enabled) {
               <p class="mr-help">{{ t('mcp.noTools') }}</p>
             }
@@ -213,6 +239,12 @@
               }
             } @else {
               <p class="mr-help">{{ t('mcp.compare.unregistered') }}</p>
+            }
+            @if (canAdopt()) {
+              <p class="mr-help">{{ t('mcp.adopt.hint') }}</p>
+              <button type="button" class="cs-btn mr-adopt" (click)="adoptTools()">
+                {{ t('mcp.adopt.go') }}
+              </button>
             }
           </div>
         }

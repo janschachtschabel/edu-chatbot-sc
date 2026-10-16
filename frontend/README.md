@@ -408,10 +408,15 @@ Zusagen und sind nicht portiert. Ein Test prüft das in **beiden** Zuständen,
 leer und gefüllt: der Leertext beschreibt, was gesichert wird, und ist genau die
 Stelle, an der die Zusage zurückkäme.
 
-Ebenfalls ohne Gegenstück in NEU und deshalb nicht angeboten: ALTs
-wipe/merge-Frage (`_apply_config` merged immer) und „Snapshot als Factory
-übernehmen" (`save_factory` kennt kein `from_snapshot`, es packt immer den
-Live-Stand).
+Ebenfalls ohne Gegenstück in NEU und deshalb nicht angeboten: „Snapshot als
+Factory übernehmen" (`save_factory` kennt kein `from_snapshot`, es packt immer
+den Live-Stand). ALTs wipe/merge-Frage kam mit Paket 7 (P5-5) als Wahl
+„ergänzend/exakt" in die drei Rückfragen zurück (`restore-mode.component.ts`):
+„ergänzend" ist die Vorgabe und beginnt jede Rückfrage neu; „exakt" löscht die
+Bereiche, die nicht in der Sicherung liegen — nur Konfigurationsbereiche, nie
+die Datenbank wie ALTs wipe. Das Backend sichert vorher den Stand als Snapshot
+und verweigert den Lauf (400), wenn dafür kein Platz mehr ist; die Liste liest
+danach von selbst neu (`SnapshotsApi.stand`).
 
 Alles, was etwas zerstört, fragt zurück — inline, wie seit 9-5a überall; die
 Rückfrage trägt `role="alert"`, weil sie unter dem Knopf erscheint, der Fokus

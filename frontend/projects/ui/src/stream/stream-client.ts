@@ -46,6 +46,21 @@ export class StreamHttpError extends Error {
   }
 }
 
+/** Ein `error`-Rahmen (Paket 7, P1): der Server hat die Frage verstanden und
+ *  sagt, warum er sie nicht beantwortet — etwa `session_busy`, wenn noch ein Zug
+ *  derselben Sitzung läuft. Ein zweiter Versuch auf dem anderen Weg brächte
+ *  nichts; der Aufrufer zeigt dazu seinen eigenen Text.
+ *
+ *  Ein Rahmen ohne Kennung ist `internal`: der Zug ist am Server gescheitert.
+ *  Als nackter `Error` sah er aus wie ein Transportabbruch, und das Widget fragte
+ *  90 s den Verlauf nach einer Antwort, die nie gespeichert wurde (Review C-1). */
+export class StreamServerError extends Error {
+  constructor(readonly code: string, message = 'stream error') {
+    super(message);
+    this.name = 'StreamServerError';
+  }
+}
+
 /**
  * Parst EINEN SSE-Block (Zeilen zwischen zwei Leerzeilen) in `{event, data}`.
  * Kommentar-/Keepalive-Zeilen (`: …`) und Leerzeilen werden ignoriert;
@@ -174,7 +189,11 @@ export async function streamChat<T = unknown>(opts: StreamChatOptions): Promise<
     if (evt.event === 'result') {
       finalResult = evt.data as T;
     } else if (evt.event === 'error') {
-      streamError = new Error(evt.data?.message || 'stream error');
+      const code = evt.data?.code;
+      streamError = new StreamServerError(
+        typeof code === 'string' && code ? code : 'internal',
+        evt.data?.message || 'stream error',
+      );
     } else {
       try {
         opts.onEvent(evt);
@@ -191,7 +210,10 @@ export async function streamChat<T = unknown>(opts: StreamChatOptions): Promise<
       const { done, value } = await reader.read();
       if (done) break;
       armWatchdog(); // B9: jede Daten-Lieferung resettet den Idle-Timer
-      buffer += decoder.decode(value, { stream: true });
+      // SSE erlaubt `\r\n`, `\r` und `\n` als Zeilenende (Paket 10, L-7) — ein
+      // Proxy, der umschreibt, ließ sonst keinen Block mehr durch. Ein `\r` ganz
+      // am Ende bleibt stehen: sein `\n` kann erst im nächsten Stück kommen.
+      buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n|\r(?!$)/g, '\n');
       let idx: number;
       while ((idx = buffer.indexOf('\n\n')) >= 0) {
         const block = buffer.slice(0, idx);
@@ -200,11 +222,19 @@ export async function streamChat<T = unknown>(opts: StreamChatOptions): Promise<
       }
     }
   } catch (e) {
+    // Ein schon erhaltener Bescheid des Servers geht einem Abbruch danach vor
+    // (Paket 9) — sonst fragte das Widget im Verlauf nach einer Antwort, die der
+    // gescheiterte Zug nie hatte. Ebenso ein schon erhaltenes Ergebnis (Review
+    // Paket 9): ein Proxy-Reset nach dem letzten Rahmen verwarf es sonst.
+    if (streamError) throw streamError;
+    if (finalResult) return finalResult;
     throw staleFired ? new StreamStaleError() : e;
   } finally {
     clearTimers();
   }
-  // Trailing-Block (Server schloss ohne finales \n\n).
+  // Trailing-Block (Server schloss ohne finales \n\n); der Decoder gibt dabei
+  // ein angefangenes Mehrbyte-Zeichen heraus.
+  buffer = (buffer + decoder.decode()).replace(/\r\n?/g, '\n');
   if (buffer.trim()) dispatch(buffer);
 
   if (streamError) throw streamError;
@@ -241,6 +271,7 @@ export async function postChat<T = unknown>(opts: PostChatOptions): Promise<T> {
     },
     body: JSON.stringify(opts.body),
   });
-  if (!resp.ok) throw new Error(`Chat error: ${resp.status}`);
+  // Der Status reist mit (Paket 7, P1): ein 409 heißt „Sitzung beschäftigt“.
+  if (!resp.ok) throw Object.assign(new Error(`Chat error: ${resp.status}`), { status: resp.status });
   return resp.json() as Promise<T>;
 }

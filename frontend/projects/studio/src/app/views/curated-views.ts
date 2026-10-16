@@ -26,6 +26,9 @@
  * as a heading the moment a name drifts, and no test could see it.
  */
 
+import { BETRIEB_SEITEN } from './curated-pages-betrieb';
+import { INHALT_SEITEN } from './curated-pages-inhalt';
+
 export interface CuratedAreaSection {
   /** Config area key, exactly as the registry spells it. */
   readonly area: string;
@@ -45,6 +48,9 @@ export interface CuratedAreaSection {
    *    wall. The cut itself lives in `pattern-field-tabs.ts`.
    */
   readonly feature?: 'safety-level' | 'pattern-tabs';
+  /** Which element list counts this section in a tabbed page (ST-4c): the
+   *  number comes from `GET /config/elements`, one request for all tabs. */
+  readonly count?: 'personas' | 'intents' | 'states' | 'entities' | 'signals';
 }
 
 /**
@@ -54,12 +60,14 @@ export interface CuratedAreaSection {
  * an SSRF check on write. None of the three can be a schema form, and all three
  * belong on the same page as the config that describes them. The same holds
  * for `privacy-purge` (ST-6): deleting across all sessions is an action on the
- * database, next to the settings that decide what gets stored.
+ * database, next to the settings that decide what gets stored — and so for
+ * `retention` (Paket 8): what the retention periods mean in rows right now.
  */
 export interface CuratedPanelSection {
   readonly panel:
     | 'rag-areas' | 'rag-ingest' | 'mcp-registry' | 'agent-tester' | 'master-skill'
-    | 'privacy-purge' | 'agent-tools' | 'agent-skills' | 'agent-prompt' | 'agent-probe';
+    | 'privacy-purge' | 'retention' | 'agent-tools' | 'agent-skills' | 'agent-prompt'
+    | 'agent-probe';
   readonly labelKey: string;
   readonly hintKey: string;
 }
@@ -77,322 +85,14 @@ export interface CuratedView {
   /** Lead paragraph: what this page is for, in the editor's language. */
   readonly introKey: string;
   readonly sections: readonly CuratedSection[];
+  /** `tabs`: one tab per section plus a head card with the counts (ST-4c,
+   *  ALT's dimensions page); otherwise the sections stack as disclosures. */
+  readonly layout?: 'tabs';
 }
 
-export const CURATED_VIEWS: readonly CuratedView[] = [
-  {
-    slug: 'begruessung',
-    introKey: 'curated.begruessung.intro',
-    sections: [
-      {
-        area: '01-base/welcome-config',
-        labelKey: 'curated.begruessung.welcome.label',
-        hintKey: 'curated.begruessung.welcome.hint',
-      },
-    ],
-  },
-  {
-    slug: 'kontext-aktionen',
-    introKey: 'curated.kontextAktionen.intro',
-    sections: [
-      {
-        area: '01-base/context-actions',
-        labelKey: 'curated.kontextAktionen.actions.label',
-        hintKey: 'curated.kontextAktionen.actions.hint',
-      },
-    ],
-  },
-  {
-    slug: 'identitaet',
-    introKey: 'curated.identitaet.intro',
-    sections: [
-      {
-        area: '01-base/safety-config',
-        labelKey: 'curated.identitaet.safety.label',
-        hintKey: 'curated.identitaet.safety.hint',
-        feature: 'safety-level',
-      },
-      {
-        area: '01-base/base-persona',
-        labelKey: 'curated.identitaet.persona.label',
-        hintKey: 'curated.identitaet.persona.hint',
-      },
-      {
-        area: '01-base/guardrails',
-        labelKey: 'curated.identitaet.guardrails.label',
-        hintKey: 'curated.identitaet.guardrails.hint',
-      },
-      {
-        area: '01-base/policy',
-        labelKey: 'curated.identitaet.policy.label',
-        hintKey: 'curated.identitaet.policy.hint',
-      },
-    ],
-  },
-  {
-    slug: 'domain-wissen',
-    introKey: 'curated.domainWissen.intro',
-    sections: [
-      {
-        area: '02-domain/domain-rules',
-        labelKey: 'curated.domainWissen.rules.label',
-        hintKey: 'curated.domainWissen.rules.hint',
-      },
-      {
-        area: '02-domain/wlo-plattform-wissen',
-        labelKey: 'curated.domainWissen.platform.label',
-        hintKey: 'curated.domainWissen.platform.hint',
-      },
-      {
-        area: '01-base/website-tour',
-        labelKey: 'curated.domainWissen.tour.label',
-        hintKey: 'curated.domainWissen.tour.hint',
-      },
-      // ST-9: der Lotse zeigt wie die Web-Tour Wege auf die Plattform — bis
-      // dahin nur als Dateiname unter „Alle Bereiche“ zu finden.
-      {
-        area: '01-base/guide-mode',
-        labelKey: 'curated.domainWissen.guideMode.label',
-        hintKey: 'curated.domainWissen.guideMode.hint',
-      },
-      {
-        area: '02-domain/guide-rules',
-        labelKey: 'curated.domainWissen.guideRules.label',
-        hintKey: 'curated.domainWissen.guideRules.hint',
-      },
-    ],
-  },
-  {
-    slug: 'material-formate',
-    introKey: 'curated.materialFormate.intro',
-    sections: [
-      {
-        area: '05-canvas/material-types',
-        labelKey: 'curated.materialFormate.types.label',
-        hintKey: 'curated.materialFormate.types.hint',
-      },
-      {
-        area: '05-canvas/type-aliases',
-        labelKey: 'curated.materialFormate.aliases.label',
-        hintKey: 'curated.materialFormate.aliases.hint',
-      },
-      {
-        area: '05-canvas/create-triggers',
-        labelKey: 'curated.materialFormate.create.label',
-        hintKey: 'curated.materialFormate.create.hint',
-      },
-      {
-        area: '05-canvas/edit-triggers',
-        labelKey: 'curated.materialFormate.edit.label',
-        hintKey: 'curated.materialFormate.edit.hint',
-      },
-      {
-        area: '05-canvas/persona-priorities',
-        labelKey: 'curated.materialFormate.priorities.label',
-        hintKey: 'curated.materialFormate.priorities.hint',
-      },
-    ],
-  },
-  {
-    slug: 'patterns',
-    introKey: 'curated.patterns.intro',
-    sections: [
-      {
-        area: '03-patterns',
-        kind: 'group',
-        labelKey: 'curated.patterns.patterns.label',
-        hintKey: 'curated.patterns.patterns.hint',
-        feature: 'pattern-tabs',
-      },
-    ],
-  },
-  {
-    slug: 'dimensionen',
-    introKey: 'curated.dimensionen.intro',
-    sections: [
-      {
-        area: '04-personas',
-        kind: 'group',
-        labelKey: 'curated.dimensionen.personas.label',
-        hintKey: 'curated.dimensionen.personas.hint',
-      },
-      {
-        area: '04-intents/intents',
-        labelKey: 'curated.dimensionen.intents.label',
-        hintKey: 'curated.dimensionen.intents.hint',
-      },
-      {
-        area: '04-states/states',
-        labelKey: 'curated.dimensionen.states.label',
-        hintKey: 'curated.dimensionen.states.hint',
-      },
-      {
-        area: '04-entities/entities',
-        labelKey: 'curated.dimensionen.entities.label',
-        hintKey: 'curated.dimensionen.entities.hint',
-      },
-      // ST-9: welche Wörter NICHT als Thema zählen — gehört zu den Entitäten.
-      {
-        area: '01-base/placeholder-topics',
-        labelKey: 'curated.dimensionen.placeholderTopics.label',
-        hintKey: 'curated.dimensionen.placeholderTopics.hint',
-      },
-      {
-        area: '04-signals/signal-modulations',
-        labelKey: 'curated.dimensionen.signals.label',
-        hintKey: 'curated.dimensionen.signals.hint',
-      },
-      {
-        area: '01-base/tone-modifiers',
-        labelKey: 'curated.dimensionen.tone.label',
-        hintKey: 'curated.dimensionen.tone.hint',
-      },
-      // ST-9: feste Anker der Einordnung, zuletzt — sie übersteuern die Achsen
-      // darüber und setzen voraus, dass man diese kennt.
-      {
-        area: '01-base/classify-overrides',
-        labelKey: 'curated.dimensionen.classifyOverrides.label',
-        hintKey: 'curated.dimensionen.classifyOverrides.hint',
-      },
-    ],
-  },
-  {
-    slug: 'anzeige',
-    introKey: 'curated.anzeige.intro',
-    sections: [
-      {
-        area: '01-base/display-rules',
-        labelKey: 'curated.anzeige.display.label',
-        hintKey: 'curated.anzeige.display.hint',
-      },
-      // ST-9: welche Treffer überhaupt zu Karten werden, und die Links darin.
-      {
-        area: '01-base/card-pipeline',
-        labelKey: 'curated.anzeige.cardPipeline.label',
-        hintKey: 'curated.anzeige.cardPipeline.hint',
-      },
-      {
-        area: '01-base/widget-modes',
-        labelKey: 'curated.anzeige.widgetModes.label',
-        hintKey: 'curated.anzeige.widgetModes.hint',
-      },
-      {
-        area: '01-base/header-nav',
-        labelKey: 'curated.anzeige.header.label',
-        hintKey: 'curated.anzeige.header.hint',
-      },
-      {
-        area: '01-base/device-config',
-        labelKey: 'curated.anzeige.devices.label',
-        hintKey: 'curated.anzeige.devices.hint',
-      },
-    ],
-  },
-  {
-    slug: 'datenschutz',
-    introKey: 'curated.datenschutz.intro',
-    sections: [
-      {
-        area: '01-base/privacy-config',
-        labelKey: 'curated.datenschutz.privacy.label',
-        hintKey: 'curated.datenschutz.privacy.hint',
-      },
-      {
-        area: '01-base/quality-log-config',
-        labelKey: 'curated.datenschutz.qualityLog.label',
-        hintKey: 'curated.datenschutz.qualityLog.hint',
-      },
-      {
-        panel: 'privacy-purge',
-        labelKey: 'curated.datenschutz.purge.label',
-        hintKey: 'curated.datenschutz.purge.hint',
-      },
-    ],
-  },
-  {
-    slug: 'wissen',
-    introKey: 'curated.wissen.intro',
-    sections: [
-      {
-        panel: 'rag-areas',
-        labelKey: 'curated.wissen.areas.label',
-        hintKey: 'curated.wissen.areas.hint',
-      },
-      {
-        panel: 'rag-ingest',
-        labelKey: 'curated.wissen.ingest.label',
-        hintKey: 'curated.wissen.ingest.hint',
-      },
-      {
-        // Describes the areas the panel above lists — only useful together,
-        // which is why this config sits between them and not on its own page.
-        area: '05-knowledge/rag-config',
-        labelKey: 'curated.wissen.ragConfig.label',
-        hintKey: 'curated.wissen.ragConfig.hint',
-      },
-      {
-        panel: 'mcp-registry',
-        labelKey: 'curated.wissen.mcp.label',
-        hintKey: 'curated.wissen.mcp.hint',
-      },
-    ],
-  },
-  {
-    // Umschalter und Probelauf auf EINER Seite: wer die Maschine umstellt, will
-    // sehen, was sie tut, und wer einen Lauf startet, will wissen, unter welchen
-    // Deckeln er läuft. Getrennt wären es zwei Seiten, zwischen denen man
-    // hin- und herspringt, um eine einzige Frage zu beantworten.
-    slug: 'agent',
-    introKey: 'curated.agent.intro',
-    sections: [
-      {
-        area: '01-base/engine',
-        labelKey: 'curated.agent.engine.label',
-        hintKey: 'curated.agent.engine.hint',
-      },
-      {
-        // ST-8d: the start of a turn's chain as the model reads it — our own
-        // rules first, then the master skill below, then what each turn adds.
-        panel: 'agent-prompt',
-        labelKey: 'curated.agent.prompt.label',
-        hintKey: 'curated.agent.prompt.hint',
-      },
-      {
-        // AG-2: lives in the repository, shown here read-only (user decision
-        // 2026-09-26) — a panel because its source is `/api/master-skill`.
-        panel: 'master-skill',
-        labelKey: 'curated.agent.masterSkill.label',
-        hintKey: 'curated.agent.masterSkill.hint',
-      },
-      {
-        // ST-8b: what the loop gets and what can take a tool away — read-only,
-        // each lock stays where it is maintained.
-        panel: 'agent-tools',
-        labelKey: 'curated.agent.tools.label',
-        hintKey: 'curated.agent.tools.hint',
-      },
-      {
-        // ST-8c: which skills a collection approves — its registry document,
-        // fetched on request (one MCP call per collection).
-        panel: 'agent-skills',
-        labelKey: 'curated.agent.skills.label',
-        hintKey: 'curated.agent.skills.hint',
-      },
-      {
-        // ST-8e (AG-4 part A): a conversation over the real chat path with the
-        // agent engine — the task tester below drives `/api/agent` instead.
-        panel: 'agent-probe',
-        labelKey: 'curated.agent.probe.label',
-        hintKey: 'curated.agent.probe.hint',
-      },
-      {
-        panel: 'agent-tester',
-        labelKey: 'curated.agent.tester.label',
-        hintKey: 'curated.agent.tester.hint',
-      },
-    ],
-  },
-];
+/** Alle kuratierten Seiten in der Reihenfolge der Navigation — die Daten
+ *  stehen nach Seitengruppen in `curated-pages-*.ts` (Paket 6). */
+export const CURATED_VIEWS: readonly CuratedView[] = [...INHALT_SEITEN, ...BETRIEB_SEITEN];
 
 export function curatedView(slug: string): CuratedView | undefined {
   return CURATED_VIEWS.find((view) => view.slug === slug);

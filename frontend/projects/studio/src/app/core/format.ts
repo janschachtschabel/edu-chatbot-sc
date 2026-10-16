@@ -75,21 +75,6 @@ export function formatBytes(locale: string, value: number): string {
 }
 
 /**
- * A cost estimate: "0,14 $" / "US$0.14".
- *
- * Eval cost estimates are quoted in USD by the provider price table, so the
- * currency is fixed while the *formatting* follows the interface language —
- * German puts the symbol behind the number, and hardcoding "$0.14" would get
- * that wrong in both directions.
- */
-export function formatUsd(locale: string, value: number): string {
-  return numberFormat(locale, 'usd', {
-    style: 'currency', currency: 'USD',
-    minimumFractionDigits: 2, maximumFractionDigits: 2,
-  }).format(value);
-}
-
-/**
  * A duration in seconds from milliseconds, one place: "12,3 s" / "12.3 s" (ST-7b).
  *
  * The unit is the SI symbol with a no-break space, not `Intl`'s unit style: ICU

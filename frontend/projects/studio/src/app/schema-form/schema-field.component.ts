@@ -15,15 +15,16 @@ import {
   inject,
   input,
   output,
-  signal,
 } from '@angular/core';
 
 import { pathKey } from '../core/field-problems';
 import { StudioLanguageService } from '../i18n/studio-language.service';
-import { nextFreeKey, safeIdPart } from './field-ids';
+import { safeIdPart } from './field-ids';
 import type { ValuePath } from './form-value';
 import { FieldControlComponent } from './field-control.component';
 import { JsonValueComponent } from './json-value.component';
+import { ListItems } from './list-items';
+import { MapEntries } from './map-entries';
 import { ObjectListComponent } from './object-list.component';
 import type { SchemaField } from './schema-to-fields';
 
@@ -42,11 +43,6 @@ export type FormEdit =
   /** Not a document change: a field reporting that its input cannot be parsed,
    *  so the form can stop a save that would silently drop it. `''` clears. */
   | { readonly kind: 'field-error'; readonly path: ValuePath; readonly message: string };
-
-interface MapEntry {
-  readonly key: string;
-  readonly value: unknown;
-}
 
 const NO_PROBLEMS: ReadonlyMap<string, string> = new Map();
 
@@ -82,8 +78,10 @@ export class SchemaFieldComponent {
 
   readonly edit = output<FormEdit>();
 
-  /** Refused rename, kept next to the row it belongs to. */
-  readonly keyError = signal<{ readonly key: string; readonly message: string } | null>(null);
+  /** Bearbeitung einer Liste — Chips, hervorgehobener Eintrag (`list-items.ts`). */
+  readonly list = new ListItems(this, this.lang);
+  /** Bearbeitung einer Map — Schlüssel anlegen, umbenennen (`map-entries.ts`). */
+  readonly map = new MapEntries(this, this.lang);
 
   /** Beschriftung aus dem Katalog (ST-1), `null` ohne Eintrag. */
   private readonly catalogueLabel = computed(() => this.catalogueText('label'));
@@ -115,13 +113,6 @@ export class SchemaFieldComponent {
     return suffix ? `${this.idPrefix()}-${suffix}` : this.idPrefix();
   });
   readonly descId = computed(() => (this.hint() ? `${this.fieldId()}-desc` : null));
-  /** Der Name des hervorhebenden Nachbarfelds („Tour-Chip") für die Radios. */
-  readonly markerLabel = computed(() => {
-    const key = this.field().markerTextKey;
-    return key && this.lang.has(`${key}.label`)
-      ? this.lang.t(`${key}.label`)
-      : (this.field().marker ?? '');
-  });
   /** Die Prüfmeldung des Servers zu GENAU diesem Feld (ST-2e), sonst `null`. */
   readonly problem = computed(() => this.problems().get(pathKey(this.path())) ?? null);
   readonly errId = computed(() => (this.problem() ? `${this.fieldId()}-err` : null));
@@ -163,22 +154,8 @@ export class SchemaFieldComponent {
       : this.lang.t('schemaField.shape.scalar', { type: typeof value });
   });
 
-  readonly items = computed<readonly unknown[]>(() => {
-    const value = this.value();
-    return Array.isArray(value) ? value : [];
-  });
-
   /** Paket 4c, B2: nicht gesetzt — es gilt die Vorgabe, nicht „keine“. */
   readonly unset = computed(() => this.field().vorgabe === true && this.value() == null);
-
-  readonly entries = computed<readonly MapEntry[]>(() => {
-    const value = this.value();
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) return [];
-    return Object.entries(value as Record<string, unknown>).map(([key, entry]) => ({
-      key,
-      value: entry,
-    }));
-  });
 
   private catalogueText(part: 'label' | 'hint'): string | null {
     const key = this.field().textKey;
@@ -205,114 +182,8 @@ export class SchemaFieldComponent {
     if (!this.unset()) this.edit.emit({ kind: 'remove', path: this.path() });
   }
 
-  addItem(): void {
-    this.setValue([...this.items(), structuredClone(this.field().item?.blank ?? null)]);
-  }
-
-  removeItem(index: number): void {
-    const remove: DocumentEdit = { kind: 'remove', path: this.childPath(index) };
-    const unmark = this.isMarked(index) ? this.markEdit('') : null;
-    // sonst zeigte der Tour-Chip auf eine Zeile, die es nicht mehr gibt
-    this.edit.emit(unmark ? { kind: 'batch', edits: [remove, unmark] } : remove);
-  }
-
   /** Eine Liste oder Map von OBJEKTEN (ST-3): als Liste│Editor statt Wand. */
   readonly objectItems = computed(() => this.field().item?.kind === 'group');
-
-  // ── ST-2g: eine Liste von Katalog-Namen als Chips ────────────────────
-
-  /** Werkzeuge, Wissensbereiche … — je Wert ein Chip statt je Eintrag ein Feld. */
-  readonly chipList = computed(() => {
-    const field = this.field();
-    return field.kind === 'list' && field.item?.kind === 'text' && !!field.item.catalog
-      && !field.marker;
-  });
-  /** Ein doppelter Wert, beim Eingabefeld gemeldet statt still verworfen. */
-  readonly chipError = signal('');
-
-  addChip(input: HTMLInputElement): void {
-    const value = input.value.trim();
-    if (!value) return;
-    if (this.items().includes(value)) {
-      this.chipError.set(this.lang.t('schemaField.chipTaken', { value, group: this.groupLabel() }));
-      return;
-    }
-    this.chipError.set('');
-    this.setValue([...this.items(), value]);
-    input.value = '';
-  }
-
-  // ── ST-2i: EIN Eintrag der Liste ist hervorgehoben (`x-marker`) ──────
-
-  /** Die Zeile trägt den Wert, den das Nachbarfeld hervorhebt. */
-  isMarked(index: number): boolean {
-    return !!this.field().marker && this.items()[index] === this.markerValue();
-  }
-
-  /** Schreibt den hervorgehobenen Wert ins Nachbarfeld — `''` hebt keinen hervor. */
-  mark(value: unknown): void {
-    const edit = this.markEdit(value);
-    if (edit) this.edit.emit(edit);
-  }
-
-  private markEdit(value: unknown): DocumentEdit | null {
-    const marker = this.field().marker;
-    return marker ? { kind: 'set', path: [...this.path().slice(0, -1), marker], value } : null;
-  }
-
-  /**
-   * Eine Zeile wurde bearbeitet. War sie die hervorgehobene, wandert der Marker
-   * mit — sonst verlöre eine Umbenennung des Tour-Chips still die Web-Tour.
-   * `items()` trägt hier noch den ALTEN Wert: das Dokument ist noch nicht neu.
-   */
-  onItemEdit(index: number, edit: FormEdit): void {
-    const follow = this.isMarked(index) && edit.kind === 'set'
-      && edit.path.length === this.path().length + 1
-      ? this.markEdit(edit.value)
-      : null;
-    this.edit.emit(follow && edit.kind === 'set' ? { kind: 'batch', edits: [edit, follow] } : edit);
-  }
-
-  addEntry(): void {
-    const key = nextFreeKey(this.entries().map((entry) => entry.key));
-    this.edit.emit({
-      kind: 'set',
-      path: this.childPath(key),
-      value: structuredClone(this.field().item?.blank ?? null),
-    });
-  }
-
-  removeEntry(key: string): void {
-    this.edit.emit({ kind: 'remove', path: this.childPath(key) });
-  }
-
-  /**
-   * `change`, not `input`: a map key is user data, and renaming per keystroke
-   * would leave a trail of half-typed keys ("F", "FA", "FAQ") in the document.
-   *
-   * A refused rename must put the field back. `renameKeyAt` returns the SAME
-   * document, so the signal never notifies and the input would keep showing a
-   * name the document does not have — two rows claiming the same key, and a
-   * later save reporting success for a rename that never happened.
-   */
-  renameEntry(from: string, event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const to = input.value.trim();
-    if (to === from) return;
-    const taken = this.entries().some((entry) => entry.key === to);
-    if (!to || taken) {
-      input.value = from;
-      this.keyError.set({
-        key: from,
-        message: taken
-          ? this.lang.t('schemaField.keyTaken', { key: to })
-          : this.lang.t('schemaField.emptyKey'),
-      });
-      return;
-    }
-    this.keyError.set(null);
-    this.edit.emit({ kind: 'rename', path: this.path(), from, to });
-  }
 
   onJsonError(message: string): void {
     this.edit.emit({ kind: 'field-error', path: this.path(), message });

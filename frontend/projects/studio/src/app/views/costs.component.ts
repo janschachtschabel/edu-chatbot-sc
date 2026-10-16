@@ -27,7 +27,7 @@ import {
 
 import { AsyncData } from '../core/async-data';
 import type { OriginScope } from '../core/origin-scope';
-import { UsageApi, type UsageReport } from '../core/usage-api.service';
+import { UsageApi, type UsageReport, type UsageSessionRow } from '../core/usage-api.service';
 import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { DASHBOARD_SECTIONS } from './area-homes';
@@ -206,5 +206,13 @@ export class CostsComponent {
   rowAmount(amount: string | null): string {
     const currency = this.value()?.currency ?? '';
     return amount === null ? this.t('costs.noPrice') : this.fmt.money(amount, currency);
+  }
+
+  /** Eine Zeile ohne Sitzung heißt nach ihrer Quelle (Paket 9): die Agent-API oder
+   *  die Probeläufe von „Auftrag testen“ im Studio. */
+  withoutSession(row: UsageSessionRow): string {
+    return row.source === 'studio-probe'
+      ? this.t('costs.sessions.studioProbe')
+      : this.t('costs.sessions.agentApi');
   }
 }

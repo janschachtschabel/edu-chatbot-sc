@@ -6,13 +6,13 @@
  *
  * Schlüsselschema wie in `fields-layer-doc.ts`: `feld.<Modell>.<feld>.{label,hint}`.
  * Geprüft gegen `services/safety/service.py`, `services/safety/regex_gate.py` und
- * `services/agent_gate.py`. Zwei Felder wertet der Code nicht aus, und der Text
- * sagt das: `double_check` (gelesen, nie genutzt) und `confidence_adjustments`
- * (`services/outcome_service.py` rechnet mit festen Werten). `extra_crisis_terms`
+ * `services/agent_gate.py`. Ein Feld wertet der Code nicht aus, und der Text sagt
+ * das: `double_check` (gelesen, nie genutzt). `confidence_adjustments` und
+ * `escalation.provider` sind gestrichen (Paket 7). `extra_crisis_terms`
  * und `extra_pii_terms` prüft das Regex-Gate seit Paket 4 (D8) nach seinen festen
- * Listen (`services/safety/zusatz_begriffe.py`). `escalation.provider`
- * ist nur beschreibend; `escalation.mode` und `escalation.legal_classifier` wirken
- * nur als Rückfall, wenn `security_level` kein Preset findet.
+ * Listen (`services/safety/zusatz_begriffe.py`). `escalation.mode` und
+ * `escalation.legal_classifier` wirken nur als Rückfall, wenn `security_level`
+ * kein Preset findet.
  */
 import type { CataloguePart } from './catalogue-part';
 
@@ -57,7 +57,9 @@ export const FIELDS_SICHERHEIT: CataloguePart = {
     'feld.SafetyConfigArea.extra_crisis_terms.label': 'Zusätzliche Krisenbegriffe',
     'feld.SafetyConfigArea.extra_crisis_terms.hint':
       'Weitere Wörter, die als Krisensignal gelten — wie die eingebauten Muster: Es folgt die '
-      + 'Schutzantwort, die Materialsuche ist gesperrt. Ein Begriff trifft ab Wortanfang '
+      + 'Schutzantwort, die Materialsuche ist gesperrt. Eingebaut und nicht abschaltbar sind '
+      + 'neben Suizid- und Selbstverletzungsbegriffen typische Andeutungen wie „niemand würde '
+      + 'mich vermissen“ oder „ich sehe keinen Ausweg mehr“. Ein Begriff trifft ab Wortanfang '
       + '(„klinge“ trifft „klingenscharf“), Groß-/Kleinschreibung egal; höchstens 200 Begriffe '
       + 'zu je 100 Zeichen.',
     'feld.SafetyConfigArea.extra_pii_terms.label': 'Zusätzliche PII-Begriffe',
@@ -99,10 +101,6 @@ export const FIELDS_SICHERHEIT: CataloguePart = {
       'Nur wenn die Sicherheitsstufe kein Preset findet: wann die Moderation läuft (off = '
       + 'nie, smart = bei erhöhtem Risiko, always = immer; nicht gesetzt = nie). Mit Preset '
       + 'ohne Wirkung.',
-    'feld.EscalationBlock.provider.label': 'Moderationsdienst',
-    'feld.EscalationBlock.provider.hint':
-      'Dienst der Moderation. Nur beschreibend, auch none schaltet sie nicht ab: welcher '
-      + 'Dienst prüft, folgt aus dem LLM-Anbieter und den Zugängen der Anlage.',
     'feld.EscalationBlock.legal_classifier.label': 'Rechtsprüfung (Rückfall)',
     'feld.EscalationBlock.legal_classifier.hint':
       'Nur wenn die Sicherheitsstufe kein Preset findet: an = Rechtsprüfung bei erhöhtem '
@@ -110,9 +108,11 @@ export const FIELDS_SICHERHEIT: CataloguePart = {
     'feld.EscalationBlock.thresholds.label': 'Schwellen je Kategorie',
     'feld.EscalationBlock.thresholds.hint':
       'Ab welchem Wert (0 bis 1) eine Moderationskategorie als getroffen gilt, etwa '
-      + 'self_harm: 0,5 oder self_harm/intent: 0,25 — Namen wie die Moderation sie meldet, '
+      + 'self_harm: 0,25 oder sexual/minors: 0,2 — Namen wie die Moderation sie meldet, '
       + 'Bindestrich als Unterstrich. Nicht genannte Kategorien: 0,95. Der Schwellenfaktor '
-      + 'der Stufe wird darauf angewandt.',
+      + 'der Stufe wird darauf angewandt. Gemessen 2026-10-09: Unterricht über Suizid in '
+      + 'Literatur und Prävention erreicht bei self_harm bis 0,16 — darunter drohen Fehlalarme; '
+      + '0,25 erkennt dieselben Andeutungen wie 0,17.',
     'feld.EscalationBlock.hard_block_categories.label': 'Harte Kategorien',
     'feld.EscalationBlock.hard_block_categories.hint':
       'Moderationskategorien, die bei Treffer sofort als hohes Risiko gelten: das Krisen- '
@@ -123,11 +123,6 @@ export const FIELDS_SICHERHEIT: CataloguePart = {
       'Senkt ein mittleres Risiko auf gering, wenn die gelaufenen Prüfungen (Moderation, '
       + 'Rechtsprüfung) nichts finden. Nicht bei Krisensignal oder Injection-Verdacht. Ohne '
       + 'Eintrag an.',
-    'feld.SafetyConfigArea.confidence_adjustments.label': 'Konfidenz-Anpassungen',
-    'feld.SafetyConfigArea.confidence_adjustments.hint':
-      'Gedachte Zu- und Abschläge auf die Konfidenz je Werkzeug-Ergebnis. Wird derzeit nicht '
-      + 'ausgewertet: der Code rechnet fest mit Fehler -0,20, leer -0,10, Zeitüberschreitung '
-      + '-0,15, Erfolg +0,05.',
   },
   en: {
     'feld.SafetyConfigArea.security_level.label': 'Safety level',
@@ -168,7 +163,9 @@ export const FIELDS_SICHERHEIT: CataloguePart = {
     'feld.SafetyConfigArea.extra_crisis_terms.label': 'Extra crisis terms',
     'feld.SafetyConfigArea.extra_crisis_terms.hint':
       'Further words that count as a crisis signal — like the built-in patterns: the protective '
-      + 'reply follows and material search is blocked. A term matches from the start of a word '
+      + 'reply follows and material search is blocked. Built in and always on are, besides '
+      + 'suicide and self-harm terms, typical hints such as “nobody would miss me” or “I don’t '
+      + 'want to be here anymore”. A term matches from the start of a word '
       + '(“blade” matches “bladed”), case-insensitive; at most 200 terms of 100 characters each.',
     'feld.SafetyConfigArea.extra_pii_terms.label': 'Extra PII terms',
     'feld.SafetyConfigArea.extra_pii_terms.hint':
@@ -208,21 +205,18 @@ export const FIELDS_SICHERHEIT: CataloguePart = {
       'Only if the safety level finds no preset: when moderation runs (off = never, smart = '
       + 'at raised risk, always = every message; not set = never). No effect when a preset '
       + 'applies.',
-    'feld.EscalationBlock.provider.label': 'Moderation service',
-    'feld.EscalationBlock.provider.hint':
-      'Service used for moderation. Descriptive only, and none does not switch it off: which '
-      + 'service checks follows from the LLM provider and the credentials of the '
-      + 'installation.',
     'feld.EscalationBlock.legal_classifier.label': 'Legal check (fallback)',
     'feld.EscalationBlock.legal_classifier.hint':
       'Only if the safety level finds no preset: on = legal check at raised risk or on a '
       + 'trigger word, off = never. Without an entry, on. No effect when a preset applies.',
     'feld.EscalationBlock.thresholds.label': 'Thresholds per category',
     'feld.EscalationBlock.thresholds.hint':
-      'Score (0 to 1) from which a moderation category counts as hit, such as self_harm: 0.5 '
-      + 'or self_harm/intent: 0.25 — names as moderation reports them, with an underscore for '
+      'Score (0 to 1) from which a moderation category counts as hit, such as self_harm: 0.25 '
+      + 'or sexual/minors: 0.2 — names as moderation reports them, with an underscore for '
       + 'a hyphen. Categories not listed: 0.95. The threshold factor of the level is applied '
-      + 'on top.',
+      + 'on top. Measured 2026-10-09: lessons on suicide in literature and prevention reach '
+      + 'up to 0.16 on self_harm — below that, false alarms loom; 0.25 catches the same hints '
+      + 'as 0.17.',
     'feld.EscalationBlock.hard_block_categories.label': 'Hard-block categories',
     'feld.EscalationBlock.hard_block_categories.hint':
       'Moderation categories that count as high risk as soon as they are hit: the crisis or '
@@ -232,9 +226,5 @@ export const FIELDS_SICHERHEIT: CataloguePart = {
     'feld.EscalationBlock.downgrade_false_positives.hint':
       'Lowers a medium risk to low when the checks that ran (moderation, legal check) find '
       + 'nothing. Not for a crisis signal or suspected injection. Without an entry, on.',
-    'feld.SafetyConfigArea.confidence_adjustments.label': 'Confidence adjustments',
-    'feld.SafetyConfigArea.confidence_adjustments.hint':
-      'Intended bonuses and penalties on confidence per tool result. Currently not evaluated: '
-      + 'the code uses fixed values, error -0.20, empty -0.10, timeout -0.15, success +0.05.',
   },
 };

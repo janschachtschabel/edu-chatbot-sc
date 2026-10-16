@@ -22,6 +22,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 
 import { ActionState } from '../core/action-state';
 import { AsyncData } from '../core/async-data';
+import { injectFocus } from '../core/inject-focus';
 import { SnapshotsApi, type SeedStatus } from '../core/snapshots-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 
@@ -41,6 +42,8 @@ export class SeedPanelComponent {
 
   /** Nur der scharfe Weg wird scharfgeschaltet — der harmlose braucht es nicht. */
   readonly armed = signal(false);
+  /** Paket 9 (V8): Rückfrage → „Abbrechen“, danach zurück auf den scharfen Knopf. */
+  private readonly focus = injectFocus();
 
   readonly available = computed(() => this.status.value()?.available === true);
   readonly counts = computed(() => {
@@ -80,10 +83,12 @@ export class SeedPanelComponent {
 
   arm(): void {
     this.armed.set(true);
+    this.focus('.seed-cancel');
   }
 
   disarm(): void {
     this.armed.set(false);
+    this.focus('.seed-exact');
   }
 
   async fill(): Promise<void> {
@@ -97,7 +102,7 @@ export class SeedPanelComponent {
   }
 
   async applyExact(): Promise<void> {
-    this.disarm();
+    this.armed.set(false);
     const ok = await this.action.run('exact', async () => {
       const { written, deleted } = await this.api.applySeed('exact');
       return this.t('seed.applied', { written, deleted });
@@ -106,6 +111,8 @@ export class SeedPanelComponent {
     // abgebrochen sein, und dann steht in der Karte sonst eine Zählung, die
     // nicht mehr stimmt.
     await this.status.reload();
-    if (!ok) this.disarm();
+    if (!ok) this.armed.set(false);
+    // Ist nichts mehr abzugleichen, ist der Knopf gesperrt — dann die Überschrift.
+    this.focus('.seed-exact', '#seed-title');
   }
 }

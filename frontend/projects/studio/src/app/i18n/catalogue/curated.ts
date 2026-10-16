@@ -1,6 +1,8 @@
 /**
- * Die zehn kuratierten Konfigurations-Seiten (C1-d3d): Einleitung je Seite,
- * Überschrift und Kurztext je Abschnitt.
+ * Die kuratierten Konfigurations-Seiten für Inhalte (C1-d3d): Einleitung je
+ * Seite, Überschrift und Kurztext je Abschnitt. Die Betriebs-Seiten (Anzeige,
+ * Datenschutz, Kosten/Evaluation, Wissen, Agent) stehen seit Paket 6 in
+ * `curated-betrieb.ts` — wie die Seiten selbst in `views/curated-pages-*.ts`.
  *
  * Diese Texte standen bis C1-d3d fertig ausformuliert in `views/curated-views.ts`
  * — auf Modulebene, also eingefroren in der Sprache, die beim Laden des Moduls
@@ -91,11 +93,6 @@ export const CURATED: CataloguePart = {
     'curated.materialFormate.aliases.label': 'Bezeichnungen',
     'curated.materialFormate.aliases.hint':
       'Alltagswörter, die auf einen Typ zeigen („Test" → Quiz).',
-    'curated.materialFormate.create.label': 'Auslöser: neu erstellen',
-    'curated.materialFormate.create.hint': 'Formulierungen, die als Auftrag zum Erstellen gelten.',
-    'curated.materialFormate.edit.label': 'Auslöser: überarbeiten',
-    'curated.materialFormate.edit.hint':
-      'Formulierungen, die sich auf ein bestehendes Dokument beziehen.',
     'curated.materialFormate.priorities.label': 'Vorrang je Persona',
     'curated.materialFormate.priorities.hint':
       'Welche Typen für welche Zielgruppe zuerst vorgeschlagen werden.',
@@ -110,6 +107,19 @@ export const CURATED: CataloguePart = {
 
     // ── Dimensionen ─────────────────────────────────────────────────
     'curated.dimensionen.intro': 'Die Achsen, an denen Boerdi ein Gespräch einordnet.',
+    // ST-4c (Paket 6): die Kopfkarte der Reiter-Seite — je Achse Zahl und Zweck
+    'curated.card.label': 'Die Achsen der Einordnung',
+    'curated.card.unavailable': 'Die Zahlen ließen sich nicht laden.',
+    'curated.card.personas.one': '{count} Persona — wer fragt',
+    'curated.card.personas.other': '{count} Personas — wer fragt',
+    'curated.card.intents.one': '{count} Intent — was die Person will',
+    'curated.card.intents.other': '{count} Intents — was die Person will',
+    'curated.card.states.one': '{count} Gesprächszustand — wo das Gespräch steht',
+    'curated.card.states.other': '{count} Gesprächszustände — wo das Gespräch steht',
+    'curated.card.entities.one': '{count} Entität — Fach, Stufe, Thema, Medientyp',
+    'curated.card.entities.other': '{count} Entitäten — Fach, Stufe, Thema, Medientyp',
+    'curated.card.signals.one': '{count} Signal — Stimmung, Erfahrung, Eile, Skepsis',
+    'curated.card.signals.other': '{count} Signale — Stimmung, Erfahrung, Eile, Skepsis',
     'curated.dimensionen.personas.label': 'Personas',
     'curated.dimensionen.personas.hint': 'Zielgruppen mit Ansprache, Zielen und typischen Anliegen.',
     'curated.dimensionen.intents.label': 'Intents',
@@ -130,85 +140,6 @@ export const CURATED: CataloguePart = {
     'curated.dimensionen.classifyOverrides.hint':
       'Regeln und Beispiele für Persona, Intent und Muster. Sie stehen im Prompt des '
       + 'Klassifikators; erzwungen wird nichts.',
-
-    // ── Anzeige ─────────────────────────────────────────────────────
-    'curated.anzeige.intro':
-      'Wie Ergebnisse im Widget erscheinen: welche Boxen, wie viele Einträge, '
-      + 'welche Kopfzeilen-Links — und was kleine Geräte davon abweichend bekommen.',
-    'curated.anzeige.display.label': 'Darstellungsregeln',
-    'curated.anzeige.display.hint': 'Boxen, Grenzen und Textlängen der Ergebnisdarstellung.',
-    'curated.anzeige.cardPipeline.label': 'Trefferauswahl und Links',
-    'curated.anzeige.cardPipeline.hint':
-      'Wohin Treffer-Links zeigen (wirkt immer) und eine Nachauswahl, die nur mit der '
-      + 'Umgebungsvariable CARD_PIPELINE_V2 läuft.',
-    'curated.anzeige.widgetModes.label': 'Trefferliste im Text',
-    'curated.anzeige.widgetModes.hint':
-      'Grenzen einer älteren Darstellung, die Treffer als Linkliste an die Antwort hängt. '
-      + 'Wirkt derzeit nicht, der Server schaltet sie nie ein.',
-    'curated.anzeige.header.label': 'Kopfzeilen-Navigation',
-    'curated.anzeige.header.hint': 'Die Links, die das Widget oben anbietet.',
-    'curated.anzeige.devices.label': 'Geräte & Anrede',
-    // ST-1: bis 2026-09-27 „Abweichende Grenzen für kleine Bildschirme" — die
-    // Grenze kürzt aber keine Box im Widget, sie steht nur im Muster-Prompt,
-    // und die Anrede je Zielgruppe gehört ebenfalls in diesen Bereich.
-    'curated.anzeige.devices.hint':
-      'Wie viele Ergebnisse der Muster-Modus je Gerät höchstens nennt, und die Anrede je '
-      + 'Zielgruppe.',
-
-    // ── Datenschutz ─────────────────────────────────────────────────
-    'curated.datenschutz.intro':
-      'Was mitgeschrieben wird und wie lange. Weniger Logging heißt weniger '
-      + 'Auswertung — die Analyse-Ansichten zeigen dann entsprechend weniger.',
-    'curated.datenschutz.privacy.label': 'Datenschutz',
-    'curated.datenschutz.privacy.hint': 'Welche Inhalte überhaupt gespeichert werden dürfen.',
-    'curated.datenschutz.qualityLog.label': 'Qualitäts-Logging',
-    'curated.datenschutz.qualityLog.hint':
-      'Umfang der Protokolle, aus denen die Analyse gespeist wird.',
-    'curated.datenschutz.purge.label': 'Gespräche löschen',
-    'curated.datenschutz.purge.hint':
-      'Gespeicherte Daten aller Sitzungen auf einmal löschen; dazu die Datenbank aufräumen.',
-
-    // ── ST-9: Abschnitte auf Kosten und Evaluation ─────────────────
-    'curated.kosten.pricing.label': 'Preistafel',
-    'curated.kosten.pricing.hint':
-      'Preise je Million Token und Modell. Ein Modell ohne Preis fehlt im Betrag oben.',
-    'curated.evaluation.goldFlows.label': 'Gold-Flows',
-    'curated.evaluation.goldFlows.hint':
-      'Die festen Gesprächsabläufe samt Erwartungen, die ein Gold-Lauf abspielt und prüft.',
-
-    // ── Wissen ──────────────────────────────────────────────────────
-    'curated.wissen.intro':
-      'Woher der Bot Wissen holt: eigene Dokumente (RAG) und die MCP-Server, über '
-      + 'die er WirLernenOnline durchsucht. Ein Wissensbereich entsteht mit dem '
-      + 'ersten Dokument darin — angelegt wird er nicht, er wird befüllt.',
-    'curated.wissen.areas.label': 'Wissensbereiche',
-    'curated.wissen.areas.hint':
-      'Was aktuell in der Datenbank liegt, mit Dokumenten und Abschnitten.',
-    'curated.wissen.ingest.label': 'Dokumente hinzufügen',
-    'curated.wissen.ingest.hint': 'Datei, Webseite oder Text einlesen und in einen Bereich legen.',
-    'curated.wissen.ragConfig.label': 'Bereichs-Einstellungen',
-    'curated.wissen.ragConfig.hint':
-      '„always" wird vor der Antwort vorab durchsucht, „on-demand" nur auf Abruf — jeweils in '
-      + 'den Mustern, die den Bereich nutzen.',
-    'curated.wissen.mcp.label': 'MCP-Server',
-    'curated.wissen.mcp.hint': 'Werkzeug-Server, die der Bot im Gespräch aufrufen darf.',
-
-    'curated.agent.intro':
-      'Zwei Wege, einen Zug zu beantworten. Die Muster-Engine ist der Bestand: '
-      + 'Klassifikator, Musterwahl, gebundene Werkzeugliste. Die Agent-Schleife '
-      + 'überlässt dem Modell alles — Systemprompt plus voller Werkzeugkatalog, '
-      + 'kein Muster, kein Klassifikator. Die Vorgabe ist „Muster-Engine", und '
-      + 'das ist eine Zusage: ohne Pflege ändert sich am ausgelieferten Chatbot '
-      + 'nichts.',
-    'curated.agent.engine.label': 'Welche Maschine antwortet',
-    'curated.agent.engine.hint':
-      'Umschalter und die Deckel der Schleife (Runden, Frist, Token-Budget, Schreibrecht).',
-    'curated.agent.masterSkill.label': 'Master-Skill',
-    'curated.agent.masterSkill.hint':
-      'Die Gesamtanleitung des Agenten. Gepflegt im Repositorium; hier steht, was gilt.',
-    'curated.agent.tester.label': 'Auftrag testen (Gastanwendungen)',
-    'curated.agent.tester.hint':
-      'Eine Aufgabe stellen und das Ergebnis ansehen — ohne Chat, ohne Sitzung.',
   },
 
   en: {
@@ -275,10 +206,6 @@ export const CURATED: CataloguePart = {
     'curated.materialFormate.aliases.label': 'Names',
     'curated.materialFormate.aliases.hint':
       'Everyday words that point at a type (“test” → quiz).',
-    'curated.materialFormate.create.label': 'Trigger: create new',
-    'curated.materialFormate.create.hint': 'Phrasings that count as an order to create something.',
-    'curated.materialFormate.edit.label': 'Trigger: revise',
-    'curated.materialFormate.edit.hint': 'Phrasings that refer to an existing document.',
     'curated.materialFormate.priorities.label': 'Priority per persona',
     'curated.materialFormate.priorities.hint':
       'Which types are suggested first for which audience.',
@@ -292,6 +219,18 @@ export const CURATED: CataloguePart = {
       'Trigger, delimitation, tone, tools and instruction text per pattern.',
 
     'curated.dimensionen.intro': 'The axes along which Boerdi places a conversation.',
+    'curated.card.label': 'The axes of classification',
+    'curated.card.unavailable': 'The counts could not be loaded.',
+    'curated.card.personas.one': '{count} persona — who is asking',
+    'curated.card.personas.other': '{count} personas — who is asking',
+    'curated.card.intents.one': '{count} intent — what the person wants',
+    'curated.card.intents.other': '{count} intents — what the person wants',
+    'curated.card.states.one': '{count} conversation state — where the conversation stands',
+    'curated.card.states.other': '{count} conversation states — where the conversation stands',
+    'curated.card.entities.one': '{count} entity — subject, level, topic, media type',
+    'curated.card.entities.other': '{count} entities — subject, level, topic, media type',
+    'curated.card.signals.one': '{count} signal — mood, experience, haste, scepticism',
+    'curated.card.signals.other': '{count} signals — mood, experience, haste, scepticism',
     'curated.dimensionen.personas.label': 'Personas',
     'curated.dimensionen.personas.hint':
       'Audiences with their wording, goals and typical concerns.',
@@ -313,76 +252,5 @@ export const CURATED: CataloguePart = {
     'curated.dimensionen.classifyOverrides.hint':
       'Rules and examples for persona, intent and pattern. They go into the classifier '
       + 'prompt; nothing is enforced.',
-
-    'curated.anzeige.intro':
-      'How results appear in the widget: which boxes, how many entries, which '
-      + 'header links — and what small devices get instead.',
-    'curated.anzeige.display.label': 'Display rules',
-    'curated.anzeige.display.hint': 'Boxes, limits and text lengths of the result display.',
-    'curated.anzeige.cardPipeline.label': 'Result selection and links',
-    'curated.anzeige.cardPipeline.hint':
-      'Where result links point (always in effect) and a post-selection that only runs with '
-      + 'the CARD_PIPELINE_V2 environment variable.',
-    'curated.anzeige.widgetModes.label': 'Result list in the text',
-    'curated.anzeige.widgetModes.hint':
-      'Limits of an older display that appends results to the answer as a list of links. '
-      + 'Currently without effect, the server never switches it on.',
-    'curated.anzeige.header.label': 'Header navigation',
-    'curated.anzeige.header.hint': 'The links the widget offers at the top.',
-    'curated.anzeige.devices.label': 'Devices & form of address',
-    'curated.anzeige.devices.hint':
-      'How many results the pattern engine names at most per device, and the form of '
-      + 'address per target group.',
-
-    'curated.datenschutz.intro':
-      'What is recorded and for how long. Less logging means less analysis — the '
-      + 'analysis views then show correspondingly less.',
-    'curated.datenschutz.privacy.label': 'Privacy',
-    'curated.datenschutz.privacy.hint': 'Which content may be stored at all.',
-    'curated.datenschutz.qualityLog.label': 'Quality logging',
-    'curated.datenschutz.qualityLog.hint': 'Extent of the logs that feed the analysis.',
-    'curated.datenschutz.purge.label': 'Delete conversations',
-    'curated.datenschutz.purge.hint':
-      'Delete the stored data of all sessions at once; plus tidying up the database.',
-
-    'curated.kosten.pricing.label': 'Price table',
-    'curated.kosten.pricing.hint':
-      'Prices per million tokens and model. A model without a price is missing from the '
-      + 'amount above.',
-    'curated.evaluation.goldFlows.label': 'Gold flows',
-    'curated.evaluation.goldFlows.hint':
-      'The fixed conversation scripts with expectations that a gold run plays and checks.',
-
-    'curated.wissen.intro':
-      'Where the bot gets knowledge from: its own documents (RAG) and the MCP '
-      + 'servers it searches WirLernenOnline through. A knowledge area comes into '
-      + 'being with its first document — it is not created, it is filled.',
-    'curated.wissen.areas.label': 'Knowledge areas',
-    'curated.wissen.areas.hint':
-      'What currently lies in the database, with documents and sections.',
-    'curated.wissen.ingest.label': 'Add documents',
-    'curated.wissen.ingest.hint': 'Ingest a file, a web page or text and put it into an area.',
-    'curated.wissen.ragConfig.label': 'Area settings',
-    'curated.wissen.ragConfig.hint':
-      '“always” is searched before the answer, “on-demand” only on request — in each case in '
-      + 'the patterns that use the area.',
-    'curated.wissen.mcp.label': 'MCP servers',
-    'curated.wissen.mcp.hint': 'Tool servers the bot may call during a conversation.',
-
-    'curated.agent.intro':
-      'Two ways to answer a turn. The pattern engine is what ships: classifier, '
-      + 'pattern selection, a bound tool list. The agent loop leaves everything '
-      + 'to the model — system prompt plus the full tool catalogue, no pattern, '
-      + 'no classifier. The default is “pattern engine”, and that is a promise: '
-      + 'without maintenance nothing about the shipped chatbot changes.',
-    'curated.agent.engine.label': 'Which engine answers',
-    'curated.agent.engine.hint':
-      'The switch and the loop’s caps (rounds, deadline, token budget, write mode).',
-    'curated.agent.masterSkill.label': 'Master skill',
-    'curated.agent.masterSkill.hint':
-      'The agent’s overall instructions. Maintained in the repository; this shows what applies.',
-    'curated.agent.tester.label': 'Test a task (host applications)',
-    'curated.agent.tester.hint':
-      'Give it a task and look at the result — no chat, no session.',
   },
 };

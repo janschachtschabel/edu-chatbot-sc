@@ -19,6 +19,7 @@ import {
 
 import { pathKey } from '../core/field-problems';
 import { StudioLanguageService } from '../i18n/studio-language.service';
+import { EntryListComponent, filterEntries } from './entry-list.component';
 import { entryTitle } from './entry-title';
 import { nextFreeKey, safeIdPart } from './field-ids';
 import type { ValuePath } from './form-value';
@@ -42,7 +43,7 @@ const NO_PROBLEMS: ReadonlyMap<string, string> = new Map();
   selector: 'studio-object-list',
   // forwardRef: der Editor rechts ist wieder ein Schema-Feld, und das setzt für
   // eine Liste von Objekten wieder diese Komponente ein.
-  imports: [forwardRef(() => SchemaFieldComponent)],
+  imports: [EntryListComponent, forwardRef(() => SchemaFieldComponent)],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './object-list.component.html',
   styleUrls: ['./schema-form.scss', './object-list.component.scss'],
@@ -95,12 +96,7 @@ export class ObjectListComponent {
       entryTitle(item, entry, this.t('objectList.entry', { index: index + 1 }))));
   });
 
-  readonly shown = computed<readonly Entry[]>(() => {
-    const query = this.query().trim().toLowerCase();
-    return query
-      ? this.entries().filter((entry) => entry.title.toLowerCase().includes(query))
-      : this.entries();
-  });
+  readonly shown = computed<readonly Entry[]>(() => filterEntries(this.entries(), this.query()));
 
   /** Der gewählte Eintrag; ohne Wahl der erste sichtbare. */
   readonly current = computed<Entry | null>(() => {
@@ -119,10 +115,6 @@ export class ObjectListComponent {
   select(id: EntryId): void {
     this.chosen.set(id);
     this.keyError.set('');
-  }
-
-  onSearch(event: Event): void {
-    this.query.set((event.target as HTMLInputElement).value);
   }
 
   add(): void {

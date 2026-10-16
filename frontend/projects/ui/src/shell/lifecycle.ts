@@ -101,6 +101,7 @@ export interface LifecycleContext {
   setLatestDebug: (d: DebugInfo | null) => void;
   /** Globales `isLoading` der Shell. Ein Neustart gibt es frei, auch wenn
    *  noch ein Zug läuft: der verwirft sein Ergebnis selbst (`send-message.ts`). */
+  isLoading: () => boolean;
   setLoading: (v: boolean) => void;
   // ── Controller + Scroll ──
   tour: TourController;
@@ -168,10 +169,32 @@ export class ShellLifecycle {
     this._willkommen.relocalize();
   }
 
+  /** Sprachwechsel (Paket 7, T2): den Seitengruß in der neuen Sprache neu
+   *  anfragen. Das Backend merkt sich je Seite die zuletzt begrüßte Sprache —
+   *  in der neuen ist die Seite für es neu. Dieselben Tore wie nach einer
+   *  SPA-Navigation: Ping-Gate zurück, keine Tour, adressierbare Seite. */
+  regreetForLocale(): void {
+    // Review C-5: während eines Zuges fiele der Ping am `isLoading`-Tor still
+    // weg — er wird zurückgestellt und nach dem Laden nachgeholt.
+    this._neugrussOffen = this.ctx.isLoading();
+    if (this._neugrussOffen) return;
+    this.ctx.contextGreeting.resetForNewPage();
+    if (this.ctx.tour.isTourFlagSet()) return;
+    this._maybeSendContextPing();
+  }
+
+  /** Das Laden ist zu Ende (Shell-Effect auf `isLoading`). */
+  loadingEnded(): void {
+    if (this._neugrussOffen) this.regreetForLocale();
+  }
+
+  private _neugrussOffen = false;
+
   /** Frische Session + Begrüßung (Header-Restart). Verbatim aus ALT 1262-1270,
    *  dazu die Freigabe des Ladens (Befundliste §1.4): ein laufender Zug gehört
    *  der alten Sitzung und verwirft sein Ergebnis (`send-message.ts`). */
   restart(): void {
+    this._neugrussOffen = false;  // die neue Sitzung begrüßt sich selbst
     const id = generateSessionId();
     this.ctx.setSessionId(id);
     writeSessionEverywhere(id, this._cookieCfg());
@@ -186,6 +209,7 @@ export class ShellLifecycle {
   resetSession(): void {
     try { localStorage.removeItem(this.ctx.sessionKey()); } catch { /* ignore */ }
     deleteSessionCookie(this.ctx.sessionKey(), this.ctx.sessionCookieDomain());
+    this._neugrussOffen = false;
     const id = generateSessionId();
     this.ctx.setSessionId(id);
     writeSessionEverywhere(id, this._cookieCfg());

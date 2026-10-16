@@ -16,12 +16,12 @@
  * der Fokus auf dem `<body>`.
  */
 import {
-  ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, effect, inject,
-  input, signal,
+  ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal,
 } from '@angular/core';
 
 import { ActionState } from '../core/action-state';
 import { describeApiError } from '../core/async-data';
+import { injectFocus } from '../core/inject-focus';
 import {
   type DbStats, type PurgeCounts, type PurgeScope, SessionsApi,
 } from '../core/sessions-api.service';
@@ -65,8 +65,8 @@ interface Armed {
 export class PrivacyPurgeComponent {
   private readonly sessions = inject(SessionsApi);
   private readonly lang = inject(StudioLanguageService);
-  private readonly host = inject(ElementRef);
-  private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly focusAfterRender = injectFocus();
   protected readonly t = this.lang.t;
   protected readonly fmt = inject(StudioFormat);
 
@@ -150,8 +150,10 @@ export class PrivacyPurgeComponent {
     this.afterAction('db', ok);
   }
 
-  /** Nach Erfolg ist die Größe veraltet; nach einem Fehlschlag hat sich nichts geändert. */
+  /** Nach Erfolg ist die Größe veraltet; nach einem Fehlschlag hat sich nichts geändert.
+   *  Wer die Seite inzwischen verlassen hat, bekommt beides nicht (Paket 9). */
   private afterAction(card: CardId | 'db', ok: boolean): void {
+    if (this.destroyRef.destroyed) return;
     this.focus(card, '.pp-start');
     if (ok) void this.loadStats();
   }
@@ -166,12 +168,7 @@ export class PrivacyPurgeComponent {
       : this.t('purge.nothing');
   }
 
-  /** `afterNextRender`: das Ziel entsteht erst mit dem nächsten Rendern. */
   private focus(card: CardId | 'db', selector: string): void {
-    afterNextRender(() => {
-      (this.host.nativeElement as HTMLElement)
-        .querySelector<HTMLElement>(`[data-card="${card}"] ${selector}`)
-        ?.focus();
-    }, { injector: this.injector });
+    this.focusAfterRender(`[data-card="${card}"] ${selector}`);
   }
 }

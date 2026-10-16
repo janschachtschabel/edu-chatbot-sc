@@ -1,7 +1,7 @@
 <!-- `id`: Sprungziel aus der Kopfzeile nach einem Snapshot (ST-9). -->
 <section class="op-panel" id="snapshots" aria-labelledby="sp-title">
   <div class="op-head">
-    <h2 class="op-title" id="sp-title">{{ t('snapshots.title') }}</h2>
+    <h2 class="op-title" id="sp-title" tabindex="-1">{{ t('snapshots.title') }}</h2>
     <button
       type="button"
       class="op-btn"
@@ -58,16 +58,19 @@
   @if (rows().length > 0) {
     <ul class="sp-list">
       @for (row of rows(); track row.id) {
-        <li class="sp-row">
+        <li class="sp-row" [attr.data-row]="row.id">
           <div class="sp-row-head">
             <span class="sp-row-name">{{ name(row) }}</span>
-            <span class="sp-row-meta">{{ when(row.created_at) }} · {{ row.id }}</span>
+            <span class="sp-row-meta">
+              <span class="sp-art" [class.sp-art--auto]="row.art === 'auto'">{{ t('snapshots.art.' + (row.art || 'hand')) }}</span>
+              · {{ when(row.created_at) }} · {{ row.id }}
+            </span>
           </div>
 
           <div class="op-actions">
             <button
               type="button"
-              class="op-btn"
+              class="op-btn sp-restore"
               [disabled]="action.busy()"
               (click)="arm('restore', row.id)"
             >{{ t('snapshots.restore') }}</button>
@@ -82,25 +85,30 @@
             </button>
             <button
               type="button"
-              class="op-btn op-btn--danger"
+              class="op-btn op-btn--danger sp-delete"
               [disabled]="action.busy()"
               (click)="arm('delete', row.id)"
             >{{ t('snapshots.delete') }}</button>
           </div>
 
           @if (isArmed('restore', row.id)) {
-            <p class="op-confirm" role="alert">
+            <!-- div, nicht p: die Wahl darin ist eine Feldgruppe (Paket 7, P5-5). -->
+            <div class="op-confirm" role="alert">
               <span>{{ t('snapshots.confirmRestore', { name: name(row) }) }}</span>
+              <studio-restore-mode [(mode)]="mode" />
+              <!-- „exakt“ löscht Bereiche — dann sieht der Knopf auch so aus (Paket 9). -->
               <button
                 type="button"
-                class="op-btn op-btn--primary"
+                class="op-btn"
+                [class.op-btn--primary]="mode() !== 'exact'"
+                [class.op-btn--danger]="mode() === 'exact'"
                 [disabled]="action.busy()"
                 (click)="restore(row)"
               >{{ t('snapshots.confirmRestoreYes') }}</button>
-              <button type="button" class="op-btn" (click)="disarm()">
+              <button type="button" class="op-btn sp-cancel" (click)="disarm('restore', row.id)">
                 {{ t('action.cancel') }}
               </button>
-            </p>
+            </div>
           }
 
           @if (isArmed('delete', row.id)) {
@@ -112,7 +120,7 @@
                 [disabled]="action.busy()"
                 (click)="remove(row)"
               >{{ t('action.confirmDelete') }}</button>
-              <button type="button" class="op-btn" (click)="disarm()">
+              <button type="button" class="op-btn sp-cancel" (click)="disarm('delete', row.id)">
                 {{ t('action.cancel') }}
               </button>
             </p>

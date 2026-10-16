@@ -9,6 +9,7 @@
  */
 import { AGENT } from './agent';
 import { AGENT_CENTER } from './agent-center';
+import { AGENT_PROMPT } from './agent-prompt';
 import { AGENT_PROBE } from './agent-probe';
 import { AGENT_TRACE } from './agent-trace';
 import { AREA_EDITOR } from './area-editor';
@@ -16,6 +17,8 @@ import { BACKUP } from './backup';
 import type { CataloguePart } from './catalogue-part';
 import { COSTS } from './costs';
 import { CURATED } from './curated';
+import { CURATED_BETRIEB } from './curated-betrieb';
+import { FASSUNGEN } from './fassungen';
 import { EFFECTS } from './effects';
 import { EVAL_CLASSIFICATION } from './eval-classification';
 import { EVAL_COMPARE } from './eval-compare';
@@ -48,6 +51,7 @@ import { FIELDS_TONE } from './fields-tone';
 import { FIELDS_TOUR } from './fields-tour';
 import { FIELDS_WISSENSBEREICHE } from './fields-wissensbereiche';
 import { FRAME } from './frame';
+import { GROUP_SECTION } from './group-section';
 import { KNOWLEDGE } from './knowledge';
 import { LOADTEST } from './loadtest';
 import { MCP } from './mcp';
@@ -62,8 +66,11 @@ import { REFERENCE } from './reference';
 import { REFERENCE_CATALOGS } from './reference-catalogs';
 import { REFERENCE_FLOW } from './reference-flow';
 import { REFERENCE_KNOWLEDGE } from './reference-knowledge';
+import { REFERENCE_MACHINES } from './reference-machines';
 import { REFERENCE_ROWS } from './reference-rows';
 import { REFERENCE_WIDGET } from './reference-widget';
+import { RESTORE_MODE } from './restore-mode';
+import { RETENTION } from './retention';
 import { SAFETY } from './safety';
 import { SESSIONS } from './sessions';
 import { SHARED } from './shared';
@@ -71,12 +78,12 @@ import { VALIDATION } from './validation';
 import { VIEWS } from './views';
 
 export const STUDIO_PARTS: readonly CataloguePart[] = [
-  FRAME, VIEWS, SHARED, AREA_EDITOR, BACKUP, PREVIEW, KNOWLEDGE, MCP, CURATED, OVERVIEW,
+  FRAME, VIEWS, SHARED, AREA_EDITOR, GROUP_SECTION, BACKUP, FASSUNGEN, RESTORE_MODE, PREVIEW, KNOWLEDGE, MCP, CURATED, CURATED_BETRIEB, OVERVIEW,
   EVALUATION, EVAL_DETAIL, EVAL_PATTERN, EVAL_TRENDS, EVAL_START,
   QUALITY, QUALITY_MATRIX, QUALITY_FLOW, QUALITY_LOGS,
   LOADTEST, SESSIONS, SAFETY, COSTS, AGENT,
   REFERENCE, REFERENCE_ROWS, REFERENCE_KNOWLEDGE, REFERENCE_WIDGET, REFERENCE_FLOW,
-  REFERENCE_CATALOGS,
+  REFERENCE_CATALOGS, REFERENCE_MACHINES,
   // ST-1: Beschriftung und Hilfetext je Formularfeld, nach Modell geschlüsselt
   FIELDS_LAYER_DOC, FIELDS_BEGRUESSUNG, FIELDS_TOUR,
   FIELDS_INTENTS_STATES, FIELDS_ENTITIES_SIGNALS, FIELDS_TONE, FIELDS_MATERIAL,
@@ -94,5 +101,7 @@ export const STUDIO_PARTS: readonly CataloguePart[] = [
   // ST-7: Maschine je Lauf, Lauf-Profil, Vergleich
   EVAL_PROFILE, EVAL_COMPARE, EVAL_CLASSIFICATION,
   // ST-8: Agent-Steuerzentrale
-  AGENT_TRACE, AGENT_CENTER, AGENT_PROBE,
+  AGENT_TRACE, AGENT_CENTER, AGENT_PROMPT, AGENT_PROBE,
+  // Paket 8 (A): Aufbewahrung der Protokolle
+  RETENTION,
 ];

@@ -18,6 +18,7 @@ import {
   effect,
   inject,
   input,
+  output,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
@@ -44,6 +45,8 @@ export class AreaSectionComponent {
   readonly section = input.required<CuratedAreaSection>();
   /** Whether the panel starts open. Later opening comes from the DOM event. */
   readonly open = input(false);
+  /** After a successful save — a tabbed page counts again (ST-4c, Paket 6). */
+  readonly changed = output<void>();
 
   private readonly config = inject(ConfigApi);
   protected readonly t = inject(StudioLanguageService).t;
@@ -81,6 +84,8 @@ export class AreaSectionComponent {
 
   /** `force`: „Trotzdem speichern" after a conflict (Paket 4, D5). */
   save(force = false): void {
-    void this.editor.save(this.area(), { force });
+    void this.editor.save(this.area(), { force }).then((saved) => {
+      if (saved) this.changed.emit();
+    });
   }
 }
