@@ -128,3 +128,21 @@ def test_lizenz_vokabular_wird_aus_der_server_antwort_gelesen(monkeypatch):
     asyncio.run(ar._ensure_label_cache("license"))
     assert ar._label_to_uri_cache["license"]["cc by-nc 4.0"] == "CC_BY_NC"
     assert ar._label_to_uri_cache["license"]["gemeinfrei"] == "PDM"
+
+
+def test_jedes_beispiel_der_entitaet_lizenz_filtert():
+    """Probe 2026-10-17: das Beispiel „Alle OER“ in ``04-entities`` (der Klassifikator
+    gibt Werte gern in Beispielform zurück) fiel im Abgleich weg — der Server
+    ignoriert es ebenfalls (Klimawandel: 3 616 Treffer wie ungefiltert, „OER“ 941)."""
+    from pathlib import Path
+
+    import yaml
+
+    from boerdi.services.mcp.lizenz_abgleich import lizenz_filter
+
+    seed = Path(__file__).parents[1] / "seeds" / "04-entities" / "entities.yaml"
+    entitaeten = yaml.safe_load(seed.read_text(encoding="utf-8"))["entities"]
+    beispiele = next(e for e in entitaeten if e["id"] == "lizenz")["examples"]
+    assert beispiele
+    for beispiel in beispiele:
+        assert lizenz_filter(_LIZENZEN, beispiel) is not None, beispiel

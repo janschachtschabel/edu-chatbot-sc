@@ -43,7 +43,10 @@ für alle Bildungsstufen.
 - Nach Collection-Treffer: `search_wlo_topic_pages(collectionId=...)` für Themenseiten-URL
 
 **Helfer:**
-- Filter `discipline` / `educationalContext` / `learningResourceType` / `userRole` / `license` als Bezeichnung setzen — der Client gleicht sie ab, kein Nachschlagen davor
+- `query` trägt nur den Kernbegriff, nie den ganzen Nutzersatz — auch bei Folge- und Rettungssuchen; Materialart, Fach und Stufe gehören in die Filter
+- Filter sparsam: `discipline` / `educationalContext` / `learningResourceType` setzen, wenn die Person sie nennt (Klasse oder Schulform zählt); `userRole` / `license` / `publisher` nur auf ausdrücklichen Wunsch — selten getaggt, sie leeren sonst die Trefferliste
+- Eine verlangte Lizenz bleibt auch in Folgesuchen gesetzt; wer sie lockert, sagt es — Treffer ohne diese Lizenz nie als passend ausgeben
+- Filter als Bezeichnung setzen — der Client gleicht sie ab, kein Nachschlagen davor
 - `lookup_wlo_vocabulary` nur für Schreibvorgänge (echte URIs für Metadaten) und zum Prüfen von Metadaten
 - `get_node_details(outputFormat="json")` für Detail-Metadaten
 - `get_nodes_details(nodeIds)` Bulk statt N einzelne Calls

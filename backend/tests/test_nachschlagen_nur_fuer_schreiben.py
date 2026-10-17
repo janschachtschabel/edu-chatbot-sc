@@ -88,3 +88,16 @@ def test_master_skill_vorlagen_empfehlen_bei_suche_und_nulltreffern_kein_nachsch
             if re.search(r"\((M05|M12)\)", absatz) and "lookup_wlo_vocabulary" in absatz:
                 funde.append(f"{datei.name}: {absatz.strip()[:80]}")
     assert funde == []
+
+
+def test_domaenenregeln_kernbegriff_und_sparsame_filter():
+    """Probe 2026-10-17 (V16, Muster-Modus): eine Folgesuche lief mit dem ganzen Nutzersatz
+    als ``query``; die Domänenregeln (Schicht 2 des Muster-Prompts) nannten den Kernbegriff
+    nicht und empfahlen Zielgruppe und Lizenz gleichrangig mit Fach, Stufe und Typ.
+    Nutzer-Vorgabe 2026-10-17: seltene Filter leeren die Trefferliste."""
+    regeln = (_SEEDS / "02-domain" / "domain-rules.md").read_text(encoding="utf-8")
+    suche = " ".join(regeln.split("## Such-Strategie", 1)[1].split("\n## ", 1)[0].split())
+    assert "nur den Kernbegriff" in suche
+    assert "auch bei Folge- und Rettungssuchen" in suche
+    assert "nur auf ausdrücklichen Wunsch" in suche
+    assert "verlangte Lizenz bleibt auch in Folgesuchen" in suche
