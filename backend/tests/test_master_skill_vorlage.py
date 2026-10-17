@@ -200,6 +200,69 @@ def test_ein_platzhalter_fragt_nach_dem_thema_auch_auf_einer_sammlung(text: str)
     assert "meint nicht die Seite" in nachfragen
 
 
+def test_filter_sparsam_setzen(text: str) -> None:
+    """Nutzer-Vorgabe 2026-10-17: Fach, Bildungsstufe und Inhaltstyp tragen; andere
+    Filter nur, wenn verlangt oder nötig. Seltene Werte (Eltern, bestimmte Lizenzen)
+    sind kaum getaggt und leeren die Trefferliste — die Zielgruppe hängt meist nur als
+    Lernende oder Lehrende am Inhalt."""
+    finden = _abschnitt(text, "Finden")
+    assert "Filter sparsam" in finden
+    assert "Fach, Bildungsstufe und Inhaltstyp" in finden
+    assert "nur auf ausdrücklichen Wunsch" in finden
+    assert "Zielgruppe" in finden
+    assert "nicht hineindeuten" in finden
+
+
+def test_die_rettung_fuehrt_die_schritte_selbst_aus(text: str) -> None:
+    """Probe 2026-10-17 (V14, Xylophonbau): nach zwei leeren Suchen fragte der Agent,
+    statt selbst einen Oberbegriff zu versuchen oder Filter zu lockern. Eine verlangte
+    Lizenz fällt nie stillschweigend (Probe V16, dritte Runde: die Folgesuche ließ „OER“
+    weg, die Karte zeigte womöglich anderes Material)."""
+    m12 = _unterabschnitt(text, "M12")
+    assert "Führe die Schritte selbst aus" in m12
+    assert "zuerst Inhaltstyp, dann Stufe" in m12
+    assert "verlangte Lizenz nur mit Hinweis" in m12
+
+
+def test_kernbegriff_auch_in_der_sammlung(text: str) -> None:
+    """Probe 2026-10-17 (V5): ``get_collection_contents`` bekam „interaktive Übungen
+    Kurzgeschichten Englisch Sekundarstufe II“ als Suchbegriff."""
+    assert "auch innerhalb einer Sammlung" in _abschnitt(text, "Finden")
+
+
+def test_anrede_bleibt_im_gespraech(text: str) -> None:
+    """Probe 2026-10-17 (V7): bei unbekannter Zielgruppe gibt der Kopf „möglichst ohne
+    direkte Anrede“ vor — der Agent schrieb erst „suchst du“, im Folgezug „wenn Sie“."""
+    anrede = _abschnitt(text, "Anrede und Zielgruppen")
+    assert "ohne direkte Anrede" in anrede
+    assert "bleibt im ganzen Gespräch" in anrede
+
+
+def test_quiz_loesungen_mit_begruendung(text: str) -> None:
+    """Probe 2026-10-17 (V12): „Quiz mit Begründung“ in Klammern kam nicht an — die
+    Lösungen standen als „1. A, 2. B …“ da."""
+    assert "ein Satz Begründung" in _unterabschnitt(text, "M10")
+
+
+def test_quiz_verteilt_die_richtige_antwort(text: str) -> None:
+    """Probe 2026-10-17 (V12, zweite Runde): fünf Fragen, fünfmal „A“ richtig — ein Quiz,
+    das sich ohne Wissen lösen lässt."""
+    assert "über die Antwortpositionen verteilen" in _unterabschnitt(text, "M10")
+
+
+def test_stufe_nur_aus_einer_angabe(text: str) -> None:
+    """Probe 2026-10-17 (V18): „Bruchrechnen für Eltern“ → ``Sekundarstufe I``, ohne dass
+    eine Stufe genannt war. Bruchrechnung gibt es in der Grundschule und in der Sek I —
+    aus dem Thema erschlossen, schneidet die Stufe die Hälfte weg."""
+    assert "nie aus dem Thema erschließen" in _abschnitt(text, "Finden")
+
+
+def test_anrede_nicht_aus_anleitungen(text: str) -> None:
+    """Probe 2026-10-17 (V9): auf der Sammlung Optik duzte der Agent in 4 von 5 Läufen —
+    die geladene Sammlungs-Anleitung spricht das Modell mit „du“ an (3 du-, 0 Sie-Formen)."""
+    assert "Anleitungen, Kompendium und Seitentext" in _abschnitt(text, "Anrede und Zielgruppen")
+
+
 def test_dokumente_gehen_ueber_das_werkzeug(text: str) -> None:
     """Im Agent-Zug entsteht eine Box nur über ``zeige_dokument``. Der Rückfall
     „Text ab der ersten Überschrift“ greift in ``turn_persist`` nur für die

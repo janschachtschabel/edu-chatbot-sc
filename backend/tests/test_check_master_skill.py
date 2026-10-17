@@ -56,6 +56,14 @@ _REGELN = {
     "test_vorgehen_md_traegt_die_ansage_regel",
     "test_platzhalter_ueberstehen_den_editor",
     "test_ein_platzhalter_fragt_nach_dem_thema_auch_auf_einer_sammlung",
+    "test_filter_sparsam_setzen",
+    "test_die_rettung_fuehrt_die_schritte_selbst_aus",
+    "test_kernbegriff_auch_in_der_sammlung",
+    "test_anrede_bleibt_im_gespraech",
+    "test_quiz_loesungen_mit_begruendung",
+    "test_quiz_verteilt_die_richtige_antwort",
+    "test_stufe_nur_aus_einer_angabe",
+    "test_anrede_nicht_aus_anleitungen",
 }
 
 
