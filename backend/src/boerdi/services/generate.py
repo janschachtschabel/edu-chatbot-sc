@@ -17,18 +17,27 @@ re-export facade in ``llm_service.py``; NEU already split classify to
 that sits *above* them belongs in neither a phase module nor the (complete,
 1020-line) ``tool_loop.py`` — it is the thin glue that composes them.
 
-NEU-deviation vs ALT (the only one): ``session`` is prepended as the first
-parameter and threaded as the first argument into ``_assemble_messages`` and
-``_run_tool_loop`` — pg-DI for the RAG retrieval reached through the tool loop
-(ALT read a module-global engine). Every other statement is ALT-verbatim; the
-call sites remain bare-name positional calls, so the body is AST-identical to
-ALT modulo that seam. Precedent: the same seam in R1a/R1b (tool_loop.py).
+NEU-deviations vs ALT:
+
+- ``session`` is prepended as the first parameter and threaded as the first
+  argument into ``_assemble_messages`` and ``_run_tool_loop`` — pg-DI for the RAG
+  retrieval reached through the tool loop (ALT read a module-global engine).
+  Precedent: the same seam in R1a/R1b (tool_loop.py).
+- Paket 7, E-E: the page data are computed once here
+  (``seitenkontext_prompt.seiten_daten``). The prompt builder takes them to decide
+  on the page rules in the system part; ``_assemble_messages`` puts them, framed,
+  as a user message in front of the history.
+- Paket 7, T1: the embedding ``assess`` computed ahead (``rag_einbettung``) reaches
+  the RAG retrieval, which then does not embed the message a second time.
+
+Beyond these keyword seams the body follows ALT.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from boerdi.services import seitenkontext_prompt
 from boerdi.services.response_prompt_builder import _build_system_prompt
 from boerdi.services.response_tool_selection import _select_active_tools
 from boerdi.services.tool_loop import _run_tool_loop
@@ -57,6 +66,7 @@ async def generate_response(
     canvas_state: dict | None = None,
     usage_acc: dict[str, Any] | None = None,
     on_token: Any = None,
+    rag_einbettung: tuple[str, list[float]] | None = None,
 ) -> tuple[str, list[dict], list[str], list]:
     """Generate the final response using the selected pattern and MCP tools.
 
@@ -75,6 +85,10 @@ async def generate_response(
     tool loop) — ALT read a module-global engine instead.
     """
     blocked_tools = blocked_tools or []
+    # E-E (Plan 2026-09-29): die Seitendaten EINMAL je Zug — der Prompt-Bauer
+    # entscheidet damit über die Regeln, die Kette setzt sie vor den Verlauf.
+    seiten_daten = seitenkontext_prompt.seiten_daten(
+        session_state, environment.get("page_context"))
     # Phasen-Split Teil 1: System-Prompt-Komposition (P1-P9) als eigene
     # Modul-Funktion; liefert den Prompt plus die von spaeteren Phasen
     # weitergelesenen Anzeige-/Degradations-Flags.
@@ -92,6 +106,7 @@ async def generate_response(
         rag_context,
         available_rag_areas,
         rag_config,
+        seiten_daten=seiten_daten,
     )
 
     # Phasen-Split Teil 1: Tool-Auswahl (P10-P11) als eigene Modul-Funktion;
@@ -113,6 +128,7 @@ async def generate_response(
         # E3-Warnung stand deshalb im Betrieb als „Muster ?" da (F-neu).
         pattern_label=pattern_label,
         tool_mode=environment.get("tool_mode"),
+        gesperrt=blocked_tools,
     )
 
     # Phasen-Split Teil 2: Messages-Aufbau + Prefetch-Injektion (P12+P14)
@@ -147,6 +163,9 @@ async def generate_response(
         _inline_grouping_mode,
         _pattern_sources_decl,
         _rag_allowed_for_pattern,
+        seiten_daten=seiten_daten,
+        # T1 (Paket 7): die Einbettung aus ``assess`` für den RAG-Vorabruf.
+        rag_einbettung=rag_einbettung,
     )
     # Phasen-Split Teil 2: Tool-Loop (P15) als eigene Modul-Funktion.
     # Liefert entweder das finale 4-Tupel (Final-Answer- oder
@@ -177,6 +196,7 @@ async def generate_response(
         usage_acc,
         on_token,
         tool_mode=environment.get("tool_mode"),
+        rag_bereiche=frozenset(rag_config or ()),
     )
     if result is not None:
         return result

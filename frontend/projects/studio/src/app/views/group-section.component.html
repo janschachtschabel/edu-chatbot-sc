@@ -10,7 +10,7 @@
   </summary>
 
   <div class="cs-body gs">
-    @if (listLoading()) {
+    @if (docs.loading() && docs.entries().length === 0) {
       <p class="cs-state" aria-busy="true">{{ t('groupSection.listLoading') }}</p>
     } @else if (listError()) {
       <div class="cs-state cs-state--error" role="alert">
@@ -19,25 +19,74 @@
       </div>
     } @else {
       <div class="gs-list">
-        <h4 class="gs-list-title" [id]="idPrefix() + '-list'">{{ t('groupSection.docs') }}</h4>
-        @if (entries().length === 0) {
-          <p class="cs-state">{{ t('groupSection.empty') }}</p>
-        }
-        <ul class="gs-entries" [attr.aria-labelledby]="idPrefix() + '-list'">
-          @for (entry of entries(); track entry.key) {
-            <li>
+        <!-- tabindex -1: nach dem Löschen landet der Fokus hier (der Knopf ist weg) -->
+        <h4 class="gs-list-title" [id]="idPrefix() + '-list'" tabindex="-1" #listTitel>
+          {{ t('groupSection.docs') }}
+        </h4>
+        <!-- ST-3d (Paket 6): dieselbe Seitenliste wie jedes Liste│Editor -->
+        <studio-entry-list
+          [entries]="shown()"
+          [current]="selected() || null"
+          [countText]="countText()"
+          [query]="query()"
+          [label]="t(section().labelKey)"
+          [baseId]="idPrefix()"
+          [emptyText]="query() ? t('objectList.noMatch') : t('groupSection.empty')"
+          (queryChange)="query.set($event)"
+          (pick)="select($event)"
+        >
+          @if (current(); as entry) {
+            <div class="gs-actions">
               <button
                 type="button"
-                class="gs-entry"
-                [class.gs-entry--on]="entry.key === selected()"
-                [attr.aria-current]="entry.key === selected() ? 'true' : null"
-                (click)="select(entry.key)"
-              >
-                {{ entry.label }}
-              </button>
-            </li>
+                class="cs-btn"
+                [disabled]="beschaeftigt()"
+                [attr.aria-label]="t('groupSection.copyEntry', { title: entry.name })"
+                (click)="duplicate()"
+              >{{ copying() ? t('groupSection.copying') : t('groupSection.copy') }}</button>
+              <button
+                #loeschKnopf
+                type="button"
+                class="cs-btn cs-btn--danger"
+                [disabled]="beschaeftigt()"
+                [attr.aria-label]="t('groupSection.removeEntry', { title: entry.name })"
+                (click)="askRemove()"
+              >{{ t('groupSection.remove') }}</button>
+            </div>
+            @if (rueckfrage.offenFuer(entry.id)) {
+              <!-- Wie jede Rückfrage im Studio: im Text, angesagt per role="alert" -->
+              <div class="gs-confirm" role="alert">
+                <p>{{ t('groupSection.confirmRemove', { title: entry.name }) }}</p>
+                @if (rueckfrage.shipped() === true) {
+                  <p>{{ t('groupSection.removeShipped') }}</p>
+                } @else if (rueckfrage.shipped() === false) {
+                  <p>{{ t('groupSection.removeOwn') }}</p>
+                }
+                @if (editor.dirty()) {
+                  <p>{{ t('groupSection.removeDiscards') }}</p>
+                }
+                <div class="gs-actions">
+                  <button
+                    type="button"
+                    class="cs-btn cs-btn--danger"
+                    [disabled]="rueckfrage.busy()"
+                    (click)="remove()"
+                  >{{ rueckfrage.busy() ? t('groupSection.removing') : t('action.confirmDelete') }}</button>
+                  <button
+                    #abbrechenKnopf
+                    type="button"
+                    class="cs-btn"
+                    [disabled]="rueckfrage.busy()"
+                    (click)="cancelRemove()"
+                  >{{ t('action.cancel') }}</button>
+                </div>
+              </div>
+            }
+            @if (rueckfrage.fehlerFuer(entry.id); as fehler) {
+              <p class="cs-state cs-state--error" role="alert">{{ fehler }}</p>
+            }
           }
-        </ul>
+        </studio-entry-list>
 
         <div class="gs-new">
           <label class="gs-new-label" [for]="idPrefix() + '-new'">
@@ -52,8 +101,8 @@
             (input)="onNewName($event)"
           />
           <p class="gs-new-key" [id]="idPrefix() + '-new-key'">
-            @if (newKey(); as key) {
-              {{ t('groupSection.newKey', { file: key + '.md' }) }}
+            @if (newId(); as id) {
+              {{ t('groupSection.newKey', { id }) }}
             } @else {
               {{ t('groupSection.newHint') }}
             }
@@ -61,7 +110,7 @@
           <button
             type="button"
             class="cs-btn gs-new-go"
-            [disabled]="creating() || !newKey()"
+            [disabled]="beschaeftigt() || !newId()"
             (click)="create()"
           >
             {{ creating() ? t('groupSection.creating') : t('groupSection.create') }}
@@ -82,12 +131,12 @@
             <p>{{ editor.loadError() }}</p>
           </div>
         } @else if (editor.schema(); as schema) {
-          @if (fieldTabs().length > 0) {
+          @if (reiter.tabs().length > 0) {
             <studio-tab-bar
               [label]="t(section().labelKey)"
-              [tabs]="fieldTabs()"
-              [active]="activeTab()"
-              (tabChange)="selectTab($event)"
+              [tabs]="reiter.tabs()"
+              [active]="reiter.active()"
+              (tabChange)="reiter.select($event)"
             />
           }
 
@@ -95,16 +144,19 @@
                sagt zu, dass `#tab-x` `#panel-x` steuert, und nur der offene
                Reiter hat einen Bereich. Ohne Reiter bleibt es ein reines div. -->
           <div
-            [attr.id]="activeTab() ? 'panel-' + activeTab() : null"
-            [attr.role]="activeTab() ? 'tabpanel' : null"
-            [attr.aria-labelledby]="activeTab() ? 'tab-' + activeTab() : null"
-            [attr.tabindex]="activeTab() ? 0 : null"
+            [attr.id]="reiter.active() ? 'panel-' + reiter.active() : null"
+            [attr.role]="reiter.active() ? 'tabpanel' : null"
+            [attr.aria-labelledby]="reiter.active() ? 'tab-' + reiter.active() : null"
+            [attr.tabindex]="reiter.active() ? 0 : null"
           >
+            <!-- S4 (externes Audit F13): was „nicht gesetzt“ hier bedeutet. Die
+                 Region steht leer bereit, bevor der Satz kommt (F-M6). -->
+            <p class="gs-effective live" aria-live="polite">{{ rag.satz() }}</p>
             <studio-schema-form
               [schema]="schema"
               [value]="editor.doc()"
               [idPrefix]="idPrefix()"
-              [visiblePaths]="visiblePaths()"
+              [visiblePaths]="reiter.visiblePaths()"
               [problems]="editor.problems()"
               (valueChange)="editor.setDoc($event)"
               (errorsChange)="editor.setFieldErrors($event)"
@@ -132,7 +184,7 @@
 
           @if (editor.blocked()) {
             <p class="cs-state cs-state--error" role="alert">
-              {{ t('editor.blocked', { fields: blockedFields().join(', ') }) }}
+              {{ t('editor.blocked', { fields: reiter.blocked().join(', ') }) }}
             </p>
           }
           @if (editor.conflict(); as konflikt) {

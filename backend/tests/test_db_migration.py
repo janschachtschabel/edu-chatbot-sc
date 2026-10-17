@@ -235,6 +235,19 @@ def test_logs_und_historie_haben_ihre_abfrage_indizes(migrated_db) -> None:
         assert any(d.startswith(f"{name} ") and teil in d for d in definitionen), name
 
 
+def test_gespraeche_haben_einen_index_fuer_die_aufbewahrung(migrated_db) -> None:
+    """Paket 9 (Review Paket 7, MINOR 19): Überblick und jeder Löschstapel der
+    Aufbewahrung fragen ``created_at < Grenze`` — ohne Index las Postgres dafür die
+    ganze Tabelle der Nachrichten bzw. Merkposten (Migration 0010)."""
+    definitionen = _run(_fetch_set(
+        migrated_db,
+        "SELECT indexname || ' ' || indexdef FROM pg_indexes WHERE schemaname='public'",
+    ))
+    for name, teil in {"idx_messages_created": "messages USING btree (created_at)",
+                       "idx_memory_created": "memory USING btree (created_at)"}.items():
+        assert any(d.startswith(f"{name} ") and teil in d for d in definitionen), name
+
+
 def test_usage_events_verschwinden_mit_der_sitzung(migrated_db) -> None:
     """DSGVO-Zusage des Plans (§8): eine Sitzung ist ein Mensch, und die
     Verbrauchszahlen sind ein Profil. Sie müssen mit der Sitzung gelöscht

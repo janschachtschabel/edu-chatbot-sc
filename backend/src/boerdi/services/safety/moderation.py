@@ -18,6 +18,7 @@ from typing import Any
 
 import litellm
 
+from boerdi.services import llm_parallel
 from boerdi.services.llm_models import get_provider
 from boerdi.settings import get_settings
 
@@ -30,6 +31,8 @@ _DEFAULT_OPENAI_BASE = "https://api.openai.com/v1"
 # ``timeout`` nicht durch: ein Anbieter, der annimmt und nie antwortet, hielt
 # sonst jeden Zug samt Sitzungssperre an. Üblich sind weit unter einer Sekunde;
 # die Stufe ist fail-open, nach der Frist gilt „kein Befund" (Regex-Boden bleibt).
+# Sie gilt für das Warten auf einen der eigenen Plätze und den Aufruf zusammen
+# (Review Paket 9; ``_mit_platz``).
 _MOD_TIMEOUT_SECONDS = 8.0
 
 #: Die 13 Kategorien von omni-moderation-latest in der Schreibweise, die der
@@ -56,8 +59,11 @@ def _moderation_target() -> tuple[str, str, dict[str, str] | None] | None:
     - ``b-api-openai``: B-API passthrough when ``B_API_KEY`` is set (the extended
       B-API proxies ``/moderations``); else a native OpenAI side-channel when
       ``OPENAI_API_KEY`` is set; else ``None``.
-    - ``b-api-academiccloud`` (and any other): native OpenAI side-channel only
-      (AcademicCloud has no moderation endpoint); ``None`` without an OpenAI key.
+    - ``b-api-academiccloud``: ``None`` — AcademicCloud has no moderation
+      endpoint (B-API ``/academiccloud/moderations`` → 404, measured 2026-10-09),
+      and since Paket 7 (L5, user decision 2026-10-09) the messages no longer go
+      to OpenAI instead: whoever chose AcademicCloud keeps them there. The regex
+      floor stays.
     """
     s = get_settings()
     provider = get_provider()
@@ -76,7 +82,9 @@ def _moderation_target() -> tuple[str, str, dict[str, str] | None] | None:
             base = s.b_api_base_url.rstrip("/") + "/openai"
             return base, b_key, {"X-API-KEY": b_key}
         return native if openai_key else None
-    # b-api-academiccloud and any other provider: native side-channel only.
+    if provider == "b-api-academiccloud":
+        return None
+    # any other provider: native side-channel only.
     return native if openai_key else None
 
 
@@ -116,6 +124,21 @@ def _kategorie(key: str) -> str:
     return _AUS_SDK_NAME.get(k, k)
 
 
+async def _mit_platz(kwargs: dict[str, Any]) -> Any:
+    """Der Aufruf in einem der eigenen Plätze der Moderation (Paket 9). Am
+    Anbieter-Deckel wartete sie hinter Antwort-Strömen, bis ihre Frist ablief, und
+    unter Last ging jede Nachricht ungeprüft durch (Review Paket 7, MAJOR 8;
+    Begründung im Kopf von ``services/llm_parallel``).
+
+    Die Frist gilt für Warten und Aufruf zusammen (Review Paket 9, MAJOR 4): hängt
+    der Anbieter, belegt jeder Aufruf seinen Platz bis zur Frist, und ohne Grenze
+    für das Warten stauten sich die Züge dahinter — jeder mit seiner Sitzungssperre.
+    In den eigenen Plätzen stehen nur kurze Moderationen; mehr als eine Frist wartet
+    deshalb keiner."""
+    async with asyncio.timeout(_MOD_TIMEOUT_SECONDS), llm_parallel.moderations_semaphore():
+        return await _amoderation(**kwargs)
+
+
 async def moderate(message: str) -> dict[str, Any]:
     """Run omni-moderation over ``message`` (capped at 4000 chars).
 
@@ -136,7 +159,7 @@ async def moderate(message: str) -> dict[str, Any]:
         }
         if extra_headers:
             kwargs["extra_headers"] = extra_headers
-        result = await asyncio.wait_for(_amoderation(**kwargs), _MOD_TIMEOUT_SECONDS)
+        result = await _mit_platz(kwargs)
         r = result.results[0]
         return {
             "flagged": bool(r.flagged),
@@ -148,5 +171,7 @@ async def moderate(message: str) -> dict[str, Any]:
             },
         }
     except Exception as e:  # noqa: BLE001 — fail-open by design (regex floor stays)
-        logger.warning("moderation failed: %s", e)
+        # Mit Art: ``str(TimeoutError())`` ist leer, das Log sagte nur „failed: “.
+        logger.warning("moderation skipped, message passes unchecked: %s: %s",
+                       type(e).__name__, e)
         return {}

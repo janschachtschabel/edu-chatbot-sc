@@ -27,7 +27,6 @@ from boerdi.domain.canvas.postprocess import (
 )
 from boerdi.domain.canvas.types import (
     get_analytical_personas,
-    get_create_triggers,
     get_lrt_mapping,
     get_material_types,
     get_short_alias_whitelist,
@@ -365,8 +364,6 @@ def __getattr__(name: str):  # pragma: no cover — small bridging layer
         return get_type_aliases()
     if name == "_SHORT_ALIAS_WHITELIST":
         return get_short_alias_whitelist()
-    if name == "_CREATE_TRIGGERS":
-        return get_create_triggers()
     if name == "_ANALYTICAL_PERSONAS":
         return get_analytical_personas()
     if name == "_LRT_TO_MATERIAL_TYPE":

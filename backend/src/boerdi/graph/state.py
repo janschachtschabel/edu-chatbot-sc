@@ -86,6 +86,9 @@ class TurnContext(BaseModel):
     # Session-Erinnerungen als {key, value, memory_type}-Dicts — ALT-Parität:
     # `get_memory` liefert Dicts, die die Pipeline unverändert weiterreicht.
     memories: list[dict[str, Any]] = Field(default_factory=list)
+    # T1 (Paket 7): die Einbettung der Nachricht, im Muster-Weg neben der
+    # Klassifikation gerechnet (``rag/vorab``) — (Text, Vektor) oder ``None``.
+    rag_einbettung: tuple[str, list[float]] | None = None
     signals: list[str] = Field(default_factory=list)
     signal_history: list[str] = Field(default_factory=list)
     state_id: str = "S1"

@@ -1,7 +1,7 @@
-// Liste│Editor (ST-3). Eine Container-Abfrage statt einer des Fensters: ein
+// Liste│Editor (ST-3); die Seitenliste steht in entry-list.component.scss.
+// Eine Container-Abfrage statt einer des Fensters: ein
 // Liste│Editor steckt oft IM Editor eines anderen (die Züge eines Gold-Flows),
 // und dort ist wenig Platz, auch wenn das Fenster breit ist.
-@use '../views/visually-hidden';
 
 :host {
   display: block;
@@ -18,65 +18,6 @@
     grid-template-columns: minmax(12rem, 16rem) 1fr;
     align-items: start;
   }
-}
-
-.ol-side {
-  display: grid;
-  gap: var(--st-2);
-  align-content: start;
-}
-
-.ol-count {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--st-text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.ol-entries {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: var(--st-1);
-  max-block-size: 24rem;
-  overflow-y: auto;
-}
-
-.ol-entry {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--st-2);
-  inline-size: 100%;
-  min-block-size: 2.25rem; // ≥ 24px target (SC 2.5.8)
-  padding: var(--st-1) var(--st-2);
-  border: 1px solid var(--st-rule);
-  border-radius: var(--st-radius);
-  background: var(--st-panel);
-  color: var(--st-text);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-
-  &:hover {
-    border-color: var(--st-accent);
-  }
-
-  // Die Wahl trägt Rand UND Fläche, nicht nur Farbe (SC 1.4.1): der breitere
-  // Rand bleibt auch im Hochkontrast sichtbar.
-  &[aria-current='true'] {
-    border-inline-start: 4px solid var(--st-accent);
-    background: var(--st-accent-soft);
-  }
-}
-
-.ol-title {
-  overflow-wrap: anywhere;
-}
-
-.ol-problem {
-  color: var(--st-danger-text);
 }
 
 .ol-actions {

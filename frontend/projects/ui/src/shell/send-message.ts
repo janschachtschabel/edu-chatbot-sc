@@ -14,11 +14,23 @@
  * URL-/Body-Formung des Transports bleibt ebenfalls Shell-Sache (8-4S-d):
  * `stream`/`post` sind Arrows, die intern `streamChat`/`postChat` (8-3) mit der
  * LIVE-`sessionId` rufen.
+ *
+ * Paket 9 (Review Paket 7, NIT): die Wege nach einem gescheiterten Strom —
+ * Verlauf, POST-Rückfall, Hinweis — stehen in eigenen Funktionen; bis dahin lagen
+ * sie verschachtelt in `runSendMessage`.
  */
 import { ChatResponse } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { sitzungsWache } from '../session/session-id';
 import { ChatStreamEvent } from '../stream/stream-client';
+
+/** Was die Nachfrage im Verlauf braucht (Paket 7, P2; Review C-3/C-4). */
+export interface VerlaufNachfrage {
+  /** Höchste Nachrichten-ID vor diesem Zug (`connected.after_id`); `null` = unbekannt. */
+  nachId: number | null;
+  /** `true`, sobald der Zug nicht mehr zählt — die Sitzung wurde neu gestartet. */
+  abgebrochen: () => boolean;
+}
 
 /** Live-Zustand/Seiteneffekte der Shell, die der Orchestrator braucht — als
  *  deferred Arrows (Muster `CollectionActionsContext`). */
@@ -27,6 +39,8 @@ export interface SendMessageContext {
   currentInput: () => string;
   /** `this.userInput = ''`. */
   clearInput: () => void;
+  /** Die Frage zurück ins Eingabefeld legen (Review Paket 7, C-6). */
+  setInput: (text: string) => void;
   /** LIVE-Sitzungs-ID. Ein Zug gehört der Sitzung, in der er begann. */
   sessionId: () => string;
   /** Globales `isLoading`-Flag (Turn-Serialisierung). */
@@ -68,6 +82,31 @@ export interface SendMessageContext {
   onResult: (resp: ChatResponse, userMessage: string) => void;
   /** Übersetzer für Stale- und Fehler-Bubble (C1-b4). */
   t: TranslateFn;
+  /** Paket 7 (P2): die Antwort auf `msg` aus dem gespeicherten Verlauf — `null`,
+   *  wenn sie in der Wartezeit nicht kommt (`antwort-aus-verlauf`). */
+  answerFromHistory: (msg: string, nachfrage: VerlaufNachfrage) => Promise<ChatResponse | null>;
+}
+
+/** Ein laufender Zug — was die Wege nach einem gescheiterten Strom brauchen. */
+interface Zug {
+  readonly ctx: SendMessageContext;
+  readonly msg: string;
+  readonly env: unknown;
+  readonly action?: string;
+  readonly actionParams?: Record<string, any>;
+  readonly loadingId: string;
+  /** Die Frage, wenn sie aus dem Eingabefeld kam — sonst `''` (Chip, Aktion,
+   *  Auftrag der Gastseite). Nur sie kehrt bei einem Hinweis ins Feld zurück. */
+  readonly getippt: string;
+  /** `true`, sobald der Zug nicht mehr zählt (`sitzungsWache`). */
+  readonly veraltet: () => boolean;
+}
+
+/** Paket 7 (P1): läuft noch ein Zug derselben Sitzung? Im Strom als Kennung im
+ *  `error`-Rahmen, auf dem POST-Weg als HTTP 409. */
+function istBeschaeftigt(err: unknown): boolean {
+  const e = err as { code?: unknown; status?: unknown } | null;
+  return e?.code === 'session_busy' || e?.status === 409;
 }
 
 /**
@@ -101,69 +140,12 @@ export async function runSendMessage(
   ctx.setScrollTarget(loadingId);
 
   try {
-    const env = ctx.pageContextEnv();
-
-    // Phase-1-Streaming: SSE-`phase`-Events aktualisieren live das Lade-Label,
-    // statt eines statischen Spinners. `text_delta` füllt die Ladeblase mit dem
-    // vorläufigen Antworttext (Token-Streaming, Plan 2026-10-01); die fertige
-    // Antwort ersetzt sie unten wie bisher. Eine Nutzlast ohne Text oder ohne
-    // Position (`pos`) wird verworfen.
-    const onEvent = (evt: ChatStreamEvent) => {
-      if (veraltet()) return;
-      if (evt.event === 'text_delta') {
-        const text = evt.data?.text;
-        const pos = evt.data?.pos;
-        if (typeof text === 'string' && typeof pos === 'number') {
-          ctx.appendStreamText(loadingId, text, pos);
-        }
-        return;
-      }
-      const label = ctx.formatPhaseLabel(evt);
-      if (!label) return;
-      ctx.updateLoadingPhase(loadingId, label);
+    const zug: Zug = {
+      ctx, msg, env: ctx.pageContextEnv(), action, actionParams, loadingId, veraltet,
+      getippt: !text && !action ? msg : '',
     };
-
-    let resp: ChatResponse;
-    try {
-      resp = await ctx.stream(msg, onEvent, env, action, actionParams);
-    } catch (streamErr) {
-      if (veraltet()) return;
-      // B10: Server lebt, wird aber nicht fertig → KEIN Fallback-POST (würde
-      // den hängenden Turn erneut anstoßen); ehrliche Meldung, Antwort wird
-      // serverseitig fertig gespeichert und steht im Verlauf.
-      if ((streamErr as Error)?.name === 'StreamStaleError') {
-        ctx.removeMessage(loadingId);
-        const staleId = ctx.addBotMessage(ctx.t('error.stale'));
-        ctx.setScrollTarget(staleId);
-        ctx.setLoading(false);
-        ctx.focusInput();
-        return;
-      }
-      // Hat der Server die Anfrage VERSTANDEN und abgelehnt (4xx), bringt ein
-      // zweiter Versuch nichts: derselbe Rumpf wird auf `/chat` genauso
-      // abgelehnt. Gemeldet 2026-08-19 aus der Einbettung — eine ueberlange
-      // `host_instruction` erzeugte zwei identische 422 in der Konsole und am
-      // Ende doch nur die Fehlerblase. Ausgenommen 404/405: das ist der Fall,
-      // fuer den der Rueckfall gebaut wurde (aelteres Backend ohne die Route).
-      const status = (streamErr as { status?: number })?.status;
-      const abgelehnt = typeof status === 'number'
-        && status >= 400 && status < 500
-        && status !== 404 && status !== 405;
-      if (abgelehnt) {
-        console.warn('chat stream rejected, no POST fallback:', streamErr);
-        throw streamErr;
-      }
-      // Stream-Transport gescheitert (Netz/Proxy/Parser) → stiller Fallback
-      // auf den non-stream Endpoint, damit der User trotzdem eine Antwort
-      // bekommt (deckt auch ältere Backends ohne /stream-Route ab).
-      console.warn('chat stream failed, falling back to POST /chat:', streamErr);
-      // Der zweite Weg beantwortet die Frage neu — ein Teiltext des ersten
-      // stünde sonst bis dahin als Antwort da.
-      ctx.clearStreamText(loadingId);
-      resp = await ctx.post(msg, env, action, actionParams);
-    }
-
-    if (veraltet()) return;
+    const resp = await antwortHolen(zug);
+    if (!resp || veraltet()) return;
     // Loading entfernen, echte Antwort anhängen.
     ctx.removeMessage(loadingId);
     const botMsgId = ctx.addBotMessage(
@@ -185,4 +167,133 @@ export async function runSendMessage(
 
   ctx.setLoading(false);
   ctx.focusInput();
+}
+
+/** Die Antwort des Zugs: aus dem Strom, sonst aus dem Verlauf oder vom
+ *  POST-Rückfall. `null` = ohne Antwort zu Ende (ein Hinweis steht da, oder die
+ *  Sitzung wechselte); ein Wurf wird zur Fehlerblase. */
+async function antwortHolen(zug: Zug): Promise<ChatResponse | null> {
+  const { ctx, loadingId, veraltet } = zug;
+  // Phase-1-Streaming: SSE-`phase`-Events aktualisieren live das Lade-Label,
+  // statt eines statischen Spinners. `text_delta` füllt die Ladeblase mit dem
+  // vorläufigen Antworttext (Token-Streaming, Plan 2026-10-01); die fertige
+  // Antwort ersetzt sie wie bisher. Eine Nutzlast ohne Text oder ohne Position
+  // (`pos`) wird verworfen.
+  // Paket 7 (P2): legt der Server die Antwort im Verlauf ab, rechnet er die
+  // Frage bei einem Abbruch zu Ende — ein zweiter Versand wäre ein doppelter
+  // Zug. Ohne diese Zusage (Datenschutz-Schalter `messages`, älteres Backend)
+  // bleibt der POST-Rückfall (Review A-7). `after_id` grenzt die Antwort von
+  // einer früheren auf dieselbe Frage ab (Review C-4).
+  let angenommen = false;
+  let nachId: number | null = null;
+  const onEvent = (evt: ChatStreamEvent) => {
+    if (evt.event === 'connected') {
+      angenommen = evt.data?.history === true;
+      nachId = typeof evt.data?.after_id === 'number' ? evt.data.after_id : null;
+    }
+    if (veraltet()) return;
+    if (evt.event === 'text_delta') {
+      const text = evt.data?.text;
+      const pos = evt.data?.pos;
+      if (typeof text === 'string' && typeof pos === 'number') {
+        ctx.appendStreamText(loadingId, text, pos);
+      }
+      return;
+    }
+    const label = ctx.formatPhaseLabel(evt);
+    if (label) ctx.updateLoadingPhase(loadingId, label);
+  };
+
+  try {
+    return await ctx.stream(zug.msg, onEvent, zug.env, zug.action, zug.actionParams);
+  } catch (streamErr) {
+    if (veraltet()) return null;
+    return nachStromFehler(zug, streamErr, angenommen, nachId);
+  }
+}
+
+/** Der Strom scheiterte — was der Fehler für diesen Zug bedeutet. */
+async function nachStromFehler(
+  zug: Zug, streamErr: unknown, angenommen: boolean, nachId: number | null,
+): Promise<ChatResponse | null> {
+  // B10: Server lebt, wird aber nicht fertig → KEIN Fallback-POST (würde
+  // den hängenden Turn erneut anstoßen); ehrliche Meldung, Antwort wird
+  // serverseitig fertig gespeichert und steht im Verlauf.
+  if ((streamErr as Error)?.name === 'StreamStaleError') return hinweis(zug, 'error.stale');
+  if (istBeschaeftigt(streamErr)) return hinweis(zug, 'error.busy');
+  // Review C-1: jeder `error`-Rahmen ist ein Bescheid des Servers — der Zug
+  // ist dort gescheitert, im Verlauf kommt keine Antwort an, und ein zweiter
+  // Versand stieße ihn nur noch einmal an.
+  if ((streamErr as Error)?.name === 'StreamServerError') {
+    console.warn('chat stream: the server reported an error:', streamErr);
+    throw streamErr;
+  }
+  if (abgelehnt(streamErr)) {
+    console.warn('chat stream rejected, no POST fallback:', streamErr);
+    throw streamErr;
+  }
+  return angenommen ? ausDemVerlauf(zug, streamErr, nachId) : perPost(zug, streamErr);
+}
+
+/** Hat der Server die Anfrage VERSTANDEN und abgelehnt (4xx), bringt ein zweiter
+ *  Versuch nichts: derselbe Rumpf wird auf `/chat` genauso abgelehnt. Gemeldet
+ *  2026-08-19 aus der Einbettung — eine ueberlange `host_instruction` erzeugte
+ *  zwei identische 422 in der Konsole und am Ende doch nur die Fehlerblase.
+ *  Ausgenommen 404/405: das ist der Fall, fuer den der Rueckfall gebaut wurde
+ *  (aelteres Backend ohne die Route). */
+function abgelehnt(err: unknown): boolean {
+  const status = (err as { status?: number })?.status;
+  return typeof status === 'number' && status >= 400 && status < 500
+    && status !== 404 && status !== 405;
+}
+
+/** Paket 7 (P2): der Server hat die Frage und rechnet sie zu Ende — die Antwort
+ *  kommt aus dem Verlauf, statt die Frage ein zweites Mal zu stellen. */
+async function ausDemVerlauf(
+  zug: Zug, streamErr: unknown, nachId: number | null,
+): Promise<ChatResponse | null> {
+  const { ctx, loadingId, veraltet } = zug;
+  console.warn('chat stream broke after the server accepted the turn — '
+    + 'reading the answer from the history:', streamErr);
+  // Review C-6: sonst stünde der Teiltext bis zu 100 s ohne Hinweis da.
+  ctx.clearStreamText(loadingId);
+  ctx.updateLoadingPhase(loadingId, ctx.t('phase.fromHistory'));
+  const antwort = await ctx.answerFromHistory(zug.msg, { nachId, abgebrochen: veraltet });
+  if (veraltet()) return null;
+  return antwort ?? hinweis(zug, 'error.stale');
+}
+
+/** Stream-Transport gescheitert, bevor der Server die Frage hatte (Netz/Proxy)
+ *  → stiller Fallback auf den non-stream Endpoint (deckt auch ältere Backends
+ *  ohne /stream-Route ab). */
+async function perPost(zug: Zug, streamErr: unknown): Promise<ChatResponse | null> {
+  const { ctx, loadingId, veraltet } = zug;
+  console.warn('chat stream failed, falling back to POST /chat:', streamErr);
+  // Der zweite Weg beantwortet die Frage neu — ein Teiltext des ersten
+  // stünde sonst bis dahin als Antwort da.
+  ctx.clearStreamText(loadingId);
+  try {
+    return await ctx.post(zug.msg, zug.env, zug.action, zug.actionParams);
+  } catch (postErr) {
+    if (veraltet()) return null;
+    if (!istBeschaeftigt(postErr)) throw postErr;
+    return hinweis(zug, 'error.busy');
+  }
+}
+
+/** Ein Hinweis statt einer Antwort („beschäftigt“, „veraltet“). Beide bitten ums
+ *  erneute Senden — dafür liegt eine getippte Frage wieder im Eingabefeld
+ *  (Review C-6; seit Paket 9 auch bei „veraltet“). Nicht über das hinweg, was die
+ *  Person inzwischen getippt hat, und nur, was sie getippt hat: eine Aktion
+ *  (Karten-Knopf) liefe als Text allein ohne die Aktion, ein Chip oder ein Auftrag
+ *  der Gastseite stünde als Satz da, den sie nie geschrieben hat. */
+function hinweis(zug: Zug, schluessel: string): null {
+  const { ctx, loadingId } = zug;
+  if (zug.getippt && !ctx.currentInput().trim()) ctx.setInput(zug.getippt);
+  ctx.removeMessage(loadingId);
+  const id = ctx.addBotMessage(ctx.t(schluessel));
+  ctx.setScrollTarget(id);
+  ctx.setLoading(false);
+  ctx.focusInput();
+  return null;
 }

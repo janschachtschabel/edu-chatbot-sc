@@ -56,7 +56,7 @@
         @if (rawKey(); as key) {
           <span class="sf-key">{{ key }}</span>
         }
-        @if (!unset()) { <span class="sf-count">({{ items().length }})</span> }
+        @if (!unset()) { <span class="sf-count">({{ list.items().length }})</span> }
       </legend>
       @if (hint(); as text) {
         <p class="sf-desc" [id]="descId()">{{ text }}</p>
@@ -70,22 +70,22 @@
           <button type="button" class="sf-add" [attr.aria-disabled]="unset()" (click)="restoreDefault()"
             [attr.aria-label]="t('schemaField.restoreDefaultFor', { group: groupLabel() })">{{ t('schemaField.restoreDefault') }}</button></p>
       }
-      @if (chipList()) {
+      @if (list.chipList()) {
         <!-- ST-2g: Katalog-Namen als Chips. EIN Eingabefeld mit der
              Vorschlagsliste des Katalogs; ein Name, der noch in keinem
              Katalog steht, darf trotzdem hinein (vgl. field-control). -->
-        @if (items().length === 0) {
+        @if (list.items().length === 0) {
           @if (!unset()) { <p class="sf-empty">{{ t('schemaField.emptyList') }}</p> }
         } @else {
           <ul class="sf-chips" role="list">
-            @for (item of items(); track $index) {
+            @for (item of list.items(); track $index) {
               <li class="sf-chip">
                 <span class="sf-chip-text">{{ item }}</span>
                 <button
                   type="button"
                   class="sf-chip-remove"
                   [attr.aria-label]="t('schemaField.removeChip', { value: '' + item, group: groupLabel() })"
-                  (click)="removeItem($index)"
+                  (click)="list.removeItem($index)"
                 >×</button>
               </li>
             }
@@ -99,12 +99,12 @@
             [id]="fieldId() + '-neu'"
             [attr.list]="idPrefix() + '-cat-' + field().item!.catalog"
             [attr.aria-label]="t('schemaField.addTo', { group: groupLabel() })"
-            (keydown.enter)="$event.preventDefault(); addChip(neu)"
+            (keydown.enter)="$event.preventDefault(); list.addChip(neu)"
           />
-          <button type="button" class="sf-add" (click)="addChip(neu)">
+          <button type="button" class="sf-add" (click)="list.addChip(neu)">
             {{ t('schemaField.add') }}
           </button>
-          <p class="sf-error live" aria-live="polite">{{ chipError() }}</p>
+          <p class="sf-error live" aria-live="polite">{{ list.chipError() }}</p>
         </div>
       } @else if (objectItems()) {
         <!-- ST-3: Objekte als Liste│Editor statt voll aufgeklappt untereinander -->
@@ -118,11 +118,11 @@
           (edit)="edit.emit($event)"
         />
       } @else {
-        @if (items().length === 0) {
+        @if (list.items().length === 0) {
           @if (!unset()) { <p class="sf-empty">{{ t('schemaField.emptyList') }}</p> }
         } @else {
           <ol class="sf-entries" role="list">
-            @for (item of items(); track $index) {
+            @for (item of list.items(); track $index) {
               <li class="sf-entry">
                 <!-- „Tools 2": ein Name aus einem schon übersetzten Wort und einer
                      Zahl. Kein Satz, also auch kein Katalog-Eintrag — hier ist
@@ -134,18 +134,18 @@
                   [idPrefix]="idPrefix()"
                   [problems]="problems()"
                   [labelOverride]="groupLabel() + ' ' + ($index + 1)"
-                  (edit)="onItemEdit($index, $event)"
+                  (edit)="list.onItemEdit($index, $event)"
                 />
                 @if (field().marker) {
                   <label class="sf-marker">
                     <input
                       type="radio"
                       [name]="fieldId() + '-marker'"
-                      [checked]="isMarked($index)"
-                      [attr.aria-label]="t('schemaField.markItemAs', { value: '' + item, label: markerLabel() })"
-                      (change)="mark(item)"
+                      [checked]="list.isMarked($index)"
+                      [attr.aria-label]="t('schemaField.markItemAs', { value: '' + item, label: list.markerLabel() })"
+                      (change)="list.mark(item)"
                     />
-                    {{ t('schemaField.markAs', { label: markerLabel() }) }}
+                    {{ t('schemaField.markAs', { label: list.markerLabel() }) }}
                   </label>
                 }
                 <button
@@ -154,7 +154,7 @@
                   [attr.aria-label]="
                     t('schemaField.removeIndex', { index: $index + 1, group: groupLabel() })
                   "
-                  (click)="removeItem($index)"
+                  (click)="list.removeItem($index)"
                 >{{ t('schemaField.remove') }}</button>
               </li>
             }
@@ -164,7 +164,7 @@
           type="button"
           class="sf-add"
           [attr.aria-label]="t('schemaField.addTo', { group: groupLabel() })"
-          (click)="addItem()"
+          (click)="list.addItem()"
         >{{ t('schemaField.add') }}</button>
         @if (field().marker) {
           <label class="sf-marker">
@@ -172,9 +172,9 @@
               type="radio"
               [name]="fieldId() + '-marker'"
               [checked]="!markerValue()"
-              (change)="mark('')"
+              (change)="list.mark('')"
             />
-            {{ t('schemaField.markNone', { label: markerLabel() }) }}
+            {{ t('schemaField.markNone', { label: list.markerLabel() }) }}
           </label>
         }
       }
@@ -188,7 +188,7 @@
         @if (rawKey(); as key) {
           <span class="sf-key">{{ key }}</span>
         }
-        <span class="sf-count">({{ entries().length }})</span>
+        <span class="sf-count">({{ map.entries().length }})</span>
       </legend>
       @if (hint(); as text) {
         <p class="sf-desc" [id]="descId()">{{ text }}</p>
@@ -207,11 +207,11 @@
             (edit)="edit.emit($event)"
           />
       } @else {
-      @if (entries().length === 0) {
+      @if (map.entries().length === 0) {
         <p class="sf-empty">{{ t('schemaField.emptyList') }}</p>
       } @else {
         <ul class="sf-entries" role="list">
-          @for (entry of entries(); track entry.key) {
+          @for (entry of map.entries(); track entry.key) {
             <li class="sf-entry">
               <div class="sf-row">
                 <label class="sf-label" [for]="fieldId() + '-key-' + $index">
@@ -222,19 +222,19 @@
                   type="text"
                   [id]="fieldId() + '-key-' + $index"
                   [value]="entry.key"
-                  [attr.aria-invalid]="keyError()?.key === entry.key ? 'true' : null"
+                  [attr.aria-invalid]="map.keyError()?.key === entry.key ? 'true' : null"
                   [attr.aria-describedby]="
-                    keyError()?.key === entry.key ? fieldId() + '-key-' + $index + '-err' : null
+                    map.keyError()?.key === entry.key ? fieldId() + '-key-' + $index + '-err' : null
                   "
-                  (change)="renameEntry(entry.key, $event)"
+                  (change)="map.renameEntry(entry.key, $event)"
                 />
                 <p
                   class="sf-error live"
                   [id]="fieldId() + '-key-' + $index + '-err'"
                   aria-live="polite"
                 >
-                  @if (keyError()?.key === entry.key) {
-                    {{ keyError()?.message }}
+                  @if (map.keyError()?.key === entry.key) {
+                    {{ map.keyError()?.message }}
                   }
                 </p>
               </div>
@@ -251,7 +251,7 @@
                 type="button"
                 class="sf-remove"
                 [attr.aria-label]="t('schemaField.removeKey', { key: entry.key })"
-                (click)="removeEntry(entry.key)"
+                (click)="map.removeEntry(entry.key)"
               >{{ t('schemaField.remove') }}</button>
             </li>
           }
@@ -261,7 +261,7 @@
         type="button"
         class="sf-add"
         [attr.aria-label]="t('schemaField.addTo', { group: groupLabel() })"
-        (click)="addEntry()"
+        (click)="map.addEntry()"
       >{{ t('schemaField.add') }}</button>
       }
     </fieldset>

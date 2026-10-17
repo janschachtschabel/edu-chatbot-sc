@@ -384,7 +384,7 @@ async def run_agent_loop(
             # Eigener Abbruchgrund statt ``text``: ``text`` hiesse „hat
             # geantwortet" und machte den stummen Zug in den Qualitaetslogs
             # unsichtbar. ``empty`` faellt in ``respond_agent`` nicht unter
-            # ``_GEDECKELT`` und bekommt damit den richtigen Satz („Ich konnte
+            # ``agent_abschluss.GEDECKELT`` und bekommt damit den richtigen Satz („Ich konnte
             # gerade keine Antwort erzeugen"), nicht den Deckel-Satz.
             logger.warning(
                 "Agent-Schleife: auch nach %d Anlaeufen weder Werkzeug noch "

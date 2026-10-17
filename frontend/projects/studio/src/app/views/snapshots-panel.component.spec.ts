@@ -85,6 +85,16 @@ describe("SnapshotsPanelComponent", () => {
     });
   });
 
+  it("zeigt, ob ein Snapshot von Hand oder automatisch entstand (Paket 12)", async () => {
+    const h = await mount([
+      { ...ROW, art: "hand" },
+      { ...ROW, id: "snap-auto", label: "vor Wiederherstellen (exakt)", art: "auto" },
+    ]);
+    const zeilen = Array.from(h.el.querySelectorAll("[data-row]")).map((z) => z.textContent ?? "");
+    expect(zeilen[0]).toContain("von Hand");
+    expect(zeilen[1]).toContain("automatisch");
+  });
+
   it("holt die Liste, sobald das Panel steht", async () => {
     const h = await mount();
     expect(text(h)).toContain("vor dem Umbau");
@@ -170,22 +180,47 @@ describe("SnapshotsPanelComponent", () => {
     const h = await mount();
     await click(h, "Wiederherstellen");
     // Armed, not fired: no request may go out before the second click.
-    h.http.expectNone(`${LIST}/snap-abc/restore`);
+    h.http.expectNone((r) => r.url === `${LIST}/snap-abc/restore`);
     expect(text(h)).toContain("vor dem Umbau");
-    // The confirmation appears below the button that armed it, so focus does not
-    // move and nothing else changes on screen. Without a live region a screen
-    // reader would announce nothing at all and the second click would fire an
-    // action its user never heard about (WCAG 2.2 SC 4.1.3).
+    // The confirmation appears below the button that armed it. Without a live
+    // region a screen reader would announce nothing at all and the second click
+    // would fire an action its user never heard about (WCAG 2.2 SC 4.1.3). Since
+    // Paket 9 (V8) focus moves to „Abbrechen" as well — see the tests below.
     expect(h.el.querySelector(".op-confirm")!.getAttribute("role")).toBe(
       "alert",
     );
 
     await click(h, "Ja, wiederherstellen");
-    const req = h.http.expectOne(`${LIST}/snap-abc/restore`);
+    const req = h.http.expectOne(`${LIST}/snap-abc/restore?mode=merge`);
     expect(req.request.method).toBe("POST");
-    req.flush({ status: "restored", areas: 35 });
+    req.flush({ status: "restored", areas: 35, deleted: 0, snapshot_id: null });
     await settle(h);
     expect(text(h)).toContain("35");
+    h.http.verify(); // „ergänzend" legt keinen Snapshot an — kein Neuladen
+  });
+
+  // Paket 7 (P5-5): „exakt" legt vorher einen Snapshot an; er steht danach ohne
+  // „Aktualisieren" in der Liste, und die Meldung nennt ihn.
+  it("stellt auf Wunsch exakt her und zeigt den Rückweg gleich in der Liste", async () => {
+    const h = await mount();
+    await click(h, "Wiederherstellen");
+    h.el.querySelector<HTMLInputElement>('.op-confirm input[value="exact"]')!.click();
+    await settle(h);
+    await click(h, "Ja, wiederherstellen");
+    h.http
+      .expectOne(`${LIST}/snap-abc/restore?mode=exact`)
+      .flush({ status: "restored", areas: 34, deleted: 1, snapshot_id: "snap-neu" });
+    await settle(h);
+    expect(text(h)).toContain("1 Bereich gelöscht");
+    expect(text(h)).toContain("snap-neu");
+    h.http.expectOne(LIST).flush([ROW]);
+    await settle(h);
+
+    // Die nächste Rückfrage beginnt wieder bei der Vorgabe.
+    await click(h, "Wiederherstellen");
+    expect(
+      h.el.querySelector<HTMLInputElement>('.op-confirm input[value="merge"]')!.checked,
+    ).toBe(true);
   });
 
   it("fragt vor dem Löschen zurück und liest danach neu", async () => {
@@ -253,5 +288,47 @@ describe("SnapshotsPanelComponent", () => {
     expect(h.el.querySelector('[role="alert"]')!.textContent).toContain(
       "Snapshot-Limit erreicht",
     );
+  });
+
+  // ── Paket 9 (V8): Fokusführung ────────────────────────────────────────
+  // Schloss sich die Rückfrage, verschwand der fokussierte Knopf mit ihr, und
+  // der Fokus fiel auf <body> — wer mit der Tastatur arbeitet, stand wieder am
+  // Seitenanfang (WCAG 2.4.3).
+  it("führt den Fokus in die Rückfrage und zurück zum Knopf (Paket 9, V8)", async () => {
+    const h = await mount();
+    await click(h, "Wiederherstellen");
+    expect(document.activeElement?.textContent?.trim()).toBe("Abbrechen");
+    await click(h, "Abbrechen");
+    expect(document.activeElement).toBe(button(h, "Wiederherstellen"));
+
+    await click(h, "Wiederherstellen");
+    await click(h, "Ja, wiederherstellen");
+    h.http
+      .expectOne(`${LIST}/snap-abc/restore?mode=merge`)
+      .flush({ status: "restored", areas: 35, deleted: 0, snapshot_id: null });
+    await settle(h);
+    expect(document.activeElement).toBe(button(h, "Wiederherstellen"));
+  });
+
+  it("gibt den Fokus nach dem Löschen an die Überschrift — die Zeile ist fort (Paket 9, V8)", async () => {
+    const h = await mount();
+    await click(h, "Löschen");
+    expect(document.activeElement?.textContent?.trim()).toBe("Abbrechen");
+    await click(h, "Ja, löschen");
+    h.http.expectOne(`${LIST}/snap-abc`).flush({ status: "deleted", id: "snap-abc" });
+    await settle(h);
+    h.http.expectOne(LIST).flush([]);
+    await settle(h);
+    expect(document.activeElement?.id).toBe("sp-title");
+  });
+
+  it("zeigt „Ja, wiederherstellen“ als gefährlich, sobald „exakt“ gewählt ist (Paket 9)", async () => {
+    // Review Paket 7 (NIT): „exakt“ löscht Bereiche — der Knopf sah aus wie „ergänzend“.
+    const h = await mount();
+    await click(h, "Wiederherstellen");
+    expect(button(h, "Ja, wiederherstellen").classList).not.toContain("op-btn--danger");
+    h.el.querySelector<HTMLInputElement>('.op-confirm input[value="exact"]')!.click();
+    await settle(h);
+    expect(button(h, "Ja, wiederherstellen").classList).toContain("op-btn--danger");
   });
 });

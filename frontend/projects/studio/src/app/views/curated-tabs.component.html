@@ -1,0 +1,38 @@
+<!-- ST-4c: die Achsen mit ihrer Anzahl auf einen Blick, wie ALTs Kopfkarte -->
+@if (cardRows().length > 0) {
+  <ul class="ct-card" [attr.aria-label]="t('curated.card.label')">
+    @for (row of cardRows(); track row) {
+      <li>{{ row }}</li>
+    }
+  </ul>
+} @else if (countsFailed()) {
+  <p class="ct-card ct-card--muted">{{ t('curated.card.unavailable') }}</p>
+}
+
+<studio-tab-bar
+  [tabs]="tabs()"
+  [active]="active()"
+  [label]="label()"
+  (tabChange)="select($event)"
+/>
+
+<!-- Jeder Reiter hat seinen Bereich, damit `aria-controls` nie ins Leere zeigt;
+     eingehängt wird der Abschnitt darin erst beim ersten Öffnen. -->
+@for (tab of tabs(); track tab.id) {
+  <div
+    class="ct-panel"
+    role="tabpanel"
+    tabindex="0"
+    [id]="'panel-' + tab.id"
+    [attr.aria-labelledby]="'tab-' + tab.id"
+    [hidden]="tab.id !== active()"
+  >
+    @if (isMounted(tab.id)) {
+      @if (tab.section.kind === 'group') {
+        <studio-group-section [section]="tab.section" [open]="true" (changed)="zaehlen()" />
+      } @else {
+        <studio-area-section [section]="tab.section" [open]="true" (changed)="zaehlen()" />
+      }
+    }
+  </div>
+}

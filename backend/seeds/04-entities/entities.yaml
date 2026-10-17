@@ -173,12 +173,12 @@ entities:
   - id: lizenz
     label: Lizenz
     type: string
-    description: "Gewünschte Lizenz (z.B. CC BY, CC BY-SA, CC0)."
+    description: "Gewünschte Lizenz (z.B. CC BY, CC BY-SA, CC0, OER). Nur setzen, wenn die Person ausdrücklich eine Lizenz oder OER verlangt."
     examples:
       - CC BY
       - CC BY-SA
       - CC0
-      - Alle OER
+      - OER
 
 # ─────────────────────────────────────────────────────────────────────
 # Akkumulations-Regeln pro Turn-Typ

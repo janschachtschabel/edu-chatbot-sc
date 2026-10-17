@@ -190,3 +190,85 @@ describe('postChat', () => {
     await expect(postChat({ url: 'x', body: {}, fetchImpl: fetchReturning(resp) })).rejects.toThrow('Chat error: 500');
   });
 });
+
+// ── Paket 7 (P1): Kennungen im error-Rahmen und der Status am POST-Fehler ─────
+describe('Fehler mit Kennung (Paket 7)', () => {
+  it('ein error-Rahmen mit code wird zum StreamServerError mit dieser Kennung', async () => {
+    const body = 'event: connected\ndata: {}\n\n'
+      + 'event: error\ndata: {"message": "internal error", "code": "session_busy"}\n\n';
+    const fetchImpl = (() => Promise.resolve(new Response(body, { status: 200 }))) as typeof fetch;
+    await expect(streamChat({ url: 'x', body: {}, onEvent: () => undefined, fetchImpl }))
+      .rejects.toMatchObject({ name: 'StreamServerError', code: 'session_busy' });
+  });
+
+  it('ein error-Rahmen OHNE code ist ebenso ein Bescheid des Servers (`internal`)', async () => {
+    // Review Paket 7, C-1: ein nackter `Error` sah aus wie ein Transportabbruch —
+    // das Widget fragte daraufhin 90 s den Verlauf nach einer Antwort ab, die der
+    // gescheiterte Zug nie gespeichert hat.
+    const body = 'event: connected\ndata: {}\n\n'
+      + 'event: error\ndata: {"message": "internal error"}\n\n';
+    const fetchImpl = (() => Promise.resolve(new Response(body, { status: 200 }))) as typeof fetch;
+    await expect(streamChat({ url: 'x', body: {}, onEvent: () => undefined, fetchImpl }))
+      .rejects.toMatchObject({ name: 'StreamServerError', code: 'internal', message: 'internal error' });
+  });
+
+  it('ein Fehlerrahmen geht einem Abbruch danach vor (Paket 9)', async () => {
+    // Review Paket 7 (NIT): riss die Verbindung NACH dem Bescheid, warf der
+    // Lesefehler ihn weg — das Widget fragte dann im Verlauf nach.
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(
+          'event: connected\ndata: {"history": true, "after_id": 1}\n\n'
+          + 'event: error\ndata: {"message": "internal error"}\n\n'));
+      },
+      pull(controller) {
+        controller.error(new TypeError('network error'));
+      },
+    });
+    const resp = { ok: true, status: 200, body: stream } as unknown as Response;
+    await expect(streamChat({
+      url: 'x', body: {}, onEvent: () => undefined, fetchImpl: fetchReturning(resp),
+    })).rejects.toMatchObject({ name: 'StreamServerError', code: 'internal' });
+  });
+
+  it('ein empfangenes Ergebnis geht einem Abbruch danach vor (Review Paket 9)', async () => {
+    // Ein Proxy, der nach dem letzten Rahmen die Verbindung zurücksetzt, warf das
+    // Ergebnis weg — das Widget fragte dann im Verlauf nach oder schickte die Frage
+    // ein zweites Mal.
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(
+          'event: connected\ndata: {}\n\nevent: result\ndata: {"content": "ok"}\n\n'));
+      },
+      pull(controller) {
+        controller.error(new TypeError('network error'));
+      },
+    });
+    const resp = { ok: true, status: 200, body: stream } as unknown as Response;
+    await expect(streamChat<{ content: string }>({
+      url: 'x', body: {}, onEvent: () => undefined, fetchImpl: fetchReturning(resp),
+    })).resolves.toEqual({ content: 'ok' });
+  });
+
+  it('liest auch CRLF-Zeilenenden, selbst über Chunk-Grenzen hinweg (Paket 10)', async () => {
+    // Audit 2026-10-10, L-7: getrennt wurde nur an `\n\n` — ein Proxy, der auf
+    // `\r\n` umschreibt, ließ den Strom bis zur Frist ohne ein einziges Ereignis.
+    const events: string[] = [];
+    const resp = sseResponse([
+      'event: connected\r\ndata: {}\r\n\r',
+      '\nevent: result\r\ndata: {"content": "ok"}\r\n\r\n',
+    ]);
+    const out = await streamChat<{ content: string }>({
+      url: 'x', body: {}, onEvent: (e) => events.push(e.event), fetchImpl: fetchReturning(resp),
+    });
+    expect(out.content).toBe('ok');
+    expect(events).toEqual(['connected']);
+  });
+
+  it('postChat gibt den HTTP-Status am Fehler mit', async () => {
+    const fetchImpl = (() => Promise.resolve(new Response('{}', { status: 409 }))) as typeof fetch;
+    await expect(postChat({ url: 'x', body: {}, fetchImpl }))
+      .rejects.toMatchObject({ status: 409, message: 'Chat error: 409' });
+  });
+});
+

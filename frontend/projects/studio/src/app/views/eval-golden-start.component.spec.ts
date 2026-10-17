@@ -130,6 +130,29 @@ describe("EvalGoldenStartComponent", () => {
     expect(text()).toContain("7 Chat-Anfragen"); // leer = alle
   });
 
+  it("lässt Flows auf Abruf bei „alle“ weg und markiert sie (Paket 7, K3)", async () => {
+    // GV-RED-1 nimmt real Inhalte auf Staging auf — er läuft nur ausdrücklich gewählt,
+    // nach derselben Regel wie im Backend (`services/eval/flow_wahl.py`).
+    await mount({
+      flows: [...FLOWS.flows, {
+        id: "GV-RED-1", title: "Redaktion", persona: "P-RED", turns: [{}, {}], auf_abruf: true,
+      }],
+      count: 3,
+    });
+    expect(text()).toContain("7 Chat-Anfragen"); // leer = alle außer GV-RED-1
+    expect(text()).toContain("außer denen „nur auf Abruf“");
+    expect(box("flow-GV-RED-1").closest("label")?.textContent).toContain("nur auf Abruf");
+
+    button("Alle auswählen")!.click();
+    await h.fixture.whenStable();
+    expect(box("flow-GV-RED-1").checked).toBe(false);
+    expect(text()).toContain("7 Chat-Anfragen");
+
+    box("flow-GV-RED-1").click();
+    await h.fixture.whenStable();
+    expect(text()).toContain("9 Chat-Anfragen");
+  });
+
   it("names the judge calls the toggle adds", async () => {
     await mount();
     expect(text()).not.toContain("Judge-Aufrufe");

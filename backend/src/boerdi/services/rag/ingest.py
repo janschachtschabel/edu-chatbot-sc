@@ -1,12 +1,5 @@
-"""RAG ingestion (P6): file/URL→markdown conversion + chunk/embed/store.
-
-``convert_to_markdown`` and ``convert_url_to_markdown`` are ALT-verbatim
-(``rag_service.py``; markitdown parses synchronously → ``asyncio.to_thread``
-keeps the event loop free; errors come back as ``Fehler…``-strings of type
-``Umwandlungsfehler``, the router translates them — never raises). The URL
-path is guarded by ``url_safety`` (``assert_public_url`` before any fetch + the
-redirect-checking ``make_ssrf_guarded_session`` handed to markitdown, Audit
-T8/T9/N-2).
+"""RAG ingestion (P6): chunk/embed/store. Umwandeln (Datei/URL → Markdown)
+steht seit Paket 6 in ``services/rag/umwandeln.py``.
 
 ``ingest_document`` / ``get_rag_chunks`` are schema-driven **rewrites, not
 ports**: ALT stored flat sqlite rows (title/source duplicated per chunk, BLOB
@@ -22,9 +15,7 @@ rule 3).
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
 from typing import NamedTuple
 
 from sqlalchemy import select, update
@@ -33,7 +24,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from boerdi.db.models import RagChunk, RagDocument
 from boerdi.domain.rag_chunking import chunk_markdown
 from boerdi.services.rag.embed import embed_many, expected_dim
-from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -48,147 +38,6 @@ class ImportZahlen(NamedTuple):
     def missing(self) -> int:
         """Abschnitte ohne Vektor — die Suche findet sie erst nach dem Nachholen."""
         return self.chunks - self.embedded
-
-
-class Umwandlungsfehler(str):
-    """Der Fehlertext einer Umwandlung, kein Dokument (Paket 4b, A3).
-
-    Die Umwandler bleiben ALT-treu und melden Fehler als Text. Am Präfix
-    „Fehler“ ließ sich der aber nicht von einem Dokument unterscheiden, das so
-    beginnt („Fehlerkultur …“): Der Router wies es mit 400 ab. Der Typ sagt es,
-    der Text bleibt derselbe.
-    """
-
-
-async def convert_to_markdown(file_path: str) -> str:
-    """Convert any document to markdown using markitdown.
-
-    A failure comes back as :class:`Umwandlungsfehler`, never raised.
-    """
-    try:
-        size = os.path.getsize(file_path) if os.path.exists(file_path) else -1
-    except Exception:
-        size = -1
-    try:
-        from markitdown import MarkItDown
-        mid = MarkItDown()
-        # markitdown parst synchron (PDF/DOCX = Sekunden); ohne to_thread
-        # würde der Event-Loop blockieren und alle Chat-/SSE-Requests
-        # einfrieren, solange die Konvertierung läuft.
-        result = await asyncio.to_thread(mid.convert, file_path)
-        return result.text_content
-    except ImportError as e:
-        logger.exception(
-            "markitdown ImportError — auf dem Server fehlt eine Python-/"
-            "OS-Dependency. Häufige Ursachen: pip install markitdown nicht "
-            "ausgeführt; libmagic1 / poppler-utils / tesseract-ocr fehlen "
-            "im Container. Datei: %s (%d bytes)", file_path, size,
-        )
-        return Umwandlungsfehler(f"Fehler beim Konvertieren (ImportError): {e}")
-    except Exception as e:
-        if _format_nicht_lesbar(e):
-            # Keine kaputte Datei, sondern ein Format, das dieses Image nicht
-            # liest (Paket 4, C5): ohne markitdown-Extras scheitern DOCX, PDF,
-            # PPTX und XLSX. Der Router macht daraus 415 mit klarem Satz.
-            logger.warning("markitdown liest das Format von %s nicht: %s",
-                           file_path, type(e).__name__)
-            return Umwandlungsfehler(f"{FORMAT_NICHT_LESBAR}: {type(e).__name__}")
-        # Volltext-Trace ins Backend-Log — die HTTP-Antwort kürzt nur die
-        # Top-Zeile mit, daher hier explizit logger.exception aufrufen.
-        logger.exception(
-            "markitdown convert failed für %s (%d bytes): %s",
-            file_path, size, e,
-        )
-        return Umwandlungsfehler(f"Fehler beim Konvertieren: {type(e).__name__}: {e}")
-
-
-#: Vorsilbe für „dieses Format liest der Server nicht“ — in einem
-#: :class:`Umwandlungsfehler`; der Router macht daraus 415.
-FORMAT_NICHT_LESBAR = "Fehler (Format nicht lesbar)"
-
-#: Gesamtfrist eines URL-Abrufs in Sekunden (Paket 4, C5).
-URL_FRIST_S = 60.0
-
-
-def _format_nicht_lesbar(fehler: Exception) -> bool:
-    """Scheiterte markitdown am Format statt an der Datei?
-
-    ``UnsupportedFormatException``: kein Wandler für das Format.
-    ``MissingDependencyException``: der Wandler fehlt im Image; markitdown hüllt
-    sie in eine ``FileConversionException`` und nennt sie in ``attempts``.
-    """
-    from markitdown._exceptions import (
-        FileConversionException,
-        MissingDependencyException,
-        UnsupportedFormatException,
-    )
-
-    if isinstance(fehler, (UnsupportedFormatException, MissingDependencyException)):
-        return True
-    if isinstance(fehler, FileConversionException):
-        return any(
-            versuch.exc_info and issubclass(versuch.exc_info[0], MissingDependencyException)
-            for versuch in fehler.attempts or ())
-    return False
-
-
-async def convert_url_to_markdown(url: str) -> str:
-    """Fetch a URL and convert to markdown using markitdown.
-
-    SSRF-Schutz via ``url_safety.assert_public_url`` (zentraler Choke-Point,
-    Audit T8/T9): blockt Nicht-http(s)-Schemata und private/interne Netzbereiche
-    (Loopback, link-local inkl. Cloud-Metadaten 169.254.169.254, private Ranges).
-    Bei einem Verstoß wird KEIN Netz-Fetch versucht — die Funktion kehrt (wie bei
-    anderen Fehlern) mit einem "Fehler:"-String zurück, den der Router in 400
-    übersetzt.
-
-    Seit Paket 4 (C5, externes Audit F17) holt ``url_safety.hole_begrenzt`` den
-    Rumpf — mit Frist und Bytedeckel, über dieselbe SSRF-Sitzung —, und
-    markitdown wandelt nur noch um. Vorher holte markitdown selbst, ohne Frist
-    und mit dem ganzen Rumpf im Speicher. Auch die DNS-Prüfung läuft jetzt im
-    Thread: ``getaddrinfo`` blockierte den Event-Loop.
-    """
-    import io
-
-    from boerdi.services import url_safety
-
-    try:  # wie beim Datei-Weg: melden statt werfen, und dann ohne Abruf (Paket 4c, A1)
-        from markitdown import MarkItDown, StreamInfo
-    except ImportError as e:
-        logger.exception("markitdown ImportError beim URL-Import — Paket im Image prüfen")
-        return Umwandlungsfehler(f"Fehler beim Konvertieren (ImportError): {e}")
-    try:
-        await asyncio.to_thread(url_safety.assert_public_url, url)
-    except url_safety.UnsafeUrlError as e:
-        return Umwandlungsfehler(f"Fehler: {e}")
-    max_mb = get_settings().max_ingest_mb
-    try:
-        rumpf, typ = await asyncio.to_thread(
-            url_safety.hole_begrenzt, url,
-            max_bytes=max_mb * 1024 * 1024, frist_s=URL_FRIST_S)
-    except url_safety.DownloadAbgebrochen as e:
-        return Umwandlungsfehler(f"Fehler: {e}")
-    except Exception as e:
-        return Umwandlungsfehler(f"Fehler beim Konvertieren: {e}")
-    try:
-        # N-2 (Audit 2026-07-10): Guard-Session prüft AUCH Redirect-Ziele.
-        # markitdown holt bei manchen Formaten selbst nach (etwa Transkripte);
-        # auch dort darf kein 302 auf eine interne Adresse durchgehen.
-        mid = MarkItDown(requests_session=url_safety.make_ssrf_guarded_session())
-        mime, _, rest = typ.partition(";")
-        charset = rest.split("charset=", 1)[1].strip() if "charset=" in rest else None
-        info = StreamInfo(url=url, mimetype=mime.strip() or None, charset=charset)
-        result = await asyncio.to_thread(mid.convert_stream, io.BytesIO(rumpf),
-                                         stream_info=info)
-        return result.text_content
-    except Exception as e:
-        if _format_nicht_lesbar(e):
-            # Wie beim Datei-Upload (C5): ein Link auf ein PDF ist keine kaputte
-            # Seite, sondern ein Format ohne Wandler im Image (Prüfer 2026-10-04).
-            logger.warning("markitdown liest das Format einer URL nicht: %s",
-                           type(e).__name__)
-            return Umwandlungsfehler(f"{FORMAT_NICHT_LESBAR}: {type(e).__name__}")
-        return Umwandlungsfehler(f"Fehler beim Konvertieren: {e}")
 
 
 async def ingest_document(

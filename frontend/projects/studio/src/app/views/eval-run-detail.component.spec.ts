@@ -403,6 +403,34 @@ describe("EvalRunDetailComponent", () => {
     expect(text()).not.toContain("Hier sind vier Materialien.");
   });
 
+  it("schließt einen offenen Zug beim Wechsel zu einem anderen Lauf", async () => {
+    await mount();
+    rows()[0].querySelector("button")!.click();
+    await h.fixture.whenStable();
+
+    h.fixture.componentRef.setInput("runId", "eval-xyz");
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === url("eval-xyz")).flush(detail({ id: "eval-xyz" }));
+    await settle();
+
+    expect(rows()[0].querySelector("button")!.getAttribute("aria-expanded")).toBe("false");
+    expect(text()).not.toContain("Hier sind vier Materialien.");
+  });
+
+  it("lässt einen offenen Zug beim Neuladen desselben Laufs offen", async () => {
+    await mount();
+    rows()[0].querySelector("button")!.click();
+    await h.fixture.whenStable();
+
+    button("Aktualisieren")!.click();
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === url("eval-abc")).flush(detail());
+    await settle();
+
+    expect(rows()[0].querySelector("button")!.getAttribute("aria-expanded")).toBe("true");
+    expect(text()).toContain("Hier sind vier Materialien.");
+  });
+
   it("falls back to the transcript when a run has no gold metrics", async () => {
     await mount(
       detail({

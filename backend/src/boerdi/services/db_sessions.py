@@ -83,18 +83,35 @@ async def get_or_create_session(session: AsyncSession, session_id: str) -> dict[
 
 
 async def update_session(session: AsyncSession, session_id: str, **kwargs: Any) -> None:
-    """Patch the given session columns and bump ``updated_at`` to now."""
-    await session.execute(
-        update(ChatSession)
-        .where(ChatSession.session_id == session_id)
-        .values(**kwargs, updated_at=func.now())
-    )
-    await session.commit()
+    """Patch the given session columns and bump ``updated_at`` to now. A failure is
+    rolled back before it is re-raised (:func:`_zurueckrollen`)."""
+    try:
+        await session.execute(
+            update(ChatSession)
+            .where(ChatSession.session_id == session_id)
+            .values(**kwargs, updated_at=func.now())
+        )
+        await session.commit()
+    except Exception:
+        await _zurueckrollen(session)
+        raise
+
+
+async def _zurueckrollen(session: AsyncSession) -> None:
+    """Nach einem gescheiterten Schreiben zurückrollen — sonst bleibt die geteilte
+    Sitzung in „needs rollback“, und jeder weitere Zugriff im selben Zug scheitert
+    (Paket 10, Audit 2026-10-10 M-1: die Aufrufer schlucken den Fehler, danach gingen
+    Kostenbuchung und Verlaufszeilen still verloren). Dieselbe Regel wie in
+    :func:`finalize_message`."""
+    try:
+        await session.rollback()
+    except Exception:  # noqa: BLE001 — der ursprüngliche Fehler zählt
+        logger.debug("rollback after a failed write failed too", exc_info=True)
 
 
 # ── Message helpers ────────────────────────────────────────────
 
-def _messages_enabled() -> bool:
+def messages_enabled() -> bool:
     """``privacy-config.logging.messages``. A failing lookup keeps storing —
     ALT's stance ("loader failure → default to logging"), and the same one the
     memory gate in ``api/sessions.py`` takes."""
@@ -126,7 +143,7 @@ async def save_message(
     the app goes through this function; one caller that forgot it would store
     text the switch forbids.
     """
-    if not _messages_enabled():
+    if not messages_enabled():
         return None
     obj = ChatMessage(
         session_id=session_id,
@@ -136,7 +153,11 @@ async def save_message(
         debug=debug or {},
     )
     session.add(obj)
-    await session.commit()
+    try:
+        await session.commit()
+    except Exception:
+        await _zurueckrollen(session)
+        raise
     return obj.id
 
 
@@ -175,6 +196,14 @@ async def finalize_message(
         except Exception:
             logger.debug("finalize: rollback failed too", exc_info=True)
         return False
+
+
+async def last_message_id(session: AsyncSession, session_id: str) -> int | None:
+    """Die höchste Nachrichten-ID einer Sitzung, ``None`` ohne Nachricht — nur die
+    Kennung, über den Index ``messages(session_id, id)`` (Paket 9: der Handschlag
+    las dafür die ganze letzte Nachricht samt Inhalt, Karten und Debug)."""
+    stmt = select(func.max(ChatMessage.id)).where(ChatMessage.session_id == session_id)
+    return (await session.execute(stmt)).scalar_one()
 
 
 async def get_messages(session: AsyncSession, session_id: str, limit: int = 50) -> list[dict]:

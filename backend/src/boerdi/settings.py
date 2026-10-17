@@ -36,6 +36,9 @@ _REASONING = {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 # OpenAI ``service_tier`` (Fast-Mode-Leitfaden 2026-10: ``priority`` ist der
 # ältere Name für ``fast``).
 _SERVICE_TIERS = {"auto", "default", "flex", "priority", "fast"}
+# Paket 8 (P2): CSP der Studio-Seite. Ein unbekannter Wert fällt auf ``enforce`` —
+# ein Tippfehler darf den Schutz nicht still abschalten.
+_STUDIO_CSP = {"enforce", "report", "off"}
 
 
 class Settings(BaseSettings):
@@ -109,8 +112,14 @@ class Settings(BaseSettings):
         None, validation_alias=_env("EMBED_DIM"),
         description="escape hatch; None => derived from embed model",
     )
-    llm_max_concurrency: int = Field(20, validation_alias=_env("LLM_MAX_CONCURRENCY"))
+    # Paket 7 (L3): ungesetzt gilt die Vorgabe je Anbieter (``services/llm_parallel``):
+    # OpenAI 20 für den Chat, hinter der b-api ein gemeinsamer Deckel von 2.
+    llm_max_concurrency: int | None = Field(None, validation_alias=_env("LLM_MAX_CONCURRENCY"))
     llm_read_timeout: float = Field(75.0, validation_alias=_env("LLM_READ_TIMEOUT"))
+    # Paket 10 (Audit 2026-10-10, M-5): die eigene Frist der Klassifikation — sie
+    # blockiert jeden Muster-Zug. Gemessen (84 Dev-Züge, 2026-10-14): Median 2,9 s,
+    # p99 6,5 s, höchstens 7,4 s. Danach die Vorgabe-Klassifikation (``assess``).
+    classify_timeout_s: float = Field(20.0, validation_alias=_env("CLASSIFY_TIMEOUT_S"))
     bg_llm_max_concurrency: int = Field(4, validation_alias=_env("BG_LLM_MAX_CONCURRENCY"))
     # W12 (Nutzer-Vorgabe „Ziel ist hohe Geschwindigkeit"): medium -> low.
     # Die API-Referenz: „Lower values will result in more concise responses" —
@@ -118,10 +127,11 @@ class Settings(BaseSettings):
     # steht schon auf `low`.
     llm_verbosity: str = Field("low", validation_alias=_env("LLM_VERBOSITY"))
     llm_reasoning_effort: str = Field("low", validation_alias=_env("LLM_REASONING_EFFORT"))
-    # OpenAI-Tarif (``service_tier``), leer = Standard. ``fast`` gemessen
-    # 2026-10-01 mit gpt-6-luna: eine Antwort mit ~250 Token im Median 3,1 statt
-    # 4,3 s, zum 4- bis 5-fachen Preis; nicht mit EU-Datenresidenz. Wirkt nur bei
-    # ``LLM_PROVIDER=openai`` — über die b-api ungemessen (services/llm.py).
+    # OpenAI-Tarif (``service_tier``), leer = nicht gesetzt: dann entscheidet der
+    # Studio-Schalter Fast-Modus (Paket 7, S1, ``services/betriebsschalter``).
+    # ``fast`` gemessen 2026-10-01 mit gpt-6-luna: eine Antwort mit ~250 Token im
+    # Median 3,1 statt 4,3 s, zum 4- bis 5-fachen Preis; nicht mit EU-Datenresidenz.
+    # Wirkt nur bei ``LLM_PROVIDER=openai`` und der gpt-5/6-Familie (services/llm.py).
     llm_service_tier: str = Field("", validation_alias=_env("LLM_SERVICE_TIER"))
     openai_api_key: SecretStr = Field(SecretStr(""), validation_alias=_env("OPENAI_API_KEY"))
     openai_base_url: str = Field(
@@ -181,7 +191,6 @@ class Settings(BaseSettings):
     # Verbindung und Handshake. Vorher galten nur die SDK-Vorgaben (30 s
     # Verbindung, 300 s je Lesevorgang, keine Gesamtgrenze) plus ein Retry.
     mcp_call_timeout_s: float = Field(60.0, validation_alias=_env("MCP_CALL_TIMEOUT_S"))
-    mcp_max_connections: int = Field(50, validation_alias=_env("MCP_MAX_CONNECTIONS"))
     mcp_auth_token: SecretStr = Field(
         SecretStr(""),
         validation_alias=_env("MCP_AUTH_TOKEN"),
@@ -214,7 +223,17 @@ class Settings(BaseSettings):
     # Werte darunter: 10 Kandidaten (statt ALTs 25) und die Latenz-Verteilung
     # 1 Worker x 3 Threads. Gemessen kostet der RAG-Pfad damit ~703 ms statt
     # 3726 ms, das Karten-Gate ~90 ms.
-    rag_reranker_enabled: bool = Field(True, validation_alias=_env("RAG_RERANKER_ENABLED"))
+    # Nutzer-Entscheid 2026-10-15: Vorgabe wieder AUS. Das Modell liegt weder im Repo noch
+    # im Image; eingeschaltet bezieht das Backend es selbst (``RERANK_AUTO_DOWNLOAD``,
+    # ``services/rag/reranker_bezug``). Ohne Modell rechnet nichts damit.
+    rag_reranker_enabled: bool = Field(False, validation_alias=_env("RAG_RERANKER_ENABLED"))
+    rerank_auto_download: bool = Field(
+        True, validation_alias=_env("RERANK_AUTO_DOWNLOAD"),
+        description=(
+            "eingeschaltet und Modell fehlt => beim Start selbst beziehen (Hugging Face, "
+            "gepinnt); false fuer Server ohne Internet (dann Handinstallation)"
+        ),
+    )
     # W7: das CPU-Budget der In-Prozess-ONNX-Inferenz. Die beiden Knöpfe spannen
     # dasselbe Budget aus zwei Richtungen auf:
     #     Worker × Threads-je-Inferenz = beanspruchte Kerne.
@@ -284,6 +303,13 @@ class Settings(BaseSettings):
     max_ingest_mb: int = Field(
         25, validation_alias=_env("BOERDI_MAX_INGEST_MB"), description="0 = unlimited"
     )
+    # Paket 9 (Review Paket 7, MAJOR 6): die Umwandlung im Kindprozess
+    # (``services/rag/umwandeln_kind``) — Frist in Sekunden und Speichergrenze in MB
+    # (Linux ``RLIMIT_DATA``; 0 = aus).
+    rag_umwandlung_frist_s: float = Field(
+        120.0, gt=0, validation_alias=_env("RAG_UMWANDLUNG_FRIST_S"))
+    rag_umwandlung_max_mb: int = Field(
+        1024, ge=0, validation_alias=_env("RAG_UMWANDLUNG_MAX_MB"))
     # 2026-08-19: Vorgabe auf Staging gezogen (Nutzer: nur Staging). Zwei
     # Dinge dazu, damit niemand mehr davon erwartet, als der Wert leistet:
     # (1) In DIESEM Backend liest ihn nichts — die Textextraktion macht der
@@ -305,7 +331,10 @@ class Settings(BaseSettings):
     # ── Card pipeline ───────────────────────────────────────────────────
     card_pipeline_v2: bool = Field(False, validation_alias=_env("CARD_PIPELINE_V2"))
     card_ce_top_n: int = Field(3, validation_alias=_env("CARD_CE_TOP_N"))
-    card_ce_gate_collection: float = Field(0.0, validation_alias=_env("CARD_CE_GATE_COLLECTION"))
+    # Spiegel der Vorgabe in ``services/card_reranker.threshold_for_tool`` (liest die Umgebung
+    # selbst): dort seit 2026-08-16 −1.0. Stand hier bis 2026-10-15 noch auf 0.0 — irreführend.
+    card_ce_gate_collection: float = Field(
+        -1.0, validation_alias=_env("CARD_CE_GATE_COLLECTION"))
     card_ce_gate_content: float = Field(-1.5, validation_alias=_env("CARD_CE_GATE_CONTENT"))
     chat_disable_select_top_cards: bool = Field(
         False, validation_alias=_env("CHAT_DISABLE_SELECT_TOP_CARDS")
@@ -316,19 +345,19 @@ class Settings(BaseSettings):
     chat_inline_quick_replies: bool = Field(
         True, validation_alias=_env("CHAT_INLINE_QUICK_REPLIES")
     )
-    # Derselbe Weg im Agent-Modus — Vorgabe AUS: der Master-Skill beschreibt
-    # dort die alte Mechanik („ein zweiter Modellaufruf schreibt die Pillen").
-    # Erst einschalten, wenn sein Abschnitt „Schnellantworten" angepasst ist
-    # (Plan 2026-09-30, Agent-Teil). ``CHAT_INLINE_QUICK_REPLIES=0`` gilt auch hier.
-    agent_inline_quick_replies: bool = Field(
-        False, validation_alias=_env("AGENT_INLINE_QUICK_REPLIES")
+    # Derselbe Weg im Agent-Modus. Seit Paket 7 (S3) ein Studio-Schalter
+    # (``01-base/engine`` → ``betrieb.agent_schnellantworten``, Vorgabe aus);
+    # gesetzt geht die Umgebung vor, ungesetzt (``None``) entscheidet das Studio
+    # (``services/betriebsschalter``). ``CHAT_INLINE_QUICK_REPLIES=0`` gilt auch hier.
+    agent_inline_quick_replies: bool | None = Field(
+        None, validation_alias=_env("AGENT_INLINE_QUICK_REPLIES")
     )
-    # Token-Streaming der Antwort ins Widget (``text_delta``) — Vorgabe AUS bis
-    # zur Live-Probe (Plan ``docs/plans/2026-10-01-token-streaming.md``, E-S5).
+    # Token-Streaming der Antwort ins Widget (``text_delta``). Seit Paket 7 (S2)
+    # ein Studio-Schalter mit Vorgabe an; gesetzt geht die Umgebung vor.
     # Gestreamt wird nur der Text von ``respond_to_user``: der Muster-Weg braucht
-    # ``CHAT_INLINE_QUICK_REPLIES``, der Agent zusätzlich ``AGENT_INLINE_QUICK_REPLIES``.
-    chat_token_streaming: bool = Field(
-        False, validation_alias=_env("CHAT_TOKEN_STREAMING")
+    # ``CHAT_INLINE_QUICK_REPLIES``, der Agent zusätzlich die Agent-Schnellantworten.
+    chat_token_streaming: bool | None = Field(
+        None, validation_alias=_env("CHAT_TOKEN_STREAMING")
     )
 
     # ── Guide mode ──────────────────────────────────────────────────────
@@ -342,8 +371,10 @@ class Settings(BaseSettings):
     eval_chat_url: str = Field(
         "http://localhost:8000/api/chat", validation_alias=_env("EVAL_CHAT_URL")
     )
-    eval_simulator_model: str = Field("gpt-4o-mini", validation_alias=_env("EVAL_SIMULATOR_MODEL"))
-    eval_judge_model: str = Field("gpt-4o-mini", validation_alias=_env("EVAL_JUDGE_MODEL"))
+    # Paket 7 (L4, Nutzer 2026-10-09): leer heißt das Chat-Modell — Evaluationen
+    # laufen mit dem Modell, das für den Chat eingestellt ist.
+    eval_simulator_model: str = Field("", validation_alias=_env("EVAL_SIMULATOR_MODEL"))
+    eval_judge_model: str = Field("", validation_alias=_env("EVAL_JUDGE_MODEL"))
 
     # ── Studio (consumed by studio-bff, P9) ─────────────────────────────
     studio_password: SecretStr = Field(SecretStr(""), validation_alias=_env("STUDIO_PASSWORD"))
@@ -355,6 +386,14 @@ class Settings(BaseSettings):
         "studio_dist", validation_alias=_env("STUDIO_DIST_DIR"),
         description="built Angular studio; missing => /studio is not mounted",
     )
+    studio_csp: str = Field(
+        "enforce", validation_alias=_env("STUDIO_CSP"),
+        description="CSP on the studio page: enforce | report (Report-Only) | off",
+    )
+    hsts_max_age: int = Field(
+        86400, validation_alias=_env("HSTS_MAX_AGE"),
+        description="Strict-Transport-Security max-age in seconds on every response; 0 = off",
+    )
 
     # ── New in boerdi-chat (spec §5.4 "NEU") ────────────────────────────
     database_url: str = Field(
@@ -362,6 +401,11 @@ class Settings(BaseSettings):
         validation_alias=_env("DATABASE_URL"),
         description="dev default matches deploy/compose.dev.yml",
     )
+    # Paket 10 (Audit 2026-10-10, M-8): der Verbindungs-Pool je Replik. Ein Zug hält
+    # seine Sitzung über die LLM-Aufrufe hinweg; die Vorgaben sind die von
+    # SQLAlchemy (5 + 10) — ohne Eintrag ändert sich nichts.
+    db_pool_size: int = Field(5, ge=1, validation_alias=_env("DB_POOL_SIZE"))
+    db_max_overflow: int = Field(10, ge=0, validation_alias=_env("DB_MAX_OVERFLOW"))
     rate_limit_storage_uri: str = Field(
         "memory://", validation_alias=_env("RATE_LIMIT_STORAGE_URI"),
         description="slowapi storage; valkey://... in cluster (P10-6)",
@@ -419,15 +463,32 @@ class Settings(BaseSettings):
         v = v.strip().lower()
         return v if v in _SERVICE_TIERS else ""
 
+    @field_validator("studio_csp")
+    @classmethod
+    def _coerce_studio_csp(cls, v: str) -> str:
+        v = v.strip().lower()
+        return v if v in _STUDIO_CSP else "enforce"
+
+    @field_validator("hsts_max_age")
+    @classmethod
+    def _floor_hsts(cls, v: int) -> int:
+        return max(0, v)
+
     @field_validator("llm_max_concurrency")
     @classmethod
-    def _floor_llm_conc(cls, v: int) -> int:
-        return max(2, v)
+    def _floor_llm_conc(cls, v: int | None) -> int | None:
+        return None if v is None else max(2, v)
 
     @field_validator("llm_read_timeout")
     @classmethod
     def _floor_timeout(cls, v: float) -> float:
         return max(15.0, v)
+
+    @field_validator("classify_timeout_s")
+    @classmethod
+    def _floor_classify_timeout(cls, v: float) -> float:
+        # 0 hieße: jeder Zug ohne Klassifikation.
+        return max(1.0, v)
 
     @field_validator("mcp_call_timeout_s")
     @classmethod
@@ -439,11 +500,6 @@ class Settings(BaseSettings):
     @classmethod
     def _floor_bg(cls, v: int) -> int:
         return max(1, v)
-
-    @field_validator("mcp_max_connections")
-    @classmethod
-    def _floor_mcp(cls, v: int) -> int:
-        return max(5, v)
 
     @field_validator(
         "mcp_server_url", "openai_base_url", "b_api_base_url", "repo_base_url",

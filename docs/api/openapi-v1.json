@@ -379,6 +379,7 @@
             "type": "string"
           },
           "session_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
             "title": "Session Id",
             "type": "string"
           }
@@ -392,6 +393,11 @@
       },
       "ChatResponse": {
         "properties": {
+          "auth_invalid": {
+            "default": false,
+            "title": "Auth Invalid",
+            "type": "boolean"
+          },
           "cards": {
             "items": {
               "$ref": "#/components/schemas/WloCard"
@@ -930,6 +936,41 @@
           }
         },
         "title": "DebugInfo",
+        "type": "object"
+      },
+      "DocumentCreate": {
+        "description": "Ein neues Dokument — leer oder als Kopie von ``source`` (demselben Ordner).",
+        "properties": {
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "group",
+          "id",
+          "label"
+        ],
+        "title": "DocumentCreate",
         "type": "object"
       },
       "EntitiesPayload": {
@@ -2036,6 +2077,40 @@
         "title": "TraceEntry",
         "type": "object"
       },
+      "Umschalten": {
+        "properties": {
+          "area": {
+            "title": "Area",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
+          },
+          "ziel": {
+            "enum": [
+              "werk",
+              "eigen",
+              "geprueft"
+            ],
+            "title": "Ziel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "area",
+          "ziel"
+        ],
+        "title": "Umschalten",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -2623,7 +2698,7 @@
     },
     "/api/chat": {
       "post": {
-        "description": "Run one chat turn through the LangGraph pipeline.\n\nSerialised per ``session_id`` via an ``asyncio.Lock`` so two concurrent\nrequests from the same session never read/write ``session_state`` in parallel;\ndifferent sessions still run fully in parallel. The compiled graph yields a\nstate dict — ``early_response`` (tour/preflight/fast-path early exit) wins over\n``response`` (normal path). Any unhandled error becomes a graceful bubble\ninstead of an HTTP 500 so the widget shows something actionable.",
+        "description": "Run one chat turn through the LangGraph pipeline.\n\nSerialised per ``session_id`` across all replicas (Paket 7, P1:\n``sitzung_sperren``) so two turns of one session never read/write\n``session_state`` in parallel; a second one waits briefly, then gets 409.\nDifferent sessions still run fully in parallel. The compiled graph yields a\nstate dict — ``early_response`` (tour/preflight/fast-path early exit) wins over\n``response`` (normal path). Any unhandled error becomes a graceful bubble\ninstead of an HTTP 500 so the widget shows something actionable.",
         "operationId": "chat_api_chat_post",
         "requestBody": {
           "content": {
@@ -3012,6 +3087,55 @@
         ]
       }
     },
+    "/api/config/documents": {
+      "post": {
+        "description": "Ein Muster oder eine Persona anlegen — leer oder als Kopie (ST-3d).\n\nDie Kopie übernimmt das ganze Dokument der Vorlage und setzt nur Kennung und\nName neu. Angelegt wird bedingt (409, wenn es den Schlüssel schon gibt), mit\ndenselben Prüfungen wie ein Speichern.",
+        "operationId": "create_document_api_config_documents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Document Api Config Documents Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Create Document",
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/api/config/effects": {
       "get": {
         "description": "Je Bereich die Wirkung in Muster-Maschine und Agent-Schleife, dazu die Vorgabe-Maschine.",
@@ -3199,6 +3323,22 @@
     "/api/config/factory/restore": {
       "post": {
         "operationId": "restore_factory_api_config_factory_restore_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "merge",
+              "enum": [
+                "merge",
+                "exact"
+              ],
+              "title": "Mode",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -3211,6 +3351,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -3300,8 +3450,162 @@
         ]
       }
     },
+    "/api/config/fassungen": {
+      "get": {
+        "operationId": "liste_api_config_fassungen_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Liste Api Config Fassungen Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Liste",
+        "tags": [
+          "config-fassungen"
+        ]
+      }
+    },
+    "/api/config/fassungen/umschalten": {
+      "post": {
+        "operationId": "umschalten_api_config_fassungen_umschalten_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Umschalten"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Umschalten Api Config Fassungen Umschalten Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Umschalten",
+        "tags": [
+          "config-fassungen"
+        ]
+      }
+    },
+    "/api/config/fassungen/vergleich": {
+      "get": {
+        "operationId": "vergleich_api_config_fassungen_vergleich_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "area",
+            "required": true,
+            "schema": {
+              "title": "Area",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Vergleich Api Config Fassungen Vergleich Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Vergleich",
+        "tags": [
+          "config-fassungen"
+        ]
+      }
+    },
+    "/api/config/fassungen/werksabgleich": {
+      "post": {
+        "operationId": "werksabgleich_api_config_fassungen_werksabgleich_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Werksabgleich Api Config Fassungen Werksabgleich Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Werksabgleich",
+        "tags": [
+          "config-fassungen"
+        ]
+      }
+    },
     "/api/config/file": {
       "delete": {
+        "description": "Ein Muster, eine Persona oder einen Bereich ohne Modell löschen (Paket 6, S1).\n\nEin fester Bereich der Registry (``01-base/policy`` …) bleibt: ohne ihn fiele\nder Lader still auf Vorgaben zurück — zurücksetzen geht über „Werksfassung\nverwenden“ (Sicherung → „Werk und eigene Fassung“, Paket 12). Ein Bereich\nohne Modell (etwa ein Tippfehler aus dem Rohtext) bleibt löschbar.\n\nEin gelöschtes Dokument aus der Werksfassung bleibt gelöscht: der Löschvermerk\n(``config_werk_entfernt``, Paket 12) hält den Werksabgleich beim nächsten Start\ndavon ab, es wieder anzulegen. Zurück holt es „Werksfassung verwenden“ unter\nSicherung → „Werk und eigene Fassung“; das Studio sagt das in der Rückfrage.\nDie Muster, die Krise und Bedrohung erzwingen (M01, M02,\n``crisis_pattern``/``threat_pattern``), bleiben stehen (400). Mit\n``expected_version`` wird nur dieser Stand gelöscht — sonst 409 wie beim\nbedingten Speichern (Review Paket 6).",
         "operationId": "delete_config_file_api_config_file_delete",
         "parameters": [
           {
@@ -3311,6 +3615,22 @@
             "schema": {
               "title": "Path",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Version"
             }
           }
         ],
@@ -3924,6 +4244,22 @@
     "/api/config/restore": {
       "post": {
         "operationId": "restore_backup_api_config_restore_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "merge",
+              "enum": [
+                "merge",
+                "exact"
+              ],
+              "title": "Mode",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -4050,7 +4386,7 @@
     },
     "/api/config/seed/apply": {
       "post": {
-        "description": "``missing`` zieht Fehlendes nach; ``exact`` stellt den Stand her.\n\n``exact`` überschreibt gepflegte Bereiche und löscht, was nur in der\nDatenbank steht — deshalb **zuerst** der Schnappschuss. Ist kein Platz mehr\nfür ihn, wird der Lauf verweigert statt ohne Rückweg ausgeführt.",
+        "description": "``missing`` zieht Fehlendes nach; ``exact`` stellt den Stand her.\n\n``exact`` überschreibt gepflegte Bereiche und löscht, was nur in der\nDatenbank steht — deshalb vorher der Schnappschuss. Ist kein Platz mehr für\nihn, wird der Lauf verweigert statt ohne Rückweg ausgeführt. Der Ablauf\nsteht in ``seed_sync.herstellen`` (Paket 6, W2), geteilt mit ``boerdi\nimport-config --exact``: erst prüfen wie ein Wiederherstellen (422 mit\nallen Einwänden, nichts geschrieben, kein Schnappschuss), dann Schnappschuss\nund Vergleich aus EINEM Lesevorgang, dann alles in einer Transaktion.",
         "operationId": "seed_apply_api_config_seed_apply_post",
         "requestBody": {
           "content": {
@@ -4278,6 +4614,20 @@
             "required": true,
             "schema": {
               "title": "Snap Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "merge",
+              "enum": [
+                "merge",
+                "exact"
+              ],
+              "title": "Mode",
               "type": "string"
             }
           }
@@ -7143,6 +7493,62 @@
           }
         ],
         "summary": "Purge Sessions",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/retention": {
+      "get": {
+        "description": "Retention per log: period in days (0 = unlimited), entries due now, oldest entry.",
+        "operationId": "retention_overview_api_sessions_retention_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retention Overview Api Sessions Retention Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Retention Overview",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "post": {
+        "description": "Delete the entries due now — the same run the backend makes every 6 hours.",
+        "operationId": "retention_run_api_sessions_retention_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retention Run Api Sessions Retention Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Retention Run",
         "tags": [
           "sessions"
         ]

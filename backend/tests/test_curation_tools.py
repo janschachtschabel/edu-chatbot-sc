@@ -48,10 +48,13 @@ def _beispielwert(feld: str):
     return f"probe-{feld}"
 
 
-def _auswahl(monkeypatch, *, dienst: bool, pattern_output: dict) -> set[str]:
+def _auswahl(monkeypatch, *, schreibrecht: bool, pattern_output: dict) -> set[str]:
+    """Das Werkzeug-Tor der Musterwahl. Seit Paket 7 (S4) heißt es
+    ``schreiben_erlaubt``: persönliche Anmeldung, oder der Block der Anlage mit
+    der Studio-Erlaubnis für das Gastkonto (``test_schreibrecht``)."""
     from boerdi.services import response_tool_selection
 
-    monkeypatch.setattr(response_tool_selection, "has_auth_token", lambda: dienst)
+    monkeypatch.setattr(response_tool_selection, "schreiben_erlaubt", lambda: schreibrecht)
     aktiv, *_ = _select_active_tools(
         classification={}, pattern_output=pattern_output,
         available_rag_areas=None, rag_config=None,
@@ -255,31 +258,31 @@ class TestKeinZwischenspeicherFuerAenderungen:
 
 
 class TestBetriebsartGate:
-    def test_dienst_betriebsart_liefert_das_genannte_werkzeug(self, monkeypatch):
-        namen = _auswahl(monkeypatch, dienst=True,
+    def test_mit_schreibrecht_kommt_das_genannte_werkzeug(self, monkeypatch):
+        namen = _auswahl(monkeypatch, schreibrecht=True,
                          pattern_output={"tools": ["wlo_create_collection"]})
         assert "wlo_create_collection" in namen
 
-    def test_ohne_zugangsblock_kein_schreibwerkzeug(self, monkeypatch):
+    def test_ohne_schreibrecht_kein_schreibwerkzeug(self, monkeypatch):
         # Anonym verweigert der Server ohnehin. Es GAR NICHT anzubieten ist
         # trotzdem richtig: sonst kündigt der Bot eine Fähigkeit an, die der
         # nächste Schritt zurücknimmt.
-        namen = _auswahl(monkeypatch, dienst=False,
+        namen = _auswahl(monkeypatch, schreibrecht=False,
                          pattern_output={"tools": ["wlo_create_collection"]})
         assert "wlo_create_collection" not in namen
 
     def test_alle_werkzeuge_heisst_nicht_die_schreibenden(self, monkeypatch):
         # ``sources: [mcp]`` ohne ``tools`` reicht den GANZEN Lesekatalog
         # weiter. Kuratieren muss ein Muster ausdrücklich nennen.
-        namen = _auswahl(monkeypatch, dienst=True,
+        namen = _auswahl(monkeypatch, schreibrecht=True,
                          pattern_output={"sources": ["mcp"]})
         assert namen & set(CURATION_TOOLS) == set()
         assert "search_wlo_content" in namen, "Der Lesekatalog muss unberührt bleiben"
 
-    def test_lesekatalog_unveraendert_ohne_zugangsblock(self, monkeypatch):
+    def test_lesekatalog_unveraendert_ohne_schreibrecht(self, monkeypatch):
         # Regression: das Gate darf die Bestandsauswahl nicht anfassen.
-        mit = _auswahl(monkeypatch, dienst=True, pattern_output={"sources": ["mcp"]})
-        ohne = _auswahl(monkeypatch, dienst=False, pattern_output={"sources": ["mcp"]})
+        mit = _auswahl(monkeypatch, schreibrecht=True, pattern_output={"sources": ["mcp"]})
+        ohne = _auswahl(monkeypatch, schreibrecht=False, pattern_output={"sources": ["mcp"]})
         assert mit == ohne
 
 

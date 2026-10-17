@@ -71,36 +71,42 @@ from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import cancel_and_drain
-from boerdi.services import llm, master_skill, page_context
+from boerdi.services import (
+    betriebsschalter,
+    master_skill,
+    page_context,
+    seitenkontext_prompt,
+)
+from boerdi.services.agent_abschluss import abschluss_nachholen, antwort_oder_ersatz
 from boerdi.services.agent_deckel import fuer_diesen_zug
 from boerdi.services.agent_knowledge import WISSENS_REGEL, wissen_werkzeug
 from boerdi.services.agent_knowledge import antwort as wissen_antwort
 from boerdi.services.agent_kopf import kopf
-from boerdi.services.agent_loop import AgentRun, run_agent_loop
-from boerdi.services.agent_prefetch import resolve_prefetch
-from boerdi.services.agent_tools import build_agent_tools
+from boerdi.services.agent_loop import run_agent_loop
+from boerdi.services.agent_prefetch import resolve_prefetch, vorab_aufrufe
+from boerdi.services.agent_tools import angebotene_mcp_werkzeuge, build_agent_tools
 from boerdi.services.agent_trace import spur
 from boerdi.services.agent_write import enforce_write_mode
 from boerdi.services.agent_zugblock import zuletzt_gezeigt
 from boerdi.services.card_collect import collect_cards, juengste_zuerst
 from boerdi.services.config_loader import load_engine
-from boerdi.services.mcp.auth import has_personal_auth
 from boerdi.services.quick_replies_llm import _max_chars
+from boerdi.services.schreibrecht import schreiben_erlaubt
 from boerdi.services.write_approval import merke_abnahme
-from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
 
 def _antwort_werkzeug(ctx: TurnContext) -> dict[str, Any] | None:
-    """``respond_to_user`` für den Agenten — nur mit ``AGENT_INLINE_QUICK_REPLIES``.
+    """``respond_to_user`` für den Agenten — nur mit den Agent-Schnellantworten
+    (Studio ``betrieb.agent_schnellantworten`` oder ``AGENT_INLINE_QUICK_REPLIES``).
 
     Vorgabe aus: der Master-Skill beschreibt die alte Mechanik („ein zweiter
     Modellaufruf schreibt die Pillen"), und Werkzeug und Anleitung dürfen sich
     nicht widersprechen. ``inline_anzahl`` trägt den globalen Schalter und die
     Anzahl — dieselbe wie im Muster-Weg (Plan 2026-09-30).
     """
-    if not get_settings().agent_inline_quick_replies:
+    if not betriebsschalter.agent_schnellantworten():
         return None
     anzahl = inline_anzahl(ctx.pattern_output or {})
     return antwort_werkzeug(anzahl, _max_chars()) if anzahl else None
@@ -149,101 +155,6 @@ async def _verwirf_vorabruf(ctx: TurnContext) -> None:
         logger.info("Agent-Modus: %d spekulative Vorabrufe verworfen", verworfen)
 
 
-def _vorab_aufrufe(seite: dict) -> list[tuple[str, dict]]:
-    """Was der Seitenkontext an Vorabrufen bestellt (P4).
-
-    Nur ``collection_id``: es ist das einzige Feld, aus dem ein
-    ``collectionId``-Argument wird. Steht keine Sammlung auf der Seite, gäbe es
-    nichts zu übergeben — der Aufruf wäre eine Rundreise ohne Ertrag.
-    Themenseiten sind im Bestand Sammlungen und tragen das Feld mit; sie sind
-    damit ohne eigene Regel abgedeckt.
-
-    Absichtlich NICHT ``node_ids``: was auf der Seite steht, sagt schon der
-    Seitenblock, und ein Detail-Abruf je Zug kostet mehr, als er trägt.
-    """
-    sammlung = (seite.get("collection_id") or "").strip()
-    if not sammlung:
-        return []
-    return [("get_skill_registry", {"collectionId": sammlung})]
-
-
-#: Enden, bei denen der Lauf an einen Deckel gestoßen ist statt zu scheitern —
-#: der Nutzer kann selbst etwas tun (kleiner schneiden). Alles andere ist ein
-#: Fehlschlag und bekommt den Wiederhol-Satz.
-_GEDECKELT = frozenset({"deadline", "token_budget", "max_iterations", "no_progress"})
-
-
-def _antwort_oder_ersatz(lauf: AgentRun, sprache: str) -> str:
-    """Der Antworttext — oder ein ehrlicher Satz, wenn es keinen gibt.
-
-    ``AgentRun.text`` ist nur bei ``text`` und ``submit`` gefüllt; die fünf
-    übrigen Enden liefern ihn LEER. Ohne diesen Ersatz bekäme der Nutzer eine
-    leere Blase, und ein stiller Ausfall ist der schlechtere von beiden. Der
-    Bestandsweg degradiert an derselben Stelle freundlich.
-
-    Geprüft wird der TEXT und nicht der Grund: auch ``stop_reason='text'`` kann
-    leer sein, wenn das Modell mit leerem Inhalt antwortet.
-    """
-    if lauf.text.strip():
-        return lauf.text
-    if lauf.dokumente or lauf.result is not None:
-        # Ein Lauf, der ein Ergebnis GELIEFERT hat, ist nicht gescheitert — ihm
-        # fehlt nur der Begleitsatz. Der Deckel-Satz („zu umfangreich, stell sie
-        # kleiner geschnitten noch einmal") stünde direkt über einer
-        # vollständigen Stundenplanung und würde von ihr widerlegt.
-        #
-        # ``lauf.result`` zählt seit J1 mit: seit ``liefere_ergebnis`` den Lauf
-        # nicht mehr beendet, kann ein Zug das Ergebnis abliefern und DANACH an
-        # der Frist enden. Ohne diese Zeile bekäme der Gastgeber ein tadelloses
-        # JSON und die Person daneben die Auskunft, es sei nichts geworden.
-        logger.info("Agent-Modus: Lieferung ohne Begleitsatz (%d Box(en), "
-                    "Ergebnis=%s, Ende=%s)",
-                    len(lauf.dokumente), lauf.result is not None, lauf.stop_reason)
-        return bot_text(sprache, "agent.delivered")
-    schluessel = "agent.incomplete" if lauf.stop_reason in _GEDECKELT else "agent.failed"
-    logger.info("Agent-Modus: Lauf ohne Text (Ende=%s) — Ersatzsatz %s",
-                lauf.stop_reason, schluessel)
-    return bot_text(sprache, schluessel)
-
-
-_ABSCHLUSS_BITTE = (
-    "Schreibe jetzt deine Antwort fuer die Person im Chat — ohne weitere "
-    "Werkzeug-Aufrufe. Sie hat weder dein Ergebnis noch deine Zwischenschritte "
-    "gesehen: sag ihr vollstaendig, was du herausgefunden hast."
-)
-
-
-async def _abschluss_nachholen(
-    lauf: AgentRun, messages: list[dict], usage_acc: dict | None,
-) -> str:
-    """EIN Abschluss-Aufruf, wenn ein Deckel die Antwort verschluckt hat.
-
-    Seit J1 ist die Prosa ein eigener Zug — und damit deckelbar. Live gemessen
-    am selben Tag (Hybrid, Sammlung „Optik"): das Ergebnis kam vollstaendig, der
-    Lauf riss danach das Token-Budget, und im Chat standen 22 Zeichen. Vorher
-    konnte das nicht passieren, weil ``submit_result`` den Text mittrug.
-
-    Die Deckel sind gegen weglaufende **Arbeit** gebaut, nicht gegen die
-    Antwort. Genau diese Unterscheidung trifft der Bestandsweg seit P16
-    (``tool_loop_fallback``), und dies ist dieselbe Naht: ein Aufruf, keine
-    Werkzeuge, eigene Phase in der Kostenschau — ihr Auftauchen meldet den
-    gerissenen Deckel und soll in der normalen Antwort nicht untergehen.
-
-    Scheitert er, gibt es ``""`` zurueck: dann greift der ehrliche Ersatzsatz.
-    """
-    try:
-        antwort = await llm.chat_completion(
-            messages=[*messages, {"role": "user", "content": _ABSCHLUSS_BITTE}],
-            temperature=0.4, usage_acc=usage_acc, phase="fallback_summary")
-        text = (antwort.choices[0].message.content or "").strip()
-    except Exception as e:                       # pragma: no cover - Transportfehler
-        logger.warning("Agent-Modus: Abschluss-Aufruf fehlgeschlagen — %s", e)
-        return ""
-    logger.info("Agent-Modus: Antwort nach Deckel %s nachgeholt (%d Zeichen)",
-                lauf.stop_reason, len(text))
-    return text
-
-
 async def respond_agent(
     ctx: TurnContext, progress: TurnProgress = NO_PROGRESS, session: Any = None,
     on_token: Any = None,
@@ -272,12 +183,12 @@ async def respond_agent(
         {"role": "system", "content": kopf(einstellung.agent_rolle, sprache)},
     ]
     # N3: die redaktionelle Gesamtanleitung — GROSS und zwischen zwei Zuegen
-    # unveraendert, deshalb so weit vorn wie moeglich: Anbieter mit
-    # Praefix-Caching berechnen sie dann nur einmal. Eine Abweichung von
-    # „ganz am Anfang" ist gewollt: der eigene Rollen-Block bleibt davor. Er
-    # ist ebenso stabil, kostet also keinen Cache-Treffer, und die eigenen
-    # Regeln gehoeren vor fremden Text. Alles Wechselnde (Seite, Rahmen,
-    # Verlauf) folgt dahinter — sonst zerfiele das Praefix.
+    # unveraendert, deshalb im Systemteil; der eigene Rollen-Block bleibt davor,
+    # denn eigene Regeln gehoeren vor fremden Text. Gemessen 2026-09-29
+    # (gpt-6-luna, Responses-Weg): OpenAI trifft den Cache nur am Ende des GANZEN
+    # Systemteils samt Werkzeugen, nicht an einem Block darin — wechselt einer,
+    # ist der ganze Prompt ungecacht. Deshalb steht im Systemteil nur, was nicht
+    # von Seite, Verlauf oder Nachricht abhaengt (Plan 2026-09-29, Paket B).
     anleitung = await master_skill.prompt_block(ctx.req.environment.master_skill)
     if anleitung:
         messages.append({"role": "system", "content": anleitung})
@@ -299,9 +210,11 @@ async def respond_agent(
     # P4: der Seitenkontext. Der Bestandsweg reicht ihn über
     # ``response_prompt_builder`` ein; hier wurde die Kette selbst gebaut und er
     # fiel weg — der Agent fragte nach einer ID, die vor ihm stand (B-2).
-    seiten_block = page_context.prompt_block(ctx.session_state, seite)
-    if seiten_block:
-        messages.append({"role": "system", "content": seiten_block})
+    # Seit Paket B in zwei Teilen (``services/seitenkontext_prompt``): hier die
+    # festen Regeln, für jede Seite gleich; die Daten gerahmt vor dem Verlauf.
+    seiten_daten = seitenkontext_prompt.seiten_daten(ctx.session_state, seite)
+    if seiten_daten:
+        messages.append({"role": "system", "content": seitenkontext_prompt.SEITEN_REGELN})
     # G1: der Auftrag der einbettenden Anwendung — WÖRTLICH derselbe Block wie im
     # Bestandsweg (``domain/host_instruction``). Er steht hinter dem Seitenblock
     # und vor den Anleitungen: die Anwendung rahmt den Zug, die Anleitung sagt,
@@ -326,9 +239,27 @@ async def respond_agent(
     if _im_prompt < _roh:
         logger.info("Verlauf gedeckelt: %d von %d Nachrichten, %d von %d Zeichen",
                     len(_fenster), len(ctx.history[-_HISTORY_TURNS:]), _im_prompt, _roh)
+    # Paket B: die Seitendaten als erste Nachricht nach dem Systemteil — gemessen
+    # bleibt der Block dort im Folgezug gecacht, vor der aktuellen Nachricht nicht.
+    if seiten_daten:
+        messages.append({"role": "user", "content": seiten_daten})
+    # Anleitungen vor Gegenstand — dieselbe Reihenfolge wie im Agent-Endpunkt. E-C
+    # (gemessen 2026-10-09, gpt-6-luna): direkt hinter den Seitendaten, VOR dem
+    # Verlauf. Hinter dem Verlauf lag der Vorabruf im ersten Zug vor der Frage und
+    # danach hinter dem Verlauf — die Ketten trennten sich nach den Seitendaten,
+    # und jeder Folgezug auf einer Sammlungsseite zahlte Seitendaten und Katalog
+    # ungecacht (≈ 2 900 Token). So verlängert jeder Zug den vorigen — solange keine
+    # Antwort im Verlauf über 1 200 Zeichen hat: ``verlaufs_fenster`` kürzt sie, sobald
+    # sie nicht mehr die jüngste ist, und ab ihr trennen sich die Ketten (Review B-3,
+    # gemessen mit 3 300 Zeichen: ab Zug 3 je Zug ≈ 300 Token mehr ungecacht).
+    # Paket 7 (S4, P5-9): schreiben nur mit persönlicher Anmeldung — oder mit dem
+    # Block der Anlage, wenn das Studio das Gastkonto erlaubt (``schreibrecht``).
+    _darf_schreiben = schreiben_erlaubt()
+    _angebot = angebotene_mcp_werkzeuge(
+        allow_curation=_darf_schreiben, blocked_tools=ctx.safety.blocked_tools,
+        tool_mode=ctx.req.environment.tool_mode)
+    await resolve_prefetch(messages, vorab_aufrufe(seite, _angebot), progress=progress)
     messages.extend(_fenster)
-    # Anleitungen vor Gegenstand — dieselbe Reihenfolge wie im Agent-Endpunkt.
-    await resolve_prefetch(messages, _vorab_aufrufe(seite), progress=progress)
     # Paket C: was die Person zuletzt gesehen hat, damit „der erste Treffer“ oder
     # „die Lösungen dazu“ einen Gegenstand haben — gerahmt am ANFANG ihrer
     # Nachricht, nicht als System-Block: den hebt LiteLLM auf dem Responses-Weg in
@@ -380,6 +311,7 @@ async def respond_agent(
     lauf = await run_agent_loop(
         messages=messages,
         tools=build_agent_tools(
+            allow_curation=_darf_schreiben,
             blocked_tools=ctx.safety.blocked_tools,
             # ``submit_result`` gehört seit J1 dem Agent-Endpunkt: es beendet
             # den Lauf, und im Chat kostete genau das die Prosa-Antwort.
@@ -401,12 +333,12 @@ async def respond_agent(
         wissen=_wissen if _wissen_tool else None,
         # Paket 2: eine nicht eingelöste Schreib-Vorschau nimmt die Person im
         # nächsten Zug an — Box und Merkposten wie im Muster-Weg. Nur mit
-        # angemeldeter Person (Nutzer-Entscheid 2026-08-12): sonst liefe das
+        # Schreibrecht (Nutzer-Entscheid 2026-08-12, Paket 7 S4): sonst liefe das
         # „ja“ unter dem Dienstkonto der Anlage (Audit 2026-09-29, B-H3).
         on_offene_abnahme=(
             (lambda merkposten, vorschau: merke_abnahme(
                 ctx.session_state, merkposten, vorschau))
-            if has_personal_auth() else None),
+            if _darf_schreiben else None),
         on_token=_strom,
         start=beginn,
     )
@@ -435,7 +367,7 @@ async def respond_agent(
     # erzählen, und der ehrliche Ersatzsatz ist billiger und richtiger als ein
     # weiterer Zug.
     if not lauf.text.strip() and (lauf.result is not None or lauf.dokumente):
-        lauf.text = await _abschluss_nachholen(lauf, messages, ctx.usage)
+        lauf.text = await abschluss_nachholen(lauf, messages, ctx.usage)
 
     # Triple-Schema T-25/27 wie im Bestandsweg: die Qualitätslogs lesen beides
     # in beiden Maschinen, sonst misst der A/B-Vergleich eine selbstgebaute Lücke.
@@ -453,7 +385,7 @@ async def respond_agent(
         # Ansagen übereinander, zwei davon Modell-Ausgabe in zwei Formaten.
         mit_ladehinweisen(
             append_answer_notes(
-                _antwort_oder_ersatz(lauf, sprache),
+                antwort_oder_ersatz(lauf, sprache),
                 policy=ctx.policy, safety=ctx.safety),
             lauf.anleitungen,
         ),

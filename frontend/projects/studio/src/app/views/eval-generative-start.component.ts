@@ -149,13 +149,24 @@ export class EvalGenerativeStartComponent {
     });
   });
 
+  /** Ein Betrag liegt vor — nur dann erklärt der Hinweis darunter, wie er
+   *  entstand (Paket 9; ohne Preis widerspräche er „Keine Kostenschätzung“). */
+  readonly priced = computed(() => priceBand(this.estimate()) !== null);
+
+  /** Paket 7 (K7): in der Währung der Preistafel. Ohne gepflegten Preis keine
+   *  Zahl, sondern der Name des Modells — ein geratener Betrag sähe aus wie eine
+   *  Rechnung. Die Modellnamen werden nach dem Teilen eingesetzt (C1-d4b2). */
   readonly bandParts = computed<readonly RichSegment[]>(() => {
     const cost = this.estimate();
     if (!cost) return [];
+    const band = priceBand(cost);
+    if (!band) {
+      return this.rich('evalStart.gen.noPrice', { models: cost.price_missing.join(', ') });
+    }
     return this.rich('evalStart.gen.band', {
-      min: this.fmt.usd(cost.est_usd_min),
-      max: this.fmt.usd(cost.est_usd_max),
-      expected: this.fmt.usd(cost.est_usd),
+      min: this.fmt.money(band.min, band.currency),
+      max: this.fmt.money(band.max, band.currency),
+      expected: this.fmt.money(band.est, band.currency),
     });
   });
 
@@ -260,4 +271,12 @@ export class EvalGenerativeStartComponent {
       turns_per_conv: this.turnsPerConv(),
     };
   }
+}
+
+/** Die bepreiste Spanne einer Schätzung, oder `null`, wenn kein Preis gepflegt ist. */
+function priceBand(cost: EvalEstimate | null) {
+  if (!cost?.currency || cost.est === null || cost.est_min === null || cost.est_max === null) {
+    return null;
+  }
+  return { currency: cost.currency, est: cost.est, min: cost.est_min, max: cost.est_max };
 }

@@ -36,6 +36,17 @@ def test_parse_ignores_non_config_and_directories() -> None:
     assert set(parsed) == {"01-base/welcome-config"}
 
 
+def test_parse_liest_ein_dokument_mit_bom() -> None:
+    """Review Paket 9 (MAJOR 5): ein vorangestelltes BOM ließ das Frontmatter
+    verschwinden — „---“ stand nicht mehr am Anfang, M01 kam ohne Kennung zurück."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("config/03-patterns/m01.md",
+                   (chr(0xFEFF) + "---\nid: M01\nlabel: Krise\n---\nText\n").encode("utf-8"))
+    parsed = snapshots.parse_config_zip(buf.getvalue())
+    assert parsed["03-patterns/m01"]["frontmatter"]["id"] == "M01"
+
+
 def test_upload_size_cap_rejects_oversize(monkeypatch) -> None:
     monkeypatch.setattr(snapshots, "MAX_CONFIG_UPLOAD_BYTES", 10)
     with pytest.raises(snapshots.SnapshotTooLarge):
@@ -64,3 +75,31 @@ def test_copy_zip_member_capped_streams_within_budget() -> None:
 def test_copy_zip_member_capped_raises_over_budget() -> None:
     with pytest.raises(snapshots.SnapshotTooLarge):
         snapshots._copy_zip_member_capped(io.BytesIO(b"abcdef"), io.BytesIO(), [3], chunk=2)
+
+
+# ── Paket 9 (V5): eine Sicherung ohne Aliasse und in UTF-8 ──────────────────
+
+def _zip(**dateien: bytes) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for pfad, inhalt in dateien.items():
+            z.writestr(f"config/{pfad}", inhalt)
+    return buf.getvalue()
+
+
+_LACHEN = (b"a: &a [x, x, x, x, x, x, x, x, x]\n"
+           b"b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a]\n"
+           b"c: [*b, *b, *b, *b, *b, *b, *b, *b, *b]\n")
+
+
+@pytest.mark.parametrize("dateien", [
+    {"01-base/x.yaml": _LACHEN},
+    {"03-patterns/m42.md": b"---\nid: &i M42\nlabel: *i\n---\nText"},
+    {"01-base/x.yaml": b"welcome: \xff\xfe kaputt\n"},
+    {"01-base/x.yaml": b"welcome: [unbalanciert\n"},
+], ids=["alias-yaml", "alias-frontmatter", "kein-utf8", "kaputtes-yaml"])
+def test_eine_ungueltige_sicherung_wird_abgewiesen(dateien) -> None:
+    """Aliasse vervielfachen sich beim Weiterverarbeiten (der Lader teilt Objekte, das
+    Normalisieren und Speichern kopiert sie); ungültiges UTF-8 endete in HTTP 500."""
+    with pytest.raises(snapshots.SicherungUngueltig):
+        snapshots.parse_config_zip(_zip(**dateien))

@@ -68,12 +68,12 @@ export const REFERENCE_CATALOGS: CataloguePart = {
      *  — der Vergleich läuft weiter gegen den Konfigurationswert. */
     'rc.cat.didaktisch': 'didaktisch',
     'rc.cat.analytisch': 'analytisch',
-    /** Die beiden Beispiele bleiben deutsch, auch im englischen Satz: es SIND
-     *  die deutschen Auslöser aus der Konfiguration, keine Übersetzung. */
+    /** Das Beispiel bleibt deutsch, auch im englischen Satz: es IST ein
+     *  deutscher Alias aus der Konfiguration, keine Übersetzung. Bis Paket 7
+     *  nannte der Satz `create-triggers.yaml` als Ort der Aliase — falsch, und
+     *  die Auslöser-Bereiche sind seitdem gestrichen (K4). */
     'rc.mat.aliases':
-      'Aliase („Lernblatt" → `arbeitsblatt`) stehen in '
-      + '`05-canvas/create-triggers.yaml`, Bearbeitungs-Auslöser („mach es '
-      + 'kürzer") in `05-canvas/edit-triggers.yaml`.',
+      'Aliase („Lernblatt" → `arbeitsblatt`) stehen in `05-canvas/type-aliases.yaml`.',
   },
 
   en: {
@@ -116,15 +116,9 @@ export const REFERENCE_CATALOGS: CataloguePart = {
     'rc.mat.col.label': 'Label',
     'rc.cat.didaktisch': 'didactic',
     'rc.cat.analytisch': 'analytic',
-    /** Die beiden Beispiele sind deutsche Auslöser aus der Konfiguration und
-     *  bleiben es auch hier — übersetzt wären sie schlicht falsch. Der
-     *  englische Satz zitiert `knapper` statt `mach es kürzer`: beides steht
-     *  wörtlich in `edit-triggers.yaml`, aber der Umlaut-Wächter dieses
-     *  Katalogs kennt keine Ausnahmen, und ihn für ein Beispiel aufzuweichen
-     *  wäre teurer als ein zweites, gleichwertiges Beispiel. */
+    /** Das Beispiel ist ein deutscher Alias aus der Konfiguration und bleibt
+     *  es auch hier — übersetzt wäre es schlicht falsch. */
     'rc.mat.aliases':
-      'Aliases (“Lernblatt” → `arbeitsblatt`) are in '
-      + '`05-canvas/create-triggers.yaml`, editing triggers (“knapper”) in '
-      + '`05-canvas/edit-triggers.yaml`.',
+      'Aliases (“Lernblatt” → `arbeitsblatt`) are in `05-canvas/type-aliases.yaml`.',
   },
 };

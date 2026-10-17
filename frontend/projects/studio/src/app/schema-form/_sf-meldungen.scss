@@ -1,0 +1,71 @@
+// Meldungen und Listenknöpfe: Fehler, Abweichungen, Hinzufügen/Entfernen
+// (aus schema-form.scss herausgelöst, Paket 6).
+
+.sf-error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-danger-text);
+}
+
+// A stored value that cannot hold what the schema describes. Warning, not
+// error: nothing is broken yet, but the editor has to decide what to do.
+.sf-mismatch {
+  margin: 0;
+  padding: var(--st-2);
+  border-inline-start: 3px solid var(--st-warn-dot);
+  font-size: 0.8125rem;
+  color: var(--st-warn-text);
+}
+
+.sf-mismatch::before {
+  content: '⚠ ';
+}
+
+// "Kein gültiges JSON" also gets a shape cue, so the message does not depend
+// on the red alone.
+.sf-error::before {
+  content: '⚠ ';
+}
+
+.sf-entries {
+  margin: var(--st-2) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sf-entry {
+  padding: var(--st-3) 0 0;
+  border-block-start: 1px solid var(--st-rule);
+}
+
+.sf-entry:first-child {
+  border-block-start: 0;
+}
+
+.sf-add,
+.sf-remove {
+  min-block-size: 2rem;
+  padding: var(--st-1) var(--st-3);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.sf-add:hover,
+.sf-remove:hover {
+  background: var(--st-accent-soft);
+}
+
+.sf-add:focus-visible,
+.sf-remove:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 1px;
+}
+
+.sf-remove {
+  margin-block-end: var(--st-3);
+}

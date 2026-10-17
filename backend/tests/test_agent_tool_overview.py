@@ -55,20 +55,28 @@ def test_jedes_werkzeug_steht_einmal_da_mit_art_und_beschreibung():
             assert zeile["description"] == definition["function"]["description"]
 
 
-def test_mit_zugang_kommen_die_kuratierenden_dazu(monkeypatch):
+def test_mit_schreibrecht_kommen_die_kuratierenden_dazu(monkeypatch):
+    """Seit Paket 7 (S4) dieselbe Regel wie im Chat-Zug: der Block der Anlage
+    allein genügt nicht — erst mit Schreibrecht (``schreibrecht``)."""
     ohne = ov.werkzeugliste()
     assert not _zeile(ohne, "wlo_create_content")["offered"]
     assert _sperre(_zeile(ohne, "wlo_create_content"), "needs_access") is not None
 
     monkeypatch.setattr(agent_tools, "has_auth_token", lambda: True)
+    nur_block = ov.werkzeugliste()
+    assert not _zeile(nur_block, "wlo_create_content")["offered"]
+
+    monkeypatch.setattr(ov, "schreiben_erlaubt", lambda: True)
     mit = ov.werkzeugliste()
     assert all(_zeile(mit, d["function"]["name"])["offered"] for d in CURATION_TOOL_DEFINITIONS)
 
 
-def test_search_skill_wird_nie_angeboten():
+def test_search_skill_ist_von_haus_aus_verborgen():
+    """Seit Paket 7 (S5) im Studio je MCP-Server einschaltbar — die Sperre heißt
+    deshalb nicht mehr „nie“, sondern „abgeschaltet“ (``hidden``)."""
     zeile = _zeile(ov.werkzeugliste(), "search_skill")
     assert zeile["offered"] is False
-    assert zeile["locks"] == [{"code": "never"}]
+    assert zeile["locks"] == [{"code": "hidden"}]
 
 
 # ── Sperren ─────────────────────────────────────────────────────────────

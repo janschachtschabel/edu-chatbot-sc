@@ -5,7 +5,7 @@ Ports ALT ``rag_service.py`` / ``db_rag.py``:
   resolve the 3 retrieval params (``top_k``, ``min_score`` 0-1, ``max_chars_per_area``
   0 = uncapped) from ENV > yaml-area > defaults;
 * ``search_rag_chunks`` / ``query_rag`` do the per-area similarity search;
-* ``get_rag_context`` / ``get_always_on_rag_context`` merge areas, apply the
+* ``get_rag_context`` merges areas, applies the
   ``min_score`` floor, run the V13 rerank seam (``rag/rerank`` — decision resolved
   2026-07-17: embedding-order default, see there) and render the ``[Quelle: …]``
   prompt block. Deviations vs ALT: session DI, ``embedding`` transport, and the
@@ -94,12 +94,16 @@ def get_retrieval_settings() -> dict:
         cfg = area("01-base/rag-retrieval") or {}
         r = cfg.get("retrieval") if isinstance(cfg, dict) else None
         if isinstance(r, dict):
-            if isinstance(r.get("top_k"), int) and r["top_k"] > 0:
-                settings["top_k"] = r["top_k"]
-            if isinstance(r.get("min_score"), int | float) and 0 <= r["min_score"] <= 1:
-                settings["min_score"] = float(r["min_score"])
-            if isinstance(r.get("max_chars_per_area"), int) and r["max_chars_per_area"] >= 0:
-                settings["max_chars_per_area"] = r["max_chars_per_area"]
+            # ``bool`` ist in Python ein ``int`` — ``True`` galt bis Paket 9 als 1.
+            top_k, score, zeichen = (r.get(k) for k in ("top_k", "min_score",
+                                                       "max_chars_per_area"))
+            if isinstance(top_k, int) and not isinstance(top_k, bool) and top_k > 0:
+                settings["top_k"] = top_k
+            if (isinstance(score, int | float) and not isinstance(score, bool)
+                    and 0 <= score <= 1):
+                settings["min_score"] = float(score)
+            if isinstance(zeichen, int) and not isinstance(zeichen, bool) and zeichen >= 0:
+                settings["max_chars_per_area"] = zeichen
     except Exception:
         pass
     # ENV tier (wins)
@@ -175,7 +179,8 @@ async def get_rag_context(session: AsyncSession, query: str,
                           areas: list[str] | None = None, top_k: int = 3,
                           min_score: float = 0.25,
                           max_chars_per_area: int = 0,
-                          out_sources: list[str] | None = None) -> str:
+                          out_sources: list[str] | None = None,
+                          query_emb: list[float] | None = None) -> str:
     """Get RAG context string for injection into LLM prompt.
 
     Queries all given areas, merges results, filters by relevance threshold,
@@ -194,6 +199,8 @@ async def get_rag_context(session: AsyncSession, query: str,
                             relevance ranking. 0 = unlimited (default).
                             Protects against prompt bloat when many areas
                             each contribute large chunks.
+        query_emb: Vektor von ``query``, schon gerechnet (T1, ``rag/vorab``:
+                   neben der Klassifikation) — dann entfällt die Einbettung hier.
     """
     if not areas:
         areas = ["general"]
@@ -205,7 +212,8 @@ async def get_rag_context(session: AsyncSession, query: str,
     # whenever the session had no connection yet (e.g. right after the
     # safety-log commit); with a connection, the asyncpg adapter serialised
     # the statements anyway. Scores are re-sorted globally below.
-    query_emb = await embed_text(query, kind="query")
+    if query_emb is None:
+        query_emb = await embed_text(query, kind="query")
     all_results = []
     for bereich in areas:
         all_results.extend(
@@ -293,16 +301,3 @@ async def get_rag_context(session: AsyncSession, query: str,
 
     return "\n\n---\n\n".join(parts)
 
-
-async def get_always_on_rag_context(session: AsyncSession, query: str, top_k: int = 3) -> str:
-    """Get RAG context from areas configured as 'always' available.
-
-    These areas are included in every request regardless of pattern config.
-    """
-    from boerdi.services.config_loader import get_always_on_rag_areas
-
-    always_areas = get_always_on_rag_areas()
-    if not always_areas:
-        return ""
-
-    return await get_rag_context(session, query, areas=always_areas, top_k=top_k)

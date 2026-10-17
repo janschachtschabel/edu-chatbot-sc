@@ -1,0 +1,30 @@
+// Reiter mit Zählern (ST-4c, Paket 6). Die Kopfkarte ist eine schlichte Liste:
+// die Zahl steht vorn im Satz, keine Kacheln — eine Wand gleich gewichteter
+// Karten wäre hier nur Dekoration.
+:host {
+  display: block;
+}
+
+.ct-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--st-1) var(--st-4);
+  margin: 0 0 var(--st-4);
+  padding: var(--st-3) var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+
+  &--muted {
+    display: block;
+    color: var(--st-text-muted);
+  }
+}
+
+.ct-panel:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 2px;
+  border-radius: var(--st-radius);
+}

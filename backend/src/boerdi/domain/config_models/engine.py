@@ -12,9 +12,9 @@ Werkzeug), gibt es seit K1-1 (2026-09-27) nicht mehr: die K0-Messung zeigte ihn
 zwischen den beiden anderen, ohne eigenen Mehrwert. Ein gespeichertes ``hybrid``
 wird als ``agent`` gelesen (``EngineArea``).
 
-**Die Vorgabe ist ``pattern``, und das ist eine Zusage**: ohne Pflege ändert sich
-am ausgelieferten Chatbot nichts. Der Bereich ist rein additiv — schaltet ihn
-niemand um, wird die Agent-Schleife nie betreten.
+**Die Modell-Vorgabe ist ``pattern``** — der Rückfall, wenn der Bereich fehlt oder
+unlesbar ist (``load_engine``). Der ausgelieferte Seed setzt seit Paket 7 (K6,
+Nutzer-Entscheid 2026-10-09, folgt D-15) ``agent``.
 
 Ein eigener Bereich statt eines Feldes in ``01-base/policy``: „welche Maschine
 antwortet" ist ein neuer Begriff, er trägt die Deckel der Schleife mit, und in
@@ -113,10 +113,8 @@ class AgentLimits(AreaModel):
     # Entscheidung eines Gastgebers, der eine angemeldete Person vor sich hat.
     write_mode: Literal["propose", "execute"] = "propose"
 
-    # Das Sicherheits-Gate hängt NICHT am Klassifikator: ``assess_safety`` nimmt
-    # nur Nachricht und Signale (``graph/nodes/assess.py``). Es im Agent-Modus zu
-    # behalten kostet also nichts, was der Modus einspart.
-    safety: bool = True
+    # ``safety`` gestrichen (Paket 7, P4): das Sicherheits-Gate läuft immer — in
+    # beiden Maschinen und am Endpunkt; der Schalter hatte keinen Leser.
 
     # AG-6: gilt im Chat, wenn keine angemeldete Person hinter dem Zug steht.
     anonymous: AnonymousLimits = Field(default_factory=AnonymousLimits)
@@ -167,13 +165,37 @@ class AgentRolle(AreaModel):
     schutzregeln: list[str] = Field(default_factory=lambda: list(SCHUTZREGELN_VORGABE))
 
 
+class Betrieb(AreaModel):
+    """Schalter des laufenden Betriebs (Paket 7, S1–S3, Nutzer-Entscheid 2026-10-09).
+
+    Bis Paket 7 reine Umgebungsvariablen; hier wirken sie ohne Neustart. Ist die
+    Umgebungsvariable gesetzt, gilt sie (``services/betriebsschalter``).
+    """
+
+    # S1 (``LLM_SERVICE_TIER``): OpenAI-Stufe „fast“ — 4- bis 5-facher
+    # Tokenpreis, keine EU-Datenhaltung. Nur OpenAI direkt, gpt-5/gpt-6.
+    fast_modus: bool = False
+    # S2 (``CHAT_TOKEN_STREAMING``): Vorgabe an. Live-Proben 2026-10-03: Drift 0/6.
+    token_streaming: bool = True
+    # S3 (``AGENT_INLINE_QUICK_REPLIES``): aus, bis der Master-Skill-Abschnitt
+    # „Schnellantworten“ angepasst ist (Text: Plan 2026-09-30-muster-kette-zeit).
+    agent_schnellantworten: bool = False
+    # S4 (P5-9): ohne persönliche Anmeldung mit dem Dienst-Block der Anlage
+    # (``MCP_AUTH_TOKEN``) schreiben — in beiden Modi. Vorgabe aus; ohne
+    # Umgebungsvariable als Gegenstück: ein Gastkonto schreiben zu lassen ist
+    # eine ausdrückliche Entscheidung im Studio (``services/schreibrecht``).
+    gastkonto_schreibt: bool = False
+
+
 class EngineArea(AreaModel):
     """Der Umschalter, die Deckel der Agent-Schleife und ihre Rolle (AG-3),
-    dazu die Skill-Brücke der Muster-Maschine (E-6)."""
+    dazu die Skill-Brücke der Muster-Maschine (E-6) und die Betriebsschalter
+    (Paket 7)."""
 
     mode: Literal["pattern", "agent"] = "pattern"
     agent: AgentLimits = Field(default_factory=AgentLimits)
     agent_rolle: AgentRolle = Field(default_factory=AgentRolle)
+    betrieb: Betrieb = Field(default_factory=Betrieb)
     # E-6 (Nutzer-Entscheid 2026-09-27): im Muster-Modus bekommt jedes
     # Werkzeug-Muster ``get_skill_registry`` und ``get_skill`` dazu, sobald
     # freigegebene Skills im Spiel sind — von Haus aus führen sie nur sechs von

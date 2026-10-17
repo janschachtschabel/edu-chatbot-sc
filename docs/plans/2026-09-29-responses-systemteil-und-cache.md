@@ -1,10 +1,14 @@
 # Responses-Weg: Systemteil, Seitenkontext und Prompt-Cache
 
-> **Stand 2026-09-29: Vorschlag, wartet auf Freigabe. Im Repo ist nichts umgebaut.**
-> Die Messung lief mit `/better-coding-debug`, der Plan mit `/better-coding-plan`. Den Code
-> der Pakete A, B und D habe ich in einer Kopie des Backends (Scratchpad) umgesetzt und
-> geprüft: gezielte Tests, volle Suite, Ruff und eine Live-Nachmessung (§7.1). Der Code in §6
-> ist dieser geprüfte Code.
+> **Stand 2026-10-09: umgesetzt in Paket 7** (Entscheide vom 2026-10-09: A, A1, B, B2 im
+> Code, D, E, N-1, E-AC, E-C nach Messung). Log und Messwerte:
+> [`2026-10-09-paket-7-entscheide.md`](2026-10-09-paket-7-entscheide.md) (L1/L2, Phase R).
+> Abweichungen vom Code in §6: der Seitenrahmen entschärft gefälschte Endmarken (Audit
+> B-M4 kam nach diesem Plan), die Renderer liefern nur noch Daten (nach E ohne Verbraucher
+> für die Regel-Fassung), und der Vorabruf steht seit E-C vor dem Verlauf.
+>
+> *Ursprünglicher Stand 2026-09-29:* Vorschlag, Code in einer Kopie des Backends geprüft
+> (§7.1); der Code in §6 war dieser geprüfte Code.
 
 **Anlass:** Review 2026-09-29, zwei Befunde. Erstens hebt LiteLLM auf dem Responses-Weg jede
 String-System-Nachricht in `instructions` und verbindet sie mit einem Leerzeichen. Zweitens

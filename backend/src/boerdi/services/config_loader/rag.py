@@ -16,10 +16,6 @@ def load_rag_config() -> dict[str, Any]:
     }
 
 
-def get_always_on_rag_areas() -> list[str]:
-    return [n for n, c in load_rag_config().items() if c.get("mode") == "always"]
-
-
 def get_on_demand_rag_areas() -> list[str]:
     return [n for n, c in load_rag_config().items() if c.get("mode") == "on-demand"]
 

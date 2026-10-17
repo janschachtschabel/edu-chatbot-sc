@@ -35,10 +35,16 @@ Weg braucht den Schnappschuss nicht: ``session_state`` kommt aus der Datenbank
 (``graph/nodes/setup``), enthält also ausschliesslich Vorgänge **früherer**
 Züge. Ein in diesem Zug entstandener kann hier gar nicht auftauchen.
 
-**Was hier bewusst NICHT geprüft wird:** ob der Aufrufer schreiben darf. Das
-entscheidet der MCP-Server anhand des Zugangsblocks (``services/mcp/auth``), und
-zwar bei jedem Aufruf — auch bei der Vorschau. Eine zweite Rechteprüfung an
-dieser Stelle wäre eine Kopie mit eigener Driftgefahr.
+**Was hier bewusst NICHT geprüft wird:** welche Rechte der Block beim Server
+hat. Das entscheidet der MCP-Server bei jedem Aufruf — auch bei der Vorschau.
+Eine zweite Rechteprüfung an dieser Stelle wäre eine Kopie mit eigener
+Driftgefahr.
+
+**Was seit Paket 7 (S4) geprüft wird: ob hier überhaupt geschrieben werden
+darf** — die Produktregel, nicht die Serverrechte: nur mit persönlicher
+Anmeldung, oder mit dem Dienst-Block, wenn das Studio das Gastkonto erlaubt
+(``services/schreibrecht``). Bis dahin löste ein „ja“ im Muster-Modus mit dem
+Dienst-Block ein (Audit 2026-09-29, B-H3).
 
 **Was dagegen geprüft wird: ob es DERSELBE Aufrufer ist** (Paket 4, A1). Der
 Schlüssel des Servers ist an keine Identität gebunden. Eine Vorschau, die unter
@@ -58,20 +64,25 @@ import time
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo, PreparedWriteOut
-from boerdi.domain.prepared_write import single_prepared_write
-from boerdi.domain.write_confirm import (
-    confirmed_args,
-    is_affirmation,
-    redact_confirm_token,
+from boerdi.domain.host_capabilities import erlaubt
+from boerdi.domain.prepared_write import (
+    VERLAUF_SCHLUESSEL,
+    PreparedWrite,
+    fuer_den_verlauf,
+    single_prepared_write,
 )
+from boerdi.domain.write_confirm import confirmed_args, redact_confirm_token
 from boerdi.i18n import Locale, bot_text, resolve_locale
+from boerdi.services import abnahme_hinweis, zustimmung_pruefen
+from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.db_sessions import save_message, update_session
-from boerdi.services.mcp.auth import caller_fingerprint
+from boerdi.services.mcp.auth import aufrufer_kennung
 from boerdi.services.mcp.client import (
     call_mcp_tool_status,
     get_prepared_writes,
     is_mcp_error,
 )
+from boerdi.services.schreibrecht import schreiben_erlaubt
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +98,7 @@ def _gehoert_dem_aufrufer(pending: object) -> bool:
     Ein Merkposten ohne Kennzeichen (vor Paket 4 gemerkt) gilt als fremd: Er
     verfällt, statt unter unbekannter Identität eingelöst zu werden.
     """
-    return isinstance(pending, dict) and pending.get("caller") == caller_fingerprint()
+    return isinstance(pending, dict) and pending.get("caller") == aufrufer_kennung()
 
 
 async def discard_stale_approval(
@@ -104,7 +115,7 @@ async def discard_stale_approval(
     und ein beliebiges späteres „Ja …" führte ihn aus — etwa der Chip „Ja, zeig
     mir mehr Videos" zwei Züge nach einer Vorschau, zu der die Person nie etwas
     gesagt hatte. Verworfen wird deshalb in jedem Zug, der eine Direkt-Aktion
-    trägt oder keine glatte Zustimmung ist (:func:`is_affirmation`). Kommt das
+    trägt oder keine Zustimmung ist (``zustimmung_pruefen.stimmt_zu``). Kommt das
     Anliegen wieder, zeigt das Modell eine neue Vorschau: der Preis ist eine
     zweite Frage, nicht eine Änderung ohne Zustimmung.
 
@@ -147,8 +158,17 @@ async def discard_stale_approval(
             pending.get("tool") if isinstance(pending, dict) else "?")
         return True
     fremd = not _gehoert_dem_aufrufer(pending)
-    if not fremd and not req.action and is_affirmation(req.message):
+    # Paket 10, A-6: Liste, Veto, dann das Modell — einmal je Zug; Vorlauf und
+    # Werkzeug-Schleife lesen das Urteil (``zustimmung_pruefen.zugestimmt``).
+    zustimmung = not req.action and await zustimmung_pruefen.stimmt_zu(
+        req.message, str(pending.get("tool") or "") if isinstance(pending, dict) else "")
+    session_state[zustimmung_pruefen.MERKER] = zustimmung
+    if not fremd and zustimmung:
         return False
+    if fremd and zustimmung:
+        # Paket 10 (Kurzaudit S-1/S-3/S-4): die Person meint diese Vorschau, hat
+        # aber nicht die Anmeldung, unter der sie entstand — der Vorlauf sagt es ihr.
+        session_state[abnahme_hinweis.MERKER] = True
     entities.pop("_pending_write", None)
     logger.info(
         "offener Vorgang für %s verworfen — %s",
@@ -171,6 +191,17 @@ def merke_abnahme(session_state: dict, merkposten: dict, vorschau: str) -> None:
     session_state["_write_preview"] = vorschau
 
 
+def _nicht_einloesbar(tool: str, req: ChatRequest) -> str:
+    """Warum ein offener Vorgang nicht mehr eingelöst werden darf — ``""``, wenn er darf."""
+    if not schreiben_erlaubt():
+        return "ohne Schreibrecht"
+    if tool in verborgene_werkzeuge():
+        return "Werkzeug im Studio verborgen"
+    if not erlaubt(tool, req.environment.tool_mode):
+        return f"Einbettung erlaubt es nicht ({req.environment.tool_mode})"
+    return ""
+
+
 async def redeem_write_approval(
     session: AsyncSession | None,
     req: ChatRequest,
@@ -183,22 +214,32 @@ async def redeem_write_approval(
     lässt den Zug dann unverändert weiterlaufen.
 
     Eingelöst wird nur, wenn **alle drei** zutreffen: ein Vorgang liegt vor, der
-    Mensch hat glatt zugestimmt (:func:`is_affirmation` — ein „ja, aber …" zählt
+    Mensch hat zugestimmt (``zustimmung_pruefen.zugestimmt`` — ein „ja, aber …" zählt
     nicht), und der Vorgang ist noch frisch und vollständig gemerkt
     (:func:`confirmed_args`). Fehlt eines, läuft der Zug normal weiter und zeigt
     eine neue Vorschau — der teurere, aber immer richtige Ausgang.
     """
     entities = session_state.setdefault("entities", {})
     pending = entities.get("_pending_write")
-    if not pending or not is_affirmation(req.message):
+    if not pending or not zustimmung_pruefen.zugestimmt(session_state, req.message):
         return None
     if not _gehoert_dem_aufrufer(pending):
         # Im Graphen hat ``setup`` ihn schon verworfen; diese Wache gilt für
         # jeden Weg, der den Vorlauf ohne ``setup`` erreicht (Paket 4, A1).
         logger.warning("offener Vorgang eines anderen Aufrufers — nicht eingelöst")
         return None
-
     tool = str(pending.get("tool") or "")
+    grund = _nicht_einloesbar(tool, req)
+    if grund:
+        # Paket 7 (S4): etwa das Gastkonto zwischen Vorschau und „ja“ im Studio
+        # wieder abgeschaltet; seit Paket 9 auch ein dort verborgenes Werkzeug oder
+        # eine nur lesende Einbettung (Review Paket 7, MAJOR 11). Einlösbar wird er
+        # so nie mehr — verworfen, auch in der Datenbank; der Zug läuft normal weiter.
+        logger.warning("offener Vorgang für %s verworfen (%s) — nicht eingelöst", tool, grund)
+        entities.pop("_pending_write", None)
+        await update_session(session, req.session_id, entities=entities)
+        return None
+
     args = confirmed_args(pending, tool, now=time.time())
     if args is None:
         # Abgelaufen oder ohne gemerkte Argumente. Beides ist kein Fehler,
@@ -236,10 +277,11 @@ async def redeem_write_approval(
             tool, req.session_id, err)
         return await _unbestaetigt(session, req, session_state, lang, debug)
 
-    if is_mcp_error(rohtext) and fehlerart == "tool":
+    if is_mcp_error(rohtext) and fehlerart in ("tool", "auth"):
         # Der Server hat GEANTWORTET und abgelehnt — damit steht fest, dass er
-        # nichts geschrieben hat. Diese Person auf Verdacht in WLO nachsehen zu
-        # schicken wäre unnötig; sie kann direkt nachbessern.
+        # nichts geschrieben hat (``auth``: den Zugang schon vor dem Werkzeug).
+        # Diese Person auf Verdacht in WLO nachsehen zu schicken wäre unnötig;
+        # sie kann direkt nachbessern.
         logger.error(
             "Abnahme für %s (Sitzung %s) vom Server abgelehnt: %s",
             tool, req.session_id, rohtext)
@@ -305,7 +347,7 @@ async def redeem_write_approval(
             else None
         ),
     )
-    await _persist(session, req, session_state, text, debug)
+    await _persist(session, req, session_state, text, debug, vorbereitet=prepared)
     return antwort
 
 
@@ -346,8 +388,12 @@ async def _persist(
     session_state: dict,
     text: str,
     debug: DebugInfo,
+    *,
+    vorbereitet: PreparedWrite | None = None,
 ) -> None:
-    """Verbrauchten Vorgang und Antwort festschreiben.
+    """Verbrauchten Vorgang und Antwort festschreiben — mit der ausgelieferten
+    Anfrage (``vorbereitet``), damit die Nachfrage aus dem Verlauf sie findet
+    (Paket 9, ``domain/prepared_write.VERLAUF_SCHLUESSEL``).
 
     Beides gehört zusammen und beides ist Pflicht: dieser Weg beendet den Zug
     vor dem ``persist``-Knoten, also schreibt sonst niemand mehr. Bliebe der
@@ -364,9 +410,12 @@ async def _persist(
     von einem Abnahme-Zug abhinge.
     """
     await update_session(session, req.session_id, entities=session_state["entities"])
+    daten = debug.model_dump()
+    if vorbereitet is not None:
+        daten[VERLAUF_SCHLUESSEL] = fuer_den_verlauf(vorbereitet)
     try:
-        await save_message(
-            session, req.session_id, "assistant", text, debug=debug.model_dump(),
-        )
+        await save_message(session, req.session_id, "assistant", text, debug=daten)
     except Exception:
-        logger.debug("Persistieren der Ausführungs-Antwort fehlgeschlagen", exc_info=True)
+        # WARNING (Paket 10, Audit A-10): ohne diese Zeile fehlt im Verlauf auch die
+        # vorbereitete Änderung — die Nachfrage nach einem Strom-Abbruch fände sie nie.
+        logger.warning("Persistieren der Ausführungs-Antwort fehlgeschlagen", exc_info=True)

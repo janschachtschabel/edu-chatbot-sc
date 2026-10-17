@@ -12,9 +12,17 @@ import logging
 from typing import Any
 
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
+from boerdi.i18n.prompt_language import SPRACHE_DER_PERSON
 from boerdi.services import llm
 
 _logger = logging.getLogger(__name__)
+
+#: Die Bitte am Iterationsdeckel — eine eigene Nachricht in Nutzerrolle, deshalb
+#: mit dem Satz zur Sprache der Person (Paket 9).
+ZUSAMMENFASSUNG_BITTE = (
+    "Bitte fasse jetzt KURZ (1–2 Sätze) zusammen, was du gefunden hast — ohne "
+    "weitere Tool-Aufrufe. Sprich den Nutzer direkt an. " + SPRACHE_DER_PERSON
+)
 
 
 async def _max_iterations_fallback(
@@ -40,13 +48,7 @@ async def _max_iterations_fallback(
     if all_cards:
         try:
             summary_resp = await llm.chat_completion(
-                messages=messages + [{
-                    "role": "user",
-                    "content": (
-                        "Bitte fasse jetzt KURZ (1–2 Sätze) zusammen, was du gefunden "
-                        "hast — ohne weitere Tool-Aufrufe. Sprich den Nutzer direkt an."
-                    ),
-                }],
+                messages=messages + [{"role": "user", "content": ZUSAMMENFASSUNG_BITTE}],
                 temperature=0.4,
                 usage_acc=usage_acc,
                 phase="fallback_summary",

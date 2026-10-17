@@ -38,7 +38,11 @@ export interface UsageModelRow extends UsageTotals {
 }
 
 export interface UsageSessionRow extends UsageTotals {
-  readonly session_id: string;
+  /** `null` bei Aufträgen der Agent-API — sie gehören keiner Sitzung (Paket 7, P3). */
+  readonly session_id: string | null;
+  /** Woher eine Zeile ohne Sitzung kommt: Agent-API oder, seit Paket 9, die
+   *  Probeläufe von „Auftrag testen“ im Studio (`studio-probe`). */
+  readonly source?: 'chat' | 'agent-api' | 'studio-probe';
   /** Modelle dieser Sitzung ohne gepflegten Preis. */
   readonly price_unavailable: readonly string[];
 }

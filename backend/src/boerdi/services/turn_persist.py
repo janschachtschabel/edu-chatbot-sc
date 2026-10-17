@@ -62,7 +62,11 @@ from boerdi.api.schemas import (
 )
 from boerdi.domain.cards.build import _is_themenseite_card
 from boerdi.domain.inline_rendering import _build_inline_document
-from boerdi.domain.prepared_write import single_prepared_write
+from boerdi.domain.prepared_write import (
+    VERLAUF_SCHLUESSEL,
+    fuer_den_verlauf,
+    single_prepared_write,
+)
 from boerdi.domain.quick_reply_policy import _apply_state_auto_followup
 from boerdi.domain.skill_precedence import in_diesem_zug_geholt
 from boerdi.domain.turn_frame import (
@@ -70,7 +74,9 @@ from boerdi.domain.turn_frame import (
     clear_frame,
     note_clarification,
 )
-from boerdi.domain.write_confirm import is_affirmation, preview_for_display
+from boerdi.domain.write_anzeige import preview_for_display
+from boerdi.domain.write_confirm import TOKEN_TTL_SECONDS
+from boerdi.domain.zustimmung import is_affirmation
 from boerdi.i18n import CLAIM_WORDS, DEFAULT, resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.zeiten import spur_zeilen
@@ -321,7 +327,21 @@ async def persist_and_build_response(
     # stand die Zeile in f2b4 und f2b5 je einmal lokal).
     _lang = resolve_locale(getattr(req.environment, "locale", None))
 
+    # E3: hat der MCP-Server die bestätigte Änderung beschrieben statt sie zu
+    # schreiben, wandert sie in die Antwort — ausgeführt wird sie in der
+    # Repository-Seite. Im Normalbetrieb ist die Liste leer. Vor dem ersten
+    # Speichern ermittelt (Paket 9): die Nachfrage aus dem Verlauf braucht sie dort.
+    _writes = get_prepared_writes()
+    _prepared = single_prepared_write(_writes)
+    if _prepared is None and _writes:
+        logger.warning(
+            "%d vorbereitete Schreibzugriffe in einem Zug — keiner wird "
+            "ausgeliefert, weil nicht feststellbar ist, welchem zugestimmt wurde",
+            len(_writes))
+
     _debug_for_save = debug.model_dump()
+    if _prepared is not None:
+        _debug_for_save[VERLAUF_SCHLUESSEL] = fuer_den_verlauf(_prepared)
     if _web_links:
         # Persistieren in debug_json, damit nach Refresh / Bubble-Reopen die
         # strukturierte Link-Liste via ``GET /messages`` wieder ans Frontend kommt.
@@ -621,10 +641,14 @@ async def persist_and_build_response(
         # auch dann, wenn das Modell sie vergisst. Genau das war der Befund —
         # eine Zusage, die nur im Prompt lebt, ist keine.
         _ask = bot_text(_lang, "inline.writePreview.ask")
+        # Paket 10 (Kurzaudit S-6): die Frist steht in der Box — der Satz des
+        # Servers dazu richtet sich an die Maschine und fällt weg.
+        _frist = bot_text(_lang, "inline.writePreview.frist",
+                          minuten=TOKEN_TTL_SECONDS // 60)
         inline_documents = [*inline_documents, {
             "kind": "schreib_vorschau",
             "title": bot_text(_lang, "inline.title.writePreview"),
-            "content": f"{preview_for_display(_write_preview)}\n\n{_ask}",
+            "content": f"{preview_for_display(_write_preview)}\n\n{_frist} {_ask}",
         }]
 
     # ── M16-Resolver (ALT chat_topic_pages._resolve_m16_topic_page_view) ──
@@ -648,17 +672,6 @@ async def persist_and_build_response(
             logger.info("unresolved-filter hint appended: %s", _uf_note)
     except Exception as _uf_err:
         logger.debug("unresolved-filter note skipped: %s", _uf_err, exc_info=True)
-
-    # E3: hat der MCP-Server die bestätigte Änderung beschrieben statt sie zu
-    # schreiben, wandert sie hier in die Antwort — ausgeführt wird sie in der
-    # Repository-Seite. Im Normalbetrieb ist die Liste leer.
-    _writes = get_prepared_writes()
-    _prepared = single_prepared_write(_writes)
-    if _prepared is None and _writes:
-        logger.warning(
-            "%d vorbereitete Schreibzugriffe in einem Zug — keiner wird "
-            "ausgeliefert, weil nicht feststellbar ist, welchem zugestimmt wurde",
-            len(_writes))
 
     # F-6: Gespeichert wurde oben der Stand VOR Gruppen-Trim und M16-Auflösung —
     # bewusst, denn dort ist der Zug noch absturzsicher: ``_resolve_m16_topic_page_view``

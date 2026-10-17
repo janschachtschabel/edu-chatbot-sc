@@ -94,14 +94,54 @@ def _zustand(*, args=None, token=_TOKEN, tool=_WERKZEUG, alter: float = 0.0,
 
 @pytest.fixture
 def _grenzen(monkeypatch):
-    """Die drei Aussenkanten: MCP-Aufruf, Sitzungs-Schreiben, Nachricht."""
+    """Die drei Aussenkanten: MCP-Aufruf, Sitzungs-Schreiben, Nachricht — und
+    das Schreibrecht: diese Tests stehen für eine angemeldete Person (seit
+    Paket 7, S4, ist das die Bedingung; ``TestNurMitSchreibrecht`` prüft sie)."""
     mcp = _Spy(_SERVERTEXT)
     update = _Spy()
     save = _Spy()
     monkeypatch.setattr(wa_mod, "call_mcp_tool_status", mcp)
     monkeypatch.setattr(wa_mod, "update_session", update)
     monkeypatch.setattr(wa_mod, "save_message", save)
+    monkeypatch.setattr(wa_mod, "schreiben_erlaubt", lambda: True)
     return mcp, update, save
+
+
+class TestNurMitSchreibrecht:
+    """Paket 7 (S4, P5-9): ohne persönliche Anmeldung — und ohne die
+    Studio-Erlaubnis für das Gastkonto — wird nichts eingelöst. Bis dahin
+    schrieb ein „ja“ im Muster-Modus mit dem Dienst-Block (B-H3)."""
+
+    @pytest.mark.asyncio
+    async def test_ohne_schreibrecht_wird_nicht_eingeloest(self, monkeypatch, _grenzen):
+        monkeypatch.setattr(wa_mod, "schreiben_erlaubt", lambda: False)
+        mcp, update, _ = _grenzen
+        zustand = _zustand()
+        assert await redeem_write_approval(_SESSION, _req(), zustand) is None
+        assert mcp.calls == []
+        # Verworfen, auch in der Datenbank: einlösen kann ihn so niemand mehr.
+        assert "_pending_write" not in zustand["entities"]
+        assert update.calls
+
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("grund", ["verborgen", "nur-lesen"])
+    async def test_ein_abgeschaltetes_werkzeug_wird_nicht_eingeloest(
+            self, monkeypatch, _grenzen, grund):
+        """Review Paket 7 (MAJOR 11): ein „ja“ löste den gemerkten Vorgang direkt aus —
+        auch wenn das Studio das Werkzeug inzwischen verborgen hat oder die Einbettung
+        nur lesen darf. Er wird verworfen wie ohne Schreibrecht."""
+        req = _req()
+        if grund == "verborgen":
+            monkeypatch.setattr(wa_mod, "verborgene_werkzeuge", lambda: frozenset({_WERKZEUG}))
+        else:
+            req.environment.tool_mode = "read-only"
+        mcp, update, _ = _grenzen
+        zustand = _zustand()
+        assert await redeem_write_approval(_SESSION, req, zustand) is None
+        assert mcp.calls == []
+        assert "_pending_write" not in zustand["entities"]
+        assert update.calls
 
 
 # ── Wann NICHT eingelöst wird ────────────────────────────────────────────
@@ -244,7 +284,7 @@ class TestFremderAufrufer:
     async def test_ein_anderer_aufrufer_verwirft_den_vorgang(self, monkeypatch, _grenzen):
         _mcp, update, _s = _grenzen
         zustand = _zustand(caller="person-a")
-        monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "")
+        monkeypatch.setattr(wa_mod, "aufrufer_kennung", lambda: "")
         assert await discard_stale_approval(_SESSION, _req(), zustand) is True
         assert "_pending_write" not in zustand["entities"]
         assert len(update.calls) == 1
@@ -252,7 +292,7 @@ class TestFremderAufrufer:
     @pytest.mark.asyncio
     async def test_derselbe_aufrufer_behaelt_den_vorgang(self, monkeypatch, _grenzen):
         zustand = _zustand(caller="person-a")
-        monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "person-a")
+        monkeypatch.setattr(wa_mod, "aufrufer_kennung", lambda: "person-a")
         assert await discard_stale_approval(_SESSION, _req(), zustand) is False
         assert "_pending_write" in zustand["entities"]
 
@@ -261,7 +301,7 @@ class TestFremderAufrufer:
         # Vor dem Deploy gemerkte Vorgänge tragen kein Kennzeichen.
         zustand = _zustand()
         del zustand["entities"]["_pending_write"]["caller"]
-        monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "")
+        monkeypatch.setattr(wa_mod, "aufrufer_kennung", lambda: "")
         assert await discard_stale_approval(_SESSION, _req(), zustand) is True
 
     @pytest.mark.asyncio
@@ -271,7 +311,7 @@ class TestFremderAufrufer:
         # hierher kommt, löst trotzdem nichts Fremdes ein.
         mcp, _u, _s = _grenzen
         zustand = _zustand(caller="person-a")
-        monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "")
+        monkeypatch.setattr(wa_mod, "aufrufer_kennung", lambda: "")
         assert await redeem_write_approval(_SESSION, _req(), zustand) is None
         assert mcp.calls == []
 
@@ -279,7 +319,7 @@ class TestFremderAufrufer:
     async def test_derselbe_aufrufer_loest_ein(self, monkeypatch, _grenzen):
         mcp, _u, _s = _grenzen
         zustand = _zustand(caller="person-a")
-        monkeypatch.setattr(wa_mod, "caller_fingerprint", lambda: "person-a")
+        monkeypatch.setattr(wa_mod, "aufrufer_kennung", lambda: "person-a")
         assert await redeem_write_approval(_SESSION, _req(), zustand) is not None
         assert len(mcp.calls) == 1
 
@@ -350,6 +390,7 @@ class TestEinloesung:
         monkeypatch.setattr(wa_mod, "update_session", update)
         monkeypatch.setattr(wa_mod, "save_message", _Spy())
         monkeypatch.setattr(wa_mod, "call_mcp_tool_status", mcp)
+        monkeypatch.setattr(wa_mod, "schreiben_erlaubt", lambda: True)  # angemeldet
         await redeem_write_approval(_SESSION, _req(), _zustand())
         assert folge[:2] == ["gespeichert", "aufruf"]
 
@@ -360,6 +401,22 @@ class TestEinloesung:
         await redeem_write_approval(_SESSION, _req(), zustand)
         assert await redeem_write_approval(_SESSION, _req(), zustand) is None
         assert len(mcp.calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_die_vorbereitete_anfrage_wird_mit_gespeichert(self, monkeypatch, _grenzen):
+        """Review Paket 7 (MAJOR 7): reißt beim „ja“ der Strom ab, holt das Widget die
+        Antwort aus dem Verlauf — die Anfrage muss dort stehen, der Vorgang ist schon
+        verbraucht und ein zweites „ja“ hilft nicht."""
+        from boerdi.domain.prepared_write import VERLAUF_SCHLUESSEL, PreparedWrite
+
+        vorbereitet = PreparedWrite(method="POST", path="/edu-sharing/rest/y", body=None,
+                                    done_message="Angelegt.")
+        monkeypatch.setattr(wa_mod, "get_prepared_writes", lambda: [vorbereitet])
+        _mcp, _u, save = _grenzen
+        antwort = await redeem_write_approval(_SESSION, _req(), _zustand())
+        assert antwort is not None and antwort.prepared_write is not None
+        debug = save.calls[0][1]["debug"]
+        assert debug[VERLAUF_SCHLUESSEL]["path"] == "/edu-sharing/rest/y"
 
     @pytest.mark.asyncio
     async def test_die_antwort_wird_gespeichert(self, _grenzen):
@@ -509,3 +566,67 @@ class TestFehlschlag:
         zustand = _zustand()
         await redeem_write_approval(_SESSION, _req(), zustand)
         assert "_pending_write" not in zustand["entities"]
+
+
+class TestFreieZustimmung:
+    """Paket 10, A-6: ein „ja“ außerhalb der Erlaubnisliste prüft ein kurzer LLM-Aufruf.
+
+    Einmal je Zug, im ersten Knoten; Vorlauf und Werkzeug-Schleife lesen das Urteil.
+    """
+
+    @pytest.fixture
+    def _urteil(self, monkeypatch):
+        from boerdi.services import zustimmung_pruefen as zp
+        aufrufe: list[tuple[str, str]] = []
+        antwort = {"wert": True}
+
+        async def _fake(nachricht, werkzeug):
+            aufrufe.append((nachricht, werkzeug))
+            return antwort["wert"]
+
+        monkeypatch.setattr(zp, "_llm_urteil", _fake)
+        return aufrufe, antwort
+
+    @pytest.mark.asyncio
+    async def test_freie_zustimmung_loest_ein(self, _grenzen, _urteil):
+        mcp, _u, _s = _grenzen
+        aufrufe, _a = _urteil
+        zustand = _zustand()
+        assert await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand) is False
+        assert await redeem_write_approval(_SESSION, _req("ja, rein damit"), zustand) is not None
+        assert mcp.calls[0][0][0] == _WERKZEUG
+        assert aufrufe == [("ja, rein damit", _WERKZEUG)]
+
+    @pytest.mark.asyncio
+    async def test_ohne_zustimmung_des_modells_faellt_der_vorgang(self, _grenzen, _urteil):
+        mcp, _u, _s = _grenzen
+        _aufrufe, antwort = _urteil
+        antwort["wert"] = False
+        zustand = _zustand()
+        assert await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand) is True
+        assert await redeem_write_approval(_SESSION, _req("ja, rein damit"), zustand) is None
+        assert mcp.calls == []
+
+    @pytest.mark.asyncio
+    async def test_ein_veto_fragt_das_modell_nicht(self, _grenzen, _urteil):
+        aufrufe, _a = _urteil
+        zustand = _zustand()
+        assert await discard_stale_approval(_SESSION, _req("Freigabe aufgehoben"), zustand)
+        assert aufrufe == []
+
+    @pytest.mark.asyncio
+    async def test_ohne_vorgang_oder_als_aktion_fragt_niemand(self, _grenzen, _urteil):
+        aufrufe, _a = _urteil
+        await discard_stale_approval(_SESSION, _req("ja, rein damit"), {"entities": {}})
+        await discard_stale_approval(_SESSION, _req("ja, rein", action="x"), _zustand())
+        await discard_stale_approval(
+            _SESSION, _req("ja, rein damit"), _zustand(), hintergrund=True)
+        assert aufrufe == []
+
+    @pytest.mark.asyncio
+    async def test_freie_zustimmung_zu_fremder_vorschau_bringt_den_hinweis(
+            self, monkeypatch, _grenzen, _urteil):
+        from boerdi.services import abnahme_hinweis
+        zustand = _zustand(caller="p:andere")
+        assert await discard_stale_approval(_SESSION, _req("ja, rein damit"), zustand)
+        assert zustand[abnahme_hinweis.MERKER] is True

@@ -11,9 +11,11 @@ import { AgentPromptComponent } from './agent-prompt.component';
 
 const URL = '/studio/api/agent-center/prompt';
 const tick = (): Promise<unknown> => new Promise((resolve) => setTimeout(resolve, 0));
+// Paket B (Plan 2026-09-29, umgesetzt in Paket 7): der Seitenkontext in zwei Gliedern;
+// seit E-C steht der Vorabruf direkt hinter den Seitendaten, vor dem Verlauf.
 const JE_ZUG = [
-  'result_schema', 'host_capabilities', 'page_context', 'host_instruction',
-  'skill_hints', 'history', 'prefetch', 'last_shown', 'message',
+  'result_schema', 'host_capabilities', 'page_rules', 'host_instruction',
+  'skill_hints', 'page_data', 'prefetch', 'history', 'last_shown', 'message',
 ];
 
 function vorschau(masterSkill: Record<string, unknown> = {}): PromptPreview {
@@ -89,12 +91,12 @@ describe('AgentPromptComponent (ST-8d)', () => {
   it('zeigt die Kette als nummerierte Folge in der Reihenfolge des Zugs', async () => {
     const { el } = await loaded();
     const schritte = Array.from(el.querySelectorAll('ol.agp-chain > li'));
-    expect(schritte).toHaveLength(11);
+    expect(schritte).toHaveLength(12);
     expect(text(schritte[0].querySelector('.agp-name'))).toBe('Kopf: Rolle, Anrede, Grenzen, Sprache');
     expect(text(schritte[1].querySelector('.agp-name'))).toBe('Master-Skill');
     // Paket C: was die Person zuletzt gesehen hat — ein bekanntes Glied, keine rohe Kennung.
-    expect(text(schritte[9].querySelector('.agp-name'))).toBe('Zuletzt gezeigt');
-    expect(text(schritte[10].querySelector('.agp-name'))).toBe('Nachricht der Person');
+    expect(text(schritte[10].querySelector('.agp-name'))).toBe('Zuletzt gezeigt');
+    expect(text(schritte[11].querySelector('.agp-name'))).toBe('Nachricht der Person');
   });
 
   it('zeigt den Kopf im Wortlaut, als reinen Text und mit seiner Länge', async () => {
@@ -129,17 +131,25 @@ describe('AgentPromptComponent (ST-8d)', () => {
 
   it('sagt bei den Blöcken je Zug, wann sie erscheinen, statt Text zu erfinden', async () => {
     const { el } = await loaded();
-    const seite = el.querySelectorAll('ol.agp-chain > li')[4];
-    expect(text(seite.querySelector('.agp-name'))).toBe('Seitenkontext');
-    expect(text(seite.querySelector('.agp-when')))
-      .toBe('Wenn die Seite eine Sammlung, einen Inhalt oder eine Themenseite zeigt.');
-    expect(seite.querySelector('pre')).toBeNull();
+    const glieder = el.querySelectorAll('ol.agp-chain > li');
+    // Paket B: die festen Regeln im gecachten Systemteil, die Daten als erste Nachricht
+    // danach — vor dem Vorabruf (E-C) und dem Verlauf (Review C-9).
+    const regeln = glieder[4];
+    expect(text(regeln.querySelector('.agp-name'))).toBe('Regeln zum Seitenkontext');
+    expect(text(regeln.querySelector('.agp-when'))).toContain('für jede Seite gleich');
+    const daten = glieder[7];
+    expect(text(daten.querySelector('.agp-name'))).toBe('Seitenkontext (Daten)');
+    expect(text(daten.querySelector('.agp-when')))
+      .toContain('vor dem vorab geholten Katalog und dem Verlauf');
+    expect(regeln.querySelector('pre')).toBeNull();
+    expect(daten.querySelector('pre')).toBeNull();
   });
 
   it('nennt Zahl und Umfang der Werkzeug-Beschreibungen', async () => {
     const { el } = await loaded();
     expect(text(el.querySelector('.agp-tools')))
-      .toBe('Dazu gehen 27 Werkzeug-Beschreibungen mit 41.234 Zeichen mit — in jeder Runde.');
+      .toBe('Dazu gehen 27 Werkzeug-Beschreibungen mit 41.234 Zeichen mit — in jeder Runde; '
+        + 'gezählt für eine Person ohne Anmeldung (angemeldet kommen die schreibenden dazu).');
   });
 
   it('lädt in der gewählten Widget-Sprache neu', async () => {

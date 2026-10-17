@@ -56,8 +56,6 @@ def defaults_only(monkeypatch):
     for name in (
         "load_canvas_material_types",
         "load_canvas_type_aliases",
-        "load_canvas_create_triggers",
-        "load_canvas_edit_triggers",
         "load_canvas_persona_priorities",
     ):
         monkeypatch.setattr(canvas_types.config_loader, name, _boom)
@@ -104,7 +102,6 @@ def test_get_material_type_category(defaults_only):
 
 def test_module_getattr_shim(defaults_only):
     assert isinstance(cs.MATERIAL_TYPES, dict) and cs.MATERIAL_TYPES
-    assert isinstance(cs._CREATE_TRIGGERS, tuple)
     with pytest.raises(AttributeError):
         _ = cs.GIBTS_NICHT
 

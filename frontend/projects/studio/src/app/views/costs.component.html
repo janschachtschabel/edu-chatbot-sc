@@ -170,9 +170,11 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of sessions(); track row.session_id) {
+            @for (row of sessions(); track row.session_id ?? row.source ?? 'agent-api') {
               <tr>
-                <th scope="row" class="cst-session-id">{{ row.session_id }}</th>
+                <th scope="row" class="cst-session-id">
+                  {{ row.session_id ?? withoutSession(row) }}
+                </th>
                 <td>{{ count(row.calls) }}</td>
                 <td>{{ count(row.prompt_tokens) }}</td>
                 <td>{{ count(row.cached_tokens) }}</td>

@@ -6,7 +6,7 @@ steht in [deploy/README.md](deploy/README.md); diese Datei ist der Weg dorthin.
 
 **Der Schritt, den man übersieht:** Schritt 7. Der Dienst `migrate` legt die
 Tabellen an und füllt dabei fehlende Bereiche aus dem Seed im Image
-(`import-config --only-missing`) — einmal, vor den Backends, nicht je Replika.
+(`import-config --werksabgleich`) — einmal, vor den Backends, nicht je Replika.
 Ohne diesen Lauf läuft ein Chatbot ohne Muster, ohne Begrüssung und ohne
 Vokabulare — technisch gesund, inhaltlich leer.
 
@@ -139,7 +139,11 @@ nano .env
 Sechs Werte sind Pflicht, sonst startet nichts: `POSTGRES_PASSWORD`,
 `STUDIO_API_KEY`, `STUDIO_PASSWORD`, `CORS_ORIGINS`, `PUBLIC_HOST`,
 `ACME_EMAIL`. `CORS_ORIGINS` wirkt erst, wenn `CORS_ALLOW_ALL=false`
-gesetzt ist — die Vorgabe lässt jede Domäne einbetten. Geheimnisse erzeugen:
+gesetzt ist — die Vorgabe lässt jede Domäne einbetten und dort anmelden. Mit `false`
+läuft das Widget nur noch auf den gelisteten Seiten (und in Browser-Erweiterungen,
+solange `CORS_ALLOW_EXTENSIONS=true`), und nur dort bietet es die WLO-Anmeldung an —
+der Zugangsblock liegt im Speicher der einbettenden Seite (`docs/mcp-und-anmeldung.md`).
+Geheimnisse erzeugen:
 
 ```bash
 openssl rand -base64 32
@@ -180,14 +184,15 @@ docker compose -f compose.prod.yml --env-file .env up migrate
 ```
 
 Der `migrate`-Dienst führt beides aus: `alembic upgrade head`, dann
-`boerdi import-config --only-missing`. Der Seed-Baum liegt **im Image** unter
+`boerdi import-config --werksabgleich`. Der Seed-Baum liegt **im Image** unter
 `/app/seeds` (`CONFIG_SEED_DIR`, Default `seeds`) — kein Bind-Mount, kein
 Kopieren, der Stand kommt aus demselben Commit wie der Code.
 
-`--only-missing` ist der Grund, warum das automatisch laufen darf: der Import
-legt nur an, was noch nicht in der Datenbank steht. Ohne die Option schreibt er
-**jeden** Bereich und würde bei jedem Neustart die redaktionelle Arbeit auf den
-Auslieferungsstand zurückdrehen.
+`--werksabgleich` (Paket 12) ist der Grund, warum das automatisch laufen darf: er
+legt an, was fehlt, hebt unberührte Bereiche auf die neue Werksfassung und fasst
+im Studio Angepasstes oder Gelöschtes nicht an. Ohne Option schreibt der Import
+**jeden** Bereich und würde bei jedem Neustart die redaktionelle Arbeit auf die
+Werksfassung zurückdrehen.
 
 **Ab jetzt ist die Datenbank die Wahrheit**, nicht mehr der Seed. Änderungen
 macht die Redaktion im Studio. Der Seed ist der Startpunkt, keine
@@ -201,40 +206,45 @@ docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
   migrate boerdi import-config
 ```
 
-## 8. Reranker-Modell (optional, aber empfohlen)
+Er löscht aber nichts: was nur in der Datenbank steht (etwa ein im Studio
+angelegtes Muster), bleibt. Den echten **Werkszustand** stellt `--exact` her —
+derselbe Ablauf wie „Alles auf die Werksfassung" im Studio: Seed prüfen,
+Schnappschuss anlegen, schreiben und löschen in einer Transaktion. Mit
+`--dry-run` zeigt er vorher nur die Liste (Einzelheiten: `deploy/README.md`,
+„Werkszustand per Kommandozeile"):
 
-Der Reranker sortiert die Suchtreffer nach inhaltlicher Passung nach, bevor der
-Bot sie zeigt. Er läuft **im Prozess** (ONNX, kein Netzdienst) und braucht ein
-Modell von ~135 MB.
+```bash
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
+  migrate boerdi import-config --exact --dry-run
+```
 
-**Optional im Wortsinn:** fehlt das Modell, protokolliert das Backend eine Zeile
-und ordnet ohne den Reranker — kein Startfehler, nur schwächere Sortierung. Sie
-können diesen Schritt also überspringen und später nachholen.
+## 8. Reranker (optional, Vorgabe aus)
 
-Das Modell liegt **weder im Repository noch im Image**: es ist ein
-heruntergeladenes, quantisiertes Artefakt und kein Quellstand. Eine 113-MB-Datei
-würde git ohnehin ablehnen (Grenze 100 MB ohne LFS), und in jeder Image-Schicht
-wäre sie eine Bremse für jeden Deploy.
+Der Reranker sortiert Abschnitte der Wissensbasis nach inhaltlicher Passung und verwirft thematisch
+verfehlte WLO-Karten. Er läuft **im Prozess** (ONNX, kein Netzdienst), braucht ein Modell von
+~135 MB und kostet CPU. Ohne ihn antwortet der Chat genauso, nur schwächer sortiert.
+
+**Einschalten — kein weiterer Handgriff:**
 
 ```bash
 cd /opt/boerdi/deploy
-mkdir -p models && cd models
-
-curl -fL -o reranker-model-v1.tar.gz \
-  https://github.com/<konto>/<repo>/releases/download/model-v1/reranker-model-v1.tar.gz
-
-# Prüfen, BEVOR entpackt wird — eine halb geladene Datei entpackt sonst still kaputt.
-echo "3579e188d181c6ddfc1023d9ef19d0b4337c900a1aa11515ee9cbb89e1d9d02e  reranker-model-v1.tar.gz" \
-  | sha256sum -c -
-
-tar -xzf reranker-model-v1.tar.gz && rm reranker-model-v1.tar.gz
-cd ..
+echo "RAG_RERANKER_ENABLED=true" >> .env
+# auf 2 Kernen zusätzlich:
+echo "RERANK_INTRA_OP_THREADS=2" >> .env && echo "RERANK_MAX_CONCURRENCY=1" >> .env
+docker compose -f compose.prod.yml --env-file .env up -d backend
 ```
 
-Danach muss `deploy/models/cross-encoder__mmarco-mMiniLMv2-L12-H384-v1-int8/`
-sieben Dateien enthalten. Das Compose hängt `deploy/models` schreibgeschützt
-unter `/models` in den Container (`RERANK_MODEL_HOST_DIR`, falls Sie es
-woanders hinlegen wollen).
+Beim Start bezieht das Backend das Modell selbst: die offizielle int8-ONNX-Datei des Herausgebers
+(`cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`, Apache-2.0) von Hugging Face, an einer festen
+Version, mit Größen- und SHA-256-Prüfung, atomar in das Volume `reranker_models`. Mehrere Kopien
+teilen das Volume, eine lädt. Bis das Modell da ist, rechnet nichts damit; danach greift es ohne
+Neustart.
+
+**Server ohne Internet:** `RERANK_AUTO_DOWNLOAD=false` und das Modell von Hand in einen Ordner
+legen, den `RERANK_MODEL_HOST_DIR` statt des Volumes einhängt. Erwartet wird darunter
+`cross-encoder__mmarco-mMiniLMv2-L12-H384-v1__quint8-avx2/` mit `model_quint8_avx2.onnx` und
+`tokenizer.json` (Quelle und Prüfwerte: `backend/src/boerdi/services/rag/reranker_bezug.py`). Ein
+älterer Export unter `cross-encoder__mmarco-mMiniLMv2-L12-H384-v1-int8/` wird weiter erkannt.
 
 **Ob er wirklich greift**, sagt der Gesundheits-Endpunkt — sofort, ohne auf den
 ersten Chat zu warten:
@@ -245,13 +255,11 @@ curl -s https://<PUBLIC_HOST>/api/health | grep -o '"reranker":"[a-z-]*"'
 
 | Wert | Bedeutung |
 |---|---|
+| `off` | Vorgabe — `RAG_RERANKER_ENABLED` nicht gesetzt oder `false` |
+| `downloading` | eingeschaltet, das Modell wird gerade bezogen |
 | `ready` | eingeschaltet, Modell auffindbar — so soll es sein |
-| `model-missing` | **eingeschaltet, aber kein Modell**: der Pfad stimmt nicht |
-| `off` | per `RAG_RERANKER_ENABLED=false` bewusst abgeschaltet |
-
-`model-missing` ist der Fall, der ohne dieses Feld unbemerkt bliebe: der Chat
-antwortet weiter, nur schlechter sortiert. Dann prüfen, ob das Slug-Verzeichnis
-wirklich **unter** `deploy/models/` liegt und nicht eine Ebene tiefer.
+| `download-failed` | Bezug gescheitert (Netz, Prüfwert, Platte) — Protokoll lesen; der nächste Start versucht es neu |
+| `model-missing` | eingeschaltet, Selbstbezug aus (`RERANK_AUTO_DOWNLOAD=false`) und kein Modell im eingehängten Ordner |
 
 Dass das Modell auch in den Speicher geladen wurde, steht beim ERSTEN Zug im
 Protokoll (`ready` sagt nur „auffindbar", nicht „geladen"):
@@ -260,26 +268,28 @@ Protokoll (`ready` sagt nur „auffindbar", nicht „geladen"):
 docker compose -f compose.prod.yml logs backend | grep -i rerank
 ```
 
-`Reranker geladen: cross-encoder__mmarco-…-int8 · N Worker × M Thread(e)` heisst
-ja.
+`Reranker geladen: cross-encoder__mmarco-…__quint8-avx2 · N Worker × M Thread(e)`
+heisst ja.
+
+**Schwellen der Karten-Auswahl:** Sie wurden mit dem früheren Export gemessen, nicht mit der
+Hugging-Face-Datei (andere Quantisierung). Ein Stichprobenvergleich (20 Paare, 2026-10-15) ergab an
+den wirksamen Schwellen dieselben Entscheidungen (Sammlungen −1,0, Einzelinhalte −1,5; knappster Fall
+0,12 von der Schwelle). Vor dem Einschalten im Wirkbetrieb mit Golden-Läufen nachmessen;
+überschreibbar per `CARD_CE_GATE_COLLECTION` / `CARD_CE_GATE_CONTENT`.
 
 <details>
-<summary>Woher das Archiv stammt (Nachvollziehbarkeit)</summary>
+<summary>Herkunft und Prüfwerte (Nachvollziehbarkeit)</summary>
 
-Es ist eine dynamische int8-Quantisierung (`optimum`/ONNX Runtime, QUInt8,
-QOperator) von `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` — die Herkunft steht
-in `ort_config.json` und `config.json` im Archiv selbst.
+Hugging Face `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` (Apache-2.0), Commit
+`1427fd652930e4ba29e8149678df786c240d8825`:
 
-Prüfsummen:
+| Datei | Größe | SHA-256 |
+|---|---|---|
+| `onnx/model_quint8_avx2.onnx` | 118 620 016 | `6c2513767fb63d008a4377bef7a7a3555433d9436342bb53e35a3a72ffc52d4b` |
+| `tokenizer.json` | 17 082 660 | `62c24cdc13d4c9952d63718d6c9fa4c287974249e16b7ade6d5a85e7bbb75626` |
 
-| Datei | SHA-256 |
-|---|---|
-| `reranker-model-v1.tar.gz` | `3579e188d181c6ddfc1023d9ef19d0b4337c900a1aa11515ee9cbb89e1d9d02e` |
-| `model_quantized.onnx` (entpackt) | `084ef9bfef23ebae01f338df29b192cad84480891f87493efb0e3aec8fbd47e0` |
-
-Wer dem Binärartefakt nicht vertrauen will, kann es aus dem Basismodell neu
-erzeugen (`optimum` + `torch` + `transformers`) — das ist ein eigener
-Werkzeugkasten von ~2–3 GB und gehört nicht auf den Produktivserver.
+Ein älterer Export (`…-int8`, `model_quantized.onnx`, SHA-256 `084ef9bf…`, erzeugt mit `optimum`)
+wird weiter erkannt, wenn er schon daliegt.
 </details>
 
 ## 9. Starten
@@ -338,11 +348,17 @@ Die Migration getrennt, damit ein Fehler dort sichtbar wird, **bevor** Replikas
 neu starten.
 
 **Der Seed läuft beim Aktualisieren mit — und das ist ungefährlich.** Der
-`migrate`-Dienst ruft `import-config --only-missing`: Bereiche, die eine neue
-Version mitbringt, kommen dazu; alles Gepflegte bleibt unberührt. So wandert
-der aktuelle Stand ohne Handgriff mit, ohne die Redaktion zu überschreiben.
+`migrate`-Dienst ruft `import-config --werksabgleich`: neue Bereiche kommen dazu,
+**unberührte Bereiche folgen der neuen Werksfassung**, alles im Studio Angepasste
+bleibt. Was angepasst ist und eine neue Werksfassung hat, zeigt das Studio unter
+Sicherung → „Werk und eigene Fassung“; dort lässt sich je Bereich zwischen Werk
+und eigener Fassung wechseln, ohne dass eine verloren geht.
 
-**Kein `import-config` ohne `--only-missing` beim Aktualisieren.** Der volle
+Sicherungen und Snapshots enthalten die gelebte Fassung, nicht die stillgelegte eigene — beim
+Umzug auf einen anderen Server vorher zurückholen (`deploy/README.md`, „Werk und eigene Fassung
+beim Umzug“).
+
+**Kein `import-config` ohne Option beim Aktualisieren.** Der volle
 Import überschreibt die redaktionelle Arbeit mit dem Seed-Stand. Wenn es
 wirklich der ganze Baum sein soll: Backup davor.
 

@@ -1,0 +1,17 @@
+// Textzeilen, die das Lauf-Detail und seine Zug-Tabelle teilen (Paket 6: die
+// Tabelle steht seitdem in eigener Komponente, ihre Stile reichen nicht mehr
+// über die Grenze) — Hinweise und die Sprecher-Zeilen eines Gesprächs.
+.erd-hint {
+  margin: var(--st-2) 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--st-text-muted);
+}
+
+.erd-user,
+.erd-bot {
+  margin: 0 0 var(--st-1);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}

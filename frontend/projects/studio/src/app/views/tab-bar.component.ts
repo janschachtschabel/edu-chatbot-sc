@@ -21,6 +21,9 @@ export interface TabDef {
   /** Also the id suffix: `#tab-<id>` controls `#panel-<id>`. */
   readonly id: string;
   readonly label: string;
+  /** How many entries the panel holds (ST-4c) — shown beside the label and
+   *  part of the tab's name, „Personas (6)". */
+  readonly count?: number;
 }
 
 @Component({
@@ -38,9 +41,10 @@ export interface TabDef {
           [attr.aria-selected]="tab.id === active()"
           [attr.aria-controls]="'panel-' + tab.id"
           [attr.tabindex]="tab.id === active() ? 0 : -1"
+          [attr.aria-label]="tab.count === undefined ? null : tab.label + ' (' + tab.count + ')'"
           (keydown)="onKey($event)"
           (click)="tabChange.emit(tab.id)"
-        >{{ tab.label }}</button>
+        >{{ tab.label }}@if (tab.count !== undefined) {<span class="tb-count">{{ tab.count }}</span>}</button>
       }
     </div>
   `,

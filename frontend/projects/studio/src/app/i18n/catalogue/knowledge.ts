@@ -80,10 +80,10 @@ export const KNOWLEDGE: CataloguePart = {
       + 'durchsucht, muss er zusätzlich in rag-config stehen (das Formular '
       + 'weiter unten auf dieser Seite).',
     'rag.ingest.title': 'Titel (optional)',
-    // Paket 4, C5: nur, was das Image ohne markitdown-Extras liest.
+    // Paket 4, C5: nur, was das Image liest — seit Paket 7 (P6) auch PDF und Office.
     'rag.ingest.fileHelp':
-      'HTML, Markdown, Text, CSV oder JSON. Große Dateien lehnt der Server ab, '
-      + 'statt am Speicher zu scheitern.',
+      'PDF, Word, PowerPoint, Excel, HTML, Markdown, Text, CSV oder JSON. Große Dateien '
+      + 'lehnt der Server ab, statt am Speicher zu scheitern.',
     'rag.ingest.url': 'Adresse der Webseite',
     'rag.ingest.urlHelp': 'Öffentlich erreichbare Adresse — interne Adressen weist der Server ab.',
     'rag.ingest.busy': 'Wird eingelesen …',
@@ -118,8 +118,8 @@ export const KNOWLEDGE: CataloguePart = {
     'rag.error.unreadable': 'Die Datei oder Adresse konnte nicht gelesen werden.',
     'rag.error.tooLarge': 'Die Datei ist größer als das Upload-Limit des Servers.',
     'rag.error.format':
-      'Dieses Dateiformat kann der Server nicht lesen. Möglich sind HTML, Markdown, '
-      + 'Text, CSV und JSON.',
+      'Dieses Dateiformat kann der Server nicht lesen. Möglich sind PDF, Word (.docx), '
+      + 'PowerPoint (.pptx), Excel (.xlsx), HTML, Markdown, Text, CSV und JSON.',
   },
 
   en: {
@@ -175,8 +175,8 @@ export const KNOWLEDGE: CataloguePart = {
       + 'this page).',
     'rag.ingest.title': 'Title (optional)',
     'rag.ingest.fileHelp':
-      'HTML, Markdown, text, CSV or JSON. The server rejects large files rather '
-      + 'than running out of memory.',
+      'PDF, Word, PowerPoint, Excel, HTML, Markdown, text, CSV or JSON. The server rejects '
+      + 'large files rather than running out of memory.',
     'rag.ingest.url': 'Address of the web page',
     'rag.ingest.urlHelp': 'A publicly reachable address — internal ones are refused by the server.',
     'rag.ingest.busy': 'Ingesting …',
@@ -205,7 +205,7 @@ export const KNOWLEDGE: CataloguePart = {
     'rag.error.unreadable': 'The file or address could not be read.',
     'rag.error.tooLarge': 'The file is larger than the server’s upload limit.',
     'rag.error.format':
-      'The server cannot read this file format. Possible are HTML, Markdown, text, '
-      + 'CSV and JSON.',
+      'The server cannot read this file format. Possible are PDF, Word (.docx), '
+      + 'PowerPoint (.pptx), Excel (.xlsx), HTML, Markdown, text, CSV and JSON.',
   },
 };

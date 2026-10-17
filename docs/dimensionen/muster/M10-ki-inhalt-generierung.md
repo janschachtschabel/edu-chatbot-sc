@@ -32,9 +32,15 @@
 - get_skill_registry
 - get_wikipedia_summary
 - get_url_text
+- get_node_details
+- get_nodes_details
+- get_wlo_content_text
+- get_compendium_text
 
 ### Quellen
 
+- mcp
+- rag
 - llm
 
 ### Wann anwenden
@@ -87,6 +93,10 @@
 ### Weitere Kopfdaten
 
 - **output_mode**: generate
+- **rag_areas**:
+  - Plattformwissen
+  - WirLernenOnline
+  - OER-Wissen
 - **precondition_slots**:
   - thema
 - **forbidden_phrases**:
@@ -110,7 +120,7 @@
 |---|---|---|
 | **Lern-Material** | arbeitsblatt, quiz, infoblatt, uebung, lerngeschichte, versuch, präsentation, glossar, checkliste, struktur, diskussion, rollenspiel | KEINE — direkt aus LLM-Wissen |
 | **Bericht / Statistik** | bericht, factsheet, kennzahlen, steckbrief, vergleich, pressemitteilung | **PFLICHT**: `query_knowledge(area="Plattformwissen")` für belastbare Zahlen |
-| **Remix** | beliebig + `source_node_id` im Slot | **PFLICHT**: `get_node_details(node_id)` für Quelle |
+| **Remix** | beliebig + `source_node_id` im Slot | **PFLICHT**: `get_node_details(nodeId)` für die Quelle, `get_wlo_content_text(nodeId)` für ihren Text |
 
 Diese Spalte sagt, woher der INHALT kommt. Sie sagt nichts über Schritt 1 —
 die freigegebene Anleitung gilt für alle drei Spielarten.
@@ -138,8 +148,10 @@ if material_type ∈ {bericht, factsheet, kennzahlen, steckbrief, vergleich, pre
     query_knowledge(area="Plattformwissen")   # PFLICHT
 elif source_node_id gesetzt:
     get_node_details(source_node_id)              # PFLICHT
+    get_wlo_content_text(source_node_id)          # wenn mit dem Inhalt gearbeitet wird
 else:
-    # Lern-Material: keine weitere Quelle, direkt aus LLM-Wissen
+    # Lern-Material: keine weitere Quelle, direkt aus LLM-Wissen.
+    # Auf einer Sammlung darf get_compendium_text(collectionId) das Soll liefern.
 ```
 
 ### Schritt 3 — Markdown-Antwort rendern

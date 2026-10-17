@@ -23,7 +23,7 @@ import { Injectable, inject } from '@angular/core';
 
 import {
   formatBytes, formatDateTime, formatDecimal, formatMoney, formatPercent, formatRelative,
-  formatSeconds, formatUsd, formatWhole,
+  formatSeconds, formatWhole,
 } from '../core/format';
 import { StudioLanguageService } from './studio-language.service';
 
@@ -49,16 +49,13 @@ export class StudioFormat {
   readonly seconds = (milliseconds: number): string =>
     formatSeconds(this.locale(), milliseconds);
 
-  /** Eine Kostenschätzung: „0,14 $" / „US$0.14". */
-  readonly usd = (value: number): string => formatUsd(this.locale(), value);
-
   /**
    * Ein exakter Betrag samt Währung: „4,92 €" / „€4.92" (K5).
    *
    * Nimmt eine Zeichenkette und keine Zahl — so verlässt der Betrag den Server
    * (K4), damit die `Decimal`-Rechnung nicht auf dem letzten Meter zu einem
-   * Gleitkommawert wird. Getrennt von `usd`, weil dort die Währung feststeht
-   * (Anbieter-Preistafel) und hier aus der Studio-Config kommt.
+   * Gleitkommawert wird. Die Währung kommt aus der Preistafel; seit Paket 7
+   * (K7) auch für die Kostenschätzung der Evaluation, die vorher fest USD war.
    */
   readonly money = (amount: string, currency: string): string =>
     formatMoney(this.locale(), amount, currency);

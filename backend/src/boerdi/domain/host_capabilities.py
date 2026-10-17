@@ -28,6 +28,8 @@ from __future__ import annotations
 
 from typing import Final
 
+from boerdi.domain.fremdwerkzeug import ist_fremd
+
 #: Die drei benannten Werkzeug-Modi. Benannt und nicht als freie Liste, weil eine
 #: Umbenennung im MCP sonst still die Rechte einer Einbettung aendern wuerde.
 LESEND: Final = "read-only"
@@ -42,12 +44,14 @@ KOPF: Final = "## Diese Anwendung"
 #: Die Ausnahmen vom Praefix-Test: ``wlo_*``-Namen, die NICHTS aendern.
 #:
 #: Der Praefix-Test unten liest ``wlo_`` als „schreibend" — das stimmt fuer den
-#: ganzen Kuratier-Katalog, aber zwei lesende Werkzeuge tragen dasselbe Praefix.
+#: ganzen Kuratier-Katalog, aber drei lesende Werkzeuge tragen dasselbe Praefix
+#: (``wlo_list_suggestions`` seit Paket 11, C-5 — Server-Annotation ``readOnlyHint``).
 #: Ohne diese Liste fiele in ``read-only`` die Frage „ist die Person angemeldet?"
 #: weg, und das Modell muesste raten, statt es sagen zu koennen.
 #: Ein Waechter haelt die Liste an den echten Katalogen fest
 #: (``test_host_capabilities.TestLesendeWloWerkzeuge``).
-LESENDE_WLO_WERKZEUGE: Final = frozenset({"wlo_auth_status", "wlo_health_check"})
+LESENDE_WLO_WERKZEUGE: Final = frozenset(
+    {"wlo_auth_status", "wlo_health_check", "wlo_list_suggestions"})
 
 _OHNE_GLIEDERUNG: Final = (
     "Diese Anwendung gruppiert Treffer NICHT in Boxen (Themenseiten, Sammlungen, "
@@ -107,7 +111,9 @@ def erlaubt(werkzeugname: str, tool_mode: str | None) -> bool:
         return True
     schreibend = (werkzeugname.startswith("wlo_")
                   and werkzeugname not in LESENDE_WLO_WERKZEUGE)
-    ausserhalb = werkzeugname in {"get_wikipedia_summary", "get_url_text"}
+    # Paket 11 (E): ein fremder MCP-Server ist ebenso der Blick nach draußen.
+    ausserhalb = (werkzeugname in {"get_wikipedia_summary", "get_url_text"}
+                  or ist_fremd(werkzeugname))
     if modus == LESEND:
         return not schreibend
     return not ausserhalb  # curate: alles ausser dem Blick nach draussen

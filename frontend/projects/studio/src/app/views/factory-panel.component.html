@@ -1,5 +1,5 @@
 <section class="op-panel" aria-labelledby="fp-title">
-  <h2 class="op-title" id="fp-title">{{ t('factory.title') }}</h2>
+  <h2 class="op-title" id="fp-title" tabindex="-1">{{ t('factory.title') }}</h2>
 
   <p class="op-lead">{{ t('factory.lead') }}</p>
 
@@ -21,6 +21,7 @@
     <button
       type="button"
       class="op-btn"
+      data-opens="save"
       [disabled]="action.busy()"
       (click)="arm('save')"
     >
@@ -29,6 +30,7 @@
     <button
       type="button"
       class="op-btn op-btn--danger"
+      data-opens="restore"
       [disabled]="!exists() || action.busy()"
       (click)="arm('restore')"
     >
@@ -50,18 +52,24 @@
       <button type="button" class="op-btn op-btn--primary" (click)="save()">
         {{ t('factory.confirmSaveYes') }}
       </button>
-      <button type="button" class="op-btn" (click)="disarm()">{{ t('action.cancel') }}</button>
+      <button type="button" class="op-btn fp-cancel" (click)="disarm()">
+        {{ t('action.cancel') }}
+      </button>
     </p>
   }
 
   @if (armed() === 'restore') {
-    <p class="op-confirm" role="alert">
+    <!-- div, nicht p: die Wahl darin ist eine Feldgruppe (Paket 7, P5-5). -->
+    <div class="op-confirm" role="alert">
       <span>{{ t('factory.confirmReset') }}</span>
+      <studio-restore-mode [(mode)]="mode" />
       <button type="button" class="op-btn op-btn--danger" (click)="restore()">
         {{ t('factory.confirmResetYes') }}
       </button>
-      <button type="button" class="op-btn" (click)="disarm()">{{ t('action.cancel') }}</button>
-    </p>
+      <button type="button" class="op-btn fp-cancel" (click)="disarm()">
+        {{ t('action.cancel') }}
+      </button>
+    </div>
   }
 
   <div class="fp-upload">
@@ -70,6 +78,7 @@
     <button
       type="button"
       class="op-btn"
+      data-opens="upload"
       [disabled]="!file() || action.busy()"
       (click)="arm('upload')"
     >
@@ -83,7 +92,9 @@
       <button type="button" class="op-btn op-btn--primary" (click)="upload()">
         {{ t('factory.confirmUploadYes') }}
       </button>
-      <button type="button" class="op-btn" (click)="disarm()">{{ t('action.cancel') }}</button>
+      <button type="button" class="op-btn fp-cancel" (click)="disarm()">
+        {{ t('action.cancel') }}
+      </button>
     </p>
   }
 

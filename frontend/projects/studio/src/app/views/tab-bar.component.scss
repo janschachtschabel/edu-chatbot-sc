@@ -31,3 +31,14 @@
   outline: 2px solid var(--st-accent);
   outline-offset: -2px;
 }
+
+// The count of a tab (ST-4c), as in ALT's dimensions page: a small pill after
+// the label. The name of the tab says it in words („Personas (6)").
+.tb-count {
+  margin-inline-start: var(--st-2);
+  padding: 0 var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}

@@ -246,13 +246,14 @@ describe("QualityComponent", () => {
     );
     // ST-9: die Wahl ist eine geteilte Komponente (Analyse, Kosten, Sessions),
     // und „Produktion“ schliesst seitdem auch Lasttest-Sitzungen aus — seit
-    // ST-8e auch den Chat-Probelauf der Agent-Seite (`studio-`).
+    // ST-8e auch den Chat-Probelauf der Agent-Seite (`studio-`), seit Paket 9 auch
+    // die Läufe von „Auftrag testen“ (`studio-probe`, ohne Sitzung).
     const hints = Array.from(h.el.querySelectorAll(".os-hint")).map(
       (s) => s.textContent?.trim(),
     );
     expect(hints).toEqual([
       "Real conversations, eval runs, load tests and trial runs together",
-      "Without eval, load-test and trial-run sessions (the widget preview in the studio counts)",
+      "Without eval runs, load tests and the studio’s trial runs (its widget preview counts)",
       "Only the sessions of eval runs",
     ]);
   });

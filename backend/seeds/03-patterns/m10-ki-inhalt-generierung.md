@@ -7,8 +7,21 @@ default_tone: kollegial
 default_length: lang
 response_type: answer
 output_mode: generate
+# Paket 7 (K5, Nutzer-Entscheid 2026-10-09): MCP und Wissensbasis erlaubt. Bis
+# dahin `sources: [llm]` — der Bericht-Zweig unten verlangte `query_knowledge`,
+# der Remix-Zweig `get_node_details`, und beides kam nie an.
 sources:
+  - mcp
+  - rag
   - llm
+# Gezielt statt aller Bereiche: Zahlen für Bericht/Factsheet stehen im
+# Plattformwissen; WLO- und OER-Themen sind die anderen Berichtsfälle. Für ein
+# Arbeitsblatt zur Photosynthese findet die Vorabsuche hier nichts über der
+# Schwelle und gibt nichts in den Prompt.
+rag_areas:
+  - Plattformwissen
+  - WirLernenOnline
+  - OER-Wissen
 tools:
   # D2: „Arbeitsblatt / Quiz / Prüfung erstellen" ist der zweite Fall, für den
   # die Redaktion Skills schreibt.
@@ -24,6 +37,13 @@ tools:
   # Adresse. KEIN Ersatz für den WLO-Bestand.
   - get_wikipedia_summary
   - get_url_text
+  # K5: Inhaltsabrufe für einen bekannten Knoten — die Remix-Quelle (Metadaten,
+  # Volltext) und der Kompendiumstext einer Sammlung als Soll. Abrufen, nicht
+  # suchen: die nodeId kommt aus dem Seitenkontext oder dem Gespräch.
+  - get_node_details
+  - get_nodes_details
+  - get_wlo_content_text
+  - get_compendium_text
   # KEINE Suchwerkzeuge, und das ist Absicht. Die Skill-Anbindung trug hier
   # kurzzeitig search_wlo_collections + search_wlo_topic_pages ein, mit der
   # Begründung, M10 habe sie zuvor über den Rückfall-Zweig von
@@ -103,7 +123,7 @@ discriminators:
 |---|---|---|
 | **Lern-Material** | arbeitsblatt, quiz, infoblatt, uebung, lerngeschichte, versuch, präsentation, glossar, checkliste, struktur, diskussion, rollenspiel | KEINE — direkt aus LLM-Wissen |
 | **Bericht / Statistik** | bericht, factsheet, kennzahlen, steckbrief, vergleich, pressemitteilung | **PFLICHT**: `query_knowledge(area="Plattformwissen")` für belastbare Zahlen |
-| **Remix** | beliebig + `source_node_id` im Slot | **PFLICHT**: `get_node_details(node_id)` für Quelle |
+| **Remix** | beliebig + `source_node_id` im Slot | **PFLICHT**: `get_node_details(nodeId)` für die Quelle, `get_wlo_content_text(nodeId)` für ihren Text |
 
 Diese Spalte sagt, woher der INHALT kommt. Sie sagt nichts über Schritt 1 —
 die freigegebene Anleitung gilt für alle drei Spielarten.
@@ -131,8 +151,10 @@ if material_type ∈ {bericht, factsheet, kennzahlen, steckbrief, vergleich, pre
     query_knowledge(area="Plattformwissen")   # PFLICHT
 elif source_node_id gesetzt:
     get_node_details(source_node_id)              # PFLICHT
+    get_wlo_content_text(source_node_id)          # wenn mit dem Inhalt gearbeitet wird
 else:
-    # Lern-Material: keine weitere Quelle, direkt aus LLM-Wissen
+    # Lern-Material: keine weitere Quelle, direkt aus LLM-Wissen.
+    # Auf einer Sammlung darf get_compendium_text(collectionId) das Soll liefern.
 ```
 
 ### Schritt 3 — Markdown-Antwort rendern

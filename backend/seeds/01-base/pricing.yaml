@@ -24,8 +24,10 @@ models:
     input: 0.0
     cached_input: 0.0
     output: 0.0
-  # Vorgabe fuer Simulator und Bewerter der Auswertungslaeufe
-  # (EVAL_SIMULATOR_MODEL / EVAL_JUDGE_MODEL)
+  # Nur noch noetig, wenn EVAL_SIMULATOR_MODEL / EVAL_JUDGE_MODEL es setzen —
+  # seit Paket 7 laufen Simulator und Bewerter ohne Angabe mit dem Chat-Modell.
+  # Die Kostenschaetzung der Auswertung bepreist mit dieser Tafel (in ihrer
+  # Waehrung, ohne Umrechnung); fehlt ein Preis, nennt sie das Modell.
   gpt-4o-mini:
     input: 0.0
     cached_input: 0.0

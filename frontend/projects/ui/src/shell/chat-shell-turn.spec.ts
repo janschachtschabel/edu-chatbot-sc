@@ -51,6 +51,7 @@ function fakeApi(opts: { streamRejects?: Error; resp?: ChatResponse } = {}) {
     setBaseUrl: vi.fn(),
     getSpeechEnabled: vi.fn(async () => false),
     loadHistory: vi.fn(async () => []),
+    warteAufAnmeldung: vi.fn(),
   };
 }
 
@@ -113,6 +114,32 @@ describe('ChatShellComponent — Turn-Maschinerie (8-4S-d2a)', () => {
     await c.sendMessage('und jetzt ich');
     expect(c.messages()[0].fromHost).toBe(true);
     expect(c.messages()[2].fromHost).toBeFalsy();
+  });
+
+  it('ein Auftrag während eines laufenden Zugs wartet und geht danach ab (Paket 10, H-2)', async () => {
+    // Audit 2026-10-10, H-2: beim Erstaufruf läuft oft noch der Kontext-Ping —
+    // `runSendMessage` kehrte am `isLoading`-Tor still zurück, der Auftrag der
+    // Gastseite war weg, und ihr Promise wurde trotzdem erfüllt.
+    TestBed.configureTestingModule({
+      imports: [ChatShellComponent],
+      providers: [provideZonelessChangeDetection()],
+    });
+    const f = TestBed.createComponent(ChatShellComponent);
+    f.componentRef.setInput('translate', createTranslator(DE, DE));
+    const c = f.componentInstance;
+    const api = fakeApi();
+    (c as any)._api = api;
+    c.isLoading.set(true);                        // der Kontext-Ping läuft
+
+    const erledigt = c.startTask('Leg mit dieser Sammlung los.');
+    expect(api.stream).not.toHaveBeenCalled();
+
+    c.isLoading.set(false);                       // der Ping ist fertig
+    await erledigt;
+
+    expect(api.stream).toHaveBeenCalledTimes(1);
+    expect(api.stream.mock.calls[0][1]).toBe('Leg mit dieser Sammlung los.');
+    expect(c.messages().find((m) => m.fromHost)?.content).toBe('Leg mit dieser Sammlung los.');
   });
 
   it('ein leerer Auftrag löst keinen Zug aus', async () => {
@@ -344,6 +371,47 @@ describe('ChatShellComponent — Ticket-Anmeldung', () => {
     // Weitere Signal-Läufe stoßen KEINEN zweiten Tausch an.
     f.detectChanges();
     expect(fetchSpy.mock.calls.filter(([url]) => String(url).endsWith('/auth/ticket'))).toHaveLength(1);
+  });
+
+  it('ein abgewiesener Zugang räumt den Block und sagt es (Paket 10, A-3)', async () => {
+    // Kurzaudit 2026-10-10, A-3: der Server wies den Block ab (abgelaufen,
+    // widerrufen), das Widget erfuhr nichts — der Knopf blieb auf „Abmelden“, und
+    // jeder weitere Zug schickte denselben toten Block.
+    sessionStorage.setItem('boerdi.mcp-access', BLOCK);
+    const f = makeFixture();
+    f.componentRef.setInput('mcpAuthBase', 'https://mcp.example.org');
+    const c = f.componentInstance;
+    (c as any)._api = fakeApi({ resp: { ...RESP, auth_invalid: true } as unknown as ChatResponse });
+
+    await c.sendMessage('suche Optik');
+
+    expect(sessionStorage.getItem('boerdi.mcp-access')).toBeNull();
+    expect(c.authButton()).toBe('signIn');
+    expect(c.messages().map((m) => m.content)).toContain(DE['auth.expired']);
+  });
+
+  it('frühe Züge warten auf den Tausch (Paket 10, S-4)', async () => {
+    // Kurzaudit 2026-10-10, S-4: der Tausch startet erst mit der Anmelde-Adresse aus
+    // der Konfiguration; Kontext-Ping und frühe Aufträge gingen davor anonym hinaus.
+    let antworten!: (r: Response) => void;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (() => new Promise<Response>((resolve) => { antworten = resolve; })) as typeof fetch);
+    const f = makeFixture();
+    f.componentRef.setInput('ticket', TICKET);
+    f.detectChanges();
+    const api = (f.componentInstance as any)._api;
+    expect(api.warteAufAnmeldung).toHaveBeenCalledTimes(1);   // schon ohne Anmelde-Adresse
+    let frei = false;
+    void (api.warteAufAnmeldung.mock.calls[0][0] as Promise<unknown>).then(() => { frei = true; });
+
+    f.componentRef.setInput('mcpAuthBase', 'https://mcp.example.org');
+    f.detectChanges();
+    await vi.waitFor(() => expect(antworten).toBeTypeOf('function'));
+    expect(frei).toBe(false);
+
+    antworten(new Response(JSON.stringify({ ok: true, block: BLOCK, authority: 'lehrerin' }),
+      { status: 200, headers: { 'content-type': 'application/json' } }));
+    await vi.waitFor(() => expect(frei).toBe(true));
   });
 
   it('lässt bei abgelehntem Ticket die Handanmeldung stehen und warnt die Betreiberseite', async () => {

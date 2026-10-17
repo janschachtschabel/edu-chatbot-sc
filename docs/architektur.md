@@ -45,7 +45,7 @@ Drei Bestandteile, ein Auslieferungsartefakt:
                     │  ├── Zug-Graph (13 Knoten)               │
                     │  ├── Muster │ Agent                      │
                     │  ├── MCP-Client · RAG · Safety           │
-                    │  └── Config-Store (37 Bereiche)          │
+                    │  └── Config-Store (36 Bereiche)          │
                     └──┬────────┬─────────┬────────────┬───────┘
                        │        │         │            │
                        ▼        ▼         ▼            ▼
@@ -61,7 +61,7 @@ Drei Bestandteile, ein Auslieferungsartefakt:
 
 **Die tragende Idee:** fast alles Verhalten ist **Konfiguration in der
 Datenbank**, nicht Code. Muster, Personas, Intents, Zustände, Tonfall,
-Sicherheitsregeln, Begrüßung, Anzeige-Regeln — 37 Bereiche, im Studio pflegbar,
+Sicherheitsregeln, Begrüßung, Anzeige-Regeln — 36 Bereiche, im Studio pflegbar,
 **ohne Neustart wirksam**. Der Code ist die Maschine; was sie sagt und wann,
 steht daneben.
 
@@ -143,20 +143,23 @@ Das eine Bild bedient damit drei Oberflächen:
       │ traefik  │  v3.6, TLS, einziger veröffentlichter Port
       └────┬─────┘
            │
-     ┌─────▼──────┐   replicas: 3 (Vorgabe)
+     ┌─────▼──────┐   replicas: BACKEND_REPLICAS (Vorgabe 1)
      │  backend   │◀── zustandslos: Sitzung + Config in Postgres,
-     └──┬───┬───┬─┘    Sperre je Sitzung nur prozessintern (§8, offen)
+     └──┬───┬───┬─┘    Sperre je Sitzung in Postgres über alle Repliken (§8)
         │   │   └──────────────▶ jaeger 2.19
         │   └──────▶ valkey 8   (Drossel-Zähler)
         ▼
    postgres 17 + pgvector
         ▲
-   migrate (einmalig): alembic upgrade head && boerdi import-config --only-missing
+   migrate (einmalig): alembic upgrade head && boerdi import-config --werksabgleich
 ```
 
-Der `migrate`-Dienst ist **idempotent**: `--only-missing` legt an, was fehlt, und
-rührt Gepflegtes nicht an — sonst drehte jeder Neustart die redaktionelle Arbeit
-auf den Auslieferungsstand zurück.
+Der `migrate`-Dienst ist **idempotent**: `--werksabgleich` legt an, was fehlt, hebt
+unberührte Bereiche auf eine neue Werksfassung und rührt Gepflegtes nicht an — sonst
+drehte jeder Neustart die redaktionelle Arbeit auf den Auslieferungsstand zurück.
+Je Bereich merkt sich die Datenbank, auf welcher Werksfassung er steht (`werk_hash`),
+und eine stillgelegte eigene Fassung (`eigene_fassung`); Status und Regeln stehen in
+`services/werkfassung.py` (Paket 12).
 
 ---
 
@@ -295,16 +298,16 @@ Cross-Encoder (`rerank.py`). Beides bewusst ohne Torch: `onnxruntime`,
 
 ### 4.6 Konfiguration — der Kern der Pflegbarkeit
 
-**37 Bereiche** (`domain/config_models/__init__.py:55-103`), jeder ein
+**36 Bereiche** (`domain/config_models/__init__.py:55-103`), jeder ein
 Pydantic-Modell:
 
 | Gruppe | Anzahl | Beispiele |
 |---|---|---|
-| `01-base` | 19 | Persona, Guardrails, Anzeige-Regeln, Sicherheit, Tonfall, Begrüßung, **Engine** |
+| `01-base` | 20 | Persona, Guardrails, Anzeige-Regeln, Sicherheit, Tonfall, Begrüßung, **Engine**, Suchwerte (`rag-retrieval`, Paket 7) |
 | `02-domain` | 3 | Domänenregeln, Lotsen-Regeln, WLO-Plattformwissen |
 | Gruppierte MD-Bereiche | 2 | `03-patterns`, `04-personas` |
 | `04-*` Dimensionen | 4 | Entitäten, Intents, Signale, Zustände |
-| `05-canvas` | 5 | Auslöser, Materialtypen, Persona-Prioritäten |
+| `05-canvas` | 3 | Materialtypen, Typ-Aliase, Persona-Prioritäten (Auslöser gestrichen, Paket 7) |
 | `05-knowledge` + `eval` | 3 | MCP-Server, RAG-Konfiguration, Gold-Flows |
 
 Der Weg einer Änderung:
@@ -379,11 +382,11 @@ einem Bild:
 | Werkzeugfamilie | Zweck |
 |---|---|
 | `search_wlo_all` | **eine** breite Suche über Inhalte, Sammlungen und Themenseiten — der Standardweg |
-| `search_wlo_content` / `_collections` / `_topic_pages` / `_within_collection` | gezielte Einzelsuchen; Filter als deutsche Labels (`learningResourceType`, `discipline`, `educationalContext`), dazu `license` (u. a. Sammelwert `"OER"`) und `excludeNodeIds` („zeig mehr davon") |
+| `search_wlo_content` / `_collections` / `_topic_pages` / `_within_collection` | gezielte Einzelsuchen; Filter als deutsche Labels (`learningResourceType`, `discipline`, `educationalContext`), dazu `license` (u. a. Sammelwert `"OER"`) und `excludeNodeIds` („zeig mehr davon"; bei `_within_collection` stattdessen `skipCount`, der Server kennt dort kein `excludeNodeIds`). Alle Filter gleicht der Client vor dem Aufruf ab (`arg_resolvers`, `lizenz_abgleich`) |
 | `get_node_details` / `get_nodes_details` | Einzelheiten, im Bündel bis 50 Knoten in einem Aufruf |
 | `get_compendium_text` | die kuratierte Übersichts-Prosa einer Sammlung; mit `query` nur die passenden Absätze, im Bündel bis 9 Sammlungen je Aufruf (bewusst unter dem Server-Maximum 25, weil die Langform ungedeckelt in den Prompt geht). Suchtreffer tragen nur das Signal `hasCompendium` — den Text holt der Seitenkontext bei Bedarf nach |
 | `get_related_content` · `get_node_breadcrumb` · `get_node_collections` | „mehr wie dieses", Einordnung im Baum |
-| `lookup_wlo_vocabulary` · `lookup_wlo_publishers` | Vokabular-/Anbieterauflösung, wenn ein Label nicht greift |
+| `lookup_wlo_vocabulary` · `lookup_wlo_publishers` | Vokabularwerte für Schreibvorgänge und Metadaten-Prüfung, Anbieterauflösung. Suchfilter (Fach, Stufe, Typ, Zielgruppe, Lizenz) gleicht der Client selbst ab (`arg_resolvers`, `lizenz_abgleich`) |
 
 Die Suchdisziplin steht im **Master-Skill** (`docs/skills/vorgehen.md`): die
 `query` trägt nur den Kernbegriff, Materialart/Fach/Stufe gehören in die Filter.
@@ -452,9 +455,9 @@ der Anbieter ist Konfiguration (`LLM_PROVIDER`), nicht Code:
 
 | Modus | Chat-Modell (Vorgabe) | Embeddings | Speech/Moderation |
 |---|---|---|---|
-| `openai` | gpt-5.6-luna | text-embedding-3-small (1536) | ja |
-| `b-api-openai` | gpt-5.6-luna | text-embedding-3-small (1536) | ja |
-| `b-api-academiccloud` | mistral-large-3-675b | e5-mistral-7b-instruct (4096) | **nein** — Speech ehrlich abgeschaltet, Moderation degradiert kontrolliert |
+| `openai` | gpt-6-luna | text-embedding-3-small (1536) | ja |
+| `b-api-openai` (Standard im Betrieb) | gpt-6-luna | text-embedding-3-small (1536) | ja |
+| `b-api-academiccloud` (lauffähig, nicht Standard: langsamer, schwächer) | qwen3-30b-a3b-instruct-2507 | text-embedding-3-small (1536) über den OpenAI-Pfad der b-api — die AcademicCloud führt kein Einbettungsmodell | **nein** — Speech ehrlich abgeschaltet, Moderation aus |
 
 **Endpunkt je Modell.** Chat-Completions ist der gemeinsame Nenner, die
 AcademicCloud braucht genau diesen Weg. Die neuen OpenAI-Modelle (ab `gpt-6`)
@@ -517,7 +520,7 @@ Vier Bauentscheidungen, die das Verhalten erklären:
 
 ## 7. Studio
 
-Die Redaktionsoberfläche: 37 Bereiche pflegen, Muster und Personas bearbeiten,
+Die Redaktionsoberfläche: 36 Bereiche pflegen, Muster und Personas bearbeiten,
 Auswertungen ansehen, Sicherungen ziehen, Agent und Widget testen.
 
 **Formulare aus Schemata.** `schema-form/` erzeugt Eingabefelder aus dem
@@ -560,18 +563,21 @@ statt zu 404en (`studio_static.py`); die drei echten Auth-Routen unter
 | `usage_events` | Token und Kosten |
 | `eval_runs` | Auswertungsläufe |
 | `loadtest_runs` | Lasttest-Läufe |
-| `config_areas` | die 37 Bereiche (jsonb + Version) |
+| `config_areas` | die 36 Bereiche (jsonb + Version) |
 | `config_history` | jede Änderung, mit Urheber |
 | `config_snapshots` | benannte Sicherungsstände |
 | `rag_documents` | Quelldokumente |
 | `rag_chunks` | Abschnitte + **pgvector**-Einbettung |
 
-Nebenläufigkeit: Züge derselben Sitzung serialisiert **heute nur eine
-prozessinterne Sperre** (`api/session_locks.py`, `asyncio.Lock`). Der Helfer
-`db/locks.acquire_session_lock` (`pg_advisory_xact_lock`) existiert, wird aber
-im Produktivcode nirgends gerufen, und als transaktionsgebundene Sperre hielte er
-ohnehin nur bis zum ersten Commit des Zugs. Über mehrere Repliken hinweg können
-zwei Züge derselben Sitzung also parallel laufen (Audit 2026-09-29, offen).
+Nebenläufigkeit: Züge derselben Sitzung serialisiert seit Paket 7 (P1) eine
+Sperre in Postgres über alle Repliken: ein Eintrag in `session_locks` (Migration
+0008) mit Ablaufzeit, genommen von beiden Chat-Endpunkten
+(`api/session_locks.sitzung_sperren` → `services/sitzungssperre`). Ein zweiter Zug
+wartet bis 20 s und bekommt dann 409 bzw. im Stream `error` mit `code:
+session_busy`. Die Sperre wird im Takt verlängert und verfällt nach einem Absturz
+binnen 60 s; eine Advisory-Sperre schied aus, weil sie eine Verbindung über den
+ganzen Zug hielte (eine xact-Sperre fiele beim ersten Commit). Ohne Datenbank
+bleibt die prozessinterne Sperre (`asyncio.Lock`).
 
 ---
 

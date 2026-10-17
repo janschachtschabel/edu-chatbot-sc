@@ -151,10 +151,10 @@ Quelle: `backend/seeds/04-entities/entities.yaml`
 ## lizenz — Lizenz
 
 - **type**: string
-- **description**: Gewünschte Lizenz (z.B. CC BY, CC BY-SA, CC0).
+- **description**: Gewünschte Lizenz (z.B. CC BY, CC BY-SA, CC0, OER). Nur setzen, wenn die Person ausdrücklich eine Lizenz oder OER verlangt.
 - **examples**:
   - CC BY
   - CC BY-SA
   - CC0
-  - Alle OER
+  - OER
 

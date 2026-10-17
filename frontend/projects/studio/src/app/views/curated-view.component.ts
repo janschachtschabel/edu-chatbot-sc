@@ -25,6 +25,7 @@ import { AgentSkillsComponent } from './agent-skills.component';
 import { AgentTesterComponent } from './agent-tester.component';
 import { AgentToolsComponent } from './agent-tools.component';
 import { AreaSectionComponent } from './area-section.component';
+import { CuratedTabsComponent } from './curated-tabs.component';
 import {
   type CuratedAreaSection, type CuratedPanelSection, curatedView, isAreaSection,
 } from './curated-views';
@@ -34,6 +35,7 @@ import { McpRegistryComponent } from './mcp-registry.component';
 import { PrivacyPurgeComponent } from './privacy-purge.component';
 import { RagAreasComponent } from './rag-areas.component';
 import { RagIngestComponent } from './rag-ingest.component';
+import { RetentionComponent } from './retention.component';
 import { warnOnUnload } from './unsaved-changes.guard';
 
 /** One rendered row of the page, already narrowed to the shape it renders as. */
@@ -46,10 +48,10 @@ type Entry =
 @Component({
   selector: 'studio-curated-view',
   imports: [
-    AreaSectionComponent, GroupSectionComponent,
+    AreaSectionComponent, CuratedTabsComponent, GroupSectionComponent,
     RagAreasComponent, RagIngestComponent, McpRegistryComponent, AgentTesterComponent,
-    MasterSkillComponent, PrivacyPurgeComponent, AgentToolsComponent, AgentSkillsComponent,
-    AgentPromptComponent, AgentProbeComponent,
+    MasterSkillComponent, PrivacyPurgeComponent, RetentionComponent, AgentToolsComponent,
+    AgentSkillsComponent, AgentPromptComponent, AgentProbeComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './curated-view.component.html',
@@ -95,6 +97,11 @@ export class CuratedViewComponent {
   readonly sections = viewChildren(AreaSectionComponent);
   readonly groupSections = viewChildren(GroupSectionComponent);
   readonly mcpSections = viewChildren(McpRegistryComponent);
+  /** ST-4c: eine Seite mit `layout: 'tabs'` hängt ihre Abschnitte in die
+   *  Reiter-Komponente — deren `dirty` zählt hier mit. */
+  readonly tabbed = viewChildren(CuratedTabsComponent);
+  readonly tabSections = computed(
+    () => (this.definition()?.sections ?? []).filter(isAreaSection));
 
   /** For the leave guard: any panel with unsaved edits, open or collapsed —
    *  every kind that HAS a save button, or a dirty one would leave without a
@@ -102,7 +109,7 @@ export class CuratedViewComponent {
    *  delete) are immediate, so they are never in an unsaved state — nor is
    *  the purge panel (ST-6). */
   readonly dirty = computed(() =>
-    [...this.sections(), ...this.groupSections(), ...this.mcpSections()]
+    [...this.sections(), ...this.groupSections(), ...this.mcpSections(), ...this.tabbed()]
       .some((section) => section.dirty()),
   );
 

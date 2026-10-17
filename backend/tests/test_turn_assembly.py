@@ -322,15 +322,16 @@ async def test_page_action_canvas_show_cards_in_widget():
 
 
 # ── Anmelde-Rückfrage (C5-c2) ──────────────────────────────────────
-# Die Bedingung läuft hier ECHT (``curation_blocked_by_mode``); nur der
-# Zugangsblock wird gesetzt bzw. weggenommen. Ein Test, der stattdessen die
+# Die Bedingung läuft hier ECHT (``curation_blocked_by_mode``); nur das
+# Schreibrecht wird gesetzt bzw. weggenommen (seit Paket 7, S4,
+# ``schreiben_erlaubt`` statt des blossen Zugangsblocks). Ein Test, der stattdessen die
 # Bedingung selbst attrappiert, bewiese nur, dass eine Attrappe zurückgibt,
 # was man ihr eingebaut hat.
 
 
 async def test_kurationsmuster_ohne_block_bietet_die_anmeldung_an(monkeypatch):
     from boerdi.services import response_tool_selection as rts
-    monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+    monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
 
     _c, qrs, _pa, _pg, _rt = await _call(
         pattern_output={"format_follow_up": "quick_replies", "max_items": 5,
@@ -343,7 +344,7 @@ async def test_kurationsmuster_ohne_block_bietet_die_anmeldung_an(monkeypatch):
 async def test_mit_block_bleibt_die_rueckfrage_weg(monkeypatch):
     """Wer kuratieren kann, soll nicht gefragt werden, ob er sich anmelden will."""
     from boerdi.services import response_tool_selection as rts
-    monkeypatch.setattr(rts, "has_auth_token", lambda: True)
+    monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: True)
 
     _c, qrs, _pa, _pg, _rt = await _call(
         pattern_output={"format_follow_up": "quick_replies", "max_items": 5,
@@ -354,7 +355,7 @@ async def test_mit_block_bleibt_die_rueckfrage_weg(monkeypatch):
 
 async def test_reines_suchmuster_bleibt_unberuehrt(monkeypatch):
     from boerdi.services import response_tool_selection as rts
-    monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+    monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
 
     _c, qrs, _pa, _pg, _rt = await _call(
         pattern_output={"format_follow_up": "quick_replies", "max_items": 5,
@@ -365,7 +366,7 @@ async def test_reines_suchmuster_bleibt_unberuehrt(monkeypatch):
 
 async def test_die_sprache_des_zuges_gilt(monkeypatch):
     from boerdi.services import response_tool_selection as rts
-    monkeypatch.setattr(rts, "has_auth_token", lambda: False)
+    monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: False)
 
     _c, qrs, _pa, _pg, _rt = await _call(
         req=ChatRequest(session_id="s1", message="frage",

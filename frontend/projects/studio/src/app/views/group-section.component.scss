@@ -1,14 +1,34 @@
 // A group of documents as one panel (9-4d). Panel chrome is shared with
 // area-section; only the two-column body below is specific to this one.
 @use './section-shell';
+@use './live-region';
+
+// Liste│Editor (ST-3d, Paket 6): links die Liste in fester Breite, rechts das
+// Dokument mit dem ganzen Rest. Vorher teilte `auto-fit` die Breite gleich auf —
+// und die Statuszeile belegte als drittes Rasterelement eine eigene Spalte, der
+// Editor bekam ein Drittel. Eine Container-Abfrage wie bei `object-list`: die
+// Breite des Panels zählt, nicht die des Fensters.
+:host {
+  display: block;
+  container-type: inline-size;
+}
 
 .gs {
   display: grid;
   gap: var(--st-4);
-  // list beside document on wide screens, stacked below — no breakpoint to
-  // maintain, and it collapses on its own at 320px
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
   align-items: start;
+}
+
+@container (min-width: 48rem) {
+  .gs {
+    grid-template-columns: minmax(15rem, 20rem) 1fr;
+  }
+}
+
+// Zustand und Statuszeile gehören keiner Spalte.
+.gs > .cs-state,
+.gs > .cs-status {
+  grid-column: 1 / -1;
 }
 
 .gs-list-title {
@@ -19,30 +39,25 @@
   color: var(--st-text-muted);
 }
 
-.gs-entries {
-  margin: 0 0 var(--st-4);
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: var(--st-1);
+// Die Seitenliste selbst steht in `studio-entry-list` (ST-3d, Paket 6); hier nur
+// die Knöpfe und die Rückfrage, die als Inhalt darunter stehen.
+.gs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
 }
 
-.gs-entry {
-  inline-size: 100%;
-  min-block-size: 2.5rem;
-  padding: var(--st-2) var(--st-3);
-  border: 1px solid var(--st-rule);
+// Die Rückfrage vor dem Löschen, wie `op-confirm` in den Sicherungs-Panels.
+.gs-confirm {
+  display: grid;
+  gap: var(--st-2);
+  padding: var(--st-3);
+  border: 1px solid var(--st-warn-dot);
   border-radius: var(--st-radius);
-  background: var(--st-surface-variant);
-  color: var(--st-text);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
+  background: var(--st-panel);
 
-  &--on {
-    border-color: var(--st-accent);
-    background: var(--st-accent-soft);
-    font-weight: 600;
+  p {
+    margin: 0;
   }
 }
 
@@ -78,4 +93,14 @@
 
 .gs-doc {
   min-inline-size: 0; // long values must not push the list off the panel
+}
+
+// S4: die wirksamen Wissensbereiche eines Musters — ein Hinweis über dem
+// Formular, abgesetzt durch Rand und Fläche, nicht durch Farbe allein.
+.gs-effective {
+  margin: 0 0 var(--st-3);
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-accent);
+  background: var(--st-surface-variant);
+  font-size: 0.875rem;
 }

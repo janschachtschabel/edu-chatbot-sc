@@ -33,6 +33,13 @@ const WEG: Readonly<Record<string, string>> = {
   studio: 'conflict.via.studio',
   restore: 'conflict.via.restore',
   'seed-apply': 'conflict.via.seed',
+  'seed-apply-cli': 'conflict.via.seed',
+  import: 'conflict.via.import',
+  'import-cli': 'conflict.via.import',
+  werksabgleich: 'conflict.via.werksabgleich',
+  werkfassung: 'conflict.via.werkfassung',
+  'werk-geprueft': 'conflict.via.geprueft',
+  'eigene-fassung': 'conflict.via.eigeneFassung',
 };
 
 let zaehler = 0;

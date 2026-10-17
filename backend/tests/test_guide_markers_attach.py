@@ -20,9 +20,8 @@ signature stays compatible across the two verbatim ports.
 
 from __future__ import annotations
 
-import re
-
 from boerdi.api.schemas import ChatRequest, Environment
+from boerdi.domain import regel_regex
 from boerdi.services.guide_markers import _attach_guide_qr, _attach_guide_urls
 
 
@@ -131,7 +130,7 @@ def test_attach_guide_qr_end_to_end_real_injector(monkeypatch):
     monkeypatch.setattr(config_loader, "load_guide_mode_config",
                         lambda: {"max_guide_quick_replies": 2})
     monkeypatch.setattr(guide_qr_injector, "_COMPILED", [
-        (re.compile("themenseite.*klima", re.I), "Klima", "",
+        (regel_regex.uebersetze("themenseite.*klima"), "Klima", "",
          "https://wirlernenonline.de/themenseite/klima", 90),
     ])
     out = _attach_guide_qr(_req(message="zeig die themenseite zu klima"), ["Andere Frage"])

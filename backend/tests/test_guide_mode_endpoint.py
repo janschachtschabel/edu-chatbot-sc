@@ -30,7 +30,7 @@ def _neu_bundle() -> dict:
 def test_guide_mode_bundle_shape() -> None:
     body = _neu_bundle()
     assert set(body) >= {
-        "default_enabled", "allowed_hosts", "url_fields_priority",
+        "allowed_hosts", "url_fields_priority",
         "max_guide_targets_per_turn", "max_guide_quick_replies",
         "trusted_domains", "repo_base_url", "header_nav", "welcome",
     }

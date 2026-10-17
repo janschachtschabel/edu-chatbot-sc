@@ -26,7 +26,7 @@ driftende Kopie hier. Jede Seite bewacht ihre eigene Grenze.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 # Lesen wird nie vorbereitet — das erledigt der Server selbst. Genau diese drei
@@ -47,6 +47,20 @@ class PreparedWrite:
     #: Der Satz für hinterher. Er gehört zum Werkzeug, das die Änderung kennt,
     #: nicht zu dem, der sie absetzt.
     done_message: str
+
+
+#: Wo die ausgelieferte Anfrage an der gespeicherten Antwort liegt (``debug``,
+#: Paket 9, Review Paket 7 MAJOR 7). Reißt der Strom ab, holt das Widget die Antwort
+#: aus dem Verlauf (Paket 7, P2) — ohne diesen Eintrag sagte die Blase „wird in der
+#: Seite ausgeführt“, und die Seite führte nie etwas aus; ein zweites „ja“ half nicht,
+#: der Vorgang war verbraucht. Nur diese Nachfrage liest ihn, nie die
+#: Wiederherstellung beim Laden der Seite — sonst liefe die Änderung erneut.
+VERLAUF_SCHLUESSEL = "_prepared_write"
+
+
+def fuer_den_verlauf(write: PreparedWrite) -> dict[str, Any]:
+    """Die Anfrage als Eintrag für :data:`VERLAUF_SCHLUESSEL`."""
+    return asdict(write)
 
 
 def single_prepared_write(writes: list[PreparedWrite]) -> PreparedWrite | None:

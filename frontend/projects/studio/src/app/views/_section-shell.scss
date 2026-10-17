@@ -101,6 +101,14 @@
     background: var(--st-accent);
     color: var(--st-on-accent);
   }
+
+  // Löschen und Verwandtes — wie `op-btn--danger`: Rand und Schrift, keine
+  // rote Fläche, damit „gefährlich“ nicht allein an der Farbe hängt, sondern
+  // auch am Wort (SC 1.4.1).
+  &--danger {
+    border-color: var(--st-danger-text);
+    color: var(--st-danger-text);
+  }
 }
 
 .cs-raw-link {

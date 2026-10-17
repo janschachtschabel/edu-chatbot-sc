@@ -210,15 +210,16 @@ async def test_ingest_file_cap_zero_means_unlimited(monkeypatch, tmp_path):
 def test_ingest_file_converter_error_becomes_400_and_still_unlinks(
     client, monkeypatch, tmp_path
 ):
-    from boerdi.services.rag.ingest import Umwandlungsfehler
+    from boerdi.services.rag.umwandeln import Umwandlungsfehler
 
-    _fake_convert(monkeypatch, text=Umwandlungsfehler("Fehler beim Konvertieren: boom"))
+    _fake_convert(monkeypatch, text=Umwandlungsfehler(
+        "Fehler beim Konvertieren: RuntimeError: boom", art="datei", detail="RuntimeError: boom"))
     calls = _fake_ingest(monkeypatch)
     r = client.post(
         "/api/rag/ingest/file", files={"file": ("a.pdf", b"x")}, headers=_AUTH
     )
     assert r.status_code == 400
-    assert r.json()["detail"] == "Fehler beim Konvertieren: boom"
+    assert r.json()["detail"] == "Die Datei ließ sich nicht umwandeln (RuntimeError: boom)."
     assert calls == []  # never stored
     assert list(tmp_path.iterdir()) == []  # finally runs on the error path too
 
@@ -226,10 +227,11 @@ def test_ingest_file_converter_error_becomes_400_and_still_unlinks(
 def test_ein_nicht_lesbares_format_ist_415_mit_klarem_satz(client, monkeypatch, tmp_path):
     """Paket 4, C5 (F17a): Eine DOCX-Datei ist nicht kaputt — der Server liest
     das Format nicht. 415 sagt das, und der Satz nennt, was geht."""
-    from boerdi.services.rag.ingest import FORMAT_NICHT_LESBAR, Umwandlungsfehler
+    from boerdi.services.rag.umwandeln import FORMAT_NICHT_LESBAR, Umwandlungsfehler
 
     _fake_convert(monkeypatch,
-                  text=Umwandlungsfehler(f"{FORMAT_NICHT_LESBAR}: MissingDependencyException"))
+                  text=Umwandlungsfehler(f"{FORMAT_NICHT_LESBAR}: MissingDependencyException",
+                                         art="format"))
     calls = _fake_ingest(monkeypatch)
     r = client.post(
         "/api/rag/ingest/file", files={"file": ("a.docx", b"x")}, headers=_AUTH
@@ -298,11 +300,11 @@ def test_ingest_url_title_defaults_to_the_url(client, monkeypatch):
 def test_ingest_url_guard_error_becomes_400(client, monkeypatch):
     # url_safety rejects internal targets by returning a "Fehler:" string
     # (never raising) — the router is what turns it into a 400.
-    from boerdi.services.rag.ingest import Umwandlungsfehler
+    from boerdi.services.rag.umwandeln import Umwandlungsfehler
 
     _fake_convert(
         monkeypatch,
-        text=Umwandlungsfehler("Fehler: Internal network URLs not allowed"),
+        text=Umwandlungsfehler("Fehler: Internal network URLs not allowed", art="adresse"),
         name="convert_url_to_markdown",
     )
     calls = _fake_ingest(monkeypatch)
@@ -310,7 +312,46 @@ def test_ingest_url_guard_error_becomes_400(client, monkeypatch):
         "/api/rag/ingest/url", data={"url": "http://169.254.169.254/"}, headers=_AUTH
     )
     assert r.status_code == 400
-    assert r.json()["detail"] == "Fehler: Internal network URLs not allowed"
+    assert "nicht erlaubt" in r.json()["detail"]
+    # Paket 9 (Review Paket 7, NIT): kein englischer Grund im deutschen Satz.
+    assert "Internal" not in r.json()["detail"]
+    assert calls == []
+
+
+# Paket 6, B6: Die Antwort hängt an der Art des Fehlers, nicht am rohen Text —
+# zweisprachig, und ein fehlendes Paket im Image ist ein Fehler des Servers.
+_JE_ART = [
+    ("datei", "RuntimeError: boom", None, 400,
+     "Die Datei ließ sich nicht umwandeln (RuntimeError: boom).",
+     "The file could not be converted (RuntimeError: boom)."),
+    ("server", "", None, 500, "fehlt ein Baustein", "missing a component"),
+    ("adresse", "", None, 400,
+     "Diese Adresse ist nicht erlaubt — nur öffentliche http(s)-Adressen.",
+     "This address is not allowed — public http(s) addresses only."),
+    ("adresse_unbekannt", "wlo.exmaple", None, 400,
+     "Der Name wlo.exmaple lässt sich nicht auflösen",
+     "The name wlo.exmaple cannot be resolved"),
+    ("abruf", "Client error 404", None, 400,
+     "Die Seite ließ sich nicht laden (Client error 404).",
+     "The page could not be loaded (Client error 404)."),
+    ("zu_gross", "", 25, 400, "größer als 25 MB", "larger than 25 MB"),
+    ("zu_langsam", "", 60.0, 400, "nicht binnen 60 s", "within 60 s"),
+]
+
+
+@pytest.mark.parametrize(("art", "detail", "wert", "status", "de", "en"), _JE_ART)
+def test_ein_umwandlungsfehler_antwortet_je_art_und_sprache(
+        client, monkeypatch, art, detail, wert, status, de, en):
+    from boerdi.services.rag.umwandeln import Umwandlungsfehler
+
+    _fake_convert(monkeypatch, name="convert_url_to_markdown",
+                  text=Umwandlungsfehler("Fehler: x", art=art, detail=detail, wert=wert))
+    calls = _fake_ingest(monkeypatch)
+    for sprache, erwartet in (("de", de), ("en", en)):
+        r = client.post("/api/rag/ingest/url", data={"url": "https://example.org/a"},
+                        headers={**_AUTH, "Accept-Language": sprache})
+        assert r.status_code == status
+        assert erwartet in r.json()["detail"]
     assert calls == []
 
 

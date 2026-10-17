@@ -20,7 +20,7 @@ body {
 
 // THE focus ring — one rule for the whole studio, replacing the UA default that
 // `border: none` buttons swallow. `:focus-visible` keeps it off for mouse clicks.
-// Opaque accent: 4.63:1 on the panel (dark: 8.1:1); the offset leaves a gap in
+// Opaque accent: 5.42:1 on the panel (dark: 8.1:1); the offset leaves a gap in
 // the surface colour, so it also reads around a filled accent button. Views do
 // not replace it: `outline: none` + a shadow ring was 1.9:1 and vanished in
 // forced-colors mode (`check:contrast` rejects it — Review 2026-09-29).

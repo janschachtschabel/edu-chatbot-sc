@@ -5,16 +5,6 @@ from typing import Annotated
 from boerdi.domain.config_models._shared import AreaModel, Textarea
 
 
-class CanvasCreateTriggersArea(AreaModel):
-    create_triggers: list[str] = []
-    search_verbs: list[str] = []
-
-
-class CanvasEditTriggersArea(AreaModel):
-    edit_triggers: list[str] = []
-    explicit_create_overrides: list[str] = []
-
-
 class CanvasPersonaPrioritiesArea(AreaModel):
     analytical_personas: list[str] = []
 

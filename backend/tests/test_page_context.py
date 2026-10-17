@@ -15,6 +15,7 @@ import time
 
 from boerdi.services import page_context as p
 from boerdi.services.context_facts import empty_marker
+from boerdi.services.seitenkontext_prompt import SEITEN_REGELN, seiten_regeln
 
 
 # ── _safe_json ──────────────────────────────────────────────────────────
@@ -162,8 +163,10 @@ def test_render_collection_page_with_ids_and_filter():
     assert "Titel: Bruchrechnung" in out
     assert "Fächer: Mathe" in out
     assert "Sammlungs-ID (collection_id): C1" in out
-    assert "get_collection_contents" in out
     assert "brüche" in out
+    # Seit Paket B/E-E: der Aufruf steht in den festen Regeln, nicht im Datenteil.
+    assert "get_collection_contents" not in out
+    assert "``get_collection_contents``" in SEITEN_REGELN
 
 
 def test_render_zeigt_bestand_und_skillkatalog():
@@ -177,8 +180,8 @@ def test_render_zeigt_bestand_und_skillkatalog():
 
     Die Übersicht trägt nur TITEL — keine Inhalte, keine ``nodeId``
     (Nutzer-Klarstellung 2026-08-14). Die Rechnung dahinter steht im Docstring
-    von ``_bestands_zeilen``; den Weg zum Volltext nennt der Block selbst, und
-    genau darauf prüft die letzte Zusicherung unten.
+    von ``_bestands_zeilen``. Den Weg zum Volltext nennen seit Paket B/E-E die
+    festen Regeln (``SEITEN_REGELN``) — darauf prüft die letzte Zusicherung.
     """
     meta = {
         "title": "Geometrische Optik",
@@ -194,7 +197,7 @@ def test_render_zeigt_bestand_und_skillkatalog():
     # Der zweistufige Weg zum Volltext MUSS benannt sein — ohne nodeId in der
     # Übersicht käme das Modell sonst nicht an die Anleitung. WELCHE zwei
     # Schritte das sind, prüft der Wächter darunter.
-    assert "get_skill" in out
+    assert "get_skill" in SEITEN_REGELN
 
 
 def test_der_block_nennt_den_weg_den_das_modell_auch_gehen_kann():
@@ -224,12 +227,14 @@ def test_der_block_nennt_den_weg_den_das_modell_auch_gehen_kann():
             "context_facts": {"skills": 28, "skill_titles": ["Stunde planen"]}}
     out = p.render_for_prompt(meta, {"page_kind": "collection", "collection_id": "C1"})
 
+    # Seit Paket B/E-E: der Weg steht in den festen Regeln, die ID im Datenteil.
     for stillgelegt in AUS_DEM_KATALOG:
-        assert stillgelegt not in out, (
-            f"Der Seitenblock weist auf {stillgelegt} — kein Pfad reicht es dem "
-            "Modell.")
-    assert "get_skill_registry" in out
-    assert re.search(r"get_skill(?!_)", out), (
+        for text in (out, SEITEN_REGELN):
+            assert stillgelegt not in text, (
+                f"Der Seitenkontext weist auf {stillgelegt} — kein Pfad reicht es "
+                "dem Modell.")
+    assert "get_skill_registry" in SEITEN_REGELN
+    assert re.search(r"get_skill(?!_)", SEITEN_REGELN), (
         "Der zweite Schritt fehlt — die Registry allein liefert nur Titel und "
         "nodeIds, nicht den Wortlaut der Anleitung.")
     # Und die ID, mit der der erste Schritt überhaupt aufrufbar ist.
@@ -254,9 +259,10 @@ def test_der_block_sagt_den_vorrang_vor_den_mitgelieferten_vorlagen_an():
     meta = {"title": "Geometrische Optik",
             "context_facts": {"skills": 28, "skill_titles": ["Stunde planen"]}}
     out = p.render_for_prompt(meta, {"page_kind": "collection", "collection_id": "C1"})
-
-    assert "VOR" in out, "Der Rang der Anleitungen steht nicht im Block."
-    assert "Vorlage" in out, (
+    assert "Stunde planen" in out
+    # Seit Paket B/E-E sagen die festen Regeln den Rang an, nicht der Datenteil.
+    assert "VOR" in SEITEN_REGELN, "Der Rang der Anleitungen steht nicht in den Regeln."
+    assert "Vorlage" in SEITEN_REGELN, (
         "Der Gleichstands-Fall fehlt — genau er war der Befund: der Bot hatte "
         "eine eigene Vorlage für dieselbe Ausgabe und nahm sie.")
 
@@ -300,14 +306,17 @@ def test_ohne_skill_werkzeuge_bleibt_die_uebersicht_ohne_ladeweg():
             "context_facts": {"materials": 35, "skills": 28,
                               "skill_titles": ["Stunde planen"]}}
     pc = {"page_kind": "collection", "collection_id": "C1"}
-    ohne = p.render_for_prompt(meta, pc, skill_weg=False)
-    assert "35 Materialien" in ohne and "Stunde planen" in ohne
+    daten = p.render_for_prompt(meta, pc)
+    assert "35 Materialien" in daten and "Stunde planen" in daten
+    assert "27 weitere" in daten            # die Kappung bleibt benannt
+    assert "get_skill" not in daten         # Daten tragen keinen Weg
+    # Seit Paket B/E-E: die Regel-Fassung ohne Skill-Werkzeuge (Muster-Weg).
+    ohne = seiten_regeln(skill_weg=False)
     assert "get_skill" not in ohne          # trifft auch get_skill_registry
     assert "Vorlage" not in ohne            # der Vorrang-Satz
-    assert "27 weitere" in ohne             # die Kappung bleibt benannt
     assert "laden lässt sich in diesem Zug keiner" in ohne
     # Die Vorgabe bleibt der volle Weg — der Agent hat die Werkzeuge immer.
-    assert "get_skill_registry" in p.render_for_prompt(meta, pc)
+    assert "get_skill_registry" in seiten_regeln()
 
 
 def test_render_ohne_bestandsfakten_bleibt_wie_bisher():
@@ -527,9 +536,11 @@ def test_resolve_collection_page_omits_textcontent(monkeypatch):
 def test_render_includes_compendium_block_and_curation_hint():
     meta = {"title": "Optik", "compendium_text": "Sollinhalt der Sammlung."}
     out = p.render_for_prompt(meta, {"page_kind": "collection", "collection_id": "C1"})
-    assert "Kompendium" in out
+    assert "### Kompendialer Text der Sammlung" in out
     assert "Sollinhalt der Sammlung." in out
-    assert "Lücken" in out  # Kuratier-Instruktion (Soll-vs-Ist) nur bei vorhandenem Kompendium
+    # Die Kuratier-Regel (Soll vs. Ist) steht seit Paket B/E-E in den festen
+    # Regeln — als Bedingung „enthält der Block einen kompendialen Text“.
+    assert "Lücken" in SEITEN_REGELN
 
 
 def test_render_compendium_trims_to_budget():
@@ -694,9 +705,10 @@ def test_render_unaufgeloest_nennt_id_und_warnt_vor_nachfrage():
     out = p.render_for_prompt(meta, {"page_kind": "content",
                                      "node_id": "765efba2-x"})
     assert "Node-ID: 765efba2-x" in out
-    assert "NICHT" in out and "Leserechte" in out
-    # Der Ausweg steht dabei: Transkript/Text erbitten oder Anmeldung.
-    assert "Transkript" in out or "Anmeldung" in out
+    assert "Leserechte" in out
+    # Seit Paket B/E-E: Nachfrage-Verbot und Ausweg stehen in den festen Regeln.
+    assert "frage NICHT nach dieser ID" in SEITEN_REGELN
+    assert "Transkript" in SEITEN_REGELN and "Anmeldung" in SEITEN_REGELN
 
 
 def test_render_aufgeloestes_meta_traegt_keinen_unresolved_hinweis():
@@ -724,7 +736,10 @@ def test_render_unaufgeloest_mit_seitentext_liefert_den_text_statt_transkript_bi
 def test_render_unaufgeloest_ohne_seitentext_bittet_weiter_um_transkript():
     meta = {"title": "X", "unresolved": True, "node_id": "n-1"}
     out = p.render_for_prompt(meta, {"page_kind": "content", "node_id": "n-1"})
-    assert "Transkript" in out or "Anmeldung" in out
+    assert "Leserechte" in out
+    # Seit Paket B/E-E: die Bitte um Text/Transkript steht in den festen Regeln,
+    # als Bedingung „steht kein sichtbarer Text im Block“.
+    assert "Transkript" in SEITEN_REGELN
 
 
 def test_render_aufgeloest_ignoriert_den_heuristischen_seitentext():
@@ -785,7 +800,9 @@ def test_render_editorial_traegt_erschliessungs_rahmen():
     meta = {"title": "Redaktion - edu-sharing", "unresolved": True, "node_id": "n-1"}
     out = p.render_for_prompt(meta, {"page_kind": "editorial", "node_id": "n-1"})
     assert "Erschließung" in out
-    assert "Sammlung" in out
+    # Die Regelzeile (Sammlungs-Vorschläge, Metadaten-Hilfe) steht seit Paket
+    # B/E-E in den festen Regeln.
+    assert "schlage passende Sammlungen vor" in SEITEN_REGELN
 
 
 def test_resolve_editorial_holt_den_volltext(monkeypatch):
@@ -827,11 +844,11 @@ def test_render_editorial_unaufgeloest_erklaert_maske_und_quell_url_weg():
           "page_text": "Redaktion Voller Titel Beschreibung URL Internetadresse"}
     out = p.render_for_prompt(meta, pc)
     assert "Erschließungsmaske" in out
-    assert "Quell-URL" in out and "get_url_text" in out
     assert "arbeite damit, statt nach dem Inhalt zu fragen" not in out
-    # EK9c: hängt der RAHMEN Feldwerte (samt Quell-URL) an den Seitentext an,
-    # soll der Bot eine dort stehende URL DIREKT nutzen statt nachzufragen.
-    assert "Steht die Quell-URL bereits im sichtbaren Text" in out
+    # Seit Paket B/E-E stehen Quell-URL-Weg und EK9c (eine schon dastehende URL
+    # DIREKT nutzen) in den festen Regeln.
+    assert "Quell-URL" in SEITEN_REGELN and "``get_url_text``" in SEITEN_REGELN
+    assert "steht sie schon da, ohne nachzufragen" in SEITEN_REGELN
     # Der Maskentext bleibt trotzdem im Block (Feldliste hilft bei Metadaten-Fragen) …
     assert "Voller Titel" in out
     # … und die ehrliche Rechte-Ansage samt ID ebenso.
@@ -850,8 +867,9 @@ def test_render_editorial_aufgeloest_zeigt_den_echten_titel_normal():
     assert "Titel: Gordon Bunshaft" in out
     assert "Redaktionsoberfläche" not in out
     assert "Erschließungsmaske" not in out
-    # Review-NIT 2026-08-21: die Quellen-Variante des aufgelösten Zweigs pinnen.
-    assert "aus den Metadaten und dem Volltext oben" in out
+    # Die Quellen-Variante des aufgelösten Zweigs („aus den Metadaten und dem
+    # Volltext oben“, Review-NIT 2026-08-21) entfiel mit Paket B/E-E: die festen
+    # Regeln gelten für jede Seite, der Volltext steht im Datenteil.
 
 
 def test_render_ohne_id_nimmt_den_seitentext_trotzdem_auf():
@@ -917,3 +935,17 @@ def test_resolve_ohne_ids_nutzt_den_title_alias():
         {"title": "Gordon Bunshaft – Wikipedia"}, {}))
     assert meta is not None
     assert meta["title"] == "Gordon Bunshaft – Wikipedia"
+
+
+# ── N-1 (Plan 2026-09-29, umgesetzt in Paket 7): eigene und fremde Website ──
+def test_eigene_und_fremde_website_haben_eine_ueberschrift():
+    """``home``/``external`` (``domain/page_host``) fehlten in der Liste, der Kopf
+    hieß „## Aktuelle Seite — Aktuelle Seite“, und die Heuristik nannte den Typ
+    roh auf Englisch („Seitentyp: external“)."""
+    meta = {"title": "Startseite"}
+    for kind, wort in (("home", "eigene"), ("external", "extern")):
+        kopf = p.render_for_prompt(meta, {"page_kind": kind}).splitlines()[0]
+        assert kopf != "## Aktuelle Seite — Aktuelle Seite", kind
+        assert wort in kopf, kopf
+        roh = p.render_raw_for_prompt({"page_kind": kind, "page_text": "Text."})
+        assert f"Seitentyp: {kind}" not in roh, kind

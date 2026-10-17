@@ -563,3 +563,88 @@ def test_zeitraum_laesst_sich_auf_echte_gespraeche_beschraenken(db, keine_preise
     assert [z["session_id"] for z in echt["sessions"]] == ["bb-st9-echt"]
     assert [z["session_id"] for z in ev["sessions"]] == ["eval-st9"]
     assert alle["calls"] == 3
+
+
+# ── Paket 7 (P3, P5-3): Aufträge der Agent-API ohne Sitzung ──────────────────
+
+def test_auftraege_der_agent_api_stehen_in_summe_und_liste(db, keine_preise) -> None:
+    """Eine Zeile ohne Sitzung steht in den Summen, als eigene Zeile „Agent-API“
+    in der Liste, und zählt zum Betrieb — nicht zur Auswertung."""
+    from boerdi.db.models import UsageEvent
+    from boerdi.services.usage_analytics import period_usage
+
+    tag = datetime(2027, 3, 3, 12, 0, tzinfo=UTC)
+    von, bis = tag - timedelta(hours=1), tag + timedelta(hours=1)
+
+    async def szenario(factory):
+        async with factory() as s:
+            s.add(UsageEvent(session_id=None, quelle="agent-api", engine="agent",
+                             model="m-p3", prompt_tokens=500, completion_tokens=50,
+                             calls=3, created_at=tag))
+            await s.commit()
+        async with factory() as s:
+            return (await period_usage(s, von, bis),
+                    await period_usage(s, von, bis, scope="production"),
+                    await period_usage(s, von, bis, scope="eval"))
+
+    alle, betrieb, auswertung = _lauf(db, szenario)
+    assert alle["calls"] == 3 and alle["prompt_tokens"] == 500
+    assert alle["sessions"] == [{
+        "session_id": None, "source": "agent-api", "calls": 3,
+        "prompt_tokens": 500, "cached_tokens": 0, "completion_tokens": 50,
+        "reasoning_tokens": 0, "amount": None, "price_unavailable": ["m-p3"],
+    }]
+    assert betrieb["calls"] == 3
+    assert auswertung["empty"] is True
+
+
+def test_die_quelle_kommt_aus_ihrer_spalte(db, keine_preise) -> None:
+    """Review Paket 7, A-11: die Spalte ``quelle`` (Migration 0009) hatte keinen
+    Leser — die Liste schloss aus „keine Sitzung“ auf „Agent-API“. Bucht eine
+    zweite Quelle ohne Sitzung, stünde sie dort falsch beschriftet mit drin."""
+    from boerdi.db.models import UsageEvent
+    from boerdi.services.usage_analytics import period_usage
+
+    tag = datetime(2027, 3, 4, 12, 0, tzinfo=UTC)
+
+    async def szenario(factory):
+        async with factory() as s:
+            for quelle, calls in (("agent-api", 2), ("plugin-test", 5)):
+                s.add(UsageEvent(session_id=None, quelle=quelle, engine="agent",
+                                 model="m-a11", prompt_tokens=10 * calls,
+                                 completion_tokens=1, calls=calls, created_at=tag))
+            await s.commit()
+        async with factory() as s:
+            return await period_usage(s, tag - timedelta(hours=1), tag + timedelta(hours=1))
+
+    zeilen = _lauf(db, szenario)["sessions"]
+    assert sorted((z["source"], z["calls"]) for z in zeilen) == [
+        ("agent-api", 2), ("plugin-test", 5)]
+    assert all(z["session_id"] is None for z in zeilen)
+
+
+
+def test_probelaeufe_des_studios_zaehlen_nicht_zum_betrieb(db, keine_preise) -> None:
+    """Paket 9 (Review Paket 7, MINOR 31): der Auftragstester des Studios bucht ohne
+    Sitzung mit der Quelle ``studio-probe`` — in „alle“, nicht im Betrieb."""
+    from boerdi.db.models import UsageEvent
+    from boerdi.services.usage_analytics import period_usage
+
+    tag = datetime(2027, 4, 4, 12, 0, tzinfo=UTC)
+    von, bis = tag - timedelta(hours=1), tag + timedelta(hours=1)
+
+    async def szenario(factory):
+        async with factory() as s:
+            for quelle in ("agent-api", "studio-probe"):
+                s.add(UsageEvent(session_id=None, quelle=quelle, engine="agent", model="m-p9",
+                                 prompt_tokens=100, completion_tokens=10, calls=1,
+                                 created_at=tag))
+            await s.commit()
+        async with factory() as s:
+            return (await period_usage(s, von, bis),
+                    await period_usage(s, von, bis, scope="production"))
+
+    alle, betrieb = _lauf(db, szenario)
+    assert sorted(z["source"] for z in alle["sessions"]) == ["agent-api", "studio-probe"]
+    assert [z["source"] for z in betrieb["sessions"]] == ["agent-api"]
+    assert betrieb["calls"] == 1

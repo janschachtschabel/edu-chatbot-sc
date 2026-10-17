@@ -56,7 +56,7 @@ export const REFERENCE_FLOW: CataloguePart = {
     'rf.inf.pattern.3': 'wird anschließend von den Signalen moduliert',
     'rf.inf.pattern.4': 'seine Core-Rule steht als Anweisung im Prompt',
 
-    'rf.example.title': 'Beispiel: ein kompletter Turn',
+    'rf.example.title': 'Beispiel: ein kompletter Turn im Muster-Modus',
     'rf.example.text':
       'Nachricht: *„Mathe Klasse 7 Videos"* — getippt von einer Lehrkraft auf der '
       + 'Startseite.',
@@ -131,7 +131,7 @@ export const REFERENCE_FLOW: CataloguePart = {
     'rf.inf.pattern.3': 'it is modulated by the signals afterwards',
     'rf.inf.pattern.4': 'its core rule stands as an instruction in the prompt',
 
-    'rf.example.title': 'Example: one complete turn',
+    'rf.example.title': 'Example: one complete turn in pattern mode',
     'rf.example.text':
       'Message: *“Mathe Klasse 7 Videos”* — typed by a teacher on the start page.',
 

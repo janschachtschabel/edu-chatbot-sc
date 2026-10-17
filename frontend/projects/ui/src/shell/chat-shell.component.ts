@@ -1,6 +1,6 @@
 import {
   AfterViewChecked, ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, effect,
-  ElementRef, inject, input, OnChanges, OnDestroy, OnInit, output, signal, viewChild,
+  ElementRef, inject, input, OnChanges, OnDestroy, OnInit, output, signal, untracked, viewChild,
 } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
 
@@ -33,7 +33,7 @@ import { CORE_TRUSTED_DOMAINS } from '../session/trusted-host';
 import { runSignIn } from '../session/sign-in-flow';
 import { authButtonState } from '../session/auth-button';
 import { clearAccessBlock, readAccessBlock } from '../session/mcp-access';
-import { runTicketLogin } from '../session/ticket-login';
+import { anmeldeSperre, runTicketLogin } from '../session/ticket-login';
 import { runPreparedWrite } from '../session/prepared-write';
 import {
   InputRoutingContext, guideQuickReplyTarget, resolveGuideNavTarget, routeQuickReply,
@@ -43,6 +43,8 @@ import {
   maybeDispatchGuideSuggestion, maybeDispatchRoutingDebug,
 } from '../host-events/host-events';
 import { dispatchHostEvent, HOST_EVENTS } from '../host-events/event-names';
+import { antwortAusVerlaufHolen } from './antwort-aus-verlauf';
+import { fokusZurueckholen } from './fokus-nach-dem-zug';
 import { SendMessageContext, runSendMessage } from './send-message';
 import { ControllerContexts, ShellHost, buildControllerContexts } from './shell-contexts';
 import { LifecycleContext, ShellLifecycle } from './lifecycle';
@@ -212,6 +214,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
 
   private readonly _cdr = inject(ChangeDetectorRef);
   private readonly _sanitizer = inject(DomSanitizer);
+  private readonly _element: ElementRef<HTMLElement> = inject(ElementRef);
   /** Template-Anker: Auto-Follow-Container + Eingabefeld fürs Refokussieren. */
   private readonly _inputField = viewChild<ElementRef<HTMLInputElement>>('inputField');
   private readonly _messagesContainer = viewChild<ElementRef<HTMLElement>>('messagesContainer');
@@ -377,6 +380,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     addUserMessage: (content) => this._store.addUserMessage(content),
     addBotMessage: (...args) => this._store.addBotMessage(...args),
     setLatestDebug: (d) => this.latestDebug.set(d),
+    isLoading: () => this.isLoading(),
     setLoading: (v) => this.isLoading.set(v),
     tour: this._tour,
     contextGreeting: this._contextGreeting,
@@ -384,11 +388,22 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     t: (key, params) => this.t(key, params),
   };
   private readonly _lifecycle = new ShellLifecycle(this._lifecycleCtx);
+  /** Nach dem Laden: zuerst ein wartender Auftrag der Gastseite (Paket 10, H-2),
+   *  dann ein zurückgestellter Seitengruß (Review Paket 7, C-5) — der wartet so
+   *  hinter dem Auftrag, statt ihm den Zug wegzunehmen. */
+  private readonly _nachDemLaden = effect(() => {
+    if (this.isLoading()) return;
+    untracked(() => {
+      this._auftragNachholen();
+      this._lifecycle.loadingEnded();
+    });
+  });
 
   /** Turn-Lebenszyklus-Seam (8-4S-c). */
   private readonly _sendCtx: SendMessageContext = {
     currentInput: () => this.userInput(),
     clearInput: () => this.userInput.set(''),
+    setInput: (text) => this.userInput.set(text),
     sessionId: () => this.sessionId,
     isLoading: () => this.isLoading(),
     setLoading: (v) => this.isLoading.set(v),
@@ -399,7 +414,8 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     appendStreamText: (id, text, pos) => this._store.appendStreamText(id, text, pos),
     clearStreamText: (id) => this._store.clearStreamText(id),
     setScrollTarget: (id) => { this._scroll.setScrollTarget(id); },
-    focusInput: () => this.focusInput(),
+    // Nach einem Zug nicht von der Gastseite weg (Paket 10, L-9).
+    focusInput: () => { if (fokusZurueckholen(this._element.nativeElement)) this.focusInput(); },
     pageContextEnv: () => Object.keys(this.parsedPageContext).length
       ? { page_context: this.parsedPageContext } : undefined,
     stream: (msg, onEvent, env, action, actionParams) =>
@@ -409,7 +425,30 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     formatPhaseLabel: (evt) => formatPhaseLabel(evt, (k, p) => this.t(k, p)),
     onResult: (resp, msg) => this._onResult(resp, msg),
     t: (key, params) => this.t(key, params),
+    answerFromHistory: async (msg, nachfrage) => {
+      // Die Sitzung des Zuges, nicht die beim jeweiligen Abruf (Review C-3).
+      const sitzung = this.sessionId;
+      // Je Nachfrage ein Abbruch (Paket 9): wird das Widget entfernt, endet auch
+      // der laufende Abruf, und eine späte Antwort erreicht `_onResult` nicht mehr.
+      const steuerung = new AbortController();
+      this._nachfragen.add(steuerung);
+      try {
+        return await antwortAusVerlaufHolen(
+          (signal) => this._api.fetchHistory(sitzung, 6, signal), msg, sitzung, {
+            nachId: nachfrage.nachId,
+            abgebrochen: () => this._zerstoert || nachfrage.abgebrochen(),
+            signal: steuerung.signal,
+            gekuerztHinweis: this.t('chat.documentShortened'),
+          });
+      } finally {
+        this._nachfragen.delete(steuerung);
+      }
+    },
   };
+  /** Das Widget ist entfernt — eine laufende Nachfrage im Verlauf hört auf. */
+  private _zerstoert = false;
+  /** Laufende Nachfragen im Verlauf — beim Entfernen abgebrochen (Paket 9). */
+  private readonly _nachfragen = new Set<AbortController>();
 
   /** Input-Routing-Seam (8-4S-d2b). */
   private readonly _routingCtx: InputRoutingContext = {
@@ -459,6 +498,12 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   startTask(text: string): Promise<void> {
     const auftrag = (text ?? '').trim();
     if (!auftrag) return Promise.resolve();
+    // Paket 10 (Audit H-2): läuft noch ein Zug — beim Erstaufruf meist der
+    // Kontext-Ping —, fiele der Auftrag am `isLoading`-Tor still weg. Er wartet,
+    // bis das Laden endet; das Promise erfüllt sich erst mit seinem Zug.
+    if (this.isLoading()) {
+      return new Promise((fertig) => this._wartendeAuftraege.push({ auftrag, fertig }));
+    }
     this._hostTurn = true;
     try {
       return this.sendMessage(auftrag);
@@ -468,6 +513,15 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       // getippte Nachricht mit.
       this._hostTurn = false;
     }
+  }
+
+  /** Aufträge, die während eines Zugs kamen — in ihrer Reihenfolge (H-2). */
+  private readonly _wartendeAuftraege: { auftrag: string; fertig: () => void }[] = [];
+
+  /** Den nächsten wartenden Auftrag starten; die übrigen folgen je nach Zugende. */
+  private _auftragNachholen(): void {
+    const naechster = this._wartendeAuftraege.shift();
+    if (naechster) void this.startTask(naechster.auftrag).then(naechster.fertig);
   }
 
   /** Erfolgs-Seiteneffekte eines Turns — ALT `sendMessage`-Tail (522-560):
@@ -487,6 +541,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     maybeDispatchRoutingDebug(userMessage, resp.debug, this._contexts.hostEvents);
     this._reportAgentResult(resp);
     if (resp.prepared_write) this._executePreparedWrite(resp.prepared_write);
+    if (resp.auth_invalid) this._anmeldungAbgewiesen();
     if (this._speech.autoSpeak && resp.content) {
       this._speech.autoSpeakText(resp.content);
     }
@@ -580,7 +635,15 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   private readonly _ticketLogin = effect(() => {
     const ticket = this.ticket().trim();
     const basis = this.mcpAuthBase().trim();
-    if (!ticket || !basis || this._ticketTried === ticket) return;
+    if (!ticket || this._ticketTried === ticket) return;
+    // Paket 10 (Kurzaudit S-4): bis der Tausch endet, warten Züge — schon bevor die
+    // Anmelde-Adresse da ist. Sonst gingen Kontext-Ping und frühe Aufträge anonym.
+    if (!this._ticketSperre) {
+      const { sperre, freigeben } = anmeldeSperre();
+      this._ticketSperre = freigeben;
+      this._api.warteAufAnmeldung(sperre);
+    }
+    if (!basis) return;
     this._ticketTried = ticket;
     void runTicketLogin({ ticket: () => ticket, mcpAuthBase: () => basis }).then((ausgang) => {
       if (ausgang === 'done') {
@@ -589,11 +652,25 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       } else {
         console.warn('WLO-Anmeldung über das Seiten-Ticket nicht gelungen:', ausgang);
       }
+    }).finally(() => {
+      this._ticketSperre?.();
+      this._ticketSperre = null;
     });
   });
 
+  /** Gibt die Züge frei, die auf den Ticket-Tausch warten (S-4). */
+  private _ticketSperre: (() => void) | null = null;
+
   /** Was der Knopf in der Fußzeile zeigt — Entscheidung in `session/auth-button`. */
   readonly authButton = computed(() => authButtonState(this.mcpAuthBase(), this._hasAccessBlock()));
+
+  /** Der Server wies den Block ab (Paket 10, Kurzaudit A-3): weg damit, der Knopf
+   *  bietet wieder „Anmelden“ an, und ein Satz sagt, warum. */
+  private _anmeldungAbgewiesen(): void {
+    clearAccessBlock();
+    this._hasAccessBlock.set(false);
+    this._store.addBotMessage(this.t('auth.expired'));
+  }
 
   /** Klick auf den Anmelde-/Abmelde-Knopf.
    *
@@ -637,8 +714,11 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
     catch { window.open(finalUrl, '_self', 'noopener'); }
   }
 
-  /** Enter (ohne Shift) sendet; Shift+Enter erlaubt Zeilenumbruch. */
+  /** Enter (ohne Shift) sendet; Shift+Enter erlaubt Zeilenumbruch. Während einer
+   *  IME-Eingabe bestätigt Enter die Komposition und sendet nicht (Paket 10, L-9);
+   *  Safari meldet sie nur über `keyCode` 229. */
   onKeydown(event: KeyboardEvent): void {
+    if (event.isComposing || event.keyCode === 229) return;
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       this.sendMessage();
@@ -822,6 +902,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       this.render.clearCache();
       this._api.setUiLocale(this.locale());  // C1-f1: ab dem nächsten Zug
       this._lifecycle.relocalizeWelcome();   // Startnachricht vor der ersten Frage
+      this._lifecycle.regreetForLocale();    // Seitengruß in der neuen Sprache (Paket 7, T2)
     }
   }
 
@@ -833,6 +914,10 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   /** Auto-Follow-Observer + Speech-Cluster (Mikro/TTS, Privacy!) beim Zerstören
    *  trennen. Verbatim-Teilung aus ALT ngOnDestroy 428-446. */
   ngOnDestroy(): void {
+    this._zerstoert = true;
+    for (const steuerung of this._nachfragen) steuerung.abort();
+    // Wartende Aufträge gehen mit dem Widget; ihr Promise hängt nicht für immer.
+    for (const wartend of this._wartendeAuftraege.splice(0)) wartend.fertig();
     this._scroll.destroy();
     this._speech.destroy();
   }

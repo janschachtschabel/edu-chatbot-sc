@@ -14,16 +14,16 @@ Schnellweg gewann, weil er zuerst dran war.
 
 Greift der Vorrang, treten die Schnellwege zurück und der Zug läuft den
 gewöhnlichen Weg über Muster-Engine und Werkzeugschleife. **Dort** entscheidet
-das Modell — es sieht im Antwort-Prompt den Katalog samt Vorrang-Regel
-(``page_context._bestands_zeilen``, eingesetzt in
-``response_prompt_builder.py:119`` mit der Vorgabe ``include_stock=True``) und
-hat ``get_skill_registry``/``get_skill`` in der Werkzeugliste. Dieses Modul
+das Modell — es sieht den Katalog in den Seitendaten vor dem Verlauf
+(``page_context._bestands_zeilen`` über ``seitenkontext_prompt.seiten_daten``), die
+Vorrang-Regel im Systemteil (``seitenkontext_prompt.SEITEN_REGELN``, seit Paket 7)
+und hat ``get_skill_registry``/``get_skill`` in der Werkzeugliste. Dieses Modul
 entscheidet also **nicht**, ob ein Skill passt — nur, ob das Modell überhaupt
 gefragt wird.
 
 **Warum die Entscheidung nicht im Klassifikator sitzt** (geprüft 2026-08-16,
 ursprünglicher Entwurf verworfen): Der Klassifikator sieht den Katalog gar nicht
-— ``classify_prompt.py:249`` ruft ``render_for_prompt(…, include_stock=False)``,
+— ``classify.py`` holt die Seitendaten mit ``seiten_daten(…, include_stock=False)``,
 gemessene 2 232 Zeichen je Zug gespart. Und nennen könnte er eine Anleitung auch
 nicht: die Fakten führen Titel, aber **keine** ``nodeId`` — Nutzer-Vorgabe
 2026-08-14 („nur die Übersicht … höchstens eine A4 Seite", Rechnung in
@@ -454,9 +454,9 @@ def anleitungs_hinweis(fakten: object, entities: object) -> str:
     **Warum es den Block braucht** (live gemessen 2026-08-16 mit dem Payload,
     den das Widget wirklich schickt). Auf der Sammlungsseite trägt der Weg
     komplett: ``Bestandsfakten geladen: 36 Materialien, 28 Skills`` →
-    ``page_context._bestands_zeilen`` schreibt Katalog und Vorrang-Regel in den
-    Prompt → das Modell ruft ``get_skill 5b29f470`` → der Stundenentwurf steht
-    in der Kachel.
+    ``page_context._bestands_zeilen`` schreibt den Katalog in den Prompt (damals
+    samt Vorrang-Regel; seit Paket 7 steht die in ``seitenkontext_prompt``) → das
+    Modell ruft ``get_skill 5b29f470`` → der Stundenentwurf steht in der Kachel.
 
     Über die SUCHE trug er nichts: ohne Seiten-Metadaten liefert
     ``render_for_prompt`` einen leeren Block. Der Vorrang griff zwar (die Notiz
@@ -482,8 +482,8 @@ def anleitungs_hinweis(fakten: object, entities: object) -> str:
 
     Er **informiert und zwingt nicht** — es bleibt bei der Nutzer-Regel „das
     Modell entscheidet, was es nutzt"; der Block sorgt nur dafür, dass es die
-    Wahl überhaupt hat. Wortlaut bewusst wie im Seitenblock
-    (``page_context._bestands_zeilen``): eine Sache, eine Stimme.
+    Wahl überhaupt hat. Wortlaut bewusst wie die Skill-Regel zum Seitenblock
+    (``seitenkontext_prompt._SKILLS_MIT_WEG``): eine Sache, eine Stimme.
 
     :returns: Der fertige Markdown-Block, oder ``""`` — dann ist nichts zu sagen.
     """

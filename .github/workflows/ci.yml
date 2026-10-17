@@ -80,6 +80,15 @@ jobs:
       # Every GPL/AGPL/LGPL/SSPL/Elastic/BUSL dependency fails — spec §0 rule 1.
       # The former psycopg/psycopg-pool exception (LGPL-3.0-only) left with the
       # unused langgraph-checkpoint-postgres that pulled them in (Paket 4, D7).
+      #
+      # Dokumentierte Ausnahme (Paket 7, P6; Nutzer-Entscheid P5-8): MPL-2.0.
+      # Schwaches Copyleft je Datei — Pflichten nur für geänderte MPL-Dateien,
+      # und wir ändern keine. Betrifft certifi (MPL-2.0), tqdm (MPL-2.0 AND MIT)
+      # und orjson (MPL-2.0 AND (Apache-2.0 OR MIT)), alle transitiv. Die
+      # Sperrliste ließ sie schon vorher durch; hier steht, warum das gewollt ist.
+      # Die markitdown-Extras (P6) brachten nur MIT/BSD/Apache-2.0 und MIT-CMU
+      # (Pillow). pypdfium2 bündelt PDFium samt Bibliotheken, alle permissiv
+      # (FreeType als FTL, ICU, libjpeg-turbo, libpng, zlib …; geprüft 2026-10-09).
       - name: License gate (spec §0 rule 1)
         run: >
           uv run pip-licenses --partial-match

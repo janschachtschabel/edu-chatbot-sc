@@ -40,6 +40,12 @@ const ELEMENTS = {
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+/** Die sichtbaren Einträge als „Name · Kennung“ (Paket 6, S1: Liste│Editor). */
+function eintraege(el: HTMLElement): string[] {
+  return Array.from(el.querySelectorAll(".ol-entry")).map((b) =>
+    `${b.querySelector(".ol-title")?.textContent?.trim()} · ${b.querySelector(".ol-note")?.textContent?.trim()}`);
+}
+
 interface Harness {
   fixture: ComponentFixture<GroupSectionComponent>;
   el: HTMLElement;
@@ -84,6 +90,10 @@ async function mount(section: CuratedSection = PATTERNS): Promise<Harness> {
  */
 function settleChoices(http: HttpTestingController): void {
   http.match("/studio/api/config/choices").forEach((req) => req.flush({}));
+  // Paket 6, S4: das erste offene Muster holt den Wissens-Katalog für den
+  // Hinweis „wirksame Bereiche“ — ebenfalls kein Laden des Dokuments.
+  http.match("/studio/api/config/data/05-knowledge/rag-config")
+    .forEach((req) => req.flush({ area: "05-knowledge/rag-config", data: {}, type: "yaml" }));
 }
 
 /** Answer the schema+data pair for one document of the group. */
@@ -103,10 +113,7 @@ function answerDoc(
 describe("GroupSectionComponent", () => {
   it("lists the documents of its group with their labels", async () => {
     const { el } = await mount();
-    const options = Array.from(el.querySelectorAll(".gs-entry")).map((b) =>
-      b.textContent?.trim(),
-    );
-    expect(options).toEqual(["M01 — Orientierung", "M02 — Suche"]);
+    expect(eintraege(el)).toEqual(["Orientierung · M01", "Suche · M02"]);
   });
 
   it("reads the other group from the same response", async () => {
@@ -116,15 +123,12 @@ describe("GroupSectionComponent", () => {
       labelKey: "curated.dimensionen.personas.label",
       hintKey: "curated.dimensionen.personas.hint",
     });
-    const options = Array.from(el.querySelectorAll(".gs-entry")).map((b) =>
-      b.textContent?.trim(),
-    );
-    expect(options).toEqual(["lehrkraft — Lehrkraft"]);
+    expect(eintraege(el)).toEqual(["Lehrkraft · lehrkraft"]);
   });
 
   it("loads a document when it is picked, addressed by its own key", async () => {
     const { el, http, fixture } = await mount();
-    el.querySelectorAll<HTMLButtonElement>(".gs-entry")[1].click();
+    el.querySelectorAll<HTMLButtonElement>(".ol-entry")[1].click();
     await fixture.whenStable();
 
     answerDoc(http, "03-patterns/m02-suche", {
@@ -142,7 +146,7 @@ describe("GroupSectionComponent", () => {
   it("refuses to switch documents with unsaved changes", async () => {
     // Switching would silently drop them — the list is not a discard control.
     const { el, http, fixture } = await mount();
-    el.querySelectorAll<HTMLButtonElement>(".gs-entry")[0].click();
+    el.querySelectorAll<HTMLButtonElement>(".ol-entry")[0].click();
     await fixture.whenStable();
     answerDoc(http, "03-patterns/m01-orientierung", {
       frontmatter: {},
@@ -152,7 +156,7 @@ describe("GroupSectionComponent", () => {
     await fixture.whenStable();
 
     fixture.componentInstance.editor.setDoc({ frontmatter: {}, body: "neu" });
-    el.querySelectorAll<HTMLButtonElement>(".gs-entry")[1].click();
+    el.querySelectorAll<HTMLButtonElement>(".ol-entry")[1].click();
     await fixture.whenStable();
 
     settleChoices(http);
@@ -165,7 +169,7 @@ describe("GroupSectionComponent", () => {
 
   it("saves the WHOLE document of the selected entry", async () => {
     const { el, http, fixture } = await mount();
-    el.querySelectorAll<HTMLButtonElement>(".gs-entry")[0].click();
+    el.querySelectorAll<HTMLButtonElement>(".ol-entry")[0].click();
     await fixture.whenStable();
     answerDoc(http, "03-patterns/m01-orientierung", {
       frontmatter: { id: "M01" },
@@ -201,19 +205,31 @@ describe("GroupSectionComponent", () => {
     el.querySelector<HTMLButtonElement>(".gs-new-go")?.click();
     await fixture.whenStable();
 
-    const req = http.expectOne("/studio/api/config/file");
-    expect(req.request.method).toBe("PUT");
-    expect(req.request.body.path).toBe("03-patterns/m03-kuratieren.md");
-    expect(req.request.body.content).toContain('label: "M03 Kuratieren"');
-    req.flush({ status: "saved" });
+    // Paket 6, S1: der Server leitet den Schlüssel ab und baut das Dokument.
+    const req = http.expectOne("/studio/api/config/documents");
+    expect(req.request.method).toBe("POST");
+    expect(req.request.body).toEqual({
+      group: "03-patterns", id: "m03-kuratieren", label: "M03 Kuratieren",
+    });
+    req.flush({ status: "created", key: "03-patterns/m03-kuratieren", version: 1 });
+    await tick();
     await fixture.whenStable();
-    // the list is re-read so the new entry appears
+    // the list is re-read so the new entry appears, and the new one is opened
     http.expectOne("/studio/api/config/elements").flush(ELEMENTS);
+    await tick();
+    await fixture.whenStable();
+    answerDoc(http, "03-patterns/m03-kuratieren", {
+      frontmatter: { id: "m03-kuratieren", label: "M03 Kuratieren" }, body: "",
+    });
+    await tick();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.selected()).toBe("03-patterns/m03-kuratieren");
   });
 
-  it("quotes the name, so a colon or a newline cannot rewrite the frontmatter", async () => {
-    // `label: Kuratieren: schnell` is not valid YAML (the store answers 400),
-    // and a name containing a newline would add keys of its own.
+  it("sends the name as it is — the server writes the document, not a YAML text", async () => {
+    // Vorher baute das Studio die Frontmatter als Text und musste den Namen
+    // quoten (`Kuratieren: schnell` war kein gültiges YAML). Seit Paket 6
+    // geht der Name als JSON-Feld zum Server.
     const { el, http, fixture } = await mount();
     const input = el.querySelector<HTMLInputElement>(".gs-new-name");
     input!.value = "Kuratieren: schnell";
@@ -222,18 +238,16 @@ describe("GroupSectionComponent", () => {
     el.querySelector<HTMLButtonElement>(".gs-new-go")?.click();
     await fixture.whenStable();
 
-    const req = http.expectOne("/studio/api/config/file");
-    expect(req.request.body.content).toContain('label: "Kuratieren: schnell"');
-    req.flush({ status: "saved" });
-    await fixture.whenStable();
-    http.expectOne("/studio/api/config/elements").flush(ELEMENTS);
+    const req = http.expectOne("/studio/api/config/documents");
+    expect(req.request.body.label).toBe("Kuratieren: schnell");
+    expect(req.request.body.id).toBe("kuratieren-schnell");
   });
 
   it("refuses to create while the open document has unsaved changes", async () => {
     // Creating switches the selection, which would drop those edits without
     // a word — the same trap as switching entries.
     const { el, http, fixture } = await mount();
-    el.querySelectorAll<HTMLButtonElement>(".gs-entry")[0].click();
+    el.querySelectorAll<HTMLButtonElement>(".ol-entry")[0].click();
     await fixture.whenStable();
     answerDoc(http, "03-patterns/m01-orientierung", {
       frontmatter: {},
@@ -264,7 +278,7 @@ describe("GroupSectionComponent", () => {
   it("clears a refusal notice once something actually happens", async () => {
     // The live region kept announcing "please save first" long after the save.
     const { el, http, fixture } = await mount();
-    el.querySelectorAll<HTMLButtonElement>(".gs-entry")[0].click();
+    el.querySelectorAll<HTMLButtonElement>(".ol-entry")[0].click();
     await fixture.whenStable();
     answerDoc(http, "03-patterns/m01-orientierung", {
       frontmatter: {},
@@ -274,7 +288,7 @@ describe("GroupSectionComponent", () => {
     await fixture.whenStable();
 
     fixture.componentInstance.editor.setDoc({ frontmatter: {}, body: "neu" });
-    el.querySelectorAll<HTMLButtonElement>(".gs-entry")[1].click(); // refused
+    el.querySelectorAll<HTMLButtonElement>(".ol-entry")[1].click(); // refused
     await fixture.whenStable();
     expect(fixture.componentInstance.notice()).not.toBe("");
 
@@ -305,7 +319,7 @@ describe("GroupSectionComponent", () => {
     el.querySelector<HTMLButtonElement>(".gs-new-go")?.click();
     await fixture.whenStable();
 
-    http.verify(); // no PUT — an existing pattern would have been replaced
+    http.verify(); // no request — the server would refuse it anyway (409)
     expect(el.textContent).toContain("gibt es schon");
   });
 });
@@ -331,7 +345,7 @@ function fieldLabels(el: HTMLElement): string[] {
 
 async function mountWithDoc(section: CuratedSection): Promise<Harness> {
   const h = await mount(section);
-  h.el.querySelectorAll<HTMLButtonElement>(".gs-entry")[0].click();
+  h.el.querySelectorAll<HTMLButtonElement>(".ol-entry")[0].click();
   await h.fixture.whenStable();
   answerDoc(h.http, "03-patterns/m01-orientierung", {
     frontmatter: { id: "M01", label: "Orientierung", tools: [] },
@@ -424,10 +438,10 @@ describe("GroupSectionComponent — Anlegen und Konflikt (Paket 4, D5)", () => {
     // und das Speichern war ein Upsert: das zweite ersetzte ein Bestehendes.
     const h = await mount();
     await neuesDokument(h, "Neue Zielgruppe");
-    const req = h.http.expectOne("/studio/api/config/file");
-    expect(req.request.body.create).toBe(true);
-    expect(req.request.body.path).toBe("03-patterns/neue-zielgruppe.md");
-    expect(req.request.body.content).toContain('id: "neue-zielgruppe"\n');
+    // Die Route legt nur an (409, wenn es den Schlüssel schon gibt).
+    const req = h.http.expectOne("/studio/api/config/documents");
+    expect(req.request.method).toBe("POST");
+    expect(req.request.body.id).toBe("neue-zielgruppe");
   });
 
   it("schreibt die Kennung als Zeichenkette, auch wenn sie wie eine Zahl aussieht", async () => {
@@ -436,15 +450,15 @@ describe("GroupSectionComponent — Anlegen und Konflikt (Paket 4, D5)", () => {
     // scheiterte mit 422 „passt nicht zum Schema“.
     const h = await mount();
     await neuesDokument(h, "2024");
-    const req = h.http.expectOne("/studio/api/config/file");
-    expect(req.request.body.content).toContain('id: "2024"\n');
+    const req = h.http.expectOne("/studio/api/config/documents");
+    expect(req.request.body.id).toBe("2024");
   });
 
   it("sagt bei 409, dass es die Kennung schon gibt", async () => {
     // Die Liste im Browser kann veraltet sein — der Server entscheidet.
     const h = await mount();
     await neuesDokument(h, "Neue Zielgruppe");
-    h.http.expectOne("/studio/api/config/file").flush(
+    h.http.expectOne("/studio/api/config/documents").flush(
       { detail: { message: "x", version: 1, updated_by: "studio-form",
                   updated_at: "2026-10-03T20:41:00+00:00" } },
       { status: 409, statusText: "Conflict" });
@@ -455,7 +469,7 @@ describe("GroupSectionComponent — Anlegen und Konflikt (Paket 4, D5)", () => {
 
   it("zeigt nach einem Konflikt beim Speichern den Hinweis und speichert trotzdem", async () => {
     const h = await mount();
-    h.el.querySelectorAll<HTMLButtonElement>(".gs-entry")[0].click();
+    h.el.querySelectorAll<HTMLButtonElement>(".ol-entry")[0].click();
     await h.fixture.whenStable();
     const key = "03-patterns/m01-orientierung";
     h.http.expectOne(`/studio/api/config/schema/${key}`).flush(AREA_SCHEMAS["03-patterns"]);

@@ -380,3 +380,44 @@ describe('ChatApiClient history transport (8-4S-e-0)', () => {
     expect(calls[1].url).toBe('/api/sessions/s/messages?limit=5');
   });
 });
+
+// Review Paket 7 (C-3): die Nachfrage nach einem Stream-Abbruch muss ein
+// Ratenlimit von „noch nichts da“ unterscheiden — `loadHistory` macht aus beidem `[]`.
+describe('ChatApiClient.fetchHistory (Review Paket 7, C-3)', () => {
+  it('liefert dieselben aufbereiteten Einträge wie loadHistory', async () => {
+    const payload = [{ id: 7, role: 'assistant', content: 'A', debug: { _web_links: [{ title: 'T', url: 'u' }] } }];
+    const { fetchImpl, calls } = capturingFetchRaw(jsonResponse(payload));
+    const out = await new ChatApiClient({ fetchImpl }).fetchHistory('s', 6);
+    expect(calls[0].url).toBe('/api/sessions/s/messages?limit=6');
+    expect(out[0]).toMatchObject({ id: 7, content: 'A', webLinks: [{ title: 'T', url: 'u' }] });
+  });
+
+  it('ein 429 wirft mit Status und Retry-After in Millisekunden', async () => {
+    const resp = { ok: false, status: 429, headers: new Headers({ 'Retry-After': '30' }) } as unknown as Response;
+    const { fetchImpl } = capturingFetchRaw(resp);
+    await expect(new ChatApiClient({ fetchImpl }).fetchHistory('s', 6))
+      .rejects.toMatchObject({ status: 429, retryAfterMs: 30_000 });
+  });
+
+  it('ohne lesbares Retry-After bleibt die Wartezeit offen', async () => {
+    const resp = { ok: false, status: 503, headers: new Headers() } as unknown as Response;
+    const { fetchImpl } = capturingFetchRaw(resp);
+    const fehler = await new ChatApiClient({ fetchImpl }).fetchHistory('s', 6).catch((e) => e);
+    expect(fehler).toMatchObject({ status: 503 });
+    expect(fehler.retryAfterMs).toBeUndefined();
+  });
+
+  it('Retry-After 0 heißt sofort, nicht „fehlt“ (Paket 9)', async () => {
+    const resp = { ok: false, status: 429, headers: new Headers({ 'Retry-After': '0' }) } as unknown as Response;
+    const { fetchImpl } = capturingFetchRaw(resp);
+    await expect(new ChatApiClient({ fetchImpl }).fetchHistory('s', 6))
+      .rejects.toMatchObject({ status: 429, retryAfterMs: 0 });
+  });
+
+  it('der Abruf trägt das Abbruchsignal der Nachfrage (Paket 9)', async () => {
+    const { fetchImpl, calls } = capturingFetchRaw(jsonResponse([]));
+    const steuerung = new AbortController();
+    await new ChatApiClient({ fetchImpl }).fetchHistory('s', 6, steuerung.signal);
+    expect(calls[0].signal).toBe(steuerung.signal);
+  });
+});

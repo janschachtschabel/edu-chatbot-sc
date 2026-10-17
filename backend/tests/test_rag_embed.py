@@ -74,11 +74,17 @@ def _gleichzeitigkeit_messen(monkeypatch):
     return stand
 
 
-def test_ein_import_belegt_keine_live_plaetze(monkeypatch):
+def test_ein_import_laesst_dem_chat_immer_plaetze(monkeypatch):
     """Der Import legte je Aufruf einen eigenen Semaphor an, nahm aber in
     ``llm.embedding`` zusätzlich einen Live-Platz. Fünf Importe belegten so alle
     Plätze des Chats (Probe). Jetzt läuft er in einem eigenen, prozessweiten
-    Kanal der Größe ``EMBED_INGEST_PARALLEL``."""
+    Kanal der Größe ``EMBED_INGEST_PARALLEL``.
+
+    **Vertrag geändert in Paket 7 (Review A-6):** bis dahin zählte der Import gar
+    nicht gegen die Grenze des Anbieters — 20 Chat + 4 + 4 liefen zugleich gegen
+    „bis zu 20“. Jetzt teilen sich alle Kanäle den Anbieter-Deckel; der Chat
+    behält trotzdem Plätze, weil Hintergrund und Import zusammen höchstens
+    Anbieter−1 bekommen und der Import selbst höchstens ``EMBED_INGEST_PARALLEL``."""
     monkeypatch.delenv("EMBED_BACKEND", raising=False)
     monkeypatch.setenv("EMBED_INGEST_PARALLEL", "2")
     monkeypatch.setenv("LLM_MAX_CONCURRENCY", "4")
@@ -90,7 +96,7 @@ def test_ein_import_belegt_keine_live_plaetze(monkeypatch):
     erster, zweiter = asyncio.run(zwei_importe())
     assert erster == zweiter == [[0.1]] * 6
     assert stand["max"] <= 2                  # prozessweit, über beide Importe
-    assert min(stand["live_frei"]) == 4       # kein Live-Platz belegt
+    assert min(stand["live_frei"]) >= 2       # von vier Plätzen bleiben dem Chat zwei
 
 
 def test_der_lokale_import_stellt_den_rerank_pool_nicht_voll(monkeypatch):

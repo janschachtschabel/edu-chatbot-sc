@@ -25,6 +25,7 @@ import type { CuratedPanelSection } from './curated-views';
 const GROUP_KEYS: ReadonlyMap<string, string> = new Map([
   ['read', 'agentTools.group.read'],
   ['curation', 'agentTools.group.curation'],
+  ['external', 'agentTools.group.external'],
   ['virtual', 'agentTools.group.virtual'],
 ]);
 

@@ -445,7 +445,8 @@ _EXPECT_FELDER = {
     "tools_none", "text_any", "text_none", "qr",
 }
 _LISTEN_FELDER = ("tools_any", "tools_none", "text_any", "text_none")
-_FLOW_FELDER = {"id", "zielgruppe", "title", "turns"}
+# ``auf_abruf`` (Paket 7, K3): der Runner lässt solche Flows ohne ``--only`` weg.
+_FLOW_FELDER = {"id", "zielgruppe", "title", "turns", "auf_abruf"}
 
 
 def test_seed_gold_flows_sind_v2_und_wohlgeformt() -> None:

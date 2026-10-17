@@ -23,10 +23,12 @@ def make_engine(
     """Async engine. ``poolclass=NullPool`` avoids cross-event-loop connection
     reuse — needed when a test mixes asyncio.run() with a TestClient loop."""
     cfg = settings or get_settings()
-    kwargs: dict = {"echo": echo, "pool_pre_ping": True}
+    kwargs: dict = {"echo": echo}
     if poolclass is not None:
-        kwargs["poolclass"] = poolclass
-        kwargs.pop("pool_pre_ping")  # NullPool has no pre-ping
+        kwargs["poolclass"] = poolclass  # NullPool: no pre-ping, no size
+    else:
+        kwargs.update(pool_pre_ping=True, pool_size=cfg.db_pool_size,
+                      max_overflow=cfg.db_max_overflow)
     return create_async_engine(cfg.database_url, **kwargs)
 
 

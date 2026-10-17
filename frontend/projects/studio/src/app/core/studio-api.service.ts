@@ -76,10 +76,10 @@ export class StudioApi {
   }
 
   /** Multipart upload; `file` is the FastAPI parameter name on both endpoints. */
-  upload<T>(path: string, file: File): Promise<T> {
+  upload<T>(path: string, file: File, params?: Record<string, QueryValue>): Promise<T> {
     const body = new FormData();
     body.append('file', file);
-    return this.send(this.http.post<T>(this.url(path), body), path);
+    return this.send(this.http.post<T>(this.url(path), body, { params: toParams(params) }), path);
   }
 
   /**

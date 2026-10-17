@@ -97,6 +97,14 @@
   font-weight: 600;
 }
 
+// Schalter und Name als eine Klickfläche (Review Paket 7, C-10).
+.mr-tool-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-2);
+  cursor: pointer;
+}
+
 .mr-tool-desc {
   display: block;
   margin-block-start: var(--st-1);

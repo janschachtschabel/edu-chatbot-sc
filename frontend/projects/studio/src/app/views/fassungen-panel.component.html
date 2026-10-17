@@ -1,0 +1,190 @@
+<section class="op-panel" id="fassungen" aria-labelledby="fs-title">
+  <div class="op-head">
+    <h2 class="op-title" id="fs-title" tabindex="-1">{{ t('fassungen.title') }}</h2>
+    <button
+      type="button"
+      class="op-btn"
+      [disabled]="liste.loading()"
+      (click)="liste.reload()"
+    >{{ t('action.refresh') }}</button>
+  </div>
+
+  <p class="op-lead">{{ t('fassungen.lead') }}</p>
+
+  <studio-async-state
+    [label]="t('fassungen.title')"
+    [loading]="liste.loading() && !liste.value()"
+    [error]="liste.error()"
+    [empty]="false"
+    (retry)="liste.reload()"
+  />
+
+  @if (!available()) {
+    <p class="fs-hint">{{ t('fassungen.unavailable') }}</p>
+  } @else if (liste.value()) {
+    <p class="fs-summary">{{ t('fassungen.summary', zaehlung()) }}</p>
+
+    <div class="op-actions">
+      <button
+        type="button"
+        class="op-btn"
+        aria-describedby="fs-abgleich-hint"
+        [disabled]="action.busy()"
+        (click)="werksabgleich()"
+      >
+        {{ action.isRunning('abgleich') ? t('fassungen.abgleichRunning') : t('fassungen.abgleich') }}
+      </button>
+    </div>
+    <p class="fs-hint" id="fs-abgleich-hint">{{ t('fassungen.abgleichHint') }}</p>
+    <p class="fs-hint" id="fs-geprueft-hint">{{ t('fassungen.geprueftHint') }}</p>
+    <p class="fs-hint">{{ t('fassungen.backupHinweis') }}</p>
+
+    <!-- Erfolg in einer dauerhaften Status-Region, Fehler als bedingter Alarm (Paket 4b, B3). -->
+    <p class="op-msg live" role="status">
+      @if (action.message(); as msg) {
+        @if (msg.kind === 'ok') {
+          ✓ {{ msg.text }}
+        }
+      }
+    </p>
+    @if (action.message(); as msg) {
+      @if (msg.kind === 'error') {
+        <p class="op-msg op-msg--error" role="alert">⚠ {{ msg.text }}</p>
+      }
+    }
+
+    <fieldset class="fs-filter">
+      <legend class="op-label">{{ t('fassungen.filter.legend') }}</legend>
+      @for (f of filters; track f) {
+        <label class="fs-filter-opt">
+          <input
+            type="radio"
+            name="fs-filter"
+            [value]="f"
+            [checked]="filter() === f"
+            (change)="setFilter(f)"
+          />
+          {{ t('fassungen.filter.' + f) }}
+        </label>
+      }
+    </fieldset>
+
+    @if (zeilen().length === 0) {
+      <p class="fs-hint">{{ t('fassungen.empty.' + filter()) }}</p>
+    } @else {
+      <ul class="fs-list">
+        @for (z of zeilen(); track z.area) {
+          <li class="fs-row" [attr.data-area]="z.area">
+            <div class="fs-row-head">
+              <code class="fs-area" [id]="'fs-area-' + $index">{{ z.area }}</code>
+              <span class="fs-status" [class]="'fs-status fs-status--' + z.status">
+                {{ t('fassungen.status.' + z.status) }}
+              </span>
+              @if (z.hat_eigene_fassung) {
+                <span class="fs-note">{{ t('fassungen.eigeneLiegt') }}</span>
+              }
+            </div>
+
+            <div class="op-actions">
+              @switch (hauptaktion(z)) {
+                @case ('werk') {
+                  <button
+                    type="button"
+                    class="op-btn fs-aktion"
+                    [attr.aria-describedby]="'fs-area-' + $index"
+                    [disabled]="action.busy()"
+                    (click)="umschalten(z, 'werk')"
+                  >
+                    {{ action.isRunning('werk:' + z.area)
+                       ? t('fassungen.switching') : t('fassungen.useWerk') }}
+                  </button>
+                }
+                @case ('restore') {
+                  <button
+                    type="button"
+                    class="op-btn fs-aktion"
+                    [attr.aria-describedby]="'fs-area-' + $index"
+                    [disabled]="action.busy()"
+                    (click)="umschalten(z, 'werk')"
+                  >
+                    {{ action.isRunning('werk:' + z.area)
+                       ? t('fassungen.switching') : t('fassungen.restore') }}
+                  </button>
+                }
+              }
+              @if (z.status === 'eigen-neues-werk') {
+                <button
+                  type="button"
+                  class="op-btn"
+                  [attr.aria-describedby]="'fs-area-' + $index + ' fs-geprueft-hint'"
+                  [disabled]="action.busy()"
+                  (click)="umschalten(z, 'geprueft')"
+                >
+                  {{ action.isRunning('geprueft:' + z.area)
+                     ? t('fassungen.switching') : t('fassungen.markGeprueft') }}
+                </button>
+              }
+              @if (z.hat_eigene_fassung) {
+                <button
+                  type="button"
+                  class="op-btn fs-aktion"
+                  [attr.aria-describedby]="'fs-area-' + $index"
+                  [disabled]="action.busy()"
+                  (click)="umschalten(z, 'eigen')"
+                >
+                  {{ action.isRunning('eigen:' + z.area)
+                     ? t('fassungen.switching') : t('fassungen.useEigen') }}
+                </button>
+              }
+              @if (hatVergleich(z)) {
+                <button
+                  type="button"
+                  class="op-btn"
+                  [attr.aria-describedby]="'fs-area-' + $index"
+                  [attr.aria-expanded]="istOffen(z.area)"
+                  [attr.aria-controls]="'fs-diff-' + $index"
+                  (click)="vergleichUmschalten(z)"
+                >
+                  {{ istOffen(z.area) ? t('fassungen.diffHide') : t('fassungen.diffShow') }}
+                </button>
+              }
+            </div>
+
+            @if (istOffen(z.area)) {
+              <div class="fs-diff" [id]="'fs-diff-' + $index">
+                @if (vergleichsfehler(z.area); as fehler) {
+                  <p class="op-msg op-msg--error" role="alert">⚠ {{ fehler }}</p>
+                } @else if (vergleichszeilen(z.area); as u) {
+                  @if (u.gelebt.length === 0) {
+                    <p class="fs-hint">{{ t('fassungen.diffNone') }}</p>
+                  } @else {
+                    <p class="fs-hint">{{ t('fassungen.diffLegend') }}</p>
+                    <pre
+                      class="fs-diff-pre"
+                      tabindex="0"
+                      role="region"
+                      [attr.aria-label]="t('fassungen.diffRegion', { area: z.area })"
+                    >@for (l of u.gelebt; track $index) {<span [class]="zeilenart(l)">{{ l }}</span>
+}</pre>
+                  }
+                  @if (u.eigene.length > 0) {
+                    <p class="fs-hint">{{ t('fassungen.diffEigeneLegend') }}</p>
+                    <pre
+                      class="fs-diff-pre"
+                      tabindex="0"
+                      role="region"
+                      [attr.aria-label]="t('fassungen.diffEigeneRegion', { area: z.area })"
+                    >@for (l of u.eigene; track $index) {<span [class]="zeilenart(l)">{{ l }}</span>
+}</pre>
+                  }
+                } @else {
+                  <p class="fs-hint">{{ t('async.loading', { label: z.area }) }}</p>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  }
+</section>

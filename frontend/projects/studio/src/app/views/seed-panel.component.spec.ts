@@ -76,13 +76,13 @@ async function click(h: Harness, label: string): Promise<void> {
 }
 
 describe("SeedPanelComponent", () => {
-  it("sagt es, wenn das Abbild keinen Auslieferungsstand mitbringt", async () => {
+  it("sagt es, wenn das Abbild keine Werksfassung mitbringt", async () => {
     const h = await mount({ ...LEER, available: false });
-    expect(text(h)).toContain("bringt keinen Auslieferungsstand mit");
+    expect(text(h)).toContain("bringt keine Werksfassung mit");
     // Beide Knöpfe hätten nichts zu holen; angeboten würden sie nur ein 404
     // erzeugen.
     expect(button(h, "Fehlende nachziehen").disabled).toBe(true);
-    expect(button(h, "Alles auf Auslieferungsstand").disabled).toBe(true);
+    expect(button(h, "Alles auf die Werksfassung").disabled).toBe(true);
   });
 
   it("zeigt die vier Zahlen, an denen die Entscheidung hängt", async () => {
@@ -123,7 +123,7 @@ describe("SeedPanelComponent", () => {
     });
     expect(button(h, "Fehlende nachziehen").disabled).toBe(true);
     // Der scharfe darf hier, denn „b" weicht ab.
-    expect(button(h, "Alles auf Auslieferungsstand").disabled).toBe(false);
+    expect(button(h, "Alles auf die Werksfassung").disabled).toBe(false);
   });
 
   it("zieht Fehlendes ohne Rückfrage nach und meldet die Zahl", async () => {
@@ -150,7 +150,7 @@ describe("SeedPanelComponent", () => {
       abweichend: ["a"],
       nur_in_db: ["b"],
     });
-    await click(h, "Alles auf Auslieferungsstand");
+    await click(h, "Alles auf die Werksfassung");
     h.http.expectNone(`${SEED}/apply`);
     expect(text(h)).toContain("überschrieben");
     expect(text(h)).toContain("gelöscht");
@@ -171,7 +171,7 @@ describe("SeedPanelComponent", () => {
     // nicht in ihrem alten Zustand einfrieren.
     const h = await mount({ ...LEER, area_count: 1, nur_in_db: ["b"] });
     const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
-    await click(h, "Alles auf Auslieferungsstand");
+    await click(h, "Alles auf die Werksfassung");
     await click(h, "Ja, herstellen");
     h.http
       .expectOne(`${SEED}/apply`)
@@ -184,5 +184,25 @@ describe("SeedPanelComponent", () => {
     expect(h.el.querySelector(".op-msg[role='status']")).toBe(region);
     expect(region!.textContent).toBe("");
     h.http.expectOne(SEED).flush(LEER);
+  });
+
+  it("führt den Fokus in die Rückfrage und zurück zum Knopf (Paket 9, V8)", async () => {
+    const h = await mount({ ...LEER, area_count: 1, nur_in_db: ["b"] });
+    await click(h, "Alles auf die Werksfassung");
+    expect(document.activeElement?.textContent?.trim()).toBe("Abbrechen");
+    await click(h, "Abbrechen");
+    expect(document.activeElement).toBe(button(h, "Alles auf die Werksfassung"));
+  });
+
+  it("gibt den Fokus nach dem Lauf an die Überschrift, wenn der Knopf nichts mehr zu tun hat (Paket 9, V8)", async () => {
+    const h = await mount({ ...LEER, area_count: 1, nur_in_db: ["b"] });
+    await click(h, "Alles auf die Werksfassung");
+    await click(h, "Ja, herstellen");
+    h.http.expectOne(`${SEED}/apply`).flush({ written: 0, deleted: 1, snapshot_id: "snap-x" });
+    await settle(h);
+    h.http.expectOne(SEED).flush({ ...LEER, area_count: 1, gleich: ["a"] });
+    await settle(h);
+    expect(button(h, "Alles auf die Werksfassung").disabled).toBe(true);
+    expect(document.activeElement?.id).toBe("seed-title");
   });
 });

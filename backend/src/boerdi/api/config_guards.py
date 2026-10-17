@@ -3,23 +3,20 @@
 Split out of ``api/config.py`` (Paket 4, D3): the endpoints stay there, the
 rules a document and its key must satisfy live here — shared by the Studio's
 write paths (``config.py``) and the restore paths (``config_snapshots.py``).
-Also the answer to a write that lost the race (409, Paket 4 D5).
+The answers to a write that failed (400 not storable, 409 conflict) moved to
+``api/config_antworten.py`` (Paket 6).
 """
 
 import logging
-import re
-from datetime import UTC
 from typing import Any
 
-from fastapi import HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi import HTTPException
 from pydantic import BaseModel, ValidationError
 
-from boerdi.api.deps import request_locale
+from boerdi.domain import regel_regex
 from boerdi.domain.config_models.patterns import ist_reservierte_kennung
 from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
-from boerdi.services.config_conflict import BereichNichtSpeicherbar, ConfigConflict
 from boerdi.services.config_loader.mcp import _PRIMARY_ID
 from boerdi.services.url_safety import UnsafeUrlError, assert_public_url
 
@@ -32,6 +29,8 @@ _MCP_AREA = "05-knowledge/mcp-servers"
 _PATTERN_PREFIX = "03-patterns/"
 #: The guide rules: their ``message_rules`` patterns must compile (Paket 4, D6).
 _GUIDE_RULES_AREA = "02-domain/guide-rules"
+#: The policy rules: their ``match.message_regex`` must compile (Paket 6, B1).
+_POLICY_AREA = "01-base/policy"
 
 
 def _assert_servers_public(servers: object, lang: Locale) -> None:
@@ -54,9 +53,16 @@ def _assert_servers_public(servers: object, lang: Locale) -> None:
         try:
             assert_public_url(srv_url)
         except UnsafeUrlError as e:
-            raise HTTPException(
-                400, msg(lang, "mcp.serverRejected", id=srv.get("id") or "?", error=e)
-            ) from e
+            raise HTTPException(400, msg(lang, "mcp.serverRejected", id=srv.get("id") or "?",
+                                         error=url_einwand(e, lang))) from e
+
+
+def url_einwand(fehler: UnsafeUrlError, lang: Locale) -> str:
+    """Warum eine Adresse abgewiesen wurde — in der Sprache des Studios statt im
+    englischen Text des Wächters (Paket 9)."""
+    if fehler.grund == "unbekannt":
+        return msg(lang, "url.unknownHost", detail=fehler.host)
+    return msg(lang, "url.notAllowed")
 
 
 def _assert_area_document_safe(key: str, data: object, lang: Locale) -> None:
@@ -74,7 +80,9 @@ def _assert_area_document_safe(key: str, data: object, lang: Locale) -> None:
     paths (``config_snapshots``) run this check as well.
 
     Since Paket 4 (D6) also the guide rules' patterns: an invalid regular
-    expression was stored and then skipped only at runtime.
+    expression was stored and then skipped only at runtime. Since Paket 6 (B1)
+    the policy rules' ``message_regex`` as well, both with the engine the
+    runtime uses (``domain/regel_regex``).
     """
     if key == _MCP_AREA and isinstance(data, dict):
         _assert_servers_public(data.get("servers"), lang)
@@ -87,6 +95,8 @@ def _assert_area_document_safe(key: str, data: object, lang: Locale) -> None:
             )
     if key == _GUIDE_RULES_AREA and isinstance(data, dict):
         _assert_guide_patterns_compile(data.get("message_rules"), lang)
+    if key == _POLICY_AREA and isinstance(data, dict):
+        _assert_policy_patterns_compile(data.get("rules"), lang)
 
 
 def _assert_guide_patterns_compile(rules: object, lang: Locale) -> None:
@@ -99,10 +109,34 @@ def _assert_guide_patterns_compile(rules: object, lang: Locale) -> None:
         if not pattern:
             continue  # the loader drops a rule without a pattern
         try:
-            re.compile(pattern, re.IGNORECASE)
-        except re.error as e:
+            regel_regex.uebersetze(pattern)
+        except regel_regex.RegexFehler as e:
             raise HTTPException(400, msg(
                 lang, "guide.patternInvalid", nr=nr, label=rule.get("label") or "?", error=e,
+            )) from e
+
+
+def _assert_policy_patterns_compile(rules: object, lang: Locale) -> None:
+    """Every policy ``match.message_regex`` must compile — as ``assess_policy``
+    compiles it (case-sensitive on the lowered message). Before, an invalid one
+    was stored and the rule then silently never matched."""
+    for nr, rule in enumerate(rules if isinstance(rules, list) else [], start=1):
+        match = rule.get("match") if isinstance(rule, dict) else None
+        pattern = match.get("message_regex") if isinstance(match, dict) else None
+        if not pattern:
+            continue
+        # Kein Text (``2024``, eine Liste): die Laufzeit wirft daran einen
+        # TypeError, nicht ``RegexFehler`` (Review Paket 6) — darum hier ab.
+        if not isinstance(pattern, str):
+            raise HTTPException(400, msg(
+                lang, "policy.regexInvalid", nr=nr, id=rule.get("id") or "?",
+                error=type(pattern).__name__,
+            ))
+        try:
+            regel_regex.uebersetze(pattern, ignore_case=False)
+        except regel_regex.RegexFehler as e:
+            raise HTTPException(400, msg(
+                lang, "policy.regexInvalid", nr=nr, id=rule.get("id") or "?", error=e,
             )) from e
 
 
@@ -170,12 +204,17 @@ def is_restorable_area_key(key: str) -> bool:
     Audit 2026-09-29, A-M7: ``../…`` from a crafted ZIP must not land in the
     store, ``export_tree`` would write it outside its folder. The model list is
     too narrow for a restore (review 2026-10-03): areas without a model exist —
-    ``01-base/rag-retrieval`` is read but not registered — and must come back.
+    a hand-written one from the raw editor, say — and must come back.
 
     Since Paket 4 (D3, external audit F07) also no ``.`` segment — it stored
     the same document under a second name — and below ``03-patterns/`` and
-    ``04-personas/`` exactly one leaf, by the rule of ``_is_file_key``.
+    ``04-personas/`` exactly one leaf, by the rule of ``_is_file_key``. Since
+    Paket 9 no retired area either: an old backup brought them back.
     """
+    from boerdi.domain.config_models import GESTRICHENE_BEREICHE
+
+    if key in GESTRICHENE_BEREICHE:
+        return False
     try:
         if cl._validate_config_path(key) != key:
             return False
@@ -185,6 +224,32 @@ def is_restorable_area_key(key: str) -> bool:
     if not all(segments) or "." in segments:
         return False
     return _single_group_leaf(key) is not False
+
+
+def pruefe_bereiche(areas: dict[str, dict], lang: Locale) -> dict[str, dict]:
+    """Die Prüfung vor einem Schreiben vieler Bereiche — Wiederherstellen und
+    Auslieferungsstand (Paket 6, W2) — über ALLE Bereiche, bevor etwas
+    geschrieben wird. Gibt die schreibbaren Bereiche zurück.
+
+    Drei Prüfungen: Schlüssel müssen gültige Bereichspfade sein (Audit
+    2026-09-29, A-M7; andere werden mit Warnung übersprungen); Dokumente
+    bestehen die Ausgangsprüfungen eines Studio-Schreibens
+    (``_assert_area_document_safe``, Review 2026-10-03; ein Fehler antwortet
+    400); und jeder Bereich mit Modell besteht es (Paket 4, D3; eine 422 mit
+    allen Einwänden, jeder mit ``area``).
+    """
+    gueltig: dict[str, dict] = {}
+    einwaende: list[dict] = []
+    for key, data in areas.items():
+        if not is_restorable_area_key(key):
+            logger.warning("skipping %r, not a valid config area path", key)
+            continue
+        _assert_area_document_safe(key, data, lang)
+        einwaende += [{"area": key, **f} for f in modell_fehler(key, data)]
+        gueltig[key] = data
+    if einwaende:
+        raise HTTPException(status_code=422, detail=einwaende)
+    return gueltig
 
 
 def modell_fehler(key: str, data: object) -> list[dict[str, Any]]:
@@ -222,54 +287,3 @@ def _plain_ctx(err: Any) -> dict[str, Any]:
     ctx = {k: v for k, v in (err.get("ctx") or {}).items()
            if isinstance(v, (bool, int, float, str))}
     return {"ctx": ctx} if ctx else {}
-
-
-async def nicht_speicherbar_antwort(request: Request, exc: Exception) -> JSONResponse:
-    """400 for a value that cannot be stored — refused by Postgres (Paket 4b, A4)
-    or not JSON at all (Paket 4c, A2).
-
-    One handler for every config write — restore, seed apply, form and raw
-    text. Before, such a write ended as a 500 without naming the area.
-
-    The failed transaction writes nothing, but it is not always the whole
-    request (review 4b): restore and seed apply write every area in one
-    transaction, the ALT bulk routes (personas, patterns, tone modifiers) one
-    per area, so earlier areas stay saved. The message says which case it is.
-
-    The log line names the area and the cause, never the content: the 500's
-    traceback used to be the only trail (second review 4b). The cause is the
-    SQLSTATE, or for a value JSON cannot hold the error type (Paket 4c, A2).
-    """
-    fehler = exc if isinstance(exc, BereichNichtSpeicherbar) else BereichNichtSpeicherbar("?")
-    if fehler.sqlstate:
-        ursache = f"SQLSTATE {fehler.sqlstate}"
-    else:
-        ursache = type(fehler.__cause__).__name__ if fehler.__cause__ else "?"
-    logger.warning("config area %r not storable (%s)", fehler.area, ursache)
-    key = "config.notStorableAll" if fehler.ganzer_vorgang else "config.notStorable"
-    text = msg(request_locale(request), key, area=fehler.area)
-    return JSONResponse(status_code=400, content={"detail": text})
-
-
-def konflikt_antwort(e: ConfigConflict, lang: Locale, *, anlegen: bool = False) -> HTTPException:
-    """409 for a conditional write that found another state (Paket 4, D5).
-
-    ``detail`` is an object: ``message`` for any client, and ``version``,
-    ``updated_by``, ``updated_at`` (ISO, UTC) for the Studio, which names who
-    changed what and when in the editor's own language.
-    """
-    cur = e.current or {}
-    version = cur.get("version")
-    updated_by = cur.get("updated_by")
-    when = cur.get("updated_at")
-    if anlegen and e.current is not None:
-        text = msg(lang, "config.exists", area=e.area)
-    elif e.current is None:
-        text = msg(lang, "config.conflictGone")
-    else:
-        text = msg(lang, "config.conflict", version=version, who=updated_by or "?",
-                   when=when.astimezone(UTC).strftime("%Y-%m-%d %H:%M") if when else "?")
-    stamp = when.astimezone(UTC).isoformat() if when else None
-    return HTTPException(status_code=409, detail={
-        "message": text, "version": version, "updated_by": updated_by, "updated_at": stamp,
-    })

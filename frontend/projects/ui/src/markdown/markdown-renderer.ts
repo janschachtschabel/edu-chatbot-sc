@@ -31,6 +31,16 @@ import { stripLatex } from './latex';
  *  Seit C1-b3 Schlüssel statt Text — dieselben ``contentType.*``, die auch
  *  ``card-utils.getContentTypeLabel`` benutzt: es ist derselbe Begriff, einmal
  *  in der Kachel-Typzeile und einmal am Inline-Link. */
+/** Was ohne Klick eine Adresse lädt (Paket 10, Audit 2026-10-10 M-7): ein Bild im
+ *  Modelltext kann Gesprächsinhalt in seiner URL nach außen tragen — eingeschleust
+ *  über Seiten- oder Werkzeugtext. Weder Seeds noch Backend erzeugen so etwas; die
+ *  Karten zeigen ihre Vorschaubilder selbst. Neben `img` auch SVG-`image`, Medien und
+ *  Stile (`url(…)`). */
+const NACHLADENDE_TAGS = [
+  'img', 'image', 'feimage', 'picture', 'source', 'audio', 'video', 'track', 'style',
+];
+const NACHLADENDE_ATTRIBUTE = ['style', 'background', 'poster', 'srcset'];
+
 const INLINE_ICON_LABEL_KEY: Record<string, string> = {
   topic: 'contentType.topicPage',
   auto_stories: 'contentType.collection',
@@ -156,6 +166,8 @@ export class MarkdownRenderer {
     const clean = DOMPurify.sanitize(html, {
       ADD_ATTR: ['target', 'rel', 'data-bb-type'],
       USE_PROFILES: { html: true, svg: true, svgFilters: true },
+      FORBID_TAGS: NACHLADENDE_TAGS,
+      FORBID_ATTR: NACHLADENDE_ATTRIBUTE,
     });
     // Post-Process: (1) Externe Links (NICHT auf der Trusted-Hosts-Liste)
     // in neuem Tab öffnen — Tabnabbing-sicher via ``rel="noopener noreferrer"``.
@@ -183,7 +195,6 @@ export class MarkdownRenderer {
             // Same-origin und trusted hosts → same tab (für ?bsid=-Handoff).
             if (hostname && !sameOrigin && !trusted) {
               if (!a.hasAttribute('target')) a.setAttribute('target', '_blank');
-              if (!a.hasAttribute('rel')) a.setAttribute('rel', 'noopener noreferrer');
               // Warntooltip nur setzen wenn kein anderer (z.B. Material-Typ-
               // Label vom Inline-Card-Link) bereits einen ``title`` gesetzt hat.
               const existingTitle = a.getAttribute('title') || '';
@@ -202,6 +213,11 @@ export class MarkdownRenderer {
               if (rewritten !== href) a.setAttribute('href', rewritten);
             }
           }
+
+          // Ein Ziel bekommt immer noopener (Paket 10, Audit M-6): `target`/`rel`
+          // kommen auch aus dem Modelltext, und ein mitgeliefertes `rel="opener"`
+          // gäbe der neuen Seite Zugriff auf dieses Fenster.
+          if (a.hasAttribute('target')) a.setAttribute('rel', 'noopener noreferrer');
 
           // (2) Inline-Card-Title-Wrap (nur wenn Backend-Inline-Icon-Span
           // als erstes Child vorhanden ist).

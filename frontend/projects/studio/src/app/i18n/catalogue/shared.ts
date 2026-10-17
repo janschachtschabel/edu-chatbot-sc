@@ -27,7 +27,8 @@ export const SHARED: CataloguePart = {
     'origin.all.hint': 'Echte Gespräche, Eval-Läufe, Lasttests und Probeläufe zusammen',
     'origin.production': 'Produktion',
     'origin.production.hint':
-      'Ohne Eval-, Lasttest- und Probelauf-Sitzungen (die Widget-Vorschau im Studio zählt mit)',
+      'Ohne Eval-Läufe, Lasttests und die Probeläufe des Studios (die Widget-Vorschau dort '
+      + 'zählt mit)',
     'origin.eval': 'Nur Eval',
     'origin.eval.hint': 'Nur die Sitzungen der Eval-Läufe',
     /** Zugänglicher Name desselben Knopfs. Mehrere Streifen auf einer Seite
@@ -71,7 +72,12 @@ export const SHARED: CataloguePart = {
     'conflict.via.raw': 'Rohtext',
     'conflict.via.studio': 'Studio',
     'conflict.via.restore': 'Wiederherstellung',
-    'conflict.via.seed': 'Auslieferungsstand',
+    'conflict.via.seed': 'Werksfassung',
+    'conflict.via.import': 'Import',
+    'conflict.via.werksabgleich': 'Werksabgleich',
+    'conflict.via.werkfassung': 'Werksfassung verwenden',
+    'conflict.via.geprueft': 'Als geprüft markieren',
+    'conflict.via.eigeneFassung': 'eigene Fassung verwenden',
     'conflict.choice':
       '„Neu laden“ zeigt den gespeicherten Stand und verwirft den Entwurf. '
       + '„Trotzdem speichern“ ersetzt die andere Änderung durch den Entwurf.',
@@ -122,7 +128,8 @@ export const SHARED: CataloguePart = {
     'origin.all.hint': 'Real conversations, eval runs, load tests and trial runs together',
     'origin.production': 'Production',
     'origin.production.hint':
-      'Without eval, load-test and trial-run sessions (the widget preview in the studio counts)',
+      'Without eval runs, load tests and the studio’s trial runs (its widget preview '
+      + 'counts)',
     'origin.eval': 'Eval only',
     'origin.eval.hint': 'Only the sessions of eval runs',
     'async.retryFor': 'Try again — {label}',
@@ -154,7 +161,12 @@ export const SHARED: CataloguePart = {
     'conflict.via.raw': 'raw text',
     'conflict.via.studio': 'Studio',
     'conflict.via.restore': 'restore',
-    'conflict.via.seed': 'shipped state',
+    'conflict.via.seed': 'factory version',
+    'conflict.via.import': 'import',
+    'conflict.via.werksabgleich': 'factory sync',
+    'conflict.via.werkfassung': 'use factory version',
+    'conflict.via.geprueft': 'mark as reviewed',
+    'conflict.via.eigeneFassung': 'use own version',
     'conflict.choice':
       '“Reload” shows the stored state and discards the draft. '
       + '“Save anyway” replaces the other change with the draft.',

@@ -9,16 +9,18 @@ from typing import NamedTuple
 from boerdi.settings import get_settings
 
 _PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
-    # W12 (Nutzer-Vorgabe 2026-08-09): gpt-5.6-luna. Aus der Modellkarte
-    # geprueft: 1.050.000 Token Kontext, Reasoning-Token, Streaming,
-    # function_calling und Structured Outputs — alles, was der Zug braucht.
-    # `is_gpt5_model` greift ueber den Praefix "gpt-5" automatisch, die
-    # GPT-5-Parameter gehen also ohne Zusatzcode mit.
-    "openai": {"chat": "gpt-5.6-luna", "embed": "text-embedding-3-small"},
-    "b-api-openai": {"chat": "gpt-5.6-luna", "embed": "text-embedding-3-small"},
+    # Paket 8 (Nutzer 2026-10-09): Standard ist gpt-6-luna, direkt wie über die
+    # b-api (dort geführt, Probe 2026-10-09). Vorher gpt-5.6-luna (W12); die
+    # Parameter der gpt-6-Gruppe stehen in ``_GROUPS``.
+    "openai": {"chat": "gpt-6-luna", "embed": "text-embedding-3-small"},
+    "b-api-openai": {"chat": "gpt-6-luna", "embed": "text-embedding-3-small"},
+    # Paket 8 (L8): lauffähig, aber nicht Standard — langsamer und schwächer
+    # (Nutzer). Die alten Vorgaben fehlten in ``/academiccloud/models``; dort
+    # steht auch kein Einbettungsmodell. Eingebettet wird im Raum der
+    # Wissensbasis, über den OpenAI-Pfad der b-api (``llm.route``).
     "b-api-academiccloud": {
-        "chat": "mistral-large-3-675b-instruct-2512",
-        "embed": "e5-mistral-7b-instruct",
+        "chat": "qwen3-30b-a3b-instruct-2507",
+        "embed": "text-embedding-3-small",
     },
 }
 
@@ -79,8 +81,13 @@ class ParamRules(NamedTuple):
     #: ``temperature`` erlaubt, wenn das Reasoning abgeschaltet ist
     temperature_on_none: bool
     #: ueber OpenAIs ``/v1/responses`` statt ``/v1/chat/completions`` fuehren.
-    #: Wirkt nur beim Anbieter ``openai``; die b-api bleibt auf Chat-Completions.
+    #: Wirkt bei ``openai`` und ``b-api-openai`` (Paket 9: hinter der b-api steht
+    #: dasselbe OpenAI); die AcademicCloud bekommt ``_CLASSIC`` und bleibt auf
+    #: Chat-Completions.
     responses_api: bool = False
+    #: gpt-5- und gpt-6-Familie: Ausfuehrlichkeit und Tarif (``service_tier``) —
+    #: nur fuer diese Familien (Nutzer-Vorgabe 2026-10-09); o1/o3/o4 nicht.
+    gpt5_familie: bool = False
 
 
 _CLASSIC = ParamRules(gpt5_params=False, effort_with_tools=False, temperature_on_none=False)
@@ -94,7 +101,7 @@ _GROUPS: dict[str, ParamRules] = {
     # daher der Responses-Weg ausdruecklich. Nutzer-Vorgabe desselben Tages: neue
     # OpenAI-Modelle ueber Responses, Chat-Completions vor allem fuer die AcademicCloud.
     "gpt-6": ParamRules(gpt5_params=True, effort_with_tools=True,
-                        temperature_on_none=False, responses_api=True),
+                        temperature_on_none=False, responses_api=True, gpt5_familie=True),
     # W12b, gegen die echte API gemessen (2026-08-09): luna weist eine Anfrage
     # MIT Werkzeugen ab, wenn `reasoning_effort` FEHLT — dann gilt das
     # Vorgabe-Reasoning des Anbieters, und das vertraegt sich nicht mit Function
@@ -104,14 +111,20 @@ _GROUPS: dict[str, ParamRules] = {
     # gpt-5.4 jeden Aufruf mit Werkzeugen UND effort still auf /v1/responses um
     # (litellm/main.py ``responses_api_bridge_check``); /v1/chat/completions
     # selbst weist `low` mit Werkzeugen ab.
-    "gpt-5.6": ParamRules(gpt5_params=True, effort_with_tools=True, temperature_on_none=False),
+    # Paket 7 (L2, 2026-10-09): bei OpenAI direkt ausdruecklich ueber Responses —
+    # nur dort kommen Denktiefe UND Ausfuehrlichkeit verlaesslich an
+    # (``llm_responses.denkparameter_verlegen``).
+    "gpt-5.6": ParamRules(gpt5_params=True, effort_with_tools=True, temperature_on_none=False,
+                          responses_api=True, gpt5_familie=True),
     # ALT-verbatim (llm_provider.py:702-827): kein Reasoning bei Werkzeugen,
     # dafuer `temperature` neben abgeschaltetem Reasoning.
-    "gpt-5.4": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=True),
+    "gpt-5.4": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=True,
+                          gpt5_familie=True),
     # Uebrige Reasoning-Modelle. Gemessen ist, dass gpt-5.4 UND gpt-5.6 einen
     # ausdruecklichen Wert auch mit Werkzeugen annehmen; fuer o1/o3/o4 liegt keine
     # Messung vor, deshalb bleibt hier die vorsichtigere ALT-Regel stehen.
-    "gpt-5": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=False),
+    "gpt-5": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=False,
+                        gpt5_familie=True),
     "o1": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=False),
     "o3": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=False),
     "o4": ParamRules(gpt5_params=True, effort_with_tools=False, temperature_on_none=False),

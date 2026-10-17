@@ -74,6 +74,20 @@ def _ttl_for_tool(tool_name: str) -> int:
     return _TOOL_CACHE_TTL_PER_TOOL.get(tool_name, _TOOL_CACHE_TTL_DEFAULT_SECONDS)
 
 
+#: Antworten, die ein Werkzeug als gewöhnliches Ergebnis schickt, obwohl es
+#: nichts liefern konnte — sie gehören nicht in den Cache (Paket 6, G1). Der
+#: MCP-Server meldet jede Störung beim Laden eines Skills (falsche Kennung,
+#: fehlende Rechte, vorübergehender 5xx) mit demselben Satz; ein Ausfall blieb
+#: sonst 180 s als Treffer stehen, und jeder neue Versuch spielte ihn ab.
+_FEHLTREFFER: dict[str, str] = {"get_skill": "ist nicht abrufbar ("}
+
+
+def darf_cachen(tool_name: str, value: str) -> bool:
+    """Gehört diese Antwort in den Cache? Nein, wenn sie ein Fehltreffer ist."""
+    marke = _FEHLTREFFER.get(tool_name)
+    return not (marke and marke in (value or ""))
+
+
 def _is_empty_response(value: str) -> bool:
     """Heuristik: Tool-Response liefert keine verwertbaren Items.
 
@@ -151,8 +165,9 @@ def _cache_get(key: tuple[str, str]) -> str | None:
     is_negative = value.startswith("__NEG__::")
     ttl = _TOOL_CACHE_TTL_NEGATIVE_SECONDS if is_negative else _ttl_for_tool(key[0])
     if _time.time() - ts > ttl:
-        # expired — drop it
+        # expired — drop it, with its metas (Paket 10, Audit M-4)
         _TOOL_CACHE.pop(key, None)
+        _TOOL_META_CACHE.pop(key, None)
         _TOOL_CACHE_MISSES += 1
         return None
     # LRU: move to end (most recently used)
@@ -176,6 +191,9 @@ def _cache_set(key: tuple[str, str], value: str) -> None:
         stored = value
     _TOOL_CACHE[key] = (_time.time(), stored)
     _TOOL_CACHE.move_to_end(key)
+    # Die Metas gehören zum alten Wert (Paket 10, Audit M-4): wer neue hat, setzt
+    # sie danach (``client.call_mcp_tool``); ohne neue gälten sonst die alten.
+    _TOOL_META_CACHE.pop(key, None)
     while len(_TOOL_CACHE) > _TOOL_CACHE_MAX_ENTRIES:
         # B5 (2026-06-10): Meta-Cache-Eintrag MIT evicten — vorher wuchs
         # _TOOL_META_CACHE unbegrenzt (jede einzigartige (tool,args)-Kombi

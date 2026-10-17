@@ -38,12 +38,16 @@ public because the orchestrator (``service``) consumes them in later stages.
 
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
 from typing import Final
 
 from boerdi.api.schemas import SafetyDecision
+from boerdi.services.safety.krisen_wendungen import ist_krisen_wendung
 from boerdi.services.safety.zusatz_begriffe import zusatz_muster
+
+logger = logging.getLogger(__name__)
 
 #: Was eine erkannte Krise oder Drohung sperrt: die Materialsuche — die
 #: Schutzantwort bietet kein Material an. In der Agent-Schleife kommt es dazu
@@ -219,6 +223,18 @@ def normalize_for_matching(text: str | None) -> str:
     return "".join(z for z in flach if unicodedata.category(z) != "Cf").lower()
 
 
+def _fremde_dienste() -> list[str]:
+    """Werkzeuge fremder MCP-Server — persönliche Daten gehen nicht an fremde Betreiber
+    (Review Paket 11, #7). Ohne lesbare Registry keine: dann bietet sie auch niemand an."""
+    from boerdi.services.mcp import fremdwerkzeuge
+
+    try:
+        return [d["function"]["name"] for d in fremdwerkzeuge.definitionen()]
+    except Exception:  # noqa: BLE001 — die Sperre darf das Gate nie kippen
+        logger.warning("Fremdwerkzeuge für die Datenschutz-Sperre nicht lesbar", exc_info=True)
+        return []
+
+
 def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
     """Stage 1: fast regex assessment.
 
@@ -233,14 +249,15 @@ def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
 
     After the built-in crisis and PII lists, the terms an editor added in
     ``01-base/safety-config`` count the same way (Paket 4, D8;
-    ``zusatz_begriffe``).
+    ``zusatz_begriffe``). The crisis phrases of Paket 8 (K2, ``krisen_wendungen``)
+    belong to the built-in floor.
     """
     msg = normalize_for_matching(message)
     decision = SafetyDecision()
     decision.stages_run.append("regex")
     krise_zusatz, pii_zusatz = zusatz_muster(normalize_for_matching)
 
-    if any(re.search(pat, msg) for pat in _CRISIS_PATTERNS) or (
+    if any(re.search(pat, msg) for pat in _CRISIS_PATTERNS) or ist_krisen_wendung(msg) or (
         krise_zusatz is not None and krise_zusatz.search(msg)
     ):
         decision.risk_level = "high"
@@ -264,6 +281,7 @@ def regex_gate(message: str, signals: list[str]) -> SafetyDecision:
     ):
         decision.risk_level = "medium"
         decision.blocked_tools.extend(SPERRE_PERSOENLICH)
+        decision.blocked_tools.extend(_fremde_dienste())
         decision.reasons.append("pii_in_message")
         decision.legal_flags.append("datenschutz")
 

@@ -12,7 +12,7 @@ Load-Balancer" schon.
 
 | # | §8-Zusage | Beleg | Automatisiert |
 |---|---|---|---|
-| 1 | Session-Turns serialisiert (Advisory-Lock) | Der Test prüft nur den Helfer `db/locks.acquire_session_lock`; die Endpunkte rufen ihn nicht (nur prozessinterne Sperre, Audit 2026-09-29) | ❌ offen |
+| 1 | Session-Turns serialisiert | Seit Paket 7 (P1): Sperr-Eintrag je Sitzung in `session_locks` (Migration 0008), genommen von beiden Chat-Endpunkten (`api/session_locks.sitzung_sperren`); `test_sitzungssperre.py` (zweite Sperre beschäftigt, Warten, Verfall, Verlängerung). Zwei echte Repliken: Live-Protokoll offen | ✅ (pg) |
 | 2 | Config-Änderung propagiert < 2 s | `test_cluster_checklist.py::test_config_change_propagates_within_the_two_second_bound` | ✅ (pg) |
 | 3 | Rate-Limit konsistent über den geteilten Zähler | `test_cluster_checklist.py::test_two_replicas_share_one_budget_over_a_shared_store` + `::test_a_replica_started_later_inherits_the_running_count` | ✅ (valkey) |
 | 4 | SSE über den Load-Balancer stabil | Live-Protokoll unten | ❌ |
@@ -45,9 +45,9 @@ Replika erbt den laufenden Zählerstand, statt ihn zurückzusetzen.
 ## Live-Protokoll (braucht den laufenden Prod-Stack)
 
 Voraussetzung: `deploy/compose.prod.yml` läuft mit `BACKEND_REPLICAS=3`. Das
-ist bewusst gesetzt: die Vorgabe ist 1 (Paket 4, L4), solange Züge einer Sitzung
-nur prozessintern gesperrt sind (Befundliste, C-H1) — die Protokolle hier prüfen
-den Mehr-Replika-Betrieb, sie empfehlen ihn noch nicht.
+ist bewusst gesetzt: die Vorgabe ist 1 (Paket 4, L4). Seit Paket 7 (P1) sperrt
+Postgres die Züge einer Sitzung über alle Repliken — die Protokolle hier prüfen
+den Mehr-Replika-Betrieb, bevor man ihn einschaltet.
 
 ```powershell
 cd deploy
@@ -91,8 +91,9 @@ ist, während die Replika geht:
    docker stop <container-id-der-replika>
    ```
 3. Erwartung: der laufende Stream wird **zu Ende geliefert** (uvicorn wartet,
-   gedeckelt auf `--timeout-graceful-shutdown 30`; `stop_grace_period: 40s` im
-   Compose ist bewusst länger, sonst schösse Docker dazwischen).
+   gedeckelt auf `--timeout-graceful-shutdown 30`; danach wartet der Lifespan bis
+   25 s auf nachlaufende Züge — `stop_grace_period: 65s` im Compose deckt beides,
+   sonst schösse Docker dazwischen).
 4. Danach: neuer Turn derselben Session gegen den Cluster — die Historie muss
    den abgeschlossenen Turn enthalten.
 

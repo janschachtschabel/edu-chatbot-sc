@@ -106,7 +106,7 @@ Schritt 1 — Slot-Check:
 - Nice-to-have: `stufe`, `fach`. Wenn beide fehlen, in Plan-Intro mit:
   „Plan ist für Sek I gedacht — sag mir gerne eine andere Stufe."
 
-Schritt 2 — `lookup_wlo_vocabulary` für discipline+educationalContext
+Schritt 2 — discipline+educationalContext als Bezeichnung setzen (wird abgeglichen, kein Nachschlagen davor)
 
 Schritt 3 — `search_wlo_collections(query=topic, filter=stufe)`
 → Quell-Sammlung wählen

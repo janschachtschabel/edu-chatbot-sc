@@ -123,8 +123,8 @@ async def test_der_master_skill_sagt_warum_er_fehlt(quellen, monkeypatch, block,
 async def test_was_je_zug_folgt_steht_in_der_reihenfolge_des_zugs_ohne_text(quellen):
     folgend = (await pv.prompt_vorschau("de"))["chain"][2:]
     assert [b["id"] for b in folgend] == [
-        "result_schema", "host_capabilities", "page_context", "host_instruction",
-        "skill_hints", "history", "prefetch", "last_shown", "message",
+        "result_schema", "host_capabilities", "page_rules", "host_instruction",
+        "skill_hints", "page_data", "prefetch", "history", "last_shown", "message",
     ]
     assert all(set(b) == {"id"} for b in folgend)
 
@@ -137,13 +137,31 @@ async def test_nennt_zahl_und_umfang_der_werkzeug_beschreibungen(quellen):
     assert werkzeuge["chars"] > 1000
 
 
+async def test_zaehlt_die_werkzeuge_einer_person_ohne_anmeldung(quellen, monkeypatch):
+    # Paket 9 (Review Paket 7, NIT): mit dem Dienstkonto der Anlage zählte die
+    # Vorschau die kuratierenden Werkzeuge mit — ein Zug ohne Anmeldung bekommt sie
+    # nur, wenn das Studio das Gastkonto erlaubt (``schreibrecht``).
+    from boerdi.services import schreibrecht
+
+    monkeypatch.setattr(agent_tools, "has_auth_token", lambda: True)
+    monkeypatch.setattr(schreibrecht, "has_personal_auth", lambda: False)
+    monkeypatch.setattr(schreibrecht.betriebsschalter, "gastkonto_schreibt", lambda: False)
+    wissen = wissen_werkzeug(_RAG)
+    ohne, mit = (agent_tools.build_agent_tools(
+        allow_curation=kuratieren, include_submit=False, include_dokument=True,
+        wissen_tool=wissen) for kuratieren in (False, True))
+    assert len(mit) > len(ohne)  # sonst prüfte der Test nichts
+    assert (await pv.prompt_vorschau("de"))["tools"]["count"] == len(ohne)
+
+
 async def test_die_bloecke_je_zug_stehen_in_der_reihenfolge_des_echten_zugs(quellen, monkeypatch):
     """Review-Befund 2026-09-27: ``JE_ZUG`` ist eine Abschrift der Reihenfolge in
     ``respond_agent``. Dieser Test lässt einen Zug mit JEDEM Block laufen und
     vergleicht — ändert jemand die Kette, wird die Vorschau hier rot statt still
     falsch."""
     marken = {
-        "host_capabilities": "<GRENZEN>", "page_context": "<SEITE>",
+        "host_capabilities": "<GRENZEN>", "page_rules": "<SEITENREGELN>",
+        "page_data": "<SEITE>",
         "host_instruction": "<AUFTRAG>", "skill_hints": "<ANLEITUNGEN>",
         "history": "<VERLAUF>", "prefetch": "<VORABRUF>", "last_shown": "<ZULETZT>",
         "message": "<NACHRICHT>",
@@ -152,8 +170,10 @@ async def test_die_bloecke_je_zug_stehen_in_der_reihenfolge_des_echten_zugs(quel
     monkeypatch.setattr(agent_mod, "zuletzt_gezeigt", lambda *_a, **_kw: marken["last_shown"])
     monkeypatch.setattr(agent_mod.host_capabilities, "prompt_block",
                         lambda **_kw: marken["host_capabilities"])
-    monkeypatch.setattr(agent_mod.page_context, "prompt_block",
-                        lambda *_a, **_kw: marken["page_context"])
+    # Paket B: feste Regeln im Systemteil, die Daten gerahmt vor dem Verlauf.
+    monkeypatch.setattr(agent_mod.seitenkontext_prompt, "SEITEN_REGELN", marken["page_rules"])
+    monkeypatch.setattr(agent_mod.seitenkontext_prompt, "seiten_daten",
+                        lambda *_a, **_kw: marken["page_data"])
     monkeypatch.setattr(agent_mod.host_instruction, "prompt_block",
                         lambda *_a, **_kw: marken["host_instruction"])
     monkeypatch.setattr(agent_mod, "anleitungs_hinweis", lambda *_a, **_kw: marken["skill_hints"])

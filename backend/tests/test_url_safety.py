@@ -62,8 +62,17 @@ def test_unresolvable_hostname_is_blocked(monkeypatch):
         raise socket.gaierror("name resolution failed")
 
     monkeypatch.setattr(socket, "getaddrinfo", _boom)
-    with pytest.raises(UnsafeUrlError):
+    with pytest.raises(UnsafeUrlError) as fehler:
         assert_public_url("http://definitely-not-real.example/mcp")
+    # Paket 9: der Grund reist mit — der Router bildet daraus den Satz in der
+    # Sprache des Studios, statt den englischen Text einzusetzen.
+    assert (fehler.value.grund, fehler.value.host) == ("unbekannt", "definitely-not-real.example")
+
+
+def test_eine_interne_adresse_ist_nicht_erlaubt():
+    with pytest.raises(UnsafeUrlError) as fehler:
+        assert_public_url("http://127.0.0.1/mcp")
+    assert fehler.value.grund == "nicht_erlaubt"
 
 
 # ── T9: Schema-Allowlist (nur http/https) ──────────────────────────────────
@@ -96,147 +105,226 @@ def test_guard_session_mounts_and_markdown_accept_header():
     assert session.headers["Accept"].startswith("text/markdown")
 
 
-# ── Paket 4, C5: begrenzt holen (externes Audit F17b) ──────────────────────
+# ── Paket 4, C5 und Paket 6, B2: begrenzt holen (externes Audit F17b) ─────
 #
 # markitdown holte mit ``requests`` ohne Frist und las den ganzen Rumpf in den
-# Speicher. Ein hängender Server hielt einen Thread unbegrenzt fest, eine große
-# Antwort belegte RAM. ``hole_begrenzt`` holt über dieselbe SSRF-Sitzung, aber
-# mit Frist und Bytedeckel.
+# Speicher. Seit C5 holt ``hole_begrenzt`` mit Bytedeckel und Gesamtfrist; die
+# Frist erreichte aber Kopfzeilen und Umleitungen nicht (``requests`` im Thread,
+# es gab noch keine Antwort zum Abschalten). Seit B2 läuft der Abruf über
+# ``httpx`` unter ``asyncio.timeout`` — die Frist gilt für alles. Die Tests laufen
+# gegen echte Sockets: eine Attrappe sähe nicht, wann ``httpx`` wirklich wartet.
 
 
-class _Antwort:
-    def __init__(self, stuecke, headers=None, pause=0.0):
-        self.headers = headers or {}
-        self._stuecke = stuecke
-        self._pause = pause
+def _lokaler_server(antwort) -> tuple[str, list[bytes]]:
+    """Ein echter Server auf 127.0.0.1 für EINE Verbindung.
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def raise_for_status(self):
-        return None
-
-    def iter_content(self, chunk_size=1):
-        import time
-
-        for stueck in self._stuecke:
-            if self._pause:
-                time.sleep(self._pause)
-            yield stueck
-
-
-class _Sitzung:
-    def __init__(self, antwort):
-        self.antwort = antwort
-        self.aufrufe: list[tuple[str, dict]] = []
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def get(self, url, **kwargs):
-        self.aufrufe.append((url, kwargs))
-        return self.antwort
-
-
-def _mit_sitzung(monkeypatch, antwort) -> _Sitzung:
-    from boerdi.services import url_safety
-
-    sitzung = _Sitzung(antwort)
-    monkeypatch.setattr(url_safety, "make_ssrf_guarded_session", lambda: sitzung)
-    return sitzung
-
-
-def test_hole_begrenzt_holt_mit_frist_und_stream(monkeypatch):
-    from boerdi.services.url_safety import hole_begrenzt
-
-    sitzung = _mit_sitzung(monkeypatch, _Antwort([b"<h1>", b"Hallo</h1>"],
-                                                 {"Content-Type": "text/html"}))
-    roh, typ = hole_begrenzt("https://example.org/", max_bytes=1000, frist_s=5)
-    assert (roh, typ) == (b"<h1>Hallo</h1>", "text/html")
-    _url, kwargs = sitzung.aufrufe[0]
-    assert kwargs["stream"] is True
-    assert kwargs["timeout"] == (5, 30)
-
-
-def test_ein_zu_grosser_header_bricht_vor_dem_lesen_ab(monkeypatch):
-    from boerdi.services.url_safety import DownloadAbgebrochen, hole_begrenzt
-
-    _mit_sitzung(monkeypatch, _Antwort([b"x"], {"Content-Length": "5000"}))
-    with pytest.raises(DownloadAbgebrochen):
-        hole_begrenzt("https://example.org/", max_bytes=1000, frist_s=5)
-
-
-def test_ein_zu_grosser_rumpf_bricht_ab(monkeypatch):
-    # Ohne Content-Length (oder mit falschem) zählt der Rumpf.
-    from boerdi.services.url_safety import DownloadAbgebrochen, hole_begrenzt
-
-    _mit_sitzung(monkeypatch, _Antwort([b"x" * 600, b"x" * 600]))
-    with pytest.raises(DownloadAbgebrochen):
-        hole_begrenzt("https://example.org/", max_bytes=1000, frist_s=5)
-
-
-def test_ein_zu_langsamer_rumpf_bricht_ab(monkeypatch):
-    # Die Lesefrist gilt je Lesevorgang; ein Server, der tröpfelt, unterliefe
-    # sie. Die Gesamtfrist fängt ihn.
-    from boerdi.services.url_safety import DownloadAbgebrochen, hole_begrenzt
-
-    _mit_sitzung(monkeypatch, _Antwort([b"x"] * 10, pause=0.03))
-    with pytest.raises(DownloadAbgebrochen):
-        hole_begrenzt("https://example.org/", max_bytes=0, frist_s=0.05)
-
-
-def test_null_bytes_heisst_ohne_deckel(monkeypatch):
-    # ``BOERDI_MAX_INGEST_MB=0`` bedeutet beim Datei-Upload „ohne Grenze“.
-    from boerdi.services.url_safety import hole_begrenzt
-
-    _mit_sitzung(monkeypatch, _Antwort([b"x" * 5000]))
-    roh, _typ = hole_begrenzt("https://example.org/", max_bytes=0, frist_s=5)
-    assert len(roh) == 5000
-
-
-def _tropfender_server(pause: float = 0.05, dauer: float = 3.0) -> str:
-    """Ein echter lokaler HTTP-Server, der ein Byte je ``pause`` schickt."""
+    ``antwort(verbindung)`` schreibt die Antwort; die Anfrage landet in der Liste.
+    """
     lauscher = socket.socket()
     lauscher.bind(("127.0.0.1", 0))
     lauscher.listen(1)
     port = lauscher.getsockname()[1]
+    anfragen: list[bytes] = []
 
     def bedienen():
         verbindung, _ = lauscher.accept()
         try:
-            verbindung.recv(65536)  # die Anfrage
-            verbindung.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n"
-                               b"Connection: close\r\n\r\n")
-            ende = time.monotonic() + dauer
-            while time.monotonic() < ende:
-                verbindung.sendall(b"x")
-                time.sleep(pause)
+            anfragen.append(verbindung.recv(65536))
+            antwort(verbindung)
         except OSError:
-            pass  # der Abruf hat aufgelegt — genau das soll er
+            pass  # der Abruf hat aufgelegt — oft genau das, was der Test will
         finally:
             verbindung.close()
             lauscher.close()
 
     threading.Thread(target=bedienen, daemon=True).start()
-    return f"http://127.0.0.1:{port}/"
+    return f"http://127.0.0.1:{port}/", anfragen
 
 
-def test_ein_tropfender_server_wird_zur_frist_abgeschnitten(monkeypatch):
-    # Prüfer 2026-10-04: ``iter_content`` wartet auf volle 64 KB, und jeder
-    # Empfang setzt die Lesefrist neu — die Gesamtfrist kam nie zum Zug. Echt
-    # gegen einen Socket: die Attrappe oben liefert Ein-Byte-Stücke, die
-    # ``requests`` so nie liefert.
+def _nur_der_testserver_ist_erlaubt(monkeypatch, url: str) -> None:
+    """Den Testserver zulassen; jedes andere Ziel prüft der echte Wächter."""
     from boerdi.services import url_safety
 
-    monkeypatch.setattr(url_safety, "assert_public_url", lambda _url: None)  # lokal erlaubt
-    url = _tropfender_server()
+    echt = url_safety.assert_public_url
+
+    def pruefe(ziel: str) -> None:
+        if not ziel.startswith(url):
+            echt(ziel)
+
+    monkeypatch.setattr(url_safety, "assert_public_url", pruefe)
+
+
+def _tropfen(kopf: bytes, tropfen: bytes, pause: float = 0.05, dauer: float = 3.0):
+    def antwort(verbindung):
+        verbindung.sendall(kopf)
+        ende = time.monotonic() + dauer
+        while time.monotonic() < ende:
+            verbindung.sendall(tropfen)
+            time.sleep(pause)
+    return antwort
+
+
+def _holen(url: str, *, max_bytes: int = 0, frist_s: float = 5.0):
+    import asyncio
+
+    from boerdi.services.url_safety import hole_begrenzt
+
+    return asyncio.run(hole_begrenzt(url, max_bytes=max_bytes, frist_s=frist_s))
+
+
+_CRLF = b"\r\n"
+
+
+def _kopf(*zeilen: bytes) -> bytes:
+    return _CRLF.join(zeilen) + _CRLF + _CRLF
+
+
+def test_hole_begrenzt_holt_rumpf_und_typ(monkeypatch):
+    rumpf = b"<h1>Hallo</h1>"
+    url, anfragen = _lokaler_server(lambda v: v.sendall(_kopf(
+        b"HTTP/1.1 200 OK", b"Content-Type: text/html; charset=utf-8",
+        b"Content-Length: " + str(len(rumpf)).encode()) + rumpf))
+    _nur_der_testserver_ist_erlaubt(monkeypatch, url)
+    roh, typ = _holen(url, max_bytes=1000)
+    assert (roh, typ) == (rumpf, "text/html; charset=utf-8")
+    # Markdown-Vorliebe wie markitdowns eigene Sitzung.
+    assert b"text/markdown" in anfragen[0]
+
+
+def test_ein_zu_grosser_header_bricht_vor_dem_lesen_ab(monkeypatch):
+    from boerdi.services.url_safety import DownloadAbgebrochen
+
+    url, _ = _lokaler_server(lambda v: v.sendall(
+        _kopf(b"HTTP/1.1 200 OK", b"Content-Length: 5000") + b"x" * 10))
+    _nur_der_testserver_ist_erlaubt(monkeypatch, url)
+    with pytest.raises(DownloadAbgebrochen) as err:
+        _holen(url, max_bytes=1000)
+    assert err.value.grund == "zu_gross"
+
+
+def test_ein_zu_grosser_rumpf_bricht_ab(monkeypatch):
+    # Ohne Content-Length zählt der Rumpf.
+    from boerdi.services.url_safety import DownloadAbgebrochen
+
+    url, _ = _lokaler_server(lambda v: v.sendall(
+        _kopf(b"HTTP/1.1 200 OK", b"Connection: close") + b"x" * 1200))
+    _nur_der_testserver_ist_erlaubt(monkeypatch, url)
+    with pytest.raises(DownloadAbgebrochen) as err:
+        _holen(url, max_bytes=1000)
+    assert err.value.grund == "zu_gross"
+
+
+def test_null_bytes_heisst_ohne_deckel(monkeypatch):
+    # ``BOERDI_MAX_INGEST_MB=0`` bedeutet beim Datei-Upload „ohne Grenze“.
+    url, _ = _lokaler_server(lambda v: v.sendall(
+        _kopf(b"HTTP/1.1 200 OK", b"Content-Length: 5000") + b"x" * 5000))
+    _nur_der_testserver_ist_erlaubt(monkeypatch, url)
+    roh, _typ = _holen(url, max_bytes=0)
+    assert len(roh) == 5000
+
+
+def test_ein_tropfender_rumpf_wird_zur_frist_abgeschnitten(monkeypatch):
+    # Prüfer 2026-10-04: jeder Empfang setzte die Lesefrist neu.
+    from boerdi.services.url_safety import DownloadAbgebrochen
+
+    url, _ = _lokaler_server(_tropfen(_kopf(
+        b"HTTP/1.1 200 OK", b"Content-Type: text/plain", b"Connection: close"), b"x"))
+    _nur_der_testserver_ist_erlaubt(monkeypatch, url)
     beginn = time.monotonic()
-    with pytest.raises(url_safety.DownloadAbgebrochen):
-        url_safety.hole_begrenzt(url, max_bytes=0, frist_s=0.3)
+    with pytest.raises(DownloadAbgebrochen) as err:
+        _holen(url, frist_s=0.3)
+    assert err.value.grund == "zu_langsam"
     assert time.monotonic() - beginn < 1.5
+
+
+def test_tropfende_kopfzeilen_werden_zur_frist_abgeschnitten(monkeypatch):
+    # Paket 6, B2: Vorher erreichte die Gesamtfrist nur den Rumpf. Ein Server,
+    # der die Kopfzeilen tröpfelt, hielt den Abruf, solange er wollte.
+    from boerdi.services.url_safety import DownloadAbgebrochen
+
+    url, _ = _lokaler_server(_tropfen(b"HTTP/1.1 200 OK" + _CRLF + b"X-Lang: ", b"a"))
+    _nur_der_testserver_ist_erlaubt(monkeypatch, url)
+    beginn = time.monotonic()
+    with pytest.raises(DownloadAbgebrochen) as err:
+        _holen(url, frist_s=0.3)
+    assert err.value.grund == "zu_langsam"
+    assert time.monotonic() - beginn < 1.5
+
+
+def test_eine_umleitung_auf_eine_interne_adresse_wird_abgewiesen(monkeypatch):
+    # N-2 auf dem neuen Weg: Jeder Schritt einer Umleitung geht durch den Wächter.
+    url, _ = _lokaler_server(lambda v: v.sendall(_kopf(
+        b"HTTP/1.1 302 Found", b"Location: http://169.254.169.254/latest",
+        b"Content-Length: 0")))
+    _nur_der_testserver_ist_erlaubt(monkeypatch, url)
+    with pytest.raises(UnsafeUrlError):
+        _holen(url)
+
+
+def test_der_rumpf_einer_umleitung_wird_nicht_gelesen(monkeypatch):
+    # Review Paket 6: ``httpx`` las bei ``follow_redirects`` jeden 3xx-Rumpf ganz
+    # (``aread``), am Deckel vorbei — ein feindlicher Server konnte so den
+    # Speicher füllen. Jetzt folgt der Abruf selbst und schließt jeden Schritt
+    # ungelesen; hier tröpfelt der Rumpf der Umleitung länger als die Frist.
+    from boerdi.services import url_safety
+
+    ziel, _ = _lokaler_server(lambda v: v.sendall(_kopf(
+        b"HTTP/1.1 200 OK", b"Content-Type: text/html", b"Content-Length: 5") + b"hallo"))
+    umleitung, _ = _lokaler_server(_tropfen(_kopf(
+        b"HTTP/1.1 302 Found", b"Location: " + ziel.encode(), b"Content-Length: 100000000"),
+        b"x" * 1024))
+    echt = url_safety.assert_public_url
+    monkeypatch.setattr(url_safety, "assert_public_url",
+                        lambda u: None if u.startswith((ziel, umleitung)) else echt(u))
+    beginn = time.monotonic()
+    rumpf, typ = _holen(umleitung, max_bytes=1024 * 1024, frist_s=2.0)
+    assert (rumpf, typ) == (b"hallo", "text/html")
+    assert time.monotonic() - beginn < 1.5
+
+
+def test_der_abruf_schreibt_keine_adressen_ins_info_log():
+    # ``httpx`` meldet jede Anfrage auf INFO mit voller Adresse samt Abfrage —
+    # Import-Adressen und ihre Umleitungen standen damit im Log (Review Paket 6).
+    import logging
+
+    from boerdi.main import _configure_logging
+    from boerdi.settings import Settings
+
+    # LiteLLM setzt die Stufe beim Import schon (``litellm/_logging.py``); geprüft
+    # wird hier die eigene Einstellung, die nicht an dieser Nebenwirkung hängt.
+    logger = logging.getLogger("httpx")
+    vorher = logger.level
+    logger.setLevel(logging.NOTSET)
+    try:
+        _configure_logging(Settings(_env_file=None))
+        assert logger.level >= logging.WARNING
+    finally:
+        logger.setLevel(vorher)
+
+
+
+def test_folgeabrufe_von_markitdown_haben_eine_frist(monkeypatch):
+    """Befundliste §1.4 (Paket 11): markitdown holt beim Umwandeln weitere Adressen über diese
+    Sitzung — ohne Frist hielt ein hängender Abruf die ganze Umwandlung bis zur Gesamtfrist des
+    Kindprozesses auf. Jetzt hat jeder Abruf eine eigene."""
+    import requests
+    from requests.adapters import HTTPAdapter
+
+    from boerdi.services import url_safety
+
+    gesehen: dict = {}
+
+    def senden(self, request, **kwargs):
+        gesehen.update(kwargs)
+        antwort = requests.Response()
+        antwort.status_code = 200
+        antwort._content = b"ok"
+        antwort.url = request.url
+        return antwort
+
+    monkeypatch.setattr(url_safety, "assert_public_url", lambda _url: None)
+    monkeypatch.setattr(HTTPAdapter, "send", senden)
+    make_ssrf_guarded_session().get("https://example.org/bild.png")
+    assert gesehen.get("timeout") == url_safety.FOLGEABRUF_FRIST
+    make_ssrf_guarded_session().get("https://example.org/x", timeout=3)
+    assert gesehen.get("timeout") == 3, "eine ausdrückliche Frist bleibt"

@@ -55,6 +55,7 @@ from boerdi.api.schemas import ChatResponse, DebugInfo
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.quality_events import log_safety_event
+from boerdi.services import abnahme_hinweis
 from boerdi.services.content_text_action import _handle_show_content_text
 from boerdi.services.db_sessions import save_message
 from boerdi.services.direct_actions import (
@@ -126,6 +127,13 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
     # Kontext-Gruß, die den Zug vor diesem Knoten beenden (Audit 2026-09-29,
     # Review Paket 2).
     if not req.action:
+        # Paket 10: ein „ja“ zu einer Vorschau unter einer anderen Anmeldung —
+        # erklären statt die Frage ohne Zusammenhang ans Modell zu geben.
+        hinweis = await abnahme_hinweis.antwort(session, req, ctx.session_state, lang)
+        if hinweis is not None:
+            ctx.early_response = hinweis
+            await _log_early_quality(ctx, session)
+            return ctx
         eingeloest = await redeem_write_approval(session, req, ctx.session_state)
         if eingeloest is not None:
             ctx.early_response = eingeloest

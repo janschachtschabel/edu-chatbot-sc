@@ -10,10 +10,12 @@
  * that sessions, memory and RAG chunks would be replaced. None of that is true
  * here, so none of it is ported — see snapshots-panel.component.ts.
  *
- * Restore always merges: `_apply_config` writes every area found in the ZIP and
- * touches nothing else. ALT's wipe/merge question has no counterpart.
+ * Restore asks what happens to the areas the ZIP does not carry (Paket 7,
+ * P5-5): `merge` — the default — leaves them alone, `exact` deletes them after
+ * the backend snapshotted the state before. ALT asked wipe/merge too, but its
+ * wipe replaced the database; here both modes touch config areas only.
  */
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 
 import { StudioApi } from './studio-api.service';
 
@@ -33,6 +35,8 @@ export interface SnapshotRow {
   readonly created_at: string;
   readonly label: string;
   readonly include_db: boolean;
+  /** Paket 12: `hand` = im Studio angelegt, `auto` = vom Server vor einem Überschreiben. */
+  readonly art: 'hand' | 'auto';
 }
 
 export interface SnapshotCreated {
@@ -40,10 +44,17 @@ export interface SnapshotCreated {
   readonly label: string;
 }
 
-/** Every restore answers with the number of config areas it wrote. */
+/** `merge` lässt Bereiche stehen, die nicht in der ZIP liegen; `exact` löscht sie. */
+export type RestoreMode = 'merge' | 'exact';
+
+/** Every restore answers with the number of config areas it wrote — and, for
+ *  `exact`, how many it deleted and the snapshot that holds the state before
+ *  (`null` when nothing was deleted, so nothing needed a way back). */
 export interface RestoreResult {
   readonly status: string;
   readonly areas: number;
+  readonly deleted: number;
+  readonly snapshot_id: string | null;
 }
 
 export interface FactorySaved {
@@ -84,6 +95,15 @@ const SEED = '/config/seed';
 @Injectable({ providedIn: 'root' })
 export class SnapshotsApi {
   private readonly api = inject(StudioApi);
+  private readonly _stand = signal(0);
+
+  /**
+   * Steigt, wenn der Server nebenbei einen Snapshot angelegt hat — vor einem
+   * exakten Wiederherstellen oder dem scharfen Auslieferungsstand. Die
+   * Snapshot-Liste liest daran neu: der Rückweg soll dort stehen, sobald die
+   * Meldung ihn nennt, nicht erst nach „Aktualisieren".
+   */
+  readonly stand = this._stand.asReadonly();
 
   list(): Promise<SnapshotRow[]> {
     return this.api.get<SnapshotRow[]>(SNAPSHOTS);
@@ -98,8 +118,9 @@ export class SnapshotsApi {
     return this.api.delete(`${SNAPSHOTS}/${encodeURIComponent(id)}`);
   }
 
-  restore(id: string): Promise<RestoreResult> {
-    return this.api.post<RestoreResult>(`${SNAPSHOTS}/${encodeURIComponent(id)}/restore`, null);
+  restore(id: string, mode: RestoreMode = 'merge'): Promise<RestoreResult> {
+    return this.gesichert(this.api.post<RestoreResult>(
+      `${SNAPSHOTS}/${encodeURIComponent(id)}/restore`, null, { mode }));
   }
 
   download(id: string): Promise<Blob> {
@@ -116,8 +137,8 @@ export class SnapshotsApi {
     return this.api.post<FactorySaved>(`${FACTORY}/save`, null);
   }
 
-  restoreFactory(): Promise<RestoreResult> {
-    return this.api.post<RestoreResult>(`${FACTORY}/restore`, null);
+  restoreFactory(mode: RestoreMode = 'merge'): Promise<RestoreResult> {
+    return this.gesichert(this.api.post<RestoreResult>(`${FACTORY}/restore`, null, { mode }));
   }
 
   downloadFactory(): Promise<Blob> {
@@ -137,7 +158,7 @@ export class SnapshotsApi {
    *  dafür zuerst einen Schnappschuss an und verweigert den Lauf, wenn dafür
    *  kein Platz mehr ist. */
   applySeed(mode: SeedMode): Promise<SeedApplied> {
-    return this.api.post<SeedApplied>(`${SEED}/apply`, { mode });
+    return this.gesichert(this.api.post<SeedApplied>(`${SEED}/apply`, { mode }));
   }
 
   /** The live config as a ZIP — not a stored snapshot. */
@@ -145,7 +166,15 @@ export class SnapshotsApi {
     return this.api.blob('/config/backup');
   }
 
-  restoreBackup(file: File): Promise<RestoreResult> {
-    return this.api.upload<RestoreResult>('/config/restore', file);
+  restoreBackup(file: File, mode: RestoreMode = 'merge'): Promise<RestoreResult> {
+    return this.gesichert(this.api.upload<RestoreResult>('/config/restore', file, { mode }));
+  }
+
+  private async gesichert<T extends { readonly snapshot_id: string | null }>(
+    antwort: Promise<T>,
+  ): Promise<T> {
+    const ergebnis = await antwort;
+    if (ergebnis.snapshot_id) this._stand.update(n => n + 1);
+    return ergebnis;
   }
 }

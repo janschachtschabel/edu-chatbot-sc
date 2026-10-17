@@ -277,3 +277,73 @@ def test_instruction_grenze_liegt_bei_200000_zeichen():
     assert AgentRequest(instruction="A" * 200000).instruction
     with pytest.raises(ValidationError):
         AgentRequest(instruction="A" * 200001)
+
+
+# ── Paket 7 (P3, P5-3): der Auftrag bucht seine Kosten ───────────────────────
+
+def _mit_verbrauch(monkeypatch) -> list:
+    """Ein Lauf, der Token verbraucht, und ein Spion auf der Buchung."""
+    async def _run(req, *, progress=None, usage_acc=None):
+        usage_acc["models"] = {"m": {"prompt": 10, "completion": 5, "cached": 0,
+                                     "reasoning": 0, "calls": 1}}
+        return _ANTWORT
+    monkeypatch.setattr(agent_api, "run_agent", _run)
+    gebucht: list = []
+
+    async def _buchen(session, session_id, acc, engine=None, quelle=None):
+        gebucht.append((session_id, acc["models"]["m"]["prompt"], engine, quelle))
+        return 1
+    monkeypatch.setattr(agent_api, "record_turn_usage", _buchen)
+    return gebucht
+
+
+def test_der_auftrag_bucht_seine_kosten(monkeypatch, client):
+    gebucht = _mit_verbrauch(monkeypatch)
+    r = client.post("/api/agent", json={"instruction": "Fasse zusammen"})
+    assert r.status_code == 200
+    assert gebucht == [(None, 10, "agent", "agent-api")]
+
+
+def test_auch_der_strom_bucht(monkeypatch, client):
+    gebucht = _mit_verbrauch(monkeypatch)
+    r = client.post("/api/agent/stream", json={"instruction": "Fasse zusammen"})
+    assert "event: result" in r.text
+    assert gebucht == [(None, 10, "agent", "agent-api")]
+
+
+def test_ein_probelauf_aus_dem_studio_bucht_als_probe(monkeypatch, client):
+    """Review Paket 7 (MINOR 31): der Auftragstester des Studios ruft denselben
+    Endpunkt — über ``/studio/api`` — und zählte in den Kosten als Betrieb."""
+    from boerdi.api.studio_proxy import ueber_studio
+    from boerdi.services.session_origin import STUDIO_QUELLE
+
+    gebucht = _mit_verbrauch(monkeypatch)
+    monkeypatch.setattr(agent_api, "ueber_studio", lambda request: True)
+    r = client.post("/api/agent", json={"instruction": "Fasse zusammen"})
+    assert r.status_code == 200
+    assert gebucht == [(None, 10, "agent", STUDIO_QUELLE)]
+    assert STUDIO_QUELLE == "studio-probe" and callable(ueber_studio)
+
+
+def test_der_studio_weg_markiert_die_anfrage(monkeypatch):
+    """Die Proxy-Middleware schreibt ``/studio/api/*`` auf ``/api/*`` um — und hält
+    fest, dass die Anfrage über das Studio kam."""
+    import asyncio
+
+    from starlette.requests import Request
+
+    from boerdi.api import studio_proxy
+
+    gesehen: list[bool] = []
+
+    async def _app(scope, receive, send):
+        gesehen.append(studio_proxy.ueber_studio(Request(scope)))
+
+    monkeypatch.setattr(studio_proxy, "authorize", lambda _cookie: None)
+    middleware = studio_proxy.StudioProxyMiddleware(_app)
+    for pfad in ("/studio/api/agent", "/api/agent"):
+        scope = {"type": "http", "path": pfad, "raw_path": pfad.encode(), "headers": [],
+                 "method": "POST", "query_string": b"", "root_path": ""}
+        asyncio.run(middleware(scope, None, None))
+    assert gesehen == [True, False]
+

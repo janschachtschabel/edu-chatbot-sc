@@ -6,7 +6,7 @@
  * weiß, wonach man sucht.
  *
  * **Regel 1 — `fokus`: kein `outline: none`.** Den Fokusring zeichnet EINE
- * Regel: `:focus-visible` in `styles.scss` (2px `--st-accent`, 4,63:1 auf dem
+ * Regel: `:focus-visible` in `styles.scss` (2px `--st-accent`, 5,42:1 auf dem
  * Panel). 57 Stellen schalteten ihn ab und setzten einen halbtransparenten
  * `box-shadow` dagegen — auf Weiß rund 1,9:1 statt 3:1 (SC 1.4.11), und im
  * Forced-Colors-Modus verwirft der Browser `box-shadow` ganz: dort war der Fokus

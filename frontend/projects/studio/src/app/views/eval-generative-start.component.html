@@ -140,7 +140,9 @@
         @if (estimate()) {
           <p class="egs-cost"><studio-rich [parts]="costParts()" /></p>
           <p class="egs-band"><studio-rich [parts]="bandParts()" /></p>
-          <p class="egs-hint">{{ t('evalStart.gen.bandHint') }}</p>
+          @if (priced()) {
+            <p class="egs-hint">{{ t('evalStart.gen.bandHint') }}</p>
+          }
         } @else {
           <p class="egs-cost egs-cost--blind"><studio-rich [parts]="blindParts()" /></p>
         }

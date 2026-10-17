@@ -54,6 +54,7 @@ export const EN: Catalogue = {
   'chat.record.stop': 'Stop recording',
   'chat.send': 'Send',
   'chat.hostTask': 'Task from the page',
+  'chat.documentShortened': '*(shortened — the full text was too long for the history)*',
 
   'chat.input.label': 'Message to BOERDi',
   'chat.input.placeholder': 'Type a message…',
@@ -139,6 +140,7 @@ export const EN: Catalogue = {
   'phase.query_meta': 'Search results compiled',
   'phase.agent_iteration': 'Working out the next step …',
   'phase.agent_tool': 'Working with WLO contents …',
+  'phase.fromHistory': 'Connection interrupted — fetching the answer …',
 
   // ── Link warning (trusted-host + markdown-renderer) ────────────────
   'link.external': 'Caution! External URL.',
@@ -154,6 +156,8 @@ export const EN: Catalogue = {
   'error.tourStart': 'Sorry, the tour could not be started just now. Please try again.',
   'error.transcription': 'Voice input could not be processed. Please type your message.',
   'error.generic': 'Sorry, something went wrong. Please try again.',
+  'error.busy': 'One moment — I am still answering your previous message. '
+    + 'Please send this one again shortly.',
   'error.stale': 'This is taking unusually long — please ask your question again in '
     + 'a moment. If my answer does finish after all, you will find it '
     + 'in the history the next time you open the chat.',
@@ -192,6 +196,7 @@ export const EN: Catalogue = {
   'auth.failed': 'The sign-in did not work. Please try again.',
   'auth.signOut': 'Sign out — search anonymously again',
   'auth.signedOut': 'Signed out. I am searching anonymously again — the access is gone from this tab.',
+  'auth.expired': 'Your WLO sign-in is no longer valid, probably it expired. I continued without it — to change things in WLO, please sign in again.',
 
   // ── Prepared change in the repository (E4) ─────────────────────────
   'prepared.done': 'Done — the change is saved in the repository.',

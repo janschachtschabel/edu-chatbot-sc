@@ -780,3 +780,38 @@ def test_ohne_h1_am_anfang_kein_titel(roh):
 def test_der_titel_wird_gedeckelt_und_einzeilig():
     titel = sr.skill_titel("# " + "x" * 400 + "\nnodeId: x")
     assert 0 < len(titel) <= sr._MAX_TITLE
+
+
+# ── Paket 6, G2: der Nachfass gilt auch dem Katalog in Markdown ─────────
+#
+# ``get_skill_registry`` antwortet ohne ``outputFormat`` in Markdown, und das ist
+# die Vorgabe (``SkillRegistryArgs``). ``_nachfassen`` las nur die JSON-Hülle —
+# im Betrieb stand der Hinweis also nie da (Befund Gatekeeper-Skill, 2026-10-08).
+
+_REGISTRY_MARKDOWN = (
+    "# Skillkatalog Physik Optik\n"
+    "Registry-Dokument: d84d54c4 — Sammlung: 9e7ae956\n\n"
+    "## Freigegebene Skills (2)\n\n"
+    "### Stunde planen\n"
+    "nodeId: 5b29f470-4417-49bb-a9f4-70441739bb3a\n"
+    "Plant eine konkrete Einzel- oder Doppelstunde.\n"
+    "Keywords: stunde-planen\n\n"
+    "### Gatekeeper für Sammlungen\n"
+    "nodeId: 5400fc80-2962-4083-80fc-802962908315\n"
+    "Prüft, ob ein Inhalt zur Sammlung passt.\n\n"
+    "Das ist nur die Übersicht — die Anleitungen selbst stehen nicht darin.\n"
+)
+
+
+def test_nach_dem_katalog_abruf_in_markdown_wird_nachgefasst():
+    out = skill_registry_note(
+        _REGISTRY_MARKDOWN, tool_name="get_skill_registry",
+        args={"collectionId": "9e7ae956-e9df-430f-bace-f3db4b910013"})
+    assert out, "Nach dem Katalog-Abruf in Markdown wurde nichts angehängt."
+    assert re.search(r"get_skill(?!_)", out)
+    assert "nicht den skill" in out.lower()
+
+
+def test_ein_markdown_katalog_ohne_eintraege_stoesst_nicht_an():
+    leer = "# Skillkatalog Physik Optik\n\nDie Registry nennt keine abrufbaren Skills.\n"
+    assert skill_registry_note(leer, tool_name="get_skill_registry") == ""

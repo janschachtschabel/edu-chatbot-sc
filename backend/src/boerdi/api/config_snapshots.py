@@ -12,22 +12,25 @@ config areas, which is what the Studio edits.
 from __future__ import annotations
 
 import logging
-import uuid
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Security, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from boerdi.api.config_guards import (
-    _assert_area_document_safe,
-    is_restorable_area_key,
-    modell_fehler,
+from boerdi.api.config_guards import pruefe_bereiche
+from boerdi.api.config_kennungen import (
+    SICHERHEIT,
+    kennungs_einwand,
+    loeschbar,
+    sicherheits_kennungen_aus,
 )
 from boerdi.api.deps import Lang, require_studio_key
 from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
 from boerdi.services import seed_sync, snapshots
+from boerdi.services.werkfassung import pruefsumme
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -49,7 +52,23 @@ def _zip_response(blob: bytes, filename: str) -> StreamingResponse:
     )
 
 
-async def _apply_config(blob: bytes, lang: Locale) -> int:
+#: Paket 7 (P5, P5-5): ``merge`` (Vorgabe) schreibt die Bereiche der Sicherung und
+#: lässt alles andere stehen; ``exact`` löscht dazu, was seitdem neu angelegt wurde
+#: (etwa ein neues Muster) — nach einem Schnappschuss des Stands davor.
+Wiederherstellen = Literal["merge", "exact"]
+
+
+def _lies_zip(blob: bytes, lang: Locale) -> dict[str, dict]:
+    """The areas of a backup — 413 over the caps, 400 for an unreadable member."""
+    try:
+        return snapshots.parse_config_zip(blob)
+    except snapshots.SnapshotTooLarge as e:
+        raise HTTPException(status_code=413, detail=str(e)) from None
+    except snapshots.SicherungUngueltig as e:
+        raise HTTPException(400, msg(lang, "snapshots.invalidFile", file=e.datei)) from None
+
+
+async def _apply_config(blob: bytes, lang: Locale, mode: Wiederherstellen = "merge") -> dict:
     """Parse a config ZIP (with caps) and write its areas. 413 on cap breach.
 
     Three checks, all over ALL areas before anything is written — a
@@ -58,26 +77,54 @@ async def _apply_config(blob: bytes, lang: Locale) -> int:
     the egress checks of a Studio write (``_assert_area_document_safe``, review
     2026-10-03; a failure answers 400), and every area with a model passes it
     (Paket 4, D3; one 422 listing all objections, each with its ``area``).
-    Returns the number of areas written.
+
+    ``mode="exact"`` also deletes the live areas the ZIP does not carry — after a
+    snapshot of the state before (refused with 400 when no slot is left, like the
+    seed's exact run: no lossy run without a way back). Returns the response body;
+    ``snapshot_id`` names that snapshot, ``None`` when nothing was deleted.
+
+    Review Paket 7, A-4: "carry" means any key in the ZIP, not only the writable
+    ones — an area skipped for its path is still in the backup. And exact mode
+    refuses a ZIP without a single writable area (400): a wrong file would
+    otherwise delete the whole configuration.
+
+    Paket 9 (review Paket 7, MAJOR 5 / MINOR 32): exact mode deletes only what the
+    Studio's delete would (``config_kennungen.loeschbar``; a partial backup took the
+    safety config and M01 along), and ids pass the editor's rules (400).
     """
-    try:
-        areas = snapshots.parse_config_zip(blob)
-    except snapshots.SnapshotTooLarge as e:
-        raise HTTPException(status_code=413, detail=str(e)) from None
-    valid: dict[str, dict] = {}
-    objections: list[dict] = []
-    for key, data in areas.items():
-        if not is_restorable_area_key(key):
-            logger.warning("restore: skipping %r, not a valid config area path", key)
-            continue
-        _assert_area_document_safe(key, data, lang)
-        objections += [{"area": key, **f} for f in modell_fehler(key, data)]
-        valid[key] = data
-    if objections:
-        raise HTTPException(status_code=422, detail=objections)
+    areas = _lies_zip(blob, lang)
+    valid = pruefe_bereiche(areas, lang)
+    loeschen: list[str] = []
+    sicherung: str | None = None
+    live = await cl.current_config()
+    if mode == "exact":
+        if not valid:
+            raise HTTPException(400, msg(lang, "snapshots.exactEmpty"))
+        geschuetzt = (sicherheits_kennungen_aus(live.get(SICHERHEIT))
+                      | sicherheits_kennungen_aus(areas.get(SICHERHEIT)))
+        loeschen = sorted(k for k in set(live) - set(areas)
+                          if loeschbar(k, live[k], geschuetzt))
+    store = cl.bound_store()
+    # Paket 12, Review 2 #1: ein Bereich mit stillgelegter eigener Fassung wird nie gelöscht —
+    # sie steht in keinem Schnappschuss. Er bleibt und wird gemeldet.
+    mit_eigener = {z["area"] for z in await store.fassungen() if z["hat_eigene_fassung"]}
+    behalten = sorted(set(loeschen) & mit_eigener)
+    loeschen = [k for k in loeschen if k not in mit_eigener]
+    bleibt = {k: v for k, v in live.items() if k not in loeschen}
+    einwand = kennungs_einwand(valid, bleibt, sicherheits_kennungen_aus(live.get(SICHERHEIT)))
+    if einwand:
+        raise HTTPException(400, msg(lang, einwand.meldung, **einwand.werte))
+    if loeschen:
+        try:
+            sicherung = await snapshots.schnappschuss_anlegen(
+                cl.store_engine(), msg(lang, "snapshots.label.exactRestore"), live, art="auto")
+        except snapshots.SchnappschussGrenze:
+            raise _grenze(lang) from None
     # One transaction for all (Paket 4, D4): a failing area leaves none written.
-    await cl.write_areas(valid, updated_by="restore")
-    return len(valid)
+    werk = await seed_sync.werk_bereiche(get_settings().config_seed_dir)
+    await cl.write_areas(valid, updated_by="restore", delete=loeschen, werk_bereiche=werk)
+    return {"status": "restored", "areas": len(valid), "deleted": len(loeschen),
+            "snapshot_id": sicherung, "behalten": behalten}
 
 
 async def _read_upload_capped(file: UploadFile, lang: Locale) -> bytes:
@@ -96,16 +143,17 @@ async def list_snapshots() -> list[dict]:
     return await snapshots.list_snapshots(cl.store_engine())
 
 
+def _grenze(lang: Locale) -> HTTPException:
+    return HTTPException(400, msg(lang, "snapshots.limitReached", max=snapshots.MAX_SNAPSHOTS))
+
+
 @router.post("/snapshots")
 async def create_snapshot(payload: SnapshotCreate, lang: Lang) -> dict:
-    engine = cl.store_engine()
-    if await snapshots.count_snapshots(engine) >= snapshots.MAX_SNAPSHOTS:
-        raise HTTPException(
-            400, msg(lang, "snapshots.limitReached", max=snapshots.MAX_SNAPSHOTS)
-        )
-    snap_id = f"snap-{uuid.uuid4().hex[:12]}"
-    blob = snapshots.build_config_zip(await cl.current_config())
-    await snapshots.save_snapshot(engine, snap_id, payload.label.strip(), blob)
+    try:
+        snap_id = await snapshots.schnappschuss_anlegen(
+            cl.store_engine(), payload.label.strip(), await cl.current_config())
+    except snapshots.SchnappschussGrenze:
+        raise _grenze(lang) from None
     return {"id": snap_id, "label": payload.label.strip()}
 
 
@@ -129,13 +177,13 @@ async def download_snapshot(snap_id: str, lang: Lang) -> StreamingResponse:
 
 
 @router.post("/snapshots/{snap_id}/restore")
-async def restore_snapshot(snap_id: str, lang: Lang) -> dict:
+async def restore_snapshot(snap_id: str, lang: Lang, mode: Wiederherstellen = "merge") -> dict:
     snap = await snapshots.get_snapshot(cl.store_engine(), snap_id)
     if snap is None:
         raise HTTPException(
             status_code=404, detail=msg(lang, "snapshots.notFound"),
         )
-    return {"status": "restored", "areas": await _apply_config(snap["blob"], lang)}
+    return await _apply_config(snap["blob"], lang, mode)
 
 
 # ── factory (the row with id 'factory') ────────────────────────────────────
@@ -164,21 +212,17 @@ async def save_factory() -> dict:
 
 
 @router.post("/factory/restore")
-async def restore_factory(lang: Lang) -> dict:
+async def restore_factory(lang: Lang, mode: Wiederherstellen = "merge") -> dict:
     snap = await snapshots.get_snapshot(cl.store_engine(), snapshots.FACTORY_ID)
     if snap is None:
         raise HTTPException(404, msg(lang, "factory.missing"))
-    return {"status": "restored", "areas": await _apply_config(snap["blob"], lang)}
+    return await _apply_config(snap["blob"], lang, mode)
 
 
 @router.post("/factory/upload")
 async def upload_factory(file: UploadFile, lang: Lang) -> dict:
     blob = await _read_upload_capped(file, lang)
-    # validate it parses (caps) before persisting as the factory baseline
-    try:
-        snapshots.parse_config_zip(blob)
-    except snapshots.SnapshotTooLarge as e:
-        raise HTTPException(status_code=413, detail=str(e)) from None
+    _lies_zip(blob, lang)  # parses within the caps before it becomes the factory baseline
     await snapshots.save_snapshot(cl.store_engine(), snapshots.FACTORY_ID, "factory", blob)
     return {"status": "saved", "id": snapshots.FACTORY_ID}
 
@@ -214,7 +258,11 @@ async def seed_status() -> dict:
                 "neu": [], "gleich": [], "abweichend": [], "nur_in_db": []}
     seed = await seed_sync.seed_lesen(pfad)
     diff = seed_sync.vergleiche(seed, await cl.current_config())
-    return {"available": True, "area_count": len(seed), "neu": diff.neu,
+    # Im Studio gelöschte Werksbereiche fehlen gewollt (Paket 12) — „Fehlende nachziehen“ holt
+    # sie nicht zurück, also zählen sie hier auch nicht als fehlend.
+    entfernt = await cl.bound_store().entfernte()
+    return {"available": True, "area_count": len(seed),
+            "neu": [a for a in diff.neu if a not in entfernt],
             "gleich": diff.gleich, "abweichend": diff.abweichend,
             "nur_in_db": diff.nur_in_db}
 
@@ -224,45 +272,35 @@ async def seed_apply(payload: SeedApply, lang: Lang) -> dict:
     """``missing`` zieht Fehlendes nach; ``exact`` stellt den Stand her.
 
     ``exact`` überschreibt gepflegte Bereiche und löscht, was nur in der
-    Datenbank steht — deshalb **zuerst** der Schnappschuss. Ist kein Platz mehr
-    für ihn, wird der Lauf verweigert statt ohne Rückweg ausgeführt.
+    Datenbank steht — deshalb vorher der Schnappschuss. Ist kein Platz mehr für
+    ihn, wird der Lauf verweigert statt ohne Rückweg ausgeführt. Der Ablauf
+    steht in ``seed_sync.herstellen`` (Paket 6, W2), geteilt mit ``boerdi
+    import-config --exact``: erst prüfen wie ein Wiederherstellen (422 mit
+    allen Einwänden, nichts geschrieben, kein Schnappschuss), dann Schnappschuss
+    und Vergleich aus EINEM Lesevorgang, dann alles in einer Transaktion.
     """
     pfad = _seed_dir()
     if pfad is None:
         raise HTTPException(404, msg(lang, "seed.missing"))
 
-    snap_id: str | None = None
-    if payload.mode == "exact":
-        engine = cl.store_engine()
-        if await snapshots.count_snapshots(engine) >= snapshots.MAX_SNAPSHOTS:
-            raise HTTPException(
-                400, msg(lang, "snapshots.limitReached", max=snapshots.MAX_SNAPSHOTS)
-            )
-        snap_id = f"snap-{uuid.uuid4().hex[:12]}"
-        await snapshots.save_snapshot(
-            engine, snap_id, "vor Auslieferungsstand",
-            snapshots.build_config_zip(await cl.current_config()),
-        )
+    async def sichern(stand: dict[str, dict]) -> str:
+        try:
+            return await snapshots.schnappschuss_anlegen(
+                cl.store_engine(), msg(lang, "snapshots.label.seedApply"), stand, art="auto")
+        except snapshots.SchnappschussGrenze:
+            raise _grenze(lang) from None
 
-    seed = await seed_sync.seed_lesen(pfad)
-    diff = seed_sync.vergleiche(seed, await cl.current_config())
+    async def schreiben(bereiche: dict[str, dict], loeschen: list[str]) -> None:
+        # Alles Geschriebene ist Werksfassung: die Basis gleich mitmerken (Paket 12).
+        await cl.write_areas(bereiche, updated_by="seed-apply", delete=loeschen,
+                             werk_hashes={a: pruefsumme(d) for a, d in bereiche.items()})
 
-    # ``anwenden`` decides what to write and drop; the store then does both in
-    # ONE transaction (Paket 4, D4) — a failing area leaves the old state whole.
-    zu_schreiben: dict[str, dict] = {}
-    zu_loeschen: list[str] = []
-
-    async def _schreiben(area: str, data: dict) -> None:
-        zu_schreiben[area] = data
-
-    async def _loeschen(area: str) -> None:
-        zu_loeschen.append(area)
-
-    bericht = await seed_sync.anwenden(
-        diff, seed, payload.mode, schreiben=_schreiben, loeschen=_loeschen
-    )
-    await cl.write_areas(zu_schreiben, updated_by="seed-apply", delete=zu_loeschen)
-    return {**bericht, "snapshot_id": snap_id}
+    store = cl.bound_store()
+    mit_eigener = {z["area"] for z in await store.fassungen() if z["hat_eigene_fassung"]}
+    return await seed_sync.herstellen(
+        pfad, payload.mode, pruefen=lambda seed: pruefe_bereiche(seed, lang),
+        lesen=cl.current_config, sichern=sichern, schreiben=schreiben,
+        entfernt=await store.entfernte(), geschuetzt=mit_eigener)
 
 
 # ── full backup / restore (live config ZIP) ────────────────────────────────
@@ -273,6 +311,6 @@ async def download_backup() -> StreamingResponse:
 
 
 @router.post("/restore")
-async def restore_backup(file: UploadFile, lang: Lang) -> dict:
+async def restore_backup(file: UploadFile, lang: Lang, mode: Wiederherstellen = "merge") -> dict:
     blob = await _read_upload_capped(file, lang)
-    return {"status": "restored", "areas": await _apply_config(blob, lang)}
+    return await _apply_config(blob, lang, mode)

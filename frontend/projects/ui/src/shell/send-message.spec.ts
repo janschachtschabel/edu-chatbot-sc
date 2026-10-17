@@ -4,7 +4,7 @@ import { ChatResponse } from '../grouping/message-types';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
 import { ChatStreamEvent } from '../stream/stream-client';
-import { SendMessageContext, runSendMessage } from './send-message';
+import { SendMessageContext, VerlaufNachfrage, runSendMessage } from './send-message';
 
 /**
  * Charakterisierung des sendMessage-Orchestrators (8-4S-c) — Port des
@@ -39,6 +39,13 @@ interface Rec {
   loading: boolean[]; cleared: number; focus: number;
   streamCalls: Array<{ msg: string; env: unknown; action?: string; actionParams?: unknown }>;
   postCalls: Array<{ msg: string; env: unknown; action?: string; actionParams?: unknown }>;
+  /** Paket 7 (P2): Fragen, deren Antwort aus dem Verlauf geholt wurde. */
+  historyCalls: string[];
+  historyOpts: VerlaufNachfrage[];
+  /** Was zurück ins Eingabefeld gelegt wurde (Review C-6). */
+  inputSet: string[];
+  /** Die Person tippt, während der Zug läuft. */
+  tippe: (text: string) => void;
   /** Neustart von aussen (resetSession/Neustart-Knopf): neue Sitzungs-ID. */
   setSession: (id: string) => void;
 }
@@ -54,6 +61,7 @@ interface Opts {
   post?: (msg: string, env: unknown, action?: string, actionParams?: Record<string, unknown>) => Promise<ChatResponse>;
   formatPhaseLabel?: (evt: ChatStreamEvent) => string | null;
   t?: SendMessageContext['t'];
+  answerFromHistory?: (msg: string, nachfrage: VerlaufNachfrage) => Promise<ChatResponse | null>;
 }
 
 function makeCtx(opts: Opts = {}): Rec {
@@ -61,16 +69,20 @@ function makeCtx(opts: Opts = {}): Rec {
     ctx: null as unknown as SendMessageContext,
     users: [], bots: [], removed: [], scroll: [], phases: [], results: [],
     streamTexts: [], streamCleared: [],
-    loading: [], cleared: 0, focus: 0, streamCalls: [], postCalls: [],
-    setSession: () => undefined,
+    loading: [], cleared: 0, focus: 0, streamCalls: [], postCalls: [], historyCalls: [],
+    historyOpts: [], inputSet: [],
+    setSession: () => undefined, tippe: () => undefined,
   };
   let sitzung = 'bb-sitzung-1';
   rec.setSession = (id) => { sitzung = id; };
+  let eingabe = opts.input ?? '';
+  rec.tippe = (text) => { eingabe = text; };
   let currentLoading = opts.isLoading ?? false;
   let n = 0;
   rec.ctx = {
-    currentInput: () => opts.input ?? '',
-    clearInput: () => { rec.cleared++; },
+    currentInput: () => eingabe,
+    clearInput: () => { rec.cleared++; eingabe = ''; },
+    setInput: (text) => { rec.inputSet.push(text); eingabe = text; },
     sessionId: () => sitzung,
     isLoading: () => currentLoading,
     setLoading: (v) => { currentLoading = v; rec.loading.push(v); },
@@ -98,6 +110,11 @@ function makeCtx(opts: Opts = {}): Rec {
     formatPhaseLabel: opts.formatPhaseLabel ?? (() => null),
     onResult: (resp, msg) => { rec.results.push({ resp, msg }); },
     t: opts.t ?? createTranslator(DE, DE),
+    answerFromHistory: (msg, nachfrage) => {
+      rec.historyCalls.push(msg);
+      rec.historyOpts.push(nachfrage);
+      return (opts.answerFromHistory ?? (() => Promise.resolve(null)))(msg, nachfrage);
+    },
   };
   return rec;
 }
@@ -387,5 +404,224 @@ describe('runSendMessage — Neustart mitten im Zug', () => {
     expect(r.bots.map((b) => b.content)).toEqual(['']);
     expect(r.results).toEqual([]);
     expect(r.loading).toEqual([true]);
+  });
+});
+
+// ── Paket 7: Sitzung beschäftigt (P1) und Antwort aus dem Verlauf (P2) ────────
+describe('runSendMessage — beschäftigt und Antwort aus dem Verlauf (Paket 7)', () => {
+  const BUSY_TEXT = DE['error.busy'];
+  const beschaeftigt = () =>
+    Object.assign(new Error('session busy'), { name: 'StreamServerError', code: 'session_busy' });
+  /** Der Handschlag eines Servers, der die Antwort im Verlauf ablegt. */
+  const angenommen = { event: 'connected', data: { history: true, after_id: 3 } } as ChatStreamEvent;
+
+  it('„beschäftigt“ im Strom → eigene Blase, kein POST, kein onResult', async () => {
+    const r = makeCtx({ input: '', stream: () => Promise.reject(beschaeftigt()) });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.postCalls).toEqual([]);
+    expect(r.bots.at(-1)?.content).toBe(BUSY_TEXT);
+    expect(r.results).toEqual([]);
+    expect(r.loading.at(-1)).toBe(false);
+  });
+
+  it('409 auf dem POST-Rückfall → dieselbe Blase statt der Fehlerblase', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r = makeCtx({
+      input: '',
+      stream: () => Promise.reject(new Error('network')),
+      post: () => Promise.reject(Object.assign(new Error('Chat error: 409'), { status: 409 })),
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.bots.at(-1)?.content).toBe(BUSY_TEXT);
+    warn.mockRestore();
+  });
+
+  it('Abbruch NACH der Annahme → kein zweiter Versand, die Antwort kommt aus dem Verlauf', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const ausVerlauf = makeResp({ content: 'aus dem Verlauf' });
+    const r = makeCtx({
+      input: '',
+      stream: (_m, onEvent) => {
+        onEvent(angenommen);
+        return Promise.reject(new Error('network'));
+      },
+      answerFromHistory: () => Promise.resolve(ausVerlauf),
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.postCalls).toEqual([]);
+    expect(r.historyCalls).toEqual(['Frage']);
+    // Review C-4: nur was NACH der letzten bekannten Nachricht gespeichert wurde.
+    expect(r.historyOpts[0].nachId).toBe(3);
+    expect(r.bots.at(-1)?.content).toBe('aus dem Verlauf');
+    expect(r.results).toEqual([{ resp: ausVerlauf, msg: 'Frage' }]);
+    warn.mockRestore();
+  });
+
+  it('kommt auch aus dem Verlauf nichts, sagt das Widget es ehrlich', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r = makeCtx({
+      input: '',
+      stream: (_m, onEvent) => {
+        onEvent(angenommen);
+        return Promise.reject(new Error('network'));
+      },
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.postCalls).toEqual([]);
+    expect(r.bots.at(-1)?.content).toBe(STALE_TEXT);
+    expect(r.results).toEqual([]);
+    warn.mockRestore();
+  });
+});
+
+// ── Review Paket 7 (C-1, C-3, C-6, A-7): die Nachfrage im Verlauf ────────────
+describe('runSendMessage — Nachfrage im Verlauf (Review Paket 7)', () => {
+  const angenommen = { event: 'connected', data: { history: true, after_id: 3 } } as ChatStreamEvent;
+  const netz = () => Promise.reject(new Error('network'));
+  const busy = () =>
+    Object.assign(new Error('session busy'), { name: 'StreamServerError', code: 'session_busy' });
+
+  it('C-1: ein Serverfehler nach der Annahme → sofort die Fehlerblase, keine Nachfrage', async () => {
+    // Der gescheiterte Zug hat nichts gespeichert; 90 s Nachfrage endeten in
+    // der falschen Blase „dauert ungewöhnlich lange“.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const serverfehler = Object.assign(new Error('internal error'),
+      { name: 'StreamServerError', code: 'internal' });
+    const r = makeCtx({
+      input: '',
+      stream: (_m, onEvent) => { onEvent(angenommen); return Promise.reject(serverfehler); },
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.historyCalls).toEqual([]);
+    expect(r.postCalls).toEqual([]);
+    expect(r.bots.at(-1)?.content).toBe(ERROR_TEXT);
+    expect(r.loading.at(-1)).toBe(false);
+    warn.mockRestore();
+  });
+
+  it('C-6: eine Aktion (Karten-Knopf) wandert bei „beschäftigt“ nicht ins Eingabefeld', async () => {
+    // Ihr Text allein liefe als gewöhnliche Nachricht, ohne die Aktion.
+    const r = makeCtx({ input: '', stream: () => Promise.reject(busy()) });
+    await runSendMessage('Inhalte anzeigen', 'browse_collection', { id: 'c1' }, r.ctx);
+    expect(r.inputSet).toEqual([]);
+  });
+
+  it('A-7: speichert der Server keinen Verlauf, bleibt der POST-Rückfall', async () => {
+    // `privacy-config.logging.messages: false` — im Verlauf käme nie etwas an.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r = makeCtx({
+      input: '',
+      stream: (_m, onEvent) => {
+        onEvent({ event: 'connected', data: { history: false, after_id: null } } as ChatStreamEvent);
+        return netz();
+      },
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.historyCalls).toEqual([]);
+    expect(r.postCalls).toHaveLength(1);
+    expect(r.bots.at(-1)?.content).toBe('via POST');
+    warn.mockRestore();
+  });
+
+  it('A-7: ein Handschlag ohne Angabe (älteres Backend) heißt ebenfalls POST', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r = makeCtx({
+      input: '',
+      stream: (_m, onEvent) => { onEvent({ event: 'connected', data: {} } as ChatStreamEvent); return netz(); },
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.historyCalls).toEqual([]);
+    expect(r.postCalls).toHaveLength(1);
+    warn.mockRestore();
+  });
+
+  it('C-3: die Nachfrage endet mit der Sitzung, in der der Zug begann', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const gesehen: boolean[] = [];
+    const r = makeCtx({
+      input: '',
+      stream: (_m, onEvent) => { onEvent(angenommen); return netz(); },
+      answerFromHistory: (_msg, nachfrage) => {
+        gesehen.push(nachfrage.abgebrochen());
+        r.setSession('bb-sitzung-2');            // Neustart während der Nachfrage
+        gesehen.push(nachfrage.abgebrochen());
+        return Promise.resolve(makeResp({ content: 'zu spät' }));
+      },
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(gesehen).toEqual([false, true]);
+    expect(r.bots.map((b) => b.content)).not.toContain('zu spät');
+    warn.mockRestore();
+  });
+
+  it('C-6: vor der Nachfrage weicht der Teiltext einem Hinweis in der Ladeblase', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r = makeCtx({
+      input: '',
+      stream: (_m, onEvent) => {
+        onEvent(angenommen);
+        onEvent({ event: 'text_delta', data: { text: 'Die Lin', pos: 0 } } as ChatStreamEvent);
+        return netz();
+      },
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    const ladeId = r.bots[0].id;
+    expect(r.streamCleared).toEqual([ladeId]);
+    expect(r.phases).toEqual([[ladeId, DE['phase.fromHistory']]]);
+    warn.mockRestore();
+  });
+
+  it('C-6: „beschäftigt“ legt die getippte Frage zurück ins Eingabefeld', async () => {
+    // Getippt = aus dem Eingabefeld gesendet (Enter/Knopf ruft ohne Text).
+    const r = makeCtx({ input: 'Frage', stream: () => Promise.reject(busy()) });
+    await runSendMessage(undefined, undefined, undefined, r.ctx);
+    expect(r.inputSet).toEqual(['Frage']);
+  });
+
+  it('C-6: … aber nicht über das, was die Person inzwischen getippt hat', async () => {
+    const r = makeCtx({
+      input: 'Frage',
+      stream: () => { r.tippe('Neue Frage'); return Promise.reject(busy()); },
+    });
+    await runSendMessage(undefined, undefined, undefined, r.ctx);
+    expect(r.inputSet).toEqual([]);
+  });
+
+  it('„veraltet“ legt die getippte Frage zurück ins Eingabefeld (Paket 9)', async () => {
+    // Review Paket 7 (NIT): die Blase bittet „stell deine Frage gleich noch
+    // einmal“ — wie bei „beschäftigt“ steht sie dann schon im Feld.
+    const stale = () => Object.assign(new Error('stale'), { name: 'StreamStaleError' });
+    const r = makeCtx({ input: 'Frage', stream: () => Promise.reject(stale()) });
+    await runSendMessage(undefined, undefined, undefined, r.ctx);
+    expect(r.inputSet).toEqual(['Frage']);
+    expect(r.bots.at(-1)?.content).toBe(DE['error.stale']);
+  });
+
+  it('„veraltet“ nach vergeblicher Nachfrage legt die Frage ebenfalls zurück (Paket 9)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r = makeCtx({
+      input: 'Frage',
+      stream: (_m, onEvent) => {
+        onEvent({ event: 'connected', data: { history: true, after_id: 3 } } as ChatStreamEvent);
+        return Promise.reject(new Error('network'));
+      },
+      answerFromHistory: () => Promise.resolve(null),
+    });
+    await runSendMessage(undefined, undefined, undefined, r.ctx);
+    expect(r.inputSet).toEqual(['Frage']);
+    expect(r.bots.at(-1)?.content).toBe(DE['error.stale']);
+    warn.mockRestore();
+  });
+
+  it('Chip und Gastseiten-Auftrag wandern bei „beschäftigt“ nicht ins Eingabefeld (Paket 9)', async () => {
+    // Review Paket 7 (MINOR 25): beide kommen als fertiger Text, nicht aus dem
+    // Feld — ein Auftrag der Gastseite stünde sonst ungekürzt als Eingabe da,
+    // ein Chip als Satz, den die Person nie getippt hat.
+    for (const text of ['Zeig mir Mathe', 'Auftrag der Gastseite '.repeat(400)]) {
+      const r = makeCtx({ input: '', stream: () => Promise.reject(busy()) });
+      await runSendMessage(text, undefined, undefined, r.ctx);
+      expect(r.inputSet).toEqual([]);
+      expect(r.bots.at(-1)?.content).toBe(DE['error.busy']);
+    }
   });
 });

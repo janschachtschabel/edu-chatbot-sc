@@ -41,6 +41,7 @@ import asyncio
 import logging
 from typing import Any, Final
 
+from boerdi.domain.untrusted_text import frame_wissen
 from boerdi.services.rag.retrieval import get_rag_context, get_retrieval_settings
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,8 @@ WISSEN_SUCHEN: Final = "wissen_suchen"
 #: Treffertext geht in JEDEN folgenden Modellzug ein, ein langer Fund also
 #: vielfach.
 MAX_ZEICHEN: Final = 6000
+#: Was der Rahmen um einen Auszug kostet (``frame_wissen``).
+_RAHMEN = len(frame_wissen("x")) - 1
 
 #: Die Wissens-Regel — nur wenn ``wissen_suchen`` auch im Katalog steht.
 #: ``respond_agent`` hängt sie an den Kopf der Kette; die Prompt-Vorschau des
@@ -231,4 +234,5 @@ async def antwort(session: Any, args: dict[str, Any], rag_config: dict[str, Any]
         logger.info("wissen_suchen(%d Bereiche): kein Treffer", len(bereiche))
         return f"Keine passende Stelle in {len(bereiche)} durchsuchten Bereichen."
     logger.info("wissen_suchen(%d Bereiche): %d Zeichen", len(bereiche), len(text))
-    return text[:MAX_ZEICHEN]
+    # Paket 9 (V6): Text von Dritten, gerahmt — der Rahmen zählt in den Deckel.
+    return frame_wissen(text[:MAX_ZEICHEN - _RAHMEN])

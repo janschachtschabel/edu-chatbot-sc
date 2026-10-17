@@ -4,7 +4,6 @@
 # `*.x.de` matchen alle Subdomains.
 
 guide_mode:
-  default_enabled: false          # User-opt-in, persistent in localStorage
   max_guide_targets_per_turn: 0   # 0 = unbegrenzt
   max_guide_quick_replies: 2      # max. Bring-mich-hin-QRs (Cap bei 3)
 

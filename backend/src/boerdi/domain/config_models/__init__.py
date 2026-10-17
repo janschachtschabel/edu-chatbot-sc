@@ -28,8 +28,6 @@ from boerdi.domain.config_models.base_widget import (
     WidgetModesArea,
 )
 from boerdi.domain.config_models.canvas import (
-    CanvasCreateTriggersArea,
-    CanvasEditTriggersArea,
     CanvasMaterialTypesArea,
     CanvasPersonaPrioritiesArea,
     CanvasTypeAliasesArea,
@@ -47,6 +45,7 @@ from boerdi.domain.config_models.knowledge import (
     GuideRulesArea,
     McpServersArea,
     RagConfigArea,
+    RagRetrievalArea,
 )
 from boerdi.domain.config_models.md import LayerDocArea
 from boerdi.domain.config_models.patterns import PatternArea
@@ -73,6 +72,8 @@ AREA_MODELS: dict[str, type[BaseModel]] = {
     "01-base/pricing": PricingArea,
     "01-base/privacy-config": PrivacyConfigArea,
     "01-base/quality-log-config": QualityLogConfigArea,
+    # Paket 7 (P4): gelesen schon immer (``rag/retrieval``), pflegbar erst jetzt.
+    "01-base/rag-retrieval": RagRetrievalArea,
     "01-base/safety-config": SafetyConfigArea,
     "01-base/tone-modifiers": ToneModifiersArea,
     "01-base/website-tour": WebsiteTourArea,
@@ -90,9 +91,7 @@ AREA_MODELS: dict[str, type[BaseModel]] = {
     "04-intents/intents": IntentsArea,
     "04-signals/signal-modulations": SignalModulationsArea,
     "04-states/states": StatesArea,
-    # 05-canvas (5)
-    "05-canvas/create-triggers": CanvasCreateTriggersArea,
-    "05-canvas/edit-triggers": CanvasEditTriggersArea,
+    # 05-canvas (3; create-/edit-triggers ohne Leser gestrichen, Paket 7 K4)
     "05-canvas/material-types": CanvasMaterialTypesArea,
     "05-canvas/persona-priorities": CanvasPersonaPrioritiesArea,
     "05-canvas/type-aliases": CanvasTypeAliasesArea,
@@ -101,6 +100,12 @@ AREA_MODELS: dict[str, type[BaseModel]] = {
     "05-knowledge/rag-config": RagConfigArea,
     "eval/gold-flows": GoldFlowsArea,
 }
+
+#: Gestrichene Bereiche (Paket 7, K4: ohne Leser; Migration 0007 räumt sie ab).
+#: Kein Schreibweg legt sie wieder an — auch keine alte Sicherung (Paket 9).
+GESTRICHENE_BEREICHE: frozenset[str] = frozenset({
+    "05-canvas/create-triggers", "05-canvas/edit-triggers",
+})
 
 
 def model_for(file_key: str) -> type[BaseModel] | None:

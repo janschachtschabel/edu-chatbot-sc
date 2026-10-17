@@ -29,6 +29,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from boerdi.api.scope_pfad import route_path
 from boerdi.services.snapshots import MAX_CONFIG_UPLOAD_BYTES
 from boerdi.services.speech_proxy import MAX_AUDIO_BYTES
 from boerdi.settings import get_settings
@@ -72,7 +73,8 @@ class BodySizeLimitMiddleware:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        grenze = body_limit_for(scope.get("path", ""))
+        # Ohne ``root_path``, wie der Router (Paket 10, Audit L-4).
+        grenze = body_limit_for(route_path(scope))
         if grenze is None:
             await self.app(scope, receive, send)
             return

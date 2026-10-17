@@ -252,7 +252,9 @@ class WithinCollectionArgs(BaseModel):
     maxResults: int = Field(default=10, ge=1, le=20)
     skillContext: str = ""  # wie CollectionContentsArgs (Server 2026-08-18)
     license: str = ""  # wie ContentSearchArgs (Server 2026-08-20)
-    excludeNodeIds: list[str] = Field(default_factory=list, max_length=200)  # wie SearchWloArgs
+    # Paket 11 (gemessen 2026-10-15): der Server übergeht ``excludeNodeIds`` hier still —
+    # dieselben Treffer kamen wieder. Geblättert wird mit ``skipCount``.
+    skipCount: int = Field(default=0, ge=0)
 
     @model_validator(mode="before")
     @classmethod
@@ -260,6 +262,11 @@ class WithinCollectionArgs(BaseModel):
         if not isinstance(data, dict):
             return data
         data = dict(data)
+        # Alte Gewohnheit des Modells: gezeigte IDs statt einer Zahl. Gezeigt wurden die
+        # ersten Treffer — genau so viele werden übersprungen.
+        gezeigt = data.pop("excludeNodeIds", None)
+        if isinstance(gezeigt, list) and gezeigt and not data.get("skipCount"):
+            data["skipCount"] = len(gezeigt)
         # Dieselben Alt-Namen, die die globale Suche akzeptiert — das Modell
         # unterscheidet die beiden Werkzeuge beim Benennen der Filter nicht.
         if "educationalContext" not in data and "educationalLevel" in data:

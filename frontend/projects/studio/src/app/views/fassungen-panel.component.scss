@@ -1,0 +1,133 @@
+// Werk und eigene Fassung (Paket 12). Hülle, Knöpfe und Meldungen aus dem gemeinsamen Teil;
+// eigen sind Filter, Liste, Kennzeichen und Vergleich. Nur Studio-Tokens.
+@use './ops-panel';
+
+.fs-summary {
+  margin: 0 0 var(--st-3);
+  font-weight: 600;
+}
+
+.fs-hint {
+  margin: var(--st-2) 0;
+  color: var(--st-text-muted);
+  font-size: 0.875rem;
+}
+
+.fs-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2) var(--st-4);
+  margin: var(--st-3) 0;
+  padding: 0;
+  border: 0;
+}
+
+.fs-filter legend {
+  inline-size: 100%;
+  margin-block-end: var(--st-1);
+}
+
+.fs-filter-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-1);
+  min-block-size: 2rem; // Zielgröße ≥ 24 px (WCAG 2.5.8)
+  cursor: pointer;
+}
+
+.fs-list {
+  margin: var(--st-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-2);
+}
+
+.fs-row {
+  display: grid;
+  gap: var(--st-2);
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-bg);
+}
+
+.fs-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--st-1) var(--st-3);
+}
+
+.fs-area {
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.fs-note {
+  color: var(--st-text-muted);
+  font-size: 0.8125rem;
+}
+
+// Kennzeichen: Punkt plus Text — die Farbe ist nie das einzige Signal (WCAG 1.4.1).
+.fs-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-1);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.fs-status::before {
+  content: '';
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--st-unknown-dot);
+}
+
+.fs-status--werk::before {
+  background: var(--st-ok-dot);
+}
+
+.fs-status--werk-veraltet::before,
+.fs-status--eigen-neues-werk::before {
+  background: var(--st-warn-dot);
+}
+
+.fs-status--werk-entfernt::before,
+.fs-status--werk-fehlt::before {
+  background: var(--st-danger-dot);
+}
+
+.fs-row .op-actions {
+  margin: 0;
+}
+
+.fs-diff-pre {
+  margin: 0;
+  padding: var(--st-2) var(--st-3);
+  max-block-size: 24rem;
+  overflow: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+// Das Zeichen am Zeilenanfang trägt die Bedeutung; die Schrift hebt sie nur hervor.
+.fs-diff-plus,
+.fs-diff-minus {
+  font-weight: 600;
+}
+
+.fs-diff-minus {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.fs-diff-hunk {
+  color: var(--st-text-muted);
+}

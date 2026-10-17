@@ -16,7 +16,9 @@
     @if (flows().length > 0) {
       <fieldset class="egd-set">
         <legend class="egd-legend">{{ t('evalStart.gold.legend') }}</legend>
-        <p class="egd-note">{{ t('evalStart.nothingChosen') }}</p>
+        <p class="egd-note">
+          {{ t(hatAbruf() ? 'evalStart.gold.nothingChosen' : 'evalStart.nothingChosen') }}
+        </p>
 
         <div class="egd-select-actions">
           <button type="button" class="egd-btn" (click)="selectAll()">
@@ -41,6 +43,9 @@
                   <span class="egd-flow-id">{{ flow.id }}</span>
                   <span class="egd-flow-title">{{ flow.title }}</span>
                   <span class="egd-flow-meta">{{ flowMeta(flow) }}</span>
+                  @if (flow.auf_abruf) {
+                    <span class="egd-flow-tag">{{ t('evalStart.gold.onDemand') }}</span>
+                  }
                 </span>
               </label>
             </li>

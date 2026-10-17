@@ -85,6 +85,37 @@ export class ConfigApi {
     return this.api.put<{ status: string; version?: number }>(
       '/config/file', { path, content, ...condition });
   }
+
+  /**
+   * Ein Muster oder eine Persona anlegen oder — mit `source` — duplizieren
+   * (Paket 6, S1). Den Schlüssel leitet der Server aus der Kennung ab; 409,
+   * wenn es die Kennung oder den Schlüssel schon gibt.
+   */
+  createDocument(body: DocumentCreate): Promise<DocumentCreated> {
+    return this.api.post<DocumentCreated>('/config/documents', body);
+  }
+
+  /** Ein Muster oder eine Persona löschen; feste Bereiche weist der Server ab (400).
+   *  Mit `version` nur, wenn das Dokument noch so steht — sonst 409 wie beim Speichern. */
+  deleteDocument(key: string, version: number | null = null): Promise<{ status: string; path: string }> {
+    const params: Record<string, string> = { path: `${key}.md` };
+    if (typeof version === 'number') params['expected_version'] = String(version);
+    return this.api.delete<{ status: string; path: string }>('/config/file', params);
+  }
+}
+
+export interface DocumentCreate {
+  readonly group: string;
+  readonly id: string;
+  readonly label: string;
+  /** Die Vorlage beim Duplizieren — ein Dokument desselben Ordners. */
+  readonly source?: string;
+}
+
+export interface DocumentCreated {
+  readonly status: string;
+  readonly key: string;
+  readonly version: number;
 }
 
 /** Per segment: the slashes are part of the route (`{area:path}`), the rest is not. */

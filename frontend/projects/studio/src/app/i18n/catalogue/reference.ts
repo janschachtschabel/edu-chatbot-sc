@@ -46,17 +46,20 @@ export const REFERENCE: CataloguePart = {
     'arch.col.tokens': 'Token-Verhalten',
 
     // ── Verarbeitungs-Pipeline ──────────────────────────────────────
-    'arch.pipeline.title': 'Die Verarbeitungs-Pipeline',
+    'arch.pipeline.title': 'Muster-Maschine: die Verarbeitungs-Pipeline',
     'arch.pipeline.text':
-      'Jede Nutzernachricht durchläuft sieben Phasen. Klassifikation und '
-      + 'Pattern-Wahl laufen strukturiert — LLM-Hint plus deterministische Anker —, '
-      + 'bevor die Antwort generiert wird.',
+      'Die Muster-Maschine in sieben Phasen, so wie das Altsystem sie beschrieb — eine '
+      + 'Sicht auf ihre Arbeit, nicht die Knoten des Graphen (die stehen oben unter „Der Weg '
+      + 'eines Zugs“). Klassifikation und Pattern-Wahl laufen strukturiert — LLM-Hint plus '
+      + 'deterministische Anker —, bevor die Antwort generiert wird. Die Agent-Schleife geht '
+      + 'nach der Sicherheitsprüfung einen eigenen Weg (Abschnitt oben).',
 
     // ── Input-Elemente ──────────────────────────────────────────────
     'arch.input.title': 'Input-Elemente (Klassifikation)',
     'arch.input.text':
-      'In Phase 2 erkennt ein LLM-Aufruf sechs Dimensionen aus der Nachricht. Diese '
-      + 'Input-Elemente steuern alles Weitere.',
+      'Im Muster-Modus erkennt in Phase 2 ein LLM-Aufruf sechs Dimensionen aus der '
+      + 'Nachricht. Diese Input-Elemente steuern alles Weitere; die Agent-Schleife '
+      + 'ordnet nicht ein.',
 
     // ── Pattern-Engine ──────────────────────────────────────────────
     'arch.engine.title': 'Pattern-Engine und ihre Ausgabe',
@@ -99,17 +102,14 @@ export const REFERENCE: CataloguePart = {
       + 'Eine ausdrückliche Selbstauskunft überstimmt den Klassifikator über '
       + '`persona_overrides` in `01-base/classify-overrides.yaml` — sie setzt die '
       + 'Persona, nicht das Pattern.',
-    'arch.selection.note':
-      'ALT nannte dafür die Routing-Regel `lookup_persona_self_id__*`, obwohl der '
-      + 'Abschnitt darüber den Ausbau der Rule-Engine beschreibt. In NEU gibt es '
-      + 'diese Regel nicht; der Mechanismus ist die Override-Liste im '
-      + 'Classifier-Prompt.',
 
     // ── Die sechs Schichten ─────────────────────────────────────────
     'arch.layers.title': 'Die sechs Architektur-Schichten',
     'arch.layers.text':
-      'Der System-Prompt wird aus Schichten zusammengesetzt. Jede hat eine '
-      + 'Priorität: bei Token-Knappheit werden niedrig priorisierte zuerst entladen.',
+      'Im Muster-Modus wird der System-Prompt aus Schichten zusammengesetzt. Jede hat '
+      + 'eine Priorität: bei Token-Knappheit werden niedrig priorisierte zuerst entladen. '
+      + 'Den Prompt der Agent-Schleife zeigt die Seite „Agent & Maschine“ unter '
+      + '„Was das Modell zuerst liest“.',
     'arch.layers.assemblyTitle': 'Aufbau zur Laufzeit',
     // Acht Zeilen mit je zwei unabhängigen Angaben: WAS geladen wird und WANN.
     // Das ist kein Satz aus Bruchstücken — die Bedingung steht am Bildschirm in
@@ -181,16 +181,19 @@ export const REFERENCE: CataloguePart = {
     'arch.col.content': 'Content',
     'arch.col.tokens': 'Token behaviour',
 
-    'arch.pipeline.title': 'The processing pipeline',
+    'arch.pipeline.title': 'Pattern engine: the processing pipeline',
     'arch.pipeline.text':
-      'Every user message passes through seven phases. Classification and pattern '
-      + 'choice run in a structured way — an LLM hint plus deterministic anchors — '
-      + 'before the answer is generated.',
+      'The pattern engine in seven phases, as the old system described it — a view of '
+      + 'its work, not the nodes of the graph (those are listed above under “The path of a '
+      + 'turn”). Classification and pattern choice run in a structured way — an LLM hint '
+      + 'plus deterministic anchors — before the answer is generated. The agent loop takes '
+      + 'its own path after the safety check (section above).',
 
     'arch.input.title': 'Input elements (classification)',
     'arch.input.text':
-      'In phase 2 a single LLM call recognises six dimensions in the message. These '
-      + 'input elements steer everything that follows.',
+      'In pattern mode a single LLM call recognises six dimensions in the message in '
+      + 'phase 2. These input elements steer everything that follows; the agent loop '
+      + 'does not classify.',
 
     'arch.engine.title': 'The pattern engine and its output',
     'arch.engine.text':
@@ -227,15 +230,13 @@ export const REFERENCE: CataloguePart = {
       + 'settled. An explicit self-statement overrules the classifier through '
       + '`persona_overrides` in `01-base/classify-overrides.yaml` — it sets the '
       + 'persona, not the pattern.',
-    'arch.selection.note':
-      'ALT named the routing rule `lookup_persona_self_id__*` for this, although the '
-      + 'section above it describes the removal of that rule engine. NEU has no such '
-      + 'rule; the mechanism is the override list in the classifier prompt.',
 
     'arch.layers.title': 'The six architecture layers',
     'arch.layers.text':
-      'The system prompt is assembled from layers. Each one carries a priority: '
-      + 'when tokens run short, the lower-priority ones are dropped first.',
+      'In pattern mode the system prompt is assembled from layers. Each one carries a '
+      + 'priority: when tokens run short, the lower-priority ones are dropped first. The '
+      + 'agent loop’s prompt is shown on the page “Agent & engine” under “What the model '
+      + 'reads first”.',
     'arch.layers.assemblyTitle': 'Assembly at run time',
     'arch.assembly.1': 'Layer 1: `base-persona.md`',
     'arch.assembly.1.when': 'always',

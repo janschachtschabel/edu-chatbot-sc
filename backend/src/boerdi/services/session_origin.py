@@ -18,11 +18,14 @@ against three literals) and, for the Core variant, a column object from code.
 
 from typing import Final, Literal
 
-from sqlalchemy import ColumnElement, and_
+from sqlalchemy import ColumnElement, and_, or_
 
 EVAL_PREFIX: Final = "eval-"
 LOADTEST_PREFIX: Final = "loadtest-"
 STUDIO_PREFIX: Final = "studio-"
+#: Quelle der Aufträge, die der Auftragstester des Studios über ``/studio/api/agent``
+#: auslöst (Paket 9, Review Paket 7 MINOR 31) — Probeläufe ohne Sitzung, kein Betrieb.
+STUDIO_QUELLE: Final = "studio-probe"
 
 #: The vocabulary of every ``scope`` parameter (quality, usage, sessions).
 Scope = Literal["all", "production", "eval"]
@@ -44,13 +47,25 @@ def scope_sql(scope: str) -> str:
     return ""
 
 
-def scope_clause(scope: str, column: ColumnElement[str]) -> ColumnElement[bool] | None:
-    """The same filter for SQLAlchemy Core queries; ``None`` = no restriction."""
+def scope_clause(
+    scope: str, column: ColumnElement[str], quelle: ColumnElement[str] | None = None,
+) -> ColumnElement[bool] | None:
+    """The same filter for SQLAlchemy Core queries; ``None`` = no restriction.
+
+    ``quelle`` (``usage_events.quelle``, Paket 9): rows without a session count as
+    production unless the studio's task tester booked them (:data:`STUDIO_QUELLE`).
+    """
     s = (scope or "all").strip().lower()
     if s == "production":
-        return and_(column.not_like(f"{EVAL_PREFIX}%"),
-                    column.not_like(f"{LOADTEST_PREFIX}%"),
-                    column.not_like(f"{STUDIO_PREFIX}%"))
+        # Paket 7 (P3): eine Zeile ohne Sitzung (Auftrag der Agent-API) ist
+        # Betrieb. Ohne ``IS NULL`` fiele sie heraus — ``NULL NOT LIKE`` ist NULL.
+        ohne_sitzung = column.is_(None)
+        if quelle is not None:
+            ohne_sitzung = and_(ohne_sitzung, or_(quelle.is_(None), quelle != STUDIO_QUELLE))
+        return or_(ohne_sitzung,
+                   and_(column.not_like(f"{EVAL_PREFIX}%"),
+                        column.not_like(f"{LOADTEST_PREFIX}%"),
+                        column.not_like(f"{STUDIO_PREFIX}%")))
     if s == "eval":
         return column.like(f"{EVAL_PREFIX}%")
     return None

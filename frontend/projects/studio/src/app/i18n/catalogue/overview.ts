@@ -48,8 +48,8 @@ export const OVERVIEW: CataloguePart = {
     'overview.refreshing': 'Lädt …',
     'overview.backend': 'Backend',
     'overview.providerUnknown': 'Provider unbekannt',
-    'overview.factory': 'Werkseinstellungen',
-    'overview.factory.none': 'kein Werksstand gesichert',
+    'overview.factory': 'Eigener Grundstand',
+    'overview.factory.none': 'kein Grundstand gesichert',
     'overview.factory.noneHint': 'Ohne ihn gibt es kein „Zurück auf Anfang“.',
     /** Mehrzahl über `plural()`: „1 weiterer Snapshot" beugt das Adjektiv mit,
      *  nicht nur das Substantiv. Die Null-Form ist ein eigener Satz, weil
@@ -105,7 +105,6 @@ export const OVERVIEW: CataloguePart = {
     'overview.layer.material.tag.didactic': '13 didaktisch',
     'overview.layer.material.tag.analytic': '5 analytisch',
     'overview.layer.material.tag.aliases': 'Typ-Aliase',
-    'overview.layer.material.tag.triggers': 'Edit-/Create-Trigger',
 
     'overview.layer.wissen.headline': 'Welche Quellen liefern Faktenwissen zur Laufzeit?',
     'overview.layer.wissen.primary': 'RAG + MCP-Tools',
@@ -175,8 +174,8 @@ export const OVERVIEW: CataloguePart = {
     'overview.refreshing': 'Loading …',
     'overview.backend': 'Backend',
     'overview.providerUnknown': 'Provider unknown',
-    'overview.factory': 'Factory settings',
-    'overview.factory.none': 'no factory state saved',
+    'overview.factory': 'Own baseline',
+    'overview.factory.none': 'no baseline saved',
     'overview.factory.noneHint': 'Without it there is no way back to the start.',
     'overview.snapshots.zero': 'no further snapshots',
     'overview.snapshots.one': '{count} further snapshot',
@@ -224,7 +223,6 @@ export const OVERVIEW: CataloguePart = {
     'overview.layer.material.tag.didactic': '13 didactic',
     'overview.layer.material.tag.analytic': '5 analytic',
     'overview.layer.material.tag.aliases': 'Type aliases',
-    'overview.layer.material.tag.triggers': 'Edit/create triggers',
 
     'overview.layer.wissen.headline': 'Which sources supply factual knowledge at runtime?',
     'overview.layer.wissen.primary': 'RAG + MCP tools',

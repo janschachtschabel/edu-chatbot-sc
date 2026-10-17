@@ -99,9 +99,10 @@ export class RagIngestComponent {
 
   /** A unique prefix so several panels on one page keep distinct label targets. */
   readonly idPrefix = 'ri';
-  /** Was der Server ohne markitdown-Extras liest (Paket 4, C5). DOCX, PDF, PPTX
-   *  und XLSX scheitern im Image; der Server antwortet dann mit 415. */
-  readonly lesbareFormate = '.html,.htm,.md,.markdown,.txt,.csv,.json';
+  /** Was der Server liest (Paket 4, C5): seit Paket 7 (P6) mit den
+   *  markitdown-Extras auch PDF und Office. Ältere Formate (.doc, .ppt, .xls)
+   *  liest er nicht — dann antwortet er mit 415. */
+  readonly lesbareFormate = '.pdf,.docx,.pptx,.xlsx,.html,.htm,.md,.markdown,.txt,.csv,.json';
   /** Fürs Template — der Wert der Option „neuen Bereich anlegen". */
   readonly NEUER_BEREICH = NEUER_BEREICH;
 

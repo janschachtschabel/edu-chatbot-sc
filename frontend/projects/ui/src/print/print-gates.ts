@@ -7,14 +7,14 @@
  * Wohnen hier statt in der Shell, weil sie rein über `ChatMessage` arbeiten und
  * den `PRINTABLE_CANVAS_RE`-Sentinel des Print-Moduls lesen — dieselbe
  * Verantwortung („druckbarer Inhalt: erkennen + auslösen"), eigene Datei, weil
- * `print-utils.ts` schon über der ≤300-Schwelle liegt (395 Z. nach C1-b4).
+ * `print-utils.ts` nach C1-b4 über der ≤300-Schwelle lag (395 Z.; seit Paket 9
+ * steht der Lernpfad-Druck in `print-lernpfad.ts`).
  */
 import { inlineDocFallbackLabel } from '../inline-doc/inline-doc';
 import { ChatMessage } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
-import {
-  PRINTABLE_CANVAS_RE, printCanvasMaterial, printLearningPath, printMarkdownDocument,
-} from './print-utils';
+import { printLearningPath } from './print-lernpfad';
+import { PRINTABLE_CANVAS_RE, printCanvasMaterial, printMarkdownDocument } from './print-utils';
 
 /**
  * Erkennt, ob eine Bot-Nachricht ein Lernpfad ist. Beide Marker erzeugt

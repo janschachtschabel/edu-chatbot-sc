@@ -259,13 +259,14 @@ def test_stream_wires_routing_timeout_retries(monkeypatch):
     resp = asyncio.run(lls._stream_completion(
         out.append, messages=[{"role": "user", "content": "hi"}]))
     sent = fake.calls[0]
-    assert sent["model"] == "openai/gpt-5.6-luna"
+    assert sent["model"] == "openai/responses/gpt-6-luna"  # Paket 8: die Vorgabe
     assert sent["api_base"] == "https://api.openai.com/v1"
     assert sent["api_key"] == "sk-x"
     # Paket 4 B3: eine Wiederholungsschicht (SDK-Vorgabe), kein ``num_retries``.
     assert "num_retries" not in sent
     assert sent["timeout"] == 75.0
-    assert sent["verbosity"] == "low"  # GPT-5 gating flowed through
+    # GPT-5 gating flowed through — seit Paket 7 (L2) als ``text.verbosity``
+    assert sent["extra_body"]["text"] == {"verbosity": "low"}
     # Der Strom lief durch; freier Inhaltstext geht nicht an ``on_token`` (E-S1).
     assert resp.choices[0].message.content == "ok"
     assert out == []

@@ -165,8 +165,8 @@ export function describeRagError(err: unknown, t: Translate): string {
     case 0:
       return t('error.offline');
     case 400:
-      // markitdown's own message ("Fehler beim Konvertieren: …") or the SSRF
-      // guard's — both name the actual obstacle and stay as they arrive (C1-e).
+      // The backend's sentence in the studio's language (Paket 6, B6): which
+      // conversion failed, which address is not allowed, which limit was hit.
       return err.detail || t('rag.error.unreadable');
     case 413:
       return t('rag.error.tooLarge');
@@ -175,6 +175,8 @@ export function describeRagError(err: unknown, t: Translate): string {
       // Datei. Der Satz des Backends nennt die lesbaren Formate.
       return err.detail || t('rag.error.format');
     default:
+      // 500 included: a package missing from the image (Paket 6, B6) — the
+      // backend's sentence says so.
       return err.detail || t('error.unknown');
   }
 }

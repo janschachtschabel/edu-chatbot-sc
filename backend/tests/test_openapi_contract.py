@@ -131,6 +131,8 @@ GET    /api/sessions/
 GET    /api/sessions/db-stats
 POST   /api/sessions/optimize
 POST   /api/sessions/purge
+GET    /api/sessions/retention
+POST   /api/sessions/retention
 DELETE /api/sessions/{session_id}
 GET    /api/sessions/{session_id}
 GET    /api/sessions/{session_id}/memory
@@ -146,8 +148,13 @@ GET    /api/agent-center/prompt
 GET    /api/agent-center/skills
 GET    /api/agent-center/skills/search
 GET    /api/agent-center/tools
+POST   /api/config/documents
 GET    /api/config/seed
 POST   /api/config/seed/apply
+GET    /api/config/fassungen
+POST   /api/config/fassungen/werksabgleich
+POST   /api/config/fassungen/umschalten
+GET    /api/config/fassungen/vergleich
 GET    /api/usage/period
 GET    /api/usage/session/{session_id}
 GET    /health

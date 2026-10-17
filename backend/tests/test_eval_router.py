@@ -248,10 +248,23 @@ def test_endpoints_require_studio_key(client, method, path, body):
 # ── service: estimate math ────────────────────────────────────────────────
 
 
+def _preise(monkeypatch, models: dict, currency: str = "EUR") -> None:
+    """Preistafel und Modelle der Schätzung (Paket 7, K7): Chat ``m-chat``,
+    Simulator und Bewerter ``m-klein``."""
+    from boerdi.domain.config_models.pricing import PricingArea
+    monkeypatch.setattr(eval_cost, "load_pricing",
+                        lambda: PricingArea(currency=currency, models=models))
+    monkeypatch.setattr(eval_cost, "get_chat_model", lambda: "m-chat")
+    monkeypatch.setattr(eval_cost, "simulator_model", lambda: "m-klein")
+    monkeypatch.setattr(eval_cost, "judge_model", lambda: "m-klein")
+
+
 def test_service_estimate_both_mode_counts(monkeypatch):
     monkeypatch.setattr(eval_cost, "list_personas_and_intents",
                         lambda: {"personas": [{"id": "a"}, {"id": "b"}],
                                  "intents": [{"id": "x"}]})
+    _preise(monkeypatch, {"m-chat": {"input": 1.0, "output": 4.0},
+                          "m-klein": {"input": 0.5, "output": 2.0}})
     out = svc.estimate("both", [], [], 2, 3)
     # combos=2; scenarios=2*2=4; convs=2; conv_turns=6; total=10
     assert out["scenarios"] == 4
@@ -260,7 +273,45 @@ def test_service_estimate_both_mode_counts(monkeypatch):
     assert out["chat_calls"] == 10
     assert out["judge_calls"] == 10
     assert out["simulator_calls"] == 8  # sim_gen=2 + sim_turn=6
-    assert out["est_usd_min"] < out["est_usd"] < out["est_usd_max"]
+    # Paket 7 (K7): bepreist nach der Preistafel, in ihrer Währung, ohne Umrechnung.
+    # Chat-Zug 12 000 + 900 Token → 0,0156; kleiner Aufruf 2 500 + 300 → 0,00185.
+    # 10 · 0,0156 + 18 · 0,00185 = 0,1893.
+    assert out["currency"] == "EUR"
+    assert out["est"] == "0.189300"
+    assert out["est_min"] == "0.113580"
+    assert out["est_max"] == "0.378600"
+    assert out["price_missing"] == []
+    assert not any(k.startswith("est_usd") for k in out)
+
+
+def test_service_estimate_ohne_gepflegten_preis_keine_zahl(monkeypatch):
+    """Ein erfundener Preis wäre schlimmer als keiner (Seed-Kopf der Preistafel)."""
+    monkeypatch.setattr(eval_cost, "list_personas_and_intents",
+                        lambda: {"personas": [{"id": "a"}], "intents": [{"id": "x"}]})
+    _preise(monkeypatch, {"m-chat": {"input": 1.0, "output": 4.0}})
+    out = svc.estimate("both", [], [], 1, 1)
+    assert out["est"] is None and out["est_min"] is None and out["est_max"] is None
+    assert out["price_missing"] == ["m-klein"]
+    assert out["chat_calls"] == 2  # die Anzahlen bleiben
+
+
+def test_service_estimate_nennt_jedes_modell_ohne_preis_einmal(monkeypatch):
+    monkeypatch.setattr(eval_cost, "list_personas_and_intents",
+                        lambda: {"personas": [{"id": "a"}], "intents": [{"id": "x"}]})
+    _preise(monkeypatch, {"m-chat": {"input": 1.0, "output": 4.0}})
+    monkeypatch.setattr(eval_cost, "simulator_model", lambda: "m-sim")
+    out = svc.estimate("both", [], [], 1, 1)
+    assert out["price_missing"] == ["m-klein", "m-sim"]
+
+
+def test_service_estimate_ohne_preistafel(monkeypatch):
+    monkeypatch.setattr(eval_cost, "list_personas_and_intents",
+                        lambda: {"personas": [{"id": "a"}], "intents": [{"id": "x"}]})
+    _preise(monkeypatch, {})
+    monkeypatch.setattr(eval_cost, "load_pricing", lambda: None)
+    out = svc.estimate("both", [], [], 1, 1)
+    assert out["currency"] is None and out["est"] is None
+    assert out["price_missing"] == ["m-chat", "m-klein"]
 
 
 def test_service_estimate_explicit_ids_override_config(monkeypatch):

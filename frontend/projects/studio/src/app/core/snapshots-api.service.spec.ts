@@ -48,8 +48,8 @@ describe("SnapshotsApi", () => {
   it("kodiert die Snapshot-ID in jedem Pfad, der sie trägt", () => {
     void api.restore("snap /1");
     http
-      .expectOne(`${BASE}/snapshots/snap%20%2F1/restore`)
-      .flush({ status: "restored", areas: 3 });
+      .expectOne(`${BASE}/snapshots/snap%20%2F1/restore?mode=merge`)
+      .flush({ status: "restored", areas: 3, deleted: 0, snapshot_id: null });
     void api.remove("snap /1");
     http
       .expectOne(`${BASE}/snapshots/snap%20%2F1`)
@@ -62,9 +62,9 @@ describe("SnapshotsApi", () => {
     void api.saveFactory();
     expect(http.expectOne(`${BASE}/factory/save`).request.method).toBe("POST");
     void api.restoreFactory();
-    expect(http.expectOne(`${BASE}/factory/restore`).request.method).toBe(
-      "POST",
-    );
+    expect(
+      http.expectOne(`${BASE}/factory/restore?mode=merge`).request.method,
+    ).toBe("POST");
     void api.downloadFactory();
     expect(
       http.expectOne(`${BASE}/factory/download`).request.responseType,
@@ -99,13 +99,50 @@ describe("SnapshotsApi", () => {
 
   it("schickt eine hochgeladene ZIP als multipart im Feld `file`", () => {
     void api.restoreBackup(new File(["PK"], "backup.zip"));
-    const req = http.expectOne(`${BASE}/restore`);
+    const req = http.expectOne(`${BASE}/restore?mode=merge`);
     expect(req.request.method).toBe("POST");
     const body = req.request.body as FormData;
     // `file` is FastAPI's parameter name (`async def restore_backup(file: UploadFile)`);
     // any other field name is a 422 the user cannot act on.
     expect((body.get("file") as File).name).toBe("backup.zip");
-    req.flush({ status: "restored", areas: 35 });
+    req.flush({ status: "restored", areas: 35, deleted: 0, snapshot_id: null });
+  });
+
+  // Paket 7 (P5-5): „ergänzend" bleibt die Vorgabe — und steht trotzdem in der
+  // Anfrage, damit ein Protokoll zeigt, was gewollt war.
+  it("schickt die Wahl „exakt“ auf allen drei Wegen mit", () => {
+    void api.restore("s1", "exact");
+    http.expectOne(`${BASE}/snapshots/s1/restore?mode=exact`);
+    void api.restoreFactory("exact");
+    http.expectOne(`${BASE}/factory/restore?mode=exact`);
+    void api.restoreBackup(new File(["PK"], "b.zip"), "exact");
+    http.expectOne(`${BASE}/restore?mode=exact`);
+    http.verify();
+  });
+
+  it("zählt `stand` hoch, wenn der Server nebenbei einen Schnappschuss anlegt", async () => {
+    const vorher = api.stand();
+    const ohne = api.restore("s1", "exact");
+    http
+      .expectOne(`${BASE}/snapshots/s1/restore?mode=exact`)
+      .flush({ status: "restored", areas: 3, deleted: 0, snapshot_id: null });
+    await ohne;
+    expect(api.stand()).toBe(vorher); // nichts gelöscht, nichts gesichert
+
+    const mit = api.restoreBackup(new File(["PK"], "b.zip"), "exact");
+    http
+      .expectOne(`${BASE}/restore?mode=exact`)
+      .flush({ status: "restored", areas: 3, deleted: 2, snapshot_id: "snap-9" });
+    await mit;
+    expect(api.stand()).toBe(vorher + 1);
+
+    // Derselbe Weg für den Auslieferungsstand: auch er legt vorher einen an.
+    const seed = api.applySeed("exact");
+    http
+      .expectOne(`${BASE}/seed/apply`)
+      .flush({ written: 3, deleted: 1, snapshot_id: "snap-10" });
+    await seed;
+    expect(api.stand()).toBe(vorher + 2);
   });
 
   it("lädt einen Werksstand als eigene Datei hoch", () => {

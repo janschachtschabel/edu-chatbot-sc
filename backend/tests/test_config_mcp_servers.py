@@ -216,6 +216,9 @@ def test_discover_rejects_an_internal_url(client, discovered) -> None:
                     params={"url": "http://10.0.0.5/mcp"})
     assert r.status_code == 400
     assert discovered == []  # the guard blocks BEFORE the egress, not after
+    # Paket 9: the reason in the studio's language, not the guard's English.
+    assert "nicht erlaubt" in r.json()["detail"]
+    assert "Internal" not in r.json()["detail"]
 
 
 def test_discover_returns_the_tools_on_success(client, discovered) -> None:

@@ -148,6 +148,7 @@ export {
   postChat,
   StreamHttpError,
   streamChat,
+  StreamServerError,
   StreamStaleError,
 } from './stream/stream-client';
 export type { ChatStreamEvent, PostChatOptions, StreamChatOptions } from './stream/stream-client';
@@ -156,11 +157,11 @@ export { BOERDI_LOGO_DATA_URL, BOERDI_LOGO_SVG, boerdiLogoUrl } from './branding
 export {
   PRINTABLE_CANVAS_RE,
   printCanvasMaterial,
-  printLearningPath,
   printMarkdownDocument,
   printMdToHtml,
   safePrintHref,
 } from './print/print-utils';
+export { printLearningPath } from './print/print-lernpfad';
 
 export { TourController, TOUR_START_LABEL } from './controllers/tour.controller';
 export type { TourContext } from './controllers/tour.controller';

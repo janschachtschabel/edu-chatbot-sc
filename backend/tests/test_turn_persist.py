@@ -613,6 +613,18 @@ def test_persist_schreib_vorschau_wird_eine_box(monkeypatch):
     )
 
 
+def test_persist_vorschau_nennt_die_frist(monkeypatch):
+    # Paket 10 (Kurzaudit S-6): nach zehn Minuten verfällt die Abnahme still, und die
+    # Box sagte es nicht — der Satz des Servers dazu richtet sich an die Maschine und
+    # wird abgeschnitten (``preview_for_display``).
+    resp, _ = _run2(
+        monkeypatch,
+        session_state={"turn_count": 4, "entities": {}, "_write_preview": _VORSCHAU},
+        _final_text="x", _qr_mode="none",
+    )
+    assert "Die Freigabe gilt 10 Minuten ab dieser Vorschau." in resp.inline_documents[0].content
+
+
 def test_persist_vorschau_fragt_und_bietet_beides_an(monkeypatch):
     # S3: „um Zustimmung ODER Anpassung fragen". Die Zustimmung bekommt einen
     # Knopf, weil sie die kuerzeste Antwort ist; die Anpassung bekommt einen
@@ -633,16 +645,17 @@ def test_persist_vorschau_fragt_und_bietet_beides_an(monkeypatch):
 
 def test_persist_vorschau_laesst_keine_zweite_zustimmung_stehen(monkeypatch):
     # Review Paket 2, Befund 2: der Vorlauf löst im Folgezug JEDE glatte
-    # Zustimmung ein (``is_affirmation``) — auch einen Chip wie „Ja, zeig mir
-    # mehr Videos“, der etwas anderes meint. Neben dem Knopf bleibt deshalb nur,
-    # was keine Zustimmung ist.
+    # Zustimmung ein (``is_affirmation``) — neben dem Knopf bleibt deshalb nur,
+    # was keine Zustimmung ist. „Ja, zeig mir mehr Videos“ ist seit Review
+    # Paket 9 keine mehr (jedes Wort muss zur Zustimmung gehören): ein anderer
+    # Auftrag, der den offenen Vorgang verwirft, und darf stehen bleiben.
     resp, _ = _run2(
         monkeypatch,
         session_state={"turn_count": 4, "entities": {}, "_write_preview": _VORSCHAU},
-        quick_replies=["Ja, zeig mir mehr Videos", "Nein, abbrechen", "Andere Sammlung"],
+        quick_replies=["Ja, gerne", "Ja, zeig mir mehr Videos", "Nein, abbrechen"],
         _final_text="x", _qr_mode="none",
     )
-    assert resp.quick_replies == ["Ja, so ausführen", "Nein, abbrechen", "Andere Sammlung"]
+    assert resp.quick_replies == ["Ja, so ausführen", "Ja, zeig mir mehr Videos", "Nein, abbrechen"]
 
 def test_persist_vorschau_chip_beugt_sich_dem_deckel(monkeypatch):
     # ``max_count: 0`` heisst „keine Pillen" — eine Entscheidung der Redaktion
@@ -845,6 +858,23 @@ def test_die_vorbereitete_anfrage_faehrt_in_der_antwort_mit(monkeypatch):
     assert resp.prepared_write.method == "PUT"
     assert resp.prepared_write.path.endswith("/references/n1")
     assert "Bruchrechnung" in resp.prepared_write.done_message
+
+
+def test_die_vorbereitete_anfrage_steht_schon_im_ersten_speichern(monkeypatch):
+    """Review Paket 7 (MAJOR 7): reißt der Strom ab, holt das Widget die Antwort aus
+    dem Verlauf (P2) — ohne die Anfrage zeigte es „wird in der Seite ausgeführt“, und
+    die Seite führte nie etwas aus. Schon das ERSTE Speichern trägt sie: ein Abruf
+    zwischen den beiden Schreibvorgängen fände sie sonst nicht."""
+    from boerdi.domain.prepared_write import VERLAUF_SCHLUESSEL, PreparedWrite
+
+    vorbereitet = PreparedWrite(method="PUT", path="/edu-sharing/rest/x/n1", body='{"a":1}',
+                                done_message="Erledigt.")
+    sp = _patch2(monkeypatch)
+    monkeypatch.setattr(tp_mod, "get_prepared_writes", lambda: [vorbereitet])
+    _run2(monkeypatch, sp=sp)
+    debug = sp.save.calls[0][1]["debug"]
+    assert debug[VERLAUF_SCHLUESSEL] == {"method": "PUT", "path": "/edu-sharing/rest/x/n1",
+                                         "body": '{"a":1}', "done_message": "Erledigt."}
 
 
 def test_ohne_vorbereitung_bleibt_das_feld_leer(monkeypatch):

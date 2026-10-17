@@ -21,8 +21,10 @@ from boerdi.api import (
     config,
     config_areas,
     config_choices,
+    config_documents,
     config_effects,
     config_elements,
+    config_fassungen,
     config_snapshots,
     health,
     loadtest,
@@ -39,6 +41,9 @@ from boerdi.api import (
 from boerdi.api import (
     eval as eval_api,
 )
+from boerdi.api.sse import nachlaeufer_abwarten
+from boerdi.obs.tasks import cancel_and_drain
+from boerdi.services import aufbewahrung
 from boerdi.services.warmup import spawn_startup_warmups
 from boerdi.settings import Settings, get_settings
 
@@ -51,6 +56,10 @@ def _configure_logging(settings: Settings) -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+    # ``httpx`` meldet jede Anfrage auf INFO mit voller Adresse samt Abfrage —
+    # Import-Adressen und ihre Umleitungen gehören nicht ins Log (Review Paket 6).
+    # LiteLLM setzt das beim Import auch; darauf verlassen wir uns nicht.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def _warn_insecure_config(settings: Settings) -> None:
@@ -126,9 +135,14 @@ async def _lifespan(app: FastAPI):
     # der erste Zug einer frischen Replica nicht die kalten Kosten zahlt. Startet und
     # kehrt sofort zurück — die Bereitschaft der Instanz hängt nicht daran.
     spawn_startup_warmups()
+    # Paket 8 (A): die Aufbewahrungsfristen der Protokolle, alle 6 Stunden.
+    takt = aufbewahrung.starte(engine, app.state.session_factory)
     try:
         yield
     finally:
+        # Paket 9: zuerst die Züge, deren Client aufgelegt hat — sie schreiben noch.
+        await nachlaeufer_abwarten()
+        await cancel_and_drain([takt])
         config_loader.bind_store(None)
         await store.stop()
         await engine.dispose()
@@ -153,7 +167,7 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     # A config value Postgres refuses (Paket 4b, A4): 400 naming the area.
-    from boerdi.api.config_guards import nicht_speicherbar_antwort
+    from boerdi.api.config_antworten import nicht_speicherbar_antwort
     from boerdi.services.config_conflict import BereichNichtSpeicherbar
 
     app.add_exception_handler(BereichNichtSpeicherbar, nicht_speicherbar_antwort)
@@ -185,7 +199,13 @@ def create_app() -> FastAPI:
         allow_credentials=("*" not in cors_origins),  # credentials only with specific origins
         allow_methods=["*"],
         allow_headers=["*"],
+        # Paket 9: das Widget liest nach einem 429 die Wartezeit (Verlaufsnachfrage).
+        expose_headers=["Retry-After"],
     )
+
+    # Paket 8 (P1): HSTS für den ganzen Host. Über HTTP ignorieren Browser den
+    # Header (RFC 6797, 8.1) — lokal ohne TLS schadet er nicht.
+    hsts = f"max-age={settings.hsts_max_age}" if settings.hsts_max_age else ""
 
     @app.middleware("http")
     async def _security_headers(request, call_next):
@@ -197,6 +217,8 @@ def create_app() -> FastAPI:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        if hsts:
+            response.headers.setdefault("Strict-Transport-Security", hsts)
         return response
 
     app.include_router(health.public_router)
@@ -209,9 +231,11 @@ def create_app() -> FastAPI:
     app.include_router(config.public_router)
     app.include_router(config_areas.router)
     app.include_router(config_choices.router)
+    app.include_router(config_documents.router)
     app.include_router(config_effects.router)
     app.include_router(config_elements.router)
     app.include_router(config_snapshots.router)
+    app.include_router(config_fassungen.router)
     app.include_router(rag.router)
     app.include_router(quality.router)
     app.include_router(usage.router)

@@ -78,6 +78,7 @@ def load_classify_overrides_config() -> dict[str, Any]:
         "topic_overrides": data.get("topic_overrides") or {},
         "pattern_disambiguators": data.get("pattern_disambiguators") or [],
         "few_shot_examples": data.get("few_shot_examples") or [],
+        "curation_reroute": data.get("curation_reroute") or {},
     }
 
 

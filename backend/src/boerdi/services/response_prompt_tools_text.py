@@ -19,7 +19,8 @@ from __future__ import annotations
 import json
 from typing import Any, Final
 
-from boerdi.i18n import DEFAULT, Locale, language_name
+from boerdi.i18n import DEFAULT, Locale
+from boerdi.i18n.prompt_language import antwortsprache
 
 
 def render_degradation_rules(missing_slots: list, blocked_patterns: list) -> str:
@@ -49,39 +50,26 @@ def render_degradation_rules(missing_slots: list, blocked_patterns: list) -> str
     )
 
 
-# ── Sprache der Antwort (C1-f1) ────────────────────────────────────────────
-#: Die Schluss-Zeile aller drei P8-Bloecke. Sie stand vorher dreimal wortgleich
-#: und hart auf Deutsch im Code; jetzt steht sie einmal, je Sprache.
-#:
-#: Die Direktive selbst bleibt deutsch (C1-Entscheid: Prompts bleiben deutsch,
-#: nur die AUSGABE-Sprache wechselt). Der Zusatz „auch wenn Frage und Kontext
-#: deutsch sind" ist Absicht: die fuenf Prompt-Schichten davor sind deutsch,
-#: und ohne ihn zieht das Modell erfahrungsgemaess mit der Mehrheit.
-#: Der Sprachname kommt seit C1-f2a aus ``i18n.language_name`` — er steht in
-#: fuenf Prompts, und zwei Schreibweisen desselben Namens waeren zwei Wege,
-#: auseinanderzulaufen.
-_OUTPUT_LANGUAGE: Final[dict[Locale, str]] = {
-    "de": f"Antworte auf {language_name('de')}. Formatiere mit Markdown.",
-    "en": (
-        f"Antworte auf {language_name('en')}, auch wenn Frage und Kontext "
-        "deutsch sind. Formatiere mit Markdown."
-    ),
-}
-
-
+# ── Sprache der Antwort (C1-f1, Paket 7 K2) ────────────────────────────────
 def render_output_language(lang: Locale) -> str:
     """Der Schluss-Block, den jeder der drei P8-Zweige anhaengt.
 
-    Gibt die fuehrende Leerzeile mit zurueck, damit der deutsche Prompt
-    bytegleich zu dem bleibt, was vorher fest in den drei Vorlagen stand.
+    Seit Paket 7 dieselbe Regel wie im Agent-Modus (``antwortsprache``): die
+    Sprache der Person, die Oberflaechensprache nur als Rueckfall. Bis dahin
+    stand hier „Antworte auf <Oberflaechensprache>“ — wer tuerkisch schrieb,
+    bekam deutsch oder englisch zurueck (Nutzer-Entscheid 2026-10-09). Die
+    fuehrende Leerzeile gehoert zum Block, damit jeder Zweig ihn bedingungslos
+    anhaengen kann.
     """
-    return "\n\n" + _OUTPUT_LANGUAGE.get(lang, _OUTPUT_LANGUAGE[DEFAULT])
+    return "\n\n" + antwortsprache(lang)
 
 
-#: E3 (2026-08-10): Das Muster wollte kuratieren, aber es ist kein Zugangsblock
-#: hinterlegt — die Werkzeuge stehen dann gar nicht erst im Angebot
-#: (``_nameable_tools``). Ohne diesen Block sucht das Modell ein Werkzeug, das
-#: es nicht sieht, und weicht auf irgendetwas aus; der Nutzer erfaehrt nie warum.
+#: E3 (2026-08-10): Das Muster wollte kuratieren, darf aber nicht schreiben —
+#: die Werkzeuge stehen dann gar nicht erst im Angebot (``_nameable_tools``).
+#: Ohne diesen Block sucht das Modell ein Werkzeug, das es nicht sieht, und
+#: weicht auf irgendetwas aus; der Nutzer erfaehrt nie warum. Seit Paket 7 (S4)
+#: ist der Grund meist die fehlende persoenliche Anmeldung (``schreibrecht``),
+#: und die Anmelde-Chips stehen unter der Antwort (``domain/auth_qr``).
 #:
 #: **Bewusst ohne Adresse.** Der Plan (C4) wollte hier den Verweis auf die
 #: ``/auth``-Seite. Der Block ist aber ein SERVER-Geheimnis, das der Betreiber
@@ -91,21 +79,25 @@ def render_output_language(lang: Locale) -> str:
 #: Betreiber steht im Protokoll, wo er hingehoert (``response_tool_selection``).
 _CURATION_UNAVAILABLE: Final[dict[Locale, str]] = {
     "de": """
-## Kuratieren ist gerade nicht moeglich
-- Du kannst im WLO-Bestand nichts anlegen, aendern oder loeschen — dieser
-  Chatbot ist derzeit nur lesend angebunden.
-- Bittet jemand darum, sag das offen und in einem Satz. Behaupte NICHT, etwas
-  sei angelegt oder geaendert, und versuche es nicht auf Umwegen.
-- Biete an, was wirklich geht: passende Materialien suchen, den Inhalt
+## Kuratieren nur mit Anmeldung
+- Du kannst im WLO-Bestand nichts anlegen, aendern oder loeschen: das geht nur,
+  wenn die Person mit ihrem eigenen WLO-Konto angemeldet ist, und in diesem
+  Gespraech ist sie es nicht.
+- Bittet jemand darum, sag das offen und in einem Satz und biete die Anmeldung
+  an — der Knopf dafuer steht unter deiner Antwort. Behaupte NICHT, etwas sei
+  angelegt oder geaendert, und versuche es nicht auf Umwegen.
+- Biete an, was ohne Anmeldung geht: passende Materialien suchen, den Inhalt
   vorbereiten, oder auf den Einreichungsweg von WirLernenOnline verweisen.""",
     "en": """
-## Curation is currently unavailable
-- You cannot create, change or delete anything in the WLO repository — this
-  chatbot is connected read-only right now.
-- If someone asks for it, say so plainly, in one sentence. Do NOT claim
-  something was created or changed, and do not try to work around it.
-- Offer what actually works: searching for matching material, drafting the
-  content, or pointing to the WirLernenOnline submission route.""",
+## Curation only with sign-in
+- You cannot create, change or delete anything in the WLO repository: that only
+  works when the person is signed in with their own WLO account, and in this
+  conversation they are not.
+- If someone asks for it, say so plainly, in one sentence, and offer the
+  sign-in — its button sits below your answer. Do NOT claim something was
+  created or changed, and do not try to work around it.
+- Offer what works without signing in: searching for matching material,
+  drafting the content, or pointing to the WirLernenOnline submission route.""",
 }
 
 
@@ -223,7 +215,7 @@ durch internes Wissen beantwortet werden kann (z.B. Prozesse, Konzepte, Richtlin
    Varianten werden serverseitig gemerged)
 - get_collection_contents: Inhalte einer Sammlung per nodeId abrufen
 - get_node_details: Metadaten eines WLO-Knotens abrufen
-- lookup_wlo_vocabulary: Filter-Werte nachschlagen (Faecher, Bildungsstufen, Lizenzen, Zielgruppen)
+- lookup_wlo_vocabulary: Vokabularwerte fuer Schreibvorgaenge und zum Pruefen von Metadaten nachschlagen
 - get_subject_portals: Liste aller WLO-Fachportale (alphabetisch, mit nodeId)
 - browse_collection_tree: Strukturierter Drilldown unter eine Sammlung (depth 1 oder 2)
 - get_nodes_details: Bulk-Metadaten fuer mehrere nodeIds parallel
@@ -270,7 +262,9 @@ SCHRITT 2 — REGELN:
 1. Erfinde KEINE Materialien — nur was die Tools zurueckgeben.
 2. SOFORT handeln: Wenn der User ein Thema nennt, rufe sofort das passende
    Tool auf. Keine Rueckfragen wenn du genug Kontext hast.
-3. lookup_wlo_vocabulary nur fuer Filter-Werte, NIE als Ersatz fuer Suche.
+3. lookup_wlo_vocabulary nur fuer Schreibvorgaenge und zum Pruefen von Metadaten,
+   NIE als Ersatz fuer Suche und NICHT vor einer Suche (Fach, Stufe, Inhaltstyp,
+   Zielgruppe und Lizenz werden als Bezeichnung automatisch abgeglichen).
 4. BREITE Suche (Thema genannt, kein enger Medientyp-Filter): Wenn
    search_wlo_all verfuegbar ist, nutze es — EIN Aufruf liefert Inhalte,
    Sammlungen UND Themenseiten zugleich. Rufe dann NICHT zusaetzlich
@@ -301,9 +295,8 @@ SCHRITT 2 — REGELN:
         "Video", "Arbeitsblatt", "Bild", "Audio", "Interaktives medium",
         "Unterrichtsplan", "Quiz", "Kurs", "Praesentation", "Lernspiel",
         "Simulation", "Webseite", ...
-      Wenn du dir bei der genauen Form unsicher bist, hilft
-      lookup_wlo_vocabulary(vocabulary="lrt") — aber oft ist der Label
-      ausreichend.
+      Die Bezeichnung genuegt — sie wird automatisch abgeglichen,
+      ein Nachschlagen vorher ist nicht noetig.
    c) WICHTIG: Der Parameter heisst `learningResourceType` (NICHT
       `resourceType`!). Der MCP-Server ignoriert den alten Namen.
    d) Rufe search_wlo_content NIE OHNE learningResourceType auf, wenn
@@ -315,8 +308,8 @@ SCHRITT 2 — REGELN:
 9. Fach & Bildungsstufe als Filter: Wenn entities `fach` bzw. `stufe` enthalten,
    setze sie als `discipline` bzw. `educationalContext` (NICHT
    `educationalLevel`!) in search_wlo_content / search_wlo_collections.
-   Der MCP-Server akzeptiert sowohl Klartext-Labels ("Mathematik",
-   "Sekundarstufe I") als auch URIs aus lookup_wlo_vocabulary. Eine
+   Klartext-Labels ("Mathematik", "Sekundarstufe I") genuegen — sie werden
+   automatisch abgeglichen, ein Nachschlagen vorher ist nicht noetig. Eine
    Filter-Ebene "Klassenstufe" gibt es NICHT — mappe Klassenangaben
    immer auf die Bildungsstufe (Kl. 1-4=Grundschule, 5-10=Sek I,
    11-13=Sek II).""" + render_output_language(lang)

@@ -11,9 +11,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Security, Upl
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.deps import Lang, get_session, require_studio_key
+from boerdi.api.rag_umwandlung import pruefe_umwandlung
 from boerdi.api.schemas import RagQuery, RagResult
 from boerdi.domain.rag_areas import zusammenfuehren
-from boerdi.i18n import Locale, msg
+from boerdi.i18n import msg
 from boerdi.services.config_loader import load_rag_config
 from boerdi.services.rag.admin import (
     delete_area,
@@ -22,16 +23,13 @@ from boerdi.services.rag.admin import (
     list_areas,
 )
 from boerdi.services.rag.ingest import (
-    FORMAT_NICHT_LESBAR,
     ImportZahlen,
-    Umwandlungsfehler,
-    convert_to_markdown,
-    convert_url_to_markdown,
     embed_missing_chunks,
     get_rag_chunks,
     ingest_document,
 )
 from boerdi.services.rag.retrieval import query_rag
+from boerdi.services.rag.umwandeln import convert_to_markdown, convert_url_to_markdown
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -98,7 +96,7 @@ async def ingest_file(
 
     try:
         markdown = await convert_to_markdown(tmp_path)
-        _pruefe_umwandlung(markdown, lang)
+        pruefe_umwandlung(markdown, lang)
 
         zahlen = await ingest_document(session, area, title, file.filename or "", markdown)
         return _import_antwort(title, area, zahlen, preview=markdown[:500])
@@ -119,7 +117,7 @@ async def ingest_url(
         title = url
 
     markdown = await convert_url_to_markdown(url)
-    _pruefe_umwandlung(markdown, lang)
+    pruefe_umwandlung(markdown, lang)
 
     zahlen = await ingest_document(session, area, title, url, markdown)
     return _import_antwort(title, area, zahlen, preview=markdown[:500])
@@ -136,20 +134,6 @@ async def ingest_text(
     """Ingest raw markdown/text into a knowledge area."""
     zahlen = await ingest_document(session, area, title or "Manueller Eintrag", source, content)
     return _import_antwort(title, area, zahlen)
-
-
-def _pruefe_umwandlung(markdown: str, lang: Locale) -> None:
-    """Ein Fehlertext der Umwandlung wird zur HTTP-Antwort.
-
-    Erkannt am Typ, nicht am Präfix „Fehler“ (Paket 4b, A3): ein Dokument, das so
-    beginnt, ist ein Dokument. Ein Format ohne Wandler im Image (keine kaputte
-    Datei) ist 415 mit klarem Satz (Paket 4, C5), alles andere 400 (C1-e).
-    """
-    if not isinstance(markdown, Umwandlungsfehler):
-        return
-    if markdown.startswith(FORMAT_NICHT_LESBAR):
-        raise HTTPException(status_code=415, detail=msg(lang, "ingest.formatUnsupported"))
-    raise HTTPException(status_code=400, detail=str(markdown))
 
 
 def _import_antwort(title: str, area: str, zahlen: ImportZahlen, **extra: Any) -> dict:

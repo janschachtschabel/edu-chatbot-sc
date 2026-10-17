@@ -1,6 +1,6 @@
 # Offene Befunde und Todo
 
-Stand 2026-09-29 (Zwischenstand), nachgezogen 2026-10-03 nach Paket 4 und 2026-10-08 nach Paket 4b und 4c. Diese Liste sammelt an einer Stelle, was nach diesem Stand offen ist, jeweils mit Quelle.
+Stand 2026-09-29 (Zwischenstand), nachgezogen 2026-10-03 nach Paket 4 und 2026-10-08 nach Paket 4b, 4c und 6, 2026-10-09 nach Paket 7, Paket 8 und Paket 9, 2026-10-14/15 nach Paket 10. Diese Liste sammelt an einer Stelle, was nach diesem Stand offen ist, jeweils mit Quelle.
 Erledigtes steht in den Logs der Pläne, nicht hier. Wer einen Punkt erledigt, streicht ihn hier und
 trägt ihn im Log des zugehörigen Plans ein. Zeilennummern gelten für den Stand 2026-09-29.
 
@@ -15,6 +15,13 @@ Die zugehörigen Pläne:
 - **Paket 4b (Folgebefunde aus Paket 4):** [`2026-10-08-paket-4b-folgebefunde.md`](plans/2026-10-08-paket-4b-folgebefunde.md) — erledigt dort: Studio-Auslieferung mit `Cache-Control` (früher §1.5), zehn `role="status"`-Stellen, `type` beim Speichern, Umwandlungsfehler am Typ statt am Präfix, Datenbankfehler als 400 mit Bereich.
 - **Paket 4c (Rest aus den Reviews):** [`2026-10-08-paket-4c-rest-aus-den-reviews.md`](plans/2026-10-08-paket-4c-rest-aus-den-reviews.md) — erledigt dort: URL-Import ohne markitdown, Wert ohne JSON als 400 mit Bereich, Ansage „kein Werkzeug“ im MCP-Abgleich, „nicht gesetzt“ und „leer“ im Formular unterscheidbar.
 - **Befund Kontext-Ping (2026-10-08):** [`2026-10-08-befund-abnahme-nach-kontext-ping.md`](plans/2026-10-08-befund-abnahme-nach-kontext-ping.md) — erledigt dort: Die Schreib-Abnahme verfiel an einem Zug, den die Person nie sah (Kontext-Ping, Tour-Tick ohne Tour). Auf „bestätigen“ kam deshalb wieder eine Vorschau.
+- **Paket 6 (Plan-Rest, Werkszustand, Aufräumen):** [`2026-10-08-paket-6-plan-rest-und-werkszustand.md`](plans/2026-10-08-paket-6-plan-rest-und-werkszustand.md) — erledigt dort: ST-3d, ST-4c und die Architektur-Referenz (früher §6), der Werkszustand per Seed-Prüfung und Kommandozeile, sieben Punkte aus §5 (ReDoS, URL-Import-Frist, DB-Tore in der CI, „Tool not found“, `sources: []`, Umwandlungsfehler, wirksame Wissensbereiche), die Untersuchung des Gatekeeper-Skills (früher §3) samt drei Folgebefunden.
+- **Paket 7 (Entscheide vom 2026-10-09):** [`2026-10-09-paket-7-entscheide.md`](plans/2026-10-09-paket-7-entscheide.md) — erledigt dort: Seitentext und System-Blöcke auf dem Responses-Weg (früher §1.1, Phase R samt Nachmessung), aus §2 die Fragen zum Responses-Plan, die ST-5-Befunde 1 und 2, D-10/D-11 (Kosten in EUR), `AgentLimits.safety`, Ablehnungen als ERROR (bleibt), GV-RED-1 (nur auf Abruf), B-H3 (Schreiben nur mit eigenem Konto, Gastkonto per Studio-Schalter), C-H1 (Sitzungssperre über alle Kopien), `markitdown`-Extras samt MPL-2.0-Ausnahme, SSE-Abbruch (zu Ende rechnen), B-API-Moderation, Moderations-Schwelle, Vorgabe-Maschine (Agent), Agent-Schnellantworten, Fast-Modus und Token-Streaming (Studio-Schalter), RAG neben der Klassifikation (Einbettung vorab), Antwortsprache, Kontext-Gruß beim Sprachwechsel, M10 und „Freigabe“; aus §3 die Folgezug-Messung (E-C); aus §5 vier Einstellungen ohne Leser und die Skill-Suche der Testinstanz (S5: `search_skill` nur Rückfall, standardmäßig verborgen).
+- **Paket 8 (Antworten vom 2026-10-09):** [`2026-10-09-paket-8-antworten.md`](plans/2026-10-09-paket-8-antworten.md) — erledigt dort: `retention_days` (früher §1.2: Lösch-Lauf alle 6 Stunden, Studio-Panel „Aufbewahrung“), aus §2 die AcademicCloud-Modelle (L8: lauffähig, nicht Vorgabe; Einbettung über `/openai`), die Parallelität `b-api-openai` (20), P5-7 (HSTS und CSP für das Studio — damit auch die CSP/HSTS-Frage aus Audit 2026-09-29 §10), die Krisen-Andeutungen (Wendungen im Regex-Gate) und die Erklärung zu C1.
+- **Paket 9 (Review-Befunde zu Paket 7 und 8):** [`2026-10-09-paket-9-review-befunde.md`](plans/2026-10-09-paket-9-review-befunde.md) — erledigt dort: alle Befunde des Reviews vom 2026-10-09 (3 CRITICAL, 9 MAJOR, 26 MINOR, die NITs, V1–V8); zwei Vorschläge mit Begründung nicht übernommen, zwei Dateien bewusst nicht geteilt (Log dort).
+- **Paket 11 (Fremde MCP-Server, Einbettungswechsel, Anmeldungs-Dokument):** [`2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md`](plans/2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md) — erledigt dort: Werkzeuge weiterer MCP-Server (nur lesend, eigener Namensraum, Review 8/8 behoben), Kommando zum Einbettungswechsel, Studio-Akzentfarbe, Dokument für das MCP-Team, Prüfung auf Drittressourcen (nichts gefunden).
+- **Paket 10 (drittes Audit vom 2026-10-10 und Paket-9-Prüfer):** [`2026-10-14-paket-10-drittes-audit.md`](plans/2026-10-14-paket-10-drittes-audit.md) — erledigt dort: alle Befunde aus Fehlerprotokoll und Kurzaudit, die sich am Quelltext bestätigten (H-2, H-3, M-1 … M-8, L-1, L-3, L-4, L-5, L-7, L-9, L-12, A-1, A-3, A-8, A-10, S-1, Drift), M-3 gemessen (trägt heute nicht), dazu die 14 Befunde des Paket-9-Prüfers (P9-1 kritisch: Suchen nach `query_knowledge` galten als „nicht im Katalog“). Entscheidungen (H-1, S-2, S-6(b) und A-6 gefallen, S-7 umgesetzt; A-2, A-4, A-7, A-9, P9-3 offen) in `entscheidungen-offen.md`.
+- **Paket 12 (Werk und eigene Fassung):** [`2026-10-16-paket-12-werk-und-eigene-fassung.md`](plans/2026-10-16-paket-12-werk-und-eigene-fassung.md) — Werksfassung (Seed) plus umschaltbare eigene Fassung je Bereich, `migrate` = Werksabgleich, Review behoben.
 - **Paket 4 (externes Audit und Restliste):** [`2026-10-03-paket-4-audit-extern.md`](plans/2026-10-03-paket-4-audit-extern.md).
   - Status: freigegeben und umgesetzt 2026-10-03 (Phasen V, A–E, L, S; Log im Plan). Zurückgestellt an Paket 5 bzw. ins Backlog: siehe Plan §5/§6.
   - Er gleicht das externe Audit [`audits/2026-10-03-audit-extern.md`](audits/2026-10-03-audit-extern.md) (Stand `610abec`) mit `e38006d` ab.
@@ -23,23 +30,11 @@ Die zugehörigen Pläne:
 
 ## 1 Befunde mit Wirkung im Betrieb
 
-1. **Seitentext und System-Blöcke auf dem Responses-Weg.**
-   - Zusammenfügen: LiteLLM verbindet die `system`-Blöcke mit einem Leerzeichen zu `instructions`, Überschriften stehen dadurch mitten in der Zeile.
-   - Fremdtext:
-     - Ein Satz aus dem Seitentext stand wörtlich in `instructions`, also Fremdtext auf Systemebene.
-     - Kompendium, Volltext und Beschreibung stehen ungerahmt im Seitenblock.
-   - Cache:
-     - Jede Änderung auf Systemebene kostet den ganzen Cache. Auf einer neuen Seite kamen 0 von 18 674 Token aus dem Cache.
-     - Die Begründung „stabiles Präfix“ in `graph/nodes/respond_agent.py` trifft deshalb nicht zu.
-   - Messung:
-     - Gegen OpenAI direkt gemessen (`gpt-6-luna`).
-     - Die b-api-openai ist wahrscheinlich ebenso betroffen, dort aber nicht gemessen. LiteLLM leitet ab gpt-5.4 Aufrufe mit Werkzeugen über `/v1/responses`.
-   - Vorschläge A–D und N stehen im Responses-Plan.
-2. **`retention_days` ohne Wirkung.**
-   - Das Feld steht zweimal in `domain/config_models/base_governance.py` (Z. 66 und 134). Kein Code liest es, einen Lösch-Job gibt es nicht.
-   - Die Einstellung verspricht also eine Aufbewahrungsfrist, die niemand durchsetzt.
-3. **Befunde aus dem Audit 2026-09-29**, die noch offen sind: siehe [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md), Abschnitte 6–9. Behoben sind die Punkte der Tabelle in Abschnitt 4a (seit Tag `0.3`).
-4. **Externes Audit 2026-10-03** (22 Befunde, Stand `610abec`), am Stand `e38006d` gegengeprüft:
+1. **Klassifikator ohne Prompt-Cache auf dem Responses-Weg** (abgeleitet in Paket 7, nicht gemessen; nur Muster-Modus).
+   - Der Systemprompt des Klassifikators endet mit dem Zug-Kontext (Zugzähler, Zustand, Entities — `services/classify_prompt.py`, `_dynamic_block`). Auf `/v1/responses` steht er ganz in `instructions`, und jede Änderung dort kostet den ganzen Cache (Responses-Plan §2.4). Bei gpt-6 über OpenAI direkt wäre damit jede Klassifikation ungecacht.
+   - Hebel wie in Paket B: den Zug-Kontext als Nachricht hinter den festen Teil setzen. Vorher nachmessen (`usage.cached_tokens` je `classify`-Phase im Debug-Block).
+2. **Befunde aus dem Audit 2026-09-29**, die noch offen sind: siehe [`audits/2026-09-29-audit.md`](audits/2026-09-29-audit.md), Abschnitte 6–9. Behoben sind die Punkte der Tabelle in Abschnitt 4a (seit Tag `0.3`).
+3. **Externes Audit 2026-10-03** (22 Befunde, Stand `610abec`), am Stand `e38006d` gegengeprüft:
    - 12 gelten weiter, 7 sind teilweise behoben, 3 sind behoben bzw. ohne die behauptete Wirkung.
    - Abgleich, Vermerke und Zuordnung stehen im Paket-4-Plan, §1.
    - Neu gegenüber dieser Liste:
@@ -50,77 +45,20 @@ Die zugehörigen Pläne:
      - MCP-Cache ohne Server;
      - Konfig-Abrufe überholen sich.
    - Paket 4 (2026-10-03/04) hat alle Befunde behoben, die nicht auf eine Entscheidung warten. Offen sind die Paket-5-Punkte (Plan §5) und das Backlog (Plan §6).
-
+- **Vorschläge C-1…C-6 aus dem MCP-Feedback** (Paket 11; C-5 und der Teil von C-3 zu `search_skill`/`excludeNodeIds` umgesetzt in J, C-1 umgesetzt in L — der Rest wartet auf den MCP-Neubau): Plan Paket 11, Abschnitt „Vorschläge für den Chatbot aus dem MCP-Abgleich“; Feedback an das MCP-Team in [`mcp-feedback-werkzeuge.md`](mcp-feedback-werkzeuge.md) — u. a. `lookup_wlo_vocabulary`-Beschreibung (verursacht 339 unnötige Aufrufe), Karten aus `structuredContent`.
+- **Chat-Proben 2026-10-17** (16 Abläufe + Wiederholungen am Testcontainer, Vokabular und Master-Skill-Kurzfassung):
+  - Vokabular-Abgleich trägt: Fach, Stufe (auch „Klasse 6“, „Sek 2“), Inhaltstyp (auch „Podcast“ → Audio) und Lizenz (OER, `CC BY-SA 4.0` → `CC_BY_SA`, gemeinfrei → `PDM`; Unbekanntes fällt weg).
+  - Behoben am selben Tag: Platzhalter „ein Thema“ auf einer Sammlung → Seitenregel im Code (`seitenkontext_prompt`) plus Master-Skill; Filter sparsam (Nutzer-Vorgabe: Fach, Bildungsstufe, Inhaltstyp; Lizenz und Zielgruppe nur auf Wunsch — Master-Skill und Werkzeugbeschreibungen); Anrede bleibt im Gespräch; Rettung ohne Treffer führt die Schritte selbst aus; Quiz-Lösungen mit Begründung; Kernbegriff auch in der Sammlungssuche; Muster-Modus ersetzt die Antwort bei 0 Inhaltstreffern nicht mehr durch „… dort finden Sie die gefilterten Treffer“.
+  - Zweite Runde (Image `proben-lokal`, Master-Skill 19/19 im Knoten): Platzhalter auf der Sammlung 5/5 erst Rückfrage mit drei Unterthemen (vorher 2/6); kein Lizenz- oder Zielgruppenfilter ohne Wunsch (Eltern, Videos ohne OER); Rettung führt Lockerung selbst aus; Quiz mit Begründung — danach ergänzt: richtige Antwort über die Positionen verteilen (war fünfmal „A“).
+  - Beobachtet, nicht geändert: bei „Bruchrechnen für Eltern“ setzte der Agent `Sekundarstufe I` ohne Stufenangabe; bei unklarer Zielgruppe duzt er auf einer Sammlung meist; im Muster-Modus suchte eine Folgesuche einmal mit dem ganzen Nutzersatz (Muster-Prompts, nicht der Master-Skill).
+  - Dritte Runde (gleicher Tag), Beobachtungen gelöst: Vorabsuche übernimmt die Entität `lizenz` (Programmfehler, `prefetch`); Beispiel `Alle OER` → `OER` in `04-entities` (Server ignoriert „Alle OER“: 3 616 Treffer wie ungefiltert, „OER“ 941); Domänenregeln (`02-domain/domain-rules.md`, Muster-Modus): `query` nur Kernbegriff auch in Folge- und Rettungssuchen, Filter sparsam, verlangte Lizenz bleibt gesetzt; Master-Skill: Stufe und Fach nie aus dem Thema erschließen, Anleitungen/Kompendium/Seitentext geben keine Anrede vor, Rettung lockert zuerst Inhaltstyp und Stufe, eine verlangte Lizenz nur mit Hinweis. `quick_replies.max_count` bleibt 2 (Studio-Einstellung); der Master-Skill verlangt keine drei Vorschläge mehr.
+  - Vierte Runde (Master-Skill 22/22 im Knoten): keine erfundene Stufe mehr (Bruchrechnen für Eltern); verlangte OER-Lizenz bleibt im Muster-Modus gesetzt, der Agent lockert sie nur mit Hinweis; Anrede bei unklarer Zielgruppe in allen Rückfragen „Sie“; Platzhalter auf der Sammlung 3/4 erst Rückfrage (zusammen mit Runde 2: 8/9); Quiz verteilt die richtige Antwort, die Begründung fehlte in 1 von 2 Läufen — Kandidat: Format-Beispiel „1. B – weil …“ in M10.
 ## 2 Entscheidungen des Nutzers
 
-- **Responses-Plan (§9):**
-  - Umfang von A: beide OpenAI-Wege oder nur der für gpt-6?
-  - B:
-    - Die Kostenfolge bei großen Volltexten steht in §4.2.
-    - Der Wortlaut der Seitenregeln steht in §6, Task B3; danach braucht es einen Golden-Lauf.
-  - „Zuletzt gezeigt“: so lassen oder umbauen? Der Block steht vor der Nachricht. Ab dem Folgezug trifft der Cache deshalb nur noch den Systemteil.
-  - Paket D: der UI-Box-Status wandert an die Werkzeug-Nachricht und weicht damit bewusst von ALT ab.
-  - Offen ist auch, ob AcademicCloud zwei `user`-Nachrichten hintereinander verträgt.
-- **ST-5-Lesart, Befunde 1 und 2** (Betriebsmodi-Plan §13, Zeile „ST-5-Lesart: vier Befunde“; Befund 4 erledigt in Paket 3):
-  - **Befund 1:** `create-triggers` und `edit-triggers` sind überholt.
-    - Im ALT sind sie seit Welle E stillgelegt; die Erstell-Verben wirken heute über `classify-overrides`.
-    - Empfehlung: bereinigen, also Modell, Seeds, Lader, Heuristiken, Studio-Abschnitte, Texte und Tests. Dabei fallen Dateien weg.
-  - **Befund 2:** `01-base/rag-retrieval` wird von beiden Maschinen gelesen, ist aber nicht registriert.
-    - Empfehlung: mit leerem Seed registrieren. Das Studio weist dann darauf hin, dass Umgebungsvariablen Vorrang haben.
-    - Alternative: den nie beschreibbaren YAML-Zweig streichen.
-- **D-10 und D-11** (Betriebsmodi-Plan §11):
-  - D-10: Ersetzt oder ergänzt der Master-Skill im Muster-Modus Grundpersona und Domänen-Regeln?
-  - D-11: In welcher Währung rechnet die Preistafel? Lokal steht sie auf USD.
-  - Aufräumen: D-8 ist durch den Bau von ST-1, ST-2, ST-6 und ST-9 erledigt, steht im Plan aber noch als offen.
-- **Studio-Akzent als Textfarbe:**
-  - `--st-accent` erreicht 4,5:1 nur auf Weiß. Der aktive Navigationspunkt liegt bei 4,15:1, Links auf `--st-bg` bei 4,43:1.
-  - Ein dunklerer Akzent wie `#1b64d9` läge überall bei mindestens 4,86:1. Das ist eine Frage der Markenfarbe.
-- **`AgentLimits.safety`** (`domain/config_models/engine.py:119`) hat keinen Leser, das Sicherheits-Gate läuft immer.
-  - Entweder das Feld entfernen oder es bewusst stehen lassen. Der heutige Zustand ist der sichere.
-- **Ablehnungen als ERROR** (`services/mcp/transport.py:166`):
-  - Senkt man sie auf WARNING, verlieren auch edu-sharing-Ausfälle den ERROR-Alarm, die der MCP-Server als Werkzeugfehler meldet.
-- **GV-RED-1** schreibt real auf Staging (Muster-Modus; im Agent-Modus nur mit persönlicher Anmeldung, die Golden-Läufe nicht haben). Soll der Fall im Standard-Set der Golden-Suite bleiben?
-- **Audit 2026-08-12:**
-  - F-2: Die zwei High-CVEs in Angular und DOMPurify anheben oder als Restrisiko festhalten?
-  - F-6: Persistenz-Reihenfolge im Zug-Abschluss.
-- **Audit 2026-09-29, Abschnitt 10** (Details dort):
-  - B-H3: Kuration unter dem Dienst-Token nur mit persönlicher Anmeldung oder mit ausdrücklichem Schalter?
-    - Stand Paket 2 (2026-10-01): Der Agent-Zug reicht eine Schreib-Abnahme nur bei persönlicher Anmeldung in die Sitzung (Nutzer-Entscheid 2026-08-12).
-    - Der Muster-Weg (S5) bietet die Kuration weiter schon mit dem Dienst-Token an, und der Vorlauf löst dort ein „ja“ ohne Rechteprüfung ein (`services/write_approval.py`, bewusst).
-  - C-H1: clusterweite Sitzungssperre (Advisory-Lock, Valkey-Lease oder `turn_count`-CAS)? Bis dahin nur eine Replik?
-  - CSP/HSTS für `/studio` oder eigener Ursprung?
-  - `markitdown`-Extras für PDF/DOCX-Ingest; MPL-2.0 als Lizenz-Ausnahme?
-  - SSE-Abbruch: verlassenen Zug zu Ende führen oder abbrechen?
-  - `retention_days` (§1.2): Lösch-Job bauen oder Feld streichen?
-  - B-API-Moderation: reicht Bearer allein?
-- **Moderations-Schwellen:** Andeutungen blieben live unter den Seed-Schwellen (self_harm 0,45 und 0,28). Ein Nachjustieren wäre ein eigener Entscheid.
-- **Vorgabe-Maschine neuer Anlagen:** Der Seed setzt `01-base/engine.yaml` bewusst auf `mode: pattern` („ohne Pflege ändert sich nichts“), D-15 macht dagegen die Agent-Schleife im Betrieb zur Vorgabe.
-  - Folge: Eine Anlage ohne gespeicherte Einstellung antwortet mit der Muster-Maschine, und der Master-Skill wirkt dort nicht. So war es im lokalen Testcontainer am 2026-09-30.
-  - Entscheidung: die Seed-Vorgabe auf `agent` stellen oder je Anlage im Studio („Agent & Maschine“) umschalten?
+Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — in [`entscheidungen-offen.md`](entscheidungen-offen.md). Die Entscheide vom 2026-10-09 sind in Paket 7 und Paket 8 umgesetzt (siehe die Plan-Liste oben); offen ist:
 
-- **Kette-Plan, Agent-Schnellantworten:** `AGENT_INLINE_QUICK_REPLIES` ist gebaut und steht auf aus.
-  - Gemessen: Agent-Zug 12,2 → 6,8 s im Median, 8 von 8 Zügen per `respond_to_user`.
-  - Zum Einschalten zuerst den Master-Skill-Abschnitt „Schnellantworten“ anpassen. Der Text steht im Kette-Plan unter „Agent-Modus“, danach in die Vorlage `docs/skills/vorgehen.md` übernehmen.
-- **Kette-Plan, Fast-Modus (`LLM_SERVICE_TIER=fast`):** einsetzen oder nicht?
-  - Gemessen: Muster-Zug 9,1 → 7,7 s im Median.
-  - Dagegen stehen 4- bis 5-facher Tokenpreis und keine EU-Datenresidenz. Über die b-api ist er ungemessen, er wirkt nur bei `LLM_PROVIDER=openai`.
-- **Kette-Plan, nächste Hebel:** Token-Streaming zum Widget (Plan siehe oben, im Bau) und RAG parallel zur Klassifikation (M15: bis 2,0 s).
-- **Antwortsprache im Muster-Modus** (Paket 1, E1; gemessen 2026-10-01):
-  - Der Muster-Modus antwortet in der Sprache der Oberfläche, auch wenn die Person anders schreibt: „Antworte auf Deutsch“ (`services/response_prompt_tools_text.py:63-69`).
-  - Der Agent folgt der Sprache der Person und nimmt die Oberflächensprache als Rückfall.
-  - Frage: Soll der Muster-Modus es wie der Agent halten? Das wäre eine Prompt-Änderung, danach braucht es einen Golden-Lauf.
-- **Kontext-Gruß beim Sprachwechsel** (Paket 1, T2):
-  - Die feste Startnachricht wechselt jetzt die Sprache, der Seitengruß des Backends nicht.
-  - Grund: Er ist gespeichert, und ein zweiter Ping in derselben Sitzung wird unterdrückt (`graph/nodes/context_greeting.py`, Gate 4).
-  - Frage: Lohnt ein eigener Weg, etwa ein Ping mit „neu in dieser Sprache“, der den Gruß ersetzt?
-- **M10 widerspricht sich selbst** (gefunden 2026-10-03, Paket 4 A2):
-  - Der Muster-Text verlangt `query_knowledge` als Pflicht für Berichte. M10 steht aber auf `sources: [llm]`, und ohne `rag` bietet die Auswahl das Werkzeug nie an (`03-patterns/m10-ki-inhalt-generierung.md`).
-  - Bis zur Entscheidung bleibt `query_knowledge` auch ohne Angebot rufbar (Ausnahme in der Werkzeug-Sperre, ein Test pinnt sie).
-  - Frage: `rag` zu M10s Quellen nehmen oder die Pflicht aus dem Text streichen? Beides ändert Antworten; danach braucht es einen Golden-Lauf.
-- **„Freigabe“ als Zustimmung** (gefunden 2026-10-08, Befund Kontext-Ping):
-  - Ein Sammlungs-Gatekeeper-Skill bittet um „Freigabe“. `is_affirmation` (`domain/write_confirm.py`, `_ZUSTIMMUNG`) kennt „ja“, „bestätigen“, „ok“ usw., aber kein „Freigabe“/„freigeben“.
-  - Ein „Freigabe erteilt“ ohne „ja“ verwirft deshalb den offenen Vorgang, und es kommt eine neue Vorschau.
-  - Empfehlung: die Stämme `freigabe`, `freigeben`, `freigegeben` aufnehmen, nicht `frei` allein (sonst zählte „ist das frei verfügbar?“). Das ist eine Änderung an einer Sicherheitsregel, deshalb Nutzer-Entscheid.
+- **AcademicCloud und Einbettungen:** entschieden 2026-10-15 (so lassen); Einbettungswechsel machbar machen → Paket 11 (D), [`plans/2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md`](plans/2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md).
+- **Neue MCP-Server und ihre Werkzeuge:** Nutzer 2026-10-15: sollen nutzbar sein → Paket 11 (E). MCP- und Anmeldungs-Punkte für das MCP-Team: [`mcp-und-anmeldung.md`](mcp-und-anmeldung.md).
 
 ## 3 Messungen und Prüfungen (startet der Nutzer)
 
@@ -134,23 +72,88 @@ Die zugehörigen Pläne:
     - Kein Fehler kehrt in allen drei Läufen wieder.
     - Die Kosten je Zug liegen unter 0,00303 USD (E-5).
   - Danach über B1–B3 (Anrede) entscheiden.
-- **Responses-Plan, Paket C:** die Folgezüge mit den Rundendaten nachmessen, bevor über B entschieden wird.
+- **Golden-Läufe nach Paket 7** (beide Maschinen): Geändert haben sich der Muster-Prompt und der Klassifikator (K2 Antwortsprache, K5 M10, P4 Gastgeber-Block, E-E Seitenkontext als Daten), die Agent-Kette (Paket B, Vorabruf vor dem Verlauf), die Denkparameter (L2: Denktiefe und Ausführlichkeit kommen bei gpt-6 erst jetzt an) und die Moderations-Schwelle (K8).
+- **GWDG-Modelle und Werkzeuge — Todo außerhalb des Chatbots** (Paket 8, M1; Nutzer 2026-10-09): Vermutlich können nicht alle AcademicCloud-Modelle Werkzeuge aufrufen; das ist je Modell einzeln zu testen. Für die Vorgabe `qwen3-30b-a3b-instruct-2507` (das einzige Modell, das dort je mit 200 antwortete) ist es ungeprüft — jede Probe am 2026-10-09 endete mit 429 (Staging-B-API).
+- **E-AC-Probe:** Nimmt die AcademicCloud zwei user-Nachrichten hintereinander an? Zweimal am Ratenlimit der Staging-B-API gescheitert (429, auch `/models`). Der Transport legt sie dort inzwischen zusammen; die Probe sagt nur noch, ob das nötig ist.
+- **Golden-Lauf nach Paket 11 J–L** (beide Modi): Der Prompt nennt gesperrte Wissensbereiche nicht
+  mehr (Muster), `search_wlo_within_collection` blättert mit `skipCount` und wird abgeglichen (Agent),
+  mehrdeutige Fachwerte gehen an den LLM-Rückfall, und das Nachschlagen vor der Suche entfällt (C-1;
+  im Muster-Modus gut die Hälfte der Suchzüge). Darauf achten: Filter-Fälle (Fach, Stufe, Typ,
+  Zielgruppe, Lizenz), „mehr davon“ in einer Sammlung, Muster ohne Wissensbereiche.
+- **Token-Streaming** (seit Paket 7 Vorgabe an): der Proxy-Weg auf Staging und die NVDA-Handprobe stehen aus.
+- **T1 im Betrieb:** Die Debug-Zeilen `assess.rag_einbettung` und `respond.rag` zeigen, was die vorgezogene Einbettung spart (lokal gemessen 0,3–1 s je Wissenszug).
 - **Einbettung mit Ticket (zweite Betriebsform):** Die Live-Probe steht aus, siehe [`2026-08-12-einbettung-ohne-repo-aenderung.md`](plans/2026-08-12-einbettung-ohne-repo-aenderung.md).
 - **Befund Kontext-Ping (2026-10-08):**
   - Im Staging-Log nach der Zeile `offener Vorgang für wlo_add_to_collection verworfen — dieser Zug ist keine Antwort auf die Vorschau` sehen. Sie belegt die Ursache.
   - Nach dem Deploy denselben Ablauf wiederholen: erschließen, in die Sammlung aufnehmen, bestätigen.
-  - Nebenbefund: Der Gatekeeper-Skill der Sammlung „Optik“ ließ sich laut Verlauf mit seiner Knoten-ID nicht abrufen (`get_skill`). Das ist nicht untersucht.
+  - Nebenbefund Gatekeeper-Skill „Optik“: untersucht in Paket 6 (Phase G) — lokal nicht nachgestellt, der Skill ist öffentlich und per `get_skill` abrufbar. Zum Bestätigen im Staging-Log: `MCP tool get_skill args:` (welche Kennung das Modell übergab) und am MCP-Server `upstream returned non-OK`. Drei Folgebefunde sind behoben (Fehltreffer nicht mehr im Cache, Nachfass-Hinweis auch für den Markdown-Katalog, Schlussnotiz nicht mehr an der letzten Beschreibung).
 - **Studio:**
   - Einen Screenreader-Test gab es bisher nicht.
   - Den Start-Knopf des generativen Laufs hat niemand im Browser gesehen. Sein CSS gleicht dem gemessenen Gold-Knopf, und der Kontrast-Wächter deckt ihn ab.
 
 ## 4 Beim nächsten Deploy
 
+- **Master-Skill in WLO nachziehen** (Review 2026-10-16, Paket 11 M #3): die Vorlagen
+  `docs/skills/vorgehen*.md` empfehlen bei M05/M12 kein Nachschlagen mehr; der übertragene
+  Master-Skill in WLO sagt es noch — sonst widerspricht er den Werkzeugbeschreibungen.
+- **Paket 12 — Werk und eigene Fassung:** Migration `0011` (läuft im `migrate`-Dienst), der
+  `migrate`-Befehl heißt jetzt `import-config --werksabgleich` (`compose.prod.yml`). Beim ersten
+  Start nach dem Deploy hebt er Bereiche, deren letzte Fassung ein Import schrieb, auf die
+  Werksfassung — die fünf Bereiche aus Paket 11 L kommen so ohne Handimport an, sofern sie im
+  Studio unverändert sind. Angepasste zeigt das Studio unter Sicherung → „Werk und eigene Fassung“.
+- **Paket 11 L — fünf Konfigurationsbereiche nachziehen** (Seeds geändert; `seed` im Modus `missing`
+  ergänzt nur Fehlendes): `01-base/guardrails` (R-07), `02-domain/domain-rules` (Helfer),
+  `03-patterns/m05-material-suche-gefiltert`, `m09-lernpfad-erstellung`, `m12-null-treffer-eskalation`.
+  Im Studio von Hand (Text aus `backend/seeds/`) oder `exact` mit Sicherung. Bis dahin widersprechen
+  sich Code-Texte (kein Nachschlagen) und alte Konfiguration (R-07: Nachschlagen vor jeder Suche).
+
+- **Paket 11:**
+  - Keine neue Umgebung, keine Migration, kein Konfig-Import. Widget und Studio baut das Image selbst.
+  - Studio: Akzentfarbe `#1b64d9`; unter Wissen → MCP-Server „Werkzeuge übernehmen“ nach „Server prüfen“ (nur lesende Werkzeuge weiterer Server werden angeboten, als `<kennung>__<werkzeug>`); Werkzeugliste mit Gruppe „Extern“.
+  - Neues Kommando `boerdi rag-einbettung-wechseln [--probe | --fortsetzen]` (am `backend`-Dienst), Ablauf in `deploy/README.md` „Einbettungsmodell wechseln“.
+  - Für das MCP-Team: [`mcp-und-anmeldung.md`](mcp-und-anmeldung.md).
+  - **Reranker:** Vorgabe jetzt **aus**; eingeschaltet (`RAG_RERANKER_ENABLED=true`) bezieht das Backend das Modell selbst ins neue Volume `reranker_models` (Compose angepasst, `/models` jetzt beschreibbar). Die Schalter standen bis dahin nicht im Compose und erreichten den Container nie. Live meldet heute `model-missing` → nach dem Deploy `off`.
+  - Mit `CORS_ALLOW_ALL=false` bietet das Widget die WLO-Anmeldung nur noch Seiten aus `CORS_ORIGINS` (und Erweiterungen) an; mit der Vorgabe `true` unverändert.
+- **Paket 10:**
+  - Neue Umgebung `CLASSIFY_TIMEOUT_S` (Vorgabe 20 s, gemessen p99 6,5 s), `DB_POOL_SIZE`/`DB_MAX_OVERFLOW` (5/10 wie bisher) — in `deploy/.env.example` und `compose.prod.yml`. `stop_grace_period` 65 s (siehe Paket 9).
+  - **Echtheitsprüfung der Anmeldung:** jeder Zug mit persönlichem Block fragt einmal `wlo_auth_status` (Cache je Block 5 min). Ist der MCP-Server nicht erreichbar, gilt der Zug als anonym (enge Agent-Deckel, kein Schreibangebot). Ein abgewiesener Block fällt für den Zug weg; die Antwort trägt `auth_invalid`, das Widget bietet die Anmeldung neu an. Eine Abnahme hängt an der Person, nicht mehr am Block (ein neuer Ticket-Tausch verwirft sie nicht mehr).
+  - Studio-Proxy: ändernde Anfragen von fremden Seiten (`Sec-Fetch-Site`/`Origin`) enden mit 403.
+  - Bot-Markdown: keine Bilder, Medien oder Stile mehr; jeder Link mit `target` bekommt `noopener noreferrer`.
+  - Zustimmung zu einer Vorschau: die Erlaubnisliste (kurze Sätze aus Zustimmungs- und harmlosen Beiwörtern, „Zum Aufnehmen bestätigen“ zählt) entscheidet sofort; andere Sätze ohne Vetowort prüft ein kurzer LLM-Aufruf (Phase `zustimmung`, Frist 3 s, kostet einen kleinen Aufruf je freiem „ja“). „ok, danke“ und „Ja, gleich“ fragen weiter nach. Der Knopf „Ja, so ausführen“ bleibt der Normalweg.
+  - **`classify-overrides` importieren** (`import-config`): Kurations-Umleitung `curation_reroute` (Muster-Modus: Auftrag „in meine Sammlung aufnehmen“ → M18, mit Webadresse M20), neue I09-Trigger und Few-Shots. Ohne Import bleibt die Umleitung aus (`migrate` zieht nur fehlende Bereiche nach). Nur diesen Bereich nachziehen: `deploy/README.md`, Abschnitt „Einen einzelnen Bereich aus dem Abbild nachziehen“. Neue Logzeile `Kurations-Auftrag: … umgeleitet`.
+  - Krisen-Wendungen: weitere Formen erkannt (andere Wortstellung, Absicht „Ich überlege, mit dem Leben Schluss zu machen“).
+  - Umwandlung: Textdeckel 50 Mio. Zeichen je Datei.
+  - Ein „Ja“ zu einer Vorschau unter einer anderen bzw. hier nicht geltenden Anmeldung (neuer Tab, abgelaufen, Ticket noch nicht getauscht) bekommt jetzt einen festen Hinweis mit Anmelde-Chip statt einer neuen Vorschau. Mit `ticket` warten frühe Züge bis zu 5 s auf den Tausch. Die Vorschau-Box nennt die Frist (10 Minuten). Neue Logzeile zur Diagnose: `Anmeldung nicht prüfbar (…)`.
+  - **Widget-Bündel neu bauen** (Auftrag während des Kontext-Pings, Anmeldefenster im Klick, Fokus/IME, CRLF im Strom, Markdown, `auth_invalid`, Verlaufsnachfrage ohne `after_id`). Das Studio ist unverändert.
+- **Paket 9:**
+  - Migration `0010` (Indizes auf `messages.created_at` und `memory.created_at` für den Löschlauf) — `alembic upgrade head`, der Dienst `migrate` erledigt das beim Start.
+  - `b-api-openai` mit `gpt-6-luna` läuft jetzt über `/openai/responses` — vorher scheiterte dort jeder Werkzeugaufruf (Review CRITICAL 1). Live geprüft am 2026-10-09 (Werkzeugaufruf mit und ohne Strom).
+  - Neue Umgebung `RAG_UMWANDLUNG_FRIST_S` (120) und `RAG_UMWANDLUNG_MAX_MB` (1024): Uploads und URL-Importe werden in einem eigenen Kindprozess umgewandelt (ZIP-Bombe, PDF-Seiten, Speicher, Frist). Stehen in `deploy/.env.example` und `compose.prod.yml`.
+  - `session_id` im Chat nur noch `[A-Za-z0-9_-]{1,128}`, sonst 422 (das Widget schickt `bb-<uuid>`). `page_context` ist am Eingang gedeckelt (Feldlänge, Einträge, Tiefe). Eigene Einbettungen mit anderen Kennungen vorher prüfen.
+  - Moderation mit eigenen Plätzen (4); die Frist (8 s) gilt seit Paket 10 für Warten und Aufruf zusammen. Scheitert sie, geht die Nachricht ungeprüft weiter und das Log sagt „moderation skipped“.
+  - Aufbewahrung: auch der Gesprächsstand ruhender Sitzungen (Entities, Signale, Tour) wird nach der Frist der Verläufe geleert; die Sitzung und ihre Kosten bleiben (V7, umkehrbar). Fristen-Vorgaben des Modells jetzt 90/180 wie die Seeds.
+  - Beim Herunterfahren wartet das Backend bis 25 s auf nachlaufende Züge — erst nach den 30 s von uvicorn; `stop_grace_period` in `compose.prod.yml` deshalb seit Paket 10 65 s (vorher 40 s, zu knapp).
+  - Kosten: Probeläufe von „Auftrag testen“ im Studio buchen als `studio-probe` und zählen nicht als Produktion.
+  - **Widget-Bündel neu bauen** (Verlaufsnachfrage mit echter Frist und Abbruch, „beschäftigt“/„veraltet“, Druckfenster); CORS gibt dafür `Retry-After` frei. Studio neu bauen (Aufbewahrung, Sicherungs-Panels, Kosten, Texte).
+- **Paket 8:**
+  - Vorgabe-Modell `gpt-6-luna` für `openai` und `b-api-openai` (vorher `gpt-5.6-luna`). Es wirkt nur, wo `LLM_CHAT_MODEL` leer ist; die Schnellstart-Anleitung setzt es ausdrücklich (`LLM_CHAT_MODEL=gpt-6-luna`). Auf der AcademicCloud: Chat `qwen3-30b-a3b-instruct-2507`, Einbettung `text-embedding-3-small` über den OpenAI-Pfad der b-api.
+  - Parallelität `b-api-openai` 20 (vorher 2); eine gesetzte `LLM_MAX_CONCURRENCY` gewinnt.
+  - **Aufbewahrung greift:** Der erste Lauf, 5 Minuten nach dem Start, löscht endgültig **Chatnachrichten und Sitzungsgedächtnis älter als 30 Tage** (Vorgabe, auch ohne Eintrag in der gespeicherten Konfiguration), Sicherheits-Einträge älter als ihre Frist (90 Tage) und Qualitäts-Einträge (180 Tage) — seit Paket 9 sind das auch die Vorgaben des Modells, nicht nur der Seeds. Wer ältere behalten will, setzt die Frist vorher auf 0 (Studio: „Datenschutz“ bzw. „Identität & Schutz“). Was fällig ist, zeigt das Panel „Aufbewahrung“. Die Sitzungen und ihre Verbrauchszahlen bleiben. Beide Protokolle halten die ersten 500 Zeichen je Nachricht länger als die Nachrichten selbst — das Qualitätsprotokoll 180 Tage, das Sicherheitsprotokoll 90 Tage und dazu die IP (riskante, gedrosselte oder mit `log_all_turns` alle Züge). Angleichen, falls das nicht gewollt ist.
+  - Krisen-Wendungen im Regex-Gate (23 Muster, eingebaut): Treffer gehen auf das Krisen-Muster bzw. die Krisen-Antwort des Agent-Endpunkts.
+  - HSTS (ein Tag) und die CSP der Studio-Seite (durchgesetzt) — `HSTS_MAX_AGE`, `STUDIO_CSP` in der `.env`, leer = Vorgabe. Abnahme in `deploy/README.md`. Steht das Studio danach leer oder ohne Stil da: `STUDIO_CSP=report` und den Konsolen-Verstoß melden.
+  - Seeds: `01-base/safety-config.yaml` nur ein Kommentar; `01-base/privacy-config.yaml` trägt `retention_days: 30` — dieselbe Zahl gilt als Vorgabe des Modells auch ohne Import.
+- **Paket 7:**
+  - Migrationen `0007` (die toten Auslöser-Bereiche löschen), `0008` (Tabelle `session_locks`) und `0009` (`usage_events.session_id` nullbar, Spalte `quelle`) — `alembic upgrade head`, der Dienst `migrate` erledigt das beim Start.
+  - Geänderte Seeds (wirken nur in nicht gespeicherten Bereichen): `01-base/engine.yaml` (Agent, Block `betrieb`), `01-base/safety-config.yaml` (`self_harm` 0,25), `01-base/pricing.yaml` (EUR), `01-base/guide-mode.yaml`, `05-knowledge/mcp-servers.yaml`, `03-patterns/m10-ki-inhalt-generierung.md`, `eval/gold-flows.yaml` (GV-RED-1 auf Abruf). Neu: `01-base/rag-retrieval.yaml` (leer = Vorgaben des Codes; legt der Dienst `migrate` an).
+  - Das Image wird um rund 80 MB größer (`markitdown`-Extras für PDF und Office).
+  - Umgebung: siehe `deploy/.env.example` (Parallelität je Anbieter, durchgereichte Schalter; leer gilt als ungesetzt). Eine gesetzte Variable schlägt die Studio-Schalter (Fast-Modus, Token-Streaming, Agent-Schnellantworten).
+  - Studio, Agent & Maschine → Betrieb: Agent-Schnellantworten erst nach dem Übertragen des Master-Skill-Abschnitts „Schnellantworten“ einschalten. Das Gastkonto-Schreiben bleibt aus, bis es jemand bewusst einschaltet.
+  - Seit dem Review trägt der `connected`-Rahmen des Chat-Stroms `history` und `after_id`, und ohne gespeicherten Verlauf bricht ein aufgelegter Zug wieder ab. Ein Widget aus dem Browser-Cache, das die Angaben nicht kennt, holt die Antwort weiter aus dem Verlauf; nach einem Hard-Reload gilt der neue Weg.
 - **Migrationen `0004` bis `0006`** — `alembic upgrade head` ausführen; der Dienst `migrate` in `compose.prod.yml` erledigt das beim Start:
   - `0004`: `usage_events.engine`, nullbar, reine Katalogänderung.
   - `0005`: drei Indizes auf Sitzungs-Log, Qualitäts-Log und Konfig-Historie.
   - `0006` (Paket 4, E2): höchstens ein laufender Eval-Lauf. Überzählige `running`-Reste gehen dabei bis auf den jüngsten auf `failed`.
-- **Vorgabe `BACKEND_REPLICAS` ist jetzt 1** (Paket 4, L4). Wer bisher ohne Eintrag lief, hatte drei Replikas und hat nach dem Deploy eine. Bewusst mehr erst nach C-H1 (Sitzungssperre über Replikas); bis dahin können zwei Züge einer Sitzung parallel laufen.
+- **Vorgabe `BACKEND_REPLICAS` ist jetzt 1** (Paket 4, L4). Wer bisher ohne Eintrag lief, hatte drei Replikas und hat nach dem Deploy eine. Seit Paket 7 (P1) hält die Sitzungssperre über alle Kopien; mehr als eine Replik ist damit möglich — Entscheid beim Deploy (`docs/cluster-checkliste.md`).
 - **Geänderte Seeds** wirken nur in Bereichen, die nicht gespeichert sind:
   - Betroffen sind `01-base/engine.yaml`, `02-domain/domain-rules.md`, `03-patterns/m01-krisen-empathie.md`, `03-patterns/m02-bedrohungs-refusal.md`, `04-personas/elt.md`, `04-personas/ler.md`, `05-knowledge/rag-config.yaml` und `eval/gold-flows.yaml`.
   - Gespeicherte Bereiche im Studio abgleichen. Sicher betroffen ist die Rolle auf „Agent & Maschine“, wo sie schon gespeichert wurde.
@@ -164,42 +167,42 @@ Die zugehörigen Pläne:
 
 ## 5 Aufräumen
 
+- **Studio „Sicherung“ bei 375 px zu breit** (Browser-Abnahme Paket 12, 2026-10-16): die
+  Seite misst 442 px statt 375; Auslöser sind die bestehenden Karten „Eigener Grundstand“
+  (442 px) und „Voll-Backup“ (437 px, vermutlich das Datei-Feld) — nicht die neue Karte.
+
 - **Dateien über der 300-Zeilen-Regel** (Audit F-8), aus diesen Runden:
-  - Backend: `graph/nodes/respond_agent.py` (508; 2026-10-01 +22 für den Agent-Schnellantwort-Weg, +10 für Paket 2, 2026-10-03 +9 für das Token-Streaming), `services/agent_loop.py` (635; +16 Token-Streaming, Paket 4 B1 +116 für Frist und Quittungen, Review +12), `services/config_store.py` (316; Paket 4 D1/D4/D5, Paket 4b A4 +2, Paket 4c A2 +5 — Cache-Frische, `put_many`, Konfliktschutz; der bedingte Schreibweg und die Fehlerabbildung liegen schon in `services/config_conflict.py`), `services/write_approval.py` (372; vorher 304, Paket 2 +12 für `merke_abnahme`, Paket 4 A1 +36 für das Aufrufer-Kennzeichen, Befund 2026-10-08 +20 für Hintergrund-Züge — überwiegend Docstrings), `graph/nodes/context_greeting.py` (492; schon vorher 476 und hier nicht geführt, Befund 2026-10-08 +16 — stumme Fehlerwege des Pings), `services/llm_streaming.py` (302; vorher 266, Token-Streaming T1/T2), `services/rag/ingest.py` (321; schon vorher 304 und hier nicht geführt, Paket 4b A3 +14, Paket 4c A1 +3 — die ALT-treuen Umwandler und der Speicherweg in einer Datei; ein Schnitt: die Umwandler nach `services/rag/umwandeln.py`), `domain/pattern_engine.py` (385; schon vorher 374 und hier nicht geführt, Paket 4c Review +11 — Fidelity-Port, Laden und Wählen der Muster in einer Datei).
+  - Paket 6 hat geteilt: `services/rag/ingest.py` (→ `umwandeln.py`), Studio `schema-form/schema-form.scss` (Teildateien je Baustein, CSS byte-gleich), `views/curated-views.ts` und `i18n/catalogue/curated.ts` (nach Seitengruppen), `i18n/catalogue/area-editor.ts` (`groupSection.*` eigener Teil), `views/eval-run-detail.component.ts` (Gold-Zug-Tabelle als `eval-gold-turns`) und `schema-form/schema-field.component.ts` (Listen- und Map-Regeln in `list-items.ts`, `map-entries.ts`; die Vorlage steht mit 300 an der Grenze). Dabei vor dem Überschreiten bewahrt: `api/config_guards.py` (Fehler-Antworten nach `api/config_antworten.py`), `api/rag.py` (`api/rag_umwandlung.py`), `api/config.py` (Löschen nach `api/config_documents.py`), `views/group-section.component.ts` (`group-documents.ts`, `feld-reiter.ts`).
+  - Paket 7: `graph/nodes/respond_agent.py` (537; Paket B und E-C, überwiegend Begründungs-Kommentar; Review B-3 +3), `services/response_prompt_builder.py` (324; P4 +6, E-E +6, Review B-5 +2), `services/classify_prompt.py` (315; vorher 330), `services/tool_loop_messages.py` (373, Fidelity-Port; D, E-E, T1, Review B-5 +4), `services/page_context.py` (815; vorher 972 — der tote Regel-Zweig ist weg), Widget `shell/lifecycle.ts` (326; vorher 302, T2 und Review C-5 — die Kontext-Ping-Abläufe wären ein eigener Baustein, ein Backend-Test liest aber `PING_COVERS_BACKEND_KINDS` aus genau dieser Datei).
+  - Bisher nicht geführt, im Lauf der Pakete darüber gewachsen: `services/db_sessions.py` (339; beim ersten Einchecken 258), Widget `stream/chat-api.ts` (456; beim ersten Einchecken 286 — im Review C-3 wurde der Verlaufs-Abruf nach `stream/history-transport.ts` gelöst, statt weiter anzubauen), Widget `i18n/de.ts` (308; ein flacher Katalog, Paket 7 +5), `settings.py` (550; schon vorher 528, Paket 8 +22 für HSTS und Studio-CSP — eine flache Liste der Umgebungsvariablen), ui `print/print-utils.ts` (397; schon vorher 395 — Paket 8 hat das Verdrahten der Druckfenster nach `print-fenster.ts` gelegt statt anzubauen).
+  - Erledigt im Review: `services/llm.py` (305 → 297, B-7: die Nachrichtenform je Anbieter liegt in `services/llm_nachrichten.py`).
+  - Backend: `graph/nodes/respond_agent.py` (508 vor Paket 7; 2026-10-01 +22 für den Agent-Schnellantwort-Weg, +10 für Paket 2, 2026-10-03 +9 für das Token-Streaming), `services/agent_loop.py` (635; +16 Token-Streaming, Paket 4 B1 +116 für Frist und Quittungen, Review +12), `services/config_store.py` (321; Paket 4 D1/D4/D5, Paket 4b A4 +2, Paket 4c A2 +5 — Cache-Frische, `put_many`, Konfliktschutz; Review Paket 6 +5 für das bedingte Löschen; der bedingte Schreib- und Löschweg und die Fehlerabbildung liegen in `services/config_conflict.py`), `services/write_approval.py` (372; vorher 304, Paket 2 +12 für `merke_abnahme`, Paket 4 A1 +36 für das Aufrufer-Kennzeichen, Befund 2026-10-08 +20 für Hintergrund-Züge — überwiegend Docstrings), `graph/nodes/context_greeting.py` (493; schon vorher 476 und hier nicht geführt, Befund 2026-10-08 +16 — stumme Fehlerwege des Pings; Paket 7 T2 +1, die Entdopplung liegt in `domain/gruss_vermerk.py`), `services/llm_streaming.py` (302; vorher 266, Token-Streaming T1/T2), `domain/pattern_engine.py` (385; schon vorher 374 und hier nicht geführt, Paket 4c Review +11 — Fidelity-Port, Laden und Wählen der Muster in einer Datei). Bisher hier nicht geführt, schon vorher darüber: `services/guide_qr_injector.py` (695; Paket 6 B1 +5), `services/mcp/parsers/skill_registry.py` (462; Paket 6 G2 +13), `domain/tool_result_redaction.py` (483; Paket 6 G3 +6), `api/config_elements.py` (318; Paket 6 B5 +3), `services/mcp/client.py` (473; Paket 6 G1 +1).
   - Ältere Fidelity-Port-Dateien, die das Token-Streaming um wenige Zeilen verlängert hat: `graph/nodes/respond.py` (528), `services/tool_loop.py` (973), `domain/write_confirm.py` (448; Paket 2 +13, Befund 2026-10-08 +1), Widget `shell/chat-shell.component.ts` (862), `chat-shell.component.html` (323). Die neue Logik liegt in eigenen Modulen (`domain/stream_gate`, `domain/stream_preview`, `domain/tool_pflicht`, `services/token_stream`, `graph/nodes/respond_strom`).
   - CI: `.github/workflows/image.yml` (386; Paket 4 L3 samt Review, überwiegend Begründungs-Kommentar).
-  - Studio: `schema-form/schema-form.scss` (458; Paket 4c B2 +24), `views/curated-views.ts` (399), `i18n/catalogue/curated.ts` (386), `views/eval-run-detail.component.ts` (315), `schema-form/schema-field.component.ts` (320; Paket 4c B2 +9; seine Vorlage steht mit 300 genau an der Grenze), `i18n/catalogue/area-editor.ts` (306; vorher 299, Paket 4c B2 +7). Schnitte für `schema-form` und `schema-field` stehen im Betriebsmodi-Plan §9.3 (entlang der Bausteine bzw. Feldarten).
-- Der Abnahme-Zug steht im Debug- und Qualitätsprotokoll auch im Agent-Modus als `M18` (Runde-2-Plan, N-5; kosmetisch).
-- Ein Server, der „Tool not found“ als JSON-RPC-Fehler meldet, landet als `transport` in der Wiederholung. Der eingestellte Server meldet es als Werkzeug-Ergebnis und ist deshalb nicht betroffen.
+- Der Abnahme-Zug steht im Debug- und Qualitätsprotokoll auch im Agent-Modus als `M18` (Runde-2-Plan, N-5; kosmetisch). In Paket 6 geprüft: Die Kennzeichnung hängt an einer Stelle (`write_approval._PATTERN_ID`), die Maschine steht im Vorlauf aber nicht fest — `preflight` bekommt `engine` nicht, und der Debug-Block des Abnahme-Zugs hat kein `engine`. Eine Korrektur bräuchte drei Stellen.
+- **Reiter-Namen der Muster fest deutsch** (`views/pattern-field-tabs.ts`, `views/feld-reiter.ts`): „Identität“, „Tools & Wissen“ … und der Satz „Reiter „…““ stehen auch in der englischen Oberfläche. Älter als Paket 6 (A7), dort nur verschoben.
+- **Blockierendes `getaddrinfo` in der Restore-Prüfung** (`api/config_guards.py`): Für jeden weiteren MCP-Server eines hochgeladenen ZIPs löst die Prüfung den Namen im Ereignis-Loop auf. Selten, aber ein langsamer DNS hält dabei den ganzen Prozess an.
 - **Frontend-Tests kippen unter Last.**
   - Im vollen Lauf am 2026-09-29 fielen 5 Studio-Dateien um (`i18n/en.spec.ts`, `agent-skills`, `eval-trends`, `loadtest`, `rag-ingest`) und `ui/print/print-utils.spec.ts`; einzeln und im Wiederholungslauf grün.
   - Audit 2026-09-29: `print-utils.spec.ts` läuft jetzt mit fester Uhr, `studio/core/download.spec.ts` stellt die veränderten Globals zurück (`isolate: false`). Die übrigen Kipper ließen sich nicht reproduzieren; bei erneutem Auftreten Datei und Fehlermeldung festhalten.
 - Der Klassifikator läuft über `instructor` statt über `llm.chat_completion` und liest im Fehlerpfad nur `choices[0]` (`services/classify.py:123`).
   - Auf dem Responses-Weg liefe ein Text mit Aufruf dort ins Leere. Der Aufruf ist aber erzwungen, und ein Ausfall ist nicht beobachtet. Das ist ein Restrisiko, kein Befund.
 
-- **Aus dem Review von Paket 4 (2026-10-04), älter als das Paket:**
-  - **ReDoS in Lotsen-Regeln.** D6 prüft nur, ob ein Muster kompiliert. Ein ungünstiges Muster wie `^(\w+\s?)*$` blockiert bei einer langen Nachricht den Worker, und die Nachricht kommt von jedem Client. Vorschlag: ein Regex-Motor mit Zeitgrenze (`regex`, steht über `tiktoken` schon im Lock) oder verschachtelte Quantoren beim Speichern abweisen. Derselbe Motor könnte dann auch `pattern` in Ergebnis-Schemata prüfen; heute sind Muster dort nur ein Hinweis an das Modell (A3, Review R-2).
-  - **URL-Import: tröpfelnde Kopfzeilen.** Die Gesamtfrist schneidet den Rumpf ab (Review R-7), Kopfzeilen und einzelne Umleitungen aber nicht, weil es dann noch keine Antwort gibt. Nur über das Studio erreichbar. Vorschlag: den Abruf über `httpx` (async) unter `asyncio.timeout` legen.
-- **Aus dem Review von Paket 4c (2026-10-08), älter als das Paket:**
-  - **`PUT /api/config/patterns` macht aus `sources: []` „nicht gesetzt“.** Die ALT-Route schreibt `sources` nur, wenn die Liste nicht leer ist (`api/config_elements.py`, `_pattern_frontmatter`). Ein ausdrückliches „keine Quelle“ wird nach GET→PUT zu `["mcp"]`; derselbe Kipp, den R-10 für `rag_areas` behoben hat. Nur über die API, das Studio speichert über `PUT /config/data`. Vorschlag: `PatternEntry.sources` als `list[str] | None` und schreiben, wenn nicht `None` (ändert den OpenAPI-Vertrag).
-  - **Umwandlungsfehler beim RAG-Import:** Die Texte sind fest deutsch und werden roh durchgereicht (`api/rag.py`). Ein fehlendes Paket im Image antwortet 400, obwohl es ein Fehler des Servers ist. A1 hat das Verhalten des Datei-Wegs übernommen, wie geplant.
-  - **Tests werden unter Last still übersprungen.** Module mit `pytestmark = skipif(not pg_utils.dev_db_ready())` prüfen beim Einsammeln mit 3 s Frist. Gibt die Verbindung unter Last nach, fällt das ganze Modul ohne Fehler aus. Am 2026-10-08 traf es `test_guide_mode_endpoint.py` (9 Tests) in einem vollen Lauf, während eine andere Sitzung parallel testete. In der CI hieße das: grün, obwohl nicht geprüft. Vorschlag: längere Frist, oder in der CI (`CI=true`) scheitern statt überspringen.
-- **Aus dem zweiten Review von Paket 4b (2026-10-08):** Die drei Code-Befunde sind in Paket 4c erledigt (URL-Import, Wert ohne JSON, Ansage „kein Werkzeug“). Offen bleibt:
-  - **Testinstanz: MCP-Registry gegen den Server.** Die Registry erwartet `search_skill`; der installierte WLO-MCP-Server läuft mit `WLO_DISABLE_SKILL_SEARCH` und bietet es nicht an. Damit scheitert die Skill-Suche im Studio. Eine Konfigurationsfrage für den Betrieb: das Werkzeug in der Registry streichen oder die Skill-Suche am Server einschalten.
-- **Studio-Startpaket 1,08 MB** (gemessen 2026-10-03, Paket 4 L1). Angular 22.2 weist den gemeinsamen Chunk (`@angular/core` u. a.) richtig als initial aus; 22.1 nannte ihn „lazy“, geladen wurde er schon immer beim Start.
+- **Rest aus dem ReDoS-Befund (Paket 4, Review):** Der Motor mit Zeitgrenze (`domain/regel_regex`, Paket 6 B1) könnte auch `pattern` in Ergebnis-Schemata prüfen; heute sind Muster dort nur ein Hinweis an das Modell (A3, Review R-2). Eine Idee, kein Befund.
+- **Aus dem zweiten Review von Paket 4b (2026-10-08):** Die drei Code-Befunde sind in Paket 4c erledigt (URL-Import, Wert ohne JSON, Ansage „kein Werkzeug“); die Skill-Suche der Testinstanz ist in Paket 7 entschieden (S5).
+- **Studio-Startpaket 1,10 MB** (Build 2026-10-09 nach Paket 7, noch ohne Warnung; nach Paket 6 1,09 MB, 2026-10-03 nach Paket 4 L1 1,08 MB). **Seit dem Review von Paket 7 meldet der Build die Warnung: 162 Byte über 1,1 MB** (die berichtigten Studio-Texte C-7…C-11), **seit Paket 8 6,1 kB darüber** (Texte des Aufbewahrungs-Panels, de/en). Der Fehler kommt bei 1,2 MB; die CI wertet die Warnung nicht als Fehler. Angular 22.2 weist den gemeinsamen Chunk (`@angular/core` u. a.) richtig als initial aus; 22.1 nannte ihn „lazy“, geladen wurde er schon immer beim Start.
   - Größter Posten: beide Sprach-Kataloge des Studios, 434 kB, eager (`i18n/de.ts`, `i18n/en.ts`).
-  - Das Budget ist an den echten Stand angepasst (Warnung 1,1 MB, Fehler 1,2 MB). Ein möglicher Schnitt: `en` erst beim Umschalten laden.
-- **Wirksame Wissensbereiche je Muster** (externes Audit F13, Verbesserung): Seit Paket 4c (B2) unterscheidet das Formular „nicht gesetzt“ (es gilt die Vorgabe) von „leer“ und bietet „Vorgabe wiederherstellen“. Welche Bereiche damit tatsächlich wirken (alle aus dem Katalog, falls `rag` unter den Quellen steht), zeigt es noch nicht an.
+  - Das Budget ist an den echten Stand angepasst (Warnung 1,1 MB, Fehler 1,2 MB). Der Schnitt „`en` erst beim Umschalten laden“ hieße, jeden Katalogteil auf zwei Dateien zu verteilen — gegen die bewusste Regel „beide Sprachen beieinander“ (`catalogue-part.ts`). Entscheid 2026-10-09: so lassen, solange das Budget hält. **Nutzer, Nachfrage zu Paket 8:** das Studio wird selten aufgerufen — etwas über der Warnschwelle ist kein Problem.
 
 - **Einstellungen ohne Leser** (gefunden 2026-10-01 beim Bau der Konfigurations-Grafiken, Stand `1f069e9`). Das Studio bietet sie an, der Code liest sie nicht:
-  - `01-base/engine`: `agent.safety` (nur in `domain/config_models/engine.py:119`).
-  - `01-base/safety-config`: `confidence_adjustments` (nur in `domain/config_models/base_governance.py`); `retention_days` siehe §1.2. `extra_crisis_terms` und `extra_pii_terms` wirken seit Paket 4 (D8).
+  - (`retention_days` liest seit Paket 8 der Aufbewahrungs-Lauf; `agent.safety`, `confidence_adjustments`, `default_enabled` des Lotsen und `inline_result_grouping` im Muster-Prompt sind in Paket 7 gestrichen bzw. repariert.)
   - `01-base/display-rules`: `quick_replies.inline_fallback_enabled` (der Lader gibt es weiter, niemand wertet es aus).
-  - `01-base/guide-mode`: `default_enabled` (so auch in `domain/area_effects.py:65`).
-  - Attribut `inline_result_grouping` im Muster-Prompt: Der Block hängt zusätzlich an `cards_enabled` (`services/response_prompt_builder.py:138-141`), und dieses Feld hat `Environment` nicht. Der Block entsteht also nie; im Agent-Weg wirkt das Attribut.
   - Umgebung: `RERANK_URL` und `TEXT_EXTRACTION_URL` stehen nur in `settings.py`.
+  - Der ALT-Zweig `cards_enabled` im Muster-Prompt bleibt ruhend: kein Client sendet das Feld. Daran hängt auch der UI-Box-Status, den Paket 7 (D) an die Werkzeug-Nachricht gelegt hat.
 
 ## 6 Zurückgestellte Plan-Teile
 
-- **ST-4c, ST-3d und die Architektur-Referenz (ST-5)** sind mit Z2 fällig (Betriebsmodi-Plan §9.3).
 - **B1–B3 (Anrede)** folgen nach der Nachmessung (Runde-2-Plan, Paket B).
+- ST-4c, ST-3d und die Architektur-Referenz sind in Paket 6 gebaut.
+- **Verlaufsfenster blockweise bzw. positionsunabhängig kürzen** (Rest von C1): Nutzer 2026-10-09 — erstmal lassen, viel Korrekturbedarf bei wenig Mehrwert. Erklärung und Messwerte im Paket-8-Plan, Abschnitt C.
+- **Rest von P5-7** (Paket 8, P — nicht jetzt, Gründe im Plan): Docker-Socket-Proxy, Sicherung auf einem zweiten Rechner, eigene Studio-Sitzungen statt des festen Cookie-Tokens, CORS zu (braucht die Liste der echten Einbettungen), eine CSP für die Demo-Seiten (tragen Inline-Skripte).

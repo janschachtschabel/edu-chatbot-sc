@@ -42,8 +42,5 @@ def test_belegte_faelle() -> None:
     # Kosten und Gold-Läufe gibt es für beide Maschinen.
     assert AREA_EFFECTS["01-base/pricing"] == {"pattern": "voll", "agent": "voll"}
     assert AREA_EFFECTS["eval/gold-flows"] == {"pattern": "voll", "agent": "voll"}
-    # Ihre einzigen Leser (`domain/canvas/intent.py`) ruft kein Produktionscode.
-    for area in ("05-canvas/create-triggers", "05-canvas/edit-triggers"):
-        assert AREA_EFFECTS[area] == {"pattern": "keine", "agent": "keine"}, area
     # Die Klassifikator-Achsen: die Agent-Schleife klassifiziert nicht.
     assert AREA_EFFECTS["04-intents/intents"] == {"pattern": "voll", "agent": "keine"}

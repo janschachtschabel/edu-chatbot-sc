@@ -8,23 +8,26 @@ is new (V3, JSON schema per area for the generic formly renderer).
 """
 
 import asyncio
-from urllib.parse import urlparse
 
 import yaml
-from fastapi import APIRouter, HTTPException, Response, Security
+from fastapi import APIRouter, HTTPException, Request, Response, Security
 from pydantic import BaseModel
 
+from boerdi.api.config_antworten import konflikt_antwort
+from boerdi.api.config_documents import pruefe_kennung
 from boerdi.api.config_guards import (
     _MCP_AREA,
     _assert_area_document_safe,
     _assert_servers_public,
     _resolve_area,
     is_restorable_area_key,
-    konflikt_antwort,
     modell_fehler,
+    url_einwand,
 )
 from boerdi.api.deps import Lang, require_studio_key
 from boerdi.api.schemas import ConfigFile
+from boerdi.domain.anmelde_herkunft import anmeldung_erlaubt
+from boerdi.domain.mcp_herkunft import mcp_herkunft
 from boerdi.i18n import msg
 from boerdi.services import config_loader as cl
 from boerdi.services import seed_io
@@ -94,8 +97,9 @@ async def update_config_file(file: ConfigFile, lang: Lang) -> dict:
     fehler = modell_fehler(key, data)
     if fehler:
         raise HTTPException(status_code=422, detail=fehler)
-    # Parses the same text the same way again — no await in between, so the
-    # stored document is the one just checked.
+    await pruefe_kennung(key, data, lang)  # Paket 6, S1: eine Kennung je Ordner
+    # Parses the same text the same way again — the request body cannot change
+    # in between, so the stored document is the one just checked.
     try:
         version = await cl.write_config_file(
             file.path, file.content,
@@ -103,17 +107,6 @@ async def update_config_file(file: ConfigFile, lang: Lang) -> dict:
     except ConfigConflict as e:
         raise konflikt_antwort(e, lang, anlegen=file.create) from e
     return {"status": "saved", "path": file.path, "version": version}
-
-
-@router.delete("/file")
-async def delete_config_file(path: str) -> dict:
-    try:
-        cl._validate_config_path(path)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid path") from None
-    if not await cl.delete_area(cl._strip_ext(path)):
-        raise HTTPException(status_code=404, detail="File not found")
-    return {"status": "deleted", "path": path}
 
 
 # ── MCP registry (GET list + PUT replace + POST discover). GET enriches each
@@ -180,7 +173,7 @@ async def discover_mcp_tools(lang: Lang, url: str = "") -> dict:
         # Event-Loop samt allen Chat-Zügen dieses Workers.
         await asyncio.to_thread(assert_public_url, url)
     except UnsafeUrlError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise HTTPException(status_code=400, detail=url_einwand(e, lang)) from e
     try:
         tools = await transport.discover_server_tools(url)
         return {"url": url, "tools": tools}
@@ -253,6 +246,7 @@ async def update_area_data(area: str, payload: AreaData, lang: Lang) -> dict:
     fehler = modell_fehler(key, payload.data)
     if fehler:
         raise HTTPException(status_code=422, detail=fehler)
+    await pruefe_kennung(key, payload.data, lang)  # Paket 6, S1: eine Kennung je Ordner
     try:
         version = await cl.write_area(
             key, payload.data, updated_by="studio-form",
@@ -275,19 +269,14 @@ def _mcp_auth_base() -> str:
 
     Leer bei fehlender oder unbrauchbarer Angabe; das Widget liest das als
     „diese Anlage bietet keine Anmeldung an" und bietet den Chip nicht an.
+    Dieselbe Herkunft erlaubt die CSP der Studio-Seite (``domain/mcp_herkunft``).
     """
-    roh = (get_settings().mcp_server_url or "").strip()
-    if not roh:
-        return ""
-    teile = urlparse(roh)
-    if teile.scheme not in ("http", "https") or not teile.netloc:
-        return ""
-    return f"{teile.scheme}://{teile.netloc}"
+    return mcp_herkunft(get_settings().mcp_server_url)
 
 
 # ── public: widget boot bundle (trusted_domains + header_nav + welcome) ────
 @public_router.get("/guide-mode")
-async def get_guide_mode() -> dict:
+async def get_guide_mode(request: Request) -> dict:
     """Widget boot request (P2-8) — shape identical to ALT config_areas.py:
     guide-mode config + header_nav buttons + welcome, one round-trip."""
     cfg = cl.load_guide_mode_config()
@@ -295,5 +284,11 @@ async def get_guide_mode() -> dict:
     cfg["welcome"] = cl.load_welcome_config()
     # C5-c2: neues Feld, KEIN Vertragsbruch — die Rückgabe ist ``dict``, im
     # Dokument also ein offenes Objekt. Eine eigene Route wäre einer gewesen.
-    cfg["mcp_auth_base"] = _mcp_auth_base()
+    # Nutzer-Entscheid 2026-10-15 (A-2): eine geschlossene Anlage nennt die Anmeldung nur
+    # Seiten, die sie bedient — ohne Adresse bietet das Widget weder Knopf noch Ticket-Tausch an.
+    s = get_settings()
+    erlaubt = anmeldung_erlaubt(
+        request.headers.get("origin"), allow_all=s.cors_allow_all,
+        origins=s.cors_origin_list, origin_regex=s.cors_origin_regex)
+    cfg["mcp_auth_base"] = _mcp_auth_base() if erlaubt else ""
     return cfg

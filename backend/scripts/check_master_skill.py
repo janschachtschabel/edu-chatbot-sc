@@ -7,7 +7,7 @@ beiden Zwischenspeichern vorbei, Konfiguration aus ``backend/.env``), trennt den
 Vorspann des MCP-Servers ab und wendet die Wächter aus
 ``tests/test_master_skill_vorlage.py`` an — dieselben Regeln, die die Vorlage im
 Repo hält, an einer Stelle gepflegt. Die Umformatierung des Editors (Absätze
-einzeilig, ``**M09**`` statt ``(M09)``) tragen die Wächter.
+einzeilig, ``**M09**`` statt ``(M09)``, fette Überschriften) tragen die Wächter.
 
     uv run python scripts/check_master_skill.py
 

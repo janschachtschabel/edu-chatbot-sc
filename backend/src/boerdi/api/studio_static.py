@@ -15,6 +15,11 @@ at files that no longer exist. Angular's hashed bundles are immutable, as for
 the widget. A missing path WITH a file extension is a 404, not the shell: a
 stale ``styles-*.css`` answered with ``200 text/html`` was dropped by the
 browser (``nosniff``), and the Studio stood there without styles.
+
+Content-Security-Policy (Paket 8, P2 — audit 2026-09-29, A-M6/F-M5): the studio
+page carries its own policy, on ``index.html`` and every SPA fallback. Studio, demo
+pages and rendered foreign content share one origin, so an XSS in the studio is
+admin access. ``STUDIO_CSP`` = ``enforce`` (default) | ``report`` | ``off``.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from starlette.exceptions import HTTPException
@@ -30,6 +36,7 @@ from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
 from starlette.types import Scope
 
+from boerdi.domain.mcp_herkunft import mcp_herkunft
 from boerdi.settings import get_settings
 
 log = logging.getLogger("startup")
@@ -51,8 +58,53 @@ _DATEI_ENDUNGEN = frozenset({
 })
 
 
+_CSP_KOPF = {
+    "enforce": "Content-Security-Policy",
+    "report": "Content-Security-Policy-Report-Only",
+}
+#: An origin as it may stand in a directive — a typo in ``MCP_SERVER_URL`` (a space,
+#: a semicolon) would otherwise start a directive of its own.
+_QUELLE = re.compile(r"https?://[A-Za-z0-9.-]+(?::\d{1,5})?")
+
+
+def studio_csp(mcp: str) -> str:
+    """The studio page's policy; ``mcp`` is the MCP server's origin (may be empty).
+
+    Scripts from the own origin only — which is why the studio builds without
+    Beasties' inline script (``angular.json``: ``inlineCritical: false``).
+    ``'unsafe-inline'`` for styles only: Angular inserts component styles as
+    ``<style>``. The preview loads the widget into this page: its WLO sign-in talks
+    to the MCP server directly (discovery, registration, code exchange), read-aloud
+    plays a ``blob:`` audio, cards show preview images from foreign repositories.
+    """
+    ausdrueckbar = bool(_QUELLE.fullmatch(mcp))
+    if mcp and not ausdrueckbar:
+        # IPv6-Literale und Unterstriche kennt die Host-Grammatik der CSP nicht; der
+        # Browser verwürfe die Quelle. Weggelassen — aber nicht still (Paket 9).
+        log.warning("MCP-Herkunft %r lässt sich in der CSP nicht ausdrücken — die "
+                    "Anmeldung in der Studio-Vorschau wird blockiert", mcp)
+    verbindungen = "connect-src 'self'" + (f" {mcp}" if ausdrueckbar else "")
+    return "; ".join((
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: https:",
+        "media-src 'self' blob:",
+        verbindungen,
+        "object-src 'none'",
+        "base-uri 'self'",
+        "frame-ancestors 'self'",
+        "form-action 'self'",
+    ))
+
+
 class SpaFiles(StaticFiles):
     """StaticFiles that serves ``index.html`` for unknown paths (SPA routing)."""
+
+    def __init__(self, *, csp_kopf: str = "", csp_regel: str = "", **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._csp_kopf = csp_kopf
+        self._csp_regel = csp_regel
 
     def file_response(
         self, full_path: str | os.PathLike[str], stat_result: os.stat_result,
@@ -63,6 +115,8 @@ class SpaFiles(StaticFiles):
         name = os.path.basename(full_path)
         if name == _INDEX:
             response.headers["Cache-Control"] = _NO_CACHE
+            if self._csp_kopf:
+                response.headers[self._csp_kopf] = self._csp_regel
         elif _GEHASHT.match(name):
             response.headers["Cache-Control"] = _IMMUTABLE
         return response
@@ -102,4 +156,10 @@ def mount_studio_spa(app: FastAPI) -> None:
             _INDEX,
         )
         return
-    app.mount("/studio", SpaFiles(directory=str(directory), html=True), name="studio")
+    settings = get_settings()
+    spa = SpaFiles(
+        directory=str(directory), html=True,
+        csp_kopf=_CSP_KOPF.get(settings.studio_csp, ""),
+        csp_regel=studio_csp(mcp_herkunft(settings.mcp_server_url)),
+    )
+    app.mount("/studio", spa, name="studio")

@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from boerdi.domain.werkzeug_freigabe import VORGABE_AUS, ohne_vorgabe
 from boerdi.services.config_loader import _store
 from boerdi.services.config_loader._store import area
 from boerdi.settings import get_settings
@@ -16,7 +17,8 @@ from boerdi.settings import get_settings
 logger = logging.getLogger(__name__)
 
 _PRIMARY_ID = "wlo-mcp"
-_UI_META_KEYS = ("url_source", "url_env_var", "url_readonly", "tool_descriptions")
+_UI_META_KEYS = ("url_source", "url_env_var", "url_readonly", "tool_descriptions",
+                 "werkzeuge_im_katalog", "werkzeuge_fehlen_am_server")
 _PRIMARY_SKELETON: dict[str, Any] = {
     "id": _PRIMARY_ID,
     "name": "WLO MCP",
@@ -63,7 +65,10 @@ async def save_mcp_servers(
         server = {k: v for k, v in raw.items() if k not in _UI_META_KEYS}
         if server["id"] == _PRIMARY_ID:
             server.pop("url", None)  # env-owned, never persisted
-        cleaned.append(server)
+        # Review Paket 7, A-10: die angezeigte Vorgabe der Werkzeug-Schalter nicht
+        # als gepflegte Liste festschreiben (``werkzeug_freigabe.ohne_vorgabe``).
+        cleaned.append(ohne_vorgabe(server, primaer=server["id"] == _PRIMARY_ID,
+                                    vorgabe=VORGABE_AUS))
 
     if not any(s["id"] == _PRIMARY_ID for s in cleaned):
         existing = next(

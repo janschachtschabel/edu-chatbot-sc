@@ -59,6 +59,11 @@ const AUSNAHMEN = new Map([
     + 'nicht; ein `var()` darauf wäre eine ungültige Deklaration (und damit '
     + 'gar kein Radius).',
   ],
+  [
+    'ui/src/print/print-lernpfad.ts',
+    'Aus `print-utils.ts` gelöst (Paket 9) — derselbe Grund: ein EIGENES '
+    + 'Druckdokument ohne die `--mat-sys-*`-Token des Widgets.',
+  ],
 ]);
 
 const roots = process.argv[2] ? [process.argv[2]] : DEFAULT_ROOTS;

@@ -1,0 +1,33 @@
+<!-- Review Paket 7, C-11: der Name jedes Knopfs ist kurz (aria-labelledby), die
+     Folge hängt als Beschreibung daran (aria-describedby). Das ganze Etikett
+     bleibt Klickfläche und steht sichtbar da, bevor jemand wählt. -->
+<fieldset class="rm">
+  <legend class="rm-legend">{{ t('restoreMode.legend') }}</legend>
+  <label class="rm-option">
+    <input
+      type="radio"
+      [name]="name"
+      value="merge"
+      [checked]="mode() === 'merge'"
+      [attr.aria-labelledby]="name + '-merge'"
+      [attr.aria-describedby]="name + '-merge-folge'"
+      (change)="mode.set('merge')"
+    />
+    <span><strong [id]="name + '-merge'">{{ t('restoreMode.merge') }}</strong>
+      — <span [id]="name + '-merge-folge'">{{ t('restoreMode.mergeHint') }}</span></span>
+  </label>
+  <label class="rm-option">
+    <input
+      type="radio"
+      [name]="name"
+      value="exact"
+      [checked]="mode() === 'exact'"
+      [attr.aria-labelledby]="name + '-exact'"
+      [attr.aria-describedby]="name + '-exact-folge'"
+      (change)="mode.set('exact')"
+    />
+    <!-- Das Zeichen ist nur fürs Auge; die Folge sagt der Text selbst. -->
+    <span><span aria-hidden="true">⚠ </span><strong [id]="name + '-exact'">{{ t('restoreMode.exact') }}</strong>
+      — <span [id]="name + '-exact-folge'">{{ t('restoreMode.exactHint') }}</span></span>
+  </label>
+</fieldset>

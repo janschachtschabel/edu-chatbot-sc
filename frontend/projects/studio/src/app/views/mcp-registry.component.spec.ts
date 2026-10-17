@@ -482,3 +482,145 @@ describe("McpRegistryComponent — Konflikt beim Speichern (Paket 4, D5)", () =>
     expect(req.request.body.expected_version).toBe(6);
   });
 });
+
+// ── Paket 7, S5: Werkzeuge je Server an- und abschalten ─────────────────────
+describe("McpRegistryComponent — Werkzeuge an und aus (Paket 7, S5)", () => {
+  const MIT_FREIGABE = [
+    {
+      ...SERVERS[0],
+      tools: ["search_wlo_all", "search_skill", "fremd_x"],
+      // So liefert der GET: die wirksame Liste (Vorgabe sichtbar) und welche
+      // Werkzeuge der Chatbot kennt.
+      werkzeuge_aus: ["search_skill"],
+      werkzeuge_im_katalog: ["search_skill", "search_wlo_all"],
+    },
+    SERVERS[1],
+  ];
+  const schalter = (el: HTMLElement, name: string) =>
+    el.querySelector<HTMLInputElement>(`input[data-werkzeug="${name}"]`);
+
+  it("zeigt je bekanntem Werkzeug, ob der Chatbot es anbietet", async () => {
+    const { el } = await mount(MIT_FREIGABE);
+    expect(schalter(el, "search_wlo_all")?.checked).toBe(true);
+    expect(schalter(el, "search_skill")?.checked).toBe(false);
+    // Ein Werkzeug, das der Chatbot nicht kennt, trägt keinen Schalter, der nichts täte.
+    expect(schalter(el, "fremd_x")).toBeNull();
+    expect(el.textContent).toContain("kennt der Chatbot nicht");
+  });
+
+  it("gibt jedem Schalter einen zugänglichen Namen mit dem Werkzeug", async () => {
+    const { el } = await mount(MIT_FREIGABE);
+    expect(schalter(el, "search_skill")?.getAttribute("aria-label"))
+      .toBe("search_skill anbieten");
+  });
+
+  it("macht den Werkzeugnamen zur Klickfläche und verbindet den Hinweis (Review C-10)", async () => {
+    const { el } = await mount(MIT_FREIGABE);
+    const box = schalter(el, "search_skill")!;
+    expect(box.closest("label")?.textContent).toContain("search_skill");
+    const hinweis = box.getAttribute("aria-describedby");
+    expect(hinweis).toBeTruthy();
+    expect(el.querySelector(`#${hinweis}`)?.textContent).toContain("Abgehakt bietet der Chatbot");
+  });
+
+  it("schaltet search_skill ein und speichert die Liste", async () => {
+    const { el, fixture, http } = await mount(MIT_FREIGABE);
+    const box = schalter(el, "search_skill")!;
+    box.checked = true;
+    box.dispatchEvent(new Event("change"));
+    await fixture.whenStable();
+    expect(fixture.componentInstance.dirty()).toBe(true);
+    el.querySelector<HTMLButtonElement>(".mr-save")?.click();
+    await fixture.whenStable();
+
+    const req = http.expectOne("/studio/api/config/mcp-servers");
+    const sent = req.request.body as { servers: { werkzeuge_aus?: string[] }[] };
+    expect(sent.servers[0].werkzeuge_aus).toEqual([]);
+  });
+
+  it("schaltet ein Werkzeug ab", async () => {
+    const { el, fixture } = await mount(MIT_FREIGABE);
+    const box = schalter(el, "search_wlo_all")!;
+    box.checked = false;
+    box.dispatchEvent(new Event("change"));
+    await fixture.whenStable();
+    expect(fixture.componentInstance.servers()[0].werkzeuge_aus)
+      .toEqual(["search_skill", "search_wlo_all"]);
+  });
+});
+
+describe("McpRegistryComponent — Werkzeuge übernehmen (Paket 11, E)", () => {
+  const GEFUNDEN = [
+    { name: "suche", description: "Sucht.", input_schema: { type: "object" }, read_only: true },
+    { name: "aendere", description: "Ändert.", input_schema: { type: "object" }, read_only: false },
+  ];
+
+  async function pruefe(harness: Harness, url: string): Promise<void> {
+    const { el, fixture, http } = harness;
+    const field = el.querySelector<HTMLInputElement>(".mr-discover-url");
+    field!.value = url;
+    field!.dispatchEvent(new Event("input"));
+    await fixture.whenStable();
+    el.querySelector<HTMLButtonElement>(".mr-discover-go")?.click();
+    await fixture.whenStable();
+    http
+      .expectOne((r) => r.url === "/studio/api/config/mcp-servers/discover")
+      .flush({ url, tools: GEFUNDEN });
+    await tick();
+    await fixture.whenStable();
+  }
+
+  it("übernimmt Namen, Schema und Lesend-Markierung in den eingetragenen Server", async () => {
+    const harness = await mount();
+    await pruefe(harness, "https://extra.example/mcp");
+    harness.el.querySelector<HTMLButtonElement>(".mr-adopt")!.click();
+    await harness.fixture.whenStable();
+
+    const extra = harness.fixture.componentInstance.servers()[1] as unknown as {
+      tools: string[]; tool_schemas: { name: string; read_only: boolean }[];
+    };
+    expect(extra.tools).toEqual(["suche", "aendere"]);
+    expect(extra.tool_schemas.map((t) => [t.name, t.read_only]))
+      .toEqual([["suche", true], ["aendere", false]]);
+    expect(harness.fixture.componentInstance.dirty()).toBe(true);
+    expect(harness.el.textContent).toContain("Nur lesende Werkzeuge");
+  });
+
+  it("bietet beim WLO-Server kein Übernehmen an — dessen Katalog ist fest", async () => {
+    const harness = await mount();
+    await pruefe(harness, "http://intern:8080/mcp");
+    expect(harness.el.querySelector(".mr-adopt")).toBeNull();
+  });
+
+  it("sagt bei einem schreibenden Werkzeug, warum es nicht angeboten wird", async () => {
+    const { el } = await mount([
+      SERVERS[0],
+      {
+        ...SERVERS[1], enabled: true, tools: ["suche", "aendere"],
+        tool_schemas: GEFUNDEN, werkzeuge_aus: [], werkzeuge_im_katalog: ["suche"],
+      },
+    ]);
+    expect(el.querySelector('input[data-werkzeug="suche"]')).not.toBeNull();
+    expect(el.querySelector('input[data-werkzeug="aendere"]')).toBeNull();
+    expect(el.textContent).toContain("schreibend");
+  });
+});
+
+describe("McpRegistryComponent — Werkzeug fehlt am Server (Paket 11)", () => {
+  it("sagt neben dem Schalter, dass der Server das Werkzeug nicht führt", async () => {
+    const { el } = await mount([
+      {
+        ...SERVERS[0],
+        tools: ["search_wlo_all", "search_skill"],
+        werkzeuge_aus: [],
+        werkzeuge_im_katalog: ["search_skill", "search_wlo_all"],
+        werkzeuge_fehlen_am_server: ["search_skill"],
+      },
+      SERVERS[1],
+    ]);
+    const zeile = el.querySelector('input[data-werkzeug="search_skill"]')!.closest("li")!;
+    expect(zeile.textContent).toContain("führt der Server derzeit nicht");
+    const andere = el.querySelector('input[data-werkzeug="search_wlo_all"]')!.closest("li")!;
+    expect(andere.textContent).not.toContain("führt der Server derzeit nicht");
+  });
+});

@@ -413,6 +413,38 @@ describe('SchemaFormComponent — refused map renames', () => {
     expect(byId(h.el, `${key.id}-err`)).toBe(region);
     expect(region!.textContent).toContain('ist schon vergeben');
   });
+
+  // Paket 6: die Map-Regeln stehen in `map-entries.ts`. Die Rücksetz-Prüfung
+  // oben läuft über die RAG-Karte — seit ST-3 eine Objekt-Liste, nicht dieser Zweig.
+  describe('einfache Karte (Map-Zweig des Feldes)', () => {
+    const LABELS: JsonSchema = {
+      type: 'object',
+      properties: { labels: { type: 'object', additionalProperties: { type: 'string' } } },
+    };
+
+    it('setzt den alten Schlüssel zurück, wenn der neue vergeben ist', async () => {
+      const h = await mount(LABELS, { labels: { FAQ: 'a', OER: 'b' } });
+      const key = inputFor(h.el, 'Schlüssel');
+      key.value = 'OER';
+      key.dispatchEvent(new Event('change'));
+      await h.fixture.whenStable();
+
+      expect(h.emitted).toHaveLength(0);
+      expect(key.value).toBe('FAQ');
+      expect(key.getAttribute('aria-invalid')).toBe('true');
+    });
+
+    it('benennt einen Schlüssel um und behält Wert und Reihenfolge', async () => {
+      const h = await mount(LABELS, { labels: { FAQ: 'a', OER: 'b' } });
+      const key = inputFor(h.el, 'Schlüssel');
+      key.value = 'Fragen';
+      key.dispatchEvent(new Event('change'));
+      await h.fixture.whenStable();
+
+      expect(h.emitted.at(-1)).toEqual({ labels: { Fragen: 'a', OER: 'b' } });
+      expect(Object.keys((h.emitted.at(-1) as { labels: object }).labels)).toEqual(['Fragen', 'OER']);
+    });
+  });
 });
 
 describe('SchemaFormComponent — unparseable fields are reported upwards', () => {

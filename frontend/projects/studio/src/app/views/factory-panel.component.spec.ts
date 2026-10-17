@@ -76,9 +76,9 @@ describe("FactoryPanelComponent", () => {
     });
   });
 
-  it("sagt, dass kein Werksstand da ist, statt leere Felder zu zeigen", async () => {
+  it("sagt, dass kein Grundstand da ist, statt leere Felder zu zeigen", async () => {
     const h = await mount({ exists: false });
-    expect(text(h)).toContain("Kein Werksstand gesichert");
+    expect(text(h)).toContain("Kein Grundstand gesichert");
     // Two of the four actions need a stored baseline; offering them anyway would
     // only produce a 404 ("Kein Factory-Stand gesetzt").
     expect(button(h, "Zurücksetzen").disabled).toBe(true);
@@ -97,7 +97,7 @@ describe("FactoryPanelComponent", () => {
     expect(button(h, "Zurücksetzen").disabled).toBe(false);
   });
 
-  it("fragt vor dem Überschreiben des Werksstands zurück", async () => {
+  it("fragt vor dem Überschreiben des Grundstands zurück", async () => {
     const h = await mount({
       exists: true,
       created_at: "2026-07-20T09:30:00Z",
@@ -107,7 +107,7 @@ describe("FactoryPanelComponent", () => {
     h.http.expectNone(`${FACTORY}/save`);
     expect(text(h)).toContain("überschrieben");
 
-    await click(h, "Ja, Werksstand ersetzen");
+    await click(h, "Ja, Grundstand ersetzen");
     h.http
       .expectOne(`${FACTORY}/save`)
       .flush({ status: "saved", id: "factory" });
@@ -140,11 +140,31 @@ describe("FactoryPanelComponent", () => {
 
     await click(h, "Ja, zurücksetzen");
     h.http
-      .expectOne(`${FACTORY}/restore`)
-      .flush({ status: "restored", areas: 35 });
+      .expectOne(`${FACTORY}/restore?mode=merge`)
+      .flush({ status: "restored", areas: 35, deleted: 0, snapshot_id: null });
     await settle(h);
     expect(text(h)).toContain("35");
     expect(region!.textContent).toContain("35");
+  });
+
+  // Paket 7 (P5-5): „exakt" löscht, was nach dem Werksstand dazukam.
+  it("setzt auf Wunsch exakt zurück und nennt den Rückweg", async () => {
+    const h = await mount({
+      exists: true,
+      created_at: "2026-07-20T09:30:00Z",
+      label: "x",
+    });
+    await click(h, "Zurücksetzen");
+    h.el.querySelector<HTMLInputElement>('.op-confirm input[value="exact"]')!.click();
+    await settle(h);
+    await click(h, "Ja, zurücksetzen");
+    h.http
+      .expectOne(`${FACTORY}/restore?mode=exact`)
+      .flush({ status: "restored", areas: 33, deleted: 2, snapshot_id: "snap-7" });
+    await settle(h);
+    expect(text(h)).toContain("33");
+    expect(text(h)).toContain("2 Bereiche gelöscht");
+    expect(text(h)).toContain("snap-7");
   });
 
   it("meldet einen Fehlschlag nur als Alarm, die Status-Region bleibt leer", async () => {
@@ -159,7 +179,7 @@ describe("FactoryPanelComponent", () => {
     await click(h, "Zurücksetzen");
     await click(h, "Ja, zurücksetzen");
     h.http
-      .expectOne(`${FACTORY}/restore`)
+      .expectOne(`${FACTORY}/restore?mode=merge`)
       .flush({ detail: "kaputt" }, { status: 500, statusText: "Server Error" });
     await settle(h);
     const alarm = h.el.querySelector(".op-msg--error[role='alert']")?.textContent ?? "";
@@ -193,5 +213,28 @@ describe("FactoryPanelComponent", () => {
     h.http
       .expectOne(FACTORY)
       .flush({ exists: true, created_at: "2026-07-26T12:00:00Z", label: "f" });
+  });
+
+  it("führt den Fokus in die Rückfrage und zurück zum Knopf (Paket 9, V8)", async () => {
+    const h = await mount({ exists: true, created_at: "2026-07-20T09:30:00Z", label: "alt" });
+    await click(h, "Aus Live-Stand sichern");
+    expect(document.activeElement?.textContent?.trim()).toBe("Abbrechen");
+    await click(h, "Abbrechen");
+    expect(document.activeElement).toBe(button(h, "Aus Live-Stand sichern"));
+  });
+
+  it("eine neue Datei schließt die Rückfrage, ohne den Fokus aus der Dateiwahl zu ziehen (Paket 9, V8)", async () => {
+    const h = await mount({ exists: true, created_at: "2026-07-20T09:30:00Z", label: "alt" });
+    const datei = (name: string) =>
+      ({ target: { files: [new File(["PK"], name)] } }) as unknown as Event;
+    h.fixture.componentInstance.onFile(datei("a.zip"));
+    await settle(h);
+    await click(h, "Hochladen");
+    const wahl = h.el.querySelector<HTMLInputElement>(".fp-file")!;
+    wahl.focus();
+    h.fixture.componentInstance.onFile(datei("b.zip"));
+    await settle(h);
+    expect(h.el.querySelector(".op-confirm")).toBeNull();
+    expect(document.activeElement).toBe(wahl);
   });
 });

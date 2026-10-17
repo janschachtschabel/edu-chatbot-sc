@@ -13,7 +13,7 @@ version/NOTIFY; ``invalidate_yaml_cache`` clears the process cache.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable, Mapping
 from typing import Any
 
 from boerdi.services import seed_io
@@ -84,20 +84,34 @@ async def read_area(area_key: str) -> tuple[dict[str, Any], int] | None:
 
 async def write_areas(
     items: dict[str, dict[str, Any]], updated_by: str = "studio", delete: Iterable[str] = (),
+    *, werk_hashes: Mapping[str, str] | None = None, werk_bereiche: Collection[str] = (),
 ) -> dict[str, int]:
     """Write ``items`` and drop ``delete`` in ONE transaction — all or nothing.
 
     For restore and seed apply (Paket 4, D4). Returns the version per written area.
+    ``werk_hashes``: Bereiche, die aus der Werksfassung kommen (Paket 12).
     """
     if _store is None:
         raise RuntimeError("config store not bound")
-    return await _store.put_many(items, updated_by=updated_by, delete=delete)
+    return await _store.put_many(items, updated_by=updated_by, delete=delete,
+                                 werk_hashes=werk_hashes, werk_bereiche=werk_bereiche)
 
 
-async def delete_area(area_key: str) -> bool:
+async def delete_area(
+    area_key: str, *, expected_version: int | None = None, werksbereich: bool = False,
+) -> bool:
     if _store is None:
         raise RuntimeError("config store not bound")
-    return await _store.delete(area_key)
+    return await _store.delete(area_key, expected_version=expected_version,
+                               werksbereich=werksbereich)
+
+
+def bound_store() -> ConfigStore:
+    """Der gebundene Store — für die Fassungs-Operationen (Paket 12: ``fassungen``,
+    ``umschalten`` …), die keine Lader-Entsprechung haben."""
+    if _store is None:
+        raise RuntimeError("config store not bound")
+    return _store
 
 
 def store_engine():

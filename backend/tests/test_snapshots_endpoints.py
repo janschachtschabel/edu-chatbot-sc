@@ -119,16 +119,25 @@ def test_factory_save_and_restore(cfg) -> None:
 def test_backup_download_and_restore_upload(cfg) -> None:
     client, seed = cfg
     seed("01-base/welcome-config", {"welcome": {"greeting": "Backup", "quick_replies": ["a"]}})
+    seed("01-base/notizen", {"x": 1})
     backup = client.get("/api/config/backup", headers=_AUTH)
     assert backup.status_code == 200 and backup.content[:2] == b"PK"
 
-    # wipe + restore from the downloaded zip
-    client.request("DELETE", "/api/config/file",
-                   params={"path": "01-base/welcome-config.yaml"}, headers=_AUTH)
+    # Ändern und löschen, dann aus dem ZIP zurück. Bis Review Paket 6 „löschte“
+    # der Test den festen Bereich — seit S1 abgewiesen, ungeprüft: nichts fehlte.
+    r = client.put("/api/config/welcome", headers=_AUTH,
+                   json={"greeting": "Weg", "quick_replies": ["b"]})
+    assert r.status_code == 200
+    r = client.request("DELETE", "/api/config/file",
+                       params={"path": "01-base/notizen.yaml"}, headers=_AUTH)
+    assert r.status_code == 200
     up = client.post("/api/config/restore", headers=_AUTH,
                      files={"file": ("backup.zip", backup.content, "application/zip")})
     assert up.status_code == 200
     assert client.get("/api/config/welcome", headers=_AUTH).json()["greeting"] == "Backup"
+    zurueck = client.get("/api/config/file", params={"path": "01-base/notizen.yaml"},
+                         headers=_AUTH)
+    assert zurueck.status_code == 200
 
 
 def test_restore_rejects_zip_bomb(cfg, monkeypatch) -> None:
@@ -247,6 +256,200 @@ def test_die_sicherung_kommt_aus_der_datenbank_nicht_aus_dem_cache(cfg) -> None:
         "welcome": {"greeting": "neu"}}
 
 
+# ── Paket 7 (P5, P5-5): Wiederherstellen „ergänzend“ (Vorgabe) oder „exakt“ ──
+
+def _vorher_schnappschuss(client, seed) -> str:
+    seed("01-base/welcome-config", {"welcome": {"greeting": "Original", "quick_replies": ["a"]}})
+    return client.post("/api/config/snapshots", headers=_AUTH,
+                       json={"label": "vorher"}).json()["id"]
+
+
+def _da(client, area: str) -> bool:
+    return client.get("/api/config/file", params={"path": f"{area}.yaml"},
+                      headers=_AUTH).status_code == 200
+
+
+def test_ergaenzend_laesst_neu_angelegte_bereiche_stehen(cfg) -> None:
+    client, seed = cfg
+    snap = _vorher_schnappschuss(client, seed)
+    seed("01-base/eigenbau", {"x": 1})
+    r = client.post(f"/api/config/snapshots/{snap}/restore", headers=_AUTH)
+    assert r.status_code == 200
+    assert r.json()["deleted"] == 0
+    assert r.json()["snapshot_id"] is None          # nichts gelöscht, nichts gesichert
+    assert _da(client, "01-base/eigenbau")
+
+
+def test_exakt_loescht_was_seitdem_dazukam_und_sichert_vorher(cfg) -> None:
+    """Ein neues Muster oder ein Eigenbau-Bereich verschwindet — mit Rückweg:
+    vorher entsteht ein Schnappschuss des Stands, den das Wiederherstellen ändert."""
+    client, seed = cfg
+    snap = _vorher_schnappschuss(client, seed)
+    seed("01-base/eigenbau", {"x": 1})
+    vorher = {s["id"] for s in client.get("/api/config/snapshots", headers=_AUTH).json()}
+
+    r = client.post(f"/api/config/snapshots/{snap}/restore", headers=_AUTH,
+                    params={"mode": "exact"})
+    assert r.status_code == 200
+    assert r.json()["deleted"] == 1
+    assert not _da(client, "01-base/eigenbau")
+
+    sicherung = {s["id"] for s in client.get("/api/config/snapshots", headers=_AUTH).json()}
+    neu = sicherung - vorher
+    assert neu == {r.json()["snapshot_id"]}          # die Antwort nennt den Rückweg
+    client.post(f"/api/config/snapshots/{neu.pop()}/restore", headers=_AUTH)
+    assert _da(client, "01-base/eigenbau")
+
+
+def test_exakt_ohne_platz_fuer_die_sicherung_wird_verweigert(cfg, monkeypatch) -> None:
+    client, seed = cfg
+    snap = _vorher_schnappschuss(client, seed)
+    seed("01-base/eigenbau", {"x": 1})
+    from boerdi.services import snapshots
+    monkeypatch.setattr(snapshots, "MAX_SNAPSHOTS", 1)   # der eine ist schon da
+    r = client.post(f"/api/config/snapshots/{snap}/restore", headers=_AUTH,
+                    params={"mode": "exact"})
+    assert r.status_code == 400
+    assert _da(client, "01-base/eigenbau")                 # nichts angefasst
+
+
+def test_die_sicherung_vorher_traegt_die_sprache_der_anfrage(cfg) -> None:
+    """Review Paket 7, C-11: das Etikett stand auch in der englischen Liste deutsch."""
+    client, seed = cfg
+    snap = _vorher_schnappschuss(client, seed)
+    seed("01-base/eigenbau", {"x": 1})
+    r = client.post(f"/api/config/snapshots/{snap}/restore",
+                    headers={**_AUTH, "Accept-Language": "en"}, params={"mode": "exact"})
+    assert r.status_code == 200
+    liste = client.get("/api/config/snapshots", headers=_AUTH).json()
+    label = next(s["label"] for s in liste if s["id"] == r.json()["snapshot_id"])
+    assert label == "before restore (exact)"
+
+
+def test_auch_backup_und_werkszustand_kennen_exakt(cfg) -> None:
+    client, seed = cfg
+    seed("01-base/welcome-config", {"welcome": {"greeting": "Backup", "quick_replies": ["a"]}})
+    backup = client.get("/api/config/backup", headers=_AUTH).content
+    client.post("/api/config/factory/save", headers=_AUTH)
+    seed("01-base/eigenbau", {"x": 1})
+    up = client.post("/api/config/restore", headers=_AUTH, params={"mode": "exact"},
+                     files={"file": ("backup.zip", backup, "application/zip")})
+    assert up.status_code == 200 and up.json()["deleted"] == 1
+    seed("01-base/eigenbau", {"x": 2})
+    fab = client.post("/api/config/factory/restore", headers=_AUTH, params={"mode": "exact"})
+    assert fab.status_code == 200 and fab.json()["deleted"] == 1
+
+
+def test_exakt_mit_einer_sicherung_ohne_bereiche_wird_verweigert(cfg) -> None:
+    """Review Paket 7, A-4: ein Fehlgriff bei der Datei (eine ZIP ohne ``config/``)
+    hätte die gesamte Konfiguration gelöscht — zurück nur über den Schnappschuss."""
+    client, seed = cfg
+    seed("01-base/welcome-config", {"welcome": {"greeting": "Bleibt", "quick_replies": ["a"]}})
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("fotos/urlaub.txt", "x")
+    up = client.post("/api/config/restore", headers=_AUTH, params={"mode": "exact"},
+                     files={"file": ("falsch.zip", buf.getvalue(), "application/zip")})
+    assert up.status_code == 400
+    assert _da(client, "01-base/welcome-config")
+    assert client.get("/api/config/snapshots", headers=_AUTH).json() == []
+
+
+def test_exakt_loescht_nichts_was_die_sicherung_traegt(cfg) -> None:
+    """Review Paket 7, A-4: einen Bereich, dessen Pfad die heutige Regel nicht mehr
+    zulässt (ein Unterordner unter ``03-patterns/``, vor Paket 4 noch möglich),
+    überspringt das Wiederherstellen — löschen darf es ihn deshalb nicht: er steht
+    in der Sicherung."""
+    client, seed = cfg
+    seed("01-base/welcome-config", {"welcome": {"greeting": "B", "quick_replies": ["a"]}})
+    seed("03-patterns/alt/m99", {"x": 1})
+    backup = client.get("/api/config/backup", headers=_AUTH).content
+    up = client.post("/api/config/restore", headers=_AUTH, params={"mode": "exact"},
+                     files={"file": ("backup.zip", backup, "application/zip")})
+    assert up.status_code == 200
+    assert up.json()["deleted"] == 0
+    assert "03-patterns/alt/m99" in asyncio.run(config_loader.current_config())
+
+
+# ── Paket 9 (Review Paket 7: MAJOR 5, MINOR 32) ────────────────────────────────
+
+_WILLKOMMEN = "welcome:\n  greeting: Neu\n  quick_replies: [a]\n"
+
+
+def _teil_zip(**dateien: str) -> bytes:
+    """Eine Sicherung mit genau diesen Dateien (Pfad unter ``config/`` → Text)."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for pfad, text in dateien.items():
+            z.writestr(f"config/{pfad}", text)
+    return buf.getvalue()
+
+
+def _hochladen(client, blob: bytes, mode: str = "merge"):
+    return client.post("/api/config/restore", headers=_AUTH, params={"mode": mode},
+                       files={"file": ("teil.zip", blob, "application/zip")})
+
+
+def _muster_text(kennung: str) -> str:
+    """Ein gültiges Muster aus dem Auslieferungsstand mit anderer Kennung."""
+    from pathlib import Path
+    seed = Path(__file__).resolve().parents[1] / "seeds" / "03-patterns"
+    return (seed / "m03-slot-klaerung.md").read_text(encoding="utf-8").replace(
+        "id: M03", f"id: {kennung}", 1)
+
+
+def test_exakt_laesst_feste_bereiche_und_sicherheitsmuster_stehen(cfg) -> None:
+    """Review Paket 7 (MAJOR 5): eine Teil-Sicherung mit „Exakt“ löschte die
+    Sicherheits-Konfiguration und M01 — die Moderation lief danach mit ``mode: off``.
+    Gelöscht wird nur, was auch der Lösch-Endpunkt löschen ließe."""
+    client, seed = cfg
+    seed("01-base/welcome-config", {"welcome": {"greeting": "B", "quick_replies": ["a"]}})
+    seed("01-base/safety-config", {"crisis_pattern": "M07"})
+    seed("03-patterns/m01", {"frontmatter": {"id": "M01"}, "body": "x"})
+    seed("03-patterns/krise", {"frontmatter": {"id": "M07"}, "body": "x"})
+    seed("03-patterns/m42", {"frontmatter": {"id": "M42"}, "body": "x"})
+    seed("01-base/eigenbau", {"x": 1})
+    up = _hochladen(client, _teil_zip(**{"01-base/welcome-config.yaml": _WILLKOMMEN}), "exact")
+    assert up.status_code == 200
+    assert up.json()["deleted"] == 2                 # M42 und der Eigenbau
+    live = asyncio.run(config_loader.current_config())
+    assert {"01-base/safety-config", "03-patterns/m01", "03-patterns/krise"} <= set(live)
+    assert "03-patterns/m42" not in live and "01-base/eigenbau" not in live
+
+
+def test_wiederherstellen_bringt_gestrichene_bereiche_nicht_zurueck(cfg) -> None:
+    client, _seed = cfg
+    up = _hochladen(client, _teil_zip(**{
+        "01-base/welcome-config.yaml": _WILLKOMMEN,
+        "05-canvas/create-triggers.yaml": "triggers: [mach]\n"}))
+    assert up.status_code == 200
+    assert "05-canvas/create-triggers" not in asyncio.run(config_loader.current_config())
+
+
+def test_wiederherstellen_prueft_die_kennungen_und_schreibt_nichts(cfg) -> None:
+    """Review Paket 7 (MINOR 32): das Wiederherstellen umging die Kennungsregeln des
+    Editors — M01 ließ sich umbenennen oder ein zweites Mal anlegen."""
+    client, seed = cfg
+    seed("03-patterns/m01", {"frontmatter": {"id": "M01"}, "body": "x"})
+    doppelt = _hochladen(client, _teil_zip(**{
+        "01-base/welcome-config.yaml": _WILLKOMMEN,
+        "03-patterns/zweites-m01.md": _muster_text("M01")}))
+    assert doppelt.status_code == 400
+    umbenannt = _hochladen(client, _teil_zip(**{"03-patterns/m01.md": _muster_text("M99")}))
+    assert umbenannt.status_code == 400
+    live = asyncio.run(config_loader.current_config())
+    assert "03-patterns/zweites-m01" not in live and "01-base/welcome-config" not in live
+    assert live["03-patterns/m01"]["frontmatter"]["id"] == "M01"
+
+
+def test_unbekannte_betriebsart_wird_am_rand_abgewiesen(cfg) -> None:
+    client, seed = cfg
+    snap = _vorher_schnappschuss(client, seed)
+    r = client.post(f"/api/config/snapshots/{snap}/restore", headers=_AUTH,
+                    params={"mode": "kaputt"})
+    assert r.status_code == 422
+
+
 def test_snapshot_endpoints_require_studio_key(cfg) -> None:
     client, _ = cfg
     assert client.get("/api/config/snapshots").status_code == 401
@@ -309,7 +512,7 @@ def test_missing_zieht_nur_fehlende_nach(cfg, seed_baum) -> None:
 
     r = client.post("/api/config/seed/apply", headers=_AUTH, json={"mode": "missing"})
     assert r.status_code == 200
-    assert r.json() == {"written": 1, "deleted": 0, "snapshot_id": None}
+    assert r.json() == {"written": 1, "deleted": 0, "snapshot_id": None, "behalten": []}
     # die gepflegte Begrüßung hat den Lauf überlebt — das ist der ganze Zweck
     # des harmlosen Knopfes
     assert client.get("/api/config/welcome", headers=_AUTH).json()["greeting"] == "Gepflegt"
@@ -335,6 +538,27 @@ def test_exact_ueberschreibt_loescht_und_sichert_vorher(cfg, seed_baum) -> None:
                client.get("/api/config/snapshots", headers=_AUTH).json())
     client.post(f"/api/config/snapshots/{d['snapshot_id']}/restore", headers=_AUTH)
     assert client.get("/api/config/welcome", headers=_AUTH).json()["greeting"] == "Gepflegt"
+
+
+def test_ein_ungueltiger_seed_wird_vor_schnappschuss_und_schreiben_abgewiesen(
+    cfg, seed_baum
+) -> None:
+    """Paket 6, W2: Das Anwenden prüft wie das Wiederherstellen. Vorher schrieb es
+    einen ungültigen Seed — etwa eine unbekannte Maschine, auf die ``load_engine``
+    dann still mit der Muster-Maschine zurückfiel."""
+    client, seed = cfg
+    seed_baum("01-base/engine.yaml", "mode: kaputt\n")
+    seed_baum("01-base/neu.yaml", "a: 1\n")
+    seed("01-base/engine", {"mode": "agent"})
+    vorher = client.get("/api/config/snapshots", headers=_AUTH).json()
+
+    r = client.post("/api/config/seed/apply", headers=_AUTH, json={"mode": "exact"})
+    assert r.status_code == 422
+    assert any(f["area"] == "01-base/engine" for f in r.json()["detail"])
+    assert client.get("/api/config/snapshots", headers=_AUTH).json() == vorher
+    status = client.get("/api/config/seed", headers=_AUTH).json()
+    assert status["neu"] == ["01-base/neu"]          # nichts geschrieben
+    assert status["abweichend"] == ["01-base/engine"]  # nichts überschrieben
 
 
 def test_exact_ohne_platz_fuer_den_schnappschuss_wird_verweigert(
@@ -400,3 +624,23 @@ def test_seed_endpunkte_verlangen_den_studio_schluessel(cfg) -> None:
     client, _ = cfg
     assert client.get("/api/config/seed").status_code == 401
     assert client.post("/api/config/seed/apply", json={"mode": "missing"}).status_code == 401
+
+
+def test_liste_unterscheidet_von_hand_und_automatisch(cfg) -> None:
+    """Paket 12: selbst angelegte und automatische Schnappschüsse sind getrennt erkennbar —
+    vorher nur am Namen („vor Wiederherstellen …“)."""
+    from boerdi.services import snapshots
+
+    client, seed = cfg
+    seed("01-base/welcome-config", {"welcome": {"greeting": "A"}})
+    seed("05-canvas/probe", {"x": 1})
+    assert client.post("/api/config/snapshots", headers=_AUTH,
+                       json={"label": "meiner"}).status_code == 200
+    blob = snapshots.build_config_zip({"01-base/welcome-config": {"welcome": {"greeting": "B"}}})
+    r = client.post("/api/config/restore", headers=_AUTH, params={"mode": "exact"},
+                    files={"file": ("b.zip", blob, "application/zip")})
+    assert r.status_code == 200, r.text
+    arten = {s["label"]: s["art"] for s in client.get("/api/config/snapshots",
+                                                       headers=_AUTH).json()}
+    assert arten["meiner"] == "hand"
+    assert set(arten.values()) == {"hand", "auto"}

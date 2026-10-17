@@ -61,13 +61,12 @@ from boerdi.domain.reasoning_filters import strip_reasoning_markers
 from boerdi.domain.skill_precedence import merke_laufende_anleitung
 from boerdi.domain.tool_pflicht import fehlende_pflichtwerkzeuge, gerufene_werkzeuge
 from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
-from boerdi.domain.untrusted_text import frame_untrusted
+from boerdi.domain.untrusted_text import frame_untrusted, frame_wissen
 from boerdi.domain.werkzeug_angebot import NICHT_ANGEBOTEN, angebotene_namen
 from boerdi.domain.write_confirm import (
     CONFIRM_TOKEN_FIELD,
     confirmed_args,
     extract_confirm_token,
-    is_affirmation,
     is_confirmable,
     is_expired,
     redact_confirm_token,
@@ -76,15 +75,18 @@ from boerdi.domain.write_confirm import (
     token_for,
 )
 from boerdi.i18n import DEFAULT, bot_text
+from boerdi.i18n.prompt_language import SPRACHE_DER_PERSON
 from boerdi.obs.usage import add_usage, extract_usage
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm
+from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
 from boerdi.services.card_collect import collect_cards
 from boerdi.services.llm_streaming import _stream_completion
-from boerdi.services.mcp.auth import caller_fingerprint
+from boerdi.services.mcp.auth import aufrufer_kennung
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 from boerdi.services.response_tool_selection import _nameable_tools
+from boerdi.services.zustimmung_pruefen import zugestimmt
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -177,6 +179,7 @@ async def _run_tool_loop(
     on_token: Any,
     *,
     tool_mode: str | None = None,
+    rag_bereiche: frozenset[str] = frozenset(),
 ) -> tuple[str, list[dict], list[str], list] | None:
     """Tool-Calling-Loop (Phase P15) fuer ``generate_response`` — verbatim port
     of ALT llm_tool_loop.py:565-1158: tool_choice-Gates, Stream-vs-Create,
@@ -235,8 +238,12 @@ async def _run_tool_loop(
         _angeboten = _angeboten | {str(_pending_at_turn_start["tool"])}
     # Die Erlaubnis der Einbettung gilt auch hier, wie im Agent-Weg (Paket 4,
     # P4-1): ``read-only`` nimmt dem Katalog alles Schreibende, auch das
-    # Werkzeug eines offenen Vorgangs.
-    _angeboten = {name for name in _angeboten if erlaubt(name, tool_mode)}
+    # Werkzeug eines offenen Vorgangs. Im Studio Verborgenes fehlt ihm ebenso —
+    # hier und nicht in ``blocked_tools`` (Review Paket 9): ein Aufruf gilt dann wie
+    # ein Name außerhalb des Katalogs, nicht als Sicherheitssperre mit ``error``.
+    _verborgen = verborgene_werkzeuge()
+    _angeboten = {name for name in _angeboten
+                  if erlaubt(name, tool_mode) and name not in _verborgen}
     # Die Darstellungswerkzeuge laufen nur, wenn dieser Zug sie anbietet
     # (Paket 4, A2): die Auswahl hält sie bewusst zurück, etwa im Rückfrage-
     # Muster oder bei abgeschalteter Karten-Auswahl (``response_tool_selection``).
@@ -606,8 +613,30 @@ async def _run_tool_loop(
                 # ── Handle virtual knowledge tool ──────────────
                 if tool_name == "query_knowledge":
                     from boerdi.services.rag.retrieval import get_rag_context
+                    from boerdi.services.response_tool_selection import wissensbereiche
                     area = tool_args.get("area", "general")
                     query = tool_args.get("query", message)
+                    # Paket 9 (V2): gesperrt oder nicht angeboten heißt nicht abgefragt.
+                    # Ohne das Werkzeug im Angebot bleibt es rufbar (Paket 4, A2: die
+                    # Domänen-Regeln verlangen es musterübergreifend) — dann in den
+                    # konfigurierten Bereichen (``rag_bereiche``), nicht in jedem der
+                    # Datenbank. Ein eigener Name: ``_angeboten`` ist der
+                    # Werkzeug-Katalog des ganzen Zuges (Review Paket 9).
+                    _bereiche = wissensbereiche(active_tools) or rag_bereiche
+                    if (tool_name in blocked_tools or not isinstance(area, str)
+                            or area not in _bereiche):
+                        _logger.warning("query_knowledge(%s) abgewiesen (%s)", area,
+                                        "gesperrt" if tool_name in blocked_tools
+                                        else "nicht angeboten")
+                        messages.append({
+                            "role": "tool", "tool_call_id": tc.id,
+                            "content": (
+                                "Tool wurde aus Sicherheitsgruenden blockiert."
+                                if tool_name in blocked_tools
+                                else f"Bereich '{area}' ist in diesem Zug nicht verfügbar. "
+                                     f"Verfügbar: {', '.join(sorted(_bereiche)) or 'keiner'}."),
+                        })
+                        continue
 
                     # Track explicitly-queried RAG areas in session_state so the
                     # downstream Guide-QR-injector (chat.py:_attach_guide_qr) can
@@ -646,14 +675,13 @@ async def _run_tool_loop(
                         for s in _explicit_sources:
                             if s not in used_src:
                                 used_src.append(s)
-                    if not result_text:
-                        result_text = f"Keine relevanten Informationen im Bereich '{area}' gefunden."  # noqa: E501
                     _logger.info("query_knowledge(%s): %d chars", area, len(result_text))
-
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
-                        "content": result_text[:6000],
+                        # Paket 9 (V6): ein Treffer ist Text von Dritten — gerahmt.
+                        "content": frame_wissen(result_text[:6000]) if result_text else (
+                            f"Keine relevanten Informationen im Bereich '{area}' gefunden."),
                     })
                     continue
 
@@ -766,7 +794,7 @@ async def _run_tool_loop(
                     # gemerkt wurde (zu grosse Argumente).
                     _abgenommen = (
                         confirmed_args(_pending_at_turn_start, tool_name, now=_jetzt)
-                        if is_affirmation(_nutzernachricht) else None
+                        if zugestimmt(session_state, _nutzernachricht) else None
                     )
                     _confirm = None if _abgenommen else token_for(
                         _pending_at_turn_start, tool_name, tool_args, now=_jetzt)
@@ -853,7 +881,7 @@ async def _run_tool_loop(
                         # überdauern MUSS — siehe Zug-Eintritt oben.
                         session_state.setdefault("entities", {})["_pending_write"] = (
                             remember_pending(tool_name, tool_args, _minted, now=time.time(),
-                                             caller=caller_fingerprint()))
+                                             caller=aufrufer_kennung()))
                         # S1: derselbe Text ein zweites Mal — diesmal für den
                         # Menschen. Der Server formuliert die Abnahme bereits
                         # vollständig und auf Deutsch; bisher endete sie in der
@@ -987,7 +1015,7 @@ async def _run_tool_loop(
                         f"verlangt ALLE diese Tools nacheinander: {', '.join(required_tools)}. "
                         f"Du hast {sorted(actual_bare) or 'keinen davon'} bisher gerufen. "
                         f"Rufe JETZT die fehlenden Tools ({', '.join(missing_tools)}) auf, "
-                        f"BEVOR du final antwortest."
+                        f"BEVOR du final antwortest. {SPRACHE_DER_PERSON}"
                     )
                 else:
                     msg = (
@@ -995,7 +1023,7 @@ async def _run_tool_loop(
                         f"verlangten Tools genutzt: {', '.join(required_tools)}. "
                         f"Rufe JETZT mindestens EINEN dieser Tools auf, BEVOR du final "
                         f"antwortest. Ohne Tool-Aufruf hast du keine echten Daten zur Verfügung — "
-                        f"deine Antwort wäre erfunden."
+                        f"deine Antwort wäre erfunden. {SPRACHE_DER_PERSON}"
                     )
                 messages.append({"role": "user", "content": msg})
                 # Continue zur nächsten Iteration: Loop wird Tools forcieren

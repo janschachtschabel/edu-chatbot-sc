@@ -164,10 +164,13 @@ async def _grouped_by_session(
 
     Je Modell, obwohl die Liste je Sitzung ausgibt: der Preis hängt am Modell,
     und eine Sitzung, die zwei davon benutzt hat, wäre sonst nicht zu rechnen.
+    Dazu je Quelle (Review Paket 7, A-11): ohne Sitzung unterscheidet nur sie die
+    Zeilen — ein Auftrag der Agent-API ist etwas anderes als jede künftige Quelle.
     """
     stmt = (
         select(
             UsageEvent.session_id,
+            UsageEvent.quelle,
             UsageEvent.model,
             func.coalesce(func.sum(UsageEvent.prompt_tokens), 0),
             func.coalesce(func.sum(UsageEvent.cached_tokens), 0),
@@ -176,17 +179,22 @@ async def _grouped_by_session(
             func.coalesce(func.sum(UsageEvent.calls), 0),
         )
         .where(*where)
-        .group_by(UsageEvent.session_id, UsageEvent.model)
-        .order_by(UsageEvent.session_id, UsageEvent.model)
+        .group_by(UsageEvent.session_id, UsageEvent.quelle, UsageEvent.model)
+        .order_by(UsageEvent.session_id, UsageEvent.quelle, UsageEvent.model)
     )
     return list((await session.execute(stmt)).all())
 
 
-def _tally_sessions(rows: list[Any], table: Any) -> dict[str, _SessionTally]:
+#: Eine Zeile der Liste: die Sitzung — oder ohne Sitzung die Quelle (A-11).
+_Schluessel = tuple[str | None, str | None]
+
+
+def _tally_sessions(rows: list[Any], table: Any) -> dict[_Schluessel, _SessionTally]:
     """Die Modellzeilen je Sitzung zusammenlegen und dabei bepreisen."""
-    per: dict[str, _SessionTally] = {}
-    for session_id, model, prompt, cached, completion, reasoning, calls in rows:
-        tally = per.setdefault(session_id, _SessionTally())
+    per: dict[_Schluessel, _SessionTally] = {}
+    for session_id, quelle, model, prompt, cached, completion, reasoning, calls in rows:
+        schluessel = (session_id, None if session_id is not None else quelle)
+        tally = per.setdefault(schluessel, _SessionTally())
         tally.calls += calls
         tally.prompt += prompt
         tally.cached += cached
@@ -204,7 +212,7 @@ def _tally_sessions(rows: list[Any], table: Any) -> dict[str, _SessionTally]:
     return per
 
 
-def _by_cost(item: tuple[str, _SessionTally]) -> tuple[bool, Decimal, int, str]:
+def _by_cost(item: tuple[_Schluessel, _SessionTally]) -> tuple[bool, Decimal, int, str, str]:
     """Teuerste zuerst; ohne Preis nach Token, und stets hinter den bepreisten.
 
     Der Token-Rang ist nicht bloß ein Gleichstand-Brecher: der ausgelieferte
@@ -213,9 +221,19 @@ def _by_cost(item: tuple[str, _SessionTally]) -> tuple[bool, Decimal, int, str]:
     zuerst öffnet. Die Kennung zuletzt, damit zwei gleich teure Sitzungen
     nicht bei jedem Abruf die Plätze tauschen.
     """
-    session_id, tally = item
+    (session_id, quelle), tally = item
     return (tally.amount is None, -(tally.amount or Decimal(0)),
-            -tally.tokens, session_id)
+            -tally.tokens, session_id or "", quelle or "")
+
+
+def _quelle(session_id: str | None, quelle: str | None) -> str:
+    """Woher eine Zeile der Liste kommt (Paket 7, P3): eine Sitzung ist der Chat;
+    ohne Sitzung steht die Quelle in ihrer Spalte (A-11) — das Studio zeigt dann
+    keine Sitzungskennung. Ohne Eintrag bleibt es bei „agent-api“, dem bisher
+    einzigen Weg ohne Sitzung."""
+    if session_id is not None:
+        return "chat"
+    return quelle or "agent-api"
 
 
 def _top_sessions(rows: list[Any], table: Any) -> list[dict[str, Any]]:
@@ -224,6 +242,7 @@ def _top_sessions(rows: list[Any], table: Any) -> list[dict[str, Any]]:
     return [
         {
             "session_id": session_id,
+            "source": _quelle(session_id, quelle),
             "calls": tally.calls,
             "prompt_tokens": tally.prompt, "cached_tokens": tally.cached,
             "completion_tokens": tally.completion,
@@ -231,7 +250,7 @@ def _top_sessions(rows: list[Any], table: Any) -> list[dict[str, Any]]:
             "amount": None if tally.amount is None else _as_text(tally.amount),
             "price_unavailable": tally.unavailable,
         }
-        for session_id, tally in ranked[:_TOP_SESSIONS]
+        for (session_id, quelle), tally in ranked[:_TOP_SESSIONS]
     ]
 
 
@@ -263,7 +282,7 @@ async def period_usage(
     ``scope`` (ST-9) trennt nach Herkunft (``session_origin``) — für Summen
     UND Spitzenliste, sonst passten die beiden nicht zueinander.
     """
-    herkunft = scope_clause(scope, UsageEvent.session_id)
+    herkunft = scope_clause(scope, UsageEvent.session_id, UsageEvent.quelle)
     fenster = (UsageEvent.created_at >= start, UsageEvent.created_at <= end,
                *(() if herkunft is None else (herkunft,)))
     antwort = _assemble(await _grouped_by_model(session, *fenster))

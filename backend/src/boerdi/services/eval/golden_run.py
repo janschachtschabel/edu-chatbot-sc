@@ -25,6 +25,7 @@ from boerdi.services.config_loader import load_gold_flows
 from boerdi.services.engine_choice import choose_engine
 from boerdi.services.eval import golden
 from boerdi.services.eval.cancel import RunCancelled
+from boerdi.services.eval.flow_wahl import flows_waehlen
 from boerdi.services.eval.run_conditions import (
     fresh_tool_cache,
     run_conditions,
@@ -101,15 +102,8 @@ async def start_golden_eval_run(
             400,
             "Keine Gold-Flows konfiguriert (eval/gold-flows.yaml fehlt oder leer).",
         )
-    flows = all_flows
-    warnings: list[str] = []
-    if req.flow_ids:
-        requested = set(req.flow_ids)
-        known = {str(f.get("id")) for f in all_flows}
-        unknown = sorted(requested - known)
-        if unknown:
-            warnings.append(f"Unbekannte Flow-IDs ignoriert: {unknown}")
-        flows = [f for f in all_flows if str(f.get("id")) in requested]
+    # Ohne Auswahl alle — außer den Flows „auf Abruf“ (Paket 7, K3).
+    flows, warnings = flows_waehlen(all_flows, req.flow_ids)
     if not flows:
         raise HTTPException(
             400,

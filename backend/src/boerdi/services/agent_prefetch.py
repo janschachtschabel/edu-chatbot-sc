@@ -87,3 +87,22 @@ async def resolve_prefetch(
         messages.append({
             "role": "tool", "tool_call_id": call_id, "content": inhalt,
         })
+
+
+def vorab_aufrufe(seite: dict[str, Any], angebot: frozenset[str]) -> list[tuple[str, dict]]:
+    """Was der Seitenkontext im Chat an Vorabrufen bestellt (P4) — nur Werkzeuge aus dem
+    ``angebot`` des Laufs (Paket 9: verborgen oder gesperrt heißt auch nicht vorgeholt).
+
+    Nur ``collection_id``: es ist das einzige Feld, aus dem ein
+    ``collectionId``-Argument wird. Steht keine Sammlung auf der Seite, gäbe es
+    nichts zu übergeben — der Aufruf wäre eine Rundreise ohne Ertrag.
+    Themenseiten sind im Bestand Sammlungen und tragen das Feld mit; sie sind
+    damit ohne eigene Regel abgedeckt.
+
+    Absichtlich NICHT ``node_ids``: was auf der Seite steht, sagt schon der
+    Seitenblock, und ein Detail-Abruf je Zug kostet mehr, als er trägt.
+    """
+    sammlung = (seite.get("collection_id") or "").strip()
+    if not sammlung or "get_skill_registry" not in angebot:
+        return []
+    return [("get_skill_registry", {"collectionId": sammlung})]

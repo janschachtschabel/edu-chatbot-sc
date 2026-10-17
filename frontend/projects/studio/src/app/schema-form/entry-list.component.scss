@@ -1,0 +1,79 @@
+// Die Seitenliste eines Liste│Editors (ST-3), geteilt von object-list und
+// group-section. Die Knöpfe darunter kommen als Inhalt und tragen die Stile
+// ihres Aufrufers.
+@use '../views/visually-hidden';
+@use 'sf-eingaben'; // .sf-input für das Suchfeld, wie jedes andere Formularfeld
+
+:host {
+  display: grid;
+  gap: var(--st-2);
+  align-content: start;
+}
+
+.ol-count {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ol-entries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--st-1);
+  max-block-size: 24rem;
+  overflow-y: auto;
+}
+
+.ol-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--st-2);
+  inline-size: 100%;
+  min-block-size: 2.25rem; // ≥ 24px target (SC 2.5.8)
+  padding: var(--st-1) var(--st-2);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--st-accent);
+  }
+
+  // Die Wahl trägt Rand UND Fläche, nicht nur Farbe (SC 1.4.1): der breitere
+  // Rand bleibt auch im Hochkontrast sichtbar.
+  &[aria-current='true'] {
+    border-inline-start: 4px solid var(--st-accent);
+    background: var(--st-accent-soft);
+  }
+}
+
+.ol-title {
+  overflow-wrap: anywhere;
+}
+
+// Die Kennung eines Dokuments: technischer Name, Schreibmaschinenschrift wie
+// der Rohschlüssel hinter einer Beschriftung (ST-1).
+.ol-note {
+  flex: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.ol-problem {
+  color: var(--st-danger-text);
+}
+
+.ol-empty {
+  margin: var(--st-2) 0;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}

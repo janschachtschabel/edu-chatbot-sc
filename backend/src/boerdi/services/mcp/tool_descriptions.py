@@ -18,8 +18,18 @@ from __future__ import annotations
 
 import time
 
+from boerdi.domain.werkzeug_freigabe import wirksam_aus
 from boerdi.services import config_loader
+from boerdi.services.agent_tools import AUS_DEM_KATALOG
+from boerdi.services.config_loader.mcp import _PRIMARY_ID
 from boerdi.services.mcp import transport
+from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
+from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
+
+#: Die Werkzeuge, die der Chatbot kennt und dem Modell anbieten kann — nur für sie
+#: hat ein Schalter im Studio eine Wirkung (Paket 7, S5).
+_KATALOG = frozenset(
+    t["function"]["name"] for t in (*TOOL_DEFINITIONS, *CURATION_TOOL_DEFINITIONS))
 
 # Cache MCP tool descriptions for ~5 min so the studio's GET /mcp-servers doesn't
 # pay the discover round-trip on every render. Descriptions change rarely (only on
@@ -54,6 +64,15 @@ async def _fetch_tool_descriptions(url: str) -> dict[str, str]:
     return descs
 
 
+def _lesend_uebernommen(srv: dict) -> set[str]:
+    """Paket 11 (E): übernommene lesende Werkzeuge eines weiteren Servers bietet der Chatbot an
+    (``domain/fremdwerkzeug``) — also trägt ihr Schalter."""
+    if srv.get("id") == _PRIMARY_ID:
+        return set()
+    return {str(e["name"]) for e in srv.get("tool_schemas") or []
+            if isinstance(e, dict) and e.get("name") and e.get("read_only") is True}
+
+
 async def load_mcp_servers_with_descriptions() -> list[dict]:
     """The registry (``load_mcp_servers``) with tool descriptions inline.
 
@@ -63,6 +82,20 @@ async def load_mcp_servers_with_descriptions() -> list[dict]:
     """
     servers = config_loader.load_mcp_servers()
     for srv in servers:
+        live: dict[str, str] = {}
         if srv.get("enabled") and srv.get("url") and srv.get("tools"):
-            srv["tool_descriptions"] = await _fetch_tool_descriptions(srv["url"])
+            live = await _fetch_tool_descriptions(srv["url"])
+            srv["tool_descriptions"] = live
+        # Paket 11 (gemessen 2026-10-15: ``search_skill`` fehlt am Server): Katalog-Werkzeuge,
+        # die der Server laut Live-Abfrage nicht führt — eingeschaltet scheiterte jeder Aufruf.
+        # Ohne Live-Antwort weiß das niemand, dann keine Warnung.
+        srv["werkzeuge_fehlen_am_server"] = sorted(
+            (_KATALOG & set(srv.get("tools") or ())) - set(live)) if live else []
+        # Paket 7 (S5): die wirksame Liste (die Vorgabe sichtbar gemacht) und
+        # welche Werkzeuge überhaupt einen Schalter tragen. Die zweite Angabe ist
+        # UI-Beiwerk und wird beim Speichern entfernt (``_UI_META_KEYS``).
+        srv["werkzeuge_aus"] = wirksam_aus(
+            srv, primaer=srv.get("id") == _PRIMARY_ID, vorgabe=AUS_DEM_KATALOG)
+        srv["werkzeuge_im_katalog"] = sorted(
+            (_KATALOG & set(srv.get("tools") or ())) | _lesend_uebernommen(srv))
     return servers

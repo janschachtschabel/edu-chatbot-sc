@@ -73,6 +73,10 @@ export const FIELDS_KOSTEN_EVAL: CataloguePart = {
       'Was sonst die einbettende Seite mitschickt, etwa Seitenkontext oder Werkzeugmodus; geht '
       + 'bei jedem Zug mit. Leer = Vorgaben des Servers. Ungültige Werte machen den Zug zum '
       + 'Chat-Fehler, unbekannte Schlüssel fallen weg.',
+    'feld.GoldFlow.auf_abruf.label': 'Nur auf Abruf',
+    'feld.GoldFlow.auf_abruf.hint':
+      'Läuft nur, wenn man den Flow beim Start ausdrücklich wählt — nicht bei „alle“ und nicht '
+      + 'in der Kommandozeile ohne --only. Für Flows, die echt schreiben (etwa GV-RED-1).',
     'feld.GoldTurn.message.label': 'Nachricht',
     'feld.GoldTurn.message.hint':
       'Was der Lauf in diesem Zug an den Chat schickt, als hätte eine Person es getippt.',
@@ -140,6 +144,10 @@ export const FIELDS_KOSTEN_EVAL: CataloguePart = {
       'What the embedding page would otherwise send, such as page context or tool mode; it goes '
       + 'with every turn. Empty = server defaults. Invalid values make the turn a chat error, '
       + 'unknown keys are dropped.',
+    'feld.GoldFlow.auf_abruf.label': 'On demand only',
+    'feld.GoldFlow.auf_abruf.hint':
+      'Runs only when the flow is chosen explicitly at the start — not with “all” and not on the '
+      + 'command line without --only. For flows that really write (such as GV-RED-1).',
     'feld.GoldTurn.message.label': 'Message',
     'feld.GoldTurn.message.hint':
       'What the run sends to the chat in this turn, as if a person had typed it.',

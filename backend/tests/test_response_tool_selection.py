@@ -120,7 +120,7 @@ def test_tool_mode_read_only_nimmt_dem_muster_die_schreibwerkzeuge(monkeypatch):
     im Agent-Weg. Ein Gastgeber mit ``read-only`` bekam im Muster-Weg trotzdem
     schreibende Werkzeuge angeboten."""
     _disable_cards(monkeypatch)
-    monkeypatch.setattr(rts, "has_auth_token", lambda: True)
+    monkeypatch.setattr(rts, "schreiben_erlaubt", lambda: True)
     muster = {"tools": ["search_wlo_content", "wlo_create_collection"]}
     assert "wlo_create_collection" in _names(muster), "Voraussetzung: angeboten ohne Modus"
 
@@ -190,6 +190,38 @@ def test_medientyp_strips_all_collections_topics_keeps_content(monkeypatch):
     assert "search_wlo_collections" not in names
     assert "search_wlo_topic_pages" not in names
     assert "search_wlo_content" in names
+
+
+def test_medientyp_holt_keine_verborgene_suche_zurueck(monkeypatch):
+    """Review Paket 7 (MAJOR 11): der Zweig hängte ``search_wlo_content`` direkt aus
+    ``TOOL_DEFINITIONS`` an — auch wenn das Studio es verborgen hat."""
+    _disable_cards(monkeypatch)
+    monkeypatch.setattr(rts, "verborgene_werkzeuge", lambda: frozenset({"search_wlo_content"}))
+    namen = _names({"tools": list(_SEARCH_TOOLS_WITH_ALL)}, entities={"medientyp": "Video"})
+    assert "search_wlo_content" not in namen
+
+
+def test_medientyp_holt_keine_gesperrte_suche_zurueck(monkeypatch):
+    """Review Paket 9 (MINOR 11): der Nachschub prüfte nur das Verborgene, nicht die
+    Sperre der Sicherheit — die Suche stand dann im Angebot und wurde beim Aufruf
+    abgewiesen (``error``, gesunkene Zuversicht)."""
+    _disable_cards(monkeypatch)
+    active, *_ = rts._select_active_tools(
+        {"entities": {"medientyp": "Arbeitsblatt"}},
+        {"tools": ["search_wlo_collections", "search_wlo_topic_pages"]},
+        None, None, False, False, gesperrt=["search_wlo_content"])
+    assert "search_wlo_content" not in {t["function"]["name"] for t in active}
+
+
+@pytest.mark.parametrize("muster", [{"tools": []}, {"tools": ["get_node_details"]}],
+                         ids=["ohne-werkzeuge", "ohne-suche"])
+def test_medientyp_haengt_keine_suche_an_muster_ohne_suche(monkeypatch, muster):
+    """Review Paket 7 (MINOR 34): M01, M03, M04, M11 und M15 haben keine Werkzeuge und
+    verbieten sich die Suche selbst; der Zweig gab ihnen trotzdem eine. Ersetzt wird
+    nur, was er gestrichen hat."""
+    _disable_cards(monkeypatch)
+    namen = _names(muster, entities={"medientyp": "Video"})
+    assert not {n for n in namen if n.startswith("search_wlo")}
 
 
 def test_no_medientyp_keeps_search_wlo_all(monkeypatch):

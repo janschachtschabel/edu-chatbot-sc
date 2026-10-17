@@ -121,3 +121,43 @@ async def test_refcount_prevents_pop_while_a_second_holder_remains():
 
     await sl._release_session_lock("s1")  # second holder done → refcount 0
     assert "s1" not in sl._session_locks
+
+
+# ── Paket 7, P1: die Naht ``sitzung_sperren`` ────────────────────────────────
+
+def _anfrage(engine):
+    from types import SimpleNamespace
+    return SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(engine=engine)))
+
+
+def test_mit_datenbank_sperrt_postgres(monkeypatch):
+    import contextlib
+
+    from boerdi.api import session_locks as sl
+
+    gesehen: list = []
+
+    @contextlib.asynccontextmanager
+    async def _fake(engine, session_id):
+        gesehen.append((engine, session_id))
+        yield
+
+    monkeypatch.setattr(sl, "sitzungssperre", _fake)
+
+    async def _zug():
+        async with sl.sitzung_sperren(_anfrage("ENGINE"), "s-1"):
+            pass
+
+    asyncio.run(_zug())
+    assert gesehen == [("ENGINE", "s-1")]
+
+
+def test_ohne_datenbank_bleibt_die_sperre_im_prozess():
+    from boerdi.api import session_locks as sl
+
+    async def _zug():
+        async with sl.sitzung_sperren(_anfrage(None), "s-2"):
+            assert "s-2" in sl._session_locks
+        assert "s-2" not in sl._session_locks   # aufgeräumt
+
+    asyncio.run(_zug())

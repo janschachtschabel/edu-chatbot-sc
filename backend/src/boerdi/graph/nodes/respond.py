@@ -48,6 +48,7 @@ from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import _retrieve_task_exception
+from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.engine_choice import (
     laeuft_ueber_die_schleife,
     zug_laeuft_ueber_die_schleife,
@@ -105,6 +106,11 @@ async def respond(
     env = ctx.env
     usage_acc = ctx.usage
     safety = ctx.safety
+    # Paket 9 (Review Paket 7, MAJOR 11): im Studio verborgene Werkzeuge gelten für
+    # den spekulativen Vorabruf und seine Extras wie gesperrte. Die Werkzeugschleife
+    # bekommt nur die Sperren der Sicherheit: Verborgenes fehlt ihrem Katalog, und ein
+    # Aufruf gilt dort als nicht angeboten, ohne ``error`` (Review Paket 9).
+    gesperrt = [*(safety.blocked_tools or []), *sorted(verborgene_werkzeuge())]
     classification = ctx.classification
     classification_dict = classification.model_dump()
     policy = ctx.policy
@@ -155,12 +161,15 @@ async def respond(
             pattern_output.get("degradation") and pattern_output.get("missing_slots")
         )
         spec_blocked = (
-            spec_tool_name in (safety.blocked_tools or [])
+            spec_tool_name in gesperrt
             or _pat_forbids_mcp
             or _pat_wants_no_tools
             or _lp_routed
             or _canvas_routed
             or _degradation_blocks
+            # M16 verwirft das Ergebnis ohnehin (unten) — abbrechen statt abwarten
+            # (Paket 10, Audit L-12).
+            or ctx.winner_id == "M16"
         )
         if spec_blocked:
             spec_task.cancel()
@@ -261,7 +270,7 @@ async def respond(
     prefetched_extras_payload: list[dict] = list(_search_all_extras)
     if extra_spec_tasks and not _lp_routed and not _canvas_routed:
         for _ex_name, _ex_task in extra_spec_tasks:
-            if _ex_name in (safety.blocked_tools or []):
+            if _ex_name in gesperrt:
                 _ex_task.cancel()
                 try:
                     await _ex_task
@@ -284,6 +293,15 @@ async def respond(
                 "speculative extras pre-injected: %s",
                 [p["name"] for p in prefetched_extras_payload],
             )
+
+    # Vorab Geholtes nur von Werkzeugen, die dieser Zug rufen darf — auch die
+    # Aufteilung von ``search_wlo_all`` trägt eigene Namen (Review Paket 9). Hier und
+    # nicht erst in ``_assemble_messages``: die Schleife sieht nur die Sperren der
+    # Sicherheit, nicht das im Studio Verborgene.
+    if prefetched_tool_payload and prefetched_tool_payload["name"] in gesperrt:
+        prefetched_tool_payload = None
+    prefetched_extras_payload = [
+        p for p in prefetched_extras_payload if p["name"] not in gesperrt]
 
     # Bedarfssteuerung M16: die generische Antwort-LLM-Runde wäre verworfene
     # Arbeit — M16 baut Text + Schwimmlinien-Boxen im Assembly-Slice selbst.
@@ -426,12 +444,14 @@ async def respond(
                 rag_context=memory_context,  # Only memory, no blind RAG injection
                 available_rag_areas=available_rag_areas,
                 rag_config=rag_config,
-                blocked_tools=safety.blocked_tools,
+                blocked_tools=list(safety.blocked_tools or []),
                 prefetched_tool=prefetched_tool_payload,
                 prefetched_extras=prefetched_extras_payload,
                 canvas_state=req.canvas_state,
                 usage_acc=usage_acc,
                 on_token=_antwort_strom,
+                # T1 (Paket 7): neben der Klassifikation gerechnet (``assess``).
+                rag_einbettung=ctx.rag_einbettung,
             )
             if _antwort_strom is not None:
                 _antwort_strom.schliessen()  # den zurückgehaltenen Rest senden

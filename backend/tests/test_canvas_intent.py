@@ -1,14 +1,14 @@
 """Characterization tests for domain/canvas/intent.py (P4-5 canvas leaf).
 
-ALT origin: ``app/services/canvas_intent.py`` — the 7 pure regex intent
-heuristics (``resolve_material_type`` / ``extract_material_type_from_message`` /
-``named_artifact_label`` / ``_phrase_matches`` / ``looks_like_create_intent`` /
-``looks_like_edit_intent`` / ``has_explicit_new_create_override``). ALT tested
+ALT origin: ``app/services/canvas_intent.py`` — the pure regex intent heuristics
+(``resolve_material_type`` / ``extract_material_type_from_message`` /
+``named_artifact_label`` / ``_phrase_matches``; the three trigger heuristics
+went with their areas in Paket 7, K4). ALT tested
 these directly in test_canvas_service.py (via the canvas_service re-export) — the
 getter-dependent cases here mirror those 1:1. Logic fidelity is proven by the
 AST-diff gate.
 
-The ``defaults_only`` fixture forces the 5 canvas_types getters onto their
+The ``defaults_only`` fixture forces the canvas_types getters onto their
 in-code ``_DEFAULT_*`` vocabulary by making the config_loader read-facade raise
 (same patch point + technique as ALT's fixture) — deterministic and
 PG-independent. ``_phrase_matches`` is pure and needs no fixture.
@@ -32,8 +32,6 @@ def defaults_only(monkeypatch):
     for name in (
         "load_canvas_material_types",
         "load_canvas_type_aliases",
-        "load_canvas_create_triggers",
-        "load_canvas_edit_triggers",
         "load_canvas_persona_priorities",
     ):
         monkeypatch.setattr(types.config_loader, name, _boom)
@@ -105,38 +103,6 @@ class TestExtract:
     def test_empty_and_no_match(self, defaults_only):
         assert intent.extract_material_type_from_message("") is None
         assert intent.extract_material_type_from_message("nichts passendes da") is None
-
-
-# ── looks_like_create / edit / explicit-override ──────────────────────────
-class TestIntentHeuristics:
-    def test_create_intent_trigger_forms(self, defaults_only):
-        assert intent.looks_like_create_intent("erstelle ein quiz") is True
-        assert intent.looks_like_create_intent("   erstelle ein quiz") is True
-        assert intent.looks_like_create_intent(
-            "Kannst du mir ein Quiz zu Brüchen bauen?") is True
-
-    def test_create_intent_60_char_window(self, defaults_only):
-        assert intent.looks_like_create_intent("a" * 61 + " ich brauche ein quiz") is False
-
-    def test_create_intent_negatives(self, defaults_only):
-        assert intent.looks_like_create_intent("") is False
-        assert intent.looks_like_create_intent("suche material zu brüchen") is False
-
-    def test_edit_intent_triggers_and_negatives(self, defaults_only):
-        assert intent.looks_like_edit_intent("füge Lösungen hinzu") is True
-        assert intent.looks_like_edit_intent("mach es einfacher") is True
-        assert intent.looks_like_edit_intent("erstelle ein quiz") is False
-        assert intent.looks_like_edit_intent("") is False
-
-    def test_explicit_override_positives(self, defaults_only):
-        assert intent.has_explicit_new_create_override("erstell mir ein neues Quiz dazu") is True
-        assert intent.has_explicit_new_create_override(
-            "bitte zu einem anderen Thema wechseln") is True
-
-    def test_explicit_override_boundary_and_negatives(self, defaults_only):
-        assert intent.has_explicit_new_create_override("ein neues Quizspiel") is False
-        assert intent.has_explicit_new_create_override("mach es einfacher") is False
-        assert intent.has_explicit_new_create_override("") is False
 
 
 # ── named_artifact_label (ALT had no direct test → characterization) ──────

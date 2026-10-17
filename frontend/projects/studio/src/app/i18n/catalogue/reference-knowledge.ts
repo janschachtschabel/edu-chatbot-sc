@@ -25,27 +25,26 @@ export const REFERENCE_KNOWLEDGE: CataloguePart = {
       + 'Postgres abgelegt und per Kosinus-Ähnlichkeit (pgvector) gesucht.',
     'rk.rag.always': '*Immer an:* der Bereich wird bei jeder Nachricht als Kontext eingefügt.',
     'rk.rag.onDemand':
-      '*Auf Abruf:* nur wenn das Pattern `sources: ["rag"]` führt und das Modell '
-      + '`query_knowledge` aufruft.',
+      '*Auf Abruf:* im Muster-Modus, wenn das Pattern `sources: ["rag"]` führt und das '
+      + 'Modell `query_knowledge` aufruft; in der Agent-Schleife über `wissen_suchen`.',
     'rk.rag.ingest': '*Einspielen:* im Studio als Datei, Webadresse oder Freitext.',
 
     'rk.mcp.title': 'MCP — externe Werkzeuge',
-    /** Die Anzahl ist heute die Konstante 12 in der Komponente. Trotzdem beide
-     *  Formen: eine Zahl, die aus dem Code kommt, kann sich ändern, und die
-     *  Einzahl wäre dann still falsch — dieselbe Regel wie in C1-d3a. */
-    'rk.mcp.text.one':
-      'Ein externer Server (WLO edu-sharing) stellt {count} Werkzeug bereit, das '
-      + 'das Modell bei Bedarf aufruft.',
-    'rk.mcp.text.other':
-      'Ein externer Server (WLO edu-sharing) stellt {count} Werkzeuge bereit, die '
-      + 'das Modell bei Bedarf aufruft.',
-    'rk.mcp.access': '*Zugang:* nur wenn das Pattern `sources: ["mcp"]` führt.',
+    /** Ohne Zahl (Paket 6, S3): die frühere Konstante 12 stimmte längst nicht
+     *  mehr, und die aktuelle Liste samt Sperren zeigt die Agent-Seite live. */
+    'rk.mcp.text':
+      'Externe Server — allen voran WLO edu-sharing — stellen Werkzeuge bereit, die das '
+      + 'Modell bei Bedarf aufruft. Die aktuelle Liste samt Sperren steht auf der Seite '
+      + '„Agent & Maschine“ unter „Werkzeuge und Sperren“.',
+    'rk.mcp.access':
+      '*Zugang:* im Muster-Modus nur, wenn das Pattern `sources: ["mcp"]` führt; die '
+      + 'Agent-Schleife bekommt den ganzen Katalog ohne gesperrte Werkzeuge.',
     'rk.mcp.blockable': '*Sperrbar:* Safety oder Policy können einzelne Werkzeuge ausschließen.',
     'rk.mcp.speculative':
-      '*Spekulativ:* bei passenden Intents startet die Suche parallel zur Antwort, '
-      + 'statt auf sie zu warten.',
+      '*Spekulativ (Muster-Modus):* bei passenden Intents startet die Suche parallel '
+      + 'zur Antwort, statt auf sie zu warten.',
     'rk.mcp.note':
-      '`query_knowledge` zählt hier nicht mit: es ist der Einstieg in den '
+      '`query_knowledge` gehört nicht dazu: es ist der Einstieg in den '
       + 'RAG-Bestand, kein MCP-Werkzeug.',
 
     'rk.page.title': 'Themenseiten-Auflösung (ergänzt Schicht 6)',
@@ -66,7 +65,7 @@ export const REFERENCE_KNOWLEDGE: CataloguePart = {
       '*Wirkung:* „Worum geht es hier?" lässt sich ohne Rückfrage beantworten, der '
       + 'Seitentitel dient als voreingestelltes Thema.',
 
-    'rk.snap.title': 'Snapshots und Werkseinstellungen',
+    'rk.snap.title': 'Snapshots und eigener Grundstand',
     'rk.snap.intro':
       'Ein Snapshot friert die *Konfigurationsbereiche* ein — und nur diese. '
       + 'Gespräche, Auswertungen und RAG-Inhalte gehören nicht dazu; ein '
@@ -76,11 +75,12 @@ export const REFERENCE_KNOWLEDGE: CataloguePart = {
     'rk.snap.rows': 'Liegen als Zeilen in `config_snapshots`, nicht als Dateien.',
     'rk.snap.limit': 'Bis zu 50 Stück; das Anlegen darüber hinaus lehnt der Server ab.',
     'rk.snap.restore':
-      'Wiederherstellen *ergänzt*: jeder Bereich aus dem Snapshot überschreibt '
-      + 'seinen aktuellen Stand, Bereiche außerhalb bleiben stehen.',
+      'Wiederherstellen *ergänzt* in der Vorgabe: jeder Bereich aus dem Snapshot '
+      + 'überschreibt seinen aktuellen Stand, Bereiche außerhalb bleiben stehen. Wahlweise '
+      + '*exakt*: dann fallen diese weg, nach einem Snapshot des Stands davor.',
     'rk.snap.download': 'Herunterladen liefert dieselbe ZIP fürs eigene Archiv.',
 
-    'rk.factory.title': 'Werksstand',
+    'rk.factory.title': 'Eigener Grundstand',
     'rk.factory.one': 'Genau einer je Installation — die Zeile mit der Kennung `factory`.',
     'rk.factory.from': 'Entsteht aus dem aktuellen Live-Stand oder aus einer hochgeladenen ZIP.',
     'rk.factory.reset': '„Zurücksetzen" spielt ihn wieder ein, ebenfalls nur die Konfiguration.',
@@ -99,24 +99,24 @@ export const REFERENCE_KNOWLEDGE: CataloguePart = {
       + 'and searched by cosine similarity (pgvector).',
     'rk.rag.always': '*Always on:* the area is inserted as context with every message.',
     'rk.rag.onDemand':
-      '*On demand:* only when the pattern carries `sources: ["rag"]` and the model '
-      + 'calls `query_knowledge`.',
+      '*On demand:* in pattern mode when the pattern carries `sources: ["rag"]` and the '
+      + 'model calls `query_knowledge`; in the agent loop through `wissen_suchen`.',
     'rk.rag.ingest': '*Ingesting:* in the studio as a file, a web address or free text.',
 
     'rk.mcp.title': 'MCP — external tools',
-    'rk.mcp.text.one':
-      'An external server (WLO edu-sharing) provides {count} tool, which the model '
-      + 'calls when needed.',
-    'rk.mcp.text.other':
-      'An external server (WLO edu-sharing) provides {count} tools, which the model '
-      + 'calls when needed.',
-    'rk.mcp.access': '*Access:* only when the pattern carries `sources: ["mcp"]`.',
+    'rk.mcp.text':
+      'External servers — WLO edu-sharing first of all — provide tools that the model '
+      + 'calls when needed. The current list including blocks is on the page “Agent & '
+      + 'engine” under “Tools and locks”.',
+    'rk.mcp.access':
+      '*Access:* in pattern mode only when the pattern carries `sources: ["mcp"]`; the '
+      + 'agent loop gets the whole catalogue minus blocked tools.',
     'rk.mcp.blockable': '*Blockable:* safety or policy can exclude individual tools.',
     'rk.mcp.speculative':
-      '*Speculative:* for matching intents the search starts in parallel with the '
-      + 'answer instead of waiting for it.',
+      '*Speculative (pattern mode):* for matching intents the search starts in parallel '
+      + 'with the answer instead of waiting for it.',
     'rk.mcp.note':
-      '`query_knowledge` does not count here: it is the entry point into the RAG '
+      '`query_knowledge` is not one of them: it is the entry point into the RAG '
       + 'store, not an MCP tool.',
 
     'rk.page.title': 'Topic-page resolution (extends layer 6)',
@@ -137,7 +137,7 @@ export const REFERENCE_KNOWLEDGE: CataloguePart = {
       '*Effect:* “What is this about?” can be answered without asking back, and the '
       + 'page title serves as the preselected topic.',
 
-    'rk.snap.title': 'Snapshots and factory settings',
+    'rk.snap.title': 'Snapshots and own baseline',
     'rk.snap.intro':
       'A snapshot freezes the *configuration areas* — and only those. '
       + 'Conversations, analytics and RAG content are not part of it; restoring one '
@@ -147,11 +147,12 @@ export const REFERENCE_KNOWLEDGE: CataloguePart = {
     'rk.snap.rows': 'They live as rows in `config_snapshots`, not as files.',
     'rk.snap.limit': 'Up to 50 of them; the server refuses to create any beyond that.',
     'rk.snap.restore':
-      'Restoring *adds*: every area from the snapshot overwrites its current state, '
-      + 'areas outside it stay as they are.',
+      'Restoring *adds* by default: every area from the snapshot overwrites its current '
+      + 'state, areas outside it stay as they are. Optionally *exact*: those are deleted, '
+      + 'after a snapshot of the state before.',
     'rk.snap.download': 'Downloading yields the same ZIP for your own archive.',
 
-    'rk.factory.title': 'Factory state',
+    'rk.factory.title': 'Own baseline',
     'rk.factory.one': 'Exactly one per installation — the row with the id `factory`.',
     'rk.factory.from': 'It arises from the current live state or from an uploaded ZIP.',
     'rk.factory.reset': '“Reset” plays it back in, again only the configuration.',

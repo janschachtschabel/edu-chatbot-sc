@@ -5,7 +5,7 @@ card-pipeline. Shapes verified against the ALT tree inventory (2026-07-11).
 
 from typing import Annotated, Any, Final
 
-from pydantic import Field
+from pydantic import BeforeValidator, Field
 
 from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices, Textarea
 
@@ -36,7 +36,8 @@ class EscalationBlock(AreaModel):
     # Beide Vorräte stehen als Kommentar im Seed (`01-base/safety-config.yaml`)
     # — hier stehen sie so, dass das Studio sie anbieten kann.
     mode: Annotated[str, Choices("off", "smart", "always")] = ""
-    provider: Annotated[str, Choices("openai", "none")] = ""
+    # ``provider`` gestrichen (Paket 7, L7): auch ``none`` schaltete nichts ab —
+    # welcher Dienst moderiert, folgt aus dem LLM-Anbieter (``safety/moderation.py``).
     # ``True`` wie der Rückfall in ``services/safety/service.py`` (Audit
     # 2026-09-29, 6.9): mit ``False`` zeigte das Studio beide Schalter aus,
     # während sie wirkten.
@@ -63,10 +64,25 @@ class RateLimitsBlock(AreaModel):
     blocked_message_en: Annotated[str, Textarea()] = ""
 
 
+def _keine_wahrheitswerte(wert: Any) -> Any:
+    """Lax gelesen wird aus ``true`` eine 1 — eine Frist von einem Tag (Paket 9)."""
+    if isinstance(wert, bool):
+        raise ValueError("Tage als Zahl angeben, nicht als ja/nein")
+    return wert
+
+
+#: Aufbewahrungsfrist in Tagen, 0 = unbegrenzt — seit Paket 8 (A) durchgesetzt
+#: (``services/aufbewahrung``). Die Grenze VOR dem Validator: dahinter schriebe
+#: pydantic ``"ge"`` statt ``"minimum"`` ins Schema, das Studio kennte sie nicht.
+_Tage = Annotated[int, Field(ge=0), BeforeValidator(_keine_wahrheitswerte)]
+
+
 class SafetyLoggingBlock(AreaModel):
     enabled: bool = True
     log_all_turns: bool = False
-    retention_days: int = 30
+    # Wie im Auslieferungsstand (Paket 9, Review Paket 7 MINOR 15): fehlte das Feld,
+    # löschte der Lauf nach 30 statt 90 Tagen — unwiderruflich.
+    retention_days: _Tage = 90
 
 
 #: D-14 (Nutzer, 2026-09-27): die Antwort des Agent-Endpunkts auf eine Krise —
@@ -109,7 +125,8 @@ class SafetyConfigArea(AreaModel):
     crisis_message: Annotated[str, Textarea()] = KRISENTEXT_VORGABE
     crisis_message_en: Annotated[str, Textarea()] = KRISENTEXT_VORGABE_EN
     escalation: EscalationBlock = EscalationBlock()
-    confidence_adjustments: dict[str, float] = {}
+    # ``confidence_adjustments`` gestrichen (Paket 7, P4): ``outcome_service``
+    # rechnet mit festen Werten.
     rate_limits: RateLimitsBlock = RateLimitsBlock()
     logging: SafetyLoggingBlock = SafetyLoggingBlock()
 
@@ -133,6 +150,9 @@ class PrivacyLoggingBlock(AreaModel):
     # einen gesperrten Schalter „fest aktiv" zeigen statt eines, der sich
     # wirkungslos auf „aus" stellen ließe (ST-6).
     safety: bool = Field(default=True, json_schema_extra={"x-fixed": True})
+    # Paket 8 (Nutzer 2026-10-09): Frist der Gesprächsverläufe — Nachrichten und
+    # Sitzungsgedächtnis; Sitzungen und ihre Verbrauchszahlen bleiben.
+    retention_days: _Tage = 30
 
 
 class PrivacyConfigArea(AreaModel):
@@ -141,7 +161,7 @@ class PrivacyConfigArea(AreaModel):
 
 class QualityLoggingBlock(AreaModel):
     enabled: bool = True
-    retention_days: int = 30
+    retention_days: _Tage = 180  # wie im Auslieferungsstand (Paket 9)
 
 
 class QualityAlertsBlock(AreaModel):
@@ -156,7 +176,8 @@ class QualityLogConfigArea(AreaModel):
 
 
 class GuideModeBlock(AreaModel):
-    default_enabled: bool = True
+    # ``default_enabled`` gestrichen (Paket 7, P4): das Widget hat keinen
+    # Lotsen-Schalter mehr, der Lotse ist dort immer an.
     max_guide_targets_per_turn: int = 5
     # ST-2c: Grenze = Kappung im Lader (config_loader/safety.py)
     max_guide_quick_replies: int = Field(default=2, ge=1, le=3)
@@ -195,6 +216,15 @@ class FewShotExample(AreaModel):
     note: str | None = None
 
 
+class CurationReroute(AreaModel):
+    """Netz unter dem Klassifikator für Kurations-Aufträge (Paket 10, S-7) —
+    die Regel steht in ``domain/kuration_umleitung``."""
+    enabled: bool = True
+    verbs: list[str] = []
+    objects: list[str] = []
+    question_words: list[str] = []
+
+
 class ClassifyOverridesArea(AreaModel):
     persona_overrides: list[PersonaOverride] = []
     intent_overrides: list[IntentOverride] = []
@@ -202,6 +232,7 @@ class ClassifyOverridesArea(AreaModel):
     topic_overrides: dict[str, Any] = {}
     pattern_disambiguators_legacy: list[dict[str, Any]] = []
     few_shot_examples: list[FewShotExample] = []
+    curation_reroute: CurationReroute = CurationReroute()
 
 
 #: Ab diesem Betrag verschiebt ``length_bias`` die Länge um eine Stufe

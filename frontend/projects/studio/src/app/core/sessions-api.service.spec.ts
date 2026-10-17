@@ -74,4 +74,21 @@ describe('SessionsApi — Löschen und Wartung (ST-6)', () => {
     expect(req.request.params.get('scope')).toBe('production');
     req.flush([]);
   });
+
+  it('liest die Fristen je Protokoll (Paket 8, A)', async () => {
+    const done = api.retention();
+    const req = http.expectOne('/studio/api/sessions/retention');
+    expect(req.request.method).toBe('GET');
+    const zeile = { bereich: 'safety_logs', tage: 90, faellig: 2, aeltester: null };
+    req.flush({ fristen: [zeile] });
+    expect(await done).toEqual([zeile]);
+  });
+
+  it('zieht die Bereinigung vor und meldet je Protokoll, was gelöscht wurde (Paket 8, A)', async () => {
+    const done = api.runRetention();
+    const req = http.expectOne('/studio/api/sessions/retention');
+    expect(req.request.method).toBe('POST');
+    req.flush({ status: 'done', deleted: { safety_logs: 2, quality_logs: 0 } });
+    expect(await done).toEqual({ safety_logs: 2, quality_logs: 0 });
+  });
 });

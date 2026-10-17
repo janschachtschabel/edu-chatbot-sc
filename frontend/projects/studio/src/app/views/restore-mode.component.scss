@@ -1,0 +1,27 @@
+// Die Wahl steht in der Rückfrage (`.op-confirm`, eine umbrechende Zeile) und
+// nimmt dort die ganze Breite: Frage, Wahl und Knöpfe stehen untereinander.
+:host {
+  display: block;
+  flex: 1 1 100%;
+}
+
+.rm {
+  display: grid;
+  gap: var(--st-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.rm-legend {
+  margin-block-end: var(--st-1);
+  padding: 0;
+  font-weight: 600;
+}
+
+.rm-option {
+  display: flex;
+  align-items: baseline;
+  gap: var(--st-2);
+  cursor: pointer;
+}

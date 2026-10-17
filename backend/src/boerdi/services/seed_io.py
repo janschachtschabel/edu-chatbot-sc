@@ -20,9 +20,34 @@ logger = logging.getLogger(__name__)
 _EXTS = {".yaml", ".yml", ".md"}
 
 
-def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
+class YamlAlias(ValueError):
+    """An alias in a backup (Paket 9, V5). Not a ``yaml.YAMLError`` on purpose:
+    :func:`split_frontmatter` tolerates those and would read the head as body."""
+
+
+class _OhneAlias(yaml.SafeLoader):
+    """SafeLoader that refuses aliases. The loader shares the aliased objects, but
+    normalising and storing copies them — nine levels of nine references are
+    nine to the ninth entries (billion laughs)."""
+
+    def compose_node(self, parent: Any, index: Any) -> Any:  # type: ignore[override]
+        if self.check_event(yaml.AliasEvent):
+            raise YamlAlias("YAML aliases are not allowed")
+        return super().compose_node(parent, index)
+
+
+def lade_ohne_alias(text: str) -> Any:
+    """``yaml.safe_load`` without aliases — for files that come from outside
+    (a backup upload), not for the seed tree in the image."""
+    return yaml.load(text, Loader=_OhneAlias)  # noqa: S506 — a SafeLoader subclass
+
+
+def split_frontmatter(
+    text: str, *, laden: Callable[[str], Any] = yaml.safe_load,
+) -> tuple[dict[str, Any], str]:
     """'---\\n<yaml>\\n---\\n<body>' -> (frontmatter, body). No marker or
-    broken YAML head => ({}, whole text) — mirrors ALT's tolerant parser."""
+    broken YAML head => ({}, whole text) — mirrors ALT's tolerant parser.
+    ``laden`` parses the head; a backup passes :func:`lade_ohne_alias`."""
     if not text.startswith("---"):
         return {}, text
     lines = text.splitlines(keepends=True)
@@ -31,7 +56,7 @@ def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
             head = "".join(lines[1:i])
             body = "".join(lines[i + 1:])
             try:
-                fm = yaml.safe_load(head) or {}
+                fm = laden(head) or {}
             except yaml.YAMLError:
                 return {}, text
             return (fm if isinstance(fm, dict) else {}), body

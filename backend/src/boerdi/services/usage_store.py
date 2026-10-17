@@ -33,17 +33,17 @@ from boerdi.db.models import UsageEvent
 logger = logging.getLogger(__name__)
 
 
-def _warne(session_id: str) -> None:
+def _warne(session_id: str | None) -> None:
     """Einmal formuliert, aus beiden Fehlerzweigen gerufen."""
     logger.warning(
         "usage: Verbrauchszeilen für Sitzung %s nicht geschrieben",
-        session_id, exc_info=True,
+        session_id or "(ohne Sitzung)", exc_info=True,
     )
 
 
 async def record_turn_usage(
-    session: AsyncSession, session_id: str, acc: dict[str, Any] | None,
-    engine: str | None = None,
+    session: AsyncSession, session_id: str | None, acc: dict[str, Any] | None,
+    engine: str | None = None, quelle: str | None = None,
 ) -> int:
     """Den Merkposten eines Zuges als Zeilen ablegen; Rückgabe: geschriebene Zeilen.
 
@@ -53,6 +53,9 @@ async def record_turn_usage(
 
     ``engine`` (AG-1) steht in jeder Zeile des Zuges; ``None`` heißt „keine
     Maschine" (Frühausstieg) und bleibt als NULL stehen.
+
+    Ohne ``session_id`` bucht ein Auftrag der Agent-API (Paket 7, P3); ``quelle``
+    sagt dann, woher er kommt.
 
     Die beiden „davon"-Werte wandern unverändert durch: ``cached`` steckt in
     ``prompt``, ``reasoning`` in ``completion``. Wer sie hier aufaddierte,
@@ -78,6 +81,7 @@ async def record_turn_usage(
                     reasoning_tokens=int(m.get("reasoning", 0) or 0),
                     calls=int(m.get("calls", 0) or 0),
                     engine=engine,
+                    quelle=quelle,
                 ))
     except Exception:
         _warne(session_id)  # kein ``raise``: siehe Modul-Docstring

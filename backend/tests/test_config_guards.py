@@ -15,7 +15,7 @@ from boerdi.api.config_guards import is_restorable_area_key, modell_fehler
 
 @pytest.mark.parametrize("key", [
     "01-base/welcome-config",
-    "01-base/rag-retrieval",          # ohne Modell — kommt trotzdem zurück
+    "01-base/ohne-modell",            # ohne Modell — kommt trotzdem zurück
     "03-patterns/m01-krisen-empathie",
     "04-personas/p-lk",
 ])
@@ -52,7 +52,7 @@ def test_ein_gueltiger_bereich_hat_keine_fehler():
 
 
 def test_ein_bereich_ohne_modell_passiert():
-    assert modell_fehler("01-base/rag-retrieval", {"top_k": "sieben"}) == []
+    assert modell_fehler("01-base/ohne-modell", {"top_k": "sieben"}) == []
 
 
 # ── Paket 4, D6: Lotsen-Regeln mit ungültigem Muster ──────────────────────────
@@ -100,7 +100,7 @@ def test_ein_nicht_speicherbarer_bereich_steht_mit_sqlstate_im_log(caplog):
 
     from starlette.requests import Request
 
-    from boerdi.api.config_guards import nicht_speicherbar_antwort
+    from boerdi.api.config_antworten import nicht_speicherbar_antwort
     from boerdi.services.config_conflict import BereichNichtSpeicherbar
 
     anfrage = Request({"type": "http", "method": "PUT", "path": "/", "headers": []})
@@ -118,7 +118,7 @@ def test_ein_wert_ohne_json_steht_mit_der_fehlerart_im_log(caplog):
 
     from starlette.requests import Request
 
-    from boerdi.api.config_guards import nicht_speicherbar_antwort
+    from boerdi.api.config_antworten import nicht_speicherbar_antwort
     from boerdi.services.config_conflict import BereichNichtSpeicherbar
 
     fehler = BereichNichtSpeicherbar("01-base/x")

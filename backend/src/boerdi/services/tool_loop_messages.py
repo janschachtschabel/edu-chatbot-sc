@@ -20,10 +20,11 @@ from typing import TYPE_CHECKING, Any
 
 from boerdi.domain.inline_grouping import _ui_box_state_footer
 from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
-from boerdi.domain.untrusted_text import frame_untrusted
+from boerdi.domain.untrusted_text import frame_untrusted, frame_wissen
 from boerdi.obs.zeiten import schritt
 from boerdi.services.card_collect import parse_cards_for_tool
 from boerdi.services.mcp.parsers import skill_registry_note
+from boerdi.services.rag.vorab import vektor_fuer
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,6 +49,9 @@ async def _assemble_messages(
     _inline_grouping_mode: bool,
     _pattern_sources_decl: Any,
     _rag_allowed_for_pattern: bool,
+    *,
+    seiten_daten: str = "",
+    rag_einbettung: tuple[str, list[float]] | None = None,
 ) -> tuple[
     list[dict], list[dict], list[str], list, bool, list[str], bool,
     int, float, int,
@@ -62,7 +66,11 @@ async def _assemble_messages(
     erster Parameter vorangestellt (pg-DI fuer ``get_rag_context`` — ALT
     holte sich die sqlite-Verbindung im rag_service selbst), und die
     ``resolve_discipline_labels``-Aufrufe sind gedroppt (ALT-No-op-Stub,
-    Praezedenz lp_fast_path). Rest verbatim modulo Import-Pfade.
+    Praezedenz lp_fast_path). Paket 7 kam dazu: die Seitendaten als gerahmte
+    user-Nachricht vor dem Verlauf (E-E, ``seiten_daten``), der vorab gerechnete
+    Vektor fuer den always-Abruf (T1, ``rag_einbettung``) und der UI-Box-Status
+    an der letzten Werkzeug-Nachricht statt als eigene System-Nachricht (D).
+    Sonst wie ALT, modulo Import-Pfade.
 
     Returns ``(messages, all_cards, tools_called, outcomes,
     knowledge_prefetched, always_areas, mcp_prefetched, _RAG_TOP_K,
@@ -100,6 +108,12 @@ async def _assemble_messages(
             "einzelne Abschnitte/Aufgaben/Kacheln, wenn hilfreich."
         )
         messages.append({"role": "system", "content": canvas_ctx})
+
+    # E-E (Plan 2026-09-29, Nutzer-Entscheid 2026-10-09): die Daten der Seite
+    # gerahmt als erste Nachricht nach dem Systemteil, wie im Agent-Zug (Paket
+    # B); die Regeln dazu stehen im Systemprompt (``response_prompt_builder``).
+    if seiten_daten:
+        messages.append({"role": "user", "content": seiten_daten})
 
     for h in history[-10:]:
         messages.append(h)
@@ -144,6 +158,8 @@ async def _assemble_messages(
                     min_score=_RAG_MIN_SCORE,
                     max_chars_per_area=_RAG_MAX_CHARS_PER_AREA,
                     out_sources=_prefetch_sources,
+                    # T1 (Paket 7): die Einbettung lief neben der Klassifikation.
+                    query_emb=vektor_fuer(rag_einbettung, message),
                 )
             if _prefetch_sources:
                 used_src = session_state.setdefault("_rag_top_sources", [])
@@ -190,8 +206,9 @@ async def _assemble_messages(
                     "content": (
                         f"[Bereits durchsuchte Bereiche: {areas_label}]\n\n"
                         # 200 000er-Notbremse (Nutzer-Entscheid 2026-08-21)
-                        # statt Arbeitsbudget — vorher 12 000.
-                        + prefetch_ctx[:200_000]
+                        # statt Arbeitsbudget — vorher 12 000. Gerahmt seit
+                        # Paket 9 (V6): Text von Dritten.
+                        + frame_wissen(prefetch_ctx[:200_000])
                     ),
                 })
 
@@ -311,19 +328,23 @@ async def _assemble_messages(
         if _nid:
             _seen_ids[_nid] = _c
         all_cards.append(_c)
-    # UI-Box-Status nach Prefetch-Phase: separate ``role: system``-Message,
-    # damit die LLM gleich beim ersten Tool-Loop-Schritt weiß, was nach
-    # Prefetch sichtbar wäre. Greift nur im inline_grouping_mode — sonst
-    # wäre die Info redundant (Tile-Cards werden flach gerendert).
+    # UI-Box-Status nach Prefetch-Phase, damit die LLM gleich beim ersten
+    # Tool-Loop-Schritt weiß, was nach Prefetch sichtbar wäre. Greift nur im
+    # inline_grouping_mode — sonst wäre die Info redundant (Tile-Cards werden
+    # flach gerendert). Paket D (Plan 2026-09-29, umgesetzt in Paket 7): an die
+    # letzte Werkzeug-Nachricht gehängt, wie die Schleife es je Runde tut
+    # (``tool_loop``), statt als eigene ``system``-Nachricht — die hob LiteLLM auf
+    # dem Weg über /v1/responses in ``instructions``, vor den Verlauf. Ohne
+    # Werkzeug-Nachricht bleibt es bei der System-Nachricht. Bewusste
+    # ALT-Abweichung (Nutzer-Entscheid E-D, 2026-10-09).
     _initial_footer = _ui_box_state_footer(all_cards, _inline_grouping_mode)
     if _initial_footer.strip():
-        messages.append({
-            "role": "system",
-            "content": (
-                "Status der UI-Boxen aus den Prefetch-Tool-Calls:"
-                + _initial_footer
-            ),
-        })
+        _status = "Status der UI-Boxen aus den Prefetch-Tool-Calls:" + _initial_footer
+        _letzte = next((m for m in reversed(messages) if m.get("role") == "tool"), None)
+        if _letzte is not None:
+            _letzte["content"] += "\n\n" + _status
+        else:
+            messages.append({"role": "system", "content": _status})
     tools_called: list[str] = []
     outcomes: list = []  # ToolOutcome list (Triple-Schema T-23)
     if knowledge_prefetched:

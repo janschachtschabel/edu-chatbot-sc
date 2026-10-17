@@ -70,6 +70,8 @@ export const DE: Catalogue = {
   'chat.record.stop': 'Aufnahme stoppen',
   'chat.send': 'Senden',
   'chat.hostTask': 'Auftrag der Seite',
+  /** An einer Ergebnis-Box aus dem Verlauf, die dort gekappt gespeichert ist. */
+  'chat.documentShortened': '*(gekürzt — der vollständige Text war zu lang für den Verlauf)*',
 
   'chat.input.label': 'Nachricht an BOERDi',
   'chat.input.placeholder': 'Nachricht eingeben…',
@@ -185,6 +187,9 @@ export const DE: Catalogue = {
    *  zweiten Werkzeugliste hier — die driftete gegen den Katalog des Backends. */
   'phase.agent_iteration': 'Überlege den nächsten Schritt …',
   'phase.agent_tool': 'Arbeite mit WLO-Inhalten …',
+  /** Kein SSE-Schritt: das Widget setzt ihn selbst, wenn es nach einem Abbruch
+   *  die Antwort aus dem Verlauf holt (Paket 7, P2). */
+  'phase.fromHistory': 'Verbindung unterbrochen — ich hole die Antwort nach …',
 
   // ── Link-Warnung (trusted-host + markdown-renderer) ────────────────
   /** Ein Schlüssel für beide Erzeuger: `externalLinkWarning` setzt ihn an
@@ -213,6 +218,10 @@ export const DE: Catalogue = {
   'error.tourStart': 'Entschuldigung, die Tour konnte gerade nicht gestartet werden. Bitte versuch es nochmal.',
   'error.transcription': 'Spracheingabe konnte nicht verarbeitet werden. Bitte tippe deine Nachricht.',
   'error.generic': 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut.',
+  /** Paket 7 (P1): noch läuft ein Zug derselben Sitzung (auch auf einer
+   *  anderen Server-Kopie). Die Frage wurde NICHT beantwortet. */
+  'error.busy': 'Einen Moment — ich beantworte noch deine vorige Nachricht. '
+    + 'Schick diese bitte gleich noch einmal.',
   /** B10: der Stream wird 100 s lang nicht fertig. */
   'error.stale': 'Das dauert gerade ungewöhnlich lange — bitte stell deine Frage '
     + 'gleich noch einmal. Falls meine Antwort doch noch fertig '
@@ -275,6 +284,8 @@ export const DE: Catalogue = {
    *  ungefähr: `clearAccessBlock` räumt den `sessionStorage`, der Zugang selbst
    *  bleibt gültig, bis er auf der `/auth`-Seite widerrufen wird. */
   'auth.signedOut': 'Abgemeldet. Ich suche wieder anonym — der Zugang ist aus diesem Tab entfernt.',
+  /** Der Server wies den Zugang ab (Paket 10, A-3) — der Zug lief ohne ihn weiter. */
+  'auth.expired': 'Deine WLO-Anmeldung gilt nicht mehr, vermutlich ist sie abgelaufen. Ich habe ohne sie weitergemacht — zum Ändern in WLO melde dich bitte neu an.',
 
   // ── Vorbereitete Änderung im Repositorium (E4) ─────────────────────
   /** Die fünf Ausgänge des Ausführers (`session/prepared-write.ts`). Vier davon

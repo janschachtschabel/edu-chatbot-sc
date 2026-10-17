@@ -7,6 +7,10 @@
     <p class="bk-intro">{{ t('backup.intro') }}</p>
   </header>
 
+  <!-- Paket 12: zuerst, was im Alltag zählt — welche Bereiche angepasst sind und ob eine neue
+       Werksfassung wartet. Die Sicherungs-Karten darunter sind der Rückweg. -->
+  <studio-fassungen-panel />
+
   <!-- `id`: Sprungziel von „Backup einspielen …" in der Kopfzeile (ST-9). -->
   <section class="op-panel" id="voll-backup" aria-labelledby="bk-full-title">
     <h2 class="op-title" id="bk-full-title">{{ t('backup.full.title') }}</h2>
@@ -28,7 +32,7 @@
       <input type="file" class="bk-file" id="bk-file" accept=".zip" (change)="onFile($event)" />
       <button
         type="button"
-        class="op-btn op-btn--danger"
+        class="op-btn op-btn--danger bk-restore"
         [disabled]="!file() || action.busy()"
         (click)="arm()"
       >
@@ -37,13 +41,17 @@
     </div>
 
     @if (armed()) {
-      <p class="op-confirm" role="alert">
+      <!-- div, nicht p: die Wahl darin ist eine Feldgruppe (Paket 7, P5-5). -->
+      <div class="op-confirm" role="alert">
         <span>{{ t('backup.confirmRestore', { name: file()?.name ?? '' }) }}</span>
+        <studio-restore-mode [(mode)]="mode" />
         <button type="button" class="op-btn op-btn--danger" (click)="restore()">
           {{ t('backup.confirmRestoreYes') }}
         </button>
-        <button type="button" class="op-btn" (click)="disarm()">{{ t('action.cancel') }}</button>
-      </p>
+        <button type="button" class="op-btn bk-cancel" (click)="disarm()">
+          {{ t('action.cancel') }}
+        </button>
+      </div>
     }
 
     <!-- Paket 4b, B3: Ein Erfolg steht in einer dauerhaften Status-Region; eine,

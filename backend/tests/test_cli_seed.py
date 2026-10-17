@@ -133,3 +133,84 @@ def test_ohne_flag_bleibt_der_voll_import_wie_er_war(seed_db, seed_tree) -> None
 
     assert main(["import-config", "--from", str(seed_tree)]) == 0
     assert _read_all()[area]["greeting"] == "aus dem Seed"
+
+
+# ── Paket 6, W3: ``--exact`` — der Werkszustand ohne Studio ────────────────
+#
+# Der Voll-Import überschreibt, löscht aber nichts und legt keinen Schnappschuss
+# an — ein im Studio angelegtes Muster überlebte ihn. ``--exact`` ist derselbe
+# Ablauf wie „Alles auf Auslieferungsstand“ im Studio (``seed_sync.herstellen``):
+# prüfen, sichern, schreiben UND löschen in einer Transaktion. ``--dry-run``
+# zeigt nur, was geschähe.
+
+
+@pytest.fixture
+def exakt_baum(tmp_path):
+    """Seed-Baum ohne Modell-Bereiche: geprüft wird der Ablauf, nicht der Inhalt."""
+    base = tmp_path / "seeds" / "01-base"
+    base.mkdir(parents=True)
+    (base / "neu.yaml").write_text("a: 1\n", encoding="utf-8")
+    (base / "anders.yaml").write_text("b: 2\n", encoding="utf-8")
+    return tmp_path / "seeds"
+
+
+def _schnappschuesse() -> int:
+    async def scenario():
+        from boerdi.db.session import make_engine
+        from boerdi.services import snapshots
+        from boerdi.settings import get_settings
+
+        engine = make_engine(get_settings())
+        try:
+            return await snapshots.count_snapshots(engine)
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(scenario())
+
+
+def test_exact_schreibt_loescht_und_sichert_vorher(seed_db, exakt_baum, capsys) -> None:
+    from boerdi.cli import main
+
+    _edit("01-base/anders", {"b": 1})
+    _edit("01-base/eigenbau", {"x": 1})  # nur in der Datenbank, etwa im Studio angelegt
+
+    assert main(["import-config", "--from", str(exakt_baum), "--exact"]) == 0
+    assert _read_all() == {"01-base/neu": {"a": 1}, "01-base/anders": {"b": 2}}
+    assert _schnappschuesse() == 1, "ohne Schnappschuss kein verlustbehafteter Lauf"
+    ausgabe = capsys.readouterr().out
+    assert "2 geschrieben" in ausgabe and "1 gelöscht" in ausgabe
+
+
+def test_exact_mit_dry_run_aendert_nichts(seed_db, exakt_baum, capsys) -> None:
+    from boerdi.cli import main
+
+    _edit("01-base/eigenbau", {"x": 1})
+    assert main(["import-config", "--from", str(exakt_baum), "--exact", "--dry-run"]) == 0
+    assert _read_all() == {"01-base/eigenbau": {"x": 1}}
+    assert _schnappschuesse() == 0
+    ausgabe = capsys.readouterr().out
+    assert "01-base/neu" in ausgabe and "01-base/eigenbau" in ausgabe
+
+
+def test_exact_weist_einen_ungueltigen_seed_ab(seed_db, exakt_baum, capsys) -> None:
+    from boerdi.cli import main
+
+    (exakt_baum / "01-base" / "engine.yaml").write_text("mode: kaputt\n", encoding="utf-8")
+    _edit("01-base/eigenbau", {"x": 1})
+    assert main(["import-config", "--from", str(exakt_baum), "--exact"]) == 1
+    assert _read_all() == {"01-base/eigenbau": {"x": 1}}, "nichts geschrieben, nichts gelöscht"
+    assert _schnappschuesse() == 0
+    assert "01-base/engine" in capsys.readouterr().err
+
+
+def test_exact_und_only_missing_schliessen_sich_aus(seed_db, exakt_baum) -> None:
+    from boerdi.cli import main
+
+    assert main(["import-config", "--from", str(exakt_baum), "--exact", "--only-missing"]) == 2
+
+
+def test_dry_run_gibt_es_nur_mit_exact(seed_db, exakt_baum) -> None:
+    from boerdi.cli import main
+
+    assert main(["import-config", "--from", str(exakt_baum), "--dry-run"]) == 2

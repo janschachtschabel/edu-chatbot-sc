@@ -121,6 +121,53 @@ def test_save_and_get_messages_roundtrip_order_limit_and_jsonb(test_db) -> None:
     assert [m["content"] for m in last_two] == ["hi", "und weiter?"]
 
 
+def test_die_letzte_nachrichten_id_je_sitzung(test_db) -> None:
+    # Paket 9 (Review Paket 7, NIT): der Handschlag braucht nur die ID — nicht die
+    # ganze letzte Nachricht samt Inhalt, Karten und Debug.
+    from boerdi.services.db_sessions import get_or_create_session, last_message_id, save_message
+
+    async def scenario(session):
+        await get_or_create_session(session, "bb-a")
+        await get_or_create_session(session, "bb-b")
+        leer = await last_message_id(session, "bb-a")
+        await save_message(session, "bb-a", "user", "eins")
+        await save_message(session, "bb-b", "user", "fremd")
+        await save_message(session, "bb-a", "assistant", "zwei")
+        return leer, await last_message_id(session, "bb-a"), await last_message_id(session, "bb-b")
+
+    leer, a, b = _run(scenario)
+    assert leer is None
+    assert (a, b) == (3, 2)
+
+
+def test_ein_gescheiterter_schreibvorgang_laesst_die_sitzung_benutzbar(test_db) -> None:
+    # Paket 10 (Audit 2026-10-10, M-1): ``save_message``/``update_session``
+    # committeten ohne Rollback, die Aufrufer schluckten den Fehler — danach stand
+    # die geteilte Sitzung in „needs rollback“, und jeder weitere Zugriff im selben
+    # Zug (Kostenbuchung, zweite Nachricht) scheiterte mit ``PendingRollbackError``.
+    from sqlalchemy.exc import DBAPIError, IntegrityError
+
+    from boerdi.services.db_sessions import (
+        get_messages,
+        get_or_create_session,
+        save_message,
+        update_session,
+    )
+
+    async def scenario(session):
+        await get_or_create_session(session, "bb-m1")
+        with pytest.raises(IntegrityError):  # Fremdschlüssel: die Sitzung gibt es nicht
+            await save_message(session, "bb-gibt-es-nicht", "user", "x")
+        await save_message(session, "bb-m1", "user", "geht weiter")
+        with pytest.raises(DBAPIError):  # kein Integer
+            await update_session(session, "bb-m1", turn_count="viele")
+        await update_session(session, "bb-m1", state_id="S2")
+        return await get_messages(session, "bb-m1")
+
+    nachrichten = _run(scenario)
+    assert [m["content"] for m in nachrichten] == ["geht weiter"]
+
+
 def test_save_memory_upserts_on_key_and_type(test_db) -> None:
     from boerdi.services.db_sessions import (
         get_memory,

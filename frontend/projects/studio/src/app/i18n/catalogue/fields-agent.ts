@@ -1,11 +1,12 @@
 /**
  * Feldtexte (ST-1) der Seite „Agent & Maschine“, Bereich `01-base/engine`:
  * Maschinenwahl, Deckel der Agent-Schleife, anonyme Deckel, Rolle und Schutzregeln,
- * Skill-Brücke der Muster-Engine. Ausführlich: `docs/agent-modus.md`.
+ * Skill-Brücke der Muster-Engine, Betriebsschalter (Paket 7). Ausführlich:
+ * `docs/agent-modus.md`.
  *
- * Schlüsselschema wie in `fields-layer-doc.ts`. `agent.safety` wertet der Code nicht
- * aus: das Sicherheits-Gate läuft in jeder Maschine (`graph/nodes/assess.py`) und am
- * Endpunkt (`services/agent_gate.py`). Die anonymen Deckel gelten nur im Chat
+ * Schlüsselschema wie in `fields-layer-doc.ts`. Das Sicherheits-Gate läuft in jeder
+ * Maschine (`graph/nodes/assess.py`) und am Endpunkt (`services/agent_gate.py`); sein
+ * früherer Schalter `agent.safety` ist gestrichen (Paket 7). Die anonymen Deckel gelten nur im Chat
  * (`services/agent_deckel.py`), `agent_rolle` nur für die Schleife im Chat
  * (`services/agent_kopf.py`) — `/api/agent` hat einen festen Systemtext.
  */
@@ -39,10 +40,6 @@ export const FIELDS_AGENT: CataloguePart = {
       'propose = kuratierende Werkzeuge kommen nur bis zur Vorschau, bestätigen muss ein '
       + 'Mensch. execute = der Lauf darf selbst bestätigen, aber nur mit angemeldeter Person; '
       + 'sonst gilt propose.',
-    'feld.AgentLimits.safety.label': 'Sicherheits-Gate',
-    'feld.AgentLimits.safety.hint':
-      'Gedacht als Schalter für das Sicherheits-Gate im Agent-Modus. Wird derzeit nicht '
-      + 'ausgewertet: das Gate läuft in beiden Maschinen und am Endpunkt immer.',
     'feld.AgentLimits.anonymous.label': 'Deckel ohne Anmeldung',
     'feld.AgentLimits.anonymous.hint':
       'Engere Deckel für Chat-Züge ohne persönliche Anmeldung; je Deckel gilt der kleinere '
@@ -79,6 +76,32 @@ export const FIELDS_AGENT: CataloguePart = {
       'Gibt Werkzeug-Mustern der Muster-Engine get_skill_registry und get_skill dazu, wenn '
       + 'freigegebene Skills im Spiel sind. Nicht bei Mustern ohne Werkzeuge (Krise, '
       + 'Drohung). Vorgabe aus.',
+    // ── Betrieb (Paket 7, S1–S4) ──────────────────────────────────────
+    'feld.EngineArea.betrieb.label': 'Betrieb',
+    'feld.EngineArea.betrieb.hint':
+      'Schalter des laufenden Betriebs, wirksam ohne Neustart. Nennt ein Schalter unter '
+      + '„Umgebung:“ eine Variable und ist sie gesetzt, gilt sie statt des Schalters.',
+    'feld.Betrieb.fast_modus.label': 'Fast-Modus (OpenAI)',
+    'feld.Betrieb.fast_modus.hint':
+      'Schnellere OpenAI-Stufe „fast“: ein Zug etwa 30 % schneller — zum 4- bis 5-fachen '
+      + 'Tokenpreis und ohne EU-Datenhaltung. Wirkt nur bei OpenAI direkt mit gpt-5 oder '
+      + 'gpt-6. Umgebung: LLM_SERVICE_TIER. Vorgabe aus.',
+    'feld.Betrieb.token_streaming.label': 'Token-Streaming',
+    'feld.Betrieb.token_streaming.hint':
+      'Die Antwort erscheint, während das Modell schreibt. Im Agent-Modus erst mit den '
+      + 'Agent-Schnellantworten. Umgebung: CHAT_TOKEN_STREAMING. Vorgabe an.',
+    'feld.Betrieb.agent_schnellantworten.label': 'Agent-Schnellantworten',
+    'feld.Betrieb.agent_schnellantworten.hint':
+      'Der Agent schreibt die Schnellantworten gleich mit, statt sie in einem zweiten '
+      + 'Aufruf zu holen (ein Zug 6,8 statt 12,2 s). Erst einschalten, wenn der Abschnitt '
+      + '„Schnellantworten“ im Master-Skill angepasst ist. Umgebung: '
+      + 'AGENT_INLINE_QUICK_REPLIES. Vorgabe aus.',
+    'feld.Betrieb.gastkonto_schreibt.label': 'Gastkonto darf schreiben',
+    'feld.Betrieb.gastkonto_schreibt.hint':
+      'Achtung: Eingeschaltet legt der Bot auch ohne Anmeldung Inhalte an und nimmt sie in '
+      + 'Sammlungen auf — mit dem Dienstkonto der Anlage aus MCP_AUTH_TOKEN, für jede '
+      + 'Person im Chat, in beiden Modi. Aus: schreiben kann nur, wer mit dem eigenen '
+      + 'WLO-Konto angemeldet ist. Nur dieser Schalter, keine Umgebungsvariable. Vorgabe aus.',
   },
   en: {
     'feld.EngineArea.mode.label': 'Engine',
@@ -107,10 +130,6 @@ export const FIELDS_AGENT: CataloguePart = {
       'propose = curating tools only get as far as the preview; a person must confirm. '
       + 'execute = the run may confirm by itself, but only with a signed-in person; otherwise '
       + 'propose applies.',
-    'feld.AgentLimits.safety.label': 'Safety gate',
-    'feld.AgentLimits.safety.hint':
-      'Intended as the switch for the safety gate in agent mode. Currently not evaluated: the '
-      + 'gate always runs, in both engines and at the endpoint.',
     'feld.AgentLimits.anonymous.label': 'Limits without sign-in',
     'feld.AgentLimits.anonymous.hint':
       'Tighter limits for chat turns without a personal sign-in; for each limit the smaller '
@@ -147,5 +166,30 @@ export const FIELDS_AGENT: CataloguePart = {
       'Adds get_skill_registry and get_skill to tool patterns of the pattern engine when '
       + 'released skills are in play. Not for patterns without tools (crisis, threat). '
       + 'Default off.',
+    'feld.EngineArea.betrieb.label': 'Operation',
+    'feld.EngineArea.betrieb.hint':
+      'Switches of the running operation, effective without a restart. If a switch names a '
+      + 'variable under “Environment:” and it is set, it applies instead of the switch.',
+    'feld.Betrieb.fast_modus.label': 'Fast mode (OpenAI)',
+    'feld.Betrieb.fast_modus.hint':
+      'Faster OpenAI tier “fast”: a turn about 30 % quicker — at 4 to 5 times the token '
+      + 'price and without EU data residency. Only with OpenAI directly and gpt-5 or '
+      + 'gpt-6. Environment: LLM_SERVICE_TIER. Default off.',
+    'feld.Betrieb.token_streaming.label': 'Token streaming',
+    'feld.Betrieb.token_streaming.hint':
+      'The answer appears while the model is writing it. In agent mode only together with '
+      + 'the agent quick replies. Environment: CHAT_TOKEN_STREAMING. Default on.',
+    'feld.Betrieb.agent_schnellantworten.label': 'Agent quick replies',
+    'feld.Betrieb.agent_schnellantworten.hint':
+      'The agent writes the quick replies along with its answer instead of fetching them in '
+      + 'a second call (a turn 6.8 instead of 12.2 s). Only switch on once the master '
+      + 'skill’s section on quick replies has been adapted. Environment: '
+      + 'AGENT_INLINE_QUICK_REPLIES. Default off.',
+    'feld.Betrieb.gastkonto_schreibt.label': 'Guest account may write',
+    'feld.Betrieb.gastkonto_schreibt.hint':
+      'Caution: when on, the bot also creates content and adds it to collections without a '
+      + 'sign-in — with the installation’s service account from MCP_AUTH_TOKEN, for every '
+      + 'person in the chat, in both modes. Off: only people signed in with their own WLO '
+      + 'account can write. Only this switch, no environment variable. Default off.',
   },
 };

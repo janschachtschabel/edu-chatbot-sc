@@ -28,8 +28,6 @@ export const FIELDS_AUSWAHL: CataloguePart = {
     'feld.EscalationBlock.mode.wahl.off': 'Aus',
     'feld.EscalationBlock.mode.wahl.smart': 'Nur bei Verdacht',
     'feld.EscalationBlock.mode.wahl.always': 'Bei jeder Nachricht',
-    'feld.EscalationBlock.provider.wahl.openai': 'OpenAI-Moderation',
-    'feld.EscalationBlock.provider.wahl.none': 'Keiner',
 
     // ── Muster ───────────────────────────────────────────────────────
     'feld.PatternFrontmatter.sources.wahl.llm': 'Sprachmodell',
@@ -71,8 +69,6 @@ export const FIELDS_AUSWAHL: CataloguePart = {
     'feld.EscalationBlock.mode.wahl.off': 'Off',
     'feld.EscalationBlock.mode.wahl.smart': 'Only on suspicion',
     'feld.EscalationBlock.mode.wahl.always': 'On every message',
-    'feld.EscalationBlock.provider.wahl.openai': 'OpenAI moderation',
-    'feld.EscalationBlock.provider.wahl.none': 'None',
 
     'feld.PatternFrontmatter.sources.wahl.llm': 'Language model',
     'feld.PatternFrontmatter.sources.wahl.mcp': 'WLO tools',

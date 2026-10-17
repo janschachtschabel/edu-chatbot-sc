@@ -40,18 +40,42 @@ NEUE_BEREICHE = {
         "K3 Kostenüberwachung: Preise je Modell, redaktionell pflegbar. "
         "ALT rechnete überhaupt nicht ab, hat also kein Gegenstück."
     ),
+    "01-base/rag-retrieval": (
+        "Paket 7 (P4): die Werte der Wissenssuche las ``rag/retrieval`` schon "
+        "immer aus diesem Bereich — ohne Modell war er im Studio nicht pflegbar "
+        "und ein falscher Wert fiel still auf die Vorgabe."
+    ),
     "01-base/engine": (
         "Umschalter Muster-Engine ↔ Agent-Schleife plus deren Deckel. ALT kannte "
-        "nur einen Weg, hat also kein Gegenstück. Vorgabe ``pattern`` — ohne "
-        "Pflege ändert sich am ausgelieferten Chatbot nichts."
+        "nur einen Weg, hat also kein Gegenstück. Vorgabe seit Paket 7 (K6) "
+        "``agent`` — im Betrieb die Vorgabe (D-15)."
+    ),
+}
+
+# Bereiche aus ALT, die NEU bewusst streicht — je mit Grund, als Gegenstück zu
+# ``NEUE_BEREICHE``: die Zusage „35 Bereiche wie in ALT“ wird sichtbar
+# eingeschränkt statt still aufgegeben.
+GESTRICHENE_BEREICHE = {
+    "05-canvas/create-triggers": (
+        "Paket 7 (K4, Nutzer-Entscheid 2026-10-09): ihr einziger Leser "
+        "(``looks_like_create_intent``) hatte keinen Aufrufer im Produktionscode."
+    ),
+    "05-canvas/edit-triggers": (
+        "Paket 7 (K4, Nutzer-Entscheid 2026-10-09): ihre Leser "
+        "(``looks_like_edit_intent``, ``has_explicit_new_create_override``) hatten "
+        "keinen Aufrufer im Produktionscode."
     ),
 }
 
 
 def test_registry_covers_exactly_the_spec_areas() -> None:
-    assert set(AREA_MODELS) == set(SPEC_AREAS) | set(NEUE_BEREICHE)
+    assert set(AREA_MODELS) == (
+        set(SPEC_AREAS) - set(GESTRICHENE_BEREICHE)) | set(NEUE_BEREICHE)
     assert len(SPEC_AREAS) == 35
     assert not set(SPEC_AREAS) & set(NEUE_BEREICHE), "ALT-Bereich als neu geführt"
+    assert set(GESTRICHENE_BEREICHE) <= set(SPEC_AREAS), "gestrichen, aber nie in ALT"
+    for key, grund in GESTRICHENE_BEREICHE.items():
+        assert len(grund) > 40, f"{key}: Grund zu knapp"
 
 
 def test_jeder_neue_bereich_traegt_einen_grund() -> None:
@@ -89,6 +113,8 @@ def test_all_55_real_alt_files_validate() -> None:
 
     failures: list[str] = []
     for file_key, data in sorted(areas.items()):
+        if file_key in GESTRICHENE_BEREICHE:
+            continue
         model = model_for(file_key)
         if model is None:
             failures.append(f"{file_key}: no model resolved")
@@ -98,3 +124,16 @@ def test_all_55_real_alt_files_validate() -> None:
         except Exception as e:  # collect all, report together
             failures.append(f"{file_key}: {str(e)[:200]}")
     assert failures == [], "\n".join(failures)
+
+
+def test_mcp_server_traegt_uebernommene_werkzeuge():
+    """Paket 11 (E): ``tool_schemas`` — Name, Beschreibung, Eingabeschema, lesend."""
+    from boerdi.domain.config_models.knowledge import McpServer
+
+    s = McpServer.model_validate({"id": "x", "tool_schemas": [
+        {"name": "suche", "description": "d", "input_schema": {"type": "object"},
+         "read_only": True}]})
+    (w,) = s.tool_schemas
+    assert (w.name, w.read_only, w.input_schema) == ("suche", True, {"type": "object"})
+    assert McpServer.model_validate({"id": "y"}).tool_schemas == []
+

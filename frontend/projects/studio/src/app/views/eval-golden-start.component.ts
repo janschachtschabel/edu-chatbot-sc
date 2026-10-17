@@ -67,11 +67,17 @@ export class EvalGoldenStartComponent {
   readonly status = signal('');
   readonly warnings = signal<readonly string[]>([]);
 
-  /** Empty selection means all — the rule `start_golden_eval_run` applies. */
+  /** Empty selection means all except the flows „auf Abruf“ — the rule
+   *  `start_golden_eval_run` applies (`services/eval/flow_wahl.py`, Paket 7). */
   readonly selected = computed<readonly GoldFlow[]>(() => {
     const ids = this.chosen();
-    return ids.size === 0 ? this.flows() : this.flows().filter((f) => ids.has(f.id));
+    return ids.size === 0
+      ? this.flows().filter((f) => !f.auf_abruf)
+      : this.flows().filter((f) => ids.has(f.id));
   });
+
+  /** Gibt es Flows „nur auf Abruf“? Dann sagt der Hinweis, dass „alle“ sie weglässt. */
+  readonly hatAbruf = computed(() => this.flows().some((f) => f.auf_abruf));
 
   /** Exactly what will be fired: one chat call per configured turn. */
   readonly turns = computed(() =>
@@ -134,7 +140,8 @@ export class EvalGoldenStartComponent {
    *  brauchte vorher N−1 Einzelklicks — leer hieß zwar alle, aber der erste
    *  Haken hieß NUR dieser. */
   selectAll(): void {
-    this.chosen.set(new Set(this.flows().map((flow) => flow.id)));
+    // Paket 7 (K3): ohne die Flows „auf Abruf“ — die wählt man einzeln.
+    this.chosen.set(new Set(this.flows().filter((flow) => !flow.auf_abruf).map((flow) => flow.id)));
     this.disarm();
   }
 

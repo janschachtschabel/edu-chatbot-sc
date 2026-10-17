@@ -133,15 +133,15 @@ describe("BackupComponent", () => {
     await settle(h);
 
     await click(h, "Backup einspielen");
-    h.http.expectNone(`${BASE}/restore`);
+    h.http.expectNone((r) => r.url === `${BASE}/restore`);
     // The confirmation names the file — the chosen name itself is shown by the
     // native file input, which jsdom does not render.
     expect(text(h)).toContain("boerdi-config-backup.zip");
 
     await click(h, "Ja, einspielen");
-    const req = h.http.expectOne(`${BASE}/restore`);
+    const req = h.http.expectOne(`${BASE}/restore?mode=merge`);
     expect((req.request.body as FormData).get("file")).toBe(file);
-    req.flush({ status: "restored", areas: 35 });
+    req.flush({ status: "restored", areas: 35, deleted: 0, snapshot_id: null });
     await settle(h);
     expect(text(h)).toContain("35");
     // The chosen file STAYS chosen. Clearing the signal alone would leave the
@@ -149,6 +149,36 @@ describe("BackupComponent", () => {
     // it, and clearing the input element too needs a DOM reach-around for no
     // gain — re-applying the same ZIP writes the same areas.
     expect(button(h, "Backup einspielen").disabled).toBe(false);
+  });
+
+  // Paket 7 (P5-5): „exakt" löscht, was nicht in der ZIP liegt — nur auf
+  // ausdrückliche Wahl, und die Meldung nennt den Rückweg.
+  it("spielt „exakt“ nur auf ausdrückliche Wahl ein und nennt den Rückweg", async () => {
+    const h = await mount();
+    h.fixture.componentInstance.onFile({
+      target: { files: [new File(["PK"], "alt.zip")] },
+    } as unknown as Event);
+    await settle(h);
+    await click(h, "Backup einspielen");
+    const wahl = (wert: string) =>
+      h.el.querySelector<HTMLInputElement>(`.op-confirm input[value="${wert}"]`)!;
+    expect(wahl("merge").checked).toBe(true);
+    wahl("exact").click();
+    await settle(h);
+
+    await click(h, "Ja, einspielen");
+    h.http
+      .expectOne(`${BASE}/restore?mode=exact`)
+      .flush({ status: "restored", areas: 30, deleted: 2, snapshot_id: "snap-9" });
+    await settle(h);
+    expect(text(h)).toContain("2 Bereiche gelöscht");
+    expect(text(h)).toContain("snap-9");
+    // Die Snapshot-Liste darunter liest neu: der Rückweg steht sofort darin.
+    h.http.expectOne(`${BASE}/snapshots`).flush([]);
+
+    // Die nächste Rückfrage beginnt wieder bei der Vorgabe.
+    await click(h, "Backup einspielen");
+    expect(wahl("merge").checked).toBe(true);
   });
 
   it("nennt die Datei in einem GANZEN Satz, in beiden Sprachen", async () => {
@@ -184,7 +214,9 @@ describe("BackupComponent", () => {
     await settle(h);
     await click(h, "Backup einspielen");
     await click(h, "Ja, einspielen");
-    h.http.expectOne(`${BASE}/restore`).flush({ status: "restored", areas: 1 });
+    h.http
+      .expectOne(`${BASE}/restore?mode=merge`)
+      .flush({ status: "restored", areas: 1, deleted: 0, snapshot_id: null });
     await settle(h);
     // Einzahl, nicht „1 Konfigurationsbereiche" — die Grenze zwischen den
     // Formen entscheidet die Sprache, nicht ein `=== 1` im Code.
@@ -202,7 +234,7 @@ describe("BackupComponent", () => {
     await click(h, "Backup einspielen");
     await click(h, "Ja, einspielen");
     h.http
-      .expectOne(`${BASE}/restore`)
+      .expectOne(`${BASE}/restore?mode=merge`)
       .flush(
         { detail: "Keine gültige ZIP-Datei." },
         { status: 413, statusText: "Payload Too Large" },
@@ -215,5 +247,33 @@ describe("BackupComponent", () => {
     // bleibt leer — sonst wird er doppelt angesagt.
     expect(h.el.querySelector(".op-msg[role='status']")).toBe(region);
     expect(region!.textContent).toBe("");
+  });
+
+  it("führt den Fokus in die Rückfrage und zurück zum Knopf (Paket 9, V8)", async () => {
+    const h = await mount();
+    h.fixture.componentInstance.onFile({
+      target: { files: [new File(["PK"], "b.zip")] },
+    } as unknown as Event);
+    await settle(h);
+    await click(h, "Backup einspielen");
+    expect(document.activeElement?.textContent?.trim()).toBe("Abbrechen");
+    await click(h, "Abbrechen");
+    expect(document.activeElement).toBe(button(h, "Backup einspielen"));
+
+    await click(h, "Backup einspielen");
+    await click(h, "Ja, einspielen");
+    h.http
+      .expectOne(`${BASE}/restore?mode=merge`)
+      .flush({ status: "restored", areas: 3, deleted: 0, snapshot_id: null });
+    await settle(h);
+    expect(document.activeElement).toBe(button(h, "Backup einspielen"));
+  });
+
+  it("trägt keine Kennung doppelt — sonst benennt aria-labelledby das falsche Panel (Paket 9)", async () => {
+    // Snapshots und Auslieferungsstand hießen beide `sp-title`; das zweite Panel
+    // trug damit den Namen des ersten.
+    const h = await mount();
+    const ids = Array.from(h.el.querySelectorAll("[id]"), (e) => e.id);
+    expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
   });
 });

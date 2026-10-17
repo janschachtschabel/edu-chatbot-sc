@@ -99,8 +99,11 @@ class TestLesendeWloWerkzeuge:
 
         lesend = {t["function"]["name"] for t in TOOL_DEFINITIONS}
         schreibend = {t["function"]["name"] for t in CURATION_TOOL_DEFINITIONS}
-        assert hc.LESENDE_WLO_WERKZEUGE <= lesend
-        assert not (hc.LESENDE_WLO_WERKZEUGE & schreibend)
+        # Paket 11, C-5: ``wlo_list_suggestions`` steht im Kuratier-Katalog, weil es eine
+        # Anmeldung braucht — es liest aber nur (Server: ``readOnlyHint: true``).
+        nur_lesend_im_kuratier_katalog = {"wlo_list_suggestions"}
+        assert hc.LESENDE_WLO_WERKZEUGE <= lesend | nur_lesend_im_kuratier_katalog
+        assert not (hc.LESENDE_WLO_WERKZEUGE & (schreibend - nur_lesend_im_kuratier_katalog))
 
     def test_kein_schreibendes_werkzeug_entkommt_dem_praefix(self):
         """Die andere Richtung: erfuellt der Bestand die Annahme ueberhaupt?
@@ -110,4 +113,25 @@ class TestLesendeWloWerkzeuge:
 
         for t in CURATION_TOOL_DEFINITIONS:
             name = t["function"]["name"]
+            if name == "wlo_list_suggestions":  # liest nur (C-5), siehe oben
+                continue
             assert not hc.erlaubt(name, hc.LESEND), name
+
+
+def test_fremde_mcp_server_sind_der_blick_nach_draussen():
+    """Paket 11 (E): „kuratierend“ heißt WLO ohne Blick nach außen — ein fremder Server ist außen.
+    Lesend bleibt er erlaubt (angeboten werden ohnehin nur lesende fremde Werkzeuge)."""
+    from boerdi.domain.host_capabilities import erlaubt
+
+    assert erlaubt("wikidata__search_entities", "read-only")
+    assert erlaubt("wikidata__search_entities", "full")
+    assert not erlaubt("wikidata__search_entities", "curate")
+
+
+def test_vorschlaege_auflisten_ist_lesend():
+    """Paket 11, C-5: ``wlo_list_suggestions`` ändert nichts (Server: ``readOnlyHint: true``) — im
+    Lesemodus einer Einbettung erlaubt, trotz Präfix ``wlo_``."""
+    from boerdi.domain.host_capabilities import erlaubt
+
+    assert erlaubt("wlo_list_suggestions", "read-only")
+    assert not erlaubt("wlo_suggest_metadata", "read-only")

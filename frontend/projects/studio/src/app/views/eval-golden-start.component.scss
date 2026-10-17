@@ -94,6 +94,14 @@
   color: var(--st-text-muted);
 }
 
+// Paket 7 (K3): ein Flow „nur auf Abruf“ — als Wort, nicht als Farbe allein.
+.egd-flow-tag {
+  display: inline-block;
+  margin-block-start: var(--st-1);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .egd-cost {
   margin: 0;
   font-size: 0.875rem;

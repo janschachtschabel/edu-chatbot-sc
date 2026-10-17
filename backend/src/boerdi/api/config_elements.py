@@ -26,6 +26,12 @@ from boerdi.api.config_element_models import (
     StateEntry,
     StatesPayload,
 )
+from boerdi.api.config_kennungen import (
+    gruppe_von,
+    kennung_von,
+    kennungs_einwand,
+    sicherheits_kennungen,
+)
 from boerdi.api.deps import Lang, require_studio_key
 from boerdi.domain.config_models.patterns import ist_reservierte_kennung
 from boerdi.i18n import Locale, msg
@@ -61,6 +67,15 @@ def _strip_empty(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_strip_empty(x) for x in obj if _strip_empty(x) not in (None, "", [], {})]
     return obj
+
+
+async def _pruefe_kennungen(neu: dict[str, dict[str, Any]], lang: Locale) -> None:
+    """Dieselbe Regel wie Studio und Wiederherstellen (``config_kennungen``), für ALLE Einträge,
+    bevor einer geschrieben wird (Befundliste §1.4, Paket 11): eine Kennung je Gruppe ohne
+    Rücksicht auf Groß/Klein, Sicherheitsmuster behalten ihre Kennung, Persona-Schlüssel passend."""
+    einwand = kennungs_einwand(neu, await cl.current_config(), await sicherheits_kennungen())
+    if einwand:
+        raise HTTPException(400, msg(lang, einwand.meldung, **einwand.werte))
 
 
 def _require_unique_ids(entries: list, label: str) -> None:
@@ -198,6 +213,7 @@ async def get_personas_route() -> dict:
 async def put_personas_route(payload: PersonasPayload, lang: Lang) -> dict:
     entries = _validate_entries(PersonaEntry, payload.personas, "Persona", lang)
     _require_unique_ids(entries, "Persona")
+    neu: dict[str, dict[str, Any]] = {}
     for e in entries:
         fm: dict[str, Any] = {"element": "persona", "id": e.id, "label": e.label}
         if e.description:
@@ -219,8 +235,13 @@ async def put_personas_route(payload: PersonasPayload, lang: Lang) -> dict:
         if e.typical_intents:
             fm["typical_intents"] = list(e.typical_intents)
         body = _md_body(e.id, e.label, e.personality_text)
-        await cl.write_area(f"04-personas/{cl._persona_slug(e.id)}",
-                            {"frontmatter": fm, "body": body})
+        if not cl._persona_slug(e.id):
+            # „P-“ ergäbe den Schlüssel ``04-personas/`` (Befundliste §1.4, Paket 11).
+            raise HTTPException(400, msg(lang, "documents.idInvalid", id=e.id))
+        neu[f"04-personas/{cl._persona_slug(e.id)}"] = {"frontmatter": fm, "body": body}
+    await _pruefe_kennungen(neu, lang)
+    for key, data in neu.items():
+        await cl.write_area(key, data)
     return {"status": "saved", "count": len(entries)}
 
 
@@ -254,15 +275,22 @@ async def put_patterns_route(payload: PatternsPayload, lang: Lang) -> dict:
                 400, msg(lang, "patterns.idReserved", value=repr(e.id.strip())),
             )
 
+    # Aus der Datenbank, nicht aus dem Prozess-Cache (Paket 11): sah der Cache ein Muster
+    # nicht, legte die Route ein zweites Dokument mit derselben Kennung an, statt das
+    # vorhandene zu ändern (Paket 4, D2 — dieselbe Regel wie ``pruefe_kennung``).
+    bestand = await cl.current_config()
     existing_key_by_id = {
-        p["id"]: cl._strip_ext(p.get("_source_file", ""))
-        for p in cl.load_pattern_definitions()
+        kennung_von(data): key for key, data in bestand.items()
+        if gruppe_von(key) == "03-patterns" and kennung_von(data)
     }
-    for e in entries:
-        area_key = existing_key_by_id.get(e.id) or _new_pattern_key(e)
-        fm = _pattern_frontmatter(e)
-        body = _md_body(e.id, e.label, e.body_md)
-        await cl.write_area(area_key, {"frontmatter": fm, "body": body})
+    neu = {
+        existing_key_by_id.get(e.id) or _new_pattern_key(e):
+            {"frontmatter": _pattern_frontmatter(e), "body": _md_body(e.id, e.label, e.body_md)}
+        for e in entries
+    }
+    await _pruefe_kennungen(neu, lang)
+    for key, data in neu.items():
+        await cl.write_area(key, data)
     return {"status": "saved", "count": len(entries)}
 
 
@@ -281,14 +309,17 @@ def _pattern_frontmatter(e: PatternEntry) -> dict[str, Any]:
         v = getattr(e, k)
         if v:
             fm[k] = v
-    for k in ("sources", "tools", "precondition_slots"):
+    for k in ("tools", "precondition_slots"):
         v = getattr(e, k)
         if v:
             fm[k] = list(v)
-    # Auch leer geschrieben: ``[]`` heißt „keine Bereiche“, das Fehlen „erben“
-    # (Paket 4, C6) — ein GET→PUT kippte sonst das eine in das andere.
-    if e.rag_areas is not None:
-        fm["rag_areas"] = list(e.rag_areas)
+    # Auch leer geschrieben: ``[]`` heißt „keine Bereiche“ bzw. „keine Quelle“,
+    # das Fehlen „erben“ bzw. die Vorgabe (Paket 4 C6, Paket 6 B5) — ein
+    # GET→PUT kippte sonst das eine in das andere.
+    for k in ("sources", "rag_areas"):
+        v = getattr(e, k)
+        if v is not None:
+            fm[k] = list(v)
     if e.card_text_link_required:
         fm["card_text_link_required"] = True
     if e.quick_replies_mode and e.quick_replies_mode != "exact":

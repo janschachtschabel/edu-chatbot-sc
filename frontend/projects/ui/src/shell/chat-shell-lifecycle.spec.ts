@@ -72,8 +72,25 @@ describe('ChatShellComponent — Lifecycle-Wiring (8-4S-e5)', () => {
     (c as unknown as { _api: unknown })._api = { setUiLocale: vi.fn() };
     const lc = (c as unknown as { _lifecycle: Record<string, () => void> })._lifecycle;
     const spy = vi.spyOn(lc, 'relocalizeWelcome').mockImplementation(() => {});
+    // Paket 7, T2: dazu der Seitengruß in der neuen Sprache.
+    const gruss = vi.spyOn(lc, 'regreetForLocale').mockImplementation(() => {});
     c.ngOnChanges({ locale: { previousValue: 'de', currentValue: 'en', firstChange: false } });
     expect(spy).toHaveBeenCalledTimes(1);
+    expect(gruss).toHaveBeenCalledTimes(1);
+  });
+
+  it('das Ende des Ladens meldet sich beim Lebenszyklus (Review Paket 7, C-5)', () => {
+    // Ein Sprachwechsel während eines Zuges stellt den Seitengruß zurück; nachgeholt
+    // wird er, sobald `isLoading` fällt.
+    const { c } = make();
+    const lc = (c as unknown as { _lifecycle: Record<string, () => void> })._lifecycle;
+    const ende = vi.spyOn(lc, 'loadingEnded').mockImplementation(() => {});
+    c.isLoading.set(true);
+    TestBed.tick();
+    expect(ende).not.toHaveBeenCalled();
+    c.isLoading.set(false);
+    TestBed.tick();
+    expect(ende).toHaveBeenCalledTimes(1);
   });
 
   it('ngAfterViewChecked delegiert an ScrollFollowController.afterViewChecked', () => {

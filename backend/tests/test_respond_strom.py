@@ -25,6 +25,15 @@ def an(monkeypatch):
 
 
 @pytest.fixture
+def aus(monkeypatch):
+    """Seit Paket 7 (S2) ist die Vorgabe an — aus heißt jetzt ausdrücklich aus."""
+    monkeypatch.setenv("CHAT_TOKEN_STREAMING", "0")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
+@pytest.fixture
 def antwort_werkzeug(monkeypatch):
     """``inline_anzahl`` liest Konfiguration — hier die Grenze, die der Test setzt."""
     anzahl = {"wert": 3}
@@ -78,7 +87,7 @@ def test_ohne_antwort_werkzeug_gesperrt(an, antwort_werkzeug):
     assert strom.abschluss("egal")["gesperrt"] == "ohne_antwort_werkzeug"
 
 
-def test_schalter_aus_sperrt(antwort_werkzeug):
+def test_schalter_aus_sperrt(aus, antwort_werkzeug):
     strom, _e = _strom()
     assert strom_fuer_muster_zug(strom, _ctx("M04"), {}) is None
     assert strom.abschluss("egal")["gesperrt"] == "aus"

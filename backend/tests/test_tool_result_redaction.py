@@ -661,3 +661,24 @@ def test_kombi_redaktion_zeigt_die_lizenz_je_treffer():
     parsed = json.loads(_redigiere_kombi_suche(json.dumps(env), mit_einzelinhalten=True))
     assert parsed["content"]["results"][0]["license"] == "CC BY 4.0"
     assert "license" not in parsed["content"]["results"][1]
+
+
+def test_die_schlussnotiz_des_servers_haengt_nicht_am_letzten_eintrag():
+    """Paket 6, G3 (Befund Gatekeeper-Skill, 2026-10-08): Ohne ``Keywords:``-Zeile
+    las der Parser über das Leerzeilen-Ende des letzten Eintrags hinaus und
+    hängte die Schlussnotiz des Servers an dessen Beschreibung. Der Server
+    schließt jeden Eintrag mit einer Leerzeile ab — das ist die Grenze."""
+    from boerdi.domain.tool_result_redaction import katalog_aus_markdown
+
+    md = (
+        "## Freigegebene Skills (1)\n\n"
+        "### Gatekeeper für Sammlungen\n"
+        "nodeId: 5400fc80-2962-4083-80fc-802962908315\n"
+        "Prüft, ob ein Inhalt zur Sammlung passt.\n\n"
+        "Das ist nur die Übersicht — die Anleitungen selbst stehen nicht darin.\n"
+    )
+    assert katalog_aus_markdown(md) == [{
+        "nodeId": "5400fc80-2962-4083-80fc-802962908315",
+        "title": "Gatekeeper für Sammlungen",
+        "description": "Prüft, ob ein Inhalt zur Sammlung passt.",
+    }]

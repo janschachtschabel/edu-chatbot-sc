@@ -17,52 +17,6 @@ import type { JsonSchema } from './json-schema';
 
 export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
 {
-  "05-canvas/create-triggers": {
-    "additionalProperties": true,
-    "properties": {
-      "create_triggers": {
-        "default": [],
-        "items": {
-          "type": "string"
-        },
-        "title": "Create Triggers",
-        "type": "array"
-      },
-      "search_verbs": {
-        "default": [],
-        "items": {
-          "type": "string"
-        },
-        "title": "Search Verbs",
-        "type": "array"
-      }
-    },
-    "title": "CanvasCreateTriggersArea",
-    "type": "object"
-  },
-  "05-canvas/edit-triggers": {
-    "additionalProperties": true,
-    "properties": {
-      "edit_triggers": {
-        "default": [],
-        "items": {
-          "type": "string"
-        },
-        "title": "Edit Triggers",
-        "type": "array"
-      },
-      "explicit_create_overrides": {
-        "default": [],
-        "items": {
-          "type": "string"
-        },
-        "title": "Explicit Create Overrides",
-        "type": "array"
-      }
-    },
-    "title": "CanvasEditTriggersArea",
-    "type": "object"
-  },
   "05-canvas/material-types": {
     "$defs": {
       "MaterialType": {
@@ -234,6 +188,43 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
   },
   "01-base/classify-overrides": {
     "$defs": {
+      "CurationReroute": {
+        "additionalProperties": true,
+        "description": "Netz unter dem Klassifikator für Kurations-Aufträge (Paket 10, S-7) —\ndie Regel steht in ``domain/kuration_umleitung``.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "verbs": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Verbs",
+            "type": "array"
+          },
+          "objects": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Objects",
+            "type": "array"
+          },
+          "question_words": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Question Words",
+            "type": "array"
+          }
+        },
+        "title": "CurationReroute",
+        "type": "object"
+      },
       "FewShotExample": {
         "additionalProperties": true,
         "properties": {
@@ -411,6 +402,15 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         },
         "title": "Few Shot Examples",
         "type": "array"
+      },
+      "curation_reroute": {
+        "$ref": "#/$defs/CurationReroute",
+        "default": {
+          "enabled": true,
+          "verbs": [],
+          "objects": [],
+          "question_words": []
+        }
       }
     },
     "title": "ClassifyOverridesArea",
@@ -927,11 +927,6 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Write Mode",
             "type": "string"
           },
-          "safety": {
-            "default": true,
-            "title": "Safety",
-            "type": "boolean"
-          },
           "anonymous": {
             "$ref": "#/$defs/AnonymousLimits"
           }
@@ -1008,10 +1003,38 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         },
         "title": "AnonymousLimits",
         "type": "object"
+      },
+      "Betrieb": {
+        "additionalProperties": true,
+        "description": "Schalter des laufenden Betriebs (Paket 7, S1–S3, Nutzer-Entscheid 2026-10-09).\n\nBis Paket 7 reine Umgebungsvariablen; hier wirken sie ohne Neustart. Ist die\nUmgebungsvariable gesetzt, gilt sie (``services/betriebsschalter``).",
+        "properties": {
+          "fast_modus": {
+            "default": false,
+            "title": "Fast Modus",
+            "type": "boolean"
+          },
+          "token_streaming": {
+            "default": true,
+            "title": "Token Streaming",
+            "type": "boolean"
+          },
+          "agent_schnellantworten": {
+            "default": false,
+            "title": "Agent Schnellantworten",
+            "type": "boolean"
+          },
+          "gastkonto_schreibt": {
+            "default": false,
+            "title": "Gastkonto Schreibt",
+            "type": "boolean"
+          }
+        },
+        "title": "Betrieb",
+        "type": "object"
       }
     },
     "additionalProperties": true,
-    "description": "Der Umschalter, die Deckel der Agent-Schleife und ihre Rolle (AG-3),\ndazu die Skill-Brücke der Muster-Maschine (E-6).",
+    "description": "Der Umschalter, die Deckel der Agent-Schleife und ihre Rolle (AG-3),\ndazu die Skill-Brücke der Muster-Maschine (E-6) und die Betriebsschalter\n(Paket 7).",
     "properties": {
       "mode": {
         "default": "pattern",
@@ -1027,6 +1050,9 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       },
       "agent_rolle": {
         "$ref": "#/$defs/AgentRolle"
+      },
+      "betrieb": {
+        "$ref": "#/$defs/Betrieb"
       },
       "muster_skills": {
         "default": false,
@@ -1170,6 +1196,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "default": {},
             "title": "Environment",
             "type": "object"
+          },
+          "auf_abruf": {
+            "default": false,
+            "title": "Auf Abruf",
+            "type": "boolean"
           }
         },
         "title": "GoldFlow",
@@ -1219,11 +1250,6 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       "GuideModeBlock": {
         "additionalProperties": true,
         "properties": {
-          "default_enabled": {
-            "default": true,
-            "title": "Default Enabled",
-            "type": "boolean"
-          },
           "max_guide_targets_per_turn": {
             "default": 5,
             "title": "Max Guide Targets Per Turn",
@@ -1270,7 +1296,6 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
       "guide_mode": {
         "$ref": "#/$defs/GuideModeBlock",
         "default": {
-          "default_enabled": true,
           "max_guide_targets_per_turn": 5,
           "max_guide_quick_replies": 2,
           "url_fields_priority": [],
@@ -1700,12 +1725,67 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             },
             "title": "Tools",
             "type": "array"
+          },
+          "werkzeuge_aus": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Werkzeuge Aus"
+          },
+          "tool_schemas": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/McpWerkzeugSchema"
+            },
+            "title": "Tool Schemas",
+            "type": "array"
           }
         },
         "required": [
           "id"
         ],
         "title": "McpServer",
+        "type": "object"
+      },
+      "McpWerkzeugSchema": {
+        "additionalProperties": true,
+        "description": "Ein Werkzeug eines weiteren Servers, übernommen aus „Server prüfen“ (Paket 11, E).\nAngeboten wird es nur mit ``read_only`` (``domain/fremdwerkzeug``).",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string",
+            "x-widget": "textarea"
+          },
+          "input_schema": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Input Schema",
+            "type": "object"
+          },
+          "read_only": {
+            "default": false,
+            "title": "Read Only",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "McpWerkzeugSchema",
         "type": "object"
       }
     },
@@ -2437,6 +2517,12 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Safety",
             "type": "boolean",
             "x-fixed": true
+          },
+          "retention_days": {
+            "default": 30,
+            "minimum": 0,
+            "title": "Retention Days",
+            "type": "integer"
           }
         },
         "title": "PrivacyLoggingBlock",
@@ -2451,7 +2537,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "messages": true,
           "memory": true,
           "quality": true,
-          "safety": true
+          "safety": true,
+          "retention_days": 30
         }
       }
     },
@@ -2491,7 +2578,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "type": "boolean"
           },
           "retention_days": {
-            "default": 30,
+            "default": 180,
+            "minimum": 0,
             "title": "Retention Days",
             "type": "integer"
           }
@@ -2506,7 +2594,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "$ref": "#/$defs/QualityLoggingBlock",
         "default": {
           "enabled": true,
-          "retention_days": 30
+          "retention_days": 180
         }
       },
       "alerts": {
@@ -2564,6 +2652,68 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
     "title": "RagConfigArea",
     "type": "object"
   },
+  "01-base/rag-retrieval": {
+    "$defs": {
+      "RagAbruf": {
+        "additionalProperties": true,
+        "description": "Werte der Wissenssuche, gelesen von ``rag/retrieval.get_retrieval_settings``.\n\nLeer = die Vorgabe des Codes (``_RAG_DEFAULTS``: 10 / 0,30 / 3000); eine\ngesetzte Umgebungsvariable (``RAG_TOP_K`` …) geht vor. Grenzen und Typen sind\ndie des Lesers — bis Paket 7 fiel ein Wert außerhalb still auf die Vorgabe\nzurück, bis Paket 9 einer im falschen Typ (``\"20\"``, ``True``): darum streng.",
+        "properties": {
+          "top_k": {
+            "anyOf": [
+              {
+                "maximum": 50,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Top K"
+          },
+          "min_score": {
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Min Score"
+          },
+          "max_chars_per_area": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Chars Per Area"
+          }
+        },
+        "title": "RagAbruf",
+        "type": "object"
+      }
+    },
+    "additionalProperties": true,
+    "description": "``01-base/rag-retrieval`` (Paket 7, P4): gelesen schon immer, pflegbar erst\nmit diesem Modell (ST-5 Befund 2).",
+    "properties": {
+      "retrieval": {
+        "$ref": "#/$defs/RagAbruf"
+      }
+    },
+    "title": "RagRetrievalArea",
+    "type": "object"
+  },
   "01-base/safety-config": {
     "$defs": {
       "EscalationBlock": {
@@ -2577,15 +2727,6 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
               "off",
               "smart",
               "always"
-            ]
-          },
-          "provider": {
-            "default": "",
-            "title": "Provider",
-            "type": "string",
-            "x-choices": [
-              "openai",
-              "none"
             ]
           },
           "legal_classifier": {
@@ -2702,7 +2843,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "type": "boolean"
           },
           "retention_days": {
-            "default": 30,
+            "default": 90,
+            "minimum": 0,
             "title": "Retention Days",
             "type": "integer"
           }
@@ -2830,20 +2972,11 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "$ref": "#/$defs/EscalationBlock",
         "default": {
           "mode": "",
-          "provider": "",
           "legal_classifier": true,
           "thresholds": {},
           "hard_block_categories": [],
           "downgrade_false_positives": true
         }
-      },
-      "confidence_adjustments": {
-        "additionalProperties": {
-          "type": "number"
-        },
-        "default": {},
-        "title": "Confidence Adjustments",
-        "type": "object"
       },
       "rate_limits": {
         "$ref": "#/$defs/RateLimitsBlock",
@@ -2869,7 +3002,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "default": {
           "enabled": true,
           "log_all_turns": false,
-          "retention_days": 30
+          "retention_days": 90
         }
       }
     },
@@ -3510,6 +3643,7 @@ export const AREA_KEYS: readonly string[] = [
   "01-base/pricing",
   "01-base/privacy-config",
   "01-base/quality-log-config",
+  "01-base/rag-retrieval",
   "01-base/safety-config",
   "01-base/tone-modifiers",
   "01-base/website-tour",
@@ -3524,8 +3658,6 @@ export const AREA_KEYS: readonly string[] = [
   "04-personas",
   "04-signals/signal-modulations",
   "04-states/states",
-  "05-canvas/create-triggers",
-  "05-canvas/edit-triggers",
   "05-canvas/material-types",
   "05-canvas/persona-priorities",
   "05-canvas/type-aliases",

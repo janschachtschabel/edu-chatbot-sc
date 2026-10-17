@@ -79,3 +79,29 @@ def test_die_abweisung_traegt_die_cors_kopfzeilen():
     )
     assert antwort.status_code == 413
     assert "access-control-allow-origin" in antwort.headers
+
+
+def test_hinter_einem_pfad_praefix_gilt_dieselbe_grenze():
+    """Paket 10 (Audit 2026-10-10, L-4): die Grenze sah den rohen Pfad samt
+    ``root_path`` — hinter einem Präfix galten für ``/api/chat`` 16 statt 2 MiB."""
+    import asyncio
+
+    from boerdi.api.body_limit import BodySizeLimitMiddleware
+
+    durchgelassen: list[str] = []
+    gesendet: list[dict] = []
+
+    async def app(scope, receive, send):
+        durchgelassen.append(scope["path"])
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(nachricht):
+        gesendet.append(nachricht)
+
+    scope = {"type": "http", "method": "POST", "path": "/pfx/api/chat", "root_path": "/pfx",
+             "query_string": b"", "headers": [(b"content-length", str(3 * MIB).encode())]}
+    asyncio.run(BodySizeLimitMiddleware(app)(scope, receive, send))
+    assert durchgelassen == []
+    assert gesendet[0]["status"] == 413

@@ -79,7 +79,12 @@ def rerank_candidates() -> int:
     return max(1, get_settings().rerank_candidates)
 
 #: Verzeichnisname des Exports. Regenerieren: ALTs ``scripts/export_reranker_onnx.py``.
+#: Seit 2026-10-15 nur noch erkannt, wenn er schon daliegt (Entwicklung, Handinstallation).
 _RERANK_MODEL_SLUG = "cross-encoder__mmarco-mMiniLMv2-L12-H384-v1-int8"
+#: Verzeichnis des selbst bezogenen Modells (``reranker_bezug``) — die offizielle int8-Datei
+#: des Herausgebers auf Hugging Face. Andere Quantisierung als der alte Export: die Schwelle
+#: des Karten-Gates für Sammlungen ist für den alten Export kalibriert (Paket 11, offen).
+HF_SLUG = "cross-encoder__mmarco-mMiniLMv2-L12-H384-v1__quint8-avx2"
 
 #: Reihenfolge der Dateinamen, die ein Export tragen kann (ALT-verbatim).
 _ONNX_CANDIDATES = ("model_quantized.onnx", "model_int8.onnx", "model.onnx")
@@ -93,7 +98,8 @@ def _reranker_enabled_via_env() -> bool:
     """Return False wenn ``RAG_RERANKER_ENABLED`` per ENV explizit
     abgeschaltet wurde. Akzeptierte „false"-Werte: ``false``, ``0``,
     ``no``, ``off`` (case-insensitive, mit whitespace-Stripping).
-    Alles andere (auch fehlende Variable) → True = Reranker aktiv.
+    Alles andere → True. Fehlt die Variable, entscheiden die Settings
+    (Vorgabe seit 2026-10-15: aus).
 
     Use-Case: kleine RAM-Deployments (≤ 2 GB), in denen der ONNX-
     Reranker (~150-300 MB resident) zu OOM-Crashes führt. Embedding-
@@ -144,20 +150,29 @@ def _rerank_max_concurrency() -> int:
     return 1
 
 
+def modell_basis() -> Path:
+    """Das Eltern-Verzeichnis aus ``RERANK_MODEL_DIR``, absolut.
+
+    Relativ zu `backend/` aufgelöst, nicht zum Arbeitsverzeichnis: der Prozess wird
+    aus verschiedenen Verzeichnissen gestartet (uvicorn, pytest, CLI), das Paket liegt
+    immer gleich.
+    """
+    basis = Path(get_settings().rerank_model_dir)
+    if not basis.is_absolute():
+        basis = Path(__file__).resolve().parents[3].parent / basis
+    return basis
+
+
 def _reranker_model_dir() -> str | None:
     """Pfad des Exports, oder None wenn er fehlt.
 
     ``RERANK_MODEL_DIR`` zeigt auf das ELTERN-Verzeichnis; darunter liegt der
-    Slug. Ein direkt übergebenes Modellverzeichnis wird ebenfalls akzeptiert —
-    im Container ist der Mount-Punkt oft schon das Modell selbst.
+    Slug — zuerst das selbst bezogene Modell, dann ein alter Export. Ein direkt
+    übergebenes Modellverzeichnis wird ebenfalls akzeptiert — im Container ist der
+    Mount-Punkt oft schon das Modell selbst.
     """
-    basis = Path(get_settings().rerank_model_dir)
-    if not basis.is_absolute():
-        # Relativ zu `backend/` auflösen, nicht zum Arbeitsverzeichnis: der
-        # Prozess wird aus verschiedenen Verzeichnissen gestartet (uvicorn,
-        # pytest, CLI), das Paket liegt immer gleich.
-        basis = Path(__file__).resolve().parents[3].parent / basis
-    for kandidat in (basis / _RERANK_MODEL_SLUG, basis):
+    basis = modell_basis()
+    for kandidat in (basis / HF_SLUG, basis / _RERANK_MODEL_SLUG, basis):
         if kandidat.is_dir() and any(kandidat.glob("*.onnx")):
             return str(kandidat)
     return None
@@ -169,12 +184,15 @@ def reranker_status() -> str:
     Drei Zustände, weil „eingeschaltet" und „einsatzbereit" verschiedene Dinge
     sind:
 
-    * ``off`` — per ``RAG_RERANKER_ENABLED`` abgeschaltet (gewollt, z.B. auf
-      kleinen Maschinen; RAG antwortet weiter, nur embedding-sortiert).
-    * ``model-missing`` — eingeschaltet, aber unter ``RERANK_MODEL_DIR`` liegt
-      kein Export. **Der stille Fall**: bisher merkte man ihn nur an einer
-      Protokollzeile beim ersten Zug, und die Antworten waren unauffällig
-      schlechter statt sichtbar kaputt.
+    * ``off`` — per ``RAG_RERANKER_ENABLED`` abgeschaltet (seit 2026-10-15 die
+      Vorgabe; RAG antwortet weiter, nur embedding-sortiert).
+    * ``downloading`` — eingeschaltet, das Modell wird gerade bezogen
+      (``reranker_bezug``); bis dahin rechnet nichts damit.
+    * ``download-failed`` — der Bezug ist gescheitert (Netz, Prüfwert); der nächste
+      Start versucht es erneut.
+    * ``model-missing`` — eingeschaltet, kein Modell und kein Selbstbezug
+      (``RERANK_AUTO_DOWNLOAD=false``). **Der stille Fall**: bisher merkte man ihn
+      nur an einer Protokollzeile beim ersten Zug.
     * ``ready`` — eingeschaltet und das Modell ist auffindbar.
 
     ``ready`` sagt bewusst nicht „geladen": das Modell wird erst beim ersten
@@ -183,7 +201,11 @@ def reranker_status() -> str:
     """
     if not _reranker_enabled_via_env():
         return "off"
-    return "ready" if _reranker_model_dir() else "model-missing"
+    if _reranker_model_dir():
+        return "ready"
+    from boerdi.services.rag import reranker_bezug
+
+    return reranker_bezug.zustand() or "model-missing"
 
 
 class _OnnxReranker:
@@ -255,9 +277,9 @@ def _get_reranker() -> _OnnxReranker | None:
     model_dir = _reranker_model_dir()
     if model_dir is None:
         logger.warning(
-            "Reranker-Modell nicht gefunden (RERANK_MODEL_DIR=%r, erwartet %s/) — "
-            "embedding-only. Das Ranking bleibt nutzbar, ist aber schlechter.",
-            get_settings().rerank_model_dir, _RERANK_MODEL_SLUG,
+            "Reranker-Modell (noch) nicht da (RERANK_MODEL_DIR=%r, erwartet %s/) — "
+            "embedding-only, bis es bezogen ist (RERANK_AUTO_DOWNLOAD, /api/health).",
+            get_settings().rerank_model_dir, HF_SLUG,
         )
         return None
     try:

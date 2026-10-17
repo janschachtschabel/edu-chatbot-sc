@@ -73,6 +73,6 @@
 - Beispiel: „Videos zu Bruchrechnung Klasse 5", „Arbeitsblatt Photosynthese Sek I"
 
 ## Verhalten
-1. `lookup_wlo_vocabulary` für Filter-Werte (`discipline`, `educationalContext`, `lrt`)
+1. Filter-Werte als Bezeichnung setzen (`discipline`, `educationalContext`, `learningResourceType`, `license`) — sie werden abgeglichen, kein Nachschlagen davor
 2. `search_wlo_content` mit allen Filtern
 3. Bei Null-Treffer → M12 (Eskalation)

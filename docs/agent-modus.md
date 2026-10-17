@@ -617,3 +617,8 @@ der Agent-Schleife:
 Der Block dazu steht als dritte System-Nachricht — hinter dem Master-Skill, vor
 dem Seitenkontext — und **nur bei Abweichung**: ein Satz über den Normalfall
 kostete in jedem Zug Token und sagte nichts.
+
+**Nachtrag Paket 7 (P4):** `tool-mode` und `inline-result-grouping` erreichen
+inzwischen auch die Muster-Maschine — derselbe Block steht dort hinter dem Auftrag
+der einbettenden Anwendung (`response_prompt_builder`); `tool-mode` filtert dort
+seit Paket 4 auch die Werkzeuge.

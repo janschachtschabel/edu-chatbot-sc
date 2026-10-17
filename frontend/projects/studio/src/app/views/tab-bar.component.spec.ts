@@ -198,3 +198,31 @@ describe("TabBarComponent — der Aufrufer lehnt ab", () => {
     expect(document.activeElement).toBe(buttons[0]);
   });
 });
+
+// ── Paket 6, S2 (ST-4c): Reiter mit Zählern ──────────────────────────────
+describe("TabBarComponent mit Zählern", () => {
+  @Component({
+    selector: "studio-count-host",
+    imports: [TabBarComponent],
+    template: `<studio-tab-bar [tabs]="tabs" active="p" label="Dimensionen" />`,
+  })
+  class CountHost {
+    readonly tabs: readonly TabDef[] = [
+      { id: "p", label: "Personas", count: 6 },
+      { id: "t", label: "Tonalität" },
+    ];
+  }
+
+  it("zeigt die Zahl und nennt sie im Namen des Reiters", async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const host = TestBed.createComponent(CountHost);
+    await host.whenStable();
+    const [mitZahl, ohne] = Array.from(
+      (host.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    expect(mitZahl.querySelector(".tb-count")?.textContent?.trim()).toBe("6");
+    expect(mitZahl.getAttribute("aria-label")).toBe("Personas (6)");
+    expect(ohne.querySelector(".tb-count")).toBeNull();
+    expect(ohne.getAttribute("aria-label")).toBeNull();
+  });
+});

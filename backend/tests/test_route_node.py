@@ -489,3 +489,32 @@ def test_route_reports_context_policy_and_pattern_in_order(monkeypatch):
     asyncio.run(route(_ctx(), progress=TurnProgress(seen.append)))
     assert [e["step"] for e in seen] == ["context", "policy", "pattern"]
     assert [e["kind"] for e in seen] == ["record", "start", "start"]
+
+
+# ── Kurations-Umleitung (Paket 10, S-7) ────────────────────────────
+_UMLEITUNG = {"curation_reroute": {
+    "enabled": True, "verbs": ["nimm", "aufnehmen"], "objects": ["sammlung"],
+    "question_words": ["wie"],
+}}
+
+
+def test_kurationsauftrag_wird_vor_der_musterwahl_umgeleitet(monkeypatch):
+    captured = {}
+    _patch(monkeypatch, captured)
+    monkeypatch.setattr(route_mod, "load_classify_overrides_config", lambda: _UMLEITUNG)
+    ctx = _ctx(message="Nimm das in meine Sammlung auf",
+               classification=ClassificationResult(pattern_id_hint="M06"))
+    asyncio.run(route(ctx))
+    assert captured["select"]["enforced_pattern_id"] == "M18"
+    assert captured["select"]["pattern_id_hint"] == "M06"
+
+
+def test_safety_erzwingung_schlaegt_die_kurations_umleitung(monkeypatch):
+    captured = {}
+    _patch(monkeypatch, captured)
+    monkeypatch.setattr(route_mod, "load_classify_overrides_config", lambda: _UMLEITUNG)
+    ctx = _ctx(message="Nimm das in meine Sammlung auf",
+               safety=SafetyDecision(risk_level="high", enforced_pattern="M01"),
+               classification=ClassificationResult(pattern_id_hint="M06"))
+    asyncio.run(route(ctx))
+    assert captured["select"]["enforced_pattern_id"] == "M01"

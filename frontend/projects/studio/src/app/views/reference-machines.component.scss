@@ -1,0 +1,17 @@
+// Die beiden Maschinen (Paket 6, S3) — Abschnitt, Tabelle und Listen wie die
+// übrigen Abschnitte der Referenz.
+@use './section-shell';
+@use './reference';
+
+// Die Vorgabe dieser Anlage: eine Aussage über den Betrieb, kein Fließtext —
+// abgesetzt durch einen Rand am Anfang, nicht durch Farbe allein.
+.rm-current {
+  padding-inline-start: var(--st-3);
+  border-inline-start: 3px solid var(--st-accent);
+}
+
+// Ein früher Ausgang des Graphen: als Wort hinter dem Satz, nicht nur als Farbe.
+.rm-exit {
+  margin-inline-start: var(--st-1);
+  font-weight: 600;
+}

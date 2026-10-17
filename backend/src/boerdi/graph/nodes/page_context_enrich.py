@@ -35,6 +35,7 @@ import logging
 from urllib.parse import urlsplit
 
 from boerdi.domain.page_host import classify_page_host
+from boerdi.domain.seitenkontext_eingang import SEITEN_ENTITIES
 from boerdi.graph.state import TurnContext
 from boerdi.services.config_loader import load_context_actions
 from boerdi.services.context_facts import (
@@ -59,15 +60,7 @@ _BESTANDS_KINDS = ("collection", "topic")
 # otherwise be relabelled ``home``, losing its metadata and its context pills.
 _UNDECIDED_KINDS = ("", "other")
 
-_PAGE_CONTEXT_ENTITY_KEYS = (
-    "node_id",
-    "collection_id",
-    "search_query",
-    "topic_page_slug",
-    "subject_slug",
-    "document_title",
-    "page_type",
-)
+_PAGE_CONTEXT_ENTITY_KEYS = SEITEN_ENTITIES
 
 
 #: Die Felder des Seitenkontexts, die ab hier im Zug als Text gelesen werden.

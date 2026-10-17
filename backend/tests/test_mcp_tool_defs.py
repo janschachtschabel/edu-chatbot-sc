@@ -574,9 +574,10 @@ def test_search_tools_offer_the_license_filter():
 # ── V4 (2026-08-20): excludeNodeIds — der dokumentierte Weg für Folgeseiten ─
 
 def test_search_models_keep_exclude_node_ids():
+    # Ohne ``search_wlo_within_collection``: der Server übergeht das Feld dort (gemessen
+    # 2026-10-15) — dort wird es zu ``skipCount`` (``test_alte_gewohnheit_…``).
     for tool, extra in (("search_wlo_content", {"query": "x"}),
-                        ("search_wlo_collections", {"query": "x"}),
-                        ("search_wlo_within_collection", {"nodeId": "c1"})):
+                        ("search_wlo_collections", {"query": "x"})):
         out = validate_tool_args(tool, {**extra, "excludeNodeIds": ["a", "b"]})
         assert out.get("excludeNodeIds") == ["a", "b"], tool
 
@@ -591,9 +592,9 @@ def test_leere_liste_reist_nicht_mit():
 def test_search_tools_offer_exclude_node_ids():
     fuer = {d["function"]["name"]: d["function"]["parameters"]["properties"]
             for d in TOOL_DEFINITIONS}
-    for name in ("search_wlo_content", "search_wlo_all",
-                 "search_wlo_collections", "search_wlo_within_collection"):
+    for name in ("search_wlo_content", "search_wlo_all", "search_wlo_collections"):
         assert "excludeNodeIds" in fuer[name], name
+    assert "skipCount" in fuer["search_wlo_within_collection"]  # Paket 11, gemessen
 
 
 # ── V2 (2026-08-20): Kontext nur auf ausdrücklichen Wunsch ──────────────────
@@ -644,3 +645,43 @@ def test_query_beschreibungen_lehren_den_kernbegriff_nicht_den_satz():
             assert dimension in q, (name, dimension)
         assert "Bruchrechnung Grundschule" not in q, name
         assert "Bruchrechnung Klasse 7" not in q, name
+
+
+# ── Paket 11 (2026-10-15): „mehr davon“ in einer Sammlung ──────────────────────
+def test_sammlungssuche_blaettert_mit_skipcount():
+    """Gemessen am Staging-Server: ``search_wlo_within_collection`` übergeht ``excludeNodeIds``
+    still (gleiche Treffer), ``skipCount`` blättert. Das Modell bekommt deshalb ``skipCount``."""
+    from boerdi.services.mcp.tool_args import validate_tool_args
+    from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
+
+    fn = next(t["function"] for t in TOOL_DEFINITIONS
+              if t["function"]["name"] == "search_wlo_within_collection")
+    assert "skipCount" in fn["parameters"]["properties"]
+    assert "excludeNodeIds" not in fn["parameters"]["properties"]
+    args = validate_tool_args("search_wlo_within_collection", {"nodeId": "n", "skipCount": 5})
+    assert args.get("skipCount") == 5 and "excludeNodeIds" not in args
+
+
+def test_alte_gewohnheit_excludenodeids_wird_zu_skipcount():
+    """Schickt das Modell trotzdem gezeigte IDs mit, sind das die ersten Treffer — so viele
+    werden übersprungen."""
+    from boerdi.services.mcp.tool_args import validate_tool_args
+
+    args = validate_tool_args("search_wlo_within_collection",
+                              {"nodeId": "n", "excludeNodeIds": ["a", "b", "c"]})
+    assert args.get("skipCount") == 3 and "excludeNodeIds" not in args
+
+
+def test_seltene_filter_nur_auf_wunsch():
+    """Nutzer-Vorgabe 2026-10-17: Zielgruppe und Lizenz sind kaum getaggt (an Inhalten
+    hängt meist nur „Lernende“ oder „Lehrende“) und leeren die Trefferliste. Jede
+    Beschreibung dieser Filter sagt, dass sie nur auf Wunsch gesetzt werden."""
+    gesehen = 0
+    for definition in TOOL_DEFINITIONS:
+        felder = definition["function"]["parameters"].get("properties", {})
+        for name in ("userRole", "license"):
+            if name in felder:
+                gesehen += 1
+                assert "Nur setzen, wenn" in felder[name]["description"], (
+                    definition["function"]["name"], name)
+    assert gesehen >= 5

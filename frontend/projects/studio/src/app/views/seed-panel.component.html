@@ -1,5 +1,7 @@
-<section class="op-panel" aria-labelledby="sp-title">
-  <h2 class="op-title" id="sp-title">{{ t('seed.title') }}</h2>
+<!-- `seed-title`, nicht `sp-title`: das Snapshot-Panel steht auf derselben Seite,
+     und eine doppelte Kennung gäbe diesem Abschnitt dessen Namen (Paket 9). -->
+<section class="op-panel" aria-labelledby="seed-title">
+  <h2 class="op-title" id="seed-title" tabindex="-1">{{ t('seed.title') }}</h2>
 
   <p class="op-lead">{{ t('seed.lead') }}</p>
 
@@ -53,7 +55,7 @@
     </button>
     <button
       type="button"
-      class="op-btn op-btn--danger"
+      class="op-btn op-btn--danger seed-exact"
       [disabled]="!canApply() || action.busy()"
       (click)="arm()"
     >
@@ -67,7 +69,9 @@
       <button type="button" class="op-btn op-btn--danger" (click)="applyExact()">
         {{ t('seed.confirmExactYes') }}
       </button>
-      <button type="button" class="op-btn" (click)="disarm()">{{ t('action.cancel') }}</button>
+      <button type="button" class="op-btn seed-cancel" (click)="disarm()">
+        {{ t('action.cancel') }}
+      </button>
     </p>
   }
 

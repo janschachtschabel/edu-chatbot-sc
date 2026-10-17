@@ -23,27 +23,30 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response, Security
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Security
 from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from boerdi.api.deps import get_session, require_studio_key, todo
+from boerdi.api.chat_handschlag import handschlag
+from boerdi.api.deps import get_session, get_session_factory, require_studio_key, todo
 from boerdi.api.ratelimit import peer_ip, public_rate_limit
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
-from boerdi.api.session_locks import _get_session_lock, _release_session_lock
+from boerdi.api.session_locks import sitzung_sperren
 from boerdi.api.sse import sse_turn
-from boerdi.api.turn_auth import adopt_turn_auth_block
+from boerdi.api.turn_auth import uebernimm_zugang
 from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.build import build_turn_graph, run_turn
 from boerdi.graph.state import TurnContext
-from boerdi.i18n import bot_text, resolve_locale
+from boerdi.i18n import bot_text, msg, resolve_locale
 from boerdi.obs.progress import TurnProgress
+from boerdi.services import betriebsschalter
 from boerdi.services.db_sessions import save_message
 from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
+from boerdi.services.mcp.anmeldung import abgelehnt_in_diesem_zug
+from boerdi.services.sitzungssperre import SitzungBeschaeftigt
 from boerdi.services.token_stream import TokenStrom
 from boerdi.services.usage_store import record_turn_usage
 from boerdi.services.widget_postprocess import _postprocess_response_for_widget_modes
-from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -91,17 +94,17 @@ async def chat(
 ) -> ChatResponse:
     """Run one chat turn through the LangGraph pipeline.
 
-    Serialised per ``session_id`` via an ``asyncio.Lock`` so two concurrent
-    requests from the same session never read/write ``session_state`` in parallel;
-    different sessions still run fully in parallel. The compiled graph yields a
+    Serialised per ``session_id`` across all replicas (Paket 7, P1:
+    ``sitzung_sperren``) so two turns of one session never read/write
+    ``session_state`` in parallel; a second one waits briefly, then gets 409.
+    Different sessions still run fully in parallel. The compiled graph yields a
     state dict — ``early_response`` (tour/preflight/fast-path early exit) wins over
     ``response`` (normal path). Any unhandled error becomes a graceful bubble
     instead of an HTTP 500 so the widget shows something actionable.
     """
-    adopt_turn_auth_block(request)
-    lock = await _get_session_lock(req.session_id)
+    await uebernimm_zugang(request)
     try:
-        async with lock:
+        async with sitzung_sperren(request, req.session_id):
             try:
                 graph = build_turn_graph(
                     session=session, peer_ip=peer_ip(request),
@@ -109,61 +112,90 @@ async def chat(
                 )
                 result = await run_turn(graph, TurnContext(req=req))
                 await _record_usage(session, req.session_id, result)
-                resp = result.get("early_response") or result.get("response")
+                resp = _anmeldestand(result.get("early_response") or result.get("response"))
                 return await _postprocess_response_for_widget_modes(req, resp)
             except Exception as impl_err:
                 # Top-level safety net: a config bug, a pattern-engine attribute
                 # error, a DB hiccup — surface the exception type to the user as a
                 # chat bubble rather than letting the frontend swallow an HTTP 500.
                 logger.exception("chat endpoint unhandled exception: %s", impl_err)
-                err_debug = DebugInfo(
-                    pattern="ERROR: unhandled_chat_exception", tools_called=["error"],
-                )
-                if ist_hintergrund_anfrage(req.environment):
-                    # Kontext-Ping und Tour-Tick schickt das Widget von sich aus und
-                    # schluckt ihre Fehler still — eine Blase zeigte es trotzdem an:
-                    # eine Antwort auf eine Frage, die niemand gestellt hat, und ein
-                    # sichtbarer Zug, der einen offenen Schreibvorgang nicht verfallen
-                    # lässt (Befund 2026-10-08). Also stumm und ohne Eintrag im Verlauf.
-                    return ChatResponse(
-                        session_id=req.session_id, content="", follow_up="none",
-                        debug=err_debug,
-                    )
-                _err_lang = resolve_locale(
-                    getattr(req.environment, "locale", None))
-                # Saved is what the person sees (audit 2026-09-29, 6.3): the
-                # history shows the same bubble after a reload, and the model
-                # history gets no internal marker like ``[unhandled error: …]``.
-                err_text = bot_text(
-                    _err_lang, "error.internal", kind=type(impl_err).__name__,
-                )
-                try:
-                    await save_message(
-                        session, req.session_id, "assistant", err_text,
-                        debug=err_debug.model_dump(),
-                    )
-                except Exception:
-                    pass  # never let a DB-write failure mask the original error
-                return ChatResponse(
-                    session_id=req.session_id,
-                    content=err_text,
-                    quick_replies=[bot_text(_err_lang, "error.retryChip")],
-                    debug=err_debug,
-                )
-    finally:
-        # Cleanup MUST run AFTER ``async with lock`` exits; otherwise the lock is
-        # still held and the refcount-pop check would leak entries.
-        await _release_session_lock(req.session_id)
+                return await _fehlerblase(session, req, impl_err)
+    except SitzungBeschaeftigt:
+        # Paket 7 (P1, P5-1): ein anderer Zug derselben Sitzung läuft noch, auch
+        # auf einer anderen Kopie. Kein Graph, kein Verlauf — das Widget zeigt
+        # dazu seinen eigenen Text; Hintergrund-Pings schluckt es still.
+        raise HTTPException(status_code=409, detail=msg(
+            resolve_locale(getattr(req.environment, "locale", None)),
+            "chat.sessionBusy")) from None
+    except Exception as sperr_err:
+        # Paket 9 (Review Paket 7, MINOR 30): die Sperre selbst scheiterte (etwa die
+        # Datenbank weg) — bis dahin HTTP 500. Die Freigabe fängt ihre Fehler selbst
+        # (``services/sitzungssperre``); hier landet also keine fertige Antwort.
+        logger.exception("chat endpoint: Sitzungssperre gescheitert: %s", sperr_err)
+        return await _fehlerblase(session, req, sperr_err)
+
+
+def _anmeldestand(resp: ChatResponse | None) -> ChatResponse | None:
+    """Wies der MCP-Server den Block dieses Zuges ab (Paket 10, Kurzaudit A-3)? Dann
+    erfährt es das Widget. Im Task des Zuges gelesen — der Stand gilt über alle
+    Knoten (``services/mcp/auth._ZugStand``)."""
+    if resp is not None and abgelehnt_in_diesem_zug():
+        resp.auth_invalid = True
+    return resp
+
+
+async def _fehlerblase(
+    session: AsyncSession, req: ChatRequest, fehler: BaseException,
+) -> ChatResponse:
+    """Die Antwort auf einen gescheiterten Zug — beide Wege (Paket 9: bis dahin nur
+    ``POST /api/chat``; ein Strom, der nach dem Auflegen weiterlief und scheiterte,
+    ließ die Frage im Verlauf ohne Antwort).
+
+    Gespeichert wird, was die Person sieht (Audit 2026-09-29, 6.3): der Verlauf zeigt
+    nach einem Neuladen dieselbe Blase, und der Modell-Verlauf bekommt keine interne
+    Marke wie ``[unhandled error: …]``.
+    """
+    err_debug = DebugInfo(pattern="ERROR: unhandled_chat_exception", tools_called=["error"])
+    if ist_hintergrund_anfrage(req.environment):
+        # Kontext-Ping und Tour-Tick schickt das Widget von sich aus und schluckt
+        # ihre Fehler still — eine Blase zeigte es trotzdem an: eine Antwort auf
+        # eine Frage, die niemand gestellt hat, und ein sichtbarer Zug, der einen
+        # offenen Schreibvorgang nicht verfallen lässt (Befund 2026-10-08). Also
+        # stumm und ohne Eintrag im Verlauf.
+        return ChatResponse(session_id=req.session_id, content="", follow_up="none",
+                            debug=err_debug)
+    lang = resolve_locale(getattr(req.environment, "locale", None))
+    err_text = bot_text(lang, "error.internal", kind=type(fehler).__name__)
+    try:
+        # Nach einem Fehler steht die Transaktion womöglich auf „abgebrochen“.
+        await session.rollback()
+    except Exception:
+        logger.debug("Rollback vor der Fehlerblase gescheitert", exc_info=True)
+    try:
+        await save_message(session, req.session_id, "assistant", err_text,
+                           debug=err_debug.model_dump())
+    except Exception:
+        # Never let a DB-write failure mask the original error.
+        logger.debug("Fehlerblase nicht gespeichert", exc_info=True)
+    return ChatResponse(
+        session_id=req.session_id,
+        content=err_text,
+        quick_replies=[bot_text(lang, "error.retryChip")],
+        debug=err_debug,
+    )
 
 
 async def _stream_turn(
-    req: ChatRequest, request: Request, session: AsyncSession,
+    req: ChatRequest, request: Request, sitzungen: async_sessionmaker[AsyncSession],
     engine: str = "pattern",
 ) -> AsyncIterator[str]:
     """Yield the SSE frames for one streamed turn: connected → phase* → result | error.
 
-    The turn runs as a cancellable task so an abandoned connection stops burning an
-    LLM/MCP concurrency slot on work nobody is listening for. While it runs, this
+    The turn runs as a task. Since Paket 7 (P2) an abandoned connection lets it run
+    to the end — the answer lands in the history and the widget fetches it there,
+    instead of asking a second time (``sse_turn(nach_abbruch="zu_ende")``); the
+    ``connected`` frame tells it whether the history is kept and from which message
+    on (``chat_handschlag``). While it runs, this
     generator drains the progress queue the graph writes into (C9) and forwards each
     event as a ``phase`` frame (answer text as ``text_delta``, behind
     ``CHAT_TOKEN_STREAMING``) — that is what turns the widget's bare 6-10 s spinner
@@ -175,6 +207,11 @@ async def _stream_turn(
     sentinel needs a guaranteed slot, so the sink stops one short of the cap —
     otherwise a flood of progress could crowd out ``_DONE`` and delay the answer by
     a whole keepalive interval.
+
+    The turn opens its OWN session from ``sitzungen`` (Review Paket 7, A-1): after
+    a hang-up it runs to the end (P2), but FastAPI closes the request-scoped session
+    as soon as the response ends — the turn would keep writing on a session that is
+    being closed under it.
     """
     # Token-Streaming (Plan 2026-10-01, T12): ein Strom je Anfrage, nur mit
     # Schalter. ``respond`` öffnet oder sperrt ihn; ``_to_payload`` misst ihn.
@@ -182,29 +219,29 @@ async def _stream_turn(
 
     async def _run_impl(progress: TurnProgress) -> ChatResponse | Exception:
         nonlocal strom
-        # Serialised per session_id, exactly like POST /api/chat; the finally
-        # frees the lock even when the task is cancelled on client disconnect.
-        lock = await _get_session_lock(req.session_id)
-        try:
-            async with lock:
-                try:
-                    if get_settings().chat_token_streaming:
-                        strom = TokenStrom(progress)
-                    graph = build_turn_graph(
-                        session=session,
-                        peer_ip=peer_ip(request),
-                        progress=progress,
-                        engine=engine,
-                        on_token=strom,
-                    )
-                    state = await run_turn(graph, TurnContext(req=req))
-                    await _record_usage(session, req.session_id, state)
-                    return state.get("early_response") or state.get("response")
-                except Exception as impl_err:
-                    logger.exception("chat_stream impl failed: %s", impl_err)
-                    return impl_err
-        finally:
-            await _release_session_lock(req.session_id)
+        # Serialised per session_id, exactly like POST /api/chat. A busy session
+        # raises ``SitzungBeschaeftigt`` out of here; ``sse_turn`` turns it into an
+        # ``error`` frame carrying its ``sse_code`` (Paket 7, P1).
+        async with sitzung_sperren(request, req.session_id), sitzungen() as session:
+            try:
+                if betriebsschalter.token_streaming():  # Paket 7, S2
+                    strom = TokenStrom(progress)
+                graph = build_turn_graph(
+                    session=session,
+                    peer_ip=peer_ip(request),
+                    progress=progress,
+                    engine=engine,
+                    on_token=strom,
+                )
+                state = await run_turn(graph, TurnContext(req=req))
+                await _record_usage(session, req.session_id, state)
+                return _anmeldestand(state.get("early_response") or state.get("response"))
+            except Exception as impl_err:
+                logger.exception("chat_stream impl failed: %s", impl_err)
+                # In den Verlauf wie beim POST-Weg — legte der Client auf, holt das
+                # Widget die Antwort dort (P2); der Strom meldet seinen ``error``-Rahmen.
+                await _fehlerblase(session, req, impl_err)
+                return impl_err
 
     async def _to_payload(result: ChatResponse) -> dict:
         # Apply the widget-embed modes here too — the /api/chat wrapper does not
@@ -217,8 +254,16 @@ async def _stream_turn(
             strom.abschluss(result.content or "")  # Kennzahlen + Drift-Logzeile
         return result.model_dump()
 
+    # Paket 7 (P2, P5-2): legt der Client auf, rechnet der Zug sauber zu Ende —
+    # die Antwort landet im Verlauf, und das Widget holt sie dort, statt die
+    # Frage noch einmal zu schicken. Die Sitzungssperre hält bis zum Ende. Nur,
+    # wenn der Verlauf gespeichert wird; gelesen VOR dem Start des Zuges
+    # (Review A-7/C-4, ``chat_handschlag``).
+    verbunden = await handschlag(req.session_id, sitzungen)
     async for frame in sse_turn(
-        request, _run_impl, _to_payload, label=f"chat_stream session={req.session_id}"
+        request, _run_impl, _to_payload, label=f"chat_stream session={req.session_id}",
+        nach_abbruch="zu_ende" if verbunden["history"] else "abbrechen",
+        verbunden=verbunden,
     ):
         yield frame
 
@@ -228,7 +273,7 @@ async def _stream_turn(
 async def chat_stream(
     req: ChatRequest,
     request: Request,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    sitzungen: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)],
 ) -> StreamingResponse:
     """Stream one chat turn as Server-Sent-Events (connected → result | error).
 
@@ -245,9 +290,9 @@ async def chat_stream(
     # ``description`` in das eingefrorene OpenAPI-Dokument ein — der Zusatz hier
     # hat den Vertragstest brechen lassen. Gemessen 2026-08-10; die Kopfzeile
     # selbst blieb unsichtbar (``parameters`` bleibt ``None``).
-    adopt_turn_auth_block(request)
+    await uebernimm_zugang(request)
     return StreamingResponse(
-        _stream_turn(req, request, session,
+        _stream_turn(req, request, sitzungen,
                      engine=choose_engine(request.headers.get(ENGINE_HEADER))),
         media_type="text/event-stream",
         headers={

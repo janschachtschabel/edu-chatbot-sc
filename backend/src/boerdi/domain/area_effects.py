@@ -62,15 +62,20 @@ AREA_EFFECTS: Final[dict[str, dict[str, Effect]]] = {
     "01-base/display-rules": _e("voll", "teilweise"),
     # Muster: `mode`, `muster_skills`; Agent: `mode`, `agent.*`, `agent_rolle`.
     "01-base/engine": _e("teilweise", "teilweise"),
-    # Alle gelesenen Felder wirken in beiden (`default_enabled` ist tot).
+    # Alle Felder wirken in beiden (`default_enabled` gestrichen, Paket 7).
     "01-base/guide-mode": _e("voll", "voll"),
     "01-base/header-nav": _e("voll", "voll"),
     # Agent: nur Regeln auf Regex, P-AND oder I01 — die Schleife klassifiziert nicht.
     "01-base/policy": _e("voll", "teilweise"),
     "01-base/pricing": _e("voll", "voll"),
+    # Paket 7 (P4): die Werte der Wissenssuche — Vorabruf im Muster-Weg wie
+    # ``wissen_suchen`` im Agent-Weg lesen sie (``get_retrieval_settings``).
+    "01-base/rag-retrieval": _e("voll", "voll"),
     # `memory` steuert nur Gedächtnis-Einträge, die allein der Muster-Prompt nutzt.
+    # `retention_days` (wie bei den beiden Protokollen unten) liest seit Paket 8
+    # der Löschlauf — unabhängig von der Maschine.
     "01-base/privacy-config": _e("voll", "teilweise"),
-    # Nur `logging.enabled` wird gelesen — in beiden Maschinen.
+    # Gelesen: `logging.enabled` in beiden Maschinen und `retention_days`.
     "01-base/quality-log-config": _e("teilweise", "teilweise"),
     # Gate, Protokoll und Drosselung laufen vor der Maschinenwahl; den
     # Krisentext liest nur das Gate von `/api/agent`.
@@ -86,9 +91,6 @@ AREA_EFFECTS: Final[dict[str, dict[str, Effect]]] = {
     "04-personas": _e("voll", "teilweise"),
     # Agent: die Zustands-Direktive im Chip-Generator; der Zustand bleibt meist S1.
     "04-states/states": _e("voll", "teilweise"),
-    # Ihre einzigen Leser ruft kein Produktionscode (`domain/canvas/intent.py`).
-    "05-canvas/create-triggers": _e("keine", "keine"),
-    "05-canvas/edit-triggers": _e("keine", "keine"),
     # Nur der Canvas-Schnellweg; Schnellwege sind unter der Agent-Schleife aus.
     "05-canvas/material-types": _e("voll", "keine"),
     # Agent: nur `analytical_personas` in den Chip-Hinweisen.

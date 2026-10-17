@@ -82,6 +82,9 @@ uv run python ../evals/run_golden.py --engine pattern --label v2-pattern
 uv run python ../evals/run_golden.py --engine agent   --label v2-agent
 ```
 
+- Flows mit `auf_abruf: true` (im Seed GV-RED-1, schreibt real auf Staging) laufen
+  nur mit `--only` — ein Lauf über alle lässt sie weg, wie die leere Auswahl im
+  Studio (Paket 7, K3).
 - `--engine` setzt `X-Boerdi-Engine` für jeden Zug und überschreibt einen
   Engine-Eintrag aus `EVAL_CHAT_HEADERS`; ohne Flag misst der Lauf die
   Server-Vorgabe (`engine: default` im Bericht). Der Bericht trägt die Engine
@@ -177,3 +180,16 @@ uv run python ../evals/compare_golden.py `
   abweichenden Turn mit; `host` bleibt weich.
 - Beide Läufe müssen denselben Flow-Stand gefahren haben; sonst meldet der
   Vergleich den Strukturbruch, statt ihn stillschweigend wegzumitteln.
+
+## Moderations-Schwellen nachmessen (Paket 7, K8)
+
+```powershell
+cd backend
+$env:PYTHONIOENCODING = "utf-8"; uv run python ../evals/moderation_messung.py
+```
+
+Andeutungen einer Selbstgefährdung (`ANDEUTUNG`) und harmlose Sätze aus dem Schulalltag
+(`GEGENPROBE`), gegen `omni-moderation-latest` (OpenAI direkt, kostenlos, `OPENAI_API_KEY`). Grundlage
+der Schwelle `self_harm` 0,25 im Seed; die Werte vom 2026-10-09 hält
+`backend/tests/test_moderations_schwellen.py` fest. Nachmessen vor jeder Änderung
+einer Schwelle und nach jedem Wechsel des Moderationsmodells.

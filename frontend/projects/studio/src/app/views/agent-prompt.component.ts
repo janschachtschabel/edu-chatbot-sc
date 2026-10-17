@@ -23,8 +23,8 @@ import type { CuratedPanelSection } from './curated-views';
 
 /** Erlaubnisliste: ein neues Glied des Backends kommt mit seiner Kennung durch. */
 const STEPS: ReadonlySet<string> = new Set([
-  'head', 'master_skill', 'result_schema', 'host_capabilities', 'page_context',
-  'host_instruction', 'skill_hints', 'history', 'prefetch', 'last_shown', 'message',
+  'head', 'master_skill', 'result_schema', 'host_capabilities', 'page_rules',
+  'host_instruction', 'skill_hints', 'page_data', 'history', 'prefetch', 'last_shown', 'message',
 ]);
 const SKILL_STATES: ReadonlySet<string> = new Set(['off', 'no_node', 'failed']);
 

@@ -5,8 +5,8 @@
  *
  * Schlüsselschema wie in `fields-layer-doc.ts`. `RateLimitWindow` trägt beide
  * Fenster (je Sitzung, je IP-Adresse), darum gelten seine Texte für beide.
- * `logging.retention_days` wertet der Code nicht aus: kein Lauf löscht alte
- * Einträge, der Text sagt das.
+ * `logging.retention_days` setzt seit Paket 8 `services/aufbewahrung.py` durch:
+ * alle sechs Stunden ein Lauf, der ältere Einträge löscht.
  */
 import type { CataloguePart } from './catalogue-part';
 
@@ -65,8 +65,8 @@ export const FIELDS_DROSSELUNG_PROTOKOLL: CataloguePart = {
       + 'hohem Risiko.',
     'feld.SafetyLoggingBlock.retention_days.label': 'Aufbewahrung (Tage)',
     'feld.SafetyLoggingBlock.retention_days.hint':
-      'Gedachte Aufbewahrungsdauer in Tagen. Wird derzeit nicht ausgewertet: nichts wird '
-      + 'automatisch gelöscht, Einträge bleiben, bis sie von Hand gelöscht werden.',
+      'Ältere Einträge löscht das Backend alle sechs Stunden endgültig; 0 = unbegrenzt '
+      + 'aufbewahren. Was gerade fällig ist, zeigt „Aufbewahrung“ auf der Seite „Datenschutz“.',
   },
   en: {
     'feld.SafetyConfigArea.rate_limits.label': 'Rate limits',
@@ -120,7 +120,7 @@ export const FIELDS_DROSSELUNG_PROTOKOLL: CataloguePart = {
       + 'risk.',
     'feld.SafetyLoggingBlock.retention_days.label': 'Retention (days)',
     'feld.SafetyLoggingBlock.retention_days.hint':
-      'Intended retention period in days. Currently not evaluated: nothing is deleted '
-      + 'automatically; entries remain until they are deleted by hand.',
+      'The backend deletes older entries for good every six hours; 0 = keep without '
+      + 'limit. What is due right now is shown under “Retention” on the “Privacy” page.',
   },
 };

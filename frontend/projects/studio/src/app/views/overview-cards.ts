@@ -177,7 +177,6 @@ export const LAYER_CARDS: readonly LayerCard[] = [
       flat('overview.layer.material.tag.didactic'),
       flat('overview.layer.material.tag.analytic'),
       flat('overview.layer.material.tag.aliases'),
-      flat('overview.layer.material.tag.triggers'),
     ],
   },
   {

@@ -282,3 +282,13 @@ def test_e3_messages_are_bilingual(key: str, de_fragment: str, en_fragment: str)
     assert de_fragment in msg("de", key)
     assert en_fragment in msg("en", key)
     assert msg("de", key) != msg("en", key)
+
+
+def test_kein_schluessel_steht_in_zwei_teilen() -> None:
+    # Paket 6: der Katalog ist geteilt; ein doppelter Schlüssel nähme still den
+    # Satz des späteren Teils.
+    from boerdi.i18n.messages import _GRUND
+    from boerdi.i18n.messages_dokumente import DOKUMENTE
+
+    for sprache in _GRUND:
+        assert not (_GRUND[sprache].keys() & DOKUMENTE[sprache].keys()), sprache

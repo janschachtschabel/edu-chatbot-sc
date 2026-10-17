@@ -279,4 +279,18 @@ describe('PrivacyPurgeComponent (ST-6)', () => {
     await settle(fixture);
     expect(card(current.el, 'Datenbank aufräumen').textContent).toContain('20,5 MB');
   });
+
+  it('wer die Seite während des Löschens verlässt, löst keinen Fehler aus (Paket 9)', async () => {
+    // Dieselbe Falle wie im Aufbewahrungs-Panel (Review Paket 7, MINOR 17): der
+    // Fokus nach dem Lauf griff in eine zerstörte Ansicht (Angular NG0911).
+    const h = await mount();
+    const panel = h.fixture.componentInstance;
+    const lauf = panel.purge(panel.cards[0]);
+    h.fixture.destroy();
+    h.http.expectOne((r) => r.url === PURGE)
+      .flush({ status: 'purged', deleted: { messages: 1 } });
+    await expect(lauf).resolves.toBeUndefined();
+    await tick();
+    h.http.expectNone(STATS_URL);
+  });
 });

@@ -26,6 +26,11 @@ Request headers are allow-listed by removal: the client's ``Cookie`` and any
 client-supplied ``X-Studio-Key`` are dropped. ALT forwarded every header verbatim
 and only overwrote the key when one was configured, so the proxy was not a trust
 boundary for it ([...path]/route.ts:39-44).
+
+**Changing requests from a foreign page are refused** (Paket 10, Audit 2026-10-10
+M-2, :func:`_fremde_seite`). ``SameSite=Strict`` keeps other *sites* out, not pages
+of the same site (subdomains). What this cannot tell apart is a script on the same
+origin — that needs the CSP of the demo pages (Befundliste §6).
 """
 
 from __future__ import annotations
@@ -37,28 +42,41 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from boerdi.api.deps import expected_studio_key
+from boerdi.api.scope_pfad import route_path
 from boerdi.api.studio_auth import COOKIE_NAME, authorize, gate_is_open
 
 PREFIX = "/studio/api"
+#: Merker im ASGI-Scope einer umgeschriebenen Anfrage: sie kam über das Studio
+#: (Paket 9) — der Agent-Endpunkt bucht einen Probelauf dann nicht als Betrieb.
+_UEBER_STUDIO = "boerdi.ueber_studio"
 _AUTH_PREFIX = f"{PREFIX}/auth"
 _API = "/api"
 _DROPPED_REQUEST_HEADERS = (b"cookie", b"x-studio-key")
+_SICHERE_METHODEN = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
-def _route_path(scope: Scope) -> str:
-    """The path WITHOUT ``root_path``, i.e. what the router will match on.
+def _fremde_seite(request: Request) -> bool:
+    """Kommt eine ändernde Anfrage von einer anderen Seite als dem Studio selbst?
 
-    Behind a path-prefix reverse proxy (``--root-path /pfx``) ``scope["path"]``
-    still carries the prefix, while Starlette strips it before routing. Matching
-    on the raw path there meant the middleware neither gated nor rewrote anything
-    and the /studio SPA mount answered instead — a silent, total outage of the
-    studio API. Fails safe (no key is ever injected), but it fails.
+    Browser melden das mit ``Sec-Fetch-Site``; ältere schicken bei ändernden
+    Anfragen wenigstens ``Origin`` (verglichen mit ``Host``, ohne Schema — hinter
+    dem TLS-Proxy wäre das intern ``http``). Fehlt beides, ist der Aufrufer kein
+    Browser und damit keiner, der ein fremdes Cookie mitschicken könnte.
     """
-    path: str = scope.get("path", "")
-    root: str = scope.get("root_path", "")
-    if root and path.startswith(root):
-        return path[len(root):] or "/"
-    return path
+    if request.method in _SICHERE_METHODEN:
+        return False
+    seite = request.headers.get("sec-fetch-site")
+    if seite is not None:
+        return seite != "same-origin"
+    ursprung = request.headers.get("origin")
+    if ursprung is None:
+        return False
+    return urlsplit(ursprung).netloc.lower() != request.headers.get("host", "").lower()
+
+
+def ueber_studio(request: Request) -> bool:
+    """Kam diese Anfrage über ``/studio/api`` (die Proxy-Middleware)?"""
+    return bool(request.scope.get(_UEBER_STUDIO))
 
 
 def _is_proxied(path: str) -> bool:
@@ -141,8 +159,8 @@ class StudioProxyMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        route_path = _route_path(scope) if scope["type"] == "http" else ""
-        if scope["type"] != "http" or not _is_proxied(route_path):
+        pfad = route_path(scope) if scope["type"] == "http" else ""
+        if scope["type"] != "http" or not _is_proxied(pfad):
             await self.app(scope, receive, send)
             return
 
@@ -152,11 +170,17 @@ class StudioProxyMiddleware:
             response = JSONResponse({"detail": denial[1]}, status_code=denial[0])
             await response(scope, receive, send)
             return
+        if _fremde_seite(request):
+            response = JSONResponse({"detail": "Request from a foreign page refused"},
+                                    status_code=403)
+            await response(scope, receive, send)
+            return
 
-        inner = scope.get("root_path", "") + _API + route_path[len(PREFIX) :]
+        inner = scope.get("root_path", "") + _API + pfad[len(PREFIX) :]
         forwarded = dict(scope)
         forwarded["path"] = inner
         forwarded["raw_path"] = inner.encode("utf-8")
         forwarded["headers"] = _forward_headers(list(scope["headers"]))
+        forwarded[_UEBER_STUDIO] = True
         host = request.headers.get("host", "")
         await self.app(forwarded, receive, _location_rewriter(send, host))

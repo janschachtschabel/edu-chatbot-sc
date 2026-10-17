@@ -14,6 +14,7 @@ import logging
 from fastapi import Request, Security
 
 from boerdi.api.deps import require_studio_key, studio_key_header
+from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import is_personal_block, set_turn_auth_block
 from boerdi.settings import get_settings
 
@@ -46,6 +47,17 @@ def adopt_turn_auth_block(request: Request) -> None:
         )
 
 
+async def uebernimm_zugang(request: Request) -> None:
+    """Den Block übernehmen UND seine Echtheit prüfen (Paket 10, Kurzaudit A-1).
+
+    Was ein Zug darf — Deckel, Schreibangebot, Abnahme —, hängt seither an einer
+    Person, die der MCP-Server bestätigt hat; die Form allein reicht nicht mehr. Ein
+    Rundlauf je Fingerabdruck und einige Minuten (``services/mcp/anmeldung``).
+    """
+    adopt_turn_auth_block(request)
+    await bestaetige_anmeldung()
+
+
 async def require_agent_caller(
     request: Request,
     x_studio_key: str | None = Security(studio_key_header),
@@ -70,7 +82,9 @@ async def require_agent_caller(
     dem Endpunkt seit demselben Entscheid die **Drosselung** (``api/agent.py``).
     Die Rechte bleiben davon unberührt: was der Lauf auf WLO darf, entscheidet
     weiterhin allein der MCP-Server, und Schreiben verlangt ohnehin eine echte
-    Person (``services/agent_write``).
+    Person (``services/agent_write``). Deckel und Schreibmodus des Laufs hängen
+    seit Paket 10 an der Bestätigung durch den Server (:func:`uebernimm_zugang`),
+    nicht mehr an der Form.
     """
     if get_settings().agent_open:
         return

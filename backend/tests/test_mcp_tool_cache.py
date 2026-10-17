@@ -215,3 +215,30 @@ def test_stats_shape():
     stats = get_tool_cache_stats()
     for k in ("hits", "misses", "negative_hits", "size", "max_entries", "hit_rate"):
         assert k in stats
+
+
+# ── Paket 10 (Audit 2026-10-10, M-4): Metas gehören zu ihrem Wert ───────────
+def test_ein_neuer_wert_ohne_metas_erbt_die_alten_nicht():
+    # Lieferte der neue Aufruf keine ``_queryMeta``, gab der nächste Treffer die
+    # Filter-Metas des alten Werts aus — falsche Such-CTA, falsche Facetten.
+    from boerdi.services.mcp.tool_cache import _TOOL_META_CACHE
+
+    clear_tool_cache()
+    key = _cache_key("search_wlo_content", {"searchTerm": "Optik"})
+    _cache_set(key, "alter Wert")
+    _TOOL_META_CACHE[key] = [{"discipline": "alt"}]
+    _cache_set(key, "neuer Wert")
+    assert key not in _TOOL_META_CACHE
+
+
+def test_ein_abgelaufener_eintrag_nimmt_seine_metas_mit(monkeypatch):
+    from boerdi.services.mcp import tool_cache
+
+    clear_tool_cache()
+    key = _cache_key("search_wlo_content", {"searchTerm": "Optik"})
+    _cache_set(key, "Wert")
+    tool_cache._TOOL_META_CACHE[key] = [{"discipline": "alt"}]
+    jetzt = tool_cache._time.time()
+    monkeypatch.setattr(tool_cache._time, "time", lambda: jetzt + 10 ** 7)
+    assert _cache_get(key) is None
+    assert key not in tool_cache._TOOL_META_CACHE

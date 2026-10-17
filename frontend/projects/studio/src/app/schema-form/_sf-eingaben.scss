@@ -1,0 +1,77 @@
+// Eingabefelder: Text, Zahl, Auswahl, Sprung, Mehrzeiler, Kästchen, Prüffehler
+// (aus schema-form.scss herausgelöst, Paket 6).
+
+// `aria-disabled` statt `disabled`: der Knopf bleibt fokussierbar. Gestrichelt,
+// damit „ohne Wirkung“ nicht nur an der Farbe hängt.
+.sf-add[aria-disabled='true'] {
+  border-style: dashed;
+  color: var(--st-text-muted);
+  cursor: not-allowed;
+
+  &:hover {
+    background: var(--st-panel);
+  }
+}
+
+.sf-input {
+  inline-size: 100%;
+  min-block-size: 2.25rem; // ≥ 24px target (SC 2.5.8), comfortable at 36px
+  padding: var(--st-2);
+  border: 1px solid var(--st-text-muted); // 7:1 — a field boundary carries meaning
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+}
+
+.sf-input:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 1px;
+}
+
+.sf-number {
+  max-inline-size: 12rem;
+}
+
+// Ein geschlossener Wertevorrat (S3). Schmaler als ein Textfeld, weil die
+// Werte kurz sind (`smart`, `always`) — die volle Breite liesse eine
+// Drei-Wort-Auswahl wie ein Freitextfeld aussehen.
+.sf-select {
+  max-inline-size: 20rem;
+}
+
+// Der Sprung zum verwiesenen Element (S4). Steht UNTER dem Feld statt daneben:
+// bei 320px hätte eine Zeile aus Eingabe + Link keinen Platz, und ein
+// umbrechender Link neben einem Eingabefeld liest sich als Fehler.
+.sf-jump {
+  align-self: flex-start;
+  font-size: 0.8125rem;
+  color: var(--st-accent);
+}
+
+.sf-jump:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 2px;
+}
+
+.sf-multiline,
+.sf-json {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.sf-check {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  accent-color: var(--st-accent);
+  flex: none;
+}
+
+// Vom Server abgelehnt (ST-2e): roter Rand — nie allein, die Meldung mit ⚠
+// steht darunter und ist per `aria-describedby` verknüpft (SC 1.4.1, 3.3.1).
+.sf-input[aria-invalid='true'] {
+  border-color: var(--st-danger-text);
+}
+

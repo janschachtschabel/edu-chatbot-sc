@@ -14,6 +14,7 @@
  * `guideHost`/`startTime` sind Instanzfelder; `fetchImpl` ist injizierbar.
  */
 import { ChatResponse, QueryMetaEntry } from '../grouping/message-types';
+import { verlaufAbrufen } from './history-transport';
 import { ChatStreamEvent, postChat, streamChat } from './stream-client';
 
 /** Request-`environment` (Kontext des Turns). Verbatim aus ALT api.service.ts. */
@@ -363,12 +364,22 @@ export class ChatApiClient {
     return body;
   }
 
+  /** Ein laufender Ticket-Tausch (Paket 10, Kurzaudit S-4): bis er endet, warten
+   *  `stream` und `post` — sonst gingen Kontext-Ping und frühe Aufträge anonym
+   *  hinaus. Jedes Ende zählt als fertig; die Frist setzt die Shell. */
+  warteAufAnmeldung(laufend: Promise<unknown> | null): void {
+    this.anmeldung = laufend ? laufend.then(() => undefined, () => undefined) : null;
+  }
+
+  private anmeldung: Promise<void> | null = null;
+
   /** SSE-Streaming-Turn (POST /api/chat/stream). `onEvent` bekommt jedes
    *  connected/phase/text_delta-Event; löst mit der `ChatResponse`. */
-  stream(
+  async stream(
     sessionId: string, message: string, onEvent: (evt: ChatStreamEvent) => void,
     env?: Partial<Environment>, action?: string, actionParams?: Record<string, any>,
   ): Promise<ChatResponse> {
+    await this.anmeldung;
     return streamChat<ChatResponse>({
       url: `${this.baseUrl}/chat/stream`,
       body: this.buildBody(sessionId, message, env, action, actionParams),
@@ -379,10 +390,11 @@ export class ChatApiClient {
   }
 
   /** Non-streaming Fallback-Turn (POST /api/chat). */
-  post(
+  async post(
     sessionId: string, message: string, env?: Partial<Environment>,
     action?: string, actionParams?: Record<string, any>,
   ): Promise<ChatResponse> {
+    await this.anmeldung;
     return postChat<ChatResponse>({
       url: `${this.baseUrl}/chat`,
       body: this.buildBody(sessionId, message, env, action, actionParams),
@@ -435,29 +447,21 @@ export class ChatApiClient {
   }
 
   // ── History (Resume-Pfad) ───────────────────────────────────────
-  /** History der Session laden und render-fertig aufbereiten: `_web_links`/
-   *  `_query_metas` aus `debug` auf die Top-Level heben; ein `_type_focus`-Marker
-   *  überstimmt stale `_web_links` mit `[]` (Material-Typ-Antwort → keine
-   *  Webseiten-Inhalte-Box). Fehler/nicht-ok/Nicht-Array → `[]` (Resume darf nie
-   *  den Boot brechen). Verbatim aus ALT api.service.ts:556-602. */
+  /** History der Session laden und render-fertig aufbereiten (`verlaufseintrag`).
+   *  Fehler/nicht-ok/Nicht-Array → `[]` (Resume darf nie den Boot brechen).
+   *  Verbatim aus ALT api.service.ts:556-602. */
   async loadHistory(sessionId: string, limit = 20): Promise<HistoryMessage[]> {
-    const doFetch = this.fetchImpl ?? fetch;
     try {
-      const resp = await doFetch(`${this.baseUrl}/sessions/${encodeURIComponent(sessionId)}/messages?limit=${limit}`);
-      if (!resp.ok) return [];
-      const data = await resp.json();
-      if (!Array.isArray(data)) return [];
-      return data.map((m: any) => {
-        const dbg = m && typeof m === 'object' ? (m.debug || {}) : {};
-        const isTypeFocus = !!dbg._type_focus;
-        const wl = isTypeFocus
-          ? []
-          : (Array.isArray(dbg._web_links) ? dbg._web_links : undefined);
-        const qm = Array.isArray(dbg._query_metas) ? dbg._query_metas : undefined;
-        return { ...m, webLinks: wl, queryMetas: qm };
-      });
+      return await this.fetchHistory(sessionId, limit);
     } catch {
       return [];
     }
+  }
+
+  /** Wie {@link loadHistory}, aber ein Fehler wird geworfen statt zu `[]` — mit
+   *  `status` und gegebenenfalls `retryAfterMs`. Für die Nachfrage nach einem
+   *  Stream-Abbruch (Paket 7, Review C-3). */
+  fetchHistory(sessionId: string, limit: number, signal?: AbortSignal): Promise<HistoryMessage[]> {
+    return verlaufAbrufen(this.fetchImpl ?? fetch, this.baseUrl, sessionId, limit, signal);
   }
 }

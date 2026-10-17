@@ -214,16 +214,19 @@ describe("RagIngestComponent", () => {
     );
   });
 
-  it("bietet nur Formate an, die der Server liest (Paket 4, C5)", async () => {
-    // Das Image enthält keine markitdown-Extras: DOCX, PDF, PPTX und XLSX
-    // scheitern. Hilfetext und Dateiauswahl versprachen sie trotzdem.
+  it("bietet genau die Formate an, die der Server liest (Paket 4 C5, Paket 7 P6)", async () => {
+    // Bis Paket 7 fehlten die markitdown-Extras, und die Auswahl hielt PDF und
+    // Office heraus. Seit P6 liest das Image sie — Auswahl und Hilfetext nennen
+    // sie, und nur sie: ältere Formate (.doc, .ppt, .xls) liest es weiter nicht.
     const { el } = await mount();
     const input = el.querySelector<HTMLInputElement>(".ri-file");
-    expect(input?.getAttribute("accept")).toBe(".html,.htm,.md,.markdown,.txt,.csv,.json");
+    expect(input?.getAttribute("accept")).toBe(
+      ".pdf,.docx,.pptx,.xlsx,.html,.htm,.md,.markdown,.txt,.csv,.json",
+    );
     const hilfe = el.querySelector("#ri-file-help")?.textContent ?? "";
-    expect(hilfe).toContain("Markdown");
-    expect(hilfe).not.toContain("PDF");
-    expect(hilfe).not.toContain("DOCX");
+    for (const format of ["PDF", "Word", "PowerPoint", "Excel", "Markdown"]) {
+      expect(hilfe).toContain(format);
+    }
   });
 
   it("uploads a chosen file into the named area", async () => {

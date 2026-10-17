@@ -1,0 +1,76 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
+  </summary>
+
+  <div class="cs-body">
+    <p class="op-lead">{{ t('retention.lead') }}</p>
+
+    @if (overview.value(); as list) {
+      <div class="rt-table-wrap">
+        <table class="rt-table">
+          <caption class="rt-caption">{{ t('retention.caption') }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ t('retention.col.log') }}</th>
+              <th scope="col">{{ t('retention.col.period') }}</th>
+              <th scope="col">{{ t('retention.col.due') }}</th>
+              <th scope="col">{{ t('retention.col.oldest') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of list; track row.bereich) {
+              <tr>
+                <th scope="row">{{ t('retention.log.' + row.bereich) }}</th>
+                <td>{{ period(row) }}</td>
+                <td>{{ due(row) }}</td>
+                <td>{{ oldest(row) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+    @if (overview.error()) {
+      <div class="cs-state cs-state--error" role="alert">
+        <p>{{ overview.error() }}</p>
+        <button type="button" class="op-btn" (click)="overview.reload()">{{ t('async.retry') }}</button>
+      </div>
+    } @else if (!overview.value()) {
+      <p class="cs-state" aria-busy="true">{{ t('retention.loading') }}</p>
+    }
+
+    @if (armed()) {
+      <p class="op-confirm" role="alert">
+        <span>{{ confirmText() }}</span>
+        <button type="button" class="op-btn op-btn--danger" [disabled]="overview.loading()"
+                (click)="run()">
+          {{ t('retention.go') }}
+        </button>
+        <button type="button" class="op-btn rt-cancel" (click)="disarm()">
+          {{ t('action.cancel') }}
+        </button>
+      </p>
+    } @else {
+      <button type="button" class="op-btn rt-start" [disabled]="action.busy()" (click)="arm()">
+        {{ action.isRunning('run') ? t('retention.busy') : t('retention.start') }}
+      </button>
+    }
+
+    <!-- Wie bei „Gespräche löschen“ (Paket 4b, B3): der Erfolg in einer dauerhaften
+         Status-Region, ein Fehler als bedingter Alarm. -->
+    <p class="op-msg live" role="status">
+      @if (action.message(); as msg) {
+        @if (msg.kind === 'ok') {
+          ✓ {{ msg.text }}
+        }
+      }
+    </p>
+    @if (action.message(); as msg) {
+      @if (msg.kind === 'error') {
+        <p class="op-msg op-msg--error" role="alert">⚠ {{ msg.text }}</p>
+      }
+    }
+  </div>
+</details>

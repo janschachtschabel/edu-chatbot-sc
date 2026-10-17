@@ -124,12 +124,6 @@ TOKEN_PLACEHOLDER = "‹wird bei der Bestätigung eingesetzt›"
 # nutzlos, kürzer verwürfe gültige Schlüssel.
 TOKEN_TTL_SECONDS = 600
 
-# Der Anschluss, ab dem die Vorschau nur noch den Aufrufer angeht: „ Dazu
-# denselben Aufruf mit confirmToken: … wiederholen.\nDer Schlüssel gilt …"
-# (``previewReply``). Gesucht wird die Stelle, nicht ein Muster — warum das
-# LETZTE Vorkommen zählt, steht bei :func:`preview_for_display`.
-_DISPLAY_TAIL_MARKER = "Dazu denselben Aufruf mit confirmToken:"
-
 
 def is_curation_tool(tool_name: str) -> bool:
     """Gehört ``tool_name`` zur kuratierenden Oberfläche?"""
@@ -190,37 +184,6 @@ def redact_confirm_token(text: str) -> str:
     return _TOKEN_IN_TEXT.sub(rf"\g<1>{TOKEN_PLACEHOLDER}", text or "")
 
 
-def preview_for_display(text: str) -> str:
-    """Der Vorschautext ohne den Teil, der nur die Maschine angeht (S2).
-
-    Der Server schließt jede Vorschau mit zwei Sätzen an den *Aufrufer*: wie
-    der Aufruf zu wiederholen ist und wie lange der Schlüssel gilt. In einer
-    Box, die eine Lehrkraft um Zustimmung bittet, ist das Rauschen — und der
-    Satz vor ihnen (``Die Sammlung wird angelegt.``) gehört sehr wohl dazu.
-    Geschnitten wird deshalb genau am Anschluss, nicht am Satzanfang.
-
-    Dies liest deutschen Servertext, hängt also an dessen Wortlaut. Ändert der
-    ihn, findet die Funktion den Anschluss nicht mehr — dann steht zu VIEL in
-    der Box, nie zu wenig. Diese Richtung ist Absicht: eine Abnahme über einem
-    gekürzten Unterschied wäre der Fehler, den die Box gerade verhindern soll.
-
-    **Geschnitten wird am LETZTEN Anschluss** (2026-08-15, live gemessen). Der
-    Server gibt Titel und Beschreibung des Vorhabens wörtlich in die Vorschau
-    und hängt seinen Block danach an; bringt einer dieser Werte den Satz mit,
-    steht er zweimal im Text. Am ersten zu schneiden hiesse mitten in einen
-    Wert des Vorhabens zu schneiden — und damit genau die Richtung zu
-    verletzen, die der Absatz darüber zusichert. Bei
-    ``wlo_create_collection`` schreibt die Person diesen Wert selbst; bei
-    ``wlo_update_content`` zeigt die Vorschau die **alten** Werte des Knotens,
-    die jemand anderes geschrieben haben kann. Dieselbe Wurzel trifft
-    :func:`extract_confirm_token`, dort mit anderer Folge.
-    """
-    stelle = (text or "").rfind(_DISPLAY_TAIL_MARKER)
-    if stelle < 0:
-        return (text or "").rstrip()
-    return text[:stelle].rstrip()
-
-
 def change_fingerprint(tool_name: str, args: dict[str, Any]) -> str:
     """Identität eines Vorhabens: Werkzeug plus Argumente, ohne Schlüssel.
 
@@ -248,7 +211,8 @@ def remember_pending(
     :func:`is_expired`.
 
     ``caller`` ist das Kennzeichen des Aufrufers (``services/mcp/auth.
-    caller_fingerprint``), ebenfalls hereingereicht, weil dieses Modul keine
+    aufrufer_kennung`` — seit Paket 10 die bestätigte Person, sonst der
+    Fingerabdruck des Blocks), ebenfalls hereingereicht, weil dieses Modul keine
     Zugangsdaten kennt. Der Schlüssel des MCP-Servers ist an keine Identität
     gebunden; eingelöst wird deshalb nur unter demselben Kennzeichen
     (``services/write_approval``, Paket 4 A1). Die Vorgabe ``""`` ist der
@@ -304,20 +268,6 @@ def remember_pending(
     return merkposten
 
 
-
-def entities_for_display(entities: dict[str, Any]) -> dict[str, Any]:
-    """``entities`` für eine Anzeige außerhalb des Zugs (Studio-Sitzungsansicht).
-
-    Der Merkposten bleibt sichtbar — Werkzeug, Argumente, Frist —, nur sein
-    Schlüssel weicht :data:`TOKEN_PLACEHOLDER`: er löst eine bestätigte Änderung
-    aus und gehört allein dem Vorlauf (Review Paket 2, 2026-10-01). Eine Kopie;
-    die Sitzung selbst bleibt unberührt.
-    """
-    merkposten = entities.get("_pending_write")
-    if not isinstance(merkposten, dict) or "token" not in merkposten:
-        return entities
-    return {**entities, "_pending_write": {**merkposten, "token": TOKEN_PLACEHOLDER}}
-
 def is_expired(pending: dict[str, Any] | None, *, now: float) -> bool:
     """Ist die Frist des Schlüssels verstrichen? (E4)
 
@@ -364,71 +314,14 @@ def token_for(
     return pending.get("token") or None
 
 
-# ── Die Zustimmung des Menschen (S4, 2026-08-14) ──────────────────────────
-#
-# Ob ein Zug eine Abnahme ist oder eine Nachbesserung, steht **nicht in den
-# Argumenten des Modells** — beide Male ruft es dasselbe Werkzeug mit
-# aehnlichen Werten. Es steht in der Nachricht des Menschen. Deshalb liest der
-# Bestaetigungspfad sie, statt Argumente zu vergleichen, die er nicht
-# vergleichen kann (siehe :func:`remember_pending`).
-
-# Stämme, die eine Abnahme tragen. Umlaute sind aufgelöst, weil ``_woerter``
-# vor dem Vergleich normalisiert. Die beiden Knopf-Beschriftungen aus
-# ``i18n/bot_text`` („Ja, so ausführen" / „Yes, go ahead") fallen bewusst unter
-# diese Stämme — dann braucht dieses Modul keine Sprachkenntnis und keinen
-# Parameter. Ein Test klemmt genau das fest: wer den Knopf umbenennt, ohne
-# einen Stamm zu treffen, bekommt einen roten Test und keine stille Schleife.
-_ZUSTIMMUNG = frozenset({
-    "ja", "jawohl", "bestatige", "bestatigen", "bestatigt", "bestatigung",
-    "ausfuhren", "ausfuhrung", "abnehmen", "ok", "okay", "passt", "einverstanden",
-    "yes", "confirm", "confirmed", "ahead", "proceed",
-})
-
-# Was eine Abnahme wieder aufhebt. Ein „ja, aber ändere den Titel" ist keine
-# Zustimmung, sondern der Auftrag zu einer neuen Vorschau — und die Nutzlast
-# des alten Vorhabens darf dann gerade NICHT ausgeführt werden.
-_VORBEHALT = frozenset({
-    "nein", "nicht", "kein", "keine", "aber", "andere", "andern", "anders",
-    "statt", "stattdessen", "warte", "stopp", "stop", "abbrechen", "abbruch",
-    "erst", "no", "cancel", "change", "wait",
-})
-
-# Eine Abnahme ist kurz. Der Deckel haelt lange Saetze heraus, in denen ein
-# „ja" nur beilaeufig vorkommt.
-_WORTGRENZE = 6
-
-_WORTTRENNER = re.compile(r"[^0-9a-z]+")
-_UMLAUTE = str.maketrans({"ä": "a", "ö": "o", "ü": "u", "ß": "s"})
-
-
-def _woerter(text: str) -> list[str]:
-    """``text`` als Wortliste, kleingeschrieben und ohne Umlaute."""
-    flach = (text or "").lower().translate(_UMLAUTE)
-    return [w for w in _WORTTRENNER.split(flach) if w]
-
-
-def is_affirmation(text: str) -> bool:
-    """Ist ``text`` eine glatte Zustimmung zu einer offenen Abnahme?
-
-    Bewusst eng: ein Vorbehalt oder ein langer Satz zaehlt nicht. Der Preis
-    einer zu engen Regel ist eine ueberfluessige zweite Frage, der Preis einer
-    zu weiten eine Aenderung, der niemand zugestimmt hat.
-    """
-    woerter = _woerter(text)
-    if not woerter or len(woerter) > _WORTGRENZE:
-        return False
-    if any(w in _VORBEHALT for w in woerter):
-        return False
-    return any(w in _ZUSTIMMUNG for w in woerter)
-
-
 def confirmed_args(
     pending: dict[str, Any] | None, tool_name: str, *, now: float
 ) -> dict[str, Any] | None:
     """Die abgenommenen Argumente samt Schluessel — oder ``None``.
 
     Der Aufrufer verantwortet die beiden Bedingungen, die dieses Modul nicht
-    pruefen kann: dass der Mensch zugestimmt hat (:func:`is_affirmation`) und
+    pruefen kann: dass der Mensch zugestimmt hat
+    (:func:`boerdi.domain.zustimmung.is_affirmation`) und
     dass ``pending`` aus einem **frueheren** Zug stammt (der Schnappschuss vom
     Zug-Eintritt in ``services/tool_loop``). Was hier geprueft wird, ist die
     Identitaet des Vorhabens: dasselbe Werkzeug, Frist noch offen, Argumente

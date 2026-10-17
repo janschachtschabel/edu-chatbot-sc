@@ -54,6 +54,10 @@ export const COSTS: CataloguePart = {
     // ── Tabellen ────────────────────────────────────────────────────
     'costs.models.caption': 'Je Modell',
     'costs.sessions.caption': 'Teuerste Sitzungen des Zeitraums',
+    /** Paket 7 (P3): Aufträge der Agent-API buchen ohne Sitzung. */
+    'costs.sessions.agentApi': 'Agent-API (Aufträge ohne Sitzung)',
+    /** Paket 9: die Probeläufe des Auftragstesters zählen nicht als Betrieb. */
+    'costs.sessions.studioProbe': 'Studio: „Auftrag testen“ (Probeläufe ohne Sitzung)',
     /** Ohne gepflegte Preise ordnet die Liste nach Token — sonst wäre sie
      *  beim ersten Blick auf eine frische Anlage unsortiert. */
     'costs.sessions.hint':
@@ -99,6 +103,8 @@ export const COSTS: CataloguePart = {
 
     'costs.models.caption': 'By model',
     'costs.sessions.caption': 'Most expensive sessions of the period',
+    'costs.sessions.agentApi': 'Agent API (tasks without a session)',
+    'costs.sessions.studioProbe': 'Studio: “Test a task” (trial runs without a session)',
     'costs.sessions.hint':
       'Ordered by tokens rather than amount while no prices are maintained.',
     'costs.col.model': 'Model',

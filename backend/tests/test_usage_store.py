@@ -211,3 +211,32 @@ def test_die_maschine_steht_in_jeder_zeile(db) -> None:
             await engine.dispose()
 
     assert _run(szenario()) == [("a", "agent"), ("b", "agent"), ("c", None)]
+
+
+@pytest.mark.pg
+@pytest.mark.skipif(not pg_utils.pg_available(), reason=pg_utils.SKIP_REASON)
+def test_ein_auftrag_der_agent_api_bucht_ohne_sitzung(db) -> None:
+    """Paket 7 (P3, P5-3): Aufträge über ``/api/agent`` kosten Token, gehören
+    aber keiner Chat-Sitzung — die Zeile trägt stattdessen ihre Quelle."""
+    from sqlalchemy import select
+
+    from boerdi.db.models import UsageEvent
+    from boerdi.services import usage_store
+
+    zeile = {"prompt": 7, "completion": 3, "cached": 0, "reasoning": 0, "calls": 1}
+
+    async def szenario() -> list[tuple]:
+        engine, factory = _factory(db)
+        try:
+            async with factory() as s:
+                await usage_store.record_turn_usage(
+                    s, None, _acc({"m-agent-p3": zeile}), engine="agent", quelle="agent-api")
+            async with factory() as s:
+                return [(z.session_id, z.quelle, z.engine, z.prompt_tokens) for z in (
+                    await s.execute(select(UsageEvent).where(
+                        UsageEvent.model == "m-agent-p3"))).scalars()]
+        finally:
+            await engine.dispose()
+
+    assert _run(szenario()) == [(None, "agent-api", "agent", 7)]
+

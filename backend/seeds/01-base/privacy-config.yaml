@@ -10,3 +10,8 @@ logging:
   # komplett entfernt. ``rules``-Toggle daher obsolet — Eintrag entfernt.
   # safety is hardcoded ON in code — this value is informative only.
   safety: true
+  # Paket 8 (Nutzer 2026-10-09): Gespraechsverlaeufe — Nachrichten und
+  # Sitzungsgedaechtnis — nach so vielen Tagen loeschen (Lauf alle 6 Stunden,
+  # services/aufbewahrung.py); 0 = unbegrenzt. Sitzungen und ihre
+  # Verbrauchszahlen bleiben.
+  retention_days: 30

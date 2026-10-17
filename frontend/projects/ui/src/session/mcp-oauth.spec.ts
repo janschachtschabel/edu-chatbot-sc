@@ -100,10 +100,21 @@ describe('exchangeCode', () => {
 
 // ── signIn: der ganze Vorgang, mit einem Attrappen-Fenster ────────────────
 
-/** Ein Fenster-Ersatz, den der Test als `event.source` verwenden kann. */
-function fakeFenster(): Window {
-  const w = { closed: false, close: () => undefined };
-  return w as unknown as Window;
+/** Ein Fenster-Ersatz, den der Test als `event.source` verwenden kann. Seine
+ *  Adresse bekommt es erst nach Discovery und Registrierung (Paket 10, H-3) —
+ *  `beiAdresse` sieht sie. */
+type FakeFenster = Window & { beiAdresse?: (url: string) => void };
+
+function fakeFenster(): FakeFenster {
+  const w: { closed: boolean; close(): void; location?: unknown; beiAdresse?: (url: string) => void } = {
+    closed: false,
+    close: () => { w.closed = true; },
+  };
+  w.location = {
+    get href() { return ''; },
+    set href(url: string) { w.beiAdresse?.(url); },
+  };
+  return w as unknown as FakeFenster;
 }
 
 function antworteMitNachricht(quelle: Window | null, data: unknown, verzoegerung = 0): void {
@@ -122,7 +133,7 @@ const RUECKRUF = 'https://chat.example/widget/oauth-callback.html';
  * erfundenen Wert wäre er auch dann grün, wenn die Bindung fehlt.
  */
 function deps(
-  fenster: Window | null,
+  fenster: FakeFenster | null,
   antwort?: (state: string) => { quelle: Window | null; data: unknown },
   gesehen: Aufruf[] = [],
 ) {
@@ -132,11 +143,13 @@ function deps(
       register: { client_id: 'wloc1.abc' },
       token: { access_token: BLOCK },
     }),
-    openWindow: (url: string) => {
-      if (antwort) {
-        const state = new URL(url).searchParams.get('state') ?? '';
-        const { quelle, data } = antwort(state);
-        antworteMitNachricht(quelle, data, 0);
+    openWindow: () => {
+      if (fenster && antwort) {
+        fenster.beiAdresse = (url: string) => {
+          const state = new URL(url).searchParams.get('state') ?? '';
+          const { quelle, data } = antwort(state);
+          antworteMitNachricht(quelle, data, 0);
+        };
       }
       return fenster;
     },
@@ -220,5 +233,36 @@ describe('signIn', () => {
     // nur, dass „nichts passiert".
     const r = await signIn(BASE, RUECKRUF, deps(null));
     expect(r).toEqual({ ok: false, reason: 'popup-blocked' });
+  });
+
+  it('öffnet das Fenster sofort im Klick, vor jeder Abfrage (Paket 10, H-3)', async () => {
+    // Audit 2026-10-10, H-3: `window.open` stand hinter Discovery, Registrierung und
+    // Prüfsumme — die Nutzergeste war bis dahin verbraucht, Safari und Firefox
+    // blockten das Fenster.
+    const reihenfolge: string[] = [];
+    const basis = deps(fakeFenster());
+    const lauf = signIn(BASE, RUECKRUF, {
+      ...basis,
+      fetchImpl: ((...args: Parameters<typeof fetch>) => {
+        reihenfolge.push('abfrage');
+        return basis.fetchImpl(...args);
+      }) as typeof fetch,
+      openWindow: (url: string) => {
+        reihenfolge.push(`fenster ${url}`);
+        return basis.openWindow();
+      },
+      timeoutMs: 50,
+    });
+    expect(reihenfolge[0]).toBe('fenster about:blank');   // im selben Takt wie der Klick
+    await lauf;
+  });
+
+  it('schließt das vorab geöffnete Fenster, wenn es nicht weitergeht', async () => {
+    const fenster = fakeFenster();
+    const r = await signIn(BASE, RUECKRUF, {
+      fetchImpl: fakeFetch([], {}), openWindow: () => fenster, timeoutMs: 50,
+    });
+    expect(r).toEqual({ ok: false, reason: 'unavailable' });
+    expect(fenster.closed).toBe(true);
   });
 });

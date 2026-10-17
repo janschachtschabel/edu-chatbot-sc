@@ -197,6 +197,15 @@ def test_standard_path_calls_generate_and_stores_outputs(monkeypatch):
     assert out.tools_called == ["search_wlo_content"]
 
 
+def test_die_vorab_einbettung_geht_an_generate(monkeypatch):
+    """T1 (Paket 7): ``assess`` legt sie in den Zug, ``respond`` reicht sie weiter."""
+    rec = _Rec()
+    _install(monkeypatch, rec)
+    ctx = _ctx()
+    ctx.rag_einbettung = ("Photosynthese", [0.2])
+    _run(ctx)
+    assert rec.gen_kwargs["rag_einbettung"] == ("Photosynthese", [0.2])
+
 def test_standard_path_sets_request_hints_dropping_underscore_keys(monkeypatch):
     rec = _Rec()
     _install(monkeypatch, rec)
@@ -253,6 +262,49 @@ def test_spec_blocked_discards_prefetch(monkeypatch):
     assert rec.gen_kwargs["prefetched_tool"] is None
 
 
+def test_ein_verborgenes_werkzeug_wird_auch_spekulativ_verworfen(monkeypatch):
+    """Review Paket 7 (MAJOR 11): der spekulative Vorabruf prüfte nur die Sperre der
+    Sicherheit, nicht die im Studio verborgenen Werkzeuge — sein Ergebnis stand dann
+    in der Kette. Für den Vorabruf gelten die verborgenen wie gesperrte; die
+    Werkzeugschleife bekommt nur die Sperren der Sicherheit — Verborgenes fehlt ihrem
+    Katalog (Review Paket 9, ``test_loop_verborgenes_werkzeug_gilt_wie_nicht_angebotenes``)."""
+    from boerdi.graph.nodes import respond as respond_mod
+
+    monkeypatch.setattr(respond_mod, "verborgene_werkzeuge",
+                        lambda: frozenset({"search_wlo_content"}))
+    rec = _Rec()
+    _install(monkeypatch, rec)
+
+    async def _go():
+        task = asyncio.create_task(_mktask("SPECTEXT"))
+        return await respond(_ctx(spec_task=task), _SESSION)
+
+    asyncio.run(_go())
+    assert rec.gen_kwargs["prefetched_tool"] is None
+    assert "search_wlo_content" not in rec.gen_kwargs["blocked_tools"]
+
+
+def test_m16_bricht_die_spekulative_suche_ab(monkeypatch):
+    """Paket 10 (Audit 2026-10-10, L-12): M16 baut Text und Schwimmlinien selbst und
+    verwirft die spekulative Suche — bis hier wartete der Zug sie trotzdem ganz ab."""
+    rec = _Rec()
+    _install(monkeypatch, rec)
+
+    async def _go():
+        haengt = asyncio.Event()
+
+        async def _spekulation():
+            await haengt.wait()
+            return "SPECTEXT"
+
+        task = asyncio.create_task(_spekulation())
+        await asyncio.wait_for(respond(_ctx(winner_id="M16", spec_task=task), _SESSION), 2)
+        return task
+
+    task = asyncio.run(_go())
+    assert task.cancelled()
+
+
 def test_spec_result_passed_to_generate_response(monkeypatch):
     rec = _Rec()
     _install(monkeypatch, rec)
@@ -283,6 +335,33 @@ def test_search_all_envelope_split(monkeypatch):
     assert rec.gen_kwargs["prefetched_tool"]["name"] == "search_wlo_content"
     names = [p["name"] for p in rec.gen_kwargs["prefetched_extras"]]
     assert names == ["search_wlo_collections", "search_wlo_topic_pages"]
+
+
+def test_die_aufteilung_achtet_sperre_und_verborgenes(monkeypatch):
+    """Review Paket 9 (MINOR 11): die Aufteilung von ``search_wlo_all`` trägt eigene
+    Namen. Ein gesperrtes oder im Studio verborgenes Werkzeug darf so nicht doch in
+    die Kette kommen — die Schleife sieht nur die Sperren der Sicherheit."""
+    from boerdi.graph.nodes import respond as respond_mod
+
+    monkeypatch.setattr(respond_mod, "verborgene_werkzeuge",
+                        lambda: frozenset({"search_wlo_topic_pages"}))
+    rec = _Rec()
+    _install(monkeypatch, rec)
+    envelope = json.dumps({
+        "content": {"results": [{"title": "c1"}]},
+        "collections": {"results": [{"title": "col1"}]},
+        "topicPages": {"results": [{"title": "tp1"}]},
+    })
+
+    async def _go():
+        task = asyncio.create_task(_mktask(envelope))
+        return await respond(_ctx(
+            spec_task=task, spec_tool_name="search_wlo_all", spec_is_search_all=True,
+            safety=SafetyDecision(blocked_tools=["search_wlo_content"])), _SESSION)
+
+    asyncio.run(_go())
+    assert rec.gen_kwargs["prefetched_tool"] is None
+    assert [p["name"] for p in rec.gen_kwargs["prefetched_extras"]] == ["search_wlo_collections"]
 
 
 # ── CE-gate: direct sync call (run_in_rerank_pool dropped, V13) ───

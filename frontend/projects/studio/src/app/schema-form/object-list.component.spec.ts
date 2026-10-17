@@ -164,6 +164,9 @@ describe('ObjectListComponent — Liste│Editor (ST-3)', () => {
     const dritter = h.el.querySelectorAll('.ol-entry')[2];
     expect(dritter.textContent).toContain('⚠');
     expect(dritter.textContent).toContain('enthält einen Fehler');
+    // Nur für Screenreader — `.sr` aus `_visually-hidden.scss`; die frühere
+    // Klasse `visually-hidden` gab es nirgends, der Satz stand sichtbar da.
+    expect(dritter.querySelector('.sr')?.textContent).toContain('enthält einen Fehler');
   });
 
   it('zeigt eine Map mit ihren Schlüsseln und benennt im Editor um', async () => {
