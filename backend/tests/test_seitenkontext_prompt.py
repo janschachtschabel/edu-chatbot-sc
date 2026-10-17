@@ -118,6 +118,19 @@ def test_die_regeln_tragen_jede_bisherige_seitenregel():
         assert kern in SEITEN_REGELN, kern
 
 
+def test_ein_platzhalter_ist_kein_bezug_auf_die_seite():
+    """Probe 2026-10-17 (V9, Sammlung Optik): „Ich suche Inhalte zu einem Thema.“
+    → in 4 von 6 Läufen suchte der Agent gleich nach „Optik“, statt nach dem Thema zu
+    fragen. Die Regel „„das Thema“ … meint den Inhalt aus dem Block“ las den
+    Platzhalter als Bezug auf die Seite; die Gegenregel im Master-Skill wiegt weniger
+    als dieser Systemteil. Sie gilt in beiden Maschinen."""
+    for regeln in (SEITEN_REGELN, seiten_regeln(skill_weg=False)):
+        assert "„ein Thema“" in regeln
+        assert "kein Bezug auf die Seite" in regeln
+        assert "frage zuerst nach dem Thema" in regeln
+        assert "Unterthemen der Seite" in regeln
+
+
 def test_die_regel_nennt_den_weg_zur_vollstaendigen_skill_liste():
     """Review Paket 7, B-6: der Block kürzt lange Listen („… und N weitere“). Bis
     Phase R stand der Weg zur ganzen Liste in genau dieser Zeile der Daten."""

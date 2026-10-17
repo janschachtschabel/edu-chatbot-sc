@@ -107,6 +107,22 @@ async def test_type_focus_strips_collections_and_rewrites_text(monkeypatch):
     assert out[6] == "Videos"                     # _type_focus_label
 
 
+@pytest.mark.parametrize("cards", [
+    [], [_card("coll", "Photosynthese", node_type="collection")]])
+async def test_type_focus_keeps_the_answer_without_any_content_hit(monkeypatch, cards):
+    """Probe 2026-10-17 (V16, Muster-Modus, „OER-Videos zur Photosynthese für die
+    Grundschule“): 0 Inhaltstreffer, und der Text hieß trotzdem „… dort finden Sie die
+    gefilterten Treffer“. Ohne Inhaltskarte gibt es dort nichts zu finden — die Antwort
+    des Modells, die das Leerergebnis einordnet, bleibt stehen."""
+    (out, _tr) = await _call(
+        monkeypatch, winner=SimpleNamespace(id="M05"), effective="M05",
+        message="OER-Videos zur Photosynthese für die Grundschule",
+        classification={"entities": {"medientyp": "Video", "thema": "Photosynthese"}},
+        cards=cards, response_text="Dazu gibt es keine OER-Videos.", mock_vocab=True)
+    assert out[1] == "Dazu gibt es keine OER-Videos."
+    assert out[0] == []                           # Sammlungen bleiben im Typ-Fokus draußen
+
+
 async def test_type_focus_skipped_for_non_search_pattern(monkeypatch):
     cards = [_card("c1", "Mathe Video"), _card("coll", "Mathe Sammlung", node_type="collection")]
     (out, _tr) = await _call(
@@ -171,13 +187,16 @@ _CTA_DE_TOPIC = (
     "die gefilterten Treffer."
 )
 _M06 = SimpleNamespace(id="M06")
+#: Ein Inhaltstreffer für die Wortlaut-Pins: ohne Inhaltskarte ersetzt der Verweis
+#: die Antwort nicht mehr (Probe 2026-10-17, V16).
+_TREFFER = [_card("v1", "Videos: Klima, Climate, Lichtbrechung", lrt=["Video"])]
 
 
 async def test_type_focus_cta_german_is_alt_verbatim(monkeypatch):
     (out, _tr) = await _call(
         monkeypatch, winner=_M06, message="hast du Videos?",
         classification={"entities": {"thema": "Klima"}},
-        response_text="Hier sind ein paar Videos.", mock_vocab=True)
+        cards=_TREFFER, response_text="Hier sind ein paar Videos.", mock_vocab=True)
     assert out[1] == _CTA_DE_TOPIC
 
 
@@ -189,7 +208,7 @@ async def test_type_focus_cta_english(monkeypatch):
         monkeypatch, locale="en-GB", winner=_M06,
         message="do you have videos?",
         classification={"entities": {"thema": "Climate"}},
-        response_text="Here are a few videos.", mock_vocab=True)
+        cards=_TREFFER, response_text="Here are a few videos.", mock_vocab=True)
     assert "Für" not in out[1] and "Suche" not in out[1]
     assert out[1] == (
         "For Videos on “Climate” check the search below — that is where "
@@ -201,7 +220,7 @@ async def test_type_focus_cta_english_without_topic(monkeypatch):
     (out, _tr) = await _call(
         monkeypatch, locale="en-GB", winner=_M06,
         message="do you have videos?",
-        response_text="Here are a few videos.", mock_vocab=True)
+        cards=_TREFFER, response_text="Here are a few videos.", mock_vocab=True)
     assert out[1] == (
         "For Videos on this topic check the search below — that is where "
         "you will find the filtered results."
@@ -358,7 +377,7 @@ async def test_type_focus_cta_sie(monkeypatch, formality):
         monkeypatch, winner=_M06, message=_GV_EMB_2,
         classification={"entities": {"thema": "Lichtbrechung"}},
         pattern_output={"formality": formality},
-        response_text="Hier sind passende Videos.", mock_vocab=True)
+        cards=_TREFFER, response_text="Hier sind passende Videos.", mock_vocab=True)
     assert not _DU_WOERTER.search(out[1]), out[1]
     assert out[1] == (
         "Für Videos zu „Lichtbrechung“ schauen Sie in die Suche unten — dort "
@@ -370,7 +389,7 @@ async def test_type_focus_cta_sie_without_topic(monkeypatch):
     (out, _tr) = await _call(
         monkeypatch, winner=_M06, message=_GV_EMB_2,
         pattern_output={"formality": "siezen"},
-        response_text="Hier sind passende Videos.", mock_vocab=True)
+        cards=_TREFFER, response_text="Hier sind passende Videos.", mock_vocab=True)
     assert not _DU_WOERTER.search(out[1]), out[1]
     assert out[1] == (
         "Für Videos zum Thema schauen Sie in die Suche unten — dort finden "
@@ -384,7 +403,7 @@ async def test_type_focus_cta_du_stays_alt_verbatim(monkeypatch, formality):
         monkeypatch, winner=_M06, message="hast du Videos?",
         classification={"entities": {"thema": "Klima"}},
         pattern_output={"formality": formality},
-        response_text="Hier sind ein paar Videos.", mock_vocab=True)
+        cards=_TREFFER, response_text="Hier sind ein paar Videos.", mock_vocab=True)
     assert out[1] == _CTA_DE_TOPIC
 
 
@@ -395,7 +414,7 @@ async def test_type_focus_cta_english_ignores_formality(monkeypatch):
         monkeypatch, locale="en-GB", winner=_M06, message="do you have videos?",
         classification={"entities": {"thema": "Climate"}},
         pattern_output={"formality": "siezen"},
-        response_text="Here are a few videos.", mock_vocab=True)
+        cards=_TREFFER, response_text="Here are a few videos.", mock_vocab=True)
     assert out[1] == (
         "For Videos on “Climate” check the search below — that is where "
         "you will find the filtered results."

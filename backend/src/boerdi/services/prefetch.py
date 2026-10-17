@@ -165,6 +165,9 @@ async def run_speculative_prefetch(req, classification, safety):
             _medientyp = _ents_for_spec.get("medientyp")
             _fach = _ents_for_spec.get("fach")
             _stufe = _ents_for_spec.get("stufe")
+            # Nur gesetzt, wenn die Person eine Lizenz verlangt (Entität ``lizenz``) —
+            # fehlte er, zeigten die Karten ausgeschlossenes Material (Probe V16).
+            _lizenz = _ents_for_spec.get("lizenz")
             _msg_low = (req.message or "").lower()
             _wants_topic = any(k in _msg_low for k in (
                 "themenseite", "themenseiten", "fachportal", "portalseite",
@@ -272,6 +275,8 @@ async def run_speculative_prefetch(req, classification, safety):
                     spec_tool_args["discipline"] = _fach
                 if _stufe:
                     spec_tool_args["educationalContext"] = _stufe
+                if _lizenz and spec_tool_name == "search_wlo_content":
+                    spec_tool_args["license"] = _lizenz
 
                 # O1: Generischer Inhalts-/Sammlungs-Such-Turn → EIN kombinierter
                 # search_wlo_all-Call (deckt content + collections + topicPages in
@@ -310,6 +315,8 @@ async def run_speculative_prefetch(req, classification, safety):
                         spec_tool_args["discipline"] = _fach
                     if _stufe:
                         spec_tool_args["educationalContext"] = _stufe
+                    if _lizenz:
+                        spec_tool_args["license"] = _lizenz
                     spec_task = asyncio.create_task(
                         call_mcp_tool("search_wlo_all", spec_tool_args)
                     )

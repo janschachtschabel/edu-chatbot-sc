@@ -670,3 +670,18 @@ def test_alte_gewohnheit_excludenodeids_wird_zu_skipcount():
     args = validate_tool_args("search_wlo_within_collection",
                               {"nodeId": "n", "excludeNodeIds": ["a", "b", "c"]})
     assert args.get("skipCount") == 3 and "excludeNodeIds" not in args
+
+
+def test_seltene_filter_nur_auf_wunsch():
+    """Nutzer-Vorgabe 2026-10-17: Zielgruppe und Lizenz sind kaum getaggt (an Inhalten
+    hängt meist nur „Lernende“ oder „Lehrende“) und leeren die Trefferliste. Jede
+    Beschreibung dieser Filter sagt, dass sie nur auf Wunsch gesetzt werden."""
+    gesehen = 0
+    for definition in TOOL_DEFINITIONS:
+        felder = definition["function"]["parameters"].get("properties", {})
+        for name in ("userRole", "license"):
+            if name in felder:
+                gesehen += 1
+                assert "Nur setzen, wenn" in felder[name]["description"], (
+                    definition["function"]["name"], name)
+    assert gesehen >= 5

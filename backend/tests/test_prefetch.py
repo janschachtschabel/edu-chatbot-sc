@@ -268,6 +268,26 @@ def test_spec_medientyp_forces_single_filtered_content_call(spec_mcp):
     assert spec_mcp == [("call", "search_wlo_content", args)]
 
 
+def test_spec_reicht_die_erkannte_lizenz_weiter(spec_mcp):
+    """Probe 2026-10-17 (V16, Muster-Modus): „OER-Videos zur Photosynthese für die
+    Grundschule“ — der Klassifikator kennt die Entität ``lizenz`` (04-entities), die
+    vorgezogene Suche lief trotzdem ohne Lizenzfilter. Die Karten zeigten damit
+    Material, das die Person ausdrücklich ausgeschlossen hatte."""
+    out = _launch(intent="I03",
+                  entities={"thema": "Photosynthese", "medientyp": "Video", "lizenz": "OER"},
+                  tool_hint="search_wlo_content")
+    _task, name, args, _query, _extras, _is_all, _ = out
+    assert name == "search_wlo_content"
+    assert args["license"] == "OER"
+
+
+def test_spec_breite_suche_reicht_die_lizenz_weiter(spec_mcp):
+    out = _launch(entities={"thema": "Brüche", "lizenz": "CC BY-SA"})
+    _task, name, args, _query, _extras, is_all, _ = out
+    assert (name, is_all) == ("search_wlo_all", True)
+    assert args["license"] == "CC BY-SA"
+
+
 def test_spec_wants_topic_with_collections_hint_stays_direct_and_capped(spec_mcp):
     # "themenseite" im Text blockiert search_all; Collections-Primary wird
     # wegen _wants_topic auf maxResults=5 gekappt und läuft OHNE Warmup direkt.

@@ -345,7 +345,9 @@ async def _finalize_links_and_metas(
                 #    der Such-CTA). Verlust eines höflichen "Klar — …"-
                 #    Intros nehmen wir bewusst in Kauf; die Antwort wird
                 #    dadurch maximal eindeutig.
-                if response_text:
+                #    Ohne Inhaltskarte gibt es „unten“ nichts zu finden (Probe
+                #    2026-10-17, V16): dann bleibt die Antwort des Modells.
+                if response_text and cards:
                     _topic_for_text = (
                         (_classif_e.get("thema")
                          or _classif_e.get("topic")
