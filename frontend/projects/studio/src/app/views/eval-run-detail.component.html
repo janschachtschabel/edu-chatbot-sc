@@ -46,7 +46,14 @@
         <dt>{{ t('evalDetail.fact.finished') }}</dt><dd>{{ when(detail.completed_at) }}</dd>
       </div>
       <div><dt>{{ t('evalDetail.fact.turns') }}</dt><dd>{{ detail.total_turns }}</dd></div>
-      <div><dt>{{ t('evalDetail.fact.score') }}</dt><dd>{{ score(detail.avg_score) }}</dd></div>
+      <!-- Gold: avg_score ist die Quote der harten Prüfungen, keine Note (golden.py). -->
+      @if (detail.mode === 'golden') {
+        <div>
+          <dt>{{ t('evalDetail.fact.passRate') }}</dt><dd>{{ rate(detail.avg_score) }}</dd>
+        </div>
+      } @else {
+        <div><dt>{{ t('evalDetail.fact.score') }}</dt><dd>{{ score(detail.avg_score) }}</dd></div>
+      }
       @if (detail.config_slug) {
         <div><dt>{{ t('evalDetail.fact.config') }}</dt><dd>{{ detail.config_slug }}</dd></div>
       }

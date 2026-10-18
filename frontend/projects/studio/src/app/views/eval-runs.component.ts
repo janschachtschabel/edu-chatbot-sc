@@ -264,6 +264,16 @@ export class EvalRunsComponent {
     return value === null ? '–' : this.fmt.decimal(value);
   }
 
+  /** Beim Gold-Lauf ist `avg_score` die Quote der harten Prüfungen (golden.py), beim
+   *  generativen der Ø Judge-Score — „Ø Score“ für beide las sich wie eine Note. */
+  ergebnis(row: EvalRunSummary): string {
+    if (row.mode === 'golden') {
+      const rate = row.avg_score === null ? '–' : this.fmt.percent(row.avg_score, 0);
+      return this.t('evalRuns.resultGold', { turns: row.total_turns, rate });
+    }
+    return this.t('evalRuns.result', { turns: row.total_turns, score: this.score(row.avg_score) });
+  }
+
   private scheduleNextPoll(): void {
     this.stopPolling();
     if (this.destroyed || !this.isPolling()) return;
