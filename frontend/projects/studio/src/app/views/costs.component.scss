@@ -27,12 +27,19 @@
 
 // ── Zeitraum ──────────────────────────────────────────────────────────
 
+// Zeitraum (mit „Aktualisieren“) und Datenbasis stehen in einer Zeile, beide als Kasten gleicher
+// Höhe; auf schmalen Schirmen bricht die Datenbasis darunter (Studio-Rundgang 2026-10-18).
 .cst-filter {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
+  align-items: stretch;
   gap: var(--st-3);
   margin-block-end: var(--st-4);
+}
+
+.cst-origin {
+  flex: 1 1 30rem;
+  margin: 0;
 }
 
 .cst-period {
@@ -70,8 +77,13 @@
   font-size: 0.8125rem;
 }
 
+// Der Hinweis bricht in eine eigene Zeile, zählt aber nicht zur Breite des Kastens
+// (`contain: inline-size`): sonst wurde der Kasten so breit wie Felder und Hinweis
+// nebeneinander, und die Datenbasis rutschte darunter. Ein starres Raster statt des
+// Flusses hätte das auch gelöst, lief auf 375 px aber über (Review, Studio-Rundgang).
 .cst-hint {
   flex-basis: 100%;
+  contain: inline-size;
   margin: 0;
   font-size: 0.6875rem;
   color: var(--st-text-muted);

@@ -116,7 +116,8 @@ export class CostsComponent {
   readonly from = signal(isoDay(Date.now() - DEFAULT_DAYS * DAY_MS));
   readonly to = signal(isoDay(Date.now()));
   /** ST-9: Eval- und Lasttest-Züge kosten Geld, sind aber kein Betrieb. */
-  readonly scope = signal<OriginScope>('all');
+  // Vorgabe Produktion (Studio-Rundgang 2026-10-18); die anderen bleiben wählbar.
+  readonly scope = signal<OriginScope>('production');
   /** Paket 15 (A6): die Maschine des Arbeitsbereichs — wie die Analyse. */
   private readonly maschine = inject(StudioAnsicht).maschine;
 

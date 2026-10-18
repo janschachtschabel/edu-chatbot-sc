@@ -66,7 +66,8 @@ export class QualityComponent {
     const ids = this.tabs().map((tab) => tab.id);
     return ids.includes(this.wanted()) ? this.wanted() : ids[0];
   });
-  readonly scope = signal<QualityScope>('all');
+  // Vorgabe Produktion (Studio-Rundgang 2026-10-18); die anderen bleiben wählbar.
+  readonly scope = signal<QualityScope>('production');
   readonly filters = signal<LogFilters>({});
 
   /** Panels that have been opened at least once, and therefore hold data. */

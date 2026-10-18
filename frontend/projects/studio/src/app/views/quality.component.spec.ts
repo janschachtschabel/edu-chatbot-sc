@@ -213,7 +213,8 @@ describe("QualityComponent", () => {
       h.el.querySelectorAll<HTMLInputElement>('input[type="radio"]'),
     );
     expect(radios).toHaveLength(3);
-    expect(radios[0].checked).toBe(true);
+    // Vorgabe „Produktion“ (Studio-Rundgang 2026-10-18); die anderen bleiben wählbar.
+    expect(radios[1].checked).toBe(true);
 
     radios[2].checked = true;
     radios[2].dispatchEvent(new Event("change"));
