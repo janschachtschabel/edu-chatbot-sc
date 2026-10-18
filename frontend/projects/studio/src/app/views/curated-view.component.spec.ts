@@ -26,6 +26,8 @@ import {
   CURATED_VIEWS, type CuratedAreaSection, curatedView, isAreaSection,
 } from "./curated-views";
 import { CuratedViewComponent } from "./curated-view.component";
+import { By } from "@angular/platform-browser";
+import { SchemaFormComponent } from "../schema-form/schema-form.component";
 
 /** Only the config-area sections — panels have no area key (9-4e). */
 const AREA_SECTIONS = CURATED_VIEWS.map((view) => ({
@@ -563,6 +565,23 @@ describe("CuratedViewComponent", () => {
       .find((s) => s.section().area === "05-canvas/type-aliases")!;
     aliase.changed.emit();
     expect(neu).toHaveBeenCalledTimes(1);
+  });
+
+  it("klappt auf Kontext-Aktionen und Tour & Lotse alle Formularabschnitte zu (Rundgang)", () => {
+    for (const slug of ["kontext-aktionen", "fuehrung"]) {
+      const bereiche = curatedView(slug)!.sections.filter(isAreaSection);
+      expect(bereiche.length).toBeGreaterThan(0);
+      expect(bereiche.every((s) => s.zugeklappt === true)).toBe(true);
+    }
+  });
+
+  it("reicht „zugeklappt“ bis ins Formular durch", async () => {
+    const { fixture, http } = await mount("kontext-aktionen");
+    answer(http, "01-base/context-actions", { context_actions: {} });
+    await tick();
+    await fixture.whenStable();
+    const formular = fixture.debugElement.query(By.directive(SchemaFormComponent));
+    expect((formular.componentInstance as SchemaFormComponent).alleZu()).toBe(true);
   });
 
   it("hält Speichern und Verwerfen beim Scrollen sichtbar (ST-4)", async () => {

@@ -27,6 +27,7 @@ export const INHALT_SEITEN: readonly CuratedView[] = [
     sections: [
       {
         area: '01-base/context-actions',
+        zugeklappt: true,
         labelKey: 'curated.kontextAktionen.actions.label',
         hintKey: 'curated.kontextAktionen.actions.hint',
         // Rundgang 3: Technik, Besuchertexte je Sprache, interne KI-Anweisung — nicht gemischt.
@@ -110,6 +111,7 @@ export const INHALT_SEITEN: readonly CuratedView[] = [
     sections: [
       {
         area: '01-base/website-tour',
+        zugeklappt: true,
         reiter: 'tour',
         labelKey: 'curated.domainWissen.tour.label',
         hintKey: 'curated.domainWissen.tour.hint',
@@ -129,12 +131,14 @@ export const INHALT_SEITEN: readonly CuratedView[] = [
       // dahin nur als Dateiname unter „Alle Bereiche“ zu finden.
       {
         area: '01-base/guide-mode',
+        zugeklappt: true,
         reiter: 'lotse',
         labelKey: 'curated.domainWissen.guideMode.label',
         hintKey: 'curated.domainWissen.guideMode.hint',
       },
       {
         area: '02-domain/guide-rules',
+        zugeklappt: true,
         reiter: 'regeln',
         labelKey: 'curated.domainWissen.guideRules.label',
         hintKey: 'curated.domainWissen.guideRules.hint',

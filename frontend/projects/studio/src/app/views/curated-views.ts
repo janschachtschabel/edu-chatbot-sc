@@ -83,6 +83,9 @@ export interface CuratedAreaSection {
   readonly sprung?: { readonly labelKey: string; readonly slug: string };
   /** Paket 15: der Reiter der Seite, in dem der Abschnitt steht (`CuratedView.reiter`). */
   readonly reiter?: string;
+  /** Studio-Rundgang 2026-10-18: alle Feldgruppen des Formulars starten zugeklappt — auch die
+   *  erste, wo sie so groß ist, dass sie die übrigen verdeckt. */
+  readonly zugeklappt?: boolean;
 }
 
 /**

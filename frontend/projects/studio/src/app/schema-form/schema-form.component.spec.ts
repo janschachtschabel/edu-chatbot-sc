@@ -619,6 +619,15 @@ describe('SchemaFormComponent — aufklappbare Abschnitte (S5)', () => {
     expect(innen.every((g) => !g.classList.contains('sf-group-oben'))).toBe(true);
   });
 
+  it('startet auf Wunsch mit allen Abschnitten zugeklappt (Studio-Rundgang 2026-10-18)', async () => {
+    // Kontext-Aktionen, Tour & Lotse: der offene erste Abschnitt war so groß, dass man ihn erst
+    // zuklappen musste, um die übrigen zu sehen.
+    const h = await mount(LANG, { stufe: 'standard', block_a: {}, block_b: {} });
+    h.fixture.componentRef.setInput('alleZu', true);
+    await h.fixture.whenStable();
+    expect(sections(h.el).map((d) => d.open)).toEqual([false, false, false]);
+  });
+
   it('lässt ein kurzes Formular ungegliedert', async () => {
     const kurz: JsonSchema = { type: 'object', properties: { a: { type: 'string' } } };
     const h = await mount(kurz, { a: '1' });
