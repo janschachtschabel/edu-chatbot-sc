@@ -96,6 +96,8 @@ def test_load_run_reconstructs_full_dict_from_result_column(test_db) -> None:
         "resource_samples": [],
         "summary": {"stable_concurrency": 2, "total_requests": 10, "total_errors": 0},
         "error": None,
+        # Paket 15 (E1): die Aufwärm-Anfrage steht neben den Stufen.
+        "warmup": {"kind": "suche", "ok": True, "status": 200, "latency_s": 8.7},
     }
 
     async def scenario(session):
@@ -112,6 +114,7 @@ def test_load_run_reconstructs_full_dict_from_result_column(test_db) -> None:
     assert run["finished_at"] == "2026-07-24T10:00:00+00:00"
     assert run["stages"] == result["stages"]
     assert run["summary"] == result["summary"]
+    assert run["warmup"] == result["warmup"]
 
 
 def test_list_runs_is_newest_first_and_compact(test_db) -> None:

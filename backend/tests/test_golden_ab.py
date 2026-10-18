@@ -31,8 +31,9 @@ _spec.loader.exec_module(rg)
 
 def _flow(*expects: dict) -> dict:
     return {
-        "id": "F1", "title": "Flow Eins", "zielgruppe": "P-LEH",
-        "turns": [{"message": f"m{i}", "expect": e} for i, e in enumerate(expects, 1)],
+        "id": "F1", "title": "Flow Eins", "zielgruppe": "P-LEH", "erwartung": "e",
+        "turns": [{"message": f"m{i}", "anwendungsfall": "suchen", "expect": e}
+                  for i, e in enumerate(expects, 1)],
     }
 
 

@@ -152,9 +152,29 @@ def test_die_werkzeug_uebersicht_zeigt_fremdwerkzeuge_als_eigene_art(monkeypatch
     zeile = next(t for t in ov.werkzeugliste()["tools"]
                  if t["name"] == "wikidata__search_entities")
     assert zeile["kind"] == "external" and zeile["offered"] is True
+    # Review-Runde 2 (R2-4): Server und Originalname für den Schalter im Studio.
+    assert (zeile["server_id"], zeile["tool"]) == ("wikidata", "search_entities")
     assert zeile["locks"] == [{"code": "tool_mode", "modes": ["curate"]},
                               {"code": "safety_fixed", "signals": ["pii"]}]
 
+
+
+def test_ein_abgeschaltetes_fremdwerkzeug_bleibt_in_der_uebersicht(monkeypatch):
+    """Review Paket 15, #1: Der Schalter steht nur noch auf der Seite „Werkzeuge“. Fiele die Zeile
+    nach dem Ausschalten weg, ließe sich das Werkzeug im Studio nie wieder einschalten."""
+    from boerdi.services import agent_tool_overview as ov
+
+    aus = {**_SERVER, "werkzeuge_aus": ["search_entities"]}
+    monkeypatch.setattr(fremdwerkzeuge, "_registry", lambda: [aus])
+    monkeypatch.setattr(ov, "load_policy_config", lambda: {})
+    monkeypatch.setattr(ov, "load_rag_config", lambda: {})
+    zeile = next(t for t in ov.werkzeugliste()["tools"]
+                 if t["name"] == "wikidata__search_entities")
+    assert zeile["kind"] == "external" and zeile["offered"] is False
+    assert zeile["locks"] == [{"code": "hidden"}]
+    # Dem Modell bleibt es entzogen.
+    assert "wikidata__search_entities" not in {
+        d["function"]["name"] for d in fremdwerkzeuge.definitionen()}
 
 # ── Review Paket 11 (2026-10-15): acht Befunde, je ein Test ─────────────────────
 def test_r1_ein_fremder_server_uebernimmt_nie_die_weiterleitung_eines_wlo_werkzeugs(monkeypatch):

@@ -127,3 +127,28 @@ def test_das_detail_traegt_das_profil(monkeypatch) -> None:
     assert detail["id"] == "eval-1" and detail["engine"] == "agent"
     assert detail["profile"]["speed"]["p50_ms"] == 1000
 
+
+
+def test_ein_golden_detail_traegt_die_auswertung_v2(monkeypatch) -> None:
+    """Paket 13 (D1): beim Lesen berechnet wie das Profil, mit derselben Preistafel."""
+    monkeypatch.setattr(run_profile_mod, "load_pricing", lambda: _TAFEL)
+    convs = _detail(_zug(1000, {"gesamt": 4, "total": 0.75}))["conversations"]
+    convs[0]["zielgruppe"] = "P-LEH"
+    convs[0]["turns"][0]["anwendungsfall"] = "suchen"
+    zeile = EvalRun(id="eval-2", status="done", mode="golden", config={"engine": "agent"},
+                    totals={}, summary={}, conversations=convs)
+
+    detail = asyncio.run(get_run_with_profile(_Session(zeile), "eval-2"))
+
+    assert detail["auswertung"]["matrix_zielgruppe_anwendungsfall"]["P-LEH"]["suchen"] == {
+        "mittel": 4.0, "n": 1}
+    assert detail["auswertung"]["gesamt"]["kosten_je_zug"] == detail["profile"]["cost"][
+        "cost_per_turn"]
+
+
+def test_ein_generativer_lauf_hat_keine_auswertung_v2(monkeypatch) -> None:
+    monkeypatch.setattr(run_profile_mod, "load_pricing", lambda: _TAFEL)
+    zeile = EvalRun(id="eval-3", status="done", mode="generative", config={},
+                    totals={}, summary={}, conversations=[])
+    detail = asyncio.run(get_run_with_profile(_Session(zeile), "eval-3"))
+    assert "auswertung" not in detail

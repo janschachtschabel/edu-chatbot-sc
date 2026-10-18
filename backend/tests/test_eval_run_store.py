@@ -75,5 +75,5 @@ def test_toter_chat_bricht_mit_502_und_nennt_die_stellschraube(monkeypatch) -> N
         asyncio.run(run_store._ensure_chat_reachable())
 
     assert exc.value.status_code == 502
-    assert "http://localhost:8000/api/chat" in exc.value.detail
+    assert "http://127.0.0.1:8100/api/chat" in exc.value.detail
     assert "EVAL_CHAT_URL" in exc.value.detail

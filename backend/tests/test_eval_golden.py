@@ -9,7 +9,8 @@ whole module:
   list and the scorecard would show different numbers for the same run;
 * a judge that fails costs its turn a score, not the run.
 
-Offline: ``judge_turn`` is faked, and the IDs are synthetic (``P-SYN``…) so no
+Offline: the judge v2 (``judge_zug``/``judge_ablauf``) is faked, and the IDs
+are synthetic (``P-SYN``…) so no
 assertion depends on the real persona/intent config — the same reason
 test_eval_metrics.py uses them.
 """
@@ -50,131 +51,121 @@ def _patch_defs(monkeypatch) -> None:
     monkeypatch.setattr(eg, "load_persona_definitions", lambda: [
         {"id": "P-SYN", "label": "Synth-Persona", "description": "erfunden"},
     ])
-    monkeypatch.setattr(eg, "load_intents", lambda: [
-        {"id": "I-SYN", "label": "Synth-Intent", "description": "erfunden"},
-    ])
+    monkeypatch.setattr(eg, "_persona_erwartungen", lambda pid: f"Regeln {pid}")
 
 
-def _judge_spy(monkeypatch, *, result=None, exc=None) -> list[tuple]:
-    calls: list[tuple] = []
+def _judge_spy(monkeypatch, *, result=None, exc=None, ablauf_exc=None) -> dict:
+    """Paket 13 (C5): die Attrappen folgen den ECHTEN Signaturen von ``judge_v2``."""
+    calls: dict = {"zug": [], "ablauf": []}
 
-    # GV4: die Attrappe folgt der ECHTEN Signatur — ``soll_angebot`` ist
-    # keyword-only und wird als 6. Element mitgeschnitten.
-    async def fake_judge(persona, intent, user, bot, dbg, *, soll_angebot=None):
-        calls.append((persona, intent, user, bot, dbg, soll_angebot))
+    async def fake_zug(gespraech, index, zielgruppe, *, usage_acc=None):
+        calls["zug"].append((gespraech, index, zielgruppe, usage_acc))
         if exc is not None:
             raise exc
-        return dict(result or {"total": 0.5, "notes": ""})
+        return dict(result or {"total": 0.5, "notes": "", "gesamt": 3})
 
-    monkeypatch.setattr(eg, "judge_turn", fake_judge)
+    async def fake_ablauf(gespraech, zielgruppe, *, usage_acc=None):
+        calls["ablauf"].append((gespraech, zielgruppe, usage_acc))
+        if ablauf_exc is not None:
+            raise ablauf_exc
+        return {"gesamt": 4, "statement": "gut"}
+
+    monkeypatch.setattr(eg, "judge_zug", fake_zug)
+    monkeypatch.setattr(eg, "judge_ablauf", fake_ablauf)
     return calls
 
 
-# ── judge_conversations ──────────────────────────────────────────────────
-def test_judges_every_answered_turn_and_skips_error_turns(monkeypatch) -> None:
+# ── bewerte_gespraeche (Judge v2, Paket 13) ──────────────────────────────
+def test_bewertet_jeden_beantworteten_zug_und_den_ablauf(monkeypatch) -> None:
     _patch_defs(monkeypatch)
     calls = _judge_spy(monkeypatch)
     convs = _convs(error_turn=True)
+    acc: dict = {}
 
-    judged = asyncio.run(eg.judge_conversations(convs))
+    zahl = asyncio.run(eg.bewerte_gespraeche(convs, usage_acc=acc))
 
-    assert judged == 2 and len(calls) == 2
+    assert zahl == {"zuege": 2, "ablaeufe": 1}
+    assert [c[1] for c in calls["zug"]] == [0, 1]
     t1, t2, t3 = convs[0]["turns"]
     assert t1["judge"]["total"] == 0.5 and t2["judge"]["total"] == 0.5
-    # A turn the chat never answered has nothing to score.
-    assert "judge" not in t3
+    assert "judge" not in t3  # ein Zug ohne Antwort hat nichts zu bewerten
+    assert convs[0]["urteil"] == {"gesamt": 4, "statement": "gut"}
+    assert calls["zug"][0][3] is acc and calls["ablauf"][0][2] is acc
 
 
-def test_resolves_persona_and_intent_from_config(monkeypatch) -> None:
-    _patch_defs(monkeypatch)
-    calls = _judge_spy(monkeypatch)
-
-    asyncio.run(eg.judge_conversations(_convs()))
-
-    assert calls[0][0]["label"] == "Synth-Persona"
-    assert calls[0][1]["label"] == "Synth-Intent"
-    assert calls[0][2] == "text eins" and calls[0][3] == "b1"
-    assert calls[0][4]["pattern"] == "M-SYN (z)"
-
-
-def test_unknown_persona_becomes_a_labelled_stub(monkeypatch) -> None:
-    _patch_defs(monkeypatch)
-    calls = _judge_spy(monkeypatch)
-
-    asyncio.run(eg.judge_conversations(_convs(persona="P-XX")))
-
-    assert calls[0][0] == {"id": "P-XX", "label": "P-XX", "description": ""}
-
-
-def test_turn_without_expected_intent_gets_an_empty_stub(monkeypatch) -> None:
-    _patch_defs(monkeypatch)
-    calls = _judge_spy(monkeypatch)
-
-    asyncio.run(eg.judge_conversations(_convs()))
-
-    # Turn 2 asserts no intent, so the judge is told there is no target rather
-    # than being handed the flow's first one. (The run metrics DO fall back to
-    # the conversation-level intent — a different question, see below.)
-    assert calls[1][1] == {"id": "", "label": "", "description": ""}
-
-
-def test_config_is_read_once_per_run_not_per_turn(monkeypatch) -> None:
-    reads: list[str] = []
-    monkeypatch.setattr(eg, "load_persona_definitions",
-                        lambda: (reads.append("p"), [])[1])
-    monkeypatch.setattr(eg, "load_intents", lambda: (reads.append("i"), [])[1])
-    _judge_spy(monkeypatch)
-
-    asyncio.run(eg.judge_conversations(_convs()))
-
-    assert reads == ["p", "i"]
-
-
-def test_a_failing_judge_marks_the_turn_and_is_excluded(monkeypatch) -> None:
-    """GV4-Spec-Änderung: bis dahin bekam der Turn eine stille 0 („zero-score
-    verdict", ALT-Konvention) — die drückte den Schnitt der übrigen Turns, als
-    hätte der Bot versagt, obwohl der GUTACHTER ausgefallen war. Jetzt trägt
-    der Turn ``judge_failed`` und KEINEN ``judge``-Schlüssel; ``_aggregate``
-    lässt ihn damit von selbst aus ``judge_avg`` heraus."""
-    _patch_defs(monkeypatch)
-    _judge_spy(monkeypatch, exc=RuntimeError("judge provider 500"))
-    convs = _convs()
-
-    judged = asyncio.run(eg.judge_conversations(convs))
-
-    assert judged == 0
-    for turn in convs[0]["turns"]:
-        assert "judge" not in turn
-        assert "judge provider 500" in turn["judge_failed"]
-
-
-def test_zielgruppe_beats_persona_id_for_the_rubric(monkeypatch) -> None:
-    """v2-Records tragen ``persona_id: "*"`` (kein Klassifikator-Soll) und die
-    Zielgruppe separat — der Judge braucht trotzdem die Persona-Rubrik."""
+def test_die_zielgruppe_kommt_aus_der_konfiguration(monkeypatch) -> None:
     _patch_defs(monkeypatch)
     calls = _judge_spy(monkeypatch)
     convs = _convs()
     convs[0]["persona_id"] = "*"
     convs[0]["zielgruppe"] = "P-SYN"
 
-    asyncio.run(eg.judge_conversations(convs))
+    asyncio.run(eg.bewerte_gespraeche(convs))
 
-    assert calls[0][0]["label"] == "Synth-Persona"
+    zielgruppe = calls["ablauf"][0][1]
+    assert zielgruppe == {"id": "P-SYN", "label": "Synth-Persona", "description": "erfunden",
+                          "erwartungen": "Regeln P-SYN"}
+    assert calls["zug"][0][2] is zielgruppe
 
 
-def test_must_offer_reaches_the_judge_as_soll_angebot(monkeypatch) -> None:
+def test_eine_unbekannte_zielgruppe_wird_zum_stub(monkeypatch) -> None:
+    _patch_defs(monkeypatch)
+    calls = _judge_spy(monkeypatch)
+
+    asyncio.run(eg.bewerte_gespraeche(_convs(persona="P-XX")))
+
+    assert calls["ablauf"][0][1] == {"id": "P-XX", "label": "P-XX", "description": "",
+                                     "erwartungen": ""}
+
+
+def test_die_konfiguration_wird_einmal_je_lauf_gelesen(monkeypatch) -> None:
+    lesen: list[str] = []
+    monkeypatch.setattr(eg, "load_persona_definitions", lambda: (lesen.append("p"), [])[1])
+    monkeypatch.setattr(eg, "_persona_erwartungen", lambda pid: "")
+    _judge_spy(monkeypatch)
+
+    asyncio.run(eg.bewerte_gespraeche(_convs() + _convs()))
+
+    assert lesen == ["p"]
+
+
+def test_ein_ausfall_des_zug_judges_wird_vermerkt(monkeypatch) -> None:
+    """GV4 bleibt: ein ausgefallener Gutachter kostet keine Note, sondern wird gezählt."""
+    _patch_defs(monkeypatch)
+    _judge_spy(monkeypatch, exc=RuntimeError("judge provider 500"))
+    convs = _convs()
+
+    zahl = asyncio.run(eg.bewerte_gespraeche(convs))
+
+    assert zahl == {"zuege": 0, "ablaeufe": 1}
+    for turn in convs[0]["turns"]:
+        assert "judge" not in turn
+        assert "judge provider 500" in turn["judge_failed"]
+
+
+def test_ein_ausfall_des_ablauf_judges_wird_vermerkt(monkeypatch) -> None:
+    _patch_defs(monkeypatch)
+    _judge_spy(monkeypatch, ablauf_exc=RuntimeError("zu lang"))
+    convs = _convs()
+
+    zahl = asyncio.run(eg.bewerte_gespraeche(convs))
+
+    assert zahl == {"zuege": 2, "ablaeufe": 0}
+    assert "urteil" not in convs[0]
+    assert "zu lang" in convs[0]["urteil_fehler"]
+
+
+def test_ein_ablauf_ohne_antwort_bekommt_kein_urteil(monkeypatch) -> None:
     _patch_defs(monkeypatch)
     calls = _judge_spy(monkeypatch)
     convs = _convs()
-    convs[0]["turns"][0]["golden"] = {
-        "expected": {"must_offer": "Treffer plus Anschlussangebot."},
-        "observed": {}, "checks": {},
-    }
+    for turn in convs[0]["turns"]:
+        turn["error"] = "down"
 
-    asyncio.run(eg.judge_conversations(convs))
+    asyncio.run(eg.bewerte_gespraeche(convs))
 
-    assert calls[0][5] == "Treffer plus Anschlussangebot."
-    assert calls[1][5] is None  # Turn ohne golden-Block: kein Soll
+    assert calls["ablauf"] == [] and calls["zug"] == []
+    assert convs[0]["urteil_fehler"] == "keine beantworteten Züge"
 
 
 # ── summarize_golden_run ─────────────────────────────────────────────────
@@ -184,7 +175,7 @@ def test_headline_stays_deterministic_and_judge_is_reported_beside_it(
     _patch_defs(monkeypatch)
     _judge_spy(monkeypatch)
     convs = _convs()
-    asyncio.run(eg.judge_conversations(convs))
+    asyncio.run(eg.bewerte_gespraeche(convs))
     gm = dict(_GM)
 
     summary = eg.summarize_golden_run(convs, target_turns=2, golden_metrics=gm)
@@ -232,7 +223,7 @@ def test_judge_failures_are_counted_not_averaged(monkeypatch) -> None:
     _patch_defs(monkeypatch)
     _judge_spy(monkeypatch, exc=RuntimeError("judge down"))
     convs = _convs()
-    asyncio.run(eg.judge_conversations(convs))
+    asyncio.run(eg.bewerte_gespraeche(convs))
     gm = dict(_GM)
 
     summary = eg.summarize_golden_run(convs, target_turns=2, golden_metrics=gm)
@@ -267,3 +258,52 @@ def test_failed_run_still_summarizes_what_was_collected() -> None:
     assert summary["current_activity"] == "Fehler: down"
     assert summary["target_turns"] == 9
     assert summary["golden_metrics"]["turns"] == 2
+
+
+# ── Kurzbericht (Paket 13, D2) ───────────────────────────────────────────
+def test_der_kurzbericht_sieht_die_auswertung_des_laufs(monkeypatch) -> None:
+    gesehen: dict = {}
+
+    async def fake_bericht(auswertung, *, usage_acc=None):
+        gesehen["auswertung"], gesehen["acc"] = auswertung, usage_acc
+        return {"text": "Solide.", "baustellen": []}
+
+    monkeypatch.setattr(eg, "kurzbericht", fake_bericht)
+    convs = _convs()
+    convs[0]["urteil"] = {"gesamt": 4, "statement": "gut", "skalen": {}}
+    acc: dict = {}
+
+    bericht = asyncio.run(eg.kurzbericht_erstellen(convs, usage_acc=acc))
+
+    assert bericht == {"text": "Solide.", "baustellen": []}
+    assert gesehen["auswertung"]["je_ablauf"][0]["statement"] == "gut"
+    assert gesehen["acc"] is acc
+
+
+def test_ein_ausfall_des_kurzberichts_wird_vermerkt(monkeypatch) -> None:
+    async def kaputt(auswertung, *, usage_acc=None):
+        raise RuntimeError("Bericht weg")
+
+    monkeypatch.setattr(eg, "kurzbericht", kaputt)
+    bericht = asyncio.run(eg.kurzbericht_erstellen(_convs()))
+    assert "Bericht weg" in bericht["fehler"]
+
+
+# ── Kennzahlen für die Trends (Paket 13, D5) ─────────────────────────────
+def test_kennzahlen_des_laufs_fuer_die_trends(monkeypatch) -> None:
+    monkeypatch.setattr(eg, "load_pricing", lambda: None)
+    convs = _convs()
+    convs[0]["urteil"] = {"gesamt": 4, "skalen": {"ton": {"note": 5}}}
+    convs[0]["turns"][0]["judge"] = {"gesamt": 3}
+    convs[0]["turns"][0]["latency_ms"] = 1200
+    convs[0]["turns"][0]["debug"] = {"token_usage": {
+        "prompt_tokens": 100, "models": {"gpt-6-luna": {"prompt": 100, "completion": 10}},
+        "prompts": {"agent.kopf": "aaa111"}}}
+
+    k = eg.kennzahlen_des_laufs(convs)
+
+    assert k["gesamt_mittel"] == 4.0 and k["skalen_mittel"] == {"ton": 5.0}
+    assert k["zug_mittel"] == 3.0
+    assert k["latenz_p50_ms"] == 1200
+    assert k["kosten_je_zug"] is None          # ohne Preistafel kein Preis
+    assert k["prompts"] == {"agent.kopf": ["aaa111"]}

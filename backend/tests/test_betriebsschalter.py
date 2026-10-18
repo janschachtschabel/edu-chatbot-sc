@@ -39,7 +39,8 @@ def _umgebung(monkeypatch, name: str, wert: str) -> None:
 def test_die_vorgaben_ohne_studio_und_umgebung(monkeypatch):
     _studio(monkeypatch)
     assert bs.token_streaming() is True          # S2: Vorgabe an
-    assert bs.agent_schnellantworten() is False  # S3: aus bis zum Master-Skill-Text
+    # S3: an seit Paket 15 — sonst streamt der Agent nicht (nur `respond_to_user` streamt).
+    assert bs.agent_schnellantworten() is True
     assert bs.service_tier() == ""                # S1: Standard-Tarif
 
 

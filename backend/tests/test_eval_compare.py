@@ -136,6 +136,23 @@ def test_verschiedene_bedingungen_und_agent_ohne_master_skill() -> None:
     assert sorted(len(g["runs"]) for g in out["conditions"]) == [1, 1]
 
 
+def test_skalen_und_unterschiede_der_messbedingungen() -> None:
+    # Paket 13 (D4): Bewertung je Lauf und Maschine, und was sich gegen den ersten Lauf änderte.
+    rows = [_lauf("eval-a1", "agent", sha="aaa"), _lauf("eval-a2", "agent", sha="bbb")]
+    for row, note in zip(rows, (4, 2), strict=True):
+        conv = row.conversations[0]
+        conv["urteil"] = {"gesamt": note, "skalen": {"ton": {"note": note}}}
+        conv["turns"][0]["judge"] = {"gesamt": note}
+
+    out = _vergleich(rows, ["eval-a1", "eval-a2"])
+
+    assert [r["bewertung"]["gesamt_mittel"] for r in out["runs"]] == [4.0, 2.0]
+    assert out["bewertung_je_maschine"]["agent"]["gesamt_mittel"] == 3.0
+    assert out["unterschiede"]["referenz"] == "eval-a1"
+    assert out["unterschiede"]["laeufe"][0]["felder"] == [
+        {"feld": "master_skill", "a": "an:aaa", "b": "an:bbb"}]
+
+
 def test_modelle_ohne_preis_und_unlesbare_preistafel(monkeypatch) -> None:
     rows = [_lauf("eval-a1", "agent", model="unbekannt-1"),
             _lauf("eval-a2", "agent", model="unbekannt-1")]

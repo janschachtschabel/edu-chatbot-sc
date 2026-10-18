@@ -86,6 +86,7 @@ GET    /api/eval/compare
 GET    /api/eval/config
 POST   /api/eval/estimate
 GET    /api/eval/gold-flows
+GET    /api/eval/prompt-diff
 DELETE /api/eval/quality-logs
 DELETE /api/eval/runs
 GET    /api/eval/runs
@@ -93,6 +94,7 @@ POST   /api/eval/runs
 POST   /api/eval/runs/golden
 DELETE /api/eval/runs/{run_id}
 GET    /api/eval/runs/{run_id}
+GET    /api/eval/runs/{run_id}/bericht.md
 POST   /api/eval/runs/{run_id}/cancel
 GET    /api/eval/trends
 GET    /api/health

@@ -361,3 +361,15 @@ def test_die_frist_hat_eine_untergrenze(monkeypatch) -> None:
     monkeypatch.setenv("CLASSIFY_TIMEOUT_S", "0")
     get_settings.cache_clear()
     assert get_settings().classify_timeout_s == 1.0
+
+
+def test_der_feste_prompt_wird_als_fassung_vermerkt(monkeypatch) -> None:
+    """Paket 13 (A5): der feste Klassifikator-Prompt (ohne Zug-Kontext, Paket 9) als Prüfsumme."""
+    from boerdi.obs import usage
+    from boerdi.services import prompt_ablage
+
+    monkeypatch.setattr(prompt_ablage, "_OFFEN", {})
+    _install(monkeypatch, raw=_fake_raw(prompt=1, completion=1, cached=0))
+    acc = usage.new_accumulator()
+    asyncio.run(classify.classify_input("hi", [], {}, {}, usage_acc=acc))
+    assert acc["prompts"]["classify.system"] == prompt_ablage.pruefsumme("SYS")

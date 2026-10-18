@@ -445,3 +445,21 @@ def test_fruehausstieg_bucht_ohne_maschine(monkeypatch, client):
     calls = _spy_usage(monkeypatch)
     _post(client)
     assert calls[0][3] is None
+
+
+def test_neue_prompt_fassungen_werden_am_zugende_geschrieben(monkeypatch, client):
+    """Paket 13 (A5): derselbe Trichter wie der Verbrauch, auf derselben Sitzung."""
+    from boerdi.services import prompt_ablage
+
+    acc = {"models": {}, "prompts": {"agent.kopf": "abc123def456"}}
+    _patch(monkeypatch, result={**_ok("HI"), "usage": acc})
+    _spy_usage(monkeypatch)
+    gesehen: list = []
+
+    async def _fake(session, uebergeben):
+        gesehen.append((session, uebergeben))
+        return 1
+
+    monkeypatch.setattr(prompt_ablage, "speichere", _fake)
+    assert _post(client).status_code == 200
+    assert gesehen == [(_SESSION, acc)]

@@ -142,6 +142,24 @@ def test_get_run_passes_run_id(client, monkeypatch):
     assert calls == [(_SESSION, "eval-1")]
 
 
+def test_bericht_md_ist_ein_markdown_download(client, monkeypatch):
+    # Paket 13 (D3): derselbe Lauf wie GET /runs/{id}, als Markdown zum Weitergeben.
+    calls = _fake_async(monkeypatch, "get_run_with_profile",
+                        {"id": "eval-1", "status": "done", "summary": {}})
+    r = client.get("/api/eval/runs/eval-1/bericht.md", headers=_AUTH)
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/markdown")
+    assert r.headers["content-disposition"] == 'attachment; filename="bericht-eval-1.md"'
+    assert r.text.startswith("# Evaluationsbericht eval-1")
+    assert calls == [(_SESSION, "eval-1")]
+
+
+def test_bericht_md_dateiname_traegt_nur_kennungszeichen(client, monkeypatch):
+    _fake_async(monkeypatch, "get_run_with_profile", {"id": 'a"b', "summary": {}})
+    r = client.get("/api/eval/runs/a%22b/bericht.md", headers=_AUTH)
+    assert r.headers["content-disposition"] == 'attachment; filename="bericht-a_b.md"'
+
+
 def test_delete_run_passes_run_id(client, monkeypatch):
     calls = _fake_async(monkeypatch, "delete_run", {"deleted": "eval-1"})
     r = client.delete("/api/eval/runs/eval-1", headers=_AUTH)
@@ -232,6 +250,7 @@ def test_trends_limit_lower_bound(client, monkeypatch):
         ("DELETE", "/api/eval/runs", None),
         ("POST", "/api/eval/runs/golden", {}),
         ("GET", "/api/eval/runs/eval-1", None),
+        ("GET", "/api/eval/runs/eval-1/bericht.md", None),
         ("DELETE", "/api/eval/runs/eval-1", None),
         ("GET", "/api/eval/trends", None),
         ("GET", "/api/eval/gold-flows", None),
@@ -556,10 +575,11 @@ def _golden_flows():
     # Start-Weg liest beide, solange ein gespeicherter Config-Stand noch v1
     # sein kann (Seed-Import ist Nutzer-Domäne).
     return [
-        {"id": "GS-1", "zielgruppe": "P-LEH",
-         "turns": [{"message": "hallo"}, {"message": "mehr"}]},
-        {"id": "GS-2", "persona": "P-AND", "intents": ["I01"],
-         "turns": [{"message": "hi"}]},
+        {"id": "GS-1", "zielgruppe": "P-LEH", "erwartung": "e",
+         "turns": [{"message": "hallo", "anwendungsfall": "suchen"},
+                   {"message": "mehr", "anwendungsfall": "suchen"}]},
+        {"id": "GS-2", "persona": "P-AND", "intents": ["I01"], "erwartung": "e",
+         "turns": [{"message": "hi", "anwendungsfall": "orientieren"}]},
     ]
 
 
@@ -657,10 +677,15 @@ def _wire_golden(monkeypatch, *, judge=None):
     monkeypatch.setattr(golden_run, "_write_golden_progress", fake_progress)
     monkeypatch.setattr(eval_golden, "load_persona_definitions",
                         lambda: [{"id": "P-SYN", "label": "Synth", "description": ""}])
-    monkeypatch.setattr(eval_golden, "load_intents",
-                        lambda: [{"id": "I-SYN", "label": "Synth", "description": ""}])
+    monkeypatch.setattr(eval_golden, "_persona_erwartungen", lambda pid: "")
+    # Paket 13 (C5): ``judge`` ist der Zug-Judge v2; das Ablauf-Urteil antwortet fest.
     if judge is not None:
-        monkeypatch.setattr(eval_golden, "judge_turn", judge)
+        monkeypatch.setattr(eval_golden, "judge_zug", judge)
+
+        async def ablauf(gespraech, zielgruppe, *, usage_acc=None):
+            return {"gesamt": 4, "statement": "ok"}
+
+        monkeypatch.setattr(eval_golden, "judge_ablauf", ablauf)
 
     captured: dict = {"progress": progress}
 
@@ -673,7 +698,7 @@ def _wire_golden(monkeypatch, *, judge=None):
     return fake_runner, convs, metrics, captured
 
 
-async def _offline_conditions(*, judge_enabled):
+async def _offline_conditions(*, judge_enabled, engine="default", flows=None):
     """K0-2: die echten Messbedingungen holen den Master-Skill per MCP — offline
     eine feste Antwort (was sie enthalten, prüft test_golden_messdaten.py)."""
     return {"chat_model": "fake", "judge_model": ""}
@@ -683,8 +708,8 @@ def test_execute_golden_run_uses_ported_runner_and_persists_done(monkeypatch):
     flows = _golden_flows()
     judge_calls: list[tuple] = []
 
-    async def fake_judge(persona, intent, user, bot, dbg, *, soll_angebot=None):
-        judge_calls.append((persona["id"], intent["id"], user))
+    async def fake_judge(gespraech, index, zielgruppe, *, usage_acc=None):
+        judge_calls.append((zielgruppe["id"], index, gespraech["turns"][index]["user"]))
         return {"total": 0.5, "notes": ""}
 
     fake_runner, convs, metrics, captured = _wire_golden(monkeypatch, judge=fake_judge)
@@ -705,7 +730,8 @@ def test_execute_golden_run_uses_ported_runner_and_persists_done(monkeypatch):
     assert captured["total_turns"] == 3
     assert captured["conversations"] == [convs[0]]
     # The judge ran for real (C3) — it used to be a "not ported" note.
-    assert judge_calls == [("P-SYN", "I-SYN", "hallo")]
+    assert judge_calls == [("P-SYN", 0, "hallo")]
+    assert convs[0]["urteil"] == {"gesamt": 4, "statement": "ok"}
     assert convs[0]["turns"][0]["judge"]["total"] == 0.5
     assert captured["summary"]["judge_avg"] == 0.5
     # …and the headline stayed the deterministic hard pass rate.
@@ -737,7 +763,7 @@ def test_execute_golden_run_schreibt_zwischenstand_je_flow(monkeypatch):
     assert writes[0]["target_turns"] == 3
 
     # Mit Judge kommt VOR der Bewertung ein weiterer Zwischenstand dazu.
-    async def fake_judge(persona, intent, user, bot, dbg, *, soll_angebot=None):
+    async def fake_judge(gespraech, index, zielgruppe, *, usage_acc=None):
         return {"total": 1.0, "notes": ""}
 
     fake_runner2, _, _, captured2 = _wire_golden(monkeypatch, judge=fake_judge)
@@ -808,10 +834,10 @@ def test_execute_golden_run_keeps_the_transcript_when_judging_fails(monkeypatch)
     runs. A judge outage must not throw that away."""
     _, convs, _, captured = _wire_golden(monkeypatch)
 
-    async def boom(_conversations):
+    async def boom(_conversations, *, usage_acc=None):
         raise RuntimeError("judge model not deployed")
 
-    monkeypatch.setattr(eval_golden, "judge_conversations", boom)
+    monkeypatch.setattr(eval_golden, "bewerte_gespraeche", boom)
     asyncio.run(svc._execute_golden_run(
         lambda: _FakeCtx(), "eval-g", _golden_flows(), True))
 
@@ -901,7 +927,9 @@ def test_delete_runs_requires_confirm_without_filter():
 def test_start_golden_run_400_bei_falschem_tools_max(monkeypatch):
     """Review 2026-09-26: ein vertippter Deckel faellt VOR dem Lauf auf und
     nicht mitten in bezahlten Zuegen."""
-    kaputt = [{"id": "GS-1", "turns": [{"message": "a", "expect": {"tools_max": "3"}}]}]
+    kaputt = [{"id": "GS-1", "erwartung": "e",
+               "turns": [{"message": "a", "anwendungsfall": "suchen",
+                          "expect": {"tools_max": "3"}}]}]
     monkeypatch.setattr(golden_run, "load_gold_flows", lambda: kaputt)
     spawned = _patch_guard_and_spawn(monkeypatch, golden_run)
     with pytest.raises(HTTPException) as ei:
@@ -909,3 +937,64 @@ def test_start_golden_run_400_bei_falschem_tools_max(monkeypatch):
     assert ei.value.status_code == 400
     assert "tools_max" in str(ei.value.detail)
     assert spawned == []
+
+
+def test_execute_generative_run_bucht_simulator_judge_und_szenarien(monkeypatch):
+    """Paket 15 (A6): auch ein abgebrochener Lauf hat gekostet — gebucht wird in beiden Fällen,
+    mit der Maschine, die der Lauf maß."""
+    gebucht: list = []
+
+    async def buche(session, verbrauch, *, engine):
+        gebucht.append((verbrauch, engine))
+
+    monkeypatch.setattr(generative_run, "buche_verbrauch", buche)
+    for fehler in (None, RuntimeError("provider weg")):
+        gesehen: dict = {}
+
+        async def fake_execute(*, conversations, verbrauch, gesehen=gesehen, fehler=fehler,
+                               **kw):
+            gesehen["v"] = verbrauch
+            if fehler:
+                raise fehler
+            return {"total_judged_turns": 0, "avg_score": 0.0}
+
+        monkeypatch.setattr(generative_run.runner, "execute_run", fake_execute)
+        _run_generative(monkeypatch, lambda: _FakeCtx(), engine="agent")
+        assert gebucht[-1] == (gesehen["v"], "agent")
+    assert len(gebucht) == 2
+
+
+def test_ein_abgebrochener_generativer_lauf_bucht_trotzdem(monkeypatch):
+    """Review-Runde 2 (R2-2): „Abbrechen“ im Studio ist ``task.cancel()`` — der
+    ``CancelledError`` ist keine ``Exception``. Bezahlte Aufrufe werden trotzdem gebucht."""
+    gebucht: list = []
+
+    async def buche(session, verbrauch, *, engine):
+        gebucht.append((verbrauch, engine))
+
+    monkeypatch.setattr(generative_run, "buche_verbrauch", buche)
+    monkeypatch.setattr(generative_run, "_finalize_run", _async_noop)
+    gesehen: dict = {}
+
+    async def haengt(*, conversations, verbrauch, **kw):
+        gesehen["v"] = verbrauch
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(generative_run.runner, "execute_run", haengt)
+
+    async def lauf():
+        task = asyncio.create_task(svc._execute_generative_run(
+            lambda: _FakeCtx(), "eval-r2", mode="scenarios", personas=[{"id": "P-AND"}],
+            intents=[{"id": "I01"}], scenarios_per_combo=1, turns_per_conv=1, target_turns=1,
+            engine="agent"))
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(lauf())
+    assert gebucht == [(gesehen["v"], "agent")]
+
+
+async def _async_noop(*args, **kwargs):
+    return None

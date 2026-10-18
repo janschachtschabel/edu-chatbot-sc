@@ -60,7 +60,7 @@ def test_logs_wraps_rows_with_count_and_passes_filters(client, monkeypatch):
     args, kwargs = calls[0]
     assert args[0] is _SESSION  # DI session reaches the service first
     assert kwargs == {"limit": 5, "session_id": "s", "pattern_id": "M04",
-                      "intent_id": "I01", "scope": "eval"}
+                      "intent_id": "I01", "scope": "eval", "engine": None}
 
 
 def test_logs_defaults_match_alt(client, monkeypatch):
@@ -69,7 +69,7 @@ def test_logs_defaults_match_alt(client, monkeypatch):
     assert r.json() == {"count": 0, "logs": []}
     _, kwargs = calls[0]
     assert kwargs == {"limit": 100, "session_id": "", "pattern_id": "",
-                      "intent_id": "", "scope": "all"}
+                      "intent_id": "", "scope": "all", "engine": None}
 
 
 def test_logs_limit_bounds_are_enforced(client, monkeypatch):
@@ -112,11 +112,13 @@ def test_clear_with_filter_echoes_filter_and_deleted(client, monkeypatch):
     assert r.status_code == 200
     assert r.json() == {
         "status": "cleared", "deleted": 3,
-        "filter": {"session_id": "s", "pattern_id": "", "intent_id": "", "scope": "all"},
+        "filter": {"session_id": "s", "pattern_id": "", "intent_id": "", "scope": "all",
+                   "engine": None},
     }
     args, kwargs = calls[0]
     assert args[0] is _SESSION
-    assert kwargs == {"session_id": "s", "pattern_id": "", "intent_id": "", "scope": "all"}
+    assert kwargs == {"session_id": "s", "pattern_id": "", "intent_id": "", "scope": "all",
+                      "engine": None}
 
 
 def test_clear_without_filter_or_confirm_is_400_and_skips_service(client, monkeypatch):
@@ -139,7 +141,18 @@ def test_clear_scope_not_all_bypasses_guard(client, monkeypatch):
     r = client.post("/api/quality/logs/clear", params={"scope": "eval"}, headers=_AUTH)
     assert r.status_code == 200
     _, kwargs = calls[0]
-    assert kwargs == {"session_id": "", "pattern_id": "", "intent_id": "", "scope": "eval"}
+    assert kwargs == {"session_id": "", "pattern_id": "", "intent_id": "", "scope": "eval",
+                      "engine": None}
+
+
+def test_clear_nach_maschine_loescht_nur_deren_zuege(client, monkeypatch):
+    # Paket 13 (E5): zeigt die Liste nur Agent-Züge, löscht „Alle löschen“ nur diese — die
+    # Maschine schränkt ein und zählt deshalb als Filter.
+    calls = _fake(monkeypatch, "clear_quality_logs_svc", 2)
+    r = client.post("/api/quality/logs/clear", params={"engine": "agent"}, headers=_AUTH)
+    assert r.status_code == 200
+    _, kwargs = calls[0]
+    assert kwargs["engine"] == "agent"
 
 
 @pytest.mark.parametrize("params", [
@@ -163,22 +176,25 @@ def test_ein_wirkungsloser_filter_braucht_trotzdem_die_bestaetigung(
     ("path", "svc_name", "params", "expected_kwargs"),
     [
         ("/api/quality/stats", "get_quality_stats",
-         {"scope": "eval"}, {"scope": "eval"}),
+         {"scope": "eval", "engine": "agent"}, {"scope": "eval", "engine": "agent"}),
         ("/api/quality/matrix", "get_routing_matrix",
-         {"scope": "production", "min_count": 3}, {"scope": "production", "min_count": 3}),
+         {"scope": "production", "min_count": 3, "engine": "pattern"},
+         {"scope": "production", "min_count": 3, "engine": "pattern"}),
         ("/api/quality/state-transitions", "get_state_transitions",
-         {"scope": "eval", "days": 7, "min_count": 2},
-         {"scope": "eval", "days": 7, "min_count": 2}),
+         {"scope": "eval", "days": 7, "min_count": 2, "engine": "agent"},
+         {"scope": "eval", "days": 7, "min_count": 2, "engine": "agent"}),
         ("/api/quality/tight-races", "get_tight_races_breakdown",
-         {"scope": "all", "threshold": 0.05, "limit": 10},
-         {"scope": "all", "threshold": 0.05, "limit": 10}),
+         {"scope": "all", "threshold": 0.05, "limit": 10, "engine": "agent"},
+         {"scope": "all", "threshold": 0.05, "limit": 10, "engine": "agent"}),
         ("/api/quality/degradations", "get_degradation_breakdown",
-         {"scope": "eval", "limit": 5}, {"scope": "eval", "limit": 5}),
+         {"scope": "eval", "limit": 5, "engine": "agent"},
+         {"scope": "eval", "limit": 5, "engine": "agent"}),
         ("/api/quality/empty-entities", "get_empty_entities_breakdown",
-         {"scope": "eval", "limit": 5}, {"scope": "eval", "limit": 5}),
+         {"scope": "eval", "limit": 5, "engine": "agent"},
+         {"scope": "eval", "limit": 5, "engine": "agent"}),
         ("/api/quality/low-confidence", "get_low_confidence_turns",
-         {"scope": "eval", "max_confidence": 0.4, "limit": 5},
-         {"scope": "eval", "max_confidence": 0.4, "limit": 5}),
+         {"scope": "eval", "max_confidence": 0.4, "limit": 5, "engine": "agent"},
+         {"scope": "eval", "max_confidence": 0.4, "limit": 5, "engine": "agent"}),
     ],
 )
 def test_analytics_get_passthrough(client, monkeypatch, path, svc_name, params, expected_kwargs):
@@ -195,18 +211,19 @@ def test_analytics_get_passthrough(client, monkeypatch, path, svc_name, params, 
 @pytest.mark.parametrize(
     ("path", "svc_name", "expected_kwargs"),
     [
-        ("/api/quality/stats", "get_quality_stats", {"scope": "all"}),
-        ("/api/quality/matrix", "get_routing_matrix", {"scope": "all", "min_count": 1}),
+        ("/api/quality/stats", "get_quality_stats", {"scope": "all", "engine": None}),
+        ("/api/quality/matrix", "get_routing_matrix",
+         {"scope": "all", "min_count": 1, "engine": None}),
         ("/api/quality/state-transitions", "get_state_transitions",
-         {"scope": "all", "days": 30, "min_count": 1}),
+         {"scope": "all", "days": 30, "min_count": 1, "engine": None}),
         ("/api/quality/tight-races", "get_tight_races_breakdown",
-         {"scope": "all", "threshold": 0.02, "limit": 50}),
+         {"scope": "all", "threshold": 0.02, "limit": 50, "engine": None}),
         ("/api/quality/degradations", "get_degradation_breakdown",
-         {"scope": "all", "limit": 50}),
+         {"scope": "all", "limit": 50, "engine": None}),
         ("/api/quality/empty-entities", "get_empty_entities_breakdown",
-         {"scope": "all", "limit": 50}),
+         {"scope": "all", "limit": 50, "engine": None}),
         ("/api/quality/low-confidence", "get_low_confidence_turns",
-         {"scope": "all", "max_confidence": 0.6, "limit": 30}),
+         {"scope": "all", "max_confidence": 0.6, "limit": 30, "engine": None}),
     ],
 )
 def test_analytics_get_defaults_match_alt(client, monkeypatch, path, svc_name, expected_kwargs):
@@ -215,6 +232,17 @@ def test_analytics_get_defaults_match_alt(client, monkeypatch, path, svc_name, e
     assert r.status_code == 200
     _, kwargs = calls[0]
     assert kwargs == expected_kwargs
+
+
+@pytest.mark.parametrize("path", [
+    "/api/quality/logs", "/api/quality/stats", "/api/quality/matrix",
+    "/api/quality/state-transitions", "/api/quality/tight-races", "/api/quality/degradations",
+    "/api/quality/empty-entities", "/api/quality/low-confidence",
+])
+def test_engine_kennt_nur_die_beiden_maschinen(client, path):
+    # Paket 13 (E5): ein Tippfehler ist 422, nicht still „alle“.
+    r = client.get(path, params={"engine": "hybrid"}, headers=_AUTH)
+    assert r.status_code == 422
 
 
 def test_state_transitions_days_bounds_enforced(client, monkeypatch):

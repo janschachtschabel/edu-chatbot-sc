@@ -92,6 +92,21 @@ async def test_gemischte_laeufe_ueberspringen_nur_die_unmessbaren():
     assert [m["id"] for m in out["runs"]] == ["eval-gold", "eval-gen"]
 
 
+@pytest.mark.asyncio
+async def test_trends_v2_aus_den_summaries():
+    """Paket 13 (D5): Reihen je Skala/Gesamt/Latenz/Kosten und Wechselmarken, älteste zuerst."""
+    def lauf(run_id, gesamt, modell):
+        r = _run(run_id, _GOLDEN_CM)
+        r.summary = {**r.summary, "messbedingungen": {"weg": {"modell": modell}},
+                     "kennzahlen_v2": {"gesamt_mittel": gesamt, "latenz_p50_ms": 1000}}
+        return r
+
+    out = await get_trends(_FakeSession([lauf("neu", 4.0, "gpt-6"),
+                                         lauf("alt", 3.0, "gpt-6-luna")]), 10)
+    assert [p["run_id"] for p in out["v2"]["gesamt"]] == ["alt", "neu"]
+    assert out["v2"]["wechsel"][0]["felder"] == ["modell"]
+
+
 # ── Paket 4, E1 (externes Audit F22): die Liste lädt keine Transkripte ─────────
 # `list_runs` und `get_trends` luden ganze Zeilen samt `conversations` — und das
 # Studio fragt alle 3 s, solange ein Lauf läuft. Geprüft wird das SQL, das die

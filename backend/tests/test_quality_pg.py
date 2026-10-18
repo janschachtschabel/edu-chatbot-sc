@@ -415,3 +415,49 @@ def test_production_schliesst_lasttest_sitzungen_aus(test_db) -> None:
     assert echt["total_turns"] == 1
     assert [r["session_id"] for r in echt_logs] == ["bb-echt"]
     assert ev["total_turns"] == 1
+
+
+# ── Paket 13 (E5): Analyse nach Maschine ────────────────────────────────
+def test_engine_trennt_agent_und_muster_zuege_in_jeder_abfrage(test_db) -> None:
+    """Agent-Züge tragen das Muster ``AGENT``; ohne Angabe zählen beide."""
+    from boerdi.services import quality_analytics as qa
+
+    async def scenario(session):
+        await _seed(session, session_id="bb-1", pattern="AGENT (Werkzeug-Agent)", conf=0.3,
+                    state="S1", entities={})
+        await _seed(session, session_id="bb-1", turn=2, pattern="AGENT (Werkzeug-Agent)",
+                    conf=0.3, state="S2", entities={})
+        await _seed(session, session_id="bb-2", pattern="M04 (Fakten-Bulletin)", conf=0.3,
+                    state="S1", entities={})
+        aus = {}
+        for engine in (None, "agent", "pattern"):
+            aus[engine] = {
+                "stats": (await qa.get_quality_stats(session, engine=engine))["total_turns"],
+                "logs": len(await qa.get_quality_logs(session, engine=engine)),
+                "matrix": (await qa.get_routing_matrix(session, engine=engine))["total_turns"],
+                "flow": (await qa.get_state_transitions(session, engine=engine))["total_turns"],
+                "leer": (await qa.get_empty_entities_breakdown(session, engine=engine))["total"],
+                "unsicher": (await qa.get_low_confidence_turns(session, engine=engine))["total"],
+            }
+        return aus
+
+    aus = _run(scenario)
+    assert aus[None] == {"stats": 3, "logs": 3, "matrix": 3, "flow": 3, "leer": 3, "unsicher": 3}
+    assert aus["agent"] == {"stats": 2, "logs": 2, "matrix": 2, "flow": 2, "leer": 2,
+                            "unsicher": 2}
+    assert aus["pattern"] == {"stats": 1, "logs": 1, "matrix": 1, "flow": 1, "leer": 1,
+                              "unsicher": 1}
+
+
+def test_clear_nach_maschine_laesst_die_andere_stehen(test_db) -> None:
+    from boerdi.services import quality_analytics as qa
+
+    async def scenario(session):
+        await _seed(session, session_id="bb-1", pattern="AGENT (Werkzeug-Agent)")
+        await _seed(session, session_id="bb-2", pattern="M04 (Fakten-Bulletin)")
+        geloescht = await qa.clear_quality_logs(session, engine="agent")
+        rest = [r["pattern_id"] for r in await qa.get_quality_logs(session)]
+        return geloescht, rest
+
+    geloescht, rest = _run(scenario)
+    assert geloescht == 1 and rest == ["M04"]

@@ -173,13 +173,13 @@ def test_zeitraum_reicht_die_herkunft_durch(client, monkeypatch) -> None:
     calls = _fake(monkeypatch, "period_usage", _ANTWORT)
     r = client.get("/api/usage/period", headers=_AUTH, params={**_MONAT, "scope": "production"})
     assert r.status_code == 200
-    assert calls[0][1] == {"scope": "production"}
+    assert calls[0][1] == {"scope": "production", "engine": None}
 
 
 def test_zeitraum_ohne_herkunft_nimmt_alle(client, monkeypatch) -> None:
     calls = _fake(monkeypatch, "period_usage", _ANTWORT)
     assert client.get("/api/usage/period", headers=_AUTH, params=_MONAT).status_code == 200
-    assert calls[0][1] == {"scope": "all"}
+    assert calls[0][1] == {"scope": "all", "engine": None}
 
 
 def test_zeitraum_mit_unbekannter_herkunft_wird_abgewiesen(client, monkeypatch) -> None:
@@ -187,3 +187,16 @@ def test_zeitraum_mit_unbekannter_herkunft_wird_abgewiesen(client, monkeypatch) 
     r = client.get("/api/usage/period", headers=_AUTH, params={**_MONAT, "scope": "echt"})
     assert r.status_code == 422
     assert calls == []
+
+
+def test_zeitraum_reicht_die_maschine_durch(client, monkeypatch) -> None:
+    """Paket 15 (A6): die Kosten-Seite folgt dem Arbeitsbereich; ein Tippfehler ist 422."""
+    calls = _fake(monkeypatch, "period_usage", _ANTWORT)
+    zeitraum = {"from": "2026-01-01T00:00:00Z", "to": "2026-02-01T00:00:00Z"}
+
+    r = client.get("/api/usage/period", headers=_AUTH, params={**zeitraum, "engine": "agent"})
+    assert r.status_code == 200
+    assert calls[0][1]["engine"] == "agent"
+    falsch = client.get("/api/usage/period", headers=_AUTH,
+                        params={**zeitraum, "engine": "hybrid"})
+    assert falsch.status_code == 422

@@ -71,8 +71,22 @@ def test_leerer_bestand_liefert_alle_kataloge_leer(cfg) -> None:
     client, _ = cfg
     body = client.get("/api/config/choices", headers=_AUTH).json()
     for name in ("patterns", "personas", "intents", "states", "entities",
-                 "rag_areas", "tools"):
+                 "rag_areas", "tools", "guardrails"):
         assert body[name] == [], name
+
+
+def test_leitplanken_kommen_aus_der_regel_tabelle(cfg) -> None:
+    """Paket 15: die Schutzregeln des Agenten (``agent_rolle.schutzregeln``) sind Kennungen
+    aus der Leitplanken-Tabelle — die Vorschlagsliste nennt zu jeder ihren Wortlaut."""
+    client, seed = cfg
+    seed("01-base/guardrails", {"frontmatter": {"id": "guardrails"}, "body": (
+        "| ID | Regel |\n|---|---|\n| R-05 | Keine Diagnosen stellen. |\n"
+        "| R-13 | Keine Daten erfragen. |\n")})
+    eintraege = client.get("/api/config/choices", headers=_AUTH).json()["guardrails"]
+    assert eintraege == [
+        {"value": "R-05", "label": "R-05: Keine Diagnosen stellen.", "area": "01-base/guardrails"},
+        {"value": "R-13", "label": "R-13: Keine Daten erfragen.", "area": "01-base/guardrails"},
+    ]
 
 
 def test_muster_tragen_beschriftung_und_sprungziel(cfg) -> None:
