@@ -34,11 +34,19 @@
   font-size: 0.875rem;
 }
 
+// Zeitraum und „Aktualisieren“ stehen in einer Zeile, die breite Datenbasis darunter — im
+// Fluss rutschte der Knopf allein unter die Karten (Studio-Rundgang 2026-10-18).
 .nz-filter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--st-3);
+}
+
+.nz-zeile {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
-  gap: var(--st-3) var(--st-5);
+  gap: var(--st-3);
 }
 
 .nz-period {
@@ -112,6 +120,7 @@
 
 // Breite Tabellen rollen in ihrem Rahmen, nicht die Seite (375 px).
 .nz-rahmen {
+  inline-size: fit-content;
   max-inline-size: 100%;
   overflow-x: auto;
 

@@ -32,8 +32,9 @@
 }
 
 // Der oberste Rahmen im Abschnitt ist der Abschnitt selbst — die Haarlinie
-// des Feldsets doppelte ihn.
-.sf-section > studio-schema-field > .sf-group {
+// des Feldsets doppelte ihn. Als Klasse (Eingabe `oben`): ein Kind-Selektor über
+// Abschnitt und Feld griff nie, beide gehören verschiedenen Komponenten.
+.sf-group.sf-group-oben {
   margin: 0;
   padding: var(--st-3);
   border-inline-start: 0;

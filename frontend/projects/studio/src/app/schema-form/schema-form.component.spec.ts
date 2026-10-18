@@ -598,6 +598,27 @@ describe('SchemaFormComponent — aufklappbare Abschnitte (S5)', () => {
     });
   });
 
+  it('markiert nur die oberste Gruppe eines Abschnitts — ihr Abstand rundum hängt daran (Studio-Rundgang)', async () => {
+    // Die Regel „.sf-section > studio-schema-field > .sf-group“ griff nie: Abschnitt und Gruppe
+    // gehören verschiedenen Komponenten, die Kapselung trennt sie. Knöpfe saßen am rechten Rand.
+    const TIEF: JsonSchema = {
+      type: 'object',
+      properties: {
+        stufe: { type: 'string' },
+        block_a: { type: 'object', properties: {
+          innen: { type: 'object', properties: { x: { type: 'string' } } } } },
+        block_b: { type: 'object', properties: { y: { type: 'string' } } },
+      },
+    };
+    const h = await mount(TIEF, { stufe: 's', block_a: { innen: {} }, block_b: {} });
+    const abschnitt = sections(h.el)[1];
+    const oben = abschnitt.querySelector(':scope > studio-schema-field > .sf-group');
+    expect(oben?.classList.contains('sf-group-oben')).toBe(true);
+    const innen = Array.from(abschnitt.querySelectorAll('.sf-group')).filter((g) => g !== oben);
+    expect(innen.length).toBeGreaterThan(0);
+    expect(innen.every((g) => !g.classList.contains('sf-group-oben'))).toBe(true);
+  });
+
   it('lässt ein kurzes Formular ungegliedert', async () => {
     const kurz: JsonSchema = { type: 'object', properties: { a: { type: 'string' } } };
     const h = await mount(kurz, { a: '1' });

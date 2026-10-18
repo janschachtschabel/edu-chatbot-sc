@@ -20,7 +20,8 @@
 } @else {
 @switch (field().kind) {
   @case ('group') {
-    <fieldset class="sf-group" [attr.aria-describedby]="describedWith()"
+    <fieldset class="sf-group" [class.sf-group-oben]="oben()"
+      [attr.aria-describedby]="describedWith()"
       [attr.aria-label]="field().ohneLegende ? label() : null">
       @if (label() && !field().ohneLegende) {
         <legend class="sf-legend">

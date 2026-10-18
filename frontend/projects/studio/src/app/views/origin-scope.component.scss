@@ -5,9 +5,11 @@
   display: block;
 }
 
+// Raster statt Fluss: die drei Karten sind gleich breit und brechen gemeinsam um, statt
+// nach Textlänge verschieden groß zu stehen (Studio-Rundgang 2026-10-18).
 .os {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   gap: var(--st-2);
   margin: 0 0 var(--st-4);
   padding: var(--st-2) var(--st-3) var(--st-3);
