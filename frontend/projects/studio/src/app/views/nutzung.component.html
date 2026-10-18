@@ -5,23 +5,25 @@
 </header>
 
 <form class="nz-filter" (submit)="$event.preventDefault(); reload()">
-  <fieldset class="nz-period">
-    <legend class="nz-legend">{{ t('costs.period.legend') }}</legend>
-    <p class="nz-field">
-      <label for="nz-from">{{ t('costs.from.label') }}</label>
-      <input id="nz-from" class="nz-input" type="date" required [value]="from()"
-        (change)="setFrom($any($event.target).value)" />
-    </p>
-    <p class="nz-field">
-      <label for="nz-to">{{ t('costs.to.label') }}</label>
-      <input id="nz-to" class="nz-input" type="date" required [value]="to()"
-        (change)="setTo($any($event.target).value)" />
-    </p>
-  </fieldset>
+  <div class="nz-zeile">
+    <fieldset class="nz-period">
+      <legend class="nz-legend">{{ t('costs.period.legend') }}</legend>
+      <p class="nz-field">
+        <label for="nz-from">{{ t('costs.from.label') }}</label>
+        <input id="nz-from" class="nz-input" type="date" required [value]="from()"
+          (change)="setFrom($any($event.target).value)" />
+      </p>
+      <p class="nz-field">
+        <label for="nz-to">{{ t('costs.to.label') }}</label>
+        <input id="nz-to" class="nz-input" type="date" required [value]="to()"
+          (change)="setTo($any($event.target).value)" />
+      </p>
+    </fieldset>
+    <button type="submit" class="nz-btn" [disabled]="daten.loading() || incomplete()">
+      {{ daten.loading() ? t('action.refreshing') : t('action.refresh') }}
+    </button>
+  </div>
   <studio-origin-scope [value]="scope()" name="nz-scope" (valueChange)="setScope($event)" />
-  <button type="submit" class="nz-btn" [disabled]="daten.loading() || incomplete()">
-    {{ daten.loading() ? t('action.refreshing') : t('action.refresh') }}
-  </button>
 </form>
 
 @if (daten.value(); as d) {

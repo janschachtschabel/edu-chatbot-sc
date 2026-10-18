@@ -274,22 +274,28 @@ def test_seed_tafel_validiert_gegen_das_bereichsmodell() -> None:
         encoding="utf-8"))
     tafel = PricingArea.model_validate(roh)
 
-    assert tafel.currency == "EUR"
+    # Nutzer-Entscheid 2026-10-18: OpenAI-Listenpreise in deren Währung, nicht umgerechnet.
+    assert tafel.currency == "USD"
     assert tafel.models, "Die ausgelieferte Tafel nennt kein einziges Modell"
 
 
-def test_ausgelieferte_tafel_behauptet_keinen_preis() -> None:
-    """§5.4: alle Seed-Preise stehen auf 0,0. Ein erfundener Preis sähe aus wie
-    eine Abrechnung."""
+def test_ausgelieferte_tafel_bepreist_die_vorgabe_modelle() -> None:
+    """Nutzer-Entscheid 2026-10-18 (hebt §5.4 „Seed ohne Preise“ auf): die Werksfassung trägt
+    die OpenAI-Listenpreise (Standard, kurzer Kontext). Vorher rechnete die Vorgabe-Maschine
+    mit einem Modell ohne Preis, und die Kosten-Seite blieb leer."""
     import yaml
 
     roh = yaml.safe_load((_SEEDS / "01-base" / "pricing.yaml").read_text(
         encoding="utf-8"))
     tafel = PricingArea.model_validate(roh)
 
-    gepflegt = [name for name in tafel.models
-                if resolve_model_price(name, tafel) is not None]
-    assert gepflegt == [], f"Seed behauptet Preise für {gepflegt}"
+    luna = resolve_model_price("gpt-6-luna", tafel)
+    assert luna is not None
+    assert (luna.input, luna.cached_input, luna.output) == (0.10, 0.01, 0.50)
+    # Versionierte Antwortnamen treffen den Kurznamen.
+    assert resolve_model_price("gpt-5.6-luna-2026-09-01", tafel) is not None
+    # Was der Anbieter nicht listet, bleibt ausdrücklich ungepflegt — kein geratener Preis.
+    assert resolve_model_price("gpt-5.4-mini", tafel) is None
 
 
 def test_seed_baum_bleibt_mit_der_preistafel_roundtrip_fest(tmp_path: Path) -> None:

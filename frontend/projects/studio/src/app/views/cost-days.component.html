@@ -1,6 +1,19 @@
 @if (tage().length > 0) {
   <section class="cd" [attr.aria-labelledby]="kennung + '-titel'">
-    <h3 class="cd-titel" [id]="kennung + '-titel'">{{ t('costDays.title') }}</h3>
+    <div class="cd-kopf">
+      <h3 class="cd-titel" [id]="kennung + '-titel'">{{ t('costDays.title') }}</h3>
+      <fieldset class="cd-mass" [attr.aria-describedby]="kennung + '-hinweis'">
+        <legend class="sr">{{ t('costDays.mass.legend') }}</legend>
+        @for (m of masse; track m) {
+          <label class="cd-mass-wahl">
+            <input type="radio" [name]="kennung + '-mass'" [value]="m"
+              [checked]="mass() === m" [disabled]="m === 'betrag' && !hatPreis()"
+              (change)="waehle(m)" />
+            {{ t('costDays.mass.' + m) }}
+          </label>
+        }
+      </fieldset>
+    </div>
     @let c = chart();
     <svg
       class="cd-chart"
@@ -16,16 +29,9 @@
           [attr.height]="bar.height">
           <title>{{ titel(tage()[i]) }}</title>
         </rect>
-        @if (bar.ohnePreis) {
-          <rect class="cd-ohne" [attr.x]="bar.x" [attr.y]="c.height - c.pad - 3"
-            [attr.width]="bar.width" height="3" />
-        }
       }
     </svg>
-    <p class="cd-hinweis" [id]="kennung + '-hinweis'">
-      {{ c.max > 0 ? t('costDays.hint', { max: fmt.money('' + c.max, currency()) })
-        : t('costDays.hintOhnePreis') }}
-    </p>
+    <p class="cd-hinweis" [id]="kennung + '-hinweis'">{{ hinweis() }}</p>
     <details class="cd-tabelle">
       <summary>{{ t('costDays.table') }}</summary>
       <div class="cd-tabelle-rahmen" tabindex="0" role="region"

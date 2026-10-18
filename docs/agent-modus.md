@@ -507,12 +507,17 @@ sonst zerfiele das Präfix. Ein Test hält die Position fest
 Der Rahmen um ihn sagt das dem Modell ausdrücklich: er ergänzt die Rolle, hebt
 aber weder Leitplanken noch Sicherheitsregeln auf.
 
-**Wenn der Abruf scheitert** — MCP weg, Knoten gelöscht, leerer Text — läuft der
-Zug **ohne** Anleitung weiter, mit einer Warnung im Log. Ein Fehlschlag wird
-nicht zwischengespeichert, damit eine kurze Störung nicht fünf Minuten
-nachwirkt. Der Erfolgsfall bleibt 5 Minuten im Prozess (seit 2026-08-20, vorher
-15; `services/master_skill.py`): je Zug erneut zu holen wäre bei 1,2–23,3 s je
-MCP-Aufruf unbrauchbar.
+**Im Takt geholt (seit 2026-10-18).** Ein Hintergrund-Lauf je Backend-Prozess holt
+den Text alle 5 Minuten (`services/master_skill.TAKT_S`, gestartet im Lebenszyklus der
+App); ein Chat-Zug liest nur den Speicher und wartet nie auf das Repositorium —
+vorher bezahlte der erste Zug nach Ablauf den Abruf (1,2–23,3 s). Abgeschaltet holt der
+Takt erst, nachdem der Skill einmal gebraucht wurde (Einbettung, Studio-Anzeige).
+
+**Wenn der Abruf scheitert** — MCP weg, Knoten gelöscht, leerer Text — gilt der
+**letzte gute Stand** weiter, und die Studio-Karte nennt den Fehler. Gibt es noch
+keinen Stand (frischer Prozess, erster Abruf gescheitert), läuft der Zug ohne
+Anleitung weiter, mit einer Warnung im Log; ein Fehlschlag wird nicht gespeichert,
+der nächste Zug versucht es erneut.
 
 **Was in den Master-Skill gehört (2026-09-28).** Er ist die Steuerfläche des
 Agenten, die die Redaktion ohne Deployment ändert — so war er angelegt (Auftrag

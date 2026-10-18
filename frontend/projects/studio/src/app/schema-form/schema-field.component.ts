@@ -79,6 +79,10 @@ export class SchemaFieldComponent {
   /** Paket 15 (Review-Runde 2): ein Vorfahr fehlt im Dokument — dieser Wert stammt aus seiner
    *  Vorgabe, gespeichert ist er nicht. */
   readonly geerbt = input(false);
+  /** Oberste Gruppe eines Formular-Abschnitts: der Abschnitt ist ihr Rahmen, sie bekommt
+   *  Abstand rundum statt Einzug und Strich. Als Eingabe, weil eine Regel über beide
+   *  Komponenten an der Kapselung scheiterte (Studio-Rundgang 2026-10-18). */
+  readonly oben = input(false);
 
   readonly edit = output<FormEdit>();
 

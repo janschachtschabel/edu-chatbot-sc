@@ -65,6 +65,7 @@ import { rootField, type SchemaField } from './schema-to-fields';
             }
           </summary>
           <studio-schema-field
+            [oben]="true"
             [field]="section.field"
             [path]="section.basePath"
             [value]="valueAt(section.basePath)"

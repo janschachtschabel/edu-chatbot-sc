@@ -95,6 +95,21 @@ def _no_startup_warmups(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _kein_master_skill_takt(monkeypatch):
+    """Den Master-Skill-Takt (2026-10-18) in der Unit-Suite stilllegen — er holte sonst bei
+    jedem Lebenszyklus mit eingeschaltetem Skill oder gefülltem Speicher echt per MCP.
+
+    Wie bei der Vorwärmung: ``test_master_skill`` prüft die Verdrahtung, indem es dieselbe
+    Naht selbst patcht.
+    """
+    import asyncio
+
+    import boerdi.main as main_mod
+    monkeypatch.setattr(main_mod, "starte_master_skill_takt",
+                        lambda: asyncio.create_task(asyncio.sleep(3600)))
+
+
+@pytest.fixture(autouse=True)
 def _anmeldung_ohne_netz(monkeypatch):
     """Die Echtheitsprüfung des Zugangsblocks ohne Netz (Paket 10, Kurzaudit A-1).
 
