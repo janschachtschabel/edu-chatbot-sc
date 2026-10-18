@@ -14,7 +14,6 @@ import {
   STUDIO_LOCALE_STORAGE_KEY,
   StudioLanguageService,
 } from "../i18n/studio-language.service";
-import { DEFAULT_VIEW } from "../studio-views";
 import { OverviewComponent } from "./overview.component";
 
 const HEALTH_URL = "/studio/api/health";
@@ -57,6 +56,7 @@ async function mount(answers: Answers = {}): Promise<Harness> {
   // Studio die zweitstärkste Sprachquelle. Dieser Test prüft deutsche Texte,
   // also muss er die deutsche Oberfläche ausdrücklich verlangen (C1-d3b).
   sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, "de");
+  localStorage.clear(); // Paket 13: ohne Wahl und Wirkungen zeigt die Ansicht alles
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
@@ -89,11 +89,11 @@ const links = (h: Harness): HTMLAnchorElement[] =>
   Array.from(h.el.querySelectorAll<HTMLAnchorElement>("a[href]"));
 
 describe("OverviewComponent", () => {
-  it("is what the studio opens on", async () => {
-    // `uebersicht` is DEFAULT_VIEW, so a placeholder here is the first thing an
-    // editor sees. This pins the route away from that placeholder.
+  it("is what the pattern workspace opens on", async () => {
+    // Paket 14: `uebersicht` ist die Startseite des Muster-Arbeitsbereichs — ein Platzhalter
+    // hier wäre das Erste, was man dort sieht.
     const children = routes.find((r) => r.path === "")!.children!;
-    const route = children.find((r) => r.path === DEFAULT_VIEW)!;
+    const route = children.find((r) => r.path === "uebersicht")!;
     const loaded = await (route.loadComponent as () => Promise<unknown>)();
     expect(loaded).toBe(OverviewComponent);
   });

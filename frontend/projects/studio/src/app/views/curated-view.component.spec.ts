@@ -17,9 +17,13 @@ import {
   StudioLanguageService,
 } from "../i18n/studio-language.service";
 import { AREA_KEYS, AREA_SCHEMAS } from "../schema-form/area-schemas.fixture";
-import { STUDIO_VIEWS, type StudioView } from "../studio-views";
-import { DASHBOARD_SECTIONS, areasWithPage } from "./area-homes";
-import { CURATED_VIEWS, curatedView, isAreaSection } from "./curated-views";
+import { STUDIO_VIEWS, type StudioView, navGroups } from "../studio-views";
+import { DASHBOARD_SECTIONS, PANEL_AREAS, PANEL_FELDER, areasWithPage } from "./area-homes";
+import { fieldPaths } from "../schema-form/pick-fields";
+import { rootField } from "../schema-form/schema-to-fields";
+import {
+  CURATED_VIEWS, type CuratedAreaSection, curatedView, isAreaSection,
+} from "./curated-views";
 import { CuratedViewComponent } from "./curated-view.component";
 
 /** Only the config-area sections — panels have no area key (9-4e). */
@@ -51,6 +55,7 @@ async function mount(slug: string): Promise<Harness> {
   TestBed.resetTestingModule();
   // jsdom meldet `en-US`; die Wortlaute unten sind deutsch (C1-d3b).
   sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, "de");
+  localStorage.clear(); // Paket 13: keine gemerkte Ansicht aus einem anderen Test
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
@@ -103,6 +108,7 @@ describe("CURATED_VIEWS declaration", () => {
     const RENDERED = [
       "rag-areas", "rag-ingest", "mcp-registry", "agent-tester", "master-skill",
       "privacy-purge", "retention", "agent-tools", "agent-skills", "agent-prompt", "agent-probe",
+      "anrede", "material-typen",
     ];
     const declared = CURATED_VIEWS.flatMap((view) =>
       view.sections.flatMap((s) => (isAreaSection(s) ? [] : [s.panel])),
@@ -110,12 +116,15 @@ describe("CURATED_VIEWS declaration", () => {
     expect(declared.filter((panel) => !RENDERED.includes(panel))).toEqual([]);
   });
 
-  it("führt auf der Agent-Seite die Kette entlang, dann die beiden Probeläufe (ST-8)", () => {
-    const agent = CURATED_VIEWS.find((view) => view.slug === "agent")!;
-    const panels = agent.sections.flatMap((s) => (isAreaSection(s) ? [] : [s.panel]));
-    expect(panels).toEqual([
-      "agent-prompt", "master-skill", "agent-tools", "agent-skills", "agent-probe", "agent-tester",
-    ]);
+  it("führt auf „Prompt & Probelauf“ die Kette entlang, dann die beiden Probeläufe (ST-8, P14)", () => {
+    const panels = (slug: string) => CURATED_VIEWS.find((view) => view.slug === slug)!
+      .sections.flatMap((s) => (isAreaSection(s) ? [] : [s.panel]));
+    expect(panels("agent-prompt")).toEqual(["agent-prompt", "agent-probe", "agent-tester"]);
+    // Paket 15: Werkzeuge, Skills und Anrede gelten in beiden Modi — eigene gemeinsame Seiten.
+    expect(panels("werkzeuge")).toEqual(["agent-tools"]);
+    expect(panels("skills")).toEqual(["master-skill", "agent-skills"]);
+    expect(panels("zielgruppen")).toEqual(["anrede"]);
+    expect(panels("patterns")).toEqual([]);
   });
 
   it("names only slugs the view registry actually routes here", () => {
@@ -127,7 +136,7 @@ describe("CURATED_VIEWS declaration", () => {
     // & Maschine" (D2) ist die erste, die es nicht tut. Eine Erlaubnisliste
     // statt einer gelöschten Zusicherung: ein Tippfehler im Paketnamen soll
     // weiterhin auffallen.
-    const ERLAUBT = ["9-4", "D2"];
+    const ERLAUBT = ["9-4", "P14", "P15"];
     for (const view of CURATED_VIEWS) {
       const registered = STUDIO_VIEWS.find((v) => v.slug === view.slug);
       expect(registered, `slug ${view.slug}`).toBeDefined();
@@ -157,13 +166,114 @@ describe("CURATED_VIEWS declaration", () => {
     }
   });
 
-  it("gives every area exactly one home across all views", () => {
-    // Two pages editing the same area is two documents in two states, and the
-    // one saved second silently wins.
-    const areas = AREA_SECTIONS.flatMap((view) =>
-      view.sections.map((s) => s.area),
-    );
-    expect(new Set(areas).size).toBe(areas.length);
+  // ── Paket 14: Heimat je Arbeitsbereich ─────────────────────────────────
+  // Zwei Seiten, die dasselbe Dokument bearbeiten, sind zwei Stände — innerhalb EINES
+  // Arbeitsbereichs darf ein Bereich deshalb nur eine Heimat haben (bei Feld-Ausschnitten:
+  // überschneidungsfrei). Über die Arbeitsbereiche hinweg darf er zweimal stehen (Leitplanken
+  // in „Rolle & Grenzen“ und in „Identität“): man ist immer nur in einem, und das Speichern
+  // ist versioniert (409 bei fremdem Stand).
+  const sichtbar = (ansicht: "agent" | "pattern") => new Set(
+    navGroups(ansicht).flatMap((g) => g.views.map((v) => v.slug)));
+
+  /** Paket 15: `ohneFelder` = alle Felder des Schemas außer diesen (Personas ohne Anrede). */
+  function ausschnitt(section: CuratedAreaSection): readonly string[] | null {
+    if (section.felder) return section.felder;
+    if (!section.ohneFelder) return null;
+    return fieldPaths(rootField(AREA_SCHEMAS[section.area]))
+      .filter((p) => !section.ohneFelder!.includes(p));
+  }
+
+  /** Bereich → Feld-Ausschnitte seiner Abschnitte im Arbeitsbereich (`null` = alle Felder). */
+  function heimaten(ansicht: "agent" | "pattern"): Map<string, (readonly string[] | null)[]> {
+    const slugs = sichtbar(ansicht);
+    const map = new Map<string, (readonly string[] | null)[]>();
+    for (const view of AREA_SECTIONS.filter((v) => slugs.has(v.slug))) {
+      for (const section of view.sections) {
+        map.set(section.area, [...(map.get(section.area) ?? []), ausschnitt(section)]);
+      }
+    }
+    for (const [slug, sections] of Object.entries(DASHBOARD_SECTIONS)) {
+      if (!slugs.has(slug)) continue;
+      for (const section of sections) map.set(section.area, [...(map.get(section.area) ?? []), null]);
+    }
+    for (const view of CURATED_VIEWS.filter((v) => slugs.has(v.slug))) {
+      for (const section of view.sections) {
+        const area = isAreaSection(section) ? undefined : PANEL_AREAS[section.panel];
+        const felder = isAreaSection(section) ? undefined : PANEL_FELDER[section.panel];
+        if (area) map.set(area, [...(map.get(area) ?? []), felder ?? ["(panel)"]]);
+      }
+    }
+    return map;
+  }
+
+  /** Bereiche ohne Heimat im Agent-Arbeitsbereich — je mit Grund (Code-Lesart 2026-10-17). */
+  const NUR_MUSTER: Readonly<Record<string, string>> = {
+    "01-base/base-persona": "Agent: nur Krisen-Züge, die der Muster-Weg beantwortet",
+    "02-domain/domain-rules": "Agent: nur Krisen-Züge",
+    "02-domain/wlo-plattform-wissen": "Agent: nur Krisen-Züge",
+    "01-base/tone-modifiers": "Agent: nur Krisen-Züge",
+    "01-base/classify-overrides": "Agent: kein Klassifikator",
+    "04-intents/intents": "Agent: kein Klassifikator",
+    "04-entities/entities": "Agent: keine Entitäten-Erkennung",
+    "04-signals/signal-modulations": "Agent: keine Signale",
+    "01-base/placeholder-topics": "Agent: keine Entitäten-Erkennung",
+    "04-states/states": "Agent: nur die Zustands-Direktive, Zustand bleibt meist S1",
+    "05-canvas/material-types": "Agent: nur der Canvas-Schnellweg, der dort aus ist",
+    "05-canvas/type-aliases": "Agent: nur Randwirkung (Typ des Zugs)",
+    "05-canvas/persona-priorities": "Agent: nur Randwirkung (Chip-Hinweise)",
+  };
+
+  it("gibt jedem Bereich je Arbeitsbereich höchstens eine Heimat, Ausschnitte ohne Überschneidung (P14)", () => {
+    for (const ansicht of ["agent", "pattern"] as const) {
+      for (const [area, ausschnitte] of heimaten(ansicht)) {
+        if (ausschnitte.length === 1) continue;
+        expect(ausschnitte.includes(null), `${ansicht}: ${area} ganz und im Ausschnitt`).toBe(false);
+        const felder = ausschnitte.flat();
+        expect(new Set(felder).size, `${ansicht}: ${area} Felder doppelt`).toBe(felder.length);
+      }
+    }
+  });
+
+  it("kennt beide Schreiber der Server-Liste: MCP-Server und Werkzeuge (Review-Runde 2)", () => {
+    // „Werkzeuge“ schreibt `werkzeuge_aus` derselben Liste — ohne Erklärung sähe der Wächter
+    // eine spätere Überschneidung (Schalter zurück ins MCP-Panel) nicht.
+    for (const ansicht of ["agent", "pattern"] as const) {
+      const schreiber = heimaten(ansicht).get("05-knowledge/mcp-servers") ?? [];
+      expect(schreiber, ansicht).toHaveLength(2);
+      expect(schreiber.flat(), ansicht).toContain("werkzeuge_aus");
+    }
+  });
+
+  it("gibt jedem Bereich in jedem Arbeitsbereich eine Heimat — außer begründet (P14)", () => {
+    const agent = heimaten("agent");
+    const muster = heimaten("pattern");
+    expect(AREA_KEYS.filter((area) => !agent.has(area) && !(area in NUR_MUSTER))).toEqual([]);
+    expect(AREA_KEYS.filter((area) => !muster.has(area))).toEqual([]);
+    // Die Ausnahmen stimmen noch: keine steht doch im Agent-Arbeitsbereich.
+    expect(Object.keys(NUR_MUSTER).filter((area) => agent.has(area))).toEqual([]);
+  });
+
+  it("verteilt 01-base/engine auf Agent, Muster und Betrieb (P14)", () => {
+    const felder = (slug: string) => AREA_SECTIONS.find((v) => v.slug === slug)!
+      .sections.filter((s) => s.area === "01-base/engine").map((s) => s.felder);
+    expect(felder("agent-rolle")).toEqual([["agent_rolle", "agent"]]);
+    // Paket 15: die Skill-Brücke steht bei den Skills, nicht mehr bei den Patterns.
+    expect(felder("skills")).toEqual([["muster_skills"]]);
+    expect(felder("patterns")).toEqual([]);
+    expect(felder("betrieb")).toEqual([["mode", "betrieb"]]);
+  });
+
+  it("zeigt im Agent-Arbeitsbereich nur die beiden Schutzantworten (P14)", () => {
+    const rolle = AREA_SECTIONS.find((v) => v.slug === "agent-rolle")!;
+    const patterns = rolle.sections.find((s) => s.area === "03-patterns")!;
+    expect(patterns.dokumente).toEqual(["M01", "M02"]);
+    // Paket 15: was eine Schutzantwort ausmacht — ohne Routing-Felder (die wirken hier nicht,
+    // das Sicherheits-Tor erzwingt M01/M02) und ohne Reiter.
+    expect(patterns.feature).toBeUndefined();
+    expect(patterns.felder).toEqual([
+      "body", "frontmatter.core_rule", "frontmatter.default_tone", "frontmatter.default_length",
+      "frontmatter.quick_replies_mode", "frontmatter.forbidden_phrases",
+    ]);
   });
 
   it("leaves no 9-4 view without a definition", () => {
@@ -212,6 +322,23 @@ describe("CURATED_VIEWS declaration", () => {
       view.sections.map((section) => section.labelKey),
     );
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("ordnet auf Seiten mit Reitern jeden Abschnitt einem Reiter zu (Paket 15)", () => {
+    for (const view of CURATED_VIEWS.filter((v) => v.reiter)) {
+      const ids = view.reiter!.map((r) => r.id);
+      for (const section of view.sections) {
+        expect(ids, `${view.slug}: ${section.labelKey}`).toContain(section.reiter);
+      }
+      for (const id of ids) {
+        expect(view.sections.some((s) => s.reiter === id), `${view.slug}: Reiter ${id} leer`)
+          .toBe(true);
+      }
+    }
+    expect(curatedView("wissen")?.reiter?.map((r) => r.id)).toEqual(["rag", "mcp"]);
+    expect(curatedView("anzeige")?.reiter?.map((r) => r.id))
+      .toEqual(["chat", "karten", "kopfzeile", "geraete"]);
+    expect(curatedView("fuehrung")?.reiter?.map((r) => r.id)).toEqual(["tour", "lotse", "regeln"]);
   });
 
   it("keeps the MCP registry off the generic form, which has no SSRF gate", () => {
@@ -348,17 +475,36 @@ describe("CuratedViewComponent", () => {
   });
 
   it("sagt im Banner, wenn eine Seite unter der Agent-Schleife nur Krisen-Züge trägt (ST-5)", async () => {
-    // Die Muster-Seite: unter der Agent-Schleife beantwortet der Muster-Weg
-    // nur Krisen- und Drohungs-Züge (SF-1). „Wirkt nicht" wäre dort falsch.
-    const { el, fixture } = await mount("patterns");
+    // Domänenwissen: unter der Agent-Schleife beantwortet der Muster-Weg nur Krisen- und
+    // Drohungs-Züge (SF-1). „Wirkt nicht" wäre dort falsch. Seit Paket 14 trägt die
+    // Muster-Seite auch die Skill-Brücke (teilweise in beiden) — dort schweigt das Banner.
+    const { el, fixture } = await mount("domain-wissen");
     TestBed.inject(EffectsApi).effects.set({
       engine: "agent",
-      areas: { "03-patterns": { pattern: "voll", agent: "krise" } },
+      areas: {
+        "02-domain/domain-rules": { pattern: "voll", agent: "krise" },
+        "02-domain/wlo-plattform-wissen": { pattern: "voll", agent: "krise" },
+      },
     });
     await fixture.whenStable();
     const banner = el.querySelector(".cv-banner")?.textContent ?? "";
     expect(banner).toContain("Krisen");
     expect(banner).not.toContain("keine Einstellung");
+  });
+
+  it("lädt nach dem Speichern des Maschinen-Umschalters die Wirkungen neu (Paket 13, E6)",
+    async () => {
+      const { fixture, http } = await mount("betrieb");
+      http.match(() => true); // die Anfragen des offenen ersten Abschnitts
+      fixture.componentInstance.sections()[0].changed.emit();
+      http.expectOne("/studio/api/config/effects");
+    });
+
+  it("lädt die Wirkungen nach anderen Speicherungen nicht neu", async () => {
+    const { fixture, http } = await mount("anzeige");
+    http.match(() => true);
+    fixture.componentInstance.sections()[0].changed.emit();
+    http.expectNone("/studio/api/config/effects");
   });
 
   it("hält Speichern und Verwerfen beim Scrollen sichtbar (ST-4)", async () => {
@@ -444,5 +590,31 @@ describe("CuratedViewComponent", () => {
 
     const link = el.querySelector<HTMLAnchorElement>(".cs-raw-link");
     expect(link?.getAttribute("href")).toBe("/bereich/01-base/welcome-config");
+  });
+});
+
+describe("CuratedViewComponent — Reiter (Paket 15)", () => {
+  it("trennt Wissensbereiche und MCP-Server in Reiter; Abschnitte bleiben eingehängt", async () => {
+    const { el, fixture } = await mount("wissen");
+    const reiter = Array.from(el.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    expect(reiter.map((r) => r.textContent?.trim())).toEqual(["Wissensbereiche", "MCP-Server"]);
+    // Review-Runde 2: je Reiter ein eigenes Panel — verborgen wird das Panel, nicht der Abschnitt.
+    const mcp = () => el.querySelector("studio-mcp-registry")!.closest<HTMLElement>('[role="tabpanel"]')!;
+    const rag = () => el.querySelector("studio-rag-areas")!.closest<HTMLElement>('[role="tabpanel"]')!;
+    expect(mcp().hidden).toBe(true);
+    expect(rag().hidden).toBe(false);
+    reiter[1].click();
+    await fixture.whenStable();
+    expect(mcp().hidden).toBe(false);
+    expect(rag().hidden).toBe(true);
+    expect(mcp().getAttribute("aria-labelledby")).toBe("tab-mcp");
+  });
+
+  it("jedes aria-controls zeigt auf ein vorhandenes Panel, auch beim inaktiven Reiter (Review-Runde 2)", async () => {
+    const { el } = await mount("wissen");
+    for (const tab of Array.from(el.querySelectorAll('[role="tab"]'))) {
+      const ziel = el.querySelector(`[id="${tab.getAttribute("aria-controls")}"]`);
+      expect(ziel?.getAttribute("role"), tab.textContent ?? "").toBe("tabpanel");
+    }
   });
 });

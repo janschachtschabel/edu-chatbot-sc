@@ -1,0 +1,34 @@
+@if (eintraege().length === 0) {
+  <p class="ep-leer">{{ t('evalV2.problem.leer') }}</p>
+} @else {
+  <ol class="ep">
+    @for (eintrag of eintraege(); track eintrag.ablauf.flow_id) {
+      <li class="ep-eintrag" [attr.data-ablauf]="eintrag.ablauf.flow_id">
+        <div class="ep-kopf">
+          <button
+            type="button"
+            class="ep-sprung"
+            [attr.aria-label]="t('evalV2.problem.springe', { id: eintrag.ablauf.flow_id })"
+            (click)="springe.emit(eintrag.ablauf.flow_id)"
+          >{{ eintrag.ablauf.flow_id }}</button>
+          <span class="ep-titel">{{ eintrag.ablauf.title }}</span>
+          @for (chip of eintrag.chips; track chip.text) {
+            <span [class]="'ep-chip n-' + chip.stufe">{{ chip.text }}</span>{{ ' ' }}
+          }
+        </div>
+        @if (eintrag.ablauf.urteil_fehler) {
+          <p class="ep-fehler">{{ t('evalV2.problem.ohneUrteil', { grund: eintrag.ablauf.urteil_fehler }) }}</p>
+        } @else if (eintrag.ablauf.statement) {
+          <p class="ep-statement">{{ eintrag.ablauf.statement }}</p>
+        }
+        @if (eintrag.ablauf.auffaelligkeiten.length > 0) {
+          <ul class="ep-auff">
+            @for (a of eintrag.ablauf.auffaelligkeiten; track $index) {
+              <li>@if (a.zug) { <strong>{{ t('evalV2.auffaelligkeit.zug', { zug: a.zug }) }}:</strong> }{{ a.text }}</li>
+            }
+          </ul>
+        }
+      </li>
+    }
+  </ol>
+}

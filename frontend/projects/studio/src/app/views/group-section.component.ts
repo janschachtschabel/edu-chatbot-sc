@@ -42,6 +42,7 @@ import {
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
 import type { CuratedAreaSection } from './curated-views';
 import { EffectBadgeComponent } from './effect-badge.component';
+import { feldAusschnitt } from './feld-ausschnitt';
 import { FeldReiter } from './feld-reiter';
 import { GroupDocuments, type GroupEntry, slugify } from './group-documents';
 import { LoeschRueckfrage } from './loesch-rueckfrage';
@@ -93,13 +94,29 @@ export class GroupSectionComponent {
   private readonly listTitel = viewChild<ElementRef<HTMLElement>>('listTitel');
 
   readonly area = computed(() => this.section().area);
-  readonly dirty = this.editor.dirty;
+  /** Auch ein nicht lesbarer Feld-Entwurf ist ungespeicherte Arbeit (Review-Runde 2). */
+  readonly dirty = this.editor.verwerfbar;
 
-  readonly shown = computed(() => filterEntries(this.docs.entries(), this.query()));
+  /** Paket 14 (B2): nur diese Kennungen wählbar (die Schutzantworten im Agent-Arbeitsbereich);
+   *  dort gibt es weder Anlegen noch Duplizieren oder Löschen. `null` = die ganze Gruppe. */
+  readonly nurAuswahl = computed(() => {
+    const kennungen = this.section().dokumente;
+    return kennungen ? new Set(kennungen.map((k) => k.toUpperCase())) : null;
+  });
+
+  /** Was diese Seite führt: die Auswahl oder die ganze Gruppe — Grundlage für Liste und Zähler. */
+  private readonly gefuehrt = computed(() => {
+    const auswahl = this.nurAuswahl();
+    return auswahl
+      ? this.docs.entries().filter((e) => auswahl.has(e.kennung.toUpperCase()))
+      : this.docs.entries();
+  });
+
+  readonly shown = computed(() => filterEntries(this.gefuehrt(), this.query()));
   readonly current = computed<GroupEntry | null>(
     () => this.docs.entries().find((entry) => entry.id === this.selected()) ?? null);
   readonly countText = computed(() => {
-    const total = this.docs.entries().length;
+    const total = this.gefuehrt().length;
     const shown = this.shown().length;
     return shown === total
       ? this.lang.plural('objectList.count', total)
@@ -112,6 +129,9 @@ export class GroupSectionComponent {
     () => this.section().feature === 'pattern-tabs',
     () => this.editor.fieldErrors(),
   );
+  /** Was das Formular zeigt: der offene Reiter, sonst der Ausschnitt der Seite (Paket 15). */
+  readonly sichtbar = computed(() =>
+    this.reiter.visiblePaths() ?? feldAusschnitt(this.editor.schema(), this.section()));
   /** S4 (externes Audit F13): die Wissensbereiche, die ein Muster tatsächlich nutzt. */
   readonly rag = new RagHinweis(
     this.config, () => this.area() === '03-patterns', () => this.editor.doc(),
@@ -152,7 +172,7 @@ export class GroupSectionComponent {
   select(id: EntryId): void {
     const key = String(id);
     if (key === this.selected() || this.beschaeftigt()) return;
-    if (this.editor.dirty()) {
+    if (this.editor.verwerfbar()) {
       this.notice.set(this.t('groupSection.switchBlocked'));
       return;
     }
@@ -193,7 +213,7 @@ export class GroupSectionComponent {
       this.newError.set(this.t('groupSection.duplicate', { name: id }));
       return;
     }
-    if (this.editor.dirty()) {
+    if (this.editor.verwerfbar()) {
       // Creating selects the new document, which would drop the open edits
       // exactly as switching entries would.
       this.newError.set(this.t('groupSection.createBlocked'));
@@ -222,7 +242,7 @@ export class GroupSectionComponent {
   async duplicate(): Promise<void> {
     const entry = this.current();
     if (!entry) return;
-    if (this.editor.dirty()) {
+    if (this.editor.verwerfbar()) {
       this.notice.set(this.t('groupSection.copyBlocked'));
       return;
     }
@@ -283,7 +303,7 @@ export class GroupSectionComponent {
     this.rueckfrage.schliessen();
     this.query.set('');
     await this.loadList();
-    if (this.editor.dirty()) return false;
+    if (this.editor.verwerfbar()) return false;
     this.selected.set(key);
     this.rag.laden();
     await this.editor.load(key);

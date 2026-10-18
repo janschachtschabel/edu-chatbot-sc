@@ -10,9 +10,8 @@
  * Allow-list, not deny-list: exactly one leading `/`, then only characters that
  * can appear in a path/query, and never back to /login.
  */
-import { DEFAULT_VIEW } from '../studio-views';
-
-const FALLBACK = `/${DEFAULT_VIEW}`;
+/** Die Wurzel — sie leitet auf die Startseite des Arbeitsbereichs weiter (Paket 14). */
+const FALLBACK = '/';
 
 /**
  * `//host` and `/\host` are both protocol-relative to browsers, so a single

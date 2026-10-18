@@ -22,6 +22,10 @@
   @if (mixed()) {
     <p class="et-mixed">{{ t('evalTrends.mixedEngines') }}</p>
   }
+  @if (v2(); as reihen) {
+    <!-- Paket 13 (F8): Noten, Zeiten und Kosten je Lauf mit Wechselmarken -->
+    <studio-eval-trends-v2 class="et-v2" [v2]="reihen" />
+  }
   <figure class="et-figure">
     <figcaption>{{ t('evalTrends.scores.caption') }}</figcaption>
     <!-- Feedback 2026-08-22: Achsen-Marken links (oben Maximum, unten 0) —

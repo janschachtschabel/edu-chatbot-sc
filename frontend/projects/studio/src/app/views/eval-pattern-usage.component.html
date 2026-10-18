@@ -18,20 +18,6 @@
     </p>
 
     <p class="epu-field">
-      <label for="epu-engine">{{ t('evalPattern.engine.label') }}</label>
-      <select
-        id="epu-engine"
-        class="epu-input"
-        [value]="engine()"
-        (change)="setEngine($any($event.target).value)"
-      >
-        @for (option of engines; track option.value) {
-          <option [value]="option.value">{{ t(option.key) }}</option>
-        }
-      </select>
-    </p>
-
-    <p class="epu-field">
       <label for="epu-since">{{ t('evalPattern.since.label') }}</label>
       <input
         id="epu-since"
@@ -62,11 +48,7 @@
   <!-- Eine Bedingung statt zweier geschachtelter: `triples()` liest `value()`,
        eine nicht-leere Liste setzt die Antwort also schon voraus. Die äussere
        Hülle trug bis C1-d4b3 einen Alias, den nur die Summenzeile brauchte. -->
-  @if (engineEmpty()) {
-    <p class="epu-hint">{{ t('evalPattern.engine.none') }}</p>
-  }
-
-  @if (filtered().length > 0) {
+  @if (triples().length > 0) {
     <p class="epu-total"><studio-rich [parts]="totalParts()" /></p>
 
     <div class="epu-cols">
@@ -114,7 +96,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (triple of filtered(); track
+          @for (triple of triples(); track
                 triple.pattern_id + '|' + triple.intent_id + '|' + triple.persona_id) {
             <tr>
               <th scope="row">{{ id(triple.pattern_id) }}</th>

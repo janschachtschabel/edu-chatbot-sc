@@ -1,0 +1,116 @@
+// @vitest-environment jsdom
+import { provideHttpClient, withXhr } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideZonelessChangeDetection } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { EffectsApi } from '../core/effects-api.service';
+import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
+import { AgentUebersichtComponent } from './agent-uebersicht.component';
+
+/**
+ * Die Startseite des Agent-Arbeitsbereichs (Paket 14, C1): mit welcher Maschine der Server
+ * antwortet, der Master-Skill mit Zustand, NodeID und Links ins Repositorium, ein Wegweiser zu
+ * den Agent-Seiten und der letzte Lauf der Agent-Schleife.
+ */
+const SKILL = {
+  enabled: true, node_id: '535cabca-47e4', cached: true, fetched_at: '2026-10-17T10:00:00Z',
+  length: 12000, sha256: 'abcdef1234567890', last_error: null, ttl_seconds: 300, text: 'Vorgehen',
+  edit_url: 'https://repo.example/md-editor/?nodeId=535cabca-47e4',
+  view_url: 'https://repo.example/render/535cabca-47e4',
+};
+
+const RUNS = {
+  runs: [
+    { id: 'r-laufend', status: 'running', created_at: '2026-10-17T12:00:00Z', engine: 'agent',
+      mode: 'golden', avg_score: null },
+    { id: 'r-fertig', status: 'done', created_at: '2026-10-16T09:00:00Z', engine: 'agent',
+      mode: 'golden', avg_score: 0.82 },
+  ],
+};
+
+const tick = (): Promise<unknown> => new Promise((r) => setTimeout(r, 0));
+const norm = (t: string | null | undefined): string => (t ?? '').replace(/\s+/g, ' ').trim();
+
+describe('AgentUebersichtComponent (Paket 14, C1)', () => {
+  let fixture: ComponentFixture<AgentUebersichtComponent>;
+  let el: HTMLElement;
+  let http: HttpTestingController;
+
+  async function settle(): Promise<void> {
+    await tick();
+    await fixture.whenStable();
+  }
+
+  beforeEach(async () => {
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(), provideHttpClient(withXhr()),
+        provideHttpClientTesting(), provideRouter([]),
+      ],
+    });
+    TestBed.inject(EffectsApi).effects.set({ engine: 'agent', areas: {} });
+    fixture = TestBed.createComponent(AgentUebersichtComponent);
+    http = TestBed.inject(HttpTestingController);
+    el = fixture.nativeElement as HTMLElement;
+    await fixture.whenStable();
+  });
+
+  function antworten(runs: object = RUNS): void {
+    http.expectOne('/studio/api/master-skill').flush(SKILL);
+    http.expectOne((r) => r.url === '/studio/api/eval/runs').flush(runs);
+  }
+
+  it('sagt, mit welcher Maschine der Server antwortet, und verweist auf „Betrieb“', async () => {
+    antworten();
+    await settle();
+    expect(norm(el.querySelector('.au-zustand')?.textContent))
+      .toContain('Der Server antwortet mit der Agent-Schleife.');
+    expect(el.querySelector('.au-zustand a')?.getAttribute('href')).toBe('/betrieb');
+
+    TestBed.inject(EffectsApi).effects.set({ engine: 'pattern', areas: {} });
+    await fixture.whenStable();
+    expect(norm(el.querySelector('.au-zustand')?.textContent))
+      .toContain('Einbettungen können die Agent-Schleife wählen');
+  });
+
+  it('zeigt den Master-Skill mit NodeID und Links ins Repositorium', async () => {
+    antworten();
+    await settle();
+    expect(el.textContent).toContain('535cabca-47e4');
+    const hrefs = Array.from(el.querySelectorAll('studio-master-skill a'), (a) => a.getAttribute('href'));
+    expect(hrefs).toContain(SKILL.edit_url);
+    expect(hrefs).toContain(SKILL.view_url);
+  });
+
+  it('führt zu den Agent-Seiten', async () => {
+    antworten();
+    await settle();
+    const ziele = Array.from(el.querySelectorAll('.au-wege a'), (a) => a.getAttribute('href'));
+    expect(ziele).toEqual(['/agent-rolle', '/agent-prompt', '/werkzeuge', '/skills', '/evaluation']);
+  });
+
+  it('nennt den letzten fertigen Lauf der Agent-Schleife', async () => {
+    antworten();
+    await settle();
+    const req = http.match(() => true);
+    expect(req).toHaveLength(0);
+    const lauf = norm(el.querySelector('.au-lauf')?.textContent);
+    expect(lauf).toContain('16.10.2026');
+    expect(lauf).toContain('0,82');
+  });
+
+  it('fragt nur nach Läufen der Agent-Schleife', async () => {
+    http.expectOne('/studio/api/master-skill').flush(SKILL);
+    const req = http.expectOne((r) => r.url === '/studio/api/eval/runs');
+    expect(req.request.params.get('engine')).toBe('agent');
+    req.flush({ runs: [] });
+    await settle();
+    expect(norm(el.querySelector('.au-lauf')?.textContent))
+      .toContain('Noch kein fertiger Lauf der Agent-Schleife');
+  });
+});

@@ -106,6 +106,23 @@ describe("EvalApi", () => {
     req.flush({ run_id: "g1" });
   });
 
+  it("lädt den Bericht eines Laufs als Datei (Paket 13, F7)", async () => {
+    const promise = api.berichtMd("r1");
+    const req = http.expectOne(`${BASE}/runs/r1/bericht.md`);
+    expect(req.request.responseType).toBe("blob");
+    req.flush(new Blob(["# Bericht"]));
+    await expect(promise).resolves.toBeInstanceOf(Blob);
+  });
+
+  it("holt den Unterschied zweier Prompt-Fassungen (Paket 13, F8)", async () => {
+    const promise = api.promptDiff("aaaaaaaaaaaa", "bbbbbbbbbbbb");
+    const req = http.expectOne((r) => r.url === `${BASE}/prompt-diff`);
+    expect(req.request.params.get("a")).toBe("aaaaaaaaaaaa");
+    expect(req.request.params.get("b")).toBe("bbbbbbbbbbbb");
+    req.flush({ diff: ["-alt", "+neu"] });
+    await expect(promise).resolves.toEqual({ diff: ["-alt", "+neu"] });
+  });
+
   it("reads one run and deletes one run", async () => {
     void api.run("r1");
     http
@@ -200,11 +217,12 @@ describe("EvalApi", () => {
   });
 
   it('scopes the pattern usage and drops an empty "since"', async () => {
-    void api.patternUsage("eval", "");
+    void api.patternUsage("eval", "", "pattern");
     const req = http.expectOne(
       (r) => r.url === `${BASE}/analytics/pattern-usage`,
     );
     expect(req.request.params.get("scope")).toBe("eval");
+    expect(req.request.params.get("engine")).toBe("pattern");
     expect(req.request.params.has("since")).toBe(false);
     req.flush({
       triples: [],

@@ -19,6 +19,8 @@
           <thead>
             <tr>
               <th scope="col">{{ t('agentTools.col.tool') }}</th>
+              <th scope="col">{{ t('agentTools.col.herkunft') }}</th>
+              <th scope="col">{{ t('agentTools.col.anbieten') }}</th>
               <th scope="col">{{ t('agentTools.col.offered') }}</th>
               <th scope="col">{{ t('agentTools.col.locks') }}</th>
             </tr>
@@ -26,7 +28,7 @@
           @for (group of groups(); track group.kind) {
             <tbody>
               <tr class="agt-group">
-                <th scope="rowgroup" colspan="3">
+                <th scope="rowgroup" colspan="5">
                   <span class="agt-group-name">{{ groupLabel(group.kind) }}</span>
                   @if (groupHint(group.kind); as hint) {
                     <span class="agt-group-hint">{{ hint }}</span>
@@ -41,6 +43,18 @@
                       <span class="agt-desc">{{ satz }}</span>
                     }
                   </th>
+                  @let s = schalter(tool);
+                  <td class="agt-herkunft">{{ herkunft(tool, s) }}</td>
+                  <td class="agt-schalter">
+                    @if (s) {
+                      <input type="checkbox" [checked]="an(s)"
+                        [attr.aria-label]="t('agentTools.schalter', { name: tool.name })"
+                        (change)="setze(s, $any($event.target).checked)" />
+                    } @else {
+                      <!-- Review-Runde 2: solange die Server-Liste fehlt, weiß die Seite es nicht -->
+                      <span class="agt-none">{{ ohneSchalter(tool) }}</span>
+                    }
+                  </td>
                   <td class="agt-offered">
                     {{ tool.offered ? t('agentTools.offered.yes') : t('agentTools.offered.no') }}
                   </td>
@@ -66,6 +80,23 @@
           }
         </table>
       </div>
+      <!-- Paket 15: die Schalter schreiben die MCP-Server-Liste — ein Speichern für alle. -->
+      <div class="cs-actions">
+        <button type="button" class="cs-btn cs-btn--primary"
+          [disabled]="reg.saving() || !dirty()" (click)="speichern()">
+          {{ reg.saving() ? t('editor.saving') : t('editor.save') }}
+        </button>
+        <button type="button" class="cs-btn" [disabled]="reg.saving() || !dirty()"
+          (click)="reg.discard()">{{ t('editor.discard') }}</button>
+      </div>
+      @if (reg.conflict(); as konflikt) {
+        <studio-save-conflict [conflict]="konflikt" [busy]="reg.saving()"
+          (reload)="neuLaden()" (force)="speichern(true)" />
+      }
+      @if (reg.saveError() || reg.loadError(); as fehler) {
+        <p class="cs-state cs-state--error" role="alert">{{ fehler }}</p>
+      }
+      <p class="cs-status" aria-live="polite">{{ reg.status() }}</p>
     } @else {
       <p class="cs-state" aria-busy="true">{{ t('agentTools.loading') }}</p>
     }

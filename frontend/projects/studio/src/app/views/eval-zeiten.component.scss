@@ -1,0 +1,51 @@
+// Zeiten je Schritt (Paket 13, F6).
+:host {
+  display: block;
+}
+
+.ez {
+  display: grid;
+  gap: var(--st-4);
+  overflow-x: auto;
+}
+
+.ez-tabelle {
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+
+  caption {
+    margin-block-end: var(--st-1);
+    text-align: start;
+    font-weight: 600;
+  }
+
+  th,
+  td {
+    padding: var(--st-1) var(--st-2);
+    border-block-end: 1px solid var(--st-rule);
+    text-align: end;
+  }
+
+  th[scope='row'],
+  thead th:first-child {
+    text-align: start;
+    font-weight: 400;
+  }
+}
+
+.ez-balken {
+  inline-size: 10rem;
+
+  span {
+    display: block;
+    block-size: 0.5rem;
+    border-radius: var(--st-radius);
+    background: var(--st-accent);
+  }
+}
+
+.ez-leer {
+  margin: 0;
+  color: var(--st-text-muted);
+}

@@ -7,9 +7,21 @@
     <p class="bk-intro">{{ t('backup.intro') }}</p>
   </header>
 
-  <!-- Paket 12: zuerst, was im Alltag zählt — welche Bereiche angepasst sind und ob eine neue
-       Werksfassung wartet. Die Sicherungs-Karten darunter sind der Rückweg. -->
-  <studio-fassungen-panel />
+  <!-- Paket 15: zwei Reiter — „Werksfassung“ zuerst (Paket 12: was im Alltag zählt), „Sichern“
+       mit Voll-Backup, Snapshots und eigenem Grundstand. Beide bleiben eingehängt: die
+       Sprungziele der Kopfzeile müssen da sein, und ein Wechsel verliert keine Rückfrage. -->
+  <studio-tab-bar [tabs]="reiterTabs()" [active]="reiter()" [label]="t('view.sicherung.label')"
+    (tabChange)="reiter.set($event)" />
+
+  <div id="panel-werk" role="tabpanel" aria-labelledby="tab-werk" [hidden]="reiter() !== 'werk'">
+    <studio-fassungen-panel />
+    <!-- Zuletzt, und bewusst unter dem Werksstand: die beiden Karten heissen fast gleich, und
+         diese hier liest aus dem Abbild statt aus der Datenbank. -->
+    <studio-seed-panel />
+  </div>
+
+  <div id="panel-sichern" role="tabpanel" aria-labelledby="tab-sichern"
+    [hidden]="reiter() !== 'sichern'">
 
   <!-- `id`: Sprungziel von „Backup einspielen …" in der Kopfzeile (ST-9). -->
   <section class="op-panel" id="voll-backup" aria-labelledby="bk-full-title">
@@ -73,9 +85,5 @@
 
   <studio-snapshots-panel />
   <studio-factory-panel />
-  <!-- Zuletzt, und bewusst unter dem Werksstand: die beiden Karten heissen fast
-       gleich, und diese hier liest aus dem Abbild statt aus der Datenbank. Wer
-       von oben nach unten liest, hat den gelebten Stand schon gesehen, wenn der
-       ausgelieferte kommt. -->
-  <studio-seed-panel />
+  </div>
 </div>

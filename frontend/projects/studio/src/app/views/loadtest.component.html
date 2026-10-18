@@ -52,11 +52,13 @@
     </p>
   </fieldset>
 
-  <fieldset class="lt-fields">
+  <!-- Paket 15: eigene Klassen — `.lt-pick` gehört den Verlaufs-Knöpfen (Raster, der Punkt stand
+       über seinem Text), und das 15rem-Raster von `.lt-fields` riss Hinweis und Optionen auseinander. -->
+  <fieldset class="lt-wahl">
     <legend class="lt-legend">{{ t('lt.engine.legend') }}</legend>
     <p class="lt-hint">{{ t('lt.engine.hint') }}</p>
     @for (option of engines; track option) {
-      <label class="lt-pick" [attr.for]="'lt-engine-' + option">
+      <label class="lt-radio" [attr.for]="'lt-engine-' + option">
         <input
           type="radio"
           name="lt-engine"
@@ -68,6 +70,14 @@
       </label>
     }
   </fieldset>
+
+  <p class="lt-warmup">
+    <label class="lt-radio" for="lt-warmup">
+      <input type="checkbox" id="lt-warmup" [checked]="warmup()"
+        (change)="warmup.set($any($event.target).checked)" />
+      <span>{{ t('lt.warmup') }}</span>
+    </label>
+  </p>
 
   <fieldset class="lt-fields">
     <legend class="lt-legend">{{ t('lt.mix.legend') }}</legend>

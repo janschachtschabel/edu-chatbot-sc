@@ -1,0 +1,94 @@
+<div class="av-kopf">
+  @if (mb(); as messbedingungen) {
+    <studio-eval-messbedingungen
+      [mb]="messbedingungen" [fassung]="fassung()" [runId]="run().id" [engine]="run().engine"
+    />
+  }
+</div>
+
+<section class="av-teil" aria-labelledby="av-k">
+  <h4 class="av-titel" id="av-k">{{ t('evalV2.kennzahlen') }}</h4>
+  <dl class="av-kennzahlen">
+    @for (k of kennzahlen(); track k.label) {
+      <div><dt>{{ t(k.label) }}</dt><dd>{{ k.wert }}</dd></div>
+    }
+  </dl>
+</section>
+
+<section class="av-teil av-bericht" aria-labelledby="av-b">
+  <h4 class="av-titel" id="av-b">{{ t('evalV2.kurzbericht') }}</h4>
+  @if (bericht(); as b) {
+    @if (b.fehler) {
+      <p class="av-hinweis">{{ t('evalV2.kurzberichtFehler', { grund: b.fehler }) }}</p>
+    } @else {
+      <p class="av-text">{{ b.text }}</p>
+      @if (b.baustellen.length > 0) {
+        <ul class="av-baustellen">
+          @for (baustelle of b.baustellen; track $index) {
+            <li>
+              <strong>{{ t('evalV2.baustelle') }}@if (baustelle.ablauf) { ({{ baustelle.ablauf }})}:</strong>
+              {{ baustelle.text }}
+            </li>
+          }
+        </ul>
+      }
+    }
+  } @else {
+    <p class="av-hinweis">{{ t('evalV2.kurzberichtOhne') }}</p>
+  }
+</section>
+
+<section class="av-teil" aria-labelledby="av-za">
+  <h4 class="av-titel" id="av-za">{{ t('evalV2.matrix.za') }}</h4>
+  <p class="av-hinweis">{{ t('evalV2.matrix.zaHinweis') }}</p>
+  <studio-eval-matrix
+    [titel]="t('evalV2.matrix.za')" [zeilenKopf]="t('evalV2.zeile.zielgruppe')" [daten]="za()"
+    (waehle)="waehleZa($event)"
+  />
+</section>
+
+<section class="av-teil" aria-labelledby="av-as">
+  <h4 class="av-titel" id="av-as">{{ t('evalV2.matrix.as') }}</h4>
+  <p class="av-hinweis">{{ t('evalV2.matrix.asHinweis') }}</p>
+  <studio-eval-matrix
+    [titel]="t('evalV2.matrix.as')" [zeilenKopf]="t('evalV2.zeile.ablauf')" [daten]="ablaufSkala()"
+    [spaltenFolge]="skalenFolge()" (waehle)="springe($event.zeile)"
+  />
+</section>
+
+@if (zeigtPi()) {
+  <section class="av-teil" aria-labelledby="av-pi">
+    <h4 class="av-titel" id="av-pi">{{ t('evalV2.matrix.pi') }}</h4>
+    <p class="av-hinweis">{{ t('evalV2.matrix.piHinweis') }}</p>
+    <studio-eval-matrix
+      [titel]="t('evalV2.matrix.pi')" [zeilenKopf]="t('evalV2.zeile.persona')" [daten]="pi()"
+    />
+  </section>
+}
+
+<section class="av-teil" aria-labelledby="av-p">
+  <h4 class="av-titel" id="av-p">{{ t('evalV2.problem.titel') }}</h4>
+  <studio-eval-problemliste [ablaeufe]="auswertung().je_ablauf" (springe)="springe($event)" />
+</section>
+
+<section class="av-teil" aria-labelledby="av-a">
+  <h4 class="av-titel" id="av-a">{{ t('evalV2.ablaeufe') }}</h4>
+  @if (filter(); as f) {
+    <p class="av-filter" role="status">
+      {{ t('evalV2.filter', { zielgruppe: f.zeile, fall: f.spalte }) }}
+      <button type="button" class="av-knopf" (click)="filterAus()">{{ t('evalV2.filterAus') }}</button>
+    </p>
+  }
+  <div class="av-karten">
+    @for (karte of karten(); track karte.ablauf.flow_id) {
+      <studio-eval-ablauf-karte
+        [ablauf]="karte.ablauf" [conv]="karte.conv" [anwendungsfall]="filter()?.spalte ?? null"
+      />
+    }
+  </div>
+</section>
+
+<section class="av-teil" aria-labelledby="av-z">
+  <h4 class="av-titel" id="av-z">{{ t('evalV2.zeiten') }}</h4>
+  <studio-eval-zeiten [zeiten]="auswertung().zeiten" />
+</section>

@@ -5,15 +5,17 @@
  * Here it is chrome only — views arrive through the router outlet.
  */
 import {
-  ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild,
+  ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal, viewChild,
 } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { AuthService } from '../auth/auth.service';
 import { EffectsApi } from '../core/effects-api.service';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { LanguageSwitcherComponent } from '../i18n/language-switcher.component';
 import { StudioLanguageService } from '../i18n/studio-language.service';
-import { NAV_GROUPS } from '../studio-views';
+import { navGroups, workspaceOf } from '../studio-views';
+import { AnsichtUmschalterComponent } from './ansicht-umschalter.component';
 import { BackupToolsComponent } from './backup-tools.component';
 import { StatusIndicatorComponent } from './status-indicator.component';
 
@@ -22,6 +24,7 @@ import { StatusIndicatorComponent } from './status-indicator.component';
   imports: [
     RouterLink, RouterLinkActive, RouterOutlet,
     StatusIndicatorComponent, LanguageSwitcherComponent, BackupToolsComponent,
+    AnsichtUmschalterComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './shell.component.html',
@@ -36,7 +39,22 @@ export class ShellComponent {
    *  Beschriftungen der Navigation, die nur noch Katalog-Schlüssel liefert. */
   protected readonly t = inject(StudioLanguageService).t;
 
-  readonly navGroups = NAV_GROUPS;
+  private readonly ansicht = inject(StudioAnsicht);
+  /** Paket 14: die Navigation des Arbeitsbereichs — eigener Block, dann die gemeinsamen. */
+  readonly navGroups = computed(() => navGroups(this.ansicht.ansicht()));
+
+  /** Die geöffnete Seite (erstes Pfad-Segment), gesetzt bei jedem Seitenwechsel. */
+  private readonly slug = signal('');
+  /** Paket 14: eine per Adresse geöffnete Seite des ANDEREN Arbeitsbereichs — die Hülle sagt
+   *  es und bietet den Wechsel an, statt die Seite still ohne Navigationseintrag zu zeigen. */
+  readonly fremderBereich = computed(() => {
+    const bereich = workspaceOf(this.slug());
+    return bereich && bereich !== this.ansicht.ansicht() ? bereich : null;
+  });
+
+  wechsleZu(bereich: 'agent' | 'pattern'): void {
+    this.ansicht.waehle(bereich);
+  }
   /** Drawer state; only has an effect below the 60rem breakpoint. */
   readonly navOpen = signal(false);
   readonly loggingOut = signal(false);
@@ -68,6 +86,7 @@ export class ShellComponent {
     // Maschine frisch, die Meldung der Kopfzeilen-Werkzeuge (ST-9) weg.
     void this.effects.refresh();
     this.backupTools()?.dismiss();
+    this.slug.set(this.router.url.split(/[/?#]/)[1] ?? '');
     if (!this.viewActivatedOnce) {
       this.viewActivatedOnce = true;
       return;

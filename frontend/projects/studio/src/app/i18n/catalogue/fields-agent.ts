@@ -93,9 +93,9 @@ export const FIELDS_AGENT: CataloguePart = {
     'feld.Betrieb.agent_schnellantworten.label': 'Agent-Schnellantworten',
     'feld.Betrieb.agent_schnellantworten.hint':
       'Der Agent schreibt die Schnellantworten gleich mit, statt sie in einem zweiten '
-      + 'Aufruf zu holen (ein Zug 6,8 statt 12,2 s). Erst einschalten, wenn der Abschnitt '
-      + '„Schnellantworten“ im Master-Skill angepasst ist. Umgebung: '
-      + 'AGENT_INLINE_QUICK_REPLIES. Vorgabe aus.',
+      + 'Aufruf zu holen (ein Zug 6,8 statt 12,2 s) — und nur so streamt der Agent. Der '
+      + 'Abschnitt „Schnellantworten“ im Master-Skill sollte dazu passen. Umgebung: '
+      + 'AGENT_INLINE_QUICK_REPLIES. Vorgabe an.',
     'feld.Betrieb.gastkonto_schreibt.label': 'Gastkonto darf schreiben',
     'feld.Betrieb.gastkonto_schreibt.hint':
       'Achtung: Eingeschaltet legt der Bot auch ohne Anmeldung Inhalte an und nimmt sie in '
@@ -182,9 +182,9 @@ export const FIELDS_AGENT: CataloguePart = {
     'feld.Betrieb.agent_schnellantworten.label': 'Agent quick replies',
     'feld.Betrieb.agent_schnellantworten.hint':
       'The agent writes the quick replies along with its answer instead of fetching them in '
-      + 'a second call (a turn 6.8 instead of 12.2 s). Only switch on once the master '
-      + 'skill’s section on quick replies has been adapted. Environment: '
-      + 'AGENT_INLINE_QUICK_REPLIES. Default off.',
+      + 'a second call (a turn 6.8 instead of 12.2 s) — and only then does the agent stream. '
+      + 'The master skill’s section on quick replies should match. Environment: '
+      + 'AGENT_INLINE_QUICK_REPLIES. Default on.',
     'feld.Betrieb.gastkonto_schreibt.label': 'Guest account may write',
     'feld.Betrieb.gastkonto_schreibt.hint':
       'Caution: when on, the bot also creates content and adds it to collections without a '

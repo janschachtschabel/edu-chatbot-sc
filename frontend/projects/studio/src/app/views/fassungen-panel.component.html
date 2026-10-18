@@ -24,20 +24,12 @@
   } @else if (liste.value()) {
     <p class="fs-summary">{{ t('fassungen.summary', zaehlung()) }}</p>
 
-    <div class="op-actions">
-      <button
-        type="button"
-        class="op-btn"
-        aria-describedby="fs-abgleich-hint"
-        [disabled]="action.busy()"
-        (click)="werksabgleich()"
-      >
-        {{ action.isRunning('abgleich') ? t('fassungen.abgleichRunning') : t('fassungen.abgleich') }}
-      </button>
-    </div>
-    <p class="fs-hint" id="fs-abgleich-hint">{{ t('fassungen.abgleichHint') }}</p>
-    <p class="fs-hint" id="fs-geprueft-hint">{{ t('fassungen.geprueftHint') }}</p>
-    <p class="fs-hint">{{ t('fassungen.backupHinweis') }}</p>
+    <!-- Paket 15: die langen Erklärungen auf Wunsch — die Seite wirkte ungeordnet. -->
+    <details class="fs-mehr">
+      <summary>{{ t('fassungen.mehr') }}</summary>
+      <p class="fs-hint" id="fs-geprueft-hint">{{ t('fassungen.geprueftHint') }}</p>
+      <p class="fs-hint">{{ t('fassungen.backupHinweis') }}</p>
+    </details>
 
     <!-- Erfolg in einer dauerhaften Status-Region, Fehler als bedingter Alarm (Paket 4b, B3). -->
     <p class="op-msg live" role="status">
@@ -186,5 +178,22 @@
         }
       </ul>
     }
+
+    <!-- Review-Runde 2 (Plan §5.9): die Sammelaktion hinter die Liste, mit eigener Überschrift. -->
+    <div class="fs-alle">
+      <h3 class="op-label">{{ t('fassungen.alleAufEinmal') }}</h3>
+      <div class="op-actions">
+        <button
+          type="button"
+          class="op-btn"
+          aria-describedby="fs-abgleich-hint"
+          [disabled]="action.busy()"
+          (click)="werksabgleich()"
+        >
+          {{ action.isRunning('abgleich') ? t('fassungen.abgleichRunning') : t('fassungen.abgleich') }}
+        </button>
+      </div>
+      <p class="fs-hint" id="fs-abgleich-hint">{{ t('fassungen.abgleichHint') }}</p>
+    </div>
   }
 </section>

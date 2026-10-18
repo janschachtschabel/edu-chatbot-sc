@@ -22,6 +22,7 @@ import {
   ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked,
 } from '@angular/core';
 
+import type { Engine } from '../core/effects-api.service';
 import { AsyncData } from '../core/async-data';
 import { QualityApi, type QualityScope, type StateFlow } from '../core/quality-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
@@ -56,12 +57,15 @@ export class QualityFlowComponent {
   private readonly api = inject(QualityApi);
 
   readonly scope = input.required<QualityScope>();
+  /** Paket 13 (E5): nur Züge dieser Maschine (aus der Ansicht); ohne Angabe beide. */
+  readonly engine = input<Engine | undefined>(undefined);
 
   readonly days = signal(DEFAULT_DAYS);
   readonly minCount = signal(DEFAULT_MIN_COUNT);
 
   readonly flow = new AsyncData<StateFlow>(
-    () => this.api.stateTransitions(this.scope(), this.days(), this.minCount()), this.t);
+    () => this.api.stateTransitions(
+      this.scope(), this.days(), this.minCount(), this.engine()), this.t);
 
   readonly value = computed(() => this.flow.value());
 
@@ -82,6 +86,7 @@ export class QualityFlowComponent {
   constructor() {
     effect(() => {
       this.scope();
+      this.engine();
       this.days();
       this.minCount();
       untracked(() => void this.flow.reload());

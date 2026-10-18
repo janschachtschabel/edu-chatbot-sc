@@ -5,6 +5,7 @@ import {
   provideHttpClientTesting,
 } from "@angular/common/http/testing";
 import { provideZonelessChangeDetection } from "@angular/core";
+import { provideRouter } from "@angular/router";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { describe, expect, it } from "vitest";
 
@@ -62,6 +63,7 @@ async function mount(
       provideZonelessChangeDetection(),
       provideHttpClient(withXhr()),
       provideHttpClientTesting(),
+      provideRouter([]), // Paket 15: Verweis auf die Seite „Werkzeuge“
     ],
   });
   const fixture = TestBed.createComponent(McpRegistryComponent);
@@ -229,6 +231,22 @@ describe("McpRegistryComponent", () => {
     expect(el.querySelector<HTMLButtonElement>(".mr-save")?.disabled).toBe(
       false,
     );
+  });
+
+  it("hält eine neue Zeile beim Tippen der Kennung offen (Review-Runde 2)", async () => {
+    // `[open]="!server.id"` klappte die Zeile beim ersten Zeichen zu — der Fokus war weg.
+    const { el, fixture } = await mount();
+    el.querySelector<HTMLButtonElement>(".mr-add")?.click();
+    await fixture.whenStable();
+    const zeile = el.querySelectorAll<HTMLDetailsElement>(".mr-row")[2];
+    expect(zeile.open).toBe(true);
+    const id = zeile.querySelector<HTMLInputElement>(".mr-id")!;
+    id.value = "n";
+    id.dispatchEvent(new Event("input"));
+    await fixture.whenStable();
+    expect(el.querySelectorAll<HTMLDetailsElement>(".mr-row")[2].open).toBe(true);
+    // Die gespeicherten Server bleiben zu.
+    expect(el.querySelectorAll<HTMLDetailsElement>(".mr-row")[0].open).toBe(false);
   });
 
   it("removes a server from the list it is about to save", async () => {
@@ -483,69 +501,42 @@ describe("McpRegistryComponent — Konflikt beim Speichern (Paket 4, D5)", () =>
   });
 });
 
-// ── Paket 7, S5: Werkzeuge je Server an- und abschalten ─────────────────────
-describe("McpRegistryComponent — Werkzeuge an und aus (Paket 7, S5)", () => {
+// ── Paket 15: Server als zugeklappte Zeilen; die Schalter stehen auf „Werkzeuge“ ──
+describe("McpRegistryComponent — Server-Zeilen (Paket 15)", () => {
   const MIT_FREIGABE = [
     {
       ...SERVERS[0],
       tools: ["search_wlo_all", "search_skill", "fremd_x"],
-      // So liefert der GET: die wirksame Liste (Vorgabe sichtbar) und welche
-      // Werkzeuge der Chatbot kennt.
       werkzeuge_aus: ["search_skill"],
       werkzeuge_im_katalog: ["search_skill", "search_wlo_all"],
     },
     SERVERS[1],
   ];
-  const schalter = (el: HTMLElement, name: string) =>
-    el.querySelector<HTMLInputElement>(`input[data-werkzeug="${name}"]`);
 
-  it("zeigt je bekanntem Werkzeug, ob der Chatbot es anbietet", async () => {
+  it("zeigt jeden Server als zugeklappte Zeile mit Status und Werkzeug-Zahl", async () => {
     const { el } = await mount(MIT_FREIGABE);
-    expect(schalter(el, "search_wlo_all")?.checked).toBe(true);
-    expect(schalter(el, "search_skill")?.checked).toBe(false);
-    // Ein Werkzeug, das der Chatbot nicht kennt, trägt keinen Schalter, der nichts täte.
-    expect(schalter(el, "fremd_x")).toBeNull();
-    expect(el.textContent).toContain("kennt der Chatbot nicht");
+    const zeilen = Array.from(el.querySelectorAll<HTMLDetailsElement>("details.mr-row"));
+    expect(zeilen).toHaveLength(2);
+    expect(zeilen.every((z) => !z.open)).toBe(true);
+    const kopf = zeilen[0].querySelector("summary")!.textContent!.replace(/\s+/g, " ");
+    expect(kopf).toContain(MIT_FREIGABE[0].name);
+    expect(kopf).toContain("3 Werkzeuge, 1 aus");
   });
 
-  it("gibt jedem Schalter einen zugänglichen Namen mit dem Werkzeug", async () => {
-    const { el } = await mount(MIT_FREIGABE);
-    expect(schalter(el, "search_skill")?.getAttribute("aria-label"))
-      .toBe("search_skill anbieten");
-  });
-
-  it("macht den Werkzeugnamen zur Klickfläche und verbindet den Hinweis (Review C-10)", async () => {
-    const { el } = await mount(MIT_FREIGABE);
-    const box = schalter(el, "search_skill")!;
-    expect(box.closest("label")?.textContent).toContain("search_skill");
-    const hinweis = box.getAttribute("aria-describedby");
-    expect(hinweis).toBeTruthy();
-    expect(el.querySelector(`#${hinweis}`)?.textContent).toContain("Abgehakt bietet der Chatbot");
-  });
-
-  it("schaltet search_skill ein und speichert die Liste", async () => {
-    const { el, fixture, http } = await mount(MIT_FREIGABE);
-    const box = schalter(el, "search_skill")!;
-    box.checked = true;
-    box.dispatchEvent(new Event("change"));
-    await fixture.whenStable();
-    expect(fixture.componentInstance.dirty()).toBe(true);
-    el.querySelector<HTMLButtonElement>(".mr-save")?.click();
-    await fixture.whenStable();
-
-    const req = http.expectOne("/studio/api/config/mcp-servers");
-    const sent = req.request.body as { servers: { werkzeuge_aus?: string[] }[] };
-    expect(sent.servers[0].werkzeuge_aus).toEqual([]);
-  });
-
-  it("schaltet ein Werkzeug ab", async () => {
+  it("klappt einen neuen Server gleich auf — er muss ausgefüllt werden", async () => {
     const { el, fixture } = await mount(MIT_FREIGABE);
-    const box = schalter(el, "search_wlo_all")!;
-    box.checked = false;
-    box.dispatchEvent(new Event("change"));
+    el.querySelector<HTMLButtonElement>(".mr-add")!.click();
     await fixture.whenStable();
-    expect(fixture.componentInstance.servers()[0].werkzeuge_aus)
-      .toEqual(["search_skill", "search_wlo_all"]);
+    const neu = Array.from(el.querySelectorAll<HTMLDetailsElement>("details.mr-row")).at(-1)!;
+    expect(neu.open).toBe(true);
+  });
+
+  it("schaltet Werkzeuge nicht hier, sondern verweist auf die Seite „Werkzeuge“", async () => {
+    const { el } = await mount(MIT_FREIGABE);
+    expect(el.querySelector('input[type="checkbox"][data-werkzeug]')).toBeNull();
+    expect(el.querySelector('a[href="/werkzeuge"]')).not.toBeNull();
+    // Ein Werkzeug, das der Chatbot nicht kennt, sagt das weiter.
+    expect(el.textContent).toContain("kennt der Chatbot nicht");
   });
 });
 
@@ -600,14 +591,13 @@ describe("McpRegistryComponent — Werkzeuge übernehmen (Paket 11, E)", () => {
         tool_schemas: GEFUNDEN, werkzeuge_aus: [], werkzeuge_im_katalog: ["suche"],
       },
     ]);
-    expect(el.querySelector('input[data-werkzeug="suche"]')).not.toBeNull();
-    expect(el.querySelector('input[data-werkzeug="aendere"]')).toBeNull();
-    expect(el.textContent).toContain("schreibend");
+    expect(el.querySelector('li[data-werkzeug="suche"]')?.textContent).not.toContain("schreibend");
+    expect(el.querySelector('li[data-werkzeug="aendere"]')?.textContent).toContain("schreibend");
   });
 });
 
 describe("McpRegistryComponent — Werkzeug fehlt am Server (Paket 11)", () => {
-  it("sagt neben dem Schalter, dass der Server das Werkzeug nicht führt", async () => {
+  it("sagt beim Werkzeug, dass der Server es nicht führt", async () => {
     const { el } = await mount([
       {
         ...SERVERS[0],
@@ -618,9 +608,9 @@ describe("McpRegistryComponent — Werkzeug fehlt am Server (Paket 11)", () => {
       },
       SERVERS[1],
     ]);
-    const zeile = el.querySelector('input[data-werkzeug="search_skill"]')!.closest("li")!;
+    const zeile = el.querySelector('li[data-werkzeug="search_skill"]')!;
     expect(zeile.textContent).toContain("führt der Server derzeit nicht");
-    const andere = el.querySelector('input[data-werkzeug="search_wlo_all"]')!.closest("li")!;
+    const andere = el.querySelector('li[data-werkzeug="search_wlo_all"]')!;
     expect(andere.textContent).not.toContain("führt der Server derzeit nicht");
   });
 });

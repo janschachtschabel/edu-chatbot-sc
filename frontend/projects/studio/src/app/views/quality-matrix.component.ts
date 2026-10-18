@@ -19,6 +19,7 @@ import {
   ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked,
 } from '@angular/core';
 
+import type { Engine } from '../core/effects-api.service';
 import { AsyncData } from '../core/async-data';
 import {
   QualityApi, type LogFilters, type MatrixCell, type QualityScope, type RoutingMatrix,
@@ -53,6 +54,8 @@ export class QualityMatrixComponent {
   private readonly api = inject(QualityApi);
 
   readonly scope = input.required<QualityScope>();
+  /** Paket 13 (E5): nur Züge dieser Maschine (aus der Ansicht); ohne Angabe beide. */
+  readonly engine = input<Engine | undefined>(undefined);
 
   /**
    * Intent only. `/quality/logs` has no persona filter, so drilling with the
@@ -64,7 +67,7 @@ export class QualityMatrixComponent {
   readonly minCount = signal(1);
 
   readonly matrix = new AsyncData<RoutingMatrix>(
-    () => this.api.matrix(this.scope(), this.minCount()), this.t);
+    () => this.api.matrix(this.scope(), this.minCount(), this.engine()), this.t);
 
   readonly value = computed(() => this.matrix.value());
 
@@ -88,6 +91,7 @@ export class QualityMatrixComponent {
   constructor() {
     effect(() => {
       this.scope();
+      this.engine();
       this.minCount();
       untracked(() => void this.matrix.reload());
     });

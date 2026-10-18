@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 import type { AgentTool } from '../core/agent-center-api.service';
 import { STUDIO_DE } from '../i18n/de';
 import { STUDIO_EN } from '../i18n/en';
-import { type LockWords, firstSentence, groupTools, lockLink, lockText } from './agent-tools';
+import type { McpServer } from '../core/mcp-registry-store';
+import {
+  type LockWords, firstSentence, groupTools, lockLink, lockText, schalterFuer,
+} from './agent-tools';
 
 function wörter(locale: 'de' | 'en'): LockWords {
   const i18n = new I18n(STUDIO_DE, { en: STUDIO_EN });
@@ -66,7 +69,7 @@ describe('lockText (ST-8b)', () => {
     const de = wörter('de');
     // Paket 7 (S5): im Studio je MCP-Server ein- und abschaltbar.
     expect(lockText({ code: 'hidden' }, de))
-      .toBe('Abgeschaltet unter „MCP-Server“ (search_skill von Haus aus) — dort einschaltbar.');
+      .toBe('Abgeschaltet (search_skill von Haus aus) — hier in der Spalte „Anbieten“ einschaltbar.');
     // Paket 7 (S4): schreiben nur mit persönlicher Anmeldung oder Gastkonto-Erlaubnis.
     expect(lockText({ code: 'needs_access' }, de))
       .toBe('Nur mit persönlicher WLO-Anmeldung — oder mit dem Gastkonto, wenn es unter '
@@ -112,5 +115,42 @@ describe('lockLink (ST-8b)', () => {
     expect(lockLink({ code: 'knowledge_areas' })).toBe('wissen');
     expect(lockLink({ code: 'safety_fixed', signals: ['pii'] })).toBeNull();
     expect(lockLink({ code: 'tool_mode', modes: ['curate'] })).toBeNull();
+  });
+});
+
+
+describe('schalterFuer (Paket 15)', () => {
+  const server = (id: string, katalog: string[]): McpServer => ({
+    id, name: id.toUpperCase(), url: '', description: '', enabled: true,
+    werkzeuge_im_katalog: katalog,
+  });
+  const SERVERS = [server('wlo-mcp', ['get_skill', 'search_skill']), server('fremd', ['suche'])];
+
+  it('findet den Server, dessen Katalog das Werkzeug führt', () => {
+    expect(schalterFuer(werkzeug('get_skill', 'read'), SERVERS))
+      .toEqual({ index: 0, name: 'get_skill', server: 'WLO-MCP' });
+  });
+
+  it('nimmt bei fremden Werkzeugen Server und Originalnamen aus der Zeile (Review-Runde 2)', () => {
+    // Der Modellname ist bereinigt und gekürzt — zurückrechnen ging bei langen Namen schief.
+    const lang = 'ein_sehr_langes_werkzeug_mit_vielen_zeichen.v2';
+    const servers = [...SERVERS, server('fremd.dienst', [lang])];
+    const zeile = { ...werkzeug('fremd_dienst__ein_sehr_langes_werkzeug_mit', 'external'),
+      server_id: 'fremd.dienst', tool: lang };
+    expect(schalterFuer(zeile, servers)).toEqual({ index: 2, name: lang, server: 'FREMD.DIENST' });
+    expect(schalterFuer({ ...werkzeug('fremd__suche', 'external'), server_id: 'fremd', tool: 'suche' },
+      SERVERS)).toEqual({ index: 1, name: 'suche', server: 'FREMD' });
+  });
+
+  it('schaltet WLO-Werkzeuge nur am WLO-Server, nie an einem gleichnamigen fremden', () => {
+    const vorn = [server('fremd', ['get_skill']), server('wlo-mcp', ['get_skill'])];
+    expect(schalterFuer(werkzeug('get_skill', 'read'), vorn))
+      .toEqual({ index: 1, name: 'get_skill', server: 'WLO-MCP' });
+  });
+
+  it('hat keinen Schalter für eingebaute und nicht schaltbare Werkzeuge', () => {
+    expect(schalterFuer(werkzeug('zeige_dokument', 'virtual'), SERVERS)).toBeNull();
+    expect(schalterFuer(werkzeug('wlo_create_content', 'curation'), SERVERS)).toBeNull();
+    expect(schalterFuer(werkzeug('fremd__schreibe', 'external'), SERVERS)).toBeNull();
   });
 });

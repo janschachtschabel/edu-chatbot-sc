@@ -26,11 +26,14 @@
  * Entwurf: `docs/plans/2026-08-02-c1-i18n.md`.
  */
 import { Injectable, computed } from '@angular/core';
+// Direkt aus den i18n-Modulen, nicht über `@boerdi/ui`: die Sammeldatei zöge das ganze Widget
+// (Chat-Fenster, marked, DOMPurify, Material) ins Startpaket des Studios (Paket 15, Phase 0).
+import { I18n } from '@boerdi/ui/i18n/i18n';
+import { type Locale, nextLocale, resolveLocale } from '@boerdi/ui/i18n/locale';
 import {
-  I18n, Locale, nextLocale, readBrowserLocale, readStoredLocale, resolveLocale, splitRich,
-  writeStoredLocale,
-} from '@boerdi/ui';
-import type { RichSegment } from '@boerdi/ui';
+  readBrowserLocale, readStoredLocale, writeStoredLocale,
+} from '@boerdi/ui/i18n/locale-sources';
+import { type RichSegment, splitRich } from '@boerdi/ui/i18n/rich-text';
 
 import { STUDIO_DE } from './de';
 import { STUDIO_EN } from './en';

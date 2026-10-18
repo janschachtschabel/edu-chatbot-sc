@@ -262,3 +262,35 @@
   color: var(--st-danger-text);
   font-size: 0.875rem;
 }
+
+// Paket 15: die Maschinen-Wahl — eine Zeile Radios, der Hinweis darüber in voller Breite.
+.lt-wahl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-1) var(--st-4);
+  margin: 0 0 var(--st-3);
+  padding: 0;
+  border: 0;
+
+  > .lt-hint {
+    flex-basis: 100%;
+  }
+}
+
+.lt-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-2);
+  min-block-size: 2.75rem;
+  cursor: pointer;
+
+  input {
+    margin: 0;
+    accent-color: var(--st-accent);
+  }
+}
+
+// Paket 15 (E1): die Aufwärm-Anfrage.
+.lt-warmup {
+  margin: 0 0 var(--st-3);
+}

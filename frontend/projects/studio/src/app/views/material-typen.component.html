@@ -1,0 +1,106 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
+  </summary>
+
+  <div class="cs-body">
+    @if (ladeFehler(); as grund) {
+      <div class="cs-state cs-state--error" role="alert">
+        <p>{{ grund }}</p>
+        <button type="button" class="cs-btn" (click)="laden()">{{ t('async.retry') }}</button>
+      </div>
+    } @else if (laedt() && !doc()) {
+      <p class="cs-state" aria-busy="true">{{ t('materialFormate.laedt') }}</p>
+    } @else if (doc()) {
+      <div class="mf">
+        <div class="mf-liste">
+          <fieldset class="mf-filter">
+            <legend>{{ t('materialFormate.filter') }}</legend>
+            @for (wert of filterwerte; track wert) {
+              <label>
+                <input type="radio" name="mf-filter" [value]="wert" [checked]="filter() === wert"
+                  (change)="filter.set(wert)" />
+                {{ t('materialFormate.filter.' + wert, { n: anzahl()[wert] }) }}
+              </label>
+            }
+          </fieldset>
+          <label class="mf-suche-label" for="mf-suche">{{ t('materialFormate.suche') }}</label>
+          <input id="mf-suche" class="mf-suche" type="search" autocomplete="off" [value]="suche()"
+            (input)="suche.set($any($event.target).value)" />
+
+          <!-- Die Statuszeile steht leer bereit, bevor der Satz kommt (F-M6): eine schon
+               gefüllt eingefügte Region lesen Vorlesehilfen oft nicht vor. -->
+          <p class="mf-gesperrt" role="status">{{ dirty() ? t('materialFormate.erstSpeichern') : '' }}</p>
+          @if (typen().length === 0) {
+            <p class="mf-leer">{{ t('materialFormate.leer') }}</p>
+          } @else if (liste().length === 0) {
+            <p class="mf-leer">{{ t('materialFormate.keinTreffer') }}</p>
+          }
+          <ul class="mf-eintraege" [attr.aria-label]="t('materialFormate.liste')">
+            @for (typ of liste(); track typ.id) {
+              <li>
+                <button type="button" class="mf-eintrag" [disabled]="dirty()"
+                  [attr.aria-current]="typ.id === gewaehlt() ? 'true' : null" (click)="waehle(typ.id)">
+                  <!-- Leerzeichen im Text: Angular entfernt die zwischen den Spans, und eine
+                       Vorlesehilfe läse sonst „Arbeitsblattarbeitsblatt“. -->
+                  <span class="mf-emoji" aria-hidden="true">{{ typ.emoji + ' ' }}</span>
+                  <span class="mf-name">{{ typ.label + ' ' }}</span>
+                  <span class="mf-kennung">{{ typ.id }} · {{ t('materialFormate.kategorie.' + typ.category) }}</span>
+                </button>
+              </li>
+            }
+          </ul>
+          <button type="button" class="cs-btn mf-neu" [disabled]="dirty()" (click)="neuAnlegen()">
+            {{ t('materialFormate.neu') }}
+          </button>
+        </div>
+
+        <div class="mf-rechts">
+          @if (entwurf(); as typ) {
+            <studio-material-typ-detail
+              [entwurf]="typ" [neu]="neu()" [aliase]="aliase()" [analytisch]="analytisch()"
+              [fehler]="sichtbareFehler()" [reiter]="reiter()"
+              (feldChange)="aendere($event)" (reiterChange)="reiter.set($event)"
+            />
+            <div class="cs-actions mf-aktionen">
+              @if (dirty()) { <span class="mf-dirty">{{ t('materialFormate.ungespeichert') }}</span> }
+              <button type="button" class="cs-btn cs-btn--primary" [disabled]="busy() || !dirty()"
+                (click)="speichern()">
+                {{ busy() ? t('materialFormate.speichert')
+                  : neu() ? t('materialFormate.anlegen') : t('materialFormate.speichern') }}
+              </button>
+              <button type="button" class="cs-btn" [disabled]="busy() || !dirty()" (click)="verwerfen()">
+                {{ t('materialFormate.verwerfen') }}
+              </button>
+              @if (!neu()) {
+                <button type="button" class="cs-btn cs-btn--danger" [disabled]="busy()"
+                  (click)="loeschFrage.set(true)">{{ t('materialFormate.loeschen') }}</button>
+              }
+            </div>
+            @if (loeschFrage()) {
+              <div class="mf-frage" role="alert">
+                <p>{{ t('materialFormate.loeschenFrage', { name: typ.label }) }}</p>
+                <button type="button" class="cs-btn cs-btn--danger" [disabled]="busy()"
+                  (click)="loeschen()">{{ t('materialFormate.loeschenJa') }}</button>
+                <button type="button" class="cs-btn" (click)="loeschFrage.set(false)">
+                  {{ t('materialFormate.abbrechen') }}
+                </button>
+              </div>
+            }
+          } @else {
+            <p class="mf-leer">{{ t('materialFormate.waehlen') }}</p>
+          }
+          @if (konflikt(); as stand) {
+            <studio-save-conflict [conflict]="stand" [busy]="busy()"
+              (reload)="neuLaden()" (force)="erzwingen()" />
+          }
+          @if (fehler(); as grund) {
+            <p class="cs-state cs-state--error" role="alert">{{ grund }}</p>
+          }
+          <p class="mf-meldung" role="status">{{ meldung() }}</p>
+        </div>
+      </div>
+    }
+  </div>
+</details>

@@ -97,6 +97,28 @@ describe("QualityApi", () => {
     req.flush({ status: "cleared", deleted: 2 });
   });
 
+  it("schickt die Maschine nur, wenn eine gewählt ist (Paket 13, E5)", () => {
+    void api.stats("all");
+    expect(http.expectOne((r) => r.url === `${BASE}/stats`).request.params.has("engine"))
+      .toBe(false);
+    void api.stats("all", "agent");
+    expect(http.expectOne((r) => r.url === `${BASE}/stats`).request.params.get("engine"))
+      .toBe("agent");
+    void api.matrix("all", 2, "pattern");
+    expect(http.expectOne((r) => r.url === `${BASE}/matrix`).request.params.get("engine"))
+      .toBe("pattern");
+    void api.logs("all", {}, "agent");
+    expect(http.expectOne((r) => r.url === `${BASE}/logs`).request.params.get("engine"))
+      .toBe("agent");
+  });
+
+  it("löscht nach Maschine ohne Bestätigung — die Maschine schränkt ein (Paket 13, E5)", () => {
+    void api.clearLogs("all", {}, "agent");
+    const req = http.expectOne((r) => r.url === `${BASE}/logs/clear`);
+    expect(req.request.params.get("engine")).toBe("agent");
+    expect(req.request.params.has("confirm")).toBe(false);
+  });
+
   it("deletes a single log by id", () => {
     void api.deleteLog(42);
     const req = http.expectOne(`${BASE}/logs/42`);

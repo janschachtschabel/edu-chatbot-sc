@@ -76,6 +76,11 @@
       <p class="cmp-note">{{ t('evalCompare.r2b') }}</p>
     </section>
 
+    @if (data(); as vergleich) {
+      <!-- Paket 13 (F8): Noten je Maschine und Unterschiede der Messbedingungen -->
+      <studio-eval-vergleich-v2 [vergleich]="vergleich" />
+    }
+
     @if (conditions().length > 0) {
       <section class="cmp-conditions" aria-labelledby="cmp-conditions-title">
         <h4 class="cmp-sub" id="cmp-conditions-title">{{ t('evalCompare.conditions.title') }}</h4>

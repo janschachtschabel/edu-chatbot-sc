@@ -15,6 +15,7 @@ import {
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 
 import { ChoicesApi } from '../core/choices-api.service';
@@ -22,6 +23,7 @@ import { describeProblem, type FieldProblem, pathKey } from '../core/field-probl
 import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { fieldAt } from './field-at';
+import { FORM_EPOCHE } from './form-epoche';
 import { type FormSection, formSections } from './form-sections';
 import { removeAt, renameKeyAt, setAt } from './form-value';
 import type { JsonSchema } from './json-schema';
@@ -32,6 +34,7 @@ import { rootField, type SchemaField } from './schema-to-fields';
 @Component({
   selector: 'studio-schema-form',
   imports: [SchemaFieldComponent],
+  providers: [{ provide: FORM_EPOCHE, useFactory: () => inject(SchemaFormComponent).epoche }],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (unmapped().length; as anzahl) {
@@ -124,6 +127,8 @@ export class SchemaFormComponent {
   readonly visiblePaths = input<readonly string[] | null>(null);
 
   readonly valueChange = output<Record<string, unknown>>();
+  /** Zählt „Verwerfen“ des Editors hoch: JSON-Felder räumen ihren Entwurf (`FORM_EPOCHE`). */
+  readonly epoche = input(0);
 
   readonly field = computed<SchemaField>(() => rootField(this.schema()));
 
@@ -176,7 +181,10 @@ export class SchemaFormComponent {
    */
   protected sectionHead(section: FormSection): { label: string; key: string | null } {
     if (!section.key) return { label: this.t('schemaForm.basics'), key: null };
-    const feld = section.field.children?.find((child) => child.key === section.key);
+    // Paket 15: ein Block-Abschnitt ist der Block selbst; sonst ein Kind des Rumpfs.
+    const feld = section.field.key === section.key
+      ? section.field
+      : section.field.children?.find((child) => child.key === section.key);
     const text = feld?.textKey ? `${feld.textKey}.label` : null;
     return text && this.lang.has(text)
       ? { label: this.t(text), key: section.key }
@@ -207,6 +215,13 @@ export class SchemaFormComponent {
   /** Fields whose input cannot be parsed right now, by dotted path. */
   private readonly fieldErrors = signal<Readonly<Record<string, string>>>({});
   readonly errorsChange = output<readonly string[]>();
+  /** Nach dem Zurücksetzen gilt kein Feldfehler mehr — der Editor hat seine Liste schon geleert. */
+  private readonly nachZuruecksetzen = effect(() => {
+    this.epoche();
+    untracked(() => {
+      if (Object.keys(this.fieldErrors()).length > 0) this.fieldErrors.set({});
+    });
+  });
 
   apply(edit: FormEdit): void {
     if (edit.kind === 'field-error') {

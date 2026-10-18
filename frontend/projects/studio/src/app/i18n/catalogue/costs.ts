@@ -24,7 +24,8 @@ export const COSTS: CataloguePart = {
     'costs.intro':
       'Was der Bot in einem Zeitraum verbraucht hat: Token getrennt nach Eingabe, '
       + 'Cache, Ausgabe und Reasoning, dazu der Betrag nach der gepflegten '
-      + 'Preistafel.',
+      + 'Preistafel. Gezeigt wird die Maschine des Arbeitsbereichs; Züge ohne Maschine '
+      + '(Vorprüfung, Direkt-Aktionen wie „Lernpfad erzeugen“) stehen in beiden.',
 
     // ── Zeitraum ────────────────────────────────────────────────────
     'costs.period.legend': 'Zeitraum',
@@ -58,6 +59,9 @@ export const COSTS: CataloguePart = {
     'costs.sessions.agentApi': 'Agent-API (Aufträge ohne Sitzung)',
     /** Paket 9: die Probeläufe des Auftragstesters zählen nicht als Betrieb. */
     'costs.sessions.studioProbe': 'Studio: „Auftrag testen“ (Probeläufe ohne Sitzung)',
+    'costs.sessions.evalJudge': 'Evaluation: Judge (ohne Sitzung)',
+    'costs.sessions.evalSimulator': 'Evaluation: Simulator (ohne Sitzung)',
+    'costs.sessions.evalSzenario': 'Evaluation: Szenarien (ohne Sitzung)',
     /** Ohne gepflegte Preise ordnet die Liste nach Token — sonst wäre sie
      *  beim ersten Blick auf eine frische Anlage unsortiert. */
     'costs.sessions.hint':
@@ -81,7 +85,9 @@ export const COSTS: CataloguePart = {
   en: {
     'costs.intro':
       'What the bot consumed in a period: tokens split into input, cache, output '
-      + 'and reasoning, plus the amount from the maintained price table.',
+      + 'and reasoning, plus the amount from the maintained price table. Shows the engine of the '
+      + 'workspace; turns without an engine (pre-check, direct actions such as “create learning '
+      + 'path”) appear in both.',
 
     'costs.period.legend': 'Period',
     'costs.from.label': 'From',
@@ -105,6 +111,9 @@ export const COSTS: CataloguePart = {
     'costs.sessions.caption': 'Most expensive sessions of the period',
     'costs.sessions.agentApi': 'Agent API (tasks without a session)',
     'costs.sessions.studioProbe': 'Studio: “Test a task” (trial runs without a session)',
+    'costs.sessions.evalJudge': 'Evaluation: judge (without a session)',
+    'costs.sessions.evalSimulator': 'Evaluation: simulator (without a session)',
+    'costs.sessions.evalSzenario': 'Evaluation: scenarios (without a session)',
     'costs.sessions.hint':
       'Ordered by tokens rather than amount while no prices are maintained.',
     'costs.col.model': 'Model',

@@ -49,19 +49,6 @@ const MIXED = {
   scope: "all",
 };
 
-/** Randwerte, wie die SQL sie wirklich liefern kann (Review-Runde 3):
- *  NULL-Kennungen aus dem GROUP BY über nullable Spalten und ein Wert, der
- *  nur wie ein Maschinen-Marker ANFÄNGT. */
-const EDGE = {
-  triples: [
-    { pattern_id: "M06", intent_id: "I03", persona_id: "P-LEH", count: 5, avg_conf: 0.9 },
-    { pattern_id: "AGENTUR", intent_id: "I01", persona_id: "P-AND", count: 3, avg_conf: null },
-    { pattern_id: null, intent_id: null, persona_id: null, count: 2, avg_conf: null },
-  ],
-  total: 10,
-  scope: "all",
-};
-
 interface Harness {
   fixture: ComponentFixture<EvalPatternUsageComponent>;
   el: HTMLElement;
@@ -95,6 +82,7 @@ async function mount(
   h = { fixture, el: fixture.nativeElement as HTMLElement, http };
   await fixture.whenStable();
   const req = http.expectOne((r) => r.url === USAGE_URL);
+  expect(req.request.params.get("engine")).toBe("pattern");
   if (payload === null)
     req.flush({ detail: "kaputt" }, { status: 500, statusText: "x" });
   else req.flush(payload);
@@ -134,34 +122,11 @@ describe("EvalPatternUsageComponent", () => {
     expect(captions.some((c) => c.includes("Intent"))).toBe(true);
   });
 
-  it("trennt die Betriebsarten: der Umschalter filtert AGENT/HYBRID aus den Mustern (Feedback 2026-08-22)", async () => {
-    // AGENT/HYBRID sind keine Muster, sondern Maschinen-Marker aus den
-    // quality_logs — zwischen M01–M20 einsortiert verfälschten sie das Bild.
-    await mount(MIXED);
-    expect(text()).toContain("AGENT");
-    expect(text()).toContain("HYBRID"); // alte Züge bleiben unter „alle" sichtbar
-
-    const select = h.el.querySelector<HTMLSelectElement>("#epu-engine")!;
-    // K1-1 (2026-09-27): der Hybrid ist entfernt, also auch sein Filter.
-    expect(Array.from(select.options).map((o) => o.value)).toEqual(["alle", "muster", "agent"]);
-
-    select.value = "muster";
-    select.dispatchEvent(new Event("change"));
-    await h.fixture.whenStable();
-    expect(text()).toContain("M06");
-    expect(text()).not.toContain("AGENT");
-    expect(text()).not.toContain("HYBRID");
-    expect(text()).toContain("14"); // Summe nur der Muster-Turns (10 + 4)
-
-    select.value = "agent";
-    select.dispatchEvent(new Event("change"));
-    await h.fixture.whenStable();
-    expect(text()).toContain("AGENT");
-    expect(text()).not.toContain("M06");
-    // Der alte Hybrid-Marker ist keine Agent-Schleife — er zählt dort nicht mit.
-    expect(text()).not.toContain("HYBRID");
-    // Client-seitiger Filter — KEIN neuer Request.
-    h.http.verify();
+  it("fragt nur die Züge der Muster-Maschine — Agent-Züge gehören nicht in die Pattern-Nutzung (Paket 15, A5)", async () => {
+    // Nutzer-Rundgang 2026-10-17: AGENT-Züge mit Platzhalter-Anliegen verzerrten die Balken.
+    // Der Server trennt (wie die Analyse), ein Umschalter im Browser entfällt.
+    await mount(); // prüft `engine=pattern` an der Anfrage
+    expect(h.el.querySelector("#epu-engine")).toBeNull();
   });
 
   it("zeigt die Pattern-x-Persona-Matrix aus den Kombinationen (ALT-Auswertung)", async () => {
@@ -178,29 +143,6 @@ describe("EvalPatternUsageComponent", () => {
     expect(m06).toContain("10"); // P-LEH-Zelle
     expect(m06).toContain("4"); // P-AND-Zelle
     expect(m06).toContain("14"); // Zeilensumme
-  });
-
-  it("Betriebsart exakt: „AGENTUR“ ist kein Agent, NULL-Kennungen laufen unter „alle“ als „(ohne)“ (Review-Runde 3)", async () => {
-    await mount(EDGE);
-    // NULL-Kennung erscheint unter „alle" beschriftet, nicht als leere Zelle.
-    expect(text()).toContain("(ohne)");
-    expect(text()).toContain("AGENTUR");
-
-    const select = h.el.querySelector<HTMLSelectElement>("#epu-engine")!;
-    select.value = "agent";
-    select.dispatchEvent(new Event("change"));
-    await h.fixture.whenStable();
-    // Nur der EXAKTE Kopf-Token „AGENT" zählt als Agent-Schleife — ein
-    // Präfix-Vergleich hätte „AGENTUR" hier einsortiert.
-    expect(text()).not.toContain("AGENTUR");
-    expect(text()).toContain("Keine Turns dieser Betriebsart");
-
-    select.value = "muster";
-    select.dispatchEvent(new Event("change"));
-    await h.fixture.whenStable();
-    expect(text()).toContain("M06");
-    expect(text()).not.toContain("(ohne)"); // NULL-Zeile ist kein Muster
-    h.http.verify();
   });
 
   it("re-reads when the scope changes, and sends it", async () => {
@@ -343,5 +285,14 @@ describe("EvalPatternUsageComponent", () => {
         ?.textContent?.replace(/\s+/g, " ")
         .trim(),
     ).toBe("1 Turn in 1 Kombination aus Pattern, Intent und Persona.");
+  });
+});
+
+describe('EvalPatternUsage — was gezählt wird (Review-Runde 2)', () => {
+  it('sagt, dass nur Züge der Muster-Maschine zählen', async () => {
+    const { EVAL_PATTERN } = await import('../i18n/catalogue/eval-pattern');
+    const de = EVAL_PATTERN.de as Record<string, string>;
+    expect(de['evalPattern.intro']).toContain('Nur Züge der Muster-Maschine');
+    expect(de['evalPattern.scope.all']).toBe('alle Muster-Turns');
   });
 });

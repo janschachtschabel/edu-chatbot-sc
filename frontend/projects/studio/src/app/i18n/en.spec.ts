@@ -231,6 +231,19 @@ describe('STUDIO_EN', () => {
       // sich in beiden Sprachen gleich (der Dienst heißt so).
       'feld.IntentsArea.intents.label',
       'feld.SafetyPreset.moderation.label',
+      // Paket 13 (E2): „Agent“ heißt im Ansicht-Umschalter in beiden Sprachen gleich.
+      'ansicht.agent',
+      'view.skills.label',     // „Skills“ — dasselbe Wort in beiden Sprachen (Paket 15)
+      'nav.group.agent',
+      // Paket 14 (D3): „Name“ und „Symbol“ schreiben sich in beiden Sprachen gleich.
+      'materialFormate.feld.label', 'materialFormate.feld.emoji',
+      // Paket 13 (F): Vorlagen nur aus Platzhaltern und Zeichen ({zeile} × {spalte}: {note} …),
+      // der Gedankenstrich für „kein Wert“ und Wörter, die beide Sprachen gleich schreiben
+      // („Judge“, „Median“, „p95“, „Persona“).
+      'evalV2.zelle', 'evalV2.zelleOhneN', 'evalV2.note', 'evalV2.vgl.feld',
+      'evalV2.mb.ohne', 'evalV2.vgl.ohne',
+      'evalV2.mb.judge', 'evalV2.zeiten.median', 'evalV2.tr.latenz', 'evalV2.zeiten.p95',
+      'evalV2.zeile.persona',
     ]);
     const kopien = Object.keys(STUDIO_DE)
       .filter((k) => !gleichErlaubt.has(k) && STUDIO_EN[k] === STUDIO_DE[k]);

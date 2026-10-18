@@ -21,7 +21,9 @@
   [hidden]="active() !== 'uebersicht'"
 >
   @if (shows()('uebersicht')) {
-    <studio-quality-overview [scope]="scope()" (drill)="drill($event)" />
+    <studio-quality-overview
+      [scope]="scope()" [engine]="engine()" [diagnose]="diagnose()" (drill)="drill($event)"
+    />
   }
 </div>
 
@@ -33,7 +35,7 @@
   [hidden]="active() !== 'matrix'"
 >
   @if (shows()('matrix')) {
-    <studio-quality-matrix [scope]="scope()" (drill)="drill($event)" />
+    <studio-quality-matrix [scope]="scope()" [engine]="engine()" (drill)="drill($event)" />
   }
 </div>
 
@@ -45,7 +47,7 @@
   [hidden]="active() !== 'flow'"
 >
   @if (shows()('flow')) {
-    <studio-quality-flow [scope]="scope()" />
+    <studio-quality-flow [scope]="scope()" [engine]="engine()" />
   }
 </div>
 
@@ -59,6 +61,7 @@
   @if (shows()('logs')) {
     <studio-quality-logs
       [scope]="scope()"
+      [engine]="engine()"
       [filters]="filters()"
       (filtersChange)="filters.set($event)"
     />

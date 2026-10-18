@@ -1,6 +1,18 @@
 <header class="ae-head">
-  <p class="ae-crumb">{{ t('areaEditor.crumb') }}</p>
+  <!-- Paket 15: Wege zurück — nach „Alle Bereiche“ und zur Seite des Bereichs. -->
+  <nav class="ae-crumb" [attr.aria-label]="t('areaEditor.zurueckNav')">
+    <a routerLink="/bereiche">{{ t('view.bereiche.label') }}</a>
+    <span aria-hidden="true"> › </span>
+    <span>{{ t('areaEditor.crumb') }}</span>
+    @if (heimat(); as heim) {
+      <a class="ae-heimat" [routerLink]="['/', heim.slug]">
+        {{ t('areaEditor.zurueckZu', { seite: heim.label }) }}
+      </a>
+    }
+  </nav>
   <h2 class="ae-title">{{ area() }}</h2>
+  <!-- Paket 13 (E6): wo der Bereich wirkt — wie in den kuratierten Abschnitten -->
+  <studio-effect-badge [area]="area()" />
 </header>
 
 @if (loading()) {
@@ -31,6 +43,7 @@
       <studio-schema-form
         [schema]="loaded"
         [value]="doc()"
+        [epoche]="editor.epoche()"
         [idPrefix]="'ae'"
         [problems]="editor.problems()"
         (valueChange)="onDoc($event)"
@@ -69,7 +82,7 @@
     >
       {{ saving() ? t('editor.saving') : t('editor.save') }}
     </button>
-    <button type="button" class="ae-btn" [disabled]="saving() || !dirty()" (click)="discard()">
+    <button type="button" class="ae-btn" [disabled]="saving() || !verwerfbar()" (click)="discard()">
       {{ t('editor.discard') }}
     </button>
     @if (dirty()) {

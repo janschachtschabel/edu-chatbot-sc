@@ -5,6 +5,8 @@ import {
   provideHttpClientTesting,
 } from "@angular/common/http/testing";
 import { provideZonelessChangeDetection } from "@angular/core";
+import { ActivatedRoute } from "@angular/router";
+import { BehaviorSubject } from "rxjs";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,7 +30,11 @@ async function settle(h: Harness): Promise<void> {
   await h.fixture.whenStable();
 }
 
-async function mount(): Promise<Harness> {
+/** Review-Runde 2: das Fragment wechselt auch bei eingehängter Seite (Kopfzeilen-Sprung). */
+let fragment$ = new BehaviorSubject<string | null>(null);
+
+async function mount(fragment: string | null = null): Promise<Harness> {
+  fragment$ = new BehaviorSubject<string | null>(fragment);
   TestBed.resetTestingModule();
   // jsdom meldet `navigator.language === 'en-US'`, und der Browser ist im Studio
   // die zweitstärkste Quelle. Ohne die oberste Quelle liefe diese Suite auf
@@ -39,6 +45,8 @@ async function mount(): Promise<Harness> {
       provideZonelessChangeDetection(),
       provideHttpClient(withXhr()),
       provideHttpClientTesting(),
+      // Paket 15: der Sprung „Backup einspielen …“ kommt mit Fragment an.
+      { provide: ActivatedRoute, useValue: { snapshot: { fragment }, fragment: fragment$ } },
     ],
   });
   const fixture = TestBed.createComponent(BackupComponent);
@@ -206,7 +214,7 @@ describe("BackupComponent", () => {
   it("zählt die eingespielten Bereiche in der Form der aktiven Sprache", async () => {
     const h = await mount();
     // Paket 4b, B3: die Rückmeldung steht leer bereit.
-    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    const region = h.el.querySelector<HTMLElement>("#voll-backup .op-msg[role='status']");
     expect(region?.textContent).toBe("");
     h.fixture.componentInstance.onFile({
       target: { files: [new File(["PK"], "eins.zip")] },
@@ -226,7 +234,7 @@ describe("BackupComponent", () => {
 
   it("zeigt den Satz des Backends, wenn die ZIP abgelehnt wird", async () => {
     const h = await mount();
-    const region = h.el.querySelector<HTMLElement>(".op-msg[role='status']");
+    const region = h.el.querySelector<HTMLElement>("#voll-backup .op-msg[role='status']");
     h.fixture.componentInstance.onFile({
       target: { files: [new File(["x"], "kaputt.zip")] },
     } as unknown as Event);
@@ -240,12 +248,12 @@ describe("BackupComponent", () => {
         { status: 413, statusText: "Payload Too Large" },
       );
     await settle(h);
-    expect(h.el.querySelector('[role="alert"]')!.textContent).toContain(
+    expect(h.el.querySelector('#voll-backup [role="alert"]')!.textContent).toContain(
       "Keine gültige ZIP-Datei.",
     );
     // Zweites Review 4b: der Fehler steht nur im Alarm, die Status-Region
     // bleibt leer — sonst wird er doppelt angesagt.
-    expect(h.el.querySelector(".op-msg[role='status']")).toBe(region);
+    expect(h.el.querySelector("#voll-backup .op-msg[role='status']")).toBe(region);
     expect(region!.textContent).toBe("");
   });
 
@@ -277,3 +285,35 @@ describe("BackupComponent", () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
   });
 });
+
+describe("BackupComponent — Reiter (Paket 15)", () => {
+  const reiter = (h: Harness) =>
+    Array.from(h.el.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+
+  it("trennt Werksfassung und Sichern; beides bleibt eingehängt", async () => {
+    const h = await mount();
+    expect(reiter(h).map((r) => r.textContent?.trim())).toEqual(["Werksfassung", "Sichern"]);
+    const sichern = h.el.querySelector<HTMLElement>("#panel-sichern")!;
+    const werk = h.el.querySelector<HTMLElement>("#panel-werk")!;
+    expect(werk.hidden).toBe(false);
+    expect(sichern.hidden).toBe(true);
+    expect(sichern.querySelector("#voll-backup")).not.toBeNull();
+    reiter(h)[1].click();
+    await settle(h);
+    expect(sichern.hidden).toBe(false);
+  });
+
+  it("öffnet „Sichern“, wenn die Kopfzeile dorthin springt", async () => {
+    const h = await mount("voll-backup");
+    expect(h.el.querySelector<HTMLElement>("#panel-sichern")!.hidden).toBe(false);
+  });
+
+  it("wechselt auch auf der offenen Seite nach „Sichern“ (Review-Runde 2)", async () => {
+    const h = await mount();
+    expect(h.el.querySelector<HTMLElement>("#panel-sichern")!.hidden).toBe(true);
+    fragment$.next("snapshots");
+    await settle(h);
+    expect(h.el.querySelector<HTMLElement>("#panel-sichern")!.hidden).toBe(false);
+  });
+});
+

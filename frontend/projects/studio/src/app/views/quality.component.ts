@@ -15,7 +15,9 @@ import {
   ChangeDetectionStrategy, Component, computed, inject, signal,
 } from '@angular/core';
 
+import type { Engine } from '../core/effects-api.service';
 import type { LogFilters, QualityScope } from '../core/quality-api.service';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { QualityFlowComponent } from './quality-flow.component';
 import { QualityLogsComponent } from './quality-logs.component';
@@ -25,10 +27,13 @@ import { OriginScopeComponent } from './origin-scope.component';
 import { TabBarComponent, type TabDef } from './tab-bar.component';
 
 /** The tab ids are also the panel ids: `#tab-x` controls `#panel-x`. */
-const TABS: readonly { readonly id: string; readonly labelKey: string }[] = [
+/** Paket 13 (E5): Matrix (Persona × Intent → Muster) und Flow (Zustände) gibt es nur in der
+ *  Muster-Maschine — die Agent-Schleife wählt kein Muster und führt keinen Zustand. */
+const TABS: readonly { readonly id: string; readonly labelKey: string;
+  readonly engines?: readonly Engine[] }[] = [
   { id: 'uebersicht', labelKey: 'qual.tab.overview' },
-  { id: 'matrix', labelKey: 'qual.tab.matrix' },
-  { id: 'flow', labelKey: 'qual.tab.flow' },
+  { id: 'matrix', labelKey: 'qual.tab.matrix', engines: ['pattern'] },
+  { id: 'flow', labelKey: 'qual.tab.flow', engines: ['pattern'] },
   { id: 'logs', labelKey: 'qual.tab.logs' },
 ];
 
@@ -45,10 +50,22 @@ const TABS: readonly { readonly id: string; readonly labelKey: string }[] = [
 export class QualityComponent {
   protected readonly t = inject(StudioLanguageService).t;
 
-  readonly tabs = computed<readonly TabDef[]>(() =>
-    TABS.map((tab) => ({ id: tab.id, label: this.t(tab.labelKey) })));
+  private readonly ansicht = inject(StudioAnsicht);
 
-  readonly active = signal<string>(TABS[0].id);
+  readonly tabs = computed<readonly TabDef[]>(() => TABS
+    .filter((tab) => this.ansicht.zeigt(tab.engines))
+    .map((tab) => ({ id: tab.id, label: this.t(tab.labelKey) })));
+
+  /** Die Maschine der Ansicht als Filter der Abfragen; „beide“ filtert nicht. */
+  readonly engine = this.ansicht.maschine;
+  readonly diagnose = computed(() => this.ansicht.zeigt(['pattern']));
+
+  private readonly wanted = signal<string>(TABS[0].id);
+  /** Fällt der offene Reiter mit der Ansicht weg, steht die Übersicht offen. */
+  readonly active = computed(() => {
+    const ids = this.tabs().map((tab) => tab.id);
+    return ids.includes(this.wanted()) ? this.wanted() : ids[0];
+  });
   readonly scope = signal<QualityScope>('all');
   readonly filters = signal<LogFilters>({});
 
@@ -61,7 +78,7 @@ export class QualityComponent {
   });
 
   select(id: string): void {
-    this.active.set(id);
+    this.wanted.set(id);
     if (!this.visited().has(id)) {
       this.visited.set(new Set([...this.visited(), id]));
     }

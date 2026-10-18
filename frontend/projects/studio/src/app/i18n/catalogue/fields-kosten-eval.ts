@@ -56,6 +56,10 @@ export const FIELDS_KOSTEN_EVAL: CataloguePart = {
     'feld.GoldFlow.persona.hint':
       'Persona aus dem alten Format. Wird nur angezeigt, wenn „zielgruppe“ fehlt; der '
       + 'LLM-Judge liest allein „zielgruppe“, das sich nur im Rohtext setzen lässt.',
+    'feld.GoldFlow.erwartung.label': 'Erwartung an den Verlauf',
+    'feld.GoldFlow.erwartung.hint':
+      'Ein bis zwei Sätze: was ein guter Verlauf dieses Flows leistet. Der Ablauf-Judge bewertet '
+      + 'das ganze Gespräch daran. Pflicht, sobald der Flow Züge hat — ohne sie startet kein Lauf.',
     'feld.GoldFlow.title.label': 'Titel',
     'feld.GoldFlow.title.hint':
       'Name des Flows, wie er in der Startliste und in der Auswertung je Flow erscheint.',
@@ -80,6 +84,10 @@ export const FIELDS_KOSTEN_EVAL: CataloguePart = {
     'feld.GoldTurn.message.label': 'Nachricht',
     'feld.GoldTurn.message.hint':
       'Was der Lauf in diesem Zug an den Chat schickt, als hätte eine Person es getippt.',
+    'feld.GoldTurn.anwendungsfall.label': 'Anwendungsfall',
+    'feld.GoldTurn.anwendungsfall.hint':
+      'Wofür dieser Zug steht — die Spalte in der Matrix „Zielgruppe × Anwendungsfall“ der '
+      + 'Auswertung. Pflicht für jeden Zug eines Laufs.',
     'feld.GoldTurn.expect.label': 'Erwartungen',
     'feld.GoldTurn.expect.hint':
       'Fest geprüft: register (sie/du), structure (idoc/cards), tools_any, tools_none, '
@@ -128,6 +136,10 @@ export const FIELDS_KOSTEN_EVAL: CataloguePart = {
     'feld.GoldFlow.persona.hint':
       'Persona from the old format. Only shown when “zielgruppe” is missing; the LLM judge '
       + 'reads “zielgruppe” alone, which can only be set in the source text.',
+    'feld.GoldFlow.erwartung.label': 'Expected course',
+    'feld.GoldFlow.erwartung.hint':
+      'One or two sentences: what a good run of this flow achieves. The flow judge rates the whole '
+      + 'conversation against it. Required as soon as the flow has turns — otherwise no run starts.',
     'feld.GoldFlow.title.label': 'Title',
     'feld.GoldFlow.title.hint':
       'Name of the flow as it appears in the start list and in the per-flow results.',
@@ -151,6 +163,10 @@ export const FIELDS_KOSTEN_EVAL: CataloguePart = {
     'feld.GoldTurn.message.label': 'Message',
     'feld.GoldTurn.message.hint':
       'What the run sends to the chat in this turn, as if a person had typed it.',
+    'feld.GoldTurn.anwendungsfall.label': 'Use case',
+    'feld.GoldTurn.anwendungsfall.hint':
+      'What this turn stands for — its column in the “audience × use case” matrix of the results. '
+      + 'Required for every turn of a run.',
     'feld.GoldTurn.expect.label': 'Expectations',
     'feld.GoldTurn.expect.hint':
       'Checked by rule: register (sie/du), structure (idoc/cards), tools_any, tools_none, '

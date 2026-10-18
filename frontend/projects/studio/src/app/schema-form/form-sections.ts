@@ -31,9 +31,10 @@ export interface FormSection {
   readonly field: SchemaField;
 }
 
-/** Feldarten, die in eine Zeile passen — sie bekommen keinen eigenen Abschnitt. */
+/** Feldarten ohne eigenen Abschnitt. Seit Paket 15 auch Textflächen: auf „Tour & Lotse“
+ *  stand jeder Text in einem eigenen Aufklapper (Nutzer-Rundgang 2026-10-17). */
 const COMPACT: ReadonlySet<FieldKind> = new Set<FieldKind>([
-  'text', 'select', 'number', 'integer', 'boolean',
+  'text', 'select', 'number', 'integer', 'boolean', 'multiline',
 ]);
 
 /** Unter zwei Abschnitten lohnt der Aufwand nicht: ein einziges Aufklapp-Element
@@ -64,8 +65,10 @@ export function formSections(root: SchemaField): readonly FormSection[] {
   const content: string[] = [];
   const blocks: string[] = [];
   for (const child of scope.children ?? []) {
-    if (COMPACT.has(child.kind)) basics.push(child.key);
-    else (child.primary ? content : blocks).push(child.key);
+    // Paket 15: ein Marker-Ziel zeigt sich nicht selbst — es darf keinen leeren Abschnitt füllen.
+    if (child.markerZiel) continue;
+    if (child.primary) content.push(child.key);
+    else (COMPACT.has(child.kind) ? basics : blocks).push(child.key);
   }
   if (content.length + blocks.length < MIN_SECTIONS) return [];
 
@@ -76,13 +79,16 @@ export function formSections(root: SchemaField): readonly FormSection[] {
     ...blocks.map(cut),
   ];
 
-  return cuts.map(({ id, key, keys }) => ({
-    id,
-    key,
-    basePath,
-    paths: keys.map((k) => [...basePath, k].join('.')),
-    field: sectionRoot(scope, new Set(keys)),
-  }));
+  return cuts.map(({ id, key, keys }) => {
+    const paths = keys.map((k) => [...basePath, k].join('.'));
+    const block = key ? scope.children?.find((c) => c.key === key) : undefined;
+    // Paket 15: ein Block-Abschnitt rendert den Block selbst, ohne Legende — die
+    // Zusammenfassung des Aufklappers nennt ihn schon; vorher stand der Name doppelt.
+    if (block?.kind === 'group') {
+      return { id, key, paths, basePath: [...basePath, key], field: { ...block, ohneLegende: true } };
+    }
+    return { id, key, basePath, paths, field: sectionRoot(scope, new Set(keys)) };
+  });
 }
 
 /**

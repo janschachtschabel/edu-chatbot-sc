@@ -25,7 +25,6 @@ export const MCP: CataloguePart = {
     'mcp.urlFromEnv': 'Kommt aus der Umgebungsvariable {env} und wird hier nicht gespeichert.',
     'mcp.noTools': 'Keine Werkzeuge gemeldet — der Server war beim Laden nicht erreichbar.',
     /** Paket 7 (S5): Werkzeuge je Server an- und abschalten. */
-    'mcp.tool.offer': '{name} anbieten',
     'mcp.tool.unknown': 'kennt der Chatbot nicht — wird nicht angeboten',
     /** Paket 11 (E): Werkzeuge weiterer Server bietet der Chatbot nur lesend an. */
     'mcp.tool.writing': 'schreibend — von weiteren Servern bietet der Chatbot nur lesende an',
@@ -36,9 +35,17 @@ export const MCP: CataloguePart = {
       'Nur lesende Werkzeuge (vom Server als lesend ausgezeichnet) bietet der Chatbot an — '
       + 'dem Modell unter „Kennung__Werkzeug“. Danach speichern.',
     'mcp.adopt.done': 'Übernommen — noch nicht gespeichert.',
-    'mcp.tool.hint':
-      'Abgehakt bietet der Chatbot das Werkzeug dem Modell an. search_skill ist von Haus aus '
-      + 'aus: Skills kommen über die Freigabeliste der Sammlung. Wirksam nach dem Speichern.',
+    // Paket 15: Server als zugeklappte Zeilen; geschaltet wird auf der Seite „Werkzeuge“.
+    'mcp.neu': 'Neuer Server',
+    'mcp.status.an': 'aktiv',
+    'mcp.status.aus': 'ausgeschaltet',
+    'mcp.werkzeugZahl.one': '{count} Werkzeug, {aus} aus',
+    'mcp.werkzeugZahl.other': '{count} Werkzeuge, {aus} aus',
+    'mcp.tool.aus': 'dem Modell nicht angeboten',
+    'mcp.tool.schalterDort':
+      'Welche Werkzeuge der Chatbot dem Modell anbietet, schaltest du für alle Server an einer '
+      + 'Stelle:',
+    'mcp.tool.schalterLink': 'Seite „Werkzeuge“',
     'mcp.remove': 'Entfernen',
     /** Zugänglicher Name desselben Knopfs: mehrere Zeilen tragen denselben
      *  sichtbaren Text. Beginnt mit ihm (WCAG 2.5.3 „Label in Name"). */
@@ -84,7 +91,6 @@ export const MCP: CataloguePart = {
     'mcp.field.description': 'Description',
     'mcp.urlFromEnv': 'Comes from the environment variable {env} and is not stored here.',
     'mcp.noTools': 'No tools reported — the server was unreachable while loading.',
-    'mcp.tool.offer': 'Offer {name}',
     'mcp.tool.unknown': 'not known to the chatbot — not offered',
     'mcp.tool.writing': 'writing — from further servers the chatbot offers read-only tools only',
     'mcp.tool.serverMissing':
@@ -94,9 +100,15 @@ export const MCP: CataloguePart = {
       'The chatbot offers only read-only tools (marked as such by the server) — to the model as '
       + '“id__tool”. Save afterwards.',
     'mcp.adopt.done': 'Adopted — not saved yet.',
-    'mcp.tool.hint':
-      'Ticked: the chatbot offers the tool to the model. search_skill is off by default: '
-      + 'skills come through the collection’s release list. Takes effect after saving.',
+    'mcp.neu': 'New server',
+    'mcp.status.an': 'active',
+    'mcp.status.aus': 'switched off',
+    'mcp.werkzeugZahl.one': '{count} tool, {aus} off',
+    'mcp.werkzeugZahl.other': '{count} tools, {aus} off',
+    'mcp.tool.aus': 'not offered to the model',
+    'mcp.tool.schalterDort':
+      'Which tools the chatbot offers to the model is switched for all servers in one place:',
+    'mcp.tool.schalterLink': 'page “Tools”',
     'mcp.remove': 'Remove',
     'mcp.removeFor': 'Remove — {name}',
     'mcp.primaryFixed': 'The primary server cannot be removed.',

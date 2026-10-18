@@ -78,17 +78,6 @@ export const CURATED_BETRIEB: CataloguePart = {
     'curated.wissen.mcp.label': 'MCP-Server',
     'curated.wissen.mcp.hint': 'Werkzeug-Server, die der Bot im Gespräch aufrufen darf.',
 
-    'curated.agent.intro':
-      'Zwei Wege, einen Zug zu beantworten. Die Muster-Engine ist der Bestand: '
-      + 'Klassifikator, Musterwahl, gebundene Werkzeugliste. Die Agent-Schleife '
-      + 'überlässt dem Modell alles — Systemprompt plus voller Werkzeugkatalog, '
-      + 'kein Muster, kein Klassifikator. Ausgeliefert wird seit 2026-10-09 die '
-      + 'Agent-Schleife; Krise und Drohung beantwortet weiter die Muster-Engine.',
-    'curated.agent.engine.label': 'Welche Maschine antwortet',
-    'curated.agent.engine.hint':
-      'Umschalter, die Deckel der Schleife (Runden, Frist, Token-Budget, Schreibrecht) '
-      + 'und die Betriebsschalter: Fast-Modus, Token-Streaming, Agent-Schnellantworten, '
-      + 'Schreiben mit dem Gastkonto.',
     'curated.agent.masterSkill.label': 'Master-Skill',
     'curated.agent.masterSkill.hint':
       'Die Gesamtanleitung des Agenten. Gepflegt im Repositorium; hier steht, was gilt.',
@@ -161,17 +150,6 @@ export const CURATED_BETRIEB: CataloguePart = {
     'curated.wissen.mcp.label': 'MCP servers',
     'curated.wissen.mcp.hint': 'Tool servers the bot may call during a conversation.',
 
-    'curated.agent.intro':
-      'Two ways to answer a turn. The pattern engine is the established path: classifier, '
-      + 'pattern selection, a bound tool list. The agent loop leaves everything '
-      + 'to the model — system prompt plus the full tool catalogue, no pattern, '
-      + 'no classifier. Since 2026-10-09 the agent loop is what ships; crisis and '
-      + 'threat are still answered by the pattern engine.',
-    'curated.agent.engine.label': 'Which engine answers',
-    'curated.agent.engine.hint':
-      'The switch, the loop’s caps (rounds, deadline, token budget, write mode) and the '
-      + 'operation switches: fast mode, token streaming, agent quick replies, writing with '
-      + 'the guest account.',
     'curated.agent.masterSkill.label': 'Master skill',
     'curated.agent.masterSkill.hint':
       'The agent’s overall instructions. Maintained in the repository; this shows what applies.',

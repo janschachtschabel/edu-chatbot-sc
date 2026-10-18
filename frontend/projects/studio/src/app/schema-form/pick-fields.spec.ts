@@ -34,6 +34,16 @@ describe('pickFields', () => {
     expect(group?.children?.map((c) => c.key)).toEqual(['id', 'tools']);
   });
 
+  it('zeichnet den Ausschnitt einer Gruppe ohne eigene Überschrift (Paket 15)', () => {
+    // „Kopfangaben (frontmatter)“ über drei Feldern sagte niemandem etwas — der Abschnitt
+    // trägt schon seinen Titel. Der Pfad der Felder bleibt `frontmatter.…`.
+    const group = pickFields({ ...ROOT, children: [{ ...ROOT.children![0], textKey: 'feld.X.fm' },
+      ROOT.children![1]] }, new Set(['frontmatter.id'])).children?.[0];
+    expect(group?.key).toBe('frontmatter');
+    expect(group?.label).toBe('');
+    expect(group?.textKey).toBeUndefined();
+  });
+
   it('nimmt eine ganze Gruppe, wenn die Gruppe selbst genannt ist', () => {
     const picked = pickFields(ROOT, new Set(['frontmatter']));
     expect(picked.children?.[0].children?.map((c) => c.key)).toEqual(['id', 'label', 'tools']);

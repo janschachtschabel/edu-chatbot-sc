@@ -11,7 +11,7 @@
     </p>
     <studio-json-value
       [fieldId]="fieldId()"
-      [value]="value()"
+      [value]="wert()"
       [describedByBase]="fieldId() + '-shape'"
       (valueChange)="setValue($event)"
       (errorChange)="onJsonError($event)"
@@ -20,13 +20,15 @@
 } @else {
 @switch (field().kind) {
   @case ('group') {
-    <fieldset class="sf-group" [attr.aria-describedby]="describedWith()">
-      @if (label()) {
+    <fieldset class="sf-group" [attr.aria-describedby]="describedWith()"
+      [attr.aria-label]="field().ohneLegende ? label() : null">
+      @if (label() && !field().ohneLegende) {
         <legend class="sf-legend">
           {{ label() }}
           @if (rawKey(); as key) {
             <span class="sf-key">{{ key }}</span>
           }
+          @if (vorgabePlakette()) { <span class="sf-vorgabe-tag">{{ t('schemaField.vorgabe') }}</span> }
         </legend>
       }
       @if (hint(); as text) {
@@ -36,6 +38,7 @@
         <p class="sf-error" [id]="errId()">{{ meldung }}</p>
       }
       @for (child of field().children; track child.key) {
+        @if (!child.markerZiel) {
         <studio-schema-field
           [field]="child"
           [path]="childPath(child.key)"
@@ -43,8 +46,10 @@
           [idPrefix]="idPrefix()"
           [problems]="problems()"
           [markerValue]="child.marker ? childValue(child.marker) : undefined"
-          (edit)="edit.emit($event)"
+          [geerbt]="nichtGespeichert()"
+          (edit)="weiter($event)"
         />
+        }
       }
     </fieldset>
   }
@@ -57,12 +62,16 @@
           <span class="sf-key">{{ key }}</span>
         }
         @if (!unset()) { <span class="sf-count">({{ list.items().length }})</span> }
+        @if (vorgabePlakette()) { <span class="sf-vorgabe-tag">{{ t('schemaField.vorgabe') }}</span> }
       </legend>
       @if (hint(); as text) {
         <p class="sf-desc" [id]="descId()">{{ text }}</p>
       }
       @if (problem(); as meldung) {
         <p class="sf-error" [id]="errId()">{{ meldung }}</p>
+      }
+      @if (markerProblem(); as meldung) {
+        <p class="sf-error">{{ list.markerLabel() }}: {{ meldung }}</p>
       }
       @if (field().vorgabe) {
         <!-- Paket 4c, B2: „nicht gesetzt“ (Vorgabe) und „leer“ (keine) sahen gleich aus. -->
@@ -111,11 +120,11 @@
         <studio-object-list
           [field]="field()"
           [path]="path()"
-          [value]="value()"
+          [value]="wert()"
           [label]="groupLabel()"
           [idPrefix]="idPrefix()"
           [problems]="problems()"
-          (edit)="edit.emit($event)"
+          (edit)="weiter($event)"
         />
       } @else {
         @if (list.items().length === 0) {
@@ -166,6 +175,13 @@
           [attr.aria-label]="t('schemaField.addTo', { group: groupLabel() })"
           (click)="list.addItem()"
         >{{ t('schemaField.add') }}</button>
+        @if (list.markerVerwaist(); as wert) {
+          <!-- Paket 15: das Feld selbst ist ausgeblendet — ein Wert ohne passenden Chip wäre
+               sonst unsichtbar. -->
+          <p class="sf-desc sf-marker-warnung" role="note">
+            {{ t('schemaField.markerVerwaist', { wert: wert, label: list.markerLabel() }) }}
+          </p>
+        }
         @if (field().marker) {
           <label class="sf-marker">
             <input
@@ -189,6 +205,7 @@
           <span class="sf-key">{{ key }}</span>
         }
         <span class="sf-count">({{ map.entries().length }})</span>
+        @if (vorgabePlakette()) { <span class="sf-vorgabe-tag">{{ t('schemaField.vorgabe') }}</span> }
       </legend>
       @if (hint(); as text) {
         <p class="sf-desc" [id]="descId()">{{ text }}</p>
@@ -200,12 +217,82 @@
         <studio-object-list
             [field]="field()"
             [path]="path()"
-            [value]="value()"
+            [value]="wert()"
             [label]="groupLabel()"
             [idPrefix]="idPrefix()"
             [problems]="problems()"
-            (edit)="edit.emit($event)"
+            (edit)="weiter($event)"
           />
+      } @else if (einfacheMap()) {
+        <!-- Paket 15: einfache Werte als Tabelle — Schlüssel | Wert | Entfernen statt dreier
+             Ebenen je Paar. -->
+        @if (map.entries().length === 0) {
+          <p class="sf-empty">{{ t('schemaField.emptyList') }}</p>
+        } @else {
+          <table class="sf-map">
+            <thead>
+              <tr>
+                <th scope="col">{{ t('schemaField.key') }}</th>
+                <th scope="col">{{ t('schemaField.wert') }}</th>
+                <th scope="col"><span class="sr">{{ t('schemaField.aktion') }}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (entry of map.entries(); track entry.key) {
+                <tr>
+                  <td>
+                    <label class="sr" [for]="fieldId() + '-key-' + $index">
+                      {{ t('schemaField.keyOf', { key: entry.key }) }}
+                    </label>
+                    <input
+                      class="sf-input"
+                      type="text"
+                      [id]="fieldId() + '-key-' + $index"
+                      [value]="entry.key"
+                      [attr.aria-invalid]="map.keyError()?.key === entry.key ? 'true' : null"
+                      [attr.aria-describedby]="
+                        map.keyError()?.key === entry.key ? fieldId() + '-key-' + $index + '-err' : null
+                      "
+                      (change)="map.renameEntry(entry.key, $event)"
+                    />
+                    <p
+                      class="sf-error live"
+                      [id]="fieldId() + '-key-' + $index + '-err'"
+                      aria-live="polite"
+                    >
+                      @if (map.keyError()?.key === entry.key) {
+                        {{ map.keyError()?.message }}
+                      }
+                    </p>
+                  </td>
+                  <td>
+                    <label class="sr" [for]="fieldId() + '-wert-' + $index">{{ entry.key }}</label>
+                    <studio-field-control
+                      [field]="field().item!"
+                      [value]="entry.value"
+                      [controlId]="fieldId() + '-wert-' + $index"
+                      [idPrefix]="idPrefix()"
+                      [invalid]="eintragsProblem(entry.key) !== null"
+                      [describedBy]="eintragsProblem(entry.key) ? fieldId() + '-wert-' + $index + '-err' : null"
+                      (valueChange)="setzeEintrag(entry.key, $event)"
+                    />
+                    @if (eintragsProblem(entry.key); as meldung) {
+                      <p class="sf-error" [id]="fieldId() + '-wert-' + $index + '-err'">{{ meldung }}</p>
+                    }
+                  </td>
+                  <td>
+                    <button type="button" class="sf-remove"
+                      [attr.aria-label]="t('schemaField.removeKey', { key: entry.key })"
+                      (click)="map.removeEntry(entry.key)">{{ t('schemaField.remove') }}</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+        <button type="button" class="sf-add"
+          [attr.aria-label]="t('schemaField.addTo', { group: groupLabel() })"
+          (click)="map.addEntry()">{{ t('schemaField.add') }}</button>
       } @else {
       @if (map.entries().length === 0) {
         <p class="sf-empty">{{ t('schemaField.emptyList') }}</p>
@@ -245,7 +332,7 @@
                 [idPrefix]="idPrefix()"
                 [problems]="problems()"
                 [labelOverride]="entry.key"
-                (edit)="edit.emit($event)"
+                (edit)="weiter($event)"
               />
               <button
                 type="button"
@@ -277,13 +364,17 @@
         @if (field().required) {
           <span class="sf-required">{{ t('schemaField.required') }}</span>
         }
+        @if (vorgabePlakette()) {
+          <!-- Paket 15 (A3): nicht gespeichert — der Server nimmt diesen Wert -->
+          <span class="sf-vorgabe-tag">{{ t('schemaField.vorgabe') }}</span>
+        }
       </label>
       @if (hint(); as text) {
         <p class="sf-desc" [id]="descId()">{{ text }}</p>
       }
       <studio-field-control
         [field]="field()"
-        [value]="value()"
+        [value]="wert()"
         [controlId]="fieldId()"
         [describedBy]="describedWith()"
         [invalid]="problem() !== null"
@@ -291,6 +382,11 @@
         (valueChange)="setValue($event)"
         (errorChange)="onJsonError($event)"
       />
+      @if (abweichend()) {
+        <button type="button" class="sf-zurueck" (click)="zurueckZurVorgabe()"
+          [attr.aria-label]="t('schemaField.zurueckFuer', { label: label() })"
+        >{{ t('schemaField.zurueck') }}</button>
+      }
       @if (problem(); as meldung) {
         <p class="sf-error" [id]="errId()">{{ meldung }}</p>
       }

@@ -1,0 +1,72 @@
+@if (noten(); as n) {
+  <section class="vg-teil" aria-labelledby="vg-noten">
+    <h4 class="vg-titel" id="vg-noten">{{ t('evalV2.vgl.noten') }}</h4>
+    <div class="vg-rahmen">
+      <table class="vg-tabelle">
+        <thead>
+          <tr>
+            <th scope="col">{{ t('evalV2.vgl.maschine') }}</th>
+            <th scope="col">{{ t('evalV2.vgl.laeufe') }}</th>
+            <th scope="col">{{ t('evalV2.skala.gesamt') }}</th>
+            <th scope="col">{{ t('evalV2.k.zugMittel') }}</th>
+            @for (skala of n.skalen; track skala) { <th scope="col">{{ skala }}</th> }
+          </tr>
+        </thead>
+        <tbody>
+          @for (zeile of n.zeilen; track zeile.maschine) {
+            <tr>
+              <th scope="row">{{ zeile.maschine }}</th>
+              <td>{{ zeile.laeufe }}</td>
+              @for (wert of zeile.werte; track $index) { <td>{{ wert }}</td> }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+}
+
+@if (unterschiede(); as u) {
+  <section class="vg-teil vg-unterschiede" aria-labelledby="vg-u">
+    <h4 class="vg-titel" id="vg-u">{{ t('evalV2.vgl.unterschiede', { ref: u.referenz }) }}</h4>
+    @if (u.keine) {
+      <p class="vg-hinweis">{{ t('evalV2.vgl.keine') }}</p>
+    } @else {
+      @for (lauf of u.laeufe; track lauf.run) {
+        @if (lauf.punkte.length > 0 || lauf.prompts.length > 0) {
+          <h5 class="vg-lauf">{{ t('evalV2.vgl.lauf', { id: lauf.run }) }}</h5>
+          <ul class="vg-liste">
+            @for (punkt of lauf.punkte; track punkt) { <li>{{ punkt }}</li> }
+            @for (p of lauf.prompts; track p.schluessel) {
+              <li>
+                {{ t('evalV2.vgl.prompt', { art: p.art }) }}
+                @if (p.a && p.b) {
+                  <button
+                    type="button" class="vg-diff-knopf"
+                    [disabled]="!!diffs()[p.schluessel]"
+                    (click)="zeigeDiff(p.schluessel, p.a, p.b)"
+                  >{{ t('evalV2.vgl.diffZeigen') }}</button>
+                }
+                @if (diffs()[p.schluessel]; as stand) {
+                  @switch (stand.art) {
+                    @case ('laden') { <p class="vg-hinweis" role="status">{{ t('evalV2.vgl.diffLaedt') }}</p> }
+                  }
+                  @if (stand.art === 'fehler') {
+                    <p class="vg-fehler" role="alert">{{ t('evalV2.vgl.diffFehler', { grund: stand.grund }) }}</p>
+                  } @else if (stand.art === 'da') {
+                    @if (stand.zeilen.length === 0) {
+                      <p class="vg-hinweis">{{ t('evalV2.vgl.diffGleich') }}</p>
+                    } @else {
+                      <pre class="vg-diff" tabindex="0" [attr.aria-label]="t('evalV2.vgl.diffLabel', { art: p.art })">@for (z of stand.zeilen; track $index) {<span [class]="z.klasse">{{ z.text }}</span>
+}</pre>
+                    }
+                  }
+                }
+              </li>
+            }
+          </ul>
+        }
+      }
+    }
+  </section>
+}

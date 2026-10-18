@@ -102,9 +102,20 @@
 }
 
 // Not colour alone (SC 1.4.1): the marker is the word, in the label text.
-.sf-required {
+.sf-required,
+.sf-vorgabe-tag {
   font-weight: 400;
   color: var(--st-text-muted);
+}
+
+// Paket 15 (A3): der Wert ist nicht gespeichert, er kommt aus der Vorgabe — als Wort, nicht
+// nur als Farbe (SC 1.4.1).
+.sf-vorgabe-tag {
+  margin-inline-start: var(--st-1);
+  padding: 0 var(--st-1);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  font-size: 0.75rem;
 }
 
 .sf-desc {

@@ -1,0 +1,54 @@
+// Messbedingungen eines Laufs (Paket 13, F2) — Nachschlagewissen, deshalb aufklappbar.
+:host {
+  display: block;
+}
+
+.emb {
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  padding: var(--st-2) var(--st-3);
+}
+
+.emb-titel {
+  min-block-size: 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.emb-liste {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--st-2) var(--st-4);
+  margin: var(--st-3) 0 0;
+
+  dt {
+    font-size: 0.75rem;
+    color: var(--st-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-size: 0.8125rem;
+  }
+}
+
+.emb-wechsel {
+  margin-block-start: var(--st-3);
+  font-size: 0.8125rem;
+
+  p,
+  ul {
+    margin: var(--st-1) 0 0;
+  }
+}
+
+.emb-unter {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.emb-fehler {
+  color: var(--st-danger-text);
+}

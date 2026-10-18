@@ -16,7 +16,7 @@ import {
 import type { RichSegment } from '@boerdi/ui';
 
 import { AsyncData, describeApiError } from '../core/async-data';
-import { LoadtestApi, type LoadTestRun } from '../core/loadtest-api.service';
+import { type LoadAnfrage, LoadtestApi, type LoadTestRun } from '../core/loadtest-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
 import { latencyChart } from './loadtest-chart';
@@ -174,12 +174,15 @@ export class LoadtestRunComponent {
   }
 
   profileLine(profile: LoadTestRun['profile']): string {
-    return this.t('ltRun.profile', {
+    const zeile = this.t('ltRun.profile', {
       stages: profile.stages.join(' → '),
       requests: this.lang.plural('lt.requests', profile.requests_per_stage),
       mix: this.mixLine(profile.mix),
       threshold: profile.p95_threshold_s,
     });
+    // Review-Runde 2: „ohne Aufwärmen“ ist etwas anderes als ein Lauf von vor Paket 15.
+    if (profile.warmup === undefined) return zeile;
+    return `${zeile} · ${this.t(profile.warmup ? 'ltRun.profile.mitAufwaermen' : 'ltRun.profile.ohneAufwaermen')}`;
   }
 
   /** "wissen 3 · suche 2" — the weights as they were sent. */
@@ -187,8 +190,23 @@ export class LoadtestRunComponent {
     return Object.entries(mix).map(([key, weight]) => `${key} ${weight}`).join(' · ');
   }
 
-  /** Per-category p95 of one stage, for the last table column. */
-  byKindLine(byKind: Readonly<Record<string, { p95_s: number }>>): string {
-    return Object.entries(byKind).map(([key, v]) => `${key} ${v.p95_s}s`).join(' · ');
+  /** Per-category duration of one stage, for the last table column. Paket 15 (E1, Review #6):
+   *  unter 20 erfolgreichen Messungen sagt ein p95 wenig — dann das echte Maximum samt n. Zahlen
+   *  wie in der Karte daneben über `sekunden()` (Review-Runde 2). */
+  byKindLine(byKind: Readonly<Record<string, { ok?: number; p95_s: number; max_s?: number }>>): string {
+    return Object.entries(byKind).map(([kind, v]) => (
+      v.max_s !== undefined && v.ok !== undefined && v.ok < 20
+        ? this.t('ltRun.byKind.max', { kind, dauer: this.sekunden(v.max_s), n: v.ok })
+        : this.t('ltRun.byKind.p95', { kind, dauer: this.sekunden(v.p95_s) }))).join(' · ');
   }
+
+  sekunden(wert: number): string {
+    return `${this.fmt.decimal(wert)} s`;
+  }
+
+  /** Alle Anfragen aller Stufen, je mit ihrer Stufe (Parallelität) — einmal je Lauf-Stand
+   *  gerechnet, nicht bei jedem Zeichnen (Review-Runde 2; der Lauf pollt alle 2 s). */
+  readonly anfragenListe = computed<readonly { stufe: number; a: LoadAnfrage }[]>(() =>
+    (this.run.value()?.stages ?? [])
+      .flatMap((s) => (s.anfragen ?? []).map((a) => ({ stufe: s.concurrency, a }))));
 }

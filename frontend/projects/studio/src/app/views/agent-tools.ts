@@ -6,6 +6,7 @@
  * gruppiert und in Sätze übersetzt.
  */
 import type { AgentTool, AgentToolLock } from '../core/agent-center-api.service';
+import type { McpServer } from '../core/mcp-registry-store';
 import type { StudioLanguageService } from '../i18n/studio-language.service';
 
 /** Was `lockText` von der Sprache braucht — im Test ohne Angular zu bauen. */
@@ -86,4 +87,33 @@ export function lockLink(lock: AgentToolLock): string | null {
     default:
       return null;
   }
+}
+
+/** Wo ein Werkzeug an- und abgeschaltet wird: Server (Index in der Liste), Name dort, Anzeige. */
+export interface Schalter {
+  readonly index: number;
+  readonly name: string;
+  readonly server: string;
+}
+
+/**
+ * Paket 15: der Schalter eines Werkzeugs — `werkzeuge_aus` des Servers, dessen Katalog es
+ * führt. Fremde Werkzeuge heißen im Zug `server__werkzeug`. Eingebaute (virtuelle) und
+ * Werkzeuge ohne Katalog-Eintrag tragen keinen: dort wirkt ein Schalter nicht.
+ */
+/** Wie `fremdwerkzeuge._PRIMARY_ID` im Backend. */
+const WLO_SERVER_ID = 'wlo-mcp';
+
+export function schalterFuer(tool: AgentTool, servers: readonly McpServer[]): Schalter | null {
+  if (tool.kind === 'virtual') return null;
+  // Fremd: Server und Originalname aus der Zeile; WLO: nur am WLO-Server — ein fremder Server
+  // mit gleichnamigem Werkzeug ist ein anderer Namensraum (Review-Runde 2).
+  const fremd = tool.kind === 'external';
+  const serverId = fremd ? tool.server_id : WLO_SERVER_ID;
+  const name = fremd ? tool.tool : tool.name;
+  if (!serverId || !name) return null;
+  const index = servers.findIndex((s) => s.id === serverId
+    && (s.werkzeuge_im_katalog ?? []).includes(name));
+  if (index < 0) return null;
+  return { index, name, server: servers[index].name || servers[index].id };
 }

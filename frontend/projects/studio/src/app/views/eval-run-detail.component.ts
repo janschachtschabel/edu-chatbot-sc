@@ -21,14 +21,16 @@
  */
 import {
   ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect,
-  inject, input, output, untracked, viewChild,
+  inject, input, output, signal, untracked, viewChild,
 } from '@angular/core';
 
-import { AsyncData } from '../core/async-data';
+import { AsyncData, describeApiError } from '../core/async-data';
+import { saveBlob } from '../core/download';
 import { EvalApi, type EvalRunDetail } from '../core/eval-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
 import { engineLabel } from './engine-label';
+import { EvalAuswertungV2Component } from './eval-auswertung-v2.component';
 import { EvalGoldTurnsComponent } from './eval-gold-turns.component';
 import { EvalPatternPanelsComponent } from './eval-pattern-panels.component';
 import { EvalRunProfileComponent } from './eval-run-profile.component';
@@ -57,8 +59,8 @@ function countAt(summary: Readonly<Record<string, unknown>>, key: string): numbe
 @Component({
   selector: 'studio-eval-run-detail',
   imports: [
-    AsyncStateComponent, EvalGoldTurnsComponent, EvalPatternPanelsComponent,
-    EvalRunProfileComponent, RichTextComponent,
+    AsyncStateComponent, EvalAuswertungV2Component, EvalGoldTurnsComponent,
+    EvalPatternPanelsComponent, EvalRunProfileComponent, RichTextComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './eval-run-detail.component.html',
@@ -117,6 +119,19 @@ export class EvalRunDetailComponent {
 
   readonly agentRun = computed(() => this.run()?.engine === 'agent');
 
+  /** Paket 13 (F7): die Auswertung mit dem Judge v2 — nur Golden-Läufe tragen sie. */
+  readonly auswertung = computed(() => this.run()?.auswertung ?? null);
+
+  /** Das Profil liest die Achsen des Judge v1; bei einem Lauf mit Judge-v2-Noten stünden
+   *  sie leer da — dort ersetzen Kennzahlen und Matrizen der Auswertung es. */
+  readonly zeigtProfil = computed(() => {
+    const gesamt = this.auswertung()?.gesamt;
+    return !gesamt || (gesamt.gesamt_mittel === null && gesamt.zug_mittel === null);
+  });
+
+  readonly berichtLaedt = signal(false);
+  readonly berichtFehler = signal('');
+
   /** GV4: judge outages are COUNTED, not averaged in as zeros. */
   readonly judgeFailed = computed(() => countAt(this.summary(), 'judge_failed_turns'));
 
@@ -151,6 +166,20 @@ export class EvalRunDetailComponent {
 
   reload(): void {
     void this.detail.reload();
+  }
+
+  /** Paket 13 (D3/F7): der Lauf als Markdown-Bericht zum Weitergeben. */
+  async berichtLaden(): Promise<void> {
+    if (this.berichtLaedt()) return;
+    this.berichtLaedt.set(true);
+    this.berichtFehler.set('');
+    try {
+      saveBlob(await this.api.berichtMd(this.runId()), `bericht-${this.runId()}.md`);
+    } catch (err) {
+      this.berichtFehler.set(describeApiError(err, this.t));
+    } finally {
+      this.berichtLaedt.set(false);
+    }
   }
 
   label(category: string): string {

@@ -11,6 +11,7 @@ import {
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ANSICHT_STORAGE_KEY, StudioAnsicht } from "../core/studio-ansicht.service";
 import { STUDIO_LOCALE_STORAGE_KEY } from "../i18n/studio-language.service";
 import { EvalRunsComponent } from "./eval-runs.component";
 
@@ -76,6 +77,9 @@ async function settle(h: Harness): Promise<void> {
   await h.fixture.whenStable();
 }
 
+/** Paket 13 (E7): ein Test, der vor `mount` eine Ansicht merkt, setzt das. */
+let ansichtGesetzt = false;
+
 async function mount(
   runs: Record<string, unknown>[] = [run("r1")],
   locale = "de",
@@ -83,6 +87,8 @@ async function mount(
   // jsdom meldet `navigator.language === 'en-US'`; ohne diese Zeile liefe eine
   // Prüfung auf deutschen Wortlaut gegen die englische Oberfläche (C1-d4a).
   sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
+  if (!ansichtGesetzt) localStorage.clear(); // Paket 13: keine Ansicht aus einem anderen Test
+  ansichtGesetzt = false;
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
@@ -172,6 +178,19 @@ describe("EvalRunsComponent", () => {
     expect(rows(h)[0].textContent).toContain("Agent-Schleife");
     // Vor ST-7 mit Server-Vorgabe gestartet: nicht geraten, sondern gesagt.
     expect(rows(h)[1].textContent).toContain("Maschine unbekannt");
+  });
+
+  it("belegt den Maschinen-Filter aus der Ansicht vor und folgt ihr (Paket 13, E7)", async () => {
+    localStorage.setItem(ANSICHT_STORAGE_KEY, "agent");
+    ansichtGesetzt = true;
+    const h = await mount();
+    expect(h.el.querySelector<HTMLSelectElement>("#er-engine")!.value).toBe("agent");
+
+    TestBed.inject(StudioAnsicht).waehle("pattern");
+    await h.fixture.whenStable();
+    const req = h.http.expectOne((r) => r.url === RUNS_URL);
+    expect(req.request.params.get("engine")).toBe("pattern");
+    req.flush({ runs: [] });
   });
 
   it("filtert nach Maschine auf dem Server, auch beim Nachladen (ST-7a)", async () => {

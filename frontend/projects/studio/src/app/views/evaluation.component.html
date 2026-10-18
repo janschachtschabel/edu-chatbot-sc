@@ -29,12 +29,16 @@
     <!-- Nutzer-Feedback 2026-08-22: Läufe zuerst — wer die Seite öffnet, will
          den AKTIVEN Lauf sehen, nicht die Flow-Liste des nächsten Starts.
          Die Formulare bleiben montiert (laden ihre Daten), nur zugeklappt. -->
+    <!-- Paket 15 (E2): der Unterschied der beiden Laufarten, in einem Satz je Lauf — als
+         Beschreibung des Aufklappers, nicht in seinem Namen (Review-Runde 2). -->
+    <p class="ev-start-hint" id="ev-gold-was">{{ t('evalStart.gold.wasIst') }}</p>
     <details class="ev-start">
-      <summary>{{ t('evalStart.gold.title') }}</summary>
+      <summary aria-describedby="ev-gold-was">{{ t('evalStart.gold.title') }}</summary>
       <studio-eval-golden-start [busy]="busy()" (started)="onStarted()" />
     </details>
+    <p class="ev-start-hint" id="ev-gen-was">{{ t('evalStart.gen.wasIst') }}</p>
     <details class="ev-start">
-      <summary>{{ t('evalStart.gen.title') }}</summary>
+      <summary aria-describedby="ev-gen-was">{{ t('evalStart.gen.title') }}</summary>
       <studio-eval-generative-start [busy]="busy()" (started)="onStarted()" />
     </details>
   }
@@ -53,18 +57,20 @@
   }
 </div>
 
-<div
-  id="panel-pattern"
-  class="ev-panel"
-  role="tabpanel"
-  aria-labelledby="tab-pattern"
-  tabindex="0"
-  [hidden]="active() !== 'pattern'"
->
-  @if (shows()('pattern')) {
-    <studio-eval-pattern-usage />
-  }
-</div>
+@if (musterBereich()) {
+  <div
+    id="panel-pattern"
+    class="ev-panel"
+    role="tabpanel"
+    aria-labelledby="tab-pattern"
+    tabindex="0"
+    [hidden]="active() !== 'pattern'"
+  >
+    @if (shows()('pattern')) {
+      <studio-eval-pattern-usage />
+    }
+  </div>
+}
 
 <div
   id="panel-goldflows"

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  CLEAR_URL, LOGS_URL, mount, rows, settle, submit, log, type,
+  CLEAR_URL, LOGS_URL, PAGE, mount, rows, settle, submit, log, type,
 } from './quality-logs.harness';
 
 describe('QualityLogsComponent — löschen', () => {
@@ -53,6 +53,23 @@ describe('QualityLogsComponent — löschen', () => {
     expect(question).toContain('M15');
     expect(question).not.toContain('ALLE');
   });
+
+  it('nennt die Maschine der Ansicht als Filter und löscht nur deren Turns (Paket 13)',
+    async () => {
+      const h = await mount();
+      h.fixture.componentInstance.engine.set('agent');
+      await h.fixture.whenStable();
+      h.http.expectOne((r) => r.url === LOGS_URL).flush(PAGE);
+      await settle(h);
+
+      const knopf = h.el.querySelector<HTMLButtonElement>('.ql-clear')!;
+      expect(knopf.textContent!.trim()).toBe('Gefilterte löschen');
+      knopf.click();
+      await h.fixture.whenStable();
+      const question = h.el.querySelector('.ql-question')!.textContent!;
+      expect(question).toContain('Agent-Schleife');
+      expect(question).not.toContain('ALLE');
+    });
 
   it('sends the bulk delete with the filters that are actually applied', async () => {
     const h = await mount();

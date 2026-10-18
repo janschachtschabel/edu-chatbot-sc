@@ -287,6 +287,75 @@ describe('SchemaFormComponent — maps', () => {
   });
 });
 
+describe('SchemaFormComponent — Maps einfacher Werte als Tabelle (Paket 15)', () => {
+  // Nutzer-Rundgang 2026-10-17 („Anzeige“): je Eintrag „Schlüssel“, darunter ein Feld mit
+  // demselben Namen, darunter „Entfernen“ — drei Ebenen für ein Paar.
+  const SCHEMA: JsonSchema = {
+    type: 'object',
+    properties: {
+      per_pattern: { type: 'object', additionalProperties: { type: 'boolean' } },
+    },
+  };
+  const zeilen = (el: HTMLElement) => Array.from(el.querySelectorAll('table.sf-map tbody tr'));
+
+  it('zeigt Schlüssel und Wert je Zeile in einer Tabelle', async () => {
+    const h = await mount(SCHEMA, { per_pattern: { M09: true, M10: false } });
+    const kopf = Array.from(h.el.querySelectorAll('table.sf-map thead th'))
+      .map((th) => th.textContent?.trim());
+    expect(kopf.slice(0, 2)).toEqual(['Schlüssel', 'Wert']);
+    expect(zeilen(h.el)).toHaveLength(2);
+    const [erste] = zeilen(h.el);
+    expect(erste.querySelector<HTMLInputElement>('input[type="text"]')?.value).toBe('M09');
+    expect(erste.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked).toBe(true);
+  });
+
+  it('ändert einen Wert, benennt einen Schlüssel um und entfernt eine Zeile', async () => {
+    const h = await mount(SCHEMA, { per_pattern: { M09: true, M10: false } });
+    const box = zeilen(h.el)[0].querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    box.checked = false;
+    box.dispatchEvent(new Event('change'));
+    await h.fixture.whenStable();
+    expect(h.emitted.at(-1)).toEqual({ per_pattern: { M09: false, M10: false } });
+
+    const schluessel = zeilen(h.el)[1].querySelector<HTMLInputElement>('input[type="text"]')!;
+    schluessel.value = 'M11';
+    schluessel.dispatchEvent(new Event('change'));
+    await h.fixture.whenStable();
+    // Review-Runde 2 (R2-12): Wert bleibt, Reihenfolge bleibt, der alte Schlüssel ist weg.
+    // (Die Hülle reicht den Wert nicht zurück — jede Änderung geht vom Ausgangsdokument aus.)
+    const umbenannt = (h.emitted.at(-1) as { per_pattern: Record<string, boolean> }).per_pattern;
+    expect(umbenannt).toEqual({ M09: true, M11: false });
+    expect(Object.keys(umbenannt)).toEqual(['M09', 'M11']);
+
+    zeilen(h.el)[0].querySelector<HTMLButtonElement>('button')!.click();
+    await h.fixture.whenStable();
+    expect(h.emitted.at(-1)).toEqual({ per_pattern: { M10: false } });
+  });
+
+  it('zeigt auch Textflächen je Schlüssel als Tabelle (Begrüßung je Seitentyp)', async () => {
+    const texte: JsonSchema = {
+      type: 'object',
+      properties: {
+        greetings: {
+          type: 'object',
+          additionalProperties: { type: 'string', 'x-widget': 'textarea' } as JsonSchema,
+        },
+      },
+    };
+    const h = await mount(texte, { greetings: { collection: 'Hallo {title}' } });
+    expect(zeilen(h.el)[0].querySelector('textarea')?.value).toBe('Hallo {title}');
+  });
+
+  it('gibt Schlüssel- und Wertfeld je Zeile einen zugänglichen Namen', async () => {
+    const h = await mount(SCHEMA, { per_pattern: { M09: true } });
+    const [zeile] = zeilen(h.el);
+    const schluessel = zeile.querySelector<HTMLInputElement>('input[type="text"]')!;
+    const wert = zeile.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    expect(h.el.querySelector(`label[for="${schluessel.id}"]`)?.textContent).toContain('M09');
+    expect(h.el.querySelector(`label[for="${wert.id}"]`)?.textContent).toContain('M09');
+  });
+});
+
 describe('SchemaFormComponent — free-form (raw) fields', () => {
   const POLICY = AREA_SCHEMAS['01-base/policy'];
   const doc = { rules: [{ id: 'r1', match: { persona: 'lehrkraft' }, effect: {} }] };
@@ -554,7 +623,11 @@ describe('SchemaFormComponent — aufklappbare Abschnitte (S5)', () => {
     const h = await mount(HUELLE, { display_rules: { block_a: {}, block_b: {} } });
     const legenden = Array.from(h.el.querySelectorAll('legend')).map((l) => l.textContent?.trim());
     expect(legenden).not.toContain('display_rules');
-    expect(legenden).toContain('block_a');
+    // Paket 15: der Block heißt einmal — in der Zusammenfassung, nicht noch als Legende darunter.
+    expect(legenden).not.toContain('block_a');
+    const koepfe = Array.from(h.el.querySelectorAll('details.sf-section > summary'))
+      .map((s) => s.textContent?.trim());
+    expect(koepfe).toContain('block_a');
   });
 
   it('schreibt aus einem Abschnitt hinter der Hülle in denselben Pfad', async () => {
@@ -888,6 +961,30 @@ describe('SchemaFormComponent — Tour-Chip als Radio je Zeile (ST-2i)', () => {
   });
 });
 
+describe('SchemaFormComponent — Tour-Chip nur noch an den Startchips (Paket 15)', () => {
+  // Nutzer-Rundgang 2026-10-17: das Feld „Tour-Chip“ unter Grundwerte zeigte denselben Wert
+  // wie die Radios an den Startchips — zwei Stellen für eine Einstellung.
+  it('zeigt das Ziel des Radios nicht noch einmal als eigenes Feld', async () => {
+    const h = await mount(WELCOME, { welcome: { quick_replies: ['Hallo'], tour_reply: 'Hallo' } });
+    expect(h.el.querySelector('[id$="welcome.tour_reply"]')).toBeNull();
+    expect(h.el.querySelector('[id$="welcome.tour_reply_en"]')).toBeNull();
+  });
+
+  it('warnt, wenn der gespeicherte Tour-Chip zu keinem Startchip passt', async () => {
+    const h = await mount(WELCOME, { welcome: { quick_replies: ['Hallo'], tour_reply: 'Tour!' } });
+    const warnung = h.el.querySelector('.sf-marker-warnung');
+    expect(warnung?.getAttribute('role')).toBe('note');
+    expect(warnung?.textContent).toContain('Tour!');
+  });
+
+  it('schweigt, wenn er passt oder leer ist', async () => {
+    for (const tour of ['Hallo', '']) {
+      const h = await mount(WELCOME, { welcome: { quick_replies: ['Hallo'], tour_reply: tour } });
+      expect(h.el.querySelector('.sf-marker-warnung')).toBeNull();
+    }
+  });
+});
+
 describe('SchemaFormComponent — Prüffehler am Feld (ST-2e)', () => {
   const SCHEMA: JsonSchema = {
     type: 'object',
@@ -972,8 +1069,13 @@ describe('SchemaFormComponent — Feldtexte aus dem Katalog (ST-1)', () => {
   it('beschriftet auch Gruppen aus dem Katalog', async () => {
     const h = await mount(LAYER_DOC, { frontmatter: {}, body: 'x' });
     const t = TestBed.inject(StudioLanguageService).t;
-    const legenden = Array.from(h.el.querySelectorAll('legend')).map((l) => l.textContent ?? '');
-    expect(legenden.some((l) => l.includes(t('feld.LayerDocArea.frontmatter.label')))).toBe(true);
+    // Seit Paket 15 als Überschrift des Abschnitts (die Legende darunter entfällt) — und als
+    // zugänglicher Name der Gruppe.
+    const koepfe = Array.from(h.el.querySelectorAll('details.sf-section > summary'))
+      .map((s) => s.textContent ?? '');
+    expect(koepfe.some((k) => k.includes(t('feld.LayerDocArea.frontmatter.label')))).toBe(true);
+    expect(h.el.querySelector('fieldset[aria-label]')?.getAttribute('aria-label'))
+      .toContain(t('feld.LayerDocArea.frontmatter.label'));
   });
 
   it('überschreibt Abschnitte mit der Katalog-Beschriftung, den Schlüssel klein dahinter', async () => {
@@ -1130,5 +1232,34 @@ describe('SchemaFormComponent — Vorgabe oder leer (Paket 4c, B2)', () => {
     const h = await mount(OHNE, { tools: null });
     expect(h.el.querySelector('.sf-vorgabe')).toBeNull();
     expect(h.el.textContent).toContain('Noch keine Einträge');
+  });
+});
+
+describe('SchemaFormComponent — Prüffehler in Map-Tabelle und Marker-Ziel (Review-Runde 2)', () => {
+  it('hängt die Meldung an den Wert einer Map-Tabelle', async () => {
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: { stufen: { type: 'object', additionalProperties: { type: 'integer' } } },
+    };
+    const h = await mount(schema, { stufen: { a: 10 } });
+    h.fixture.componentRef.setInput('problems', [
+      { path: ['stufen', 'a'], type: 'greater_than_equal', msg: 'm', ctx: { ge: 70 } },
+    ]);
+    await h.fixture.whenStable();
+    const feld = byId(h.el, 'sf-stufen-wert-0')!;
+    expect(feld.getAttribute('aria-invalid')).toBe('true');
+    const ids = (feld.getAttribute('aria-describedby') ?? '').split(' ');
+    expect(ids.map((id) => byId(h.el, id)?.textContent ?? '').join(' ')).toContain('Mindestens 70.');
+  });
+
+  it('zeigt eine Meldung zum ausgeblendeten Marker-Ziel an der Liste', async () => {
+    const h = await mount(WELCOME, { welcome: { quick_replies: ['Hallo'], tour_reply: 'Hallo' } });
+    h.fixture.componentRef.setInput('problems', [
+      { path: ['welcome', 'tour_reply'], type: 'string_too_long', msg: 'm', ctx: { max_length: 3 } },
+    ]);
+    await h.fixture.whenStable();
+    const liste = Array.from(h.el.querySelectorAll('fieldset.sf-group')).find(
+      (f) => f.querySelector(':scope > legend')?.textContent?.includes('quick_replies'))!;
+    expect(liste.querySelector('.sf-error')?.textContent).toContain('Tour-Chip:');
   });
 });

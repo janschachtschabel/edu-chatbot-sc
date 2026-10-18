@@ -7,9 +7,10 @@ import {
 import { provideZonelessChangeDetection } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { provideRouter } from "@angular/router";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { STUDIO_LOCALE_STORAGE_KEY } from "../i18n/studio-language.service";
+import { ANSICHT_STORAGE_KEY, StudioAnsicht } from "../core/studio-ansicht.service";
 import { AREA_SCHEMAS } from "../schema-form/area-schemas.fixture";
 import { CostsComponent, dayEnd, dayStart, isoDay } from "./costs.component";
 
@@ -496,6 +497,58 @@ describe("Kostenschau — Agent-API", () => {
       "bb-teuer",
       "Agent-API (Aufträge ohne Sitzung)",
       "Studio: „Auftrag testen“ (Probeläufe ohne Sitzung)",
+    ]);
+  });
+});
+
+// ── Paket 15 (A6): Arbeitsbereich und Eval-Kosten ────────────────────────────
+describe("Kostenschau — Paket 15", () => {
+  // Review-Runde 2: auch wenn ein Test scheitert, sickert der Arbeitsbereich nicht weiter.
+  afterEach(() => localStorage.removeItem(ANSICHT_STORAGE_KEY));
+
+  it("fragt nur die Maschine des Arbeitsbereichs", async () => {
+    localStorage.setItem(ANSICHT_STORAGE_KEY, "pattern");
+    await mount();
+    expect(h.query.get("engine")).toBe("pattern");
+  });
+
+  it("lädt je Wechsel einmal neu und verwirft eine verspätete alte Antwort (Review-Runde 2)", async () => {
+    localStorage.setItem(ANSICHT_STORAGE_KEY, "pattern");
+    await mount();
+    const ansicht = TestBed.inject(StudioAnsicht);
+    ansicht.waehle("agent");
+    await settle();
+    const alt = h.http.expectOne((r) => r.url === URL);
+    expect(alt.request.params.get("engine")).toBe("agent");
+    ansicht.waehle("pattern");
+    await settle();
+    const neu = h.http.expectOne((r) => r.url === URL);
+    expect(neu.request.params.get("engine")).toBe("pattern");
+    neu.flush({ ...REPORT, amount: "9.99" });
+    await settle();
+    alt.flush({ ...REPORT, amount: "1.11" });
+    await settle();
+    const betrag = h.el.querySelector(".cst-amount-value")?.textContent ?? "";
+    expect(betrag).toContain("9,99");
+    expect(betrag).not.toContain("1,11");
+  });
+
+  it("benennt Judge, Simulator und Szenarien eines Eval-Laufs", async () => {
+    const ohneSitzung = (source: string) => ({
+      session_id: null, source, calls: 1, prompt_tokens: 10, cached_tokens: 0,
+      completion_tokens: 1, reasoning_tokens: 0, amount: null, price_unavailable: [],
+    });
+    await mount({
+      ...REPORT,
+      sessions: ["eval-judge", "eval-simulator", "eval-szenario"].map(ohneSitzung),
+    });
+    const zeilen = Array.from(h.el.querySelectorAll(".cst-session-id")).map(
+      (z) => z.textContent?.trim(),
+    );
+    expect(zeilen).toEqual([
+      "Evaluation: Judge (ohne Sitzung)",
+      "Evaluation: Simulator (ohne Sitzung)",
+      "Evaluation: Szenarien (ohne Sitzung)",
     ]);
   });
 });

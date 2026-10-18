@@ -23,7 +23,12 @@ export function pickFields(root: SchemaField, paths: ReadonlySet<string>): Schem
     if (paths.has(child.key)) return [child];
     if (child.kind !== 'group') return [];
     const kept = (child.children ?? []).filter((leaf) => paths.has(`${child.key}.${leaf.key}`));
-    return kept.length > 0 ? [{ ...child, children: kept }] : [];
+    if (kept.length === 0) return [];
+    if (kept.length === (child.children ?? []).length) return [child];
+    // Paket 15: ein echter Teil-Ausschnitt ohne eigene Überschrift — „Kopfangaben
+    // (frontmatter)“ über drei Feldern sagte niemandem etwas; der Abschnitt oder Reiter
+    // trägt schon seinen Titel.
+    return [{ ...child, label: '', textKey: undefined, children: kept }];
   });
   return { ...root, children };
 }

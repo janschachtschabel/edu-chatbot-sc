@@ -26,6 +26,8 @@
     <!-- ST-9: ALT's three header tools are back — snapshot and backup act from
          any page, restoring leads to the "Sicherung" view (backup-tools.component). -->
     <studio-backup-tools />
+    <!-- Paket 14: Arbeitsbereich Agent | Muster — je Bereich eine eigene Navigation. -->
+    <studio-ansicht-umschalter />
     <!-- Der Umschalter steht bewusst AUSSERHALB des `@if (!gateOpen())`:
          ein Studio ohne Passwort hätte sonst gar keine Sprachwahl (C1-d1). -->
     <studio-language-switcher />
@@ -43,7 +45,7 @@
        without hiding it from the wide-screen layout. -->
   <aside class="sidebar" id="studio-nav" [class.sidebar--open]="navOpen()">
     <nav class="nav" [attr.aria-label]="t('studio.nav.areas')">
-      @for (group of navGroups; track group.titleKey) {
+      @for (group of navGroups(); track group.titleKey) {
         <div class="nav-group">
           @if (group.titleKey; as titleKey) {
             <h2 class="nav-group-title">{{ t(titleKey) }}</h2>
@@ -71,6 +73,15 @@
   </aside>
 
   <main class="main" id="studio-main" tabindex="-1" #main>
+    @if (fremderBereich(); as bereich) {
+      <!-- Paket 14: per Adresse geöffnete Seite des anderen Arbeitsbereichs -->
+      <div class="fremd" role="note">
+        <p>{{ t('arbeitsbereich.fremd', { bereich: t('ansicht.' + bereich) }) }}</p>
+        <button type="button" class="btn" (click)="wechsleZu(bereich)">
+          {{ t('arbeitsbereich.wechseln', { bereich: t('ansicht.' + bereich) }) }}
+        </button>
+      </div>
+    }
     <router-outlet (activate)="onViewActivated()" />
   </main>
 </div>

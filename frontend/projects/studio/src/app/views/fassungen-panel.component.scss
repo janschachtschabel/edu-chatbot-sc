@@ -131,3 +131,19 @@
 .fs-diff-hunk {
   color: var(--st-text-muted);
 }
+
+.fs-mehr {
+  margin: var(--st-2) 0;
+
+  > summary {
+    cursor: pointer;
+    font-size: 0.875rem;
+  }
+}
+
+// Review-Runde 2: die Sammelaktion steht abgesetzt hinter der Liste.
+.fs-alle {
+  margin-block-start: var(--st-4);
+  padding-block-start: var(--st-3);
+  border-block-start: 1px solid var(--st-rule);
+}

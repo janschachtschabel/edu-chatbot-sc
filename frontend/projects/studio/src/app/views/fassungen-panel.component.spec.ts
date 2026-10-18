@@ -89,6 +89,14 @@ describe("FassungenPanelComponent", () => {
     expect(zeile(h, "03-patterns/m05").textContent).toContain("neue Werksfassung");
   });
 
+  it("legt die langen Erklärungen hinter „Was bedeutet das?“ (Paket 15)", async () => {
+    const h = await mount();
+    const mehr = h.el.querySelector<HTMLDetailsElement>("details.fs-mehr")!;
+    expect(mehr.open).toBe(false);
+    expect(mehr.querySelector("summary")?.textContent?.trim()).toBe("Was bedeutet das?");
+    expect(mehr.querySelector("#fs-geprueft-hint")).not.toBeNull();
+  });
+
   it("„Alle“ zeigt auch die unberührten Bereiche", async () => {
     const h = await mount();
     filter(h, "Alle").click();
@@ -137,6 +145,14 @@ describe("FassungenPanelComponent", () => {
     expect(vergleich).not.toContain("+++ gelebt");
     expect(knopf(zeile(h, "03-patterns/m05"), "Unterschied ausblenden")
       .getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("stellt den Werksabgleich hinter die Liste, unter „Alle Bereiche auf einmal“ (Review-Runde 2)", async () => {
+    const h = await mount();
+    const abgleich = knopf(h.el, "Werksabgleich starten");
+    const liste = h.el.querySelector(".fs-list")!;
+    expect(liste.compareDocumentPosition(abgleich) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(abgleich.closest(".fs-alle")?.querySelector("h3")?.textContent).toContain("Alle Bereiche auf einmal");
   });
 
   it("startet den Werksabgleich und meldet, was er tat", async () => {

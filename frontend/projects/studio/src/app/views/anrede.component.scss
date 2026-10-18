@@ -1,0 +1,60 @@
+// Anrede je Zielgruppe (Paket 14, C2). Der Rahmen kommt vom gemeinsamen Abschnitt.
+@use './section-shell';
+
+.an-rahmen {
+  overflow-x: auto;
+}
+
+.an-tabelle {
+  border-collapse: collapse;
+  font-size: 0.875rem;
+
+  th,
+  td {
+    padding: var(--st-1) var(--st-3) var(--st-1) 0;
+    border-block-end: 1px solid var(--st-rule);
+    text-align: start;
+    vertical-align: middle;
+  }
+
+  thead th {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--st-text-muted);
+  }
+
+  tbody th {
+    font-weight: 600;
+  }
+
+  select {
+    min-block-size: 2rem;
+    padding: 0 var(--st-2);
+    border: 1px solid var(--st-text-muted);
+    border-radius: var(--st-radius);
+    background: var(--st-panel);
+    color: var(--st-text);
+    font: inherit;
+  }
+}
+
+.an-aktion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+}
+
+.an-ok {
+  color: var(--st-ok-text);
+}
+
+.an-fehler {
+  color: var(--st-danger-text);
+}
+
+.an-rueckfall {
+  margin: var(--st-3) 0 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}

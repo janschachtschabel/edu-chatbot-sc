@@ -11,11 +11,13 @@
  * transcript it managed to collect before dying.
  */
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, output, signal,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, output,
+  signal, untracked,
 } from '@angular/core';
 
 import { AsyncData, describeApiError } from '../core/async-data';
 import { EvalApi, type EngineFilter, type EvalRunSummary } from '../core/eval-api.service';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
 import { CompareBarComponent } from './compare-bar.component';
@@ -93,7 +95,10 @@ export class EvalRunsComponent {
 
   /** ST-7a: filtert die LISTE (serverseitig, vor der 50er-Kappung) — anders
    *  als der Status, der nur die Sammel-Löschung eingrenzt. */
-  readonly engineFilter = signal<EngineFilter>('');
+  private readonly ansicht = inject(StudioAnsicht);
+  /** Paket 13 (E7): vorbelegt aus der Ansicht des Studios und ihr folgend (Konstruktor);
+   *  eine eigene Wahl gilt bis zum nächsten Wechsel der Ansicht. */
+  readonly engineFilter = signal<EngineFilter>(this.ansicht.maschine() ?? '');
 
   readonly armed = signal<Armed>(null);
   readonly working = signal(false);
@@ -133,6 +138,14 @@ export class EvalRunsComponent {
 
   constructor() {
     void this.load();
+    // Paket 13 (E7): wechselt die Ansicht, folgt der Filter — der erste Lauf ist ein Nichts,
+    // weil der Filter mit derselben Ansicht vorbelegt wurde.
+    effect(() => {
+      const vorgabe = this.ansicht.maschine() ?? '';
+      untracked(() => {
+        if (vorgabe !== this.engineFilter()) this.onEngineFilter(vorgabe);
+      });
+    });
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
       this.stopPolling();

@@ -7,11 +7,21 @@
       <button type="button" class="erd-btn" [disabled]="detail.loading()" (click)="reload()">
         {{ detail.loading() ? t('action.refreshing') : t('action.refresh') }}
       </button>
+      @if (run()?.mode === 'golden') {
+        <button type="button" class="erd-btn" [disabled]="berichtLaedt()" (click)="berichtLaden()">
+          {{ berichtLaedt() ? t('evalV2.berichtLaedt') : t('evalV2.bericht') }}
+        </button>
+      }
       <button type="button" class="erd-btn" (click)="dismiss.emit()">
         {{ t('evalDetail.close') }}
       </button>
     </div>
   </header>
+  @if (berichtFehler()) {
+    <p class="erd-error erd-bericht-fehler" role="alert">
+      {{ t('evalV2.berichtFehler', { grund: berichtFehler() }) }}
+    </p>
+  }
 
   <studio-async-state
     class="erd-state"
@@ -66,8 +76,16 @@
       </p>
     }
 
+    @if (auswertung()) {
+      <!-- Paket 13 (F7): Messbedingungen, Kennzahlen, Kurzbericht, Matrizen, Problemliste,
+           Abläufe, Zeiten — die harten Prüfungen je Kategorie und die Zug-Tabelle folgen. -->
+      <studio-eval-auswertung-v2 class="erd-v2" [run]="detail" />
+    }
+
     @if (detail.profile; as profile) {
-      <studio-eval-run-profile [profile]="profile" />
+      @if (zeigtProfil()) {
+        <studio-eval-run-profile [profile]="profile" />
+      }
     }
 
     @if (classification(); as cm) {

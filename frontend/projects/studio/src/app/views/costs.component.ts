@@ -22,11 +22,12 @@
  * dazu. Dieselbe Entscheidung wie in `eval-pattern-usage.component.ts`.
  */
 import {
-  ChangeDetectionStrategy, Component, computed, inject, signal, viewChild,
+  ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked, viewChild,
 } from '@angular/core';
 
 import { AsyncData } from '../core/async-data';
 import type { OriginScope } from '../core/origin-scope';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { UsageApi, type UsageReport, type UsageSessionRow } from '../core/usage-api.service';
 import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
@@ -112,9 +113,13 @@ export class CostsComponent {
   readonly to = signal(isoDay(Date.now()));
   /** ST-9: Eval- und Lasttest-Züge kosten Geld, sind aber kein Betrieb. */
   readonly scope = signal<OriginScope>('all');
+  /** Paket 15 (A6): die Maschine des Arbeitsbereichs — wie die Analyse. */
+  private readonly maschine = inject(StudioAnsicht).maschine;
 
   readonly report = new AsyncData<UsageReport>(
-    () => this.api.period(dayStart(this.from()), dayEnd(this.to()), this.scope()), this.t);
+    () => this.api.period(
+      dayStart(this.from()), dayEnd(this.to()), this.scope(), untracked(this.maschine)),
+    this.t);
 
   readonly value = computed(() => this.report.value());
   readonly models = computed(() => this.value()?.models ?? []);
@@ -171,7 +176,11 @@ export class CostsComponent {
   readonly dirty = computed(() => this.pricing()?.dirty() ?? false);
 
   constructor() {
-    void this.report.reload();
+    // Lädt beim Start und wieder, wenn oben der Arbeitsbereich wechselt.
+    effect(() => {
+      this.maschine();
+      untracked(() => this.reload());
+    });
     warnOnUnload(() => this.dirty());
   }
 
@@ -208,11 +217,15 @@ export class CostsComponent {
     return amount === null ? this.t('costs.noPrice') : this.fmt.money(amount, currency);
   }
 
-  /** Eine Zeile ohne Sitzung heißt nach ihrer Quelle (Paket 9): die Agent-API oder
-   *  die Probeläufe von „Auftrag testen“ im Studio. */
+  /** Eine Zeile ohne Sitzung heißt nach ihrer Quelle (Paket 9): die Agent-API, die
+   *  Probeläufe von „Auftrag testen“ im Studio, seit Paket 15 die Eval-Aufrufe ohne Chat. */
   withoutSession(row: UsageSessionRow): string {
-    return row.source === 'studio-probe'
-      ? this.t('costs.sessions.studioProbe')
-      : this.t('costs.sessions.agentApi');
+    switch (row.source) {
+      case 'studio-probe': return this.t('costs.sessions.studioProbe');
+      case 'eval-judge': return this.t('costs.sessions.evalJudge');
+      case 'eval-simulator': return this.t('costs.sessions.evalSimulator');
+      case 'eval-szenario': return this.t('costs.sessions.evalSzenario');
+      default: return this.t('costs.sessions.agentApi');
+    }
   }
 }

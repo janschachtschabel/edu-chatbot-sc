@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import { routes } from "../app.routes";
 import { STUDIO_LOCALE_STORAGE_KEY } from "../i18n/studio-language.service";
+import { ANSICHT_STORAGE_KEY, StudioAnsicht } from "../core/studio-ansicht.service";
 import { AREA_SCHEMAS } from "../schema-form/area-schemas.fixture";
 import { EvaluationComponent } from "./evaluation.component";
 
@@ -55,10 +56,13 @@ function runRow(over: Record<string, unknown> = {}) {
 async function mount(
   runs: readonly Record<string, unknown>[] = [],
   locale = "de",
+  arbeitsbereich: "agent" | "pattern" = "pattern",
 ): Promise<Harness> {
   // jsdom meldet `navigator.language === 'en-US'`; ohne diese Zeile liefe eine
   // Prüfung auf deutschen Wortlaut gegen die englische Oberfläche (C1-d4a).
   sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
+  // Paket 15 (A5): die Pattern-Nutzung gibt es nur im Muster-Arbeitsbereich.
+  localStorage.setItem(ANSICHT_STORAGE_KEY, arbeitsbereich);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
@@ -110,6 +114,28 @@ describe("EvaluationComponent", () => {
     expect(h.el.querySelector("#panel-trends")!.hasAttribute("hidden")).toBe(
       true,
     );
+  });
+
+  it("sagt an beiden Startformularen, was der Lauf tut (Paket 15, E2)", async () => {
+    const h = await mount();
+    // Review-Runde 2: der Satz steht NICHT im Namen des Aufklappers (sonst las ein Screenreader
+    // ihn bei jedem Fokus mit) — sondern als Beschreibung, zugeklappt sichtbar.
+    const koepfe = Array.from(h.el.querySelectorAll<HTMLElement>("details.ev-start > summary"));
+    const beschreibung = (s: HTMLElement) =>
+      h.el.querySelector(`[id="${s.getAttribute("aria-describedby")}"]`)?.textContent ?? "";
+    expect(koepfe[0].textContent?.trim()).toBe("Gold-Lauf starten");
+    expect(beschreibung(koepfe[0])).toContain("feste, von Hand geschriebene Abläufe");
+    expect(beschreibung(koepfe[1])).toContain("nicht wiederholbar");
+  });
+
+  it("zeigt im Agent-Arbeitsbereich keine Pattern-Nutzung (Paket 15, A5)", async () => {
+    const h = await mount([], "de", "agent");
+    expect(tabs(h).map((t) => t.textContent?.trim())).toEqual([
+      "Läufe",
+      "Trends",
+      "Gold-Flows",
+    ]);
+    expect(h.el.querySelector("#panel-pattern")).toBeNull();
   });
 
   it("beschriftet die Reiter in der aktiven Sprache", async () => {
@@ -475,5 +501,30 @@ describe("EvaluationComponent", () => {
     ev.goldFlows()!.editor.setDoc({ version: 2, flows: [] });
     await settle(h);
     expect(ev.dirty()).toBe(true);
+  });
+});
+
+describe("EvaluationComponent — Arbeitsbereich wechseln (Review-Runde 2)", () => {
+  it("springt bei offener Pattern-Nutzung auf „Läufe“ und lädt sie danach nicht verborgen neu", async () => {
+    const h = await mount();
+    tabs(h)[2].click();
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === "/studio/api/eval/analytics/pattern-usage")
+      .flush({ triples: [], by_pattern: [], by_intent: [], total: 0, scope: "all" });
+    await settle(h);
+
+    const ansicht = TestBed.inject(StudioAnsicht);
+    ansicht.waehle("agent");
+    await settle(h);
+    expect(tabs(h).find((t) => t.getAttribute("aria-selected") === "true")?.textContent?.trim())
+      .toBe("Läufe");
+    expect(h.el.querySelector("#panel-pattern")).toBeNull();
+
+    // Zurück in den Muster-Bereich: der Reiter ist wieder da, aber ungeöffnet — kein Abruf.
+    ansicht.waehle("pattern");
+    await settle(h);
+    expect(h.el.querySelector("studio-eval-pattern-usage")).toBeNull();
+    h.http.expectNone((r) => r.url === "/studio/api/eval/analytics/pattern-usage");
+    localStorage.removeItem(ANSICHT_STORAGE_KEY);
   });
 });

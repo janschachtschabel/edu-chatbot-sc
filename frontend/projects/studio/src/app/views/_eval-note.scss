@@ -1,0 +1,19 @@
+// Eine Note 1–5 als Chip (Paket 13): Problemliste und Ablauf-Karten teilen ihn. Name und Zahl
+// stehen im Text, die Stufenfarbe ist die zweite Spur (SC 1.4.1) — dieselben Token wie die
+// Matrizen (`--st-band-*`).
+@mixin note-chip {
+  display: inline-block;
+  padding: 0 var(--st-2);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  color: var(--st-text);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+
+  &.n-sehr-gut { background: var(--st-band-sehr-gut); }
+  &.n-gut { background: var(--st-band-gut); }
+  &.n-mittel { background: var(--st-band-mittel); }
+  &.n-schwach { background: var(--st-band-schwach); }
+  &.n-leer { background: var(--st-panel); }
+}

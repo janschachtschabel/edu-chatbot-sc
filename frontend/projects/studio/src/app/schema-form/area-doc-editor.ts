@@ -37,6 +37,8 @@ export class AreaDocEditor {
 
   readonly schema = signal<JsonSchema | null>(null);
   readonly doc = signal<Record<string, unknown>>({});
+  /** Zählt „Verwerfen“; das Formular reicht ihn an die JSON-Felder (`FORM_EPOCHE`). */
+  readonly epoche = signal(0);
   /** `md` | `yaml` — from the store, never guessed from the document shape. */
   readonly docType = signal('yaml');
 
@@ -68,6 +70,9 @@ export class AreaDocEditor {
   private readonly savedDoc = signal('{}');
   readonly dirty = computed(() => JSON.stringify(this.doc()) !== this.savedDoc());
   readonly blocked = computed(() => this.fieldErrors().length > 0);
+  /** Paket 15: auch ein nicht lesbarer Feld-Entwurf lässt sich verwerfen — er ändert das
+   *  Dokument nicht, „Verwerfen“ blieb deshalb grau und der Entwurf stehen. */
+  readonly verwerfbar = computed(() => this.dirty() || this.blocked());
 
   private generation = 0;
 
@@ -207,6 +212,9 @@ export class AreaDocEditor {
 
   discard(): void {
     this.doc.set(JSON.parse(this.savedDoc()) as Record<string, unknown>);
+    // Die JSON-Felder räumen ihren Entwurf — auch die, deren Wert gleich bleibt (Review P15 #4).
+    this.epoche.update((n) => n + 1);
+    this.fieldErrors.set([]);
     this.problems.set([]);
     this.saveError.set('');
     // A hint over the old state would offer a save that has nothing to save.

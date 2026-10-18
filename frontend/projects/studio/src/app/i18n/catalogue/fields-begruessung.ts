@@ -7,8 +7,8 @@
  * Rückfällen), dem Widget (`ui/src/widget/guide-mode-config.ts`,
  * `ui/src/shell/lifecycle.ts`, `ui/src/shell/input-routing.ts`) und dem
  * Backend (`graph/nodes/context_greeting.py`, `domain/page_host.py`,
- * `services/direct_actions.py`). Nicht ausgewertet werden `ContextPill.url`
- * und `ContextPill.params`: der Lader reicht sie nicht weiter.
+ * `services/direct_actions.py`). Nicht ausgewertet wird `ContextPill.url`: der Lader reicht
+ * es nicht weiter. `ContextPill.params` ist seit Paket 15 aus dem Modell genommen.
  */
 import type { CataloguePart } from './catalogue-part';
 
@@ -120,10 +120,6 @@ export const FIELDS_BEGRUESSUNG: CataloguePart = {
     'feld.ContextPill.url.label': 'Adresse',
     'feld.ContextPill.url.hint':
       'Wird derzeit nicht ausgewertet: report-Pills führen immer zur Melde-Adresse.',
-    'feld.ContextPill.params.label': 'Parameter',
-    'feld.ContextPill.params.hint':
-      'Wird derzeit nicht ausgewertet: Sammlung, Inhalt und Titel für eine Aktion setzt der Chat '
-      + 'selbst aus der Seite ein.',
   },
   en: {
     'feld.WelcomeArea.welcome.label': 'Greeting',
@@ -227,9 +223,5 @@ export const FIELDS_BEGRUESSUNG: CataloguePart = {
     'feld.ContextPill.url.label': 'Address',
     'feld.ContextPill.url.hint':
       'Currently not evaluated: report pills always lead to the report address.',
-    'feld.ContextPill.params.label': 'Parameters',
-    'feld.ContextPill.params.hint':
-      'Currently not evaluated: the chat fills in collection, content and title for an action '
-      + 'from the page itself.',
   },
 };

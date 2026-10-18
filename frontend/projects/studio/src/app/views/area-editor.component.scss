@@ -123,3 +123,15 @@
   font-size: 0.875rem;
   color: var(--st-text-muted);
 }
+
+// Paket 15: „Alle Bereiche“ als Link, rechts davon der Weg zur Seite des Bereichs.
+.ae-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--st-1);
+}
+
+.ae-heimat {
+  margin-inline-start: auto;
+}

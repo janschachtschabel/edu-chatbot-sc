@@ -21,9 +21,18 @@
         </p>
 
         <div class="egd-select-actions">
-          <button type="button" class="egd-btn" (click)="selectAll()">
-            {{ t('evalStart.gold.selectAll') }}
-          </button>
+          @if (hatAbruf()) {
+            <button type="button" class="egd-btn" (click)="selectAll()">
+              {{ t('evalStart.gold.selectAllOhneAbruf') }}
+            </button>
+            <button type="button" class="egd-btn" (click)="selectAllMitAbruf()">
+              {{ t('evalStart.gold.selectAllMitAbruf') }}
+            </button>
+          } @else {
+            <button type="button" class="egd-btn" (click)="selectAll()">
+              {{ t('evalStart.gold.selectAll') }}
+            </button>
+          }
           <button type="button" class="egd-btn" (click)="clearSelection()">
             {{ t('evalStart.gold.clearSelection') }}
           </button>
@@ -51,6 +60,11 @@
             </li>
           }
         </ul>
+        @if (abrufGewaehlt().length > 0) {
+          <p class="egd-note egd-abruf-warnung" role="note">
+            {{ t('evalStart.gold.abrufWarnung', { ids: abrufGewaehlt().join(', ') }) }}
+          </p>
+        }
       </fieldset>
 
       <fieldset class="egd-set">

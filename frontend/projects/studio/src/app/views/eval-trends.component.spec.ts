@@ -8,6 +8,7 @@ import { provideZonelessChangeDetection } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { ANSICHT_STORAGE_KEY } from "../core/studio-ansicht.service";
 import { STUDIO_LOCALE_STORAGE_KEY } from "../i18n/studio-language.service";
 import { EvalTrendsComponent } from "./eval-trends.component";
 
@@ -62,8 +63,11 @@ async function settle(): Promise<void> {
 async function mount(
   payload: Record<string, unknown> | null = body(),
   locale = "de",
+  ansicht?: "agent" | "pattern",
 ): Promise<void> {
   sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
+  localStorage.clear(); // Paket 13: ohne Wahl und Wirkungen gilt „beide“ = kein Filter
+  if (ansicht) localStorage.setItem(ANSICHT_STORAGE_KEY, ansicht);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
@@ -91,6 +95,19 @@ const charts = (): SVGElement[] =>
 describe("EvalTrendsComponent", () => {
   beforeEach(() => {
     h = undefined as unknown as Harness;
+  });
+
+  it("zeigt den Verlauf der Judge-v2-Noten, wenn der Server ihn schickt (Paket 13)", async () => {
+    await mount(body({ v2: {
+      gesamt: [{ run_id: "r2", created_at: "2026-10-02T10:00:00Z", value: 4 }],
+      zug_mittel: [], latenz_p50_ms: [], kosten_je_zug: [], skalen: {}, wechsel: [],
+    } }));
+    expect(h.el.querySelector("studio-eval-trends-v2 table")).not.toBeNull();
+  });
+
+  it("belegt den Maschinen-Filter aus der Ansicht vor (Paket 13, E7)", async () => {
+    await mount(body(), "de", "pattern");
+    expect(h.el.querySelector<HTMLSelectElement>("#et-engine")!.value).toBe("pattern");
   });
 
   it("asks for the trend window", async () => {
@@ -196,10 +213,17 @@ describe("EvalTrendsComponent", () => {
   });
 
   it("warnt, wenn der ungefilterte Verlauf beide Maschinen mischt (ST-7a)", async () => {
-    // Ein Wechsel der Maschine sieht in der Kurve aus wie ein Qualitätssprung.
-    await mount(body({
+    // Ein Wechsel der Maschine sieht in der Kurve aus wie ein Qualitätssprung. Seit Paket 14
+    // ist der Filter mit dem Arbeitsbereich vorbelegt — „alle“ ist eine bewusste Wahl.
+    await mount();
+    const select = h.el.querySelector<HTMLSelectElement>("#et-engine")!;
+    select.value = "";
+    select.dispatchEvent(new Event("change"));
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === TRENDS_URL).flush(body({
       runs: [runMeta("r1", { engine: "pattern" }), runMeta("r2", { engine: "agent" })],
     }));
+    await settle();
     expect(h.el.querySelector(".et-mixed")!.textContent).toContain("mischt beide Maschinen");
   });
 

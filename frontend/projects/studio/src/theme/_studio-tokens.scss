@@ -58,6 +58,15 @@
   --st-danger-dot: #dc2626; // 4.83:1
   --st-unknown-dot: #6b7280; // 4.83:1 — the honest third status state
 
+  // ── Notenstufen der Eval-Matrizen (Paket 13, F3) ─────────────────────
+  // Flächen UNTER Text in `--st-text`; die Zahl trägt die Aussage, die Farbe ist
+  // die zweite Spur (SC 1.4.1). Kontrast von `--st-text` darauf: 14,0–15,8:1 (gemessen).
+  --st-band-sehr-gut: #d1fae5; // 4,5–5
+  --st-band-gut: #ecfccb; // 3,5–4,5
+  --st-band-mittel: #fef3c7; // 2,5–3,5
+  --st-band-schwach: #fee2e2; // unter 2,5
+  --st-band-leer: var(--st-rule); // Schraffur-Strich auf `--st-panel` — ohne Daten
+
   // ── Space scale (one scale, held everywhere) ────────────────────────
   --st-1: 4px;
   --st-2: 8px;
@@ -95,5 +104,10 @@
     --st-ok-text: #6ee7b7;
     --st-warn-text: #fcd34d;
     --st-danger-text: #fca5a5;
+    // Notenstufen dunkel: `--st-text` (hell) darauf 6,8–7,8:1 (gemessen 2026-10-17).
+    --st-band-sehr-gut: #064e3b;
+    --st-band-gut: #365314;
+    --st-band-mittel: #78350f;
+    --st-band-schwach: #7f1d1d;
   }
 }

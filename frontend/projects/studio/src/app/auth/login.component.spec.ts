@@ -176,7 +176,7 @@ describe("LoginComponent", () => {
     await h.fixture.whenStable();
     await submit(h, 200, { ok: true, open: false });
 
-    expect(navigate).toHaveBeenCalledWith("/uebersicht");
+    expect(navigate).toHaveBeenCalledWith("/");
   });
 
   it("explains itself when the session expired mid-work", async () => {

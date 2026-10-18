@@ -31,6 +31,10 @@ export interface AgentTool {
   /** Bekommt ein gewöhnlicher Chat-Zug im Agent-Modus es? */
   readonly offered: boolean;
   readonly locks: readonly AgentToolLock[];
+  /** `external` only (Paket 15): der Server und der Name dort — der Modellname ist bereinigt
+   *  und gekürzt, aus ihm ließe sich der Schalter nicht sicher zurückfinden. */
+  readonly server_id?: string;
+  readonly tool?: string;
 }
 
 export interface AgentToolList {

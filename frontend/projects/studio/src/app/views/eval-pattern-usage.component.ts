@@ -41,29 +41,6 @@ const SCOPES: readonly { readonly value: string; readonly key: string }[] = [
   { value: 'production', key: 'evalPattern.scope.production' },
 ];
 
-/** Feedback 2026-08-22: AGENT ist kein Muster, sondern ein Maschinen-Marker
- *  in `quality_logs.pattern_id` — zwischen M01–M20 einsortiert verfälschte er
- *  das Bild. Der Filter läuft CLIENT-seitig über die Kombinationen (der Server
- *  aggregiert Betriebsart-blind). */
-const ENGINES: readonly { readonly value: string; readonly key: string }[] = [
-  { value: 'alle', key: 'evalPattern.engine.all' },
-  { value: 'muster', key: 'evalPattern.engine.muster' },
-  { value: 'agent', key: 'evalPattern.engine.agent' },
-];
-
-/** Betriebsart eines `pattern_id`-Werts. Alles, was weder M-Nummer noch
- *  Maschinen-Marker ist (Direkt-Aktionen `ACTION:…`, unklassifiziert ``/NULL,
- *  der Marker `HYBRID` aus Zügen vor K1-1 am 2026-09-27), erscheint nur unter
- *  „alle". Verglichen wird der KOPF-Token vor dem ersten Leerzeichen (verziert
- *  wie `M15 (Orientierung)` bleibt lesbar), und zwar EXAKT — ein
- *  Präfix-Vergleich sortierte „AGENTUR" als Agent ein (Review-Runde 3). */
-function betriebsartOf(patternId: string | null | undefined): string {
-  const kopf = (patternId ?? '').trim().toUpperCase().split(' ')[0] ?? '';
-  if (/^M\d{2}$/.test(kopf)) return 'muster';
-  if (kopf === 'AGENT') return 'agent';
-  return 'sonst';
-}
-
 /** `[{pattern_id, count}]` → the `Record` the shared bar table takes. */
 function distribution(
   rows: readonly Record<string, unknown>[] | undefined, idKey: string,
@@ -107,38 +84,27 @@ export class EvalPatternUsageComponent {
   readonly scope = signal('all');
   readonly since = signal('');
 
-  readonly engines = ENGINES;
-  /** Betriebsart-Filter — client-seitig, löst KEINEN neuen Request aus. */
-  readonly engine = signal('alle');
-
+  /** Paket 15 (A5): nur die Muster-Maschine — Agent-Züge tragen im Qualitätsprotokoll
+   *  Platzhalter-Anliegen und verzerrten die Balken. Der Server trennt, wie in der Analyse;
+   *  der Reiter erscheint nur im Muster-Arbeitsbereich. */
   readonly usage = new AsyncData<PatternUsage>(
-    () => this.api.patternUsage(this.scope(), this.since()), this.t);
+    () => this.api.patternUsage(this.scope(), this.since(), 'pattern'), this.t);
 
   readonly value = computed(() => this.usage.value());
   readonly triples = computed(() => this.value()?.triples ?? []);
 
-  /** Die Kombinationen der gewählten Betriebsart — Quelle ALLER Anzeigen
-   *  unterhalb des Filters (Balken, Matrix, Tabelle, Summenzeile). */
-  readonly filtered = computed(() => {
-    const engine = this.engine();
-    if (engine === 'alle') return this.triples();
-    return this.triples().filter((triple) => betriebsartOf(triple.pattern_id) === engine);
-  });
-
-  // Beide Verteilungen aus den GEFILTERTEN Kombinationen statt aus den
-  // Server-Aggregaten `by_pattern`/`by_intent` — die sind Betriebsart-blind
-  // und könnten dem Filter nicht folgen. Bei „alle" sind die Summen identisch.
+  // Beide Verteilungen aus den Kombinationen — der Server liefert keine eigenen Aggregate.
   readonly byPattern = computed(() =>
-    distribution(this.filtered() as readonly Record<string, unknown>[], 'pattern_id'));
+    distribution(this.triples() as readonly Record<string, unknown>[], 'pattern_id'));
   readonly byIntent = computed(() =>
-    distribution(this.filtered() as readonly Record<string, unknown>[], 'intent_id'));
+    distribution(this.triples() as readonly Record<string, unknown>[], 'intent_id'));
 
   /** ALT-Auswertung (Feedback 2026-08-22): Pattern × Persona als Pivot —
    *  Zeilen und Spalten je nach Turn-Summe absteigend. */
   readonly matrix = computed<{ personas: readonly string[]; rows: readonly MatrixRow[] }>(() => {
     const perPattern = new Map<string, Map<string, number>>();
     const personaTotals = new Map<string, number>();
-    for (const triple of this.filtered()) {
+    for (const triple of this.triples()) {
       const pattern = triple.pattern_id || '';
       const persona = triple.persona_id || '';
       const row = perPattern.get(pattern) ?? new Map<string, number>();
@@ -162,11 +128,6 @@ export class EvalPatternUsageComponent {
   readonly isEmpty = computed(() =>
     !this.usage.loading() && !this.usage.error() && this.triples().length === 0);
 
-  /** Daten da, aber keine Turns dieser Betriebsart — sonst verschwänden die
-   *  Tabellen kommentarlos. */
-  readonly engineEmpty = computed(() =>
-    this.triples().length > 0 && this.filtered().length === 0);
-
   /**
    * Die Summenzeile als EIN Satz — mit zwei Anzahlen, die jede ihre eigene
    * Mehrzahl haben. Die innere Wortgruppe entsteht deshalb zuerst und wird
@@ -178,10 +139,8 @@ export class EvalPatternUsageComponent {
    * Zeile ihre Tausender-Trennung. Dasselbe Muster wie `overview.snapshots`.
    */
   readonly totalParts = computed<readonly RichSegment[]>(() => {
-    // Aus den GEFILTERTEN Kombinationen, damit die Zeile zum Filter passt;
-    // bei „alle" ist die Summe identisch mit dem Server-`total`.
-    const combos = this.filtered().length;
-    const turns = this.filtered().reduce((sum, triple) => sum + triple.count, 0);
+    const combos = this.triples().length;
+    const turns = this.triples().reduce((sum, triple) => sum + triple.count, 0);
     return this.lang.richPlural('evalPattern.total', turns, {
       count: this.count(turns),
       combos: this.lang.plural('evalPattern.combos', combos, {
@@ -208,11 +167,6 @@ export class EvalPatternUsageComponent {
     if (value === this.since()) return;
     this.since.set(value);
     this.reload();
-  }
-
-  /** Client-seitig — im Gegensatz zu Scope/Datum ohne neuen Request. */
-  setEngine(value: string): void {
-    this.engine.set(value);
   }
 
   /** An empty id is an unclassified turn — a blank cell reads as a bug.

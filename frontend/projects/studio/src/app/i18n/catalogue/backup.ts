@@ -13,6 +13,10 @@ export const BACKUP: CataloguePart = {
     // ── Hülle und Voll-Backup ───────────────────────────────────────
     // Die Überschrift ist `view.sicherung.label` — dieselbe Ansicht, derselbe
     // Name.
+    'fassungen.alleAufEinmal': 'Alle Bereiche auf einmal',
+    'fassungen.mehr': 'Was bedeutet das?',
+    'backup.reiter.werk': 'Werksfassung',
+    'backup.reiter.sichern': 'Sichern',
     'backup.intro':
       'Oben, welche Bereiche der Werksfassung folgen und welche angepasst sind; darunter die '
       + 'Sicherungen. Alle sichern dasselbe: die Konfigurationsbereiche des Chatbots. '
@@ -156,6 +160,10 @@ export const BACKUP: CataloguePart = {
   },
 
   en: {
+    'fassungen.alleAufEinmal': 'All areas at once',
+    'fassungen.mehr': 'What does this mean?',
+    'backup.reiter.werk': 'Factory version',
+    'backup.reiter.sichern': 'Back up',
     'backup.intro':
       'At the top, which areas follow the factory version and which are customized; below, '
       + 'the backups. They all back up the same thing: the chatbot’s configuration areas. '

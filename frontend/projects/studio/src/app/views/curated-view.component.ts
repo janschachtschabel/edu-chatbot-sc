@@ -13,13 +13,15 @@
  * which half.
  */
 import {
-  ChangeDetectionStrategy, Component, computed, inject, input, viewChildren,
+  ChangeDetectionStrategy, Component, computed, inject, input, signal, viewChildren,
 } from '@angular/core';
 
 import { EffectsApi, type Engine } from '../core/effects-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import type { StudioView } from '../studio-views';
 import { AgentProbeComponent } from './agent-probe.component';
+import { AnredeComponent } from './anrede.component';
+import { MaterialTypenComponent } from './material-typen.component';
 import { AgentPromptComponent } from './agent-prompt.component';
 import { AgentSkillsComponent } from './agent-skills.component';
 import { AgentTesterComponent } from './agent-tester.component';
@@ -36,6 +38,7 @@ import { PrivacyPurgeComponent } from './privacy-purge.component';
 import { RagAreasComponent } from './rag-areas.component';
 import { RagIngestComponent } from './rag-ingest.component';
 import { RetentionComponent } from './retention.component';
+import { TabBarComponent, type TabDef } from './tab-bar.component';
 import { warnOnUnload } from './unsaved-changes.guard';
 
 /** One rendered row of the page, already narrowed to the shape it renders as. */
@@ -51,7 +54,8 @@ type Entry =
     AreaSectionComponent, CuratedTabsComponent, GroupSectionComponent,
     RagAreasComponent, RagIngestComponent, McpRegistryComponent, AgentTesterComponent,
     MasterSkillComponent, PrivacyPurgeComponent, RetentionComponent, AgentToolsComponent,
-    AgentSkillsComponent, AgentPromptComponent, AgentProbeComponent,
+    AgentSkillsComponent, AgentPromptComponent, AgentProbeComponent, AnredeComponent,
+    MaterialTypenComponent, TabBarComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './curated-view.component.html',
@@ -65,7 +69,8 @@ export class CuratedViewComponent {
 
   readonly definition = computed(() => curatedView(this.view().slug));
 
-  private readonly effects = inject(EffectsApi).effects;
+  private readonly effectsApi = inject(EffectsApi);
+  private readonly effects = this.effectsApi.effects;
 
   /**
    * ST-5: nutzt die Vorgabe-Maschine KEINE Einstellung dieser Seite, sagt die
@@ -94,9 +99,22 @@ export class CuratedViewComponent {
       : this.t('effect.banner', namen);
   });
 
+  /** Paket 13 (E6): die Vorgabe-Maschine steht in `01-base/engine`. Nach ihrem Speichern gilt
+   *  die neue sofort — Plaketten, Banner und eine Ansicht ohne eigene Wahl folgen ihr, nicht
+   *  erst nach dem nächsten Seitenwechsel. */
+  gespeichert(area: string): void {
+    if (area === '01-base/engine') void this.effectsApi.refresh();
+  }
+
   readonly sections = viewChildren(AreaSectionComponent);
   readonly groupSections = viewChildren(GroupSectionComponent);
   readonly mcpSections = viewChildren(McpRegistryComponent);
+  /** Paket 14 (D3): der Entwurf eines Materialtyps zählt für den Verlassen-Schutz mit —
+   *  ebenso eine ungespeicherte Anrede (Review #2). */
+  readonly materialTypen = viewChildren(MaterialTypenComponent);
+  readonly anreden = viewChildren(AnredeComponent);
+  /** Paket 15: die Werkzeug-Schalter sind ein ungespeicherter Stand der MCP-Server-Liste. */
+  readonly werkzeuge = viewChildren(AgentToolsComponent);
   /** ST-4c: eine Seite mit `layout: 'tabs'` hängt ihre Abschnitte in die
    *  Reiter-Komponente — deren `dirty` zählt hier mit. */
   readonly tabbed = viewChildren(CuratedTabsComponent);
@@ -109,7 +127,8 @@ export class CuratedViewComponent {
    *  delete) are immediate, so they are never in an unsaved state — nor is
    *  the purge panel (ST-6). */
   readonly dirty = computed(() =>
-    [...this.sections(), ...this.groupSections(), ...this.mcpSections(), ...this.tabbed()]
+    [...this.sections(), ...this.groupSections(), ...this.mcpSections(), ...this.tabbed(),
+      ...this.materialTypen(), ...this.anreden(), ...this.werkzeuge()]
       .some((section) => section.dirty()),
   );
 
@@ -118,15 +137,57 @@ export class CuratedViewComponent {
    * template cannot apply a type guard, so the narrowing happens here and the
    * template only switches on `kind`.
    */
-  readonly entries = computed<readonly Entry[]>(() =>
-    (this.definition()?.sections ?? []).map((section, index) =>
+  readonly entries = computed<readonly Entry[]>(() => {
+    const sections = this.definition()?.sections ?? [];
+    // Paket 15: mit Reitern öffnet der erste Abschnitt JEDES Reiters.
+    const erster = (index: number) =>
+      sections.findIndex((s) => s.reiter === sections[index].reiter) === index;
+    return sections.map((section, index) =>
       isAreaSection(section)
-        ? { kind: 'area', key: section.area, area: section, first: index === 0 }
-        : { kind: 'panel', key: section.panel, panel: section, first: index === 0 },
-    ),
-  );
+        ? { kind: 'area', key: section.area, area: section, first: erster(index) }
+        : { kind: 'panel', key: section.panel, panel: section, first: erster(index) },
+    );
+  });
+
+  // ── Paket 15: Reiter über den Abschnitten ──────────────────────────
+  readonly reiterTabs = computed<readonly TabDef[]>(() =>
+    (this.definition()?.reiter ?? []).map((r) => ({ id: r.id, label: this.t(r.labelKey) })));
+  private readonly gewaehlterReiter = signal('');
+  readonly aktiverReiter = computed(() => {
+    const ids = this.reiterTabs().map((r) => r.id);
+    return ids.includes(this.gewaehlterReiter()) ? this.gewaehlterReiter() : (ids[0] ?? '');
+  });
+
+  /** Die Abschnitte je Reiter (ohne Reiter: ein Block ohne Kennung). */
+  readonly bloecke = computed<readonly { id: string; entries: readonly Entry[] }[]>(() => {
+    const tabs = this.reiterTabs();
+    if (tabs.length === 0) return [{ id: '', entries: this.entries() }];
+    return tabs.map((tab) => ({
+      id: tab.id,
+      entries: this.entries().filter((entry) => reiterVon(entry) === tab.id),
+    }));
+  });
+
+  waehleReiter(id: string): void {
+    this.gewaehlterReiter.set(id);
+  }
+
+  /** Der erste Abschnitt eines Reiters öffnet erst, wenn sein Reiter sichtbar ist — sonst
+   *  lüden alle Reiter beim Aufruf der Seite ihre Daten. */
+  offen(entry: Entry): boolean {
+    return entry.first && this.sichtbar(entry);
+  }
+
+  /** Ohne Reiter ist jeder Abschnitt sichtbar; mit Reitern nur die des offenen. */
+  sichtbar(entry: Entry): boolean {
+    return this.reiterTabs().length === 0 || reiterVon(entry) === this.aktiverReiter();
+  }
 
   constructor() {
     warnOnUnload(() => this.dirty());
   }
+}
+
+function reiterVon(entry: Entry): string | undefined {
+  return entry.kind === 'area' ? entry.area.reiter : entry.panel.reiter;
 }

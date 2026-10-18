@@ -7,10 +7,11 @@ import {
 } from "@angular/common/http/testing";
 import { provideZonelessChangeDetection } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
-import { ActivatedRoute, UrlSegment } from "@angular/router";
+import { ActivatedRoute, UrlSegment, convertToParamMap, provideRouter } from "@angular/router";
 import { BehaviorSubject, of } from "rxjs";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { EffectsApi } from "../core/effects-api.service";
 import { STUDIO_LOCALE_STORAGE_KEY } from "../i18n/studio-language.service";
 import { AREA_SCHEMAS } from "../schema-form/area-schemas.fixture";
 import { AreaEditorComponent } from "./area-editor.component";
@@ -35,6 +36,8 @@ async function mount(
   version?: number,
   /** Die Version, die der Rohtext-Abruf meldet — anders, wenn dazwischen gespeichert wurde. */
   rawVersion = version,
+  /** Review-Runde 2: die Seite, von der der Rohtext-Link kam (`?von=`). */
+  von: string | null = null,
 ): Promise<Harness> {
   TestBed.resetTestingModule();
   // jsdom meldet `navigator.language === 'en-US'` (C1-c-Fund); die deutschen
@@ -45,6 +48,7 @@ async function mount(
       provideZonelessChangeDetection(),
       provideHttpClient(withXhr()),
       provideHttpClientTesting(),
+      provideRouter([]), // Paket 15: Zurück-Links
       {
         provide: ActivatedRoute,
         useValue: {
@@ -53,6 +57,7 @@ async function mount(
               (path) => new UrlSegment(path, {}),
             ),
           ),
+          queryParamMap: of(convertToParamMap(von ? { von } : {})),
         },
       },
     ],
@@ -99,6 +104,16 @@ describe("AreaEditorComponent — loading", () => {
   it("derives the area key from the wildcard route and shows it", async () => {
     const h = await mount();
     expect(h.el.querySelector(".ae-title")?.textContent?.trim()).toBe(AREA);
+  });
+
+  it("sagt auch im Bereichs-Editor, wo der Bereich wirkt (Paket 13, E6)", async () => {
+    const h = await mount();
+    TestBed.inject(EffectsApi).effects.set({
+      engine: "agent", areas: { [AREA]: { pattern: "voll", agent: "voll" } },
+    });
+    await h.fixture.whenStable();
+    expect(h.el.querySelector(".ae-head studio-effect-badge")?.textContent)
+      .toContain("Wirkt in: Muster-Maschine · Agent-Schleife");
   });
 
   it("renders the schema form with the loaded document", async () => {
@@ -640,3 +655,26 @@ describe("AreaEditorComponent — Konflikt beim Speichern (Paket 4, D5)", () => 
     expect(hinweis(h)).toBeNull();
   });
 });
+
+describe("AreaEditorComponent — zurück (Paket 15)", () => {
+  it("führt über die Brotkrume zu „Alle Bereiche“ und zurück zur Seite des Bereichs", async () => {
+    const h = await mount();
+    expect(h.el.querySelector('a[href="/bereiche"]')?.textContent).toContain("Alle Bereiche");
+    const zurueck = h.el.querySelector<HTMLAnchorElement>('a[href="/begruessung"]');
+    expect(zurueck?.textContent).toContain("Begrüßung");
+  });
+
+  it("führt zurück dorthin, woher der Rohtext-Link kam (Review-Runde 2)", async () => {
+    // Bereiche mit mehreren Seiten (engine, device-config) landeten sonst auf der ersten.
+    const h = await mount(undefined, undefined, undefined, undefined, "betrieb");
+    const zurueck = h.el.querySelector<HTMLAnchorElement>("a.ae-heimat");
+    expect(zurueck?.getAttribute("href")).toBe("/betrieb");
+    expect(zurueck?.textContent).toContain("Betrieb");
+  });
+
+  it("übergeht eine unbekannte Herkunft", async () => {
+    const h = await mount(undefined, undefined, undefined, undefined, "gibt-es-nicht");
+    expect(h.el.querySelector("a.ae-heimat")?.getAttribute("href")).toBe("/begruessung");
+  });
+});
+

@@ -59,10 +59,24 @@ export const EVAL_START: CataloguePart = {
     'evalStart.gold.empty':
       'Diese Config enthält keine Gold-Flows (eval/gold-flows.yaml fehlt oder '
       + 'ist leer). Ohne Flows gibt es nichts abzuspielen.',
+    'evalStart.gold.wasIst':
+      'Spielt feste, von Hand geschriebene Abläufe durch den echten Chat und prüft jeden Zug '
+      + 'gegen harte Regeln, mit Judge auch gegen Anliegen und Angebot. Gleiche Abläufe jedes '
+      + 'Mal — darum vergleichbar zwischen Maschinen und Fassungen.',
+    'evalStart.gen.wasIst':
+      'Ein Modell erfindet Gesprächsanfänge je Zielgruppe und Anliegen und spielt sie durch; der '
+      + 'Judge bewertet jede Antwort. Breiter, aber nicht wiederholbar und teurer — gut, um '
+      + 'Lücken zu finden, nicht für A/B-Vergleiche.',
     'evalStart.gold.legend': 'Flows',
     // Feedback 2026-08-22: „alles außer einem" (GV-RED-1 abwählen) soll zwei
     // Klicks kosten, nicht N−1.
     'evalStart.gold.selectAll': 'Alle auswählen',
+    // Paket 15 (A7): „Alle auswählen“ ließ die Flows „auf Abruf“ still weg.
+    'evalStart.gold.selectAllOhneAbruf': 'Alle außer „nur auf Abruf“',
+    'evalStart.gold.selectAllMitAbruf': 'Alle, auch „nur auf Abruf“',
+    'evalStart.gold.abrufWarnung':
+      'Gewählt sind Flows „nur auf Abruf“ ({ids}) — sie schreiben echt ins Repositorium '
+      + '(Staging).',
     'evalStart.gold.clearSelection': 'Auswahl leeren',
     'evalStart.gold.turns.one': '{count} Turn',
     'evalStart.gold.turns.other': '{count} Turns',
@@ -76,9 +90,9 @@ export const EVAL_START: CataloguePart = {
     'evalStart.gold.judge.legend': 'Weiche Bewertung',
     'evalStart.gold.judge.label': 'LLM-Judge mitlaufen lassen',
     'evalStart.gold.judge.hint':
-      'bewertet zusätzlich Intent-Treffer, Tonalität und Informationsqualität '
-      + '— ein weiterer LLM-Aufruf je beantwortetem Turn. Die harte Quote '
-      + 'bleibt davon unberührt.',
+      'prüft, was die harten Regeln nicht sehen: je Turn Anliegen, Angebot, Qualität und Ton '
+      + '(1–5), je Flow sieben Skalen mit Gesamturteil, dazu ein Kurzbericht des Laufs. Ohne '
+      + 'Judge zeigen die Trends nur Dauer und Kosten. Die harte Quote bleibt unberührt.',
     'evalStart.gold.calls.one': '{count} Chat-Anfrage',
     'evalStart.gold.calls.other': '{count} Chat-Anfragen',
     'evalStart.gold.flows.one': '{count} Flow',
@@ -173,8 +187,21 @@ export const EVAL_START: CataloguePart = {
     'evalStart.gold.empty':
       'This config holds no gold flows (eval/gold-flows.yaml is missing or '
       + 'empty). Without flows there is nothing to replay.',
+    'evalStart.gold.wasIst':
+      'Plays fixed, hand-written flows through the real chat and checks every turn against hard '
+      + 'rules, with the judge also against concern and offer. The same flows every time — so '
+      + 'comparable across engines and versions.',
+    'evalStart.gen.wasIst':
+      'A model invents conversation openings per audience and concern and plays them through; '
+      + 'the judge scores every answer. Broader, but not repeatable and more expensive — good for '
+      + 'finding gaps, not for A/B comparisons.',
     'evalStart.gold.legend': 'Flows',
     'evalStart.gold.selectAll': 'Select all',
+    'evalStart.gold.selectAllOhneAbruf': 'All except “on demand only”',
+    'evalStart.gold.selectAllMitAbruf': 'All, including “on demand only”',
+    'evalStart.gold.abrufWarnung':
+      'Flows “on demand only” are selected ({ids}) — they really write to the repository '
+      + '(staging).',
     'evalStart.gold.clearSelection': 'Clear selection',
     'evalStart.gold.turns.one': '{count} turn',
     'evalStart.gold.turns.other': '{count} turns',
@@ -186,8 +213,9 @@ export const EVAL_START: CataloguePart = {
     'evalStart.gold.judge.legend': 'Soft scoring',
     'evalStart.gold.judge.label': 'Run the LLM judge along',
     'evalStart.gold.judge.hint':
-      'additionally scores intent hit, tone and information quality — one more '
-      + 'LLM call per answered turn. The hard rate stays untouched by it.',
+      'checks what the hard rules cannot see: per turn concern, offer, quality and tone (1–5), '
+      + 'per flow seven scales with an overall verdict, plus a short report of the run. Without '
+      + 'the judge the trends only show duration and cost. The hard pass rate is unaffected.',
     'evalStart.gold.calls.one': '{count} chat request',
     'evalStart.gold.calls.other': '{count} chat requests',
     'evalStart.gold.flows.one': '{count} flow',

@@ -1,0 +1,85 @@
+// Die Agent-Übersicht (Paket 14, C1). Hierarchie aus Überschriften und Abstand, keine Kacheln.
+:host {
+  display: grid;
+  gap: var(--st-5);
+}
+
+.au-crumb {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--st-text-muted);
+}
+
+.au-titel {
+  margin: var(--st-1) 0 0;
+  font-size: 1.375rem;
+}
+
+.au-intro,
+.au-zustand {
+  margin: var(--st-2) 0 0;
+  max-inline-size: 62ch;
+}
+
+.au-intro {
+  color: var(--st-text-muted);
+}
+
+.au-zustand {
+  font-weight: 600;
+
+  a {
+    margin-inline-start: var(--st-2);
+    font-weight: 400;
+  }
+}
+
+.au-unter {
+  margin: 0 0 var(--st-2);
+  font-size: 1rem;
+}
+
+.au-wege {
+  display: grid;
+  gap: var(--st-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--st-1) var(--st-3);
+  }
+
+  a {
+    font-weight: 600;
+  }
+}
+
+.au-desc {
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.au-lauf p {
+  margin: 0;
+}
+
+.au-fehler {
+  color: var(--st-danger-text);
+}
+
+.au-knopf {
+  min-block-size: 2rem;
+  padding: 0 var(--st-3);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+}

@@ -6,7 +6,7 @@ import type { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/route
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { routes } from '../app.routes';
-import { NAV_GROUPS, STUDIO_VIEWS } from '../studio-views';
+import { STUDIO_VIEWS, navGroups } from '../studio-views';
 import { STUDIO_DE } from './de';
 import { STUDIO_EN } from './en';
 import { STUDIO_LOCALE_STORAGE_KEY, StudioLanguageService } from './studio-language.service';
@@ -65,25 +65,28 @@ describe('Ansichts-Registry im Katalog', () => {
     // „view.wissen.label" mitten in der Navigation.
     const keys = [
       ...STUDIO_VIEWS.flatMap((v) => [v.labelKey, v.descKey]),
-      ...NAV_GROUPS.map((g) => g.titleKey).filter((k): k is string => k !== null),
+      ...new Set([...navGroups('agent'), ...navGroups('pattern')].map((g) => g.titleKey)),
     ];
-    expect(keys).toHaveLength(21 * 2 + 3);
+    expect(keys).toHaveLength(28 * 2 + 5);
     for (const key of keys) {
       expect(STUDIO_DE[key], `fehlt im deutschen Katalog: ${key}`).toBeTypeOf('string');
       expect(STUDIO_EN[key], `fehlt im englischen Katalog: ${key}`).toBeTypeOf('string');
     }
   });
 
-  it('zeigt die 21 Beschriftungen des Katalogs auf Deutsch', () => {
-    // 19 aus §5.6 und seinen drei Zugaben, dazu „Kosten" aus K5 und
-    // „Agent & Maschine" aus D2. Welche Ansicht woher stammt, hält
-    // `studio-views.spec.ts` fest — hier steht nur, wie sie heisst.
+  it('zeigt die 28 Beschriftungen des Katalogs auf Deutsch', () => {
+    // Seit Paket 14 nach Arbeitsbereich geordnet: Agent, Muster, Gemeinsam, Auswertung,
+    // System. Welche Ansicht woher stammt, hält `studio-views.spec.ts` fest — hier steht
+    // nur, wie sie heisst.
     const lang = TestBed.inject(StudioLanguageService);
     expect(STUDIO_VIEWS.map((v) => lang.t(v.labelKey))).toEqual([
-      'Übersicht', 'Begrüßung', 'Kontext-Aktionen', 'Identität & Schutz', 'Domain-Wissen',
-      'Patterns', 'Dimensionen', 'Material-Formate', 'Wissen', 'Sessions', 'Analyse',
-      'Evaluation', 'Lasttest', 'Safety-Logs', 'Kosten', 'Anzeige', 'Datenschutz',
-      'Alle Bereiche', 'Sicherung', 'Vorschau', 'Agent & Maschine',
+      'Agent-Übersicht', 'Rolle & Grenzen', 'Prompt & Probelauf',
+      'Übersicht', 'Identität & Schutz', 'Domänenwissen', 'Patterns', 'Dimensionen',
+      'Materialformate',
+      'Begrüßung', 'Kontext-Aktionen', 'Tour & Lotse', 'Zielgruppen', 'Wissen', 'Werkzeuge',
+      'Skills', 'Anzeige', 'Datenschutz',
+      'Sessions', 'Analyse', 'Evaluation', 'Lasttest', 'Safety-Logs', 'Kosten',
+      'Betrieb', 'Alle Bereiche', 'Sicherung', 'Vorschau',
     ]);
   });
 
@@ -92,8 +95,10 @@ describe('Ansichts-Registry im Katalog', () => {
     lang.toggle();
     expect(lang.t('view.uebersicht.label')).toBe('Overview');
     expect(lang.t('view.bereiche.desc')).not.toMatch(/[äöüß]/);
-    expect(NAV_GROUPS.map((g) => (g.titleKey ? lang.t(g.titleKey) : null)))
-      .toEqual([null, 'Configuration', 'Monitoring', 'System']);
+    expect(navGroups('agent').map((g) => lang.t(g.titleKey)))
+      .toEqual(['Agent', 'Shared', 'Monitoring', 'System']);
+    expect(navGroups('pattern').map((g) => lang.t(g.titleKey)))
+      .toEqual(['Patterns', 'Shared', 'Monitoring', 'System']);
   });
 
   it('setzt den Dokumenttitel der Ansichten in der aktiven Sprache', () => {

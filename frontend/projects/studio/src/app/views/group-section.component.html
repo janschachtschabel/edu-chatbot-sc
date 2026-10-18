@@ -4,7 +4,7 @@
     <p class="cs-hint">{{ t(section().hintKey) }}</p>
     <!-- ST-5: wo dieser Bereich wirkt — aus der Zuordnung im Backend -->
     <studio-effect-badge class="cs-effect" [area]="section().area" />
-    @if (editor.dirty()) {
+    @if (editor.verwerfbar()) {
       <span class="cs-flag">{{ t('editor.unsavedShort') }}</span>
     }
   </summary>
@@ -36,6 +36,7 @@
           (pick)="select($event)"
         >
           @if (current(); as entry) {
+            @if (!nurAuswahl()) {
             <div class="gs-actions">
               <button
                 type="button"
@@ -53,6 +54,7 @@
                 (click)="askRemove()"
               >{{ t('groupSection.remove') }}</button>
             </div>
+            }
             @if (rueckfrage.offenFuer(entry.id)) {
               <!-- Wie jede Rückfrage im Studio: im Text, angesagt per role="alert" -->
               <div class="gs-confirm" role="alert">
@@ -62,7 +64,7 @@
                 } @else if (rueckfrage.shipped() === false) {
                   <p>{{ t('groupSection.removeOwn') }}</p>
                 }
-                @if (editor.dirty()) {
+                @if (editor.verwerfbar()) {
                   <p>{{ t('groupSection.removeDiscards') }}</p>
                 }
                 <div class="gs-actions">
@@ -88,6 +90,7 @@
           }
         </studio-entry-list>
 
+        @if (!nurAuswahl()) {
         <div class="gs-new">
           <label class="gs-new-label" [for]="idPrefix() + '-new'">
             {{ t('groupSection.new') }}
@@ -119,6 +122,7 @@
             <p class="cs-state cs-state--error" role="alert">{{ newError() }}</p>
           }
         </div>
+        }
       </div>
 
       <div class="gs-doc">
@@ -155,8 +159,9 @@
             <studio-schema-form
               [schema]="schema"
               [value]="editor.doc()"
+              [epoche]="editor.epoche()"
               [idPrefix]="idPrefix()"
-              [visiblePaths]="reiter.visiblePaths()"
+              [visiblePaths]="sichtbar()"
               [problems]="editor.problems()"
               (valueChange)="editor.setDoc($event)"
               (errorsChange)="editor.setFieldErrors($event)"
@@ -175,7 +180,7 @@
             <button
               type="button"
               class="cs-btn"
-              [disabled]="editor.saving() || !editor.dirty()"
+              [disabled]="editor.saving() || !editor.verwerfbar()"
               (click)="editor.discard()"
             >
               {{ t('editor.discard') }}

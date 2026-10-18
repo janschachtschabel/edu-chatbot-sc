@@ -18,7 +18,9 @@
  * snapshots and the factory baseline are their own panels because each has its
  * own reads and its own reason to change.
  */
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
 
 import { ActionState } from '../core/action-state';
 import { saveBlob } from '../core/download';
@@ -30,12 +32,13 @@ import { FassungenPanelComponent } from './fassungen-panel.component';
 import { RestoreModeComponent, geloeschtZusatz } from './restore-mode.component';
 import { SeedPanelComponent } from './seed-panel.component';
 import { SnapshotsPanelComponent } from './snapshots-panel.component';
+import { TabBarComponent, type TabDef } from './tab-bar.component';
 
 @Component({
   selector: 'studio-backup',
   imports: [
     FassungenPanelComponent, SnapshotsPanelComponent, FactoryPanelComponent, SeedPanelComponent,
-    RestoreModeComponent,
+    RestoreModeComponent, TabBarComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './backup.component.html',
@@ -54,6 +57,18 @@ export class BackupComponent {
   readonly mode = signal<RestoreMode>('merge');
   /** Paket 9 (V8): Rückfrage → „Abbrechen“, danach zurück auf „Backup einspielen“. */
   private readonly focus = injectFocus();
+
+  // ── Paket 15: zwei Reiter statt fünf gestapelter Karten ───────────────
+  readonly reiterTabs = computed<readonly TabDef[]>(() => [
+    { id: 'werk', label: this.t('backup.reiter.werk') },
+    { id: 'sichern', label: this.t('backup.reiter.sichern') },
+  ]);
+  private readonly route = inject(ActivatedRoute, { optional: true });
+  /** Die Sprünge der Kopfzeile („Backup einspielen …“, Snapshots) landen in „Sichern“ — auch,
+   *  wenn die Seite schon offen ist: dann kommt nur das Fragment neu (Review-Runde 2). */
+  readonly reiter = signal(sprungNachSichern(this.route?.snapshot?.fragment) ? 'sichern' : 'werk');
+  private readonly folgeDemSprung = this.route?.fragment?.pipe(takeUntilDestroyed())
+    .subscribe((fragment) => { if (sprungNachSichern(fragment)) this.reiter.set('sichern'); });
 
   onFile(event: Event): void {
     this.file.set((event.target as HTMLInputElement).files?.[0] ?? null);
@@ -93,4 +108,8 @@ export class BackupComponent {
     });
     this.focus('.bk-restore');
   }
+}
+
+function sprungNachSichern(fragment: string | null | undefined): boolean {
+  return fragment === 'voll-backup' || fragment === 'snapshots';
 }

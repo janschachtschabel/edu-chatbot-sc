@@ -1,0 +1,162 @@
+// Eine Ablauf-Karte (Paket 13, F4).
+@use './eval-note' as en;
+
+:host {
+  display: block;
+}
+
+.ak {
+  padding: var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.ak-titel {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.ak-id {
+  color: var(--st-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ak-kennzeile,
+.ak-meta {
+  margin: var(--st-1) 0 0;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.ak-skalen {
+  display: grid;
+  gap: var(--st-1);
+  margin: var(--st-2) 0 0;
+  padding: 0;
+  list-style: none;
+  max-inline-size: 32rem;
+}
+
+.ak-skala {
+  display: grid;
+  grid-template-columns: 7rem 1fr 2.5rem;
+  align-items: center;
+  gap: var(--st-2);
+  font-size: 0.8125rem;
+}
+
+.ak-balken {
+  block-size: 0.625rem;
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  overflow: hidden;
+}
+
+.ak-fuellung {
+  display: block;
+  block-size: 100%;
+
+  // Die Füllung braucht Gewicht gegen die leere Spur — die Stufenflächen der Matrizen sind
+  // für Text darunter gedacht und wären hier zu blass. Die Punkt-Farben erreichen ≥ 3:1.
+  &.n-sehr-gut,
+  &.n-gut { background: var(--st-ok-dot); }
+  &.n-mittel { background: var(--st-warn-dot); }
+  &.n-schwach { background: var(--st-danger-dot); }
+}
+
+.ak-zahl {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.ak-statement {
+  margin: var(--st-2) 0 0;
+  max-inline-size: 70ch;
+  font-size: 0.875rem;
+}
+
+.ak-fehler,
+.ak-verfehlt {
+  color: var(--st-danger-text);
+}
+
+.ak-fehler {
+  margin: var(--st-1) 0 0;
+  font-size: 0.8125rem;
+}
+
+.ak-auff {
+  margin: var(--st-1) 0 0;
+  padding-inline-start: var(--st-4);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.ak-details {
+  margin-block-start: var(--st-2);
+
+  summary {
+    min-block-size: 1.5rem;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+}
+
+.ak-zuege {
+  display: grid;
+  gap: var(--st-2);
+  margin: var(--st-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ak-zug {
+  padding: var(--st-2);
+  border-inline-start: 3px solid var(--st-rule);
+}
+
+.ak-zug--treffer {
+  border-inline-start-color: var(--st-accent);
+  background: var(--st-accent-soft);
+}
+
+.ak-treffer {
+  margin-inline-start: var(--st-1);
+  color: var(--st-accent);
+}
+
+.ak-zug-kopf,
+.ak-user,
+.ak-notiz,
+.ak-noten {
+  margin: 0 0 var(--st-1);
+  font-size: 0.8125rem;
+}
+
+.ak-noten {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-1);
+}
+
+.ak-chip {
+  @include en.note-chip;
+}
+
+.ak-zeitbalken {
+  display: flex;
+  block-size: 0.5rem;
+  margin-block-start: var(--st-1);
+  max-inline-size: 32rem;
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  overflow: hidden;
+}
+
+// Zwei Töne im Wechsel trennen die Schritte; Namen und Zeiten stehen im Text darunter.
+.ak-seg--0 { background: var(--st-accent); }
+.ak-seg--1 { background: var(--st-text-muted); }

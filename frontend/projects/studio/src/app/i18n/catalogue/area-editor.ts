@@ -36,6 +36,8 @@ export const AREA_EDITOR: CataloguePart = {
 
     // ── Bereichs-Editor ─────────────────────────────────────────────
     'areaEditor.crumb': 'Konfigurationsbereich',
+    'areaEditor.zurueckNav': 'Zurück',
+    'areaEditor.zurueckZu': '← Zurück zu „{seite}“',
     'areaEditor.loading': 'Lade Bereich …',
     'areaEditor.tabsLabel': 'Ansicht des Bereichs',
     'areaEditor.tab.form': 'Formular',
@@ -87,6 +89,9 @@ export const AREA_EDITOR: CataloguePart = {
     // Paket 4c, B2: Listen, bei denen „nicht gesetzt“ die Vorgabe heißt (`x-vorgabe`).
     'schemaField.unset': 'Nicht gesetzt – es gilt die Vorgabe.',
     'schemaField.restoreDefault': 'Vorgabe wiederherstellen',
+    'schemaField.vorgabe': 'Vorgabe',
+    'schemaField.zurueck': 'Auf Vorgabe zurück',
+    'schemaField.zurueckFuer': '{label} auf die Vorgabe zurücksetzen',
     'schemaField.restoreDefaultFor': 'Vorgabe wiederherstellen: {group}',
     'schemaField.remove': 'Entfernen',
     'schemaField.removeIndex': 'Eintrag {index} aus {group} entfernen',
@@ -94,6 +99,12 @@ export const AREA_EDITOR: CataloguePart = {
     'schemaField.add': '+ Eintrag',
     'schemaField.addTo': 'Eintrag zu {group} hinzufügen',
     'schemaField.key': 'Schlüssel',
+    'schemaField.markerVerwaist':
+      'Als {label} ist „{wert}“ gespeichert — das passt zu keinem Eintrag. Einen Eintrag '
+      + 'wählen oder „ohne“.',
+    'schemaField.wert': 'Wert',
+    'schemaField.aktion': 'Aktion',
+    'schemaField.keyOf': 'Schlüssel von {key}',
     'schemaField.emptyKey': 'Ein Schlüssel darf nicht leer sein.',
     'schemaField.keyTaken': 'Der Schlüssel „{key}“ ist schon vergeben.',
     'schemaField.required': '(Pflichtfeld)',
@@ -178,6 +189,8 @@ export const AREA_EDITOR: CataloguePart = {
     'areas.noFolder': '(no folder)',
 
     'areaEditor.crumb': 'Configuration area',
+    'areaEditor.zurueckNav': 'Back',
+    'areaEditor.zurueckZu': '← Back to “{seite}”',
     'areaEditor.loading': 'Loading area …',
     'areaEditor.tabsLabel': 'Area view',
     'areaEditor.tab.form': 'Form',
@@ -211,6 +224,9 @@ export const AREA_EDITOR: CataloguePart = {
     'schemaField.emptyList': 'No entries yet.',
     'schemaField.unset': 'Not set – the default applies.',
     'schemaField.restoreDefault': 'Restore default',
+    'schemaField.vorgabe': 'Default',
+    'schemaField.zurueck': 'Back to default',
+    'schemaField.zurueckFuer': 'Reset {label} to its default',
     'schemaField.restoreDefaultFor': 'Restore default: {group}',
     'schemaField.remove': 'Remove',
     'schemaField.removeIndex': 'Remove entry {index} from {group}',
@@ -218,6 +234,11 @@ export const AREA_EDITOR: CataloguePart = {
     'schemaField.add': '+ Entry',
     'schemaField.addTo': 'Add an entry to {group}',
     'schemaField.key': 'Key',
+    'schemaField.markerVerwaist':
+      '“{wert}” is stored as {label} — it matches no entry. Pick an entry or “none”.',
+    'schemaField.wert': 'Value',
+    'schemaField.aktion': 'Action',
+    'schemaField.keyOf': 'Key of {key}',
     'schemaField.emptyKey': 'A key must not be empty.',
     'schemaField.keyTaken': 'The key “{key}” is already taken.',
     'schemaField.required': '(required)',

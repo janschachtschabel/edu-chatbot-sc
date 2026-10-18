@@ -345,11 +345,8 @@ describe('rootField — against the real area schemas', () => {
       '01-base/base-persona:frontmatter.version', // str | float | None
       '01-base/classify-overrides:pattern_disambiguators_legacy[]', // list[dict[str, Any]]
       '01-base/classify-overrides:topic_overrides', // dict[str, Any]
-      '01-base/context-actions:context_actions.pills[][].params',
       '01-base/policy:rules[].effect', // dict[str, Any]
       '01-base/policy:rules[].match', // dict[str, Any]
-      '01-base/website-tour:website_tour.groups[].angebote', // Any
-      '01-base/website-tour:website_tour.steps', // dict[str, Any]
       '04-entities/entities:entities[].discriminators[]',
       '04-entities/entities:entities[].negative_examples[]',
       '04-entities/entities:entities[].positive_examples[]',

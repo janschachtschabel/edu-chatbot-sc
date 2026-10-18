@@ -1,0 +1,83 @@
+<section class="ak" [id]="'ablauf-' + ablauf().flow_id" tabindex="-1" [attr.aria-labelledby]="'ak-t-' + ablauf().flow_id">
+  <h5 class="ak-titel" [id]="'ak-t-' + ablauf().flow_id">
+    <span class="ak-id">{{ ablauf().flow_id }}</span> {{ ablauf().title }}
+  </h5>
+  <p class="ak-kennzeile">{{ kennzeile() }}</p>
+
+  @if (skalen().length > 0) {
+    <ul class="ak-skalen" [attr.aria-label]="t('evalV2.karte.skalen')">
+      @for (skala of skalen(); track skala.name) {
+        <li class="ak-skala">
+          <!-- Das Leerzeichen gehört in den Text: Angular entfernt das zwischen den Spans, und
+               eine Vorlesehilfe läse sonst „Gesamt3“. -->
+          <span class="ak-name">{{ skala.name + ' ' }}</span>
+          <span class="ak-balken" aria-hidden="true">
+            <span [class]="'ak-fuellung n-' + skala.stufe" [style.inline-size]="skala.breite"></span>
+          </span>
+          <span class="ak-zahl">{{ skala.zahl }}</span>
+        </li>
+      }
+    </ul>
+  }
+
+  @if (ablauf().urteil_fehler) {
+    <p class="ak-fehler">{{ t('evalV2.karte.ohneUrteil', { grund: ablauf().urteil_fehler }) }}</p>
+  } @else if (ablauf().statement) {
+    <p class="ak-statement">{{ ablauf().statement }}</p>
+  }
+
+  @if (ablauf().auffaelligkeiten.length > 0) {
+    <ul class="ak-auff">
+      @for (a of ablauf().auffaelligkeiten; track $index) {
+        <li>@if (a.zug) { <strong>{{ t('evalV2.auffaelligkeit.zug', { zug: a.zug }) }}:</strong> }{{ a.text }}</li>
+      }
+    </ul>
+  }
+
+  @if (zuege().length > 0) {
+    <details class="ak-details" [open]="!!anwendungsfall()">
+      <summary>{{ t('evalV2.karte.zuege', { anzahl: zuege().length }) }}</summary>
+      <ol class="ak-zuege">
+        @for (zug of zuege(); track zug.nr) {
+          <li class="ak-zug" [class.ak-zug--treffer]="anwendungsfall() && zug.fall === anwendungsfall()">
+            <p class="ak-zug-kopf">
+              <strong>{{ t('evalV2.karte.zug', { nr: zug.nr }) }}</strong>
+              @if (zug.fall) { · {{ zug.fall }} }
+              @if (anwendungsfall() && zug.fall === anwendungsfall()) {
+                <span class="ak-treffer">{{ t('evalV2.karte.treffer') }}</span>
+              }
+            </p>
+            <p class="ak-user">{{ zug.user }}</p>
+            @if (zug.fehler) {
+              <p class="ak-fehler">{{ t('evalV2.karte.chatFehler', { fehler: zug.fehler }) }}</p>
+            }
+            @if (zug.judgeFehler) {
+              <p class="ak-fehler">{{ t('evalV2.karte.judgeFehler', { grund: zug.judgeFehler }) }}</p>
+            }
+            @if (zug.noten.length > 0) {
+              <p class="ak-noten">
+                @for (note of zug.noten; track note.text) {
+                  <span [class]="'ak-chip n-' + note.stufe">{{ note.text }}</span>{{ ' ' }}
+                }
+              </p>
+            }
+            @if (zug.notiz) { <p class="ak-notiz">{{ zug.notiz }}</p> }
+            <p class="ak-meta">
+              @if (zug.pruefungen) { {{ zug.pruefungen }} · }
+              @if (zug.verfehlt) { <span class="ak-verfehlt">{{ zug.verfehlt }}</span> · }
+              {{ zug.werkzeuge }}
+            </p>
+            @if (zug.segmente.length > 0) {
+              <span class="ak-zeitbalken" aria-hidden="true">
+                @for (seg of zug.segmente; track seg.name; let i = $index) {
+                  <span [class]="'ak-seg ak-seg--' + (i % 2)" [style.inline-size]="seg.breite" [title]="seg.name"></span>
+                }
+              </span>
+            }
+            @if (zug.zeitText) { <p class="ak-meta">{{ zug.zeitText }}</p> }
+          </li>
+        }
+      </ol>
+    </details>
+  }
+</section>

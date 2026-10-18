@@ -1,0 +1,39 @@
+<header class="au-kopf">
+  <p class="au-crumb">{{ t('nav.group.agent') }}</p>
+  <h2 class="au-titel">{{ t('view.agent-uebersicht.label') }}</h2>
+  <p class="au-intro">{{ t('agentUebersicht.intro') }}</p>
+  <p class="au-zustand">
+    {{ zustand() }}
+    <a routerLink="/betrieb">{{ t('agentUebersicht.betrieb') }}</a>
+  </p>
+</header>
+
+<studio-master-skill [section]="masterSkill" [open]="true" />
+
+<section class="au-teil" aria-labelledby="au-wege">
+  <h3 class="au-unter" id="au-wege">{{ t('agentUebersicht.wege') }}</h3>
+  <ul class="au-wege">
+    @for (weg of wege; track weg.slug) {
+      <li>
+        <a [routerLink]="['/', weg.slug]">{{ t('view.' + weg.slug + '.label') }}</a>
+        <span class="au-desc">{{ t(weg.descKey) }}</span>
+      </li>
+    }
+  </ul>
+</section>
+
+<section class="au-teil au-lauf" aria-labelledby="au-lauf">
+  <h3 class="au-unter" id="au-lauf">{{ t('agentUebersicht.lauf.titel') }}</h3>
+  @if (laeufe.error(); as fehler) {
+    <div class="au-fehler" role="alert">
+      <p>{{ fehler }}</p>
+      <button type="button" class="au-knopf" (click)="laeufe.reload()">{{ t('async.retry') }}</button>
+    </div>
+  } @else if (laeufe.loading() && !laeufe.value()) {
+    <p aria-busy="true">{{ t('agentUebersicht.lauf.laedt') }}</p>
+  } @else if (letzterLauf(); as text) {
+    <p>{{ text }} <a routerLink="/evaluation">{{ t('agentUebersicht.lauf.link') }}</a></p>
+  } @else {
+    <p>{{ t('agentUebersicht.lauf.leer') }}</p>
+  }
+</section>

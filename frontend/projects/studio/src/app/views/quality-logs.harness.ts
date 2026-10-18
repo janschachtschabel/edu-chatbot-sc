@@ -5,6 +5,7 @@
  * change — reading (filters, list, detail) and mutating (delete, bulk clear) —
  * so the tests live in two files and the scaffolding in one.
  */
+import type { Engine } from "../core/effects-api.service";
 import { provideHttpClient, withXhr } from "@angular/common/http";
 import {
   HttpTestingController,
@@ -62,12 +63,14 @@ export const PAGE = {
   imports: [QualityLogsComponent],
   template: `<studio-quality-logs
     [scope]="scope()"
+    [engine]="engine()"
     [filters]="filters()"
     (filtersChange)="filters.set($event)"
   />`,
 })
 export class HostComponent {
   readonly scope = signal<QualityScope>("all");
+  readonly engine = signal<Engine | undefined>(undefined);
   readonly filters = signal<LogFilters>({});
 }
 

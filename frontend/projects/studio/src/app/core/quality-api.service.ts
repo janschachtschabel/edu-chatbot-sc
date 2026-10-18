@@ -21,6 +21,7 @@
  */
 import { Injectable, inject } from '@angular/core';
 
+import type { Engine } from './effects-api.service';
 import type { OriginScope } from './origin-scope';
 import { StudioApi, type QueryValue } from './studio-api.service';
 
@@ -161,9 +162,12 @@ function filterParams(filters: LogFilters): Record<string, QueryValue> {
 export class QualityApi {
   private readonly api = inject(StudioApi);
 
-  async logs(scope: QualityScope, filters: LogFilters): Promise<readonly QualityLog[]> {
+  // Paket 13 (E5): `engine` (aus der Ansicht) = nur Züge dieser Maschine; ohne Angabe beide.
+  async logs(
+    scope: QualityScope, filters: LogFilters, engine?: Engine,
+  ): Promise<readonly QualityLog[]> {
     const body = await this.api.get<{ count: number; logs: readonly QualityLog[] }>(
-      '/quality/logs', { limit: LOG_LIMIT, scope, ...filterParams(filters) },
+      '/quality/logs', { limit: LOG_LIMIT, scope, engine, ...filterParams(filters) },
     );
     return body.logs ?? [];
   }
@@ -177,43 +181,51 @@ export class QualityApi {
    * `confirm=true`, and counts a narrowed scope as a filter — mirrored here so
    * the flag is sent exactly when it is required.
    */
-  clearLogs(scope: QualityScope, filters: LogFilters): Promise<{ deleted: number }> {
+  clearLogs(
+    scope: QualityScope, filters: LogFilters, engine?: Engine,
+  ): Promise<{ deleted: number }> {
     const params = filterParams(filters);
-    const filtered = scope !== 'all' || Object.values(params).some(Boolean);
+    // Die Maschine schränkt ein wie der Server es zählt: die Liste zeigt nur ihre Züge, und
+    // „Alle löschen“ löscht genau diese.
+    const filtered = scope !== 'all' || !!engine || Object.values(params).some(Boolean);
     return this.api.post<{ deleted: number }>('/quality/logs/clear', null, {
-      scope, ...params, confirm: filtered ? undefined : true,
+      scope, engine, ...params, confirm: filtered ? undefined : true,
     });
   }
 
-  stats(scope: QualityScope): Promise<QualityStats> {
-    return this.api.get<QualityStats>('/quality/stats', { scope });
+  stats(scope: QualityScope, engine?: Engine): Promise<QualityStats> {
+    return this.api.get<QualityStats>('/quality/stats', { scope, engine });
   }
 
-  matrix(scope: QualityScope, minCount: number): Promise<RoutingMatrix> {
-    return this.api.get<RoutingMatrix>('/quality/matrix', { scope, min_count: minCount });
+  matrix(scope: QualityScope, minCount: number, engine?: Engine): Promise<RoutingMatrix> {
+    return this.api.get<RoutingMatrix>('/quality/matrix', {
+      scope, min_count: minCount, engine,
+    });
   }
 
-  stateTransitions(scope: QualityScope, days: number, minCount: number): Promise<StateFlow> {
+  stateTransitions(
+    scope: QualityScope, days: number, minCount: number, engine?: Engine,
+  ): Promise<StateFlow> {
     return this.api.get<StateFlow>('/quality/state-transitions', {
-      scope, days, min_count: minCount,
+      scope, days, min_count: minCount, engine,
     });
   }
 
-  degradations(scope: QualityScope): Promise<Breakdown<DegradationGroup>> {
+  degradations(scope: QualityScope, engine?: Engine): Promise<Breakdown<DegradationGroup>> {
     return this.api.get<Breakdown<DegradationGroup>>('/quality/degradations', {
-      scope, limit: BREAKDOWN_LIMIT,
+      scope, limit: BREAKDOWN_LIMIT, engine,
     });
   }
 
-  emptyEntities(scope: QualityScope): Promise<Breakdown<EmptyEntityGroup>> {
+  emptyEntities(scope: QualityScope, engine?: Engine): Promise<Breakdown<EmptyEntityGroup>> {
     return this.api.get<Breakdown<EmptyEntityGroup>>('/quality/empty-entities', {
-      scope, limit: BREAKDOWN_LIMIT,
+      scope, limit: BREAKDOWN_LIMIT, engine,
     });
   }
 
-  lowConfidence(scope: QualityScope): Promise<LowConfidence> {
+  lowConfidence(scope: QualityScope, engine?: Engine): Promise<LowConfidence> {
     return this.api.get<LowConfidence>('/quality/low-confidence', {
-      scope, limit: BREAKDOWN_LIMIT,
+      scope, limit: BREAKDOWN_LIMIT, engine,
     });
   }
 }
