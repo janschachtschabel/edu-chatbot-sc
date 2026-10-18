@@ -1320,6 +1320,12 @@
             },
             "title": "Stages",
             "type": "array"
+          },
+          "warmup": {
+            "default": true,
+            "description": "Eine Aufwärm-Anfrage vor der ersten Stufe",
+            "title": "Warmup",
+            "type": "boolean"
           }
         },
         "title": "LoadTestProfile",
@@ -4944,6 +4950,28 @@
               "title": "Scope",
               "type": "string"
             }
+          },
+          {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
+            }
           }
         ],
         "responses": {
@@ -5135,6 +5163,71 @@
           }
         ],
         "summary": "Get Gold Flows",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/eval/prompt-diff": {
+      "get": {
+        "description": "Text difference of two stored prompt versions (unified diff lines).",
+        "operationId": "eval_prompt_diff_api_eval_prompt_diff_get",
+        "parameters": [
+          {
+            "description": "Prompt version of the first run",
+            "in": "query",
+            "name": "a",
+            "required": true,
+            "schema": {
+              "description": "Prompt version of the first run",
+              "pattern": "^[0-9a-f]{12}$",
+              "title": "A",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Prompt version of the second run",
+            "in": "query",
+            "name": "b",
+            "required": true,
+            "schema": {
+              "description": "Prompt version of the second run",
+              "pattern": "^[0-9a-f]{12}$",
+              "title": "B",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Eval Prompt Diff Api Eval Prompt Diff Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Eval Prompt Diff",
         "tags": [
           "eval"
         ]
@@ -5515,6 +5608,46 @@
           }
         ],
         "summary": "Get Eval Run",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/eval/runs/{run_id}/bericht.md": {
+      "get": {
+        "operationId": "get_eval_run_bericht_api_eval_runs__run_id__bericht_md_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Get Eval Run Bericht",
         "tags": [
           "eval"
         ]
@@ -6011,6 +6144,28 @@
             }
           },
           {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
+            }
+          },
+          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -6073,6 +6228,28 @@
               "description": "'all' | 'production' | 'eval'",
               "title": "Scope",
               "type": "string"
+            }
+          },
+          {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
             }
           },
           {
@@ -6181,6 +6358,28 @@
               "title": "Scope",
               "type": "string"
             }
+          },
+          {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
+            }
           }
         ],
         "responses": {
@@ -6263,6 +6462,28 @@
               "description": "'all' | 'production' | 'eval'",
               "title": "Scope",
               "type": "string"
+            }
+          },
+          {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
             }
           },
           {
@@ -6379,6 +6600,28 @@
             }
           },
           {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
+            }
+          },
+          {
             "in": "query",
             "name": "max_confidence",
             "required": false,
@@ -6456,6 +6699,28 @@
             }
           },
           {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
+            }
+          },
+          {
             "description": "Min samples per cell",
             "in": "query",
             "name": "min_count",
@@ -6520,6 +6785,28 @@
               "description": "'all' | 'production' | 'eval'",
               "title": "Scope",
               "type": "string"
+            }
+          },
+          {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
             }
           },
           {
@@ -6602,6 +6889,28 @@
               "title": "Scope",
               "type": "string"
             }
+          },
+          {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
+            }
           }
         ],
         "responses": {
@@ -6654,6 +6963,28 @@
               "description": "'all' | 'production' | 'eval'",
               "title": "Scope",
               "type": "string"
+            }
+          },
+          {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
             }
           },
           {
@@ -8055,6 +8386,28 @@
               ],
               "title": "Scope",
               "type": "string"
+            }
+          },
+          {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
             }
           }
         ],

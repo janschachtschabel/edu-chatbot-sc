@@ -102,3 +102,13 @@ Nach Wirkung sortiert:
 - Schreiben nur zweistufig: Vorschau, dann Zustimmung im nächsten Zug; der Bestätigungsschlüssel erreicht das
   Modell nie; eine Abnahme gilt nur für die Person, unter der die Vorschau entstand (Paket 10, S-1).
 - Abgewiesener Block (401/403) → das Widget bietet die Anmeldung neu an (Paket 10, A-3).
+
+## 6. Beobachtungen aus dem Betrieb
+
+- **Ausreißer bei der ersten Suche (Paket 15, 2026-10-17).** Im Lasttest `lt-b97eb9de93a3` brauchte
+  `search_wlo_all("Elektrizität", Arbeitsblatt)` 22 103 ms; dieselben Aufrufe danach 2,0–3,2 s. Der Chatbot
+  wartet bis zur Zeitgrenze von 60 s (bleibt so, Nutzer-Entscheid) — die Antwort kam, nur spät. Vermutung:
+  kalter Pfad am Server (erste Anfrage nach Ruhe, Verbindungsaufbau zum Repositorium). Bitte an das MCP-Team:
+  prüfen, ob sich die erste Anfrage nach Ruhezeit am Server so verhält; der Lasttest des Studios hat seit
+  Paket 15 eine Aufwärm-Anfrage (zählt nicht mit) und zeigt je Anfrage die Werkzeugzeit, damit sich solche
+  Ausreißer ohne die Nachrichten-Tabelle zuordnen lassen.
