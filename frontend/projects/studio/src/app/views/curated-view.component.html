@@ -12,55 +12,83 @@
 
 @if (definition()?.layout === 'tabs') {
   <!-- ST-4c (Paket 6): Reiter mit Zählern statt gestapelter Abschnitte -->
-  <studio-curated-tabs [sections]="tabSections()" [label]="t(view().labelKey)" />
+  <studio-curated-tabs
+    [sections]="tabSections()" [label]="t(view().labelKey)"
+  />
 } @else if (definition()) {
-  <div class="cv-sections">
-    @for (entry of entries(); track entry.key) {
+  @if (reiterTabs().length > 0) {
+    <studio-tab-bar
+      [tabs]="reiterTabs()" [active]="aktiverReiter()" [label]="t(view().labelKey)"
+      (tabChange)="waehleReiter($event)"
+    />
+  }
+  <!-- Paket 15: je Reiter ein Panel, alle eingehängt — ein Reiterwechsel verliert keinen
+       Entwurf; und jedes aria-controls der Reiter findet sein Panel (Review-Runde 2). -->
+  @for (block of bloecke(); track block.id) {
+  <div
+    class="cv-sections"
+    [attr.id]="block.id ? 'panel-' + block.id : null"
+    [attr.role]="block.id ? 'tabpanel' : null"
+    [attr.aria-labelledby]="block.id ? 'tab-' + block.id : null"
+    [hidden]="!!block.id && block.id !== aktiverReiter()"
+  >
+    @for (entry of block.entries; track entry.key) {
+      <div class="cv-reiter-teil">
       @if (entry.kind === 'area') {
         @if (entry.area.kind === 'group') {
-          <studio-group-section [section]="entry.area" [open]="entry.first" />
+          <studio-group-section [section]="entry.area" [open]="offen(entry)" />
         } @else {
-          <studio-area-section [section]="entry.area" [open]="entry.first" />
+          <studio-area-section
+            [section]="entry.area" [open]="offen(entry)" (changed)="gespeichert(entry.key)"
+          />
         }
       } @else {
         @switch (entry.panel.panel) {
           @case ('rag-areas') {
-            <studio-rag-areas [section]="entry.panel" [open]="entry.first" />
+            <studio-rag-areas [section]="entry.panel" [open]="offen(entry)" />
           }
           @case ('rag-ingest') {
-            <studio-rag-ingest [section]="entry.panel" [open]="entry.first" />
+            <studio-rag-ingest [section]="entry.panel" [open]="offen(entry)" />
           }
           @case ('mcp-registry') {
-            <studio-mcp-registry [section]="entry.panel" [open]="entry.first" />
+            <studio-mcp-registry [section]="entry.panel" [open]="offen(entry)" />
           }
           @case ('agent-tester') {
-            <studio-agent-tester [section]="entry.panel" [open]="entry.first" />
+            <studio-agent-tester [section]="entry.panel" [open]="offen(entry)" />
           }
           @case ('master-skill') {
-            <studio-master-skill [section]="entry.panel" [open]="entry.first" />
+            <studio-master-skill [section]="entry.panel" [open]="offen(entry)" />
           }
           @case ('privacy-purge') {
-            <studio-privacy-purge [section]="entry.panel" [open]="entry.first" />
+            <studio-privacy-purge [section]="entry.panel" [open]="offen(entry)" />
           }
           @case ('retention') {
-            <studio-retention [section]="entry.panel" [open]="entry.first" />
+            <studio-retention [section]="entry.panel" [open]="offen(entry)" />
           }
           @case ('agent-tools') {
-            <studio-agent-tools [section]="entry.panel" [open]="entry.first" />
+            <studio-agent-tools [section]="entry.panel" [open]="offen(entry)" />
           }
           @case ('agent-skills') {
-            <studio-agent-skills [section]="entry.panel" [open]="entry.first" />
+            <studio-agent-skills [section]="entry.panel" [open]="offen(entry)" />
           }
           @case ('agent-prompt') {
-            <studio-agent-prompt [section]="entry.panel" [open]="entry.first" />
+            <studio-agent-prompt [section]="entry.panel" [open]="offen(entry)" />
           }
           @case ('agent-probe') {
-            <studio-agent-probe [section]="entry.panel" [open]="entry.first" />
+            <studio-agent-probe [section]="entry.panel" [open]="offen(entry)" />
+          }
+          @case ('anrede') {
+            <studio-anrede [section]="entry.panel" [open]="offen(entry)" />
+          }
+          @case ('material-typen') {
+            <studio-material-typen [section]="entry.panel" [open]="offen(entry)" />
           }
         }
       }
+      </div>
     }
   </div>
+  }
 } @else {
   <p class="cv-empty" role="alert">{{ t('curated.empty') }}</p>
 }

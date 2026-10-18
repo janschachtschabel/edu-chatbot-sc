@@ -26,8 +26,17 @@
  * as a heading the moment a name drifts, and no test could see it.
  */
 
+import type { FeldGruppe } from '../schema-form/form-sections';
+import { AGENT_SEITEN } from './curated-pages-agent';
 import { BETRIEB_SEITEN } from './curated-pages-betrieb';
+import { GEMEINSAME_SEITEN } from './curated-pages-gemeinsam';
 import { INHALT_SEITEN } from './curated-pages-inhalt';
+
+/** Ein Hinweis am Abschnitt: ein Text-Schlüssel, mit Parametern (Rundgang 3). */
+export type Hinweis = string | { readonly key: string; readonly params: Readonly<Record<string, string | number>> };
+
+/** Rundgang 3: benannte Feldgruppen eines Abschnitts (siehe `schema-form/form-sections.ts`). */
+export type { FeldGruppe };
 
 export interface CuratedAreaSection {
   /** Config area key, exactly as the registry spells it. */
@@ -51,6 +60,29 @@ export interface CuratedAreaSection {
   /** Which element list counts this section in a tabbed page (ST-4c): the
    *  number comes from `GET /config/elements`, one request for all tabs. */
   readonly count?: 'personas' | 'intents' | 'states' | 'entities' | 'signals';
+  /** Paket 14: nur diese Felder zeigen (Wurzel-Schlüssel oder `gruppe.feld`, siehe
+   *  `pickFields`). `01-base/engine` trägt Felder beider Arbeitsbereiche; jede Seite zeigt
+   *  ihren Ausschnitt — gespeichert wird weiter das ganze Dokument. */
+  readonly felder?: readonly string[];
+  /** Paket 15: das Gegenstück zu `felder` — alle Felder außer diesen. Die Personas unter
+   *  „Dimensionen“ zeigen die Anrede nicht mehr; sie steht auf „Zielgruppen“. */
+  readonly ohneFelder?: readonly string[];
+  /** Paket 16, C8: in diesem Arbeitsbereich steht der Abschnitt zuerst (und ist offen) — die
+   *  Skill-Brücke wirkt nur im Muster-Modus, auf der gemeinsamen Seite „Skills“ stand sie
+   *  dort als dritte und zugeklappt. */
+  readonly zuerstIn?: 'agent' | 'pattern';
+  /** Paket 14, nur `kind: 'group'`: nur diese Dokumente der Gruppe wählbar (die beiden
+   *  Schutzantworten im Agent-Arbeitsbereich); Anlegen und Löschen sind dort aus. */
+  readonly dokumente?: readonly string[];
+  /** Paket 15: Einstellungen, die einander aushebeln — Katalog-Schlüssel der Hinweise, aus dem
+   *  aktuellen Entwurf berechnet (fehlende Schlüssel zählen mit ihrer Vorgabe). */
+  readonly hinweise?: (doc: Readonly<Record<string, unknown>>) => readonly Hinweis[];
+  /** Rundgang 3: das Formular in benannte Gruppen gliedern — ein Editor, ein Speichern. */
+  readonly gruppen?: readonly FeldGruppe[];
+  /** Rundgang 3: ein Sprung zu einer Seite, auf der man prüft, was hier eingestellt wird. */
+  readonly sprung?: { readonly labelKey: string; readonly slug: string };
+  /** Paket 15: der Reiter der Seite, in dem der Abschnitt steht (`CuratedView.reiter`). */
+  readonly reiter?: string;
 }
 
 /**
@@ -67,9 +99,11 @@ export interface CuratedPanelSection {
   readonly panel:
     | 'rag-areas' | 'rag-ingest' | 'mcp-registry' | 'agent-tester' | 'master-skill'
     | 'privacy-purge' | 'retention' | 'agent-tools' | 'agent-skills' | 'agent-prompt'
-    | 'agent-probe';
+    | 'agent-probe' | 'anrede' | 'material-typen';
   readonly labelKey: string;
   readonly hintKey: string;
+  /** Paket 15: der Reiter der Seite, in dem das Panel steht (`CuratedView.reiter`). */
+  readonly reiter?: string;
 }
 
 export type CuratedSection = CuratedAreaSection | CuratedPanelSection;
@@ -88,11 +122,17 @@ export interface CuratedView {
   /** `tabs`: one tab per section plus a head card with the counts (ST-4c,
    *  ALT's dimensions page); otherwise the sections stack as disclosures. */
   readonly layout?: 'tabs';
+  /** Paket 15: Reiter über den Abschnitten (Panels wie Bereiche) — jeder Abschnitt nennt
+   *  seinen. Anders als `layout: 'tabs'` bleiben alle Abschnitte eingehängt: ein Wechsel
+   *  verliert keine ungespeicherte Änderung. */
+  readonly reiter?: readonly { readonly id: string; readonly labelKey: string }[];
 }
 
 /** Alle kuratierten Seiten in der Reihenfolge der Navigation — die Daten
  *  stehen nach Seitengruppen in `curated-pages-*.ts` (Paket 6). */
-export const CURATED_VIEWS: readonly CuratedView[] = [...INHALT_SEITEN, ...BETRIEB_SEITEN];
+export const CURATED_VIEWS: readonly CuratedView[] = [
+  ...AGENT_SEITEN, ...INHALT_SEITEN, ...GEMEINSAME_SEITEN, ...BETRIEB_SEITEN,
+];
 
 export function curatedView(slug: string): CuratedView | undefined {
   return CURATED_VIEWS.find((view) => view.slug === slug);

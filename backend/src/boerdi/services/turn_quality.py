@@ -41,6 +41,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def qualitaetsprotokoll_an() -> bool:
+    """Ob ein Zug ins Qualitätsprotokoll geschrieben wird — beide Tore offen. Die Nutzungsseite
+    (Paket 16, D3) fragt dasselbe, um zu sagen, wenn sie nichts Neues zu zählen hat."""
+    from boerdi.services.config_loader import load_privacy_config, load_quality_log_config
+
+    cfg = load_quality_log_config().get("logging") or {}
+    return bool(cfg.get("enabled", True) and load_privacy_config().get("quality", True))
+
+
 async def log_turn_quality(
     session: AsyncSession | None,
     req: ChatRequest,
@@ -65,12 +74,7 @@ async def log_turn_quality(
     protokolliert es — dieselbe Haltung wie ``_log_turn_safety`` im Graphen.
     """
     try:
-        from boerdi.services.config_loader import (
-            load_privacy_config,
-            load_quality_log_config,
-        )
-        _cfg = (load_quality_log_config().get("logging") or {})
-        if not (_cfg.get("enabled", True) and load_privacy_config().get("quality", True)):
+        if not qualitaetsprotokoll_an():
             return
 
         from boerdi.obs.quality_events import log_quality_event

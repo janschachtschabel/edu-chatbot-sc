@@ -52,7 +52,10 @@ export class EvalGoldenStartComponent {
   readonly flowList = new AsyncData<readonly GoldFlow[]>(() => this.api.goldFlows(), this.t);
   readonly flows = computed<readonly GoldFlow[]>(() => this.flowList.value() ?? []);
 
-  readonly judge = signal(false);
+  /** Paket 15 (A7): an, solange niemand ihn abwählt — ohne Judge prüft der Lauf nur die
+   *  Form (Anrede, Aufbau, Werkzeuge), nicht ob das Anliegen getroffen ist, und die
+   *  Qualitätslinien der Trends bleiben leer. */
+  readonly judge = signal(true);
 
   /** GV5: eine Maschine je Lauf. "default" = keine Kopfzeile, der Lauf misst
    *  die Server-Vorgabe aus `engine.yaml`. */
@@ -78,6 +81,9 @@ export class EvalGoldenStartComponent {
 
   /** Gibt es Flows „nur auf Abruf“? Dann sagt der Hinweis, dass „alle“ sie weglässt. */
   readonly hatAbruf = computed(() => this.flows().some((f) => f.auf_abruf));
+  /** Gewählte Flows „nur auf Abruf“ — sie schreiben echt; die Seite sagt es vor dem Start. */
+  readonly abrufGewaehlt = computed(() =>
+    this.selected().filter((f) => f.auf_abruf).map((f) => f.id));
 
   /** Exactly what will be fired: one chat call per configured turn. */
   readonly turns = computed(() =>
@@ -98,9 +104,12 @@ export class EvalGoldenStartComponent {
   private readonly phrases = computed(() => {
     const turns = this.turns();
     const flows = this.selected().length;
+    // Judge v2: je Zug ein Urteil, je Ablauf eines, dazu der Kurzbericht des Laufs.
+    const urteile = turns + flows + 1;
     return {
       calls: this.lang.plural('evalStart.gold.calls', turns, { count: this.fmt.whole(turns) }),
-      judgeCalls: this.lang.plural('evalStart.judgeCalls', turns, { count: this.fmt.whole(turns) }),
+      judgeCalls: this.lang.plural(
+        'evalStart.judgeCalls', urteile, { count: this.fmt.whole(urteile) }),
       flows: this.lang.plural('evalStart.gold.flows', flows, { count: this.fmt.whole(flows) }),
     };
   });
@@ -142,6 +151,12 @@ export class EvalGoldenStartComponent {
   selectAll(): void {
     // Paket 7 (K3): ohne die Flows „auf Abruf“ — die wählt man einzeln.
     this.chosen.set(new Set(this.flows().filter((flow) => !flow.auf_abruf).map((flow) => flow.id)));
+    this.disarm();
+  }
+
+  /** Paket 15 (A7): auch die Flows „auf Abruf“ — ausdrücklich, mit Warnsatz. */
+  selectAllMitAbruf(): void {
+    this.chosen.set(new Set(this.flows().map((flow) => flow.id)));
     this.disarm();
   }
 

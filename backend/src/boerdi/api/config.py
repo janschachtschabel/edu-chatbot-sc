@@ -27,6 +27,7 @@ from boerdi.api.config_guards import (
 from boerdi.api.deps import Lang, require_studio_key
 from boerdi.api.schemas import ConfigFile
 from boerdi.domain.anmelde_herkunft import anmeldung_erlaubt
+from boerdi.domain.config_models.schema import area_schema
 from boerdi.domain.mcp_herkunft import mcp_herkunft
 from boerdi.i18n import msg
 from boerdi.services import config_loader as cl
@@ -190,7 +191,7 @@ async def discover_mcp_tools(lang: Lang, url: str = "") -> dict:
 async def get_area_schema(area: str) -> dict:
     """JSON schema of the area's pydantic model (P2-6) — grouped file keys
     (03-patterns/*, 04-personas/*) resolve to their group model."""
-    return _resolve_area(area)[1].model_json_schema()
+    return area_schema(_resolve_area(area)[1])
 
 
 @router.get("/data/{area:path}")

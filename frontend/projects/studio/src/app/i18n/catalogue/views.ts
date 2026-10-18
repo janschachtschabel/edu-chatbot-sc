@@ -1,6 +1,6 @@
 /**
- * Die Ansichts-Registry (C1-d2): Gruppenüberschriften der Navigation, die 20
- * Ansichten mit Kurztext, die Texte der Rahmen-Ansichten und die drei
+ * Die Ansichts-Registry (C1-d2): Gruppenüberschriften der Navigation, die
+ * Ansichten mit Kurztext (seit Paket 14 je Arbeitsbereich), die Texte der Rahmen-Ansichten und die drei
  * Dokumenttitel von Routen ohne Registry-Zeile.
  */
 import type { CataloguePart } from './catalogue-part';
@@ -8,9 +8,10 @@ import type { CataloguePart } from './catalogue-part';
 export const VIEWS: CataloguePart = {
   de: {
     // ── Gruppen der Navigation ──────────────────────────────────────
-    // „start" trägt bewusst keine Überschrift: die Übersicht steht als
-    // einziger Eintrag über der ersten Gruppe.
-    'nav.group.konfiguration': 'Konfiguration',
+    // Paket 14: je Arbeitsbereich zuerst dessen eigener Block, dann die gemeinsamen Gruppen.
+    'nav.group.agent': 'Agent',
+    'nav.group.muster': 'Muster',
+    'nav.group.gemeinsam': 'Gemeinsam',
     'nav.group.auswertung': 'Auswertung',
     'nav.group.system': 'System',
 
@@ -24,15 +25,15 @@ export const VIEWS: CataloguePart = {
     'view.kontext-aktionen.label': 'Kontext-Aktionen',
     'view.kontext-aktionen.desc': 'Proaktive Begrüßung + Pills je Seitentyp',
     'view.identitaet.label': 'Identität & Schutz',
-    'view.identitaet.desc': 'Sicherheitslevel, Persona, Leitplanken, Regelwerk',
-    'view.domain-wissen.label': 'Domain-Wissen',
-    'view.domain-wissen.desc': 'Plattform-Wissen, Web-Tour',
+    'view.identitaet.desc': 'Sicherheitslevel, Basis-Persona, Leitplanken, Regelwerk',
+    'view.domain-wissen.label': 'Domänenwissen',
+    'view.domain-wissen.desc': 'Domänenregeln & Plattform-Wissen',
     'view.patterns.label': 'Patterns',
     'view.patterns.desc': 'Gesprächsmuster',
     'view.dimensionen.label': 'Dimensionen',
-    'view.dimensionen.desc': 'Personas, Intents, States, Entities',
-    'view.material-formate.label': 'Material-Formate',
-    'view.material-formate.desc': 'Material-Typen, Aliase, Trigger',
+    'view.dimensionen.desc': 'Personas, Intents, Zustände, Entities',
+    'view.material-formate.label': 'Materialformate',
+    'view.material-formate.desc': 'Materialtypen mit Vorschau, Aliase, Prioritäten',
     'view.wissen.label': 'Wissen',
     'view.wissen.desc': 'RAG-Bereiche & MCP-Tools',
     'view.sessions.label': 'Sessions',
@@ -46,6 +47,8 @@ export const VIEWS: CataloguePart = {
     'view.safety-logs.label': 'Safety-Logs',
     'view.safety-logs.desc': 'Risiko-Events & Rate-Limits',
     'view.kosten.label': 'Kosten',
+    'view.nutzung.label': 'Nutzung',
+    'view.nutzung.desc': 'Besuch, Tageszeit, Geräte und Sprachen',
     'view.kosten.desc': 'Token & Betrag je Zeitraum',
     'view.anzeige.label': 'Anzeige',
     'view.anzeige.desc': 'Boxen, Schriftgrößen, Geräte-Limits',
@@ -57,8 +60,23 @@ export const VIEWS: CataloguePart = {
     'view.sicherung.desc': 'Werksfassung, Snapshots & Backup',
     'view.vorschau.label': 'Vorschau',
     'view.vorschau.desc': 'Das echte Widget mit dieser Konfiguration',
-    'view.agent.label': 'Agent & Maschine',
-    'view.agent.desc': 'Muster-Engine oder Agent-Schleife, und ein Probelauf',
+    // Paket 14: der Agent-Arbeitsbereich und die neuen gemeinsamen Seiten
+    'view.agent-uebersicht.label': 'Übersicht',
+    'view.agent-uebersicht.desc': 'Status, Master-Skill, Architektur, Testseiten',
+    'view.agent-rolle.label': 'Rolle & Schutz',
+    'view.agent-rolle.desc': 'Sicherheit, Rolle, Grenzen, Regeln, Schutzantworten',
+    'view.agent-prompt.label': 'Prompt & Probelauf',
+    'view.agent-prompt.desc': 'Prompt-Kette, Master-Skill-Text, Testläufe',
+    'view.fuehrung.label': 'Tour & Lotse',
+    'view.fuehrung.desc': 'Website-Tour und Lotsen-Modus',
+    'view.zielgruppen.label': 'Zielgruppen',
+    'view.zielgruppen.desc': 'Anrede je Zielgruppe (du/Sie)',
+    'view.werkzeuge.label': 'Werkzeuge',
+    'view.werkzeuge.desc': 'Alle Werkzeuge, Herkunft, an/aus',
+    'view.skills.label': 'Skills',
+    'view.skills.desc': 'Master-Skill, Skill-Register, Skill-Brücke',
+    'view.betrieb.label': 'Betrieb',
+    'view.betrieb.desc': 'Vorgabe-Maschine & Betriebsschalter',
 
     // ── Rahmen-Ansichten ────────────────────────────────────────────
     /** Platzhalter für eine Ansicht, die ein späteres Paket baut. Das Paket
@@ -69,7 +87,7 @@ export const VIEWS: CataloguePart = {
       + 'im Backend bereits vollständig vorhanden.',
     'notFound.title': 'Seite nicht gefunden',
     'notFound.text': 'Diese Adresse gehört zu keiner Studio-Ansicht.',
-    'notFound.link': 'Zur Übersicht',
+    'notFound.link': 'Zur Startseite',
     /** Brotkrume über dem Titel jeder kuratierten Konfigurations-Ansicht. */
 
     // ── Dokumenttitel ohne eigene Ansicht ───────────────────────────
@@ -82,7 +100,9 @@ export const VIEWS: CataloguePart = {
   },
 
   en: {
-    'nav.group.konfiguration': 'Configuration',
+    'nav.group.agent': 'Agent',
+    'nav.group.muster': 'Patterns',
+    'nav.group.gemeinsam': 'Shared',
     // Nicht „Evaluation" und nicht „Analysis": beide Wörter sind hier schon
     // Namen einzelner Ansichten IN dieser Gruppe, und zwei Einträge derselben
     // Navigation dürften nicht gleich heissen.
@@ -96,15 +116,15 @@ export const VIEWS: CataloguePart = {
     'view.kontext-aktionen.label': 'Context actions',
     'view.kontext-aktionen.desc': 'Proactive greeting + pills per page type',
     'view.identitaet.label': 'Identity & safeguards',
-    'view.identitaet.desc': 'Safety level, persona, guardrails, policy',
+    'view.identitaet.desc': 'Safety level, base persona, guardrails, policy',
     'view.domain-wissen.label': 'Domain knowledge',
-    'view.domain-wissen.desc': 'Platform knowledge, website tour',
+    'view.domain-wissen.desc': 'Domain rules & platform knowledge',
     'view.patterns.label': 'Patterns',
     'view.patterns.desc': 'Conversation patterns',
     'view.dimensionen.label': 'Dimensions',
     'view.dimensionen.desc': 'Personas, intents, states, entities',
     'view.material-formate.label': 'Material formats',
-    'view.material-formate.desc': 'Material types, aliases, triggers',
+    'view.material-formate.desc': 'Material types with preview, aliases, priorities',
     'view.wissen.label': 'Knowledge',
     'view.wissen.desc': 'RAG areas & MCP tools',
     'view.sessions.label': 'Sessions',
@@ -118,6 +138,8 @@ export const VIEWS: CataloguePart = {
     'view.safety-logs.label': 'Safety logs',
     'view.safety-logs.desc': 'Risk events & rate limits',
     'view.kosten.label': 'Costs',
+    'view.nutzung.label': 'Usage',
+    'view.nutzung.desc': 'Visits, time of day, devices and languages',
     'view.kosten.desc': 'Tokens & amount per period',
     'view.anzeige.label': 'Display',
     'view.anzeige.desc': 'Boxes, font sizes, device limits',
@@ -129,15 +151,29 @@ export const VIEWS: CataloguePart = {
     'view.sicherung.desc': 'Factory version, snapshots & backup',
     'view.vorschau.label': 'Preview',
     'view.vorschau.desc': 'The real widget with this configuration',
-    'view.agent.label': 'Agent & engine',
-    'view.agent.desc': 'Pattern engine or agent loop, plus a test run',
+    'view.agent-uebersicht.label': 'Overview',
+    'view.agent-uebersicht.desc': 'Status, master skill, architecture, test pages',
+    'view.agent-rolle.label': 'Role & safety',
+    'view.agent-rolle.desc': 'Safety, role, limits, rules, protective answers',
+    'view.agent-prompt.label': 'Prompt & test run',
+    'view.agent-prompt.desc': 'Prompt chain, master skill text, test runs',
+    'view.fuehrung.label': 'Tour & guide',
+    'view.fuehrung.desc': 'Website tour and guide mode',
+    'view.zielgruppen.label': 'Audiences',
+    'view.zielgruppen.desc': 'Form of address per audience',
+    'view.werkzeuge.label': 'Tools',
+    'view.werkzeuge.desc': 'All tools, origin, on/off',
+    'view.skills.label': 'Skills',
+    'view.skills.desc': 'Master skill, skill registry, skill bridge',
+    'view.betrieb.label': 'Operation',
+    'view.betrieb.desc': 'Default engine & operating switches',
 
     'view.placeholder.note':
       'This view is built in package {paket}. The configuration itself is already '
       + 'complete in the backend.',
     'notFound.title': 'Page not found',
     'notFound.text': 'This address does not belong to any studio view.',
-    'notFound.link': 'Go to the overview',
+    'notFound.link': 'Go to the start page',
 
     'route.login': 'Sign in',
     'route.notFound': 'Not found',

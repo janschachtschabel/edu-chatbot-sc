@@ -9,7 +9,8 @@ Die Werksfassung ist der Seed im Image (``CONFIG_SEED_DIR``), die gelebte steht 
 * ``POST /api/config/fassungen/umschalten`` — ``werk``: die gelebte Fassung stilllegen und die
   Werksfassung schreiben (ein gelöschter Werksbereich kommt so zurück); ``eigen``: die
   stillgelegte Fassung zurückholen. Bedingt auf ``expected_version`` wie jedes Speichern (409).
-* ``GET  /api/config/fassungen/vergleich?area=…`` — Werk gegen gelebt als Zeilen (``difflib``).
+* ``GET  /api/config/fassungen/vergleich?area=…`` — Werk gegen gelebt als Zeilen (``difflib``)
+  und je Feld (``felder``, Paket 16).
 
 Der Bereich steht im Body bzw. in der Abfrage, nicht im Pfad: Bereichsnamen enthalten ``/``.
 Kein Lesepfad im Chat ändert sich — die Endpunkte lesen den Seed bei Bedarf (wenige ms).
@@ -35,6 +36,7 @@ from boerdi.i18n import Locale, msg
 from boerdi.services import config_loader as cl
 from boerdi.services import seed_sync, werkfassung
 from boerdi.services.config_conflict import ConfigConflict
+from boerdi.services.feld_unterschiede import feld_unterschiede
 from boerdi.settings import get_settings
 
 router = APIRouter(
@@ -152,8 +154,14 @@ async def vergleich(area: str, lang: Lang) -> dict:
     # Review 2 #10: die stillgelegte Fassung gegen das Werk — vor „Eigene Fassung verwenden“.
     zeilen_eigene = [] if eigene_text is None else list(difflib.unified_diff(
         werk_text.splitlines(), eigene_text.splitlines(), "werk", "eigene", lineterm="", n=3))
+    # Paket 16, C6: dieselben Unterschiede je Feld — die Tabelle in der Sicherung.
+    felder, felder_gesamt = feld_unterschiede(werk or {}, (fassung or {}).get("data") or {})
+    felder_eigene, felder_eigene_gesamt = ([], 0) if eigene is None else feld_unterschiede(
+        werk or {}, eigene)
     return {"area": area, "werk": werk_text, "gelebt": gelebt_text, "eigene": eigene_text,
-            "zeilen": zeilen, "zeilen_eigene": zeilen_eigene}
+            "zeilen": zeilen, "zeilen_eigene": zeilen_eigene,
+            "felder": felder, "felder_gesamt": felder_gesamt,
+            "felder_eigene": felder_eigene, "felder_eigene_gesamt": felder_eigene_gesamt}
 
 
 def _nach_vorbild(data: Any, vorbild: Any) -> Any:

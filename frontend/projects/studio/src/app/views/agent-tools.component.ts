@@ -2,9 +2,11 @@
  * Werkzeuge und Sperren (ST-8b) — welche Werkzeuge der Agent in einem Chat-Zug
  * bekommt und was ihm eines davon nehmen kann.
  *
- * Nur lesend: jede Sperre wird dort gepflegt, wo sie wirkt, und die Zeile
- * verweist auf die Seite dazu. Die festen Sperren des Regex-Gates stehen im Code;
- * die Zeile sagt das, statt einen Ort zu versprechen, an dem man sie ändern könnte.
+ * Jede Sperre wird dort gepflegt, wo sie wirkt, und die Zeile verweist auf die Seite dazu.
+ * Die festen Sperren des Regex-Gates stehen im Code; die Zeile sagt das, statt einen Ort zu
+ * versprechen, an dem man sie ändern könnte. Seit Paket 15 trägt jedes Server-Werkzeug hier
+ * seinen Schalter (`werkzeuge_aus` der MCP-Server-Liste, `McpRegistryStore`) — vorher stand er
+ * nur im MCP-Panel unter „Wissen“, die Liste hier war lesend.
  *
  * Geladen erst beim Aufklappen, wie der Master-Skill.
  */
@@ -13,13 +15,20 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import type { AgentToolLock } from '../core/agent-center-api.service';
+import type { AgentTool, AgentToolLock } from '../core/agent-center-api.service';
 import { AgentCenterApi } from '../core/agent-center-api.service';
 import { AsyncData } from '../core/async-data';
+import { McpRegistryStore } from '../core/mcp-registry-store';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
+import { StudioApi } from '../core/studio-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { STUDIO_VIEWS } from '../studio-views';
-import { firstSentence, groupTools, lockLink, lockText } from './agent-tools';
+import {
+  type Herkunft, type Schalter, firstSentence, groupTools, herkunftVon, lockLink, lockText,
+  schalterFuer,
+} from './agent-tools';
 import type { CuratedPanelSection } from './curated-views';
+import { SaveConflictComponent } from './save-conflict.component';
 
 /** Erlaubnisliste statt zusammengesetztem Schlüssel: eine neue Art kommt roh durch. */
 const GROUP_KEYS: ReadonlyMap<string, string> = new Map([
@@ -31,7 +40,7 @@ const GROUP_KEYS: ReadonlyMap<string, string> = new Map([
 
 @Component({
   selector: 'studio-agent-tools',
-  imports: [RouterLink],
+  imports: [RouterLink, SaveConflictComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './agent-tools.component.html',
   styleUrl: './agent-tools.component.scss',
@@ -45,6 +54,9 @@ export class AgentToolsComponent {
   readonly open = input(false);
 
   readonly list = new AsyncData(() => this.api.tools(), this.t);
+  /** Paket 15: die Server-Liste, deren `werkzeuge_aus` die Schalter schreiben. */
+  readonly reg = new McpRegistryStore(inject(StudioApi), this.t);
+  readonly dirty = this.reg.dirty;
   readonly groups = computed(() => groupTools(this.list.value()?.tools ?? []));
   readonly summary = computed(() => {
     const tools = this.list.value()?.tools ?? [];
@@ -54,7 +66,12 @@ export class AgentToolsComponent {
   });
 
   protected readonly firstSentence = firstSentence;
-  protected readonly lockLink = lockLink;
+  private readonly ansicht = inject(StudioAnsicht).ansicht;
+
+  /** Wo die Sperre gepflegt wird — im Arbeitsbereich, der gerade offen ist (Review PR #18). */
+  lockLink(lock: AgentToolLock): string | null {
+    return lockLink(lock, this.ansicht());
+  }
 
   private loaded = false;
 
@@ -66,6 +83,51 @@ export class AgentToolsComponent {
 
   onToggle(event: Event): void {
     if ((event.target as HTMLDetailsElement).open) this.ensureLoaded();
+  }
+
+  schalter(tool: AgentTool): Schalter | null {
+    return schalterFuer(tool, this.reg.servers());
+  }
+
+  /** Woher das Werkzeug kommt — Art, Server und Host; ein fremdes nennt seinen Server auch,
+   *  solange die Liste lädt. */
+  herkunft(tool: AgentTool): Herkunft {
+    return herkunftVon(tool, this.reg.servers());
+  }
+
+  serverZeile(h: Herkunft): string {
+    return [h.server, h.host].filter((teil) => teil !== '').join(' · ');
+  }
+
+  /** „fest“ nur, wo es stimmt: ohne Server-Liste weiß die Seite nicht, was schaltbar ist. */
+  ohneSchalter(tool: AgentTool): string {
+    if (tool.kind !== 'virtual' && this.reg.loading()) return this.t('agentTools.schalter.laedt');
+    if (tool.kind !== 'virtual' && this.reg.loadError()) {
+      return this.t('agentTools.schalter.unbekannt');
+    }
+    return this.t('agentTools.schalter.fest');
+  }
+
+  /** Nach einem Konflikt: Server-Liste und Tabelle — die zeigt, was ein Zug jetzt bekommt. */
+  neuLaden(): void {
+    void this.reg.load();
+    void this.list.reload();
+  }
+
+  /** Bietet der Chatbot das Werkzeug laut (bearbeiteter) Server-Liste an? */
+  an(schalter: Schalter): boolean {
+    const server = this.reg.servers()[schalter.index];
+    return !!server && this.reg.isOffered(server, schalter.name);
+  }
+
+  setze(schalter: Schalter, an: boolean): void {
+    this.reg.setOffered(schalter.index, schalter.name, an);
+  }
+
+  /** Speichern, danach die Tabelle neu: was ein Zug bekommt, hat sich womöglich geändert. */
+  async speichern(force = false): Promise<void> {
+    await this.reg.save(force);
+    if (!this.reg.dirty()) void this.list.reload();
   }
 
   lockText(lock: AgentToolLock): string {
@@ -91,5 +153,6 @@ export class AgentToolsComponent {
     if (this.loaded) return;
     this.loaded = true;
     void this.list.reload();
+    void this.reg.load();
   }
 }

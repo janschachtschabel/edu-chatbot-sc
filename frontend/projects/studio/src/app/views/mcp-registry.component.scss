@@ -14,6 +14,48 @@
   border-radius: var(--st-radius);
 }
 
+// Paket 15: die zugeklappte Zeile — Name, Status und Werkzeug-Zahl, darunter die Adresse.
+.mr-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--st-1) var(--st-3);
+  cursor: pointer;
+}
+
+.mr-row[open] > .mr-summary {
+  margin-block-end: var(--st-3);
+}
+
+// Review-Runde 2: `display: flex` nimmt der Zusammenfassung ihr Aufklapp-Dreieck — ohne
+// Zeichen sahen die zugeklappten Zeilen wie fester Text aus. Leerer Alternativtext: der
+// Screenreader sagt „reduziert/erweitert“ ohnehin.
+.mr-summary::before {
+  content: '▸' / '';
+  flex: none;
+  inline-size: 1em;
+  color: var(--st-text-muted);
+}
+
+.mr-row[open] > .mr-summary::before {
+  content: '▾' / '';
+}
+
+.mr-sum-name {
+  font-weight: 600;
+}
+
+.mr-sum-meta,
+.mr-sum-url {
+  color: var(--st-text-muted);
+  font-size: 0.8125rem;
+}
+
+.mr-sum-url {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
 .mr-grid {
   display: grid;
   // Fluid, not breakpoint-based: the panel also sits in a narrow column.
@@ -98,13 +140,6 @@
 }
 
 // Schalter und Name als eine Klickfläche (Review Paket 7, C-10).
-.mr-tool-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--st-2);
-  cursor: pointer;
-}
-
 .mr-tool-desc {
   display: block;
   margin-block-start: var(--st-1);

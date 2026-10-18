@@ -145,7 +145,7 @@ def test_defaults_match_alt(clean_env) -> None:
     assert s.guide_trusted_domains is None
     # Eval / Loadtest
     assert s.allow_loadtest is True
-    assert s.eval_chat_url == "http://localhost:8000/api/chat"
+    assert s.eval_chat_url == "http://127.0.0.1:8100/api/chat"
     # Paket 7 (L4): leer — dann gilt das Chat-Modell (eval/scenario_gen).
     assert s.eval_simulator_model == ""
     assert s.eval_judge_model == ""

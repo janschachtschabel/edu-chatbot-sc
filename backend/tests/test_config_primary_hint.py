@@ -16,6 +16,9 @@ from boerdi.domain.config_models import AREA_MODELS
 ERWARTET = {
     ("WelcomeBlock", "greeting"),
     ("WelcomeBlock", "quick_replies"),
+    # Paket 15: die englischen Texte sind ebenso Inhalt (sonst zwischen den Grundwerten).
+    ("WelcomeBlock", "greeting_en"),
+    ("WelcomeBlock", "quick_replies_en"),
     ("LayerDocArea", "body"),
     ("PersonaArea", "body"),
 }

@@ -3,8 +3,8 @@
     <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
     <p class="cs-hint">{{ t(section().hintKey) }}</p>
     <!-- ST-5: wo dieser Bereich wirkt — aus der Zuordnung im Backend -->
-    <studio-effect-badge class="cs-effect" [area]="section().area" />
-    @if (editor.dirty()) {
+    <studio-effect-badge class="cs-effect" [area]="section().area" [felder]="section().felder" />
+    @if (editor.verwerfbar()) {
       <!-- visible on the closed panel too: a collapsed section with unsaved
            edits is exactly the case someone navigates away from -->
       <span class="cs-flag">{{ t('editor.unsavedShort') }}</span>
@@ -23,10 +23,20 @@
       @if (section().feature === 'safety-level') {
         <studio-safety-level [doc]="editor.doc()" (docChange)="editor.setDoc($event)" />
       }
+      @for (hinweis of hinweise(); track $index) {
+        <p class="cs-hinweis" role="note">{{ hinweisText(hinweis) }}</p>
+      }
+      @if (section().sprung; as sprung) {
+        <p class="cs-sprung"><a [routerLink]="['/', sprung.slug]">{{ t(sprung.labelKey) }} →</a></p>
+      }
       <studio-schema-form
         [schema]="schema"
         [value]="editor.doc()"
+        [epoche]="editor.epoche()"
+        [area]="section().area"
+        [gruppen]="section().gruppen ?? null"
         [idPrefix]="idPrefix()"
+        [visiblePaths]="felder()"
         [problems]="editor.problems()"
         (valueChange)="editor.setDoc($event)"
         (errorsChange)="editor.setFieldErrors($event)"
@@ -44,7 +54,7 @@
         <button
           type="button"
           class="cs-btn"
-          [disabled]="editor.saving() || !editor.dirty()"
+          [disabled]="editor.saving() || !editor.verwerfbar()"
           (click)="editor.discard()"
         >
           {{ t('editor.discard') }}
@@ -52,6 +62,7 @@
         <a
           class="cs-raw-link"
           [routerLink]="rawLink()"
+          [queryParams]="rawQuery"
           [attr.aria-label]="t('areaSection.rawLinkFor', { label: t(section().labelKey) })"
         >{{ t('areaSection.rawLink') }}</a>
       </div>

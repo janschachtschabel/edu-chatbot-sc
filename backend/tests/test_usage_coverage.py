@@ -40,15 +40,9 @@ _SRC = Path(__file__).resolve().parents[1] / "src" / "boerdi"
 # Grund, der erklärt, warum die Token hier nicht in die Kostenschau gehören
 # ODER auf anderem Weg dorthin kommen.
 OHNE_BUCHUNG: dict[str, str] = {
-    "services/eval/judge.py::judge_turn":
-        "Evals sind laut Plan §4 nicht im Erfassungsumfang — sie laufen auf "
-        "Knopfdruck der Redaktion, nicht im Zug einer Person, und haben mit "
-        "'Token je Sitzung' nichts zu tun.",
-    "services/eval/runner.py::simulate_conversation":
-        "Eval-Lauf (beide Aufrufe dieser Funktion), siehe judge.py — außerhalb "
-        "des Umfangs (Plan §4).",
-    "services/eval/scenario_gen.py::generate_scenarios":
-        "Eval-Szenariengenerator, außerhalb des Umfangs (Plan §4).",
+    # Paket 15 (A6, 2026-10-17): Judge, Simulator und Szenarien eines Eval-Laufs buchen
+    # seither ohne Sitzung unter ``eval-…`` (``services/eval/verbrauch.py``) — die
+    # Kosten-Seite trennt sie als Auswertung vom Betrieb. Bis dahin standen sie hier.
     "services/tool_loop.py::_run_tool_loop":
         "Bucht SELBST, direkt hinter dem Aufruf — und muss das auch: das "
         "Phasen-Etikett ('tool_loop' vs. 'response') folgt erst aus "

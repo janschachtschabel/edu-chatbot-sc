@@ -75,9 +75,10 @@ betrieb:
   # `respond_to_user`).
   token_streaming: true
   # AGENT_INLINE_QUICK_REPLIES: der Agent schreibt die Schnellantworten gleich
-  # mit (Zug 12,2 → 6,8 s). Erst einschalten, wenn der Master-Skill-Abschnitt
-  # „Schnellantworten" angepasst ist (Text: docs/plans/2026-09-30-muster-kette-zeit.md).
-  agent_schnellantworten: false
+  # mit (Zug 12,2 → 6,8 s) — und nur so streamt er (Paket 15, Vorgabe an). Der
+  # Master-Skill-Abschnitt „Schnellantworten" sollte dazu passen (Text:
+  # docs/plans/2026-09-30-muster-kette-zeit.md).
+  agent_schnellantworten: true
   # Ohne persoenliche Anmeldung mit dem Dienstkonto der Anlage (MCP_AUTH_TOKEN)
   # schreiben — in beiden Modi, fuer jede Person im Chat. Vorgabe aus: schreiben
   # kann nur, wer mit dem eigenen WLO-Konto angemeldet ist (P5-9). Bewusst ohne

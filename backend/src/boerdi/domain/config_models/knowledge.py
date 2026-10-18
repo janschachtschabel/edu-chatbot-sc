@@ -12,9 +12,8 @@ from boerdi.domain.config_models._shared import AreaModel, Catalog, Choices, Tex
 class RagAreaDef(AreaModel):
     #: S1: Auswahl statt Freitext. Der Wert entscheidet ueber den MUSTER-Weg —
     #: ``always`` holt den Bereich vor dem ersten Modellzug, ``on-demand`` erst
-    #: auf Zuruf. Ein Tippfehler nahm den Bereich bis dahin still aus der
-    #: Nutzung: ``load_rag_config`` behaelt nur Eintraege MIT ``mode``, und ein
-    #: leeres Textfeld sagte das niemandem.
+    #: auf Zuruf. Leer = im Muster-Weg nur, wo ein Muster den Bereich ausdruecklich
+    #: nennt; die Agent-Schleife liest allein ``agent`` (Paket 15, A4).
     mode: Annotated[str, Choices("always", "on-demand")] = ""
     description: Annotated[str | None, Textarea()] = None
     #: Q (2026-08-18): darf die Agent-Schleife diesen Bereich
@@ -106,15 +105,31 @@ class GuideRulesArea(AreaModel):
     rag_area_rules: dict[str, RagAreaRule] = {}
 
 
+#: Paket 13 (B): wofür ein Golden-Zug steht — Spalten der Matrix „Zielgruppe × Anwendungsfall“.
+#: Dieselbe Liste prüft der Runner vor dem Lauf (``evals/run_golden.ANWENDUNGSFAELLE``).
+ANWENDUNGSFAELLE: tuple[str, ...] = (
+    "suchen", "zusammenstellen", "erzeugen", "ueberarbeiten", "zeigen", "erklaeren",
+    "wlo_wissen", "orientieren", "kuratieren", "rueckmeldung", "schutz", "sonstiges",
+)
+
+
 class GoldTurn(AreaModel):
     message: Annotated[str, Textarea()] = ""
+    # Pflicht, sobald der Zug in einem Lauf steht — geprüft beim Laufstart (``validate_flows``).
+    anwendungsfall: Annotated[str, Choices(*ANWENDUNGSFAELLE)] = ""
     expect: dict[str, Any] = {}
 
 
 class GoldFlow(AreaModel):
     id: str = ""
+    # Rundgang 3: das tragende Feld (Judge ``golden.py``, Laufstart ``golden_run.py``, Matrix
+    # ``auswertung_v2.py``) — bis dahin nur im Rohtext setzbar, das Studio meldete es als
+    # „nicht angezeigt“. ``persona`` bleibt als Rückfall alter Stände lesbar.
+    zielgruppe: Annotated[str, Catalog("personas")] = ""
     persona: Annotated[str, Catalog("personas")] = ""
     title: str = ""
+    # Paket 13 (B): was ein guter Verlauf leistet — für den Ablauf-Judge, ein bis drei Sätze.
+    erwartung: Annotated[str, Textarea()] = ""
     intents: list[Annotated[str, Catalog("intents")]] = []
     turns: list[GoldTurn] = []
     # AG-5: der Einbettungs-Kontext, den der Gold-Runner bei JEDEM Zug als

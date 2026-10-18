@@ -21,6 +21,7 @@ import time
 from typing import Any
 
 from boerdi.api.schemas import ToolOutcome
+from boerdi.obs.zeiten import schritt
 from boerdi.services.mcp.client import call_mcp_tool, is_mcp_error
 
 
@@ -36,7 +37,10 @@ async def call_with_outcome(
     start = time.monotonic()
 
     try:
-        result = await call_mcp_tool(tool_name, tool_args)
+        # Paket 15 (Review-Runde 2): die Werkzeugzeit des Zuges — Werkzeug- und Agent-Schleife
+        # rufen hier; der Lasttest zeigt sie je Anfrage (``loadtest._werkzeug_angaben``).
+        with schritt("respond.werkzeuge"):
+            result = await call_mcp_tool(tool_name, tool_args)
         outcome.latency_ms = int((time.monotonic() - start) * 1000)
 
         if not result or not result.strip():

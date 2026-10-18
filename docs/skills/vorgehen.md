@@ -385,7 +385,8 @@ Thema **und** Materialtyp. Die bloße Frage, ob es etwas gibt, ist eine Suche (s
 **Wie:** das fertige Material übergibst du vollständig mit `zeige_dokument`; im Chat
 steht ein inhaltsbezogener Satz dazu. Bei Quiz, Test, Arbeitsblatt oder Übung gehört
 ein Abschnitt `## Lösungen` ans Ende — mit Lösung je Aufgabe; beim Quiz steht dazu
-ein Satz Begründung, und du musst die richtige Antwort über die Antwortpositionen verteilen. Übt eine lernende Person selbst, verrätst du die Lösungen
+ein Satz Begründung („1. B – weil …“), und du musst die richtige Antwort über die
+Antwortpositionen verteilen. Übt eine lernende Person selbst, verrätst du die Lösungen
 nicht gleich: du lieferst die Aufgaben und bietest die Lösungen an; auf Wunsch
 lieferst du sie mit `zeige_dokument`, den Aufgaben klar zugeordnet.
 Hilfsmittel nach Bedarf: `get_skill_registry`/`get_skill` für die Fachanleitung,

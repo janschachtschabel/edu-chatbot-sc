@@ -1,0 +1,74 @@
+// Die Problemliste (Paket 13, F5).
+@use './eval-note' as en;
+
+:host {
+  display: block;
+}
+
+.ep {
+  display: grid;
+  gap: var(--st-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ep-eintrag {
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 4px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.ep-kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-1) var(--st-2);
+}
+
+.ep-sprung {
+  min-block-size: 1.75rem;
+  padding: 0 var(--st-2);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--st-accent-soft);
+  }
+}
+
+.ep-titel {
+  font-weight: 600;
+}
+
+.ep-chip {
+  @include en.note-chip;
+}
+
+.ep-statement,
+.ep-fehler {
+  margin: var(--st-2) 0 0;
+  font-size: 0.875rem;
+}
+
+.ep-fehler {
+  color: var(--st-danger-text);
+}
+
+.ep-auff {
+  margin: var(--st-1) 0 0;
+  padding-inline-start: var(--st-4);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.ep-leer {
+  margin: 0;
+  color: var(--st-text-muted);
+}

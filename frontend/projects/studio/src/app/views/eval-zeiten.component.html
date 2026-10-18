@@ -1,0 +1,33 @@
+@if (tabellen().length === 0) {
+  <p class="ez-leer">{{ t('evalV2.zeiten.leer') }}</p>
+} @else {
+  <div class="ez" tabindex="0" role="region" [attr.aria-label]="t('evalV2.zeiten')">
+    @for (tabelle of tabellen(); track tabelle.art) {
+      <table class="ez-tabelle">
+        <caption>{{ t('evalV2.zeiten.' + tabelle.art) }}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{{ t('evalV2.zeiten.schritt') }}</th>
+            <th scope="col">{{ t('evalV2.zeiten.median') }}</th>
+            <th scope="col">{{ t('evalV2.zeiten.p95') }}</th>
+            <th scope="col">{{ t('evalV2.zeiten.n') }}</th>
+            <td aria-hidden="true"></td>
+          </tr>
+        </thead>
+        <tbody>
+          @for (zeile of tabelle.zeilen; track zeile.name) {
+            <tr>
+              <th scope="row">{{ zeile.name }}</th>
+              <td>{{ zeile.median }}</td>
+              <td>{{ zeile.p95 }}</td>
+              <td>{{ zeile.n }}</td>
+              <td class="ez-balken" aria-hidden="true">
+                <span [style.inline-size]="zeile.breite"></span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+}

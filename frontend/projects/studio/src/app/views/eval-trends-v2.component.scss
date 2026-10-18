@@ -1,0 +1,50 @@
+// Der Verlauf der Noten (Paket 13, F8).
+:host {
+  display: block;
+}
+
+.tv-titel {
+  margin: 0 0 var(--st-1);
+  font-size: 0.9375rem;
+}
+
+.tv-hinweis {
+  margin: 0 0 var(--st-2);
+  max-inline-size: 70ch;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.tv-rahmen {
+  overflow-x: auto;
+}
+
+.tv-tabelle {
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+
+  th,
+  td {
+    padding: var(--st-1) var(--st-2);
+    border-block-end: 1px solid var(--st-rule);
+    text-align: end;
+    white-space: nowrap;
+  }
+
+  th[scope='row'],
+  thead th:first-child,
+  .tv-wechsel {
+    text-align: start;
+  }
+
+  .tv-wechsel {
+    white-space: normal;
+    min-inline-size: 12rem;
+  }
+}
+
+// Eine Wechselmarke: Rand am Zeilenanfang; der Text in „Geändert“ trägt die Aussage.
+.tv-gewechselt th[scope='row'] {
+  border-inline-start: 3px solid var(--st-warn-dot);
+}

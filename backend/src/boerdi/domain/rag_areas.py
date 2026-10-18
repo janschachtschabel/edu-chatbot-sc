@@ -5,8 +5,9 @@ die beiden koennen still auseinanderlaufen.
 
 * Was in der **Datenbank** liegt: ``services/rag/admin.list_areas`` gruppiert
   ueber ``RagChunk.area``. Daraus speist sich die Wissen-Seite im Studio.
-* Was in der **Konfiguration** steht: ``config_loader.load_rag_config`` behaelt
-  nur Eintraege mit ``mode``. Daraus speist sich, was der Chatbot durchsucht.
+* Was in der **Konfiguration** steht: ``config_loader.load_rag_config``. Daraus
+  speist sich, was der Chatbot durchsucht (``mode`` im Muster-Weg, ``agent`` in der
+  Schleife).
 
 Wer im Studio beim Einlesen einen neuen Bereichsnamen tippt, legt ihn nur in der
 Datenbank an. Der Chatbot durchsucht ihn nie — und nichts sagte es. Das ist die

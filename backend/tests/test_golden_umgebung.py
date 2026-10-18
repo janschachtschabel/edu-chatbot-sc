@@ -132,17 +132,21 @@ def test_goldflow_fuehrt_das_environment_als_feld() -> None:
 
 
 def test_validate_flows_meldet_einen_falschen_deckel_mit_ort() -> None:
-    kaputt = [{"id": "F1", "turns": [{"message": "a", "expect": {}},
-                                     {"message": "b", "expect": {"tools_max": "3"}}]}]
+    kaputt = [{"id": "F1", "erwartung": "e",
+               "turns": [{"message": "a", "anwendungsfall": "suchen", "expect": {}},
+                         {"message": "b", "anwendungsfall": "suchen",
+                          "expect": {"tools_max": "3"}}]}]
     with pytest.raises(ValueError, match=r"F1.*2.*tools_max"):
         rg.validate_flows(kaputt)
-    rg.validate_flows([{"id": "F2", "turns": [{"message": "a",
-                                               "expect": {"tools_max": 3}}]}])
+    rg.validate_flows([{"id": "F2", "erwartung": "e",
+                        "turns": [{"message": "a", "anwendungsfall": "suchen",
+                                   "expect": {"tools_max": 3}}]}])
 
 
 def test_load_flows_prueft_die_deckel_vor_dem_lauf(tmp_path) -> None:
     pfad = tmp_path / "flows.yaml"
-    pfad.write_text("version: 2\nflows:\n  - id: F1\n    turns:\n      - message: a\n"
+    pfad.write_text("version: 2\nflows:\n  - id: F1\n    erwartung: e\n    turns:\n"
+                    "      - message: a\n        anwendungsfall: suchen\n"
                     "        expect: {tools_max: zwei}\n", encoding="utf-8")
     with pytest.raises(ValueError, match="tools_max"):
         rg.load_flows(pfad)

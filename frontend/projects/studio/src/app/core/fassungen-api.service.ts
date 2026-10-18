@@ -54,6 +54,18 @@ export interface Vergleich {
   readonly zeilen: readonly string[];
   /** Stillgelegte Fassung gegen die Werksfassung (leer, wenn keine stillliegt). */
   readonly zeilen_eigene: readonly string[];
+  /** Paket 16, C6: dieselben Unterschiede je Feld (höchstens 100), `*_gesamt` = alle. */
+  readonly felder?: readonly FeldUnterschied[];
+  readonly felder_gesamt?: number;
+  readonly felder_eigene?: readonly FeldUnterschied[];
+  readonly felder_eigene_gesamt?: number;
+}
+
+/** Ein abweichendes Blatt: Werte als gekürzter JSON-Text, `null` = das Feld fehlt dort. */
+export interface FeldUnterschied {
+  readonly pfad: string;
+  readonly werk: string | null;
+  readonly eigen: string | null;
 }
 
 /** `geprueft`: eigene Fassung behalten, aktuelle Werksfassung als gesehen merken. */

@@ -1362,10 +1362,11 @@ async def test_die_ansage_vor_einer_echten_antwort_bleibt(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_ohne_schalter_bleibt_der_agent_beim_eigenen_aufruf(monkeypatch):
-    """Der Master-Skill beschreibt heute: die Pillen schreibt ein zweiter
-    Aufruf. Solange er das sagt, bekommt der Agent das Werkzeug nicht —
-    Werkzeug und Anleitung widersprächen sich."""
+async def test_ausgeschaltet_bleibt_der_agent_beim_eigenen_aufruf(monkeypatch):
+    """Ausgeschaltet bekommt der Agent das Werkzeug nicht — die Pillen schreibt dann ein
+    zweiter Aufruf. Seit Paket 15 ist der Schalter in der Vorgabe an (sonst streamt der Agent
+    nicht); ausschalten lässt er sich im Studio oder per Umgebung."""
+    monkeypatch.setenv("AGENT_INLINE_QUICK_REPLIES", "0")
     seen: dict = {}
     _patch(monkeypatch, seen)
 
@@ -1461,3 +1462,30 @@ async def test_ohne_antwort_werkzeug_streamt_der_agent_nicht(monkeypatch):
     assert seen["run_agent_loop"]["on_token"] is None
     assert ereignisse == []
     assert strom.abschluss("x")["gesperrt"] == "ohne_antwort_werkzeug"
+
+
+@pytest.mark.anyio
+async def test_der_systemteil_wird_als_prompt_fassung_vermerkt(monkeypatch):
+    """Paket 13 (A5): Kopf, Master-Skill und Seitenregeln stehen als Prüfsummen im Merkposten
+    des Zuges — so sagt jeder Eval-Zug, mit welcher Fassung geantwortet wurde. Und nur feste
+    Teile: weder die Nachricht noch die Seitendaten landen in der Ablage."""
+    from boerdi.services import master_skill, prompt_ablage
+
+    monkeypatch.setattr(prompt_ablage, "_OFFEN", {})
+    monkeypatch.setattr(prompt_ablage, "_GESCHRIEBEN", set())
+    seen: dict = {}
+    _patch(monkeypatch, seen)
+    _vorab(monkeypatch)
+    monkeypatch.setattr(master_skill, "prompt_block",
+                        lambda ueberschreibung=None: _fertig("## Gesamtanleitung — Inhalt."))
+    ctx = _ctx(message="Merkwort-Zebra-4711", page_context=_SAMMLUNG, page_meta=_AUFGELOEST)
+    await respond_agent(ctx)
+    kette = seen["run_agent_loop"]["messages"]
+    prompts = ctx.usage["prompts"]
+    assert prompts["agent.kopf"] == prompt_ablage.pruefsumme(kette[0]["content"])
+    assert prompts["agent.master_skill"] == prompt_ablage.pruefsumme(
+        "## Gesamtanleitung — Inhalt.")
+    assert prompts["seitenregeln"] == prompt_ablage.pruefsumme(SEITEN_REGELN)
+    abgelegt = " ".join(t for _art, t in prompt_ablage._OFFEN.values())
+    assert "Merkwort-Zebra-4711" not in abgelegt
+    assert "Geometrische Optik" not in abgelegt

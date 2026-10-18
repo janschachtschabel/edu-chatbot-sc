@@ -13,11 +13,44 @@ export const BACKUP: CataloguePart = {
     // ── Hülle und Voll-Backup ───────────────────────────────────────
     // Die Überschrift ist `view.sicherung.label` — dieselbe Ansicht, derselbe
     // Name.
+    'fassungen.alleAufEinmal': 'Alle Bereiche auf einmal',
+    'fassungen.mehr': 'Was bedeutet das?',
+    'backup.reiter.werk': 'Werksfassung',
+    'backup.reiter.sichern': 'Sichern',
     'backup.intro':
       'Oben, welche Bereiche der Werksfassung folgen und welche angepasst sind; darunter die '
       + 'Sicherungen. Alle sichern dasselbe: die Konfigurationsbereiche des Chatbots. '
       + 'Gespräche, Auswertungen und RAG-Inhalte gehören nicht dazu — ein eingespieltes '
       + 'Backup lässt sie unberührt.',
+    'backup.arten.title': 'Was sichert was?',
+    'backup.arten.lead':
+      'Vier Wege, die Konfiguration zu sichern — alle umfassen die Konfigurationsbereiche, keiner '
+      + 'Gespräche, Auswertungen oder RAG-Inhalte.',
+    'backup.arten.spalte.wo': 'Wo liegt es?',
+    'backup.arten.spalte.wer': 'Wer legt es an?',
+    'backup.arten.spalte.umfang': 'Was steckt drin?',
+    'backup.arten.spalte.rueckweg': 'Rückweg',
+    'backup.arten.werk': 'Werksfassung',
+    'backup.arten.werk.wo': 'im Abbild, aus dem Repository',
+    'backup.arten.werk.wer': 'kommt mit jeder Version',
+    'backup.arten.werk.umfang': 'jeder Bereich, wie ausgeliefert',
+    'backup.arten.werk.rueckweg': 'je Bereich „Aktiv: Werksfassung“ im Reiter „Werksfassung“',
+    'backup.arten.grundstand': 'Eigener Grundstand',
+    'backup.arten.grundstand.wo': 'in der Datenbank — genau einer',
+    'backup.arten.grundstand.wer': 'du: „Aus Live-Stand sichern“ oder eine ZIP hochladen',
+    'backup.arten.grundstand.umfang': 'alle Bereiche, wie beim Sichern',
+    'backup.arten.grundstand.rueckweg': '„Zurücksetzen“ — alles auf einmal',
+    'backup.arten.snapshots': 'Snapshots',
+    'backup.arten.snapshots.wo': 'in der Datenbank — mehrere, mit Bezeichnung',
+    'backup.arten.snapshots.wer':
+      'du von Hand; automatisch vor einem exakten Einspielen und vor der Werksfassung',
+    'backup.arten.snapshots.umfang': 'alle Bereiche zum Zeitpunkt des Anlegens',
+    'backup.arten.snapshots.rueckweg': '„Wiederherstellen“ in der Liste',
+    'backup.arten.voll': 'Voll-Backup',
+    'backup.arten.voll.wo': 'als ZIP auf deinem Rechner',
+    'backup.arten.voll.wer': 'du: „Backup herunterladen“',
+    'backup.arten.voll.umfang': 'alle Bereiche — auch für einen anderen Server',
+    'backup.arten.voll.rueckweg': '„Backup einspielen“',
     'backup.full.title': 'Voll-Backup',
     'backup.full.lead':
       'Der aktuelle Stand als ZIP für das eigene Archiv — und der Weg zurück, wenn er '
@@ -156,11 +189,44 @@ export const BACKUP: CataloguePart = {
   },
 
   en: {
+    'fassungen.alleAufEinmal': 'All areas at once',
+    'fassungen.mehr': 'What does this mean?',
+    'backup.reiter.werk': 'Factory version',
+    'backup.reiter.sichern': 'Back up',
     'backup.intro':
       'At the top, which areas follow the factory version and which are customized; below, '
       + 'the backups. They all back up the same thing: the chatbot’s configuration areas. '
       + 'Conversations, monitoring data and RAG content are not included — restoring a '
       + 'backup leaves them untouched.',
+    'backup.arten.title': 'What backs up what?',
+    'backup.arten.lead':
+      'Four ways to back up the configuration — all cover the configuration areas, none covers '
+      + 'conversations, evaluations or RAG content.',
+    'backup.arten.spalte.wo': 'Where is it kept?',
+    'backup.arten.spalte.wer': 'Who creates it?',
+    'backup.arten.spalte.umfang': 'What is in it?',
+    'backup.arten.spalte.rueckweg': 'Way back',
+    'backup.arten.werk': 'Factory version',
+    'backup.arten.werk.wo': 'in the image, from the repository',
+    'backup.arten.werk.wer': 'ships with every version',
+    'backup.arten.werk.umfang': 'every area as delivered',
+    'backup.arten.werk.rueckweg': 'per area “Active: Factory version” on the “Factory version” tab',
+    'backup.arten.grundstand': 'Own baseline',
+    'backup.arten.grundstand.wo': 'in the database — exactly one',
+    'backup.arten.grundstand.wer': 'you: “Save from live state” or upload a ZIP',
+    'backup.arten.grundstand.umfang': 'all areas as they were when saved',
+    'backup.arten.grundstand.rueckweg': '“Reset” — everything at once',
+    'backup.arten.snapshots': 'Snapshots',
+    'backup.arten.snapshots.wo': 'in the database — several, with a label',
+    'backup.arten.snapshots.wer':
+      'you, by hand; automatically before an exact restore and before the factory version',
+    'backup.arten.snapshots.umfang': 'all areas at the time they were taken',
+    'backup.arten.snapshots.rueckweg': '“Restore” in the list',
+    'backup.arten.voll': 'Full backup',
+    'backup.arten.voll.wo': 'as a ZIP on your computer',
+    'backup.arten.voll.wer': 'you: “Download backup”',
+    'backup.arten.voll.umfang': 'all areas — also for another server',
+    'backup.arten.voll.rueckweg': '“Restore backup”',
     'backup.full.title': 'Full backup',
     'backup.full.lead':
       'The current state as a ZIP for your own archive — and the way back when it lives '

@@ -370,4 +370,95 @@ describe("LoadtestRunComponent — Live-Region", () => {
     expect(h.el.querySelector(".lr-progress[aria-live='polite']")).toBe(region);
     expect(region!.textContent).toContain("Stufe 1 von 2 fertig");
   });
+
+  it("nennt die Aufwärm-Anfrage, zeigt jede Anfrage und sagt „max“ bei wenigen Messungen (Paket 15)", async () => {
+    const h = await mount({
+      ...COMPLETED,
+      warmup: { kind: "suche", ok: true, status: 200, latency_s: 8.7 },
+      stages: [{
+        ...stage(1),
+        by_kind: { suche: { n: 4, ok: 3, p50_s: 6.5, p95_s: 21.0, max_s: 26.9 } },
+        anfragen: [
+          { nr: 1, kind: "suche", ok: true, status: 200, latency_s: 26.9, werkzeuge: 1,
+            werkzeuge_ms: 22100 },
+          { nr: 2, kind: "suche", ok: true, status: 200, latency_s: 6.5, werkzeuge: 1 },
+        ],
+      }],
+    });
+    const text = (h.el.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("Aufwärm-Anfrage: 8,7 s");
+    // Mit drei Messungen ist „p95“ das Maximum — die Zeile sagt es.
+    // n = erfolgreiche, max = echtes Maximum (Review P15 #6); Zahlen wie in der Karte daneben
+    // (Review-Runde 2): „26,9 s“, nicht „26.9s“.
+    expect(h.el.querySelector(".lr-kinds")?.textContent).toContain("suche: höchstens 26,9 s (n = 3)");
+    expect(Array.from(h.el.querySelectorAll("th")).some((th) => th.textContent?.trim() === "Dauer je Kategorie"))
+      .toBe(true);
+    const zeilen = Array.from(h.el.querySelectorAll(".lr-anfragen tbody tr"));
+    expect(zeilen).toHaveLength(2);
+    expect(zeilen[0].textContent).toContain("22,1 s");
+  });
+
+  it("zeigt eine gescheiterte Aufwärm-Anfrage als Fehler — auch ohne fertige Stufe (Review-Runde 2)", async () => {
+    const h = await mount({
+      ...COMPLETED,
+      stages: [],
+      warmup: { kind: "suche", ok: false, status: 0, latency_s: 60, error: "ReadTimeout" },
+    });
+    const zeile = h.el.querySelector(".lr-warmup");
+    expect(zeile?.classList.contains("lr-bad")).toBe(true);
+    expect((zeile?.textContent ?? "").replace(/\s+/g, " ")).toContain(
+      "Aufwärm-Anfrage gescheitert nach 60 s: ReadTimeout");
+  });
+
+  it("sagt im Profil, ob aufgewärmt wurde, und führt jede Anfrage mit Zeilenkopf (Review-Runde 2)", async () => {
+    const h = await mount({
+      ...COMPLETED,
+      profile: { ...COMPLETED.profile, warmup: false, engine: "agent" },
+      stages: [{ ...stage(1), anfragen: [{ nr: 1, kind: "suche", ok: true, status: 200, latency_s: 6.5 }] }],
+    });
+    expect(h.el.textContent).toContain("ohne Aufwärmen");
+    expect(h.el.querySelector('.lr-anfragen tbody th[scope="row"]')?.textContent?.trim()).toBe("1");
+  });
+
+  it("zeigt die Engstelle je Anfrageart der höchsten Stufe und die Teile je Anfrage (Paket 16)", async () => {
+    const zeiten = { llm: 4000, werkzeuge: 1000, vorabsuche: 500, rerank: 2000, rag: 0, safety: 0,
+      rest: 500 };
+    const h = await mount({
+      ...COMPLETED,
+      stages: [stage(1), {
+        ...stage(2),
+        by_kind: { suche: { n: 4, ok: 4, p50_s: 8, p95_s: 9, zeiten_ms: zeiten,
+          anteile: { llm: 0.5, werkzeuge: 0.125, vorabsuche: 0.0625, rerank: 0.25, rag: 0,
+            safety: 0, rest: 0.0625 } } },
+        anfragen: [{ nr: 1, kind: "suche", ok: true, status: 200, latency_s: 8, zeiten }],
+      }],
+    });
+    const engstelle = h.el.querySelector(".lt-engstelle");
+    const text = (engstelle?.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("Parallelität 2");
+    expect(text).toContain("suche");
+    expect(text).toContain("LLM 50 %");
+    expect(text).toContain("Rerank 25 %");
+    expect(text).toContain("größter Teil: LLM");
+    const kopf = Array.from(h.el.querySelectorAll(".lr-anfragen thead th"), (th) => th.textContent?.trim());
+    expect(kopf).toContain("LLM");
+    expect(kopf).toContain("Rerank");
+    const zeile = h.el.querySelector(".lr-anfragen tbody tr")?.textContent ?? "";
+    expect(zeile).toContain("4 s");
+    // Review PR #18: die breiten Tabellen rollen per Tastatur, ihr Rahmen hat einen Namen.
+    for (const rahmen of Array.from(h.el.querySelectorAll(".lr-table-wrap"))) {
+      expect(rahmen.getAttribute("tabindex")).toBe("0");
+      expect(rahmen.getAttribute("role")).toBe("region");
+      expect(rahmen.getAttribute("aria-label")).toBeTruthy();
+    }
+  });
+
+  it("sagt bei einer Art ohne Erfolg „keine erfolgreiche Messung“ statt „höchstens 0 s“ (Review PR #18)", async () => {
+    const h = await mount({
+      ...COMPLETED,
+      stages: [{ ...stage(1), by_kind: { suche: { n: 4, ok: 0, p50_s: 0, p95_s: 0, max_s: 0 } } }],
+    });
+    expect(h.el.querySelector(".lr-kinds")?.textContent).toContain("suche: keine erfolgreiche Messung");
+  });
 });
+

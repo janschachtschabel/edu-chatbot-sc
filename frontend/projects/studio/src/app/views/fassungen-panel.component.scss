@@ -104,30 +104,67 @@
   margin: 0;
 }
 
-.fs-diff-pre {
-  margin: 0;
-  padding: var(--st-2) var(--st-3);
-  max-block-size: 24rem;
-  overflow: auto;
-  border: 1px solid var(--st-rule);
-  border-radius: var(--st-radius);
-  background: var(--st-panel);
-  font-size: 0.8125rem;
-  white-space: pre-wrap;
-  word-break: break-word;
+.fs-mehr {
+  margin: var(--st-2) 0;
+
+  > summary {
+    cursor: pointer;
+    font-size: 0.875rem;
+  }
 }
 
-// Das Zeichen am Zeilenanfang trägt die Bedeutung; die Schrift hebt sie nur hervor.
-.fs-diff-plus,
-.fs-diff-minus {
+// Review-Runde 2: die Sammelaktion steht abgesetzt hinter der Liste.
+.fs-alle {
+  margin-block-start: var(--st-4);
+  padding-block-start: var(--st-3);
+  border-block-start: 1px solid var(--st-rule);
+}
+
+// Paket 16, C6: „Aktiv: Werksfassung · Eigene Fassung“ — ein Paar Knöpfe mit aria-pressed. Der
+// gedrückte trägt Rahmen, Fläche und Haken; die Farbe ist nie das einzige Signal.
+.fs-schalter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+}
+
+.fs-schalter-label {
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
-.fs-diff-minus {
-  text-decoration: line-through;
-  text-decoration-thickness: 1px;
+.fs-wahl {
+  min-block-size: 2rem;
+  padding: 0 var(--st-3);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+
+  &[aria-pressed='true'] {
+    border-color: var(--st-accent);
+    background: var(--st-accent-soft);
+    font-weight: 600;
+    cursor: default;
+
+    // Review A-7: der Haken ist Schmuck — der Zustand steht in `aria-pressed`.
+    &::before {
+      content: '✓ ' / '';
+    }
+  }
+
+  &:disabled:not([aria-pressed='true']) {
+    border-style: dashed;
+    color: var(--st-text-muted);
+    cursor: not-allowed;
+  }
 }
 
-.fs-diff-hunk {
-  color: var(--st-text-muted);
+.fs-editor {
+  align-self: center;
+  font-size: 0.875rem;
 }

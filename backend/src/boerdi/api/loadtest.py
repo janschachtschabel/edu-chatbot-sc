@@ -58,6 +58,8 @@ class LoadTestProfile(BaseModel):
     engine: Literal["default", "pattern", "agent"] = Field(
         "default", description="Engine für jeden Zug dieses Laufs",
     )
+    # Paket 15 (E1): eine Anfrage vorab, die nicht zählt.
+    warmup: bool = Field(True, description="Eine Aufwärm-Anfrage vor der ersten Stufe")
 
 
 def _ensure_loadtest_allowed(lang: Locale) -> None:

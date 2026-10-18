@@ -18,7 +18,8 @@ import {
   STUDIO_LOCALE_STORAGE_KEY,
   StudioLanguageService,
 } from "../i18n/studio-language.service";
-import { STUDIO_VIEWS } from "../studio-views";
+import { STUDIO_VIEWS, navGroups } from "../studio-views";
+import { StudioAnsicht } from "../core/studio-ansicht.service";
 import { BackupToolsComponent } from "./backup-tools.component";
 import { ShellComponent } from "./shell.component";
 
@@ -45,6 +46,8 @@ describe("ShellComponent", () => {
     // Browser ist im Studio die zweitstärkste Quelle. Ohne diese Zeile stünde
     // die Hülle hier auf Englisch und jede deutsche Zusage unten schlüge fehl.
     sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, "de");
+    // Paket 13: keine gemerkte Ansicht aus einem anderen Test — ohne Wahl zeigt die Hülle alles.
+    localStorage.clear();
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
@@ -75,7 +78,8 @@ describe("ShellComponent", () => {
     const links = Array.from(
       el.querySelectorAll<HTMLAnchorElement>(".nav-item"),
     );
-    expect(links).toHaveLength(STUDIO_VIEWS.length);
+    // Paket 14: ohne Wahl der Agent-Arbeitsbereich — dessen Block und die gemeinsamen Gruppen.
+    expect(links).toHaveLength(navGroups("agent").flatMap((g) => g.views).length);
     for (const link of links) {
       // A real href is what makes middle-click, open-in-new-tab and the browser
       // status bar work — ALT's buttons had none.
@@ -89,8 +93,8 @@ describe("ShellComponent", () => {
     const titles = Array.from(el.querySelectorAll(".nav-group-title"), (h) =>
       h.textContent?.trim(),
     );
-    expect(titles).toEqual(["Konfiguration", "Auswertung", "System"]);
-    // Lists, so a screen reader announces "3 of 16".
+    expect(titles).toEqual(["Agent", "Gemeinsam", "Auswertung", "System"]);
+    // Lists, so a screen reader announces "3 of 6".
     expect(el.querySelectorAll(".nav-list").length).toBe(4);
   });
 
@@ -199,6 +203,40 @@ describe("ShellComponent", () => {
     ).not.toBeNull();
   });
 
+  it("trägt den Arbeitsbereich-Umschalter in der Kopfzeile (Paket 14)", () => {
+    const radios = el.querySelectorAll(".header-tools studio-ansicht-umschalter input[type='radio']");
+    expect(radios.length).toBe(2);
+  });
+
+  it("zeigt je Arbeitsbereich dessen eigenen Block (Paket 14)", async () => {
+    const ansicht = TestBed.inject(StudioAnsicht);
+    const hrefs = () => Array.from(el.querySelectorAll(".nav-item"), (a) => a.getAttribute("href"));
+    ansicht.waehle("agent");
+    await fixture.whenStable();
+    expect(hrefs()).toContain("/agent-uebersicht");
+    expect(hrefs()).not.toContain("/patterns");
+    expect(hrefs()).toContain("/begruessung");
+    ansicht.waehle("pattern");
+    await fixture.whenStable();
+    expect(hrefs()).toContain("/patterns");
+    expect(hrefs()).not.toContain("/agent-uebersicht");
+  });
+
+  it("sagt auf einer Seite des anderen Arbeitsbereichs, wohin sie gehört (Paket 14)", async () => {
+    const ansicht = TestBed.inject(StudioAnsicht);
+    ansicht.waehle("agent");
+    await TestBed.inject(Router).navigateByUrl("/patterns");
+    await fixture.whenStable();
+    const hinweis = el.querySelector(".fremd");
+    expect(hinweis?.textContent).toContain("Arbeitsbereich „Muster“");
+    hinweis!.querySelector<HTMLButtonElement>("button")!.click();
+    await fixture.whenStable();
+    expect(ansicht.ansicht()).toBe("pattern");
+    expect(el.querySelector(".fremd")).toBeNull();
+    // Review PR #18: der Knopf verschwindet mit dem Hinweis — der Fokus geht in den Inhalt.
+    expect(document.activeElement?.id).toBe("studio-main");
+  });
+
   it("trägt Snapshot, Backup und Einspielen in der Kopfzeile (ST-9)", () => {
     const gruppe = el.querySelector(".header-tools studio-backup-tools [role='group']");
     expect(gruppe?.getAttribute("aria-label")).toBe("Sicherung");
@@ -229,12 +267,12 @@ describe("ShellComponent", () => {
       "Overview",
     );
     expect(el.querySelector(".nav-desc")?.textContent?.trim()).toBe(
-      "Start, architecture & status",
+      "Status, master skill, architecture, test pages",
     );
     const titel = Array.from(el.querySelectorAll(".nav-group-title"), (h) =>
       h.textContent?.trim(),
     );
-    expect(titel).toEqual(["Configuration", "Monitoring", "System"]);
+    expect(titel).toEqual(["Agent", "Shared", "Monitoring", "System"]);
   });
 
   it("zieht den Fokus beim Ansichtswechsel in den Inhaltsbereich (Audit 2026-08-12)", async () => {

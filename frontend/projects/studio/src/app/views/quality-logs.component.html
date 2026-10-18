@@ -41,7 +41,7 @@
     {{ logs.loading() ? t('action.refreshing') : t('action.refresh') }}
   </button>
   <button type="button" class="ql-clear" [disabled]="working()" (click)="arm({ kind: 'bulk' })">
-    {{ hasFilter() ? t('qualLogs.clearFiltered') : t('qualLogs.clearAll') }}
+    {{ eingeschraenkt() ? t('qualLogs.clearFiltered') : t('qualLogs.clearAll') }}
   </button>
 </form>
 

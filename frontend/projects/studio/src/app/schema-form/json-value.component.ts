@@ -14,11 +14,14 @@ import {
   Component,
   computed,
   effect,
+  inject,
   input,
   output,
   signal,
   untracked,
 } from '@angular/core';
+
+import { FORM_EPOCHE } from './form-epoche';
 
 @Component({
   selector: 'studio-json-value',
@@ -51,6 +54,8 @@ export class JsonValueComponent {
   /** Non-null while the text differs from the committed value. */
   private readonly draft = signal<string | null>(null);
   readonly error = signal('');
+  /** „Verwerfen“ — auch wenn der Wert derselbe bleibt (Vorgabe, Einzelwert; Review P15 #4). */
+  private readonly epoche = inject(FORM_EPOCHE, { optional: true });
 
   constructor() {
     // Any change to the value from OUTSIDE (a save, "Verwerfen", a reload)
@@ -58,6 +63,7 @@ export class JsonValueComponent {
     // the document but leaves the rejected text — and its error — standing.
     effect(() => {
       this.value();
+      this.epoche?.();
       // untracked: reading draft/error to decide would make them dependencies,
       // and setting the error would then immediately re-run the effect that
       // clears it — the message would never reach the screen.

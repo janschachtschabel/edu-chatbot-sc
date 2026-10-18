@@ -36,7 +36,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
 
-from boerdi.domain.config_models._shared import AreaModel, Textarea
+from boerdi.domain.config_models._shared import AreaModel, Catalog, Textarea
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,8 @@ class AgentRolle(AreaModel):
     """
 
     rolle: Annotated[str, Textarea()] = ROLLE_VORGABE
-    schutzregeln: list[str] = Field(default_factory=lambda: list(SCHUTZREGELN_VORGABE))
+    schutzregeln: list[Annotated[str, Catalog("guardrails")]] = Field(
+        default_factory=lambda: list(SCHUTZREGELN_VORGABE))
 
 
 class Betrieb(AreaModel):
@@ -177,9 +178,11 @@ class Betrieb(AreaModel):
     fast_modus: bool = False
     # S2 (``CHAT_TOKEN_STREAMING``): Vorgabe an. Live-Proben 2026-10-03: Drift 0/6.
     token_streaming: bool = True
-    # S3 (``AGENT_INLINE_QUICK_REPLIES``): aus, bis der Master-Skill-Abschnitt
-    # „Schnellantworten“ angepasst ist (Text: Plan 2026-09-30-muster-kette-zeit).
-    agent_schnellantworten: bool = False
+    # S3 (``AGENT_INLINE_QUICK_REPLIES``): Vorgabe an seit Paket 15 — im Agent-Modus
+    # streamt nur ``respond_to_user``, und das Werkzeug gibt es nur mit diesem Schalter.
+    # Der Master-Skill-Abschnitt „Schnellantworten“ sollte dazu passen (Plan
+    # 2026-09-30-muster-kette-zeit).
+    agent_schnellantworten: bool = True
     # S4 (P5-9): ohne persönliche Anmeldung mit dem Dienst-Block der Anlage
     # (``MCP_AUTH_TOKEN``) schreiben — in beiden Modi. Vorgabe aus; ohne
     # Umgebungsvariable als Gegenstück: ein Gastkonto schreiben zu lassen ist

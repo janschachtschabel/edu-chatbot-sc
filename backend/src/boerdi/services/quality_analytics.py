@@ -32,15 +32,36 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from boerdi.domain.agent_pattern import AGENT_PATTERN_ID
 from boerdi.services.session_origin import scope_sql
 
 # Static jsonb WHERE fragments reused across queries (no user data, no params).
 _DEGRADATION_TRUE = "(data->>'degradation')::boolean IS TRUE"
-_ENTITIES_EMPTY = "data->'entities' = '{}'::jsonb"
+#: Paket 16: der Aufbewahrungslauf leert nach der Gesprächsfrist die Entities (Marke
+#: ``text_geleert``, ``services/qualitaet_text``) — solche Zeilen sagen nichts mehr darüber, ob
+#: Entities erkannt wurden, und zählen weder als leer noch im Nenner (Review PR #18).
+_TEXT_DA = "data->>'text_geleert' IS NULL"
+_ENTITIES_EMPTY = f"data->'entities' = '{{}}'::jsonb AND {_TEXT_DA}"
 
 
-def _scope_clause(scope: str) -> str:
+#: Paket 13 (E5): Agent-Züge tragen das Muster ``AGENT`` (``domain/agent_pattern``). Krisen-Züge
+#: unter der Agent-Schleife beantwortet der Muster-Weg — sie zählen zur Muster-Maschine.
+_ENGINE_SQL = {
+    "agent": f"pattern_id = '{AGENT_PATTERN_ID}'",
+    # IS DISTINCT FROM: ``<>`` dropped rows without a pattern silently (Paket 15, A5).
+    "pattern": f"pattern_id IS DISTINCT FROM '{AGENT_PATTERN_ID}'",
+}
+
+
+def engine_sql(engine: str | None) -> str:
+    """Static WHERE fragment for the turns one engine answered; ``''`` for both."""
+    return _ENGINE_SQL.get(engine or "", "")
+
+
+def _scope_clause(scope: str, engine: str | None = None) -> str:
     """WHERE fragment for the ``quality_logs`` scope filter (static SQL, no params).
+
+    ``engine`` ('agent' | 'pattern' | None) narrows to the turns one engine answered.
 
     scope='production' → neither eval nor load-test sessions (ST-9: load tests
                           counted as real conversations until then)
@@ -49,7 +70,8 @@ def _scope_clause(scope: str) -> str:
 
     One definition for every scope filter: ``services/session_origin.py``.
     """
-    return scope_sql(scope)
+    teile = [t for t in (scope_sql(scope), engine_sql(engine)) if t]
+    return " AND ".join(f"({t})" for t in teile)
 
 
 def _iso(value: Any) -> Any:
@@ -88,6 +110,7 @@ async def get_quality_logs(
     pattern_id: str = "",
     intent_id: str = "",
     scope: str = "all",
+    engine: str | None = None,
 ) -> list[dict]:
     """Recent quality-log rows (newest id first) with optional filters."""
     where: list[str] = []
@@ -101,7 +124,7 @@ async def get_quality_logs(
     if intent_id:
         where.append("intent_id LIKE :intent_id")
         params["intent_id"] = f"{intent_id}%"
-    sc = _scope_clause(scope)
+    sc = _scope_clause(scope, engine)
     if sc:
         where.append(sc)
     sql = "SELECT id, session_id, pattern_id, intent_id, data, created_at FROM quality_logs"
@@ -128,6 +151,7 @@ async def clear_quality_logs(
     pattern_id: str = "",
     intent_id: str = "",
     scope: str = "all",
+    engine: str | None = None,
 ) -> int:
     """Bulk-delete quality logs by the same filter shape as ``get_quality_logs``.
 
@@ -145,7 +169,7 @@ async def clear_quality_logs(
     if intent_id:
         where.append("intent_id LIKE :intent_id")
         params["intent_id"] = f"{intent_id}%"
-    sc = _scope_clause(scope)
+    sc = _scope_clause(scope, engine)
     if sc:
         where.append(sc)
     sql = "DELETE FROM quality_logs"
@@ -158,9 +182,11 @@ async def clear_quality_logs(
 
 # ── Aggregations ────────────────────────────────────────────────────────
 
-async def get_quality_stats(session: AsyncSession, scope: str = "all") -> dict:
+async def get_quality_stats(
+    session: AsyncSession, scope: str = "all", engine: str | None = None,
+) -> dict:
     """Aggregate quality metrics for the dashboard / offline analysis."""
-    sc = _scope_clause(scope)
+    sc = _scope_clause(scope, engine)
     where_sql = f"WHERE {sc}" if sc else ""
     and_where = "AND" if where_sql else "WHERE"
     stats: dict[str, Any] = {"scope": scope}
@@ -209,7 +235,10 @@ async def get_quality_stats(session: AsyncSession, scope: str = "all") -> dict:
     empty_ent = (await session.execute(text(
         f"SELECT COUNT(*) AS cnt FROM quality_logs {where_sql} {and_where} {_ENTITIES_EMPTY}"
     ))).scalar_one()
-    stats["empty_entity_rate"] = round(empty_ent / max(total, 1), 3)
+    mit_text = (await session.execute(text(
+        f"SELECT COUNT(*) AS cnt FROM quality_logs {where_sql} {and_where} {_TEXT_DA}"
+    ))).scalar_one()
+    stats["empty_entity_rate"] = round(empty_ent / max(mit_text, 1), 3)
 
     avg_len = (await session.execute(text(
         f"SELECT AVG((data->>'response_length')::float) AS v FROM quality_logs {where_sql}"
@@ -221,12 +250,13 @@ async def get_quality_stats(session: AsyncSession, scope: str = "all") -> dict:
 
 async def get_state_transitions(
     session: AsyncSession, scope: str = "all", min_count: int = 1, days: int = 30,
+    engine: str | None = None,
 ) -> dict:
     """Aggregate (prev_state → next_state) transitions per session, plus a
     state-frequency distribution. Feeds the Studio Conversation-Flow view."""
     where_parts = ["data->>'state_id' != ''"]
     params: dict[str, Any] = {}
-    sc = _scope_clause(scope)
+    sc = _scope_clause(scope, engine)
     if sc:
         where_parts.append(sc)
     if days and days > 0:
@@ -280,9 +310,12 @@ async def get_state_transitions(
     }
 
 
-async def get_routing_matrix(session: AsyncSession, scope: str = "all", min_count: int = 1) -> dict:
+async def get_routing_matrix(
+    session: AsyncSession, scope: str = "all", min_count: int = 1,
+    engine: str | None = None,
+) -> dict:
     """Persona × Intent → Pattern matrix with top pattern, share, alternatives."""
-    sc = _scope_clause(scope)
+    sc = _scope_clause(scope, engine)
     where_sql = f"WHERE {sc}" if sc else ""
     and_where = "AND" if where_sql else "WHERE"
 
@@ -338,12 +371,12 @@ async def _example_row(session: AsyncSession, example_id: Any, *, with_intent: b
 
 
 async def get_degradation_breakdown(
-    session: AsyncSession, scope: str = "all", limit: int = 50,
+    session: AsyncSession, scope: str = "all", limit: int = 50, engine: str | None = None,
 ) -> dict:
     """Group degradations by (pattern, missing-slots combo) with an example each."""
     where = [_DEGRADATION_TRUE, "pattern_id != ''"]
     params: dict[str, Any] = {}
-    sc = _scope_clause(scope)
+    sc = _scope_clause(scope, engine)
     if sc:
         where.append(sc)
     where_sql = "WHERE " + " AND ".join(where)
@@ -387,12 +420,12 @@ async def get_degradation_breakdown(
 
 
 async def get_empty_entities_breakdown(
-    session: AsyncSession, scope: str = "all", limit: int = 50,
+    session: AsyncSession, scope: str = "all", limit: int = 50, engine: str | None = None,
 ) -> dict:
     """Group empty-entity turns by (intent, pattern) with an example each."""
     where = [_ENTITIES_EMPTY]
     params: dict[str, Any] = {}
-    sc = _scope_clause(scope)
+    sc = _scope_clause(scope, engine)
     if sc:
         where.append(sc)
     where_sql = "WHERE " + " AND ".join(where)
@@ -426,11 +459,12 @@ async def get_empty_entities_breakdown(
 
 async def get_low_confidence_turns(
     session: AsyncSession, scope: str = "all", max_confidence: float = 0.60, limit: int = 30,
+    engine: str | None = None,
 ) -> dict:
     """Individual turns below a confidence threshold, worst-first (raw, ungrouped)."""
     where = ["(data->>'final_confidence')::float < :maxc", "(data->>'final_confidence')::float > 0"]
     params: dict[str, Any] = {"maxc": max_confidence}
-    sc = _scope_clause(scope)
+    sc = _scope_clause(scope, engine)
     if sc:
         where.append(sc)
     where_sql = "WHERE " + " AND ".join(where)
@@ -480,6 +514,7 @@ _TIGHT_RACES_UNAVAILABLE = (
 
 async def get_tight_races_breakdown(
     session: AsyncSession, scope: str = "all", threshold: float = 0.02, limit: int = 50,
+    engine: str | None = None,
 ) -> dict:
     """Group tight races by (winner, runner_up) pattern pair, with an example each.
 
@@ -494,7 +529,7 @@ async def get_tight_races_breakdown(
         "data->>'phase2_runner_up' != ''",
     ]
     params: dict[str, Any] = {"threshold": threshold}
-    sc = _scope_clause(scope)
+    sc = _scope_clause(scope, engine)
     if sc:
         filters.append(sc)
     where_sql = "WHERE " + " AND ".join(filters)

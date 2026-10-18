@@ -111,6 +111,36 @@ function answerDoc(
 }
 
 describe("GroupSectionComponent", () => {
+  it("zeigt mit `dokumente` nur diese Dokumente, ohne Anlegen und Löschen (Paket 14, B2)", async () => {
+    const { el } = await mount({ ...PATTERNS, dokumente: ["M02"] } as CuratedSection);
+    expect(eintraege(el).map((e) => e.split(" · ")[0])).toEqual(["Suche"]);
+    // Gezählt wird die Auswahl, nicht die ganze Gruppe — sonst stünde „1 von 2“ ohne Suche.
+    expect(el.textContent).toContain("1 Eintrag");
+    expect(el.textContent).not.toContain("1 von 2");
+    expect(el.querySelector(".gs-new")).toBeNull();
+    el.querySelector<HTMLButtonElement>(".ol-entry")!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(el.querySelector(".gs-actions")).toBeNull();
+  });
+
+  it("zeigt mit `felder` / `ohneFelder` nur diesen Ausschnitt des Dokuments (Paket 15)", async () => {
+    const ids = (el: HTMLElement) => Array.from(el.querySelectorAll("textarea, input, select"))
+      .map((e) => e.id).filter((id) => id.includes("frontmatter") || id.endsWith("body"));
+    for (const [ausschnitt, erwartet] of [
+      [{ felder: ["body"] }, (i: string[]) => i.length > 0 && i.every((x) => x.endsWith("body"))],
+      [{ ohneFelder: ["body"] }, (i: string[]) => i.length > 0 && !i.some((x) => x.endsWith("body"))],
+    ] as const) {
+      const { el, http, fixture } = await mount({ ...PATTERNS, ...ausschnitt } as CuratedSection);
+      el.querySelectorAll<HTMLButtonElement>(".ol-entry")[0].click();
+      await fixture.whenStable();
+      answerDoc(http, "03-patterns/m01-orientierung", { frontmatter: { id: "M01" }, body: "x" });
+      settleChoices(http);
+      await tick();
+      await fixture.whenStable();
+      expect(erwartet(ids(el)), JSON.stringify(ausschnitt) + " " + ids(el).join(",")).toBe(true);
+    }
+  });
+
   it("lists the documents of its group with their labels", async () => {
     const { el } = await mount();
     expect(eintraege(el)).toEqual(["Orientierung · M01", "Suche · M02"]);

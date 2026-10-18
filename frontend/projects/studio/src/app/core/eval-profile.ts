@@ -119,6 +119,25 @@ export interface CompareRun {
   readonly status: string;
   readonly label: string;
   readonly counted: boolean;
+  /** Paket 13 (D4): Judge-v2-Noten des Laufs; `null` ohne Judge v2. */
+  readonly bewertung?: LaufBewertung | null;
+}
+
+export interface LaufBewertung {
+  readonly gesamt_mittel: number | null;
+  readonly zug_mittel: number | null;
+  readonly skalen_mittel: Readonly<Record<string, number | null>>;
+  readonly laeufe?: number;
+}
+
+/** Paket 13 (D4): was ein Lauf gegenüber dem ersten (der Referenz) anders hatte. */
+export interface LaufUnterschied {
+  readonly run: string;
+  readonly felder: readonly { readonly feld: string; readonly a: unknown; readonly b: unknown }[];
+  readonly bereiche: readonly string[];
+  readonly prompts: readonly {
+    readonly art: string; readonly a: readonly string[]; readonly b: readonly string[];
+  }[];
 }
 
 export type CompareWarning =
@@ -135,4 +154,9 @@ export interface EngineComparison {
   readonly conditions: readonly CompareCondition[];
   readonly runs: readonly CompareRun[];
   readonly warnings: readonly CompareWarning[];
+  /** Paket 13 (D4) — fehlen bei einem älteren Backend. */
+  readonly bewertung_je_maschine?: Readonly<Record<string, LaufBewertung>>;
+  readonly unterschiede?: {
+    readonly referenz: string | null; readonly laeufe: readonly LaufUnterschied[];
+  };
 }

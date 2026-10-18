@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  formatBytes, formatDateTime, formatDecimal, formatMoney, formatPercent, formatRelative,
+  formatBytes, formatCalendarDay, formatDateTime, formatDecimal, formatMoney, formatPercent, formatRelative,
   formatSeconds, formatWhole,
 } from './format';
 
@@ -195,5 +195,16 @@ describe('formatMoney', () => {
   it('gibt eine unlesbare Zahl unverändert zurück, statt NaN zu malen', () => {
     expect(formatMoney(DE, 'kaputt', 'EUR')).toBe('kaputt');
     expect(formatMoney(DE, '', 'EUR')).toBe('');
+  });
+});
+
+describe('formatCalendarDay (Paket 16, D2)', () => {
+  it('nimmt den Kalendertag, wie er ist — ohne Zeitzone, die ihn verschieben könnte', () => {
+    expect(formatCalendarDay(DE, '2026-03-11')).toBe('11.3.2026');
+    expect(formatCalendarDay(EN, '2026-03-11')).toBe('11/03/2026');
+  });
+
+  it('gibt Unlesbares unverändert zurück', () => {
+    expect(formatCalendarDay(DE, 'gestern')).toBe('gestern');
   });
 });

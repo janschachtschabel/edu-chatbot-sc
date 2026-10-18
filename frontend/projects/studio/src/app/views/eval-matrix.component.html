@@ -1,0 +1,48 @@
+@if (zeilen().length === 0) {
+  <p class="em-leer-hinweis">{{ t('evalV2.matrixLeer') }}</p>
+} @else {
+  <!-- Die Tabelle scrollt in ihrem Rahmen, nicht die Seite (Umbruch bei 320 px, SC 1.4.10). -->
+  <div class="em-rahmen" tabindex="0" role="group" [attr.aria-label]="titel()">
+    <table class="em">
+      <!-- Die Überschrift des Abschnitts zeigt den Titel schon; die Tabelle braucht ihn als Namen. -->
+      <caption class="sr">{{ titel() }}</caption>
+      <thead>
+        <tr>
+          <th scope="col">{{ zeilenKopf() }}</th>
+          @for (spalte of spalten(); track spalte) {
+            <th scope="col">{{ spalte }}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (reihe of zeilen(); track reihe.zeile) {
+          <tr>
+            <th scope="row">{{ reihe.zeile }}</th>
+            @for (zelle of reihe.zellen; track zelle.spalte) {
+              <td [class]="'em-zelle em-' + zelle.stufe">
+                @if (zelle.waehlbar) {
+                  <button
+                    type="button"
+                    class="em-knopf"
+                    [attr.aria-label]="zelle.name"
+                    [title]="zelle.name"
+                    (click)="waehle.emit({ zeile: reihe.zeile, spalte: zelle.spalte })"
+                  >{{ zelle.text }}</button>
+                } @else {
+                  <span aria-hidden="true">{{ zelle.text }}</span>
+                  <span class="sr">{{ zelle.name }}</span>
+                }
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <ul class="em-legende" [attr.aria-label]="t('evalV2.legende.label')">
+    @for (s of stufen; track s) {
+      <li><span [class]="'em-muster em-' + s" aria-hidden="true"></span>{{ t('evalV2.legende.' + s) }}</li>
+    }
+  </ul>
+}

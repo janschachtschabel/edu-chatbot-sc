@@ -80,6 +80,13 @@ export class ListItems {
 
   // ── ST-2i: EIN Eintrag der Liste ist hervorgehoben (`x-marker`) ──────
 
+  /** Paket 15: ein gespeicherter Marker-Wert, der zu keiner Zeile passt (sonst `''`). */
+  readonly markerVerwaist = computed(() => {
+    const wert = this.host.markerValue();
+    if (!this.host.field().marker || typeof wert !== 'string' || !wert) return '';
+    return this.items().includes(wert) ? '' : wert;
+  });
+
   /** Die Zeile trägt den Wert, den das Nachbarfeld hervorhebt. */
   isMarked(index: number): boolean {
     return !!this.host.field().marker && this.items()[index] === this.host.markerValue();

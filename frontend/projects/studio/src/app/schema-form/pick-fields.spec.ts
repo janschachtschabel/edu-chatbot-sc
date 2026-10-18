@@ -34,6 +34,19 @@ describe('pickFields', () => {
     expect(group?.children?.map((c) => c.key)).toEqual(['id', 'tools']);
   });
 
+  it('zeichnet den Ausschnitt einer Gruppe ohne eigene Überschrift (Paket 15)', () => {
+    // „Kopfangaben (frontmatter)“ über drei Feldern sagte niemandem etwas — der Abschnitt
+    // trägt schon seinen Titel. Der Pfad der Felder bleibt `frontmatter.…`.
+    const group = pickFields({ ...ROOT, children: [{ ...ROOT.children![0], textKey: 'feld.X.fm' },
+      ROOT.children![1]] }, new Set(['frontmatter.id'])).children?.[0];
+    expect(group?.key).toBe('frontmatter');
+    expect(group?.ohneLegende).toBe(true);
+    // Review PR #18: der Name bleibt — als `aria-label` des Fieldsets, sonst hieße die Gruppe
+    // für Screenreader nur „Gruppe“.
+    expect(group?.label).toBe(ROOT.children![0].label);
+    expect(group?.textKey).toBe('feld.X.fm');
+  });
+
   it('nimmt eine ganze Gruppe, wenn die Gruppe selbst genannt ist', () => {
     const picked = pickFields(ROOT, new Set(['frontmatter']));
     expect(picked.children?.[0].children?.map((c) => c.key)).toEqual(['id', 'label', 'tools']);

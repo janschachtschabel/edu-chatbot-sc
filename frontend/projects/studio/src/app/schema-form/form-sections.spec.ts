@@ -40,6 +40,35 @@ describe('formSections — der Schnitt', () => {
     expect((sammel.field.children ?? []).map((c) => c.key)).toEqual(['eins', 'zwei']);
   });
 
+  it('zieht Textfelder in den Sammel-Abschnitt statt in je einen eigenen (Paket 15)', () => {
+    // Nutzer-Rundgang 2026-10-17: auf „Tour & Lotse“ stand jeder Text in einem eigenen
+    // Aufklapper — vierzehn Klicks für vierzehn Sätze.
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: {
+        intro: { type: 'string', 'x-widget': 'textarea' } as JsonSchema,
+        block_a: { type: 'object', properties: { x: { type: 'string' } } },
+        block_b: { type: 'object', properties: { y: { type: 'string' } } },
+      },
+    };
+    expect(labels(schema)).toEqual(['', 'block_a', 'block_b']);
+  });
+
+  it('zeichnet über einem Block-Abschnitt nicht noch einmal seine Legende (Paket 15)', () => {
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: {
+        a: { type: 'object', properties: { x: { type: 'string' } } },
+        b: { type: 'object', properties: { y: { type: 'string' } } },
+      },
+    };
+    const [a] = formSections(rootField(schema));
+    // Der Block selbst ist der Rumpf — unter dem Pfad `a`, ohne Legende.
+    expect(a.basePath).toEqual(['a']);
+    expect(a.field.key).toBe('a');
+    expect(a.field.ohneLegende).toBe(true);
+  });
+
   it('steigt durch eine einzelne Hülle hindurch', () => {
     // Die meisten Bereiche packen alles in einen Block (`display_rules:`).
     // Ohne diesen Schritt gäbe es genau einen Abschnitt — nutzlos.
@@ -62,18 +91,24 @@ describe('formSections — der Schnitt', () => {
     // Sonst stünde über JEDEM Abschnitt derselbe Name „display_rules", plus
     // eine Einrückung, die nichts gliedert. Ein Abschnitt beginnt deshalb
     // HINTER der Hülle; `basePath` sagt, wo im Dokument er sitzt.
-    const [erster] = formSections(rootField(AREA_SCHEMAS['01-base/display-rules']));
-    expect(erster.basePath).toEqual(['display_rules']);
-    expect(erster.field.label).toBe('');
-    // ST-1: auch ohne Katalog-Schlüssel — sonst holte sich die Hülle ihre
-    // Beschriftung aus dem Katalog zurück und stünde doch über jedem Abschnitt.
-    expect(erster.field.textKey).toBeUndefined();
-    expect((erster.field.children ?? []).map((c) => c.key)).not.toContain('display_rules');
+    // Seit Paket 15 rendert ein Block-Abschnitt den Block selbst (ohne Legende); die Hülle
+    // steht nur noch im Pfad.
+    const sections = formSections(rootField(AREA_SCHEMAS['01-base/display-rules']));
+    for (const s of sections) {
+      expect(s.basePath[0]).toBe('display_rules');
+      expect(s.field.key).not.toBe('display_rules');
+      if (s.key) {
+        expect(s.basePath).toEqual(['display_rules', s.key]);
+        expect(s.field.ohneLegende).toBe(true);
+      }
+    }
   });
 
   it('bleibt ohne Hülle an der Wurzel', () => {
     const sections = formSections(rootField(AREA_SCHEMAS['01-base/safety-config']));
-    expect(sections.map((s) => s.basePath)).toEqual(sections.map(() => []));
+    // Paket 15: ein Gruppen-Block sitzt unter seinem Schlüssel, alles andere an der Wurzel.
+    expect(sections.map((s) => s.basePath))
+      .toEqual(sections.map((s) => (s.field.ohneLegende ? [s.key] : [])));
   });
 
   it('vergibt auch neben einem Feld namens „basics" eindeutige Kennungen', () => {
@@ -117,7 +152,13 @@ describe('formSections — der Schnitt', () => {
 
       const alle = sections.flatMap((s) => s.paths);
       expect(new Set(alle).size, `${area}: ein Pfad in zwei Abschnitten`).toBe(alle.length);
-      expect(pickFields(root, new Set(alle)), `${area}: Feld fehlt`).toEqual(root);
+      // Paket 15, die eine benannte Ausnahme: ein Marker-Ziel (`tour_reply`) steht in keinem
+      // Abschnitt — es wird über die Radios seiner Liste bedient, nicht verschluckt.
+      const huelle = root.children?.length === 1 && root.children[0].kind === 'group'
+        ? root.children[0] : root;
+      const ziele = (huelle.children ?? []).filter((c) => c.markerZiel)
+        .map((c) => (huelle === root ? c.key : `${huelle.key}.${c.key}`));
+      expect(pickFields(root, new Set([...alle, ...ziele])), `${area}: Feld fehlt`).toEqual(root);
     }
   });
 });
@@ -150,7 +191,9 @@ describe('formSections — Inhalt vor Technik (ST-4)', () => {
   it('stellt Begrüßungstext und Start-Chips vor die Grundwerte', () => {
     // Bis ST-4 stand „Grundwerte" (tour_reply) vorn und offen, der Text dahinter.
     expect(labels(AREA_SCHEMAS['01-base/welcome-config'])).toEqual([
-      'greeting', 'quick_replies', '', 'greeting_en', 'quick_replies_en',
+      // Paket 15: die englischen Texte sind ebenfalls Inhalt; „Grundwerte“ (nur die beiden
+      // Tour-Chips, die die Radios an den Startchips schreiben) entfällt.
+      'greeting', 'quick_replies', 'greeting_en', 'quick_replies_en',
     ]);
   });
 

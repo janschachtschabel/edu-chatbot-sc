@@ -1,0 +1,108 @@
+// Die Notenmatrix (Paket 13, F3). Farben nur aus den Stufen-Token; die Zahl trägt die Aussage.
+@use './visually-hidden';
+
+:host {
+  display: block;
+}
+
+.em-rahmen {
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.em {
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  caption {
+    margin-block-end: var(--st-2);
+    text-align: start;
+    font-weight: 600;
+  }
+
+  th,
+  td {
+    padding: 0;
+    border: 1px solid var(--st-rule);
+    text-align: center;
+  }
+
+  th {
+    padding: var(--st-1) var(--st-2);
+    background: var(--st-panel);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  tbody th {
+    text-align: start;
+  }
+}
+
+.em-zelle {
+  min-inline-size: 3rem;
+  color: var(--st-text);
+
+  > span {
+    display: block;
+    padding: var(--st-1) var(--st-2);
+  }
+}
+
+.em-knopf {
+  inline-size: 100%;
+  min-block-size: 2rem; // > 24px Ziel (SC 2.5.8)
+  padding: var(--st-1) var(--st-2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.em-sehr-gut { background: var(--st-band-sehr-gut); }
+.em-gut { background: var(--st-band-gut); }
+.em-mittel { background: var(--st-band-mittel); }
+.em-schwach { background: var(--st-band-schwach); }
+
+// Ohne Daten: schraffiert, nicht grau — grau las sich in ALT wie eine Note.
+.em-leer {
+  background: repeating-linear-gradient(
+    -45deg, var(--st-panel), var(--st-panel) 4px, var(--st-band-leer) 4px, var(--st-band-leer) 6px
+  );
+  color: var(--st-text-muted);
+}
+
+.em-legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-1) var(--st-3);
+  margin: var(--st-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--st-1);
+  }
+}
+
+.em-muster {
+  display: inline-block;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  border: 1px solid var(--st-rule-strong);
+}
+
+.em-leer-hinweis {
+  margin: 0;
+  color: var(--st-text-muted);
+}

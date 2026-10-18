@@ -13,6 +13,7 @@
  */
 import { Injectable, inject } from '@angular/core';
 
+import type { AuswertungV2, PromptDiff, TrendsV2 } from './eval-auswertung';
 import type { EngineComparison, RunProfile } from './eval-profile';
 import { StudioApi, type QueryValue } from './studio-api.service';
 
@@ -58,6 +59,9 @@ export interface EvalRunDetail extends Omit<EvalRunSummary,
   /** ST-7b: judge axes, duration, tokens and costs — computed on read. Optional
    *  because an older backend does not send it. */
   readonly profile?: RunProfile;
+  /** Paket 13 (D1): die Auswertung mit dem Judge v2 — nur bei Golden-Läufen, beim Lesen
+   *  gerechnet. Ein Lauf ohne Judge-v2-Urteile hat leere Matrizen. */
+  readonly auswertung?: AuswertungV2;
 }
 
 /**
@@ -123,6 +127,8 @@ export interface EvalTrends {
   readonly llm_engine_match_trend: readonly TrendPoint[];
   readonly persona_correct_trend: readonly TrendPoint[];
   readonly intent_correct_trend: readonly TrendPoint[];
+  /** Paket 13 (D5): Reihen je Skala/Gesamt/Latenz/Kosten und Wechselmarken. */
+  readonly v2?: TrendsV2;
 }
 
 export interface PatternUsage {
@@ -265,15 +271,26 @@ export class EvalApi {
     return this.api.get<EngineComparison>('/eval/compare', { ids: ids.join(',') });
   }
 
+  /** Paket 13 (D3): der Lauf als Markdown-Bericht (Download, Fehler bleiben Fehler). */
+  berichtMd(id: string): Promise<Blob> {
+    return this.api.blob(`/eval/runs/${id}/bericht.md`);
+  }
+
+  /** Paket 13 (D4): Text-Unterschied zweier Prompt-Fassungen (je 12 Hex-Zeichen). */
+  promptDiff(a: string, b: string): Promise<PromptDiff> {
+    return this.api.get<PromptDiff>('/eval/prompt-diff', { a, b });
+  }
+
   trends(engine: EngineFilter = ''): Promise<EvalTrends> {
     return this.api.get<EvalTrends>('/eval/trends', {
       limit: TREND_LIMIT, engine: engine || undefined,
     });
   }
 
-  patternUsage(scope: string, since: string): Promise<PatternUsage> {
+  /** `engine` (Paket 15): nur die Züge einer Maschine, serverseitig getrennt wie die Analyse. */
+  patternUsage(scope: string, since: string, engine?: 'pattern' | 'agent'): Promise<PatternUsage> {
     return this.api.get<PatternUsage>('/eval/analytics/pattern-usage', {
-      scope, since: since || undefined,
+      scope, since: since || undefined, engine,
     });
   }
 }

@@ -46,9 +46,10 @@ export const FIELDS_LOTSE: CataloguePart = {
       + 'Chat durch den Link ins Repositorium.',
     'feld.GuideModeBlock.trusted_domains.label': 'Vertraute Domains',
     'feld.GuideModeBlock.trusted_domains.hint':
-      'Domains, zu denen Lotsen-Knöpfe und Seitenwechsel des Bots führen dürfen; Links dorthin '
-      + 'tragen die Sitzung mit, das Gespräch kann weiterlaufen. Die Umgebungsvariable '
-      + 'GUIDE_TRUSTED_DOMAINS ersetzt die Liste, wenn gesetzt.',
+      'Links zu diesen Domains nehmen die Sitzung mit — das Gespräch läuft auf der Zielseite '
+      + 'weiter — und das Widget zeigt dort keine Warnung „Externe URL“. Wohin Lotsen-Knöpfe '
+      + 'führen, regeln die freigegebenen Hosts. Die Umgebungsvariable GUIDE_TRUSTED_DOMAINS '
+      + 'ersetzt die Liste, wenn gesetzt.',
 
     // ── Lotsen-Regeln (02-domain/guide-rules) ───────────────────────
     'feld.GuideRulesArea.message_rules.label': 'Nachrichten-Regeln',
@@ -121,8 +122,9 @@ export const FIELDS_LOTSE: CataloguePart = {
       + 'with the link into the repository.',
     'feld.GuideModeBlock.trusted_domains.label': 'Trusted domains',
     'feld.GuideModeBlock.trusted_domains.hint':
-      'Domains that guide buttons and page changes by the bot may lead to; links there carry '
-      + 'the session along, so the conversation can continue there. The environment variable '
+      'Links to these domains carry the session along — the conversation continues on the '
+      + 'target page — and the widget shows no “external URL” warning there. Where guide '
+      + 'buttons lead is set by the allowed hosts. The environment variable '
       + 'GUIDE_TRUSTED_DOMAINS replaces the list when set.',
 
     // ── Guide rules (02-domain/guide-rules) ─────────────────────────

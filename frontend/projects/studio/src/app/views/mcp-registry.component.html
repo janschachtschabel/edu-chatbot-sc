@@ -18,7 +18,16 @@
     } @else {
       <ul class="mr-list">
         @for (server of servers(); track $index; let si = $index) {
-          <li class="mr-row">
+          <li>
+          <!-- Paket 15: je Server eine zugeklappte Zeile; eine eben angelegte steht offen — an der
+               Zeile festgemacht, nicht an der leeren Kennung (sonst klappte sie beim Tippen zu). -->
+          <details class="mr-row" [open]="si === neueZeile()">
+            <summary class="mr-summary">
+              <span class="mr-sum-name">{{ server.name || server.id || t('mcp.neu') }}</span>
+              <span class="mr-sum-meta">{{ (server.enabled ? t('mcp.status.an') : t('mcp.status.aus')) + ' · '
+                + werkzeugZahl(server) }}</span>
+              @if (server.url) { <span class="mr-sum-url">{{ server.url }}</span> }
+            </summary>
             <div class="mr-grid">
               <label class="mr-check">
                 <input
@@ -84,24 +93,10 @@
             @if (toolsOf(server).length > 0) {
               <ul class="mr-tools">
                 @for (tool of toolsOf(server); track tool.name) {
-                  <li class="mr-tool" [attr.title]="tool.description || null">
-                    <!-- Review Paket 7, C-10: der Name ist Teil der Klickfläche,
-                         der Hinweis unter der Liste die Beschreibung des Schalters. -->
-                    @if (hasSwitch(server, tool.name)) {
-                      <label class="mr-tool-switch">
-                        <input
-                          type="checkbox"
-                          class="mr-tool-on"
-                          [attr.data-werkzeug]="tool.name"
-                          [checked]="isOffered(server, tool.name)"
-                          [attr.aria-label]="t('mcp.tool.offer', { name: tool.name })"
-                          [attr.aria-describedby]="'mr-tool-hint-' + si"
-                          (change)="setOffered(si, tool.name, $any($event.target).checked)"
-                        />
-                        <span class="mr-tool-name">{{ tool.name }}</span>
-                      </label>
-                    } @else {
-                      <span class="mr-tool-name">{{ tool.name }}</span>
+                  <li class="mr-tool" [attr.data-werkzeug]="tool.name" [attr.title]="tool.description || null">
+                    <span class="mr-tool-name">{{ tool.name }}</span>
+                    @if (hasSwitch(server, tool.name) && !isOffered(server, tool.name)) {
+                      <span class="mr-tool-desc">{{ t('mcp.tool.aus') }}</span>
                     }
                     @if (tool.description) {
                       <span class="mr-tool-desc">{{ tool.description }}</span>
@@ -117,12 +112,19 @@
                   </li>
                 }
               </ul>
-              <p class="mr-help" [id]="'mr-tool-hint-' + si">{{ t('mcp.tool.hint') }}</p>
+              <!-- Paket 15: an- und abgeschaltet wird auf der Seite „Werkzeuge“ — einmal für alle Server. -->
+              <p class="mr-help">{{ t('mcp.tool.schalterDort') }}
+                <a routerLink="/werkzeuge">{{ t('mcp.tool.schalterLink') }}</a></p>
             } @else if (server.enabled) {
               <p class="mr-help">{{ t('mcp.noTools') }}</p>
             }
 
             <p class="mr-row-actions">
+              @if (si === neueZeile()) {
+                <!-- Rundgang 3: ein eben angelegter Server lässt sich wieder abbrechen. -->
+                <button type="button" class="cs-btn" (click)="remove(si)"
+                  [attr.aria-label]="t('mcp.abbrechenNeuFor')">{{ t('mcp.abbrechenNeu') }}</button>
+              } @else {
               <button
                 type="button"
                 class="cs-btn mr-del"
@@ -135,7 +137,9 @@
               @if (server.url_readonly) {
                 <span class="mr-help">{{ t('mcp.primaryFixed') }}</span>
               }
+              }
             </p>
+          </details>
           </li>
         }
       </ul>
@@ -150,6 +154,8 @@
         >
           {{ saving() ? t('editor.saving') : t('mcp.save') }}
         </button>
+        <button type="button" class="cs-btn" [disabled]="saving() || !dirty()"
+          (click)="verwerfen()">{{ t('editor.discard') }}</button>
       </div>
 
       @if (incomplete()) {

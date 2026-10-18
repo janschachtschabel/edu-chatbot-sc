@@ -16,10 +16,17 @@ const ZUORDNUNG: AreaEffects = {
     muster: { pattern: 'voll', agent: 'keine' },
     nirgends: { pattern: 'keine', agent: 'keine' },
     krise: { pattern: 'voll', agent: 'krise' },
+    engine: { pattern: 'teilweise', agent: 'teilweise' },
+  },
+  fields: {
+    engine: { agent_rolle: { pattern: 'keine', agent: 'voll' }, agent: { pattern: 'keine', agent: 'voll' } },
+    sicherheit: { crisis_message: { pattern: 'keine', agent: 'extern' } },
   },
 };
 
-async function text(area: string, effects: AreaEffects | null = ZUORDNUNG): Promise<string> {
+async function text(
+  area: string, effects: AreaEffects | null = ZUORDNUNG, felder?: string[],
+): Promise<string> {
   TestBed.resetTestingModule();
   sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
   TestBed.configureTestingModule({
@@ -28,6 +35,7 @@ async function text(area: string, effects: AreaEffects | null = ZUORDNUNG): Prom
   TestBed.inject(EffectsApi).effects.set(effects);
   const fixture = TestBed.createComponent(EffectBadgeComponent);
   fixture.componentRef.setInput('area', area);
+  if (felder) fixture.componentRef.setInput('felder', felder);
   await fixture.whenStable();
   return ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ').trim();
 }
@@ -53,5 +61,18 @@ describe('EffectBadgeComponent (ST-5)', () => {
   it('schweigt ohne Zuordnung — lieber kein Hinweis als ein geratener', async () => {
     expect(await text('unbekannt')).toBe('');
     expect(await text('beide', null)).toBe('');
+  });
+});
+
+describe('EffectBadgeComponent — Feld-Ausschnitt (Rundgang 3)', () => {
+  it('nennt die Wirkung der gezeigten Felder, nicht die des Bereichs', async () => {
+    expect(await text('engine', ZUORDNUNG, ['agent_rolle', 'agent'])).toBe('Wirkt in: Agent-Schleife');
+  });
+
+  it('nennt „nur externer Auftrag“ für die Stufe extern', async () => {
+    const z: AreaEffects = { ...ZUORDNUNG, areas: { ...ZUORDNUNG.areas,
+      sicherheit: { pattern: 'keine', agent: 'voll' } } };
+    expect(await text('sicherheit', z, ['crisis_message'])).toBe(
+      'Wirkt in: Agent-Schleife (nur externer Auftrag /api/agent)');
   });
 });

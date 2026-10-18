@@ -178,6 +178,18 @@ describe("LoadtestComponent", () => {
     await settle(h);
   });
 
+  it("schickt ohne Aufwärm-Anfrage, wenn sie abgewählt ist (Paket 15)", async () => {
+    const h = await mount([]);
+    const box = h.el.querySelector<HTMLInputElement>("#lt-warmup")!;
+    expect(box.checked).toBe(true);
+    box.checked = false;
+    box.dispatchEvent(new Event("change"));
+    await h.fixture.whenStable();
+    startButton(h).click();
+    await h.fixture.whenStable();
+    expect(h.http.expectOne(RUNS_URL).request.body.warmup).toBe(false);
+  });
+
   it("posts the effective profile and opens the new run", async () => {
     const h = await mount([]);
     startButton(h).click();
@@ -193,6 +205,8 @@ describe("LoadtestComponent", () => {
       p95_threshold_s: 20,
       // Review-Befund 7: ohne Auswahl misst der Lauf die Server-Vorgabe.
       engine: "default",
+      // Paket 15 (E1): eine Aufwärm-Anfrage vorab, die nicht zählt.
+      warmup: true,
     });
     req.flush({ id: "lt-new001", status: "running", profile: PROFILE });
     await settle(h);

@@ -26,6 +26,9 @@ STUDIO_PREFIX: Final = "studio-"
 #: Quelle der Aufträge, die der Auftragstester des Studios über ``/studio/api/agent``
 #: auslöst (Paket 9, Review Paket 7 MINOR 31) — Probeläufe ohne Sitzung, kein Betrieb.
 STUDIO_QUELLE: Final = "studio-probe"
+#: Paket 15 (A6): Judge, Simulator und Szenarien eines Eval-Laufs buchen ohne Sitzung unter
+#: ``eval-judge`` / ``eval-simulator`` / ``eval-szenario`` — Auswertung, kein Betrieb.
+EVAL_QUELLE_PREFIX: Final = "eval-"
 
 #: The vocabulary of every ``scope`` parameter (quality, usage, sessions).
 Scope = Literal["all", "production", "eval"]
@@ -53,7 +56,8 @@ def scope_clause(
     """The same filter for SQLAlchemy Core queries; ``None`` = no restriction.
 
     ``quelle`` (``usage_events.quelle``, Paket 9): rows without a session count as
-    production unless the studio's task tester booked them (:data:`STUDIO_QUELLE`).
+    production unless the studio's task tester booked them (:data:`STUDIO_QUELLE`) or an
+    eval run did (``eval-…``, Paket 15) — those count as eval.
     """
     s = (scope or "all").strip().lower()
     if s == "production":
@@ -61,11 +65,16 @@ def scope_clause(
         # Betrieb. Ohne ``IS NULL`` fiele sie heraus — ``NULL NOT LIKE`` ist NULL.
         ohne_sitzung = column.is_(None)
         if quelle is not None:
-            ohne_sitzung = and_(ohne_sitzung, or_(quelle.is_(None), quelle != STUDIO_QUELLE))
+            ohne_sitzung = and_(ohne_sitzung, or_(
+                quelle.is_(None),
+                and_(quelle != STUDIO_QUELLE, quelle.not_like(f"{EVAL_QUELLE_PREFIX}%"))))
         return or_(ohne_sitzung,
                    and_(column.not_like(f"{EVAL_PREFIX}%"),
                         column.not_like(f"{LOADTEST_PREFIX}%"),
                         column.not_like(f"{STUDIO_PREFIX}%")))
     if s == "eval":
-        return column.like(f"{EVAL_PREFIX}%")
+        if quelle is None:
+            return column.like(f"{EVAL_PREFIX}%")
+        return or_(column.like(f"{EVAL_PREFIX}%"),
+                   and_(column.is_(None), quelle.like(f"{EVAL_QUELLE_PREFIX}%")))
     return None

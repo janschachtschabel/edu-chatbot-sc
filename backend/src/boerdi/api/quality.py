@@ -7,7 +7,7 @@ The two mutating service fns share names with their endpoint functions, so they
 are imported under ``*_svc`` aliases.
 """
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,6 +37,13 @@ router = APIRouter(
     dependencies=[Security(require_studio_key)],
 )
 
+#: Paket 13 (E5): nur Züge einer Maschine (Agent-Züge tragen das Muster ``AGENT``); ohne Angabe
+#: beide. ``Literal`` statt freiem Text: ein Tippfehler ist 422 statt still „alle“.
+_Engine = Annotated[
+    Literal["pattern", "agent"] | None,
+    Query(description="Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide"),
+]
+
 
 @router.get("/logs")
 async def list_quality_logs(
@@ -46,12 +53,13 @@ async def list_quality_logs(
     pattern_id: str = "",
     intent_id: str = "",
     scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    engine: _Engine = None,
 ) -> dict:
     """Recent quality-log entries. ``pattern_id``/``intent_id`` are prefix
     matches (e.g. "M04", "I02"); ``scope`` splits production vs eval sessions."""
     rows = await get_quality_logs(
         session, limit=limit, session_id=session_id,
-        pattern_id=pattern_id, intent_id=intent_id, scope=scope,
+        pattern_id=pattern_id, intent_id=intent_id, scope=scope, engine=engine,
     )
     return {"count": len(rows), "logs": rows}
 
@@ -79,6 +87,7 @@ async def clear_quality_logs(
     pattern_id: str = "",
     intent_id: str = "",
     scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    engine: _Engine = None,
     confirm: bool = False,
 ) -> dict:
     """Bulk-delete quality logs by filter. Deleting everything (no filter AND
@@ -94,19 +103,20 @@ async def clear_quality_logs(
         pattern_id.strip("%_"),
         intent_id.strip("%_"),
         scope_sql(scope),
+        engine,  # Paket 13 (E5): die Maschine schränkt immer ein
     ])
     if not has_filter and not confirm:
         raise HTTPException(400, msg(lang, "quality.bulkDeleteNeedsConfirm"))
     n = await clear_quality_logs_svc(
         session, session_id=session_id, pattern_id=pattern_id,
-        intent_id=intent_id, scope=scope,
+        intent_id=intent_id, scope=scope, engine=engine,
     )
     return {
         "status": "cleared",
         "deleted": n,
         "filter": {
             "session_id": session_id, "pattern_id": pattern_id,
-            "intent_id": intent_id, "scope": scope,
+            "intent_id": intent_id, "scope": scope, "engine": engine,
         },
     }
 
@@ -115,42 +125,50 @@ async def clear_quality_logs(
 async def quality_stats(
     session: Annotated[AsyncSession, Depends(get_session)],
     scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    engine: _Engine = None,
 ) -> dict:
     """Aggregate quality metrics (distributions, confidence, degradation …)."""
-    return await get_quality_stats(session, scope=scope)
+    return await get_quality_stats(session, scope=scope, engine=engine)
 
 
 @router.get("/matrix")
 async def quality_matrix(
     session: Annotated[AsyncSession, Depends(get_session)],
     scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    engine: _Engine = None,
     min_count: int = Query(1, ge=1, le=1000, description="Min samples per cell"),
 ) -> dict:
     """Persona × Intent → Pattern matrix; empty combinations are omitted."""
-    return await get_routing_matrix(session, scope=scope, min_count=min_count)
+    return await get_routing_matrix(
+        session, scope=scope, min_count=min_count, engine=engine,
+    )
 
 
 @router.get("/state-transitions")
 async def state_transitions(
     session: Annotated[AsyncSession, Depends(get_session)],
     scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    engine: _Engine = None,
     days: int = Query(30, ge=1, le=365, description="Time window in days"),
     min_count: int = Query(1, ge=1, le=1000, description="Min count per transition"),
 ) -> dict:
     """Conversation State transitions (prev → next) for the Studio Flow view."""
-    return await get_state_transitions(session, scope=scope, days=days, min_count=min_count)
+    return await get_state_transitions(
+        session, scope=scope, days=days, min_count=min_count, engine=engine,
+    )
 
 
 @router.get("/tight-races")
 async def tight_races(
     session: Annotated[AsyncSession, Depends(get_session)],
     scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    engine: _Engine = None,
     threshold: float = Query(0.02, ge=0.0, le=1.0),
     limit: int = Query(50, ge=1, le=500),
 ) -> dict:
     """Which (winner, runner_up) pattern pairs keep colliding, with examples."""
     return await get_tight_races_breakdown(
-        session, scope=scope, threshold=threshold, limit=limit,
+        session, scope=scope, threshold=threshold, limit=limit, engine=engine,
     )
 
 
@@ -158,30 +176,35 @@ async def tight_races(
 async def degradations(
     session: Annotated[AsyncSession, Depends(get_session)],
     scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    engine: _Engine = None,
     limit: int = Query(50, ge=1, le=500),
 ) -> dict:
     """Which (pattern × missing-slot) combos most often trigger a fallback."""
-    return await get_degradation_breakdown(session, scope=scope, limit=limit)
+    return await get_degradation_breakdown(session, scope=scope, limit=limit, engine=engine)
 
 
 @router.get("/empty-entities")
 async def empty_entities(
     session: Annotated[AsyncSession, Depends(get_session)],
     scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    engine: _Engine = None,
     limit: int = Query(50, ge=1, le=500),
 ) -> dict:
     """Intents where entity extraction consistently yields nothing."""
-    return await get_empty_entities_breakdown(session, scope=scope, limit=limit)
+    return await get_empty_entities_breakdown(
+        session, scope=scope, limit=limit, engine=engine,
+    )
 
 
 @router.get("/low-confidence")
 async def low_confidence(
     session: Annotated[AsyncSession, Depends(get_session)],
     scope: str = Query("all", description="'all' | 'production' | 'eval'"),
+    engine: _Engine = None,
     max_confidence: float = Query(0.60, ge=0.0, le=1.0),
     limit: int = Query(30, ge=1, le=200),
 ) -> dict:
     """Turns below a confidence threshold, worst-first, with the raw message."""
     return await get_low_confidence_turns(
-        session, scope=scope, max_confidence=max_confidence, limit=limit,
+        session, scope=scope, max_confidence=max_confidence, limit=limit, engine=engine,
     )

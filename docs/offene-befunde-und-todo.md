@@ -1,6 +1,6 @@
 # Offene Befunde und Todo
 
-Stand 2026-09-29 (Zwischenstand), nachgezogen 2026-10-03 nach Paket 4 und 2026-10-08 nach Paket 4b, 4c und 6, 2026-10-09 nach Paket 7, Paket 8 und Paket 9, 2026-10-14/15 nach Paket 10. Diese Liste sammelt an einer Stelle, was nach diesem Stand offen ist, jeweils mit Quelle.
+Stand 2026-09-29 (Zwischenstand), nachgezogen 2026-10-03 nach Paket 4 und 2026-10-08 nach Paket 4b, 4c und 6, 2026-10-09 nach Paket 7, Paket 8 und Paket 9, 2026-10-14/15 nach Paket 10, 2026-10-17 nach Paket 12, den Chat-Proben und dem Merge von PR #16 (main `dfd7152`): Master-Skill-Kurzfassung im Knoten (22/22 Regeln, M05/M12 und „Ändern“ damit übertragen), die fünf Paket-11-L-Bereiche zieht der Werksabgleich nach. Diese Liste sammelt an einer Stelle, was nach diesem Stand offen ist, jeweils mit Quelle.
 Erledigtes steht in den Logs der Pläne, nicht hier. Wer einen Punkt erledigt, streicht ihn hier und
 trägt ihn im Log des zugehörigen Plans ein. Zeilennummern gelten für den Stand 2026-09-29.
 
@@ -55,6 +55,7 @@ Die zugehörigen Pläne:
   - Vierte Runde (Master-Skill 22/22 im Knoten): keine erfundene Stufe mehr (Bruchrechnen für Eltern); verlangte OER-Lizenz bleibt im Muster-Modus gesetzt, der Agent lockert sie nur mit Hinweis; Anrede bei unklarer Zielgruppe in allen Rückfragen „Sie“; Platzhalter auf der Sammlung 3/4 erst Rückfrage (zusammen mit Runde 2: 8/9); Quiz verteilt die richtige Antwort, die Begründung fehlte in 1 von 2 Läufen — Kandidat: Format-Beispiel „1. B – weil …“ in M10.
 ## 2 Entscheidungen des Nutzers
 
+- **Preis für `gpt-6-luna` fehlt in der Preistafel des Seeds** (`01-base/pricing`, Paket-16-Abnahme): die Vorgabe-Maschine rechnet mit einem Modell ohne Preis — Kosten-Seite und „Kosten je Tag“ zeigen darum „kein Preis“. Preis eintragen (Studio „Kosten“ → Preistafel) oder im Seed ergänzen.
 Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — in [`entscheidungen-offen.md`](entscheidungen-offen.md). Die Entscheide vom 2026-10-09 sind in Paket 7 und Paket 8 umgesetzt (siehe die Plan-Liste oben); offen ist:
 
 - **AcademicCloud und Einbettungen:** entschieden 2026-10-15 (so lassen); Einbettungswechsel machbar machen → Paket 11 (D), [`plans/2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md`](plans/2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md).
@@ -93,19 +94,13 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
-- **Master-Skill in WLO nachziehen** (Review 2026-10-16, Paket 11 M #3): die Vorlagen
-  `docs/skills/vorgehen*.md` empfehlen bei M05/M12 kein Nachschlagen mehr; der übertragene
-  Master-Skill in WLO sagt es noch — sonst widerspricht er den Werkzeugbeschreibungen.
+- **Migration `0013` (Review PR #18):** Teilindex `ix_quality_logs_text_offen` für den Text-Schritt der Aufbewahrung; wird `CONCURRENTLY` gebaut (sperrt das Schreiben nicht) und läuft im `migrate`-Dienst mit `alembic upgrade head`.
+- **Paket 16 — Plattform-Wissen neu einlesen:** der RAG-Seed `Plattformwissen.jsonl` folgt jetzt dem Domänen-Dokument 2.0 (13 Abschnitte). Nur diesen Bereich ersetzen: die Datei allein in ein Verzeichnis legen und `boerdi import-rag --seed <verz> --force` (leert nur die Bereiche dieses Seeds; Einbettung von 13 Abschnitten). Ohne den Schritt bleibt in bestehenden Datenbanken die Fassung 1.0.
 - **Paket 12 — Werk und eigene Fassung:** Migration `0011` (läuft im `migrate`-Dienst), der
   `migrate`-Befehl heißt jetzt `import-config --werksabgleich` (`compose.prod.yml`). Beim ersten
   Start nach dem Deploy hebt er Bereiche, deren letzte Fassung ein Import schrieb, auf die
   Werksfassung — die fünf Bereiche aus Paket 11 L kommen so ohne Handimport an, sofern sie im
   Studio unverändert sind. Angepasste zeigt das Studio unter Sicherung → „Werk und eigene Fassung“.
-- **Paket 11 L — fünf Konfigurationsbereiche nachziehen** (Seeds geändert; `seed` im Modus `missing`
-  ergänzt nur Fehlendes): `01-base/guardrails` (R-07), `02-domain/domain-rules` (Helfer),
-  `03-patterns/m05-material-suche-gefiltert`, `m09-lernpfad-erstellung`, `m12-null-treffer-eskalation`.
-  Im Studio von Hand (Text aus `backend/seeds/`) oder `exact` mit Sicherung. Bis dahin widersprechen
-  sich Code-Texte (kein Nachschlagen) und alte Konfiguration (R-07: Nachschlagen vor jeder Suche).
 
 - **Paket 11:**
   - Keine neue Umgebung, keine Migration, kein Konfig-Import. Widget und Studio baut das Image selbst.
@@ -120,7 +115,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - Studio-Proxy: ändernde Anfragen von fremden Seiten (`Sec-Fetch-Site`/`Origin`) enden mit 403.
   - Bot-Markdown: keine Bilder, Medien oder Stile mehr; jeder Link mit `target` bekommt `noopener noreferrer`.
   - Zustimmung zu einer Vorschau: die Erlaubnisliste (kurze Sätze aus Zustimmungs- und harmlosen Beiwörtern, „Zum Aufnehmen bestätigen“ zählt) entscheidet sofort; andere Sätze ohne Vetowort prüft ein kurzer LLM-Aufruf (Phase `zustimmung`, Frist 3 s, kostet einen kleinen Aufruf je freiem „ja“). „ok, danke“ und „Ja, gleich“ fragen weiter nach. Der Knopf „Ja, so ausführen“ bleibt der Normalweg.
-  - **`classify-overrides` importieren** (`import-config`): Kurations-Umleitung `curation_reroute` (Muster-Modus: Auftrag „in meine Sammlung aufnehmen“ → M18, mit Webadresse M20), neue I09-Trigger und Few-Shots. Ohne Import bleibt die Umleitung aus (`migrate` zieht nur fehlende Bereiche nach). Nur diesen Bereich nachziehen: `deploy/README.md`, Abschnitt „Einen einzelnen Bereich aus dem Abbild nachziehen“. Neue Logzeile `Kurations-Auftrag: … umgeleitet`.
+  - **`classify-overrides`** — seit Paket 12 zieht `migrate` (Werksabgleich) den Bereich selbst nach, sofern er im Studio unverändert ist; sonst wie folgt importieren (`import-config`): Kurations-Umleitung `curation_reroute` (Muster-Modus: Auftrag „in meine Sammlung aufnehmen“ → M18, mit Webadresse M20), neue I09-Trigger und Few-Shots. Ohne Import bleibt die Umleitung aus (`migrate` zieht nur fehlende Bereiche nach). Nur diesen Bereich nachziehen: `deploy/README.md`, Abschnitt „Einen einzelnen Bereich aus dem Abbild nachziehen“. Neue Logzeile `Kurations-Auftrag: … umgeleitet`.
   - Krisen-Wendungen: weitere Formen erkannt (andere Wortstellung, Absicht „Ich überlege, mit dem Leben Schluss zu machen“).
   - Umwandlung: Textdeckel 50 Mio. Zeichen je Datei.
   - Ein „Ja“ zu einer Vorschau unter einer anderen bzw. hier nicht geltenden Anmeldung (neuer Tab, abgelaufen, Ticket noch nicht getauscht) bekommt jetzt einen festen Hinweis mit Anmelde-Chip statt einer neuen Vorschau. Mit `ticket` warten frühe Züge bis zu 5 s auf den Tausch. Die Vorschau-Box nennt die Frist (10 Minuten). Neue Logzeile zur Diagnose: `Anmeldung nicht prüfbar (…)`.
@@ -160,17 +155,10 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - **Golden-Seeds** nach dem Deploy auf Staging importieren.
 - **Master-Skill:** nach jedem Übertragen `cd backend && uv run python scripts/check_master_skill.py` ausführen.
   - Die Rückgabe 0 heißt: alle Regeln erfüllt. 1 heißt: mindestens eine verletzt. 2 heißt: nicht abrufbar.
-- **Master-Skill „Ändern“ übertragen** (Paket 2, Runde-2-Plan N-3):
-  - Mit Paket 2 zeigt der Chat die Vorschau einer Änderung auch im Agent-Zug von selbst als Kasten mit Knopf. Der Knoten sagt noch, das Modell lege sie „wörtlich als gerahmten Kasten“ vor; folgt es dem mit `zeige_dokument`, stehen zwei Kästen da.
-  - Die Vorlage `docs/skills/vorgehen.md` ist berichtigt (Abschnitt „Im Bestand ändern (M18)“). Übertragen in den Knoten `535cabca…` machen Nutzer bzw. Redaktion.
-  - Bis dahin meldet das Prüfskript die neue Regel `test_die_aenderungs_vorschau_zeigt_der_chat_selbst` als verletzt (Rückgabe 1).
-
 ## 5 Aufräumen
 
-- **Studio „Sicherung“ bei 375 px zu breit** (Browser-Abnahme Paket 12, 2026-10-16): die
-  Seite misst 442 px statt 375; Auslöser sind die bestehenden Karten „Eigener Grundstand“
-  (442 px) und „Voll-Backup“ (437 px, vermutlich das Datei-Feld) — nicht die neue Karte.
-
+- **Zeitraum-Grenzen in Browser-Zeit** (Review Paket 16, D-5): Kosten und Nutzung bauen `from`/`to` aus dem Kalendertag des Browsers, Tage und Raster rechnet der Server in Europe/Berlin. Außerhalb deutscher Zeit kommt am Rand ein angeschnittener Tag dazu. Hebel: Grenzen als Berliner Mitternacht bauen (`Intl`-Versatz).
+- **Zeitabhängiger Test** `tests/test_aufbewahrung_takt.py::test_der_takt_laeuft_weiter_auch_nach_einem_fehler` (50-ms-Fenster, 5-ms-Takt) kippte im vollen Lauf unter Parallellast (Paket 16, 2026-10-18), allein grün. Fester machen: auf eine Bedingung warten (zweiter Lauf) statt fest 50 ms schlafen.
 - **Dateien über der 300-Zeilen-Regel** (Audit F-8), aus diesen Runden:
   - Paket 6 hat geteilt: `services/rag/ingest.py` (→ `umwandeln.py`), Studio `schema-form/schema-form.scss` (Teildateien je Baustein, CSS byte-gleich), `views/curated-views.ts` und `i18n/catalogue/curated.ts` (nach Seitengruppen), `i18n/catalogue/area-editor.ts` (`groupSection.*` eigener Teil), `views/eval-run-detail.component.ts` (Gold-Zug-Tabelle als `eval-gold-turns`) und `schema-form/schema-field.component.ts` (Listen- und Map-Regeln in `list-items.ts`, `map-entries.ts`; die Vorlage steht mit 300 an der Grenze). Dabei vor dem Überschreiten bewahrt: `api/config_guards.py` (Fehler-Antworten nach `api/config_antworten.py`), `api/rag.py` (`api/rag_umwandlung.py`), `api/config.py` (Löschen nach `api/config_documents.py`), `views/group-section.component.ts` (`group-documents.ts`, `feld-reiter.ts`).
   - Paket 7: `graph/nodes/respond_agent.py` (537; Paket B und E-C, überwiegend Begründungs-Kommentar; Review B-3 +3), `services/response_prompt_builder.py` (324; P4 +6, E-E +6, Review B-5 +2), `services/classify_prompt.py` (315; vorher 330), `services/tool_loop_messages.py` (373, Fidelity-Port; D, E-E, T1, Review B-5 +4), `services/page_context.py` (815; vorher 972 — der tote Regel-Zweig ist weg), Widget `shell/lifecycle.ts` (326; vorher 302, T2 und Review C-5 — die Kontext-Ping-Abläufe wären ein eigener Baustein, ein Backend-Test liest aber `PING_COVERS_BACKEND_KINDS` aus genau dieser Datei).
@@ -190,7 +178,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 - **Rest aus dem ReDoS-Befund (Paket 4, Review):** Der Motor mit Zeitgrenze (`domain/regel_regex`, Paket 6 B1) könnte auch `pattern` in Ergebnis-Schemata prüfen; heute sind Muster dort nur ein Hinweis an das Modell (A3, Review R-2). Eine Idee, kein Befund.
 - **Aus dem zweiten Review von Paket 4b (2026-10-08):** Die drei Code-Befunde sind in Paket 4c erledigt (URL-Import, Wert ohne JSON, Ansage „kein Werkzeug“); die Skill-Suche der Testinstanz ist in Paket 7 entschieden (S5).
-- **Studio-Startpaket 1,10 MB** (Build 2026-10-09 nach Paket 7, noch ohne Warnung; nach Paket 6 1,09 MB, 2026-10-03 nach Paket 4 L1 1,08 MB). **Seit dem Review von Paket 7 meldet der Build die Warnung: 162 Byte über 1,1 MB** (die berichtigten Studio-Texte C-7…C-11), **seit Paket 8 6,1 kB darüber** (Texte des Aufbewahrungs-Panels, de/en). Der Fehler kommt bei 1,2 MB; die CI wertet die Warnung nicht als Fehler. Angular 22.2 weist den gemeinsamen Chunk (`@angular/core` u. a.) richtig als initial aus; 22.1 nannte ihn „lazy“, geladen wurde er schon immer beim Start.
+- **Studio-Startpaket 1,10 MB** (Build 2026-10-09 nach Paket 7, noch ohne Warnung; nach Paket 6 1,09 MB, 2026-10-03 nach Paket 4 L1 1,08 MB). **Seit dem Review von Paket 7 meldet der Build die Warnung: 162 Byte über 1,1 MB** (die berichtigten Studio-Texte C-7…C-11), **seit Paket 8 6,1 kB darüber** (Texte des Aufbewahrungs-Panels, de/en). **Seit Paket 13 (Phase F, 2026-10-17) 38,7 kB darüber** (1,14 MB: Ansicht-Umschalter, Auswertung v2 mit Matrizen, Ablauf-Karten, Vergleich und Verlauf, Texte de/en). **Seit Paket 14 (Arbeitsbereiche, 2026-10-17, mit Review-Fixes) 54,7 kB darüber** (1,15 MB: Agent-Seiten, Anrede-Tabelle, Materialformate mit Markdown-Vorschau, Texte de/en). Bis zur Fehlergrenze 1,2 MB bleiben rund 45 kB. **Paket 15 (Phase 0, 2026-10-17): 826 kB** — das Studio zog über die Sammeldatei `@boerdi/ui` das ganze Widget ins Startpaket; direkte Importe aus `@boerdi/ui/i18n/*` halbieren es fast. Der Hebel unten ist damit vorerst nicht nötig. Nächster Hebel, falls nötig: die Evaluation, die Agent-Seiten und Materialformate per `loadComponent` nachladen statt im Startpaket. Der Fehler kommt bei 1,2 MB; die CI wertet die Warnung nicht als Fehler. Angular 22.2 weist den gemeinsamen Chunk (`@angular/core` u. a.) richtig als initial aus; 22.1 nannte ihn „lazy“, geladen wurde er schon immer beim Start.
   - Größter Posten: beide Sprach-Kataloge des Studios, 434 kB, eager (`i18n/de.ts`, `i18n/en.ts`).
   - Das Budget ist an den echten Stand angepasst (Warnung 1,1 MB, Fehler 1,2 MB). Der Schnitt „`en` erst beim Umschalten laden“ hieße, jeden Katalogteil auf zwei Dateien zu verteilen — gegen die bewusste Regel „beide Sprachen beieinander“ (`catalogue-part.ts`). Entscheid 2026-10-09: so lassen, solange das Budget hält. **Nutzer, Nachfrage zu Paket 8:** das Studio wird selten aufgerufen — etwas über der Warnschwelle ist kein Problem.
 
@@ -200,9 +188,29 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - Umgebung: `RERANK_URL` und `TEXT_EXTRACTION_URL` stehen nur in `settings.py`.
   - Der ALT-Zweig `cards_enabled` im Muster-Prompt bleibt ruhend: kein Client sendet das Feld. Daran hängt auch der UI-Box-Status, den Paket 7 (D) an die Werkzeug-Nachricht gelegt hat.
 
+- **Paket 14, aus dem Review (2026-10-17), nicht dringend:** `views/group-section.component.ts` hat 312 Zeilen (Grenze ~300) — Anlegen/Kopieren/Löschen ließe sich als eigener Helfer herausziehen. (Dass Aliase und Vorrang im Panel „Materialtypen“ nach dem Speichern ihrer Abschnitte veraltet blieben, ist seit dem zweiten Review von PR #18 behoben.)
+
+- **Aus dem zweiten Review von PR #18 (2026-10-18), älter als die Pakete 13–16, nicht angefasst:**
+  - `api/quality.py` `clear_quality_logs`: `scope=production` zählt als Filter und umgeht damit `confirm` — es löscht fast die ganze Tabelle; `engine=pattern` tut seit Paket 16 dasselbe (gewollt, dokumentiert). Im Studio nennt die Rückfrage (`quality-logs` `bulkQuestion`) einen anderen Umfang als `all` nicht.
+  - „Trotzdem speichern“ nach einer 409 ohne Version (`version: null`) schreibt ohne Bedingung, in jedem Schreiber (`AreaDocEditor`, Server-Liste, Anrede, Materialtypen). So in Paket 4 D5 festgelegt; fehlt `X-Config-Version`, wird daraus ein blindes Überschreiben.
+  - `views/backup.component.html`: die Karten in den Reitern tragen `h2` wie der Seitentitel (`check:a11y` lässt es durch).
+  - `mcp-registry-store.ts` `save()`: scheitert das Neuladen nach dem Speichern, steht „Gespeichert.“ neben dem Ladefehler.
+  - Widget `chat-shell.component.ts` `focusInput`: der `setTimeout` wird beim Zerstören nicht abgeräumt.
+  - `data.page` und `debug.context.page` halten den Pfad der Host-Seite 180 Tage. Schickt eine Einbettung je Query-Strings mit, blieben auch Suchbegriffe; Hebel: die Query in `log_quality_event` abschneiden.
+
 ## 6 Zurückgestellte Plan-Teile
 
 - **B1–B3 (Anrede)** folgen nach der Nachmessung (Runde-2-Plan, Paket B).
 - ST-4c, ST-3d und die Architektur-Referenz sind in Paket 6 gebaut.
 - **Verlaufsfenster blockweise bzw. positionsunabhängig kürzen** (Rest von C1): Nutzer 2026-10-09 — erstmal lassen, viel Korrekturbedarf bei wenig Mehrwert. Erklärung und Messwerte im Paket-8-Plan, Abschnitt C.
 - **Rest von P5-7** (Paket 8, P — nicht jetzt, Gründe im Plan): Docker-Socket-Proxy, Sicherung auf einem zweiten Rechner, eigene Studio-Sitzungen statt des festen Cookie-Tokens, CORS zu (braucht die Liste der echten Einbettungen), eine CSP für die Demo-Seiten (tragen Inline-Skripte).
+- **Paket 15, später (Nutzer-Entscheid 2026-10-17 bzw. bewusst nicht gebaut):** freie Persona-Gespräche in der Evaluation (eigenes Paket); Werkzeug-Regeln mit Anliegen-Bedingung auch im Agent-Modus (der Agent erkennt keine Anliegen — heute greifen dort nur Regeln ohne Bedingung, das Studio sagt es am Regelwerk); MCP-Sitzung über Züge wiederverwenden und den Master-Skill beim Start vorwärmen (Lasttest-Befund: erste Suche 22 s, `docs/mcp-und-anmeldung.md` §6); Kontext-Aktionen als Tabelle je Seitentyp (Pivot) statt der generischen Liste.
+- **Aus dem Review von Paket 15 (älter, nicht dringend):** `settings.eval_chat_url` liest niemand — `services/eval/run_store.py` nimmt `EVAL_CHAT_URL` per `os.getenv`, die Vorgabe (8100) steht damit doppelt. Beim nächsten Griff an den Eval-Start auf die Settings umstellen.
+- **Aus Review-Runde 2 von Paket 15 (2026-10-18), älter als Paket 15 — nur eingetragen:**
+  - Tour: `WebsiteTourBlock.home_path`/`content_hub`/`contact_hub` haben im Modell die Vorgabe `""`, `domain/tour.py` setzt aber `/home/`, `/bildungsinhalte/`, `/mitmachen/` ein. Seit A3 zeigt das Studio für einen fehlenden Schlüssel `""` mit Plakette „Vorgabe“. Der Seed setzt alle drei, sichtbar erst nach dem Löschen eines Schlüssels. Der A3-Wächter prüft Schema gegen Modell, nicht Modell gegen Lader.
+  - `schema-form/json-value.component.ts` (`commit`): „Kein gültiges JSON: …“ fest deutsch — im englischen Studio deutsch. Katalogschlüssel mit `{detail}`.
+  - Lasttest-Karte: Stufenspalten (p50/p95/max) und `rps` als Rohzahlen ohne `StudioFormat` (die neue Zeile je Kategorie formatiert seit Runde 2).
+  - Anrede-Tabelle (Paket 14): leeres `<td>` als Kopf der Aktionsspalte; `display:flex` direkt auf `<td>`; je Zeile ein `role="status"`.
+  - `AsyncData`: scheitert ein Abruf nach einem Arbeitsbereich-Wechsel, bleibt die Summe der anderen Maschine neben dem Fehler stehen (Kosten).
+  - Gold-Start: werden nach einer Flow-Änderung alle gewählten Kennungen ungültig, ist der Start-Knopf ohne Erklärung grau.
+  - Werkzeuge: die Sperre `policy` verlinkt auf „Identität & Schutz“ (Muster-Seite) — im Agent-Arbeitsbereich steht das Regelwerk auf „Rolle & Grenzen“ (`agent-tools.ts`, `lockLink`).

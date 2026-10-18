@@ -242,6 +242,8 @@ def test_quiz_loesungen_mit_begruendung(text: str) -> None:
     """Probe 2026-10-17 (V12): „Quiz mit Begründung“ in Klammern kam nicht an — die
     Lösungen standen als „1. A, 2. B …“ da."""
     assert "ein Satz Begründung" in _unterabschnitt(text, "M10")
+    # Vierte Runde: ohne Formvorlage fehlte die Begründung in 1 von 2 Läufen („1. A) Lava“).
+    assert "„1. B – weil" in _unterabschnitt(text, "M10")
 
 
 def test_quiz_verteilt_die_richtige_antwort(text: str) -> None:

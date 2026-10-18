@@ -42,9 +42,20 @@ export interface UsageSessionRow extends UsageTotals {
   readonly session_id: string | null;
   /** Woher eine Zeile ohne Sitzung kommt: Agent-API oder, seit Paket 9, die
    *  Probeläufe von „Auftrag testen“ im Studio (`studio-probe`). */
-  readonly source?: 'chat' | 'agent-api' | 'studio-probe';
+  readonly source?: 'chat' | 'agent-api' | 'studio-probe'
+    | 'eval-judge' | 'eval-simulator' | 'eval-szenario';
   /** Modelle dieser Sitzung ohne gepflegten Preis. */
   readonly price_unavailable: readonly string[];
+}
+
+/** Paket 16, D2: ein Kalendertag des Zeitraums (Europe/Berlin), Tage ohne Zug mit `"0"`. */
+export interface UsageDay {
+  readonly tag: string;
+  readonly calls: number;
+  /** `null`: an dem Tag hat kein Modell einen Preis. */
+  readonly amount: string | null;
+  /** Ein Modell des Tages hat keinen Preis — der Betrag ist eine Teilsumme. */
+  readonly unvollstaendig: boolean;
 }
 
 export interface UsageReport extends UsageTotals {
@@ -61,6 +72,8 @@ export interface UsageReport extends UsageTotals {
   readonly models: readonly UsageModelRow[];
   /** Nur beim Zeitraum; die Einzelsitzung führt keine Sitzungsliste. */
   readonly sessions?: readonly UsageSessionRow[];
+  /** Nur beim Zeitraum (Paket 16, D2). */
+  readonly days?: readonly UsageDay[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -68,8 +81,13 @@ export class UsageApi {
   private readonly api = inject(StudioApi);
 
   /** `from`/`to` als ISO-Zeitpunkte; beide Grenzen zählen mit. `scope` (ST-9)
-   *  trennt nach Herkunft — ohne Angabe gilt „alle", wie vor dem Filter. */
-  period(from: string, to: string, scope: OriginScope = 'all'): Promise<UsageReport> {
-    return this.api.get<UsageReport>('/usage/period', { from, to, ...scopeParams(scope) });
+   *  trennt nach Herkunft — ohne Angabe gilt „alle", wie vor dem Filter. `engine`
+   *  (Paket 15): nur die Züge einer Maschine, wie in der Analyse. */
+  period(
+    from: string, to: string, scope: OriginScope = 'all', engine?: 'pattern' | 'agent',
+  ): Promise<UsageReport> {
+    return this.api.get<UsageReport>('/usage/period', {
+      from, to, ...scopeParams(scope), engine,
+    });
   }
 }

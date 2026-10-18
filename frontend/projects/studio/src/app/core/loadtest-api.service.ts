@@ -27,6 +27,9 @@ export interface RunProfile {
   readonly mix: Readonly<Record<string, number>>;
   readonly p95_threshold_s: number;
   readonly total_requests: number;
+  /** Paket 15: das normalisierte Profil trägt beides; ältere Läufe ohne. */
+  readonly warmup?: boolean;
+  readonly engine?: string;
 }
 
 export interface StageResult {
@@ -41,8 +44,37 @@ export interface StageResult {
   readonly mean_s: number;
   readonly duration_s: number;
   readonly rps: number;
-  readonly by_kind: Readonly<Record<string, { n: number; ok: number; p50_s: number; p95_s: number }>>;
+  readonly by_kind: Readonly<Record<string, {
+    n: number; ok: number; p50_s: number; p95_s: number;
+    /** Paket 15; ältere Läufe ohne. */
+    max_s?: number;
+    /** Paket 16 (D4): Median je Teil und sein Anteil — ältere Läufe ohne. */
+    zeiten_ms?: Readonly<Partial<Record<ZeitKategorie, number>>>;
+    anteile?: Readonly<Partial<Record<ZeitKategorie, number>>>;
+  }>>;
+  /** Paket 15 (E1): jede Anfrage der Stufe; fehlt bei Läufen von vorher. */
+  readonly anfragen?: readonly LoadAnfrage[];
 }
+
+/** Paket 15 (E1): eine Anfrage — Werkzeuge und Werkzeugzeit aus dem Debug-Block des Zugs. */
+export interface LoadAnfrage {
+  readonly nr?: number;
+  readonly kind: string;
+  readonly ok: boolean;
+  readonly status: number;
+  readonly latency_s: number;
+  readonly error?: string;
+  readonly werkzeuge?: number;
+  readonly werkzeuge_ms?: number;
+  /** Paket 16 (D4): die Dauer nach Teilen, in ms. */
+  readonly zeiten?: Readonly<Partial<Record<ZeitKategorie, number>>>;
+}
+
+/** Paket 16 (D4): die Teile eines Zugs — wie `ZEIT_KATEGORIEN` in `services/loadtest.py`. */
+export const ZEIT_KATEGORIEN = [
+  'llm', 'werkzeuge', 'vorabsuche', 'rerank', 'rag', 'safety', 'rest',
+] as const;
+export type ZeitKategorie = (typeof ZEIT_KATEGORIEN)[number];
 
 /**
  * The six keys `_summary` in `services/loadtest.py` actually returns.
@@ -78,6 +110,8 @@ export interface LoadTestRun {
   readonly resource_samples: readonly { t: number; proc_cpu: number; rss_mb: number }[];
   readonly summary: RunSummary | null;
   readonly error: string | null;
+  /** Paket 15 (E1): die Aufwärm-Anfrage, in keiner Stufe gezählt. */
+  readonly warmup?: LoadAnfrage | null;
 }
 
 export interface RunListItem {
@@ -98,6 +132,8 @@ export interface StartProfile {
   /** Review-Befund 7 (2026-08-22): agent hat ein anderes
    *  Runden-Profil — ohne Wahl galten die Zahlen nur für die Vorgabe. */
   readonly engine: GoldenEngine;
+  /** Paket 15 (E1): eine Anfrage vorab, die nicht zählt. */
+  readonly warmup: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

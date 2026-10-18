@@ -105,3 +105,36 @@
 .agt-none {
   color: var(--st-text-muted);
 }
+
+// Paket 16, C7: Herkunft als Plakette (Text trägt die Bedeutung, der Rahmen hebt nur hervor),
+// darunter Server und Host.
+.agt-herkunft {
+  vertical-align: top;
+}
+
+.agt-herkunft-tag {
+  display: inline-block;
+  padding: 0 var(--st-2);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &--wlo {
+    border-color: var(--st-accent);
+  }
+
+  &--fremd {
+    border-style: dashed;
+    border-color: var(--st-text-muted);
+  }
+}
+
+.agt-server {
+  display: block;
+  margin-block-start: var(--st-1);
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+  overflow-wrap: anywhere;
+}

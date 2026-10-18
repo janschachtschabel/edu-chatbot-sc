@@ -121,7 +121,7 @@ def test_bereinigen_loescht_nur_was_aelter_als_die_frist_ist(db, monkeypatch):
 
     geloescht, uebrig = _lauf(db, szenario)
     assert geloescht == {"messages": 0, "memory": 0, "session_state": 0,
-                         "safety_logs": 2, "quality_logs": 1}
+                         "safety_logs": 2, "quality_logs": 1, "quality_text": 0}
     assert uebrig == (1, 1)
 
 
@@ -137,8 +137,9 @@ def test_null_tage_heisst_unbegrenzt(db, monkeypatch):
             return geloescht, await aufbewahrung.ueberblick(s), await _anzahl(factory)
 
     geloescht, ueberblick, uebrig = _lauf(db, szenario)
+    # Paket 16, D1: das Protokoll bleibt unbegrenzt — sein Text geht mit den Gesprächen.
     assert geloescht == {"messages": 0, "memory": 0, "session_state": 0,
-                         "safety_logs": 0, "quality_logs": 0}
+                         "safety_logs": 0, "quality_logs": 0, "quality_text": 1}
     assert all(z["faellig"] == 0 for z in ueberblick)
     assert uebrig == (1, 1)
 
@@ -151,7 +152,7 @@ def test_ohne_eintrag_gilt_die_vorgabe_des_bereichs(db, monkeypatch):
     _fristen(monkeypatch, gespraeche=None, sicherheit=None, qualitaet=None)
     assert [(f.bereich, f.tage) for f in aufbewahrung.fristen()] == [
         ("messages", 30), ("memory", 30), ("session_state", 30), ("safety_logs", 90),
-        ("quality_logs", 180),
+        ("quality_logs", 180), ("quality_text", 30),
     ]
 
 
@@ -336,3 +337,91 @@ def test_ein_zug_waehrend_des_leerens_behaelt_seinen_stand(db, monkeypatch):
                                     .where(ChatSession.session_id == "bb-wacht-auf"))).scalar_one()
 
     assert _lauf(db, szenario) == frisch
+
+
+def test_der_text_im_qualitaetsprotokoll_verfaellt_mit_den_gespraechen(db, monkeypatch):
+    """Paket 16, D1 (Nutzer-Entscheid 2026-10-18): die Zeile bleibt mit ihren Kennzahlen bis
+    zur Frist des Protokolls, ihr Text nur so lange wie die Gesprächsverläufe."""
+    from sqlalchemy import select
+
+    from boerdi.db.models import QualityLog
+    from boerdi.services import aufbewahrung
+    from boerdi.services.qualitaet_text import MARKE
+
+    _fristen(monkeypatch, gespraeche=30, qualitaet=180)
+    mit_text = {"turn_count": 2, "message": "Brüche für die 6b", "entities": {"thema": "Brüche"},
+                "debug": {"pattern_reasoning": "sucht Brüche", "intent": "I01"}}
+
+    async def szenario(engine, factory):
+        jetzt = datetime.now(UTC)
+        async with factory() as s:
+            s.add(QualityLog(data=mit_text, created_at=jetzt - timedelta(days=40)))
+            s.add(QualityLog(data=mit_text, created_at=jetzt - timedelta(days=5)))
+            await s.commit()
+        async with factory() as s:
+            vorher = {z["bereich"]: z["faellig"] for z in await aufbewahrung.ueberblick(s)}
+        erster = await aufbewahrung.lauf(engine, factory)
+        zweiter = await aufbewahrung.lauf(engine, factory)
+        async with factory() as s:
+            zeilen = (await s.execute(
+                select(QualityLog.data).order_by(QualityLog.created_at))).scalars().all()
+            nachher = {z["bereich"]: z["faellig"] for z in await aufbewahrung.ueberblick(s)}
+        return vorher, erster, zweiter, zeilen, nachher
+
+    vorher, erster, zweiter, (alt, jung), nachher = _lauf(db, szenario)
+    assert vorher["quality_text"] == 1 and nachher["quality_text"] == 0
+    assert erster["quality_text"] == 1 and erster["quality_logs"] == 0
+    assert zweiter["quality_text"] == 0                       # idempotent
+    assert alt["message"] is None and alt["entities"] == {} and alt[MARKE] is True
+    assert "pattern_reasoning" not in alt["debug"] and alt["debug"]["intent"] == "I01"
+    assert alt["turn_count"] == 2
+    assert jung == mit_text
+
+
+def test_der_text_schritt_arbeitet_in_kleinen_stapeln(db, monkeypatch):
+    """Review B-2: der Schritt holt ganze Zeilen samt Debug nach Python — kleine Stapel, bis
+    nichts mehr fällig ist."""
+    from sqlalchemy import func, select
+
+    from boerdi.db.models import QualityLog
+    from boerdi.services import aufbewahrung
+    from boerdi.services.qualitaet_text import MARKE
+
+    _fristen(monkeypatch, gespraeche=30, qualitaet=0)
+    monkeypatch.setattr(aufbewahrung, "TEXT_STAPEL", 2)
+
+    async def szenario(engine, factory):
+        jetzt = datetime.now(UTC)
+        async with factory() as s:
+            for _ in range(5):
+                s.add(QualityLog(data={"message": "x"}, created_at=jetzt - timedelta(days=40)))
+            await s.commit()
+        ergebnis = await aufbewahrung.lauf(engine, factory)
+        async with factory() as s:
+            offen = (await s.execute(select(func.count()).select_from(QualityLog)
+                                     .where(QualityLog.data.has_key(MARKE).is_(False)))).scalar_one()
+        return ergebnis, offen
+
+    ergebnis, offen = _lauf(db, szenario)
+    assert ergebnis["quality_text"] == 5 and offen == 0
+
+
+def test_der_text_schritt_nutzt_den_teilindex(db, monkeypatch):
+    """Review PR #18 (B2): Bedingung und Teilindex (Migration 0013) müssen übereinstimmen, sonst
+    liest jeder Lauf alle geleerten Zeilen samt Debug erneut."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects import postgresql
+
+    from boerdi.services import aufbewahrung
+
+    abfrage = aufbewahrung._faellige_texte(datetime.now(UTC), 0).compile(
+        dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
+
+    async def szenario(engine, factory):
+        async with factory() as s:
+            await s.execute(text("SET LOCAL enable_seqscan = off"))
+            return " | ".join(z[0] for z in (await s.execute(text(f"EXPLAIN {abfrage}"))).all())
+
+    plan = _lauf(db, szenario)
+    assert "ix_quality_logs_text_offen" in plan, plan
+

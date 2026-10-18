@@ -115,7 +115,7 @@ describe("EvalGoldenStartComponent", () => {
     // Der Weg „alles außer einem" (z. B. GV-RED-1 abwählen) brauchte vorher
     // N−1 Einzelklicks: leer hieß zwar alle, aber der erste Haken hieß NUR dieser.
     await mount();
-    button("Alle auswählen")!.click();
+    button("Alle auswählen")!.click(); // ohne Flows „auf Abruf“ ist „alle“ wörtlich
     await h.fixture.whenStable();
     expect(box("flow-GS-1").checked).toBe(true);
     expect(box("flow-GS-2").checked).toBe(true);
@@ -142,25 +142,31 @@ describe("EvalGoldenStartComponent", () => {
     expect(text()).toContain("7 Chat-Anfragen"); // leer = alle außer GV-RED-1
     expect(text()).toContain("außer denen „nur auf Abruf“");
     expect(box("flow-GV-RED-1").closest("label")?.textContent).toContain("nur auf Abruf");
+    // Paket 15 (A7): der Knopf sagt, was er tut — „Alle auswählen“ wählte nicht alle.
+    expect(button("Alle auswählen")).toBeNull();
 
-    button("Alle auswählen")!.click();
+    button("Alle außer „nur auf Abruf“")!.click();
     await h.fixture.whenStable();
     expect(box("flow-GV-RED-1").checked).toBe(false);
     expect(text()).toContain("7 Chat-Anfragen");
+    expect(h.el.querySelector(".egd-abruf-warnung")).toBeNull();
 
-    box("flow-GV-RED-1").click();
+    button("Alle, auch „nur auf Abruf“")!.click();
     await h.fixture.whenStable();
+    expect(box("flow-GV-RED-1").checked).toBe(true);
     expect(text()).toContain("9 Chat-Anfragen");
+    expect(h.el.querySelector(".egd-abruf-warnung")?.textContent).toContain("GV-RED-1");
   });
 
-  it("names the judge calls the toggle adds", async () => {
+  it("läuft mit Judge, wenn niemand ihn abwählt, und nennt seine Aufrufe (Paket 15, A7)", async () => {
+    // Je Zug ein Urteil, je Ablauf eines, dazu der Kurzbericht: 7 + 2 + 1.
     await mount();
-    expect(text()).not.toContain("Judge-Aufrufe");
+    expect(box("judge").checked).toBe(true);
+    expect(text()).toContain("10 Judge-Aufrufe");
 
     box("judge").click();
     await h.fixture.whenStable();
-
-    expect(text()).toContain("7 Judge-Aufrufe");
+    expect(text()).not.toContain("Judge-Aufrufe");
   });
 
   it("asks before it fires anything", async () => {
@@ -179,7 +185,6 @@ describe("EvalGoldenStartComponent", () => {
       started.push(id),
     );
     box("flow-GS-1").click();
-    box("judge").click();
     await h.fixture.whenStable();
     await arm();
 
@@ -215,7 +220,7 @@ describe("EvalGoldenStartComponent", () => {
     );
     expect(req.request.body).toEqual({
       flow_ids: [],
-      judge: false,
+      judge: true, // Paket 15: Vorgabe an
       config_slug: "",
       engine: "agent",
     });
@@ -305,6 +310,8 @@ describe("EvalGoldenStartComponent", () => {
       flows: [{ id: "GS-9", title: "Einzelfall", turns: [{}] }],
       count: 1,
     });
+    box("judge").click(); // der Satz ohne Judge
+    await h.fixture.whenStable();
     const cost = h.el
       .querySelector(".egd-cost")!
       .textContent!.replace(/\s+/g, " ")
@@ -317,8 +324,6 @@ describe("EvalGoldenStartComponent", () => {
 
   it("trägt die Mehrzahl auch in die Rückfrage", async () => {
     await mount();
-    box("judge").click();
-    await h.fixture.whenStable();
     await arm();
     expect(
       h.el
@@ -326,7 +331,7 @@ describe("EvalGoldenStartComponent", () => {
         .textContent!.replace(/\s+/g, " ")
         .trim(),
     ).toBe(
-      "7 Chat-Anfragen plus 7 Judge-Aufrufe starten? Es läuft dann kein " +
+      "7 Chat-Anfragen plus 10 Judge-Aufrufe starten? Es läuft dann kein " +
         "zweiter Lauf, bis dieser fertig ist.",
     );
   });
@@ -338,5 +343,17 @@ describe("EvalGoldenStartComponent", () => {
     expect(text()).toContain("Nothing selected = all.");
     expect(text()).toContain("7 chat requests");
     expect(text()).not.toMatch(/Chat-Anfragen|Nichts ausgewählt/);
+  });
+});
+
+describe('EvalGoldenStart — englische Begriffe (Review-Runde 2)', () => {
+  it('nennt die Markierung „on demand only“ überall gleich', async () => {
+    const { EVAL_START } = await import('../i18n/catalogue/eval-start');
+    const en = EVAL_START.en as Record<string, string>;
+    for (const key of ['evalStart.gold.selectAllOhneAbruf', 'evalStart.gold.selectAllMitAbruf',
+      'evalStart.gold.abrufWarnung']) {
+      expect(en[key], key).toContain('on demand only');
+    }
+    expect(en['evalStart.gold.onDemand']).toBe('on demand only');
   });
 });

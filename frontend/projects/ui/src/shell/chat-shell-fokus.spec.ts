@@ -79,4 +79,45 @@ describe('ChatShellComponent — Fokus und Eingabe (Paket 10, L-9)', () => {
 
     expect(document.activeElement).toBe(eingabefeld(f));
   });
+
+  // CI-Kippler auth-button.spec.ts:101 (2026-10-17): beim ersten Öffnen läuft
+  // der Kontext-Ping, das Feld ist gesperrt — der Öffnen-Fokus verpuffte, und
+  // nach dem Ping holte ihn niemand nach. Tastaturnutzer standen auf `body`.
+  it('ein Fokus-Auftrag aufs gesperrte Feld wird nach dem Laden nachgeholt', () => {
+    vi.useFakeTimers();
+    const f = gerendert();
+    const c = f.componentInstance;
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    c.isLoading.set(true);
+    f.detectChanges();
+    c.focusInput();
+    vi.advanceTimersByTime(200);
+    expect(document.activeElement).not.toBe(eingabefeld(f));
+
+    c.isLoading.set(false);
+    f.detectChanges();
+    vi.advanceTimersByTime(200);
+    expect(document.activeElement).toBe(eingabefeld(f));
+  });
+
+  it('der nachgeholte Fokus nimmt ihn der Gastseite nicht weg', () => {
+    vi.useFakeTimers();
+    const f = gerendert();
+    const c = f.componentInstance;
+    c.isLoading.set(true);
+    f.detectChanges();
+    c.focusInput();
+    vi.advanceTimersByTime(200);
+
+    const fremd = document.createElement('input');
+    fremd.setAttribute('data-fremd', '');
+    document.body.appendChild(fremd);
+    fremd.focus();
+    c.isLoading.set(false);
+    f.detectChanges();
+    vi.advanceTimersByTime(200);
+
+    expect(document.activeElement).toBe(fremd);
+  });
 });

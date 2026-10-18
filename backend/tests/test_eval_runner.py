@@ -218,8 +218,12 @@ def recorder():
     return progress
 
 
+_seen_acc: dict = {}
+
+
 def _patch_stage(monkeypatch, *, scenarios, chat_resp, judge=None):
-    async def fake_generate(personas, intents, count, progress_cb=None):
+    async def fake_generate(personas, intents, count, progress_cb=None, **kw):
+        _seen_acc["szenario"] = kw.get("usage_acc")
         if progress_cb is not None:
             await progress_cb(1, 1, personas[0]["id"], intents[0]["id"])
         return scenarios
@@ -227,7 +231,8 @@ def _patch_stage(monkeypatch, *, scenarios, chat_resp, judge=None):
     async def fake_post(chat_url, message, session_id=None):
         return chat_resp
 
-    async def fake_judge(persona, intent, user, bot, debug):
+    async def fake_judge(persona, intent, user, bot, debug, **kw):
+        _seen_acc["judge"] = kw.get("usage_acc")
         return judge or {"total": 0.8, "pattern_match": 2}
 
     monkeypatch.setattr(rn, "generate_scenarios", fake_generate)
@@ -265,7 +270,7 @@ def test_execute_run_scenario_stage_end_to_end(monkeypatch, recorder):
 
 
 def test_execute_run_degrades_a_failing_scenario_turn(monkeypatch, recorder):
-    async def fake_generate(personas, intents, count, progress_cb=None):
+    async def fake_generate(personas, intents, count, progress_cb=None, **kw):
         return [{"persona_id": "P-LEH", "intent_id": "I01",
                  "opening": "Frage", "index": 0}]
 
@@ -318,7 +323,7 @@ def test_execute_run_i06_scenario_gets_a_priming_turn(monkeypatch, recorder):
     """I06 is an edit intent — without prior material it can only fail."""
     posted: list[tuple[str, str | None]] = []
 
-    async def fake_generate(personas, intents, count, progress_cb=None):
+    async def fake_generate(personas, intents, count, progress_cb=None, **kw):
         return [{"persona_id": "P-LEH", "intent_id": "I06",
                  "opening": "Mach es einfacher", "index": 0}]
 
@@ -326,7 +331,7 @@ def test_execute_run_i06_scenario_gets_a_priming_turn(monkeypatch, recorder):
         posted.append((message, session_id))
         return {"content": "ok", "debug": {"pattern": "M11 (Edit)"}}
 
-    async def fake_judge(*a):
+    async def fake_judge(*a, **kw):
         return {"total": 1.0}
 
     monkeypatch.setattr(rn, "generate_scenarios", fake_generate)
@@ -352,7 +357,7 @@ def test_execute_run_i06_scenario_gets_a_priming_turn(monkeypatch, recorder):
 
 
 def test_execute_run_conversation_stage_judges_non_error_turns(monkeypatch, recorder):
-    async def fake_simulate(chat_url, persona, intent, max_turns=3):
+    async def fake_simulate(chat_url, persona, intent, max_turns=3, **kw):
         return {
             "session_id": "eval-x", "persona_id": persona["id"],
             "intent_id": intent["id"], "ended_early": False,
@@ -363,7 +368,7 @@ def test_execute_run_conversation_stage_judges_non_error_turns(monkeypatch, reco
             ],
         }
 
-    async def fake_judge(persona, intent, user, bot, debug):
+    async def fake_judge(persona, intent, user, bot, debug, **kw):
         return {"total": 0.6}
 
     monkeypatch.setattr(rn, "simulate_conversation", fake_simulate)
@@ -410,3 +415,27 @@ def test_execute_run_unknown_mode_runs_no_stage(monkeypatch, recorder):
         progress=recorder,
     ))
     assert conversations == [] and summary["total_judged_turns"] == 0
+
+
+def test_execute_run_reicht_die_merkposten_je_rolle_durch(monkeypatch, recorder):
+    """Paket 15 (A6): Szenarien, Judge und Simulator buchen in den Merkposten des Laufs."""
+    from boerdi.services.eval.verbrauch import EvalVerbrauch
+
+    _seen_acc.clear()
+    _patch_stage(
+        monkeypatch,
+        scenarios=[{"persona_id": "P-LEH", "intent_id": "I01", "opening": "Hallo", "index": 0}],
+        chat_resp={"content": "Antwort", "debug": {}},
+    )
+    llm = FakeLLM(replies=["[ENDE]"])
+    monkeypatch.setattr(rn, "chat_completion", llm)
+    monkeypatch.setattr(rn, "load_persona_definitions", lambda: [_PERSONA])
+    lauf = EvalVerbrauch()
+    _run(rn.execute_run(
+        chat_url=_URL, run_id="eval-a6", conversations=[], mode="both",
+        personas=[_PERSONA], intents=[_INTENT], scenarios_per_combo=1, turns_per_conv=2,
+        target_turns=2, progress=recorder, verbrauch=lauf,
+    ))
+    assert _seen_acc["szenario"] is lauf.szenario
+    assert _seen_acc["judge"] is lauf.judge
+    assert llm.calls and all(c.get("usage_acc") is lauf.simulator for c in llm.calls)

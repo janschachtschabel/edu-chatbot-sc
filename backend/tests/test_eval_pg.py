@@ -432,8 +432,10 @@ def test_golden_lauf_haelt_am_pruefpunkt_an_wenn_die_zeile_gestoppt_ist(
     """
     import boerdi.services.eval.golden_run as golden_run
 
-    flows = [{"id": "GS-1", "turns": [{"message": "a"}]},
-             {"id": "GS-2", "turns": [{"message": "b"}]}]
+    flows = [{"id": "GS-1", "erwartung": "e",
+              "turns": [{"message": "a", "anwendungsfall": "suchen"}]},
+             {"id": "GS-2", "erwartung": "e",
+              "turns": [{"message": "b", "anwendungsfall": "suchen"}]}]
     gefeuert: list[str] = []
 
     async def scenario(session):
@@ -459,7 +461,7 @@ def test_golden_lauf_haelt_am_pruefpunkt_an_wenn_die_zeile_gestoppt_ist(
         monkeypatch.setattr(golden_run, "_load_golden_runner",
                             lambda: type("R", (), {"run_flows": staticmethod(run_flows)}))
 
-        async def offline_conditions(*, judge_enabled):
+        async def offline_conditions(*, judge_enabled, engine="default", flows=None):
             return {}  # K0-2: sonst holte der Job den Master-Skill per MCP
 
         monkeypatch.setattr(golden_run, "run_conditions", offline_conditions)
@@ -629,8 +631,8 @@ def test_start_golden_eval_run_persists_running_row(test_db, monkeypatch) -> Non
     import boerdi.services.eval.golden_run as golden_run
     import boerdi.services.eval_service as svc
 
-    flows = [{"id": "GS-1", "persona": "P-LEH", "intents": ["I03"],
-              "turns": [{"message": "hallo"}]}]
+    flows = [{"id": "GS-1", "persona": "P-LEH", "intents": ["I03"], "erwartung": "e",
+              "turns": [{"message": "hallo", "anwendungsfall": "suchen"}]}]
     # Patched where the caller lives: ``start_golden_eval_run`` resolves both
     # names in ``golden_run``'s globals; the facade only re-exports them.
     monkeypatch.setattr(golden_run, "load_gold_flows", lambda: flows)
@@ -687,7 +689,8 @@ def test_zwei_gleichzeitige_starts_ergeben_genau_einen_lauf_und_eine_409(
     import boerdi.services.eval.golden_run as golden_run
     from boerdi.db.models import EvalRun
 
-    flows = [{"id": "GS-1", "turns": [{"message": "a"}]}]
+    flows = [{"id": "GS-1", "erwartung": "e",
+              "turns": [{"message": "a", "anwendungsfall": "suchen"}]}]
     monkeypatch.setattr(golden_run, "load_gold_flows", lambda: flows)
     monkeypatch.setattr(golden_run, "_load_golden_runner", lambda: type(
         "R", (), {"validate_flows": staticmethod(lambda _flows: None)}))
@@ -742,3 +745,24 @@ def test_zwei_gleichzeitige_starts_ergeben_genau_einen_lauf_und_eine_409(
     assert len(angelegt) == 1 and angelegt[0]["run_id"] == laufend[0]
     assert [e.status_code for e in abgewiesen] == [409]
     assert laufend[0] in abgewiesen[0].detail  # dieselbe Meldung wie bisher
+
+
+def test_pattern_usage_trennt_agent_und_muster(test_db) -> None:
+    """Paket 15 (A5): Agent-Züge (``pattern_id = 'AGENT'``) tragen Platzhalter-Anliegen und
+    -Personas — in der Pattern-Nutzung verzerrten sie die Balken. Ein Zug ohne Pattern zählt
+    zum Muster (``IS DISTINCT FROM``: ``<>`` verwarf NULL still)."""
+    from boerdi.services.eval_service import pattern_usage_stats
+
+    async def scenario(session):
+        await _add_qlog(session, "bb-1", "AGENT", "I01", {"persona_id": "P-AND"})
+        await _add_qlog(session, "bb-2", "M05", "I03", {"persona_id": "P-LEH"})
+        await _add_qlog(session, "bb-3", None, "I02", {"persona_id": "P-LER"})
+        alle = await pattern_usage_stats(session, None, "all")
+        agent = await pattern_usage_stats(session, None, "all", engine="agent")
+        muster = await pattern_usage_stats(session, None, "all", engine="pattern")
+        return alle, agent, muster
+
+    alle, agent, muster = _run(scenario)
+    assert alle["total"] == 3
+    assert [t["pattern_id"] for t in agent["triples"]] == ["AGENT"]
+    assert sorted(str(t["pattern_id"]) for t in muster["triples"]) == ["M05", "None"]

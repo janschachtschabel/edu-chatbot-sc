@@ -8,6 +8,7 @@ failure path, which keeps the partial conversations.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from typing import Any
@@ -30,6 +31,8 @@ from boerdi.services.eval.run_store import (
     _lauf_anlegen,
     _register_run_task,
 )
+from boerdi.services.eval.verbrauch import EvalVerbrauch
+from boerdi.services.eval.verbrauch import buche as buche_verbrauch
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +106,7 @@ async def start_generative_run(
             "judge_model": "", "simulator_model": "",
             # ST-7a: ohne Kopfzeile misst der Lauf die Server-Vorgabe — welche,
             # hält er hier fest.
-            "engine_effective": choose_engine(None),
+            "engine_effective": (engine := choose_engine(None)),
         },
         totals={"total_turns": 0, "avg_score": None},
         summary={
@@ -118,7 +121,7 @@ async def start_generative_run(
         session_factory, run_id,
         mode=req.mode, personas=personas, intents=intents,
         scenarios_per_combo=req.scenarios_per_combo,
-        turns_per_conv=req.turns_per_conv, target_turns=target_turns,
+        turns_per_conv=req.turns_per_conv, target_turns=target_turns, engine=engine,
     ))
     _register_run_task(run_id, task)
     return {
@@ -206,6 +209,7 @@ async def _execute_generative_run(
     scenarios_per_combo: int,
     turns_per_conv: int,
     target_turns: int,
+    engine: str | None = None,
 ) -> None:
     """Background job: run the generative eval and persist its result.
 
@@ -218,13 +222,15 @@ async def _execute_generative_run(
         return
     conversations: list[dict[str, Any]] = []
     progress = _progress_writer(session_factory, run_id, target_turns)
+    # Paket 15 (A6): Simulator, Judge und Szenarien — gebucht auch nach Abbruch oder Fehler.
+    verbrauch = EvalVerbrauch()
     try:
         summary = await runner.execute_run(
             chat_url=_chat_url(), run_id=run_id, conversations=conversations,
             mode=mode, personas=personas, intents=intents,
             scenarios_per_combo=scenarios_per_combo,
             turns_per_conv=turns_per_conv, target_turns=target_turns,
-            progress=progress,
+            progress=progress, verbrauch=verbrauch,
         )
         async with session_factory() as s:
             await _finalize_run(
@@ -258,3 +264,19 @@ async def _execute_generative_run(
                 )
         except Exception:
             logger.exception("[eval %s] failed to persist failure", run_id)
+    finally:
+        # „Abbrechen“ ist ``task.cancel()`` — kein ``Exception``-Fall; ``finally`` + ``shield``
+        # buchen auch dann (Review-Runde 2).
+        await asyncio.shield(_buche(session_factory, run_id, verbrauch, engine))
+
+
+async def _buche(
+    session_factory: async_sessionmaker[AsyncSession], run_id: str,
+    verbrauch: EvalVerbrauch, engine: str | None,
+) -> None:
+    try:
+        async with session_factory() as s:
+            await buche_verbrauch(s, verbrauch, engine=engine)
+    except Exception:
+        # Die Buchung bucht selbst fehlertolerant; hier nur die Sitzungs-Öffnung.
+        logger.exception("[eval %s] Verbrauch nicht gebucht", run_id)

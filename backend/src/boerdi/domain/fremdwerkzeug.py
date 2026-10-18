@@ -82,8 +82,11 @@ def _adresse(url: str) -> str:
 
 
 def angebotene(servers: Iterable[Mapping[str, Any]], *, primaer_id: str,
-               primaer_url: str = "") -> list[FremdWerkzeug]:
+               primaer_url: str = "", auch_aus: bool = False) -> list[FremdWerkzeug]:
     """Die Werkzeuge fremder Server, die das Modell bekommen darf.
+
+    ``auch_aus`` nimmt die im Studio abgeschalteten (``werkzeuge_aus``) mit — nur für die
+    Werkzeugübersicht, die sie zeigen muss, damit man sie wieder einschalten kann (Paket 15).
 
     Ein Eintrag mit der Adresse des WLO-Servers fällt heraus (Review Paket 11, #3): der Transport
     gäbe ihm den Zugangsblock der Person (``transport._client_fabrik`` vergleicht Adressen).
@@ -103,7 +106,7 @@ def angebotene(servers: Iterable[Mapping[str, Any]], *, primaer_id: str,
             if not isinstance(eintrag, Mapping) or eintrag.get("read_only") is not True:
                 continue
             name = str(eintrag.get("name") or "").strip()
-            if not name or name in aus:
+            if not name or (name in aus and not auch_aus):
                 continue
             mname = modellname(sid, name)
             definition = _definition(mname, eintrag, server_name)

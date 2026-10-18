@@ -1,0 +1,157 @@
+<header class="nz-head">
+  <p class="nz-crumb">{{ t('nav.group.auswertung') }}</p>
+  <h2 class="nz-title">{{ t('view.nutzung.label') }}</h2>
+  <p class="nz-intro">{{ t('nutzung.intro') }}</p>
+</header>
+
+<form class="nz-filter" (submit)="$event.preventDefault(); reload()">
+  <fieldset class="nz-period">
+    <legend class="nz-legend">{{ t('costs.period.legend') }}</legend>
+    <p class="nz-field">
+      <label for="nz-from">{{ t('costs.from.label') }}</label>
+      <input id="nz-from" class="nz-input" type="date" required [value]="from()"
+        (change)="setFrom($any($event.target).value)" />
+    </p>
+    <p class="nz-field">
+      <label for="nz-to">{{ t('costs.to.label') }}</label>
+      <input id="nz-to" class="nz-input" type="date" required [value]="to()"
+        (change)="setTo($any($event.target).value)" />
+    </p>
+  </fieldset>
+  <studio-origin-scope [value]="scope()" name="nz-scope" (valueChange)="setScope($event)" />
+  <button type="submit" class="nz-btn" [disabled]="daten.loading() || incomplete()">
+    {{ daten.loading() ? t('action.refreshing') : t('action.refresh') }}
+  </button>
+</form>
+
+@if (daten.value(); as d) {
+  @if (!d.protokoll_an) {
+    <p class="nz-aus" role="note">
+      {{ t('nutzung.aus') }}
+      <a routerLink="/datenschutz">{{ t('nutzung.ausLink') }}</a>
+    </p>
+  }
+}
+
+<studio-async-state
+  [label]="t('view.nutzung.label')"
+  [loading]="daten.loading() && !daten.value()"
+  [error]="daten.error()"
+  [empty]="leer()"
+  [emptyText]="t('nutzung.leer')"
+  (retry)="reload()"
+/>
+
+@if (daten.value(); as d) {
+  @if (d.zuege > 0) {
+    <dl class="nz-band">
+      <div class="nz-cell">
+        <dt>{{ t('nutzung.zuege') }}</dt>
+        <dd>{{ fmt.whole(d.zuege) }}</dd>
+      </div>
+      <div class="nz-cell">
+        <dt>{{ t('nutzung.sitzungen') }}</dt>
+        <dd>{{ fmt.whole(d.sitzungen) }}</dd>
+      </div>
+      <div class="nz-cell">
+        <dt>{{ t('nutzung.mittel') }}</dt>
+        <dd>{{ fmt.decimal(d.zuege_je_sitzung.mittel) }}</dd>
+      </div>
+      <div class="nz-cell">
+        <dt>{{ t('nutzung.median') }}</dt>
+        <dd>{{ fmt.decimal(d.zuege_je_sitzung.median) }}</dd>
+      </div>
+    </dl>
+
+    <section class="nz-teil" aria-labelledby="nz-raster-titel">
+      <h3 class="nz-unter" id="nz-raster-titel">{{ t('nutzung.raster.title') }}</h3>
+      <p class="nz-hinweis" id="nz-raster-hinweis">{{ t('nutzung.raster.hint') }}</p>
+      <div class="nz-rahmen" tabindex="0" role="region" aria-labelledby="nz-raster-titel">
+        <table class="nz-raster" aria-describedby="nz-raster-hinweis">
+          <caption class="nz-sr">{{ t('nutzung.raster.title') }}</caption>
+          <thead>
+            <tr>
+              <td></td>
+              @for (h of stunden; track h) {
+                <th scope="col" [attr.aria-label]="t('nutzung.stunde', { h })">{{ h }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (zeile of d.raster; track $index; let wt = $index) {
+              <tr>
+                <th scope="row">{{ t('nutzung.wochentag.' + wt) }}</th>
+                @for (n of zeile; track $index) {
+                  <td [style.--stufe]="stufe(n)">
+                    {{ n === 0 ? '' : anzahl(n) }}
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="nz-teil" aria-labelledby="nz-tage-titel">
+      <h3 class="nz-unter" id="nz-tage-titel">{{ t('nutzung.tage.title') }}</h3>
+      <div class="nz-rahmen nz-rahmen--tage" tabindex="0" role="region"
+        aria-labelledby="nz-tage-titel">
+        <table class="nz-tage">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('costDays.col.tag') }}</th>
+              <th scope="col">{{ t('nutzung.sitzungen') }}</th>
+              <th scope="col">{{ t('nutzung.zuege') }}</th>
+              <td></td>
+            </tr>
+          </thead>
+          <tbody>
+            @for (tag of d.tage; track tag.tag) {
+              <tr>
+                <th scope="row">{{ fmt.day(tag.tag) }}</th>
+                <td>{{ fmt.whole(tag.sitzungen) }}</td>
+                <td>{{ fmt.whole(tag.zuege) }}</td>
+                <td class="nz-balken-zelle" aria-hidden="true">
+                  <span class="nz-balken" [style.inline-size.%]="(tag.sitzungen / tagMax()) * 100"></span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="nz-teil" aria-labelledby="nz-vert-titel">
+      <h3 class="nz-unter" id="nz-vert-titel">{{ t('nutzung.verteilungen.title') }}</h3>
+      <div class="nz-facetten">
+        @for (f of facetten; track f) {
+          <table class="nz-facette" [attr.data-facette]="f">
+            <caption>
+              {{ t('nutzung.facette.' + f) }}
+              @if (nurMuster(f)) {
+                <span class="nz-nur">{{ t('nutzung.nurMuster') }}</span>
+              }
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">{{ t('nutzung.spalte.wert') }}</th>
+                <th scope="col">{{ t('nutzung.zuege') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (e of d.verteilungen[f]; track e.wert) {
+                <tr>
+                  <th scope="row">{{ wert(f, e) }}</th>
+                  <td>{{ anzahl(e.anzahl) }}</td>
+                </tr>
+              } @empty {
+                <tr><td colspan="2">{{ t('nutzung.keine') }}</td></tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    </section>
+  }
+}

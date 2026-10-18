@@ -177,3 +177,34 @@
   color: var(--st-text-muted);
 }
 
+
+// Paket 15: eine Map einfacher Werte als Tabelle — Schlüssel | Wert | Entfernen.
+.sf-map {
+  inline-size: 100%;
+  max-inline-size: 46rem;
+  margin: 0 0 var(--st-2);
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  th {
+    padding: var(--st-1) var(--st-2);
+    border-block-end: 1px solid var(--st-rule);
+    font-weight: 600;
+    text-align: start;
+  }
+
+  td {
+    padding: var(--st-1) var(--st-2);
+    border-block-end: 1px solid var(--st-rule);
+    vertical-align: top;
+  }
+
+  td:last-child {
+    inline-size: 1%;
+    white-space: nowrap;
+  }
+
+  .sf-remove {
+    margin: 0;
+  }
+}

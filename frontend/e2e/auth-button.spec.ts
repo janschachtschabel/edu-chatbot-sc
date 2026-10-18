@@ -23,14 +23,16 @@ function fokussiert(page: import('@playwright/test').Page): Promise<string> {
 }
 
 /**
- * Das Panel refokussiert das Eingabefeld 100 ms nach dem Öffnen
- * (`focusInput()`). Wer vorher Tab drückt, verliert den Fokus wieder an das
- * Feld — erst abwarten, dann tabben.
+ * Das Panel fokussiert das Eingabefeld nach dem Öffnen selbst (`focusInput()`,
+ * 100 ms verzögert). Beim ersten Öffnen ist das Feld oft noch gesperrt — der
+ * Kontext-Ping läuft —, dann holt die Shell den Fokus nach dem Laden nach.
+ * Erst wenn er dort ANGEKOMMEN ist, steht kein Refokus mehr aus; vorher
+ * gedrücktes Tab ginge an das Feld zurück. Deshalb kein eigenes `focus()`
+ * (auf dem gesperrten Feld verpuffte es: CI-Kippler 2026-10-17) und kein
+ * Zeitpuffer, sondern auf den Fokus des Widgets warten.
  */
 async function tabAbEingabefeld(page: import('@playwright/test').Page): Promise<void> {
-  await page.locator('.chat-input').focus();
   await expect.poll(() => fokussiert(page)).toContain('chat-input');
-  await page.waitForTimeout(200);
   await page.keyboard.press('Tab');
 }
 

@@ -1,0 +1,34 @@
+<section class="tv" aria-labelledby="tv-titel">
+  <h4 class="tv-titel" id="tv-titel">{{ t('evalV2.tr.titel') }}</h4>
+  @if (zeilen().length === 0) {
+    <p class="tv-hinweis">{{ t('evalV2.tr.leer') }}</p>
+  } @else {
+    <p class="tv-hinweis">{{ t('evalV2.tr.hinweis') }}</p>
+    <div class="tv-rahmen" tabindex="0" role="group" [attr.aria-label]="t('evalV2.tr.titel')">
+      <table class="tv-tabelle">
+        <thead>
+          <tr>
+            <th scope="col">{{ t('evalV2.tr.lauf') }}</th>
+            <th scope="col">{{ t('evalV2.skala.gesamt') }}</th>
+            <th scope="col">{{ t('evalV2.k.zugMittel') }}</th>
+            @for (skala of skalen(); track skala) {
+              <th scope="col">{{ t('evalV2.skala.' + skala) }}</th>
+            }
+            <th scope="col">{{ t('evalV2.tr.latenz') }}</th>
+            <th scope="col">{{ t('evalV2.tr.kosten') }}</th>
+            <th scope="col">{{ t('evalV2.tr.wechsel') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (zeile of zeilen(); track zeile.id) {
+            <tr [class.tv-gewechselt]="!!zeile.wechsel">
+              <th scope="row">{{ zeile.wann }}</th>
+              @for (wert of zeile.werte; track $index) { <td>{{ wert }}</td> }
+              <td class="tv-wechsel">{{ zeile.wechsel }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

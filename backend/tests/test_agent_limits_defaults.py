@@ -38,3 +38,15 @@ def test_seed_und_modell_vorgabe_sind_sich_einig() -> None:
             f"{feld}: Seed {seed[feld]} != Modell-Vorgabe {getattr(vorgabe, feld)} — "
             f"einer der drei Orte ist nicht mitgewandert"
         )
+
+
+def test_seed_und_modell_schalten_streaming_und_agent_schnellantworten_ein() -> None:
+    """Paket 15: Im Agent-Modus streamt nur `respond_to_user`, und das gibt es nur mit den
+    Agent-Schnellantworten. Steht einer der beiden Schalter aus, wirkt „Streaming an“ nicht."""
+    from boerdi.domain.config_models.engine import Betrieb
+
+    seed = yaml.safe_load(_SEED.read_text(encoding="utf-8"))["betrieb"]
+    vorgabe = Betrieb()
+    for feld in ("token_streaming", "agent_schnellantworten"):
+        assert seed[feld] is True, f"Seed: {feld} ist aus"
+        assert getattr(vorgabe, feld) is True, f"Modell-Vorgabe: {feld} ist aus"

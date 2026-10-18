@@ -20,14 +20,15 @@ import {
   input,
   output,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { ConfigApi } from '../core/config-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AreaDocEditor } from '../schema-form/area-doc-editor';
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
-import type { CuratedAreaSection } from './curated-views';
+import type { CuratedAreaSection, Hinweis } from './curated-views';
 import { EffectBadgeComponent } from './effect-badge.component';
+import { feldAusschnitt } from './feld-ausschnitt';
 import { SafetyLevelComponent } from './safety-level.component';
 import { SaveConflictComponent } from './save-conflict.component';
 
@@ -53,11 +54,26 @@ export class AreaSectionComponent {
   readonly editor = new AreaDocEditor(this.config, this.t);
 
   readonly area = computed(() => this.section().area);
+  /** Paket 14 (B1) / 15: der Feld-Ausschnitt dieser Seite; `null` = alle Felder. */
+  readonly felder = computed(() => feldAusschnitt(this.editor.schema(), this.section()));
   /** Route segments for the raw editor — `/` is a path separator, not a key. */
   readonly rawLink = computed(() => ['/bereich', ...this.area().split('/')]);
+  /** Review-Runde 2: die Seite, auf der der Abschnitt steht — der Editor führt dorthin zurück
+   *  (ein Bereich kann auf mehreren Seiten stehen; die erste wäre oft die falsche). */
+  readonly rawQuery = (() => {
+    const seite = inject(ActivatedRoute, { optional: true })?.snapshot?.routeConfig?.path;
+    return seite ? { von: seite } : null;
+  })();
   /** Unique per section, so two forms on one page cannot share a field id. */
   readonly idPrefix = computed(() => `cs-${this.area().replace(/[^\w-]/g, '-')}`);
-  readonly dirty = this.editor.dirty;
+  /** Auch ein nicht lesbarer Feld-Entwurf ist ungespeicherte Arbeit (Review-Runde 2). */
+  readonly dirty = this.editor.verwerfbar;
+  /** Paket 15: Hinweise des Abschnitts zum aktuellen Entwurf (`CuratedAreaSection.hinweise`). */
+  readonly hinweise = computed(() => this.section().hinweise?.(this.editor.doc()) ?? []);
+
+  hinweisText(hinweis: Hinweis): string {
+    return typeof hinweis === 'string' ? this.t(hinweis) : this.t(hinweis.key, hinweis.params);
+  }
 
   private loaded = false;
 

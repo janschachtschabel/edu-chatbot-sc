@@ -1,0 +1,80 @@
+<details class="cs" [open]="open()" (toggle)="onToggle($event)">
+  <summary class="cs-summary">
+    <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
+    <p class="cs-hint">{{ t(section().hintKey) }}</p>
+  </summary>
+
+  <div class="cs-body an">
+    @if (listenFehler(); as fehler) {
+      <div class="cs-state cs-state--error" role="alert">
+        <p>{{ fehler }}</p>
+        <button type="button" class="cs-btn" (click)="laden()">{{ t('async.retry') }}</button>
+      </div>
+    } @else if (laedt()) {
+      <p class="cs-state" aria-busy="true">{{ t('anrede.laedt') }}</p>
+    } @else if (zeilen().length === 0) {
+      <p class="cs-state">{{ t('anrede.leer') }}</p>
+    } @else {
+      <!-- schmal (375 px) scrollt die Tabelle in ihrem Rahmen statt die Seite -->
+      <div class="an-rahmen">
+      <table class="an-tabelle">
+        <caption class="sr">{{ t('anrede.caption') }}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{{ t('anrede.col.zielgruppe') }}</th>
+            <th scope="col">{{ t('anrede.col.anrede') }}</th>
+            <th scope="col"><span class="sr">{{ t('anrede.col.aktion') }}</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (zeile of zeilen(); track zeile.area) {
+            <tr>
+              <th scope="row" [id]="'an-' + zeile.kennung">{{ zeile.name }} ({{ zeile.kennung }})</th>
+              <td>
+                <label class="sr" [for]="'an-w-' + zeile.kennung">
+                  {{ t('anrede.feld', { name: zeile.name }) }}
+                </label>
+                <select
+                  [id]="'an-w-' + zeile.kennung"
+                  [disabled]="zeile.busy"
+                  (change)="waehle(zeile.area, $any($event.target).value)"
+                >
+                  @if (unbekannt(zeile)) {
+                    <option [value]="zeile.gewaehlt" selected>{{ t('anrede.wert.unbekannt', { wert: zeile.gewaehlt || '—' }) }}</option>
+                  }
+                  @for (wert of anreden; track wert) {
+                    <option [value]="wert" [selected]="wert === zeile.gewaehlt">{{ t('anrede.wert.' + wert) }}</option>
+                  }
+                </select>
+                <!-- Plan B6: hier greift der Rückfall aus dem Abschnitt darunter. -->
+                @if (zeile.gewaehlt === 'wie_user') {
+                  <span class="an-gilt">{{ t('anrede.rueckfallGilt') }}</span>
+                }
+              </td>
+              <td class="an-aktion">
+                <button
+                  type="button"
+                  class="cs-btn"
+                  [disabled]="zeile.busy || !geaendert(zeile)"
+                  [attr.aria-describedby]="'an-' + zeile.kennung"
+                  (click)="speichern(zeile)"
+                >{{ zeile.busy ? t('anrede.speichert') : t('anrede.speichern') }}</button>
+                <!-- leer bereit, bevor der Satz kommt (F-M6) -->
+                <span class="an-ok" role="status">{{ zeile.gespeichert ? t('anrede.gespeichert') : '' }}</span>
+                @if (zeile.fehler) {
+                  <span class="an-fehler" role="alert">{{ zeile.fehler }}</span>
+                }
+                @if (zeile.konflikt; as stand) {
+                  <studio-save-conflict [conflict]="stand" [busy]="zeile.busy"
+                    (reload)="neuLaden(zeile)" (force)="speichern(zeile, true)" />
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      </div>
+      <p class="an-rueckfall">{{ t('anrede.rueckfall') }}</p>
+    }
+  </div>
+</details>

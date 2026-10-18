@@ -122,6 +122,11 @@ async def log_quality_event(
         for o in outcomes
     ]
 
+    # Paket 16, D3: flach für die Nutzungsseite — die Entities im Debug leert der
+    # Aufbewahrungslauf nach der Frist der Gespräche (D1), diese drei Facetten bleiben.
+    context = debug_info.get("context") or {}
+    entities = debug_info.get("entities") or {}
+
     eliminated = debug_info.get("phase1_eliminated", [])
     candidates_count = len(scores)
 
@@ -155,6 +160,9 @@ async def log_quality_event(
                 "missing_slots": p3.get("missing_slots", []),
                 "page": page,
                 "device": device,
+                "locale": str(context.get("locale") or ""),
+                "page_type": str(entities.get("page_type") or ""),
+                "engine": str(debug_info.get("engine") or ""),
                 "message": (message or "")[:500],
                 "debug": debug_info,
             },

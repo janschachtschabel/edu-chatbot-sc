@@ -1,4 +1,5 @@
 @use './live-region';
+@use './visually-hidden'; // Paket 15: Tabellen-Überschrift der Einzelanfragen
 
 :host {
   display: block;
@@ -264,4 +265,13 @@ figcaption {
 .lr-hint {
   margin: 0;
   color: var(--st-text-muted);
+}
+
+// Paket 15 (E1): die Einzelanfragen auf Wunsch.
+.lr-anfragen {
+  margin-block-start: var(--st-3);
+
+  > summary {
+    cursor: pointer;
+  }
 }

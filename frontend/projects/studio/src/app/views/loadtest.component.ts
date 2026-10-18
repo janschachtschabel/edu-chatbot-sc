@@ -65,6 +65,8 @@ export class LoadtestComponent {
   /** Review-Befund 7 (2026-08-22): Engine je Lauf, wie im Gold-Start —
    *  'default' = keine Kopfzeile, der Lauf misst die Server-Vorgabe. */
   readonly engine = signal<GoldenEngine>('default');
+  /** Paket 15 (E1): Master-Skill-Abruf und kalter Cache sollen keine Stufe verfälschen. */
+  readonly warmup = signal(true);
   readonly engines = GOLDEN_ENGINES;
   readonly mix = signal<Record<string, number>>({
     wissen: 2, suche: 2, orientierung: 1, lernpfad: 0,
@@ -157,6 +159,7 @@ export class LoadtestComponent {
         mix: profile.mix,
         p95_threshold_s: profile.thresholdS,
         engine: this.engine(),
+        warmup: this.warmup(),
       });
       this.selected.set(id);
       this.status.set(this.t('lt.started', { id }));

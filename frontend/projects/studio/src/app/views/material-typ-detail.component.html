@@ -1,0 +1,111 @@
+<header class="md-kopf">
+  <h4 class="md-titel">
+    @if (entwurf().emoji) { <span aria-hidden="true">{{ entwurf().emoji }}</span> }
+    {{ entwurf().label || t('materialFormate.neu') }}
+  </h4>
+  <p class="md-meta">
+    <code>{{ entwurf().id || '—' }}</code>
+    @if (entwurf().category) { · {{ t('materialFormate.kategorie.' + entwurf().category) }} }
+  </p>
+</header>
+
+<studio-tab-bar
+  [tabs]="tabs()"
+  [active]="reiter()"
+  [label]="t('materialFormate.reiter')"
+  (tabChange)="waehleReiter($event)"
+/>
+
+<div
+  id="panel-mf-vorschau"
+  role="tabpanel"
+  aria-labelledby="tab-mf-vorschau"
+  tabindex="0"
+  [hidden]="reiter() !== 'mf-vorschau'"
+>
+  <h5 class="md-unter">{{ t('materialFormate.vorlage') }}</h5>
+  <studio-markdown-vorschau [text]="entwurf().structure ?? ''" />
+
+  <section class="mf-angebot" aria-labelledby="md-angebot">
+    <h5 class="md-unter" id="md-angebot">{{ t('materialFormate.angebot') }}</h5>
+    <p>{{ t('materialFormate.chip', { text: entwurf().label }) }}</p>
+    @if (entwurf().label_en) {
+      <p>{{ t('materialFormate.chipEn', { text: entwurf().label_en ?? '' }) }}</p>
+    }
+    <p>
+      @if (aliasListe().length > 0) {
+        {{ t('materialFormate.aliase', { liste: aliasListe().join(', ') }) }}
+      } @else {
+        {{ t('materialFormate.keineAliase') }}
+      }
+    </p>
+    @for (text of ohneAlias(); track text) {
+      <p class="md-warnung" role="note">{{ t('materialFormate.aliasFehlt', { text }) }}</p>
+    }
+    <p>{{ vorrangText() }}</p>
+  </section>
+</div>
+
+<div
+  id="panel-mf-bearbeiten"
+  role="tabpanel"
+  aria-labelledby="tab-mf-bearbeiten"
+  tabindex="0"
+  [hidden]="reiter() !== 'mf-bearbeiten'"
+>
+  <div class="md-form">
+    <div class="md-feld">
+      <label for="mf-id">{{ t('materialFormate.feld.id') }}</label>
+      <input
+        id="mf-id" type="text" autocomplete="off" spellcheck="false"
+        [readOnly]="!neu()" [value]="entwurf().id" aria-describedby="mf-id-hinweis"
+        (input)="setze('id', $any($event.target).value)"
+      />
+      <p class="md-hinweis" id="mf-id-hinweis">{{ t('materialFormate.feld.idHinweis') }}</p>
+    </div>
+    <div class="md-feld">
+      <label for="mf-label">{{ t('materialFormate.feld.label') }}</label>
+      <input id="mf-label" type="text" [value]="entwurf().label"
+        (input)="setze('label', $any($event.target).value)" />
+    </div>
+    <div class="md-feld">
+      <label for="mf-label-en">{{ t('materialFormate.feld.labelEn') }}</label>
+      <input id="mf-label-en" type="text" [value]="entwurf().label_en ?? ''"
+        aria-describedby="mf-label-en-hinweis" (input)="setze('label_en', $any($event.target).value)" />
+      <p class="md-hinweis" id="mf-label-en-hinweis">{{ t('materialFormate.feld.labelEnHinweis') }}</p>
+    </div>
+    <div class="md-feld md-feld--kurz">
+      <label for="mf-emoji">{{ t('materialFormate.feld.emoji') }}</label>
+      <input id="mf-emoji" type="text" [value]="entwurf().emoji ?? ''"
+        (input)="setze('emoji', $any($event.target).value)" />
+    </div>
+    <fieldset class="md-feld md-kategorie">
+      <legend>{{ t('materialFormate.feld.kategorie') }}</legend>
+      @for (kategorie of kategorien; track kategorie) {
+        <label>
+          <input type="radio" name="mf-kategorie" [value]="kategorie"
+            [checked]="entwurf().category === kategorie" (change)="setze('category', kategorie)" />
+          {{ t('materialFormate.kategorie.' + kategorie) }}
+        </label>
+      }
+    </fieldset>
+
+    @if (fehler().length > 0) {
+      <ul class="mf-fehler" role="alert">
+        @for (code of fehler(); track code) { <li>{{ t('materialFormate.fehler.' + code) }}</li> }
+      </ul>
+    }
+
+    <div class="md-vorlage">
+      <div class="md-feld">
+        <label for="mf-vorlage">{{ t('materialFormate.feld.vorlage') }}</label>
+        <textarea id="mf-vorlage" rows="14" spellcheck="false" [value]="entwurf().structure ?? ''"
+          (input)="setze('structure', $any($event.target).value)"></textarea>
+      </div>
+      <section class="mf-live" aria-labelledby="md-live">
+        <h5 class="md-unter" id="md-live">{{ t('materialFormate.livevorschau') }}</h5>
+        <studio-markdown-vorschau [text]="entwurf().structure ?? ''" />
+      </section>
+    </div>
+  </div>
+</div>

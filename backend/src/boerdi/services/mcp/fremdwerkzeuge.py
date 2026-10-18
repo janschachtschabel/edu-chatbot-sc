@@ -35,14 +35,20 @@ def _registry() -> list[dict[str, Any]]:
     return config_loader.load_mcp_servers()
 
 
-def _angebotene() -> list[FremdWerkzeug]:
+def _angebotene(*, auch_aus: bool = False) -> list[FremdWerkzeug]:
     return angebotene(_registry(), primaer_id=_PRIMARY_ID,
-                      primaer_url=transport.resolve_mcp_url())
+                      primaer_url=transport.resolve_mcp_url(), auch_aus=auch_aus)
 
 
 def definitionen() -> list[dict[str, Any]]:
     """Die Definitionen für das Modell (OpenAI-Funktionsform)."""
     return [w.definition for w in _angebotene()]
+
+
+def fuer_die_uebersicht() -> list[FremdWerkzeug]:
+    """Auch die im Studio abgeschalteten — nur für die Werkzeugübersicht, die sie zeigen muss,
+    damit man sie wieder einschalten kann (Paket 15). Nie ans Modell, nie an :func:`rufen`."""
+    return _angebotene(auch_aus=True)
 
 
 async def rufen(modellname: str, arguments: dict[str, Any]) -> tuple[str, str]:

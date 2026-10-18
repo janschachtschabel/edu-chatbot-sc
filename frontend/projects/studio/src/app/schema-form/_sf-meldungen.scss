@@ -34,8 +34,22 @@
 }
 
 .sf-entry {
+  // Paket 15: Feld oben, darunter Markierung und „Entfernen“ mit Abstand — „Entfernen“ klebte
+  // am Text der Markierung (Nutzer-Rundgang 2026-10-17); jetzt rechtsbündig.
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2) var(--st-4);
   padding: var(--st-3) 0 0;
   border-block-start: 1px solid var(--st-rule);
+
+  > studio-schema-field {
+    flex: 1 1 100%;
+  }
+
+  > .sf-remove {
+    margin-inline-start: auto;
+  }
 }
 
 .sf-entry:first-child {
@@ -43,7 +57,8 @@
 }
 
 .sf-add,
-.sf-remove {
+.sf-remove,
+.sf-zurueck {
   min-block-size: 2rem;
   padding: var(--st-1) var(--st-3);
   border: 1px solid var(--st-text-muted);
@@ -56,16 +71,26 @@
 }
 
 .sf-add:hover,
-.sf-remove:hover {
+.sf-remove:hover,
+.sf-zurueck:hover {
   background: var(--st-accent-soft);
 }
 
 .sf-add:focus-visible,
-.sf-remove:focus-visible {
+.sf-remove:focus-visible,
+.sf-zurueck:focus-visible {
   outline: 2px solid var(--st-accent);
   outline-offset: 1px;
 }
 
 .sf-remove {
   margin-block-end: var(--st-3);
+}
+
+// Paket 15 (A3): neben dem Feld, nicht darunter verloren — klein, wie „Entfernen“.
+.sf-zurueck {
+  // `.sf-row` ist eine Flex-Spalte (Rundgang 3): ohne `align-self` streckt sie den Knopf auf
+  // volle Breite; `justify-self` wirkte nur im Grid.
+  align-self: flex-start;
+  justify-self: start;
 }

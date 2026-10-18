@@ -2,8 +2,9 @@
 #
 # mode:  gilt fuer den MUSTER-Weg. always = vor dem ersten Modellzug geholt,
 #        on-demand = nur, wenn das Modell danach fragt. Ein Eintrag OHNE `mode`
-#        wird vom Loader ganz verworfen — das Feld ist der Schluessel, nicht nur
-#        eine Einstellung.
+#        zaehlt im Muster-Weg nur, wo ein Muster ihn ausdruecklich in `rag_areas`
+#        nennt; die Agent-Schleife liest allein `agent` (Paket 15, A4 — bis dahin
+#        verwarf der Loader solche Eintraege ganz).
 #        Beides nur in Mustern, die den Bereich nutzen: mit `rag_areas` genau
 #        die genannten (eine leere Liste heisst keine); ohne `rag_areas` alle
 #        mit always oder on-demand, wenn `sources` `rag` enthaelt, sonst keinen.
@@ -61,6 +62,13 @@ Edu-Sharing-Metaventis:
 
 Plattformwissen:
   mode: always
+  # Paket 16, C9: ausdrücklich — die Agent-Schleife liest die Domänen-Schicht nicht, sie erfährt
+  # die Plattform-Fakten aus diesem Bereich (Seed aus 02-domain/wlo-plattform-wissen.md 2.0).
+  agent: true
+  description: >
+    Kurzwissen über WLO: was WLO ist, Kernzahlen, Träger und Kontakt, Zielgruppen, Lösungen,
+    Mitmachen, Souveränität, Suche und Filter sowie FAQs je Zielgruppe (Schüler:innen,
+    Lehrkräfte, Redaktionen, Politik und Presse).
 
 ITSJOINTLY-Schlussbericht:
   mode: always

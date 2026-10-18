@@ -27,10 +27,8 @@ import {
 import { RouterLink } from '@angular/router';
 
 import { AsyncData } from '../core/async-data';
-import { EvalApi, type EvalRunSummary } from '../core/eval-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
-import { OverviewApi, type HealthInfo } from '../core/overview-api.service';
-import type { FactoryInfo, SnapshotRow } from '../core/snapshots-api.service';
+import { OverviewApi } from '../core/overview-api.service';
 import { ArchitectureReferenceComponent } from './architecture-reference.component';
 import type { SignalElement } from './reference-catalogs';
 import {
@@ -38,8 +36,8 @@ import {
   viewOf, visibleTags,
 } from './overview-cards';
 import { RichTextComponent } from './rich-text.component';
+import { StatusStripComponent } from './status-strip.component';
 import { TabBarComponent, type TabDef } from './tab-bar.component';
-import { StudioFormat } from '../i18n/studio-format.service';
 
 /** Reiter-Kennung → Katalog-Schlüssel. Ausgeschriebene Paare statt
  *  `'overview.tab.' + id`: ein zur Laufzeit gebauter Schlüssel gäbe bei einem
@@ -51,17 +49,16 @@ const TAB_KEYS: readonly { readonly id: string; readonly labelKey: string }[] = 
 
 @Component({
   selector: 'studio-overview',
-  imports: [TabBarComponent, RouterLink, ArchitectureReferenceComponent, RichTextComponent],
+  imports: [
+    TabBarComponent, RouterLink, ArchitectureReferenceComponent, RichTextComponent,
+    StatusStripComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './overview.component.html',
   styleUrl: './overview.component.scss',
 })
 export class OverviewComponent {
-  /** Zahlen und Datum in der aktiven Sprache (C1-d4f). */
-  private readonly fmt = inject(StudioFormat);
-
   private readonly api = inject(OverviewApi);
-  private readonly evalApi = inject(EvalApi);
   private readonly lang = inject(StudioLanguageService);
   protected readonly t = this.lang.t;
 
@@ -83,27 +80,8 @@ export class OverviewComponent {
   readonly layers = LAYER_CARDS;
   readonly ops = OPS_CARDS;
 
-  readonly health = new AsyncData<HealthInfo>(() => this.api.health(), this.t);
-  readonly factory = new AsyncData<FactoryInfo>(() => this.api.factory(), this.t);
-  readonly snapshots = new AsyncData<readonly SnapshotRow[]>(() => this.api.snapshots(), this.t);
   readonly elements = new AsyncData<ElementsPayload>(() => this.api.elements(), this.t);
-  readonly runs = new AsyncData<readonly EvalRunSummary[]>(() => this.evalApi.runs(), this.t);
 
-  private readonly reads = [this.health, this.factory, this.snapshots, this.elements, this.runs];
-
-  /** The reference instant for every relative date on this page, refreshed with
-   *  the data — recomputing it per tick would be motion without information. */
-  private readonly loadedAt = signal(0);
-
-  readonly loading = computed(() => this.reads.some((read) => read.loading()));
-
-  /**
-   * Distinct messages. With the backend down all five reads fail with the same
-   * sentence, and "Backend nicht erreichbar." five times over is noise — besides,
-   * identical strings would be identical `@for` track keys.
-   */
-  readonly errors = computed(() =>
-    [...new Set(this.reads.map((read) => read.error()).filter((message) => message !== ''))]);
 
   readonly counts = computed(() => elementCounts(this.elements.value()));
 
@@ -111,35 +89,9 @@ export class OverviewComponent {
   readonly signals = computed<readonly SignalElement[]>(
     () => (this.elements.value()?.signals ?? []) as readonly SignalElement[]);
 
-  /** The newest finished run. The backend writes `running`, `done` or `failed`
-   *  only, and the list arrives newest-first. */
-  readonly lastEval = computed<EvalRunSummary | null>(() =>
-    (this.runs.value() ?? []).find((run) => run.status === 'done') ?? null);
-
-  /** `/config/snapshots` excludes the factory row, so this is "the others". */
-  readonly otherSnapshots = computed(() => this.snapshots.value()?.length ?? 0);
-
-  /**
-   * „1 weiterer Snapshot" / „3 weitere Snapshots" — über `plural()`, weil sich
-   * hier das Adjektiv mitbeugt und nicht nur das Substantiv (C1-d4a).
-   *
-   * Die Null bekommt einen eigenen Satz statt der `other`-Form: „0 weitere
-   * Snapshots" schreibt niemand, und `Intl.PluralRules` kennt für Deutsch und
-   * Englisch keine eigene Null-Kategorie.
-   */
-  snapshotLine(): string {
-    const count = this.otherSnapshots();
-    if (count === 0) return this.t('overview.snapshots.zero');
-    return this.lang.plural('overview.snapshots', count, { count: this.count(count) });
-  }
-
   constructor() {
-    void this.reload();
-  }
-
-  async reload(): Promise<void> {
-    this.loadedAt.set(Date.now());
-    await Promise.all(this.reads.map((read) => read.reload()));
+    // Rundgang 3: Modell, Grundstand und letzten Lauf lädt die Statusleiste selbst.
+    void this.elements.reload();
   }
 
   select(id: string): void {
@@ -167,24 +119,5 @@ export class OverviewComponent {
 
   tags(card: LayerCard): readonly string[] {
     return visibleTags(card, this.counts(), this.t);
-  }
-
-  /** "vor 3 Stunden" — '' when there is no timestamp to describe. */
-  ago(iso: string | null | undefined): string {
-    return iso ? this.fmt.relative(iso, this.loadedAt()) : '';
-  }
-
-  /** The exact date beside the relative one: a tooltip-only value is unreachable
-   *  for keyboard and screen-reader users. */
-  exact(iso: string | null | undefined): string {
-    return iso ? this.fmt.dateTime(iso) : '';
-  }
-
-  score(value: number | null | undefined): string {
-    return typeof value === 'number' ? this.fmt.decimal(value) : '—';
-  }
-
-  count(value: number | null | undefined): string {
-    return this.fmt.whole(value ?? 0);
   }
 }

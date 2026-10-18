@@ -44,6 +44,7 @@ from boerdi.services.eval.scenario_gen import (
     generate_scenarios,
     simulator_model,
 )
+from boerdi.services.eval.verbrauch import EvalVerbrauch
 from boerdi.services.llm import chat_completion
 from boerdi.services.session_origin import EVAL_PREFIX
 
@@ -230,8 +231,12 @@ async def simulate_conversation(
     intent: dict,
     max_turns: int = 3,
     opening: str | None = None,
+    *,
+    usage_acc: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Multi-turn dialogue: an LLM-simulated user against the live ``/api/chat``.
+
+    ``usage_acc`` (Paket 15) collects the simulator's tokens for the costs page.
 
     Returns ``{session_id, persona_id, intent_id, turns, ended_early}``. The
     simulator may end the dialogue early by answering ``[ENDE]``.
@@ -261,7 +266,7 @@ async def simulate_conversation(
         })
         resp = await chat_completion(
             messages=sim_messages, model=simulator_model(),
-            temperature=0.8, background=True,
+            temperature=0.8, background=True, usage_acc=usage_acc, phase="simulator",
         )
         user_msg = (resp.choices[0].message.content or "").strip()
         sim_messages.pop()  # drop the seed instruction from the history
@@ -318,7 +323,7 @@ async def simulate_conversation(
         try:
             resp = await chat_completion(
                 messages=sim_messages, model=simulator_model(),
-                temperature=0.7, background=True,
+                temperature=0.7, background=True, usage_acc=usage_acc, phase="simulator",
             )
             user_msg = (resp.choices[0].message.content or "").strip()
             # Keep the assistant turn, drop the "bot said: …" scaffolding.
@@ -372,7 +377,7 @@ async def _prime_i06_session(chat_url: str, run_id: str, persona_id: str) -> tup
 async def _run_scenario_stage(
     *, chat_url: str, run_id: str, conversations: list[dict],
     personas: list[dict], intents: list[dict], scenarios_per_combo: int,
-    progress: Progress,
+    progress: Progress, verbrauch: EvalVerbrauch,
 ) -> None:
     """Stage 1 — one generated opening per combo, fired once and judged."""
     await progress(conversations, "Generiere Szenarien (0/0) …")
@@ -388,6 +393,7 @@ async def _run_scenario_stage(
 
     scens = await generate_scenarios(
         personas, intents, scenarios_per_combo, progress_cb=on_combo,
+        usage_acc=verbrauch.szenario,
     )
     logger.info("[eval %s] generated %d scenarios", run_id, len(scens))
 
@@ -421,6 +427,7 @@ async def _run_scenario_stage(
             try:
                 judge = await judge_turn(
                     persona, intent, sc["opening"], bot_text, dbg_flat,
+                    usage_acc=verbrauch.judge,
                 )
             except JudgeError as e:
                 logger.warning("[eval %s] judge failed: %s", run_id, e)
@@ -459,7 +466,7 @@ async def _run_scenario_stage(
 async def _run_conversation_stage(
     *, chat_url: str, run_id: str, conversations: list[dict],
     personas: list[dict], intents: list[dict], turns_per_conv: int,
-    progress: Progress,
+    progress: Progress, verbrauch: EvalVerbrauch,
 ) -> None:
     """Stage 2 — a simulated multi-turn dialogue per combo, every turn judged."""
     total_combos = len(personas) * len(intents)
@@ -474,6 +481,7 @@ async def _run_conversation_stage(
             try:
                 conv = await simulate_conversation(
                     chat_url, persona, intent, max_turns=turns_per_conv,
+                    usage_acc=verbrauch.simulator,
                 )
             except Exception as e:
                 logger.warning("[eval %s] conv failed %s/%s: %s",
@@ -491,6 +499,7 @@ async def _run_conversation_stage(
                 try:
                     turn["judge"] = await judge_turn(
                         persona, intent, turn["user"], turn["bot"], turn["debug"],
+                        usage_acc=verbrauch.judge,
                     )
                 except JudgeError as e:
                     logger.warning("[eval %s] judge failed: %s", run_id, e)
@@ -540,8 +549,12 @@ async def execute_run(
     turns_per_conv: int,
     target_turns: int,
     progress: Progress,
+    verbrauch: EvalVerbrauch | None = None,
 ) -> dict[str, Any]:
     """Run both selected stages and return the final summary.
+
+    ``verbrauch`` (Paket 15) collects simulator, judge and scenario tokens; the caller books
+    it — also after a failure, so it owns the object.
 
     Appends to the caller-owned ``conversations`` so a raised exception still
     leaves every finished conversation with the caller. The tool cache is cleared
@@ -556,17 +569,18 @@ async def execute_run(
     except Exception as e:
         logger.warning("[eval %s] tool cache clear failed: %s", run_id, e)
 
+    verbrauch = verbrauch if verbrauch is not None else EvalVerbrauch()
     if mode in ("scenarios", "both"):
         await _run_scenario_stage(
             chat_url=chat_url, run_id=run_id, conversations=conversations,
             personas=personas, intents=intents,
-            scenarios_per_combo=scenarios_per_combo, progress=progress,
+            scenarios_per_combo=scenarios_per_combo, progress=progress, verbrauch=verbrauch,
         )
     if mode in ("conversations", "both"):
         await _run_conversation_stage(
             chat_url=chat_url, run_id=run_id, conversations=conversations,
             personas=personas, intents=intents,
-            turns_per_conv=turns_per_conv, progress=progress,
+            turns_per_conv=turns_per_conv, progress=progress, verbrauch=verbrauch,
         )
 
     summary = build_summary(conversations, target_turns, "Fertig")

@@ -544,19 +544,6 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             ],
             "default": null,
             "title": "Url"
-          },
-          "params": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Params"
           }
         },
         "required": [
@@ -928,7 +915,12 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "type": "string"
           },
           "anonymous": {
-            "$ref": "#/$defs/AnonymousLimits"
+            "$ref": "#/$defs/AnonymousLimits",
+            "default": {
+              "max_iterations": 30,
+              "deadline_s": 900,
+              "token_budget": 900000
+            }
           }
         },
         "title": "AgentLimits",
@@ -945,8 +937,15 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "x-widget": "textarea"
           },
           "schutzregeln": {
+            "default": [
+              "R-05",
+              "R-08",
+              "R-13",
+              "R-15"
+            ],
             "items": {
-              "type": "string"
+              "type": "string",
+              "x-catalog": "guardrails"
             },
             "title": "Schutzregeln",
             "type": "array"
@@ -1019,7 +1018,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "type": "boolean"
           },
           "agent_schnellantworten": {
-            "default": false,
+            "default": true,
             "title": "Agent Schnellantworten",
             "type": "boolean"
           },
@@ -1046,13 +1045,39 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
         "type": "string"
       },
       "agent": {
-        "$ref": "#/$defs/AgentLimits"
+        "$ref": "#/$defs/AgentLimits",
+        "default": {
+          "max_iterations": 30,
+          "deadline_s": 900,
+          "token_budget": 900000,
+          "write_mode": "propose",
+          "anonymous": {
+            "deadline_s": 900,
+            "max_iterations": 30,
+            "token_budget": 900000
+          }
+        }
       },
       "agent_rolle": {
-        "$ref": "#/$defs/AgentRolle"
+        "$ref": "#/$defs/AgentRolle",
+        "default": {
+          "rolle": "Du bist Boerdi, der Assistent von WirLernenOnline (WLO). Du sprichst mit einem Menschen im Chat — kurz, freundlich und ohne Floskeln.\n\nArbeitsweise: Hole dir die Tatsachen mit den Werkzeugen, statt sie aus dem Gedächtnis zu behaupten. Steht in einer Sammlung ein Skill zu deiner Aufgabe, halte dich daran. Nenne, worauf du dich stützt, und sage ausdrücklich, was du NICHT prüfen konntest.\n\nAntwortform: Fragt jemand nach Material, suche zuerst mit dem, was du weißt (Thema, Fach, Klassenstufe, Anlass) — die Treffer erscheinen als Karten; eine Rückfrage höchstens danach. Ein eigenes Material erstellst du nur, wenn es verlangt ist oder im Bestand nichts passt — dann sag, dass es selbst erstellt ist. Wird ein fertiges Ergebnis verlangt (ein erstelltes Material, eine Stunden- oder Lernpfad-Planung, der Volltext eines Materials), liefere es mit zeige_dokument als Box; fehlt ein fertiger Lernpfad oder Stundenablauf, stelle ihn aus den Treffern zusammen.",
+          "schutzregeln": [
+            "R-05",
+            "R-08",
+            "R-13",
+            "R-15"
+          ]
+        }
       },
       "betrieb": {
-        "$ref": "#/$defs/Betrieb"
+        "$ref": "#/$defs/Betrieb",
+        "default": {
+          "fast_modus": false,
+          "token_streaming": true,
+          "agent_schnellantworten": true,
+          "gastkonto_schreibt": false
+        }
       },
       "muster_skills": {
         "default": false,
@@ -1163,6 +1188,12 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Id",
             "type": "string"
           },
+          "zielgruppe": {
+            "default": "",
+            "title": "Zielgruppe",
+            "type": "string",
+            "x-catalog": "personas"
+          },
           "persona": {
             "default": "",
             "title": "Persona",
@@ -1173,6 +1204,12 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "default": "",
             "title": "Title",
             "type": "string"
+          },
+          "erwartung": {
+            "default": "",
+            "title": "Erwartung",
+            "type": "string",
+            "x-widget": "textarea"
           },
           "intents": {
             "default": [],
@@ -1214,6 +1251,25 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Message",
             "type": "string",
             "x-widget": "textarea"
+          },
+          "anwendungsfall": {
+            "default": "",
+            "title": "Anwendungsfall",
+            "type": "string",
+            "x-choices": [
+              "suchen",
+              "zusammenstellen",
+              "erzeugen",
+              "ueberarbeiten",
+              "zeigen",
+              "erklaeren",
+              "wlo_wissen",
+              "orientieren",
+              "kuratieren",
+              "rueckmeldung",
+              "schutz",
+              "sonstiges"
+            ]
           },
           "expect": {
             "additionalProperties": true,
@@ -2708,7 +2764,12 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
     "description": "``01-base/rag-retrieval`` (Paket 7, P4): gelesen schon immer, pflegbar erst\nmit diesem Modell (ST-5 Befund 2).",
     "properties": {
       "retrieval": {
-        "$ref": "#/$defs/RagAbruf"
+        "$ref": "#/$defs/RagAbruf",
+        "default": {
+          "top_k": null,
+          "min_score": null,
+          "max_chars_per_area": null
+        }
       }
     },
     "title": "RagRetrievalArea",
@@ -3348,6 +3409,17 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Page"
           },
           "angebote": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/LabelPath"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "default": null,
             "title": "Angebote"
           }
@@ -3356,6 +3428,266 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "id"
         ],
         "title": "TourGroup",
+        "type": "object"
+      },
+      "TourStepContact": {
+        "additionalProperties": true,
+        "properties": {
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string",
+            "x-widget": "textarea"
+          },
+          "text_en": {
+            "default": "",
+            "title": "Text En",
+            "type": "string",
+            "x-widget": "textarea"
+          },
+          "links_label": {
+            "default": "Hier geht's weiter",
+            "title": "Links Label",
+            "type": "string"
+          },
+          "links_label_en": {
+            "default": "",
+            "title": "Links Label En",
+            "type": "string"
+          }
+        },
+        "title": "TourStepContact",
+        "type": "object"
+      },
+      "TourStepContent": {
+        "additionalProperties": true,
+        "properties": {
+          "nav_label": {
+            "default": "Zu den Bildungsinhalten",
+            "title": "Nav Label",
+            "type": "string"
+          },
+          "nav_label_en": {
+            "default": "",
+            "title": "Nav Label En",
+            "type": "string"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string",
+            "x-widget": "textarea"
+          },
+          "text_en": {
+            "default": "",
+            "title": "Text En",
+            "type": "string",
+            "x-widget": "textarea"
+          }
+        },
+        "title": "TourStepContent",
+        "type": "object"
+      },
+      "TourStepGroup": {
+        "additionalProperties": true,
+        "properties": {
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string",
+            "x-widget": "textarea"
+          },
+          "text_en": {
+            "default": "",
+            "title": "Text En",
+            "type": "string",
+            "x-widget": "textarea"
+          },
+          "unsure_label": {
+            "default": "",
+            "title": "Unsure Label",
+            "type": "string"
+          },
+          "unsure_label_en": {
+            "default": "",
+            "title": "Unsure Label En",
+            "type": "string"
+          },
+          "unsure_text": {
+            "default": "",
+            "title": "Unsure Text",
+            "type": "string",
+            "x-widget": "textarea"
+          },
+          "unsure_text_en": {
+            "default": "",
+            "title": "Unsure Text En",
+            "type": "string",
+            "x-widget": "textarea"
+          }
+        },
+        "title": "TourStepGroup",
+        "type": "object"
+      },
+      "TourStepGroupPage": {
+        "additionalProperties": true,
+        "properties": {
+          "nav_label": {
+            "default": "Zur Seite",
+            "title": "Nav Label",
+            "type": "string"
+          },
+          "nav_label_en": {
+            "default": "",
+            "title": "Nav Label En",
+            "type": "string"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string",
+            "x-widget": "textarea"
+          },
+          "text_en": {
+            "default": "",
+            "title": "Text En",
+            "type": "string",
+            "x-widget": "textarea"
+          }
+        },
+        "title": "TourStepGroupPage",
+        "type": "object"
+      },
+      "TourStepIntro": {
+        "additionalProperties": true,
+        "properties": {
+          "nav_label": {
+            "default": "Zur Startseite",
+            "title": "Nav Label",
+            "type": "string"
+          },
+          "nav_label_en": {
+            "default": "",
+            "title": "Nav Label En",
+            "type": "string"
+          }
+        },
+        "title": "TourStepIntro",
+        "type": "object"
+      },
+      "TourStepSolutions": {
+        "additionalProperties": true,
+        "properties": {
+          "nav_label": {
+            "default": "Weiter zum Abschluss",
+            "title": "Nav Label",
+            "type": "string"
+          },
+          "nav_label_en": {
+            "default": "",
+            "title": "Nav Label En",
+            "type": "string"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string",
+            "x-widget": "textarea"
+          },
+          "text_en": {
+            "default": "",
+            "title": "Text En",
+            "type": "string",
+            "x-widget": "textarea"
+          },
+          "angebote_label": {
+            "default": "Für dich relevant",
+            "title": "Angebote Label",
+            "type": "string"
+          },
+          "angebote_label_en": {
+            "default": "",
+            "title": "Angebote Label En",
+            "type": "string"
+          },
+          "sublinks_label": {
+            "default": "Zum Stöbern",
+            "title": "Sublinks Label",
+            "type": "string"
+          },
+          "sublinks_label_en": {
+            "default": "",
+            "title": "Sublinks Label En",
+            "type": "string"
+          }
+        },
+        "title": "TourStepSolutions",
+        "type": "object"
+      },
+      "TourSteps": {
+        "additionalProperties": true,
+        "description": "Paket 15 (D2): die sechs Schritte, in der Reihenfolge von ``domain/tour.STEP_ORDER``.\n\nBis dahin ``dict[str, Any]`` — ein JSON-Kasten. Die Vorgaben sind die Rückfälle, die\n``domain/tour`` beim Lesen einsetzt; gespeichert wird weiter das rohe Dokument.",
+        "properties": {
+          "intro": {
+            "$ref": "#/$defs/TourStepIntro",
+            "default": {
+              "nav_label": "Zur Startseite",
+              "nav_label_en": ""
+            }
+          },
+          "group": {
+            "$ref": "#/$defs/TourStepGroup",
+            "default": {
+              "text": "",
+              "text_en": "",
+              "unsure_label": "",
+              "unsure_label_en": "",
+              "unsure_text": "",
+              "unsure_text_en": ""
+            }
+          },
+          "group_page": {
+            "$ref": "#/$defs/TourStepGroupPage",
+            "default": {
+              "nav_label": "Zur Seite",
+              "nav_label_en": "",
+              "text": "",
+              "text_en": ""
+            }
+          },
+          "content": {
+            "$ref": "#/$defs/TourStepContent",
+            "default": {
+              "nav_label": "Zu den Bildungsinhalten",
+              "nav_label_en": "",
+              "text": "",
+              "text_en": ""
+            }
+          },
+          "solutions": {
+            "$ref": "#/$defs/TourStepSolutions",
+            "default": {
+              "nav_label": "Weiter zum Abschluss",
+              "nav_label_en": "",
+              "text": "",
+              "text_en": "",
+              "angebote_label": "Für dich relevant",
+              "angebote_label_en": "",
+              "sublinks_label": "Zum Stöbern",
+              "sublinks_label_en": ""
+            }
+          },
+          "contact": {
+            "$ref": "#/$defs/TourStepContact",
+            "default": {
+              "text": "",
+              "text_en": "",
+              "links_label": "Hier geht's weiter",
+              "links_label_en": ""
+            }
+          }
+        },
+        "title": "TourSteps",
         "type": "object"
       },
       "WebsiteTourBlock": {
@@ -3477,10 +3809,49 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "type": "array"
           },
           "steps": {
-            "additionalProperties": true,
-            "default": {},
-            "title": "Steps",
-            "type": "object"
+            "$ref": "#/$defs/TourSteps",
+            "default": {
+              "intro": {
+                "nav_label": "Zur Startseite",
+                "nav_label_en": ""
+              },
+              "group": {
+                "text": "",
+                "text_en": "",
+                "unsure_label": "",
+                "unsure_label_en": "",
+                "unsure_text": "",
+                "unsure_text_en": ""
+              },
+              "group_page": {
+                "nav_label": "Zur Seite",
+                "nav_label_en": "",
+                "text": "",
+                "text_en": ""
+              },
+              "content": {
+                "nav_label": "Zu den Bildungsinhalten",
+                "nav_label_en": "",
+                "text": "",
+                "text_en": ""
+              },
+              "solutions": {
+                "angebote_label": "Für dich relevant",
+                "angebote_label_en": "",
+                "nav_label": "Weiter zum Abschluss",
+                "nav_label_en": "",
+                "sublinks_label": "Zum Stöbern",
+                "sublinks_label_en": "",
+                "text": "",
+                "text_en": ""
+              },
+              "contact": {
+                "links_label": "Hier geht's weiter",
+                "links_label_en": "",
+                "text": "",
+                "text_en": ""
+              }
+            }
           }
         },
         "title": "WebsiteTourBlock",
@@ -3510,7 +3881,48 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
           "groups": [],
           "content_sublinks": [],
           "contact_links": [],
-          "steps": {}
+          "steps": {
+            "contact": {
+              "links_label": "Hier geht's weiter",
+              "links_label_en": "",
+              "text": "",
+              "text_en": ""
+            },
+            "content": {
+              "nav_label": "Zu den Bildungsinhalten",
+              "nav_label_en": "",
+              "text": "",
+              "text_en": ""
+            },
+            "group": {
+              "text": "",
+              "text_en": "",
+              "unsure_label": "",
+              "unsure_label_en": "",
+              "unsure_text": "",
+              "unsure_text_en": ""
+            },
+            "group_page": {
+              "nav_label": "Zur Seite",
+              "nav_label_en": "",
+              "text": "",
+              "text_en": ""
+            },
+            "intro": {
+              "nav_label": "Zur Startseite",
+              "nav_label_en": ""
+            },
+            "solutions": {
+              "angebote_label": "Für dich relevant",
+              "angebote_label_en": "",
+              "nav_label": "Weiter zum Abschluss",
+              "nav_label_en": "",
+              "sublinks_label": "Zum Stöbern",
+              "sublinks_label_en": "",
+              "text": "",
+              "text_en": ""
+            }
+          }
         }
       }
     },
@@ -3548,6 +3960,7 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "default": "",
             "title": "Greeting En",
             "type": "string",
+            "x-primary": true,
             "x-widget": "textarea"
           },
           "quick_replies_en": {
@@ -3557,7 +3970,8 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             },
             "title": "Quick Replies En",
             "type": "array",
-            "x-marker": "tour_reply_en"
+            "x-marker": "tour_reply_en",
+            "x-primary": true
           },
           "tour_reply_en": {
             "default": "",

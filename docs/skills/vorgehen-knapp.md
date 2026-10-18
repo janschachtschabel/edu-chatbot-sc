@@ -232,8 +232,8 @@ keine Chat-Rückmeldung. Keine Suche, keine Rückfrage, keine Werbung.
 
 Erstellauftrag + Thema + Typ (bloßes „gibt es" ist eine Suche). Vollständig mit `zeige_dokument`,
 im Chat ein Satz. Quiz, Test, Arbeitsblatt, Übung: am Ende `## Lösungen` mit der Lösung je
-Aufgabe, beim Quiz dazu ein Satz Begründung; die richtige Antwort über die Antwortpositionen
-verteilen; selbst übende Lernende bekommen die Lösungen erst auf Wunsch, als eigenes Dokument.
+Aufgabe, beim Quiz dazu ein Satz Begründung („1. B – weil …“); die richtige Antwort über die
+Antwortpositionen verteilen; selbst übende Lernende bekommen die Lösungen erst auf Wunsch, als eigenes Dokument.
 Hilfen: `get_skill_registry`/`get_skill`, `get_wikipedia_summary`, `get_url_text`. Nicht
 zurückfragen, nicht auf Vorhandenes ausweichen.
 

@@ -13,14 +13,18 @@ Both run families are LIVE (the header claiming the generative engine was
   scenario generator, simulator and judge (``services/eval/runner.py``).
 """
 
+import re
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Security
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.deps import Lang, get_session, require_studio_key
 from boerdi.i18n import msg
+from boerdi.services.eval import bericht_md
+from boerdi.services.eval.prompt_diff import prompt_diff
 from boerdi.services.eval_service import (
     cancel_run,
     clear_eval_quality_logs,
@@ -200,9 +204,35 @@ async def compare_eval_runs(
     return await compare_runs(session, chosen)
 
 
+#: Prüfsumme einer Prompt-Fassung (``prompt_ablage.pruefsumme``): 12 Hex-Zeichen.
+_PROMPT_HASH = r"^[0-9a-f]{12}$"
+
+
+@router.get("/prompt-diff")
+async def eval_prompt_diff(
+    session: _Session,
+    a: str = Query(..., pattern=_PROMPT_HASH, description="Prompt version of the first run"),
+    b: str = Query(..., pattern=_PROMPT_HASH, description="Prompt version of the second run"),
+) -> dict:
+    """Text difference of two stored prompt versions (unified diff lines)."""
+    return await prompt_diff(session, a, b)
+
+
 @router.get("/runs/{run_id}")
 async def get_eval_run(run_id: str, session: _Session) -> dict:
     return await get_run_with_profile(session, run_id)
+
+
+# Paket 13 (D3): derselbe Lauf als Markdown-Bericht zum Weitergeben. Der Dateiname trägt nur
+# Kennungszeichen — die Kennung kommt aus dem Pfad und darf den Kopf nicht aufbrechen.
+@router.get("/runs/{run_id}/bericht.md", response_class=Response)
+async def get_eval_run_bericht(run_id: str, session: _Session) -> Response:
+    detail = await get_run_with_profile(session, run_id)
+    name = re.sub(r"[^A-Za-z0-9_-]", "_", str(detail.get("id") or run_id))[:64]
+    return Response(
+        bericht_md.render(detail), media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="bericht-{name}.md"'},
+    )
 
 
 @router.delete("/runs/{run_id}")
@@ -233,6 +263,9 @@ async def pattern_usage(
         "all",
         description="'all' | 'eval' (session_id LIKE eval-%) | 'production' (not eval-)",
     ),
+    engine: Literal["pattern", "agent"] | None = Query(
+        None, description="Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+    ),
 ) -> dict:
     """Pattern × intent × persona counts from quality_logs, scoped."""
-    return await pattern_usage_stats(session, since, scope)
+    return await pattern_usage_stats(session, since, scope, engine=engine)

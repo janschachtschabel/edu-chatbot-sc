@@ -19,78 +19,7 @@
   tabindex="0"
   [hidden]="active() !== 'uebersicht'"
 >
-  <section class="ov-strip" aria-labelledby="ov-status-title">
-    <div class="ov-strip-head">
-      <h3 id="ov-status-title" class="ov-section-title">
-        {{ t("overview.status.title") }}
-      </h3>
-      <button
-        type="button"
-        class="ov-refresh"
-        (click)="reload()"
-        [disabled]="loading()"
-      >
-        {{ loading() ? t("overview.refreshing") : t("action.refresh") }}
-      </button>
-    </div>
-
-    @for (message of errors(); track message) {
-      <p class="ov-error" role="alert">{{ message }}</p>
-    }
-
-    <div class="ov-status">
-      <div class="ov-status-card">
-        <p class="ov-status-kind">{{ t("overview.backend") }}</p>
-        <p class="ov-status-main">{{ health.value()?.chat_model || "—" }}</p>
-        <p class="ov-status-meta">
-          {{ health.value()?.provider || t("overview.providerUnknown") }}
-        </p>
-      </div>
-
-      <div class="ov-status-card">
-        <p class="ov-status-kind">{{ t("overview.factory") }}</p>
-        @if (factory.value()?.exists) {
-          <p class="ov-status-main">
-            {{ ago(factory.value()?.created_at) }}
-          </p>
-          <p class="ov-status-meta">
-            {{ exact(factory.value()?.created_at) }} ·
-            {{ snapshotLine() }}
-          </p>
-        } @else {
-          <p class="ov-status-main">{{ t("overview.factory.none") }}</p>
-          <p class="ov-status-meta">
-            {{ t("overview.factory.noneHint") }} {{ snapshotLine() }}
-          </p>
-        }
-      </div>
-
-      <div class="ov-status-card">
-        <p class="ov-status-kind">{{ t("overview.eval") }}</p>
-        @if (lastEval(); as run) {
-          <p class="ov-status-main">
-            {{ t("overview.eval.score", { value: score(run.avg_score) }) }}
-          </p>
-          <p class="ov-status-meta">
-            {{
-              t("overview.eval.meta", {
-                turns: count(run.total_turns),
-                ago: ago(run.completed_at),
-              })
-            }}
-          </p>
-        } @else {
-          <p class="ov-status-main">{{ t("overview.eval.none") }}</p>
-          <p class="ov-status-meta">
-            <!-- Der ganze Aufruf ist die Verweis-Beschriftung: bis C1-d4a stand
-                 „und einen Lauf starten" ausserhalb des Links, ein Satz aus zwei
-                 Bruchstücken — und ein Verweis, der sein Ziel nur halb nennt. -->
-            <a routerLink="/evaluation">{{ t("overview.eval.start") }}</a>
-          </p>
-        }
-      </div>
-    </div>
-  </section>
+  <studio-status-strip [zusatzFehler]="elements.error()" (neuLaden)="elements.reload()" />
 
   <h3 class="ov-section-title">{{ t("overview.section.architecture") }}</h3>
   <!-- An ordered list because the order is the fact: this is how the layers are

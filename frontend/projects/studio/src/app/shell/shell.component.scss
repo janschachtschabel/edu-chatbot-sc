@@ -181,3 +181,22 @@
     padding: var(--st-4);
   }
 }
+
+// Paket 14: Hinweis auf einer Seite des anderen Arbeitsbereichs — dieselbe Hinweisfläche wie die
+// Banner der kuratierten Seiten, dazu der Wechsel.
+.fremd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2) var(--st-3);
+  margin-block-end: var(--st-4);
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 4px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  font-size: 0.875rem;
+
+  p {
+    margin: 0;
+  }
+}

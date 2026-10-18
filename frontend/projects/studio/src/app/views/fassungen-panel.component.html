@@ -24,20 +24,12 @@
   } @else if (liste.value()) {
     <p class="fs-summary">{{ t('fassungen.summary', zaehlung()) }}</p>
 
-    <div class="op-actions">
-      <button
-        type="button"
-        class="op-btn"
-        aria-describedby="fs-abgleich-hint"
-        [disabled]="action.busy()"
-        (click)="werksabgleich()"
-      >
-        {{ action.isRunning('abgleich') ? t('fassungen.abgleichRunning') : t('fassungen.abgleich') }}
-      </button>
-    </div>
-    <p class="fs-hint" id="fs-abgleich-hint">{{ t('fassungen.abgleichHint') }}</p>
-    <p class="fs-hint" id="fs-geprueft-hint">{{ t('fassungen.geprueftHint') }}</p>
-    <p class="fs-hint">{{ t('fassungen.backupHinweis') }}</p>
+    <!-- Paket 15: die langen Erklärungen auf Wunsch — die Seite wirkte ungeordnet. -->
+    <details class="fs-mehr">
+      <summary>{{ t('fassungen.mehr') }}</summary>
+      <p class="fs-hint" id="fs-geprueft-hint">{{ t('fassungen.geprueftHint') }}</p>
+      <p class="fs-hint">{{ t('fassungen.backupHinweis') }}</p>
+    </details>
 
     <!-- Erfolg in einer dauerhaften Status-Region, Fehler als bedingter Alarm (Paket 4b, B3). -->
     <p class="op-msg live" role="status">
@@ -69,6 +61,8 @@
       }
     </fieldset>
 
+    <p class="fs-hint" id="fs-schalter-hint">{{ t('fassungen.schalterHint') }}</p>
+
     @if (zeilen().length === 0) {
       <p class="fs-hint">{{ t('fassungen.empty.' + filter()) }}</p>
     } @else {
@@ -85,30 +79,76 @@
               }
             </div>
 
-            <div class="op-actions">
-              @switch (hauptaktion(z)) {
-                @case ('werk') {
+            @if (aktiv(z); as gilt) {
+              <!-- Paket 16, C6: was gilt, auf einen Blick — und der Weg zurück im selben Schalter. -->
+              <div
+                class="fs-schalter"
+                role="group"
+                [attr.aria-labelledby]="'fs-aktiv-' + $index + ' fs-area-' + $index"
+              >
+                <span class="fs-schalter-label" [id]="'fs-aktiv-' + $index">
+                  {{ t('fassungen.aktiv') }}
+                </span>
+                @for (ziel of ziele; track ziel) {
                   <button
                     type="button"
-                    class="op-btn fs-aktion"
+                    class="fs-wahl"
+                    [attr.data-ziel]="ziel"
+                    [attr.aria-pressed]="gilt === ziel"
+                    [attr.aria-describedby]="'fs-schalter-hint' + (gesperrtGrund(z, ziel) ? ' fs-grund-' + $index : '')"
+                    [disabled]="action.busy() || !kannWechseln(z, ziel)"
+                    (click)="wechseln(z, ziel)"
+                  >
+                    {{ action.isRunning(ziel + ':' + z.area)
+                       ? t('fassungen.switching') : t('fassungen.wahl.' + ziel) }}
+                  </button>
+                }
+              </div>
+              @if (ohneEigene(z)) {
+                <p class="fs-note" [id]="'fs-grund-' + $index">{{ t('fassungen.ohneEigene') }}</p>
+              } @else if (zweiEigene(z)) {
+                <p class="fs-note" [id]="'fs-grund-' + $index">{{ t('fassungen.zweiEigene') }}</p>
+              } @else if (z.status === 'nur-eigen') {
+                <p class="fs-note" [id]="'fs-grund-' + $index">{{ t('fassungen.keinWerk') }}</p>
+              }
+            }
+
+            <div class="op-actions">
+              @switch (zusatzaktion(z)) {
+                @case ('aktualisieren') {
+                  <button
+                    type="button"
+                    class="op-btn"
                     [attr.aria-describedby]="'fs-area-' + $index"
                     [disabled]="action.busy()"
                     (click)="umschalten(z, 'werk')"
                   >
                     {{ action.isRunning('werk:' + z.area)
-                       ? t('fassungen.switching') : t('fassungen.useWerk') }}
+                       ? t('fassungen.switching') : t('fassungen.aktualisieren') }}
                   </button>
                 }
                 @case ('restore') {
                   <button
                     type="button"
-                    class="op-btn fs-aktion"
+                    class="op-btn"
                     [attr.aria-describedby]="'fs-area-' + $index"
                     [disabled]="action.busy()"
                     (click)="umschalten(z, 'werk')"
                   >
                     {{ action.isRunning('werk:' + z.area)
                        ? t('fassungen.switching') : t('fassungen.restore') }}
+                  </button>
+                }
+                @case ('tauschen') {
+                  <button
+                    type="button"
+                    class="op-btn"
+                    [attr.aria-describedby]="'fs-area-' + $index"
+                    [disabled]="action.busy()"
+                    (click)="umschalten(z, 'eigen')"
+                  >
+                    {{ action.isRunning('eigen:' + z.area)
+                       ? t('fassungen.switching') : t('fassungen.tauschen') }}
                   </button>
                 }
               }
@@ -124,18 +164,6 @@
                      ? t('fassungen.switching') : t('fassungen.markGeprueft') }}
                 </button>
               }
-              @if (z.hat_eigene_fassung) {
-                <button
-                  type="button"
-                  class="op-btn fs-aktion"
-                  [attr.aria-describedby]="'fs-area-' + $index"
-                  [disabled]="action.busy()"
-                  (click)="umschalten(z, 'eigen')"
-                >
-                  {{ action.isRunning('eigen:' + z.area)
-                     ? t('fassungen.switching') : t('fassungen.useEigen') }}
-                </button>
-              }
               @if (hatVergleich(z)) {
                 <button
                   type="button"
@@ -148,43 +176,39 @@
                   {{ istOffen(z.area) ? t('fassungen.diffHide') : t('fassungen.diffShow') }}
                 </button>
               }
+              @if (editorLink(z); as link) {
+                <a
+                  class="fs-editor"
+                  [routerLink]="link"
+                  [queryParams]="{ von: 'sicherung' }"
+                  [attr.aria-describedby]="'fs-area-' + $index"
+                >{{ t('fassungen.imEditor') }}</a>
+              }
             </div>
 
             @if (istOffen(z.area)) {
-              <div class="fs-diff" [id]="'fs-diff-' + $index">
-                @if (vergleichsfehler(z.area); as fehler) {
-                  <p class="op-msg op-msg--error" role="alert">⚠ {{ fehler }}</p>
-                } @else if (vergleichszeilen(z.area); as u) {
-                  @if (u.gelebt.length === 0) {
-                    <p class="fs-hint">{{ t('fassungen.diffNone') }}</p>
-                  } @else {
-                    <p class="fs-hint">{{ t('fassungen.diffLegend') }}</p>
-                    <pre
-                      class="fs-diff-pre"
-                      tabindex="0"
-                      role="region"
-                      [attr.aria-label]="t('fassungen.diffRegion', { area: z.area })"
-                    >@for (l of u.gelebt; track $index) {<span [class]="zeilenart(l)">{{ l }}</span>
-}</pre>
-                  }
-                  @if (u.eigene.length > 0) {
-                    <p class="fs-hint">{{ t('fassungen.diffEigeneLegend') }}</p>
-                    <pre
-                      class="fs-diff-pre"
-                      tabindex="0"
-                      role="region"
-                      [attr.aria-label]="t('fassungen.diffEigeneRegion', { area: z.area })"
-                    >@for (l of u.eigene; track $index) {<span [class]="zeilenart(l)">{{ l }}</span>
-}</pre>
-                  }
-                } @else {
-                  <p class="fs-hint">{{ t('async.loading', { label: z.area }) }}</p>
-                }
-              </div>
+              <studio-fassung-vergleich class="fs-diff" [id]="'fs-diff-' + $index" [area]="z.area" />
             }
           </li>
         }
       </ul>
     }
+
+    <!-- Review-Runde 2 (Plan §5.9): die Sammelaktion hinter die Liste, mit eigener Überschrift. -->
+    <div class="fs-alle">
+      <h3 class="op-label">{{ t('fassungen.alleAufEinmal') }}</h3>
+      <div class="op-actions">
+        <button
+          type="button"
+          class="op-btn"
+          aria-describedby="fs-abgleich-hint"
+          [disabled]="action.busy()"
+          (click)="werksabgleich()"
+        >
+          {{ action.isRunning('abgleich') ? t('fassungen.abgleichRunning') : t('fassungen.abgleich') }}
+        </button>
+      </div>
+      <p class="fs-hint" id="fs-abgleich-hint">{{ t('fassungen.abgleichHint') }}</p>
+    </div>
   }
 </section>

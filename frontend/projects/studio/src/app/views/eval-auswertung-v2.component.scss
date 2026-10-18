@@ -1,0 +1,89 @@
+// Die Auswertung v2 im Lauf-Detail (Paket 13, F7). Hierarchie aus Abstand und Überschriften,
+// keine Karten um jeden Abschnitt.
+:host {
+  display: grid;
+  // `minmax(0, …)` und `min-inline-size: 0`: sonst dehnt eine breite Matrix die Spalte und
+  // damit die Seite, statt in ihrem Rahmen zu scrollen (gemessen bei 375 px, SC 1.4.10).
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--st-5);
+}
+
+.av-titel {
+  margin: 0 0 var(--st-2);
+  font-size: 1rem;
+}
+
+.av-hinweis {
+  margin: 0 0 var(--st-2);
+  max-inline-size: 70ch;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.av-kennzahlen {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--st-2) var(--st-4);
+  margin: 0;
+
+  dt {
+    font-size: 0.75rem;
+    color: var(--st-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.av-text {
+  margin: 0;
+  max-inline-size: 70ch;
+  line-height: 1.5;
+}
+
+.av-baustellen {
+  margin: var(--st-2) 0 0;
+  padding-inline-start: var(--st-4);
+  font-size: 0.875rem;
+}
+
+.av-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--st-2);
+  margin: 0 0 var(--st-2);
+  font-size: 0.8125rem;
+}
+
+.av-knopf {
+  min-block-size: 2rem;
+  padding: 0 var(--st-3);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--st-accent-soft);
+  }
+}
+
+.av-karten {
+  display: grid;
+  gap: var(--st-3);
+}
+
+// Review PR #18: eine Auswahl ohne Ablauf sagt es.
+.av-leer {
+  margin: 0;
+  color: var(--st-text-muted);
+  font-size: 0.875rem;
+}

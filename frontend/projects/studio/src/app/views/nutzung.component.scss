@@ -1,0 +1,245 @@
+// Nutzung (Paket 16, D3). Gleiche Kopf- und Filterform wie die Kosten-Seite; Tabellen tragen die
+// Zahlen als Text, Tönung und Balken heben nur hervor (WCAG 1.4.1). Nur Studio-Tokens.
+:host {
+  display: grid;
+  // `minmax(0, …)`: sonst ist die Spalte so breit wie das 24-Stunden-Raster, und sein Rahmen
+  // rollt nie — auf 375 px wurde die ganze Seite 717 px breit (Abnahme 2026-10-18).
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--st-4);
+  max-inline-size: 64rem;
+}
+
+.nz-crumb {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--st-text-muted);
+}
+
+.nz-title {
+  margin: var(--st-1) 0 0;
+  font-size: 1.5rem;
+}
+
+.nz-intro,
+.nz-hinweis {
+  margin: var(--st-2) 0 0;
+  max-inline-size: 62ch;
+  color: var(--st-text-muted);
+}
+
+.nz-hinweis {
+  margin: 0 0 var(--st-2);
+  font-size: 0.875rem;
+}
+
+.nz-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--st-3) var(--st-5);
+}
+
+.nz-period {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.nz-legend {
+  inline-size: 100%;
+  margin-block-end: var(--st-1);
+  font-weight: 600;
+}
+
+.nz-field {
+  display: grid;
+  gap: var(--st-1);
+  margin: 0;
+}
+
+.nz-input,
+.nz-btn {
+  min-block-size: 2.25rem;
+  padding: 0 var(--st-3);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+}
+
+.nz-btn {
+  cursor: pointer;
+}
+
+.nz-aus {
+  margin: 0;
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 3px solid var(--st-warn-dot);
+  background: var(--st-panel);
+}
+
+.nz-band {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-3) var(--st-5);
+  margin: 0;
+}
+
+.nz-cell {
+  dt {
+    font-size: 0.75rem;
+    color: var(--st-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-size: 1.375rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.nz-unter {
+  margin: 0 0 var(--st-1);
+  font-size: 1rem;
+}
+
+// Breite Tabellen rollen in ihrem Rahmen, nicht die Seite (375 px).
+.nz-rahmen {
+  max-inline-size: 100%;
+  overflow-x: auto;
+
+  table {
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  th {
+    font-weight: 600;
+    color: var(--st-text-muted);
+    text-align: start;
+  }
+}
+
+.nz-rahmen--tage {
+  max-block-size: 20rem;
+  overflow-y: auto;
+
+  th,
+  td {
+    padding: var(--st-1) var(--st-3) var(--st-1) 0;
+    border-block-end: 1px solid var(--st-rule);
+  }
+}
+
+.nz-raster {
+  th[scope='col'] {
+    min-inline-size: 1.75rem;
+    text-align: center;
+  }
+
+  th[scope='row'] {
+    padding-inline-end: var(--st-2);
+  }
+
+  td {
+    // Vorgabe; die Zelle setzt ihre Stufe (0…1) selbst im `style`.
+    --stufe: 0;
+
+    position: relative;
+    isolation: isolate;
+    min-inline-size: 1.75rem;
+    block-size: 1.75rem;
+    border: 1px solid var(--st-bg);
+    text-align: center;
+    background: var(--st-panel);
+    color: var(--st-text);
+  }
+
+  // Die Tönung liegt HINTER der Zahl und höchstens zu 45 % deckend — die Schrift bleibt auf
+  // hellem bzw. dunklem Grund lesbar; die Zahl steht immer als Text in der Zelle.
+  td::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--st-accent);
+    opacity: calc(var(--stufe) * 0.45);
+  }
+}
+
+.nz-balken-zelle {
+  inline-size: 12rem;
+}
+
+.nz-balken {
+  display: block;
+  block-size: 0.5rem;
+  border-radius: var(--st-radius);
+  background: var(--st-accent);
+}
+
+.nz-facetten {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--st-4);
+}
+
+.nz-facette {
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  inline-size: 100%;
+
+  caption {
+    padding-block-end: var(--st-1);
+    font-weight: 600;
+    text-align: start;
+  }
+
+  th,
+  td {
+    padding: var(--st-1) var(--st-2) var(--st-1) 0;
+    border-block-end: 1px solid var(--st-rule);
+    text-align: start;
+    overflow-wrap: anywhere;
+  }
+
+  th {
+    font-weight: 400;
+  }
+
+  thead th {
+    font-size: 0.75rem;
+    color: var(--st-text-muted);
+  }
+
+  thead th:last-child,
+  td {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.nz-nur {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--st-text-muted);
+}
+
+// Nur für Screenreader (Review D-6) — der sichtbare Titel steht als Überschrift darüber.
+.nz-sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

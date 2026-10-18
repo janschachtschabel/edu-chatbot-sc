@@ -16,7 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
 from boerdi.db.models import EvalRun
+from boerdi.services.eval import trends_v2
 from boerdi.services.eval.run_engine import engine_matches, run_engine
+from boerdi.services.quality_analytics import engine_sql
 from boerdi.services.session_origin import scope_sql
 
 
@@ -121,6 +123,7 @@ async def get_trends(
     match_rate_trend: list[dict[str, Any]] = []
     persona_rate_trend: list[dict[str, Any]] = []
     intent_rate_trend: list[dict[str, Any]] = []
+    v2_laeufe: list[tuple[str, str | None, dict[str, Any]]] = []
 
     # Oldest → newest so the timeline reads left-to-right (UI-friendly).
     for r in reversed(rows):
@@ -130,6 +133,7 @@ async def get_trends(
         totals = r.totals or {}
         run_id = r.id
         created_at = _iso(r.created_at)
+        v2_laeufe.append((run_id, created_at, summary))
         runs_meta.append({
             "id": run_id,
             "created_at": created_at,
@@ -214,11 +218,13 @@ async def get_trends(
         "llm_engine_match_trend": match_rate_trend,
         "persona_correct_trend": persona_rate_trend,
         "intent_correct_trend": intent_rate_trend,
+        # Paket 13 (D5): Judge-v2-Reihen und Wechselmarken (Modell, Konfiguration, Prompts).
+        "v2": trends_v2.reihen(v2_laeufe),
     }
 
 
 async def pattern_usage_stats(
-    session: AsyncSession, since: str | None, scope: str,
+    session: AsyncSession, since: str | None, scope: str, *, engine: str | None = None,
 ) -> dict[str, Any]:
     """Pattern × intent × persona counts from quality_logs, scoped (ALT port).
 
@@ -243,6 +249,9 @@ async def pattern_usage_stats(
     # schliesst seitdem auch Lasttest-Sitzungen aus
     if origin := scope_sql(scope):
         conds.append(origin)
+    # Paket 15 (A5): nur die Züge einer Maschine — Agent-Züge tragen Platzhalter-Anliegen.
+    if maschine := engine_sql(engine):
+        conds.append(f"({maschine})")
     where_sql = ("WHERE " + " AND ".join(conds)) if conds else ""
 
     triples = [

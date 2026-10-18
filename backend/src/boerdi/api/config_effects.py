@@ -20,7 +20,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Security
 
 from boerdi.api.deps import require_studio_key
-from boerdi.domain.area_effects import AREA_EFFECTS
+from boerdi.domain.area_effects import AREA_EFFECTS, FIELD_EFFECTS
 from boerdi.services.engine_choice import choose_engine
 
 router = APIRouter(
@@ -31,5 +31,6 @@ router = APIRouter(
 
 @router.get("/effects")
 async def get_effects() -> dict:
-    """Je Bereich die Wirkung in Muster-Maschine und Agent-Schleife, dazu die Vorgabe-Maschine."""
-    return {"engine": choose_engine(None), "areas": AREA_EFFECTS}
+    """Je Bereich die Wirkung in Muster-Maschine und Agent-Schleife, dazu die Vorgabe-Maschine
+    und die Felder, die anders wirken als ihr Bereich (Rundgang 3)."""
+    return {"engine": choose_engine(None), "areas": AREA_EFFECTS, "fields": FIELD_EFFECTS}

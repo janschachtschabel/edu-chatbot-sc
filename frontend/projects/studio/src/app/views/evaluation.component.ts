@@ -15,10 +15,11 @@
  * each start panel reading the same endpoint again.
  */
 import {
-  ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, inject, signal,
-  viewChild,
+  ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject,
+  signal, untracked, viewChild,
 } from '@angular/core';
 
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { DASHBOARD_SECTIONS } from './area-homes';
 import { AreaSectionComponent } from './area-section.component';
@@ -61,8 +62,13 @@ export class EvaluationComponent {
 
   private readonly injector = inject(Injector);
 
-  readonly tabs = computed<readonly TabDef[]>(() =>
-    TAB_KEYS.map((tab) => ({ id: tab.id, label: this.t(tab.labelKey) })));
+  private readonly ansicht = inject(StudioAnsicht).ansicht;
+  /** Paket 15 (A5): die Pattern-Nutzung gehört zur Muster-Maschine — nur dort ein Reiter. */
+  readonly musterBereich = computed(() => this.ansicht() === 'pattern');
+
+  readonly tabs = computed<readonly TabDef[]>(() => TAB_KEYS
+    .filter((tab) => tab.id !== 'pattern' || this.musterBereich())
+    .map((tab) => ({ id: tab.id, label: this.t(tab.labelKey) })));
 
   readonly active = signal(TAB_KEYS[0].id);
 
@@ -82,6 +88,17 @@ export class EvaluationComponent {
 
   constructor() {
     warnOnUnload(() => this.dirty());
+    // Wechselt der Arbeitsbereich zum Agent, während die Pattern-Nutzung offen ist. Sie gilt dann
+    // auch als ungeöffnet — sonst lüde sie beim Zurückwechseln verborgen neu (Review-Runde 2).
+    effect(() => {
+      if (this.musterBereich()) return;
+      untracked(() => {
+        if (this.active() === 'pattern') this.active.set(TAB_KEYS[0].id);
+        if (this.visited().has('pattern')) {
+          this.visited.update((seen) => new Set([...seen].filter((id) => id !== 'pattern')));
+        }
+      });
+    });
   }
 
   /** The run list polls while anything runs; that is the honest source. */

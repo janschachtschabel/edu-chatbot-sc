@@ -8,9 +8,22 @@ import { describe, expect, it } from 'vitest';
 
 import type { AgentToolList } from '../core/agent-center-api.service';
 import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { AgentToolsComponent } from './agent-tools.component';
 
 const URL = '/studio/api/agent-center/tools';
+const SERVERS_URL = '/studio/api/config/mcp-servers';
+/** Paket 15: die Schalter schreiben `werkzeuge_aus` der Server-Liste. */
+const SERVERS = [
+  { id: 'wlo-mcp', name: 'WLO', url: 'https://wlo.example/mcp', description: '', enabled: true,
+    tools: ['search_wlo_content', 'get_skill', 'search_skill', 'wlo_create_content'],
+    werkzeuge_aus: ['search_skill'],
+    werkzeuge_im_katalog: ['get_skill', 'search_skill', 'search_wlo_content'] },
+];
+
+function antworteServer(http: HttpTestingController, servers: object[] = SERVERS): void {
+  http.match(SERVERS_URL).forEach((r) => r.flush(servers, { headers: { 'X-Config-Version': '4' } }));
+}
 const tick = (): Promise<unknown> => new Promise((resolve) => setTimeout(resolve, 0));
 
 const LISTE: AgentToolList = {
@@ -68,6 +81,7 @@ async function mount(open: boolean): Promise<Harness> {
 async function loaded(): Promise<Harness> {
   const h = await mount(true);
   h.http.expectOne(URL).flush(LISTE);
+  antworteServer(h.http);
   await tick();
   await h.fixture.whenStable();
   return h;
@@ -90,6 +104,7 @@ describe('AgentToolsComponent (ST-8b)', () => {
     details.dispatchEvent(new Event('toggle'));
     await h.fixture.whenStable();
     h.http.expectOne(URL).flush(LISTE);
+    antworteServer(h.http);
     await tick();
     await h.fixture.whenStable();
     expect(h.el.querySelectorAll('.agt-table tbody tr:not(.agt-group)')).toHaveLength(5);
@@ -122,24 +137,29 @@ describe('AgentToolsComponent (ST-8b)', () => {
     const { el } = await loaded();
     const suche = zeile(el, 'search_wlo_content');
     expect(text(suche.querySelector('.agt-desc'))).toBe('Sucht einzelne Lerninhalte.');
-    expect(text(suche.querySelector('td'))).toBe('ja');
+    expect(text(suche.querySelector('.agt-offered'))).toBe('ja');
     const sperren = Array.from(suche.querySelectorAll('.agt-locks li')).map((li) => text(li));
     expect(sperren[0]).toBe('Fällt weg, wenn das Regex-Gate persönliche Daten in der Nachricht '
       + 'erkennt (fest im Code).');
     expect(sperren[1]).toContain('Fällt weg, wenn die Policy-Regel keine-suche greift.');
-    expect(text(zeile(el, 'wlo_create_content').querySelector('td'))).toBe('nein');
+    expect(text(zeile(el, 'wlo_create_content').querySelector('.agt-offered'))).toBe('nein');
   });
 
-  it('verweist bei Policy-Sperren auf die Seite, auf der sie gepflegt werden', async () => {
-    const { el } = await loaded();
-    const link = zeile(el, 'search_wlo_content').querySelector<HTMLAnchorElement>('.agt-locks a')!;
-    expect(link.getAttribute('href')).toBe('/identitaet');
-    expect(text(link)).toBe('Seite Identität & Schutz');
+  it('verweist bei Policy-Sperren auf die Seite des offenen Arbeitsbereichs (Review PR #18)', async () => {
+    const { el, fixture } = await loaded();
+    const link = () => zeile(el, 'search_wlo_content').querySelector<HTMLAnchorElement>('.agt-locks a')!;
+    // Vorgabe ist der Agent-Arbeitsbereich: dort steht das Regelwerk auf „Rolle & Schutz“.
+    expect(link().getAttribute('href')).toBe('/agent-rolle');
+    expect(text(link())).toBe('Seite Rolle & Schutz');
+    TestBed.inject(StudioAnsicht).waehle('pattern');
+    await fixture.whenStable();
+    expect(link().getAttribute('href')).toBe('/identitaet');
+    expect(text(link())).toBe('Seite Identität & Schutz');
   });
 
   it('sagt „immer dabei" bei einem Werkzeug ohne Sperre', async () => {
     const { el } = await loaded();
-    expect(text(zeile(el, 'get_skill').querySelectorAll('td')[1])).toBe('immer dabei');
+    expect(text(zeile(el, 'get_skill').querySelector('.agt-offered + td'))).toBe('immer dabei');
   });
 
   it('zeigt einen Fehler mit erneutem Versuch', async () => {
@@ -179,3 +199,140 @@ describe('AgentToolsComponent — Werkzeuge fremder MCP-Server (Paket 11, E)', (
     expect(köpfe).toEqual(['Lesend', 'Kuratierend', 'Extern', 'Virtuell']);
   });
 });
+
+describe('AgentToolsComponent — Schalter (Paket 15)', () => {
+  const schalter = (el: HTMLElement, name: string) =>
+    zeile(el, name).querySelector<HTMLInputElement>('input[type="checkbox"]');
+
+  it('zeigt die Herkunft und einen Schalter nur, wo er wirkt', async () => {
+    const { el } = await loaded();
+    // Paket 16, C7: Plakette nach Art, darunter Server und Host.
+    expect(text(zeile(el, 'get_skill').querySelector('.agt-herkunft-tag'))).toBe('WLO-MCP');
+    expect(text(zeile(el, 'get_skill').querySelector('.agt-server'))).toBe('WLO · wlo.example');
+    expect(text(zeile(el, 'zeige_dokument').querySelector('.agt-herkunft-tag'))).toBe('Eingebaut');
+    expect(zeile(el, 'zeige_dokument').querySelector('.agt-server')).toBeNull();
+    // Unabhängig vom Schalter: das Schreibwerkzeug hat keinen und kommt doch vom WLO-MCP.
+    expect(text(zeile(el, 'wlo_create_content').querySelector('.agt-herkunft-tag')))
+      .toBe('WLO-MCP');
+    expect(schalter(el, 'get_skill')?.checked).toBe(true);
+    expect(schalter(el, 'search_skill')?.checked).toBe(false);
+    expect(schalter(el, 'zeige_dokument')).toBeNull();
+    expect(schalter(el, 'wlo_create_content')).toBeNull();
+  });
+
+  it('schaltet ein Werkzeug ab und speichert die Server-Liste mit ihrer Version', async () => {
+    const h = await loaded();
+    const box = schalter(h.el, 'search_wlo_content')!;
+    box.checked = false;
+    box.dispatchEvent(new Event('change'));
+    await h.fixture.whenStable();
+    expect(h.fixture.componentInstance.dirty()).toBe(true);
+    Array.from(h.el.querySelectorAll('button'))
+      .find((b) => b.textContent?.trim() === 'Speichern')!.click();
+    await h.fixture.whenStable();
+    const put = h.http.expectOne((r) => r.url === SERVERS_URL && r.method === 'PUT');
+    expect(put.request.body.expected_version).toBe(4);
+    expect(put.request.body.servers[0].werkzeuge_aus).toEqual(['search_skill', 'search_wlo_content']);
+    put.flush({});
+    await tick();
+    antworteServer(h.http);
+    await tick();
+    // Nach dem Speichern liest die Tabelle neu, was ein Zug jetzt bekommt.
+    h.http.expectOne(URL).flush(LISTE);
+    await tick();
+    await h.fixture.whenStable();
+    expect(h.fixture.componentInstance.dirty()).toBe(false);
+  });
+
+  it('verwirft eine Änderung', async () => {
+    const h = await loaded();
+    const box = schalter(h.el, 'get_skill')!;
+    box.checked = false;
+    box.dispatchEvent(new Event('change'));
+    await h.fixture.whenStable();
+    Array.from(h.el.querySelectorAll('button'))
+      .find((b) => b.textContent?.trim() === 'Verwerfen')!.click();
+    await h.fixture.whenStable();
+    expect(schalter(h.el, 'get_skill')?.checked).toBe(true);
+    expect(h.fixture.componentInstance.dirty()).toBe(false);
+  });
+});
+
+describe('AgentToolsComponent — Review-Runde 2', () => {
+  const FREMD = {
+    name: 'wikidata__search_entities', kind: 'external', offered: true,
+    description: 'Sucht Einträge.', locks: [], server_id: 'wikidata', tool: 'search_entities',
+  };
+
+  it('behauptet während des Ladens der Server-Liste nicht „fest“, und die Herkunft stimmt', async () => {
+    const h = await mount(true);
+    h.http.expectOne(URL).flush({ tools: [...LISTE.tools, FREMD] });
+    await tick();
+    await h.fixture.whenStable();
+    // Die Server-Liste ist noch unterwegs (Live-Abfrage, bis 22 s).
+    expect(text(zeile(h.el, 'get_skill').querySelector('.agt-schalter'))).toBe('wird geladen …');
+    expect(text(zeile(h.el, 'wikidata__search_entities').querySelector('.agt-herkunft-tag')))
+      .toBe('Fremd-MCP');
+    expect(text(zeile(h.el, 'wikidata__search_entities').querySelector('.agt-server')))
+      .toBe('wikidata');
+    expect(text(zeile(h.el, 'zeige_dokument').querySelector('.agt-schalter'))).toBe('fest');
+  });
+
+  it('sagt „unbekannt“, wenn die Server-Liste nicht kommt', async () => {
+    const h = await mount(true);
+    h.http.expectOne(URL).flush(LISTE);
+    h.http.match(SERVERS_URL).forEach((r) => r.flush('weg', { status: 502, statusText: 'Bad Gateway' }));
+    await tick();
+    await h.fixture.whenStable();
+    expect(text(zeile(h.el, 'get_skill').querySelector('.agt-schalter'))).toBe('unbekannt');
+  });
+
+  it('zeigt nach 409 den Konflikt; „Neu laden“ holt Server-Liste UND Tabelle neu', async () => {
+    const h = await loaded();
+    const box = Array.from(h.el.querySelectorAll<HTMLInputElement>('.agt-schalter input'))[0];
+    box.checked = !box.checked;
+    box.dispatchEvent(new Event('change'));
+    await h.fixture.whenStable();
+    Array.from(h.el.querySelectorAll('button'))
+      .find((b) => b.textContent?.trim() === 'Speichern')!.click();
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === SERVERS_URL && r.method === 'PUT').flush(
+      { detail: { message: 'x', version: 6, updated_by: 'studio', updated_at: '2026-10-18T08:00:00+00:00' } },
+      { status: 409, statusText: 'Conflict' });
+    await tick();
+    await h.fixture.whenStable();
+    const konflikt = h.el.querySelector('studio-save-conflict');
+    expect(konflikt?.textContent).toContain('inzwischen');
+    Array.from(konflikt!.querySelectorAll<HTMLButtonElement>('button'))
+      .find((b) => b.textContent?.includes('Neu laden'))!.click();
+    await h.fixture.whenStable();
+    antworteServer(h.http);
+    h.http.expectOne(URL).flush(LISTE);
+    await tick();
+    await h.fixture.whenStable();
+    expect(h.el.querySelector('studio-save-conflict')).toBeNull();
+  });
+
+  it('„Verwerfen“ nach einem Konflikt holt den Stand des Servers neu (Review PR #18)', async () => {
+    // Vorher setzte es nur lokal zurück und behielt die alte Version — der nächste Schalter lief
+    // wieder in denselben Konflikt.
+    const h = await loaded();
+    const box = Array.from(h.el.querySelectorAll<HTMLInputElement>('.agt-schalter input'))[0];
+    box.checked = !box.checked;
+    box.dispatchEvent(new Event('change'));
+    await h.fixture.whenStable();
+    Array.from(h.el.querySelectorAll('button'))
+      .find((b) => b.textContent?.trim() === 'Speichern')!.click();
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === SERVERS_URL && r.method === 'PUT').flush(
+      { detail: { message: 'x', version: 6, updated_by: 'studio', updated_at: '2026-10-18T08:00:00+00:00' } },
+      { status: 409, statusText: 'Conflict' });
+    await tick();
+    await h.fixture.whenStable();
+    Array.from(h.el.querySelectorAll('button'))
+      .find((b) => b.textContent?.trim() === 'Verwerfen')!.click();
+    await h.fixture.whenStable();
+    expect(h.http.match((r) => r.url === SERVERS_URL && r.method === 'GET')).toHaveLength(1);
+  });
+});
+

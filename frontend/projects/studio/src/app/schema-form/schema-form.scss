@@ -7,6 +7,7 @@
 // match) shadows read as noise, a rule reads as structure.
 
 @use '../views/live-region'; // error lines stand empty before their message (F-M6)
+@use '../views/visually-hidden'; // Paket 15: verborgene Beschriftungen der Map-Tabelle
 
 // Die Teile in der Reihenfolge, in der sie vorher in dieser Datei standen —
 // spätere Regeln überschreiben frühere, die Folge trägt Bedeutung.

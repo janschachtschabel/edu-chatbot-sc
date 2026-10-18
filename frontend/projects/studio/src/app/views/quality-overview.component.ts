@@ -13,6 +13,7 @@ import {
   viewChild,
 } from '@angular/core';
 
+import type { Engine } from '../core/effects-api.service';
 import { AsyncData } from '../core/async-data';
 import {
   QualityApi, type LogFilters, type QualityScope, type QualityStats,
@@ -45,13 +46,17 @@ export class QualityOverviewComponent {
   private readonly api = inject(QualityApi);
 
   readonly scope = input.required<QualityScope>();
+  /** Paket 13 (E5): nur Züge dieser Maschine (aus der Ansicht); ohne Angabe beide. */
+  readonly engine = input<Engine | undefined>(undefined);
+  /** Paket 13 (E5): Konfidenz, Entitäten und Slots misst nur die Muster-Maschine. */
+  readonly diagnose = input(true);
 
   /** Forwarded from the diagnosis blocks: "show me the turns behind this row". */
   readonly drill = output<LogFilters>();
 
   private readonly diagnosis = viewChild(QualityDiagnosisComponent);
 
-  readonly stats = new AsyncData<QualityStats>(() => this.api.stats(this.scope()), this.t);
+  readonly stats = new AsyncData<QualityStats>(() => this.api.stats(this.scope(), this.engine()), this.t);
   readonly value = computed(() => this.stats.value());
 
   /** Loaded, and the installation has not answered a single turn yet. */
@@ -77,6 +82,7 @@ export class QualityOverviewComponent {
   constructor() {
     effect(() => {
       this.scope();
+      this.engine();
       untracked(() => void this.stats.reload());
     });
   }

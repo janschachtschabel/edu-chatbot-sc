@@ -8,6 +8,7 @@ import { provideZonelessChangeDetection } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { describe, expect, it } from "vitest";
 
+import { ANSICHT_STORAGE_KEY, type Ansicht } from "../core/studio-ansicht.service";
 import { STUDIO_LOCALE_STORAGE_KEY } from "../i18n/studio-language.service";
 import { QualityComponent } from "./quality.component";
 
@@ -67,8 +68,11 @@ async function flushOverview(h: Harness): Promise<void> {
 
 /** jsdom meldet `navigator.language === 'en-US'`; ohne gesetzte Wahl liefe die
  *  deutsche Oberfläche auf Englisch. */
-async function mount(locale = "de"): Promise<Harness> {
+async function mount(locale = "de", ansicht: Ansicht = "pattern"): Promise<Harness> {
   sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, locale);
+  // Paket 14: ohne Angabe der Muster-Arbeitsbereich — dort hat die Analyse alle vier Reiter.
+  localStorage.clear();
+  localStorage.setItem(ANSICHT_STORAGE_KEY, ansicht);
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
@@ -97,6 +101,44 @@ async function openTab(h: Harness, label: string): Promise<void> {
 }
 
 describe("QualityComponent", () => {
+  it("Agent-Ansicht: nur Übersicht und Logs, ohne Diagnose, alles nach Maschine (Paket 13)",
+    async () => {
+      sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, "de");
+      localStorage.clear();
+      localStorage.setItem(ANSICHT_STORAGE_KEY, "agent");
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          provideZonelessChangeDetection(), provideHttpClient(withXhr()),
+          provideHttpClientTesting(),
+        ],
+      });
+      const fixture = TestBed.createComponent(QualityComponent);
+      const http = TestBed.inject(HttpTestingController);
+      const h = { fixture, el: fixture.nativeElement as HTMLElement, http };
+      await fixture.whenStable();
+      const stats = http.expectOne((r) => r.url === STATS_URL);
+      expect(stats.request.params.get("engine")).toBe("agent");
+      stats.flush(STATS);
+      await settle(h);
+      // Konfidenz, Entitäten und Slots misst nur die Muster-Maschine.
+      http.expectNone((r) => r.url.endsWith("/degradations"));
+      expect(tabs(h).map((t) => t.textContent!.trim())).toEqual(["Übersicht", "Logs"]);
+      await openTab(h, "Logs");
+      await settle(h);
+      expect(http.expectOne((r) => r.url === LOGS_URL).request.params.get("engine"))
+        .toBe("agent");
+    });
+
+  it("Muster-Ansicht: alle vier Reiter, Abfragen nach Maschine (Paket 13)", async () => {
+    const h = await mount("de", "pattern");
+    expect(tabs(h)).toHaveLength(4);
+    await openTab(h, "Routing-Matrix");
+    await settle(h);
+    expect(h.http.expectOne((r) => r.url === MATRIX_URL).request.params.get("engine"))
+      .toBe("pattern");
+  });
+
   it("offers four tabs, each pointing at a panel that exists", async () => {
     const h = await mount();
     const labels = tabs(h).map((t) => t.textContent!.trim());

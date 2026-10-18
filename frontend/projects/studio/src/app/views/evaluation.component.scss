@@ -25,3 +25,18 @@
   display: block;
   padding: var(--st-3);
 }
+
+// Paket 15 (E2): ein Satz unter der Überschrift jedes Startformulars.
+// Review-Runde 2: der Satz steht über seinem Kasten (Beschreibung, nicht Name des Aufklappers).
+.ev-start-hint {
+  display: block;
+  max-inline-size: 70ch;
+  margin-block: var(--st-4) 0;
+  color: var(--st-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.ev-start-hint + .ev-start {
+  margin-block-start: var(--st-1);
+}

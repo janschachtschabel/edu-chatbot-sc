@@ -309,7 +309,10 @@ def test_run_flows_records_what_judge_and_metrics_read(monkeypatch) -> None:
     assert set(t1["debug"]) == {
         "pattern", "persona", "intent", "safety", "tools_called", "pattern_id_hint",
         "pattern_reasoning", "llm_engine_match", "token_usage", "phase3_modulations",
+        # Paket 13 (A6): Maschine, Agent-Runden und Werkzeug-Ergebnisse reisen mit.
+        "engine", "runden", "werkzeug_ergebnisse",
     }
+    assert t1["debug"]["runden"] == []  # ``trace: ["big"]`` trägt keine Agent-Zeilen
     assert t1["golden"]["checks"] == {
         "register": True, "structure": None, "tools_any": True,
         "tools_none": None, "tools_max": None, "text": None, "qr": True, "host": True,
@@ -340,8 +343,8 @@ def test_run_flows_error_turn_is_recorded(monkeypatch) -> None:
 
 def _write_flows(tmp_path, version=2) -> Path:
     data = {"version": version, "flows": [{
-        "id": "GV-T-1", "zielgruppe": "P-LEH", "title": "t",
-        "turns": [{"message": "hallo",
+        "id": "GV-T-1", "zielgruppe": "P-LEH", "title": "t", "erwartung": "e",
+        "turns": [{"message": "hallo", "anwendungsfall": "suchen",
                    "expect": {"register": "sie", "must_offer": "x"}}],
     }]}
     p = tmp_path / "flows.yaml"
@@ -446,7 +449,7 @@ _EXPECT_FELDER = {
 }
 _LISTEN_FELDER = ("tools_any", "tools_none", "text_any", "text_none")
 # ``auf_abruf`` (Paket 7, K3): der Runner lässt solche Flows ohne ``--only`` weg.
-_FLOW_FELDER = {"id", "zielgruppe", "title", "turns", "auf_abruf"}
+_FLOW_FELDER = {"id", "zielgruppe", "title", "erwartung", "turns", "auf_abruf"}
 
 
 def test_seed_gold_flows_sind_v2_und_wohlgeformt() -> None:
@@ -500,7 +503,8 @@ def _pruefe_flow_format(
         for i, turn in enumerate(flow["turns"], start=1):
             wo = f"{flow.get('id')} T{i}"
             assert str(turn.get("message") or "").strip(), f"{wo} ohne message"
-            assert set(turn) <= {"message", "expect"}, wo
+            assert set(turn) <= {"message", "anwendungsfall", "expect"}, wo
+            assert turn.get("anwendungsfall") in rg.ANWENDUNGSFAELLE, f"{wo} anwendungsfall"
             exp = turn.get("expect") or {}
             fremd = set(exp) - expect_felder
             assert not fremd, f"{wo}: unbekannte Felder {fremd}"
@@ -541,3 +545,28 @@ def test_die_vorgabe_des_runners_folgt_der_des_backends(monkeypatch) -> None:
     monkeypatch.delenv("REPO_BASE_URL", raising=False)
     vorgabe = Settings.model_fields["repo_base_url"].default
     assert rg.repo_host() == urlparse(vorgabe).netloc
+
+
+def test_flatten_debug_behaelt_maschine_runden_und_werkzeug_ergebnisse() -> None:
+    """Paket 13 (A6): ohne diese Felder misst ein Eval-Lauf keine Zeiten je Runde, keine
+    Werkzeug-Ausfälle und weiß je Zug nicht, welche Maschine antwortete."""
+    debug = {
+        "engine": "agent",
+        "trace": [
+            {"step": "skill", "label": "Master-Skill", "duration_ms": 0, "data": {}},
+            {"step": "agent_round", "label": "Runde 1: search_wlo_all", "duration_ms": 2100,
+             "data": {"runde": 1, "dauer_ms": 2100, "werkzeuge": [{"name": "search_wlo_all"}]}},
+            {"step": "agent_stop", "label": "Ende: text", "duration_ms": 2100,
+             "data": {"stop_reason": "text", "runden": 1}},
+            {"step": "zeit", "label": "gesamt", "duration_ms": 5000},
+        ],
+        "outcomes": [{"tool": "search_wlo_all", "status": "success", "item_count": 8,
+                      "error": "", "latency_ms": 1900}],
+        "token_usage": {"prompts": {"agent.kopf": "abc123def456"}},
+    }
+    flach = rg.flatten_debug(debug)
+    assert flach["engine"] == "agent"
+    assert [z["step"] for z in flach["runden"]] == ["agent_round", "agent_stop"]
+    assert flach["runden"][0]["data"]["werkzeuge"] == [{"name": "search_wlo_all"}]
+    assert flach["werkzeug_ergebnisse"][0]["latency_ms"] == 1900
+    assert flach["token_usage"]["prompts"] == {"agent.kopf": "abc123def456"}

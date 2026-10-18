@@ -119,6 +119,10 @@
       </div>
     </dl>
 
+    @if (usage.days; as tage) {
+      <studio-cost-days [tage]="tage" [currency]="usage.currency" />
+    }
+
     <div class="cst-table-wrap">
       <table class="cst-table">
         <caption class="cst-caption">{{ t('costs.models.caption') }}</caption>

@@ -18,13 +18,18 @@
  */
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { map, of } from 'rxjs';
 
 import { ConfigApi, saveCondition } from '../core/config-api.service';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { StudioApiError } from '../core/studio-api-error';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AreaDocEditor, describeAreaError } from '../schema-form/area-doc-editor';
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
+import { STUDIO_VIEWS } from '../studio-views';
+import { heimatSeite } from './area-homes';
+import { EffectBadgeComponent } from './effect-badge.component';
 import { SaveConflictComponent } from './save-conflict.component';
 import { TabBarComponent, type TabDef } from './tab-bar.component';
 import { warnOnUnload } from './unsaved-changes.guard';
@@ -36,7 +41,9 @@ const TAB_ID: Readonly<Record<Tab, string>> = { form: 'ae-form', raw: 'ae-raw' }
 
 @Component({
   selector: 'studio-area-editor',
-  imports: [SaveConflictComponent, SchemaFormComponent, TabBarComponent],
+  imports: [
+    EffectBadgeComponent, RouterLink, SaveConflictComponent, SchemaFormComponent, TabBarComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './area-editor.component.html',
   styleUrl: './area-editor.component.scss',
@@ -92,10 +99,28 @@ export class AreaEditorComponent {
   readonly doc = this.editor.doc;
 
   readonly rawDirty = computed(() => this.rawText() !== this.savedRaw());
-  readonly dirty = computed(() =>
-    this.tab() === 'form' ? this.editor.dirty() : this.rawDirty(),
-  );
   readonly blocked = computed(() => this.tab() === 'form' && this.editor.blocked());
+  /** Ungespeicherte Arbeit — auch ein nicht lesbarer Feld-Entwurf (Review-Runde 2): Verlassen-
+   *  und Reiterschutz fragen sonst nicht, und der Entwurf ginge still verloren. */
+  readonly dirty = computed(() =>
+    this.tab() === 'form' ? this.editor.verwerfbar() : this.rawDirty(),
+  );
+  readonly verwerfbar = this.dirty;
+
+  /** Paket 15: zurück zur Seite, auf der der Bereich zu Hause ist (im offenen Arbeitsbereich) —
+   *  oder, wenn der Rohtext-Link sie nennt (`?von=`), zu der, von der man kam (Review-Runde 2). */
+  private readonly ansicht = inject(StudioAnsicht).ansicht;
+  private readonly von = toSignal(
+    (this.route.queryParamMap ?? of(null)).pipe(map((params) => params?.get('von') ?? null)),
+    { initialValue: null },
+  );
+  readonly heimat = computed(() => {
+    const von = this.von();
+    const slug = von && STUDIO_VIEWS.some((v) => v.slug === von)
+      ? von : heimatSeite(this.area(), this.ansicht());
+    const view = slug ? STUDIO_VIEWS.find((v) => v.slug === slug) : undefined;
+    return view ? { slug, label: this.t(view.labelKey) } : null;
+  });
 
   /** `null` = nothing handled yet. NOT `''`: the empty area is a real case
    *  (`bereich/**` matches the bare `/bereich`) and must not look "already

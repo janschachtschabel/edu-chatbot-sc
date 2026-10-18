@@ -22,7 +22,7 @@
 import { Injectable, inject } from '@angular/core';
 
 import {
-  formatBytes, formatDateTime, formatDecimal, formatMoney, formatPercent, formatRelative,
+  formatBytes, formatCalendarDay, formatDateTime, formatDecimal, formatMoney, formatPercent, formatRelative,
   formatSeconds, formatWhole,
 } from '../core/format';
 import { StudioLanguageService } from './studio-language.service';
@@ -63,6 +63,9 @@ export class StudioFormat {
   /** Ein Verhältnis 0…1 als Prozentwert: „2,5 %" / „2.5%". */
   readonly percent = (value: number, digits = 1): string =>
     formatPercent(this.locale(), value, digits);
+
+  /** Ein Kalendertag `JJJJ-MM-TT` ohne Uhrzeit (Kosten je Tag). */
+  readonly day = (isoDate: string): string => formatCalendarDay(this.locale(), isoDate);
 
   /** Ein ISO-Zeitstempel in der Reihenfolge der aktiven Sprache. */
   readonly dateTime = (iso: string): string => formatDateTime(this.locale(), iso);

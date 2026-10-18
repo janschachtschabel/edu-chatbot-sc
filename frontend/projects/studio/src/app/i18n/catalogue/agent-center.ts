@@ -12,7 +12,7 @@ export const AGENT_CENTER: CataloguePart = {
     'curated.agent.tools.label': 'Werkzeuge und Sperren',
     'curated.agent.tools.hint':
       'Welche Werkzeuge der Agent in einem Chat-Zug bekommt und was ihm eines davon nehmen '
-      + 'kann. Nur lesend.',
+      + 'kann. Die Spalte „Anbieten“ schaltet Werkzeuge der MCP-Server ein und aus.',
 
     'agentTools.loading': 'Werkzeugliste wird geladen …',
     'agentTools.summary.one':
@@ -21,8 +21,18 @@ export const AGENT_CENTER: CataloguePart = {
       'Ein gewöhnlicher Chat-Zug im Agent-Modus bekommt {offered} von {count} Werkzeugen.',
     'agentTools.caption':
       'Werkzeuge der Agent-Schleife nach Art: ob ein gewöhnlicher Zug sie bekommt und wann sie '
-      + 'fehlen. Gesperrt wird, wo die Sperre steht — diese Liste ändert nichts.',
+      + 'fehlen. „Anbieten“ schreibt die Server-Liste; jede andere Sperre wird dort gepflegt, '
+      + 'wo sie steht.',
     'agentTools.col.tool': 'Werkzeug',
+    'agentTools.col.herkunft': 'Herkunft',
+    'agentTools.col.anbieten': 'Anbieten',
+    'agentTools.herkunft.eingebaut': 'Eingebaut',
+    'agentTools.herkunft.wlo': 'WLO-MCP',
+    'agentTools.herkunft.fremd': 'Fremd-MCP',
+    'agentTools.schalter': '{name} dem Modell anbieten',
+    'agentTools.schalter.fest': 'fest',
+    'agentTools.schalter.laedt': 'wird geladen …',
+    'agentTools.schalter.unbekannt': 'unbekannt',
     'agentTools.col.offered': 'Im Zug',
     'agentTools.col.locks': 'Wann es fehlt',
     'agentTools.offered.yes': 'ja',
@@ -44,7 +54,7 @@ export const AGENT_CENTER: CataloguePart = {
     'agentTools.pageLink': 'Seite {page}',
     'agentTools.signal.pii': 'persönliche Daten in der Nachricht',
     'agentTools.lock.hidden':
-      'Abgeschaltet unter „MCP-Server“ (search_skill von Haus aus) — dort einschaltbar.',
+      'Abgeschaltet (search_skill von Haus aus) — hier in der Spalte „Anbieten“ einschaltbar.',
     'agentTools.lock.needsAccess':
       'Nur mit persönlicher WLO-Anmeldung — oder mit dem Gastkonto, wenn es unter '
       + '„Betrieb“ schreiben darf.',
@@ -110,15 +120,25 @@ export const AGENT_CENTER: CataloguePart = {
     'curated.agent.tools.label': 'Tools and locks',
     'curated.agent.tools.hint':
       'Which tools the agent gets in a chat turn and what can take one of them away. '
-      + 'Read-only.',
+      + 'The “Offer” column switches tools of the MCP servers on and off.',
 
     'agentTools.loading': 'Loading the tool list …',
     'agentTools.summary.one': 'A plain chat turn in agent mode gets {offered} of {count} tool.',
     'agentTools.summary.other': 'A plain chat turn in agent mode gets {offered} of {count} tools.',
     'agentTools.caption':
       'Tools of the agent loop by kind: whether a plain turn gets them and when they are '
-      + 'missing. A lock is set where it lives — this list changes nothing.',
+      + 'missing. “Offer” writes the server list; every other lock is maintained where it '
+      + 'lives.',
     'agentTools.col.tool': 'Tool',
+    'agentTools.col.herkunft': 'Origin',
+    'agentTools.col.anbieten': 'Offer',
+    'agentTools.herkunft.eingebaut': 'Built-in',
+    'agentTools.herkunft.wlo': 'WLO MCP',
+    'agentTools.herkunft.fremd': 'External MCP',
+    'agentTools.schalter': 'Offer {name} to the model',
+    'agentTools.schalter.fest': 'fixed',
+    'agentTools.schalter.laedt': 'loading …',
+    'agentTools.schalter.unbekannt': 'unknown',
     'agentTools.col.offered': 'In the turn',
     'agentTools.col.locks': 'When it is missing',
     'agentTools.offered.yes': 'yes',
@@ -139,7 +159,7 @@ export const AGENT_CENTER: CataloguePart = {
     'agentTools.pageLink': 'Page {page}',
     'agentTools.signal.pii': 'personal data in the message',
     'agentTools.lock.hidden':
-      'Switched off under “MCP servers” (search_skill by default) — can be switched on there.',
+      'Switched off (search_skill by default) — switch it on here in the “Offer” column.',
     'agentTools.lock.needsAccess':
       'Only with a personal WLO sign-in — or with the guest account, if it may write '
       + '(see “Operation”).',

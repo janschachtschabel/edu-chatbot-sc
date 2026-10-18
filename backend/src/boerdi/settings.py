@@ -346,7 +346,7 @@ class Settings(BaseSettings):
         True, validation_alias=_env("CHAT_INLINE_QUICK_REPLIES")
     )
     # Derselbe Weg im Agent-Modus. Seit Paket 7 (S3) ein Studio-Schalter
-    # (``01-base/engine`` → ``betrieb.agent_schnellantworten``, Vorgabe aus);
+    # (``01-base/engine`` → ``betrieb.agent_schnellantworten``, Vorgabe an seit Paket 15);
     # gesetzt geht die Umgebung vor, ungesetzt (``None``) entscheidet das Studio
     # (``services/betriebsschalter``). ``CHAT_INLINE_QUICK_REPLIES=0`` gilt auch hier.
     agent_inline_quick_replies: bool | None = Field(
@@ -369,12 +369,15 @@ class Settings(BaseSettings):
     # ── Eval / loadtest ─────────────────────────────────────────────────
     allow_loadtest: bool = Field(True, validation_alias=_env("BOERDI_ALLOW_LOADTEST"))
     eval_chat_url: str = Field(
-        "http://localhost:8000/api/chat", validation_alias=_env("EVAL_CHAT_URL")
+        "http://127.0.0.1:8100/api/chat", validation_alias=_env("EVAL_CHAT_URL")
     )
     # Paket 7 (L4, Nutzer 2026-10-09): leer heißt das Chat-Modell — Evaluationen
     # laufen mit dem Modell, das für den Chat eingestellt ist.
     eval_simulator_model: str = Field("", validation_alias=_env("EVAL_SIMULATOR_MODEL"))
     eval_judge_model: str = Field("", validation_alias=_env("EVAL_JUDGE_MODEL"))
+    # Paket 13 (A2/A7): Stand des Abbilds, als Build-Argumente gesetzt; lokal leer.
+    boerdi_version: str = Field("", validation_alias=_env("BOERDI_VERSION"))
+    git_sha: str = Field("", validation_alias=_env("GIT_SHA"))
 
     # ── Studio (consumed by studio-bff, P9) ─────────────────────────────
     studio_password: SecretStr = Field(SecretStr(""), validation_alias=_env("STUDIO_PASSWORD"))

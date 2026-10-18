@@ -112,6 +112,8 @@ export const LOADTEST: CataloguePart = {
     'ltRun.progress': '— Stufe {done} von {total} fertig',
     'ltRun.profile':
       'Stufen {stages} · {requests} je Stufe · Mix {mix} · p95-Schwelle {threshold} s',
+    'ltRun.profile.mitAufwaermen': 'mit Aufwärmen',
+    'ltRun.profile.ohneAufwaermen': 'ohne Aufwärmen',
     /** Der ganze Satz je Form: „bis 1 gleichzeitigen Nutzer" gegen „bis 4
      *  gleichzeitige Nutzer" — die Beugung sitzt im Adjektiv, nicht am
      *  Substantiv, und keine Wortgruppe könnte sie mitbringen. */
@@ -146,7 +148,35 @@ export const LOADTEST: CataloguePart = {
     'ltRun.col.errors': 'Fehler',
     'ltRun.col.max': 'max',
     'ltRun.col.rps': 'RPS',
-    'ltRun.col.byKind': 'p95 je Kategorie',
+    'ltRun.col.byKind': 'Dauer je Kategorie',
+    'ltRun.byKind.max': '{kind}: höchstens {dauer} (n = {n})',
+    'ltRun.byKind.keine': '{kind}: keine erfolgreiche Messung',
+    'ltRun.byKind.p95': '{kind}: 95 % bis {dauer}',
+    'lt.warmup': 'Eine Aufwärm-Anfrage vorab (zählt nicht — Master-Skill und Cache sind danach warm)',
+    'ltRun.warmup': 'Aufwärm-Anfrage: {dauer} (in keiner Stufe gezählt)',
+    'ltRun.warmupFehler': 'Aufwärm-Anfrage gescheitert nach {dauer}: {grund} (in keiner Stufe gezählt)',
+    'ltRun.anfragen.summary': 'Einzelne Anfragen ({n})',
+    'ltRun.anfragen.caption': 'Jede Anfrage des Laufs mit Dauer, Werkzeugen und Werkzeugzeit',
+    'ltRun.anfragen.nr': 'Nr.',
+    'ltRun.anfragen.art': 'Art',
+    'ltRun.anfragen.dauer': 'Dauer',
+    'ltRun.anfragen.status': 'Status',
+    'ltRun.anfragen.werkzeuge': 'Werkzeuge',
+    'ltRun.anfragen.werkzeugzeit': 'Werkzeugzeit',
+    // Paket 16 (D4): Engstelle
+    'ltEngstelle.title': 'Engstelle je Anfrageart (Parallelität {concurrency})',
+    'ltEngstelle.hint':
+      'Median der erfolgreichen Anfragen, aufgeteilt nach dem Debug-Block. Vorab-Suche zählt '
+      + 'nur das Warten — die Suche selbst läuft neben der Einordnung und steckt in den '
+      + 'Werkzeugen; Teile können sich darum überlappen.',
+    'ltEngstelle.groesste': 'größter Teil: {teil}',
+    'ltEngstelle.teil.llm': 'LLM',
+    'ltEngstelle.teil.werkzeuge': 'Werkzeuge',
+    'ltEngstelle.teil.vorabsuche': 'Vorab-Suche',
+    'ltEngstelle.teil.rerank': 'Rerank',
+    'ltEngstelle.teil.rag': 'Wissen (RAG)',
+    'ltEngstelle.teil.safety': 'Sicherheitsstufe',
+    'ltEngstelle.teil.rest': 'Rest',
     'ltRun.noStage': 'Keine abgeschlossene Stufe — der Lauf endete, bevor eine Stufe fertig war.',
 
     // ── Reines Profil-Modul ─────────────────────────────────────────
@@ -230,6 +260,8 @@ export const LOADTEST: CataloguePart = {
     'ltRun.progress': '— stage {done} of {total} done',
     'ltRun.profile':
       'Stages {stages} · {requests} per stage · mix {mix} · p95 threshold {threshold} s',
+    'ltRun.profile.mitAufwaermen': 'with warm-up',
+    'ltRun.profile.ohneAufwaermen': 'without warm-up',
     'ltRun.stable.one':
       '*Stable up to {count} concurrent user* (no errors, p95 ≤ {threshold} s).',
     'ltRun.stable.other':
@@ -258,7 +290,34 @@ export const LOADTEST: CataloguePart = {
     'ltRun.col.errors': 'Errors',
     'ltRun.col.max': 'max',
     'ltRun.col.rps': 'RPS',
-    'ltRun.col.byKind': 'p95 per category',
+    'ltRun.col.byKind': 'Duration per category',
+    'ltRun.byKind.max': '{kind}: at most {dauer} (n = {n})',
+    'ltRun.byKind.keine': '{kind}: no successful measurement',
+    'ltRun.byKind.p95': '{kind}: 95 % within {dauer}',
+    'lt.warmup': 'One warm-up request first (not counted — master skill and cache are warm afterwards)',
+    'ltRun.warmup': 'Warm-up request: {dauer} (counted in no stage)',
+    'ltRun.warmupFehler': 'Warm-up request failed after {dauer}: {grund} (counted in no stage)',
+    'ltRun.anfragen.summary': 'Individual requests ({n})',
+    'ltRun.anfragen.caption': 'Every request of the run with duration, tools and tool time',
+    'ltRun.anfragen.nr': 'No.',
+    'ltRun.anfragen.art': 'Kind',
+    'ltRun.anfragen.dauer': 'Duration',
+    'ltRun.anfragen.status': 'State',
+    'ltRun.anfragen.werkzeuge': 'Tools',
+    'ltRun.anfragen.werkzeugzeit': 'Tool time',
+    'ltEngstelle.title': 'Bottleneck per request kind (concurrency {concurrency})',
+    'ltEngstelle.hint':
+      'Median of the successful requests, split by the debug block. Prefetch search counts only '
+      + 'the wait — the search itself runs alongside classification and is part of the tools; '
+      + 'parts can therefore overlap.',
+    'ltEngstelle.groesste': 'largest part: {teil}',
+    'ltEngstelle.teil.llm': 'LLM',
+    'ltEngstelle.teil.werkzeuge': 'Tools',
+    'ltEngstelle.teil.vorabsuche': 'Prefetch search',
+    'ltEngstelle.teil.rerank': 'Rerank',
+    'ltEngstelle.teil.rag': 'Knowledge (RAG)',
+    'ltEngstelle.teil.safety': 'Safety level',
+    'ltEngstelle.teil.rest': 'Other',
     'ltRun.noStage': 'No completed stage — the run ended before a stage finished.',
 
     'ltProfile.adjust.stages': 'Only the first {count} stages run.',

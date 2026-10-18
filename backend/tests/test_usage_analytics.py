@@ -648,3 +648,55 @@ def test_probelaeufe_des_studios_zaehlen_nicht_zum_betrieb(db, keine_preise) -> 
     assert sorted(z["source"] for z in alle["sessions"]) == ["agent-api", "studio-probe"]
     assert [z["source"] for z in betrieb["sessions"]] == ["agent-api"]
     assert betrieb["calls"] == 1
+
+
+def test_judge_und_simulator_zaehlen_zur_auswertung(db, keine_preise) -> None:
+    """Paket 15 (A6): Judge-, Simulator- und Szenario-Aufrufe eines Laufs buchen ohne Sitzung
+    mit einer Quelle ``eval-…`` — sie gehören zur Auswertung, nicht zum Betrieb."""
+    from boerdi.db.models import UsageEvent
+    from boerdi.services.usage_analytics import period_usage
+
+    tag = datetime(2027, 5, 5, 12, 0, tzinfo=UTC)
+    von, bis = tag - timedelta(hours=1), tag + timedelta(hours=1)
+
+    async def szenario(factory):
+        async with factory() as s:
+            for quelle in ("agent-api", "eval-judge", "eval-simulator"):
+                s.add(UsageEvent(session_id=None, quelle=quelle, engine="agent", model="m-p15",
+                                 prompt_tokens=100, completion_tokens=10, calls=1,
+                                 created_at=tag))
+            await s.commit()
+        async with factory() as s:
+            return (await period_usage(s, von, bis, scope="production"),
+                    await period_usage(s, von, bis, scope="eval"))
+
+    betrieb, auswertung = _lauf(db, szenario)
+    assert [z["source"] for z in betrieb["sessions"]] == ["agent-api"]
+    assert sorted(z["source"] for z in auswertung["sessions"]) == ["eval-judge", "eval-simulator"]
+
+
+def test_kosten_lassen_sich_nach_maschine_trennen(db, keine_preise) -> None:
+    """Paket 15 (A6): die Kosten-Seite folgt dem Arbeitsbereich wie die Analyse.
+
+    Züge ohne Maschine (Vorprüfung, Direkt-Aktionen, ``engine`` NULL) zählen in beiden
+    Arbeitsbereichen mit — sonst fehlten echte Kosten in beiden (Review Paket 15, #2)."""
+    from boerdi.db.models import UsageEvent
+    from boerdi.services.usage_analytics import period_usage
+
+    tag = datetime(2027, 5, 6, 12, 0, tzinfo=UTC)
+    von, bis = tag - timedelta(hours=1), tag + timedelta(hours=1)
+
+    async def szenario(factory):
+        async with factory() as s:
+            for engine, calls in (("agent", 2), ("pattern", 3), (None, 7)):
+                s.add(UsageEvent(session_id=None, quelle="agent-api", engine=engine,
+                                 model="m-p15e", prompt_tokens=10, completion_tokens=1,
+                                 calls=calls, created_at=tag))
+            await s.commit()
+        async with factory() as s:
+            return (await period_usage(s, von, bis, engine="agent"),
+                    await period_usage(s, von, bis, engine="pattern"),
+                    await period_usage(s, von, bis))
+
+    agent, muster, alle = _lauf(db, szenario)
+    assert agent["calls"] == 9 and muster["calls"] == 10 and alle["calls"] == 12

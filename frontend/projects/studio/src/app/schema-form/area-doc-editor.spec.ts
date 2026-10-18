@@ -61,6 +61,27 @@ describe("AreaDocEditor", () => {
     // each test builds its own editor via makeEditor()
   });
 
+  it("lässt einen nicht lesbaren Feld-Entwurf verwerfen (Paket 15)", async () => {
+    // Ungültiges JSON ändert das Dokument nicht — „Verwerfen“ blieb deshalb grau, und der
+    // Entwurf samt Fehler stand weiter da.
+    const editor = makeEditor();
+    const done = editor.load(AREA);
+    await tick();
+    answerLoad(AREA, { welcome: { greeting: "Moin" } });
+    await done;
+    expect(editor.verwerfbar()).toBe(false);
+    editor.setFieldErrors(["welcome.extra"]);
+    expect(editor.dirty()).toBe(false);
+    expect(editor.verwerfbar()).toBe(true);
+    const vorher = editor.doc();
+    const epoche = editor.epoche();
+    editor.discard();
+    expect(editor.fieldErrors()).toEqual([]);
+    // Der Zähler reicht ins Formular: auch JSON-Felder mit gleichem Wert räumen (Review P15 #4).
+    expect(editor.epoche()).toBe(epoche + 1);
+    expect(editor.doc()).toEqual(vorher);
+  });
+
   it("installs schema and document, and starts clean", async () => {
     const editor = makeEditor();
     const done = editor.load(AREA);

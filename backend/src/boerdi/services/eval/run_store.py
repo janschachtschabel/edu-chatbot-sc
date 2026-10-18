@@ -24,11 +24,10 @@ from boerdi.obs.tasks import cancel_run_task, register_run_task
 
 logger = logging.getLogger(__name__)
 
-# Where the golden runner talks to the real chatbot (ALT default kept verbatim;
-# BEIDE NEU-Compose-Dateien setzen den Container-Selbstaufruf
-# EVAL_CHAT_URL=http://127.0.0.1:8100/api/chat als Default — der Wert hier
-# greift nur noch bei nacktem uvicorn ohne gesetzte Variable).
-_CHAT_URL_DEFAULT = "http://localhost:8000/api/chat"
+# Where the golden runner talks to the real chatbot: the server calls itself. Port 8100 like
+# compose, the image (Dockerfile ENV) and the local launch config — ALT's 8000 let a container
+# started without compose refuse every run with 502 (Paket 15, A2).
+_CHAT_URL_DEFAULT = "http://127.0.0.1:8100/api/chat"
 # Stale 'running' rows older than this are swept to 'failed' by the start-guard
 # so a crashed run cannot block new ones forever (ALT: 2h).
 _STALE_RUN_HOURS = 2
@@ -52,10 +51,10 @@ async def _cancel_run_task(run_id: str) -> bool:
 async def _ensure_chat_reachable() -> None:
     """Preflight vor jedem Eval-Start (Review-Nachlauf 2026-08-22).
 
-    Ein Lauf gegen ein totes ``EVAL_CHAT_URL`` (Backend auf 8100, Default
-    zeigt auf 8000) verbrannte alle Züge in "(chat error: All connection
-    attempts failed)" und stand danach als „fertig" da. Ein 3-Sekunden-GET
-    auf ``/api/health`` desselben Ursprungs bricht stattdessen den START ab
+    Ein Lauf gegen ein totes ``EVAL_CHAT_URL`` (Backend auf 8100, der Default zeigte
+    damals auf 8000 — seit Paket 15 steht er auf 8100) verbrannte alle Züge in
+    "(chat error: All connection attempts failed)" und stand danach als „fertig" da.
+    Ein 3-Sekunden-GET auf ``/api/health`` desselben Ursprungs bricht stattdessen den START ab
     und nennt URL und Stellschraube. Nur Transportfehler blocken — auch ein
     404 heißt: da antwortet etwas.
     """

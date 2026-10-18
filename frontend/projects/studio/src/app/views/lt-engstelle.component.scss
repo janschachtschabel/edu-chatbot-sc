@@ -1,0 +1,71 @@
+// Engstelle (Paket 16, D4). Die Farben unterscheiden nur; was ein Teil ist, steht im Text.
+.lt-engstelle {
+  display: grid;
+  gap: var(--st-2);
+  margin-block-start: var(--st-4);
+}
+
+.lte-titel {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.lte-hint {
+  margin: 0;
+  max-inline-size: 62ch;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.lte-arten {
+  display: grid;
+  gap: var(--st-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lte-art {
+  display: grid;
+  gap: var(--st-1);
+}
+
+.lte-kind {
+  font-weight: 600;
+}
+
+.lte-balken {
+  display: flex;
+  block-size: 0.75rem;
+  max-inline-size: 32rem;
+  overflow: hidden;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.lte-teil {
+  block-size: 100%;
+}
+
+// Review D-7: dieselbe Farbe als Marke vor dem Text — die Legende des Balkens.
+.lte-marke {
+  display: inline-block;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  margin-inline-end: var(--st-1);
+  border-radius: 2px;
+}
+
+.lte-teil--llm { background: var(--st-accent); }
+.lte-teil--werkzeuge { background: var(--st-ok-dot); }
+.lte-teil--vorabsuche { background: var(--st-warn-dot); }
+.lte-teil--rerank { background: var(--st-danger-dot); }
+.lte-teil--rag { background: var(--st-unknown-dot); }
+.lte-teil--safety { background: var(--st-text-muted); }
+.lte-teil--rest { background: var(--st-rule); }
+
+.lte-text {
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}

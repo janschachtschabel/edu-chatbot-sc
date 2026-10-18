@@ -19,6 +19,7 @@ import {
   ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked,
 } from '@angular/core';
 
+import type { Engine } from '../core/effects-api.service';
 import { AsyncData, describeApiError } from '../core/async-data';
 import {
   QualityApi, type LogFilters, type QualityLog, type QualityScope,
@@ -51,6 +52,8 @@ export class QualityLogsComponent {
   private readonly api = inject(QualityApi);
 
   readonly scope = input.required<QualityScope>();
+  /** Paket 13 (E5): nur Züge dieser Maschine (aus der Ansicht); ohne Angabe beide. */
+  readonly engine = input<Engine | undefined>(undefined);
   /** The filters in force. The form edits a draft and emits on submit. */
   readonly filters = input.required<LogFilters>();
 
@@ -67,7 +70,7 @@ export class QualityLogsComponent {
   readonly status = signal('');
 
   readonly logs = new AsyncData<readonly QualityLog[]>(
-    () => this.api.logs(this.scope(), this.filters()), this.t);
+    () => this.api.logs(this.scope(), this.filters(), this.engine()), this.t);
 
   readonly rows = computed(() => this.logs.value() ?? []);
 
@@ -83,15 +86,21 @@ export class QualityLogsComponent {
   readonly emptyText = computed(() =>
     this.t(this.hasFilter() ? 'qualLogs.empty.filtered' : 'qualLogs.empty.none'));
 
+  /** Paket 13 (E5): zeigt die Liste nur die Züge einer Maschine, löscht der Sammel-Knopf nur
+   *  diese — Knopf und Frage sagen es, statt „Alle“ zu behaupten. */
+  readonly eingeschraenkt = computed(() => this.hasFilter() || !!this.engine());
+
   readonly bulkQuestion = computed(() => {
     const filters = this.filters();
-    if (!this.hasFilter()) return this.t('qualLogs.bulk.all');
+    const engine = this.engine();
+    if (!this.eingeschraenkt()) return this.t('qualLogs.bulk.all');
     // Nur die gesetzten Filter, in fester Reihenfolge; das Komma bleibt ein
     // Komma — die Aufzählung ist technisch, keine Prosa für `list()`.
     const parts = [
       filters.patternId && this.t('qualLogs.filter.pattern', { id: filters.patternId }),
       filters.intentId && this.t('qualLogs.filter.intent', { id: filters.intentId }),
       filters.sessionId && this.t('qualLogs.filter.session', { id: filters.sessionId }),
+      engine && this.t('qualLogs.filter.engine', { engine: this.t(`effect.engine.${engine}`) }),
     ].filter(Boolean);
     return this.t('qualLogs.bulk.filtered', { parts: parts.join(', ') });
   });
@@ -102,6 +111,7 @@ export class QualityLogsComponent {
   constructor() {
     effect(() => {
       this.scope();
+      this.engine();
       this.filters();
       untracked(() => {
         this.armed.set(null);
@@ -170,7 +180,8 @@ export class QualityLogsComponent {
         if (this.selected() === armed.id) this.selected.set(0);
         this.status.set(this.t('qualLogs.deletedOne', { id: armed.id }));
       } else {
-        const { deleted } = await this.api.clearLogs(this.scope(), this.filters());
+        const { deleted } = await this.api.clearLogs(
+          this.scope(), this.filters(), this.engine());
         this.selected.set(0);
         this.status.set(this.lang.plural('qualLogs.deletedMany', deleted));
       }

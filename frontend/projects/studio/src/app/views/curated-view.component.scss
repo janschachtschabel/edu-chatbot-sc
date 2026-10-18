@@ -41,6 +41,12 @@
   gap: var(--st-3);
 }
 
+// Grid-Elemente schrumpfen sonst nicht unter ihre Mindestbreite: eine breite Tabelle
+// (Werkzeuge) schob die Seite bei 375 px seitlich auf, statt in ihrem Rahmen zu scrollen.
+.cv-reiter-teil {
+  min-inline-size: 0;
+}
+
 .cv-empty {
   color: var(--st-danger-text);
 }

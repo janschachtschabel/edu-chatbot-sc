@@ -42,9 +42,10 @@
   font-size: 0.8125rem;
 }
 
-.epu-hint {
-  margin: 0;
-  font-size: 0.6875rem;
+.epu-since-hint {
+  margin: calc(-1 * var(--st-2)) 0 var(--st-3);
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
 }
 
 .epu-btn {

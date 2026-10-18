@@ -1,0 +1,90 @@
+// Der aufgeklappte Vergleich (Paket 16, C6): Feld-Tabelle zuerst, Zeilen-Vergleich als Rohansicht.
+// Meldungen aus dem gemeinsamen Teil; nur Studio-Tokens.
+@use './ops-panel';
+
+:host {
+  display: grid;
+  // Sonst bestimmt die breiteste Tabelle die Spalte, und ihr Rahmen rollt nie (siehe Nutzung).
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--st-2);
+}
+
+.fs-hint {
+  margin: 0;
+  color: var(--st-text-muted);
+  font-size: 0.875rem;
+}
+
+// Breite Werte rollen in ihrem Kasten, nicht die Seite (375 px).
+.fs-tabelle {
+  max-inline-size: 100%;
+  overflow-x: auto;
+
+  table {
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+  }
+
+  caption {
+    padding-block-end: var(--st-1);
+    font-weight: 600;
+    text-align: start;
+  }
+
+  th,
+  td {
+    padding: var(--st-1) var(--st-3) var(--st-1) 0;
+    border-block-end: 1px solid var(--st-rule);
+    text-align: start;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+
+  thead th {
+    font-size: 0.75rem;
+    color: var(--st-text-muted);
+  }
+
+  td {
+    min-inline-size: 10ch;
+    max-inline-size: 40ch;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+}
+
+.fs-roh > summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.fs-roh[open] > summary {
+  margin-block-end: var(--st-2);
+}
+
+.fs-diff-pre {
+  margin: 0;
+  padding: var(--st-2) var(--st-3);
+  max-block-size: 24rem;
+  overflow: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+// Das Zeichen am Zeilenanfang trägt die Bedeutung; die Schrift hebt sie nur hervor.
+.fs-diff-plus,
+.fs-diff-minus {
+  font-weight: 600;
+}
+
+.fs-diff-minus {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.fs-diff-hunk {
+  color: var(--st-text-muted);
+}

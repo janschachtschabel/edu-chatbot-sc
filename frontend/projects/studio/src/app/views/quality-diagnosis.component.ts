@@ -16,6 +16,7 @@ import {
   ChangeDetectionStrategy, Component, computed, effect, inject, input, output, untracked,
 } from '@angular/core';
 
+import type { Engine } from '../core/effects-api.service';
 import { AsyncData } from '../core/async-data';
 import {
   QualityApi, type Breakdown, type DegradationGroup, type EmptyEntityGroup,
@@ -49,16 +50,18 @@ export class QualityDiagnosisComponent {
   private readonly api = inject(QualityApi);
 
   readonly scope = input.required<QualityScope>();
+  /** Paket 13 (E5): nur Züge dieser Maschine (aus der Ansicht); ohne Angabe beide. */
+  readonly engine = input<Engine | undefined>(undefined);
 
   /** Asks the view to show the matching turns; the shell owns the log filters. */
   readonly drill = output<LogFilters>();
 
   readonly degradations = new AsyncData<Breakdown<DegradationGroup>>(
-    () => this.api.degradations(this.scope()), this.t);
+    () => this.api.degradations(this.scope(), this.engine()), this.t);
   readonly emptyEntities = new AsyncData<Breakdown<EmptyEntityGroup>>(
-    () => this.api.emptyEntities(this.scope()), this.t);
+    () => this.api.emptyEntities(this.scope(), this.engine()), this.t);
   readonly lowConfidence = new AsyncData<LowConfidence>(
-    () => this.api.lowConfidence(this.scope()), this.t);
+    () => this.api.lowConfidence(this.scope(), this.engine()), this.t);
 
   readonly degradationGroups = computed(() => this.degradations.value()?.groups ?? []);
   readonly emptyEntityGroups = computed(() => this.emptyEntities.value()?.groups ?? []);
@@ -67,6 +70,7 @@ export class QualityDiagnosisComponent {
   constructor() {
     effect(() => {
       this.scope();
+      this.engine();
       untracked(() => {
         void this.degradations.reload();
         void this.emptyEntities.reload();

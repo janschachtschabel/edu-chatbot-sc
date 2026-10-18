@@ -27,7 +27,7 @@ def token_streaming() -> bool:
 
 
 def agent_schnellantworten() -> bool:
-    """Schreibt der Agent die Schnellantworten im Antwort-Aufruf mit? (S3, Vorgabe aus)"""
+    """Schreibt der Agent die Schnellantworten im Antwort-Aufruf mit? (S3, Vorgabe an, P15)"""
     umgebung = get_settings().agent_inline_quick_replies
     if umgebung is not None:
         return umgebung

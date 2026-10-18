@@ -293,6 +293,77 @@ describe("EvalRunDetailComponent", () => {
     expect(text()).toContain("Profil des Laufs");
   });
 
+  // ── Paket 13 (F7): die Auswertung mit dem Judge v2 ───────────────────
+  const AUSWERTUNG = {
+    je_ablauf: [], matrix_zielgruppe_anwendungsfall: {}, matrix_ablauf_skala: {},
+    matrix_persona_intent: {}, zeiten: { knoten: {}, schritte: {}, llm: {} },
+    gesamt: {
+      ablaeufe: 2, zuege: 3, gesamt_mittel: 4, skalen_mittel: {}, zug_mittel: 4,
+      harte_quote: { bestanden: 5, geprueft: 6 }, latenz: { p50_ms: 1000, p95_ms: 2000 },
+      kosten_je_zug: null, chat_fehler: 0, judge_fehler: 0, judge_kosten: null,
+      judge_aufrufe: 4, judge_fassung: "f",
+    },
+  };
+
+  it("zeigt bei einem Golden-Lauf die Auswertung v2 statt des Profils (Paket 13)", async () => {
+    await mount(detail({ auswertung: AUSWERTUNG, profile: { currency: "EUR" } }));
+    expect(h.el.querySelector("studio-eval-auswertung-v2")).not.toBeNull();
+    expect(h.el.querySelector("studio-eval-run-profile")).toBeNull();
+    // Die harten Prüfungen je Kategorie und die Zug-Tabelle bleiben darunter.
+    expect(h.el.querySelector("studio-eval-gold-turns")).not.toBeNull();
+  });
+
+  it("zeigt das Profil weiter, solange der Lauf keine Judge-v2-Note hat", async () => {
+    const ohneJudge = { ...AUSWERTUNG,
+      gesamt: { ...AUSWERTUNG.gesamt, gesamt_mittel: null, zug_mittel: null } };
+    await mount(detail({ auswertung: ohneJudge, profile: {
+      quality: { hard_rate: 1, hard_passed: 1, hard_total: 1, axes: {} },
+      speed: { p50_ms: 1, p95_ms: 1, over_30s: 0, over_90s: 0 },
+      cost: { turns_with_usage: 0, prompt: null, cached: null, completion: null,
+              cost_per_turn: null, cost_total: null, price_unavailable: [] },
+      robustness: { turns: 1, chat_errors: 0, judge_failed: 0, empty: 0, fallback: 0 },
+      currency: null,
+    } }));
+    expect(h.el.querySelector("studio-eval-run-profile")).not.toBeNull();
+  });
+
+  it("lädt den Bericht eines Golden-Laufs als Markdown-Datei (Paket 13)", async () => {
+    await mount(detail({ auswertung: AUSWERTUNG }));
+    const knopf = button("Bericht (Markdown)")!;
+    knopf.click();
+    await h.fixture.whenStable();
+    h.http.expectOne(`${url("eval-abc")}/bericht.md`)
+      .flush(new Blob(["weg"]), { status: 500, statusText: "x" });
+    await settle();
+    expect(h.el.querySelector(".erd-bericht-fehler")?.textContent).toContain("Bericht nicht geladen");
+  });
+
+  it("baut die Auswertung beim Laufwechsel neu und vergisst den Berichtsfehler (Review PR #18)", async () => {
+    // Das Panel wird für den nächsten Lauf wiederverwendet; vorher behielten Messbedingungen und
+    // Matrixfilter den Zustand von Lauf A unter Lauf B.
+    await mount(detail({ auswertung: AUSWERTUNG }));
+    button("Bericht (Markdown)")!.click();
+    await h.fixture.whenStable();
+    h.http.expectOne(`${url("eval-abc")}/bericht.md`)
+      .flush(new Blob(["weg"]), { status: 500, statusText: "x" });
+    await settle();
+    const vorher = h.el.querySelector("studio-eval-auswertung-v2");
+    expect(h.el.querySelector(".erd-bericht-fehler")).not.toBeNull();
+
+    h.fixture.componentRef.setInput("runId", "eval-xyz");
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === url("eval-xyz"))
+      .flush(detail({ id: "eval-xyz", auswertung: AUSWERTUNG }));
+    await settle();
+    expect(h.el.querySelector("studio-eval-auswertung-v2")).not.toBe(vorher);
+    expect(h.el.querySelector(".erd-bericht-fehler")).toBeNull();
+  });
+
+  it("bietet bei generativen Läufen keinen Bericht an", async () => {
+    await mount(detail({ mode: "generative" }));
+    expect(button("Bericht (Markdown)")).toBeNull();
+  });
+
   it("zeigt die Muster-Tafeln bei einem Muster-Lauf (ST-7d)", async () => {
     await mount(detail({
       engine: "pattern",

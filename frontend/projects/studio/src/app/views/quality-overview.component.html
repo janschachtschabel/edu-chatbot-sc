@@ -69,6 +69,8 @@
       </section>
     </div>
 
-    <studio-quality-diagnosis [scope]="scope()" (drill)="drill.emit($event)" />
+    @if (diagnose()) {
+      <studio-quality-diagnosis [scope]="scope()" [engine]="engine()" (drill)="drill.emit($event)" />
+    }
   }
 }

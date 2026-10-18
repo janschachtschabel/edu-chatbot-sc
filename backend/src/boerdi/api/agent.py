@@ -42,6 +42,7 @@ from boerdi.api.studio_proxy import ueber_studio
 from boerdi.api.turn_auth import require_agent_caller, uebernimm_zugang
 from boerdi.obs.progress import TurnProgress
 from boerdi.obs.usage import new_accumulator
+from boerdi.services import prompt_ablage
 from boerdi.services.agent_run import run_agent
 from boerdi.services.session_origin import STUDIO_QUELLE
 from boerdi.services.usage_store import record_turn_usage
@@ -86,6 +87,7 @@ async def _lauf_mit_buchung(
 async def _buchen(sitzungen: Sitzungen, acc: dict[str, Any], quelle: str) -> None:
     async with sitzungen() as session:
         await record_turn_usage(session, None, acc, engine="agent", quelle=quelle)
+        await prompt_ablage.speichere(session, acc)
 
 
 @router.post("/api/agent", response_model=AgentResponse)

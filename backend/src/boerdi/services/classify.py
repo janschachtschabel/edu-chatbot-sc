@@ -43,7 +43,7 @@ from boerdi.api.schemas import ClassificationResult
 from boerdi.obs import usage as _usage
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm as _llm
-from boerdi.services import seitenkontext_prompt
+from boerdi.services import prompt_ablage, seitenkontext_prompt
 from boerdi.services.classify_prompt import (
     build_classify_system_prompt,
     build_classify_turn_context,
@@ -83,7 +83,10 @@ async def classify_input(
     """Classify the user message into the input dimensions (validated
     ClassificationResult). Falls back to the ALT Layer-A salvage / schema
     defaults so the pipeline never breaks."""
-    messages: list[dict] = [{"role": "system", "content": build_classify_system_prompt()}]
+    system = build_classify_system_prompt()
+    # Paket 13 (A5): fester Prompt (ohne Zug-Kontext, Paket 9) als Prüfsumme im Merkposten.
+    prompt_ablage.merke(usage_acc, "classify.system", system)
+    messages: list[dict] = [{"role": "system", "content": system}]
     # E-E (Plan 2026-09-29, Nutzer-Entscheid 2026-10-09): die Seite gerahmt vor
     # dem Verlauf statt im Systemprompt — knapp, denn der Klassifikator wählt nur
     # ein Muster (ohne Bestand, 3 000 Zeichen je Textabschnitt, EK10). Seit Paket 9

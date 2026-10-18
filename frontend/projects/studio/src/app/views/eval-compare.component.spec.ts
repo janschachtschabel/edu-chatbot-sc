@@ -98,6 +98,16 @@ async function mount(
 const text = (h: Harness): string => (h.el.textContent ?? '').replace(/\s+/g, ' ');
 
 describe('EvalCompareComponent (ST-7c)', () => {
+  it('zeigt Noten und Unterschiede des Judge v2, wenn der Server sie schickt (Paket 13)', async () => {
+    const h = await mount({
+      ...vergleich(),
+      bewertung_je_maschine: { agent: { laeufe: 1, gesamt_mittel: 4, zug_mittel: 4, skalen_mittel: {} } },
+      unterschiede: { referenz: 'eval-a', laeufe: [] },
+    });
+    expect(h.el.querySelector('studio-eval-vergleich-v2')).not.toBeNull();
+    expect(text(h)).toContain('Noten je Maschine (Judge v2)');
+  });
+
   it('fragt den Vergleich der gewählten Läufe an', async () => {
     sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, 'de');
     TestBed.resetTestingModule();

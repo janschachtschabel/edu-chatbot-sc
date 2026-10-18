@@ -122,3 +122,19 @@
   font-size: 0.875rem;
   color: var(--st-text-muted);
 }
+
+// Paket 15: ein Hinweis auf Einstellungen, die einander aushebeln (`CuratedAreaSection.hinweise`).
+.cs-hinweis {
+  margin: 0 0 var(--st-3);
+  padding: var(--st-2) var(--st-3);
+  border-inline-start: 4px solid var(--st-warn-dot);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  font-size: 0.875rem;
+}
+
+// Rundgang 3: Sprung zu der Seite, auf der man prüft, was der Abschnitt einstellt.
+.cs-sprung {
+  margin: 0 0 var(--st-3);
+  font-size: 0.875rem;
+}

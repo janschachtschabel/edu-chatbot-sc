@@ -15,16 +15,18 @@
  * accessible source for every number (same split as the load-test chart).
  */
 import {
-  ChangeDetectionStrategy, Component, computed, inject, signal,
+  ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked,
 } from '@angular/core';
 
 import { AsyncData } from '../core/async-data';
 import {
   EvalApi, type EngineFilter, type EvalTrends, type TrendPoint,
 } from '../core/eval-api.service';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
 import { EngineFilterComponent } from './engine-filter.component';
+import { EvalTrendsV2Component } from './eval-trends-v2.component';
 import { engineLabel } from './engine-label';
 import { RichTextComponent } from './rich-text.component';
 import { type TrendChart, rateChart, scoreChart } from './trend-chart';
@@ -99,7 +101,7 @@ const EMPTY: EvalTrends = {
 
 @Component({
   selector: 'studio-eval-trends',
-  imports: [AsyncStateComponent, EngineFilterComponent, RichTextComponent],
+  imports: [AsyncStateComponent, EngineFilterComponent, EvalTrendsV2Component, RichTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './eval-trends.component.html',
   styleUrl: './eval-trends.component.scss',
@@ -119,7 +121,10 @@ export class EvalTrendsComponent {
 
   /** ST-7a: serverseitig, vor der 20er-Kappung — ein Verlauf über beide
    *  Maschinen zeigt jeden Wechsel als Sprung. */
-  readonly engineFilter = signal<EngineFilter>('');
+  private readonly ansicht = inject(StudioAnsicht);
+  /** Paket 13 (E7): vorbelegt aus der Ansicht des Studios und ihr folgend (Konstruktor);
+   *  eine eigene Wahl gilt bis zum nächsten Wechsel der Ansicht. */
+  readonly engineFilter = signal<EngineFilter>(this.ansicht.maschine());
 
   readonly trends = new AsyncData<EvalTrends>(
     () => this.api.trends(this.engineFilter()), this.t);
@@ -127,11 +132,21 @@ export class EvalTrendsComponent {
   /** `AsyncData` never fetches on its own — the first read is triggered here. */
   constructor() {
     void this.trends.reload();
+    // Paket 13 (E7): wechselt die Ansicht, folgt der Filter — der erste Lauf ist ein Nichts,
+    // weil der Filter mit derselben Ansicht vorbelegt wurde.
+    effect(() => {
+      const vorgabe = this.ansicht.maschine();
+      untracked(() => {
+        if (vorgabe !== this.engineFilter()) this.onEngineFilter(vorgabe);
+      });
+    });
   }
 
   private readonly data = computed(() => this.trends.value() ?? EMPTY);
 
   readonly runs = computed(() => this.data().runs);
+  /** Paket 13 (D5): fehlt bei einem älteren Backend. */
+  readonly v2 = computed(() => this.data().v2 ?? null);
 
   readonly scores = computed(() => scoreChart(this.runs()));
 

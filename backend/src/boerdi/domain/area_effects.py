@@ -17,6 +17,12 @@ Die Stufen:
   antwortet der Muster-Weg, auch unter der Agent-Schleife (SF-1,
   ``engine_choice.zug_laeuft_ueber_die_schleife``).
 * ``keine`` — die Maschine liest den Bereich nie, oder nichts davon wirkt.
+* ``extern`` — nur am Endpunkt ``/api/agent`` (Einbettungen, Browser-Plugin), nicht im Chat.
+
+``FIELD_EFFECTS`` hält Felder fest, die anders wirken als ihr Bereich (Rundgang 3,
+2026-10-18): Das Studio zeigt Abschnitte mit einem Feld-Ausschnitt und kennzeichnet im
+Agent-Arbeitsbereich Felder ohne Agent-Wirkung. Ein Wächter prüft, dass jeder Pfad im
+Bereichsschema existiert.
 
 Ein neuer Bereich ohne Eintrag lässt ``tests/test_area_effects.py`` scheitern.
 """
@@ -24,10 +30,10 @@ Ein neuer Bereich ohne Eintrag lässt ``tests/test_area_effects.py`` scheitern.
 from typing import Final, Literal
 
 Engine = Literal["pattern", "agent"]
-Effect = Literal["voll", "teilweise", "krise", "keine"]
+Effect = Literal["voll", "teilweise", "krise", "keine", "extern"]
 
 ENGINES: Final[tuple[Engine, ...]] = ("pattern", "agent")
-EFFECTS: Final[tuple[Effect, ...]] = ("voll", "teilweise", "krise", "keine")
+EFFECTS: Final[tuple[Effect, ...]] = ("voll", "teilweise", "krise", "keine", "extern")
 
 
 def _e(pattern: Effect, agent: Effect) -> dict[str, Effect]:
@@ -55,7 +61,8 @@ AREA_EFFECTS: Final[dict[str, dict[str, Effect]]] = {
     "01-base/placeholder-topics": _e("voll", "keine"),
     # Läuft vor der Maschinenwahl (Kontext-Begrüßung, Direktaktionen).
     "01-base/context-actions": _e("voll", "voll"),
-    # Agent: nur `persona_formality` als Rückfall der Anrede im Agent-Kopf.
+    # Agent: `persona_formality` als Rückfall der Anrede im Agent-Kopf und `device_max_items`
+    # über `agent_pattern` → `phase3_modulate` → `turn_assembly` (Rundgang 3).
     "01-base/device-config": _e("voll", "teilweise"),
     # Agent: Gruppen, Einzelbox, Chip-Deckel, Dokumentbox; nicht die
     # Konsistenz-Prüfung der Werkzeug-Schleife und die Muster-Einträge.
@@ -78,8 +85,9 @@ AREA_EFFECTS: Final[dict[str, dict[str, Effect]]] = {
     # Gelesen: `logging.enabled` in beiden Maschinen und `retention_days`.
     "01-base/quality-log-config": _e("teilweise", "teilweise"),
     # Gate, Protokoll und Drosselung laufen vor der Maschinenwahl; den
-    # Krisentext liest nur das Gate von `/api/agent`.
-    "01-base/safety-config": _e("teilweise", "voll"),
+    # Krisentext liest nur das Gate von `/api/agent`, Krisen-Felder wirken im Agent-Modus
+    # nur auf Krisen-Zügen (Rundgang 3, Plan B1 — die Felder stehen unten).
+    "01-base/safety-config": _e("teilweise", "teilweise"),
     "01-base/website-tour": _e("voll", "voll"),
     "01-base/welcome-config": _e("voll", "voll"),
     # Der einzige Leser steckt in einem Zweig, der nie läuft (ST-9).
@@ -103,4 +111,50 @@ AREA_EFFECTS: Final[dict[str, dict[str, Effect]]] = {
     # Muster: `mode` und `description`; Agent: der Schalter `agent` und `description`.
     "05-knowledge/rag-config": _e("teilweise", "teilweise"),
     "eval/gold-flows": _e("voll", "voll"),
+}
+
+
+#: Felder, die anders wirken als ihr Bereich — je Pfad (Punkt-Schreibweise wie im Studio).
+#: Belege nach Code-Lesart vom 2026-10-18 (Rundgang 3).
+FIELD_EFFECTS: Final[dict[str, dict[str, dict[str, Effect]]]] = {
+    "01-base/engine": {
+        # Agent-Kopf (`agent_kopf.py`) und Schleifen-Deckel (`agent_loop.py`, `agent_deckel.py`).
+        "agent_rolle": _e("keine", "voll"),
+        "agent": _e("keine", "voll"),
+        # Skill-Brücke nur für Muster-Züge (`route.py`, `domain/skill_bruecke.py`).
+        "muster_skills": _e("voll", "keine"),
+    },
+    "01-base/safety-config": {
+        # Nur das Gate von /api/agent liest den Text (`agent_gate.py`); im Chat antwortet M01.
+        "crisis_message": _e("keine", "extern"),
+        "crisis_message_en": _e("keine", "extern"),
+        # Wirken nur auf Krisen-/Drohungs-Zügen; die laufen auch im Agent-Modus über das Muster.
+        "crisis_pattern": _e("voll", "krise"),
+        "threat_pattern": _e("voll", "krise"),
+        "crisis_blocked_tools": _e("voll", "krise"),
+    },
+    "01-base/display-rules": {
+        # Der Agent heißt `AGENT`; der Ratepfad prüft M09/M10/M11 (`turn_persist.py`).
+        "display_rules.inline_documents.per_pattern": _e("voll", "keine"),
+        "display_rules.inline_documents.intro_text": _e("voll", "keine"),
+        # Nur die Werkzeug-Schleife des Muster-Wegs (`tool_loop.py`).
+        "display_rules.groups.materialien_max_lernpfad": _e("voll", "keine"),
+        "display_rules.prompt_anzeige_konsistenz": _e("voll", "keine"),
+    },
+    "01-base/website-tour": {
+        # Kein Leser — die Tour startet über `tour_reply` der Begrüßung.
+        "website_tour.start_label": _e("keine", "keine"),
+        # Nur Beschreibung der Abläufe; kein Leser (Review Paket 16).
+        "website_tour.flows": _e("keine", "keine"),
+    },
+    "01-base/device-config": {
+        # Beide liest auch der Agent: die Anrede-Rückfälle im Agent-Kopf (`agent_kopf.py`),
+        # die Kartenzahl je Gerät über `agent_pattern` → `phase3_modulate` (Review Paket 16).
+        "device_max_items": _e("voll", "voll"),
+        "persona_formality": _e("voll", "voll"),
+    },
+    "02-domain/guide-rules": {
+        # Kein Leser (`guide_qr_injector.py` nutzt eine feste Liste je Wissensbereich).
+        "rag_area_rules": _e("keine", "keine"),
+    },
 }

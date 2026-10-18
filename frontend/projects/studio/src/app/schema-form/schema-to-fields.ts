@@ -90,6 +90,17 @@ export interface SchemaField {
   readonly maximum?: number;
   /** Value for a fresh entry — used when adding a list/map element. */
   readonly blank: unknown;
+  /** Paket 15 (A3): the schema's explicit default — what the runtime applies when the key is
+   *  missing. The form shows it (marked „Vorgabe“) instead of an empty or switched-off field. */
+  readonly defaultValue?: unknown;
+  /** Paket 15: a sibling list's marker writes this field — it is not rendered on its own. */
+  readonly markerZiel?: boolean;
+  /** `group` only (Paket 15): the section heading already names it — no second legend. */
+  readonly ohneLegende?: boolean;
+  /** `group` only (Paket 15, Review-Runde 2): the defaults of ALL its children, by key —
+   *  computed before any section or tab prunes `children`. A missing group whose shown value
+   *  equals these needs no materialising: the server fills the gaps the same way. */
+  readonly kinderVorgaben?: Readonly<Record<string, unknown>>;
 }
 
 /** Stops a `$ref` cycle; the deepest real chain in the registry is 2 hops. */
@@ -99,6 +110,15 @@ const MAX_REF_HOPS = 10;
  * `05-knowledge/rag-config`, whose model is a `RootModel[dict[str, …]]`. */
 export function rootField(schema: JsonSchema): SchemaField {
   return fieldFor('', schema, schema, false);
+}
+
+/** The default the schema states — on the property or on its resolved type. */
+function explicitDefault(
+  raw: JsonSchema, node: JsonSchema | null,
+): { readonly defaultValue?: unknown } {
+  if (raw.default !== undefined) return { defaultValue: raw.default };
+  if (node?.default !== undefined) return { defaultValue: node.default };
+  return {};
 }
 
 function fieldFor(
@@ -117,6 +137,7 @@ function fieldFor(
     description: raw.description ?? node?.description,
     ...primary(raw, node),
     ...vorgabe(raw),
+    ...explicitDefault(raw, node),
   };
   const blank = (fallback: unknown): unknown => {
     if (raw.default !== undefined) return raw.default;
@@ -167,12 +188,18 @@ function objectField(
     // `node.title` ist der Modellname (pydantic setzt ihn an jedes Modell).
     // Das `title` einer EIGENSCHAFT („Core Rule") ist nur ihre Überschrift und
     // kommt hier nicht an: `node` ist bereits das aufgelöste Objekt.
-    const children = Object.entries(node.properties).map(([childKey, childSchema]) => {
+    const roh = Object.entries(node.properties).map(([childKey, childSchema]) => {
       const child = fieldFor(childKey, childSchema, root, required.has(childKey));
       return node.title ? withTextKey(child, `feld.${node.title}.${childKey}`) : child;
     });
+    // Paket 15: das Ziel eines Markers (`tour_reply`) bedienen die Radios der Liste —
+    // als eigenes Feld stand derselbe Wert ein zweites Mal da.
+    const ziele = new Set(roh.map((c) => c.marker).filter(Boolean));
+    const children = roh.map((c) => (ziele.has(c.key) ? { ...c, markerZiel: true } : c));
     const fromChildren = Object.fromEntries(children.map((c) => [c.key, c.blank]));
-    return { ...base, kind: 'group', children, blank: blank(fromChildren) };
+    const kinderVorgaben = Object.fromEntries(
+      children.filter((c) => c.defaultValue !== undefined).map((c) => [c.key, c.defaultValue]));
+    return { ...base, kind: 'group', children, kinderVorgaben, blank: blank(fromChildren) };
   }
   // `additionalProperties` as a *schema* is a typed map (RootModel[dict[str, X]]);
   // as `true` it is a free-form bag with nothing to render.

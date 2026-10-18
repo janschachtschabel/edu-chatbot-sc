@@ -8,6 +8,7 @@ persistence around both.
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import logging
 import os
@@ -21,9 +22,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.db.models import EvalRun
 from boerdi.obs.tasks import _spawn_background
+from boerdi.obs.usage import new_accumulator
 from boerdi.services.config_loader import load_gold_flows
 from boerdi.services.engine_choice import choose_engine
-from boerdi.services.eval import golden
+from boerdi.services.eval import golden, prompts_v2
 from boerdi.services.eval.cancel import RunCancelled
 from boerdi.services.eval.flow_wahl import flows_waehlen
 from boerdi.services.eval.run_conditions import (
@@ -40,6 +42,8 @@ from boerdi.services.eval.run_store import (
     _register_run_task,
 )
 from boerdi.services.eval.scenario_gen import judge_model
+from boerdi.services.session_origin import EVAL_QUELLE_PREFIX
+from boerdi.services.usage_store import record_turn_usage
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +230,14 @@ async def _write_golden_progress(
         return True
 
 
+def _maschine(conditions: dict[str, Any] | None, engine: str) -> str | None:
+    """The engine the run measured — from its conditions, else the explicit choice."""
+    gemessen = (conditions or {}).get("maschine")
+    if gemessen in ("agent", "pattern"):
+        return gemessen
+    return engine if engine in ("agent", "pattern") else None
+
+
 async def _execute_golden_run(
     session_factory: async_sessionmaker[AsyncSession] | None,
     run_id: str, flows: list[dict[str, Any]], judge_enabled: bool,
@@ -250,11 +262,16 @@ async def _execute_golden_run(
     # flows have already cost a full round of real chat turns. Losing that
     # transcript to a judge outage would be the expensive kind of data loss.
     conversations: list[dict[str, Any]] = []
+    # Außerhalb des try (Review Paket 15, #5): bezahlte Judge-Aufrufe werden auch gebucht,
+    # wenn danach etwas scheitert — wie im generativen Lauf.
+    judge_usage: dict[str, Any] | None = None
+    conditions: dict[str, Any] | None = None
     try:
         runner = _load_golden_runner()
         # K0-2: frisch messen und festhalten, womit gemessen wird.
         fresh_tool_cache(run_id)
-        conditions = await run_conditions(judge_enabled=judge_enabled)
+        conditions = await run_conditions(
+            judge_enabled=judge_enabled, engine=engine, flows=flows)
         headers = {"X-Boerdi-Engine": engine} if engine != "default" else None
         # Feedback 2026-08-22: Flow für Flow statt EIN Block — nur so gibt es
         # Zwischenstände und Teil-Transkripte. ``run_flows`` öffnet je Flow
@@ -285,11 +302,16 @@ async def _execute_golden_run(
                 session_factory, run_id,
                 conversations=conversations, target_turns=target_turns,
                 turns_done=turns_done,
-                activity=f"Judge bewertet {turns_done} Züge …",
+                activity=f"Judge bewertet {turns_done} Züge und {len(flows)} Abläufe …",
             ):
                 raise RunCancelled("vor der Bewertung")
-            judged = await golden.judge_conversations(conversations)
-            logger.info("[golden %s] judged %d turn(s)", run_id, judged)
+            # Paket 13 (C4/C5): Judge v2 mit eigenem Merkposten — die Judge-Kosten stehen
+            # getrennt von den Chat-Zügen im Summary.
+            judge_usage = new_accumulator()
+            bewertet = await golden.bewerte_gespraeche(conversations, usage_acc=judge_usage)
+            logger.info("[golden %s] judged %d turn(s), %d flow(s)",
+                        run_id, bewertet["zuege"], bewertet["ablaeufe"])
+            bericht = await golden.kurzbericht_erstellen(conversations, usage_acc=judge_usage)
         summary = golden.summarize_golden_run(
             conversations,
             target_turns=target_turns,
@@ -297,6 +319,15 @@ async def _execute_golden_run(
         )
         summary["engine"] = engine
         summary["messbedingungen"] = conditions
+        summary["kennzahlen_v2"] = golden.kennzahlen_des_laufs(conversations)
+        if judge_enabled:
+            summary["judge_usage"] = judge_usage
+            summary["judge_fassung"] = prompts_v2.JUDGE_V2_FASSUNG
+            summary["judge_bewertet"] = bewertet
+            if "fehler" in bericht:
+                summary["kurzbericht_fehler"] = bericht["fehler"]
+            else:
+                summary["kurzbericht"] = bericht
         summary["tool_cache"] = tool_cache_stats()
         golden_metrics = summary["golden_metrics"]
         async with session_factory() as s:
@@ -329,3 +360,24 @@ async def _execute_golden_run(
                 )
         except Exception:
             logger.exception("[golden %s] failed to persist failure", run_id)
+    finally:
+        # „Abbrechen“ ist ``task.cancel()``: der ``CancelledError`` ist keine ``Exception`` und
+        # liefe an einer Buchung hinter dem ``try`` vorbei (Review-Runde 2). ``shield``, damit
+        # ein zweiter Abbruch die schon begonnene Buchung nicht zerreißt.
+        if judge_usage is not None:
+            await asyncio.shield(_buche_judge(
+                session_factory, run_id, judge_usage, _maschine(conditions, engine)))
+
+
+async def _buche_judge(
+    session_factory: async_sessionmaker[AsyncSession], run_id: str,
+    judge_usage: dict[str, Any], maschine: str | None,
+) -> None:
+    """Paket 15 (A6): die Judge-Kosten auch auf die Kosten-Seite — ohne Sitzung, als
+    Auswertung gezählt (``session_origin``), mit der Maschine des Laufs."""
+    try:
+        async with session_factory() as s:
+            await record_turn_usage(
+                s, None, judge_usage, engine=maschine, quelle=f"{EVAL_QUELLE_PREFIX}judge")
+    except Exception:
+        logger.exception("[golden %s] Judge-Verbrauch nicht gebucht", run_id)

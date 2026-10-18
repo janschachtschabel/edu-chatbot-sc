@@ -31,23 +31,16 @@ export const EVAL_PATTERN: CataloguePart = {
     'evalPattern.intro':
       'Gezählt aus `quality_logs`, also unabhängig vom Eval-Motor: hier stehen '
       + 'echte Turns genauso wie Eval-Turns. Der Bereich entscheidet, welche '
-      + 'Frage die Zahlen beantworten.',
+      + 'Frage die Zahlen beantworten. Nur Züge der Muster-Maschine — Agent-Züge stehen in der '
+      + 'Analyse des Agent-Arbeitsbereichs.',
 
     // ── Filter ──────────────────────────────────────────────────────
     'evalPattern.scope.label': 'Bereich',
-    'evalPattern.scope.all': 'alle Turns',
+    'evalPattern.scope.all': 'alle Muster-Turns',
     'evalPattern.scope.eval': 'nur Eval-Läufe',
     'evalPattern.scope.production': 'nur echte Nutzung',
     'evalPattern.since.label': 'Ab Datum',
     'evalPattern.since.hint': 'leer = das ganze Log',
-    // Feedback 2026-08-22: AGENT ist ein Maschinen-Marker, kein Muster —
-    // der Umschalter trennt die Betriebsarten, client-seitig.
-    'evalPattern.engine.label': 'Betriebsart',
-    'evalPattern.engine.all': 'alle Betriebsarten',
-    'evalPattern.engine.muster': 'nur Muster (M01–M20)',
-    'evalPattern.engine.agent': 'nur Agent-Schleife',
-    'evalPattern.engine.none':
-      'Keine Turns dieser Betriebsart im gewählten Bereich.',
 
     // ── Zustand ─────────────────────────────────────────────────────
     'evalPattern.empty':
@@ -88,19 +81,15 @@ export const EVAL_PATTERN: CataloguePart = {
     'evalPattern.intro':
       'Counted from `quality_logs`, so independently of the eval engine: real '
       + 'turns sit here alongside eval turns. The scope decides which question '
-      + 'the numbers answer.',
+      + 'the numbers answer. Only turns of the pattern engine — agent turns are in the analysis '
+      + 'of the agent workspace.',
 
     'evalPattern.scope.label': 'Scope',
-    'evalPattern.scope.all': 'all turns',
+    'evalPattern.scope.all': 'all pattern turns',
     'evalPattern.scope.eval': 'eval runs only',
     'evalPattern.scope.production': 'real usage only',
     'evalPattern.since.label': 'From date',
     'evalPattern.since.hint': 'empty = the whole log',
-    'evalPattern.engine.label': 'Mode',
-    'evalPattern.engine.all': 'all modes',
-    'evalPattern.engine.muster': 'patterns only (M01-M20)',
-    'evalPattern.engine.agent': 'agent loop only',
-    'evalPattern.engine.none': 'No turns of this mode in the chosen scope.',
 
     'evalPattern.empty':
       'No turns in this scope yet. A chat or an eval run fills the log; a '

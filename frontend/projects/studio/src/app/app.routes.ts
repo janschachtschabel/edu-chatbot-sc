@@ -13,7 +13,8 @@ import { Routes } from '@angular/router';
 
 import { authGuard } from './auth/auth.guard';
 import { StudioLanguageService } from './i18n/studio-language.service';
-import { DEFAULT_VIEW, STUDIO_VIEWS, type StudioView } from './studio-views';
+import { startseiteGuard } from './startseite.guard';
+import { STUDIO_VIEWS, type StudioView } from './studio-views';
 import { DASHBOARD_SECTIONS } from './views/area-homes';
 import { curatedView } from './views/curated-views';
 import { unsavedChangesGuard } from './views/unsaved-changes.guard';
@@ -37,7 +38,11 @@ const title = (key: string) => () => {
  */
 const DASHBOARDS: Record<string, () => Promise<Type<unknown>>> = {
   uebersicht: () => import('./views/overview.component').then((m) => m.OverviewComponent),
+  // Paket 14: Startseite des Agent-Arbeitsbereichs.
+  'agent-uebersicht': () =>
+    import('./views/agent-uebersicht.component').then((m) => m.AgentUebersichtComponent),
   sicherung: () => import('./views/backup.component').then((m) => m.BackupComponent),
+  nutzung: () => import('./views/nutzung.component').then((m) => m.NutzungComponent),
   vorschau: () =>
     import('./views/widget-preview.component').then((m) => m.WidgetPreviewComponent),
   sessions: () => import('./views/sessions.component').then((m) => m.SessionsComponent),
@@ -74,7 +79,14 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./shell/shell.component').then((m) => m.ShellComponent),
     children: [
-      { path: '', pathMatch: 'full', redirectTo: DEFAULT_VIEW },
+      // Paket 14: die Startseite des Arbeitsbereichs (Agent-Übersicht oder Muster-Übersicht) —
+      // als Wächter, damit `authGuard` zuerst prüft (Review PR #18, `startseite.guard.ts`).
+      { path: '', pathMatch: 'full', canActivate: [startseiteGuard], children: [] },
+      // Paket 14: die Seite „Agent & Maschine“ ist im Agent-Arbeitsbereich aufgegangen —
+      // ein Lesezeichen darauf landet auf dessen Startseite.
+      { path: 'agent', pathMatch: 'full', redirectTo: 'agent-uebersicht' },
+      // Paket 15: „Werkzeuge & Skills“ sind gemeinsame Seiten geworden.
+      { path: 'agent-werkzeuge', pathMatch: 'full', redirectTo: 'werkzeuge' },
       ...STUDIO_VIEWS.map((view) => ({
         path: view.slug,
         title: title(view.labelKey),

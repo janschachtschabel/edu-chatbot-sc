@@ -63,6 +63,11 @@ def test_dockerfile_liefert_den_gold_runner_mit() -> None:
     assert "EVAL_RUNNER_PATH=/app/evals/run_golden.py" in text, (
         "EVAL_RUNNER_PATH zeigt im Image nicht auf die mitkopierte Datei"
     )
+    # Paket 15 (A2): ohne Compose gestartet (Testcontainer) fragte der Runner Port 8000 —
+    # jeder Lauf brach mit 502 ab. Das Image trägt den Selbstaufruf selbst.
+    assert "EVAL_CHAT_URL=http://127.0.0.1:8100/api/chat" in text, (
+        "EVAL_CHAT_URL fehlt im Image — ein Container ohne Compose startet keinen Eval-Lauf"
+    )
     # CI-Befund 2026-08-22 (zweite Hälfte): das Dockerfile ALLEIN reicht nicht —
     # ein pauschales `evals` in der .dockerignore hielt die Datei aus dem
     # Build-Kontext, und der COPY brach mit „not found" ab.
@@ -219,3 +224,16 @@ def test_migrate_zieht_die_werksfassung_nach() -> None:
     befehl = " ".join(_dienste()["migrate"]["command"])
     assert "boerdi import-config --werksabgleich" in befehl
     assert "--only-missing" not in befehl
+
+
+def test_das_image_kennt_version_und_commit() -> None:
+    """Paket 13 (A7): Eval-Läufe nennen den Stand des Abbilds (``messbedingungen.app``). Das
+    Dockerfile reicht beide Build-Argumente als Umgebung durch, der Image-Bau befüllt sie."""
+    text = (_DEPLOY.parent / "Dockerfile").read_text("utf-8")
+    runtime = text.split("AS runtime", 1)[1]
+    for name in ("BOERDI_VERSION", "GIT_SHA"):
+        assert f"ARG {name}" in runtime, name
+        assert f"{name}=${{{name}}}" in runtime, name
+    workflow = (_DEPLOY.parent / ".github" / "workflows" / "image.yml").read_text("utf-8")
+    assert "BOERDI_VERSION=${{ needs.stand.outputs.name }}" in workflow
+    assert "GIT_SHA=${{ needs.stand.outputs.sha }}" in workflow

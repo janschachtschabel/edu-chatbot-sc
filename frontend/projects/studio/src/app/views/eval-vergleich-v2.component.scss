@@ -1,0 +1,96 @@
+// Der Vergleich mit dem Judge v2 (Paket 13, F8).
+:host {
+  display: grid;
+  gap: var(--st-4);
+}
+
+.vg-titel {
+  margin: 0 0 var(--st-2);
+  font-size: 0.9375rem;
+}
+
+.vg-rahmen {
+  overflow-x: auto;
+}
+
+.vg-tabelle {
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+
+  th,
+  td {
+    padding: var(--st-1) var(--st-2);
+    border-block-end: 1px solid var(--st-rule);
+    text-align: end;
+  }
+
+  th[scope='row'],
+  thead th:first-child {
+    text-align: start;
+  }
+}
+
+.vg-lauf {
+  margin: var(--st-2) 0 var(--st-1);
+  font-size: 0.8125rem;
+}
+
+.vg-liste {
+  margin: 0;
+  padding-inline-start: var(--st-4);
+  font-size: 0.8125rem;
+
+  li + li {
+    margin-block-start: var(--st-1);
+  }
+}
+
+.vg-diff-knopf {
+  min-block-size: 1.75rem;
+  margin-inline-start: var(--st-2);
+  padding: 0 var(--st-2);
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--st-accent-soft);
+  }
+}
+
+// Plus und Minus stehen am Zeilenanfang — die Farbe ist nur die zweite Spur.
+.vg-diff {
+  max-block-size: 24rem;
+  margin: var(--st-2) 0 0;
+  padding: var(--st-2);
+  overflow: auto;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+
+  span {
+    display: block;
+  }
+}
+
+.vg-neu { background: var(--st-band-sehr-gut); }
+.vg-weg { background: var(--st-band-schwach); }
+.vg-kopf { color: var(--st-text-muted); }
+
+.vg-hinweis {
+  margin: var(--st-1) 0 0;
+  color: var(--st-text-muted);
+  font-size: 0.8125rem;
+}
+
+.vg-fehler {
+  margin: var(--st-1) 0 0;
+  color: var(--st-danger-text);
+  font-size: 0.8125rem;
+}

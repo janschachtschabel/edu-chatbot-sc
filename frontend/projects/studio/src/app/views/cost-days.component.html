@@ -1,0 +1,54 @@
+@if (tage().length > 0) {
+  <section class="cd" [attr.aria-labelledby]="kennung + '-titel'">
+    <h3 class="cd-titel" [id]="kennung + '-titel'">{{ t('costDays.title') }}</h3>
+    @let c = chart();
+    <svg
+      class="cd-chart"
+      role="img"
+      [attr.aria-labelledby]="kennung + '-titel ' + kennung + '-hinweis'"
+      [attr.viewBox]="'0 0 ' + c.width + ' ' + c.height"
+      preserveAspectRatio="none"
+    >
+      <line class="cd-axis" [attr.x1]="c.pad" [attr.x2]="c.width - c.pad"
+        [attr.y1]="c.height - c.pad" [attr.y2]="c.height - c.pad" />
+      @for (bar of c.bars; track bar.tag; let i = $index) {
+        <rect class="cd-bar" [attr.x]="bar.x" [attr.y]="bar.y" [attr.width]="bar.width"
+          [attr.height]="bar.height">
+          <title>{{ titel(tage()[i]) }}</title>
+        </rect>
+        @if (bar.ohnePreis) {
+          <rect class="cd-ohne" [attr.x]="bar.x" [attr.y]="c.height - c.pad - 3"
+            [attr.width]="bar.width" height="3" />
+        }
+      }
+    </svg>
+    <p class="cd-hinweis" [id]="kennung + '-hinweis'">
+      {{ c.max > 0 ? t('costDays.hint', { max: fmt.money('' + c.max, currency()) })
+        : t('costDays.hintOhnePreis') }}
+    </p>
+    <details class="cd-tabelle">
+      <summary>{{ t('costDays.table') }}</summary>
+      <div class="cd-tabelle-rahmen" tabindex="0" role="region"
+        [attr.aria-label]="t('costDays.table')">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">{{ t('costDays.col.tag') }}</th>
+              <th scope="col">{{ t('costDays.col.calls') }}</th>
+              <th scope="col">{{ t('costDays.col.amount') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (tag of tage(); track tag.tag) {
+              <tr>
+                <th scope="row">{{ fmt.day(tag.tag) }}</th>
+                <td>{{ fmt.whole(tag.calls) }}</td>
+                <td>{{ betrag(tag) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+}

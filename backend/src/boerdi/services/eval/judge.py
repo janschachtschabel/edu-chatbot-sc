@@ -273,6 +273,7 @@ def _build_intent_expectations(intent_id: str) -> str:
 async def judge_turn(
     persona: dict, intent: dict, user_msg: str, bot_response: str,
     debug: dict, *, soll_angebot: str | None = None,
+    usage_acc: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """LLM-as-Judge score for one turn. Returns dict with the axis scores +
     notes; raises :class:`JudgeError` when the judge itself fails (GV4).
@@ -335,6 +336,8 @@ async def judge_turn(
             temperature=0.0,
             response_format={"type": "json_object"},
             background=True,
+            # Paket 15 (A6): die Judge-Kosten des Laufs auf die Kosten-Seite
+            usage_acc=usage_acc, phase="judge",
         )
         raw = (resp.choices[0].message.content or "").strip()
         data = json.loads(raw) if raw else None

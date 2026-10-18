@@ -1,0 +1,103 @@
+// Die Agent-Übersicht (Paket 14, C1). Hierarchie aus Überschriften und Abstand, keine Kacheln.
+:host {
+  display: grid;
+  gap: var(--st-5);
+}
+
+.au-crumb {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--st-text-muted);
+}
+
+.au-titel {
+  margin: var(--st-1) 0 0;
+  font-size: 1.375rem;
+}
+
+.au-intro,
+.au-zustand {
+  margin: var(--st-2) 0 0;
+  max-inline-size: 62ch;
+}
+
+.au-intro {
+  color: var(--st-text-muted);
+}
+
+.au-zustand {
+  font-weight: 600;
+
+  a {
+    margin-inline-start: var(--st-2);
+    font-weight: 400;
+  }
+}
+
+.au-unter {
+  margin: 0 0 var(--st-2);
+  font-size: 1rem;
+}
+
+.au-hinweis {
+  margin: 0 0 var(--st-3);
+  max-inline-size: 62ch;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+// Der Weg einer Frage: nummerierte Schichten, die Zahl trägt die Reihenfolge. Ein eigener
+// Zähler, weil `display: flex` dem Listeneintrag seine Marke nimmt.
+.au-schichten,
+.au-testseiten {
+  display: grid;
+  gap: var(--st-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--st-1) var(--st-3);
+  }
+}
+
+.au-schichten {
+  counter-reset: schicht;
+
+  li {
+    counter-increment: schicht;
+  }
+
+  li::before {
+    content: counter(schicht) '.';
+    min-inline-size: 1.25rem;
+    color: var(--st-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.au-testseiten {
+  a {
+    font-weight: 600;
+  }
+}
+
+.au-name {
+  font-weight: 600;
+}
+
+.au-neu {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--st-text-muted);
+}
+
+.au-desc {
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}

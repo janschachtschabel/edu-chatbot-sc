@@ -1,0 +1,47 @@
+<header class="au-kopf">
+  <p class="au-crumb">{{ t('nav.group.agent') }}</p>
+  <h2 class="au-titel">{{ t('view.agent-uebersicht.label') }}</h2>
+  <p class="au-intro">{{ t('agentUebersicht.intro') }}</p>
+  <p class="au-zustand">
+    {{ zustand() }}
+    <a routerLink="/betrieb">{{ t('agentUebersicht.betrieb') }}</a>
+  </p>
+</header>
+
+<studio-status-strip maschine="agent" />
+
+<studio-master-skill [section]="masterSkill" [open]="true" />
+
+<section class="au-teil" aria-labelledby="au-schichten">
+  <h3 class="au-unter" id="au-schichten">{{ t('agentUebersicht.schichten') }}</h3>
+  <p class="au-hinweis">{{ t('agentUebersicht.schichten.hint') }}</p>
+  <ol class="au-schichten">
+    @for (schicht of schichten; track schicht.id) {
+      <li>
+        <span class="au-name">{{ t('agentUebersicht.schicht.' + schicht.id) }}</span>
+        <span class="au-desc">{{ t('agentUebersicht.schicht.' + schicht.id + '.desc') }}</span>
+        <a [routerLink]="['/', schicht.slug]">{{ t('view.' + schicht.slug + '.label') }}</a>
+      </li>
+    }
+  </ol>
+</section>
+
+<section class="au-teil" aria-labelledby="au-testseiten">
+  <h3 class="au-unter" id="au-testseiten">{{ t('agentUebersicht.testseiten') }}</h3>
+  <p class="au-hinweis">{{ t('agentUebersicht.testseiten.hint') }}</p>
+  <ul class="au-testseiten">
+    @for (seite of testseiten; track seite.id) {
+      <li>
+        <a [href]="seite.href" target="_blank" rel="noopener noreferrer">
+          {{ t('agentUebersicht.testseite.' + seite.id) }}
+          <span class="au-neu">{{ t('agentUebersicht.neuerTab') }}</span>
+        </a>
+        <span class="au-desc">{{ t('agentUebersicht.testseite.' + seite.id + '.desc') }}</span>
+      </li>
+    }
+    <li>
+      <a routerLink="/vorschau">{{ t('view.vorschau.label') }}</a>
+      <span class="au-desc">{{ t('agentUebersicht.testseite.vorschau.desc') }}</span>
+    </li>
+  </ul>
+</section>

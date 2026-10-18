@@ -24,7 +24,8 @@ export const COSTS: CataloguePart = {
     'costs.intro':
       'Was der Bot in einem Zeitraum verbraucht hat: Token getrennt nach Eingabe, '
       + 'Cache, Ausgabe und Reasoning, dazu der Betrag nach der gepflegten '
-      + 'Preistafel.',
+      + 'Preistafel. Gezeigt wird die Maschine des Arbeitsbereichs; Züge ohne Maschine '
+      + '(Vorprüfung, Direkt-Aktionen wie „Lernpfad erzeugen“) stehen in beiden.',
 
     // ── Zeitraum ────────────────────────────────────────────────────
     'costs.period.legend': 'Zeitraum',
@@ -58,6 +59,9 @@ export const COSTS: CataloguePart = {
     'costs.sessions.agentApi': 'Agent-API (Aufträge ohne Sitzung)',
     /** Paket 9: die Probeläufe des Auftragstesters zählen nicht als Betrieb. */
     'costs.sessions.studioProbe': 'Studio: „Auftrag testen“ (Probeläufe ohne Sitzung)',
+    'costs.sessions.evalJudge': 'Evaluation: Judge (ohne Sitzung)',
+    'costs.sessions.evalSimulator': 'Evaluation: Simulator (ohne Sitzung)',
+    'costs.sessions.evalSzenario': 'Evaluation: Szenarien (ohne Sitzung)',
     /** Ohne gepflegte Preise ordnet die Liste nach Token — sonst wäre sie
      *  beim ersten Blick auf eine frische Anlage unsortiert. */
     'costs.sessions.hint':
@@ -72,6 +76,59 @@ export const COSTS: CataloguePart = {
     'costs.col.amount': 'Betrag',
     /** Eine Zelle ohne Preis. Ein leeres Feld läse sich als Anzeigefehler. */
     'costs.noPrice': 'kein Preis',
+    // Paket 16, D3: Nutzung
+    'nutzung.intro':
+      'Wie oft und wann mit dem Chatbot gesprochen wird — aus dem Qualitäts-Protokoll, eine '
+      + 'Zeile je Zug, beide Maschinen zusammen. Ohne Eval- und Lasttest-Züge, wenn „Betrieb“ '
+      + 'gewählt ist.',
+    'nutzung.aus':
+      'Das Qualitäts-Protokoll schreibt gerade nicht — neue Züge fehlen hier.',
+    'nutzung.ausLink': 'Einschalten unter „Datenschutz“',
+    'nutzung.leer': 'In diesem Zeitraum gibt es keine protokollierten Züge.',
+    'nutzung.zuege': 'Züge',
+    'nutzung.sitzungen': 'Sitzungen',
+    'nutzung.mittel': 'Züge je Sitzung (Mittel)',
+    'nutzung.median': 'Züge je Sitzung (Median)',
+    'nutzung.klein': '<{n}',
+    'nutzung.stunde': '{h} Uhr',
+    'nutzung.ohneAngabe': '(ohne Angabe)',
+    'nutzung.keine': 'keine',
+    'nutzung.spalte.wert': 'Wert',
+    'nutzung.raster.title': 'Wochentag × Stunde',
+    'nutzung.raster.hint':
+      'Züge je Stunde in deutscher Zeit; je dunkler, desto mehr, leer heißt keine. „<5“: Züge '
+      + 'aus weniger als fünf Sitzungen — Raster und Verteilungen runden kleine Zellen ab; '
+      + 'Summen und Tageswerte bleiben genau.',
+    'nutzung.tage.title': 'Je Tag',
+    'nutzung.verteilungen.title': 'Verteilungen (Züge)',
+    'nutzung.nurMuster': 'nur Muster-Züge — die Agent-Schleife setzt sie fest',
+    'nutzung.facette.maschine': 'Maschine',
+    'nutzung.facette.sprache': 'Sprache',
+    'nutzung.facette.geraet': 'Gerät',
+    'nutzung.facette.seitenart': 'Seitenart',
+    'nutzung.facette.persona': 'Zielgruppe',
+    'nutzung.facette.anliegen': 'Anliegen',
+    'nutzung.wochentag.0': 'Mo',
+    'nutzung.wochentag.1': 'Di',
+    'nutzung.wochentag.2': 'Mi',
+    'nutzung.wochentag.3': 'Do',
+    'nutzung.wochentag.4': 'Fr',
+    'nutzung.wochentag.5': 'Sa',
+    'nutzung.wochentag.6': 'So',
+    // Paket 16, D2: Kosten je Tag
+    'costDays.title': 'Kosten je Tag',
+    'costDays.hint':
+      'Je Kalendertag (deutsche Zeit) eine Säule; die höchste steht für {max}. Gestrichelte '
+      + 'Marke: Tage mit Zügen, aber ganz ohne gepflegten Preis; fehlt nur für ein Modell der '
+      + 'Preis, sagt es die Tabelle („unvollständig“).',
+    'costDays.hintOhnePreis':
+      'Im Zeitraum hat noch kein Tag mit gepflegtem Preis Kosten — die gestrichelten Marken '
+      + 'zeigen Tage mit Zügen ohne Preis.',
+    'costDays.table': 'Als Tabelle',
+    'costDays.col.tag': 'Tag',
+    'costDays.col.calls': 'Aufrufe',
+    'costDays.col.amount': 'Betrag',
+    'costDays.unvollstaendig': '{betrag} (unvollständig — ein Modell ohne Preis)',
 
     'costs.empty':
       'In diesem Zeitraum wurde kein Modell aufgerufen. Zahlen entstehen mit dem '
@@ -81,7 +138,9 @@ export const COSTS: CataloguePart = {
   en: {
     'costs.intro':
       'What the bot consumed in a period: tokens split into input, cache, output '
-      + 'and reasoning, plus the amount from the maintained price table.',
+      + 'and reasoning, plus the amount from the maintained price table. Shows the engine of the '
+      + 'workspace; turns without an engine (pre-check, direct actions such as “create learning '
+      + 'path”) appear in both.',
 
     'costs.period.legend': 'Period',
     'costs.from.label': 'From',
@@ -105,6 +164,9 @@ export const COSTS: CataloguePart = {
     'costs.sessions.caption': 'Most expensive sessions of the period',
     'costs.sessions.agentApi': 'Agent API (tasks without a session)',
     'costs.sessions.studioProbe': 'Studio: “Test a task” (trial runs without a session)',
+    'costs.sessions.evalJudge': 'Evaluation: judge (without a session)',
+    'costs.sessions.evalSimulator': 'Evaluation: simulator (without a session)',
+    'costs.sessions.evalSzenario': 'Evaluation: scenarios (without a session)',
     'costs.sessions.hint':
       'Ordered by tokens rather than amount while no prices are maintained.',
     'costs.col.model': 'Model',
@@ -116,6 +178,55 @@ export const COSTS: CataloguePart = {
     'costs.col.reasoning': 'of which reasoning',
     'costs.col.amount': 'Amount',
     'costs.noPrice': 'no price',
+    'nutzung.intro':
+      'How often and when people talk to the chatbot — from the quality log, one row per turn, '
+      + 'both engines together. Without eval and load-test turns when “Production” is selected.',
+    'nutzung.aus': 'The quality log is not recording right now — new turns are missing here.',
+    'nutzung.ausLink': 'Switch it on under “Privacy”',
+    'nutzung.leer': 'There are no logged turns in this period.',
+    'nutzung.zuege': 'Turns',
+    'nutzung.sitzungen': 'Sessions',
+    'nutzung.mittel': 'Turns per session (mean)',
+    'nutzung.median': 'Turns per session (median)',
+    'nutzung.klein': '<{n}',
+    'nutzung.stunde': '{h}:00',
+    'nutzung.ohneAngabe': '(not given)',
+    'nutzung.keine': 'none',
+    'nutzung.spalte.wert': 'Value',
+    'nutzung.raster.title': 'Weekday × hour',
+    'nutzung.raster.hint':
+      'Turns per hour in German time; the darker, the more, empty means none. “<5”: turns from '
+      + 'fewer than five sessions — grid and distributions round small cells off; totals and '
+      + 'daily figures stay exact.',
+    'nutzung.tage.title': 'Per day',
+    'nutzung.verteilungen.title': 'Distributions (turns)',
+    'nutzung.nurMuster': 'pattern turns only — the agent loop fixes these',
+    'nutzung.facette.maschine': 'Engine',
+    'nutzung.facette.sprache': 'Language',
+    'nutzung.facette.geraet': 'Device',
+    'nutzung.facette.seitenart': 'Page type',
+    'nutzung.facette.persona': 'Audience',
+    'nutzung.facette.anliegen': 'Intent',
+    'nutzung.wochentag.0': 'Mon',
+    'nutzung.wochentag.1': 'Tue',
+    'nutzung.wochentag.2': 'Wed',
+    'nutzung.wochentag.3': 'Thu',
+    'nutzung.wochentag.4': 'Fri',
+    'nutzung.wochentag.5': 'Sat',
+    'nutzung.wochentag.6': 'Sun',
+    'costDays.title': 'Cost per day',
+    'costDays.hint':
+      'One bar per calendar day (German time); the tallest stands for {max}. Dashed mark: days '
+      + 'with turns but no maintained price at all; if only one model lacks a price, the table '
+      + 'says so (“incomplete”).',
+    'costDays.hintOhnePreis':
+      'No day in this period has costs with a maintained price yet — the dashed marks show '
+      + 'days with turns but no price.',
+    'costDays.table': 'As a table',
+    'costDays.col.tag': 'Day',
+    'costDays.col.calls': 'Calls',
+    'costDays.col.amount': 'Amount',
+    'costDays.unvollstaendig': '{betrag} (incomplete — a model without a price)',
 
     'costs.empty':
       'No model was called in this period. Numbers appear with the first chat turn.',

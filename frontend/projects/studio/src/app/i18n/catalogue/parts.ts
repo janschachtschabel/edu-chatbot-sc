@@ -8,6 +8,7 @@
  * bleibt unverändert.
  */
 import { AGENT } from './agent';
+import { ANSICHT } from './ansicht';
 import { AGENT_CENTER } from './agent-center';
 import { AGENT_PROMPT } from './agent-prompt';
 import { AGENT_PROBE } from './agent-probe';
@@ -17,6 +18,8 @@ import { BACKUP } from './backup';
 import type { CataloguePart } from './catalogue-part';
 import { COSTS } from './costs';
 import { CURATED } from './curated';
+import { CURATED_AGENT } from './curated-agent';
+import { CURATED_GEMEINSAM } from './curated-gemeinsam';
 import { CURATED_BETRIEB } from './curated-betrieb';
 import { FASSUNGEN } from './fassungen';
 import { EFFECTS } from './effects';
@@ -27,6 +30,7 @@ import { EVAL_PATTERN } from './eval-pattern';
 import { EVAL_PROFILE } from './eval-profile';
 import { EVAL_START } from './eval-start';
 import { EVAL_TRENDS } from './eval-trends';
+import { EVAL_V2 } from './eval-v2';
 import { EVALUATION } from './evaluation';
 import { FIELDS_AGENT } from './fields-agent';
 import { FIELDS_ANZEIGE_KOPF_GERAETE } from './fields-anzeige-kopf-geraete';
@@ -54,6 +58,7 @@ import { FRAME } from './frame';
 import { GROUP_SECTION } from './group-section';
 import { KNOWLEDGE } from './knowledge';
 import { LOADTEST } from './loadtest';
+import { MATERIAL_FORMATE } from './material-formate';
 import { MCP } from './mcp';
 import { OVERVIEW } from './overview';
 import { PREVIEW } from './preview';
@@ -104,4 +109,12 @@ export const STUDIO_PARTS: readonly CataloguePart[] = [
   AGENT_TRACE, AGENT_CENTER, AGENT_PROMPT, AGENT_PROBE,
   // Paket 8 (A): Aufbewahrung der Protokolle
   RETENTION,
+  // Paket 13 (E): Ansicht Muster/Agent/beide
+  ANSICHT,
+  // Paket 13 (F): Auswertung mit dem Judge v2
+  EVAL_V2,
+  // Paket 14: Arbeitsbereiche je Betriebsmodus
+  CURATED_AGENT,
+  CURATED_GEMEINSAM,
+  MATERIAL_FORMATE,
 ];

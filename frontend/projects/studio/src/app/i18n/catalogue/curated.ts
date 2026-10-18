@@ -66,7 +66,7 @@ export const CURATED: CataloguePart = {
     'curated.domainWissen.intro':
       'Was Boerdi über die Plattform weiß und wohin er auf ihr führt. Die Wissenstexte '
       + 'gehen als Systemwissen in jede Antwort ein — je konkreter, desto weniger rät das '
-      + 'Modell. Web-Tour und Lotse zeigen Wege zu Seiten.',
+      + 'Modell. Website-Tour und Lotse stehen unter „Tour & Lotse“.',
     'curated.domainWissen.rules.label': 'Domänen-Regeln',
     'curated.domainWissen.rules.hint': 'Fachliche Leitplanken für Antworten in dieser Domäne.',
     'curated.domainWissen.platform.label': 'Plattform-Wissen',
@@ -88,8 +88,6 @@ export const CURATED: CataloguePart = {
     'curated.materialFormate.intro':
       'Welche Materialarten Boerdi erzeugen kann und woran er erkennt, dass jemand '
       + 'eine davon möchte.',
-    'curated.materialFormate.types.label': 'Material-Typen',
-    'curated.materialFormate.types.hint': 'Die erzeugbaren Formate mit Beschreibung und Vorlage.',
     'curated.materialFormate.aliases.label': 'Bezeichnungen',
     'curated.materialFormate.aliases.hint':
       'Alltagswörter, die auf einen Typ zeigen („Test" → Quiz).',
@@ -180,7 +178,7 @@ export const CURATED: CataloguePart = {
     'curated.domainWissen.intro':
       'What Boerdi knows about the platform and where it leads people on it. The knowledge '
       + 'texts go into every answer as system knowledge — the more concrete, the less the '
-      + 'model guesses. Site tour and guide show the way to pages.',
+      + 'model guesses. Website tour and guide are under “Tour & guide”.',
     'curated.domainWissen.rules.label': 'Domain rules',
     'curated.domainWissen.rules.hint': 'Subject-matter guardrails for answers in this domain.',
     'curated.domainWissen.platform.label': 'Platform knowledge',
@@ -200,9 +198,6 @@ export const CURATED: CataloguePart = {
     'curated.materialFormate.intro':
       'Which kinds of material Boerdi can produce, and how it recognises that '
       + 'someone wants one of them.',
-    'curated.materialFormate.types.label': 'Material types',
-    'curated.materialFormate.types.hint':
-      'The formats that can be produced, with description and template.',
     'curated.materialFormate.aliases.label': 'Names',
     'curated.materialFormate.aliases.hint':
       'Everyday words that point at a type (“test” → quiz).',

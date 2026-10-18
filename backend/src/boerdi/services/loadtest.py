@@ -144,6 +144,9 @@ def validate_profile(profile: dict[str, Any]) -> dict[str, Any]:
         "mix": mix,
         "p95_threshold_s": p95_threshold,
         "engine": engine,
+        # Paket 15 (E1): eine Anfrage vorab, die nicht zählt — Master-Skill-Abruf und
+        # Prompt-Cache sind dann warm, die erste Stufe misst den Betrieb, nicht den Start.
+        "warmup": bool(profile.get("warmup", True)),
         "total_requests": total,
     }
 
@@ -179,6 +182,8 @@ def _row_to_run(row: LoadtestRun) -> dict[str, Any]:
         "resource_samples": result.get("resource_samples", []),
         "summary": result.get("summary"),
         "error": result.get("error"),
+        # Paket 15 (E1): die Aufwärm-Anfrage — gemessen, aber in keiner Stufe gezählt.
+        "warmup": result.get("warmup"),
     }
 
 
@@ -356,11 +361,82 @@ async def _fire_request(
                               timeout=REQUEST_TIMEOUT_S, headers=headers)
         dt = time.perf_counter() - t0
         return {"kind": kind, "ok": r.status_code == 200, "status": r.status_code,
-                "latency_s": round(dt, 2)}
+                "latency_s": round(dt, 2), **_werkzeug_angaben(r, round(dt * 1000))}
     except Exception as e:  # network/timeout → count as a failed request, keep going
         dt = time.perf_counter() - t0
         return {"kind": kind, "ok": False, "status": 0,
                 "latency_s": round(dt, 2), "error": type(e).__name__}
+
+
+def _werkzeug_angaben(r: httpx.Response, gesamt_ms: int = 0) -> dict[str, Any]:
+    """Paket 15 (E1): Werkzeuge und Werkzeugzeit eines Zugs aus seinem Debug-Block — damit
+    sich ein langsamer Zug ohne Nachrichten-Tabelle einordnen lässt (MCP-Ausreißer oder
+    Ausweich-Kette). Seit Paket 16 (D4) dazu die ganze Aufteilung (``zeiten``). Eine unlesbare
+    Antwort liefert nichts, statt die Messung zu stören."""
+    try:
+        body = r.json()
+    except ValueError:
+        return {}
+    # Review PR #18: ein Body, der kein Objekt ist, stört die Messung nicht.
+    debug = (body.get("debug") if isinstance(body, dict) else None) or {}
+    if not isinstance(debug, dict):
+        return {}
+    zeiten = ((debug.get("token_usage") or {}).get("zeiten_ms") or {})
+    angaben: dict[str, Any] = {"werkzeuge": len(debug.get("tools_called") or [])}
+    if isinstance(zeiten.get("respond.werkzeuge"), int | float):
+        angaben["werkzeuge_ms"] = zeiten["respond.werkzeuge"]
+    if (aufteilung := _zeit_angaben(debug, gesamt_ms)) is not None:
+        angaben["zeiten"] = aufteilung
+    return angaben
+
+
+#: Paket 16 (D4): die Teile eines Zugs und die Schritte (``obs/zeiten.schritt``), aus denen sie
+#: sich zusammensetzen. ``llm`` kommt aus ``per_phase``, ``rest`` ist, was übrig bleibt.
+ZEIT_TEILE: dict[str, tuple[str, ...]] = {
+    "werkzeuge": ("respond.werkzeuge",),
+    # Nur das blockierende Warten — die Vorab-Suche selbst läuft neben der Einordnung
+    # und steckt schon in ``werkzeuge``.
+    "vorabsuche": ("respond.vorabsuche",),
+    "rerank": ("respond.rerank",),
+    "rag": ("respond.rag", "assess.rag_einbettung"),
+    "safety": ("assess.safety",),
+}
+ZEIT_KATEGORIEN = ("llm", *ZEIT_TEILE, "rest")
+
+
+def _zeit_angaben(debug: dict[str, Any], gesamt_ms: int) -> dict[str, int] | None:
+    """Die Dauer eines Zugs nach :data:`ZEIT_KATEGORIEN`; ``None`` ohne Zeiten im Debug.
+
+    Teile können sich überlappen: die Vorab-Suche läuft neben der Einordnung und steckt mit
+    ihrer ganzen Dauer in ``werkzeuge``, ``vorabsuche`` ist nur das Warten darauf. ``rest`` wird
+    darum nie negativ; die Anteile (``_engstelle``) beziehen sich auf die Summe der Mediane —
+    das Studio sagt, dass sich Teile überlappen können."""
+    nutzung = debug.get("token_usage") or {}
+    zeiten = nutzung.get("zeiten_ms") or {}
+    phasen = nutzung.get("per_phase") or {}
+    if not zeiten and not phasen:
+        return None
+
+    def ms(wert: Any) -> int:
+        return int(wert) if isinstance(wert, int | float) else 0
+
+    teile = {"llm": sum(ms((p or {}).get("ms")) for p in phasen.values())}
+    for teil, schritte in ZEIT_TEILE.items():
+        teile[teil] = sum(ms(zeiten.get(s)) for s in schritte)
+    teile["rest"] = max(0, gesamt_ms - sum(teile.values()))
+    return teile
+
+
+def _engstelle(ergebnisse: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Je Kategorie der Median der erfolgreichen Anfragen und sein Anteil an deren Summe."""
+    mit_zeiten = [r["zeiten"] for r in ergebnisse if r.get("ok") and r.get("zeiten")]
+    if not mit_zeiten:
+        return {"zeiten_ms": {}, "anteile": {}}
+    mediane = {k: round(statistics.median(z.get(k, 0) for z in mit_zeiten))
+               for k in ZEIT_KATEGORIEN}
+    summe = sum(mediane.values())
+    return {"zeiten_ms": mediane,
+            "anteile": {k: round(v / summe, 3) if summe else 0.0 for k, v in mediane.items()}}
 
 
 async def _run_stage(
@@ -401,6 +477,10 @@ def _stage_stats(
             "ok": len(ks),
             "p50_s": round(_percentile(ks, 50), 2),
             "p95_s": round(_percentile(ks, 95), 2),
+            # Paket 15 (Review #6): bei wenigen Messungen zeigt das Studio das echte Maximum.
+            "max_s": round(max(ks), 2) if ks else 0.0,
+            # Paket 16 (D4): wo die Zeit dieser Art bleibt.
+            **_engstelle([r for r in results if r["kind"] == k]),
         }
     return {
         "concurrency": concurrency,
@@ -415,6 +495,8 @@ def _stage_stats(
         "duration_s": round(stage_dt, 1),
         "rps": round(requests / stage_dt, 2) if stage_dt > 0 else 0.0,
         "by_kind": by_kind,
+        # Paket 15 (E1): jede Anfrage einzeln, in Startreihenfolge.
+        "anfragen": [{"nr": i + 1, **r} for i, r in enumerate(results)],
     }
 
 
@@ -494,10 +576,17 @@ async def execute_load_test(app: Any, run_id: str, profile: dict[str, Any]) -> N
     # sehen, nicht erst am Ende bekommen.
     samples: list[dict[str, Any]] = result["resource_samples"]
     stop_sampling = asyncio.Event()
-    sampler = asyncio.create_task(_sample_resources(samples, stop_sampling))
+    sampler: asyncio.Task[None] | None = None
     try:
         # ``.get``: vor Befund 7 gespeicherte Profile tragen kein engine-Feld.
         engine = str(profile.get("engine") or "default")
+        if profile.get("warmup"):
+            kind = next(iter(profile["mix"]))
+            result["warmup"] = (await _run_stage(app, f"{run_id}w", 99, 1, [kind],
+                                                 engine=engine))[0]
+        # Erst nach dem Aufwärmen: es zählt nicht — auch nicht in Spitzen-RAM/-CPU
+        # (Review-Runde 2).
+        sampler = asyncio.create_task(_sample_resources(samples, stop_sampling))
         for stage_idx, concurrency in enumerate(profile["stages"]):
             n = profile["requests_per_stage"]
             kinds = _mix_sequence(profile["mix"], n)
@@ -526,10 +615,11 @@ async def execute_load_test(app: Any, run_id: str, profile: dict[str, Any]) -> N
         # „list changed size during iteration"), und ein verwaister Task liefe
         # nach einem Fehlschlag endlos weiter.
         stop_sampling.set()
-        try:
-            await asyncio.wait_for(sampler, timeout=2)
-        except (TimeoutError, asyncio.CancelledError):
-            sampler.cancel()
-            logger.debug("resource sampler did not stop in time; cancelled")
+        if sampler is not None:
+            try:
+                await asyncio.wait_for(sampler, timeout=2)
+            except (TimeoutError, asyncio.CancelledError):
+                sampler.cancel()
+                logger.debug("resource sampler did not stop in time; cancelled")
         result["finished_at"] = _now_iso()
         await _persist(factory, run_id, status=status, result=result)

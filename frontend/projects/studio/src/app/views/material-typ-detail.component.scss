@@ -1,0 +1,121 @@
+// Ein Materialtyp im Detail (Paket 14, D3).
+:host {
+  display: grid;
+  gap: var(--st-3);
+  min-inline-size: 0;
+}
+
+.md-titel {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.md-meta {
+  margin: var(--st-1) 0 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.md-unter {
+  margin: var(--st-3) 0 var(--st-2);
+  font-size: 0.875rem;
+}
+
+.mf-angebot {
+  margin-block-start: var(--st-4);
+  padding-block-start: var(--st-3);
+  border-block-start: 1px solid var(--st-rule);
+  font-size: 0.875rem;
+
+  p {
+    margin: 0 0 var(--st-1);
+  }
+}
+
+.md-warnung {
+  padding: var(--st-1) var(--st-2);
+  border-inline-start: 4px solid var(--st-warn-dot);
+  color: var(--st-warn-text);
+}
+
+.md-form {
+  display: grid;
+  gap: var(--st-3);
+}
+
+.md-feld {
+  display: grid;
+  gap: var(--st-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  label,
+  legend {
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  input[type='text'],
+  textarea {
+    min-block-size: 2.25rem;
+    padding: var(--st-1) var(--st-2);
+    border: 1px solid var(--st-text-muted);
+    border-radius: var(--st-radius);
+    background: var(--st-panel);
+    color: var(--st-text);
+    font: inherit;
+  }
+
+  input[readonly] {
+    background: var(--st-surface-variant);
+  }
+
+  textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8125rem;
+    resize: vertical;
+  }
+}
+
+.md-feld--kurz input {
+  max-inline-size: 6rem;
+}
+
+.md-kategorie label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-1);
+  margin-inline-end: var(--st-3);
+  font-weight: 400;
+}
+
+.md-hinweis {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}
+
+.mf-fehler {
+  margin: 0;
+  padding: var(--st-2) var(--st-2) var(--st-2) var(--st-5);
+  border-inline-start: 4px solid var(--st-danger-dot);
+  color: var(--st-danger-text);
+  font-size: 0.875rem;
+}
+
+// Ab 60 rem Vorlage und Vorschau nebeneinander, darunter untereinander.
+.md-vorlage {
+  display: grid;
+  gap: var(--st-3);
+
+  @media (min-width: 60rem) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.mf-live {
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+}

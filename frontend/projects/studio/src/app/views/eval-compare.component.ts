@@ -26,6 +26,7 @@ import { AsyncStateComponent } from './async-state.component';
 import { compareRows, engineColumns } from './compare-rows';
 import { engineLabel } from './engine-label';
 import { evalStatusLabel } from './eval-status';
+import { EvalVergleichV2Component } from './eval-vergleich-v2.component';
 
 /** Die Gründe der Regel sind feste Wörter des Backends — Erlaubnisliste, damit
  *  ein neues Wort roh erscheint statt als Schlüssel. */
@@ -37,7 +38,7 @@ const REASON_KEYS: Readonly<Record<string, string>> = {
 
 @Component({
   selector: 'studio-eval-compare',
-  imports: [AsyncStateComponent],
+  imports: [AsyncStateComponent, EvalVergleichV2Component],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './eval-compare.component.html',
   styleUrl: './eval-compare.component.scss',

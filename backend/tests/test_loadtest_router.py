@@ -174,6 +174,8 @@ def test_start_run_persists_running_row_and_spawns_runner(client, monkeypatch):
         # Review-Befund 7 (2026-08-22): das Profil trägt die Engine — ohne
         # Angabe misst der Lauf wie bisher die Server-Vorgabe.
         "engine": "default",
+        # Paket 15 (E1): ohne Angabe eine Aufwärm-Anfrage vorab.
+        "warmup": True,
         "total_requests": 18,
     }
     assert body["status"] == "running"

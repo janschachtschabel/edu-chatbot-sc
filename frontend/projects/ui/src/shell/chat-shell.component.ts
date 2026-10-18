@@ -390,12 +390,14 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
   private readonly _lifecycle = new ShellLifecycle(this._lifecycleCtx);
   /** Nach dem Laden: zuerst ein wartender Auftrag der Gastseite (Paket 10, H-2),
    *  dann ein zurückgestellter Seitengruß (Review Paket 7, C-5) — der wartet so
-   *  hinter dem Auftrag, statt ihm den Zug wegzunehmen. */
+   *  hinter dem Auftrag, statt ihm den Zug wegzunehmen. Zuletzt ein Fokus, der
+   *  aufs gesperrte Feld traf (`focusInput`). */
   private readonly _nachDemLaden = effect(() => {
     if (this.isLoading()) return;
     untracked(() => {
       this._auftragNachholen();
       this._lifecycle.loadingEnded();
+      this._fokusNachholen();
     });
   });
 
@@ -592,9 +594,27 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
 
   /** Eingabefeld refokussieren — nach jedem Turn (intern) und wenn die
    *  Widget-Hülle das Panel öffnet (ALT `chatRef?.inputField?.…focus()`;
-   *  hier eine Methode statt eines öffentlichen ViewChild). */
+   *  hier eine Methode statt eines öffentlichen ViewChild).
+   *
+   *  Ein gesperrtes Feld nimmt keinen Fokus an. Beim ersten Öffnen läuft aber
+   *  meist der Kontext-Ping (`isLoading`) — der Auftrag wartet dann, bis das
+   *  Laden endet (`_nachDemLaden`), statt still zu verfallen. */
   focusInput(): void {
-    setTimeout(() => this._inputField()?.nativeElement?.focus(), 100);
+    setTimeout(() => {
+      const feld = this._inputField()?.nativeElement;
+      if (feld?.disabled && this.isLoading()) this._fokusWartet = true;
+      else feld?.focus();
+    }, 100);
+  }
+
+  private _fokusWartet = false;
+
+  /** Den wartenden Fokus-Auftrag einlösen — mit derselben Vorsicht wie nach
+   *  einem Zug: nicht von der Gastseite weg (Paket 10, L-9). */
+  private _fokusNachholen(): void {
+    if (!this._fokusWartet) return;
+    this._fokusWartet = false;
+    if (fokusZurueckholen(this._element.nativeElement)) this.focusInput();
   }
 
   // ── Input-Routing (8-4S-d2b) ────────────────────────────────────
