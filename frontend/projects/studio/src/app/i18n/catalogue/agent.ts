@@ -98,9 +98,9 @@ export const AGENT: CataloguePart = {
     'masterSkill.linkOf': ': Master-Skill',
     'masterSkill.newTab': '(öffnet einen neuen Tab)',
     'masterSkill.cacheNote':
-      'Das Backend hält den Text bis zu {minutes} min vor. „Neu laden“ holt ihn '
-      + 'sofort in diesem Backend-Prozess; weitere Prozesse folgen spätestens nach '
-      + '{minutes} min.',
+      'Das Backend holt den Text alle {minutes} min im Hintergrund; ein Chat-Zug wartet nicht '
+      + 'darauf (nur direkt nach einem Neustart, solange noch kein Stand da ist). Scheitert ein Abruf, gilt der letzte gute Stand. „Neu laden“ holt ihn sofort '
+      + 'in diesem Backend-Prozess; weitere Prozesse folgen mit ihrem nächsten Abruf.',
     'masterSkill.showText': 'Wortlaut anzeigen',
     'masterSkill.textLabel': 'Wortlaut des Master-Skills',
   },
@@ -192,9 +192,9 @@ export const AGENT: CataloguePart = {
     'masterSkill.linkOf': ': master skill',
     'masterSkill.newTab': '(opens a new tab)',
     'masterSkill.cacheNote':
-      'The backend keeps the text for up to {minutes} min. “Reload” fetches it '
-      + 'right away in this backend process; other processes follow within '
-      + '{minutes} min.',
+      'The backend fetches the text every {minutes} min in the background; a chat turn does not '
+      + 'wait for it (only right after a restart, while there is no version yet). If a fetch fails, the last good version stays. “Reload” fetches it right '
+      + 'away in this backend process; other processes follow with their next fetch.',
     'masterSkill.showText': 'Show the text',
     'masterSkill.textLabel': 'Text of the master skill',
   },

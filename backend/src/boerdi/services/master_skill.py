@@ -20,14 +20,24 @@ Einbettung. Die Anwendung gewinnt, wenn sie sich äußert — sie kennt ihren
 Anwendungsfall besser als eine globale Variable. Beide Wege stehen in
 ``ist_aktiv``, damit die Rangfolge EINE prüfbare Stelle hat.
 
-**Wenn der Abruf scheitert**, läuft der Zug ohne Anleitung weiter und es gibt eine
+**Im Takt geholt (Nutzer-Entscheid 2026-10-18).** Ein Hintergrund-Lauf je Prozess
+(:func:`starte`, aus dem Lebenszyklus der App) holt den Text alle :data:`TAKT_S`
+Sekunden frisch. Ein Chat-Zug liest nur den Speicher und wartet nie auf das
+Repositorium — vorher bezahlte der erste Zug nach Ablauf den Abruf (1–23 s).
+Scheitert ein Abruf, gilt der letzte gute Stand weiter; „Neu laden“ im Studio holt
+sofort.
+
+**Wenn es noch keinen Stand gibt** (frischer Prozess, Takt noch nicht durch), holt
+der Zug selbst. Scheitert das, läuft er ohne Anleitung weiter und es gibt eine
 Warnung. Ein Chat, der wegen einer nicht erreichbaren Anleitung nicht antwortet,
 wäre schlechter als einer ohne sie.
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import itertools
 import logging
 import re
 import time
@@ -39,20 +49,25 @@ from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-#: Wie lange ein geholter Text im Prozess bleibt. Ein MCP-Aufruf steht gemessen
-#: 1,2–23,3 s — je Zug erneut wäre unbrauchbar. 5 Minuten (Nutzer-Entscheid
-#: 2026-08-20, vorher 15): eine redaktionelle Änderung ist nach spätestens
-#: fünf Minuten überall da, und eine laufende Unterhaltung sieht in diesem
-#: Fenster denselben Text (sonst platzt der Prompt-Cache).
-_TTL_SEKUNDEN: Final = 5 * 60
+#: Abstand der Hintergrund-Abrufe. Ein MCP-Aufruf steht gemessen 1,2–23,3 s — je
+#: Zug wäre unbrauchbar. 5 Minuten (Nutzer-Entscheide 2026-08-20 und 2026-10-18):
+#: eine redaktionelle Änderung ist nach spätestens fünf Minuten überall da, und
+#: eine laufende Unterhaltung sieht in diesem Fenster denselben Text (sonst platzt
+#: der Prompt-Cache). Kein ``Final``: Tests verkürzen ihn.
+TAKT_S: float = 5 * 60
 
-#: ``{nodeId: (geholt_um, text)}`` — Prozess-Cache, absichtlich ohne obere
-#: Schranke: es gibt genau eine Kennung je Anlage.
-_zwischenspeicher: dict[str, tuple[float, str]] = {}
+#: ``{nodeId: (abruf_nr, text)}`` — der letzte gute Stand, absichtlich ohne obere
+#: Schranke: es gibt genau eine Kennung je Anlage. Er verfällt nicht; ersetzt wird er
+#: durch einen erfolgreichen Abruf, entfernt durch die Antwort „keine Anleitung“.
+#: ``abruf_nr`` ordnet die Abrufe nach ihrem START: ein langsamer Takt (bis 23 s), der
+#: nach „Neu laden“ fertig wird, schreibt den älteren Text nicht zurück (Review). Eine
+#: Nummer statt der Uhr, weil die monotone Uhr unter Windows grob auflöst.
+_zwischenspeicher: dict[str, tuple[int, str]] = {}
+_abruf_nummern = itertools.count(1)
 
-#: Nur für die Anzeige (AG-2) und die Messdaten (K0-2): wann zuletzt geholt
-#: (Unix-Zeit — die Frische misst weiter die monotone Uhr) und warum der letzte
-#: Abruf scheiterte. Ein Erfolg löscht die Meldung.
+#: Nur für die Anzeige (AG-2) und die Messdaten (K0-2): wann zuletzt erfolgreich
+#: geholt (Unix-Zeit) und warum der letzte Abruf scheiterte. Ein Erfolg löscht die
+#: Meldung.
 _abgerufen_um: dict[str, float] = {}
 _letzter_fehler: dict[str, str] = {}
 
@@ -101,27 +116,36 @@ def leere_den_zwischenspeicher() -> None:
     _letzter_fehler.clear()
 
 
-def _frisch(kennung: str) -> str | None:
+def _gespeichert(kennung: str) -> str | None:
     eintrag = _zwischenspeicher.get(kennung)
-    if eintrag is None:
-        return None
-    geholt_um, text = eintrag
-    if time.monotonic() - geholt_um > _TTL_SEKUNDEN:
-        return None
-    return text
+    return eintrag[1] if eintrag else None
+
+
+def _verwerfen(kennung: str, abruf_nr: int) -> None:
+    """Den Stand entfernen — nur wenn kein später gestarteter Abruf ihn schon ersetzt hat."""
+    eintrag = _zwischenspeicher.get(kennung)
+    if eintrag is not None and eintrag[0] < abruf_nr:
+        del _zwischenspeicher[kennung]
+        _abgerufen_um.pop(kennung, None)
 
 
 async def _hole(kennung: str, *, frisch: bool = False) -> str | None:
     """Den Anleitungstext holen — oder ``None``, wenn es nicht geht.
 
-    ``frisch=True`` („Neu laden") übergeht beide Speicher: diesen und den
+    Ohne ``frisch`` gilt der letzte gute Stand, gleich wie alt — frisch hält ihn der
+    Takt. ``frisch=True`` (Takt, „Neu laden") übergeht beide Speicher: diesen und den
     Werkzeug-Cache des MCP-Clients, der ``get_skill`` selbst 180 s vorhält.
-    Scheitert der Abruf, bleibt ein bisher gültiger Text stehen.
+
+    Scheitert der Abruf (Ausnahme, Ablehnung des Servers), bleibt der bisherige Stand
+    stehen. Antwortet der Server, es gebe keine Anleitung oder nur leeren Text, ist das
+    eine Antwort und kein Ausfall: der Stand fällt weg — sonst bliebe ein gelöschter
+    oder geleerter Master-Skill bis zum Neustart aktiv (Review).
     """
     if not frisch:
-        gecacht = _frisch(kennung)
-        if gecacht is not None:
-            return gecacht
+        gespeichert = _gespeichert(kennung)
+        if gespeichert is not None:
+            return gespeichert
+    abruf_nr = next(_abruf_nummern)
     try:
         roh = await call_mcp_tool(
             "get_skill", {"nodeId": kennung, "includeFiles": False}, use_cache=not frisch)
@@ -137,12 +161,17 @@ async def _hole(kennung: str, *, frisch: bool = False) -> str | None:
     if not text:
         logger.warning("Master-Skill %s ist leer", kennung)
         _letzter_fehler[kennung] = "leer"
+        _verwerfen(kennung, abruf_nr)
         return None
     if _keine_anleitung(text):
         logger.warning("Master-Skill %s: keine Anleitung (%s)", kennung, text[-160:])
         _letzter_fehler[kennung] = f"keine Anleitung: {text[-160:]}"
+        _verwerfen(kennung, abruf_nr)
         return None
-    _zwischenspeicher[kennung] = (time.monotonic(), text)
+    bisher = _zwischenspeicher.get(kennung)
+    if bisher is not None and bisher[0] > abruf_nr:
+        return bisher[1]  # ein später gestarteter Abruf war schneller — sein Stand gilt
+    _zwischenspeicher[kennung] = (abruf_nr, text)
     _abgerufen_um[kennung] = time.time()
     _letzter_fehler.pop(kennung, None)
     logger.info("Master-Skill %s geladen (%d Zeichen)", kennung, len(text))
@@ -200,12 +229,13 @@ def zustand() -> dict[str, Any]:
     """Was gerade gilt — für die Studio-Anzeige (AG-2), die Messdaten eines
     Gold-Laufs (K0-2) und die Fehlersuche im Betrieb.
 
-    ``sha256`` und ``length`` beschreiben den Text im Speicher; ist keiner frisch,
-    stehen sie auf ``None``. Holt nichts — dafür gibt es :func:`anzeige`.
+    ``sha256`` und ``length`` beschreiben den Stand im Speicher, ``fetched_at`` wann er
+    geholt wurde; gibt es keinen, stehen sie auf ``None``. ``ttl_seconds`` nennt den
+    Takt (Feldname aus dem Vertrag). Holt nichts — dafür gibt es :func:`anzeige`.
     """
     einst = get_settings()
     kennung = _kennung()
-    text = _frisch(kennung) if kennung else None
+    text = _gespeichert(kennung) if kennung else None
     um = _abgerufen_um.get(kennung) if text is not None else None
     return {
         "enabled": bool(einst.master_skill_enabled),
@@ -215,7 +245,7 @@ def zustand() -> dict[str, Any]:
         "length": len(text) if text is not None else None,
         "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest() if text is not None else None,
         "last_error": _letzter_fehler.get(kennung),
-        "ttl_seconds": _TTL_SEKUNDEN,
+        "ttl_seconds": int(TAKT_S),
     }
 
 
@@ -234,10 +264,41 @@ async def neu_laden() -> dict[str, Any]:
     """Frisch holen („Neu laden" im Studio), an beiden Speichern vorbei.
 
     Wirkt in DIESEM Prozess. Laufen mehrere Worker, holen die übrigen spätestens
-    nach :data:`_TTL_SEKUNDEN` neu. Scheitert der Abruf, bleibt der bisherige
+    mit ihrem nächsten Takt (:data:`TAKT_S`) neu. Scheitert der Abruf, bleibt der bisherige
     Text, und ``last_error`` sagt warum.
     """
     kennung = _kennung()
     if kennung:
         await _hole(kennung, frisch=True)
     return await anzeige()
+
+
+async def auffrischen() -> None:
+    """Ein Schritt des Takts: frisch holen, wenn der Skill eingeschaltet ist oder schon
+    gebraucht wurde.
+
+    Abgeschaltet holt der Takt erst nach dem ersten Gebrauch — eine Einbettung schaltet ihn je
+    Zug ein (``environment.master_skill``), das Studio zeigt den Wortlaut. Die Vorgabe-Kennung
+    ist eine echte Knoten-ID: ohne diese Grenze fragte jede Anlage mit abgeschaltetem Skill
+    alle :data:`TAKT_S` Sekunden das Repositorium ab.
+    """
+    kennung = _kennung()
+    if not kennung:
+        return
+    if get_settings().master_skill_enabled or _gespeichert(kennung) is not None:
+        await _hole(kennung, frisch=True)
+
+
+async def _schleife() -> None:
+    while True:
+        try:
+            await auffrischen()
+        except Exception:  # noqa: BLE001 — der nächste Takt versucht es wieder
+            logger.warning("Master-Skill: Takt gescheitert", exc_info=True)
+        await asyncio.sleep(TAKT_S)
+
+
+def starte() -> asyncio.Task[None]:
+    """Den Takt im Hintergrund starten (erster Abruf sofort); der Aufrufer bricht die
+    Aufgabe beim Herunterfahren ab."""
+    return asyncio.create_task(_schleife(), name="master-skill-takt")

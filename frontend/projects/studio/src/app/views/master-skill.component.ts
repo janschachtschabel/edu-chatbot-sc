@@ -3,7 +3,7 @@
  *
  * Nutzer-Entscheid 2026-09-26: er bleibt im edu-sharing-Repositorium, „das ist
  * so gewollt". Das Panel zeigt, was gilt, und verweist zum Bearbeiten auf den
- * Knoten. „Neu laden" wartet die Speicherdauer des Backends nicht ab.
+ * Knoten. „Neu laden" wartet den nächsten Takt des Backends nicht ab.
  *
  * Der Wortlaut steht als reiner Text im `<pre>`: er kommt aus dem Repositorium,
  * und eine Anzeige, die ihn als Markdown oder HTML deutete, hinge an fremdem
