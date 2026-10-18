@@ -435,7 +435,7 @@
    "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
    "provider": "github",
    "link_mode": "web",
-   "revision": "989ae753f698b858eebf94dbd66253a032cfddd7"
+   "revision": "dde13d3d73498f540586e53201be8cc4b27acc41"
   }
  },
  "lanes": [
@@ -458,7 +458,7 @@
   },
   {
    "id": "mcp",
-   "label": "WLO-MCP-Server"
+   "label": "MCP-Server (WLO + weitere)"
   }
  ],
  "phases": [
@@ -509,7 +509,7 @@
    "sources": [
     {
      "path": "backend/src/boerdi/api/chat.py",
-     "line": 199,
+     "line": 273,
      "label": "SSE-Endpunkt"
     }
    ]
@@ -525,7 +525,7 @@
    "sources": [
     {
      "path": "backend/src/boerdi/api/sse.py",
-     "line": 130,
+     "line": 229,
      "label": "result-Frame"
     }
    ],
@@ -543,7 +543,7 @@
     {
      "path": "backend/src/boerdi/graph/build.py",
      "line": 119,
-     "end_line": 133,
+     "end_line": 132,
      "label": "Ausstiege"
     }
    ]
@@ -565,7 +565,7 @@
     },
     {
      "path": "backend/src/boerdi/graph/nodes/setup.py",
-     "line": 60,
+     "line": 86,
      "label": "Sitzung aus Postgres"
     }
    ]
@@ -581,8 +581,7 @@
    "sources": [
     {
      "path": "backend/src/boerdi/graph/nodes/assess.py",
-     "line": 100,
-     "end_line": 110,
+     "line": 140,
      "label": "asyncio.gather"
     }
    ],
@@ -604,8 +603,8 @@
     },
     {
      "path": "backend/src/boerdi/graph/nodes/route.py",
-     "line": 155,
-     "end_line": 163,
+     "line": 177,
+     "end_line": 189,
      "label": "select_pattern"
     }
    ],
@@ -622,12 +621,12 @@
    "sources": [
     {
      "path": "backend/src/boerdi/graph/nodes/respond.py",
-     "line": 411,
+     "line": 441,
      "label": "generate_response"
     },
     {
      "path": "backend/src/boerdi/services/tool_loop.py",
-     "line": 145,
+     "line": 262,
      "label": "Werkzeugschleife"
     }
    ]
@@ -648,7 +647,7 @@
     },
     {
      "path": "backend/src/boerdi/services/rag/retrieval.py",
-     "line": 128,
+     "line": 132,
      "label": "Kosinus-Abstand"
     }
    ]
@@ -664,7 +663,7 @@
    "sources": [
     {
      "path": "backend/src/boerdi/services/classify.py",
-     "line": 63,
+     "line": 75,
      "label": "classify_input"
     }
    ],
@@ -681,12 +680,13 @@
    "sources": [
     {
      "path": "backend/src/boerdi/services/response_tool_selection.py",
-     "line": 506,
+     "line": 557,
+     "end_line": 560,
      "label": "Antwort-Werkzeug"
     },
     {
      "path": "backend/src/boerdi/services/tool_loop.py",
-     "line": 497,
+     "line": 570,
      "label": "respond_to_user"
     }
    ],
@@ -703,7 +703,7 @@
    "sources": [
     {
      "path": "backend/src/boerdi/services/turn_assembly.py",
-     "line": 303,
+     "line": 306,
      "label": "exakter Aufruf"
     }
    ]
@@ -713,19 +713,77 @@
    "lane": "mcp",
    "col": 4,
    "type": "external",
-   "label": "MCP-Werkzeuge",
+   "label": "WLO-MCP-Werkzeuge",
    "sublabel": "Suche · Sammlungen · Inhalte",
    "width": 160,
    "sources": [
     {
      "path": "backend/src/boerdi/services/tool_loop.py",
-     "line": 739,
+     "line": 844,
      "label": "call_with_outcome"
     },
     {
      "path": "backend/src/boerdi/services/mcp/client.py",
-     "line": 222,
+     "line": 238,
      "label": "call_mcp_tool"
+    }
+   ]
+  },
+  {
+   "id": "strom",
+   "lane": "widget",
+   "col": 4,
+   "type": "frontend",
+   "label": "Text wächst mit",
+   "sublabel": "text_delta während der Antwort",
+   "width": 160,
+   "sources": [
+    {
+     "path": "backend/src/boerdi/graph/nodes/respond.py",
+     "line": 434,
+     "end_line": 436,
+     "label": "Strom öffnen"
+    },
+    {
+     "path": "backend/src/boerdi/domain/stream_gate.py",
+     "line": 23,
+     "label": "Sperrgründe"
+    },
+    {
+     "path": "backend/seeds/01-base/engine.yaml",
+     "line": 72,
+     "end_line": 76,
+     "label": "betrieb.token_streaming"
+    }
+   ],
+   "tag": "Vorgabe an"
+  },
+  {
+   "id": "fremd",
+   "lane": "mcp",
+   "col": 5,
+   "type": "external",
+   "label": "Weitere MCP-Server",
+   "sublabel": "nur lesend · server__werkzeug",
+   "width": 175,
+   "sources": [
+    {
+     "path": "backend/src/boerdi/services/response_tool_selection.py",
+     "line": 119,
+     "end_line": 121,
+     "label": "nur wenn ein Muster sie nennt"
+    },
+    {
+     "path": "backend/src/boerdi/services/mcp/client.py",
+     "line": 284,
+     "end_line": 287,
+     "label": "eigener Aufrufweg"
+    },
+    {
+     "path": "backend/src/boerdi/domain/fremdwerkzeug.py",
+     "line": 10,
+     "end_line": 13,
+     "label": "nur lesend, eigener Namensraum"
     }
    ]
   },
@@ -736,7 +794,7 @@
    "type": "backend",
    "label": "assemble + persist",
    "sublabel": "Karten · Vorschläge · Speichern",
-   "width": 215,
+   "width": 205,
    "sources": [
     {
      "path": "backend/src/boerdi/graph/nodes/assemble.py",
@@ -745,12 +803,13 @@
     },
     {
      "path": "backend/src/boerdi/services/turn_assembly.py",
-     "line": 253,
+     "line": 195,
+     "end_line": 213,
      "label": "Inline zuerst"
     },
     {
      "path": "backend/src/boerdi/services/turn_persist.py",
-     "line": 160,
+     "line": 164,
      "label": "Zeit-Zeilen"
     }
    ]
@@ -856,11 +915,35 @@
    "role": "return"
   },
   {
+   "id": "t3",
+   "from": "antwortllm",
+   "to": "fremd",
+   "label": "nur wenn das Muster sie nennt",
+   "role": "branch",
+   "variant": "dashed"
+  },
+  {
    "id": "l4",
    "from": "abschluss",
    "to": "qrfallback",
    "label": "nur ohne Inline",
    "role": "branch",
+   "variant": "dashed"
+  },
+  {
+   "id": "s1",
+   "from": "respond",
+   "to": "strom",
+   "label": "text_delta",
+   "role": "async",
+   "variant": "dashed"
+  },
+  {
+   "id": "s2",
+   "from": "strom",
+   "to": "antwort",
+   "label": "result löst ab",
+   "role": "async",
    "variant": "dashed"
   }
  ],
@@ -881,7 +964,8 @@
    "items": [
     "Der Klassifikator liefert Persona, Intent und Muster-Hinweis; die Pattern-Engine wählt aus 20 Mustern",
     "Das Muster legt Werkzeuge, Ton, Länge und Ausgabeform fest",
-    "Werkzeugschleife: höchstens 5 Runden LLM ⇄ MCP, Ende über respond_to_user"
+    "Werkzeugschleife: höchstens 5 Runden LLM ⇄ MCP, Ende über respond_to_user",
+    "Lesende Werkzeuge weiterer MCP-Server (server__werkzeug) nur, wenn ein Muster sie nennt"
    ]
   },
   {
@@ -891,6 +975,16 @@
     "Tour, Kontext-Begrüßung und Drosselung antworten vor jedem LLM-Aufruf",
     "Krise und Bedrohung (M01/M02) erzwingt das Sicherheits-Gate; dort gibt es keine Schnellantworten",
     "Liefert der Antwort-Aufruf keine Vorschläge, schreibt sie ein eigener Aufruf nach"
+   ]
+  },
+  {
+   "dot": "cyan",
+   "title": "Token-Streaming (Vorgabe an)",
+   "items": [
+    "Der Text von respond_to_user läuft schon während respond als text_delta ins Widget",
+    "Gesperrt bei Such- und Dokumentmustern (M05/M06, M09–M11, M16) und erhöhtem Risiko",
+    "Der result-Frame am Ende bringt Karten, Vorschläge und den fertigen Text",
+    "Schalter im Studio (betrieb.token_streaming), CHAT_TOKEN_STREAMING geht vor"
    ]
   }
  ]
