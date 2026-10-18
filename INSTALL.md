@@ -160,10 +160,11 @@ Zusätzlich eintragen:
 BOERDI_IMAGE=ghcr.io/<konto>/<repo>:sha-1234567
 ```
 
-`BACKEND_REPLICAS` bleibt bei der Vorgabe 1 (Paket 4, L4): Züge derselben
-Sitzung sperrt bisher nur ein prozessinterner Lock, über Replikas hinweg
-könnten sie parallel laufen (Befundliste, C-H1). Ist das behoben, lassen drei
-Replikas auf sechs Kernen jedem zwei; auf einem 2-Kern-Server bleibt es bei 1.
+`BACKEND_REPLICAS` bleibt bei der Vorgabe 1. Mehrere Replikas sind möglich: Züge
+derselben Sitzung sperrt seit Paket 7 ein Eintrag in Postgres (`session_locks`,
+Migration 0008) über alle Replikas hinweg. Drei Replikas auf sechs Kernen lassen
+jedem zwei; auf einem 2-Kern-Server bleibt es bei 1. Die b-api zählt je Schlüssel,
+nicht je Replik — `LLM_MAX_CONCURRENCY` dann teilen (`.env.example`).
 
 Vollständigkeit prüfen, ohne zu starten:
 
@@ -181,7 +182,15 @@ docker compose -f compose.prod.yml --env-file .env up -d postgres
 
 # 7b — Schema anlegen und fehlende Seed-Bereiche füllen (ein Lauf, idempotent)
 docker compose -f compose.prod.yml --env-file .env up migrate
+
+# 7c — Wissensbestand einlesen (RAG): am backend-Dienst, er braucht die LLM-Zugangsdaten
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps backend boerdi import-rag
 ```
+
+7c bettet die mitgelieferten Abschnitte (`/app/seeds/rag`, 909 in 8 Bereichen) neu ein —
+wenige Minuten. Ohne diesen Schritt bleiben die Wissensbereiche leer, und der Bot
+antwortet aus Modellwissen statt aus den Dokumenten. Wiederholbar: belegte Bereiche
+bleiben unberührt (Einzelheiten: `deploy/README.md`, „Und der Wissensbestand dazu“).
 
 Der `migrate`-Dienst führt beides aus: `alembic upgrade head`, dann
 `boerdi import-config --werksabgleich`. Der Seed-Baum liegt **im Image** unter
@@ -275,7 +284,9 @@ heisst ja.
 Hugging-Face-Datei (andere Quantisierung). Ein Stichprobenvergleich (20 Paare, 2026-10-15) ergab an
 den wirksamen Schwellen dieselben Entscheidungen (Sammlungen −1,0, Einzelinhalte −1,5; knappster Fall
 0,12 von der Schwelle). Vor dem Einschalten im Wirkbetrieb mit Golden-Läufen nachmessen;
-überschreibbar per `CARD_CE_GATE_COLLECTION` / `CARD_CE_GATE_CONTENT`.
+überschreibbar per `CARD_CE_GATE_COLLECTION` / `CARD_CE_GATE_CONTENT`. Beide reicht
+`compose.prod.yml` nicht durch — wer sie braucht, ergänzt sie dort unter
+`backend: environment:`.
 
 <details>
 <summary>Herkunft und Prüfwerte (Nachvollziehbarkeit)</summary>
@@ -332,8 +343,9 @@ Selbstsignatur, und der Fehler sieht aus wie ein DNS-Problem:
 docker compose -f compose.prod.yml logs traefik | grep -i -E "certificate|acme"
 ```
 
-**Kam der Seed an?** Die Frage beantwortet der Bot selbst — im Studio unter
-„Muster" müssen die M-Nummern stehen. Leere Listen heissen: Schritt 7c fehlt.
+**Kam der Seed an?** Im Studio unter Muster → „Patterns" müssen die M-Nummern
+stehen; leere Listen heissen: Schritt 7b fehlt. Unter Gemeinsam → „Wissen" tragen
+die Bereiche Dokumente; `0 Dokumente` heisst: Schritt 7c fehlt.
 
 ## 11. Aktualisieren
 

@@ -1,16 +1,18 @@
 # Architektur-Grafiken
 
 Sechs interaktive Grafiken zu boerdi-chat, erzeugt mit [archify](https://github.com/tt-a1i/archify).
-Die Startseite ist [`index.html`](index.html).
+**Ansehen:** [https://janschachtschabel.github.io/edu-chatbot-sc/](https://janschachtschabel.github.io/edu-chatbot-sc/) (GitHub Pages). Die Links auf `.html`-Dateien im
+Repository zeigen auf GitHub nur den Quelltext — deshalb führen die Links unten auf die
+veröffentlichten Seiten.
 
-| Grafik | Datei | Quellstand |
-|---|---|---|
-| Architektur: Widget, Studio, Backend, MCP | [`architektur.html`](architektur.html) | `989ae75` |
-| Software-Stack: Bibliotheken und Dienste im Zusammenspiel | [`software-stack.html`](software-stack.html) | `1f069e9` |
-| Ablauf eines Zuges im Muster-Modus | [`ablauf-muster-modus.html`](ablauf-muster-modus.html) | `989ae75` |
-| Ablauf eines Zuges in der Agent-Schleife | [`ablauf-agent-schleife.html`](ablauf-agent-schleife.html) | `989ae75` |
-| Konfiguration im Muster-Modus: was wo auf das Gespräch wirkt | [`konfiguration-muster-modus.html`](konfiguration-muster-modus.html) | `1f069e9` |
-| Konfiguration in der Agent-Schleife: was wo auf das Gespräch wirkt | [`konfiguration-agent-schleife.html`](konfiguration-agent-schleife.html) | `1f069e9` |
+| Grafik | Ansehen | Bild (hell) | Quelle | Quellstand |
+|---|---|---|---|---|
+| Architektur: Widget, Studio, Backend, MCP | [architektur.html](https://janschachtschabel.github.io/edu-chatbot-sc/architektur.html) | [PNG](png/architektur.png) | [`architektur.json`](quellen/architektur.json) | `dde13d3` |
+| Software-Stack: Bibliotheken und Dienste im Zusammenspiel | [software-stack.html](https://janschachtschabel.github.io/edu-chatbot-sc/software-stack.html) | [PNG](png/software-stack.png) | [`software-stack.json`](quellen/software-stack.json) | `dde13d3` |
+| Ablauf eines Zuges im Muster-Modus | [ablauf-muster-modus.html](https://janschachtschabel.github.io/edu-chatbot-sc/ablauf-muster-modus.html) | [PNG](png/ablauf-muster-modus.png) | [`ablauf-muster-modus.json`](quellen/ablauf-muster-modus.json) | `dde13d3` |
+| Ablauf eines Zuges in der Agent-Schleife | [ablauf-agent-schleife.html](https://janschachtschabel.github.io/edu-chatbot-sc/ablauf-agent-schleife.html) | [PNG](png/ablauf-agent-schleife.png) | [`ablauf-agent-schleife.json`](quellen/ablauf-agent-schleife.json) | `dde13d3` |
+| Konfiguration im Muster-Modus: was wo auf das Gespräch wirkt | [konfiguration-muster-modus.html](https://janschachtschabel.github.io/edu-chatbot-sc/konfiguration-muster-modus.html) | [PNG](png/konfiguration-muster-modus.png) | [`konfiguration-muster-modus.json`](quellen/konfiguration-muster-modus.json) | `dde13d3` |
+| Konfiguration in der Agent-Schleife: was wo auf das Gespräch wirkt | [konfiguration-agent-schleife.html](https://janschachtschabel.github.io/edu-chatbot-sc/konfiguration-agent-schleife.html) | [PNG](png/konfiguration-agent-schleife.png) | [`konfiguration-agent-schleife.json`](quellen/konfiguration-agent-schleife.json) | `dde13d3` |
 
 In den Konfigurations-Grafiken stehen die Schritte eines Zuges in der Mitte. Oben liegen die
 Studio-Bereiche, unten alles außerhalb des Studios: Umgebungsvariablen, Attribute der Einbettung
@@ -18,7 +20,7 @@ und der Master-Skill. Jeder Pfeil führt von einer Einstellung zu dem Schritt, i
 Die Farbe zeigt, wo eingestellt wird.
 
 Die Seiten sind in sich geschlossen: Sie laden keine externen Skripte und keine Web-Fonts.
-Jede Komponente verlinkt auf ihre Quellstelle im Repository; die Links setzen dort Zugang voraus.
+Jede Komponente verlinkt auf ihre Quellstelle im Repository.
 
 ## Lokal nutzen
 
@@ -37,6 +39,9 @@ python -m http.server 8000
 
 Der Workflow [`pages.yml`](../../.github/workflows/pages.yml) veröffentlicht **nur die HTML-Seiten
 dieses Ordners**. Ohne die Repo-Variable `PAGES_AKTIV` wird er übersprungen, statt zu scheitern.
+**Eingeschaltet seit 2026-10-18** (Quelle „GitHub Actions“, `PAGES_AKTIV=true`); jeder Push auf
+`main`, der diesen Ordner ändert, veröffentlicht neu. Die Schritte unten gelten für einen Fork
+oder ein neues Repository.
 
 1. **Voraussetzung:** Das Repository ist öffentlich, oder der GitHub-Plan ist bezahlt; für ein
    privates Repository auf GitHub Free gibt es kein Pages. Die Seite selbst ist in jedem Fall
@@ -82,6 +87,10 @@ node <archify>/bin/archify.mjs finalize architecture docs/architektur-grafiken/q
 
 Jede Quelle trägt ihren eigenen Stand in `meta.repository.revision`. archify prüft die Belege
 gegen diesen Commit; der Klon unter `--repo-root` muss ihn also enthalten.
+
+**Bilder für Folien und Dokumente:** Unter [`png/`](png/) liegt jede Grafik als PNG im hellen
+Modus — exportiert über *Exportieren → PNG* des Viewers bei hellem Thema. Nach dem Neu-Erzeugen
+ebenso neu exportieren.
 
 `finalize` legt neben jede Grafik Prüfbelege (`*.delivery.json` u. a.) mit lokalen Pfaden ab.
 Die [`.gitignore`](.gitignore) hält sie aus dem Repository.

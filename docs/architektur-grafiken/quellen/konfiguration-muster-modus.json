@@ -454,7 +454,7 @@
    "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
    "provider": "github",
    "link_mode": "web",
-   "revision": "1f069e9030f96da46cfe3d0bb760c3738aa72d73"
+   "revision": "dde13d3d73498f540586e53201be8cc4b27acc41"
   }
  },
  "components": [
@@ -465,7 +465,7 @@
    "sublabel": "vor dem ersten Zug",
    "pos": [
     40,
-    390
+    500
    ],
    "size": [
     200,
@@ -474,8 +474,8 @@
    "sources": [
     {
      "path": "backend/src/boerdi/api/config.py",
-     "line": 338,
-     "end_line": 348,
+     "line": 279,
+     "end_line": 285,
      "label": "Start-Abruf"
     },
     {
@@ -492,7 +492,7 @@
    "sublabel": "Maschine · Tour · Kontext · Limits",
    "pos": [
     330,
-    390
+    500
    ],
    "size": [
     200,
@@ -501,8 +501,7 @@
    "sources": [
     {
      "path": "backend/src/boerdi/api/chat.py",
-     "line": 102,
-     "end_line": 104,
+     "line": 113,
      "label": "Maschine wählen"
     },
     {
@@ -526,7 +525,7 @@
    "sublabel": "Sicherheit ∥ Klassifikation",
    "pos": [
     620,
-    390
+    500
    ],
    "size": [
     200,
@@ -535,14 +534,12 @@
    "sources": [
     {
      "path": "backend/src/boerdi/graph/nodes/assess.py",
-     "line": 110,
-     "end_line": 112,
+     "line": 140,
      "label": "parallel"
     },
     {
      "path": "backend/src/boerdi/graph/nodes/assess.py",
-     "line": 72,
-     "end_line": 81,
+     "line": 94,
      "label": "Regex zuerst"
     }
    ]
@@ -554,7 +551,7 @@
    "sublabel": "Themen · Richtlinien · Muster · Ton",
    "pos": [
     910,
-    390
+    500
    ],
    "size": [
     200,
@@ -569,14 +566,14 @@
     },
     {
      "path": "backend/src/boerdi/graph/nodes/route.py",
-     "line": 117,
-     "end_line": 127,
+     "line": 120,
+     "end_line": 132,
      "label": "Richtlinien"
     },
     {
      "path": "backend/src/boerdi/graph/nodes/route.py",
-     "line": 163,
-     "end_line": 174,
+     "line": 176,
+     "end_line": 185,
      "label": "select_pattern"
     }
    ]
@@ -588,7 +585,7 @@
    "sublabel": "Prompt · Wissen · Werkzeuge · LLM",
    "pos": [
     1200,
-    390
+    500
    ],
    "size": [
     200,
@@ -597,19 +594,19 @@
    "sources": [
     {
      "path": "backend/src/boerdi/services/response_prompt_builder.py",
-     "line": 111,
-     "end_line": 125,
+     "line": 117,
+     "end_line": 124,
      "label": "Prompt-Schichten"
     },
     {
      "path": "backend/src/boerdi/services/tool_loop_messages.py",
-     "line": 127,
+     "line": 121,
      "end_line": 147,
      "label": "RAG-Vorabruf"
     },
     {
      "path": "backend/src/boerdi/services/tool_loop.py",
-     "line": 192,
+     "line": 206,
      "label": "höchstens 5 Runden"
     }
    ]
@@ -620,8 +617,8 @@
    "label": "Zusammenbau",
    "sublabel": "Karten · Vorschläge · Speichern",
    "pos": [
-    1490,
-    390
+    1480,
+    500
    ],
    "size": [
     200,
@@ -636,14 +633,14 @@
     },
     {
      "path": "backend/src/boerdi/services/turn_assembly.py",
-     "line": 213,
-     "end_line": 254,
+     "line": 200,
+     "end_line": 257,
      "label": "Schnellantworten"
     },
     {
      "path": "backend/src/boerdi/services/turn_persist.py",
-     "line": 493,
-     "end_line": 510,
+     "line": 519,
+     "end_line": 536,
      "label": "Deckel"
     }
    ]
@@ -655,7 +652,7 @@
    "sublabel": "Gruß · Startchips · Tour-Chip",
    "pos": [
     195,
-    260
+    370
    ],
    "size": [
     180,
@@ -676,7 +673,7 @@
     },
     {
      "path": "backend/src/boerdi/api/config.py",
-     "line": 344,
+     "line": 285,
      "label": "an das Widget"
     }
    ]
@@ -688,7 +685,7 @@
    "sublabel": "Antwort ohne LLM, Zug endet",
    "pos": [
     195,
-    150
+    260
    ],
    "size": [
     180,
@@ -703,13 +700,13 @@
     },
     {
      "path": "backend/src/boerdi/graph/nodes/tour.py",
-     "line": 203,
+     "line": 204,
      "end_line": 210,
      "label": "Tour-Antwort"
     },
     {
      "path": "backend/src/boerdi/graph/nodes/context_greeting.py",
-     "line": 396,
+     "line": 414,
      "end_line": 428,
      "label": "context-actions"
     }
@@ -722,7 +719,7 @@
    "sublabel": "mode: pattern oder agent",
    "pos": [
     195,
-    40
+    150
    ],
    "size": [
     180,
@@ -731,8 +728,13 @@
    "sources": [
     {
      "path": "backend/seeds/01-base/engine.yaml",
-     "line": 16,
+     "line": 17,
      "label": "mode"
+    },
+    {
+     "path": "backend/src/boerdi/domain/config_models/engine.py",
+     "line": 198,
+     "label": "pattern | agent"
     },
     {
      "path": "backend/src/boerdi/services/engine_choice.py",
@@ -746,10 +748,10 @@
    "id": "datenschutz",
    "type": "database",
    "label": "Datenschutz",
-   "sublabel": "ohne Speichern kein Verlauf",
+   "sublabel": "kein Verlauf · Löschen nach 30 Tagen",
    "pos": [
     485,
-    260
+    370
    ],
    "size": [
     180,
@@ -759,18 +761,18 @@
     {
      "path": "backend/seeds/01-base/privacy-config.yaml",
      "line": 5,
-     "end_line": 8,
-     "label": "privacy-config"
+     "end_line": 17,
+     "label": "Schalter + 30 Tage"
     },
     {
      "path": "backend/src/boerdi/services/db_sessions.py",
-     "line": 97,
-     "end_line": 105,
+     "line": 114,
+     "end_line": 119,
      "label": "messages-Schalter"
     },
     {
      "path": "backend/src/boerdi/graph/nodes/setup.py",
-     "line": 61,
+     "line": 87,
      "label": "Verlauf laden"
     }
    ]
@@ -782,7 +784,7 @@
    "sublabel": "erzwingt M01/M02 · sperrt Suche",
    "pos": [
     485,
-    150
+    260
    ],
    "size": [
     180,
@@ -803,7 +805,7 @@
     },
     {
      "path": "backend/src/boerdi/services/safety/regex_gate.py",
-     "line": 237,
+     "line": 238,
      "end_line": 253,
      "label": "Regex fest"
     }
@@ -816,7 +818,7 @@
    "sublabel": "Personas · Intents · Zustände",
    "pos": [
     485,
-    40
+    150
    ],
    "size": [
     180,
@@ -825,14 +827,14 @@
    "sources": [
     {
      "path": "backend/src/boerdi/services/classify_prompt.py",
-     "line": 221,
-     "end_line": 225,
+     "line": 262,
+     "end_line": 290,
      "label": "Vokabular"
     },
     {
      "path": "backend/src/boerdi/services/classify_prompt.py",
-     "line": 316,
-     "end_line": 321,
+     "line": 315,
+     "end_line": 320,
      "label": "classify-overrides"
     },
     {
@@ -849,7 +851,7 @@
    "sublabel": "leeres Thema → Rückfrage",
    "pos": [
     775,
-    260
+    370
    ],
    "size": [
     180,
@@ -877,7 +879,7 @@
    "sublabel": "Werkzeugsperre · Hinweistext",
    "pos": [
     775,
-    150
+    260
    ],
    "size": [
     180,
@@ -892,8 +894,8 @@
     },
     {
      "path": "backend/src/boerdi/graph/nodes/route.py",
-     "line": 117,
-     "end_line": 127,
+     "line": 120,
+     "end_line": 132,
      "label": "in route"
     }
    ]
@@ -905,7 +907,7 @@
    "sublabel": "Werkzeuge · Ton · Länge · Form",
    "pos": [
     1065,
-    260
+    370
    ],
    "size": [
     180,
@@ -914,14 +916,14 @@
    "sources": [
     {
      "path": "backend/src/boerdi/domain/pattern_engine.py",
-     "line": 309,
-     "end_line": 320,
+     "line": 324,
+     "end_line": 335,
      "label": "select_pattern"
     },
     {
      "path": "backend/src/boerdi/domain/pattern_engine.py",
-     "line": 240,
-     "end_line": 263,
+     "line": 243,
+     "end_line": 278,
      "label": "Muster-Felder"
     },
     {
@@ -938,7 +940,7 @@
    "sublabel": "Anrede · Länge · max. Treffer",
    "pos": [
     1065,
-    150
+    260
    ],
    "size": [
     180,
@@ -953,8 +955,8 @@
     },
     {
      "path": "backend/src/boerdi/domain/pattern_engine.py",
-     "line": 199,
-     "end_line": 226,
+     "line": 197,
+     "end_line": 240,
      "label": "phase3_modulate"
     },
     {
@@ -981,15 +983,15 @@
    "sources": [
     {
      "path": "backend/src/boerdi/services/response_prompt_builder.py",
-     "line": 111,
-     "end_line": 125,
+     "line": 117,
+     "end_line": 124,
      "label": "Basis, Domäne, Zustand"
     },
     {
      "path": "backend/src/boerdi/services/response_prompt_builder.py",
-     "line": 284,
-     "end_line": 286,
-     "label": "Schutzregeln zuletzt"
+     "line": 298,
+     "end_line": 302,
+     "label": "Schutzregeln"
     },
     {
      "path": "backend/seeds/01-base/guardrails.md",
@@ -1006,7 +1008,7 @@
    "sublabel": "Chips · Karten · Dokument-Box",
    "pos": [
     1355,
-    260
+    370
    ],
    "size": [
     180,
@@ -1027,8 +1029,8 @@
     },
     {
      "path": "backend/src/boerdi/services/turn_persist.py",
-     "line": 493,
-     "end_line": 510,
+     "line": 519,
+     "end_line": 536,
      "label": "Deckel"
     }
    ]
@@ -1040,7 +1042,7 @@
    "sublabel": "„Bring mich hin“-Chips",
    "pos": [
     1355,
-    150
+    260
    ],
    "size": [
     180,
@@ -1058,6 +1060,12 @@
      "line": 65,
      "end_line": 73,
      "label": "Host-Prüfung"
+    },
+    {
+     "path": "backend/src/boerdi/services/guide_qr_injector.py",
+     "line": 268,
+     "end_line": 296,
+     "label": "Regeln ohne Neustart"
     }
    ]
   },
@@ -1065,10 +1073,10 @@
    "id": "wissen",
    "type": "database",
    "label": "Wissensbereiche (RAG)",
-   "sublabel": "Vorabruf · nur M04 und M15",
+   "sublabel": "Vorabruf · nur M04, M10, M15",
    "pos": [
     1355,
-    40
+    150
    ],
    "size": [
     180,
@@ -1077,21 +1085,21 @@
    "sources": [
     {
      "path": "backend/seeds/05-knowledge/rag-config.yaml",
-     "line": 17,
-     "end_line": 18,
-     "label": "rag-config"
+     "line": 3,
+     "end_line": 10,
+     "label": "mode"
     },
     {
      "path": "backend/src/boerdi/domain/route_head.py",
-     "line": 31,
-     "end_line": 45,
+     "line": 21,
+     "end_line": 49,
      "label": "Bereichsliste je Muster"
     },
     {
-     "path": "backend/src/boerdi/services/tool_loop_messages.py",
-     "line": 127,
-     "end_line": 147,
-     "label": "Vorabruf"
+     "path": "backend/seeds/03-patterns/m10-ki-inhalt-generierung.md",
+     "line": 21,
+     "end_line": 24,
+     "label": "M10"
     }
    ]
   },
@@ -1102,7 +1110,7 @@
    "sublabel": "page_context · page_event",
    "pos": [
     195,
-    520
+    630
    ],
    "size": [
     180,
@@ -1111,20 +1119,18 @@
    "sources": [
     {
      "path": "backend/src/boerdi/api/schemas.py",
-     "line": 164,
-     "end_line": 165,
-     "label": "Attribute"
+     "line": 176,
+     "label": "page_context"
     },
     {
-     "path": "backend/src/boerdi/graph/nodes/page_context_enrich.py",
-     "line": 160,
-     "end_line": 169,
-     "label": "Seitenart"
+     "path": "backend/src/boerdi/api/schemas.py",
+     "line": 283,
+     "label": "page_event"
     },
     {
      "path": "backend/src/boerdi/graph/nodes/context_greeting.py",
-     "line": 413,
-     "end_line": 428,
+     "line": 414,
+     "end_line": 435,
      "label": "Gruß + Pills"
     }
    ]
@@ -1132,42 +1138,8 @@
   {
    "id": "mcp",
    "type": "cloud",
-   "label": "MCP-Server & Token",
-   "sublabel": "Werkzeuge · Kuratieren",
-   "pos": [
-    1065,
-    520
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/settings.py",
-     "line": 172,
-     "end_line": 178,
-     "label": "MCP_SERVER_URL"
-    },
-    {
-     "path": "backend/src/boerdi/settings.py",
-     "line": 181,
-     "end_line": 190,
-     "label": "MCP_AUTH_TOKEN"
-    },
-    {
-     "path": "backend/src/boerdi/services/response_tool_selection.py",
-     "line": 101,
-     "end_line": 105,
-     "label": "Kuratier-Werkzeuge"
-    }
-   ]
-  },
-  {
-   "id": "hosttext",
-   "type": "frontend",
-   "label": "Host-Text & Sprache",
-   "sublabel": "host_instruction · locale",
+   "label": "MCP-Adresse & Token",
+   "sublabel": "Dienstkonto liest nur",
    "pos": [
     1065,
     630
@@ -1178,19 +1150,53 @@
    ],
    "sources": [
     {
+     "path": "backend/src/boerdi/settings.py",
+     "line": 182,
+     "end_line": 189,
+     "label": "MCP_SERVER_URL"
+    },
+    {
+     "path": "backend/src/boerdi/settings.py",
+     "line": 194,
+     "end_line": 200,
+     "label": "MCP_AUTH_TOKEN"
+    },
+    {
+     "path": "backend/src/boerdi/services/schreibrecht.py",
+     "line": 24,
+     "end_line": 30,
+     "label": "Dienstkonto schreibt nur mit Gastkonto"
+    }
+   ]
+  },
+  {
+   "id": "hosttext",
+   "type": "frontend",
+   "label": "Host-Text & Rechte",
+   "sublabel": "host_instruction · locale · tool_mode",
+   "pos": [
+    1065,
+    740
+   ],
+   "size": [
+    180,
+    64
+   ],
+   "sources": [
+    {
      "path": "backend/src/boerdi/api/schemas.py",
-     "line": 227,
+     "line": 238,
      "label": "host_instruction"
     },
     {
      "path": "backend/src/boerdi/api/schemas.py",
-     "line": 167,
+     "line": 178,
      "label": "locale"
     },
     {
-     "path": "backend/src/boerdi/services/response_prompt_builder.py",
-     "line": 109,
-     "label": "Antwortsprache"
+     "path": "backend/src/boerdi/api/schemas.py",
+     "line": 262,
+     "label": "tool_mode"
     }
    ]
   },
@@ -1201,7 +1207,7 @@
    "sublabel": "forced_quick_replies · host",
    "pos": [
     1355,
-    520
+    630
    ],
    "size": [
     180,
@@ -1210,14 +1216,14 @@
    "sources": [
     {
      "path": "backend/src/boerdi/api/schemas.py",
-     "line": 255,
-     "end_line": 260,
+     "line": 266,
+     "end_line": 271,
      "label": "forced_quick_replies"
     },
     {
      "path": "backend/src/boerdi/services/turn_assembly.py",
-     "line": 215,
-     "end_line": 252,
+     "line": 217,
+     "end_line": 257,
      "label": "ersetzen oder mischen"
     },
     {
@@ -1232,41 +1238,7 @@
    "id": "llm",
    "type": "cloud",
    "label": "LLM-Modell & Aufwand",
-   "sublabel": "Modell · Reasoning · Fast-Modus",
-   "pos": [
-    1355,
-    630
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/settings.py",
-     "line": 98,
-     "end_line": 125,
-     "label": "LLM_*"
-    },
-    {
-     "path": "backend/src/boerdi/services/llm_models.py",
-     "line": 46,
-     "end_line": 56,
-     "label": "Modellkette"
-    },
-    {
-     "path": "backend/src/boerdi/services/llm.py",
-     "line": 130,
-     "end_line": 136,
-     "label": "Reasoning"
-    }
-   ]
-  },
-  {
-   "id": "schalter",
-   "type": "cloud",
-   "label": "Antwort-Schalter",
-   "sublabel": "RAG · Karten · Schnellantworten",
+   "sublabel": "Modell · Reasoning",
    "pos": [
     1355,
     740
@@ -1278,21 +1250,155 @@
    "sources": [
     {
      "path": "backend/src/boerdi/settings.py",
-     "line": 295,
-     "end_line": 314,
-     "label": "RAG_*, CARD_*, CHAT_*"
+     "line": 100,
+     "end_line": 129,
+     "label": "LLM_*"
     },
     {
-     "path": "backend/src/boerdi/services/rag/retrieval.py",
-     "line": 105,
-     "end_line": 114,
-     "label": "RAG-Werte"
+     "path": "backend/src/boerdi/services/llm_models.py",
+     "line": 48,
+     "end_line": 57,
+     "label": "Modellkette"
+    },
+    {
+     "path": "backend/src/boerdi/services/llm.py",
+     "line": 119,
+     "end_line": 123,
+     "label": "Reasoning"
+    }
+   ]
+  },
+  {
+   "id": "schalter",
+   "type": "cloud",
+   "label": "Antwort-Schalter",
+   "sublabel": "RAG · Karten · Schnellantworten",
+   "pos": [
+    1355,
+    850
+   ],
+   "size": [
+    180,
+    64
+   ],
+   "sources": [
+    {
+     "path": "backend/src/boerdi/settings.py",
+     "line": 325,
+     "end_line": 330,
+     "label": "RAG_*"
+    },
+    {
+     "path": "backend/src/boerdi/settings.py",
+     "line": 345,
+     "end_line": 347,
+     "label": "CHAT_INLINE_QUICK_REPLIES"
     },
     {
      "path": "backend/src/boerdi/domain/antwort_werkzeug.py",
-     "line": 51,
+     "line": 42,
      "end_line": 52,
      "label": "Inline-Schalter"
+    }
+   ]
+  },
+  {
+   "id": "werkzeuge",
+   "type": "database",
+   "label": "Werkzeuge & MCP-Server",
+   "sublabel": "Haken je Werkzeug · fremde lesend",
+   "pos": [
+    1065,
+    150
+   ],
+   "size": [
+    180,
+    64
+   ],
+   "sources": [
+    {
+     "path": "backend/seeds/05-knowledge/mcp-servers.yaml",
+     "line": 29,
+     "end_line": 32,
+     "label": "werkzeuge_aus"
+    },
+    {
+     "path": "backend/src/boerdi/domain/werkzeug_freigabe.py",
+     "line": 1,
+     "end_line": 8,
+     "label": "verbergen"
+    },
+    {
+     "path": "backend/src/boerdi/domain/fremdwerkzeug.py",
+     "line": 1,
+     "end_line": 16,
+     "label": "fremde nur lesend"
+    }
+   ]
+  },
+  {
+   "id": "betrieb",
+   "type": "database",
+   "label": "Betriebsschalter",
+   "sublabel": "Fast · Streaming · Gastkonto",
+   "pos": [
+    1355,
+    40
+   ],
+   "size": [
+    180,
+    64
+   ],
+   "sources": [
+    {
+     "path": "backend/seeds/01-base/engine.yaml",
+     "line": 65,
+     "end_line": 86,
+     "label": "betrieb"
+    },
+    {
+     "path": "backend/src/boerdi/services/betriebsschalter.py",
+     "line": 21,
+     "end_line": 52,
+     "label": "Umgebung geht vor"
+    },
+    {
+     "path": "backend/src/boerdi/services/llm.py",
+     "line": 200,
+     "label": "Fast-Modus"
+    }
+   ]
+  },
+  {
+   "id": "ticket",
+   "type": "frontend",
+   "label": "Persönliches Ticket",
+   "sublabel": "schaltet Schreiben frei",
+   "pos": [
+    1065,
+    850
+   ],
+   "size": [
+    180,
+    64
+   ],
+   "sources": [
+    {
+     "path": "backend/src/boerdi/api/turn_auth.py",
+     "line": 30,
+     "label": "WLO-Access-Block"
+    },
+    {
+     "path": "backend/src/boerdi/services/mcp/auth.py",
+     "line": 215,
+     "end_line": 236,
+     "label": "angemeldete Person"
+    },
+    {
+     "path": "backend/src/boerdi/graph/nodes/preflight.py",
+     "line": 137,
+     "end_line": 141,
+     "label": "Abnahme im Folgezug"
     }
    ]
   }
@@ -1315,7 +1421,9 @@
     "prompt",
     "anzeige",
     "guide",
-    "wissen"
+    "wissen",
+    "werkzeuge",
+    "betrieb"
    ]
   },
   {
@@ -1327,7 +1435,8 @@
     "hosttext",
     "hostchips",
     "llm",
-    "schalter"
+    "schalter",
+    "ticket"
    ]
   }
  ],
@@ -1504,6 +1613,27 @@
    "to": "s4",
    "fromSide": "left",
    "toSide": "bottom"
+  },
+  {
+   "id": "s4-oa0-werkzeuge",
+   "from": "werkzeuge",
+   "to": "s4",
+   "fromSide": "right",
+   "toSide": "top"
+  },
+  {
+   "id": "s4-ob0-betrieb",
+   "from": "betrieb",
+   "to": "s4",
+   "fromSide": "left",
+   "toSide": "top"
+  },
+  {
+   "id": "s4-ua3-ticket",
+   "from": "ticket",
+   "to": "s4",
+   "fromSide": "right",
+   "toSide": "bottom"
   }
  ],
  "cards": [
@@ -1512,9 +1642,18 @@
    "title": "Lesehilfe",
    "items": [
     "Mitte: die Schritte eines Zuges; ein Pfeil führt von der Einstellung zum Schritt, in dem sie wirkt",
-    "Oben: Studio-Bereiche in Postgres – sie gelten ohne Neustart, nur die Guide-Regeln brauchen einen",
-    "Unten: Umgebungsvariablen des Betriebs (Neustart) und Attribute der Einbettung (je Anfrage)",
+    "Oben: Studio-Bereiche in Postgres – alle wirken ohne Neustart, auch die Lotsen-Regeln",
+    "Unten: Umgebungsvariablen (Neustart; gesetzt gehen sie dem Studio-Schalter vor) und Attribute der Einbettung (je Anfrage)",
     "Nicht gezeichnet: RATE_LIMIT_CHAT (HTTP 429) und das Attribut device (Trefferzahl je Gerät)"
+   ]
+  },
+  {
+   "dot": "violet",
+   "title": "Wo im Studio",
+   "items": [
+    "Muster: Patterns · Dimensionen (Klassifikator, Themen, Persona-Ton) · Identität & Schutz (Sicherheit, Richtlinien, Leitplanken) · Domänenwissen",
+    "Gemeinsam: Begrüßung · Kontext-Aktionen · Tour & Lotse · Zielgruppen · Wissen (RAG, MCP-Server) · Werkzeuge · Skills · Anzeige · Datenschutz",
+    "System › Betrieb: Betriebsart und Betriebsschalter"
    ]
   },
   {
@@ -1524,17 +1663,19 @@
     "20 Muster M01–M20: die Klassifikation liefert einen Hinweis, die Musterwahl entscheidet, Schutzmuster zuerst",
     "Ein Muster legt Werkzeuge, Ton, Länge, Ausgabeform, Quellen und den Schnellantwort-Modus fest",
     "Persona-Ton und Signale verschieben Ton und Länge; die Geräte-Regel setzt die Trefferzahl (Seed: 4)",
-    "Wissen aus RAG nur in Mustern mit eigener Bereichsliste – im Seed M04 und M15"
+    "Wissen aus RAG nur in Mustern mit eigener Bereichsliste – im Seed M04, M10 und M15",
+    "Werkzeuge fremder MCP-Server nur, wenn ein Muster sie nennt; Skill-Brücke (Skills, Vorgabe aus) gibt Werkzeug-Mustern freigegebene Skills"
    ]
   },
   {
    "dot": "amber",
-   "title": "Schnellantworten",
+   "title": "Schnellantworten & Betrieb",
    "items": [
     "Anzahl und Länge aus den Anzeige-Regeln (Seed: 2 Chips, höchstens 48 Zeichen)",
-    "CHAT_INLINE_QUICK_REPLIES (Vorgabe an): der Antwort-Aufruf liefert sie mit, sonst ein eigener Aufruf",
-    "Host-Chips ersetzen sie; mit quick_replies_max füllt das Modell die übrigen Plätze",
-    "M01 und M02 zeigen keine Schnellantworten"
+    "CHAT_INLINE_QUICK_REPLIES (Vorgabe an): der Antwort-Aufruf liefert sie mit, sonst ein eigener Aufruf; nur dieser Aufruf wird gestreamt",
+    "Host-Chips ersetzen sie; mit quick_replies_max füllt das Modell die übrigen Plätze; M01 und M02 zeigen keine",
+    "Betriebsschalter: Fast-Modus (aus), Token-Streaming (an), Gastkonto schreibt (aus); LLM_SERVICE_TIER und CHAT_TOKEN_STREAMING gehen vor",
+    "Schreiben nur mit persönlicher Anmeldung oder Gastkonto-Schalter; ein „ja“ im Folgezug löst die Vorschau ein"
    ]
   },
   {
@@ -1544,7 +1685,7 @@
     "Verlauf: 20 Nachrichten geladen, die letzten 10 gehen in den Prompt",
     "Werkzeugschleife: höchstens 5 Runden",
     "Regex-Krisenerkennung vor jeder Einstellung (→ M01/M02)",
-    "Nur im Agent-Modus: Master-Skill, tool_mode, result_schema"
+    "Nur im Agent-Modus: Master-Skill und result_schema"
    ]
   }
  ]

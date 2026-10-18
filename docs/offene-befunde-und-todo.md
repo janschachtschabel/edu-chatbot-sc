@@ -198,6 +198,9 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - Widget `chat-shell.component.ts` `focusInput`: der `setTimeout` wird beim Zerstören nicht abgeräumt.
   - `data.page` und `debug.context.page` halten den Pfad der Host-Seite 180 Tage. Schickt eine Einbettung je Query-Strings mit, blieben auch Suchbegriffe; Hebel: die Query in `log_quality_event` abschneiden.
 
+- **Veraltete Kommentare im Seed** (Doku-Abgleich 2026-10-18, nicht angefasst, weil eine Seed-Änderung als neue Werksfassung zählen kann): `backend/seeds/05-knowledge/rag-config.yaml` Z. 11 nennt nur M04 und M15 als RAG-Muster (dazu kam M10); `backend/seeds/05-knowledge/mcp-servers.yaml` Z. 9 nennt „System → MCP-Server“ (heute Gemeinsam → „Werkzeuge“). Im Code-Kommentar von `views/curated-pages-betrieb.ts` heißt die Agent-Seite noch „Rolle & Grenzen“ (Katalog: „Rolle & Schutz“). Beim nächsten Seed-Paket mitnehmen.
+- **Architektur-Grafiken:** 3 unbekannte Viewer-Schlüssel und 66 englische Viewer-Texte im gemeinsamen `translations`-Block aller sechs Grafiken (archify-Warnung, kein Fehler) — gemeinsam angleichen, wenn die Grafiken das nächste Mal neu erzeugt werden.
+
 ## 6 Zurückgestellte Plan-Teile
 
 - **B1–B3 (Anrede)** folgen nach der Nachmessung (Runde-2-Plan, Paket B).

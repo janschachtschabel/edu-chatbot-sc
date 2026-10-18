@@ -298,7 +298,7 @@ Alle Werte sind HTML-Attribute, also Zeichenketten; boolesche nehmen
 
 ## 5. Engine wählen
 
-| | **Muster-Engine** (`pattern`, Vorgabe) | **Agent-Schleife** (`agent`) |
+| | **Muster-Engine** (`pattern`, Vorgabe im Code) | **Agent-Schleife** (`agent`, Werksfassung) |
 |---|---|---|
 | Ablauf | Klassifikator → Musterwahl → gebundene Werkzeugliste | Systemprompt + **voller** Werkzeug-Katalog, freie Schleife |
 | Endet bei | einer Antwort | `submit_result`, Prosa, oder einem Deckel |
@@ -307,9 +307,9 @@ Alle Werte sind HTML-Attribute, also Zeichenketten; boolesche nehmen
 
 Drei Ebenen, die feinere gewinnt:
 
-1. **Ganze Anlage** — Studio → *Agent & Maschine* (`01-base/engine`), ohne
-   Neustart wirksam. Dort stehen auch die vier Deckel:
-   `max_iterations` (1–50), `deadline_s` (5–600), `token_budget` (≥ 1000),
+1. **Ganze Anlage** — Studio → *System → Betrieb* (`01-base/engine`), ohne
+   Neustart wirksam. Die vier Deckel stehen im Agent-Arbeitsbereich auf
+   *Rolle & Schutz*: `max_iterations` (1–50), `deadline_s` (5–1800), `token_budget` (≥ 1000),
    `write_mode` (`propose` \| `execute`).
 2. **Je Einbau** — `engine="agent"` am Element. Damit stellt ihr **eine** Seite
    auf die Schleife, während der Rest der Anlage bei der Muster-Engine bleibt —

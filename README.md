@@ -2,7 +2,7 @@
 
 Cleaner Neubau des WLO-Chatbots **BadBoerdi** (Arbeitstitel „BadBoerdi 2.0"):
 
-- **Backend:** FastAPI + LangGraph, PostgreSQL 17 + pgvector — clusterfähig angelegt (N stateless Replikas; Vorgabe 1, bis Züge einer Sitzung auch über Replikas gesperrt sind)
+- **Backend:** FastAPI + LangGraph, PostgreSQL 17 + pgvector — clusterfähig angelegt (N stateless Replikas; Züge einer Sitzung sperrt eine Postgres-Sperre über alle Replikas, Vorgabe 1 Replik)
 - **Chat-Widget:** Angular-22-Webkomponente `<boerdi-chat>` (zoneless, Single-File-Bundle)
 - **Studio/Webadmin:** Angular-SPA im selben Workspace (Schema-getriebene Formulare)
 
@@ -13,9 +13,12 @@ Altsystem, generisch über deklarative Konfiguration.
 | | |
 |---|---|
 | 🚀 **Auf einem Server installieren** (Debian 13, Docker, Seed-Daten) | [INSTALL.md](INSTALL.md) |
+| ⚡ Kurzweg der Installation (Befehle ohne Erklärung) | [deploy/INSTALL-schnellstart.md](deploy/INSTALL-schnellstart.md) |
 | 🛠 Betrieb danach (Skalieren, Backup, Restore, Rollback) | [deploy/README.md](deploy/README.md) |
 | 🏗 **Architektur** — Bestandteile, Stack, Abläufe (Einstieg für Entwickler) | [docs/architektur.md](docs/architektur.md) |
-| 🗺 **Architektur-Grafiken** — interaktiv: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus | [docs/architektur-grafiken/](docs/architektur-grafiken/README.md) |
+| 🗺 **Architektur-Grafiken** — interaktiv: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus | [ansehen (GitHub Pages)](https://janschachtschabel.github.io/edu-chatbot-sc/) · [Quellen](docs/architektur-grafiken/README.md) |
+| 🤖 Agent-Modus — Maschinen, Master-Skill, Grenzen | [docs/agent-modus.md](docs/agent-modus.md) |
+| 🔑 MCP-Server und Anmeldung (für das MCP-Team) | [docs/mcp-und-anmeldung.md](docs/mcp-und-anmeldung.md) |
 | 🧩 **Chatbot einbinden** — Browser-Plugin / fremde Seite | [docs/browser-plugin-einbindung.md](docs/browser-plugin-einbindung.md) |
 | 🏫 **Chatbot einbinden** — edu-sharing-Repositorium (mit Ticket-Anmeldung) | [docs/edu-sharing-einbindung.md](docs/edu-sharing-einbindung.md) |
 | 📘 Bauplan/Spec (Quelle der Wahrheit) | [docs/plans/2026-07-10-boerdi-chat-neubau.md](docs/plans/2026-07-10-boerdi-chat-neubau.md) |

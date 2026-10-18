@@ -36,8 +36,12 @@ Migrationen laufen aus demselben Image, aber als **eigener Lauf** — nie aus de
 Web-Prozess, sonst fahren N Replikas gleichzeitig `alembic upgrade head`:
 
 ```bash
-docker run --rm -e DATABASE_URL=... boerdi-chat alembic upgrade head
+docker compose -f compose.prod.yml --env-file .env up migrate
 ```
+
+Der `migrate`-Dienst bekommt dabei, was die erste Migration braucht: `0001` legt die
+Vektor-Spalte mit der Dimension aus `LLM_PROVIDER`/`LLM_EMBED_MODEL`/`EMBED_DIM` an. Ein
+nacktes `docker run … alembic upgrade head` ohne diese Werte rät die Dimension.
 
 Das Backend braucht **kein** beschreibbares Volume: die Config liegt in Postgres
 (V2), und der einzige Laufzeit-Schreibzugriff im ganzen `src/`-Baum ist eine
@@ -97,8 +101,10 @@ stehen in `backend/src/boerdi/settings.py`.
 MCP_SERVER_URL=https://wlo-mcp.87.106.195.152.nip.io/mcp
 ```
 
-Das ist der **einzige** MCP-Server, gegen den boerdi-chat läuft (23 Werkzeuge,
-Stand 2026-07-31). Die frühere Vercel-Instanz ist **abgelöst** — ihr fehlte
+Das ist der WLO-MCP-Server, gegen den boerdi-chat läuft (lesende und kuratierende
+Werkzeuge; der aktuelle Katalog kommt über `tools/list`, siehe unten). Weitere MCP-Server
+lassen sich seit Paket 11 **nur lesend** einbinden — ihre Werkzeuge heißen im Zug
+`server__werkzeug` (Studio → Gemeinsam → „Werkzeuge“). Die frühere Vercel-Instanz ist **abgelöst** — ihr fehlte
 `get_wlo_content_text`, weshalb M17 („Inhalt anzeigen") dort ins Leere rief.
 Steht sie noch in einer `.env` auf einem Server, **überschreibt sie den
 Code-Default** und der Volltext bleibt kaputt. Beim Deployen also nachsehen.
@@ -116,8 +122,10 @@ curl -s -X POST "$MCP_SERVER_URL" -H "Content-Type: application/json" -H "Accept
 ```
 
 Antwort ist SSE (`data: {…}`). Namen nach
-`backend/seeds/05-knowledge/mcp-servers.yaml` übertragen, dann
-`uv run boerdi import-config --from seeds`. Zwei Wächter in der Suite prüfen das
+`backend/seeds/05-knowledge/mcp-servers.yaml` übertragen und mit dem nächsten Image
+ausliefern — der `migrate`-Dienst (`--werksabgleich`) hebt den Bereich, solange er im
+Studio nicht angepasst wurde; sonst die Liste im Studio unter „Werkzeuge“ pflegen. Ein
+voller `import-config` überschreibt seit Paket 12 jede redaktionelle Arbeit. Zwei Wächter in der Suite prüfen das
 Ergebnis: die Registry muss `TOOL_DEFINITIONS` abdecken, und die beiden
 Default-URLs müssen gleichziehen.
 
@@ -141,7 +149,7 @@ Zwei Betriebsarten, kein dritter Zustand:
 | `MCP_AUTH_TOKEN` | Betriebsart | Wirkung |
 |---|---|---|
 | leer (Default) | `anonymous` | nur lesend. Der Server antwortet weiter mit `200` und der vollen Werkzeugliste |
-| gesetzt | `service` | jeder Aufruf trägt `Authorization: Bearer …`. Lesend wirkt er immer; schreiben (kuratierende Werkzeuge) nur mit dem Studio-Schalter „Gastkonto darf schreiben" (Agent & Maschine → Betrieb, Vorgabe aus) |
+| gesetzt | `service` | jeder Aufruf trägt `Authorization: Bearer …`. Lesend wirkt er immer; schreiben (kuratierende Werkzeuge) nur mit dem Studio-Schalter „Gastkonto darf schreiben" (System → Betrieb, Vorgabe aus) |
 
 **Schreiben ohne persönliche Anmeldung ist seit Paket 7 aus** (P5-9, Nutzer-Entscheid
 2026-10-09). In beiden Modi schreibt nur, wer mit dem eigenen WLO-Konto angemeldet ist
@@ -155,7 +163,7 @@ unbrauchbaren** Block — anonym zu bleiben ist kein Fehler.
 **Prüfen, ob der Block greift**, ohne ihn auszugeben:
 
 ```bash
-curl -s http://localhost:8000/api/health
+curl -s https://<PUBLIC_HOST>/api/health
 ```
 
 Das Feld `mcp_auth` nennt `service` oder `anonymous`.
@@ -181,8 +189,8 @@ Anlegen und Ändern eine Anmeldung brauchen, und bietet den Anmelde-Knopf an.
 ### Erstinstallation
 
 Ein neuer Server folgt **[../INSTALL.md](../INSTALL.md)** — dort steht der Weg
-vom leeren Debian bis zum laufenden Stack, inklusive des Schrittes, der hier
-unten bewusst FEHLT: dem einmaligen `boerdi import-config`.
+vom leeren Debian bis zum laufenden Stack, samt Schema, Konfiguration und
+Wissensbestand.
 
 **Der `migrate`-Dienst füllt die Konfiguration selbst** (seit Paket 12:
 `alembic upgrade head && boerdi import-config --werksabgleich`) — einmal vor den
@@ -218,7 +226,7 @@ nachgereicht: der Dienst führt Schema und Konfiguration aus, und ein Zugang, de
 er nicht braucht, vergrößert nur die Angriffsfläche. `run --rm` startet dafür
 einen eigenen Container neben den laufenden Replikas.
 
-Ohne Argument gilt `/app/seeds/rag` (906 Abschnitte in 8 Bereichen). Der Lauf
+Ohne Argument gilt `/app/seeds/rag` (909 Abschnitte in 8 Bereichen). Der Lauf
 **bettet neu ein** — die Vektoren reisen bewusst nicht mit, weil sich das
 Einbettungsmodell ändern darf; rechnet mit wenigen Minuten und entsprechend
 vielen Einbettungs-Aufrufen.
@@ -226,7 +234,17 @@ vielen Einbettungs-Aufrufen.
 Der Aufruf ist **gefahrlos wiederholbar**: belegte Bereiche bleiben unberührt und
 werden am Ende namentlich gemeldet. Soll wirklich der Werkszustand zurück, sagt
 das `--force` ausdrücklich — es leert die betroffenen Bereiche vorher, also mit
-Backup davor. `--sqlite <KOPIE der ALT-badboerdi.db>` bleibt als einmalige
+Backup davor.
+
+**Einen einzelnen Bereich auffrischen** — etwa wenn ein Image einen neuen Stand
+mitbringt (Paket 16: `Plattformwissen` 2.0). Weil belegte Bereiche übersprungen
+werden, behält eine bestehende Anlage sonst die alte Fassung. Die eine Datei allein
+in ein Verzeichnis legen und nur sie einlesen:
+
+```bash
+docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
+  backend sh -c 'mkdir -p /tmp/rag && cp /app/seeds/rag/Plattformwissen.jsonl /tmp/rag/ && boerdi import-rag --seed /tmp/rag --force'
+``` `--sqlite <KOPIE der ALT-badboerdi.db>` bleibt als einmalige
 Brücke aus dem Altsystem bestehen.
 
 ### Einbettungsmodell wechseln (etwa auf die AcademicCloud)
@@ -256,7 +274,7 @@ und Studio-Uploads — in den neuen Raum (Paket 11).
    docker compose -f compose.prod.yml --env-file .env run --rm --no-deps \
      backend boerdi rag-einbettung-wechseln
    ```
-   Bis der Lauf fertig ist, findet die Wissenssuche nur schon neu eingebettete Abschnitte (906
+   Bis der Lauf fertig ist, findet die Wissenssuche nur schon neu eingebettete Abschnitte (909
    Seed-Abschnitte: wenige Minuten). Bleiben Abschnitte ohne Vektor (Ausgabe und Rückgabewert 1),
    mit `--fortsetzen` erneut laufen lassen.
 
@@ -375,14 +393,14 @@ vor dem Umzug zurück („Eigene Fassung verwenden“).
 
 ### Was der Werkszustand umfasst — und was nicht
 
-| Umfasst (Seed-Baum, 61 Bereiche) | Bleibt unberührt |
+| Umfasst (Seed-Baum, 60 Bereiche) | Bleibt unberührt |
 |---|---|
 | alle Muster (`03-patterns`), Personas (`04-personas`), Domänen-Regeln, Lotse und Lotsen-Regeln, Begrüßung, Anzeige-, Sicherheits- und Datenschutz-Einstellungen, Dimensionen, Wissens- und MCP-Registry, Preistafel, Gold-Flows, Maschine (`01-base/engine`) | Wissensbasis-Dokumente (`boerdi import-rag`), Master-Skill und Skills (kommen aus edu-sharing), Umgebungsvariablen, Sitzungen, Logs, Eval- und Lasttest-Läufe, Schnappschüsse |
 
 **Achtung, Maschine:** Der Seed stellt `01-base/engine` auf `mode: agent`
 (seit Paket 7). Ein Werkszustand stellt eine Anlage, die im Studio auf die
 Muster-Maschine umgestellt ist, also auf den Agenten zurück. Danach unter
-„Agent & Maschine" wieder umstellen.
+System → „Betrieb" wieder umstellen.
 
 **Achtung, Wissensbereiche:** Der Werkszustand schreibt auch den Wissens-Katalog
 (`05-knowledge/rag-config`) zurück. Ein Bereich, der erst nach der Auslieferung
@@ -449,11 +467,12 @@ docker compose -f compose.prod.yml --env-file .env up -d --scale backend=5
 Oder dauerhaft `BACKEND_REPLICAS=5` in der `.env`. Zustandslos, deshalb keine
 Sticky-Sessions nötig — Session und Config liegen in Postgres (V2/V6).
 
-**Vorgabe ist 1 (Paket 4, L4).** Züge derselben Sitzung sperrt bisher nur ein
-prozessinterner Lock; über Replikas hinweg können zwei Züge einer Sitzung
-parallel laufen (Befundliste, C-H1). Mehr Replikas also erst danach — und auch
-dann auf einem 2-Kern-Server nicht: drei Replikas teilen sich dieselben zwei
-Kerne und machen es langsamer, nicht schneller.
+**Vorgabe ist 1.** Mehrere Replikas sind möglich: Züge derselben Sitzung sperrt
+seit Paket 7 ein Eintrag in Postgres (`session_locks`, Migration 0008) über alle
+Replikas hinweg (`docs/cluster-checkliste.md`). Auf einem 2-Kern-Server bringt es
+nichts: drei Replikas teilen sich dieselben zwei Kerne und machen es langsamer,
+nicht schneller. Die b-api zählt je Schlüssel, nicht je Replik — `LLM_MAX_CONCURRENCY`
+dann teilen (`.env.example`).
 
 ### Vor einem CDN oder weiteren Proxy
 
@@ -499,12 +518,15 @@ Kopien nur einer zugleich) löscht, was älter ist als seine Frist — **unwider
 |---|---|---|
 | Chatnachrichten und Sitzungsgedächtnis | 30 Tage | Studio → Datenschutz (`01-base/privacy-config`) |
 | Gesprächsstand ruhender Sitzungen (Thema, Seitentitel, Suchbegriffe, Signale, Tour) | dieselbe, ab der letzten Aktivität | wie oben |
-| Sicherheitsprotokoll | 90 Tage | Studio → Sicherheit (`01-base/safety-config`) |
-| Qualitätsprotokoll | 180 Tage | Studio → Qualität (`01-base/quality-log-config`) |
+| Sicherheitsprotokoll | 90 Tage | Studio → Agent „Rolle & Schutz“ bzw. Muster „Identität & Schutz“ (`01-base/safety-config`) |
+| Qualitätsprotokoll | 180 Tage | Studio → Gemeinsam → Datenschutz (`01-base/quality-log-config`) |
+| Text im Qualitätsprotokoll (Nachricht, erkannte Begriffe, Begründungen, Fehlertexte) | wie die Chatnachrichten (30 Tage) — die Zeile mit ihren Kennzahlen bleibt bis zur Protokollfrist | wie die Chatnachrichten |
 
-Beide Protokolle halten die ersten 500 Zeichen der Nachricht, das Sicherheitsprotokoll
-dazu die IP (riskante und gedrosselte Züge, mit `log_all_turns` alle) — also länger als
-die Nachrichten selbst; bei Bedarf die Fristen angleichen.
+Das Sicherheitsprotokoll hält die ersten 500 Zeichen der Nachricht und die IP
+(riskante und gedrosselte Züge, mit `log_all_turns` alle) — also länger als die
+Nachrichten selbst; bei Bedarf die Fristen angleichen. Im Qualitätsprotokoll leert
+der Lauf den Text nach der Gesprächsfrist (seit Paket 16, Marke `text_geleert`;
+Teilindex aus Migration 0013).
 
 `0` heißt unbegrenzt. Die Sitzungen selbst und ihre Verbrauchszahlen bleiben (sonst
 ginge die Kostenübersicht mit); löschen lassen sie sich einzeln in der Studio-Ansicht
@@ -546,12 +568,15 @@ BOERDI_IMAGE=boerdi-chat:vorher docker compose -f compose.prod.yml --env-file .e
 Dauerhaft wird der Rollback erst mit `BOERDI_IMAGE=boerdi-chat:vorher` in der
 `.env` — die Zeile oben gilt nur für diesen einen Aufruf.
 
-**Migrationen rollen nicht mit zurück.** Es gibt vier (0001–0004). Brachte der
-neue Stand eine Migration mit, scheitert der `migrate`-Dienst des alten Images
-(`Can't locate revision`), und die Backends werden nicht ersetzt. Dann ZUERST
-mit dem NEUEN Image zurückmigrieren (`run --rm --no-deps migrate alembic
-downgrade <revision>`; 0002–0004 haben ein `downgrade()`), danach das Image
-wechseln — oder den Restore oben nehmen (Sicherung aus Schritt 0 beim Deploy).
+**Migrationen rollen nicht mit zurück.** Es gibt dreizehn (0001–0013, unter
+`backend/alembic/versions/`). Brachte der neue Stand eine Migration mit, scheitert
+der `migrate`-Dienst des alten Images (`Can't locate revision`), und die Backends
+werden nicht ersetzt. Dann ZUERST mit dem NEUEN Image zurückmigrieren (`run --rm
+--no-deps migrate alembic downgrade <revision>`), danach das Image wechseln — oder
+den Restore oben nehmen (Sicherung aus Schritt 0 beim Deploy). Beim Zurückmigrieren
+beachten: `0007` hat kein wirksames `downgrade()` (die entfernten Auslöser kommen
+nicht zurück), `0009` löscht Verbrauchszeilen ohne Sitzung (etwa Eval-Kosten), `0013`
+entfernt seinen Index `CONCURRENTLY`.
 
 ### Logs & Traces
 

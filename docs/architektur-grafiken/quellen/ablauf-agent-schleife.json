@@ -435,7 +435,7 @@
    "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
    "provider": "github",
    "link_mode": "web",
-   "revision": "989ae753f698b858eebf94dbd66253a032cfddd7"
+   "revision": "dde13d3d73498f540586e53201be8cc4b27acc41"
   }
  },
  "lanes": [
@@ -458,7 +458,7 @@
   },
   {
    "id": "mcp",
-   "label": "WLO-MCP-Server"
+   "label": "MCP-Server (WLO + weitere)"
   }
  ],
  "phases": [
@@ -509,7 +509,7 @@
    "sources": [
     {
      "path": "backend/src/boerdi/api/chat.py",
-     "line": 199,
+     "line": 273,
      "label": "SSE-Endpunkt"
     },
     {
@@ -517,9 +517,14 @@
      "line": 80,
      "end_line": 103,
      "label": "Maschinen-Wahl"
+    },
+    {
+     "path": "backend/seeds/01-base/engine.yaml",
+     "line": 17,
+     "label": "Vorgabe mode: agent"
     }
    ],
-   "tag": "Maschine: agent"
+   "tag": "Vorgabe: agent"
   },
   {
    "id": "antwort",
@@ -532,7 +537,7 @@
    "sources": [
     {
      "path": "backend/src/boerdi/api/sse.py",
-     "line": 130,
+     "line": 229,
      "label": "result-Frame"
     }
    ],
@@ -545,12 +550,12 @@
    "type": "messagebus",
    "label": "Kurzweg-Antwort",
    "sublabel": "Tour · Begrüßung · Drosselung",
-   "width": 165,
+   "width": 160,
    "sources": [
     {
      "path": "backend/src/boerdi/graph/build.py",
      "line": 119,
-     "end_line": 133,
+     "end_line": 132,
      "label": "Ausstiege"
     }
    ]
@@ -566,14 +571,19 @@
    "sources": [
     {
      "path": "backend/src/boerdi/graph/nodes/route.py",
-     "line": 134,
-     "end_line": 145,
+     "line": 139,
      "label": "erzwungenes Muster"
     },
     {
+     "path": "backend/src/boerdi/graph/nodes/route.py",
+     "line": 166,
+     "end_line": 169,
+     "label": "SF-1 in route"
+    },
+    {
      "path": "backend/src/boerdi/graph/nodes/respond.py",
-     "line": 94,
-     "label": "SF-1"
+     "line": 97,
+     "label": "SF-1 in respond"
     }
    ]
   },
@@ -584,7 +594,7 @@
    "type": "backend",
    "label": "Vorlauf",
    "sublabel": "Sitzung · Tour · Seitenkontext",
-   "width": 180,
+   "width": 165,
    "sources": [
     {
      "path": "backend/src/boerdi/graph/build.py",
@@ -594,7 +604,7 @@
     },
     {
      "path": "backend/src/boerdi/graph/nodes/setup.py",
-     "line": 60,
+     "line": 86,
      "label": "Sitzung aus Postgres"
     }
    ]
@@ -610,8 +620,8 @@
    "sources": [
     {
      "path": "backend/src/boerdi/graph/nodes/assess.py",
-     "line": 100,
-     "end_line": 110,
+     "line": 113,
+     "end_line": 123,
      "label": "kein Klassifikator"
     }
    ]
@@ -627,7 +637,8 @@
    "sources": [
     {
      "path": "backend/src/boerdi/graph/nodes/route.py",
-     "line": 155,
+     "line": 169,
+     "end_line": 175,
      "label": "agent_pattern"
     }
    ]
@@ -639,26 +650,56 @@
    "type": "backend",
    "label": "respond_agent",
    "sublabel": "Rolle · Master-Skill · Verlauf",
-   "width": 175,
+   "width": 165,
    "sources": [
     {
      "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 242,
-     "end_line": 273,
-     "label": "Kette + Master-Skill"
+     "line": 196,
+     "end_line": 204,
+     "label": "Master-Skill"
     },
     {
      "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 323,
-     "end_line": 328,
+     "line": 267,
+     "end_line": 273,
      "label": "Vorabruf + zuletzt gezeigt"
     },
     {
      "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 368,
+     "line": 317,
      "label": "run_agent_loop"
     }
    ]
+  },
+  {
+   "id": "strom",
+   "lane": "widget",
+   "col": 4,
+   "type": "frontend",
+   "label": "Text wächst mit",
+   "sublabel": "text_delta während der Antwort",
+   "width": 160,
+   "sources": [
+    {
+     "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
+     "line": 312,
+     "end_line": 315,
+     "label": "Strom öffnen"
+    },
+    {
+     "path": "backend/src/boerdi/services/agent_loop.py",
+     "line": 329,
+     "end_line": 333,
+     "label": "eine Antwortrunde streamt"
+    },
+    {
+     "path": "backend/seeds/01-base/engine.yaml",
+     "line": 72,
+     "end_line": 76,
+     "label": "betrieb.token_streaming"
+    }
+   ],
+   "tag": "Vorgabe an"
   },
   {
    "id": "abschluss",
@@ -667,7 +708,7 @@
    "type": "backend",
    "label": "assemble + persist",
    "sublabel": "Karten · Vorschläge · Speichern",
-   "width": 180,
+   "width": 170,
    "sources": [
     {
      "path": "backend/src/boerdi/graph/nodes/assemble.py",
@@ -676,12 +717,13 @@
     },
     {
      "path": "backend/src/boerdi/services/turn_assembly.py",
-     "line": 253,
+     "line": 195,
+     "end_line": 213,
      "label": "Inline zuerst"
     },
     {
      "path": "backend/src/boerdi/services/turn_persist.py",
-     "line": 160,
+     "line": 164,
      "label": "Zeit-Zeilen"
     }
    ]
@@ -697,17 +739,17 @@
    "sources": [
     {
      "path": "backend/src/boerdi/services/agent_knowledge.py",
-     "line": 122,
+     "line": 126,
      "label": "Werkzeug"
     },
     {
      "path": "backend/src/boerdi/services/agent_knowledge.py",
-     "line": 180,
+     "line": 198,
      "label": "Antwort"
     },
     {
      "path": "backend/src/boerdi/services/agent_loop.py",
-     "line": 429,
+     "line": 562,
      "label": "virtuell"
     }
    ]
@@ -718,28 +760,28 @@
    "col": 4,
    "type": "cloud",
    "label": "LLM-Runden",
-   "sublabel": "voller Werkzeug-Katalog",
+   "sublabel": "voller Katalog · respond_to_user",
    "width": 165,
    "sources": [
     {
      "path": "backend/src/boerdi/services/agent_loop.py",
-     "line": 198,
-     "end_line": 254,
+     "line": 306,
+     "end_line": 316,
      "label": "Schleife + Deckel"
     },
     {
      "path": "backend/src/boerdi/services/agent_loop.py",
-     "line": 266,
-     "end_line": 279,
-     "label": "LLM-Aufruf, Ende Text"
+     "line": 329,
+     "end_line": 338,
+     "label": "LLM-Aufruf, Temperatur 0,4"
     },
     {
      "path": "backend/src/boerdi/services/agent_loop.py",
-     "line": 330,
+     "line": 437,
      "label": "respond_to_user"
     }
    ],
-   "tag": "mit Deckeln"
+   "tag": "Text + Vorschläge"
   },
   {
    "id": "qr",
@@ -747,18 +789,25 @@
    "col": 5,
    "type": "cloud",
    "label": "Vorschlags-Aufruf",
-   "sublabel": "eigener Aufruf, Schalter aus",
-   "width": 165,
+   "sublabel": "Rückfall ohne Inline-Vorschläge",
+   "width": 170,
    "sources": [
     {
      "path": "backend/src/boerdi/services/turn_assembly.py",
-     "line": 303,
+     "line": 306,
      "label": "exakter Aufruf"
     },
     {
      "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 98,
-     "label": "AGENT_INLINE_QUICK_REPLIES"
+     "line": 101,
+     "end_line": 113,
+     "label": "Agent-Schnellantworten"
+    },
+    {
+     "path": "backend/seeds/01-base/engine.yaml",
+     "line": 77,
+     "end_line": 81,
+     "label": "Vorgabe an seit Paket 15"
     }
    ]
   },
@@ -767,19 +816,48 @@
    "lane": "mcp",
    "col": 4,
    "type": "external",
-   "label": "MCP-Werkzeuge",
+   "label": "WLO-MCP-Werkzeuge",
    "sublabel": "Suche · Sammlungen · Skills",
    "width": 160,
    "sources": [
     {
      "path": "backend/src/boerdi/services/agent_loop.py",
-     "line": 439,
+     "line": 580,
      "label": "call_with_outcome"
     },
     {
      "path": "backend/src/boerdi/services/mcp/client.py",
-     "line": 222,
+     "line": 238,
      "label": "call_mcp_tool"
+    }
+   ]
+  },
+  {
+   "id": "fremd",
+   "lane": "mcp",
+   "col": 5,
+   "type": "external",
+   "label": "Weitere MCP-Server",
+   "sublabel": "nur lesend · server__werkzeug",
+   "width": 170,
+   "sources": [
+    {
+     "path": "backend/src/boerdi/services/agent_tools.py",
+     "line": 111,
+     "end_line": 112,
+     "label": "im Katalog"
+    },
+    {
+     "path": "backend/src/boerdi/services/mcp/client.py",
+     "line": 284,
+     "end_line": 287,
+     "label": "eigener Aufrufweg"
+    },
+    {
+     "path": "backend/src/boerdi/domain/fremdwerkzeug.py",
+     "line": 10,
+     "end_line": 13,
+     "label": "nur lesend, eigener Namensraum"
     }
    ]
   }
@@ -878,6 +956,14 @@
    "role": "return"
   },
   {
+   "id": "t3",
+   "from": "runde",
+   "to": "fremd",
+   "label": "falls eingerichtet",
+   "role": "branch",
+   "variant": "dashed"
+  },
+  {
    "id": "w1",
    "from": "runde",
    "to": "wissen",
@@ -888,27 +974,47 @@
    "id": "q1",
    "from": "abschluss",
    "to": "qr",
-   "label": "ohne Schalter",
+   "label": "nur Rückfall",
    "role": "branch",
+   "variant": "dashed"
+  },
+  {
+   "id": "s2",
+   "from": "kette",
+   "to": "strom",
+   "label": "text_delta",
+   "role": "async",
+   "variant": "dashed"
+  },
+  {
+   "id": "s3",
+   "from": "strom",
+   "to": "antwort",
+   "label": "result löst ab",
+   "role": "async",
    "variant": "dashed"
   }
  ],
  "cards": [
   {
    "dot": "cyan",
-   "title": "Gemessen (Median, 4 Fragen × 2)",
+   "title": "Vorgaben der Werksfassung",
    "items": [
-    "Agent-Zug 12,2 s, davon 4,4 s Warten auf den eigenen Vorschlags-Aufruf",
-    "Mit AGENT_INLINE_QUICK_REPLIES: 6,8 s, die Vorschläge kommen mit der Antwort",
-    "Kein Klassifikator: assess prüft nur die Sicherheit"
+    "Agent ist die Vorgabe-Maschine (engine.yaml mode: agent); X-Boerdi-Engine wählt je Anfrage",
+    "Agent-Schnellantworten an: Text und Vorschläge kommen zusammen über respond_to_user",
+    "Token-Streaming an: dieser Text läuft schon während der Schleife als text_delta ins Widget",
+    "Eigener Vorschlags-Aufruf nur, wenn keine Inline-Vorschläge kommen",
+    "Alter Messstand (Plan 2026-09-30): 12,2 s mit eigenem Vorschlags-Aufruf, 6,8 s mit Inline-Vorschlägen"
    ]
   },
   {
    "dot": "emerald",
    "title": "Agent-Schleife",
    "items": [
-    "Das Modell wählt seine Werkzeuge selbst aus dem vollen Katalog",
-    "Virtuelle Werkzeuge: wissen_suchen, zeige_dokument, liefere_ergebnis, respond_to_user (Schalter)",
+    "Kein Klassifikator: assess prüft nur die Sicherheit",
+    "Das Modell wählt seine Werkzeuge selbst aus dem vollen Katalog, Temperatur 0,4",
+    "Dazu lesende Werkzeuge weiterer MCP-Server als server__werkzeug",
+    "Virtuelle Werkzeuge: wissen_suchen, zeige_dokument, liefere_ergebnis, respond_to_user",
     "Deckel: Runden, Frist, Token-Budget, Stillstand — dann ein ehrlicher Satz statt Leere"
    ]
   },

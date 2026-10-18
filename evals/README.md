@@ -63,7 +63,7 @@ jeder Maschine schreibt; holt ein Zug zwei Anleitungen, steht nur die letzte da.
 Flows auf einer Sammlung mit Skills, bewusst NICHT in der Seed-Suite — die
 Maschinen-Matrix liest die Seed-Suite, und neue Flows dort machten ihre Zahlen
 mit früheren Läufen unvergleichbar. Gefahren mit der Muster-Maschine, einmal mit
-Haken `muster_skills` aus und einmal an (Studio „Agent & Maschine"):
+Haken `muster_skills` aus und einmal an (Studio → Gemeinsam → „Skills“):
 
 ```powershell
 cd backend

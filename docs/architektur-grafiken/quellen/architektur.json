@@ -435,7 +435,7 @@
    "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
    "provider": "github",
    "link_mode": "web",
-   "revision": "989ae753f698b858eebf94dbd66253a032cfddd7"
+   "revision": "dde13d3d73498f540586e53201be8cc4b27acc41"
   }
  },
  "components": [
@@ -489,7 +489,8 @@
     },
     {
      "path": "frontend/projects/ui/src/stream/chat-api.ts",
-     "line": 366,
+     "line": 378,
+     "end_line": 389,
      "label": "SSE-Zug"
     },
     {
@@ -515,8 +516,8 @@
    "sources": [
     {
      "path": "backend/src/boerdi/api/studio_static.py",
-     "line": 53,
-     "end_line": 68,
+     "line": 144,
+     "end_line": 165,
      "label": "SPA-Mount"
     },
     {
@@ -543,14 +544,20 @@
     {
      "path": "deploy/compose.prod.yml",
      "line": 27,
-     "end_line": 50,
+     "end_line": 52,
      "label": "Dienst"
     },
     {
      "path": "deploy/compose.prod.yml",
-     "line": 227,
-     "end_line": 229,
+     "line": 251,
+     "end_line": 255,
      "label": "Router + TLS"
+    },
+    {
+     "path": "deploy/compose.prod.yml",
+     "line": 127,
+     "end_line": 133,
+     "label": "Vorgabe 1 Replik"
     }
    ]
   },
@@ -570,19 +577,20 @@
    "sources": [
     {
      "path": "backend/src/boerdi/api/chat.py",
-     "line": 80,
-     "label": "POST /api/chat"
-    },
-    {
-     "path": "backend/src/boerdi/api/chat.py",
-     "line": 199,
+     "line": 273,
      "label": "SSE-Stream"
     },
     {
      "path": "backend/src/boerdi/api/agent.py",
-     "line": 45,
-     "end_line": 59,
+     "line": 93,
+     "end_line": 108,
      "label": "/api/agent"
+    },
+    {
+     "path": "backend/src/boerdi/services/sitzungssperre.py",
+     "line": 1,
+     "end_line": 18,
+     "label": "Sitzungssperre"
     }
    ]
   },
@@ -620,7 +628,7 @@
    "type": "backend",
    "label": "Zuggraph (LangGraph)",
    "sublabel": "Muster-Maschine | Agent-Schleife",
-   "tag": "Reranker im Prozess",
+   "tag": "Reranker optional, Vorgabe aus",
    "pos": [
     1118,
     230
@@ -633,20 +641,20 @@
     {
      "path": "backend/src/boerdi/graph/build.py",
      "line": 135,
-     "end_line": 206,
+     "end_line": 209,
      "label": "Graph-Aufbau"
     },
     {
      "path": "backend/src/boerdi/graph/nodes/respond.py",
-     "line": 94,
-     "end_line": 97,
+     "line": 97,
+     "end_line": 102,
      "label": "Maschinen-Weiche"
     },
     {
-     "path": "backend/src/boerdi/services/rag/rerank.py",
-     "line": 190,
-     "end_line": 215,
-     "label": "Cross-Encoder"
+     "path": "backend/src/boerdi/settings.py",
+     "line": 226,
+     "end_line": 229,
+     "label": "Reranker: Vorgabe aus, Selbstbezug"
     }
    ]
   },
@@ -654,7 +662,7 @@
    "id": "llm",
    "type": "cloud",
    "label": "LLM-Anbieter",
-   "sublabel": "OpenAI oder B-API (WLO)",
+   "sublabel": "OpenAI · B-API (OpenAI/AcademicCloud)",
    "pos": [
     1118,
     40
@@ -665,23 +673,24 @@
    ],
    "sources": [
     {
+     "path": "backend/src/boerdi/settings.py",
+     "line": 30,
+     "label": "Anbieter"
+    },
+    {
      "path": "backend/src/boerdi/services/llm.py",
-     "line": 151,
-     "end_line": 172,
+     "line": 138,
+     "end_line": 163,
      "label": "Anbieter-Routing"
     },
     {
-     "path": "backend/src/boerdi/services/llm.py",
-     "line": 46,
-     "end_line": 47,
-     "label": "LiteLLM"
-    },
-    {
-     "path": "backend/src/boerdi/services/safety/moderation.py",
-     "line": 47,
-     "label": "Moderation"
+     "path": "backend/src/boerdi/services/llm_parallel.py",
+     "line": 1,
+     "end_line": 25,
+     "label": "Deckel je Anbieter"
     }
-   ]
+   ],
+   "tag": "Parallelität je Anbieter"
   },
   {
    "id": "postgres",
@@ -698,19 +707,21 @@
    ],
    "sources": [
     {
-     "path": "backend/src/boerdi/db/session.py",
-     "line": 30,
-     "label": "Engine"
-    },
-    {
      "path": "backend/src/boerdi/db/models.py",
-     "line": 233,
+     "line": 270,
      "label": "Vektor-Spalte"
     },
     {
-     "path": "backend/src/boerdi/db/notify.py",
-     "line": 82,
-     "label": "LISTEN config_changed"
+     "path": "backend/src/boerdi/main.py",
+     "line": 139,
+     "end_line": 140,
+     "label": "Aufbewahrung alle 6 h"
+    },
+    {
+     "path": "backend/alembic/versions/0011_werk_und_eigene_fassung.py",
+     "line": 1,
+     "end_line": 13,
+     "label": "Werk, eigene Fassung, Schnappschüsse"
     }
    ]
   },
@@ -718,7 +729,7 @@
    "id": "mcp",
    "type": "external",
    "label": "WLO-MCP-Server",
-   "sublabel": "23 Werkzeuge · Streamable HTTP",
+   "sublabel": "WLO-Werkzeuge · Streamable HTTP",
    "pos": [
     1454,
     230
@@ -730,20 +741,54 @@
    "sources": [
     {
      "path": "backend/src/boerdi/settings.py",
-     "line": 171,
-     "end_line": 178,
+     "line": 182,
+     "end_line": 189,
      "label": "MCP_SERVER_URL"
     },
     {
      "path": "backend/src/boerdi/services/mcp/transport.py",
-     "line": 86,
-     "end_line": 96,
+     "line": 115,
+     "end_line": 125,
      "label": "Transport"
     },
     {
      "path": "backend/src/boerdi/services/mcp/client.py",
-     "line": 222,
+     "line": 238,
      "label": "call_mcp_tool"
+    }
+   ]
+  },
+  {
+   "id": "fremdmcp",
+   "type": "external",
+   "label": "Weitere MCP-Server",
+   "sublabel": "nur lesend · server__werkzeug",
+   "pos": [
+    1454,
+    40
+   ],
+   "size": [
+    220,
+    64
+   ],
+   "sources": [
+    {
+     "path": "backend/src/boerdi/services/mcp/fremdwerkzeuge.py",
+     "line": 1,
+     "end_line": 12,
+     "label": "Aufruf"
+    },
+    {
+     "path": "backend/src/boerdi/domain/fremdwerkzeug.py",
+     "line": 1,
+     "end_line": 18,
+     "label": "Auswahl, nur lesend"
+    },
+    {
+     "path": "backend/src/boerdi/services/mcp/client.py",
+     "line": 284,
+     "end_line": 287,
+     "label": "Weiche"
     }
    ]
   },
@@ -803,7 +848,7 @@
   },
   {
    "kind": "security-group",
-   "label": "Backend-Container ×N, zustandslos",
+   "label": "Backend-Container, zustandslos (Vorgabe 1 Replik)",
    "wraps": [
     "chatapi",
     "studioapi",
@@ -852,6 +897,12 @@
    "from": "mcp",
    "to": "edusharing",
    "label": "fragt ab"
+  },
+  {
+   "id": "graph-fremd",
+   "from": "graph",
+   "to": "fremdmcp",
+   "label": "lesende Werkzeuge"
   },
   {
    "id": "graph-llm",
@@ -908,6 +959,7 @@
    "items": [
     "Ein Zug ist eine LangGraph-Kette: setup → … → respond → assemble → persist",
     "respond verzweigt: Muster-Maschine (Klassifikation, Muster, Werkzeugschleife) oder Agent-Schleife (voller Werkzeug-Katalog)",
+    "Werkzeuge weiterer MCP-Server nur lesend, als server__werkzeug",
     "Ablauf beider Maschinen: siehe die zwei Ablaufgrafiken"
    ]
   },
@@ -917,6 +969,8 @@
    "items": [
     "Postgres hält Sitzungen, Verlauf, Gedächtnis, Konfigurationsbereiche, RAG-Vektoren und Nutzung",
     "Studio-Änderungen wirken ohne Neustart: LISTEN/NOTIFY auf config_changed",
+    "Je Bereich Werks- und eigene Fassung, dazu Schnappschüsse",
+    "Aufbewahrungslauf alle 6 h löscht nach den eingestellten Fristen",
     "Der Master-Skill (Steuertext des Agenten) kommt per MCP aus edu-sharing"
    ]
   },
@@ -924,10 +978,10 @@
    "dot": "amber",
    "title": "Betrieb (compose.prod.yml)",
    "items": [
-    "Backend ×N zustandslos hinter Traefik (TLS per Let's Encrypt)",
+    "Backend zustandslos hinter Traefik (TLS per Let's Encrypt); Vorgabe 1 Replik, mehrere nur mit der Sitzungssperre in Postgres",
     "Valkey zählt Rate-Limits über alle Instanzen; Jaeger sammelt OTel-Traces",
-    "Migration (alembic) und Backup-Schleife laufen als eigene Dienste",
-    "Reranker (Cross-Encoder, onnxruntime) läuft im Backend-Prozess; das Modell kommt als Volume"
+    "Migration (alembic + import-config --werksabgleich) und Backup-Schleife laufen als eigene Dienste",
+    "Reranker (Cross-Encoder, onnxruntime) im Backend-Prozess, Vorgabe aus; eingeschaltet holt das Backend das Modell selbst von Hugging Face"
    ]
   }
  ]
