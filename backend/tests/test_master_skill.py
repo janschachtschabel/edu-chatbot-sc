@@ -227,7 +227,7 @@ async def test_ein_alter_stand_wird_ohne_abruf_ausgeliefert(monkeypatch) -> None
     """Kein Chat-Zug wartet mehr auf das Repositorium (gemessen 1–23 s): auch ein Stand, der
     älter ist als der Takt, gilt, bis der Takt ihn ersetzt."""
     _schalter(monkeypatch, an=True)
-    master_skill._zwischenspeicher["knoten-1"] = (0, "# Anleitung\n\nAlt, aber gut.")
+    master_skill._zwischenspeicher["knoten-1"] = "# Anleitung\n\nAlt, aber gut."
     aufrufe: list[str] = []
 
     async def _fake(name, args, **_kw):
@@ -575,3 +575,67 @@ async def test_eine_antwort_ohne_anleitung_loest_den_stand_ab(monkeypatch, antwo
     assert await master_skill.prompt_block(None) is None
     assert master_skill.zustand()["cached"] is False
 
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("spaete_antwort", ["fehler", "Skill knoten-1 ist nicht abrufbar."])
+async def test_ein_ueberholter_abruf_meldet_keinen_fehler(monkeypatch, spaete_antwort) -> None:
+    """Review 2: der zuletzt gestartete Abruf gilt auch für die Meldung — ein älterer, der
+    danach scheitert oder „keine Anleitung“ meldet, stellt keinen Fehler neben einen
+    frischen, gültigen Text und entfernt ihn nicht."""
+    import asyncio
+
+    _schalter(monkeypatch, an=True)
+    takt_laeuft, takt_darf = asyncio.Event(), asyncio.Event()
+    abrufe: list[int] = []
+
+    async def _fake(name, args, **_kw):
+        abrufe.append(1)
+        if len(abrufe) == 1:
+            takt_laeuft.set()
+            await takt_darf.wait()
+            if spaete_antwort == "fehler":
+                raise TimeoutError("spät gescheitert")
+            return spaete_antwort
+        return "# Anleitung\n\nNeu."
+
+    monkeypatch.setattr(master_skill, "call_mcp_tool", _fake)
+    takt = asyncio.create_task(master_skill.auffrischen())
+    await takt_laeuft.wait()
+    await master_skill.neu_laden()
+    takt_darf.set()
+    await takt
+
+    zustand = master_skill.zustand()
+    assert zustand["last_error"] is None
+    assert zustand["cached"] is True
+    block = await master_skill.prompt_block(None)
+    assert block is not None and "Neu." in block
+
+
+@pytest.mark.asyncio
+async def test_ein_ueberholter_abruf_belebt_keinen_geloeschten_skill(monkeypatch) -> None:
+    """Review 2: meldet der neuere Abruf „keine Anleitung“ (Knoten gelöscht), darf ein älterer,
+    der danach noch den alten Text bringt, ihn nicht zurückschreiben."""
+    import asyncio
+
+    _schalter(monkeypatch, an=True)
+    takt_laeuft, takt_darf = asyncio.Event(), asyncio.Event()
+    abrufe: list[int] = []
+
+    async def _fake(name, args, **_kw):
+        abrufe.append(1)
+        if len(abrufe) == 1:
+            takt_laeuft.set()
+            await takt_darf.wait()
+            return "# Anleitung\n\nAlt."
+        return "Skill knoten-1 ist nicht abrufbar."
+
+    monkeypatch.setattr(master_skill, "call_mcp_tool", _fake)
+    takt = asyncio.create_task(master_skill.auffrischen())
+    await takt_laeuft.wait()
+    await master_skill.neu_laden()
+    takt_darf.set()
+    await takt
+
+    assert master_skill.zustand()["cached"] is False

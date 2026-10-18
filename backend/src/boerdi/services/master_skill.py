@@ -56,14 +56,18 @@ logger = logging.getLogger(__name__)
 #: der Prompt-Cache). Kein ``Final``: Tests verkürzen ihn.
 TAKT_S: float = 5 * 60
 
-#: ``{nodeId: (abruf_nr, text)}`` — der letzte gute Stand, absichtlich ohne obere
-#: Schranke: es gibt genau eine Kennung je Anlage. Er verfällt nicht; ersetzt wird er
-#: durch einen erfolgreichen Abruf, entfernt durch die Antwort „keine Anleitung“.
-#: ``abruf_nr`` ordnet die Abrufe nach ihrem START: ein langsamer Takt (bis 23 s), der
-#: nach „Neu laden“ fertig wird, schreibt den älteren Text nicht zurück (Review). Eine
-#: Nummer statt der Uhr, weil die monotone Uhr unter Windows grob auflöst.
-_zwischenspeicher: dict[str, tuple[int, str]] = {}
+#: ``{nodeId: text}`` — der letzte gute Stand, absichtlich ohne obere Schranke: es gibt
+#: genau eine Kennung je Anlage. Er verfällt nicht; ersetzt wird er durch einen
+#: erfolgreichen Abruf, entfernt durch die Antwort „keine Anleitung“.
+_zwischenspeicher: dict[str, str] = {}
+
+#: Die Abrufe sind nach ihrem START nummeriert; ``_angewendet`` hält je Kennung die
+#: Nummer des neuesten Abrufs, dessen Antwort gilt (gespeichert oder verworfen). Ein
+#: älterer, der später fertig wird — ein langsamer Takt (bis 23 s) nach „Neu laden“ —,
+#: ändert weder Text noch Meldung (Review). Eine Nummer statt der Uhr, weil die
+#: monotone Uhr unter Windows grob auflöst.
 _abruf_nummern = itertools.count(1)
+_angewendet: dict[str, int] = {}
 
 #: Nur für die Anzeige (AG-2) und die Messdaten (K0-2): wann zuletzt erfolgreich
 #: geholt (Unix-Zeit) und warum der letzte Abruf scheiterte. Ein Erfolg löscht die
@@ -112,21 +116,39 @@ def _keine_anleitung(text: str) -> bool:
 def leere_den_zwischenspeicher() -> None:
     """Für Tests und für einen Neustart ohne Prozesswechsel."""
     _zwischenspeicher.clear()
+    _angewendet.clear()
     _abgerufen_um.clear()
     _letzter_fehler.clear()
 
 
 def _gespeichert(kennung: str) -> str | None:
-    eintrag = _zwischenspeicher.get(kennung)
-    return eintrag[1] if eintrag else None
+    return _zwischenspeicher.get(kennung)
 
 
-def _verwerfen(kennung: str, abruf_nr: int) -> None:
-    """Den Stand entfernen — nur wenn kein später gestarteter Abruf ihn schon ersetzt hat."""
-    eintrag = _zwischenspeicher.get(kennung)
-    if eintrag is not None and eintrag[0] < abruf_nr:
-        del _zwischenspeicher[kennung]
-        _abgerufen_um.pop(kennung, None)
+async def _abrufen(kennung: str, *, frisch: bool) -> tuple[str | None, str | None, bool]:
+    """Ein Abruf ohne Seiteneffekt auf den Speicher: ``(text, fehler, verwerfen)``.
+
+    ``verwerfen`` heißt: der Server hat geantwortet, es gebe keine Anleitung (oder nur
+    leeren Text) — der bisherige Stand fällt weg. Bei einer Ausnahme oder Ablehnung
+    bleibt er stehen.
+    """
+    try:
+        roh = await call_mcp_tool(
+            "get_skill", {"nodeId": kennung, "includeFiles": False}, use_cache=not frisch)
+    except Exception as fehler:  # Transport, Zeitüberschreitung, Programmfehler
+        logger.warning("Master-Skill %s nicht abrufbar: %s", kennung, fehler)
+        return None, f"{type(fehler).__name__}: {fehler}"[:200], False
+    if not roh or is_mcp_error(roh):
+        logger.warning("Master-Skill %s: Server lehnte ab (%s)", kennung, (roh or "")[:120])
+        return None, f"Server lehnte ab: {(roh or '')[:120]}", False
+    text = roh.strip()
+    if not text:
+        logger.warning("Master-Skill %s ist leer", kennung)
+        return None, "leer", True
+    if _keine_anleitung(text):
+        logger.warning("Master-Skill %s: keine Anleitung (%s)", kennung, text[-160:])
+        return None, f"keine Anleitung: {text[-160:]}", True
+    return text, None, False
 
 
 async def _hole(kennung: str, *, frisch: bool = False) -> str | None:
@@ -146,32 +168,19 @@ async def _hole(kennung: str, *, frisch: bool = False) -> str | None:
         if gespeichert is not None:
             return gespeichert
     abruf_nr = next(_abruf_nummern)
-    try:
-        roh = await call_mcp_tool(
-            "get_skill", {"nodeId": kennung, "includeFiles": False}, use_cache=not frisch)
-    except Exception as fehler:  # Transport, Zeitüberschreitung, Programmfehler
-        logger.warning("Master-Skill %s nicht abrufbar: %s", kennung, fehler)
-        _letzter_fehler[kennung] = f"{type(fehler).__name__}: {fehler}"[:200]
+    text, fehler, verwerfen = await _abrufen(kennung, frisch=frisch)
+    if _angewendet.get(kennung, 0) > abruf_nr:
+        # Überholt: ein später gestarteter Abruf war schneller — sein Ergebnis gilt.
+        return _gespeichert(kennung)
+    if text is None:
+        _letzter_fehler[kennung] = fehler or ""
+        if verwerfen:
+            _angewendet[kennung] = abruf_nr
+            _zwischenspeicher.pop(kennung, None)
+            _abgerufen_um.pop(kennung, None)
         return None
-    if not roh or is_mcp_error(roh):
-        logger.warning("Master-Skill %s: Server lehnte ab (%s)", kennung, (roh or "")[:120])
-        _letzter_fehler[kennung] = f"Server lehnte ab: {(roh or '')[:120]}"
-        return None
-    text = roh.strip()
-    if not text:
-        logger.warning("Master-Skill %s ist leer", kennung)
-        _letzter_fehler[kennung] = "leer"
-        _verwerfen(kennung, abruf_nr)
-        return None
-    if _keine_anleitung(text):
-        logger.warning("Master-Skill %s: keine Anleitung (%s)", kennung, text[-160:])
-        _letzter_fehler[kennung] = f"keine Anleitung: {text[-160:]}"
-        _verwerfen(kennung, abruf_nr)
-        return None
-    bisher = _zwischenspeicher.get(kennung)
-    if bisher is not None and bisher[0] > abruf_nr:
-        return bisher[1]  # ein später gestarteter Abruf war schneller — sein Stand gilt
-    _zwischenspeicher[kennung] = (abruf_nr, text)
+    _angewendet[kennung] = abruf_nr
+    _zwischenspeicher[kennung] = text
     _abgerufen_um[kennung] = time.time()
     _letzter_fehler.pop(kennung, None)
     logger.info("Master-Skill %s geladen (%d Zeichen)", kennung, len(text))
