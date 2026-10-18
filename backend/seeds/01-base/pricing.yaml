@@ -7,19 +7,68 @@
 # Meldet der Anbieter eine Version (gpt-5.4-mini-2026-03-01), genuegt der
 # Kurzname: gesucht wird erst exakt, dann der laengste passende Praefix.
 #
-# ALLE PREISE STEHEN AUF 0,0 — das heisst "nicht gepflegt", NICHT "kostenlos".
-# Solange sie so stehen, meldet die Auswertung ausdruecklich, dass fuer dieses
-# Modell kein Preis hinterlegt ist. Ein erfundener Preis waere schlimmer als
-# keiner: er saehe aus wie eine Abrechnung.
+# Werksfassung (Nutzer-Entscheid 2026-10-18): die OpenAI-Listenpreise, Stufe
+# "Standard", kurzer Kontext, in US-Dollar wie bei OpenAI — nicht umgerechnet.
+# Nicht abgebildet sind Cache-Schreibpreise und der teurere lange Kontext; die
+# Betraege sind darum eine Schaetzung nach Liste, keine Rechnung. Ueber die
+# b-api oder die AcademicCloud kann anders abgerechnet werden — dann die Tafel
+# im Studio (Kosten -> Preistafel) anpassen. Preise aendern sich: vor einer
+# Kostenaussage mit der Liste des Anbieters abgleichen.
 #
-# Zum Pflegen die Zahlen des Anbieters eintragen. Modelle, die hier fehlen,
-# einfach als neuen Block ergaenzen — die Tafel ist nicht auf diese Liste
-# beschraenkt.
+# 0,0 ueberall heisst "nicht gepflegt", NICHT "kostenlos": die Auswertung meldet
+# dann ausdruecklich, dass kein Preis hinterlegt ist. Ohne Cache-Rabatt
+# (Liste "-") steht cached_input auf dem Eingabepreis.
 
-currency: EUR
+currency: USD
 
 models:
-  # Antwort-/Klassifikationsmodell des Chats (LLM_CHAT_MODEL)
+  # Vorgabe-Modell des Chats (LLM_CHAT_MODEL) und der Auswertung.
+  gpt-6-luna:
+    input: 0.10
+    cached_input: 0.01
+    output: 0.50
+  gpt-6-sol:
+    input: 2.00
+    cached_input: 0.20
+    output: 10.00
+  gpt-6.1-sol:
+    input: 2.00
+    cached_input: 0.10
+    output: 10.00
+  gpt-6-astra:
+    input: 10.00
+    cached_input: 1.00
+    output: 50.00
+  gpt-5.6-luna:
+    input: 0.20
+    cached_input: 0.02
+    output: 1.20
+  gpt-5.6-terra:
+    input: 2.00
+    cached_input: 0.20
+    output: 12.00
+  gpt-5.6-sol:
+    input: 4.00
+    cached_input: 0.40
+    output: 20.00
+  gpt-5.5:
+    input: 5.00
+    cached_input: 0.50
+    output: 30.00
+  gpt-5.5-pro:
+    input: 30.00
+    cached_input: 30.00
+    output: 180.00
+  gpt-5.4:
+    input: 2.50
+    cached_input: 0.25
+    output: 15.00
+  gpt-5.4-pro:
+    input: 30.00
+    cached_input: 30.00
+    output: 180.00
+  # Nicht in der Liste vom 2026-10-18 — bleiben ungepflegt, bis jemand den Preis
+  # des Anbieters eintraegt.
   gpt-5.4-mini:
     input: 0.0
     cached_input: 0.0
