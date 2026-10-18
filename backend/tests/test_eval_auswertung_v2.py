@@ -128,3 +128,15 @@ def test_ein_lauf_ohne_judge_v2_hat_leere_matrizen() -> None:
     a = av.auswerten({"summary": {}, "conversations": []}, _preis)
     assert a["je_ablauf"] == [] and a["matrix_zielgruppe_anwendungsfall"] == {}
     assert a["gesamt"]["gesamt_mittel"] is None and a["gesamt"]["judge_kosten"] is None
+
+
+def test_ein_chat_ausfall_zaehlt_nicht_als_judge_fehler() -> None:
+    """Review PR #18 (Eval #3): ein Ablauf ohne beantworteten Zug hat kein Urteil — wegen des
+    Chats, nicht des Judges. Doppelt gezählt zeigte die Auswertung auf den Judge."""
+    from boerdi.services.eval.golden import KEINE_ANTWORT
+
+    lauf = {"conversations": [{"flow_id": "GV-9", "zielgruppe": "P-LEH",
+                               "urteil_fehler": KEINE_ANTWORT,
+                               "turns": [{"user": "u", "error": "Chat weg"}]}]}
+    g = av.auswerten(lauf, _preis)["gesamt"]
+    assert g["chat_fehler"] == 1 and g["judge_fehler"] == 0

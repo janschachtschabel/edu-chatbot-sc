@@ -29,6 +29,7 @@ from typing import Any
 
 from boerdi.services.config_loader import load_persona_definitions, load_pricing
 from boerdi.services.eval import auswertung_v2, vergleich_v2
+from boerdi.services.eval.auswertung_v2 import KEINE_ANTWORT
 from boerdi.services.eval.judge import _build_persona_expectations
 from boerdi.services.eval.judge_v2 import judge_ablauf, judge_zug, kurzbericht
 from boerdi.services.eval.metrics import (
@@ -97,7 +98,7 @@ async def bewerte_gespraeche(
                 continue
             zahl["zuege"] += 1
         if not beantwortet:
-            conv["urteil_fehler"] = "keine beantworteten Züge"
+            conv["urteil_fehler"] = KEINE_ANTWORT
             continue
         try:
             conv["urteil"] = await judge_ablauf(conv, zielgruppe, usage_acc=usage_acc)
@@ -132,6 +133,11 @@ async def kurzbericht_erstellen(
     Statements je Ablauf und schwache Zellen. Ein Ausfall kommt als ``{"fehler": …}`` zurück;
     der Lauf bleibt gültig, ihm fehlt nur der Bericht.
     """
+    # Ohne ein einziges Urteil (Judge ganz ausgefallen) schriebe ein bezahlter Aufruf eine
+    # Zusammenfassung von nichts (Review PR #18).
+    if not any(c.get("urteil") or any(t.get("judge") for t in c.get("turns") or [])
+               for c in conversations):
+        return {"fehler": "keine Urteile"}
     auswertung = auswertung_v2.auswerten({"conversations": conversations},
                                          price_from_table(load_pricing()))
     try:

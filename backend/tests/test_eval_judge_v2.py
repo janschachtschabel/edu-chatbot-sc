@@ -206,3 +206,12 @@ def test_ein_kurzbericht_ohne_text_wirft(monkeypatch) -> None:
     _fake(monkeypatch, {"baustellen": []})
     with pytest.raises(JudgeError):
         asyncio.run(judge_v2.kurzbericht(_AUSWERTUNG))
+
+
+def test_eine_note_wird_gerundet_und_wahrheitswerte_abgewiesen() -> None:
+    """Review PR #18 (Eval #5): `int()` schnitt 4,6 auf 4 und nahm `True` als 1."""
+    assert judge_v2._note(4.6) == 5
+    assert judge_v2._note("3") == 3
+    assert judge_v2._note(9) == 5
+    with pytest.raises(JudgeError):
+        judge_v2._note(True)

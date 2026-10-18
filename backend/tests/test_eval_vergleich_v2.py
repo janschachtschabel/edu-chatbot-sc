@@ -85,3 +85,6 @@ def test_ein_lauf_ohne_messbedingungen_v2_vergleicht_was_da_ist() -> None:
     felder = {f["feld"]: f for f in u["laeufe"][0]["felder"]}
     assert felder["modell"] == {"feld": "modell", "a": "gpt-5", "b": "gpt-6-luna"}
     assert u["laeufe"][0]["bereiche"] == []   # alt kennt keine Bereiche: nichts erfinden
+    # Review PR #18 (Eval #2): was der alte Lauf nicht kannte, ist unbekannt, nicht geändert.
+    for unbekannt in ("api", "app_version", "app_commit", "konfiguration", "gold_flows"):
+        assert unbekannt not in felder, unbekannt

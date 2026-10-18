@@ -61,3 +61,13 @@ def test_lauf_ohne_judge_hat_latenz_aber_keine_note() -> None:
     t = trends_v2.reihen([("r1", "d", _summary(gesamt=None))])
     assert t["gesamt"] == [] and t["latenz_p50_ms"][0]["value"] == 2000
     assert t["wechsel"] == []
+
+
+def test_ein_generativer_lauf_dazwischen_setzt_keine_marke() -> None:
+    """Review PR #18 (Eval #1): generative Läufe schreiben keine Messbedingungen — gegen sie
+    verglichen, trugen der Lauf und der nächste gleiche Golden-Lauf eine Marke „alles geändert“."""
+    gleich = _summary()
+    laeufe = [("g1", "2026-10-01", gleich), ("x", "2026-10-02", {"total_turns": 3}),
+              ("g2", "2026-10-03", dict(gleich))]
+    assert trends_v2.reihen(laeufe)["wechsel"] == []
+

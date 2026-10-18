@@ -285,8 +285,24 @@ def test_ein_ausfall_des_kurzberichts_wird_vermerkt(monkeypatch) -> None:
         raise RuntimeError("Bericht weg")
 
     monkeypatch.setattr(eg, "kurzbericht", kaputt)
-    bericht = asyncio.run(eg.kurzbericht_erstellen(_convs()))
+    convs = _convs()
+    convs[0]["urteil"] = {"gesamt": 4, "statement": "gut", "skalen": {}}
+    bericht = asyncio.run(eg.kurzbericht_erstellen(convs))
     assert "Bericht weg" in bericht["fehler"]
+
+
+def test_ohne_jedes_urteil_kein_kurzbericht(monkeypatch) -> None:
+    """Review PR #18 (Eval #4): fiel der Judge ganz aus, schrieb ein bezahlter Aufruf eine
+    Zusammenfassung von nichts."""
+    aufrufe: list = []
+
+    async def bericht(auswertung, *, usage_acc=None):
+        aufrufe.append(auswertung)
+        return {"text": "Alles bestens.", "baustellen": []}
+
+    monkeypatch.setattr(eg, "kurzbericht", bericht)
+    assert asyncio.run(eg.kurzbericht_erstellen(_convs())) == {"fehler": "keine Urteile"}
+    assert aufrufe == []
 
 
 # ── Kennzahlen für die Trends (Paket 13, D5) ─────────────────────────────

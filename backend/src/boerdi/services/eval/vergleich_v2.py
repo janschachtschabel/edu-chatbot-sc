@@ -80,6 +80,13 @@ def felder(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def geaenderte_felder(fa: dict[str, Any], fb: dict[str, Any]) -> list[str]:
+    """Die Felder, die beide Läufe kennen und die verschieden sind. Kannte ein Lauf ein Feld
+    nicht (vor Paket 13: Weg-API, App, Konfiguration, Gold-Flows), ist es unbekannt — nicht
+    geändert (Review PR #18)."""
+    return [k for k in fa if fa[k] is not None and fb.get(k) is not None and fa[k] != fb[k]]
+
+
 def _bereiche(summary: dict[str, Any]) -> dict[str, str]:
     roh = ((summary.get("messbedingungen") or {}).get("konfiguration") or {}).get("bereiche")
     return {a: str(e.get("hash")) for a, e in (roh or {}).items() if isinstance(e, dict)}
@@ -101,7 +108,7 @@ def _gegen(ref: dict[str, Any], lauf: dict[str, Any]) -> dict[str, Any]:
     ba, bb = _bereiche(ref.get("summary") or {}), _bereiche(lauf.get("summary") or {})
     pa, pb = prompt_fassungen(ref), prompt_fassungen(lauf)
     return {
-        "felder": [{"feld": k, "a": fa[k], "b": fb[k]} for k in fa if fa[k] != fb[k]],
+        "felder": [{"feld": k, "a": fa[k], "b": fb[k]} for k in geaenderte_felder(fa, fb)],
         "bereiche": sorted(a for a in ba.keys() | bb.keys() if ba.get(a) != bb.get(a))
         if ba and bb else [],
         "prompts": [{"art": art, "a": pa.get(art, []), "b": pb.get(art, [])}

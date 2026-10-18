@@ -29,7 +29,7 @@ def _wechsel(vorher: dict[str, Any], nachher: dict[str, Any]) -> tuple[list[str]
     fa, fb = vergleich_v2.felder(vorher), vergleich_v2.felder(nachher)
     pa = (vorher.get("kennzahlen_v2") or {}).get("prompts") or {}
     pb = (nachher.get("kennzahlen_v2") or {}).get("prompts") or {}
-    felder = [k for k in fa if fa[k] != fb[k]]
+    felder = vergleich_v2.geaenderte_felder(fa, fb)
     prompts = [art for art in sorted(pa.keys() | pb.keys()) if pa.get(art) != pb.get(art)]
     return felder, prompts if pa and pb else []
 
@@ -48,6 +48,10 @@ def reihen(laeufe: list[tuple[str, str | None, dict[str, Any]]]) -> dict[str, An
         for skala, wert in (k.get("skalen_mittel") or {}).items():
             if wert is not None:
                 skalen.setdefault(skala, []).append(_punkt(run_id, created_at, wert))
+        # Nur Läufe mit Messbedingungen (Golden) sind Vergleichspartner — ein generativer Lauf
+        # dazwischen schrieb keine und setzte sonst Marken „alles geändert“ (Review PR #18).
+        if not summary.get("messbedingungen"):
+            continue
         if vorher is not None:
             felder, prompts = _wechsel(vorher, summary)
             if felder or prompts:

@@ -43,8 +43,11 @@ async def _urteil(prompt: str, phase: str, usage_acc: dict[str, Any] | None) -> 
 
 
 def _note(wert: Any) -> int:
+    """Eine Note 1–5, gerundet — `int()` schnitt 4,6 auf 4 und nahm `True` als 1."""
+    if isinstance(wert, bool):
+        raise JudgeError(f"Note unlesbar: {wert!r}")
     try:
-        return max(1, min(5, int(wert)))
+        return max(1, min(5, round(float(wert))))
     except (TypeError, ValueError) as fehler:
         raise JudgeError(f"Note unlesbar: {wert!r}") from fehler
 

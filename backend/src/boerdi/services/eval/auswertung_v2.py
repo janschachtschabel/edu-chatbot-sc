@@ -17,6 +17,10 @@ from typing import Any
 
 from boerdi.services.eval import engine_metrics as em
 
+#: Ein Ablauf ohne beantworteten Zug hat kein Urteil — wegen des Chats, nicht des Judges
+#: (Review PR #18): er zählt als Chat-Fehler, nicht noch einmal als Judge-Fehler.
+KEINE_ANTWORT = "keine beantworteten Züge"
+
 
 def _mittel(werte: list[float]) -> float | None:
     return round(statistics.fmean(werte), 2) if werte else None
@@ -99,7 +103,7 @@ def _matrizen(convs: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _verteilung(werte: list[int]) -> dict[str, int]:
     geordnet = sorted(werte)
-    return {"p50_ms": em._rank(geordnet, 0.5), "p95_ms": em._rank(geordnet, 0.95),
+    return {"p50_ms": em.rank(geordnet, 0.5), "p95_ms": em.rank(geordnet, 0.95),
             "n": len(geordnet)}
 
 
@@ -158,7 +162,8 @@ def auswerten(detail: dict[str, Any], price: em.PriceFn) -> dict[str, Any]:
         "latenz": em.speed(alle),
         "kosten_je_zug": em.tokens_and_cost(alle, price)["cost_per_turn"],
         "chat_fehler": sum(t.error for t in alle),
-        "judge_fehler": sum(bool(c.get("urteil_fehler")) for c in convs)
+        "judge_fehler": sum(bool(c.get("urteil_fehler")) and c.get("urteil_fehler") != KEINE_ANTWORT
+                            for c in convs)
                         + sum(t.judge_failed for t in alle),
         "judge_kosten": _judge_kosten(judge_usage, price),
         "judge_aufrufe": judge_usage.get("calls"),

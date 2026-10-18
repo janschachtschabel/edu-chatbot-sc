@@ -104,7 +104,7 @@ def quality(turns: list[Turn]) -> dict[str, Any]:
             "hard_total": total, "axes": axes}
 
 
-def _rank(values: list[int], q: float) -> int:
+def rank(values: list[int], q: float) -> int:
     """Nächster Rang, wie ``run_golden.latency_summary``."""
     ordered = sorted(values)
     return ordered[max(1, math.ceil(q * len(ordered))) - 1]
@@ -114,7 +114,7 @@ def speed(turns: list[Turn]) -> dict[str, Any]:
     lat = [t.latency_ms for t in turns if t.latency_ms is not None]
     if not lat:
         return {"p50_ms": None, "p95_ms": None, "over_30s": None, "over_90s": 0}
-    return {"p50_ms": _rank(lat, 0.5), "p95_ms": _rank(lat, 0.95),
+    return {"p50_ms": rank(lat, 0.5), "p95_ms": rank(lat, 0.95),
             "over_30s": sum(v > 30_000 for v in lat) / len(lat),
             "over_90s": sum(v > 90_000 for v in lat)}
 
