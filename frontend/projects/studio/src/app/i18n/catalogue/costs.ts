@@ -118,12 +118,23 @@ export const COSTS: CataloguePart = {
     // Paket 16, D2: Kosten je Tag
     'costDays.title': 'Kosten je Tag',
     'costDays.hint':
-      'Je Kalendertag (deutsche Zeit) eine Säule; die höchste steht für {max}. Gestrichelte '
-      + 'Marke: Tage mit Zügen, aber ganz ohne gepflegten Preis; fehlt nur für ein Modell der '
-      + 'Preis, sagt es die Tabelle („unvollständig“).',
+      'Je Kalendertag (deutsche Zeit) eine Säule; die höchste steht für {max}. Fehlt nur für ein '
+      + 'Modell der Preis, sagt es die Tabelle („unvollständig“).',
+    'costDays.hintKeinBetrag': 'Im Zeitraum fiel kein Betrag an.',
+    'costDays.ohnePreis.one':
+      'An {count} Tag fehlt der Preis ganz — dort steht keine Säule; „Aufrufe“ zeigt alle Tage.',
+    'costDays.ohnePreis.other':
+      'An {count} Tagen fehlt der Preis ganz — dort steht keine Säule; „Aufrufe“ zeigt alle Tage.',
+    'costDays.hintAufrufe':
+      'Je Kalendertag (deutsche Zeit) eine Säule; die höchste steht für {max} LLM-Aufrufe.',
     'costDays.hintOhnePreis':
-      'Im Zeitraum hat noch kein Tag mit gepflegtem Preis Kosten — die gestrichelten Marken '
-      + 'zeigen Tage mit Zügen ohne Preis.',
+      'Beträge fehlen, weil für die Modelle dieses Zeitraums kein Preis gepflegt ist — Preise '
+      + 'pflegst du in der Preistafel.',
+    'costDays.mass.legend': 'Im Diagramm zeigen',
+    'costDays.mass.betrag': 'Betrag',
+    'costDays.mass.aufrufe': 'Aufrufe',
+    'costDays.aufrufe.one': '{anzahl} Aufruf',
+    'costDays.aufrufe.other': '{anzahl} Aufrufe',
     'costDays.table': 'Als Tabelle',
     'costDays.col.tag': 'Tag',
     'costDays.col.calls': 'Aufrufe',
@@ -216,12 +227,23 @@ export const COSTS: CataloguePart = {
     'nutzung.wochentag.6': 'Sun',
     'costDays.title': 'Cost per day',
     'costDays.hint':
-      'One bar per calendar day (German time); the tallest stands for {max}. Dashed mark: days '
-      + 'with turns but no maintained price at all; if only one model lacks a price, the table '
-      + 'says so (“incomplete”).',
+      'One bar per calendar day (German time); the tallest stands for {max}. If only one model '
+      + 'lacks a price, the table says so (“incomplete”).',
+    'costDays.hintKeinBetrag': 'No cost arose in this period.',
+    'costDays.ohnePreis.one':
+      'On {count} day the price is missing entirely — no bar there; “Calls” shows every day.',
+    'costDays.ohnePreis.other':
+      'On {count} days the price is missing entirely — no bar there; “Calls” shows every day.',
+    'costDays.hintAufrufe':
+      'One bar per calendar day (German time); the tallest stands for {max} LLM calls.',
     'costDays.hintOhnePreis':
-      'No day in this period has costs with a maintained price yet — the dashed marks show '
-      + 'days with turns but no price.',
+      'Amounts are missing because no price is maintained for the models in this period — '
+      + 'maintain prices in the price table.',
+    'costDays.mass.legend': 'Show in the chart',
+    'costDays.mass.betrag': 'Amount',
+    'costDays.mass.aufrufe': 'Calls',
+    'costDays.aufrufe.one': '{anzahl} call',
+    'costDays.aufrufe.other': '{anzahl} calls',
     'costDays.table': 'As a table',
     'costDays.col.tag': 'Day',
     'costDays.col.calls': 'Calls',

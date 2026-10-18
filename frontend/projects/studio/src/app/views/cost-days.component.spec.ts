@@ -33,7 +33,35 @@ describe('CostDaysComponent (Paket 16, D2)', () => {
     const bild = el.querySelector('svg[role="img"]');
     expect(bild?.getAttribute('aria-labelledby')).toBeTruthy();
     expect(el.querySelectorAll('svg .cd-bar')).toHaveLength(4);
-    expect(el.querySelectorAll('svg .cd-ohne')).toHaveLength(1);
+    // Keine Ersatzmarken mehr (Studio-Rundgang): ein Tag ohne Preis steht im Hinweis.
+    expect(el.querySelector('svg .cd-ohne')).toBeNull();
+  });
+
+  it('nennt im Betrag die Tage ohne Preis und bietet „Aufrufe“ an', async () => {
+    const el = await mount();
+    const wahl = (w: string) => el.querySelector<HTMLInputElement>(`input[type="radio"][value="${w}"]`)!;
+    expect(wahl('betrag').checked).toBe(true);
+    expect(norm(el.querySelector('.cd-hinweis')?.textContent)).toContain('An 1 Tag fehlt der Preis');
+    wahl('aufrufe').click();
+    await new Promise((r) => setTimeout(r, 0));
+    const hoehen = Array.from(el.querySelectorAll('svg .cd-bar'), (r) => Number(r.getAttribute('height')));
+    expect(hoehen.filter((h) => h > 0)).toHaveLength(3);
+    expect(norm(el.querySelector('.cd-hinweis')?.textContent)).toContain('4 LLM-Aufrufe');
+  });
+
+  it('steht ganz ohne Preis von selbst auf „Aufrufe“ — normale Säulen statt leerer Fläche', async () => {
+    const el = await mount([
+      { tag: '2026-03-10', calls: 4, amount: null, unvollstaendig: true },
+      { tag: '2026-03-11', calls: 2, amount: null, unvollstaendig: true },
+    ]);
+    const betrag = el.querySelector<HTMLInputElement>('input[type="radio"][value="betrag"]')!;
+    expect(el.querySelector<HTMLInputElement>('input[type="radio"][value="aufrufe"]')!.checked).toBe(true);
+    expect(betrag.disabled).toBe(true);
+    // Der Grund der Sperre ist mit dem Umschalter verknüpft, nicht nur danebengeschrieben.
+    const grund = el.querySelector('fieldset')?.getAttribute('aria-describedby') ?? '';
+    expect(norm(el.querySelector(`#${grund}`)?.textContent)).toContain('kein Preis gepflegt');
+    const hoehen = Array.from(el.querySelectorAll('svg .cd-bar'), (r) => Number(r.getAttribute('height')));
+    expect(hoehen.every((h) => h > 0)).toBe(true);
   });
 
   it('führt die Tage zusätzlich als Tabelle — die Textfassung des Diagramms', async () => {
@@ -54,7 +82,7 @@ describe('CostDaysComponent (Paket 16, D2)', () => {
     ]);
     const hinweis = norm(el.querySelector('.cd-hinweis')?.textContent);
     expect(hinweis).not.toContain('0,00');
-    expect(hinweis).toContain('kein Tag mit gepflegtem Preis Kosten');
+    expect(hinweis).toContain('kein Preis gepflegt');
   });
 
   it('zeigt nichts ohne Tage', async () => {

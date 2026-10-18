@@ -1,5 +1,8 @@
-// Kosten je Tag (Paket 16, D2). Nur Studio-Tokens; die Säulen tragen die Akzentfarbe, die
-// Marke „ohne Preis“ ist gestrichelt umrandet — nicht nur anders gefärbt (WCAG 1.4.1).
+// Kosten je Tag (Paket 16, D2). Nur Studio-Tokens; die Säulen tragen die Akzentfarbe.
+// Die Zeichnung wird nur in der Breite gestreckt (`preserveAspectRatio="none"`): Striche
+// bleiben mit `non-scaling-stroke` in Bildschirm-Pixeln, sonst zerfallen sie.
+@use './visually-hidden';
+
 .cd {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -7,9 +10,54 @@
   margin-block-start: var(--st-4);
 }
 
+.cd-kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--st-2);
+}
+
 .cd-titel {
   margin: 0;
   font-size: 1rem;
+}
+
+// Umschalter „Betrag | Aufrufe“ — echte Radios, gerahmt wie ein Segment.
+.cd-mass {
+  display: inline-flex;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  overflow: hidden;
+}
+
+.cd-mass-wahl {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-1);
+  padding: var(--st-1) var(--st-3);
+  font-size: 0.8125rem;
+  cursor: pointer;
+
+  & + & {
+    border-inline-start: 1px solid var(--st-rule);
+  }
+
+  &:has(input:checked) {
+    background: var(--st-accent-soft);
+  }
+
+  &:has(input:disabled) {
+    color: var(--st-text-muted);
+    cursor: not-allowed;
+  }
+
+  &:has(input:focus-visible) {
+    outline: 2px solid var(--st-accent);
+    outline-offset: -2px;
+  }
 }
 
 .cd-chart {
@@ -20,17 +68,11 @@
 .cd-axis {
   stroke: var(--st-rule);
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .cd-bar {
   fill: var(--st-accent);
-}
-
-.cd-ohne {
-  fill: none;
-  stroke: var(--st-text-muted);
-  stroke-dasharray: 3 2;
-  stroke-width: 1;
 }
 
 .cd-hinweis {
