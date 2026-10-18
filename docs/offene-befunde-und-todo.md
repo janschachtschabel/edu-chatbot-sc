@@ -55,7 +55,7 @@ Die zugehörigen Pläne:
   - Vierte Runde (Master-Skill 22/22 im Knoten): keine erfundene Stufe mehr (Bruchrechnen für Eltern); verlangte OER-Lizenz bleibt im Muster-Modus gesetzt, der Agent lockert sie nur mit Hinweis; Anrede bei unklarer Zielgruppe in allen Rückfragen „Sie“; Platzhalter auf der Sammlung 3/4 erst Rückfrage (zusammen mit Runde 2: 8/9); Quiz verteilt die richtige Antwort, die Begründung fehlte in 1 von 2 Läufen — Kandidat: Format-Beispiel „1. B – weil …“ in M10.
 ## 2 Entscheidungen des Nutzers
 
-- **Preis für `gpt-6-luna` fehlt in der Preistafel des Seeds** (`01-base/pricing`, Paket-16-Abnahme): die Vorgabe-Maschine rechnet mit einem Modell ohne Preis — Kosten-Seite und „Kosten je Tag“ zeigen darum „kein Preis“. Preis eintragen (Studio „Kosten“ → Preistafel) oder im Seed ergänzen.
+- ~~**Preis für `gpt-6-luna` fehlt in der Preistafel des Seeds**~~ — erledigt 2026-10-18: die Werksfassung `01-base/pricing` trägt die OpenAI-Listenpreise (Standard, kurzer Kontext) in **USD** (Nutzer-Entscheid; hebt „Seed ohne Preise“ auf). Nicht abgebildet: Cache-Schreibpreise, langer Kontext, abweichende Abrechnung über b-api/AcademicCloud. Achtung Präfix-Suche: eine ungelistete Variante (etwa `gpt-5.4-nano`) bekäme still den Preis von `gpt-5.4`. Eine Anlage, deren Preistafel unberührt ist, übernimmt die Preise beim nächsten Werksabgleich (`migrate`).
 Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — in [`entscheidungen-offen.md`](entscheidungen-offen.md). Die Entscheide vom 2026-10-09 sind in Paket 7 und Paket 8 umgesetzt (siehe die Plan-Liste oben); offen ist:
 
 - **AcademicCloud und Einbettungen:** entschieden 2026-10-15 (so lassen); Einbettungswechsel machbar machen → Paket 11 (D), [`plans/2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md`](plans/2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md).
@@ -139,7 +139,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - Seeds: `01-base/safety-config.yaml` nur ein Kommentar; `01-base/privacy-config.yaml` trägt `retention_days: 30` — dieselbe Zahl gilt als Vorgabe des Modells auch ohne Import.
 - **Paket 7:**
   - Migrationen `0007` (die toten Auslöser-Bereiche löschen), `0008` (Tabelle `session_locks`) und `0009` (`usage_events.session_id` nullbar, Spalte `quelle`) — `alembic upgrade head`, der Dienst `migrate` erledigt das beim Start.
-  - Geänderte Seeds (wirken nur in nicht gespeicherten Bereichen): `01-base/engine.yaml` (Agent, Block `betrieb`), `01-base/safety-config.yaml` (`self_harm` 0,25), `01-base/pricing.yaml` (EUR), `01-base/guide-mode.yaml`, `05-knowledge/mcp-servers.yaml`, `03-patterns/m10-ki-inhalt-generierung.md`, `eval/gold-flows.yaml` (GV-RED-1 auf Abruf). Neu: `01-base/rag-retrieval.yaml` (leer = Vorgaben des Codes; legt der Dienst `migrate` an).
+  - Geänderte Seeds (wirken nur in nicht gespeicherten Bereichen): `01-base/engine.yaml` (Agent, Block `betrieb`), `01-base/safety-config.yaml` (`self_harm` 0,25), `01-base/pricing.yaml` (seit 2026-10-18 USD mit Listenpreisen), `01-base/guide-mode.yaml`, `05-knowledge/mcp-servers.yaml`, `03-patterns/m10-ki-inhalt-generierung.md`, `eval/gold-flows.yaml` (GV-RED-1 auf Abruf). Neu: `01-base/rag-retrieval.yaml` (leer = Vorgaben des Codes; legt der Dienst `migrate` an).
   - Das Image wird um rund 80 MB größer (`markitdown`-Extras für PDF und Office).
   - Umgebung: siehe `deploy/.env.example` (Parallelität je Anbieter, durchgereichte Schalter; leer gilt als ungesetzt). Eine gesetzte Variable schlägt die Studio-Schalter (Fast-Modus, Token-Streaming, Agent-Schnellantworten).
   - Studio, Agent & Maschine → Betrieb: Agent-Schnellantworten erst nach dem Übertragen des Master-Skill-Abschnitts „Schnellantworten“ einschalten. Das Gastkonto-Schreiben bleibt aus, bis es jemand bewusst einschaltet.
@@ -200,6 +200,8 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 - **Veraltete Kommentare im Seed** (Doku-Abgleich 2026-10-18, nicht angefasst, weil eine Seed-Änderung als neue Werksfassung zählen kann): `backend/seeds/05-knowledge/rag-config.yaml` Z. 11 nennt nur M04 und M15 als RAG-Muster (dazu kam M10); `backend/seeds/05-knowledge/mcp-servers.yaml` Z. 9 nennt „System → MCP-Server“ (heute Gemeinsam → „Werkzeuge“). Im Code-Kommentar von `views/curated-pages-betrieb.ts` heißt die Agent-Seite noch „Rolle & Grenzen“ (Katalog: „Rolle & Schutz“). Beim nächsten Seed-Paket mitnehmen.
 - **Architektur-Grafiken:** 3 unbekannte Viewer-Schlüssel und 66 englische Viewer-Texte im gemeinsamen `translations`-Block aller sechs Grafiken (archify-Warnung, kein Fehler) — gemeinsam angleichen, wenn die Grafiken das nächste Mal neu erzeugt werden.
+
+- **Master-Skill: Erstabruf nicht gebündelt** (Review 2026-10-18, Befund 5): Direkt nach einem Neustart, solange der erste Takt-Abruf noch läuft (bis 23 s), holt jeder Zug ohne Stand den Text selbst — N gleichzeitige Erstzüge, N MCP-Sitzungen. Das gab es schon beim alten Ablauf-Verfahren. Hebel: den laufenden Abruf je Kennung merken und abwarten (Single-Flight).
 
 ## 6 Zurückgestellte Plan-Teile
 
