@@ -1,0 +1,52 @@
+@if (vergleich.error(); as fehler) {
+  <p class="op-msg op-msg--error" role="alert">⚠ {{ fehler }}</p>
+} @else if (vergleich.value(); as teile) {
+  @for (teil of teile; track teil.art) {
+    @if (teil.art === 'gelebt' && teil.zeilen.length === 0) {
+      <p class="fs-hint">{{ t('fassungen.diffNone') }}</p>
+    } @else {
+      @if (teil.felder.length > 0) {
+        <div class="fs-tabelle" tabindex="0" role="region"
+          [attr.aria-label]="t('fassungen.felderRegion.' + teil.art, { area: area() })">
+          <table>
+            <caption>{{ t('fassungen.felderCaption.' + teil.art) }}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{{ t('fassungen.spalte.feld') }}</th>
+                <th scope="col">{{ t('fassungen.spalte.werk') }}</th>
+                <th scope="col">{{ t('fassungen.spalte.' + teil.art) }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of teil.felder; track f.pfad) {
+                <tr>
+                  <th scope="row"><code>{{ f.pfad }}</code></th>
+                  <td>{{ f.werk ?? t('fassungen.feldFehlt') }}</td>
+                  <td>{{ f.eigen ?? t('fassungen.feldFehlt') }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (teil.weitere > 0) {
+          <p class="fs-hint">{{ weitere(teil.weitere) }}</p>
+        }
+      }
+      <details class="fs-roh" [open]="teil.felder.length === 0">
+        <summary>{{ t('fassungen.rohansicht.' + teil.art) }}</summary>
+        <p class="fs-hint">
+          {{ t(teil.art === 'gelebt' ? 'fassungen.diffLegend' : 'fassungen.diffEigeneLegend') }}
+        </p>
+        <pre
+          class="fs-diff-pre"
+          tabindex="0"
+          role="region"
+          [attr.aria-label]="t(teil.art === 'gelebt' ? 'fassungen.diffRegion' : 'fassungen.diffEigeneRegion', { area: area() })"
+        >@for (l of teil.zeilen; track $index) {<span [class]="zeilenart(l)">{{ l }}</span>
+}</pre>
+      </details>
+    }
+  }
+} @else {
+  <p class="fs-hint">{{ t('async.loading', { label: area() }) }}</p>
+}

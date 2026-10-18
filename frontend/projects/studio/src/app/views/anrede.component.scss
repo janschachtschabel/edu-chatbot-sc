@@ -58,3 +58,11 @@
   font-size: 0.8125rem;
   color: var(--st-text-muted);
 }
+
+// Plan B6: Zeilen mit „wie die Person schreibt“ — dort gilt der Rückfall.
+.an-gilt {
+  display: block;
+  margin-block-start: var(--st-1);
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}

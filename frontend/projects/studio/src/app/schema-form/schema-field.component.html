@@ -29,6 +29,7 @@
             <span class="sf-key">{{ key }}</span>
           }
           @if (vorgabePlakette()) { <span class="sf-vorgabe-tag">{{ t('schemaField.vorgabe') }}</span> }
+          @if (wirkungsPlakette(); as w) { <span class="sf-wirkung-tag">{{ t('schemaField.wirkung.' + w) }}</span> }
         </legend>
       }
       @if (hint(); as text) {
@@ -63,6 +64,7 @@
         }
         @if (!unset()) { <span class="sf-count">({{ list.items().length }})</span> }
         @if (vorgabePlakette()) { <span class="sf-vorgabe-tag">{{ t('schemaField.vorgabe') }}</span> }
+          @if (wirkungsPlakette(); as w) { <span class="sf-wirkung-tag">{{ t('schemaField.wirkung.' + w) }}</span> }
       </legend>
       @if (hint(); as text) {
         <p class="sf-desc" [id]="descId()">{{ text }}</p>
@@ -206,6 +208,7 @@
         }
         <span class="sf-count">({{ map.entries().length }})</span>
         @if (vorgabePlakette()) { <span class="sf-vorgabe-tag">{{ t('schemaField.vorgabe') }}</span> }
+          @if (wirkungsPlakette(); as w) { <span class="sf-wirkung-tag">{{ t('schemaField.wirkung.' + w) }}</span> }
       </legend>
       @if (hint(); as text) {
         <p class="sf-desc" [id]="descId()">{{ text }}</p>
@@ -368,6 +371,7 @@
           <!-- Paket 15 (A3): nicht gespeichert — der Server nimmt diesen Wert -->
           <span class="sf-vorgabe-tag">{{ t('schemaField.vorgabe') }}</span>
         }
+        @if (wirkungsPlakette(); as w) { <span class="sf-wirkung-tag">{{ t('schemaField.wirkung.' + w) }}</span> }
       </label>
       @if (hint(); as text) {
         <p class="sf-desc" [id]="descId()">{{ text }}</p>

@@ -16,7 +16,9 @@
 
 .fp-upload {
   display: grid;
-  grid-template-columns: 1fr auto;
+  // `minmax(0, …)` und ein schrumpfbares Datei-Feld: sonst gab die natürliche Breite des Felds
+  // auf 375 px die Seitenbreite vor (offene-befunde §5, behoben in Paket 16).
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: var(--st-2) var(--st-3);
   margin-block-start: var(--st-4);
@@ -29,6 +31,8 @@
 }
 
 .fp-file {
+  min-inline-size: 0;
+  max-inline-size: 100%;
   min-block-size: 2.5rem;
   font: inherit;
   color: var(--st-text);

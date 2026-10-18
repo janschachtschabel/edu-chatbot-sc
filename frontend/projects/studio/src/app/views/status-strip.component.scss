@@ -1,0 +1,74 @@
+// Rundgang 3: die Statusleiste der Übersicht, unverändert aus `overview.component.scss`.
+
+.ov-section-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.ov-strip-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--st-3);
+
+  .ov-section-title {
+    margin-block-start: 0;
+  }
+}
+
+.ov-refresh {
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-4);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: progress;
+    opacity: 0.55;
+  }
+}
+
+.ov-error {
+  margin: 0 0 var(--st-3);
+  color: var(--st-danger-text);
+}
+
+.ov-status {
+  display: grid;
+  gap: var(--st-3);
+  // No fixed column count: three cards at desk width, one at 320px, without a
+  // breakpoint list to maintain.
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.ov-status-card {
+  padding: var(--st-4);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.ov-status-kind {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--st-text-muted);
+}
+
+.ov-status-main {
+  margin: var(--st-2) 0 0;
+  font-size: 1.125rem;
+  // Long model ids ("gpt-5-mini-2026-…") must wrap rather than widen the grid.
+  overflow-wrap: anywhere;
+}
+
+.ov-status-meta {
+  margin: var(--st-1) 0 0;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}

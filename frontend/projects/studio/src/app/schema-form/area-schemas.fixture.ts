@@ -1188,6 +1188,12 @@ export const AREA_SCHEMAS: Readonly<Record<string, JsonSchema>> =
             "title": "Id",
             "type": "string"
           },
+          "zielgruppe": {
+            "default": "",
+            "title": "Zielgruppe",
+            "type": "string",
+            "x-catalog": "personas"
+          },
           "persona": {
             "default": "",
             "title": "Persona",

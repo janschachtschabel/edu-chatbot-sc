@@ -44,7 +44,15 @@
                     }
                   </th>
                   @let s = schalter(tool);
-                  <td class="agt-herkunft">{{ herkunft(tool, s) }}</td>
+                  @let h = herkunft(tool);
+                  <td class="agt-herkunft">
+                    <span [class]="'agt-herkunft-tag agt-herkunft-tag--' + h.art">
+                      {{ t('agentTools.herkunft.' + h.art) }}
+                    </span>
+                    @if (serverZeile(h); as zeile) {
+                      <span class="agt-server">{{ zeile }}</span>
+                    }
+                  </td>
                   <td class="agt-schalter">
                     @if (s) {
                       <input type="checkbox" [checked]="an(s)"

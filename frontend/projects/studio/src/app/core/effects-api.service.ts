@@ -18,12 +18,15 @@ import { StudioApi } from './studio-api.service';
 export type Engine = 'pattern' | 'agent';
 /** `krise`: nur bei Krisen- und Drohungs-Zügen — die beantwortet auch unter der
  *  Agent-Schleife der Muster-Weg (SF-1). */
-export type EffectLevel = 'voll' | 'teilweise' | 'krise' | 'keine';
+export type EffectLevel = 'voll' | 'teilweise' | 'krise' | 'keine' | 'extern';
 
 export interface AreaEffects {
   /** Die gepflegte Vorgabe — Einbettungen können per Kopfzeile die andere wählen. */
   readonly engine: Engine;
   readonly areas: Readonly<Record<string, Readonly<Record<Engine, EffectLevel>>>>;
+  /** Rundgang 3: Felder, die anders wirken als ihr Bereich (`FIELD_EFFECTS`), je Pfad. */
+  readonly fields?: Readonly<Record<string, Readonly<Record<string,
+    Readonly<Record<Engine, EffectLevel>>>>>>;
 }
 
 @Injectable({ providedIn: 'root' })

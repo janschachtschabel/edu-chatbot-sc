@@ -1,0 +1,72 @@
+// Kosten je Tag (Paket 16, D2). Nur Studio-Tokens; die Säulen tragen die Akzentfarbe, die
+// Marke „ohne Preis“ ist gestrichelt umrandet — nicht nur anders gefärbt (WCAG 1.4.1).
+.cd {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--st-2);
+  margin-block-start: var(--st-4);
+}
+
+.cd-titel {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.cd-chart {
+  inline-size: 100%;
+  block-size: 7.5rem;
+}
+
+.cd-axis {
+  stroke: var(--st-rule);
+  stroke-width: 1;
+}
+
+.cd-bar {
+  fill: var(--st-accent);
+}
+
+.cd-ohne {
+  fill: none;
+  stroke: var(--st-text-muted);
+  stroke-dasharray: 3 2;
+  stroke-width: 1;
+}
+
+.cd-hinweis {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.cd-tabelle > summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.cd-tabelle-rahmen {
+  max-block-size: 20rem;
+  overflow: auto;
+  margin-block-start: var(--st-2);
+
+  table {
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  th,
+  td {
+    padding: var(--st-1) var(--st-4) var(--st-1) 0;
+    border-block-end: 1px solid var(--st-rule);
+    text-align: start;
+  }
+
+  td {
+    font-variant-numeric: tabular-nums;
+  }
+
+  thead th {
+    font-size: 0.75rem;
+    color: var(--st-text-muted);
+  }
+}

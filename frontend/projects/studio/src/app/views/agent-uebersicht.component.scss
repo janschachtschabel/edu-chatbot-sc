@@ -41,7 +41,17 @@
   font-size: 1rem;
 }
 
-.au-wege {
+.au-hinweis {
+  margin: 0 0 var(--st-3);
+  max-inline-size: 62ch;
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+// Der Weg einer Frage: nummerierte Schichten, die Zahl trägt die Reihenfolge. Ein eigener
+// Zähler, weil `display: flex` dem Listeneintrag seine Marke nimmt.
+.au-schichten,
+.au-testseiten {
   display: grid;
   gap: var(--st-2);
   margin: 0;
@@ -54,32 +64,40 @@
     align-items: baseline;
     gap: var(--st-1) var(--st-3);
   }
+}
 
+.au-schichten {
+  counter-reset: schicht;
+
+  li {
+    counter-increment: schicht;
+  }
+
+  li::before {
+    content: counter(schicht) '.';
+    min-inline-size: 1.25rem;
+    color: var(--st-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.au-testseiten {
   a {
     font-weight: 600;
   }
 }
 
-.au-desc {
-  font-size: 0.875rem;
+.au-name {
+  font-weight: 600;
+}
+
+.au-neu {
+  font-size: 0.75rem;
+  font-weight: 400;
   color: var(--st-text-muted);
 }
 
-.au-lauf p {
-  margin: 0;
-}
-
-.au-fehler {
-  color: var(--st-danger-text);
-}
-
-.au-knopf {
-  min-block-size: 2rem;
-  padding: 0 var(--st-3);
-  border: 1px solid var(--st-text-muted);
-  border-radius: var(--st-radius);
-  background: var(--st-panel);
-  color: var(--st-text);
-  font: inherit;
-  cursor: pointer;
+.au-desc {
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
 }

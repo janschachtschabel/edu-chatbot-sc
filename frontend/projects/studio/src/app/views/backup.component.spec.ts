@@ -315,5 +315,16 @@ describe("BackupComponent — Reiter (Paket 15)", () => {
     await settle(h);
     expect(h.el.querySelector<HTMLElement>("#panel-sichern")!.hidden).toBe(false);
   });
-});
 
+  it("stellt oben in „Sichern“ die vier Arten gegenüber: wo, wer, Umfang, Rückweg (Paket 16)", async () => {
+    const h = await mount();
+    const tabelle = h.el.querySelector<HTMLTableElement>("#panel-sichern table.bk-arten");
+    expect(tabelle).not.toBeNull();
+    const voll = h.el.querySelector("#voll-backup")!;
+    expect(tabelle!.compareDocumentPosition(voll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const kopf = Array.from(tabelle!.querySelectorAll("thead th"), (c) => (c.textContent ?? "").trim());
+    expect(kopf).toEqual(["Wo liegt es?", "Wer legt es an?", "Was steckt drin?", "Rückweg"]);
+    const zeilen = Array.from(tabelle!.querySelectorAll("tbody th"), (c) => (c.textContent ?? "").trim());
+    expect(zeilen).toEqual(["Werksfassung", "Eigener Grundstand", "Snapshots", "Voll-Backup"]);
+  });
+});

@@ -34,6 +34,7 @@ import { StudioLanguageService } from '../i18n/studio-language.service';
 import { DASHBOARD_SECTIONS } from './area-homes';
 import { AreaSectionComponent } from './area-section.component';
 import { AsyncStateComponent } from './async-state.component';
+import { CostDaysComponent } from './cost-days.component';
 import { OriginScopeComponent } from './origin-scope.component';
 import { RichTextComponent } from './rich-text.component';
 import { warnOnUnload } from './unsaved-changes.guard';
@@ -97,7 +98,10 @@ export function dayEnd(day: string): string {
 
 @Component({
   selector: 'studio-costs',
-  imports: [AreaSectionComponent, AsyncStateComponent, OriginScopeComponent, RichTextComponent],
+  imports: [
+    AreaSectionComponent, AsyncStateComponent, CostDaysComponent, OriginScopeComponent,
+    RichTextComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './costs.component.html',
   styleUrl: './costs.component.scss',

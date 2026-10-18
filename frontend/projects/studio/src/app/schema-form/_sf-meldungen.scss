@@ -89,5 +89,8 @@
 
 // Paket 15 (A3): neben dem Feld, nicht darunter verloren — klein, wie „Entfernen“.
 .sf-zurueck {
+  // `.sf-row` ist eine Flex-Spalte (Rundgang 3): ohne `align-self` streckt sie den Knopf auf
+  // volle Breite; `justify-self` wirkte nur im Grid.
+  align-self: flex-start;
   justify-self: start;
 }

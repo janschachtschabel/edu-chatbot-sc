@@ -17,6 +17,7 @@ import {
 } from '@angular/core';
 
 import { EffectsApi, type Engine } from '../core/effects-api.service';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import type { StudioView } from '../studio-views';
 import { AgentProbeComponent } from './agent-probe.component';
@@ -71,6 +72,7 @@ export class CuratedViewComponent {
 
   private readonly effectsApi = inject(EffectsApi);
   private readonly effects = this.effectsApi.effects;
+  private readonly ansicht = inject(StudioAnsicht).ansicht;
 
   /**
    * ST-5: nutzt die Vorgabe-Maschine KEINE Einstellung dieser Seite, sagt die
@@ -138,7 +140,13 @@ export class CuratedViewComponent {
    * template only switches on `kind`.
    */
   readonly entries = computed<readonly Entry[]>(() => {
-    const sections = this.definition()?.sections ?? [];
+    // Paket 16, C8: was im Arbeitsbereich zuerst gehört, rückt nach vorn (stabil).
+    const ansicht = this.ansicht();
+    const alle = this.definition()?.sections ?? [];
+    const sections = [
+      ...alle.filter((s) => isAreaSection(s) && s.zuerstIn === ansicht),
+      ...alle.filter((s) => !(isAreaSection(s) && s.zuerstIn === ansicht)),
+    ];
     // Paket 15: mit Reitern öffnet der erste Abschnitt JEDES Reiters.
     const erster = (index: number) =>
       sections.findIndex((s) => s.reiter === sections[index].reiter) === index;

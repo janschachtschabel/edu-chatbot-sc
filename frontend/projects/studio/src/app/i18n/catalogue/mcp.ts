@@ -54,6 +54,8 @@ export const MCP: CataloguePart = {
 
     // ── Speichern ───────────────────────────────────────────────────
     'mcp.add': 'Server hinzufügen',
+    'mcp.abbrechenNeu': 'Abbrechen',
+    'mcp.abbrechenNeuFor': 'Abbrechen – neuen Server verwerfen',
     'mcp.save': 'Registry speichern',
     'mcp.incomplete':
       'Nicht speicherbar: Jeder Server braucht eine Kennung — Einträge ohne '
@@ -114,6 +116,8 @@ export const MCP: CataloguePart = {
     'mcp.primaryFixed': 'The primary server cannot be removed.',
 
     'mcp.add': 'Add server',
+    'mcp.abbrechenNeu': 'Cancel',
+    'mcp.abbrechenNeuFor': 'Cancel – discard the new server',
     'mcp.save': 'Save registry',
     'mcp.incomplete':
       'Cannot save: every server needs an identifier — entries without one are '

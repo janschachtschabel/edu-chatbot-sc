@@ -49,6 +49,11 @@ export class BackupComponent {
   private readonly lang = inject(StudioLanguageService);
   protected readonly t = this.lang.t;
 
+  /** Paket 16, C6: die vier Arten zu sichern, gegenübergestellt — der Rundgang fand die
+   *  Unterschiede nur in vier verstreuten Einleitungen. */
+  readonly arten = ['werk', 'grundstand', 'snapshots', 'voll'] as const;
+  readonly spalten = ['wo', 'wer', 'umfang', 'rueckweg'] as const;
+
   readonly action = new ActionState(this.t);
   readonly file = signal<File | null>(null);
   readonly armed = signal(false);

@@ -48,6 +48,16 @@ export interface UsageSessionRow extends UsageTotals {
   readonly price_unavailable: readonly string[];
 }
 
+/** Paket 16, D2: ein Kalendertag des Zeitraums (Europe/Berlin), Tage ohne Zug mit `"0"`. */
+export interface UsageDay {
+  readonly tag: string;
+  readonly calls: number;
+  /** `null`: an dem Tag hat kein Modell einen Preis. */
+  readonly amount: string | null;
+  /** Ein Modell des Tages hat keinen Preis — der Betrag ist eine Teilsumme. */
+  readonly unvollstaendig: boolean;
+}
+
 export interface UsageReport extends UsageTotals {
   /** Keine einzige Verbrauchszeile — kein Fehler, sondern ein leerer Zeitraum. */
   readonly empty: boolean;
@@ -62,6 +72,8 @@ export interface UsageReport extends UsageTotals {
   readonly models: readonly UsageModelRow[];
   /** Nur beim Zeitraum; die Einzelsitzung führt keine Sitzungsliste. */
   readonly sessions?: readonly UsageSessionRow[];
+  /** Nur beim Zeitraum (Paket 16, D2). */
+  readonly days?: readonly UsageDay[];
 }
 
 @Injectable({ providedIn: 'root' })

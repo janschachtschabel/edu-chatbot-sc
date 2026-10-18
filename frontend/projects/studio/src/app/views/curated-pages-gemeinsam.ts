@@ -60,6 +60,7 @@ export const GEMEINSAME_SEITEN: readonly CuratedView[] = [
         // Paket 14 (E-6): die Skill-Brücke der Muster-Maschine — ein Feld aus `01-base/engine`.
         area: '01-base/engine',
         felder: ['muster_skills'],
+        zuerstIn: 'pattern',
         labelKey: 'curated.patterns.skillBruecke.label',
         hintKey: 'curated.patterns.skillBruecke.hint',
       },

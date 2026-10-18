@@ -3,7 +3,7 @@
     <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
     <p class="cs-hint">{{ t(section().hintKey) }}</p>
     <!-- ST-5: wo dieser Bereich wirkt — aus der Zuordnung im Backend -->
-    <studio-effect-badge class="cs-effect" [area]="section().area" />
+    <studio-effect-badge class="cs-effect" [area]="section().area" [felder]="section().felder" />
     @if (editor.verwerfbar()) {
       <span class="cs-flag">{{ t('editor.unsavedShort') }}</span>
     }
@@ -160,6 +160,7 @@
               [schema]="schema"
               [value]="editor.doc()"
               [epoche]="editor.epoche()"
+        [area]="section().area"
               [idPrefix]="idPrefix()"
               [visiblePaths]="sichtbar()"
               [problems]="editor.problems()"

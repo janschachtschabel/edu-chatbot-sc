@@ -16,10 +16,13 @@ import {
 import type { RichSegment } from '@boerdi/ui';
 
 import { AsyncData, describeApiError } from '../core/async-data';
-import { type LoadAnfrage, LoadtestApi, type LoadTestRun } from '../core/loadtest-api.service';
+import {
+  type LoadAnfrage, LoadtestApi, type LoadTestRun, type ZeitKategorie,
+} from '../core/loadtest-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
 import { latencyChart } from './loadtest-chart';
+import { LtEngstelleComponent } from './lt-engstelle.component';
 import { loadtestStatusLabel } from './loadtest-status';
 import { RichTextComponent } from './rich-text.component';
 import { StudioFormat } from '../i18n/studio-format.service';
@@ -29,7 +32,7 @@ const POLL_MS = 2000;
 
 @Component({
   selector: 'studio-loadtest-run',
-  imports: [AsyncStateComponent, RichTextComponent],
+  imports: [AsyncStateComponent, LtEngstelleComponent, RichTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './loadtest-run.component.html',
   styleUrl: './loadtest-run.component.scss',
@@ -203,6 +206,10 @@ export class LoadtestRunComponent {
   sekunden(wert: number): string {
     return `${this.fmt.decimal(wert)} s`;
   }
+
+  /** Paket 16 (D4): die Teile, die die Anfragen-Tabelle als Spalten führt — die übrigen
+   *  stehen in der Engstelle darüber. */
+  readonly anfrageTeile: readonly ZeitKategorie[] = ['llm', 'vorabsuche', 'rerank', 'rest'];
 
   /** Alle Anfragen aller Stufen, je mit ihrer Stufe (Parallelität) — einmal je Lauf-Stand
    *  gerechnet, nicht bei jedem Zeichnen (Review-Runde 2; der Lauf pollt alle 2 s). */

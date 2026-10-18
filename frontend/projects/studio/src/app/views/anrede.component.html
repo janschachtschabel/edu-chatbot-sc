@@ -46,6 +46,10 @@
                     <option [value]="wert" [selected]="wert === zeile.gewaehlt">{{ t('anrede.wert.' + wert) }}</option>
                   }
                 </select>
+                <!-- Plan B6: hier greift der Rückfall aus dem Abschnitt darunter. -->
+                @if (zeile.gewaehlt === 'wie_user') {
+                  <span class="an-gilt">{{ t('anrede.rueckfallGilt') }}</span>
+                }
               </td>
               <td class="an-aktion">
                 <button

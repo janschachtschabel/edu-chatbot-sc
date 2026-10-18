@@ -70,3 +70,11 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+// Paket 16, C8: wie die Wirkungs-Plakette der Bereiche (`effect-badge`).
+.ms-wirkt {
+  display: block;
+  margin-block-start: var(--st-1);
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+}

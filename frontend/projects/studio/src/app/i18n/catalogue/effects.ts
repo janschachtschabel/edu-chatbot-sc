@@ -14,6 +14,7 @@ export const EFFECTS: CataloguePart = {
     'effect.engine.agent': 'Agent-Schleife',
     'effect.partial': '{engine} (teilweise)',
     'effect.crisisOnly': '{engine} (nur Krisen-Züge)',
+    'effect.externOnly': '{engine} (nur externer Auftrag /api/agent)',
     'effect.nowhere': 'Wirkt derzeit in keiner Maschine',
     'effect.bannerCrisis':
       'Die Vorgabe-Maschine ist die {engine} — dort wirken die Einstellungen dieser Seite nur '
@@ -29,6 +30,7 @@ export const EFFECTS: CataloguePart = {
     'effect.engine.agent': 'Agent loop',
     'effect.partial': '{engine} (partly)',
     'effect.crisisOnly': '{engine} (crisis turns only)',
+    'effect.externOnly': '{engine} (external jobs /api/agent only)',
     'effect.nowhere': 'Currently takes effect in neither engine',
     'effect.bannerCrisis':
       'The default engine is the {engine} — this page’s settings only take effect there on '

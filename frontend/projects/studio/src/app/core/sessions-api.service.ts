@@ -84,7 +84,9 @@ export interface OptimizeResult {
  *  session memory — and the two logs. Since Paket 9 (V7) also the state of idle
  *  sessions (entities, signals, tour), which is cleared rather than deleted. */
 export type RetentionLog =
-  'messages' | 'memory' | 'session_state' | 'safety_logs' | 'quality_logs';
+  'messages' | 'memory' | 'session_state' | 'safety_logs' | 'quality_logs'
+  // Paket 16, D1: der Text im Qualitätsprotokoll, mit der Frist der Gesprächsverläufe.
+  | 'quality_text';
 
 /** `GET /sessions/retention`, one row per log: period in days (0 = unlimited),
  *  entries due now, oldest entry as ISO time (`null` = the log is empty). */

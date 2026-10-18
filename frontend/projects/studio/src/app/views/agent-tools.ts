@@ -117,3 +117,32 @@ export function schalterFuer(tool: AgentTool, servers: readonly McpServer[]): Sc
   if (index < 0) return null;
   return { index, name, server: servers[index].name || servers[index].id };
 }
+
+/** Paket 16, C7: woher ein Werkzeug kommt — nach Art, unabhängig davon, ob es einen Schalter
+ *  trägt (das Schreibwerkzeug hat keinen und kommt doch vom WLO-MCP). */
+export type HerkunftArt = 'eingebaut' | 'wlo' | 'fremd';
+
+export interface Herkunft {
+  readonly art: HerkunftArt;
+  /** Anzeigename des Servers; seine Kennung, solange die Server-Liste fehlt. */
+  readonly server: string;
+  readonly host: string;
+}
+
+export function herkunftVon(tool: AgentTool, servers: readonly McpServer[]): Herkunft {
+  if (tool.kind === 'virtual') return { art: 'eingebaut', server: '', host: '' };
+  const art: HerkunftArt = tool.kind === 'external' ? 'fremd' : 'wlo';
+  const id = art === 'fremd' ? tool.server_id ?? '' : WLO_SERVER_ID;
+  const eintrag = servers.find((s) => s.id === id);
+  return { art, server: eintrag ? eintrag.name || eintrag.id : id, host: hostVon(eintrag?.url) };
+}
+
+function hostVon(url: string | undefined): string {
+  if (!url) return '';
+  try {
+    return new URL(url).host;
+  } catch {
+    // Eine noch nicht gespeicherte, halbe Eingabe im MCP-Panel — dann eben ohne Host.
+    return '';
+  }
+}

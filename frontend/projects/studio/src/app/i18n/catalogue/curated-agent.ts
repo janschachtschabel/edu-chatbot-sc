@@ -19,14 +19,19 @@ export const CURATED_AGENT: CataloguePart = {
       + 'stehen unter Muster › Dimensionen.',
     'curated.agentRolle.guardrails.label': 'Leitplanken',
     'curated.agentRolle.guardrails.hint':
-      'Die Regel-Tabelle, aus der die Schutzregeln oben stammen.',
+      'Die Regel-Tabelle, aus der die Schutzregeln stammen. Im Agent-Modus gelten nur die dort '
+      + 'gewählten Regeln (Reiter „Rolle & Grenzen“ › Schutzregeln); alle anderen nur im '
+      + 'Muster-Modus und bei Krisen-Zügen.',
     'curated.agentRolle.safety.label': 'Sicherheitsstufe',
     'curated.agentRolle.safety.hint':
       'Gate, Protokoll und Drosselung laufen vor jeder Maschine.',
     'curated.agentRolle.policy.label': 'Werkzeug-Regelwerk',
     'curated.agentRolle.policy.hint':
-      'Welche Werkzeuge eine Regel sperrt. Im Agent-Modus greifen nur Regeln ohne '
-      + 'Anliegen-Bedingung — der Agent erkennt keine Anliegen (Intents).',
+      'Welche Werkzeuge eine Regel sperrt. Im Agent-Modus greifen nur Regeln ohne Bedingung auf '
+      + 'Persona oder Anliegen (oder mit P-AND bzw. I01) — der Agent erkennt beides nicht.',
+    'curated.agentRolle.policy.hinweis.ohneWirkung':
+      'Greifen im Agent-Modus nicht (Bedingung auf Persona oder Anliegen): {regeln}. '
+      + 'Im Muster-Modus wirken sie weiter.',
     'curated.agentRolle.schutz.label': 'Schutzantworten (Krise und Drohung)',
     'curated.agentRolle.schutz.hint':
       'M01 und M02 beantworten Krisen- und Drohungs-Züge — auch im Agent-Modus, über den '
@@ -39,7 +44,8 @@ export const CURATED_AGENT: CataloguePart = {
       + 'Betriebsmodus.',
     'curated.patterns.skillBruecke.label': 'Skill-Brücke',
     'curated.patterns.skillBruecke.hint':
-      'Gibt jedem Muster-Zug die freigegebenen Skills einer Sammlung mit.',
+      'Wirkt nur im Muster-Modus, und nur wenn eingeschaltet: gibt jedem Muster-Zug die '
+      + 'freigegebenen Skills einer Sammlung mit. Die Agent-Schleife arbeitet mit dem Master-Skill.',
     'curated.betrieb.intro':
       'Mit welcher Maschine der Server antwortet, wenn eine Einbettung nichts wählt, und die '
       + 'Schalter für den Betrieb beider Modi.',
@@ -61,15 +67,42 @@ export const CURATED_AGENT: CataloguePart = {
     'agentUebersicht.zustand.unbekannt':
       'Mit welcher Maschine der Server antwortet, ist gerade nicht lesbar.',
     'agentUebersicht.betrieb': 'Vorgabe-Maschine ändern',
-    'agentUebersicht.wege': 'Weiter im Agent-Arbeitsbereich',
-    'agentUebersicht.wege.evaluation': 'Golden-Läufe der Agent-Schleife und ihr Verlauf',
-    'agentUebersicht.lauf.titel': 'Letzter Lauf der Agent-Schleife',
-    'agentUebersicht.lauf.text': 'Lauf vom {datum}: Ø {score}',
-    'agentUebersicht.lauf.leer': 'Noch kein fertiger Lauf der Agent-Schleife.',
-    'agentUebersicht.lauf.laedt': 'Läufe werden geladen …',
-    'agentUebersicht.lauf.link': 'Zur Evaluation',
+    'agentUebersicht.schichten': 'Der Weg einer Frage durch die Agent-Schleife',
+    'agentUebersicht.schichten.hint':
+      'Von oben nach unten: was eine Frage durchläuft, bevor die Antwort kommt — und auf '
+      + 'welcher Seite sich jede Schicht einstellen lässt.',
+    'agentUebersicht.schicht.sicherheit': 'Sicherheitsstufe',
+    'agentUebersicht.schicht.sicherheit.desc':
+      'prüft jede Nachricht vor der Schleife; bei Krise antwortet sie selbst',
+    'agentUebersicht.schicht.rolle': 'Rolle und Grenzen',
+    'agentUebersicht.schicht.rolle.desc':
+      'der feste Kopf des Systemteils, dazu Runden, Zeit und Budget der Schleife',
+    'agentUebersicht.schicht.skill': 'Master-Skill und Skills',
+    'agentUebersicht.schicht.skill.desc':
+      'das Vorgehen aus dem Repositorium, nachgeladene Skills je Aufgabe',
+    'agentUebersicht.schicht.werkzeuge': 'Werkzeuge',
+    'agentUebersicht.schicht.werkzeuge.desc':
+      'Suche und Schreiben über den WLO-MCP, weitere Server nur lesend',
+    'agentUebersicht.schicht.wissen': 'Wissen',
+    'agentUebersicht.schicht.wissen.desc': 'Wissensbereiche, die die Agent-Schleife abfragen darf',
+    'agentUebersicht.schicht.antwort': 'Antwort und Anzeige',
+    'agentUebersicht.schicht.antwort.desc': 'Karten, Schnellantworten und wie das Widget sie zeigt',
+    'agentUebersicht.testseiten': 'Testseiten',
+    'agentUebersicht.testseiten.hint':
+      'Das Widget so, wie Besucher es sehen — mit der Vorgabe-Maschine dieses Servers.',
+    'agentUebersicht.neuerTab': '(neuer Tab)',
+    'agentUebersicht.testseite.start': 'Übersicht der Einbettungen',
+    'agentUebersicht.testseite.start.desc': 'alle Testseiten mit ihrem Einbett-Code',
+    'agentUebersicht.testseite.inline': 'Eingebettet',
+    'agentUebersicht.testseite.inline.desc': 'im Seitenkasten, geöffnet',
+    'agentUebersicht.testseite.classic': 'Schwebender Knopf',
+    'agentUebersicht.testseite.classic.desc': 'unten rechts, öffnet sich auf Klick',
+    'agentUebersicht.testseite.frameless': 'Rahmenlos',
+    'agentUebersicht.testseite.frameless.desc': 'füllt den Kasten der Seite, zugeklappt',
+    'agentUebersicht.testseite.vorschau.desc': 'im Studio, mit wählbarem Seitenkontext',
     // Panel „Anrede je Zielgruppe“ (C2)
     'anrede.caption': 'Anrede je Zielgruppe',
+    'anrede.rueckfallGilt': 'Rückfall gilt (Abschnitt darunter)',
     'anrede.col.zielgruppe': 'Zielgruppe',
     'anrede.col.anrede': 'Anrede',
     'anrede.feld': 'Anrede für {name}',
@@ -102,14 +135,19 @@ export const CURATED_AGENT: CataloguePart = {
       + 'are under Patterns › Dimensions.',
     'curated.agentRolle.guardrails.label': 'Guardrails',
     'curated.agentRolle.guardrails.hint':
-      'The rule table the safeguard rules above come from.',
+      'The rule table the safeguard rules come from. In agent mode only the rules selected '
+      + 'there apply (tab “Role & limits” › Safeguard rules); all others only in pattern mode '
+      + 'and on crisis turns.',
     'curated.agentRolle.safety.label': 'Safety level',
     'curated.agentRolle.safety.hint':
       'Gate, log and throttling run before either engine.',
     'curated.agentRolle.policy.label': 'Tool policy',
     'curated.agentRolle.policy.hint':
-      'Which tools a rule locks. In agent mode only rules without an intent condition apply — '
-      + 'the agent does not detect intents.',
+      'Which tools a rule locks. In agent mode only rules without a persona or intent '
+      + 'condition apply (or with P-AND or I01) — the agent detects neither.',
+    'curated.agentRolle.policy.hinweis.ohneWirkung':
+      'Do not apply in agent mode (condition on persona or intent): {regeln}. They '
+      + 'still apply in pattern mode.',
     'curated.agentRolle.schutz.label': 'Protective answers (crisis and threat)',
     'curated.agentRolle.schutz.hint':
       'M01 and M02 answer crisis and threat turns — in agent mode too, via the pattern path. '
@@ -122,7 +160,8 @@ export const CURATED_AGENT: CataloguePart = {
       + 'operating mode.',
     'curated.patterns.skillBruecke.label': 'Skill bridge',
     'curated.patterns.skillBruecke.hint':
-      'Gives every pattern turn the approved skills of a collection.',
+      'Only in pattern mode, and only when switched on: gives every pattern turn the approved '
+      + 'skills of a collection. The agent loop works with the master skill.',
     'curated.betrieb.intro':
       'Which engine the server answers with when an embedding chooses none, and the switches '
       + 'for operating both modes.',
@@ -142,14 +181,41 @@ export const CURATED_AGENT: CataloguePart = {
     'agentUebersicht.zustand.unbekannt':
       'Which engine the server answers with cannot be read right now.',
     'agentUebersicht.betrieb': 'Change the default engine',
-    'agentUebersicht.wege': 'More in the agent workspace',
-    'agentUebersicht.wege.evaluation': 'Golden runs of the agent loop and their history',
-    'agentUebersicht.lauf.titel': 'Latest run of the agent loop',
-    'agentUebersicht.lauf.text': 'Run of {datum}: mean {score}',
-    'agentUebersicht.lauf.leer': 'No finished run of the agent loop yet.',
-    'agentUebersicht.lauf.laedt': 'Loading runs …',
-    'agentUebersicht.lauf.link': 'Go to evaluation',
+    'agentUebersicht.schichten': 'How a question passes through the agent loop',
+    'agentUebersicht.schichten.hint':
+      'Top to bottom: what a question passes through before the answer arrives — and on which '
+      + 'page each layer is set.',
+    'agentUebersicht.schicht.sicherheit': 'Safety level',
+    'agentUebersicht.schicht.sicherheit.desc':
+      'checks every message before the loop; in a crisis it answers itself',
+    'agentUebersicht.schicht.rolle': 'Role and limits',
+    'agentUebersicht.schicht.rolle.desc':
+      'the fixed head of the system part, plus rounds, time and budget of the loop',
+    'agentUebersicht.schicht.skill': 'Master skill and skills',
+    'agentUebersicht.schicht.skill.desc':
+      'the procedure from the repository, skills loaded per task',
+    'agentUebersicht.schicht.werkzeuge': 'Tools',
+    'agentUebersicht.schicht.werkzeuge.desc':
+      'search and writing via the WLO MCP, further servers read-only',
+    'agentUebersicht.schicht.wissen': 'Knowledge',
+    'agentUebersicht.schicht.wissen.desc': 'knowledge areas the agent loop may query',
+    'agentUebersicht.schicht.antwort': 'Answer and display',
+    'agentUebersicht.schicht.antwort.desc': 'cards, quick replies and how the widget shows them',
+    'agentUebersicht.testseiten': 'Test pages',
+    'agentUebersicht.testseiten.hint':
+      'The widget as visitors see it — with this server’s default engine.',
+    'agentUebersicht.neuerTab': '(new tab)',
+    'agentUebersicht.testseite.start': 'Embedding overview',
+    'agentUebersicht.testseite.start.desc': 'all test pages with their embed code',
+    'agentUebersicht.testseite.inline': 'Embedded',
+    'agentUebersicht.testseite.inline.desc': 'inside the page box, open',
+    'agentUebersicht.testseite.classic': 'Floating button',
+    'agentUebersicht.testseite.classic.desc': 'bottom right, opens on click',
+    'agentUebersicht.testseite.frameless': 'Frameless',
+    'agentUebersicht.testseite.frameless.desc': 'fills the page box, collapsed',
+    'agentUebersicht.testseite.vorschau.desc': 'in the studio, with a selectable page context',
     'anrede.caption': 'Form of address per audience',
+    'anrede.rueckfallGilt': 'Fallback applies (section below)',
     'anrede.col.zielgruppe': 'Audience',
     'anrede.col.anrede': 'Address',
     'anrede.feld': 'Address for {name}',

@@ -48,6 +48,9 @@ export interface StageResult {
     n: number; ok: number; p50_s: number; p95_s: number;
     /** Paket 15; ältere Läufe ohne. */
     max_s?: number;
+    /** Paket 16 (D4): Median je Teil und sein Anteil — ältere Läufe ohne. */
+    zeiten_ms?: Readonly<Partial<Record<ZeitKategorie, number>>>;
+    anteile?: Readonly<Partial<Record<ZeitKategorie, number>>>;
   }>>;
   /** Paket 15 (E1): jede Anfrage der Stufe; fehlt bei Läufen von vorher. */
   readonly anfragen?: readonly LoadAnfrage[];
@@ -63,7 +66,15 @@ export interface LoadAnfrage {
   readonly error?: string;
   readonly werkzeuge?: number;
   readonly werkzeuge_ms?: number;
+  /** Paket 16 (D4): die Dauer nach Teilen, in ms. */
+  readonly zeiten?: Readonly<Partial<Record<ZeitKategorie, number>>>;
 }
+
+/** Paket 16 (D4): die Teile eines Zugs — wie `ZEIT_KATEGORIEN` in `services/loadtest.py`. */
+export const ZEIT_KATEGORIEN = [
+  'llm', 'werkzeuge', 'vorabsuche', 'rerank', 'rag', 'safety', 'rest',
+] as const;
+export type ZeitKategorie = (typeof ZEIT_KATEGORIEN)[number];
 
 /**
  * The six keys `_summary` in `services/loadtest.py` actually returns.

@@ -158,6 +158,7 @@
           </tbody>
         </table>
       </div>
+      <studio-lt-engstelle [stages]="r.stages" />
       @if (anfragenListe().length > 0) {
         <!-- Paket 15 (E1): jede Anfrage einzeln — ein langsamer Zug lässt sich einordnen
              (Werkzeugzeit hoch = MCP; viele Werkzeuge = Ausweich-Kette). -->
@@ -175,6 +176,10 @@
                   <th scope="col">{{ t('ltRun.anfragen.status') }}</th>
                   <th scope="col">{{ t('ltRun.anfragen.werkzeuge') }}</th>
                   <th scope="col">{{ t('ltRun.anfragen.werkzeugzeit') }}</th>
+                  <!-- Paket 16 (D4): die großen Teile der Dauer. -->
+                  @for (k of anfrageTeile; track k) {
+                    <th scope="col">{{ t('ltEngstelle.teil.' + k) }}</th>
+                  }
                 </tr>
               </thead>
               <tbody>
@@ -187,6 +192,9 @@
                     <td [class.lr-bad]="!z.a.ok">{{ z.a.ok ? z.a.status : (z.a.error || z.a.status) }}</td>
                     <td>{{ z.a.werkzeuge ?? '–' }}</td>
                     <td>{{ z.a.werkzeuge_ms !== undefined ? sekunden(z.a.werkzeuge_ms / 1000) : '–' }}</td>
+                    @for (k of anfrageTeile; track k) {
+                      <td>{{ z.a.zeiten?.[k] !== undefined ? sekunden(z.a.zeiten![k]! / 1000) : '–' }}</td>
+                    }
                   </tr>
                 }
               </tbody>

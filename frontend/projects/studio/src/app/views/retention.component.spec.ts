@@ -20,6 +20,7 @@ const FRISTEN: RetentionRow[] = [
   { bereich: 'session_state', tage: 30, faellig: 0, aeltester: '2026-09-20T12:00:00+00:00' },
   { bereich: 'safety_logs', tage: 90, faellig: 3, aeltester: '2026-07-01T12:00:00+00:00' },
   { bereich: 'quality_logs', tage: 0, faellig: 0, aeltester: null },
+  { bereich: 'quality_text', tage: 30, faellig: 4, aeltester: '2026-06-01T12:00:00+00:00' },
 ];
 
 /** Dieselben Bereiche nach einer kürzeren Frist der Gesprächsverläufe. */
@@ -147,7 +148,7 @@ describe('RetentionComponent (Paket 8, A)', () => {
       .map((th) => th.textContent?.trim());
     expect(zeilen).toEqual([
       'Chatnachrichten', 'Sitzungsgedächtnis', 'Gesprächsstand ruhender Sitzungen',
-      'Sicherheitsprotokoll', 'Qualitäts-Protokoll',
+      'Sicherheitsprotokoll', 'Qualitäts-Protokoll', 'Text im Qualitäts-Protokoll',
     ]);
     const nachrichten = row(el, 'Chatnachrichten').textContent ?? '';
     expect(nachrichten).toContain('30 Tage');
@@ -211,7 +212,8 @@ describe('RetentionComponent (Paket 8, A)', () => {
     h.http.expectOne((r) => r.method === 'GET').flush({ fristen: FRISTEN_KUERZER });
     await settle(h.fixture);
     expect(confirmText(h)).toContain(
-      'Löscht jetzt endgültig 40 Nachrichten, 5 Gesprächsstände und 3 Sicherheits-Einträge',
+      'Löscht jetzt endgültig 40 Nachrichten, 5 Gesprächsstände, 3 Sicherheits-Einträge und 4 Texte '
+      + 'im Qualitäts-Protokoll',
     );
     expect(row(h.el, 'Chatnachrichten').textContent).toContain('40 Einträge');
     expect(button(h.el, 'Jetzt bereinigen').disabled).toBe(false);
@@ -299,6 +301,17 @@ describe('RetentionComponent (Paket 8, A)', () => {
     await runWith(h, { messages: 2, memory: 0, session_state: 5 });
     expect(h.el.querySelector('[role="status"]')?.textContent)
       .toContain('Bereinigt: 2 Nachrichten und 5 Gesprächsstände.');
+  });
+
+  it('leert den Text im Qualitäts-Protokoll nach der Frist der Gespräche (Paket 16, D1)', async () => {
+    const h = await mountLoaded();
+    const text = row(h.el, 'Text im Qualitäts-Protokoll').textContent ?? '';
+    expect(text).toContain('30 Tage');
+    expect(text).toContain('4 Einträge');
+    expect(h.el.querySelector('.op-lead')?.textContent).toContain('Text im Qualitäts-Protokoll');
+    await runWith(h, { quality_logs: 2, quality_text: 4 });
+    expect(h.el.querySelector('[role="status"]')?.textContent)
+      .toContain('Bereinigt: 2 Qualitäts-Einträge und 4 Texte im Qualitäts-Protokoll.');
   });
 
   it('sagt es, wenn nichts fällig war', async () => {

@@ -52,10 +52,14 @@ export const FIELDS_KOSTEN_EVAL: CataloguePart = {
     'feld.GoldFlow.id.hint':
       'Kurze, eindeutige Kennung, etwa GV-LEH-1. Darüber wählt man Flows beim Start eines '
       + 'Gold-Laufs aus; die Auswertung führt Ergebnisse unter ihr.',
+    'feld.GoldFlow.zielgruppe.label': 'Zielgruppe',
+    'feld.GoldFlow.zielgruppe.hint':
+      'Für wen dieser Flow spricht (Persona-Kennung, etwa P-LEH). Der Judge bewertet danach, die '
+      + 'Auswertung ordnet den Flow in der Matrix „Zielgruppe × Anwendungsfall“ ein.',
     'feld.GoldFlow.persona.label': 'Persona (alt)',
     'feld.GoldFlow.persona.hint':
-      'Persona aus dem alten Format. Wird nur angezeigt, wenn „zielgruppe“ fehlt; der '
-      + 'LLM-Judge liest allein „zielgruppe“, das sich nur im Rohtext setzen lässt.',
+      'Aus dem alten Format, nur noch Rückfall, wenn „Zielgruppe“ leer ist. Für neue Flows '
+      + '„Zielgruppe“ setzen.',
     'feld.GoldFlow.erwartung.label': 'Erwartung an den Verlauf',
     'feld.GoldFlow.erwartung.hint':
       'Ein bis zwei Sätze: was ein guter Verlauf dieses Flows leistet. Der Ablauf-Judge bewertet '
@@ -132,10 +136,14 @@ export const FIELDS_KOSTEN_EVAL: CataloguePart = {
     'feld.GoldFlow.id.hint':
       'Short, unique identifier such as GV-LEH-1. Flows are picked by it when a gold run '
       + 'starts, and the results are listed under it.',
+    'feld.GoldFlow.zielgruppe.label': 'Target group',
+    'feld.GoldFlow.zielgruppe.hint':
+      'Who this flow speaks for (persona id, e.g. P-LEH). The judge scores against it; the '
+      + 'analysis places the flow in the “target group × use case” matrix.',
     'feld.GoldFlow.persona.label': 'Persona (legacy)',
     'feld.GoldFlow.persona.hint':
-      'Persona from the old format. Only shown when “zielgruppe” is missing; the LLM judge '
-      + 'reads “zielgruppe” alone, which can only be set in the source text.',
+      'From the old format, only a fallback when “Target group” is empty. Set “Target group” '
+      + 'for new flows.',
     'feld.GoldFlow.erwartung.label': 'Expected course',
     'feld.GoldFlow.erwartung.hint':
       'One or two sentences: what a good run of this flow achieves. The flow judge rates the whole '

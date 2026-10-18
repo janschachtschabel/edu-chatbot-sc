@@ -26,10 +26,17 @@
  * as a heading the moment a name drifts, and no test could see it.
  */
 
+import type { FeldGruppe } from '../schema-form/form-sections';
 import { AGENT_SEITEN } from './curated-pages-agent';
 import { BETRIEB_SEITEN } from './curated-pages-betrieb';
 import { GEMEINSAME_SEITEN } from './curated-pages-gemeinsam';
 import { INHALT_SEITEN } from './curated-pages-inhalt';
+
+/** Ein Hinweis am Abschnitt: ein Text-Schlüssel, mit Parametern (Rundgang 3). */
+export type Hinweis = string | { readonly key: string; readonly params: Readonly<Record<string, string | number>> };
+
+/** Rundgang 3: benannte Feldgruppen eines Abschnitts (siehe `schema-form/form-sections.ts`). */
+export type { FeldGruppe };
 
 export interface CuratedAreaSection {
   /** Config area key, exactly as the registry spells it. */
@@ -60,12 +67,20 @@ export interface CuratedAreaSection {
   /** Paket 15: das Gegenstück zu `felder` — alle Felder außer diesen. Die Personas unter
    *  „Dimensionen“ zeigen die Anrede nicht mehr; sie steht auf „Zielgruppen“. */
   readonly ohneFelder?: readonly string[];
+  /** Paket 16, C8: in diesem Arbeitsbereich steht der Abschnitt zuerst (und ist offen) — die
+   *  Skill-Brücke wirkt nur im Muster-Modus, auf der gemeinsamen Seite „Skills“ stand sie
+   *  dort als dritte und zugeklappt. */
+  readonly zuerstIn?: 'agent' | 'pattern';
   /** Paket 14, nur `kind: 'group'`: nur diese Dokumente der Gruppe wählbar (die beiden
    *  Schutzantworten im Agent-Arbeitsbereich); Anlegen und Löschen sind dort aus. */
   readonly dokumente?: readonly string[];
   /** Paket 15: Einstellungen, die einander aushebeln — Katalog-Schlüssel der Hinweise, aus dem
    *  aktuellen Entwurf berechnet (fehlende Schlüssel zählen mit ihrer Vorgabe). */
-  readonly hinweise?: (doc: Readonly<Record<string, unknown>>) => readonly string[];
+  readonly hinweise?: (doc: Readonly<Record<string, unknown>>) => readonly Hinweis[];
+  /** Rundgang 3: das Formular in benannte Gruppen gliedern — ein Editor, ein Speichern. */
+  readonly gruppen?: readonly FeldGruppe[];
+  /** Rundgang 3: ein Sprung zu einer Seite, auf der man prüft, was hier eingestellt wird. */
+  readonly sprung?: { readonly labelKey: string; readonly slug: string };
   /** Paket 15: der Reiter der Seite, in dem der Abschnitt steht (`CuratedView.reiter`). */
   readonly reiter?: string;
 }

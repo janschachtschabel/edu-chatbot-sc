@@ -6,6 +6,7 @@ import {
 } from "@angular/common/http/testing";
 import { provideZonelessChangeDetection } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { provideRouter } from "@angular/router";
 import { describe, expect, it } from "vitest";
 
 import { STUDIO_LOCALE_STORAGE_KEY } from "../i18n/studio-language.service";
@@ -43,6 +44,7 @@ async function mount(liste: object = LISTE): Promise<Harness> {
       provideZonelessChangeDetection(),
       provideHttpClient(withXhr()),
       provideHttpClientTesting(),
+      provideRouter([]),
     ],
   });
   const fixture = TestBed.createComponent(FassungenPanelComponent);
@@ -66,6 +68,13 @@ function knopf(wurzel: HTMLElement, label: string): HTMLButtonElement {
   const k = Array.from(wurzel.querySelectorAll("button")).find((b) =>
     (b.textContent ?? "").trim().startsWith(label));
   if (!k) throw new Error(`kein Knopf "${label}"`);
+  return k;
+}
+
+/** Paket 16, C6: der Schalter „Aktiv: Werksfassung · Eigene Fassung“ einer Zeile. */
+function wahl(z: HTMLElement, ziel: "werk" | "eigen"): HTMLButtonElement {
+  const k = z.querySelector<HTMLButtonElement>(`.fs-wahl[data-ziel="${ziel}"]`);
+  if (!k) throw new Error(`kein Schalter "${ziel}"`);
   return k;
 }
 
@@ -106,7 +115,10 @@ describe("FassungenPanelComponent", () => {
 
   it("schaltet auf die Werksfassung um und lädt die Liste neu", async () => {
     const h = await mount();
-    knopf(zeile(h, "01-base/welcome-config"), "Werksfassung verwenden").click();
+    const z = zeile(h, "01-base/welcome-config");
+    expect(wahl(z, "eigen").getAttribute("aria-pressed")).toBe("true");
+    expect(wahl(z, "werk").getAttribute("aria-pressed")).toBe("false");
+    wahl(z, "werk").click();
     await settle(h);
     const req = h.http.expectOne(`${BASE}/umschalten`);
     expect(req.request.body).toEqual(
@@ -121,7 +133,7 @@ describe("FassungenPanelComponent", () => {
 
   it("holt eine stillgelegte eigene Fassung zurück und stellt Gelöschtes wieder her", async () => {
     const h = await mount();
-    knopf(zeile(h, "03-patterns/m06"), "Eigene Fassung verwenden").click();
+    wahl(zeile(h, "03-patterns/m06"), "eigen").click();
     await settle(h);
     expect(h.http.expectOne(`${BASE}/umschalten`).request.body).toEqual(
       { area: "03-patterns/m06", ziel: "eigen", expected_version: 2 });
@@ -178,18 +190,26 @@ describe("FassungenPanelComponent", () => {
   it("bietet bei zwei eigenen Fassungen nur den Tausch an (Review #1)", async () => {
     const h = await mount({ available: true, bereiche: [
       { area: "01-base/x", status: "eigen", version: 4, hat_eigene_fassung: true }] });
-    const knoepfe = Array.from(zeile(h, "01-base/x").querySelectorAll("button"))
-      .map((b) => (b.textContent ?? "").trim());
-    expect(knoepfe).toContain("Eigene Fassung verwenden");
-    expect(knoepfe).not.toContain("Werksfassung verwenden");
+    const z = zeile(h, "01-base/x");
+    expect(wahl(z, "werk").disabled).toBe(true);
+    // Review A-7: warum „Werksfassung“ gesperrt ist, sagt ein verknüpfter Satz.
+    const grund = (wahl(z, "werk").getAttribute("aria-describedby") ?? "").split(" ")
+      .map((id) => h.el.querySelector(`#${id}`)?.textContent ?? "").join(" ");
+    expect(grund).toContain("erst nach dem Tausch");
+    knopf(z, "Mit stillgelegter tauschen").click();
+    await settle(h);
+    expect(h.http.expectOne(`${BASE}/umschalten`).request.body).toEqual(
+      { area: "01-base/x", ziel: "eigen", expected_version: 4 });
   });
 
   it("bezieht jeden Knopf auf seinen Bereich und macht den Vergleich per Tastatur erreichbar (Review #9)", async () => {
     const h = await mount();
     const z = zeile(h, "03-patterns/m05");
-    const k = knopf(z, "Werksfassung verwenden");
-    const bezug = h.el.querySelector(`#${k.getAttribute("aria-describedby")}`);
-    expect(bezug?.textContent).toContain("03-patterns/m05");
+    const gruppe = z.querySelector('[role="group"]');
+    const namen = (gruppe?.getAttribute("aria-labelledby") ?? "").split(" ")
+      .map((id) => h.el.querySelector(`#${id}`)?.textContent ?? "").join(" ");
+    expect(namen).toContain("Aktiv");
+    expect(namen).toContain("03-patterns/m05");
     knopf(z, "Unterschied zeigen").click();
     await settle(h);
     h.http.expectOne((r) => r.url === `${BASE}/vergleich`).flush({
@@ -229,7 +249,8 @@ describe("FassungenPanelComponent", () => {
       { area: "01-base/v", status: "werk-veraltet", version: 2, hat_eigene_fassung: false }] });
     filter(h, "Alle").click();
     await settle(h);
-    knopf(zeile(h, "01-base/v"), "Werksfassung verwenden").click();
+    expect(wahl(zeile(h, "01-base/v"), "werk").getAttribute("aria-pressed")).toBe("true");
+    knopf(zeile(h, "01-base/v"), "Jetzt aktualisieren").click();
     await settle(h);
     h.http.expectOne(`${BASE}/umschalten`).flush({ status: "ok", area: "01-base/v", version: 3 });
     await settle(h);
@@ -263,5 +284,50 @@ describe("FassungenPanelComponent", () => {
   it("sagt, wenn das Abbild keine Werksfassung mitbringt", async () => {
     const h = await mount({ available: false, bereiche: [] });
     expect(text(h)).toContain("keine Werksfassung");
+  });
+  it("sagt je Zeile, welche Fassung aktiv ist — ohne eigene bleibt „Eigene Fassung“ aus (Paket 16)", async () => {
+    const h = await mount();
+    filter(h, "Alle").click();
+    await settle(h);
+    const z = zeile(h, "03-patterns/m07");
+    expect(wahl(z, "werk").getAttribute("aria-pressed")).toBe("true");
+    expect(wahl(z, "eigen").disabled).toBe(true);
+    expect(z.textContent).toContain("Noch keine eigene Fassung");
+    // Umschalten verliert nichts — einmal über der Liste gesagt, an jedem Schalter verknüpft.
+    const hinweis = h.el.querySelector(`#${wahl(z, "werk").getAttribute("aria-describedby")}`);
+    expect(hinweis?.textContent).toContain("bleibt erhalten");
+  });
+
+  it("zeigt die Unterschiede je Feld als Tabelle, den Zeilen-Vergleich als Rohansicht (Paket 16)", async () => {
+    const h = await mount();
+    knopf(zeile(h, "03-patterns/m05"), "Unterschied zeigen").click();
+    await settle(h);
+    h.http.expectOne((r) => r.url === `${BASE}/vergleich`).flush({
+      area: "03-patterns/m05", werk: "", gelebt: "", eigene: null,
+      zeilen: ["--- werk", "+++ gelebt", "-body: Werkstext", "+body: Eigener Text"],
+      zeilen_eigene: [],
+      felder: [{ pfad: "body", werk: '"Werkstext"', eigen: '"Eigener Text"' },
+        { pfad: "frontmatter.neu", werk: null, eigen: "1" }],
+      felder_gesamt: 3, felder_eigene: [], felder_eigene_gesamt: 0,
+    });
+    await settle(h);
+    const z = zeile(h, "03-patterns/m05");
+    const zellen = Array.from(z.querySelectorAll("table tbody tr"), (tr) =>
+      Array.from(tr.querySelectorAll("th, td"), (c) => (c.textContent ?? "").trim()));
+    expect(zellen).toEqual([
+      ["body", '"Werkstext"', '"Eigener Text"'],
+      ["frontmatter.neu", "— fehlt", "1"],
+    ]);
+    expect(z.textContent).toContain("1 weiteres Feld");
+    const roh = z.querySelector("details.fs-roh");
+    expect(roh?.querySelector("summary")?.textContent).toContain("Rohansicht");
+    expect(roh?.textContent).toContain("+body: Eigener Text");
+  });
+
+  it("öffnet einen vorhandenen Bereich im Editor, mit Rückweg zur Sicherung (Paket 16)", async () => {
+    const h = await mount();
+    const link = zeile(h, "03-patterns/m05").querySelector<HTMLAnchorElement>("a.fs-editor");
+    expect(link?.getAttribute("href")).toBe("/bereich/03-patterns/m05?von=sicherung");
+    expect(zeile(h, "03-patterns/m08").querySelector("a.fs-editor")).toBeNull();
   });
 });

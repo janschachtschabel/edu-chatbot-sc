@@ -2,28 +2,29 @@
  * Werk und eigene Fassung je Konfigurationsbereich (Paket 12) — Karte der Ansicht „Sicherung“.
  *
  * Bedienung so knapp wie möglich: Vorauswahl „Angepasst“ (was abweicht oder eine stillgelegte
- * eigene Fassung hat), je Zeile ein Kennzeichen als Text und genau die passenden Knöpfe.
- * Umschalten fragt nicht nach — es verliert nichts: die andere Fassung liegt still, und der
- * Gegenknopf steht danach in derselben Zeile (das „Rückgängig“). Den Status rechnet der Server
+ * eigene Fassung hat), je Zeile ein Kennzeichen als Text und der Schalter „Aktiv: Werksfassung ·
+ * Eigene Fassung“ (Paket 16 — vorher je Lage ein anders beschrifteter Knopf, der Rundgang fand
+ * nicht, was gerade gilt). Umschalten fragt nicht nach — es verliert nichts: die andere Fassung
+ * liegt still, der Schalter führt zurück. Den Status rechnet der Server
  * (`services/werkfassung.py`), hier wird nur angezeigt und gefiltert.
  */
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { ActionState } from '../core/action-state';
-import { AsyncData, describeApiError } from '../core/async-data';
+import { AsyncData } from '../core/async-data';
 import {
   FassungenApi, type FassungListe, type FassungStatus, type FassungZeile, type FassungZiel,
 } from '../core/fassungen-api.service';
 import { injectFocus } from '../core/inject-focus';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
+import { FassungVergleichComponent } from './fassung-vergleich.component';
 
 export type FassungFilter = 'angepasst' | 'neu' | 'alle';
 
-interface Unterschiede {
-  readonly gelebt: readonly string[];
-  readonly eigene: readonly string[];
-}
+/** Was neben dem Schalter angeboten wird. */
+export type Zusatzaktion = 'aktualisieren' | 'restore' | 'tauschen' | null;
 
 /** Was „angepasst“ heißt: weicht ab, ist gelöscht, gehört nicht zum Werk — oder hat eine eigene
  *  Fassung stillgelegt (sonst verschwände die Zeile mit ihrem „Rückgängig“ nach dem Umschalten). */
@@ -38,7 +39,7 @@ function passt(z: FassungZeile, filter: FassungFilter): boolean {
 
 @Component({
   selector: 'studio-fassungen-panel',
-  imports: [AsyncStateComponent],
+  imports: [AsyncStateComponent, FassungVergleichComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './fassungen-panel.component.html',
   styleUrl: './fassungen-panel.component.scss',
@@ -54,6 +55,7 @@ export class FassungenPanelComponent {
 
   readonly filter = signal<FassungFilter>('angepasst');
   readonly filters: readonly FassungFilter[] = ['angepasst', 'neu', 'alle'];
+  readonly ziele: readonly FassungZiel[] = ['werk', 'eigen'];
 
   readonly available = computed(() => this.liste.value()?.available ?? true);
   readonly alle = computed(() => this.liste.value()?.bereiche ?? []);
@@ -67,9 +69,8 @@ export class FassungenPanelComponent {
     };
   });
 
-  /** Aufgeklappter Vergleich: Bereich → Zeilen ohne Kopf (gelebt und stillgelegt gegen Werk),
-   *  `null` = lädt, Text = Fehler. */
-  private readonly offen = signal<ReadonlyMap<string, Unterschiede | string | null>>(new Map());
+  /** Bereiche mit aufgeklapptem Vergleich — der lädt selbst (`studio-fassung-vergleich`). */
+  private readonly offen = signal<ReadonlySet<string>>(new Set());
 
   constructor() {
     void this.liste.reload();
@@ -79,23 +80,52 @@ export class FassungenPanelComponent {
     this.filter.set(f);
   }
 
-  /** Was die Zeile anbietet — genau eine Hauptaktion, plus „Eigene Fassung verwenden“, wenn eine
-   *  stillliegt. */
-  hauptaktion(z: FassungZeile): FassungZiel | 'restore' | null {
+  /** Welche Fassung gilt — `null`, wenn der Bereich gelöscht ist oder fehlt. */
+  aktiv(z: FassungZeile): FassungZiel | null {
     switch (z.status) {
-      case 'eigen':
-      case 'eigen-neues-werk':
-        // Liegt schon eine eigene Fassung still, ginge mit „Werk“ eine verloren — der Server
-        // weist das ab (Review #1); angeboten wird nur der Tausch.
-        return z.hat_eigene_fassung ? null : 'werk';
+      case 'werk':
       case 'werk-veraltet':
         return 'werk';
-      case 'werk-entfernt':
-      case 'werk-fehlt':
-        return 'restore';
+      case 'eigen':
+      case 'eigen-neues-werk':
+      case 'nur-eigen':
+        return 'eigen';
       default:
         return null;
     }
+  }
+
+  /** Ob der Schalter auf `ziel` wechseln kann. Zur Werksfassung nicht, wenn schon eine eigene
+   *  stillliegt — eine ginge verloren, der Server weist es ab (Review #1); dann bleibt der Tausch.
+   *  Zur eigenen nur, wenn eine stillliegt. */
+  kannWechseln(z: FassungZeile, ziel: FassungZiel): boolean {
+    const aktiv = this.aktiv(z);
+    if (aktiv === null || aktiv === ziel) return aktiv === ziel;
+    if (ziel === 'werk') return z.status !== 'nur-eigen' && !z.hat_eigene_fassung;
+    return z.hat_eigene_fassung;
+  }
+
+  /** Was neben dem Schalter steht — höchstens eine Aktion. */
+  zusatzaktion(z: FassungZeile): Zusatzaktion {
+    if (z.status === 'werk-veraltet') return 'aktualisieren';
+    if (z.status === 'werk-entfernt' || z.status === 'werk-fehlt') return 'restore';
+    if (this.aktiv(z) === 'eigen' && z.hat_eigene_fassung) return 'tauschen';
+    return null;
+  }
+
+  /** Warum „Eigene Fassung“ nicht wählbar ist — nur, wenn die Werksfassung gilt. */
+  ohneEigene(z: FassungZeile): boolean {
+    return this.aktiv(z) === 'werk' && !z.hat_eigene_fassung;
+  }
+
+  /** Review A-7: warum „Werksfassung“ nicht wählbar ist — zwei eigene Fassungen. */
+  zweiEigene(z: FassungZeile): boolean {
+    return this.aktiv(z) === 'eigen' && z.hat_eigene_fassung && z.status !== 'nur-eigen';
+  }
+
+  /** Ob ein gesperrter Schalter einen Satz mit seinem Grund hat. */
+  gesperrtGrund(z: FassungZeile, ziel: FassungZiel): boolean {
+    return !this.kannWechseln(z, ziel) && (this.ohneEigene(z) || this.zweiEigene(z));
   }
 
   hatVergleich(z: FassungZeile): boolean {
@@ -103,18 +133,18 @@ export class FassungenPanelComponent {
       || z.hat_eigene_fassung;
   }
 
+  /** Den Editor gibt es nur für einen Bereich, der in der Datenbank steht. */
+  editorLink(z: FassungZeile): readonly string[] | null {
+    return z.version === null ? null : ['/bereich', ...z.area.split('/')];
+  }
+
   istOffen(area: string): boolean {
     return this.offen().has(area);
   }
 
-  vergleichszeilen(area: string): Unterschiede | null {
-    const wert = this.offen().get(area);
-    return wert !== null && typeof wert === 'object' ? wert : null;
-  }
-
-  vergleichsfehler(area: string): string {
-    const wert = this.offen().get(area);
-    return typeof wert === 'string' ? wert : '';
+  async wechseln(z: FassungZeile, ziel: FassungZiel): Promise<void> {
+    if (this.aktiv(z) === ziel || !this.kannWechseln(z, ziel)) return;
+    await this.umschalten(z, ziel);
   }
 
   async umschalten(z: FassungZeile, ziel: FassungZiel): Promise<void> {
@@ -124,25 +154,14 @@ export class FassungenPanelComponent {
     });
     this.schliessen(z.area);
     await this.liste.reload();
-    // Nach dem Umschalten steht der Gegenknopf in derselben Zeile — dorthin, sonst zur Überschrift.
-    if (ok) this.focus(`${zeile(z.area)} .fs-aktion`, '#fs-title');
+    // Nach dem Umschalten zum jetzt gedrückten Schalter derselben Zeile, sonst zur Überschrift.
+    if (ok) this.focus(`${zeile(z.area)} .fs-wahl[aria-pressed="true"]`, '#fs-title');
   }
 
-  async vergleichUmschalten(z: FassungZeile): Promise<void> {
-    if (this.istOffen(z.area)) {
-      this.schliessen(z.area);
-      return;
-    }
-    this.setzeOffen(z.area, null);
-    try {
-      const v = await this.api.vergleich(z.area);
-      // Die ersten zwei Zeilen sind die Kopfzeilen (`--- werk` …) — sagt die Legende schon.
-      this.setzeOffen(z.area, {
-        gelebt: v.zeilen.slice(2), eigene: (v.zeilen_eigene ?? []).slice(2),
-      });
-    } catch (err) {
-      this.setzeOffen(z.area, describeApiError(err, this.t));
-    }
+  vergleichUmschalten(z: FassungZeile): void {
+    const neu = new Set(this.offen());
+    if (!neu.delete(z.area)) neu.add(z.area);
+    this.offen.set(neu);
   }
 
   async werksabgleich(): Promise<void> {
@@ -155,23 +174,9 @@ export class FassungenPanelComponent {
     await this.liste.reload();
   }
 
-  /** CSS-Klasse der Diff-Zeile — die Bedeutung trägt das Zeichen am Zeilenanfang, nicht die Farbe. */
-  zeilenart(zeile: string): string {
-    if (zeile.startsWith('+')) return 'fs-diff-plus';
-    if (zeile.startsWith('-')) return 'fs-diff-minus';
-    if (zeile.startsWith('@@')) return 'fs-diff-hunk';
-    return '';
-  }
-
-  private setzeOffen(area: string, wert: Unterschiede | string | null): void {
-    const neu = new Map(this.offen());
-    neu.set(area, wert);
-    this.offen.set(neu);
-  }
-
   private schliessen(area: string): void {
     if (!this.offen().has(area)) return;
-    const neu = new Map(this.offen());
+    const neu = new Set(this.offen());
     neu.delete(area);
     this.offen.set(neu);
   }

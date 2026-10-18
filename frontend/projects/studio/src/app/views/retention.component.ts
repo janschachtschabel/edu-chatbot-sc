@@ -32,7 +32,7 @@ import type { CuratedPanelSection } from './curated-views';
 
 /** Reihenfolge im Ergebnissatz — die des Backends. */
 const LOG_ORDER: readonly RetentionLog[] = [
-  'messages', 'memory', 'session_state', 'safety_logs', 'quality_logs',
+  'messages', 'memory', 'session_state', 'safety_logs', 'quality_logs', 'quality_text',
 ];
 
 @Component({

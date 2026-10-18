@@ -3,7 +3,7 @@
     <h3 class="cs-title">{{ t(section().labelKey) }}</h3>
     <p class="cs-hint">{{ t(section().hintKey) }}</p>
     <!-- ST-5: wo dieser Bereich wirkt — aus der Zuordnung im Backend -->
-    <studio-effect-badge class="cs-effect" [area]="section().area" />
+    <studio-effect-badge class="cs-effect" [area]="section().area" [felder]="section().felder" />
     @if (editor.verwerfbar()) {
       <!-- visible on the closed panel too: a collapsed section with unsaved
            edits is exactly the case someone navigates away from -->
@@ -23,13 +23,18 @@
       @if (section().feature === 'safety-level') {
         <studio-safety-level [doc]="editor.doc()" (docChange)="editor.setDoc($event)" />
       }
-      @for (hinweis of hinweise(); track hinweis) {
-        <p class="cs-hinweis" role="note">{{ t(hinweis) }}</p>
+      @for (hinweis of hinweise(); track $index) {
+        <p class="cs-hinweis" role="note">{{ hinweisText(hinweis) }}</p>
+      }
+      @if (section().sprung; as sprung) {
+        <p class="cs-sprung"><a [routerLink]="['/', sprung.slug]">{{ t(sprung.labelKey) }} →</a></p>
       }
       <studio-schema-form
         [schema]="schema"
         [value]="editor.doc()"
         [epoche]="editor.epoche()"
+        [area]="section().area"
+        [gruppen]="section().gruppen ?? null"
         [idPrefix]="idPrefix()"
         [visiblePaths]="felder()"
         [problems]="editor.problems()"

@@ -19,12 +19,16 @@ import {
 } from '@angular/core';
 
 import { ChoicesApi } from '../core/choices-api.service';
+import { EffectsApi } from '../core/effects-api.service';
+import { feldPlakette } from '../core/feld-wirkung';
 import { describeProblem, type FieldProblem, pathKey } from '../core/field-problems';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { fieldAt } from './field-at';
 import { FORM_EPOCHE } from './form-epoche';
-import { type FormSection, formSections } from './form-sections';
+import { FORM_WIRKUNG } from './form-wirkung';
+import { type FeldGruppe, type FormSection, formSections, gruppenSections } from './form-sections';
 import { removeAt, renameKeyAt, setAt } from './form-value';
 import type { JsonSchema } from './json-schema';
 import { pickFields } from './pick-fields';
@@ -34,7 +38,10 @@ import { rootField, type SchemaField } from './schema-to-fields';
 @Component({
   selector: 'studio-schema-form',
   imports: [SchemaFieldComponent],
-  providers: [{ provide: FORM_EPOCHE, useFactory: () => inject(SchemaFormComponent).epoche }],
+  providers: [
+    { provide: FORM_EPOCHE, useFactory: () => inject(SchemaFormComponent).epoche },
+    { provide: FORM_WIRKUNG, useFactory: () => inject(SchemaFormComponent).plakette },
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (unmapped().length; as anzahl) {
@@ -125,10 +132,22 @@ export class SchemaFormComponent {
    * meldete jeder geschlossene Reiter seine Felder als unbekannt.
    */
   readonly visiblePaths = input<readonly string[] | null>(null);
+  /** Rundgang 3: benannte Feldgruppen statt des Schnitts nach der Form des Dokuments — auch
+   *  zusammen mit `visiblePaths` (dann über die gezeigten Felder). */
+  readonly gruppen = input<readonly FeldGruppe[] | null>(null);
 
   readonly valueChange = output<Record<string, unknown>>();
   /** Zählt „Verwerfen“ des Editors hoch: JSON-Felder räumen ihren Entwurf (`FORM_EPOCHE`). */
   readonly epoche = input(0);
+  /** Rundgang 3: der Bereich dieses Formulars — für die Plakette je Feld (`FORM_WIRKUNG`). */
+  readonly area = input<string | null>(null);
+  private readonly effects = inject(EffectsApi).effects;
+  private readonly ansicht = inject(StudioAnsicht).ansicht;
+  /** Liest Signale: ein Feld, das sie in einem `computed` ruft, folgt Zuordnung und Ansicht. */
+  readonly plakette = (pfad: string) => {
+    const area = this.area();
+    return area ? feldPlakette(this.effects(), area, pfad, this.ansicht()) : null;
+  };
 
   readonly field = computed<SchemaField>(() => rootField(this.schema()));
 
@@ -144,9 +163,11 @@ export class SchemaFormComponent {
    * Nicht bei Reitern: `visiblePaths` schneidet den Baum bereits, und eine
    * Gliederung im Reiter wäre eine Gliederung der Gliederung.
    */
-  readonly sections = computed<readonly FormSection[]>(() =>
-    this.visiblePaths() ? [] : formSections(this.field()),
-  );
+  readonly sections = computed<readonly FormSection[]>(() => {
+    const gruppen = this.gruppen();
+    if (gruppen?.length) return gruppenSections(this.rendered(), gruppen);
+    return this.visiblePaths() ? [] : formSections(this.field());
+  });
 
   /** Die Meldungen, die an einem Feld stehen können: Pfad → Satz (ST-2e). */
   readonly problemTexts = computed<ReadonlyMap<string, string>>(() => new Map(
@@ -180,6 +201,7 @@ export class SchemaFormComponent {
    * der Schlüssel die Überschrift; der Sammel-Abschnitt heißt „Grundwerte".
    */
   protected sectionHead(section: FormSection): { label: string; key: string | null } {
+    if (section.labelKey) return { label: this.t(section.labelKey), key: null };
     if (!section.key) return { label: this.t('schemaForm.basics'), key: null };
     // Paket 15: ein Block-Abschnitt ist der Block selbst; sonst ein Kind des Rumpfs.
     const feld = section.field.key === section.key

@@ -26,7 +26,7 @@ import { ConfigApi } from '../core/config-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AreaDocEditor } from '../schema-form/area-doc-editor';
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
-import type { CuratedAreaSection } from './curated-views';
+import type { CuratedAreaSection, Hinweis } from './curated-views';
 import { EffectBadgeComponent } from './effect-badge.component';
 import { feldAusschnitt } from './feld-ausschnitt';
 import { SafetyLevelComponent } from './safety-level.component';
@@ -70,6 +70,10 @@ export class AreaSectionComponent {
   readonly dirty = this.editor.verwerfbar;
   /** Paket 15: Hinweise des Abschnitts zum aktuellen Entwurf (`CuratedAreaSection.hinweise`). */
   readonly hinweise = computed(() => this.section().hinweise?.(this.editor.doc()) ?? []);
+
+  hinweisText(hinweis: Hinweis): string {
+    return typeof hinweis === 'string' ? this.t(hinweis) : this.t(hinweis.key, hinweis.params);
+  }
 
   private loaded = false;
 

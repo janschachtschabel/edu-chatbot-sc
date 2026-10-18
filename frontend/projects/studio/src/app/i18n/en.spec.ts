@@ -41,6 +41,10 @@ describe('STUDIO_EN', () => {
       'login.passwordEnv',      // Name der Umgebungsvariablen, kein Satz
       'areas.importCmd',        // ein Shell-Befehl, ebenso wenig ein Satz
       'snapshots.title',        // „Snapshots" ist im deutschen Studio das Fachwort
+      'backup.arten.snapshots', // dasselbe Fachwort in der Gegenüberstellung (Paket 16)
+      'nutzung.klein',          // „<5“ ist kein Wort, sondern ein Zeichen
+      'ltEngstelle.teil.llm',   // Fachkürzel in beiden Sprachen
+      'ltEngstelle.teil.rerank', // ebenso
       // Vier Ansichts-/Gruppennamen, die im deutschen Studio bereits das
       // englische Fachwort tragen — eine „Übersetzung" wäre hier eine Erfindung.
       'view.patterns.label',

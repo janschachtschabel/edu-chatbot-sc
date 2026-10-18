@@ -10,6 +10,7 @@ import { provideRouter } from "@angular/router";
 import { describe, expect, it } from "vitest";
 
 import { EffectsApi } from "../core/effects-api.service";
+import { StudioAnsicht } from "../core/studio-ansicht.service";
 import { STUDIO_DE } from "../i18n/de";
 import { STUDIO_EN } from "../i18n/en";
 import {
@@ -51,7 +52,7 @@ function schemaFor(area: string): object {
   return AREA_SCHEMAS[area] ?? AREA_SCHEMAS["01-base/base-persona"];
 }
 
-async function mount(slug: string): Promise<Harness> {
+async function mount(slug: string, ansicht?: "agent" | "pattern"): Promise<Harness> {
   TestBed.resetTestingModule();
   // jsdom meldet `en-US`; die Wortlaute unten sind deutsch (C1-d3b).
   sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, "de");
@@ -64,6 +65,7 @@ async function mount(slug: string): Promise<Harness> {
       provideRouter([]),
     ],
   });
+  if (ansicht) TestBed.inject(StudioAnsicht).waehle(ansicht);
   const fixture = TestBed.createComponent(CuratedViewComponent);
   fixture.componentRef.setInput("view", viewFor(slug));
   const http = TestBed.inject(HttpTestingController);
@@ -339,6 +341,20 @@ describe("CURATED_VIEWS declaration", () => {
     expect(curatedView("anzeige")?.reiter?.map((r) => r.id))
       .toEqual(["chat", "karten", "kopfzeile", "geraete"]);
     expect(curatedView("fuehrung")?.reiter?.map((r) => r.id)).toEqual(["tour", "lotse", "regeln"]);
+    // Rundgang 3: die Sicherheit zuerst — auf beiden Seiten, die sie tragen.
+    expect(curatedView("agent-rolle")?.reiter?.map((r) => r.id))
+      .toEqual(["sicherheit", "rolle", "regeln", "schutz"]);
+    expect(curatedView("identitaet")?.reiter?.map((r) => r.id))
+      .toEqual(["sicherheit", "persona", "regeln"]);
+  });
+
+  it("springt von der Sicherheitsstufe zu den Safety-Logs (Rundgang 3)", () => {
+    for (const slug of ["agent-rolle", "identitaet"]) {
+      const sicherheit = curatedView(slug)!.sections.filter(isAreaSection)
+        .find((s) => s.area === "01-base/safety-config")!;
+      expect(sicherheit.reiter, slug).toBe("sicherheit");
+      expect(sicherheit.sprung?.slug, slug).toBe("safety-logs");
+    }
   });
 
   it("keeps the MCP registry off the generic form, which has no SSRF gate", () => {
@@ -616,5 +632,27 @@ describe("CuratedViewComponent — Reiter (Paket 15)", () => {
       const ziel = el.querySelector(`[id="${tab.getAttribute("aria-controls")}"]`);
       expect(ziel?.getAttribute("role"), tab.textContent ?? "").toBe("tabpanel");
     }
+  });
+});
+
+describe("CuratedViewComponent — Skills je Arbeitsbereich (Paket 16, C8)", () => {
+  const abschnitte = (el: HTMLElement) => Array.from(el.querySelectorAll<HTMLDetailsElement>("details.cs"));
+  const titel = (d: HTMLDetailsElement) => d.querySelector(".cs-title")?.textContent?.trim();
+
+  it("stellt im Muster-Arbeitsbereich die Skill-Brücke zuerst und offen", async () => {
+    const { el } = await mount("skills", "pattern");
+    const [erster, ...rest] = abschnitte(el);
+    expect(titel(erster)).toBe("Skill-Brücke");
+    expect(erster.open).toBe(true);
+    expect(erster.textContent).toContain("nur im Muster-Modus");
+    expect(rest.some((d) => d.open)).toBe(false);
+  });
+
+  it("lässt im Agent-Arbeitsbereich den Master-Skill vorn — mit „Wirkt in: Agent-Schleife“", async () => {
+    const { el } = await mount("skills", "agent");
+    const [erster] = abschnitte(el);
+    expect(titel(erster)).toBe("Master-Skill");
+    expect(erster.open).toBe(true);
+    expect(erster.querySelector("summary")?.textContent).toContain("Wirkt in: Agent-Schleife");
   });
 });

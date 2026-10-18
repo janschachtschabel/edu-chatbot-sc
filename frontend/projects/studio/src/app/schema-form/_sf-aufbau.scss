@@ -142,3 +142,14 @@
   color: var(--st-text-muted);
 }
 
+// Rundgang 3: das Feld wirkt im offenen Arbeitsbereich nicht (oder nur bei Krise / extern) —
+// als Wort, nicht nur als Farbe (SC 1.4.1).
+.sf-wirkung-tag {
+  margin-inline-start: var(--st-1);
+  padding: 0 var(--st-1);
+  border: 1px dashed var(--st-text-muted);
+  border-radius: var(--st-radius);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--st-text-muted);
+}

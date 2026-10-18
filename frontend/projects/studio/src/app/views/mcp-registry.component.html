@@ -120,6 +120,11 @@
             }
 
             <p class="mr-row-actions">
+              @if (si === neueZeile()) {
+                <!-- Rundgang 3: ein eben angelegter Server lässt sich wieder abbrechen. -->
+                <button type="button" class="cs-btn" (click)="remove(si)"
+                  [attr.aria-label]="t('mcp.abbrechenNeuFor')">{{ t('mcp.abbrechenNeu') }}</button>
+              } @else {
               <button
                 type="button"
                 class="cs-btn mr-del"
@@ -131,6 +136,7 @@
               </button>
               @if (server.url_readonly) {
                 <span class="mr-help">{{ t('mcp.primaryFixed') }}</span>
+              }
               }
             </p>
           </details>
@@ -148,6 +154,8 @@
         >
           {{ saving() ? t('editor.saving') : t('mcp.save') }}
         </button>
+        <button type="button" class="cs-btn" [disabled]="saving() || !dirty()"
+          (click)="verwerfen()">{{ t('editor.discard') }}</button>
       </div>
 
       @if (incomplete()) {

@@ -162,6 +162,20 @@ export const LOADTEST: CataloguePart = {
     'ltRun.anfragen.status': 'Status',
     'ltRun.anfragen.werkzeuge': 'Werkzeuge',
     'ltRun.anfragen.werkzeugzeit': 'Werkzeugzeit',
+    // Paket 16 (D4): Engstelle
+    'ltEngstelle.title': 'Engstelle je Anfrageart (Parallelität {concurrency})',
+    'ltEngstelle.hint':
+      'Median der erfolgreichen Anfragen, aufgeteilt nach dem Debug-Block. Vorab-Suche zählt '
+      + 'nur das Warten — die Suche selbst läuft neben der Einordnung und steckt in den '
+      + 'Werkzeugen; Teile können sich darum überlappen.',
+    'ltEngstelle.groesste': 'größter Teil: {teil}',
+    'ltEngstelle.teil.llm': 'LLM',
+    'ltEngstelle.teil.werkzeuge': 'Werkzeuge',
+    'ltEngstelle.teil.vorabsuche': 'Vorab-Suche',
+    'ltEngstelle.teil.rerank': 'Rerank',
+    'ltEngstelle.teil.rag': 'Wissen (RAG)',
+    'ltEngstelle.teil.safety': 'Sicherheitsstufe',
+    'ltEngstelle.teil.rest': 'Rest',
     'ltRun.noStage': 'Keine abgeschlossene Stufe — der Lauf endete, bevor eine Stufe fertig war.',
 
     // ── Reines Profil-Modul ─────────────────────────────────────────
@@ -289,6 +303,19 @@ export const LOADTEST: CataloguePart = {
     'ltRun.anfragen.status': 'State',
     'ltRun.anfragen.werkzeuge': 'Tools',
     'ltRun.anfragen.werkzeugzeit': 'Tool time',
+    'ltEngstelle.title': 'Bottleneck per request kind (concurrency {concurrency})',
+    'ltEngstelle.hint':
+      'Median of the successful requests, split by the debug block. Prefetch search counts only '
+      + 'the wait — the search itself runs alongside classification and is part of the tools; '
+      + 'parts can therefore overlap.',
+    'ltEngstelle.groesste': 'largest part: {teil}',
+    'ltEngstelle.teil.llm': 'LLM',
+    'ltEngstelle.teil.werkzeuge': 'Tools',
+    'ltEngstelle.teil.vorabsuche': 'Prefetch search',
+    'ltEngstelle.teil.rerank': 'Rerank',
+    'ltEngstelle.teil.rag': 'Knowledge (RAG)',
+    'ltEngstelle.teil.safety': 'Safety level',
+    'ltEngstelle.teil.rest': 'Other',
     'ltRun.noStage': 'No completed stage — the run ended before a stage finished.',
 
     'ltProfile.adjust.stages': 'Only the first {count} stages run.',

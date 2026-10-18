@@ -71,6 +71,8 @@ export const STUDIO_VIEWS: readonly StudioView[] = [
   view('anzeige', 'gemeinsam', '9-4'),
   view('datenschutz', 'gemeinsam', '9-4'),
   // ── Auswertung ──
+  // Paket 16 (D3): Besuch und Tageszeit aus dem Qualitätsprotokoll — vor den einzelnen Sessions.
+  view('nutzung', 'auswertung', 'P16'),
   view('sessions', 'auswertung', '9-5'),
   view('analyse', 'auswertung', '9-5'),
   view('evaluation', 'auswertung', '9-5'),

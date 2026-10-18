@@ -1,0 +1,27 @@
+@if (daten(); as d) {
+  <section class="lt-engstelle" aria-labelledby="lt-engstelle-titel">
+    <h4 class="lte-titel" id="lt-engstelle-titel">
+      {{ t('ltEngstelle.title', { concurrency: d.concurrency }) }}
+    </h4>
+    <p class="lte-hint">{{ t('ltEngstelle.hint') }}</p>
+    <ul class="lte-arten">
+      @for (art of d.arten; track art.kind) {
+        <li class="lte-art">
+          <span class="lte-kind">{{ art.kind }}</span>
+          <span class="lte-balken" aria-hidden="true">
+            @for (teil of art.teile; track teil.kategorie) {
+              <span [class]="'lte-teil lte-teil--' + teil.kategorie"
+                [style.inline-size.%]="teil.anteil * 100"></span>
+            }
+          </span>
+          <span class="lte-text">
+            {{ t('ltEngstelle.groesste', { teil: t('ltEngstelle.teil.' + art.groesste) }) }} —
+            @for (teil of art.teile; track teil.kategorie; let letzter = $last) {
+              <span [class]="'lte-marke lte-teil--' + teil.kategorie" aria-hidden="true"></span>{{ teilText(teil) }}@if (!letzter) { · }
+            }
+          </span>
+        </li>
+      }
+    </ul>
+  </section>
+}

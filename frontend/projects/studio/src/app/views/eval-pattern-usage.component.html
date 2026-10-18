@@ -27,13 +27,14 @@
         (change)="setSince($any($event.target).value)"
         aria-describedby="epu-since-hint"
       />
-      <span class="epu-hint" id="epu-since-hint">{{ t('evalPattern.since.hint') }}</span>
     </p>
 
     <button type="button" class="epu-btn" [disabled]="usage.loading()" (click)="reload()">
       {{ usage.loading() ? t('action.refreshing') : t('action.refresh') }}
     </button>
   </form>
+  <!-- Rundgang 3: unter der Filterzeile — im Feld schob er die Eingabe über die Nachbarn. -->
+  <p class="epu-since-hint" id="epu-since-hint">{{ t('evalPattern.since.hint') }}</p>
 
   <studio-async-state
     class="epu-state"

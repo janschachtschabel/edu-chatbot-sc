@@ -173,4 +173,15 @@ describe('AnredeComponent (Paket 14, C2)', () => {
     expect(el.querySelector('a[href="/anzeige"]')).toBeNull();
     expect(el.querySelector('.an-rueckfall')?.textContent).toContain('Rückfall im Abschnitt darunter');
   });
+
+  it('kennzeichnet die Zeilen, für die der Rückfall gilt (Plan B6)', async () => {
+    await laden();
+    expect(el.querySelectorAll('.an-gilt')).toHaveLength(0);
+    auswahl(1).value = 'wie_user';
+    auswahl(1).dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    expect(zeilen()[1].querySelector('.an-gilt')?.textContent).toContain('Rückfall gilt');
+    expect(zeilen()[0].querySelector('.an-gilt')).toBeNull();
+  });
 });
+

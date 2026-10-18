@@ -14,6 +14,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, si
 import { RouterLink } from '@angular/router';
 
 import { describeApiError } from '../core/async-data';
+import { injectFocus } from '../core/inject-focus';
 import {
   type DiscoveredTool, type McpServer, McpRegistryStore,
 } from '../core/mcp-registry-store';
@@ -208,6 +209,9 @@ export class McpRegistryComponent {
 
   /** Die eben angelegte Zeile — sie steht offen, bis gespeichert, geladen oder entfernt. */
   readonly neueZeile = signal<number | null>(null);
+  /** Review A-5: „Abbrechen“ verschwindet mit seiner Zeile, „Verwerfen“ sperrt sich selbst —
+   *  ohne neues Ziel fiele der Fokus auf `<body>` (WCAG 2.4.3). */
+  private readonly focus = injectFocus();
 
   add(): void {
     this.reg.add();
@@ -217,6 +221,14 @@ export class McpRegistryComponent {
   remove(index: number): void {
     this.reg.remove(index);
     this.neueZeile.set(null);
+    this.focus('.mr-add');
+  }
+
+  /** Rundgang 3: alle ungespeicherten Änderungen zurück — auch ein angelegter Server. */
+  verwerfen(): void {
+    this.reg.discard();
+    this.neueZeile.set(null);
+    this.focus('.mr-add');
   }
 
   async save(force = false): Promise<void> {

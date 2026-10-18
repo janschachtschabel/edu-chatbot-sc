@@ -200,8 +200,14 @@ describe('AgentToolsComponent — Schalter (Paket 15)', () => {
 
   it('zeigt die Herkunft und einen Schalter nur, wo er wirkt', async () => {
     const { el } = await loaded();
-    expect(text(zeile(el, 'get_skill').querySelector('.agt-herkunft'))).toBe('WLO');
-    expect(text(zeile(el, 'zeige_dokument').querySelector('.agt-herkunft'))).toBe('Eingebaut');
+    // Paket 16, C7: Plakette nach Art, darunter Server und Host.
+    expect(text(zeile(el, 'get_skill').querySelector('.agt-herkunft-tag'))).toBe('WLO-MCP');
+    expect(text(zeile(el, 'get_skill').querySelector('.agt-server'))).toBe('WLO · wlo.example');
+    expect(text(zeile(el, 'zeige_dokument').querySelector('.agt-herkunft-tag'))).toBe('Eingebaut');
+    expect(zeile(el, 'zeige_dokument').querySelector('.agt-server')).toBeNull();
+    // Unabhängig vom Schalter: das Schreibwerkzeug hat keinen und kommt doch vom WLO-MCP.
+    expect(text(zeile(el, 'wlo_create_content').querySelector('.agt-herkunft-tag')))
+      .toBe('WLO-MCP');
     expect(schalter(el, 'get_skill')?.checked).toBe(true);
     expect(schalter(el, 'search_skill')?.checked).toBe(false);
     expect(schalter(el, 'zeige_dokument')).toBeNull();
@@ -259,7 +265,9 @@ describe('AgentToolsComponent — Review-Runde 2', () => {
     await h.fixture.whenStable();
     // Die Server-Liste ist noch unterwegs (Live-Abfrage, bis 22 s).
     expect(text(zeile(h.el, 'get_skill').querySelector('.agt-schalter'))).toBe('wird geladen …');
-    expect(text(zeile(h.el, 'wikidata__search_entities').querySelector('.agt-herkunft')))
+    expect(text(zeile(h.el, 'wikidata__search_entities').querySelector('.agt-herkunft-tag')))
+      .toBe('Fremd-MCP');
+    expect(text(zeile(h.el, 'wikidata__search_entities').querySelector('.agt-server')))
       .toBe('wikidata');
     expect(text(zeile(h.el, 'zeige_dokument').querySelector('.agt-schalter'))).toBe('fest');
   });

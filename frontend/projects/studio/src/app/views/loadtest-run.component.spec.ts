@@ -419,4 +419,32 @@ describe("LoadtestRunComponent — Live-Region", () => {
     expect(h.el.textContent).toContain("ohne Aufwärmen");
     expect(h.el.querySelector('.lr-anfragen tbody th[scope="row"]')?.textContent?.trim()).toBe("1");
   });
+
+  it("zeigt die Engstelle je Anfrageart der höchsten Stufe und die Teile je Anfrage (Paket 16)", async () => {
+    const zeiten = { llm: 4000, werkzeuge: 1000, vorabsuche: 500, rerank: 2000, rag: 0, safety: 0,
+      rest: 500 };
+    const h = await mount({
+      ...COMPLETED,
+      stages: [stage(1), {
+        ...stage(2),
+        by_kind: { suche: { n: 4, ok: 4, p50_s: 8, p95_s: 9, zeiten_ms: zeiten,
+          anteile: { llm: 0.5, werkzeuge: 0.125, vorabsuche: 0.0625, rerank: 0.25, rag: 0,
+            safety: 0, rest: 0.0625 } } },
+        anfragen: [{ nr: 1, kind: "suche", ok: true, status: 200, latency_s: 8, zeiten }],
+      }],
+    });
+    const engstelle = h.el.querySelector(".lt-engstelle");
+    const text = (engstelle?.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("Parallelität 2");
+    expect(text).toContain("suche");
+    expect(text).toContain("LLM 50 %");
+    expect(text).toContain("Rerank 25 %");
+    expect(text).toContain("größter Teil: LLM");
+    const kopf = Array.from(h.el.querySelectorAll(".lr-anfragen thead th"), (th) => th.textContent?.trim());
+    expect(kopf).toContain("LLM");
+    expect(kopf).toContain("Rerank");
+    const zeile = h.el.querySelector(".lr-anfragen tbody tr")?.textContent ?? "";
+    expect(zeile).toContain("4 s");
+  });
 });
+

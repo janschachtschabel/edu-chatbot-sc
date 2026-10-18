@@ -23,7 +23,8 @@ import { StudioApi } from '../core/studio-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { STUDIO_VIEWS } from '../studio-views';
 import {
-  type Schalter, firstSentence, groupTools, lockLink, lockText, schalterFuer,
+  type Herkunft, type Schalter, firstSentence, groupTools, herkunftVon, lockLink, lockText,
+  schalterFuer,
 } from './agent-tools';
 import type { CuratedPanelSection } from './curated-views';
 import { SaveConflictComponent } from './save-conflict.component';
@@ -83,12 +84,14 @@ export class AgentToolsComponent {
   }
 
   /** Bietet der Chatbot das Werkzeug laut (bearbeiteter) Server-Liste an? */
-  /** Woher das Werkzeug kommt — ein fremdes nennt seinen Server auch, solange die Liste lädt. */
-  herkunft(tool: AgentTool, schalter: Schalter | null): string {
-    if (schalter) return schalter.server;
-    if (tool.kind === 'virtual') return this.t('agentTools.herkunft.eingebaut');
-    if (tool.kind === 'external') return tool.server_id ?? '';
-    return this.t('agentTools.herkunft.wlo');
+  /** Woher das Werkzeug kommt — Art, Server und Host; ein fremdes nennt seinen Server auch,
+   *  solange die Liste lädt. */
+  herkunft(tool: AgentTool): Herkunft {
+    return herkunftVon(tool, this.reg.servers());
+  }
+
+  serverZeile(h: Herkunft): string {
+    return [h.server, h.host].filter((teil) => teil !== '').join(' · ');
   }
 
   /** „fest“ nur, wo es stimmt: ohne Server-Liste weiß die Seite nicht, was schaltbar ist. */

@@ -249,6 +249,37 @@ describe("McpRegistryComponent", () => {
     expect(el.querySelectorAll<HTMLDetailsElement>(".mr-row")[0].open).toBe(false);
   });
 
+  it("bricht einen eben angelegten Server ab und verwirft Änderungen (Rundgang 3)", async () => {
+    const { el, fixture } = await mount();
+    el.querySelector<HTMLButtonElement>(".mr-add")?.click();
+    await fixture.whenStable();
+    expect(el.querySelectorAll(".mr-row")).toHaveLength(3);
+    const abbrechen = Array.from(el.querySelectorAll<HTMLButtonElement>(".mr-row")[2]
+      .querySelectorAll("button")).find((b) => b.textContent?.trim() === "Abbrechen")!;
+    // Review A-4 (WCAG 2.5.3): der Name enthält das sichtbare Wort.
+    expect(abbrechen.getAttribute("aria-label")).toMatch(/^Abbrechen/);
+    abbrechen.click();
+    await fixture.whenStable();
+    expect(el.querySelectorAll(".mr-row")).toHaveLength(2);
+    expect(fixture.componentInstance.dirty()).toBe(false);
+    // Review A-5: der Knopf verschwindet mit seiner Zeile — der Fokus geht zu „Server hinzufügen“.
+    expect(document.activeElement?.classList.contains("mr-add")).toBe(true);
+
+    // „Verwerfen“ nimmt jede ungespeicherte Änderung zurück.
+    const id = el.querySelectorAll<HTMLInputElement>(".mr-id")[0];
+    id.value = "geaendert";
+    id.dispatchEvent(new Event("input"));
+    await fixture.whenStable();
+    const verwerfen = Array.from(el.querySelectorAll<HTMLButtonElement>("button"))
+      .find((b) => b.textContent?.trim() === "Verwerfen")!;
+    expect(verwerfen.disabled).toBe(false);
+    verwerfen.click();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.dirty()).toBe(false);
+    expect(document.activeElement?.classList.contains("mr-add")).toBe(true);
+    expect(el.querySelectorAll<HTMLInputElement>(".mr-id")[0].value).not.toBe("geaendert");
+  });
+
   it("removes a server from the list it is about to save", async () => {
     const { el, fixture } = await mount();
     el.querySelectorAll<HTMLButtonElement>(".mr-del")[1].click();

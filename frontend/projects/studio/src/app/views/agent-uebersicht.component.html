@@ -8,32 +8,40 @@
   </p>
 </header>
 
+<studio-status-strip maschine="agent" />
+
 <studio-master-skill [section]="masterSkill" [open]="true" />
 
-<section class="au-teil" aria-labelledby="au-wege">
-  <h3 class="au-unter" id="au-wege">{{ t('agentUebersicht.wege') }}</h3>
-  <ul class="au-wege">
-    @for (weg of wege; track weg.slug) {
+<section class="au-teil" aria-labelledby="au-schichten">
+  <h3 class="au-unter" id="au-schichten">{{ t('agentUebersicht.schichten') }}</h3>
+  <p class="au-hinweis">{{ t('agentUebersicht.schichten.hint') }}</p>
+  <ol class="au-schichten">
+    @for (schicht of schichten; track schicht.id) {
       <li>
-        <a [routerLink]="['/', weg.slug]">{{ t('view.' + weg.slug + '.label') }}</a>
-        <span class="au-desc">{{ t(weg.descKey) }}</span>
+        <span class="au-name">{{ t('agentUebersicht.schicht.' + schicht.id) }}</span>
+        <span class="au-desc">{{ t('agentUebersicht.schicht.' + schicht.id + '.desc') }}</span>
+        <a [routerLink]="['/', schicht.slug]">{{ t('view.' + schicht.slug + '.label') }}</a>
       </li>
     }
-  </ul>
+  </ol>
 </section>
 
-<section class="au-teil au-lauf" aria-labelledby="au-lauf">
-  <h3 class="au-unter" id="au-lauf">{{ t('agentUebersicht.lauf.titel') }}</h3>
-  @if (laeufe.error(); as fehler) {
-    <div class="au-fehler" role="alert">
-      <p>{{ fehler }}</p>
-      <button type="button" class="au-knopf" (click)="laeufe.reload()">{{ t('async.retry') }}</button>
-    </div>
-  } @else if (laeufe.loading() && !laeufe.value()) {
-    <p aria-busy="true">{{ t('agentUebersicht.lauf.laedt') }}</p>
-  } @else if (letzterLauf(); as text) {
-    <p>{{ text }} <a routerLink="/evaluation">{{ t('agentUebersicht.lauf.link') }}</a></p>
-  } @else {
-    <p>{{ t('agentUebersicht.lauf.leer') }}</p>
-  }
+<section class="au-teil" aria-labelledby="au-testseiten">
+  <h3 class="au-unter" id="au-testseiten">{{ t('agentUebersicht.testseiten') }}</h3>
+  <p class="au-hinweis">{{ t('agentUebersicht.testseiten.hint') }}</p>
+  <ul class="au-testseiten">
+    @for (seite of testseiten; track seite.id) {
+      <li>
+        <a [href]="seite.href" target="_blank" rel="noopener noreferrer">
+          {{ t('agentUebersicht.testseite.' + seite.id) }}
+          <span class="au-neu">{{ t('agentUebersicht.neuerTab') }}</span>
+        </a>
+        <span class="au-desc">{{ t('agentUebersicht.testseite.' + seite.id + '.desc') }}</span>
+      </li>
+    }
+    <li>
+      <a routerLink="/vorschau">{{ t('view.vorschau.label') }}</a>
+      <span class="au-desc">{{ t('agentUebersicht.testseite.vorschau.desc') }}</span>
+    </li>
+  </ul>
 </section>

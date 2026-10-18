@@ -18,6 +18,10 @@ const URL = "/studio/api/usage/period";
 
 /** Eine gepflegte Preistafel, zwei Modelle, eine Sitzungsliste. */
 const REPORT = {
+  // Paket 16, D2: die Tage des Zeitraums.
+  days: [
+    { tag: "2026-03-10", calls: 4, amount: "4.92", unvollstaendig: false },
+  ],
   empty: false,
   calls: 7,
   prompt_tokens: 1_234_567,
@@ -266,7 +270,7 @@ describe("Kostenschau — Zahlen", () => {
 
   it("führt beide Tabellen mit ihren Zeilen", async () => {
     await mount();
-    const kopfzeilen = Array.from(h.el.querySelectorAll("tbody th"), (el) =>
+    const kopfzeilen = Array.from(h.el.querySelectorAll(".cst-table tbody th"), (el) =>
       el.textContent?.trim(),
     );
     expect(kopfzeilen).toEqual(["gpt-5.4-mini", "gpt-4o-mini", "bb-teuer"]);
@@ -552,3 +556,13 @@ describe("Kostenschau — Paket 15", () => {
     ]);
   });
 });
+
+describe("CostsComponent — Kosten je Tag (Paket 16, D2)", () => {
+  it("zeigt die Tage des Zeitraums unter der Summe", async () => {
+    await mount();
+    const tage = h.el.querySelector("studio-cost-days");
+    expect(tage).not.toBeNull();
+    expect(tage?.querySelectorAll(".cd-bar")).toHaveLength(1);
+  });
+});
+

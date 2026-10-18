@@ -6,7 +6,7 @@ import { STUDIO_DE } from '../i18n/de';
 import { STUDIO_EN } from '../i18n/en';
 import type { McpServer } from '../core/mcp-registry-store';
 import {
-  type LockWords, firstSentence, groupTools, lockLink, lockText, schalterFuer,
+  type LockWords, firstSentence, groupTools, herkunftVon, lockLink, lockText, schalterFuer,
 } from './agent-tools';
 
 function wörter(locale: 'de' | 'en'): LockWords {
@@ -152,5 +152,33 @@ describe('schalterFuer (Paket 15)', () => {
     expect(schalterFuer(werkzeug('zeige_dokument', 'virtual'), SERVERS)).toBeNull();
     expect(schalterFuer(werkzeug('wlo_create_content', 'curation'), SERVERS)).toBeNull();
     expect(schalterFuer(werkzeug('fremd__schreibe', 'external'), SERVERS)).toBeNull();
+  });
+});
+
+describe('herkunftVon (Paket 16, C7)', () => {
+  const servers = [
+    { id: 'wlo-mcp', name: 'WLO', url: 'https://wlo.example/mcp', description: '', enabled: true },
+    { id: 'wikidata', name: 'Wikidata', url: 'https://wd.example:8443/mcp', description: '',
+      enabled: true },
+  ] as McpServer[];
+  const tool = (t: Partial<AgentTool>): AgentTool =>
+    ({ name: 'x', kind: 'read', offered: true, description: '', locks: [], ...t }) as AgentTool;
+
+  it('nennt die Art unabhängig vom Schalter, dazu Server und Host', () => {
+    expect(herkunftVon(tool({ kind: 'read' }), servers))
+      .toEqual({ art: 'wlo', server: 'WLO', host: 'wlo.example' });
+    expect(herkunftVon(tool({ kind: 'curation' }), servers).art).toBe('wlo');
+    expect(herkunftVon(tool({ kind: 'external', server_id: 'wikidata' }), servers))
+      .toEqual({ art: 'fremd', server: 'Wikidata', host: 'wd.example:8443' });
+    expect(herkunftVon(tool({ kind: 'virtual' }), servers))
+      .toEqual({ art: 'eingebaut', server: '', host: '' });
+  });
+
+  it('nennt die Server-Kennung, solange die Liste fehlt, und verträgt eine kaputte URL', () => {
+    expect(herkunftVon(tool({ kind: 'external', server_id: 'wikidata' }), []))
+      .toEqual({ art: 'fremd', server: 'wikidata', host: '' });
+    const kaputt = [{ ...servers[0], url: 'kein url' }] as McpServer[];
+    expect(herkunftVon(tool({ kind: 'read' }), kaputt))
+      .toEqual({ art: 'wlo', server: 'WLO', host: '' });
   });
 });

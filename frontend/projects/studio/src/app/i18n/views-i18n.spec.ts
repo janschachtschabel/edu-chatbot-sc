@@ -67,25 +67,26 @@ describe('Ansichts-Registry im Katalog', () => {
       ...STUDIO_VIEWS.flatMap((v) => [v.labelKey, v.descKey]),
       ...new Set([...navGroups('agent'), ...navGroups('pattern')].map((g) => g.titleKey)),
     ];
-    expect(keys).toHaveLength(28 * 2 + 5);
+    expect(keys).toHaveLength(29 * 2 + 5);
     for (const key of keys) {
       expect(STUDIO_DE[key], `fehlt im deutschen Katalog: ${key}`).toBeTypeOf('string');
       expect(STUDIO_EN[key], `fehlt im englischen Katalog: ${key}`).toBeTypeOf('string');
     }
   });
 
-  it('zeigt die 28 Beschriftungen des Katalogs auf Deutsch', () => {
+  it('zeigt die 29 Beschriftungen des Katalogs auf Deutsch', () => {
     // Seit Paket 14 nach Arbeitsbereich geordnet: Agent, Muster, Gemeinsam, Auswertung,
     // System. Welche Ansicht woher stammt, hält `studio-views.spec.ts` fest — hier steht
     // nur, wie sie heisst.
     const lang = TestBed.inject(StudioLanguageService);
     expect(STUDIO_VIEWS.map((v) => lang.t(v.labelKey))).toEqual([
-      'Agent-Übersicht', 'Rolle & Grenzen', 'Prompt & Probelauf',
+      // Rundgang 3: „Übersicht“ in beiden Arbeitsbereichen, „… & Schutz“ in beiden.
+      'Übersicht', 'Rolle & Schutz', 'Prompt & Probelauf',
       'Übersicht', 'Identität & Schutz', 'Domänenwissen', 'Patterns', 'Dimensionen',
       'Materialformate',
       'Begrüßung', 'Kontext-Aktionen', 'Tour & Lotse', 'Zielgruppen', 'Wissen', 'Werkzeuge',
       'Skills', 'Anzeige', 'Datenschutz',
-      'Sessions', 'Analyse', 'Evaluation', 'Lasttest', 'Safety-Logs', 'Kosten',
+      'Nutzung', 'Sessions', 'Analyse', 'Evaluation', 'Lasttest', 'Safety-Logs', 'Kosten',
       'Betrieb', 'Alle Bereiche', 'Sicherung', 'Vorschau',
     ]);
   });

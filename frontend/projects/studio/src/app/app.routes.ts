@@ -42,6 +42,7 @@ const DASHBOARDS: Record<string, () => Promise<Type<unknown>>> = {
   'agent-uebersicht': () =>
     import('./views/agent-uebersicht.component').then((m) => m.AgentUebersichtComponent),
   sicherung: () => import('./views/backup.component').then((m) => m.BackupComponent),
+  nutzung: () => import('./views/nutzung.component').then((m) => m.NutzungComponent),
   vorschau: () =>
     import('./views/widget-preview.component').then((m) => m.WidgetPreviewComponent),
   sessions: () => import('./views/sessions.component').then((m) => m.SessionsComponent),

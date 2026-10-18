@@ -3,6 +3,9 @@
 
 .bk {
   display: grid;
+  // `minmax(0, …)`: sonst gibt die breiteste Tabelle (Gegenüberstellung, Paket 16) der Spalte
+  // ihre Breite, und ihr Rahmen rollt nie — auf 375 px wurde die Seite 601 px breit.
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--st-5);
   max-inline-size: 60rem;
 }
@@ -25,7 +28,9 @@
 
 .bk-upload {
   display: grid;
-  grid-template-columns: 1fr auto;
+  // `minmax(0, …)` und ein schrumpfbares Datei-Feld: sonst gab die natürliche Breite des Felds
+  // auf 375 px die Seitenbreite vor (offene-befunde §5, behoben in Paket 16).
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: var(--st-2) var(--st-3);
   margin-block-start: var(--st-4);
@@ -38,6 +43,8 @@
 }
 
 .bk-file {
+  min-inline-size: 0;
+  max-inline-size: 100%;
   min-block-size: 2.5rem;
   font: inherit;
   color: var(--st-text);
@@ -45,4 +52,34 @@
 
 .op-actions {
   margin-block-start: var(--st-3);
+}
+
+// Paket 16, C6: die Gegenüberstellung. Auf schmalen Schirmen rollt die Tabelle in ihrem Rahmen.
+.bk-arten-rahmen {
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.bk-arten {
+  border-collapse: collapse;
+  font-size: 0.875rem;
+
+  th,
+  td {
+    padding: var(--st-2) var(--st-3) var(--st-2) 0;
+    border-block-end: 1px solid var(--st-rule);
+    text-align: start;
+    vertical-align: top;
+    min-inline-size: 12ch;
+  }
+
+  thead th {
+    font-size: 0.75rem;
+    color: var(--st-text-muted);
+  }
+
+  tbody th {
+    font-weight: 600;
+    white-space: nowrap;
+  }
 }

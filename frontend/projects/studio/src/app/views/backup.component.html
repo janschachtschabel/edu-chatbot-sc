@@ -23,6 +23,34 @@
   <div id="panel-sichern" role="tabpanel" aria-labelledby="tab-sichern"
     [hidden]="reiter() !== 'sichern'">
 
+  <!-- Paket 16, C6: was wo liegt, wer es anlegt und wie man zurückkommt — vor den Karten. -->
+  <section class="op-panel" aria-labelledby="bk-arten-title">
+    <h2 class="op-title" id="bk-arten-title">{{ t('backup.arten.title') }}</h2>
+    <p class="op-lead">{{ t('backup.arten.lead') }}</p>
+    <div class="bk-arten-rahmen" tabindex="0" role="region" aria-labelledby="bk-arten-title">
+      <table class="bk-arten">
+        <thead>
+          <tr>
+            <td></td>
+            @for (spalte of spalten; track spalte) {
+              <th scope="col">{{ t('backup.arten.spalte.' + spalte) }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (art of arten; track art) {
+            <tr>
+              <th scope="row">{{ t('backup.arten.' + art) }}</th>
+              @for (spalte of spalten; track spalte) {
+                <td>{{ t('backup.arten.' + art + '.' + spalte) }}</td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <!-- `id`: Sprungziel von „Backup einspielen …" in der Kopfzeile (ST-9). -->
   <section class="op-panel" id="voll-backup" aria-labelledby="bk-full-title">
     <h2 class="op-title" id="bk-full-title">{{ t('backup.full.title') }}</h2>

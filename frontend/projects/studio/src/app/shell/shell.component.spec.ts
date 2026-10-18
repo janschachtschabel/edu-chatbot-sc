@@ -255,17 +255,17 @@ describe("ShellComponent", () => {
 
   it("übersetzt auch die Navigation selbst — nicht nur den Rahmen (C1-d2)", async () => {
     expect(el.querySelector(".nav-label")?.textContent?.trim()).toBe(
-      "Agent-Übersicht",
+      "Übersicht",
     );
 
     TestBed.inject(StudioLanguageService).toggle();
     await fixture.whenStable();
 
     expect(el.querySelector(".nav-label")?.textContent?.trim()).toBe(
-      "Agent overview",
+      "Overview",
     );
     expect(el.querySelector(".nav-desc")?.textContent?.trim()).toBe(
-      "Master skill, node ID & status",
+      "Status, master skill, architecture, test pages",
     );
     const titel = Array.from(el.querySelectorAll(".nav-group-title"), (h) =>
       h.textContent?.trim(),

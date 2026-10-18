@@ -222,6 +222,13 @@ export function formatRelative(
   return format.format(Math.trunc(seconds / MONTH_SECONDS), 'month');
 }
 
+/** Paket 16, D2: ein Kalendertag `JJJJ-MM-TT` (der Server rechnet ihn in Europe/Berlin).
+ *  In UTC gelesen und ausgegeben — die Zone des Browsers verschöbe ihn sonst um einen Tag. */
+export function formatCalendarDay(locale: string, isoDate: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return isoDate;
+  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString(locale, { timeZone: 'UTC' });
+}
+
 /**
  * An ISO timestamp in the interface language's order, or the input unchanged
  * when it will not parse — a corrupt row must not paint "Invalid Date" across

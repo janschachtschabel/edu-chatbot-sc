@@ -20,7 +20,8 @@ export const RETENTION: CataloguePart = {
       + 'Sicherheitsprotokolls auf der Seite „Identität & Schutz“. Sitzungen und ihre '
       + 'Verbrauchszahlen bleiben — ruht eine Sitzung länger als die Frist der '
       + 'Gesprächsverläufe, wird nur ihr Gesprächsstand (Thema, Seitentitel, Suchbegriffe, '
-      + 'Tour) geleert. Samt Verbrauch löschen lassen sich Sitzungen einzeln in der Ansicht '
+      + 'Tour) geleert; ebenso der Text im Qualitäts-Protokoll (Nachricht, Thema, Begründungen) — '
+      + 'die Kennzahlen bleiben bis zu dessen Frist. Samt Verbrauch löschen lassen sich Sitzungen einzeln in der Ansicht '
       + '„Sessions“ oder gesammelt über „Gespräche löschen“.',
     'retention.caption': 'Gezählt beim Öffnen, vor jeder Rückfrage und nach jedem Bereinigen.',
     'retention.col.log': 'Daten',
@@ -32,6 +33,7 @@ export const RETENTION: CataloguePart = {
     'retention.log.session_state': 'Gesprächsstand ruhender Sitzungen',
     'retention.log.safety_logs': 'Sicherheitsprotokoll',
     'retention.log.quality_logs': 'Qualitäts-Protokoll',
+    'retention.log.quality_text': 'Text im Qualitäts-Protokoll',
     'retention.days.one': '{count} Tag',
     'retention.days.other': '{count} Tage',
     'retention.unlimited': 'unbegrenzt',
@@ -63,6 +65,8 @@ export const RETENTION: CataloguePart = {
     'retention.count.safety_logs.other': '{count} Sicherheits-Einträge',
     'retention.count.quality_logs.one': '{count} Qualitäts-Eintrag',
     'retention.count.quality_logs.other': '{count} Qualitäts-Einträge',
+    'retention.count.quality_text.one': '{count} Text im Qualitäts-Protokoll',
+    'retention.count.quality_text.other': '{count} Texte im Qualitäts-Protokoll',
   },
 
   en: {
@@ -72,7 +76,8 @@ export const RETENTION: CataloguePart = {
       + 'log\'s under “Quality logging”, the safety log\'s on the “Identity & safeguards” page. '
       + 'Sessions and their usage figures stay — once a session has been idle longer than the '
       + 'conversation period, only its conversation state (topic, page title, search terms, '
-      + 'tour) is cleared. Sessions are deleted together with their usage one by one in the '
+      + 'tour) is cleared; so is the text in the quality log (message, topic, reasoning) — its '
+      + 'figures stay until the quality log\'s own period. Sessions are deleted together with their usage one by one in the '
       + '“Sessions” view or all at once via “Delete conversations”.',
     'retention.caption':
       'Counted when the panel opens, before every confirmation and after every cleanup.',
@@ -85,6 +90,7 @@ export const RETENTION: CataloguePart = {
     'retention.log.session_state': 'State of idle sessions',
     'retention.log.safety_logs': 'Safety log',
     'retention.log.quality_logs': 'Quality log',
+    'retention.log.quality_text': 'Text in the quality log',
     'retention.days.one': '{count} day',
     'retention.days.other': '{count} days',
     'retention.unlimited': 'unlimited',
@@ -116,5 +122,7 @@ export const RETENTION: CataloguePart = {
     'retention.count.safety_logs.other': '{count} safety log entries',
     'retention.count.quality_logs.one': '{count} quality log entry',
     'retention.count.quality_logs.other': '{count} quality log entries',
+    'retention.count.quality_text.one': '{count} text in the quality log',
+    'retention.count.quality_text.other': '{count} texts in the quality log',
   },
 };

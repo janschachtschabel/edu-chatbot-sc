@@ -40,6 +40,9 @@ const OHNE_ALT_VORBILD: Readonly<Record<string, string>> = {
   vorschau:
     'Verbesserung V8: ALT konnte eine Änderung nur auf einer echten Host-Seite '
     + 'ansehen (widget-preview.component.ts)',
+  nutzung:
+    'Paket 16 (D3): Besuch und Tageszeit aus dem Qualitätsprotokoll — ALT zählte Züge nur '
+    + 'je Muster in der Analyse',
   kosten:
     'K5: ALT rechnete überhaupt nicht ab, hat also kein Gegenstück — die Ansicht '
     + 'kommt mit der Kostenüberwachung, nicht aus dem P9-Port',
@@ -146,6 +149,11 @@ describe('studio view registry', () => {
     expect(children.find((c) => c.path === 'agent-werkzeuge')?.redirectTo).toBe('werkzeuge');
   });
 
+  it('führt „Nutzung“ unter Auswertung zuerst, vor den Sessions (Paket 16)', () => {
+    const auswertung = navGroups('pattern').find((g) => g.titleKey === 'nav.group.auswertung')!;
+    expect(auswertung.views.map((v) => v.slug).slice(0, 2)).toEqual(['nutzung', 'sessions']);
+  });
+
   it('routes the generic area editor without giving it a nav entry', () => {
     // deliberately not in the sidebar: it is reached from "Alle Bereiche", and
     // a nav item that needs an area key to mean anything would lead nowhere
@@ -188,7 +196,8 @@ describe('studio view registry', () => {
     // im Paketnamen soll auffallen, ein neues Paket bewusst eingetragen werden.
     // `D2` steht seit 2026-08-13 neben `K5`: „Agent & Maschine" stammt so wenig
     // aus dem P9-Port wie die Kostenschau.
-    for (const view of STUDIO_VIEWS) expect(view.paket).toMatch(/^(9-[3-6]|K5|P14|P15)$/);
+    // `P16`: die Nutzungsseite (Rundgang 3, D3).
+    for (const view of STUDIO_VIEWS) expect(view.paket).toMatch(/^(9-[3-6]|K5|P14|P15|P16)$/);
   });
 
   it('guards the shell and leaves /login open', () => {

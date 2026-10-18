@@ -22,6 +22,7 @@ import { StudioLanguageService } from '../i18n/studio-language.service';
 import { safeIdPart } from './field-ids';
 import type { ValuePath } from './form-value';
 import { FieldControlComponent } from './field-control.component';
+import { FORM_WIRKUNG } from './form-wirkung';
 import { JsonValueComponent } from './json-value.component';
 import { ListItems } from './list-items';
 import { MapEntries } from './map-entries';
@@ -80,6 +81,10 @@ export class SchemaFieldComponent {
   readonly geerbt = input(false);
 
   readonly edit = output<FormEdit>();
+
+  /** Rundgang 3: wirkt dieses Feld im offenen Arbeitsbereich nicht, sagt es eine Plakette. */
+  private readonly wirkung = inject(FORM_WIRKUNG, { optional: true });
+  readonly wirkungsPlakette = computed(() => this.wirkung?.(this.path().join('.')) ?? null);
 
   /**
    * Paket 15 (A3): fehlt der Schlüssel im Dokument, zeigt das Feld die Schema-Vorgabe — den

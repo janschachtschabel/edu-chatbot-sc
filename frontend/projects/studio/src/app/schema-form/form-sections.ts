@@ -15,6 +15,7 @@
  * aktuelle Chrome- und Firefox-Fassungen klappen es bei der Seitensuche sogar
  * selbst auf. Und der Schnitt braucht keine Tabelle je Bereich.
  */
+import { pickFields } from './pick-fields';
 import type { FieldKind, SchemaField } from './schema-to-fields';
 
 export interface FormSection {
@@ -29,6 +30,15 @@ export interface FormSection {
   readonly basePath: readonly string[];
   /** Der Teilbaum, den die Ansicht rendert (relativ zu `basePath`). */
   readonly field: SchemaField;
+  /** Rundgang 3: die Beschriftung einer Feldgruppe (Katalog-Schlüssel). */
+  readonly labelKey?: string;
+}
+
+/** Rundgang 3: eine benannte Feldgruppe — Feldpfade, punktgetrennt, wie `felder`. */
+export interface FeldGruppe {
+  readonly id: string;
+  readonly labelKey: string;
+  readonly felder: readonly string[];
 }
 
 /** Feldarten ohne eigenen Abschnitt. Seit Paket 15 auch Textflächen: auf „Tour & Lotse“
@@ -123,4 +133,65 @@ function sectionRoot(scope: SchemaField, keys: ReadonlySet<string>): SchemaField
   // Auch der Katalog-Schlüssel (ST-1) fällt weg: an ihm holte sich das Feld
   // seine Beschriftung sonst aus dem Katalog zurück.
   return { ...scope, key: '', label: '', textKey: undefined, children };
+}
+
+/**
+ * Rundgang 3: Abschnitte nach benannten Feldgruppen statt nach der Form des Dokuments —
+ * für Seiten, auf denen die Form nicht zur Arbeit passt (Tour in Laufzeit-Reihenfolge,
+ * Kontext-Aktionen nach Sprache). EIN Editor, ein Speichern; nur die Ansicht ist gegliedert.
+ *
+ * Jede Gruppe zeigt den auf ihre Pfade gekürzten Baum; eine einzelne Hülle wird aufgelöst wie
+ * beim Block-Abschnitt (keine zweite Legende). Was keine Gruppe nennt, steht in „Weitere
+ * Einstellungen“ — ein neues Feld im Modell geht so nicht verloren.
+ */
+export function gruppenSections(
+  root: SchemaField, gruppen: readonly FeldGruppe[],
+): readonly FormSection[] {
+  const sections = gruppen.map((gruppe): FormSection => {
+    const gekuerzt = pickFields(root, new Set(gruppe.felder));
+    const [huelle, ...weitere] = gekuerzt.children ?? [];
+    const base = { id: `grp-${gruppe.id}`, key: '', paths: gruppe.felder, labelKey: gruppe.labelKey };
+    return huelle?.kind === 'group' && weitere.length === 0
+      ? { ...base, basePath: [huelle.key], field: { ...huelle, ohneLegende: true } }
+      : { ...base, basePath: [], field: { ...gekuerzt, key: '', label: '', textKey: undefined } };
+  });
+
+  const scope = sectionScope(root);
+  const basePath = scope === root ? [] : [scope.key];
+  const rest = restPfade(scope, basePath, gruppen.flatMap((g) => g.felder));
+  if (rest.length === 0) return sections;
+  return [...sections, {
+    id: 'grp-rest', key: '', labelKey: 'schemaForm.weitere', basePath, paths: rest,
+    field: { ...teilbaum(scope, basePath, new Set(rest)), key: '', label: '', textKey: undefined },
+  }];
+}
+
+/**
+ * Was keine Gruppe nennt — auf Blatt-Ebene (Review A-3): ein ganz ungenannter Zweig als
+ * Ganzes, ein teilweise genannter wird durchsucht. Vorher galt ein Block als erledigt, sobald
+ * eine Gruppe eines seiner Felder nannte; seine übrigen Felder verschwanden still.
+ */
+function restPfade(feld: SchemaField, pfad: readonly string[], genannt: readonly string[]): string[] {
+  return (feld.children ?? []).flatMap((child) => {
+    if (child.markerZiel) return [];
+    const weg = [...pfad, child.key];
+    const p = weg.join('.');
+    if (genannt.some((f) => p === f || p.startsWith(`${f}.`))) return [];
+    if (!genannt.some((f) => f.startsWith(`${p}.`))) return [p];
+    return child.kind === 'group' ? restPfade(child, weg, genannt) : [];
+  });
+}
+
+/** Der Baum, beschnitten auf `pfade` (beliebig tief) — die Reihenfolge bleibt die des Schemas. */
+function teilbaum(
+  feld: SchemaField, pfad: readonly string[], pfade: ReadonlySet<string>,
+): SchemaField {
+  const children = (feld.children ?? []).flatMap((child) => {
+    const weg = [...pfad, child.key];
+    const p = weg.join('.');
+    if (pfade.has(p)) return [child];
+    if (child.kind !== 'group' || ![...pfade].some((x) => x.startsWith(`${p}.`))) return [];
+    return [{ ...teilbaum(child, weg, pfade), label: '', textKey: undefined }];
+  });
+  return { ...feld, children };
 }
