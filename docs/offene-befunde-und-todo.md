@@ -55,6 +55,7 @@ Die zugehörigen Pläne:
   - Vierte Runde (Master-Skill 22/22 im Knoten): keine erfundene Stufe mehr (Bruchrechnen für Eltern); verlangte OER-Lizenz bleibt im Muster-Modus gesetzt, der Agent lockert sie nur mit Hinweis; Anrede bei unklarer Zielgruppe in allen Rückfragen „Sie“; Platzhalter auf der Sammlung 3/4 erst Rückfrage (zusammen mit Runde 2: 8/9); Quiz verteilt die richtige Antwort, die Begründung fehlte in 1 von 2 Läufen — Kandidat: Format-Beispiel „1. B – weil …“ in M10.
 ## 2 Entscheidungen des Nutzers
 
+- **Preis für `gpt-6-luna` fehlt in der Preistafel des Seeds** (`01-base/pricing`, Paket-16-Abnahme): die Vorgabe-Maschine rechnet mit einem Modell ohne Preis — Kosten-Seite und „Kosten je Tag“ zeigen darum „kein Preis“. Preis eintragen (Studio „Kosten“ → Preistafel) oder im Seed ergänzen.
 Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — in [`entscheidungen-offen.md`](entscheidungen-offen.md). Die Entscheide vom 2026-10-09 sind in Paket 7 und Paket 8 umgesetzt (siehe die Plan-Liste oben); offen ist:
 
 - **AcademicCloud und Einbettungen:** entschieden 2026-10-15 (so lassen); Einbettungswechsel machbar machen → Paket 11 (D), [`plans/2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md`](plans/2026-10-15-paket-11-mcp-fremdserver-und-einbettung.md).
@@ -93,6 +94,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Paket 16 — Plattform-Wissen neu einlesen:** der RAG-Seed `Plattformwissen.jsonl` folgt jetzt dem Domänen-Dokument 2.0 (13 Abschnitte). Nur diesen Bereich ersetzen: die Datei allein in ein Verzeichnis legen und `boerdi import-rag --seed <verz> --force` (leert nur die Bereiche dieses Seeds; Einbettung von 13 Abschnitten). Ohne den Schritt bleibt in bestehenden Datenbanken die Fassung 1.0.
 - **Paket 12 — Werk und eigene Fassung:** Migration `0011` (läuft im `migrate`-Dienst), der
   `migrate`-Befehl heißt jetzt `import-config --werksabgleich` (`compose.prod.yml`). Beim ersten
   Start nach dem Deploy hebt er Bereiche, deren letzte Fassung ein Import schrieb, auf die
@@ -154,10 +156,8 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - Die Rückgabe 0 heißt: alle Regeln erfüllt. 1 heißt: mindestens eine verletzt. 2 heißt: nicht abrufbar.
 ## 5 Aufräumen
 
-- **Studio „Sicherung“ bei 375 px zu breit** (Browser-Abnahme Paket 12, 2026-10-16): die
-  Seite misst 442 px statt 375; Auslöser sind die bestehenden Karten „Eigener Grundstand“
-  (442 px) und „Voll-Backup“ (437 px, vermutlich das Datei-Feld) — nicht die neue Karte.
-
+- **Zeitraum-Grenzen in Browser-Zeit** (Review Paket 16, D-5): Kosten und Nutzung bauen `from`/`to` aus dem Kalendertag des Browsers, Tage und Raster rechnet der Server in Europe/Berlin. Außerhalb deutscher Zeit kommt am Rand ein angeschnittener Tag dazu. Hebel: Grenzen als Berliner Mitternacht bauen (`Intl`-Versatz).
+- **Zeitabhängiger Test** `tests/test_aufbewahrung_takt.py::test_der_takt_laeuft_weiter_auch_nach_einem_fehler` (50-ms-Fenster, 5-ms-Takt) kippte im vollen Lauf unter Parallellast (Paket 16, 2026-10-18), allein grün. Fester machen: auf eine Bedingung warten (zweiter Lauf) statt fest 50 ms schlafen.
 - **Dateien über der 300-Zeilen-Regel** (Audit F-8), aus diesen Runden:
   - Paket 6 hat geteilt: `services/rag/ingest.py` (→ `umwandeln.py`), Studio `schema-form/schema-form.scss` (Teildateien je Baustein, CSS byte-gleich), `views/curated-views.ts` und `i18n/catalogue/curated.ts` (nach Seitengruppen), `i18n/catalogue/area-editor.ts` (`groupSection.*` eigener Teil), `views/eval-run-detail.component.ts` (Gold-Zug-Tabelle als `eval-gold-turns`) und `schema-form/schema-field.component.ts` (Listen- und Map-Regeln in `list-items.ts`, `map-entries.ts`; die Vorlage steht mit 300 an der Grenze). Dabei vor dem Überschreiten bewahrt: `api/config_guards.py` (Fehler-Antworten nach `api/config_antworten.py`), `api/rag.py` (`api/rag_umwandlung.py`), `api/config.py` (Löschen nach `api/config_documents.py`), `views/group-section.component.ts` (`group-documents.ts`, `feld-reiter.ts`).
   - Paket 7: `graph/nodes/respond_agent.py` (537; Paket B und E-C, überwiegend Begründungs-Kommentar; Review B-3 +3), `services/response_prompt_builder.py` (324; P4 +6, E-E +6, Review B-5 +2), `services/classify_prompt.py` (315; vorher 330), `services/tool_loop_messages.py` (373, Fidelity-Port; D, E-E, T1, Review B-5 +4), `services/page_context.py` (815; vorher 972 — der tote Regel-Zweig ist weg), Widget `shell/lifecycle.ts` (326; vorher 302, T2 und Review C-5 — die Kontext-Ping-Abläufe wären ein eigener Baustein, ein Backend-Test liest aber `PING_COVERS_BACKEND_KINDS` aus genau dieser Datei).
