@@ -231,3 +231,31 @@ def test_log_quality_event_empty_scores_and_message_truncation(test_db) -> None:
     assert row.data["phase2_score_gap"] == 0.0
     assert row.data["candidate_count"] == 0
     assert len(row.data["message"]) == 500
+
+
+def test_log_quality_event_schreibt_sprache_seitenart_und_maschine_flach(test_db) -> None:
+    """Paket 16, D3: die Nutzungsseite zählt danach. Im Debug stünden sie auch — aber die
+    Entities leert der Aufbewahrungslauf nach der Frist der Gespräche (D1)."""
+    from boerdi.obs.quality_events import log_quality_event
+
+    debug = {"pattern": "", "engine": "agent", "context": {"locale": "en"},
+             "entities": {"page_type": "themenseite", "thema": "x"}}
+
+    async def scenario(session):
+        await log_quality_event(session, "bb-q3", "hallo", 1, debug)
+        return await _one_quality(session)
+
+    d = _run(scenario).data
+    assert (d["locale"], d["page_type"], d["engine"]) == ("en", "themenseite", "agent")
+
+
+def test_log_quality_event_ohne_angaben_bleiben_die_felder_leer(test_db) -> None:
+    from boerdi.obs.quality_events import log_quality_event
+
+    async def scenario(session):
+        await log_quality_event(session, "bb-q4", "hallo", 1, {"context": None})
+        return await _one_quality(session)
+
+    d = _run(scenario).data
+    assert (d["locale"], d["page_type"], d["engine"]) == ("", "", "")
+

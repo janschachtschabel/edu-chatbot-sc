@@ -122,6 +122,10 @@ class GoldTurn(AreaModel):
 
 class GoldFlow(AreaModel):
     id: str = ""
+    # Rundgang 3: das tragende Feld (Judge ``golden.py``, Laufstart ``golden_run.py``, Matrix
+    # ``auswertung_v2.py``) — bis dahin nur im Rohtext setzbar, das Studio meldete es als
+    # „nicht angezeigt“. ``persona`` bleibt als Rückfall alter Stände lesbar.
+    zielgruppe: Annotated[str, Catalog("personas")] = ""
     persona: Annotated[str, Catalog("personas")] = ""
     title: str = ""
     # Paket 13 (B): was ein guter Verlauf leistet — für den Ablauf-Judge, ein bis drei Sätze.

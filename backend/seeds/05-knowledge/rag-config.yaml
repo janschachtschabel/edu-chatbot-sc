@@ -62,6 +62,13 @@ Edu-Sharing-Metaventis:
 
 Plattformwissen:
   mode: always
+  # Paket 16, C9: ausdrücklich — die Agent-Schleife liest die Domänen-Schicht nicht, sie erfährt
+  # die Plattform-Fakten aus diesem Bereich (Seed aus 02-domain/wlo-plattform-wissen.md 2.0).
+  agent: true
+  description: >
+    Kurzwissen über WLO: was WLO ist, Kernzahlen, Träger und Kontakt, Zielgruppen, Lösungen,
+    Mitmachen, Souveränität, Suche und Filter sowie FAQs je Zielgruppe (Schüler:innen,
+    Lehrkräfte, Redaktionen, Politik und Presse).
 
 ITSJOINTLY-Schlussbericht:
   mode: always

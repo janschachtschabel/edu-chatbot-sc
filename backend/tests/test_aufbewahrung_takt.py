@@ -115,7 +115,7 @@ def test_fehlt_die_frist_gilt_die_vorgabe_des_auslieferungsstands(monkeypatch):
     fehlte das Feld, löschte der Lauf unwiderruflich nach 30 Tagen."""
     assert _fristen_mit(monkeypatch) == {
         "messages": 30, "memory": 30, "session_state": 30, "safety_logs": 90,
-        "quality_logs": 180}
+        "quality_logs": 180, "quality_text": 30}
 
 
 def test_die_frist_wird_wie_im_studio_gelesen(monkeypatch):

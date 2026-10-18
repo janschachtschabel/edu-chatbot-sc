@@ -16,6 +16,10 @@ lange Löschung hielte sonst Sperren auf Tabellen, in die jeder Zug schreibt.
 (``services/sitzungssperre``) mit dem festen Schlüssel :data:`SPERRE`; Sitzungen heißen
 ``bb-<uuid>``, ein Zusammenstoß ist ausgeschlossen.
 
+**Text im Qualitätsprotokoll** (Paket 16, D1): seine Zeilen bleiben bis zur Frist des
+Protokolls, ihr Text (Nachricht, Entities, Begründungen — ``services/qualitaet_text``) nur so
+lange wie die Gesprächsverläufe; danach leert ihn :data:`QUALITAETSTEXT`.
+
 Sitzungen selbst bleiben: mit ihnen gingen ihre Verbrauchszahlen (``usage_events``,
 ON DELETE CASCADE), und die Kostenübersicht verlöre ihre Vergangenheit. Sie löschen nur
 „Gespräche löschen“ im Studio und das Löschen einer einzelnen Sitzung
@@ -41,6 +45,7 @@ from boerdi.domain.config_models.base_governance import (
     SafetyLoggingBlock,
 )
 from boerdi.services.config_loader import area, load_quality_log_config, load_safety_config
+from boerdi.services.qualitaet_text import MARKE, text_entfernen
 from boerdi.services.sitzungssperre import SitzungBeschaeftigt, sitzungssperre
 
 logger = logging.getLogger(__name__)
@@ -50,6 +55,10 @@ logger = logging.getLogger(__name__)
 TAKT_S = 6 * 3600
 ERSTER_LAUF_S = 300
 STAPEL = 5000
+#: Paket 16 (Review B-2): der Text-Schritt holt ganze Zeilen samt Debug nach Python — kleinere
+#: Stapel, und das Rechnen läuft neben der Ereignisschleife (der erste Lauf nach dem Deploy
+#: arbeitet den ganzen Rückstand ab, während Züge laufen).
+TEXT_STAPEL = 500
 #: Lease in der Sitzungssperre. Der Doppelpunkt hält sie aus dem Raum der Chat-
 #: Sitzungen: deren Kennung prüft ``api/schemas.SITZUNGSKENNUNG`` (Paket 9).
 SPERRE = "__lauf:aufbewahrung"
@@ -59,6 +68,8 @@ SPERRE = "__lauf:aufbewahrung"
 #: Sitzung so lange ruht (``updated_at``); die Sitzung selbst bleibt, mit ihr ihre
 #: Verbrauchszahlen (Nutzer-Entscheid Paket 8).
 SITZUNGSSTAND = "session_state"
+#: Paket 16, D1: der Text im Qualitätsprotokoll — mit der Frist der Gesprächsverläufe.
+QUALITAETSTEXT = "quality_text"
 
 _TABELLEN = {
     "messages": ChatMessage, "memory": MemoryItem,
@@ -103,6 +114,8 @@ def fristen() -> list[Frist]:
         Frist(SITZUNGSSTAND, gespraeche),
         Frist("safety_logs", _tage(load_safety_config(), SafetyLoggingBlock)),
         Frist("quality_logs", _tage(load_quality_log_config(), QualityLoggingBlock)),
+        # Nach dem Löschen: was ohnehin fällt, wird nicht erst geleert.
+        Frist(QUALITAETSTEXT, gespraeche),
     ]
 
 
@@ -113,6 +126,9 @@ async def ueberblick(session: AsyncSession) -> list[dict[str, Any]]:
     for frist in fristen():
         if frist.bereich == SITZUNGSSTAND:
             zeilen.append(await _stand_ueberblick(session, frist, jetzt))
+            continue
+        if frist.bereich == QUALITAETSTEXT:
+            zeilen.append(await _text_ueberblick(session, frist, jetzt))
             continue
         tabelle = _TABELLEN[frist.bereich]
         aeltester = (await session.execute(select(func.min(tabelle.created_at)))).scalar_one()
@@ -133,6 +149,8 @@ async def _bereinige(sitzungen: async_sessionmaker[AsyncSession], frist: Frist,
         return 0
     if frist.bereich == SITZUNGSSTAND:
         return await _stand_leeren(sitzungen, frist, jetzt)
+    if frist.bereich == QUALITAETSTEXT:
+        return await _text_leeren(sitzungen, frist, jetzt)
     tabelle = _TABELLEN[frist.bereich]
     grenze = jetzt - timedelta(days=frist.tage)
     gesamt = 0
@@ -191,6 +209,55 @@ async def _stand_leeren(sitzungen: async_sessionmaker[AsyncSession], frist: Fris
             await s.commit()
         gesamt += n
         if n < STAPEL:
+            return gesamt
+
+
+def _text_ungeleert() -> ColumnElement[bool]:
+    return QualityLog.data.has_key(MARKE).is_(False)
+
+
+async def _text_ueberblick(session: AsyncSession, frist: Frist,
+                           jetzt: datetime) -> dict[str, Any]:
+    ungeleert = _text_ungeleert()
+    aeltester = (await session.execute(
+        select(func.min(QualityLog.created_at)).where(ungeleert))).scalar_one()
+    faellig = 0
+    if frist.tage > 0:
+        grenze = jetzt - timedelta(days=frist.tage)
+        faellig = (await session.execute(
+            select(func.count()).select_from(QualityLog)
+            .where(QualityLog.created_at < grenze, ungeleert))).scalar_one()
+    return {"bereich": frist.bereich, "tage": frist.tage, "faellig": faellig,
+            "aeltester": aeltester.isoformat() if aeltester else None}
+
+
+def _ohne_texte(zeilen: Any) -> list[dict[str, Any]]:
+    return [{"id": i, "data": text_entfernen(d or {})} for i, d in zeilen]
+
+
+async def _text_leeren(sitzungen: async_sessionmaker[AsyncSession], frist: Frist,
+                       jetzt: datetime) -> int:
+    """Den Text alter Zeilen des Qualitätsprotokolls leeren, in Stapeln.
+
+    In Python statt mit JSONB-Operatoren: Fehlertexte stehen in einer Liste
+    (``debug.outcomes[*].error``), der Freitext der Rechtsprüfung mitten in einem Grund —
+    rein gerechnet ist es testbar (``services/qualitaet_text``). Alte Zeilen schreibt sonst
+    niemand; die Marke hält einen zweiten Lauf (auch nach einem Abbruch) leer."""
+    grenze = jetzt - timedelta(days=frist.tage)
+    gesamt = 0
+    while True:
+        async with sitzungen() as s:
+            zeilen = (await s.execute(
+                select(QualityLog.id, QualityLog.data)
+                .where(QualityLog.created_at < grenze, _text_ungeleert())
+                .order_by(QualityLog.id).limit(TEXT_STAPEL))).all()
+            if zeilen:
+                neu = await asyncio.to_thread(_ohne_texte, zeilen)
+                # ORM-Sammel-Update nach Primärschlüssel: eine Anweisung, eine Zeile je Eintrag.
+                await s.execute(update(QualityLog), neu)
+                await s.commit()
+        gesamt += len(zeilen)
+        if len(zeilen) < TEXT_STAPEL:
             return gesamt
 
 

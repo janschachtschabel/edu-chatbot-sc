@@ -45,6 +45,22 @@ def _as_utc(moment: datetime) -> datetime:
     return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
 
+def zeitraum(start: datetime, end: datetime, lang: str) -> tuple[datetime, datetime]:
+    """Die Grenzen als UTC, geprüft — auch für die Nutzungsseite (Paket 16, D3).
+
+    Vertauschte Grenzen sind ein Eingabefehler (422) und ausdrücklich **kein** leeres
+    Ergebnis: das läse sich wie „nichts geschehen“ statt wie „so herum ergibt die Frage keinen
+    Sinn“. Zu weite Zeiträume ebenso (``MAX_PERIOD_DAYS``).
+    """
+    start, end = _as_utc(start), _as_utc(end)
+    if start > end:
+        raise HTTPException(status_code=422, detail=msg(lang, "usage.periodReversed"))
+    if (end - start) > timedelta(days=MAX_PERIOD_DAYS):
+        raise HTTPException(
+            status_code=422, detail=msg(lang, "usage.periodTooLong", max=MAX_PERIOD_DAYS))
+    return start, end
+
+
 @router.get("/session/{session_id}")
 async def usage_for_session(
     session_id: str,
@@ -72,21 +88,7 @@ async def usage_for_period(
         Query(description="Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide"),
     ] = None,
 ) -> dict:
-    """Dasselbe über einen Zeitraum, Grenzen einschließlich.
-
-    Zeitzonenlose Angaben gelten als UTC. Vertauschte Grenzen sind ein
-    Eingabefehler (422) und ausdrücklich **kein** leeres Ergebnis: das läse
-    sich wie „keine Kosten" statt wie „so herum ergibt die Frage keinen Sinn".
-    Zu weite Zeiträume ebenso (``MAX_PERIOD_DAYS``).
-    """
-    start, end = _as_utc(start), _as_utc(end)
-    if start > end:
-        raise HTTPException(
-            status_code=422, detail=msg(lang, "usage.periodReversed"),
-        )
-    if (end - start) > timedelta(days=MAX_PERIOD_DAYS):
-        raise HTTPException(
-            status_code=422,
-            detail=msg(lang, "usage.periodTooLong", max=MAX_PERIOD_DAYS),
-        )
+    """Dasselbe über einen Zeitraum, Grenzen einschließlich. Zeitzonenlose Angaben gelten als
+    UTC; vertauschte Grenzen und Zeiträume über ein Jahr sind 422."""
+    start, end = zeitraum(start, end, lang)
     return await period_usage(session, start, end, scope=scope, engine=engine)

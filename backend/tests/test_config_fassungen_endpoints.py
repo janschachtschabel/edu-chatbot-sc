@@ -125,6 +125,10 @@ def test_vergleich_zeigt_die_unterschiede_als_zeilen(studio):
     assert r.status_code == 200, r.text
     zeilen = r.json()["zeilen"]
     assert "-Werkstext" in zeilen and "+Eigener Text" in zeilen
+    # Paket 16, C6: dieselben Unterschiede je Feld — für die Tabelle in der Sicherung.
+    felder = {f["pfad"]: f for f in r.json()["felder"]}
+    assert felder["body"]["eigen"] == '"Eigener Text\\n"'
+    assert r.json()["felder_gesamt"] == len(r.json()["felder"])
 
 
 def test_geloeschter_werksbereich_bleibt_weg_und_laesst_sich_wiederherstellen(studio):
@@ -276,3 +280,5 @@ def test_vergleich_zeigt_auch_die_stillgelegte_fassung(studio):
     assert r.status_code == 200, r.text
     assert r.json()["zeilen"] == []                       # gelebt == Werk
     assert "+Eigener Text" in r.json()["zeilen_eigene"]   # stillgelegt gegen Werk
+    assert r.json()["felder"] == []
+    assert [f["pfad"] for f in r.json()["felder_eigene"]] == ["body"]

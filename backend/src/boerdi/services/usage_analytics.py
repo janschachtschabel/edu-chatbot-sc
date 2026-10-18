@@ -42,6 +42,7 @@ from boerdi.domain.config_models.pricing import PricingArea
 from boerdi.domain.pricing import TokenCounts, cost_for
 from boerdi.services.config_loader import load_pricing
 from boerdi.services.session_origin import scope_clause
+from boerdi.services.usage_tage import tage
 
 #: Wie viele Sitzungen die Spitzenliste nennt. Eine Konstante und kein
 #: Parameter: es gibt genau einen Aufrufer, und eine einstellbare Zahl ohne
@@ -292,7 +293,8 @@ async def period_usage(
                *(() if not engine else (
                    or_(UsageEvent.engine == engine, UsageEvent.engine.is_(None)),)))
     antwort = _assemble(await _grouped_by_model(session, *fenster))
-    antwort["sessions"] = _top_sessions(
-        await _grouped_by_session(session, *fenster), load_pricing() or PricingArea(),
-    )
+    tafel = load_pricing() or PricingArea()
+    antwort["sessions"] = _top_sessions(await _grouped_by_session(session, *fenster), tafel)
+    # Paket 16, D2: dieselbe Auswahl je Kalendertag — das Säulendiagramm der Kosten-Seite.
+    antwort["days"] = await tage(session, start, end, tafel, *fenster)
     return antwort

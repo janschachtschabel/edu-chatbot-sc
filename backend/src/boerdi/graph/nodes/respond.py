@@ -48,6 +48,7 @@ from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import _retrieve_task_exception
+from boerdi.obs.zeiten import schritt
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.engine_choice import (
     laeuft_ueber_die_schleife,
@@ -182,7 +183,9 @@ async def respond(
             )
         else:
             try:
-                spec_result_text = await spec_task
+                # Paket 16 (D4): nur das Warten — die Suche selbst lief neben der Einordnung.
+                with schritt("respond.vorabsuche", ctx.usage):
+                    spec_result_text = await spec_task
                 if spec_result_text and spec_is_search_all:
                     # O1: search_wlo_all-Envelope in drei Per-Tool-Payloads splitten
                     # (content/collections/topicPages), damit der bestehende
@@ -278,7 +281,8 @@ async def respond(
                     pass
                 continue
             try:
-                _ex_text = await _ex_task
+                with schritt("respond.vorabsuche", ctx.usage):
+                    _ex_text = await _ex_task
                 if _ex_text:
                     prefetched_extras_payload.append({
                         "name": _ex_name,
@@ -346,11 +350,13 @@ async def respond(
                 try:
                     # `partial`, weil der Executor nur positionale Argumente
                     # durchreicht (ALT-Muster, dort mit derselben Begründung).
-                    _nt, _ = await _rerank_pool(_partial(
-                        _ce_gate,
-                        spec_query, _p["result_text"],
-                        tool_name=_p.get("name", ""), allow_soft_fallback=_wants_tp,
-                    ))
+                    # Paket 16 (D4): CPU im Rerank-Pool — auf 2 Kernen die Engstelle unter Last.
+                    with schritt("respond.rerank", ctx.usage):
+                        _nt, _ = await _rerank_pool(_partial(
+                            _ce_gate,
+                            spec_query, _p["result_text"],
+                            tool_name=_p.get("name", ""), allow_soft_fallback=_wants_tp,
+                        ))
                     _p["result_text"] = _nt
                 except Exception as _ge:
                     logger.warning(

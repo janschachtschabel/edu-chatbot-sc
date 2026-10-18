@@ -3144,7 +3144,7 @@
     },
     "/api/config/effects": {
       "get": {
-        "description": "Je Bereich die Wirkung in Muster-Maschine und Agent-Schleife, dazu die Vorgabe-Maschine.",
+        "description": "Je Bereich die Wirkung in Muster-Maschine und Agent-Schleife, dazu die Vorgabe-Maschine\nund die Felder, die anders wirken als ihr Bereich (Rundgang 3).",
         "operationId": "get_effects_api_config_effects_get",
         "responses": {
           "200": {
@@ -6126,6 +6126,106 @@
         ]
       }
     },
+    "/api/nutzung/ueberblick": {
+      "get": {
+        "description": "Züge, Sitzungen, Tage, Wochentag × Stunde und Verteilungen eines Zeitraums.",
+        "operationId": "nutzung_ueberblick_api_nutzung_ueberblick_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "Herkunft: 'all' | 'production' (ohne Eval-, Lasttest- und Studio-Probe-Sitzungen) | 'eval'",
+              "enum": [
+                "all",
+                "production",
+                "eval"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pattern",
+                    "agent"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide",
+              "title": "Engine"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Nutzung Ueberblick Api Nutzung Ueberblick Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
+        "summary": "Nutzung Ueberblick",
+        "tags": [
+          "nutzung"
+        ]
+      }
+    },
     "/api/quality/degradations": {
       "get": {
         "description": "Which (pattern × missing-slot) combos most often trigger a fallback.",
@@ -8348,7 +8448,7 @@
     },
     "/api/usage/period": {
       "get": {
-        "description": "Dasselbe über einen Zeitraum, Grenzen einschließlich.\n\nZeitzonenlose Angaben gelten als UTC. Vertauschte Grenzen sind ein\nEingabefehler (422) und ausdrücklich **kein** leeres Ergebnis: das läse\nsich wie „keine Kosten\" statt wie „so herum ergibt die Frage keinen Sinn\".\nZu weite Zeiträume ebenso (``MAX_PERIOD_DAYS``).",
+        "description": "Dasselbe über einen Zeitraum, Grenzen einschließlich. Zeitzonenlose Angaben gelten als\nUTC; vertauschte Grenzen und Zeiträume über ein Jahr sind 422.",
         "operationId": "usage_for_period_api_usage_period_get",
         "parameters": [
           {

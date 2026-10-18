@@ -361,17 +361,18 @@ async def _fire_request(
                               timeout=REQUEST_TIMEOUT_S, headers=headers)
         dt = time.perf_counter() - t0
         return {"kind": kind, "ok": r.status_code == 200, "status": r.status_code,
-                "latency_s": round(dt, 2), **_werkzeug_angaben(r)}
+                "latency_s": round(dt, 2), **_werkzeug_angaben(r, round(dt * 1000))}
     except Exception as e:  # network/timeout → count as a failed request, keep going
         dt = time.perf_counter() - t0
         return {"kind": kind, "ok": False, "status": 0,
                 "latency_s": round(dt, 2), "error": type(e).__name__}
 
 
-def _werkzeug_angaben(r: httpx.Response) -> dict[str, Any]:
+def _werkzeug_angaben(r: httpx.Response, gesamt_ms: int = 0) -> dict[str, Any]:
     """Paket 15 (E1): Werkzeuge und Werkzeugzeit eines Zugs aus seinem Debug-Block — damit
     sich ein langsamer Zug ohne Nachrichten-Tabelle einordnen lässt (MCP-Ausreißer oder
-    Ausweich-Kette). Eine unlesbare Antwort liefert nichts, statt die Messung zu stören."""
+    Ausweich-Kette). Seit Paket 16 (D4) dazu die ganze Aufteilung (``zeiten``). Eine unlesbare
+    Antwort liefert nichts, statt die Messung zu stören."""
     try:
         debug = (r.json() or {}).get("debug") or {}
     except ValueError:
@@ -380,7 +381,58 @@ def _werkzeug_angaben(r: httpx.Response) -> dict[str, Any]:
     angaben: dict[str, Any] = {"werkzeuge": len(debug.get("tools_called") or [])}
     if isinstance(zeiten.get("respond.werkzeuge"), int | float):
         angaben["werkzeuge_ms"] = zeiten["respond.werkzeuge"]
+    if (aufteilung := _zeit_angaben(debug, gesamt_ms)) is not None:
+        angaben["zeiten"] = aufteilung
     return angaben
+
+
+#: Paket 16 (D4): die Teile eines Zugs und die Schritte (``obs/zeiten.schritt``), aus denen sie
+#: sich zusammensetzen. ``llm`` kommt aus ``per_phase``, ``rest`` ist, was übrig bleibt.
+ZEIT_TEILE: dict[str, tuple[str, ...]] = {
+    "werkzeuge": ("respond.werkzeuge",),
+    # Nur das blockierende Warten — die Vorab-Suche selbst läuft neben der Einordnung
+    # und steckt schon in ``werkzeuge``.
+    "vorabsuche": ("respond.vorabsuche",),
+    "rerank": ("respond.rerank",),
+    "rag": ("respond.rag", "assess.rag_einbettung"),
+    "safety": ("assess.safety",),
+}
+ZEIT_KATEGORIEN = ("llm", *ZEIT_TEILE, "rest")
+
+
+def _zeit_angaben(debug: dict[str, Any], gesamt_ms: int) -> dict[str, int] | None:
+    """Die Dauer eines Zugs nach :data:`ZEIT_KATEGORIEN`; ``None`` ohne Zeiten im Debug.
+
+    Teile können sich überlappen: die Vorab-Suche läuft neben der Einordnung und steckt mit
+    ihrer ganzen Dauer in ``werkzeuge``, ``vorabsuche`` ist nur das Warten darauf. ``rest`` wird
+    darum nie negativ; die Anteile (``_engstelle``) beziehen sich auf die Summe der Mediane —
+    das Studio sagt, dass sich Teile überlappen können."""
+    nutzung = debug.get("token_usage") or {}
+    zeiten = nutzung.get("zeiten_ms") or {}
+    phasen = nutzung.get("per_phase") or {}
+    if not zeiten and not phasen:
+        return None
+
+    def ms(wert: Any) -> int:
+        return int(wert) if isinstance(wert, int | float) else 0
+
+    teile = {"llm": sum(ms((p or {}).get("ms")) for p in phasen.values())}
+    for teil, schritte in ZEIT_TEILE.items():
+        teile[teil] = sum(ms(zeiten.get(s)) for s in schritte)
+    teile["rest"] = max(0, gesamt_ms - sum(teile.values()))
+    return teile
+
+
+def _engstelle(ergebnisse: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Je Kategorie der Median der erfolgreichen Anfragen und sein Anteil an deren Summe."""
+    mit_zeiten = [r["zeiten"] for r in ergebnisse if r.get("ok") and r.get("zeiten")]
+    if not mit_zeiten:
+        return {"zeiten_ms": {}, "anteile": {}}
+    mediane = {k: round(statistics.median(z.get(k, 0) for z in mit_zeiten))
+               for k in ZEIT_KATEGORIEN}
+    summe = sum(mediane.values())
+    return {"zeiten_ms": mediane,
+            "anteile": {k: round(v / summe, 3) if summe else 0.0 for k, v in mediane.items()}}
 
 
 async def _run_stage(
@@ -423,6 +475,8 @@ def _stage_stats(
             "p95_s": round(_percentile(ks, 95), 2),
             # Paket 15 (Review #6): bei wenigen Messungen zeigt das Studio das echte Maximum.
             "max_s": round(max(ks), 2) if ks else 0.0,
+            # Paket 16 (D4): wo die Zeit dieser Art bleibt.
+            **_engstelle([r for r in results if r["kind"] == k]),
         }
     return {
         "concurrency": concurrency,

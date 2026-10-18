@@ -74,7 +74,7 @@ def test_der_seed_ist_vollstaendig() -> None:
     assert len(zuege) == 46
     assert all(t.anwendungsfall for t in zuege)
     assert all(f.erwartung.strip() for f in bereich.flows)
-    zielgruppen = Counter(f.model_extra.get("zielgruppe") for f in bereich.flows)
+    zielgruppen = Counter(f.zielgruppe for f in bereich.flows)
     for gruppe in ("P-LEH", "P-LER", "P-ELT", "P-ENT", "P-RED", "P-AND"):
         assert zielgruppen[gruppe] >= 1, gruppe
 
@@ -87,3 +87,19 @@ def test_run_flows_traegt_anwendungsfall_und_erwartung(monkeypatch) -> None:
     conv = asyncio.run(rg.run_flows("http://x/api/chat", [_flow()]))[0]
     assert conv["erwartung"] == "Sucht Material."
     assert conv["turns"][0]["anwendungsfall"] == "suchen"
+
+
+def test_die_zielgruppe_steht_im_modell() -> None:
+    """Rundgang 3: das Studio meldete „22 Schlüssel nicht angezeigt“ — 22× ``zielgruppe``, das
+    tragende Feld (Judge, Laufstart, Matrix). Das Modell kannte nur das alte ``persona``; ein im
+    Formular angelegter Flow bekam so keine Zielgruppe."""
+    from boerdi.domain.config_models.schema import area_schema
+
+    schema = area_schema(GoldFlowsArea)
+    flow = schema["$defs"]["GoldFlow"]["properties"]
+    assert "zielgruppe" in flow
+    assert flow["zielgruppe"].get("x-catalog") == "personas"
+    seed = Path(__file__).resolve().parents[1] / "seeds" / "eval" / "gold-flows.yaml"
+    for f in yaml.safe_load(seed.read_text(encoding="utf-8"))["flows"]:
+        unbekannt = set(f) - set(GoldFlow.model_fields)
+        assert not unbekannt, (f.get("id"), unbekannt)

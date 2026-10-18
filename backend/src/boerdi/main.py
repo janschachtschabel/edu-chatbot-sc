@@ -29,6 +29,7 @@ from boerdi.api import (
     health,
     loadtest,
     master_skill,
+    nutzung,
     quality,
     rag,
     safety,
@@ -239,6 +240,7 @@ def create_app() -> FastAPI:
     app.include_router(rag.router)
     app.include_router(quality.router)
     app.include_router(usage.router)
+    app.include_router(nutzung.router)
     app.include_router(safety.router)
     app.include_router(eval_api.router)
     app.include_router(loadtest.router)

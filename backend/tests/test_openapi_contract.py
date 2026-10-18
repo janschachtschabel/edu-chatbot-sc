@@ -107,6 +107,7 @@ POST   /api/loadtest/runs/{run_id}/cancel
 GET    /api/loadtest/runs/{run_id}
 GET    /api/master-skill
 POST   /api/master-skill/reload
+GET    /api/nutzung/ueberblick
 GET    /api/quality/degradations
 GET    /api/quality/empty-entities
 GET    /api/quality/logs

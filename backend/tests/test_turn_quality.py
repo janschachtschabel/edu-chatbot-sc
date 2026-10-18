@@ -112,3 +112,15 @@ async def test_ein_fehler_beim_buchen_rollt_die_sitzung_zurueck(monkeypatch):
     sitzung = _Sitzung()
     await tq.log_turn_quality(sitzung, _req(), DebugInfo(pattern="M18"))
     assert sitzung.rollbacks == 1
+
+
+@pytest.mark.parametrize(("enabled", "privacy", "an"),
+                         [(True, True, True), (False, True, False), (True, False, False)])
+def test_ob_das_protokoll_schreibt_steht_an_einer_stelle(monkeypatch, enabled, privacy, an):
+    """Paket 16, D3: die Nutzungsseite sagt, wenn das Protokoll nichts schreibt — mit
+    derselben Prüfung wie der Schreibweg."""
+    from boerdi.services.turn_quality import qualitaetsprotokoll_an
+
+    _konfig(monkeypatch, enabled=enabled, privacy=privacy)
+    assert qualitaetsprotokoll_an() is an
+
