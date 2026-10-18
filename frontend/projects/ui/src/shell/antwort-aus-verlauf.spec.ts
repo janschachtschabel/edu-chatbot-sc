@@ -13,10 +13,15 @@ let naechsteId = 1;
 const u = (content: string, id = naechsteId++): HistoryMessage => ({ id, role: 'user', content });
 const a = (content: string, id = naechsteId++): HistoryMessage => ({ id, role: 'assistant', content });
 
-/** Ein Warten ohne Uhr, das mitschreibt. */
+/** Ein Warten ohne Uhr, das mitschreibt — mit stehender Uhr: ohne `jetzt` zählte `Date.now`,
+ *  und eine Millisekunde des Testlaufs verschob das Restbudget (CI: 99 999 statt 100 000). */
 function uhr() {
   const gewartet: number[] = [];
-  return { gewartet, warten: (ms: number) => { gewartet.push(ms); return Promise.resolve(); } };
+  return {
+    gewartet,
+    warten: (ms: number) => { gewartet.push(ms); return Promise.resolve(); },
+    jetzt: () => 0,
+  };
 }
 
 describe('antwortAuf', () => {
@@ -48,10 +53,10 @@ describe('antwortAusVerlauf', () => {
   it('fragt nach, bis die Antwort da ist', async () => {
     const staende = [[u('Frage', 5)], [u('Frage', 5)], [u('Frage', 5), a('Fertig', 6)]];
     let i = 0;
-    const { gewartet, warten } = uhr();
+    const { gewartet, warten, jetzt } = uhr();
     const antwort = await antwortAusVerlauf(
       () => Promise.resolve(staende[Math.min(i++, staende.length - 1)]), 'Frage',
-      { nachId: 4, warten },
+      { nachId: 4, warten, jetzt },
     );
     expect(antwort?.content).toBe('Fertig');
     expect(gewartet).toHaveLength(2);
@@ -61,9 +66,9 @@ describe('antwortAusVerlauf', () => {
     // Das Ratenlimit gilt je IP und Route (Vorgabe 20/min) — hinter einer
     // Schul-NAT teilen es sich alle Widgets. Der alte 2-s-Takt brauchte 30.
     let abrufe = 0;
-    const { gewartet, warten } = uhr();
+    const { gewartet, warten, jetzt } = uhr();
     await antwortAusVerlauf(
-      () => { abrufe++; return Promise.resolve([u('Frage', 9)]); }, 'Frage', { nachId: 8, warten },
+      () => { abrufe++; return Promise.resolve([u('Frage', 9)]); }, 'Frage', { nachId: 8, warten, jetzt },
     );
     let t = 0;
     const zeitpunkte = [0, ...gewartet.map((ms) => (t += ms))];
@@ -75,9 +80,9 @@ describe('antwortAusVerlauf', () => {
   });
 
   it('gibt nach der Gesamtfrist auf (wie der Stale-Wächter: 100 s)', async () => {
-    const { gewartet, warten } = uhr();
+    const { gewartet, warten, jetzt } = uhr();
     const antwort = await antwortAusVerlauf(
-      () => Promise.resolve([u('Frage', 9)]), 'Frage', { nachId: 8, warten },
+      () => Promise.resolve([u('Frage', 9)]), 'Frage', { nachId: 8, warten, jetzt },
     );
     expect(antwort).toBeNull();
     const summe = gewartet.reduce((s, ms) => s + ms, 0);
@@ -88,9 +93,9 @@ describe('antwortAusVerlauf', () => {
   it('steht die Frage nach der Frist nicht im Verlauf, kommt auch keine Antwort', async () => {
     // Beschäftigte Sitzung oder ein Absturz vor dem Speichern: der Zug endet,
     // ohne die Frage abzulegen. Die Sperre wartet höchstens 20 s.
-    const { gewartet, warten } = uhr();
+    const { gewartet, warten, jetzt } = uhr();
     const antwort = await antwortAusVerlauf(
-      () => Promise.resolve([u('Ja', 1), a('alt', 2)]), 'Ja', { nachId: 2, warten },
+      () => Promise.resolve([u('Ja', 1), a('alt', 2)]), 'Ja', { nachId: 2, warten, jetzt },
     );
     expect(antwort).toBeNull();
     const summe = gewartet.reduce((s, ms) => s + ms, 0);
@@ -100,22 +105,22 @@ describe('antwortAusVerlauf', () => {
 
   it('beachtet ein 429 samt Retry-After und fragt danach weiter', async () => {
     let i = 0;
-    const { gewartet, warten } = uhr();
+    const { gewartet, warten, jetzt } = uhr();
     const antwort = await antwortAusVerlauf(() => {
       i++;
       if (i === 1) return Promise.reject(Object.assign(new Error('429'), { status: 429, retryAfterMs: 30_000 }));
       return Promise.resolve([u('Frage', 9), a('Fertig', 10)]);
-    }, 'Frage', { nachId: 8, warten });
+    }, 'Frage', { nachId: 8, warten, jetzt });
     expect(antwort?.content).toBe('Fertig');
     expect(gewartet).toEqual([30_000]);
   });
 
   it('ein Netzfehler beim Nachfragen ist kein Ende', async () => {
     let i = 0;
-    const { warten } = uhr();
+    const { warten, jetzt } = uhr();
     const antwort = await antwortAusVerlauf(() => (++i === 1
       ? Promise.reject(new Error('network'))
-      : Promise.resolve([u('Frage', 9), a('Fertig', 10)])), 'Frage', { nachId: 8, warten });
+      : Promise.resolve([u('Frage', 9), a('Fertig', 10)])), 'Frage', { nachId: 8, warten, jetzt });
     expect(antwort?.content).toBe('Fertig');
   });
 
@@ -184,19 +189,19 @@ describe('antwortAusVerlauf', () => {
 
   it('Retry-After 0 hält den gewohnten Takt (Paket 9)', async () => {
     let i = 0;
-    const { gewartet, warten } = uhr();
+    const { gewartet, warten, jetzt } = uhr();
     await antwortAusVerlauf(() => (++i === 1
       ? Promise.reject(Object.assign(new Error('429'), { status: 429, retryAfterMs: 0 }))
-      : Promise.resolve([u('Frage', 9), a('Fertig', 10)])), 'Frage', { nachId: 8, warten });
+      : Promise.resolve([u('Frage', 9), a('Fertig', 10)])), 'Frage', { nachId: 8, warten, jetzt });
     expect(gewartet).toEqual([2_000]);
   });
 
   it('ein langes Retry-After nutzt das Restbudget statt sofort aufzugeben (Paket 9)', async () => {
     let i = 0;
-    const { gewartet, warten } = uhr();
+    const { gewartet, warten, jetzt } = uhr();
     const antwort = await antwortAusVerlauf(() => (++i === 1
       ? Promise.reject(Object.assign(new Error('429'), { status: 429, retryAfterMs: 300_000 }))
-      : Promise.resolve([u('Frage', 9), a('Fertig', 10)])), 'Frage', { nachId: 8, warten });
+      : Promise.resolve([u('Frage', 9), a('Fertig', 10)])), 'Frage', { nachId: 8, warten, jetzt });
     expect(antwort?.content).toBe('Fertig');
     expect(gewartet).toEqual([100_000]);
   });
