@@ -59,8 +59,8 @@ Zwei Lauf-Arten, beide live, beide in derselben `eval_runs`-Tabelle:
   **programmatisch** — deterministisch und A/B-vergleichbar. Der Runner ist
   `evals/run_golden.py`: bewusst framework-frei, ohne Import aus `boerdi.*`,
   auch als CLI nutzbar. Mit `judge: true` legt `services/eval/golden.py` die
-  weiche Ebene darüber (ein Judge-Aufruf je beantwortetem Turn, ~40 bei 12
-  Flows). Die **Headline bleibt deterministisch**: `avg_score` ist die harte
+  weiche Ebene darüber (ein Judge-Aufruf je beantwortetem Turn; der Seed hat
+  22 Abläufe). Die **Headline bleibt deterministisch**: `avg_score` ist die harte
   Bestehensquote, der Judge-Schnitt steht als `judge_avg` daneben — sonst
   zeigten Lauf-Liste und Scorecard verschiedene Zahlen für denselben Lauf.
 - **Generativ** (`POST /api/eval/runs`) lässt ein LLM Szenarien erfinden, die
@@ -80,6 +80,18 @@ Gold-Läufe nachgezogen); die Serien zu Pattern-Hint und Judge-Zustimmung
 bleiben allerdings leer, solange der Lauf ohne Judge gestartet wurde.
 
 Modelle: `EVAL_SIMULATOR_MODEL` / `EVAL_JUDGE_MODEL`, je Aufruf aus den Settings
-aufgelöst. Ein **leerer** Wert fällt auf `gpt-4o-mini` zurück — docker-compose
-reicht `${VAR:-}` durch, die Variable ist im Container also gesetzt aber leer,
-und `model=""` würde der Provider mit HTTP 400 ablehnen.
+aufgelöst. Ein **leerer** Wert heißt seit Paket 7: das Chat-Modell — Evaluationen
+laufen mit dem Modell, das für den Chat eingestellt ist. docker-compose reicht
+`${VAR:-}` durch, die Variable ist im Container also gesetzt, aber leer.
+
+**Auswertung v2 (Paket 13).** Neben dem Urteil je Zug bewertet `judge_v2.py` jeden
+Ablauf als Ganzes (Skalen Zielgruppe, Anliegen, Angebot, Werkzeuge, Verlauf, Qualität,
+Sicherheit; ein unbrauchbares Urteil wirft `JudgeError`, statt still mitzuzählen).
+`auswertung_v2.py` rechnet daraus Matrizen (Zielgruppe × Anwendungsfall, Ablauf ×
+Skala), Problemliste und Zeiten; ein Kurzbericht fasst den Lauf in einem weiteren
+Aufruf zusammen. Jeder Gold-Lauf hält seine **Messbedingungen** fest
+(`run_conditions.py`: Maschine, Modell, Master-Skill, Prompt-Fassungen); die festen
+Prompt-Bausteine liegen versioniert in `prompt_versions` (Migration 0012), damit
+`vergleich_v2.py` und `trends_v2.py` nur Läufe unter gleichen Bedingungen
+nebeneinanderstellen und einen Wechsel benennen. Kosten des Judges bucht der Lauf
+getrennt (`usage_events`, auch nach Abbruch).

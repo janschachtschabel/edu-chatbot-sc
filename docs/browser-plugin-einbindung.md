@@ -345,7 +345,7 @@ Beispiel-Plugin bei jedem „Starten" (§7a).
 
 ## 4. Maschine wählen: Muster oder Agent-Schleife
 
-| | **Muster-Engine** (`pattern`, Vorgabe) | **Agent-Schleife** (`agent`) |
+| | **Muster-Engine** (`pattern`, Vorgabe im Code) | **Agent-Schleife** (`agent`, Werksfassung) |
 |---|---|---|
 | Ablauf | Klassifikator → Musterwahl → gebundene Werkzeugliste | Systemprompt + **voller** Werkzeug-Katalog, freie Schleife |
 | Endet bei | einer Antwort | `submit_result`, Prosa, oder einem Deckel |
@@ -353,7 +353,7 @@ Beispiel-Plugin bei jedem „Starten" (§7a).
 
 Drei Ebenen, von grob nach fein — die feinere gewinnt:
 
-1. **Ganze Anlage** — Studio → *Agent & Maschine* (`01-base/engine`), wirkt ohne
+1. **Ganze Anlage** — Studio → *System → Betrieb* (`01-base/engine`), wirkt ohne
    Neustart.
 2. **Je Einbau** — das Host-Attribut `engine="agent"`. Genau dafür gibt es
    das: eine Einbettung ohne Chat-Rahmen will die Schleife oft, ohne dass

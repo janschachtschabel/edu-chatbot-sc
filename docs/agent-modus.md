@@ -7,14 +7,15 @@ Seitenbereich einbetten, und den Endpunkt `POST /api/agent` direkt ansprechen.
 
 ## 1. Zwei Maschinen, ein Unterschied
 
-| | **Muster-Engine** (`pattern`, Vorgabe) | **Agent-Schleife** (`agent`) |
+| | **Muster-Engine** (`pattern`, Vorgabe im Code) | **Agent-Schleife** (`agent`, Werksfassung) |
 |---|---|---|
 | Ablauf | Klassifikator → Musterwahl → gebundene Werkzeugliste | Systemprompt + **voller** Werkzeug-Katalog, freie Schleife |
 | Endet bei | einer Antwort | `submit_result`, Prosa-Antwort, oder einem Deckel |
 | Gut für | den Chat mit Menschen | Aufträge ohne Chat-Rahmen, maschinenlesbare Ergebnisse |
 
-Die Vorgabe ist bewusst `pattern`: ohne Pflege ändert sich am ausgelieferten
-Chatbot nichts.
+Im Code ist die Vorgabe `pattern`. Die ausgelieferte Werksfassung
+(`seeds/01-base/engine.yaml`) setzt seit Paket 7 `mode: agent` — eine frische Anlage
+antwortet also mit der Agent-Schleife, bis jemand im Studio umstellt.
 
 **Eine Ausnahme gilt in jeder Maschine:** Erzwingt das Sicherheits-Gate ein
 Muster (M01 bei Krise, M02 bei Drohung), beantwortet der Muster-Weg diesen Zug,
@@ -35,7 +36,8 @@ Quick-Replies (`quick_replies_mode: none`).
 
 ### a) Für die ganze Anlage — Studio
 
-**Studio → Agent & Maschine → „Welche Maschine antwortet"** (Bereich `01-base/engine`)
+**Studio → System → „Betrieb“** (Bereich `01-base/engine`, Feld `mode`; die Deckel
+unter `agent` stehen im Agent-Arbeitsbereich auf „Rolle & Schutz“)
 
 ```yaml
 mode: agent            # pattern | agent  (gespeichertes hybrid gilt als agent)
@@ -44,8 +46,7 @@ agent:
   max_iterations: 30     # 1 . 50
   deadline_s: 900        # 5 . 1800
   token_budget: 900000   # ≥ 1000
-  write_mode: propose    # propose | execute
-  safety: true
+  write_mode: propose    # propose | execute  (das Sicherheits-Gate läuft immer)
   anonymous:             # AG-6: Deckel ohne angemeldete Person
     max_iterations: 30   # 1 . 50, vorbelegt wie oben
     deadline_s: 900      # 5 . 1800
@@ -434,7 +435,7 @@ Wer nur das Ergebnis will, nimmt `POST /api/agent`.
 
 ## 5. Ohne Code ausprobieren
 
-**Studio → Agent & Maschine → „Agent testen"**: Formularfelder für alle sechs
+**Studio → Agent → „Prompt & Probelauf“, Abschnitt „Auftrag testen (Gastanwendungen)“**: Formularfelder für alle sechs
 Eingaben, darunter Ergebnis-JSON, `stop_reason`, Runden und gerufene Werkzeuge.
 Der Studio-Proxy spritzt den Schlüssel serverseitig ein — deshalb sitzt das
 Werkzeug dort und nicht auf einer öffentlichen Seite.

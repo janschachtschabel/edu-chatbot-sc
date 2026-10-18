@@ -15,7 +15,7 @@ Quelltext erhoben; Fundstellen stehen in Klammern.
 | Bauplan/Spezifikation (Quelle der Wahrheit) | [`plans/2026-07-10-boerdi-chat-neubau.md`](plans/2026-07-10-boerdi-chat-neubau.md) |
 | Widget in fremde Seiten einbetten | [`browser-plugin-einbindung.md`](browser-plugin-einbindung.md) · [`edu-sharing-einbindung.md`](edu-sharing-einbindung.md) |
 | Agent-Schleife | [`agent-modus.md`](agent-modus.md) |
-| Interaktive Grafiken: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus | [`architektur-grafiken/`](architektur-grafiken/README.md) |
+| Interaktive Grafiken: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus | [ansehen (GitHub Pages)](https://janschachtschabel.github.io/edu-chatbot-sc/) · [Quellen](architektur-grafiken/README.md) |
 | Master-Skill (Vorgehen, Zielgruppen, Suchdisziplin, 30 Anwendungsfälle) | [`skills/vorgehen.md`](skills/vorgehen.md) |
 | Eingefrorener HTTP-Vertrag | [`api/openapi-v1.json`](api/openapi-v1.json) |
 
@@ -268,6 +268,7 @@ Der Zugang zum WLO-Bestand. Kein eigener Index, keine Kopie des Repositoriums.
 | `transport.py` | MCP-SDK, Streamable HTTP |
 | `client.py` | `call_mcp_tool` — der eine Aufrufweg, mit Zug-Sammlern |
 | `tool_defs.py` / `tool_defs_curation.py` | Werkzeugliste fürs LLM |
+| `fremdwerkzeuge.py` | Werkzeuge **weiterer** MCP-Server, nur lesend, im Zug `server__werkzeug` (Paket 11) — eigener Aufrufweg, nie mit dem Block der WLO-Anmeldung |
 | `tool_args.py` | Argument-Prüfung (Pydantic) vor dem Absetzen |
 | `arg_resolvers.py` | Platzhalter aus dem Zug-Zustand auflösen |
 | `tool_cache.py` | Ergebnis-Zwischenspeicher je Zug |
@@ -523,6 +524,20 @@ Vier Bauentscheidungen, die das Verhalten erklären:
 Die Redaktionsoberfläche: 36 Bereiche pflegen, Muster und Personas bearbeiten,
 Auswertungen ansehen, Sicherungen ziehen, Agent und Widget testen.
 
+**Zwei Arbeitsbereiche (Paket 14).** Oben wählt die Redaktion *Agent* oder *Muster*;
+die Seitenleiste zeigt den eigenen Block der Maschine (Agent: Übersicht, Rolle & Schutz,
+Prompt & Probelauf · Muster: Übersicht, Identität & Schutz, Domänenwissen, Patterns,
+Dimensionen, Materialformate) und darunter, was beide teilen: *Gemeinsam* (Begrüßung,
+Kontext-Aktionen, Tour & Lotse, Zielgruppen, Wissen, Werkzeuge, Skills, Anzeige,
+Datenschutz), *Auswertung* (Nutzung, Sessions, Analyse, Evaluation, Lasttest,
+Safety-Logs, Kosten) und *System* (Betrieb, Alle Bereiche, Sicherung, Vorschau). Ein
+Bereich hat je Arbeitsbereich genau eine Heimat (`views/area-homes.ts`), jedes Feld
+eine Plakette, in welcher Maschine es wirkt (`GET /api/config/effects`, `fields`).
+
+**Werk und eigene Fassung (Paket 12).** Je Bereich hält die Datenbank die Werksfassung
+aus dem Seed und, wenn die Redaktion etwas ändert, eine eigene; umschalten,
+vergleichen (je Feld) und Schnappschüsse ziehen geht unter System → „Sicherung“.
+
 **Formulare aus Schemata.** `schema-form/` erzeugt Eingabefelder aus dem
 Bereichsmodell. Ein neues Feld im Pydantic-Modell erscheint automatisch — es gibt
 keine zweite Stelle, an der jemand es nachtragen müsste.
@@ -551,7 +566,7 @@ statt zu 404en (`studio_static.py`); die drei echten Auth-Routen unter
 
 ## 8. Datenmodell
 
-13 Tabellen (`db/models.py`):
+16 Tabellen (15 in `db/models.py`, dazu `session_locks` aus Migration 0008):
 
 | Tabelle | Inhalt |
 |---|---|
@@ -565,7 +580,10 @@ statt zu 404en (`studio_static.py`); die drei echten Auth-Routen unter
 | `loadtest_runs` | Lasttest-Läufe |
 | `config_areas` | die 36 Bereiche (jsonb + Version) |
 | `config_history` | jede Änderung, mit Urheber |
-| `config_snapshots` | benannte Sicherungsstände |
+| `config_snapshots` | benannte Sicherungsstände (von Hand und automatisch vor Werks-Schritten) |
+| `config_werk_entfernt` | im Studio gelöschte Werksbereiche — der Werksabgleich legt sie nicht wieder an (0011) |
+| `prompt_versions` | feste Prompt-Bausteine je Prüfsumme, für die Messbedingungen der Evaluation (0012) |
+| `session_locks` | Zug-Sperre je Sitzung über alle Repliken (0008) |
 | `rag_documents` | Quelldokumente |
 | `rag_chunks` | Abschnitte + **pgvector**-Einbettung |
 
@@ -635,12 +653,12 @@ sechs anderen Gründe liefern kein verlässliches Ergebnis.
 
 | Ebene | Werkzeug | Umfang |
 |---|---|---|
-| Backend-Unit/Integration | pytest | **285 Testdateien**, > 5100 Tests (Stand 2026-10-03) |
-| Frontend-Unit | Vitest | **195 Spec-Dateien** (ui 77, widget 4, studio 114; Stand 2026-10-03) |
+| Backend-Unit/Integration | pytest | **368 Testdateien**, > 6300 Tests (Stand 2026-10-18) |
+| Frontend-Unit | Vitest | **235 Spec-Dateien** (ui 81, widget 4, studio 150; Stand 2026-10-18) |
 | E2E | Playwright | Einbettungs- und Chat-Szenarien |
 | Lint / Typen | ruff · ESLint · `tsc` | |
 | Vertrags-Wächter | `test_openapi_contract.py` | die `/api`-Fläche ist eingefroren |
-| Gestaltungs-Wächter | `check:tokens`, `check:a11y`, `check:radii` | keine hartcodierten Farben/Radien |
+| Gestaltungs-Wächter | `check:tokens`, `check:a11y`, `check:contrast`, `check:radii` | keine hartcodierten Farben/Radien, Kontrast der Studio-Akzente |
 | Bündelgröße | `check-widget-budget.mjs` | Widget-Budget im CI |
 | Lizenzen | pip-licenses · license-checker | **Gate: nur MIT/Apache-2.0/BSD-artig** |
 
@@ -649,7 +667,9 @@ Dazu zwei fachliche Verfahren, die über Unit-Tests hinausgehen:
 * **Golden-Läufe** (`evals/`, `services/eval/golden*.py`) — feste
   Anwendungsfall-Gespräche je Zielgruppe mit harten Ergebnis-Checks (v2:
   engine-fair, ein Lauf je Maschine wählbar); ein LLM-Richter bewertet
-  daneben die Erfüllung des dokumentierten Soll-Angebots. Pflicht, wenn sich
+  daneben die Erfüllung des dokumentierten Soll-Angebots; seit Paket 13 zusätzlich
+  ein Urteil je Ablauf (`judge_v2.py`), Matrizen und Messbedingungen je Lauf
+  (`auswertung_v2.py`, `run_conditions.py`, `prompt_versions`). Pflicht, wenn sich
   Prompts ändern.
 * **Generative Auswertung** (`scenario_gen.py`, `judge.py`) — erzeugte Szenarien
   über Personas und Intents, mit Kosten-Band im Studio.
