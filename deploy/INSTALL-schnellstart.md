@@ -67,7 +67,7 @@ Gegenprobe, dass die Seed-Daten im Image liegen (Schritt 7 braucht sie):
 docker run --rm boerdi-chat sh -c 'find /app/seeds -type f | wc -l'
 ```
 
-Erwartet: **61**.
+Erwartet: **68** (60 Konfigurationsbereiche und 8 Wissensdateien).
 
 ## 5. Geheimnisse abfragen
 
@@ -114,8 +114,8 @@ Drei Werte sind nicht beliebig:
   `LLM_MAX_CONCURRENCY` entsprechend teilen.
 
 **Datenschutz:** Das Backend löscht von selbst — Gesprächsverläufe nach 30 Tagen,
-Sicherheitsprotokoll nach 90, Qualitätsprotokoll nach 180 (im Studio änderbar, 0 =
-unbegrenzt). Einzelheiten und was in den Sicherungen bleibt: `deploy/README.md`,
+Sicherheitsprotokoll nach 90, Qualitätsprotokoll nach 180; dessen Text leert es schon
+nach 30 Tagen (im Studio änderbar, 0 = unbegrenzt). Einzelheiten und was in den Sicherungen bleibt: `deploy/README.md`,
 Abschnitt „Was der Server von selbst löscht“.
 
 **Kein Reranker:** es gibt kein `RERANK_MODEL_HOST_DIR` und kein
@@ -129,7 +129,14 @@ cd /opt/boerdi/deploy && docker compose -f compose.prod.yml --env-file .env up -
 ```
 
 Erwartet: die Alembic-Upgrades, dann
-`Werksabgleich: 61 neu, 0 aktualisiert, …` (bei einer frischen Datenbank ist alles neu).
+`Werksabgleich: 60 neu, 0 aktualisiert, …` (bei einer frischen Datenbank ist alles neu).
+
+Danach den Wissensbestand einlesen — am `backend`-Dienst, er braucht die LLM-Zugangsdaten
+(wenige Minuten; ohne ihn bleiben die Wissensbereiche leer):
+
+```bash
+cd /opt/boerdi/deploy && docker compose -f compose.prod.yml --env-file .env run --rm --no-deps backend boerdi import-rag
+```
 
 Der `migrate`-Dienst führt `alembic upgrade head` **und**
 `boerdi import-config --werksabgleich` aus. Das `--werksabgleich` ist der Grund,
@@ -158,12 +165,12 @@ Erwartet:
     "chat_model": "gpt-6-luna",
     "embed_model": "text-embedding-3-small",
     "mcp_auth": "anonymous",
-    "reranker": "model-missing"
+    "reranker": "off"
 }
 ```
 
-`reranker: model-missing` heisst „eingeschaltet, aber kein Modell da" — genau
-der gewünschte Zustand. `mcp_auth: anonymous` heisst: WLO-Werkzeuge nur lesend.
+`reranker: off` heisst: Reranker aus (Vorgabe seit Paket 11) — genau der gewünschte
+Zustand. `mcp_auth: anonymous` heisst: WLO-Werkzeuge nur lesend.
 
 Zertifikat prüfen:
 
