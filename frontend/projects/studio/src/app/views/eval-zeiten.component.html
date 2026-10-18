@@ -1,7 +1,7 @@
 @if (tabellen().length === 0) {
   <p class="ez-leer">{{ t('evalV2.zeiten.leer') }}</p>
 } @else {
-  <div class="ez">
+  <div class="ez" tabindex="0" role="region" [attr.aria-label]="t('evalV2.zeiten')">
     @for (tabelle of tabellen(); track tabelle.art) {
       <table class="ez-tabelle">
         <caption>{{ t('evalV2.zeiten.' + tabelle.art) }}</caption>

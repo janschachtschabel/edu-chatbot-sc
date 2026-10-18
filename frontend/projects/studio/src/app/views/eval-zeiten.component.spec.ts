@@ -48,6 +48,13 @@ describe('EvalZeitenComponent (Paket 13, F6)', () => {
     expect(zeilen[1][0]).toBe('assess');
   });
 
+  it('lässt den Rahmen per Tastatur rollen und benennt ihn (Review PR #18)', () => {
+    const rahmen = el.querySelector('.ez')!;
+    expect(rahmen.getAttribute('tabindex')).toBe('0');
+    expect(rahmen.getAttribute('role')).toBe('region');
+    expect(rahmen.getAttribute('aria-label')).toBe('Zeiten je Schritt');
+  });
+
   it('sagt es, wenn nichts gemessen wurde', async () => {
     fixture.componentRef.setInput('zeiten', { knoten: {}, schritte: {}, llm: {} });
     await fixture.whenStable();

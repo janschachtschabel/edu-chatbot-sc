@@ -97,14 +97,16 @@ export class EvalAuswertungV2Component {
     const filter = this.filter();
     const convs = (this.run().conversations ?? []) as readonly TranscriptConv[];
     return this.auswertung().je_ablauf
-      .filter((a) => !filter || a.zielgruppe === filter.zeile)
+      // Die Matrix schlüsselt eine fehlende Zielgruppe als „?“ (`auswertung_v2`, Review PR #18).
+      .filter((a) => !filter || (a.zielgruppe || '?') === filter.zeile)
       .map((a) => ({ ablauf: a, conv: convs.find((c) => c.flow_id === a.flow_id) ?? null }));
   });
 
   private geld(betrag: number | null): string {
     if (betrag === null) return this.t('evalV2.k.ohnePreis');
-    const waehrung = this.run().profile?.currency;
-    return waehrung ? this.fmt.money(String(betrag), waehrung) : this.fmt.decimal(betrag);
+    // `money` weitet die Stellen für Bruchteile eines Cents — `decimal` schnitt bei zwei ab und
+    // zeigte 0,0031 als „0“ (Review PR #18). Ohne Währung steht die Zahl ohne Einheit.
+    return this.fmt.money(betrag.toFixed(10), this.run().profile?.currency ?? '');
   }
 
   waehleZa(wahl: MatrixWahl): void {

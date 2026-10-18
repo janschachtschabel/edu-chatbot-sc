@@ -155,6 +155,8 @@ export class EvalRunDetailComponent {
     effect(() => {
       this.runId();
       untracked(() => {
+        // Ein Berichtsfehler gehört zum vorigen Lauf (Review PR #18).
+        this.berichtFehler.set('');
         void this.detail.reload();
         // Nutzer-Befund 2026-09-27: das Detail steht unter der ganzen Liste —
         // bei 21 Läufen 3.000 px tiefer; ohne Sprung sah ein Klick aus, als

@@ -198,7 +198,9 @@ export class LoadtestRunComponent {
    *  wie in der Karte daneben über `sekunden()` (Review-Runde 2). */
   byKindLine(byKind: Readonly<Record<string, { ok?: number; p95_s: number; max_s?: number }>>): string {
     return Object.entries(byKind).map(([kind, v]) => (
-      v.max_s !== undefined && v.ok !== undefined && v.ok < 20
+      // Ohne Erfolg schickt der Server 0,0 s — das läse sich wie die schnellste Art (Review PR #18).
+      v.ok === 0 ? this.t('ltRun.byKind.keine', { kind })
+      : v.max_s !== undefined && v.ok !== undefined && v.ok < 20
         ? this.t('ltRun.byKind.max', { kind, dauer: this.sekunden(v.max_s), n: v.ok })
         : this.t('ltRun.byKind.p95', { kind, dauer: this.sekunden(v.p95_s) }))).join(' · ');
   }

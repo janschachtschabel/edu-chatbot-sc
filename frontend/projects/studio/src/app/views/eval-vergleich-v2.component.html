@@ -1,8 +1,8 @@
 @if (noten(); as n) {
   <section class="vg-teil" aria-labelledby="vg-noten">
     <h4 class="vg-titel" id="vg-noten">{{ t('evalV2.vgl.noten') }}</h4>
-    <div class="vg-rahmen">
-      <table class="vg-tabelle">
+    <div class="vg-rahmen" tabindex="0" role="region" aria-labelledby="vg-noten">
+      <table class="vg-tabelle" aria-labelledby="vg-noten">
         <thead>
           <tr>
             <th scope="col">{{ t('evalV2.vgl.maschine') }}</th>
@@ -43,7 +43,7 @@
                 @if (p.a && p.b) {
                   <button
                     type="button" class="vg-diff-knopf"
-                    [disabled]="!!diffs()[p.schluessel]"
+                    [disabled]="!!diffs()[p.schluessel] && diffs()[p.schluessel].art !== 'fehler'"
                     (click)="zeigeDiff(p.schluessel, p.a, p.b)"
                   >{{ t('evalV2.vgl.diffZeigen') }}</button>
                 }
@@ -57,7 +57,7 @@
                     @if (stand.zeilen.length === 0) {
                       <p class="vg-hinweis">{{ t('evalV2.vgl.diffGleich') }}</p>
                     } @else {
-                      <pre class="vg-diff" tabindex="0" [attr.aria-label]="t('evalV2.vgl.diffLabel', { art: p.art })">@for (z of stand.zeilen; track $index) {<span [class]="z.klasse">{{ z.text }}</span>
+                      <pre class="vg-diff" tabindex="0" role="region" [attr.aria-label]="t('evalV2.vgl.diffLabel', { art: p.art })">@for (z of stand.zeilen; track $index) {<span [class]="z.klasse">{{ z.text }}</span>
 }</pre>
                     }
                   }

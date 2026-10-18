@@ -123,7 +123,7 @@
       </p>
     }
     @if (r.stages.length > 0) {
-      <div class="lr-table-wrap">
+      <div class="lr-table-wrap" tabindex="0" role="region" [attr.aria-label]="t('ltRun.table.caption')">
         <table class="lr-table">
           <caption>{{ t('ltRun.table.caption') }}</caption>
           <thead>
@@ -164,7 +164,7 @@
              (Werkzeugzeit hoch = MCP; viele Werkzeuge = Ausweich-Kette). -->
         <details class="lr-anfragen">
           <summary>{{ t('ltRun.anfragen.summary', { n: anfragenListe().length }) }}</summary>
-          <div class="lr-table-wrap">
+          <div class="lr-table-wrap" tabindex="0" role="region" [attr.aria-label]="t('ltRun.anfragen.caption')">
             <table class="lr-table">
               <caption class="sr">{{ t('ltRun.anfragen.caption') }}</caption>
               <thead>

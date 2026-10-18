@@ -63,4 +63,13 @@ describe('EvalTrendsV2Component (Paket 13, F8)', () => {
     expect(el.querySelector('table')).toBeNull();
     expect(el.textContent).toContain('Noch kein Lauf mit Judge v2');
   });
+
+  it('zeigt Kosten unter einem halben Cent, nicht „0“ (Review PR #18)', async () => {
+    fixture.componentRef.setInput('v2', { ...V2, kosten_je_zug: [
+      { run_id: 'r1', created_at: '2026-10-01T10:00:00Z', value: 0.0031 }] });
+    await fixture.whenStable();
+    const erste = Array.from(el.querySelectorAll('tbody tr:first-child td'), (td) => norm(td.textContent));
+    expect(erste[4]).toBe('0,0031');
+  });
 });
+

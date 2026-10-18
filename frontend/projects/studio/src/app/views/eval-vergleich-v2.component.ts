@@ -80,9 +80,14 @@ export class EvalVergleichV2Component {
         ...(lauf.bereiche.length
           ? [this.t('evalV2.vgl.bereiche', { liste: lauf.bereiche.join(', ') })] : []),
       ],
-      prompts: lauf.prompts.map((p) => ({
-        art: p.art, a: p.a[0] ?? '', b: p.b[0] ?? '', schluessel: `${lauf.run}|${p.art}`,
-      })),
+      prompts: lauf.prompts.map((p) => {
+        // Je Baustein sortierte Prüfsummen (ein Lauf kann mehrere Fassungen tragen): verglichen
+        // wird die, die nur A hat, mit der, die nur B hat — a[0] gegen b[0] traf oft dieselbe
+        // (Review PR #18). Fehlt eine Seite, gibt es nichts zu vergleichen.
+        const a = p.a.find((h) => !p.b.includes(h)) ?? '';
+        const b = p.b.find((h) => !p.a.includes(h)) ?? '';
+        return { art: p.art, a, b, schluessel: `${a}|${b}` };
+      }),
     }));
     return {
       referenz: u.referenz,
@@ -92,7 +97,9 @@ export class EvalVergleichV2Component {
   });
 
   async zeigeDiff(schluessel: string, a: string, b: string): Promise<void> {
-    if (!a || !b || this.diffs()[schluessel]) return;
+    // Ein Fehler lässt sich erneut versuchen; geladen oder ladend nicht (Review PR #18).
+    const stand = this.diffs()[schluessel];
+    if (!a || !b || (stand && stand.art !== 'fehler')) return;
     this.setze(schluessel, { art: 'laden' });
     try {
       const diff = await this.api.promptDiff(a, b);

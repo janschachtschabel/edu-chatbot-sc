@@ -84,6 +84,36 @@ describe('EvalVergleichV2Component (Paket 13, F8)', () => {
     expect(zeilen.find((z) => z.textContent === '+Du duzt.')?.className).toContain('vg-neu');
   });
 
+  it('vergleicht die Fassung, die nur A hat, mit der, die nur B hat (Review PR #18)', async () => {
+    // Je Baustein eine sortierte Liste von Prüfsummen; a[0] gegen b[0] verglich h1 mit h1.
+    const zwei = { ...VERGLEICH, unterschiede: { referenz: 'r1', laeufe: [{
+      run: 'r2', felder: [], bereiche: [],
+      prompts: [{ art: 'agent.kopf', a: ['h1aaaaaaaaaa', 'h2aaaaaaaaaa'],
+        b: ['h1aaaaaaaaaa', 'h3aaaaaaaaaa'] }],
+    }] } } as unknown as EngineComparison;
+    fixture.componentRef.setInput('vergleich', zwei);
+    await fixture.whenStable();
+    el.querySelector<HTMLButtonElement>('.vg-diff-knopf')!.click();
+    await fixture.whenStable();
+    const req = http.expectOne((r) => r.url.endsWith('/eval/prompt-diff'));
+    expect([req.request.params.get('a'), req.request.params.get('b')])
+      .toEqual(['h2aaaaaaaaaa', 'h3aaaaaaaaaa']);
+  });
+
+  it('lässt einen gescheiterten Text-Unterschied erneut holen (Review PR #18)', async () => {
+    const knopf = () => el.querySelector<HTMLButtonElement>('.vg-diff-knopf')!;
+    knopf().click();
+    await fixture.whenStable();
+    http.expectOne((r) => r.url.endsWith('/eval/prompt-diff'))
+      .flush({ detail: 'weg' }, { status: 500, statusText: 'x' });
+    await tick();
+    await fixture.whenStable();
+    expect(knopf().disabled).toBe(false);
+    knopf().click();
+    await fixture.whenStable();
+    http.expectOne((r) => r.url.endsWith('/eval/prompt-diff'));
+  });
+
   it('sagt, wenn die Läufe unter gleichen Bedingungen liefen', async () => {
     fixture.componentRef.setInput('vergleich', {
       ...VERGLEICH, unterschiede: { referenz: 'r1', laeufe: [{ run: 'r2', felder: [], bereiche: [], prompts: [] }] },
@@ -96,5 +126,13 @@ describe('EvalVergleichV2Component (Paket 13, F8)', () => {
     fixture.componentRef.setInput('vergleich', { ...VERGLEICH, bewertung_je_maschine: undefined, unterschiede: undefined });
     await fixture.whenStable();
     expect(norm(el.textContent)).toBe('');
+  });
+
+  it('macht die breite Tabelle per Tastatur erreichbar und benennt sie (Review PR #18)', () => {
+    const rahmen = el.querySelector('.vg-rahmen')!;
+    expect(rahmen.getAttribute('tabindex')).toBe('0');
+    expect(rahmen.getAttribute('role')).toBe('region');
+    expect(el.querySelector(`#${rahmen.getAttribute('aria-labelledby')}`)?.textContent).toBeTruthy();
+    expect(el.querySelector('.vg-tabelle')?.getAttribute('aria-labelledby')).toBe('vg-noten');
   });
 });

@@ -40,7 +40,9 @@ export function costDayChart(days: readonly UsageDay[]): CostDayChart {
   const hoehe = HEIGHT - 2 * PAD;
   const bars = days.map((d, i) => {
     const wert = werte[i];
-    const h = wert === null || max === 0 ? 0 : (wert / max) * hoehe;
+    // Mindestens ein Pixel, sobald etwas kostete — sonst sähe der Tag aus wie einer ohne Nutzung
+    // (Review PR #18); den genauen Betrag nennt die Tabelle.
+    const h = wert === null || max === 0 || wert <= 0 ? 0 : Math.max(1, (wert / max) * hoehe);
     return {
       tag: d.tag,
       x: round(PAD + i * platz + (platz - breite) / 2),

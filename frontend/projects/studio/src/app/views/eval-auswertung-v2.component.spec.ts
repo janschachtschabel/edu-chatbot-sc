@@ -98,6 +98,15 @@ describe('EvalAuswertungV2Component (Paket 13, F7)', () => {
     expect(paare['Chat-Fehler / Judge-Ausfälle']).toBe('0 / 1');
   });
 
+  it('zeigt ohne Währung Bruchteile eines Cents, nicht „0“ (Review PR #18)', async () => {
+    fixture.componentRef.setInput('run', { ...RUN, profile: undefined, auswertung: {
+      ...RUN.auswertung!, gesamt: { ...RUN.auswertung!.gesamt, kosten_je_zug: 0.0031 } } });
+    await fixture.whenStable();
+    const paare = Object.fromEntries(Array.from(el.querySelectorAll('.av-kennzahlen > div'),
+      (d) => [norm(d.querySelector('dt')?.textContent), norm(d.querySelector('dd')?.textContent)]));
+    expect(paare['Kosten je Zug']).toBe('0,0031');
+  });
+
   it('zeigt den Kurzbericht mit Baustellen', () => {
     const b = norm(el.querySelector('.av-bericht')?.textContent);
     expect(b).toContain('Trägt meistens.');
@@ -120,6 +129,26 @@ describe('EvalAuswertungV2Component (Paket 13, F7)', () => {
     el.querySelector<HTMLButtonElement>('.av-filter button')!.click();
     await fixture.whenStable();
     expect(el.querySelectorAll('studio-eval-ablauf-karte').length).toBe(2);
+  });
+
+  it('ein Ablauf ohne Zielgruppe gehört zur Zeile „?“ der Matrix (Review PR #18)', async () => {
+    // Die Matrix schlüsselt eine fehlende Zielgruppe als „?“, die Karte trägt "" — ein Klick
+    // auf die „?“-Zeile ließ die Liste leer.
+    const ohne = { ...RUN, auswertung: { ...AUSWERTUNG,
+      je_ablauf: [{ ...AUSWERTUNG.je_ablauf[0], zielgruppe: '' }, AUSWERTUNG.je_ablauf[1]] } };
+    fixture.componentRef.setInput('run', ohne as unknown as EvalRunDetail);
+    await fixture.whenStable();
+    fixture.componentInstance.waehleZa({ zeile: '?', spalte: 'suchen' });
+    await fixture.whenStable();
+    const karten = Array.from(el.querySelectorAll('studio-eval-ablauf-karte section'), (k) => k.id);
+    expect(karten).toEqual(['ablauf-GV-LEH-1']);
+  });
+
+  it('sagt es, wenn eine Auswahl keinen Ablauf trifft (Review PR #18)', async () => {
+    fixture.componentInstance.waehleZa({ zeile: 'P-NIEMAND', spalte: 'suchen' });
+    await fixture.whenStable();
+    expect(el.querySelectorAll('studio-eval-ablauf-karte').length).toBe(0);
+    expect(norm(el.querySelector('.av-leer')?.textContent)).toContain('Kein Ablauf');
   });
 
   it('springt aus der Problemliste zur Ablauf-Karte', async () => {

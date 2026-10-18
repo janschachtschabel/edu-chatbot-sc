@@ -125,5 +125,11 @@ describe('NutzungComponent (Paket 16, D3)', () => {
     const { fixture } = await mount(antwort({ raster: r }));
     expect(fixture.componentInstance.stufe(null)).toBeLessThan(0.3);
   });
-});
 
+  it('benennt die Spalten der Verteilungen (Review PR #18)', async () => {
+    const { el } = await mount();
+    const kopf = Array.from(el.querySelectorAll('[data-facette="sprache"] thead th'),
+      (th) => norm(th.textContent));
+    expect(kopf).toEqual(['Wert', 'Züge']);
+  });
+});

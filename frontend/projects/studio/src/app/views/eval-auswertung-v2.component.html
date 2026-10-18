@@ -84,6 +84,8 @@
       <studio-eval-ablauf-karte
         [ablauf]="karte.ablauf" [conv]="karte.conv" [anwendungsfall]="filter()?.spalte ?? null"
       />
+    } @empty {
+      <p class="av-leer">{{ t('evalV2.keinAblauf') }}</p>
     }
   </div>
 </section>

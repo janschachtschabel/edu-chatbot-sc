@@ -338,6 +338,27 @@ describe("EvalRunDetailComponent", () => {
     expect(h.el.querySelector(".erd-bericht-fehler")?.textContent).toContain("Bericht nicht geladen");
   });
 
+  it("baut die Auswertung beim Laufwechsel neu und vergisst den Berichtsfehler (Review PR #18)", async () => {
+    // Das Panel wird für den nächsten Lauf wiederverwendet; vorher behielten Messbedingungen und
+    // Matrixfilter den Zustand von Lauf A unter Lauf B.
+    await mount(detail({ auswertung: AUSWERTUNG }));
+    button("Bericht (Markdown)")!.click();
+    await h.fixture.whenStable();
+    h.http.expectOne(`${url("eval-abc")}/bericht.md`)
+      .flush(new Blob(["weg"]), { status: 500, statusText: "x" });
+    await settle();
+    const vorher = h.el.querySelector("studio-eval-auswertung-v2");
+    expect(h.el.querySelector(".erd-bericht-fehler")).not.toBeNull();
+
+    h.fixture.componentRef.setInput("runId", "eval-xyz");
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === url("eval-xyz"))
+      .flush(detail({ id: "eval-xyz", auswertung: AUSWERTUNG }));
+    await settle();
+    expect(h.el.querySelector("studio-eval-auswertung-v2")).not.toBe(vorher);
+    expect(h.el.querySelector(".erd-bericht-fehler")).toBeNull();
+  });
+
   it("bietet bei generativen Läufen keinen Bericht an", async () => {
     await mount(detail({ mode: "generative" }));
     expect(button("Bericht (Markdown)")).toBeNull();

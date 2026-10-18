@@ -33,4 +33,10 @@ describe('costDayChart (Paket 16, D2)', () => {
     expect(c.bars[0].height).toBe(0);
     expect(Number.isFinite(c.bars[0].y)).toBe(true);
   });
+
+  it('gibt einem Tag mit kleinen Kosten mindestens einen Pixel (Review PR #18)', () => {
+    const c = costDayChart([tag('2026-03-09', '100'), tag('2026-03-10', '0.001')]);
+    expect(c.bars[1].height).toBeGreaterThanOrEqual(1);
+    expect(c.bars[1].y).toBeCloseTo(c.height - c.pad - c.bars[1].height, 5);
+  });
 });

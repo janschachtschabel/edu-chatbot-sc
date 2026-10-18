@@ -10,21 +10,27 @@
     }
   </dl>
 
-  <div class="emb-wechsel" aria-live="polite">
+  <div class="emb-wechsel">
     <h5 class="emb-unter">{{ t('evalV2.wechsel.titel') }}</h5>
-    @switch (wechsel().art) {
-      @case ('laden') { <p>{{ t('evalV2.wechsel.laden') }}</p> }
-      @case ('keine') { <p>{{ t('evalV2.wechsel.keine') }}</p> }
-      @case ('erster') { <p>{{ t('evalV2.wechsel.erster') }}</p> }
-      @case ('unbekannt') { <p>{{ t('evalV2.wechsel.unbekannt') }}</p> }
-    }
+    <!-- Review PR #18: nur der Stand ist live; Überschrift und Alarm stünden sonst doppelt. -->
+    <div aria-live="polite">
+      @switch (wechsel().art) {
+        @case ('laden') { <p>{{ t('evalV2.wechsel.laden') }}</p> }
+        @case ('keine') { <p>{{ t('evalV2.wechsel.keine') }}</p> }
+        @case ('erster') { <p>{{ t('evalV2.wechsel.erster') }}</p> }
+        @case ('unbekannt') { <p>{{ t('evalV2.wechsel.unbekannt') }}</p> }
+      }
+      @if (wechsel(); as stand) {
+        @if (stand.art === 'liste') {
+          <ul>
+            @for (punkt of stand.punkte; track punkt) { <li>{{ punkt }}</li> }
+          </ul>
+        }
+      }
+    </div>
     @if (wechsel(); as stand) {
       @if (stand.art === 'fehler') {
         <p class="emb-fehler" role="alert">{{ t('evalV2.wechsel.fehler', { grund: stand.grund }) }}</p>
-      } @else if (stand.art === 'liste') {
-        <ul>
-          @for (punkt of stand.punkte; track punkt) { <li>{{ punkt }}</li> }
-        </ul>
       }
     }
   </div>

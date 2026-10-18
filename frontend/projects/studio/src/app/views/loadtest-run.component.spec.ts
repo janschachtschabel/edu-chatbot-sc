@@ -445,6 +445,20 @@ describe("LoadtestRunComponent — Live-Region", () => {
     expect(kopf).toContain("Rerank");
     const zeile = h.el.querySelector(".lr-anfragen tbody tr")?.textContent ?? "";
     expect(zeile).toContain("4 s");
+    // Review PR #18: die breiten Tabellen rollen per Tastatur, ihr Rahmen hat einen Namen.
+    for (const rahmen of Array.from(h.el.querySelectorAll(".lr-table-wrap"))) {
+      expect(rahmen.getAttribute("tabindex")).toBe("0");
+      expect(rahmen.getAttribute("role")).toBe("region");
+      expect(rahmen.getAttribute("aria-label")).toBeTruthy();
+    }
+  });
+
+  it("sagt bei einer Art ohne Erfolg „keine erfolgreiche Messung“ statt „höchstens 0 s“ (Review PR #18)", async () => {
+    const h = await mount({
+      ...COMPLETED,
+      stages: [{ ...stage(1), by_kind: { suche: { n: 4, ok: 0, p50_s: 0, p95_s: 0, max_s: 0 } } }],
+    });
+    expect(h.el.querySelector(".lr-kinds")?.textContent).toContain("suche: keine erfolgreiche Messung");
   });
 });
 

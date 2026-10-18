@@ -93,6 +93,7 @@ export const COSTS: CataloguePart = {
     'nutzung.stunde': '{h} Uhr',
     'nutzung.ohneAngabe': '(ohne Angabe)',
     'nutzung.keine': 'keine',
+    'nutzung.spalte.wert': 'Wert',
     'nutzung.raster.title': 'Wochentag × Stunde',
     'nutzung.raster.hint':
       'Züge je Stunde in deutscher Zeit; je dunkler, desto mehr, leer heißt keine. „<5“: Züge '
@@ -191,6 +192,7 @@ export const COSTS: CataloguePart = {
     'nutzung.stunde': '{h}:00',
     'nutzung.ohneAngabe': '(not given)',
     'nutzung.keine': 'none',
+    'nutzung.spalte.wert': 'Value',
     'nutzung.raster.title': 'Weekday × hour',
     'nutzung.raster.hint':
       'Turns per hour in German time; the darker, the more, empty means none. “<5”: turns from '

@@ -133,6 +133,12 @@
                 <span class="nz-nur">{{ t('nutzung.nurMuster') }}</span>
               }
             </caption>
+            <thead>
+              <tr>
+                <th scope="col">{{ t('nutzung.spalte.wert') }}</th>
+                <th scope="col">{{ t('nutzung.zuege') }}</th>
+              </tr>
+            </thead>
             <tbody>
               @for (e of d.verteilungen[f]; track e.wert) {
                 <tr>

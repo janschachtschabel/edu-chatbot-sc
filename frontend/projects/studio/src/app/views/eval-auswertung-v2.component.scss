@@ -80,3 +80,10 @@
   display: grid;
   gap: var(--st-3);
 }
+
+// Review PR #18: eine Auswahl ohne Ablauf sagt es.
+.av-leer {
+  margin: 0;
+  color: var(--st-text-muted);
+  font-size: 0.875rem;
+}

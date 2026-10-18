@@ -79,7 +79,11 @@
     @if (auswertung()) {
       <!-- Paket 13 (F7): Messbedingungen, Kennzahlen, Kurzbericht, Matrizen, Problemliste,
            Abläufe, Zeiten — die harten Prüfungen je Kategorie und die Zug-Tabelle folgen. -->
-      <studio-eval-auswertung-v2 class="erd-v2" [run]="detail" />
+      <!-- Review PR #18: je Lauf neu gebaut — sonst behielten Messbedingungen und Matrixfilter
+           den Zustand des vorigen Laufs (das Panel wird wiederverwendet). -->
+      @for (lauf of [detail]; track lauf.id) {
+        <studio-eval-auswertung-v2 class="erd-v2" [run]="lauf" />
+      }
     }
 
     @if (detail.profile; as profile) {

@@ -52,7 +52,8 @@ export class EvalTrendsV2Component {
             note(wert(v2.gesamt, id)), note(wert(v2.zug_mittel, id)),
             ...this.skalen().map((s) => note(wert(v2.skalen[s], id))),
             latenz === undefined ? '—' : this.fmt.seconds(latenz),
-            kosten === undefined ? '—' : this.fmt.decimal(kosten),
+            // Bruchteile eines Cents sichtbar (Review PR #18); die Reihe trägt keine Währung.
+            kosten === undefined ? '—' : this.fmt.money(kosten.toFixed(10), ''),
           ],
           wechsel: w ? [
             ...w.felder.map((f) => this.t(`evalV2.feld.${f}`)),

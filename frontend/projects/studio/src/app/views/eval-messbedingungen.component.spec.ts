@@ -85,6 +85,18 @@ describe('EvalMessbedingungenComponent (Paket 13, F2)', () => {
     http.expectNone((r) => r.url.endsWith('/eval/trends'));
   });
 
+  it('meldet einen Fehler als Alarm außerhalb der Live-Region, die Überschrift nicht live (Review PR #18)', async () => {
+    await aufklappen();
+    http.expectOne((r) => r.url.endsWith('/eval/trends'))
+      .flush({ detail: 'weg' }, { status: 500, statusText: 'x' });
+    await tick();
+    await fixture.whenStable();
+    const alarm = el.querySelector('.emb-wechsel [role="alert"]');
+    expect(alarm).not.toBeNull();
+    expect(alarm!.closest('[aria-live]')).toBeNull();     // sonst doppelt angesagt
+    expect(el.querySelector('.emb-unter')!.closest('[aria-live]')).toBeNull();
+  });
+
   it('sagt, wenn sich nichts änderte', async () => {
     await aufklappen();
     http.expectOne((r) => r.url.endsWith('/eval/trends')).flush({ runs: [{ id: 'r1' }, { id: 'r2' }], v2: { wechsel: [] } });
