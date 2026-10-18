@@ -85,6 +85,14 @@ describe('CostDaysComponent (Paket 16, D2)', () => {
     expect(hinweis).toContain('kein Preis gepflegt');
   });
 
+  it('nennt auch einen winzigen Höchstbetrag mit seinen Stellen, nicht als „0,00“ (Review 2)', async () => {
+    // `'' + 1e-7` ergibt „1e-7“; daraus las `formatMoney` zwei Stellen — wie S2 in PR #18.
+    const el = await mount([{ tag: '2026-03-10', calls: 1, amount: '0.0000001', unvollstaendig: false }]);
+    const hinweis = norm(el.querySelector('.cd-hinweis')?.textContent);
+    expect(hinweis).not.toContain('0,00 €');
+    expect(hinweis).toContain('0,0000001');
+  });
+
   it('zeigt nichts ohne Tage', async () => {
     const el = await mount([]);
     expect(el.querySelector('svg')).toBeNull();

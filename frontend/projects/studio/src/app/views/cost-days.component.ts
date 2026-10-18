@@ -54,7 +54,8 @@ export class CostDaysComponent {
       return this.hatPreis() ? satz : `${satz} ${this.t('costDays.hintOhnePreis')}`;
     }
     const satz = c.max > 0
-      ? this.t('costDays.hint', { max: this.fmt.money('' + c.max, this.currency()) })
+      // toFixed statt '' + c.max: „1e-7“ läse formatMoney als zwei Stellen (wie S2, PR #18).
+      ? this.t('costDays.hint', { max: this.fmt.money(c.max.toFixed(10), this.currency()) })
       : this.t('costDays.hintKeinBetrag');
     const ohne = this.ohnePreis();
     return ohne > 0 ? `${satz} ${this.lang.plural('costDays.ohnePreis', ohne)}` : satz;
