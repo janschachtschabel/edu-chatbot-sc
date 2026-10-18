@@ -199,10 +199,6 @@ export class McpRegistryComponent {
     return this.reg.hasSwitch(server, name);
   }
 
-  setOffered(index: number, name: string, offered: boolean): void {
-    this.reg.setOffered(index, name, offered);
-  }
-
   edit(index: number, patch: Partial<McpServer>): void {
     this.reg.edit(index, patch);
   }

@@ -49,6 +49,9 @@ type Entry =
   | { readonly kind: 'panel'; readonly key: string;
       readonly panel: CuratedPanelSection; readonly first: boolean };
 
+/** Bereiche, die die Materialformat-Liste mitliest (Aliase, Vorrang). */
+const MATERIAL_NEBENBEREICHE = new Set(['05-canvas/type-aliases', '05-canvas/persona-priorities']);
+
 @Component({
   selector: 'studio-curated-view',
   imports: [
@@ -106,6 +109,9 @@ export class CuratedViewComponent {
    *  erst nach dem nächsten Seitenwechsel. */
   gespeichert(area: string): void {
     if (area === '01-base/engine') void this.effectsApi.refresh();
+    if (MATERIAL_NEBENBEREICHE.has(area)) {
+      for (const liste of this.materialTypen()) void liste.nebenbereicheNeu();
+    }
   }
 
   readonly sections = viewChildren(AreaSectionComponent);

@@ -108,6 +108,8 @@
                 <p class="fs-note" [id]="'fs-grund-' + $index">{{ t('fassungen.ohneEigene') }}</p>
               } @else if (zweiEigene(z)) {
                 <p class="fs-note" [id]="'fs-grund-' + $index">{{ t('fassungen.zweiEigene') }}</p>
+              } @else if (z.status === 'nur-eigen') {
+                <p class="fs-note" [id]="'fs-grund-' + $index">{{ t('fassungen.keinWerk') }}</p>
               }
             }
 

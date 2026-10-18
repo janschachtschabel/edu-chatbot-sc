@@ -19,6 +19,7 @@ import type { AgentTool, AgentToolLock } from '../core/agent-center-api.service'
 import { AgentCenterApi } from '../core/agent-center-api.service';
 import { AsyncData } from '../core/async-data';
 import { McpRegistryStore } from '../core/mcp-registry-store';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { StudioApi } from '../core/studio-api.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { STUDIO_VIEWS } from '../studio-views';
@@ -65,7 +66,12 @@ export class AgentToolsComponent {
   });
 
   protected readonly firstSentence = firstSentence;
-  protected readonly lockLink = lockLink;
+  private readonly ansicht = inject(StudioAnsicht).ansicht;
+
+  /** Wo die Sperre gepflegt wird — im Arbeitsbereich, der gerade offen ist (Review PR #18). */
+  lockLink(lock: AgentToolLock): string | null {
+    return lockLink(lock, this.ansicht());
+  }
 
   private loaded = false;
 
@@ -83,7 +89,6 @@ export class AgentToolsComponent {
     return schalterFuer(tool, this.reg.servers());
   }
 
-  /** Bietet der Chatbot das Werkzeug laut (bearbeiteter) Server-Liste an? */
   /** Woher das Werkzeug kommt — Art, Server und Host; ein fremdes nennt seinen Server auch,
    *  solange die Liste lädt. */
   herkunft(tool: AgentTool): Herkunft {
@@ -109,6 +114,7 @@ export class AgentToolsComponent {
     void this.list.reload();
   }
 
+  /** Bietet der Chatbot das Werkzeug laut (bearbeiteter) Server-Liste an? */
   an(schalter: Schalter): boolean {
     const server = this.reg.servers()[schalter.index];
     return !!server && this.reg.isOffered(server, schalter.name);

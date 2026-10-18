@@ -7,7 +7,7 @@ import {
 import { provideZonelessChangeDetection } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { provideRouter } from "@angular/router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { EffectsApi } from "../core/effects-api.service";
 import { StudioAnsicht } from "../core/studio-ansicht.service";
@@ -521,6 +521,48 @@ describe("CuratedViewComponent", () => {
     http.match(() => true);
     fixture.componentInstance.sections()[0].changed.emit();
     http.expectNone("/studio/api/config/effects");
+  });
+
+  // Review PR #18 (C6): jede Panelart mit eigenem Speichern zählt für den Verlassen-Schutz —
+  // fehlt eine in `dirty`, verlässt ein Entwurf die Seite ohne Rückfrage.
+  it("zählt einen Materialtyp-Entwurf als ungespeichert", async () => {
+    const { fixture, http } = await mount("material-formate");
+    http.match(() => true);
+    expect(fixture.componentInstance.dirty()).toBe(false);
+    fixture.componentInstance.materialTypen()[0].entwurf.set(
+      { id: "neu", label: "Neu", label_en: "", emoji: "", category: "", structure: "" });
+    expect(fixture.componentInstance.dirty()).toBe(true);
+  });
+
+  it("zählt eine geänderte Anrede als ungespeichert", async () => {
+    const { fixture, http } = await mount("zielgruppen");
+    http.match(() => true);
+    expect(fixture.componentInstance.dirty()).toBe(false);
+    fixture.componentInstance.anreden()[0].zeilen.set([{
+      area: "01-base/persona-x", kennung: "P-X", name: "X", doc: null, gewaehlt: "du",
+      busy: false, gespeichert: false, fehler: "", konflikt: null,
+    }]);
+    expect(fixture.componentInstance.dirty()).toBe(true);
+  });
+
+  it("zählt einen umgelegten Werkzeug-Schalter als ungespeichert", async () => {
+    const { fixture, http } = await mount("werkzeuge");
+    http.match(() => true);
+    expect(fixture.componentInstance.dirty()).toBe(false);
+    fixture.componentInstance.werkzeuge()[0].reg.servers.set(
+      [{ name: "wlo", url: "https://example.org/mcp" } as never]);
+    expect(fixture.componentInstance.dirty()).toBe(true);
+  });
+
+  it("liest nach dem Speichern der Aliase die Materialtyp-Liste neu (Review PR #18, C5)", async () => {
+    const { fixture, http } = await mount("material-formate");
+    http.match(() => true);
+    const neu = vi.spyOn(fixture.componentInstance.materialTypen()[0], "nebenbereicheNeu")
+      .mockResolvedValue();
+    const aliase = fixture.componentInstance.sections()
+      .find((s) => s.section().area === "05-canvas/type-aliases")!;
+    aliase.changed.emit();
+    expect(neu).toHaveBeenCalledTimes(1);
   });
 
   it("hält Speichern und Verwerfen beim Scrollen sichtbar (ST-4)", async () => {

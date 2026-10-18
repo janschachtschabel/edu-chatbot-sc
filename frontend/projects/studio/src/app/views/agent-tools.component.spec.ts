@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { AgentToolList } from '../core/agent-center-api.service';
 import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
+import { StudioAnsicht } from '../core/studio-ansicht.service';
 import { AgentToolsComponent } from './agent-tools.component';
 
 const URL = '/studio/api/agent-center/tools';
@@ -144,11 +145,16 @@ describe('AgentToolsComponent (ST-8b)', () => {
     expect(text(zeile(el, 'wlo_create_content').querySelector('.agt-offered'))).toBe('nein');
   });
 
-  it('verweist bei Policy-Sperren auf die Seite, auf der sie gepflegt werden', async () => {
-    const { el } = await loaded();
-    const link = zeile(el, 'search_wlo_content').querySelector<HTMLAnchorElement>('.agt-locks a')!;
-    expect(link.getAttribute('href')).toBe('/identitaet');
-    expect(text(link)).toBe('Seite Identität & Schutz');
+  it('verweist bei Policy-Sperren auf die Seite des offenen Arbeitsbereichs (Review PR #18)', async () => {
+    const { el, fixture } = await loaded();
+    const link = () => zeile(el, 'search_wlo_content').querySelector<HTMLAnchorElement>('.agt-locks a')!;
+    // Vorgabe ist der Agent-Arbeitsbereich: dort steht das Regelwerk auf „Rolle & Schutz“.
+    expect(link().getAttribute('href')).toBe('/agent-rolle');
+    expect(text(link())).toBe('Seite Rolle & Schutz');
+    TestBed.inject(StudioAnsicht).waehle('pattern');
+    await fixture.whenStable();
+    expect(link().getAttribute('href')).toBe('/identitaet');
+    expect(text(link())).toBe('Seite Identität & Schutz');
   });
 
   it('sagt „immer dabei" bei einem Werkzeug ohne Sperre', async () => {
@@ -306,4 +312,27 @@ describe('AgentToolsComponent — Review-Runde 2', () => {
     await h.fixture.whenStable();
     expect(h.el.querySelector('studio-save-conflict')).toBeNull();
   });
+
+  it('„Verwerfen“ nach einem Konflikt holt den Stand des Servers neu (Review PR #18)', async () => {
+    // Vorher setzte es nur lokal zurück und behielt die alte Version — der nächste Schalter lief
+    // wieder in denselben Konflikt.
+    const h = await loaded();
+    const box = Array.from(h.el.querySelectorAll<HTMLInputElement>('.agt-schalter input'))[0];
+    box.checked = !box.checked;
+    box.dispatchEvent(new Event('change'));
+    await h.fixture.whenStable();
+    Array.from(h.el.querySelectorAll('button'))
+      .find((b) => b.textContent?.trim() === 'Speichern')!.click();
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === SERVERS_URL && r.method === 'PUT').flush(
+      { detail: { message: 'x', version: 6, updated_by: 'studio', updated_at: '2026-10-18T08:00:00+00:00' } },
+      { status: 409, statusText: 'Conflict' });
+    await tick();
+    await h.fixture.whenStable();
+    Array.from(h.el.querySelectorAll('button'))
+      .find((b) => b.textContent?.trim() === 'Verwerfen')!.click();
+    await h.fixture.whenStable();
+    expect(h.http.match((r) => r.url === SERVERS_URL && r.method === 'GET')).toHaveLength(1);
+  });
 });
+

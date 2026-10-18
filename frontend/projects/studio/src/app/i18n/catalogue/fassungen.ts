@@ -43,6 +43,7 @@ export const FASSUNGEN: CataloguePart = {
     'fassungen.ohneEigene':
       'Noch keine eigene Fassung — sie entsteht, wenn du den Bereich im Editor änderst.',
     'fassungen.aktualisieren': 'Jetzt aktualisieren',
+    'fassungen.keinWerk': 'Für diesen Bereich gibt es keine Werksfassung — er entstand im Studio.',
     'fassungen.zweiEigene':
       'Werksfassung erst nach dem Tausch — sonst ginge eine der beiden eigenen Fassungen '
       + 'verloren.',
@@ -128,6 +129,7 @@ export const FASSUNGEN: CataloguePart = {
     'fassungen.ohneEigene':
       'No own version yet — it appears once you change the area in the editor.',
     'fassungen.aktualisieren': 'Update now',
+    'fassungen.keinWerk': 'There is no factory version of this area — it was created in the studio.',
     'fassungen.zweiEigene':
       'Factory version only after the swap — otherwise one of the two own versions would be '
       + 'lost.',

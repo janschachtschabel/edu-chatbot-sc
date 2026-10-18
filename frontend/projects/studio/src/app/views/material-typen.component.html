@@ -74,8 +74,8 @@
                 {{ t('materialFormate.verwerfen') }}
               </button>
               @if (!neu()) {
-                <button type="button" class="cs-btn cs-btn--danger" [disabled]="busy()"
-                  (click)="loeschFrage.set(true)">{{ t('materialFormate.loeschen') }}</button>
+                <button type="button" class="cs-btn cs-btn--danger mf-loeschen" [disabled]="busy()"
+                  (click)="fragLoeschen()">{{ t('materialFormate.loeschen') }}</button>
               }
             </div>
             @if (loeschFrage()) {
@@ -83,7 +83,7 @@
                 <p>{{ t('materialFormate.loeschenFrage', { name: typ.label }) }}</p>
                 <button type="button" class="cs-btn cs-btn--danger" [disabled]="busy()"
                   (click)="loeschen()">{{ t('materialFormate.loeschenJa') }}</button>
-                <button type="button" class="cs-btn" (click)="loeschFrage.set(false)">
+                <button type="button" class="cs-btn mf-abbrechen" (click)="abbrechenLoeschen()">
                   {{ t('materialFormate.abbrechen') }}
                 </button>
               </div>

@@ -6,8 +6,10 @@
  * gruppiert und in Sätze übersetzt.
  */
 import type { AgentTool, AgentToolLock } from '../core/agent-center-api.service';
+import type { Engine } from '../core/effects-api.service';
 import type { McpServer } from '../core/mcp-registry-store';
 import type { StudioLanguageService } from '../i18n/studio-language.service';
+import { heimatSeite } from './area-homes';
 
 /** Was `lockText` von der Sprache braucht — im Test ohne Angular zu bauen. */
 export type LockWords = Pick<StudioLanguageService, 't' | 'plural' | 'listOr'>;
@@ -77,11 +79,12 @@ export function lockText(lock: AgentToolLock, w: LockWords): string {
   }
 }
 
-/** Die Studio-Seite, auf der die Sperre gepflegt wird — `null`, wo es keine gibt. */
-export function lockLink(lock: AgentToolLock): string | null {
+/** Die Studio-Seite, auf der die Sperre gepflegt wird — `null`, wo es keine gibt. Die Seite
+ *  „Werkzeuge“ ist gemeinsam: das Regelwerk steht je Arbeitsbereich woanders (Review PR #18). */
+export function lockLink(lock: AgentToolLock, ansicht: Engine): string | null {
   switch (lock.code) {
     case 'policy':
-      return 'identitaet';
+      return heimatSeite('01-base/policy', ansicht);
     case 'knowledge_areas':
       return 'wissen';
     default:
@@ -96,14 +99,14 @@ export interface Schalter {
   readonly server: string;
 }
 
+/** Wie `fremdwerkzeuge._PRIMARY_ID` im Backend. */
+const WLO_SERVER_ID = 'wlo-mcp';
+
 /**
  * Paket 15: der Schalter eines Werkzeugs — `werkzeuge_aus` des Servers, dessen Katalog es
  * führt. Fremde Werkzeuge heißen im Zug `server__werkzeug`. Eingebaute (virtuelle) und
  * Werkzeuge ohne Katalog-Eintrag tragen keinen: dort wirkt ein Schalter nicht.
  */
-/** Wie `fremdwerkzeuge._PRIMARY_ID` im Backend. */
-const WLO_SERVER_ID = 'wlo-mcp';
-
 export function schalterFuer(tool: AgentTool, servers: readonly McpServer[]): Schalter | null {
   if (tool.kind === 'virtual') return null;
   // Fremd: Server und Originalname aus der Zeile; WLO: nur am WLO-Server — ein fremder Server

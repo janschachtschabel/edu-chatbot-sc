@@ -16,6 +16,7 @@ import {
 
 import { describeApiError } from '../core/async-data';
 import { type AreaDocument, ConfigApi, saveCondition } from '../core/config-api.service';
+import { injectFocus } from '../core/inject-focus';
 import { type MaterialTyp, pruefe } from '../core/material-types';
 import { type SaveConflict, StudioApiError } from '../core/studio-api-error';
 import { StudioLanguageService } from '../i18n/studio-language.service';
@@ -66,6 +67,18 @@ export class MaterialTypenComponent {
   private unterbrochen: 'speichern' | 'loeschen' | null = null;
   readonly meldung = signal('');
   readonly loeschFrage = signal(false);
+  /** Review PR #18 (WCAG 2.4.3): die Knöpfe der Rückfrage verschwinden mit ihr. */
+  private readonly focus = injectFocus();
+
+  fragLoeschen(): void {
+    this.loeschFrage.set(true);
+    this.focus('.mf-frage .mf-abbrechen');
+  }
+
+  abbrechenLoeschen(): void {
+    this.loeschFrage.set(false);
+    this.focus('.mf-loeschen');
+  }
 
   readonly typen = computed<readonly MaterialTyp[]>(
     () => (this.doc()?.data['material_types'] as MaterialTyp[] | undefined) ?? []);
@@ -135,6 +148,20 @@ export class MaterialTypenComponent {
     }
   }
 
+  /** Die Abschnitte „Aliase“ und „Vorrang“ stehen auf derselben Seite (Review PR #18): nach
+   *  ihrem Speichern liest die Liste beide neu — der Typen-Entwurf bleibt dabei unberührt. */
+  async nebenbereicheNeu(): Promise<void> {
+    if (!this.gestartet) return;
+    try {
+      const [aliase, vorrang] = await Promise.all(
+        [ALIASE, VORRANG].map((area) => this.config.data(area)));
+      this.aliase.set((aliase.data['aliases'] as Record<string, string> | undefined) ?? {});
+      this.analytisch.set((vorrang.data['analytical_personas'] as string[] | undefined) ?? []);
+    } catch (err) {
+      this.meldung.set(describeApiError(err, this.t));
+    }
+  }
+
   waehle(id: string): void {
     if (this.dirty()) return;
     this.zuruecksetzen(id);
@@ -186,6 +213,7 @@ export class MaterialTypenComponent {
     if (await this.schreibe(this.typen().filter((t) => t.id !== id), 'loeschen')) {
       this.zuruecksetzen('');
       this.meldung.set(this.t('materialFormate.geloescht'));
+      this.focus('.mf-neu');
     }
   }
 

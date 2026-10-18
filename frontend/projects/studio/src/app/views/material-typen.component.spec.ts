@@ -125,6 +125,37 @@ describe('MaterialTypenComponent (Paket 14, D3)', () => {
     expect(norm(el.querySelector('.mf-angebot')?.textContent)).toContain('Steht vorn für: P-ENT, P-RED');
   });
 
+  it('liest Aliase und Vorrang neu, wenn ihre Abschnitte gespeichert wurden — der Entwurf bleibt (Review PR #18)', async () => {
+    await laden();
+    eintraege()[1].click();
+    await fixture.whenStable();
+    reiter('Bearbeiten').click();
+    await fixture.whenStable();
+    await tippe('#mf-label', 'Faktenblatt neu');
+
+    const fertig = fixture.componentInstance.nebenbereicheNeu();
+    http.expectOne(`${BASE}/type-aliases`).flush({ area: '05-canvas/type-aliases', type: 'yaml',
+      version: 3, data: { aliases: { ...ALIASE, 'faktenblatt neu': 'faktenblatt' } } });
+    http.expectOne(`${BASE}/persona-priorities`).flush({ area: '05-canvas/persona-priorities',
+      type: 'yaml', version: 2, data: { analytical_personas: ['P-ENT'] } });
+    http.expectNone(`${BASE}/material-types`);
+    await fertig;
+    await settle();
+
+    expect(fixture.componentInstance.entwurf()?.label).toBe('Faktenblatt neu');
+    expect(fixture.componentInstance.aliase()['faktenblatt neu']).toBe('faktenblatt');
+    expect(fixture.componentInstance.analytisch()).toEqual(['P-ENT']);
+  });
+
+  it('lädt vor dem ersten Öffnen nichts nach', async () => {
+    await laden();
+    const frisch = TestBed.createComponent(MaterialTypenComponent);
+    frisch.componentRef.setInput('section', {
+      panel: 'material-typen', labelKey: 'a', hintKey: 'b' });
+    await frisch.componentInstance.nebenbereicheNeu();
+    http.expectNone(`${BASE}/type-aliases`);
+  });
+
   it('speichert eine Änderung als ganze Liste, bedingt auf die Version', async () => {
     await laden();
     eintraege()[0].click();
@@ -188,6 +219,18 @@ describe('MaterialTypenComponent (Paket 14, D3)', () => {
     await fixture.whenStable();
     const req = http.expectOne((r) => r.method === 'PUT');
     expect(req.request.body.data.material_types.map((t: { id: string }) => t.id)).toEqual(['arbeitsblatt']);
+  });
+
+  it('führt den Fokus in die Rückfrage und zurück (Review PR #18, WCAG 2.4.3)', async () => {
+    await laden();
+    eintraege()[1].click();
+    await fixture.whenStable();
+    knopf('Löschen').click();
+    await fixture.whenStable();
+    expect(document.activeElement?.textContent?.trim()).toBe('Abbrechen');
+    knopf('Abbrechen').click();
+    await fixture.whenStable();
+    expect(document.activeElement?.textContent?.trim()).toBe('Löschen');
   });
 
   async function konfliktNachAenderung(): Promise<void> {

@@ -121,10 +121,16 @@ export class McpRegistryStore {
     this.status.set('');
   }
 
-  /** Paket 15: den gespeicherten Stand zurückholen (Seite „Werkzeuge“). */
+  /** Paket 15: den gespeicherten Stand zurückholen (Seite „Werkzeuge“). Nach einem Konflikt ist
+   *  der gemerkte Stand veraltet — dann vom Server neu, mit seiner Version; sonst liefe der nächste
+   *  Schalter wieder in denselben Konflikt (Review PR #18). */
   discard(): void {
+    if (this.conflict()) {
+      this.conflict.set(null);
+      void this.load();
+      return;
+    }
     this.servers.set(JSON.parse(this.saved()) as McpServer[]);
-    this.conflict.set(null);
     this.status.set('');
   }
 

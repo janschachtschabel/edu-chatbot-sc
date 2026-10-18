@@ -111,10 +111,13 @@ describe('lockText (ST-8b)', () => {
 
 describe('lockLink (ST-8b)', () => {
   it('führt zur Seite, auf der die Sperre gepflegt wird', () => {
-    expect(lockLink({ code: 'policy', rules: ['x'] })).toBe('identitaet');
-    expect(lockLink({ code: 'knowledge_areas' })).toBe('wissen');
-    expect(lockLink({ code: 'safety_fixed', signals: ['pii'] })).toBeNull();
-    expect(lockLink({ code: 'tool_mode', modes: ['curate'] })).toBeNull();
+    expect(lockLink({ code: 'policy', rules: ['x'] }, 'pattern')).toBe('identitaet');
+    // Review PR #18: im Agent-Arbeitsbereich steht das Regelwerk auf „Rolle & Schutz“ —
+    // „Identität & Schutz“ gehört zum anderen Arbeitsbereich.
+    expect(lockLink({ code: 'policy', rules: ['x'] }, 'agent')).toBe('agent-rolle');
+    expect(lockLink({ code: 'knowledge_areas' }, 'agent')).toBe('wissen');
+    expect(lockLink({ code: 'safety_fixed', signals: ['pii'] }, 'agent')).toBeNull();
+    expect(lockLink({ code: 'tool_mode', modes: ['curate'] }, 'pattern')).toBeNull();
   });
 });
 

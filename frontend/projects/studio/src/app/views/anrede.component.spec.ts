@@ -85,6 +85,13 @@ describe('AnredeComponent (Paket 14, C2)', () => {
     expect(auswahl(0).labels?.[0]?.textContent).toContain('Lehrkraft');
   });
 
+  it('benennt jede Spalte, auch die der Speichern-Knöpfe (Review PR #18)', async () => {
+    await laden();
+    const koepfe = Array.from(el.querySelectorAll('thead tr > *'));
+    expect(koepfe.map((k) => k.tagName)).toEqual(['TH', 'TH', 'TH']);
+    expect(koepfe.every((k) => (k.textContent ?? '').trim() !== '')).toBe(true);
+  });
+
   it('speichert eine Zeile als ganzes Dokument, bedingt auf seine Version', async () => {
     await laden();
     expect(knopf(1).disabled).toBe(true);

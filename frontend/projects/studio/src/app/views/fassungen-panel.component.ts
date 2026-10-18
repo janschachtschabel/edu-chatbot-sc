@@ -125,7 +125,8 @@ export class FassungenPanelComponent {
 
   /** Ob ein gesperrter Schalter einen Satz mit seinem Grund hat. */
   gesperrtGrund(z: FassungZeile, ziel: FassungZiel): boolean {
-    return !this.kannWechseln(z, ziel) && (this.ohneEigene(z) || this.zweiEigene(z));
+    return !this.kannWechseln(z, ziel)
+      && (this.ohneEigene(z) || this.zweiEigene(z) || z.status === 'nur-eigen');
   }
 
   hatVergleich(z: FassungZeile): boolean {

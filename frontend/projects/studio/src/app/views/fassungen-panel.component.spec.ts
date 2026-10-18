@@ -330,4 +330,15 @@ describe("FassungenPanelComponent", () => {
     expect(link?.getAttribute("href")).toBe("/bereich/03-patterns/m05?von=sicherung");
     expect(zeile(h, "03-patterns/m08").querySelector("a.fs-editor")).toBeNull();
   });
+
+  it("sagt bei einem Bereich ohne Werksfassung, warum „Werksfassung“ gesperrt ist (Review PR #18)", async () => {
+    const h = await mount({ available: true, bereiche: [
+      { area: "01-base/eigen-neu", status: "nur-eigen", version: 2, hat_eigene_fassung: false }] });
+    const z = zeile(h, "01-base/eigen-neu");
+    expect(wahl(z, "werk").disabled).toBe(true);
+    const grund = (wahl(z, "werk").getAttribute("aria-describedby") ?? "").split(" ")
+      .map((id) => h.el.querySelector(`#${id}`)?.textContent ?? "").join(" ");
+    expect(grund).toContain("keine Werksfassung");
+  });
 });
+
