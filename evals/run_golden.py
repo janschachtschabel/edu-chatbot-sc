@@ -200,6 +200,15 @@ def _tools_max(expect: dict[str, Any]) -> int | None:
     return wert
 
 
+#: Paket 13 (B): use cases of a golden turn — twin of
+#: ``boerdi.domain.config_models.knowledge.ANWENDUNGSFAELLE`` (this module stays
+#: importable without the backend; a test pins both lists together).
+ANWENDUNGSFAELLE: tuple[str, ...] = (
+    "suchen", "zusammenstellen", "erzeugen", "ueberarbeiten", "zeigen", "erklaeren",
+    "wlo_wissen", "orientieren", "kuratieren", "rueckmeldung", "schutz", "sonstiges",
+)
+
+
 def validate_flows(flows: list[dict[str, Any]]) -> None:
     """Check every turn's expectations before the first paid turn.
 
@@ -210,10 +219,19 @@ def validate_flows(flows: list[dict[str, Any]]) -> None:
     """
     for fi, flow in enumerate(flows, start=1):
         flow_id = str(flow.get("id") or f"flow-{fi}")
-        for ti, turn in enumerate(flow.get("turns") or [], start=1):
-            expect = (turn.get("expect") if isinstance(turn, dict) else None) or {}
+        turns = flow.get("turns") or []
+        # Paket 13 (B): the flow judge needs the expectation, the matrix the use case.
+        if turns and not str(flow.get("erwartung") or "").strip():
+            raise ValueError(f"{flow_id}: 'erwartung' fehlt (ein bis drei Sätze für den Judge)")
+        for ti, turn in enumerate(turns, start=1):
+            turn = turn if isinstance(turn, dict) else {}
+            fall = str(turn.get("anwendungsfall") or "")
+            if fall not in ANWENDUNGSFAELLE:
+                raise ValueError(
+                    f"{flow_id} turn {ti}: anwendungsfall={fall!r} — erlaubt: "
+                    + ", ".join(ANWENDUNGSFAELLE))
             try:
-                _tools_max(expect)
+                _tools_max(turn.get("expect") or {})
             except ValueError as e:
                 raise ValueError(f"{flow_id} turn {ti}: {e}") from e
 
@@ -360,6 +378,10 @@ def check_golden_turn(
     }
 
 
+#: Trace steps of the agent loop (``services/agent_trace.spur``).
+_RUNDEN_SCHRITTE = frozenset({"agent_round", "agent_stop"})
+
+
 def flatten_debug(debug: dict[str, Any]) -> dict[str, Any]:
     """The debug fields the judge and the run aggregators read (1:1 ALT
     ``eval_golden._flatten_debug``).
@@ -369,10 +391,17 @@ def flatten_debug(debug: dict[str, Any]) -> dict[str, Any]:
     backend package, so it cannot reach into ``boerdi.*``. ALT keeps the same
     twin (``eval_golden`` vs. the inline copy in ``execute_run``).
 
-    Deliberately a SUBSET: ``trace``/``context``/``entities`` would add
-    kilobytes per turn to every report and every persisted transcript, and
-    nothing downstream reads them.
+    Deliberately a SUBSET: ``context``/``entities`` and most of ``trace`` would
+    add kilobytes per turn to every report and every persisted transcript.
+    Paket 13 (A6) keeps what the evaluation reads: the engine, the agent rounds
+    (``agent_round``/``agent_stop`` trace lines: time, tokens, tool names per
+    round) and the tool outcomes (status, item count, latency). Phase timings and
+    prompt fingerprints already travel inside ``token_usage``.
     """
+    runden = [
+        zeile for zeile in debug.get("trace") or []
+        if isinstance(zeile, dict) and zeile.get("step") in _RUNDEN_SCHRITTE
+    ]
     return {
         "pattern": debug.get("pattern"),
         "persona": debug.get("persona"),
@@ -384,6 +413,9 @@ def flatten_debug(debug: dict[str, Any]) -> dict[str, Any]:
         "llm_engine_match": debug.get("llm_engine_match"),
         "token_usage": debug.get("token_usage"),
         "phase3_modulations": debug.get("phase3_modulations"),
+        "engine": debug.get("engine") or "",
+        "runden": runden,
+        "werkzeug_ergebnisse": debug.get("outcomes") or [],
     }
 
 
@@ -596,7 +628,8 @@ async def run_flows(
                 # wäre die falsche Auslassung.
                 turn_records.append({"user": msg, "bot": f"(chat error: {e})",
                                      "debug": {}, "error": str(e),
-                                     "latency_ms": _ms_since(t_turn)})
+                                     "latency_ms": _ms_since(t_turn),
+                                     "anwendungsfall": str(tspec.get("anwendungsfall") or "")})
                 continue
             latency_ms = _ms_since(t_turn)
             debug = bot_resp.get("debug", {}) or {}
@@ -608,6 +641,7 @@ async def run_flows(
                 "cards_count": len(bot_resp.get("cards") or []),
                 "response_length": len(bot_resp.get("content") or ""),
                 "latency_ms": latency_ms,
+                "anwendungsfall": str(tspec.get("anwendungsfall") or ""),
             })
         # persona_id "*" = kein Klassifikator-Soll: die Backend-Aggregation
         # (``_aggregate_classification_metrics``) liest persona_id/intent_id
@@ -620,6 +654,7 @@ async def run_flows(
             "title": str(flow.get("title") or ""),
             "persona_id": "*",
             "zielgruppe": str(flow.get("zielgruppe") or ""),
+            "erwartung": str(flow.get("erwartung") or ""),
             "intent_id": "",
             "session_id": session_id,
             "turns": turn_records,

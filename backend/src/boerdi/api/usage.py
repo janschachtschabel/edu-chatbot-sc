@@ -12,7 +12,7 @@ OpenAPI-Vertrag; Entscheid und Begründung stehen in
 """
 
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,6 +67,10 @@ async def usage_for_period(
     start: Annotated[datetime, Query(alias="from")],
     end: Annotated[datetime, Query(alias="to")],
     scope: OriginScope = "all",
+    engine: Annotated[
+        Literal["pattern", "agent"] | None,
+        Query(description="Nur Züge dieser Maschine ('pattern' | 'agent'); ohne Angabe beide"),
+    ] = None,
 ) -> dict:
     """Dasselbe über einen Zeitraum, Grenzen einschließlich.
 
@@ -85,4 +89,4 @@ async def usage_for_period(
             status_code=422,
             detail=msg(lang, "usage.periodTooLong", max=MAX_PERIOD_DAYS),
         )
-    return await period_usage(session, start, end, scope=scope)
+    return await period_usage(session, start, end, scope=scope, engine=engine)

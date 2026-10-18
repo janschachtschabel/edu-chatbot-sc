@@ -110,19 +110,25 @@ def _warne_unbekannt(kennung: str) -> None:
     logger.warning("agent_kopf: Schutzregel %s steht nicht in den Leitplanken", kennung)
 
 
+def regeln(leitplanken: str) -> dict[str, str]:
+    """Die Zeilen der Leitplanken-Tabelle: Kennung → Wortlaut (auch die Vorschlagsliste
+    der Schutzregeln im Studio liest sie hier, Paket 15)."""
+    return {m.group(1): m.group(2) for zeile in leitplanken.splitlines()
+            if (m := _ZEILE.match(zeile.strip()))}
+
+
 def _schutzregeln(leitplanken: str, kennungen: list[str]) -> str:
-    regeln = {m.group(1): m.group(2) for zeile in leitplanken.splitlines()
-              if (m := _ZEILE.match(zeile.strip()))}
+    regeln_ = regeln(leitplanken)
     zeilen = []
     for kennung in kennungen:
-        if kennung in regeln:
-            zeilen.append(f"- {regeln[kennung]}")
+        if kennung in regeln_:
+            zeilen.append(f"- {regeln_[kennung]}")
         else:
             _warne_unbekannt(kennung)
     if not zeilen:
         return ""
     erlaeutert = _erlaeuterungen(leitplanken)
-    zusaetze = [erlaeutert[k] for k in kennungen if k in regeln and k in erlaeutert]
+    zusaetze = [erlaeutert[k] for k in kennungen if k in regeln_ and k in erlaeutert]
     return "\n\n".join(["GRENZEN, die immer gelten:\n" + "\n".join(zeilen), *zusaetze])
 
 

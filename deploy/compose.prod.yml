@@ -220,10 +220,11 @@ services:
       # (Audit 2026-09-29). Auf Staging ``BOERDI_ALLOW_LOADTEST=true`` setzen.
       BOERDI_ALLOW_LOADTEST: ${BOERDI_ALLOW_LOADTEST:-false}
       # Ziel der Eval-Läufe = der EIGENE Chat im selben Container (Selbstaufruf,
-      # kein Umweg über traefik/TLS). Der Code-Default zeigt auf ALT-Port 8000,
-      # das Image lauscht auf 8100 — ohne diesen Default brach jeder Eval-Start
-      # im Preflight mit „Chat-Backend nicht erreichbar" ab (gemessen auf Prod
-      # 2026-08-22). Die .env darf weiterhin übersteuern.
+      # kein Umweg über traefik/TLS). Der Code-Default zeigte früher auf ALT-Port
+      # 8000 — damals brach jeder Eval-Start im Preflight mit „Chat-Backend nicht
+      # erreichbar" ab (gemessen auf Prod 2026-08-22). Seit Paket 15 stehen Code
+      # und Image (ENV im Dockerfile) auf 8100; die Zeile bleibt als Absicherung.
+      # Die .env darf weiterhin übersteuern.
       EVAL_CHAT_URL: ${EVAL_CHAT_URL:-http://127.0.0.1:8100/api/chat}
       EVAL_SIMULATOR_MODEL: ${EVAL_SIMULATOR_MODEL:-}
       EVAL_JUDGE_MODEL: ${EVAL_JUDGE_MODEL:-}

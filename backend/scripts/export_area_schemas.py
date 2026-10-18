@@ -4,10 +4,11 @@ import pathlib
 import sys
 
 from boerdi.domain.config_models import AREA_MODELS
+from boerdi.domain.config_models.schema import area_schema
 
 by_model: dict[str, tuple[str, dict]] = {}
 for key, model in AREA_MODELS.items():
-    by_model.setdefault(model.__name__, (key, model.model_json_schema()))
+    by_model.setdefault(model.__name__, (key, area_schema(model)))
 
 payload = {area: schema for _name, (area, schema) in sorted(by_model.items())}
 # NOT sort_keys: pydantic emits properties in field-definition order and

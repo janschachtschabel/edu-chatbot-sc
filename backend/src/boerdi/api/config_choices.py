@@ -26,6 +26,7 @@ from fastapi import APIRouter, Security
 
 from boerdi.api.deps import require_studio_key
 from boerdi.domain.werkzeug_freigabe import uebernommen
+from boerdi.services import agent_kopf
 from boerdi.services import config_loader as cl
 from boerdi.services.mcp import fremdwerkzeuge
 
@@ -93,6 +94,13 @@ def _tools() -> list[Choice]:
     return _sorted([_entry(name, name, "") for name in namen])
 
 
+def _guardrails() -> list[Choice]:
+    """Paket 15: die Regeln der Leitplanken-Tabelle — Kennung mit Wortlaut, damit die
+    Schutzregeln des Agenten nicht nur als „R-13“ dastehen."""
+    tabelle = agent_kopf.regeln(cl.load_guardrails())
+    return _sorted([_entry(k, f"{k}: {text}", "01-base/guardrails") for k, text in tabelle.items()])
+
+
 #: Katalogname -> woher seine Einträge kommen. Die einzige Stelle, an der ein
 #: Katalog benannt wird: ``CATALOG_NAMES`` und die Antwort des Endpunkts leiten
 #: sich beide hieraus ab und können deshalb nicht auseinanderlaufen.
@@ -104,6 +112,7 @@ _SOURCES: dict[str, Callable[[], list[Choice]]] = {
     "entities": lambda: _from_list(cl.load_entities(), "04-entities/entities"),
     "rag_areas": _rag_areas,
     "tools": _tools,
+    "guardrails": _guardrails,
 }
 
 #: Die Namen, auf die ein Modellfeld mit ``x-catalog`` zeigen darf. Ein Wächter

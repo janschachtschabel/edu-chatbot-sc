@@ -7,7 +7,10 @@ That file must stay importable without the backend package (framework-free CLI
 for reference/A-B runs, see its README), so the LLM judge cannot live there.
 This module is the framework-side other half:
 
-* ``judge_conversations`` scores every answered turn via ``eval/judge.py``;
+* ``bewerte_gespraeche`` scores every answered turn and every flow via
+  ``eval/judge_v2.py`` (Paket 13: scales 1–5, flow statement);
+* ``kurzbericht_erstellen`` sums the judged run up in a few sentences (Paket 13, D2);
+* ``kennzahlen_des_laufs`` keeps the compact figures the trends read (D5);
 * ``summarize_golden_run`` composes the run summary from the three aggregators.
 
 The headline stays deterministic. ``avg_score`` is the hard pass rate — the
@@ -24,14 +27,17 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from boerdi.services.config_loader import load_intents, load_persona_definitions
-from boerdi.services.eval.judge import judge_turn
+from boerdi.services.config_loader import load_persona_definitions, load_pricing
+from boerdi.services.eval import auswertung_v2, vergleich_v2
+from boerdi.services.eval.judge import _build_persona_expectations
+from boerdi.services.eval.judge_v2 import judge_ablauf, judge_zug, kurzbericht
 from boerdi.services.eval.metrics import (
     _aggregate,
     _aggregate_classification_metrics,
     count_chat_error_turns,
     count_judge_failed_turns,
 )
+from boerdi.services.eval.run_profile import price_from_table
 
 logger = logging.getLogger(__name__)
 
@@ -45,57 +51,94 @@ def _stub(entity_id: str) -> dict[str, str]:
     return {"id": entity_id, "label": entity_id, "description": ""}
 
 
-async def judge_conversations(conversations: list[dict[str, Any]]) -> int:
-    """Attach an LLM-judge verdict to every answered turn, in place.
+def _persona_erwartungen(persona_id: str) -> str:
+    """Ton- und Anrede-Regeln der Zielgruppe aus der Konfiguration (Rubrik des Judge v1)."""
+    return _build_persona_expectations(persona_id)
 
-    Returns the number of turns successfully judged. Turns carrying an
-    ``error`` are skipped: the chat never answered, so there is nothing to
-    score and a zero would punish the run for an outage.
 
-    GV4: v2 records carry the Zielgruppe separately (``persona_id`` is "*" so
-    the classification metrics see no target) — the judge rubric prefers it.
-    The turn's ``must_offer`` travels to the judge as ``soll_angebot`` and
-    becomes the ``auftrag_erfuellt`` axis. A failing judge call marks the turn
-    ``judge_failed`` (no ``judge`` key), which keeps it out of ``judge_avg``
-    instead of dragging it down with a silent zero.
+async def bewerte_gespraeche(
+    conversations: list[dict[str, Any]], *, usage_acc: dict[str, Any] | None = None,
+) -> dict[str, int]:
+    """Judge v2 (Paket 13): jeden beantworteten Zug, dann jeden Ablauf bewerten, in place.
 
-    One judge call per turn — a 12-flow gold run is roughly 40 calls, which is
-    why ``judge`` is opt-in on the endpoint.
+    Zug-Urteile stehen in ``turn["judge"]`` (flach, mit ``total`` 0–1 wie im Judge v1 — so
+    lesen Laufliste und ``judge_avg`` weiter eine Note), das Ablauf-Urteil in ``conv["urteil"]``.
+    Ein Ausfall wird vermerkt (``turn["judge_failed"]`` bzw. ``conv["urteil_fehler"]``) und nie
+    als Note gezählt (GV4). Züge mit ``error`` sind übersprungen: die Person bekam keine Antwort.
+    Ein Ablauf ganz ohne Antwort bekommt kein Urteil — der Judge sähe nichts.
+
+    Die Zielgruppe (``zielgruppe``, sonst ``persona_id``) kommt einmal je Lauf aus der
+    Konfiguration; ``usage_acc`` sammelt die Kosten aller Judge-Aufrufe.
     """
-    persona_defs = {p.get("id"): p for p in load_persona_definitions()}
-    intent_defs = {i.get("id"): i for i in load_intents()}
-    judged = 0
-
+    definitionen = {p.get("id"): p for p in load_persona_definitions()}
+    zielgruppen: dict[str, dict[str, Any]] = {}
+    zahl = {"zuege": 0, "ablaeufe": 0}
     for conv in conversations:
-        flow_persona = str(conv.get("zielgruppe") or conv.get("persona_id") or "*")
-        persona = persona_defs.get(flow_persona) or _stub(flow_persona)
-        for turn in conv.get("turns", []):
+        gid = str(conv.get("zielgruppe") or conv.get("persona_id") or "*")
+        if gid not in zielgruppen:
+            bekannt = definitionen.get(gid)
+            basis = bekannt or _stub(gid)
+            zielgruppen[gid] = {
+                "id": gid, "label": basis.get("label") or gid,
+                "description": basis.get("description") or "",
+                "erwartungen": _persona_erwartungen(gid) if bekannt else "",
+            }
+        zielgruppe = zielgruppen[gid]
+        beantwortet = 0
+        for index, turn in enumerate(conv.get("turns") or []):
             if turn.get("error"):
                 continue
-            # Per-turn expectation, NOT the flow's primary intent: a multi-turn
-            # flow shifts intent, and judging turn 3 against turn 1's target
-            # would score a correct answer as wrong. An unset expectation
-            # becomes an empty stub — "no target" rather than a guessed one.
-            # (v2 records carry no intent expectations at all.)
-            intent_id = str(turn.get("expected_intent") or "")
-            intent = intent_defs.get(intent_id) or _stub(intent_id)
-            soll = str(
-                ((turn.get("golden") or {}).get("expected") or {})
-                .get("must_offer") or ""
-            )
+            beantwortet += 1
             try:
-                turn["judge"] = await judge_turn(
-                    persona, intent, turn.get("user") or "",
-                    turn.get("bot") or "", turn.get("debug") or {},
-                    soll_angebot=soll or None,
-                )
-            except Exception as e:
-                logger.warning("[golden] judge failed for a turn: %s", e)
-                turn["judge_failed"] = str(e)[:200]
+                turn["judge"] = await judge_zug(conv, index, zielgruppe, usage_acc=usage_acc)
+            except Exception as fehler:
+                logger.warning("[golden] Zug-Urteil fehlgeschlagen: %s", fehler)
+                turn["judge_failed"] = str(fehler)[:200]
                 continue
-            judged += 1
+            zahl["zuege"] += 1
+        if not beantwortet:
+            conv["urteil_fehler"] = "keine beantworteten Züge"
+            continue
+        try:
+            conv["urteil"] = await judge_ablauf(conv, zielgruppe, usage_acc=usage_acc)
+        except Exception as fehler:
+            logger.warning("[golden] Ablauf-Urteil fehlgeschlagen: %s", fehler)
+            conv["urteil_fehler"] = str(fehler)[:200]
+            continue
+        zahl["ablaeufe"] += 1
+    return zahl
 
-    return judged
+
+def kennzahlen_des_laufs(conversations: list[dict[str, Any]]) -> dict[str, Any]:
+    """Kompakte Kennzahlen eines Laufs für die Trends (Paket 13, D5), beim Abschluss gespeichert.
+
+    Die Trend-Abfrage lädt keine Transkripte (Paket 4, E1) — Noten, Latenz, Kosten und die
+    Prompt-Fassungen stehen deshalb im Summary. Die Kosten gelten zum Preis beim Abschluss.
+    """
+    g = auswertung_v2.auswerten({"conversations": conversations},
+                                price_from_table(load_pricing()))["gesamt"]
+    return {"gesamt_mittel": g["gesamt_mittel"], "skalen_mittel": g["skalen_mittel"],
+            "zug_mittel": g["zug_mittel"], "latenz_p50_ms": g["latenz"]["p50_ms"],
+            "kosten_je_zug": g["kosten_je_zug"],
+            "prompts": vergleich_v2.prompt_fassungen({"conversations": conversations})}
+
+
+async def kurzbericht_erstellen(
+    conversations: list[dict[str, Any]], *, usage_acc: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Kurzbericht über den bewerteten Lauf (Paket 13, D2): ``{"text", "baustellen"}``.
+
+    Der Judge sieht die Auswertung (``auswertung_v2``), nicht die Gespräche — Kennzahlen,
+    Statements je Ablauf und schwache Zellen. Ein Ausfall kommt als ``{"fehler": …}`` zurück;
+    der Lauf bleibt gültig, ihm fehlt nur der Bericht.
+    """
+    auswertung = auswertung_v2.auswerten({"conversations": conversations},
+                                         price_from_table(load_pricing()))
+    try:
+        return await kurzbericht(auswertung, usage_acc=usage_acc)
+    except Exception as fehler:
+        logger.warning("[golden] Kurzbericht fehlgeschlagen: %s", fehler)
+        return {"fehler": str(fehler)[:200]}
 
 
 def summarize_golden_run(

@@ -73,12 +73,19 @@ RUN useradd --create-home --uid 1000 boerdi
 RUN mkdir -p /models && chown boerdi:boerdi /models
 
 WORKDIR /app
+# Paket 13 (A7): Stand des Abbilds für die Messbedingungen eines Eval-Laufs; image.yml
+# befüllt beide, ein lokaler Bau lässt sie leer.
+ARG BOERDI_VERSION=""
+ARG GIT_SHA=""
+ENV BOERDI_VERSION=${BOERDI_VERSION} \
+    GIT_SHA=${GIT_SHA}
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     WIDGET_DIST_DIR=/app/widget_dist \
     STUDIO_DIST_DIR=/app/studio_dist \
-    EVAL_RUNNER_PATH=/app/evals/run_golden.py
+    EVAL_RUNNER_PATH=/app/evals/run_golden.py \
+    EVAL_CHAT_URL=http://127.0.0.1:8100/api/chat
 
 COPY --from=deps /app/.venv /app/.venv
 

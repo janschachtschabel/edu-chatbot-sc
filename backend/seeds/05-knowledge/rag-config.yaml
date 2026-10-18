@@ -2,8 +2,9 @@
 #
 # mode:  gilt fuer den MUSTER-Weg. always = vor dem ersten Modellzug geholt,
 #        on-demand = nur, wenn das Modell danach fragt. Ein Eintrag OHNE `mode`
-#        wird vom Loader ganz verworfen — das Feld ist der Schluessel, nicht nur
-#        eine Einstellung.
+#        zaehlt im Muster-Weg nur, wo ein Muster ihn ausdruecklich in `rag_areas`
+#        nennt; die Agent-Schleife liest allein `agent` (Paket 15, A4 — bis dahin
+#        verwarf der Loader solche Eintraege ganz).
 #        Beides nur in Mustern, die den Bereich nutzen: mit `rag_areas` genau
 #        die genannten (eine leere Liste heisst keine); ohne `rag_areas` alle
 #        mit always oder on-demand, wenn `sources` `rag` enthaelt, sonst keinen.

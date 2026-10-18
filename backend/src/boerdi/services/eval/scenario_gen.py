@@ -142,7 +142,7 @@ def _build_persona_markers_block(
 
 async def generate_scenarios(
     personas: list[dict], intents: list[dict], count_per_combo: int = 2,
-    progress_cb: Any = None,
+    progress_cb: Any = None, *, usage_acc: dict[str, Any] | None = None,
 ) -> list[dict]:
     """Generate realistic opening messages for each (persona, intent) combo.
 
@@ -204,6 +204,8 @@ async def generate_scenarios(
                     model=simulator_model(),
                     temperature=0.7,
                     background=True,
+                    # Paket 15 (A6): die Szenarien-Kosten des Laufs auf die Kosten-Seite
+                    usage_acc=usage_acc, phase="szenario",
                 )
                 raw = (resp.choices[0].message.content or "").strip()
                 # Strip markdown quote blocks, numbered prefixes, bullet chars.

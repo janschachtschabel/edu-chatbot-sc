@@ -9,6 +9,9 @@ engine each run recorded (``run_engine``).
 A run counts only when it finished and its engine is known; everything else is
 named in ``warnings`` instead of silently shrinking the sample. Warnings are
 codes with values, not K0-1's German sentences: the Studio speaks two languages.
+
+Paket 13 (D4) adds the judge v2 scales per run and engine, and what changed
+between the runs against the first one (``vergleich_v2``).
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from boerdi.db.models import EvalRun
 from boerdi.domain.config_models import PricingArea
 from boerdi.services.config_loader import load_pricing
-from boerdi.services.eval import engine_metrics
+from boerdi.services.eval import engine_metrics, vergleich_v2
 from boerdi.services.eval.run_engine import run_engine
 from boerdi.services.eval.run_profile import fallback_texts, price_from_table
 
@@ -74,7 +77,13 @@ def _compare(
         grouped.setdefault(engine, []).append(engine_metrics.turns_of(detail))
         counted.append({"engine": engine, "label": run_id, "run_id": run_id})
 
-    result = engine_metrics.evaluate(grouped, price_from_table(table), fallback_texts())
+    price = price_from_table(table)
+    result = engine_metrics.evaluate(grouped, price, fallback_texts())
+    bewertungen: list[tuple[str, dict[str, Any] | None]] = []
+    for run in runs:
+        if run["counted"]:
+            run["bewertung"] = vergleich_v2.bewertung(details[run["id"]], price)
+            bewertungen.append((run["engine"], run["bewertung"]))
     # Only the groups: K0-1's sentences are German, and its "measured X" check
     # compares against a matrix plan the Studio does not have.
     _, conditions = engine_metrics.check_conditions(counted, details)
@@ -86,6 +95,8 @@ def _compare(
         "currency": table.currency if table is not None else None,
         "conditions": conditions,
         "runs": runs,
+        "bewertung_je_maschine": vergleich_v2.je_maschine(bewertungen),
+        "unterschiede": vergleich_v2.unterschiede(list(details.items())),
         "warnings": warnings,
     }
 

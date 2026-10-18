@@ -144,6 +144,9 @@ def validate_profile(profile: dict[str, Any]) -> dict[str, Any]:
         "mix": mix,
         "p95_threshold_s": p95_threshold,
         "engine": engine,
+        # Paket 15 (E1): eine Anfrage vorab, die nicht zählt — Master-Skill-Abruf und
+        # Prompt-Cache sind dann warm, die erste Stufe misst den Betrieb, nicht den Start.
+        "warmup": bool(profile.get("warmup", True)),
         "total_requests": total,
     }
 
@@ -179,6 +182,8 @@ def _row_to_run(row: LoadtestRun) -> dict[str, Any]:
         "resource_samples": result.get("resource_samples", []),
         "summary": result.get("summary"),
         "error": result.get("error"),
+        # Paket 15 (E1): die Aufwärm-Anfrage — gemessen, aber in keiner Stufe gezählt.
+        "warmup": result.get("warmup"),
     }
 
 
@@ -356,11 +361,26 @@ async def _fire_request(
                               timeout=REQUEST_TIMEOUT_S, headers=headers)
         dt = time.perf_counter() - t0
         return {"kind": kind, "ok": r.status_code == 200, "status": r.status_code,
-                "latency_s": round(dt, 2)}
+                "latency_s": round(dt, 2), **_werkzeug_angaben(r)}
     except Exception as e:  # network/timeout → count as a failed request, keep going
         dt = time.perf_counter() - t0
         return {"kind": kind, "ok": False, "status": 0,
                 "latency_s": round(dt, 2), "error": type(e).__name__}
+
+
+def _werkzeug_angaben(r: httpx.Response) -> dict[str, Any]:
+    """Paket 15 (E1): Werkzeuge und Werkzeugzeit eines Zugs aus seinem Debug-Block — damit
+    sich ein langsamer Zug ohne Nachrichten-Tabelle einordnen lässt (MCP-Ausreißer oder
+    Ausweich-Kette). Eine unlesbare Antwort liefert nichts, statt die Messung zu stören."""
+    try:
+        debug = (r.json() or {}).get("debug") or {}
+    except ValueError:
+        return {}
+    zeiten = ((debug.get("token_usage") or {}).get("zeiten_ms") or {})
+    angaben: dict[str, Any] = {"werkzeuge": len(debug.get("tools_called") or [])}
+    if isinstance(zeiten.get("respond.werkzeuge"), int | float):
+        angaben["werkzeuge_ms"] = zeiten["respond.werkzeuge"]
+    return angaben
 
 
 async def _run_stage(
@@ -401,6 +421,8 @@ def _stage_stats(
             "ok": len(ks),
             "p50_s": round(_percentile(ks, 50), 2),
             "p95_s": round(_percentile(ks, 95), 2),
+            # Paket 15 (Review #6): bei wenigen Messungen zeigt das Studio das echte Maximum.
+            "max_s": round(max(ks), 2) if ks else 0.0,
         }
     return {
         "concurrency": concurrency,
@@ -415,6 +437,8 @@ def _stage_stats(
         "duration_s": round(stage_dt, 1),
         "rps": round(requests / stage_dt, 2) if stage_dt > 0 else 0.0,
         "by_kind": by_kind,
+        # Paket 15 (E1): jede Anfrage einzeln, in Startreihenfolge.
+        "anfragen": [{"nr": i + 1, **r} for i, r in enumerate(results)],
     }
 
 
@@ -494,10 +518,17 @@ async def execute_load_test(app: Any, run_id: str, profile: dict[str, Any]) -> N
     # sehen, nicht erst am Ende bekommen.
     samples: list[dict[str, Any]] = result["resource_samples"]
     stop_sampling = asyncio.Event()
-    sampler = asyncio.create_task(_sample_resources(samples, stop_sampling))
+    sampler: asyncio.Task[None] | None = None
     try:
         # ``.get``: vor Befund 7 gespeicherte Profile tragen kein engine-Feld.
         engine = str(profile.get("engine") or "default")
+        if profile.get("warmup"):
+            kind = next(iter(profile["mix"]))
+            result["warmup"] = (await _run_stage(app, f"{run_id}w", 99, 1, [kind],
+                                                 engine=engine))[0]
+        # Erst nach dem Aufwärmen: es zählt nicht — auch nicht in Spitzen-RAM/-CPU
+        # (Review-Runde 2).
+        sampler = asyncio.create_task(_sample_resources(samples, stop_sampling))
         for stage_idx, concurrency in enumerate(profile["stages"]):
             n = profile["requests_per_stage"]
             kinds = _mix_sequence(profile["mix"], n)
@@ -526,10 +557,11 @@ async def execute_load_test(app: Any, run_id: str, profile: dict[str, Any]) -> N
         # „list changed size during iteration"), und ein verwaister Task liefe
         # nach einem Fehlschlag endlos weiter.
         stop_sampling.set()
-        try:
-            await asyncio.wait_for(sampler, timeout=2)
-        except (TimeoutError, asyncio.CancelledError):
-            sampler.cancel()
-            logger.debug("resource sampler did not stop in time; cancelled")
+        if sampler is not None:
+            try:
+                await asyncio.wait_for(sampler, timeout=2)
+            except (TimeoutError, asyncio.CancelledError):
+                sampler.cancel()
+                logger.debug("resource sampler did not stop in time; cancelled")
         result["finished_at"] = _now_iso()
         await _persist(factory, run_id, status=status, result=result)

@@ -13,7 +13,7 @@ Stelle gepflegt wird.
 
 from typing import Annotated, Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from boerdi.domain.config_models._shared import AreaModel, Choices, Marker, Primary, Textarea
 
@@ -24,8 +24,10 @@ class WelcomeBlock(AreaModel):
     # ST-2i: je Start-Chip ein Radio „Als Tour-Chip" — schreibt tour_reply
     quick_replies: Annotated[list[str], Marker("tour_reply"), Primary()] = []
     tour_reply: str = ""
-    greeting_en: Annotated[str, Textarea()] = ""
-    quick_replies_en: Annotated[list[str], Marker("tour_reply_en")] = []
+    # Paket 15: auch die englischen Texte sind Inhalt — sonst standen sie zwischen den
+    # Grundwerten, seit Textflächen keinen eigenen Abschnitt mehr bekommen.
+    greeting_en: Annotated[str, Textarea(), Primary()] = ""
+    quick_replies_en: Annotated[list[str], Marker("tour_reply_en"), Primary()] = []
     tour_reply_en: str = ""
 
 
@@ -145,7 +147,9 @@ class ContextPill(AreaModel):
         "generate_learning_path", "show_content_text",
     )] | None = None
     url: str | None = None
-    params: dict[str, Any] | None = None
+    # Paket 15 (D3): ``params`` entfernt — gelesen hat es niemand (die Parameter einer Aktion
+    # baut ``graph/nodes/context_greeting``), im Studio stand dafür je Liste ein JSON-Kasten.
+    # Alte Dokumente mit ``params`` bleiben gültig (``extra="allow"``).
 
 
 class ContextActionsBlock(AreaModel):
@@ -188,6 +192,25 @@ class TourFlow(AreaModel):
     tour_einstieg: str = ""
 
 
+class _TourTeil(AreaModel):
+    """Ein leerer YAML-Schlüssel (``null``) gilt als nicht gesetzt — wie ``domain/tour`` ihn liest
+    (``or {}`` / ``or ""``). Sonst wiese die Prüfung ab, womit die Laufzeit zurechtkommt: im
+    Formular, im Rohtext und beim Wiederherstellen (Review-Runde 2)."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _ohne_leere(cls, daten: Any) -> Any:
+        if isinstance(daten, dict):
+            return {k: v for k, v in daten.items() if v is not None}
+        return daten
+
+
+class LabelPath(_TourTeil):
+    label: str = ""
+    label_en: str = ""
+    path: str = ""
+
+
 class TourGroup(AreaModel):
     id: str
     label: str = ""
@@ -197,13 +220,70 @@ class TourGroup(AreaModel):
     label_en: str = ""
     synonyms: list[str] = []
     page: str | None = None
-    angebote: Any = None
+    # Paket 15 (D2): bis dahin ``Any`` — im Studio ein JSON-Kasten. Gelesen in ``domain/tour``
+    # als Liste von ``label``/``path`` (``_en`` wie überall).
+    angebote: list[LabelPath] | None = None
 
 
-class LabelPath(AreaModel):
-    label: str = ""
-    label_en: str = ""
-    path: str = ""
+class TourStepIntro(_TourTeil):
+    nav_label: str = "Zur Startseite"
+    nav_label_en: str = ""
+
+
+class TourStepGroup(_TourTeil):
+    text: Annotated[str, Textarea()] = ""
+    text_en: Annotated[str, Textarea()] = ""
+    unsure_label: str = ""
+    unsure_label_en: str = ""
+    unsure_text: Annotated[str, Textarea()] = ""
+    unsure_text_en: Annotated[str, Textarea()] = ""
+
+
+class TourStepGroupPage(_TourTeil):
+    nav_label: str = "Zur Seite"
+    nav_label_en: str = ""
+    text: Annotated[str, Textarea()] = ""
+    text_en: Annotated[str, Textarea()] = ""
+
+
+class TourStepContent(_TourTeil):
+    nav_label: str = "Zu den Bildungsinhalten"
+    nav_label_en: str = ""
+    text: Annotated[str, Textarea()] = ""
+    text_en: Annotated[str, Textarea()] = ""
+
+
+class TourStepSolutions(_TourTeil):
+    nav_label: str = "Weiter zum Abschluss"
+    nav_label_en: str = ""
+    text: Annotated[str, Textarea()] = ""
+    text_en: Annotated[str, Textarea()] = ""
+    angebote_label: str = "Für dich relevant"
+    angebote_label_en: str = ""
+    sublinks_label: str = "Zum Stöbern"
+    sublinks_label_en: str = ""
+
+
+class TourStepContact(_TourTeil):
+    text: Annotated[str, Textarea()] = ""
+    text_en: Annotated[str, Textarea()] = ""
+    links_label: str = "Hier geht's weiter"
+    links_label_en: str = ""
+
+
+class TourSteps(_TourTeil):
+    """Paket 15 (D2): die sechs Schritte, in der Reihenfolge von ``domain/tour.STEP_ORDER``.
+
+    Bis dahin ``dict[str, Any]`` — ein JSON-Kasten. Die Vorgaben sind die Rückfälle, die
+    ``domain/tour`` beim Lesen einsetzt; gespeichert wird weiter das rohe Dokument.
+    """
+
+    intro: TourStepIntro = TourStepIntro()
+    group: TourStepGroup = TourStepGroup()
+    group_page: TourStepGroupPage = TourStepGroupPage()
+    content: TourStepContent = TourStepContent()
+    solutions: TourStepSolutions = TourStepSolutions()
+    contact: TourStepContact = TourStepContact()
 
 
 class WebsiteTourBlock(AreaModel):
@@ -224,13 +304,13 @@ class WebsiteTourBlock(AreaModel):
     nudge_en: Annotated[str, Textarea()] = ""
     explore: Annotated[str, Textarea()] = ""
     explore_en: Annotated[str, Textarea()] = ""
-    # ``entry`` und ``steps`` sind freie Dicts — dort reisen die ``_en``-
-    # Schlüssel ohne Modelländerung mit (wie ``effect`` in C1-g2c).
+    # ``entry`` ist ein freies Dict — dort reisen die ``_en``-Schlüssel ohne Modelländerung
+    # mit (wie ``effect`` in C1-g2c). ``steps`` ist seit Paket 15 typisiert (``TourSteps``).
     entry: dict[str, Annotated[str, Textarea()]] = {}
     groups: list[TourGroup] = []
     content_sublinks: list[LabelPath] = []
     contact_links: list[LabelPath] = []
-    steps: dict[str, Any] = {}
+    steps: TourSteps = TourSteps()
 
 
 class WebsiteTourArea(AreaModel):

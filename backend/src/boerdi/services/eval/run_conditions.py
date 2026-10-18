@@ -17,12 +17,18 @@ vermerkt bzw. geloggt, der Lauf geht weiter.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from typing import Any
 
-from boerdi.services import master_skill
+from boerdi.services import config_loader as cl
+from boerdi.services import master_skill, seed_sync
 from boerdi.services.config_loader import load_engine
+from boerdi.services.engine_choice import choose_engine
+from boerdi.services.eval import fingerprint
 from boerdi.services.eval.scenario_gen import judge_model
 from boerdi.services.llm_models import get_chat_model, get_provider
+from boerdi.services.llm_weg import weg_beschreibung
+from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +37,33 @@ logger = logging.getLogger(__name__)
 _DECKEL = {"max_iterations", "deadline_s", "token_budget", "write_mode"}
 
 
-async def run_conditions(*, judge_enabled: bool) -> dict[str, Any]:
-    """Womit dieser Lauf misst — Modelle, Master-Skill-Stand, Deckel."""
+async def _werk() -> dict[str, dict[str, Any]] | None:
+    """Die Werksfassung (Seed) — ``None`` ohne Seed-Baum."""
+    pfad = seed_sync.seed_pfad(get_settings().config_seed_dir)
+    return None if pfad is None else await seed_sync.seed_lesen(pfad)
+
+
+async def _konfiguration() -> dict[str, Any]:
+    """Fingerabdruck der gelebten Konfiguration; ein Fehler wird vermerkt, nicht geworfen."""
+    try:
+        zeilen = await cl.bound_store().fassungen()
+        return fingerprint.konfig_fingerprint(zeilen, werk=await _werk())
+    except Exception as fehler:  # Store nicht gebunden, Datenbank, Seed unlesbar
+        logger.warning("Messbedingungen: Konfiguration nicht lesbar: %s", fehler)
+        return {"fehler": f"{type(fehler).__name__}: {fehler}"[:200]}
+
+
+async def run_conditions(
+    *, judge_enabled: bool, engine: str = "default",
+    flows: Sequence[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Womit dieser Lauf misst — Modelle, Weg, Maschine, Master-Skill-Stand, Deckel.
+
+    ``engine`` ist die Wahl des Laufs (``default`` heißt: die Vorgabe des Servers),
+    ``flows`` die ausgewählten Golden-Abläufe. Paket 13 (A2/A3): ``maschine``,
+    ``weg``/``judge_weg`` (``llm_weg``), ``app``, ``konfiguration`` und ``gold_flows``
+    machen zwei Läufe vergleichbar, die mit verschiedenem Stand liefen.
+    """
     try:
         skill = await master_skill.anzeige()
     except Exception as fehler:  # Transport, MCP, Programmfehler
@@ -45,6 +76,15 @@ async def run_conditions(*, judge_enabled: bool) -> dict[str, Any]:
         "judge_model": judge_model() if judge_enabled else "",
         "master_skill": skill,
         "agent_limits": load_engine().agent.model_dump(include=_DECKEL),
+        "maschine": choose_engine(None if engine == "default" else engine),
+        "weg": weg_beschreibung(),
+        "judge_weg": weg_beschreibung(judge_model()) if judge_enabled else None,
+        "app": {"version": get_settings().boerdi_version, "commit": get_settings().git_sha},
+        "konfiguration": await _konfiguration(),
+        "gold_flows": None if flows is None else {
+            "hash": fingerprint.gold_flows_hash(flows),
+            "ids": [str(f.get("id") or "") for f in flows],
+        },
     }
 
 

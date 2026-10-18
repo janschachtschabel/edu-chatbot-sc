@@ -203,6 +203,22 @@ class ConfigWerkEntfernt(Base):
     )
 
 
+class PromptVersion(Base):
+    """Eine Fassung eines festen Prompt-Bausteins, Schlüssel ist die Prüfsumme (0012)."""
+
+    __tablename__ = "prompt_versions"
+
+    hash: Mapped[str] = mapped_column(Text, primary_key=True)
+    art: Mapped[str] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(Text)
+    erstmals: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    zuletzt: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class ConfigHistory(Base):
     __tablename__ = "config_history"
 

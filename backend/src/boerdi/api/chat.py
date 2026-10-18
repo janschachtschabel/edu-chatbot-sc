@@ -39,7 +39,7 @@ from boerdi.graph.build import build_turn_graph, run_turn
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import bot_text, msg, resolve_locale
 from boerdi.obs.progress import TurnProgress
-from boerdi.services import betriebsschalter
+from boerdi.services import betriebsschalter, prompt_ablage
 from boerdi.services.db_sessions import save_message
 from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
 from boerdi.services.mcp.anmeldung import abgelehnt_in_diesem_zug
@@ -80,6 +80,8 @@ async def _record_usage(session: AsyncSession, session_id: str, state: dict) -> 
         debug = getattr(antwort, "debug", None)
         await record_turn_usage(session, session_id, state.get("usage"),
                                 engine=getattr(debug, "engine", "") or None)
+        # Paket 13 (A5): neue Prompt-Fassungen dieses Zuges — derselbe Trichter, dieselbe Sitzung.
+        await prompt_ablage.speichere(session, state.get("usage"))
     except Exception:
         logger.warning("usage: Verbrauch dieses Zuges nicht erfasst", exc_info=True)
 

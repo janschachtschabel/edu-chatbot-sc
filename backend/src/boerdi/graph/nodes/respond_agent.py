@@ -75,6 +75,7 @@ from boerdi.services import (
     betriebsschalter,
     master_skill,
     page_context,
+    prompt_ablage,
     seitenkontext_prompt,
 )
 from boerdi.services.agent_abschluss import abschluss_nachholen, antwort_oder_ersatz
@@ -101,9 +102,10 @@ def _antwort_werkzeug(ctx: TurnContext) -> dict[str, Any] | None:
     """``respond_to_user`` für den Agenten — nur mit den Agent-Schnellantworten
     (Studio ``betrieb.agent_schnellantworten`` oder ``AGENT_INLINE_QUICK_REPLIES``).
 
-    Vorgabe aus: der Master-Skill beschreibt die alte Mechanik („ein zweiter
-    Modellaufruf schreibt die Pillen"), und Werkzeug und Anleitung dürfen sich
-    nicht widersprechen. ``inline_anzahl`` trägt den globalen Schalter und die
+    Vorgabe an seit Paket 15 — Token-Streaming im Agent-Modus braucht das Werkzeug.
+    Der Master-Skill muss die Mechanik dazu beschreiben (nicht mehr „ein zweiter
+    Modellaufruf schreibt die Pillen"); Werkzeug und Anleitung dürfen sich nicht
+    widersprechen. ``inline_anzahl`` trägt den globalen Schalter und die
     Anzahl — dieselbe wie im Muster-Weg (Plan 2026-09-30).
     """
     if not betriebsschalter.agent_schnellantworten():
@@ -182,6 +184,8 @@ async def respond_agent(
     messages: list[dict] = [
         {"role": "system", "content": kopf(einstellung.agent_rolle, sprache)},
     ]
+    # Paket 13 (A5): die festen Bausteine als Prüfsummen im Merkposten des Zuges.
+    prompt_ablage.merke(ctx.usage, "agent.kopf", messages[0]["content"])
     # N3: die redaktionelle Gesamtanleitung — GROSS und zwischen zwei Zuegen
     # unveraendert, deshalb im Systemteil; der eigene Rollen-Block bleibt davor,
     # denn eigene Regeln gehoeren vor fremden Text. Gemessen 2026-09-29
@@ -192,6 +196,7 @@ async def respond_agent(
     anleitung = await master_skill.prompt_block(ctx.req.environment.master_skill)
     if anleitung:
         messages.append({"role": "system", "content": anleitung})
+        prompt_ablage.merke(ctx.usage, "agent.master_skill", anleitung)
     # Der Beleg fuer den Zusammenbau unten: die Ansage-Zeile entsteht NUR,
     # wenn der Abruf wirklich lief. Das Modell selbst haelt sich nicht
     # zuverlaessig an die Bitte des Dokuments (gemessen ueber drei Zuege:
@@ -215,6 +220,7 @@ async def respond_agent(
     seiten_daten = seitenkontext_prompt.seiten_daten(ctx.session_state, seite)
     if seiten_daten:
         messages.append({"role": "system", "content": seitenkontext_prompt.SEITEN_REGELN})
+        prompt_ablage.merke(ctx.usage, "seitenregeln", seitenkontext_prompt.SEITEN_REGELN)
     # G1: der Auftrag der einbettenden Anwendung — WÖRTLICH derselbe Block wie im
     # Bestandsweg (``domain/host_instruction``). Er steht hinter dem Seitenblock
     # und vor den Anleitungen: die Anwendung rahmt den Zug, die Anleitung sagt,

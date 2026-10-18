@@ -95,12 +95,15 @@ def werkzeugliste() -> dict[str, Any]:
         include_submit=False, include_dokument=True, wissen_tool=wissen,
         allow_curation=schreiben_erlaubt())}
     policy = _policy_sperren(load_policy_config())
-    verborgen = verborgene_werkzeuge()
+    fremd = fremdwerkzeuge.fuer_die_uebersicht()
+    fremd_an = {d["function"]["name"] for d in fremdwerkzeuge.definitionen()}
+    # Abgeschaltete Fremdwerkzeuge bleiben als Zeile stehen (Review Paket 15, #1): der Schalter
+    # steht nur auf der Seite „Werkzeuge“ — ohne Zeile ließe es sich nie wieder einschalten.
+    verborgen = verborgene_werkzeuge() | {
+        w.modellname for w in fremd if w.modellname not in fremd_an}
 
     zeilen: list[dict[str, Any]] = []
-    # Paket 11 (E): lesende Werkzeuge fremder MCP-Server als eigene Art.
-    for art, katalog in (("read", TOOL_DEFINITIONS), ("curation", CURATION_TOOL_DEFINITIONS),
-                         ("external", fremdwerkzeuge.definitionen())):
+    for art, katalog in (("read", TOOL_DEFINITIONS), ("curation", CURATION_TOOL_DEFINITIONS)):
         for definition in katalog:
             name = definition["function"]["name"]
             zeilen.append({
@@ -109,6 +112,17 @@ def werkzeugliste() -> dict[str, Any]:
                 "offered": name in angeboten,
                 "locks": _sperren(name, art, policy, verborgen),
             })
+    # Paket 11 (E): lesende Werkzeuge fremder MCP-Server als eigene Art. Server und Originalname
+    # reisen mit (Review-Runde 2): der Modellname ist bereinigt und gekürzt, das Studio fände den
+    # Schalter daraus nicht zuverlässig wieder.
+    for w in fremd:
+        zeilen.append({
+            "name": w.modellname, "kind": "external",
+            "description": w.definition["function"]["description"],
+            "offered": w.modellname in angeboten,
+            "locks": _sperren(w.modellname, "external", policy, verborgen),
+            "server_id": w.server_id, "tool": w.name,
+        })
     dokument = dokument_werkzeug()
     ergebnis = ergebnis_werkzeug(None)
     zeilen += [

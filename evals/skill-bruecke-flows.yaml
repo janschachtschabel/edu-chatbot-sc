@@ -29,10 +29,12 @@ flows:
   - id: GV-EMB-1
     zielgruppe: P-LEH
     title: "Sammlungsseite: Stunde planen mit Rückfrage (Fall vom 16.08.)"
+    erwartung: "Eine Lehrkraft plant auf der Sammlungsseite eine Stunde zur Lichtbrechung: der Bot arbeitet nach der Anleitung „Stunde planen“ und führt sie über die knappe Antwort auf seine Rückfrage weiter."
     environment:
       page_context: {page_kind: collection, collection_id: "f35c17d1-a29e-4b26-9d22-802682fad43d"}
     turns:
       - message: "Ich möchte morgen eine Stunde zur Lichtbrechung halten. Können Sie mir helfen, sie zu planen?"
+        anwendungsfall: zusammenstellen
         expect:
           register: sie
           tools_any: [get_skill]
@@ -48,6 +50,7 @@ flows:
       # plant erst danach (12 von 12 Läufen). Gemessen wird hier, ob sie
       # weiterläuft — nicht, wann sie fertig ist.
       - message: "45 min physik sek 1"
+        anwendungsfall: zusammenstellen
         expect:
           register: sie
           tools_any: [get_skill]
@@ -56,12 +59,14 @@ flows:
   - id: GV-EMB-2
     zielgruppe: P-LEH
     title: "Sammlungsseite: Videosuche bleibt Suche (Wächter)"
+    erwartung: "Eine Lehrkraft sucht auf der Sammlungsseite ein Einstiegsvideo zur Lichtbrechung für Klasse 8 — das Ergebnis bleibt eine Trefferliste, auch wenn eine Anleitung geladen wird."
     environment:
       page_context: {page_kind: collection, collection_id: "f35c17d1-a29e-4b26-9d22-802682fad43d"}
     turns:
       # Rolle und Anrede müssen in der Nachricht stecken: ohne sie stuft der
       # Bot die Person als P-AND ein und duzt (Probelauf 2026-09-27).
       - message: "Haben Sie hier ein Video zur Lichtbrechung für den Einstieg in meine 8. Klasse?"
+        anwendungsfall: suchen
         expect:
           register: sie
           structure: cards
@@ -75,10 +80,12 @@ flows:
   - id: GV-EMB-3
     zielgruppe: P-LEH
     title: "Sammlungsseite: Arbeitsblatt (Kontrolle — M10 führt die Skill-Werkzeuge selbst)"
+    erwartung: "Eine Lehrkraft lässt auf der Sammlungsseite ein Arbeitsblatt zur Lichtbrechung für Klasse 8 mit Lösungen erstellen, nach der Anleitung „Neues Lernmaterial erstellen“."
     environment:
       page_context: {page_kind: collection, collection_id: "f35c17d1-a29e-4b26-9d22-802682fad43d"}
     turns:
       - message: "Erstellen Sie mir bitte ein Arbeitsblatt zur Lichtbrechung für meine 8. Klasse, mit Lösungen."
+        anwendungsfall: erzeugen
         expect:
           register: sie
           structure: idoc

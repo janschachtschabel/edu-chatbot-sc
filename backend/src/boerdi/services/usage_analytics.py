@@ -33,7 +33,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -267,6 +267,7 @@ async def session_usage(session: AsyncSession, session_id: str) -> dict[str, Any
 
 async def period_usage(
     session: AsyncSession, start: datetime, end: datetime, scope: str = "all",
+    engine: str | None = None,
 ) -> dict[str, Any]:
     """Verbrauch eines Zeitraums, Grenzen einschließlich.
 
@@ -280,11 +281,16 @@ async def period_usage(
     „die teuersten Sitzungen dieser Sitzung" ist keine Frage.
 
     ``scope`` (ST-9) trennt nach Herkunft (``session_origin``) — für Summen
-    UND Spitzenliste, sonst passten die beiden nicht zueinander.
+    UND Spitzenliste, sonst passten die beiden nicht zueinander. ``engine`` (Paket 15)
+    schränkt auf die Züge einer Maschine ein, wie die Analyse. Züge ohne Maschine
+    (Vorprüfung, Direkt-Aktionen: ``engine`` NULL) zählen in beiden mit — sonst fehlten sie
+    in beiden (Review Paket 15, #2); die Kosten-Seite sagt es.
     """
     herkunft = scope_clause(scope, UsageEvent.session_id, UsageEvent.quelle)
     fenster = (UsageEvent.created_at >= start, UsageEvent.created_at <= end,
-               *(() if herkunft is None else (herkunft,)))
+               *(() if herkunft is None else (herkunft,)),
+               *(() if not engine else (
+                   or_(UsageEvent.engine == engine, UsageEvent.engine.is_(None)),)))
     antwort = _assemble(await _grouped_by_model(session, *fenster))
     antwort["sessions"] = _top_sessions(
         await _grouped_by_session(session, *fenster), load_pricing() or PricingArea(),
