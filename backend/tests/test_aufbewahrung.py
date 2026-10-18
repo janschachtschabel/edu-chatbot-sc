@@ -405,3 +405,23 @@ def test_der_text_schritt_arbeitet_in_kleinen_stapeln(db, monkeypatch):
     ergebnis, offen = _lauf(db, szenario)
     assert ergebnis["quality_text"] == 5 and offen == 0
 
+
+def test_der_text_schritt_nutzt_den_teilindex(db, monkeypatch):
+    """Review PR #18 (B2): Bedingung und Teilindex (Migration 0013) müssen übereinstimmen, sonst
+    liest jeder Lauf alle geleerten Zeilen samt Debug erneut."""
+    from sqlalchemy import text
+    from sqlalchemy.dialects import postgresql
+
+    from boerdi.services import aufbewahrung
+
+    abfrage = aufbewahrung._faellige_texte(datetime.now(UTC), 0).compile(
+        dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
+
+    async def szenario(engine, factory):
+        async with factory() as s:
+            await s.execute(text("SET LOCAL enable_seqscan = off"))
+            return " | ".join(z[0] for z in (await s.execute(text(f"EXPLAIN {abfrage}"))).all())
+
+    plan = _lauf(db, szenario)
+    assert "ix_quality_logs_text_offen" in plan, plan
+

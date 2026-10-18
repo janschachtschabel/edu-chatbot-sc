@@ -374,8 +374,12 @@ def _werkzeug_angaben(r: httpx.Response, gesamt_ms: int = 0) -> dict[str, Any]:
     Ausweich-Kette). Seit Paket 16 (D4) dazu die ganze Aufteilung (``zeiten``). Eine unlesbare
     Antwort liefert nichts, statt die Messung zu stören."""
     try:
-        debug = (r.json() or {}).get("debug") or {}
+        body = r.json()
     except ValueError:
+        return {}
+    # Review PR #18: ein Body, der kein Objekt ist, stört die Messung nicht.
+    debug = (body.get("debug") if isinstance(body, dict) else None) or {}
+    if not isinstance(debug, dict):
         return {}
     zeiten = ((debug.get("token_usage") or {}).get("zeiten_ms") or {})
     angaben: dict[str, Any] = {"werkzeuge": len(debug.get("tools_called") or [])}

@@ -61,3 +61,20 @@ def test_jeder_gelesene_schritt_wird_auch_geschrieben():
     geschrieben = set(re.findall(r'schritt\("([a-z_.]+)"', quelle))
     gelesen = {s for schritte in lt.ZEIT_TEILE.values() for s in schritte}
     assert gelesen <= geschrieben, gelesen - geschrieben
+
+
+def test_eine_antwort_ohne_json_objekt_zaehlt_trotzdem_als_erfolg():
+    """Review PR #18 (B8): ein Body wie `[]` warf AttributeError — die erfolgreiche Anfrage
+    zählte als gescheitert."""
+    import asyncio
+
+    import httpx
+
+    async def lauf() -> dict:
+        transport = httpx.MockTransport(lambda _r: httpx.Response(200, json=[1, 2]))
+        async with httpx.AsyncClient(transport=transport, base_url="http://lt") as client:
+            return await lt._fire_request(client, "suche", "Optik", "loadtest-x-s0-0")
+
+    zeile = asyncio.run(lauf())
+    assert zeile["ok"] is True and zeile["status"] == 200 and "error" not in zeile
+

@@ -12,12 +12,17 @@ sie nur im Debug — der wird dort gelesen, solange ihn der Aufbewahrungslauf ni
 **Kleine Zellen** — Züge aus 1 bis :data:`KLEIN_UNTER` − 1 Sitzungen — kommen als ``None``:
 Raster und Verteilungen sollen Muster zeigen, nicht einzelne Besuche. Maßgeblich sind die
 Sitzungen, nicht die Züge (Review B-3a: eine Sitzung mit zehn Zügen um 3 Uhr war sonst genau zu
-sehen). Summen und Tageswerte bleiben genau — die Studio-Seite sagt es.
+sehen). Das ist eine **Darstellungshilfe, kein Schutz**: Summen und Tageswerte bleiben genau, und
+über einen engen Zeitraum ließe sich eine Zelle zurückrechnen — wer das Studio bedient, sieht
+ohnehin die Sitzungen selbst (Review PR #18). Die Studio-Seite sagt, was gerundet ist.
+
+**Maschine** ist die angefragte (``debug.engine``): ein Krisen-Zug unter der Agent-Schleife zählt
+hier als ``agent``, in der Analyse über ``pattern_id`` als Muster — die Nutzung fragt, womit
+Besucher sprechen, die Analyse, welcher Weg antwortete.
 """
 
 from __future__ import annotations
 
-import statistics
 from datetime import date, datetime, timedelta
 from typing import Any, Final
 
@@ -76,17 +81,23 @@ async def ueberblick(
                *(() if herkunft is None else (herkunft,)),
                *(() if not engine else (MASCHINE == engine,))]
 
-    je_sitzung = (await session.execute(
-        select(QualityLog.session_id, func.count()).where(*auswahl)
-        .group_by(QualityLog.session_id))).all()
-    zaehlungen = [n for sitzung, n in je_sitzung if sitzung is not None]
+    zuege = (await session.execute(
+        select(func.count()).select_from(QualityLog).where(*auswahl))).scalar_one()
+    # In SQL gerechnet: ein Jahr Betrieb sind sonst Hunderttausende Zeilen je Seitenaufruf
+    # (Review PR #18). `percentile_cont` mittelt wie `statistics.median` die beiden Mittleren.
+    je_sitzung = (select(func.count().label("n"))
+                  .where(*auswahl, QualityLog.session_id.is_not(None))
+                  .group_by(QualityLog.session_id).subquery())
+    sitzungen, mittel, median = (await session.execute(select(
+        func.count(), func.avg(je_sitzung.c.n),
+        func.percentile_cont(0.5).within_group(je_sitzung.c.n)))).one()
 
     return {
-        "zuege": sum(n for _, n in je_sitzung),
-        "sitzungen": len(zaehlungen),
+        "zuege": zuege,
+        "sitzungen": sitzungen,
         "zuege_je_sitzung": {
-            "mittel": round(statistics.fmean(zaehlungen), 2) if zaehlungen else 0.0,
-            "median": float(statistics.median(zaehlungen)) if zaehlungen else 0.0,
+            "mittel": round(float(mittel), 2) if sitzungen else 0.0,
+            "median": float(median) if sitzungen else 0.0,
         },
         "tage": await _tage(session, start, end, auswahl),
         "raster": await _raster(session, auswahl),

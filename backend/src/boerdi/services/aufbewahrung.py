@@ -35,7 +35,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import ColumnElement, delete, func, literal_column, or_, select, update
+from sqlalchemy import ColumnElement, Select, delete, func, literal_column, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from boerdi.db.models import ChatMessage, ChatSession, MemoryItem, QualityLog, SafetyLog
@@ -213,7 +213,17 @@ async def _stand_leeren(sitzungen: async_sessionmaker[AsyncSession], frist: Fris
 
 
 def _text_ungeleert() -> ColumnElement[bool]:
-    return QualityLog.data.has_key(MARKE).is_(False)
+    """Wörtlich die Bedingung des Teilindex ``ix_quality_logs_text_offen`` (Migration 0013) —
+    sonst nutzt Postgres ihn nicht und liest jede geleerte Zeile samt Debug erneut."""
+    return QualityLog.data[MARKE].astext.is_(None)
+
+
+def _faellige_texte(grenze: datetime, nach_id: int) -> Select[Any]:
+    """Der nächste Stapel ungeleerter Zeilen vor ``grenze`` — fortgesetzt hinter ``nach_id``
+    (Keyset), damit ein Lauf übersprungene Zeilen nicht erneut liest (Review PR #18)."""
+    return (select(QualityLog.id, QualityLog.data)
+            .where(QualityLog.created_at < grenze, _text_ungeleert(), QualityLog.id > nach_id)
+            .order_by(QualityLog.id).limit(TEXT_STAPEL))
 
 
 async def _text_ueberblick(session: AsyncSession, frist: Frist,
@@ -245,13 +255,12 @@ async def _text_leeren(sitzungen: async_sessionmaker[AsyncSession], frist: Frist
     niemand; die Marke hält einen zweiten Lauf (auch nach einem Abbruch) leer."""
     grenze = jetzt - timedelta(days=frist.tage)
     gesamt = 0
+    letzte_id = 0
     while True:
         async with sitzungen() as s:
-            zeilen = (await s.execute(
-                select(QualityLog.id, QualityLog.data)
-                .where(QualityLog.created_at < grenze, _text_ungeleert())
-                .order_by(QualityLog.id).limit(TEXT_STAPEL))).all()
+            zeilen = (await s.execute(_faellige_texte(grenze, letzte_id))).all()
             if zeilen:
+                letzte_id = zeilen[-1][0]
                 neu = await asyncio.to_thread(_ohne_texte, zeilen)
                 # ORM-Sammel-Update nach Primärschlüssel: eine Anweisung, eine Zeile je Eintrag.
                 await s.execute(update(QualityLog), neu)

@@ -132,3 +132,17 @@ def test_klein_heisst_wenige_sitzungen_nicht_wenige_zuege(db):
     assert u["raster"][0][3] is None                    # Mo 03:00 Berlin, eine Sitzung
     assert u["verteilungen"]["sprache"] == [{"wert": "fr", "anzahl": None}]
 
+
+def test_mittel_und_median_je_sitzung(db):
+    """Review PR #18 (B4): in SQL gerechnet statt jede Sitzung nach Python zu holen."""
+    wann = datetime(2026, 3, 10, 9, tzinfo=UTC)
+    mix = [("bb-m1", wann, _muster(), "", 1), ("bb-m2", wann, _muster(), "", 2),
+           ("bb-m3", wann, _muster(), "", 6)]
+    alt, _ZEILEN[:] = list(_ZEILEN), mix
+    try:
+        u = _lauf(db, scope="production")
+    finally:
+        _ZEILEN[:] = alt
+    assert u["sitzungen"] == 3 and u["zuege"] == 9
+    assert u["zuege_je_sitzung"] == {"mittel": 3.0, "median": 2.0}
+

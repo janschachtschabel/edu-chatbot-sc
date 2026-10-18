@@ -37,7 +37,11 @@ from boerdi.services.session_origin import scope_sql
 
 # Static jsonb WHERE fragments reused across queries (no user data, no params).
 _DEGRADATION_TRUE = "(data->>'degradation')::boolean IS TRUE"
-_ENTITIES_EMPTY = "data->'entities' = '{}'::jsonb"
+#: Paket 16: der Aufbewahrungslauf leert nach der Gesprächsfrist die Entities (Marke
+#: ``text_geleert``, ``services/qualitaet_text``) — solche Zeilen sagen nichts mehr darüber, ob
+#: Entities erkannt wurden, und zählen weder als leer noch im Nenner (Review PR #18).
+_TEXT_DA = "data->>'text_geleert' IS NULL"
+_ENTITIES_EMPTY = f"data->'entities' = '{{}}'::jsonb AND {_TEXT_DA}"
 
 
 #: Paket 13 (E5): Agent-Züge tragen das Muster ``AGENT`` (``domain/agent_pattern``). Krisen-Züge
@@ -231,7 +235,10 @@ async def get_quality_stats(
     empty_ent = (await session.execute(text(
         f"SELECT COUNT(*) AS cnt FROM quality_logs {where_sql} {and_where} {_ENTITIES_EMPTY}"
     ))).scalar_one()
-    stats["empty_entity_rate"] = round(empty_ent / max(total, 1), 3)
+    mit_text = (await session.execute(text(
+        f"SELECT COUNT(*) AS cnt FROM quality_logs {where_sql} {and_where} {_TEXT_DA}"
+    ))).scalar_one()
+    stats["empty_entity_rate"] = round(empty_ent / max(mit_text, 1), 3)
 
     avg_len = (await session.execute(text(
         f"SELECT AVG((data->>'response_length')::float) AS v FROM quality_logs {where_sql}"

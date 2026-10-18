@@ -31,6 +31,9 @@ _GESCHRIEBEN: set[str] = set()
 #: Deckel der offenen Ablage: hängt das Schreiben (DB weg), wächst sie nicht ohne Ende.
 _MAX_OFFEN = 64
 
+#: ``zuletzt`` heißt „zuletzt von einem Prozess geschrieben“, nicht „zuletzt benutzt“: jeder Prozess
+#: schreibt eine Fassung nur einmal (``_GESCHRIEBEN``) — genauer bräuchte es eine Schreibung je Zug,
+#: und die Spalte trägt nichts, das das Studio heute liest (Review PR #18).
 _UPSERT = text("""
     INSERT INTO prompt_versions (hash, art, text) VALUES (:hash, :art, :text)
     ON CONFLICT (hash) DO UPDATE SET zuletzt = now()

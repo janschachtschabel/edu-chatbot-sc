@@ -286,6 +286,35 @@ def test_empty_entities_breakdown_groups(test_db) -> None:
     assert (out["groups"][1]["intent_id"], out["groups"][1]["count"]) == ("I02", 1)
 
 
+def test_geleerte_zeilen_zaehlen_nicht_als_leere_entities(test_db) -> None:
+    """Review PR #18 (B1): der Aufbewahrungslauf setzt `entities` nach der Gesprächsfrist auf
+    `{}` — gezählt als „leer“, wanderte die Quote zum Anteil der geleerten Zeilen."""
+    from sqlalchemy import select
+
+    from boerdi.db.models import QualityLog
+    from boerdi.services.qualitaet_text import text_entfernen
+    from boerdi.services.quality_analytics import (
+        get_empty_entities_breakdown,
+        get_quality_stats,
+    )
+
+    async def scenario(session):
+        await _seed(session, message="leer", entities={})
+        await _seed(session, message="voll", entities={"thema": "x"})
+        for msg in ("alt1", "alt2"):
+            await _seed(session, message=msg, entities={"thema": "y"})
+        for zeile in (await session.execute(select(QualityLog))).scalars():
+            if zeile.data.get("message", "").startswith("alt"):
+                zeile.data = text_entfernen(zeile.data)
+        await session.commit()
+        return await get_quality_stats(session), await get_empty_entities_breakdown(session)
+
+    stats, aufschluesselung = _run(scenario)
+    assert stats["total_turns"] == 4
+    assert stats["empty_entity_rate"] == 0.5     # 1 von 2 Zeilen, die ihre Entities noch tragen
+    assert aufschluesselung["total"] == 1
+
+
 # ── low confidence (float-cast ordering + bounds) ────────────────────────
 def test_low_confidence_turns_bounds_and_order(test_db) -> None:
     from boerdi.services.quality_analytics import get_low_confidence_turns
