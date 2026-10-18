@@ -1,8 +1,12 @@
+// @vitest-environment jsdom
+import { Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import type { RedirectFunction } from '@angular/router';
-import { describe, expect, it } from 'vitest';
+import { Router, type UrlTree, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { describe, expect, it, vi } from 'vitest';
 
 import { routes } from './app.routes';
+import { startseiteGuard } from './startseite.guard';
 import { StudioAnsicht } from './core/studio-ansicht.service';
 import { DASHBOARD_SECTIONS } from './views/area-homes';
 import { CURATED_VIEWS } from './views/curated-views';
@@ -32,8 +36,38 @@ describe('Routen', () => {
     });
     const start = routes.find((r) => r.path === '')!.children!
       .find((r) => r.path === '' && r.pathMatch === 'full')!;
-    const weiter = start.redirectTo as RedirectFunction;
-    const ziel = await TestBed.runInInjectionContext(() => weiter({} as never));
-    expect(ziel).toBe('uebersicht');
+    // Review PR #18: ein Wächter statt einer Umleitung — Umleitungen laufen vor `authGuard`.
+    expect(start.redirectTo).toBeUndefined();
+    expect(start.canActivate).toContain(startseiteGuard);
+    const ziel = await TestBed.runInInjectionContext(
+      () => startseiteGuard({} as never, {} as never) as Promise<UrlTree>);
+    expect(TestBed.inject(Router).serializeUrl(ziel)).toBe('/uebersicht');
+  });
+
+  it('fragt abgemeldet nicht nach der Vorgabe, sondern geht zuerst zur Anmeldung (Review PR #18)', async () => {
+    // Vorher: die Umleitung lief vor `authGuard`, holte die Vorgabe mit 401 und landete bei
+    // „pattern“ auf der Agent-Übersicht.
+    const ermittle = vi.fn(() => Promise.resolve('pattern' as const));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: StudioAnsicht, useValue: { ermittle } },
+        provideRouter([
+          { path: 'login', component: Leer },
+          { path: 'uebersicht', component: Leer },
+          {
+            path: '', canActivate: [() => inject(Router).createUrlTree(['/login'])],
+            children: [{ path: '', pathMatch: 'full', canActivate: [startseiteGuard], children: [] }],
+          },
+        ]),
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/');
+    expect(TestBed.inject(Router).url).toBe('/login');
+    expect(ermittle).not.toHaveBeenCalled();
   });
 });
+
+@Component({ template: '' })
+class Leer {}

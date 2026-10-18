@@ -99,9 +99,13 @@ describe('AnsichtUmschalterComponent', () => {
     expect(router.url).toBe('/begruessung');
   });
 
-  it('sagt, was der Umschalter tut', () => {
-    expect(el.querySelector('fieldset')?.getAttribute('title'))
-      .toBe('Zeigt die Seiten des gewählten Betriebsmodus und die gemeinsamen.');
+  it('sagt, was der Umschalter tut — auch Tastatur und Screenreader (Review PR #18)', () => {
+    const hinweis = 'Zeigt die Seiten des gewählten Betriebsmodus und die gemeinsamen. Auf einer '
+      + 'Seite des bisherigen Arbeitsbereichs führt der Wechsel zu dessen Startseite.';
+    expect(el.querySelector('fieldset')?.getAttribute('title')).toBe(hinweis);
+    // `title` erreicht Tastatur und Touch nicht; jede Option verweist auf denselben Satz.
+    const id = el.querySelector('input')?.getAttribute('aria-describedby');
+    expect(el.querySelector(`#${id}`)?.textContent?.trim()).toBe(hinweis);
   });
 
   it('spricht Englisch, wenn das Studio es tut', async () => {

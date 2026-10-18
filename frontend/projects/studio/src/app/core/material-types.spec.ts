@@ -48,6 +48,14 @@ describe('material-types (Paket 14, D1)', () => {
     expect(fehlendeAliase({ ...TYPEN[0], label: ' Arbeitsblatt ' }, ALIASE)).toEqual([]);
   });
 
+  it('liest Alias-Schlüssel wie der Server: klein geschrieben (Review PR #18)', () => {
+    // `get_type_aliases` legt jeden YAML-Schlüssel klein ab; ein im Studio „Worksheet“
+    // geschriebener Alias wirkt, die Warnung kam trotzdem.
+    const gemischt = { Arbeitsblatt: 'arbeitsblatt', ' Worksheet ': 'arbeitsblatt' };
+    expect(fehlendeAliase(TYPEN[0], gemischt)).toEqual([]);
+    expect(aliaseFuer('arbeitsblatt', gemischt)).toEqual(['arbeitsblatt', 'worksheet']);
+  });
+
   it('sagt, für wen ein Typ Vorrang hat', () => {
     expect(vorrang(TYPEN[1], ['P-ENT', 'P-RED'])).toEqual({ fall: 'nur', personas: ['P-ENT', 'P-RED'] });
     expect(vorrang(TYPEN[0], ['P-ENT'])).toEqual({ fall: 'ausser', personas: ['P-ENT'] });

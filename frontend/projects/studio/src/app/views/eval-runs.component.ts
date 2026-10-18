@@ -98,7 +98,7 @@ export class EvalRunsComponent {
   private readonly ansicht = inject(StudioAnsicht);
   /** Paket 13 (E7): vorbelegt aus der Ansicht des Studios und ihr folgend (Konstruktor);
    *  eine eigene Wahl gilt bis zum nächsten Wechsel der Ansicht. */
-  readonly engineFilter = signal<EngineFilter>(this.ansicht.maschine() ?? '');
+  readonly engineFilter = signal<EngineFilter>(this.ansicht.maschine());
 
   readonly armed = signal<Armed>(null);
   readonly working = signal(false);
@@ -141,7 +141,7 @@ export class EvalRunsComponent {
     // Paket 13 (E7): wechselt die Ansicht, folgt der Filter — der erste Lauf ist ein Nichts,
     // weil der Filter mit derselben Ansicht vorbelegt wurde.
     effect(() => {
-      const vorgabe = this.ansicht.maschine() ?? '';
+      const vorgabe = this.ansicht.maschine();
       untracked(() => {
         if (vorgabe !== this.engineFilter()) this.onEngineFilter(vorgabe);
       });

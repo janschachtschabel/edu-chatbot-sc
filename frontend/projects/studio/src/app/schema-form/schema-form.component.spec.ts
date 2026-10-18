@@ -1261,5 +1261,9 @@ describe('SchemaFormComponent — Prüffehler in Map-Tabelle und Marker-Ziel (Re
     const liste = Array.from(h.el.querySelectorAll('fieldset.sf-group')).find(
       (f) => f.querySelector(':scope > legend')?.textContent?.includes('quick_replies'))!;
     expect(liste.querySelector('.sf-error')?.textContent).toContain('Tour-Chip:');
+    // Review PR #18: die Radios des Markers verweisen auf die Meldung.
+    const radio = liste.querySelector<HTMLInputElement>('.sf-marker input')!;
+    const ids = (radio.getAttribute('aria-describedby') ?? '').split(' ');
+    expect(ids.map((id) => byId(h.el, id)?.textContent ?? '').join(' ')).toContain('Tour-Chip:');
   });
 });

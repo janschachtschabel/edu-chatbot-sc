@@ -8,7 +8,9 @@
  *
  * Echte Radios in einem Fieldset wie bei der Herkunft (`studio-origin-scope`): Gruppenname,
  * Pfeiltasten und Auswahlzustand kommen von der Plattform. Kompakter als dort, weil er in der
- * Kopfzeile neben Sprache und Abmelden steht; die Erklärung trägt das `title` des Fieldsets.
+ * Kopfzeile neben Sprache und Abmelden steht; die Erklärung trägt das `title` des Fieldsets und
+ * — für Tastatur und Screenreader, die `title` nicht erreicht — ein verknüpfter, unsichtbarer Satz
+ * (Review PR #18: der Wechsel kann die Seite wechseln, WCAG 3.2.2).
  */
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
@@ -23,6 +25,7 @@ import { startView, workspaceOf } from '../studio-views';
   template: `
     <fieldset class="au" [title]="t('ansicht.hint')">
       <legend class="au-legend">{{ t('ansicht.legend') }}</legend>
+      <span class="au-sr" id="studio-ansicht-hinweis">{{ t('ansicht.hint') }}</span>
       @for (option of options(); track option.id) {
         <label class="au-option">
           <input
@@ -30,6 +33,7 @@ import { startView, workspaceOf } from '../studio-views';
             name="studio-ansicht"
             [value]="option.id"
             [checked]="aktuell() === option.id"
+            aria-describedby="studio-ansicht-hinweis"
             (change)="waehle(option.id, $event)"
           />
           <span>{{ option.label }}</span>
@@ -38,6 +42,14 @@ import { startView, workspaceOf } from '../studio-views';
     </fieldset>
   `,
   styles: `
+    .au-sr {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
     .au {
       display: flex;
       align-items: center;

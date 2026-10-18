@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { routes } from './app.routes';
+import { startseiteGuard } from './startseite.guard';
 import { STUDIO_VIEWS, navGroups, startView } from './studio-views';
 
 /**
@@ -185,9 +186,10 @@ describe('studio view registry', () => {
   it('öffnet je Arbeitsbereich auf dessen Startseite', () => {
     expect(startView('agent')).toBe('agent-uebersicht');
     expect(startView('pattern')).toBe('uebersicht');
-    const redirect = children.find((c) => c.path === '');
-    expect(redirect?.redirectTo).toBeTypeOf('function');
-    expect(redirect?.pathMatch).toBe('full');
+    // Review PR #18: ein Wächter, der weiterleitet — eine Umleitung liefe vor `authGuard`.
+    const start = children.find((c) => c.path === '');
+    expect(start?.canActivate).toContain(startseiteGuard);
+    expect(start?.pathMatch).toBe('full');
   });
 
   it('names a real implementing package for every placeholder', () => {
@@ -212,6 +214,7 @@ describe('studio view registry', () => {
     // missing one leaves the previous view's title standing.
     for (const child of children) {
       if (child.redirectTo) continue; // a redirect carries no title
+      if (child.canActivate?.includes(startseiteGuard)) continue; // leitet immer weiter
       expect(child.title).toBeTruthy();
     }
   });

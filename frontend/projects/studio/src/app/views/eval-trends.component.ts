@@ -124,7 +124,7 @@ export class EvalTrendsComponent {
   private readonly ansicht = inject(StudioAnsicht);
   /** Paket 13 (E7): vorbelegt aus der Ansicht des Studios und ihr folgend (Konstruktor);
    *  eine eigene Wahl gilt bis zum nächsten Wechsel der Ansicht. */
-  readonly engineFilter = signal<EngineFilter>(this.ansicht.maschine() ?? '');
+  readonly engineFilter = signal<EngineFilter>(this.ansicht.maschine());
 
   readonly trends = new AsyncData<EvalTrends>(
     () => this.api.trends(this.engineFilter()), this.t);
@@ -135,7 +135,7 @@ export class EvalTrendsComponent {
     // Paket 13 (E7): wechselt die Ansicht, folgt der Filter — der erste Lauf ist ein Nichts,
     // weil der Filter mit derselben Ansicht vorbelegt wurde.
     effect(() => {
-      const vorgabe = this.ansicht.maschine() ?? '';
+      const vorgabe = this.ansicht.maschine();
       untracked(() => {
         if (vorgabe !== this.engineFilter()) this.onEngineFilter(vorgabe);
       });

@@ -48,18 +48,26 @@ export function pruefe(
 
 const schluessel = (text: string): string => text.trim().toLowerCase();
 
+/** Die Aliase so, wie der Server sie liest: Schlüssel klein (`get_type_aliases`, Review PR #18).
+ *  Die eingebauten Vorgaben des Servers fehlen hier bewusst — zu jedem gepflegten Namen muss ein
+ *  Alias in `type-aliases` stehen (Wächter `tests/test_material_type_labels.py`). */
+function normiert(aliase: Readonly<Record<string, string>>): ReadonlyMap<string, string> {
+  return new Map(Object.entries(aliase).map(([alias, ziel]) => [schluessel(alias), ziel]));
+}
+
 /** Die Aliase, die auf diesen Typ zeigen — sortiert. */
 export function aliaseFuer(id: string, aliase: Readonly<Record<string, string>>): readonly string[] {
-  return Object.entries(aliase).filter(([, ziel]) => ziel === id).map(([alias]) => alias).sort();
+  return [...normiert(aliase)].filter(([, ziel]) => ziel === id).map(([alias]) => alias).sort();
 }
 
 /** Chip-Texte (Name, Name en), zu denen kein Alias auf diesen Typ zeigt. */
 export function fehlendeAliase(
   typ: MaterialTyp, aliase: Readonly<Record<string, string>>,
 ): readonly string[] {
+  const karte = normiert(aliase);
   return [typ.label, typ.label_en ?? '']
     .filter((text) => text.trim())
-    .filter((text) => aliase[schluessel(text)] !== typ.id)
+    .filter((text) => karte.get(schluessel(text)) !== typ.id)
     .map((text) => text.trim());
 }
 

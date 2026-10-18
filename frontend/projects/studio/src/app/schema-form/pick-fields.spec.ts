@@ -40,8 +40,11 @@ describe('pickFields', () => {
     const group = pickFields({ ...ROOT, children: [{ ...ROOT.children![0], textKey: 'feld.X.fm' },
       ROOT.children![1]] }, new Set(['frontmatter.id'])).children?.[0];
     expect(group?.key).toBe('frontmatter');
-    expect(group?.label).toBe('');
-    expect(group?.textKey).toBeUndefined();
+    expect(group?.ohneLegende).toBe(true);
+    // Review PR #18: der Name bleibt — als `aria-label` des Fieldsets, sonst hieße die Gruppe
+    // für Screenreader nur „Gruppe“.
+    expect(group?.label).toBe(ROOT.children![0].label);
+    expect(group?.textKey).toBe('feld.X.fm');
   });
 
   it('nimmt eine ganze Gruppe, wenn die Gruppe selbst genannt ist', () => {

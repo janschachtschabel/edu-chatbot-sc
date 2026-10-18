@@ -27,8 +27,8 @@ export function pickFields(root: SchemaField, paths: ReadonlySet<string>): Schem
     if (kept.length === (child.children ?? []).length) return [child];
     // Paket 15: ein echter Teil-Ausschnitt ohne eigene Überschrift — „Kopfangaben
     // (frontmatter)“ über drei Feldern sagte niemandem etwas; der Abschnitt oder Reiter
-    // trägt schon seinen Titel.
-    return [{ ...child, label: '', textKey: undefined, children: kept }];
+    // trägt schon seinen Titel. Der Name bleibt als `aria-label` (Review PR #18).
+    return [{ ...child, ohneLegende: true, children: kept }];
   });
   return { ...root, children };
 }

@@ -233,6 +233,8 @@ describe("ShellComponent", () => {
     await fixture.whenStable();
     expect(ansicht.ansicht()).toBe("pattern");
     expect(el.querySelector(".fremd")).toBeNull();
+    // Review PR #18: der Knopf verschwindet mit dem Hinweis — der Fokus geht in den Inhalt.
+    expect(document.activeElement?.id).toBe("studio-main");
   });
 
   it("trägt Snapshot, Backup und Einspielen in der Kopfzeile (ST-9)", () => {

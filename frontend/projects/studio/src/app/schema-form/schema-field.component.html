@@ -73,7 +73,7 @@
         <p class="sf-error" [id]="errId()">{{ meldung }}</p>
       }
       @if (markerProblem(); as meldung) {
-        <p class="sf-error">{{ list.markerLabel() }}: {{ meldung }}</p>
+        <p class="sf-error" [id]="fieldId() + '-marker-err'">{{ list.markerLabel() }}: {{ meldung }}</p>
       }
       @if (field().vorgabe) {
         <!-- Paket 4c, B2: „nicht gesetzt“ (Vorgabe) und „leer“ (keine) sahen gleich aus. -->
@@ -153,6 +153,7 @@
                       type="radio"
                       [name]="fieldId() + '-marker'"
                       [checked]="list.isMarked($index)"
+                      [attr.aria-describedby]="markerProblem() ? fieldId() + '-marker-err' : null"
                       [attr.aria-label]="t('schemaField.markItemAs', { value: '' + item, label: list.markerLabel() })"
                       (change)="list.mark(item)"
                     />

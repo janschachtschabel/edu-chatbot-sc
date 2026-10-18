@@ -13,8 +13,8 @@ import { Routes } from '@angular/router';
 
 import { authGuard } from './auth/auth.guard';
 import { StudioLanguageService } from './i18n/studio-language.service';
-import { StudioAnsicht } from './core/studio-ansicht.service';
-import { STUDIO_VIEWS, type StudioView, startView } from './studio-views';
+import { startseiteGuard } from './startseite.guard';
+import { STUDIO_VIEWS, type StudioView } from './studio-views';
 import { DASHBOARD_SECTIONS } from './views/area-homes';
 import { curatedView } from './views/curated-views';
 import { unsavedChangesGuard } from './views/unsaved-changes.guard';
@@ -79,12 +79,9 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./shell/shell.component').then((m) => m.ShellComponent),
     children: [
-      // Paket 14: die Startseite des Arbeitsbereichs (Agent-Übersicht oder Muster-Übersicht).
-      // Ohne Wahl steht er erst mit der Vorgabe des Servers fest — darauf wird gewartet.
-      {
-        path: '', pathMatch: 'full',
-        redirectTo: () => inject(StudioAnsicht).ermittle().then(startView),
-      },
+      // Paket 14: die Startseite des Arbeitsbereichs (Agent-Übersicht oder Muster-Übersicht) —
+      // als Wächter, damit `authGuard` zuerst prüft (Review PR #18, `startseite.guard.ts`).
+      { path: '', pathMatch: 'full', canActivate: [startseiteGuard], children: [] },
       // Paket 14: die Seite „Agent & Maschine“ ist im Agent-Arbeitsbereich aufgegangen —
       // ein Lesezeichen darauf landet auf dessen Startseite.
       { path: 'agent', pathMatch: 'full', redirectTo: 'agent-uebersicht' },

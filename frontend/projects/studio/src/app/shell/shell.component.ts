@@ -54,6 +54,9 @@ export class ShellComponent {
 
   wechsleZu(bereich: 'agent' | 'pattern'): void {
     this.ansicht.waehle(bereich);
+    // Der Knopf verschwindet mit dem Hinweis — ohne neues Ziel fiele der Fokus auf `<body>`
+    // (WCAG 2.4.3, Review PR #18). Dasselbe Ziel wie nach einem Seitenwechsel.
+    this.mainRef()?.nativeElement.focus();
   }
   /** Drawer state; only has an effect below the 60rem breakpoint. */
   readonly navOpen = signal(false);

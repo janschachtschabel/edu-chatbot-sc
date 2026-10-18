@@ -62,6 +62,9 @@ describe('gruppenSections', () => {
     expect(rest.paths).toEqual(['a.y']);
     expect(blattSchluessel(rest.field)).toEqual(['a']);
     expect(blattSchluessel(rest.field.children![0])).toEqual(['y']);
+    // Der Teil-Ausschnitt behält seinen Namen für Screenreader, ohne sichtbare Legende.
+    expect(rest.field.children![0].ohneLegende).toBe(true);
+    expect(rest.field.children![0].label).toBeTruthy();
   });
 
   it('lässt „Weitere Einstellungen“ weg, wenn alle Felder genannt sind', () => {

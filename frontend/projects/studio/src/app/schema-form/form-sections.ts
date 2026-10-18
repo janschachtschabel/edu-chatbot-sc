@@ -191,7 +191,7 @@ function teilbaum(
     const p = weg.join('.');
     if (pfade.has(p)) return [child];
     if (child.kind !== 'group' || ![...pfade].some((x) => x.startsWith(`${p}.`))) return [];
-    return [{ ...teilbaum(child, weg, pfade), label: '', textKey: undefined }];
+    return [{ ...teilbaum(child, weg, pfade), ohneLegende: true }];
   });
   return { ...feld, children };
 }
