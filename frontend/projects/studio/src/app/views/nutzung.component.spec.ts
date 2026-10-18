@@ -11,12 +11,12 @@ import { STUDIO_LOCALE_STORAGE_KEY } from '../i18n/studio-language.service';
 import { NutzungComponent } from './nutzung.component';
 
 const URL = '/studio/api/nutzung/ueberblick';
-const raster = (): (number | null)[][] => Array.from({ length: 7 }, () => Array(24).fill(0));
+const raster = (): number[][] => Array.from({ length: 7 }, () => Array(24).fill(0));
 
 function antwort(extra: Record<string, unknown> = {}) {
   const r = raster();
   r[1][10] = 12;
-  r[2][21] = null;
+  r[2][21] = 2;
   return {
     zuege: 14, sitzungen: 3, zuege_je_sitzung: { mittel: 4.67, median: 2 },
     tage: [
@@ -25,14 +25,14 @@ function antwort(extra: Record<string, unknown> = {}) {
     ],
     raster: r,
     verteilungen: {
-      maschine: [{ wert: 'pattern', anzahl: 12 }, { wert: 'agent', anzahl: null }],
+      maschine: [{ wert: 'pattern', anzahl: 12 }, { wert: 'agent', anzahl: 2 }],
       sprache: [{ wert: 'de', anzahl: 14 }],
       geraet: [{ wert: '', anzahl: 14 }],
       seitenart: [{ wert: 'themenseite', anzahl: 9 }],
       persona: [{ wert: 'P-LK', anzahl: 12 }],
       anliegen: [{ wert: 'I01 (Suche)', anzahl: 12 }],
     },
-    klein_unter: 5, protokoll_an: true, ...extra,
+    protokoll_an: true, ...extra,
   };
 }
 
@@ -75,7 +75,7 @@ describe('NutzungComponent (Paket 16, D3)', () => {
     expect(band).toContain('4,67');
   });
 
-  it('zeigt Wochentag × Stunde als Tabelle, kleine Zellen als „<5“', async () => {
+  it('zeigt Wochentag × Stunde als Tabelle mit genauen Zahlen (Studio-Rundgang)', async () => {
     const { el } = await mount();
     const zeilen = el.querySelectorAll('table.nz-raster tbody tr');
     expect(zeilen).toHaveLength(7);
@@ -86,14 +86,28 @@ describe('NutzungComponent (Paket 16, D3)', () => {
     expect(el.querySelector('table.nz-raster caption')?.textContent).toContain('Wochentag');
     expect(el.querySelectorAll('table.nz-raster thead th')[10].getAttribute('aria-label')).toBe('10 Uhr');
     expect(norm(dienstag[10].textContent)).toBe('12');
-    expect(norm(zeilen[2].querySelectorAll('td')[21].textContent)).toBe('<5');
+    expect(norm(zeilen[2].querySelectorAll('td')[21].textContent)).toBe('2');
+    expect(el.textContent).not.toContain('<5');
+  });
+
+  it('nennt die Farbstufen in einer Legende, abgeleitet aus den Zahlen der Anzeige', async () => {
+    const { el } = await mount();
+    const legende = Array.from(el.querySelectorAll('.nz-legende li'), (li) => norm(li.textContent));
+    // Höchstwert 12 → Schritte zu 2: 1, 2–3, 4–5 … gerundet; die letzte Stufe ist offen.
+    expect(legende.at(-1)).toBe('keine');
+    expect(legende.at(-2)).toMatch(/^ab \d+$/);
+    expect(legende[0]).toMatch(/^1/);
+    // Jede Zelle trägt die Stufe ihres Bereichs; die höchste Zahl die höchste.
+    const dienstag = el.querySelectorAll('table.nz-raster tbody tr')[1].querySelectorAll('td');
+    expect(dienstag[10].getAttribute('data-stufe')).toBe(String(legende.length - 1));
+    expect(dienstag[0].getAttribute('data-stufe')).toBe('0');
   });
 
   it('führt die Verteilungen; leere Werte und Maschinen heißen verständlich', async () => {
     const { el } = await mount();
     const maschine = norm(el.querySelector('[data-facette="maschine"]')?.textContent);
     expect(maschine).toContain('Muster-Maschine');
-    expect(maschine).toContain('<5');
+    expect(maschine).toMatch(/Agent-Schleife\s*2/);
     expect(norm(el.querySelector('[data-facette="geraet"]')?.textContent))
       .toContain('ohne Angabe');
     expect(norm(el.querySelector('[data-facette="persona"]')?.textContent))
@@ -117,13 +131,6 @@ describe('NutzungComponent (Paket 16, D3)', () => {
   it('schweigt darüber, solange es schreibt', async () => {
     const { el } = await mount();
     expect(el.querySelector('.nz-aus')).toBeNull();
-  });
-
-  it('tönt eine kleine Zelle schwach, auch wenn alle Zellen klein sind (Review D-3)', async () => {
-    const r = raster();
-    r[1][10] = null;
-    const { fixture } = await mount(antwort({ raster: r }));
-    expect(fixture.componentInstance.stufe(null)).toBeLessThan(0.3);
   });
 
   it('benennt die Spalten der Verteilungen (Review PR #18)', async () => {

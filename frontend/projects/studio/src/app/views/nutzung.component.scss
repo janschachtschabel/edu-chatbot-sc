@@ -34,34 +34,35 @@
   font-size: 0.875rem;
 }
 
-// Zeitraum und „Aktualisieren“ stehen in einer Zeile, die breite Datenbasis darunter — im
-// Fluss rutschte der Knopf allein unter die Karten (Studio-Rundgang 2026-10-18).
+// Wie auf der Kosten-Seite: der Zeitraum mit „Aktualisieren“ als Kasten, die Datenbasis daneben
+// in gleicher Höhe; auf schmalen Schirmen bricht sie darunter (Studio-Rundgang 2026-10-18).
 .nz-filter {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--st-3);
-}
-
-.nz-zeile {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
+  align-items: stretch;
   gap: var(--st-3);
 }
 
 .nz-period {
   display: flex;
   flex-wrap: wrap;
+  align-items: end;
   gap: var(--st-3);
   margin: 0;
-  padding: 0;
-  border: 0;
+  padding: var(--st-2) var(--st-3) var(--st-3);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
 }
 
 .nz-legend {
-  inline-size: 100%;
-  margin-block-end: var(--st-1);
-  font-weight: 600;
+  padding-inline: var(--st-1);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.nz-origin {
+  flex: 1 1 30rem;
+  margin: 0;
 }
 
 .nz-field {
@@ -252,3 +253,44 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+// Legende der Farbstufen (Studio-Rundgang 2026-10-18), wie die Notenstufen der Evaluation;
+// die Muster tönen sich wie die Zellen — Tönung hinter dem Rahmen, höchstens zu 45 %.
+.nz-legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-1) var(--st-3);
+  margin: var(--st-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--st-text-muted);
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--st-1);
+  }
+}
+
+.nz-muster {
+  --stufe: 0;
+
+  position: relative;
+  isolation: isolate;
+  display: inline-block;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  border: 1px solid var(--st-rule-strong);
+  background: var(--st-panel);
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--st-accent);
+    opacity: calc(var(--stufe) * 0.45);
+  }
+}
+

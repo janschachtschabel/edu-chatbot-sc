@@ -94,34 +94,35 @@ def test_je_tag_in_berlin_mit_luecken(db):
     ]
 
 
-def test_wochentag_mal_stunde_mit_kleinen_zellen_als_none(db):
+def test_wochentag_mal_stunde_mit_genauen_zahlen(db):
+    """Nutzer-Entscheid 2026-10-18: genaue Zahlen statt „<5“ — die Abrundung war eine
+    Darstellungshilfe, kein Schutz, und las sich im Raster als Störung."""
     raster = _lauf(db, scope="production")["raster"]
     assert len(raster) == 7 and all(len(zeile) == 24 for zeile in raster)
     assert raster[1][10] == 5            # Dienstag, 10 Uhr
-    assert raster[2][21] is None         # Mittwoch, 21 Uhr: ein Zug → „<5“
+    assert raster[2][21] == 1            # Mittwoch, 21 Uhr: ein Zug
     assert raster[0][0] == 0
 
 
-def test_verteilungen_nach_haeufigkeit_kleine_als_none(db):
+def test_verteilungen_nach_haeufigkeit_mit_genauen_zahlen(db):
     v = _lauf(db, scope="production")["verteilungen"]
-    assert v["maschine"] == [{"wert": "pattern", "anzahl": 6}, {"wert": "agent", "anzahl": None}]
-    assert v["sprache"] == [{"wert": "de", "anzahl": 6}, {"wert": "en", "anzahl": None}]
+    assert v["maschine"] == [{"wert": "pattern", "anzahl": 6}, {"wert": "agent", "anzahl": 1}]
+    assert v["sprache"] == [{"wert": "de", "anzahl": 6}, {"wert": "en", "anzahl": 1}]
     assert v["geraet"][0] == {"wert": "desktop", "anzahl": 5}
     assert v["seitenart"][0] == {"wert": "themenseite", "anzahl": 5}
     # Zielgruppe und Anliegen nur aus Muster-Zügen — die Agent-Schleife setzt sie fest.
-    assert v["persona"] == [{"wert": "P-LK", "anzahl": 5}, {"wert": "", "anzahl": None}]
+    assert v["persona"] == [{"wert": "P-LK", "anzahl": 5}, {"wert": "", "anzahl": 1}]
     assert v["anliegen"][0] == {"wert": "I01 (Suche)", "anzahl": 5}
 
 
 def test_der_maschinen_filter(db):
     u = _lauf(db, scope="production", engine="agent")
     assert u["zuege"] == 1 and u["sitzungen"] == 1
-    assert u["klein_unter"] == 5
+    assert "klein_unter" not in u
 
 
-def test_klein_heisst_wenige_sitzungen_nicht_wenige_zuege(db):
-    """Review B-3a: eine einzelne Sitzung mit vielen Zügen bleibt erkennbar, wenn nach Zügen
-    abgerundet wird — maßgeblich ist die Zahl der Sitzungen in der Zelle."""
+def test_auch_eine_einzelne_sitzung_steht_genau_da(db):
+    """Nutzer-Entscheid 2026-10-18: keine Abrundung mehr, auch nicht nach Sitzungen."""
     viel = [("bb-solo", datetime(2026, 3, 9, 2, tzinfo=UTC), _muster(locale="fr"), "", 8)]
     alt, _ZEILEN[:] = list(_ZEILEN), viel
     try:
@@ -129,8 +130,8 @@ def test_klein_heisst_wenige_sitzungen_nicht_wenige_zuege(db):
     finally:
         _ZEILEN[:] = alt
     assert u["zuege"] == 8                              # die Summe bleibt genau
-    assert u["raster"][0][3] is None                    # Mo 03:00 Berlin, eine Sitzung
-    assert u["verteilungen"]["sprache"] == [{"wert": "fr", "anzahl": None}]
+    assert u["raster"][0][3] == 8                       # Mo 03:00 Berlin, eine Sitzung
+    assert u["verteilungen"]["sprache"] == [{"wert": "fr", "anzahl": 8}]
 
 
 def test_mittel_und_median_je_sitzung(db):
