@@ -94,6 +94,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 
 ## 4 Beim nächsten Deploy
 
+- **Migration `0013` (Review PR #18):** Teilindex `ix_quality_logs_text_offen` für den Text-Schritt der Aufbewahrung; wird `CONCURRENTLY` gebaut (sperrt das Schreiben nicht) und läuft im `migrate`-Dienst mit `alembic upgrade head`.
 - **Paket 16 — Plattform-Wissen neu einlesen:** der RAG-Seed `Plattformwissen.jsonl` folgt jetzt dem Domänen-Dokument 2.0 (13 Abschnitte). Nur diesen Bereich ersetzen: die Datei allein in ein Verzeichnis legen und `boerdi import-rag --seed <verz> --force` (leert nur die Bereiche dieses Seeds; Einbettung von 13 Abschnitten). Ohne den Schritt bleibt in bestehenden Datenbanken die Fassung 1.0.
 - **Paket 12 — Werk und eigene Fassung:** Migration `0011` (läuft im `migrate`-Dienst), der
   `migrate`-Befehl heißt jetzt `import-config --werksabgleich` (`compose.prod.yml`). Beim ersten
@@ -187,7 +188,15 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - Umgebung: `RERANK_URL` und `TEXT_EXTRACTION_URL` stehen nur in `settings.py`.
   - Der ALT-Zweig `cards_enabled` im Muster-Prompt bleibt ruhend: kein Client sendet das Feld. Daran hängt auch der UI-Box-Status, den Paket 7 (D) an die Werkzeug-Nachricht gelegt hat.
 
-- **Paket 14, aus dem Review (2026-10-17), nicht dringend:** `views/group-section.component.ts` hat 312 Zeilen (Grenze ~300) — Anlegen/Kopieren/Löschen ließe sich als eigener Helfer herausziehen. Im Panel „Materialtypen“ bleiben Aliase und Vorrang auf dem Stand beim Aufklappen; wer darunter „Aliase und Vorrang“ speichert, sieht die Querbezüge erst nach dem Neuladen der Seite frisch.
+- **Paket 14, aus dem Review (2026-10-17), nicht dringend:** `views/group-section.component.ts` hat 312 Zeilen (Grenze ~300) — Anlegen/Kopieren/Löschen ließe sich als eigener Helfer herausziehen. (Dass Aliase und Vorrang im Panel „Materialtypen“ nach dem Speichern ihrer Abschnitte veraltet blieben, ist seit dem zweiten Review von PR #18 behoben.)
+
+- **Aus dem zweiten Review von PR #18 (2026-10-18), älter als die Pakete 13–16, nicht angefasst:**
+  - `api/quality.py` `clear_quality_logs`: `scope=production` zählt als Filter und umgeht damit `confirm` — es löscht fast die ganze Tabelle; `engine=pattern` tut seit Paket 16 dasselbe (gewollt, dokumentiert). Im Studio nennt die Rückfrage (`quality-logs` `bulkQuestion`) einen anderen Umfang als `all` nicht.
+  - „Trotzdem speichern“ nach einer 409 ohne Version (`version: null`) schreibt ohne Bedingung, in jedem Schreiber (`AreaDocEditor`, Server-Liste, Anrede, Materialtypen). So in Paket 4 D5 festgelegt; fehlt `X-Config-Version`, wird daraus ein blindes Überschreiben.
+  - `views/backup.component.html`: die Karten in den Reitern tragen `h2` wie der Seitentitel (`check:a11y` lässt es durch).
+  - `mcp-registry-store.ts` `save()`: scheitert das Neuladen nach dem Speichern, steht „Gespeichert.“ neben dem Ladefehler.
+  - Widget `chat-shell.component.ts` `focusInput`: der `setTimeout` wird beim Zerstören nicht abgeräumt.
+  - `data.page` und `debug.context.page` halten den Pfad der Host-Seite 180 Tage. Schickt eine Einbettung je Query-Strings mit, blieben auch Suchbegriffe; Hebel: die Query in `log_quality_event` abschneiden.
 
 ## 6 Zurückgestellte Plan-Teile
 
@@ -205,4 +214,3 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
   - `AsyncData`: scheitert ein Abruf nach einem Arbeitsbereich-Wechsel, bleibt die Summe der anderen Maschine neben dem Fehler stehen (Kosten).
   - Gold-Start: werden nach einer Flow-Änderung alle gewählten Kennungen ungültig, ist der Start-Knopf ohne Erklärung grau.
   - Werkzeuge: die Sperre `policy` verlinkt auf „Identität & Schutz“ (Muster-Seite) — im Agent-Arbeitsbereich steht das Regelwerk auf „Rolle & Grenzen“ (`agent-tools.ts`, `lockLink`).
-
