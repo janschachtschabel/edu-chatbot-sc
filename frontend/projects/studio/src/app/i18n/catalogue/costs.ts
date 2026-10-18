@@ -89,16 +89,17 @@ export const COSTS: CataloguePart = {
     'nutzung.sitzungen': 'Sitzungen',
     'nutzung.mittel': 'Züge je Sitzung (Mittel)',
     'nutzung.median': 'Züge je Sitzung (Median)',
-    'nutzung.klein': '<{n}',
+    'nutzung.legende.label': 'Farbstufen',
+    'nutzung.legende.bereich': '{von}–{bis}',
+    'nutzung.legende.ab': 'ab {von}',
     'nutzung.stunde': '{h} Uhr',
     'nutzung.ohneAngabe': '(ohne Angabe)',
     'nutzung.keine': 'keine',
     'nutzung.spalte.wert': 'Wert',
     'nutzung.raster.title': 'Wochentag × Stunde',
     'nutzung.raster.hint':
-      'Züge je Stunde in deutscher Zeit; je dunkler, desto mehr, leer heißt keine. „<5“: Züge '
-      + 'aus weniger als fünf Sitzungen — Raster und Verteilungen runden kleine Zellen ab; '
-      + 'Summen und Tageswerte bleiben genau.',
+      'Züge je Stunde in deutscher Zeit, als genaue Zahl; je dunkler, desto mehr, leer heißt '
+      + 'keine. Die Stufen der Legende richten sich nach den Zahlen des Zeitraums.',
     'nutzung.tage.title': 'Je Tag',
     'nutzung.verteilungen.title': 'Verteilungen (Züge)',
     'nutzung.nurMuster': 'nur Muster-Züge — die Agent-Schleife setzt sie fest',
@@ -199,16 +200,17 @@ export const COSTS: CataloguePart = {
     'nutzung.sitzungen': 'Sessions',
     'nutzung.mittel': 'Turns per session (mean)',
     'nutzung.median': 'Turns per session (median)',
-    'nutzung.klein': '<{n}',
+    'nutzung.legende.label': 'Colour bands',
+    'nutzung.legende.bereich': '{von}–{bis}',
+    'nutzung.legende.ab': '{von} and more',
     'nutzung.stunde': '{h}:00',
     'nutzung.ohneAngabe': '(not given)',
     'nutzung.keine': 'none',
     'nutzung.spalte.wert': 'Value',
     'nutzung.raster.title': 'Weekday × hour',
     'nutzung.raster.hint':
-      'Turns per hour in German time; the darker, the more, empty means none. “<5”: turns from '
-      + 'fewer than five sessions — grid and distributions round small cells off; totals and '
-      + 'daily figures stay exact.',
+      'Turns per hour in German time, as exact numbers; the darker, the more, empty means none. '
+      + 'The bands in the legend follow the numbers of the period.',
     'nutzung.tage.title': 'Per day',
     'nutzung.verteilungen.title': 'Distributions (turns)',
     'nutzung.nurMuster': 'pattern turns only — the agent loop fixes these',

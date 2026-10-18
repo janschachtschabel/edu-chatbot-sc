@@ -5,25 +5,24 @@
 </header>
 
 <form class="nz-filter" (submit)="$event.preventDefault(); reload()">
-  <div class="nz-zeile">
-    <fieldset class="nz-period">
-      <legend class="nz-legend">{{ t('costs.period.legend') }}</legend>
-      <p class="nz-field">
-        <label for="nz-from">{{ t('costs.from.label') }}</label>
-        <input id="nz-from" class="nz-input" type="date" required [value]="from()"
-          (change)="setFrom($any($event.target).value)" />
-      </p>
-      <p class="nz-field">
-        <label for="nz-to">{{ t('costs.to.label') }}</label>
-        <input id="nz-to" class="nz-input" type="date" required [value]="to()"
-          (change)="setTo($any($event.target).value)" />
-      </p>
-    </fieldset>
+  <fieldset class="nz-period">
+    <legend class="nz-legend">{{ t('costs.period.legend') }}</legend>
+    <p class="nz-field">
+      <label for="nz-from">{{ t('costs.from.label') }}</label>
+      <input id="nz-from" class="nz-input" type="date" required [value]="from()"
+        (change)="setFrom($any($event.target).value)" />
+    </p>
+    <p class="nz-field">
+      <label for="nz-to">{{ t('costs.to.label') }}</label>
+      <input id="nz-to" class="nz-input" type="date" required [value]="to()"
+        (change)="setTo($any($event.target).value)" />
+    </p>
     <button type="submit" class="nz-btn" [disabled]="daten.loading() || incomplete()">
       {{ daten.loading() ? t('action.refreshing') : t('action.refresh') }}
     </button>
-  </div>
-  <studio-origin-scope [value]="scope()" name="nz-scope" (valueChange)="setScope($event)" />
+  </fieldset>
+  <studio-origin-scope class="nz-origin" [value]="scope()" name="nz-scope"
+    (valueChange)="setScope($event)" />
 </form>
 
 @if (daten.value(); as d) {
@@ -84,8 +83,8 @@
               <tr>
                 <th scope="row">{{ t('nutzung.wochentag.' + wt) }}</th>
                 @for (n of zeile; track $index) {
-                  <td [style.--stufe]="stufe(n)">
-                    {{ n === 0 ? '' : anzahl(n) }}
+                  <td [style.--stufe]="anteil(n)" [attr.data-stufe]="stufe(n)">
+                    {{ n === 0 ? '' : fmt.whole(n) }}
                   </td>
                 }
               </tr>
@@ -93,6 +92,17 @@
           </tbody>
         </table>
       </div>
+      @if (stufen().length) {
+        <ul class="nz-legende" [attr.aria-label]="t('nutzung.legende.label')">
+          @for (s of stufen(); track s.von; let i = $index) {
+            <li>
+              <span class="nz-muster" aria-hidden="true"
+                [style.--stufe]="(i + 1) / stufen().length"></span>{{ legende(s) }}
+            </li>
+          }
+          <li><span class="nz-muster" aria-hidden="true"></span>{{ t('nutzung.keine') }}</li>
+        </ul>
+      }
     </section>
 
     <section class="nz-teil" aria-labelledby="nz-tage-titel">
@@ -145,7 +155,7 @@
               @for (e of d.verteilungen[f]; track e.wert) {
                 <tr>
                   <th scope="row">{{ wert(f, e) }}</th>
-                  <td>{{ anzahl(e.anzahl) }}</td>
+                  <td>{{ fmt.whole(e.anzahl) }}</td>
                 </tr>
               } @empty {
                 <tr><td colspan="2">{{ t('nutzung.keine') }}</td></tr>

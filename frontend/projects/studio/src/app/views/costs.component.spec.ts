@@ -439,20 +439,20 @@ describe("Kostenschau — Preistafel (ST-9)", () => {
 });
 
 describe("Kostenschau — Herkunft (ST-9)", () => {
-  it("fragt ohne Auswahl nach allen Sitzungen, wie bisher", async () => {
-    await mount();
-    expect(h.query.has("scope")).toBe(false);
-  });
-
-  it("fragt nach einem Wechsel mit der gewählten Herkunft neu", async () => {
+  it("fragt ohne Auswahl nur nach Produktion (Studio-Rundgang 2026-10-18)", async () => {
     // Eval- und Lasttest-Züge kosten Geld, sind aber kein Betrieb.
     await mount();
-    const produktion = Array.from(h.el.querySelectorAll("label")).find((l) =>
-      l.textContent?.includes("Produktion"))!.querySelector("input")!;
-    produktion.click();
+    expect(h.query.get("scope")).toBe("production");
+  });
+
+  it("fragt nach einem Wechsel auf „Alle“ ohne Herkunftsfilter neu", async () => {
+    await mount();
+    const alle = Array.from(h.el.querySelectorAll("label")).find((l) =>
+      l.textContent?.includes("Alle"))!.querySelector("input")!;
+    alle.click();
     await settle();
     await answer(REPORT);
-    expect(h.query.get("scope")).toBe("production");
+    expect(h.query.has("scope")).toBe(false);
   });
 });
 

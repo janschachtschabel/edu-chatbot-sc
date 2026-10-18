@@ -394,6 +394,21 @@ describe("EvalRunDetailComponent", () => {
     expect(text()).not.toContain("Server-Vorgabe");
   });
 
+  it("nennt beim Gold-Lauf die Bestehensquote der harten Prüfungen, nicht „Ø Score“", async () => {
+    // avg_score eines Gold-Laufs IST die Quote der harten Prüfungen (golden.py) — als
+    // „Ø Score 0,95“ sah sie aus wie eine Note und passte nicht zu den Urteilen (Rundgang).
+    await mount(detail());
+    expect(text()).toContain("Harte Prüfungen bestanden");
+    expect(text()).toMatch(/83\s%/);
+    expect(text()).not.toContain("Ø Score");
+  });
+
+  it("nennt beim generativen Lauf den Ø Judge-Score", async () => {
+    await mount(detail({ mode: "generative" }));
+    expect(text()).toContain("Ø Judge-Score");
+    expect(text()).toContain("0,83");
+  });
+
   it("shows why a run failed instead of an empty scorecard", async () => {
     await mount(
       detail({

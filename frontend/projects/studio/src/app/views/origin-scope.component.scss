@@ -1,17 +1,20 @@
 // Moved here from the analysis page (ST-9), where it began as `.qv-scope`.
 // Real radios in a fieldset: arrow-key navigation, the group name and the
 // selected state all come from the platform instead of being rebuilt with ARIA.
+// Der Abstand nach unten sitzt am Host: eine Seite, die die Datenbasis neben den Zeitraum
+// stellt, nimmt ihn über die Klasse am Element zurück (Studio-Rundgang 2026-10-18).
 :host {
   display: block;
+  margin-block-end: var(--st-4);
 }
 
 // Raster statt Fluss: die drei Karten sind gleich breit und brechen gemeinsam um, statt
 // nach Textlänge verschieden groß zu stehen (Studio-Rundgang 2026-10-18).
 .os {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
   gap: var(--st-2);
-  margin: 0 0 var(--st-4);
+  margin: 0;
   padding: var(--st-2) var(--st-3) var(--st-3);
   border: 1px solid var(--st-rule);
   border-radius: var(--st-radius);

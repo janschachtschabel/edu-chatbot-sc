@@ -56,7 +56,7 @@ import { rootField, type SchemaField } from './schema-to-fields';
     }
     @if (sections().length) {
       @for (section of sections(); track section.id) {
-        <details class="sf-section" [open]="$first">
+        <details class="sf-section" [open]="$first && !alleZu()">
           <summary class="sf-section-head">
             @let kopf = sectionHead(section);
             {{ kopf.label }}
@@ -142,6 +142,9 @@ export class SchemaFormComponent {
   readonly epoche = input(0);
   /** Rundgang 3: der Bereich dieses Formulars — für die Plakette je Feld (`FORM_WIRKUNG`). */
   readonly area = input<string | null>(null);
+  /** Alle Abschnitte zugeklappt starten, auch den ersten — wo er so groß ist, dass man ihn
+   *  erst zuklappen müsste, um die übrigen zu sehen (Studio-Rundgang 2026-10-18). */
+  readonly alleZu = input(false);
   private readonly effects = inject(EffectsApi).effects;
   private readonly ansicht = inject(StudioAnsicht).ansicht;
   /** Liest Signale: ein Feld, das sie in einem `computed` ruft, folgt Zuordnung und Ansicht. */

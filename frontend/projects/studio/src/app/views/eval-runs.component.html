@@ -100,7 +100,7 @@
                 · {{ row.current_activity }}
               }
             } @else {
-              {{ t('evalRuns.result', { turns: row.total_turns, score: score(row.avg_score) }) }}
+              {{ ergebnis(row) }}
             }
           </span>
 

@@ -48,7 +48,8 @@ export class SessionsComponent {
   private readonly api = inject(SessionsApi);
 
   /** ST-9: nach Herkunft — serverseitig, die Liste kappt bei 100. */
-  readonly scope = signal<OriginScope>('all');
+  // Vorgabe Produktion (Studio-Rundgang 2026-10-18); die anderen bleiben wählbar.
+  readonly scope = signal<OriginScope>('production');
 
   readonly sessions = new AsyncData<SessionRow[]>(() => this.api.list(this.scope()), this.t);
   readonly rows = computed(() => this.sessions.value() ?? []);

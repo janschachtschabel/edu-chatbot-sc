@@ -56,7 +56,8 @@ async function mount(
   const fixture = TestBed.createComponent(SessionsComponent);
   const http = TestBed.inject(HttpTestingController);
   await fixture.whenStable();
-  http.expectOne("/studio/api/sessions/").flush(sessions);
+  // Pfad, nicht die ganze URL: seit dem Rundgang trägt die Vorgabe `?scope=production`.
+  http.expectOne((r) => r.url === "/studio/api/sessions/").flush(sessions);
   await tick();
   await fixture.whenStable();
   return { fixture, el: fixture.nativeElement as HTMLElement, http };
@@ -73,6 +74,21 @@ describe("SessionsComponent", () => {
     // straight past the BFF.
     const { http } = await mount();
     http.verify();
+  });
+
+  it("fragt ohne Auswahl nur nach Produktion (Studio-Rundgang 2026-10-18)", async () => {
+    TestBed.resetTestingModule();
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, "de");
+    TestBed.configureTestingModule({
+      providers: [provideZonelessChangeDetection(), provideHttpClient(withXhr()),
+        provideHttpClientTesting()],
+    });
+    const fixture = TestBed.createComponent(SessionsComponent);
+    await fixture.whenStable();
+    const req = TestBed.inject(HttpTestingController)
+      .expectOne((r) => r.url === "/studio/api/sessions/");
+    expect(req.request.params.get("scope")).toBe("production");
+    req.flush([]);
   });
 
   it("shows each session with its turns, persona and state", async () => {
@@ -118,7 +134,7 @@ describe("SessionsComponent", () => {
     const http = TestBed.inject(HttpTestingController);
     await fixture.whenStable();
     http
-      .expectOne("/studio/api/sessions/")
+      .expectOne((r) => r.url === "/studio/api/sessions/")
       .flush("x", { status: 503, statusText: "Unavailable" });
     await tick();
     await fixture.whenStable();
@@ -160,7 +176,7 @@ describe("SessionsComponent", () => {
     req.flush({ status: "deleted" });
     await tick();
     await h.fixture.whenStable();
-    h.http.expectOne("/studio/api/sessions/").flush([SESSIONS[1]]);
+    h.http.expectOne((r) => r.url === "/studio/api/sessions/").flush([SESSIONS[1]]);
   });
 
   it("clears only the transcript, keeping the session row", async () => {
@@ -198,7 +214,7 @@ describe("SessionsComponent", () => {
     await h.fixture.whenStable();
 
     expect(h.fixture.componentInstance.selected()).toBe("abc-123");
-    h.http.expectOne("/studio/api/sessions/").flush(SESSIONS);
+    h.http.expectOne((r) => r.url === "/studio/api/sessions/").flush(SESSIONS);
     await tick();
     await h.fixture.whenStable();
     // the transcript asked again, and now gets nothing
@@ -221,7 +237,7 @@ describe("SessionsComponent", () => {
     const h = await mount();
     h.el.querySelector<HTMLButtonElement>(".sv-reload")?.click();
     await h.fixture.whenStable();
-    h.http.expectOne("/studio/api/sessions/").flush(SESSIONS);
+    h.http.expectOne((r) => r.url === "/studio/api/sessions/").flush(SESSIONS);
   });
 
   /**
@@ -272,14 +288,14 @@ describe("SessionsComponent", () => {
   it("filtert die Liste serverseitig nach Herkunft (ST-9)", async () => {
     // Serverseitig, weil die Liste bei 100 kappt: ein Lasttest drängte sonst
     // jede echte Sitzung hinaus, bevor der Browser filtern könnte.
+    // Vorgabe „Produktion“ (Studio-Rundgang 2026-10-18); „Alle“ fragt ohne Filter.
     const h = await mount();
-    const produktion = Array.from(h.el.querySelectorAll("label")).find((l) =>
-      l.textContent?.includes("Produktion"))!.querySelector("input")!;
-    produktion.click();
+    const alle = Array.from(h.el.querySelectorAll("label")).find((l) =>
+      l.textContent?.includes("Alle"))!.querySelector("input")!;
+    alle.click();
     await h.fixture.whenStable();
     h.http
-      .expectOne((r) => r.url === "/studio/api/sessions/"
-        && r.params.get("scope") === "production")
+      .expectOne((r) => r.url === "/studio/api/sessions/" && !r.params.has("scope"))
       .flush([SESSIONS[0]]);
     await tick();
     await h.fixture.whenStable();

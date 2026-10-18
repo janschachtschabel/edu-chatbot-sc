@@ -9,12 +9,10 @@ Tag, Wochentag und Stunde rechnet Postgres in :data:`~boerdi.services.usage_tage
 Sprache, Seitenart und Maschine stehen seit Paket 16 flach in der Zeile; ältere Zeilen tragen
 sie nur im Debug — der wird dort gelesen, solange ihn der Aufbewahrungslauf nicht geleert hat.
 
-**Kleine Zellen** — Züge aus 1 bis :data:`KLEIN_UNTER` − 1 Sitzungen — kommen als ``None``:
-Raster und Verteilungen sollen Muster zeigen, nicht einzelne Besuche. Maßgeblich sind die
-Sitzungen, nicht die Züge (Review B-3a: eine Sitzung mit zehn Zügen um 3 Uhr war sonst genau zu
-sehen). Das ist eine **Darstellungshilfe, kein Schutz**: Summen und Tageswerte bleiben genau, und
-über einen engen Zeitraum ließe sich eine Zelle zurückrechnen — wer das Studio bedient, sieht
-ohnehin die Sitzungen selbst (Review PR #18). Die Studio-Seite sagt, was gerundet ist.
+**Genaue Zahlen** (Nutzer-Entscheid 2026-10-18): Raster und Verteilungen nennen jede Zelle
+genau. Bis dahin kamen Zellen aus weniger als fünf Sitzungen als ``None`` („<5“) — eine
+Darstellungshilfe, kein Schutz (Summen und Tageswerte waren ohnehin genau, und wer das Studio
+bedient, sieht die Sitzungen selbst); im Raster las sie sich als Störung.
 
 **Maschine** ist die angefragte (``debug.engine``): ein Krisen-Zug unter der Agent-Schleife zählt
 hier als ``agent``, in der Analyse über ``pattern_id`` als Muster — die Nutzung fragt, womit
@@ -24,7 +22,7 @@ Besucher sprechen, die Analyse, welcher Weg antwortete.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from typing import Any, Final
+from typing import Any
 
 from sqlalchemy import Date, cast, extract, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,8 +31,6 @@ from sqlalchemy.sql.elements import ColumnElement
 from boerdi.db.models import QualityLog
 from boerdi.services.session_origin import scope_clause
 from boerdi.services.usage_tage import TAGES_ZONE
-
-KLEIN_UNTER: Final = 5
 
 _DATA = QualityLog.data
 
@@ -60,10 +56,6 @@ _NUR_MUSTER: dict[str, ColumnElement[str]] = {
     "persona": func.coalesce(_DATA["persona_id"].astext, ""),
     "anliegen": func.coalesce(QualityLog.intent_id, ""),
 }
-
-
-def _klein(zuege: int, sitzungen: int) -> int | None:
-    return None if zuege > 0 and sitzungen < KLEIN_UNTER else zuege
 
 
 def _lokal(wann: Any) -> Any:
@@ -107,7 +99,6 @@ async def ueberblick(
             **{name: await _verteilung(session, spalte, [*auswahl, MASCHINE == "pattern"])
                for name, spalte in _NUR_MUSTER.items()},
         },
-        "klein_unter": KLEIN_UNTER,
     }
 
 
@@ -129,15 +120,15 @@ async def _tage(session: AsyncSession, start: datetime, end: datetime,
 
 
 async def _raster(session: AsyncSession,
-                  auswahl: list[ColumnElement[bool]]) -> list[list[int | None]]:
+                  auswahl: list[ColumnElement[bool]]) -> list[list[int]]:
     """7 × 24: Zeile 0 ist Montag, Spalte die Stunde (Ortszeit)."""
     wochentag = extract("isodow", _lokal(QualityLog.created_at)).label("wt")
     stunde = extract("hour", _lokal(QualityLog.created_at)).label("st")
-    raster: list[list[int | None]] = [[0] * 24 for _ in range(7)]
-    for wt, st, n, sitzungen in (await session.execute(
-            select(wochentag, stunde, func.count(), func.count(QualityLog.session_id.distinct()))
+    raster = [[0] * 24 for _ in range(7)]
+    for wt, st, n in (await session.execute(
+            select(wochentag, stunde, func.count())
             .where(*auswahl).group_by(wochentag, stunde))).all():
-        raster[int(wt) - 1][int(st)] = _klein(n, sitzungen)
+        raster[int(wt) - 1][int(st)] = n
     return raster
 
 
@@ -145,6 +136,6 @@ async def _verteilung(session: AsyncSession, spalte: ColumnElement[str],
                       auswahl: list[ColumnElement[bool]]) -> list[dict[str, Any]]:
     wert = spalte.label("wert")
     zeilen = (await session.execute(
-        select(wert, func.count().label("n"), func.count(QualityLog.session_id.distinct()))
+        select(wert, func.count().label("n"))
         .where(*auswahl).group_by(wert).order_by(func.count().desc(), wert))).all()
-    return [{"wert": w, "anzahl": _klein(n, sitzungen)} for w, n, sitzungen in zeilen]
+    return [{"wert": w, "anzahl": n} for w, n in zeilen]

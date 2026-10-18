@@ -136,6 +136,13 @@ describe("EvalRunsComponent", () => {
     req.flush({ runs: [run("r1")] });
   });
 
+  it("nennt in der Zeile beim Gold-Lauf die Bestehensquote, beim generativen den Judge-Score", async () => {
+    const h = await mount([run("r1"), run("r2", { mode: "generative" })]);
+    // Intl setzt ein geschütztes Leerzeichen vor „%“.
+    expect(rows(h)[0].textContent).toMatch(/83\s%\s*harte Prüfungen bestanden/);
+    expect(rows(h)[1].textContent).toContain("Ø Judge-Score 0,83");
+  });
+
   it("shows how far a running run has got, against its target", async () => {
     const h = await mount([RUNNING]);
     const row = rows(h)[0];

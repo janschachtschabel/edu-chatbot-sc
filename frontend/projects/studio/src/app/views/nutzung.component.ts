@@ -6,7 +6,8 @@
  * immer 100 % einer Maschine, und Zielgruppe/Anliegen — nur aus Muster-Zügen — blieben im
  * Agent-Arbeitsbereich leer. Von oben: Züge und Sitzungen, je Tag, Wochentag × Stunde, Verteilungen. Jede
  * Grafik ist zugleich Tabelle — die Zahlen stehen als Text in den Zellen, die Tönung hebt nur
- * hervor (WCAG 1.4.1). Kleine Zellen nennt der Server nicht genau; hier heißen sie „<5“.
+ * hervor (WCAG 1.4.1). Seit dem Studio-Rundgang 2026-10-18 genau, ohne „<5“; die Tönung folgt
+ * Stufen aus den vorkommenden Zahlen (`nutzung-stufen.ts`), die Legende nennt die Bereiche.
  */
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
@@ -20,12 +21,12 @@ import { StudioFormat } from '../i18n/studio-format.service';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { AsyncStateComponent } from './async-state.component';
 import { dayEnd, dayStart, isoDay } from './costs.component';
+import { type NutzungStufe, nutzungStufen, stufeVon } from './nutzung-stufen';
 import { OriginScopeComponent } from './origin-scope.component';
 
 const DEFAULT_DAYS = 30;
 const DAY_MS = 86_400_000;
 const STUNDEN = Array.from({ length: 24 }, (_, i) => i);
-const KLEIN_STUFE = 0.12;
 /** Zielgruppe und Anliegen setzt die Agent-Schleife fest — sie zählen nur aus Muster-Zügen. */
 const NUR_MUSTER: ReadonlySet<Facette> = new Set<Facette>(['persona', 'anliegen']);
 
@@ -56,9 +57,9 @@ export class NutzungComponent {
   readonly leer = computed(() =>
     !this.daten.loading() && !this.daten.error() && this.daten.value()?.zuege === 0);
 
-  /** Höchster Wert im Raster und je Tag — Bezug der Tönung bzw. Balkenlänge. */
-  readonly rasterMax = computed(() =>
-    Math.max(1, ...(this.daten.value()?.raster ?? []).flat().map((n) => n ?? 0)));
+  /** Farbstufen aus den Zahlen des Rasters — Tönung der Zellen und Legende. */
+  readonly stufen = computed(() => nutzungStufen((this.daten.value()?.raster ?? []).flat()));
+  /** Höchste Sitzungszahl eines Tages — Bezug der Balkenlänge. */
   readonly tagMax = computed(() =>
     Math.max(1, ...(this.daten.value()?.tage ?? []).map((t) => t.sitzungen)));
 
@@ -89,18 +90,22 @@ export class NutzungComponent {
     this.reload();
   }
 
-  anzahl(n: number | null): string {
-    return n === null
-      ? this.t('nutzung.klein', { n: this.daten.value()?.klein_unter ?? 5 })
-      : this.fmt.whole(n);
+  /** Die Stufe einer Rasterzelle (0 = keine Züge) — als Attribut für die Tönung. */
+  stufe(n: number): number {
+    return stufeVon(n, this.stufen());
   }
 
-  /** 0 bis 1 — eine kleine Zelle ist schwach getönt, nicht leer (Review D-3: sie stand bei
-   *  lauter kleinen Zellen auf der dunkelsten Stufe). */
-  stufe(n: number | null): number {
-    if (n === 0) return 0;
-    if (n === null) return KLEIN_STUFE;
-    return Math.max(KLEIN_STUFE, n / this.rasterMax());
+  /** Deckkraft der Tönung, 0 bis 1: die höchste Stufe am dunkelsten. */
+  anteil(n: number): number {
+    const zahl = this.stufen().length;
+    return zahl ? this.stufe(n) / zahl : 0;
+  }
+
+  legende(s: NutzungStufe): string {
+    if (s.bis === null) return this.t('nutzung.legende.ab', { von: this.fmt.whole(s.von) });
+    if (s.bis === s.von) return this.fmt.whole(s.von);
+    return this.t('nutzung.legende.bereich',
+      { von: this.fmt.whole(s.von), bis: this.fmt.whole(s.bis) });
   }
 
   nurMuster(f: Facette): boolean {
