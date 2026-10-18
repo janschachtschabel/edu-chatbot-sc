@@ -9,6 +9,13 @@
   box-sizing: border-box;
 }
 
+// `hidden` wins over every component `display` (Rundgang 3): `.cv-sections { display: grid }`
+// overrode the UA rule `[hidden] { display: none }`, so inactive tab panels stayed visible
+// while the specs — jsdom applies no component styles — saw `hidden` and passed.
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   font-family: var(--boerdi-font);
