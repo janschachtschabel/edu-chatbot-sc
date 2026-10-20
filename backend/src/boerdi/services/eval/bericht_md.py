@@ -34,8 +34,8 @@ def _weg(weg: dict[str, Any] | None) -> str:
     if not weg:
         return "—"
     teile = [_esc(weg.get(k)) for k in ("anbieter", "modell", "api") if weg.get(k)]
-    teile += [f"{k}={_esc(weg[k])}" for k in ("reasoning_effort", "verbosity", "service_tier")
-              if weg.get(k)]
+    teile += [f"{k}={_esc(weg[k])}"
+              for k in ("route", "reasoning_effort", "verbosity", "service_tier") if weg.get(k)]
     return " · ".join(teile) or "—"
 
 

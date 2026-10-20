@@ -100,3 +100,9 @@ def test_ohne_kurzbericht_und_auswertung_bleibt_der_bericht_lesbar() -> None:
     md = bericht_md.render(d)
     assert "Kein Kurzbericht: Judge weg" in md
     assert "Keine Auswertung" in md
+
+
+def test_der_weg_nennt_die_route() -> None:
+    """Gesamt-Review Paket 17 (AB1)."""
+    assert "route=boerdi-test-luna" in bericht_md._weg(
+        {"anbieter": "b-api-openai", "modell": "gpt-6-luna", "route": "boerdi-test-luna"})
