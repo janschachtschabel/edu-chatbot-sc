@@ -705,8 +705,8 @@ sechs anderen Gründe liefern kein verlässliches Ergebnis.
 
 | Ebene | Werkzeug | Umfang |
 |---|---|---|
-| Backend-Unit/Integration | pytest | **368 Testdateien**, > 6300 Tests (Stand 2026-10-18) |
-| Frontend-Unit | Vitest | **235 Spec-Dateien** (ui 81, widget 4, studio 150; Stand 2026-10-18) |
+| Backend-Unit/Integration | pytest | **384 Testdateien**, > 6600 Tests (Stand 2026-10-20) |
+| Frontend-Unit | Vitest | **236 Spec-Dateien** (ui 81, widget 4, studio 151; Stand 2026-10-20) |
 | E2E | Playwright | Einbettungs- und Chat-Szenarien |
 | Lint / Typen | ruff · ESLint · `tsc` | |
 | Vertrags-Wächter | `test_openapi_contract.py` | die `/api`-Fläche ist eingefroren |
