@@ -112,14 +112,19 @@ COPY --from=frontend /build/dist/widget/browser ./widget_dist
 COPY --from=frontend /build/dist/studio/browser ./studio_dist
 
 USER boerdi
-EXPOSE 8100
+# 8100: öffentlich (Widget, Chat, Studio). 8101: intern — /health, /ready, /metrics für die
+# Proben des Clusters; nicht über den Ingress freigeben (Paket 17, D1).
+EXPOSE 8100 8101
 
 # python instead of curl: the base image already has an interpreter, so the
 # probe costs no extra package (ALT installed curl AND build-essential into its
-# runtime image for this). /health is deliberately DB-free — a warming instance
-# that cannot reach Postgres yet is still a live process.
+# runtime image for this). Since Paket 17 on the internal port (INTERNAL_PORT,
+# default 8101), and /ready rather than /health: the internal server answers while
+# the main lifespan is still starting, and traefik routes to "healthy" containers —
+# /health made them healthy before 8100 listened (Gesamt-Review Paket 17, D2).
+# Kubernetes keeps /health for liveness and /ready for readiness (helm values).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=4).status == 200 else 1)"]
+  CMD ["python", "-c", "import os,urllib.request,sys; p=os.environ.get('INTERNAL_PORT') or '8101'; sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{p}/ready', timeout=4).status == 200 else 1)"]
 
 # One uvicorn process per container: the cluster scales by replicas (spec §4).
 # --workers here would give each worker its own in-process config cache while
@@ -139,6 +144,11 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # --forwarded-allow-ips "*" is safe HERE for the same reason TRUST_FORWARDED_FOR
 # is (compose.prod.yml): no application service publishes a port, so these
 # headers cannot come from a client — only from traefik on the internal network.
-CMD ["uvicorn", "boerdi.main:app", "--host", "0.0.0.0", "--port", "8100", \
-     "--proxy-headers", "--forwarded-allow-ips", "*", \
-     "--timeout-graceful-shutdown", "30"]
+#
+# Paket 17 (D1): `boerdi.serve` starts the same uvicorn server (proxy headers,
+# graceful shutdown 30 s) plus a second, internal server on INTERNAL_PORT (8101) in
+# the same process; a failed startup exits with 3 like the uvicorn CLI. Whose
+# forwarded headers it trusts comes from FORWARDED_ALLOW_IPS: default "*" (right for
+# this compose setup, see above), the ingress CIDR in Kubernetes, 127.0.0.1 when the
+# port is published without a proxy (deploy/README.md).
+CMD ["python", "-m", "boerdi.serve"]

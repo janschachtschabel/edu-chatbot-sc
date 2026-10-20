@@ -233,7 +233,7 @@ jobs:
 
       - name: Backend-Container starten
         run: |
-          docker run -d --name boerdi --network "$NET" -p 8100:8100 \
+          docker run -d --name boerdi --network "$NET" -p 8100:8100 -p 8101:8101 \
             -e DATABASE_URL="$DB_URL" \
             -e RATE_LIMIT_STORAGE_URI=valkey://valkey:6379/0 \
             -e STUDIO_API_KEY=smoke-nur-fuer-ci-kein-secret \
@@ -265,6 +265,18 @@ jobs:
           code=$(curl -sS -o /tmp/health.json -w '%{http_code}' "$BASE/health")
           test "$code" = 200 || { echo "::error::/health => $code"; exit 1; }
           grep -q '"status":"ok"' /tmp/health.json
+
+      # Paket 17 (D1/D2): der interne Port trägt Liveness und Readiness (mit Datenbank);
+      # die Betriebsdetails unter /api/health brauchen den Studio-Schlüssel.
+      - name: Smoke — interner Port (/health, /ready) und /api/health geschützt
+        run: |
+          set -euo pipefail
+          curl -fsS http://localhost:8101/health | grep -q '"status":"ok"'
+          code=$(curl -sS -o /tmp/ready.json -w '%{http_code}' http://localhost:8101/ready)
+          test "$code" = 200 || { echo "::error::/ready => $code $(cat /tmp/ready.json)"; exit 1; }
+          grep -q '"status":"ready"' /tmp/ready.json
+          code=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/api/health")
+          test "$code" = 401 || { echo "::error::/api/health ohne Schlüssel => $code"; exit 1; }
 
       # Der Vertrag aus api/widget.py: der stabile Pfad ist ein 302 auf die
       # gehashte URL, und NUR die trägt `immutable`. Beides wird geprüft — ein

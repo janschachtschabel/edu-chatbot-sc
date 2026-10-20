@@ -397,6 +397,23 @@ class Settings(BaseSettings):
     # Paket 13 (A2/A7): Stand des Abbilds, als Build-Argumente gesetzt; lokal leer.
     boerdi_version: str = Field("", validation_alias=_env("BOERDI_VERSION"))
     git_sha: str = Field("", validation_alias=_env("GIT_SHA"))
+    # Paket 17 (D1): Port für /health, /ready, /metrics — nur im Cluster erreichbar
+    # (Leitfaden „Übergabe an Team 6“). Der öffentliche Port bleibt 8100.
+    internal_port: int = Field(8101, ge=1, le=65535, validation_alias=_env("INTERNAL_PORT"))
+    # Gesamt-Review Paket 17 (D1): wessen X-Forwarded-For/-Proto Uvicorn glaubt — daraus wird
+    # die Client-Adresse (Drosselung je IP) und das Schema der Weiterleitungen. ``*`` passt zu
+    # Compose (kein App-Port veröffentlicht, nur traefik spricht mit 8100); in Kubernetes die
+    # Pod-CIDR des Ingress, sonst fälscht jeder, der 8100 erreicht, seine Adresse.
+    forwarded_allow_ips: str = Field("*", validation_alias=_env("FORWARDED_ALLOW_IPS"))
+
+    @field_validator("internal_port")
+    @classmethod
+    def _nicht_der_oeffentliche_port(cls, v: int) -> int:
+        # Review Phase D (C12): auf 8100 lauscht der Hauptserver (``serve.OEFFENTLICHER_PORT``)
+        # — beide auf einem Port endeten im Bind-Fehler beim Start.
+        if v == 8100:
+            raise ValueError("INTERNAL_PORT darf nicht 8100 sein (öffentlicher Port)")
+        return v
 
     # ── Studio (consumed by studio-bff, P9) ─────────────────────────────
     studio_password: SecretStr = Field(SecretStr(""), validation_alias=_env("STUDIO_PASSWORD"))
