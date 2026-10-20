@@ -41,6 +41,6 @@ async def master_skill_anzeigen() -> MasterSkillStatus:
 
 @router.post("/reload", response_model=MasterSkillStatus)
 async def master_skill_neu_laden() -> MasterSkillStatus:
-    """Speicher verwerfen und frisch holen — wirkt in diesem Prozess sofort,
-    in weiteren Workern spätestens nach der Speicherdauer (5 Minuten)."""
+    """Speicher verwerfen und frisch holen — wirkt sofort auf allen Kopien (Paket 17, C3:
+    geteilter Stand plus Signal; ohne Signal spätestens im nächsten Takt)."""
     return _mit_links(await master_skill.neu_laden())

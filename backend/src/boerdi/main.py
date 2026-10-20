@@ -49,6 +49,7 @@ from boerdi.obs.log_format import StdoutHandler, formatter_fuer
 from boerdi.obs.tasks import cancel_and_drain
 from boerdi.obs.trace_id import TraceIdFilter, TraceIdMiddleware
 from boerdi.services import aufbewahrung
+from boerdi.services import master_skill as master_skill_dienst
 from boerdi.services.master_skill import starte as starte_master_skill_takt
 from boerdi.services.warmup import spawn_startup_warmups
 from boerdi.settings import Settings, get_settings
@@ -179,13 +180,17 @@ async def _lifespan(app: FastAPI):
     # Paket 8 (A): die Aufbewahrungsfristen der Protokolle, alle 6 Stunden.
     takt = aufbewahrung.starte(engine, app.state.session_factory)
     # 2026-10-18: der Master-Skill im 5-Minuten-Takt, damit kein Zug auf ihn wartet.
+    # Paket 17 (C3): Stand geteilt über die Datenbank, Signal über die NOTIFY-Bahn.
+    master_skill_dienst.binde(engine)
+    store.subscribe(master_skill_dienst.bei_signal)
     skill_takt = starte_master_skill_takt()
     try:
         yield
     finally:
         # Paket 9: zuerst die Züge, deren Client aufgelegt hat — sie schreiben noch.
         await nachlaeufer_abwarten()
-        await cancel_and_drain([takt, skill_takt])
+        master_skill_dienst.binde(None)  # ab hier startet ein Signal keine Übernahme mehr
+        await cancel_and_drain([takt, skill_takt, *master_skill_dienst.laufende_uebernahmen()])
         config_loader.bind_store(None)
         await store.stop()
         await engine.dispose()

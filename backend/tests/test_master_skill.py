@@ -639,3 +639,82 @@ async def test_ein_ueberholter_abruf_belebt_keinen_geloeschten_skill(monkeypatch
     await takt
 
     assert master_skill.zustand()["cached"] is False
+
+
+# ── Paket 17 (C3): Signal auf der NOTIFY-Bahn ────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_der_config_store_reicht_ein_signal_nur_an_die_abonnenten() -> None:
+    """``__``-Nutzlasten sind Signale, keine Bereiche: kein Abruf aus ``config_areas``."""
+    from boerdi.services.config_store import ConfigStore
+
+    store = ConfigStore(engine=object(), listen_dsn="postgresql://attrappe")  # type: ignore[arg-type]
+    gehoert: list[str] = []
+    store.subscribe(gehoert.append)
+    # In der Schleife: ein Bereich startete hier einen Abruf.
+    store._on_area_changed("__master_skill")
+    assert gehoert == ["__master_skill"]
+    assert store._fetching == {}
+
+
+@pytest.mark.asyncio
+async def test_das_signal_uebernimmt_den_geteilten_stand(monkeypatch) -> None:
+    import asyncio
+    from datetime import UTC, datetime
+
+    from boerdi.services import master_skill_stand
+
+    _schalter(monkeypatch, an=True)
+    stand = master_skill_stand.Stand(text="# Geteilt", abgerufen_um=datetime.now(UTC),
+                                     letzter_fehler=None, alter_s=1.0)
+
+    async def _lies(_engine, _kennung):
+        return stand
+
+    monkeypatch.setattr(master_skill_stand, "lies", _lies)
+    master_skill.bei_signal("prompts")  # anderer Bereich: nichts
+    assert not master_skill._uebernahmen
+    master_skill.bei_signal(master_skill_stand.SIGNAL)  # ohne Datenbank: nichts
+    assert not master_skill._uebernahmen
+
+    master_skill.binde(object())  # type: ignore[arg-type]
+    try:
+        master_skill.bei_signal(master_skill_stand.SIGNAL)
+        await asyncio.gather(*master_skill._uebernahmen)
+    finally:
+        master_skill.binde(None)
+    assert master_skill.zustand()["sha256"] == hashlib.sha256(b"# Geteilt").hexdigest()
+
+
+@pytest.mark.asyncio
+async def test_neu_laden_bei_belegter_sperre_meldet_es(monkeypatch) -> None:
+    """Gesamt-Review C6: das Studio hielt das Neu-Laden für gelungen."""
+    import contextlib
+
+    from boerdi.services.sitzungssperre import SitzungBeschaeftigt
+
+    _schalter(monkeypatch, an=True)
+
+    @contextlib.asynccontextmanager
+    async def _belegt(*_a, **_kw):
+        raise SitzungBeschaeftigt("__lauf:master-skill")
+        yield
+
+    async def _keine_zeile(_kennung):
+        return None
+
+    monkeypatch.setattr(master_skill, "sitzungssperre", _belegt)
+    monkeypatch.setattr(master_skill, "_lies_stand", _keine_zeile)
+
+    async def _fake(name, args, **_kw):
+        return "# A\n\nv1"
+
+    monkeypatch.setattr(master_skill, "call_mcp_tool", _fake)
+    master_skill.binde(object())  # type: ignore[arg-type]
+    try:
+        await master_skill.prompt_block(None)  # die Kopie hat einen Stand
+        anzeige = await master_skill.neu_laden()
+    finally:
+        master_skill.binde(None)
+    assert "Sperre" in (anzeige["last_error"] or "")

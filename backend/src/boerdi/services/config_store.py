@@ -188,9 +188,13 @@ class ConfigStore:
         self._subscribers.append(callback)
 
     def _on_area_changed(self, area: str) -> None:
+        # Paket 17 (C3): a ``__`` payload is a signal on the same channel (e.g. the shared
+        # master-skill state), not an area — nothing to fetch, only the subscribers hear it.
+        if area.startswith("__"):
+            pass
         # refetch-and-overwrite (no pop first) so SYNC readers of the loader
         # facade (get_cached) never see an empty window between drop and refill
-        if area in self._fetching:
+        elif area in self._fetching:
             self._changed_again.add(area)
         else:
             try:
