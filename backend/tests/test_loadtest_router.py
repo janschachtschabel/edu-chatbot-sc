@@ -14,6 +14,8 @@ to the settings-based ``allow_loadtest`` flag.
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -41,6 +43,8 @@ def client(monkeypatch):
     get_settings.cache_clear()
     app = create_app()
     app.dependency_overrides[get_session] = lambda: _SESSION
+    # Ohne Lebenszyklus fehlt die Fabrik; der Herzschlag startet hier nie (Spawn ist Attrappe).
+    app.state.session_factory = object()
     return TestClient(app)
 
 
@@ -67,6 +71,8 @@ def _capture_runner(monkeypatch):
 
     def fake_spawn(coro):
         spawned.append(coro)
+        if inspect.iscoroutine(coro):
+            coro.close()  # nie gestartet — sonst warnt Python „never awaited“
         return "task-sentinel"  # der Router reicht ihn an die Registry weiter
 
     monkeypatch.setattr(loadtest_api, "execute_load_test", fake_exec)
@@ -189,6 +195,24 @@ def test_start_run_persists_running_row_and_spawns_runner(client, monkeypatch):
     # runner handed the app + run_id + norm, then dispatched exactly once
     assert exec_calls[0][1] == body["id"] and exec_calls[0][2] == norm
     assert len(spawned) == 1
+    # Paket 17 (C1): der Lauf läuft mit Herzschlag — andere Repliken sehen, dass er lebt.
+    assert spawned[0].cr_code.co_name == "mit_herzschlag"
+
+
+def test_start_run_409_wenn_die_datenbank_den_zweiten_start_abweist(client, monkeypatch):
+    """Paket 17 (C1): beide Starts sahen keinen laufenden Lauf; der Unique-Index entscheidet."""
+    _afake(monkeypatch, "any_run_running", None)
+
+    async def create_run(*_args):
+        raise loadtest_api.LastTestLaeuftSchon("lt-x")
+
+    monkeypatch.setattr(loadtest_api, "create_run", create_run)
+    exec_calls, spawned = _capture_runner(monkeypatch)
+
+    r = client.post("/api/loadtest/runs", json={}, headers=_AUTH)
+    assert r.status_code == 409
+    assert "lt-x" in r.json()["detail"]
+    assert exec_calls == [] and spawned == []
 
 
 def test_start_run_409_when_a_run_is_already_running(client, monkeypatch):
@@ -483,3 +507,26 @@ def test_runner_haelt_am_pruefpunkt_an_wenn_die_zeile_gestoppt_ist(monkeypatch):
     # Der Endstand-Schreiber läuft trotzdem (er räumt den Sampler ab); dass die
     # gestoppte Zeile ihn abweist, prüft ``test_loadtest_pg.py``.
     assert geschrieben[-1] is not None
+
+
+def test_ein_lasttest_bucht_nie_auf_den_schluessel_des_aufrufers(client, monkeypatch):
+    """Gesamt-Review Paket 17 (AB3): Hintergrundläufe laufen auf ``B_API_KEY`` — auch wenn die
+    Startanfrage einen ``Authorization``-Kopf trägt (der Start übernimmt ihn nicht; der Lauf
+    erbt den Kontext der Anfrage)."""
+    from boerdi.services import llm_auth
+
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
+    monkeypatch.setenv("B_API_KEY", "schluessel-der-anlage")
+    get_settings.cache_clear()
+    _afake(monkeypatch, "any_run_running", None)
+    gesehen: dict = {}
+
+    async def create_run(*_args):
+        gesehen["schluessel"] = llm_auth.b_api_schluessel()
+
+    monkeypatch.setattr(loadtest_api, "create_run", create_run)
+    _capture_runner(monkeypatch)
+    r = client.post("/api/loadtest/runs", json={},
+                    headers={**_AUTH, "Authorization": "Bearer " + "x" * 36})
+    assert r.status_code == 200
+    assert gesehen["schluessel"] == "schluessel-der-anlage"

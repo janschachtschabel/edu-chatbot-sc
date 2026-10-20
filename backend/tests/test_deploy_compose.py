@@ -185,13 +185,22 @@ def test_das_herunterfahren_passt_in_die_gnadenfrist() -> None:
     nachlaufende Züge (und 5 s auf ihren Abbruch). Lag die Summe über
     ``stop_grace_period``, kam SIGKILL mitten im Warten — ohne Warnung im Log, ohne
     ``store.stop`` und ``engine.dispose``."""
+    from fastapi import FastAPI
+
+    from boerdi import serve
     from boerdi.api.sse import NACHLAUF_FRIST_S
 
+    # Paket 17 (D1): die Frist steht seit ``boerdi.serve`` im Einstieg, nicht mehr in der
+    # Dockerfile-CMD — gelesen wird sie dort, wo sie wirkt.
     dockerfile = (_DEPLOY.parent / "Dockerfile").read_text("utf-8")
-    uvicorn_s = int(re.search(r'"--timeout-graceful-shutdown",\s*"(\d+)"', dockerfile).group(1))
+    assert 'CMD ["python", "-m", "boerdi.serve"]' in dockerfile
+    uvicorn_s = serve.baue_server(FastAPI(), FastAPI())[0].config.timeout_graceful_shutdown
     gnade = re.search(r"stop_grace_period:\s*(\d+)s", _COMPOSE.read_text("utf-8"))
+    from boerdi.services.laeufe_beenden import _FRIST_S as abschluss_s  # vor dem Schließen
+
     abbruch_s, aufraeumen_s = 5, 5     # hängende Züge abbrechen; Takt, Store, Engine
-    assert uvicorn_s + NACHLAUF_FRIST_S + abbruch_s + aufraeumen_s <= int(gnade.group(1))
+    assert (abschluss_s + uvicorn_s + NACHLAUF_FRIST_S + abbruch_s + aufraeumen_s
+            <= int(gnade.group(1)))
 
 
 def test_das_reranker_modell_hat_ein_beschreibbares_volume() -> None:

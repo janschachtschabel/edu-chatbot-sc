@@ -125,6 +125,7 @@ def fake_infra(monkeypatch):
         async def list_areas(self): return []
         async def preload(self, areas): return None
         async def stop(self): return None
+        def subscribe(self, callback): return None  # Paket 17 (C3): Master-Skill-Signal
 
     class _Engine:
         async def dispose(self): return None

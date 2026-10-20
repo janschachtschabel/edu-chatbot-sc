@@ -192,6 +192,10 @@ BEWUSST_EINSPRACHIG: dict[str, dict[str, str]] = {
         "'Wrong password'": "der Login bildet per STATUS-Code auf "
                             "`login.error.wrongPassword` ab",
     },
+    "turn_auth.py": {
+        "'b-api key required: Authorization: Bearer <key> (B_API_KEY_MODE=forward)'":
+            "Protokoll-Meldung an den b-api-Proxy (Paket 17, AB2), kein Redaktions-Text",
+    },
     "widget.py": {
         "'invalid path'": "Auslieferung von Dateien, kein Redaktions-Text",
         "f'asset not found: {asset_name}'": "dito",

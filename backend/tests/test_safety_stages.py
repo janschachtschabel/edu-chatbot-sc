@@ -20,6 +20,17 @@ from boerdi.services.safety import legal as legal_mod
 from boerdi.services.safety import moderation as mod
 
 
+@pytest.fixture(autouse=True)
+def _llm_auth_folgt_der_attrappe(monkeypatch):
+    """Paket 17: der b-api-Schlüssel kommt über ``llm_auth`` (Zug vor Anlage). Die Tests
+    hier ersetzen ``mod.get_settings``; ``llm_auth`` liest dieselbe Attrappe — sonst
+    hinge das Ergebnis am ``B_API_KEY`` der Entwicklungs-``.env``."""
+    from boerdi.services import llm_auth
+
+    llm_auth.setze_llm_schluessel(None)
+    monkeypatch.setattr(llm_auth, "get_settings", lambda: mod.get_settings())
+
+
 def _settings(*, openai="", b_api="", openai_base="", b_base="https://b-api.example"):
     return SimpleNamespace(
         openai_api_key=SecretStr(openai),
@@ -53,7 +64,7 @@ def test_target_b_api_openai_passthrough_uses_b_key(monkeypatch):
     base, key, headers = mod._moderation_target()
     assert base == "https://b-api.example/openai"  # trailing slash gestript + /openai
     assert key == "b-key"
-    assert headers == {"X-API-KEY": "b-key"}
+    assert headers is None  # Paket 17: genau ein Kopf (Bearer aus ``key``)
 
 
 def test_target_b_api_openai_falls_back_to_native_openai(monkeypatch):

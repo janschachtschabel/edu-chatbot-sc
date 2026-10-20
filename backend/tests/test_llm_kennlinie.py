@@ -110,13 +110,14 @@ def test_openai_direkt_bekommt_denktiefe_und_ausfuehrlichkeit(senden, modell, to
 def test_b_api_openai_geht_wie_openai_direkt_ueber_responses(senden, fang, modell, tools):
     """Paket 9 (Review, CRITICAL): gpt-6-luna weist auf ``/openai/chat/completions``
     Werkzeuge ab (Probe 2026-10-09). Hinter der b-api steht dasselbe OpenAI — also
-    derselbe Weg, mit beiden Schlüsseln der b-api."""
+    derselbe Weg. Seit Paket 17 mit GENAU einem Kopf (``Authorization: Bearer``) —
+    ein zusätzlicher ``X-API-KEY`` ergäbe bei durchgereichtem Schlüssel 401."""
     pfad, body = senden("b-api-openai", modell, tools=tools)
     assert pfad == "/openai/responses"
     assert body["reasoning"] == {"effort": "low"}
     assert body["text"] == {"verbosity": "low"}
     kopf = fang[2][0]
-    assert kopf["x-api-key"] == "bkey"
+    assert "x-api-key" not in kopf
     assert kopf["authorization"] == "Bearer bkey"
 
 

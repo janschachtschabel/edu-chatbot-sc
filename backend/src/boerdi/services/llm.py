@@ -29,9 +29,12 @@ from uuid import uuid4
 
 import litellm
 
+from boerdi.obs import metrics
 from boerdi.obs import usage as _usage
+from boerdi.obs.trace_id import ausgehende_koepfe
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services.betriebsschalter import service_tier
+from boerdi.services.llm_auth import b_api_schluessel
 from boerdi.services.llm_choices import vereinige_choices
 from boerdi.services.llm_models import (
     get_chat_model,
@@ -53,6 +56,9 @@ from boerdi.services.llm_parallel import (  # noqa: F401
     semaphore,
 )
 from boerdi.services.llm_responses import RESPONSES_PRAEFIX, denkparameter_verlegen
+
+# Re-Export (Paket 17): Aufrufer sprechen ``llm.router_route`` / ``llm.antwort_modell`` an.
+from boerdi.services.llm_router import antwort_modell, router_route  # noqa: F401
 from boerdi.settings import get_settings
 
 # Let LiteLLM drop params the concrete target model doesn't accept — replaces
@@ -144,28 +150,35 @@ def route(model: str) -> tuple[str, str, str, dict[str, str] | None]:
     gets the classic rules and stays on chat/completions (why: ``llm_models._GROUPS``)."""
     s = get_settings()
     provider = get_provider()
-    litellm_model = f"openai/{model}"
+    # Paket 17 (A2): eine Route ersetzt nur den Namen des eingestellten Chat-Modells
+    # (``llm_router``); die Regeln bleiben die des Modells.
+    route_name = router_route(model)
+    wire_name = route_name or model
+    litellm_model = f"openai/{wire_name}"
     if param_rules(model).responses_api:
-        litellm_model = f"{RESPONSES_PRAEFIX}{model}"
+        litellm_model = f"{RESPONSES_PRAEFIX}{wire_name}"
     if provider == "openai":
         api_base = s.openai_base_url or _DEFAULT_OPENAI_BASE
         return litellm_model, api_base, s.openai_api_key.get_secret_value(), None
-    # b-api-openai / b-api-academiccloud: OpenAI-compatible proxy, dual auth. Paket 8 (L8):
+    # b-api-openai / b-api-academiccloud: OpenAI-compatible proxy. Paket 8 (L8):
     # OpenAI embeddings take the OpenAI path even on the AcademicCloud — it has no embedding
     # model, and the knowledge base lives in the text-embedding-3-small space (ALT: side channel).
     academiccloud = provider == "b-api-academiccloud" and not model.startswith("text-embedding-")
-    suffix = "/academiccloud" if academiccloud else "/openai"
+    suffix = "/router" if route_name else "/academiccloud" if academiccloud else "/openai"
     api_base = s.b_api_base_url.rstrip("/") + suffix
-    b_key = s.b_api_key.get_secret_value().strip()
-    api_key = b_key or "unused"  # SDK requires a truthy key
-    extra_headers = {"X-API-KEY": b_key} if b_key else None
-    return litellm_model, api_base, api_key, extra_headers
+    # Paket 17 (B3): genau EIN Kopf — das SDK macht aus ``api_key`` ``Authorization:
+    # Bearer …``; ein zusätzlicher ``X-API-KEY`` ergäbe bei durchgereichtem Schlüssel 401.
+    # Der Schlüssel ist der des Zuges (b-api-Proxy), sonst ``B_API_KEY``.
+    api_key = b_api_schluessel() or "unused"  # SDK requires a truthy key
+    # Paket 17 (D4): die Trace-ID der Anfrage an die b-api (x-client-trace-id, B3) — nur
+    # dorthin, nicht an OpenAI direkt; außerhalb einer Anfrage keine Köpfe.
+    return litellm_model, api_base, api_key, ausgehende_koepfe() or None
 
 
 def wire_transport(resolved: str, kwargs: dict[str, Any]) -> None:
     """Stamp the transport params for ``resolved`` (bare model name) onto
     ``kwargs`` in place: routed litellm model, api_base/api_key, timeout,
-    retries, optional X-API-KEY header. Shared by ``chat_completion`` and its
+    retries. Shared by ``chat_completion`` and its
     streaming twin (services/llm_streaming.py)."""
     litellm_model, api_base, api_key, extra_headers = route(resolved)
     s = get_settings()
@@ -231,12 +244,13 @@ async def chat_completion(
     wire_transport(resolved, kwargs)
 
     t0 = time.perf_counter()  # Wanduhr samt Warteschlange — so wartet der Zug
-    async with platz("bg" if background else "live"):
+    async with metrics.llm_messung(phase), platz("bg" if background else "live"):
         resp = await _acompletion(**kwargs)
     ms = seit_ms(t0)
     # Responses-Brücke: Text und Aufrufe können auf zwei Choices liegen — jeder
     # Aufrufer liest choices[0] (siehe services/llm_choices).
     resp = vereinige_choices(resp)
+    resp.model = antwort_modell(getattr(resp, "model", "") or "", resolved)
 
     if usage_acc is not None:
         _usage.add_usage(usage_acc, _usage.extract_usage(resp), phase, ms=ms)

@@ -39,17 +39,23 @@ import asyncio
 import logging
 import statistics
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import psutil
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.db.models import LoadtestRun
 from boerdi.obs.tasks import cancel_run_task
 from boerdi.services.session_origin import LOADTEST_PREFIX
+from boerdi.settings import studio_schluessel
+
+#: Paket 17 (C1): ohne Herzschlag so lange gilt ein laufender Lasttest als verwaist — sechs
+#: ausgefallene Schläge (``obs/herzschlag.TAKT_S`` = 15 s).
+VERWAIST_NACH = timedelta(seconds=90)
 
 logger = logging.getLogger(__name__)
 
@@ -187,10 +193,28 @@ def _row_to_run(row: LoadtestRun) -> dict[str, Any]:
     }
 
 
+class LastTestLaeuftSchon(Exception):
+    """Ein anderer Lasttest läuft schon — der Unique-Teilindex aus 0014 hat entschieden."""
+
+    def __init__(self, laufend: str | None) -> None:
+        super().__init__(laufend or "")
+        self.laufend = laufend
+
+
 async def create_run(session: AsyncSession, run_id: str, profile: dict[str, Any]) -> None:
-    """Persist a fresh ``running`` row (the request session; server-set stamp)."""
-    session.add(LoadtestRun(id=run_id, status="running", config=profile, result={}))
-    await session.commit()
+    """Persist a fresh ``running`` row (the request session; server-set stamp).
+
+    Paket 17 (C1): zwei gleichzeitige Starts sahen beide keinen laufenden Lauf; der
+    Unique-Teilindex lässt nur einen zu, der andere bekommt :class:`LastTestLaeuftSchon`.
+    """
+    # Herzschlag mit der Uhr der Datenbank, wie jeder weitere (Review Phase C, Befund 5).
+    session.add(LoadtestRun(id=run_id, status="running", config=profile, result={},
+                            heartbeat_at=func.now()))
+    try:
+        await session.commit()
+    except IntegrityError as fehler:
+        await session.rollback()
+        raise LastTestLaeuftSchon(await any_run_running(session)) from fehler
 
 
 async def load_run(session: AsyncSession, run_id: str) -> dict[str, Any] | None:
@@ -265,7 +289,12 @@ async def cancel_run(session: AsyncSession, run_id: str) -> bool:
 
 
 async def any_run_running(session: AsyncSession) -> str | None:
-    """Id of a currently-``running`` run (one-run-at-a-time guard), or ``None``."""
+    """Id of a currently-``running`` run (one-run-at-a-time guard), or ``None``.
+
+    Paket 17 (C1): räumt vorher Läufe ohne Herzschlag ab — ein toter Pod gibt den Weg frei,
+    ohne dass irgendein Prozess neu startet.
+    """
+    await sweep_orphaned_loadtests(session)
     return (
         await session.execute(
             select(LoadtestRun.id).where(LoadtestRun.status == "running").limit(1)
@@ -273,11 +302,22 @@ async def any_run_running(session: AsyncSession) -> str | None:
     ).scalars().first()
 
 
-async def sweep_orphaned_loadtests(session: AsyncSession) -> int:
-    """Mark leftover ``running`` rows ``failed`` at startup (ALT deadlock fix).
+_ABRAEUMEN = text(
+    "UPDATE loadtest_runs SET status = 'failed', "
+    "result = COALESCE(result, '{}'::jsonb) || jsonb_build_object('error', CAST(:fehler AS text), "
+    "'finished_at', COALESCE(result->>'finished_at', CAST(:ende AS text))) "
+    "WHERE status = 'running' "
+    "AND COALESCE(heartbeat_at, created_at) < now() - make_interval(secs => :s)"
+)
 
-    A ``running`` row after a process start is orphaned by definition — its
-    asyncio task cannot have survived the restart. Without this it blocks every
+
+async def sweep_orphaned_loadtests(session: AsyncSession) -> int:
+    """Mark orphaned ``running`` rows ``failed`` (ALT deadlock fix).
+
+    Paket 17 (C1): orphaned means *no heartbeat for* :data:`VERWAIST_NACH` — not "running
+    at process start". With several replicas that old rule let a new pod (rollout, scale-up)
+    kill the live run of another pod. Rows without any heartbeat (older than 0014) count by
+    their ``created_at``. Without this it blocks every
     new run (``any_run_running`` → 409) and cannot be deleted (delete refuses a
     live run) → permanent deadlock (Audit 2026-07-03). Wired into the app
     lifespan (``main.py``), once per process start, best-effort.
@@ -286,22 +326,20 @@ async def sweep_orphaned_loadtests(session: AsyncSession) -> int:
     schließt die Zeile auch ohne lebenden Task); dieser hier bleibt der
     automatische — niemand muss erst merken, dass eine Leiche im Weg liegt.
     """
-    rows = (
-        await session.execute(
-            select(LoadtestRun).where(LoadtestRun.status == "running")
-        )
-    ).scalars().all()
-    for row in rows:
-        result = dict(row.result or {})
-        result["error"] = (
-            "verwaister running-Run beim Start abgeräumt "
-            "(Backend-Neustart — der Lauf-Task hat ihn nicht überlebt)"
-        )
-        result.setdefault("finished_at", _now_iso())
-        row.status = "failed"
-        row.result = result
+    # Eine bedingte Anweisung, die Grenze nach der Uhr der Datenbank (Review Phase C, Befunde
+    # 2 und 5): kein Fenster zwischen Lesen und Schreiben, in dem ein Endstand des Läufers
+    # verloren ginge, und keine vorgehende Pod-Uhr, die lebende Läufe abräumt.
+    ergebnis = await session.execute(_ABRAEUMEN, {
+        "fehler": "verwaister running-Run abgeräumt (kein Herzschlag mehr — der Pod des "
+                  "Laufs ist beendet oder neu gestartet)",
+        "ende": _now_iso(),
+        "s": VERWAIST_NACH.total_seconds(),
+    })
     await session.commit()
-    return len(rows)
+    # Die Anweisung geht an den ORM-Objekten vorbei; wer die Sitzung weiter nutzt, soll den
+    # neuen Stand lesen, nicht den geladenen.
+    session.expire_all()
+    return ergebnis.rowcount
 
 
 async def _persist(
@@ -314,18 +352,22 @@ async def _persist(
     """Background-runner write: its own short-lived session from the factory.
 
     Gibt zurück, OB geschrieben wurde — der Prüfpunkt des Läufers. ``False``
-    heißt: die Zeile ist gelöscht oder gestoppt, und dann darf dieser Job
+    heißt: die Zeile ist gelöscht oder läuft nicht mehr, und dann darf dieser Job
     weder Zwischenstand noch Endstand hinterlassen. Ohne die zweite Sperre
     drehte sein ``finally`` einen gerade gestoppten Lauf auf „abgeschlossen"
-    zurück (Prod-Befund 3; auf dem Eval-Weg tut dasselbe ``_finalize_run``).
+    zurück (Prod-Befund 3; auf dem Eval-Weg tut dasselbe ``_finalize_run``) —
+    ebenso einen als verwaist abgeräumten, dessen Läufer nur den Herzschlag
+    verlor (Paket 17, Review Phase C): dann liefen zwei Lasttests.
     """
     async with factory() as session:
-        row = await session.get(LoadtestRun, run_id)
+        # Gesperrt gelesen (Gesamt-Review Paket 17, C4): ein Abräumen zwischen Lesen und
+        # Schreiben wartet, prüft danach ``status='running'`` neu und lässt die Zeile stehen.
+        row = await session.get(LoadtestRun, run_id, with_for_update=True)
         if row is None:
             return False
-        if row.status == CANCELLED_STATUS:
-            logger.info("loadtest %s: Endstand 'cancelled' bleibt — '%s' verworfen",
-                        run_id, status or "Zwischenstand")
+        if row.status != "running":
+            logger.info("loadtest %s: Endstand '%s' bleibt — '%s' verworfen",
+                        run_id, row.status, status or "Zwischenstand")
             return False
         if status is not None:
             row.status = status
@@ -354,11 +396,15 @@ async def _fire_request(
         # ALT sent ``environment.page_url``; NEU ``Environment`` field is ``page``.
         "environment": {"page": "https://staging.openeduhub.net/"},
     }
-    headers = {"X-Boerdi-Engine": engine} if engine != "default" else None
+    headers = {"X-Boerdi-Engine": engine} if engine != "default" else {}
+    # Review-Runde 3 (Befund 1): ein Zug der Anlage — mit B_API_KEY_MODE=forward fehlte ihm
+    # sonst der Proxy-Schlüssel (401). Bleibt im Prozess (ASGITransport), geht nie ins Netz.
+    if schluessel := studio_schluessel():
+        headers["X-Studio-Key"] = schluessel
     t0 = time.perf_counter()
     try:
         r = await client.post("/api/chat", json=payload,
-                              timeout=REQUEST_TIMEOUT_S, headers=headers)
+                              timeout=REQUEST_TIMEOUT_S, headers=headers or None)
         dt = time.perf_counter() - t0
         return {"kind": kind, "ok": r.status_code == 200, "status": r.status_code,
                 "latency_s": round(dt, 2), **_werkzeug_angaben(r, round(dt * 1000))}

@@ -149,9 +149,14 @@ def test_ein_fremder_host_bleibt_unangetastet(monkeypatch):
 
 # ═══ 3. Im Betrieb sichtbar ══════════════════════════════════════════════
 
-def test_health_nennt_das_repositorium():
+def test_health_nennt_das_repositorium(monkeypatch):
     """Ohne dieses Feld ist „laeuft der Bot gegen Staging?" nur durch Lesen der
     Deploy-Umgebung zu beantworten — und genau diese Frage stand am Anfang."""
+    # Paket 17 (D2): ``/api/health`` braucht den Studio-Schlüssel; hier zählt das Feld.
+    from boerdi.settings import get_settings
+
+    monkeypatch.setenv("BOERDI_ALLOW_OPEN_ADMIN", "1")
+    get_settings.cache_clear()
     with TestClient(create_app()) as client:
         daten = client.get("/api/health").json()
     assert daten["repo"].startswith("https://")

@@ -22,7 +22,7 @@ type Wechselstand =
   | { readonly art: 'fehler'; readonly grund: string }
   | { readonly art: 'liste'; readonly punkte: readonly string[] };
 
-const DENK = ['reasoning_effort', 'verbosity', 'service_tier'] as const;
+const DENK = ['route', 'reasoning_effort', 'verbosity', 'service_tier'] as const;
 
 @Component({
   selector: 'studio-eval-messbedingungen',

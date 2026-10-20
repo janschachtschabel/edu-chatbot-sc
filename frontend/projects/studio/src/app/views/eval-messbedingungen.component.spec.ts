@@ -66,6 +66,12 @@ describe('EvalMessbedingungenComponent (Paket 13, F2)', () => {
     }
   });
 
+  it('nennt die Route des b-api-Routers (Gesamt-Review Paket 17, AB1)', () => {
+    fixture.componentRef.setInput('mb', { ...MB, weg: { ...MB.weg, route: 'boerdi-test-luna' } });
+    fixture.detectChanges();
+    expect(el.textContent ?? '').toContain('route=boerdi-test-luna');
+  });
+
   it('fragt erst beim Aufklappen nach Änderungen — und nur einmal', async () => {
     http.expectNone((r) => r.url.endsWith('/eval/trends'));
     await aufklappen();

@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.db.models import EvalRun
+from boerdi.obs.herzschlag import mit_herzschlag
 from boerdi.obs.tasks import _spawn_background
 from boerdi.obs.usage import new_accumulator
 from boerdi.services.config_loader import load_gold_flows
@@ -160,10 +161,12 @@ async def start_golden_eval_run(
             "avg_score": 0.0, "total_judged_turns": 0,
         },
     ))
-    task = _spawn_background(
+    # Paket 17 (C2): mit Herzschlag — andere Repliken erkennen daran, dass der Lauf lebt.
+    task = _spawn_background(mit_herzschlag(
+        session_factory, "eval_runs", run_id,
         _execute_golden_run(session_factory, run_id, flows, bool(req.judge),
-                            engine=engine)
-    )
+                            engine=engine),
+    ))
     _register_run_task(run_id, task)
     return {
         "run_id": run_id,

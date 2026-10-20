@@ -13,7 +13,9 @@ docker compose -f deploy/compose.dev.yml down -v       # inkl. DB-Daten
   gemountet; `--reload` greift bei jeder Änderung unter `backend/src/`.
 - Dependency-Änderung (pyproject/uv.lock): `docker compose -f deploy/compose.dev.yml build backend`.
 - Lokal ohne Docker: `cd backend && uv run uvicorn boerdi.main:app --reload --port 8100`
-  (Postgres+Jaeger trotzdem via Compose starten).
+  (Postgres+Jaeger trotzdem via Compose starten). Das ist nur der öffentliche Port.
+- Lokal wie im Image (beide Ports): `cd backend && uv run python -m boerdi.serve` — 8100
+  öffentlich, 8101 intern (`/health`, `/ready`, `/metrics`, `/openapi-full.json`); ohne `--reload`.
 
 ## Prod-Image (P10-1)
 
@@ -163,10 +165,10 @@ unbrauchbaren** Block — anonym zu bleiben ist kein Fehler.
 **Prüfen, ob der Block greift**, ohne ihn auszugeben:
 
 ```bash
-curl -s https://<PUBLIC_HOST>/api/health
+curl -s -H "X-Studio-Key: $STUDIO_API_KEY" https://<PUBLIC_HOST>/api/health
 ```
 
-Das Feld `mcp_auth` nennt `service` oder `anonymous`.
+(Seit Paket 17 nur mit Studio-Schlüssel.) Das Feld `mcp_auth` nennt `service` oder `anonymous`.
 
 **Wenn der Bot nicht kuratiert**, obwohl ein Muster es vorsieht, steht der Grund
 im Protokoll (INFO — ohne Anmeldung ist das der Normalfall). Die Zeile nennt das
@@ -283,6 +285,43 @@ hat die LLM-Zugangsdaten. Stand 2026-10-15 führt die AcademicCloud über die b-
 Einbettungsmodell. Für e5-Modelle setzt der Anbieter-Weg die Präfixe `query:`/`passage:` nicht —
 vor einem Wechsel auf ein e5-Modell nachrüsten.
 
+### Auf eine Route des b-api-Routers umstellen
+
+Der Router der b-api bündelt Modelle unter einem Namen und weicht bei Ausfall aus
+(`docs/architektur.md` §5.6). Reihenfolge — eine unbekannte Route antwortet sofort mit 400:
+
+1. In der b-api die Route anlegen (global durch die Administration oder am Konto). Sie darf
+   nur Modelle **einer** Familie bündeln: für die Vorgabe `gpt-6-luna` etwa
+   `gpt-6-luna` (Priorität 0) und `gpt-5.6-luna` (Priorität 1). Beim Ändern „Cache dieser
+   Route beim Speichern leeren“ einschalten.
+2. In der `.env` `B_API_ROUTE=<Routenname>` setzen. `LLM_CHAT_MODEL` bleibt das Modell, dessen
+   Parameter und Preis gelten — **nicht** der Routenname (der Start warnt bei Verwechslung).
+3. `docker compose -f compose.prod.yml up -d backend`. Prüfen: Studio › Evaluation zeigt in
+   den Messbedingungen `weg.route`; gebucht wird unter `LLM_CHAT_MODEL`.
+
+Zurück: `B_API_ROUTE` leeren und das Backend neu starten.
+
+### Woher der b-api-Schlüssel kommt (`B_API_KEY_MODE`)
+
+| Wert | Verhalten | Wann |
+|---|---|---|
+| `auto` (Vorgabe, auch leer oder unbekannt) | `Authorization: Bearer …` vom b-api-Proxy, sonst `B_API_KEY` | gemischter Betrieb: hinter dem Proxy und direkt |
+| `static` | immer `B_API_KEY`; der Kopf zählt nicht | wie vor Paket 17; schließt beliebige Schlüssel direkter Aufrufer aus |
+| `forward` | jeder Zug braucht den durchgereichten Schlüssel, sonst **401** | Anlage nur hinter dem Proxy |
+
+Gilt für Chat, Strom, Agent und Sprache; `/api/speech/status` ist eine Auskunft und bleibt
+offen. Hintergrundläufe (Evaluation, Lasttest, RAG-Import, Vorwärmung) nehmen in jedem Modus
+`B_API_KEY`. Züge der Anlage selbst sind auch unter `forward` frei: Studio-Proben (der
+Studio-Proxy reicht `Authorization` nie durch) und Züge mit gültigem `X-Studio-Key` — so
+schickt sie der Lasttest im Prozess und der Eval-Runner an die eigene Loopback-Adresse; an
+eine fremde `EVAL_CHAT_URL` geht der Studio-Schlüssel nie, dort gilt deren Modus.
+
+Grenzen: `forward` **verlangt** einen Schlüssel, es prüft ihn nicht — das tut die b-api
+(ungültig → 401 dort). Nur `static` verhindert, dass direkte Aufrufer beliebige Schlüssel
+vorlegen (jeder kostet einen eigenen HTTP-Client im LiteLLM-Zwischenspeicher). Wirkt nur mit
+`LLM_PROVIDER=b-api-*` — sonst warnt der Start, ebenso bei einem unbekannten Wert (es gilt
+dann `auto`).
+
 ### Deployen / aktualisieren
 
 ```bash
@@ -300,6 +339,10 @@ ein Migrationsfehler dann sichtbar ist, bevor Replikas neu starten. Schritt 3 is
 `backend`-Replikas gleichzeitig neu — laufende Streams brechen ab, und bis die
 neuen den HEALTHCHECK bestehen, hat traefik kein Ziel. Der `migrate`-Dienst ist ein Einmal-Lauf; die Backends
 warten per `service_completed_successfully` auf ihn.
+
+**Paket 17:** `migrate` hebt auf **0015** (0014: Herzschlag der Lasttest- und Eval-Läufe,
+höchstens ein laufender Lasttest; 0015: geteilter Master-Skill-Stand). Während des Umstiegs
+keinen Lasttest und keine Evaluation starten — alte Backends schreiben keinen Herzschlag.
 
 **Hier KEIN `import-config`.** Ab dem ersten Import ist die Datenbank die
 Wahrheit und das Studio der Weg, sie zu ändern; ein zweiter Import überschreibt
@@ -492,6 +535,56 @@ einer erfundenen Adresse je Anfrage umgehen. In dem Fall:
   `TRUST_FORWARDED_FOR` nur einschalten, wenn der erste Eintrag verlässlich vom
   eigenen Proxy stammt.
 
+### Welche Proxys Uvicorn glaubt (`FORWARDED_ALLOW_IPS`)
+
+Zwei Stufen entscheiden über die Client-Adresse (Drosselung je IP, Logs) und das Schema
+der Weiterleitungen:
+
+1. **Uvicorn** liest `X-Forwarded-For`/`-Proto` nur von Absendern in `FORWARDED_ALLOW_IPS`
+   (Adressen oder CIDR, kommagetrennt). Vorgabe `*` = jedem glauben — richtig für
+   `compose.prod.yml`, weil dort kein App-Port veröffentlicht ist und nur traefik das
+   Backend erreicht.
+2. **`TRUST_FORWARDED_FOR=true`** lässt zusätzlich die App den ersten Eintrag des Kopfes
+   lesen (siehe oben).
+
+| Aufbau | `FORWARDED_ALLOW_IPS` | `TRUST_FORWARDED_FOR` |
+|---|---|---|
+| `compose.prod.yml` (traefik davor, kein App-Port veröffentlicht) | `*` (Vorgabe) | `true` (gesetzt) |
+| Kubernetes mit Ingress | Pod-CIDR des Ingress-Controllers | `false` |
+| **Testbetrieb ohne Proxy** (`docker run -p …` oder Compose mit `ports:`) | `127.0.0.1` | `false` (Vorgabe) |
+
+Ohne Proxy davor erreicht jeder den Port direkt; mit `*` könnte er sich per
+`X-Forwarded-For` eine beliebige Adresse geben und die Drosselung umgehen. Ein leerer Wert
+gilt als „nicht gesetzt“ (also `*`) — deshalb ausdrücklich `127.0.0.1`.
+
+**Testbetrieb mit `docker run`** (eigenes Image, Datenbank im Dev-Compose-Netz). Die
+Env-Datei (`deploy/.env.test`, nicht im Repo) trägt mindestens `DATABASE_URL` auf eine
+eigene Test-Datenbank, `LLM_PROVIDER`/`LLM_EMBED_MODEL` bzw. `EMBED_DIM` (die erste Migration
+legt damit die Vektor-Spalte an, siehe oben) und `STUDIO_API_KEY`/`STUDIO_PASSWORD`:
+
+```bash
+docker build -t boerdi-chat:test .
+docker run --rm --network boerdi-chat-dev_default --env-file deploy/.env.test \
+  boerdi-chat:test sh -c "alembic upgrade head && boerdi import-config --werksabgleich"
+docker run -d --name boerdi-chat-test --network boerdi-chat-dev_default \
+  -p 127.0.0.1:8180:8100 -p 127.0.0.1:8181:8101 \
+  --env-file deploy/.env.test -e FORWARDED_ALLOW_IPS=127.0.0.1 boerdi-chat:test
+curl -s http://127.0.0.1:8181/ready     # {"status":"ready",…} — dann ist 8180 bereit
+```
+
+**Mit Compose** dasselbe als Dienst:
+
+```yaml
+  backend:
+    image: boerdi-chat:test
+    ports: ["127.0.0.1:8180:8100", "127.0.0.1:8181:8101"]
+    environment:
+      FORWARDED_ALLOW_IPS: "127.0.0.1"
+```
+
+Migrationen laufen nie im Web-Prozess: nach jedem neuen Image erst den Migrationsschritt
+(erster `docker run` oben bzw. der `migrate`-Dienst), dann das Backend.
+
 ### Backup
 
 Läuft von selbst (`pg-backup`, täglich, Aufbewahrung `BACKUP_KEEP_DAYS`, Default
@@ -587,6 +680,15 @@ ssh -L 16686:127.0.0.1:16686 <server>                   # dann http://localhost:
 
 Die Jaeger-UI ist absichtlich nur host-lokal gebunden: Traces enthalten
 Prompt-Metadaten und gehören nicht ins Internet.
+
+`LOG_FORMAT=json` schreibt eine JSON-Zeile je Eintrag (Vorgabe `text`); jede Zeile trägt die
+Trace-ID der Anfrage (`x-client-trace-id` bzw. B3, sonst neu vergeben). Metriken im
+Prometheus-Format liefert der interne Port:
+
+```bash
+docker compose -f compose.prod.yml exec backend python -c \
+  "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8101/metrics').read().decode()[:2000])"
+```
 
 ---
 

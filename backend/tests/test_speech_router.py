@@ -277,7 +277,12 @@ def test_speech_enabled_openai_requires_key(monkeypatch):
 
 
 def test_speech_enabled_bapi_needs_audio_flag_and_key(monkeypatch):
+    from boerdi.services import llm_auth
+
     monkeypatch.setattr(speech_proxy, "get_provider", lambda: "b-api-openai")
+    # Paket 17: der Schlüssel kommt über ``llm_auth`` (Zug vor Anlage) — dort dieselbe
+    # Attrappe der Einstellungen, damit der Test den Anlage-Schlüssel steuert.
+    monkeypatch.setattr(llm_auth, "get_settings", lambda: speech_proxy.get_settings())
     # audio flag off → disabled even with a key
     monkeypatch.setattr(
         speech_proxy,
@@ -404,3 +409,34 @@ def test_synthesize_speech_upstream_error_raises_proxy_error(monkeypatch):
     monkeypatch.setattr(speech_proxy, "_post", fake_post)
     with pytest.raises(SpeechProxyError):
         asyncio.run(speech_proxy.synthesize_speech("Hallo", "nova", 1.0))
+
+
+@pytest.mark.parametrize("weg", ["transcribe", "synthesize"])
+def test_der_schluessel_des_proxys_erreicht_die_sprache(client, monkeypatch, weg):
+    """Gesamt-Review Paket 17 (AB3): Spracheingabe und -ausgabe buchen auf den
+    durchgereichten Schlüssel."""
+    from boerdi.services import llm_auth
+
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
+    monkeypatch.setenv("B_API_KEY", "schluessel-der-anlage")
+    get_settings.cache_clear()
+    monkeypatch.setattr(speech_api, "speech_enabled", lambda: True)
+    gesehen: dict = {}
+
+    async def _hoeren(content, filename, language):
+        gesehen["schluessel"] = llm_auth.b_api_schluessel()
+        return {"text": "x", "model": "m"}
+
+    async def _sprechen(text, voice, speed):
+        gesehen["schluessel"] = llm_auth.b_api_schluessel()
+        return b"ID3"
+
+    monkeypatch.setattr(speech_api, "transcribe_audio", _hoeren)
+    monkeypatch.setattr(speech_api, "synthesize_speech", _sprechen)
+    kopf = {"Authorization": "Bearer " + "p" * 36}
+    if weg == "transcribe":
+        client.post("/api/speech/transcribe",
+                    files={"audio": ("rec.webm", b"xxxx", "audio/webm")}, headers=kopf)
+    else:
+        client.post("/api/speech/synthesize", data={"text": "Hallo"}, headers=kopf)
+    assert gesehen["schluessel"] == "p" * 36

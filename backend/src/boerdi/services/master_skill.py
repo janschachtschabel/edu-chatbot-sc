@@ -27,6 +27,14 @@ Repositorium — vorher bezahlte der erste Zug nach Ablauf den Abruf (1–23 s).
 Scheitert ein Abruf, gilt der letzte gute Stand weiter; „Neu laden“ im Studio holt
 sofort.
 
+**Bei mehreren Kopien (Paket 17, C3).** Mit Datenbank (:func:`binde`) holt nur, wer die
+Sperre ``__lauf:master-skill`` hält, und nur, wenn der geteilte Stand älter als ein Takt ist;
+er schreibt ihn in eine Zeile und meldet ihn über ``config_changed``
+(``services/master_skill_stand``). Die übrigen Kopien übernehmen die Zeile auf das Signal hin,
+spätestens im eigenen Takt — so fragen N Kopien einmal ab, „Neu laden“ wirkt überall, und alle
+legen dieselbe Fassung in den Prompt (sonst trifft der Prompt-Cache nicht). Ohne Datenbank
+(Tests) bleibt alles im Prozess.
+
 **Wenn es noch keinen Stand gibt** (frischer Prozess, Takt noch nicht durch), holt
 der Zug selbst. Scheitert das, läuft er ohne Anleitung weiter und es gibt eine
 Warnung. Ein Chat, der wegen einer nicht erreichbaren Anleitung nicht antwortet,
@@ -36,16 +44,23 @@ wäre schlechter als einer ohne sie.
 from __future__ import annotations
 
 import asyncio
+import contextvars
+import dataclasses
 import hashlib
 import itertools
 import logging
 import re
 import time
 from datetime import UTC, datetime
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
+from boerdi.services import master_skill_stand
 from boerdi.services.mcp.client import call_mcp_tool, is_mcp_error
+from boerdi.services.sitzungssperre import SitzungBeschaeftigt, sitzungssperre
 from boerdi.settings import get_settings
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +88,21 @@ _angewendet: dict[str, int] = {}
 #: geholt (Unix-Zeit) und warum der letzte Abruf scheiterte. Ein Erfolg löscht die
 #: Meldung.
 _abgerufen_um: dict[str, float] = {}
+#: Je Kennung der Versuchs-Zeitpunkt (DB-Uhr) des zuletzt übernommenen geteilten Stands —
+#: ein früher gelesener Stand überschreibt keinen neueren (Review-Runde 3, Befund 2).
+_stand_um: dict[str, datetime] = {}
 _letzter_fehler: dict[str, str] = {}
+
+#: Paket 17 (C3): gebunden im Lebenszyklus der App; ``None`` heißt „nur dieser Prozess“.
+_engine: AsyncEngine | None = None
+#: Der Takt fragt erst ab, wenn der geteilte Stand so viele Takte alt ist. Unter 1, damit
+#: die Kopie, deren Takt zuerst kommt, nicht knapp an der Grenze vorbeiläuft.
+_FRISCH_GENUG: Final = 0.8
+#: „Neu laden“ wartet so lange auf eine laufende Abfrage einer anderen Kopie (gemessen bis
+#: 23 s) und holt dann selbst.
+NEU_LADEN_WARTEN_S: Final = 45.0
+#: Laufende Übernahmen nach einem Signal — gehalten, damit sie nicht eingesammelt werden.
+_uebernahmen: set[asyncio.Task[None]] = set()
 
 _KOPF: Final = "## Gesamtanleitung dieser Anlage"
 
@@ -118,11 +147,90 @@ def leere_den_zwischenspeicher() -> None:
     _zwischenspeicher.clear()
     _angewendet.clear()
     _abgerufen_um.clear()
+    _stand_um.clear()
     _letzter_fehler.clear()
 
 
 def _gespeichert(kennung: str) -> str | None:
     return _zwischenspeicher.get(kennung)
+
+
+def binde(engine: AsyncEngine | None) -> None:
+    """Den geteilten Stand an die Datenbank binden (Lebenszyklus der App); ``None`` löst."""
+    global _engine
+    _engine = engine
+
+
+def _uebernimm(kennung: str, stand: master_skill_stand.Stand) -> None:
+    """Den geteilten Stand in den Speicher legen. Ein älterer, noch laufender eigener
+    Abruf gilt danach nicht mehr (dieselbe Nummer wie in :func:`_hole`). Ein Stand, der älter
+    ist als der zuletzt übernommene, wird verworfen — etwa die Zeile, die ein Takt las, bevor
+    das Signal eines Neu-Ladens den neuen Stand brachte."""
+    bekannt = _stand_um.get(kennung)
+    if stand.geprueft_um is not None:
+        if bekannt is not None and stand.geprueft_um < bekannt:
+            return
+        _stand_um[kennung] = stand.geprueft_um
+    _angewendet[kennung] = next(_abruf_nummern)
+    if stand.text:
+        _zwischenspeicher[kennung] = stand.text
+        if stand.abgerufen_um is not None:
+            _abgerufen_um[kennung] = stand.abgerufen_um.timestamp()
+    else:
+        _zwischenspeicher.pop(kennung, None)
+        _abgerufen_um.pop(kennung, None)
+    if stand.letzter_fehler:
+        _letzter_fehler[kennung] = stand.letzter_fehler
+    else:
+        _letzter_fehler.pop(kennung, None)
+
+
+async def _lies_stand(kennung: str) -> master_skill_stand.Stand | None:
+    """Die Zeile — oder ``None`` ohne Datenbank, ohne Zeile oder wenn das Lesen scheitert."""
+    if _engine is None:
+        return None
+    try:
+        return await master_skill_stand.lies(_engine, kennung)
+    except Exception:
+        logger.warning("Master-Skill %s: geteilter Stand nicht lesbar", kennung, exc_info=True)
+        return None
+
+
+async def _hole_und_teile(engine: AsyncEngine, kennung: str,
+                          stand: master_skill_stand.Stand | None) -> None:
+    """Frisch holen (der Aufrufer hält die Sperre) und den Stand für alle Kopien ablegen.
+
+    Geteilt wird das Ergebnis DIESES Abrufs, nie der Speicher: den kann während des Abrufs
+    ein Takt derselben Kopie mit der alten Zeile überschreiben (Gesamt-Review Paket 17, C1).
+    Scheitert der Abruf, bleibt der Text aus ``stand`` — der eben unter der Sperre gelesenen
+    Zeile, also dem neuesten geteilten Stand —, nur mit Meldung. Nie ein leerer oder älterer,
+    der allen Kopien die Anleitung nähme (Review Phase C, Befund 1).
+    """
+    text, fehler, verwerfen = await _abrufen(kennung, frisch=True)
+    if text is not None:
+        neu = master_skill_stand.Stand(text=text, abgerufen_um=datetime.now(UTC),
+                                       letzter_fehler=None, alter_s=0.0)
+        logger.info("Master-Skill %s geladen (%d Zeichen)", kennung, len(text))
+    elif verwerfen:
+        neu = master_skill_stand.Stand(text=None, abgerufen_um=None,
+                                       letzter_fehler=fehler, alter_s=0.0)
+    elif stand is not None:
+        neu = master_skill_stand.Stand(text=stand.text, abgerufen_um=stand.abgerufen_um,
+                                       letzter_fehler=fehler, alter_s=0.0)
+    else:  # noch nie geteilt: der eigene letzte gute Stand, falls es einen gibt
+        um = _abgerufen_um.get(kennung)
+        neu = master_skill_stand.Stand(
+            text=_gespeichert(kennung),
+            abgerufen_um=datetime.fromtimestamp(um, UTC) if um else None,
+            letzter_fehler=fehler, alter_s=0.0)
+    try:
+        geprueft = await master_skill_stand.schreibe(
+            engine, kennung, text_=neu.text, abgerufen_um=neu.abgerufen_um,
+            letzter_fehler=neu.letzter_fehler)
+        neu = dataclasses.replace(neu, geprueft_um=geprueft)
+    except Exception:  # dieser Prozess hat den Stand; die übrigen holen im nächsten Takt
+        logger.warning("Master-Skill %s: Stand nicht geteilt", kennung, exc_info=True)
+    _uebernimm(kennung, neu)
 
 
 async def _abrufen(kennung: str, *, frisch: bool) -> tuple[str | None, str | None, bool]:
@@ -133,8 +241,11 @@ async def _abrufen(kennung: str, *, frisch: bool) -> tuple[str | None, str | Non
     bleibt er stehen.
     """
     try:
-        roh = await call_mcp_tool(
-            "get_skill", {"nodeId": kennung, "includeFiles": False}, use_cache=not frisch)
+        # In leerem Kontext: der Abruf eines Zugs liefe sonst mit der WLO-Anmeldung der Person
+        # (``mcp/auth``), und ihr Text gälte für alle (Gesamt-Review Paket 17, C3).
+        roh = await asyncio.create_task(call_mcp_tool(
+            "get_skill", {"nodeId": kennung, "includeFiles": False}, use_cache=not frisch),
+            context=contextvars.Context())
     except Exception as fehler:  # Transport, Zeitüberschreitung, Programmfehler
         logger.warning("Master-Skill %s nicht abrufbar: %s", kennung, fehler)
         return None, f"{type(fehler).__name__}: {fehler}"[:200], False
@@ -167,6 +278,12 @@ async def _hole(kennung: str, *, frisch: bool = False) -> str | None:
         gespeichert = _gespeichert(kennung)
         if gespeichert is not None:
             return gespeichert
+        # Frische Kopie: hat eine andere den Stand schon geteilt, wartet der Zug nicht
+        # auf das Repositorium.
+        stand = await _lies_stand(kennung)
+        if stand is not None and stand.text:
+            _uebernimm(kennung, stand)
+            return stand.text
     abruf_nr = next(_abruf_nummern)
     text, fehler, verwerfen = await _abrufen(kennung, frisch=frisch)
     if _angewendet.get(kennung, 0) > abruf_nr:
@@ -272,13 +389,25 @@ async def anzeige() -> dict[str, Any]:
 async def neu_laden() -> dict[str, Any]:
     """Frisch holen („Neu laden" im Studio), an beiden Speichern vorbei.
 
-    Wirkt in DIESEM Prozess. Laufen mehrere Worker, holen die übrigen spätestens
-    mit ihrem nächsten Takt (:data:`TAKT_S`) neu. Scheitert der Abruf, bleibt der bisherige
-    Text, und ``last_error`` sagt warum.
+    Mit Datenbank unter der Sperre — wartet bis :data:`NEU_LADEN_WARTEN_S` auf eine laufende
+    Abfrage einer anderen Kopie — und für alle Kopien geteilt. Scheitert der Abruf, bleibt der
+    bisherige Text, und ``last_error`` sagt warum.
     """
     kennung = _kennung()
-    if kennung:
+    engine = _engine
+    if kennung and engine is None:
         await _hole(kennung, frisch=True)
+    elif kennung and engine is not None:
+        try:
+            async with sitzungssperre(engine, master_skill_stand.SPERRE,
+                                      warten_s=NEU_LADEN_WARTEN_S):
+                await _hole_und_teile(engine, kennung, await _lies_stand(kennung))
+        except SitzungBeschaeftigt:
+            logger.warning("Master-Skill: Neu laden — Sperre nach %s s nicht frei",
+                           NEU_LADEN_WARTEN_S)
+            # Sonst hielte das Studio den alten Stand für frisch geladen (Gesamt-Review C6).
+            _letzter_fehler[kennung] = ("nicht neu geladen: die Sperre hält eine andere Kopie "
+                                        f"(länger als {int(NEU_LADEN_WARTEN_S)} s)")
     return await anzeige()
 
 
@@ -294,8 +423,49 @@ async def auffrischen() -> None:
     kennung = _kennung()
     if not kennung:
         return
-    if get_settings().master_skill_enabled or _gespeichert(kennung) is not None:
-        await _hole(kennung, frisch=True)
+    engine = _engine
+    if engine is None:
+        if get_settings().master_skill_enabled or _gespeichert(kennung) is not None:
+            await _hole(kennung, frisch=True)
+        return
+    # Paket 17 (C3): eine Zeile heißt „irgendeine Kopie hat ihn gebraucht“.
+    stand = await _lies_stand(kennung)
+    gebraucht = (get_settings().master_skill_enabled or stand is not None
+                 or _gespeichert(kennung) is not None)
+    if gebraucht and (stand is None or stand.alter_s >= TAKT_S * _FRISCH_GENUG):
+        try:
+            async with sitzungssperre(engine, master_skill_stand.SPERRE, warten_s=0.0):
+                # Erneut lesen: wer die Sperre eben freigab, hat vielleicht gerade geholt.
+                stand = await _lies_stand(kennung)
+                if stand is None or stand.alter_s >= TAKT_S * _FRISCH_GENUG:
+                    await _hole_und_teile(engine, kennung, stand)
+                    return
+        except SitzungBeschaeftigt:
+            pass  # eine andere Kopie holt gerade; ihr Signal bringt den Stand
+    if stand is not None:
+        _uebernimm(kennung, stand)
+
+
+async def uebernimm_stand() -> None:
+    """Den geteilten Stand übernehmen — auf das Signal einer anderen Kopie hin."""
+    kennung = _kennung()
+    stand = await _lies_stand(kennung) if kennung else None
+    if stand is not None:
+        _uebernimm(kennung, stand)
+
+
+def laufende_uebernahmen() -> list[asyncio.Task[None]]:
+    """Noch offene Übernahmen nach einem Signal — der Lebenszyklus beendet sie vor dem Abbau."""
+    return list(_uebernahmen)
+
+
+def bei_signal(bereich: str) -> None:
+    """Abonnent der NOTIFY-Bahn (``ConfigStore.subscribe``): übernimmt bei :data:`SIGNAL`."""
+    if bereich != master_skill_stand.SIGNAL or _engine is None:
+        return
+    aufgabe = asyncio.get_running_loop().create_task(uebernimm_stand())
+    _uebernahmen.add(aufgabe)
+    aufgabe.add_done_callback(_uebernahmen.discard)
 
 
 async def _schleife() -> None:

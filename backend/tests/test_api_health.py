@@ -14,6 +14,9 @@ def _clean(monkeypatch):
     for name in ("LLM_PROVIDER", "LLM_CHAT_MODEL", "OPENAI_MODEL", "LLM_EMBED_MODEL",
                  "LLM_VERBOSITY", "LLM_REASONING_EFFORT", "OPENAI_API_KEY", "B_API_KEY"):
         monkeypatch.delenv(name, raising=False)
+    # Paket 17 (D2): ``/api/health`` braucht den Studio-Schlüssel; hier geht es um die
+    # Form der Antwort — die Anmeldung prüft ``test_api_health_auth.py``.
+    monkeypatch.setenv("BOERDI_ALLOW_OPEN_ADMIN", "1")
     get_settings.cache_clear()
     return monkeypatch
 
@@ -42,8 +45,9 @@ def test_api_health_non_gpt5_omits_params(monkeypatch):
     assert "verbosity" not in body and "reasoning_effort" not in body
 
 
-def test_root_redirects_to_api_health():
+def test_root_redirects_to_the_studio():
+    """Paket 17 (D2): vorher ``/api/health`` — seither nur mit Studio-Schlüssel."""
     client = TestClient(create_app())
     r = client.get("/", follow_redirects=False)
     assert r.status_code == 307
-    assert r.headers["location"] == "/api/health"
+    assert r.headers["location"] == "/studio/"

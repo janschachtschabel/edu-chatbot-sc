@@ -66,6 +66,9 @@ def felder(summary: dict[str, Any]) -> dict[str, Any]:
         "anbieter": weg.get("anbieter") or mb.get("provider"),
         "modell": weg.get("modell") or mb.get("chat_model"),
         "api": weg.get("api"),
+        # Paket 17 (A4): die Route des b-api-Routers kann still auf ein anderes Modell ausweichen.
+        # Seither steht der Schlüssel immer im Weg — fehlt er, ist der Lauf älter (unbekannt).
+        "route": (weg.get("route") or "ohne") if "route" in weg else None,
         "reasoning_effort": weg.get("reasoning_effort"),
         "verbosity": weg.get("verbosity"),
         "service_tier": weg.get("service_tier"),

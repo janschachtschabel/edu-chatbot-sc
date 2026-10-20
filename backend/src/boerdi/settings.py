@@ -28,6 +28,7 @@ def _env(name: str) -> AliasChoices:
 
 
 _LLM_PROVIDERS = {"openai", "b-api-openai", "b-api-academiccloud"}
+_B_API_KEY_MODES = {"auto", "static", "forward"}
 _VERBOSITY = {"low", "medium", "high"}
 # W12: `max` ergaenzt — die Chat-Completions-Referenz fuehrt es auf
 # (none|minimal|low|medium|high|xhigh|max). Fehlte hier, ein gueltiger Wert
@@ -54,6 +55,8 @@ class Settings(BaseSettings):
 
     # ── Core ────────────────────────────────────────────────────────────
     log_level: str = Field("INFO", validation_alias=_env("LOG_LEVEL"))
+    # Paket 17 (D4): ``json`` für den Betrieb (eine JSON-Zeile je Eintrag), ``text`` lokal.
+    log_format: str = Field("text", validation_alias=_env("LOG_FORMAT"))
     studio_api_key: SecretStr = Field(
         SecretStr(""), validation_alias=_env("STUDIO_API_KEY"),
         description="X-Studio-Key; empty => admin disabled unless allow_open_admin",
@@ -153,7 +156,25 @@ class Settings(BaseSettings):
     )
     b_api_key: SecretStr = Field(
         SecretStr(""), validation_alias=_env("B_API_KEY"),
-        description="sent as X-API-KEY header for b-api-* providers",
+        description="b-api key (Bearer); a key forwarded by the b-api proxy wins (Paket 17)",
+    )
+    # Paket 17 (A1, Nutzer 2026-10-20): eine Route des b-api-Routers
+    # (``/api/v1/llm/router``) statt des Modellnamens. Leer = aus (Vorgabe, weil die
+    # Routen noch nicht angelegt sind). Die Route ersetzt nur den Namen, unter dem das
+    # Chat-Modell hinausgeht; die Parameterregeln bleiben die von ``LLM_CHAT_MODEL`` —
+    # eine Route bündelt nur Modelle EINER Familie (b-api-Doku, gemessen 2026-10-20).
+    b_api_route: str = Field(
+        "", validation_alias=_env("B_API_ROUTE"),
+        description="b-api router route name for the chat model (b-api-openai only)",
+    )
+    # Paket 17 (AB2, Nutzer 2026-10-20): woher der b-api-Schlüssel eines Zuges kommt.
+    # ``auto`` (Vorgabe, auch leer/unbekannt): ``Authorization: Bearer`` vom b-api-Proxy, sonst
+    # ``B_API_KEY``. ``static``: immer ``B_API_KEY``, der Kopf zählt nicht (wie vor Paket 17).
+    # ``forward``: jeder Zug braucht den durchgereichten Schlüssel, sonst 401 — für eine
+    # Anlage, die nur hinter dem Proxy steht. Hintergrundläufe nehmen in jedem Modus B_API_KEY.
+    b_api_key_mode: str = Field(
+        "auto", validation_alias=_env("B_API_KEY_MODE"),
+        description="auto | static | forward — source of the b-api key per turn",
     )
     b_api_audio: bool = Field(
         False, validation_alias=_env("B_API_AUDIO"),
@@ -378,6 +399,23 @@ class Settings(BaseSettings):
     # Paket 13 (A2/A7): Stand des Abbilds, als Build-Argumente gesetzt; lokal leer.
     boerdi_version: str = Field("", validation_alias=_env("BOERDI_VERSION"))
     git_sha: str = Field("", validation_alias=_env("GIT_SHA"))
+    # Paket 17 (D1): Port für /health, /ready, /metrics — nur im Cluster erreichbar
+    # (Leitfaden „Übergabe an Team 6“). Der öffentliche Port bleibt 8100.
+    internal_port: int = Field(8101, ge=1, le=65535, validation_alias=_env("INTERNAL_PORT"))
+    # Gesamt-Review Paket 17 (D1): wessen X-Forwarded-For/-Proto Uvicorn glaubt — daraus wird
+    # die Client-Adresse (Drosselung je IP) und das Schema der Weiterleitungen. ``*`` passt zu
+    # Compose (kein App-Port veröffentlicht, nur traefik spricht mit 8100); in Kubernetes die
+    # Pod-CIDR des Ingress, sonst fälscht jeder, der 8100 erreicht, seine Adresse.
+    forwarded_allow_ips: str = Field("*", validation_alias=_env("FORWARDED_ALLOW_IPS"))
+
+    @field_validator("internal_port")
+    @classmethod
+    def _nicht_der_oeffentliche_port(cls, v: int) -> int:
+        # Review Phase D (C12): auf 8100 lauscht der Hauptserver (``serve.OEFFENTLICHER_PORT``)
+        # — beide auf einem Port endeten im Bind-Fehler beim Start.
+        if v == 8100:
+            raise ValueError("INTERNAL_PORT darf nicht 8100 sein (öffentlicher Port)")
+        return v
 
     # ── Studio (consumed by studio-bff, P9) ─────────────────────────────
     studio_password: SecretStr = Field(SecretStr(""), validation_alias=_env("STUDIO_PASSWORD"))
@@ -441,6 +479,18 @@ class Settings(BaseSettings):
     @classmethod
     def _upper(cls, v: str) -> str:
         return v.upper()
+
+    @field_validator("log_format")
+    @classmethod
+    def _coerce_log_format(cls, v: str) -> str:
+        v = v.strip().lower()
+        return v if v in ("json", "text") else "text"
+
+    @field_validator("b_api_key_mode")
+    @classmethod
+    def _coerce_b_api_key_mode(cls, v: str) -> str:
+        v = v.strip().lower()
+        return v if v in _B_API_KEY_MODES else "auto"
 
     @field_validator("llm_provider")
     @classmethod
@@ -586,3 +636,11 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def studio_schluessel() -> str:
+    """Der konfigurierte Studio-Schlüssel, oder "" ohne. ``CHANGE_ME…``-Platzhalter gelten als
+    nicht gesetzt — ein vergessener Vorlagewert darf nie als Schlüssel wirken. Die eine Stelle
+    für API (``api/deps.expected_studio_key``) und interne Aufrufer (Lasttest, Eval-Runner)."""
+    key = get_settings().studio_api_key.get_secret_value().strip()
+    return "" if key.upper().startswith("CHANGE_ME") else key

@@ -18,11 +18,60 @@ Load-Balancer" schon.
 | 4 | SSE über den Load-Balancer stabil | Live-Protokoll unten | ❌ |
 | 5 | Graceful Shutdown verliert keinen Turn | Live-Protokoll unten (Hälfte gemessen, s. u.) | ➗ |
 
+Seit Paket 17 (2026-10-20) kommen drei Zusagen dazu, die §8 nicht nannte, die bei N Repliken
+aber genauso brechen:
+
+| # | Zusage | Beleg | Automatisiert |
+|---|---|---|---|
+| 6 | Ein neuer Pod bricht keinen laufenden Lasttest einer anderen Replik ab; höchstens ein Lasttest läuft | Herzschlag `heartbeat_at` alle 15 s (`obs/herzschlag`), verwaist erst nach 90 s ohne Herzschlag; Unique-Teilindex (Migration 0014); `test_cluster_laeufe_pg.py` | ✅ (pg) |
+| 7 | Ein beendeter Pod blockiert neue Eval-Läufe nicht | Herzschlag wie 6, verwaist nach 3 min (vorher 2 h nach dem Start); `test_cluster_laeufe_pg.py` | ✅ (pg) |
+| 8 | Master-Skill: eine Abfrage je Takt im Cluster, „Neu laden“ wirkt überall, alle Repliken legen dieselbe Fassung in den Prompt | Stand in `master_skill_stand` (Migration 0015), Abfrage nur unter der Sperre `__lauf:master-skill`, Signal über `config_changed`; `test_master_skill_cluster.py` | ✅ (pg) |
+
 ```powershell
 cd backend
 docker compose -f ../deploy/compose.dev.yml up -d postgres valkey
-uv run pytest tests/test_cluster_checklist.py tests/test_pg_locks_notify.py -v
+uv run pytest tests/test_cluster_checklist.py tests/test_pg_locks_notify.py tests/test_cluster_laeufe_pg.py tests/test_master_skill_cluster.py -v
 ```
+
+**Ohne Besitzer-Spalte.** Eine Zeile merkt sich nicht, welcher Pod den Lauf trägt. Geht ein
+Pod geordnet, schließt er zu Beginn des Herunterfahrens selbst ab, was in seiner Lauf-Registry
+steht (`services/laeufe_beenden`: Zeile auf `failed` „abgebrochen: Pod beendet“, dann den Task
+abbrechen) — sonst sammelte ein Eval-Lauf bis zum Ende der Gnadenfrist nur Verbindungsfehler
+über die geschlossene Loopback-Adresse. Stürzt er ab oder verliert das Netz, gibt der
+ausbleibende Herzschlag den Weg frei.
+
+**Grenze von Zusage 6/7.** Verliert ein lebender Läufer nur den Herzschlag (etwa weil der Pool
+seines Pods unter der Last des eigenen Lasttests leerläuft) und wird abgeräumt, schreibt er
+danach nichts mehr — weder Zwischen- noch Endstand — und hält am nächsten Prüfpunkt an (beim
+Lasttest nach der laufenden Stufe). Bis dahin können sich zwei Läufe überlappen.
+
+**Umstieg auf Migration 0014:** währenddessen keinen Lasttest und keinen Eval-Lauf starten. Alte
+Pods schreiben keinen Herzschlag; ihre laufenden Läufe gelten bei neuen Pods nach 90 s bzw.
+3 min (gezählt ab dem Start) als verwaist.
+
+## Was der Betrieb einstellen muss
+
+Werte, ohne die ein Cluster zwar startet, aber unter Last oder beim Rollout Züge verliert.
+Die Helm-Vorlage (`deploy/helm/values.example.yaml`) trägt sie bereits; hier steht, warum.
+
+* **DB-Verbindungen:** je Pod ein Pool von `DB_POOL_SIZE` + `DB_MAX_OVERFLOW` (Vorgabe 5 + 10),
+  eine LISTEN-Verbindung und kurzzeitig eine für die Bereitschaftsprobe (`/ready`, ohne Pool).
+  Also `max_connections ≥ N × 17 + Reserve` (Migration, psql, Sicherung) — oder PgBouncer im
+  Session-Modus (LISTEN braucht ihn).
+* **Gnadenfrist ≥ 70 s:** bis 5 s schließt der Pod seine Läufe, Uvicorn wartet bis 30 s auf
+  offene Anfragen, danach der Lebenszyklus bis 25 s auf nachlaufende Züge, plus Abbau.
+  Compose: `stop_grace_period: 70s`. Kubernetes: `terminationGracePeriodSeconds: 80` — die
+  preStop-Zeit zählt mit, dazu 5 s Luft.
+* **preStop 5 s:** der Pod bekommt SIGTERM erst, wenn sein Endpunkt aus dem Service genommen
+  ist; sonst landen in den ersten Sekunden noch neue Anfragen auf einem gehenden Pod.
+* **SSE ohne Pufferung:** die Ströme senden `X-Accel-Buffering: no` und
+  `Cache-Control: no-cache, no-transform`. Ein Proxy, der das übergeht, liefert die Antwort
+  erst am Ende (Punkt 4).
+* **Lese-Timeout am Proxy > 10 s:** ein laufender Strom sendet alle 10 s ein Keepalive
+  (`api/sse.KEEPALIVE_SECONDS`). Ein kürzerer Lese-Timeout trennt jeden Zug, der länger
+  rechnet; die Vorlage setzt 120 s.
+* **Rate-Limit geteilt:** `RATE_LIMIT_STORAGE_URI` auf Valkey (Punkt 3). Mit `memory://` zählt
+  jede Replik für sich; in Kubernetes warnt der Start (`KUBERNETES_SERVICE_HOST`).
 
 **Punkt 2 war vor P10-3 ungeprüft.** `test_pg_locks_notify.py` prüft den *Inhalt*
 der Benachrichtigung und lässt dafür bewusst bis zu 5 s Wartezeit zu — die
@@ -92,7 +141,7 @@ ist, während die Replika geht:
    ```
 3. Erwartung: der laufende Stream wird **zu Ende geliefert** (uvicorn wartet,
    gedeckelt auf `--timeout-graceful-shutdown 30`; danach wartet der Lifespan bis
-   25 s auf nachlaufende Züge — `stop_grace_period: 65s` im Compose deckt beides,
+   25 s auf nachlaufende Züge — `stop_grace_period: 70s` im Compose deckt beides,
    sonst schösse Docker dazwischen).
 4. Danach: neuer Turn derselben Session gegen den Cluster — die Historie muss
    den abgeschlossenen Turn enthalten.
@@ -122,3 +171,5 @@ laufender Lauf weiterhin nicht, ein gestoppter schon.
   von Punkt 5 sind offen, bis jemand sie am laufenden Stack durchgeht.
 * Der Cluster ist hier nie mit drei echten Replikas gelaufen — P10 liefert die
   Dateien und die Tests, nicht das Betriebsprotokoll eines echten Servers.
+* Die Punkte 6–8 prüfen die Datenbank-Seite mit einem Prozess, der seinen Speicher leert;
+  zwei echte Pods während eines Rollouts hat niemand beobachtet.

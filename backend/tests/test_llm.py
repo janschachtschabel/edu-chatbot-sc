@@ -3,7 +3,7 @@
 Port of the ALT transport contract (docs/plans/p3-llm-transport-contract.md):
 - build_chat_kwargs GPT-5 gating (verbosity / reasoning_effort / temperature
   drop rules) — the load-bearing piece;
-- provider routing (api_base + api_key + X-API-KEY header per provider);
+- provider routing (api_base + api_key per provider; one Bearer header, Paket 17);
 - the chat_completion wrapper wires routed model + timeout (no num_retries) and
   folds usage into the accumulator.
 
@@ -325,7 +325,9 @@ def test_route_academiccloud_bleibt_auf_chat_completions(monkeypatch) -> None:
     assert llm.route("gpt-6-luna")[0] == "openai/gpt-6-luna"
 
 
-def test_route_b_api_openai_dual_auth(monkeypatch) -> None:
+def test_route_b_api_openai_genau_ein_kopf(monkeypatch) -> None:
+    """Paket 17 (B3): nur ``Authorization: Bearer`` (aus ``api_key``) — die b-api
+    weist einen Schlüssel ab, wenn daneben ein ungültiger ``X-API-KEY`` steht."""
     monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
     monkeypatch.setenv("B_API_KEY", "bkey")
     get_settings.cache_clear()
@@ -333,7 +335,7 @@ def test_route_b_api_openai_dual_auth(monkeypatch) -> None:
     assert model == "openai/responses/gpt-5.6-luna"
     assert api_base == "https://b-api.staging.openeduhub.net/api/v1/llm/openai"
     assert api_key == "bkey"  # Bearer
-    assert headers == {"X-API-KEY": "bkey"}  # and X-API-KEY
+    assert headers is None  # kein X-API-KEY daneben
 
 
 def test_route_academiccloud_suffix(monkeypatch) -> None:
@@ -355,7 +357,7 @@ def test_auf_der_academiccloud_bettet_der_openai_pfad_ein(monkeypatch) -> None:
     model, api_base, api_key, headers = llm.route("text-embedding-3-small")
     assert model == "openai/text-embedding-3-small"
     assert api_base == "https://b-api.staging.openeduhub.net/api/v1/llm/openai"
-    assert (api_key, headers) == ("bkey", {"X-API-KEY": "bkey"})
+    assert (api_key, headers) == ("bkey", None)
 
 
 def test_route_b_api_without_key_uses_unused_placeholder(monkeypatch) -> None:
@@ -419,14 +421,15 @@ def test_chat_completion_folds_usage_into_accumulator(monkeypatch) -> None:
     assert acc["per_phase"]["classify"]["ms"] >= 0
 
 
-def test_chat_completion_b_api_sends_extra_headers(monkeypatch) -> None:
+def test_chat_completion_b_api_sendet_keinen_zweiten_kopf(monkeypatch) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
     monkeypatch.setenv("B_API_KEY", "bkey")
     get_settings.cache_clear()
     fake = _FakeCompletion()
     monkeypatch.setattr(llm, "_acompletion", fake)
     asyncio.run(llm.chat_completion(messages=[{"role": "user", "content": "x"}]))
-    assert fake.calls[0]["extra_headers"] == {"X-API-KEY": "bkey"}
+    assert fake.calls[0]["api_key"] == "bkey"
+    assert "extra_headers" not in fake.calls[0]
 
 
 def test_chat_completion_propagates_errors(monkeypatch) -> None:
@@ -566,7 +569,7 @@ def test_embedding_explicit_model_wins(monkeypatch) -> None:
     assert fake.calls[0]["model"] == "openai/text-embedding-3-large"
 
 
-def test_embedding_b_api_routes_and_sends_extra_headers(monkeypatch) -> None:
+def test_embedding_b_api_routet_mit_einem_kopf(monkeypatch) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "b-api-academiccloud")
     monkeypatch.setenv("B_API_KEY", "bkey")
     get_settings.cache_clear()
@@ -574,7 +577,8 @@ def test_embedding_b_api_routes_and_sends_extra_headers(monkeypatch) -> None:
     monkeypatch.setattr(llm, "_aembedding", fake)
     asyncio.run(llm.embedding("x"))
     sent = fake.calls[0]
-    assert sent["extra_headers"] == {"X-API-KEY": "bkey"}
+    assert sent["api_key"] == "bkey"
+    assert "extra_headers" not in sent  # Paket 17: genau ein Kopf
     # Paket 8 (L8): die AcademicCloud führt kein Einbettungsmodell.
     assert sent["model"] == "openai/text-embedding-3-small"
     assert sent["api_base"].endswith("/openai")

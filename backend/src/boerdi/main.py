@@ -6,6 +6,7 @@ security response headers (ALT Audit N-8), startup config warnings.
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -42,9 +43,13 @@ from boerdi.api import (
 from boerdi.api import (
     eval as eval_api,
 )
+from boerdi.api.openapi_public import oeffentliche_spec
 from boerdi.api.sse import nachlaeufer_abwarten
+from boerdi.obs.log_format import StdoutHandler, formatter_fuer
 from boerdi.obs.tasks import cancel_and_drain
+from boerdi.obs.trace_id import TraceIdFilter, TraceIdMiddleware
 from boerdi.services import aufbewahrung
+from boerdi.services import master_skill as master_skill_dienst
 from boerdi.services.master_skill import starte as starte_master_skill_takt
 from boerdi.services.warmup import spawn_startup_warmups
 from boerdi.settings import Settings, get_settings
@@ -53,10 +58,14 @@ log = logging.getLogger("startup")
 
 
 def _configure_logging(settings: Settings) -> None:
+    # Paket 17 (D4): JSON oder Klartext (``LOG_FORMAT``), Trace-ID in jeder Zeile, nur
+    # stdout. Uvicorns eigene Logger laufen seit ``boerdi.serve`` (``log_config=None``)
+    # über dieselbe Wurzel und damit im selben Format.
+    handler = StdoutHandler()
+    handler.setFormatter(formatter_fuer(settings.log_format))
+    handler.addFilter(TraceIdFilter())
     logging.basicConfig(
-        level=getattr(logging, settings.log_level, logging.INFO),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
+        level=getattr(logging, settings.log_level, logging.INFO), handlers=[handler],
     )
     # ``httpx`` meldet jede Anfrage auf INFO mit voller Adresse samt Abfrage —
     # Import-Adressen und ihre Umleitungen gehören nicht ins Log (Review Paket 6).
@@ -73,6 +82,45 @@ def _warn_insecure_config(settings: Settings) -> None:
             "Studio-/Admin-/Eval-Endpunkte sind GESPERRT (fail-closed). Für "
             "Staging/Produktion einen langen Zufallswert setzen; lokal öffnet "
             "BOERDI_ALLOW_OPEN_ADMIN=1."
+        )
+    if settings.b_api_route.strip() and settings.llm_provider != "b-api-openai":
+        # Paket 17: still übergangen hielte der Betreiber die Route für aktiv.
+        log.warning(
+            "⚠ B_API_ROUTE=%r ist gesetzt, wirkt aber nur mit LLM_PROVIDER=b-api-openai "
+            "(aktiv: %s) — die Route wird NICHT genutzt.",
+            settings.b_api_route.strip(), settings.llm_provider,
+        )
+    roh_modus = os.environ.get("B_API_KEY_MODE", "").strip()
+    if roh_modus and roh_modus.lower() != settings.b_api_key_mode:
+        # Review-Runde 3 (Befund 4): ein Tippfehler fiel still auf auto zurück.
+        log.warning(
+            "⚠ B_API_KEY_MODE=%r ist unbekannt — es gilt %r (erlaubt: auto, static, forward).",
+            roh_modus, settings.b_api_key_mode,
+        )
+    if settings.b_api_key_mode == "forward" and not settings.llm_provider.startswith("b-api"):
+        # Gesamt-Review Paket 17 (AB2): ohne b-api gibt es keinen Schlüssel durchzureichen.
+        log.warning(
+            "⚠ B_API_KEY_MODE=forward wirkt nur mit LLM_PROVIDER=b-api-* (aktiv: %s) — "
+            "Züge ohne Authorization werden NICHT abgewiesen.", settings.llm_provider,
+        )
+    if settings.b_api_route.strip() and settings.llm_chat_model == settings.b_api_route.strip():
+        # Review Paket 17 (A-2): die naheliegende Verwechslung. Das Chat-Modell bestimmt die
+        # Parameter — ein Routenname hat keine Regeln, es gingen ``temperature``/``max_tokens``
+        # hinaus, und eine gpt-6-Route antwortet mit 400 (gemessen 2026-10-20).
+        log.warning(
+            "⚠ LLM_CHAT_MODEL ist der Routenname %r. Es muss das Modell der Route nennen "
+            "(z. B. gpt-6-luna), das die Parameter bestimmt; der Routenname gehört nur in "
+            "B_API_ROUTE.",
+            settings.b_api_route.strip(),
+        )
+    if (os.environ.get("KUBERNETES_SERVICE_HOST")
+            and settings.rate_limit_storage_uri.strip().startswith("memory://")):
+        # Paket 17 (C4): Kubernetes setzt die Variable in jeden Pod. Im Speicher zählt jede
+        # Replik für sich — das Limit gilt N-fach.
+        log.warning(
+            "⚠ RATE_LIMIT_STORAGE_URI=memory:// in Kubernetes: jede Replik zählt für sich, "
+            "das Limit gilt so oft, wie Repliken laufen. Auf Valkey stellen "
+            "(redis://…, siehe docs/cluster-checkliste.md)."
         )
     if settings.cors_allow_extensions and "*" not in settings.cors_effective_origins:
         # Nur bei enger Liste melden — und zwar an der WIRKSAMEN, nicht an der
@@ -124,8 +172,9 @@ async def _lifespan(app: FastAPI):
     app.state.session_factory = make_session_factory(engine)  # api.deps.get_session
     app.state.config_store = store
     # V9 housekeeping: a crashed loadtest can leave a ``running`` row that would
-    # permanently 409-block new runs — sweep stale rows to ``failed`` on boot
-    # (best-effort; a sweep failure must never block startup).
+    # permanently 409-block new runs — sweep rows without a heartbeat (Paket 17, C1:
+    # never the live run of another replica) to ``failed`` on boot (best-effort; a sweep
+    # failure must never block startup).
     try:
         async with app.state.session_factory() as _lt_sess:
             _swept = await sweep_orphaned_loadtests(_lt_sess)
@@ -140,13 +189,17 @@ async def _lifespan(app: FastAPI):
     # Paket 8 (A): die Aufbewahrungsfristen der Protokolle, alle 6 Stunden.
     takt = aufbewahrung.starte(engine, app.state.session_factory)
     # 2026-10-18: der Master-Skill im 5-Minuten-Takt, damit kein Zug auf ihn wartet.
+    # Paket 17 (C3): Stand geteilt über die Datenbank, Signal über die NOTIFY-Bahn.
+    master_skill_dienst.binde(engine)
+    store.subscribe(master_skill_dienst.bei_signal)
     skill_takt = starte_master_skill_takt()
     try:
         yield
     finally:
         # Paket 9: zuerst die Züge, deren Client aufgelegt hat — sie schreiben noch.
         await nachlaeufer_abwarten()
-        await cancel_and_drain([takt, skill_takt])
+        master_skill_dienst.binde(None)  # ab hier startet ein Signal keine Übernahme mehr
+        await cancel_and_drain([takt, skill_takt, *master_skill_dienst.laufende_uebernahmen()])
         config_loader.bind_store(None)
         await store.stop()
         await engine.dispose()
@@ -162,8 +215,20 @@ def create_app() -> FastAPI:
         version=__version__,
         docs_url=None,
         redoc_url=None,
+        # Paket 17 (D5): ``/openapi.json`` liefert nur die öffentliche Chat-API (unten); die
+        # volle Spec samt Studio und Verwaltung steht am internen Port (``api/intern``).
+        openapi_url=None,
         lifespan=_lifespan,
     )
+
+    oeffentlich: dict[str, dict] = {}
+
+    @app.get("/openapi.json", include_in_schema=False)
+    def openapi_oeffentlich() -> dict:
+        # Einmal je App gebaut — der Pfad ist anonym erreichbar (Review Phase D, C13).
+        if "spec" not in oeffentlich:
+            oeffentlich["spec"] = oeffentliche_spec(app)
+        return oeffentlich["spec"]
 
     # HTTP-layer rate limit (P1-4/V7); the limiter lives in api/ratelimit.py
     from boerdi.api.ratelimit import limiter
@@ -224,6 +289,15 @@ def create_app() -> FastAPI:
         if hsts:
             response.headers.setdefault("Strict-Transport-Security", hsts)
         return response
+
+    # Paket 17 (D3): zuletzt hinzugefügt = äußerste Schicht — zählt jede Antwort, auch
+    # 413/401/CORS. Ausgeliefert werden die Zahlen nur am internen Port (``api/intern``).
+    from boerdi.obs.metrics import MetrikMiddleware
+
+    app.add_middleware(MetrikMiddleware)
+    # Paket 17 (D4): die Trace-ID gilt ab der äußersten Schicht — auch Zählung, CORS und
+    # Fehlerantworten loggen schon unter ihr.
+    app.add_middleware(TraceIdMiddleware)
 
     app.include_router(health.public_router)
     app.include_router(agent.router)

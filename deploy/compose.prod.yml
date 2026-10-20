@@ -131,11 +131,12 @@ services:
       # (Paket 4, L4): die b-api zählt je Schlüssel, nicht je Replik; Faustregel
       # und Teilung von LLM_MAX_CONCURRENCY in .env.example.
       replicas: ${BACKEND_REPLICAS:-1}
-    # Nacheinander: uvicorn wartet bis --timeout-graceful-shutdown (30 s) auf offene
-    # Ströme, danach der Lifespan bis NACHLAUF_FRIST_S (25 s) auf nachlaufende Züge,
-    # 5 s auf ihren Abbruch, dann das Aufräumen. Kürzer schösse Docker mitten in das
-    # Warten (Review Paket 9; Wächter in tests/test_deploy_compose.py).
-    stop_grace_period: 65s
+    # Nacheinander: bis 5 s die eigenen Läufe schließen (Paket 17), uvicorn wartet bis
+    # --timeout-graceful-shutdown (30 s) auf offene Ströme, danach der Lifespan bis
+    # NACHLAUF_FRIST_S (25 s) auf nachlaufende Züge, 5 s auf ihren Abbruch, dann das
+    # Aufräumen. Kürzer schösse Docker mitten in das Warten (Review Paket 9; Wächter in
+    # tests/test_deploy_compose.py).
+    stop_grace_period: 70s
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-boerdi}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt}@postgres:5432/${POSTGRES_DB:-boerdi}
       # Das Schema wählt auch den Client: ``limits`` liest ``valkey://`` mit
@@ -169,12 +170,17 @@ services:
       STUDIO_CSP: ${STUDIO_CSP:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-}
+      INTERNAL_PORT: ${INTERNAL_PORT:-}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-}
       # ── LLM / MCP / RAG — Namen aus settings.py, leer = Code-Default ──
       LLM_PROVIDER: ${LLM_PROVIDER:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       B_API_KEY: ${B_API_KEY:-}
       B_API_BASE_URL: ${B_API_BASE_URL:-}
+      B_API_ROUTE: ${B_API_ROUTE:-}
+      B_API_KEY_MODE: ${B_API_KEY_MODE:-}
       B_API_AUDIO: ${B_API_AUDIO:-}
       LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-}
       LLM_EMBED_MODEL: ${LLM_EMBED_MODEL:-}
@@ -228,6 +234,32 @@ services:
       EVAL_CHAT_URL: ${EVAL_CHAT_URL:-http://127.0.0.1:8100/api/chat}
       EVAL_SIMULATOR_MODEL: ${EVAL_SIMULATOR_MODEL:-}
       EVAL_JUDGE_MODEL: ${EVAL_JUDGE_MODEL:-}
+      EVAL_CHAT_TIMEOUT: ${EVAL_CHAT_TIMEOUT:-}
+      # ── Paket 17 (D6): die übrigen Einstellungen aus .env.example; leer = Vorgabe im Code
+      # (``env_ignore_empty``). Zugang/Test-Schalter: im Betrieb leer lassen.
+      BOERDI_ALLOW_OPEN_ADMIN: ${BOERDI_ALLOW_OPEN_ADMIN:-}
+      AGENT_OPEN: ${AGENT_OPEN:-}
+      SPEECH_FORCE_ENABLE: ${SPEECH_FORCE_ENABLE:-}
+      STT_MODEL: ${STT_MODEL:-}
+      TTS_MODEL: ${TTS_MODEL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      EMBED_BACKEND: ${EMBED_BACKEND:-}
+      EMBED_LOCAL_MODEL: ${EMBED_LOCAL_MODEL:-}
+      EMBED_LOCAL_MODEL_DIR: ${EMBED_LOCAL_MODEL_DIR:-}
+      EMBED_INGEST_PARALLEL: ${EMBED_INGEST_PARALLEL:-}
+      RERANK_CANDIDATES: ${RERANK_CANDIDATES:-}
+      CARD_RERANKER_ENABLED: ${CARD_RERANKER_ENABLED:-}
+      RAG_CHUNK_RERANKER_ENABLED: ${RAG_CHUNK_RERANKER_ENABLED:-}
+      TEXT_EXTRACTION_URL: ${TEXT_EXTRACTION_URL:-}
+      CARD_PIPELINE_V2: ${CARD_PIPELINE_V2:-}
+      CARD_CE_TOP_N: ${CARD_CE_TOP_N:-}
+      CARD_CE_GATE_COLLECTION: ${CARD_CE_GATE_COLLECTION:-}
+      CARD_CE_GATE_CONTENT: ${CARD_CE_GATE_CONTENT:-}
+      CHAT_DISABLE_SELECT_TOP_CARDS: ${CHAT_DISABLE_SELECT_TOP_CARDS:-}
+      # Bewusst NICHT hier: BOERDI_VERSION, GIT_SHA (Build-Argumente), CONFIG_SEED_DIR,
+      # WIDGET_DIST_DIR, STUDIO_DIST_DIR, EVAL_RUNNER_PATH (Pfade im Image, Dockerfile-ENV).
+      # Eine leere Durchreichung überschriebe die ENV des Images mit „leer“ und damit mit der
+      # Code-Vorgabe — im Compose-Betrieb sind sie über die .env nicht einstellbar.
       # Absoluter Mount-Punkt, damit die Auflösung nicht am Arbeitsverzeichnis
       # hängt. Darunter liegt das Slug-Verzeichnis des Exports.
       RERANK_MODEL_DIR: /models

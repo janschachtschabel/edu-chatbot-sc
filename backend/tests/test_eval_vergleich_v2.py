@@ -88,3 +88,17 @@ def test_ein_lauf_ohne_messbedingungen_v2_vergleicht_was_da_ist() -> None:
     # Review PR #18 (Eval #2): was der alte Lauf nicht kannte, ist unbekannt, nicht geändert.
     for unbekannt in ("api", "app_version", "app_commit", "konfiguration", "gold_flows"):
         assert unbekannt not in felder, unbekannt
+
+
+def test_ein_lauf_ueber_die_route_ist_eine_andere_bedingung() -> None:
+    """Gesamt-Review Paket 17 (AB1): die Route kann still auf ein anderes Modell ausweichen —
+    ein Lauf mit und einer ohne Route galten als „gleiche Bedingungen“."""
+    ohne, mit = _lauf(), _lauf()
+    ohne["summary"]["messbedingungen"]["weg"]["route"] = None  # seit Paket 17: ohne Router
+    mit["summary"]["messbedingungen"]["weg"]["route"] = "boerdi-test-luna"
+    def felder(a, b):
+        return [f["feld"] for f in vv.unterschiede([("r1", a), ("r2", b)])["laeufe"][0]["felder"]]
+
+    assert "route" in felder(ohne, mit)
+    # Ein Lauf von vor Paket 17 kennt das Feld nicht: unbekannt, nicht geändert.
+    assert "route" not in felder(_lauf(), mit)

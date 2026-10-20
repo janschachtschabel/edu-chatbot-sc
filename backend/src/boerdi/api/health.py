@@ -9,9 +9,10 @@ FastAPI derive the operationId from an unordered method set — non-deterministi
 output would break the frozen-contract diff gate (P0-4).
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Security
 from fastapi.responses import RedirectResponse
 
+from boerdi.api.deps import require_studio_key
 from boerdi.services import llm_models
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.mcp.auth import auth_mode
@@ -63,21 +64,26 @@ def health_head() -> dict[str, str]:
     return _OK
 
 
-@public_router.get("/api/health")
+# Paket 17 (D2): Anbieter, Modelle, Repositorium und Reranker sind Betriebsdetails — nach
+# dem Leitfaden „Übergabe an Team 6“ nicht öffentlich. Das Studio liest sie über seinen
+# Proxy, der den Studio-Schlüssel einsetzt; Liveness und Readiness stehen auf dem
+# internen Port (``api/intern``), ``/health`` oben bleibt für bestehende Proben offen.
+@public_router.get("/api/health", dependencies=[Security(require_studio_key)])
 def api_health() -> dict:
     return _health_detail()
 
 
-@public_router.head("/api/health")
+@public_router.head("/api/health", dependencies=[Security(require_studio_key)])
 def api_health_head() -> dict:
     return _health_detail()
 
 
+# Die Wurzel führte auf ``/api/health`` — seit D2 eine 401 für jeden Besucher.
 @public_router.get("/")
 def root() -> RedirectResponse:
-    return RedirectResponse(url="/api/health")
+    return RedirectResponse(url="/studio/")
 
 
 @public_router.head("/")
 def root_head() -> RedirectResponse:
-    return RedirectResponse(url="/api/health")
+    return RedirectResponse(url="/studio/")

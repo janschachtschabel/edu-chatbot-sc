@@ -134,6 +134,14 @@ Das eine Bild bedient damit drei Oberflächen:
 | `/studio` | die Studio-SPA (StaticFiles mit SPA-Fallback) |
 | `/studio/api/*` | BFF — Pfad-Umschrift nach `/api/*` (§7) |
 
+**Zwei Ports in einem Prozess (Paket 17).** Der Container startet `python -m boerdi.serve`:
+8100 trägt die Tabelle oben samt einer reduzierten `/openapi.json` (die öffentliche
+Chat-API), 8101 ist intern — `/health` (Liveness), `/ready` (Start fertig, Postgres
+antwortet, kein Herunterfahren), `/metrics` (Prometheus), `/openapi-full.json`. Nur der
+Hauptserver führt die Signale; zu Beginn seines Herunterfahrens schließt er die Lasttest- und
+Eval-Läufe dieses Pods (`services/laeufe_beenden`). Wessen `X-Forwarded-*` er glaubt, sagt
+`FORWARDED_ALLOW_IPS` (Vorgabe `*`; Tabelle in `deploy/README.md`).
+
 ### Produktions-Topologie (`deploy/compose.prod.yml`)
 
 ```
@@ -353,7 +361,11 @@ der ALT-Baum.
 `otel.py` (Traces nach Jaeger), `quality_events.py` (Sicherheits- und
 Qualitätsprotokolle, datenschutz-gesteuert), `usage.py` (Token und Kosten je
 Zug), `progress.py` (Phasen-Ereignisse für SSE), `tasks.py` (Hintergrund-Aufgaben
-mit ehrlicher Fehlerauswertung).
+mit ehrlicher Fehlerauswertung). Seit Paket 17: `metrics.py` (Prometheus — HTTP je
+Pfad-Vorlage, Züge, LLM- und MCP-Aufrufe), `trace_id.py` (Trace-ID je Anfrage, weiter nur an
+b-api und eigenen MCP-Server), `log_format.py` (`LOG_FORMAT` json/text auf stdout),
+`herzschlag.py` (Lasttest- und Eval-Läufe schreiben alle 15 s `heartbeat_at`; verwaist ist
+nur, wessen Herzschlag ausbleibt).
 
 ---
 
@@ -469,6 +481,44 @@ Reasoning an. gpt-5.4 bis 5.6 leitet LiteLLM bei Werkzeugen mit gesetztem
 die App jeden Anbieter als `openai/…` anspricht. Regeln je Modellgruppe:
 `services/llm_models.py`.
 
+**B-API-Router (Paket 17).** Mit `B_API_ROUTE=<route>` (nur bei `b-api-openai`)
+geht das Chat-Modell an `…/api/v1/llm/router` und schickt den Routennamen als
+`model`; die b-api verteilt nach Priorität und Gewicht und weicht bei Ausfall aus.
+Parameterregeln und Preis bleiben die von `LLM_CHAT_MODEL`, denn eine Route bündelt
+nur Modelle **einer** Familie (gemessen 2026-10-20: `max_tokens` an eine
+gpt-6-Route → 400). Einbettungen, Moderation und Sprache bleiben auf `/openai`;
+Judge und Simulator nur, wenn `EVAL_JUDGE_MODEL`/`EVAL_SIMULATOR_MODEL` ein anderes
+Modell nennen — ohne eigenes Modell SIND sie das Chat-Modell und folgen der Route
+(`services/llm_router.py`). LiteLLM meldet unter einer Route den Routennamen als
+`resp.model` — das antwortende Modell geht verloren; gebucht wird deshalb unter
+`LLM_CHAT_MODEL` (`llm_router.antwort_modell`), auch wenn die Route auf ihre Reserve
+auswich (deren Preis ist von außen nicht erkennbar). Vorgabe ist `B_API_ROUTE` leer.
+
+**Schlüssel des Aufrufers (Paket 17).** Läuft der Chatbot hinter dem b-api-Proxy
+(`/api/v1/proxy/badboerdichat/…`, `forwardApiKey`), trägt jede Anfrage
+`Authorization: Bearer <key>` — den Schlüssel, den edu-sharing für Person oder Gast
+wählt. Chat, Chat-Stream, Agent und Sprache übernehmen ihn (`api/turn_auth`,
+`services/llm_auth`); alle LLM-Aufrufe des Zuges (auch Moderation und spekulative
+Nebenaufgaben, die den Kontext erben) gehen mit genau diesem einen Kopf hinaus, die
+b-api bucht auf ihn. Ohne Kopf gilt `B_API_KEY` — so laufen Direktaufrufe und alle
+Hintergrundläufe (Eval, Lasttest, RAG-Import, Vorwärmung). Nur `Bearer <sichtbare
+ASCII-Zeichen>` gilt; ein anderer Wert wird gemeldet (ohne Wert) und verworfen. Der
+Studio-Proxy reicht `Authorization` nie durch. `X-API-KEY` geht seit Paket 17 nicht
+mehr hinaus (b-api: ein zusätzlicher ungültiger Kopf → 401). **Die Schlüssel gehören
+zu einem Deployment:** `B_API_BASE_URL` muss das Deployment nennen, dessen Proxy sie
+reicht (Prod-Proxy → Prod-Adresse; die Vorgabe ist Staging) — sonst endet jeder Zug mit
+401. Bekannte Grenze: LiteLLM hält je Schlüssel einen eigenen HTTP-Client (Cache-Schlüssel
+ist der Hash des Schlüssels). Über den Proxy sind das drei (zwei WLO-Schlüssel, Person und
+Gast, plus `B_API_KEY`). Im Modus `auto` (Vorgabe) wird der Kopf angenommen: wer den Chat direkt
+aufruft, kann beliebige Schlüssel vorlegen — jeder kostet einen neuen Client im
+(begrenzten) Cache und verdrängt die echten; die b-api weist ungültige mit 401 ab, die
+Drosselung je IP begrenzt die Zahl. Abhilfe bei Bedarf: ein gemeinsamer Client
+(`litellm.aclient_session`) oder `B_API_KEY_MODE=static` (Kopf zählt nicht). `forward`
+(jeder Zug braucht ihn, sonst 401) verlangt einen Schlüssel, prüft ihn aber nicht und
+begrenzt die Clients deshalb nicht; Züge der Anlage selbst (Studio-Proxy, gültiger
+Studio-Schlüssel — Evaluation, Lasttest) sind davon frei. Der Schalter steht in
+`api/turn_auth`, die Tabelle in `deploy/README.md`.
+
 Die Embedding-Dimension bestimmt das pgvector-Schema (`EMBED_DIM`); alternativ
 laufen Embeddings und Reranking **lokal** auf onnxruntime (§4.5) — dann braucht
 der RAG-Weg gar keinen externen Anbieter. Schlüssel liegen ausschließlich in der
@@ -566,7 +616,8 @@ statt zu 404en (`studio_static.py`); die drei echten Auth-Routen unter
 
 ## 8. Datenmodell
 
-16 Tabellen (15 in `db/models.py`, dazu `session_locks` aus Migration 0008):
+17 Tabellen (15 in `db/models.py`, dazu `session_locks` aus Migration 0008 und
+`master_skill_stand` aus 0015):
 
 | Tabelle | Inhalt |
 |---|---|
@@ -576,14 +627,15 @@ statt zu 404en (`studio_static.py`); die drei echten Auth-Routen unter
 | `safety_logs` | Sicherheits-Ereignisse |
 | `quality_logs` | Qualitäts-Ereignisse je Zug |
 | `usage_events` | Token und Kosten |
-| `eval_runs` | Auswertungsläufe |
-| `loadtest_runs` | Lasttest-Läufe |
+| `eval_runs` | Auswertungsläufe, mit `heartbeat_at` (0014) |
+| `loadtest_runs` | Lasttest-Läufe, mit `heartbeat_at`; höchstens einer läuft (Unique-Teilindex, 0014) |
 | `config_areas` | die 36 Bereiche (jsonb + Version) |
 | `config_history` | jede Änderung, mit Urheber |
 | `config_snapshots` | benannte Sicherungsstände (von Hand und automatisch vor Werks-Schritten) |
 | `config_werk_entfernt` | im Studio gelöschte Werksbereiche — der Werksabgleich legt sie nicht wieder an (0011) |
 | `prompt_versions` | feste Prompt-Bausteine je Prüfsumme, für die Messbedingungen der Evaluation (0012) |
-| `session_locks` | Zug-Sperre je Sitzung über alle Repliken (0008) |
+| `session_locks` | Zug-Sperre je Sitzung über alle Repliken (0008); auch die Lauf-Sperren `__lauf:aufbewahrung` und `__lauf:master-skill` |
+| `master_skill_stand` | geteilter Master-Skill-Stand je Kennung — eine Kopie holt, alle übernehmen (0015) |
 | `rag_documents` | Quelldokumente |
 | `rag_chunks` | Abschnitte + **pgvector**-Einbettung |
 

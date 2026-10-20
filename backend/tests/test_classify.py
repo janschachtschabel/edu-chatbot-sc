@@ -224,7 +224,8 @@ def test_classic_model_sends_temperature(monkeypatch) -> None:
     asyncio.run(classify.classify_input("hi", [], {}, {}))
     kw = cap["kwargs"]
     assert kw["temperature"] == 0.1  # classic branch keeps it
-    assert kw["extra_headers"] == {"X-API-KEY": "bkey"}
+    assert kw["api_key"] == "bkey"
+    assert "extra_headers" not in kw  # Paket 17: genau ein Kopf (Bearer)
     assert "verbosity" not in kw
 
 
@@ -373,3 +374,37 @@ def test_der_feste_prompt_wird_als_fassung_vermerkt(monkeypatch) -> None:
     acc = usage.new_accumulator()
     asyncio.run(classify.classify_input("hi", [], {}, {}, usage_acc=acc))
     assert acc["prompts"]["classify.system"] == prompt_ablage.pruefsumme("SYS")
+
+
+def test_unter_route_bucht_der_klassifikator_das_chat_modell(monkeypatch) -> None:
+    """Paket 17 (Review A, Befund 4): LiteLLM meldet unter einer Route den Routennamen."""
+    from boerdi.obs.usage import new_accumulator
+
+    raw = _fake_raw()
+    raw.model = "boerdi-test-luna"
+    _install(monkeypatch, raw=raw)
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
+    monkeypatch.setenv("B_API_ROUTE", "boerdi-test-luna")
+    get_settings.cache_clear()
+    acc = new_accumulator()
+    asyncio.run(classify.classify_input("hi", [], {}, {}, usage_acc=acc))
+    assert list(acc["models"]) == ["gpt-6-luna"]
+
+
+def test_unter_route_buchen_auch_die_fehlversuche_das_chat_modell(monkeypatch) -> None:
+    from instructor.core import InstructorRetryException
+    from openai.types import CompletionUsage
+
+    from boerdi.obs.usage import new_accumulator
+
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
+    monkeypatch.setenv("B_API_ROUTE", "boerdi-test-luna")
+    get_settings.cache_clear()
+    exc = InstructorRetryException(
+        "validation exhausted", last_completion=SimpleNamespace(model="boerdi-test-luna"),
+        n_attempts=3, total_usage=CompletionUsage(prompt_tokens=30, completion_tokens=4,
+                                                   total_tokens=34))
+    _raise(monkeypatch, exc)
+    acc = new_accumulator()
+    asyncio.run(classify.classify_input("hi", [], {}, {}, usage_acc=acc))
+    assert list(acc["models"]) == ["gpt-6-luna"]

@@ -9,10 +9,11 @@ the single TTS call. NO database.
 Transport: ALT used the OpenAI SDK client. NEU has no SDK client (chat runs over
 LiteLLM), so we call the OpenAI-compatible ``/audio/{transcriptions,speech}``
 endpoints directly with ``httpx``. The provider base URL + auth are resolved via
-``services.llm.route`` (the single source of provider routing: OpenAI →
-``Authorization: Bearer``, B-API → additional ``X-API-KEY``), so speech and chat
-never drift apart. The network round-trip is the module attribute ``_post`` so
-tests can replace it without hitting the network.
+``services.llm.route`` (the single source of provider routing: one
+``Authorization: Bearer`` header — since Paket 17 also for the B-API, with the key the
+b-api proxy forwarded for this turn), so speech and chat never drift apart. The
+network round-trip is the module attribute ``_post`` so tests can replace it without
+hitting the network.
 
 Secrets: the resolved key goes into the request headers only — never logged.
 """
@@ -25,6 +26,7 @@ import os
 import httpx
 
 from boerdi.services.llm import route
+from boerdi.services.llm_auth import b_api_schluessel
 from boerdi.services.llm_models import get_provider
 from boerdi.settings import get_settings
 
@@ -86,8 +88,8 @@ def speech_enabled() -> bool:
     * ``openai`` → True iff an OpenAI key is configured (speech talks straight
       to the OpenAI-compatible endpoint).
     * ``b-api-openai`` → True only with explicit opt-in ``B_API_AUDIO=1`` AND a
-      ``B_API_KEY`` (the extended B-API ``/openai`` mode proxies OpenAI audio,
-      same key as chat).
+      b-api key — the one the b-api proxy forwarded for this request, else
+      ``B_API_KEY`` (Paket 17; the ``/openai`` mode proxies OpenAI audio, same key as chat).
     * ``b-api-academiccloud`` (and any other) → always False: AcademicCloud has
       no OpenAI audio endpoints, so speech is honestly excluded here instead of
       enabled-then-502. NEU deviation vs ALT (which treated all ``b-api-*``
@@ -102,7 +104,8 @@ def speech_enabled() -> bool:
     if provider == "openai":
         return bool(s.openai_api_key.get_secret_value().strip())
     if provider == "b-api-openai":
-        return s.b_api_audio and bool(s.b_api_key.get_secret_value().strip())
+        # Paket 17: auch mit dem Schlüssel, den der b-api-Proxy für diesen Aufruf reicht.
+        return s.b_api_audio and bool(b_api_schluessel())
     # b-api-academiccloud + any other: no OpenAI audio endpoint → excluded.
     return False
 
@@ -115,6 +118,9 @@ def speech_disabled_reason() -> str:
     if speech_enabled():
         return ""
     provider = get_provider()
+    if provider == "b-api-openai" and get_settings().b_api_audio:
+        # Review Paket 17: eingeschaltet, aber kein Schlüssel (Direktaufruf ohne B_API_KEY).
+        return "Sprachfunktion nicht verfügbar (kein B-API-Schlüssel für diese Anfrage)."
     if provider == "b-api-openai":
         return (
             "Sprachfunktion ist bei B-API-Anbindung standardmäßig "
@@ -137,8 +143,8 @@ def _audio_content_type(filename: str | None) -> str:
 
 def _auth_headers(model: str) -> tuple[str, dict[str, str]]:
     """(api_base, headers) for ``model`` under the active provider. Reuses the
-    chat transport's provider routing so auth never drifts: Bearer <api_key>
-    plus the B-API ``X-API-KEY`` when present."""
+    chat transport's provider routing so auth never drifts: exactly one
+    ``Authorization: Bearer <api_key>`` (Paket 17)."""
     _, api_base, api_key, extra_headers = route(model)
     headers = {"Authorization": f"Bearer {api_key}"}
     if extra_headers:

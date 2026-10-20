@@ -95,6 +95,8 @@ export interface LlmWeg {
   readonly modell?: string;
   readonly api?: string;
   readonly basis?: string;
+  /** Paket 17 (A4): Route des b-api-Routers — `null`, wenn ohne Router gerufen. */
+  readonly route?: string | null;
   readonly reasoning_effort?: string | null;
   readonly verbosity?: string | null;
   readonly service_tier?: string | null;

@@ -19,6 +19,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 
 from boerdi.api.ratelimit import public_rate_limit
+from boerdi.api.turn_auth import uebernimm_llm_schluessel
 from boerdi.services.speech_proxy import (
     MAX_AUDIO_BYTES,
     MAX_TTS_CHARS,
@@ -44,6 +45,8 @@ def speech_status(request: Request, response: Response) -> dict:
     ``X-RateLimit-*`` headers into it — slowapi raises without a real Response to
     write to (extension.py::_inject_headers), so the parameter is required even
     though the body never touches it."""
+    # Paket 17: ein durchgereichter Schlüssel zählt mit; eine Auskunft, kein Zug (keine Pflicht).
+    uebernimm_llm_schluessel(request, pflicht=False)
     return {"enabled": speech_enabled(), "reason": speech_disabled_reason()}
 
 
@@ -66,6 +69,7 @@ async def transcribe(
     its ``X-RateLimit-*`` headers into on the (dict-returning) success path —
     required, see ``speech_status``. The 413/503/502 paths raise before it is used.
     """
+    uebernimm_llm_schluessel(request)  # Paket 17
     # Bounded read (max cap+1) — a huge upload must neither pin memory nor reach
     # the paid upstream.
     content = await audio.read(MAX_AUDIO_BYTES + 1)
@@ -100,6 +104,7 @@ async def synthesize(
     the P7 contract, and FastAPI returns the ``Response`` as-is. An upstream
     failure becomes a generic 502.
     """
+    uebernimm_llm_schluessel(request)  # Paket 17
     if len(text) > MAX_TTS_CHARS:
         raise HTTPException(
             status_code=413, detail=f"Text zu lang (max {MAX_TTS_CHARS} Zeichen)."

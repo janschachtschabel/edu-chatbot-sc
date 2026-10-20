@@ -27,6 +27,7 @@ import os
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -47,6 +48,7 @@ from boerdi.services.eval.scenario_gen import (
 from boerdi.services.eval.verbrauch import EvalVerbrauch
 from boerdi.services.llm import chat_completion
 from boerdi.services.session_origin import EVAL_PREFIX
+from boerdi.settings import studio_schluessel
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +83,19 @@ _PRIMING_REPOLL_S = 0.4
 Progress = Callable[[list[dict], str], Awaitable[None]]
 
 
+_EIGENE_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def _interne_koepfe(chat_url: str) -> dict[str, str]:
+    """Der Studio-Schlüssel für Züge an die EIGENE Anlage (Review-Runde 3, Befund 1): mit
+    ``B_API_KEY_MODE=forward`` fehlte den Eval-Zügen sonst der Proxy-Schlüssel (401).
+    ``EVAL_CHAT_URL`` kann eine fremde Anlage nennen — das Admin-Geheimnis geht nur an die
+    Loopback-Adresse."""
+    host = (urlsplit(chat_url).hostname or "").lower()
+    schluessel = studio_schluessel()
+    return {"X-Studio-Key": schluessel} if schluessel and host in _EIGENE_HOSTS else {}
+
+
 async def _post_chat(
     chat_url: str, message: str, session_id: str | None = None
 ) -> dict[str, Any]:
@@ -93,7 +108,7 @@ async def _post_chat(
         session_id = f"{EVAL_PREFIX}{uuid.uuid4().hex[:12]}"
     payload: dict[str, Any] = {"session_id": session_id, "message": message}
     async with httpx.AsyncClient(timeout=_chat_timeout_s()) as c:
-        r = await c.post(chat_url, json=payload)
+        r = await c.post(chat_url, json=payload, headers=_interne_koepfe(chat_url))
         r.raise_for_status()
         return r.json()
 

@@ -121,7 +121,12 @@ def test_list_runs_is_newest_first_and_compact(test_db) -> None:
     from boerdi.services.loadtest import create_run, list_runs
 
     async def scenario(session):
+        from boerdi.db.models import LoadtestRun
+
         await create_run(session, "lt-a", _PROFILE)  # separate commits → distinct now()
+        # Paket 17 (0014): höchstens ein laufender Lasttest — der erste ist fertig.
+        (await session.get(LoadtestRun, "lt-a")).status = "completed"
+        await session.commit()
         await create_run(session, "lt-b", _PROFILE)
         return await list_runs(session)
 
@@ -176,11 +181,18 @@ def test_sweep_marks_running_failed_leaves_others(test_db) -> None:
     )
 
     async def scenario(session):
-        await create_run(session, "lt-orphan1", _PROFILE)
-        await create_run(session, "lt-orphan2", _PROFILE)
+        from datetime import UTC, datetime, timedelta
+
+        # Paket 17 (C1): verwaist heißt „kein Herzschlag mehr“, nicht „läuft beim Start“
+        # (der Gegenfall — frischer Lauf eines anderen Pods bleibt — steht in
+        # ``test_cluster_laeufe_pg.py``). Höchstens ein laufender Lasttest (0014).
         await create_run(session, "lt-done", _PROFILE)
         done = await session.get(LoadtestRun, "lt-done")
         done.status = "completed"
+        await session.commit()
+        await create_run(session, "lt-orphan1", _PROFILE)
+        orphan = await session.get(LoadtestRun, "lt-orphan1")
+        orphan.heartbeat_at = datetime.now(UTC) - timedelta(minutes=10)
         await session.commit()
 
         swept = await sweep_orphaned_loadtests(session)
@@ -192,7 +204,7 @@ def test_sweep_marks_running_failed_leaves_others(test_db) -> None:
         )
 
     swept, orphan1, done, running = _run(scenario)
-    assert swept == 2  # both running rows flipped, the completed one untouched
+    assert swept == 1  # the stale running row flipped, the completed one untouched
     assert orphan1["status"] == "failed"
     assert orphan1["error"]  # error message set
     assert orphan1["finished_at"] is not None

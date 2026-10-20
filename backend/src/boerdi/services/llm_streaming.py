@@ -33,6 +33,7 @@ import logging
 from typing import Any
 
 from boerdi.domain.reasoning_filters import ThinkSafeStreamer
+from boerdi.obs import metrics
 from boerdi.services import llm
 
 _logger = logging.getLogger(__name__)
@@ -227,7 +228,8 @@ async def _stream_completion(
     flash and vanish). Other tool calls accumulate silently.
     """
     built = llm.build_chat_kwargs(**kwargs)
-    llm.wire_transport(built["model"], built)
+    resolved = built["model"]
+    llm.wire_transport(resolved, built)
     # Force stream + ask for usage in the final chunk (OpenAI 2024+).
     built["stream"] = True
     built["stream_options"] = {"include_usage": True}
@@ -241,7 +243,7 @@ async def _stream_completion(
     # tc_index → {"id": str, "name": str, "args_buf": str, "extractor": _RespondToUserExtractor | None}  # noqa: E501
     tool_calls_accum: dict[int, dict[str, Any]] = {}
 
-    async with llm.semaphore():
+    async with metrics.llm_messung("strom"), llm.semaphore():
         stream = await llm._acompletion(**built)
         async for chunk in stream:
             # Final chunk in OpenAI's stream often carries the cumulative usage
@@ -250,7 +252,7 @@ async def _stream_completion(
             if getattr(chunk, "usage", None) is not None:
                 aggregate.usage = chunk.usage
             if getattr(chunk, "model", None):
-                aggregate.model = chunk.model
+                aggregate.model = llm.antwort_modell(chunk.model, resolved)
             if not chunk.choices:
                 continue
             ch0 = chunk.choices[0]

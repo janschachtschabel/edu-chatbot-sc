@@ -38,6 +38,7 @@ dependencies = [
     # ALT nutzte psutil dafür; der Port ließ es weg, weil pyproject.toml außerhalb
     # jenes Slice lag — Folge war ein Feature, das im Studio dokumentiert war und
     # immer leer blieb. BSD-3-Clause, vom Lizenz-Gate (§0 Regel 1) erlaubt.
+    "prometheus-client>=0.21",
     "psutil>=7.1.3",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.2",
