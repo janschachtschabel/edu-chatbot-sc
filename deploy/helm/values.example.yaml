@@ -1,0 +1,213 @@
+# Beispiel-Values für ein Helm-Chart von boerdi-chat (Paket 17, Übergabe an Team 6).
+#
+# T6 baut das Chart; diese Datei ist das Mapping: was ein Deployment braucht, das Compose nicht
+# enthält (Ressourcen, Proben, Skalierung, Secrets), und jede Einstellung als Umgebungsvariable.
+# Ein Wächter (backend/tests/test_helm_values.py) hält sie vollständig gegenüber dem Code.
+# Erläuterungen: docs/uebergabe-betrieb.md · Einstellungen einzeln: deploy/.env.example
+
+image:
+  repository: ghcr.io/janschachtschabel/edu-chatbot-sc
+  tag: "0.6.0"            # Produktion NUR mit Versions-Tag (SemVer); `latest` nur Staging
+  pullPolicy: IfNotPresent
+
+replicaCount: 2           # feste Zahl (Nutzer-Entscheid); LLM_MAX_CONCURRENCY je Pod = Limit/N
+
+ports:
+  public: 8100            # Widget, Chat, Agent, Sprache, Studio (hinter Login) — Ingress
+  internal: 8101          # /health, /ready, /metrics, /openapi-full.json — nur im Cluster
+
+ingress:
+  port: public
+  host: chat.example.org
+  # SSE (/api/chat/stream, /api/agent/stream): Pufferung AUS, Lese-Timeout > 10 s
+  # (Keepalive alle 10 s), Antwortzeiten bis ~75 s (LLM_READ_TIMEOUT).
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    # Größte Rümpfe: Wiederherstellen/Werks-Upload 151 MiB, Spracheingabe 11 MiB, Chat 2 MiB
+    # (``api/body_limit``). Ohne Angabe deckelt ingress-nginx auf 1 MiB (413).
+    nginx.ingress.kubernetes.io/proxy-body-size: "160m"
+  # Am öffentlichen Port bleibt /health (nur {"status":"ok"}) für ältere Proben — ausblenden:
+  hidePaths: ["/health"]
+
+probes:
+  # timeoutSeconds 3: die Datenbank-Probe hinter /ready hat selbst eine Frist von 2 s.
+  liveness:  {path: /health, port: internal, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 3}
+  readiness: {path: /ready,  port: internal, periodSeconds: 5,  timeoutSeconds: 3, failureThreshold: 2}
+  startup:   {path: /health, port: internal, periodSeconds: 5,  timeoutSeconds: 3, failureThreshold: 30}
+
+# Herunterfahren: bis 5 s die eigenen Läufe schließen, Uvicorn wartet bis 30 s auf offene
+# Verbindungen, danach bis 25 s auf nachlaufende Züge (+5 s Abbruch, +5 s Aufräumen). /ready
+# meldet ab dem Signal „nicht bereit“. Kubernetes zieht die preStop-Zeit von der Gnadenfrist ab:
+# 70 s + preStop 5 s + 5 s Luft = 80.
+terminationGracePeriodSeconds: 80
+lifecycle:
+  preStopSleepSeconds: 5  # bis der Endpunkt aus dem Service ist
+
+# VORLÄUFIG — Messung unter Last steht aus (Plan Paket 17, D10). Startwerte aus INSTALL.md
+# (2 Kerne / 4 GB für den ganzen Stack); der Reranker lädt ~135 MB ins RAM je Pod.
+resources:
+  requests: {cpu: 500m, memory: 1Gi}
+  limits:   {memory: 2Gi}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Migrationen + Werksabgleich der Konfiguration: EIN Job je Release (nicht je Pod).
+migrateJob:
+  command: ["sh", "-c", "alembic upgrade head && boerdi import-config --werksabgleich"]
+
+# Reranker-Modell (~135 MB) NICHT im Image: Volume, befüllt beim ersten Start
+# (RERANK_AUTO_DOWNLOAD) oder per initContainer. Mehrere Pods teilen es (ReadWriteMany).
+# Nur nötig mit RAG_RERANKER_ENABLED=true (Vorgabe aus) — sonst braucht es weder Volume noch
+# RAM für das Modell. Beispiel für einen initContainer, der das Volume vorab füllt:
+#   initContainers:
+#     - name: reranker-modell
+#       image: <dasselbe Image>
+#       command: ["boerdi", "reranker-beziehen"]   # Befehl im Chart anlegen bzw. an
+#                                                  # RERANK_AUTO_DOWNLOAD (Start) lassen
+rerankerModels:
+  mountPath: /models
+  persistence: {enabled: false, accessMode: ReadWriteMany, size: 1Gi}
+
+# Abschaltbare Bestandteile: eine bestehende/geteilte Instanz nutzen spart Pods.
+postgresql:
+  enabled: false          # Postgres 17 mit pgvector — mitgeliefert nur für Test/Entwicklung
+  # Die App liest nur das Secret DATABASE_URL; diese Angaben dienen dem Chart, es daraus
+  # zu bauen. POSTGRES_PASSWORD braucht nur die mitgelieferte Datenbank.
+  external: {host: boerdi-postgres, port: 5432, database: boerdi, user: boerdi}
+  # Pool je Pod 5+10, eine LISTEN-Verbindung, kurz eine für /ready — max_connections >= N×17 + Reserve.
+valkey:
+  enabled: true           # Rate-Limit-Zähler über alle Pods (RATE_LIMIT_STORAGE_URI)
+  persistence: false
+  external: {url: ""}     # bestehende Instanz: hier eintragen, enabled: false
+
+# Alarmregeln (PrometheusRule) — Beispiel; Metriken unter internal:8101/metrics.
+prometheusRule:
+  enabled: true
+  rules:
+    - alert: BoerdiHohe5xxQuote
+      expr: sum(rate(boerdi_http_requests_total{status=~"5.."}[10m])) / sum(rate(boerdi_http_requests_total[10m])) > 0.05
+      for: 10m
+    # outcome="abbruch" (aufgelegt, Frist) zählt bewusst nicht als Fehler.
+    - alert: BoerdiLlmFehler
+      expr: sum(rate(boerdi_llm_calls_total{outcome="fehler"}[10m])) / sum(rate(boerdi_llm_calls_total[10m])) > 0.10
+      for: 10m
+    - alert: BoerdiLangsameZuege
+      # Normal: p95 bis ~37 s (gemessen 2026-09-27) — die Schwelle liegt darüber.
+      expr: histogram_quantile(0.95, sum by (le) (rate(boerdi_http_request_duration_seconds_bucket{route=~"/api/(chat|agent)(/stream)?"}[15m]))) > 60
+      for: 15m
+    - alert: BoerdiMcpTransport
+      expr: sum(rate(boerdi_mcp_calls_total{outcome=~"transport|timeout"}[10m])) > 0.2
+      for: 10m
+
+# Secrets: aus einem bestehenden Kubernetes-Secret, nie im Klartext in den Values.
+secretEnv:
+  existingSecret: boerdi-secrets
+  keys:
+    - B_API_KEY
+    - DATABASE_URL
+    - MCP_AUTH_TOKEN
+    - OPENAI_API_KEY
+    - POSTGRES_PASSWORD
+    - STUDIO_API_KEY
+    - STUDIO_PASSWORD
+
+# Von Image bzw. Build gesetzt (Dockerfile-ENV) — nur bei abweichendem Aufbau angeben:
+imageEnv:
+  - BOERDI_VERSION
+  - GIT_SHA
+  - CONFIG_SEED_DIR
+  - WIDGET_DIST_DIR
+  - STUDIO_DIST_DIR
+  - EVAL_RUNNER_PATH
+
+# Alle übrigen Einstellungen; leer = Vorgabe im Code. Bedeutung je Variable:
+# deploy/.env.example. Werte über der Code-Vorgabe sind für den Betrieb gesetzt.
+env:
+  AGENT_INLINE_QUICK_REPLIES: ""
+  AGENT_OPEN: "false"
+  BG_LLM_MAX_CONCURRENCY: "4"
+  BOERDI_ALLOW_LOADTEST: "false"
+  BOERDI_ALLOW_OPEN_ADMIN: "false"
+  BOERDI_MAX_INGEST_MB: "25"
+  B_API_AUDIO: "false"
+  B_API_BASE_URL: "https://b-api.prod.openeduhub.net/api/v1/llm"
+  B_API_CLEAR_CACHE: "true"
+  # auto (Vorgabe) | static (immer B_API_KEY) | forward (Zug ohne Proxy-Schlüssel → 401)
+  B_API_KEY_MODE: "auto"
+  B_API_ROUTE: ""
+  CARD_CE_GATE_COLLECTION: "-1.0"
+  CARD_CE_GATE_CONTENT: "-1.5"
+  CARD_CE_TOP_N: "3"
+  CARD_PIPELINE_V2: "false"
+  CARD_RERANKER_ENABLED: "true"
+  CHAT_DISABLE_SELECT_TOP_CARDS: "false"
+  CHAT_INLINE_QUICK_REPLIES: "true"
+  CHAT_TOKEN_STREAMING: ""
+  CLASSIFY_TIMEOUT_S: "20.0"
+  CORS_ALLOW_ALL: "false"
+  CORS_ALLOW_EXTENSIONS: "true"
+  CORS_ORIGINS: "https://wirlernenonline.de"
+  DB_MAX_OVERFLOW: "10"
+  DB_POOL_SIZE: "5"
+  EMBED_BACKEND: "api"
+  EMBED_DIM: ""
+  EMBED_INGEST_PARALLEL: "4"
+  EMBED_LOCAL_MODEL: "multilingual-e5-small"
+  EMBED_LOCAL_MODEL_DIR: "models"
+  EVAL_CHAT_TIMEOUT: ""
+  EVAL_CHAT_URL: "http://127.0.0.1:8100/api/chat"
+  EVAL_JUDGE_MODEL: ""
+  EVAL_SIMULATOR_MODEL: ""
+  # Wessen X-Forwarded-For Uvicorn glaubt: die Pod-CIDR des Ingress-Controllers (Beispiel).
+  # "*" nur, wenn 8100 ausschließlich über den Ingress erreichbar ist (NetworkPolicy).
+  FORWARDED_ALLOW_IPS: "10.0.0.0/8"
+  GUIDE_TRUSTED_DOMAINS: ""
+  HSTS_MAX_AGE: "86400"
+  INTERNAL_PORT: "8101"
+  LLM_CHAT_MODEL: ""
+  LLM_EMBED_MODEL: ""
+  LLM_MAX_CONCURRENCY: ""
+  LLM_PROVIDER: "b-api-openai"
+  LLM_READ_TIMEOUT: "75.0"
+  LLM_REASONING_EFFORT: "low"
+  LLM_SERVICE_TIER: ""
+  LLM_VERBOSITY: "low"
+  LOG_FORMAT: "json"
+  LOG_LEVEL: "INFO"
+  MASTER_SKILL_ENABLED: "true"
+  MASTER_SKILL_NODE_ID: "535cabca-47e4-4cbf-9cab-ca47e40cbf4e"
+  MCP_CALL_TIMEOUT_S: "60.0"
+  MCP_SERVER_URL: "https://wlo-mcp.87.106.195.152.nip.io/mcp"   # Staging-MCP — Prod-Adresse eintragen, sobald vorhanden
+  OPENAI_BASE_URL: ""
+  OPENAI_MODEL: ""
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  RAG_CHUNK_RERANKER_ENABLED: "true"
+  RAG_MAX_CHARS_PER_AREA: ""
+  RAG_MIN_SCORE: ""
+  RAG_RERANKER_ENABLED: "false"
+  RAG_TOP_K: ""
+  RAG_UMWANDLUNG_FRIST_S: "120.0"
+  RAG_UMWANDLUNG_MAX_MB: "1024"
+  RATE_LIMIT_CHAT: "20/minute"
+  # Mit Passwort (valkey://:pw@host) gehört die Adresse in secretEnv, nicht hierher.
+  RATE_LIMIT_STORAGE_URI: "valkey://boerdi-valkey:6379/0"
+  REPO_BASE_URL: "https://repository.staging.openeduhub.net"   # Staging — muss zum Repository des MCP-Servers passen
+  RERANK_AUTO_DOWNLOAD: "true"
+  RERANK_CANDIDATES: "10"
+  RERANK_INTRA_OP_THREADS: ""
+  RERANK_MAX_CONCURRENCY: ""
+  RERANK_MODEL_DIR: "/models"
+  RERANK_URL: ""
+  SPEECH_FORCE_ENABLE: "false"
+  STT_MODEL: "gpt-4o-mini-transcribe"
+  STUDIO_COOKIE_SECURE: "true"
+  STUDIO_CSP: "enforce"
+  TEXT_EXTRACTION_URL: "https://text-extraction.staging.openeduhub.net"   # derzeit ohne Verbraucher im Backend
+  # Bleibt "false": die Client-Adresse bestimmt Uvicorn aus X-Forwarded-For, und zwar nur von
+  # den Adressen in FORWARDED_ALLOW_IPS (Pod-CIDR des Ingress). "true" läse den Kopf dazu
+  # selbst — mit dem ersten, vom Client frei wählbaren Eintrag.
+  TRUST_FORWARDED_FOR: "false"
+  TTS_MODEL: "tts-1"
