@@ -15,6 +15,8 @@ Altsystem, generisch über deklarative Konfiguration.
 | 🚀 **Auf einem Server installieren** (Debian 13, Docker, Seed-Daten) | [INSTALL.md](INSTALL.md) |
 | ⚡ Kurzweg der Installation (Befehle ohne Erklärung) | [deploy/INSTALL-schnellstart.md](deploy/INSTALL-schnellstart.md) |
 | 🛠 Betrieb danach (Skalieren, Backup, Restore, Rollback) | [deploy/README.md](deploy/README.md) |
+| 🚢 **Übergabe an den Betrieb** — Ports, Health/Ready/Metriken, Logs, b-api, Cluster, Konfiguration | [docs/uebergabe-betrieb.md](docs/uebergabe-betrieb.md) |
+| 🧮 Cluster-Abnahme (Zusagen bei mehreren Repliken, Pflicht-Einstellungen) | [docs/cluster-checkliste.md](docs/cluster-checkliste.md) |
 | 🏗 **Architektur** — Bestandteile, Stack, Abläufe (Einstieg für Entwickler) | [docs/architektur.md](docs/architektur.md) |
 | 🗺 **Architektur-Grafiken** — interaktiv: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus | [ansehen (GitHub Pages)](https://janschachtschabel.github.io/edu-chatbot-sc/) · [Quellen](docs/architektur-grafiken/README.md) |
 | 🤖 Agent-Modus — Maschinen, Master-Skill, Grenzen | [docs/agent-modus.md](docs/agent-modus.md) |
@@ -25,6 +27,18 @@ Altsystem, generisch über deklarative Konfiguration.
 | 🤖 Arbeits-Hinweise für KI-Sessions | [CLAUDE.md](CLAUDE.md) |
 | 🏛 Altsystem (Referenz, läuft parallel) | `../badboerdi/` |
 | 🔌 WLO-MCP-Server (extern, unverändert) | `../wlo-mcp-server-sc/` |
+
+**Betrieb in Kürze** (Stand Paket 17, 2026-10-20):
+
+- Start im Container: `python -m boerdi.serve` — Port **8100** öffentlich (Widget, Chat, Agent,
+  Sprache, Studio), Port **8101** intern (`/health`, `/ready`, `/metrics`, `/openapi-full.json`).
+- Datenbank-Stand: Migration **0015**. Der `migrate`-Dienst hebt bei jedem Deploy
+  (`alembic upgrade head && boerdi import-config --werksabgleich`).
+- b-api: `B_API_ROUTE` (Route des Routers, Vorgabe leer) und `B_API_KEY_MODE`
+  (`auto` Vorgabe · `static` · `forward`) — [deploy/README.md](deploy/README.md).
+- Ohne vorgeschalteten Proxy (Port direkt veröffentlicht, etwa im Testbetrieb mit
+  `docker run`) `FORWARDED_ALLOW_IPS=127.0.0.1` setzen — sonst glaubt Uvicorn jedem
+  `X-Forwarded-For` ([deploy/README.md](deploy/README.md), „Welche Proxys Uvicorn glaubt“).
 
 **Status:** Umsetzung läuft paketweise (P0–P11) — der aktuelle Stand steht in der
 Status-Tabelle oben in der Spec. Das Altsystem bleibt bis zum Cutover (P11) produktiv.

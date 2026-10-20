@@ -153,7 +153,7 @@ cd /opt/boerdi/deploy && docker compose -f compose.prod.yml --env-file .env up -
 ## 9. Abnahme
 
 ```bash
-curl -sS https://${HOST}/api/health | python3 -m json.tool
+curl -sS -H "X-Studio-Key: ${STUDIO_API_KEY}" https://${HOST}/api/health | python3 -m json.tool
 ```
 
 Erwartet:
@@ -212,7 +212,7 @@ Alle am 2026-08-13 gegen den laufenden Server geprüft.
 
 | Zweck | URL |
 |---|---|
-| Gesundheit / Konfigurationsnachweis | `https://<HOST>/api/health` |
+| Gesundheit / Konfigurationsnachweis | `https://<HOST>/api/health` (mit Kopf `X-Studio-Key`) |
 | Studio (Redaktion) | `https://<HOST>/studio` |
 | Widget-Demo, schwebender Knopf | `https://<HOST>/widget/` |
 | Widget-Demo, eingebettet in Seite | `https://<HOST>/widget/inline` |

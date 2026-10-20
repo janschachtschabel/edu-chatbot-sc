@@ -1475,9 +1475,10 @@ Chat-Client hängt `/api` an, was dort steht, und aus
 
 Zwei Lehren, beide billig:
 
-* **Einen Knopf „Verbindung prüfen"**, der `GET {basis}/api/health` fragt und die
-  Antwort zeigt — samt `repo`. Ob der Bot gegen Staging oder Produktion läuft,
-  merkt man sonst erst am Ziel eines Karten-Links.
+* **Einen Knopf „Verbindung prüfen"**, der `GET {basis}/health` fragt (`{"status":"ok"}`).
+  Das `repo` nennt nur `/api/health`, und das verlangt seit Paket 17 den Studio-Schlüssel —
+  ein Plugin hat ihn nicht. Ob der Bot gegen Staging oder Produktion läuft, zeigt dann
+  erst das Ziel eines Karten-Links.
 * **Den einen eindeutigen Tippfehler korrigieren und es SAGEN.** Endet der Pfad
   auf `.js`, ist es die Bündel-Adresse; gerechnet wird mit der Herkunft, und der
   Hinweis bleibt stehen. Ein Pfad-Präfix (`https://host/boerdi`, Reverse-Proxy)

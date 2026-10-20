@@ -259,7 +259,7 @@ legen, den `RERANK_MODEL_HOST_DIR` statt des Volumes einhängt. Erwartet wird da
 ersten Chat zu warten:
 
 ```bash
-curl -s https://<PUBLIC_HOST>/api/health | grep -o '"reranker":"[a-z-]*"'
+curl -s -H "X-Studio-Key: $STUDIO_API_KEY" https://<PUBLIC_HOST>/api/health | grep -o '"reranker":"[a-z-]*"'
 ```
 
 | Wert | Bedeutung |
@@ -320,7 +320,7 @@ docker compose -f compose.prod.yml logs backend | tail -40
 ## 10. Abnahme
 
 ```bash
-curl -s https://<PUBLIC_HOST>/api/health
+curl -s -H "X-Studio-Key: $STUDIO_API_KEY" https://<PUBLIC_HOST>/api/health
 ```
 
 Drei Dinge in der Antwort ansehen:
@@ -330,6 +330,15 @@ Drei Dinge in der Antwort ansehen:
 | `status` | `ok` |
 | `mcp_auth` | `service`, wenn ein `MCP_AUTH_TOKEN` gesetzt ist — sonst `anonymous` |
 | Modell-Felder | die aus der `.env`, nicht die Code-Defaults |
+
+`docker compose -f compose.prod.yml ps` zeigt das Backend erst als `healthy`, wenn es
+Anfragen annimmt: der HEALTHCHECK fragt `/ready` am internen Port 8101 (Start fertig,
+Postgres antwortet). Den internen Port veröffentlicht dieses Compose nicht; von innen:
+
+```bash
+docker compose -f compose.prod.yml exec backend python -c \
+  "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8101/ready').read())"
+```
 
 Dann im Browser:
 

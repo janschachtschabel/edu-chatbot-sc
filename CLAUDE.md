@@ -50,6 +50,12 @@ deutsche Inhalte/englischer Code).
   12 Flows) — Paket-Abnahme steht in der Spec.
 - **Commits, Pushes und Deployments macht der Nutzer selbst.** Ebenso startet der Nutzer
   Golden-Referenzläufe gegen ALT und Lasttests; kleine lokale Smokes sind ok.
+- **Kleine Pakete, kleine Commits** (Nutzer 2026-10-20, Kritik: große Commits sind schwer
+  nachvollziehbar). Ein Paket = ein Thema, das man in einem Review am Stück lesen kann
+  (Richtwert: unter ~400 geänderten Zeilen ohne Tests). Commits nach **Thema** schneiden, nicht
+  nach Ordner; Tests im Commit ihres Themas. Zu jedem Upload eine Änderungsnotiz unter
+  `docs/aenderungen/JJJJ-MM-TT-<paket>.md` (Was / Wo / Warum, Commit-Tabelle, was Betrieb und
+  Deploy wissen müssen) — Vorlage: `docs/aenderungen/2026-10-20-paket-17.md`.
 - Backend: Python 3.12, `uv`, ruff, pytest. Frontend: Angular-Workspace, npm, Vitest,
   Playwright. Dev-Umgebung: `deploy/compose.dev.yml` (Postgres+pgvector, Jaeger).
 - Neue Dependency ⇒ Lizenz prüfen (CI-Gate). Verboten (verifiziert): shepherd.js (AGPL),
