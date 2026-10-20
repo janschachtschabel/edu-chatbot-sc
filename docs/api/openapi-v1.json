@@ -5796,6 +5796,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
         "summary": "Api Health",
         "tags": [
           "health"
@@ -5817,6 +5822,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "StudioKey": []
+          }
+        ],
         "summary": "Api Health Head",
         "tags": [
           "health"
@@ -6101,7 +6111,7 @@
     },
     "/api/master-skill/reload": {
       "post": {
-        "description": "Speicher verwerfen und frisch holen — wirkt in diesem Prozess sofort,\nin weiteren Workern spätestens nach der Speicherdauer (5 Minuten).",
+        "description": "Speicher verwerfen und frisch holen — wirkt sofort auf allen Kopien (Paket 17, C3:\ngeteilter Stand plus Signal; ohne Signal spätestens im nächsten Takt).",
         "operationId": "master_skill_neu_laden_api_master_skill_reload_post",
         "responses": {
           "200": {

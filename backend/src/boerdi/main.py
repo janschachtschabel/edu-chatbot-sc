@@ -43,6 +43,7 @@ from boerdi.api import (
 from boerdi.api import (
     eval as eval_api,
 )
+from boerdi.api.openapi_public import oeffentliche_spec
 from boerdi.api.sse import nachlaeufer_abwarten
 from boerdi.obs.log_format import StdoutHandler, formatter_fuer
 from boerdi.obs.tasks import cancel_and_drain
@@ -199,8 +200,20 @@ def create_app() -> FastAPI:
         version=__version__,
         docs_url=None,
         redoc_url=None,
+        # Paket 17 (D5): ``/openapi.json`` liefert nur die öffentliche Chat-API (unten); die
+        # volle Spec samt Studio und Verwaltung steht am internen Port (``api/intern``).
+        openapi_url=None,
         lifespan=_lifespan,
     )
+
+    oeffentlich: dict[str, dict] = {}
+
+    @app.get("/openapi.json", include_in_schema=False)
+    def openapi_oeffentlich() -> dict:
+        # Einmal je App gebaut — der Pfad ist anonym erreichbar (Review Phase D, C13).
+        if "spec" not in oeffentlich:
+            oeffentlich["spec"] = oeffentliche_spec(app)
+        return oeffentlich["spec"]
 
     # HTTP-layer rate limit (P1-4/V7); the limiter lives in api/ratelimit.py
     from boerdi.api.ratelimit import limiter

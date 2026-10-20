@@ -174,9 +174,10 @@ GET    /widget/{asset_name}
 """
 
 # §5.1 public routes — everything else must carry the StudioKey security marker.
+# Paket 17 (D2): ``/api/health`` trägt seither den Studio-Schlüssel (Betriebsdetails).
 PUBLIC_ROUTES = {
-    "GET /", "HEAD /", "GET /health", "HEAD /health", "GET /api/health",
-    "HEAD /api/health", "POST /api/chat", "POST /api/chat/stream",
+    "GET /", "HEAD /", "GET /health", "HEAD /health",
+    "POST /api/chat", "POST /api/chat/stream",
     "GET /api/speech/status", "POST /api/speech/transcribe",
     "POST /api/speech/synthesize", "GET /api/sessions/{session_id}/messages",
     "GET /api/config/guide-mode", "GET /widget/", "GET /widget/boerdi-widget.js",
