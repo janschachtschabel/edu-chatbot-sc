@@ -2,7 +2,7 @@
 
 Stand: Paket 17, 2026-10-20. Beantwortet die Checkliste „Übergabepaket“ des Leitfadens für Team 6, Punkt für Punkt. Wo eine Datei die Einzelheiten trägt und von einem Test aktuell gehalten wird, steht hier nur der Verweis.
 
-**Offen, vom Nutzer einzutragen:** Ansprechperson T4 (§14), Wartungsverantwortung (§15), Abnahme des Beschreibungstexts der Spec (§2), Abstimmung SSE mit Wolli (§4). **Offen, technisch:** Ressourcen-Messung (§10).
+**Kurzfassung:** [Service-Steckbrief](steckbrief-uebergabe.md) (Jira [GEN-329](https://edu-sharing.atlassian.net/browse/GEN-329)). **Offen, vom Nutzer einzutragen:** Wartungsverantwortung (§15), Abnahme des Beschreibungstexts der Spec (§2), Abstimmung SSE mit Wolli (§4). **Offen, technisch:** Ressourcen-Messung (§10).
 
 ## 1 Repository, CI und Images
 
@@ -253,7 +253,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 
 ## 14 Ansprechperson
 
-*(vom Nutzer einzutragen)*
+T4 – Jan Schachtschabel (technischer Owner).
 
 ## 15 Wartung und Lebenszyklus
 
