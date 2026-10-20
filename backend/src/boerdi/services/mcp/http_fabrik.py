@@ -11,6 +11,7 @@ import httpx
 from mcp.client.streamable_http import create_mcp_http_client
 from mcp.shared._httpx_utils import McpHttpClientFactory
 
+from boerdi.obs.trace_id import ausgehende_koepfe
 from boerdi.services.mcp.auth import _effective_token
 
 __all__ = ["McpHttpClientFactory", "build_http_client_factory"]
@@ -34,7 +35,12 @@ def build_http_client_factory() -> McpHttpClientFactory:
     ``streamablehttp_client`` — kein privater SDK-Pfad.
     """
     block = _effective_token()
-    if not block:
+    # Paket 17 (D4): die Trace-ID der Anfrage — nur an den eigenen Server; fremde Server der
+    # Registry bekommen eine andere Fabrik (``transport._client_fabrik``).
+    zusatz = ausgehende_koepfe()
+    if block:
+        zusatz["Authorization"] = f"Bearer {block}"
+    if not zusatz:
         return create_mcp_http_client
 
     def factory(
@@ -43,7 +49,7 @@ def build_http_client_factory() -> McpHttpClientFactory:
         auth: httpx.Auth | None = None,
     ) -> httpx.AsyncClient:
         return create_mcp_http_client(
-            headers={**(headers or {}), "Authorization": f"Bearer {block}"},
+            headers={**(headers or {}), **zusatz},
             timeout=timeout,
             auth=auth,
         )

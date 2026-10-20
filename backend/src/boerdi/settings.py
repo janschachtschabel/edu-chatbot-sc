@@ -55,6 +55,8 @@ class Settings(BaseSettings):
 
     # ── Core ────────────────────────────────────────────────────────────
     log_level: str = Field("INFO", validation_alias=_env("LOG_LEVEL"))
+    # Paket 17 (D4): ``json`` für den Betrieb (eine JSON-Zeile je Eintrag), ``text`` lokal.
+    log_format: str = Field("text", validation_alias=_env("LOG_FORMAT"))
     studio_api_key: SecretStr = Field(
         SecretStr(""), validation_alias=_env("STUDIO_API_KEY"),
         description="X-Studio-Key; empty => admin disabled unless allow_open_admin",
@@ -477,6 +479,12 @@ class Settings(BaseSettings):
     @classmethod
     def _upper(cls, v: str) -> str:
         return v.upper()
+
+    @field_validator("log_format")
+    @classmethod
+    def _coerce_log_format(cls, v: str) -> str:
+        v = v.strip().lower()
+        return v if v in ("json", "text") else "text"
 
     @field_validator("b_api_key_mode")
     @classmethod

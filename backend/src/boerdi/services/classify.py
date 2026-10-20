@@ -40,6 +40,7 @@ from instructor.core import InstructorRetryException
 from pydantic import ValidationError
 
 from boerdi.api.schemas import ClassificationResult
+from boerdi.obs import metrics
 from boerdi.obs import usage as _usage
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm as _llm
@@ -126,7 +127,7 @@ async def classify_input(
     # beim Anlegen.
     grenze: asyncio.Timeout | None = None
     try:
-        async with _llm.semaphore():
+        async with metrics.llm_messung("classify"), _llm.semaphore():
             grenze = asyncio.timeout(frist)
             async with grenze:
                 result, raw = await _acreate(

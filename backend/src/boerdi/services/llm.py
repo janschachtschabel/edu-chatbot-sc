@@ -29,7 +29,9 @@ from uuid import uuid4
 
 import litellm
 
+from boerdi.obs import metrics
 from boerdi.obs import usage as _usage
+from boerdi.obs.trace_id import ausgehende_koepfe
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services.betriebsschalter import service_tier
 from boerdi.services.llm_auth import b_api_schluessel
@@ -168,7 +170,9 @@ def route(model: str) -> tuple[str, str, str, dict[str, str] | None]:
     # Bearer …``; ein zusätzlicher ``X-API-KEY`` ergäbe bei durchgereichtem Schlüssel 401.
     # Der Schlüssel ist der des Zuges (b-api-Proxy), sonst ``B_API_KEY``.
     api_key = b_api_schluessel() or "unused"  # SDK requires a truthy key
-    return litellm_model, api_base, api_key, None
+    # Paket 17 (D4): die Trace-ID der Anfrage an die b-api (x-client-trace-id, B3) — nur
+    # dorthin, nicht an OpenAI direkt; außerhalb einer Anfrage keine Köpfe.
+    return litellm_model, api_base, api_key, ausgehende_koepfe() or None
 
 
 def wire_transport(resolved: str, kwargs: dict[str, Any]) -> None:
@@ -240,7 +244,7 @@ async def chat_completion(
     wire_transport(resolved, kwargs)
 
     t0 = time.perf_counter()  # Wanduhr samt Warteschlange — so wartet der Zug
-    async with platz("bg" if background else "live"):
+    async with metrics.llm_messung(phase), platz("bg" if background else "live"):
         resp = await _acompletion(**kwargs)
     ms = seit_ms(t0)
     # Responses-Brücke: Text und Aufrufe können auf zwei Choices liegen — jeder

@@ -44,7 +44,9 @@ from boerdi.api import (
     eval as eval_api,
 )
 from boerdi.api.sse import nachlaeufer_abwarten
+from boerdi.obs.log_format import StdoutHandler, formatter_fuer
 from boerdi.obs.tasks import cancel_and_drain
+from boerdi.obs.trace_id import TraceIdFilter, TraceIdMiddleware
 from boerdi.services import aufbewahrung
 from boerdi.services.master_skill import starte as starte_master_skill_takt
 from boerdi.services.warmup import spawn_startup_warmups
@@ -54,10 +56,14 @@ log = logging.getLogger("startup")
 
 
 def _configure_logging(settings: Settings) -> None:
+    # Paket 17 (D4): JSON oder Klartext (``LOG_FORMAT``), Trace-ID in jeder Zeile, nur
+    # stdout. Uvicorns eigene Logger laufen seit ``boerdi.serve`` (``log_config=None``)
+    # über dieselbe Wurzel und damit im selben Format.
+    handler = StdoutHandler()
+    handler.setFormatter(formatter_fuer(settings.log_format))
+    handler.addFilter(TraceIdFilter())
     logging.basicConfig(
-        level=getattr(logging, settings.log_level, logging.INFO),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
+        level=getattr(logging, settings.log_level, logging.INFO), handlers=[handler],
     )
     # ``httpx`` meldet jede Anfrage auf INFO mit voller Adresse samt Abfrage —
     # Import-Adressen und ihre Umleitungen gehören nicht ins Log (Review Paket 6).
@@ -255,6 +261,15 @@ def create_app() -> FastAPI:
         if hsts:
             response.headers.setdefault("Strict-Transport-Security", hsts)
         return response
+
+    # Paket 17 (D3): zuletzt hinzugefügt = äußerste Schicht — zählt jede Antwort, auch
+    # 413/401/CORS. Ausgeliefert werden die Zahlen nur am internen Port (``api/intern``).
+    from boerdi.obs.metrics import MetrikMiddleware
+
+    app.add_middleware(MetrikMiddleware)
+    # Paket 17 (D4): die Trace-ID gilt ab der äußersten Schicht — auch Zählung, CORS und
+    # Fehlerantworten loggen schon unter ihr.
+    app.add_middleware(TraceIdMiddleware)
 
     app.include_router(health.public_router)
     app.include_router(agent.router)

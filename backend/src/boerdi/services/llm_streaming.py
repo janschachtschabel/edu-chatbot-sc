@@ -33,6 +33,7 @@ import logging
 from typing import Any
 
 from boerdi.domain.reasoning_filters import ThinkSafeStreamer
+from boerdi.obs import metrics
 from boerdi.services import llm
 
 _logger = logging.getLogger(__name__)
@@ -242,7 +243,7 @@ async def _stream_completion(
     # tc_index → {"id": str, "name": str, "args_buf": str, "extractor": _RespondToUserExtractor | None}  # noqa: E501
     tool_calls_accum: dict[int, dict[str, Any]] = {}
 
-    async with llm.semaphore():
+    async with metrics.llm_messung("strom"), llm.semaphore():
         stream = await llm._acompletion(**built)
         async for chunk in stream:
             # Final chunk in OpenAI's stream often carries the cumulative usage

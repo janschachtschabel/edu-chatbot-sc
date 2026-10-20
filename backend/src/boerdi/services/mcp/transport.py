@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -51,6 +52,7 @@ from mcp.client.streamable_http import create_mcp_http_client, streamablehttp_cl
 from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS, METHOD_NOT_FOUND
 
+from boerdi.obs import metrics
 from boerdi.services.mcp.http_fabrik import McpHttpClientFactory, build_http_client_factory
 from boerdi.settings import Settings, get_settings
 
@@ -228,6 +230,17 @@ async def call_tool(
     Nutzer „es wurde nichts geändert" sagen darf oder „bitte nachsehen".
     """
     target_url = resolve_mcp_url(url)
+    beginn = time.perf_counter()
+    ergebnis = await _call_tool(tool_name, arguments, target_url)
+    # Paket 17 (D3): je Server und Art — ``ok`` oder die ``kind`` des Fehlers.
+    art = ergebnis["error"].get("kind", "transport") if "error" in ergebnis else "ok"
+    metrics.mcp_aufruf(target_url, art, time.perf_counter() - beginn)
+    return ergebnis
+
+
+async def _call_tool(
+    tool_name: str, arguments: dict[str, Any] | None, target_url: str
+) -> dict[str, Any]:
     frist = _frist_s()
     grenze = asyncio.timeout(frist)
     try:

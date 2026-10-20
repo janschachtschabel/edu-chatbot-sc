@@ -38,6 +38,7 @@ from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.build import build_turn_graph, run_turn
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import bot_text, msg, resolve_locale
+from boerdi.obs import metrics
 from boerdi.obs.progress import TurnProgress
 from boerdi.services import betriebsschalter, prompt_ablage
 from boerdi.services.db_sessions import save_message
@@ -78,8 +79,9 @@ async def _record_usage(session: AsyncSession, session_id: str, state: dict) -> 
     try:
         antwort = state.get("early_response") or state.get("response")
         debug = getattr(antwort, "debug", None)
-        await record_turn_usage(session, session_id, state.get("usage"),
-                                engine=getattr(debug, "engine", "") or None)
+        engine = getattr(debug, "engine", "") or None
+        metrics.zug(engine)  # Paket 17 (D3): derselbe Trichter, den jeder Zug passiert
+        await record_turn_usage(session, session_id, state.get("usage"), engine=engine)
         # Paket 13 (A5): neue Prompt-Fassungen dieses Zuges — derselbe Trichter, dieselbe Sitzung.
         await prompt_ablage.speichere(session, state.get("usage"))
     except Exception:
