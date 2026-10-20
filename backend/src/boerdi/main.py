@@ -113,6 +113,15 @@ def _warn_insecure_config(settings: Settings) -> None:
             "B_API_ROUTE.",
             settings.b_api_route.strip(),
         )
+    if (os.environ.get("KUBERNETES_SERVICE_HOST")
+            and settings.rate_limit_storage_uri.strip().startswith("memory://")):
+        # Paket 17 (C4): Kubernetes setzt die Variable in jeden Pod. Im Speicher zählt jede
+        # Replik für sich — das Limit gilt N-fach.
+        log.warning(
+            "⚠ RATE_LIMIT_STORAGE_URI=memory:// in Kubernetes: jede Replik zählt für sich, "
+            "das Limit gilt so oft, wie Repliken laufen. Auf Valkey stellen "
+            "(redis://…, siehe docs/cluster-checkliste.md)."
+        )
     if settings.cors_allow_extensions and "*" not in settings.cors_effective_origins:
         # Nur bei enger Liste melden — und zwar an der WIRKSAMEN, nicht an der
         # geschriebenen: im offenen Zustand ist die Regel folgenlos, und eine

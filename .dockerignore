@@ -40,6 +40,11 @@ docs
 .gitignore
 CLAUDE.md
 
+# Paket 17 (C5): das Reranker-Archiv (77 MB) liegt lokal im Wurzelordner; das Image
+# braucht es nicht (Bezug zur Laufzeit, services/rag/reranker_bezug). Gleiches Muster
+# wie in .gitignore.
+reranker-model-*.tar.gz
+
 # Lokale Rückfall-Kopien des Seed-Baums (F0): gehören nicht ins Image und
 # würden bei jeder neuen Sicherung den Layer-Cache brechen.
 backups
