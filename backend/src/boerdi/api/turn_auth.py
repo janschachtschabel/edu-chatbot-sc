@@ -9,11 +9,13 @@ der Anmeldung der vorigen hängen — die schwerste denkbare Verwechslung.
 
 from __future__ import annotations
 
+import hmac
 import logging
 
-from fastapi import Request, Security
+from fastapi import HTTPException, Request, Security, status
 
-from boerdi.api.deps import require_studio_key, studio_key_header
+from boerdi.api.deps import expected_studio_key, require_studio_key, studio_key_header
+from boerdi.services.llm_auth import setze_llm_schluessel
 from boerdi.services.mcp.anmeldung import bestaetige_anmeldung
 from boerdi.services.mcp.auth import is_personal_block, set_turn_auth_block
 from boerdi.settings import get_settings
@@ -47,13 +49,61 @@ def adopt_turn_auth_block(request: Request) -> None:
         )
 
 
+def _interner_zug(request: Request) -> bool:
+    """Ein Zug der Anlage selbst: über den Studio-Proxy (Studio-Proben) oder mit gültigem
+    Studio-Schlüssel (Evaluation, Lasttest). Er bucht auf ``B_API_KEY`` — der Proxy-Kopf fehlt
+    ihm, und der Studio-Proxy reicht ``Authorization`` nie durch (Review-Runde 3, Befund 1)."""
+    from boerdi.api.studio_proxy import ueber_studio  # zirkulär: studio_proxy → deps
+
+    if ueber_studio(request):
+        return True
+    erwartet = expected_studio_key()
+    gegeben = (request.headers.get("x-studio-key") or "").strip()
+    return bool(erwartet) and gegeben.isascii() and hmac.compare_digest(gegeben, erwartet)
+
+
+def uebernimm_llm_schluessel(request: Request, *, pflicht: bool = True) -> None:
+    """Den b-api-Schlüssel des Zuges aus ``Authorization`` übernehmen (Paket 17).
+
+    Wie der Zugangsblock **immer** gerufen, auch ohne Kopfzeile — ein leerer Wert löscht.
+    Ein unbrauchbarer Wert wird gemeldet, nie ausgegeben. Was dann gilt, sagt
+    ``B_API_KEY_MODE`` (AB2): ``auto`` nimmt ``B_API_KEY``; ``static`` liest den Kopf gar
+    nicht; ``forward`` weist einen Zug ohne gültigen Schlüssel mit 401 ab, sofern das LLM
+    über die b-api läuft — außer Züge der Anlage selbst (:func:`_interner_zug`).
+    ``pflicht=False`` für Auskünfte, die kein Zug sind. ``forward`` verlangt einen Schlüssel,
+    es prüft ihn nicht: das tut die b-api (ungültig → 401 dort).
+    """
+    einst = get_settings()
+    if einst.b_api_key_mode == "static":
+        setze_llm_schluessel(None)
+        return
+    roh = request.headers.get("authorization")
+    gilt = setze_llm_schluessel(roh)
+    if not gilt and roh:
+        logger.warning(
+            "Kopfzeile Authorization vorgelegt, aber unbrauchbar (erwartet „Bearer "
+            "<Schlüssel>“)."
+        )
+    if (not gilt and pflicht and einst.b_api_key_mode == "forward"
+            and einst.llm_provider.startswith("b-api") and not _interner_zug(request)):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="b-api key required: Authorization: Bearer <key> (B_API_KEY_MODE=forward)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 async def uebernimm_zugang(request: Request) -> None:
     """Den Block übernehmen UND seine Echtheit prüfen (Paket 10, Kurzaudit A-1).
 
     Was ein Zug darf — Deckel, Schreibangebot, Abnahme —, hängt seither an einer
     Person, die der MCP-Server bestätigt hat; die Form allein reicht nicht mehr. Ein
     Rundlauf je Fingerabdruck und einige Minuten (``services/mcp/anmeldung``).
+
+    Seit Paket 17 auch den b-api-Schlüssel des Zuges — beide Werte gehören zur Anfrage,
+    und jeder Endpunkt, der einen Zug fährt, ruft genau diese Funktion.
     """
+    uebernimm_llm_schluessel(request)
     adopt_turn_auth_block(request)
     await bestaetige_anmeldung()
 

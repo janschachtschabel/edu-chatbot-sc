@@ -737,3 +737,29 @@ def test_verbrauch_wird_auch_im_stream_geschrieben(monkeypatch, client):
     assert len(calls) == 1
     assert calls[0][0] is _SESSION and calls[0][1] == "bb-1"
     assert calls[0][2] is acc
+
+
+def test_der_schluessel_des_proxys_gilt_auch_im_gestreamten_zug(monkeypatch, client):
+    """Gesamt-Review Paket 17 (AB3): wie der Zugangsblock erbt die Task des Stroms den
+    durchgereichten b-api-Schlüssel — wanderte die Übernahme in den Generator, buchte jeder
+    gestreamte Zug still auf den Schlüssel der Anlage."""
+    from boerdi.services import llm
+    from boerdi.services.llm_router import get_chat_model
+
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
+    monkeypatch.setenv("B_API_KEY", "schluessel-der-anlage")
+    get_settings.cache_clear()
+    gesehen: dict[str, str] = {}
+
+    class _Graph:
+        async def ainvoke(self, state):
+            gesehen["schluessel"] = llm.route(get_chat_model())[2]
+            return _ok("HI")
+
+    monkeypatch.setattr(chat_api, "build_turn_graph", lambda **k: _Graph())
+    monkeypatch.setattr(chat_api, "peer_ip", lambda request: "7.7.7.7")
+    monkeypatch.setattr(chat_api, "_postprocess_response_for_widget_modes", _passthrough_pp)
+    client.post("/api/chat/stream",
+                json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+                headers={"Authorization": "Bearer " + "s" * 36})
+    assert gesehen["schluessel"] == "s" * 36

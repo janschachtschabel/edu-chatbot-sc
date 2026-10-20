@@ -6,6 +6,7 @@ security response headers (ALT Audit N-8), startup config warnings.
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -80,6 +81,19 @@ def _warn_insecure_config(settings: Settings) -> None:
             "⚠ B_API_ROUTE=%r ist gesetzt, wirkt aber nur mit LLM_PROVIDER=b-api-openai "
             "(aktiv: %s) — die Route wird NICHT genutzt.",
             settings.b_api_route.strip(), settings.llm_provider,
+        )
+    roh_modus = os.environ.get("B_API_KEY_MODE", "").strip()
+    if roh_modus and roh_modus.lower() != settings.b_api_key_mode:
+        # Review-Runde 3 (Befund 4): ein Tippfehler fiel still auf auto zurück.
+        log.warning(
+            "⚠ B_API_KEY_MODE=%r ist unbekannt — es gilt %r (erlaubt: auto, static, forward).",
+            roh_modus, settings.b_api_key_mode,
+        )
+    if settings.b_api_key_mode == "forward" and not settings.llm_provider.startswith("b-api"):
+        # Gesamt-Review Paket 17 (AB2): ohne b-api gibt es keinen Schlüssel durchzureichen.
+        log.warning(
+            "⚠ B_API_KEY_MODE=forward wirkt nur mit LLM_PROVIDER=b-api-* (aktiv: %s) — "
+            "Züge ohne Authorization werden NICHT abgewiesen.", settings.llm_provider,
         )
     if settings.b_api_route.strip() and settings.llm_chat_model == settings.b_api_route.strip():
         # Review Paket 17 (A-2): die naheliegende Verwechslung. Das Chat-Modell bestimmt die

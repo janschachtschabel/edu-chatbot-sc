@@ -51,7 +51,9 @@ PREFIX = "/studio/api"
 _UEBER_STUDIO = "boerdi.ueber_studio"
 _AUTH_PREFIX = f"{PREFIX}/auth"
 _API = "/api"
-_DROPPED_REQUEST_HEADERS = (b"cookie", b"x-studio-key")
+# ``authorization`` (Paket 17): der Chat nähme einen Bearer als b-api-Schlüssel des
+# Zuges — eine Studio-Anfrage bucht aber nie auf fremde Schlüssel.
+_DROPPED_REQUEST_HEADERS = (b"cookie", b"x-studio-key", b"authorization")
 _SICHERE_METHODEN = frozenset({"GET", "HEAD", "OPTIONS"})
 
 

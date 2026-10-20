@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.i18n import Locale, resolve_locale
 from boerdi.services.session_origin import Scope
-from boerdi.settings import get_settings
+from boerdi.settings import get_settings, studio_schluessel
 
 _HEADER = "X-Studio-Key"
 
@@ -56,10 +56,7 @@ def expected_studio_key() -> str:
 
     Public because the studio-bff injects exactly this value (P9-1) — deriving it
     twice would let a placeholder slip past one of the two call sites."""
-    key = get_settings().studio_api_key.get_secret_value().strip()
-    if key.upper().startswith("CHANGE_ME"):
-        return ""
-    return key
+    return studio_schluessel()
 
 
 async def require_studio_key(

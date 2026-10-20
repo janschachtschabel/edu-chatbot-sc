@@ -347,3 +347,24 @@ def test_der_studio_weg_markiert_die_anfrage(monkeypatch):
         asyncio.run(middleware(scope, None, None))
     assert gesehen == [True, False]
 
+
+
+@pytest.mark.parametrize("pfad", ["/api/agent", "/api/agent/stream"])
+def test_der_schluessel_des_proxys_erreicht_den_lauf(monkeypatch, client, pfad):
+    """Gesamt-Review Paket 17 (AB3): beide Agent-Wege übernehmen den b-api-Schlüssel."""
+    from boerdi.services import llm
+    from boerdi.services.llm_router import get_chat_model
+
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
+    monkeypatch.setenv("B_API_KEY", "schluessel-der-anlage")
+    get_settings.cache_clear()
+    gesehen: dict = {}
+
+    async def _run(req, *, progress=None, usage_acc=None):
+        gesehen["schluessel"] = llm.route(get_chat_model())[2]
+        return _ANTWORT
+
+    monkeypatch.setattr(agent_api, "run_agent", _run)
+    client.post(pfad, json={"instruction": "Pruefe."},
+                headers={"Authorization": "Bearer " + "a" * 36})
+    assert gesehen["schluessel"] == "a" * 36

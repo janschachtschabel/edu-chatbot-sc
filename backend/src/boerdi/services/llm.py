@@ -32,6 +32,7 @@ import litellm
 from boerdi.obs import usage as _usage
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services.betriebsschalter import service_tier
+from boerdi.services.llm_auth import b_api_schluessel
 from boerdi.services.llm_choices import vereinige_choices
 from boerdi.services.llm_models import (
     get_chat_model,
@@ -157,22 +158,23 @@ def route(model: str) -> tuple[str, str, str, dict[str, str] | None]:
     if provider == "openai":
         api_base = s.openai_base_url or _DEFAULT_OPENAI_BASE
         return litellm_model, api_base, s.openai_api_key.get_secret_value(), None
-    # b-api-openai / b-api-academiccloud: OpenAI-compatible proxy, dual auth. Paket 8 (L8):
+    # b-api-openai / b-api-academiccloud: OpenAI-compatible proxy. Paket 8 (L8):
     # OpenAI embeddings take the OpenAI path even on the AcademicCloud — it has no embedding
     # model, and the knowledge base lives in the text-embedding-3-small space (ALT: side channel).
     academiccloud = provider == "b-api-academiccloud" and not model.startswith("text-embedding-")
     suffix = "/router" if route_name else "/academiccloud" if academiccloud else "/openai"
     api_base = s.b_api_base_url.rstrip("/") + suffix
-    b_key = s.b_api_key.get_secret_value().strip()
-    api_key = b_key or "unused"  # SDK requires a truthy key
-    extra_headers = {"X-API-KEY": b_key} if b_key else None
-    return litellm_model, api_base, api_key, extra_headers
+    # Paket 17 (B3): genau EIN Kopf — das SDK macht aus ``api_key`` ``Authorization:
+    # Bearer …``; ein zusätzlicher ``X-API-KEY`` ergäbe bei durchgereichtem Schlüssel 401.
+    # Der Schlüssel ist der des Zuges (b-api-Proxy), sonst ``B_API_KEY``.
+    api_key = b_api_schluessel() or "unused"  # SDK requires a truthy key
+    return litellm_model, api_base, api_key, None
 
 
 def wire_transport(resolved: str, kwargs: dict[str, Any]) -> None:
     """Stamp the transport params for ``resolved`` (bare model name) onto
     ``kwargs`` in place: routed litellm model, api_base/api_key, timeout,
-    retries, optional X-API-KEY header. Shared by ``chat_completion`` and its
+    retries. Shared by ``chat_completion`` and its
     streaming twin (services/llm_streaming.py)."""
     litellm_model, api_base, api_key, extra_headers = route(resolved)
     s = get_settings()

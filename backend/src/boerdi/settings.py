@@ -28,6 +28,7 @@ def _env(name: str) -> AliasChoices:
 
 
 _LLM_PROVIDERS = {"openai", "b-api-openai", "b-api-academiccloud"}
+_B_API_KEY_MODES = {"auto", "static", "forward"}
 _VERBOSITY = {"low", "medium", "high"}
 # W12: `max` ergaenzt — die Chat-Completions-Referenz fuehrt es auf
 # (none|minimal|low|medium|high|xhigh|max). Fehlte hier, ein gueltiger Wert
@@ -153,7 +154,7 @@ class Settings(BaseSettings):
     )
     b_api_key: SecretStr = Field(
         SecretStr(""), validation_alias=_env("B_API_KEY"),
-        description="sent as X-API-KEY header for b-api-* providers",
+        description="b-api key (Bearer); a key forwarded by the b-api proxy wins (Paket 17)",
     )
     # Paket 17 (A1, Nutzer 2026-10-20): eine Route des b-api-Routers
     # (``/api/v1/llm/router``) statt des Modellnamens. Leer = aus (Vorgabe, weil die
@@ -163,6 +164,15 @@ class Settings(BaseSettings):
     b_api_route: str = Field(
         "", validation_alias=_env("B_API_ROUTE"),
         description="b-api router route name for the chat model (b-api-openai only)",
+    )
+    # Paket 17 (AB2, Nutzer 2026-10-20): woher der b-api-Schlüssel eines Zuges kommt.
+    # ``auto`` (Vorgabe, auch leer/unbekannt): ``Authorization: Bearer`` vom b-api-Proxy, sonst
+    # ``B_API_KEY``. ``static``: immer ``B_API_KEY``, der Kopf zählt nicht (wie vor Paket 17).
+    # ``forward``: jeder Zug braucht den durchgereichten Schlüssel, sonst 401 — für eine
+    # Anlage, die nur hinter dem Proxy steht. Hintergrundläufe nehmen in jedem Modus B_API_KEY.
+    b_api_key_mode: str = Field(
+        "auto", validation_alias=_env("B_API_KEY_MODE"),
+        description="auto | static | forward — source of the b-api key per turn",
     )
     b_api_audio: bool = Field(
         False, validation_alias=_env("B_API_AUDIO"),
@@ -451,6 +461,12 @@ class Settings(BaseSettings):
     def _upper(cls, v: str) -> str:
         return v.upper()
 
+    @field_validator("b_api_key_mode")
+    @classmethod
+    def _coerce_b_api_key_mode(cls, v: str) -> str:
+        v = v.strip().lower()
+        return v if v in _B_API_KEY_MODES else "auto"
+
     @field_validator("llm_provider")
     @classmethod
     def _coerce_provider(cls, v: str) -> str:
@@ -595,3 +611,11 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def studio_schluessel() -> str:
+    """Der konfigurierte Studio-Schlüssel, oder "" ohne. ``CHANGE_ME…``-Platzhalter gelten als
+    nicht gesetzt — ein vergessener Vorlagewert darf nie als Schlüssel wirken. Die eine Stelle
+    für API (``api/deps.expected_studio_key``) und interne Aufrufer (Lasttest, Eval-Runner)."""
+    key = get_settings().studio_api_key.get_secret_value().strip()
+    return "" if key.upper().startswith("CHANGE_ME") else key

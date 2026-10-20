@@ -18,7 +18,9 @@ from typing import Any
 
 import litellm
 
+from boerdi.obs.trace_id import ausgehende_koepfe
 from boerdi.services import llm_parallel
+from boerdi.services.llm_auth import b_api_schluessel
 from boerdi.services.llm_models import get_provider
 from boerdi.settings import get_settings
 
@@ -56,9 +58,9 @@ def _moderation_target() -> tuple[str, str, dict[str, str] | None] | None:
     ``get_moderation_client`` branch logic:
 
     - ``openai``: native OpenAI key, else ``None``.
-    - ``b-api-openai``: B-API passthrough when ``B_API_KEY`` is set (the extended
-      B-API proxies ``/moderations``); else a native OpenAI side-channel when
-      ``OPENAI_API_KEY`` is set; else ``None``.
+    - ``b-api-openai``: B-API passthrough with the turn's key (forwarded by the b-api
+      proxy, else ``B_API_KEY`` — Paket 17, one Bearer header); else a native OpenAI
+      side-channel when ``OPENAI_API_KEY`` is set; else ``None``.
     - ``b-api-academiccloud``: ``None`` — AcademicCloud has no moderation
       endpoint (B-API ``/academiccloud/moderations`` → 404, measured 2026-10-09),
       and since Paket 7 (L5, user decision 2026-10-09) the messages no longer go
@@ -77,10 +79,12 @@ def _moderation_target() -> tuple[str, str, dict[str, str] | None] | None:
     if provider == "openai":
         return native if openai_key else None
     if provider == "b-api-openai":
-        b_key = s.b_api_key.get_secret_value().strip()
+        # Paket 17 (B3): der Schlüssel des Zuges (b-api-Proxy) vor ``B_API_KEY``, als
+        # einziger Kopf (``Authorization: Bearer``, vom SDK aus ``api_key`` gebaut).
+        b_key = b_api_schluessel()
         if b_key:
             base = s.b_api_base_url.rstrip("/") + "/openai"
-            return base, b_key, {"X-API-KEY": b_key}
+            return base, b_key, ausgehende_koepfe() or None  # Paket 17 (D4): Trace-ID
         return native if openai_key else None
     if provider == "b-api-academiccloud":
         return None
