@@ -12,6 +12,9 @@ Uvicorn selbst mit Code 3, wie unter dem CLI.
 Die Flags des Hauptservers sind die bisherigen der Dockerfile-CMD (Begründungen dort):
 ``--proxy-headers``, ``--timeout-graceful-shutdown 30``; wessen weitergeleiteten Köpfen er
 glaubt, sagt seit dem Gesamt-Review ``FORWARDED_ALLOW_IPS`` (Vorgabe ``*`` wie bisher).
+
+Zu Beginn des Herunterfahrens — bevor die Annahme schließt — beendet der Hauptserver die Läufe
+dieses Pods (``services/laeufe_beenden``, Gesamt-Review Paket 17, C2).
 """
 
 from __future__ import annotations
@@ -19,7 +22,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from typing import Any
 
 import uvicorn
@@ -28,6 +31,24 @@ from fastapi import FastAPI
 from boerdi.settings import get_settings
 
 OEFFENTLICHER_PORT = 8100
+
+log = logging.getLogger(__name__)
+
+
+class _HauptServer(uvicorn.Server):
+    """Der Uvicorn-Server des öffentlichen Ports, mit einem Schritt vor dem Herunterfahren."""
+
+    #: Läuft, bevor Uvicorn die Annahme schließt; ein Fehler darin hält nichts auf.
+    bei_ende: Callable[[], Awaitable[None]] | None = None
+
+    async def shutdown(self, sockets: Any = None) -> None:
+        if self.bei_ende is not None:
+            try:
+                await self.bei_ende()
+            except Exception:
+                log.warning("Schritt vor dem Herunterfahren gescheitert", exc_info=True)
+        await super().shutdown(sockets)
+
 
 class _InternServer(uvicorn.Server):
     """Ein Uvicorn-Server ohne eigene Signal-Handler.
@@ -54,7 +75,7 @@ def baue_server(haupt: FastAPI, intern: FastAPI) -> tuple[uvicorn.Server, uvicor
     """Hauptserver (öffentlicher Port, mit Lifespan) und interner Server (ohne)."""
     s = get_settings()
     stufe = _log_stufe(s.log_level)
-    haupt_server = uvicorn.Server(uvicorn.Config(
+    haupt_server = _HauptServer(uvicorn.Config(
         haupt, host="0.0.0.0", port=OEFFENTLICHER_PORT,  # noqa: S104 — Container-Port
         proxy_headers=True, forwarded_allow_ips=s.forwarded_allow_ips,
         timeout_graceful_shutdown=30,
@@ -93,6 +114,15 @@ async def laufen(haupt: Any, intern: Any) -> None:
         await intern_lauf
 
 
+async def laeufe_der_app_beenden(app: FastAPI) -> None:
+    """Die Läufe dieses Pods schließen — sofern der Lebenszyklus eine Engine hinterlegt hat."""
+    from boerdi.services import laeufe_beenden
+
+    engine = getattr(app.state, "engine", None)
+    if engine is not None:
+        await laeufe_beenden.beende(engine)
+
+
 def main() -> None:
     from boerdi.api.intern import create_intern_app
     from boerdi.main import app
@@ -100,6 +130,7 @@ def main() -> None:
     haupt_server, intern_server = baue_server(app, FastAPI())
     intern_server.config.app = create_intern_app(
         app, beendet=beendet_von(haupt_server), gestartet=gestartet_von(haupt_server))
+    haupt_server.bei_ende = lambda: laeufe_der_app_beenden(app)
     asyncio.run(laufen(haupt_server, intern_server))
 
 

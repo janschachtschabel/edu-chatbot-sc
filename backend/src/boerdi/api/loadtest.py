@@ -20,9 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.deps import Lang, get_session, require_studio_key
 from boerdi.i18n import Locale, msg
+from boerdi.obs.herzschlag import mit_herzschlag
 from boerdi.obs.tasks import _spawn_background, register_run_task
 from boerdi.services.loadtest import (
     MIX_TEMPLATES,
+    LastTestLaeuftSchon,
     any_run_running,
     cancel_run,
     create_run,
@@ -100,12 +102,18 @@ async def start_loadtest_run(
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     run_id = f"lt-{uuid.uuid4().hex[:12]}"
-    await create_run(session, run_id, norm)
+    try:
+        await create_run(session, run_id, norm)
+    except LastTestLaeuftSchon as laeuft:  # Paket 17 (C1): gleichzeitiger Start, DB entschied
+        raise HTTPException(409, msg(lang, "loadtest.alreadyRunning",
+                                     id=laeuft.laufend or "")) from laeuft
     # Registriert, damit der Stoppen-Knopf den Job wirklich erreicht — ohne
     # das schriebe ein Abbruch nur die Zeile um (Prod-Befund 3, 2026-08-22).
-    register_run_task(run_id, _spawn_background(
-        execute_load_test(request.app, run_id, norm)
-    ))
+    # Paket 17 (C1): mit Herzschlag — andere Repliken erkennen daran, dass er lebt.
+    register_run_task(run_id, _spawn_background(mit_herzschlag(
+        request.app.state.session_factory, "loadtest_runs", run_id,
+        execute_load_test(request.app, run_id, norm),
+    )))
     return {"id": run_id, "status": "running", "profile": norm}
 
 

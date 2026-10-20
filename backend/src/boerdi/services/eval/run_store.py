@@ -28,9 +28,11 @@ logger = logging.getLogger(__name__)
 # compose, the image (Dockerfile ENV) and the local launch config — ALT's 8000 let a container
 # started without compose refuse every run with 502 (Paket 15, A2).
 _CHAT_URL_DEFAULT = "http://127.0.0.1:8100/api/chat"
-# Stale 'running' rows older than this are swept to 'failed' by the start-guard
-# so a crashed run cannot block new ones forever (ALT: 2h).
-_STALE_RUN_HOURS = 2
+# Paket 17 (C2): a 'running' row without a heartbeat for this long is swept to 'failed' by
+# the start-guard — its pod is gone (rollout, scale-down, crash). Until then: 2 h after
+# ``created_at``, so a dead pod blocked every new run for up to 2 h. Rows from before 0014
+# (no heartbeat) count by ``created_at``.
+_VERWAIST_NACH = timedelta(minutes=3)
 
 
 def _chat_url() -> str:
@@ -74,17 +76,17 @@ async def _ensure_chat_reachable() -> None:
 
 async def _ensure_no_running_run(session: AsyncSession) -> None:
     """Parallel-guard (ALT B4): two concurrent runs would share the chat backend
-    and eval_runs writes and corrupt each other. Stale 'running' rows (crash
-    leftovers) older than ``_STALE_RUN_HOURS`` are swept to 'failed' first so they
-    don't block forever."""
-    cutoff = datetime.now(UTC) - timedelta(hours=_STALE_RUN_HOURS)
+    and eval_runs writes and corrupt each other. 'running' rows without a heartbeat for
+    ``_VERWAIST_NACH`` are swept to 'failed' first so they don't block (Paket 17, C2)."""
+    # Grenze nach der Uhr der Datenbank, die auch den Herzschlag schreibt (Review C, Befund 5).
     await session.execute(
         text(
-            "UPDATE eval_runs SET status='failed', "
-            "error_message='stale running-Run beim Start-Check abgeräumt' "
-            "WHERE status='running' AND created_at < :cutoff"
+            "UPDATE eval_runs SET status='failed', completed_at=now(), "
+            "error_message='verwaister running-Run abgeräumt (kein Herzschlag mehr)' "
+            "WHERE status='running' "
+            "AND COALESCE(heartbeat_at, created_at) < now() - make_interval(secs => :s)"
         ),
-        {"cutoff": cutoff},
+        {"s": _VERWAIST_NACH.total_seconds()},
     )
     await session.commit()
     running = await _laufender_run(session)
@@ -144,8 +146,10 @@ async def _finalize_run(
     gesperrt: ein Stopp darf keinen Lauf umetikettieren, der gerade regulär
     fertig geworden ist.
     """
+    # Gesperrt gelesen (Gesamt-Review Paket 17, C4): Abräumen oder Stopp zwischen Lesen und
+    # Schreiben warten auf diese Transaktion, statt überschrieben zu werden.
     r = (
-        await session.execute(select(EvalRun).where(EvalRun.id == run_id))
+        await session.execute(select(EvalRun).where(EvalRun.id == run_id).with_for_update())
     ).scalar_one_or_none()
     if r is None:
         logger.warning("[eval %s] run row vanished before finalize", run_id)
@@ -154,9 +158,11 @@ async def _finalize_run(
         if r.status != "running":
             logger.info("[eval %s] Stopp kommt zu spät (Status: %s)", run_id, r.status)
             return False
-    elif r.status == "cancelled":
-        logger.info("[eval %s] Endstand 'cancelled' bleibt — '%s' verworfen",
-                    run_id, status)
+    elif r.status != "running":
+        # ``cancelled`` oder ein als verwaist abgeräumter Lauf, dessen Job nur den Herzschlag
+        # verlor (Paket 17, Review Phase C): der Endstand bleibt.
+        logger.info("[eval %s] Endstand '%s' bleibt — '%s' verworfen",
+                    run_id, r.status, status)
         return False
     r.status = status
     r.completed_at = datetime.now(UTC)

@@ -156,6 +156,8 @@ class EvalRun(Base):
         DateTime(timezone=True), nullable=True
     )
     status: Mapped[str] = mapped_column(Text, default="running")
+    # Paket 17 (0014): alle 15 s, solange der Lauf lebt (``obs/herzschlag``).
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     mode: Mapped[str] = mapped_column(Text, default="")
     config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     totals: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
@@ -174,6 +176,8 @@ class LoadtestRun(Base):
     status: Mapped[str] = mapped_column(Text, default="running")
     config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # Paket 17 (0014): alle 15 s, solange der Lauf lebt (``obs/herzschlag``).
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ConfigArea(Base):

@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.db.models import EvalRun
+from boerdi.obs.herzschlag import mit_herzschlag
 from boerdi.obs.tasks import _spawn_background
 from boerdi.services.engine_choice import choose_engine
 from boerdi.services.eval import runner
@@ -117,12 +118,14 @@ async def start_generative_run(
     ))
     # The resolved persona/intent dicts go to the job as-is: re-reading them by
     # id in the background would silently pick up a config edit made mid-run.
-    task = _spawn_background(_execute_generative_run(
+    # Paket 17 (C2): mit Herzschlag — andere Repliken erkennen daran, dass der Lauf lebt.
+    task = _spawn_background(mit_herzschlag(session_factory, "eval_runs", run_id,
+                                            _execute_generative_run(
         session_factory, run_id,
         mode=req.mode, personas=personas, intents=intents,
         scenarios_per_combo=req.scenarios_per_combo,
         turns_per_conv=req.turns_per_conv, target_turns=target_turns, engine=engine,
-    ))
+    )))
     _register_run_task(run_id, task)
     return {
         "run_id": run_id,

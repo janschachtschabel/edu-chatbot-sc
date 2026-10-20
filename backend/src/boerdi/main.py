@@ -162,8 +162,9 @@ async def _lifespan(app: FastAPI):
     app.state.session_factory = make_session_factory(engine)  # api.deps.get_session
     app.state.config_store = store
     # V9 housekeeping: a crashed loadtest can leave a ``running`` row that would
-    # permanently 409-block new runs — sweep stale rows to ``failed`` on boot
-    # (best-effort; a sweep failure must never block startup).
+    # permanently 409-block new runs — sweep rows without a heartbeat (Paket 17, C1:
+    # never the live run of another replica) to ``failed`` on boot (best-effort; a sweep
+    # failure must never block startup).
     try:
         async with app.state.session_factory() as _lt_sess:
             _swept = await sweep_orphaned_loadtests(_lt_sess)
