@@ -74,6 +74,23 @@ def _warn_insecure_config(settings: Settings) -> None:
             "Staging/Produktion einen langen Zufallswert setzen; lokal öffnet "
             "BOERDI_ALLOW_OPEN_ADMIN=1."
         )
+    if settings.b_api_route.strip() and settings.llm_provider != "b-api-openai":
+        # Paket 17: still übergangen hielte der Betreiber die Route für aktiv.
+        log.warning(
+            "⚠ B_API_ROUTE=%r ist gesetzt, wirkt aber nur mit LLM_PROVIDER=b-api-openai "
+            "(aktiv: %s) — die Route wird NICHT genutzt.",
+            settings.b_api_route.strip(), settings.llm_provider,
+        )
+    if settings.b_api_route.strip() and settings.llm_chat_model == settings.b_api_route.strip():
+        # Review Paket 17 (A-2): die naheliegende Verwechslung. Das Chat-Modell bestimmt die
+        # Parameter — ein Routenname hat keine Regeln, es gingen ``temperature``/``max_tokens``
+        # hinaus, und eine gpt-6-Route antwortet mit 400 (gemessen 2026-10-20).
+        log.warning(
+            "⚠ LLM_CHAT_MODEL ist der Routenname %r. Es muss das Modell der Route nennen "
+            "(z. B. gpt-6-luna), das die Parameter bestimmt; der Routenname gehört nur in "
+            "B_API_ROUTE.",
+            settings.b_api_route.strip(),
+        )
     if settings.cors_allow_extensions and "*" not in settings.cors_effective_origins:
         # Nur bei enger Liste melden — und zwar an der WIRKSAMEN, nicht an der
         # geschriebenen: im offenen Zustand ist die Regel folgenlos, und eine

@@ -155,6 +155,15 @@ class Settings(BaseSettings):
         SecretStr(""), validation_alias=_env("B_API_KEY"),
         description="sent as X-API-KEY header for b-api-* providers",
     )
+    # Paket 17 (A1, Nutzer 2026-10-20): eine Route des b-api-Routers
+    # (``/api/v1/llm/router``) statt des Modellnamens. Leer = aus (Vorgabe, weil die
+    # Routen noch nicht angelegt sind). Die Route ersetzt nur den Namen, unter dem das
+    # Chat-Modell hinausgeht; die Parameterregeln bleiben die von ``LLM_CHAT_MODEL`` —
+    # eine Route bündelt nur Modelle EINER Familie (b-api-Doku, gemessen 2026-10-20).
+    b_api_route: str = Field(
+        "", validation_alias=_env("B_API_ROUTE"),
+        description="b-api router route name for the chat model (b-api-openai only)",
+    )
     b_api_audio: bool = Field(
         False, validation_alias=_env("B_API_AUDIO"),
         description="opt-in: STT/TTS via B-API (needs b_api_key)",

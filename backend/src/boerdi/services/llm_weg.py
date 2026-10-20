@@ -20,6 +20,7 @@ from boerdi.services.llm_models import (
     param_rules,
 )
 from boerdi.services.llm_responses import RESPONSES_PRAEFIX
+from boerdi.services.llm_router import router_route
 
 
 def weg_beschreibung(model: str | None = None) -> dict[str, Any]:
@@ -37,6 +38,8 @@ def weg_beschreibung(model: str | None = None) -> dict[str, Any]:
     return {
         "anbieter": anbieter,
         "modell": resolved,
+        # Paket 17: die b-api-Route, unter der das Modell hinausgeht (sonst ``None``).
+        "route": router_route(resolved),
         "api": "responses" if litellm_model.startswith(RESPONSES_PRAEFIX) else "chat",
         "basis": f"{teile.netloc}{teile.path}".rstrip("/"),
         "denkparameter": regeln.gpt5_params,

@@ -53,6 +53,9 @@ from boerdi.services.llm_parallel import (  # noqa: F401
     semaphore,
 )
 from boerdi.services.llm_responses import RESPONSES_PRAEFIX, denkparameter_verlegen
+
+# Re-Export (Paket 17): Aufrufer sprechen ``llm.router_route`` / ``llm.antwort_modell`` an.
+from boerdi.services.llm_router import antwort_modell, router_route  # noqa: F401
 from boerdi.settings import get_settings
 
 # Let LiteLLM drop params the concrete target model doesn't accept — replaces
@@ -144,9 +147,13 @@ def route(model: str) -> tuple[str, str, str, dict[str, str] | None]:
     gets the classic rules and stays on chat/completions (why: ``llm_models._GROUPS``)."""
     s = get_settings()
     provider = get_provider()
-    litellm_model = f"openai/{model}"
+    # Paket 17 (A2): eine Route ersetzt nur den Namen des eingestellten Chat-Modells
+    # (``llm_router``); die Regeln bleiben die des Modells.
+    route_name = router_route(model)
+    wire_name = route_name or model
+    litellm_model = f"openai/{wire_name}"
     if param_rules(model).responses_api:
-        litellm_model = f"{RESPONSES_PRAEFIX}{model}"
+        litellm_model = f"{RESPONSES_PRAEFIX}{wire_name}"
     if provider == "openai":
         api_base = s.openai_base_url or _DEFAULT_OPENAI_BASE
         return litellm_model, api_base, s.openai_api_key.get_secret_value(), None
@@ -154,7 +161,7 @@ def route(model: str) -> tuple[str, str, str, dict[str, str] | None]:
     # OpenAI embeddings take the OpenAI path even on the AcademicCloud — it has no embedding
     # model, and the knowledge base lives in the text-embedding-3-small space (ALT: side channel).
     academiccloud = provider == "b-api-academiccloud" and not model.startswith("text-embedding-")
-    suffix = "/academiccloud" if academiccloud else "/openai"
+    suffix = "/router" if route_name else "/academiccloud" if academiccloud else "/openai"
     api_base = s.b_api_base_url.rstrip("/") + suffix
     b_key = s.b_api_key.get_secret_value().strip()
     api_key = b_key or "unused"  # SDK requires a truthy key
@@ -237,6 +244,7 @@ async def chat_completion(
     # Responses-Brücke: Text und Aufrufe können auf zwei Choices liegen — jeder
     # Aufrufer liest choices[0] (siehe services/llm_choices).
     resp = vereinige_choices(resp)
+    resp.model = antwort_modell(getattr(resp, "model", "") or "", resolved)
 
     if usage_acc is not None:
         _usage.add_usage(usage_acc, _usage.extract_usage(resp), phase, ms=ms)
