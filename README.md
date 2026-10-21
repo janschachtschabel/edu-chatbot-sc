@@ -18,7 +18,7 @@ Altsystem, generisch über deklarative Konfiguration.
 | 🚢 **Übergabe an den Betrieb** — Ports, Health/Ready/Metriken, Logs, b-api, Cluster, Konfiguration | [docs/uebergabe-betrieb.md](docs/uebergabe-betrieb.md) |
 | 🧮 Cluster-Abnahme (Zusagen bei mehreren Repliken, Pflicht-Einstellungen) | [docs/cluster-checkliste.md](docs/cluster-checkliste.md) |
 | 🏗 **Architektur** — Bestandteile, Stack, Abläufe (Einstieg für Entwickler) | [docs/architektur.md](docs/architektur.md) |
-| 🗺 **Architektur-Grafiken** — interaktiv: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus | [ansehen (GitHub Pages)](https://janschachtschabel.github.io/edu-chatbot-sc/) · [Quellen](docs/architektur-grafiken/README.md) |
+| 🗺 **Architektur-Grafiken** — interaktiv: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus | [Bilder (PNG)](docs/architektur-grafiken/png/) · [Übersicht und Quellen](docs/architektur-grafiken/README.md) |
 | 🤖 Agent-Modus — Maschinen, Master-Skill, Grenzen | [docs/agent-modus.md](docs/agent-modus.md) |
 | 🔑 MCP-Server und Anmeldung (für das MCP-Team) | [docs/mcp-und-anmeldung.md](docs/mcp-und-anmeldung.md) |
 | 🧩 **Chatbot einbinden** — Browser-Plugin / fremde Seite | [docs/browser-plugin-einbindung.md](docs/browser-plugin-einbindung.md) |

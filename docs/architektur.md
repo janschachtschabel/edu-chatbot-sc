@@ -15,7 +15,7 @@ Quelltext erhoben; Fundstellen stehen in Klammern.
 | Bauplan/Spezifikation (Quelle der Wahrheit) | [`plans/2026-07-10-boerdi-chat-neubau.md`](plans/2026-07-10-boerdi-chat-neubau.md) |
 | Widget in fremde Seiten einbetten | [`browser-plugin-einbindung.md`](browser-plugin-einbindung.md) · [`edu-sharing-einbindung.md`](edu-sharing-einbindung.md) |
 | Agent-Schleife | [`agent-modus.md`](agent-modus.md) |
-| Interaktive Grafiken: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus | [ansehen (GitHub Pages)](https://janschachtschabel.github.io/edu-chatbot-sc/) · [Quellen](architektur-grafiken/README.md) |
+| Interaktive Grafiken: Gesamtbild, Software-Stack, Abläufe und Konfiguration je Modus | [Bilder (PNG)](architektur-grafiken/png/) · [Übersicht und Quellen](architektur-grafiken/README.md) |
 | Master-Skill (Vorgehen, Zielgruppen, Suchdisziplin, 30 Anwendungsfälle) | [`skills/vorgehen.md`](skills/vorgehen.md) |
 | Eingefrorener HTTP-Vertrag | [`api/openapi-v1.json`](api/openapi-v1.json) |
 

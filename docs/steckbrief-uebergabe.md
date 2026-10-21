@@ -30,7 +30,7 @@ Status je Punkt: ungeprüft · offen · in Arbeit · erfüllt · nicht anwendbar
 
 | Punkt | Inhalt | Status |
 |---|---|---|
-| Übersicht | FastAPI + LangGraph, Postgres 17 + pgvector, Valkey (nur Ratenlimit), Angular-Widget und -Studio im selben Image; LLM über die b-api, Inhalte über den WLO-MCP-Server. [Architektur](https://github.com/janschachtschabel/edu-chatbot-sc/blob/main/docs/architektur.md) · [Grafiken](https://janschachtschabel.github.io/edu-chatbot-sc/) | erfüllt |
+| Übersicht | FastAPI + LangGraph, Postgres 17 + pgvector, Valkey (nur Ratenlimit), Angular-Widget und -Studio im selben Image; LLM über die b-api, Inhalte über den WLO-MCP-Server. [Architektur](https://github.com/janschachtschabel/edu-chatbot-sc/blob/main/docs/architektur.md) · [Grafiken](https://github.com/janschachtschabel/edu-chatbot-sc/blob/main/docs/architektur-grafiken/README.md) | erfüllt |
 | zustandslos oder zustandsbehaftet | zustandslos: Sitzungen, Verlauf, Konfiguration, Sperren, Läufe und Master-Skill-Stand liegen in Postgres; keine Sticky Sessions | erfüllt |
 | Horizontale Skalierbarkeit | ja, feste Replikas. Bedingungen: Valkey fürs Ratenlimit, `LLM_MAX_CONCURRENCY` = Limit/N, `max_connections ≥ N×17 + Reserve`, Gnadenfrist 80 s inkl. preStop 5 s. [Cluster-Checkliste](https://github.com/janschachtschabel/edu-chatbot-sc/blob/main/docs/cluster-checkliste.md): 6 von 8 Zusagen automatisiert geprüft; SSE über den Load-Balancer und verlustfreier Shutdown am laufenden Cluster stehen aus | in Arbeit |
 
