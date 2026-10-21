@@ -1,988 +1,1074 @@
 {
- "schema_version": 1,
- "diagram_type": "architecture",
- "meta": {
-  "title": "boerdi-chat — Architektur: Widget, Studio, Backend, MCP",
-  "locale": "de",
-  "translations": {
-   "page.title": "{title} Diagramm",
-   "diagram.description.architecture": "Ein von Archify erstelltes Architekturdiagramm.",
-   "diagram.description.workflow": "Ein von Archify erstelltes Workflow-Diagramm.",
-   "diagram.description.sequence": "Ein von Archify erstelltes Sequenzdiagramm.",
-   "diagram.description.dataflow": "Ein von Archify erstelltes Datenfluss-Diagramm.",
-   "diagram.description.lifecycle": "Ein von Archify erstelltes Lifecycle-Diagramm.",
-   "node.focus": "{label} fokussieren",
-   "node.focus.detail": "{label} fokussieren, {detail}",
-   "node.context.architecture": "Architekturkomponente",
-   "node.context.workflow": "Workflow-Knoten",
-   "node.context.sequence": "Sequenzteilnehmer",
-   "node.context.dataflow": "Datenfluss-Knoten",
-   "node.context.lifecycle": "Lifecycle-Status",
-   "legend.title": "Legende",
-   "legend.architecture.frontend": "Frontend",
-   "legend.architecture.backend": "Backend",
-   "legend.architecture.database": "Datenbank",
-   "legend.architecture.cloud": "Cloud",
-   "legend.architecture.security": "Sicherheit",
-   "legend.architecture.messagebus": "Nachrichtenbus",
-   "legend.architecture.external": "Extern",
-   "legend.workflow.frontend": "Benutzeroberfläche",
-   "legend.workflow.backend": "Agentenlogik",
-   "legend.workflow.security": "Richtlinie",
-   "legend.workflow.messagebus": "Werkzeugaktion",
-   "legend.workflow.database": "Kontext / Trace",
-   "legend.workflow.cloud": "Cloud-Dienst",
-   "legend.workflow.external": "Externes System",
-   "legend.sequence.emphasis": "Hauptanfrage",
-   "legend.sequence.return": "Rückgabe",
-   "legend.sequence.security": "Sicherheit",
-   "legend.sequence.dashed": "asynchroner Trace",
-   "legend.sequence.default": "Nachricht",
-   "legend.dataflow.emphasis": "Primärdaten",
-   "legend.dataflow.security": "Richtlinie / PII",
-   "legend.dataflow.dashed": "asynchroner Batch",
-   "legend.dataflow.database": "Datenspeicher",
-   "legend.dataflow.default": "Datenfluss",
-   "legend.lifecycle.start": "Startzustand",
-   "legend.lifecycle.active": "aktiv",
-   "legend.lifecycle.waiting": "Wartend",
-   "legend.lifecycle.decision": "Entscheidung",
-   "legend.lifecycle.success": "Erfolg",
-   "legend.lifecycle.failure": "Fehler / Abbruch",
-   "legend.lifecycle.neutral": "neutral",
-   "legend.lifecycle.external": "extern",
-   "legend.lifecycle.final": "Endzustand",
-   "viewer.kind.frontend": "Frontend",
-   "viewer.kind.backend": "Backend",
-   "viewer.kind.database": "Datenbank",
-   "viewer.kind.cloud": "Cloud",
-   "viewer.kind.security": "Sicherheit",
-   "viewer.kind.messagebus": "Nachrichtenbus",
-   "viewer.kind.external": "Extern",
-   "viewer.kind.neutral": "Neutral",
-   "viewer.kind.node": "Knoten",
-   "viewer.kind.start": "Start",
-   "viewer.kind.active": "Aktiv",
-   "viewer.kind.waiting": "Wartend",
-   "viewer.kind.decision": "Entscheidung",
-   "viewer.kind.success": "Erfolg",
-   "viewer.kind.failure": "Fehler",
-   "viewer.toolbar.actions": "Diagrammaktionen",
-   "viewer.theme.toggle.title": "Design wechseln (T)",
-   "viewer.theme.toggle": "Farbdesign wechseln",
-   "viewer.theme.dark": "Dunkel",
-   "viewer.theme.light": "Hell",
-   "viewer.preset.choose.title": "Visuellen Stil wählen (S wechselt durch)",
-   "viewer.preset.choose": "Visuellen Stil wählen",
-   "viewer.preset.style": "Stil",
-   "viewer.preset.menu": "Visueller Stil",
-   "viewer.preset.identity": "Visuelle Identität",
-   "viewer.preset.cycles": "S wechselt durch",
-   "viewer.preset.classic": "Klassisch",
-   "viewer.preset.classic.short": "Klassisch",
-   "viewer.preset.classic.hint": "Stabiler technischer Standard",
-   "viewer.preset.flow": "Signalfluss",
-   "viewer.preset.flow.short": "Fluss",
-   "viewer.preset.flow.hint": "Bewegungsbetonte Präsentation",
-   "viewer.preset.blueprint": "Bauplan",
-   "viewer.preset.blueprint.hint": "Technisches Review",
-   "viewer.preset.editorial": "Editorial",
-   "viewer.preset.editorial.hint": "Für Veröffentlichungen und Launch-Notizen",
-   "viewer.preset.badge.signalFlow": "SIGNALFLUSS",
-   "viewer.preset.badge.blueprint": "BAUPLAN / REV. 01",
-   "viewer.preset.badge.editorial": "EDITORIAL / FELDNOTIZ",
-   "viewer.preset.badge.editorialPlate": "ARCHIFY / TAFEL 04",
-   "viewer.preset.current": "Visueller Stil: {style}. Visuellen Stil wählen",
-   "viewer.motion.live": "Live",
-   "viewer.motion.still": "Statisch",
-   "viewer.motion.pause": "Bewegung pausieren",
-   "viewer.motion.resume": "Bewegung fortsetzen",
-   "viewer.motion.reduced": "Bewegung wegen reduzierter Bewegungseinstellung pausiert",
-   "viewer.motion.hidden": "Bewegung pausiert, während diese Seite ausgeblendet ist",
-   "viewer.motion.yielding": "Bewegung pausieren; derzeit an {owner} abgegeben",
-   "viewer.motion.yielding.title": "Live-Vorschau aktiv · an {owner} abgegeben",
-   "viewer.owner.route": "Routensonde",
-   "viewer.owner.lens": "Semantische Linse",
-   "viewer.owner.relationship": "Beziehungsvorschau",
-   "viewer.owner.intent": "Intent Trace",
-   "viewer.owner.focus": "semantischer Fokus",
-   "viewer.owner.legend": "Legendenvorschau",
-   "viewer.owner.reader": "Leserinteraktion",
-   "viewer.present.enter": "Präsentationsmodus starten",
-   "viewer.present.enter.title": "Präsentationsmodus (F)",
-   "viewer.present.exit": "Präsentationsmodus beenden",
-   "viewer.present.exit.title": "Präsentationsmodus beenden (F oder Escape)",
-   "viewer.present.present": "Präsentieren",
-   "viewer.present.exit.label": "Beenden",
-   "viewer.export.button": "Exportieren",
-   "viewer.export.button.title": "Diagramm exportieren (E)",
-   "viewer.export.diagram": "Diagramm exportieren",
-   "viewer.export.menu": "Exportieren",
-   "viewer.export.subtitle": "Portable, saubere Ausgaben",
-   "viewer.export.share": "Teilen",
-   "viewer.export.shareCard": "Freigabekarte",
-   "viewer.export.routeShareCard": "Routen-Freigabekarte",
-   "viewer.export.reachShareCard": "Reichweiten-Freigabekarte",
-   "viewer.export.copyDiagram": "Diagramm kopieren",
-   "viewer.export.clipboardPng": "PNG in Zwischenablage",
-   "viewer.export.raster": "Rasterbilder",
-   "viewer.export.image": "Bild",
-   "viewer.export.lossless": "Verlustfreies Bild",
-   "viewer.export.compact": "Kompaktes Bild",
-   "viewer.export.modern": "Modernes Bild",
-   "viewer.export.vectorMotion": "Vektor und Bewegung",
-   "viewer.export.vectorMotion.heading": "Vektor & Bewegung",
-   "viewer.export.editable": "Editierbarer Vektor",
-   "viewer.export.motion6s": "6-Sekunden-Bewegung",
-   "viewer.export.unsupported": "Von diesem Browser nicht unterstützt",
-   "viewer.export.clipboardUnsupported": "Bild-Zwischenablage wird von diesem Browser nicht unterstützt",
-   "viewer.export.clipboardUnsupported.short": "Dieser Browser unterstützt keine Bild-Zwischenablage.",
-   "viewer.export.motionUnavailable": "Bewegungsaufnahme in diesem Browser nicht verfügbar",
-   "viewer.export.webmUnavailable": "WebM in diesem Browser nicht verfügbar",
-   "viewer.export.failed": "Export fehlgeschlagen: {message}",
-   "viewer.export.unknownVariant": "Unbekannter Freigabekarten-Typ: {variant}",
-   "viewer.export.routeRequired": "Route verfolgen, bevor eine Routen-Freigabekarte exportiert wird",
-   "viewer.export.reachRequired": "Verfasste Reichweite verfolgen, bevor eine Reichweiten-Freigabekarte exportiert wird",
-   "viewer.export.unknown": "unbekannt",
-   "viewer.export.routeFailed": "Export der Routen-Freigabekarte fehlgeschlagen: {message}",
-   "viewer.export.reachFailed": "Export der Reichweiten-Freigabekarte fehlgeschlagen: {message}",
-   "viewer.export.copyFailed": "Kopieren fehlgeschlagen: {message}",
-   "viewer.export.copiedPng": "PNG in Zwischenablage kopiert",
-   "viewer.export.downloadedRoute": "Routen-Freigabekarte heruntergeladen",
-   "viewer.export.downloadedReach": "Reichweiten-Freigabekarte heruntergeladen",
-   "viewer.export.downloadedWebm": "WebM heruntergeladen",
-   "viewer.export.recording": "6 Sekunden Bewegung werden aufgezeichnet …",
-   "viewer.export.card.routeSummary.one": "Route: {source} → {target} · {count} gerichteter Hop",
-   "viewer.export.card.routeSummary.other": "Route: {source} → {target} · {count} gerichtete Hops",
-   "viewer.export.card.reachSummary": "Verfasst {direction} von {origin} · {nodes} · {links} · max. {hops}",
-   "viewer.export.card.node.one": "{count} Knoten",
-   "viewer.export.card.node.other": "{count} Knoten",
-   "viewer.export.card.link.one": "{count} Verbindung",
-   "viewer.export.card.link.other": "{count} Verbindungen",
-   "viewer.export.card.hop.one": "{count} Hop",
-   "viewer.export.card.hop.other": "{count} Hops",
-   "viewer.export.card.routeBadge": "ARCHIFY · ROUTE · {hops}",
-   "viewer.export.card.reachBadge": "ARCHIFY · {direction} REICHWEITE",
-   "viewer.export.direction.upstream": "Vorgelagert",
-   "viewer.export.direction.downstream": "Nachgelagert",
-   "viewer.export.error.canvasUnavailable": "Canvas für {label} nicht verfügbar",
-   "viewer.export.error.contextUnavailable": "2D-Canvas-Kontext für {label} nicht verfügbar",
-   "viewer.export.error.toBlobUnavailable": "canvas.toBlob für {label} nicht verfügbar",
-   "viewer.export.error.toBlobNull": "canvas.toBlob lieferte keine Daten für {label}",
-   "viewer.export.error.variantsCombined": "Freigabekarten-Typen können nicht kombiniert werden",
-   "viewer.export.error.viewerState": "Beim Export der Freigabekarte konnte der temporäre Viewer-Zustand nicht entfernt werden",
-   "viewer.export.error.routeState": "Beim Export der Routenkarte konnte die aufgelöste Route nicht sicher erhalten werden",
-   "viewer.export.error.reachState": "Beim Export der Reichweitenkarte konnte die verfasste Reichweite nicht sicher erhalten werden",
-   "viewer.export.error.webmRequirements": "Der WebM-Bewegungsexport erfordert eine Trace-Animation und Browser-Unterstützung für MediaRecorder",
-   "viewer.export.error.mediaRecorder": "MediaRecorder fehlgeschlagen",
-   "viewer.export.error.emptyWebm": "MediaRecorder hat ein leeres WebM erzeugt",
-   "viewer.export.error.webmBackground": "SVG-Hintergrund konnte für den WebM-Export nicht geladen werden",
-   "viewer.guide.eyebrow": "Diagrammleitfaden",
-   "viewer.guide.close": "Diagrammleitfaden schließen",
-   "viewer.guide.inspecting": "Kompilierte Semantik wird geprüft",
-   "viewer.guide.actions": "Diagramm-Erkundungsaktionen",
-   "viewer.guide.find": "Beliebigen Knoten finden",
-   "viewer.guide.find.hint": "Labels, Zuständigkeiten, Arten und stabile IDs durchsuchen.",
-   "viewer.guide.route": "Eine Route verfolgen",
-   "viewer.guide.route.aria": "Eine gerichtete Route verfolgen",
-   "viewer.guide.route.hint": "Herausfinden, wie zwei semantische Knoten in verfasster Richtung verbunden sind.",
-   "viewer.guide.map": "Das gesamte System sehen",
-   "viewer.guide.map.hint": "Semantisches Radar mit Live-Ansicht und stabilen Knoten öffnen.",
-   "viewer.guide.lens": "Semantische Arten vergleichen",
-   "viewer.guide.lens.hint": "Rollen zählen, ihren Verkehr sichtbar machen und direkte verfasste Verbindungen vergleichen.",
-   "viewer.guide.present": "Präsentationsmodus starten",
-   "viewer.guide.present.hint": "Dem Live-Diagramm die gesamte Ansicht geben, ohne den Export zu verändern.",
-   "viewer.guide.shortcuts": "Weitere Tastenkombinationen",
-   "viewer.guide.shortcut.export": "Exportieren",
-   "viewer.guide.shortcut.theme": "Design",
-   "viewer.guide.shortcut.style": "Stil",
-   "viewer.guide.shortcut.reset": "Zurücksetzen",
-   "viewer.guide.shortcut.zoomIn": "Vergrößern",
-   "viewer.guide.shortcut.zoomOut": "Verkleinern",
-   "viewer.guide.shortcut.close": "Schließen",
-   "viewer.guide.facts": "{nodes} · {relationships}",
-   "viewer.guide.fact.node.one": "{count} semantischer Knoten",
-   "viewer.guide.fact.node.other": "{count} semantische Knoten",
-   "viewer.guide.fact.relationship.one": "{count} Beziehung",
-   "viewer.guide.fact.relationship.other": "{count} Beziehungen",
-   "viewer.guide.open": "Diagrammleitfaden öffnen",
-   "viewer.finder.title": "Knoten finden",
-   "viewer.finder.close": "Knotensuche schließen",
-   "viewer.finder.placeholder": "Labels oder IDs suchen",
-   "viewer.finder.search": "Diagrammknoten durchsuchen",
-   "viewer.finder.results": "Diagrammknoten",
-   "viewer.finder.empty": "Keine passenden Knoten",
-   "viewer.finder.result.focus": "{label} fokussieren",
-   "viewer.finder.result.routeStart": "{label} als Routenstart wählen",
-   "viewer.finder.result.routeTarget": "{label} als Routenziel wählen, {links}",
-   "viewer.finder.status.empty": "Keine passenden Knoten",
-   "viewer.finder.status.count.one": "{count} passender Knoten",
-   "viewer.finder.status.count.other": "{count} passende Knoten",
-   "viewer.finder.noun.nodes": "Knoten",
-   "viewer.finder.link.one": "{count} Verbindung",
-   "viewer.finder.link.other": "{count} Verbindungen",
-   "viewer.finder.result.focus.one": "{label} fokussieren, {count} zugehörige Verbindung",
-   "viewer.finder.result.focus.other": "{label} fokussieren, {count} zugehörige Verbindungen",
-   "viewer.finder.status.filtered": "{visible} von {available} {noun}",
-   "viewer.finder.status.all": "{available} {noun}",
-   "viewer.passport.eyebrow": "Semantischer Pass",
-   "viewer.passport.metadata": "Knoten-Metadaten",
-   "viewer.passport.evidence": "Verifizierter Quellnachweis",
-   "viewer.passport.verified": "Verifizierte Quelle",
-   "viewer.passport.verificationScope": "Verifiziert gegen lokales Git zur fixierten Revision. Remote-Zugriff wurde nicht geprüft.",
-   "viewer.passport.reach": "Verfasste Reichweite",
-   "viewer.passport.reach.trace": "Verfasste Erreichbarkeit verfolgen",
-   "viewer.passport.upstream": "Vorgelagert",
-   "viewer.passport.downstream": "Nachgelagert",
-   "viewer.passport.upstream.trace": "Vorgelagerte verfasste Erreichbarkeit verfolgen",
-   "viewer.passport.downstream.trace": "Nachgelagerte verfasste Erreichbarkeit verfolgen",
-   "viewer.passport.close": "Semantischen Pass schließen",
-   "viewer.passport.copy": "Link kopieren",
-   "viewer.passport.copy.focus": "Link zum fokussierten Knoten kopieren",
-   "viewer.passport.relations": "Beziehungen",
-   "viewer.passport.relations.show": "Verbundene Beziehungen anzeigen",
-   "viewer.passport.relations.hide": "Verbundene Beziehungen ausblenden",
-   "viewer.passport.relations.list": "Verbundene Beziehungen",
-   "viewer.passport.copyRelation": "Beziehung kopieren",
-   "viewer.passport.copyNode": "Knoten kopieren",
-   "viewer.passport.copyPinned": "Link zur angehefteten Beziehung kopieren",
-   "viewer.passport.copySource": "Link zum Quellknoten kopieren",
-   "viewer.passport.copy.focused.success": "Link des fokussierten Knotens kopiert",
-   "viewer.passport.copy.pinned.success": "Link der angehefteten Beziehung kopiert",
-   "viewer.passport.copy.focused.failed": "Link des fokussierten Knotens konnte nicht kopiert werden",
-   "viewer.passport.copy.pinned.failed": "Link der angehefteten Beziehung konnte nicht kopiert werden",
-   "viewer.passport.relationship.none": "Keine verbundenen Beziehungen",
-   "viewer.passport.relationship.count.one": "{count} Beziehung",
-   "viewer.passport.relationship.count.other": "{count} Beziehungen",
-   "viewer.passport.relationship.show.one": "{count} verbundene Beziehung anzeigen",
-   "viewer.passport.relationship.show.other": "{count} verbundene Beziehungen anzeigen",
-   "viewer.passport.relationship.summary": "{out} ausgehend · {in} eingehend{loops}",
-   "viewer.passport.relationship.loops": " · {count} Selbstschleife",
-   "viewer.passport.relationship.explorer": "Direkter Beziehungs-Explorer",
-   "viewer.passport.relationship.help": "Pfeiltasten zum Erkunden der Beziehungen verwenden. Enter oder Leertaste heftet Details an; Escape hebt die Auswahl auf.",
-   "viewer.passport.relationship.loopsBack": "schleift zurück",
-   "viewer.passport.relationship.connectsTo": "verbindet zu",
-   "viewer.passport.relationship.connectsFrom": "verbindet von",
-   "viewer.passport.relationship.pinned": "Angeheftete Beziehung · {from} → {to} · {label}",
-   "viewer.passport.relationship.inspect": "Beziehung {index} von {total} prüfen: {from} zu {to}, {label}. Enter für Details drücken.",
-   "viewer.passport.relationship.group.out": "Ausgehend",
-   "viewer.passport.relationship.group.in": "Eingehend",
-   "viewer.passport.relationship.group.loop": "Selbstschleifen",
-   "viewer.passport.relationship.row": "{group}: {relationship}, {neighbor}",
-   "viewer.passport.relationship.direction.out": "AUS →",
-   "viewer.passport.relationship.direction.in": "← EIN",
-   "viewer.passport.relationship.direction.loop": "SCHLEIFE",
-   "viewer.passport.sourceCount.one": "{count} verifizierte Quellenreferenz",
-   "viewer.passport.sourceCount.other": "{count} verifizierte Quellenreferenzen",
-   "viewer.passport.sourceMarker": "QUELLE",
-   "viewer.passport.beacon.one": "{count} verifizierte Quelle; diesen Knoten fokussieren, um sie zu prüfen",
-   "viewer.passport.beacon.other": "{count} verifizierte Quellen; diesen Knoten fokussieren, um sie zu prüfen",
-   "viewer.passport.repository.open": "Verifizierte Repository-Revision {revision} öffnen",
-   "viewer.passport.source.open": "Verifizierte Quelle {path} bei Revision {revision} öffnen",
-   "viewer.passport.source.openLink": "Öffnen ↗",
-   "viewer.passport.reach.upstream.one": "{count} vorgelagerten verfassten Knoten verfolgen",
-   "viewer.passport.reach.upstream.other": "{count} vorgelagerte verfasste Knoten verfolgen",
-   "viewer.passport.reach.downstream.one": "{count} nachgelagerten verfassten Knoten verfolgen",
-   "viewer.passport.reach.downstream.other": "{count} nachgelagerte verfasste Knoten verfolgen",
-   "viewer.passport.reach.noUpstream": "Keine vorgelagerten verfassten Knoten",
-   "viewer.passport.reach.noDownstream": "Keine nachgelagerten verfassten Knoten",
-   "viewer.passport.reach.status": "{direction} · {nodes} Knoten · {links} Verbindungen · max. {hops} Hops",
-   "viewer.route.eyebrow": "Routensonde",
-   "viewer.route.start": "Startknoten wählen",
-   "viewer.route.start.find": "Start finden",
-   "viewer.route.start.find.aria": "Einen Routenstart finden",
-   "viewer.route.copy": "Link kopieren",
-   "viewer.route.copy.aria": "Link zur verfolgten Route kopieren",
-   "viewer.route.clear": "Löschen",
-   "viewer.route.clear.aria": "Routensonde löschen",
-   "viewer.route.traced": "Verfolgte Route",
-   "viewer.route.pickTwo": "Zwei semantische Knoten im Diagramm auswählen",
-   "viewer.route.pickOne": "Einen semantischen Knoten im Diagramm auswählen",
-   "viewer.route.controls": "Routen-Verlaufssteuerung",
-   "viewer.route.previous": "Vorherige Routenposition",
-   "viewer.route.play": "Routenverlauf abspielen",
-   "viewer.route.pause": "Routenverlauf pausieren",
-   "viewer.route.replay": "Routenverlauf erneut abspielen",
-   "viewer.route.next": "Nächste Routenposition",
-   "viewer.route.journey": "Verlauf",
-   "viewer.route.pause.label": "Pausieren",
-   "viewer.route.replay.label": "Erneut abspielen",
-   "viewer.route.overview": "Übersicht",
-   "viewer.route.overview.aria": "Vollständige Routenübersicht anzeigen",
-   "viewer.route.instructions": "Quelle wählen, dann das Ziel. Die Richtung ist entscheidend.",
-   "viewer.route.destination": "Ziel ausgehend von {label} wählen",
-   "viewer.route.destination.find": "Ziel finden",
-   "viewer.route.destination.find.aria": "Ein erreichbares Routenziel finden",
-   "viewer.route.differentDestination": "Anderes Ziel wählen",
-   "viewer.route.distinct": "Eine Route benötigt zwei unterschiedliche semantische Knoten.",
-   "viewer.route.unreachable": "Keine gerichtete Route zu {label}",
-   "viewer.route.unreachable.detail": "{target} ist von {source} aus nicht erreichbar. Ein hervorgehobenes Ziel wählen.",
-   "viewer.route.start.instructions": "Quelle auswählen. Im nächsten Schritt werden nur gerichtete Ziele angezeigt.",
-   "viewer.route.copy.success": "Link zur verfolgten Route kopiert",
-   "viewer.route.copy.failed": "Link zur verfolgten Route konnte nicht kopiert werden",
-   "viewer.route.position": "Routenposition {index} von {total}: {label}",
-   "viewer.route.step": "Schritt {index} von {total} · {phase} · {label}",
-   "viewer.route.motionRequired": "Automatischer Verlauf erfordert Live-Bewegung",
-   "viewer.route.trigger.clear": "Verfolgte Route löschen",
-   "viewer.route.overview.status": "{nodes} · {hops} · kürzeste verfasste Route",
-   "viewer.route.overview.node.one": "{count} Knoten",
-   "viewer.route.overview.node.other": "{count} Knoten",
-   "viewer.route.overview.hop.one": "{count} gerichteter Hop",
-   "viewer.route.overview.hop.other": "{count} gerichtete Hops",
-   "viewer.route.phase.playing": "Läuft",
-   "viewer.route.phase.complete": "Abgeschlossen",
-   "viewer.route.phase.inspecting": "Wird geprüft",
-   "viewer.route.destination.count.one": "{count} gerichtetes Ziel verfügbar. Einen hervorgehobenen Knoten wählen.",
-   "viewer.route.destination.count.other": "{count} gerichtete Ziele verfügbar. Einen hervorgehobenen Knoten wählen.",
-   "viewer.route.noOutgoing": "Hier startet keine ausgehende Route. Löschen und eine andere Quelle wählen.",
-   "viewer.route.result.title": "{source} nach {target}",
-   "viewer.route.finder.source.title": "Routenstart wählen",
-   "viewer.route.finder.source.placeholder": "Routenquellen suchen",
-   "viewer.route.finder.source.empty": "Keine passenden Routenquellen",
-   "viewer.route.finder.source.results": "Knoten, die eine Route starten können",
-   "viewer.route.finder.source.noun": "Routenquellen",
-   "viewer.route.finder.source.badge": "Start",
-   "viewer.route.finder.target.title": "Ziel ausgehend von {label}",
-   "viewer.route.finder.target.placeholder": "Erreichbare Ziele suchen",
-   "viewer.route.finder.target.empty": "Keine passenden erreichbaren Ziele",
-   "viewer.route.finder.target.results": "Erreichbare Routenziele",
-   "viewer.route.finder.target.noun": "erreichbare Ziele",
-   "viewer.route.hop.one": "{count} Hop",
-   "viewer.route.hop.other": "{count} Hops",
-   "viewer.lens.eyebrow": "Semantische Linse",
-   "viewer.lens.title": "Systemrollen vergleichen",
-   "viewer.lens.close": "Semantische Linse schließen",
-   "viewer.lens.instruction": "Bis zu zwei semantische Arten wählen. Eine zeigt ihren echten Verkehr; zwei vergleichen nur direkte verfasste Beziehungen.",
-   "viewer.lens.kinds": "Semantische Arten",
-   "viewer.lens.choose": "Eine Art wählen, um ihre Knoten und berührenden Beziehungen zu prüfen.",
-   "viewer.lens.copy": "Link zur semantischen Linse kopieren",
-   "viewer.lens.clear": "Semantische Linse löschen",
-   "viewer.lens.open": "Semantische Linse öffnen",
-   "viewer.lens.openActive": "Aktive semantische Linse öffnen",
-   "viewer.lens.legend": "Semantische Legende",
-   "viewer.lens.legend.inspect.one": "{label} prüfen, {count} Knoten",
-   "viewer.lens.legend.inspect.other": "{label} prüfen, {count} Knoten",
-   "viewer.lens.kind.count.one": "{label}, {count} Knoten",
-   "viewer.lens.kind.count.other": "{label}, {count} Knoten",
-   "viewer.lens.compare.one": "{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direkte Beziehung",
-   "viewer.lens.compare.other": "{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direkte Beziehungen",
-   "viewer.lens.single": "{nodes} · {relationships} · verbundene Nachbarn bleiben sichtbar",
-   "viewer.lens.node.one": "{count} {label}-Knoten",
-   "viewer.lens.node.other": "{count} {label}-Knoten",
-   "viewer.lens.relationship.one": "{count} berührende Beziehung",
-   "viewer.lens.relationship.other": "{count} berührende Beziehungen",
-   "viewer.radar.title": "Semantisches Radar",
-   "viewer.radar.building": "Übersicht wird erstellt",
-   "viewer.radar.openFull": "Vollständiges semantisches Radar öffnen",
-   "viewer.radar.open": "Radar öffnen",
-   "viewer.radar.close": "Semantisches Radar schließen",
-   "viewer.radar.surface": "Diagrammübersicht. Auf einen Knoten klicken, um ihn zu fokussieren, oder mit den Pfeiltasten schwenken.",
-   "viewer.radar.click": "Knoten anklicken",
-   "viewer.radar.drag": "Ziehen zum Schwenken",
-   "viewer.radar.space": "Semantisches Radar benötigt mehr MAP-Platz.",
-   "viewer.radar.nodes": "Semantische Diagramm-Radarknoten",
-   "viewer.radar.focus": "{label} vom semantischen Radar fokussieren",
-   "viewer.radar.status": "{count} Knoten · {viewport}",
-   "viewer.radar.fullMap": "{count} Knoten · vollständige Karte",
-   "viewer.radar.compacted": "Radar verkleinert, um den semantischen Pass oder die MAP-Steuerung nicht zu verdecken.",
-   "viewer.radar.cancelWaiting": "Wartendes semantisches Radar auf mehr MAP-Platz abbrechen",
-   "viewer.radar.needsSpace": "Semantisches Radar benötigt mehr sichtbaren MAP-Platz",
-   "viewer.radar.viewport.full": "vollständige Karte",
-   "viewer.radar.viewport.width": "{percent}% Breite",
-   "viewer.radar.viewport.scale": "{percent}% Ansicht",
-   "viewer.nav.controls": "Diagrammansicht-Steuerung",
-   "viewer.nav.route": "Eine gerichtete Route verfolgen",
-   "viewer.nav.route.title": "Route verfolgen (R)",
-   "viewer.nav.route.short": "PFAD",
-   "viewer.nav.radar": "Semantisches Radar öffnen",
-   "viewer.nav.radar.title": "Semantisches Radar (M)",
-   "viewer.nav.radar.short": "KARTE",
-   "viewer.nav.lens": "Semantische Linse öffnen",
-   "viewer.nav.lens.title": "Semantische Linse (L)",
-   "viewer.nav.lens.short": "LINSE",
-   "viewer.nav.find": "Knoten finden",
-   "viewer.nav.find.title": "Knoten finden (/)",
-   "viewer.nav.guide": "Diagrammleitfaden öffnen",
-   "viewer.nav.guide.title": "Diagrammleitfaden (?)",
-   "viewer.nav.zoomOut": "Verkleinern",
-   "viewer.nav.zoomOut.title": "Verkleinern (-)",
-   "viewer.nav.reset": "Diagrammansicht zurücksetzen",
-   "viewer.nav.reset.title": "Ansicht zurücksetzen (0)",
-   "viewer.nav.read": "LESEN",
-   "viewer.nav.zoomIn": "Vergrößern",
-   "viewer.nav.zoomIn.title": "Vergrößern (+)",
-   "viewer.nav.camera": "{hint}. Diagrammansicht zurücksetzen",
-   "viewer.nav.camera.title": "{semantic}{hint} · Ansicht zurücksetzen (0)",
-   "viewer.nav.camera.semantic": "Semantische Kamera aktiv · ",
-   "viewer.nav.level.map": "KARTE",
-   "viewer.nav.level.read": "LESEN",
-   "viewer.nav.level.full": "VOLL",
-   "viewer.nav.level.auto": "AUTO",
-   "viewer.nav.detail.map": "Vergrößern, um Beziehungslabels und Knotenkontext anzuzeigen",
-   "viewer.nav.detail.read": "Erneut vergrößern, um Tags und Anmerkungen anzuzeigen",
-   "viewer.nav.detail.full": "Vollständige Diagrammdetails",
-   "viewer.intent.summary": "{label}. {out} ausgehend, {in} eingehend{loops}. {total} Verbindungen. Enter für Details drücken.",
-   "viewer.intent.loops": ", {count} Selbstschleife",
-   "viewer.common.copied": "Kopiert",
-   "viewer.common.copyFailed": "Kopieren fehlgeschlagen",
-   "viewer.common.copyLink": "Link kopieren",
-   "viewer.common.clear": "Löschen",
-   "viewer.common.close": "Schließen"
-  },
-  "output": "docs/architektur-grafiken/architektur.html",
-  "quality_profile": "showcase",
-  "repository": {
-   "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
-   "provider": "github",
-   "link_mode": "web",
-   "revision": "dde13d3d73498f540586e53201be8cc4b27acc41"
-  }
- },
- "components": [
-  {
-   "id": "nutzer",
-   "type": "external",
-   "label": "Lernende & Lehrende",
-   "sublabel": "Browser auf einer WLO-Seite",
-   "pos": [
-    40,
-    230
-   ],
-   "size": [
-    160,
-    64
-   ]
-  },
-  {
-   "id": "redaktion",
-   "type": "external",
-   "label": "Redaktion & Betrieb",
-   "sublabel": "Browser",
-   "pos": [
-    40,
-    450
-   ],
-   "size": [
-    160,
-    64
-   ]
-  },
-  {
-   "id": "widget",
-   "type": "frontend",
-   "label": "Chat-Widget",
-   "sublabel": "Angular-Element <boerdi-chat>",
-   "pos": [
-    254,
-    230
-   ],
-   "size": [
-    200,
-    64
-   ],
-   "sources": [
-    {
-     "path": "frontend/projects/widget/src/widget-main.ts",
-     "line": 15,
-     "end_line": 33,
-     "label": "Custom Element"
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "boerdi-chat — Architektur: Widget, Studio, Backend, MCP, b-api",
+    "locale": "de",
+    "translations": {
+      "page.title": "{title} Diagramm",
+      "diagram.description.architecture": "Ein von Archify erstelltes Architekturdiagramm.",
+      "diagram.description.workflow": "Ein von Archify erstelltes Workflow-Diagramm.",
+      "diagram.description.sequence": "Ein von Archify erstelltes Sequenzdiagramm.",
+      "diagram.description.dataflow": "Ein von Archify erstelltes Datenfluss-Diagramm.",
+      "diagram.description.lifecycle": "Ein von Archify erstelltes Lifecycle-Diagramm.",
+      "node.focus": "{label} fokussieren",
+      "node.focus.detail": "{label} fokussieren, {detail}",
+      "node.context.architecture": "Architekturkomponente",
+      "node.context.workflow": "Workflow-Knoten",
+      "node.context.sequence": "Sequenzteilnehmer",
+      "node.context.dataflow": "Datenfluss-Knoten",
+      "node.context.lifecycle": "Lifecycle-Status",
+      "legend.title": "Legende",
+      "legend.architecture.frontend": "Frontend",
+      "legend.architecture.backend": "Backend",
+      "legend.architecture.database": "Datenbank",
+      "legend.architecture.cloud": "Cloud",
+      "legend.architecture.security": "Sicherheit",
+      "legend.architecture.messagebus": "Nachrichtenbus",
+      "legend.architecture.external": "Extern",
+      "legend.workflow.frontend": "Benutzeroberfläche",
+      "legend.workflow.backend": "Agentenlogik",
+      "legend.workflow.security": "Richtlinie",
+      "legend.workflow.messagebus": "Werkzeugaktion",
+      "legend.workflow.database": "Kontext / Trace",
+      "legend.workflow.cloud": "Cloud-Dienst",
+      "legend.workflow.external": "Externes System",
+      "legend.sequence.emphasis": "Hauptanfrage",
+      "legend.sequence.return": "Rückgabe",
+      "legend.sequence.security": "Sicherheit",
+      "legend.sequence.dashed": "asynchroner Trace",
+      "legend.sequence.default": "Nachricht",
+      "legend.dataflow.emphasis": "Primärdaten",
+      "legend.dataflow.security": "Richtlinie / PII",
+      "legend.dataflow.dashed": "asynchroner Batch",
+      "legend.dataflow.database": "Datenspeicher",
+      "legend.dataflow.default": "Datenfluss",
+      "legend.lifecycle.start": "Startzustand",
+      "legend.lifecycle.active": "aktiv",
+      "legend.lifecycle.waiting": "Wartend",
+      "legend.lifecycle.decision": "Entscheidung",
+      "legend.lifecycle.success": "Erfolg",
+      "legend.lifecycle.failure": "Fehler / Abbruch",
+      "legend.lifecycle.neutral": "neutral",
+      "legend.lifecycle.external": "extern",
+      "legend.lifecycle.final": "Endzustand",
+      "viewer.kind.frontend": "Frontend",
+      "viewer.kind.backend": "Backend",
+      "viewer.kind.database": "Datenbank",
+      "viewer.kind.cloud": "Cloud",
+      "viewer.kind.security": "Sicherheit",
+      "viewer.kind.messagebus": "Nachrichtenbus",
+      "viewer.kind.external": "Extern",
+      "viewer.kind.neutral": "Neutral",
+      "viewer.kind.node": "Knoten",
+      "viewer.kind.start": "Start",
+      "viewer.kind.active": "Aktiv",
+      "viewer.kind.waiting": "Wartend",
+      "viewer.kind.decision": "Entscheidung",
+      "viewer.kind.success": "Erfolg",
+      "viewer.kind.failure": "Fehler",
+      "viewer.toolbar.actions": "Diagrammaktionen",
+      "viewer.theme.toggle.title": "Design wechseln (T)",
+      "viewer.theme.toggle": "Farbdesign wechseln",
+      "viewer.theme.dark": "Dunkel",
+      "viewer.theme.light": "Hell",
+      "viewer.preset.choose.title": "Visuellen Stil wählen (S wechselt durch)",
+      "viewer.preset.choose": "Visuellen Stil wählen",
+      "viewer.preset.style": "Stil",
+      "viewer.preset.menu": "Visueller Stil",
+      "viewer.preset.identity": "Visuelle Identität",
+      "viewer.preset.cycles": "S wechselt durch",
+      "viewer.preset.classic": "Klassisch",
+      "viewer.preset.classic.short": "Klassisch",
+      "viewer.preset.classic.hint": "Stabiler technischer Standard",
+      "viewer.preset.flow": "Signalfluss",
+      "viewer.preset.flow.short": "Fluss",
+      "viewer.preset.flow.hint": "Bewegungsbetonte Präsentation",
+      "viewer.preset.blueprint": "Bauplan",
+      "viewer.preset.blueprint.hint": "Technisches Review",
+      "viewer.preset.editorial": "Editorial",
+      "viewer.preset.editorial.hint": "Für Veröffentlichungen und Launch-Notizen",
+      "viewer.preset.badge.signalFlow": "SIGNALFLUSS",
+      "viewer.preset.badge.blueprint": "BAUPLAN / REV. 01",
+      "viewer.preset.badge.editorial": "EDITORIAL / FELDNOTIZ",
+      "viewer.preset.badge.editorialPlate": "ARCHIFY / TAFEL 04",
+      "viewer.preset.current": "Visueller Stil: {style}. Visuellen Stil wählen",
+      "viewer.motion.live": "Live",
+      "viewer.motion.still": "Statisch",
+      "viewer.motion.pause": "Bewegung pausieren",
+      "viewer.motion.resume": "Bewegung fortsetzen",
+      "viewer.motion.reduced": "Bewegung wegen reduzierter Bewegungseinstellung pausiert",
+      "viewer.motion.hidden": "Bewegung pausiert, während diese Seite ausgeblendet ist",
+      "viewer.motion.yielding": "Bewegung pausieren; derzeit an {owner} abgegeben",
+      "viewer.motion.yielding.title": "Live-Vorschau aktiv · an {owner} abgegeben",
+      "viewer.owner.route": "Routensonde",
+      "viewer.owner.lens": "Semantische Linse",
+      "viewer.owner.relationship": "Beziehungsvorschau",
+      "viewer.owner.intent": "Intent Trace",
+      "viewer.owner.focus": "semantischer Fokus",
+      "viewer.owner.legend": "Legendenvorschau",
+      "viewer.owner.reader": "Leserinteraktion",
+      "viewer.present.enter": "Präsentationsmodus starten",
+      "viewer.present.enter.title": "Präsentationsmodus (F)",
+      "viewer.present.exit": "Präsentationsmodus beenden",
+      "viewer.present.exit.title": "Präsentationsmodus beenden (F oder Escape)",
+      "viewer.present.present": "Präsentieren",
+      "viewer.present.exit.label": "Beenden",
+      "viewer.export.button": "Exportieren",
+      "viewer.export.button.title": "Diagramm exportieren (E)",
+      "viewer.export.diagram": "Diagramm exportieren",
+      "viewer.export.menu": "Exportieren",
+      "viewer.export.subtitle": "Portable, saubere Ausgaben",
+      "viewer.export.share": "Teilen",
+      "viewer.export.shareCard": "Freigabekarte",
+      "viewer.export.routeShareCard": "Routen-Freigabekarte",
+      "viewer.export.reachShareCard": "Reichweiten-Freigabekarte",
+      "viewer.export.copyDiagram": "Diagramm kopieren",
+      "viewer.export.clipboardPng": "PNG in Zwischenablage",
+      "viewer.export.raster": "Rasterbilder",
+      "viewer.export.image": "Bild",
+      "viewer.export.lossless": "Verlustfreies Bild",
+      "viewer.export.compact": "Kompaktes Bild",
+      "viewer.export.modern": "Modernes Bild",
+      "viewer.export.vectorMotion": "Vektor und Bewegung",
+      "viewer.export.vectorMotion.heading": "Vektor & Bewegung",
+      "viewer.export.editable": "Editierbarer Vektor",
+      "viewer.export.motion6s": "6-Sekunden-Bewegung",
+      "viewer.export.unsupported": "Von diesem Browser nicht unterstützt",
+      "viewer.export.clipboardUnsupported": "Bild-Zwischenablage wird von diesem Browser nicht unterstützt",
+      "viewer.export.clipboardUnsupported.short": "Dieser Browser unterstützt keine Bild-Zwischenablage.",
+      "viewer.export.motionUnavailable": "Bewegungsaufnahme in diesem Browser nicht verfügbar",
+      "viewer.export.webmUnavailable": "WebM in diesem Browser nicht verfügbar",
+      "viewer.export.failed": "Export fehlgeschlagen: {message}",
+      "viewer.export.unknownVariant": "Unbekannter Freigabekarten-Typ: {variant}",
+      "viewer.export.routeRequired": "Route verfolgen, bevor eine Routen-Freigabekarte exportiert wird",
+      "viewer.export.reachRequired": "Verfasste Reichweite verfolgen, bevor eine Reichweiten-Freigabekarte exportiert wird",
+      "viewer.export.unknown": "unbekannt",
+      "viewer.export.routeFailed": "Export der Routen-Freigabekarte fehlgeschlagen: {message}",
+      "viewer.export.reachFailed": "Export der Reichweiten-Freigabekarte fehlgeschlagen: {message}",
+      "viewer.export.copyFailed": "Kopieren fehlgeschlagen: {message}",
+      "viewer.export.copiedPng": "PNG in Zwischenablage kopiert",
+      "viewer.export.downloadedRoute": "Routen-Freigabekarte heruntergeladen",
+      "viewer.export.downloadedReach": "Reichweiten-Freigabekarte heruntergeladen",
+      "viewer.export.downloadedWebm": "WebM heruntergeladen",
+      "viewer.export.recording": "6 Sekunden Bewegung werden aufgezeichnet …",
+      "viewer.export.card.routeSummary.one": "Route: {source} → {target} · {count} gerichteter Hop",
+      "viewer.export.card.routeSummary.other": "Route: {source} → {target} · {count} gerichtete Hops",
+      "viewer.export.card.reachSummary": "Verfasst {direction} von {origin} · {nodes} · {links} · max. {hops}",
+      "viewer.export.card.node.one": "{count} Knoten",
+      "viewer.export.card.node.other": "{count} Knoten",
+      "viewer.export.card.link.one": "{count} Verbindung",
+      "viewer.export.card.link.other": "{count} Verbindungen",
+      "viewer.export.card.hop.one": "{count} Hop",
+      "viewer.export.card.hop.other": "{count} Hops",
+      "viewer.export.card.routeBadge": "ARCHIFY · ROUTE · {hops}",
+      "viewer.export.card.reachBadge": "ARCHIFY · {direction} REICHWEITE",
+      "viewer.export.direction.upstream": "Vorgelagert",
+      "viewer.export.direction.downstream": "Nachgelagert",
+      "viewer.export.error.canvasUnavailable": "Canvas für {label} nicht verfügbar",
+      "viewer.export.error.contextUnavailable": "2D-Canvas-Kontext für {label} nicht verfügbar",
+      "viewer.export.error.toBlobUnavailable": "canvas.toBlob für {label} nicht verfügbar",
+      "viewer.export.error.toBlobNull": "canvas.toBlob lieferte keine Daten für {label}",
+      "viewer.export.error.variantsCombined": "Freigabekarten-Typen können nicht kombiniert werden",
+      "viewer.export.error.viewerState": "Beim Export der Freigabekarte konnte der temporäre Viewer-Zustand nicht entfernt werden",
+      "viewer.export.error.routeState": "Beim Export der Routenkarte konnte die aufgelöste Route nicht sicher erhalten werden",
+      "viewer.export.error.reachState": "Beim Export der Reichweitenkarte konnte die verfasste Reichweite nicht sicher erhalten werden",
+      "viewer.export.error.webmRequirements": "Der WebM-Bewegungsexport erfordert eine Trace-Animation und Browser-Unterstützung für MediaRecorder",
+      "viewer.export.error.mediaRecorder": "MediaRecorder fehlgeschlagen",
+      "viewer.export.error.emptyWebm": "MediaRecorder hat ein leeres WebM erzeugt",
+      "viewer.export.error.webmBackground": "SVG-Hintergrund konnte für den WebM-Export nicht geladen werden",
+      "viewer.guide.eyebrow": "Diagrammleitfaden",
+      "viewer.guide.close": "Diagrammleitfaden schließen",
+      "viewer.guide.inspecting": "Kompilierte Semantik wird geprüft",
+      "viewer.guide.actions": "Diagramm-Erkundungsaktionen",
+      "viewer.guide.find": "Beliebigen Knoten finden",
+      "viewer.guide.find.hint": "Labels, Zuständigkeiten, Arten und stabile IDs durchsuchen.",
+      "viewer.guide.route": "Eine Route verfolgen",
+      "viewer.guide.route.aria": "Eine gerichtete Route verfolgen",
+      "viewer.guide.route.hint": "Herausfinden, wie zwei semantische Knoten in verfasster Richtung verbunden sind.",
+      "viewer.guide.map": "Das gesamte System sehen",
+      "viewer.guide.map.hint": "Semantisches Radar mit Live-Ansicht und stabilen Knoten öffnen.",
+      "viewer.guide.lens": "Semantische Arten vergleichen",
+      "viewer.guide.lens.hint": "Rollen zählen, ihren Verkehr sichtbar machen und direkte verfasste Verbindungen vergleichen.",
+      "viewer.guide.present": "Präsentationsmodus starten",
+      "viewer.guide.present.hint": "Dem Live-Diagramm die gesamte Ansicht geben, ohne den Export zu verändern.",
+      "viewer.guide.shortcuts": "Weitere Tastenkombinationen",
+      "viewer.guide.shortcut.export": "Exportieren",
+      "viewer.guide.shortcut.theme": "Design",
+      "viewer.guide.shortcut.style": "Stil",
+      "viewer.guide.shortcut.reset": "Zurücksetzen",
+      "viewer.guide.shortcut.zoomIn": "Vergrößern",
+      "viewer.guide.shortcut.zoomOut": "Verkleinern",
+      "viewer.guide.shortcut.close": "Schließen",
+      "viewer.guide.facts": "{nodes} · {relationships}",
+      "viewer.guide.fact.node.one": "{count} semantischer Knoten",
+      "viewer.guide.fact.node.other": "{count} semantische Knoten",
+      "viewer.guide.fact.relationship.one": "{count} Beziehung",
+      "viewer.guide.fact.relationship.other": "{count} Beziehungen",
+      "viewer.guide.open": "Diagrammleitfaden öffnen",
+      "viewer.finder.title": "Knoten finden",
+      "viewer.finder.close": "Knotensuche schließen",
+      "viewer.finder.placeholder": "Labels oder IDs suchen",
+      "viewer.finder.search": "Diagrammknoten durchsuchen",
+      "viewer.finder.results": "Diagrammknoten",
+      "viewer.finder.empty": "Keine passenden Knoten",
+      "viewer.finder.result.focus": "{label} fokussieren",
+      "viewer.finder.result.routeStart": "{label} als Routenstart wählen",
+      "viewer.finder.result.routeTarget": "{label} als Routenziel wählen, {links}",
+      "viewer.finder.status.empty": "Keine passenden Knoten",
+      "viewer.finder.status.count.one": "{count} passender Knoten",
+      "viewer.finder.status.count.other": "{count} passende Knoten",
+      "viewer.finder.noun.nodes": "Knoten",
+      "viewer.finder.link.one": "{count} Verbindung",
+      "viewer.finder.link.other": "{count} Verbindungen",
+      "viewer.finder.result.focus.one": "{label} fokussieren, {count} zugehörige Verbindung",
+      "viewer.finder.result.focus.other": "{label} fokussieren, {count} zugehörige Verbindungen",
+      "viewer.finder.status.filtered": "{visible} von {available} {noun}",
+      "viewer.finder.status.all": "{available} {noun}",
+      "viewer.passport.eyebrow": "Semantischer Pass",
+      "viewer.passport.metadata": "Knoten-Metadaten",
+      "viewer.passport.evidence": "Verifizierter Quellnachweis",
+      "viewer.passport.verified": "Verifizierte Quelle",
+      "viewer.passport.verificationScope": "Verifiziert gegen lokales Git zur fixierten Revision. Remote-Zugriff wurde nicht geprüft.",
+      "viewer.passport.reach": "Verfasste Reichweite",
+      "viewer.passport.reach.trace": "Verfasste Erreichbarkeit verfolgen",
+      "viewer.passport.upstream": "Vorgelagert",
+      "viewer.passport.downstream": "Nachgelagert",
+      "viewer.passport.upstream.trace": "Vorgelagerte verfasste Erreichbarkeit verfolgen",
+      "viewer.passport.downstream.trace": "Nachgelagerte verfasste Erreichbarkeit verfolgen",
+      "viewer.passport.close": "Semantischen Pass schließen",
+      "viewer.passport.copy": "Link kopieren",
+      "viewer.passport.copy.focus": "Link zum fokussierten Knoten kopieren",
+      "viewer.passport.relations": "Beziehungen",
+      "viewer.passport.relations.show": "Verbundene Beziehungen anzeigen",
+      "viewer.passport.relations.hide": "Verbundene Beziehungen ausblenden",
+      "viewer.passport.relations.list": "Verbundene Beziehungen",
+      "viewer.passport.copyRelation": "Beziehung kopieren",
+      "viewer.passport.copyNode": "Knoten kopieren",
+      "viewer.passport.copyPinned": "Link zur angehefteten Beziehung kopieren",
+      "viewer.passport.copySource": "Link zum Quellknoten kopieren",
+      "viewer.passport.copy.focused.success": "Link des fokussierten Knotens kopiert",
+      "viewer.passport.copy.pinned.success": "Link der angehefteten Beziehung kopiert",
+      "viewer.passport.copy.focused.failed": "Link des fokussierten Knotens konnte nicht kopiert werden",
+      "viewer.passport.copy.pinned.failed": "Link der angehefteten Beziehung konnte nicht kopiert werden",
+      "viewer.passport.relationship.none": "Keine verbundenen Beziehungen",
+      "viewer.passport.relationship.count.one": "{count} Beziehung",
+      "viewer.passport.relationship.count.other": "{count} Beziehungen",
+      "viewer.passport.relationship.show.one": "{count} verbundene Beziehung anzeigen",
+      "viewer.passport.relationship.show.other": "{count} verbundene Beziehungen anzeigen",
+      "viewer.passport.relationship.summary": "{out} ausgehend · {in} eingehend{loops}",
+      "viewer.passport.relationship.loops": " · {count} Selbstschleife",
+      "viewer.passport.relationship.explorer": "Direkter Beziehungs-Explorer",
+      "viewer.passport.relationship.help": "Pfeiltasten zum Erkunden der Beziehungen verwenden. Enter oder Leertaste heftet Details an; Escape hebt die Auswahl auf.",
+      "viewer.passport.relationship.loopsBack": "schleift zurück",
+      "viewer.passport.relationship.connectsTo": "verbindet zu",
+      "viewer.passport.relationship.connectsFrom": "verbindet von",
+      "viewer.passport.relationship.pinned": "Angeheftete Beziehung · {from} → {to} · {label}",
+      "viewer.passport.relationship.inspect": "Beziehung {index} von {total} prüfen: {from} zu {to}, {label}. Enter für Details drücken.",
+      "viewer.passport.relationship.group.out": "Ausgehend",
+      "viewer.passport.relationship.group.in": "Eingehend",
+      "viewer.passport.relationship.group.loop": "Selbstschleifen",
+      "viewer.passport.relationship.row": "{group}: {relationship}, {neighbor}",
+      "viewer.passport.relationship.direction.out": "AUS →",
+      "viewer.passport.relationship.direction.in": "← EIN",
+      "viewer.passport.relationship.direction.loop": "SCHLEIFE",
+      "viewer.passport.sourceCount.one": "{count} verifizierte Quellenreferenz",
+      "viewer.passport.sourceCount.other": "{count} verifizierte Quellenreferenzen",
+      "viewer.passport.sourceMarker": "QUELLE",
+      "viewer.passport.beacon.one": "{count} verifizierte Quelle; diesen Knoten fokussieren, um sie zu prüfen",
+      "viewer.passport.beacon.other": "{count} verifizierte Quellen; diesen Knoten fokussieren, um sie zu prüfen",
+      "viewer.passport.repository.open": "Verifizierte Repository-Revision {revision} öffnen",
+      "viewer.passport.source.open": "Verifizierte Quelle {path} bei Revision {revision} öffnen",
+      "viewer.passport.source.openLink": "Öffnen ↗",
+      "viewer.passport.reach.upstream.one": "{count} vorgelagerten verfassten Knoten verfolgen",
+      "viewer.passport.reach.upstream.other": "{count} vorgelagerte verfasste Knoten verfolgen",
+      "viewer.passport.reach.downstream.one": "{count} nachgelagerten verfassten Knoten verfolgen",
+      "viewer.passport.reach.downstream.other": "{count} nachgelagerte verfasste Knoten verfolgen",
+      "viewer.passport.reach.noUpstream": "Keine vorgelagerten verfassten Knoten",
+      "viewer.passport.reach.noDownstream": "Keine nachgelagerten verfassten Knoten",
+      "viewer.passport.reach.status": "{direction} · {nodes} Knoten · {links} Verbindungen · max. {hops} Hops",
+      "viewer.route.eyebrow": "Routensonde",
+      "viewer.route.start": "Startknoten wählen",
+      "viewer.route.start.find": "Start finden",
+      "viewer.route.start.find.aria": "Einen Routenstart finden",
+      "viewer.route.copy": "Link kopieren",
+      "viewer.route.copy.aria": "Link zur verfolgten Route kopieren",
+      "viewer.route.clear": "Löschen",
+      "viewer.route.clear.aria": "Routensonde löschen",
+      "viewer.route.traced": "Verfolgte Route",
+      "viewer.route.pickTwo": "Zwei semantische Knoten im Diagramm auswählen",
+      "viewer.route.pickOne": "Einen semantischen Knoten im Diagramm auswählen",
+      "viewer.route.controls": "Routen-Verlaufssteuerung",
+      "viewer.route.previous": "Vorherige Routenposition",
+      "viewer.route.play": "Routenverlauf abspielen",
+      "viewer.route.pause": "Routenverlauf pausieren",
+      "viewer.route.replay": "Routenverlauf erneut abspielen",
+      "viewer.route.next": "Nächste Routenposition",
+      "viewer.route.journey": "Verlauf",
+      "viewer.route.pause.label": "Pausieren",
+      "viewer.route.replay.label": "Erneut abspielen",
+      "viewer.route.overview": "Übersicht",
+      "viewer.route.overview.aria": "Vollständige Routenübersicht anzeigen",
+      "viewer.route.instructions": "Quelle wählen, dann das Ziel. Die Richtung ist entscheidend.",
+      "viewer.route.destination": "Ziel ausgehend von {label} wählen",
+      "viewer.route.destination.find": "Ziel finden",
+      "viewer.route.destination.find.aria": "Ein erreichbares Routenziel finden",
+      "viewer.route.differentDestination": "Anderes Ziel wählen",
+      "viewer.route.distinct": "Eine Route benötigt zwei unterschiedliche semantische Knoten.",
+      "viewer.route.unreachable": "Keine gerichtete Route zu {label}",
+      "viewer.route.unreachable.detail": "{target} ist von {source} aus nicht erreichbar. Ein hervorgehobenes Ziel wählen.",
+      "viewer.route.start.instructions": "Quelle auswählen. Im nächsten Schritt werden nur gerichtete Ziele angezeigt.",
+      "viewer.route.copy.success": "Link zur verfolgten Route kopiert",
+      "viewer.route.copy.failed": "Link zur verfolgten Route konnte nicht kopiert werden",
+      "viewer.route.position": "Routenposition {index} von {total}: {label}",
+      "viewer.route.step": "Schritt {index} von {total} · {phase} · {label}",
+      "viewer.route.motionRequired": "Automatischer Verlauf erfordert Live-Bewegung",
+      "viewer.route.trigger.clear": "Verfolgte Route löschen",
+      "viewer.route.overview.status": "{nodes} · {hops} · kürzeste verfasste Route",
+      "viewer.route.overview.node.one": "{count} Knoten",
+      "viewer.route.overview.node.other": "{count} Knoten",
+      "viewer.route.overview.hop.one": "{count} gerichteter Hop",
+      "viewer.route.overview.hop.other": "{count} gerichtete Hops",
+      "viewer.route.phase.playing": "Läuft",
+      "viewer.route.phase.complete": "Abgeschlossen",
+      "viewer.route.phase.inspecting": "Wird geprüft",
+      "viewer.route.destination.count.one": "{count} gerichtetes Ziel verfügbar. Einen hervorgehobenen Knoten wählen.",
+      "viewer.route.destination.count.other": "{count} gerichtete Ziele verfügbar. Einen hervorgehobenen Knoten wählen.",
+      "viewer.route.noOutgoing": "Hier startet keine ausgehende Route. Löschen und eine andere Quelle wählen.",
+      "viewer.route.result.title": "{source} nach {target}",
+      "viewer.route.finder.source.title": "Routenstart wählen",
+      "viewer.route.finder.source.placeholder": "Routenquellen suchen",
+      "viewer.route.finder.source.empty": "Keine passenden Routenquellen",
+      "viewer.route.finder.source.results": "Knoten, die eine Route starten können",
+      "viewer.route.finder.source.noun": "Routenquellen",
+      "viewer.route.finder.source.badge": "Start",
+      "viewer.route.finder.target.title": "Ziel ausgehend von {label}",
+      "viewer.route.finder.target.placeholder": "Erreichbare Ziele suchen",
+      "viewer.route.finder.target.empty": "Keine passenden erreichbaren Ziele",
+      "viewer.route.finder.target.results": "Erreichbare Routenziele",
+      "viewer.route.finder.target.noun": "erreichbare Ziele",
+      "viewer.route.hop.one": "{count} Hop",
+      "viewer.route.hop.other": "{count} Hops",
+      "viewer.lens.eyebrow": "Semantische Linse",
+      "viewer.lens.title": "Systemrollen vergleichen",
+      "viewer.lens.close": "Semantische Linse schließen",
+      "viewer.lens.instruction": "Bis zu zwei semantische Arten wählen. Eine zeigt ihren echten Verkehr; zwei vergleichen nur direkte verfasste Beziehungen.",
+      "viewer.lens.kinds": "Semantische Arten",
+      "viewer.lens.choose": "Eine Art wählen, um ihre Knoten und berührenden Beziehungen zu prüfen.",
+      "viewer.lens.copy": "Link zur semantischen Linse kopieren",
+      "viewer.lens.clear": "Semantische Linse löschen",
+      "viewer.lens.open": "Semantische Linse öffnen",
+      "viewer.lens.openActive": "Aktive semantische Linse öffnen",
+      "viewer.lens.legend": "Semantische Legende",
+      "viewer.lens.legend.inspect.one": "{label} prüfen, {count} Knoten",
+      "viewer.lens.legend.inspect.other": "{label} prüfen, {count} Knoten",
+      "viewer.lens.kind.count.one": "{label}, {count} Knoten",
+      "viewer.lens.kind.count.other": "{label}, {count} Knoten",
+      "viewer.lens.compare.one": "{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direkte Beziehung",
+      "viewer.lens.compare.other": "{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direkte Beziehungen",
+      "viewer.lens.single": "{nodes} · {relationships} · verbundene Nachbarn bleiben sichtbar",
+      "viewer.lens.node.one": "{count} {label}-Knoten",
+      "viewer.lens.node.other": "{count} {label}-Knoten",
+      "viewer.lens.relationship.one": "{count} berührende Beziehung",
+      "viewer.lens.relationship.other": "{count} berührende Beziehungen",
+      "viewer.radar.title": "Semantisches Radar",
+      "viewer.radar.building": "Übersicht wird erstellt",
+      "viewer.radar.openFull": "Vollständiges semantisches Radar öffnen",
+      "viewer.radar.open": "Radar öffnen",
+      "viewer.radar.close": "Semantisches Radar schließen",
+      "viewer.radar.surface": "Diagrammübersicht. Auf einen Knoten klicken, um ihn zu fokussieren, oder mit den Pfeiltasten schwenken.",
+      "viewer.radar.click": "Knoten anklicken",
+      "viewer.radar.drag": "Ziehen zum Schwenken",
+      "viewer.radar.space": "Semantisches Radar benötigt mehr MAP-Platz.",
+      "viewer.radar.nodes": "Semantische Diagramm-Radarknoten",
+      "viewer.radar.focus": "{label} vom semantischen Radar fokussieren",
+      "viewer.radar.status": "{count} Knoten · {viewport}",
+      "viewer.radar.fullMap": "{count} Knoten · vollständige Karte",
+      "viewer.radar.compacted": "Radar verkleinert, um den semantischen Pass oder die MAP-Steuerung nicht zu verdecken.",
+      "viewer.radar.cancelWaiting": "Wartendes semantisches Radar auf mehr MAP-Platz abbrechen",
+      "viewer.radar.needsSpace": "Semantisches Radar benötigt mehr sichtbaren MAP-Platz",
+      "viewer.radar.viewport.full": "vollständige Karte",
+      "viewer.radar.viewport.width": "{percent}% Breite",
+      "viewer.radar.viewport.scale": "{percent}% Ansicht",
+      "viewer.nav.controls": "Diagrammansicht-Steuerung",
+      "viewer.nav.route": "Eine gerichtete Route verfolgen",
+      "viewer.nav.route.title": "Route verfolgen (R)",
+      "viewer.nav.route.short": "PFAD",
+      "viewer.nav.radar": "Semantisches Radar öffnen",
+      "viewer.nav.radar.title": "Semantisches Radar (M)",
+      "viewer.nav.radar.short": "KARTE",
+      "viewer.nav.lens": "Semantische Linse öffnen",
+      "viewer.nav.lens.title": "Semantische Linse (L)",
+      "viewer.nav.lens.short": "LINSE",
+      "viewer.nav.find": "Knoten finden",
+      "viewer.nav.find.title": "Knoten finden (/)",
+      "viewer.nav.guide": "Diagrammleitfaden öffnen",
+      "viewer.nav.guide.title": "Diagrammleitfaden (?)",
+      "viewer.nav.zoomOut": "Verkleinern",
+      "viewer.nav.zoomOut.title": "Verkleinern (-)",
+      "viewer.nav.reset": "Diagrammansicht zurücksetzen",
+      "viewer.nav.reset.title": "Ansicht zurücksetzen (0)",
+      "viewer.nav.read": "LESEN",
+      "viewer.nav.zoomIn": "Vergrößern",
+      "viewer.nav.zoomIn.title": "Vergrößern (+)",
+      "viewer.nav.camera": "{hint}. Diagrammansicht zurücksetzen",
+      "viewer.nav.camera.title": "{semantic}{hint} · Ansicht zurücksetzen (0)",
+      "viewer.nav.camera.semantic": "Semantische Kamera aktiv · ",
+      "viewer.nav.level.map": "KARTE",
+      "viewer.nav.level.read": "LESEN",
+      "viewer.nav.level.full": "VOLL",
+      "viewer.nav.level.auto": "AUTO",
+      "viewer.nav.detail.map": "Vergrößern, um Beziehungslabels und Knotenkontext anzuzeigen",
+      "viewer.nav.detail.read": "Erneut vergrößern, um Tags und Anmerkungen anzuzeigen",
+      "viewer.nav.detail.full": "Vollständige Diagrammdetails",
+      "viewer.intent.summary": "{label}. {out} ausgehend, {in} eingehend{loops}. {total} Verbindungen. Enter für Details drücken.",
+      "viewer.intent.loops": ", {count} Selbstschleife",
+      "viewer.common.copied": "Kopiert",
+      "viewer.common.copyFailed": "Kopieren fehlgeschlagen",
+      "viewer.common.copyLink": "Link kopieren",
+      "viewer.common.clear": "Löschen",
+      "viewer.common.close": "Schließen"
     },
-    {
-     "path": "frontend/projects/ui/src/stream/chat-api.ts",
-     "line": 378,
-     "end_line": 389,
-     "label": "SSE-Zug"
-    },
-    {
-     "path": "backend/src/boerdi/api/widget.py",
-     "line": 118,
-     "label": "Bundle /widget"
+    "output": "docs/architektur-grafiken/architektur.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "2a589a6e5014ede17e947407a01e82f7cef0e500"
     }
-   ]
   },
-  {
-   "id": "studio",
-   "type": "frontend",
-   "label": "Studio",
-   "sublabel": "Angular-SPA unter /studio",
-   "pos": [
-    254,
-    450
-   ],
-   "size": [
-    200,
-    64
-   ],
-   "sources": [
+  "components": [
     {
-     "path": "backend/src/boerdi/api/studio_static.py",
-     "line": 144,
-     "end_line": 165,
-     "label": "SPA-Mount"
+      "id": "nutzer",
+      "type": "external",
+      "label": "Lernende & Lehrende",
+      "sublabel": "Browser auf einer WLO-Seite",
+      "pos": [
+        40,
+        230
+      ],
+      "size": [
+        160,
+        64
+      ]
     },
     {
-     "path": "frontend/projects/studio/src/app/core/auth-error.interceptor.ts",
-     "line": 27,
-     "label": "Anmeldung"
+      "id": "redaktion",
+      "type": "external",
+      "label": "Redaktion & Betrieb",
+      "sublabel": "Browser",
+      "pos": [
+        40,
+        450
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "widget",
+      "type": "frontend",
+      "label": "Chat-Widget",
+      "sublabel": "Angular-Element <boerdi-chat>",
+      "pos": [
+        254,
+        230
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": "frontend/projects/widget/src/widget-main.ts",
+          "line": 15,
+          "end_line": 33,
+          "label": "Custom Element"
+        },
+        {
+          "path": "frontend/projects/ui/src/stream/chat-api.ts",
+          "line": 378,
+          "end_line": 389,
+          "label": "SSE-Zug"
+        },
+        {
+          "path": "backend/src/boerdi/api/widget.py",
+          "line": 118,
+          "label": "Bundle /widget"
+        }
+      ]
+    },
+    {
+      "id": "studio",
+      "type": "frontend",
+      "label": "Studio",
+      "sublabel": "Angular-SPA unter /studio",
+      "pos": [
+        254,
+        450
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/api/studio_static.py",
+          "line": 144,
+          "end_line": 165,
+          "label": "SPA-Mount"
+        },
+        {
+          "path": "frontend/projects/studio/src/app/core/auth-error.interceptor.ts",
+          "line": 27,
+          "label": "Anmeldung"
+        }
+      ]
+    },
+    {
+      "id": "traefik",
+      "type": "cloud",
+      "label": "Traefik / Ingress",
+      "sublabel": "TLS · Lastverteilung",
+      "pos": [
+        540,
+        230
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "sources": [
+        {
+          "path": "deploy/compose.prod.yml",
+          "line": 27,
+          "end_line": 52,
+          "label": "Dienst (Compose)"
+        },
+        {
+          "path": "deploy/compose.prod.yml",
+          "line": 283,
+          "end_line": 287,
+          "label": "Router + TLS"
+        },
+        {
+          "path": "deploy/helm/values.example.yaml",
+          "line": 19,
+          "end_line": 31,
+          "label": "Ingress (Kubernetes)"
+        }
+      ]
+    },
+    {
+      "id": "chatapi",
+      "type": "backend",
+      "label": "Chat-API",
+      "sublabel": "FastAPI: /api/chat · /api/agent",
+      "pos": [
+        802,
+        230
+      ],
+      "size": [
+        210,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/api/chat.py",
+          "line": 275,
+          "label": "SSE-Stream"
+        },
+        {
+          "path": "backend/src/boerdi/api/agent.py",
+          "line": 95,
+          "end_line": 110,
+          "label": "/api/agent"
+        },
+        {
+          "path": "backend/src/boerdi/services/sitzungssperre.py",
+          "line": 1,
+          "end_line": 18,
+          "label": "Sitzungssperre"
+        }
+      ]
+    },
+    {
+      "id": "studioapi",
+      "type": "security",
+      "label": "Studio-API",
+      "sublabel": "BFF + Admin-Routen unter /api",
+      "tag": "Cookie → X-Studio-Key",
+      "pos": [
+        802,
+        450
+      ],
+      "size": [
+        210,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/api/studio_proxy.py",
+          "line": 1,
+          "end_line": 42,
+          "label": "Proxy /studio/api"
+        },
+        {
+          "path": "backend/src/boerdi/api/studio_bff.py",
+          "line": 30,
+          "end_line": 51,
+          "label": "Anmeldung"
+        }
+      ]
+    },
+    {
+      "id": "graph",
+      "type": "backend",
+      "label": "Zuggraph (LangGraph)",
+      "sublabel": "Muster-Maschine | Agent-Schleife",
+      "tag": "Reranker optional, Vorgabe aus",
+      "pos": [
+        1118,
+        230
+      ],
+      "size": [
+        230,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/graph/build.py",
+          "line": 135,
+          "end_line": 209,
+          "label": "Graph-Aufbau"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/respond.py",
+          "line": 97,
+          "end_line": 102,
+          "label": "Maschinen-Weiche"
+        },
+        {
+          "path": "backend/src/boerdi/settings.py",
+          "line": 247,
+          "end_line": 250,
+          "label": "Reranker: Vorgabe aus, Selbstbezug"
+        }
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "cloud",
+      "label": "LLM über die b-api",
+      "sublabel": "Route: gpt-6-luna → gpt-5.6-luna",
+      "pos": [
+        1118,
+        40
+      ],
+      "size": [
+        230,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/services/llm_router.py",
+          "line": 19,
+          "end_line": 30,
+          "label": "Router-Route"
+        },
+        {
+          "path": "backend/src/boerdi/services/llm.py",
+          "line": 144,
+          "end_line": 176,
+          "label": "Anbieter-Routing"
+        },
+        {
+          "path": "backend/src/boerdi/services/llm_parallel.py",
+          "line": 1,
+          "end_line": 25,
+          "label": "Deckel je Anbieter"
+        }
+      ],
+      "tag": "OpenAI direkt nur für Tests"
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL 17 + pgvector",
+      "sublabel": "Verlauf · Konfiguration · RAG · Läufe",
+      "pos": [
+        1118,
+        640
+      ],
+      "size": [
+        230,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/db/models.py",
+          "line": 274,
+          "label": "Vektor-Spalte"
+        },
+        {
+          "path": "backend/alembic/versions/0014_lauf_herzschlag.py",
+          "line": 29,
+          "end_line": 44,
+          "label": "Herzschlag der Läufe"
+        },
+        {
+          "path": "backend/alembic/versions/0015_master_skill_stand.py",
+          "line": 26,
+          "end_line": 35,
+          "label": "Master-Skill-Stand"
+        }
+      ]
+    },
+    {
+      "id": "mcp",
+      "type": "external",
+      "label": "WLO-MCP-Server",
+      "sublabel": "WLO-Werkzeuge · Streamable HTTP",
+      "pos": [
+        1454,
+        230
+      ],
+      "size": [
+        220,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/settings.py",
+          "line": 203,
+          "end_line": 210,
+          "label": "MCP_SERVER_URL"
+        },
+        {
+          "path": "backend/src/boerdi/services/mcp/transport.py",
+          "line": 117,
+          "end_line": 127,
+          "label": "Transport"
+        },
+        {
+          "path": "backend/src/boerdi/services/mcp/client.py",
+          "line": 238,
+          "label": "call_mcp_tool"
+        }
+      ]
+    },
+    {
+      "id": "fremdmcp",
+      "type": "external",
+      "label": "Weitere MCP-Server",
+      "sublabel": "nur lesend · server__werkzeug",
+      "pos": [
+        1454,
+        40
+      ],
+      "size": [
+        220,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/services/mcp/fremdwerkzeuge.py",
+          "line": 1,
+          "end_line": 12,
+          "label": "Aufruf"
+        },
+        {
+          "path": "backend/src/boerdi/domain/fremdwerkzeug.py",
+          "line": 1,
+          "end_line": 18,
+          "label": "Auswahl, nur lesend"
+        },
+        {
+          "path": "backend/src/boerdi/services/mcp/client.py",
+          "line": 284,
+          "end_line": 287,
+          "label": "Weiche"
+        }
+      ]
+    },
+    {
+      "id": "edusharing",
+      "type": "external",
+      "label": "edu-sharing (WLO)",
+      "sublabel": "Inhalte · Sammlungen · Skills",
+      "pos": [
+        1454,
+        450
+      ],
+      "size": [
+        220,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/services/config_loader/repo_and_cards.py",
+          "line": 60,
+          "end_line": 72,
+          "label": "Repositorium"
+        },
+        {
+          "path": "backend/src/boerdi/services/turn_assembly.py",
+          "line": 117,
+          "label": "Vorschaubilder"
+        },
+        {
+          "path": "backend/src/boerdi/services/master_skill.py",
+          "line": 236,
+          "end_line": 248,
+          "label": "Master-Skill per MCP"
+        }
+      ]
+    },
+    {
+      "id": "bapiproxy",
+      "type": "security",
+      "label": "b-api-Proxy",
+      "sublabel": "badboerdichat · Bearer je Zug",
+      "pos": [
+        520,
+        40
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "tag": "B_API_KEY_MODE: auto · static · forward",
+      "sources": [
+        {
+          "path": "backend/src/boerdi/services/llm_auth.py",
+          "line": 1,
+          "end_line": 16,
+          "label": "Schlüssel des Zuges"
+        },
+        {
+          "path": "backend/src/boerdi/api/turn_auth.py",
+          "line": 65,
+          "end_line": 93,
+          "label": "Übernahme, forward → 401"
+        },
+        {
+          "path": "backend/src/boerdi/settings.py",
+          "line": 175,
+          "end_line": 178,
+          "label": "B_API_KEY_MODE"
+        }
+      ]
+    },
+    {
+      "id": "betrieb",
+      "type": "external",
+      "label": "Kubelet · Prometheus",
+      "sublabel": "Proben und Metriken",
+      "pos": [
+        802,
+        40
+      ],
+      "size": [
+        210,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/api/intern.py",
+          "line": 78,
+          "end_line": 101,
+          "label": "/health /ready /metrics"
+        },
+        {
+          "path": "backend/src/boerdi/serve.py",
+          "line": 74,
+          "end_line": 105,
+          "label": "Port 8100 + 8101"
+        },
+        {
+          "path": "backend/src/boerdi/obs/metrics.py",
+          "line": 37,
+          "end_line": 56,
+          "label": "Metriken"
+        }
+      ]
     }
-   ]
-  },
-  {
-   "id": "traefik",
-   "type": "cloud",
-   "label": "Traefik",
-   "sublabel": "TLS · Lastverteilung",
-   "pos": [
-    540,
-    230
-   ],
-   "size": [
-    150,
-    64
-   ],
-   "sources": [
+  ],
+  "boundaries": [
     {
-     "path": "deploy/compose.prod.yml",
-     "line": 27,
-     "end_line": 52,
-     "label": "Dienst"
+      "kind": "region",
+      "label": "Im Browser",
+      "wraps": [
+        "widget",
+        "studio"
+      ]
     },
     {
-     "path": "deploy/compose.prod.yml",
-     "line": 251,
-     "end_line": 255,
-     "label": "Router + TLS"
+      "kind": "region",
+      "label": "Server · Compose oder Kubernetes (Helm-Werte)",
+      "wraps": [
+        "traefik",
+        "chatapi",
+        "studioapi",
+        "graph",
+        "postgres"
+      ]
     },
     {
-     "path": "deploy/compose.prod.yml",
-     "line": 127,
-     "end_line": 133,
-     "label": "Vorgabe 1 Replik"
+      "kind": "security-group",
+      "label": "Backend, zustandslos · 1 bis N Repliken",
+      "wraps": [
+        "chatapi",
+        "studioapi",
+        "graph"
+      ]
     }
-   ]
-  },
-  {
-   "id": "chatapi",
-   "type": "backend",
-   "label": "Chat-API",
-   "sublabel": "FastAPI: /api/chat · /api/agent",
-   "pos": [
-    802,
-    230
-   ],
-   "size": [
-    210,
-    64
-   ],
-   "sources": [
+  ],
+  "connections": [
     {
-     "path": "backend/src/boerdi/api/chat.py",
-     "line": 273,
-     "label": "SSE-Stream"
+      "id": "fragt",
+      "from": "nutzer",
+      "to": "widget",
+      "label": "fragt",
+      "variant": "emphasis"
     },
     {
-     "path": "backend/src/boerdi/api/agent.py",
-     "line": 93,
-     "end_line": 108,
-     "label": "/api/agent"
+      "id": "widget-traefik",
+      "from": "widget",
+      "to": "traefik",
+      "label": "SSE-Stream",
+      "variant": "emphasis"
     },
     {
-     "path": "backend/src/boerdi/services/sitzungssperre.py",
-     "line": 1,
-     "end_line": 18,
-     "label": "Sitzungssperre"
+      "id": "traefik-chat",
+      "from": "traefik",
+      "to": "chatapi",
+      "label": "/api · /widget",
+      "variant": "emphasis"
+    },
+    {
+      "id": "chat-graph",
+      "from": "chatapi",
+      "to": "graph",
+      "label": "run_turn",
+      "variant": "emphasis"
+    },
+    {
+      "id": "graph-mcp",
+      "from": "graph",
+      "to": "mcp",
+      "label": "MCP-Werkzeuge",
+      "variant": "emphasis"
+    },
+    {
+      "id": "mcp-repo",
+      "from": "mcp",
+      "to": "edusharing",
+      "label": "fragt ab"
+    },
+    {
+      "id": "graph-fremd",
+      "from": "graph",
+      "to": "fremdmcp",
+      "label": "lesende Werkzeuge"
+    },
+    {
+      "id": "graph-llm",
+      "from": "graph",
+      "to": "llm",
+      "label": "LiteLLM: Chat · Embeddings · Moderation"
+    },
+    {
+      "id": "graph-db",
+      "from": "graph",
+      "to": "postgres",
+      "label": "Verlauf · RAG (pgvector)"
+    },
+    {
+      "id": "pflegt",
+      "from": "redaktion",
+      "to": "studio",
+      "label": "pflegt"
+    },
+    {
+      "id": "studio-traefik",
+      "from": "studio",
+      "to": "traefik",
+      "label": "HTTPS + Cookie",
+      "variant": "security"
+    },
+    {
+      "id": "traefik-studioapi",
+      "from": "traefik",
+      "to": "studioapi",
+      "label": "/studio/api",
+      "variant": "security"
+    },
+    {
+      "id": "studioapi-db",
+      "from": "studioapi",
+      "to": "postgres",
+      "label": "Konfiguration"
+    },
+    {
+      "id": "proxy-traefik",
+      "from": "bapiproxy",
+      "to": "traefik",
+      "label": "Authorization: Bearer",
+      "variant": "security"
+    },
+    {
+      "id": "betrieb-chat",
+      "from": "betrieb",
+      "to": "chatapi",
+      "label": "8101: /ready · /metrics"
     }
-   ]
-  },
-  {
-   "id": "studioapi",
-   "type": "security",
-   "label": "Studio-API",
-   "sublabel": "BFF + Admin-Routen unter /api",
-   "tag": "Cookie → X-Studio-Key",
-   "pos": [
-    802,
-    450
-   ],
-   "size": [
-    210,
-    64
-   ],
-   "sources": [
+  ],
+  "cards": [
     {
-     "path": "backend/src/boerdi/api/studio_proxy.py",
-     "line": 1,
-     "end_line": 42,
-     "label": "Proxy /studio/api"
+      "dot": "cyan",
+      "title": "Wege durch das System",
+      "items": [
+        "Lernende: Widget → Traefik → Chat-API → Zuggraph; Antwort als SSE-Strom bis zum result-Frame",
+        "Gastanwendungen hinter dem b-api-Proxy: Der Schlüssel des Aufrufers (Authorization: Bearer) gilt für alle LLM-Aufrufe des Zuges",
+        "Redaktion: Studio → Traefik → Studio-BFF (Cookie) → Admin-Routen unter /api mit X-Studio-Key",
+        "Vorschaubilder der Karten lädt der Browser direkt aus edu-sharing (preview_url)"
+      ]
     },
     {
-     "path": "backend/src/boerdi/api/studio_bff.py",
-     "line": 30,
-     "end_line": 51,
-     "label": "Anmeldung"
+      "dot": "emerald",
+      "title": "Zuggraph",
+      "items": [
+        "Ein Zug ist eine LangGraph-Kette: setup → … → respond → assemble → persist",
+        "respond verzweigt: Muster-Maschine (Klassifikation, Muster, Werkzeugschleife) oder Agent-Schleife (voller Werkzeug-Katalog)",
+        "Werkzeuge weiterer MCP-Server nur lesend, als server__werkzeug",
+        "Ablauf beider Maschinen: siehe die zwei Ablaufgrafiken"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Daten und Konfiguration",
+      "items": [
+        "Postgres hält Sitzungen, Verlauf, Gedächtnis, Konfigurationsbereiche, RAG-Vektoren und Nutzung",
+        "Studio-Änderungen wirken ohne Neustart: LISTEN/NOTIFY auf config_changed",
+        "Je Bereich Werks- und eigene Fassung, dazu Schnappschüsse",
+        "Master-Skill (Steuertext des Agenten) per MCP aus edu-sharing: ein Pod holt ihn unter Sperre, alle übernehmen den Stand per NOTIFY",
+        "Lasttest- und Eval-Läufe schreiben einen Herzschlag; verwaist ist nur, wessen Herzschlag ausbleibt",
+        "Aufbewahrungslauf alle 6 h löscht nach den eingestellten Fristen"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Betrieb (Compose oder Kubernetes)",
+      "items": [
+        "Ein Prozess, zwei Ports (python -m boerdi.serve): 8100 öffentlich, 8101 intern mit /health, /ready, /metrics",
+        "Compose: Traefik mit TLS, Vorgabe 1 Replik; Kubernetes: Helm-Werte für Ingress, Proben und feste Replikenzahl",
+        "Valkey zählt Rate-Limits über alle Instanzen; JSON-Logs mit Trace-ID auf stdout, Jaeger optional",
+        "Migration (alembic + import-config --werksabgleich) als eigener Schritt vor den Backends",
+        "Reranker (onnxruntime) im Backend-Prozess, Vorgabe aus"
+      ]
     }
-   ]
-  },
-  {
-   "id": "graph",
-   "type": "backend",
-   "label": "Zuggraph (LangGraph)",
-   "sublabel": "Muster-Maschine | Agent-Schleife",
-   "tag": "Reranker optional, Vorgabe aus",
-   "pos": [
-    1118,
-    230
-   ],
-   "size": [
-    230,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/graph/build.py",
-     "line": 135,
-     "end_line": 209,
-     "label": "Graph-Aufbau"
-    },
-    {
-     "path": "backend/src/boerdi/graph/nodes/respond.py",
-     "line": 97,
-     "end_line": 102,
-     "label": "Maschinen-Weiche"
-    },
-    {
-     "path": "backend/src/boerdi/settings.py",
-     "line": 226,
-     "end_line": 229,
-     "label": "Reranker: Vorgabe aus, Selbstbezug"
-    }
-   ]
-  },
-  {
-   "id": "llm",
-   "type": "cloud",
-   "label": "LLM-Anbieter",
-   "sublabel": "OpenAI · B-API (OpenAI/AcademicCloud)",
-   "pos": [
-    1118,
-    40
-   ],
-   "size": [
-    230,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/settings.py",
-     "line": 30,
-     "label": "Anbieter"
-    },
-    {
-     "path": "backend/src/boerdi/services/llm.py",
-     "line": 138,
-     "end_line": 163,
-     "label": "Anbieter-Routing"
-    },
-    {
-     "path": "backend/src/boerdi/services/llm_parallel.py",
-     "line": 1,
-     "end_line": 25,
-     "label": "Deckel je Anbieter"
-    }
-   ],
-   "tag": "Parallelität je Anbieter"
-  },
-  {
-   "id": "postgres",
-   "type": "database",
-   "label": "PostgreSQL 17 + pgvector",
-   "sublabel": "Verlauf · Konfiguration · RAG",
-   "pos": [
-    1118,
-    640
-   ],
-   "size": [
-    230,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/db/models.py",
-     "line": 270,
-     "label": "Vektor-Spalte"
-    },
-    {
-     "path": "backend/src/boerdi/main.py",
-     "line": 139,
-     "end_line": 140,
-     "label": "Aufbewahrung alle 6 h"
-    },
-    {
-     "path": "backend/alembic/versions/0011_werk_und_eigene_fassung.py",
-     "line": 1,
-     "end_line": 13,
-     "label": "Werk, eigene Fassung, Schnappschüsse"
-    }
-   ]
-  },
-  {
-   "id": "mcp",
-   "type": "external",
-   "label": "WLO-MCP-Server",
-   "sublabel": "WLO-Werkzeuge · Streamable HTTP",
-   "pos": [
-    1454,
-    230
-   ],
-   "size": [
-    220,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/settings.py",
-     "line": 182,
-     "end_line": 189,
-     "label": "MCP_SERVER_URL"
-    },
-    {
-     "path": "backend/src/boerdi/services/mcp/transport.py",
-     "line": 115,
-     "end_line": 125,
-     "label": "Transport"
-    },
-    {
-     "path": "backend/src/boerdi/services/mcp/client.py",
-     "line": 238,
-     "label": "call_mcp_tool"
-    }
-   ]
-  },
-  {
-   "id": "fremdmcp",
-   "type": "external",
-   "label": "Weitere MCP-Server",
-   "sublabel": "nur lesend · server__werkzeug",
-   "pos": [
-    1454,
-    40
-   ],
-   "size": [
-    220,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/services/mcp/fremdwerkzeuge.py",
-     "line": 1,
-     "end_line": 12,
-     "label": "Aufruf"
-    },
-    {
-     "path": "backend/src/boerdi/domain/fremdwerkzeug.py",
-     "line": 1,
-     "end_line": 18,
-     "label": "Auswahl, nur lesend"
-    },
-    {
-     "path": "backend/src/boerdi/services/mcp/client.py",
-     "line": 284,
-     "end_line": 287,
-     "label": "Weiche"
-    }
-   ]
-  },
-  {
-   "id": "edusharing",
-   "type": "external",
-   "label": "edu-sharing (WLO)",
-   "sublabel": "Inhalte · Sammlungen · Skills",
-   "pos": [
-    1454,
-    450
-   ],
-   "size": [
-    220,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/services/config_loader/repo_and_cards.py",
-     "line": 60,
-     "end_line": 72,
-     "label": "Repositorium"
-    },
-    {
-     "path": "backend/src/boerdi/services/turn_assembly.py",
-     "line": 117,
-     "label": "Vorschaubilder"
-    },
-    {
-     "path": "backend/src/boerdi/services/master_skill.py",
-     "line": 114,
-     "end_line": 126,
-     "label": "Master-Skill per MCP"
-    }
-   ]
-  }
- ],
- "boundaries": [
-  {
-   "kind": "region",
-   "label": "Im Browser",
-   "wraps": [
-    "widget",
-    "studio"
-   ]
-  },
-  {
-   "kind": "region",
-   "label": "Server · Docker Compose (compose.prod.yml)",
-   "wraps": [
-    "traefik",
-    "chatapi",
-    "studioapi",
-    "graph",
-    "postgres"
-   ]
-  },
-  {
-   "kind": "security-group",
-   "label": "Backend-Container, zustandslos (Vorgabe 1 Replik)",
-   "wraps": [
-    "chatapi",
-    "studioapi",
-    "graph"
-   ]
-  }
- ],
- "connections": [
-  {
-   "id": "fragt",
-   "from": "nutzer",
-   "to": "widget",
-   "label": "fragt",
-   "variant": "emphasis"
-  },
-  {
-   "id": "widget-traefik",
-   "from": "widget",
-   "to": "traefik",
-   "label": "SSE-Stream",
-   "variant": "emphasis"
-  },
-  {
-   "id": "traefik-chat",
-   "from": "traefik",
-   "to": "chatapi",
-   "label": "/api · /widget",
-   "variant": "emphasis"
-  },
-  {
-   "id": "chat-graph",
-   "from": "chatapi",
-   "to": "graph",
-   "label": "run_turn",
-   "variant": "emphasis"
-  },
-  {
-   "id": "graph-mcp",
-   "from": "graph",
-   "to": "mcp",
-   "label": "MCP-Werkzeuge",
-   "variant": "emphasis"
-  },
-  {
-   "id": "mcp-repo",
-   "from": "mcp",
-   "to": "edusharing",
-   "label": "fragt ab"
-  },
-  {
-   "id": "graph-fremd",
-   "from": "graph",
-   "to": "fremdmcp",
-   "label": "lesende Werkzeuge"
-  },
-  {
-   "id": "graph-llm",
-   "from": "graph",
-   "to": "llm",
-   "label": "LiteLLM: Chat · Embeddings · Moderation"
-  },
-  {
-   "id": "graph-db",
-   "from": "graph",
-   "to": "postgres",
-   "label": "Verlauf · RAG (pgvector)"
-  },
-  {
-   "id": "pflegt",
-   "from": "redaktion",
-   "to": "studio",
-   "label": "pflegt"
-  },
-  {
-   "id": "studio-traefik",
-   "from": "studio",
-   "to": "traefik",
-   "label": "HTTPS + Cookie",
-   "variant": "security"
-  },
-  {
-   "id": "traefik-studioapi",
-   "from": "traefik",
-   "to": "studioapi",
-   "label": "/studio/api",
-   "variant": "security"
-  },
-  {
-   "id": "studioapi-db",
-   "from": "studioapi",
-   "to": "postgres",
-   "label": "Konfiguration"
-  }
- ],
- "cards": [
-  {
-   "dot": "cyan",
-   "title": "Wege durch das System",
-   "items": [
-    "Lernende: Widget → Traefik → Chat-API → Zuggraph; Antwort als SSE-Strom bis zum result-Frame",
-    "Redaktion: Studio → Traefik → Studio-BFF (Cookie) → Admin-Routen unter /api mit X-Studio-Key",
-    "Vorschaubilder der Karten lädt der Browser direkt aus edu-sharing (preview_url)"
-   ]
-  },
-  {
-   "dot": "emerald",
-   "title": "Zuggraph",
-   "items": [
-    "Ein Zug ist eine LangGraph-Kette: setup → … → respond → assemble → persist",
-    "respond verzweigt: Muster-Maschine (Klassifikation, Muster, Werkzeugschleife) oder Agent-Schleife (voller Werkzeug-Katalog)",
-    "Werkzeuge weiterer MCP-Server nur lesend, als server__werkzeug",
-    "Ablauf beider Maschinen: siehe die zwei Ablaufgrafiken"
-   ]
-  },
-  {
-   "dot": "violet",
-   "title": "Daten und Konfiguration",
-   "items": [
-    "Postgres hält Sitzungen, Verlauf, Gedächtnis, Konfigurationsbereiche, RAG-Vektoren und Nutzung",
-    "Studio-Änderungen wirken ohne Neustart: LISTEN/NOTIFY auf config_changed",
-    "Je Bereich Werks- und eigene Fassung, dazu Schnappschüsse",
-    "Aufbewahrungslauf alle 6 h löscht nach den eingestellten Fristen",
-    "Der Master-Skill (Steuertext des Agenten) kommt per MCP aus edu-sharing"
-   ]
-  },
-  {
-   "dot": "amber",
-   "title": "Betrieb (compose.prod.yml)",
-   "items": [
-    "Backend zustandslos hinter Traefik (TLS per Let's Encrypt); Vorgabe 1 Replik, mehrere nur mit der Sitzungssperre in Postgres",
-    "Valkey zählt Rate-Limits über alle Instanzen; Jaeger sammelt OTel-Traces",
-    "Migration (alembic + import-config --werksabgleich) und Backup-Schleife laufen als eigene Dienste",
-    "Reranker (Cross-Encoder, onnxruntime) im Backend-Prozess, Vorgabe aus; eingeschaltet holt das Backend das Modell selbst von Hugging Face"
-   ]
-  }
- ]
+  ]
 }

@@ -1,1719 +1,1718 @@
 {
- "schema_version": 1,
- "diagram_type": "architecture",
- "meta": {
-  "title": "boerdi-chat — Konfiguration in der Agent-Schleife: was wo auf das Gespräch wirkt",
-  "locale": "de",
-  "translations": {
-   "page.title": "{title} Diagramm",
-   "diagram.description.architecture": "Ein von Archify erstelltes Architekturdiagramm.",
-   "diagram.description.workflow": "Ein von Archify erstelltes Workflow-Diagramm.",
-   "diagram.description.sequence": "Ein von Archify erstelltes Sequenzdiagramm.",
-   "diagram.description.dataflow": "Ein von Archify erstelltes Datenfluss-Diagramm.",
-   "diagram.description.lifecycle": "Ein von Archify erstelltes Lifecycle-Diagramm.",
-   "node.focus": "{label} fokussieren",
-   "node.focus.detail": "{label} fokussieren, {detail}",
-   "node.context.architecture": "Architekturkomponente",
-   "node.context.workflow": "Workflow-Knoten",
-   "node.context.sequence": "Sequenzteilnehmer",
-   "node.context.dataflow": "Datenfluss-Knoten",
-   "node.context.lifecycle": "Lifecycle-Status",
-   "legend.title": "Legende",
-   "legend.architecture.frontend": "Frontend",
-   "legend.architecture.backend": "Backend",
-   "legend.architecture.database": "Datenbank",
-   "legend.architecture.cloud": "Cloud",
-   "legend.architecture.security": "Sicherheit",
-   "legend.architecture.messagebus": "Nachrichtenbus",
-   "legend.architecture.external": "Extern",
-   "legend.workflow.frontend": "Benutzeroberfläche",
-   "legend.workflow.backend": "Agentenlogik",
-   "legend.workflow.security": "Richtlinie",
-   "legend.workflow.messagebus": "Werkzeugaktion",
-   "legend.workflow.database": "Kontext / Trace",
-   "legend.workflow.cloud": "Cloud-Dienst",
-   "legend.workflow.external": "Externes System",
-   "legend.sequence.emphasis": "Hauptanfrage",
-   "legend.sequence.return": "Rückgabe",
-   "legend.sequence.security": "Sicherheit",
-   "legend.sequence.dashed": "asynchroner Trace",
-   "legend.sequence.default": "Nachricht",
-   "legend.dataflow.emphasis": "Primärdaten",
-   "legend.dataflow.security": "Richtlinie / PII",
-   "legend.dataflow.dashed": "asynchroner Batch",
-   "legend.dataflow.database": "Datenspeicher",
-   "legend.dataflow.default": "Datenfluss",
-   "legend.lifecycle.start": "Startzustand",
-   "legend.lifecycle.active": "aktiv",
-   "legend.lifecycle.waiting": "Wartend",
-   "legend.lifecycle.decision": "Entscheidung",
-   "legend.lifecycle.success": "Erfolg",
-   "legend.lifecycle.failure": "Fehler / Abbruch",
-   "legend.lifecycle.neutral": "neutral",
-   "legend.lifecycle.external": "extern",
-   "legend.lifecycle.final": "Endzustand",
-   "viewer.kind.frontend": "Frontend",
-   "viewer.kind.backend": "Backend",
-   "viewer.kind.database": "Datenbank",
-   "viewer.kind.cloud": "Cloud",
-   "viewer.kind.security": "Sicherheit",
-   "viewer.kind.messagebus": "Nachrichtenbus",
-   "viewer.kind.external": "Extern",
-   "viewer.kind.neutral": "Neutral",
-   "viewer.kind.node": "Knoten",
-   "viewer.kind.start": "Start",
-   "viewer.kind.active": "Aktiv",
-   "viewer.kind.waiting": "Wartend",
-   "viewer.kind.decision": "Entscheidung",
-   "viewer.kind.success": "Erfolg",
-   "viewer.kind.failure": "Fehler",
-   "viewer.toolbar.actions": "Diagrammaktionen",
-   "viewer.theme.toggle.title": "Design wechseln (T)",
-   "viewer.theme.toggle": "Farbdesign wechseln",
-   "viewer.theme.dark": "Dunkel",
-   "viewer.theme.light": "Hell",
-   "viewer.preset.choose.title": "Visuellen Stil wählen (S wechselt durch)",
-   "viewer.preset.choose": "Visuellen Stil wählen",
-   "viewer.preset.style": "Stil",
-   "viewer.preset.menu": "Visueller Stil",
-   "viewer.preset.identity": "Visuelle Identität",
-   "viewer.preset.cycles": "S wechselt durch",
-   "viewer.preset.classic": "Klassisch",
-   "viewer.preset.classic.short": "Klassisch",
-   "viewer.preset.classic.hint": "Stabiler technischer Standard",
-   "viewer.preset.flow": "Signalfluss",
-   "viewer.preset.flow.short": "Fluss",
-   "viewer.preset.flow.hint": "Bewegungsbetonte Präsentation",
-   "viewer.preset.blueprint": "Bauplan",
-   "viewer.preset.blueprint.hint": "Technisches Review",
-   "viewer.preset.editorial": "Editorial",
-   "viewer.preset.editorial.hint": "Für Veröffentlichungen und Launch-Notizen",
-   "viewer.preset.badge.signalFlow": "SIGNALFLUSS",
-   "viewer.preset.badge.blueprint": "BAUPLAN / REV. 01",
-   "viewer.preset.badge.editorial": "EDITORIAL / FELDNOTIZ",
-   "viewer.preset.badge.editorialPlate": "ARCHIFY / TAFEL 04",
-   "viewer.preset.current": "Visueller Stil: {style}. Visuellen Stil wählen",
-   "viewer.motion.live": "Live",
-   "viewer.motion.still": "Statisch",
-   "viewer.motion.pause": "Bewegung pausieren",
-   "viewer.motion.resume": "Bewegung fortsetzen",
-   "viewer.motion.reduced": "Bewegung wegen reduzierter Bewegungseinstellung pausiert",
-   "viewer.motion.hidden": "Bewegung pausiert, während diese Seite ausgeblendet ist",
-   "viewer.motion.yielding": "Bewegung pausieren; derzeit an {owner} abgegeben",
-   "viewer.motion.yielding.title": "Live-Vorschau aktiv · an {owner} abgegeben",
-   "viewer.owner.route": "Routensonde",
-   "viewer.owner.lens": "Semantische Linse",
-   "viewer.owner.relationship": "Beziehungsvorschau",
-   "viewer.owner.intent": "Intent Trace",
-   "viewer.owner.focus": "semantischer Fokus",
-   "viewer.owner.legend": "Legendenvorschau",
-   "viewer.owner.reader": "Leserinteraktion",
-   "viewer.present.enter": "Präsentationsmodus starten",
-   "viewer.present.enter.title": "Präsentationsmodus (F)",
-   "viewer.present.exit": "Präsentationsmodus beenden",
-   "viewer.present.exit.title": "Präsentationsmodus beenden (F oder Escape)",
-   "viewer.present.present": "Präsentieren",
-   "viewer.present.exit.label": "Beenden",
-   "viewer.export.button": "Exportieren",
-   "viewer.export.button.title": "Diagramm exportieren (E)",
-   "viewer.export.diagram": "Diagramm exportieren",
-   "viewer.export.menu": "Exportieren",
-   "viewer.export.subtitle": "Portable, saubere Ausgaben",
-   "viewer.export.share": "Teilen",
-   "viewer.export.shareCard": "Freigabekarte",
-   "viewer.export.routeShareCard": "Routen-Freigabekarte",
-   "viewer.export.reachShareCard": "Reichweiten-Freigabekarte",
-   "viewer.export.copyDiagram": "Diagramm kopieren",
-   "viewer.export.clipboardPng": "PNG in Zwischenablage",
-   "viewer.export.raster": "Rasterbilder",
-   "viewer.export.image": "Bild",
-   "viewer.export.lossless": "Verlustfreies Bild",
-   "viewer.export.compact": "Kompaktes Bild",
-   "viewer.export.modern": "Modernes Bild",
-   "viewer.export.vectorMotion": "Vektor und Bewegung",
-   "viewer.export.vectorMotion.heading": "Vektor & Bewegung",
-   "viewer.export.editable": "Editierbarer Vektor",
-   "viewer.export.motion6s": "6-Sekunden-Bewegung",
-   "viewer.export.unsupported": "Von diesem Browser nicht unterstützt",
-   "viewer.export.clipboardUnsupported": "Bild-Zwischenablage wird von diesem Browser nicht unterstützt",
-   "viewer.export.clipboardUnsupported.short": "Dieser Browser unterstützt keine Bild-Zwischenablage.",
-   "viewer.export.motionUnavailable": "Bewegungsaufnahme in diesem Browser nicht verfügbar",
-   "viewer.export.webmUnavailable": "WebM in diesem Browser nicht verfügbar",
-   "viewer.export.failed": "Export fehlgeschlagen: {message}",
-   "viewer.export.unknownVariant": "Unbekannter Freigabekarten-Typ: {variant}",
-   "viewer.export.routeRequired": "Route verfolgen, bevor eine Routen-Freigabekarte exportiert wird",
-   "viewer.export.reachRequired": "Verfasste Reichweite verfolgen, bevor eine Reichweiten-Freigabekarte exportiert wird",
-   "viewer.export.unknown": "unbekannt",
-   "viewer.export.routeFailed": "Export der Routen-Freigabekarte fehlgeschlagen: {message}",
-   "viewer.export.reachFailed": "Export der Reichweiten-Freigabekarte fehlgeschlagen: {message}",
-   "viewer.export.copyFailed": "Kopieren fehlgeschlagen: {message}",
-   "viewer.export.copiedPng": "PNG in Zwischenablage kopiert",
-   "viewer.export.downloadedRoute": "Routen-Freigabekarte heruntergeladen",
-   "viewer.export.downloadedReach": "Reichweiten-Freigabekarte heruntergeladen",
-   "viewer.export.downloadedWebm": "WebM heruntergeladen",
-   "viewer.export.recording": "6 Sekunden Bewegung werden aufgezeichnet …",
-   "viewer.export.card.routeSummary.one": "Route: {source} → {target} · {count} gerichteter Hop",
-   "viewer.export.card.routeSummary.other": "Route: {source} → {target} · {count} gerichtete Hops",
-   "viewer.export.card.reachSummary": "Verfasst {direction} von {origin} · {nodes} · {links} · max. {hops}",
-   "viewer.export.card.node.one": "{count} Knoten",
-   "viewer.export.card.node.other": "{count} Knoten",
-   "viewer.export.card.link.one": "{count} Verbindung",
-   "viewer.export.card.link.other": "{count} Verbindungen",
-   "viewer.export.card.hop.one": "{count} Hop",
-   "viewer.export.card.hop.other": "{count} Hops",
-   "viewer.export.card.routeBadge": "ARCHIFY · ROUTE · {hops}",
-   "viewer.export.card.reachBadge": "ARCHIFY · {direction} REICHWEITE",
-   "viewer.export.direction.upstream": "Vorgelagert",
-   "viewer.export.direction.downstream": "Nachgelagert",
-   "viewer.export.error.canvasUnavailable": "Canvas für {label} nicht verfügbar",
-   "viewer.export.error.contextUnavailable": "2D-Canvas-Kontext für {label} nicht verfügbar",
-   "viewer.export.error.toBlobUnavailable": "canvas.toBlob für {label} nicht verfügbar",
-   "viewer.export.error.toBlobNull": "canvas.toBlob lieferte keine Daten für {label}",
-   "viewer.export.error.variantsCombined": "Freigabekarten-Typen können nicht kombiniert werden",
-   "viewer.export.error.viewerState": "Beim Export der Freigabekarte konnte der temporäre Viewer-Zustand nicht entfernt werden",
-   "viewer.export.error.routeState": "Beim Export der Routenkarte konnte die aufgelöste Route nicht sicher erhalten werden",
-   "viewer.export.error.reachState": "Beim Export der Reichweitenkarte konnte die verfasste Reichweite nicht sicher erhalten werden",
-   "viewer.export.error.webmRequirements": "Der WebM-Bewegungsexport erfordert eine Trace-Animation und Browser-Unterstützung für MediaRecorder",
-   "viewer.export.error.mediaRecorder": "MediaRecorder fehlgeschlagen",
-   "viewer.export.error.emptyWebm": "MediaRecorder hat ein leeres WebM erzeugt",
-   "viewer.export.error.webmBackground": "SVG-Hintergrund konnte für den WebM-Export nicht geladen werden",
-   "viewer.guide.eyebrow": "Diagrammleitfaden",
-   "viewer.guide.close": "Diagrammleitfaden schließen",
-   "viewer.guide.inspecting": "Kompilierte Semantik wird geprüft",
-   "viewer.guide.actions": "Diagramm-Erkundungsaktionen",
-   "viewer.guide.find": "Beliebigen Knoten finden",
-   "viewer.guide.find.hint": "Labels, Zuständigkeiten, Arten und stabile IDs durchsuchen.",
-   "viewer.guide.route": "Eine Route verfolgen",
-   "viewer.guide.route.aria": "Eine gerichtete Route verfolgen",
-   "viewer.guide.route.hint": "Herausfinden, wie zwei semantische Knoten in verfasster Richtung verbunden sind.",
-   "viewer.guide.map": "Das gesamte System sehen",
-   "viewer.guide.map.hint": "Semantisches Radar mit Live-Ansicht und stabilen Knoten öffnen.",
-   "viewer.guide.lens": "Semantische Arten vergleichen",
-   "viewer.guide.lens.hint": "Rollen zählen, ihren Verkehr sichtbar machen und direkte verfasste Verbindungen vergleichen.",
-   "viewer.guide.present": "Präsentationsmodus starten",
-   "viewer.guide.present.hint": "Dem Live-Diagramm die gesamte Ansicht geben, ohne den Export zu verändern.",
-   "viewer.guide.shortcuts": "Weitere Tastenkombinationen",
-   "viewer.guide.shortcut.export": "Exportieren",
-   "viewer.guide.shortcut.theme": "Design",
-   "viewer.guide.shortcut.style": "Stil",
-   "viewer.guide.shortcut.reset": "Zurücksetzen",
-   "viewer.guide.shortcut.zoomIn": "Vergrößern",
-   "viewer.guide.shortcut.zoomOut": "Verkleinern",
-   "viewer.guide.shortcut.close": "Schließen",
-   "viewer.guide.facts": "{nodes} · {relationships}",
-   "viewer.guide.fact.node.one": "{count} semantischer Knoten",
-   "viewer.guide.fact.node.other": "{count} semantische Knoten",
-   "viewer.guide.fact.relationship.one": "{count} Beziehung",
-   "viewer.guide.fact.relationship.other": "{count} Beziehungen",
-   "viewer.guide.open": "Diagrammleitfaden öffnen",
-   "viewer.finder.title": "Knoten finden",
-   "viewer.finder.close": "Knotensuche schließen",
-   "viewer.finder.placeholder": "Labels oder IDs suchen",
-   "viewer.finder.search": "Diagrammknoten durchsuchen",
-   "viewer.finder.results": "Diagrammknoten",
-   "viewer.finder.empty": "Keine passenden Knoten",
-   "viewer.finder.result.focus": "{label} fokussieren",
-   "viewer.finder.result.routeStart": "{label} als Routenstart wählen",
-   "viewer.finder.result.routeTarget": "{label} als Routenziel wählen, {links}",
-   "viewer.finder.status.empty": "Keine passenden Knoten",
-   "viewer.finder.status.count.one": "{count} passender Knoten",
-   "viewer.finder.status.count.other": "{count} passende Knoten",
-   "viewer.finder.noun.nodes": "Knoten",
-   "viewer.finder.link.one": "{count} Verbindung",
-   "viewer.finder.link.other": "{count} Verbindungen",
-   "viewer.finder.result.focus.one": "{label} fokussieren, {count} zugehörige Verbindung",
-   "viewer.finder.result.focus.other": "{label} fokussieren, {count} zugehörige Verbindungen",
-   "viewer.finder.status.filtered": "{visible} von {available} {noun}",
-   "viewer.finder.status.all": "{available} {noun}",
-   "viewer.passport.eyebrow": "Semantischer Pass",
-   "viewer.passport.metadata": "Knoten-Metadaten",
-   "viewer.passport.evidence": "Verifizierter Quellnachweis",
-   "viewer.passport.verified": "Verifizierte Quelle",
-   "viewer.passport.verificationScope": "Verifiziert gegen lokales Git zur fixierten Revision. Remote-Zugriff wurde nicht geprüft.",
-   "viewer.passport.reach": "Verfasste Reichweite",
-   "viewer.passport.reach.trace": "Verfasste Erreichbarkeit verfolgen",
-   "viewer.passport.upstream": "Vorgelagert",
-   "viewer.passport.downstream": "Nachgelagert",
-   "viewer.passport.upstream.trace": "Vorgelagerte verfasste Erreichbarkeit verfolgen",
-   "viewer.passport.downstream.trace": "Nachgelagerte verfasste Erreichbarkeit verfolgen",
-   "viewer.passport.close": "Semantischen Pass schließen",
-   "viewer.passport.copy": "Link kopieren",
-   "viewer.passport.copy.focus": "Link zum fokussierten Knoten kopieren",
-   "viewer.passport.relations": "Beziehungen",
-   "viewer.passport.relations.show": "Verbundene Beziehungen anzeigen",
-   "viewer.passport.relations.hide": "Verbundene Beziehungen ausblenden",
-   "viewer.passport.relations.list": "Verbundene Beziehungen",
-   "viewer.passport.copyRelation": "Beziehung kopieren",
-   "viewer.passport.copyNode": "Knoten kopieren",
-   "viewer.passport.copyPinned": "Link zur angehefteten Beziehung kopieren",
-   "viewer.passport.copySource": "Link zum Quellknoten kopieren",
-   "viewer.passport.copy.focused.success": "Link des fokussierten Knotens kopiert",
-   "viewer.passport.copy.pinned.success": "Link der angehefteten Beziehung kopiert",
-   "viewer.passport.copy.focused.failed": "Link des fokussierten Knotens konnte nicht kopiert werden",
-   "viewer.passport.copy.pinned.failed": "Link der angehefteten Beziehung konnte nicht kopiert werden",
-   "viewer.passport.relationship.none": "Keine verbundenen Beziehungen",
-   "viewer.passport.relationship.count.one": "{count} Beziehung",
-   "viewer.passport.relationship.count.other": "{count} Beziehungen",
-   "viewer.passport.relationship.show.one": "{count} verbundene Beziehung anzeigen",
-   "viewer.passport.relationship.show.other": "{count} verbundene Beziehungen anzeigen",
-   "viewer.passport.relationship.summary": "{out} ausgehend · {in} eingehend{loops}",
-   "viewer.passport.relationship.loops": " · {count} Selbstschleife",
-   "viewer.passport.relationship.explorer": "Direkter Beziehungs-Explorer",
-   "viewer.passport.relationship.help": "Pfeiltasten zum Erkunden der Beziehungen verwenden. Enter oder Leertaste heftet Details an; Escape hebt die Auswahl auf.",
-   "viewer.passport.relationship.loopsBack": "schleift zurück",
-   "viewer.passport.relationship.connectsTo": "verbindet zu",
-   "viewer.passport.relationship.connectsFrom": "verbindet von",
-   "viewer.passport.relationship.pinned": "Angeheftete Beziehung · {from} → {to} · {label}",
-   "viewer.passport.relationship.inspect": "Beziehung {index} von {total} prüfen: {from} zu {to}, {label}. Enter für Details drücken.",
-   "viewer.passport.relationship.group.out": "Ausgehend",
-   "viewer.passport.relationship.group.in": "Eingehend",
-   "viewer.passport.relationship.group.loop": "Selbstschleifen",
-   "viewer.passport.relationship.row": "{group}: {relationship}, {neighbor}",
-   "viewer.passport.relationship.direction.out": "AUS →",
-   "viewer.passport.relationship.direction.in": "← EIN",
-   "viewer.passport.relationship.direction.loop": "SCHLEIFE",
-   "viewer.passport.sourceCount.one": "{count} verifizierte Quellenreferenz",
-   "viewer.passport.sourceCount.other": "{count} verifizierte Quellenreferenzen",
-   "viewer.passport.sourceMarker": "QUELLE",
-   "viewer.passport.beacon.one": "{count} verifizierte Quelle; diesen Knoten fokussieren, um sie zu prüfen",
-   "viewer.passport.beacon.other": "{count} verifizierte Quellen; diesen Knoten fokussieren, um sie zu prüfen",
-   "viewer.passport.repository.open": "Verifizierte Repository-Revision {revision} öffnen",
-   "viewer.passport.source.open": "Verifizierte Quelle {path} bei Revision {revision} öffnen",
-   "viewer.passport.source.openLink": "Öffnen ↗",
-   "viewer.passport.reach.upstream.one": "{count} vorgelagerten verfassten Knoten verfolgen",
-   "viewer.passport.reach.upstream.other": "{count} vorgelagerte verfasste Knoten verfolgen",
-   "viewer.passport.reach.downstream.one": "{count} nachgelagerten verfassten Knoten verfolgen",
-   "viewer.passport.reach.downstream.other": "{count} nachgelagerte verfasste Knoten verfolgen",
-   "viewer.passport.reach.noUpstream": "Keine vorgelagerten verfassten Knoten",
-   "viewer.passport.reach.noDownstream": "Keine nachgelagerten verfassten Knoten",
-   "viewer.passport.reach.status": "{direction} · {nodes} Knoten · {links} Verbindungen · max. {hops} Hops",
-   "viewer.route.eyebrow": "Routensonde",
-   "viewer.route.start": "Startknoten wählen",
-   "viewer.route.start.find": "Start finden",
-   "viewer.route.start.find.aria": "Einen Routenstart finden",
-   "viewer.route.copy": "Link kopieren",
-   "viewer.route.copy.aria": "Link zur verfolgten Route kopieren",
-   "viewer.route.clear": "Löschen",
-   "viewer.route.clear.aria": "Routensonde löschen",
-   "viewer.route.traced": "Verfolgte Route",
-   "viewer.route.pickTwo": "Zwei semantische Knoten im Diagramm auswählen",
-   "viewer.route.pickOne": "Einen semantischen Knoten im Diagramm auswählen",
-   "viewer.route.controls": "Routen-Verlaufssteuerung",
-   "viewer.route.previous": "Vorherige Routenposition",
-   "viewer.route.play": "Routenverlauf abspielen",
-   "viewer.route.pause": "Routenverlauf pausieren",
-   "viewer.route.replay": "Routenverlauf erneut abspielen",
-   "viewer.route.next": "Nächste Routenposition",
-   "viewer.route.journey": "Verlauf",
-   "viewer.route.pause.label": "Pausieren",
-   "viewer.route.replay.label": "Erneut abspielen",
-   "viewer.route.overview": "Übersicht",
-   "viewer.route.overview.aria": "Vollständige Routenübersicht anzeigen",
-   "viewer.route.instructions": "Quelle wählen, dann das Ziel. Die Richtung ist entscheidend.",
-   "viewer.route.destination": "Ziel ausgehend von {label} wählen",
-   "viewer.route.destination.find": "Ziel finden",
-   "viewer.route.destination.find.aria": "Ein erreichbares Routenziel finden",
-   "viewer.route.differentDestination": "Anderes Ziel wählen",
-   "viewer.route.distinct": "Eine Route benötigt zwei unterschiedliche semantische Knoten.",
-   "viewer.route.unreachable": "Keine gerichtete Route zu {label}",
-   "viewer.route.unreachable.detail": "{target} ist von {source} aus nicht erreichbar. Ein hervorgehobenes Ziel wählen.",
-   "viewer.route.start.instructions": "Quelle auswählen. Im nächsten Schritt werden nur gerichtete Ziele angezeigt.",
-   "viewer.route.copy.success": "Link zur verfolgten Route kopiert",
-   "viewer.route.copy.failed": "Link zur verfolgten Route konnte nicht kopiert werden",
-   "viewer.route.position": "Routenposition {index} von {total}: {label}",
-   "viewer.route.step": "Schritt {index} von {total} · {phase} · {label}",
-   "viewer.route.motionRequired": "Automatischer Verlauf erfordert Live-Bewegung",
-   "viewer.route.trigger.clear": "Verfolgte Route löschen",
-   "viewer.route.overview.status": "{nodes} · {hops} · kürzeste verfasste Route",
-   "viewer.route.overview.node.one": "{count} Knoten",
-   "viewer.route.overview.node.other": "{count} Knoten",
-   "viewer.route.overview.hop.one": "{count} gerichteter Hop",
-   "viewer.route.overview.hop.other": "{count} gerichtete Hops",
-   "viewer.route.phase.playing": "Läuft",
-   "viewer.route.phase.complete": "Abgeschlossen",
-   "viewer.route.phase.inspecting": "Wird geprüft",
-   "viewer.route.destination.count.one": "{count} gerichtetes Ziel verfügbar. Einen hervorgehobenen Knoten wählen.",
-   "viewer.route.destination.count.other": "{count} gerichtete Ziele verfügbar. Einen hervorgehobenen Knoten wählen.",
-   "viewer.route.noOutgoing": "Hier startet keine ausgehende Route. Löschen und eine andere Quelle wählen.",
-   "viewer.route.result.title": "{source} nach {target}",
-   "viewer.route.finder.source.title": "Routenstart wählen",
-   "viewer.route.finder.source.placeholder": "Routenquellen suchen",
-   "viewer.route.finder.source.empty": "Keine passenden Routenquellen",
-   "viewer.route.finder.source.results": "Knoten, die eine Route starten können",
-   "viewer.route.finder.source.noun": "Routenquellen",
-   "viewer.route.finder.source.badge": "Start",
-   "viewer.route.finder.target.title": "Ziel ausgehend von {label}",
-   "viewer.route.finder.target.placeholder": "Erreichbare Ziele suchen",
-   "viewer.route.finder.target.empty": "Keine passenden erreichbaren Ziele",
-   "viewer.route.finder.target.results": "Erreichbare Routenziele",
-   "viewer.route.finder.target.noun": "erreichbare Ziele",
-   "viewer.route.hop.one": "{count} Hop",
-   "viewer.route.hop.other": "{count} Hops",
-   "viewer.lens.eyebrow": "Semantische Linse",
-   "viewer.lens.title": "Systemrollen vergleichen",
-   "viewer.lens.close": "Semantische Linse schließen",
-   "viewer.lens.instruction": "Bis zu zwei semantische Arten wählen. Eine zeigt ihren echten Verkehr; zwei vergleichen nur direkte verfasste Beziehungen.",
-   "viewer.lens.kinds": "Semantische Arten",
-   "viewer.lens.choose": "Eine Art wählen, um ihre Knoten und berührenden Beziehungen zu prüfen.",
-   "viewer.lens.copy": "Link zur semantischen Linse kopieren",
-   "viewer.lens.clear": "Semantische Linse löschen",
-   "viewer.lens.open": "Semantische Linse öffnen",
-   "viewer.lens.openActive": "Aktive semantische Linse öffnen",
-   "viewer.lens.legend": "Semantische Legende",
-   "viewer.lens.legend.inspect.one": "{label} prüfen, {count} Knoten",
-   "viewer.lens.legend.inspect.other": "{label} prüfen, {count} Knoten",
-   "viewer.lens.kind.count.one": "{label}, {count} Knoten",
-   "viewer.lens.kind.count.other": "{label}, {count} Knoten",
-   "viewer.lens.compare.one": "{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direkte Beziehung",
-   "viewer.lens.compare.other": "{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direkte Beziehungen",
-   "viewer.lens.single": "{nodes} · {relationships} · verbundene Nachbarn bleiben sichtbar",
-   "viewer.lens.node.one": "{count} {label}-Knoten",
-   "viewer.lens.node.other": "{count} {label}-Knoten",
-   "viewer.lens.relationship.one": "{count} berührende Beziehung",
-   "viewer.lens.relationship.other": "{count} berührende Beziehungen",
-   "viewer.radar.title": "Semantisches Radar",
-   "viewer.radar.building": "Übersicht wird erstellt",
-   "viewer.radar.openFull": "Vollständiges semantisches Radar öffnen",
-   "viewer.radar.open": "Radar öffnen",
-   "viewer.radar.close": "Semantisches Radar schließen",
-   "viewer.radar.surface": "Diagrammübersicht. Auf einen Knoten klicken, um ihn zu fokussieren, oder mit den Pfeiltasten schwenken.",
-   "viewer.radar.click": "Knoten anklicken",
-   "viewer.radar.drag": "Ziehen zum Schwenken",
-   "viewer.radar.space": "Semantisches Radar benötigt mehr MAP-Platz.",
-   "viewer.radar.nodes": "Semantische Diagramm-Radarknoten",
-   "viewer.radar.focus": "{label} vom semantischen Radar fokussieren",
-   "viewer.radar.status": "{count} Knoten · {viewport}",
-   "viewer.radar.fullMap": "{count} Knoten · vollständige Karte",
-   "viewer.radar.compacted": "Radar verkleinert, um den semantischen Pass oder die MAP-Steuerung nicht zu verdecken.",
-   "viewer.radar.cancelWaiting": "Wartendes semantisches Radar auf mehr MAP-Platz abbrechen",
-   "viewer.radar.needsSpace": "Semantisches Radar benötigt mehr sichtbaren MAP-Platz",
-   "viewer.radar.viewport.full": "vollständige Karte",
-   "viewer.radar.viewport.width": "{percent}% Breite",
-   "viewer.radar.viewport.scale": "{percent}% Ansicht",
-   "viewer.nav.controls": "Diagrammansicht-Steuerung",
-   "viewer.nav.route": "Eine gerichtete Route verfolgen",
-   "viewer.nav.route.title": "Route verfolgen (R)",
-   "viewer.nav.route.short": "PFAD",
-   "viewer.nav.radar": "Semantisches Radar öffnen",
-   "viewer.nav.radar.title": "Semantisches Radar (M)",
-   "viewer.nav.radar.short": "KARTE",
-   "viewer.nav.lens": "Semantische Linse öffnen",
-   "viewer.nav.lens.title": "Semantische Linse (L)",
-   "viewer.nav.lens.short": "LINSE",
-   "viewer.nav.find": "Knoten finden",
-   "viewer.nav.find.title": "Knoten finden (/)",
-   "viewer.nav.guide": "Diagrammleitfaden öffnen",
-   "viewer.nav.guide.title": "Diagrammleitfaden (?)",
-   "viewer.nav.zoomOut": "Verkleinern",
-   "viewer.nav.zoomOut.title": "Verkleinern (-)",
-   "viewer.nav.reset": "Diagrammansicht zurücksetzen",
-   "viewer.nav.reset.title": "Ansicht zurücksetzen (0)",
-   "viewer.nav.read": "LESEN",
-   "viewer.nav.zoomIn": "Vergrößern",
-   "viewer.nav.zoomIn.title": "Vergrößern (+)",
-   "viewer.nav.camera": "{hint}. Diagrammansicht zurücksetzen",
-   "viewer.nav.camera.title": "{semantic}{hint} · Ansicht zurücksetzen (0)",
-   "viewer.nav.camera.semantic": "Semantische Kamera aktiv · ",
-   "viewer.nav.level.map": "KARTE",
-   "viewer.nav.level.read": "LESEN",
-   "viewer.nav.level.full": "VOLL",
-   "viewer.nav.level.auto": "AUTO",
-   "viewer.nav.detail.map": "Vergrößern, um Beziehungslabels und Knotenkontext anzuzeigen",
-   "viewer.nav.detail.read": "Erneut vergrößern, um Tags und Anmerkungen anzuzeigen",
-   "viewer.nav.detail.full": "Vollständige Diagrammdetails",
-   "viewer.intent.summary": "{label}. {out} ausgehend, {in} eingehend{loops}. {total} Verbindungen. Enter für Details drücken.",
-   "viewer.intent.loops": ", {count} Selbstschleife",
-   "viewer.common.copied": "Kopiert",
-   "viewer.common.copyFailed": "Kopieren fehlgeschlagen",
-   "viewer.common.copyLink": "Link kopieren",
-   "viewer.common.clear": "Löschen",
-   "viewer.common.close": "Schließen"
-  },
-  "output": "docs/architektur-grafiken/konfiguration-agent-schleife.html",
-  "quality_profile": "showcase",
-  "legend": {
-   "entries": {
-    "backend": {
-     "label": "Schritt im Zug"
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "boerdi-chat — Konfiguration in der Agent-Schleife: was wo auf das Gespräch wirkt",
+    "locale": "de",
+    "translations": {
+      "page.title": "{title} Diagramm",
+      "diagram.description.architecture": "Ein von Archify erstelltes Architekturdiagramm.",
+      "diagram.description.workflow": "Ein von Archify erstelltes Workflow-Diagramm.",
+      "diagram.description.sequence": "Ein von Archify erstelltes Sequenzdiagramm.",
+      "diagram.description.dataflow": "Ein von Archify erstelltes Datenfluss-Diagramm.",
+      "diagram.description.lifecycle": "Ein von Archify erstelltes Lifecycle-Diagramm.",
+      "node.focus": "{label} fokussieren",
+      "node.focus.detail": "{label} fokussieren, {detail}",
+      "node.context.architecture": "Architekturkomponente",
+      "node.context.workflow": "Workflow-Knoten",
+      "node.context.sequence": "Sequenzteilnehmer",
+      "node.context.dataflow": "Datenfluss-Knoten",
+      "node.context.lifecycle": "Lifecycle-Status",
+      "legend.title": "Legende",
+      "legend.architecture.frontend": "Frontend",
+      "legend.architecture.backend": "Backend",
+      "legend.architecture.database": "Datenbank",
+      "legend.architecture.cloud": "Cloud",
+      "legend.architecture.security": "Sicherheit",
+      "legend.architecture.messagebus": "Nachrichtenbus",
+      "legend.architecture.external": "Extern",
+      "legend.workflow.frontend": "Benutzeroberfläche",
+      "legend.workflow.backend": "Agentenlogik",
+      "legend.workflow.security": "Richtlinie",
+      "legend.workflow.messagebus": "Werkzeugaktion",
+      "legend.workflow.database": "Kontext / Trace",
+      "legend.workflow.cloud": "Cloud-Dienst",
+      "legend.workflow.external": "Externes System",
+      "legend.sequence.emphasis": "Hauptanfrage",
+      "legend.sequence.return": "Rückgabe",
+      "legend.sequence.security": "Sicherheit",
+      "legend.sequence.dashed": "asynchroner Trace",
+      "legend.sequence.default": "Nachricht",
+      "legend.dataflow.emphasis": "Primärdaten",
+      "legend.dataflow.security": "Richtlinie / PII",
+      "legend.dataflow.dashed": "asynchroner Batch",
+      "legend.dataflow.database": "Datenspeicher",
+      "legend.dataflow.default": "Datenfluss",
+      "legend.lifecycle.start": "Startzustand",
+      "legend.lifecycle.active": "aktiv",
+      "legend.lifecycle.waiting": "Wartend",
+      "legend.lifecycle.decision": "Entscheidung",
+      "legend.lifecycle.success": "Erfolg",
+      "legend.lifecycle.failure": "Fehler / Abbruch",
+      "legend.lifecycle.neutral": "neutral",
+      "legend.lifecycle.external": "extern",
+      "legend.lifecycle.final": "Endzustand",
+      "viewer.kind.frontend": "Frontend",
+      "viewer.kind.backend": "Backend",
+      "viewer.kind.database": "Datenbank",
+      "viewer.kind.cloud": "Cloud",
+      "viewer.kind.security": "Sicherheit",
+      "viewer.kind.messagebus": "Nachrichtenbus",
+      "viewer.kind.external": "Extern",
+      "viewer.kind.neutral": "Neutral",
+      "viewer.kind.node": "Knoten",
+      "viewer.kind.start": "Start",
+      "viewer.kind.active": "Aktiv",
+      "viewer.kind.waiting": "Wartend",
+      "viewer.kind.decision": "Entscheidung",
+      "viewer.kind.success": "Erfolg",
+      "viewer.kind.failure": "Fehler",
+      "viewer.toolbar.actions": "Diagrammaktionen",
+      "viewer.theme.toggle.title": "Design wechseln (T)",
+      "viewer.theme.toggle": "Farbdesign wechseln",
+      "viewer.theme.dark": "Dunkel",
+      "viewer.theme.light": "Hell",
+      "viewer.preset.choose.title": "Visuellen Stil wählen (S wechselt durch)",
+      "viewer.preset.choose": "Visuellen Stil wählen",
+      "viewer.preset.style": "Stil",
+      "viewer.preset.menu": "Visueller Stil",
+      "viewer.preset.identity": "Visuelle Identität",
+      "viewer.preset.cycles": "S wechselt durch",
+      "viewer.preset.classic": "Klassisch",
+      "viewer.preset.classic.short": "Klassisch",
+      "viewer.preset.classic.hint": "Stabiler technischer Standard",
+      "viewer.preset.flow": "Signalfluss",
+      "viewer.preset.flow.short": "Fluss",
+      "viewer.preset.flow.hint": "Bewegungsbetonte Präsentation",
+      "viewer.preset.blueprint": "Bauplan",
+      "viewer.preset.blueprint.hint": "Technisches Review",
+      "viewer.preset.editorial": "Editorial",
+      "viewer.preset.editorial.hint": "Für Veröffentlichungen und Launch-Notizen",
+      "viewer.preset.badge.signalFlow": "SIGNALFLUSS",
+      "viewer.preset.badge.blueprint": "BAUPLAN / REV. 01",
+      "viewer.preset.badge.editorial": "EDITORIAL / FELDNOTIZ",
+      "viewer.preset.badge.editorialPlate": "ARCHIFY / TAFEL 04",
+      "viewer.preset.current": "Visueller Stil: {style}. Visuellen Stil wählen",
+      "viewer.motion.live": "Live",
+      "viewer.motion.still": "Statisch",
+      "viewer.motion.pause": "Bewegung pausieren",
+      "viewer.motion.resume": "Bewegung fortsetzen",
+      "viewer.motion.reduced": "Bewegung wegen reduzierter Bewegungseinstellung pausiert",
+      "viewer.motion.hidden": "Bewegung pausiert, während diese Seite ausgeblendet ist",
+      "viewer.motion.yielding": "Bewegung pausieren; derzeit an {owner} abgegeben",
+      "viewer.motion.yielding.title": "Live-Vorschau aktiv · an {owner} abgegeben",
+      "viewer.owner.route": "Routensonde",
+      "viewer.owner.lens": "Semantische Linse",
+      "viewer.owner.relationship": "Beziehungsvorschau",
+      "viewer.owner.intent": "Intent Trace",
+      "viewer.owner.focus": "semantischer Fokus",
+      "viewer.owner.legend": "Legendenvorschau",
+      "viewer.owner.reader": "Leserinteraktion",
+      "viewer.present.enter": "Präsentationsmodus starten",
+      "viewer.present.enter.title": "Präsentationsmodus (F)",
+      "viewer.present.exit": "Präsentationsmodus beenden",
+      "viewer.present.exit.title": "Präsentationsmodus beenden (F oder Escape)",
+      "viewer.present.present": "Präsentieren",
+      "viewer.present.exit.label": "Beenden",
+      "viewer.export.button": "Exportieren",
+      "viewer.export.button.title": "Diagramm exportieren (E)",
+      "viewer.export.diagram": "Diagramm exportieren",
+      "viewer.export.menu": "Exportieren",
+      "viewer.export.subtitle": "Portable, saubere Ausgaben",
+      "viewer.export.share": "Teilen",
+      "viewer.export.shareCard": "Freigabekarte",
+      "viewer.export.routeShareCard": "Routen-Freigabekarte",
+      "viewer.export.reachShareCard": "Reichweiten-Freigabekarte",
+      "viewer.export.copyDiagram": "Diagramm kopieren",
+      "viewer.export.clipboardPng": "PNG in Zwischenablage",
+      "viewer.export.raster": "Rasterbilder",
+      "viewer.export.image": "Bild",
+      "viewer.export.lossless": "Verlustfreies Bild",
+      "viewer.export.compact": "Kompaktes Bild",
+      "viewer.export.modern": "Modernes Bild",
+      "viewer.export.vectorMotion": "Vektor und Bewegung",
+      "viewer.export.vectorMotion.heading": "Vektor & Bewegung",
+      "viewer.export.editable": "Editierbarer Vektor",
+      "viewer.export.motion6s": "6-Sekunden-Bewegung",
+      "viewer.export.unsupported": "Von diesem Browser nicht unterstützt",
+      "viewer.export.clipboardUnsupported": "Bild-Zwischenablage wird von diesem Browser nicht unterstützt",
+      "viewer.export.clipboardUnsupported.short": "Dieser Browser unterstützt keine Bild-Zwischenablage.",
+      "viewer.export.motionUnavailable": "Bewegungsaufnahme in diesem Browser nicht verfügbar",
+      "viewer.export.webmUnavailable": "WebM in diesem Browser nicht verfügbar",
+      "viewer.export.failed": "Export fehlgeschlagen: {message}",
+      "viewer.export.unknownVariant": "Unbekannter Freigabekarten-Typ: {variant}",
+      "viewer.export.routeRequired": "Route verfolgen, bevor eine Routen-Freigabekarte exportiert wird",
+      "viewer.export.reachRequired": "Verfasste Reichweite verfolgen, bevor eine Reichweiten-Freigabekarte exportiert wird",
+      "viewer.export.unknown": "unbekannt",
+      "viewer.export.routeFailed": "Export der Routen-Freigabekarte fehlgeschlagen: {message}",
+      "viewer.export.reachFailed": "Export der Reichweiten-Freigabekarte fehlgeschlagen: {message}",
+      "viewer.export.copyFailed": "Kopieren fehlgeschlagen: {message}",
+      "viewer.export.copiedPng": "PNG in Zwischenablage kopiert",
+      "viewer.export.downloadedRoute": "Routen-Freigabekarte heruntergeladen",
+      "viewer.export.downloadedReach": "Reichweiten-Freigabekarte heruntergeladen",
+      "viewer.export.downloadedWebm": "WebM heruntergeladen",
+      "viewer.export.recording": "6 Sekunden Bewegung werden aufgezeichnet …",
+      "viewer.export.card.routeSummary.one": "Route: {source} → {target} · {count} gerichteter Hop",
+      "viewer.export.card.routeSummary.other": "Route: {source} → {target} · {count} gerichtete Hops",
+      "viewer.export.card.reachSummary": "Verfasst {direction} von {origin} · {nodes} · {links} · max. {hops}",
+      "viewer.export.card.node.one": "{count} Knoten",
+      "viewer.export.card.node.other": "{count} Knoten",
+      "viewer.export.card.link.one": "{count} Verbindung",
+      "viewer.export.card.link.other": "{count} Verbindungen",
+      "viewer.export.card.hop.one": "{count} Hop",
+      "viewer.export.card.hop.other": "{count} Hops",
+      "viewer.export.card.routeBadge": "ARCHIFY · ROUTE · {hops}",
+      "viewer.export.card.reachBadge": "ARCHIFY · {direction} REICHWEITE",
+      "viewer.export.direction.upstream": "Vorgelagert",
+      "viewer.export.direction.downstream": "Nachgelagert",
+      "viewer.export.error.canvasUnavailable": "Canvas für {label} nicht verfügbar",
+      "viewer.export.error.contextUnavailable": "2D-Canvas-Kontext für {label} nicht verfügbar",
+      "viewer.export.error.toBlobUnavailable": "canvas.toBlob für {label} nicht verfügbar",
+      "viewer.export.error.toBlobNull": "canvas.toBlob lieferte keine Daten für {label}",
+      "viewer.export.error.variantsCombined": "Freigabekarten-Typen können nicht kombiniert werden",
+      "viewer.export.error.viewerState": "Beim Export der Freigabekarte konnte der temporäre Viewer-Zustand nicht entfernt werden",
+      "viewer.export.error.routeState": "Beim Export der Routenkarte konnte die aufgelöste Route nicht sicher erhalten werden",
+      "viewer.export.error.reachState": "Beim Export der Reichweitenkarte konnte die verfasste Reichweite nicht sicher erhalten werden",
+      "viewer.export.error.webmRequirements": "Der WebM-Bewegungsexport erfordert eine Trace-Animation und Browser-Unterstützung für MediaRecorder",
+      "viewer.export.error.mediaRecorder": "MediaRecorder fehlgeschlagen",
+      "viewer.export.error.emptyWebm": "MediaRecorder hat ein leeres WebM erzeugt",
+      "viewer.export.error.webmBackground": "SVG-Hintergrund konnte für den WebM-Export nicht geladen werden",
+      "viewer.guide.eyebrow": "Diagrammleitfaden",
+      "viewer.guide.close": "Diagrammleitfaden schließen",
+      "viewer.guide.inspecting": "Kompilierte Semantik wird geprüft",
+      "viewer.guide.actions": "Diagramm-Erkundungsaktionen",
+      "viewer.guide.find": "Beliebigen Knoten finden",
+      "viewer.guide.find.hint": "Labels, Zuständigkeiten, Arten und stabile IDs durchsuchen.",
+      "viewer.guide.route": "Eine Route verfolgen",
+      "viewer.guide.route.aria": "Eine gerichtete Route verfolgen",
+      "viewer.guide.route.hint": "Herausfinden, wie zwei semantische Knoten in verfasster Richtung verbunden sind.",
+      "viewer.guide.map": "Das gesamte System sehen",
+      "viewer.guide.map.hint": "Semantisches Radar mit Live-Ansicht und stabilen Knoten öffnen.",
+      "viewer.guide.lens": "Semantische Arten vergleichen",
+      "viewer.guide.lens.hint": "Rollen zählen, ihren Verkehr sichtbar machen und direkte verfasste Verbindungen vergleichen.",
+      "viewer.guide.present": "Präsentationsmodus starten",
+      "viewer.guide.present.hint": "Dem Live-Diagramm die gesamte Ansicht geben, ohne den Export zu verändern.",
+      "viewer.guide.shortcuts": "Weitere Tastenkombinationen",
+      "viewer.guide.shortcut.export": "Exportieren",
+      "viewer.guide.shortcut.theme": "Design",
+      "viewer.guide.shortcut.style": "Stil",
+      "viewer.guide.shortcut.reset": "Zurücksetzen",
+      "viewer.guide.shortcut.zoomIn": "Vergrößern",
+      "viewer.guide.shortcut.zoomOut": "Verkleinern",
+      "viewer.guide.shortcut.close": "Schließen",
+      "viewer.guide.facts": "{nodes} · {relationships}",
+      "viewer.guide.fact.node.one": "{count} semantischer Knoten",
+      "viewer.guide.fact.node.other": "{count} semantische Knoten",
+      "viewer.guide.fact.relationship.one": "{count} Beziehung",
+      "viewer.guide.fact.relationship.other": "{count} Beziehungen",
+      "viewer.guide.open": "Diagrammleitfaden öffnen",
+      "viewer.finder.title": "Knoten finden",
+      "viewer.finder.close": "Knotensuche schließen",
+      "viewer.finder.placeholder": "Labels oder IDs suchen",
+      "viewer.finder.search": "Diagrammknoten durchsuchen",
+      "viewer.finder.results": "Diagrammknoten",
+      "viewer.finder.empty": "Keine passenden Knoten",
+      "viewer.finder.result.focus": "{label} fokussieren",
+      "viewer.finder.result.routeStart": "{label} als Routenstart wählen",
+      "viewer.finder.result.routeTarget": "{label} als Routenziel wählen, {links}",
+      "viewer.finder.status.empty": "Keine passenden Knoten",
+      "viewer.finder.status.count.one": "{count} passender Knoten",
+      "viewer.finder.status.count.other": "{count} passende Knoten",
+      "viewer.finder.noun.nodes": "Knoten",
+      "viewer.finder.link.one": "{count} Verbindung",
+      "viewer.finder.link.other": "{count} Verbindungen",
+      "viewer.finder.result.focus.one": "{label} fokussieren, {count} zugehörige Verbindung",
+      "viewer.finder.result.focus.other": "{label} fokussieren, {count} zugehörige Verbindungen",
+      "viewer.finder.status.filtered": "{visible} von {available} {noun}",
+      "viewer.finder.status.all": "{available} {noun}",
+      "viewer.passport.eyebrow": "Semantischer Pass",
+      "viewer.passport.metadata": "Knoten-Metadaten",
+      "viewer.passport.evidence": "Verifizierter Quellnachweis",
+      "viewer.passport.verified": "Verifizierte Quelle",
+      "viewer.passport.verificationScope": "Verifiziert gegen lokales Git zur fixierten Revision. Remote-Zugriff wurde nicht geprüft.",
+      "viewer.passport.reach": "Verfasste Reichweite",
+      "viewer.passport.reach.trace": "Verfasste Erreichbarkeit verfolgen",
+      "viewer.passport.upstream": "Vorgelagert",
+      "viewer.passport.downstream": "Nachgelagert",
+      "viewer.passport.upstream.trace": "Vorgelagerte verfasste Erreichbarkeit verfolgen",
+      "viewer.passport.downstream.trace": "Nachgelagerte verfasste Erreichbarkeit verfolgen",
+      "viewer.passport.close": "Semantischen Pass schließen",
+      "viewer.passport.copy": "Link kopieren",
+      "viewer.passport.copy.focus": "Link zum fokussierten Knoten kopieren",
+      "viewer.passport.relations": "Beziehungen",
+      "viewer.passport.relations.show": "Verbundene Beziehungen anzeigen",
+      "viewer.passport.relations.hide": "Verbundene Beziehungen ausblenden",
+      "viewer.passport.relations.list": "Verbundene Beziehungen",
+      "viewer.passport.copyRelation": "Beziehung kopieren",
+      "viewer.passport.copyNode": "Knoten kopieren",
+      "viewer.passport.copyPinned": "Link zur angehefteten Beziehung kopieren",
+      "viewer.passport.copySource": "Link zum Quellknoten kopieren",
+      "viewer.passport.copy.focused.success": "Link des fokussierten Knotens kopiert",
+      "viewer.passport.copy.pinned.success": "Link der angehefteten Beziehung kopiert",
+      "viewer.passport.copy.focused.failed": "Link des fokussierten Knotens konnte nicht kopiert werden",
+      "viewer.passport.copy.pinned.failed": "Link der angehefteten Beziehung konnte nicht kopiert werden",
+      "viewer.passport.relationship.none": "Keine verbundenen Beziehungen",
+      "viewer.passport.relationship.count.one": "{count} Beziehung",
+      "viewer.passport.relationship.count.other": "{count} Beziehungen",
+      "viewer.passport.relationship.show.one": "{count} verbundene Beziehung anzeigen",
+      "viewer.passport.relationship.show.other": "{count} verbundene Beziehungen anzeigen",
+      "viewer.passport.relationship.summary": "{out} ausgehend · {in} eingehend{loops}",
+      "viewer.passport.relationship.loops": " · {count} Selbstschleife",
+      "viewer.passport.relationship.explorer": "Direkter Beziehungs-Explorer",
+      "viewer.passport.relationship.help": "Pfeiltasten zum Erkunden der Beziehungen verwenden. Enter oder Leertaste heftet Details an; Escape hebt die Auswahl auf.",
+      "viewer.passport.relationship.loopsBack": "schleift zurück",
+      "viewer.passport.relationship.connectsTo": "verbindet zu",
+      "viewer.passport.relationship.connectsFrom": "verbindet von",
+      "viewer.passport.relationship.pinned": "Angeheftete Beziehung · {from} → {to} · {label}",
+      "viewer.passport.relationship.inspect": "Beziehung {index} von {total} prüfen: {from} zu {to}, {label}. Enter für Details drücken.",
+      "viewer.passport.relationship.group.out": "Ausgehend",
+      "viewer.passport.relationship.group.in": "Eingehend",
+      "viewer.passport.relationship.group.loop": "Selbstschleifen",
+      "viewer.passport.relationship.row": "{group}: {relationship}, {neighbor}",
+      "viewer.passport.relationship.direction.out": "AUS →",
+      "viewer.passport.relationship.direction.in": "← EIN",
+      "viewer.passport.relationship.direction.loop": "SCHLEIFE",
+      "viewer.passport.sourceCount.one": "{count} verifizierte Quellenreferenz",
+      "viewer.passport.sourceCount.other": "{count} verifizierte Quellenreferenzen",
+      "viewer.passport.sourceMarker": "QUELLE",
+      "viewer.passport.beacon.one": "{count} verifizierte Quelle; diesen Knoten fokussieren, um sie zu prüfen",
+      "viewer.passport.beacon.other": "{count} verifizierte Quellen; diesen Knoten fokussieren, um sie zu prüfen",
+      "viewer.passport.repository.open": "Verifizierte Repository-Revision {revision} öffnen",
+      "viewer.passport.source.open": "Verifizierte Quelle {path} bei Revision {revision} öffnen",
+      "viewer.passport.source.openLink": "Öffnen ↗",
+      "viewer.passport.reach.upstream.one": "{count} vorgelagerten verfassten Knoten verfolgen",
+      "viewer.passport.reach.upstream.other": "{count} vorgelagerte verfasste Knoten verfolgen",
+      "viewer.passport.reach.downstream.one": "{count} nachgelagerten verfassten Knoten verfolgen",
+      "viewer.passport.reach.downstream.other": "{count} nachgelagerte verfasste Knoten verfolgen",
+      "viewer.passport.reach.noUpstream": "Keine vorgelagerten verfassten Knoten",
+      "viewer.passport.reach.noDownstream": "Keine nachgelagerten verfassten Knoten",
+      "viewer.passport.reach.status": "{direction} · {nodes} Knoten · {links} Verbindungen · max. {hops} Hops",
+      "viewer.route.eyebrow": "Routensonde",
+      "viewer.route.start": "Startknoten wählen",
+      "viewer.route.start.find": "Start finden",
+      "viewer.route.start.find.aria": "Einen Routenstart finden",
+      "viewer.route.copy": "Link kopieren",
+      "viewer.route.copy.aria": "Link zur verfolgten Route kopieren",
+      "viewer.route.clear": "Löschen",
+      "viewer.route.clear.aria": "Routensonde löschen",
+      "viewer.route.traced": "Verfolgte Route",
+      "viewer.route.pickTwo": "Zwei semantische Knoten im Diagramm auswählen",
+      "viewer.route.pickOne": "Einen semantischen Knoten im Diagramm auswählen",
+      "viewer.route.controls": "Routen-Verlaufssteuerung",
+      "viewer.route.previous": "Vorherige Routenposition",
+      "viewer.route.play": "Routenverlauf abspielen",
+      "viewer.route.pause": "Routenverlauf pausieren",
+      "viewer.route.replay": "Routenverlauf erneut abspielen",
+      "viewer.route.next": "Nächste Routenposition",
+      "viewer.route.journey": "Verlauf",
+      "viewer.route.pause.label": "Pausieren",
+      "viewer.route.replay.label": "Erneut abspielen",
+      "viewer.route.overview": "Übersicht",
+      "viewer.route.overview.aria": "Vollständige Routenübersicht anzeigen",
+      "viewer.route.instructions": "Quelle wählen, dann das Ziel. Die Richtung ist entscheidend.",
+      "viewer.route.destination": "Ziel ausgehend von {label} wählen",
+      "viewer.route.destination.find": "Ziel finden",
+      "viewer.route.destination.find.aria": "Ein erreichbares Routenziel finden",
+      "viewer.route.differentDestination": "Anderes Ziel wählen",
+      "viewer.route.distinct": "Eine Route benötigt zwei unterschiedliche semantische Knoten.",
+      "viewer.route.unreachable": "Keine gerichtete Route zu {label}",
+      "viewer.route.unreachable.detail": "{target} ist von {source} aus nicht erreichbar. Ein hervorgehobenes Ziel wählen.",
+      "viewer.route.start.instructions": "Quelle auswählen. Im nächsten Schritt werden nur gerichtete Ziele angezeigt.",
+      "viewer.route.copy.success": "Link zur verfolgten Route kopiert",
+      "viewer.route.copy.failed": "Link zur verfolgten Route konnte nicht kopiert werden",
+      "viewer.route.position": "Routenposition {index} von {total}: {label}",
+      "viewer.route.step": "Schritt {index} von {total} · {phase} · {label}",
+      "viewer.route.motionRequired": "Automatischer Verlauf erfordert Live-Bewegung",
+      "viewer.route.trigger.clear": "Verfolgte Route löschen",
+      "viewer.route.overview.status": "{nodes} · {hops} · kürzeste verfasste Route",
+      "viewer.route.overview.node.one": "{count} Knoten",
+      "viewer.route.overview.node.other": "{count} Knoten",
+      "viewer.route.overview.hop.one": "{count} gerichteter Hop",
+      "viewer.route.overview.hop.other": "{count} gerichtete Hops",
+      "viewer.route.phase.playing": "Läuft",
+      "viewer.route.phase.complete": "Abgeschlossen",
+      "viewer.route.phase.inspecting": "Wird geprüft",
+      "viewer.route.destination.count.one": "{count} gerichtetes Ziel verfügbar. Einen hervorgehobenen Knoten wählen.",
+      "viewer.route.destination.count.other": "{count} gerichtete Ziele verfügbar. Einen hervorgehobenen Knoten wählen.",
+      "viewer.route.noOutgoing": "Hier startet keine ausgehende Route. Löschen und eine andere Quelle wählen.",
+      "viewer.route.result.title": "{source} nach {target}",
+      "viewer.route.finder.source.title": "Routenstart wählen",
+      "viewer.route.finder.source.placeholder": "Routenquellen suchen",
+      "viewer.route.finder.source.empty": "Keine passenden Routenquellen",
+      "viewer.route.finder.source.results": "Knoten, die eine Route starten können",
+      "viewer.route.finder.source.noun": "Routenquellen",
+      "viewer.route.finder.source.badge": "Start",
+      "viewer.route.finder.target.title": "Ziel ausgehend von {label}",
+      "viewer.route.finder.target.placeholder": "Erreichbare Ziele suchen",
+      "viewer.route.finder.target.empty": "Keine passenden erreichbaren Ziele",
+      "viewer.route.finder.target.results": "Erreichbare Routenziele",
+      "viewer.route.finder.target.noun": "erreichbare Ziele",
+      "viewer.route.hop.one": "{count} Hop",
+      "viewer.route.hop.other": "{count} Hops",
+      "viewer.lens.eyebrow": "Semantische Linse",
+      "viewer.lens.title": "Systemrollen vergleichen",
+      "viewer.lens.close": "Semantische Linse schließen",
+      "viewer.lens.instruction": "Bis zu zwei semantische Arten wählen. Eine zeigt ihren echten Verkehr; zwei vergleichen nur direkte verfasste Beziehungen.",
+      "viewer.lens.kinds": "Semantische Arten",
+      "viewer.lens.choose": "Eine Art wählen, um ihre Knoten und berührenden Beziehungen zu prüfen.",
+      "viewer.lens.copy": "Link zur semantischen Linse kopieren",
+      "viewer.lens.clear": "Semantische Linse löschen",
+      "viewer.lens.open": "Semantische Linse öffnen",
+      "viewer.lens.openActive": "Aktive semantische Linse öffnen",
+      "viewer.lens.legend": "Semantische Legende",
+      "viewer.lens.legend.inspect.one": "{label} prüfen, {count} Knoten",
+      "viewer.lens.legend.inspect.other": "{label} prüfen, {count} Knoten",
+      "viewer.lens.kind.count.one": "{label}, {count} Knoten",
+      "viewer.lens.kind.count.other": "{label}, {count} Knoten",
+      "viewer.lens.compare.one": "{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direkte Beziehung",
+      "viewer.lens.compare.other": "{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direkte Beziehungen",
+      "viewer.lens.single": "{nodes} · {relationships} · verbundene Nachbarn bleiben sichtbar",
+      "viewer.lens.node.one": "{count} {label}-Knoten",
+      "viewer.lens.node.other": "{count} {label}-Knoten",
+      "viewer.lens.relationship.one": "{count} berührende Beziehung",
+      "viewer.lens.relationship.other": "{count} berührende Beziehungen",
+      "viewer.radar.title": "Semantisches Radar",
+      "viewer.radar.building": "Übersicht wird erstellt",
+      "viewer.radar.openFull": "Vollständiges semantisches Radar öffnen",
+      "viewer.radar.open": "Radar öffnen",
+      "viewer.radar.close": "Semantisches Radar schließen",
+      "viewer.radar.surface": "Diagrammübersicht. Auf einen Knoten klicken, um ihn zu fokussieren, oder mit den Pfeiltasten schwenken.",
+      "viewer.radar.click": "Knoten anklicken",
+      "viewer.radar.drag": "Ziehen zum Schwenken",
+      "viewer.radar.space": "Semantisches Radar benötigt mehr MAP-Platz.",
+      "viewer.radar.nodes": "Semantische Diagramm-Radarknoten",
+      "viewer.radar.focus": "{label} vom semantischen Radar fokussieren",
+      "viewer.radar.status": "{count} Knoten · {viewport}",
+      "viewer.radar.fullMap": "{count} Knoten · vollständige Karte",
+      "viewer.radar.compacted": "Radar verkleinert, um den semantischen Pass oder die MAP-Steuerung nicht zu verdecken.",
+      "viewer.radar.cancelWaiting": "Wartendes semantisches Radar auf mehr MAP-Platz abbrechen",
+      "viewer.radar.needsSpace": "Semantisches Radar benötigt mehr sichtbaren MAP-Platz",
+      "viewer.radar.viewport.full": "vollständige Karte",
+      "viewer.radar.viewport.width": "{percent}% Breite",
+      "viewer.radar.viewport.scale": "{percent}% Ansicht",
+      "viewer.nav.controls": "Diagrammansicht-Steuerung",
+      "viewer.nav.route": "Eine gerichtete Route verfolgen",
+      "viewer.nav.route.title": "Route verfolgen (R)",
+      "viewer.nav.route.short": "PFAD",
+      "viewer.nav.radar": "Semantisches Radar öffnen",
+      "viewer.nav.radar.title": "Semantisches Radar (M)",
+      "viewer.nav.radar.short": "KARTE",
+      "viewer.nav.lens": "Semantische Linse öffnen",
+      "viewer.nav.lens.title": "Semantische Linse (L)",
+      "viewer.nav.lens.short": "LINSE",
+      "viewer.nav.find": "Knoten finden",
+      "viewer.nav.find.title": "Knoten finden (/)",
+      "viewer.nav.guide": "Diagrammleitfaden öffnen",
+      "viewer.nav.guide.title": "Diagrammleitfaden (?)",
+      "viewer.nav.zoomOut": "Verkleinern",
+      "viewer.nav.zoomOut.title": "Verkleinern (-)",
+      "viewer.nav.reset": "Diagrammansicht zurücksetzen",
+      "viewer.nav.reset.title": "Ansicht zurücksetzen (0)",
+      "viewer.nav.read": "LESEN",
+      "viewer.nav.zoomIn": "Vergrößern",
+      "viewer.nav.zoomIn.title": "Vergrößern (+)",
+      "viewer.nav.camera": "{hint}. Diagrammansicht zurücksetzen",
+      "viewer.nav.camera.title": "{semantic}{hint} · Ansicht zurücksetzen (0)",
+      "viewer.nav.camera.semantic": "Semantische Kamera aktiv · ",
+      "viewer.nav.level.map": "KARTE",
+      "viewer.nav.level.read": "LESEN",
+      "viewer.nav.level.full": "VOLL",
+      "viewer.nav.level.auto": "AUTO",
+      "viewer.nav.detail.map": "Vergrößern, um Beziehungslabels und Knotenkontext anzuzeigen",
+      "viewer.nav.detail.read": "Erneut vergrößern, um Tags und Anmerkungen anzuzeigen",
+      "viewer.nav.detail.full": "Vollständige Diagrammdetails",
+      "viewer.intent.summary": "{label}. {out} ausgehend, {in} eingehend{loops}. {total} Verbindungen. Enter für Details drücken.",
+      "viewer.intent.loops": ", {count} Selbstschleife",
+      "viewer.common.copied": "Kopiert",
+      "viewer.common.copyFailed": "Kopieren fehlgeschlagen",
+      "viewer.common.copyLink": "Link kopieren",
+      "viewer.common.clear": "Löschen",
+      "viewer.common.close": "Schließen"
     },
-    "frontend": {
-     "label": "Widget / Einbettung"
+    "output": "docs/architektur-grafiken/konfiguration-agent-schleife.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "entries": {
+        "backend": {
+          "label": "Schritt im Zug"
+        },
+        "frontend": {
+          "label": "Widget / Einbettung"
+        },
+        "database": {
+          "label": "Studio-Bereich"
+        },
+        "security": {
+          "label": "Studio: Sicherheit"
+        },
+        "cloud": {
+          "label": "Betrieb (.env)"
+        },
+        "external": {
+          "label": "Master-Skill"
+        }
+      }
     },
-    "database": {
-     "label": "Studio-Bereich"
-    },
-    "security": {
-     "label": "Studio: Sicherheit"
-    },
-    "cloud": {
-     "label": "Betrieb (.env)"
-    },
-    "external": {
-     "label": "Master-Skill"
+    "repository": {
+      "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "2a589a6e5014ede17e947407a01e82f7cef0e500"
     }
-   }
   },
-  "repository": {
-   "url": "https://github.com/janschachtschabel/edu-chatbot-sc",
-   "provider": "github",
-   "link_mode": "web",
-   "revision": "dde13d3d73498f540586e53201be8cc4b27acc41"
-  }
- },
- "components": [
-  {
-   "id": "s0",
-   "type": "frontend",
-   "label": "Widget-Start",
-   "sublabel": "vor dem ersten Zug",
-   "pos": [
-    40,
-    500
-   ],
-   "size": [
-    200,
-    64
-   ],
-   "sources": [
+  "components": [
     {
-     "path": "backend/src/boerdi/api/config.py",
-     "line": 279,
-     "end_line": 285,
-     "label": "Start-Abruf"
+      "id": "s0",
+      "type": "frontend",
+      "label": "Widget-Start",
+      "sublabel": "vor dem ersten Zug",
+      "pos": [
+        40,
+        500
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/api/config.py",
+          "line": 279,
+          "end_line": 285,
+          "label": "Start-Abruf"
+        },
+        {
+          "path": "frontend/projects/ui/src/widget/guide-boot.ts",
+          "line": 95,
+          "label": "fetch im Widget"
+        }
+      ]
     },
     {
-     "path": "frontend/projects/ui/src/widget/guide-boot.ts",
-     "line": 95,
-     "label": "fetch im Widget"
+      "id": "s1",
+      "type": "backend",
+      "label": "Vorlauf",
+      "sublabel": "Maschine · Tour · Kontext · Limits",
+      "pos": [
+        330,
+        500
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/api/chat.py",
+          "line": 115,
+          "label": "Maschine wählen"
+        },
+        {
+          "path": "backend/src/boerdi/graph/build.py",
+          "line": 172,
+          "end_line": 177,
+          "label": "setup … preflight"
+        },
+        {
+          "path": "backend/src/boerdi/graph/build.py",
+          "line": 119,
+          "end_line": 132,
+          "label": "Kurzwege"
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "type": "backend",
+      "label": "Prüfung & Weiche",
+      "sublabel": "Sicherheit, kein Klassifikator",
+      "pos": [
+        620,
+        500
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/graph/nodes/assess.py",
+          "line": 122,
+          "end_line": 123,
+          "label": "Intent fest I01"
+        },
+        {
+          "path": "backend/src/boerdi/services/engine_choice.py",
+          "line": 61,
+          "end_line": 77,
+          "label": "Krise → Muster-Weg"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/route.py",
+          "line": 169,
+          "end_line": 175,
+          "label": "Agent-Muster"
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "type": "backend",
+      "label": "Agent-Kopf",
+      "sublabel": "Systemteil vor der ersten Runde",
+      "pos": [
+        910,
+        500
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
+          "line": 184,
+          "end_line": 229,
+          "label": "Systemblöcke"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
+          "line": 242,
+          "end_line": 275,
+          "label": "Verlauf + Nachricht"
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "type": "backend",
+      "label": "Agent-Schleife",
+      "sublabel": "LLM-Runden mit Werkzeugen",
+      "pos": [
+        1200,
+        500
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
+          "line": 317,
+          "end_line": 336,
+          "label": "run_agent_loop"
+        },
+        {
+          "path": "backend/src/boerdi/services/agent_tools.py",
+          "line": 213,
+          "end_line": 226,
+          "label": "Werkzeug-Katalog"
+        },
+        {
+          "path": "backend/src/boerdi/services/agent_loop.py",
+          "line": 306,
+          "end_line": 314,
+          "label": "Grenzen je Runde"
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "type": "backend",
+      "label": "Zusammenbau",
+      "sublabel": "Karten · Vorschläge · Speichern",
+      "pos": [
+        1480,
+        500
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/graph/nodes/assemble.py",
+          "line": 39,
+          "end_line": 46,
+          "label": "Host-Chips"
+        },
+        {
+          "path": "backend/src/boerdi/services/turn_assembly.py",
+          "line": 200,
+          "end_line": 257,
+          "label": "Schnellantworten"
+        },
+        {
+          "path": "backend/src/boerdi/services/turn_persist.py",
+          "line": 519,
+          "end_line": 536,
+          "label": "Deckel"
+        }
+      ]
+    },
+    {
+      "id": "begruessung",
+      "type": "database",
+      "label": "Begrüßung",
+      "sublabel": "Gruß · Startchips · Tour-Chip",
+      "pos": [
+        195,
+        370
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/seeds/01-base/welcome-config.yaml",
+          "line": 17,
+          "end_line": 27,
+          "label": "welcome-config"
+        },
+        {
+          "path": "backend/src/boerdi/services/config_loader/widget.py",
+          "line": 95,
+          "end_line": 96,
+          "label": "Lader"
+        },
+        {
+          "path": "backend/src/boerdi/api/config.py",
+          "line": 285,
+          "label": "an das Widget"
+        }
+      ]
+    },
+    {
+      "id": "tour",
+      "type": "database",
+      "label": "Tour & Kontext",
+      "sublabel": "Antwort ohne LLM, Zug endet",
+      "pos": [
+        195,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/seeds/01-base/website-tour.yaml",
+          "line": 39,
+          "end_line": 40,
+          "label": "website-tour"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/tour.py",
+          "line": 204,
+          "end_line": 210,
+          "label": "Tour-Antwort"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/context_greeting.py",
+          "line": 414,
+          "end_line": 428,
+          "label": "context-actions"
+        }
+      ]
+    },
+    {
+      "id": "betriebsart",
+      "type": "database",
+      "label": "Betriebsart",
+      "sublabel": "mode: agent oder Kopfzeile",
+      "pos": [
+        195,
+        150
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/seeds/01-base/engine.yaml",
+          "line": 17,
+          "label": "mode"
+        },
+        {
+          "path": "backend/src/boerdi/domain/config_models/engine.py",
+          "line": 198,
+          "label": "pattern | agent"
+        },
+        {
+          "path": "backend/src/boerdi/services/engine_choice.py",
+          "line": 80,
+          "end_line": 103,
+          "label": "Kopfzeile vor Bereich"
+        }
+      ]
+    },
+    {
+      "id": "datenschutz",
+      "type": "database",
+      "label": "Datenschutz",
+      "sublabel": "kein Verlauf · Löschen nach 30 Tagen",
+      "pos": [
+        485,
+        370
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/seeds/01-base/privacy-config.yaml",
+          "line": 5,
+          "end_line": 17,
+          "label": "Schalter + 30 Tage"
+        },
+        {
+          "path": "backend/src/boerdi/services/db_sessions.py",
+          "line": 114,
+          "end_line": 119,
+          "label": "messages-Schalter"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/setup.py",
+          "line": 87,
+          "label": "Verlauf laden"
+        }
+      ]
+    },
+    {
+      "id": "sicherheit",
+      "type": "security",
+      "label": "Sicherheit",
+      "sublabel": "Krise/Drohung → Muster-Weg",
+      "pos": [
+        485,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/seeds/01-base/safety-config.yaml",
+          "line": 21,
+          "end_line": 27,
+          "label": "safety-config"
+        },
+        {
+          "path": "backend/src/boerdi/services/safety/service.py",
+          "line": 126,
+          "end_line": 141,
+          "label": "Moderation"
+        },
+        {
+          "path": "backend/src/boerdi/services/engine_choice.py",
+          "line": 61,
+          "end_line": 77,
+          "label": "Weiche"
+        }
+      ]
+    },
+    {
+      "id": "richtlinien",
+      "type": "security",
+      "label": "Richtlinien",
+      "sublabel": "Werkzeugsperre · Hinweistext",
+      "pos": [
+        485,
+        150
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/seeds/01-base/policy.yaml",
+          "line": 13,
+          "end_line": 31,
+          "label": "policy"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/route.py",
+          "line": 120,
+          "end_line": 132,
+          "label": "in route"
+        },
+        {
+          "path": "backend/src/boerdi/services/agent_tools.py",
+          "line": 113,
+          "end_line": 115,
+          "label": "aus dem Katalog"
+        }
+      ]
+    },
+    {
+      "id": "rolle",
+      "type": "database",
+      "label": "Rolle & Schutzregeln",
+      "sublabel": "Rolle · 4 Schutzregeln",
+      "pos": [
+        775,
+        370
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/domain/config_models/engine.py",
+          "line": 150,
+          "end_line": 166,
+          "label": "agent_rolle"
+        },
+        {
+          "path": "backend/src/boerdi/services/agent_kopf.py",
+          "line": 135,
+          "end_line": 141,
+          "label": "Kopf"
+        },
+        {
+          "path": "backend/seeds/01-base/guardrails.md",
+          "line": 19,
+          "end_line": 29,
+          "label": "R-05 … R-15"
+        }
+      ]
+    },
+    {
+      "id": "anrede",
+      "type": "database",
+      "label": "Anrede je Persona",
+      "sublabel": "duzen · siezen · wie die Person",
+      "pos": [
+        775,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/services/agent_kopf.py",
+          "line": 66,
+          "end_line": 72,
+          "label": "_anrede"
+        },
+        {
+          "path": "backend/seeds/04-personas/leh.md",
+          "line": 8,
+          "label": "formality"
+        },
+        {
+          "path": "backend/seeds/01-base/device-config.yaml",
+          "line": 15,
+          "end_line": 21,
+          "label": "Rückfall"
+        }
+      ]
+    },
+    {
+      "id": "grenzen",
+      "type": "database",
+      "label": "Agent-Grenzen",
+      "sublabel": "30 Runden · 900 s · 900k Token",
+      "pos": [
+        1065,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/domain/config_models/engine.py",
+          "line": 57,
+          "end_line": 59,
+          "label": "Vorgaben"
+        },
+        {
+          "path": "backend/src/boerdi/domain/config_models/engine.py",
+          "line": 103,
+          "end_line": 108,
+          "label": "Felder"
+        },
+        {
+          "path": "backend/src/boerdi/services/agent_deckel.py",
+          "line": 23,
+          "end_line": 39,
+          "label": "anonym enger"
+        }
+      ]
+    },
+    {
+      "id": "schreiben",
+      "type": "database",
+      "label": "Schreibmodus",
+      "sublabel": "propose: Vorschau, „ja“ löst ein",
+      "pos": [
+        1065,
+        150
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/domain/config_models/engine.py",
+          "line": 110,
+          "end_line": 114,
+          "label": "write_mode"
+        },
+        {
+          "path": "backend/src/boerdi/services/agent_write.py",
+          "line": 56,
+          "end_line": 77,
+          "label": "execute braucht Person"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/preflight.py",
+          "line": 137,
+          "end_line": 141,
+          "label": "Abnahme im Folgezug"
+        }
+      ]
+    },
+    {
+      "id": "anzeige",
+      "type": "database",
+      "label": "Anzeige-Regeln",
+      "sublabel": "Chips · Dokument-Box",
+      "pos": [
+        1355,
+        370
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/seeds/01-base/display-rules.yaml",
+          "line": 43,
+          "end_line": 49,
+          "label": "quick_replies"
+        },
+        {
+          "path": "backend/src/boerdi/domain/quick_reply_policy.py",
+          "line": 135,
+          "end_line": 150,
+          "label": "Anzahl"
+        },
+        {
+          "path": "backend/src/boerdi/services/turn_persist.py",
+          "line": 519,
+          "end_line": 536,
+          "label": "Deckel"
+        }
+      ]
+    },
+    {
+      "id": "guide",
+      "type": "database",
+      "label": "Guide-Modus",
+      "sublabel": "„Bring mich hin“-Chips",
+      "pos": [
+        1355,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/seeds/01-base/guide-mode.yaml",
+          "line": 6,
+          "end_line": 9,
+          "label": "guide-mode"
+        },
+        {
+          "path": "backend/src/boerdi/services/guide_markers.py",
+          "line": 65,
+          "end_line": 73,
+          "label": "Host-Prüfung"
+        },
+        {
+          "path": "backend/src/boerdi/services/guide_qr_injector.py",
+          "line": 268,
+          "end_line": 296,
+          "label": "Regeln ohne Neustart"
+        }
+      ]
+    },
+    {
+      "id": "wissen",
+      "type": "database",
+      "label": "Wissensbereiche (RAG)",
+      "sublabel": "ein Such-Werkzeug, agent: true",
+      "pos": [
+        1355,
+        150
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/seeds/05-knowledge/rag-config.yaml",
+          "line": 12,
+          "end_line": 15,
+          "label": "agent-Schalter"
+        },
+        {
+          "path": "backend/src/boerdi/services/agent_knowledge.py",
+          "line": 115,
+          "end_line": 123,
+          "label": "wissen_suchen"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
+          "line": 299,
+          "end_line": 305,
+          "label": "Werkzeug + Regel"
+        }
+      ]
+    },
+    {
+      "id": "seite",
+      "type": "frontend",
+      "label": "Seite & Seitenkontext",
+      "sublabel": "Seitenblock · Skill-Vorabruf",
+      "pos": [
+        775,
+        630
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/api/schemas.py",
+          "line": 176,
+          "label": "page_context"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
+          "line": 216,
+          "end_line": 224,
+          "label": "Seitenblock"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
+          "line": 263,
+          "end_line": 267,
+          "label": "Vorabruf"
+        }
+      ]
+    },
+    {
+      "id": "hosttext",
+      "type": "frontend",
+      "label": "Host-Text & Rechte",
+      "sublabel": "host_instruction · tool_mode",
+      "pos": [
+        775,
+        740
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/api/schemas.py",
+          "line": 238,
+          "label": "host_instruction"
+        },
+        {
+          "path": "backend/src/boerdi/api/schemas.py",
+          "line": 262,
+          "label": "tool_mode"
+        },
+        {
+          "path": "backend/src/boerdi/domain/host_capabilities.py",
+          "line": 96,
+          "end_line": 119,
+          "label": "Werkzeug-Rechte"
+        }
+      ]
+    },
+    {
+      "id": "masterskill",
+      "type": "external",
+      "label": "Master-Skill",
+      "sublabel": "Anleitung aus edu-sharing",
+      "pos": [
+        775,
+        850
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/settings.py",
+          "line": 77,
+          "end_line": 92,
+          "label": "MASTER_SKILL_*"
+        },
+        {
+          "path": "backend/src/boerdi/services/master_skill.py",
+          "line": 118,
+          "end_line": 126,
+          "label": "Attribut vor .env"
+        },
+        {
+          "path": "backend/src/boerdi/services/master_skill.py",
+          "line": 236,
+          "end_line": 248,
+          "label": "get_skill per MCP"
+        }
+      ]
+    },
+    {
+      "id": "mcp",
+      "type": "cloud",
+      "label": "MCP-Adresse & Token",
+      "sublabel": "Dienstkonto liest nur",
+      "pos": [
+        1065,
+        630
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/settings.py",
+          "line": 203,
+          "end_line": 210,
+          "label": "MCP_SERVER_URL"
+        },
+        {
+          "path": "backend/src/boerdi/settings.py",
+          "line": 215,
+          "end_line": 221,
+          "label": "MCP_AUTH_TOKEN"
+        },
+        {
+          "path": "backend/src/boerdi/services/schreibrecht.py",
+          "line": 24,
+          "end_line": 30,
+          "label": "Dienstkonto schreibt nur mit Gastkonto"
+        }
+      ]
+    },
+    {
+      "id": "ticket",
+      "type": "frontend",
+      "label": "Persönliches Ticket",
+      "sublabel": "schaltet Schreiben frei",
+      "pos": [
+        1065,
+        740
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/api/turn_auth.py",
+          "line": 32,
+          "label": "WLO-Access-Block"
+        },
+        {
+          "path": "backend/src/boerdi/services/mcp/auth.py",
+          "line": 215,
+          "end_line": 236,
+          "label": "angemeldete Person"
+        },
+        {
+          "path": "backend/src/boerdi/services/schreibrecht.py",
+          "line": 24,
+          "end_line": 30,
+          "label": "Schreibrecht"
+        }
+      ]
+    },
+    {
+      "id": "ergebnis",
+      "type": "frontend",
+      "label": "Ergebnis-Schema",
+      "sublabel": "liefere_ergebnis (JSON)",
+      "pos": [
+        1065,
+        850
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/api/schemas.py",
+          "line": 210,
+          "label": "result_schema"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
+          "line": 283,
+          "end_line": 292,
+          "label": "Satz im Systemteil"
+        },
+        {
+          "path": "backend/src/boerdi/services/agent_tools.py",
+          "line": 222,
+          "end_line": 223,
+          "label": "Werkzeug"
+        }
+      ]
+    },
+    {
+      "id": "hostchips",
+      "type": "frontend",
+      "label": "Host-Chips & Guide",
+      "sublabel": "forced_quick_replies · host",
+      "pos": [
+        1355,
+        630
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/api/schemas.py",
+          "line": 266,
+          "end_line": 271,
+          "label": "forced_quick_replies"
+        },
+        {
+          "path": "backend/src/boerdi/services/turn_assembly.py",
+          "line": 217,
+          "end_line": 257,
+          "label": "ersetzen oder mischen"
+        },
+        {
+          "path": "backend/src/boerdi/services/guide_markers.py",
+          "line": 65,
+          "end_line": 68,
+          "label": "guide_mode + host"
+        }
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "cloud",
+      "label": "LLM-Modell & Route",
+      "sublabel": "Modell · Route · Reasoning",
+      "pos": [
+        1355,
+        740
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/src/boerdi/settings.py",
+          "line": 103,
+          "label": "LLM_*"
+        },
+        {
+          "path": "backend/src/boerdi/services/llm_router.py",
+          "line": 19,
+          "end_line": 30,
+          "label": "B_API_ROUTE"
+        },
+        {
+          "path": "backend/src/boerdi/services/llm.py",
+          "line": 125,
+          "label": "Reasoning"
+        }
+      ]
+    },
+    {
+      "id": "werkzeuge",
+      "type": "database",
+      "label": "Werkzeuge & MCP-Server",
+      "sublabel": "Haken je Werkzeug · fremde lesend",
+      "pos": [
+        1065,
+        370
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/seeds/05-knowledge/mcp-servers.yaml",
+          "line": 29,
+          "end_line": 32,
+          "label": "werkzeuge_aus"
+        },
+        {
+          "path": "backend/src/boerdi/domain/werkzeug_freigabe.py",
+          "line": 1,
+          "end_line": 8,
+          "label": "verbergen"
+        },
+        {
+          "path": "backend/src/boerdi/domain/fremdwerkzeug.py",
+          "line": 1,
+          "end_line": 16,
+          "label": "fremde nur lesend"
+        }
+      ]
+    },
+    {
+      "id": "betrieb",
+      "type": "database",
+      "label": "Betriebsschalter",
+      "sublabel": "Fast · Streaming · Chips · Gastkonto",
+      "pos": [
+        1355,
+        40
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/seeds/01-base/engine.yaml",
+          "line": 65,
+          "end_line": 86,
+          "label": "betrieb"
+        },
+        {
+          "path": "backend/src/boerdi/services/betriebsschalter.py",
+          "line": 21,
+          "end_line": 52,
+          "label": "Umgebung geht vor"
+        },
+        {
+          "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
+          "line": 101,
+          "end_line": 114,
+          "label": "Agent-Schnellantworten"
+        }
+      ]
     }
-   ]
-  },
-  {
-   "id": "s1",
-   "type": "backend",
-   "label": "Vorlauf",
-   "sublabel": "Maschine · Tour · Kontext · Limits",
-   "pos": [
-    330,
-    500
-   ],
-   "size": [
-    200,
-    64
-   ],
-   "sources": [
+  ],
+  "boundaries": [
     {
-     "path": "backend/src/boerdi/api/chat.py",
-     "line": 113,
-     "label": "Maschine wählen"
+      "kind": "region",
+      "label": "Studio-Bereiche",
+      "wraps": [
+        "begruessung",
+        "tour",
+        "betriebsart",
+        "datenschutz",
+        "sicherheit",
+        "richtlinien",
+        "rolle",
+        "anrede",
+        "grenzen",
+        "schreiben",
+        "anzeige",
+        "guide",
+        "wissen",
+        "werkzeuge",
+        "betrieb"
+      ]
     },
     {
-     "path": "backend/src/boerdi/graph/build.py",
-     "line": 172,
-     "end_line": 177,
-     "label": "setup … preflight"
-    },
-    {
-     "path": "backend/src/boerdi/graph/build.py",
-     "line": 119,
-     "end_line": 132,
-     "label": "Kurzwege"
+      "kind": "region",
+      "label": "Außerhalb des Studios",
+      "wraps": [
+        "seite",
+        "hosttext",
+        "masterskill",
+        "mcp",
+        "ticket",
+        "ergebnis",
+        "hostchips",
+        "llm"
+      ]
     }
-   ]
-  },
-  {
-   "id": "s2",
-   "type": "backend",
-   "label": "Prüfung & Weiche",
-   "sublabel": "Sicherheit, kein Klassifikator",
-   "pos": [
-    620,
-    500
-   ],
-   "size": [
-    200,
-    64
-   ],
-   "sources": [
+  ],
+  "connections": [
     {
-     "path": "backend/src/boerdi/graph/nodes/assess.py",
-     "line": 122,
-     "end_line": 123,
-     "label": "Intent fest I01"
+      "id": "m0",
+      "from": "s0",
+      "to": "s1",
+      "label": "Frage",
+      "variant": "emphasis"
     },
     {
-     "path": "backend/src/boerdi/services/engine_choice.py",
-     "line": 61,
-     "end_line": 77,
-     "label": "Krise → Muster-Weg"
+      "id": "m1",
+      "from": "s1",
+      "to": "s2",
+      "variant": "emphasis"
     },
     {
-     "path": "backend/src/boerdi/graph/nodes/route.py",
-     "line": 169,
-     "end_line": 175,
-     "label": "Agent-Muster"
+      "id": "m2",
+      "from": "s2",
+      "to": "s3",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m3",
+      "from": "s3",
+      "to": "s4",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m4",
+      "from": "s4",
+      "to": "s5",
+      "variant": "emphasis"
+    },
+    {
+      "id": "s0-ob3-begruessung",
+      "from": "begruessung",
+      "to": "s0",
+      "fromSide": "left",
+      "toSide": "top"
+    },
+    {
+      "id": "s1-oa2-tour",
+      "from": "tour",
+      "to": "s1",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "s1-oa3-betriebsart",
+      "from": "betriebsart",
+      "to": "s1",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "s1-ob3-datenschutz",
+      "from": "datenschutz",
+      "to": "s1",
+      "fromSide": "left",
+      "toSide": "top"
+    },
+    {
+      "id": "s2-oa2-sicherheit",
+      "from": "sicherheit",
+      "to": "s2",
+      "fromSide": "right",
+      "toSide": "top",
+      "variant": "security"
+    },
+    {
+      "id": "s2-oa3-richtlinien",
+      "from": "richtlinien",
+      "to": "s2",
+      "fromSide": "right",
+      "toSide": "top",
+      "variant": "security"
+    },
+    {
+      "id": "s3-oa1-rolle",
+      "from": "rolle",
+      "to": "s3",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "s3-oa2-anrede",
+      "from": "anrede",
+      "to": "s3",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "s4-oa1-grenzen",
+      "from": "grenzen",
+      "to": "s4",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "s4-oa2-schreiben",
+      "from": "schreiben",
+      "to": "s4",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "s5-oa1-anzeige",
+      "from": "anzeige",
+      "to": "s5",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "s5-oa2-guide",
+      "from": "guide",
+      "to": "s5",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "s4-ob1-wissen",
+      "from": "wissen",
+      "to": "s4",
+      "fromSide": "left",
+      "toSide": "top"
+    },
+    {
+      "id": "s3-ua1-seite",
+      "from": "seite",
+      "to": "s3",
+      "fromSide": "right",
+      "toSide": "bottom"
+    },
+    {
+      "id": "s3-ua2-hosttext",
+      "from": "hosttext",
+      "to": "s3",
+      "fromSide": "right",
+      "toSide": "bottom"
+    },
+    {
+      "id": "s3-ua3-masterskill",
+      "from": "masterskill",
+      "to": "s3",
+      "fromSide": "right",
+      "toSide": "bottom"
+    },
+    {
+      "id": "s4-ua1-mcp",
+      "from": "mcp",
+      "to": "s4",
+      "fromSide": "right",
+      "toSide": "bottom"
+    },
+    {
+      "id": "s4-ua2-ticket",
+      "from": "ticket",
+      "to": "s4",
+      "fromSide": "right",
+      "toSide": "bottom"
+    },
+    {
+      "id": "s4-ua3-ergebnis",
+      "from": "ergebnis",
+      "to": "s4",
+      "fromSide": "right",
+      "toSide": "bottom"
+    },
+    {
+      "id": "s5-ua1-hostchips",
+      "from": "hostchips",
+      "to": "s5",
+      "fromSide": "right",
+      "toSide": "bottom"
+    },
+    {
+      "id": "s4-ub2-llm",
+      "from": "llm",
+      "to": "s4",
+      "fromSide": "left",
+      "toSide": "bottom"
+    },
+    {
+      "id": "s4-oa0-werkzeuge",
+      "from": "werkzeuge",
+      "to": "s4",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "s4-ob0-betrieb",
+      "from": "betrieb",
+      "to": "s4",
+      "fromSide": "left",
+      "toSide": "top"
     }
-   ]
-  },
-  {
-   "id": "s3",
-   "type": "backend",
-   "label": "Agent-Kopf",
-   "sublabel": "Systemteil vor der ersten Runde",
-   "pos": [
-    910,
-    500
-   ],
-   "size": [
-    200,
-    64
-   ],
-   "sources": [
+  ],
+  "cards": [
     {
-     "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 184,
-     "end_line": 229,
-     "label": "Systemblöcke"
+      "dot": "cyan",
+      "title": "Lesehilfe",
+      "items": [
+        "Mitte: die Schritte eines Zuges; ein Pfeil führt von der Einstellung zum Schritt, in dem sie wirkt",
+        "Oben: Studio-Bereiche in Postgres – alle wirken ohne Neustart, auch die Lotsen-Regeln",
+        "Unten: Umgebungsvariablen (Neustart; gesetzt gehen sie dem Studio-Schalter vor), Attribute der Einbettung (je Anfrage) und der Master-Skill"
+      ]
     },
     {
-     "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 242,
-     "end_line": 275,
-     "label": "Verlauf + Nachricht"
+      "dot": "violet",
+      "title": "Wo im Studio",
+      "items": [
+        "Agent › Rolle & Schutz: Rolle, Schutzregeln, Grenzen, Schreibmodus, Sicherheit, Richtlinien",
+        "Gemeinsam: Begrüßung · Tour & Lotse · Zielgruppen (Anrede) · Wissen · Werkzeuge · Skills (Master-Skill lesend) · Anzeige · Datenschutz",
+        "System › Betrieb: Betriebsart und Betriebsschalter"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Was nur hier wirkt",
+      "items": [
+        "Rolle und Schutzregeln R-05, R-08, R-13, R-15; die Anrede aus den Personas",
+        "Master-Skill: MASTER_SKILL_ENABLED (Vorgabe aus) oder Attribut master_skill, per MCP geholt, 5 Minuten gepuffert",
+        "Grenzen je Lauf; ohne Anmeldung gelten die anonymen, wenn sie enger sind",
+        "Schreibwerkzeuge nur mit persönlicher Anmeldung oder Gastkonto-Schalter; propose zeigt eine Vorschau, ein „ja“ im Folgezug löst sie ein; execute braucht die Person",
+        "Lesende Werkzeuge weiterer MCP-Server stehen im Katalog (Muster-Weg: nur wenn ein Muster sie nennt)"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Betriebsschalter",
+      "items": [
+        "Fast-Modus (Vorgabe aus), Token-Streaming und Agent-Schnellantworten (Vorgabe an), Gastkonto schreibt (Vorgabe aus)",
+        "Gesetzt gehen LLM_SERVICE_TIER, CHAT_TOKEN_STREAMING und AGENT_INLINE_QUICK_REPLIES vor; das Gastkonto gibt es nur im Studio",
+        "Ohne Agent-Schnellantworten schreibt ein eigener Aufruf die Vorschläge, und nichts wird gestreamt",
+        "b-api: B_API_ROUTE schickt das Chat-Modell über eine Route des Routers (Vorgabe leer); B_API_KEY_MODE bestimmt den Schlüssel des Zuges – auto: Authorization vom Proxy, sonst B_API_KEY"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Was hier nicht wirkt",
+      "items": [
+        "Klassifikator samt Intents, Zuständen, Signalen und Klassifikator-Regeln (Intent fest I01)",
+        "Musterwahl, Werkzeuglisten der Muster, Persona-Ton, Basis-Persona, Domänen-Regeln und die Skill-Brücke",
+        "RAG-mode und Vorabruf: der Agent sucht selbst über ein Wissens-Werkzeug",
+        "Ausnahme: Krise und Drohung (M01/M02) laufen immer über den Muster-Weg"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Fest im Code",
+      "items": [
+        "Verlauf: die letzten 10 Nachrichten, zusammen höchstens 9000 Zeichen",
+        "„Zuletzt gezeigt“: bis 3 Dokumente und 10 Materialien aus den letzten 3 Antworten",
+        "Höchstens 3 Dokumente je Zug; Temperatur 0,4"
+      ]
     }
-   ]
-  },
-  {
-   "id": "s4",
-   "type": "backend",
-   "label": "Agent-Schleife",
-   "sublabel": "LLM-Runden mit Werkzeugen",
-   "pos": [
-    1200,
-    500
-   ],
-   "size": [
-    200,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 317,
-     "end_line": 336,
-     "label": "run_agent_loop"
-    },
-    {
-     "path": "backend/src/boerdi/services/agent_tools.py",
-     "line": 213,
-     "end_line": 226,
-     "label": "Werkzeug-Katalog"
-    },
-    {
-     "path": "backend/src/boerdi/services/agent_loop.py",
-     "line": 306,
-     "end_line": 314,
-     "label": "Grenzen je Runde"
-    }
-   ]
-  },
-  {
-   "id": "s5",
-   "type": "backend",
-   "label": "Zusammenbau",
-   "sublabel": "Karten · Vorschläge · Speichern",
-   "pos": [
-    1480,
-    500
-   ],
-   "size": [
-    200,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/graph/nodes/assemble.py",
-     "line": 39,
-     "end_line": 46,
-     "label": "Host-Chips"
-    },
-    {
-     "path": "backend/src/boerdi/services/turn_assembly.py",
-     "line": 200,
-     "end_line": 257,
-     "label": "Schnellantworten"
-    },
-    {
-     "path": "backend/src/boerdi/services/turn_persist.py",
-     "line": 519,
-     "end_line": 536,
-     "label": "Deckel"
-    }
-   ]
-  },
-  {
-   "id": "begruessung",
-   "type": "database",
-   "label": "Begrüßung",
-   "sublabel": "Gruß · Startchips · Tour-Chip",
-   "pos": [
-    195,
-    370
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/seeds/01-base/welcome-config.yaml",
-     "line": 17,
-     "end_line": 27,
-     "label": "welcome-config"
-    },
-    {
-     "path": "backend/src/boerdi/services/config_loader/widget.py",
-     "line": 95,
-     "end_line": 96,
-     "label": "Lader"
-    },
-    {
-     "path": "backend/src/boerdi/api/config.py",
-     "line": 285,
-     "label": "an das Widget"
-    }
-   ]
-  },
-  {
-   "id": "tour",
-   "type": "database",
-   "label": "Tour & Kontext",
-   "sublabel": "Antwort ohne LLM, Zug endet",
-   "pos": [
-    195,
-    260
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/seeds/01-base/website-tour.yaml",
-     "line": 39,
-     "end_line": 40,
-     "label": "website-tour"
-    },
-    {
-     "path": "backend/src/boerdi/graph/nodes/tour.py",
-     "line": 204,
-     "end_line": 210,
-     "label": "Tour-Antwort"
-    },
-    {
-     "path": "backend/src/boerdi/graph/nodes/context_greeting.py",
-     "line": 414,
-     "end_line": 428,
-     "label": "context-actions"
-    }
-   ]
-  },
-  {
-   "id": "betriebsart",
-   "type": "database",
-   "label": "Betriebsart",
-   "sublabel": "mode: agent oder Kopfzeile",
-   "pos": [
-    195,
-    150
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/seeds/01-base/engine.yaml",
-     "line": 17,
-     "label": "mode"
-    },
-    {
-     "path": "backend/src/boerdi/domain/config_models/engine.py",
-     "line": 198,
-     "label": "pattern | agent"
-    },
-    {
-     "path": "backend/src/boerdi/services/engine_choice.py",
-     "line": 80,
-     "end_line": 103,
-     "label": "Kopfzeile vor Bereich"
-    }
-   ]
-  },
-  {
-   "id": "datenschutz",
-   "type": "database",
-   "label": "Datenschutz",
-   "sublabel": "kein Verlauf · Löschen nach 30 Tagen",
-   "pos": [
-    485,
-    370
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/seeds/01-base/privacy-config.yaml",
-     "line": 5,
-     "end_line": 17,
-     "label": "Schalter + 30 Tage"
-    },
-    {
-     "path": "backend/src/boerdi/services/db_sessions.py",
-     "line": 114,
-     "end_line": 119,
-     "label": "messages-Schalter"
-    },
-    {
-     "path": "backend/src/boerdi/graph/nodes/setup.py",
-     "line": 87,
-     "label": "Verlauf laden"
-    }
-   ]
-  },
-  {
-   "id": "sicherheit",
-   "type": "security",
-   "label": "Sicherheit",
-   "sublabel": "Krise/Drohung → Muster-Weg",
-   "pos": [
-    485,
-    260
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/seeds/01-base/safety-config.yaml",
-     "line": 21,
-     "end_line": 27,
-     "label": "safety-config"
-    },
-    {
-     "path": "backend/src/boerdi/services/safety/service.py",
-     "line": 126,
-     "end_line": 141,
-     "label": "Moderation"
-    },
-    {
-     "path": "backend/src/boerdi/services/engine_choice.py",
-     "line": 61,
-     "end_line": 77,
-     "label": "Weiche"
-    }
-   ]
-  },
-  {
-   "id": "richtlinien",
-   "type": "security",
-   "label": "Richtlinien",
-   "sublabel": "Werkzeugsperre · Hinweistext",
-   "pos": [
-    485,
-    150
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/seeds/01-base/policy.yaml",
-     "line": 13,
-     "end_line": 31,
-     "label": "policy"
-    },
-    {
-     "path": "backend/src/boerdi/graph/nodes/route.py",
-     "line": 120,
-     "end_line": 132,
-     "label": "in route"
-    },
-    {
-     "path": "backend/src/boerdi/services/agent_tools.py",
-     "line": 113,
-     "end_line": 115,
-     "label": "aus dem Katalog"
-    }
-   ]
-  },
-  {
-   "id": "rolle",
-   "type": "database",
-   "label": "Rolle & Schutzregeln",
-   "sublabel": "Rolle · 4 Schutzregeln",
-   "pos": [
-    775,
-    370
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/domain/config_models/engine.py",
-     "line": 150,
-     "end_line": 166,
-     "label": "agent_rolle"
-    },
-    {
-     "path": "backend/src/boerdi/services/agent_kopf.py",
-     "line": 135,
-     "end_line": 141,
-     "label": "Kopf"
-    },
-    {
-     "path": "backend/seeds/01-base/guardrails.md",
-     "line": 19,
-     "end_line": 29,
-     "label": "R-05 … R-15"
-    }
-   ]
-  },
-  {
-   "id": "anrede",
-   "type": "database",
-   "label": "Anrede je Persona",
-   "sublabel": "duzen · siezen · wie die Person",
-   "pos": [
-    775,
-    260
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/services/agent_kopf.py",
-     "line": 66,
-     "end_line": 72,
-     "label": "_anrede"
-    },
-    {
-     "path": "backend/seeds/04-personas/leh.md",
-     "line": 8,
-     "label": "formality"
-    },
-    {
-     "path": "backend/seeds/01-base/device-config.yaml",
-     "line": 15,
-     "end_line": 21,
-     "label": "Rückfall"
-    }
-   ]
-  },
-  {
-   "id": "grenzen",
-   "type": "database",
-   "label": "Agent-Grenzen",
-   "sublabel": "30 Runden · 900 s · 900k Token",
-   "pos": [
-    1065,
-    260
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/domain/config_models/engine.py",
-     "line": 57,
-     "end_line": 59,
-     "label": "Vorgaben"
-    },
-    {
-     "path": "backend/src/boerdi/domain/config_models/engine.py",
-     "line": 103,
-     "end_line": 108,
-     "label": "Felder"
-    },
-    {
-     "path": "backend/src/boerdi/services/agent_deckel.py",
-     "line": 23,
-     "end_line": 39,
-     "label": "anonym enger"
-    }
-   ]
-  },
-  {
-   "id": "schreiben",
-   "type": "database",
-   "label": "Schreibmodus",
-   "sublabel": "propose: Vorschau, „ja“ löst ein",
-   "pos": [
-    1065,
-    150
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/domain/config_models/engine.py",
-     "line": 110,
-     "end_line": 114,
-     "label": "write_mode"
-    },
-    {
-     "path": "backend/src/boerdi/services/agent_write.py",
-     "line": 56,
-     "end_line": 77,
-     "label": "execute braucht Person"
-    },
-    {
-     "path": "backend/src/boerdi/graph/nodes/preflight.py",
-     "line": 137,
-     "end_line": 141,
-     "label": "Abnahme im Folgezug"
-    }
-   ]
-  },
-  {
-   "id": "anzeige",
-   "type": "database",
-   "label": "Anzeige-Regeln",
-   "sublabel": "Chips · Dokument-Box",
-   "pos": [
-    1355,
-    370
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/seeds/01-base/display-rules.yaml",
-     "line": 43,
-     "end_line": 49,
-     "label": "quick_replies"
-    },
-    {
-     "path": "backend/src/boerdi/domain/quick_reply_policy.py",
-     "line": 135,
-     "end_line": 150,
-     "label": "Anzahl"
-    },
-    {
-     "path": "backend/src/boerdi/services/turn_persist.py",
-     "line": 519,
-     "end_line": 536,
-     "label": "Deckel"
-    }
-   ]
-  },
-  {
-   "id": "guide",
-   "type": "database",
-   "label": "Guide-Modus",
-   "sublabel": "„Bring mich hin“-Chips",
-   "pos": [
-    1355,
-    260
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/seeds/01-base/guide-mode.yaml",
-     "line": 6,
-     "end_line": 9,
-     "label": "guide-mode"
-    },
-    {
-     "path": "backend/src/boerdi/services/guide_markers.py",
-     "line": 65,
-     "end_line": 73,
-     "label": "Host-Prüfung"
-    },
-    {
-     "path": "backend/src/boerdi/services/guide_qr_injector.py",
-     "line": 268,
-     "end_line": 296,
-     "label": "Regeln ohne Neustart"
-    }
-   ]
-  },
-  {
-   "id": "wissen",
-   "type": "database",
-   "label": "Wissensbereiche (RAG)",
-   "sublabel": "ein Such-Werkzeug, agent: true",
-   "pos": [
-    1355,
-    150
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/seeds/05-knowledge/rag-config.yaml",
-     "line": 12,
-     "end_line": 15,
-     "label": "agent-Schalter"
-    },
-    {
-     "path": "backend/src/boerdi/services/agent_knowledge.py",
-     "line": 115,
-     "end_line": 123,
-     "label": "wissen_suchen"
-    },
-    {
-     "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 299,
-     "end_line": 305,
-     "label": "Werkzeug + Regel"
-    }
-   ]
-  },
-  {
-   "id": "seite",
-   "type": "frontend",
-   "label": "Seite & Seitenkontext",
-   "sublabel": "Seitenblock · Skill-Vorabruf",
-   "pos": [
-    775,
-    630
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/api/schemas.py",
-     "line": 176,
-     "label": "page_context"
-    },
-    {
-     "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 216,
-     "end_line": 224,
-     "label": "Seitenblock"
-    },
-    {
-     "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 263,
-     "end_line": 267,
-     "label": "Vorabruf"
-    }
-   ]
-  },
-  {
-   "id": "hosttext",
-   "type": "frontend",
-   "label": "Host-Text & Rechte",
-   "sublabel": "host_instruction · tool_mode",
-   "pos": [
-    775,
-    740
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/api/schemas.py",
-     "line": 238,
-     "label": "host_instruction"
-    },
-    {
-     "path": "backend/src/boerdi/api/schemas.py",
-     "line": 262,
-     "label": "tool_mode"
-    },
-    {
-     "path": "backend/src/boerdi/domain/host_capabilities.py",
-     "line": 96,
-     "end_line": 119,
-     "label": "Werkzeug-Rechte"
-    }
-   ]
-  },
-  {
-   "id": "masterskill",
-   "type": "external",
-   "label": "Master-Skill",
-   "sublabel": "Anleitung aus edu-sharing",
-   "pos": [
-    775,
-    850
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/settings.py",
-     "line": 74,
-     "end_line": 89,
-     "label": "MASTER_SKILL_*"
-    },
-    {
-     "path": "backend/src/boerdi/services/master_skill.py",
-     "line": 70,
-     "end_line": 78,
-     "label": "Attribut vor .env"
-    },
-    {
-     "path": "backend/src/boerdi/services/master_skill.py",
-     "line": 114,
-     "end_line": 127,
-     "label": "get_skill per MCP"
-    }
-   ]
-  },
-  {
-   "id": "mcp",
-   "type": "cloud",
-   "label": "MCP-Adresse & Token",
-   "sublabel": "Dienstkonto liest nur",
-   "pos": [
-    1065,
-    630
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/settings.py",
-     "line": 182,
-     "end_line": 189,
-     "label": "MCP_SERVER_URL"
-    },
-    {
-     "path": "backend/src/boerdi/settings.py",
-     "line": 194,
-     "end_line": 200,
-     "label": "MCP_AUTH_TOKEN"
-    },
-    {
-     "path": "backend/src/boerdi/services/schreibrecht.py",
-     "line": 24,
-     "end_line": 30,
-     "label": "Dienstkonto schreibt nur mit Gastkonto"
-    }
-   ]
-  },
-  {
-   "id": "ticket",
-   "type": "frontend",
-   "label": "Persönliches Ticket",
-   "sublabel": "schaltet Schreiben frei",
-   "pos": [
-    1065,
-    740
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/api/turn_auth.py",
-     "line": 30,
-     "label": "WLO-Access-Block"
-    },
-    {
-     "path": "backend/src/boerdi/services/mcp/auth.py",
-     "line": 215,
-     "end_line": 236,
-     "label": "angemeldete Person"
-    },
-    {
-     "path": "backend/src/boerdi/services/schreibrecht.py",
-     "line": 24,
-     "end_line": 30,
-     "label": "Schreibrecht"
-    }
-   ]
-  },
-  {
-   "id": "ergebnis",
-   "type": "frontend",
-   "label": "Ergebnis-Schema",
-   "sublabel": "liefere_ergebnis (JSON)",
-   "pos": [
-    1065,
-    850
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/api/schemas.py",
-     "line": 210,
-     "label": "result_schema"
-    },
-    {
-     "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 283,
-     "end_line": 292,
-     "label": "Satz im Systemteil"
-    },
-    {
-     "path": "backend/src/boerdi/services/agent_tools.py",
-     "line": 222,
-     "end_line": 223,
-     "label": "Werkzeug"
-    }
-   ]
-  },
-  {
-   "id": "hostchips",
-   "type": "frontend",
-   "label": "Host-Chips & Guide",
-   "sublabel": "forced_quick_replies · host",
-   "pos": [
-    1355,
-    630
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/api/schemas.py",
-     "line": 266,
-     "end_line": 271,
-     "label": "forced_quick_replies"
-    },
-    {
-     "path": "backend/src/boerdi/services/turn_assembly.py",
-     "line": 217,
-     "end_line": 257,
-     "label": "ersetzen oder mischen"
-    },
-    {
-     "path": "backend/src/boerdi/services/guide_markers.py",
-     "line": 65,
-     "end_line": 68,
-     "label": "guide_mode + host"
-    }
-   ]
-  },
-  {
-   "id": "llm",
-   "type": "cloud",
-   "label": "LLM-Modell & Aufwand",
-   "sublabel": "Modell · Reasoning",
-   "pos": [
-    1355,
-    740
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/src/boerdi/settings.py",
-     "line": 100,
-     "end_line": 129,
-     "label": "LLM_*"
-    },
-    {
-     "path": "backend/src/boerdi/services/llm_models.py",
-     "line": 48,
-     "end_line": 57,
-     "label": "Modellkette"
-    },
-    {
-     "path": "backend/src/boerdi/services/llm.py",
-     "line": 119,
-     "end_line": 123,
-     "label": "Reasoning"
-    }
-   ]
-  },
-  {
-   "id": "werkzeuge",
-   "type": "database",
-   "label": "Werkzeuge & MCP-Server",
-   "sublabel": "Haken je Werkzeug · fremde lesend",
-   "pos": [
-    1065,
-    370
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/seeds/05-knowledge/mcp-servers.yaml",
-     "line": 29,
-     "end_line": 32,
-     "label": "werkzeuge_aus"
-    },
-    {
-     "path": "backend/src/boerdi/domain/werkzeug_freigabe.py",
-     "line": 1,
-     "end_line": 8,
-     "label": "verbergen"
-    },
-    {
-     "path": "backend/src/boerdi/domain/fremdwerkzeug.py",
-     "line": 1,
-     "end_line": 16,
-     "label": "fremde nur lesend"
-    }
-   ]
-  },
-  {
-   "id": "betrieb",
-   "type": "database",
-   "label": "Betriebsschalter",
-   "sublabel": "Fast · Streaming · Chips · Gastkonto",
-   "pos": [
-    1355,
-    40
-   ],
-   "size": [
-    180,
-    64
-   ],
-   "sources": [
-    {
-     "path": "backend/seeds/01-base/engine.yaml",
-     "line": 65,
-     "end_line": 86,
-     "label": "betrieb"
-    },
-    {
-     "path": "backend/src/boerdi/services/betriebsschalter.py",
-     "line": 21,
-     "end_line": 52,
-     "label": "Umgebung geht vor"
-    },
-    {
-     "path": "backend/src/boerdi/graph/nodes/respond_agent.py",
-     "line": 101,
-     "end_line": 114,
-     "label": "Agent-Schnellantworten"
-    }
-   ]
-  }
- ],
- "boundaries": [
-  {
-   "kind": "region",
-   "label": "Studio-Bereiche",
-   "wraps": [
-    "begruessung",
-    "tour",
-    "betriebsart",
-    "datenschutz",
-    "sicherheit",
-    "richtlinien",
-    "rolle",
-    "anrede",
-    "grenzen",
-    "schreiben",
-    "anzeige",
-    "guide",
-    "wissen",
-    "werkzeuge",
-    "betrieb"
-   ]
-  },
-  {
-   "kind": "region",
-   "label": "Außerhalb des Studios",
-   "wraps": [
-    "seite",
-    "hosttext",
-    "masterskill",
-    "mcp",
-    "ticket",
-    "ergebnis",
-    "hostchips",
-    "llm"
-   ]
-  }
- ],
- "connections": [
-  {
-   "id": "m0",
-   "from": "s0",
-   "to": "s1",
-   "label": "Frage",
-   "variant": "emphasis"
-  },
-  {
-   "id": "m1",
-   "from": "s1",
-   "to": "s2",
-   "variant": "emphasis"
-  },
-  {
-   "id": "m2",
-   "from": "s2",
-   "to": "s3",
-   "variant": "emphasis"
-  },
-  {
-   "id": "m3",
-   "from": "s3",
-   "to": "s4",
-   "variant": "emphasis"
-  },
-  {
-   "id": "m4",
-   "from": "s4",
-   "to": "s5",
-   "variant": "emphasis"
-  },
-  {
-   "id": "s0-ob3-begruessung",
-   "from": "begruessung",
-   "to": "s0",
-   "fromSide": "left",
-   "toSide": "top"
-  },
-  {
-   "id": "s1-oa2-tour",
-   "from": "tour",
-   "to": "s1",
-   "fromSide": "right",
-   "toSide": "top"
-  },
-  {
-   "id": "s1-oa3-betriebsart",
-   "from": "betriebsart",
-   "to": "s1",
-   "fromSide": "right",
-   "toSide": "top"
-  },
-  {
-   "id": "s1-ob3-datenschutz",
-   "from": "datenschutz",
-   "to": "s1",
-   "fromSide": "left",
-   "toSide": "top"
-  },
-  {
-   "id": "s2-oa2-sicherheit",
-   "from": "sicherheit",
-   "to": "s2",
-   "fromSide": "right",
-   "toSide": "top",
-   "variant": "security"
-  },
-  {
-   "id": "s2-oa3-richtlinien",
-   "from": "richtlinien",
-   "to": "s2",
-   "fromSide": "right",
-   "toSide": "top",
-   "variant": "security"
-  },
-  {
-   "id": "s3-oa1-rolle",
-   "from": "rolle",
-   "to": "s3",
-   "fromSide": "right",
-   "toSide": "top"
-  },
-  {
-   "id": "s3-oa2-anrede",
-   "from": "anrede",
-   "to": "s3",
-   "fromSide": "right",
-   "toSide": "top"
-  },
-  {
-   "id": "s4-oa1-grenzen",
-   "from": "grenzen",
-   "to": "s4",
-   "fromSide": "right",
-   "toSide": "top"
-  },
-  {
-   "id": "s4-oa2-schreiben",
-   "from": "schreiben",
-   "to": "s4",
-   "fromSide": "right",
-   "toSide": "top"
-  },
-  {
-   "id": "s5-oa1-anzeige",
-   "from": "anzeige",
-   "to": "s5",
-   "fromSide": "right",
-   "toSide": "top"
-  },
-  {
-   "id": "s5-oa2-guide",
-   "from": "guide",
-   "to": "s5",
-   "fromSide": "right",
-   "toSide": "top"
-  },
-  {
-   "id": "s4-ob1-wissen",
-   "from": "wissen",
-   "to": "s4",
-   "fromSide": "left",
-   "toSide": "top"
-  },
-  {
-   "id": "s3-ua1-seite",
-   "from": "seite",
-   "to": "s3",
-   "fromSide": "right",
-   "toSide": "bottom"
-  },
-  {
-   "id": "s3-ua2-hosttext",
-   "from": "hosttext",
-   "to": "s3",
-   "fromSide": "right",
-   "toSide": "bottom"
-  },
-  {
-   "id": "s3-ua3-masterskill",
-   "from": "masterskill",
-   "to": "s3",
-   "fromSide": "right",
-   "toSide": "bottom"
-  },
-  {
-   "id": "s4-ua1-mcp",
-   "from": "mcp",
-   "to": "s4",
-   "fromSide": "right",
-   "toSide": "bottom"
-  },
-  {
-   "id": "s4-ua2-ticket",
-   "from": "ticket",
-   "to": "s4",
-   "fromSide": "right",
-   "toSide": "bottom"
-  },
-  {
-   "id": "s4-ua3-ergebnis",
-   "from": "ergebnis",
-   "to": "s4",
-   "fromSide": "right",
-   "toSide": "bottom"
-  },
-  {
-   "id": "s5-ua1-hostchips",
-   "from": "hostchips",
-   "to": "s5",
-   "fromSide": "right",
-   "toSide": "bottom"
-  },
-  {
-   "id": "s4-ub2-llm",
-   "from": "llm",
-   "to": "s4",
-   "fromSide": "left",
-   "toSide": "bottom"
-  },
-  {
-   "id": "s4-oa0-werkzeuge",
-   "from": "werkzeuge",
-   "to": "s4",
-   "fromSide": "right",
-   "toSide": "top"
-  },
-  {
-   "id": "s4-ob0-betrieb",
-   "from": "betrieb",
-   "to": "s4",
-   "fromSide": "left",
-   "toSide": "top"
-  }
- ],
- "cards": [
-  {
-   "dot": "cyan",
-   "title": "Lesehilfe",
-   "items": [
-    "Mitte: die Schritte eines Zuges; ein Pfeil führt von der Einstellung zum Schritt, in dem sie wirkt",
-    "Oben: Studio-Bereiche in Postgres – alle wirken ohne Neustart, auch die Lotsen-Regeln",
-    "Unten: Umgebungsvariablen (Neustart; gesetzt gehen sie dem Studio-Schalter vor), Attribute der Einbettung (je Anfrage) und der Master-Skill"
-   ]
-  },
-  {
-   "dot": "violet",
-   "title": "Wo im Studio",
-   "items": [
-    "Agent › Rolle & Schutz: Rolle, Schutzregeln, Grenzen, Schreibmodus, Sicherheit, Richtlinien",
-    "Gemeinsam: Begrüßung · Tour & Lotse · Zielgruppen (Anrede) · Wissen · Werkzeuge · Skills (Master-Skill lesend) · Anzeige · Datenschutz",
-    "System › Betrieb: Betriebsart und Betriebsschalter"
-   ]
-  },
-  {
-   "dot": "emerald",
-   "title": "Was nur hier wirkt",
-   "items": [
-    "Rolle und Schutzregeln R-05, R-08, R-13, R-15; die Anrede aus den Personas",
-    "Master-Skill: MASTER_SKILL_ENABLED (Vorgabe aus) oder Attribut master_skill, per MCP geholt, 5 Minuten gepuffert",
-    "Grenzen je Lauf; ohne Anmeldung gelten die anonymen, wenn sie enger sind",
-    "Schreibwerkzeuge nur mit persönlicher Anmeldung oder Gastkonto-Schalter; propose zeigt eine Vorschau, ein „ja“ im Folgezug löst sie ein; execute braucht die Person",
-    "Lesende Werkzeuge weiterer MCP-Server stehen im Katalog (Muster-Weg: nur wenn ein Muster sie nennt)"
-   ]
-  },
-  {
-   "dot": "amber",
-   "title": "Betriebsschalter",
-   "items": [
-    "Fast-Modus (Vorgabe aus), Token-Streaming und Agent-Schnellantworten (Vorgabe an), Gastkonto schreibt (Vorgabe aus)",
-    "Gesetzt gehen LLM_SERVICE_TIER, CHAT_TOKEN_STREAMING und AGENT_INLINE_QUICK_REPLIES vor; das Gastkonto gibt es nur im Studio",
-    "Ohne Agent-Schnellantworten schreibt ein eigener Aufruf die Vorschläge, und nichts wird gestreamt"
-   ]
-  },
-  {
-   "dot": "rose",
-   "title": "Was hier nicht wirkt",
-   "items": [
-    "Klassifikator samt Intents, Zuständen, Signalen und Klassifikator-Regeln (Intent fest I01)",
-    "Musterwahl, Werkzeuglisten der Muster, Persona-Ton, Basis-Persona, Domänen-Regeln und die Skill-Brücke",
-    "RAG-mode und Vorabruf: der Agent sucht selbst über ein Wissens-Werkzeug",
-    "Ausnahme: Krise und Drohung (M01/M02) laufen immer über den Muster-Weg"
-   ]
-  },
-  {
-   "dot": "slate",
-   "title": "Fest im Code",
-   "items": [
-    "Verlauf: die letzten 10 Nachrichten, zusammen höchstens 9000 Zeichen",
-    "„Zuletzt gezeigt“: bis 3 Dokumente und 10 Materialien aus den letzten 3 Antworten",
-    "Höchstens 3 Dokumente je Zug; Temperatur 0,4"
-   ]
-  }
- ]
+  ]
 }

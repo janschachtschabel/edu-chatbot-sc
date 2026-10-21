@@ -7,17 +7,23 @@ veröffentlichten Seiten.
 
 | Grafik | Ansehen | Bild (hell) | Quelle | Quellstand |
 |---|---|---|---|---|
-| Architektur: Widget, Studio, Backend, MCP | [architektur.html](https://janschachtschabel.github.io/edu-chatbot-sc/architektur.html) | [PNG](png/architektur.png) | [`architektur.json`](quellen/architektur.json) | `dde13d3` |
-| Software-Stack: Bibliotheken und Dienste im Zusammenspiel | [software-stack.html](https://janschachtschabel.github.io/edu-chatbot-sc/software-stack.html) | [PNG](png/software-stack.png) | [`software-stack.json`](quellen/software-stack.json) | `dde13d3` |
-| Ablauf eines Zuges im Muster-Modus | [ablauf-muster-modus.html](https://janschachtschabel.github.io/edu-chatbot-sc/ablauf-muster-modus.html) | [PNG](png/ablauf-muster-modus.png) | [`ablauf-muster-modus.json`](quellen/ablauf-muster-modus.json) | `dde13d3` |
-| Ablauf eines Zuges in der Agent-Schleife | [ablauf-agent-schleife.html](https://janschachtschabel.github.io/edu-chatbot-sc/ablauf-agent-schleife.html) | [PNG](png/ablauf-agent-schleife.png) | [`ablauf-agent-schleife.json`](quellen/ablauf-agent-schleife.json) | `dde13d3` |
-| Konfiguration im Muster-Modus: was wo auf das Gespräch wirkt | [konfiguration-muster-modus.html](https://janschachtschabel.github.io/edu-chatbot-sc/konfiguration-muster-modus.html) | [PNG](png/konfiguration-muster-modus.png) | [`konfiguration-muster-modus.json`](quellen/konfiguration-muster-modus.json) | `dde13d3` |
-| Konfiguration in der Agent-Schleife: was wo auf das Gespräch wirkt | [konfiguration-agent-schleife.html](https://janschachtschabel.github.io/edu-chatbot-sc/konfiguration-agent-schleife.html) | [PNG](png/konfiguration-agent-schleife.png) | [`konfiguration-agent-schleife.json`](quellen/konfiguration-agent-schleife.json) | `dde13d3` |
+| Architektur: Widget, Studio, Backend, MCP, b-api | [architektur.html](https://janschachtschabel.github.io/edu-chatbot-sc/architektur.html) | [PNG](png/architektur.png) | [`architektur.json`](quellen/architektur.json) | `2a589a6` |
+| Software-Stack: Bibliotheken und Dienste im Zusammenspiel | [software-stack.html](https://janschachtschabel.github.io/edu-chatbot-sc/software-stack.html) | [PNG](png/software-stack.png) | [`software-stack.json`](quellen/software-stack.json) | `2a589a6` |
+| Ablauf eines Zuges im Muster-Modus | [ablauf-muster-modus.html](https://janschachtschabel.github.io/edu-chatbot-sc/ablauf-muster-modus.html) | [PNG](png/ablauf-muster-modus.png) | [`ablauf-muster-modus.json`](quellen/ablauf-muster-modus.json) | `2a589a6` |
+| Ablauf eines Zuges in der Agent-Schleife | [ablauf-agent-schleife.html](https://janschachtschabel.github.io/edu-chatbot-sc/ablauf-agent-schleife.html) | [PNG](png/ablauf-agent-schleife.png) | [`ablauf-agent-schleife.json`](quellen/ablauf-agent-schleife.json) | `2a589a6` |
+| Konfiguration im Muster-Modus: was wo auf das Gespräch wirkt | [konfiguration-muster-modus.html](https://janschachtschabel.github.io/edu-chatbot-sc/konfiguration-muster-modus.html) | [PNG](png/konfiguration-muster-modus.png) | [`konfiguration-muster-modus.json`](quellen/konfiguration-muster-modus.json) | `2a589a6` |
+| Konfiguration in der Agent-Schleife: was wo auf das Gespräch wirkt | [konfiguration-agent-schleife.html](https://janschachtschabel.github.io/edu-chatbot-sc/konfiguration-agent-schleife.html) | [PNG](png/konfiguration-agent-schleife.png) | [`konfiguration-agent-schleife.json`](quellen/konfiguration-agent-schleife.json) | `2a589a6` |
 
 In den Konfigurations-Grafiken stehen die Schritte eines Zuges in der Mitte. Oben liegen die
 Studio-Bereiche, unten alles außerhalb des Studios: Umgebungsvariablen, Attribute der Einbettung
 und der Master-Skill. Jeder Pfeil führt von einer Einstellung zu dem Schritt, in dem sie wirkt.
-Die Farbe zeigt, wo eingestellt wird.
+Die Farbe zeigt, wo eingestellt wird. Gezeigt ist nur, was auf das Gespräch wirkt; reine
+Betriebswerte (`LOG_FORMAT`, `FORWARDED_ALLOW_IPS`, `INTERNAL_PORT` …) stehen in
+[`deploy/README.md`](../../deploy/README.md) und [`deploy/.env.example`](../../deploy/.env.example).
+
+**Stand Paket 17 (2026-10-20):** b-api-Proxy mit dem Schlüssel des Zuges (`B_API_KEY_MODE`),
+b-api-Router-Route (`gpt-6-luna` → `gpt-5.6-luna`), interner Port 8101 mit `/health`, `/ready`,
+`/metrics`, Prometheus, JSON-Logs mit Trace-ID, Compose oder Kubernetes.
 
 Die Seiten sind in sich geschlossen: Sie laden keine externen Skripte und keine Web-Fonts.
 Jede Komponente verlinkt auf ihre Quellstelle im Repository.
