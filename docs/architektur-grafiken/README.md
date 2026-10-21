@@ -1,18 +1,18 @@
 # Architektur-Grafiken
 
 Sechs interaktive Grafiken zu boerdi-chat, erzeugt mit [archify](https://github.com/tt-a1i/archify).
-**Ansehen:** [https://janschachtschabel.github.io/edu-chatbot-sc/](https://janschachtschabel.github.io/edu-chatbot-sc/) (GitHub Pages). Die Links auf `.html`-Dateien im
-Repository zeigen auf GitHub nur den Quelltext — deshalb führen die Links unten auf die
-veröffentlichten Seiten.
+**Ansehen:** als Bild über die PNG-Links unten (zeigt GitHub direkt an), interaktiv nach dem
+Herunterladen oder Klonen über `index.html` (siehe „Lokal nutzen“). Auf GitHub zeigen die
+`.html`-Dateien nur den Quelltext; eine Pages-Seite gibt es derzeit nicht (Repository privat).
 
-| Grafik | Ansehen | Bild (hell) | Quelle | Quellstand |
+| Grafik | Bild (hell) | Interaktiv (lokal) | Quelle | Quellstand |
 |---|---|---|---|---|
-| Architektur: Widget, Studio, Backend, MCP, b-api | [architektur.html](https://janschachtschabel.github.io/edu-chatbot-sc/architektur.html) | [PNG](png/architektur.png) | [`architektur.json`](quellen/architektur.json) | `2a589a6` |
-| Software-Stack: Bibliotheken und Dienste im Zusammenspiel | [software-stack.html](https://janschachtschabel.github.io/edu-chatbot-sc/software-stack.html) | [PNG](png/software-stack.png) | [`software-stack.json`](quellen/software-stack.json) | `2a589a6` |
-| Ablauf eines Zuges im Muster-Modus | [ablauf-muster-modus.html](https://janschachtschabel.github.io/edu-chatbot-sc/ablauf-muster-modus.html) | [PNG](png/ablauf-muster-modus.png) | [`ablauf-muster-modus.json`](quellen/ablauf-muster-modus.json) | `2a589a6` |
-| Ablauf eines Zuges in der Agent-Schleife | [ablauf-agent-schleife.html](https://janschachtschabel.github.io/edu-chatbot-sc/ablauf-agent-schleife.html) | [PNG](png/ablauf-agent-schleife.png) | [`ablauf-agent-schleife.json`](quellen/ablauf-agent-schleife.json) | `2a589a6` |
-| Konfiguration im Muster-Modus: was wo auf das Gespräch wirkt | [konfiguration-muster-modus.html](https://janschachtschabel.github.io/edu-chatbot-sc/konfiguration-muster-modus.html) | [PNG](png/konfiguration-muster-modus.png) | [`konfiguration-muster-modus.json`](quellen/konfiguration-muster-modus.json) | `2a589a6` |
-| Konfiguration in der Agent-Schleife: was wo auf das Gespräch wirkt | [konfiguration-agent-schleife.html](https://janschachtschabel.github.io/edu-chatbot-sc/konfiguration-agent-schleife.html) | [PNG](png/konfiguration-agent-schleife.png) | [`konfiguration-agent-schleife.json`](quellen/konfiguration-agent-schleife.json) | `2a589a6` |
+| Architektur: Widget, Studio, Backend, MCP, b-api | [PNG](png/architektur.png) | [architektur.html](architektur.html) | [`architektur.json`](quellen/architektur.json) | `2a589a6` |
+| Software-Stack: Bibliotheken und Dienste im Zusammenspiel | [PNG](png/software-stack.png) | [software-stack.html](software-stack.html) | [`software-stack.json`](quellen/software-stack.json) | `2a589a6` |
+| Ablauf eines Zuges im Muster-Modus | [PNG](png/ablauf-muster-modus.png) | [ablauf-muster-modus.html](ablauf-muster-modus.html) | [`ablauf-muster-modus.json`](quellen/ablauf-muster-modus.json) | `2a589a6` |
+| Ablauf eines Zuges in der Agent-Schleife | [PNG](png/ablauf-agent-schleife.png) | [ablauf-agent-schleife.html](ablauf-agent-schleife.html) | [`ablauf-agent-schleife.json`](quellen/ablauf-agent-schleife.json) | `2a589a6` |
+| Konfiguration im Muster-Modus: was wo auf das Gespräch wirkt | [PNG](png/konfiguration-muster-modus.png) | [konfiguration-muster-modus.html](konfiguration-muster-modus.html) | [`konfiguration-muster-modus.json`](quellen/konfiguration-muster-modus.json) | `2a589a6` |
+| Konfiguration in der Agent-Schleife: was wo auf das Gespräch wirkt | [PNG](png/konfiguration-agent-schleife.png) | [konfiguration-agent-schleife.html](konfiguration-agent-schleife.html) | [`konfiguration-agent-schleife.json`](quellen/konfiguration-agent-schleife.json) | `2a589a6` |
 
 In den Konfigurations-Grafiken stehen die Schritte eines Zuges in der Mitte. Oben liegen die
 Studio-Bereiche, unten alles außerhalb des Studios: Umgebungsvariablen, Attribute der Einbettung
@@ -31,7 +31,7 @@ Jede Komponente verlinkt auf ihre Quellstelle im Repository.
 ## Lokal nutzen
 
 `index.html` im Browser öffnen, per Doppelklick oder über *Datei → Öffnen*. Alles läuft aus dem
-Dateisystem und offline; die Startseite verlinkt die drei Grafiken relativ. Über das Menü
+Dateisystem und offline; die Startseite verlinkt die sechs Grafiken relativ. Über das Menü
 **Exportieren** lassen sich die Grafiken zusätzlich als Bild für Folien speichern.
 
 Wer lieber eine Adresse im lokalen Netz zeigt, startet im Ordner einen einfachen Webserver und
@@ -41,13 +41,13 @@ Wer lieber eine Adresse im lokalen Netz zeigt, startet im Ordner einen einfachen
 python -m http.server 8000
 ```
 
-## Veröffentlichen mit GitHub Pages
+## Veröffentlichen mit GitHub Pages (derzeit aus)
 
 Der Workflow [`pages.yml`](../../.github/workflows/pages.yml) veröffentlicht **nur die HTML-Seiten
-dieses Ordners**. Ohne die Repo-Variable `PAGES_AKTIV` wird er übersprungen, statt zu scheitern.
-**Eingeschaltet seit 2026-10-18** (Quelle „GitHub Actions“, `PAGES_AKTIV=true`); jeder Push auf
-`main`, der diesen Ordner ändert, veröffentlicht neu. Die Schritte unten gelten für einen Fork
-oder ein neues Repository.
+dieses Ordners**. Ohne `PAGES_AKTIV=true` wird er übersprungen, statt zu scheitern.
+**Derzeit aus (seit 2026-10-21):** Das Repository ist privat, und auf GitHub Free gibt es für
+private Repositories kein Pages; `PAGES_AKTIV` steht auf `false`. Vom 18. bis 20.10. war die Seite
+öffentlich. Zum Wieder-Einschalten (öffentliches Repository oder bezahlter Plan) die Schritte unten.
 
 1. **Voraussetzung:** Das Repository ist öffentlich, oder der GitHub-Plan ist bezahlt; für ein
    privates Repository auf GitHub Free gibt es kein Pages. Die Seite selbst ist in jedem Fall
