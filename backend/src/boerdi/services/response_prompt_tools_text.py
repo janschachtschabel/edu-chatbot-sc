@@ -297,6 +297,8 @@ SCHRITT 2 — REGELN:
         "Simulation", "Webseite", ...
       Die Bezeichnung genuegt — sie wird automatisch abgeglichen,
       ein Nachschlagen vorher ist nicht noetig.
+      Stehen in den Entities mehrere Typen (`medientypen`), rufe
+      search_wlo_content je Typ einmal auf — ein Typ je Aufruf.
    c) WICHTIG: Der Parameter heisst `learningResourceType` (NICHT
       `resourceType`!). Der MCP-Server ignoriert den alten Namen.
    d) Rufe search_wlo_content NIE OHNE learningResourceType auf, wenn
