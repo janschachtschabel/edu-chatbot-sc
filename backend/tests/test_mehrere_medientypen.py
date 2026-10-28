@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import json
 import logging
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from boerdi.api.schemas import ChatRequest, Environment, WloCard
 from boerdi.domain.content_types import (
     _extract_wanted_content_types,
     _resolve_wanted_content_types,
@@ -23,6 +26,11 @@ from boerdi.domain.content_types import (
 )
 from boerdi.services.mcp import listen_argumente as la
 from boerdi.services.mcp.tool_args import validate_tool_args
+from boerdi.services.turn_links import _finalize_links_and_metas
+
+MOD = "boerdi.services.turn_links"
+AR = "boerdi.services.mcp.arg_resolvers"
+
 
 # ── Stichwörter ──────────────────────────────────────────────────────────
 
@@ -275,3 +283,91 @@ def test_ein_fehler_nach_dem_klemmen_wird_geloggt(caplog):
         validate_tool_args("search_wlo_content",
                            {"query": "x", "maxResults": 999, "license": ["OER", "CC"]})
     assert "after clamping" in caplog.text
+
+
+# ── Typ-Fokus mit zwei Typen ─────────────────────────────────────────────
+
+def _card(node_id, lrt):
+    return WloCard(node_id=node_id, title=f"Klima {node_id}", node_type="content",
+                   learning_resource_types=lrt)
+
+
+async def _finalisiere(monkeypatch, *, message, entities, cards, query_metas=None,
+                       vocab_map=None, tools_called=None, response_text="Antwort."):
+    monkeypatch.setattr(f"{MOD}.get_query_metas", Mock(return_value=list(query_metas or [])))
+    monkeypatch.setattr(f"{MOD}.get_repo_base_url", Mock(return_value="https://repo.example"))
+    monkeypatch.setattr(f"{AR}._ensure_label_cache", AsyncMock(return_value=None))
+    monkeypatch.setattr(f"{AR}._label_to_uri_cache", dict(vocab_map or {}))
+    req = ChatRequest(session_id="s1", message=message, environment=Environment(locale="de-DE"))
+    out = await _finalize_links_and_metas(
+        req, session_state={"entities": {}}, classification_dict={"entities": entities},
+        winner=SimpleNamespace(id="M06"), pattern_output={}, tracer=Mock(),
+        tools_called=tools_called or ["search_wlo_content"], _effective_pattern_id="M06",
+        cards=list(cards), response_text=response_text,
+    )
+    return out
+
+
+_ZWEI = {"medientyp": "Arbeitsblatt", "medientypen": ["Arbeitsblatt", "Interaktives Medium"],
+         "thema": "Klimawandel"}
+
+
+async def test_das_label_nennt_beide_typen(monkeypatch):
+    out = await _finalisiere(
+        monkeypatch, message="Arbeitsblatt oder interaktives Material zum Klimawandel",
+        entities=_ZWEI, cards=[_card("a", ["Arbeitsblatt"]), _card("i", ["Interaktives Medium"])])
+    assert out[6] == "Arbeitsblätter oder interaktive Medien"
+    assert "Arbeitsblätter oder interaktive Medien" in out[1]
+
+
+async def test_die_such_url_filtert_beide_typen(monkeypatch):
+    out = await _finalisiere(
+        monkeypatch, message="Arbeitsblatt oder interaktives Material zum Klimawandel",
+        entities=_ZWEI, cards=[_card("a", ["Arbeitsblatt"])],
+        # Schlüssel wie im echten Vokabular (``test_mcp_arg_resolvers``): Singular plus
+        # Alias — die Anzeige-Labels („interaktive Medien“) müssen dorthin finden.
+        vocab_map={"lrt": {"arbeitsblatt": "http://uri/ab",
+                           "interaktives medium": "http://uri/im",
+                           "interaktiv": "http://uri/im"}})
+    tf = [m for m in out[5] if m.query_type == "type-focus-synth"]
+    assert len(tf) == 1
+    assert tf[0].criteria[0]["values"] == ["http://uri/ab", "http://uri/im"]
+    assert "uri%2Fab" in tf[0].search_url and "uri%2Fim" in tf[0].search_url
+
+
+async def test_die_uris_der_tatsaechlichen_suchen_werden_alle_genommen(monkeypatch):
+    # Rohform, wie ``get_query_metas`` sie aus den ``_queryMeta``-Blöcken sammelt.
+    metas = [
+        {"toolName": "search_wlo_content", "queryType": "content",
+         "criteria": [{"property": "ccm:oeh_lrt_aggregated", "values": ["http://u/1"]}]},
+        {"toolName": "search_wlo_content", "queryType": "content",
+         "criteria": [{"property": "ccm:oeh_lrt_aggregated", "values": ["http://u/2"]}]},
+    ]
+    out = await _finalisiere(
+        monkeypatch, message="Arbeitsblatt oder interaktives Material zum Klimawandel",
+        entities=_ZWEI, cards=[_card("a", ["Arbeitsblatt"])], query_metas=metas)
+    tf = [m for m in out[5] if m.query_type == "type-focus-synth"]
+    assert tf[0].criteria[0]["values"] == ["http://u/1", "http://u/2"]
+
+
+async def test_fremde_typen_anderer_suchen_landen_nicht_im_filter(monkeypatch):
+    # Review 18: alle URIs ALLER Suchen des Zuges — auch einer Suche des Modells nach
+    # einem Typ, den niemand wollte. Höchstens so viele, wie Typen gewünscht sind.
+    metas = [
+        {"toolName": "search_wlo_content", "queryType": "content",
+         "criteria": [{"property": "ccm:oeh_lrt_aggregated", "values": [f"http://u/{i}"]}]}
+        for i in (1, 2, 3)
+    ]
+    out = await _finalisiere(
+        monkeypatch, message="Arbeitsblatt oder interaktives Material zum Klimawandel",
+        entities=_ZWEI, cards=[_card("a", ["Arbeitsblatt"])], query_metas=metas)
+    tf = [m for m in out[5] if m.query_type == "type-focus-synth"]
+    assert tf[0].criteria[0]["values"] == ["http://u/1", "http://u/2"]
+
+
+async def test_der_waechter_laeuft_mit_einem_medientyp_als_liste(monkeypatch, caplog):
+    with caplog.at_level(logging.WARNING, logger=MOD):
+        await _finalisiere(
+            monkeypatch, message="Klima", entities={"medientyp": ["Arbeitsblatt", "Video"]},
+            cards=[], response_text="Ich habe dir drei Sammlungen herausgesucht.")
+    assert "watchdog crashed" not in caplog.text
