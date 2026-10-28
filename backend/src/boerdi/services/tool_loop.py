@@ -45,6 +45,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from boerdi.domain.antwort_werkzeug import RESPOND_TO_USER, antwort_aus_argumenten
+from boerdi.domain.content_types import als_liste
 from boerdi.domain.host_capabilities import erlaubt
 from boerdi.domain.inline_documents import (
     MAX_DOKUMENTE_JE_ZUG,
@@ -738,6 +739,10 @@ async def _run_tool_loop(
                     if "educationalLevel" in tool_args and "educationalContext" not in tool_args:
                         tool_args["educationalContext"] = tool_args.pop("educationalLevel")
                     _medientyp = _classif_entities.get("medientyp")
+                    # Paket 18B: mehrere Typen als Liste (``mcp/listen_argumente``).
+                    _medientypen = als_liste(_classif_entities.get("medientypen"))
+                    if len(_medientypen) > 1:
+                        _medientyp = _medientypen
                     if _medientyp and "learningResourceType" not in tool_args:
                         _logger.info(
                             "injecting learningResourceType=%r from entities.medientyp (LLM omitted it)",  # noqa: E501

@@ -268,6 +268,18 @@ def test_spec_medientyp_forces_single_filtered_content_call(spec_mcp):
     assert spec_mcp == [("call", "search_wlo_content", args)]
 
 
+def test_spec_mit_mehreren_medientypen_fragt_alle_ab(spec_mcp):
+    """Paket 18B: mehrere Typen gehen als Liste hinaus; der MCP-Client fächert sie
+    in einzelne Aufrufe auf (``services/mcp/listen_argumente``)."""
+    out = _launch(intent="I03",
+                  entities={"thema": "Klima", "medientyp": "Arbeitsblatt",
+                            "medientypen": ["Arbeitsblatt", "Interaktives Medium"]},
+                  tool_hint="search_wlo_content")
+    _task, name, args, _query, _extras, _is_all, _ = out
+    assert name == "search_wlo_content"
+    assert args["learningResourceType"] == ["Arbeitsblatt", "Interaktives Medium"]
+
+
 def test_spec_reicht_die_erkannte_lizenz_weiter(spec_mcp):
     """Probe 2026-10-17 (V16, Muster-Modus): „OER-Videos zur Photosynthese für die
     Grundschule“ — der Klassifikator kennt die Entität ``lizenz`` (04-entities), die

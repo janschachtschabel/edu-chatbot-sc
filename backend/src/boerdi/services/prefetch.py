@@ -33,6 +33,7 @@ import asyncio
 import logging
 from typing import Any, NamedTuple
 
+from boerdi.domain.content_types import als_liste
 from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.mcp.client import call_mcp_tool
 from boerdi.services.topic_pages import _topic_pages_with_warmup
@@ -270,7 +271,11 @@ async def run_speculative_prefetch(req, classification, safety):
                     "query": spec_query, "maxResults": _primary_max,
                 }
                 if _medientyp and spec_tool_name == "search_wlo_content":
-                    spec_tool_args["learningResourceType"] = _medientyp
+                    # Paket 18B: mehrere Typen als Liste — der MCP-Client fächert sie
+                    # in Einzelaufrufe auf (``mcp/listen_argumente``).
+                    _medientypen = als_liste(_ents_for_spec.get("medientypen"))
+                    spec_tool_args["learningResourceType"] = (
+                        _medientypen if len(_medientypen) > 1 else _medientyp)
                 if _fach:
                     spec_tool_args["discipline"] = _fach
                 if _stufe:
