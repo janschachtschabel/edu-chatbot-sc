@@ -23,6 +23,7 @@ from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
 from boerdi.domain.untrusted_text import frame_untrusted, frame_wissen
 from boerdi.obs.zeiten import schritt
 from boerdi.services.card_collect import parse_cards_for_tool
+from boerdi.services.mcp.client import is_mcp_error
 from boerdi.services.mcp.parsers import skill_registry_note
 from boerdi.services.rag.vorab import vektor_fuer
 
@@ -352,9 +353,12 @@ async def _assemble_messages(
     if mcp_prefetched:
         tools_called.append(f"{prefetched_tool['name']} (prefetch)")
         from boerdi.api.schemas import ToolOutcome
+        # Paket 18B: ein gescheiterter Vorabruf ist kein leerer — „nichts gefunden“
+        # senkte die Zuversicht zu wenig und täuschte die Auswertung.
         outcomes.append(ToolOutcome(
             tool=prefetched_tool["name"],
-            status="success" if mcp_prefetch_cards else "empty",
+            status=("error" if is_mcp_error(prefetched_tool["result_text"])
+                    else "success" if mcp_prefetch_cards else "empty"),
             item_count=len(mcp_prefetch_cards),
         ))
     if prefetched_extras:

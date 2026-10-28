@@ -21,6 +21,7 @@ extra_pii_terms: []
 crisis_blocked_tools:
   - search_wlo_collections
   - search_wlo_content
+  - search_wlo_all
   - get_collection_contents
 
 crisis_pattern: M01

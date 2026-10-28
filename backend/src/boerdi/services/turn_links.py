@@ -43,7 +43,7 @@ from typing import Any, Final
 
 from boerdi.api.schemas import ChatRequest
 from boerdi.domain.agent_pattern import AGENT_PATTERN_ID
-from boerdi.domain.content_types import _resolve_wanted_content_types
+from boerdi.domain.content_types import _resolve_wanted_content_types, als_text
 from boerdi.domain.url_helpers import _extract_web_links_from_text
 from boerdi.i18n import (
     CLAIM_WORDS,
@@ -84,6 +84,11 @@ _TYPE_LABELS: Final[dict[Locale, dict[str, str]]] = {
         "lied": "Lieder",
         "aufgabe": "Aufgaben",
         "simulation": "Simulationen",
+        # Paket 18B: die übrigen kanonischen Typen aus ``domain/content_types``.
+        "interaktiv": "interaktive Medien",
+        "kurs": "Kurse",
+        "spiel": "Lernspiele",
+        "grafik": "Grafiken",
     },
     "en": {
         "video": "Videos",
@@ -100,8 +105,30 @@ _TYPE_LABELS: Final[dict[Locale, dict[str, str]]] = {
         "lied": "Songs",
         "aufgabe": "Tasks",
         "simulation": "Simulations",
+        "interaktiv": "interactive media",
+        "kurs": "Courses",
+        "spiel": "Learning games",
+        "grafik": "Graphics",
     },
 }
+
+
+#: Bindewort für mehrere Typen im Label („Arbeitsblätter oder interaktive Medien“).
+_ODER: Final[dict[Locale, str]] = {"de": "oder", "en": "or"}
+_MAX_TYP_LABELS = 3
+
+
+def _typ_labels(wanted: set[str], lang: Locale) -> tuple[str, list[str]]:
+    """Anzeige-Label ALLER gewünschten Typen und je Typ das deutsche Label für den
+    Vokabular-Lookup (Paket 18B — bisher zählte nur ``sorted(wanted)[0]``)."""
+    typen = sorted(wanted)[:_MAX_TYP_LABELS]
+    anzeigen = [_TYPE_LABELS.get(lang, _TYPE_LABELS[DEFAULT]).get(t, t.capitalize())
+                for t in typen]
+    vokabeln = [_TYPE_LABELS[DEFAULT].get(t, t.capitalize()) for t in typen]
+    if len(anzeigen) == 1:
+        return anzeigen[0], vokabeln
+    oder = _ODER.get(lang, _ODER[DEFAULT])
+    return f"{', '.join(anzeigen[:-1])} {oder} {anzeigen[-1]}", vokabeln
 
 
 #: Welche ``formality``-Werte die Sie-Fassung der Such-Hinweise bekommen
@@ -300,7 +327,7 @@ async def _finalize_links_and_metas(
     # ``formality`` (``_SIE_FASSUNG``).
     _anrede = _anrede_suffix(_po_for_rewriters.get("formality"))
     _type_focus_label = ""
-    _type_focus_vocab = ""   # dasselbe Label auf Deutsch — s. ``_TYPE_LABELS``
+    _type_focus_vocabs: list[str] = []   # dieselben Labels auf Deutsch, s. _TYPE_LABELS
     if _grouping_on_impl and _is_search_pattern_active and not _rewriters_degraded:
         try:
             _classif_e = classification_dict.get("entities", {}) or {}
@@ -311,14 +338,9 @@ async def _finalize_links_and_metas(
                 classification_entities=_classif_e,
             )
             if _wanted:
-                # Display-Label aus dem ersten canonical Type
-                # ("video" → "Videos", "arbeitsblatt" → "Arbeitsblätter").
-                _first_wanted = sorted(_wanted)[0]
-                _fallback_label = _first_wanted.capitalize()
-                _type_focus_label = _TYPE_LABELS.get(_lang, _TYPE_LABELS[DEFAULT]).get(
-                    _first_wanted, _fallback_label)
-                _type_focus_vocab = _TYPE_LABELS[DEFAULT].get(
-                    _first_wanted, _fallback_label)
+                # Display-Label aus ALLEN gewünschten Typen (Paket 18B):
+                # „Videos“, „Arbeitsblätter oder interaktive Medien“.
+                _type_focus_label, _type_focus_vocabs = _typ_labels(_wanted, _lang)
 
                 # A) Cards: Sammlungen/Themenseiten KOMPLETT raus —
                 #    der User will sie nicht sehen, sie verwirren ihn nur.
@@ -349,10 +371,9 @@ async def _finalize_links_and_metas(
                 #    2026-10-17, V16): dann bleibt die Antwort des Modells.
                 if response_text and cards:
                     _topic_for_text = (
-                        (_classif_e.get("thema")
-                         or _classif_e.get("topic")
-                         or _session_e.get("thema")
-                         or "").strip()
+                        als_text(_classif_e.get("thema"))
+                        or als_text(_classif_e.get("topic"))
+                        or als_text(_session_e.get("thema"))
                     )
                     _new_response = bot_text(
                         _lang,
@@ -440,7 +461,8 @@ async def _finalize_links_and_metas(
             #   2. Regex auf req.message: explizite Material-Typ-Wörter
             #      kombiniert mit "zeig mir / ich brauche / hast du / gibt es"
             _classif_e = classification_dict.get("entities", {}) or {}
-            _medientyp_classif = (_classif_e.get("medientyp") or "").strip()
+            # Paket 18B: als Liste stürzte der Wächter hier (``list.strip``).
+            _medientyp_classif = als_text(_classif_e.get("medientyp"))
             _type_words_re = _re_wd.compile(
                 # Singular + Plural + Umlaut/AE-Varianten.
                 # ``arbeitsbl[äa]tt(?:er|aer)?`` deckt
@@ -650,12 +672,12 @@ async def _finalize_links_and_metas(
         _classif_entities = classification_dict.get("entities", {}) or {}
         _fallback_term = ""
         for _k in ("thema", "topic"):
-            _v = (_classif_entities.get(_k) or "").strip()
+            _v = als_text(_classif_entities.get(_k))
             if _v:
                 _fallback_term = _v
                 break
         if not _fallback_term:
-            _fach = (_classif_entities.get("fach") or "").strip()
+            _fach = als_text(_classif_entities.get("fach"))
             if _fach:
                 _fallback_term = _fach
         if not _fallback_term:
@@ -768,10 +790,9 @@ async def _finalize_links_and_metas(
             _classif_e_tf = classification_dict.get("entities", {}) or {}
             _sess_e_tf = session_state.get("entities", {}) or {}
             _tf_topic = (
-                (_classif_e_tf.get("thema")
-                 or _classif_e_tf.get("topic")
-                 or _sess_e_tf.get("thema")
-                 or "").strip()
+                als_text(_classif_e_tf.get("thema"))
+                or als_text(_classif_e_tf.get("topic"))
+                or als_text(_sess_e_tf.get("thema"))
             )
             if _tf_topic:
                 # ── URIs aus MCP-queryMeta extrahieren (Primärquelle) ──
@@ -782,7 +803,7 @@ async def _finalize_links_and_metas(
                 # Vocab-Lookup, weil sie genau die sind, mit denen die
                 # MCP-Tool-Calls tatsächlich gefiltert haben — kein
                 # Risiko von Free-Text-Mismatch.
-                _props_to_uri: dict[str, str] = {}
+                _props_to_uris: dict[str, list[str]] = {}
                 for _meta in _query_meta_entries:
                     for _c in (_meta.criteria or []):
                         _prop = (_c.get("property") if isinstance(_c, dict)
@@ -793,53 +814,57 @@ async def _finalize_links_and_metas(
                         # ``http://`` oder ``https://``)
                         for _v in _vals:
                             if isinstance(_v, str) and _v.startswith(("http://", "https://")):
-                                # Erstes URI je Property gewinnt (Reihenfolge =
-                                # Tool-Call-Reihenfolge ≈ Relevanz).
-                                _props_to_uri.setdefault(_prop, _v)
-                                break
+                                # Alle URIs je Property, in Aufruf-Reihenfolge (Paket 18B:
+                                # bei zwei Typen liefen zwei Suchen, beide zählen).
+                                _liste = _props_to_uris.setdefault(_prop, [])
+                                if _v not in _liste:
+                                    _liste.append(_v)
 
                 # Property-Namen-Normalisierung: MCP nutzt manchmal Synonyme
                 # ("ccm:educationalcontext" vs. "ccm:educationalContext",
                 # "ccm:taxonid" als unique key). Wir mappen auf die
                 # kanonischen WLO-Search-URL-Filter-Keys.
-                def _pick_props(*keys: str) -> str:
+                def _pick_props(*keys: str) -> list[str]:
                     for _k in keys:
-                        _u = _props_to_uri.get(_k, "")
-                        if _u:
-                            return _u
-                    return ""
+                        if _props_to_uris.get(_k):
+                            return list(_props_to_uris[_k])
+                    return []
 
                 # 1) LRT — bevorzugt aus MCP criteria, sonst Vocab-Lookup
-                _lrt_uri = _pick_props(
+                # Höchstens so viele, wie Typen gewünscht sind (Review 18): die URIs
+                # stammen aus ALLEN Suchen des Zuges, auch aus einer des Modells nach
+                # einem Typ, den niemand wollte.
+                _lrt_uris = _pick_props(
                     "ccm:oeh_lrt_aggregated",
                     "learningResourceType",
-                )
-                if not _lrt_uri:
+                )[:max(1, len(_type_focus_vocabs))]
+                if not _lrt_uris:
                     # Deutsches Label, nicht das angezeigte — das Vokabular
-                    # kennt nur deutsche Canonicals (s. ``_TYPE_LABELS``).
-                    _lrt_uri = await _vocab_uri_for("lrt", _type_focus_vocab)
+                    # kennt nur deutsche Canonicals (s. ``_TYPE_LABELS``). Je Typ einer.
+                    for _vokabel in _type_focus_vocabs:
+                        _u = await _vocab_uri_for("lrt", _vokabel)
+                        if _u and _u not in _lrt_uris:
+                            _lrt_uris.append(_u)
                 # 2) Discipline — bevorzugt aus MCP criteria, sonst entity-Lookup
-                _disc_uri = _pick_props("ccm:taxonid", "discipline")
+                _disc_uri = next(iter(_pick_props("ccm:taxonid", "discipline")), "")
                 if not _disc_uri:
                     _fach_label = (
-                        (_classif_e_tf.get("fach")
-                         or _sess_e_tf.get("fach")
-                         or "").strip()
+                        als_text(_classif_e_tf.get("fach"))
+                        or als_text(_sess_e_tf.get("fach"))
                     )
                     if _fach_label:
                         _disc_uri = await _vocab_uri_for("discipline", _fach_label)
                 # 3) EducationalContext — analog
-                _eductx_uri = _pick_props(
+                _eductx_uri = next(iter(_pick_props(
                     "ccm:educationalcontext",
                     "ccm:educationalContext",
                     "educationalContext",
-                )
+                )), "")
                 if not _eductx_uri:
                     _stufe_label = (
-                        (_classif_e_tf.get("stufe")
-                         or _classif_e_tf.get("bildungsstufe")
-                         or _sess_e_tf.get("stufe")
-                         or "").strip()
+                        als_text(_classif_e_tf.get("stufe"))
+                        or als_text(_classif_e_tf.get("bildungsstufe"))
+                        or als_text(_sess_e_tf.get("stufe"))
                     )
                     if _stufe_label:
                         _eductx_uri = await _vocab_uri_for("educationalContext", _stufe_label)
@@ -849,8 +874,8 @@ async def _finalize_links_and_metas(
                 if _repo:
                     _qs: dict[str, str] = {"q": _tf_topic}
                     _filters_dict: dict[str, list[str]] = {}
-                    if _lrt_uri:
-                        _filters_dict["ccm:oeh_lrt_aggregated"] = [_lrt_uri]
+                    if _lrt_uris:
+                        _filters_dict["ccm:oeh_lrt_aggregated"] = list(_lrt_uris)
                     if _disc_uri:
                         _filters_dict["ccm:taxonid"] = [_disc_uri]
                     if _eductx_uri:
@@ -870,15 +895,15 @@ async def _finalize_links_and_metas(
                         )
                     logger.info(
                         "type-focus url-filters: lrt=%s discipline=%s eduCtx=%s",
-                        bool(_lrt_uri), bool(_disc_uri), bool(_eductx_uri),
+                        len(_lrt_uris), bool(_disc_uri), bool(_eductx_uri),
                     )
                     _tf_search_url = (
                         f"{_repo}/edu-sharing/components/search"
                         f"?{_urlencode_tf(_qs)}"
                     )
                     logger.info(
-                        "type-focus search-url built (lrt_uri=%s): %s",
-                        bool(_lrt_uri), _tf_search_url[:200],
+                        "type-focus search-url built (lrt_uris=%d): %s",
+                        len(_lrt_uris), _tf_search_url[:200],
                     )
                 if _tf_search_url:
                     _tf_meta = _QME_tf(
@@ -887,7 +912,8 @@ async def _finalize_links_and_metas(
                         search_term=_tf_topic,
                         criteria=[{
                             "property": "learningResourceType",
-                            "values": [_lrt_uri] if _lrt_uri else [_type_focus_label.lower()],
+                            "values": (list(_lrt_uris) if _lrt_uris
+                                       else [_type_focus_label.lower()]),
                             "label": _type_focus_label,
                         }],
                         pagination={},

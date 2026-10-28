@@ -44,6 +44,7 @@ from boerdi.domain.werkzeug_freigabe import uebernommen
 from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD, is_curation_tool
 from boerdi.services.mcp import anmeldung, fremdwerkzeuge, transport
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
+from boerdi.services.mcp.listen_argumente import braucht_umformung, mit_listen
 from boerdi.services.mcp.tool_args import (
     _JSON_CAPABLE_TOOLS,
     validate_tool_args,
@@ -286,6 +287,13 @@ async def call_mcp_tool_status(
     if ist_fremd(tool_name):
         text, art = await fremdwerkzeuge.rufen(tool_name, arguments)
         return (f"{_MCP_ERROR_PREFIX}: {text}", art) if art else (text, "")
+
+    # Paket 18B: ein Suchfilter als Liste („Arbeitsblatt oder interaktives Material“)
+    # wird ausgepackt oder in Einzelaufrufe aufgefächert — der Server kennt je Filter
+    # nur einen Wert (``listen_argumente``).
+    if braucht_umformung(tool_name, arguments):
+        return await mit_listen(tool_name, arguments, call_mcp_tool_status,
+                                use_cache=use_cache)
 
     # Per-Call-Server-URL: zuerst aus der Studio-Registry, sonst Default.
     target_url = _get_server_url_for_tool(tool_name)

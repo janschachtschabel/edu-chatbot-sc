@@ -322,6 +322,27 @@ vorlegen (jeder kostet einen eigenen HTTP-Client im LiteLLM-Zwischenspeicher). W
 `LLM_PROVIDER=b-api-*` — sonst warnt der Start, ebenso bei einem unbekannten Wert (es gilt
 dann `auto`).
 
+### Wenn die Moderation ausfällt (`MODERATION_FAILURE_MODE`)
+
+Die Moderation (omni-moderation) ist eine Stufe der Sicherheitsprüfung. Die Regex-Prüfungen
+für Krise, Drohung und persönliche Daten laufen immer, auch ohne sie. Fällt sie aus (falscher
+Schlüssel, toter Endpunkt, Überlast) oder fehlt ein Zugang, steht das in jedem Fall in der
+Entscheidung (`stages_failed`, Grund `moderation_unavailable`), es wird nicht herabgestuft, und
+der Zähler `boerdi_safety_stage_total{stage="openai_moderation",outcome="fehler"|"keine_zugangsdaten"}`
+steigt. Beim Start meldet die Vorwärmung einen toten Zugang als Warnung. Nachrichten über
+30 000 Zeichen werden nur am Anfang und am Ende moderiert (Grund `moderation_partial`,
+`outcome="teilweise"`). Die Rechtsprüfung zählt unter `stage="llm_legal"`.
+
+| Wert | Verhalten |
+|---|---|
+| `open` (Vorgabe, auch leer) | der Zug wird beantwortet |
+| `closed` | freundliche Absage statt Antwort, solange die Moderation fehlt oder nur teilweise lief — im Chat, bei Direktaktionen und an `/api/agent` |
+
+Ein unbekannter Wert (etwa das deutsche `geschlossen`) gilt als `open`; der Start meldet ihn als Warnung.
+`closed` braucht einen erreichbaren Moderationszugang: Mit `b-api-academiccloud` gibt es
+keinen, dann bliebe jeder Zug unbeantwortet — auch das meldet der Start. Eine Alarmregel auf den
+Zähler zeigt einen dauerhaften Ausfall, bevor er auffällt.
+
 ### Deployen / aktualisieren
 
 ```bash
@@ -343,6 +364,13 @@ warten per `service_completed_successfully` auf ihn.
 **Paket 17:** `migrate` hebt auf **0015** (0014: Herzschlag der Lasttest- und Eval-Läufe,
 höchstens ein laufender Lasttest; 0015: geteilter Master-Skill-Stand). Während des Umstiegs
 keinen Lasttest und keine Evaluation starten — alte Backends schreiben keinen Herzschlag.
+
+**Paket 18:** keine Migration. Neu und optional: `MODERATION_FAILURE_MODE` (Abschnitt oben).
+`RAG_UMWANDLUNG_FRIST_S` und `RAG_UMWANDLUNG_MAX_MB` heißen jetzt `RAG_CONVERSION_TIMEOUT_S`
+und `RAG_CONVERSION_MAX_MB` (alle Namen englisch). Die alten Namen wirken übergangsweise
+weiter, der Start warnt — in der `.env` umbenennen. Die Krisensperre (`01-base/safety-config`,
+jetzt mit `search_wlo_all`) folgt beim `migrate` dem Werk, sofern im Studio keine eigene
+Fassung aktiv ist.
 
 **Hier KEIN `import-config`.** Ab dem ersten Import ist die Datenbank die
 Wahrheit und das Studio der Weg, sie zu ändern; ein zweiter Import überschreibt

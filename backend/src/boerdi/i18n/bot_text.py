@@ -336,6 +336,12 @@ BOT_TEXT: Final[Catalogue] = {
             "Sicherheits- oder Inhaltsregeln. Probier es bitte mit einer "
             "anderen Formulierung erneut."
         ),
+        # Paket 18A: ``MODERATION_FAILURE_MODE=closed`` und die Inhaltsprüfung
+        # fehlt — kein Vorwurf an die Person, sie hat nichts falsch gemacht.
+        "error.moderationUnavailable": (
+            "Ich kann deine Nachricht gerade nicht prüfen lassen und antworte "
+            "deshalb lieber nicht. Versuch es bitte in ein paar Minuten noch einmal."
+        ),
         # ``{kind}`` ist der Ausnahme-TYP (``RuntimeError``), nicht die
         # Meldung — interne Details gehören nicht in eine Nutzer-Blase.
         "error.internal": (
@@ -591,6 +597,10 @@ BOT_TEXT: Final[Catalogue] = {
         "error.safetyBlocked": (
             "I could not process this request — it breaks our safety or "
             "content rules. Please try rephrasing it."
+        ),
+        "error.moderationUnavailable": (
+            "I cannot have your message checked right now, so I would rather not "
+            "answer. Please try again in a few minutes."
         ),
         "error.internal": (
             "Something went wrong on our side ({kind}). Try again — if it "

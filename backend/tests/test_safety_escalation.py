@@ -96,7 +96,10 @@ def test_legal_classifier_medium_flags_without_high(monkeypatch):
 
 def test_legal_weak_flag_is_downgraded_to_low(monkeypatch):
     # 0.45: flaggt (>= 0.4) → medium, aber < 0.5 → Downgrade-Bedingung greift → low.
-    d = _run(monkeypatch, "harmlos", legal={"persoenlichkeitsrechte": {"risk": 0.45}})
+    # Seit Paket 18A nur mit einer Moderation, die wirklich geprüft hat — eine leere
+    # gilt als Ausfall (``test_safety_ausfall``).
+    d = _run(monkeypatch, "harmlos", mod={"scores": {"violence": 0.01}},
+             legal={"persoenlichkeitsrechte": {"risk": 0.45}})
     assert d.risk_level == "low"
     assert "downgraded_by_llm_check" in d.reasons
 

@@ -14,6 +14,7 @@ filter word (2026-09-27).
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # Mapping von User-Stichworten zu kanonischen Substrings, die in den
@@ -42,11 +43,40 @@ _CONTENT_TYPE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "interaktiv":     ("interaktiv", "interaktive", "interactive"),
     "kurs":           ("kurs", "kurse", "tutorial", "tutorials",
                        "course", "courses"),
-    "spiel":          ("lernspiel", "lernspiele", "spiel",
+    "spiel":          ("lernspiel", "lernspiele", "spiel", "spiele",
                        "learning game", "learning games", "educational game"),
     "grafik":         ("infografik", "grafik", "infographic", "infographics",
                        "graphic", "graphics"),
 }
+
+
+#: Stichwörter, die nur am Wortende zählen: als ganzes Wort oder als Ende eines
+#: Kompositums („Klassentest“, „Onlinekurs“, „Rollenspiel“). Als Teilzeichenkette
+#: trafen sie Alltagswörter — „testen“ und „Testnachricht“ wurden zum Quiz (Paket
+#: 18B). Ein englisches „test“ als eigenes Wort bleibt ein Quiz: „Test“ ist auch
+#: das deutsche Wort dafür.
+_NUR_AM_WORTENDE: frozenset[str] = frozenset({"test", "tests", "spiel", "spiele", "kurs",
+                                              "kurse"})
+
+#: Wörter, die auf ein solches Stichwort enden und doch keinen Medientyp meinen
+#: („Protest“ war ein Quiz, „Beispiel“ ein Spiel, „Exkurs“ ein Kurs).
+_KEIN_MEDIENTYP: tuple[str, ...] = (
+    "protest", "protests", "attest", "attests", "contest", "contests",
+    "latest", "greatest", "fastest", "shortest", "smartest", "brightest",
+    "beispiel", "beispiele", "schauspiel", "schauspiele", "zusammenspiel",
+    "exkurs", "exkurse", "diskurs", "diskurse", "konkurs", "konkurse",
+    "wechselkurs", "wechselkurse",
+)
+
+
+def _kommt_vor(stichwort: str, text: str) -> bool:
+    """Steht ``stichwort`` in der Nachricht ``text``? Teilzeichenkette, außer für
+    :data:`_NUR_AM_WORTENDE` — dort nur am Ende eines Worts, das nicht in
+    :data:`_KEIN_MEDIENTYP` steht."""
+    if stichwort not in _NUR_AM_WORTENDE:
+        return stichwort in text
+    return any(not wort.endswith(_KEIN_MEDIENTYP)
+               for wort in re.findall(rf"(?<!\w)\w*{re.escape(stichwort)}(?!\w)", text))
 
 
 #: Medientyp-Wörter, die die Sammlung SELBST meinen und keinen Inhalt darin.
@@ -96,7 +126,7 @@ def _user_wants_specific_content_type(message: str) -> bool:
     """
     msg = (message or "").lower()
     for keywords in _CONTENT_TYPE_KEYWORDS.values():
-        if any(kw in msg for kw in keywords):
+        if any(_kommt_vor(kw, msg) for kw in keywords):
             return True
     return False
 
@@ -113,9 +143,58 @@ def _extract_wanted_content_types(message: str) -> set[str]:
     msg = (message or "").lower()
     wanted: set[str] = set()
     for canonical, keywords in _CONTENT_TYPE_KEYWORDS.items():
-        if any(kw in msg for kw in keywords):
+        if any(_kommt_vor(kw, msg) for kw in keywords):
             wanted.add(canonical)
     return wanted
+
+
+def als_text(wert: object) -> str:
+    """Ein Entitätswert als Text. Der Klassifikator liefert Entitäten untypisiert
+    (``dict[str, Any]``): eine Liste („Arbeitsblatt oder interaktives Material“)
+    ergibt ihren ersten nichtleeren Eintrag, alles andere außer Text ``""``."""
+    if isinstance(wert, str):
+        return wert.strip()
+    return next(iter(als_liste(wert)), "")
+
+
+def als_liste(wert: object) -> list[str]:
+    """Ein Entitätswert als Liste nichtleerer, entdoppelter Texte."""
+    if isinstance(wert, str):
+        return [wert.strip()] if wert.strip() else []
+    if not isinstance(wert, (list, tuple)):
+        return []
+    werte: list[str] = []
+    for w in wert:
+        if isinstance(w, str) and w.strip() and w.strip() not in werte:
+            werte.append(w.strip())
+    return werte
+
+
+#: Entitäten, die überall als EIN Wert gelesen werden (Werkzeugargumente, Such-URL,
+#: Wächter). Ein mehrfacher Medientyp bleibt zusätzlich als ``medientypen`` erhalten.
+_EINZELWERT_ENTITAETEN = ("medientyp", "fach", "stufe", "bildungsstufe", "thema", "topic",
+                          "lizenz")
+
+
+def normalisiere_entitaeten(entities: dict[str, Any]) -> dict[str, Any]:
+    """Listen in Einzelwert-Entitäten auflösen (Paket 18B).
+
+    Bisher lief eine Liste unverändert bis in die MCP-Argumente (-32602) und in den
+    Anti-Halluzinations-Wächter (``list.strip``). Jetzt gilt der erste Wert; ein
+    mehrfacher Medientyp steht zusätzlich vollständig in ``medientypen``, damit die
+    Suche alle Typen abfragt. Leere Listen fallen weg, Texte bleiben unverändert."""
+    aus = dict(entities)
+    for schluessel in _EINZELWERT_ENTITAETEN:
+        if schluessel not in aus or isinstance(aus[schluessel], str):
+            continue
+        werte = als_liste(aus[schluessel])
+        if not werte:
+            aus.pop(schluessel)
+            continue
+        aus[schluessel] = werte[0]
+        if schluessel == "medientyp" and len(werte) > 1:
+            aus["medientypen"] = werte
+    return aus
 
 
 def _resolve_wanted_content_types(
@@ -143,43 +222,50 @@ def _resolve_wanted_content_types(
     for src in (classification_entities, session_entities):
         if not isinstance(src, dict):
             continue
-        aus_medientyp = bool(src.get("medientyp"))
-        mt = src.get("medientyp") or src.get("material_typ") or ""
-        if not isinstance(mt, str) or not mt.strip():
-            continue
-        # Map auf canonical key — wenn der Wert direkt einem Keyword
-        # entspricht (z.B. "Video"), nutze ihn als Filter-String.
-        mt_lower = mt.strip().lower()
-        # Bevorzuge canonical-Match wenn möglich
-        matched = False
-        for canonical, keywords in _CONTENT_TYPE_KEYWORDS.items():
-            if mt_lower == canonical or any(kw in mt_lower for kw in keywords):
-                wanted.add(canonical)
-                matched = True
-                break
-        if (not matched and mt_lower and aus_medientyp
-                and not medientyp_meint_sammlungen(mt_lower)):
-            # Fallback: das raw-Wort als Substring nutzen.
-            #
-            # NUR für ``medientyp`` (2026-09-27, ST-5-Lesart Befund 3):
-            # ``material_typ`` trägt Canvas-Typen aus
-            # ``05-canvas/material-types``, kein WLO-Vokabular. „Zusammenfassung"
-            # → ``infoblatt`` wurde so ein Filterwort, das in keinem
-            # ``learning_resource_types`` steht — der Kartenfilter warf jede
-            # Karte weg, in beiden Maschinen. Wo ein Canvas-Typ einem
-            # Ressourcentyp entspricht (Quiz, Arbeitsblatt), trifft er oben.
-            #
-            # NICHT bei „Sammlung"/„Themenseite" (2026-08-16): der Rueckfall
-            # macht aus jedem unbekannten Medientyp ein Filterwort, gegen das
-            # ``_card_matches_wanted_types`` die ``learning_resource_types``
-            # der Karte haelt — und dort steht „sammlung" nie. Live gemessen
-            # warf der Filter daraufhin ALLE Karten weg („universal
-            # type-filter: 3 -> 0 cards"), obwohl die Suche die Sammlungen
-            # gerade gefunden hatte. Der Wunsch „zeig mir Sammlungen" ist kein
-            # Typfilter, sondern das Gegenteil eines Inhaltsfilters.
-            wanted.add(mt_lower)
+        # Paket 18B: auch mehrere Typen (``medientypen`` oder eine Liste).
+        medientypen = als_liste(src.get("medientypen")) + als_liste(src.get("medientyp"))
+        aus_medientyp = bool(medientypen)
+        for mt in dict.fromkeys(medientypen or als_liste(src.get("material_typ"))):
+            _uebernimm_typ(wanted, mt, aus_medientyp=aus_medientyp)
 
     return wanted
+
+
+def _uebernimm_typ(wanted: set[str], mt: str, *, aus_medientyp: bool) -> None:
+    """Einen Typ-Wert aus den Entitäten auf den kanonischen Schlüssel abbilden."""
+    # Map auf canonical key — wenn der Wert direkt einem Keyword
+    # entspricht (z.B. "Video"), nutze ihn als Filter-String.
+    mt_lower = mt.strip().lower()
+    # Bevorzuge canonical-Match wenn möglich
+    matched = False
+    for canonical, keywords in _CONTENT_TYPE_KEYWORDS.items():
+        # Teilzeichenkette wie bisher: der Wert IST ein Typwort („Onlinekurs“). Mit der
+        # Wortregel der Nachricht fiel er auf das rohe Wort zurück (Review 18).
+        if mt_lower == canonical or any(kw in mt_lower for kw in keywords):
+            wanted.add(canonical)
+            matched = True
+            break
+    if (not matched and mt_lower and aus_medientyp
+            and not medientyp_meint_sammlungen(mt_lower)):
+        # Fallback: das raw-Wort als Substring nutzen.
+        #
+        # NUR für ``medientyp`` (2026-09-27, ST-5-Lesart Befund 3):
+        # ``material_typ`` trägt Canvas-Typen aus
+        # ``05-canvas/material-types``, kein WLO-Vokabular. „Zusammenfassung"
+        # → ``infoblatt`` wurde so ein Filterwort, das in keinem
+        # ``learning_resource_types`` steht — der Kartenfilter warf jede
+        # Karte weg, in beiden Maschinen. Wo ein Canvas-Typ einem
+        # Ressourcentyp entspricht (Quiz, Arbeitsblatt), trifft er oben.
+        #
+        # NICHT bei „Sammlung"/„Themenseite" (2026-08-16): der Rueckfall
+        # macht aus jedem unbekannten Medientyp ein Filterwort, gegen das
+        # ``_card_matches_wanted_types`` die ``learning_resource_types``
+        # der Karte haelt — und dort steht „sammlung" nie. Live gemessen
+        # warf der Filter daraufhin ALLE Karten weg („universal
+        # type-filter: 3 -> 0 cards"), obwohl die Suche die Sammlungen
+        # gerade gefunden hatte. Der Wunsch „zeig mir Sammlungen" ist kein
+        # Typfilter, sondern das Gegenteil eines Inhaltsfilters.
+        wanted.add(mt_lower)
 
 
 def _card_matches_wanted_types(card: Any, wanted: set[str]) -> bool:

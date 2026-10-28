@@ -66,7 +66,7 @@ from boerdi.services.direct_actions import (
 )
 from boerdi.services.rate_limits import check_rate_limit
 from boerdi.services.safety import assess_safety
-from boerdi.services.safety.regex_gate import regex_gate
+from boerdi.services.safety.service import regex_rueckfall, sperrt_ohne_moderation
 from boerdi.services.turn_quality import log_turn_quality
 from boerdi.services.write_approval import redeem_write_approval
 
@@ -152,14 +152,19 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
         decision = await assess_safety(safety_text, signals, usage_acc=ctx.usage)
     except Exception as err:
         logger.warning("direct-action safety assess failed: %s", err)
-        decision = regex_gate(safety_text, signals)
+        decision = regex_rueckfall(safety_text, signals)
 
-    if decision.risk_level == "high":
-        await log_safety_event(
-            session, req.session_id, safety_text, decision=decision, ip=ctx.client_ip,
-        )
+    # Paket 18A: mit ``MODERATION_FAILURE_MODE=closed`` gilt eine Direkt-Aktion
+    # ohne Moderation wie ein freier Zug (``pruefung_fehlt``) — keine Antwort.
+    ohne_pruefung = decision.risk_level != "high" and sperrt_ohne_moderation(decision)
+    if decision.risk_level == "high" or ohne_pruefung:
+        if not ohne_pruefung:
+            await log_safety_event(
+                session, req.session_id, safety_text, decision=decision, ip=ctx.client_ip,
+            )
         err_debug = DebugInfo(
-            pattern="SAFETY: blocked_direct_action",
+            pattern=("SAFETY: moderation_unavailable" if ohne_pruefung
+                     else "SAFETY: blocked_direct_action"),
             tools_called=[],
             safety=decision,
             entities={"action": str(req.action or "")},
@@ -168,20 +173,24 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
         # hinter dem Sicherheits-Gate, das seit C1-f2c-a auch englische Krisen-
         # und Drohungsformulierungen erkennt — eine deutsche Abweisung darauf
         # wäre der Rest einer halben Übersetzung.
-        _block_message = bot_text(lang, "error.safetyBlocked")
+        _block_message = bot_text(
+            lang, "error.moderationUnavailable" if ohne_pruefung else "error.safetyBlocked")
         try:
             await save_message(
                 session, req.session_id, "assistant", _block_message,
                 debug=err_debug.model_dump(),
             )
         except Exception:
-            logger.debug("persisting blocked-action message failed", exc_info=True)
+            logger.warning("persisting blocked-action message failed", exc_info=True)
         ctx.early_response = ChatResponse(
             session_id=req.session_id,
             content=_block_message,
             quick_replies=[],
             debug=err_debug,
         )
+        if ohne_pruefung:
+            # Kein Sicherheitsereignis (geprüft hat niemand) — also die Auswertung.
+            await _log_early_quality(ctx, session)
         return ctx
 
     if req.action == "browse_collection":

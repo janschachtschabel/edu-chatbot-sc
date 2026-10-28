@@ -153,6 +153,57 @@ def test_medientyp_type_focus_injected(monkeypatch):
     assert out.session_state["entities"]["medientyp"] == "video"
 
 
+def test_mehrere_gewuenschte_typen_landen_alle_im_zug(monkeypatch):
+    """Paket 18B: „Arbeitsblatt oder interaktives Material“ — bisher gewann
+    ``sorted(wanted)[0]``, der zweite Typ ging vor jeder Suche verloren."""
+    _patch(monkeypatch, mt=None, wanted=["interaktiv", "arbeitsblatt"])
+    out = _run(_ctx(cls_entities={}))
+    assert out.classification.entities["medientyp"] == "arbeitsblatt"
+    assert out.classification.entities["medientypen"] == ["arbeitsblatt", "interaktiv"]
+    assert out.session_state["entities"]["medientypen"] == ["arbeitsblatt", "interaktiv"]
+
+
+def test_die_typliste_waechst_nicht_ueber_die_sitzung(monkeypatch):
+    """Review 18: die Heuristik vereinigte die Typen DIESER Nachricht mit denen der
+    Sitzung und schrieb das Ergebnis zurück — Zug um Zug wuchs die Liste, und der
+    Deckel des Auffächerns ließ den neuesten Wunsch aus. Nennt die Nachricht Typen,
+    gelten nur sie."""
+    from boerdi.domain import content_types as ct
+
+    _patch(monkeypatch)
+    monkeypatch.setattr(merge_mod, "_resolve_wanted_content_types",
+                        ct._resolve_wanted_content_types)
+    out = _run(_ctx(turn_type="follow_up", message="lieber ein Quiz", ss_entities={
+        "medientyp": "arbeitsblatt", "medientypen": ["arbeitsblatt", "video"]}))
+    assert out.classification.entities["medientyp"] == "quiz"
+    assert out.session_state["entities"]["medientyp"] == "quiz"
+    assert "medientypen" not in out.session_state["entities"]
+
+
+def test_ohne_typ_in_der_nachricht_bleiben_die_typen_der_sitzung(monkeypatch):
+    from boerdi.domain import content_types as ct
+
+    _patch(monkeypatch)
+    monkeypatch.setattr(merge_mod, "_resolve_wanted_content_types",
+                        ct._resolve_wanted_content_types)
+    out = _run(_ctx(turn_type="follow_up", message="und zur Optik?", ss_entities={
+        "medientyp": "arbeitsblatt", "medientypen": ["arbeitsblatt", "video"]}))
+    assert out.classification.entities["medientypen"] == ["arbeitsblatt", "video"]
+    assert out.session_state["entities"]["medientypen"] == ["arbeitsblatt", "video"]
+
+
+def test_eine_klassifikator_liste_wird_normalisiert(monkeypatch):
+    """Der Klassifikator liefert Entitäten untypisiert (``dict[str, Any]``); eine Liste
+    lief bis in die Werkzeugargumente und den Wächter (``list.strip``)."""
+    _patch(monkeypatch)
+    out = _run(_ctx(cls_entities={"medientyp": ["Arbeitsblatt", "Video"],
+                                  "fach": ["Physik"]}))
+    e = out.classification.entities
+    assert e["medientyp"] == "Arbeitsblatt" and e["medientypen"] == ["Arbeitsblatt", "Video"]
+    assert e["fach"] == "Physik"
+    assert out.session_state["entities"]["fach"] == "Physik"
+
+
 # ── Typ-Slots unter der Agent-Schleife (ST-5-Lesart, Befund 3) ───
 
 def test_loop_drops_the_previous_turns_type_slots(monkeypatch):

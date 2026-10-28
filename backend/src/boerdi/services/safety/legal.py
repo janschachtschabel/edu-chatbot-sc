@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 
+from boerdi.obs import metrics
 from boerdi.services.llm import chat_completion
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,9 @@ async def classify_legal(
                     "risk": float(entry.get("risk", 0.0) or 0.0),
                     "reason": str(entry.get("reason", ""))[:200],
                 }
-        return out
     except Exception as e:  # noqa: BLE001 — fail-open by design (regex floor stays)
         logger.warning("LLM legal classifier failed: %s", e)
+        metrics.sicherheitsstufe("llm_legal", "fehler")
         return {}
+    metrics.sicherheitsstufe("llm_legal", "ok")
+    return out

@@ -10,10 +10,10 @@ einen Server mit 2 GB. Dazu entpackte markitdown eine ``.zip`` samt aller Eintr�
 Jetzt:
 
 * **Ein Kindprozess je Umwandlung** (``spawn``), immer nur einer zugleich (je
-  Prozess); nach ``RAG_UMWANDLUNG_FRIST_S`` wird er beendet. Der Start kostet rund
+  Prozess); nach ``RAG_CONVERSION_TIMEOUT_S`` wird er beendet. Der Start kostet rund
   zwei Sekunden (markitdown lädt) — für den Import im Studio unerheblich.
 * **Speicher:** unter Linux ``RLIMIT_DATA`` (Heap und anonyme Abbildungen,
-  ``RAG_UMWANDLUNG_MAX_MB``, 0 = aus) und ``oom_score_adj`` 1000 — wird der Speicher
+  ``RAG_CONVERSION_MAX_MB``, 0 = aus) und ``oom_score_adj`` 1000 — wird der Speicher
   trotzdem knapp, beendet der Kernel den Kindprozess, nicht den Chat. Unter Windows
   (Entwicklung) gibt es beides nicht; Frist und Trennung bleiben.
 * **Vorprüfung** vor der Umwandlung (:func:`vorpruefung`, läuft mit im Kind): ein
@@ -75,7 +75,7 @@ async def im_kindprozess(funktion: Callable[..., str], *args: Any) -> str:
     s = get_settings()
     async with _einer():
         return await asyncio.to_thread(
-            _ausfuehren, funktion, args, s.rag_umwandlung_frist_s, s.rag_umwandlung_max_mb)
+            _ausfuehren, funktion, args, s.rag_conversion_timeout_s, s.rag_conversion_max_mb)
 
 
 def _ausfuehren(funktion: Callable[..., str], args: tuple[Any, ...],

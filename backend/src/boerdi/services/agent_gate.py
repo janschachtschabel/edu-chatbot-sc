@@ -28,8 +28,11 @@ from boerdi.domain.config_models.base_governance import (
 from boerdi.i18n.bot_text import bot_text
 from boerdi.i18n.locale import Locale, pick_localized
 from boerdi.services.config_loader import load_safety_config
-from boerdi.services.safety.regex_gate import regex_gate
-from boerdi.services.safety.service import assess_safety
+from boerdi.services.safety.service import (
+    assess_safety,
+    regex_rueckfall,
+    sperrt_ohne_moderation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +57,7 @@ async def pruefe(auftrag: str, usage_acc: dict[str, Any] | None) -> SafetyDecisi
     except Exception as err:
         logger.warning("agent: Safety-Prüfung fehlgeschlagen (%s) — es bleibt das "
                        "Regex-Gate", type(err).__name__)
-        return regex_gate(auftrag, [])
+        return regex_rueckfall(auftrag, [])
 
 
 def _krisentext(cfg: dict[str, Any], sprache: Locale) -> str:
@@ -73,4 +76,8 @@ def stopp_text(entscheid: SafetyDecision, sprache: Locale) -> str | None:
         logger.info("agent: Sicherheits-Gate — Risiko %s, Muster %s, Abweisung statt Lauf",
                     entscheid.risk_level, entscheid.enforced_pattern or "-")
         return bot_text(sprache, "error.safetyBlocked")
+    if sperrt_ohne_moderation(entscheid):
+        # Paket 18A, Review 18: derselbe Schalter wie im Chat.
+        logger.info("agent: Sicherheits-Gate — ohne Moderation, Absage statt Lauf")
+        return bot_text(sprache, "error.moderationUnavailable")
     return None

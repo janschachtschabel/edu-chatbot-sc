@@ -27,8 +27,22 @@ def _env(name: str) -> AliasChoices:
     return AliasChoices(name)
 
 
+#: Umbenannte Variablen, alt → neu (2026-10-28: alle Namen englisch). Der alte Name wirkt
+#: übergangsweise weiter; der Start warnt (``main._warn_insecure_config``).
+UMBENANNTE_VARIABLEN: dict[str, str] = {
+    "RAG_UMWANDLUNG_FRIST_S": "RAG_CONVERSION_TIMEOUT_S",
+    "RAG_UMWANDLUNG_MAX_MB": "RAG_CONVERSION_MAX_MB",
+}
+
+
+def _env_umbenannt(name: str) -> AliasChoices:
+    """Der neue Name zuerst, dahinter der alte aus :data:`UMBENANNTE_VARIABLEN`."""
+    return AliasChoices(name, *(alt for alt, neu in UMBENANNTE_VARIABLEN.items() if neu == name))
+
+
 _LLM_PROVIDERS = {"openai", "b-api-openai", "b-api-academiccloud"}
 _B_API_KEY_MODES = {"auto", "static", "forward"}
+_MODERATION_FAILURE_MODES = {"open", "closed"}
 _VERBOSITY = {"low", "medium", "high"}
 # W12: `max` ergaenzt — die Chat-Completions-Referenz fuehrt es auf
 # (none|minimal|low|medium|high|xhigh|max). Fehlte hier, ein gueltiger Wert
@@ -175,6 +189,15 @@ class Settings(BaseSettings):
     b_api_key_mode: str = Field(
         "auto", validation_alias=_env("B_API_KEY_MODE"),
         description="auto | static | forward — source of the b-api key per turn",
+    )
+    # Paket 18A (Nutzer-Entscheid E1, 2026-10-28): was ein Zug tut, dessen Moderation
+    # lief, aber nichts lieferte (Ausfall, Überlast, fehlende Zugangsdaten).
+    # ``open`` (Vorgabe, auch leer/unbekannt): antworten, der Ausfall steht in der
+    # Entscheidung und im Zähler. ``closed``: freundliche Absage statt Antwort —
+    # setzt einen erreichbaren Moderationszugang voraus.
+    moderation_failure_mode: str = Field(
+        "open", validation_alias=_env("MODERATION_FAILURE_MODE"),
+        description="open | closed — turn behaviour when moderation is unavailable",
     )
     b_api_audio: bool = Field(
         False, validation_alias=_env("B_API_AUDIO"),
@@ -327,10 +350,10 @@ class Settings(BaseSettings):
     # Paket 9 (Review Paket 7, MAJOR 6): die Umwandlung im Kindprozess
     # (``services/rag/umwandeln_kind``) — Frist in Sekunden und Speichergrenze in MB
     # (Linux ``RLIMIT_DATA``; 0 = aus).
-    rag_umwandlung_frist_s: float = Field(
-        120.0, gt=0, validation_alias=_env("RAG_UMWANDLUNG_FRIST_S"))
-    rag_umwandlung_max_mb: int = Field(
-        1024, ge=0, validation_alias=_env("RAG_UMWANDLUNG_MAX_MB"))
+    rag_conversion_timeout_s: float = Field(
+        120.0, gt=0, validation_alias=_env_umbenannt("RAG_CONVERSION_TIMEOUT_S"))
+    rag_conversion_max_mb: int = Field(
+        1024, ge=0, validation_alias=_env_umbenannt("RAG_CONVERSION_MAX_MB"))
     # 2026-08-19: Vorgabe auf Staging gezogen (Nutzer: nur Staging). Zwei
     # Dinge dazu, damit niemand mehr davon erwartet, als der Wert leistet:
     # (1) In DIESEM Backend liest ihn nichts — die Textextraktion macht der
@@ -491,6 +514,12 @@ class Settings(BaseSettings):
     def _coerce_b_api_key_mode(cls, v: str) -> str:
         v = v.strip().lower()
         return v if v in _B_API_KEY_MODES else "auto"
+
+    @field_validator("moderation_failure_mode")
+    @classmethod
+    def _coerce_moderation_failure_mode(cls, v: str) -> str:
+        v = v.strip().lower()
+        return v if v in _MODERATION_FAILURE_MODES else "open"
 
     @field_validator("llm_provider")
     @classmethod

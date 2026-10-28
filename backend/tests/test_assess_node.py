@@ -97,7 +97,27 @@ def test_safety_failure_falls_back_to_regex_gate(monkeypatch):
     # Fallback = regex_gate über dieselbe (benigne) Nachricht → low, nur Regex-Stufe.
     assert out.safety.risk_level == "low"
     assert out.safety.stages_run == ["regex"]
+    # Geprüft hat keine Moderation — der geschlossene Schalter muss greifen (Review 18).
+    assert "moderation_unavailable" in out.safety.reasons
     assert out.classification.intent_id == "I05"   # classify lief normal durch
+
+
+def test_abgebrochene_sicherheitspruefung_faellt_auf_den_regex_zurueck(monkeypatch):
+    """Paket 18A: ``gather(return_exceptions=True)`` liefert ``CancelledError`` als
+    Ergebnis — eine BaseException. Die Prüfung auf ``Exception`` ließ sie als
+    Entscheidung durch."""
+    async def _abbruch(*a, **k):
+        raise asyncio.CancelledError
+
+    async def _classify(*a, **k):
+        return ClassificationResult(intent_id="I05")
+
+    monkeypatch.setattr(assess_mod, "assess_safety", _abbruch)
+    monkeypatch.setattr(assess_mod, "classify_input", _classify)
+
+    out = asyncio.run(assess(_ctx("wie erkläre ich bruchrechnung?"), _memory_ok))
+    assert isinstance(out.safety, SafetyDecision)
+    assert out.safety.stages_run == ["regex"]
 
 
 def test_classify_failure_falls_back_to_default(monkeypatch):

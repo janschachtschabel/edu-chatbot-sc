@@ -63,15 +63,21 @@ async def warm_vocabularies() -> None:
 async def warm_llm_connection() -> None:
     """Verbindung zum LLM-Anbieter mit einem kostenlosen Moderations-Ping wärmen.
 
-    ``moderate`` ist fail-open: ohne Credential liefert es ``{}`` und tut nichts —
-    der Warmup ist damit auf Setups ohne OpenAI-Schlüssel stumm statt laut.
+    ``moderate`` ist fail-open und liefert ``{}``, wenn es nicht prüfen konnte. Bis
+    Paket 18A meldete der Warmup dann trotzdem „done“ — ein toter Schlüssel fiel
+    beim Start nicht auf. Jetzt sagt er es (``moderate`` loggt den Grund selbst).
     """
     t0 = time.perf_counter()
     try:
-        await asyncio.wait_for(moderate("warmup"), timeout=_WARMUP_TIMEOUT_SECONDS)
-        logger.info("llm warmup done in %.0fms", (time.perf_counter() - t0) * 1000)
-    except Exception as err:  # noqa: BLE001 — s.o.
+        befund = await asyncio.wait_for(moderate("warmup"), timeout=_WARMUP_TIMEOUT_SECONDS)
+    except Exception as err:  # noqa: BLE001 — Beschleunigung, kein Pflichtpfad
         logger.warning("llm warmup skipped: %s", err)
+        return
+    if not befund:
+        logger.warning("llm warmup: moderation nicht erreichbar oder nicht eingerichtet — "
+                       "Nachrichten bleiben ohne Moderation (Regex-Boden)")
+        return
+    logger.info("llm warmup done in %.0fms", (time.perf_counter() - t0) * 1000)
 
 
 async def warm_cross_encoder() -> None:

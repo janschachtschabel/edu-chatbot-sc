@@ -31,7 +31,11 @@ from __future__ import annotations
 import logging
 
 from boerdi.domain.canvas.intent import extract_material_type_from_message
-from boerdi.domain.content_types import _resolve_wanted_content_types
+from boerdi.domain.content_types import (
+    _extract_wanted_content_types,
+    _resolve_wanted_content_types,
+    normalisiere_entitaeten,
+)
 from boerdi.graph.state import TurnContext
 from boerdi.services.config_loader import load_placeholder_topics_config
 from boerdi.services.engine_choice import laeuft_ueber_die_schleife
@@ -47,6 +51,13 @@ async def merge(ctx: TurnContext, engine: str = "pattern") -> TurnContext:
     req = ctx.req
     classification = ctx.classification
     session_state = ctx.session_state
+
+    # ── Listen in Einzelwert-Entitäten (Paket 18B) ──────────────────
+    # Der Klassifikator liefert ``entities`` untypisiert. Eine Liste („Arbeitsblatt
+    # oder interaktives Material“) lief bis in die MCP-Argumente (-32602) und den
+    # Wächter (``list.strip``); ``medientypen`` hält mehrere Typen für die Suche fest.
+    if classification.entities:
+        classification.entities = normalisiere_entitaeten(classification.entities)
 
     # ── Placeholder-Topic-Filter ────────────────────────────────────
     # "Thema"/"etwas"/"Material" u.ä. sind Meta-Wörter aus der Frage, kein echtes
@@ -153,8 +164,12 @@ async def merge(ctx: TurnContext, engine: str = "pattern") -> TurnContext:
     # (ST-5-Lesart, Befund 3, 2026-09-27). Die Heuristik unten setzt sie aus
     # DIESER Nachricht neu.
     if laeuft_ueber_die_schleife(engine):
-        for _typ_slot in ("material_typ", "medientyp"):
+        for _typ_slot in ("material_typ", "medientyp", "medientypen"):
             (session_state.get("entities") or {}).pop(_typ_slot, None)
+    # Ein neuer einzelner Medientyp ersetzt eine alte Typ-Liste (Paket 18B).
+    if (classification.entities or {}).get("medientyp") and not (
+            classification.entities or {}).get("medientypen"):
+        (session_state.get("entities") or {}).pop("medientypen", None)
 
     # ── Heuristik-Anreicherung (material_typ + type-focus medientyp) ──
     # Der Classifier extrahiert ``material_typ`` nicht immer; die Alias-Heuristik
@@ -171,21 +186,32 @@ async def merge(ctx: TurnContext, engine: str = "pattern") -> TurnContext:
     # ``_resolve_wanted_content_types``-Regex, damit LLM-Tool-Strip + Typ-Filter
     # + Search-CTA greifen.
     if not (classification.entities or {}).get("medientyp"):
-        _wanted_for_inject = _resolve_wanted_content_types(
-            req.message or "",
-            session_entities=session_state.get("entities") or {},
-            classification_entities=classification.entities or {},
-        )
+        # Nennt DIESE Nachricht Typen, gelten nur sie (Review 18): mit der Sitzung
+        # vereinigt wuchs die Liste Zug um Zug („Videos“ → „und Arbeitsblätter?“ →
+        # „lieber ein Quiz“), und der Deckel des Auffächerns ließ den neuesten aus.
+        _wanted_for_inject = _extract_wanted_content_types(req.message or "") or (
+            _resolve_wanted_content_types(
+                "",
+                session_entities=session_state.get("entities") or {},
+                classification_entities=classification.entities or {},
+            ))
         if _wanted_for_inject:
-            _injected_mt = sorted(_wanted_for_inject)[0]
+            # Paket 18B: alle gewünschten Typen, nicht nur ``sorted(...)[0]`` —
+            # „Arbeitsblatt oder interaktives Material“ verlor sonst den zweiten.
+            _alle_typen = sorted(_wanted_for_inject)
+            _injected_mt = _alle_typen[0]
             if classification.entities is None:
                 classification.entities = {}
+            _ss_e = session_state.setdefault("entities", {})
             classification.entities["medientyp"] = _injected_mt
-            session_state.setdefault("entities", {})["medientyp"] = _injected_mt
-            logger.info(
-                "type-focus heuristic injected medientyp=%r (from %r)",
-                _injected_mt, req.message,
-            )
+            _ss_e["medientyp"] = _injected_mt
+            if len(_alle_typen) > 1:
+                classification.entities["medientypen"] = _alle_typen
+                _ss_e["medientypen"] = _alle_typen
+            else:
+                _ss_e.pop("medientypen", None)
+            logger.info("type-focus heuristic injected medientyp=%r (%d type(s))",
+                        _injected_mt, len(_alle_typen))
 
     # ── Speculative MCP prefetch (post-Classification) ──────────────
     # Für Such-Style-Intents die MCP-Suche im Hintergrund starten, während

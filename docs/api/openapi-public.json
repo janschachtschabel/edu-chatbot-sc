@@ -964,6 +964,13 @@
             "title": "Risk Level",
             "type": "string"
           },
+          "stages_failed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stages Failed",
+            "type": "array"
+          },
           "stages_run": {
             "items": {
               "type": "string"

@@ -186,17 +186,29 @@ def _validate_against_model(tool_name: str, arguments: dict[str, Any]) -> dict[s
         if geklemmt is not None:
             try:
                 exportiert = _export_non_empty(model, model.model_validate(geklemmt))
-            except ValidationError:
-                pass
-            else:
-                logger.info(
-                    "Tool-Argumente für %s auf Modellgrenzen geklemmt: %s",
-                    tool_name,
-                    {k: v for k, v in geklemmt.items() if arguments.get(k) != v},
-                )
-                return exportiert
-        logger.warning("Tool arg validation for %s: %s — using raw args", tool_name, e)
+            except ValidationError as rest:
+                # Paket 18B: bisher ``pass`` — geloggt wurde nur der erste Fehler (die
+                # Grenze), der zweite blieb unsichtbar. Weiter gehen wie bisher die rohen
+                # Argumente: der Server prüft selbst und antwortet dem Modell lesbar.
+                logger.warning("Tool arg validation for %s still failing after clamping: %s"
+                               " — using raw args", tool_name, _fehlerorte(rest))
+                return arguments
+            logger.info(
+                "Tool-Argumente für %s auf Modellgrenzen geklemmt: %s",
+                tool_name,
+                {k: v for k, v in geklemmt.items() if arguments.get(k) != v},
+            )
+            return exportiert
+        logger.warning("Tool arg validation for %s: %s — using raw args", tool_name,
+                       _fehlerorte(e))
         return arguments
+
+
+def _fehlerorte(fehler: ValidationError) -> str:
+    """Wo und welcher Art die Fehler sind — ohne ``input_value``: der trägt die
+    Suchanfrage der Person ins Log (Paket 18, Datenschutz)."""
+    return "; ".join(f"{'.'.join(str(t) for t in f['loc'])} ({f['type']})"
+                     for f in fehler.errors())
 
 # Hier stand bis 2026-08-21 ``CONTENT_TEXT_MAX_CHARS = 50000`` (W5-3b), das der
 # Client jedem ``get_wlo_content_text`` aufzwang — nötig, solange der

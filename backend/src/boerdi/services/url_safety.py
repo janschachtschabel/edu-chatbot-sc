@@ -103,7 +103,7 @@ def assert_public_url(url: str) -> None:
 
 
 #: Frist je Folgeabruf von markitdown (Verbinden, Lesen) — Befundliste §1.4, Paket 11. Die
-#: Gesamtfrist trägt der Kindprozess (``rag_umwandlung_frist_s``); ohne diese hier hielte ein
+#: Gesamtfrist trägt der Kindprozess (``rag_conversion_timeout_s``); ohne diese hier hielte ein
 #: einziger hängender Abruf die ganze Umwandlung bis dorthin auf und ließe sie scheitern.
 FOLGEABRUF_FRIST = (10.0, 30.0)
 

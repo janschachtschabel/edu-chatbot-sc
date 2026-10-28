@@ -36,6 +36,7 @@ from boerdi.services.engine_choice import laeuft_ueber_die_schleife
 from boerdi.services.rag.vorab import rag_einbettung_vorab
 from boerdi.services.safety import assess_safety
 from boerdi.services.safety.regex_gate import regex_gate
+from boerdi.services.safety.service import regex_rueckfall
 
 logger = logging.getLogger(__name__)
 
@@ -147,13 +148,16 @@ async def assess(
     finally:
         if not vorab.done():
             vorab.cancel()
-    if isinstance(safety, Exception):
-        logger.error("safety task failed: %s", safety)
-        safety = regex_gate(ctx.req.message, signals)
-    if isinstance(classification, Exception):
-        logger.error("classify task failed: %s", classification)
+    # ``BaseException``: ``gather`` liefert ein ``CancelledError`` als Ergebnis, das
+    # keine ``Exception`` ist — es lief sonst als Entscheidung weiter (Paket 18A).
+    if isinstance(safety, BaseException):
+        logger.error("safety task failed: %s: %s", type(safety).__name__, safety)
+        safety = regex_rueckfall(ctx.req.message, signals)
+    if isinstance(classification, BaseException):
+        logger.error("classify task failed: %s: %s", type(classification).__name__,
+                     classification)
         classification = _fallback_classification(ss, "I01")
-    if isinstance(memories, Exception):
+    if isinstance(memories, BaseException):
         logger.warning("memory fetch failed (will use empty list): %s", memories)
         memories = []
 

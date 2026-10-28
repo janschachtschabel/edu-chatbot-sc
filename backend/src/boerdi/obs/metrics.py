@@ -52,6 +52,10 @@ MCP_AUFRUFE = Counter(
     "timeout, auth)", ["server", "outcome"])
 MCP_DAUER = Histogram(
     "boerdi_mcp_call_duration_seconds", "Dauer je MCP-Aufruf", ["server"], buckets=_SEKUNDEN)
+SICHERHEITSSTUFEN = Counter(
+    "boerdi_safety_stage_total",
+    "Ausgang je Sicherheitsstufe (ok, fehler, keine_zugangsdaten) — ein Ausfall ist "
+    "fail-open und wäre sonst nur eine Logzeile", ["stage", "outcome"])
 HTTP_LAUFEND = Gauge(
     "boerdi_http_requests_in_progress",
     "Laufende Anfragen am öffentlichen Port — überwiegend offene SSE-Ströme der Züge")
@@ -91,6 +95,10 @@ async def llm_messung(phase: str | None) -> AsyncIterator[None]:
 def _llm_ausgang(phase: str | None, ausgang: str, sekunden: float) -> None:
     LLM_AUFRUFE.labels(phase or "ohne", ausgang).inc()
     LLM_DAUER.labels(phase or "ohne").observe(sekunden)
+
+
+def sicherheitsstufe(stufe: str, ausgang: str) -> None:
+    SICHERHEITSSTUFEN.labels(stufe, ausgang).inc()
 
 
 def mcp_aufruf(url: str, outcome: str, sekunden: float) -> None:

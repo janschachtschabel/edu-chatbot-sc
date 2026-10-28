@@ -142,3 +142,4 @@ def test_faellt_die_pruefung_aus_greift_das_regex_gate(monkeypatch) -> None:
     monkeypatch.setattr(agent_gate, "assess_safety", kaputt)
     entscheid = asyncio.run(agent_gate.pruefe("Ich will nicht mehr leben", None))
     assert entscheid.enforced_pattern == "M01"
+    assert "moderation_unavailable" in entscheid.reasons   # Paket 18A, Review 18

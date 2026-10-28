@@ -1,13 +1,14 @@
 # Übergabe an den Betrieb (Team 6)
 
-Stand: Paket 17, 2026-10-20. Beantwortet die Checkliste „Übergabepaket“ des Leitfadens für Team 6, Punkt für Punkt. Wo eine Datei die Einzelheiten trägt und von einem Test aktuell gehalten wird, steht hier nur der Verweis.
+Stand: Paket 18, 2026-10-28 (zuerst Paket 17, 2026-10-20). Beantwortet die Checkliste „Übergabepaket“ des Leitfadens für Team 6, Punkt für Punkt. Wo eine Datei die Einzelheiten trägt und von einem Test aktuell gehalten wird, steht hier nur der Verweis.
 
 **Kurzfassung:** [Service-Steckbrief](steckbrief-uebergabe.md) (Jira [GEN-329](https://edu-sharing.atlassian.net/browse/GEN-329)). **Offen, vom Nutzer einzutragen:** Wartungsverantwortung (§15), Abnahme des Beschreibungstexts der Spec (§2), Abstimmung SSE mit Wolli (§4). **Offen, technisch:** Ressourcen-Messung (§10).
 
 ## 1 Repository, CI und Images
 
-- **Repository:** `github.com/janschachtschabel/edu-chatbot-sc`.
-- **Images:** Registry `ghcr.io/janschachtschabel/edu-chatbot-sc` (privat).
+- **Repository:** `github.com/janschachtschabel/edu-chatbot-sc` (privat — Zugang für T6 einrichten).
+- **Images:** Registry `ghcr.io/janschachtschabel/edu-chatbot-sc` (privat — Pull-Zugang für T6
+  einrichten; die Sichtbarkeit des Pakets ist eine eigene Einstellung neben der des Repos).
 - **CI:**
   - `ci.yml`: Lint, Tests, Lizenz-Gate, `pip-audit`, OpenAPI-Gate.
   - `image.yml`: Build, Smoke mit Postgres und Valkey (beide Ports, `/ready`), Veröffentlichung erst nach grünem `ci`.
@@ -151,6 +152,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 | `boerdi_llm_call_duration_seconds` | phase |
 | `boerdi_mcp_calls_total` | server, outcome (ok/tool/transport/timeout/auth) |
 | `boerdi_mcp_call_duration_seconds` | server |
+| `boerdi_safety_stage_total` | stage (`openai_moderation`, `llm_legal`), outcome (ok/fehler/keine_zugangsdaten/teilweise) |
 | `boerdi_build_info` | version |
 
 - **Alarmregeln:** als `PrometheusRule`-Beispiel in `deploy/helm/values.example.yaml`:
@@ -158,6 +160,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
   - LLM-Fehlerquote
   - p95 der Züge
   - MCP-Transportfehler
+  - Moderationsausfall (mehr als die Hälfte scheitert, Paket 18A)
 - **Synthetischer Verkehr zählt mit:** Lasttest (im Prozess) und Evaluation (über die
   Loopback-Adresse) laufen durch dieselben Zähler wie echte Nutzer, ohne eigenes Label.
   Während eines Laufs können die Alarme feuern; beides startet nur die Redaktion im Studio.
@@ -228,6 +231,14 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 - **Betriebswerte, die der Aufbau bestimmt:** `FORWARDED_ALLOW_IPS` (Ingress-CIDR; im
   Testbetrieb ohne Proxy `127.0.0.1`), `TRUST_FORWARDED_FOR` (`false`), `B_API_KEY_MODE`,
   `B_API_ROUTE`, `RATE_LIMIT_STORAGE_URI` (Valkey), `LOG_FORMAT=json`, `INTERNAL_PORT`.
+- **Betriebsentscheid `MODERATION_FAILURE_MODE`** (Paket 18A): `open` (Vorgabe) beantwortet
+  einen Zug auch ohne Moderation und macht den Ausfall sichtbar (Zähler, Warnung); `closed`
+  antwortet dann mit einer freundlichen Absage — im Chat, bei Direktaktionen und an
+  `/api/agent`. Für Schulbetrieb `closed` erwägen; das braucht einen erreichbaren
+  Moderationszugang (nicht `b-api-academiccloud`). Einzelheiten: `deploy/README.md`.
+- **Umbenannt (2026-10-28, alle Namen englisch):** `RAG_UMWANDLUNG_FRIST_S` →
+  `RAG_CONVERSION_TIMEOUT_S`, `RAG_UMWANDLUNG_MAX_MB` → `RAG_CONVERSION_MAX_MB`. Die alten
+  Namen wirken übergangsweise weiter, der Start warnt.
 - **Fachliche Konfiguration:** Muster, Master-Skill-Optionen, Preise usw. liegen in der Datenbank und werden im Studio gepflegt. Die Werksfassung kommt aus dem Image (`seeds/`).
 - **Referenz:** `docker-compose` (`deploy/compose.prod.yml`) dient nur als Referenz.
 

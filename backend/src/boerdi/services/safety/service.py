@@ -35,6 +35,7 @@ from boerdi.services.safety.regex_gate import (
     normalize_for_matching,
     regex_gate,
 )
+from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,37 @@ _CAT_TO_LEGAL = {
     "illicit": "strafrecht",
     "illicit/violent": "strafrecht",
 }
+
+
+#: Aufgaben-Name im ``gather`` → Stufen-ID in ``stages_run``/``stages_failed``.
+_STUFEN_ID = {"openai": "openai_moderation", "legal": "llm_legal"}
+
+#: Gründe, aus denen eine Nachricht nicht (ganz) moderiert wurde.
+_UNGEPRUEFT = frozenset({"moderation_unavailable", "moderation_partial"})
+
+
+def sperrt_ohne_moderation(decision: SafetyDecision | None) -> bool:
+    """Ob ein Zug mit dieser Entscheidung nicht beantwortet werden darf: die
+    Nachricht blieb (ganz oder teilweise) unmoderiert, und
+    ``MODERATION_FAILURE_MODE=closed`` (Paket 18A, Nutzer-Entscheid E1).
+
+    An einer Stelle für alle Wege — Graph-Knoten ``pruefung_fehlt``, Preflight der
+    Direktaktionen und das Gate von ``/api/agent`` (Review 18: dort fehlte es)."""
+    return (
+        decision is not None
+        and bool(_UNGEPRUEFT & set(decision.reasons))
+        and get_settings().moderation_failure_mode == "closed"
+    )
+
+
+def regex_rueckfall(message: str, signals: list[str] | None) -> SafetyDecision:
+    """Die Entscheidung, wenn ``assess_safety`` als Ganzes scheitert: nur das
+    Regex-Gate — und keine Stufe hat moderiert. Bisher fehlte der Grund, und der
+    geschlossene Schalter griff genau hier nicht (Review 18)."""
+    decision = regex_gate(message, signals or [])
+    decision.stages_failed.append("openai_moderation")
+    decision.reasons.append("moderation_unavailable")
+    return decision
 
 
 def _resolve_preset(cfg: dict) -> dict:
@@ -173,7 +205,13 @@ def _merge_legal(
 
 def _maybe_downgrade(decision: SafetyDecision, esc: dict, legal_data: dict[str, dict]) -> None:
     """Downgrade a lone medium back to low when both LLM stages came back clean
-    (keeps prompt-injection and crisis hits at medium). ALT llm merge, lines 451-464."""
+    (keeps prompt-injection and crisis hits at medium). ALT llm merge, lines 451-464.
+
+    Paket 18A: only when every stage that ran actually checked. A failed stage is
+    not a clean one — before, a dead moderation downgraded with
+    ``downgraded_by_llm_check`` although nothing had been checked."""
+    if decision.stages_failed:
+        return
     if (
         esc.get("downgrade_false_positives", True)
         and decision.risk_level == "medium"
@@ -262,7 +300,9 @@ async def assess_safety(
     openai_data: dict[str, Any] = {}
     legal_data: dict[str, dict] = {}
     for (name, _), res in zip(tasks, results, strict=True):
-        if isinstance(res, Exception):
+        # ``BaseException``: ``gather`` liefert ein ``CancelledError`` als Ergebnis,
+        # und das ist keine ``Exception`` — es lief sonst als „Daten“ weiter (18A).
+        if isinstance(res, BaseException):
             # Fail-open is the design (the regex gate stays as the backstop) —
             # but not silently: without this line a permanently broken stage
             # looks exactly like a clean run, and a safety layer that is quietly
@@ -272,11 +312,25 @@ async def assess_safety(
                 "safety stage %s failed, continuing without it: %s: %s",
                 name, type(res).__name__, res,
             )
+            decision.stages_failed.append(_STUFEN_ID[name])
             continue
         if name == "openai":
             openai_data = res or {}
         elif name == "legal":
             legal_data = res or {}
+
+    # Eine Stufe, die lief und nichts lieferte, hat NICHT geprüft: ``moderate`` und
+    # ``classify_legal`` geben ``{}`` nur bei Ausfall (oder fehlendem Zugang) zurück.
+    if run_moderation and not openai_data:
+        if "openai_moderation" not in decision.stages_failed:
+            decision.stages_failed.append("openai_moderation")
+        decision.reasons.append("moderation_unavailable")
+    elif openai_data.get("teilweise"):
+        # Nur Anfang und Ende einer sehr langen Nachricht (``moderation._abschnitte``).
+        decision.stages_failed.append("openai_moderation")
+        decision.reasons.append("moderation_partial")
+    if run_legal and not legal_data and "llm_legal" not in decision.stages_failed:
+        decision.stages_failed.append("llm_legal")
 
     tmul = preset.get("threshold_multiplier", 1.0)
     _merge_moderation(decision, openai_data, cfg, esc, tmul)

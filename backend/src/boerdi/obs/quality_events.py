@@ -65,6 +65,7 @@ async def log_safety_event(
             risk_level=_field(decision, "risk_level", "low"),
             data={
                 "stages_run": _field(decision, "stages_run", []),
+                "stages_failed": _field(decision, "stages_failed", []),
                 "reasons": _field(decision, "reasons", []),
                 "legal_flags": _field(decision, "legal_flags", []),
                 "flagged_categories": _field(decision, "flagged_categories", []),

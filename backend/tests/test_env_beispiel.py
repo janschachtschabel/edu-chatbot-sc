@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic import AliasChoices
 
-from boerdi.settings import Settings
+from boerdi.settings import UMBENANNTE_VARIABLEN, Settings
 
 _BACKEND = Path(__file__).resolve().parents[1]
 _BEISPIEL = _BACKEND.parent / "deploy" / ".env.example"
@@ -36,7 +36,9 @@ def _einstellungen() -> dict[str, bool]:
     namen: dict[str, bool] = {}
     for feld, info in Settings.model_fields.items():
         for name in _namen(feld, info):
-            namen[name] = "SecretStr" in str(info.annotation)
+            # Ein alter Name wirkt nur übergangsweise — angeboten wird der neue.
+            if name not in UMBENANNTE_VARIABLEN:
+                namen[name] = "SecretStr" in str(info.annotation)
     muster = re.compile(r"""os\.(?:getenv|environ\.get)\(\s*["']([A-Z][A-Z0-9_]+)["']"""
                         r"""|os\.environ\[\s*["']([A-Z][A-Z0-9_]+)["']\]""")
     for pfad in (_BACKEND / "src" / "boerdi").rglob("*.py"):
