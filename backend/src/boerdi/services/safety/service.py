@@ -35,6 +35,7 @@ from boerdi.services.safety.regex_gate import (
     normalize_for_matching,
     regex_gate,
 )
+from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,23 @@ _CAT_TO_LEGAL = {
 
 #: Aufgaben-Name im ``gather`` → Stufen-ID in ``stages_run``/``stages_failed``.
 _STUFEN_ID = {"openai": "openai_moderation", "legal": "llm_legal"}
+
+#: Gründe, aus denen eine Nachricht nicht (ganz) moderiert wurde.
+_UNGEPRUEFT = frozenset({"moderation_unavailable", "moderation_partial"})
+
+
+def sperrt_ohne_moderation(decision: SafetyDecision | None) -> bool:
+    """Ob ein Zug mit dieser Entscheidung nicht beantwortet werden darf: die
+    Nachricht blieb (ganz oder teilweise) unmoderiert, und
+    ``MODERATION_BEI_AUSFALL=geschlossen`` (Paket 18A, Nutzer-Entscheid E1).
+
+    An einer Stelle für alle Wege — Graph-Knoten ``pruefung_fehlt``, Preflight der
+    Direktaktionen und das Gate von ``/api/agent`` (Review 18: dort fehlte es)."""
+    return (
+        decision is not None
+        and bool(_UNGEPRUEFT & set(decision.reasons))
+        and get_settings().moderation_bei_ausfall == "geschlossen"
+    )
 
 
 def regex_rueckfall(message: str, signals: list[str] | None) -> SafetyDecision:

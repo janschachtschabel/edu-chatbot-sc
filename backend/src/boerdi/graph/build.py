@@ -9,13 +9,15 @@ same two early exits — as a graph:
     START → setup → tour ──early?──▶ END
                      └─▶ page_context_enrich → context_greeting ──early?──▶ END
                             └─▶ persist_user → preflight ──early?──▶ END
-                                   └─▶ assess → safety_log → merge → route
+                                   └─▶ assess → safety_log → pruefung_fehlt ──early?──▶ END
+                                          └─▶ merge → route
                                           → respond → assemble → persist → END
 
 ``page_context_enrich`` (inject page IDs + best-effort MCP metadata resolve) runs
 AFTER tour — so a tour tick skips the resolve latency (ALT returns before the resolve
-block) — and never short-circuits. Only ``tour``, ``context_greeting`` and
-``preflight`` short-circuit (they set ``ctx.early_response``). The LP-/Canvas-fast-paths
+block) — and never short-circuits. Only ``tour``, ``context_greeting``,
+``preflight`` and ``pruefung_fehlt`` short-circuit (they set ``ctx.early_response``);
+the last one only with ``MODERATION_BEI_AUSFALL=geschlossen`` (Paket 18A). The LP-/Canvas-fast-paths
 do NOT: ``route`` records ``fp_*`` markers that
 ``respond`` consumes, so the normal chain still flows through respond→assemble→
 persist. The endpoint returns ``early_response or response`` (``.ainvoke`` yields a
@@ -65,6 +67,7 @@ from boerdi.graph.nodes.merge import merge
 from boerdi.graph.nodes.page_context_enrich import page_context_enrich
 from boerdi.graph.nodes.persist import persist
 from boerdi.graph.nodes.preflight import preflight
+from boerdi.graph.nodes.pruefung_fehlt import nach_der_pruefung, pruefung_fehlt
 from boerdi.graph.nodes.respond import respond
 from boerdi.graph.nodes.route import route
 from boerdi.graph.nodes.setup import setup
@@ -178,6 +181,7 @@ def build_turn_graph(
     knoten("assess", functools.partial(
         assess, memory_fetch=memory_fetch, progress=progress, engine=engine))
     knoten("safety_log", functools.partial(_log_turn_safety, session=session))
+    knoten("pruefung_fehlt", functools.partial(pruefung_fehlt, session=session))
     knoten("merge", functools.partial(merge, engine=engine))
     knoten("route", functools.partial(route, progress=progress, engine=engine))
     knoten("respond", functools.partial(
@@ -199,7 +203,10 @@ def build_turn_graph(
     g.add_edge("persist_user", "preflight")
     g.add_conditional_edges("preflight", _after_preflight, {"assess": "assess", END: END})
     g.add_edge("assess", "safety_log")
-    g.add_edge("safety_log", "merge")
+    g.add_edge("safety_log", "pruefung_fehlt")
+    g.add_conditional_edges(
+        "pruefung_fehlt", nach_der_pruefung, {"merge": "merge", END: END}
+    )
     g.add_edge("merge", "route")
     g.add_edge("route", "respond")
     g.add_edge("respond", "assemble")

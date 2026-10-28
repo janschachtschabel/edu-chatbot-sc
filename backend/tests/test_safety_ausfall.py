@@ -4,7 +4,9 @@ Externes Audit 2026-10 (Störversuch „falscher Schlüssel“) und eigene Prüf
 2026-10-28: Die Moderation ist fail-open (der Regex-Boden bleibt). Bis hierher
 stand ein Ausfall aber nirgends in der Entscheidung, ``_maybe_downgrade`` stufte
 ein „medium“ trotzdem mit ``downgraded_by_llm_check`` herab, ohne Zugangsdaten
-schwieg die Stufe ganz, und das Aufwärmen meldete Erfolg.
+schwieg die Stufe ganz, und das Aufwärmen meldete Erfolg. Der Schalter
+``MODERATION_BEI_AUSFALL=geschlossen`` beantwortet einen Zug ohne Moderation
+gar nicht (Nutzer-Entscheid E1: Vorgabe ``offen``).
 """
 
 from __future__ import annotations
@@ -15,7 +17,9 @@ from types import SimpleNamespace
 
 from prometheus_client import REGISTRY
 
-from boerdi.api.schemas import SafetyDecision
+from boerdi.api.schemas import ChatRequest, SafetyDecision
+from boerdi.graph import state as state_mod
+from boerdi.graph.nodes import pruefung_fehlt as pf
 from boerdi.services import warmup
 from boerdi.services.safety import legal as legal_mod
 from boerdi.services.safety import moderation as mod
@@ -259,6 +263,114 @@ def test_eine_kurze_nachricht_geht_wie_bisher_als_text(monkeypatch):
     monkeypatch.setattr(mod, "_amoderation", _fake)
     asyncio.run(mod.moderate("kurz"))
     assert gesehen["input"] == "kurz"
+
+
+# ── Schalter MODERATION_BEI_AUSFALL ──────────────────────────────────────
+
+class _Spy:
+    def __init__(self):
+        self.calls = []
+
+    async def __call__(self, *a, **k):
+        self.calls.append((a, k))
+
+
+def _ctx(gruende: list[str]) -> state_mod.TurnContext:
+    ctx = state_mod.TurnContext(req=ChatRequest(session_id="s1", message="hallo"))
+    ctx.safety = SafetyDecision(reasons=gruende)
+    return ctx
+
+
+def _schalter(monkeypatch, wert: str):
+    monkeypatch.setattr(ss, "get_settings", lambda: SimpleNamespace(moderation_bei_ausfall=wert))
+
+
+def test_geschlossen_beantwortet_einen_zug_ohne_moderation_nicht(monkeypatch):
+    _schalter(monkeypatch, "geschlossen")
+    speichern = _Spy()
+    monkeypatch.setattr(pf, "save_message", speichern)
+    out = asyncio.run(pf.pruefung_fehlt(_ctx(["moderation_unavailable"]), session=object()))
+    assert out.early_response is not None
+    assert "prüfen" in out.early_response.content
+    assert out.early_response.quick_replies == []
+    assert len(speichern.calls) == 1
+    assert pf.nach_der_pruefung(out) == pf.END
+
+
+def test_offen_laesst_den_zug_weiterlaufen(monkeypatch):
+    _schalter(monkeypatch, "offen")
+    out = asyncio.run(pf.pruefung_fehlt(_ctx(["moderation_unavailable"]), session=object()))
+    assert out.early_response is None
+    assert pf.nach_der_pruefung(out) == "merge"
+
+
+def test_geschlossen_beantwortet_auch_eine_teilweise_gepruefte_nachricht_nicht(monkeypatch):
+    _schalter(monkeypatch, "geschlossen")
+    assert ss.sperrt_ohne_moderation(SafetyDecision(reasons=["moderation_partial"]))
+
+
+def test_die_absage_wird_in_der_auswertung_verbucht(monkeypatch):
+    # Review 18: der Zug endet vor ``persist`` — ohne eigene Zeile fehlten die
+    # abgewiesenen Personen in der Auswertung.
+    _schalter(monkeypatch, "geschlossen")
+    monkeypatch.setattr(pf, "save_message", _Spy())
+    auswertung = _Spy()
+    monkeypatch.setattr(pf, "log_turn_quality", auswertung)
+    asyncio.run(pf.pruefung_fehlt(_ctx(["moderation_unavailable"]), session=object()))
+    assert len(auswertung.calls) == 1
+    debug = auswertung.calls[0][0][2]
+    assert debug.pattern == "SAFETY: moderation_unavailable"
+
+
+def test_der_agent_endpunkt_folgt_dem_schalter(monkeypatch):
+    # Review 18: ``/api/agent`` prüfte, aber fragte den Schalter nicht.
+    from boerdi.services import agent_gate
+
+    _schalter(monkeypatch, "geschlossen")
+    text = agent_gate.stopp_text(SafetyDecision(reasons=["moderation_unavailable"]), "de")
+    assert text is not None and "prüfen" in text
+    _schalter(monkeypatch, "offen")
+    assert agent_gate.stopp_text(SafetyDecision(reasons=["moderation_unavailable"]), "de") is None
+
+
+def test_geschlossen_ohne_ausfall_laesst_den_zug_weiterlaufen(monkeypatch):
+    _schalter(monkeypatch, "geschlossen")
+    out = asyncio.run(pf.pruefung_fehlt(_ctx([]), session=object()))
+    assert out.early_response is None
+
+
+def test_die_vorgabe_des_schalters_ist_offen():
+    from boerdi.settings import Settings
+
+    assert Settings.model_fields["moderation_bei_ausfall"].default == "offen"
+
+
+def _startwarnungen(monkeypatch, caplog, roh: str, *, zugang: bool) -> str:
+    from boerdi.main import _warn_insecure_config
+    from boerdi.settings import Settings
+
+    monkeypatch.setenv("MODERATION_BEI_AUSFALL", roh)
+    monkeypatch.setattr(mod, "_moderation_target", lambda: ("u", "k", None) if zugang else None)
+    with caplog.at_level(logging.WARNING, logger="boerdi.main"):
+        _warn_insecure_config(Settings())
+    return "\n".join(r.getMessage() for r in caplog.records)
+
+
+def test_ein_unbekannter_schalterwert_wird_beim_start_gemeldet(monkeypatch, caplog):
+    # Review 18: „closed“ fiel still auf „offen“ zurück — ein Schalter, der
+    # schließen soll, öffnete ohne Zeichen.
+    text = _startwarnungen(monkeypatch, caplog, "closed", zugang=True)
+    assert "MODERATION_BEI_AUSFALL" in text and "closed" in text
+
+
+def test_geschlossen_ohne_moderationszugang_wird_beim_start_gemeldet(monkeypatch, caplog):
+    text = _startwarnungen(monkeypatch, caplog, "geschlossen", zugang=False)
+    assert "MODERATION_BEI_AUSFALL" in text
+
+
+def test_geschlossen_mit_zugang_bleibt_beim_start_still(monkeypatch, caplog):
+    assert "MODERATION_BEI_AUSFALL" not in _startwarnungen(
+        monkeypatch, caplog, "geschlossen", zugang=True)
 
 
 # ── Aufwärmen ────────────────────────────────────────────────────────────

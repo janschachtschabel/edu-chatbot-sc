@@ -137,6 +137,8 @@ env:
   B_API_CLEAR_CACHE: "true"
   # auto (Vorgabe) | static (immer B_API_KEY) | forward (Zug ohne Proxy-Schlüssel → 401)
   B_API_KEY_MODE: "auto"
+  # offen (Vorgabe) | geschlossen (keine Antwort, solange die Moderation fehlt)
+  MODERATION_BEI_AUSFALL: "offen"
   B_API_ROUTE: ""
   CARD_CE_GATE_COLLECTION: "-1.0"
   CARD_CE_GATE_CONTENT: "-1.5"

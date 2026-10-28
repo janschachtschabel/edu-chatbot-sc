@@ -322,6 +322,27 @@ vorlegen (jeder kostet einen eigenen HTTP-Client im LiteLLM-Zwischenspeicher). W
 `LLM_PROVIDER=b-api-*` — sonst warnt der Start, ebenso bei einem unbekannten Wert (es gilt
 dann `auto`).
 
+### Wenn die Moderation ausfällt (`MODERATION_BEI_AUSFALL`)
+
+Die Moderation (omni-moderation) ist eine Stufe der Sicherheitsprüfung. Die Regex-Prüfungen
+für Krise, Drohung und persönliche Daten laufen immer, auch ohne sie. Fällt sie aus (falscher
+Schlüssel, toter Endpunkt, Überlast) oder fehlt ein Zugang, steht das in jedem Fall in der
+Entscheidung (`stages_failed`, Grund `moderation_unavailable`), es wird nicht herabgestuft, und
+der Zähler `boerdi_safety_stage_total{stage="openai_moderation",outcome="fehler"|"keine_zugangsdaten"}`
+steigt. Beim Start meldet die Vorwärmung einen toten Zugang als Warnung. Nachrichten über
+30 000 Zeichen werden nur am Anfang und am Ende moderiert (Grund `moderation_partial`,
+`outcome="teilweise"`). Die Rechtsprüfung zählt unter `stage="llm_legal"`.
+
+| Wert | Verhalten |
+|---|---|
+| `offen` (Vorgabe, auch leer) | der Zug wird beantwortet |
+| `geschlossen` | freundliche Absage statt Antwort, solange die Moderation fehlt oder nur teilweise lief — im Chat, bei Direktaktionen und an `/api/agent` |
+
+Ein unbekannter Wert (etwa `closed`) gilt als `offen`; der Start meldet ihn als Warnung.
+`geschlossen` braucht einen erreichbaren Moderationszugang: Mit `b-api-academiccloud` gibt es
+keinen, dann bliebe jeder Zug unbeantwortet — auch das meldet der Start. Eine Alarmregel auf den
+Zähler zeigt einen dauerhaften Ausfall, bevor er auffällt.
+
 ### Deployen / aktualisieren
 
 ```bash

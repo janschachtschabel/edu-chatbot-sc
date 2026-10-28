@@ -29,7 +29,7 @@ from boerdi.obs.progress import TurnProgress
 
 _NODE_NAMES = [
     "setup", "tour", "page_context_enrich", "context_greeting", "preflight", "assess",
-    "merge", "route", "respond", "assemble", "persist",
+    "pruefung_fehlt", "merge", "route", "respond", "assemble", "persist",
 ]
 
 
@@ -56,7 +56,7 @@ def _spy(name, calls, *, sets=None):
 
 
 def _patch(monkeypatch, calls, *, tour_early=None, context_greeting_early=None,
-           preflight_early=None, safety_cfg=None):
+           preflight_early=None, pruefung_early=None, safety_cfg=None):
     sets_by = {
         "tour": {"early_response": tour_early} if tour_early is not None else None,
         "context_greeting": (
@@ -64,6 +64,9 @@ def _patch(monkeypatch, calls, *, tour_early=None, context_greeting_early=None,
             if context_greeting_early is not None else None
         ),
         "preflight": {"early_response": preflight_early} if preflight_early is not None else None,
+        "pruefung_fehlt": (
+            {"early_response": pruefung_early} if pruefung_early is not None else None
+        ),
         "persist": {"response": ChatResponse(session_id="bb-1", content="DONE")},
     }
     for name in _NODE_NAMES:
@@ -141,7 +144,8 @@ def test_normal_path_runs_every_node_in_order(monkeypatch):
     result, calls, _, _ = _run(monkeypatch)
     assert _order(calls) == [
         "setup", "tour", "page_context_enrich", "context_greeting", "persist_user",
-        "preflight", "assess", "safety_log", "merge", "route", "respond", "assemble", "persist",
+        "preflight", "assess", "safety_log", "pruefung_fehlt", "merge", "route", "respond",
+        "assemble", "persist",
     ]
     # terminal ChatResponse flows to the output dict (R4f reads result["response"])
     assert result["response"].content == "DONE"
@@ -155,7 +159,8 @@ def test_jeder_knoten_bucht_seine_dauer_in_den_zug(monkeypatch):
     zeiten = result["usage"]["zeiten_ms"]
     assert list(zeiten) == [
         "setup", "tour", "page_context_enrich", "context_greeting", "persist_user",
-        "preflight", "assess", "safety_log", "merge", "route", "respond", "assemble", "persist",
+        "preflight", "assess", "safety_log", "pruefung_fehlt", "merge", "route", "respond",
+        "assemble", "persist",
     ]
     assert all(isinstance(ms, int) and ms >= 0 for ms in zeiten.values())
 
@@ -186,6 +191,16 @@ def test_preflight_early_exit_stops_before_assess(monkeypatch):
     ]
     assert result["early_response"].content == "DIRECT"
     assert "response" not in result
+
+
+def test_fehlende_moderation_mit_geschlossenem_schalter_endet_vor_merge(monkeypatch):
+    """Paket 18A: ``pruefung_fehlt`` setzt bei geschlossenem Schalter die Absage — der
+    Zug endet vor Vorabruf und Antwort (``merge``/``respond`` laufen nicht)."""
+    absage = ChatResponse(session_id="bb-1", content="ABSAGE")
+    result, calls, _, _ = _run(monkeypatch, pruefung_early=absage)
+    assert _order(calls)[-3:] == ["assess", "safety_log", "pruefung_fehlt"]
+    assert "merge" not in _order(calls)
+    assert result["early_response"].content == "ABSAGE"
 
 
 # ── Seam binding (functools.partial) ────────────────────────────────────────
@@ -277,7 +292,8 @@ def test_real_graph_compiles_with_all_expected_nodes():
     nodes = set(graph.get_graph().nodes)
     assert {
         "setup", "tour", "page_context_enrich", "context_greeting", "persist_user",
-        "preflight", "assess", "safety_log", "merge", "route", "respond", "assemble", "persist",
+        "preflight", "assess", "safety_log", "pruefung_fehlt", "merge", "route", "respond",
+        "assemble", "persist",
     } <= nodes
 
 

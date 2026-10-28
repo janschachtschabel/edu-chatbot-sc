@@ -51,6 +51,7 @@ from boerdi.obs.trace_id import TraceIdFilter, TraceIdMiddleware
 from boerdi.services import aufbewahrung
 from boerdi.services import master_skill as master_skill_dienst
 from boerdi.services.master_skill import starte as starte_master_skill_takt
+from boerdi.services.safety import moderation
 from boerdi.services.warmup import spawn_startup_warmups
 from boerdi.settings import Settings, get_settings
 
@@ -96,6 +97,18 @@ def _warn_insecure_config(settings: Settings) -> None:
         log.warning(
             "⚠ B_API_KEY_MODE=%r ist unbekannt — es gilt %r (erlaubt: auto, static, forward).",
             roh_modus, settings.b_api_key_mode,
+        )
+    roh_ausfall = os.environ.get("MODERATION_BEI_AUSFALL", "").strip()
+    if roh_ausfall and roh_ausfall.lower() != settings.moderation_bei_ausfall:
+        # Review 18: ein Schalter, der schließen soll, öffnete bei einem Tippfehler still.
+        log.warning(
+            "⚠ MODERATION_BEI_AUSFALL=%r ist unbekannt — es gilt %r (erlaubt: offen, "
+            "geschlossen).", roh_ausfall, settings.moderation_bei_ausfall,
+        )
+    if settings.moderation_bei_ausfall == "geschlossen" and moderation._moderation_target() is None:
+        log.warning(
+            "⚠ MODERATION_BEI_AUSFALL=geschlossen, aber für diesen Anbieter ist keine "
+            "Moderation eingerichtet — JEDER Zug wird abgewiesen."
         )
     if settings.b_api_key_mode == "forward" and not settings.llm_provider.startswith("b-api"):
         # Gesamt-Review Paket 17 (AB2): ohne b-api gibt es keinen Schlüssel durchzureichen.

@@ -29,6 +29,7 @@ def _env(name: str) -> AliasChoices:
 
 _LLM_PROVIDERS = {"openai", "b-api-openai", "b-api-academiccloud"}
 _B_API_KEY_MODES = {"auto", "static", "forward"}
+_MODERATION_BEI_AUSFALL = {"offen", "geschlossen"}
 _VERBOSITY = {"low", "medium", "high"}
 # W12: `max` ergaenzt — die Chat-Completions-Referenz fuehrt es auf
 # (none|minimal|low|medium|high|xhigh|max). Fehlte hier, ein gueltiger Wert
@@ -175,6 +176,15 @@ class Settings(BaseSettings):
     b_api_key_mode: str = Field(
         "auto", validation_alias=_env("B_API_KEY_MODE"),
         description="auto | static | forward — source of the b-api key per turn",
+    )
+    # Paket 18A (Nutzer-Entscheid E1, 2026-10-28): was ein Zug tut, dessen Moderation
+    # lief, aber nichts lieferte (Ausfall, Überlast, fehlende Zugangsdaten).
+    # ``offen`` (Vorgabe, auch leer/unbekannt): antworten, der Ausfall steht in der
+    # Entscheidung und im Zähler. ``geschlossen``: freundliche Absage statt Antwort —
+    # setzt einen erreichbaren Moderationszugang voraus.
+    moderation_bei_ausfall: str = Field(
+        "offen", validation_alias=_env("MODERATION_BEI_AUSFALL"),
+        description="offen | geschlossen — turn behaviour when moderation is unavailable",
     )
     b_api_audio: bool = Field(
         False, validation_alias=_env("B_API_AUDIO"),
@@ -491,6 +501,12 @@ class Settings(BaseSettings):
     def _coerce_b_api_key_mode(cls, v: str) -> str:
         v = v.strip().lower()
         return v if v in _B_API_KEY_MODES else "auto"
+
+    @field_validator("moderation_bei_ausfall")
+    @classmethod
+    def _coerce_moderation_bei_ausfall(cls, v: str) -> str:
+        v = v.strip().lower()
+        return v if v in _MODERATION_BEI_AUSFALL else "offen"
 
     @field_validator("llm_provider")
     @classmethod

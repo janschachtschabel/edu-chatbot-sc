@@ -516,6 +516,47 @@ def test_rate_limit_is_checked_before_a_direct_action_dispatches(monkeypatch):
     assert browse.calls == []  # a direct action does not slip past the brake
 
 
+# ── Paket 18A: geschlossener Schalter, Moderation fehlt ─────────
+
+def _moderation_fehlt(monkeypatch, schalter: str):
+    from types import SimpleNamespace
+
+    from boerdi.services.safety import service
+
+    monkeypatch.setattr(service, "get_settings",
+                        lambda: SimpleNamespace(moderation_bei_ausfall=schalter))
+    _patch_safety(monkeypatch, SafetyDecision(risk_level="low",
+                                              reasons=["moderation_unavailable"]))
+
+
+def test_geschlossen_beantwortet_eine_direktaktion_ohne_moderation_nicht(monkeypatch):
+    browse, _lp, _curate = _patch_handlers(monkeypatch)
+    log, save = _patch_db(monkeypatch)
+    auswertung = _Spy()
+    monkeypatch.setattr(pf_mod, "log_turn_quality", auswertung)
+    _moderation_fehlt(monkeypatch, "geschlossen")
+
+    out = asyncio.run(preflight(_ctx("browse_collection", collection_id="c1"), _SESSION))
+
+    assert "nicht prüfen" in out.early_response.content
+    assert out.early_response.debug.pattern == "SAFETY: moderation_unavailable"
+    assert browse.calls == []
+    assert log.calls == []          # kein Sicherheitsereignis: die Person tat nichts
+    assert len(save.calls) == 1
+    assert len(auswertung.calls) == 1   # aber eine Zeile in der Auswertung (Review 18)
+
+
+def test_offen_fuehrt_eine_direktaktion_ohne_moderation_aus(monkeypatch):
+    browse, _lp, _curate = _patch_handlers(monkeypatch)
+    _patch_db(monkeypatch)
+    _moderation_fehlt(monkeypatch, "offen")
+
+    out = asyncio.run(preflight(_ctx("browse_collection", collection_id="c1"), _SESSION))
+
+    assert out.early_response.content == "BROWSE-OK"
+    assert len(browse.calls) == 1
+
+
 # ── C1-f2b6b: die Abweisung folgt der Widget-Sprache ─────────────
 
 def test_high_risk_block_message_english(monkeypatch):
