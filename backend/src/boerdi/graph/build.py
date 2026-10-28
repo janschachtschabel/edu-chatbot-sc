@@ -17,7 +17,7 @@ same two early exits — as a graph:
 AFTER tour — so a tour tick skips the resolve latency (ALT returns before the resolve
 block) — and never short-circuits. Only ``tour``, ``context_greeting``,
 ``preflight`` and ``pruefung_fehlt`` short-circuit (they set ``ctx.early_response``);
-the last one only with ``MODERATION_BEI_AUSFALL=geschlossen`` (Paket 18A). The LP-/Canvas-fast-paths
+the last one only with ``MODERATION_FAILURE_MODE=closed`` (Paket 18A). The LP-/Canvas-fast-paths
 do NOT: ``route`` records ``fp_*`` markers that
 ``respond`` consumes, so the normal chain still flows through respond→assemble→
 persist. The endpoint returns ``early_response or response`` (``.ainvoke`` yields a

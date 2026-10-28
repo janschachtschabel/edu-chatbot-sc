@@ -101,6 +101,13 @@ prometheusRule:
     - alert: BoerdiMcpTransport
       expr: sum(rate(boerdi_mcp_calls_total{outcome=~"transport|timeout"}[10m])) > 0.2
       for: 10m
+    - alert: BoerdiModerationFaellt
+      # Paket 18A: mehr als die Hälfte der Moderationen scheitert. Mit
+      # MODERATION_FAILURE_MODE=closed heißt das: abgewiesene Züge.
+      expr: >-
+        sum(rate(boerdi_safety_stage_total{stage="openai_moderation",outcome="fehler"}[15m]))
+        / sum(rate(boerdi_safety_stage_total{stage="openai_moderation"}[15m])) > 0.5
+      for: 15m
 
 # Secrets: aus einem bestehenden Kubernetes-Secret, nie im Klartext in den Values.
 secretEnv:
@@ -137,8 +144,8 @@ env:
   B_API_CLEAR_CACHE: "true"
   # auto (Vorgabe) | static (immer B_API_KEY) | forward (Zug ohne Proxy-Schlüssel → 401)
   B_API_KEY_MODE: "auto"
-  # offen (Vorgabe) | geschlossen (keine Antwort, solange die Moderation fehlt)
-  MODERATION_BEI_AUSFALL: "offen"
+  # open (Vorgabe) | closed (keine Antwort, solange die Moderation fehlt)
+  MODERATION_FAILURE_MODE: "open"
   B_API_ROUTE: ""
   CARD_CE_GATE_COLLECTION: "-1.0"
   CARD_CE_GATE_CONTENT: "-1.5"

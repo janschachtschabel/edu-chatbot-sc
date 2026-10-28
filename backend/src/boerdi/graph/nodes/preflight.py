@@ -154,7 +154,7 @@ async def preflight(ctx: TurnContext, session: AsyncSession) -> TurnContext:
         logger.warning("direct-action safety assess failed: %s", err)
         decision = regex_rueckfall(safety_text, signals)
 
-    # Paket 18A: mit ``MODERATION_BEI_AUSFALL=geschlossen`` gilt eine Direkt-Aktion
+    # Paket 18A: mit ``MODERATION_FAILURE_MODE=closed`` gilt eine Direkt-Aktion
     # ohne Moderation wie ein freier Zug (``pruefung_fehlt``) — keine Antwort.
     ohne_pruefung = decision.risk_level != "high" and sperrt_ohne_moderation(decision)
     if decision.risk_level == "high" or ohne_pruefung:

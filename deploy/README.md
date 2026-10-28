@@ -322,7 +322,7 @@ vorlegen (jeder kostet einen eigenen HTTP-Client im LiteLLM-Zwischenspeicher). W
 `LLM_PROVIDER=b-api-*` — sonst warnt der Start, ebenso bei einem unbekannten Wert (es gilt
 dann `auto`).
 
-### Wenn die Moderation ausfällt (`MODERATION_BEI_AUSFALL`)
+### Wenn die Moderation ausfällt (`MODERATION_FAILURE_MODE`)
 
 Die Moderation (omni-moderation) ist eine Stufe der Sicherheitsprüfung. Die Regex-Prüfungen
 für Krise, Drohung und persönliche Daten laufen immer, auch ohne sie. Fällt sie aus (falscher
@@ -335,11 +335,11 @@ steigt. Beim Start meldet die Vorwärmung einen toten Zugang als Warnung. Nachri
 
 | Wert | Verhalten |
 |---|---|
-| `offen` (Vorgabe, auch leer) | der Zug wird beantwortet |
-| `geschlossen` | freundliche Absage statt Antwort, solange die Moderation fehlt oder nur teilweise lief — im Chat, bei Direktaktionen und an `/api/agent` |
+| `open` (Vorgabe, auch leer) | der Zug wird beantwortet |
+| `closed` | freundliche Absage statt Antwort, solange die Moderation fehlt oder nur teilweise lief — im Chat, bei Direktaktionen und an `/api/agent` |
 
-Ein unbekannter Wert (etwa `closed`) gilt als `offen`; der Start meldet ihn als Warnung.
-`geschlossen` braucht einen erreichbaren Moderationszugang: Mit `b-api-academiccloud` gibt es
+Ein unbekannter Wert (etwa das deutsche `geschlossen`) gilt als `open`; der Start meldet ihn als Warnung.
+`closed` braucht einen erreichbaren Moderationszugang: Mit `b-api-academiccloud` gibt es
 keinen, dann bliebe jeder Zug unbeantwortet — auch das meldet der Start. Eine Alarmregel auf den
 Zähler zeigt einen dauerhaften Ausfall, bevor er auffällt.
 

@@ -524,7 +524,7 @@ def _moderation_fehlt(monkeypatch, schalter: str):
     from boerdi.services.safety import service
 
     monkeypatch.setattr(service, "get_settings",
-                        lambda: SimpleNamespace(moderation_bei_ausfall=schalter))
+                        lambda: SimpleNamespace(moderation_failure_mode=schalter))
     _patch_safety(monkeypatch, SafetyDecision(risk_level="low",
                                               reasons=["moderation_unavailable"]))
 
@@ -534,7 +534,7 @@ def test_geschlossen_beantwortet_eine_direktaktion_ohne_moderation_nicht(monkeyp
     log, save = _patch_db(monkeypatch)
     auswertung = _Spy()
     monkeypatch.setattr(pf_mod, "log_turn_quality", auswertung)
-    _moderation_fehlt(monkeypatch, "geschlossen")
+    _moderation_fehlt(monkeypatch, "closed")
 
     out = asyncio.run(preflight(_ctx("browse_collection", collection_id="c1"), _SESSION))
 
@@ -549,7 +549,7 @@ def test_geschlossen_beantwortet_eine_direktaktion_ohne_moderation_nicht(monkeyp
 def test_offen_fuehrt_eine_direktaktion_ohne_moderation_aus(monkeypatch):
     browse, _lp, _curate = _patch_handlers(monkeypatch)
     _patch_db(monkeypatch)
-    _moderation_fehlt(monkeypatch, "offen")
+    _moderation_fehlt(monkeypatch, "open")
 
     out = asyncio.run(preflight(_ctx("browse_collection", collection_id="c1"), _SESSION))
 

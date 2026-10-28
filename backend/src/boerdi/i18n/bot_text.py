@@ -336,7 +336,7 @@ BOT_TEXT: Final[Catalogue] = {
             "Sicherheits- oder Inhaltsregeln. Probier es bitte mit einer "
             "anderen Formulierung erneut."
         ),
-        # Paket 18A: ``MODERATION_BEI_AUSFALL=geschlossen`` und die Inhaltsprüfung
+        # Paket 18A: ``MODERATION_FAILURE_MODE=closed`` und die Inhaltsprüfung
         # fehlt — kein Vorwurf an die Person, sie hat nichts falsch gemacht.
         "error.moderationUnavailable": (
             "Ich kann deine Nachricht gerade nicht prüfen lassen und antworte "

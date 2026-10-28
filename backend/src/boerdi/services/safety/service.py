@@ -65,14 +65,14 @@ _UNGEPRUEFT = frozenset({"moderation_unavailable", "moderation_partial"})
 def sperrt_ohne_moderation(decision: SafetyDecision | None) -> bool:
     """Ob ein Zug mit dieser Entscheidung nicht beantwortet werden darf: die
     Nachricht blieb (ganz oder teilweise) unmoderiert, und
-    ``MODERATION_BEI_AUSFALL=geschlossen`` (Paket 18A, Nutzer-Entscheid E1).
+    ``MODERATION_FAILURE_MODE=closed`` (Paket 18A, Nutzer-Entscheid E1).
 
     An einer Stelle für alle Wege — Graph-Knoten ``pruefung_fehlt``, Preflight der
     Direktaktionen und das Gate von ``/api/agent`` (Review 18: dort fehlte es)."""
     return (
         decision is not None
         and bool(_UNGEPRUEFT & set(decision.reasons))
-        and get_settings().moderation_bei_ausfall == "geschlossen"
+        and get_settings().moderation_failure_mode == "closed"
     )
 
 

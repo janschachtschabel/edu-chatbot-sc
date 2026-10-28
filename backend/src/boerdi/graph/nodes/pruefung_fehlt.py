@@ -2,8 +2,8 @@
 
 Paket 18A (Nutzer-Entscheid E1, 2026-10-28). Die Moderation ist fail-open: fällt
 sie aus, steht ``moderation_unavailable`` in der Entscheidung, und der Zug läuft
-weiter (``MODERATION_BEI_AUSFALL=offen``, Vorgabe). Steht der Schalter auf
-``geschlossen``, endet der Zug hier mit einer freundlichen Absage — vor ``merge``,
+weiter (``MODERATION_FAILURE_MODE=open``, Vorgabe). Steht der Schalter auf
+``closed``, endet der Zug hier mit einer freundlichen Absage — vor ``merge``,
 also bevor der Vorabruf und die Antwort starten (Klassifikation, Rechtsprüfung und
 Einbettung liefen in ``assess`` schon nebenher).
 
@@ -40,7 +40,7 @@ async def pruefung_fehlt(ctx: TurnContext, session: AsyncSession) -> TurnContext
     absage = bot_text(lang, "error.moderationUnavailable")
     debug = DebugInfo(pattern="SAFETY: moderation_unavailable", safety=ctx.safety)
     logger.warning("turn not answered: moderation unavailable, "
-                   "MODERATION_BEI_AUSFALL=geschlossen")
+                   "MODERATION_FAILURE_MODE=closed")
     try:
         await save_message(session, ctx.req.session_id, "assistant", absage,
                            debug=debug.model_dump())

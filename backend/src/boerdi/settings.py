@@ -29,7 +29,7 @@ def _env(name: str) -> AliasChoices:
 
 _LLM_PROVIDERS = {"openai", "b-api-openai", "b-api-academiccloud"}
 _B_API_KEY_MODES = {"auto", "static", "forward"}
-_MODERATION_BEI_AUSFALL = {"offen", "geschlossen"}
+_MODERATION_FAILURE_MODES = {"open", "closed"}
 _VERBOSITY = {"low", "medium", "high"}
 # W12: `max` ergaenzt — die Chat-Completions-Referenz fuehrt es auf
 # (none|minimal|low|medium|high|xhigh|max). Fehlte hier, ein gueltiger Wert
@@ -179,12 +179,12 @@ class Settings(BaseSettings):
     )
     # Paket 18A (Nutzer-Entscheid E1, 2026-10-28): was ein Zug tut, dessen Moderation
     # lief, aber nichts lieferte (Ausfall, Überlast, fehlende Zugangsdaten).
-    # ``offen`` (Vorgabe, auch leer/unbekannt): antworten, der Ausfall steht in der
-    # Entscheidung und im Zähler. ``geschlossen``: freundliche Absage statt Antwort —
+    # ``open`` (Vorgabe, auch leer/unbekannt): antworten, der Ausfall steht in der
+    # Entscheidung und im Zähler. ``closed``: freundliche Absage statt Antwort —
     # setzt einen erreichbaren Moderationszugang voraus.
-    moderation_bei_ausfall: str = Field(
-        "offen", validation_alias=_env("MODERATION_BEI_AUSFALL"),
-        description="offen | geschlossen — turn behaviour when moderation is unavailable",
+    moderation_failure_mode: str = Field(
+        "open", validation_alias=_env("MODERATION_FAILURE_MODE"),
+        description="open | closed — turn behaviour when moderation is unavailable",
     )
     b_api_audio: bool = Field(
         False, validation_alias=_env("B_API_AUDIO"),
@@ -502,11 +502,11 @@ class Settings(BaseSettings):
         v = v.strip().lower()
         return v if v in _B_API_KEY_MODES else "auto"
 
-    @field_validator("moderation_bei_ausfall")
+    @field_validator("moderation_failure_mode")
     @classmethod
-    def _coerce_moderation_bei_ausfall(cls, v: str) -> str:
+    def _coerce_moderation_failure_mode(cls, v: str) -> str:
         v = v.strip().lower()
-        return v if v in _MODERATION_BEI_AUSFALL else "offen"
+        return v if v in _MODERATION_FAILURE_MODES else "open"
 
     @field_validator("llm_provider")
     @classmethod

@@ -98,16 +98,16 @@ def _warn_insecure_config(settings: Settings) -> None:
             "⚠ B_API_KEY_MODE=%r ist unbekannt — es gilt %r (erlaubt: auto, static, forward).",
             roh_modus, settings.b_api_key_mode,
         )
-    roh_ausfall = os.environ.get("MODERATION_BEI_AUSFALL", "").strip()
-    if roh_ausfall and roh_ausfall.lower() != settings.moderation_bei_ausfall:
+    roh_ausfall = os.environ.get("MODERATION_FAILURE_MODE", "").strip()
+    if roh_ausfall and roh_ausfall.lower() != settings.moderation_failure_mode:
         # Review 18: ein Schalter, der schließen soll, öffnete bei einem Tippfehler still.
         log.warning(
-            "⚠ MODERATION_BEI_AUSFALL=%r ist unbekannt — es gilt %r (erlaubt: offen, "
-            "geschlossen).", roh_ausfall, settings.moderation_bei_ausfall,
+            "⚠ MODERATION_FAILURE_MODE=%r ist unbekannt — es gilt %r (erlaubt: open, "
+            "closed).", roh_ausfall, settings.moderation_failure_mode,
         )
-    if settings.moderation_bei_ausfall == "geschlossen" and moderation._moderation_target() is None:
+    if settings.moderation_failure_mode == "closed" and moderation._moderation_target() is None:
         log.warning(
-            "⚠ MODERATION_BEI_AUSFALL=geschlossen, aber für diesen Anbieter ist keine "
+            "⚠ MODERATION_FAILURE_MODE=closed, aber für diesen Anbieter ist keine "
             "Moderation eingerichtet — JEDER Zug wird abgewiesen."
         )
     if settings.b_api_key_mode == "forward" and not settings.llm_provider.startswith("b-api"):
