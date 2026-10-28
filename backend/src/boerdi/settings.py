@@ -27,6 +27,19 @@ def _env(name: str) -> AliasChoices:
     return AliasChoices(name)
 
 
+#: Umbenannte Variablen, alt → neu (2026-10-28: alle Namen englisch). Der alte Name wirkt
+#: übergangsweise weiter; der Start warnt (``main._warn_insecure_config``).
+UMBENANNTE_VARIABLEN: dict[str, str] = {
+    "RAG_UMWANDLUNG_FRIST_S": "RAG_CONVERSION_TIMEOUT_S",
+    "RAG_UMWANDLUNG_MAX_MB": "RAG_CONVERSION_MAX_MB",
+}
+
+
+def _env_umbenannt(name: str) -> AliasChoices:
+    """Der neue Name zuerst, dahinter der alte aus :data:`UMBENANNTE_VARIABLEN`."""
+    return AliasChoices(name, *(alt for alt, neu in UMBENANNTE_VARIABLEN.items() if neu == name))
+
+
 _LLM_PROVIDERS = {"openai", "b-api-openai", "b-api-academiccloud"}
 _B_API_KEY_MODES = {"auto", "static", "forward"}
 _MODERATION_FAILURE_MODES = {"open", "closed"}
@@ -337,10 +350,10 @@ class Settings(BaseSettings):
     # Paket 9 (Review Paket 7, MAJOR 6): die Umwandlung im Kindprozess
     # (``services/rag/umwandeln_kind``) — Frist in Sekunden und Speichergrenze in MB
     # (Linux ``RLIMIT_DATA``; 0 = aus).
-    rag_umwandlung_frist_s: float = Field(
-        120.0, gt=0, validation_alias=_env("RAG_UMWANDLUNG_FRIST_S"))
-    rag_umwandlung_max_mb: int = Field(
-        1024, ge=0, validation_alias=_env("RAG_UMWANDLUNG_MAX_MB"))
+    rag_conversion_timeout_s: float = Field(
+        120.0, gt=0, validation_alias=_env_umbenannt("RAG_CONVERSION_TIMEOUT_S"))
+    rag_conversion_max_mb: int = Field(
+        1024, ge=0, validation_alias=_env_umbenannt("RAG_CONVERSION_MAX_MB"))
     # 2026-08-19: Vorgabe auf Staging gezogen (Nutzer: nur Staging). Zwei
     # Dinge dazu, damit niemand mehr davon erwartet, als der Wert leistet:
     # (1) In DIESEM Backend liest ihn nichts — die Textextraktion macht der

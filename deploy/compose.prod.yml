@@ -218,6 +218,9 @@ services:
       REPO_BASE_URL: ${REPO_BASE_URL:-}
       GUIDE_TRUSTED_DOMAINS: ${GUIDE_TRUSTED_DOMAINS:-}
       BOERDI_MAX_INGEST_MB: ${BOERDI_MAX_INGEST_MB:-}
+      RAG_CONVERSION_TIMEOUT_S: ${RAG_CONVERSION_TIMEOUT_S:-}
+      RAG_CONVERSION_MAX_MB: ${RAG_CONVERSION_MAX_MB:-}
+      # Alte Namen (bis 2026-10): wirken übergangsweise weiter, der Start warnt.
       RAG_UMWANDLUNG_FRIST_S: ${RAG_UMWANDLUNG_FRIST_S:-}
       RAG_UMWANDLUNG_MAX_MB: ${RAG_UMWANDLUNG_MAX_MB:-}
       # Der Studio-Lasttest treibt die echte Chat-Pipeline und teilt den

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import logging
 import time
 import zipfile
 
@@ -61,9 +62,32 @@ class TestVorpruefung:
         assert kind.vorpruefung(b"PK\x03\x04 kaputt") is None
 
 
+class TestUmbenannteVariablen:
+    """2026-10-28: alle Variablennamen englisch. Die alten deutschen Namen wirken
+    übergangsweise weiter — eine bestehende Anlage darf ihren Wert nicht still verlieren."""
+
+    def test_der_alte_name_wirkt_weiter_der_neue_gewinnt(self, monkeypatch):
+        from boerdi.settings import Settings
+
+        monkeypatch.setenv("RAG_UMWANDLUNG_FRIST_S", "7")
+        assert Settings().rag_conversion_timeout_s == 7.0
+        monkeypatch.setenv("RAG_CONVERSION_TIMEOUT_S", "3")
+        assert Settings().rag_conversion_timeout_s == 3.0
+
+    def test_der_alte_name_wird_beim_start_gemeldet(self, monkeypatch, caplog):
+        from boerdi.main import _warn_insecure_config
+        from boerdi.settings import Settings
+
+        monkeypatch.setenv("RAG_UMWANDLUNG_MAX_MB", "512")
+        with caplog.at_level(logging.WARNING, logger="boerdi.main"):
+            _warn_insecure_config(Settings())
+        assert "RAG_UMWANDLUNG_MAX_MB" in caplog.text
+        assert "RAG_CONVERSION_MAX_MB" in caplog.text
+
+
 class TestKindprozess:
     def test_die_frist_beendet_den_kindprozess(self, monkeypatch):
-        monkeypatch.setenv("RAG_UMWANDLUNG_FRIST_S", "4")
+        monkeypatch.setenv("RAG_CONVERSION_TIMEOUT_S", "4")
         get_settings.cache_clear()
         t0 = time.perf_counter()
         aus = asyncio.run(kind.im_kindprozess(helfer.schlafe, 60))

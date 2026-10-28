@@ -53,7 +53,7 @@ from boerdi.services import master_skill as master_skill_dienst
 from boerdi.services.master_skill import starte as starte_master_skill_takt
 from boerdi.services.safety import moderation
 from boerdi.services.warmup import spawn_startup_warmups
-from boerdi.settings import Settings, get_settings
+from boerdi.settings import UMBENANNTE_VARIABLEN, Settings, get_settings
 
 log = logging.getLogger("startup")
 
@@ -98,6 +98,10 @@ def _warn_insecure_config(settings: Settings) -> None:
             "⚠ B_API_KEY_MODE=%r ist unbekannt — es gilt %r (erlaubt: auto, static, forward).",
             roh_modus, settings.b_api_key_mode,
         )
+    for alt, neu in UMBENANNTE_VARIABLEN.items():
+        if os.environ.get(alt, "").strip():
+            log.warning("⚠ %s ist veraltet und heißt jetzt %s — der alte Name wirkt "
+                        "übergangsweise weiter.", alt, neu)
     roh_ausfall = os.environ.get("MODERATION_FAILURE_MODE", "").strip()
     if roh_ausfall and roh_ausfall.lower() != settings.moderation_failure_mode:
         # Review 18: ein Schalter, der schließen soll, öffnete bei einem Tippfehler still.

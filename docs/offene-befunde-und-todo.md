@@ -124,7 +124,7 @@ Kurz erklärt — je Punkt, worum es geht und welche Antwort gebraucht wird — 
 - **Paket 9:**
   - Migration `0010` (Indizes auf `messages.created_at` und `memory.created_at` für den Löschlauf) — `alembic upgrade head`, der Dienst `migrate` erledigt das beim Start.
   - `b-api-openai` mit `gpt-6-luna` läuft jetzt über `/openai/responses` — vorher scheiterte dort jeder Werkzeugaufruf (Review CRITICAL 1). Live geprüft am 2026-10-09 (Werkzeugaufruf mit und ohne Strom).
-  - Neue Umgebung `RAG_UMWANDLUNG_FRIST_S` (120) und `RAG_UMWANDLUNG_MAX_MB` (1024): Uploads und URL-Importe werden in einem eigenen Kindprozess umgewandelt (ZIP-Bombe, PDF-Seiten, Speicher, Frist). Stehen in `deploy/.env.example` und `compose.prod.yml`.
+  - Neue Umgebung `RAG_CONVERSION_TIMEOUT_S` (120) und `RAG_CONVERSION_MAX_MB` (1024; bis 2026-10 `RAG_UMWANDLUNG_FRIST_S`/`_MAX_MB`): Uploads und URL-Importe werden in einem eigenen Kindprozess umgewandelt (ZIP-Bombe, PDF-Seiten, Speicher, Frist). Stehen in `deploy/.env.example` und `compose.prod.yml`.
   - `session_id` im Chat nur noch `[A-Za-z0-9_-]{1,128}`, sonst 422 (das Widget schickt `bb-<uuid>`). `page_context` ist am Eingang gedeckelt (Feldlänge, Einträge, Tiefe). Eigene Einbettungen mit anderen Kennungen vorher prüfen.
   - Moderation mit eigenen Plätzen (4); die Frist (8 s) gilt seit Paket 10 für Warten und Aufruf zusammen. Scheitert sie, geht die Nachricht ungeprüft weiter und das Log sagt „moderation skipped“.
   - Aufbewahrung: auch der Gesprächsstand ruhender Sitzungen (Entities, Signale, Tour) wird nach der Frist der Verläufe geleert; die Sitzung und ihre Kosten bleiben (V7, umkehrbar). Fristen-Vorgaben des Modells jetzt 90/180 wie die Seeds.
