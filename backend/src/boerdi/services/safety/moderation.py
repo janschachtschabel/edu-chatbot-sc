@@ -18,6 +18,7 @@ from typing import Any
 
 import litellm
 
+from boerdi.obs import metrics
 from boerdi.obs.trace_id import ausgehende_koepfe
 from boerdi.services import llm_parallel
 from boerdi.services.llm_auth import b_api_schluessel
@@ -47,6 +48,15 @@ _KATEGORIEN = (
 )
 #: SDK-Feldname → Kategorie (``self_harm_intent`` → ``self_harm/intent``).
 _AUS_SDK_NAME = {k.replace("/", "_"): k for k in _KATEGORIEN}
+
+#: Abschnittslänge je Moderationseingabe, Überlappung benachbarter Abschnitte (ein Wort
+#: auf der Grenze steht so ganz in einem) und Obergrenze der Abschnitte je Aufruf.
+_ABSCHNITT = 4000
+_UEBERLAPPUNG = 200
+_MAX_ABSCHNITTE = 8
+
+#: Ob der fehlende Zugang schon einmal gemeldet wurde (eine Warnung je Prozess).
+_ohne_zugang_gemeldet = False
 
 # Patchable network boundary (tests replace this with a fake).
 _amoderation = litellm.amoderation
@@ -143,39 +153,91 @@ async def _mit_platz(kwargs: dict[str, Any]) -> Any:
         return await _amoderation(**kwargs)
 
 
+def _abschnitte(message: str) -> tuple[list[str], bool]:
+    """Die Nachricht in Abschnitte der Länge, die omni-moderation verträgt, und ob
+    sie damit ganz geprüft wird.
+
+    Bis Paket 18 sah die Stufe nur die ersten 4000 Zeichen, und eine Chat-Nachricht
+    hat keine eigene Längengrenze: ein harmloser Vorspann schob den Inhalt aus dem
+    Blick (Prüfung 2026-10-28). Mehrere Abschnitte gehen in EINEM Aufruf hinaus
+    (``input`` als Liste), die Wartezeit bleibt also gleich. Sind es mehr als
+    :data:`_MAX_ABSCHNITTE`, gehen Anfang und Ende hinaus, und die Prüfung gilt als
+    teilweise (Review 18: Inhalt ab Zeichen 32 000 blieb sonst ungeprüft)."""
+    schritt = _ABSCHNITT - _UEBERLAPPUNG
+    teile = [message[i:i + _ABSCHNITT]
+             for i in range(0, max(len(message) - _UEBERLAPPUNG, 1), schritt)]
+    if len(teile) <= _MAX_ABSCHNITTE:
+        return teile, True
+    logger.warning("moderation: message has %d chars, only the first and last %d sections "
+                   "are checked", len(message), _MAX_ABSCHNITTE // 2)
+    haelfte = _MAX_ABSCHNITTE // 2
+    return teile[:haelfte] + teile[-haelfte:], False
+
+
+def _zusammengefasst(results: list[Any]) -> dict[str, Any]:
+    """Ein Befund über alle Abschnitte: markiert, wenn ein Abschnitt es ist; je
+    Kategorie der höchste Wert."""
+    kategorien: dict[str, bool] = {}
+    werte: dict[str, float] = {}
+    for r in results:
+        for k, v in _as_mapping(r.categories).items():
+            kat = _kategorie(k)
+            kategorien[kat] = kategorien.get(kat, False) or bool(v)
+        for k, v in _as_mapping(r.category_scores).items():
+            kat = _kategorie(k)
+            werte[kat] = max(werte.get(kat, 0.0), float(v))
+    return {
+        "flagged": any(bool(r.flagged) for r in results),
+        "categories": kategorien,
+        "scores": werte,
+    }
+
+
 async def moderate(message: str) -> dict[str, Any]:
-    """Run omni-moderation over ``message`` (capped at 4000 chars).
+    """Run omni-moderation over ``message`` (in sections of 4000 chars, see
+    ``_abschnitte``).
 
     Returns ``{"flagged": bool, "categories": {cat: bool}, "scores": {cat: float}}``
-    on success, or ``{}`` on any error / when no credential is available. Free of
-    charge on OpenAI.
+    on success (plus ``"teilweise": True`` when only start and end of a very long
+    message were checked), or ``{}`` when the message stayed UNCHECKED (any error, an
+    incomplete answer, or no credential). ``{}`` never means "clean": ``service``
+    records it as a failed stage (Paket 18A). Free of charge on OpenAI.
     """
+    global _ohne_zugang_gemeldet
     target = _moderation_target()
     if target is None:
+        metrics.sicherheitsstufe("openai_moderation", "keine_zugangsdaten")
+        if not _ohne_zugang_gemeldet:
+            # Einmal je Prozess: ein Setup ohne Moderation ist ein Zustand, kein
+            # Ereignis — aber er darf nicht stumm sein (Prüfung 2026-10-28).
+            logger.warning("moderation not configured for provider %s — messages pass "
+                           "without moderation (regex floor only)", get_provider())
+            _ohne_zugang_gemeldet = True
         return {}
     api_base, api_key, extra_headers = target
+    teile, ganz = _abschnitte(message)
     try:
         kwargs: dict[str, Any] = {
             "model": _MOD_MODEL,
-            "input": message[:4000],
+            "input": teile[0] if len(teile) == 1 else teile,
             "api_key": api_key,
             "api_base": api_base,
         }
         if extra_headers:
             kwargs["extra_headers"] = extra_headers
         result = await _mit_platz(kwargs)
-        r = result.results[0]
-        return {
-            "flagged": bool(r.flagged),
-            "categories": {
-                _kategorie(k): bool(v) for k, v in _as_mapping(r.categories).items()
-            },
-            "scores": {
-                _kategorie(k): float(v) for k, v in _as_mapping(r.category_scores).items()
-            },
-        }
+        ergebnisse = list(result.results)
+        if len(ergebnisse) != len(teile):
+            # Review 18: eine leere Liste wurde sonst zu „sauber“ zusammengefasst.
+            raise ValueError(f"{len(ergebnisse)} results for {len(teile)} sections")
+        befund = _zusammengefasst(ergebnisse)
     except Exception as e:  # noqa: BLE001 — fail-open by design (regex floor stays)
         # Mit Art: ``str(TimeoutError())`` ist leer, das Log sagte nur „failed: “.
         logger.warning("moderation skipped, message passes unchecked: %s: %s",
                        type(e).__name__, e)
+        metrics.sicherheitsstufe("openai_moderation", "fehler")
         return {}
+    if not ganz:
+        befund["teilweise"] = True
+    metrics.sicherheitsstufe("openai_moderation", "ok" if ganz else "teilweise")
+    return befund

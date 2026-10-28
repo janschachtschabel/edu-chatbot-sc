@@ -78,6 +78,9 @@ class SafetyDecision(BaseModel):
     reasons: list[str] = Field(default_factory=list)
     # Multi-stage details
     stages_run: list[str] = Field(default_factory=list)  # regex | openai_moderation | llm_legal
+    # Paket 18A: Stufen, die liefen, aber kein Ergebnis brachten (Ausfall, fehlende
+    # Zugangsdaten). Fail-open — die Nachricht blieb in dieser Stufe UNGEPRÜFT.
+    stages_failed: list[str] = Field(default_factory=list)
     categories: dict[str, float] = Field(default_factory=dict)  # cat → score
     flagged_categories: list[str] = Field(default_factory=list)
     # strafrecht | jugendschutz | persoenlichkeit | datenschutz
