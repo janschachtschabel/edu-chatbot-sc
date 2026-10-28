@@ -399,6 +399,18 @@ def test_assemble_parse_error_still_injects_with_empty_outcome(monkeypatch):
     assert outcomes[0].status == "empty" and outcomes[0].item_count == 0
 
 
+def test_assemble_gescheiterter_vorabruf_zaehlt_als_fehler(monkeypatch):
+    """Paket 18B: ein Vorabruf, der nur „MCP error …“ brachte, galt als ``empty`` —
+    Zuversicht und Auswertung lasen „nichts gefunden“, wo die Suche gar nicht lief.
+    Der Fehlertext selbst bleibt aus dem Ergebnis (Debug-Block, Paket 18D)."""
+    outcomes = _run_assemble(
+        monkeypatch, parse_cards=lambda txt: [],
+        prefetched_tool={"name": "search_wlo_content", "arguments": {},
+                         "result_text": "MCP error: Name or service not known"})[3]
+    assert outcomes[0].status == "error" and outcomes[0].item_count == 0
+    assert outcomes[0].error == ""
+
+
 def test_assemble_extras_injected_with_unique_ids_and_dedupe(monkeypatch):
     from boerdi.api.schemas import ToolOutcome
     primary = [{"node_id": "n1", "title": "T1"}]
