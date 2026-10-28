@@ -13,8 +13,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+import yaml
 from prometheus_client import REGISTRY
 
 from boerdi.api.schemas import ChatRequest, SafetyDecision
@@ -24,6 +27,8 @@ from boerdi.services import warmup
 from boerdi.services.safety import legal as legal_mod
 from boerdi.services.safety import moderation as mod
 from boerdi.services.safety import service as ss
+
+_SEED = Path(__file__).resolve().parents[1] / "seeds" / "01-base" / "safety-config.yaml"
 
 _CFG = {
     "security_level": "max",
@@ -373,7 +378,7 @@ def test_geschlossen_mit_zugang_bleibt_beim_start_still(monkeypatch, caplog):
         monkeypatch, caplog, "geschlossen", zugang=True)
 
 
-# ── Aufwärmen ────────────────────────────────────────────────────────────
+# ── Aufwärmen und Seed ───────────────────────────────────────────────────
 
 def test_das_aufwaermen_meldet_eine_ungepruefte_moderation(monkeypatch, caplog):
     async def _leer_mod(_m):
@@ -384,3 +389,9 @@ def test_das_aufwaermen_meldet_eine_ungepruefte_moderation(monkeypatch, caplog):
         asyncio.run(warmup.warm_llm_connection())
     assert "llm warmup done" not in caplog.text
     assert "moderation" in caplog.text and "nicht" in caplog.text
+
+
+@pytest.mark.parametrize("werkzeug", ["search_wlo_all", "search_wlo_content"])
+def test_die_krisensperre_im_seed_deckt_alle_suchwerkzeuge(werkzeug):
+    seed = yaml.safe_load(_SEED.read_text(encoding="utf-8"))
+    assert werkzeug in seed["crisis_blocked_tools"]
