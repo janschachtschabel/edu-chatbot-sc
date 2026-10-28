@@ -365,6 +365,13 @@ warten per `service_completed_successfully` auf ihn.
 höchstens ein laufender Lasttest; 0015: geteilter Master-Skill-Stand). Während des Umstiegs
 keinen Lasttest und keine Evaluation starten — alte Backends schreiben keinen Herzschlag.
 
+**Paket 18:** keine Migration. Neu und optional: `MODERATION_FAILURE_MODE` (Abschnitt oben).
+`RAG_UMWANDLUNG_FRIST_S` und `RAG_UMWANDLUNG_MAX_MB` heißen jetzt `RAG_CONVERSION_TIMEOUT_S`
+und `RAG_CONVERSION_MAX_MB` (alle Namen englisch). Die alten Namen wirken übergangsweise
+weiter, der Start warnt — in der `.env` umbenennen. Die Krisensperre (`01-base/safety-config`,
+jetzt mit `search_wlo_all`) folgt beim `migrate` dem Werk, sofern im Studio keine eigene
+Fassung aktiv ist.
+
 **Hier KEIN `import-config`.** Ab dem ersten Import ist die Datenbank die
 Wahrheit und das Studio der Weg, sie zu ändern; ein zweiter Import überschreibt
 redaktionelle Arbeit mit dem Seed-Stand. Soll wirklich der ganze Baum neu

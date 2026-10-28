@@ -46,14 +46,14 @@ Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳
 - **No more "checked" without a check:** a risk is only downgraded when every stage that ran
   actually checked. This now also covers the LLM legal check, which failed just as silently. Both
   stages are counted (`stage="openai_moderation"` and `stage="llm_legal"`).
-- **Switch `MODERATION_BEI_AUSFALL`:** `offen` (default) answers and makes the outage visible as
-  above. `geschlossen` replies with a friendly refusal for as long as moderation is down — in the
+- **Switch `MODERATION_FAILURE_MODE`:** `open` (default) answers and makes the outage visible as
+  above. `closed` replies with a friendly refusal for as long as moderation is down — in the
   chat, for direct actions and at `/api/agent`. Recommended for school use. The start warns about an
-  unknown value (e.g. `closed`) and about `geschlossen` without any moderation access. Documented in
+  unknown value (e.g. the German `geschlossen`) and about `closed` without any moderation access. Documented in
   `deploy/README.md`.
 - **Long messages:** they were moderated only up to character 4000. Now in overlapping sections,
   in one call. Above about 30 000 characters the start and the end are checked, and the turn is
-  marked as only partly checked (`moderation_partial`; `geschlossen` refuses it).
+  marked as only partly checked (`moderation_partial`; `closed` refuses it).
 - **Also fixed:** a cancelled check or an incomplete answer no longer passes as a result. If the
   whole safety check fails, the regex-only fallback is marked as unmoderated. `search_wlo_all` is
   now blocked in crisis turns like the other search tools. Refused turns appear in the evaluation.
@@ -88,9 +88,9 @@ Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳
   green. An independent review of this change found 4 major and 9 minor points; all are fixed
   except the answer rewrite, which we kept on purpose (§1).
 - Moderation outage by hand: set a wrong key or a dead endpoint for moderation, then send a message.
-  With `MODERATION_BEI_AUSFALL=offen` the log shows "moderation skipped …" and the counter
+  With `MODERATION_FAILURE_MODE=open` the log shows "moderation skipped …" and the counter
   `boerdi_safety_stage_total{stage="openai_moderation",outcome="fehler"}` rises
-  (`keine_zugangsdaten` when no key is configured at all). With `geschlossen` the bot refuses
+  (`keine_zugangsdaten` when no key is configured at all). With `closed` the bot refuses
   politely.
 - Several types: ask for "Arbeitsblatt oder interaktives Material zum Klimawandel". The log shows two
   `search_wlo_content` calls without a `-32602` error, and the search link carries both filters.

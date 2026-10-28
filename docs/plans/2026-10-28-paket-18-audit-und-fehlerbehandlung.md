@@ -69,14 +69,14 @@ Das Audit beschreibt einen **älteren Stand** (vor Paket 3/4, etwa Ende Septembe
 
 | # | Frage | Empfehlung |
 |---|---|---|
-| E1 | Verhalten bei einem Moderationsausfall | Schalter `MODERATION_BEI_AUSFALL` = `offen` \| `geschlossen`. Bei Vorgabe `offen` wird der Ausfall laut gemacht: Zähler, Kennzeichen in der Entscheidung, keine Herabstufung. Bei `geschlossen` bekommt die Person eine freundliche Absage, solange die Moderation fehlt. Für Schulbetrieb `geschlossen` erwägen. |
+| E1 | Verhalten bei einem Moderationsausfall | Schalter `MODERATION_FAILURE_MODE` = `open` \| `closed`. Bei Vorgabe `open` wird der Ausfall laut gemacht: Zähler, Kennzeichen in der Entscheidung, keine Herabstufung. Bei `closed` bekommt die Person eine freundliche Absage, solange die Moderation fehlt. Für Schulbetrieb `closed` erwägen. |
 | E2 | Debug-Block in öffentlichen Antworten | Nur mit Studio-Anmeldung oder explizitem Debug-Schalter der Einbettung, der serverseitig freigeschaltet sein muss. Sonst entfernt. |
 | E3 | Inhalte in Logs | Nie auf INFO oder höher. Auf DEBUG nur mit `LOG_CONTENT=true` (Vorgabe aus). |
 | E4 | Äußeres Rate-Limit je IP | Vorgabe 120/min je IP. Die inneren Grenzen je Sitzung bleiben. 429 bekommt eine eigene Meldung im Widget. |
 | E5 | Agent-Deckel für Anonyme | Eigene, kleinere Werte (Vorschlag: 8 Runden, 120 s, 150k Token), im Studio einstellbar. |
 
 **Entschieden (Nutzer 2026-10-28):**
-- E1: Schalter, Vorgabe `offen`.
+- E1: Schalter, Vorgabe `open`.
 - E2: Debug-Block nur mit Freigabe.
 - E3: nach Empfehlung.
 - E4: 120/min je IP.
@@ -157,7 +157,7 @@ Für jedes Paket gilt:
 
 | Paket | Nachweis |
 |---|---|
-| A | Tests: Moderation wirft bzw. hat keine Zugangsdaten. Dann steht `moderation_unavailable` in der Entscheidung, es wird nicht herabgestuft, der Zähler steigt; bei `geschlossen` kommt die Absage. Volle Safety-Suite grün. |
+| A | Tests: Moderation wirft bzw. hat keine Zugangsdaten. Dann steht `moderation_unavailable` in der Entscheidung, es wird nicht herabgestuft, der Zähler steigt; bei `closed` kommt die Absage. Volle Safety-Suite grün. |
 | B | Tests: `medientyp` als Liste. Die Normalisierung greift, zwei Typen werden aufgefächert und zusammengeführt, Label und URL nennen beide (Antwort-Ersatz: siehe Abweichung in 18B), der Watchdog läuft mit Liste. „Protest“ ergibt kein Quiz. Kleiner Chat-Smoke mit „Arbeitsblatt oder interaktives Material“. |
 | C | Wächtertest grün; caplog-Tests für die wichtigsten Pfade zeigen keinen Nachrichtentext; `LOG_CONTENT=true` zeigt ihn auf DEBUG. |
 | D | Tests: Die Nutzerblase enthält weder Klasse noch Meldung, aber eine Fehlernummer. Der Debug-Block fehlt ohne Freigabe. Der Canvas-Fehler zeigt keinen Anbietertext. |
@@ -182,7 +182,7 @@ Für jedes Paket gilt:
   - **Entscheidung:** Neues Feld `SafetyDecision.stages_failed` mit dem Grund `moderation_unavailable`. Eine leere Moderation gilt als Ausfall, `gather` wird auf `BaseException` ausgewertet, und `_maybe_downgrade` stuft nur nach erfolgreicher Prüfung herab.
   - **Sichtbarkeit:** Zähler `boerdi_safety_stage_total{stage,outcome}`; eine Warnung je Prozess bei fehlendem Zugang; das Aufwärmen meldet einen Ausfall ehrlich.
   - **Lange Nachrichten:** Abschnitte zu je 4000 Zeichen, höchstens 8, in einem Aufruf.
-  - **Schalter `MODERATION_BEI_AUSFALL`:** Neuer Graph-Knoten `pruefung_fehlt` nach `safety_log` beendet den Zug bei `geschlossen`; Direktaktionen im Preflight ebenso. Eingetragen in Deploy und Doku.
+  - **Schalter `MODERATION_FAILURE_MODE`:** Neuer Graph-Knoten `pruefung_fehlt` nach `safety_log` beendet den Zug bei `closed`; Direktaktionen im Preflight ebenso. Eingetragen in Deploy und Doku.
   - **Seed:** `crisis_blocked_tools` enthält jetzt `search_wlo_all`.
   - **Kleinigkeit:** `assess` wertet ebenfalls auf `BaseException` aus.
   - **Sicherheitsprotokoll:** Das Studio-Format bleibt bei den ALT-Schlüsseln; `stages_failed` steht nur in den Daten, der Grund in `reasons`.
@@ -203,10 +203,11 @@ Für jedes Paket gilt:
   - **Lange Nachrichten:** Abschnitte überlappen (200 Zeichen). Über 8 Abschnitten gehen die ersten und letzten 4 hinaus, die Prüfung gilt als teilweise (`moderation_partial`, Zähler `teilweise`), und der geschlossene Schalter greift. Eine unvollständige Antwort (weniger Ergebnisse als Abschnitte) gilt als Ausfall.
   - **Schalter überall:** `sperrt_ohne_moderation` liegt jetzt in `services/safety/service.py` und gilt auch für `/api/agent`. Scheitert `assess_safety` als Ganzes, trägt der Regex-Rückfall `moderation_unavailable` (`regex_rueckfall`, in assess, preflight und agent_gate). Abgewiesene Züge stehen in der Auswertung; der Preflight benennt sie als `SAFETY: moderation_unavailable`.
   - **Rechtsprüfung:** Ein Ausfall steht in `stages_failed` (`llm_legal`) und verhindert die Herabstufung. Zähler mit den Stufen-IDs `openai_moderation` und `llm_legal`.
-  - **Startwarnungen:** ein unbekannter Schalterwert; `geschlossen` ohne Moderationszugang.
+  - **Startwarnungen:** ein unbekannter Schalterwert; `closed` ohne Moderationszugang.
   - **Medientypen:** Klassifikatorwerte werden wieder als Teilzeichenkette abgebildet („Onlinekurs“ → kurs). In der Nachricht zählen `test`/`spiel`/`kurs` am Wortende, auch im Kompositum („Klassentest“), mit einer Liste von Ausnahmen („Protest“, „Beispiel“, „Exkurs“, „latest“). Ein englisches „test message“ bleibt ein Quiz: „Test“ ist auch das deutsche Wort dafür.
   - **Keine wachsende Typliste:** Nennt die Nachricht Typen, gelten nur sie; sonst bleiben die der Sitzung.
   - **Auffächern:** Der Begleittext des Servers bleibt erhalten, eine gescheiterte Teilsuche wird dem Modell genannt und geloggt (Anzahl), Ausnahmen lassen die übrigen Treffer zählen, `total` summiert nur die Inhaltssuche.
   - **Typ-Fokus:** höchstens so viele LRT-URIs, wie Typen gewünscht sind.
   - **Tests:** Verdrahtung Client → Auffächern, Weitergabe in der Werkzeugschleife, echte Vokabelschlüssel.
   - **Bleibt offen (vorbestehend):** Die Rechtsprüfung sieht nur `message[:2000]`. Sitzungen von vor 18B können noch Listen in Entitäten tragen (`canvas_fast_path` ruft `.strip()`). Logzeilen mit Antworttext gehören zu 18C.
+- 2026-10-28: **Namen einheitlich englisch** (Nutzer): der Schalter heißt `MODERATION_FAILURE_MODE` mit `open`/`closed` (vorher `MODERATION_BEI_AUSFALL` mit `offen`/`geschlossen`, nie ausgeliefert). Dazu `RAG_UMWANDLUNG_FRIST_S`/`_MAX_MB` → `RAG_CONVERSION_TIMEOUT_S`/`_MAX_MB`; die alten Namen wirken übergangsweise weiter (`settings.UMBENANNTE_VARIABLEN`), der Start warnt, Compose reicht beide durch. Alarmregel `BoerdiModerationFaellt` in den Helm-Werten.
