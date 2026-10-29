@@ -206,6 +206,39 @@ async def finalize_message(
         return False
 
 
+#: Höchstens so viele Züge liefert die Suche nach Fehlernummer (Paket 18C/D).
+MAX_ZUG_TREFFER = 20
+
+
+async def zuege_mit_nummer(session: AsyncSession, praefix: str) -> list[dict[str, Any]]:
+    """Die Züge, deren Trace-ID mit ``praefix`` beginnt — die Fehlernummer führt so zum Zug
+    (Paket 18C/D). Neueste zuerst, höchstens :data:`MAX_ZUG_TREFFER`.
+
+    Ein Zug zählt einmal, obwohl Frage und Antwort dieselbe ID tragen: der Treffer zeigt auf
+    seine letzte Nachricht — die Antwort, oder die Frage, wenn keine gespeichert wurde.
+    ``autoescape``: ``_`` gehört zum Zeichenvorrat der Trace-ID und ist kein Platzhalter. Den
+    Präfix-Vergleich trägt der Index ``ix_messages_trace_id`` (``text_pattern_ops``, 0016).
+    """
+    letzte = (
+        select(ChatMessage.id)
+        .where(ChatMessage.trace_id.startswith(praefix, autoescape=True))
+        .distinct(ChatMessage.session_id, ChatMessage.trace_id)
+        .order_by(ChatMessage.session_id, ChatMessage.trace_id, ChatMessage.id.desc())
+    )
+    stmt = (
+        select(ChatMessage.session_id, ChatMessage.id, ChatMessage.trace_id,
+               ChatMessage.created_at)
+        .where(ChatMessage.id.in_(letzte))
+        .order_by(ChatMessage.id.desc())
+        .limit(MAX_ZUG_TREFFER)
+    )
+    return [
+        {"session_id": r.session_id, "message_id": r.id, "trace_id": r.trace_id,
+         "created_at": r.created_at}
+        for r in (await session.execute(stmt)).all()
+    ]
+
+
 async def last_message_id(session: AsyncSession, session_id: str) -> int | None:
     """Die höchste Nachrichten-ID einer Sitzung, ``None`` ohne Nachricht — nur die
     Kennung, über den Index ``messages(session_id, id)`` (Paket 9: der Handschlag
