@@ -25,6 +25,10 @@ from boerdi.settings import get_settings
 logger = logging.getLogger(__name__)
 
 _SERVICE_NAME = "boerdi-backend"
+#: Paket 18C/D: Spans tragen den rohen Pfad, hier mit der Sitzungs-ID, die wie ein Schlüssel
+#: zum öffentlichen Verlauf wirkt — diese Pfade werden nicht gemessen (``re.search`` je Muster,
+#: ``/api/sessions/`` deckt also auch ``/studio/api/sessions/``).
+_OHNE_MESSUNG = "/api/sessions/,/studio/api/sessions/,/api/usage/session/"
 _provider: TracerProvider | None = None
 
 
@@ -53,7 +57,8 @@ def setup_otel(app: FastAPI, exporter: SpanExporter | None = None) -> bool:
         logger.info("OTel tracing active (service=%s)", _SERVICE_NAME)
 
     _provider.add_span_processor(BatchSpanProcessor(exporter))
-    FastAPIInstrumentor.instrument_app(app, tracer_provider=_provider)
+    FastAPIInstrumentor.instrument_app(app, tracer_provider=_provider,
+                                       excluded_urls=_OHNE_MESSUNG)
     return True
 
 
