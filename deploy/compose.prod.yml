@@ -171,6 +171,7 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-}
+      LOG_CONTENT: ${LOG_CONTENT:-false}
       INTERNAL_PORT: ${INTERNAL_PORT:-}
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-}
       # ── LLM / MCP / RAG — Namen aus settings.py, leer = Code-Default ──

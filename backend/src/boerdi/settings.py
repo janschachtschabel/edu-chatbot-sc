@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     log_level: str = Field("INFO", validation_alias=_env("LOG_LEVEL"))
     # Paket 17 (D4): ``json`` für den Betrieb (eine JSON-Zeile je Eintrag), ``text`` lokal.
     log_format: str = Field("text", validation_alias=_env("LOG_FORMAT"))
+    # Paket 18C/D: Inhalte (Nachrichten, Prompts, Werkzeugargumente) stehen im Log nur mit
+    # diesem Schalter, und nur auf DEBUG — für eine akute Analyse, danach wieder aus.
+    log_content: bool = Field(False, validation_alias=_env("LOG_CONTENT"))
     studio_api_key: SecretStr = Field(
         SecretStr(""), validation_alias=_env("STUDIO_API_KEY"),
         description="X-Studio-Key; empty => admin disabled unless allow_open_admin",

@@ -184,6 +184,7 @@ env:
   LLM_REASONING_EFFORT: "low"
   LLM_SERVICE_TIER: ""
   LLM_VERBOSITY: "low"
+  LOG_CONTENT: "false"
   LOG_FORMAT: "json"
   LOG_LEVEL: "INFO"
   MASTER_SKILL_ENABLED: "true"
