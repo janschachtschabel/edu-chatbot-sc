@@ -39,6 +39,7 @@ from boerdi.graph.build import build_turn_graph, run_turn
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import bot_text, msg, resolve_locale
 from boerdi.obs import metrics
+from boerdi.obs.log_inhalt import kennung
 from boerdi.obs.progress import TurnProgress
 from boerdi.services import betriebsschalter, prompt_ablage
 from boerdi.services.db_sessions import save_message
@@ -265,7 +266,7 @@ async def _stream_turn(
     # (Review A-7/C-4, ``chat_handschlag``).
     verbunden = await handschlag(req.session_id, sitzungen)
     async for frame in sse_turn(
-        request, _run_impl, _to_payload, label=f"chat_stream session={req.session_id}",
+        request, _run_impl, _to_payload, label=f"chat_stream session={kennung(req.session_id)}",
         nach_abbruch="zu_ende" if verbunden["history"] else "abbrechen",
         verbunden=verbunden,
     ):

@@ -130,5 +130,9 @@ def test_eine_verlorene_sperre_meldet_die_verlaengerung(db_url, caplog):
             await engine.dispose()
     with caplog.at_level(logging.WARNING, logger="boerdi.services.sitzungssperre"):
         _run(_ablauf())
-    meldungen = [r.getMessage() for r in caplog.records if "s-6" in r.getMessage()]
+    # Paket 18C/D: die Sitzung erscheint im Log nur als Kurzkennung.
+    from boerdi.obs.log_inhalt import kennung
+
+    meldungen = [r.getMessage() for r in caplog.records if kennung("s-6") in r.getMessage()]
+    assert all("s-6" not in m for m in meldungen)
     assert len(meldungen) == 1 and "verloren" in meldungen[0], meldungen

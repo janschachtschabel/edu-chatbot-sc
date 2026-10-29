@@ -30,6 +30,8 @@ from uuid import uuid4
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from boerdi.obs.log_inhalt import kennung
+
 logger = logging.getLogger(__name__)
 
 #: Wie lange eine zweite Nachricht derselben Sitzung wartet, bevor sie
@@ -81,14 +83,15 @@ async def _verlaengern(engine: AsyncEngine, sid: str, owner: str,
         except Exception:
             # Ein Aussetzer kostet nur einen Takt; erst nach ``ttl_s`` ohne
             # Erfolg kann ein anderer Zug übernehmen.
-            logger.warning("Sitzungssperre %s: Verlängerung fehlgeschlagen", sid, exc_info=True)
+            logger.warning("Sitzungssperre %s: Verlängerung fehlgeschlagen", kennung(sid),
+                           exc_info=True)
             continue
         if ergebnis.rowcount == 0:
             # Review Paket 7, A-8: nach ``ttl_s`` ohne Verlängerung hat ein anderer
             # Zug übernommen — beide laufen jetzt parallel. Nicht zu ändern, aber
             # zu sehen; weiter zu verlängern hieße, es bei jedem Takt neu zu melden.
             logger.warning("Sitzungssperre %s: verloren — ein anderer Zug hält sie "
-                           "(länger als %s s ohne Verlängerung)", sid, ttl_s)
+                           "(länger als %s s ohne Verlängerung)", kennung(sid), ttl_s)
             return
 
 
@@ -119,5 +122,5 @@ async def sitzungssperre(
         except Exception:
             # Ohne Freigabe verfällt sie nach ``ttl_s`` — kein Grund, den Zug
             # nachträglich scheitern zu lassen.
-            logger.warning("Sitzungssperre %s: Freigabe fehlgeschlagen", session_id,
+            logger.warning("Sitzungssperre %s: Freigabe fehlgeschlagen", kennung(session_id),
                            exc_info=True)

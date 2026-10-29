@@ -43,6 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo, InlineDocument
 from boerdi.i18n import Locale, bot_text, resolve_locale
+from boerdi.obs.log_inhalt import kennung
 from boerdi.services.db_sessions import save_message
 from boerdi.services.mcp.client import call_mcp_tool
 from boerdi.services.mcp.parsers import parse_content_text
@@ -105,7 +106,7 @@ async def _handle_show_content_text(
 
     if not node_id:
         # Kein Ziel — das ist ein Aufruf-Fehler des Widgets, kein Nutzer-Fehler.
-        logger.warning("show_content_text ohne node_id (session=%s)", req.session_id)
+        logger.warning("show_content_text ohne node_id (session=%s)", kennung(req.session_id))
         return ChatResponse(
             session_id=req.session_id,
             content=bot_text(lang, "content.missingNode"),
