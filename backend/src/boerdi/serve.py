@@ -85,7 +85,9 @@ def baue_server(haupt: FastAPI, intern: FastAPI) -> tuple[uvicorn.Server, uvicor
         timeout_keep_alive=120,
         # Paket 17 (D4): Uvicorn richtet kein eigenes Logging ein — seine Zeilen laufen über
         # die Wurzel und damit im Format von ``LOG_FORMAT`` samt Trace-ID (``main``).
-        log_config=None, log_level=stufe,
+        # Paket 18C/D: seine Zugriffszeile (IP, roher Pfad) ist aus; die eigene schreibt
+        # ``obs.metrics.MetrikMiddleware`` (``obs/zugriffslog``).
+        log_config=None, log_level=stufe, access_log=False,
     ))
     intern_server = _InternServer(uvicorn.Config(
         intern, host="0.0.0.0", port=s.internal_port,  # noqa: S104
