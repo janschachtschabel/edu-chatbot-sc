@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.config_loader import get_repo_base_url, rewrite_repo_host_v2
 from boerdi.services.mcp.parsers.json_scan import load_envelope
 from boerdi.services.mcp.parsers.skill_registry import skill_count_of
@@ -244,7 +245,7 @@ def parse_wlo_cards(mcp_text: str) -> list[dict]:
         return []
     obj = load_envelope(mcp_text)
     if obj is None:
-        logger.warning("parse_wlo_cards: not a JSON envelope (first 80 chars: %r)", mcp_text[:80])
+        logger.warning("parse_wlo_cards: not a JSON envelope (%s)", inhalt(mcp_text))
         return []
     cards = _cards_from_json_envelope(obj)
     if cards is None:
@@ -317,7 +318,7 @@ def parse_search_all_cards(mcp_text: str) -> dict[str, list[dict]]:
         return out
     obj: Any = load_envelope(mcp_text)
     if not isinstance(obj, dict):
-        logger.warning("parse_search_all_cards: kein JSON-Envelope (%r)", mcp_text[:80])
+        logger.warning("parse_search_all_cards: kein JSON-Envelope (%s)", inhalt(mcp_text))
         return out
     # Alle drei Töpfe durch denselben Envelope-Leser. Gemessen 2026-08-01 gegen
     # den Server: der ``topicPages``-Topf von ``search_wlo_all`` ist eine

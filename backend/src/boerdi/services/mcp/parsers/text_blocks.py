@@ -13,6 +13,8 @@ import json
 import logging
 from typing import Any
 
+from boerdi.obs.log_inhalt import inhalt
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,7 +54,7 @@ def parse_content_text(mcp_text: str) -> dict[str, Any]:
         obj = None
     if not isinstance(obj, dict) or "text" not in obj:
         logger.warning(
-            "parse_content_text: kein JSON-Envelope (%r)", mcp_text[:80],
+            "parse_content_text: kein JSON-Envelope (%s)", inhalt(mcp_text),
         )
         out["reason"] = "no_envelope"
         return out
@@ -95,7 +97,7 @@ def parse_wikipedia_summary(mcp_text: str) -> dict[str, Any]:
         obj = None
     if not isinstance(obj, dict) or "found" not in obj:
         logger.warning(
-            "parse_wikipedia_summary: kein JSON-Envelope (%r)", mcp_text[:80],
+            "parse_wikipedia_summary: kein JSON-Envelope (%s)", inhalt(mcp_text),
         )
         return out
     summary = obj.get("summary")

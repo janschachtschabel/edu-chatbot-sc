@@ -41,7 +41,8 @@ from typing import Any
 from boerdi.domain.fremdwerkzeug import ist_fremd
 from boerdi.domain.prepared_write import PreparedWrite, read_prepared_write
 from boerdi.domain.werkzeug_freigabe import uebernommen
-from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD, is_curation_tool
+from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD
+from boerdi.obs.log_inhalt import ereignis, filterwerte
 from boerdi.services.mcp import anmeldung, fremdwerkzeuge, transport
 from boerdi.services.mcp.arg_resolvers import TOOL_PREPROCESSORS
 from boerdi.services.mcp.listen_argumente import braucht_umformung, mit_listen
@@ -59,6 +60,7 @@ from boerdi.services.mcp.tool_cache import (
     darf_cachen,
 )
 from boerdi.services.zugakte import aktuelle_zugakte
+from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -97,22 +99,17 @@ def is_mcp_error(text: str | None) -> bool:
 _LOG_VALUE_MAX_CHARS = 500
 
 
-def _args_for_log(arguments: Any, *, nur_laengen: bool = False) -> Any:
-    """``arguments`` fürs Protokoll: Schlüssel geschwärzt, lange Werte gekürzt.
-
-    ``nur_laengen`` (Paket 10, Audit 2026-10-10 A-8): bei kuratierenden Werkzeugen
-    sind die Werte Titel, Beschreibungen und Schlagwörter unveröffentlichter Inhalte
-    — auf INFO stehen dann nur Schlüssel und Längen, die Werte erst auf DEBUG."""
+def _args_for_log(arguments: Any) -> Any:
+    """``arguments`` mit Werten fürs Protokoll — nur mit ``LOG_CONTENT`` und auf DEBUG:
+    Schlüssel geschwärzt, lange Werte gekürzt."""
     if not isinstance(arguments, dict):
         return arguments
     zeile: dict[str, Any] = {}
     for key, value in arguments.items():
         if key == CONFIRM_TOKEN_FIELD:
             zeile[key] = "‹geschwärzt›"
-        elif isinstance(value, str) and (nur_laengen or len(value) > _LOG_VALUE_MAX_CHARS):
+        elif isinstance(value, str) and len(value) > _LOG_VALUE_MAX_CHARS:
             zeile[key] = f"‹{len(value)} Zeichen›"
-        elif nur_laengen and isinstance(value, list | dict):
-            zeile[key] = f"‹{len(value)} Einträge›"
         else:
             zeile[key] = value
     return zeile
@@ -311,17 +308,22 @@ async def call_mcp_tool_status(
 
 def _in_die_akte(name: str, eingang: dict[str, Any], gesendet: dict[str, Any], text: str,
                  art: str, *, aus_cache: bool, t0: float) -> None:
-    """Den Aufruf in die Zugakte des laufenden Zugs schreiben (Paket 18C/D) — ohne Zug nichts.
+    """Den Aufruf protokollieren und in die Zugakte des laufenden Zugs schreiben (Paket 18C/D)
+    — die Akte nur innerhalb eines Zugs.
 
     Hier und nicht beim Aufrufer: alle Wege (Werkzeugschleife, Agent, Vorabruf, Direktaktion)
     laufen durch diese eine Stelle, auch die gescheiterten Aufrufe."""
+    dauer_ms = round((_time.perf_counter() - t0) * 1000)
+    zeichen = None if art else len(text)
+    # Eine Zeile je Aufruf, auch für Fehler und Cache-Treffer — ohne Inhalt (Paket 18C/D).
+    ereignis(logger, "mcp_aufruf", werkzeug=name, status=art or "ok", aus_cache=aus_cache,
+             dauer_ms=dauer_ms, zeichen=zeichen)
     akte = aktuelle_zugakte()
     if akte is None:
         return
     akte.werkzeug(name, argumente_eingang=eingang, argumente_gesendet=gesendet,
-                  status=art or "ok", aus_cache=aus_cache,
-                  dauer_ms=round((_time.perf_counter() - t0) * 1000),
-                  zeichen=None if art else len(text), fehler=text if art else None)
+                  status=art or "ok", aus_cache=aus_cache, dauer_ms=dauer_ms,
+                  zeichen=zeichen, fehler=text if art else None)
 
 
 async def _einzelaufruf(
@@ -333,16 +335,13 @@ async def _einzelaufruf(
     die Argumente, wie sie nach Prüfung und Auflösung hinausgingen (für die Zugakte)."""
     # Per-Call-Server-URL: zuerst aus der Studio-Registry, sonst Default.
     target_url = _get_server_url_for_tool(tool_name)
-    _call_t0 = _time.perf_counter()  # für Tool-Laufzeit-Logging (#3 Debug-Timing)
 
-    # Debug: log raw LLM-supplied arguments BEFORE validation/resolution so we
-    # can see exactly what the model wanted to send. Keeps this at INFO — the
-    # cost is ~100 bytes per tool call and it's indispensable for diagnosing
-    # filter bugs. Schlüssel und lange Nutzlasten ausgenommen (``_args_for_log``).
-    kuratierend = is_curation_tool(tool_name)
-    logger.info("MCP tool %s args: %s", tool_name,
-                _args_for_log(arguments, nur_laengen=kuratierend))
-    if kuratierend:
+    # Die Argumente beim Eingang, VOR Prüfung und Auflösung — unentbehrlich für Filterfehler.
+    # Paket 18C/D: Filter und Kennungen mit Wert, Freitext (Suchtext, Adresse, Titel, bei
+    # Schreibvorgängen die Inhalte unveröffentlichter Materialien) nur als Länge; die Werte
+    # stehen in der Zugakte des Zugs, mit ``LOG_CONTENT`` zusätzlich auf DEBUG.
+    logger.info("MCP tool %s args: %s", tool_name, filterwerte(arguments))
+    if get_settings().log_content:
         logger.debug("MCP tool %s args (Werte): %s", tool_name, _args_for_log(arguments))
 
     # Validate arguments before sending to MCP server
@@ -436,7 +435,9 @@ async def _einzelaufruf(
     # (Paket 10, Kurzaudit A-3): derselbe Block würde wieder abgewiesen.
     if "error" in result and result["error"].get("kind") not in ("tool", "timeout", "auth"):
         error_msg = result["error"].get("message", "Unknown error")
-        logger.error("MCP tool %s error @ %s: %s", tool_name, target_url, error_msg)
+        # Nur Transportfehler: ``tool``-Fehler mit Serverantwort laufen nicht hier durch.
+        logger.error("MCP tool %s error @ %s: %s",  # log-ok: Transportfehler
+                     tool_name, target_url, error_msg)
         if CONFIRM_TOKEN_FIELD in arguments:
             logger.warning(
                 "MCP tool %s: bestätigter Schreibaufruf wird nicht wiederholt — ob "
@@ -447,7 +448,7 @@ async def _einzelaufruf(
             result = await transport.call_tool(tool_name, arguments, url=target_url)
             if "error" in result:
                 error_msg = result["error"].get("message", "Unknown error")
-                logger.error("MCP tool %s retry failed @ %s: %s",
+                logger.error("MCP tool %s retry failed @ %s: %s",  # log-ok: Transportfehler
                              tool_name, target_url, error_msg)
 
     if "error" in result:
@@ -517,10 +518,6 @@ async def _einzelaufruf(
             "Schreibzugriff — verworfen", tool_name)
 
     response = "\n".join(texts) if texts else json.dumps(result_data)
-    logger.info(
-        "MCP tool %s returned %d chars in %d ms",
-        tool_name, len(response), round((_time.perf_counter() - _call_t0) * 1000),
-    )
 
     # Slim ``get_subject_portals``: the raw API ships rich marketing
     # descriptions for every Fachportal (~50 KB total). The LLM only

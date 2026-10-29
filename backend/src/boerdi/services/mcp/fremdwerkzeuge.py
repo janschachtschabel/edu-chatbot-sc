@@ -18,6 +18,7 @@ import logging
 from typing import Any
 
 from boerdi.domain.fremdwerkzeug import FremdWerkzeug, angebotene
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.mcp import transport
 from boerdi.services.url_safety import UnsafeUrlError, assert_public_url
 
@@ -67,7 +68,8 @@ async def rufen(modellname: str, arguments: dict[str, Any]) -> tuple[str, str]:
     if "error" in ergebnis:
         art = ergebnis["error"].get("kind")
         meldung = ergebnis["error"].get("message", "Unknown error")
-        logger.warning("Fremdwerkzeug %s @ %s: %s", modellname, werkzeug.url, meldung)
+        # Paket 18C/D: die Meldung kann die Eingabe wiederholen — sie steht in der Zugakte.
+        logger.warning("Fremdwerkzeug %s @ %s: %s", modellname, werkzeug.url, inhalt(meldung))
         return meldung, art if art in ("tool", "timeout") else "transport"
     teile = (ergebnis.get("result") or {}).get("content") or []
     text = "\n".join(t.get("text", "") for t in teile

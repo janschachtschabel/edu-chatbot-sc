@@ -14,6 +14,7 @@ import logging
 import re
 from typing import Any
 
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.mcp.parsers.cards import (
     _cards_from_json_envelope,
@@ -104,8 +105,8 @@ def parse_wlo_topic_page_cards(mcp_text: str) -> list[dict]:
     obj = load_envelope(mcp_text)
     if obj is None:
         logger.warning(
-            "parse_wlo_topic_page_cards: not a JSON envelope (first 80 chars: %r)",
-            mcp_text[:80],
+            "parse_wlo_topic_page_cards: not a JSON envelope (%s)",
+            inhalt(mcp_text),
         )
         return []
     if not isinstance(obj, dict) or not isinstance(obj.get("results"), list):
@@ -167,7 +168,7 @@ def parse_wlo_topic_page_cards(mcp_text: str) -> list[dict]:
             _before = len(topic_pages)
             topic_pages = list(_seen.values())
             if len(topic_pages) < _before:
-                logger.info(
+                logger.info(  # log-ok: öffentlicher Themenseitentitel
                     "topic_page variants collapsed: %d → %d für '%s' "
                     "(funktional identisch — gleiche URL/Target/Label)",
                     _before, len(topic_pages), r.get("title", "?"),
@@ -240,7 +241,7 @@ def parse_topic_page_swimlanes(mcp_text: str) -> dict[str, Any]:
         return out
     obj: Any = load_envelope(mcp_text)
     if not isinstance(obj, dict):
-        logger.warning("parse_topic_page_swimlanes: kein JSON-Envelope (%r)", mcp_text[:80])
+        logger.warning("parse_topic_page_swimlanes: kein JSON-Envelope (%s)", inhalt(mcp_text))
         return out
     # W5-1: ``collectionTitle`` ist der lesbare Name der Themenseite;
     # ``variantTitle`` trägt den technischen Varianten-Namen und lautet bei allen
