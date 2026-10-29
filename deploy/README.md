@@ -372,6 +372,12 @@ weiter, der Start warnt — in der `.env` umbenennen. Die Krisensperre (`01-base
 jetzt mit `search_wlo_all`) folgt beim `migrate` dem Werk, sofern im Studio keine eigene
 Fassung aktiv ist.
 
+**Paket 18C/D, Phase 1:** `migrate` hebt auf **0016** — Spalte `trace_id` an `messages`,
+`quality_logs` und `safety_logs` (nullable, alte Zeilen bleiben leer) und ein Teilindex auf
+`messages.trace_id`. Kein Umbau bestehender Zeilen; der Index entsteht in einem kurzen
+Schreibstopp auf `messages` (Größe: Verlauf von 30 Tagen). Alte Backends laufen mit 0016 weiter.
+Rücknahme: `alembic downgrade 0015`.
+
 **Hier KEIN `import-config`.** Ab dem ersten Import ist die Datenbank die
 Wahrheit und das Studio der Weg, sie zu ändern; ein zweiter Import überschreibt
 redaktionelle Arbeit mit dem Seed-Stand. Soll wirklich der ganze Baum neu
