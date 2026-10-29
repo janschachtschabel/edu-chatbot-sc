@@ -35,6 +35,7 @@ from boerdi.api.config_kennungen import (
 from boerdi.api.deps import Lang, require_studio_key
 from boerdi.domain.config_models.patterns import ist_reservierte_kennung
 from boerdi.i18n import Locale, msg
+from boerdi.obs.log_inhalt import fehlerorte
 from boerdi.services import config_loader as cl
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,8 @@ def _validate_entries(
     try:
         return [model.model_validate(item) for item in raw]
     except ValidationError as e:
-        logger.warning("%s: ungültige Eintragsdaten: %s", label, e)
+        # Paket 18C/D: Orte und Arten, ohne die Eingabewerte.
+        logger.warning("%s: ungültige Eintragsdaten: %s", label, fehlerorte(e))
         raise HTTPException(422, msg(lang, "entries.invalid", label=label)) from None
 
 

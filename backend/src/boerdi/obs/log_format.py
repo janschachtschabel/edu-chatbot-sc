@@ -9,11 +9,26 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 from datetime import UTC, datetime
 
 _TEXT = "%(asctime)s %(levelname)s %(name)s [%(trace_id)s]: %(message)s"
 _DATUM = "%Y-%m-%d %H:%M:%S"
+
+# Paket 18C/D (Review Phase 2): Ausnahmetexte tragen Eingabewerte, ohne dass ein Aufrufer sie
+# loggt. Postgres hängt ``DETAIL:`` an — beim Fremdschlüssel den Schlüssel (etwa die
+# Sitzungs-ID), bei NOT NULL/CHECK die ganze Zeile —, Pydantic ``input_value=…``. Beides wird
+# beim Formatieren geschwärzt, in Meldung und Traceback; Anweisung, Fehlerart und Ort bleiben.
+_DB_DETAIL = re.compile(r"^(\s*DETAIL:).*$", re.MULTILINE)
+_EINGABE = re.compile(r"input_value=.*?(?=, input_type=)")
+_GESCHWAERZT = "‹geschwärzt›"
+
+
+def geschwaerzt(text: str) -> str:
+    """``text`` ohne Datenbank-DETAIL und ohne Eingabewerte aus Prüffehlern."""
+    text = _DB_DETAIL.sub(rf"\1 {_GESCHWAERZT}", text)
+    return _EINGABE.sub(f"input_value={_GESCHWAERZT}", text)
 
 
 class JsonFormatter(logging.Formatter):
@@ -25,18 +40,28 @@ class JsonFormatter(logging.Formatter):
             "time": zeit.strftime("%Y-%m-%dT%H:%M:%S.") + f"{zeit.microsecond // 1000:03d}Z",
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": geschwaerzt(record.getMessage()),
             "trace_id": getattr(record, "trace_id", "-"),
         }
+        if hasattr(record, "ereignis"):
+            # Paket 18C/D: Zeilen aus ``log_inhalt.ereignis`` tragen ihre Felder einzeln.
+            eintrag["event"] = record.ereignis
+            eintrag["fields"] = record.ereignis_felder
         if record.exc_info:
-            eintrag["exc"] = self.formatException(record.exc_info)
+            eintrag["exc"] = geschwaerzt(self.formatException(record.exc_info))
         # ASCII: gültiges JSON, auf jeder Konsole schreibbar (Prozess-Probe 2026-10-20).
-        return json.dumps(eintrag, ensure_ascii=True)
+        # ``default=str``: ein Feld, das JSON nicht kennt, kostet nicht die ganze Zeile.
+        return json.dumps(eintrag, ensure_ascii=True, default=str)
+
+
+class _TextFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        return geschwaerzt(super().format(record))
 
 
 def text_formatter() -> logging.Formatter:
     """Klartext mit Datum (vorher nur die Uhrzeit) und Trace-ID."""
-    return logging.Formatter(_TEXT, datefmt=_DATUM)
+    return _TextFormatter(_TEXT, datefmt=_DATUM)
 
 
 def formatter_fuer(art: str) -> logging.Formatter:
