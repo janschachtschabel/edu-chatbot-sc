@@ -80,6 +80,7 @@ from boerdi.obs.zeiten import messe_knoten
 from boerdi.services.config_loader import load_safety_config
 from boerdi.services.db_sessions import get_memory, save_message
 from boerdi.services.mcp.client import reset_prepared_writes, reset_query_metas
+from boerdi.services.zugakte import binde_zugakte
 
 logger = logging.getLogger(__name__)
 
@@ -231,11 +232,13 @@ def begin_turn(ctx: TurnContext) -> None:
     Vokabular-Abgleichs.
 
     Hier gebunden, erbt jeder Knoten dieselben Objekte: seine Kopie zeigt auf
-    die Liste bzw. das Dict dieses Zuges, und Anhängen/Buchen landet dort.
+    die Liste bzw. das Dict dieses Zuges, und Anhängen/Buchen landet dort. Seit
+    Paket 18C/D gehört die Zugakte dazu (``services/zugakte``).
     """
     reset_query_metas()
     reset_prepared_writes()
     bind_turn_usage(ctx.usage)
+    binde_zugakte()
 
 
 async def run_turn(graph: CompiledStateGraph, ctx: TurnContext) -> dict[str, Any]:
