@@ -59,6 +59,8 @@ class ChatMessage(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # Paket 18C/D (0016): Trace-ID der Anfrage — aus Log und Fehlernummer zum Zug.
+    trace_id: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class MemoryItem(Base):
@@ -87,6 +89,7 @@ class SafetyLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    trace_id: Mapped[str | None] = mapped_column(Text, nullable=True)  # 0016
 
 
 class QualityLog(Base):
@@ -100,6 +103,7 @@ class QualityLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    trace_id: Mapped[str | None] = mapped_column(Text, nullable=True)  # 0016
 
 
 class UsageEvent(Base):
