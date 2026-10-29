@@ -716,8 +716,23 @@ Die Jaeger-UI ist absichtlich nur host-lokal gebunden: Traces enthalten
 Prompt-Metadaten und gehören nicht ins Internet.
 
 `LOG_FORMAT=json` schreibt eine JSON-Zeile je Eintrag (Vorgabe `text`); jede Zeile trägt die
-Trace-ID der Anfrage (`x-client-trace-id` bzw. B3, sonst neu vergeben). Metriken im
-Prometheus-Format liefert der interne Port:
+Trace-ID der Anfrage (`x-client-trace-id` bzw. B3, sonst neu vergeben).
+
+**Keine Inhalte im Log (Paket 18C/D):** Nachrichten, Antworten, Themen und Suchbegriffe erscheinen
+nur als Länge (`‹42 Zeichen›`), eine Sitzung nur als Kurzkennung (8 Hex-Zeichen), Werkzeug-
+argumente nur mit ihren Filterwerten. Was ein Zug tat, steht im Studio: die Trace-ID einer
+Logzeile führt über die Suche nach Fehlernummer (`GET /api/sessions/zug/{nummer}`, die
+Oberfläche folgt) zum Gespräch samt Zugakte. Uvicorns
+Zugriffszeile (IP, roher Pfad) ist aus; die eigene Zeile `zugriff` nennt Methode, Pfad-Vorlage,
+Status und Dauer (Dateien und `/health` nur auf DEBUG), eine Drosselung als `status=429`.
+Fremd-Logger (LiteLLM, OpenAI, MCP, instructor, httpx/httpcore, SQLAlchemy, slowapi) sind gedeckelt, LiteLLM
+ohne eigenen Handler. Für eine akute Analyse `LOG_CONTENT=true` und `LOG_LEVEL=DEBUG` setzen —
+dann stehen Werkzeugargumente und die Protokolle von LiteLLM, OpenAI-SDK und MCP-Client auf DEBUG;
+der Start warnt, solange der Schalter an ist. Ausnahmetexte werden beim Formatieren geschwärzt
+(Postgres-`DETAIL:`, Pydantic-`input_value=`). OpenTelemetry misst die Pfade mit Sitzungs-ID
+(`/api/sessions/…`, `/api/usage/session/…`) nicht.
+
+Metriken im Prometheus-Format liefert der interne Port:
 
 ```bash
 docker compose -f compose.prod.yml exec backend python -c \
