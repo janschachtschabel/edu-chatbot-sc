@@ -29,7 +29,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import Text, delete, func, literal, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +42,8 @@ from boerdi.db.models import (
 )
 from boerdi.obs import trace_id
 from boerdi.services.config_loader import load_privacy_config
+from boerdi.services.zugakte import SCHLUESSEL as ZUGAKTE
+from boerdi.services.zugakte import mit_zugakte
 
 logger = logging.getLogger(__name__)
 
@@ -151,8 +153,9 @@ async def save_message(
         role=role,
         content=content,
         cards=cards or [],
-        debug=debug or {},
-        # Paket 18C/D: aus dem Kontext — kein Aufrufer reicht sie durch.
+        # Paket 18C/D: Trace-ID und Zugakte aus dem Kontext — kein Aufrufer reicht sie durch,
+        # auch die früh endenden Züge und die Fehlerblase nicht.
+        debug=mit_zugakte(debug) if role == "assistant" else (debug or {}),
         trace_id=trace_id.fuer_db(),
     )
     session.add(obj)
@@ -185,7 +188,9 @@ async def finalize_message(
         await session.execute(
             update(ChatMessage)
             .where(ChatMessage.id == message_id)
-            .values(cards=cards, debug=debug)
+            # Ersetzt den Diagnoseteil ganz — die Zugakte also wieder dazu (mit allem, was
+            # nach dem ersten Schreiben noch eingetragen wurde).
+            .values(cards=cards, debug=mit_zugakte(debug))
         )
         await session.commit()
         return True
@@ -209,21 +214,31 @@ async def last_message_id(session: AsyncSession, session_id: str) -> int | None:
     return (await session.execute(stmt)).scalar_one()
 
 
-async def get_messages(session: AsyncSession, session_id: str, limit: int = 50) -> list[dict]:
+async def get_messages(
+    session: AsyncSession, session_id: str, limit: int = 50, *, zugakte: bool = False,
+) -> list[dict]:
     """Message history for a session, newest LAST, ``cards``/``debug`` parsed.
 
     The frontend needs ``cards`` to re-render bot answers on session restore; the
     Studio uses ``debug`` for per-turn pattern display. Selects newest-first with
     the LIMIT, then reverses — so the newest ``limit`` messages come back in
     chronological order (ALT semantics).
+
+    ``zugakte`` (Paket 18C/D): only then does ``debug`` keep the turn record — it is
+    diagnosis for the Studio (tool arguments, error texts, rewritten drafts). Without
+    it the database already drops the key (``debug - '_zugakte'``): the public history
+    never carries it, and ``setup`` does not haul it along on every turn.
     """
+    debug = (ChatMessage.debug if zugakte else
+             ChatMessage.debug.op("-", return_type=ChatMessage.debug.type)(
+                 literal(ZUGAKTE, Text)).label("debug"))
     stmt = (
         select(
             ChatMessage.id,
             ChatMessage.role,
             ChatMessage.content,
             ChatMessage.cards,
-            ChatMessage.debug,
+            debug,
             ChatMessage.created_at,
         )
         .where(ChatMessage.session_id == session_id)

@@ -763,3 +763,17 @@ def test_der_schluessel_des_proxys_gilt_auch_im_gestreamten_zug(monkeypatch, cli
                 json={"session_id": "bb-1", "message": "hallo", "environment": {}},
                 headers={"Authorization": "Bearer " + "s" * 36})
     assert gesehen["schluessel"] == "s" * 36
+
+
+def test_auch_im_strom_sieht_die_fehlerblase_trace_id_und_zugakte(monkeypatch, client):
+    """Paket 18C/D (1.7, R7): der Strom-Zug läuft als eigene Task — gebunden wird in ihr."""
+    from tests.test_chat_endpoint import _kontext_beim_speichern, _scheitert_nach_einem_aufruf
+
+    graph, _ = _patch(monkeypatch)
+    _scheitert_nach_einem_aufruf(graph)
+    gesehen = _kontext_beim_speichern(monkeypatch)
+    r = client.post("/api/chat/stream",
+                    json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+                    headers={"x-client-trace-id": "zug-4711-abcdef"})
+    assert "event: error\n" in r.text
+    assert gesehen == [("zug-4711-abcdef", ["search_wlo_content"])]

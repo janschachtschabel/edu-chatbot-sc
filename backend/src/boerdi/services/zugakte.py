@@ -133,6 +133,23 @@ def aktuelle_zugakte() -> Zugakte | None:
     return _akte.get()
 
 
+def zugakte_umfang() -> int:
+    """:attr:`Zugakte.umfang` des laufenden Zugs; außerhalb eines Zugs 0."""
+    akte = _akte.get()
+    return akte.umfang if akte is not None else 0
+
+
+def mit_zugakte(debug: dict[str, Any] | None) -> dict[str, Any]:
+    """``debug`` samt der Akte des laufenden Zugs unter :data:`SCHLUESSEL` — als Kopie, das Dict
+    des Aufrufers bleibt. Ohne Akte oder ohne Eintrag unverändert: kein leerer Schlüssel je
+    Nachricht. Für die Antwort des Zugs (``db_sessions.save_message``/``finalize_message``)."""
+    akte = _akte.get()
+    inhalt = akte.als_dict() if akte is not None else {}
+    if not inhalt:
+        return debug or {}
+    return {**(debug or {}), SCHLUESSEL: inhalt}
+
+
 def merke_umschreibung(art: str, *, original: str, ersatz: str, grund: str = "") -> None:
     """:meth:`Zugakte.umschreibung` für den laufenden Zug; außerhalb eines Zugs nichts."""
     if (akte := _akte.get()) is not None:
