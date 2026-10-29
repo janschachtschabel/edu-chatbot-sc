@@ -36,6 +36,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.models import QualityLog, SafetyLog
+from boerdi.obs import trace_id
 
 
 def _field(decision: Any, name: str, default: Any) -> Any:
@@ -61,6 +62,7 @@ async def log_safety_event(
     session.add(
         SafetyLog(
             session_id=session_id,
+            trace_id=trace_id.fuer_db(),
             ip=ip,
             risk_level=_field(decision, "risk_level", "low"),
             data={
@@ -134,6 +136,7 @@ async def log_quality_event(
     session.add(
         QualityLog(
             session_id=session_id,
+            trace_id=trace_id.fuer_db(),
             pattern_id=pattern_id,
             intent_id=debug_info.get("intent", ""),
             data={

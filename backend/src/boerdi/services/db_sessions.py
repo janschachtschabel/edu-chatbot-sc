@@ -40,6 +40,7 @@ from boerdi.db.models import (
     QualityLog,
     SafetyLog,
 )
+from boerdi.obs import trace_id
 from boerdi.services.config_loader import load_privacy_config
 
 logger = logging.getLogger(__name__)
@@ -151,6 +152,8 @@ async def save_message(
         content=content,
         cards=cards or [],
         debug=debug or {},
+        # Paket 18C/D: aus dem Kontext — kein Aufrufer reicht sie durch.
+        trace_id=trace_id.fuer_db(),
     )
     session.add(obj)
     try:
