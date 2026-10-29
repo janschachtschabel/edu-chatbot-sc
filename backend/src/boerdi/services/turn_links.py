@@ -58,6 +58,7 @@ from boerdi.i18n import (
 )
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.mcp.client import get_query_metas
+from boerdi.services.zugakte import merke_umschreibung
 
 logger = logging.getLogger(__name__)
 
@@ -390,6 +391,8 @@ async def _finalize_links_and_metas(
                             response_text[:200],
                             _new_response[:200],
                         )
+                        merke_umschreibung("typ_fokus", original=response_text,
+                                           ersatz=_new_response, grund=_type_focus_label)
                         response_text = _new_response
         except Exception as _tf_err:
             logger.warning("type-focus rewriter crashed: %s", _tf_err)
@@ -603,6 +606,8 @@ async def _finalize_links_and_metas(
                     response_text[:200],
                     _new_text[:200],
                 )
+                merke_umschreibung("waechter", original=response_text, ersatz=_new_text,
+                                   grund="; ".join(_changed_reasons))
                 response_text = _new_text
         except Exception as _wd_err:
             # Wächter darf NIE den ganzen Turn fallen lassen — defensiv

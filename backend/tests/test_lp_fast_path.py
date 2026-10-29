@@ -129,6 +129,23 @@ class TestPriorities:
         assert ss["entities"]["_canvas_material_type"] == "lernpfad"
         assert ss["entities"]["_canvas_topic"] == "Bruchrechnung"
 
+    async def test_ein_lernpfad_steht_als_schnellweg_in_der_zugakte(self, patch_gen):
+        """Paket 18C/D (1.6): das Thema eines Lernpfad-Zugs stand bisher nur im Log."""
+        from boerdi.services.zugakte import binde_zugakte
+
+        akte = binde_zugakte()
+        ss = {"persona_id": "P-LEHR", "entities": {"thema": "Bruchrechnung", "_last_contents":
+              json.dumps([{"node_id": "n1", "title": "Video A",
+                           "learning_resource_types": ["video"], "description": "d",
+                           "url": "u"}])}}
+        res = await run_lp_fast_path(
+            has_lp_intent=True, thema="Bruchrechnung", req=_req("Erstelle einen Lernpfad"),
+            classification=_Cls({}), session_state=ss, pattern_output={}, usage_acc={},
+            new_state="S1",
+        )
+        assert res.routed is True
+        assert akte.als_dict()["schnellwege"] == [{"art": "lernpfad", "thema": "Bruchrechnung"}]
+
     async def test_priority2_from_session_collections(self, patch_gen, monkeypatch):
         _patch_mcp(monkeypatch, {
             "get_collection_contents": [{"node_id": "m1", "title": "Mat 1"}],

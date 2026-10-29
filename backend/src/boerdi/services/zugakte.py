@@ -131,3 +131,15 @@ def binde_zugakte() -> Zugakte:
 def aktuelle_zugakte() -> Zugakte | None:
     """Die Akte des laufenden Zugs, oder ``None`` außerhalb eines Zugs (Hintergrundlauf)."""
     return _akte.get()
+
+
+def merke_umschreibung(art: str, *, original: str, ersatz: str, grund: str = "") -> None:
+    """:meth:`Zugakte.umschreibung` für den laufenden Zug; außerhalb eines Zugs nichts."""
+    if (akte := _akte.get()) is not None:
+        akte.umschreibung(art, original=original, ersatz=ersatz, grund=grund)
+
+
+def merke_schnellweg(art: str, *, thema: str) -> None:
+    """:meth:`Zugakte.schnellweg` für den laufenden Zug; außerhalb eines Zugs nichts."""
+    if (akte := _akte.get()) is not None:
+        akte.schnellweg(art, thema=thema)

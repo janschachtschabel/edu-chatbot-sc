@@ -52,6 +52,7 @@ from boerdi.services.canvas_service import (
     generate_canvas_content,
     material_type_quick_replies_for_persona,
 )
+from boerdi.services.zugakte import merke_schnellweg
 
 logger = logging.getLogger(__name__)
 
@@ -537,6 +538,8 @@ async def run_canvas_create_fast_path(
             tools_called = []
             wlo_cards_raw = []
             _canvas_routed = True
+    if _canvas_routed:
+        merke_schnellweg("canvas", thema=_c_topic)
     return CanvasFastPathResult(
         routed=_canvas_routed,
         payload_out=_canvas_payload_out,

@@ -57,6 +57,7 @@ from boerdi.services.llm_learning_path import generate_learning_path_text
 from boerdi.services.mcp.client import call_mcp_tool
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
+from boerdi.services.zugakte import merke_schnellweg
 
 logger = logging.getLogger(__name__)
 
@@ -422,6 +423,8 @@ async def run_lp_fast_path(
 
     except (json.JSONDecodeError, KeyError) as e:
         logger.warning("Learning path from history failed: %s", e)
+    if _lp_routed:
+        merke_schnellweg("lernpfad", thema=topic)
     return LpFastPathResult(
         routed=_lp_routed,
         response_text=response_text if _lp_routed else None,
