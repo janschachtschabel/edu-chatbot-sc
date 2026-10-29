@@ -28,6 +28,7 @@ from __future__ import annotations
 import logging
 from urllib.parse import urlsplit
 
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.mcp.client import call_mcp_tool, is_mcp_error
 from boerdi.services.mcp.parsers import parse_wlo_cards
 
@@ -73,7 +74,7 @@ async def _search(query: str) -> list[dict]:
         logger.warning("duplicate check: search failed: %s", err)
         return []
     if not raw or is_mcp_error(raw):
-        logger.info("duplicate check: no usable answer for %r", query[:80])
+        logger.info("duplicate check: no usable answer for %s", inhalt(query))
         return []
     return parse_wlo_cards(raw)
 

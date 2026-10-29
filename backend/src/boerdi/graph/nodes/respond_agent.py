@@ -243,7 +243,7 @@ async def respond_agent(
     _roh = sum(len(m.get("content") or "") for m in ctx.history[-_HISTORY_TURNS:])
     _im_prompt = sum(len(m["content"]) for m in _fenster)
     if _im_prompt < _roh:
-        logger.info("Verlauf gedeckelt: %d von %d Nachrichten, %d von %d Zeichen",
+        logger.info("Verlauf gedeckelt: %d von %d Nachrichten, %d von %d Zeichen",  # log-ok: Zahlen
                     len(_fenster), len(ctx.history[-_HISTORY_TURNS:]), _im_prompt, _roh)
     # Paket B: die Seitendaten als erste Nachricht nach dem Systemteil — gemessen
     # bleibt der Block dort im Folgezug gecacht, vor der aktuellen Nachricht nicht.

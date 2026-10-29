@@ -34,6 +34,7 @@ import logging
 from typing import Any, NamedTuple
 
 from boerdi.domain.content_types import als_liste
+from boerdi.obs.log_inhalt import filterwerte, inhalt
 from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.mcp.client import call_mcp_tool
 from boerdi.services.topic_pages import _topic_pages_with_warmup
@@ -213,7 +214,7 @@ async def run_speculative_prefetch(req, classification, safety):
                     logger.info(
                         "speculative tool from LLM-Hint: %s (reasoning=%s)",
                         _tool_hint,
-                        (getattr(classification, "tool_reasoning", "") or "")[:80],
+                        inhalt(getattr(classification, "tool_reasoning", "")),
                     )
                 elif _topic_first:
                     # W7 (Nutzer-Entscheid 2026-07-31): die HEURISTIK zwingt nicht
@@ -337,7 +338,7 @@ async def run_speculative_prefetch(req, classification, safety):
                 logger.info(
                     "speculative primary=%s for intent=%s hint_pattern=%s args=%s",
                     spec_tool_name, classification.intent_id,
-                    _hint_pattern, spec_tool_args,
+                    _hint_pattern, filterwerte(spec_tool_args),
                 )
 
                 # 2. Extra tools — fire in parallel to enrich the response.
@@ -410,7 +411,8 @@ async def run_speculative_prefetch(req, classification, safety):
 
                     t.add_done_callback(_retrieve_task_exception)
                     extra_spec_tasks.append((extra_name, t))
-                    logger.info("speculative extra=%s args=%s", extra_name, extra_args)
+                    logger.info("speculative extra=%s args=%s", extra_name,
+                                filterwerte(extra_args))
         except Exception as _e:
             logger.warning("speculative tool spawn failed: %s", _e)
             spec_task = None
@@ -451,12 +453,12 @@ async def _fallback_inline_search(message: str, classification_entities: dict) -
             args["educationalContext"] = stufe.strip()
         raw = await _ct("search_wlo_content", args)
         if not raw:
-            logger.info("fallback inline search: leer für query='%s'", message[:60])
+            logger.info("fallback inline search: leer für query=%s", inhalt(message))
             return []
         cards = _pc(raw)
         logger.info(
-            "fallback inline search: %d Cards für query='%s'",
-            len(cards or []), message[:60],
+            "fallback inline search: %d Cards für query=%s",
+            len(cards or []), inhalt(message),
         )
         return cards or []
     except Exception as _e:

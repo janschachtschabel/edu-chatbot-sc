@@ -408,3 +408,31 @@ def test_unter_route_buchen_auch_die_fehlversuche_das_chat_modell(monkeypatch) -
     acc = new_accumulator()
     asyncio.run(classify.classify_input("hi", [], {}, {}, usage_acc=acc))
     assert list(acc["models"]) == ["gpt-6-luna"]
+
+
+def test_eine_erschoepfte_pruefung_loggt_orte_ohne_inhalt(monkeypatch, caplog) -> None:
+    """Paket 18C/D (Review Phase 2): die Ausnahme von instructor zeigt jeden Fehlversuch samt
+    ``input_value`` und die letzte Antwort (mit dem Thema) — ins Log gehen Zahl und Orte."""
+    import logging
+
+    from instructor.core import InstructorRetryException
+    from instructor.core.exceptions import FailedAttempt
+    from pydantic import BaseModel, ValidationError
+
+    class _M(BaseModel):
+        thema: int
+
+    try:
+        _M.model_validate({"thema": "Optik KANARIE7Q"})
+    except ValidationError as fehler:
+        pruefung = fehler
+    exc = InstructorRetryException(
+        "validation exhausted", last_completion=None, n_attempts=2, total_usage=0,
+        failed_attempts=[FailedAttempt(1, pruefung, None),
+                         FailedAttempt(2, RuntimeError("Thema KANARIE7Q"), None)])
+    _raise(monkeypatch, exc)
+    with caplog.at_level(logging.WARNING):
+        asyncio.run(classify.classify_input("hi", [], {}, {}))
+    assert "KANARIE7Q" not in caplog.text
+    assert "2" in caplog.text and "thema (int_parsing)" in caplog.text
+    assert "RuntimeError" in caplog.text

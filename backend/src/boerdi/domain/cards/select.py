@@ -194,9 +194,9 @@ def _deterministic_mix(
                 ]
             logger.info(
                 "_deterministic_mix: relevance-filtered pools tp=%d col=%d con=%d "
-                "(query_tokens=%s)",
+                "(query_tokens=%d)",
                 len(by_type["topic_page"]), len(by_type["collection"]),
-                len(by_type["content"]), sorted(query_tokens),
+                len(by_type["content"]), len(query_tokens),
             )
 
     out: list[dict[str, Any]] = []

@@ -53,6 +53,7 @@ from boerdi.domain.quick_reply_policy import (
     _spec_qr_response_block,
 )
 from boerdi.i18n import resolve_locale
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.llm_learning_path import generate_learning_path_text
 from boerdi.services.mcp.client import call_mcp_tool
 from boerdi.services.mcp.parsers import parse_wlo_cards
@@ -137,7 +138,7 @@ async def run_lp_fast_path(
             _last_contents_json = ""
             _last_collections_json = ""
             topic = _new_thema
-            logger.info("LP topic switch → fresh search for '%s'", topic)
+            logger.info("LP topic switch → fresh search for %s", inhalt(topic))
 
     try:
         # Priority 1: Use individual content items from session
@@ -185,7 +186,8 @@ async def run_lp_fast_path(
                             _lp_cards_collected.extend(_col_cards_parsed)
                             tools_called.append(f"get_collection_contents ({col.get('title', '')[:30]})")
                     except Exception as e:
-                        logger.warning("Failed to fetch contents for collection %s: %s", col.get("title"), e)
+                        logger.warning(  # log-ok: öffentlicher Sammlungstitel
+                            "Failed to fetch contents for collection %s: %s", col.get("title"), e)
                 if all_collection_contents:
                     contents_text = "\n\n".join(all_collection_contents)
                     tools_called.append("generate_learning_path")
@@ -208,7 +210,7 @@ async def run_lp_fast_path(
             # page through different search results.
             _topic_key = f"_lp_skip_{topic.lower()[:40]}"
             _search_skip = int(session_state.get("entities", {}).get(_topic_key, 0) or 0)
-            logger.info("LP search: topic='%s' skip=%d", topic, _search_skip)
+            logger.info("LP search: topic=%s skip=%d", inhalt(topic), _search_skip)
             try:
                 search_result = await call_mcp_tool("search_wlo_collections", {
                     "query": topic, "maxItems": 5, "skipCount": _search_skip,
@@ -262,7 +264,8 @@ async def run_lp_fast_path(
                     for sc, _col_res in zip(_col_targets, _col_results):
                         col_title = sc.get("title", "")
                         if isinstance(_col_res, Exception):
-                            logger.warning("LP fetch failed for '%s': %s", col_title, _col_res)
+                            logger.warning(  # log-ok: öffentlicher Sammlungstitel
+                                "LP fetch failed for '%s': %s", col_title, _col_res)
                             continue
                         col_cards = _col_res
                         # Diversity filter: drop already-used items
@@ -336,7 +339,8 @@ async def run_lp_fast_path(
             except Exception as e:
                 logger.warning("Failed to search+fetch collections for LP: %s", e)
 
-        logger.info("LP contents: %d chars, topic='%s'", len(contents_text) if contents_text else 0, topic)
+        logger.info("LP contents: %d chars, topic=%s",
+                    len(contents_text or ""), inhalt(topic))
         if contents_text:
             # QR-Policy speculative (M09): QR-Generator parallel zum
             # LP-Generator starten — die Kandidaten-Titel sind hier

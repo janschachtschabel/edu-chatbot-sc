@@ -36,6 +36,7 @@ import re
 import unicodedata
 from typing import Any
 
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.mcp.client import call_mcp_tool
 from boerdi.services.mcp.parsers import parse_wikipedia_summary
 
@@ -176,18 +177,19 @@ async def fetch_wikipedia_summary(topic: str) -> dict[str, Any] | None:
     try:
         raw = await call_mcp_tool("get_wikipedia_summary", {"query": q})
     except Exception as e:  # noqa: BLE001 — Anreicherung ist optional, nie fatal
-        logger.info("wiki lookup failed for %r: %s", q, e)
+        logger.info("wiki lookup failed for %s: %s", inhalt(q), e)
         return None
 
     hit = parse_wikipedia_summary(raw)
     extract = (hit.get("extract") or "").strip()
     title = (hit.get("title") or "").strip()
     if not extract or not title:
-        logger.info("wiki: no hit for %r", q)
+        logger.info("wiki: no hit for %s", inhalt(q))
         return None
 
     if not _is_relevant(q, title, extract):
-        logger.info("wiki reject irrelevant hit for %r: %r", q, title)
+        logger.info("wiki reject irrelevant hit for %s: %r",  # log-ok: Titel aus Wikipedia
+                    inhalt(q), title)
         return None
 
     return {"title": title, "extract": extract, "url": hit.get("url") or ""}

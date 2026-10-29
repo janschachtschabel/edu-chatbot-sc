@@ -136,7 +136,8 @@ def detect_lp_intent(
     _thema = session_state.get("entities", {}).get("thema", "")
 
     if _thema and not _thema_plausible(_thema):
-        logger.info("LP fast-path: thema %r rejected as garbage, forcing degradation", _thema)
+        logger.info("LP fast-path: thema (%d Zeichen) rejected as garbage, forcing "
+                    "degradation", len(_thema))
         _thema = ""
         session_state.setdefault("entities", {})["thema"] = ""
 

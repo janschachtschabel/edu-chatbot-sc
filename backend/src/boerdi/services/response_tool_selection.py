@@ -337,7 +337,7 @@ def _select_active_tools(
         ]
         removed = before - {t["function"]["name"] for t in active_tools}
         if removed:
-            _logger.info(
+            _logger.info(  # log-ok: Medientyp (Aufzählung) und Werkzeugnamen
                 "medientyp=%r → removed %s from active_tools to force content search",
                 _classif_entities_top.get("medientyp"), sorted(removed),
             )

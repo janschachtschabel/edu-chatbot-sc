@@ -151,7 +151,7 @@ async def _resolve_browse_node_id(arguments: dict[str, Any]) -> dict[str, Any]:
         )
         if match and match.get("nodeId"):
             resolved = match["nodeId"]
-            logger.info(
+            logger.info(  # log-ok: Fachname (Filterwert) und öffentlicher Portaltitel
                 "browse_collection_tree nodeId resolved: %r → %s (%s)",
                 nid, resolved, match.get("title", ""),
             )
@@ -183,7 +183,7 @@ async def _resolve_browse_node_id(arguments: dict[str, Any]) -> dict[str, Any]:
         return arguments  # LLM picked correctly
     correct = _find_portal_by_name(results, fach_hint)
     if correct and correct.get("nodeId") and correct["nodeId"] != nid:
-        logger.info(
+        logger.info(  # log-ok: Fachname (Filterwert) und öffentliche Portaltitel
             "browse_collection_tree nodeId override: %s (%s) → %s (%s) — entities.fach=%r",
             nid, chosen_title, correct["nodeId"], correct.get("title"), fach_hint,
         )
@@ -237,7 +237,7 @@ async def _resolve_collection_node_id(arguments: dict[str, Any]) -> dict[str, An
         logger.warning("get_collection_contents nodeId resolution failed: %s", e)
         return arguments
     if top_uuid and _UUID_RE.match(top_uuid):
-        logger.info(
+        logger.info(  # log-ok: Sammlungsname (Filterwert) und öffentlicher Titel
             "get_collection_contents nodeId resolved: %r → %s (%s)",
             nid, top_uuid, top_title,
         )

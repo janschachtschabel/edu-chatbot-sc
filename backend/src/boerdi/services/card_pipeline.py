@@ -20,6 +20,7 @@ from typing import Any
 from boerdi.domain.cards.links import annotate_cards_with_link
 from boerdi.domain.cards.normalize import IntentKind, infer_intent_kind, normalize_cards
 from boerdi.domain.cards.select import select_final_cards
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.config_loader import load_card_pipeline_config
 
 logger = logging.getLogger(__name__)
@@ -73,8 +74,8 @@ async def fetch_card_pool(
     effective_pool = max(1, min(50, int(effective_pool)))
 
     logger.info(
-        "fetch_card_pool: kind=%s query=%r pool=%d coll=%s lrt=%s",
-        intent_kind, query[:60] if query else "", effective_pool,
+        "fetch_card_pool: kind=%s query=%s pool=%d coll=%s lrt=%s",
+        intent_kind, inhalt(query), effective_pool,
         collection_id or "-", learning_resource_type_uri or "-",
     )
 
