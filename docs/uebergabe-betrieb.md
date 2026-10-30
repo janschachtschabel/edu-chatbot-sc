@@ -237,7 +237,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
     Wartezeit aus `Retry-After`.
   - **DB-Verbindungen:** 5+10 je Pod, eine LISTEN-Verbindung und kurz eine für `/ready`. Also `max_connections ≥ N×17 + Reserve` oder PgBouncer (Session-Modus, wegen LISTEN).
   - **MCP-Server:** Er drosselt auf 120 Anfragen je Minute **je IP**, und alle Pods teilen sich eine Egress-IP. Die Freischaltung klärt das MCP-Team.
-  - **Herunterfahren:** Gnadenfrist ≥ 75 s (5 s Läufe schließen, 30 s Verbindungen, 25 s Nachlauf, 10 s Abbruch und Aufräumen, 2 s Verbindungen schließen) **plus** preStop (5 s) plus Luft = 85 s (Values) — Kubernetes zieht preStop von der Frist ab.
+  - **Herunterfahren:** bis 72 s (5 s Läufe schließen, 30 s Verbindungen, 25 s Nachlauf, 10 s Abbruch und Aufräumen, 2 s Verbindungen schließen), eingestellt 75 s, **plus** preStop (5 s) plus Luft = 85 s (Values) — Kubernetes zieht preStop von der Frist ab.
 - **Abnahme:** `docs/cluster-checkliste.md` (Zusagen 1–8, davon SSE über den Load-Balancer und der verlustfreie Shutdown am laufenden Cluster).
 - **Architekturübersicht:** sechs Grafiken in `docs/architektur-grafiken/` (Architektur, Abläufe Agent und Muster, Software-Stack, Konfiguration je Modus) — als PNG unter `png/`, interaktiv lokal über `index.html`.
 
