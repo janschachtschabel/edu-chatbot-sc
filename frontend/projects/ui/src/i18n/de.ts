@@ -222,7 +222,7 @@ export const DE: Catalogue = {
    *  Satzende wie in der gespeicherten Blase des Backends (`error.internal`). */
   'error.genericNumber': 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut. (Fehlernummer: {nummer})',
   /** Paket 18C/D: ohne Freigabe kein Debug-Block — das Debug-Panel sagt, wo er steht. */
-  'debug.onlyInStudio': 'Die volle Diagnose dieser Antwort (Persona, Signale, Spur, Kosten) steht im Studio unter „Gespräche“.',
+  'debug.onlyInStudio': 'Die volle Diagnose dieser Antwort (Persona, Signale, Spur, Kosten) steht im Studio unter „Sessions“.',
   'debug.ui.pattern': 'Muster',
   'debug.ui.intent': 'Absicht',
   'debug.ui.state': 'Zustand',

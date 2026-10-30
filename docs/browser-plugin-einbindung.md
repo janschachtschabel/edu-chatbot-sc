@@ -1043,7 +1043,7 @@ Rückfall — nur eben ohne Hauskonvention.
 
 **Nachprüfen, ob es geklappt hat:** in `ui.tools_called` der Antwort (auch im
 Debug-Panel des Widgets) muss ein `get_skill` stehen; die volle Spur zeigt das
-Studio unter „Gespräche“. Fehlt es, war der Auftrag zu unbestimmt — nicht der Bot
+Studio unter „Sessions“. Fehlt es, war der Auftrag zu unbestimmt — nicht der Bot
 kaputt.
 
 So sah der Lauf oben aus (gemessen 2026-08-17, Maschine `pattern`, also die

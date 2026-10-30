@@ -157,7 +157,7 @@ export const EN: Catalogue = {
   'error.transcription': 'Voice input could not be processed. Please type your message.',
   'error.generic': 'Sorry, something went wrong. Please try again.',
   'error.genericNumber': 'Sorry, something went wrong. Please try again. (Error number: {nummer})',
-  'debug.onlyInStudio': 'The full diagnostics of this answer (persona, signals, trace, cost) are in the Studio under “Conversations”.',
+  'debug.onlyInStudio': 'The full diagnostics of this answer (persona, signals, trace, cost) are in the Studio under “Sessions”.',
   'debug.ui.pattern': 'Pattern',
   'debug.ui.intent': 'Intent',
   'debug.ui.state': 'State',

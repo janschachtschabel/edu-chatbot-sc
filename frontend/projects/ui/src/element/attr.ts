@@ -10,6 +10,8 @@
  * ihn schon braucht; erster Konsument = host-events, die Element-Definition
  * (8-5) reimportiert ihn von hier.
  */
+import { fehlerKurz } from '../obs/fehler-kurz';
+
 export function _attrIsTrue(v: boolean | string | undefined): boolean {
   if (v === true) return true;
   if (typeof v === 'string') {
@@ -72,7 +74,8 @@ function _jsonAttr(v: string | undefined): { wert: unknown } | null {
   try {
     return { wert: JSON.parse(s) };
   } catch (err) {
-    console.warn('boerdi: Attribut ist kein gültiges JSON und wird ignoriert', err);
+    // Nur die Art (Review 18G-5): der SyntaxError zitiert einen Ausschnitt des Werts.
+    console.warn('boerdi: Attribut ist kein gültiges JSON und wird ignoriert', fehlerKurz(err));
     return null;
   }
 }

@@ -259,7 +259,8 @@ export async function loadMore(msgId: string, ctx: CollectionActionsContext): Pr
     }));
   } catch (err) {
     if (veraltet()) return;
-    console.error('Load more failed:', err);
+    // Review 2026-10-30: nur die Art des Fehlers — sein Text kann Antwortinhalt tragen.
+    console.error('Load more failed:', fehlerKurz(err));
   }
 
   ctx.setLoading(false);
