@@ -440,3 +440,32 @@ def test_merkposten_erreicht_den_material_generator(canvas_fp):
                 usage_acc=acc)
 
     assert canvas_fp["gen_calls"][0]["usage_acc"] is acc
+
+
+
+def test_canvas_fp_ohne_llm_platz_antwortet_mit_der_blase(canvas_fp, monkeypatch, caplog):
+    """Abschluss-Review 18G: der Dienst reicht die Last weiter — hier wird sie zur Blase, ohne
+    Material, ohne Canvas-Zustand und ohne ERROR-Zeile."""
+    import logging
+
+    from boerdi.i18n.bot_text import bot_text
+    from boerdi.services import llm_parallel
+
+    async def _kein_platz(**_kw):
+        raise llm_parallel.LlmAusgelastet("kein LLM-Platz binnen 30 s")
+
+    monkeypatch.setattr(cfp, "generate_canvas_content", _kein_platz)
+    canvas_fp["resolve"] = {"arbeitsblatt": "arbeitsblatt"}
+    ss = {"entities": {}, "state_id": "S2"}
+    llm_parallel.binde_zug()
+    try:
+        with caplog.at_level(logging.INFO):
+            routed, _p, _qr, text, tools, cards, new_state = _run_canvas(
+                entities={"thema": "Photosynthese", "material_typ": "Arbeitsblatt"},
+                session_state=ss)
+    finally:
+        llm_parallel._zug.set(None)
+    assert routed is True and text == bot_text("de", "error.llmBusy")
+    assert "error" in tools and cards == [] and new_state == "S2"
+    assert "_canvas_topic" not in ss["entities"]
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]

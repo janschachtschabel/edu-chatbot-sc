@@ -323,3 +323,30 @@ class TestGenerationSideEffects:
         assert res.routed is True
         kept_ids = {c["node_id"] for c in res.wlo_cards_raw}
         assert kept_ids == {"n1"}  # only n1 is mentioned in the text
+
+
+
+class TestAusgelastet:
+    async def test_ausgelastet_ist_kein_lernpfad(self, patch_gen, monkeypatch):
+        """Abschluss-Review 18G: wie die Direktaktion — keine Karten als benutzt, kein Zustand."""
+        from boerdi.services import llm_parallel
+        from boerdi.services.fehlertext import ausgelastet_text
+
+        async def _kein_platz(**kwargs):
+            return ausgelastet_text("de")
+
+        monkeypatch.setattr(lp_fast_path, "generate_learning_path_text", _kein_platz)
+        ss = {"entities": {"thema": "Bruchrechnung", "_last_contents": json.dumps([
+            {"node_id": "n1", "title": "Video A", "learning_resource_types": ["video"],
+             "description": "d", "url": "u"}])}}
+        llm_parallel.binde_zug()
+        try:
+            res = await run_lp_fast_path(
+                has_lp_intent=True, thema="Bruchrechnung", req=_req("Erstelle einen Lernpfad"),
+                classification=_Cls({}), session_state=ss, pattern_output={}, usage_acc={},
+                new_state="S1")
+        finally:
+            llm_parallel._zug.set(None)
+        assert res.new_state == "S1"
+        assert "_canvas_material_type" not in ss["entities"]
+        assert "_lp_used_node_ids" not in ss["entities"]

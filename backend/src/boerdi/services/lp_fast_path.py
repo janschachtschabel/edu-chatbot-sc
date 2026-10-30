@@ -55,6 +55,7 @@ from boerdi.domain.quick_reply_policy import (
 from boerdi.i18n import resolve_locale
 from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.llm_learning_path import generate_learning_path_text
+from boerdi.services.llm_parallel import blase_gezeigt
 from boerdi.services.mcp.client import call_mcp_tool
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
@@ -383,13 +384,17 @@ async def run_lp_fast_path(
                 lang=resolve_locale(req.environment.locale),
                 usage_acc=usage_acc,
             )
-            if _lp_reset:
+            # Abschluss-Review 18G: der „ausgelastet“-Satz ist kein Lernpfad — keine Karten als
+            # benutzt verbuchen, kein Lernpfad-Zustand (wie die Direktaktion).
+            _ausgelastet = blase_gezeigt()
+            if _lp_reset and not _ausgelastet:
                 response_text = (response_text or "") + (
                     "\n\n_Hinweis: Es waren keine neuen Inhalte verfügbar, "
                     "deshalb wird die Auswahl jetzt wiederholt._"
                 )
                 session_state.setdefault("entities", {})["_lp_used_node_ids"] = "[]"
-            _add_used_lp_ids(session_state, _lp_new_ids)
+            if not _ausgelastet:
+                _add_used_lp_ids(session_state, _lp_new_ids)
             # Welle B.5 (2026-05): Filter on cards mentioned in text is
             # now Pattern-driven (`card_text_link_required` flag). M09
             # has it set to true so the existing LP-tile behaviour is
@@ -416,9 +421,10 @@ async def run_lp_fast_path(
                 _lp_title = _m.group(1).strip() or _lp_title
             # Mark state so follow-up chat messages are treated as
             # canvas-edits against this learning path.
-            new_state = "S3"
-            session_state["entities"]["_canvas_material_type"] = "lernpfad"
-            session_state["entities"]["_canvas_topic"] = topic or ""
+            if not _ausgelastet:
+                new_state = "S3"
+                session_state["entities"]["_canvas_material_type"] = "lernpfad"
+                session_state["entities"]["_canvas_topic"] = topic or ""
             # Welle E (2026-05-23) — Lernpfad-Markdown bleibt im
             # response_text, kein page_action canvas_open mehr. Das
             # InlineDocument-Routing am Hauptpfad-Ende packt es in die
