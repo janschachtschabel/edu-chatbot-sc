@@ -111,7 +111,10 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
   Anlage nur hinter dem Proxy). Hintergrundläufe nehmen immer `B_API_KEY`; Studio-Proben und
   Züge mit gültigem Studio-Schlüssel (Evaluation, Lasttest) sind auch unter `forward` frei.
   `forward` verlangt einen Schlüssel, prüft ihn aber nicht (das tut die b-api); nur `static`
-  schließt beliebige Schlüssel direkter Aufrufer aus.
+  schließt beliebige Schlüssel direkter Aufrufer aus. Im reinen Entwicklungsmodus
+  (`BOERDI_ALLOW_OPEN_ADMIN` ohne Studio-Passwort und ohne `STUDIO_API_KEY`) zählt jeder Zug
+  über das Studio als Probe und bucht auf `B_API_KEY` — der Modus gehört nie auf einen
+  erreichbaren Server.
 - **Studio-Proxy:** Er reicht ihn nie durch.
 - **Rechte des virtuellen Schlüssels:**
   - Chat und Responses mit `gpt-6-luna` bzw. der Route
@@ -176,9 +179,9 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 - **Format:** `LOG_FORMAT=json` (eine Zeile je Eintrag: `time` UTC, `level`, `logger`, `message`, `trace_id`, ggf. `exc`; Ereigniszeilen wie `zugriff` und `mcp_aufruf` zusätzlich `event` und `fields`) oder `text`.
 - **Level:** `LOG_LEVEL`.
 - **Trace-ID:**
-  - **Quelle**, in dieser Reihenfolge: `x-client-trace-id`, sonst `X-B3-TraceId`/`b3`, sonst neu erzeugt.
+  - **Quelle**, in dieser Reihenfolge: `x-client-trace-id`, sonst `X-B3-TraceId`/`b3`, sonst neu erzeugt. Eine ID, deren Anfang als Fehlernummer nichts taugt (nur Nullen, vorn kein Buchstabe und keine Ziffer), zählt als nicht mitgeschickt; eine auf 32 Zeichen aufgefüllte 64-Bit-B3-ID gilt in ihrer kurzen Form (16 Zeichen). Ein fester Vorsatz des Aufrufers (`dienst-<uuid>`) gäbe allen seinen Zügen dieselbe Nummer — solche IDs mit Team 6 abstimmen.
   - **Wo sie steht:** in jeder Logzeile der Anfrage, auch in der Zugriffszeile, und seit Paket 18C/D an jeder gespeicherten Nachricht (Suche im Studio per Präfix, `GET /api/sessions/zug/{nummer}`).
-  - **Fehlernummer:** Fehlerblasen nennen statt der Fehlerklasse die ersten 12 Zeichen der Trace-ID („Fehlernummer: 4f2a9c01d3b7“), auch im Widget, wenn der Strom scheitert. Meldet jemand eine Nummer: im Studio unter „Gespräche“ ins Feld „Fehlernummer“ — der Verlauf öffnet sich an der Antwort samt Zugakte; im Log steht dieselbe ID in jeder Zeile der Anfrage.
+  - **Fehlernummer:** Fehlerblasen nennen statt der Fehlerklasse die ersten 12 Zeichen der Trace-ID („Fehlernummer: 4f2a9c01d3b7“), auch im Widget, wenn der Strom scheitert. Meldet jemand eine Nummer: im Studio unter „Sessions“ ins Feld „Fehlernummer“ — der Verlauf öffnet sich an der Antwort samt Zugakte; im Log steht dieselbe ID in jeder Zeile der Anfrage.
   - **Wohin sie geht:** an die b-api und den WLO-MCP-Server als `x-client-trace-id`; B3 (`X-B3-TraceId` in Kleinbuchstaben, neue `X-B3-SpanId`) nur, wenn die ID eine gültige B3-ID ist (16 oder 32 Hex-Zeichen). Nicht an OpenAI direkt und nicht an fremde MCP-Server. Nicht zurück an den Client.
 - **Inhalte (Paket 18C/D):**
   - Das Log enthält keine Nachrichten, Antworten, Themen oder Suchbegriffe — nur ihre Länge —, Sitzungen nur als Kurzkennung, Werkzeugargumente nur mit Filterwerten, keine IP.
