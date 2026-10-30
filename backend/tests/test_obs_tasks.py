@@ -96,3 +96,48 @@ def test_spawn_background_discards_on_exception():
         assert t not in obs_tasks._BG_TASKS
 
     asyncio.run(_run())
+
+
+
+def test_eine_haengende_aufgabe_behaelt_eine_starke_referenz():
+    """Review 2026-10-30: nach der Frist hielt nur noch die Schleife die Aufgabe — schwach."""
+    from boerdi.obs import tasks as tasks_mod
+
+    async def _stur():
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.2)  # ignoriert den Abbruch eine Weile
+
+    async def _ablauf():
+        t = asyncio.create_task(_stur())
+        await asyncio.sleep(0)
+        await tasks_mod.cancel_and_drain([t], frist_s=0.01)
+        assert t in tasks_mod._BG_TASKS
+        await asyncio.wait([t], timeout=2)
+        await asyncio.sleep(0)
+        assert t not in tasks_mod._BG_TASKS
+
+    asyncio.run(_ablauf())
+
+
+def test_der_listener_haelt_sich_an_die_restfrist():
+    """Review 2026-10-30: Herunterfahren mit EINER Abbruchfrist für Takte und Listener."""
+    from boerdi.db.notify import ConfigChangeListener
+
+    async def _stur():
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            await asyncio.sleep(3)
+
+    async def _ablauf() -> float:
+        lauscher = ConfigChangeListener("postgresql://nicht-benutzt")
+        lauscher._task = asyncio.create_task(_stur())
+        await asyncio.sleep(0)
+        uhr = asyncio.get_running_loop()
+        t0 = uhr.time()
+        await lauscher.stop(frist_s=0.1)
+        return uhr.time() - t0
+
+    assert asyncio.run(_ablauf()) < 1.0

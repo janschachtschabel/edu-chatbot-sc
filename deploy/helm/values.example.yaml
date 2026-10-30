@@ -37,10 +37,10 @@ probes:
   startup:   {path: /health, port: internal, periodSeconds: 5,  timeoutSeconds: 3, failureThreshold: 30}
 
 # Herunterfahren: bis 5 s die eigenen Läufe schließen, Uvicorn wartet bis 30 s auf offene
-# Verbindungen, danach bis 25 s auf nachlaufende Züge (+5 s Abbruch, +5 s Aufräumen). /ready
-# meldet ab dem Signal „nicht bereit“. Kubernetes zieht die preStop-Zeit von der Gnadenfrist ab:
-# 70 s + preStop 5 s + 5 s Luft = 80.
-terminationGracePeriodSeconds: 80
+# Verbindungen, danach bis 25 s auf nachlaufende Züge (+5 s Abbruch, +5 s Aufräumen, +2 s für das
+# Schließen der Verbindungen). /ready meldet ab dem Signal „nicht bereit“. Kubernetes zieht die
+# preStop-Zeit von der Gnadenfrist ab: 75 s + preStop 5 s + 5 s Luft = 85 (bis Paket 18G 80).
+terminationGracePeriodSeconds: 85
 lifecycle:
   preStopSleepSeconds: 5  # bis der Endpunkt aus dem Service ist
 

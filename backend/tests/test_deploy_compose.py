@@ -196,9 +196,12 @@ def test_das_herunterfahren_passt_in_die_gnadenfrist() -> None:
     assert 'CMD ["python", "-m", "boerdi.serve"]' in dockerfile
     uvicorn_s = serve.baue_server(FastAPI(), FastAPI())[0].config.timeout_graceful_shutdown
     gnade = re.search(r"stop_grace_period:\s*(\d+)s", _COMPOSE.read_text("utf-8"))
+    from boerdi.obs.tasks import ABBRUCH_FRIST_S
     from boerdi.services.laeufe_beenden import _FRIST_S as abschluss_s  # vor dem Schließen
 
-    abbruch_s, aufraeumen_s = 5, 5     # hängende Züge abbrechen; Takt, Store, Engine
+    # Hängende Züge abbrechen; Takte und Listener teilen sich eine Frist (Review 2026-10-30),
+    # dazu bis 2 s für ``engine.dispose`` und die Pausen zwischen den Schritten.
+    abbruch_s, aufraeumen_s = ABBRUCH_FRIST_S, ABBRUCH_FRIST_S + 2
     assert (abschluss_s + uvicorn_s + NACHLAUF_FRIST_S + abbruch_s + aufraeumen_s
             <= int(gnade.group(1)))
 

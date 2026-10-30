@@ -36,7 +36,7 @@ from fastapi import Request
 
 from boerdi.obs.log_format import ausnahme_text
 from boerdi.obs.progress import TurnProgress
-from boerdi.obs.tasks import cancel_and_drain
+from boerdi.obs.tasks import ABBRUCH_FRIST_S, cancel_and_drain
 from boerdi.obs.trace_id import fehlernummer
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ def _nachlaufen_lassen(task: asyncio.Task[Any], label: str) -> None:
 #: Wie lange das Herunterfahren auf nachlaufende Züge wartet (Paket 9). Das Warten
 #: beginnt erst NACH dem von uvicorn (``--timeout-graceful-shutdown`` 30 s im
 #: Dockerfile): beides zusammen, dazu Abbruch und Aufräumen, muss unter die
-#: Gnadenfrist des Containers passen (``stop_grace_period`` 65 s in
+#: Gnadenfrist des Containers passen (``stop_grace_period`` 75 s in
 #: ``compose.prod.yml``; Review Paket 9, Wächter in ``tests/test_deploy_compose.py``).
 NACHLAUF_FRIST_S = 25.0
 
@@ -101,7 +101,7 @@ async def nachlaeufer_abwarten(frist_s: float = NACHLAUF_FRIST_S) -> int:
     for aufgabe in haengend:
         aufgabe.cancel()
     if haengend:
-        await asyncio.wait(haengend, timeout=5)
+        await asyncio.wait(haengend, timeout=ABBRUCH_FRIST_S)
         logger.warning("Herunterfahren: %d nachlaufende Züge abgebrochen — ihre Antwort "
                        "fehlt im Verlauf", len(haengend))
     return len(haengend)

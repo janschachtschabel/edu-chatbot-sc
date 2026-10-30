@@ -58,10 +58,10 @@ Die Helm-Vorlage (`deploy/helm/values.example.yaml`) trägt sie bereits; hier st
   eine LISTEN-Verbindung und kurzzeitig eine für die Bereitschaftsprobe (`/ready`, ohne Pool).
   Also `max_connections ≥ N × 17 + Reserve` (Migration, psql, Sicherung) — oder PgBouncer im
   Session-Modus (LISTEN braucht ihn).
-* **Gnadenfrist ≥ 70 s:** bis 5 s schließt der Pod seine Läufe, Uvicorn wartet bis 30 s auf
-  offene Anfragen, danach der Lebenszyklus bis 25 s auf nachlaufende Züge, plus Abbau.
-  Compose: `stop_grace_period: 70s`. Kubernetes: `terminationGracePeriodSeconds: 80` — die
-  preStop-Zeit zählt mit, dazu 5 s Luft.
+* **Gnadenfrist ≥ 75 s:** bis 5 s schließt der Pod seine Läufe, Uvicorn wartet bis 30 s auf
+  offene Anfragen, danach der Lebenszyklus bis 25 s auf nachlaufende Züge, plus Abbruch und
+  Abbau (5 + 5 + 2 s). Compose: `stop_grace_period: 75s`. Kubernetes:
+  `terminationGracePeriodSeconds: 85` — die preStop-Zeit zählt mit, dazu 5 s Luft.
 * **preStop 5 s:** der Pod bekommt SIGTERM erst, wenn sein Endpunkt aus dem Service genommen
   ist; sonst landen in den ersten Sekunden noch neue Anfragen auf einem gehenden Pod.
 * **SSE ohne Pufferung:** die Ströme senden `X-Accel-Buffering: no` und
@@ -141,7 +141,7 @@ ist, während die Replika geht:
    ```
 3. Erwartung: der laufende Stream wird **zu Ende geliefert** (uvicorn wartet,
    gedeckelt auf `--timeout-graceful-shutdown 30`; danach wartet der Lifespan bis
-   25 s auf nachlaufende Züge — `stop_grace_period: 70s` im Compose deckt beides,
+   25 s auf nachlaufende Züge — `stop_grace_period: 75s` im Compose deckt beides,
    sonst schösse Docker dazwischen).
 4. Danach: neuer Turn derselben Session gegen den Cluster — die Historie muss
    den abgeschlossenen Turn enthalten.

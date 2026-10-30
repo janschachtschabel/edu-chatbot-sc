@@ -60,11 +60,17 @@ def split_frontmatter(
     for i, line in enumerate(lines[1:], start=1):
         # Nur in Spalte 0 (Review 18E-1): ``join_frontmatter`` schreibt eine Zeile ``---``
         # eines mehrzeiligen Werts eingerückt — mit ``strip()`` endete der Kopf dort.
-        if line.rstrip("\r\n") == "---":
+        # Leerraum am Ende zählt nicht (Review 2026-10-30): ``--- `` aus einem Editor ließ
+        # den Kopf sonst offen.
+        if line.rstrip() == "---":
             head = "".join(lines[1:i])
             body = "".join(lines[i + 1:])
             try:
-                fm = laden(head) or {}
+                fm = laden(head)
+                # Nur ein LEERER Kopf ist ``{}`` (Review 2026-10-30): ``false``, ``0`` oder
+                # ``[]`` sind keine Zuordnung und fallen unten wie jede andere durch.
+                if fm is None:
+                    fm = {}
             except yaml.YAMLError:
                 if streng:
                     raise

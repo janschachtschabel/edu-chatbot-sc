@@ -12,9 +12,11 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Security
 from pydantic import BaseModel
 
+from boerdi.api.config_antworten import konflikt_antwort
 from boerdi.api.deps import Lang, require_studio_key
 from boerdi.i18n import msg
 from boerdi.services import config_loader as cl
+from boerdi.services.config_conflict import ConfigConflict
 
 router = APIRouter(
     prefix="/api/config", tags=["config"],
@@ -40,7 +42,7 @@ async def get_privacy_config(lang: Lang) -> PrivacyConfig:
 
 
 @router.put("/privacy", response_model=PrivacyConfig)
-async def update_privacy_config(cfg: PrivacyConfig) -> PrivacyConfig:
+async def update_privacy_config(cfg: PrivacyConfig, lang: Lang) -> PrivacyConfig:
     # Nur die vier Schalter ersetzen — der Bereich trägt auch ``retention_days``;
     # bis 2026-10-30 fiel eine im Studio gesetzte Frist hier still auf 30 zurück.
     # Aus der DB (der Cache kann hinter einer anderen Replik liegen) und ohne
@@ -48,13 +50,19 @@ async def update_privacy_config(cfg: PrivacyConfig) -> PrivacyConfig:
     gelesen = await cl.read_area("01-base/privacy-config")
     vorhanden = gelesen[0] if gelesen else {}
     bestand = vorhanden.get("logging")
-    await cl.write_area("01-base/privacy-config", {**vorhanden, "logging": {
-        **(bestand if isinstance(bestand, dict) else {}),
-        "messages": bool(cfg.messages),
-        "memory": bool(cfg.memory),
-        "quality": bool(cfg.quality),
-        "safety": True,  # hardcoded on
-    }})
+    try:
+        # Bedingt auf den eben gelesenen Stand (Review 2026-10-30): schrieb dazwischen jemand
+        # anderes — etwa die Frist im Aufbewahrungs-Panel —, ginge seine Änderung sonst still
+        # verloren.
+        await cl.write_area("01-base/privacy-config", {**vorhanden, "logging": {
+            **(bestand if isinstance(bestand, dict) else {}),
+            "messages": bool(cfg.messages),
+            "memory": bool(cfg.memory),
+            "quality": bool(cfg.quality),
+            "safety": True,  # hardcoded on
+        }}, expected_version=gelesen[1] if gelesen else None, create_only=not gelesen)
+    except ConfigConflict as e:
+        raise konflikt_antwort(e, lang, anlegen=not gelesen) from e
     return PrivacyConfig(**cl.load_privacy_config())
 
 

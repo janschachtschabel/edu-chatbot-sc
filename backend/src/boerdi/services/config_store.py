@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from boerdi.db.notify import ConfigChangeListener
 from boerdi.domain.config_models.schalter import normalisiere_schalter
+from boerdi.obs.tasks import ABBRUCH_FRIST_S
 from boerdi.services.config_conflict import (
     FIRST_VERSION,
     ConfigConflict,
@@ -181,8 +182,9 @@ class ConfigStore:
         for area in sorted(areas):
             self._on_area_changed(area)
 
-    async def stop(self) -> None:
-        await self._listener.stop()
+    async def stop(self, *, frist_s: float = ABBRUCH_FRIST_S) -> None:
+        """Den Listener anhalten, höchstens ``frist_s`` (der Rest der Frist beim Herunterfahren)."""
+        await self._listener.stop(frist_s=frist_s)
 
     def subscribe(self, callback: Callable[[str], None]) -> None:
         """Register for area-change events (loader caches etc.)."""

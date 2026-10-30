@@ -57,6 +57,7 @@ def test_proben_am_internen_port_und_ingress_nur_oeffentlich() -> None:
 def test_die_gnadenfrist_deckt_das_herunterfahren() -> None:
     """Uvicorn 30 s + Nachlauf der Züge + Abbruch + Aufräumen (wie ``stop_grace_period``)."""
     from boerdi.api.sse import NACHLAUF_FRIST_S
+    from boerdi.obs.tasks import ABBRUCH_FRIST_S
 
     v = _values()
     # Kubernetes zieht preStop von der Gnadenfrist ab (Review Phase D, K3).
@@ -65,7 +66,7 @@ def test_die_gnadenfrist_deckt_das_herunterfahren() -> None:
     from boerdi.services.laeufe_beenden import _FRIST_S as abschluss_s
 
     assert (v["terminationGracePeriodSeconds"]
-            >= abschluss_s + 30 + NACHLAUF_FRIST_S + 5 + 5 + pre_stop)
+            >= abschluss_s + 30 + NACHLAUF_FRIST_S + 2 * ABBRUCH_FRIST_S + 2 + pre_stop)
 
 
 def test_proben_haben_eine_frist_ueber_der_datenbank_probe() -> None:

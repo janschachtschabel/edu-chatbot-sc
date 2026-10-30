@@ -5,6 +5,7 @@ P1-3: CORS (credentials only with explicit origins, ALT main.py:188-195),
 security response headers (ALT Audit N-8), startup config warnings.
 """
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -47,7 +48,7 @@ from boerdi.api.openapi_public import oeffentliche_spec
 from boerdi.api.sse import nachlaeufer_abwarten
 from boerdi.obs.drittlogger import drittlogger_einstellen
 from boerdi.obs.log_format import StdoutHandler, formatter_fuer
-from boerdi.obs.tasks import cancel_and_drain
+from boerdi.obs.tasks import ABBRUCH_FRIST_S, cancel_and_drain
 from boerdi.obs.trace_id import TraceIdFilter, TraceIdMiddleware
 from boerdi.services import aufbewahrung
 from boerdi.services import master_skill as master_skill_dienst
@@ -221,10 +222,14 @@ async def _lifespan(app: FastAPI):
         # Paket 9: zuerst die Züge, deren Client aufgelegt hat — sie schreiben noch.
         await nachlaeufer_abwarten()
         master_skill_dienst.binde(None)  # ab hier startet ein Signal keine Übernahme mehr
+        # Takte und Listener teilen sich EINE Abbruchfrist (Review 2026-10-30): nacheinander
+        # waren es zweimal 5 s, und mit dem Rest lag die Summe über ``stop_grace_period``.
+        uhr = asyncio.get_running_loop()
+        ende = uhr.time() + ABBRUCH_FRIST_S
         await cancel_and_drain([takt, skill_takt, *master_skill_dienst.laufende_uebernahmen()],
                                bezeichnung="Herunterfahren")
         config_loader.bind_store(None)
-        await store.stop()
+        await store.stop(frist_s=max(0.0, ende - uhr.time()))
         await engine.dispose()
 
 
