@@ -15,6 +15,8 @@ through to every service function.
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -120,13 +122,17 @@ def test_optimize_success_merges_result_into_status(client, monkeypatch):
     assert calls == [((_SESSION,), {})]
 
 
-def test_optimize_failure_becomes_503(client, monkeypatch):
+def test_optimize_failure_becomes_503(client, monkeypatch, caplog):
     async def _boom(*a, **k):
         raise RuntimeError("database is locked")
 
     monkeypatch.setattr(sessions_api, "optimize_database", _boom)
-    r = client.post("/api/sessions/optimize", headers=_AUTH)
+    with caplog.at_level(logging.ERROR, logger=sessions_api.__name__):
+        r = client.post("/api/sessions/optimize", headers=_AUTH)
     assert r.status_code == 503
+    # Paket 18E: ein Wartungsfehler mit Traceback im Log, nicht nur im Studio.
+    fehler = [r for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(fehler) == 1 and fehler[0].exc_info is not None
 
 
 # ── GET /{session_id} ────────────────────────────────────────────────────

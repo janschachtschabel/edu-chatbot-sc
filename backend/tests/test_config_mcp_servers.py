@@ -23,6 +23,8 @@ loader tests; what is under test here is the endpoints' own gates.
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -253,15 +255,19 @@ def test_discover_prueft_den_namen_nicht_im_event_loop(client, monkeypatch) -> N
     assert faeden["pruefung"] != faeden["schleife"]
 
 
-def test_discover_maps_a_connection_failure_to_502(client, monkeypatch) -> None:
+def test_discover_maps_a_connection_failure_to_502(client, monkeypatch, caplog) -> None:
     async def _boom(url: str) -> list[dict[str, str]]:
         raise RuntimeError("kaputt")
 
     monkeypatch.setattr(transport, "discover_server_tools", _boom)
-    r = client.post("/api/config/mcp-servers/discover", headers=_AUTH,
-                    params={"url": "http://8.8.8.8/mcp"})
+    with caplog.at_level(logging.WARNING, logger="boerdi.api.config"):
+        r = client.post("/api/config/mcp-servers/discover", headers=_AUTH,
+                        params={"url": "http://8.8.8.8/mcp"})
     assert r.status_code == 502
     assert "Verbindung fehlgeschlagen" in r.json()["detail"]
+    # Paket 18E: der Grund stand nur im Studio-Text — jetzt auch im Log (Fehlerart).
+    meldungen = [r.getMessage() for r in caplog.records]
+    assert any("8.8.8.8" in m and "RuntimeError" in m for m in meldungen), meldungen
 
 
 # ── the OTHER two write paths into the same document ────────────────────────

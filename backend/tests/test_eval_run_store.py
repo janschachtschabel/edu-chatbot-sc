@@ -10,6 +10,7 @@ und Stellschraube — bevor ein Lauf-Datensatz entsteht oder Kosten anfallen.
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import pytest
 from fastapi import HTTPException
@@ -65,14 +66,19 @@ def test_auch_ein_404_zaehlt_als_erreichbar(monkeypatch) -> None:
     asyncio.run(run_store._ensure_chat_reachable())
 
 
-def test_toter_chat_bricht_mit_502_und_nennt_die_stellschraube(monkeypatch) -> None:
+def test_toter_chat_bricht_mit_502_und_nennt_die_stellschraube(monkeypatch, caplog) -> None:
     monkeypatch.setattr(
         run_store.httpx, "AsyncClient", _FakeClient(exc=ConnectionError("refused"))
     )
     monkeypatch.delenv("EVAL_CHAT_URL", raising=False)
 
-    with pytest.raises(HTTPException) as exc:
+    with caplog.at_level(logging.WARNING, logger=run_store.__name__), \
+            pytest.raises(HTTPException) as exc:
         asyncio.run(run_store._ensure_chat_reachable())
+
+    # Paket 18E: der Betrieb sah den abgewiesenen Start bisher nur im Studio.
+    meldungen = [r.getMessage() for r in caplog.records]
+    assert any("8100" in m and "ConnectionError" in m for m in meldungen), meldungen
 
     assert exc.value.status_code == 502
     assert "http://127.0.0.1:8100/api/chat" in exc.value.detail

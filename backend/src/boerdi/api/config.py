@@ -8,6 +8,7 @@ is new (V3, JSON schema per area for the generic formly renderer).
 """
 
 import asyncio
+import logging
 
 import yaml
 from fastapi import APIRouter, HTTPException, Request, Response, Security
@@ -36,6 +37,8 @@ from boerdi.services.config_conflict import ConfigConflict
 from boerdi.services.mcp import tool_descriptions, transport
 from boerdi.services.url_safety import UnsafeUrlError, assert_public_url
 from boerdi.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/config", tags=["config"],
@@ -179,6 +182,10 @@ async def discover_mcp_tools(lang: Lang, url: str = "") -> dict:
         tools = await transport.discover_server_tools(url)
         return {"url": url, "tools": tools}
     except Exception as e:
+        # Paket 18E: der Grund stand nur im Studio-Text. Der Traceback nur auf DEBUG —
+        # ein gescheiterter Handschlag ist meist das Netz, kein Bug.
+        logger.warning("MCP-Discovery %s fehlgeschlagen (%s)", url, type(e).__name__,
+                       exc_info=logger.isEnabledFor(logging.DEBUG))
         raise HTTPException(502, msg(lang, "mcp.connectFailed", error=e)) from e
 
 
