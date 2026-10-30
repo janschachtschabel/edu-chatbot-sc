@@ -153,15 +153,26 @@ async def test_lifespan_actually_spawns_the_warmups(monkeypatch, fake_infra):
     spawned: list[bool] = []
     monkeypatch.setattr(main_mod, "spawn_startup_warmups", lambda: spawned.append(True))
 
+    async def _zaeher_takt():
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.3)  # braucht für seinen Abbruch einen Teil der Frist
+            raise
+
+    monkeypatch.setattr(main_mod, "starte_master_skill_takt",
+                        lambda: asyncio.create_task(_zaeher_takt()))
+
     async with main_mod._lifespan(_FakeApp()):
-        pass
+        await asyncio.sleep(0.05)  # die Takte laufen an — ein nie gestarteter endet sofort
     assert spawned == [True]
     # Review 2026-10-30: Takte und Listener teilen sich EINE Abbruchfrist — der Listener bekommt
     # den Rest, nie mehr als die ganze.
     from boerdi.obs.tasks import ABBRUCH_FRIST_S
 
     (frist,) = fake_infra
-    assert 0.0 <= frist <= ABBRUCH_FRIST_S
+    # Abschluss-Review 18G: der Takt verbrauchte 0,3 s — der Listener bekommt nur den Rest.
+    assert 0.0 <= frist <= ABBRUCH_FRIST_S - 0.25
 
 
 class _FakeApp:

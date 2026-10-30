@@ -87,9 +87,18 @@ def _bereinigt(span: ReadableSpan) -> ReadableSpan:
         for e in span.events]
     status = span.status
     if status.description:
-        status = Status(status.status_code, status.description.split(":", 1)[0][:80])
+        # Die Art aus dem Ereignis; ohne sie nur der Teil vor einem Doppelpunkt — eine
+        # Beschreibung ohne Doppelpunkt ist ganz Text (SQLAlchemy: ``str()`` des Treiberfehlers).
+        art = next((str(e.attributes.get("exception.type")) for e in span.events
+                    if e.name == "exception" and e.attributes
+                    and e.attributes.get("exception.type")), "")
+        beschreibung = status.description
+        status = Status(status.status_code, art or (
+            beschreibung.split(":", 1)[0][:80] if ":" in beschreibung else ""))
     if ereignisse == list(span.events) and status is span.status:
         return span
+    # Die ``dropped_*``-Zähler gehen beim Neubau verloren (die SDK-Klasse nimmt sie nicht an);
+    # bei den Deckeln dieser Anlage sind sie 0.
     return ReadableSpan(
         name=span.name, context=span.context, parent=span.parent, resource=span.resource,
         attributes=span.attributes, events=ereignisse, links=span.links, kind=span.kind,

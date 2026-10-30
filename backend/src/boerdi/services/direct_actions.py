@@ -522,7 +522,7 @@ async def _handle_generate_learning_path(
     debug = DebugInfo(
         persona=session_state.get("persona_id", ""),
         intent="I04",
-        state="S3",
+        state="S3" if not lp_failed else (session_state.get("state_id") or ""),
         pattern="ACTION: generate_learning_path",
         tools_called=tools_called,
         entities=session_state.get("entities", {}),
@@ -547,7 +547,7 @@ async def _handle_generate_learning_path(
     await update_session(
         session,
         req.session_id,
-        state_id=session_state.get("state_id") or "S3",
+        state_id=session_state.get("state_id") or ("S1" if lp_failed else "S3"),
         entities=session_state.get("entities", {}),
     )
 
