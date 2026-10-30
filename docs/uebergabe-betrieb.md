@@ -196,6 +196,11 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
   - im Cluster **Pflicht** (`RATE_LIMIT_STORAGE_URI=valkey://…`)
 - **Abschaltbar im Chart:** Beide stehen in den Values (`postgresql.enabled`, `valkey.enabled`), eine bestehende Instanz kann genutzt werden.
 - **Migrationen:** als Job je Release, nicht je Pod (`migrateJob`).
+- **Datenschutz-Schalter** (Studio, Bereich `01-base/privacy-config`): `messages`, `memory`,
+  `quality` schalten das Speichern von Verlauf, Gedächtnis und Qualitätsprotokoll ab. Ist die
+  Konfiguration nicht lesbar, wird nichts davon gespeichert (fail-closed, Paket 18E) — im Log
+  steht dann je Minute eine Warnung „Datenschutz-Konfiguration nicht lesbar“; Wiederherstellung
+  im Widget und Nachfrage nach einem Strom-Abbruch fallen so lange aus.
 - **Worker:** keine eigenen. Hintergrundarbeit läuft im Web-Prozess: Aufbewahrung alle 6 h
   (clusterweit einmal per Sperre), Master-Skill-Abruf alle 5 min (clusterweit einmal per Sperre),
   Evaluation und Lasttest als Jobs aus dem Studio. Im Chart gibt es deshalb nichts abzuschalten.

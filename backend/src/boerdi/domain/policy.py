@@ -11,10 +11,29 @@ Auswertung → Domäne; ``load_policy_config`` ist eine Read-Fassade).
 
 from __future__ import annotations
 
+import functools
+import logging
+import math
+
+import regex
+
 from boerdi.api.schemas import PolicyDecision
 from boerdi.domain import regel_regex
 from boerdi.i18n import DEFAULT, Locale, pick_localized
+from boerdi.obs.drossel import gedrosselt
 from boerdi.services.config_loader import load_policy_config
+
+logger = logging.getLogger(__name__)
+
+
+@functools.lru_cache(maxsize=256)
+def _uebersetzt(muster: str) -> tuple[regex.Pattern | None, str]:
+    """Ein Muster je Text einmal übersetzt (Paket 18E: bis dahin je Zug neu) — mit dem
+    Fehlertext statt der Ausnahme, damit der Cache keine Tracebacks hält."""
+    try:
+        return regel_regex.uebersetze(muster, ignore_case=False), ""
+    except regel_regex.RegexFehler as fehler:
+        return None, str(fehler)
 
 
 def assess_policy(
@@ -42,6 +61,7 @@ def assess_policy(
     msg = (message or "").lower()
 
     for rule in rules:
+        rid = rule.get("id", "policy-rule")
         match = rule.get("match", {}) or {}
         if "persona" in match and match["persona"] != persona_id:
             continue
@@ -55,14 +75,18 @@ def assess_policy(
                 continue
             # Mit Zeitgrenze (Paket 6, B1); wie bisher ohne IGNORECASE, die
             # Nachricht ist schon klein geschrieben.
-            try:
-                if not regel_regex.trifft(regel_regex.uebersetze(muster, ignore_case=False), msg):
-                    continue
-            except regel_regex.RegexFehler:
+            uebersetzt, fehler = _uebersetzt(muster)
+            if uebersetzt is None:
+                # Paket 18E (C3): die Regel fiel still weg — auch ein Pflicht-Hinweis oder
+                # eine Werkzeugsperre. Das Speichern weist solche Muster ab; ein alter Stand
+                # meldet sich einmal je Regel und Muster, nie mit der Nachricht.
+                gedrosselt(logger, logging.WARNING, f"policy:{rid}:{muster}", math.inf,
+                           "Policy-Regel %s greift nicht: ungültiges Muster (%s)", rid, fehler)
+                continue
+            if not regel_regex.trifft(uebersetzt, msg):
                 continue
 
         effect = rule.get("effect", {}) or {}
-        rid = rule.get("id", "policy-rule")
         decision.matched_rules.append(rid)
 
         for t in effect.get("block_tools", []) or []:

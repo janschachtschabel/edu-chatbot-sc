@@ -124,3 +124,24 @@ def test_ob_das_protokoll_schreibt_steht_an_einer_stelle(monkeypatch, enabled, p
     _konfig(monkeypatch, enabled=enabled, privacy=privacy)
     assert qualitaetsprotokoll_an() is an
 
+
+
+def test_unlesbare_datenschutz_konfiguration_schreibt_nicht(monkeypatch):
+    """Paket 18E (F1): fail-closed — bis dahin warf ``qualitaetsprotokoll_an`` die Ausnahme
+    weiter, und der Aufrufer schluckte sie."""
+    from boerdi.services.turn_quality import qualitaetsprotokoll_an
+
+    def _kaputt():
+        raise RuntimeError("config kaputt")
+
+    _konfig(monkeypatch)
+    monkeypatch.setattr("boerdi.services.config_loader.load_privacy_config", _kaputt)
+    assert qualitaetsprotokoll_an() is False
+
+
+def test_aus_als_text_schaltet_das_protokoll_aus(monkeypatch):
+    """Paket 18E (N1): ``enabled: "false"`` aus dem Rohtext-Editor heißt „aus“."""
+    from boerdi.services.turn_quality import qualitaetsprotokoll_an
+
+    _konfig(monkeypatch, enabled="false")
+    assert qualitaetsprotokoll_an() is False

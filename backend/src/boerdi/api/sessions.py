@@ -39,6 +39,7 @@ from boerdi.domain.write_anzeige import entities_for_display
 from boerdi.i18n import msg
 from boerdi.services import aufbewahrung
 from boerdi.services.config_loader import load_privacy_config
+from boerdi.services.config_loader.safety import melde_datenschutz_unlesbar
 from boerdi.services.db_sessions import (
     delete_messages_for_session,
     get_memory,
@@ -245,8 +246,10 @@ async def set_session_memory(
                 "key": key,
                 "reason": "memory logging disabled in privacy-config",
             }
-    except Exception:  # noqa: BLE001 — privacy check is best-effort, never blocks
-        logger.debug("privacy-config check failed; proceeding with save", exc_info=True)
+    except Exception as fehler:  # noqa: BLE001 — any failure: do not store (Paket 18E, F1)
+        melde_datenschutz_unlesbar("memory", fehler)
+        return {"status": "skipped", "persisted": False, "key": key,
+                "reason": "privacy-config unreadable"}
     await get_or_create_session(session, session_id)
     await save_memory(session, session_id, key, value, memory_type)
     return {"status": "saved", "persisted": True, "key": key, "memory_type": memory_type}

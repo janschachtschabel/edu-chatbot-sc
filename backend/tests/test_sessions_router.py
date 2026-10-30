@@ -219,6 +219,20 @@ def test_set_memory_dropped_when_privacy_disables_it(client, monkeypatch):
     assert saved == []  # nothing written
 
 
+def test_set_memory_dropped_when_privacy_config_unreadable(client, monkeypatch):
+    """Paket 18E (F1): fail-closed — unlesbar heißt nicht speichern (bis dahin: speichern)."""
+    def _kaputt():
+        raise RuntimeError("config kaputt")
+
+    monkeypatch.setattr(sessions_api, "load_privacy_config", _kaputt)
+    saved = _fake(monkeypatch, "save_memory", None)
+    r = client.post("/api/sessions/bb-new/memory",
+                    params={"key": "fach", "value": "Mathe"}, headers=_AUTH)
+    assert r.status_code == 200
+    assert r.json()["persisted"] is False
+    assert saved == []
+
+
 # ── DELETE /{session_id}/messages ────────────────────────────────────────
 def test_delete_messages_clears_only_messages(client, monkeypatch):
     calls = _fake(monkeypatch, "delete_messages_for_session", 3)

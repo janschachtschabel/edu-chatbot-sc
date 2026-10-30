@@ -42,6 +42,7 @@ from boerdi.db.models import (
 )
 from boerdi.obs import trace_id
 from boerdi.services.config_loader import load_privacy_config
+from boerdi.services.config_loader.safety import melde_datenschutz_unlesbar
 from boerdi.services.zugakte import SCHLUESSEL as ZUGAKTE
 from boerdi.services.zugakte import mit_zugakte
 
@@ -115,14 +116,15 @@ async def _zurueckrollen(session: AsyncSession) -> None:
 # ── Message helpers ────────────────────────────────────────────
 
 def messages_enabled() -> bool:
-    """``privacy-config.logging.messages``. A failing lookup keeps storing —
-    ALT's stance ("loader failure → default to logging"), and the same one the
-    memory gate in ``api/sessions.py`` takes."""
+    """``privacy-config.logging.messages``. A failing lookup stores nothing (Paket 18E,
+    F1: fail-closed — an explicit "off" must never fail on a broken config; until then
+    NEU kept ALT's "loader failure → default to logging"). Same in the memory gate
+    (``api/sessions.py``) and the quality log (``turn_quality``)."""
     try:
-        return bool(load_privacy_config().get("messages", True))
-    except Exception:  # noqa: BLE001 — privacy check is best-effort, never blocks
-        logger.debug("privacy-config check failed; storing the message", exc_info=True)
-        return True
+        return load_privacy_config().get("messages", True)
+    except Exception as fehler:  # noqa: BLE001 — any failure: do not store
+        melde_datenschutz_unlesbar("messages", fehler)
+        return False
 
 
 async def save_message(

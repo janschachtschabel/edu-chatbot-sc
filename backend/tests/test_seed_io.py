@@ -134,3 +134,34 @@ def test_alt_tree_import_export_roundtrip(tmp_path: Path) -> None:
     stats2 = asyncio.run(seed_io.import_tree(out, put2))
     assert stats2["areas"] == 55
     assert second == first  # structural equality after full roundtrip
+
+
+# ── Paket 18E (C4): streng beim Speichern im Studio und beim Wiederherstellen ──
+
+@pytest.mark.parametrize("text", [
+    "---\nid: [M42\n---\nText\n",          # kaputtes YAML im Kopf
+    "---\n- a\n- b\n---\nText\n",          # Kopf ist keine Zuordnung
+    "---\nid: M42\nText ohne Ende\n",       # kein schließendes ---
+], ids=["kaputt", "keine-zuordnung", "ohne-ende"])
+def test_streng_wirft_statt_den_kopf_zu_verwerfen(text) -> None:
+    """Tolerant wurde der Kopf zu ``{}``: das Muster verlor live Kennung und Werkzeuge."""
+    with pytest.raises(yaml.YAMLError):
+        seed_io.split_frontmatter(text, streng=True)
+    fm, _ = seed_io.split_frontmatter(text)  # der Seed-Import bleibt tolerant
+    assert fm == {}
+
+
+def test_streng_laesst_gueltiges_und_reinen_text_durch() -> None:
+    assert seed_io.split_frontmatter("---\nid: M42\n---\nText\n", streng=True) == (
+        {"id": "M42"}, "Text\n")
+    assert seed_io.split_frontmatter("Nur Text\n", streng=True) == ({}, "Nur Text\n")
+
+
+def test_round_trip_mit_strich_im_wert() -> None:
+    """Review 18E-1 (S2): ``join_frontmatter`` schreibt einen mehrzeiligen Wert mit einer Zeile
+    ``---`` eingerückt; das Kopfende zählt nur in Spalte 0 — sonst wiese der strenge Modus einen
+    Stand ab, den das System selbst erzeugt hat (Rohtext GET→PUT, jede Sicherung damit)."""
+    fm = {"id": "M42", "text": "Absatz eins\n---\nAbsatz zwei"}
+    text = seed_io.join_frontmatter(fm, "Rumpf\n")
+    assert seed_io.split_frontmatter(text, streng=True) == (fm, "Rumpf\n")
+    assert seed_io.split_frontmatter(text) == (fm, "Rumpf\n")

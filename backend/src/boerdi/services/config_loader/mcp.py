@@ -12,6 +12,7 @@ from typing import Any
 from boerdi.domain.werkzeug_freigabe import VORGABE_AUS, ohne_vorgabe
 from boerdi.services.config_loader import _store
 from boerdi.services.config_loader._store import area
+from boerdi.services.config_loader.schalter import als_schalter
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,8 @@ def load_mcp_servers() -> list[dict[str, Any]]:
 
 
 def get_enabled_mcp_servers() -> list[dict[str, Any]]:
-    return [s for s in load_mcp_servers() if s.get("enabled", True)]
+    return [s for s in load_mcp_servers()
+            if als_schalter(s.get("enabled"), True, name="mcp_servers.enabled")]
 
 
 async def save_mcp_servers(

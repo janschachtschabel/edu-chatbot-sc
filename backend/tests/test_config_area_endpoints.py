@@ -195,6 +195,31 @@ def test_privacy_put_forces_safety_true(cfg) -> None:
     assert r.json() == {"messages": False, "memory": False, "quality": False, "safety": True}
 
 
+def test_privacy_put_laesst_die_frist_und_den_rest_stehen(cfg) -> None:
+    """Review 18E-1 (2026-10-30): der PUT schrieb den Bereich nur mit den vier
+    Schaltern neu. Eine im Studio gesetzte Frist (``retention_days``, Paket 8)
+    fiel still auf die Vorgabe 30 zurück — der nächste Aufbewahrungslauf hätte
+    Verläufe zwischen 30 und 60 Tagen endgültig gelöscht."""
+    client, seed = cfg
+    seed("01-base/privacy-config", {
+        "logging": {"messages": True, "memory": True, "quality": True, "safety": True,
+                    "retention_days": 60},
+        "hinweis": "von Hand gepflegt",
+    })
+
+    r = client.put("/api/config/privacy", headers=_AUTH, json={
+        "messages": False, "memory": True, "quality": False, "safety": False})
+    assert r.status_code == 200
+    assert r.json() == {"messages": False, "memory": True, "quality": False, "safety": True}
+
+    gespeichert, _version = asyncio.run(config_loader.read_area("01-base/privacy-config"))
+    assert gespeichert == {
+        "logging": {"messages": False, "memory": True, "quality": False, "safety": True,
+                    "retention_days": 60},
+        "hinweis": "von Hand gepflegt",
+    }
+
+
 # ── context-actions ────────────────────────────────────────────────
 def _valid_context_payload() -> dict:
     pills = {k: [{"label": "Los", "kind": "text"}] for k in ("collection", "content", "topic")}
@@ -559,3 +584,12 @@ def test_typed_endpoints_require_studio_key(cfg) -> None:
     assert client.get("/api/config/welcome").status_code == 401
     assert client.put("/api/config/intents", json={"intents": []}).status_code == 401
     assert client.get("/api/config/elements").status_code == 401
+
+
+def test_privacy_get_mit_unbrauchbarem_wert_sagt_es(cfg) -> None:
+    """Review 18E-1 (K2): bis dahin 500 — jetzt 409 mit Hinweis, wo zu korrigieren ist."""
+    client, seed = cfg
+    seed("01-base/privacy-config", {"logging": {"messages": "vielleicht"}})
+    r = client.get("/api/config/privacy", headers=_AUTH)
+    assert r.status_code == 409
+    assert "privacy-config" in r.json()["detail"]

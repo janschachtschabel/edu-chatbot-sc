@@ -97,7 +97,10 @@ _LACHEN = (b"a: &a [x, x, x, x, x, x, x, x, x]\n"
     {"03-patterns/m42.md": b"---\nid: &i M42\nlabel: *i\n---\nText"},
     {"01-base/x.yaml": b"welcome: \xff\xfe kaputt\n"},
     {"01-base/x.yaml": b"welcome: [unbalanciert\n"},
-], ids=["alias-yaml", "alias-frontmatter", "kein-utf8", "kaputtes-yaml"])
+    # Paket 18E (C4): bis dahin wurde der Kopf still zu ``{}``.
+    {"03-patterns/m42.md": b"---\nid: [M42\n---\nText"},
+], ids=["alias-yaml", "alias-frontmatter", "kein-utf8", "kaputtes-yaml",
+        "kaputter-frontmatter"])
 def test_eine_ungueltige_sicherung_wird_abgewiesen(dateien) -> None:
     """Aliasse vervielfachen sich beim Weiterverarbeiten (der Lader teilt Objekte, das
     Normalisieren und Speichern kopiert sie); ungültiges UTF-8 endete in HTTP 500."""

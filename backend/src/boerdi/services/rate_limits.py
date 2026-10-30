@@ -30,6 +30,7 @@ C6 exists to fix.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
@@ -39,7 +40,9 @@ from limits.aio.strategies import MovingWindowRateLimiter
 from limits.storage import storage_from_string
 
 from boerdi.i18n import DEFAULT, Locale, pick_localized
+from boerdi.obs.drossel import gedrosselt
 from boerdi.services.config_loader import load_safety_config
+from boerdi.services.config_loader.schalter import als_schalter
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -67,17 +70,25 @@ def _limiter() -> MovingWindowRateLimiter:
     return MovingWindowRateLimiter(storage_from_string(f"async+{uri}"))
 
 
-def _window(block: Any, key: str) -> int:
+def _window(block: Any, bereich: str, key: str) -> int:
     """One ``requests_per_*`` number, defensively — config_store returns what is
-    stored, and a wrong type must degrade to "no limit", not raise per turn."""
+    stored, and a wrong type must degrade to "no limit", not raise per turn. Since
+    Paket 18E (C2) not silently: one warning per window and process, with the type —
+    never the value (the gate rejects such values; this is old data or a direct DB edit)."""
     try:
         return int((block or {}).get(key, 0) or 0)
     except (AttributeError, TypeError, ValueError):
+        wert = block.get(key) if isinstance(block, dict) else block
+        gedrosselt(logger, logging.WARNING, f"ratenlimit:{bereich}.{key}", math.inf,
+                   "Ratenlimit-Fenster %s.%s ist ungültig (%s) — das Fenster ist aus",
+                   bereich, key, type(wert).__name__)
         return 0
 
 
-def _enabled(block: Any) -> bool:
-    return bool((block or {}).get("enabled", True)) if isinstance(block, dict) else True
+def _enabled(block: Any, bereich: str) -> bool:
+    if not isinstance(block, dict):
+        return True
+    return als_schalter(block.get("enabled"), True, name=f"rate_limits.{bereich}.enabled")
 
 
 def _checks(cfg: dict, session_id: str, ip: str) -> list[tuple[str, RateLimitItem, str]]:
@@ -95,15 +106,17 @@ def _checks(cfg: dict, session_id: str, ip: str) -> list[tuple[str, RateLimitIte
     whitelist = set(cfg.get("ip_whitelist") or [])
     out: list[tuple[str, int, str]] = []
 
-    if _enabled(per_session):
+    if _enabled(per_session, "per_session"):
         bucket = f"s:{session_id}"
-        out.append(("session_minute", _window(per_session, "requests_per_minute"), bucket))
-        out.append(("session_hour", _window(per_session, "requests_per_hour"), bucket))
+        out.append(("session_minute",
+                    _window(per_session, "per_session", "requests_per_minute"), bucket))
+        out.append(("session_hour",
+                    _window(per_session, "per_session", "requests_per_hour"), bucket))
     # ALT guards with ``if ip and …``: an empty peer IP must not create one
     # shared "" bucket that throttles every anonymous caller together.
-    if ip and _enabled(per_ip) and ip not in whitelist:
-        out.append(("ip_minute", _window(per_ip, "requests_per_minute"), f"i:{ip}"))
-        out.append(("ip_hour", _window(per_ip, "requests_per_hour"), f"i:{ip}"))
+    if ip and _enabled(per_ip, "per_ip") and ip not in whitelist:
+        out.append(("ip_minute", _window(per_ip, "per_ip", "requests_per_minute"), f"i:{ip}"))
+        out.append(("ip_hour", _window(per_ip, "per_ip", "requests_per_hour"), f"i:{ip}"))
 
     items: list[tuple[str, RateLimitItem, str]] = []
     for label, amount, bucket in out:
@@ -130,7 +143,7 @@ async def check_rate_limit(
     """
     raw = load_safety_config().get("rate_limits")
     cfg = raw if isinstance(raw, dict) else {}
-    if not cfg.get("enabled", False):
+    if not als_schalter(cfg.get("enabled"), False, name="rate_limits.enabled"):
         return RateVerdict(allowed=True)
 
     limiter = _limiter()

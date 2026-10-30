@@ -122,3 +122,43 @@ def test_dedup_laeuft_ueber_den_gewaehlten_text(monkeypatch):
         {"id": "b", "match": {}, "effect": {"disclaimer": "B", "disclaimer_en": "Same"}},
     ])
     assert ps.assess_policy("frage", "P-LEH", "I02", "en").required_disclaimers == ["Same"]
+
+
+def test_ungueltiges_muster_wird_gemeldet_einmal_je_regel(monkeypatch, caplog):
+    """Paket 18E (C3): die Regel fiel still weg — auch ein Pflicht-Hinweis oder eine
+    Werkzeugsperre. Jetzt eine Warnung mit der Regel-ID, einmal; gültige Regeln greifen weiter."""
+    from boerdi.obs import drossel
+
+    drossel.zuruecksetzen()
+    ps._uebersetzt.cache_clear()
+    _patch_rules(monkeypatch, [
+        {"id": "r-kaputt", "match": {"message_regex": "([unclosed"},
+         "effect": {"block_tools": ["wlo_create_content"]}},
+        {"id": "r-gut", "match": {"message_regex": "hallo"}, "effect": {"disclaimer": "Hinweis"}},
+    ])
+    with caplog.at_level("WARNING"):
+        for _ in range(3):
+            d = ps.assess_policy("hallo welt", "P-LEH", "I02")
+            assert d.matched_rules == ["r-gut"]
+    meldungen = [r.getMessage() for r in caplog.records if "r-kaputt" in r.getMessage()]
+    assert len(meldungen) == 1
+    assert "hallo welt" not in meldungen[0]  # nie die Nachricht
+
+
+def test_jedes_muster_wird_nur_einmal_uebersetzt(monkeypatch):
+    """Paket 18E (N4): bis dahin übersetzte jeder Zug jedes Muster neu."""
+    from boerdi.domain import regel_regex
+
+    ps._uebersetzt.cache_clear()
+    aufrufe: list[str] = []
+    echt = regel_regex.uebersetze
+
+    def _spion(muster, **kw):
+        aufrufe.append(muster)
+        return echt(muster, **kw)
+
+    monkeypatch.setattr(regel_regex, "uebersetze", _spion)
+    _patch_rules(monkeypatch, [{"id": "r", "match": {"message_regex": "hallo"}, "effect": {}}])
+    for _ in range(4):
+        ps.assess_policy("hallo", "P-LEH", "I02")
+    assert aufrufe == ["hallo"]

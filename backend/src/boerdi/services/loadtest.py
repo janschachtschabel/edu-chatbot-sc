@@ -662,6 +662,8 @@ async def execute_load_test(app: Any, run_id: str, profile: dict[str, Any]) -> N
         # nach einem Fehlschlag endlos weiter.
         stop_sampling.set()
         if sampler is not None:
+            # Hier bewusst verschluckt (Paket 18E, Fall a): das ``finally`` muss den Endstatus
+            # speichern — ein zweiter Abbruch während der 2 s für den Sampler wartet darauf.
             try:
                 await asyncio.wait_for(sampler, timeout=2)
             except (TimeoutError, asyncio.CancelledError):

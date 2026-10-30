@@ -31,13 +31,25 @@ class PrivacyConfig(BaseModel):
 
 
 @router.get("/privacy", response_model=PrivacyConfig)
-async def get_privacy_config() -> PrivacyConfig:
-    return PrivacyConfig(**cl.load_privacy_config())
+async def get_privacy_config(lang: Lang) -> PrivacyConfig:
+    # Paket 18E: ein unbrauchbarer Wert wirft (fail-closed) — hier ein Hinweis statt 500.
+    try:
+        return PrivacyConfig(**cl.load_privacy_config())
+    except ValueError as e:
+        raise HTTPException(409, msg(lang, "privacy.unreadable", error=e)) from e
 
 
 @router.put("/privacy", response_model=PrivacyConfig)
 async def update_privacy_config(cfg: PrivacyConfig) -> PrivacyConfig:
-    await cl.write_area("01-base/privacy-config", {"logging": {
+    # Nur die vier Schalter ersetzen — der Bereich trägt auch ``retention_days``;
+    # bis 2026-10-30 fiel eine im Studio gesetzte Frist hier still auf 30 zurück.
+    # Aus der DB (der Cache kann hinter einer anderen Replik liegen) und ohne
+    # hineinzuschreiben: ``read_area`` liefert dasselbe Objekt wie der Cache.
+    gelesen = await cl.read_area("01-base/privacy-config")
+    vorhanden = gelesen[0] if gelesen else {}
+    bestand = vorhanden.get("logging")
+    await cl.write_area("01-base/privacy-config", {**vorhanden, "logging": {
+        **(bestand if isinstance(bestand, dict) else {}),
         "messages": bool(cfg.messages),
         "memory": bool(cfg.memory),
         "quality": bool(cfg.quality),

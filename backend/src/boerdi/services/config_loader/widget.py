@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from boerdi.services.config_loader._store import area
+from boerdi.services.config_loader.schalter import als_schalter
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ def load_header_nav_config() -> dict[str, Any]:
     for it in raw:
         if not isinstance(it, dict):
             continue
-        if not bool(it.get("enabled", True)):
+        if not als_schalter(it.get("enabled"), True, name="header_nav.buttons.enabled"):
             continue
         url = str(it.get("url") or "").strip()
         if not url:
@@ -43,7 +44,7 @@ def load_header_nav_config() -> dict[str, Any]:
             "label_en": str(it.get("label_en") or "").strip(),
             "icon": str(it.get("icon") or "explore").strip(),
             "url": url,
-            "new_tab": bool(it.get("new_tab", False)),
+            "new_tab": als_schalter(it.get("new_tab"), False, name="header_nav.buttons.new_tab"),
         })
     return {"buttons": out}
 
@@ -70,7 +71,7 @@ def load_website_tour_config() -> dict[str, Any]:
     if not isinstance(cfg, dict):
         return {"enabled": False, "groups": [], "steps": {}}
     cfg = dict(cfg)
-    cfg["enabled"] = bool(cfg.get("enabled", True))
+    cfg["enabled"] = als_schalter(cfg.get("enabled"), True, name="website_tour.enabled")
     return cfg
 
 
@@ -358,7 +359,7 @@ def load_context_actions() -> dict[str, Any]:
     own_hosts = [h.strip() for h in raw_hosts if isinstance(h, str) and h.strip()]
 
     return {
-        "enabled": bool(cfg.get("enabled", True)),
+        "enabled": als_schalter(cfg.get("enabled"), True, name="page_context.enabled"),
         "report_url": report_url.strip(),
         "own_hosts": own_hosts,
         "greetings": greetings,
@@ -385,7 +386,8 @@ def load_display_rules_config() -> dict[str, Any]:
     font_pct = _clamped_int(ind.get("font_size_percent"), 85, 70, 100)
     per_pattern: dict[str, bool] = {}
     for k, v in (ind.get("per_pattern") or {}).items():
-        per_pattern[str(k).strip().upper()] = bool(v)
+        per_pattern[str(k).strip().upper()] = als_schalter(
+            v, True, name="display_rules.inline_documents.per_pattern")
     for pid in ("M09", "M10", "M11"):
         per_pattern.setdefault(pid, True)
     intro_text: dict[str, str] = {}
@@ -405,7 +407,8 @@ def load_display_rules_config() -> dict[str, Any]:
         if s:
             intro_text[str(k).strip().upper()] = s
     inline_documents = {
-        "enabled": bool(ind.get("enabled", True)),
+        "enabled": als_schalter(ind.get("enabled"), True,
+                                name="display_rules.inline_documents.enabled"),
         "font_size_percent": font_pct,
         "per_pattern": per_pattern,
         "intro_text": intro_text,
@@ -433,7 +436,8 @@ def load_display_rules_config() -> dict[str, Any]:
     if scb_layout not in ("card", "list"):
         scb_layout = "card"
     single_content_box = {
-        "enabled": bool(scb_raw.get("enabled", True)),
+        "enabled": als_schalter(scb_raw.get("enabled"), True,
+                                name="display_rules.single_content_box.enabled"),
         "max_count": groups["materialien_max"],  # echo-stability for old frontends
         "layout": scb_layout,
     }
@@ -455,7 +459,9 @@ def load_display_rules_config() -> dict[str, Any]:
     quick_replies = {
         "max_count": _clamped_int(qr.get("max_count"), 4, 0, 6),
         "max_chars": max_chars,
-        "inline_fallback_enabled": bool(qr.get("inline_fallback_enabled", True)),
+        "inline_fallback_enabled": als_schalter(
+            qr.get("inline_fallback_enabled"), True,
+            name="display_rules.quick_replies.inline_fallback_enabled"),
     }
 
     pak = cfg.get("prompt_anzeige_konsistenz") or {}
@@ -465,7 +471,8 @@ def load_display_rules_config() -> dict[str, Any]:
         if s and s not in excl:
             excl.append(s)
     prompt_anzeige_konsistenz = {
-        "enabled": bool(pak.get("enabled", True)),
+        "enabled": als_schalter(pak.get("enabled"), True,
+                                name="display_rules.prompt_anzeige_konsistenz.enabled"),
         "exclude_patterns": excl,
     }
 

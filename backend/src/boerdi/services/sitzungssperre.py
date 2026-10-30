@@ -31,6 +31,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from boerdi.obs.log_inhalt import kennung
+from boerdi.obs.tasks import cancel_and_drain
 
 logger = logging.getLogger(__name__)
 
@@ -113,14 +114,16 @@ async def sitzungssperre(
     try:
         yield
     finally:
-        waechter.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await waechter
+        # Paket 18E: ein Abbruch des Zugs während des Wartens kommt durch — die Freigabe
+        # läuft trotzdem (inneres ``finally``).
         try:
-            async with engine.begin() as conn:
-                await conn.execute(_FREIGEBEN, {"sid": session_id, "owner": owner})
-        except Exception:
-            # Ohne Freigabe verfällt sie nach ``ttl_s`` — kein Grund, den Zug
-            # nachträglich scheitern zu lassen.
-            logger.warning("Sitzungssperre %s: Freigabe fehlgeschlagen", kennung(session_id),
-                           exc_info=True)
+            await cancel_and_drain([waechter])
+        finally:
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(_FREIGEBEN, {"sid": session_id, "owner": owner})
+            except Exception:
+                # Ohne Freigabe verfällt sie nach ``ttl_s`` — kein Grund, den Zug
+                # nachträglich scheitern zu lassen.
+                logger.warning("Sitzungssperre %s: Freigabe fehlgeschlagen",
+                               kennung(session_id), exc_info=True)

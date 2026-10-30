@@ -21,29 +21,49 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-async def cancel_and_drain(tasks: Iterable[asyncio.Task | None]) -> int:
-    """Spekulative Tasks abbrechen und ihr Ende abwarten; gibt ihre Zahl zurück.
+#: So lange wartet :func:`cancel_and_drain` höchstens auf abgebrochene Aufgaben.
+ABBRUCH_FRIST_S = 5.0
+
+
+async def cancel_and_drain(
+    tasks: Iterable[asyncio.Task | None], *, frist_s: float = ABBRUCH_FRIST_S,
+    bezeichnung: str = "",
+) -> int:
+    """Tasks abbrechen und ihr Ende abwarten, höchstens ``frist_s``; gibt ihre Zahl zurück.
 
     ``None`` wird übersprungen, damit der Aufrufer nicht erst filtern muss — ein
     Zug ohne Vorabruf trägt ``spec_task=None``. Abwarten statt bloßem
     ``cancel()``: sonst räumt die Aufgabe erst irgendwann später ab, und ihre
     Ausnahme liefe als „Task exception was never retrieved" auf.
 
-    Dieselbe Bauart, die ``graph/nodes/respond`` für seine beiden Verwurf-Fälle
-    inline trägt (LP-/Canvas-Route). Hier steht sie, seit mit dem Agent-Modus
-    (A4c-2b) ein dritter Fall dazukam.
+    Paket 18E (C1): ``asyncio.wait`` statt ``await task`` in ``try/except
+    (CancelledError, Exception): pass``. Das verschluckte auch die Abbruch-Anforderung
+    an den AUFRUFER — legte der Client auf oder fuhr der Server herunter, rechnete der
+    Zug weiter —, und ohne Frist hing er mit jeder Aufgabe, die den Abbruch ignoriert.
+    ``asyncio.wait`` wirft keine Ausnahme der Aufgaben und reicht den eigenen Abbruch
+    weiter. Fehler der Aufgaben stehen auf DEBUG; eine, die nach der Frist noch läuft,
+    meldet eine Warnung und räumt ihre Ausnahme später selbst ab.
     """
-    verworfen = 0
-    for task in tasks:
-        if task is None:
-            continue
+    offen = list(dict.fromkeys(t for t in tasks if t is not None))  # doppelte einmal
+    for task in offen:
         task.cancel()
-        try:
-            await task
-        except (asyncio.CancelledError, Exception):
-            pass
-        verworfen += 1
-    return verworfen
+    if not offen:
+        return 0
+    haengend = 0
+    try:
+        await asyncio.wait(offen, timeout=frist_s)
+    finally:
+        for task in offen:
+            if task.done():
+                _retrieve_task_exception(task)
+            else:
+                haengend += 1
+                task.add_done_callback(_retrieve_task_exception)
+    if haengend:
+        logger.warning("%s%d abgebrochene Aufgabe(n) nach %.1f s nicht beendet — sie laufen "
+                       "im Hintergrund aus", f"[{bezeichnung}] " if bezeichnung else "",
+                       haengend, frist_s)
+    return len(offen)
 
 
 def _retrieve_task_exception(task: asyncio.Task) -> None:
@@ -55,7 +75,8 @@ def _retrieve_task_exception(task: asyncio.Task) -> None:
     try:
         exc = task.exception()
         if exc is not None:
-            logger.debug("background task ended with %s: %s", type(exc).__name__, exc)
+            # Nur der Typ (Paket 18C/18E): ein Ausnahmetext kann die Eingabe tragen.
+            logger.debug("background task ended with %s", type(exc).__name__)
     except (asyncio.CancelledError, asyncio.InvalidStateError):
         pass
 
@@ -118,23 +139,13 @@ async def cancel_run_task(run_id: str, *, label: str = "run") -> bool:
     """Beendet den in DIESEM Prozess registrierten Task eines Laufs.
 
     True = es lebte einer und wurde abgebrochen; False = keiner (mehr) da —
-    was das bedeutet, entscheidet der Aufrufer. Bewusst nicht
-    ``cancel_and_drain`` darüber: das wartet ohne Frist, hier braucht das
-    Warten eine Obergrenze.
+    was das bedeutet, entscheidet der Aufrufer. Über :func:`cancel_and_drain` mit
+    eigener Frist (Paket 18E: bis dahin verschluckte ``except CancelledError`` auch
+    den Abbruch des Aufrufers). Starb der Job im selben Moment aus eigenem Grund, hat
+    sein Fehlerpfad den Zustand bereits persistiert — dann steht er auf DEBUG.
     """
     task = RUN_TASKS.get(run_id)
     if task is None or task.done():
         return False
-    task.cancel()
-    try:
-        await asyncio.wait_for(task, timeout=_CANCEL_WAIT_S)
-    except asyncio.CancelledError:
-        pass  # das erwartete Ende des abgebrochenen Tasks
-    except TimeoutError:
-        logger.warning("[%s %s] Task ignorierte den Abbruch binnen %.0f s",
-                       label, run_id, _CANCEL_WAIT_S)
-    except Exception as e:
-        # Der Job starb im selben Moment aus eigenem Grund; sein Fehlerpfad
-        # hat den Zustand bereits persistiert.
-        logger.debug("[%s %s] Task endete beim Abbruch mit %s", label, run_id, e)
+    await cancel_and_drain([task], frist_s=_CANCEL_WAIT_S, bezeichnung=f"{label} {run_id}")
     return True
