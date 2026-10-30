@@ -186,7 +186,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 - **Inhalte (Paket 18C/D):**
   - Das Log enthält keine Nachrichten, Antworten, Themen oder Suchbegriffe — nur ihre Länge —, Sitzungen nur als Kurzkennung, Werkzeugargumente nur mit Filterwerten, keine IP.
   - Die Zugriffszeile `zugriff` nennt Methode, Pfad-Vorlage, Status und Dauer; Dateien und `/health` nur auf DEBUG. Uvicorns Zugriffszeile ist aus.
-  - Fremd-Logger gedeckelt (LiteLLM, OpenAI, MCP samt Logger „client“, httpx/httpcore, SQLAlchemy auf WARNING, slowapi auf ERROR, instructor auf CRITICAL — er schreibt den Anbietertext auf ERROR); LiteLLM ohne eigenen Handler; Zeilen, die das MCP-SDK über die Wurzel schreibt, nur mit dem Satzanfang.
+  - Fremd-Logger gedeckelt (LiteLLM, OpenAI, MCP samt Logger „client“, httpx/httpcore, SQLAlchemy auf WARNING, slowapi auf ERROR, instructor auf CRITICAL — er schreibt den Anbietertext auf ERROR); LiteLLM ohne eigenen Handler; Zeilen, die das MCP-SDK über die Wurzel schreibt, nur mit Satzanfang und Ort (ohne Doppelpunkt nur der Ort), unter WARNING verworfen.
   - Den Inhalt eines Zugs zeigt das Studio (Gesprächsverlauf mit Zugakte), gefunden über die Trace-ID.
   - **Antworten:** öffentlich nur der Teil `ui`; den Debug-Block (Persona, Signale, Spur, Kosten) und im Verlauf die Trace-ID je Nachricht bekommt nur die Anlage selbst — Studio-Proxy, gültiger `X-Studio-Key`, reiner Entwicklungsmodus. Evaluation, Golden-Läufe und Lasttest schicken dafür `STUDIO_API_KEY`; ohne ihn fehlen Muster, Werkzeuge und Spur im Bericht (der Lauf warnt).
   - **`LOG_CONTENT=true`** (Vorgabe aus) mit `LOG_LEVEL=DEBUG`: Werkzeugargumente und die Protokolle von LiteLLM, OpenAI-SDK und MCP-Client auf DEBUG — nur für eine akute Analyse; der Start warnt. Schon mit `LOG_LEVEL=INFO` öffnet der Schalter die Fremd-Logger: instructor-Fehler (ERROR) und LiteLLM-Warnungen können dann den Anbietertext samt Eingabe tragen, und die Zeilen des MCP-SDK über die Wurzel kommen ungekürzt.
@@ -240,7 +240,7 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
     Wartezeit aus `Retry-After`.
   - **DB-Verbindungen:** 5+10 je Pod, eine LISTEN-Verbindung und kurz eine für `/ready`. Also `max_connections ≥ N×17 + Reserve` oder PgBouncer (Session-Modus, wegen LISTEN).
   - **MCP-Server:** Er drosselt auf 120 Anfragen je Minute **je IP**, und alle Pods teilen sich eine Egress-IP. Die Freischaltung klärt das MCP-Team.
-  - **Herunterfahren:** Gnadenfrist ≥ 75 s (5 s Läufe schließen, 30 s Verbindungen, 25 s Nachlauf, 10 s Abbruch und Aufräumen, 2 s Verbindungen schließen) **plus** preStop (5 s) plus Luft = 85 s (Values) — Kubernetes zieht preStop von der Frist ab.
+  - **Herunterfahren:** bis 72 s (5 s Läufe schließen, 30 s Verbindungen, 25 s Nachlauf, 10 s Abbruch und Aufräumen, 2 s Verbindungen schließen), eingestellt 75 s, **plus** preStop (5 s) plus Luft = 85 s (Values) — Kubernetes zieht preStop von der Frist ab.
 - **Abnahme:** `docs/cluster-checkliste.md` (Zusagen 1–8, davon SSE über den Load-Balancer und der verlustfreie Shutdown am laufenden Cluster).
 - **Architekturübersicht:** sechs Grafiken in `docs/architektur-grafiken/` (Architektur, Abläufe Agent und Muster, Software-Stack, Konfiguration je Modus) — als PNG unter `png/`, interaktiv lokal über `index.html`.
 

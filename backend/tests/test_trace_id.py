@@ -271,7 +271,8 @@ def test_das_studio_kuerzt_die_trace_id_wie_die_fehlerblase() -> None:
 
 
 
-@pytest.mark.parametrize("roh", ["------------", "....abc", "_zug-4711"])
+@pytest.mark.parametrize("roh", ["------------", "....abc", ":zug-4711", "0-0-0-0-0-0-",
+                                 "00000000000.x"])
 def test_eine_id_ohne_buchstabe_oder_ziffer_vorn_wird_ersetzt(roh) -> None:
     neu = trace_id.aus_kopfzeilen({"x-client-trace-id": roh})
     assert neu != roh and len(neu) == 32
