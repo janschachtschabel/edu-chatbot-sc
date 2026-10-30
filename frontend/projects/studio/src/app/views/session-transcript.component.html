@@ -33,6 +33,7 @@
         }
         @if (message.role === 'assistant') {
           <studio-agent-trace [debug]="message.debug" />
+          <studio-zugakte [akte]="message.debug?._zugakte" />
         }
       </li>
     }

@@ -1,0 +1,82 @@
+@if (gelesen(); as a) {
+  <div class="za">
+    @if (a.werkzeuge.length > 0 || a.ausgelassen > 0) {
+      <details class="za-block">
+        <summary>{{ lang.plural('st.za.tools', a.werkzeuge.length) }}</summary>
+        <ol class="za-list">
+          @for (aufruf of a.werkzeuge; track $index) {
+            <li class="za-item">
+              <p class="za-line">
+                <code class="za-name">{{ aufruf.name }}</code>
+                @if (aufruf.status) {
+                  <span [class.za-fail]="aufruf.status !== 'ok'">{{ statusText(aufruf) }}</span>
+                }
+                <span>{{ fmt.seconds(aufruf.dauerMs) }}</span>
+                <span>{{ zeichenText(aufruf) }}</span>
+                @if (aufruf.ausCache) {
+                  <span>{{ t('st.za.cached') }}</span>
+                }
+              </p>
+              @if (aufruf.fehler) {
+                <p class="za-error">
+                  <span class="za-label">{{ t('st.za.error') }}:</span> {{ aufruf.fehler }}
+                </p>
+              }
+              @if (aufruf.argumenteEingang || aufruf.argumenteGesendet) {
+                <details class="za-args">
+                  <summary>{{ t('st.za.args') }}</summary>
+                  @if (aufruf.argumenteEingang) {
+                    <p class="za-label">{{ t('st.za.args.in') }}</p>
+                    <pre class="za-pre">{{ aufruf.argumenteEingang }}</pre>
+                  }
+                  @if (aufruf.argumenteGesendet) {
+                    <p class="za-label">{{ t('st.za.args.sent') }}</p>
+                    <pre class="za-pre">{{ aufruf.argumenteGesendet }}</pre>
+                  }
+                </details>
+              }
+            </li>
+          }
+        </ol>
+        @if (a.ausgelassen > 0) {
+          <p class="za-note">{{ lang.plural('st.za.skipped', a.ausgelassen) }}</p>
+        }
+      </details>
+    }
+
+    @if (a.umschreibungen.length > 0) {
+      <details class="za-block">
+        <summary>{{ lang.plural('st.za.rewrites', a.umschreibungen.length) }}</summary>
+        <ol class="za-list">
+          @for (u of a.umschreibungen; track $index) {
+            <li class="za-item">
+              <p class="za-line">
+                <strong>{{ umschreibungText(u.art) }}</strong>
+                @if (u.grund) {
+                  <span><span class="za-label">{{ t('st.za.reason') }}:</span> {{ u.grund }}</span>
+                }
+              </p>
+              <dl class="za-diff">
+                <div>
+                  <dt>{{ t('st.za.before') }}</dt>
+                  <dd>{{ u.original }}</dd>
+                </div>
+                <div>
+                  <dt>{{ t('st.za.after') }}</dt>
+                  <dd>{{ u.ersatz }}</dd>
+                </div>
+              </dl>
+            </li>
+          }
+        </ol>
+      </details>
+    }
+
+    @for (s of a.schnellwege; track $index) {
+      <p class="za-line">
+        <span class="za-label">{{ t('st.za.shortcut') }}:</span>
+        {{ schnellwegText(s.art) }}@if (s.thema) { — {{ s.thema }}}
+      </p>
+    }
+  </div>
+}

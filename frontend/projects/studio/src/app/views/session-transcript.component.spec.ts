@@ -155,3 +155,54 @@ describe("SessionTranscriptComponent — Spur (ST-8a)", () => {
     expect(h.el.querySelector("studio-agent-trace")).toBeNull();
   });
 });
+
+describe("SessionTranscriptComponent — Zugakte und Fehlernummer (Paket 18C/D)", () => {
+  const ZUG = {
+    id: 7,
+    role: "assistant",
+    content: "Fuer Videos schau in die Suche unten.",
+    trace_id: "4711abcdef01-zug-x",
+    debug: {
+      pattern: "M06",
+      _zugakte: {
+        werkzeuge: [
+          {
+            name: "search_wlo_content",
+            argumente_eingang: { query: "Optik" },
+            argumente_gesendet: { query: "Optik" },
+            status: "timeout", aus_cache: false, dauer_ms: 420, zeichen: null,
+            fehler: "zu langsam",
+          },
+        ],
+        umschreibungen: [
+          { art: "typ_fokus", original: "Webseiten-Text", ersatz: "Fuer Videos ...", grund: "Video" },
+        ],
+      },
+    },
+  };
+
+  it("nennt je Antwort die Fehlernummer", async () => {
+    const h = await mount([ZUG]);
+    const facts = h.el.querySelector(".st-facts")!.textContent!;
+    expect(facts).toContain("Fehlernummer");
+    expect(facts).toContain("4711abcdef01");
+    expect(facts).not.toContain("4711abcdef01-zug-x");
+  });
+
+  it("zeigt Werkzeugaufrufe und Umschreibungen des Zugs", async () => {
+    const h = await mount([ZUG]);
+    const akte = h.el.querySelector(".st-turn--bot studio-zugakte .za");
+    expect(akte).not.toBeNull();
+    expect(akte!.textContent).toContain("1 Werkzeugaufruf");
+    expect(akte!.textContent).toContain("search_wlo_content");
+    expect(akte!.textContent).toContain("Zeitüberschreitung");
+    expect(akte!.textContent).toContain("zu langsam");
+    expect(akte!.textContent).toContain("Typ-Fokus");
+    expect(akte!.textContent).toContain("Webseiten-Text");
+  });
+
+  it("ohne Akte kein Abschnitt", async () => {
+    const h = await mount([{ id: 1, role: "assistant", content: "x", debug: { pattern: "M01" } }]);
+    expect(h.el.querySelector(".za")).toBeNull();
+  });
+});

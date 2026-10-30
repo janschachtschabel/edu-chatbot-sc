@@ -39,6 +39,9 @@ export interface SessionMessageDebug extends TraceDebug {
   readonly state?: string;
   readonly signals?: readonly string[];
   readonly tools_called?: readonly string[];
+  /** The turn record (Paket 18C/D): tool calls with arguments, rewrites,
+   *  shortcuts. Stored JSON — `views/zugakte.ts` checks every field. */
+  readonly _zugakte?: unknown;
 }
 
 export interface SessionMessage {
@@ -46,6 +49,8 @@ export interface SessionMessage {
   readonly role: string;
   readonly content: string;
   readonly debug?: SessionMessageDebug;
+  /** Only for the studio (Paket 18C/D) — its start is the error number. */
+  readonly trace_id?: string;
   readonly created_at?: string;
 }
 
