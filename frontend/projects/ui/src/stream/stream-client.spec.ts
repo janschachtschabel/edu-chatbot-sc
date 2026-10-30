@@ -212,6 +212,22 @@ describe('Fehler mit Kennung (Paket 7)', () => {
       .rejects.toMatchObject({ name: 'StreamServerError', code: 'internal', message: 'internal error' });
   });
 
+  it('die Fehlernummer des Rahmens reist mit (Paket 18C/D)', async () => {
+    const body = 'event: connected\ndata: {}\n\n'
+      + 'event: error\ndata: {"message": "internal error", "nummer": "4711abcdef01"}\n\n';
+    const fetchImpl = (() => Promise.resolve(new Response(body, { status: 200 }))) as typeof fetch;
+    await expect(streamChat({ url: 'x', body: {}, onEvent: () => undefined, fetchImpl }))
+      .rejects.toMatchObject({ name: 'StreamServerError', code: 'internal', nummer: '4711abcdef01' });
+  });
+
+  it('eine Fehlernummer außerhalb des Zeichenvorrats der Trace-ID wird nicht übernommen', async () => {
+    // Die Nummer landet als Text in der Blase — nur, was eine Trace-ID sein kann.
+    const body = 'event: error\ndata: {"message": "x", "nummer": "<b>1</b>"}\n\n';
+    const fetchImpl = (() => Promise.resolve(new Response(body, { status: 200 }))) as typeof fetch;
+    await expect(streamChat({ url: 'x', body: {}, onEvent: () => undefined, fetchImpl }))
+      .rejects.toMatchObject({ name: 'StreamServerError', nummer: '' });
+  });
+
   it('ein Fehlerrahmen geht einem Abbruch danach vor (Paket 9)', async () => {
     // Review Paket 7 (NIT): riss die Verbindung NACH dem Bescheid, warf der
     // Lesefehler ihn weg — das Widget fragte dann im Verlauf nach.

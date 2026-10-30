@@ -158,10 +158,15 @@ export async function runSendMessage(
     // Erfolgs-Seiteneffekte (Tour/latestDebug/query-meta/page-action/Guides/
     // autoSpeak) — Shell-verdrahtet.
     ctx.onResult(resp, msg);
-  } catch {
+  } catch (err) {
     if (veraltet()) return;
     ctx.removeMessage(loadingId);
-    const errId = ctx.addBotMessage(ctx.t('error.generic'));
+    // Paket 18C/D: meldet der Strom eine Fehlernummer, nennt die Blase sie — dieselbe
+    // steht in der gespeicherten Blase und führt im Studio zum Zug.
+    const nummer = (err as { nummer?: unknown } | null)?.nummer;
+    const errId = ctx.addBotMessage(typeof nummer === 'string' && nummer
+      ? ctx.t('error.genericNumber', { nummer })
+      : ctx.t('error.generic'));
     ctx.setScrollTarget(errId);
   }
 

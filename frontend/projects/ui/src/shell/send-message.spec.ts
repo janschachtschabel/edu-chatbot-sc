@@ -501,6 +501,18 @@ describe('runSendMessage — Nachfrage im Verlauf (Review Paket 7)', () => {
     warn.mockRestore();
   });
 
+  it('Paket 18C/D: die Fehlerblase nennt die Fehlernummer aus dem Strom', async () => {
+    // Dieselbe Nummer steht in der gespeicherten Blase; im Studio führt sie zum Zug.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const serverfehler = Object.assign(new Error('internal error'),
+      { name: 'StreamServerError', code: 'internal', nummer: '4711abcdef01' });
+    const r = makeCtx({ input: '', stream: () => Promise.reject(serverfehler) });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.bots.at(-1)?.content).toBe(
+      'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut. (Fehlernummer: 4711abcdef01)');
+    warn.mockRestore();
+  });
+
   it('C-6: eine Aktion (Karten-Knopf) wandert bei „beschäftigt“ nicht ins Eingabefeld', async () => {
     // Ihr Text allein liefe als gewöhnliche Nachricht, ohne die Aktion.
     const r = makeCtx({ input: '', stream: () => Promise.reject(busy()) });

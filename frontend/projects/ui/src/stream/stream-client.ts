@@ -53,12 +53,22 @@ export class StreamHttpError extends Error {
  *
  *  Ein Rahmen ohne Kennung ist `internal`: der Zug ist am Server gescheitert.
  *  Als nackter `Error` sah er aus wie ein Transportabbruch, und das Widget fragte
- *  90 s den Verlauf nach einer Antwort, die nie gespeichert wurde (Review C-1). */
+ *  90 s den Verlauf nach einer Antwort, die nie gespeichert wurde (Review C-1).
+ *  Dann trägt er die Fehlernummer (Paket 18C/D), die im Studio zum Zug führt —
+ *  leer, wenn keine kam. */
 export class StreamServerError extends Error {
-  constructor(readonly code: string, message = 'stream error') {
+  constructor(readonly code: string, message = 'stream error', readonly nummer = '') {
     super(message);
     this.name = 'StreamServerError';
   }
+}
+
+/** Zeichenvorrat der Trace-ID (`obs/trace_id`); die Nummer steht als Text in der
+ *  Blase — was anders aussieht, kommt nicht hinein. */
+const FEHLERNUMMER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+
+function fehlernummer(roh: unknown): string {
+  return typeof roh === 'string' && FEHLERNUMMER.test(roh) ? roh : '';
 }
 
 /**
@@ -193,6 +203,7 @@ export async function streamChat<T = unknown>(opts: StreamChatOptions): Promise<
       streamError = new StreamServerError(
         typeof code === 'string' && code ? code : 'internal',
         evt.data?.message || 'stream error',
+        fehlernummer(evt.data?.nummer),
       );
     } else {
       try {
