@@ -10,12 +10,13 @@ aus (``services/loadtest``, ``services/eval/run_store``).
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 from collections.abc import Awaitable
 from typing import Any
 
 from sqlalchemy import text
+
+from boerdi.obs.tasks import cancel_and_drain
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +47,4 @@ async def mit_herzschlag[T](factory: Any, tabelle: str, run_id: str, arbeit: Awa
     try:
         return await arbeit
     finally:
-        schlag.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await schlag
+        await cancel_and_drain([schlag])  # Paket 18E: ein Abbruch des Laufs kommt durch

@@ -47,7 +47,7 @@ from boerdi.graph.state import TurnContext
 from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
-from boerdi.obs.tasks import _retrieve_task_exception
+from boerdi.obs.tasks import _retrieve_task_exception, cancel_and_drain
 from boerdi.obs.trace_id import fehlernummer
 from boerdi.obs.zeiten import schritt
 from boerdi.services.agent_tools import verborgene_werkzeuge
@@ -174,11 +174,7 @@ async def respond(
             or ctx.winner_id == "M16"
         )
         if spec_blocked:
-            spec_task.cancel()
-            try:
-                await spec_task
-            except (asyncio.CancelledError, Exception):
-                pass
+            await cancel_and_drain([spec_task])
             logger.info(
                 "speculative %s discarded (blocked by safety/pattern)", spec_tool_name
             )
@@ -257,12 +253,7 @@ async def respond(
     # Extras: auf LP-/Canvas-Routen nie konsumiert → explizit canceln
     # (symmetrisch zu spec_task), sonst laufen sie unbeobachtet weiter.
     if extra_spec_tasks and (_lp_routed or _canvas_routed):
-        for _ex_name, _ex_task in extra_spec_tasks:
-            _ex_task.cancel()
-            try:
-                await _ex_task
-            except (asyncio.CancelledError, Exception):
-                pass
+        await cancel_and_drain(t for _n, t in extra_spec_tasks)
         logger.info(
             "speculative extras discarded (lp/canvas route): %d", len(extra_spec_tasks)
         )
@@ -275,11 +266,7 @@ async def respond(
     if extra_spec_tasks and not _lp_routed and not _canvas_routed:
         for _ex_name, _ex_task in extra_spec_tasks:
             if _ex_name in gesperrt:
-                _ex_task.cancel()
-                try:
-                    await _ex_task
-                except (asyncio.CancelledError, Exception):
-                    pass
+                await cancel_and_drain([_ex_task])
                 continue
             try:
                 with schritt("respond.vorabsuche", ctx.usage):

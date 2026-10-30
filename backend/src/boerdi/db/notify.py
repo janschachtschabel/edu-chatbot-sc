@@ -20,6 +20,8 @@ from collections.abc import Callable
 import asyncpg
 from sqlalchemy.engine import make_url
 
+from boerdi.obs.tasks import cancel_and_drain
+
 logger = logging.getLogger(__name__)
 
 _RECONNECT_DELAY_S = 2.0
@@ -73,12 +75,13 @@ class ConfigChangeListener:
 
     async def stop(self) -> None:
         self._stopped = True
-        if self._task is not None:
-            self._task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._task
+        try:
+            if self._task is not None:
+                # Paket 18E: mit Frist, und ohne den eigenen Abbruch zu verschlucken.
+                await cancel_and_drain([self._task], bezeichnung="config-notify")
+        finally:
             self._task = None
-        self._connected.clear()
+            self._connected.clear()
 
     def _dispatch(self, _conn, _pid, _channel, payload: str) -> None:
         try:

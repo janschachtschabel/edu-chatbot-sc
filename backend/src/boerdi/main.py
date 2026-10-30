@@ -221,7 +221,8 @@ async def _lifespan(app: FastAPI):
         # Paket 9: zuerst die Züge, deren Client aufgelegt hat — sie schreiben noch.
         await nachlaeufer_abwarten()
         master_skill_dienst.binde(None)  # ab hier startet ein Signal keine Übernahme mehr
-        await cancel_and_drain([takt, skill_takt, *master_skill_dienst.laufende_uebernahmen()])
+        await cancel_and_drain([takt, skill_takt, *master_skill_dienst.laufende_uebernahmen()],
+                               bezeichnung="Herunterfahren")
         config_loader.bind_store(None)
         await store.stop()
         await engine.dispose()

@@ -35,6 +35,7 @@ from typing import Any, Literal
 from fastapi import Request
 
 from boerdi.obs.progress import TurnProgress
+from boerdi.obs.tasks import cancel_and_drain
 from boerdi.obs.trace_id import fehlernummer
 
 logger = logging.getLogger(__name__)
@@ -114,14 +115,11 @@ async def _aufgelegt(task: asyncio.Task[Any], nach_abbruch: NachAbbruch, label: 
     if nach_abbruch == "zu_ende":
         _nachlaufen_lassen(task, label)
         return
-    task.cancel()
     logger.info("%s: Verbindung aufgelegt — Zug abgebrochen", label)
     # Auf den Abbruch warten, damit das ``finally`` der Arbeit (etwa eine
-    # Sperre) gelaufen ist, bevor wir den Strom aufgeben.
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    # Sperre) gelaufen ist, bevor wir den Strom aufgeben — mit Frist, und ohne den
+    # eigenen Abbruch zu verschlucken (Paket 18E).
+    await cancel_and_drain([task], bezeichnung=label)
 
 
 def _rahmen_fuer(evt: dict[str, Any]) -> str:
