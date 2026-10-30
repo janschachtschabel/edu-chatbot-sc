@@ -216,4 +216,36 @@ describe("SessionTranscriptComponent — Zugakte und Fehlernummer (Paket 18C/D)"
     expect(document.activeElement).toBe(ziel);
     expect(h.el.querySelector("#st-msg-6")!.classList).not.toContain("st-turn--fokus");
   });
+
+  it("sagt, wenn die gesuchte Nachricht nicht unter den geladenen ist (Review 2026-10-30)", async () => {
+    const h = await mount([{ id: 6, role: "user", content: "Frage" }, ZUG]);
+    h.fixture.componentRef.setInput("fokus", { messageId: 3 });
+    await h.fixture.whenStable();
+    await tick();
+    expect(h.el.querySelector('[role="status"]')!.textContent).toContain("älter als die 200");
+    h.fixture.componentRef.setInput("fokus", { messageId: 7 });
+    await h.fixture.whenStable();
+    expect(h.el.querySelector(".st-fokus-missing")!.textContent!.trim()).toBe("");
+  });
+
+  it("zeigt den Hinweis nicht, solange der Verlauf noch lädt (Review 18G-5)", async () => {
+    sessionStorage.setItem(STUDIO_LOCALE_STORAGE_KEY, "de");
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [provideZonelessChangeDetection(), provideHttpClient(withXhr()),
+        provideHttpClientTesting()],
+    });
+    const fixture = TestBed.createComponent(SessionTranscriptComponent);
+    fixture.componentRef.setInput("sessionId", "abc-123");
+    fixture.componentRef.setInput("fokus", { messageId: 7 });
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector(".st-fokus-missing")!.textContent!.trim()).toBe("");
+    TestBed.inject(HttpTestingController)
+      .expectOne((r) => r.url === "/studio/api/sessions/abc-123/messages").flush([ZUG]);
+    await tick();
+    await fixture.whenStable();
+    expect(el.querySelector(".st-fokus-missing")!.textContent!.trim()).toBe("");
+    expect(el.querySelector("#st-msg-7")!.classList).toContain("st-turn--fokus");
+  });
 });

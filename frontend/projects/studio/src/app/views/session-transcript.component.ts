@@ -14,7 +14,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, un
 
 import { AsyncData } from '../core/async-data';
 import { injectFocus } from '../core/inject-focus';
-import { SessionsApi, type SessionMessage } from '../core/sessions-api.service';
+import { SessionsApi, TRANSCRIPT_LIMIT, type SessionMessage } from '../core/sessions-api.service';
 import { AgentTraceComponent } from './agent-trace.component';
 import { AsyncStateComponent } from './async-state.component';
 import { ZugakteComponent } from './zugakte.component';
@@ -49,6 +49,18 @@ export class SessionTranscriptComponent {
   /** Derived, not mirrored into a second signal — an effect that only copies a
    *  value is a computed with extra steps and one more thing to keep in sync. */
   readonly rows = computed<readonly SessionMessage[]>(() => this.messages.value() ?? []);
+
+  /** Die Suche führte zu einer Nachricht außerhalb der geladenen 200 (Review 2026-10-30): bis
+   *  dahin hieß es „gefunden, geöffnet“, und nichts war markiert. */
+  readonly fokusFehlt = computed(() => {
+    const ziel = this.fokus();
+    const geladen = this.messages.value();
+    // Erst nach fertigem Laden (Review 18G-5): `value()` ist bis dahin `null` bzw. noch der
+    // Verlauf der vorigen Sitzung — der Hinweis blitzte sonst bei jedem Öffnen auf.
+    return !!ziel && geladen !== null && !this.messages.loading() && !this.messages.error()
+      && !geladen.some((m) => m.id === ziel.messageId);
+  });
+  protected readonly limit = TRANSCRIPT_LIMIT;
 
   private readonly focus = injectFocus();
   private fokussiert: object | null = null;

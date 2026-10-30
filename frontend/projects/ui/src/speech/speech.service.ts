@@ -130,7 +130,8 @@ export class SpeechService {
             this.ctx.onTranscript(text);
           }
         } catch (err) {
-          console.error('Transcription error:', err);
+          // Review 2026-10-30: nur die Art — ein Fehlertext kann Teile der Aufnahme tragen.
+          console.error('Transcription error:', fehlerKurz(err));
           this.ctx.addBotMessage(this.ctx.t('error.transcription'));
         }
       });

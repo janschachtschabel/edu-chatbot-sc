@@ -22,6 +22,26 @@ import { StudioLanguageService } from '../i18n/studio-language.service';
  *  Anfrage träfe dann die Sitzungsliste (Review Phase 4). */
 const NUMMER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
+/** Die Nummer aus einer kopierten Zeile der Fehlerblase: „(Fehlernummer: 4f2a…)“ bzw.
+ *  „(Error number: 4f2a…)“ — bis dahin scheiterte genau das am Muster (Review 2026-10-30). */
+const BESCHRIFTUNG = /fehlernummer|error number/i;
+/** Klammern, Anführungszeichen (de/en) und Satzzeichen um eine Nummer. */
+const RAND = /^[(„“‘"':]+|[)“”’"'.,;:]+$/g;
+
+export function nummerAus(eingabe: string): string {
+  const roh = eingabe.trim();
+  const beschriftung = BESCHRIFTUNG.exec(roh);
+  if (beschriftung) {
+    // Das erste Wort danach mit einer Ziffer — nicht „lautet“, „is“ oder das „n“ aus
+    // „Fehlernummern“ (Abschluss-Review 18G); ein Satzzeichen am Ende gehört zum Satz.
+    const wort = roh.slice(beschriftung.index + beschriftung[0].length).split(/\s+/)
+      .map((w) => w.replace(RAND, ''))
+      .find((w) => /\d/.test(w) && NUMMER.test(w));
+    if (wort) return wort;
+  }
+  return roh.replace(RAND, '');
+}
+
 export interface ZugZiel {
   readonly sessionId: string;
   readonly messageId: number;
@@ -56,7 +76,7 @@ export class ZugSucheComponent {
 
   protected async suchen(): Promise<void> {
     if (this.sucht()) return;
-    const nummer = this.eingabe().trim();
+    const nummer = nummerAus(this.eingabe());
     this.fehler.set('');
     this.status.set('');
     this.treffer.set([]);
@@ -74,7 +94,12 @@ export class ZugSucheComponent {
         this.waehlen(gefunden[0]);
       } else {
         this.treffer.set(gefunden);
-        this.status.set(this.t('sv.search.many', { count: gefunden.length }));
+        // Mehrere Sitzungen: die Nummer ist nicht eindeutig — etwa eine von einem Client
+        // wiederverwendete Kennung (Review 2026-10-30). Das sagen, statt still eine Liste.
+        const sitzungen = new Set(gefunden.map((t) => t.session_id)).size;
+        this.status.set(sitzungen > 1
+          ? this.t('sv.search.manySessions', { count: gefunden.length, sessions: sitzungen })
+          : this.t('sv.search.many', { count: gefunden.length }));
       }
     } catch (err) {
       this.fehler.set(describeApiError(err, this.t));

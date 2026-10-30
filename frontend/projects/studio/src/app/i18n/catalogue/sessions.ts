@@ -79,8 +79,10 @@ export const SESSIONS: CataloguePart = {
     // ── Zugakte (Paket 18C/D) ───────────────────────────────────────
     'st.za.tools.one': '{count} Werkzeugaufruf',
     'st.za.tools.other': '{count} Werkzeugaufrufe',
-    'st.za.skipped.one': 'Dazu 1 weiterer Aufruf, nur gezählt (höchstens 50 je Zug).',
-    'st.za.skipped.other': 'Dazu {count} weitere Aufrufe, nur gezählt (höchstens 50 je Zug).',
+    'st.za.skipped.one':
+      'Dazu 1 weiterer Aufruf, nur gezählt (höchstens 50 je Zug, gescheiterte bis 60).',
+    'st.za.skipped.other':
+      'Dazu {count} weitere Aufrufe, nur gezählt (höchstens 50 je Zug, gescheiterte bis 60).',
     'st.za.chars': '{count} Zeichen',
     'st.za.noAnswer': 'keine Antwort',
     'st.za.cached': 'aus dem Zwischenspeicher',
@@ -92,6 +94,8 @@ export const SESSIONS: CataloguePart = {
     'st.za.status.transport': 'Verbindungsfehler',
     'st.za.status.timeout': 'Zeitüberschreitung',
     'st.za.status.auth': 'Anmeldung abgewiesen',
+    'st.za.status.abgebrochen': 'Abgebrochen (Frist)',
+    'st.za.status.ausnahme': 'Unerwarteter Fehler',
     'st.za.rewrites.one': '{count} Umschreibung',
     'st.za.rewrites.other': '{count} Umschreibungen',
     'st.za.rewrite.typ_fokus': 'Typ-Fokus',
@@ -117,7 +121,13 @@ export const SESSIONS: CataloguePart = {
       + 'gelöscht (Aufbewahrung) oder die Nummer stammt aus einer anderen Anlage.',
     'sv.search.opened': 'Gefunden: der Verlauf von {id} ist geöffnet.',
     'sv.search.many': '{count} Treffer — bitte einen wählen.',
+    'sv.search.manySessions':
+      '{count} Treffer aus {sessions} Sitzungen — die Nummer ist nicht eindeutig. Zeit und Inhalt '
+      + 'prüfen.',
     'sv.search.results': 'Treffer',
+    'st.fokus.missing':
+      'Die gesuchte Nachricht ist älter als die {limit} neuesten dieser Sitzung und wird hier '
+      + 'nicht angezeigt.',
   },
 
   en: {
@@ -166,8 +176,9 @@ export const SESSIONS: CataloguePart = {
 
     'st.za.tools.one': '{count} tool call',
     'st.za.tools.other': '{count} tool calls',
-    'st.za.skipped.one': 'Plus 1 more call, only counted (at most 50 per turn).',
-    'st.za.skipped.other': 'Plus {count} more calls, only counted (at most 50 per turn).',
+    'st.za.skipped.one': 'Plus 1 more call, only counted (at most 50 per turn, failed ones up to 60).',
+    'st.za.skipped.other':
+      'Plus {count} more calls, only counted (at most 50 per turn, failed ones up to 60).',
     'st.za.chars': '{count} characters',
     'st.za.noAnswer': 'no answer',
     'st.za.cached': 'from the cache',
@@ -179,6 +190,8 @@ export const SESSIONS: CataloguePart = {
     'st.za.status.transport': 'connection error',
     'st.za.status.timeout': 'timeout',
     'st.za.status.auth': 'sign-in rejected',
+    'st.za.status.abgebrochen': 'cancelled (deadline)',
+    'st.za.status.ausnahme': 'unexpected error',
     'st.za.rewrites.one': '{count} rewrite',
     'st.za.rewrites.other': '{count} rewrites',
     'st.za.rewrite.typ_fokus': 'Type focus',
@@ -203,6 +216,11 @@ export const SESSIONS: CataloguePart = {
       + '(retention), or the number comes from another installation.',
     'sv.search.opened': 'Found: the transcript of {id} is open.',
     'sv.search.many': '{count} hits — please pick one.',
+    'sv.search.manySessions':
+      '{count} hits from {sessions} sessions — the number is not unique. Check time and content.',
     'sv.search.results': 'Hits',
+    'st.fokus.missing':
+      'The message you searched for is older than the {limit} newest of this session and is not '
+      + 'shown here.',
   },
 };

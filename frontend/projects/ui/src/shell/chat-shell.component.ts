@@ -48,6 +48,7 @@ import { fokusZurueckholen } from './fokus-nach-dem-zug';
 import { SendMessageContext, runSendMessage } from './send-message';
 import { ControllerContexts, ShellHost, buildControllerContexts } from './shell-contexts';
 import { LifecycleContext, ShellLifecycle } from './lifecycle';
+import { fehlerKurz } from '../obs/fehler-kurz';
 import { MessageStore } from './message-store';
 import { ScrollFollowController } from './scroll-follow';
 import { ShellRender } from './shell-render';
@@ -588,7 +589,7 @@ export class ChatShellComponent implements OnInit, OnChanges, AfterViewChecked, 
       // Der Vorgang fängt alles Eigene ab und endet immer in einem Satz. Bleibt
       // nur, was hier hereingereicht wird — dann gäbe es ohne diesen Zweig eine
       // unbeachtete Zusage statt eines Eintrags, dem jemand nachgehen kann.
-    }).catch(err => console.error('vorbereitete Änderung: Vorgang gescheitert', err));
+    }).catch(err => console.error('vorbereitete Änderung: Vorgang gescheitert', fehlerKurz(err)));
   }
 
   /** page_action an alle Hörer: Host-Callback + Angular-Output + window-Event.

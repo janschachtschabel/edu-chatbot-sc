@@ -22,6 +22,7 @@
 import { ChatResponse, UiInfo } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { sitzungsWache } from '../session/session-id';
+import { fehlerKurz } from '../obs/fehler-kurz';
 import { drosselHinweis } from '../stream/http-fehler';
 import { ChatStreamEvent } from '../stream/stream-client';
 
@@ -235,11 +236,11 @@ async function nachStromFehler(
   // ist dort gescheitert, im Verlauf kommt keine Antwort an, und ein zweiter
   // Versand stieße ihn nur noch einmal an.
   if ((streamErr as Error)?.name === 'StreamServerError') {
-    console.warn('chat stream: the server reported an error:', streamErr);
+    console.warn('chat stream: the server reported an error:', fehlerKurz(streamErr));
     throw streamErr;
   }
   if (abgelehnt(streamErr)) {
-    console.warn('chat stream rejected, no POST fallback:', streamErr);
+    console.warn('chat stream rejected, no POST fallback:', fehlerKurz(streamErr));
     throw streamErr;
   }
   return angenommen ? ausDemVerlauf(zug, streamErr, nachId) : perPost(zug, streamErr);
@@ -264,7 +265,7 @@ async function ausDemVerlauf(
 ): Promise<ChatResponse | null> {
   const { ctx, loadingId, veraltet } = zug;
   console.warn('chat stream broke after the server accepted the turn — '
-    + 'reading the answer from the history:', streamErr);
+    + 'reading the answer from the history:', fehlerKurz(streamErr));
   // Review C-6: sonst stünde der Teiltext bis zu 100 s ohne Hinweis da.
   ctx.clearStreamText(loadingId);
   ctx.updateLoadingPhase(loadingId, ctx.t('phase.fromHistory'));
@@ -278,7 +279,7 @@ async function ausDemVerlauf(
  *  ohne /stream-Route ab). */
 async function perPost(zug: Zug, streamErr: unknown): Promise<ChatResponse | null> {
   const { ctx, loadingId, veraltet } = zug;
-  console.warn('chat stream failed, falling back to POST /chat:', streamErr);
+  console.warn('chat stream failed, falling back to POST /chat:', fehlerKurz(streamErr));
   // Der zweite Weg beantwortet die Frage neu — ein Teiltext des ersten
   // stünde sonst bis dahin als Antwort da.
   ctx.clearStreamText(loadingId);

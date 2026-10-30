@@ -2,14 +2,15 @@
   <div class="za">
     @if (a.werkzeuge.length > 0 || a.ausgelassen > 0) {
       <details class="za-block">
-        <summary>{{ lang.plural('st.za.tools', a.werkzeuge.length) }}</summary>
+        <summary>{{ lang.plural('st.za.tools', a.werkzeuge.length + a.ausgelassen) }}</summary>
         <ol class="za-list">
           @for (aufruf of a.werkzeuge; track $index) {
             <li class="za-item">
               <p class="za-line">
                 <code class="za-name">{{ aufruf.name }}</code>
                 @if (aufruf.status) {
-                  <span [class.za-fail]="aufruf.status !== 'ok'">{{ statusText(aufruf) }}</span>
+                  <!-- „abgebrochen“ ist oft gewollt (ein verworfener Vorabruf) — nicht rot. -->
+                  <span [class.za-fail]="aufruf.status !== 'ok' && aufruf.status !== 'abgebrochen'">{{ statusText(aufruf) }}</span>
                 }
                 <span>{{ fmt.seconds(aufruf.dauerMs) }}</span>
                 <span>{{ zeichenText(aufruf) }}</span>

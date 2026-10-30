@@ -18,7 +18,8 @@ import type { Translate } from '../i18n/studio-language.service';
 
 export interface Werkzeugaufruf {
   readonly name: string;
-  /** `ok` | `tool` | `transport` | `timeout` | `auth`; leer, wenn er fehlt. */
+  /** `ok` | `tool` | `transport` | `timeout` | `auth` | `abgebrochen` | `ausnahme`; leer, wenn er
+   *  fehlt. */
   readonly status: string;
   readonly ausCache: boolean;
   readonly dauerMs: number;
@@ -45,13 +46,14 @@ export interface Schnellweg {
 
 export interface Zugakte {
   readonly werkzeuge: readonly Werkzeugaufruf[];
-  /** Aufrufe über dem Deckel (50 je Zug), nur gezählt. */
+  /** Aufrufe über dem Deckel (50 je Zug, gescheiterte bis 60), nur gezählt. */
   readonly ausgelassen: number;
   readonly umschreibungen: readonly Umschreibung[];
   readonly schnellwege: readonly Schnellweg[];
 }
 
-/** So viele Zeichen der Trace-ID nennt die Fehlerblase (`obs/trace_id.FEHLERNUMMER_ZEICHEN`). */
+/** So viele Zeichen der Trace-ID nennt die Fehlerblase (`obs/trace_id.FEHLERNUMMER_ZEICHEN`;
+ *  `backend/tests/test_trace_id.py` hält beide gleich). */
 const FEHLERNUMMER_ZEICHEN = 12;
 
 type Row = Readonly<Record<string, unknown>>;
@@ -123,6 +125,9 @@ const STATUS: ReadonlyMap<string, string> = new Map([
   ['transport', 'st.za.status.transport'],
   ['timeout', 'st.za.status.timeout'],
   ['auth', 'st.za.status.auth'],
+  // Review 2026-10-30: ein Aufruf, der nicht zurückkam (``services/mcp/client``).
+  ['abgebrochen', 'st.za.status.abgebrochen'],
+  ['ausnahme', 'st.za.status.ausnahme'],
 ]);
 
 const UMSCHREIBUNG: ReadonlyMap<string, string> = new Map([

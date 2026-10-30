@@ -98,5 +98,8 @@ describe('Bezeichnungen', () => {
     expect(umschreibungLabel('typ_fokus', t)).toBe('Typ-Fokus');
     expect(umschreibungLabel('neu', t)).toBe('neu');
     expect(statusLabel('ok', übersetzer('en'))).toBe('ok');
+    // Review 2026-10-30: Aufrufe, die nicht zurückkamen (Paket 18G-4).
+    expect(statusLabel('abgebrochen', t)).toBe('Abgebrochen (Frist)');
+    expect(statusLabel('ausnahme', übersetzer('en'))).toBe('unexpected error');
   });
 });
