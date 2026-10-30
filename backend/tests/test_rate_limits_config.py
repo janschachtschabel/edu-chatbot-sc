@@ -247,3 +247,42 @@ def test_der_ausgelieferte_seed_traegt_beide_sprachen():
     )["rate_limits"]
     assert cfg["blocked_message"].strip()
     assert cfg["blocked_message_en"].strip()
+
+
+# ── Paket 18E: ungültige Werte nicht still, Schalter wie das Gate ───────────
+
+async def test_ungueltiges_fenster_ist_aus_aber_gemeldet(monkeypatch, caplog):
+    """C2: ein Wert, den das Gate nie durchließe (Altbestand, direkte DB-Änderung), schaltet das
+    Fenster ab wie bisher — jetzt mit einer Warnung je Fenster, ohne den Wert."""
+    from boerdi.obs import drossel
+
+    drossel.zuruecksetzen()
+    _patch_cfg(monkeypatch, _cfg(
+        per_session={"enabled": True, "requests_per_minute": "drei", "requests_per_hour": 0},
+    ))
+    with caplog.at_level("WARNING"):
+        for _ in range(4):
+            assert (await rl.check_rate_limit("s-1")).allowed
+    meldungen = [r.getMessage() for r in caplog.records
+                 if "per_session.requests_per_minute" in r.getMessage()]
+    assert len(meldungen) == 1
+    assert "drei" not in meldungen[0]
+
+
+async def test_aus_als_text_schaltet_den_block_aus(monkeypatch):
+    """N1: ``enabled: "false"`` aus dem Rohtext-Editor heißt „aus“ — bisher zählte der Block
+    weiter (``"false"`` ist als Text wahr)."""
+    _patch_cfg(monkeypatch, _cfg(
+        enabled="false",
+        per_session={"enabled": True, "requests_per_minute": 1, "requests_per_hour": 0},
+    ))
+    for _ in range(3):
+        assert (await rl.check_rate_limit("s-1")).allowed
+
+
+async def test_aus_als_text_schaltet_das_sitzungsfenster_aus(monkeypatch):
+    _patch_cfg(monkeypatch, _cfg(
+        per_session={"enabled": "off", "requests_per_minute": 1, "requests_per_hour": 0},
+    ))
+    for _ in range(3):
+        assert (await rl.check_rate_limit("s-1")).allowed
