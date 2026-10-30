@@ -162,9 +162,9 @@ export const EN: Catalogue = {
   'debug.ui.intent': 'Intent',
   'debug.ui.state': 'State',
   'debug.ui.tools': 'Tools',
-  'error.rateLimited': 'A lot of requests are arriving from your network right now. Please '
+  'error.rateLimited': 'A lot of requests are arriving at once right now. Please '
     + 'wait a moment and then send your message again.',
-  'error.rateLimitedWait': 'A lot of requests are arriving from your network right now. '
+  'error.rateLimitedWait': 'A lot of requests are arriving at once right now. '
     + 'Please send your message again in {sekunden} s.',
   'error.busy': 'One moment — I am still answering your previous message. '
     + 'Please send this one again shortly.',

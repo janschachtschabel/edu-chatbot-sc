@@ -205,3 +205,42 @@ def test_die_konsole_zeigt_die_latenz() -> None:
     text = rg.render_console(rg.aggregate_golden([_conv(100, 23_300)]))
     assert "Latenz" in text
     assert "23.3" in text
+
+
+# ── Review 2026-10-30: eine Fehlerblase ist keine Antwort ───────────────────────
+
+
+def test_eine_fehlerblase_besteht_keine_pruefung(monkeypatch) -> None:
+    satz = "Gerade sind sehr viele Anfragen gleichzeitig unterwegs"
+
+    async def fake_post(url, message, session_id, headers=None, environment=None):
+        return {"content": f"{satz}, und ich komme nicht durch.", "cards": [],
+                "quick_replies": ["Nochmal versuchen"], "debug": {}}
+
+    monkeypatch.setattr(rg, "post_chat", fake_post)
+    convs = asyncio.run(rg.run_flows("http://x/api/chat", [_flow({})]))
+    golden = convs[0]["turns"][0]["golden"]
+    assert golden["fallback"] in rg.FALLBACK_TEXTS and golden["fallback"].startswith(satz)
+    assert golden["checks"]["qr"] is False  # ohne Ersatzsatz bestanden (eine Schnellantwort)
+    assert not any(golden["checks"].values())
+    metriken = rg.aggregate_golden(convs)
+    assert metriken["fallback_turns"] == 1
+    assert "Ersatzsatz" in rg.render_console(metriken)
+
+
+def test_eine_echte_antwort_bleibt_wie_bisher(monkeypatch) -> None:
+    monkeypatch.setattr(rg, "post_chat", lambda *a, **k: _als_coro(_antwort()))
+    convs = asyncio.run(rg.run_flows("http://x/api/chat", [_flow({})]))
+    assert "fallback" not in convs[0]["turns"][0]["golden"]
+    assert rg.aggregate_golden(convs)["fallback_turns"] == 0
+
+
+async def _als_coro(wert):
+    return wert
+
+
+def test_die_ersatzsaetze_des_runners_folgen_der_anlage() -> None:
+    """Der Runner kopiert die Sätze, statt ``boerdi`` zu importieren — hier fällt jede Drift auf."""
+    from boerdi.services.eval.run_profile import fallback_texts
+
+    assert set(rg.FALLBACK_TEXTS) == set(fallback_texts())

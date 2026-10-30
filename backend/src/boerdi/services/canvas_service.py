@@ -36,6 +36,7 @@ from boerdi.domain.canvas.types import (
 from boerdi.i18n import DEFAULT, Locale, language_name, template_hint
 from boerdi.services import llm
 from boerdi.services.fehlertext import antwort_fehlertext
+from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.wikipedia_service import fetch_wikipedia_summary
 
 logger = logging.getLogger(__name__)
@@ -328,13 +329,16 @@ async def generate_canvas_content(
             phase="canvas",
         )
         md = (resp.choices[0].message.content or "").strip()
+    except LlmAusgelastet:
+        # Review 2026-10-30: kein Material mit dem „ausgelastet“-Satz darin — als Arbeitsblatt
+        # verpackt, sah es aus wie ein fertiges. Der Aufrufer antwortet mit der Blase.
+        raise
     except Exception as e:
         logger.exception("generate_canvas_content failed: %s", e)
         md = (
             f"# {material_type_label(mat, lang)}: {topic}\n\n"
             # Paket 18C/D: nie der Text des Anbieters im Material — die Nummer führt zum Zug.
-            # Paket 18F: ohne LLM-Platz die „ausgelastet“-Blase statt einer Fehlernummer.
-            f"*{antwort_fehlertext(lang, 'material.createFailed')}*"
+            f"*{antwort_fehlertext(lang, 'material.createFailed', fehler=e)}*"
         )
 
     md = _strip_latex(md)

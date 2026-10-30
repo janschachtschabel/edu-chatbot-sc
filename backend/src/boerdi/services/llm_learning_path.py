@@ -17,6 +17,8 @@ from typing import Any
 from boerdi.domain.reasoning_filters import strip_reasoning_markers
 from boerdi.i18n import DEFAULT, Locale, bot_text, language_name, template_hint
 from boerdi.services import llm
+from boerdi.services.fehlertext import ausgelastet_text
+from boerdi.services.llm_parallel import LlmAusgelastet
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +157,10 @@ um Luecken zu fuellen."""
         )
         return strip_reasoning_markers(resp.choices[0].message.content or "") or bot_text(lang, "learningPath.failed")
     except Exception as e:
+        if isinstance(e, LlmAusgelastet):
+            # Review 2026-10-30: Last, kein Fehler — derselbe Satz wie im Chat.
+            logger.info("learning path: kein LLM-Platz frei — Zug ausgelastet")
+            return ausgelastet_text(lang)
         # Der Grund ins Log, nicht in die Blase (Audit 2026-09-29, 6.3).
         logger.exception("learning path generation failed (%s)", type(e).__name__)
         return bot_text(lang, "learningPath.error")

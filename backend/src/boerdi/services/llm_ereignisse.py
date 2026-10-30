@@ -24,6 +24,14 @@ logger = logging.getLogger(__name__)
 #: Höchstens eine Zeile je Minute und Anbieter/Quelle — ein falscher Schlüssel träfe jeden Aufruf.
 _ABSTAND_S = 60.0
 
+# Jede mögliche Reihe von Anfang an mit 0 (Review 2026-10-30): ``increase()`` in der Alarmregel
+# sieht sonst den ersten 401 nicht — die Reihe entstünde erst mit ihm.
+for _anbieter, _quelle in (("openai", "openai_api_key"),
+                           ("b-api-openai", "b_api_key"), ("b-api-openai", "weitergereicht"),
+                           ("b-api-academiccloud", "b_api_key"),
+                           ("b-api-academiccloud", "weitergereicht")):
+    metrics.LLM_SCHLUESSEL_ABGELEHNT.labels(_anbieter, _quelle)
+
 
 def ist_abgelehnter_schluessel(fehler: BaseException) -> bool:
     """Ist ``fehler`` — oder eine Ursache, ein Kontext, ein Versuch von instructor — eine 401?"""

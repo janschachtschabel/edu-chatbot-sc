@@ -1450,3 +1450,17 @@ def test_ein_wiederholter_abgewiesener_aufruf_ist_stillstand(monkeypatch):
     ], outcome=out, tools=["search_wlo_content"])
     assert run.stop_reason == "no_progress"
     assert out.calls == []
+
+
+
+def test_ein_lauf_ohne_llm_platz_merkt_es_sich(monkeypatch):
+    """Review 2026-10-30: der Satz hängt am Lauf, nicht am Merker des Zugs."""
+    from boerdi.services import llm_parallel
+
+    async def kein_platz(**_kw):
+        raise llm_parallel.LlmAusgelastet("kein LLM-Platz binnen 30 s")
+
+    monkeypatch.setattr(llm, "chat_completion", kein_platz)
+    run = asyncio.run(agent_loop.run_agent_loop(
+        messages=[{"role": "system", "content": "sys"}], tools=[], limits=AgentLimits()))
+    assert (run.stop_reason, run.ausgelastet) == ("error", True)

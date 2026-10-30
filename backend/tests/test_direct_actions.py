@@ -651,3 +651,33 @@ async def test_lp_fehlschlag_bleibt_auch_auf_englisch_eine_schlichte_blase(monke
     # Handler) — die Zusicherung „ein Fehlertext wird nicht zum Bearbeiten-
     # Gegenstand" gilt damit erst recht, und der Wächter hält sie fest.
     assert "last_pattern" not in state
+
+
+async def test_lp_ausgelastet_ist_kein_lernpfad(monkeypatch) -> None:
+    """Review 2026-10-30: der Satz galt als Erfolg — Karten als benutzt verbucht, Lernpfad-Zustand
+    gesetzt, und ohne „Nochmal versuchen“ (die Direktaktion endet vor ``assemble``)."""
+    from boerdi.i18n.bot_text import bot_text
+    from boerdi.services import llm_parallel
+    from boerdi.services.fehlertext import ausgelastet_text
+
+    _fake_mcp, save, upd, _fake_lp = _patch_lp_boundaries(monkeypatch, cards=_raw_cards(3))
+
+    async def kein_platz(**kwargs):
+        return ausgelastet_text("de")  # so antwortet generate_learning_path_text ohne Platz
+
+    monkeypatch.setattr(direct_actions, "generate_learning_path_text", kein_platz)
+    state = _state()
+    llm_parallel.binde_zug()
+    try:
+        resp = await direct_actions._handle_generate_learning_path(
+            object(), _req("generate_learning_path", collection_id="col-1", title="Eiszeit"),
+            state)
+    finally:
+        llm_parallel._zug.set(None)
+
+    assert resp.content == bot_text("de", "error.llmBusy")
+    assert resp.quick_replies == [bot_text("de", "error.retryChip")]
+    assert resp.cards == [] and "error" in resp.debug.tools_called
+    assert "_lp_used_node_ids" not in state["entities"]
+    assert "_canvas_material_type" not in upd.calls[0]["entities"]
+    assert len(save.calls) == 1

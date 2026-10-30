@@ -346,7 +346,7 @@ async def _run_tool_loop(
             # der Verarbeitung: {e}“ mit Interna aus der Anbieter-Meldung).
             # Paket 18F: ohne LLM-Platz die „ausgelastet“-Blase statt einer Fehlernummer —
             # in der Sprache der Person (Review 18F: bis dahin immer DEFAULT).
-            text = antwort_fehlertext(sprache, "error.internal")
+            text = antwort_fehlertext(sprache, "error.internal", fehler=e)
             return text, all_cards, tools_called, outcomes
 
         choice = resp.choices[0]

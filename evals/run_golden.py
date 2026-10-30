@@ -52,6 +52,7 @@ import re
 import sys
 import time
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -558,6 +559,7 @@ def aggregate_golden(conversations: list[dict]) -> dict[str, Any]:
                 "observed": g.get("observed") or {},
                 "checks": checks,
                 "latency_ms": latency,
+                **({"fallback": g["fallback"]} if g.get("fallback") else {}),
             })
             for c in GOLDEN_CATS:
                 v = checks.get(c)
@@ -582,6 +584,7 @@ def aggregate_golden(conversations: list[dict]) -> dict[str, Any]:
         "hard_total": hard_tot,
         "flows": len(conversations),
         "turns": len(per_turn),
+        "fallback_turns": sum(1 for t in per_turn if t.get("fallback")),
         "latency": latency_summary(latencies),
         "per_turn": per_turn,
         "per_flow": per_flow,
@@ -612,16 +615,56 @@ def _ms_since(t0: float) -> int:
     return int(round((time.perf_counter() - t0) * 1000))
 
 
+#: The app's fallback sentences (error and busy bubbles), up to their first ``.``/``(``/``{`` —
+#: the same heads as ``boerdi.services.eval.run_profile.fallback_texts()``. Copied, not imported:
+#: this file stays framework-free; ``backend/tests/test_golden_ab.py`` keeps the two in step.
+FALLBACK_TEXTS: tuple[str, ...] = (
+    "Ich konnte gerade keine Antwort erzeugen",
+    "Ich bin damit nicht fertig geworden — die Anfrage war zu umfangreich",
+    "Da ist intern etwas schiefgelaufen",
+    "Gerade sind sehr viele Anfragen gleichzeitig unterwegs, und ich komme nicht durch",
+    "Ich kann deine Nachricht gerade nicht prüfen lassen und antworte deshalb lieber nicht",
+    "I could not produce an answer just now",
+    "I did not get through this one — the request was too broad",
+    "Something went wrong on our side",
+    "There are a lot of requests at once right now, and I can't get through",
+    "I cannot have your message checked right now, so I would rather not answer",
+)
+
+
+def fallback_sentence(bot_resp: dict[str, Any],
+                      fallback_texts: Sequence[str] = FALLBACK_TEXTS) -> str:
+    """The fallback sentence the answer consists of (an error or busy bubble), else ``""``.
+
+    Such a bubble arrives with HTTP 200 like an answer (review 2026-10-30). Matched in the first
+    400 characters, as the run profile's robustness does."""
+    window = str(bot_resp.get("content") or "")[:400]
+    return next((f for f in fallback_texts if f and f in window), "")
+
+
+def _ohne_antwort(golden: dict[str, Any], ersatz: str) -> dict[str, Any]:
+    """A fallback bubble is no answer: every hard check it took part in fails, and the turn says
+    why. It stays a turn, not a chat error — the run profile counts it as "fallback". ``host``
+    (soft) stays: the card links it judges are real."""
+    if not ersatz:
+        return golden
+    checks = {k: (v if v is None or k not in GOLDEN_HARD else False)
+              for k, v in (golden.get("checks") or {}).items()}
+    return {**golden, "checks": checks, "fallback": ersatz}
+
+
 async def run_flows(
     chat_url: str, flows: list[dict[str, Any]], *,
     headers: dict[str, str] | None = None,
+    fallback_texts: Sequence[str] = FALLBACK_TEXTS,
 ) -> list[dict[str, Any]]:
     """Each flow in its own fresh session; turns sequential (context preserved).
 
     ``headers`` (A5) go with every turn — keyword-only and defaulted, because the
     backend eval service calls this positionally with two arguments. Each turn
     records its own ``latency_ms``: the run total mixes 24-second searches with
-    instant replies and cannot answer "is the agent faster".
+    instant replies and cannot answer "is the agent faster". A turn answered with one of
+    ``fallback_texts`` fails its checks (review 2026-10-30, :func:`_ohne_antwort`).
     """
     conversations: list[dict[str, Any]] = []
     for fi, flow in enumerate(flows, start=1):
@@ -652,11 +695,12 @@ async def run_flows(
                 continue
             latency_ms = _ms_since(t_turn)
             debug = bot_resp.get("debug", {}) or {}
+            ersatz = fallback_sentence(bot_resp, fallback_texts)
             turn_records.append({
                 "user": msg,
                 "bot": augment_bot_text(bot_resp),
                 "debug": flatten_debug(debug),
-                "golden": check_golden_turn(expect, bot_resp, debug),
+                "golden": _ohne_antwort(check_golden_turn(expect, bot_resp, debug), ersatz),
                 "cards_count": len(bot_resp.get("cards") or []),
                 "response_length": len(bot_resp.get("content") or ""),
                 "latency_ms": latency_ms,
@@ -709,8 +753,12 @@ def render_console(metrics: dict[str, Any]) -> str:
         lines.append("\nFehlgeschlagene Checks:")
         for t in fails:
             bad = [c for c, v in t["checks"].items() if v is False]
+            grund = f" — Ersatzsatz: {t['fallback']}" if t.get("fallback") else ""
             lines.append(f"  {t['flow']} turn {t['turn']}: {', '.join(bad)}"
-                         f"  ({t['message'][:60]}…)")
+                         f"  ({t['message'][:60]}…){grund}")
+    if metrics.get("fallback_turns"):
+        lines.append(f"\n{metrics['fallback_turns']} Turn(s) mit Fehler- oder "
+                     "„ausgelastet“-Blase statt Antwort")
     return "\n".join(lines)
 
 

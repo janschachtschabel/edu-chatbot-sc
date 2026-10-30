@@ -55,8 +55,8 @@ MCP_DAUER = Histogram(
     "boerdi_mcp_call_duration_seconds", "Dauer je MCP-Aufruf", ["server"], buckets=_SEKUNDEN)
 SICHERHEITSSTUFEN = Counter(
     "boerdi_safety_stage_total",
-    "Ausgang je Sicherheitsstufe (ok, fehler, keine_zugangsdaten) — ein Ausfall ist "
-    "fail-open und wäre sonst nur eine Logzeile", ["stage", "outcome"])
+    "Ausgang je Sicherheitsstufe (ok, fehler, keine_zugangsdaten, teilweise, ausgelastet) — "
+    "ein Ausfall ist fail-open und wäre sonst nur eine Logzeile", ["stage", "outcome"])
 HTTP_LAUFEND = Gauge(
     "boerdi_http_requests_in_progress",
     "Laufende Anfragen am öffentlichen Port — überwiegend offene SSE-Ströme der Züge")

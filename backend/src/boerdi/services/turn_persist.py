@@ -86,6 +86,7 @@ from boerdi.services.config_loader import load_display_rules_config
 from boerdi.services.db_sessions import finalize_message, save_message, update_session
 from boerdi.services.guide_markers import _attach_guide_urls
 from boerdi.services.guide_qr_injector import begrenze_pillen
+from boerdi.services.llm_parallel import blase_gezeigt
 from boerdi.services.mcp.client import get_prepared_writes
 from boerdi.services.topic_pages import _resolve_m16_topic_page_view
 from boerdi.services.turn_quality import log_turn_quality
@@ -533,6 +534,16 @@ async def persist_and_build_response(
                 quick_replies = _gekuerzt
     except Exception as _e:
         logger.warning("quick_replies trim failed: %s", _e)
+    # Unter der „ausgelastet“-Blase nur „Nochmal versuchen“, wie unter der Fehlerblase des Chats
+    # (Review 2026-10-30): mit geretteten Karten kamen sonst „Hat das geholfen?“ und Facetten-
+    # Chips dazu, mit einer offenen Abnahme der Bestätigungs-Chip.
+    if blase_gezeigt():
+        quick_replies = [bot_text(_lang, "error.retryChip")]
+        # Steht eine Schreib-Abnahme offen (Runde 1 legte die Vorschau an, Runde 2 bekam keinen
+        # Platz), bleibt die Zustimmung — sie braucht kein LLM, „Nochmal versuchen“ verwürfe
+        # den Vorgang (Abschluss-Review 18G).
+        if session_state.get("_write_preview"):
+            quick_replies.insert(0, bot_text(_lang, "action.write.confirmChip"))
 
     # Welle E — Inline-Document-Routing: bei M09/M10/M11 wandert das große
     # Markdown in eine gerahmte Box (``inline_documents``); ``content`` bekommt

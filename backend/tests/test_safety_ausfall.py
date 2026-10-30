@@ -395,3 +395,17 @@ def test_das_aufwaermen_meldet_eine_ungepruefte_moderation(monkeypatch, caplog):
 def test_die_krisensperre_im_seed_deckt_alle_suchwerkzeuge(werkzeug):
     seed = yaml.safe_load(_SEED.read_text(encoding="utf-8"))
     assert werkzeug in seed["crisis_blocked_tools"]
+
+
+def test_last_ist_kein_ausfall_der_rechtspruefung(monkeypatch):
+    """Review 2026-10-30: ein ausgelasteter Zug zählte als ``fehler`` der Stufe."""
+    from boerdi.services.llm_parallel import LlmAusgelastet
+
+    async def _kein_platz(**kwargs):
+        raise LlmAusgelastet("kein LLM-Platz binnen 30 s")
+
+    monkeypatch.setattr(legal_mod, "chat_completion", _kein_platz)
+    fehler, last = _zaehler("llm_legal", "fehler"), _zaehler("llm_legal", "ausgelastet")
+    assert asyncio.run(legal_mod.classify_legal("x")) == {}
+    assert _zaehler("llm_legal", "fehler") == fehler
+    assert _zaehler("llm_legal", "ausgelastet") == last + 1

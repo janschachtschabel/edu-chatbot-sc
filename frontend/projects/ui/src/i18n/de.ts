@@ -227,10 +227,12 @@ export const DE: Catalogue = {
   'debug.ui.intent': 'Absicht',
   'debug.ui.state': 'Zustand',
   'debug.ui.tools': 'Werkzeuge',
-  /** Paket 18F: zu viele Anfragen (429) — mit Wartezeit, wenn der Server sie nennt. */
-  'error.rateLimited': 'Gerade kommen sehr viele Anfragen aus deinem Netz an. Warte bitte '
+  /** Paket 18F: zu viele Anfragen (429) — mit Wartezeit, wenn der Server sie nennt. Nicht
+   *  „aus deinem Netz“ (Review 2026-10-30): hinter einem Proxy ohne
+   *  TRUST_FORWARDED_FOR teilen sich alle Personen eine Adresse. */
+  'error.rateLimited': 'Gerade kommen sehr viele Anfragen auf einmal an. Warte bitte '
     + 'einen Moment und schick deine Nachricht dann noch einmal.',
-  'error.rateLimitedWait': 'Gerade kommen sehr viele Anfragen aus deinem Netz an. Schick '
+  'error.rateLimitedWait': 'Gerade kommen sehr viele Anfragen auf einmal an. Schick '
     + 'deine Nachricht bitte in {sekunden} s noch einmal.',
   /** Paket 7 (P1): noch läuft ein Zug derselben Sitzung (auch auf einer
    *  anderen Server-Kopie). Die Frage wurde NICHT beantwortet. */

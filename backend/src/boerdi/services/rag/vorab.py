@@ -22,6 +22,7 @@ from typing import Any
 
 from boerdi.obs.zeiten import schritt
 from boerdi.services.config_loader import load_rag_config
+from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.rag.embed import embed_backend, embed_text
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,10 @@ async def rag_einbettung_vorab(text: str) -> Einbettung | None:
             return None
         with schritt("assess.rag_einbettung"):
             return text, await embed_text(text, kind="query")
+    except LlmAusgelastet:
+        # Review 2026-10-30: Last — die Frist meldet ``llm_platz_frist`` schon gedrosselt.
+        logger.info("Einbettung vorab: kein LLM-Platz frei")
+        return None
     except Exception as e:  # noqa: BLE001 — siehe Docstring
         # Ohne Traceback (Review B-1): fällt der Dienst aus, stünde er sonst in
         # jedem Muster-Zug im Protokoll; den Fehler meldet der Abruf ohnehin.

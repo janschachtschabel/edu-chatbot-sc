@@ -171,13 +171,13 @@ async def _belegt(n: int = 2) -> asyncio.Semaphore:
     return sem
 
 
-def test_frist_laeuft_ab_dann_scheitert_jeder_weitere_platz_des_zugs_sofort(monkeypatch, caplog):
+def test_frist_laeuft_ab_dann_wartet_der_zug_nicht_mehr(monkeypatch, caplog):
     monkeypatch.setenv("LLM_SLOT_WAIT_S", "0.1")
     get_settings.cache_clear()
     vorher = metrics.LLM_PLATZ_FRIST._value.get()
 
     async def lauf() -> tuple[float, float]:
-        sem = await _belegt()
+        await _belegt()
         llm_parallel.binde_zug()
         loop = asyncio.get_running_loop()
         t0 = loop.time()
@@ -186,8 +186,7 @@ def test_frist_laeuft_ab_dann_scheitert_jeder_weitere_platz_des_zugs_sofort(monk
                 pass
         erste = loop.time() - t0
         assert llm_parallel.ausgelastet()
-        sem.release()                     # ein Platz wird frei — der Zug nimmt ihn trotzdem nicht
-        t1 = loop.time()
+        t1 = loop.time()                  # weiter kein Platz frei: sofort, ohne zweite Frist
         with pytest.raises(llm_parallel.LlmAusgelastet):
             async with llm_parallel.platz("live"):
                 pass
@@ -289,3 +288,53 @@ def test_platz_wird_nach_dem_aufruf_freigegeben():
         return llm_parallel._semaphore("live")._value
 
     assert asyncio.run(lauf()) == 2
+
+
+def test_ein_ausgelasteter_zug_nimmt_einen_freien_platz(monkeypatch):
+    """Review 2026-10-30: verboten ist nur das Warten. Scheiterte erst ein Nebenaufruf an der
+    Frist, bräche sonst die Werkzeugschleife in Runde 2 ab, obwohl ein Platz frei ist."""
+    monkeypatch.setenv("LLM_SLOT_WAIT_S", "0.1")
+    get_settings.cache_clear()
+
+    async def lauf() -> tuple[bool, int]:
+        sem = await _belegt()
+        llm_parallel.binde_zug()
+        with pytest.raises(llm_parallel.LlmAusgelastet):
+            async with llm_parallel.platz("live"):
+                pass
+        sem.release()                     # ein Platz wird frei
+        async with llm_parallel.platz("live"):
+            belegt_drinnen = sem.locked()
+        assert llm_parallel.ausgelastet()  # der Merker bleibt — er sagt, was geschah
+        return belegt_drinnen, sem._value
+
+    belegt_drinnen, frei_danach = asyncio.run(lauf())
+    assert belegt_drinnen is True        # der Platz war genommen …
+    assert frei_danach == 1              # … und ist wieder frei
+
+
+def test_die_labelreihen_des_schluesselzaehlers_stehen_von_anfang_an():
+    """Review 2026-10-30: ``increase()`` sieht den ersten 401 nur auf einer bestehenden Reihe."""
+    from boerdi.services import llm_ereignisse  # noqa: F401 — belegt die Reihen beim Import
+
+    reihen = {tuple(s.labels.values()) for m in metrics.LLM_SCHLUESSEL_ABGELEHNT.collect()
+              for s in m.samples if s.name.endswith("_total")}
+    assert {("openai", "openai_api_key"), ("b-api-openai", "b_api_key"),
+            ("b-api-openai", "weitergereicht"), ("b-api-academiccloud", "b_api_key"),
+            ("b-api-academiccloud", "weitergereicht")} <= reihen
+
+
+
+def test_der_rag_vorabruf_meldet_last_ohne_warnung(monkeypatch, caplog):
+    """Review 2026-10-30: je ausgelastetem Zug stand dort eine WARNING."""
+    from boerdi.services.rag import vorab
+
+    async def kein_platz(*_a, **_k):
+        raise llm_parallel.LlmAusgelastet("kein LLM-Platz binnen 30 s")
+
+    monkeypatch.setattr(vorab, "embed_backend", lambda: "remote")
+    monkeypatch.setattr(vorab, "load_rag_config", lambda: {"a": {"mode": "always"}})
+    monkeypatch.setattr(vorab, "embed_text", kein_platz)
+    with caplog.at_level(logging.INFO):
+        assert asyncio.run(vorab.rag_einbettung_vorab("Optik")) is None
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
