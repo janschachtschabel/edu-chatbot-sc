@@ -85,3 +85,16 @@ def test_reiner_entwicklungsmodus_bleibt_offen(monkeypatch, gefragt):
     c = _client(monkeypatch, passwort=None, schluessel=None, offen=True)
     c.get(f"/studio/api/sessions/{_SID}/messages")
     assert gefragt == [True]
+
+
+def test_der_verlauf_traegt_ui_je_nachricht(monkeypatch):
+    """Paket 18C/D (3.2): ``ui`` auch im Verlauf — mit den Wiederherstellungsfeldern."""
+    async def fake(session, session_id, limit=50, *, zugakte=False):
+        return [{"id": 1, "role": "assistant", "content": "a",
+                 "debug": {"pattern": "M06", "_type_focus": "Video"}}]
+
+    monkeypatch.setattr(sessions_api, "get_messages", fake)
+    c = _client(monkeypatch, passwort=_PASSWORT, schluessel=_SCHLUESSEL, offen=False)
+    (nachricht,) = c.get(f"/api/sessions/{_SID}/messages").json()
+    assert nachricht["ui"] == {"pattern": "M06", "type_focus": "Video"}
+    assert nachricht["debug"]["pattern"] == "M06"

@@ -79,6 +79,7 @@ from boerdi.api.schemas_mcp_curation import (
     TopicPageSetArgs,
 )
 from boerdi.api.schemas_result import pruefe_ergebnis_schema
+from boerdi.api.schemas_ui import UiInfo
 from boerdi.domain.seitenkontext_eingang import deckle_seitenkontext
 
 __all__ = [
@@ -337,6 +338,9 @@ class ChatResponse(BaseModel):
     follow_up: str = "none"
     quick_replies: list[str] = Field(default_factory=list)
     debug: DebugInfo = Field(default_factory=DebugInfo)
+    # Paket 18C/D: der öffentliche Teil des Debug-Blocks (``api/schemas_ui``), gesetzt an der
+    # API-Grenze (``api/publikum``). Ab Phase 4 liest das Widget nur noch hier.
+    ui: UiInfo = Field(default_factory=UiInfo)
     page_action: dict[str, Any] | None = None
     # Maschinenlesbares Ergebnis des Zuges — nur wenn der Gastgeber ein
     # ``Environment.result_schema`` erklärt hat UND die Agent-Schleife über

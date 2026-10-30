@@ -518,6 +518,9 @@
             ],
             "title": "Tour"
           },
+          "ui": {
+            "$ref": "#/components/schemas/UiInfo"
+          },
           "web_links": {
             "items": {
               "$ref": "#/components/schemas/WebLink"
@@ -2088,6 +2091,93 @@
           }
         },
         "title": "TraceEntry",
+        "type": "object"
+      },
+      "UiInfo": {
+        "description": "Öffentlicher Teil einer Antwort; alle Felder optional, Vorgabe leer.",
+        "properties": {
+          "dokumente": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Dokumente",
+            "type": "array"
+          },
+          "intent": {
+            "default": "",
+            "title": "Intent",
+            "type": "string"
+          },
+          "modulations": {
+            "additionalProperties": true,
+            "title": "Modulations",
+            "type": "object"
+          },
+          "pattern": {
+            "default": "",
+            "title": "Pattern",
+            "type": "string"
+          },
+          "prepared_write": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prepared Write"
+          },
+          "query_metas": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Query Metas",
+            "type": "array"
+          },
+          "state": {
+            "default": "",
+            "title": "State",
+            "type": "string"
+          },
+          "tools_called": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tools Called",
+            "type": "array"
+          },
+          "topic_page_view": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Page View"
+          },
+          "type_focus": {
+            "default": "",
+            "title": "Type Focus",
+            "type": "string"
+          },
+          "web_links": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Web Links",
+            "type": "array"
+          }
+        },
+        "title": "UiInfo",
         "type": "object"
       },
       "Umschalten": {

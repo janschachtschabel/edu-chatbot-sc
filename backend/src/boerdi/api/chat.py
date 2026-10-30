@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.api.chat_handschlag import handschlag
 from boerdi.api.deps import get_session, get_session_factory, require_studio_key, todo
+from boerdi.api.publikum import antwort_mit_ui
 from boerdi.api.ratelimit import peer_ip, public_rate_limit
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
 from boerdi.api.session_locks import sitzung_sperren
@@ -119,7 +120,7 @@ async def chat(
                 result = await run_turn(graph, TurnContext(req=req))
                 await _record_usage(session, req.session_id, result)
                 resp = _anmeldestand(result.get("early_response") or result.get("response"))
-                return await _postprocess_response_for_widget_modes(req, resp)
+                return antwort_mit_ui(await _postprocess_response_for_widget_modes(req, resp))
             except Exception as impl_err:
                 # Top-level safety net: a config bug, a pattern-engine attribute
                 # error, a DB hiccup — a chat bubble with the error number (Paket 18C/D)
@@ -168,8 +169,8 @@ async def _fehlerblase(
         # eine Frage, die niemand gestellt hat, und ein sichtbarer Zug, der einen
         # offenen Schreibvorgang nicht verfallen lässt (Befund 2026-10-08). Also
         # stumm und ohne Eintrag im Verlauf.
-        return ChatResponse(session_id=req.session_id, content="", follow_up="none",
-                            debug=err_debug)
+        return antwort_mit_ui(ChatResponse(session_id=req.session_id, content="",
+                                           follow_up="none", debug=err_debug))
     lang = resolve_locale(getattr(req.environment, "locale", None))
     err_text = bot_text(lang, "error.internal", nummer=fehlernummer())
     try:
@@ -183,12 +184,12 @@ async def _fehlerblase(
     except Exception:
         # Never let a DB-write failure mask the original error.
         logger.debug("Fehlerblase nicht gespeichert", exc_info=True)
-    return ChatResponse(
+    return antwort_mit_ui(ChatResponse(
         session_id=req.session_id,
         content=err_text,
         quick_replies=[bot_text(lang, "error.retryChip")],
         debug=err_debug,
-    )
+    ))
 
 
 async def _stream_turn(
@@ -258,7 +259,7 @@ async def _stream_turn(
             logger.warning("stream widget-modes postprocess failed: %s", pp_err)
         if strom is not None:
             strom.abschluss(result.content or "")  # Kennzahlen + Drift-Logzeile
-        return result.model_dump()
+        return antwort_mit_ui(result).model_dump()
 
     # Paket 7 (P2, P5-2): legt der Client auf, rechnet der Zug sauber zu Ende —
     # die Antwort landet im Verlauf, und das Widget holt sie dort, statt die

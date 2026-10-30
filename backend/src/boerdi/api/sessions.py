@@ -31,9 +31,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.api.deps import Lang, OriginScope, get_session_factory, require_studio_key
 from boerdi.api.deps import get_session as get_db_session
+from boerdi.api.publikum import verlauf_mit_ui
 from boerdi.api.ratelimit import public_rate_limit
 from boerdi.api.schemas import SITZUNGSKENNUNG
-from boerdi.api.turn_auth import _interner_zug
+from boerdi.api.turn_auth import darf_diagnose
 from boerdi.domain.write_anzeige import entities_for_display
 from boerdi.i18n import msg
 from boerdi.services import aufbewahrung
@@ -287,4 +288,5 @@ async def get_session_messages(
     # Paket 18C/D: die Zugakte (Werkzeug-Argumente, Fehlertexte, umgeschriebene Entwürfe) ist
     # Diagnose fürs Studio, das diesen Weg über den Proxy liest — keine Wiederherstellung.
     # Ab Phase 3 trennt die Antwort ``ui`` und ``debug`` ganz.
-    return await get_messages(session, session_id, limit, zugakte=_interner_zug(request))
+    return verlauf_mit_ui(
+        await get_messages(session, session_id, limit, zugakte=darf_diagnose(request)))

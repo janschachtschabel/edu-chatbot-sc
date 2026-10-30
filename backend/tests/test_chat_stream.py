@@ -779,6 +779,17 @@ def test_auch_im_strom_sieht_die_fehlerblase_trace_id_und_zugakte(monkeypatch, c
     assert gesehen == [("zug-4711-abcdef", ["search_wlo_content"])]
 
 
+def test_das_ergebnis_im_strom_traegt_ui(monkeypatch, client):
+    """Paket 18C/D (3.2): ``ui`` auch im ``result``-Rahmen."""
+    from boerdi.api.schemas import DebugInfo
+
+    _patch(monkeypatch, result={"response": ChatResponse(
+        session_id="bb-1", content="x", debug=DebugInfo(pattern="M04"))})
+    rahmen = [z for z in _post(client).text.split("\n\n") if z.startswith("event: result")]
+    nutzlast = json.loads(rahmen[0].split("data: ", 1)[1])
+    assert nutzlast["ui"]["pattern"] == "M04" and nutzlast["debug"]["pattern"] == "M04"
+
+
 def test_der_fehlerrahmen_nennt_die_fehlernummer(monkeypatch, client):
     """Review Phase 3: das Widget nutzt den Strom; ohne Nummer im ``error``-Rahmen sähe die
     Person sie erst nach dem Neuladen (in der gespeicherten Blase)."""

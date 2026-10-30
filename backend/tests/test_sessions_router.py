@@ -233,7 +233,8 @@ def test_public_messages_accepts_valid_id_and_passes_di_session(client, monkeypa
     calls = _fake(monkeypatch, "get_messages", [{"id": 1, "role": "user", "content": "hi"}])
     r = client.get(f"/api/sessions/{_VALID}/messages")  # NO auth header — public
     assert r.status_code == 200
-    assert r.json() == [{"id": 1, "role": "user", "content": "hi"}]
+    # Paket 18C/D (3.2): jede Nachricht trägt zusätzlich ``ui`` (hier leer: kein Debug-Block).
+    assert r.json() == [{"id": 1, "role": "user", "content": "hi", "ui": {}}]
     (args, _kwargs) = calls[0]
     assert args[0] is _SESSION and args[1] == _VALID
 
