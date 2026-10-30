@@ -56,6 +56,7 @@ from boerdi.services.engine_choice import (
 )
 from boerdi.services.fehlertext import antwort_fehlertext
 from boerdi.services.generate import generate_response
+from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
 
@@ -455,7 +456,12 @@ async def respond(
             # Frontend schluckt es als generisches "etwas ist schiefgelaufen".
             # Stattdessen freundlich degradieren + spekulativ-geholte Karten
             # behalten, damit der User noch etwas Nützliches sieht.
-            logger.exception("generate_response failed (%s)", type(_gen_err).__name__)
+            if isinstance(_gen_err, LlmAusgelastet):
+                # Review 2026-10-30: Last, kein Fehler — etwa die RAG-Einbettung eines
+                # ausgelasteten Zugs; ``llm_platz_frist`` meldet sie gedrosselt.
+                logger.info("generate_response: kein LLM-Platz frei — Zug ausgelastet")
+            else:
+                logger.exception("generate_response failed (%s)", type(_gen_err).__name__)
             # Kam der Fehler aus der Datenbank (etwa der RAG-Abfrage), steht die
             # geteilte Zug-Sitzung jetzt in einer abgebrochenen Transaktion —
             # ohne Rollback scheiterte danach ``persist``, und die freundliche
@@ -469,7 +475,7 @@ async def respond(
             # Paket 18C/D: in der Sprache der Person, mit Fehlernummer statt Fehlerklasse;
             # Paket 18F: ohne LLM-Platz die „ausgelastet“-Blase.
             response_text = antwort_fehlertext(resolve_locale(req.environment.locale),
-                                               "error.answerFailed")
+                                               "error.answerFailed", fehler=_gen_err)
             wlo_cards_raw = []
             tools_called = ["error"]
             response_outcomes = []

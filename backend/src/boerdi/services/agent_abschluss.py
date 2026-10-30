@@ -57,7 +57,8 @@ def antwort_oder_ersatz(lauf: AgentRun, sprache: str) -> str:
         # mit Fehlernummer. Ein Lauf, der nur ohne Text endete, behält den Ersatzsatz.
         # Paket 18F: ohne LLM-Platz die „ausgelastet“-Blase (``fehlertext``).
         logger.info("Agent-Modus: Lauf mit Fehler — Ersatzsatz")
-        return antwort_fehlertext(sprache, "error.answerFailed")
+        return antwort_fehlertext(sprache, "error.answerFailed",
+                                  ausgelastet_lauf=lauf.ausgelastet)
     schluessel = "agent.incomplete" if lauf.stop_reason in GEDECKELT else "agent.failed"
     logger.info("Agent-Modus: Lauf ohne Text (Ende=%s) — Ersatzsatz %s",
                 lauf.stop_reason, schluessel)

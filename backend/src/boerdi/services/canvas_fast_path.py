@@ -54,6 +54,8 @@ from boerdi.services.canvas_service import (
     generate_canvas_content,
     material_type_quick_replies_for_persona,
 )
+from boerdi.services.fehlertext import ausgelastet_text
+from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.zugakte import merke_schnellweg
 
 logger = logging.getLogger(__name__)
@@ -517,11 +519,16 @@ async def run_canvas_create_fast_path(
                 # Same hardening as in _handle_canvas_create — graceful chat
                 # bubble instead of bubbling a 500. The frontend would otherwise
                 # show its generic "konnte ich leider nicht erstellen" message.
-                logger.exception("M10 canvas generation failed (%s)", type(_e).__name__)
-                response_text = bot_text(
-                    _lang, "material.genFailed",
-                    label=_label, topic=_c_topic, nummer=fehlernummer(),
-                )
+                if isinstance(_e, LlmAusgelastet):
+                    # Review 2026-10-30: Last, kein Fehler — der „ausgelastet“-Satz, ohne Material.
+                    logger.info("M10 canvas: kein LLM-Platz frei — Zug ausgelastet")
+                    response_text = ausgelastet_text(_lang)
+                else:
+                    logger.exception("M10 canvas generation failed (%s)", type(_e).__name__)
+                    response_text = bot_text(
+                        _lang, "material.genFailed",
+                        label=_label, topic=_c_topic, nummer=fehlernummer(),
+                    )
                 tools_called = ["canvas_service.generate_canvas_content", "error"]
                 wlo_cards_raw = []
                 _canvas_routed = True

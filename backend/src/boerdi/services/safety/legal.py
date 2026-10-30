@@ -16,6 +16,7 @@ import logging
 
 from boerdi.obs import metrics
 from boerdi.services.llm import chat_completion
+from boerdi.services.llm_parallel import LlmAusgelastet
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,12 @@ async def classify_legal(
                     "risk": float(entry.get("risk", 0.0) or 0.0),
                     "reason": str(entry.get("reason", ""))[:200],
                 }
+    except LlmAusgelastet:
+        # Review 2026-10-30: Last, kein Ausfall des Prüfers — eigener Ausgang, sonst stiege die
+        # Fehlerquote der Stufe neben ``BoerdiLlmAusgelastet``. Der Regex-Boden bleibt.
+        logger.info("LLM legal classifier: kein LLM-Platz frei — Regex-Boden bleibt")
+        metrics.sicherheitsstufe("llm_legal", "ausgelastet")
+        return {}
     except Exception as e:  # noqa: BLE001 — fail-open by design (regex floor stays)
         logger.warning("LLM legal classifier failed: %s", e)
         metrics.sicherheitsstufe("llm_legal", "fehler")

@@ -45,9 +45,58 @@ def test_der_satz_ist_zweisprachig_und_verschieden():
     assert de and en and de != en
 
 
-def test_agent_weg(ausgelastet):
-    lauf = AgentRun(stop_reason="error")
+def test_agent_weg():
+    llm_parallel._zug.set(None)
+    lauf = AgentRun(stop_reason="error", ausgelastet=True)
     assert antwort_oder_ersatz(lauf, "en") == bot_text("en", "error.llmBusy")
+
+
+def test_agent_lauf_mit_anderem_fehler_behaelt_die_nummer(ausgelastet):
+    """Review 2026-10-30: der Merker sagt nur, dass IRGENDEIN Aufruf keinen Platz bekam."""
+    lauf = AgentRun(stop_reason="error")
+    assert antwort_oder_ersatz(lauf, "de") == bot_text("de", "error.answerFailed", nummer="-")
+
+
+def test_die_ausnahme_entscheidet_vor_dem_merker(ausgelastet):
+    """Review 2026-10-30: erst lief ein Nebenaufruf in die Frist, dann stürzte etwas anderes ab —
+    das ist ein Fehler mit Nummer, nicht „ausgelastet“."""
+    text = antwort_fehlertext("de", "error.internal", fehler=RuntimeError("db"))
+    assert text == bot_text("de", "error.internal", nummer="-")
+
+
+def test_ausgelastet_auch_ohne_merker_an_der_ausnahme():
+    llm_parallel._zug.set(None)
+    text = antwort_fehlertext("en", "error.internal",
+                              fehler=llm_parallel.LlmAusgelastet("kein Platz"))
+    assert text == bot_text("en", "error.llmBusy")
+
+
+@pytest.mark.parametrize("weg", ["lernpfad", "kuratierung"])
+def test_lernpfad_und_kuratierung_sagen_ausgelastet_ohne_traceback(monkeypatch, caplog, weg):
+    """Review 2026-10-30: bis dahin „Fehler beim Erstellen …“ mit Traceback auf ERROR."""
+    import logging
+
+    from boerdi.services import llm
+    from boerdi.services.llm_curation import generate_curation_text
+    from boerdi.services.llm_learning_path import generate_learning_path_text
+
+    async def kein_platz(**_kw):
+        raise llm_parallel.LlmAusgelastet("kein LLM-Platz binnen 30 s")
+
+    monkeypatch.setattr(llm, "chat_completion", kein_platz)
+    aufruf = (generate_learning_path_text("Optik", "- Linsen", {}, lang="de")
+              if weg == "lernpfad" else
+              generate_curation_text("Optik", "Linsen, Spiegel", "- Linsen", "Lücken?", {},
+                                     lang="de"))
+    llm_parallel.binde_zug()
+    try:
+        with caplog.at_level(logging.INFO):
+            text = asyncio.run(aufruf)
+        assert llm_parallel.blase_gezeigt()
+    finally:
+        llm_parallel._zug.set(None)
+    assert text == bot_text("de", "error.llmBusy")
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
 def test_ohne_merker_bleibt_der_agent_satz_mit_fehlernummer():

@@ -174,7 +174,7 @@ async def _fehlerblase(
         return ChatResponse(session_id=req.session_id, content="", follow_up="none",
                             debug=err_debug)
     lang = resolve_locale(getattr(req.environment, "locale", None))
-    err_text = antwort_fehlertext(lang, "error.internal")
+    err_text = antwort_fehlertext(lang, "error.internal", fehler=fehler)
     try:
         # Nach einem Fehler steht die Transaktion womöglich auf „abgebrochen“.
         await session.rollback()

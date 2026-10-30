@@ -759,3 +759,22 @@ def test_ausgelasteter_zug_im_strom(welt, monkeypatch):
     assert ergebnis["content"] == bot_text("de", "error.llmBusy")
     assert ergebnis["quick_replies"] == [bot_text("de", "error.retryChip")]
     _ohne_marke(eintraege, "ausgelastet (Strom)")
+
+
+def test_ausgelastete_antwortstelle_ohne_error_zeile(welt, monkeypatch):
+    """Review 2026-10-30: kam ``LlmAusgelastet`` erst in der Antwortstelle an (etwa aus der
+    RAG-Einbettung eines ``always``-Bereichs), stand je Zug ein Traceback auf ERROR."""
+    from boerdi.graph.nodes import respond
+
+    async def kein_platz(*_a, **_k):
+        raise llm_parallel.LlmAusgelastet("kein LLM-Platz binnen 30 s")
+
+    monkeypatch.setattr(respond, "generate_response", kein_platz)
+    # Ohne Medientyp: mit ihm antwortet der Typ-Fokus, ohne die Antwortstelle zu rufen.
+    welt.klassifikator.ergebnis = _suche_klassifiziert().model_copy(
+        update={"entities": {"thema": f"{MARKE} Optik"}})
+    antwort, eintraege = _zug(welt, engine="pattern", session_id=f"bb-{MARKE}-antwortstelle",
+                              message=f"{MARKE}: Was gibt es zur Optik?")
+    assert antwort["content"] == bot_text("de", "error.llmBusy")
+    assert antwort["quick_replies"] == [bot_text("de", "error.retryChip")]
+    assert not [e for e in eintraege if e.stufe in ("ERROR", "CRITICAL")], eintraege

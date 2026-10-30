@@ -148,12 +148,18 @@ async def _anstellen(sem: asyncio.Semaphore) -> None:
     """Auf einen Chat-Platz warten, höchstens ``LLM_SLOT_WAIT_S`` (Nutzer-Entscheid F2).
 
     Ohne Frist füllte ein hängender Anbieter die Kopie: jeder Zug wartete unbegrenzt, und
-    Klassifikator und Antwort warteten nacheinander. Läuft sie ab, scheitern auch alle
-    weiteren Aufrufe dieses Zugs sofort — die Antwort ist dann die „ausgelastet“-Blase.
+    Klassifikator und Antwort warteten nacheinander. Läuft sie ab, wartet dieser Zug nicht
+    mehr: ohne freien Platz scheitert jeder weitere Aufruf sofort — die Antwort ist dann die
+    „ausgelastet“-Blase. Einen freien Platz nimmt er aber (Review 2026-10-30): sonst bräche
+    nach einem gescheiterten Nebenaufruf die Werkzeugschleife in Runde 2 ab, obwohl
+    Werkzeuge und Tokens schon bezahlt sind.
     """
     merker = _zug.get()
     if merker is not None and merker.ausgelastet:
-        raise LlmAusgelastet("Zug bereits ausgelastet")
+        if sem.locked():
+            raise LlmAusgelastet("Zug bereits ausgelastet")
+        await sem.acquire()  # ein freier Platz: ``acquire`` wartet nicht
+        return
     frist = get_settings().llm_slot_wait_s
     if frist <= 0:
         await sem.acquire()

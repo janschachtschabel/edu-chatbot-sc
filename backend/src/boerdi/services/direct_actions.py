@@ -70,9 +70,11 @@ from boerdi.domain.url_helpers import _extract_web_links_from_text
 from boerdi.i18n import Locale, bot_text, resolve_locale
 from boerdi.services.config_loader import load_context_actions, load_display_rules_config
 from boerdi.services.db_sessions import save_message, update_session
+from boerdi.services.fehlertext import ausgelastet_text
 from boerdi.services.guide_markers import _attach_guide_qr, _attach_guide_urls
 from boerdi.services.llm_curation import generate_curation_text
 from boerdi.services.llm_learning_path import generate_learning_path_text
+from boerdi.services.llm_parallel import LlmAusgelastet, blase_gezeigt
 from boerdi.services.mcp.client import call_mcp_tool
 from boerdi.services.mcp.parsers import parse_total_count, parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
@@ -325,11 +327,16 @@ async def _handle_curate_collection(
         lang=resolve_locale(req.environment.locale),
         usage_acc=usage_acc,
     )
+    # Review 2026-10-30: unter dem „ausgelastet“-Satz nur „Nochmal versuchen“.
+    ausgelastet = blase_gezeigt()
+    if ausgelastet:
+        tools_called.append("error")
 
     return ChatResponse(
         session_id=req.session_id,
         content=response_text,
-        quick_replies=[_curate_search_pill(title, lang)],
+        quick_replies=([bot_text(lang, "error.retryChip")] if ausgelastet
+                       else [_curate_search_pill(title, lang)]),
         debug=DebugInfo(
             pattern="ACTION: curate_collection",
             tools_called=tools_called,
@@ -415,6 +422,10 @@ async def _handle_generate_learning_path(
             lang=resolve_locale(req.environment.locale),
             usage_acc=usage_acc,
         )
+        if blase_gezeigt():
+            # Review 2026-10-30: der „ausgelastet“-Satz ist kein Lernpfad — nichts als benutzt
+            # verbuchen und keinen Lernpfad-Zustand setzen (unten wie jeder Fehlschlag).
+            raise LlmAusgelastet("Lernpfad ohne LLM-Platz")
         if lp_reset_notice:
             response_text = (response_text or "") + lp_reset_notice
 
@@ -464,9 +475,13 @@ async def _handle_generate_learning_path(
             cards = cards[:_lp_max]
 
     except Exception as e:
-        logger.exception("generate_learning_path error (%s)", type(e).__name__)
+        if isinstance(e, LlmAusgelastet):
+            logger.info("generate_learning_path: kein LLM-Platz frei — Zug ausgelastet")
+            response_text = ausgelastet_text(lang)
+        else:
+            logger.exception("generate_learning_path error (%s)", type(e).__name__)
+            response_text = bot_text(lang, "action.lp.failed", title=title)
         cards = []
-        response_text = bot_text(lang, "action.lp.failed", title=title)
         lp_failed = True
         tools_called.append("error")
 
@@ -475,7 +490,11 @@ async def _handle_generate_learning_path(
     # speculative has no parallel window in the direct-action path ⇒ like exact.
     _lp_qr_mode, _lp_qr_max = _qr_policy("M09")
     _lp_qr_count = _lp_qr_max if _lp_qr_max is not None else _qr_default_count()
-    if _lp_qr_mode == "none" or _lp_qr_count <= 0:
+    if blase_gezeigt():
+        # Wie unter der Fehlerblase des Chats (Review 2026-10-30): nur „Nochmal versuchen“,
+        # und kein weiterer LLM-Aufruf für Schnellantworten.
+        quick_replies = [bot_text(lang, "error.retryChip")]
+    elif _lp_qr_mode == "none" or _lp_qr_count <= 0:
         quick_replies = []
     else:
         try:
@@ -496,7 +515,9 @@ async def _handle_generate_learning_path(
         except Exception as _qr_err:
             logger.warning("learning_path quick_replies failed: %s", _qr_err)
             quick_replies = []
-    quick_replies = _attach_guide_qr(req, quick_replies, session_state, response_text=response_text)
+    if not blase_gezeigt():
+        quick_replies = _attach_guide_qr(req, quick_replies, session_state,
+                                         response_text=response_text)
 
     debug = DebugInfo(
         persona=session_state.get("persona_id", ""),
@@ -517,13 +538,16 @@ async def _handle_generate_learning_path(
     # Switch session into canvas-edit mode so follow-up messages can be treated
     # as refinements ("mach ihn fuer Klasse 5 einfacher"). ``entities`` is a
     # native dict — the NEU ``sessions.entities`` column is jsonb (no json.dumps).
-    session_state["state_id"] = "S3"
-    session_state.setdefault("entities", {})["_canvas_material_type"] = "lernpfad"
-    session_state["entities"]["_canvas_topic"] = title or ""
+    # Not after a failed step (review 2026-10-30): the next message would be treated as a
+    # refinement of a learning path that was never built.
+    if not lp_failed:
+        session_state["state_id"] = "S3"
+        session_state.setdefault("entities", {})["_canvas_material_type"] = "lernpfad"
+        session_state["entities"]["_canvas_topic"] = title or ""
     await update_session(
         session,
         req.session_id,
-        state_id="S3",
+        state_id=session_state.get("state_id") or "S3",
         entities=session_state.get("entities", {}),
     )
 

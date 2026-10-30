@@ -404,3 +404,27 @@ def test_canvas_reicht_den_merkposten_an_den_transport(monkeypatch):
     _title, _md, cap = _run_gen(monkeypatch, usage_acc=acc)
     assert cap["cc"]["usage_acc"] is acc
     assert cap["cc"]["phase"] == "canvas"
+
+
+def test_gen_ohne_llm_platz_reicht_die_last_weiter(monkeypatch, caplog):
+    """Review 2026-10-30: Last stand mit Traceback auf ERROR im Protokoll, und der Satz kam als
+    Material verpackt zurück. Jetzt antwortet der Aufrufer (``canvas_fast_path``) mit der Blase."""
+    import logging
+
+    import pytest
+
+    from boerdi.services import llm_parallel
+
+    async def kein_platz(**_kw):
+        raise llm_parallel.LlmAusgelastet("kein LLM-Platz binnen 30 s")
+
+    monkeypatch.setattr(canvas_types.config_loader, "load_canvas_material_types", _boom)
+    monkeypatch.setattr(cs, "fetch_wikipedia_summary", lambda *_a, **_k: _leer())
+    monkeypatch.setattr(llm, "chat_completion", kein_platz)
+    with caplog.at_level(logging.INFO), pytest.raises(llm_parallel.LlmAusgelastet):
+        asyncio.run(cs.generate_canvas_content("Brüche", "arbeitsblatt"))
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+async def _leer():
+    return None

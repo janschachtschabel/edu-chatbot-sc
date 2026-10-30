@@ -126,6 +126,9 @@ class AgentRun:
     stop_reason: str = ""
     iterations: int = 0
     tools_called: list[str] = field(default_factory=list)
+    #: Der Lauf endete, weil das Modell keinen Platz bekam (Paket 18F) — die Antwort ist
+    #: dann „ausgelastet“, nicht der Fehler mit Nummer (Review 2026-10-30).
+    ausgelastet: bool = False
     outcomes: list[Any] = field(default_factory=list)
     #: Die vom Modell GELIEFERTEN Ergebnis-Boxen (D2), in Aufrufreihenfolge.
     #: Leer heisst: dieser Zug hat keine geliefert — dann greift weiter die
@@ -344,6 +347,7 @@ async def run_agent_loop(
         except Exception as e:
             if isinstance(e, LlmAusgelastet):
                 logger.info("Agent-Schleife: kein LLM-Platz frei — Zug ausgelastet")
+                run.ausgelastet = True
             else:
                 logger.exception("Agent-Schleife: LLM-Fehler (%s)", type(e).__name__)
             return schluss("error")
