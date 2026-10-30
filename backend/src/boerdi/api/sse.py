@@ -217,7 +217,7 @@ async def sse_turn(
         # ihm, welchen (Paket 7, P1: ``session_busy``). Ein solcher Fall ist
         # erwartbar (ein Doppelversand) und steht auf INFO (Paket 9).
         code = getattr(result, "sse_code", None)
-        logger.log(logging.INFO if code else logging.WARNING,
+        logger.log(logging.INFO if code else logging.WARNING,  # log-ok: Fehlertext
                    "%s END status=error %s", label or "sse_turn", nachricht)
         yield _frame("error", {"message": "internal error", **({"code": code} if code else {})})
         return

@@ -30,6 +30,7 @@ from prometheus_client import (
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from boerdi.api.scope_pfad import route_path
+from boerdi.obs.zugriffslog import zugriff
 from boerdi.settings import get_settings
 
 _SEKUNDEN = (0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 30, 60, 120)
@@ -161,8 +162,21 @@ class MetrikMiddleware:
             route = SAMMEL_ROUTE if code == 405 else self._route(pfad, scope.get("app"))
             methode = scope.get("method", "")
             methode = methode if methode in _METHODEN else "OTHER"
+            dauer = time.perf_counter() - beginn
             HTTP_ANFRAGEN.labels(route, methode, str(code)).inc()
-            HTTP_DAUER.labels(route, methode).observe(time.perf_counter() - beginn)
+            HTTP_DAUER.labels(route, methode).observe(dauer)
+            # Paket 18C/D: die Zugriffszeile statt Uvicorns (ohne IP, Abfrage, rohen Pfad).
+            zugriff(methode, self._log_route(pfad, route, scope.get("app")), code,
+                    round(dauer * 1000))
+
+    def _log_route(self, pfad: str, route: str, app: Any) -> str:
+        """Wie ``route``, nur zählen Studio-Aufrufe der API mit ihrer Vorlage
+        (``/studio/api/sessions/{session_id}/…``); die Metrik fasst sie als ``/studio``
+        zusammen."""
+        if not pfad.startswith("/studio/api/"):
+            return route
+        innen = self._route(pfad[len("/studio"):], app)
+        return "/studio" + innen if innen.startswith("/") else "/studio/api"
 
     def _route(self, pfad: str, app: Any) -> str:
         if self._vorlagen is None:

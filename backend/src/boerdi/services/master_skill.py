@@ -257,7 +257,8 @@ async def _abrufen(kennung: str, *, frisch: bool) -> tuple[str | None, str | Non
         logger.warning("Master-Skill %s ist leer", kennung)
         return None, "leer", True
     if _keine_anleitung(text):
-        logger.warning("Master-Skill %s: keine Anleitung (%s)", kennung, text[-160:])
+        logger.warning("Master-Skill %s: keine Anleitung (%s)",  # log-ok: Repo-Dokument
+                       kennung, text[-160:])
         return None, f"keine Anleitung: {text[-160:]}", True
     return text, None, False
 

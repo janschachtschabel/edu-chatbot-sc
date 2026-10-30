@@ -26,6 +26,7 @@ import re
 from typing import Any
 
 from boerdi.domain.repo_links import editor_url, render_url
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.mcp.client import call_mcp_tool, call_mcp_tool_status, is_mcp_error
 
@@ -152,7 +153,7 @@ async def skill_suche(suchbegriff: str) -> dict[str, Any]:
     if (art or is_mcp_error(roh)) and _SUCHE_FEHLT.search(roh):
         return {"query": suchbegriff, "available": False, "entries": [], "truncated": False}
     if art or is_mcp_error(roh):
-        logger.warning("Skill-Suche %r: %s", suchbegriff, roh[:200])
+        logger.warning("Skill-Suche %s: %s", inhalt(suchbegriff), inhalt(roh))
         raise VerzeichnisFehler("mcp", roh)
     treffer = _liste(_als_objekt(roh).get("skills"))
     return {"query": suchbegriff, "available": True,

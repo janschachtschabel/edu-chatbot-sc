@@ -46,6 +46,7 @@ from boerdi.domain.url_helpers import (
 )
 from boerdi.domain.widget_modes import _widget_modes
 from boerdi.domain.widget_postprocess import _apply_widget_modes_postprocess
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.config_loader import card_pipeline_v2_enabled
 from boerdi.services.prefetch import _fallback_inline_search
 
@@ -240,8 +241,8 @@ async def _postprocess_response_for_widget_modes(
             # Cards. Wenn der LLM "zeig ich dir direkt" o.ä. sagt, ist das
             # ein Conversation-Hook, kein Liefer-Statement.
             logger.info(
-                "safety-net skipped: RAG-only pattern (tools=%s, sources=%s) for msg=%r",
-                _tools, _src, (req.message or "")[:60],
+                "safety-net skipped: RAG-only pattern (tools=%s, sources=%s) for msg=%s",
+                _tools, _src, inhalt(req.message),
             )
             _claim = None  # Safety-Net unten greift damit nicht
         if (
@@ -252,10 +253,10 @@ async def _postprocess_response_for_widget_modes(
         ):
             _mode_label = "inline" if not modes["cards_enabled"] else "kacheln"
             logger.info(
-                "safety-net (%s): %s — Fallback-Search auf '%s'",
+                "safety-net (%s): %s — Fallback-Search auf %s",
                 _mode_label,
                 "leere Cards" if not cards_for_postprocess else "LLM-IDs matchen 0 Cards",
-                (req.message or "")[:60],
+                inhalt(req.message),
             )
             # Fix 2026-06-10: kein Aufrufer übergibt classification_entities —
             # Fallback auf die Turn-Entities aus resp.debug, damit die
@@ -358,8 +359,8 @@ async def _postprocess_response_for_widget_modes(
                 _needed = 5 - len(_picked)
                 logger.info(
                     "inline-mode auto-augment: %d gepickt (LLM), "
-                    "ergänze bis zu %d Einzelinhalte aus Pool für '%s'",
-                    len(_picked), _needed, _user_msg[:60],
+                    "ergänze bis zu %d Einzelinhalte aus Pool für %s",
+                    len(_picked), _needed, inhalt(_user_msg),
                 )
                 _existing_ids = {
                     (c.get("node_id") if isinstance(c, dict)

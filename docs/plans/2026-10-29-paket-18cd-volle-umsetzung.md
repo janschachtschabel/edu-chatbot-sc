@@ -373,3 +373,56 @@ PR 1 etwa 1 Tag · PR 2 etwa 1 Tag · PR 3 etwa ½–1 Tag · PR 4 etwa 1–1½ 
      `/zug/{nummer}` verdeckt den Verlauf einer Sitzung namens `zug` (echte Kennungen `bb-…`);
      bei aufgefächerten Listen steht je Teilaufruf der Einzelwert, nicht die Liste des Modells;
      Fehlernummer und Client-Trace-IDs → Hinweis bei 3.4.
+- 2026-10-29: **Phase 2 gebaut** (2.1–2.11, nur Staging; PR erst nach Merge von #29). Entscheide und
+  Abweichungen, am Code begründet:
+  - **`LOG_CONTENT` öffnet nur Inhalts-Logger** (LiteLLM, OpenAI, MCP folgen der Wurzel) und die
+    Werte-Zeile der Werkzeugargumente auf DEBUG. Rauschen und Adressen bleiben immer gedeckelt
+    (`httpx`, `httpcore`, `h11`, `uvicorn.access` WARNING, `slowapi` ERROR) — der Schalter gilt
+    Inhalten, nicht IPs. **SQLAlchemy** zusätzlich auf WARNING (der Kanarienvogel fand auf DEBUG
+    Ergebniszeilen samt Sitzungs-ID und Texten; SQLAlchemy deckelt sich zwar beim Import selbst,
+    die Liste steht nun an einer Stelle).
+  - **`inhalt()` zeigt nur die Länge, auch mit Schalter** — Inhalte stehen in der Zugakte; im Log
+    nur die Werkzeugargumente (DEBUG) und die Fremd-Logger.
+  - **Keine eigene Drosselungszeile:** die Zugriffszeile zeigt `status=429` mit Route; slowapi
+    (IP als Schlüssel) auf ERROR. `/health` steht wie Dateien auf DEBUG (Proben).
+  - **MCP:** Argumentzeile mit `filterwerte` (Erlaubnisliste der Filter- und Kennungsschlüssel;
+    Unbekanntes nur als Länge); „returned … chars“ ersetzt durch das Ereignis `mcp_aufruf` je
+    Aufruf (auch Fehler, Cache, Fremdwerkzeug). Fehlertexte des Servers (`-32602` wiederholt die
+    Eingabe) und abgelehnte Schreibvorgänge nur als Länge — der Text steht in der Zugakte.
+    `_args_for_log(nur_laengen)` entfällt. **Zwei Tests bewusst geändert:** Suchtext und Titel
+    sind auf INFO nicht mehr lesbar (Filter weiterhin).
+  - `fehlerorte` ist jetzt Helfer in `obs/log_inhalt` (vorher privat in `tool_args`), genutzt
+    auch in `config_elements`. `domain/lp_intent` nimmt `len()` statt des Helfers: `domain`
+    importiert nichts aus `obs`.
+  - **Kanarienvogel** (Gerüst von einem eigenen Agenten): alle fünf Wege über `POST /api/chat`,
+    Markierwort auch in der Sitzungs-ID; Wurzel auf DEBUG, alle anderen Logger erben, Fremd-Logger
+    wie im Betrieb. Funde über den AST-Wächter hinaus: Begründung des Klassifikators
+    (`prefetch`), Such-Adresse mit `q=` (`turn_links`), Wikipedia-Suchtext, Begründung der
+    Kartenauswahl (`tool_loop`, vom Wächter gefunden).
+  - **AST-Wächter** mit Ausnahme-Kommentar `# log-ok: <Grund>` (Fehlertext einer Ausnahme,
+    Konfigurationswert, Repo-Dokument, öffentlicher Titel).
+- 2026-10-29: **Review Phase 2** (frischer Prüfer, nur lesend) — Kern: der AST-Wächter verglich
+  ganze Ausdrücke, Aliasnamen (`_user_msg`, `extra_args`, `query_tokens`, `_m16_thema`,
+  `_prev_slots_pre`, `signature`) und Ketten (`ctx.req.message`) liefen durch, und der
+  Kanarienvogel durchläuft diese Zweige nicht. Behoben:
+  - **Wächter neu:** letzter Namensteil gegen Wortstämme, Inhaltsschlüssel in `.get()`/`[]`,
+    `ereignis(...)` mitgeprüft, Stufe per Bedingung als INFO, **DEBUG außerhalb
+    `if … log_content` ebenfalls**. 28 echte Funde: Inline-Ergänzung (Nachricht), Off-Topic-Filter
+    (Wörter der Nachricht), spekulative Extras (`query`), M16 (Thema), `merge` (Vorbelegung samt
+    Werten, Platzhalter-Thema), Kartenauswahl (Suchwörter), Begrüßung (Signatur mit Suchbegriff
+    bzw. Adresse), Seitenkontext (Titel der Seite), Parser und Transport (Fehlertext des Servers
+    mit der Eingabe), Fremdwerkzeug, Skill-Suche; öffentliche Titel, Zahlen und Werkzeugnamen
+    mit `# log-ok`. Die Strom-Bezeichnung trug `session=<Sitzungs-ID>` → Kurzkennung.
+  - **Ausnahmetexte:** `classify` loggte `InstructorRetryException` (jeder Versuch samt
+    `input_value` und die letzte Antwort mit dem Thema) → Zahl der Versuche und Fehlerorte.
+    Die Formatierer schwärzen Postgres-`DETAIL:` (Fremdschlüssel: Sitzungs-ID; NOT NULL/CHECK:
+    die Zeile — `hide_parameters` erreicht das nicht) und Pydantic-`input_value=` in Meldung und
+    Traceback; JSON mit `default=str`.
+  - `instructor` zu den Inhalts-Loggern (loggt auf DEBUG Anfrage und Antwort des Klassifikators);
+    OpenTelemetry nimmt auch `/api/usage/session/` aus; Filter-Erlaubnisliste um `subject`,
+    `vocabulary`, `parentId`, `suggestionId`, `field`, `method`, `decision`, `status`,
+    `contentFormat`, `licenseKey`, `licenseVersion`, `contentType` ergänzt.
+  - **Bewusst gelassen:** `arg_resolvers` loggt Fach- und Sammlungsnamen, die das Modell statt
+    einer Kennung schickte (Filterwerte, `# log-ok`); der Titel eines verworfenen
+    Wikipedia-Artikels (öffentlich); der Kanarienvogel deckt nicht jeden Zweig ab — dafür der
+    schärfere Wächter.

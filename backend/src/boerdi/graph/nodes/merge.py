@@ -37,6 +37,7 @@ from boerdi.domain.content_types import (
     normalisiere_entitaeten,
 )
 from boerdi.graph.state import TurnContext
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.config_loader import load_placeholder_topics_config
 from boerdi.services.engine_choice import laeuft_ueber_die_schleife
 from boerdi.services.prefetch import run_speculative_prefetch
@@ -92,8 +93,8 @@ async def merge(ctx: TurnContext, engine: str = "pattern") -> TurnContext:
         classification.entities.get("thema")
     ):
         logger.info(
-            "thema='%s' ist Platzhalter — auf leer gesetzt, damit Engine nachfragt",
-            classification.entities.get("thema"),
+            "thema (%s) ist Platzhalter — auf leer gesetzt, damit Engine nachfragt",
+            inhalt(classification.entities.get("thema")),
         )
         classification.entities["thema"] = ""
 
@@ -125,9 +126,11 @@ async def merge(ctx: TurnContext, engine: str = "pattern") -> TurnContext:
                     classification.entities.pop(k)
                     _dropped_carry.append(k)
             if _dropped_carry:
+                # Nur die Namen der Slots — ihre Werte (Thema, Fach …) stehen im Zug.
+                _vorher_belegt = sorted(k for k, v in _prev_slots_pre.items() if v)
                 logger.info(
-                    "topic_switch carry-over filter: popped %s (matched prev=%s)",
-                    _dropped_carry, _prev_slots_pre,
+                    "topic_switch carry-over filter: popped %s (prev belegt: %s)",
+                    _dropped_carry, _vorher_belegt,
                 )
             new_entities = classification.entities
         _prev_slots = {

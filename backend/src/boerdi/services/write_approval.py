@@ -73,6 +73,7 @@ from boerdi.domain.prepared_write import (
 )
 from boerdi.domain.write_confirm import confirmed_args, redact_confirm_token
 from boerdi.i18n import Locale, bot_text, resolve_locale
+from boerdi.obs.log_inhalt import inhalt, kennung
 from boerdi.services import abnahme_hinweis, zustimmung_pruefen
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.db_sessions import save_message, update_session
@@ -274,7 +275,7 @@ async def redeem_write_approval(
         # Nutzer. Dieselbe Aufteilung wie beim Nachbarn ``content_text_action``.
         logger.error(
             "Abnahme für %s (Sitzung %s) warf eine Ausnahme: %s",
-            tool, req.session_id, err)
+            tool, kennung(req.session_id), err)
         return await _unbestaetigt(session, req, session_state, lang, debug)
 
     if is_mcp_error(rohtext) and fehlerart in ("tool", "auth"):
@@ -284,7 +285,7 @@ async def redeem_write_approval(
         # sie kann direkt nachbessern.
         logger.error(
             "Abnahme für %s (Sitzung %s) vom Server abgelehnt: %s",
-            tool, req.session_id, rohtext)
+            tool, kennung(req.session_id), inhalt(rohtext))
         debug.entities["reason"] = "rejected"
         antwort = ChatResponse(
             session_id=req.session_id,
@@ -307,7 +308,7 @@ async def redeem_write_approval(
         # nicht bekommt.
         logger.error(
             "Abnahme für %s (Sitzung %s) nicht bestätigt: %s",
-            tool, req.session_id, rohtext)
+            tool, kennung(req.session_id), inhalt(rohtext))
         return await _unbestaetigt(session, req, session_state, lang, debug)
 
     # Tiefenstaffelung, wie auf dem Rückweg im Tool-Loop: nennt der Server in
@@ -315,7 +316,7 @@ async def redeem_write_approval(
     text = redact_confirm_token(rohtext)
     logger.info(
         "Abnahme für %s (Sitzung %s) eingelöst — es galten die gezeigten Argumente",
-        tool, req.session_id)
+        tool, kennung(req.session_id))
 
     # E3: im eingebetteten Betrieb schreibt der Server nicht selbst, sondern
     # beschreibt die Änderung. Sie muss mit — dieser Zug ist der einzige, in dem

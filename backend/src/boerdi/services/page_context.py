@@ -35,6 +35,7 @@ from typing import Any
 # Das Budget je Textabschnitt steht seit Paket 9 neben dem Deckel am Eingang — dort
 # mit Begründung (EK10b); hier wie bisher als ``page_context.TEXT_PROMPT_BUDGET``.
 from boerdi.domain.seitenkontext_eingang import TEXT_PROMPT_BUDGET
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.mcp.client import call_mcp_tool, is_mcp_error
 
 logger = logging.getLogger(__name__)
@@ -403,8 +404,8 @@ async def resolve_page_context(
     meta["_resolved_at"] = time.time()
     session_state.setdefault("entities", {})[_META_KEY] = meta
     logger.info(
-        "page_context resolved: title=%r source=%s disciplines=%s",
-        meta.get("title"), meta.get("source"), meta.get("disciplines"),
+        "page_context resolved: title=%s source=%s disciplines=%s",
+        inhalt(meta.get("title")), meta.get("source"), meta.get("disciplines"),
     )
     return meta
 

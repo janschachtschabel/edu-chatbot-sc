@@ -414,10 +414,7 @@ async def persist_and_build_response(
         quick_replies = [q for q in quick_replies if not _qr_block_re.search(q or "")]
         if len(quick_replies) < len(_before_qr):
             _dropped_qrs = [q for q in _before_qr if q not in quick_replies]
-            logger.info(
-                "type-focus QR-filter: dropped %d QRs (%r)",
-                len(_dropped_qrs), _dropped_qrs,
-            )
+            logger.info("type-focus QR-filter: dropped %d QRs", len(_dropped_qrs))
 
     # Welle E — Cards pro Box-Typ trimmen nach display_rules.groups.*; bei
     # single_content_box.enabled=false werden Materialien komplett entfernt.
@@ -497,10 +494,7 @@ async def persist_and_build_response(
                 quick_replies = _narrow_qrs + [
                     q for q in _existing_qrs if q not in _narrow_qrs
                 ]
-                logger.info(
-                    "facet narrowing: prepended %d QR(s) %s",
-                    len(_narrow_qrs), _narrow_qrs,
-                )
+                logger.info("facet narrowing: prepended %d QR(s)", len(_narrow_qrs))
         except Exception as _nf_err:
             logger.debug("facet narrowing QRs skipped: %s", _nf_err, exc_info=True)
 

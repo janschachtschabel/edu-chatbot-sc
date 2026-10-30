@@ -49,7 +49,7 @@ def _repo_aus_der_konfig() -> str:
     if not text:
         return ""
     if not text.startswith(("http://", "https://")):
-        logger.warning(
+        logger.warning(  # log-ok: Konfigurationswert
             "repo_base_url in der Konfiguration ist keine Adresse (%r) — es gilt "
             "die Umgebungsvariable REPO_BASE_URL", text,
         )

@@ -29,6 +29,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from boerdi.db.models import UsageEvent
+from boerdi.obs.log_inhalt import kennung
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ def _warne(session_id: str | None) -> None:
     """Einmal formuliert, aus beiden Fehlerzweigen gerufen."""
     logger.warning(
         "usage: Verbrauchszeilen für Sitzung %s nicht geschrieben",
-        session_id or "(ohne Sitzung)", exc_info=True,
+        kennung(session_id), exc_info=True,
     )
 
 

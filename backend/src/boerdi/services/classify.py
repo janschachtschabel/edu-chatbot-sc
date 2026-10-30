@@ -42,6 +42,7 @@ from pydantic import ValidationError
 from boerdi.api.schemas import ClassificationResult
 from boerdi.obs import metrics
 from boerdi.obs import usage as _usage
+from boerdi.obs.log_inhalt import fehlerorte
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm as _llm
 from boerdi.services import prompt_ablage, seitenkontext_prompt
@@ -142,7 +143,8 @@ async def classify_input(
         # Paket 10 (Audit M-5): ``assess`` fängt das und nimmt die Vorgabe.
         raise TimeoutError(f"Klassifikation: keine Antwort binnen {frist:g} s") from None
     except InstructorRetryException as exc:
-        _logger.warning("classify validation exhausted: %s", exc)
+        _logger.warning("classify validation exhausted after %s attempts: %s",
+                        exc.n_attempts, _fehlversuche(exc))
         # Die gescheiterten Versuche kosteten trotzdem (Paket 4, C1; F09):
         # instructor liefert ihren Verbrauch an der Ausnahme mit.
         _buche_fehlversuche(exc, usage_acc, t0)
@@ -153,6 +155,19 @@ async def classify_input(
         verbrauch["model"] = _llm.antwort_modell(verbrauch["model"], model)
         _usage.add_usage(usage_acc, verbrauch, "classify", ms=seit_ms(t0))
     return result
+
+
+def _fehlversuche(exc: InstructorRetryException) -> str:
+    """Die Fehlversuche fürs Log: Orte und Arten der Prüffehler, sonst die Fehlerklasse.
+
+    Paket 18C/D: ``str(exc)`` zeigt jeden Versuch samt ``input_value`` und die letzte Antwort
+    des Modells — also das Thema aus der Nachricht."""
+    teile = []
+    for versuch in exc.failed_attempts or []:
+        fehler = versuch.exception
+        teile.append(fehlerorte(fehler) if isinstance(fehler, ValidationError)
+                     else type(fehler).__name__)
+    return " | ".join(teile) or "-"
 
 
 def _buche_fehlversuche(

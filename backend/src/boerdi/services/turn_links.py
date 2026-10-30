@@ -56,6 +56,7 @@ from boerdi.i18n import (
     bot_text,
     resolve_locale,
 )
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.mcp.client import get_query_metas
 from boerdi.services.zugakte import merke_umschreibung
@@ -288,10 +289,11 @@ async def _finalize_links_and_metas(
                         for c in _before_cards
                         if getattr(c, "node_id", None) not in _kept_ids
                     ]
-                    logger.info(
-                        "off-topic-filter: %d → %d cards (signal-tokens=%s, dropped=%s)",
+                    # Die Signalwörter stammen aus der Nachricht — nur ihre Zahl.
+                    logger.info(  # log-ok: öffentliche Titel der verworfenen Karten
+                        "off-topic-filter: %d → %d cards (signal-tokens=%d, dropped=%s)",
                         len(_before_cards), len(cards),
-                        sorted(_topic_tokens)[:6],
+                        len(_topic_tokens),
                         _dropped_titles[:5],
                     )
         except Exception as _otf_err:
@@ -384,12 +386,14 @@ async def _finalize_links_and_metas(
                         topic=_topic_for_text,
                     )
                     if _new_response.strip() != response_text.strip():
+                        # Paket 18C/D: Texte nur als Länge — vorher und nachher stehen in
+                        # der Zugakte des Zugs (Studio).
                         logger.warning(
                             "type-focus text-replace (label=%s): "
-                            "original=%r | replaced=%r",
+                            "original=%s | replaced=%s",
                             _type_focus_label,
-                            response_text[:200],
-                            _new_response[:200],
+                            inhalt(response_text),
+                            inhalt(_new_response),
                         )
                         merke_umschreibung("typ_fokus", original=response_text,
                                            ersatz=_new_response, grund=_type_focus_label)
@@ -601,10 +605,10 @@ async def _finalize_links_and_metas(
 
             if _changed_reasons and _new_text != response_text:
                 logger.warning(
-                    "anti-halluzination patch: %s | original=%r | patched=%r",
+                    "anti-halluzination patch: %s | original=%s | patched=%s",
                     "; ".join(_changed_reasons),
-                    response_text[:200],
-                    _new_text[:200],
+                    inhalt(response_text),
+                    inhalt(_new_text),
                 )
                 merke_umschreibung("waechter", original=response_text, ersatz=_new_text,
                                    grund="; ".join(_changed_reasons))
@@ -704,8 +708,8 @@ async def _finalize_links_and_metas(
                 )
                 _query_meta_entries.append(_synthetic)
                 logger.info(
-                    "synthesized fallback queryMeta for search-CTA: term=%r repo=%r",
-                    _fallback_term, _repo,
+                    "synthesized fallback queryMeta for search-CTA: term=%s repo=%r",
+                    inhalt(_fallback_term), _repo,
                 )
             except Exception as _qm_err:
                 logger.warning("fallback queryMeta synthesis failed: %s", _qm_err)
@@ -906,10 +910,9 @@ async def _finalize_links_and_metas(
                         f"{_repo}/edu-sharing/components/search"
                         f"?{_urlencode_tf(_qs)}"
                     )
-                    logger.info(
-                        "type-focus search-url built (lrt_uris=%d): %s",
-                        len(_lrt_uris), _tf_search_url[:200],
-                    )
+                    # Paket 18C/D: die Adresse trägt den Suchbegriff (``q=``).
+                    logger.info("type-focus search-url built (lrt_uris=%d): %s",
+                                len(_lrt_uris), inhalt(_tf_search_url))
                 if _tf_search_url:
                     _tf_meta = _QME_tf(
                         tool_name="search_wlo_content",

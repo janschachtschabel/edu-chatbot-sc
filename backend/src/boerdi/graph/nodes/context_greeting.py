@@ -59,6 +59,7 @@ from boerdi.domain.quick_reply_policy import CONTEXT_GREETING_MARKER
 from boerdi.graph.state import TurnContext
 from boerdi.i18n import DEFAULT, Locale, pick_localized, resolve_locale
 from boerdi.i18n.bot_text import bot_text
+from boerdi.obs.log_inhalt import kennung
 from boerdi.services import page_context
 from boerdi.services.config_loader import get_repo_base_url, load_context_actions
 from boerdi.services.db_sessions import save_message, update_session
@@ -456,7 +457,8 @@ async def maybe_context_greeting(
     except Exception as exc:  # pragma: no cover — the history line only
         logger.warning("context greeting message persist failed: %s", exc)
 
-    logger.info("context_greeting fired page_kind=%s sig=%s", page_kind, signature)
+    # Die Signatur trägt den Suchbegriff der Seite bzw. ihre Adresse — nur als Kurzkennung.
+    logger.info("context_greeting fired page_kind=%s sig=%s", page_kind, kennung(signature))
     return ChatResponse(
         session_id=req.session_id,
         content=greeting,

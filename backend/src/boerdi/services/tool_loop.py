@@ -77,6 +77,7 @@ from boerdi.domain.write_confirm import (
 )
 from boerdi.i18n import DEFAULT, bot_text
 from boerdi.i18n.prompt_language import SPRACHE_DER_PERSON
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.obs.usage import add_usage, extract_usage
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm
@@ -384,7 +385,7 @@ async def _run_tool_loop(
                 if _tc.function.name not in _LOCAL_TOOLS
             )
             if _mcp_calls_this_round >= 2:
-                _logger.info(
+                _logger.info(  # log-ok: Werkzeugnamen
                     "parallel-mcp-round: %d netz-gebundene MCP-Tool-Calls in einer "
                     "Runde (%s) — Kandidat für gather-Parallelisierung",
                     _mcp_calls_this_round,
@@ -515,7 +516,7 @@ async def _run_tool_loop(
                     session_state["_selected_card_reasoning"] = reasoning
                     _logger.info(
                         "select_top_cards: %d IDs picked — %s",
-                        len(clean_ids), reasoning[:120],
+                        len(clean_ids), inhalt(reasoning),
                     )
                     # Welle E (2026-05-23) — Konsistenz Prompt ↔ Anzeige:
                     # nach der Auswahl bekommt der LLM einen verschärften

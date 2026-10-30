@@ -48,6 +48,7 @@ from boerdi.domain.canvas.types import (
 )
 from boerdi.domain.completion_messages import _canvas_completion_message
 from boerdi.i18n import DEFAULT, Locale, bot_text, resolve_locale
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.canvas_service import (
     generate_canvas_content,
     material_type_quick_replies_for_persona,
@@ -207,7 +208,7 @@ async def run_canvas_create_fast_path(
                 if 3 <= len(_candidate) <= 80:
                     _c_topic = _candidate
                     # Skip the rest of the messy fallback
-                    logger.info("Topic extracted via marker pattern: %r", _c_topic)
+                    logger.info("Topic extracted via marker pattern: %s", inhalt(_c_topic))
 
         if not _c_topic and _mt_key:
             import re as _re_topic
@@ -372,12 +373,12 @@ async def run_canvas_create_fast_path(
                     _bad = True
                 if _bad:
                     logger.info(
-                        "canvas-create topic fallback rejected as garbage: %r (msg: %r)",
-                        _c_topic, (req.message or "")[:100],
+                        "canvas-create topic fallback rejected as garbage: %s (msg: %s)",
+                        inhalt(_c_topic), inhalt(req.message),
                     )
                     _c_topic = ""
                 else:
-                    logger.info("canvas-create topic fallback: %r", _c_topic)
+                    logger.info("canvas-create topic fallback: %s", inhalt(_c_topic))
 
         # Welle E v4+5 (2026-05-26, eval-185e): Phantom-Topic-Filter.
         # Wenn der Classifier "einem Thema" / "ein Thema" / "irgendwas"
@@ -403,8 +404,8 @@ async def run_canvas_create_fast_path(
             )
             if _is_phantom:
                 logger.info(
-                    "canvas-create phantom topic detected, force slot-clarification: %r",
-                    _c_topic,
+                    "canvas-create phantom topic detected, force slot-clarification: %s",
+                    inhalt(_c_topic),
                 )
                 _c_topic = ""
 
@@ -425,8 +426,8 @@ async def run_canvas_create_fast_path(
                 _mt_key = "auto"
                 _requested_label = _named
                 logger.info(
-                    "M10 robust-fallback: ungelistetes Artefakt %r -> auto (topic=%r)",
-                    _named, _c_topic[:60],
+                    "M10 robust-fallback: ungelistetes Artefakt %s -> auto (topic=%s)",
+                    inhalt(_named), inhalt(_c_topic),
                 )
 
         if _c_topic and _mt_key:
@@ -471,8 +472,8 @@ async def run_canvas_create_fast_path(
                     if not _has_loes:
                         logger.warning(
                             "M10 material_type=%s ohne ## Lösungen-Block — "
-                            "Stub angehängt (topic=%r). LLM-Pattern-Body-Compliance fail.",
-                            _mt_key, _c_topic[:80],
+                            "Stub angehängt (topic=%s). LLM-Pattern-Body-Compliance fail.",
+                            _mt_key, inhalt(_c_topic),
                         )
                         _md = (
                             (_md or "").rstrip()

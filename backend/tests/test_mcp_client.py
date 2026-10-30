@@ -374,8 +374,8 @@ def test_der_bestaetigungsschluessel_steht_nicht_im_protokoll(
     # Offener Befund 1.3: die Argument-Zeile protokollierte die rohen
     # Argumente — bei einem bestätigten Schreibzugriff also den Schlüssel, der
     # die Änderung auslöst, und bei einem Upload die ganze Nutzlast. Das
-    # Werkzeug und die kurzen Argumente bleiben lesbar, denn für die
-    # Fehlersuche an Filtern ist die Zeile da.
+    # Werkzeug und Filter bleiben lesbar, denn für die Fehlersuche an Filtern ist
+    # die Zeile da; Freitext wie ein Titel seit Paket 18C/D nur als Länge.
     _wire_tool_url(monkeypatch)
     _wire_transport(monkeypatch, [_result([_text_part("OK")])])
     geheim = "S3cr3tT0k3n" * 3
@@ -383,11 +383,13 @@ def test_der_bestaetigungsschluessel_steht_nicht_im_protokoll(
     with caplog.at_level("INFO"):
         asyncio.run(client.call_mcp_tool_status(
             "unknown_probe_tool",
-            {"title": "Bruchrechnen", "confirmToken": geheim, "content": nutzlast}))
+            {"title": "Bruchrechnen", "discipline": "Mathematik", "confirmToken": geheim,
+             "content": nutzlast}))
     protokoll = "\n".join(r.getMessage() for r in caplog.records)
     assert geheim not in protokoll
     assert nutzlast not in protokoll
-    assert "Bruchrechnen" in protokoll
+    assert "Bruchrechnen" not in protokoll and "‹12 Zeichen›" in protokoll
+    assert "Mathematik" in protokoll
 
 
 def test_call_mcp_tool_extrahiert_query_meta_in_contextvar(mcp_state, monkeypatch):
@@ -608,9 +610,41 @@ def test_kurations_argumente_stehen_auf_info_nur_als_laengen(mcp_state, monkeypa
     assert "‹16 Zeichen›" in info and "‹2 Einträge›" in info
 
 
-def test_such_argumente_bleiben_auf_info_lesbar(mcp_state, monkeypatch, caplog):
+def test_such_argumente_auf_info_filter_lesbar_suchtext_als_laenge(mcp_state, monkeypatch,
+                                                                    caplog):
+    # Paket 18C/D: der Suchtext steht in der Zugakte des Zugs; das Log zeigt die Filter (der
+    # häufigste Fehlertyp) und vom Freitext nur die Länge.
     _wire_tool_url(monkeypatch)
     _wire_transport(monkeypatch, [_result([_text_part("Treffer")])])
-    with caplog.at_level("INFO", logger="boerdi.services.mcp.client"):
+    with caplog.at_level("DEBUG", logger="boerdi.services.mcp.client"):
+        asyncio.run(client.call_mcp_tool("search_wlo_content",
+                                         {"query": "Optik", "discipline": "Physik"}))
+    assert "Optik" not in caplog.text
+    assert "‹5 Zeichen›" in caplog.text and "Physik" in caplog.text
+
+
+def test_mit_log_content_stehen_die_werte_auf_debug(mcp_state, monkeypatch, caplog):
+    from boerdi.settings import get_settings
+
+    monkeypatch.setenv("LOG_CONTENT", "true")
+    get_settings.cache_clear()
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [_result([_text_part("Treffer")])])
+    with caplog.at_level("DEBUG", logger="boerdi.services.mcp.client"):
         asyncio.run(client.call_mcp_tool("search_wlo_content", {"query": "Optik"}))
-    assert "Optik" in caplog.text
+    debug = [r.getMessage() for r in caplog.records if r.levelname == "DEBUG"]
+    assert any("Optik" in z for z in debug)
+    assert all("Optik" not in r.getMessage() for r in caplog.records if r.levelname == "INFO")
+
+
+def test_jeder_aufruf_ist_ein_ereignis(mcp_state, monkeypatch, caplog):
+    _wire_tool_url(monkeypatch)
+    _wire_transport(monkeypatch, [_result([_text_part("Treffer")]),
+                                  {"error": {"message": "nein", "kind": "tool"}}])
+    with caplog.at_level("INFO", logger="boerdi.services.mcp.client"):
+        asyncio.run(client.call_mcp_tool_status("search_wlo_content", {"query": "a"}))
+        asyncio.run(client.call_mcp_tool_status("search_wlo_content", {"query": "b"}))
+    zeilen = [r for r in caplog.records if getattr(r, "ereignis", "") == "mcp_aufruf"]
+    assert [(z.ereignis_felder["werkzeug"], z.ereignis_felder["status"]) for z in zeilen] == [
+        ("search_wlo_content", "ok"), ("search_wlo_content", "tool")]
+    assert {"aus_cache", "dauer_ms", "zeichen"} <= set(zeilen[0].ereignis_felder)

@@ -45,6 +45,7 @@ from boerdi.api import (
 )
 from boerdi.api.openapi_public import oeffentliche_spec
 from boerdi.api.sse import nachlaeufer_abwarten
+from boerdi.obs.drittlogger import drittlogger_einstellen
 from boerdi.obs.log_format import StdoutHandler, formatter_fuer
 from boerdi.obs.tasks import cancel_and_drain
 from boerdi.obs.trace_id import TraceIdFilter, TraceIdMiddleware
@@ -68,10 +69,9 @@ def _configure_logging(settings: Settings) -> None:
     logging.basicConfig(
         level=getattr(logging, settings.log_level, logging.INFO), handlers=[handler],
     )
-    # ``httpx`` meldet jede Anfrage auf INFO mit voller Adresse samt Abfrage —
-    # Import-Adressen und ihre Umleitungen gehören nicht ins Log (Review Paket 6).
-    # LiteLLM setzt das beim Import auch; darauf verlassen wir uns nicht.
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    # Paket 18C/D: Fremd-Logger ohne Inhalte, IPs und Adressen (``httpx`` meldete jede
+    # Anfrage mit voller Adresse samt Abfrage, Review Paket 6); LiteLLM ohne eigenen Handler.
+    drittlogger_einstellen(settings.log_content)
 
 
 def _warn_insecure_config(settings: Settings) -> None:
@@ -102,6 +102,11 @@ def _warn_insecure_config(settings: Settings) -> None:
         if os.environ.get(alt, "").strip():
             log.warning("⚠ %s ist veraltet und heißt jetzt %s — der alte Name wirkt "
                         "übergangsweise weiter.", alt, neu)
+    if settings.log_content:
+        log.warning(
+            "⚠ LOG_CONTENT ist an — Inhalte (Nachrichten, Prompts, Werkzeugargumente und "
+            "-ergebnisse) stehen auf DEBUG im Log. Nur für eine akute Analyse; danach ausschalten."
+        )
     roh_ausfall = os.environ.get("MODERATION_FAILURE_MODE", "").strip()
     if roh_ausfall and roh_ausfall.lower() != settings.moderation_failure_mode:
         # Review 18: ein Schalter, der schließen soll, öffnete bei einem Tippfehler still.

@@ -53,6 +53,7 @@ from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS, METHOD_NOT_FOUND
 
 from boerdi.obs import metrics
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.mcp.http_fabrik import McpHttpClientFactory, build_http_client_factory
 from boerdi.settings import Settings, get_settings
 
@@ -266,8 +267,9 @@ async def _call_tool(
             # Der Server hat geantwortet und nichts ausgeführt — wie ``isError``
             # unten, nur als JSON-RPC-Fehler gemeldet. Kein ``transport``: der
             # Aufrufer wiederholte sonst dieselbe Ablehnung.
+            # Paket 18C/D: ``-32602`` wiederholt die Eingabe — der Text steht in der Zugakte.
             logger.error("MCP tool %s rejected @ %s: %s", tool_name, target_url,
-                         abgelehnt.error.message)
+                         inhalt(abgelehnt.error.message))
             return {"error": {"message": abgelehnt.error.message, "kind": "tool"}}
         grund = _cause_text(exc)
         logger.error("MCP tool %s transport error @ %s: %s", tool_name, target_url, grund)
@@ -275,7 +277,9 @@ async def _call_tool(
 
     if result.isError:
         message = " ".join(b["text"] for b in _text_blocks(result)) or "tool error"
-        logger.error("MCP tool %s error @ %s: %s", tool_name, target_url, message)
+        # Paket 18C/D: der Server wiederholt in Prüffehlern die Eingabe (-32602) — der Text
+        # steht in der Zugakte des Zugs, hier nur seine Länge.
+        logger.error("MCP tool %s error @ %s: %s", tool_name, target_url, inhalt(message))
         return {"error": {"message": message, "kind": "tool"}}
 
     normalisiert: dict[str, Any] = {"content": _text_blocks(result)}

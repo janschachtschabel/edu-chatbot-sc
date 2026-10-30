@@ -23,7 +23,10 @@ def make_engine(
     """Async engine. ``poolclass=NullPool`` avoids cross-event-loop connection
     reuse — needed when a test mixes asyncio.run() with a TestClient loop."""
     cfg = settings or get_settings()
-    kwargs: dict = {"echo": echo}
+    # Paket 18C/D: SQLAlchemy hängt an jede Fehlermeldung ``[parameters: …]`` an — beim
+    # Speichern einer Nachricht deren Text, und die Meldung landet über ``logger.exception``
+    # im Log. Anweisung und Fehlerart bleiben.
+    kwargs: dict = {"echo": echo, "hide_parameters": True}
     if poolclass is not None:
         kwargs["poolclass"] = poolclass  # NullPool: no pre-ping, no size
     else:

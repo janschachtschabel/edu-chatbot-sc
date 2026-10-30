@@ -22,6 +22,7 @@ import json
 import logging
 from typing import Any
 
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.mcp.client import call_mcp_tool
 
 logger = logging.getLogger(__name__)
@@ -148,9 +149,9 @@ async def _topic_pages_with_warmup(
     filtered = _filter_topic_pages_by_title(global_raw, query)
     if filtered:
         logger.info(
-            "topic_pages query-fallback: server reported 0 hits for %r, "
+            "topic_pages query-fallback: server reported 0 hits for %s, "
             "but global-list contains a title match (returned filtered set)",
-            query,
+            inhalt(query),
         )
         return filtered
     # Welle E v4+12  (2026-05-27): Wenn auch der Title-Filter nichts
@@ -174,8 +175,8 @@ async def _topic_pages_with_warmup(
                     parsed["_global_fallback"] = True
                     logger.info(
                         "topic_pages global-fallback (no title match): "
-                        "returning %d TP-cards as suggestions for %r",
-                        len(parsed["results"]), query,
+                        "returning %d TP-cards as suggestions for %s",
+                        len(parsed["results"]), inhalt(query),
                     )
                     return _json.dumps(parsed, ensure_ascii=False)
         except Exception as _e_json:
@@ -294,8 +295,8 @@ async def _resolve_m16_topic_page_view(
                 "Stand findest du über den Themenseiten-Link unter den Inhalten."
             )
             logger.info(
-                "M16 topic-content: %d Swimlanes für '%s'",
-                len(_topic_page_view.swimlanes), _m16_thema,
+                "M16 topic-content: %d Swimlanes für %s",
+                len(_topic_page_view.swimlanes), inhalt(_m16_thema),
             )
         else:
             # generate_response wurde für M16 übersprungen → hier MUSS ein
@@ -329,5 +330,6 @@ async def _resolve_m16_topic_page_view(
                     "Ich konnte gerade keine anzeigbaren Themenseiten-Inhalte laden. "
                     "Magst du es über die normale Suche versuchen?"
                 )
-            logger.info("M16: keine Inhalte -> Fallback-Text gesetzt (label=%r)", _m16_label)
+            logger.info("M16: keine Inhalte -> Fallback-Text gesetzt (label=%s)",
+                        inhalt(_m16_label))
     return _topic_page_view, cards, _final_text
