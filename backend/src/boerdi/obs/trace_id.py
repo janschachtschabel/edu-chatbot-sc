@@ -4,8 +4,9 @@ Leitfaden „Übergabe an Team 6“: der Header ``x-client-trace-id`` wird durch
 Logs dienstübergreifend gefiltert werden können; Tracing ist B3-konform. Quelle der ID, in
 dieser Reihenfolge: ``x-client-trace-id``, ``X-B3-TraceId``, der erste Teil von ``b3``, sonst
 eine neue (32 Hex-Zeichen). Sie steht in jeder Logzeile der Anfrage (``TraceIdFilter``) und
-geht an die b-api und den eigenen MCP-Server weiter — nie an fremde Server, und nie zurück
-an den Client (Leitfaden: Standard ohne Header vom Dienst).
+geht an die b-api und den eigenen MCP-Server weiter — nie an fremde Server, und nicht als
+Kopfzeile zurück an den Client (Leitfaden: Standard ohne Header vom Dienst). Nur ihr Anfang
+steht als Fehlernummer in Fehlerblasen (Paket 18C/D, :func:`fehlernummer`).
 
 Unabhängig von OpenTelemetry (``obs/otel.py``): das läuft nur mit gesetztem Endpunkt und
 propagiert W3C ``traceparent``; die ID hier gilt immer.
@@ -55,6 +56,16 @@ def fuer_db() -> str | None:
     """Die Trace-ID für eine Spalte ``trace_id`` (0016): ``None`` außerhalb einer Anfrage, damit
     ein Hintergrundlauf ``NULL`` schreibt statt eines leeren Texts."""
     return _trace_id.get() or None
+
+
+#: Zeichen der Fehlernummer: kurz genug zum Vorlesen, für die Suche im Studio eindeutig genug.
+FEHLERNUMMER_ZEICHEN = 12
+
+
+def fehlernummer() -> str:
+    """Die Fehlernummer für eine Blase (Paket 18C/D): der Anfang der Trace-ID — im Studio führt
+    sie über die Suche zum Zug. Außerhalb einer Anfrage ``-``."""
+    return _trace_id.get()[:FEHLERNUMMER_ZEICHEN] or "-"
 
 
 def setze(wert: str) -> contextvars.Token[str]:

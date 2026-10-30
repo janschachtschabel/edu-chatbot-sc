@@ -35,6 +35,7 @@ from typing import Any, Literal
 from fastapi import Request
 
 from boerdi.obs.progress import TurnProgress
+from boerdi.obs.trace_id import fehlernummer
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +220,11 @@ async def sse_turn(
         code = getattr(result, "sse_code", None)
         logger.log(logging.INFO if code else logging.WARNING,  # log-ok: Fehlertext
                    "%s END status=error %s", label or "sse_turn", nachricht)
-        yield _frame("error", {"message": "internal error", **({"code": code} if code else {})})
+        # Paket 18C/D (Review Phase 3): ohne ``code`` ist es ein echter Fehler — die Nummer
+        # führt im Studio zum Zug; das Widget nutzt den Strom, die Person sähe sie sonst erst
+        # nach dem Neuladen.
+        yield _frame("error", {"message": "internal error",
+                               **({"code": code} if code else {"nummer": fehlernummer()})})
         return
     try:
         payload = await to_payload(result)

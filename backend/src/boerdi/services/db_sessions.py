@@ -208,6 +208,8 @@ async def finalize_message(
 
 #: Höchstens so viele Züge liefert die Suche nach Fehlernummer (Paket 18C/D).
 MAX_ZUG_TREFFER = 20
+#: Ab so vielen Zeichen sucht sie per Präfix, darunter genau.
+MIN_PRAEFIX = 8
 
 
 async def zuege_mit_nummer(session: AsyncSession, praefix: str) -> list[dict[str, Any]]:
@@ -218,10 +220,13 @@ async def zuege_mit_nummer(session: AsyncSession, praefix: str) -> list[dict[str
     seine letzte Nachricht — die Antwort, oder die Frage, wenn keine gespeichert wurde.
     ``autoescape``: ``_`` gehört zum Zeichenvorrat der Trace-ID und ist kein Platzhalter. Den
     Präfix-Vergleich trägt der Index ``ix_messages_trace_id`` (``text_pattern_ops``, 0016).
+    Unter :data:`MIN_PRAEFIX` Zeichen genau: eine kurze Client-Trace-ID ist ganz die Nummer.
     """
+    passt = (ChatMessage.trace_id.startswith(praefix, autoescape=True)
+             if len(praefix) >= MIN_PRAEFIX else ChatMessage.trace_id == praefix)
     letzte = (
         select(ChatMessage.id)
-        .where(ChatMessage.trace_id.startswith(praefix, autoescape=True))
+        .where(passt)
         .distinct(ChatMessage.session_id, ChatMessage.trace_id)
         .order_by(ChatMessage.session_id, ChatMessage.trace_id, ChatMessage.id.desc())
     )

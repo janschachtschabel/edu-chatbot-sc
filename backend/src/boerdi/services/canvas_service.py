@@ -34,6 +34,7 @@ from boerdi.domain.canvas.types import (
     material_type_label,
 )
 from boerdi.i18n import DEFAULT, Locale, bot_text, language_name, template_hint
+from boerdi.obs.trace_id import fehlernummer
 from boerdi.services import llm
 from boerdi.services.wikipedia_service import fetch_wikipedia_summary
 
@@ -331,7 +332,8 @@ async def generate_canvas_content(
         logger.exception("generate_canvas_content failed: %s", e)
         md = (
             f"# {material_type_label(mat, lang)}: {topic}\n\n"
-            f"*{bot_text(lang, 'material.createFailed')}: {e}*"
+            # Paket 18C/D: nie der Text des Anbieters im Material — die Nummer führt zum Zug.
+            f"*{bot_text(lang, 'material.createFailed', nummer=fehlernummer())}*"
         )
 
     md = _strip_latex(md)

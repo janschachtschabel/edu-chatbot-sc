@@ -234,5 +234,6 @@ def test_integration_llm_error_returns_graceful_message(monkeypatch):
     text, cards, tools, outcomes = _integ(
         monkeypatch, [], raises=RuntimeError("upstream down"))
     assert "upstream down" not in text          # Audit 2026-09-29: nicht an die Person
-    assert "RuntimeError" in text
+    # Paket 18C/D (3.4): Fehlernummer statt Fehlerklasse.
+    assert "RuntimeError" not in text and "(Fehlernummer: " in text
     assert isinstance(cards, list) and isinstance(tools, list)

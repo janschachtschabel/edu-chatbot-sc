@@ -1489,3 +1489,15 @@ async def test_der_systemteil_wird_als_prompt_fassung_vermerkt(monkeypatch):
     abgelegt = " ".join(t for _art, t in prompt_ablage._OFFEN.values())
     assert "Merkwort-Zebra-4711" not in abgelegt
     assert "Geometrische Optik" not in abgelegt
+
+
+def test_ein_abgebrochener_agent_lauf_nennt_die_fehlernummer():
+    """Review Phase 3: der Agent ist die Vorgabe-Maschine — ein Modellfehler (``stop_reason``
+    ``error``) bekommt dieselbe Blase mit Fehlernummer wie der Muster-Weg; ein Lauf, der nur
+    ohne Text endete, bleibt beim Ersatzsatz ohne Nummer."""
+    from boerdi.services.agent_abschluss import antwort_oder_ersatz
+    from boerdi.services.agent_loop import AgentRun
+
+    assert antwort_oder_ersatz(AgentRun(stop_reason="error"), "de").endswith(
+        "(Fehlernummer: -)")
+    assert "Fehlernummer" not in antwort_oder_ersatz(AgentRun(stop_reason="ende"), "de")

@@ -12,6 +12,7 @@ import logging
 
 from boerdi.i18n.bot_text import bot_text
 from boerdi.i18n.prompt_language import SPRACHE_DER_PERSON
+from boerdi.obs.trace_id import fehlernummer
 from boerdi.services import llm
 from boerdi.services.agent_loop import AgentRun
 
@@ -51,6 +52,11 @@ def antwort_oder_ersatz(lauf: AgentRun, sprache: str) -> str:
                     "Ergebnis=%s, Ende=%s)",
                     len(lauf.dokumente), lauf.result is not None, lauf.stop_reason)
         return bot_text(sprache, "agent.delivered")
+    if lauf.stop_reason == "error":
+        # Paket 18C/D (Review Phase 3): ein Modellfehler — dieselbe Blase wie im Muster-Weg,
+        # mit Fehlernummer. Ein Lauf, der nur ohne Text endete, behält den Ersatzsatz.
+        logger.info("Agent-Modus: Lauf mit Fehler — Ersatzsatz mit Fehlernummer")
+        return bot_text(sprache, "error.answerFailed", nummer=fehlernummer())
     schluessel = "agent.incomplete" if lauf.stop_reason in GEDECKELT else "agent.failed"
     logger.info("Agent-Modus: Lauf ohne Text (Ende=%s) — Ersatzsatz %s",
                 lauf.stop_reason, schluessel)

@@ -158,7 +158,8 @@ def test_graph_exception_becomes_graceful_bubble(monkeypatch, client):
     assert r.status_code == 200  # NOT 500
     body = r.json()
     assert "schiefgelaufen" in body["content"]
-    assert "RuntimeError" in body["content"]
+    # Paket 18C/D (3.4): Fehlernummer statt Fehlerklasse.
+    assert "RuntimeError" not in body["content"] and "Fehlernummer" in body["content"]
     assert body["quick_replies"] == ["Nochmal versuchen"]
     assert body["debug"]["pattern"] == "ERROR: unhandled_chat_exception"
     assert saves and saves[0]["role"] == "assistant"
@@ -268,10 +269,11 @@ def test_error_bubble_follows_widget_language(monkeypatch, client):
         "environment": {"locale": "en-GB"},
     })
     body = r.json()
-    assert body["content"] == (
-        "Something went wrong on our side (RuntimeError). Try again — if it "
-        "keeps happening, let me know."
-    )
+    # Paket 18C/D: Fehlernummer (Anfang der Trace-ID dieser Anfrage) statt Fehlerklasse.
+    assert body["content"].startswith(
+        "Something went wrong on our side. Try again — if it "
+        "keeps happening, let me know. (Error number: ")
+    assert "RuntimeError" not in body["content"]
     assert body["quick_replies"] == ["Try again"]
 
 
@@ -504,3 +506,31 @@ def test_die_fehlerblase_sieht_trace_id_und_zugakte_des_zuges(monkeypatch, clien
     client.post("/api/chat", json={"session_id": "bb-1", "message": "hallo", "environment": {}},
                 headers={"x-client-trace-id": "zug-4711-abcdef"})
     assert gesehen == [("zug-4711-abcdef", ["search_wlo_content"])]
+
+
+# ── Paket 18C/D (3.2): ``ui`` neben ``debug`` ───────────────────────────────
+
+def test_die_antwort_traegt_ui_neben_debug(monkeypatch, client):
+    from boerdi.api.schemas import DebugInfo
+
+    _patch(monkeypatch, result={"response": ChatResponse(
+        session_id="bb-1", content="x",
+        debug=DebugInfo(pattern="M04", intent="I03", persona="P-LEH"))})
+    body = _post(client).json()
+    assert body["ui"]["pattern"] == "M04" and body["ui"]["intent"] == "I03"
+    assert "persona" not in body["ui"]
+    assert body["debug"]["persona"] == "P-LEH"      # Phase 3: debug bleibt
+
+
+def test_auch_die_fehlerblase_traegt_ui(monkeypatch, client):
+    _patch(monkeypatch, exc=RuntimeError("boom"))
+    assert _post(client).json()["ui"]["pattern"] == "ERROR: unhandled_chat_exception"
+
+
+def test_die_fehlerblase_nennt_die_fehlernummer_des_zuges(monkeypatch, client):
+    """Paket 18C/D (3.4): die Nummer sind die ersten 12 Zeichen der Trace-ID — im Studio
+    führt sie über die Suche zum Zug."""
+    _patch(monkeypatch, exc=RuntimeError("boom"))
+    r = client.post("/api/chat", json={"session_id": "bb-1", "message": "x", "environment": {}},
+                    headers={"x-client-trace-id": "4f2a9c01d3b7e6a8deadbeef"})
+    assert r.json()["content"].endswith("(Fehlernummer: 4f2a9c01d3b7)")

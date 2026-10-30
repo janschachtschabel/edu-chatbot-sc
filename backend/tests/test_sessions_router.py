@@ -233,7 +233,8 @@ def test_public_messages_accepts_valid_id_and_passes_di_session(client, monkeypa
     calls = _fake(monkeypatch, "get_messages", [{"id": 1, "role": "user", "content": "hi"}])
     r = client.get(f"/api/sessions/{_VALID}/messages")  # NO auth header — public
     assert r.status_code == 200
-    assert r.json() == [{"id": 1, "role": "user", "content": "hi"}]
+    # Paket 18C/D (3.2): jede Nachricht trägt zusätzlich ``ui`` (hier leer: kein Debug-Block).
+    assert r.json() == [{"id": 1, "role": "user", "content": "hi", "ui": {}}]
     (args, _kwargs) = calls[0]
     assert args[0] is _SESSION and args[1] == _VALID
 
@@ -326,8 +327,8 @@ def test_zug_suche_braucht_den_studio_schluessel(client):
     assert client.get("/api/sessions/zug/4f2a9c01").status_code == 401
 
 
-@pytest.mark.parametrize("nummer", ["4f2a9c0", "4f2a9c01 x", "4f2a/9c01", "a" * 129])
-def test_zug_suche_weist_kurze_und_fremde_nummern_ab(client, monkeypatch, nummer):
+@pytest.mark.parametrize("nummer", ["4f2a9c01 x", "4f2a/9c01", "a" * 129])
+def test_zug_suche_weist_fremde_nummern_ab(client, monkeypatch, nummer):
     calls = _fake(monkeypatch, "zuege_mit_nummer", [])
     r = client.get(f"/api/sessions/zug/{nummer}", headers=_AUTH)
     assert r.status_code in (404, 422)  # „/“ trennt den Pfad: keine Route
@@ -346,3 +347,10 @@ def test_zug_suche_wird_nicht_vom_oeffentlichen_verlauf_verdeckt(client, monkeyp
     calls = _fake(monkeypatch, "zuege_mit_nummer", [])
     assert client.get("/api/sessions/zug/messages", headers=_AUTH).status_code == 200
     assert calls == [((_SESSION, "messages"), {})]
+
+
+def test_zug_suche_nimmt_auch_kurze_nummern(client, monkeypatch):
+    # Paket 18C/D (3.4): eine Client-Trace-ID unter 8 Zeichen ist die ganze Fehlernummer.
+    calls = _fake(monkeypatch, "zuege_mit_nummer", [])
+    assert client.get("/api/sessions/zug/abc", headers=_AUTH).status_code == 200
+    assert calls == [((_SESSION, "abc"), {})]

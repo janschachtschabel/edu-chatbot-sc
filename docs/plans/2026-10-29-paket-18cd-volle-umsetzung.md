@@ -426,3 +426,39 @@ PR 1 etwa 1 Tag · PR 2 etwa 1 Tag · PR 3 etwa ½–1 Tag · PR 4 etwa 1–1½ 
     einer Kennung schickte (Filterwerte, `# log-ok`); der Titel eines verworfenen
     Wikipedia-Artikels (öffentlich); der Kanarienvogel deckt nicht jeden Zweig ab — dafür der
     schärfere Wächter.
+- 2026-10-30: **Phase 1 und 2 gemergt** (#29, #30 → main `9ee94ed`; CI lief erst nach Klärung der
+  GitHub-Abrechnung). **Phase 3 gebaut** (3.1–3.6, nur Staging):
+  - `api/schemas_ui.UiInfo` und `api/publikum`: `ui_aus_debug`, `ui_aus_gespeichert` (alte und
+    kaputte Nachrichten ergeben leere Felder, nie einen Fehler), `antwort_mit_ui`,
+    `verlauf_mit_ui` — die Namen `antwort_fuer`/`verlauf_fuer(…, intern)` aus §4 folgen in
+    Phase 4, wenn es etwas zu unterscheiden gibt. Im Verlauf steht `ui` kompakt (nur gesetzte
+    Felder). Ein bestehender Verlaufstest erwartet jetzt `"ui": {}` (additiv).
+  - `ist_interner_zug` (öffentlich): Proxy-Fall unverändert, neu: ohne Schlüssel gilt der
+    Entwicklungsmodus als Freigabe (wie `require_studio_key`).
+  - Fehlernummer = die ersten 12 Zeichen der Trace-ID (`trace_id.fehlernummer`, außerhalb einer
+    Anfrage `-`); `error.internal`, `material.genFailed`, `material.createFailed` und neu
+    `error.answerFailed` tragen `(Fehlernummer: …)` am Satzende; der Canvas schreibt keinen
+    Anbietertext mehr ins Material; ein Wächter verbietet `{kind}` in allen Texten.
+    **Entscheid zum Review von Phase 1:** keine eigene Zug-ID neben der Client-ID (bräuchte eine
+    weitere Spalte) — die Suche nimmt Nummern unter 8 Zeichen jetzt **genau** (eine kurze
+    Client-Trace-ID ist ganz die Nummer); ein Client, der eine ID über Züge wiederverwendet,
+    bekommt einen Treffer je Sitzung — der führt zum Gespräch, das genügt.
+  - Runner warnt einmal je Adresse ohne Debug-Block; `run_golden` schickt `STUDIO_API_KEY` an
+    die eigene Anlage und warnt sonst (`evals/README.md`).
+  - Vertrag: `ChatResponse.ui` + Schema `UiInfo` (beide Dokumente), Muster der Suchroute
+    `{1,128}`; eingetragen in `bewusste-vertragszusaetze.md`.
+- 2026-10-30: **Review Phase 3** (frischer Prüfer, nur lesend), behoben:
+  - `ui.modulations` gab das ganze `phase3_modulations` weiter, darin die vom Modell geschriebene
+    Begründung der Kartenauswahl, die Kernregel und der Zustandsübergang samt Grund (bis zu
+    Ausnahmetext) → Erlaubnisliste der Schlüssel, die das Gastgeber-Ereignis liest.
+  - Der `error`-Rahmen des Stroms trug keine Nummer — das Widget nutzt den Strom → `nummer` ohne
+    `code` (Vertragszusatz SSE). **Phase 4:** das Widget zeigt sie an.
+  - Ein Agent-Lauf mit Modellfehler endete ohne Nummer → `error.answerFailed` (jetzt derselbe
+    Satz wie `agent.failed`, mit Nummer); ohne Fehler bleibt der Ersatzsatz.
+  - Der Entwicklungsmodus änderte die Buchung im `forward`-Modus → `darf_diagnose` (Diagnose)
+    getrennt von `ist_interner_zug` (Buchung, wie vorher).
+  - `fallback_texts` schneidet am ersten Satz — Blasen von vor der Fehlernummer zählen weiter.
+  - Kleinigkeiten: Kommentare, `CHANGE_ME` in `run_golden`, Nutzungsregel an `prepared_write`.
+  - **Für Phase 4 vermerkt:** `ui.type_focus` gibt es nur im Verlauf (live erkennt das Widget
+    den Typ-Fokus per Muster im Text) — beim Umstellen live nachreichen; der Verlauf trägt bis
+    zum Schnitt `ui` und `debug` doppelt.

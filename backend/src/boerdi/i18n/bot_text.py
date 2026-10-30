@@ -143,10 +143,10 @@ BOT_TEXT: Final[Catalogue] = {
         ),
         "material.genFailed": (
             "Ich konnte das **{label}** zum Thema *{topic}* gerade "
-            "nicht erstellen ({kind}). Versuch es nochmal — "
-            "meistens klappt es beim zweiten Anlauf."
+            "nicht erstellen. Versuch es nochmal — "
+            "meistens klappt es beim zweiten Anlauf. (Fehlernummer: {nummer})"
         ),
-        "material.createFailed": "Fehler beim Erstellen",
+        "material.createFailed": "Fehler beim Erstellen (Fehlernummer: {nummer})",
         "material.solutionsStub": (
             "## Lösungen\n\n"
             "_Lösungen werden ergänzt — du kannst mir "
@@ -342,11 +342,15 @@ BOT_TEXT: Final[Catalogue] = {
             "Ich kann deine Nachricht gerade nicht prüfen lassen und antworte "
             "deshalb lieber nicht. Versuch es bitte in ein paar Minuten noch einmal."
         ),
-        # ``{kind}`` ist der Ausnahme-TYP (``RuntimeError``), nicht die
-        # Meldung — interne Details gehören nicht in eine Nutzer-Blase.
+        # Paket 18C/D: die Fehlernummer (Anfang der Trace-ID) am Satzende statt der
+        # Ausnahme-Klasse — sie führt im Studio zum Zug; die Auswertung erkennt den Satz davor.
         "error.internal": (
-            "Da ist intern etwas schiefgelaufen ({kind}). Versuch es nochmal — "
-            "wenn es bestehen bleibt, gib mir kurz Bescheid."
+            "Da ist intern etwas schiefgelaufen. Versuch es nochmal — "
+            "wenn es bestehen bleibt, gib mir kurz Bescheid. (Fehlernummer: {nummer})"
+        ),
+        "error.answerFailed": (
+            "Ich konnte gerade keine Antwort erzeugen. Versuch es noch einmal "
+            "— meistens klappt es beim zweiten Anlauf. (Fehlernummer: {nummer})"
         ),
         "error.retryChip": "Nochmal versuchen",
         # ── A4c-2b: eine Maschine endet ohne eigenen Text ──────────────
@@ -468,10 +472,10 @@ BOT_TEXT: Final[Catalogue] = {
             "For example: \"Create a worksheet on photosynthesis for year 6\"."
         ),
         "material.genFailed": (
-            "I could not create the **{label}** on *{topic}* just now "
-            "({kind}). Please try again — it usually works on the second attempt."
+            "I could not create the **{label}** on *{topic}* just now. "
+            "Please try again — it usually works on the second attempt. (Error number: {nummer})"
         ),
-        "material.createFailed": "Could not create this material",
+        "material.createFailed": "Could not create this material (Error number: {nummer})",
         "material.solutionsStub": (
             "## Solutions\n\n"
             "_Solutions will be added — reply with \"add solutions\" and I "
@@ -603,8 +607,12 @@ BOT_TEXT: Final[Catalogue] = {
             "answer. Please try again in a few minutes."
         ),
         "error.internal": (
-            "Something went wrong on our side ({kind}). Try again — if it "
-            "keeps happening, let me know."
+            "Something went wrong on our side. Try again — if it "
+            "keeps happening, let me know. (Error number: {nummer})"
+        ),
+        "error.answerFailed": (
+            "I could not produce an answer just now. Try again — it usually "
+            "works on the second attempt. (Error number: {nummer})"
         ),
         "error.retryChip": "Try again",
         "agent.incomplete": (

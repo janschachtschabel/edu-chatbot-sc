@@ -49,23 +49,39 @@ def adopt_turn_auth_block(request: Request) -> None:
         )
 
 
-def _interner_zug(request: Request) -> bool:
-    """Ein Zug der Anlage selbst: über den Studio-Proxy (Studio-Proben) oder mit gültigem
-    Studio-Schlüssel (Evaluation, Lasttest). Er bucht auf ``B_API_KEY`` — der Proxy-Kopf fehlt
-    ihm, und der Studio-Proxy reicht ``Authorization`` nie durch (Review-Runde 3, Befund 1).
+def ist_interner_zug(request: Request) -> bool:
+    """Fragt die Anlage selbst? Über den Studio-Proxy (Studio-Proben, Verlauf) oder mit gültigem
+    Studio-Schlüssel (Evaluation, Lasttest). Daran hängen die Diagnose für dieses Publikum
+    (Paket 18C/D: Zugakte, ab Phase 4 der Debug-Block) und die Buchung auf ``B_API_KEY`` — der
+    Proxy-Kopf fehlt solchen Zügen, und der Studio-Proxy reicht ``Authorization`` nie durch
+    (Review-Runde 3, Befund 1).
 
     Bei offenem Tor (``BOERDI_ALLOW_OPEN_ADMIN`` ohne Passwort) kommt jeder durch den Proxy.
     Ist zugleich ein Schlüssel gesetzt, setzt der Proxy ihn nicht ein
-    (``studio_proxy._injectable_key``) — dann ist der Durchgang keine Freigabe (Paket 18C/D,
-    Review Phase 1). Ohne Schlüssel ist ohnehin alles offen (Entwicklungsmodus)."""
+    (``studio_proxy._injectable_key``) — dann ist der Durchgang keine Freigabe (Review Phase 1).
+    Den Entwicklungsmodus zählt erst :func:`darf_diagnose` — hier hängt die Buchung daran
+    (Review Phase 3)."""
     from boerdi.api.studio_auth import gate_is_open
     from boerdi.api.studio_proxy import ueber_studio  # zirkulär: studio_proxy → deps
 
-    if ueber_studio(request):
-        return not (gate_is_open() and expected_studio_key())
     erwartet = expected_studio_key()
+    if ueber_studio(request):
+        return not (gate_is_open() and erwartet)
     gegeben = (request.headers.get("x-studio-key") or "").strip()
     return bool(erwartet) and gegeben.isascii() and hmac.compare_digest(gegeben, erwartet)
+
+
+def darf_diagnose(request: Request) -> bool:
+    """Bekommt diese Anfrage Diagnose (Zugakte im Verlauf, ab Phase 4 der Debug-Block)?
+
+    Wie :func:`ist_interner_zug`, dazu der reine Entwicklungsmodus (``BOERDI_ALLOW_OPEN_ADMIN``
+    ohne Schlüssel): dort ist ohnehin alles offen (``require_studio_key``), und der Lasttest
+    behält lokal seine Kennzahlen (Plan R4). Getrennt von der Buchung (Review Phase 3): sonst
+    buchte ein so eingerichteter Betrieb mit ``B_API_KEY_MODE=forward`` jeden anonymen Zug auf
+    den gemeinsamen Schlüssel."""
+    if ist_interner_zug(request):
+        return True
+    return not expected_studio_key() and get_settings().allow_open_admin
 
 
 def uebernimm_llm_schluessel(request: Request, *, pflicht: bool = True) -> None:
@@ -75,7 +91,7 @@ def uebernimm_llm_schluessel(request: Request, *, pflicht: bool = True) -> None:
     Ein unbrauchbarer Wert wird gemeldet, nie ausgegeben. Was dann gilt, sagt
     ``B_API_KEY_MODE`` (AB2): ``auto`` nimmt ``B_API_KEY``; ``static`` liest den Kopf gar
     nicht; ``forward`` weist einen Zug ohne gültigen Schlüssel mit 401 ab, sofern das LLM
-    über die b-api läuft — außer Züge der Anlage selbst (:func:`_interner_zug`).
+    über die b-api läuft — außer Züge der Anlage selbst (:func:`ist_interner_zug`).
     ``pflicht=False`` für Auskünfte, die kein Zug sind. ``forward`` verlangt einen Schlüssel,
     es prüft ihn nicht: das tut die b-api (ungültig → 401 dort).
     """
@@ -91,7 +107,7 @@ def uebernimm_llm_schluessel(request: Request, *, pflicht: bool = True) -> None:
             "<Schlüssel>“)."
         )
     if (not gilt and pflicht and einst.b_api_key_mode == "forward"
-            and einst.llm_provider.startswith("b-api") and not _interner_zug(request)):
+            and einst.llm_provider.startswith("b-api") and not ist_interner_zug(request)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="b-api key required: Authorization: Bearer <key> (B_API_KEY_MODE=forward)",

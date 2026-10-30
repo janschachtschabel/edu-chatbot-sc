@@ -22,6 +22,7 @@ scenario generator, and the judge.
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import os
 import uuid
@@ -110,7 +111,20 @@ async def _post_chat(
     async with httpx.AsyncClient(timeout=_chat_timeout_s()) as c:
         r = await c.post(chat_url, json=payload, headers=_interne_koepfe(chat_url))
         r.raise_for_status()
-        return r.json()
+        antwort = r.json()
+    if not isinstance(antwort.get("debug"), dict):
+        _warne_ohne_diagnose(chat_url)
+    return antwort
+
+
+@functools.cache
+def _warne_ohne_diagnose(chat_url: str) -> None:
+    """Einmal je Adresse (Paket 18C/D, Plan R3): ab Phase 4 kommt der Debug-Block nur mit
+    Freigabe — ohne ihn zählte die Auswertung still kein Muster, keine Werkzeuge, keine Spur."""
+    logger.warning(
+        "Eval: Antwort von %s ohne Debug-Block — Muster, Werkzeuge und Spur fehlen der "
+        "Auswertung. STUDIO_API_KEY setzen (geht nur an die eigene Anlage) bzw. EVAL_CHAT_URL "
+        "prüfen.", chat_url)
 
 
 def _merge_canvas(bot_text: str, bot_resp: dict[str, Any]) -> str:

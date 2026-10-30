@@ -208,3 +208,30 @@ def test_klartext_auf_stdout_bricht_nicht_an_sonderzeichen(monkeypatch, capsys) 
     finally:
         wurzel.handlers[:] = alte
     assert "achtung" in roh.getvalue().decode("cp1252")
+
+
+@pytest.mark.parametrize("tid,erwartet", [
+    ("4f2a9c01d3b7e6a8deadbeef00112233", "4f2a9c01d3b7"),
+    ("abc", "abc"),
+    ("", "-"),
+])
+def test_die_fehlernummer_ist_der_anfang_der_trace_id(tid, erwartet):
+    """Paket 18C/D (3.4): kurz genug zum Vorlesen, lang genug für die Suche (ab 8 Zeichen
+    per Präfix, kürzere genau)."""
+    from boerdi.obs import trace_id
+
+    token = trace_id.setze(tid)
+    try:
+        assert trace_id.fehlernummer() == erwartet
+    finally:
+        trace_id.zuruecksetzen(token)
+
+
+def test_kein_text_nennt_die_fehlerklasse():
+    """Paket 18C/D (3.4): Blasen nannten ``({kind})`` — die Klasse der Ausnahme sagt der Person
+    nichts und verrät Innenleben; die Fehlernummer führt im Studio zum Zug."""
+    from boerdi.i18n.bot_text import BOT_TEXT
+
+    mit_klasse = [(sprache, k) for sprache, texte in BOT_TEXT.items()
+                  for k, v in texte.items() if "{kind}" in v]
+    assert mit_klasse == []
