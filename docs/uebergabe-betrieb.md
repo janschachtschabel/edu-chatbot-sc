@@ -148,11 +148,11 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 | `boerdi_http_request_duration_seconds` | route, method |
 | `boerdi_http_requests_in_progress` | – (überwiegend offene Zug-Ströme) |
 | `boerdi_turns_total` | engine |
-| `boerdi_llm_calls_total` | phase, outcome (ok/fehler/abbruch) |
+| `boerdi_llm_calls_total` | phase, outcome (ok/fehler/abbruch/ausgelastet — kein LLM-Platz binnen `LLM_SLOT_WAIT_S`) |
 | `boerdi_llm_call_duration_seconds` | phase |
 | `boerdi_mcp_calls_total` | server, outcome (ok/tool/transport/timeout/auth) |
 | `boerdi_mcp_call_duration_seconds` | server |
-| `boerdi_safety_stage_total` | stage (`openai_moderation`, `llm_legal`), outcome (ok/fehler/keine_zugangsdaten/teilweise) |
+| `boerdi_safety_stage_total` | stage (`openai_moderation`, `llm_legal`), outcome (ok/fehler/keine_zugangsdaten/teilweise/ausgelastet) |
 | `boerdi_llm_schluessel_abgelehnt_total` | anbieter, quelle (`b_api_key`/`openai_api_key`/`weitergereicht`) — der Anbieter weist den Schlüssel ab (401), Paket 18F |
 | `boerdi_llm_platz_frist_total` | – Chat-Aufrufe ohne LLM-Platz binnen `LLM_SLOT_WAIT_S` („ausgelastet“), Paket 18F |
 | `boerdi_build_info` | version |
@@ -225,9 +225,13 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 - **Grenzen:**
   - **LLM-Deckel je Pod:** `LLM_MAX_CONCURRENCY` gilt je Pod. Bei N Pods sollte er auf Limit/N stehen.
     Ein Chat-Aufruf wartet höchstens `LLM_SLOT_WAIT_S` (Vorgabe 30 s, 0 = ohne) auf einen
-    Platz; danach antwortet der Zug „gerade ausgelastet“, und seine weiteren Aufrufe scheitern
-    sofort — ein hängender Anbieter füllt den Pod nicht mehr unbegrenzt (Paket 18F).
-  - **Äußeres Ratenlimit:** `RATE_LIMIT_CHAT` je IP und Route, Vorgabe `120/minute` (bis
+    Platz; danach wartet der Zug kein zweites Mal: ohne freien Platz scheitern seine weiteren
+    Aufrufe sofort, einen freien nimmt er — ein hängender Anbieter füllt den Pod nicht mehr
+    unbegrenzt (Paket 18F, Review 2026-10-30). Scheitert so die Antwort, sagt der Zug „gerade
+    ausgelastet“; trifft die Frist nur einen Nebenaufruf, läuft er ohne ihn weiter — die
+    Klassifikation mit einer Ersatz-Einordnung, die Rechtsprüfung nur mit dem Regex-Boden
+    (fail-open, Zähler `boerdi_safety_stage_total{stage="llm_legal",outcome="ausgelastet"}`).
+  - **Äußeres Ratenlimit:** `RATE_LIMIT_CHAT` je IP und Route (auch `/api/agent`), Vorgabe `120/minute` (bis
     Paket 18F 20). Ein ungültiger Wert verhindert den Start. Ohne `TRUST_FORWARDED_FOR`
     hinter einem Proxy teilen sich alle Nutzer eine IP. Das Widget nennt bei 429 die
     Wartezeit aus `Retry-After`.
