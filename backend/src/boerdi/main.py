@@ -85,6 +85,10 @@ def _warn_insecure_config(settings: Settings) -> None:
             "Staging/Produktion einen langen Zufallswert setzen; lokal öffnet "
             "BOERDI_ALLOW_OPEN_ADMIN=1."
         )
+    if key and not key.isascii():
+        # Review 2026-10-30: Kopfzeilen kommen als latin-1 an — ein solcher Schlüssel passt nie.
+        log.warning("⚠ STUDIO_API_KEY enthält Zeichen außerhalb von ASCII — keine Anfrage kann "
+                    "ihn vorlegen. Einen Zufallswert aus Buchstaben und Ziffern setzen.")
     if settings.b_api_route.strip() and settings.llm_provider != "b-api-openai":
         # Paket 17: still übergangen hielte der Betreiber die Route für aktiv.
         log.warning(

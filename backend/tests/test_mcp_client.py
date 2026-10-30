@@ -648,3 +648,47 @@ def test_jeder_aufruf_ist_ein_ereignis(mcp_state, monkeypatch, caplog):
     assert [(z.ereignis_felder["werkzeug"], z.ereignis_felder["status"]) for z in zeilen] == [
         ("search_wlo_content", "ok"), ("search_wlo_content", "tool")]
     assert {"aus_cache", "dauer_ms", "zeichen"} <= set(zeilen[0].ereignis_felder)
+
+
+
+def test_ein_abgebrochener_aufruf_steht_in_der_zugakte(mcp_state, monkeypatch):
+    """Review 2026-10-30: von außen abgebrochen (Frist, ``wait_for``) fehlte er in der Akte."""
+    from boerdi.services.zugakte import aktuelle_zugakte, binde_zugakte
+
+    async def haengt(tool_name, arguments=None, *, url=None):
+        await asyncio.sleep(10)
+
+    _wire_tool_url(monkeypatch)
+    monkeypatch.setattr(transport, "call_tool", haengt)
+
+    async def zug() -> dict:
+        binde_zugakte()
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(client.call_mcp_tool_status(
+                "search_wlo_content", {"query": "Optik"}, use_cache=False), 0.05)
+        return aktuelle_zugakte().als_dict()
+
+    eintrag = asyncio.run(zug())["werkzeuge"][0]
+    assert (eintrag["name"], eintrag["status"], eintrag["fehler"]) == (
+        "search_wlo_content", "abgebrochen", "CancelledError")
+
+
+
+def test_eine_unerwartete_ausnahme_steht_in_der_zugakte(mcp_state, monkeypatch):
+    from boerdi.services.zugakte import aktuelle_zugakte, binde_zugakte
+
+    async def kaputt(tool_name, arguments=None, *, url=None):
+        raise RuntimeError("Programmfehler")
+
+    _wire_tool_url(monkeypatch)
+    monkeypatch.setattr(transport, "call_tool", kaputt)
+
+    async def zug() -> dict:
+        binde_zugakte()
+        with pytest.raises(RuntimeError):
+            await client.call_mcp_tool_status("search_wlo_content", {"query": "x"},
+                                              use_cache=False)
+        return aktuelle_zugakte().als_dict()
+
+    eintrag = asyncio.run(zug())["werkzeuge"][0]
+    assert (eintrag["status"], eintrag["fehler"]) == ("ausnahme", "RuntimeError")

@@ -79,3 +79,44 @@ def test_ohne_schluessel_und_ohne_entwicklungsmodus_nicht(umgebung):
     umgebung(passwort=None, schluessel=None, offen=False)
     assert ist_interner_zug(_anfrage()) is False
     assert darf_diagnose(_anfrage()) is False
+
+
+
+def test_ein_schluessel_ausserhalb_von_ascii_ergibt_kein_500(umgebung):
+    """Review 2026-10-30: ``compare_digest`` warf bei einem Nicht-ASCII-Schlüssel — jeder Zug mit
+    Kopfzeile wurde zum 500."""
+    umgebung(passwort="pw", schluessel="kä", offen=False)
+    assert ist_interner_zug(_anfrage(schluessel="k")) is False
+    assert darf_diagnose(_anfrage(schluessel="k")) is False
+
+
+def test_require_studio_key_mit_nicht_ascii_schluessel_sagt_401(umgebung):
+    import asyncio
+
+    from fastapi import HTTPException
+
+    from boerdi.api.deps import require_studio_key
+
+    umgebung(passwort="pw", schluessel="kä", offen=False)
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(require_studio_key("k"))
+    assert e.value.status_code == 401
+
+
+def test_der_entwicklungsmodus_bucht_proxy_zuege_auf_den_eigenen_schluessel(umgebung):
+    """Paket 18G (G-E2): festgehalten, damit eine Änderung bewusst geschieht — die Chat-Probe im
+    Studio läuft lokal ohne eigenen Schlüssel."""
+    umgebung(passwort=None, schluessel=None, offen=True)
+    assert ist_interner_zug(_anfrage(proxy=True)) is True
+
+
+
+def test_forward_weist_die_studio_probe_im_entwicklungsmodus_nicht_ab(umgebung, monkeypatch):
+    """G-E2: die eigentliche Wirkung — kein 401 unter ``forward`` für den Proxy-Zug."""
+    from boerdi.api.turn_auth import uebernimm_llm_schluessel
+
+    umgebung(passwort=None, schluessel=None, offen=True)
+    monkeypatch.setenv("B_API_KEY_MODE", "forward")
+    monkeypatch.setenv("LLM_PROVIDER", "b-api-openai")
+    get_settings.cache_clear()
+    uebernimm_llm_schluessel(_anfrage(proxy=True))  # wirft nicht

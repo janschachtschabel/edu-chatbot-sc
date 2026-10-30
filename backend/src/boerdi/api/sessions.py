@@ -293,4 +293,7 @@ async def get_session_messages(
     # Entwürfe) und Trace-ID sind Diagnose fürs Studio, das diesen Weg über den Proxy liest; das
     # Widget stellt aus ``ui`` wieder her.
     intern = darf_diagnose(request)
+    # Review 2026-10-30: der Verlauf ist privat, und seine Form hängt an der Freigabe — kein
+    # Zwischenspeicher (Browser, Proxy) darf ihn halten oder einer anderen Anfrage geben.
+    response.headers["Cache-Control"] = "private, no-store"
     return verlauf_fuer(await get_messages(session, session_id, limit, zugakte=intern), intern)

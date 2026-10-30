@@ -28,6 +28,8 @@ from boerdi.domain.write_confirm import CONFIRM_TOKEN_FIELD
 SCHLUESSEL = "_zugakte"
 MAX_WERT = 1000
 MAX_WERKZEUGE = 50
+#: So viele gescheiterte Aufrufe zusätzlich, wenn der Deckel schon voll ist.
+MAX_FEHLER_DARUEBER = 10
 #: Höchstens so viele Einträge je Liste — ``excludeNodeIds`` trägt bei „zeig mehr“ bis zu 200
 #: Kennungen. Der Rest steht als ``‹N weitere›``.
 MAX_EINTRAEGE = 20
@@ -50,7 +52,12 @@ def _wert(schluessel: str, wert: Any) -> Any:
     if isinstance(wert, str):
         return _gekuerzt(wert)
     if isinstance(wert, dict):
-        return {str(k): _wert(str(k), v) for k, v in wert.items()}
+        # Gedeckelt wie Listen (Review 2026-10-30): die Eingangsargumente kommen roh vom Modell.
+        paare = list(wert.items())
+        aus = {str(k): _wert(str(k), v) for k, v in paare[:MAX_EINTRAEGE]}
+        if (rest := len(paare) - MAX_EINTRAEGE) > 0:
+            aus["‹weitere›"] = f"‹{rest} weitere›"
+        return aus
     if isinstance(wert, list | tuple):
         kopf = [_wert(schluessel, v) for v in wert[:MAX_EINTRAEGE]]
         rest = len(wert) - MAX_EINTRAEGE
@@ -81,7 +88,10 @@ class Zugakte:
         """Ein MCP-Aufruf: die Argumente beim Eingang (vom Modell, Vorabruf oder einer
         Direktaktion) und wie sie nach Prüfung und Auflösung hinausgingen; ``status`` wie
         ``call_mcp_tool_status`` (``ok`` oder die Fehlerart)."""
-        if len(self.werkzeuge) >= MAX_WERKZEUGE:
+        # Gescheiterte Aufrufe dürfen den Deckel überschreiten (Review 2026-10-30): hinter
+        # 50 erfolgreichen fehlte sonst gerade der Fehler, nach dem gesucht wird.
+        grenze = MAX_WERKZEUGE if status == "ok" else MAX_WERKZEUGE + MAX_FEHLER_DARUEBER
+        if len(self.werkzeuge) >= grenze:
             self.werkzeuge_ausgelassen += 1
             return
         self.werkzeuge.append({
@@ -95,7 +105,7 @@ class Zugakte:
     def umschreibung(self, art: str, *, original: str, ersatz: str, grund: str = "") -> None:
         """Eine Antwort, die nach dem Modell ersetzt wurde (Typ-Fokus, Halluzinations-Wächter)."""
         self.umschreibungen.append({"art": art, "original": _gekuerzt(original),
-                                    "ersatz": _gekuerzt(ersatz), "grund": grund})
+                                    "ersatz": _gekuerzt(ersatz), "grund": _gekuerzt(grund)})
 
     def schnellweg(self, art: str, *, thema: str) -> None:
         """Ein Zug, der am Modell vorbei beantwortet wurde (Canvas, Lernpfad)."""

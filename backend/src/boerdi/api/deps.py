@@ -84,7 +84,10 @@ async def require_studio_key(
     # `str` and Starlette decodes headers as latin-1, so a single byte ≥ 0x80 in
     # X-Studio-Key answered 500 instead of 401 (found reviewing P9-1, same class
     # of bug as the cookie gate in studio_auth.authorize).
-    if not provided.isascii() or not hmac.compare_digest(provided, expected):
+    # Both ASCII, then bytes (review 2026-10-30): a non-ASCII configured key raised TypeError
+    # too — such a key never matches (startup warns), same as ``turn_auth.ist_interner_zug``.
+    if not (provided.isascii() and expected.isascii()
+            and hmac.compare_digest(provided.encode(), expected.encode())):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Studio API key required",
