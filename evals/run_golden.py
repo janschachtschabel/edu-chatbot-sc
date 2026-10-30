@@ -93,6 +93,25 @@ def detect_register(text: str) -> tuple[str, int, int]:
     return label, s, d
 
 
+_EIGENE_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def mit_studio_schluessel(headers: dict[str, str], chat_url: str) -> dict[str, str]:
+    """Paket 18C/D: ab Phase 4 kommt der Debug-Block (Muster, Werkzeuge, Spur — was dieser Lauf
+    misst) nur mit Freigabe. ``STUDIO_API_KEY`` geht wie beim Eval-Runner nur an die eigene
+    Anlage (Loopback); eine fremde Adresse bekommt ihn nur, wenn ``EVAL_CHAT_HEADERS`` ihn
+    ausdrücklich trägt — ein solcher Kopf bleibt stehen."""
+    if any(k.lower() == "x-studio-key" for k in headers):
+        return headers
+    schluessel = os.getenv("STUDIO_API_KEY", "").strip()
+    if schluessel.upper().startswith("CHANGE_ME"):  # Platzhalter wie beim Runner: nicht gesetzt
+        schluessel = ""
+    host = (urlparse(chat_url).hostname or "").lower()
+    if schluessel and host in _EIGENE_HOSTS:
+        return {**headers, "X-Studio-Key": schluessel}
+    return headers
+
+
 def chat_headers(raw: str | None) -> dict[str, str]:
     """``EVAL_CHAT_HEADERS`` (a JSON object) as request headers (A5).
 
@@ -744,6 +763,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no flows match --only {args.only}", file=sys.stderr)
         return 2
 
+    headers = mit_studio_schluessel(headers, args.url)
+    if not any(k.lower() == "x-studio-key" for k in headers):
+        print("⚠ ohne Studio-Schlüssel: die Anlage liefert ab Paket 18C/D Phase 4 keinen "
+              "Debug-Block — Muster, Werkzeuge und Spur fehlen dann im Bericht "
+              "(STUDIO_API_KEY setzen; an fremde Adressen über EVAL_CHAT_HEADERS).",
+              file=sys.stderr)
     kopf = f" mit Kopfzeilen {', '.join(sorted(headers))}" if headers else ""
     print(f"Golden-Runner: {len(flows)} Flow(s) gegen {args.url}"
           f" · Engine: {engine}{kopf}")

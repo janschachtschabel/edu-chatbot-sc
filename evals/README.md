@@ -99,6 +99,11 @@ uv run python ../evals/run_golden.py --engine agent   --label v2-agent
   man hielte einen Muster-Lauf für einen Agent-Lauf. Der Report nennt nur die
   **Namen** der Kopfzeilen, nie die Werte (eine davon kann die Zugangs-Kennung
   tragen).
+- **Studio-Schlüssel (Paket 18C/D):** ab Phase 4 liefert die Anlage den Debug-Block (Muster,
+  Werkzeuge, Spur — was dieser Lauf misst) nur noch intern. `STUDIO_API_KEY` geht als
+  `X-Studio-Key` automatisch an die eigene Anlage (`localhost`, `127.0.0.1`, `::1`); an eine
+  fremde Adresse nur, wenn `EVAL_CHAT_HEADERS` ihn ausdrücklich trägt. Ohne Schlüssel warnt
+  der Lauf beim Start.
 - Latenz **je Zug** steht im Report (`golden_metrics.latency`: p50/p95/max) und
   in der Konsole — die Antwort auf „ist der Agent schneller".
 - **`REPO_BASE_URL` muss dem Repo des Ziel-Backends entsprechen** (z. B.
