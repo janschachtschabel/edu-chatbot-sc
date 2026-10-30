@@ -8,10 +8,11 @@ geht an die b-api und den eigenen MCP-Server weiter — nie an fremde Server, un
 Kopfzeile zurück an den Client (Leitfaden: Standard ohne Header vom Dienst). Nur ihr Anfang
 steht als Fehlernummer in Fehlerblasen (Paket 18C/D, :func:`fehlernummer`).
 
-Review 2026-10-30: Eine ID, deren Anfang als Fehlernummer nichts taugt (nur Nullen, kein Buchstabe
-oder keine Ziffer vorn), gilt als nicht mitgeschickt — dann greift die nächste Quelle bzw. eine
-neue ID. Eine auf 128 Bit aufgefüllte 64-Bit-B3-ID gilt in ihrer kurzen Form (16 Zeichen, wie
-Zipkin/Brave sie schreiben); die 32 Zeichen des Aufrufers stehen dann nicht im Log. Offen bleibt
+Review 2026-10-30: Eine ID, deren Anfang als Fehlernummer nichts taugt (weder Buchstabe noch
+Ziffer vorn, sonst nur Nullen und Zeichen), gilt als nicht mitgeschickt — dann greift die
+nächste Quelle bzw. eine neue ID. Eine auf 128 Bit aufgefüllte 64-Bit-B3-ID gilt in
+ihrer kurzen Form (16 Zeichen, wie Zipkin/Brave sie schreiben); die 32 Zeichen des Aufrufers
+stehen dann nicht im Log. Offen bleibt
 ein fester Vorsatz des Aufrufers (``dienst-<uuid>``): alle seine Züge trügen dieselbe Nummer —
 das Studio sagt es bei Treffern aus mehreren Sitzungen; ein serverseitiger Anteil der Nummer ist
 vor der Übergabe an Team 6 zu klären (``docs/offene-befunde-und-todo.md``).
@@ -35,6 +36,7 @@ _trace_id: contextvars.ContextVar[str] = contextvars.ContextVar("_trace_id", def
 # Sichtbare Zeichen ohne Leerzeichen, wie sie Logs und Kopfzeilen vertragen.
 _CLIENT_ID = re.compile(r"[A-Za-z0-9._:\-]{1,128}")
 _B3_ID = re.compile(r"[0-9a-fA-F]{16}|[0-9a-fA-F]{32}")
+_TRAEGT = re.compile(r"[1-9A-Za-z]")
 
 
 def _neu() -> str:
@@ -55,7 +57,9 @@ def _taugt(wert: str) -> bool:
     kopf = wert[:FEHLERNUMMER_ZEICHEN]
     # Buchstabe oder Ziffer vorn: wie die Suche im Studio (``zug-suche.component.ts``) — eine
     # Nummer aus ``-----…`` ließe sich dort nicht einmal eingeben.
-    return kopf[:1].isalnum() and bool(kopf.strip("0"))
+    # Dazu mindestens ein Zeichen, das nicht ``0`` ist: ``0-0-0-0-0-0-`` oder ``00000000000.``
+    # sind so nichtssagend wie die Null-ID (Abschluss-Review 18G).
+    return kopf[:1].isalnum() and _TRAEGT.search(kopf) is not None
 
 
 def aus_kopfzeilen(koepfe: Mapping[str, str]) -> str:
