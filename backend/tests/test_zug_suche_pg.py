@@ -83,3 +83,13 @@ def test_hoechstens_zwanzig_treffer_die_neuesten_zuerst():
     treffer, _ = _lauf([("bb-a", f"abcdef01-{i:02d}", ["assistant"]) for i in range(25)],
                        "abcdef01")
     assert [t["trace_id"] for t in treffer] == [f"abcdef01-{i:02d}" for i in range(24, 4, -1)]
+
+
+def test_eine_kurze_nummer_trifft_genau():
+    """Review Phase 1: eine Client-Trace-ID unter 8 Zeichen ist zugleich die ganze Nummer —
+    sie wird genau gesucht statt als Präfix."""
+    treffer, _ = _lauf([
+        ("bb-a", "abc", ["assistant"]),
+        ("bb-b", "abcdef01", ["assistant"]),
+    ], "abc")
+    assert [t["trace_id"] for t in treffer] == ["abc"]

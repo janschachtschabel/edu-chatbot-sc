@@ -168,12 +168,13 @@ async def retention_run(
 @router.get("/zug/{nummer}")
 async def zug_suchen(
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    nummer: Annotated[str, Path(pattern=r"^[A-Za-z0-9._:\-]{8,128}$")],
+    nummer: Annotated[str, Path(pattern=r"^[A-Za-z0-9._:\-]{1,128}$")],
 ) -> list[dict]:
     """Paket 18C/D: Fehlernummer (Anfang der Trace-ID) → Züge, neueste zuerst, höchstens 20 —
-    je Treffer Sitzung, Nachricht, Trace-ID und Zeitpunkt. Mindestens 8 Zeichen, damit eine Nummer
-    nicht die halbe Datenbank trifft; der Zeichenvorrat ist der der Trace-ID. Steht vor den
-    Routen mit ``{session_id}``: ``/zug/messages`` gehört hierher, nicht in den Verlauf."""
+    je Treffer Sitzung, Nachricht, Trace-ID und Zeitpunkt. Ab 8 Zeichen als Präfix, kürzere
+    genau (eine kurze Client-Trace-ID ist ganz die Nummer) — so trifft keine Nummer die halbe
+    Datenbank; der Zeichenvorrat ist der der Trace-ID. Steht vor den Routen mit
+    ``{session_id}``: ``/zug/messages`` gehört hierher, nicht in den Verlauf."""
     return await zuege_mit_nummer(session, nummer)
 
 
