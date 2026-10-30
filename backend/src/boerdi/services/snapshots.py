@@ -99,7 +99,7 @@ def parse_config_zip(blob: bytes) -> dict[str, dict[str, Any]]:
                 text_content = out.getvalue().decode("utf-8-sig")
                 if rel.endswith(".md"):
                     fm, body = seed_io.split_frontmatter(
-                        text_content, laden=seed_io.lade_ohne_alias)
+                        text_content, laden=seed_io.lade_ohne_alias, streng=True)
                     areas[key] = {"frontmatter": seed_io.normalize_json_keys(fm), "body": body}
                 else:
                     parsed = seed_io.lade_ohne_alias(text_content) or {}

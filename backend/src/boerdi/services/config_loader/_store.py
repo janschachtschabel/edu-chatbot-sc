@@ -191,7 +191,8 @@ def parse_config_file(rel_path: str, content: str) -> tuple[str, dict[str, Any]]
     """
     key = _strip_ext(_validate_config_path(rel_path))
     if rel_path.endswith(".md") or seed_io.is_md_area(area(key)):
-        frontmatter, body = seed_io.split_frontmatter(content)
+        # Streng (Paket 18E, C4): ein kaputter Kopf wird abgewiesen statt still zu ``{}``.
+        frontmatter, body = seed_io.split_frontmatter(content, streng=True)
         data: dict[str, Any] = {
             "frontmatter": seed_io.normalize_json_keys(frontmatter),
             "body": body,

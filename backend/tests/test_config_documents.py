@@ -267,3 +267,17 @@ def test_ein_sicherheits_muster_behaelt_seine_kennung(cfg) -> None:
                    json={"data": _muster("M01", "Krise, neu formuliert")})
     assert r.status_code == 200, r.text
 
+
+
+# ── Paket 18E (C4): kaputter Kopf im Rohtext-Editor wird abgewiesen ───────────
+def test_kaputter_kopf_wird_nicht_gespeichert(cfg) -> None:
+    """Bis 18E wurde der Kopf still zu ``{}``; das Gate ließ das durch (nur Vorgabewerte),
+    und das Muster verlor live Kennung und Werkzeuge."""
+    client, seed = cfg
+    seed("03-patterns/m06", _muster("M06", "Suche"))
+    r = client.put("/api/config/file", headers=_AUTH, json={
+        "path": "03-patterns/m06.md", "content": "---\nid: [M06\nlabel: Suche\n---\nText\n"})
+    assert r.status_code == 400
+    gespeichert = client.get("/api/config/file", headers=_AUTH,
+                             params={"path": "03-patterns/m06.md"})
+    assert "id: M06" in gespeichert.json()["content"]

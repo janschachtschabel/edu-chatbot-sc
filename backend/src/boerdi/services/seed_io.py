@@ -43,23 +43,39 @@ def lade_ohne_alias(text: str) -> Any:
 
 
 def split_frontmatter(
-    text: str, *, laden: Callable[[str], Any] = yaml.safe_load,
+    text: str, *, laden: Callable[[str], Any] = yaml.safe_load, streng: bool = False,
 ) -> tuple[dict[str, Any], str]:
     """'---\\n<yaml>\\n---\\n<body>' -> (frontmatter, body). No marker or
     broken YAML head => ({}, whole text) — mirrors ALT's tolerant parser.
-    ``laden`` parses the head; a backup passes :func:`lade_ohne_alias`."""
+    ``laden`` parses the head; a backup passes :func:`lade_ohne_alias`.
+
+    ``streng`` (Paket 18E, C4) — saving raw text in the Studio and restoring a backup:
+    a broken head, a head that is no mapping, or a missing closing ``---`` raises
+    ``yaml.YAMLError`` instead of silently becoming ``{}`` (the pattern then lost its id
+    and tools live; the model gate let it pass, all fields have defaults). The seed
+    import stays tolerant."""
     if not text.startswith("---"):
         return {}, text
     lines = text.splitlines(keepends=True)
     for i, line in enumerate(lines[1:], start=1):
-        if line.strip() == "---":
+        # Nur in Spalte 0 (Review 18E-1): ``join_frontmatter`` schreibt eine Zeile ``---``
+        # eines mehrzeiligen Werts eingerückt — mit ``strip()`` endete der Kopf dort.
+        if line.rstrip("\r\n") == "---":
             head = "".join(lines[1:i])
             body = "".join(lines[i + 1:])
             try:
                 fm = laden(head) or {}
             except yaml.YAMLError:
+                if streng:
+                    raise
                 return {}, text
-            return (fm if isinstance(fm, dict) else {}), body
+            if isinstance(fm, dict):
+                return fm, body
+            if streng:
+                raise yaml.YAMLError("Frontmatter ist keine Zuordnung (Schlüssel: Wert)")
+            return {}, body
+    if streng:
+        raise yaml.YAMLError("Frontmatter ohne schließendes ---")
     return {}, text
 
 
