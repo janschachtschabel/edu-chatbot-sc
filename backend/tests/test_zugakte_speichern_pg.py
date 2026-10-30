@@ -128,3 +128,23 @@ def test_der_verlauf_gibt_die_akte_nur_auf_wunsch_heraus():
     ohne, mit = _lauf(fn)
     assert ohne[0]["debug"] == {"pattern": "P"}
     assert mit[0]["debug"]["pattern"] == "P" and za.SCHLUESSEL in mit[0]["debug"]
+
+
+def test_mit_der_akte_kommt_die_trace_id_jeder_nachricht():
+    """Phase 4: das Studio zeigt je Antwort die Fehlernummer — ohne Schalter bleibt die
+    Trace-ID in der Datenbank (``setup`` braucht sie nicht)."""
+    from boerdi.obs import trace_id
+    from boerdi.services.db_sessions import get_messages, save_message
+
+    async def fn(session):
+        marke = trace_id.setze("4711abcdef01-zug")
+        try:
+            await save_message(session, "bb-z", "assistant", "A", debug={"pattern": "P"})
+        finally:
+            trace_id.zuruecksetzen(marke)
+        return (await get_messages(session, "bb-z"),
+                await get_messages(session, "bb-z", zugakte=True))
+
+    ohne, mit = _lauf(fn)
+    assert "trace_id" not in ohne[0]
+    assert mit[0]["trace_id"] == "4711abcdef01-zug"

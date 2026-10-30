@@ -1,9 +1,10 @@
 """Was welches Publikum von einer Antwort bekommt (Paket 18C/D).
 
-Phase 3: ``ui`` (``api/schemas_ui``) kommt **zusätzlich** zum Debug-Block an die Antwort, an das
-Strom-``result`` und an jede Nachricht im Verlauf — eine Ableitung, drei Ausgänge. Der
-Debug-Block bleibt unverändert, damit das bisherige Widget weiterläuft; Phase 4 stellt das Widget
-auf ``ui`` um und gibt ``debug`` nur noch dem Studio.
+Jeder bekommt ``ui`` (``api/schemas_ui``) — an der Antwort, am Strom-``result`` und an jeder
+Nachricht im Verlauf: eine Ableitung, drei Ausgänge. Den Debug-Block (und im Verlauf die Trace-ID
+je Nachricht) bekommt nur die Anlage selbst (``turn_auth.darf_diagnose``: Studio-Proxy,
+Studio-Schlüssel, reiner Entwicklungsmodus) — Persona, Signale, Spur und Zugakte sind Diagnose
+(Phase 4, der Schnitt).
 """
 
 from __future__ import annotations
@@ -65,13 +66,26 @@ def ui_aus_debug(debug: DebugInfo) -> UiInfo:
     return ui_aus_gespeichert(debug.model_dump(include=_LIVE))
 
 
-def antwort_mit_ui(resp: ChatResponse) -> ChatResponse:
-    """Die Antwort mit ``ui`` — für ``POST /api/chat`` und das Strom-``result``."""
-    resp.ui = ui_aus_debug(resp.debug)
+def antwort_fuer(resp: ChatResponse, intern: bool) -> ChatResponse:
+    """Die Antwort für ``POST /api/chat`` und das Strom-``result``: mit ``ui``, ohne Freigabe
+    ohne Debug-Block. Den Typ-Fokus setzt ``turn_persist`` vorher an ``ui`` — er steht in keinem
+    Feld des Debug-Blocks und bleibt."""
+    ui = ui_aus_debug(resp.debug) if resp.debug is not None else UiInfo()
+    resp.ui = ui.model_copy(update={"type_focus": resp.ui.type_focus})
+    if not intern:
+        resp.debug = None
     return resp
 
 
-def verlauf_mit_ui(nachrichten: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Jede Nachricht des Verlaufs mit ``ui`` (nur gesetzte Felder)."""
-    return [{**n, "ui": ui_aus_gespeichert(n.get("debug")).model_dump(exclude_defaults=True)}
-            for n in nachrichten]
+#: Nur für die Anlage: der Debug-Block und die Trace-ID, aus der das Studio die Fehlernummer liest.
+_DIAGNOSE = ("debug", "trace_id")
+
+
+def verlauf_fuer(nachrichten: list[dict[str, Any]], intern: bool) -> list[dict[str, Any]]:
+    """Jede Nachricht des Verlaufs mit ``ui`` (nur gesetzte Felder); Debug-Block und Trace-ID
+    nur für die Anlage."""
+    return [
+        {**{k: v for k, v in n.items() if intern or k not in _DIAGNOSE},
+         "ui": ui_aus_gespeichert(n.get("debug")).model_dump(exclude_defaults=True)}
+        for n in nachrichten
+    ]

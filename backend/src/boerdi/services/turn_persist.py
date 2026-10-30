@@ -60,6 +60,7 @@ from boerdi.api.schemas import (
     PreparedWriteOut,
     TraceEntry,
 )
+from boerdi.api.schemas_ui import UiInfo
 from boerdi.domain.cards.build import _is_themenseite_card
 from boerdi.domain.inline_rendering import _build_inline_document
 from boerdi.domain.prepared_write import (
@@ -704,6 +705,8 @@ async def persist_and_build_response(
         follow_up=pattern_output.get("format_follow_up", "quick_replies"),
         quick_replies=quick_replies,
         debug=debug,
+        # Der Typ-Fokus steht in keinem Feld des Debug-Blocks; ``api/publikum`` lässt ihn stehen.
+        ui=UiInfo(type_focus=_type_focus_label),
         page_action=page_action,
         pagination=pagination,
         query_metas=_query_meta_entries,

@@ -7,7 +7,8 @@ eines Filters: ein neues Feld im Debug-Block ist damit von selbst nicht öffentl
 (Vertragstest ``tests/test_publikum.py``).
 
 Die Wiederherstellungsfelder füllt nur der Verlauf; live kommen dieselben Daten als eigene
-Felder der Antwort (``query_metas``, ``web_links``, ``topic_page`` …).
+Felder der Antwort (``query_metas``, ``web_links``, ``topic_page`` …). Ausnahme ``type_focus``:
+es steht in keinem eigenen Feld und kommt seit Phase 4 auch live (``turn_persist``).
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ class UiInfo(BaseModel):
     state: str = ""
     tools_called: list[str] = Field(default_factory=list)
     modulations: dict[str, Any] = Field(default_factory=dict)
-    # nur im Verlauf
+    # nur im Verlauf (``type_focus`` auch live)
     query_metas: list[dict[str, Any]] = Field(default_factory=list)
     web_links: list[dict[str, Any]] = Field(default_factory=list)
     type_focus: str = ""

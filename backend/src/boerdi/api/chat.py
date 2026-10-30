@@ -29,12 +29,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.api.chat_handschlag import handschlag
 from boerdi.api.deps import get_session, get_session_factory, require_studio_key, todo
-from boerdi.api.publikum import antwort_mit_ui
+from boerdi.api.publikum import antwort_fuer
 from boerdi.api.ratelimit import peer_ip, public_rate_limit
 from boerdi.api.schemas import ChatRequest, ChatResponse, DebugInfo
 from boerdi.api.session_locks import sitzung_sperren
 from boerdi.api.sse import sse_turn
-from boerdi.api.turn_auth import uebernimm_zugang
+from boerdi.api.turn_auth import darf_diagnose, uebernimm_zugang
 from boerdi.domain.hintergrund_zug import ist_hintergrund_anfrage
 from boerdi.graph.build import build_turn_graph, run_turn
 from boerdi.graph.state import TurnContext
@@ -110,6 +110,7 @@ async def chat(
     instead of an HTTP 500 so the widget shows something actionable.
     """
     await uebernimm_zugang(request)
+    intern = darf_diagnose(request)
     try:
         async with sitzung_sperren(request, req.session_id):
             try:
@@ -120,13 +121,14 @@ async def chat(
                 result = await run_turn(graph, TurnContext(req=req))
                 await _record_usage(session, req.session_id, result)
                 resp = _anmeldestand(result.get("early_response") or result.get("response"))
-                return antwort_mit_ui(await _postprocess_response_for_widget_modes(req, resp))
+                return antwort_fuer(await _postprocess_response_for_widget_modes(req, resp),
+                                    intern)
             except Exception as impl_err:
                 # Top-level safety net: a config bug, a pattern-engine attribute
                 # error, a DB hiccup — a chat bubble with the error number (Paket 18C/D)
                 # rather than letting the frontend swallow an HTTP 500.
                 logger.exception("chat endpoint unhandled exception: %s", impl_err)
-                return await _fehlerblase(session, req, impl_err)
+                return antwort_fuer(await _fehlerblase(session, req, impl_err), intern)
     except SitzungBeschaeftigt:
         # Paket 7 (P1, P5-1): ein anderer Zug derselben Sitzung läuft noch, auch
         # auf einer anderen Kopie. Kein Graph, kein Verlauf — das Widget zeigt
@@ -139,7 +141,7 @@ async def chat(
         # Datenbank weg) — bis dahin HTTP 500. Die Freigabe fängt ihre Fehler selbst
         # (``services/sitzungssperre``); hier landet also keine fertige Antwort.
         logger.exception("chat endpoint: Sitzungssperre gescheitert: %s", sperr_err)
-        return await _fehlerblase(session, req, sperr_err)
+        return antwort_fuer(await _fehlerblase(session, req, sperr_err), intern)
 
 
 def _anmeldestand(resp: ChatResponse | None) -> ChatResponse | None:
@@ -169,8 +171,8 @@ async def _fehlerblase(
         # eine Frage, die niemand gestellt hat, und ein sichtbarer Zug, der einen
         # offenen Schreibvorgang nicht verfallen lässt (Befund 2026-10-08). Also
         # stumm und ohne Eintrag im Verlauf.
-        return antwort_mit_ui(ChatResponse(session_id=req.session_id, content="",
-                                           follow_up="none", debug=err_debug))
+        return ChatResponse(session_id=req.session_id, content="", follow_up="none",
+                            debug=err_debug)
     lang = resolve_locale(getattr(req.environment, "locale", None))
     err_text = bot_text(lang, "error.internal", nummer=fehlernummer())
     try:
@@ -184,17 +186,17 @@ async def _fehlerblase(
     except Exception:
         # Never let a DB-write failure mask the original error.
         logger.debug("Fehlerblase nicht gespeichert", exc_info=True)
-    return antwort_mit_ui(ChatResponse(
+    return ChatResponse(
         session_id=req.session_id,
         content=err_text,
         quick_replies=[bot_text(lang, "error.retryChip")],
         debug=err_debug,
-    ))
+    )
 
 
 async def _stream_turn(
     req: ChatRequest, request: Request, sitzungen: async_sessionmaker[AsyncSession],
-    engine: str = "pattern",
+    engine: str = "pattern", intern: bool = False,
 ) -> AsyncIterator[str]:
     """Yield the SSE frames for one streamed turn: connected → phase* → result | error.
 
@@ -219,6 +221,9 @@ async def _stream_turn(
     a hang-up it runs to the end (P2), but FastAPI closes the request-scoped session
     as soon as the response ends — the turn would keep writing on a session that is
     being closed under it.
+
+    ``intern`` (Paket 18C/D): bekommt das ``result`` den Debug-Block? Entschieden an der
+    HTTP-Grenze (``darf_diagnose``).
     """
     # Token-Streaming (Plan 2026-10-01, T12): ein Strom je Anfrage, nur mit
     # Schalter. ``respond`` öffnet oder sperrt ihn; ``_to_payload`` misst ihn.
@@ -259,7 +264,7 @@ async def _stream_turn(
             logger.warning("stream widget-modes postprocess failed: %s", pp_err)
         if strom is not None:
             strom.abschluss(result.content or "")  # Kennzahlen + Drift-Logzeile
-        return antwort_mit_ui(result).model_dump()
+        return antwort_fuer(result, intern).model_dump()
 
     # Paket 7 (P2, P5-2): legt der Client auf, rechnet der Zug sauber zu Ende —
     # die Antwort landet im Verlauf, und das Widget holt sie dort, statt die
@@ -300,7 +305,8 @@ async def chat_stream(
     await uebernimm_zugang(request)
     return StreamingResponse(
         _stream_turn(req, request, sitzungen,
-                     engine=choose_engine(request.headers.get(ENGINE_HEADER))),
+                     engine=choose_engine(request.headers.get(ENGINE_HEADER)),
+                     intern=darf_diagnose(request)),
         media_type="text/event-stream",
         headers={
             # Proxies must not buffer or transform SSE.

@@ -262,23 +262,21 @@ async def get_messages(
     the LIMIT, then reverses — so the newest ``limit`` messages come back in
     chronological order (ALT semantics).
 
-    ``zugakte`` (Paket 18C/D): only then does ``debug`` keep the turn record — it is
-    diagnosis for the Studio (tool arguments, error texts, rewritten drafts). Without
-    it the database already drops the key (``debug - '_zugakte'``): the public history
-    never carries it, and ``setup`` does not haul it along on every turn.
+    ``zugakte`` (Paket 18C/D): only then does ``debug`` keep the turn record and each
+    message carry its ``trace_id`` — diagnosis for the Studio (tool arguments, error texts,
+    rewritten drafts; the trace id is where it reads the error number). Without it the
+    database already drops the key (``debug - '_zugakte'``): the public history never
+    carries it, and ``setup`` does not haul it along on every turn.
     """
     debug = (ChatMessage.debug if zugakte else
              ChatMessage.debug.op("-", return_type=ChatMessage.debug.type)(
                  literal(ZUGAKTE, Text)).label("debug"))
+    spalten = [ChatMessage.id, ChatMessage.role, ChatMessage.content, ChatMessage.cards, debug,
+               ChatMessage.created_at]
+    if zugakte:
+        spalten.append(ChatMessage.trace_id)
     stmt = (
-        select(
-            ChatMessage.id,
-            ChatMessage.role,
-            ChatMessage.content,
-            ChatMessage.cards,
-            debug,
-            ChatMessage.created_at,
-        )
+        select(*spalten)
         .where(ChatMessage.session_id == session_id)
         .order_by(ChatMessage.id.desc())
         .limit(limit)
@@ -292,6 +290,7 @@ async def get_messages(
             "cards": r.cards if r.cards is not None else [],
             "debug": r.debug if r.debug is not None else {},
             "created_at": r.created_at,
+            **({"trace_id": r.trace_id} if zugakte else {}),
         }
         for r in reversed(rows)
     ]

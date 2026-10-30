@@ -413,6 +413,13 @@ def test_persist_save_message_session_injected_and_enriched(monkeypatch):
     assert dbg["_type_focus"] == "Video"
 
 
+def test_persist_type_focus_auch_live_in_ui(monkeypatch):
+    """Paket 18C/D, Phase 4: das Widget liest den Typ-Fokus aus ``ui`` — live wie im Verlauf.
+    Vorher erkannte es ihn live nur am Wortlaut der Antwort."""
+    resp, _ = _run2(monkeypatch, sp=_patch2(monkeypatch), _type_focus_label="Video")
+    assert resp.ui.type_focus == "Video"
+
+
 def test_persist_quality_log_awaited_with_session(monkeypatch):
     _, sp = _run2(monkeypatch)
     assert len(sp.quality.calls) == 1

@@ -161,7 +161,7 @@ def test_graph_exception_becomes_graceful_bubble(monkeypatch, client):
     # Paket 18C/D (3.4): Fehlernummer statt Fehlerklasse.
     assert "RuntimeError" not in body["content"] and "Fehlernummer" in body["content"]
     assert body["quick_replies"] == ["Nochmal versuchen"]
-    assert body["debug"]["pattern"] == "ERROR: unhandled_chat_exception"
+    assert body["ui"]["pattern"] == "ERROR: unhandled_chat_exception"
     assert saves and saves[0]["role"] == "assistant"
     # Gespeichert wird, was die Person sah (Audit 2026-09-29, 6.3): der Verlauf
     # zeigt nach dem Neuladen dieselbe Blase, und die Modell-Historie bekommt
@@ -256,7 +256,7 @@ def test_ein_datenbankfehler_an_der_sperre_wird_zur_blase(monkeypatch, client):
     r = client.post("/api/chat", json={"session_id": "bb-1", "message": "hi"})
     assert r.status_code == 200
     body = r.json()
-    assert body["debug"]["pattern"] == "ERROR: unhandled_chat_exception"
+    assert body["ui"]["pattern"] == "ERROR: unhandled_chat_exception"
     assert "Datenbank weg" not in body["content"]
 
 
@@ -508,23 +508,39 @@ def test_die_fehlerblase_sieht_trace_id_und_zugakte_des_zuges(monkeypatch, clien
     assert gesehen == [("zug-4711-abcdef", ["search_wlo_content"])]
 
 
-# ── Paket 18C/D (3.2): ``ui`` neben ``debug`` ───────────────────────────────
+# ── Paket 18C/D: öffentlich ``ui``, ``debug`` nur für die Anlage (Phase 4) ─────
 
-def test_die_antwort_traegt_ui_neben_debug(monkeypatch, client):
+def _antwort_mit_persona(monkeypatch):
     from boerdi.api.schemas import DebugInfo
 
     _patch(monkeypatch, result={"response": ChatResponse(
         session_id="bb-1", content="x",
         debug=DebugInfo(pattern="M04", intent="I03", persona="P-LEH"))})
+
+
+def test_anonym_kommt_nur_ui(monkeypatch, client):
+    _antwort_mit_persona(monkeypatch)
     body = _post(client).json()
     assert body["ui"]["pattern"] == "M04" and body["ui"]["intent"] == "I03"
     assert "persona" not in body["ui"]
-    assert body["debug"]["persona"] == "P-LEH"      # Phase 3: debug bleibt
+    assert body["debug"] is None
 
 
-def test_auch_die_fehlerblase_traegt_ui(monkeypatch, client):
+def test_mit_studio_schluessel_kommt_debug_dazu(monkeypatch, client):
+    """Evaluation, Golden-Lauf und Lasttest fragen mit dem Schlüssel und lesen die Diagnose."""
+    monkeypatch.setenv("STUDIO_API_KEY", "schluessel-1")
+    get_settings.cache_clear()
+    _antwort_mit_persona(monkeypatch)
+    r = client.post("/api/chat", json={"session_id": "bb-1", "message": "hallo"},
+                    headers={"X-Studio-Key": "schluessel-1"})
+    assert r.json()["debug"]["persona"] == "P-LEH"
+
+
+def test_auch_die_fehlerblase_traegt_nur_ui(monkeypatch, client):
     _patch(monkeypatch, exc=RuntimeError("boom"))
-    assert _post(client).json()["ui"]["pattern"] == "ERROR: unhandled_chat_exception"
+    body = _post(client).json()
+    assert body["ui"]["pattern"] == "ERROR: unhandled_chat_exception"
+    assert body["debug"] is None
 
 
 def test_die_fehlerblase_nennt_die_fehlernummer_des_zuges(monkeypatch, client):

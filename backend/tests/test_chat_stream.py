@@ -779,15 +779,31 @@ def test_auch_im_strom_sieht_die_fehlerblase_trace_id_und_zugakte(monkeypatch, c
     assert gesehen == [("zug-4711-abcdef", ["search_wlo_content"])]
 
 
-def test_das_ergebnis_im_strom_traegt_ui(monkeypatch, client):
-    """Paket 18C/D (3.2): ``ui`` auch im ``result``-Rahmen."""
+def _ergebnis(antwort) -> dict:
+    rahmen = [z for z in antwort.text.split("\n\n") if z.startswith("event: result")]
+    return json.loads(rahmen[0].split("data: ", 1)[1])
+
+
+def test_das_ergebnis_im_strom_traegt_nur_ui(monkeypatch, client):
+    """Paket 18C/D: ``ui`` auch im ``result``-Rahmen; seit Phase 4 ohne Debug-Block."""
     from boerdi.api.schemas import DebugInfo
 
     _patch(monkeypatch, result={"response": ChatResponse(
         session_id="bb-1", content="x", debug=DebugInfo(pattern="M04"))})
-    rahmen = [z for z in _post(client).text.split("\n\n") if z.startswith("event: result")]
-    nutzlast = json.loads(rahmen[0].split("data: ", 1)[1])
-    assert nutzlast["ui"]["pattern"] == "M04" and nutzlast["debug"]["pattern"] == "M04"
+    nutzlast = _ergebnis(_post(client))
+    assert nutzlast["ui"]["pattern"] == "M04" and nutzlast["debug"] is None
+
+
+def test_mit_studio_schluessel_traegt_der_strom_debug(monkeypatch, client):
+    from boerdi.api.schemas import DebugInfo
+
+    monkeypatch.setenv("STUDIO_API_KEY", "schluessel-1")
+    get_settings.cache_clear()
+    _patch(monkeypatch, result={"response": ChatResponse(
+        session_id="bb-1", content="x", debug=DebugInfo(pattern="M04", persona="P-LEH"))})
+    r = client.post("/api/chat/stream", json={"session_id": "bb-1", "message": "hallo"},
+                    headers={"X-Studio-Key": "schluessel-1"})
+    assert _ergebnis(r)["debug"]["persona"] == "P-LEH"
 
 
 def test_der_fehlerrahmen_nennt_die_fehlernummer(monkeypatch, client):

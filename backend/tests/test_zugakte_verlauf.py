@@ -87,14 +87,30 @@ def test_reiner_entwicklungsmodus_bleibt_offen(monkeypatch, gefragt):
     assert gefragt == [True]
 
 
-def test_der_verlauf_traegt_ui_je_nachricht(monkeypatch):
-    """Paket 18C/D (3.2): ``ui`` auch im Verlauf — mit den Wiederherstellungsfeldern."""
+def _verlauf_mit_debug(monkeypatch):
     async def fake(session, session_id, limit=50, *, zugakte=False):
         return [{"id": 1, "role": "assistant", "content": "a",
-                 "debug": {"pattern": "M06", "_type_focus": "Video"}}]
+                 "debug": {"pattern": "M06", "_type_focus": "Video", "persona": "P-LEH"},
+                 **({"trace_id": "4711abcdef01xyz"} if zugakte else {})}]
 
     monkeypatch.setattr(sessions_api, "get_messages", fake)
+
+
+def test_der_oeffentliche_verlauf_traegt_nur_ui(monkeypatch):
+    """Paket 18C/D: ``ui`` mit den Wiederherstellungsfeldern; seit Phase 4 kein Debug-Block
+    mehr ohne Freigabe."""
+    _verlauf_mit_debug(monkeypatch)
     c = _client(monkeypatch, passwort=_PASSWORT, schluessel=_SCHLUESSEL, offen=False)
     (nachricht,) = c.get(f"/api/sessions/{_SID}/messages").json()
     assert nachricht["ui"] == {"pattern": "M06", "type_focus": "Video"}
-    assert nachricht["debug"]["pattern"] == "M06"
+    assert "debug" not in nachricht and "trace_id" not in nachricht
+
+
+def test_das_studio_bekommt_debug_und_trace_id(monkeypatch):
+    """Die Trace-ID je Nachricht führt im Studio zur Fehlernummer der Antwort (4.6)."""
+    _verlauf_mit_debug(monkeypatch)
+    c = _client(monkeypatch, passwort=_PASSWORT, schluessel=_SCHLUESSEL, offen=False)
+    c.cookies.set(COOKIE_NAME, studio_token(_PASSWORT))
+    (nachricht,) = c.get(f"/studio/api/sessions/{_SID}/messages").json()
+    assert nachricht["debug"]["persona"] == "P-LEH"
+    assert nachricht["trace_id"] == "4711abcdef01xyz"

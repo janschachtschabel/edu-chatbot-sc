@@ -61,18 +61,52 @@ def test_alte_und_kaputte_nachrichten_geben_leere_felder_statt_fehler():
     assert publikum.ui_aus_gespeichert(kaputt) == UiInfo()
 
 
-def test_die_antwort_bekommt_ui_debug_bleibt():
-    resp = ChatResponse(session_id="bb-1", content="x", debug=DebugInfo(pattern="M04"))
-    aus = publikum.antwort_mit_ui(resp)
-    assert aus.ui == UiInfo(pattern="M04") and aus.debug.pattern == "M04"
+def _antwort() -> ChatResponse:
+    return ChatResponse(session_id="bb-1", content="x",
+                        debug=DebugInfo(pattern="M04", persona="P-LEH", signals=["eilig"]))
 
 
-def test_der_verlauf_bekommt_ui_je_nachricht():
-    verlauf = [{"id": 1, "role": "user", "content": "hi", "debug": {}},
-               {"id": 2, "role": "assistant", "content": "a", "debug": {"pattern": "M04"}}]
-    aus = publikum.verlauf_mit_ui(verlauf)
+def test_anonym_bekommt_die_antwort_nur_mit_ui():
+    """Phase 4, der Schnitt: ohne Freigabe kein Debug-Block — Persona, Signale, Spur bleiben
+    in der Anlage."""
+    aus = publikum.antwort_fuer(_antwort(), intern=False)
+    assert aus.ui == UiInfo(pattern="M04") and aus.debug is None
+    assert "P-LEH" not in aus.model_dump_json()
+
+
+def test_die_anlage_bekommt_den_debug_block_dazu():
+    aus = publikum.antwort_fuer(_antwort(), intern=True)
+    assert aus.ui == UiInfo(pattern="M04") and aus.debug.persona == "P-LEH"
+
+
+def test_der_typ_fokus_der_antwort_bleibt_stehen():
+    """Den Typ-Fokus setzt ``turn_persist`` live an ``ui`` — er steht in keinem Feld des
+    Debug-Blocks, die Ableitung darf ihn nicht überschreiben."""
+    resp = _antwort()
+    resp.ui = UiInfo(type_focus="Video")
+    aus = publikum.antwort_fuer(resp, intern=False)
+    assert aus.ui == UiInfo(pattern="M04", type_focus="Video")
+
+
+_VERLAUF = [
+    {"id": 1, "role": "user", "content": "hi", "debug": {}, "trace_id": "t-1"},
+    {"id": 2, "role": "assistant", "content": "a", "debug": {"pattern": "M04", "persona": "P"},
+     "trace_id": "t-1"},
+]
+
+
+def test_der_oeffentliche_verlauf_traegt_nur_ui():
+    aus = publikum.verlauf_fuer([dict(m) for m in _VERLAUF], intern=False)
     assert [m["ui"] for m in aus] == [{}, {"pattern": "M04"}]
-    assert aus[1]["debug"] == {"pattern": "M04"}
+    assert all("debug" not in m and "trace_id" not in m for m in aus)
+    assert aus[1]["content"] == "a" and aus[1]["id"] == 2
+
+
+def test_der_verlauf_der_anlage_traegt_debug_und_trace_id():
+    aus = publikum.verlauf_fuer([dict(m) for m in _VERLAUF], intern=True)
+    assert aus[1]["ui"] == {"pattern": "M04"}
+    assert aus[1]["debug"] == {"pattern": "M04", "persona": "P"}
+    assert aus[1]["trace_id"] == "t-1"
 
 
 def test_von_den_modulationen_nur_was_das_widget_liest():
