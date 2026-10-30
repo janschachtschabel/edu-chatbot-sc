@@ -54,6 +54,15 @@ export interface SessionMessage {
   readonly created_at?: string;
 }
 
+/** One hit of `GET /sessions/zug/{nummer}` (Paket 18C/D): one per turn, its
+ *  last message, newest first, at most 20. */
+export interface ZugTreffer {
+  readonly session_id: string;
+  readonly message_id: number;
+  readonly trace_id: string;
+  readonly created_at: string;
+}
+
 /** What a purge across ALL sessions takes (ST-6) — one flag per table, named
  *  as `POST /sessions/purge` reads them. `sessions` cascades in the database
  *  to messages, memory AND `usage_events` (the cost figures). */
@@ -124,6 +133,12 @@ export class SessionsApi {
       `/sessions/${encodeURIComponent(sessionId)}/messages`,
       { limit: TRANSCRIPT_LIMIT },
     );
+  }
+
+  /** The turns behind an error number (Paket 18C/D). Below 8 characters the
+   *  server matches exactly, from 8 on by prefix. */
+  findTurn(nummer: string): Promise<ZugTreffer[]> {
+    return this.api.get<ZugTreffer[]>(`/sessions/zug/${encodeURIComponent(nummer)}`);
   }
 
   deleteSession(sessionId: string): Promise<unknown> {

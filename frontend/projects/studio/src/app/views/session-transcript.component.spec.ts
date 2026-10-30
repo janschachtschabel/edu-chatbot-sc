@@ -205,4 +205,15 @@ describe("SessionTranscriptComponent — Zugakte und Fehlernummer (Paket 18C/D)"
     const h = await mount([{ id: 1, role: "assistant", content: "x", debug: { pattern: "M01" } }]);
     expect(h.el.querySelector(".za")).toBeNull();
   });
+
+  it("springt zur Nachricht der gesuchten Fehlernummer", async () => {
+    const h = await mount([{ id: 6, role: "user", content: "Frage" }, ZUG]);
+    h.fixture.componentRef.setInput("fokus", { messageId: 7 });
+    await h.fixture.whenStable();
+    await tick();
+    const ziel = h.el.querySelector<HTMLElement>("#st-msg-7")!;
+    expect(ziel.classList).toContain("st-turn--fokus");
+    expect(document.activeElement).toBe(ziel);
+    expect(h.el.querySelector("#st-msg-6")!.classList).not.toContain("st-turn--fokus");
+  });
 });

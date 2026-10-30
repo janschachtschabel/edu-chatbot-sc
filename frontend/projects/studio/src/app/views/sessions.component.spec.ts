@@ -302,3 +302,64 @@ describe("SessionsComponent", () => {
     expect(h.el.querySelectorAll(".sv-pick")).toHaveLength(1);
   });
 });
+
+describe("SessionsComponent — Suche nach Fehlernummer (Paket 18C/D)", () => {
+  async function finde(h: Harness, nummer: string, treffer: object[]): Promise<void> {
+    const feld = h.el.querySelector<HTMLInputElement>("studio-zug-suche input")!;
+    feld.value = nummer;
+    feld.dispatchEvent(new Event("input"));
+    h.el.querySelector("studio-zug-suche form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await h.fixture.whenStable();
+    h.http.expectOne((r) => r.url === `/studio/api/sessions/zug/${nummer}`).flush(treffer);
+    await tick();
+    await h.fixture.whenStable();
+  }
+
+  it("ein Treffer oeffnet den Verlauf seiner Sitzung an der Nachricht", async () => {
+    const h = await mount();
+    await finde(h, "4711abcdef01", [
+      { session_id: "def-456", message_id: 2, trace_id: "4711abcdef01-x", created_at: "2026-10-30T10:00:00Z" },
+    ]);
+    h.http.expectOne((r) => r.url === "/studio/api/sessions/def-456/messages").flush([
+      { id: 1, role: "user", content: "Frage" },
+      { id: 2, role: "assistant", content: "Fehler", trace_id: "4711abcdef01-x" },
+    ]);
+    await tick();
+    await h.fixture.whenStable();
+    await tick();
+    expect(h.el.querySelector("#st-msg-2")!.classList).toContain("st-turn--fokus");
+    // Die Zeile der Sitzung ist gewaehlt — wie nach einem Klick.
+    expect(h.el.querySelectorAll(".sv-pick")[1].getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("dieselbe Nummer ein zweites Mal gesucht springt wieder zur Nachricht", async () => {
+    const h = await mount();
+    const treffer = [
+      { session_id: "def-456", message_id: 2, trace_id: "4711abcdef01-x", created_at: "2026-10-30T10:00:00Z" },
+    ];
+    await finde(h, "4711abcdef01", treffer);
+    h.http.expectOne((r) => r.url === "/studio/api/sessions/def-456/messages").flush([
+      { id: 2, role: "assistant", content: "Fehler", trace_id: "4711abcdef01-x" },
+    ]);
+    await tick();
+    await h.fixture.whenStable();
+    await tick();
+    const feld = h.el.querySelector<HTMLInputElement>("studio-zug-suche input")!;
+    feld.focus();
+    await finde(h, "4711abcdef01", treffer);
+    await tick();
+    expect(document.activeElement).toBe(h.el.querySelector("#st-msg-2"));
+  });
+
+  it("auch eine Sitzung ausserhalb der gefilterten Liste wird geoeffnet", async () => {
+    // Die Liste zeigt eine Herkunft und hoechstens 100 — die Nummer kann woanders hinfuehren.
+    const h = await mount([]);
+    await finde(h, "4711abcdef01", [
+      { session_id: "zzz-999", message_id: 5, trace_id: "4711abcdef01-x", created_at: "2026-10-30T10:00:00Z" },
+    ]);
+    h.http.expectOne((r) => r.url === "/studio/api/sessions/zzz-999/messages").flush([]);
+    await tick();
+    await h.fixture.whenStable();
+    expect(h.el.querySelector("studio-session-transcript")).not.toBeNull();
+  });
+});

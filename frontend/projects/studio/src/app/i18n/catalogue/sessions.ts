@@ -102,6 +102,22 @@ export const SESSIONS: CataloguePart = {
     'st.za.shortcut': 'Schnellweg',
     'st.za.shortcut.canvas': 'Material (Canvas)',
     'st.za.shortcut.lernpfad': 'Lernpfad',
+
+    // ── Suche nach Fehlernummer (Paket 18C/D) ───────────────────────
+    'sv.search.label': 'Fehlernummer',
+    'sv.search.hint':
+      'Die Nummer aus einer Fehlerblase („Fehlernummer: …“). Ab 8 Zeichen genügt der Anfang.',
+    'sv.search.submit': 'Zug suchen',
+    'sv.search.searching': 'Sucht …',
+    'sv.search.invalid':
+      'Eine Fehlernummer besteht aus Buchstaben, Ziffern und den Zeichen . _ : - '
+      + '(höchstens 128).',
+    'sv.search.none':
+      'Keine Antwort mit der Fehlernummer {nummer} gefunden. Vielleicht ist der Verlauf schon '
+      + 'gelöscht (Aufbewahrung) oder die Nummer stammt aus einer anderen Anlage.',
+    'sv.search.opened': 'Gefunden: der Verlauf von {id} ist geöffnet.',
+    'sv.search.many': '{count} Treffer — bitte einen wählen.',
+    'sv.search.results': 'Treffer',
   },
 
   en: {
@@ -173,5 +189,20 @@ export const SESSIONS: CataloguePart = {
     'st.za.shortcut': 'Shortcut',
     'st.za.shortcut.canvas': 'Material (canvas)',
     'st.za.shortcut.lernpfad': 'Learning path',
+
+    'sv.search.label': 'Error number',
+    'sv.search.hint':
+      'The number from an error bubble (“Error number: …”). From 8 characters on, the '
+      + 'beginning is enough.',
+    'sv.search.submit': 'Find turn',
+    'sv.search.searching': 'Searching …',
+    'sv.search.invalid':
+      'An error number consists of letters, digits and the characters . _ : - (at most 128).',
+    'sv.search.none':
+      'No answer with error number {nummer} found. The transcript may already be deleted '
+      + '(retention), or the number comes from another installation.',
+    'sv.search.opened': 'Found: the transcript of {id} is open.',
+    'sv.search.many': '{count} hits — please pick one.',
+    'sv.search.results': 'Hits',
   },
 };
