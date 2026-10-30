@@ -470,9 +470,11 @@ wie ein Lasttest, nicht wie eine Suche.
   `agent_round` und zum Schluss `agent_stop` mit Ende-Grund und Rundenzahl. Eine
   Runde nennt ihre Werkzeuge in Aufrufreihenfolge, auch die virtuellen
   (`zeige_dokument`, `liefere_ergebnis`, `wissen_suchen` …), dazu Dauer und Token.
-  Von den Argumenten stehen nur die **Namen** darin, nie die Werte: der
-  Debug-Block ist für jeden lesbar, der die Sitzungskennung hat, und ein Wert kann
-  Nutzerinhalt tragen. Das Debug-Panel des Widgets zeigt die Zeilen an. Der
+  Von den Argumenten stehen nur die **Namen** darin, nie die Werte: ein Wert kann
+  Nutzerinhalt tragen. Die Werte stehen in der Zugakte (`debug._zugakte`, Paket
+  18C/D). Den Debug-Block bekommt seit Paket 18C/D nur die Anlage selbst; das
+  Studio zeigt die Zeilen im Gesprächsverlauf, das Debug-Panel des Widgets nur mit
+  Freigabe. Der
   Muster-Weg führt keine Runden-Spur.
 - **Zeile `skill`** (AG-5), in jeder Maschine: die Anleitung, die dieser Zug
   geholt hat, mit Knoten-Kennung und Titel. Das sind Angaben aus dem

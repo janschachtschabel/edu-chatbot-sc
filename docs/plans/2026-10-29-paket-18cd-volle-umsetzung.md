@@ -462,3 +462,37 @@ PR 1 etwa 1 Tag · PR 2 etwa 1 Tag · PR 3 etwa ½–1 Tag · PR 4 etwa 1–1½ 
   - **Für Phase 4 vermerkt:** `ui.type_focus` gibt es nur im Verlauf (live erkennt das Widget
     den Typ-Fokus per Muster im Text) — beim Umstellen live nachreichen; der Verlauf trägt bis
     zum Schnitt `ui` und `debug` doppelt.
+- 2026-10-30: **Phase 3 gemergt** (#31 → main `6cadf11`). **Phase 4 gebaut** (4.1–4.9, nur
+  Staging). Entscheide und Abweichungen, am Code begründet:
+  - **Schnitt:** `publikum.antwort_fuer`/`verlauf_fuer(…, intern)`; ohne Freigabe `debug: null`
+    an Antwort und Strom-`result`, im Verlauf fehlen `debug` und `trace_id`. `ChatResponse.debug`
+    ist dafür nullable (OpenAPI, `bewusste-vertragszusaetze.md`). Im Strom entscheidet die
+    HTTP-Grenze (`_stream_turn(intern=…)`, Vorgabe aus) — die Tests rufen `_stream_turn` mit einer
+    Attrappe ohne `scope`, und dort gehört die Entscheidung ohnehin hin.
+  - **Trace-ID je Nachricht** liest `get_messages` nur mit `zugakte=True` (Studio); daraus die
+    Fehlernummer der Antwort. **Typ-Fokus live:** `turn_persist` setzt `ui.type_focus`,
+    `antwort_fuer` lässt ihn stehen.
+  - **Widget:** `ChatMessage.ui` ersetzt `debug` (die Nachricht trug den Block nur fürs Grouping);
+    `addBotMessage` nimmt `ui` an Position 5 an allen Aufrufstellen; `setLatestDebug(debug, ui)`
+    füttert das Panel (`latestDebug` + `latestUi`). `UiInfo` im Widget hält die
+    Wiederherstellungsfelder als `unknown` — jeder Leser prüft die Form selbst (gespeichertes
+    JSON). Das Gastgeber-Ereignis nimmt die Antwort (`{ui, debug}`); `persona`/`signals` nur aus
+    `debug`. Die Fehlernummer im Strom-`error` übernimmt der Client nur im Zeichenvorrat der
+    Trace-ID mit Buchstabe oder Ziffer am Anfang.
+  - **Studio:** `views/zugakte.ts` (reiner Leser, jedes Feld geprüft, wie `agent-trace.ts`) und
+    `studio-zugakte`; die gesendeten Argumente nur bei Abweichung von den eingegangenen.
+    **Abweichung:** keine Spalten „Quelle“/„Treffer“ (gibt es seit Phase 1 nicht: `zeichen` statt
+    Trefferzahl). Suche als eigene Komponente `studio-zug-suche` auf der Gesprächsseite; ein
+    Treffer öffnet auch eine Sitzung außerhalb der gefilterten Liste.
+  - E2E-Vorlage ohne `debug`; die Kontrast-Probe setzt den vollen Block weiter selbst.
+- 2026-10-30: **Review Phase 4** (frischer Prüfer, nur lesend) — kein schwerer Befund. Behoben:
+  - Beschriftungen des `ui`-Zweigs im Debug-Panel fest deutsch → das Panel bekommt den
+    Übersetzer der Shell (Pflicht-Eingabe), Schlüssel `debug.ui.*`.
+  - „ist rechts geöffnet“ hing an der Lage (unter 60rem gestapelt, WCAG 1.3.3) → ohne Ortsangabe.
+  - Deutscher Satz in der Nutzlast-Spalte des Widget-Vertrags → übersetzter Zusatz (`noteKey`).
+  - Tour- und Kontext-Begrüßungs-Specs bauten die alte Antwortform → `ui` und Position 5 geprüft.
+  - Änderungsnotiz: Migration 0016 als Schritt, falls noch nicht eingespielt.
+  - Kleinigkeiten: Suche lehnt `.`/`..` ab (der Browser normalisierte den Pfad zur
+    Sitzungsliste); der Sprung zur Nachricht ist ein Ziel-Objekt je Suche (dieselbe Nummer springt
+    erneut, ein Neuladen nicht); keine gleich benannte Landmarke je Antwort; Kommentar in
+    `schemas_ui`; `trace_id` nur gelesen, wenn zurückgegeben.

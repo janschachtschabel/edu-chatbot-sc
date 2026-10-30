@@ -9,6 +9,9 @@ already been fixed, because the audit describes a slightly older state (about la
 rest is either fixed in this change (packages **18A** and **18B**) or planned in packages
 **18C–18F**, which are described at the end.
 
+**Update 2026-10-30:** packages **18C and 18D** are done (four pull requests, see
+`docs/aenderungen/2026-10-29-*` and `2026-10-30-*`). Their rows below now say ✅ 18C/18D.
+
 Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳ planned (package) ·
 ➖ accepted, not changed
 
@@ -20,7 +23,7 @@ Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳
 | Retries on authentication errors (`num_retries=2`) | ✔ | Removed. The SDK does not retry a 401. |
 | Moderation fails silently; the safety service does not notice | ✅ 18A | See §3. |
 | Log does not say that the LLM key is the cause of a 401 | ⏳ 18F | A clear log line ("provider rejects the key: provider, route"), rate-limited. |
-| Error class shown to the user ("gaierror", "AuthenticationError", "InternalServerError") | ⏳ 18D | One translated message with a short error number (trace ID). Class and message only go to the log. The raw LiteLLM text from the audit ("Fehler bei der Verarbeitung: litellm…") was already removed earlier. |
+| Error class shown to the user ("gaierror", "AuthenticationError", "InternalServerError") | ✅ 18D | One translated message ending in an error number ("Fehlernummer: …", the first 12 characters of the trace ID) — also in the stream's error frame and in the widget. The Studio finds the turn by that number (page "Gespräche"). Class and message only go to the log. The raw LiteLLM text from the audit ("Fehler bei der Verarbeitung: litellm…") was already removed earlier. |
 | Several calls hit the same dead endpoint (circuit breaker) | ⏳ later | Costs latency only in the failure case. |
 | "Worksheet **or** interactive material" returns only one type | ✅ 18B | See §4. |
 | Type-focus rewrites the answer; search link filters only one type | ✅ 18B | The label and the search link now name and filter **all** requested types. The rewrite itself stays by design: it stops sentences like "here are matching videos" while the items sit behind the search link, which now shows both types. With the search down there are no content cards, and since mid-October the model's own answer ("search not reachable") is then kept. |
@@ -36,7 +39,7 @@ Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳
 | `services/mcp/tool_args.py` — second validation error swallowed | ✅ 18B | Now logged at warning, **without input values** (only location and error type). The raw arguments still pass through on purpose (fail-open): the MCP server validates again and returns an error the model can read. |
 | `graph/nodes/respond.py` (3×), `obs/tasks.py` `cancel_and_drain` — cancel + await swallows everything, no timeout | ⏳ 18E | One helper for "cancel and wait": it passes on our own cancellation, logs unexpected errors and has a time limit. |
 | `domain/guide_mode.py`, `domain/cards/links.py`, `services/rag/retrieval.py`, `services/page_context.py`, `services/response_prompt_tools_text.py`, `services/turn_links.py` (QueryMeta loop) | ⏳ 18E | Log at debug or warning; narrow the caught exception where possible. A full scan found 124 such handlers: 87 are fine, 30 should log, 7 hide real risks (e.g. an invalid value silently turns the rate limit off). |
-| Bot text, quick replies and user text in logs (`turn_links.py`, `turn_persist.py`, `widget_postprocess.py`) | ⏳ 18C | Larger than reported: about 55 places in 22 files. Rule from now on: never content at INFO or above; at DEBUG only with `LOG_CONTENT=true`. A test will check all logger calls. Already done here: the "test message" log line in `merge.py` no longer contains the message. |
+| Bot text, quick replies and user text in logs (`turn_links.py`, `turn_persist.py`, `widget_postprocess.py`) | ✅ 18C | Larger than reported: about 55 places in 22 files. The log now holds no content — only lengths, short session IDs and filter values; content only at DEBUG with `LOG_CONTENT=true`. What a turn did is stored per turn for the Studio (the turn record), found by the trace ID. An AST guard checks every logger call, and a canary test runs real turns over all paths with a marker word. |
 
 ## 3 Moderation outage (18A)
 
@@ -73,8 +76,8 @@ Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳
 
 | Finding | Status |
 |---|---|
-| The debug block of every chat response reaches every client (error texts, model and tool names) | ⏳ 18D — only with Studio login or an approved debug switch |
-| The canvas shows the provider's raw error text in the generated material | ⏳ 18D |
+| The debug block of every chat response reaches every client (error texts, model and tool names) | ✅ 18D — every response carries a public `ui` part; `debug` only with Studio login or the studio key (otherwise `null`), also in the history |
+| The canvas shows the provider's raw error text in the generated material | ✅ 18D — an error number instead |
 | Waiting for an LLM slot has no time limit; a hanging provider fills a replica | ⏳ 18F — limit (about 30 s), then a friendly "busy" message |
 | Outer rate limit is 20/min per IP (too tight behind a school NAT); 429 looks like a generic error in the widget | ⏳ 18F — 120/min per IP, own 429 message |
 | Anonymous users have the same agent limits as logged-in users (no cost cap) | ➖ for now — the cost of an anonymous turn will be measured first |

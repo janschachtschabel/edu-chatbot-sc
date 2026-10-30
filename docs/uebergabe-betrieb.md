@@ -173,13 +173,14 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 - **Trace-ID:**
   - **Quelle**, in dieser Reihenfolge: `x-client-trace-id`, sonst `X-B3-TraceId`/`b3`, sonst neu erzeugt.
   - **Wo sie steht:** in jeder Logzeile der Anfrage, auch in der Zugriffszeile, und seit Paket 18C/D an jeder gespeicherten Nachricht (Suche im Studio per Präfix, `GET /api/sessions/zug/{nummer}`).
-  - **Fehlernummer:** Fehlerblasen nennen statt der Fehlerklasse die ersten 12 Zeichen der Trace-ID („Fehlernummer: 4f2a9c01d3b7“). Meldet jemand eine Nummer, führt die Suche im Studio zum Zug samt Zugakte; im Log steht dieselbe ID in jeder Zeile der Anfrage.
+  - **Fehlernummer:** Fehlerblasen nennen statt der Fehlerklasse die ersten 12 Zeichen der Trace-ID („Fehlernummer: 4f2a9c01d3b7“), auch im Widget, wenn der Strom scheitert. Meldet jemand eine Nummer: im Studio unter „Gespräche“ ins Feld „Fehlernummer“ — der Verlauf öffnet sich an der Antwort samt Zugakte; im Log steht dieselbe ID in jeder Zeile der Anfrage.
   - **Wohin sie geht:** an die b-api und den WLO-MCP-Server als `x-client-trace-id`; B3 (`X-B3-TraceId` in Kleinbuchstaben, neue `X-B3-SpanId`) nur, wenn die ID eine gültige B3-ID ist (16 oder 32 Hex-Zeichen). Nicht an OpenAI direkt und nicht an fremde MCP-Server. Nicht zurück an den Client.
 - **Inhalte (Paket 18C/D):**
   - Das Log enthält keine Nachrichten, Antworten, Themen oder Suchbegriffe — nur ihre Länge —, Sitzungen nur als Kurzkennung, Werkzeugargumente nur mit Filterwerten, keine IP.
   - Die Zugriffszeile `zugriff` nennt Methode, Pfad-Vorlage, Status und Dauer; Dateien und `/health` nur auf DEBUG. Uvicorns Zugriffszeile ist aus.
   - Fremd-Logger gedeckelt (LiteLLM, OpenAI, MCP, instructor, httpx/httpcore, SQLAlchemy auf WARNING, slowapi auf ERROR); LiteLLM ohne eigenen Handler.
   - Den Inhalt eines Zugs zeigt das Studio (Gesprächsverlauf mit Zugakte), gefunden über die Trace-ID.
+  - **Antworten:** öffentlich nur der Teil `ui`; den Debug-Block (Persona, Signale, Spur, Kosten) und im Verlauf die Trace-ID je Nachricht bekommt nur die Anlage selbst — Studio-Proxy, gültiger `X-Studio-Key`, reiner Entwicklungsmodus. Evaluation, Golden-Läufe und Lasttest schicken dafür `STUDIO_API_KEY`; ohne ihn fehlen Muster, Werkzeuge und Spur im Bericht (der Lauf warnt).
   - **`LOG_CONTENT=true`** (Vorgabe aus) mit `LOG_LEVEL=DEBUG`: Werkzeugargumente und die Protokolle von LiteLLM, OpenAI-SDK und MCP-Client auf DEBUG — nur für eine akute Analyse; der Start warnt.
   - Datenbankfehler ohne Parameterwerte (`hide_parameters`); Postgres-`DETAIL:` und Pydantic-`input_value=` werden beim Formatieren geschwärzt (Meldung und Traceback); Prüffehler nur mit Ort und Art.
 - **Optional:** OpenTelemetry-Traces mit `OTEL_EXPORTER_OTLP_ENDPOINT`; Pfade mit Sitzungs-ID (`/api/sessions/…`, `/studio/api/sessions/…`, `/api/usage/session/…`) werden nicht gemessen.
