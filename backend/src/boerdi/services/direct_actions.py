@@ -169,7 +169,7 @@ async def _handle_browse_collection(
             response_text = bot_text(lang, "action.browse.empty", title=title)
 
     except Exception as e:
-        logger.error("browse_collection error: %s", e)
+        logger.exception("browse_collection error (%s)", type(e).__name__)
         cards = []
         response_text = bot_text(lang, "action.browse.loadFailed", title=title)
         tools_called.append("error")
@@ -464,7 +464,7 @@ async def _handle_generate_learning_path(
             cards = cards[:_lp_max]
 
     except Exception as e:
-        logger.error("generate_learning_path error: %s", e)
+        logger.exception("generate_learning_path error (%s)", type(e).__name__)
         cards = []
         response_text = bot_text(lang, "action.lp.failed", title=title)
         lp_failed = True

@@ -119,7 +119,8 @@ async def _handle_show_content_text(
     try:
         raw = await call_mcp_tool("get_wlo_content_text", {"nodeId": node_id})
     except Exception as err:
-        logger.error("show_content_text: MCP-Aufruf fehlgeschlagen: %s", err)
+        logger.exception("show_content_text: MCP-Aufruf fehlgeschlagen (%s)",
+                         type(err).__name__)
         debug.entities["reason"] = "mcp_error"
         return ChatResponse(
             session_id=req.session_id,

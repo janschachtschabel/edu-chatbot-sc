@@ -252,7 +252,9 @@ async def _call_tool(
             # Die EIGENE Frist (Paket 4, B2) — nicht eine Zeitüberschreitung aus
             # dem SDK, die bleibt ``transport``. Eigene Art, weil ein zweiter
             # Versuch genauso lange hinge (``client.call_mcp_tool_status``).
-            logger.error("MCP tool %s @ %s: keine Antwort binnen %g s",
+            # Ohne Traceback (Paket 18E): die eigene Frist ist abgelaufen — ein
+            # erwarteter Zustand, der Trace zeigte nur die Wartestelle.
+            logger.error("MCP tool %s @ %s: keine Antwort binnen %g s",  # noqa: TRY400
                          tool_name, target_url, frist)
             return {"error": {"message": f"keine Antwort binnen {frist:g} s",
                               "kind": "timeout"}}
@@ -268,11 +270,16 @@ async def _call_tool(
             # unten, nur als JSON-RPC-Fehler gemeldet. Kein ``transport``: der
             # Aufrufer wiederholte sonst dieselbe Ablehnung.
             # Paket 18C/D: ``-32602`` wiederholt die Eingabe — der Text steht in der Zugakte.
-            logger.error("MCP tool %s rejected @ %s: %s", tool_name, target_url,
+            # Ohne Traceback (Paket 18E): ``McpError.__str__`` brächte den ungekürzten
+            # Text zurück, den ``inhalt`` hier gerade kürzt.
+            logger.error("MCP tool %s rejected @ %s: %s", tool_name, target_url,  # noqa: TRY400
                          inhalt(abgelehnt.error.message))
             return {"error": {"message": abgelehnt.error.message, "kind": "tool"}}
         grund = _cause_text(exc)
-        logger.error("MCP tool %s transport error @ %s: %s", tool_name, target_url, grund)
+        # Ohne Traceback (Paket 18E): Netzfehler sind erwartet, ``_cause_text`` nennt die
+        # Ursache; die anyio-Gruppen-Traces wären lang und sagten nichts dazu.
+        logger.error("MCP tool %s transport error @ %s: %s",  # noqa: TRY400
+                     tool_name, target_url, grund)
         return {"error": {"message": grund, "kind": "transport"}}
 
     if result.isError:

@@ -455,7 +455,7 @@ async def respond(
             # Frontend schluckt es als generisches "etwas ist schiefgelaufen".
             # Stattdessen freundlich degradieren + spekulativ-geholte Karten
             # behalten, damit der User noch etwas Nützliches sieht.
-            logger.error("generate_response failed: %s", _gen_err)
+            logger.exception("generate_response failed (%s)", type(_gen_err).__name__)
             # Kam der Fehler aus der Datenbank (etwa der RAG-Abfrage), steht die
             # geteilte Zug-Sitzung jetzt in einer abgebrochenen Transaktion —
             # ohne Rollback scheiterte danach ``persist``, und die freundliche

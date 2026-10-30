@@ -273,9 +273,9 @@ async def redeem_write_approval(
         # Der Grund geht ins Protokoll, nicht in die Antwort: eine
         # Transportmeldung ist ein Interna-Auszug und gehört nicht vor den
         # Nutzer. Dieselbe Aufteilung wie beim Nachbarn ``content_text_action``.
-        logger.error(
-            "Abnahme für %s (Sitzung %s) warf eine Ausnahme: %s",
-            tool, kennung(req.session_id), err)
+        logger.exception(
+            "Abnahme für %s (Sitzung %s) warf eine Ausnahme (%s)",
+            tool, kennung(req.session_id), type(err).__name__)
         return await _unbestaetigt(session, req, session_state, lang, debug)
 
     if is_mcp_error(rohtext) and fehlerart in ("tool", "auth"):
