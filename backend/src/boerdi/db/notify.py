@@ -20,7 +20,7 @@ from collections.abc import Callable
 import asyncpg
 from sqlalchemy.engine import make_url
 
-from boerdi.obs.tasks import cancel_and_drain
+from boerdi.obs.tasks import ABBRUCH_FRIST_S, cancel_and_drain
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +73,12 @@ class ConfigChangeListener:
     async def wait_connected(self, timeout: float = 5.0) -> None:
         await asyncio.wait_for(self._connected.wait(), timeout)
 
-    async def stop(self) -> None:
+    async def stop(self, *, frist_s: float = ABBRUCH_FRIST_S) -> None:
         self._stopped = True
         try:
             if self._task is not None:
                 # Paket 18E: mit Frist, und ohne den eigenen Abbruch zu verschlucken.
-                await cancel_and_drain([self._task], bezeichnung="config-notify")
+                await cancel_and_drain([self._task], frist_s=frist_s, bezeichnung="config-notify")
         finally:
             self._task = None
             self._connected.clear()

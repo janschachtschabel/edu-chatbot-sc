@@ -58,7 +58,11 @@ async def cancel_and_drain(
                 _retrieve_task_exception(task)
             else:
                 haengend += 1
-                task.add_done_callback(_retrieve_task_exception)
+                # Die Schleife hält nur schwache Referenzen (Review 2026-10-30): ohne diese
+                # könnte die Aufgabe eingesammelt werden, bevor ihr Abbruch durch ist.
+                _BG_TASKS.add(task)
+                task.add_done_callback(lambda t: (_BG_TASKS.discard(t),
+                                                  _retrieve_task_exception(t)))
     if haengend:
         logger.warning("%s%d abgebrochene Aufgabe(n) nach %.1f s nicht beendet — sie laufen "
                        "im Hintergrund aus", f"[{bezeichnung}] " if bezeichnung else "",

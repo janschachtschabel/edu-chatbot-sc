@@ -318,17 +318,27 @@ def test_ein_bestaetigter_schreibaufruf_laeuft_trotz_frist_zu_ende(monkeypatch):
     geschrieben hat — und ein neuer Versuch schriebe doppelt. Er läuft zu
     Ende, gedeckelt durch ``MCP_CALL_TIMEOUT_S`` (B2).
 
-    Die Frist (1 s) läuft WÄHREND des Schreibens (1,2 s) ab. Bis Paket 18E stand sie auf
-    0,25 s — die beiden Runden davor brauchten auf den GitHub-Runnern dauerhaft mehr
-    (dreimal rot, im Linux-Container mit Postgres grün): die Prüfung hing an der Uhr der
-    Maschine statt am Verhalten."""
+    Das Schreiben beginnt vor dem Fristende und schläft bis kurz danach — die Frist läuft
+    also sicher WÄHREND des Schreibens ab, ohne dass der Test eine feste Dauer der Runden
+    davor annimmt. Bis Paket 18E stand sie fest auf 0,25 s, danach auf 1 s gegen 1,2 s
+    Schreiben; beides hing an der Uhr der Maschine (Review 2026-10-30, auf den GitHub-Runnern
+    dreimal rot)."""
+    gemessen: dict[str, float] = {}
+    echtes_ende = agent_loop.frist_ende
+
+    def _frist_ende(deadline_s: float, vergangen: float) -> float:
+        gemessen["ende"] = echtes_ende(deadline_s, vergangen)
+        return gemessen["ende"]
 
     class _LangsamesSchreiben(_ZweistufigFake):
         async def __call__(self, tool_name, tool_args):
             if "confirmToken" in tool_args:
-                await asyncio.sleep(1.2)
+                uhr = asyncio.get_running_loop()
+                gemessen["schreiben_ab"] = uhr.time()
+                await asyncio.sleep(max(0.0, gemessen["ende"] - uhr.time()) + 0.1)
             return await super().__call__(tool_name, tool_args)
 
+    monkeypatch.setattr(agent_loop, "frist_ende", _frist_ende)
     out = _LangsamesSchreiben()
     ruf = _resp_tools([_tool_call("wlo_create_collection", {"name": "Bruchrechnen"})])
     monkeypatch.setattr(llm, "chat_completion", _SeqLLM([ruf, ruf, _resp_text("Angelegt.")]))
@@ -338,6 +348,8 @@ def test_ein_bestaetigter_schreibaufruf_laeuft_trotz_frist_zu_ende(monkeypatch):
         messages=msgs,
         tools=[{"type": "function", "function": {"name": "wlo_create_collection"}}],
         limits=AgentLimits.model_construct(deadline_s=1.0, write_mode="execute")))
+    assert len(out.calls) == 2, "die Frist lief schon vor dem Schreiben ab"
+    assert gemessen["schreiben_ab"] < gemessen["ende"]
     assert out.calls[1][1]["confirmToken"] == "aBcD1234eFgH5678iJkL9012"
     assert [o.status for o in run.outcomes] == ["success", "success"]
     antworten = [m["content"] for m in msgs if m.get("role") == "tool"]

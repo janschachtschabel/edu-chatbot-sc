@@ -134,9 +134,10 @@ services:
     # Nacheinander: bis 5 s die eigenen Läufe schließen (Paket 17), uvicorn wartet bis
     # --timeout-graceful-shutdown (30 s) auf offene Ströme, danach der Lifespan bis
     # NACHLAUF_FRIST_S (25 s) auf nachlaufende Züge, 5 s auf ihren Abbruch, dann das
-    # Aufräumen. Kürzer schösse Docker mitten in das Warten (Review Paket 9; Wächter in
+    # Aufräumen (Takte und Listener zusammen 5 s, dazu das Schließen der Verbindungen). Kürzer
+    # schösse Docker mitten in das Warten (Review Paket 9 und 2026-10-30; Wächter in
     # tests/test_deploy_compose.py).
-    stop_grace_period: 70s
+    stop_grace_period: 75s
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-boerdi}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt}@postgres:5432/${POSTGRES_DB:-boerdi}
       # Das Schema wählt auch den Client: ``limits`` liest ``valkey://`` mit

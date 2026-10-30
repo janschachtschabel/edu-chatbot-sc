@@ -136,3 +136,46 @@ def test_eine_verlorene_sperre_meldet_die_verlaengerung(db_url, caplog):
     meldungen = [r.getMessage() for r in caplog.records if kennung("s-6") in r.getMessage()]
     assert all("s-6" not in m for m in meldungen)
     assert len(meldungen) == 1 and "verloren" in meldungen[0], meldungen
+
+
+
+def test_ein_zweiter_abbruch_beim_aufraeumen_gibt_die_sperre_trotzdem_frei(db_url, monkeypatch):
+    """Review 2026-10-30: kommt ein zweiter Abbruch, während ``cancel_and_drain`` noch auf den
+    Verlängerer wartet, läuft er durch (Paket 18E) — die Freigabe steht im inneren ``finally``
+    und läuft trotzdem."""
+    from boerdi.services import sitzungssperre as sperre_mod
+
+    waechter_bricht_ab = asyncio.Event()
+
+    async def _zaeher_verlaengerer(*_a, **_k):
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            waechter_bricht_ab.set()
+            await asyncio.sleep(1)  # räumt langsam ab — Zeit für den zweiten Abbruch
+            raise
+
+    monkeypatch.setattr(sperre_mod, "_verlaengern", _zaeher_verlaengerer)
+
+    async def _ablauf():
+        engine = create_async_engine(db_url)
+        drin = asyncio.Event()
+
+        async def _zug():
+            async with sitzungssperre(engine, "s-abbruch", warten_s=0.0):
+                drin.set()
+                await asyncio.sleep(30)
+
+        try:
+            aufgabe = asyncio.create_task(_zug())
+            await asyncio.wait_for(drin.wait(), 10)
+            aufgabe.cancel()                       # erster Abbruch: im Rumpf
+            await asyncio.wait_for(waechter_bricht_ab.wait(), 10)
+            aufgabe.cancel()                       # zweiter: während des Aufräumens
+            with pytest.raises(asyncio.CancelledError):
+                await aufgabe
+            async with sitzungssperre(engine, "s-abbruch", warten_s=0.0):
+                pass  # sofort wieder frei, nicht erst nach ``ttl_s``
+        finally:
+            await engine.dispose()
+    _run(_ablauf())

@@ -593,3 +593,39 @@ def test_privacy_get_mit_unbrauchbarem_wert_sagt_es(cfg) -> None:
     r = client.get("/api/config/privacy", headers=_AUTH)
     assert r.status_code == 409
     assert "privacy-config" in r.json()["detail"]
+
+
+
+def test_privacy_put_schreibt_nicht_ueber_eine_fremde_aenderung(cfg, monkeypatch) -> None:
+    """Review 2026-10-30: zwischen Lesen und Schreiben änderte jemand den Bereich (etwa die
+    Frist im Aufbewahrungs-Panel) — bis dahin ging seine Änderung still verloren."""
+    client, seed = cfg
+    seed("01-base/privacy-config", {"logging": {"messages": True, "retention_days": 30}})
+    echt = config_loader.read_area
+
+    async def veraltet(bereich: str):
+        daten, version = await echt(bereich)
+        return daten, version - 1  # so stand er vor der fremden Änderung
+
+    vorher = asyncio.run(echt("01-base/privacy-config"))
+    monkeypatch.setattr(config_loader, "read_area", veraltet)
+    r = client.put("/api/config/privacy", headers=_AUTH, json={
+        "messages": False, "memory": True, "quality": True, "safety": True})
+    assert r.status_code == 409, r.text
+    assert r.json()["detail"]
+    assert asyncio.run(echt("01-base/privacy-config")) == vorher  # nichts überschrieben
+
+
+def test_privacy_put_legt_nicht_ueber_einen_eben_angelegten_bereich(cfg, monkeypatch) -> None:
+    """Fehlte der Bereich beim Lesen, legt der PUT ihn nur an, wenn ihn niemand dazwischen
+    angelegt hat (``create_only``)."""
+    client, seed = cfg
+    seed("01-base/privacy-config", {"logging": {"messages": True, "retention_days": 45}})
+
+    async def fehlt(_bereich: str):
+        return None
+
+    monkeypatch.setattr(config_loader, "read_area", fehlt)
+    r = client.put("/api/config/privacy", headers=_AUTH, json={
+        "messages": False, "memory": True, "quality": True, "safety": True})
+    assert r.status_code == 409, r.text

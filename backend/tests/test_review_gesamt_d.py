@@ -117,7 +117,7 @@ def test_die_gnadenfrist_rechnet_mit_der_echten_uvicorn_frist() -> None:
     from boerdi.services.laeufe_beenden import _FRIST_S as abschluss_s
 
     assert (v["terminationGracePeriodSeconds"]
-            >= abschluss_s + uvicorn_s + NACHLAUF_FRIST_S + 5 + 5 + pre_stop + 5)
+            >= abschluss_s + uvicorn_s + NACHLAUF_FRIST_S + 5 + 5 + 2 + pre_stop + 5)
 
 
 def test_keine_anleitung_prueft_api_health_ohne_schluessel() -> None:

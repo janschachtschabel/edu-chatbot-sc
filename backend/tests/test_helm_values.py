@@ -65,7 +65,7 @@ def test_die_gnadenfrist_deckt_das_herunterfahren() -> None:
     from boerdi.services.laeufe_beenden import _FRIST_S as abschluss_s
 
     assert (v["terminationGracePeriodSeconds"]
-            >= abschluss_s + 30 + NACHLAUF_FRIST_S + 5 + 5 + pre_stop)
+            >= abschluss_s + 30 + NACHLAUF_FRIST_S + 5 + 5 + 2 + pre_stop)
 
 
 def test_proben_haben_eine_frist_ueber_der_datenbank_probe() -> None:

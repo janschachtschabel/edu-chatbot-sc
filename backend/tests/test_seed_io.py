@@ -165,3 +165,24 @@ def test_round_trip_mit_strich_im_wert() -> None:
     text = seed_io.join_frontmatter(fm, "Rumpf\n")
     assert seed_io.split_frontmatter(text, streng=True) == (fm, "Rumpf\n")
     assert seed_io.split_frontmatter(text) == (fm, "Rumpf\n")
+
+
+# ── Review 2026-10-30 ──────────────────────────────────────────────────────────
+
+
+def test_leerraum_hinter_dem_schliessenden_strich_zaehlt_nicht() -> None:
+    assert seed_io.split_frontmatter("---\nid: M42\n--- \nText\n", streng=True) == (
+        {"id": "M42"}, "Text\n")
+    assert seed_io.split_frontmatter("---\nid: M42\n---\t\r\nText\n") == ({"id": "M42"}, "Text\n")
+
+
+@pytest.mark.parametrize("kopf", ["false", "0", "[]", "''"])
+def test_ein_falscher_kopf_ist_keine_leere_zuordnung(kopf) -> None:
+    text = f"---\n{kopf}\n---\nText\n"
+    with pytest.raises(yaml.YAMLError):
+        seed_io.split_frontmatter(text, streng=True)
+    assert seed_io.split_frontmatter(text) == ({}, "Text\n")
+
+
+def test_ein_leerer_kopf_bleibt_leer() -> None:
+    assert seed_io.split_frontmatter("---\n---\nText\n", streng=True) == ({}, "Text\n")

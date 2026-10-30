@@ -120,11 +120,14 @@ def fake_infra(monkeypatch):
     from boerdi.services import config_loader, config_store
     from boerdi.services import loadtest as loadtest_mod
 
+    gestoppt: list = []
+
     class _Store:
         async def start(self): return None
         async def list_areas(self): return []
         async def preload(self, areas): return None
-        async def stop(self): return None
+        async def stop(self, *, frist_s=None):
+            gestoppt.append(frist_s)
         def subscribe(self, callback): return None  # Paket 17 (C3): Master-Skill-Signal
 
     class _Engine:
@@ -138,6 +141,7 @@ def fake_infra(monkeypatch):
 
     async def _sweep(session): return 0
     monkeypatch.setattr(loadtest_mod, "sweep_orphaned_loadtests", _sweep)
+    return gestoppt
 
 
 async def test_lifespan_actually_spawns_the_warmups(monkeypatch, fake_infra):
@@ -152,6 +156,12 @@ async def test_lifespan_actually_spawns_the_warmups(monkeypatch, fake_infra):
     async with main_mod._lifespan(_FakeApp()):
         pass
     assert spawned == [True]
+    # Review 2026-10-30: Takte und Listener teilen sich EINE Abbruchfrist — der Listener bekommt
+    # den Rest, nie mehr als die ganze.
+    from boerdi.obs.tasks import ABBRUCH_FRIST_S
+
+    (frist,) = fake_infra
+    assert 0.0 <= frist <= ABBRUCH_FRIST_S
 
 
 class _FakeApp:
