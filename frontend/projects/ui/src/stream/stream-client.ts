@@ -11,6 +11,7 @@
  */
 
 import { fehlerKurz, fehlernummer } from '../obs/fehler-kurz';
+import { httpFehler, wartezeitMs } from './http-fehler';
 import { accessBlockHeaders } from '../session/mcp-access';
 
 /** Server-Sent-Event-Payload aus POST /api/chat/stream. `event` = SSE-Name
@@ -41,7 +42,8 @@ export class StreamStaleError extends Error {
  *  unterscheiden und schickte jede abgelehnte Anfrage ein zweites Mal
  *  (Nutzer-Meldung 2026-08-19: zwei identische 422 in der Konsole). */
 export class StreamHttpError extends Error {
-  constructor(readonly status: number) {
+  /** `retryAfterMs` aus `Retry-After` (Paket 18F) — bei 429 nennt das Widget die Wartezeit. */
+  constructor(readonly status: number, readonly retryAfterMs?: number) {
     super(`Chat stream error: ${status}`);
     this.name = 'StreamHttpError';
   }
@@ -178,7 +180,7 @@ export async function streamChat<T = unknown>(opts: StreamChatOptions): Promise<
   }
   if (!resp.ok || !resp.body) {
     clearTimers();
-    throw new StreamHttpError(resp.status);
+    throw new StreamHttpError(resp.status, wartezeitMs(resp));
   }
 
   const reader = resp.body.getReader();
@@ -283,6 +285,6 @@ export async function postChat<T = unknown>(opts: PostChatOptions): Promise<T> {
     body: JSON.stringify(opts.body),
   });
   // Der Status reist mit (Paket 7, P1): ein 409 heißt „Sitzung beschäftigt“.
-  if (!resp.ok) throw Object.assign(new Error(`Chat error: ${resp.status}`), { status: resp.status });
+  if (!resp.ok) throw httpFehler(resp, 'Chat error');
   return resp.json() as Promise<T>;
 }

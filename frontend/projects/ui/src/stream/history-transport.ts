@@ -7,6 +7,7 @@
  * schluckt jeden Fehler (er darf den Boot nie brechen), die Nachfrage muss ein
  * Ratenlimit von „noch nichts da“ unterscheiden.
  */
+import { httpFehler } from './http-fehler';
 import type { HistoryMessage } from './chat-api';
 
 /** Ein Verlaufseintrag, wie die Shell ihn braucht: `web_links`/`query_metas`
@@ -23,19 +24,6 @@ export function verlaufseintrag(m: any): HistoryMessage {
   return { ...m, webLinks: wl, queryMetas: qm };
 }
 
-/** Ein nicht-ok-Abruf als Fehler: mit `status` und — wenn der Server sagt, wann
- *  es wieder geht — `retryAfterMs`. */
-function abrufFehler(resp: Response): Error {
-  // ``0`` heißt „sofort“ und nicht „fehlt“ (Paket 9); ein fehlender Kopf ergäbe
-  // über ``Number(null)`` ebenfalls 0 und wird deshalb vorher ausgeschieden.
-  const roh = resp.headers?.get?.('Retry-After');
-  const sekunden = roh == null || !roh.trim() ? NaN : Number(roh);
-  return Object.assign(new Error(`History error: ${resp.status}`), {
-    status: resp.status,
-    ...(Number.isFinite(sekunden) && sekunden >= 0 ? { retryAfterMs: sekunden * 1000 } : {}),
-  });
-}
-
 /** Den Verlauf holen. Wirft bei Netz- und HTTP-Fehlern; eine Antwort, die keine
  *  Liste ist, gilt als leerer Verlauf. */
 export async function verlaufAbrufen(
@@ -44,7 +32,7 @@ export async function verlaufAbrufen(
 ): Promise<HistoryMessage[]> {
   const url = `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/messages?limit=${limit}`;
   const resp = await (signal ? doFetch(url, { signal }) : doFetch(url));
-  if (!resp.ok) throw abrufFehler(resp);
+  if (!resp.ok) throw httpFehler(resp, 'History error');
   const data = await resp.json();
   return Array.isArray(data) ? data.map(verlaufseintrag) : [];
 }

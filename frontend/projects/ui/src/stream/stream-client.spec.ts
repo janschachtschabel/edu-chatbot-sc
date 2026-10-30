@@ -324,3 +324,36 @@ describe('Paket 18E: ein Fehler im eigenen Listener', () => {
     expect(fehler).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Paket 18F: 429 mit Wartezeit', () => {
+  it('der Strom trägt Status und Wartezeit aus Retry-After', async () => {
+    const resp = {
+      ok: false, status: 429, body: null,
+      headers: { get: (k: string) => (k === 'Retry-After' ? '42' : null) },
+    } as unknown as Response;
+    let fehler: { status?: number; retryAfterMs?: number; name?: string } = {};
+    try {
+      await streamChat({ url: 'x', body: {}, onEvent: () => {}, fetchImpl: fetchReturning(resp) });
+    } catch (e) {
+      fehler = e as typeof fehler;
+    }
+    expect(fehler.name).toBe('StreamHttpError');
+    expect(fehler.status).toBe(429);
+    expect(fehler.retryAfterMs).toBe(42_000);
+  });
+
+  it('der POST ebenso', async () => {
+    const resp = {
+      ok: false, status: 429,
+      headers: { get: (k: string) => (k === 'Retry-After' ? '7' : null) },
+    } as unknown as Response;
+    let fehler: { status?: number; retryAfterMs?: number } = {};
+    try {
+      await postChat({ url: 'x', body: {}, fetchImpl: fetchReturning(resp) });
+    } catch (e) {
+      fehler = e as typeof fehler;
+    }
+    expect(fehler.status).toBe(429);
+    expect(fehler.retryAfterMs).toBe(7_000);
+  });
+});

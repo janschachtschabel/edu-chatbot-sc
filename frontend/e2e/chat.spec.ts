@@ -186,3 +186,25 @@ test('Fehler des Backends erscheinen als ehrliche Meldung im Verlauf', async ({ 
   // Und die Eingabe ist wieder frei (kein hängender Lade-Zustand).
   await expect(page.locator('.chat-input')).toBeEnabled();
 });
+
+test('zu viele Anfragen (429) erscheinen mit Wartezeit, die Frage bleibt im Feld (Paket 18F)', async ({ page }) => {
+  const w = await mount(page);
+  await w.open();
+  let posts = 0;
+  await page.route((url) => url.pathname === '/api/chat/stream', (r) => r.fulfill({
+    // Wie das Backend (``main.py``: ``expose_headers``) — sonst liest der Browser den Kopf
+    // bei fremder Herkunft nicht, und die Wartezeit fehlte.
+    status: 429,
+    headers: { 'Retry-After': '30', 'Access-Control-Expose-Headers': 'Retry-After' },
+    body: '{"error":"Rate limit exceeded"}',
+  }));
+  await page.route((url) => url.pathname === '/api/chat', (r) => { posts += 1; return r.abort('failed'); });
+
+  await page.locator('.chat-input').fill('Viele?');
+  await page.locator('.btn-send').click();
+
+  await expect(page.locator('.msg-bubble').last()).toContainText('30 s');
+  await expect(page.locator('.chat-input')).toHaveValue('Viele?');
+  await expect(page.locator('.chat-input')).toBeEnabled();
+  expect(posts).toBe(0); // kein zweiter Versand in dieselbe Grenze
+});

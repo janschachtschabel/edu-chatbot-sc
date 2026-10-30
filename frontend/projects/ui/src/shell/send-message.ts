@@ -22,6 +22,7 @@
 import { ChatResponse, UiInfo } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { sitzungsWache } from '../session/session-id';
+import { drosselHinweis } from '../stream/http-fehler';
 import { ChatStreamEvent } from '../stream/stream-client';
 
 /** Was die Nachfrage im Verlauf braucht (Paket 7, P2; Review C-3/C-4). */
@@ -224,8 +225,12 @@ async function nachStromFehler(
   // B10: Server lebt, wird aber nicht fertig → KEIN Fallback-POST (würde
   // den hängenden Turn erneut anstoßen); ehrliche Meldung, Antwort wird
   // serverseitig fertig gespeichert und steht im Verlauf.
-  if ((streamErr as Error)?.name === 'StreamStaleError') return hinweis(zug, 'error.stale');
-  if (istBeschaeftigt(streamErr)) return hinweis(zug, 'error.busy');
+  const t = zug.ctx.t;
+  if ((streamErr as Error)?.name === 'StreamStaleError') return hinweis(zug, t('error.stale'));
+  if (istBeschaeftigt(streamErr)) return hinweis(zug, t('error.busy'));
+  // Paket 18F: zu viele Anfragen (429) — ein zweiter Versand liefe in dieselbe Grenze.
+  const gedrosselt = drosselHinweis(t, streamErr);
+  if (gedrosselt) return hinweis(zug, gedrosselt);
   // Review C-1: jeder `error`-Rahmen ist ein Bescheid des Servers — der Zug
   // ist dort gescheitert, im Verlauf kommt keine Antwort an, und ein zweiter
   // Versand stieße ihn nur noch einmal an.
@@ -265,7 +270,7 @@ async function ausDemVerlauf(
   ctx.updateLoadingPhase(loadingId, ctx.t('phase.fromHistory'));
   const antwort = await ctx.answerFromHistory(zug.msg, { nachId, abgebrochen: veraltet });
   if (veraltet()) return null;
-  return antwort ?? hinweis(zug, 'error.stale');
+  return antwort ?? hinweis(zug, ctx.t('error.stale'));
 }
 
 /** Stream-Transport gescheitert, bevor der Server die Frage hatte (Netz/Proxy)
@@ -281,8 +286,10 @@ async function perPost(zug: Zug, streamErr: unknown): Promise<ChatResponse | nul
     return await ctx.post(zug.msg, zug.env, zug.action, zug.actionParams);
   } catch (postErr) {
     if (veraltet()) return null;
+    const gedrosselt = drosselHinweis(ctx.t, postErr);
+    if (gedrosselt) return hinweis(zug, gedrosselt);
     if (!istBeschaeftigt(postErr)) throw postErr;
-    return hinweis(zug, 'error.busy');
+    return hinweis(zug, ctx.t('error.busy'));
   }
 }
 
@@ -292,11 +299,11 @@ async function perPost(zug: Zug, streamErr: unknown): Promise<ChatResponse | nul
  *  Person inzwischen getippt hat, und nur, was sie getippt hat: eine Aktion
  *  (Karten-Knopf) liefe als Text allein ohne die Aktion, ein Chip oder ein Auftrag
  *  der Gastseite stünde als Satz da, den sie nie geschrieben hat. */
-function hinweis(zug: Zug, schluessel: string): null {
+function hinweis(zug: Zug, text: string): null {
   const { ctx, loadingId } = zug;
   if (zug.getippt && !ctx.currentInput().trim()) ctx.setInput(zug.getippt);
   ctx.removeMessage(loadingId);
-  const id = ctx.addBotMessage(ctx.t(schluessel));
+  const id = ctx.addBotMessage(text);
   ctx.setScrollTarget(id);
   ctx.setLoading(false);
   ctx.focusInput();

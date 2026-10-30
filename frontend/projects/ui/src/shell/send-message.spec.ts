@@ -639,3 +639,39 @@ describe('runSendMessage — Nachfrage im Verlauf (Review Paket 7)', () => {
     }
   });
 });
+
+// ── Paket 18F (3.5): zu viele Anfragen (429) ─────────────────────────────────
+describe('runSendMessage — zu viele Anfragen (Paket 18F)', () => {
+  const gedrosselt = (retryAfterMs?: number) => Object.assign(
+    new Error('Chat stream error: 429'),
+    { name: 'StreamHttpError', status: 429, ...(retryAfterMs === undefined ? {} : { retryAfterMs }) });
+
+  it('429 im Strom → eigener Satz mit Wartezeit, kein POST, die Frage zurück ins Feld', async () => {
+    const r = makeCtx({ input: 'Frage', stream: () => Promise.reject(gedrosselt(30_000)) });
+    await runSendMessage(undefined, undefined, undefined, r.ctx);
+    expect(r.postCalls).toEqual([]);
+    expect(r.bots.at(-1)?.content).toBe(createTranslator(DE, DE)('error.rateLimitedWait', { sekunden: 30 }));
+    expect(r.inputSet).toEqual(['Frage']);
+    expect(r.results).toEqual([]);
+    expect(r.loading.at(-1)).toBe(false);
+  });
+
+  it('429 ohne Retry-After → der Satz ohne Zahl', async () => {
+    const r = makeCtx({ input: '', stream: () => Promise.reject(gedrosselt()) });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.bots.at(-1)?.content).toBe(DE['error.rateLimited']);
+  });
+
+  it('429 auf dem POST-Rückfall → derselbe Satz statt der Fehlerblase', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r = makeCtx({
+      input: '',
+      stream: () => Promise.reject(new Error('network')),
+      post: () => Promise.reject(Object.assign(new Error('Chat error: 429'),
+                                               { status: 429, retryAfterMs: 5_000 })),
+    });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.bots.at(-1)?.content).toBe(createTranslator(DE, DE)('error.rateLimitedWait', { sekunden: 5 }));
+    warn.mockRestore();
+  });
+});

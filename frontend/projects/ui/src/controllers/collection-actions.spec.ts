@@ -425,3 +425,19 @@ describe('Paket 18E: gescheiterte Sammlungs-Aktionen hinterlassen eine Spur', ()
     }
   });
 });
+
+describe('Paket 18F: zu viele Anfragen bei Sammlungs-Aktionen', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('429 → der Drossel-Satz statt der Aktions-Fehlermeldung', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const t = createTranslator(DE, DE);
+    for (const lauf of [browseCollection, showContentText, generateLearningPath]) {
+      const { ctx, calls } = makeCtx({
+        respond: () => { throw Object.assign(new Error('Chat error: 429'), { status: 429, retryAfterMs: 12_000 }); },
+      });
+      await lauf('c1', 'Mathe', ctx);
+      expect(calls.bot.at(-1)?.content).toBe(t('error.rateLimitedWait', { sekunden: 12 }));
+    }
+  });
+});
