@@ -316,12 +316,17 @@ def test_ein_abgebrochener_aufruf_steht_im_protokoll(monkeypatch):
 def test_ein_bestaetigter_schreibaufruf_laeuft_trotz_frist_zu_ende(monkeypatch):
     """Prüfer 2026-10-04: Mitten im Flug abgeschnitten wüsste niemand, ob er
     geschrieben hat — und ein neuer Versuch schriebe doppelt. Er läuft zu
-    Ende, gedeckelt durch ``MCP_CALL_TIMEOUT_S`` (B2)."""
+    Ende, gedeckelt durch ``MCP_CALL_TIMEOUT_S`` (B2).
+
+    Die Frist (1 s) läuft WÄHREND des Schreibens (1,2 s) ab. Bis Paket 18E stand sie auf
+    0,25 s — die beiden Runden davor brauchten auf den GitHub-Runnern dauerhaft mehr
+    (dreimal rot, im Linux-Container mit Postgres grün): die Prüfung hing an der Uhr der
+    Maschine statt am Verhalten."""
 
     class _LangsamesSchreiben(_ZweistufigFake):
         async def __call__(self, tool_name, tool_args):
             if "confirmToken" in tool_args:
-                await asyncio.sleep(0.4)
+                await asyncio.sleep(1.2)
             return await super().__call__(tool_name, tool_args)
 
     out = _LangsamesSchreiben()
@@ -332,7 +337,7 @@ def test_ein_bestaetigter_schreibaufruf_laeuft_trotz_frist_zu_ende(monkeypatch):
     run = asyncio.run(agent_loop.run_agent_loop(
         messages=msgs,
         tools=[{"type": "function", "function": {"name": "wlo_create_collection"}}],
-        limits=AgentLimits.model_construct(deadline_s=0.25, write_mode="execute")))
+        limits=AgentLimits.model_construct(deadline_s=1.0, write_mode="execute")))
     assert out.calls[1][1]["confirmToken"] == "aBcD1234eFgH5678iJkL9012"
     assert [o.status for o in run.outcomes] == ["success", "success"]
     antworten = [m["content"] for m in msgs if m.get("role") == "tool"]
