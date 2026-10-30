@@ -79,6 +79,7 @@ from boerdi.obs.usage import bind_turn_usage
 from boerdi.obs.zeiten import messe_knoten
 from boerdi.services.config_loader import load_safety_config
 from boerdi.services.db_sessions import get_memory, save_message
+from boerdi.services.llm_parallel import binde_zug as binde_llm_zug
 from boerdi.services.mcp.client import reset_prepared_writes, reset_query_metas
 from boerdi.services.zugakte import binde_zugakte
 
@@ -233,12 +234,14 @@ def begin_turn(ctx: TurnContext) -> None:
 
     Hier gebunden, erbt jeder Knoten dieselben Objekte: seine Kopie zeigt auf
     die Liste bzw. das Dict dieses Zuges, und Anhängen/Buchen landet dort. Seit
-    Paket 18C/D gehört die Zugakte dazu (``services/zugakte``).
+    Paket 18C/D gehört die Zugakte dazu (``services/zugakte``), seit Paket 18F der Merker der
+    LLM-Engstelle (``services/llm_parallel``: ein Zug ohne Platz scheitert danach sofort).
     """
     reset_query_metas()
     reset_prepared_writes()
     bind_turn_usage(ctx.usage)
     binde_zugakte()
+    binde_llm_zug()
 
 
 async def run_turn(graph: CompiledStateGraph, ctx: TurnContext) -> dict[str, Any]:

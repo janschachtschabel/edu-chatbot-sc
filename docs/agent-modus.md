@@ -231,7 +231,7 @@ Drei Wege, in dieser Reihenfolge geprüft:
 2. Kopfzeile `WLO-Access-Block` mit **persönlicher** Anmeldung (der anonyme Block zählt nicht).
 3. Kopfzeile `X-Studio-Key` — Server-zu-Server.
 
-Dazu die Drosselung: `RATE_LIMIT_CHAT`, Vorgabe **20/Minute je IP**, Antwort 429
+Dazu die Drosselung: `RATE_LIMIT_CHAT`, Vorgabe **120/Minute je IP**, Antwort 429
 mit `X-RateLimit-*`-Kopfzeilen. Die Prüfung des Zugangsblocks ist eine **Form**-,
 keine Echtheitsprüfung — nur der MCP-Server kann einen Block belegen —, also ist
 die Mengenbremse die Kostenschranke.

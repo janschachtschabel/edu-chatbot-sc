@@ -26,9 +26,9 @@ safety config is the editorial team's.
 
 from slowapi import Limiter
 
-from boerdi.settings import get_settings
+from boerdi.settings import RATE_LIMIT_AUS, get_settings
 
-_OFF_TOKENS = ("off", "0", "none", "false", "disabled")
+_OFF_TOKENS = RATE_LIMIT_AUS  # dieselben Wörter prüft ``Settings`` beim Start
 
 # Stand-in fed to slowapi while the switch is off; see ``_chat_limit``.
 _OFF_PLACEHOLDER = "1000000/second"

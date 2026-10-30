@@ -131,7 +131,9 @@ def test_wires_phases_threads_session_and_normalizes_blocked_tools(monkeypatch):
         ACTIVE, IQE, IGM, MSGS, CARDS, TOOLS, OUTS, KP, MCP, AA,
         TOPK, MINSC, MAXCH, USAGE, TOKENCB)
     # Paket 9 (V2): die konfigurierten Bereiche für ``query_knowledge`` ohne Angebot.
-    assert loop.kwargs == {"tool_mode": "read-only", "rag_bereiche": frozenset({"r"})}
+    # Paket 18F (Review): die Sprache reist mit — sonst kam die „ausgelastet“-Blase deutsch.
+    assert loop.kwargs == {"tool_mode": "read-only", "rag_bereiche": frozenset({"r"}),
+                           "sprache": "de"}
     # loop returned non-None ⇒ that result is returned, fallback untouched.
     assert out is LOOP_RESULT
     assert fallback.args is None

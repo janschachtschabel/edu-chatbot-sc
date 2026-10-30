@@ -33,9 +33,9 @@ from boerdi.domain.canvas.types import (
     get_type_aliases,
     material_type_label,
 )
-from boerdi.i18n import DEFAULT, Locale, bot_text, language_name, template_hint
-from boerdi.obs.trace_id import fehlernummer
+from boerdi.i18n import DEFAULT, Locale, language_name, template_hint
 from boerdi.services import llm
+from boerdi.services.fehlertext import antwort_fehlertext
 from boerdi.services.wikipedia_service import fetch_wikipedia_summary
 
 logger = logging.getLogger(__name__)
@@ -333,7 +333,8 @@ async def generate_canvas_content(
         md = (
             f"# {material_type_label(mat, lang)}: {topic}\n\n"
             # Paket 18C/D: nie der Text des Anbieters im Material — die Nummer führt zum Zug.
-            f"*{bot_text(lang, 'material.createFailed', nummer=fehlernummer())}*"
+            # Paket 18F: ohne LLM-Platz die „ausgelastet“-Blase statt einer Fehlernummer.
+            f"*{antwort_fehlertext(lang, 'material.createFailed')}*"
         )
 
     md = _strip_latex(md)

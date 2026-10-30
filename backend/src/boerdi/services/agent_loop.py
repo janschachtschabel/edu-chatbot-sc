@@ -79,6 +79,7 @@ from boerdi.services.agent_knowledge import WISSEN_SUCHEN
 from boerdi.services.agent_tools import SUBMIT_RESULT
 from boerdi.services.agent_trace import Rundenbuch
 from boerdi.services.agent_write import WriteGate
+from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
 
@@ -341,7 +342,10 @@ async def run_agent_loop(
                         limits.deadline_s)
             return schluss("deadline")
         except Exception as e:
-            logger.exception("Agent-Schleife: LLM-Fehler (%s)", type(e).__name__)
+            if isinstance(e, LlmAusgelastet):
+                logger.info("Agent-Schleife: kein LLM-Platz frei — Zug ausgelastet")
+            else:
+                logger.exception("Agent-Schleife: LLM-Fehler (%s)", type(e).__name__)
             return schluss("error")
 
         choice = resp.choices[0]

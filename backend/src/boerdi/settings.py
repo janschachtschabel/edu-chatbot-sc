@@ -19,6 +19,7 @@ EMBED_DIM -> derived from embed model (P3).
 
 from functools import lru_cache
 
+from limits import parse_many
 from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -42,6 +43,8 @@ def _env_umbenannt(name: str) -> AliasChoices:
 
 _LLM_PROVIDERS = {"openai", "b-api-openai", "b-api-academiccloud"}
 _B_API_KEY_MODES = {"auto", "static", "forward"}
+#: Diese Werte von ``RATE_LIMIT_CHAT`` schalten das äußere Limit ab (``api/ratelimit``).
+RATE_LIMIT_AUS = ("off", "0", "none", "false", "disabled")
 _MODERATION_FAILURE_MODES = {"open", "closed"}
 _VERBOSITY = {"low", "medium", "high"}
 # W12: `max` ergaenzt — die Chat-Completions-Referenz fuehrt es auf
@@ -136,6 +139,9 @@ class Settings(BaseSettings):
     # OpenAI 20 für den Chat, hinter der b-api ein gemeinsamer Deckel von 2.
     llm_max_concurrency: int | None = Field(None, validation_alias=_env("LLM_MAX_CONCURRENCY"))
     llm_read_timeout: float = Field(75.0, validation_alias=_env("LLM_READ_TIMEOUT"))
+    # Paket 18F (Nutzer-Entscheid F2): so lange wartet ein Chat-Aufruf höchstens auf einen
+    # LLM-Platz; danach gilt der Zug als ausgelastet (``services/llm_parallel``). 0 = ohne Frist.
+    llm_slot_wait_s: float = Field(30.0, ge=0, validation_alias=_env("LLM_SLOT_WAIT_S"))
     # Paket 10 (Audit 2026-10-10, M-5): die eigene Frist der Klassifikation — sie
     # blockiert jeden Muster-Zug. Gemessen (84 Dev-Züge, 2026-10-14): Median 2,9 s,
     # p99 6,5 s, höchstens 7,4 s. Danach die Vorgabe-Klassifikation (``assess``).
@@ -478,8 +484,8 @@ class Settings(BaseSettings):
         description="slowapi storage; valkey://... in cluster (P10-6)",
     )
     rate_limit_chat: str = Field(
-        "20/minute", validation_alias=_env("RATE_LIMIT_CHAT"),
-        description="default-on public chat limit (improvement V7)",
+        "120/minute", validation_alias=_env("RATE_LIMIT_CHAT"),
+        description="default-on public chat limit (improvement V7); 120 since Paket 18F",
     )
     otel_exporter_otlp_endpoint: str = Field(
         "", validation_alias=_env("OTEL_EXPORTER_OTLP_ENDPOINT"),
@@ -501,6 +507,21 @@ class Settings(BaseSettings):
     widget_dist_dir: str = Field("widget_dist", validation_alias=_env("WIDGET_DIST_DIR"))
 
     # ── Normalization (parity with ALT read sites) ──────────────────────
+    @field_validator("rate_limit_chat")
+    @classmethod
+    def _pruefe_rate_limit_chat(cls, v: str) -> str:
+        """Paket 18F: ein ungültiges Limit verhindert den Start. Bisher scheiterte slowapi erst
+        je Anfrage am Parsen — eine Fehlerzeile je Anfrage, und das Limit war faktisch aus."""
+        if v.strip().lower() in RATE_LIMIT_AUS:
+            return v
+        try:
+            parse_many(v)
+        except ValueError as fehler:
+            raise ValueError(
+                f"RATE_LIMIT_CHAT={v!r} ist kein gültiges Limit — Form „120/minute“ oder "
+                f"„10/second;500/hour“, abschalten mit {'|'.join(RATE_LIMIT_AUS)}") from fehler
+        return v
+
     @field_validator("log_level")
     @classmethod
     def _upper(cls, v: str) -> str:

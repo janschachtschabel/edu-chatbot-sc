@@ -542,3 +542,33 @@ async def test_qr_mix_generatorfehler_laesst_die_host_chips_stehen(monkeypatch):
     _c, qr, _pa, _pg, _rt = await _call(
         _canvas_forced_quick_replies=["A", "B"], _host_qr_max=4)
     assert qr == ["A", "B"]
+
+
+async def test_ausgelastet_nur_nochmal_versuchen():
+    """Paket 18F (3.3): bekam der Zug keinen LLM-Platz, ist die Antwort die „ausgelastet“-Blase;
+    darunter steht, wie unter der Fehlerblase des Chats, nur „Nochmal versuchen“."""
+    from boerdi.i18n.bot_text import bot_text
+    from boerdi.services import llm_parallel
+
+    llm_parallel.binde_zug()
+    llm_parallel._zug.get().ausgelastet = True
+    llm_parallel.blase_merken()  # wie ``fehlertext.antwort_fehlertext``
+    try:
+        _c, qr, _pa, _pg, _rt = await _call(response_text=bot_text("de", "error.llmBusy"))
+    finally:
+        llm_parallel._zug.set(None)
+    assert qr == [bot_text("de", "error.retryChip")]
+
+
+async def test_nur_ein_nebenaufruf_ausgelastet_behaelt_die_chips():
+    """Review 18F (Befund 3): scheiterte nur ein Nebenaufruf (Rechtsprüfung, spekulative
+    Schnellantworten) an der Frist, ist die Antwort vollständig — ihre Chips bleiben."""
+    from boerdi.services import llm_parallel
+
+    llm_parallel.binde_zug()
+    llm_parallel._zug.get().ausgelastet = True
+    try:
+        _c, qr, _pa, _pg, _rt = await _call()
+    finally:
+        llm_parallel._zug.set(None)
+    assert qr == ["genQR1", "genQR2"]

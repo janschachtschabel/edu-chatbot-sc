@@ -28,7 +28,8 @@ from boerdi.services.eval import auswertung_v2, engine_metrics
 from boerdi.services.eval.queries import get_run
 
 #: The app's fallback sentences — how an error bubble with HTTP 200 is recognised.
-_FALLBACK_KEYS = ("agent.failed", "agent.incomplete", "error.internal", "error.answerFailed")
+_FALLBACK_KEYS = ("agent.failed", "agent.incomplete", "error.internal", "error.answerFailed",
+                  "error.llmBusy")
 
 
 def fallback_texts() -> list[str]:

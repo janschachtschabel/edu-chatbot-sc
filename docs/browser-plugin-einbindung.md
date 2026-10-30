@@ -1559,7 +1559,7 @@ Drei Wege, in dieser Reihenfolge geprüft
 **Für ein Plugin ist Weg 2 der vorgesehene.** Der Studio-Schlüssel ist der
 Admin-Schlüssel und hat in einem Browser nichts zu suchen; genau deshalb wurde
 der Endpunkt 2026-08-12 für die persönliche Anmeldung geöffnet — und im selben
-Zug gedrosselt (`RATE_LIMIT_CHAT`, Vorgabe **20/Minute je IP**, sonst `429` mit
+Zug gedrosselt (`RATE_LIMIT_CHAT`, Vorgabe **120/Minute je IP**, sonst `429` mit
 `X-RateLimit-*`). Die Prüfung der Kopfzeile ist eine **Form-, keine
 Echtheitsprüfung**: belegen kann einen Zugangsblock nur der MCP-Server. Die
 Mengenbremse ist die Kostenschranke, nicht der Riegel.
@@ -1726,7 +1726,7 @@ Sechs Dinge, die auf einer gewöhnlichen Gastseite nicht auffallen:
 | **Der Seitentext ist eure Bringschuld** | `get_url_text` läuft auf dem *Server*. Einen Tab hinter Anmeldung, hinter Bezahlschranke oder auf `localhost` sieht er nicht — ihr schon. Schickt den Text in der `instruction` mit, statt auf das Werkzeug zu hoffen. |
 | **≤ 200 000 Zeichen** | Die `instruction` ist gedeckelt; extrem lange Texte plus eure Anweisung reißen das. Kürzt den Text (oben: 190 000), sonst kommt `422`. |
 | **Zugang: nur der Zugangsblock** | `WLO-Access-Block` mit **persönlicher** Anmeldung. Der Studio-Schlüssel ist der Admin-Schlüssel und hat in einer Erweiterung nichts zu suchen (§7). |
-| **20 Läufe je Minute und IP** | `RATE_LIMIT_CHAT`. Ein Plugin, das bei **jedem** Tab-Wechsel einen Agent-Lauf startet, steht nach zwanzig Wechseln bei `429`. Startet Läufe auf eine ausdrückliche Handlung, nicht auf Navigation. |
+| **120 Läufe je Minute und IP** (Vorgabe) | `RATE_LIMIT_CHAT`. Ein Plugin, das bei **jedem** Tab-Wechsel einen Agent-Lauf startet, steht nach 120 Wechseln in der Minute bei `429`. Startet Läufe auf eine ausdrückliche Handlung, nicht auf Navigation. |
 | **CORS** | Erledigt seit 18.08.2026, doppelt: CORS ist **standardmäßig offen** (`CORS_ALLOW_ALL`, Vorgabe an), und selbst bei enger Liste dürfen `chrome-extension://` und `safari-web-extension://` (`CORS_ALLOW_EXTENSIONS`). **Safari brauchte das zwingend** — dort ist die UUID je Installation eine andere, ein Listeneintrag also unmöglich. Fragt beim Betreiber nach, falls der Schalter aus ist. |
 | **`allow_curation: false` bei Auskunft** | Nimmt die vierzehn kuratierenden Werkzeuge aus dem Katalog. Weniger Auswahl heißt kürzere Läufe und keine Möglichkeit, versehentlich etwas vorzuschlagen. |
 

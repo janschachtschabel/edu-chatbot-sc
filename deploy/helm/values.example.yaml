@@ -108,6 +108,16 @@ prometheusRule:
         sum(rate(boerdi_safety_stage_total{stage="openai_moderation",outcome="fehler"}[15m]))
         / sum(rate(boerdi_safety_stage_total{stage="openai_moderation"}[15m])) > 0.5
       for: 15m
+    - alert: BoerdiLlmSchluesselAbgelehnt
+      # Paket 18F: der Anbieter weist den eigenen Schlüssel ab (B_API_KEY bzw.
+      # OPENAI_API_KEY) — jeder Zug scheitert. Ein weitergereichter Schlüssel ist der des
+      # Aufrufers und löst keinen Alarm aus.
+      expr: sum(increase(boerdi_llm_schluessel_abgelehnt_total{quelle!="weitergereicht"}[5m])) > 0
+      for: 0m
+    - alert: BoerdiLlmAusgelastet
+      # Paket 18F: Züge bekommen binnen LLM_SLOT_WAIT_S keinen LLM-Platz.
+      expr: sum(rate(boerdi_llm_platz_frist_total[10m])) > 0.05
+      for: 10m
 
 # Secrets: aus einem bestehenden Kubernetes-Secret, nie im Klartext in den Values.
 secretEnv:
@@ -181,6 +191,7 @@ env:
   LLM_MAX_CONCURRENCY: ""
   LLM_PROVIDER: "b-api-openai"
   LLM_READ_TIMEOUT: "75.0"
+  LLM_SLOT_WAIT_S: "30"    # Paket 18F: Frist beim Warten auf einen LLM-Platz, 0 = ohne
   LLM_REASONING_EFFORT: "low"
   LLM_SERVICE_TIER: ""
   LLM_VERBOSITY: "low"
@@ -201,7 +212,7 @@ env:
   RAG_MIN_SCORE: ""
   RAG_RERANKER_ENABLED: "false"
   RAG_TOP_K: ""
-  RATE_LIMIT_CHAT: "20/minute"
+  RATE_LIMIT_CHAT: "120/minute"   # Paket 18F; ungültig = kein Start
   # Mit Passwort (valkey://:pw@host) gehört die Adresse in secretEnv, nicht hierher.
   RATE_LIMIT_STORAGE_URI: "valkey://boerdi-valkey:6379/0"
   REPO_BASE_URL: "https://repository.staging.openeduhub.net"   # Staging — muss zum Repository des MCP-Servers passen

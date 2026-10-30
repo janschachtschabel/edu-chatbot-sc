@@ -12,7 +12,7 @@ rest is either fixed in this change (packages **18A** and **18B**) or planned in
 **Update 2026-10-30:** packages **18C and 18D** are done (four pull requests, see
 `docs/aenderungen/2026-10-29-*` and `2026-10-30-*`). Their rows below now say ✅ 18C/18D.
 Package **18E** is done as well (two pull requests, `docs/aenderungen/2026-10-30-paket-18e-*`);
-its rows say ✅ 18E.
+its rows say ✅ 18E. Package **18F** closes the list (`docs/aenderungen/2026-10-30-paket-18f.md`).
 
 Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳ planned (package) ·
 ➖ accepted, not changed
@@ -24,7 +24,7 @@ Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳
 | No readiness check; a replica without Postgres keeps getting traffic | ✔ | `/ready` (internal port 8101) checks Postgres; the container health check uses it. The compose default is now 1 replica. |
 | Retries on authentication errors (`num_retries=2`) | ✔ | Removed. The SDK does not retry a 401. |
 | Moderation fails silently; the safety service does not notice | ✅ 18A | See §3. |
-| Log does not say that the LLM key is the cause of a 401 | ⏳ 18F | A clear log line ("provider rejects the key: provider, route"), rate-limited. |
+| Log does not say that the LLM key is the cause of a 401 | ✅ 18F | One place sees every model call (chat, embedding, classifier, stream): a 401 gives one line per minute with provider, route and the key's source (own key → ERROR, a key passed on by the proxy → WARNING), never the key or the provider's text; counter `boerdi_llm_schluessel_abgelehnt_total` and an alert rule for the own key. A 401 wrapped by the classifier library is recognised too. |
 | Error class shown to the user ("gaierror", "AuthenticationError", "InternalServerError") | ✅ 18D | One translated message ending in an error number ("Fehlernummer: …", the first 12 characters of the trace ID) — also in the stream's error frame and in the widget. The Studio finds the turn by that number (page "Gespräche"). Class and message only go to the log. The raw LiteLLM text from the audit ("Fehler bei der Verarbeitung: litellm…") was already removed earlier. |
 | Several calls hit the same dead endpoint (circuit breaker) | ⏳ later | Costs latency only in the failure case. |
 | "Worksheet **or** interactive material" returns only one type | ✅ 18B | See §4. |
@@ -82,8 +82,8 @@ Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳
 | The canvas shows the provider's raw error text in the generated material | ✅ 18D — an error number instead |
 | A privacy switch saved as text (`messages: "false"`) was read as "on" — messages were stored although switched off | ✅ 18E — switches are read with the same rule as the check on save; if the privacy settings are unreadable, nothing is stored |
 | Error lines wrote the provider's error text to the log (over a hundred places pass the exception to the message); it can repeat the user's input | ✅ 18E — provider and MCP errors appear only with their type, in the message and in tracebacks; the classifier library's own error line is muted unless `LOG_CONTENT` is on; the canary test now runs turns where every model call fails |
-| Waiting for an LLM slot has no time limit; a hanging provider fills a replica | ⏳ 18F — limit (about 30 s), then a friendly "busy" message |
-| Outer rate limit is 20/min per IP (too tight behind a school NAT); 429 looks like a generic error in the widget | ⏳ 18F — 120/min per IP, own 429 message |
+| Waiting for an LLM slot has no time limit; a hanging provider fills a replica | ✅ 18F — `LLM_SLOT_WAIT_S` (30 s): after that the turn answers "busy right now, try again in a minute" (no error number) and its further calls fail at once; background and import wait without a limit; counter and alert rule |
+| Outer rate limit is 20/min per IP (too tight behind a school NAT); 429 looks like a generic error in the widget | ✅ 18F — 120/min per IP; an invalid value stops the start; the widget says "too many requests" with the wait time from `Retry-After` and puts the typed question back into the input field |
 | Anonymous users have the same agent limits as logged-in users (no cost cap) | ➖ for now — the cost of an anonymous turn will be measured first |
 | The session ID comes from the client; whoever knows it can read and continue the chat | ➖ known and accepted; write actions are bound to the logged-in person |
 | The legal check sees only the first 2000 characters of a message | ⏳ noted, not yet planned |

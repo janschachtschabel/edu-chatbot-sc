@@ -48,11 +48,12 @@ from boerdi.domain.cards.build import (
 )
 from boerdi.domain.guide_markers import _strip_guide_markers_from_text
 from boerdi.domain.quick_reply_policy import _qr_default_count
-from boerdi.i18n import resolve_locale
+from boerdi.i18n import bot_text, resolve_locale
 from boerdi.obs.tasks import _retrieve_task_exception
 from boerdi.services.config_loader import get_repo_base_url
 from boerdi.services.guide_markers import _attach_guide_qr
 from boerdi.services.guide_qr_injector import ist_lotse
+from boerdi.services.llm_parallel import blase_gezeigt
 from boerdi.services.quick_replies_llm import (
     _max_chars,
     filtere_vorschlaege,
@@ -383,6 +384,10 @@ async def _assemble_cards_and_qrs(
         blocked=curation_blocked_by_mode(pattern_output),
         lang=resolve_locale(getattr(req.environment, "locale", None)),
     )
+    # Paket 18F: die Antwort ist die „ausgelastet“-Blase (nicht bloß ein Nebenaufruf scheiterte),
+    # und wie unter der Fehlerblase des Chats steht nur „Nochmal versuchen“ darunter.
+    if blase_gezeigt():
+        quick_replies = [bot_text(_qr_lang, "error.retryChip")]
 
     # 9. Build page_action
     #    Priority:

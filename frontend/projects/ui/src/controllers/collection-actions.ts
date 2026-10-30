@@ -26,6 +26,7 @@ import {
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { fehlerKurz } from '../obs/fehler-kurz';
+import { drosselHinweis } from '../stream/http-fehler';
 import { sitzungsWache } from '../session/session-id';
 
 /** Live-Zustand/Seiteneffekte der ChatComponent, die die Aktionen
@@ -97,7 +98,8 @@ export async function browseCollection(
     if (veraltet()) return;
     console.warn('boerdi: Sammlung nicht geladen —', fehlerKurz(err));
     ctx.removeMessage(loadingId);
-    const errId = ctx.addBotMessage(ctx.t('error.browseCollection', { title }));
+    const errId = ctx.addBotMessage(
+      drosselHinweis(ctx.t, err) ?? ctx.t('error.browseCollection', { title }));
     ctx.setScrollTarget(errId);
   }
   ctx.setLoading(false);
@@ -143,7 +145,8 @@ export async function showContentText(
     if (veraltet()) return;
     console.warn('boerdi: Inhaltstext nicht geladen —', fehlerKurz(err));
     ctx.removeMessage(loadingId);
-    const errId = ctx.addBotMessage(ctx.t('error.contentText', { title }));
+    const errId = ctx.addBotMessage(
+      drosselHinweis(ctx.t, err) ?? ctx.t('error.contentText', { title }));
     ctx.setScrollTarget(errId);
   }
   ctx.setLoading(false);
@@ -175,7 +178,8 @@ export async function generateLearningPath(
     if (veraltet()) return;
     console.warn('boerdi: Lernpfad nicht erzeugt —', fehlerKurz(err));
     ctx.removeMessage(loadingId);
-    const errId = ctx.addBotMessage(ctx.t('error.learningPath', { title }));
+    const errId = ctx.addBotMessage(
+      drosselHinweis(ctx.t, err) ?? ctx.t('error.learningPath', { title }));
     ctx.setScrollTarget(errId);
   }
   ctx.setLoading(false);

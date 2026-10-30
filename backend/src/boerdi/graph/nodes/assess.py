@@ -33,6 +33,7 @@ from boerdi.obs.tasks import cancel_and_drain
 from boerdi.obs.zeiten import schritt
 from boerdi.services.classify import classify_input
 from boerdi.services.engine_choice import laeuft_ueber_die_schleife
+from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.rag.vorab import rag_einbettung_vorab
 from boerdi.services.safety import assess_safety
 from boerdi.services.safety.regex_gate import regex_gate
@@ -153,7 +154,11 @@ async def assess(
     if isinstance(safety, BaseException):
         logger.error("safety task failed: %s: %s", type(safety).__name__, safety)
         safety = regex_rueckfall(ctx.req.message, signals)
-    if isinstance(classification, BaseException):
+    if isinstance(classification, LlmAusgelastet):
+        # Paket 18F: Last, kein Fehler — die Frist meldet ``llm_platz_frist`` gedrosselt.
+        logger.info("classify: kein LLM-Platz frei — Ersatz-Einordnung")
+        classification = _fallback_classification(ss, "I01")
+    elif isinstance(classification, BaseException):
         logger.error("classify task failed: %s: %s", type(classification).__name__,
                      classification)
         classification = _fallback_classification(ss, "I01")

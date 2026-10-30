@@ -38,8 +38,15 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import contextvars
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
+from boerdi.services.llm_ereignisse import (
+    ist_abgelehnter_schluessel,
+    melde_platz_frist,
+    melde_schluessel_abgelehnt,
+)
 from boerdi.services.llm_models import get_provider
 from boerdi.settings import get_settings
 
@@ -91,26 +98,112 @@ def _semaphore(name: str) -> asyncio.Semaphore:
     return sem
 
 
+class LlmAusgelastet(RuntimeError):
+    """Kein LLM-Platz binnen ``LLM_SLOT_WAIT_S`` — der Zug gilt als ausgelastet (Paket 18F)."""
+
+    #: Ausgang in ``boerdi_llm_calls_total`` (``obs/metrics.llm_messung``): Last ist kein
+    #: Anbieterfehler — sonst feuerte die Fehlerquote neben ``BoerdiLlmAusgelastet``.
+    metrik_ausgang = "ausgelastet"
+
+
+@dataclass
+class _ZugMerker:
+    ausgelastet: bool = False
+    #: Die Antwort IST die „ausgelastet“-Blase (``fehlertext``) — nicht nur ein Nebenaufruf
+    #: scheiterte (Review 18F): erst dann steht „Nochmal versuchen“ darunter.
+    blase: bool = False
+
+
+# Ein geteiltes Objekt je Zug, gebunden in ``graph/build.begin_turn`` VOR dem Graphen:
+# LangGraph-Knoten laufen als eigene Tasks mit Kontextkopie — ein ``set`` im Knoten käme
+# beim nächsten nicht an (Paket 10); das Objekt selbst teilen sie.
+_zug: contextvars.ContextVar[_ZugMerker | None] = contextvars.ContextVar(
+    "_llm_zug", default=None)
+
+
+def binde_zug() -> None:
+    """Einen frischen Merker für den Zug binden — einmal, vor dem Graphen."""
+    _zug.set(_ZugMerker())
+
+
+def ausgelastet() -> bool:
+    """Bekam ein Aufruf dieses Zugs keinen Platz binnen der Frist?"""
+    merker = _zug.get()
+    return merker is not None and merker.ausgelastet
+
+
+def blase_merken() -> None:
+    """Die Antwort dieses Zugs ist die „ausgelastet“-Blase."""
+    merker = _zug.get()
+    if merker is not None:
+        merker.blase = True
+
+
+def blase_gezeigt() -> bool:
+    merker = _zug.get()
+    return merker is not None and merker.blase
+
+
+async def _anstellen(sem: asyncio.Semaphore) -> None:
+    """Auf einen Chat-Platz warten, höchstens ``LLM_SLOT_WAIT_S`` (Nutzer-Entscheid F2).
+
+    Ohne Frist füllte ein hängender Anbieter die Kopie: jeder Zug wartete unbegrenzt, und
+    Klassifikator und Antwort warteten nacheinander. Läuft sie ab, scheitern auch alle
+    weiteren Aufrufe dieses Zugs sofort — die Antwort ist dann die „ausgelastet“-Blase.
+    """
+    merker = _zug.get()
+    if merker is not None and merker.ausgelastet:
+        raise LlmAusgelastet("Zug bereits ausgelastet")
+    frist = get_settings().llm_slot_wait_s
+    if frist <= 0:
+        await sem.acquire()
+        return
+    try:
+        async with asyncio.timeout(frist):
+            await sem.acquire()
+    except TimeoutError:
+        if merker is not None:
+            merker.ausgelastet = True
+        melde_platz_frist(frist)
+        raise LlmAusgelastet(f"kein LLM-Platz binnen {frist:g} s") from None
+
+
+@contextlib.asynccontextmanager
+async def _meldet_abgelehnten_schluessel() -> AsyncIterator[None]:
+    """Weist der Anbieter den Schlüssel ab, meldet die Engstelle es — einmal für alle Wege
+    (Paket 18F, ``llm_ereignisse``)."""
+    try:
+        yield
+    except Exception as fehler:
+        if ist_abgelehnter_schluessel(fehler):
+            melde_schluessel_abgelehnt()
+        raise
+
+
 @contextlib.asynccontextmanager
 async def platz(kanal: str) -> AsyncIterator[None]:
     """Ein Platz im Kanal ``kanal`` (``live``, ``bg`` oder ``ingest``) — siehe
     Modulkopf. Fremdarbeit wartet zuerst auf ihren eigenen Deckel, dann auf den
-    gemeinsamen, und reiht sich erst dann beim Anbieter ein."""
+    gemeinsamen, und reiht sich erst dann beim Anbieter ein; eine Frist hat nur der Chat."""
     if kanal == "live":
-        async with _semaphore("anbieter"):
-            yield
+        sem = _semaphore("anbieter")
+        await _anstellen(sem)
+        try:
+            async with _meldet_abgelehnten_schluessel():
+                yield
+        finally:
+            sem.release()
         return
-    async with _semaphore(kanal), _semaphore("nebenher"), _semaphore("anbieter"):
+    async with (_semaphore(kanal), _semaphore("nebenher"), _semaphore("anbieter"),
+                _meldet_abgelehnten_schluessel()):
         yield
 
 
-def semaphore(
-    *, background: bool = False,
-) -> asyncio.Semaphore | contextlib.AbstractAsyncContextManager:
+def semaphore(*, background: bool = False) -> contextlib.AbstractAsyncContextManager:
     """Öffentlicher Zugang für die Einstiege außerhalb von ``llm`` (Klassifikator,
-    Streaming): der Anbieter-Deckel selbst — bzw. für Hintergrund-Arbeit ein Platz
-    über :func:`platz`."""
-    return platz("bg") if background else _semaphore("anbieter")
+    Streaming): ein Platz über :func:`platz` — seit Paket 18F auch für den Chat, damit
+    Frist und Schlüssel-Meldung dort ebenso greifen."""
+    return platz("bg" if background else "live")
 
 
 def moderations_semaphore() -> asyncio.Semaphore:

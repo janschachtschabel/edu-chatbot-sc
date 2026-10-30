@@ -61,6 +61,15 @@ HTTP_LAUFEND = Gauge(
     "boerdi_http_requests_in_progress",
     "Laufende Anfragen am öffentlichen Port — überwiegend offene SSE-Ströme der Züge")
 BUILD = Gauge("boerdi_build_info", "Stand des Abbilds (Wert immer 1)", ["version"])
+# Paket 18F: an der LLM-Engstelle (``services/llm_ereignisse``) — je Aufruf, die Logzeile dazu
+# ist gedrosselt.
+LLM_SCHLUESSEL_ABGELEHNT = Counter(
+    "boerdi_llm_schluessel_abgelehnt_total",
+    "LLM-Aufrufe, deren Schlüssel der Anbieter abwies (401), je Anbieter und Quelle",
+    ["anbieter", "quelle"])
+LLM_PLATZ_FRIST = Counter(
+    "boerdi_llm_platz_frist_total",
+    "Chat-Aufrufe ohne LLM-Platz binnen LLM_SLOT_WAIT_S — der Zug galt als ausgelastet")
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +96,12 @@ async def llm_messung(phase: str | None) -> AsyncIterator[None]:
     except asyncio.CancelledError:
         _llm_ausgang(phase, "abbruch", time.perf_counter() - beginn)
         raise
-    except BaseException:
+    except BaseException as fehler:
+        # Ein eigener Ausgang je Fehlerart, die keine Störung des Anbieters ist (Paket 18F:
+        # ``LlmAusgelastet`` → ``ausgelastet``); gelesen über ein Attribut, ohne Import.
+        if ausgang := getattr(fehler, "metrik_ausgang", None):
+            _llm_ausgang(phase, ausgang, time.perf_counter() - beginn)
+            raise
         llm_aufruf(phase, False, time.perf_counter() - beginn)
         raise
     llm_aufruf(phase, True, time.perf_counter() - beginn)
