@@ -10,6 +10,7 @@ MCP-Servers (``registry``, ``reason``, ``scanTruncated``).
 from __future__ import annotations
 
 import json
+import logging
 
 import pytest
 
@@ -125,11 +126,17 @@ async def test_ein_mcp_fehler_wird_ein_fehler_und_keine_leere_liste(monkeypatch)
 # Ein Code statt eines Satzes: der Router übersetzt ihn — eine englische Floskel
 # stünde sonst mitten im deutschen Satz (Review-Befund 2026-09-27).
 @pytest.mark.parametrize("antwort", ["Das ist kein JSON", "[1, 2]"])
-async def test_eine_unlesbare_antwort_wird_ein_fehler(monkeypatch, antwort):
+async def test_eine_unlesbare_antwort_wird_ein_fehler(monkeypatch, antwort, caplog):
     _mcp(monkeypatch, antwort)
-    with pytest.raises(sd.VerzeichnisFehler) as fehler:
+    with caplog.at_level(logging.WARNING, logger=sd.__name__), \
+            pytest.raises(sd.VerzeichnisFehler) as fehler:
         await sd.skill_verzeichnis("f35c17d1")
     assert fehler.value.grund == "unlesbar"
+    # Paket 18E: der Zweig ``mcp`` warnte schon, ``unlesbar`` nirgends — jetzt mit der
+    # Art der Antwort, nie mit ihrem Text.
+    meldungen = [r.getMessage() for r in caplog.records]
+    assert any("unlesbar" in m for m in meldungen), meldungen
+    assert not any(antwort in m for m in meldungen)
 
 
 # ── Skill-Suche per Suchbegriff (Paket F3) ──────────────────────────────

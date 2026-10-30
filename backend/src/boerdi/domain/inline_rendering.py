@@ -21,10 +21,14 @@ which must not know the input language. The tables live here rather than in
 
 from __future__ import annotations  # noqa: I001 — verbatim ALT (2 blank lines kept)
 
+import logging
 import re as _re  # noqa: F401 — verbatim ALT (unused; shadowed by local re-imports)
 from typing import Any, Final
 
 from boerdi.i18n import DEFAULT, Locale, bot_text
+from boerdi.obs.drossel import gedrosselt
+
+logger = logging.getLogger(__name__)
 
 
 _INLINE_DOC_KIND_BY_PATTERN = {
@@ -141,8 +145,9 @@ def _format_inline_doc_intro(template: str, topic: str = "") -> str:
     """Render the intro_text template with ``{topic_suffix}`` substitution.
 
     Wenn ``topic`` leer ist, wird ``{topic_suffix}`` zu "". Sonst zu
-    " zum Thema *Topic*". Kein KeyError-Risk wenn das Template anderen
-    Placeholder enthält — fehlende Keys bleiben als ``{key}`` stehen.
+    " zum Thema *Topic*". Enthält das Template einen anderen Platzhalter, kommt
+    es unverändert zurück — mit einer Warnung (Paket 18E), denn dann steht es
+    samt ``{…}`` in der Antwort.
 
     **C1-f2b5: der deutsche Zusatz bleibt bewusst stehen.** Er ergänzt ein
     Template, das die Redaktion in ``display-rules.yaml`` pflegt — heute gibt es
@@ -156,7 +161,10 @@ def _format_inline_doc_intro(template: str, topic: str = "") -> str:
     suffix = f" zum Thema *{topic}*" if topic else ""
     try:
         return template.format(topic_suffix=suffix)
-    except Exception:
+    except (KeyError, IndexError, ValueError, AttributeError, TypeError) as e:
+        gedrosselt(logger, logging.WARNING, "inline.intro_text", 60.0,
+                   "display-rules intro_text: Platzhalter unbrauchbar (%s) — Vorlage roh",
+                   type(e).__name__)
         return template
 
 

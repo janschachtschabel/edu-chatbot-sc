@@ -16,15 +16,19 @@ so the network + registry boundaries stay patchable at call time (like ``client.
 
 from __future__ import annotations
 
+import logging
 import time
 
 from boerdi.domain.werkzeug_freigabe import wirksam_aus
+from boerdi.obs.drossel import gedrosselt
 from boerdi.services import config_loader
 from boerdi.services.agent_tools import AUS_DEM_KATALOG
 from boerdi.services.config_loader.mcp import _PRIMARY_ID
 from boerdi.services.mcp import transport
 from boerdi.services.mcp.tool_defs import TOOL_DEFINITIONS
 from boerdi.services.mcp.tool_defs_curation import CURATION_TOOL_DEFINITIONS
+
+logger = logging.getLogger(__name__)
 
 #: Die Werkzeuge, die der Chatbot kennt und dem Modell anbieten kann — nur für sie
 #: hat ein Schalter im Studio eine Wirkung (Paket 7, S5).
@@ -53,7 +57,10 @@ async def _fetch_tool_descriptions(url: str) -> dict[str, str]:
     # the server again instead of blocking for 5 min.
     try:
         tools = await transport.discover_server_tools(url)
-    except Exception:
+    except Exception as e:  # noqa: BLE001 — Kachel ohne Beschreibungen statt Fehler
+        # Paket 18E: das Studio zeigte die Werkzeuge ohne Beschreibung, der Grund stand nirgends.
+        gedrosselt(logger, logging.WARNING, f"tool_descriptions:{url}", 60.0,
+                   "Werkzeugbeschreibungen von %s nicht abrufbar (%s)", url, type(e).__name__)
         return {}
     descs = {
         t["name"]: (t.get("description") or "").strip()

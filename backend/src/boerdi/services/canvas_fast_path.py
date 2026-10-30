@@ -517,7 +517,7 @@ async def run_canvas_create_fast_path(
                 # Same hardening as in _handle_canvas_create — graceful chat
                 # bubble instead of bubbling a 500. The frontend would otherwise
                 # show its generic "konnte ich leider nicht erstellen" message.
-                logger.error("M10 canvas generation failed: %s", _e)
+                logger.exception("M10 canvas generation failed (%s)", type(_e).__name__)
                 response_text = bot_text(
                     _lang, "material.genFailed",
                     label=_label, topic=_c_topic, nummer=fehlernummer(),

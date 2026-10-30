@@ -288,3 +288,39 @@ describe('Fehler mit Kennung (Paket 7)', () => {
   });
 });
 
+
+// ── Paket 18E: Spur in der Konsole — die Fehlerart, nie der Text ─────────────
+const MARKE = 'KANARIE7Q';
+const ausgabe = (spy: { mock: { calls: unknown[][] } }): string =>
+  spy.mock.calls.flat().map(String).join(' ');
+
+describe('Paket 18E: ein Fehler im eigenen Listener', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('bricht den Strom nicht ab und steht als console.error da, ohne Text', async () => {
+    const fehler = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const resp = sseResponse([
+      'event: phase\ndata: {"step":"assess"}\n\n',
+      'event: result\ndata: {"content":"Hallo"}\n\n',
+    ]);
+    const result = await streamChat({
+      url: 'x', body: {}, fetchImpl: fetchReturning(resp),
+      onEvent: () => { throw new TypeError(MARKE); },
+    });
+    expect(result).toEqual({ content: 'Hallo' });
+    expect(fehler).toHaveBeenCalledTimes(1);
+    expect(ausgabe(fehler)).toContain('TypeError');
+    expect(ausgabe(fehler)).not.toContain(MARKE);
+  });
+
+  it('meldet ihn einmal je Strom, nicht je Ereignis (Review 18E-2)', async () => {
+    const fehler = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const delta = 'event: text_delta\ndata: {"text":"x"}\n\n';
+    const resp = sseResponse([delta, delta, delta, 'event: result\ndata: {"content":"ok"}\n\n']);
+    await streamChat({
+      url: 'x', body: {}, fetchImpl: fetchReturning(resp),
+      onEvent: () => { throw new TypeError(MARKE); },
+    });
+    expect(fehler).toHaveBeenCalledTimes(1);
+  });
+});

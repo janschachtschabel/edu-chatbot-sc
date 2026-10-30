@@ -14,6 +14,7 @@ override semantics directly. Logic fidelity is proven by the AST-diff gate.
 PG-independent.
 """
 
+import logging
 from types import SimpleNamespace
 
 from boerdi.domain.canvas import types as ct
@@ -167,3 +168,22 @@ class TestTypeContracts:
         assert isinstance(ct.get_type_aliases(), dict)
         assert isinstance(ct.get_analytical_personas(), frozenset)
         assert isinstance(ct.get_short_alias_whitelist(), set)
+
+
+def test_unlesbare_canvas_konfiguration_meldet_sich(monkeypatch, caplog):
+    """Paket 18E: Der Rückfall auf die Code-Vorgaben verdeckt die Studio-Konfiguration —
+    er meldet sich (Fehlerart), wie die Nachbarn ``get_type_aliases``/``get_material_types``."""
+    def kaputt():
+        raise AttributeError("'list' object has no attribute 'get'")
+
+    monkeypatch.setattr(ct.config_loader, "load_canvas_type_aliases", kaputt)
+    monkeypatch.setattr(ct.config_loader, "load_canvas_persona_priorities", kaputt)
+
+    with caplog.at_level(logging.WARNING, logger=ct.__name__):
+        assert ct.get_short_alias_whitelist() == set(ct._DEFAULT_SHORT_ALIAS_WHITELIST)
+        assert ct.get_lrt_mapping() == dict(ct._DEFAULT_LRT_TO_MATERIAL_TYPE)
+        assert ct.get_analytical_personas() == ct._DEFAULT_ANALYTICAL_PERSONAS
+
+    meldungen = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(meldungen) == 3, meldungen
+    assert all("AttributeError" in m for m in meldungen), meldungen

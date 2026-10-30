@@ -23,6 +23,7 @@ import {
   UiInfo,
   WebLink,
 } from '../grouping/message-types';
+import { fehlerKurz } from '../obs/fehler-kurz';
 import { sitzungsWache } from '../session/session-id';
 
 /** Live-Zustand/Seiteneffekte der Chat-Shell, die der Kontext-Ping braucht. */
@@ -104,10 +105,11 @@ export class ContextGreetingController {
         this.ctx.setLatestDebug(resp.debug, resp.ui);
         rendered = true;
       }
-    } catch {
+    } catch (err) {
       if (veraltet()) return false;
-      // Ping-Fehler still schlucken (kein Error-Bubble). Beim Erstaufruf holt
-      // der Aufrufer daraufhin die normale Begrüßung nach.
+      // Ping-Fehler ohne Fehlerblase: beim Erstaufruf holt der Aufrufer daraufhin
+      // die normale Begrüßung nach. Die Spur steht auf DEBUG (Paket 18E).
+      console.debug('boerdi: Kontext-Ping gescheitert —', fehlerKurz(err));
     }
     this.ctx.setLoading(false);
     return rendered;

@@ -9,6 +9,7 @@ outcome_service-Modul gefaked (kein Netz, keine DB).
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from boerdi.api.schemas import ToolOutcome
 from boerdi.services import outcome_service as os_
@@ -86,13 +87,19 @@ def test_call_with_outcome_leer_ist_empty(monkeypatch):
     assert result == "   "  # roher Result bleibt (nur Status ist empty)
 
 
-def test_call_with_outcome_exception_ist_error(monkeypatch):
-    _wire_call(monkeypatch, exc=RuntimeError("boom " * 60))  # str >200 Zeichen
-    result, outcome = asyncio.run(os_.call_with_outcome("search_wlo_content", {}))
+def test_call_with_outcome_exception_ist_error(monkeypatch, caplog):
+    _wire_call(monkeypatch, exc=RuntimeError("boom " * 60))
+    with caplog.at_level(logging.WARNING, logger=os_.__name__):
+        result, outcome = asyncio.run(os_.call_with_outcome("search_wlo_content", {}))
     assert outcome.status == "error"
     assert result == ""
-    assert len(outcome.error) == 200  # str(e)[:200]
+    # Paket 18E (N2): ein Code statt des Ausnahmetexts — ``call_mcp_tool`` wirft
+    # vertragsgemäß nie, hier landet nur ein Bug; der steht mit Traceback im Log.
+    assert outcome.error == "exception: RuntimeError"
     assert outcome.latency_ms >= 0
+    warnung = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnung) == 1 and warnung[0].exc_info is not None
+    assert "search_wlo_content" in warnung[0].getMessage()
 
 
 # ═══ adjust_confidence ═════════════════════════════════════════════════════

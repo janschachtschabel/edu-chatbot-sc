@@ -22,6 +22,7 @@ salvage path completes without it and the symbol is not imported on the module.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 
 from boerdi.api.schemas import (
@@ -177,10 +178,8 @@ def _run(ctx, *, drain=False):
     async def _go():
         out = await respond(ctx, _SESSION)
         if drain and out.qr_spec_task is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await out.qr_spec_task
-            except Exception:
-                pass
         return out
     return asyncio.run(_go())
 

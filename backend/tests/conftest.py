@@ -189,3 +189,14 @@ def pytest_runtest_makereport(item, call):
     if db_tor.ist_verbotener_sprung(report, os.environ):
         report.outcome = "failed"
         report.longrepr = db_tor.FEHLERTEXT.format(grund=db_tor.sprung_grund(report))
+
+
+@pytest.fixture(autouse=True)
+def _drossel_frisch():
+    """Gedrosselte Logzeilen (``obs/drossel``, Paket 18E) je Test frisch: sonst schluckte
+    die Drossel eine Warnung, die ein früherer Test mit demselben Schlüssel schon schrieb."""
+    from boerdi.obs import drossel
+
+    drossel.zuruecksetzen()
+    yield
+    drossel.zuruecksetzen()

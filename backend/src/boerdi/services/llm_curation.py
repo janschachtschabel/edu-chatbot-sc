@@ -88,5 +88,5 @@ async def generate_curation_text(
         )
     except Exception as e:
         # Der Grund ins Log, nicht in die Blase (Audit 2026-09-29, 6.3).
-        logger.error("curation analysis failed: %s", e)
+        logger.exception("curation analysis failed (%s)", type(e).__name__)
         return bot_text(lang, "curation.error")

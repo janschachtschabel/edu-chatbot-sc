@@ -27,9 +27,10 @@ _staende: dict[str, _Stand] = {}
 
 
 def gedrosselt(logger: logging.Logger, stufe: int, schluessel: str, abstand_s: float,
-               text: str, *args: object) -> bool:
+               text: str, *args: object, exc_info: bool = False) -> bool:
     """``text % args`` auf ``stufe`` loggen, höchstens einmal je ``abstand_s`` und
-    ``schluessel``. Gibt zurück, ob die Zeile geschrieben wurde."""
+    ``schluessel``. Gibt zurück, ob die Zeile geschrieben wurde. ``exc_info`` hängt den
+    Traceback der gerade behandelten Ausnahme an."""
     jetzt = _uhr()
     stand = _staende.get(schluessel)
     if stand is not None and jetzt - stand.zuletzt < abstand_s:
@@ -41,9 +42,9 @@ def gedrosselt(logger: logging.Logger, stufe: int, schluessel: str, abstand_s: f
     # (``tests/test_log_ohne_inhalt.py``).
     if ausgelassen:
         logger.log(stufe, text + " (%d gleiche Meldungen ausgelassen)",  # log-ok: Durchreiche
-                   *args, ausgelassen)
+                   *args, ausgelassen, exc_info=exc_info)
     else:
-        logger.log(stufe, text, *args)  # log-ok: Durchreiche
+        logger.log(stufe, text, *args, exc_info=exc_info)  # log-ok: Durchreiche
     return True
 
 

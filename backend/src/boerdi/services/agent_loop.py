@@ -341,7 +341,7 @@ async def run_agent_loop(
                         limits.deadline_s)
             return schluss("deadline")
         except Exception as e:
-            logger.error("Agent-Schleife: LLM-Fehler — %s", e)
+            logger.exception("Agent-Schleife: LLM-Fehler (%s)", type(e).__name__)
             return schluss("error")
 
         choice = resp.choices[0]

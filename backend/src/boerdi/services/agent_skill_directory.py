@@ -90,11 +90,16 @@ def _eintrag(roh: object) -> dict[str, Any] | None:
 
 def _als_objekt(roh: str) -> dict[str, Any]:
     """Die JSON-Antwort des MCP als Objekt — sonst ``VerzeichnisFehler("unlesbar")``."""
+    # Paket 18E: der Zweig ``mcp`` warnt an seiner Quelle, ``unlesbar`` hier — mit der Art
+    # der Antwort, nie mit ihrem Text (die Suche wiederholt den Suchbegriff).
     try:
         daten = json.loads(roh)
     except ValueError as exc:
+        logger.warning("Skill-Verzeichnis: MCP-Antwort unlesbar (%s)", type(exc).__name__)
         raise VerzeichnisFehler("unlesbar") from exc
     if not isinstance(daten, dict):
+        logger.warning("Skill-Verzeichnis: MCP-Antwort unlesbar (%s statt Objekt)",
+                       type(daten).__name__)
         raise VerzeichnisFehler("unlesbar")
     return daten
 

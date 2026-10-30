@@ -15,6 +15,8 @@ Patch-Ort-Regel (aus ALT übernommen, an die NEU-Import-Struktur angepasst):
 """
 from __future__ import annotations
 
+import logging
+
 import boerdi.domain.quick_reply_policy as quick_reply_policy
 import boerdi.services.config_loader as config_loader
 from boerdi.domain.quick_reply_policy import (
@@ -336,3 +338,13 @@ class TestHostQrMax:
         assert host_qr_max(99, ["Passt"]) == 6
         assert host_qr_max(0, ["Passt"]) == 1
         assert host_qr_max(-2, ["Passt"]) == 1
+
+
+def test_qr_policy_unlesbare_musterdefinition_meldet_sich(monkeypatch, caplog):
+    """Paket 18E: Unlesbare Musterdefinitionen setzten jedes Muster still auf „exact“."""
+    _patch_patterns(monkeypatch, ["kein Eintrag"])
+
+    with caplog.at_level(logging.WARNING, logger=quick_reply_policy.__name__):
+        assert _qr_policy("M05") == ("exact", None)
+
+    assert any("AttributeError" in r.getMessage() for r in caplog.records), caplog.text

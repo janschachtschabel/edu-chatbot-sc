@@ -334,7 +334,7 @@ async def _run_tool_loop(
             else:
                 resp = await llm.chat_completion(**kwargs)
         except Exception as e:
-            _logger.error("LLM API error: %s", e)
+            _logger.exception("LLM API error (%s)", type(e).__name__)
             # Der Grund steht im Log, die Person sieht die Fehlerblase des Chats
             # mit der Fehlernummer (Paket 18C/D; bis dahin der Typ, davor „Fehler bei
             # der Verarbeitung: {e}“ mit Interna aus der Anbieter-Meldung).
@@ -548,7 +548,10 @@ async def _run_tool_loop(
                                 "Wenn du im Text auf Treffer Bezug nimmst: "
                                 "ausschließlich auf die gewählten."
                             )
-                    except Exception:  # pragma: no cover — defensive
+                    except (AttributeError, TypeError) as e:
+                        # Paket 18E: der Hinweis fällt weg, die Auswahl gilt trotzdem.
+                        _logger.debug("Konsistenz-Hinweis: display-rules unlesbar (%s)",
+                                      type(e).__name__)
                         _consistency_tail = ""
 
                     messages.append({

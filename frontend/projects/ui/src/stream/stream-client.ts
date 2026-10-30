@@ -10,6 +10,7 @@
  * fährt die SSE-/Watchdog-Logik ohne Live-Backend unter Vitest.
  */
 
+import { fehlerKurz, fehlernummer } from '../obs/fehler-kurz';
 import { accessBlockHeaders } from '../session/mcp-access';
 
 /** Server-Sent-Event-Payload aus POST /api/chat/stream. `event` = SSE-Name
@@ -61,14 +62,6 @@ export class StreamServerError extends Error {
     super(message);
     this.name = 'StreamServerError';
   }
-}
-
-/** Zeichenvorrat der Trace-ID (`obs/trace_id`); die Nummer steht als Text in der
- *  Blase — was anders aussieht, kommt nicht hinein. */
-const FEHLERNUMMER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-
-function fehlernummer(roh: unknown): string {
-  return typeof roh === 'string' && FEHLERNUMMER.test(roh) ? roh : '';
 }
 
 /**
@@ -193,6 +186,7 @@ export async function streamChat<T = unknown>(opts: StreamChatOptions): Promise<
   let buffer = '';
   let finalResult: T | null = null;
   let streamError: Error | null = null;
+  let listenerFehlerGemeldet = false;
 
   const dispatch = (rawBlock: string) => {
     const evt = parseSseBlock(rawBlock);
@@ -208,8 +202,14 @@ export async function streamChat<T = unknown>(opts: StreamChatOptions): Promise<
     } else {
       try {
         opts.onEvent(evt);
-      } catch {
-        /* never break the stream on a listener throw */
+      } catch (err) {
+        // Den Strom bricht ein Fehler im eigenen Listener nie — er ist aber ein Bug
+        // der Oberfläche und steht deshalb als Fehler da (Paket 18E). Einmal je Strom:
+        // wirft er bei jedem `text_delta`, flutete er sonst die Konsole der Gastseite.
+        if (!listenerFehlerGemeldet) {
+          listenerFehlerGemeldet = true;
+          console.error('boerdi: Strom-Ereignis nicht verarbeitet —', fehlerKurz(err));
+        }
       }
     }
     // B10: nur benannte Events zählen als Server-Fortschritt.

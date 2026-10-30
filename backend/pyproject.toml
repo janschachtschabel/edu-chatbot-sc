@@ -88,7 +88,9 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+# Paket 18E: S110 (``except: pass`` ohne Spur) und TRY400 (``logger.error`` im ``except``
+# statt ``logger.exception``) — bewusste Ausnahmen tragen ``# noqa`` mit Grund.
+select = ["E", "F", "I", "UP", "B", "S110", "TRY400"]
 
 [tool.ruff.lint.per-file-ignores]
 # Verbatim LLM prompt strings ported 1:1 from ALT: line length is dictated by

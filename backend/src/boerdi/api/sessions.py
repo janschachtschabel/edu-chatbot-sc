@@ -142,6 +142,7 @@ async def optimize_db(
     try:
         result = await optimize_database(session)
     except Exception as e:  # noqa: BLE001 — surface lock/IO errors to the UI
+        logger.exception("DB-Optimierung fehlgeschlagen (%s)", type(e).__name__)
         raise HTTPException(503, msg(lang, "sessions.optimizeFailed", error=e)) from e
     return {"status": "optimized", **result}
 

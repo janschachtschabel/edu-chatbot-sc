@@ -7,7 +7,12 @@ diagnose where the OpenAI prompt cache hits and where it breaks.
 from __future__ import annotations
 
 import contextvars as _ctxvars
+import logging
 from typing import Any
+
+from boerdi.obs.drossel import gedrosselt
+
+logger = logging.getLogger(__name__)
 
 # Der Merkposten DIESES Zuges, je asyncio-Task. Für Aufrufer, die ihn nicht als
 # Parameter bekommen können: der Vokabular-Abgleich
@@ -81,7 +86,10 @@ def extract_usage(resp: Any) -> dict[str, Any]:
             "reasoning": reasoning,
             "model": getattr(resp, "model", "") or "",
         }
-    except Exception:
+    except Exception as e:  # noqa: BLE001 — die Buchung darf nie einen Zug kippen
+        # Paket 18E: sonst fiele die Kostenbuchung still auf 0.
+        gedrosselt(logger, logging.WARNING, "usage.extract", 60.0,
+                   "Verbrauch unlesbar (%s) — Aufruf mit 0 Token gebucht", type(e).__name__)
         return {"prompt": 0, "completion": 0, "cached": 0, "reasoning": 0, "model": ""}
 
 

@@ -156,5 +156,5 @@ um Luecken zu fuellen."""
         return strip_reasoning_markers(resp.choices[0].message.content or "") or bot_text(lang, "learningPath.failed")
     except Exception as e:
         # Der Grund ins Log, nicht in die Blase (Audit 2026-09-29, 6.3).
-        logger.error("learning path generation failed: %s", e)
+        logger.exception("learning path generation failed (%s)", type(e).__name__)
         return bot_text(lang, "learningPath.error")

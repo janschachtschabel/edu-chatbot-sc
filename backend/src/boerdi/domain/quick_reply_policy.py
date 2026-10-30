@@ -25,10 +25,14 @@ LLM nicht mehr erkannt und eine zweite angehängt.
 
 from __future__ import annotations
 
+import logging
 from typing import Final
 
 from boerdi.i18n import DEFAULT, Locale, bot_text
+from boerdi.obs.drossel import gedrosselt
 from boerdi.services.config_loader import load_display_rules_config
+
+logger = logging.getLogger(__name__)
 
 # Stichwörter, an denen der Wächter eine bereits vorhandene Pass-Quality-Frage
 # erkennt. Er liest die vom LLM erzeugten Quick-Replies, also UNSERE eigene
@@ -74,8 +78,11 @@ def _qr_policy(pattern_id: str) -> tuple[str, int | None]:
                         except (TypeError, ValueError):
                             qmax = None
                     return mode, qmax
-        except Exception:  # pragma: no cover — Policy darf nie einen Turn killen
-            pass
+        except Exception as e:  # noqa: BLE001 — Policy darf nie einen Zug kippen
+            # Paket 18E: unlesbare Musterdefinitionen setzten jedes Muster still auf „exact“.
+            gedrosselt(logger, logging.WARNING, "qr_policy", 60.0,
+                       "Musterdefinitionen unlesbar (%s) — Schnellantworten wie „exact“",
+                       type(e).__name__)
     return "exact", None
 
 

@@ -404,3 +404,24 @@ describe('Karten-Aktionen nach einem Neustart', () => {
     expect(getMessages()[0].cards).toEqual([{ id: 'a' }]);
   });
 });
+
+// ── Paket 18E: Spur in der Konsole — die Fehlerart, nie der Text ─────────────
+const MARKE = 'KANARIE7Q';
+const ausgabe = (spy: { mock: { calls: unknown[][] } }): string =>
+  spy.mock.calls.flat().map(String).join(' ');
+
+describe('Paket 18E: gescheiterte Sammlungs-Aktionen hinterlassen eine Spur', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('jede Aktion warnt mit der Fehlerart, nie mit dem Text', async () => {
+    for (const lauf of [browseCollection, showContentText, generateLearningPath]) {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { ctx } = makeCtx({ respond: () => { throw new Error(MARKE); } });
+      await lauf('c1', 'Mathe', ctx);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(ausgabe(warn)).toContain('Error');
+      expect(ausgabe(warn)).not.toContain(MARKE);
+      warn.mockRestore();
+    }
+  });
+});

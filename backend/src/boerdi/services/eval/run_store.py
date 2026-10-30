@@ -66,6 +66,9 @@ async def _ensure_chat_reachable() -> None:
         async with httpx.AsyncClient(timeout=3.0) as c:
             await c.get(origin + "/api/health")
     except Exception as e:
+        # Paket 18E: der Betrieb sah den abgewiesenen Start bisher nur im Studio.
+        logger.warning("Eval-Start abgewiesen: Chat-Backend %s nicht erreichbar (%s)",
+                       url, type(e).__name__)
         raise HTTPException(
             502,
             f"Chat-Backend nicht erreichbar unter {url} — EVAL_CHAT_URL "

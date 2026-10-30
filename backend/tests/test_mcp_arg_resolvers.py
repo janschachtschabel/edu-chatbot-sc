@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -585,3 +586,16 @@ def test_klassenangaben_gehen_unveraendert_an_den_server(ar_state, monkeypatch):
         out = asyncio.run(ar._resolve_filter_uris({"educationalContext": wert}))
         assert out["educationalContext"] == wert
     assert gefragt == []
+
+
+def test_browse_resolver_unlesbare_portalliste_hinterlaesst_spur(ar_state, monkeypatch, caplog):
+    """Paket 18E: Der Abgleich mit dem Fach-Hinweis entfiel bisher ohne jede Spur."""
+    _wire_call(monkeypatch, "kein JSON")
+    ar.set_request_hints({"fach": "Mathematik"})
+    args = {"nodeId": "aaaaaaaa-1111-4111-8111-111111111111"}
+
+    with caplog.at_level(logging.DEBUG, logger=ar.__name__):
+        out = asyncio.run(ar._resolve_browse_node_id(dict(args)))
+
+    assert out == args
+    assert any("JSONDecodeError" in r.getMessage() for r in caplog.records), caplog.text

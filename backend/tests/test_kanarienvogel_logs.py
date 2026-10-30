@@ -41,7 +41,7 @@ from typing import Any
 # werden (ein erst im Zug angelegter Logger behielte eine eigene Stufe).
 import httpcore  # noqa: F401
 import httpx  # noqa: F401
-import litellm  # noqa: F401
+import litellm
 import mcp  # noqa: F401
 import openai  # noqa: F401
 import pytest
@@ -55,6 +55,7 @@ from boerdi.db.session import make_engine, make_session_factory
 from boerdi.i18n import bot_text
 from boerdi.main import create_app
 from boerdi.obs.drittlogger import drittlogger_einstellen
+from boerdi.obs.log_format import nachricht_ohne_fremdtexte, traceback_ohne_fremdtexte
 from boerdi.services import classify, llm, seed_io
 from boerdi.services import config_loader as cl
 from boerdi.services.mcp import arg_resolvers, transport
@@ -96,7 +97,9 @@ def _ort(record: logging.LogRecord) -> str:
 
 class _Fang(logging.Handler):
     """Nimmt jeden Eintrag so auf, wie ein Formatierer ihn ausgäbe: Nachricht samt
-    Argumenten, Traceback und Stapel (``obs/log_format.JsonFormatter``)."""
+    Argumenten, Traceback und Stapel (``obs/log_format.JsonFormatter``). Wie dort ohne Texte
+    fremder Dienste (Paket 18E): ein Anbieter- oder MCP-Fehler als Argument oder im Traceback
+    steht nur mit seiner Art da. Alles andere bleibt roh."""
 
     def __init__(self) -> None:
         super().__init__(logging.NOTSET)
@@ -105,12 +108,12 @@ class _Fang(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            nachricht = record.getMessage()
+            nachricht = nachricht_ohne_fremdtexte(record)
         except Exception:  # noqa: BLE001 — eine kaputte Vorlage zählt mit ihren Teilen
             nachricht = f"{record.msg!s} {record.args!r}"
         teile = [nachricht]
         if record.exc_info:
-            teile.append(self._format.formatException(record.exc_info))
+            teile.append(traceback_ohne_fremdtexte(record.exc_info))
         elif record.exc_text:
             teile.append(record.exc_text)
         if record.stack_info:
@@ -256,8 +259,18 @@ class _Modell:
 
     def __init__(self) -> None:
         self.arten: list[str] = []
+        #: Wirft die Antwortrunde (mit Werkzeugen) statt zu antworten — Paket 18E.
+        self.antwortfehler: BaseException | None = None
+        #: Wirft bei JEDEM Aufruf — Rechtsprüfung, Schnellantworten, Material (Review 18E-2).
+        self.allesfehler: BaseException | None = None
 
     async def __call__(self, **kw: Any) -> Any:
+        if self.allesfehler is not None:
+            self.arten.append("fehler")
+            raise self.allesfehler
+        if self.antwortfehler is not None and kw.get("tools"):
+            self.arten.append("fehler")
+            raise self.antwortfehler
         art, inhalt, aufrufe = self._antwort(kw)
         self.arten.append(art)
         modell = str(kw.get("model") or "gpt-x").split("/")[-1]
@@ -321,9 +334,12 @@ class _Klassifikator:
     def __init__(self) -> None:
         self.ergebnis = ClassificationResult()
         self.aufrufe = 0
+        self.fehler: BaseException | None = None
 
     async def __call__(self, **_kw: Any) -> tuple[ClassificationResult, Any]:
         self.aufrufe += 1
+        if self.fehler is not None:
+            raise self.fehler
         roh = SimpleNamespace(usage=_nutzung(), model="gpt-x", choices=[])
         return self.ergebnis.model_copy(deep=True), roh
 
@@ -621,3 +637,69 @@ def test_fehlerblase_schreibt_keine_inhalte_ins_log(welt):
     gespeichert = _antworten(welt.engine, sid)
     assert [z["debug"]["pattern"] for z in gespeichert] == ["ERROR: unhandled_chat_exception"]
     _ohne_marke(eintraege, "Fehlerblase")
+
+
+@pytest.mark.parametrize("engine", ["pattern", "agent"])
+def test_anbieterfehler_schreibt_keine_inhalte_ins_log(welt, engine):
+    """Paket 18E (2.1): Der Anbieter weist die Antwortrunde ab und wiederholt dabei die
+    Eingabe in seiner Fehlermeldung. Abgefangen und geloggt wird er im Muster-Weg in der
+    Werkzeugschleife, im Agent-Weg in der Agent-Schleife — mit Traceback, ohne seinen Text."""
+    welt.klassifikator.ergebnis = _suche_klassifiziert()
+    welt.modell.antwortfehler = litellm.BadRequestError(
+        message=f"OpenAIException - Invalid value for 'content': '{MARKE}: Zeig mir …'",
+        model="gpt-x", llm_provider="openai")
+    sid = f"bb-{MARKE}-anbieter-{engine}"
+
+    antwort, eintraege = _zug(welt, engine=engine, session_id=sid,
+                              message=f"{MARKE}: Zeig mir Arbeitsblätter zur Optik")
+
+    assert "fehler" in welt.modell.arten, welt.modell.arten
+    assert antwort["content"]
+    assert any(e.stufe == "ERROR" and "BadRequestError" in e.text for e in eintraege), \
+        "der Anbieterfehler steht nicht im Log"
+    _ohne_marke(eintraege, f"Anbieterfehler ({engine})")
+
+
+
+def _anbieter_weist_ab() -> BaseException:
+    return litellm.BadRequestError(
+        message=f"OpenAIException - Invalid value for 'content': '{MARKE}: Zeig mir …'",
+        model="gpt-x", llm_provider="openai")
+
+
+@pytest.mark.parametrize("engine", ["pattern", "agent"])
+def test_jeder_llm_aufruf_scheitert_ohne_inhalte_im_log(welt, engine):
+    """Review 18E-2 (Befund 1): Klassifikator, Rechtsprüfung, Antwort, Schnellantworten,
+    Zusammenfassung — jeder Aufruf scheitert mit einem Anbietertext, der die Eingabe
+    wiederholt. Viele Fangstellen loggen ``"… %s", e``; im Log steht trotzdem nur die Art."""
+    welt.klassifikator.fehler = _anbieter_weist_ab()
+    welt.modell.allesfehler = _anbieter_weist_ab()
+    sid = f"bb-{MARKE}-alles-{engine}"
+
+    antwort, eintraege = _zug(welt, engine=engine, session_id=sid,
+                              message=f"{MARKE}: Zeig mir Arbeitsblätter zur Optik")
+
+    assert "fehler" in welt.modell.arten, welt.modell.arten
+    assert antwort["content"]
+    assert any("BadRequestError" in e.text for e in eintraege), \
+        "kein Anbieterfehler im Log — die Probe hätte nichts geprüft"
+    _ohne_marke(eintraege, f"jeder LLM-Aufruf scheitert ({engine})")
+
+
+def test_canvas_bei_anbieterfehler_ohne_inhalte_im_log(welt):
+    """Review 18E-2 (Befund 1): ``generate_canvas_content`` loggte ``"…: %s", e``."""
+    welt.klassifikator.ergebnis = ClassificationResult(
+        persona_id="P-LEH", intent_id="I05", intent_confidence=0.95, next_state="S3",
+        entities={"thema": "Optik", "material_typ": "arbeitsblatt"},
+        pattern_id_hint="M10", pattern_reasoning="Material erzeugen",
+    )
+    welt.modell.allesfehler = _anbieter_weist_ab()
+    sid = f"bb-{MARKE}-canvas-fehler"
+
+    antwort, eintraege = _zug(welt, engine="pattern", session_id=sid,
+                              message=f"Erstelle ein Arbeitsblatt zum Thema {MARKE}-Optik")
+
+    assert "fehler" in welt.modell.arten, welt.modell.arten
+    assert antwort["content"] or antwort.get("inline_documents")
+    assert any("BadRequestError" in e.text for e in eintraege), eintraege
+    _ohne_marke(eintraege, "Canvas mit Anbieterfehler")

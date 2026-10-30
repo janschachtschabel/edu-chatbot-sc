@@ -30,6 +30,7 @@
  */
 import { ChatMessage } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
+import { fehlerKurz } from '../obs/fehler-kurz';
 import { splitSentences, stripMarkdown } from './tts-text';
 
 /** Live-Zustand/Seiteneffekte der ChatComponent, die der Speech-Cluster
@@ -248,7 +249,10 @@ export class SpeechService {
   private async fetchTTS(text: string, signal: AbortSignal): Promise<Blob | null> {
     try {
       return await this.ctx.synthesize(text, signal);
-    } catch {
+    } catch (err) {
+      // Ein Abbruch (Stopp, nächste Nachricht) ist gewollt; sonst blieb das Vorlesen
+      // ohne Grund stumm (Paket 18E).
+      if (!signal.aborted) console.warn('boerdi: Vorlesen gescheitert —', fehlerKurz(err));
       return null;
     }
   }

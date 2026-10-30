@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 from boerdi.domain.inline_grouping import _ui_box_state_footer
 from boerdi.domain.tool_result_redaction import _redact_search_content_for_llm
 from boerdi.domain.untrusted_text import frame_untrusted, frame_wissen
+from boerdi.obs.drossel import gedrosselt
 from boerdi.obs.zeiten import schritt
 from boerdi.services.card_collect import parse_cards_for_tool
 from boerdi.services.mcp.client import is_mcp_error
@@ -237,7 +238,12 @@ async def _assemble_messages(
             # eigene Kopie mehr: sie stand hier bis 2026-08-16 nach und lief
             # auseinander (``search_wlo_all`` → 0 statt 12 Karten, gemessen).
             mcp_prefetch_cards = parse_cards_for_tool(_name, _txt)
-        except Exception:
+        except Exception as e:  # noqa: BLE001 — ein Parserfehler kippt den Zug nicht
+            # Paket 18E: Name und Fehlerart, nie der Werkzeugtext — still verworfene
+            # Karten waren der Vorfall vom 2026-08-16 (0 statt 12).
+            gedrosselt(_logger, logging.WARNING, f"vorabkarten:{_name}", 60.0,
+                       "Vorab-Karten von %s nicht lesbar (%s) — ohne Karten weiter",
+                       _name, type(e).__name__)
             mcp_prefetch_cards = []
         messages.append({
             "role": "assistant",
@@ -283,7 +289,10 @@ async def _assemble_messages(
                 continue
             try:
                 _ex_cards = parse_cards_for_tool(_ex_name, _ex_text)
-            except Exception:
+            except Exception as e:  # noqa: BLE001 — wie beim Vorabruf oben
+                gedrosselt(_logger, logging.WARNING, f"vorabkarten:{_ex_name}", 60.0,
+                           "Vorab-Karten von %s nicht lesbar (%s) — ohne Karten weiter",
+                           _ex_name, type(e).__name__)
                 _ex_cards = []
             prefetched_extras_cards.extend(_ex_cards)
             # In messages als simulated tool call einbinden — eindeutige

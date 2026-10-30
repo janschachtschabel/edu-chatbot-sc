@@ -2,6 +2,7 @@ import { computed, signal } from '@angular/core';
 
 import { HeaderNavButton, parseGuideModeConfig } from './guide-mode-config';
 import { mergeTrustedDomains } from '../session/trusted-host';
+import { fehlerKurz } from '../obs/fehler-kurz';
 
 /** Seams des Config-Boots — Host-Attribute und der Chat-Client der Shell. */
 export interface GuideBootContext {
@@ -105,9 +106,15 @@ export class GuideBoot {
         if (cfg.startRepliesEn !== null) this.startRepliesEn.set(cfg.startRepliesEn);
         if (cfg.tourReplyEn !== null) this.tourReplyEn.set(cfg.tourReplyEn);
         if (cfg.mcpAuthBase !== null) this.mcpAuthBase.set(cfg.mcpAuthBase);
+      } else {
+        console.warn('boerdi: Widget-Konfiguration nicht geladen, es gelten die Vorgaben —',
+          `status=${resp.status}`);
       }
-    } catch {
-      // Backend nicht erreichbar — bewusst geschluckt, siehe Doc-Kommentar.
+    } catch (err) {
+      // Kein Show-Stopper (siehe Doc-Kommentar) — aber Begrüßung, Start-Chips, vertraute
+      // Domains und Anmelde-Adresse fallen auf die Vorgaben zurück (Paket 18E).
+      console.warn('boerdi: Widget-Konfiguration nicht geladen, es gelten die Vorgaben —',
+        fehlerKurz(err));
     }
     this.guideMode.set(true);
     this.guideModeAvailable.set(true);

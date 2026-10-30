@@ -11,7 +11,10 @@ import json
 import logging
 import re
 import sys
+import traceback
+from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import Any
 
 _TEXT = "%(asctime)s %(levelname)s %(name)s [%(trace_id)s]: %(message)s"
 _DATUM = "%Y-%m-%d %H:%M:%S"
@@ -31,6 +34,68 @@ def geschwaerzt(text: str) -> str:
     return _EINGABE.sub(f"input_value={_GESCHWAERZT}", text)
 
 
+# Paket 18E (2.1): Ein Anbieter- oder MCP-Fehler wiederholt mitunter die Eingabe (OpenAI
+# „Invalid value: …“, MCP ``-32602``) — von ihm steht nur der Typ im Log: im Traceback, auch
+# verkettet oder in einer Gruppe, und als Argument einer Meldung (``logger.warning("… %s", e)``,
+# über hundert Stellen). LiteLLM-Fehler erben von ``openai.OpenAIError``. Nach Namen statt per
+# ``isinstance``, damit das Logging die SDKs nicht importiert.
+_FREMDTEXTE = frozenset({"openai.OpenAIError", "mcp.shared.exceptions.McpError"})
+
+
+def _fremdtext(exc: BaseException) -> bool:
+    return any(f"{k.__module__}.{k.__qualname__}" in _FREMDTEXTE for k in type(exc).__mro__)
+
+
+def _ohne_fremdtext(wert: object) -> object:
+    if isinstance(wert, BaseException) and _fremdtext(wert):
+        return f"{type(wert).__name__}({_GESCHWAERZT})"
+    return wert
+
+
+def _args_ohne_fremdtexte(args: Any) -> Any:
+    """Die Argumente einer Meldung; Ausnahmen fremder Dienste nur mit ihrer Art."""
+    if isinstance(args, tuple):
+        return tuple(_ohne_fremdtext(a) for a in args)
+    if isinstance(args, Mapping):
+        return {k: _ohne_fremdtext(v) for k, v in args.items()}
+    return args
+
+
+def nachricht_ohne_fremdtexte(record: logging.LogRecord) -> str:
+    """Wie ``record.getMessage()``, die Argumente ohne Texte fremder Dienste."""
+    nachricht = str(record.msg)
+    if record.args:
+        nachricht = nachricht % _args_ohne_fremdtexte(record.args)
+    return nachricht
+
+
+def _schwaerze(te: traceback.TracebackException | None, exc: BaseException | None,
+               gesehen: set[int]) -> None:
+    """Geht Kette und Gruppen von ``exc`` und ``te`` gleichlaufend ab.
+
+    Gemerkt wird der Knoten, nicht die Ausnahme: ``TracebackException`` legt Gruppenkinder ohne
+    eigene Prüfung an — ein ausgepacktes, neu geworfenes Mitglied steht dann zweimal im Baum
+    (Review 18E-2)."""
+    if te is None or exc is None or id(te) in gesehen:
+        return
+    gesehen.add(id(te))
+    if _fremdtext(exc):
+        # ``_str`` ist privat, aber die einzige Stelle, aus der ``format`` den Text nimmt;
+        # ``test_log_ausnahmen`` fällt, wenn eine Python-Version das ändert.
+        te._str = _GESCHWAERZT
+    _schwaerze(te.__cause__, exc.__cause__, gesehen)
+    _schwaerze(te.__context__, exc.__context__, gesehen)
+    for kind_te, kind in zip(te.exceptions or (), getattr(exc, "exceptions", ()), strict=False):
+        _schwaerze(kind_te, kind, gesehen)
+
+
+def traceback_ohne_fremdtexte(ei: Any) -> str:
+    """Wie ``logging.Formatter.formatException``, Texte fremder Dienste geschwärzt."""
+    te = traceback.TracebackException(ei[0], ei[1], ei[2], compact=True)
+    _schwaerze(te, ei[1], set())
+    return "".join(te.format()).removesuffix("\n")
+
+
 class JsonFormatter(logging.Formatter):
     """Eine JSON-Zeile je Eintrag: Zeit (UTC, ISO 8601), Level, Logger, Nachricht, Trace-ID."""
 
@@ -40,7 +105,7 @@ class JsonFormatter(logging.Formatter):
             "time": zeit.strftime("%Y-%m-%dT%H:%M:%S.") + f"{zeit.microsecond // 1000:03d}Z",
             "level": record.levelname,
             "logger": record.name,
-            "message": geschwaerzt(record.getMessage()),
+            "message": geschwaerzt(nachricht_ohne_fremdtexte(record)),
             "trace_id": getattr(record, "trace_id", "-"),
         }
         if hasattr(record, "ereignis"):
@@ -53,10 +118,24 @@ class JsonFormatter(logging.Formatter):
         # ``default=str``: ein Feld, das JSON nicht kennt, kostet nicht die ganze Zeile.
         return json.dumps(eintrag, ensure_ascii=True, default=str)
 
+    def formatException(self, ei: Any) -> str:  # noqa: N802 — überschreibt logging
+        return traceback_ohne_fremdtexte(ei)
+
 
 class _TextFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        return geschwaerzt(super().format(record))
+        # ``logging.Formatter.format`` übernähme ein ``exc_text``, das ein anderer Handler
+        # schon roh gesetzt hat, und formatiert die Meldung aus ``args`` — beides für diesen
+        # Aufruf ohne Fremdtexte; danach sehen die anderen Handler wieder ihre Fassung.
+        args, exc_text = record.args, record.exc_text
+        record.args, record.exc_text = _args_ohne_fremdtexte(args), None
+        try:
+            return geschwaerzt(super().format(record))
+        finally:
+            record.args, record.exc_text = args, exc_text
+
+    def formatException(self, ei: Any) -> str:  # noqa: N802 — überschreibt logging
+        return traceback_ohne_fremdtexte(ei)
 
 
 def text_formatter() -> logging.Formatter:

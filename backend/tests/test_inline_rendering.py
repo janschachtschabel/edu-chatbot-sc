@@ -5,6 +5,8 @@ these are behavior pins, not a re-derivation. Pure formatting logic, no mocks ne
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from boerdi.domain import inline_rendering as ir
@@ -401,3 +403,25 @@ def test_links_title_falls_back_to_url_when_missing():
     card = {"node_type": "video", "link": "http://only-url"}
     assert ir._build_inline_card_links([card], False, 5, 50) == \
         "- [@@ICON:menu_book@@http://only-url](http://only-url)"
+
+
+def test_intro_vorlage_mit_fremdem_platzhalter_meldet_sich(caplog):
+    """Paket 18E: Eine Studio-Vorlage mit unbekanntem Platzhalter kam bisher still roh —
+    samt ``{…}`` — in die Antwort. Jetzt mit Warnung (Fehlerart, nie das Thema)."""
+    with caplog.at_level(logging.WARNING, logger=ir.__name__):
+        text = ir._format_inline_doc_intro("Material {thema}{topic_suffix}", "Optik")
+
+    assert text == "Material {thema}{topic_suffix}"
+    meldungen = [r.getMessage() for r in caplog.records]
+    assert any("KeyError" in m for m in meldungen), meldungen
+    assert not any("Optik" in m for m in meldungen)
+
+
+def test_intro_vorlage_mit_indexzugriff_kippt_die_box_nicht(caplog):
+    """Review 18E-2 (Befund 3): ``{topic_suffix[x]}`` wirft ``TypeError`` — die Vorlage kommt
+    roh zurück, statt die ganze Inline-Box zu verlieren."""
+    with caplog.at_level(logging.WARNING, logger=ir.__name__):
+        text = ir._format_inline_doc_intro("Material{topic_suffix[x]}", "Optik")
+
+    assert text == "Material{topic_suffix[x]}"
+    assert any("TypeError" in r.getMessage() for r in caplog.records), caplog.text

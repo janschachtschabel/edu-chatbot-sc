@@ -17,12 +17,15 @@ Funktions-Rumpf byte-/AST-identisch zu ALT bleibt.
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
 from boerdi.api.schemas import ToolOutcome
 from boerdi.obs.zeiten import schritt
 from boerdi.services.mcp.client import call_mcp_tool, is_mcp_error
+
+logger = logging.getLogger(__name__)
 
 
 async def call_with_outcome(
@@ -68,9 +71,13 @@ async def call_with_outcome(
                 outcome.item_count = 1
         return result, outcome
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — ein Werkzeugfehler kippt den Zug nicht
+        # Paket 18E: ``call_mcp_tool`` wirft vertragsgemäß nie — hier landet nur ein Bug.
+        # Der Traceback geht ins Log, in die Zugakte nur die Fehlerart (N2).
+        logger.warning("Werkzeug %s: Aufruf warf %s", tool_name, type(e).__name__,
+                       exc_info=True)
         outcome.status = "error"
-        outcome.error = str(e)[:200]
+        outcome.error = f"exception: {type(e).__name__}"
         outcome.latency_ms = int((time.monotonic() - start) * 1000)
         return "", outcome
 

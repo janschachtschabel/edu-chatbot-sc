@@ -11,6 +11,8 @@ rest is either fixed in this change (packages **18A** and **18B**) or planned in
 
 **Update 2026-10-30:** packages **18C and 18D** are done (four pull requests, see
 `docs/aenderungen/2026-10-29-*` and `2026-10-30-*`). Their rows below now say ✅ 18C/18D.
+Package **18E** is done as well (two pull requests, `docs/aenderungen/2026-10-30-paket-18e-*`);
+its rows say ✅ 18E.
 
 Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳ planned (package) ·
 ➖ accepted, not changed
@@ -37,8 +39,8 @@ Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳
 |---|---|---|
 | `api/chat.py` — fallback `save_message` swallowed | ✔ | Logs at debug with stack trace. |
 | `services/mcp/tool_args.py` — second validation error swallowed | ✅ 18B | Now logged at warning, **without input values** (only location and error type). The raw arguments still pass through on purpose (fail-open): the MCP server validates again and returns an error the model can read. |
-| `graph/nodes/respond.py` (3×), `obs/tasks.py` `cancel_and_drain` — cancel + await swallows everything, no timeout | ⏳ 18E | One helper for "cancel and wait": it passes on our own cancellation, logs unexpected errors and has a time limit. |
-| `domain/guide_mode.py`, `domain/cards/links.py`, `services/rag/retrieval.py`, `services/page_context.py`, `services/response_prompt_tools_text.py`, `services/turn_links.py` (QueryMeta loop) | ⏳ 18E | Log at debug or warning; narrow the caught exception where possible. A full scan found 124 such handlers: 87 are fine, 30 should log, 7 hide real risks (e.g. an invalid value silently turns the rate limit off). |
+| `graph/nodes/respond.py` (3×), `obs/tasks.py` `cancel_and_drain` — cancel + await swallows everything, no timeout | ✅ 18E | One helper for "cancel and wait" (`cancel_and_drain`, 5 s): our own cancellation reaches the caller, a task that ignores the cancel holds it up for at most the limit (warning), errors of the tasks go to debug with their type. It replaces all copies, including the stream, the session lock and shutdown. |
+| `domain/guide_mode.py`, `domain/cards/links.py`, `services/rag/retrieval.py`, `services/page_context.py`, `services/response_prompt_tools_text.py`, `services/turn_links.py` (QueryMeta loop) | ✅ 18E | A new scan found 133 silent handlers. 7 hid real risks and are fixed (e.g. an invalid value silently turned a rate-limit window off, an invalid policy pattern dropped its rule, a broken header was saved as empty). 18 now log — a rate-limited warning where a fallback hides Studio settings or skews a result, debug otherwise — with a narrower catch where only parsing happens. The rest are fine on purpose (parsing with a fallback, browser storage, cleanup). From your list: the QueryMeta loop logs at debug, `retrieval` lost its catch-all (every access is type-checked), `cards/links` is a deliberate fallback chain (marked), the others parse with a fallback and stay. Ruff now enforces S110 and TRY400; the widget logs 13 failures with error type, status and error number only. |
 | Bot text, quick replies and user text in logs (`turn_links.py`, `turn_persist.py`, `widget_postprocess.py`) | ✅ 18C | Larger than reported: about 55 places in 22 files. The log now holds no content — only lengths, short session IDs and filter values; content only at DEBUG with `LOG_CONTENT=true`. What a turn did is stored per turn for the Studio (the turn record), found by the trace ID. An AST guard checks every logger call, and a canary test runs real turns over all paths with a marker word. |
 
 ## 3 Moderation outage (18A)
@@ -78,6 +80,8 @@ Legend: ✅ fixed in this change · ◐ partly fixed · ✔ fixed earlier · ⏳
 |---|---|
 | The debug block of every chat response reaches every client (error texts, model and tool names) | ✅ 18D — every response carries a public `ui` part; `debug` only with Studio login or the studio key (otherwise `null`), also in the history |
 | The canvas shows the provider's raw error text in the generated material | ✅ 18D — an error number instead |
+| A privacy switch saved as text (`messages: "false"`) was read as "on" — messages were stored although switched off | ✅ 18E — switches are read with the same rule as the check on save; if the privacy settings are unreadable, nothing is stored |
+| Error lines wrote the provider's error text to the log (over a hundred places pass the exception to the message); it can repeat the user's input | ✅ 18E — provider and MCP errors appear only with their type, in the message and in tracebacks; the classifier library's own error line is muted unless `LOG_CONTENT` is on; the canary test now runs turns where every model call fails |
 | Waiting for an LLM slot has no time limit; a hanging provider fills a replica | ⏳ 18F — limit (about 30 s), then a friendly "busy" message |
 | Outer rate limit is 20/min per IP (too tight behind a school NAT); 429 looks like a generic error in the widget | ⏳ 18F — 120/min per IP, own 429 message |
 | Anonymous users have the same agent limits as logged-in users (no cost cap) | ➖ for now — the cost of an anonymous turn will be measured first |

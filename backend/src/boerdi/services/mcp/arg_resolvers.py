@@ -171,7 +171,10 @@ async def _resolve_browse_node_id(arguments: dict[str, Any]) -> dict[str, Any]:
         )
         results = (json.loads(portals_raw).get("results")
                    or json.loads(portals_raw).get("items") or [])
-    except Exception:
+    except (ValueError, TypeError, AttributeError) as e:
+        # Paket 18E: ``call_mcp_tool`` wirft vertragsgemäß nie — unlesbar ist die Antwort.
+        logger.debug("browse_collection_tree: Portalliste unlesbar (%s) — nodeId unverändert",
+                     type(e).__name__)
         return arguments
     chosen = next(
         (r for r in results if isinstance(r, dict) and r.get("nodeId") == nid),

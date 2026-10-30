@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DE } from '../i18n/de';
 import { EN } from '../i18n/en';
@@ -111,5 +111,23 @@ describe('Vorgang', () => {
     const { ctx: c, gesagt } = ctx({ translate: createTranslator(EN, DE) });
     await runSignIn(c);
     expect(gesagt).toEqual([EN['auth.done']]);
+  });
+});
+
+// ── Paket 18E: Spur in der Konsole — die Fehlerart, nie der Text ─────────────
+const MARKE = 'KANARIE7Q';
+const ausgabe = (spy: { mock: { calls: unknown[][] } }): string =>
+  spy.mock.calls.flat().map(String).join(' ');
+
+describe('Paket 18E: Spur einer gescheiterten Anmeldung', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('ein geworfener Fehler steht mit seiner Art in der Konsole', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { ctx: c } = ctx({ signInImpl: async () => { throw new TypeError(MARKE); } });
+    await runSignIn(c);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(ausgabe(warn)).toContain('TypeError');
+    expect(ausgabe(warn)).not.toContain(MARKE);
   });
 });

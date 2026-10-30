@@ -5,6 +5,7 @@ The accumulator dict is the shape that lands in DebugInfo.token_usage.
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 
 from boerdi.obs import usage
@@ -198,3 +199,19 @@ def test_zwei_gleichzeitige_zuege_sehen_sich_nicht() -> None:
         return await asyncio.gather(zug("A"), zug("B"))
 
     assert asyncio.run(beide()) == ["A", "B"]
+
+
+def test_unlesbarer_verbrauch_meldet_sich(caplog):
+    """Paket 18E: Die Kostenbuchung fiel still auf 0 Token."""
+    class _Kaputt:
+        prompt_tokens = 3
+
+        @property
+        def prompt_tokens_details(self):
+            raise TypeError("unerwartete Form")
+
+    with caplog.at_level(logging.WARNING, logger=usage.__name__):
+        werte = usage.extract_usage(SimpleNamespace(usage=_Kaputt(), model="gpt-x"))
+
+    assert werte["prompt"] == 0 and werte["completion"] == 0
+    assert any("TypeError" in r.getMessage() for r in caplog.records), caplog.text

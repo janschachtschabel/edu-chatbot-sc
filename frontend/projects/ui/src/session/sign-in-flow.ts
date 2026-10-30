@@ -17,6 +17,7 @@
  */
 
 import type { TranslateFn } from '../i18n/i18n';
+import { fehlerKurz } from '../obs/fehler-kurz';
 import { signIn } from './mcp-oauth';
 import type { OauthDeps, SignInResult } from './mcp-oauth';
 
@@ -86,7 +87,8 @@ export async function runSignIn(ctx: SignInFlowContext): Promise<void> {
   let ergebnis: SignInResult;
   try {
     ergebnis = await vorgang(basis, callbackUrl(ctx.apiUrl(), ctx.origin()));
-  } catch {
+  } catch (err) {
+    console.warn('boerdi: Anmeldung gescheitert —', fehlerKurz(err));
     // Der Vorgang fängt Netz- und Fensterfehler selbst ab, aber nicht alles:
     // `crypto.subtle` fehlt auf unsicherer Herkunft (http://) und WIRFT. Ohne
     // diesen Zweig bliebe eine abgewiesene Zusage übrig — der Chip täte

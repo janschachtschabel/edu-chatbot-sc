@@ -10,6 +10,7 @@
  * `viaBsid`-Rückgabewert ersetzt ALTs Seiteneffekt auf `_resumedViaBsid` — die
  * Shell pflegt ihr Feld daraus. KEINE Logik-Änderung.
  */
+import { fehlerKurz } from '../obs/fehler-kurz';
 import { generateSessionId, resolvePersistedSessionId, writeSessionEverywhere } from '../session/session-id';
 
 /** Konfiguration der Kaskade — die session-relevanten `@Input()`s der Shell. */
@@ -48,7 +49,9 @@ export function bootSession(cfg: SessionBootConfig): SessionBoot {
       cookieMaxAge: cfg.cookieMaxAge,
     });
     return { sessionId, resumed: !!found.id, viaBsid: found.viaBsid };
-  } catch {
+  } catch (err) {
+    // Paket 18E: sonst wirkte der Verlauf ohne jede Spur verschwunden.
+    console.warn('boerdi: Sitzung nicht wieder aufgenommen, neue begonnen —', fehlerKurz(err));
     return { sessionId: generateSessionId(), resumed: false, viaBsid: false };
   }
 }

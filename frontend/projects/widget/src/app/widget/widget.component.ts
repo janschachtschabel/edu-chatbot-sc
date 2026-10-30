@@ -16,7 +16,8 @@ import {
   _attrTriState,
   PANEL_SIZE_STEPS,
   TOOL_MODES,
-  applyPrimaryColor, BOERDI_LOGO_DATA_URL, headerNavHrefWithBsid, headerNavIconSvg,
+  applyPrimaryColor, BOERDI_LOGO_DATA_URL, fehlerKurz, headerNavHrefWithBsid,
+  headerNavIconSvg,
   pickLocalized,
   resolveMergedPageContext, resolveTheme,
 } from '@boerdi/ui';
@@ -727,6 +728,9 @@ export class WidgetComponent implements OnInit, AfterViewInit, OnDestroy {
       const merged = resolveMergedPageContext(this.autoContext(), this.pageContext());
       this.resolvedPageContext.set(merged);
       if (notify) this.shell()?.onSpaContextChange(merged);
-    } catch { /* ignore — Navigation darf das Widget nie brechen */ }
+    } catch (err) {
+      // Navigation darf das Widget nie brechen — die Spur auf DEBUG, nie der Kontext.
+      console.debug('boerdi: Seitenkontext nicht aufgelöst —', fehlerKurz(err));
+    }
   }
 }

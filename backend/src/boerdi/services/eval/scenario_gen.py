@@ -176,9 +176,8 @@ async def generate_scenarios(
                     # generativen Laufs (5–7 min LLM) — ohne dieses Weiterwerfen
                     # generierte sie nach dem Stopp-Klick minutenlang weiter.
                     raise
-                except Exception:
-                    # Progress hook must never break generation
-                    pass
+                except Exception as e:  # noqa: BLE001 — Fortschritt bricht nie die Erzeugung
+                    logger.debug("Fortschritt nicht gemeldet (%s)", type(e).__name__)
             # Welle E (2026-05-25): persona-Marker-Block und Intent-Trigger
             # kommen jetzt aus den YAML/MD-Dateien — Single Source of Truth
             # mit dem Klassifikator-Prompt. Der Generator weiß durch die
