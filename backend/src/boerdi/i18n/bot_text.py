@@ -353,6 +353,12 @@ BOT_TEXT: Final[Catalogue] = {
             "— meistens klappt es beim zweiten Anlauf. (Fehlernummer: {nummer})"
         ),
         "error.retryChip": "Nochmal versuchen",
+        # Paket 18F: kein LLM-Platz binnen ``LLM_SLOT_WAIT_S`` — kein Fehler mit Nummer, sondern
+        # Last; die Person soll es gleich noch einmal versuchen.
+        "error.llmBusy": (
+            "Gerade sind sehr viele Anfragen gleichzeitig unterwegs, und ich komme nicht "
+            "durch. Versuch es bitte in einer Minute noch einmal."
+        ),
         # ── A4c-2b: eine Maschine endet ohne eigenen Text ──────────────
         # ``AgentRun.text`` ist nur bei ``text``/``submit`` gefüllt; bei Frist,
         # Token-Budget, Iterationsdeckel, Stillstand und LLM-Fehler bleibt er
@@ -615,6 +621,10 @@ BOT_TEXT: Final[Catalogue] = {
             "works on the second attempt. (Error number: {nummer})"
         ),
         "error.retryChip": "Try again",
+        "error.llmBusy": (
+            "There are a lot of requests at once right now, and I can't get through. "
+            "Please try again in a minute."
+        ),
         "agent.incomplete": (
             "I did not get through this one — the request was too broad. Try "
             "again with a narrower question."

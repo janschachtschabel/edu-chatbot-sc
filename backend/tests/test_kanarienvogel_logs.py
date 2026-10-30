@@ -56,7 +56,7 @@ from boerdi.i18n import bot_text
 from boerdi.main import create_app
 from boerdi.obs.drittlogger import drittlogger_einstellen
 from boerdi.obs.log_format import nachricht_ohne_fremdtexte, traceback_ohne_fremdtexte
-from boerdi.services import classify, llm, seed_io
+from boerdi.services import classify, llm, llm_parallel, seed_io
 from boerdi.services import config_loader as cl
 from boerdi.services.mcp import arg_resolvers, transport
 from boerdi.services.mcp import client as mcp_client
@@ -703,3 +703,59 @@ def test_canvas_bei_anbieterfehler_ohne_inhalte_im_log(welt):
     assert antwort["content"] or antwort.get("inline_documents")
     assert any("BadRequestError" in e.text for e in eintraege), eintraege
     _ohne_marke(eintraege, "Canvas mit Anbieterfehler")
+
+
+# ── Paket 18F (3.3, Review): ausgelastet — echter Graph, echter Warteweg ───────
+
+def _alles_belegt(monkeypatch) -> None:
+    """Der Anbieter-Deckel hat keinen Platz, die Frist ist kurz: jeder LLM-Aufruf wartet echt
+    in ``llm_parallel._anstellen`` und scheitert nach 0,05 s."""
+    monkeypatch.setenv("LLM_SLOT_WAIT_S", "0.05")
+    get_settings.cache_clear()
+    groesse = llm_parallel._groesse
+    monkeypatch.setattr(llm_parallel, "_groesse",
+                        lambda name: 0 if name == "anbieter" else groesse(name))
+    llm_parallel.reset()
+
+
+@pytest.mark.parametrize("engine, sprache", [("pattern", "de"), ("pattern", "en"),
+                                             ("agent", "de"), ("agent", "en")])
+def test_ausgelasteter_zug_antwortet_ohne_fehlernummer(welt, monkeypatch, engine, sprache):
+    _alles_belegt(monkeypatch)
+    welt.klassifikator.ergebnis = _suche_klassifiziert()
+    sid = f"bb-{MARKE}-voll-{engine}-{sprache}"
+    try:
+        antwort, eintraege = _zug(
+            welt, engine=engine, session_id=sid,
+            message=f"{MARKE}: Zeig mir Arbeitsblätter zur Optik",
+            environment={**_UMGEBUNG, "locale": sprache})
+    finally:
+        llm_parallel.reset()
+
+    assert welt.modell.arten == [] and welt.klassifikator.aufrufe == 0  # kein Anbieteraufruf
+    assert antwort["content"] == bot_text(sprache, "error.llmBusy")
+    assert antwort["quick_replies"] == [bot_text(sprache, "error.retryChip")]
+    _ohne_marke(eintraege, f"ausgelastet ({engine}, {sprache})")
+
+
+def test_ausgelasteter_zug_im_strom(welt, monkeypatch):
+    _alles_belegt(monkeypatch)
+    welt.klassifikator.ergebnis = _suche_klassifiziert()
+    body = {"session_id": f"bb-{MARKE}-voll-strom", "environment": dict(_UMGEBUNG),
+            "message": f"{MARKE}: Zeig mir Arbeitsblätter zur Optik"}
+    # Der Strom-Zug öffnet seine eigene Sitzung (Paket 7) — aus derselben Wegwerf-Datenbank.
+    monkeypatch.setattr(welt.client.app.state, "session_factory",
+                        make_session_factory(welt.engine), raising=False)
+    try:
+        with _mitschnitt() as eintraege:
+            roh = welt.client.post("/api/chat/stream", json=body,
+                                   headers={"X-Boerdi-Engine": "pattern"})
+    finally:
+        llm_parallel.reset()
+
+    assert roh.status_code == 200, roh.text
+    ergebnis = next(json.loads(block.split("data: ", 1)[1]) for block in roh.text.split("\n\n")
+                    if block.startswith("event: result"))
+    assert ergebnis["content"] == bot_text("de", "error.llmBusy")
+    assert ergebnis["quick_replies"] == [bot_text("de", "error.retryChip")]
+    _ohne_marke(eintraege, "ausgelastet (Strom)")

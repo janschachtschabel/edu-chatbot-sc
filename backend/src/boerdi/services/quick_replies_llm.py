@@ -32,6 +32,7 @@ from boerdi.services.config_loader import (
     load_display_rules_config,
 )
 from boerdi.services.guide_qr_injector import GUIDE_QR_PREFIX
+from boerdi.services.llm_parallel import LlmAusgelastet
 
 _logger = logging.getLogger(__name__)
 
@@ -206,6 +207,9 @@ async def generate_quick_replies(
             for line in text.strip().split("\n") if line.strip()
         ]
         return filtere_vorschlaege(replies, anzahl=count, max_zeichen=budget)
+    except LlmAusgelastet:
+        _logger.info("quick-reply generation skipped: kein LLM-Platz frei")
+        return []
     except Exception:
         _logger.warning("quick-reply generation failed; returning none", exc_info=True)
         return []

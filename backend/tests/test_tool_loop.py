@@ -689,6 +689,21 @@ def test_loop_api_error_returns_error_tuple(monkeypatch):
     assert cards is st["all_cards"] and outs is st["outcomes"]
 
 
+def test_loop_ausgelastet_gibt_den_eigenen_satz(monkeypatch):
+    """Paket 18F (3.3): bekam der Zug keinen LLM-Platz, ist es kein Fehler mit Nummer."""
+    from boerdi.i18n.bot_text import bot_text
+    from boerdi.services import llm_parallel
+
+    llm_parallel.binde_zug()
+    llm_parallel._zug.get().ausgelastet = True
+    try:
+        _fake, result, _st = _run_loop(
+            monkeypatch, [], raises=llm_parallel.LlmAusgelastet("kein Platz"))
+    finally:
+        llm_parallel._zug.set(None)
+    assert result[0] == bot_text("de", "error.llmBusy")
+
+
 def test_loop_usage_phase_labels_per_iteration(monkeypatch):
     from boerdi.obs import usage as usage_mod
     acc = usage_mod.new_accumulator()

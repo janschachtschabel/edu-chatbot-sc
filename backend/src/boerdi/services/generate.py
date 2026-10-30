@@ -37,6 +37,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from boerdi.i18n import resolve_locale
 from boerdi.services import seitenkontext_prompt
 from boerdi.services.response_prompt_builder import _build_system_prompt
 from boerdi.services.response_tool_selection import _select_active_tools
@@ -196,6 +197,7 @@ async def generate_response(
         usage_acc,
         on_token,
         tool_mode=environment.get("tool_mode"),
+        sprache=resolve_locale(environment.get("locale")),
         rag_bereiche=frozenset(rag_config or ()),
     )
     if result is not None:

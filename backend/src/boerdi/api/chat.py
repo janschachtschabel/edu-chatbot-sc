@@ -42,10 +42,10 @@ from boerdi.i18n import bot_text, msg, resolve_locale
 from boerdi.obs import metrics
 from boerdi.obs.log_inhalt import kennung
 from boerdi.obs.progress import TurnProgress
-from boerdi.obs.trace_id import fehlernummer
 from boerdi.services import betriebsschalter, prompt_ablage
 from boerdi.services.db_sessions import save_message
 from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
+from boerdi.services.fehlertext import antwort_fehlertext
 from boerdi.services.mcp.anmeldung import abgelehnt_in_diesem_zug
 from boerdi.services.sitzungssperre import SitzungBeschaeftigt
 from boerdi.services.token_stream import TokenStrom
@@ -174,7 +174,7 @@ async def _fehlerblase(
         return ChatResponse(session_id=req.session_id, content="", follow_up="none",
                             debug=err_debug)
     lang = resolve_locale(getattr(req.environment, "locale", None))
-    err_text = bot_text(lang, "error.internal", nummer=fehlernummer())
+    err_text = antwort_fehlertext(lang, "error.internal")
     try:
         # Nach einem Fehler steht die Transaktion womöglich auf „abgebrochen“.
         await session.rollback()

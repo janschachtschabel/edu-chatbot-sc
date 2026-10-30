@@ -48,13 +48,13 @@ from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import _retrieve_task_exception, cancel_and_drain
-from boerdi.obs.trace_id import fehlernummer
 from boerdi.obs.zeiten import schritt
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.engine_choice import (
     laeuft_ueber_die_schleife,
     zug_laeuft_ueber_die_schleife,
 )
+from boerdi.services.fehlertext import antwort_fehlertext
 from boerdi.services.generate import generate_response
 from boerdi.services.mcp.parsers import parse_wlo_cards
 from boerdi.services.quick_replies_llm import generate_quick_replies
@@ -466,9 +466,10 @@ async def respond(
             except Exception:
                 logger.debug("rollback after generate_response failure failed",
                              exc_info=True)
-            # Paket 18C/D: in der Sprache der Person, mit Fehlernummer statt Fehlerklasse.
-            response_text = bot_text(resolve_locale(req.environment.locale),
-                                     "error.answerFailed", nummer=fehlernummer())
+            # Paket 18C/D: in der Sprache der Person, mit Fehlernummer statt Fehlerklasse;
+            # Paket 18F: ohne LLM-Platz die „ausgelastet“-Blase.
+            response_text = antwort_fehlertext(resolve_locale(req.environment.locale),
+                                               "error.answerFailed")
             wlo_cards_raw = []
             tools_called = ["error"]
             response_outcomes = []

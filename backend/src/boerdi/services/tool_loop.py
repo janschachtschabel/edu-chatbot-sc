@@ -75,16 +75,17 @@ from boerdi.domain.write_confirm import (
     strip_confirm_token,
     token_for,
 )
-from boerdi.i18n import DEFAULT, bot_text
+from boerdi.i18n import DEFAULT
 from boerdi.i18n.prompt_language import SPRACHE_DER_PERSON
 from boerdi.obs.log_inhalt import inhalt
-from boerdi.obs.trace_id import fehlernummer
 from boerdi.obs.usage import add_usage, extract_usage
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.card_collect import CARD_YIELDING_TOOLS as _CARD_YIELDING_TOOLS
 from boerdi.services.card_collect import collect_cards
+from boerdi.services.fehlertext import antwort_fehlertext
+from boerdi.services.llm_parallel import LlmAusgelastet
 from boerdi.services.llm_streaming import _stream_completion
 from boerdi.services.mcp.auth import aufrufer_kennung
 from boerdi.services.mcp.parsers import skill_registry_note, skill_titel
@@ -183,6 +184,7 @@ async def _run_tool_loop(
     *,
     tool_mode: str | None = None,
     rag_bereiche: frozenset[str] = frozenset(),
+    sprache: str = DEFAULT,
 ) -> tuple[str, list[dict], list[str], list] | None:
     """Tool-Calling-Loop (Phase P15) fuer ``generate_response`` — verbatim port
     of ALT llm_tool_loop.py:565-1158: tool_choice-Gates, Stream-vs-Create,
@@ -334,13 +336,17 @@ async def _run_tool_loop(
             else:
                 resp = await llm.chat_completion(**kwargs)
         except Exception as e:
-            _logger.exception("LLM API error (%s)", type(e).__name__)
+            if isinstance(e, LlmAusgelastet):
+                # Last, kein Fehler: ohne Traceback (``llm_platz_frist`` meldet gedrosselt).
+                _logger.info("LLM API: kein Platz frei — Zug ausgelastet")
+            else:
+                _logger.exception("LLM API error (%s)", type(e).__name__)
             # Der Grund steht im Log, die Person sieht die Fehlerblase des Chats
             # mit der Fehlernummer (Paket 18C/D; bis dahin der Typ, davor „Fehler bei
             # der Verarbeitung: {e}“ mit Interna aus der Anbieter-Meldung).
-            # simplify: Der Loop kennt die Oberflächensprache nicht und nimmt die
-            # Vorgabe; wer ``_run_tool_loop`` die Sprache mitgibt, ersetzt DEFAULT.
-            text = bot_text(DEFAULT, "error.internal", nummer=fehlernummer())
+            # Paket 18F: ohne LLM-Platz die „ausgelastet“-Blase statt einer Fehlernummer —
+            # in der Sprache der Person (Review 18F: bis dahin immer DEFAULT).
+            text = antwort_fehlertext(sprache, "error.internal")
             return text, all_cards, tools_called, outcomes
 
         choice = resp.choices[0]
