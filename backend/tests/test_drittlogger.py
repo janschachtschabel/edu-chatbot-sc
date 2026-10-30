@@ -37,9 +37,9 @@ def _zustand_zurueck():
 
 
 @pytest.mark.parametrize("name", drittlogger.INHALT_LOGGER)
-def test_inhaltstragende_logger_stehen_ohne_schalter_auf_warning(name):
+def test_inhaltstragende_logger_stehen_ohne_schalter_mindestens_auf_warning(name):
     drittlogger.drittlogger_einstellen(log_content=False)
-    assert logging.getLogger(name).level == logging.WARNING
+    assert logging.getLogger(name).level >= logging.WARNING
 
 
 @pytest.mark.parametrize("name", drittlogger.INHALT_LOGGER)
@@ -96,3 +96,15 @@ def test_mit_schalter_warnt_der_start(monkeypatch, caplog):
     with caplog.at_level(logging.WARNING, logger="boerdi.main"):
         _warn_insecure_config(Settings(_env_file=None))
     assert any("LOG_CONTENT" in r.getMessage() for r in caplog.records)
+
+
+def test_instructor_ohne_schalter_auch_fuer_error_zu():
+    """Review 18E-2 (Befund 1): instructor schreibt den Anbieterfehler per f-String auf ERROR
+    („API call failed on attempt 1: {e}“) — am WARNING-Deckel vorbei. Was der Klassifikator
+    davon braucht, meldet ``classify`` selbst."""
+    drittlogger.drittlogger_einstellen(log_content=False)
+    assert logging.getLogger("instructor").level == logging.CRITICAL
+    assert not logging.getLogger("instructor.v2.retry").isEnabledFor(logging.ERROR)
+
+    drittlogger.drittlogger_einstellen(log_content=True)
+    assert logging.getLogger("instructor").level == logging.NOTSET

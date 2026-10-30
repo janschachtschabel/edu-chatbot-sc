@@ -3,7 +3,8 @@
 Laufzeitprobe 2026-10-29 (``docs/plans/2026-10-29-paket-18cd-datenbedarf.md`` §5.1): auf DEBUG
 schreiben LiteLLM ganze Anfragen samt Prompt, das OpenAI-SDK die Request-Optionen und der
 MCP-Client die JSON-RPC-Nachrichten samt Argumenten und Ergebnissen. Ohne ``LOG_CONTENT`` stehen
-diese Logger deshalb auf WARNING; mit dem Schalter folgen sie der Wurzel.
+diese Logger deshalb auf WARNING; mit dem Schalter folgen sie der Wurzel. ``instructor`` steht
+höher: er schreibt den Anbieterfehler per f-String auf ERROR (Review Paket 18E-2).
 
 Rauschen und Adressen bleiben auch mit Schalter gedeckelt: ``httpx`` meldet jede Anfrage mit
 voller Adresse samt Abfrage (Review Paket 6), ``httpcore``/``h11`` Verbindungsdetails,
@@ -32,6 +33,10 @@ GEDECKELT: dict[str, int] = {
     # selbst auf WARN — hier ausdrücklich, damit ``LOG_LEVEL=DEBUG`` es nie öffnet.
     "sqlalchemy": logging.WARNING,
 }
+#: Ohne Schalter höher als WARNING: ``instructor`` schreibt „API call failed on attempt 1: {e}“
+#: auf ERROR, vorformatiert — der Anbietertext wiederholt die Eingabe, und die Schwärzung im
+#: Formatierer greift nur bei Argumenten. Was der Klassifikator braucht, meldet ``classify``.
+_INHALT_STUFE: dict[str, int] = {"instructor": logging.CRITICAL}
 _LITELLM = ("LiteLLM", "LiteLLM Router", "LiteLLM Proxy")
 
 
@@ -47,6 +52,7 @@ def drittlogger_einstellen(log_content: bool) -> None:
         lg.handlers.clear()
         lg.propagate = True
     for name in INHALT_LOGGER:
-        logging.getLogger(name).setLevel(logging.NOTSET if log_content else logging.WARNING)
+        logging.getLogger(name).setLevel(
+            logging.NOTSET if log_content else _INHALT_STUFE.get(name, logging.WARNING))
     for name, stufe in GEDECKELT.items():
         logging.getLogger(name).setLevel(stufe)
