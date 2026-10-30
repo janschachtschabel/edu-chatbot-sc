@@ -138,3 +138,32 @@ describe('GuideBoot trustedDomains()', () => {
     expect(boot.trustedDomains()).toBe(boot.trustedDomains());
   });
 });
+
+// ── Paket 18E: Spur in der Konsole — die Fehlerart, nie der Text ─────────────
+const MARKE = 'KANARIE7Q';
+const ausgabe = (spy: { mock: { calls: unknown[][] } }): string =>
+  spy.mock.calls.flat().map(String).join(' ');
+
+describe('Paket 18E: Spur, wenn die Widget-Konfiguration nicht kommt', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('Backend nicht erreichbar: Warnung mit der Fehlerart, nie mit dem Text', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError(MARKE)));
+    await mk().boot.load();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(ausgabe(warn)).toContain('TypeError');
+    expect(ausgabe(warn)).not.toContain(MARKE);
+  });
+
+  it('nicht-ok: Warnung mit dem Status', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+    await mk().boot.load();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(ausgabe(warn)).toContain('503');
+  });
+});

@@ -211,4 +211,5 @@ export type { GuideNavContext } from './widget/guide-nav';
 export { HostBridges } from './widget/host-bridges';
 export type { HostBridgesContext } from './widget/host-bridges';
 export { WidgetLanguage } from './widget/widget-language';
+export { fehlerKurz } from './obs/fehler-kurz';
 export type { WidgetLanguageContext } from './widget/widget-language';

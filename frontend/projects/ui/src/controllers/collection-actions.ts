@@ -25,6 +25,7 @@ import {
   QueryMetaEntry, WebLink, InlineDocument, TopicPageView,
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
+import { fehlerKurz } from '../obs/fehler-kurz';
 import { sitzungsWache } from '../session/session-id';
 
 /** Live-Zustand/Seiteneffekte der ChatComponent, die die Aktionen
@@ -92,8 +93,9 @@ export async function browseCollection(
     ctx.setScrollTarget(botMsgId);
     ctx.setLatestDebug(resp.debug, resp.ui);
     ctx.dispatchPageAction(resp.page_action);
-  } catch {
+  } catch (err) {
     if (veraltet()) return;
+    console.warn('boerdi: Sammlung nicht geladen —', fehlerKurz(err));
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(ctx.t('error.browseCollection', { title }));
     ctx.setScrollTarget(errId);
@@ -137,8 +139,9 @@ export async function showContentText(
     ctx.setScrollTarget(botMsgId);
     ctx.setLatestDebug(resp.debug, resp.ui);
     ctx.dispatchPageAction(resp.page_action);
-  } catch {
+  } catch (err) {
     if (veraltet()) return;
+    console.warn('boerdi: Inhaltstext nicht geladen —', fehlerKurz(err));
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(ctx.t('error.contentText', { title }));
     ctx.setScrollTarget(errId);
@@ -168,8 +171,9 @@ export async function generateLearningPath(
     ctx.setScrollTarget(botMsgId);
     ctx.setLatestDebug(resp.debug, resp.ui);
     ctx.dispatchPageAction(resp.page_action);
-  } catch {
+  } catch (err) {
     if (veraltet()) return;
+    console.warn('boerdi: Lernpfad nicht erzeugt —', fehlerKurz(err));
     ctx.removeMessage(loadingId);
     const errId = ctx.addBotMessage(ctx.t('error.learningPath', { title }));
     ctx.setScrollTarget(errId);

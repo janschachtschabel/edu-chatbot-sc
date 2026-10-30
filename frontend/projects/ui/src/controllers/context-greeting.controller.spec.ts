@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatResponse } from '../grouping/message-types';
 import { ContextGreetingContext, ContextGreetingController } from './context-greeting.controller';
@@ -118,5 +118,23 @@ describe('ContextGreetingController nach einem Neustart', () => {
     expect(gerendert).toBe(false);
     expect(calls.bot.length).toBe(0);
     expect(calls.loading).toEqual([true]);
+  });
+});
+
+// ── Paket 18E: Spur in der Konsole — die Fehlerart, nie der Text ─────────────
+const MARKE = 'KANARIE7Q';
+const ausgabe = (spy: { mock: { calls: unknown[][] } }): string =>
+  spy.mock.calls.flat().map(String).join(' ');
+
+describe('Paket 18E: Spur des stillen Pings', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('ein gescheiterter Ping steht auf DEBUG, ohne Text', async () => {
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const { ctx } = makeCtx({ sendMessage: async () => { throw new Error(MARKE); } });
+    await new ContextGreetingController(ctx).sendContextPing();
+    expect(debug).toHaveBeenCalledTimes(1);
+    expect(ausgabe(debug)).toContain('Error');
+    expect(ausgabe(debug)).not.toContain(MARKE);
   });
 });

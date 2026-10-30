@@ -14,6 +14,7 @@
  * `guideHost`/`startTime` sind Instanzfelder; `fetchImpl` ist injizierbar.
  */
 import { ChatResponse, QueryMetaEntry, UiInfo } from '../grouping/message-types';
+import { fehlerKurz } from '../obs/fehler-kurz';
 import { verlaufAbrufen } from './history-transport';
 import { ChatStreamEvent, postChat, streamChat } from './stream-client';
 
@@ -454,7 +455,9 @@ export class ChatApiClient {
   async loadHistory(sessionId: string, limit = 20): Promise<HistoryMessage[]> {
     try {
       return await this.fetchHistory(sessionId, limit);
-    } catch {
+    } catch (err) {
+      // Paket 18E: sonst fehlte der Verlauf nach der Wiederaufnahme ohne jede Spur.
+      console.warn('boerdi: Verlauf nicht geladen —', fehlerKurz(err));
       return [];
     }
   }

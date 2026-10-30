@@ -421,3 +421,25 @@ describe('ChatApiClient.fetchHistory (Review Paket 7, C-3)', () => {
     expect(calls[0].signal).toBe(steuerung.signal);
   });
 });
+
+// ── Paket 18E: Spur in der Konsole — die Fehlerart, nie der Text ─────────────
+const MARKE = 'KANARIE7Q';
+const ausgabe = (spy: { mock: { calls: unknown[][] } }): string =>
+  spy.mock.calls.flat().map(String).join(' ');
+
+describe('Paket 18E: Spur, wenn der Verlauf nicht kommt', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('loadHistory warnt mit Fehlerart und Status, nie mit dem Text', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const offline = (async () => { throw new TypeError(MARKE); }) as unknown as typeof fetch;
+    expect(await new ChatApiClient({ fetchImpl: offline }).loadHistory('s')).toEqual([]);
+    const fehlt = (async () => ({ ok: false, status: 404 })) as unknown as typeof fetch;
+    expect(await new ChatApiClient({ fetchImpl: fehlt }).loadHistory('s')).toEqual([]);
+
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(ausgabe(warn)).toContain('TypeError');
+    expect(ausgabe(warn)).toContain('status=404');
+    expect(ausgabe(warn)).not.toContain(MARKE);
+  });
+});

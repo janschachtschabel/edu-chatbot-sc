@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatResponse } from '../grouping/message-types';
 import { DE } from '../i18n/de';
@@ -181,5 +181,32 @@ describe('TourController nach einem Neustart', () => {
     await new TourController(ctx).sendTourTick();
     expect(calls.bot.map((b) => b.content)).toEqual(['']);
     expect(calls.loading).toEqual([true]);
+  });
+});
+
+// ── Paket 18E: Spur in der Konsole — die Fehlerart, nie der Text ─────────────
+const MARKE = 'KANARIE7Q';
+const ausgabe = (spy: { mock: { calls: unknown[][] } }): string =>
+  spy.mock.calls.flat().map(String).join(' ');
+
+describe('Paket 18E: Spur der Tour', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('startTour warnt mit der Fehlerart, nie mit dem Text', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { ctx } = makeCtx({ sendMessage: async () => { throw new Error(MARKE); } });
+    await new TourController(ctx).startTour();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(ausgabe(warn)).toContain('Error');
+    expect(ausgabe(warn)).not.toContain(MARKE);
+  });
+
+  it('ein gescheiterter Tour-Tick steht auf DEBUG', async () => {
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const { ctx } = makeCtx({ sendMessage: async () => { throw new Error(MARKE); } });
+    await new TourController(ctx).sendTourTick();
+    expect(debug).toHaveBeenCalledTimes(1);
+    expect(ausgabe(debug)).toContain('Error');
+    expect(ausgabe(debug)).not.toContain(MARKE);
   });
 });

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isValidSessionId } from '../session/session-id';
 import { bootSession } from './session-boot';
@@ -55,5 +55,28 @@ describe('bootSession (8-4S-e1) — 3-Stufen-Session-Kaskade', () => {
     expect(isValidSessionId(boot.sessionId)).toBe(true);
     expect(boot).toMatchObject({ resumed: false, viaBsid: false });
     expect(localStorage.getItem(KEY)).toBe(boot.sessionId);
+  });
+});
+
+// ── Paket 18E: Spur in der Konsole — die Fehlerart, nie der Text ─────────────
+const MARKE = 'KANARIE7Q';
+const ausgabe = (spy: { mock: { calls: unknown[][] } }): string =>
+  spy.mock.calls.flat().map(String).join(' ');
+
+describe('Paket 18E: Spur, wenn die Wiederaufnahme scheitert', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('neue Sitzung — und die Konsole sagt, warum der Verlauf fehlt', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cfg = {
+      persist: true, cookieDomain: '', cookieMaxAge: 60,
+      get sessionKey(): string { throw new Error(MARKE); },
+    };
+    const boot = bootSession(cfg);
+    expect(boot.resumed).toBe(false);
+    expect(isValidSessionId(boot.sessionId)).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(ausgabe(warn)).toContain('Error');
+    expect(ausgabe(warn)).not.toContain(MARKE);
   });
 });

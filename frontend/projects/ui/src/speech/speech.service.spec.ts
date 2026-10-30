@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { ChatMessage } from '../grouping/message-types';
 import { DE } from '../i18n/de';
@@ -130,5 +130,42 @@ describe('SpeechService', () => {
     const { ctx } = makeCtx();
     const svc = new SpeechService(ctx);
     expect(() => svc.destroy()).not.toThrow();
+  });
+});
+
+// ── Paket 18E: Spur in der Konsole — die Fehlerart, nie der Text ─────────────
+const MARKE = 'KANARIE7Q';
+const ausgabe = (spy: { mock: { calls: unknown[][] } }): string =>
+  spy.mock.calls.flat().map(String).join(' ');
+
+describe('Paket 18E: Spur, wenn das Vorlesen scheitert', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const msgs: ChatMessage[] = [
+    { id: 'b1', sender: 'bot', content: 'Antwort Satz.', timestamp: new Date() },
+  ];
+
+  it('eine gescheiterte Synthese warnt mit der Fehlerart, nie mit dem Text', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { ctx, synthesize } = makeCtx({ messages: () => msgs });
+    synthesize.mockImplementation(() => Promise.reject(new Error(MARKE)));
+    new SpeechService(ctx).toggleAutoSpeak();
+    await flush();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(ausgabe(warn)).toContain('Error');
+    expect(ausgabe(warn)).not.toContain(MARKE);
+  });
+
+  it('ein Abbruch durch Stopp ist kein Fehler — keine Warnung', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let ablehnen: (e: unknown) => void = () => {};
+    const { ctx, synthesize } = makeCtx({ messages: () => msgs });
+    synthesize.mockImplementation(() => new Promise<Blob>((_ok, nein) => { ablehnen = nein; }));
+    const svc = new SpeechService(ctx);
+    svc.toggleAutoSpeak();
+    svc.toggleAutoSpeak(); // aus: bricht die laufende Synthese ab
+    ablehnen(new DOMException('abgebrochen', 'AbortError'));
+    await flush();
+    expect(warn).not.toHaveBeenCalled();
   });
 });

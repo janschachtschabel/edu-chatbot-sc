@@ -26,6 +26,7 @@ import {
   WebLink,
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
+import { fehlerKurz } from '../obs/fehler-kurz';
 import { sitzungsWache } from '../session/session-id';
 
 /** Exakter Text des Start-Chips, der die Web-Tour direkt startet. */
@@ -133,8 +134,9 @@ export class TourController {
       this.setTourFlag(true);
       this.applyTourState(resp);
       this.renderTourResponse(resp);
-    } catch {
+    } catch (err) {
       if (veraltet()) return;
+      console.warn('boerdi: Tour nicht gestartet —', fehlerKurz(err));
       this.ctx.removeMessage(loadingId);
       this.ctx.addBotMessage(this.ctx.t('error.tourStart'));
     }
@@ -158,10 +160,11 @@ export class TourController {
       const hasContent = !!(resp.content || '').trim()
         || !!(resp.quick_replies && resp.quick_replies.length);
       if (hasContent) this.renderTourResponse(resp);
-    } catch {
+    } catch (err) {
       if (veraltet()) return;
       this.ctx.removeMessage(loadingId);
-      // Tick-Fehler beim Page-Load still schlucken (kein Error-Bubble).
+      // Tick-Fehler beim Page-Load ohne Fehlerblase; die Spur steht auf DEBUG (Paket 18E).
+      console.debug('boerdi: Tour-Tick gescheitert —', fehlerKurz(err));
     }
     this.ctx.setLoading(false);
   }

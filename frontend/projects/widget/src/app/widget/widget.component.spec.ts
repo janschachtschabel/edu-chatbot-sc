@@ -850,3 +850,36 @@ describe('WidgetComponent Config-Sprache (C1-g1b)', () => {
     expect(c.headerNavLabel(c.headerNavButtons()[1])).toBe('Ohne EN');
   });
 });
+
+// ── Paket 18E: Spur in der Konsole — die Fehlerart, nie der Text ─────────────
+const MARKE = 'KANARIE7Q';
+const ausgabe = (spy: { mock: { calls: unknown[][] } }): string =>
+  spy.mock.calls.flat().map(String).join(' ');
+
+describe('Paket 18E: Spur, wenn der Seitenkontext scheitert', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    TestBed.configureTestingModule({
+      imports: [WidgetComponent],
+      providers: [provideZonelessChangeDetection()],
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('die Navigation bricht nicht, und DEBUG nennt die Fehlerart, nie den Kontext', () => {
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const widget = mount().componentInstance as unknown as {
+      shell: () => unknown;
+      refreshPageContext(notify: boolean): void;
+    };
+    widget.shell = () => ({ onSpaContextChange: () => { throw new TypeError(MARKE); } });
+
+    expect(() => widget.refreshPageContext(true)).not.toThrow();
+    expect(debug).toHaveBeenCalledTimes(1);
+    expect(ausgabe(debug)).toContain('TypeError');
+    expect(ausgabe(debug)).not.toContain(MARKE);
+  });
+});
