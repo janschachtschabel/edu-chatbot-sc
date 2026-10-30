@@ -99,7 +99,9 @@ export function _attrJsonObject(v: string | undefined): Record<string, unknown> 
   if (!gelesen) return null;
   const wert = gelesen.wert;
   if (!wert || typeof wert !== 'object' || Array.isArray(wert)) {
-    console.warn('boerdi: Attribut ist kein JSON-Objekt und wird ignoriert', wert);
+    // Nur die Art (Abschluss-Review 18G) — wie beim Parsefehler unten, nie der Wert.
+    console.warn('boerdi: Attribut ist kein JSON-Objekt und wird ignoriert',
+      Array.isArray(wert) ? 'array' : typeof wert);
     return null;
   }
   return wert as Record<string, unknown>;
@@ -142,12 +144,12 @@ export function _attrJsonStringArray(v: string | undefined): string[] | null {
   if (!gelesen) return null;
   const wert = gelesen.wert;
   if (!Array.isArray(wert)) {
-    console.warn('boerdi: Attribut ist kein JSON-Array und wird ignoriert', wert);
+    console.warn('boerdi: Attribut ist kein JSON-Array und wird ignoriert', typeof wert);
     return null;
   }
   const fremd = wert.filter((e) => typeof e !== 'string');
   if (fremd.length) {
-    console.warn('boerdi: Einträge ohne Zeichenkette werden übergangen', fremd);
+    console.warn('boerdi: Einträge ohne Zeichenkette werden übergangen', fremd.length);
   }
   return wert
     .filter((e): e is string => typeof e === 'string')

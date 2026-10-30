@@ -24,14 +24,22 @@ const NUMMER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
 /** Die Nummer aus einer kopierten Zeile der Fehlerblase: „(Fehlernummer: 4f2a…)“ bzw.
  *  „(Error number: 4f2a…)“ — bis dahin scheiterte genau das am Muster (Review 2026-10-30). */
-const AUS_DER_BLASE = /(?:fehlernummer|error number)\s*:?\s*([A-Za-z0-9][A-Za-z0-9._:-]*)/i;
+const BESCHRIFTUNG = /fehlernummer|error number/i;
+/** Klammern, Anführungszeichen (de/en) und Satzzeichen um eine Nummer. */
+const RAND = /^[(„“‘"':]+|[)“”’"'.,;:]+$/g;
 
 export function nummerAus(eingabe: string): string {
   const roh = eingabe.trim();
-  const treffer = AUS_DER_BLASE.exec(roh);
-  // Ein Satzzeichen am Ende gehört zum Satz, nicht zur Nummer („…: 4711abcdef01.“).
-  if (treffer) return treffer[1].replace(/[.:]+$/, '');
-  return roh.replace(/^[(„"]+|[)“".,;]+$/g, '');
+  const beschriftung = BESCHRIFTUNG.exec(roh);
+  if (beschriftung) {
+    // Das erste Wort danach mit einer Ziffer — nicht „lautet“, „is“ oder das „n“ aus
+    // „Fehlernummern“ (Abschluss-Review 18G); ein Satzzeichen am Ende gehört zum Satz.
+    const wort = roh.slice(beschriftung.index + beschriftung[0].length).split(/\s+/)
+      .map((w) => w.replace(RAND, ''))
+      .find((w) => /\d/.test(w) && NUMMER.test(w));
+    if (wort) return wort;
+  }
+  return roh.replace(RAND, '');
 }
 
 export interface ZugZiel {

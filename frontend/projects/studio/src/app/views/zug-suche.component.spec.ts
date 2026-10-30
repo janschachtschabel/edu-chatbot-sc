@@ -160,4 +160,13 @@ describe('ZugSucheComponent (Paket 18C/D)', () => {
     await antworte(h, '4711abcdef01', []);  // expectOne: genau eine Anfrage
     h.http.verify();
   });
+
+  it('nimmt das Wort mit Ziffer nach der Beschriftung und englische Anführungszeichen', async () => {
+    const h = await mount();
+    await suche(h, 'Die Fehlernummer lautet 4711abcdef01.');
+    await antworte(h, '4711abcdef01', [TREFFER]);
+    await suche(h, '“4711abcdef01”');
+    await antworte(h, '4711abcdef01', [TREFFER]);
+    expect(h.geoeffnet.length).toBe(2);
+  });
 });
