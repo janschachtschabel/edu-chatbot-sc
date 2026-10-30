@@ -50,6 +50,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from boerdi.db.models import LoadtestRun
 from boerdi.obs.tasks import cancel_run_task
+from boerdi.services.eval.run_profile import fallback_kind
 from boerdi.services.session_origin import LOADTEST_PREFIX
 from boerdi.settings import studio_schluessel
 
@@ -406,12 +407,27 @@ async def _fire_request(
         r = await client.post("/api/chat", json=payload,
                               timeout=REQUEST_TIMEOUT_S, headers=headers or None)
         dt = time.perf_counter() - t0
-        return {"kind": kind, "ok": r.status_code == 200, "status": r.status_code,
-                "latency_s": round(dt, 2), **_werkzeug_angaben(r, round(dt * 1000))}
+        ergebnis = {"kind": kind, "ok": r.status_code == 200, "status": r.status_code,
+                    "latency_s": round(dt, 2), **_werkzeug_angaben(r, round(dt * 1000))}
+        # Review 2026-10-30: die „ausgelastet“-Blase (Paket 18F) und jede andere Fehlerblase
+        # kommen mit 200 — als Antwort gezählt, stiege ``stable_concurrency`` gerade unter Last.
+        if ergebnis["ok"] and (art := fallback_kind(_antwort_text(r))):
+            ergebnis.update(ok=False, error=art)
+        return ergebnis
     except Exception as e:  # network/timeout → count as a failed request, keep going
         dt = time.perf_counter() - t0
         return {"kind": kind, "ok": False, "status": 0,
                 "latency_s": round(dt, 2), "error": type(e).__name__}
+
+
+def _antwort_text(r: httpx.Response) -> str:
+    """``content`` der Antwort; eine unlesbare Antwort ergibt ``""``."""
+    try:
+        body = r.json()
+    except ValueError:
+        return ""
+    inhalt = body.get("content") if isinstance(body, dict) else None
+    return inhalt if isinstance(inhalt, str) else ""
 
 
 def _werkzeug_angaben(r: httpx.Response, gesamt_ms: int = 0) -> dict[str, Any]:
@@ -533,6 +549,8 @@ def _stage_stats(
         "requests": requests,
         "ok": len(lat_ok),
         "errors": len(errors),
+        # Review 2026-10-30: Last für sich gezählt — sie ist kein Absturz, aber auch keine Antwort.
+        "ausgelastet": sum(1 for r in errors if r.get("error") == "ausgelastet"),
         "error_kinds": sorted({r.get("error") or f"HTTP {r['status']}" for r in errors}),
         "p50_s": round(_percentile(lat_ok, 50), 2),
         "p95_s": round(_percentile(lat_ok, 95), 2),

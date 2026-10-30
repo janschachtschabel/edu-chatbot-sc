@@ -176,3 +176,18 @@ def test_auch_blasen_von_vor_der_fehlernummer_werden_erkannt(blase) -> None:
     """Review Phase 3: das Profil alter Läufe wird beim Lesen neu gerechnet — ohne die alten
     Satzanfänge fiele ihre Robustheit nach dem Deploy still."""
     assert any(satz in blase for satz in fallback_texts())
+
+
+# ── Review 2026-10-30: welche Art von Ersatzsatz ────────────────────────────────
+
+
+@pytest.mark.parametrize("sprache", ["de", "en"])
+def test_die_art_des_ersatzsatzes(sprache) -> None:
+    from boerdi.i18n.bot_text import bot_text
+    from boerdi.services.eval.run_profile import fallback_kind
+
+    assert fallback_kind(bot_text(sprache, "error.llmBusy")) == "ausgelastet"
+    assert fallback_kind(bot_text(sprache, "error.internal", nummer="4f2a9c01d3b7")) == "ersatzsatz"
+    assert fallback_kind(bot_text(sprache, "error.moderationUnavailable")) == "ersatzsatz"
+    assert fallback_kind("Hier sind drei Arbeitsblätter zur Optik.") is None
+    assert fallback_kind("") is None

@@ -110,3 +110,48 @@ def test_die_ressourcen_messung_beginnt_erst_nach_dem_aufwaermen(monkeypatch) ->
     app = SimpleNamespace(state=SimpleNamespace(session_factory=None))
     asyncio.run(lt.execute_load_test(app, "lt-r2", profil))
     assert ereignisse.index("abtasten") > ereignisse.index("stufe:99:ende")
+
+
+# ── Review 2026-10-30: Fehlerblasen mit HTTP 200 sind keine Antwort ─────────────
+
+
+def _eine_anfrage(inhalt: str) -> dict:
+    def antwort(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"content": inhalt, "debug": {}})
+
+    async def lauf() -> dict:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(antwort),
+                                     base_url="http://lt") as client:
+            return await lt._fire_request(client, "suche", "Optik", "loadtest-x-s0-0")
+
+    return asyncio.run(lauf())
+
+
+def test_die_ausgelastet_blase_zaehlt_nicht_als_antwort() -> None:
+    from boerdi.i18n.bot_text import bot_text
+
+    zeile = _eine_anfrage(bot_text("de", "error.llmBusy"))
+    assert (zeile["ok"], zeile["status"], zeile["error"]) == (False, 200, "ausgelastet")
+
+
+def test_eine_fehlerblase_mit_nummer_zaehlt_nicht_als_antwort() -> None:
+    from boerdi.i18n.bot_text import bot_text
+
+    zeile = _eine_anfrage(bot_text("de", "error.internal", nummer="4f2a9c01d3b7"))
+    assert (zeile["ok"], zeile["error"]) == (False, "ersatzsatz")
+
+
+def test_eine_echte_antwort_bleibt_gezaehlt() -> None:
+    zeile = _eine_anfrage("Hier sind Arbeitsblätter zur Optik.")
+    assert zeile["ok"] is True and "error" not in zeile
+
+
+def test_eine_ausgelastete_stufe_ist_nicht_stabil() -> None:
+    ergebnisse = [
+        {"kind": "suche", "ok": True, "status": 200, "latency_s": 6.0},
+        {"kind": "suche", "ok": False, "status": 200, "latency_s": 30.0, "error": "ausgelastet"},
+    ]
+    stufe = lt._stage_stats(2, 2, ["suche", "suche"], ergebnisse, 40.0)
+    assert (stufe["errors"], stufe["ausgelastet"]) == (1, 1)
+    assert stufe["error_kinds"] == ["ausgelastet"]
+    assert lt._summary([stufe], 20.0, [])["stable_concurrency"] is None

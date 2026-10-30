@@ -16,6 +16,7 @@ backend it measured instead of from the local store.
 from __future__ import annotations
 
 import re
+from functools import cache
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,8 +29,20 @@ from boerdi.services.eval import auswertung_v2, engine_metrics
 from boerdi.services.eval.queries import get_run
 
 #: The app's fallback sentences — how an error bubble with HTTP 200 is recognised.
+#: ``error.moderationUnavailable`` (Paket 18A, ``MODERATION_FAILURE_MODE=closed``) refuses the turn
+#: politely — no answer either (review 2026-10-30).
 _FALLBACK_KEYS = ("agent.failed", "agent.incomplete", "error.internal", "error.answerFailed",
-                  "error.llmBusy")
+                  "error.llmBusy", "error.moderationUnavailable")
+_BUSY_KEYS = ("error.llmBusy",)
+#: Where a fallback sentence is looked for — as ``engine_metrics.robustness`` does.
+_HEAD_WINDOW = 400
+
+
+@cache
+def _heads(keys: tuple[str, ...]) -> tuple[str, ...]:
+    heads = (re.split(r"[.({]", bot_text(lang, key), maxsplit=1)[0].strip()
+             for lang in ("de", "en") for key in keys)
+    return tuple(h for h in heads if len(h) >= 15)
 
 
 def fallback_texts() -> list[str]:
@@ -37,9 +50,19 @@ def fallback_texts() -> list[str]:
     the bubble carries the substituted number, not the template. Cut at the first sentence
     rather than at the placeholder so bubbles stored before Paket 18C/D Phase 3 ("…schiefgelaufen
     (RuntimeError).") still count — the profile of an old run is recomputed when it is read."""
-    heads = (re.split(r"[.({]", bot_text(lang, key), maxsplit=1)[0].strip()
-             for lang in ("de", "en") for key in _FALLBACK_KEYS)
-    return [h for h in heads if len(h) >= 15]
+    return list(_heads(_FALLBACK_KEYS))
+
+
+def fallback_kind(text: str) -> str | None:
+    """``"ausgelastet"`` for the busy bubble (Paket 18F), ``"ersatzsatz"`` for any other fallback
+    sentence, else ``None``. Both arrive with HTTP 200 — the load test counted them as answers
+    (review 2026-10-30)."""
+    window = (text or "")[:_HEAD_WINDOW]
+    if any(h in window for h in _heads(_BUSY_KEYS)):
+        return "ausgelastet"
+    if any(h in window for h in _heads(_FALLBACK_KEYS)):
+        return "ersatzsatz"
+    return None
 
 
 def price_from_table(table: PricingArea | None) -> engine_metrics.PriceFn:
