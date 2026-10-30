@@ -46,6 +46,7 @@ import mcp  # noqa: F401
 import openai  # noqa: F401
 import pytest
 from fastapi.testclient import TestClient
+from instructor.core import InstructorRetryException
 from sqlalchemy import event, text
 from sqlalchemy.pool import NullPool
 
@@ -55,7 +56,7 @@ from boerdi.db.session import make_engine, make_session_factory
 from boerdi.i18n import bot_text
 from boerdi.main import create_app
 from boerdi.obs.drittlogger import drittlogger_einstellen
-from boerdi.obs.log_format import nachricht_ohne_fremdtexte, traceback_ohne_fremdtexte
+from boerdi.obs.log_format import geschwaerzt, nachricht_ohne_fremdtexte, traceback_ohne_fremdtexte
 from boerdi.services import classify, llm, llm_parallel, seed_io
 from boerdi.services import config_loader as cl
 from boerdi.services.mcp import arg_resolvers, transport
@@ -99,7 +100,9 @@ class _Fang(logging.Handler):
     """Nimmt jeden Eintrag so auf, wie ein Formatierer ihn ausgäbe: Nachricht samt
     Argumenten, Traceback und Stapel (``obs/log_format.JsonFormatter``). Wie dort ohne Texte
     fremder Dienste (Paket 18E): ein Anbieter- oder MCP-Fehler als Argument oder im Traceback
-    steht nur mit seiner Art da. Alles andere bleibt roh."""
+    steht nur mit seiner Art da, und wie dort geschwärzt (``geschwaerzt``: Postgres-DETAIL,
+    Prüfwerte — Review 2026-10-30: ein Fremdschlüsselfehler zeigte sonst die Sitzungs-ID, die
+    der Betrieb nie zeigt). Alles andere bleibt roh."""
 
     def __init__(self) -> None:
         super().__init__(logging.NOTSET)
@@ -119,7 +122,7 @@ class _Fang(logging.Handler):
         if record.stack_info:
             teile.append(self._format.formatStack(record.stack_info))
         self.eintraege.append(_Eintrag(
-            logger=record.name, stufe=record.levelname, text="\n".join(teile),
+            logger=record.name, stufe=record.levelname, text=geschwaerzt("\n".join(teile)),
             vorlage=str(record.msg), ort=_ort(record)))
 
 
@@ -339,7 +342,10 @@ class _Klassifikator:
     async def __call__(self, **_kw: Any) -> tuple[ClassificationResult, Any]:
         self.aufrufe += 1
         if self.fehler is not None:
-            raise self.fehler
+            # Wie instructor (``v2/core/retry``): der Anbieterfehler kommt verpackt — die Hülle
+            # übernimmt seinen Text (Review 2026-10-30; bis dahin warf die Attrappe ihn roh).
+            raise InstructorRetryException(str(self.fehler), n_attempts=1,
+                                           total_usage=0) from self.fehler
         roh = SimpleNamespace(usage=_nutzung(), model="gpt-x", choices=[])
         return self.ergebnis.model_copy(deep=True), roh
 
@@ -703,6 +709,59 @@ def test_canvas_bei_anbieterfehler_ohne_inhalte_im_log(welt):
     assert antwort["content"] or antwort.get("inline_documents")
     assert any("BadRequestError" in e.text for e in eintraege), eintraege
     _ohne_marke(eintraege, "Canvas mit Anbieterfehler")
+
+
+# ── Review 2026-10-30: vorformatierte Fremdtexte ──────────────────────────────
+
+
+def test_mcp_interner_fehler_ohne_servertext_im_log(monkeypatch):
+    """Ein ``McpError`` außer ``-32601``/``-32602`` lief als ``str(exc)`` ins Log — bis zu
+    viermal (Transport, Client, Wiederholung)."""
+    from mcp.shared.exceptions import McpError
+    from mcp.types import ErrorData
+
+    class _Sitzung:
+        async def call_tool(self, *_a: Any, **_k: Any) -> Any:
+            raise McpError(ErrorData(code=-32603,
+                                     message=f"Interner Fehler bei query={MARKE} Optik"))
+
+    @contextlib.asynccontextmanager
+    async def _offen(_url: str):
+        yield _Sitzung()
+
+    monkeypatch.setattr(transport, "_open_session", _offen)
+    monkeypatch.setattr(mcp_client, "_get_server_url_for_tool",
+                        lambda _name: "http://mcp.test/mcp")
+    with _mitschnitt() as eintraege:
+        text, art = asyncio.run(mcp_client.call_mcp_tool_status(
+            "search_wlo_content", {"query": f"{MARKE} Optik"}, use_cache=False))
+
+    assert art == "transport"
+    assert any("code=-32603" in e.text for e in eintraege), eintraege
+    _ohne_marke(eintraege, "MCP -32603")
+
+
+def test_strom_fehlerzeile_ohne_anbietertext(welt, monkeypatch):
+    """``sse`` schrieb ``f"{type}: {result}"`` fertig formatiert — am Formatierer vorbei."""
+    from boerdi.api import chat as chat_api
+
+    async def _kaputt(*_a: Any, **_k: Any) -> Any:
+        raise _anbieter_weist_ab()
+
+    monkeypatch.setattr(chat_api, "run_turn", _kaputt)
+    monkeypatch.setattr(welt.client.app.state, "session_factory",
+                        make_session_factory(welt.engine), raising=False)
+    body = {"session_id": f"bb-{MARKE}-strom-fehler", "environment": dict(_UMGEBUNG),
+            "message": f"{MARKE}: Zeig mir Arbeitsblätter zur Optik"}
+    with _mitschnitt() as eintraege:
+        roh = welt.client.post("/api/chat/stream", json=body,
+                               headers={"X-Boerdi-Engine": "pattern"})
+
+    assert roh.status_code == 200, roh.text
+    assert "event: error" in roh.text
+    assert any("END status=error BadRequestError(status=400" in e.text
+               for e in eintraege), [e.text for e in eintraege if "END" in e.text]
+    _ohne_marke(eintraege, "Strom-Fehlerzeile")
 
 
 # ── Paket 18F (3.3, Review): ausgelastet — echter Graph, echter Warteweg ───────

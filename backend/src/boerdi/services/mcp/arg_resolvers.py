@@ -31,6 +31,7 @@ import logging
 import re
 from typing import Any
 
+from boerdi.obs.log_inhalt import inhalt
 from boerdi.obs.usage import current_turn_usage
 from boerdi.services import llm
 from boerdi.services.mcp.lizenz_abgleich import lizenz_filter
@@ -305,7 +306,7 @@ async def _ensure_label_cache(vocab: str) -> None:
 
     if is_mcp_error(raw):
         logger.warning("%s vocabulary preload failed (retry on next use): %s",
-                       vocab, raw[:200])
+                       vocab, raw[:200])  # log-ok: Servertext, Eingabe nur Konfiguration
         return
 
     # Output format (from real MCP response):
@@ -363,7 +364,7 @@ async def prewarm_vocabularies() -> None:
     # strict= is moot; keeping bare zip preserves the exact ALT bytes.
     failed = [v for v, r in zip(vocabs, results) if isinstance(r, Exception)]  # noqa: B905
     logger.info("vocabulary prewarm: %d/%d geladen%s", loaded, len(vocabs),
-                f", fehlgeschlagen={failed}" if failed else "")
+                f", fehlgeschlagen={failed}" if failed else "")  # log-ok: Vokabularnamen
 
 
 def _fuzzy_lookup(cache: dict[str, str], needle: str) -> tuple[str, str] | None:
@@ -547,8 +548,8 @@ async def _llm_vocab_match(vocab: str, value: str) -> str | None:
                 break
         else:
             logger.warning(
-                "LLM vocab-match returned non-URI for %s=%r: %r",
-                vocab, value, content[:200],
+                "LLM vocab-match returned non-URI for %s=%r: %s",
+                vocab, value, inhalt(content),
             )
             _cache_vocab(cache_key, None)
             return None

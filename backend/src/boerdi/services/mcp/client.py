@@ -434,10 +434,11 @@ async def _einzelaufruf(
     # externe Audit (F04) beschreibt. **Ein abgewiesener Zugang auch nicht**
     # (Paket 10, Kurzaudit A-3): derselbe Block würde wieder abgewiesen.
     if "error" in result and result["error"].get("kind") not in ("tool", "timeout", "auth"):
-        error_msg = result["error"].get("message", "Unknown error")
-        # Nur Transportfehler: ``tool``-Fehler mit Serverantwort laufen nicht hier durch.
-        logger.error("MCP tool %s error @ %s: %s",  # log-ok: Transportfehler
-                     tool_name, target_url, error_msg)
+        # Nur Transportfehler: ``tool``-Fehler mit Serverantwort laufen nicht hier durch. Den
+        # Grund hat ``transport`` eben ohne Fremdtexte gemeldet — hier nicht noch einmal roh
+        # (Review 2026-10-30: der Text eines ``-32603`` stand so bis zu viermal im Log).
+        logger.error("MCP tool %s error @ %s (%s)", tool_name, target_url,
+                     result["error"].get("kind") or "transport")
         if CONFIRM_TOKEN_FIELD in arguments:
             logger.warning(
                 "MCP tool %s: bestätigter Schreibaufruf wird nicht wiederholt — ob "
@@ -447,9 +448,8 @@ async def _einzelaufruf(
                         tool_name, target_url)
             result = await transport.call_tool(tool_name, arguments, url=target_url)
             if "error" in result:
-                error_msg = result["error"].get("message", "Unknown error")
-                logger.error("MCP tool %s retry failed @ %s: %s",  # log-ok: Transportfehler
-                             tool_name, target_url, error_msg)
+                logger.error("MCP tool %s retry failed @ %s (%s)", tool_name, target_url,
+                             result["error"].get("kind") or "transport")
 
     if "error" in result:
         # Ohne ``kind`` gilt „keine Antwort" — siehe Docstring: „abgelehnt"

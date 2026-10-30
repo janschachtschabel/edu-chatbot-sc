@@ -25,12 +25,18 @@ _DATUM = "%Y-%m-%d %H:%M:%S"
 # beim Formatieren geschwärzt, in Meldung und Traceback; Anweisung, Fehlerart und Ort bleiben.
 _DB_DETAIL = re.compile(r"^(\s*DETAIL:).*$", re.MULTILINE)
 _EINGABE = re.compile(r"input_value=.*?(?=, input_type=)")
+#: asyncpg nennt bei einem unpassenden Parameter dessen Wert (Review 2026-10-30):
+#: ``invalid input for query argument $2: 'Optik …' (expected int, got str)``, auch als
+#: ``$2 in element #3 of executemany() sequence: …`` — der Rest der Zeile geht, er kann den Wert
+#: ein zweites Mal tragen (UUID-Codec).
+_PARAMETER = re.compile(r"(invalid input for query argument \$\d+[^:\n]*: ).*$", re.MULTILINE)
 _GESCHWAERZT = "‹geschwärzt›"
 
 
 def geschwaerzt(text: str) -> str:
     """``text`` ohne Datenbank-DETAIL und ohne Eingabewerte aus Prüffehlern."""
     text = _DB_DETAIL.sub(rf"\1 {_GESCHWAERZT}", text)
+    text = _PARAMETER.sub(rf"\1{_GESCHWAERZT}", text)
     return _EINGABE.sub(f"input_value={_GESCHWAERZT}", text)
 
 
@@ -39,17 +45,61 @@ def geschwaerzt(text: str) -> str:
 # verkettet oder in einer Gruppe, und als Argument einer Meldung (``logger.warning("… %s", e)``,
 # über hundert Stellen). LiteLLM-Fehler erben von ``openai.OpenAIError``. Nach Namen statt per
 # ``isinstance``, damit das Logging die SDKs nicht importiert.
-_FREMDTEXTE = frozenset({"openai.OpenAIError", "mcp.shared.exceptions.McpError"})
+_FREMDTEXTE = frozenset({"openai.OpenAIError", "mcp.shared.exceptions.McpError",
+                         # Review 2026-10-30: ``str()`` trägt die Fehlversuche samt Antworten
+                         # des Modells und den Anbietertext der letzten Ausnahme.
+                         "instructor.v2.core.errors.InstructorError"})
 
 
-def _fremdtext(exc: BaseException) -> bool:
-    return any(f"{k.__module__}.{k.__qualname__}" in _FREMDTEXTE for k in type(exc).__mro__)
+def _fremdtext(exc: BaseException, tiefe: int = 0) -> bool:
+    """Ein Fehler fremder Dienste — oder eine Hülle, die seinen Text übernimmt.
+
+    Hüllen kennt die Liste nicht: instructor wirft ``InstructorRetryException(str(e)) from e``
+    (Review 2026-10-30). Deshalb zählt auch, wer von einem Fremdfehler verursacht wurde und
+    dessen Text wiederholt."""
+    if any(f"{k.__module__}.{k.__qualname__}" in _FREMDTEXTE for k in type(exc).__mro__):
+        return True
+    ursache = exc.__cause__
+    if ursache is None or tiefe >= 5 or not _fremdtext(ursache, tiefe + 1):
+        return False
+    text = str(ursache)
+    return bool(text) and text in str(exc)
+
+
+def _kurzteile(exc: BaseException) -> str:
+    """HTTP-Status und JSON-RPC-Code eines Fremdfehlers, ohne seinen Text (Review 2026-10-30: die
+    geschwärzte Form verlor sonst, ob es eine 400 oder eine 503 war)."""
+    teile = []
+    if isinstance(status := getattr(exc, "status_code", None), int):
+        teile.append(f"status={status}")
+    if isinstance(code := getattr(getattr(exc, "error", None), "code", None), int):
+        teile.append(f"code={code}")
+    return ", ".join([*teile, _GESCHWAERZT])
+
+
+def _kurzform(exc: BaseException) -> str:
+    return f"{type(exc).__name__}({_kurzteile(exc)})"
 
 
 def _ohne_fremdtext(wert: object) -> object:
     if isinstance(wert, BaseException) and _fremdtext(wert):
-        return f"{type(wert).__name__}({_GESCHWAERZT})"
+        return _kurzform(wert)
     return wert
+
+
+def ausnahme_text(exc: BaseException) -> str:
+    """Der Grund einer Ausnahme als fertiger Text fürs Log — Gruppen aufgelöst, Fremdfehler nur
+    mit :func:`_kurzform`, sonst geschwärzt (:func:`geschwaerzt`).
+
+    Für Stellen, die den Grund vorformatieren müssen (Review 2026-10-30: der MCP-Transport loggte
+    ``str(exc)`` und damit den Text eines ``-32603`` — die Schwärzung im Formatierer greift nur
+    bei Ausnahmen als Argument)."""
+    kinder = getattr(exc, "exceptions", None)
+    if kinder:
+        return "; ".join(ausnahme_text(k) for k in kinder)
+    if _fremdtext(exc):
+        return _kurzform(exc)
+    return geschwaerzt(str(exc))
 
 
 def _args_ohne_fremdtexte(args: Any) -> Any:
@@ -82,7 +132,7 @@ def _schwaerze(te: traceback.TracebackException | None, exc: BaseException | Non
     if _fremdtext(exc):
         # ``_str`` ist privat, aber die einzige Stelle, aus der ``format`` den Text nimmt;
         # ``test_log_ausnahmen`` fällt, wenn eine Python-Version das ändert.
-        te._str = _GESCHWAERZT
+        te._str = _kurzteile(exc)
     _schwaerze(te.__cause__, exc.__cause__, gesehen)
     _schwaerze(te.__context__, exc.__context__, gesehen)
     for kind_te, kind in zip(te.exceptions or (), getattr(exc, "exceptions", ()), strict=False):

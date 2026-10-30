@@ -109,7 +109,8 @@ async def skill_verzeichnis(collection_id: str) -> dict[str, Any]:
     roh = await call_mcp_tool(
         "get_skill_registry", {"collectionId": collection_id, "outputFormat": "json"})
     if is_mcp_error(roh):
-        logger.warning("Skill-Verzeichnis %s: %s", collection_id, roh[:200])
+        logger.warning("Skill-Verzeichnis %s: %s",  # log-ok: Servertext, Eingabe nur Konfiguration
+                       collection_id, roh[:200])
         raise VerzeichnisFehler("mcp", roh)
     daten = _als_objekt(roh)
 

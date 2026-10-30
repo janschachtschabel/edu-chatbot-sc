@@ -53,6 +53,7 @@ from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS, METHOD_NOT_FOUND
 
 from boerdi.obs import metrics
+from boerdi.obs.log_format import ausnahme_text
 from boerdi.obs.log_inhalt import inhalt
 from boerdi.services.mcp.http_fabrik import McpHttpClientFactory, build_http_client_factory
 from boerdi.settings import Settings, get_settings
@@ -275,12 +276,13 @@ async def _call_tool(
             logger.error("MCP tool %s rejected @ %s: %s", tool_name, target_url,  # noqa: TRY400
                          inhalt(abgelehnt.error.message))
             return {"error": {"message": abgelehnt.error.message, "kind": "tool"}}
-        grund = _cause_text(exc)
-        # Ohne Traceback (Paket 18E): Netzfehler sind erwartet, ``_cause_text`` nennt die
-        # Ursache; die anyio-Gruppen-Traces wären lang und sagten nichts dazu.
+        # Ohne Traceback (Paket 18E): die anyio-Gruppen-Traces wären lang und sagten nichts
+        # dazu. Im Log der Grund ohne Fremdtexte (Review 2026-10-30): ein ``McpError`` außer
+        # ``-32601``/``-32602`` (etwa ``-32603``) brächte sonst den Text des Servers samt
+        # wiederholter Eingabe — von ihm nur Art und Code. Der volle Grund geht an den Aufrufer.
         logger.error("MCP tool %s transport error @ %s: %s",  # noqa: TRY400
-                     tool_name, target_url, grund)
-        return {"error": {"message": grund, "kind": "transport"}}
+                     tool_name, target_url, ausnahme_text(exc))
+        return {"error": {"message": _cause_text(exc), "kind": "transport"}}
 
     if result.isError:
         message = " ".join(b["text"] for b in _text_blocks(result)) or "tool error"

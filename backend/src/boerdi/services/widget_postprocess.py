@@ -394,7 +394,7 @@ async def _postprocess_response_for_widget_modes(
                     "vorhandenen Cards ergänzt%s",
                     _added,
                     f" (Typ-Filter: {sorted(_wanted_types)})" if _wanted_types else "",
-                )
+                )  # log-ok: Materialtypen aus dem Katalog
                 # SCHRITT 2: Reicht der In-Memory-Pool noch nicht? Fallback
                 # auf frischen search_wlo_content-Call.
                 if _added < _needed and not _suche_gesperrt:
