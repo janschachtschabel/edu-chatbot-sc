@@ -538,7 +538,7 @@ erzeugt hat, liegt im `sessionStorage` unter `boerdi.mcp-access` und ist
 derselbe, den ihr hier mitschickt. Der Studio-Schlüssel ist der Admin-Schlüssel
 und hat in einem Browser nichts zu suchen.
 
-Dazu die Drosselung: `RATE_LIMIT_CHAT`, Vorgabe **20/Minute je IP**, sonst `429`
+Dazu die Drosselung: `RATE_LIMIT_CHAT`, Vorgabe **120/Minute je IP**, sonst `429`
 mit `X-RateLimit-*`. Die Prüfung der Kopfzeile ist eine **Form-, keine
 Echtheitsprüfung** — belegen kann einen Block nur der MCP-Server; die
 Mengenbremse ist die Kostenschranke.

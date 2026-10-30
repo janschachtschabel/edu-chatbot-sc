@@ -153,6 +153,8 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 | `boerdi_mcp_calls_total` | server, outcome (ok/tool/transport/timeout/auth) |
 | `boerdi_mcp_call_duration_seconds` | server |
 | `boerdi_safety_stage_total` | stage (`openai_moderation`, `llm_legal`), outcome (ok/fehler/keine_zugangsdaten/teilweise) |
+| `boerdi_llm_schluessel_abgelehnt_total` | anbieter, quelle (`b_api_key`/`openai_api_key`/`weitergereicht`) — der Anbieter weist den Schlüssel ab (401), Paket 18F |
+| `boerdi_llm_platz_frist_total` | – Chat-Aufrufe ohne LLM-Platz binnen `LLM_SLOT_WAIT_S` („ausgelastet“), Paket 18F |
 | `boerdi_build_info` | version |
 
 - **Alarmregeln:** als `PrometheusRule`-Beispiel in `deploy/helm/values.example.yaml`:
@@ -161,6 +163,9 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
   - p95 der Züge
   - MCP-Transportfehler
   - Moderationsausfall (mehr als die Hälfte scheitert, Paket 18A)
+  - abgelehnter eigener LLM-Schlüssel (`BoerdiLlmSchluesselAbgelehnt`, sofort; ein
+    weitergereichter Schlüssel ist der des Aufrufers und alarmiert nicht, Paket 18F)
+  - ausgelastete Züge (`BoerdiLlmAusgelastet`, Paket 18F)
 - **Synthetischer Verkehr zählt mit:** Lasttest (im Prozess) und Evaluation (über die
   Loopback-Adresse) laufen durch dieselben Zähler wie echte Nutzer, ohne eigenes Label.
   Während eines Laufs können die Alarme feuern; beides startet nur die Redaktion im Studio.
@@ -219,6 +224,13 @@ Im Cluster erreicht jeder Pod den Port 8101 (`/metrics`, volle Spec). Empfehlung
 - **Caches je Pod:** MCP-Ergebnisse, Vokabular. Sie kosten nur Trefferquote, keine falschen Antworten.
 - **Grenzen:**
   - **LLM-Deckel je Pod:** `LLM_MAX_CONCURRENCY` gilt je Pod. Bei N Pods sollte er auf Limit/N stehen.
+    Ein Chat-Aufruf wartet höchstens `LLM_SLOT_WAIT_S` (Vorgabe 30 s, 0 = ohne) auf einen
+    Platz; danach antwortet der Zug „gerade ausgelastet“, und seine weiteren Aufrufe scheitern
+    sofort — ein hängender Anbieter füllt den Pod nicht mehr unbegrenzt (Paket 18F).
+  - **Äußeres Ratenlimit:** `RATE_LIMIT_CHAT` je IP und Route, Vorgabe `120/minute` (bis
+    Paket 18F 20). Ein ungültiger Wert verhindert den Start. Ohne `TRUST_FORWARDED_FOR`
+    hinter einem Proxy teilen sich alle Nutzer eine IP. Das Widget nennt bei 429 die
+    Wartezeit aus `Retry-After`.
   - **DB-Verbindungen:** 5+10 je Pod, eine LISTEN-Verbindung und kurz eine für `/ready`. Also `max_connections ≥ N×17 + Reserve` oder PgBouncer (Session-Modus, wegen LISTEN).
   - **MCP-Server:** Er drosselt auf 120 Anfragen je Minute **je IP**, und alle Pods teilen sich eine Egress-IP. Die Freischaltung klärt das MCP-Team.
   - **Herunterfahren:** Gnadenfrist ≥ 70 s (5 s Läufe schließen, 30 s Verbindungen, 25 s Nachlauf, 10 s Abbruch und Aufräumen) **plus** preStop (5 s) plus Luft = 80 s (Values) — Kubernetes zieht preStop von der Frist ab.
