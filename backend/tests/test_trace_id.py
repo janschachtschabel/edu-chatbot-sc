@@ -235,3 +235,37 @@ def test_kein_text_nennt_die_fehlerklasse():
     mit_klasse = [(sprache, k) for sprache, texte in BOT_TEXT.items()
                   for k, v in texte.items() if "{kind}" in v]
     assert mit_klasse == []
+
+
+# ── Review 2026-10-30: keine Fehlernummer aus Nullen ──────────────────────────
+
+
+@pytest.mark.parametrize("koepfe", [
+    {"x-client-trace-id": "0" * 32},
+    {"x-client-trace-id": "000000000000-zug-4711"},
+    {"x-b3-traceid": "0" * 32},
+    {"b3": "0" * 16 + "-e457b5a2e4d86bd1-1"},
+], ids=["client-null", "client-nullen-vorn", "b3-null", "b3-einzeln-null"])
+def test_eine_null_id_wird_ersetzt(koepfe) -> None:
+    neu = trace_id.aus_kopfzeilen(koepfe)
+    assert len(neu) == 32 and neu[:trace_id.FEHLERNUMMER_ZEICHEN].strip("0")
+
+
+def test_eine_aufgefuellte_64_bit_id_gilt_in_kurzer_form() -> None:
+    """Ohne das ergäben alle Züge eines 64-Bit-B3-Aufrufers die Nummer ``000000000000``."""
+    assert trace_id.aus_kopfzeilen({"x-b3-traceid": "0" * 16 + "E457B5A2E4D86BD1"}) == (
+        "e457b5a2e4d86bd1")
+    assert trace_id.aus_kopfzeilen({"b3": "0" * 16 + "e457b5a2e4d86bd1-a2fb4a1d1a96d312-1"}) == (
+        "e457b5a2e4d86bd1")
+
+
+
+@pytest.mark.parametrize("roh", ["------------", "....abc", ":zug-4711", "0-0-0-0-0-0-",
+                                 "00000000000.x"])
+def test_eine_id_ohne_buchstabe_oder_ziffer_vorn_wird_ersetzt(roh) -> None:
+    neu = trace_id.aus_kopfzeilen({"x-client-trace-id": roh})
+    assert neu != roh and len(neu) == 32
+
+
+def test_b3_greift_wenn_die_client_id_nichts_taugt() -> None:
+    assert trace_id.aus_kopfzeilen({"x-client-trace-id": "0" * 32, "x-b3-traceid": HEX32}) == HEX32

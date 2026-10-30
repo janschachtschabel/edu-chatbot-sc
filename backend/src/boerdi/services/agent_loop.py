@@ -304,8 +304,9 @@ async def run_agent_loop(
             logger.warning("Agent-Schleife: Token-Budget von %s überschritten (%s) "
                            "— die fertige Antwort wird geliefert",
                            limits.token_budget, verbraucht)
-            progress.record("agent_budget", "Token-Budget überschritten",
-                            {"budget": limits.token_budget, "verbraucht": verbraucht})
+            # Ohne Zahlen (Review 2026-10-30): der Phasen-Rahmen geht auch an anonyme Clients;
+            # Budget und Verbrauch stehen in der Logzeile darüber und im Debug-Block.
+            progress.record("agent_budget", "Token-Budget überschritten")
 
     for _ in range(limits.max_iterations):
         # EIN Uhrwert je Runde: Frist-Pruefung, Ende der vorigen und Beginn

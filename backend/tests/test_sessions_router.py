@@ -275,6 +275,13 @@ def test_public_messages_clamps_limit(client, monkeypatch):
     assert calls[-1][0][2] == 1  # lower bound
 
 
+def test_public_messages_are_not_cached(client, monkeypatch):
+    """Review 2026-10-30: private, and its shape depends on the caller's clearance."""
+    _fake(monkeypatch, "get_messages", [])
+    r = client.get(f"/api/sessions/{_VALID}/messages")
+    assert r.headers["cache-control"] == "private, no-store"
+
+
 # ── auth matrix ──────────────────────────────────────────────────────────
 @pytest.mark.parametrize(
     ("method", "path"),

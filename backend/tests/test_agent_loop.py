@@ -1465,6 +1465,19 @@ def test_ein_wiederholter_abgewiesener_aufruf_ist_stillstand(monkeypatch):
 
 
 
+def test_der_budget_rahmen_traegt_keine_zahlen(monkeypatch):
+    """Review 2026-10-30: der Phasen-Rahmen geht auch an anonyme Clients."""
+    sammler = _Sammler()
+    _fake, run, _msgs = _lauf(monkeypatch, [
+        _resp_text("Die Antwort.", usage=_usage(prompt=1200, completion=300)),
+    ], limits=AgentLimits(token_budget=1000), usage_acc=new_accumulator(),
+        progress=TurnProgress(sammler), echter_transport=True)
+    budget = [e for e in sammler.events if "agent_budget" in str(e)]
+    assert budget, sammler.events
+    assert "1000" not in str(budget) and "1500" not in str(budget)
+
+
+
 def test_ein_lauf_ohne_llm_platz_merkt_es_sich(monkeypatch):
     """Review 2026-10-30: der Satz hängt am Lauf, nicht am Merker des Zugs."""
     from boerdi.services import llm_parallel

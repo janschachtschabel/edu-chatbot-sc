@@ -159,3 +159,40 @@ def test_der_umfang_zaehlt_jeden_eintrag():
     akte.schnellweg("canvas", thema="Optik")
     akte.umschreibung("waechter", original="o", ersatz="e")
     assert akte.umfang == 2
+
+
+# ── Review 2026-10-30 ──────────────────────────────────────────────────────────
+
+
+def test_gescheiterte_aufrufe_ueberschreiten_den_deckel():
+    akte = za.Zugakte()
+    for i in range(za.MAX_WERKZEUGE):
+        akte.werkzeug(f"w{i}", argumente_eingang={}, argumente_gesendet={}, status="ok",
+                      aus_cache=True, dauer_ms=0)
+    akte.werkzeug("spaet", argumente_eingang={}, argumente_gesendet={}, status="transport",
+                  aus_cache=False, dauer_ms=5, fehler="MCP error: weg")
+    akte.werkzeug("noch_ok", argumente_eingang={}, argumente_gesendet={}, status="ok",
+                  aus_cache=False, dauer_ms=1)
+    d = akte.als_dict()
+    assert d["werkzeuge"][-1]["name"] == "spaet"
+    assert d["werkzeuge_ausgelassen"] == 1
+    for i in range(za.MAX_FEHLER_DARUEBER + 3):
+        akte.werkzeug(f"f{i}", argumente_eingang={}, argumente_gesendet={}, status="tool",
+                      aus_cache=False, dauer_ms=1)
+    assert len(akte.als_dict()["werkzeuge"]) == za.MAX_WERKZEUGE + za.MAX_FEHLER_DARUEBER
+
+
+def test_argumente_als_zuordnung_sind_gedeckelt():
+    akte = za.Zugakte()
+    viele = {f"k{i}": i for i in range(za.MAX_EINTRAEGE + 4)}
+    akte.werkzeug("w", argumente_eingang={"filter": viele}, argumente_gesendet={},
+                  status="ok", aus_cache=False, dauer_ms=1)
+    filt = akte.als_dict()["werkzeuge"][0]["argumente_eingang"]["filter"]
+    assert len(filt) == za.MAX_EINTRAEGE + 1
+    assert filt["‹weitere›"] == "‹4 weitere›"
+
+
+def test_der_grund_einer_umschreibung_wird_gekuerzt():
+    akte = za.Zugakte()
+    akte.umschreibung("typ_fokus", original="a", ersatz="b", grund="g" * 3000)
+    assert len(akte.als_dict()["umschreibungen"][0]["grund"]) == za.MAX_WERT + 1

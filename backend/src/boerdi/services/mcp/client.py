@@ -32,6 +32,7 @@ Bewusste Abweichungen ggü. ALT (dokumentiert, funktional äquivalent):
 
 from __future__ import annotations
 
+import asyncio
 import contextvars as _ctxvars
 import json
 import logging
@@ -284,7 +285,11 @@ async def call_mcp_tool_status(
     # nichts von dem, was unten an WLO-Namen hängt, gilt für ihn.
     if ist_fremd(tool_name):
         t0 = _time.perf_counter()
-        text, art = await fremdwerkzeuge.rufen(tool_name, arguments)
+        try:
+            text, art = await fremdwerkzeuge.rufen(tool_name, arguments)
+        except BaseException as e:
+            _abbruch_in_die_akte(tool_name, arguments, arguments, e, t0)
+            raise
         text = f"{_MCP_ERROR_PREFIX}: {text}" if art else text
         _in_die_akte(tool_name, arguments, arguments, text, art, aus_cache=False, t0=t0)
         return text, art
@@ -298,12 +303,28 @@ async def call_mcp_tool_status(
                                 use_cache=use_cache)
 
     t0 = _time.perf_counter()
-    gesendet: dict[str, Any] = {}
-    text, art, aus_cache = await _einzelaufruf(
-        tool_name, arguments, use_cache=use_cache, gesendet=gesendet)
-    _in_die_akte(tool_name, arguments, gesendet or arguments, text, art,
+    # Eine Liste statt eines Dicts (Review 2026-10-30): auch LEERE gesendete Argumente
+    # sind eine Angabe — ``gesendet or arguments`` zeigte dann die Rohargumente.
+    gesendet: list[dict[str, Any]] = []
+    try:
+        text, art, aus_cache = await _einzelaufruf(
+            tool_name, arguments, use_cache=use_cache, gesendet=gesendet)
+    except BaseException as e:
+        _abbruch_in_die_akte(tool_name, arguments, gesendet[0] if gesendet else arguments, e, t0)
+        raise
+    _in_die_akte(tool_name, arguments, gesendet[0] if gesendet else arguments, text, art,
                  aus_cache=aus_cache, t0=t0)
     return text, art
+
+
+def _abbruch_in_die_akte(name: str, eingang: dict[str, Any], gesendet: dict[str, Any],
+                         fehler: BaseException, t0: float) -> None:
+    """Ein Aufruf, der nicht zurückkam (Review 2026-10-30): von außen abgebrochen (Frist des
+    Agenten, ``wait_for`` um den Seitenkontext) oder mit einer unerwarteten Ausnahme — bis dahin
+    fehlte er in der Zugakte, obwohl er lief. Nur die Art der Ausnahme, nie ihr Text."""
+    art = ("abgebrochen" if isinstance(fehler, asyncio.CancelledError | TimeoutError)
+           else "ausnahme")
+    _in_die_akte(name, eingang, gesendet, type(fehler).__name__, art, aus_cache=False, t0=t0)
 
 
 def _in_die_akte(name: str, eingang: dict[str, Any], gesendet: dict[str, Any], text: str,
@@ -327,7 +348,8 @@ def _in_die_akte(name: str, eingang: dict[str, Any], gesendet: dict[str, Any], t
 
 
 async def _einzelaufruf(
-    tool_name: str, arguments: dict[str, Any], *, use_cache: bool, gesendet: dict[str, Any],
+    tool_name: str, arguments: dict[str, Any], *, use_cache: bool,
+    gesendet: list[dict[str, Any]],
 ) -> tuple[str, str, bool]:
     """Ein Aufruf am WLO-Server: Prüfung, Auflösung, Cache, Transport, Auswertung.
 
@@ -374,7 +396,7 @@ async def _einzelaufruf(
         and "outputFormat" not in arguments
     ):
         arguments = {**arguments, "outputFormat": "json"}
-    gesendet.update(arguments)
+    gesendet.append(arguments)
 
     # Kein ``maxChars`` mehr von uns (2026-08-21): der Server liefert ohne
     # Angabe den ganzen Text (Vorgabe 200000 seit dem MCP-Deploy 20.08., live

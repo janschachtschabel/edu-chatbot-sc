@@ -8,6 +8,15 @@ geht an die b-api und den eigenen MCP-Server weiter — nie an fremde Server, un
 Kopfzeile zurück an den Client (Leitfaden: Standard ohne Header vom Dienst). Nur ihr Anfang
 steht als Fehlernummer in Fehlerblasen (Paket 18C/D, :func:`fehlernummer`).
 
+Review 2026-10-30: Eine ID, deren Anfang als Fehlernummer nichts taugt (weder Buchstabe noch
+Ziffer vorn, sonst nur Nullen und Zeichen), gilt als nicht mitgeschickt — dann greift die
+nächste Quelle bzw. eine neue ID. Eine auf 128 Bit aufgefüllte 64-Bit-B3-ID gilt in
+ihrer kurzen Form (16 Zeichen, wie Zipkin/Brave sie schreiben); die 32 Zeichen des Aufrufers
+stehen dann nicht im Log. Offen bleibt
+ein fester Vorsatz des Aufrufers (``dienst-<uuid>``): alle seine Züge trügen dieselbe Nummer —
+das Studio sagt es bei Treffern aus mehreren Sitzungen; ein serverseitiger Anteil der Nummer ist
+vor der Übergabe an Team 6 zu klären (``docs/offene-befunde-und-todo.md``).
+
 Unabhängig von OpenTelemetry (``obs/otel.py``): das läuft nur mit gesetztem Endpunkt und
 propagiert W3C ``traceparent``; die ID hier gilt immer.
 """
@@ -27,23 +36,43 @@ _trace_id: contextvars.ContextVar[str] = contextvars.ContextVar("_trace_id", def
 # Sichtbare Zeichen ohne Leerzeichen, wie sie Logs und Kopfzeilen vertragen.
 _CLIENT_ID = re.compile(r"[A-Za-z0-9._:\-]{1,128}")
 _B3_ID = re.compile(r"[0-9a-fA-F]{16}|[0-9a-fA-F]{32}")
+_TRAEGT = re.compile(r"[1-9A-Za-z]")
 
 
 def _neu() -> str:
     return secrets.token_hex(16)
 
 
+def _b3(wert: str) -> str:
+    """Eine B3-ID in Kleinschreibung; eine auf 128 Bit aufgefüllte 64-Bit-ID in ihrer kurzen
+    Form — dieselbe ID für Zipkin, aber ohne 16 führende Nullen."""
+    wert = wert.lower()
+    return wert[16:] if len(wert) == 32 and wert.startswith("0" * 16) else wert
+
+
+def _taugt(wert: str) -> bool:
+    """Taugt die ID als Quelle der Fehlernummer (Review 2026-10-30)? Die Null-ID und ein Anfang
+    nur aus Nullen ergäben für viele Züge dieselbe Nummer — die Suche im Studio führte dann zu
+    fremden Zügen. Eine solche ID ersetzt die nächste Quelle bzw. eine neue."""
+    kopf = wert[:FEHLERNUMMER_ZEICHEN]
+    # Buchstabe oder Ziffer vorn: wie die Suche im Studio (``zug-suche.component.ts``) — eine
+    # Nummer aus ``-----…`` ließe sich dort nicht einmal eingeben.
+    # Dazu mindestens ein Zeichen, das nicht ``0`` ist: ``0-0-0-0-0-0-`` oder ``00000000000.``
+    # sind so nichtssagend wie die Null-ID (Abschluss-Review 18G).
+    return kopf[:1].isalnum() and _TRAEGT.search(kopf) is not None
+
+
 def aus_kopfzeilen(koepfe: Mapping[str, str]) -> str:
     """Die Trace-ID einer Anfrage aus ihren Kopfzeilen (Namen in Kleinschreibung)."""
     client = koepfe.get("x-client-trace-id", "")
-    if _CLIENT_ID.fullmatch(client):
+    if _CLIENT_ID.fullmatch(client) and _taugt(client):
         return client
     b3 = koepfe.get("x-b3-traceid", "")
-    if _B3_ID.fullmatch(b3):
-        return b3.lower()
+    if _B3_ID.fullmatch(b3) and _taugt(_b3(b3)):
+        return _b3(b3)
     einzeln = koepfe.get("b3", "").split("-", 1)[0]
-    if _B3_ID.fullmatch(einzeln):
-        return einzeln.lower()
+    if _B3_ID.fullmatch(einzeln) and _taugt(_b3(einzeln)):
+        return _b3(einzeln)
     return _neu()
 
 

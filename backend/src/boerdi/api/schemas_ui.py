@@ -2,7 +2,7 @@
 
 Was das Widget braucht, um eine Antwort darzustellen und nach dem Neuladen wiederherzustellen —
 und nichts weiter. Persona, Signale, Entitäten, Spur, Zugakte und jedes künftige Diagnosefeld
-stehen nur im Debug-Block, den ab Phase 4 allein das Studio bekommt. Ein eigenes Modell statt
+stehen nur im Debug-Block, den seit Phase 4 allein das Studio bekommt. Ein eigenes Modell statt
 eines Filters: ein neues Feld im Debug-Block ist damit von selbst nicht öffentlich
 (Vertragstest ``tests/test_publikum.py``).
 

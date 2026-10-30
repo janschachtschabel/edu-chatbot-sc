@@ -52,7 +52,7 @@ def adopt_turn_auth_block(request: Request) -> None:
 def ist_interner_zug(request: Request) -> bool:
     """Fragt die Anlage selbst? Über den Studio-Proxy (Studio-Proben, Verlauf) oder mit gültigem
     Studio-Schlüssel (Evaluation, Lasttest). Daran hängen die Diagnose für dieses Publikum
-    (Paket 18C/D: Zugakte, ab Phase 4 der Debug-Block) und die Buchung auf ``B_API_KEY`` — der
+    (Paket 18C/D: Debug-Block und Zugakte) und die Buchung auf ``B_API_KEY`` — der
     Proxy-Kopf fehlt solchen Zügen, und der Studio-Proxy reicht ``Authorization`` nie durch
     (Review-Runde 3, Befund 1).
 
@@ -60,7 +60,12 @@ def ist_interner_zug(request: Request) -> bool:
     Ist zugleich ein Schlüssel gesetzt, setzt der Proxy ihn nicht ein
     (``studio_proxy._injectable_key``) — dann ist der Durchgang keine Freigabe (Review Phase 1).
     Den Entwicklungsmodus zählt erst :func:`darf_diagnose` — hier hängt die Buchung daran
-    (Review Phase 3)."""
+    (Review Phase 3).
+
+    Im reinen Entwicklungsmodus (offenes Tor, KEIN Schlüssel) zählt jeder Zug über den Proxy als
+    intern und bucht auf ``B_API_KEY`` — auch mit ``B_API_KEY_MODE=forward``. Gewollt: die
+    Chat-Probe im Studio läuft lokal ohne eigenen Schlüssel. Auf einem erreichbaren Server hätte
+    dieser Modus ohnehin das ganze Studio offen (Paket 18G, G-E2)."""
     from boerdi.api.studio_auth import gate_is_open
     from boerdi.api.studio_proxy import ueber_studio  # zirkulär: studio_proxy → deps
 
@@ -68,11 +73,15 @@ def ist_interner_zug(request: Request) -> bool:
     if ueber_studio(request):
         return not (gate_is_open() and erwartet)
     gegeben = (request.headers.get("x-studio-key") or "").strip()
-    return bool(erwartet) and gegeben.isascii() and hmac.compare_digest(gegeben, erwartet)
+    # Beide Seiten ASCII, dann als Bytes (Review 2026-10-30): ``compare_digest`` warf bei einem
+    # Nicht-ASCII-STUDIO_API_KEY — jeder Zug mit Kopfzeile wurde zum 500. Wie ``deps``: ein
+    # solcher Schlüssel passt nie (die Startwarnung sagt es).
+    return (bool(erwartet) and gegeben.isascii() and erwartet.isascii()
+            and hmac.compare_digest(gegeben.encode(), erwartet.encode()))
 
 
 def darf_diagnose(request: Request) -> bool:
-    """Bekommt diese Anfrage Diagnose (Zugakte im Verlauf, ab Phase 4 der Debug-Block)?
+    """Bekommt diese Anfrage Diagnose (Debug-Block, Zugakte im Verlauf)?
 
     Wie :func:`ist_interner_zug`, dazu der reine Entwicklungsmodus (``BOERDI_ALLOW_OPEN_ADMIN``
     ohne Schlüssel): dort ist ohnehin alles offen (``require_studio_key``), und der Lasttest
