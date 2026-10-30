@@ -214,7 +214,9 @@ def _funde() -> list[str]:
         zeilen = quelle.splitlines()
         for aufruf, argumente in _logaufrufe(ast.parse(quelle)):
             namen = [n for a in argumente for n in _verboten(a)]
-            namen += [ast.unparse(a)[:60] for a in argumente[1:] if _vorformatiert_in(a)]
+            # Alle Argumente (Abschluss-Review 18G): bei ``ereignis`` gibt es keine Vorlage, und
+            # eine f-String-Vorlage ist selbst vorformatiert; eine feste Vorlage schlägt nie an.
+            namen += [ast.unparse(a)[:60] for a in argumente if _vorformatiert_in(a)]
             if not namen:
                 continue
             bereich = zeilen[aufruf.lineno - 1:(aufruf.end_lineno or aufruf.lineno)]

@@ -133,3 +133,23 @@ def test_ausnahmen_gehen_nur_mit_ihrer_art_an_den_collector() -> None:
     assert "geheim" not in str([dict(e.attributes) for e in fertig.events])
     assert fertig.events[0].attributes["exception.type"] == "ValueError"
     assert fertig.status.description == "ValueError"
+
+
+
+def test_eine_beschreibung_ohne_doppelpunkt_geht_nicht_wortlich_hinaus() -> None:
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+    from opentelemetry.trace import Status, StatusCode
+
+    from boerdi.obs.otel import _OhneAusnahmetexte
+
+    innen = InMemorySpanExporter()
+    anbieter = TracerProvider()
+    anbieter.add_span_processor(SimpleSpanProcessor(_OhneAusnahmetexte(innen)))
+    with anbieter.get_tracer("probe").start_as_current_span("SELECT") as span:
+        span.set_status(Status(StatusCode.ERROR, "Key (session_id)=(bb-geheim) is not present"))
+    (fertig,) = innen.get_finished_spans()
+    assert "geheim" not in (fertig.status.description or "")
