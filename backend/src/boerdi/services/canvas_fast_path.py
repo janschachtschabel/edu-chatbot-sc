@@ -49,6 +49,7 @@ from boerdi.domain.canvas.types import (
 from boerdi.domain.completion_messages import _canvas_completion_message
 from boerdi.i18n import DEFAULT, Locale, bot_text, resolve_locale
 from boerdi.obs.log_inhalt import inhalt
+from boerdi.obs.trace_id import fehlernummer
 from boerdi.services.canvas_service import (
     generate_canvas_content,
     material_type_quick_replies_for_persona,
@@ -519,7 +520,7 @@ async def run_canvas_create_fast_path(
                 logger.error("M10 canvas generation failed: %s", _e)
                 response_text = bot_text(
                     _lang, "material.genFailed",
-                    label=_label, topic=_c_topic, kind=type(_e).__name__,
+                    label=_label, topic=_c_topic, nummer=fehlernummer(),
                 )
                 tools_called = ["canvas_service.generate_canvas_content", "error"]
                 wlo_cards_raw = []

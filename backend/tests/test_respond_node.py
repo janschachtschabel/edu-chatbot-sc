@@ -393,6 +393,8 @@ def test_generate_error_degrades_and_salvages_cards(monkeypatch):
 
     out = asyncio.run(_go())
     assert out.response_text.startswith("Ich konnte gerade keine Antwort erzeugen")
+    # Paket 18C/D (3.4): über ``bot_text``, mit Fehlernummer statt Fehlerklasse.
+    assert "Error" not in out.response_text and "(Fehlernummer: " in out.response_text
     assert out.tools_called == ["error"]
     assert out.wlo_cards_raw == [{"title": "salv"}]
 

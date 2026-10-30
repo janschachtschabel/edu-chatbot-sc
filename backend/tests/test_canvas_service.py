@@ -263,7 +263,8 @@ def test_gen_without_page_metadata_has_no_collection_block(monkeypatch):
 
 def test_gen_llm_error_degrades_to_error_markdown(monkeypatch):
     title, md, _ = _run_gen(monkeypatch, raise_llm=True)
-    assert md == "# Arbeitsblatt: Brüche\n\n*Fehler beim Erstellen: boom*"
+    # Paket 18C/D (3.4): ohne den Text des Anbieters, mit Fehlernummer.
+    assert md == "# Arbeitsblatt: Brüche\n\n*Fehler beim Erstellen (Fehlernummer: -)*"
     assert title == "Arbeitsblatt: Brüche"  # H1 des Fehler-Markdowns
 
 

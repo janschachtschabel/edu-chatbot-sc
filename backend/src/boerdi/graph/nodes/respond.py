@@ -48,6 +48,7 @@ from boerdi.i18n import resolve_locale
 from boerdi.i18n.bot_text import bot_text
 from boerdi.obs.progress import NO_PROGRESS, TurnProgress
 from boerdi.obs.tasks import _retrieve_task_exception
+from boerdi.obs.trace_id import fehlernummer
 from boerdi.obs.zeiten import schritt
 from boerdi.services.agent_tools import verborgene_werkzeuge
 from boerdi.services.engine_choice import (
@@ -478,11 +479,9 @@ async def respond(
             except Exception:
                 logger.debug("rollback after generate_response failure failed",
                              exc_info=True)
-            response_text = (
-                "Ich konnte gerade keine Antwort erzeugen "
-                f"({type(_gen_err).__name__}). Versuch es nochmal — meistens "
-                "klappt es beim zweiten Anlauf."
-            )
+            # Paket 18C/D: in der Sprache der Person, mit Fehlernummer statt Fehlerklasse.
+            response_text = bot_text(resolve_locale(req.environment.locale),
+                                     "error.answerFailed", nummer=fehlernummer())
             wlo_cards_raw = []
             tools_called = ["error"]
             response_outcomes = []
@@ -512,7 +511,8 @@ async def respond(
         # dürfen diesen Satz nie sehen.
         #
         # Derselbe Satz wie im Agent-Modus (``agent.failed``) — es ist
-        # derselbe Ausfall, und zwei Formulierungen dafür wären zwei Wahrheiten.
+        # derselbe Ausfall, und zwei Formulierungen dafür wären zwei Wahrheiten
+        # (``error.answerFailed`` ist derselbe Satz mit Fehlernummer).
         if not (response_text or "").strip():
             logger.warning(
                 "Muster-Weg: Antwort ohne Text (Muster %s) — ehrlicher Ersatzsatz",

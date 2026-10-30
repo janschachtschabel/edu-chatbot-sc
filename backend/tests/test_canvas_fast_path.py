@@ -264,9 +264,9 @@ def test_canvas_fp_generation_error_degrades_gracefully(canvas_fp):
     assert routed is True and payload is None and forced_qr == []
     assert text == (
         "Ich konnte das **Arbeitsblatt** zum Thema *Photosynthese* gerade "
-        "nicht erstellen (RuntimeError). Versuch es nochmal — "
-        "meistens klappt es beim zweiten Anlauf."
-    )
+        "nicht erstellen. Versuch es nochmal — "
+        "meistens klappt es beim zweiten Anlauf. (Fehlernummer: -)"
+    )  # Paket 18C/D: Fehlernummer statt Fehlerklasse (außerhalb einer Anfrage „-“)
     assert tools == ["canvas_service.generate_canvas_content", "error"]
     assert cards == []
     assert new_state == "S2"                 # session state_id, nicht "S3"
@@ -395,8 +395,8 @@ def test_canvas_fp_generation_error_english(canvas_fp):
         locale="en-GB",
     )
     assert text == (
-        "I could not create the **Arbeitsblatt** on *Photosynthesis* just now "
-        "(RuntimeError). Please try again — it usually works on the second attempt."
+        "I could not create the **Arbeitsblatt** on *Photosynthesis* just now. "
+        "Please try again — it usually works on the second attempt. (Error number: -)"
     )
 
 

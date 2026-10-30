@@ -615,7 +615,9 @@ def test_fehlerblase_schreibt_keine_inhalte_ins_log(welt):
     assert welt.klassifikator.aufrufe == 1
     assert "search_wlo_content" in welt.server.werkzeuge()
     assert _beantwortet(welt.modell), welt.modell.arten
-    assert antwort["content"] == bot_text("de", "error.internal", kind="ConnectionResetError")
+    # Paket 18C/D (3.4): die Blase trägt die Fehlernummer, nicht die Fehlerklasse.
+    assert "ConnectionResetError" not in antwort["content"]
+    assert antwort["content"].startswith(bot_text("de", "error.internal", nummer="").split("(")[0])
     gespeichert = _antworten(welt.engine, sid)
     assert [z["debug"]["pattern"] for z in gespeichert] == ["ERROR: unhandled_chat_exception"]
     _ohne_marke(eintraege, "Fehlerblase")

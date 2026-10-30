@@ -78,6 +78,7 @@ from boerdi.domain.write_confirm import (
 from boerdi.i18n import DEFAULT, bot_text
 from boerdi.i18n.prompt_language import SPRACHE_DER_PERSON
 from boerdi.obs.log_inhalt import inhalt
+from boerdi.obs.trace_id import fehlernummer
 from boerdi.obs.usage import add_usage, extract_usage
 from boerdi.obs.zeiten import seit_ms
 from boerdi.services import llm
@@ -335,11 +336,11 @@ async def _run_tool_loop(
         except Exception as e:
             _logger.error("LLM API error: %s", e)
             # Der Grund steht im Log, die Person sieht die Fehlerblase des Chats
-            # mit dem Typ (Audit 2026-09-29, 6.3). Vorher stand hier „Fehler bei
-            # der Verarbeitung: {e}“ — mit Interna aus der Anbieter-Meldung.
+            # mit der Fehlernummer (Paket 18C/D; bis dahin der Typ, davor „Fehler bei
+            # der Verarbeitung: {e}“ mit Interna aus der Anbieter-Meldung).
             # simplify: Der Loop kennt die Oberflächensprache nicht und nimmt die
             # Vorgabe; wer ``_run_tool_loop`` die Sprache mitgibt, ersetzt DEFAULT.
-            text = bot_text(DEFAULT, "error.internal", kind=type(e).__name__)
+            text = bot_text(DEFAULT, "error.internal", nummer=fehlernummer())
             return text, all_cards, tools_called, outcomes
 
         choice = resp.choices[0]

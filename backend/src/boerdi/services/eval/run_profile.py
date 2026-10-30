@@ -15,6 +15,7 @@ backend it measured instead of from the local store.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,13 +28,15 @@ from boerdi.services.eval import auswertung_v2, engine_metrics
 from boerdi.services.eval.queries import get_run
 
 #: The app's fallback sentences — how an error bubble with HTTP 200 is recognised.
-_FALLBACK_KEYS = ("agent.failed", "agent.incomplete", "error.internal")
+_FALLBACK_KEYS = ("agent.failed", "agent.incomplete", "error.internal", "error.answerFailed")
 
 
 def fallback_texts() -> list[str]:
-    """The fallback sentences up to their first placeholder: the bubble carries
-    the substituted value ("(RuntimeError)"), not the template ``({kind})``."""
-    heads = (bot_text(lang, key).split("{", 1)[0].rstrip(" (")
+    """The first sentence of each fallback text, up to the first ``.``, ``(`` or placeholder:
+    the bubble carries the substituted number, not the template. Cut at the first sentence
+    rather than at the placeholder so bubbles stored before Paket 18C/D Phase 3 ("…schiefgelaufen
+    (RuntimeError).") still count — the profile of an old run is recomputed when it is read."""
+    heads = (re.split(r"[.({]", bot_text(lang, key), maxsplit=1)[0].strip()
              for lang in ("de", "en") for key in _FALLBACK_KEYS)
     return [h for h in heads if len(h) >= 15]
 

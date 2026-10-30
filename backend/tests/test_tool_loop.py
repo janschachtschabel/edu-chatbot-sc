@@ -683,7 +683,9 @@ def test_loop_api_error_returns_error_tuple(monkeypatch):
     _fake, result, st = _run_loop(monkeypatch, [], raises=RuntimeError("boom"))
     text, cards, _tools, outs = result
     assert "boom" not in text
-    assert text == bot_text("de", "error.internal", kind="RuntimeError")
+    # Paket 18C/D (3.4): Fehlernummer statt Fehlerklasse (außerhalb einer Anfrage „-“).
+    assert text == bot_text("de", "error.internal", nummer="-")
+    assert "RuntimeError" not in text
     assert cards is st["all_cards"] and outs is st["outcomes"]
 
 

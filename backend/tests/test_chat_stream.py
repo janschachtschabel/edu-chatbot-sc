@@ -777,3 +777,22 @@ def test_auch_im_strom_sieht_die_fehlerblase_trace_id_und_zugakte(monkeypatch, c
                     headers={"x-client-trace-id": "zug-4711-abcdef"})
     assert "event: error\n" in r.text
     assert gesehen == [("zug-4711-abcdef", ["search_wlo_content"])]
+
+
+def test_der_fehlerrahmen_nennt_die_fehlernummer(monkeypatch, client):
+    """Review Phase 3: das Widget nutzt den Strom; ohne Nummer im ``error``-Rahmen sähe die
+    Person sie erst nach dem Neuladen (in der gespeicherten Blase)."""
+    _patch(monkeypatch, exc=RuntimeError("boom"))
+    r = client.post("/api/chat/stream",
+                    json={"session_id": "bb-1", "message": "hallo", "environment": {}},
+                    headers={"x-client-trace-id": "4f2a9c01d3b7e6a8"})
+    rahmen = [z for z in r.text.split("\n\n") if z.startswith("event: error")]
+    assert json.loads(rahmen[0].split("data: ", 1)[1]) == {
+        "message": "internal error", "nummer": "4f2a9c01d3b7"}
+
+
+async def test_ein_beschaeftigter_strom_braucht_keine_nummer(monkeypatch):
+    _fake_locks(monkeypatch, beschaeftigt=True)
+    frames = await _drain(chat_api._stream_turn(_req(), _Req(), _fabrik()))
+    fehler = [f for f in frames if f.startswith("event: error")]
+    assert "nummer" not in fehler[0]

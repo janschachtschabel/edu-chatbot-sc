@@ -51,7 +51,17 @@ def test_ersatzsaetze_erkennen_eine_gerenderte_interne_fehlerblase() -> None:
     Vergleich traf nie."""
     from boerdi.i18n.bot_text import bot_text
 
-    blase = bot_text("de", "error.internal", kind="RuntimeError")
+    blase = bot_text("de", "error.internal", nummer="4f2a9c01d3b7")
+    assert any(satz in blase for satz in fallback_texts())
+
+
+@pytest.mark.parametrize("schluessel", ["error.internal", "error.answerFailed"])
+@pytest.mark.parametrize("sprache", ["de", "en"])
+def test_die_auswertung_erkennt_die_blasen_mit_fehlernummer(schluessel, sprache) -> None:
+    """Paket 18C/D (3.4): die Nummer steht am Satzende, der Satz davor wird erkannt."""
+    from boerdi.i18n.bot_text import bot_text
+
+    blase = bot_text(sprache, schluessel, nummer="4f2a9c01d3b7")
     assert any(satz in blase for satz in fallback_texts())
 
 
@@ -152,3 +162,17 @@ def test_ein_generativer_lauf_hat_keine_auswertung_v2(monkeypatch) -> None:
                     totals={}, summary={}, conversations=[])
     detail = asyncio.run(get_run_with_profile(_Session(zeile), "eval-3"))
     assert "auswertung" not in detail
+
+
+@pytest.mark.parametrize("blase", [
+    "Da ist intern etwas schiefgelaufen (RuntimeError). Versuch es nochmal — wenn es bestehen "
+    "bleibt, gib mir kurz Bescheid.",
+    "Something went wrong on our side (RuntimeError). Try again — if it keeps happening, let "
+    "me know.",
+    "Ich konnte gerade keine Antwort erzeugen (TimeoutError). Versuch es nochmal — meistens "
+    "klappt es beim zweiten Anlauf.",
+])
+def test_auch_blasen_von_vor_der_fehlernummer_werden_erkannt(blase) -> None:
+    """Review Phase 3: das Profil alter Läufe wird beim Lesen neu gerechnet — ohne die alten
+    Satzanfänge fiele ihre Robustheit nach dem Deploy still."""
+    assert any(satz in blase for satz in fallback_texts())

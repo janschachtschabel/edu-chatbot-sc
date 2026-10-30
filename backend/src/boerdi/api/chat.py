@@ -41,6 +41,7 @@ from boerdi.i18n import bot_text, msg, resolve_locale
 from boerdi.obs import metrics
 from boerdi.obs.log_inhalt import kennung
 from boerdi.obs.progress import TurnProgress
+from boerdi.obs.trace_id import fehlernummer
 from boerdi.services import betriebsschalter, prompt_ablage
 from boerdi.services.db_sessions import save_message
 from boerdi.services.engine_choice import ENGINE_HEADER, choose_engine
@@ -121,8 +122,8 @@ async def chat(
                 return await _postprocess_response_for_widget_modes(req, resp)
             except Exception as impl_err:
                 # Top-level safety net: a config bug, a pattern-engine attribute
-                # error, a DB hiccup — surface the exception type to the user as a
-                # chat bubble rather than letting the frontend swallow an HTTP 500.
+                # error, a DB hiccup — a chat bubble with the error number (Paket 18C/D)
+                # rather than letting the frontend swallow an HTTP 500.
                 logger.exception("chat endpoint unhandled exception: %s", impl_err)
                 return await _fehlerblase(session, req, impl_err)
     except SitzungBeschaeftigt:
@@ -170,7 +171,7 @@ async def _fehlerblase(
         return ChatResponse(session_id=req.session_id, content="", follow_up="none",
                             debug=err_debug)
     lang = resolve_locale(getattr(req.environment, "locale", None))
-    err_text = bot_text(lang, "error.internal", kind=type(fehler).__name__)
+    err_text = bot_text(lang, "error.internal", nummer=fehlernummer())
     try:
         # Nach einem Fehler steht die Transaktion womöglich auf „abgebrochen“.
         await session.rollback()
