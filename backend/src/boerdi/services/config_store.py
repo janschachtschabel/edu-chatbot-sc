@@ -25,6 +25,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from boerdi.db.notify import ConfigChangeListener
+from boerdi.domain.config_models.schalter import normalisiere_schalter
 from boerdi.services.config_conflict import (
     FIRST_VERSION,
     ConfigConflict,
@@ -232,10 +233,14 @@ class ConfigStore:
             self._remember(area, *row)
 
     def _remember(self, area: str, data: dict[str, Any], version: int) -> None:
-        """Cache ``data`` unless the cache already holds a newer version."""
+        """Cache ``data`` unless the cache already holds a newer version.
+
+        Switches the area model types as ``bool`` are read the way the gate reads them
+        (Paket 18E: ``"false"`` stored from the raw-text editor is off for every reader,
+        not only the loaders); the database row stays as stored."""
         if version < self._versions.get(area, 0):
             return
-        self._cache[area] = data
+        self._cache[area] = normalisiere_schalter(area, data)
         self._versions[area] = version
 
     def _forget(self, area: str) -> None:
@@ -272,7 +277,7 @@ class ConfigStore:
         if row is None:
             return None
         self._remember(area, *row)
-        return row[0]
+        return self._cache.get(area, row[0])
 
     async def _fetch(self, area: str) -> tuple[dict[str, Any], int] | None:
         """``(data, version)`` of the area, or ``None`` when the row is gone."""

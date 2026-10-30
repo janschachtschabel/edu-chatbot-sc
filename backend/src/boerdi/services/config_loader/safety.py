@@ -4,12 +4,17 @@ config_loader/safety.py (defaults + normalizations 1:1).
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
+from boerdi.obs.drossel import gedrosselt
 from boerdi.services.config_loader._store import area
 from boerdi.services.config_loader.repo_and_cards import get_repo_base_url
+from boerdi.services.config_loader.schalter import FEHLT, als_schalter
 from boerdi.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def load_policy_config() -> dict[str, Any]:
@@ -73,10 +78,27 @@ def load_guide_mode_config() -> dict[str, Any]:
 
 
 def load_privacy_config() -> dict[str, bool]:
-    section = (area("01-base/privacy-config").get("logging")) or {}
+    """Die Datenschutz-Schalter. Wirft bei einem unbrauchbaren Wert (``streng``): die Leser
+    speichern dann nichts (Paket 18E, F1 — :func:`melde_datenschutz_unlesbar`)."""
+    section = area("01-base/privacy-config").get("logging", {})
+    if not isinstance(section, dict):
+        # ``logging: null`` gab früher die Vorgaben (an) — fail-closed wie ein kaputter Wert.
+        raise ValueError(f"privacy.logging: keine Zuordnung ({type(section).__name__})")
     return {
-        "messages": bool(section.get("messages", True)),
-        "memory": bool(section.get("memory", True)),
-        "quality": bool(section.get("quality", True)),
+        "messages": als_schalter(section.get("messages", FEHLT), True,
+                                 name="privacy.logging.messages", streng=True),
+        "memory": als_schalter(section.get("memory", FEHLT), True,
+                               name="privacy.logging.memory", streng=True),
+        "quality": als_schalter(section.get("quality", FEHLT), True,
+                                name="privacy.logging.quality", streng=True),
         "safety": True,  # not user-togglable — audit trail can't be silenced
     }
+
+
+def melde_datenschutz_unlesbar(art: str, fehler: BaseException) -> None:
+    """Die Datenschutz-Konfiguration ist nicht lesbar — der Leser speichert ``art`` nicht
+    (Paket 18E, F1: fail-closed; ein ausdrückliches „aus“ darf nie an einer kaputten
+    Konfiguration scheitern). Höchstens eine Warnung je Minute und Art."""
+    gedrosselt(logger, logging.WARNING, f"datenschutz:{art}", 60.0,
+               "Datenschutz-Konfiguration nicht lesbar (%s) — %s wird nicht gespeichert",
+               type(fehler).__name__, art)

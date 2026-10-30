@@ -98,13 +98,32 @@ def test_ohne_eintrag_wird_gespeichert() -> None:
         cl.bind_store(None)
 
 
-def test_scheitert_die_abfrage_wird_gespeichert(monkeypatch) -> None:
-    """ALT: „Loader failure → default to logging" — dieselbe Haltung wie das
-    Gedächtnis-Tor in ``api/sessions.py``."""
+def test_scheitert_die_abfrage_wird_nicht_gespeichert(monkeypatch, caplog) -> None:
+    """Paket 18E (F1, Nutzer-Entscheid 2026-10-30): fail-closed. Bis dahin speicherte NEU wie
+    ALT („Loader failure → default to logging") — ein ausdrückliches „aus“ scheiterte dann an
+    einer kaputten Konfiguration, und es stand nur eine DEBUG-Zeile im Log."""
+    from boerdi.obs import drossel
+
+    drossel.zuruecksetzen()
 
     def _kaputt() -> dict:
         raise RuntimeError("config kaputt")
 
     monkeypatch.setattr(db_sessions, "load_privacy_config", _kaputt)
     sess = _Sitzung()
-    assert _speichere(sess, "assistant") == 4711
+    with caplog.at_level("WARNING"):
+        assert _speichere(sess, "assistant") is None
+        assert _speichere(sess, "user") is None
+    assert sess.added == []
+    warnungen = [r for r in caplog.records if "Datenschutz-Konfiguration" in r.getMessage()]
+    assert len(warnungen) == 1  # gedrosselt
+
+
+def test_aus_als_text_speichert_keine_nachricht() -> None:
+    """Paket 18E (N1): ``messages: "false"`` aus dem Rohtext-Editor heißt „aus“."""
+    cl.bind_store(_Store({"01-base/privacy-config": {"logging": {"messages": "false"}}}))
+    try:
+        sess = _Sitzung()
+        assert _speichere(sess, "user") is None
+    finally:
+        cl.bind_store(None)

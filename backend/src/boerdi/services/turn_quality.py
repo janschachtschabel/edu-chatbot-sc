@@ -45,9 +45,17 @@ def qualitaetsprotokoll_an() -> bool:
     """Ob ein Zug ins Qualitätsprotokoll geschrieben wird — beide Tore offen. Die Nutzungsseite
     (Paket 16, D3) fragt dasselbe, um zu sagen, wenn sie nichts Neues zu zählen hat."""
     from boerdi.services.config_loader import load_privacy_config, load_quality_log_config
+    from boerdi.services.config_loader.safety import melde_datenschutz_unlesbar
+    from boerdi.services.config_loader.schalter import als_schalter
 
     cfg = load_quality_log_config().get("logging") or {}
-    return bool(cfg.get("enabled", True) and load_privacy_config().get("quality", True))
+    if not als_schalter(cfg.get("enabled"), True, name="quality_log.logging.enabled"):
+        return False
+    try:
+        return load_privacy_config().get("quality", True)
+    except Exception as fehler:  # noqa: BLE001 — any failure: do not store (Paket 18E, F1)
+        melde_datenschutz_unlesbar("quality", fehler)
+        return False
 
 
 async def log_turn_quality(

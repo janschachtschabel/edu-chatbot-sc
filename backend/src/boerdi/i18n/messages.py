@@ -42,6 +42,13 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
         "tone.partial": "Tone-Modifier teilweise gespeichert — fehlgeschlagen für: {failed}",
         # ── Rohtext-Editor + MCP-Registry (C1-e2) ──────────────────────
         "file.unreadable": "Inhalt nicht lesbar: {error}",
+        # Paket 18E (F1): ein unbrauchbarer Datenschutz-Schalter — bis zur Korrektur wird nichts
+        # gespeichert.
+        "privacy.unreadable": (
+            "Die Datenschutz-Einstellungen enthalten einen ungültigen Wert ({error}). Bitte den "
+            "Bereich 01-base/privacy-config im Editor korrigieren — bis dahin werden Verlauf, "
+            "Gedächtnis und Qualitätsprotokoll nicht gespeichert."
+        ),
         # Paket 4, D5: Speichern mit Konfliktschutz
         "config.conflict": (
             "Dieser Bereich wurde inzwischen geändert (Version {version}, von {who}, "
@@ -189,6 +196,11 @@ _GRUND: Final[dict[Locale, dict[str, str]]] = {
         "pills.none": "{field} needs at least one pill",
         "tone.partial": "Tone modifiers partly saved — failed for: {failed}",
         "file.unreadable": "Content is not readable: {error}",
+        "privacy.unreadable": (
+            "The privacy settings contain an invalid value ({error}). Please fix the area "
+            "01-base/privacy-config in the editor — until then, transcript, memory and quality log "
+            "are not stored."
+        ),
         "config.conflict": (
             "This area was changed in the meantime (version {version}, by {who}, "
             "{when} UTC). Reload or save anyway."

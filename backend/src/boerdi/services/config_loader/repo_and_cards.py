@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from boerdi.services.config_loader._store import area
+from boerdi.services.config_loader.schalter import als_schalter
 from boerdi.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -134,7 +135,8 @@ def load_card_pipeline_config() -> dict[str, Any]:
         "pool_size": pool_size,
         "llm_curation_pool": llm_pool,
         "final_selection_size": final,
-        "enable_llm_curation": bool(cfg.get("enable_llm_curation", True)),
+        "enable_llm_curation": als_schalter(cfg.get("enable_llm_curation"), True,
+                                           name="card_pipeline.enable_llm_curation"),
         "min_displayed_cards": _int("min_displayed_cards", 5, 0, final),
         "known_repo_hosts": hosts or list(_FALLBACK_HOSTS),
     }

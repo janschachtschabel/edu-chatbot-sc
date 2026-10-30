@@ -11,6 +11,7 @@ from typing import Any
 from boerdi.services.config_loader import _store
 from boerdi.services.config_loader._store import area
 from boerdi.services.config_loader.personas import _persona_slug, load_persona_definitions
+from boerdi.services.config_loader.schalter import als_schalter
 
 _MODIFIER_KEYS = ("tone", "length_bias", "formality", "card_text_mode", "override")
 _FORMALITY = ("duzen", "siezen", "wie_user")
@@ -44,7 +45,7 @@ def _coerce_tone_modifier(raw: dict[str, Any] | None) -> dict[str, Any]:
         "length_bias": bias,
         "formality": formality,
         "card_text_mode": card_mode,
-        "override": bool(raw.get("override", False)),
+        "override": als_schalter(raw.get("override"), False, name="tone.override"),
     }
 
 
