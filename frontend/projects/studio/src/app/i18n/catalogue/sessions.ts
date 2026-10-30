@@ -73,6 +73,51 @@ export const SESSIONS: CataloguePart = {
     'st.fact.state': 'Zustand',
     'st.fact.tools': 'Werkzeuge',
     'st.fact.signals': 'Signale',
+    /** Paket 18C/D: der Anfang der Trace-ID — derselbe wie in der Fehlerblase. */
+    'st.fact.errorNumber': 'Fehlernummer',
+
+    // ── Zugakte (Paket 18C/D) ───────────────────────────────────────
+    'st.za.tools.one': '{count} Werkzeugaufruf',
+    'st.za.tools.other': '{count} Werkzeugaufrufe',
+    'st.za.skipped.one': 'Dazu 1 weiterer Aufruf, nur gezählt (höchstens 50 je Zug).',
+    'st.za.skipped.other': 'Dazu {count} weitere Aufrufe, nur gezählt (höchstens 50 je Zug).',
+    'st.za.chars': '{count} Zeichen',
+    'st.za.noAnswer': 'keine Antwort',
+    'st.za.cached': 'aus dem Zwischenspeicher',
+    'st.za.args': 'Argumente',
+    'st.za.args.in': 'Eingegangen',
+    'st.za.args.sent': 'Gesendet (nach Auflösung)',
+    'st.za.error': 'Fehler',
+    'st.za.status.tool': 'Fehler des Werkzeugs',
+    'st.za.status.transport': 'Verbindungsfehler',
+    'st.za.status.timeout': 'Zeitüberschreitung',
+    'st.za.status.auth': 'Anmeldung abgewiesen',
+    'st.za.rewrites.one': '{count} Umschreibung',
+    'st.za.rewrites.other': '{count} Umschreibungen',
+    'st.za.rewrite.typ_fokus': 'Typ-Fokus',
+    'st.za.rewrite.waechter': 'Wächter',
+    'st.za.before': 'Vorher',
+    'st.za.after': 'Nachher',
+    'st.za.reason': 'Grund',
+    'st.za.shortcut': 'Schnellweg',
+    'st.za.shortcut.canvas': 'Material (Canvas)',
+    'st.za.shortcut.lernpfad': 'Lernpfad',
+
+    // ── Suche nach Fehlernummer (Paket 18C/D) ───────────────────────
+    'sv.search.label': 'Fehlernummer',
+    'sv.search.hint':
+      'Die Nummer aus einer Fehlerblase („Fehlernummer: …“). Ab 8 Zeichen genügt der Anfang.',
+    'sv.search.submit': 'Zug suchen',
+    'sv.search.searching': 'Sucht …',
+    'sv.search.invalid':
+      'Eine Fehlernummer besteht aus Buchstaben, Ziffern und den Zeichen . _ : - '
+      + '(höchstens 128).',
+    'sv.search.none':
+      'Keine Antwort mit der Fehlernummer {nummer} gefunden. Vielleicht ist der Verlauf schon '
+      + 'gelöscht (Aufbewahrung) oder die Nummer stammt aus einer anderen Anlage.',
+    'sv.search.opened': 'Gefunden: der Verlauf von {id} ist geöffnet.',
+    'sv.search.many': '{count} Treffer — bitte einen wählen.',
+    'sv.search.results': 'Treffer',
   },
 
   en: {
@@ -117,5 +162,47 @@ export const SESSIONS: CataloguePart = {
     'st.fact.state': 'State',
     'st.fact.tools': 'Tools',
     'st.fact.signals': 'Signals',
+    'st.fact.errorNumber': 'Error number',
+
+    'st.za.tools.one': '{count} tool call',
+    'st.za.tools.other': '{count} tool calls',
+    'st.za.skipped.one': 'Plus 1 more call, only counted (at most 50 per turn).',
+    'st.za.skipped.other': 'Plus {count} more calls, only counted (at most 50 per turn).',
+    'st.za.chars': '{count} characters',
+    'st.za.noAnswer': 'no answer',
+    'st.za.cached': 'from the cache',
+    'st.za.args': 'Arguments',
+    'st.za.args.in': 'As received',
+    'st.za.args.sent': 'As sent (after resolving)',
+    'st.za.error': 'Error',
+    'st.za.status.tool': 'tool error',
+    'st.za.status.transport': 'connection error',
+    'st.za.status.timeout': 'timeout',
+    'st.za.status.auth': 'sign-in rejected',
+    'st.za.rewrites.one': '{count} rewrite',
+    'st.za.rewrites.other': '{count} rewrites',
+    'st.za.rewrite.typ_fokus': 'Type focus',
+    'st.za.rewrite.waechter': 'Guard',
+    'st.za.before': 'Before',
+    'st.za.after': 'After',
+    'st.za.reason': 'Reason',
+    'st.za.shortcut': 'Shortcut',
+    'st.za.shortcut.canvas': 'Material (canvas)',
+    'st.za.shortcut.lernpfad': 'Learning path',
+
+    'sv.search.label': 'Error number',
+    'sv.search.hint':
+      'The number from an error bubble (“Error number: …”). From 8 characters on, the '
+      + 'beginning is enough.',
+    'sv.search.submit': 'Find turn',
+    'sv.search.searching': 'Searching …',
+    'sv.search.invalid':
+      'An error number consists of letters, digits and the characters . _ : - (at most 128).',
+    'sv.search.none':
+      'No answer with error number {nummer} found. The transcript may already be deleted '
+      + '(retention), or the number comes from another installation.',
+    'sv.search.opened': 'Found: the transcript of {id} is open.',
+    'sv.search.many': '{count} hits — please pick one.',
+    'sv.search.results': 'Hits',
   },
 };

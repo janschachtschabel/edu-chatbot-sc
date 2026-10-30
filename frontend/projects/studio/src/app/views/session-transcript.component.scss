@@ -68,3 +68,10 @@
     overflow-wrap: anywhere;
   }
 }
+
+// Paket 18C/D: die Nachricht, zu der eine Fehlernummer führte. Ein Rahmen in der
+// Akzentfarbe statt nur einer Tönung — er bleibt auch im Hochkontrast sichtbar.
+.st-turn--fokus {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 2px;
+}

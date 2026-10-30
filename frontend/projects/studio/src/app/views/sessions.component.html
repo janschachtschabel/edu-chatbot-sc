@@ -4,6 +4,9 @@
   <p class="sv-intro">{{ t('sv.intro') }}</p>
 </header>
 
+<!-- Paket 18C/D: Fehlernummer aus einer Blase → der Zug -->
+<studio-zug-suche (oeffnen)="open($event)" />
+
 <!-- ST-9: dieselbe Wahl wie in der Analyse, serverseitig gefiltert -->
 <studio-origin-scope [value]="scope()" name="sv-scope" (valueChange)="setScope($event)" />
 
@@ -27,7 +30,8 @@
   (retry)="reload()"
 />
 
-@if (rows().length > 0) {
+<!-- Auch ohne Zeilen, wenn die Suche eine Sitzung außerhalb der Liste geöffnet hat. -->
+@if (rows().length > 0 || selected()) {
   <div class="sv-split">
     <ul class="sv-list">
       @for (row of rows(); track row.session_id) {
@@ -104,7 +108,7 @@
     <section class="sv-detail" aria-labelledby="sv-detail-title">
       <h3 class="sv-detail-title" id="sv-detail-title">{{ t('sv.transcript') }}</h3>
       @if (selected(); as id) {
-        <studio-session-transcript [sessionId]="id" />
+        <studio-session-transcript [sessionId]="id" [fokus]="fokus()" />
       } @else {
         <p class="sv-hint">{{ t('sv.pick') }}</p>
       }

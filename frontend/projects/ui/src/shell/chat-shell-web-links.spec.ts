@@ -2,7 +2,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { ChatMessage, DebugInfo, WebLink } from '../grouping/message-types';
+import { ChatMessage, UiInfo, WebLink } from '../grouping/message-types';
 import { DE } from '../i18n/de';
 import { createTranslator } from '../i18n/dictionary';
 import { ChatShellComponent } from './chat-shell.component';
@@ -35,9 +35,9 @@ function store(c: ChatShellComponent) {
 }
 
 /** Bot-Antwort nur mit Web-Links — ohne Karten, wie die Orientierungs-Antwort. */
-function antwortMitLinks(c: ChatShellComponent, debug?: Partial<DebugInfo>): void {
+function antwortMitLinks(c: ChatShellComponent, ui?: UiInfo): void {
   store(c).addBotMessage('Mehr dazu auf der WLO-Startseite.', false, [], undefined,
-    debug as DebugInfo | undefined, undefined, undefined, LINKS);
+    ui, undefined, undefined, LINKS);
 }
 
 describe('ChatShellComponent — Webseiten-Inhalte in beiden Fenstergrößen', () => {

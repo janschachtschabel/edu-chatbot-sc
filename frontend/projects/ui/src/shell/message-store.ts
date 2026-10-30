@@ -16,7 +16,7 @@ import { signal } from '@angular/core';
 
 import { WloCard } from '../cards/card-types';
 import {
-  ChatMessage, DebugInfo, InlineDocument, PaginationInfo, QueryMetaEntry, TopicPageView, WebLink,
+  ChatMessage, InlineDocument, PaginationInfo, QueryMetaEntry, TopicPageView, UiInfo, WebLink,
 } from '../grouping/message-types';
 
 export class MessageStore {
@@ -56,7 +56,7 @@ export class MessageStore {
    *  — die 11-Positionen-Seam, exakt wie collection-actions sie ruft. */
   addBotMessage(
     content: string, isLoading = false,
-    cards?: WloCard[], quickReplies?: string[], debug?: DebugInfo,
+    cards?: WloCard[], quickReplies?: string[], ui?: UiInfo,
     pagination?: PaginationInfo | null,
     queryMetas?: QueryMetaEntry[],
     webLinks?: WebLink[],
@@ -67,7 +67,7 @@ export class MessageStore {
     const id = this.uid();
     const pageSize = pagination?.page_size || 5;
     const msg: ChatMessage = {
-      id, sender: 'bot', content, isLoading, cards, quickReplies, debug,
+      id, sender: 'bot', content, isLoading, cards, quickReplies, ui,
       pagination: pagination || undefined,
       visibleCardCount: pageSize,
       queryMetas: queryMetas || undefined,

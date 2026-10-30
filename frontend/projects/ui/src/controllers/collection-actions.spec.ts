@@ -78,7 +78,8 @@ function makeCtx(opts: CtxOpts = {}): { ctx: CollectionActionsContext; calls: Ca
 function makeResp(fields: Partial<ChatResponse> = {}): ChatResponse {
   return {
     session_id: 's', content: 'geladen', cards: [], follow_up: '', quick_replies: [],
-    debug: { pattern: 'M06' } as DebugInfo, page_action: null, pagination: null, ...fields,
+    debug: { pattern: 'M06', persona: 'P-LK' } as DebugInfo, ui: { pattern: 'M06' },
+    page_action: null, pagination: null, ...fields,
   } as ChatResponse;
 }
 
@@ -117,7 +118,7 @@ describe('browseCollection', () => {
       [{ title: 't', url: 'u' }], [{ kind: 'lernpfad', title: 'L', content: 'c' }], { fontSize: 90 },
     ]);
     expect(calls.scroll).toEqual([real.id]);
-    expect(calls.debug).toEqual([{ pattern: 'M06' }]);
+    expect(calls.debug).toEqual([{ pattern: 'M06', persona: 'P-LK' }]);
     expect(calls.page).toEqual([{ action: 'open', payload: 1 }]);
     expect(calls.loading).toEqual([true, false]);
   });

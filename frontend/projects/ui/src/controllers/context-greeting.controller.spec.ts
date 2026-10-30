@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ChatResponse, DebugInfo } from '../grouping/message-types';
+import { ChatResponse } from '../grouping/message-types';
 import { ContextGreetingContext, ContextGreetingController } from './context-greeting.controller';
 
 /**
@@ -10,7 +10,7 @@ import { ContextGreetingContext, ContextGreetingController } from './context-gre
  * Ping-Guard, resetForNewPage, Loading-Guard, Fehler-Schlucken.
  */
 interface Calls {
-  bot: Array<{ id: string; content: string; loading?: boolean }>;
+  bot: Array<{ id: string; content: string; loading?: boolean; rest: unknown[] }>;
   scroll: string[];
   debug: unknown[];
   loading: boolean[];
@@ -29,14 +29,14 @@ function makeCtx(over: Partial<ContextGreetingContext> = {}): { ctx: ContextGree
       loading = v;
       calls.loading.push(v);
     },
-    addBotMessage: (c, isLoading) => {
+    addBotMessage: (c, isLoading, ...rest) => {
       const id = 'b' + ++n;
-      calls.bot.push({ id, content: c, loading: isLoading });
+      calls.bot.push({ id, content: c, loading: isLoading, rest });
       return id;
     },
     removeMessage: () => {},
     setScrollTarget: (id) => calls.scroll.push(id),
-    setLatestDebug: (d) => calls.debug.push(d),
+    setLatestDebug: (d, ui) => calls.debug.push([d, ui]),
   };
   return { ctx, calls };
 }
@@ -44,7 +44,7 @@ function makeCtx(over: Partial<ContextGreetingContext> = {}): { ctx: ContextGree
 function makeResp(fields: Partial<ChatResponse> = {}): ChatResponse {
   return {
     session_id: 's', content: 'Willkommen zurück', cards: [], follow_up: '', quick_replies: [],
-    debug: { pattern: 'M17' } as DebugInfo, page_action: null, pagination: null, ...fields,
+    debug: null, ui: { pattern: 'CTX:collection' }, page_action: null, pagination: null, ...fields,
   } as ChatResponse;
 }
 
@@ -66,7 +66,9 @@ describe('ContextGreetingController', () => {
     expect(calls.bot.length).toBe(1);
     expect(calls.bot[0]).toMatchObject({ content: 'Hallo auf der Sammlung', loading: false });
     expect(calls.scroll.length).toBe(1);
-    expect(calls.debug.length).toBe(1);
+    // Paket 18C/D: `ui` an Position 5 — das CTX-Muster entscheidet beim Wiederherstellen über die Startnachricht.
+    expect(calls.bot[0].rest[2]).toEqual({ pattern: 'CTX:collection' });
+    expect(calls.debug).toEqual([[null, { pattern: 'CTX:collection' }]]);
     expect(calls.loading).toEqual([true, false]);
   });
 

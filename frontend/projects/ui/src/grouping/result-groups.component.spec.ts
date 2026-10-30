@@ -278,7 +278,7 @@ describe('ResultGroupsComponent', () => {
 
   it('Tour-Antwort unterdrückt die gesamte Gruppen-Anzeige', async () => {
     const host = await render(msg({
-      debug: { pattern: 'TOUR:step1' },
+      ui: { pattern: 'TOUR:step1' },
       cards: [card({ node_type: 'topic_page', node_id: 't1', title: 'TP', topic_pages: [{ url: 'https://tp.test/1', target_group: '', label: '', variant_id: '' }] })],
     }));
     expect(host.querySelector('.result-groups')).toBeNull();

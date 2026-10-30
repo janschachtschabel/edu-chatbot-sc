@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { DecimalPipe, JsonPipe, KeyValuePipe, SlicePipe } from '@angular/common';
 
-import { DebugInfo } from '../grouping/message-types';
+import { DebugInfo, UiInfo } from '../grouping/message-types';
+import type { TranslateFn } from '../i18n/i18n';
 
 /**
  * DebugPanel — das Diagnose-Panel unter dem Chat (Redaktions-/Entwickler-Sicht).
@@ -14,7 +15,9 @@ import { DebugInfo } from '../grouping/message-types';
  * Präsentational: liest NUR `debug` (ALT `latestDebug`) + `show` (ALT
  * `showDebug`); keine Logik, keine Emits. Selbst-Gate auf `show && debug` (ALTs
  * `*ngIf="showDebug && latestDebug"`) — der Elternteil (Chat-Shell 8-4)
- * entscheidet, ob es gerendert wird, und reicht die beiden Inputs herein.
+ * entscheidet, ob es gerendert wird, und reicht die Inputs herein. Seit Paket
+ * 18C/D kommt der Debug-Block nur mit Freigabe; ohne ihn zeigt das Panel `ui`
+ * und den Hinweis, dass die Diagnose im Studio steht.
  *
  * Kontrollfluss zu Angular-21 übersetzt (`*ngIf`→`@if`, `*ngFor`→`@for track
  * $index`, `else linearTrace`→`@else`); gerendertes DOM + Feld-für-Feld-Ausgabe
@@ -275,14 +278,34 @@ import { DebugInfo } from '../grouping/message-types';
           </div>
         }
       </div>
+    } @else if (show() && ui(); as u) {
+      <div class="debug-panel">
+        <p class="debug-row" role="note">{{ t('debug.onlyInStudio') }}</p>
+        <div class="debug-row"><span class="debug-label">{{ t('debug.ui.pattern') }}:</span> {{ u.pattern || '–' }}</div>
+        <div class="debug-row"><span class="debug-label">{{ t('debug.ui.intent') }}:</span> {{ u.intent || '–' }}</div>
+        <div class="debug-row"><span class="debug-label">{{ t('debug.ui.state') }}:</span> {{ u.state || '–' }}</div>
+        <div class="debug-row">
+          <span class="debug-label">{{ t('debug.ui.tools') }}:</span> {{ u.tools_called?.join(', ') || '–' }}
+        </div>
+      </div>
     }
   `,
 })
 export class DebugPanelComponent {
-  /** ALT `latestDebug` — der Debug-Block der jüngsten Bot-Antwort (oder null). */
+  /** ALT `latestDebug` — der Debug-Block der jüngsten Bot-Antwort (oder null).
+   *  Seit Paket 18C/D nur mit Freigabe (Studio); sonst `null`. */
   readonly debug = input<DebugInfo | null>(null);
+  /** `ui` der jüngsten Antwort — ohne Debug-Block zeigt das Panel diese
+   *  Zusammenfassung und den Hinweis, wo die Diagnose steht. */
+  readonly ui = input<UiInfo | null>(null);
+  /** Übersetzer der Shell (Paket 18C/D) — für den `ui`-Zweig; der volle Zweig
+   *  ist der unveränderte ALT-Port. PFLICHT wie an der Shell: eine vergessene
+   *  Bindung wäre sonst eine still einsprachige Anzeige. */
+  readonly translate = input.required<TranslateFn>();
   /** ALT `showDebug` — Redaktions-/Debug-Toggle. */
   readonly show = input(false);
+
+  protected readonly t = (key: string): string => this.translate()(key);
 
   /** Für die Parallel-Trace-Bars: ALT nutzt `Math.max(...)` inline in den
    *  Style-Bindings; Templates sehen keine Globals, daher als Feld exponiert. */

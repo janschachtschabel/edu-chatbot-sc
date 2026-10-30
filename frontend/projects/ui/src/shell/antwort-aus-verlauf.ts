@@ -15,7 +15,7 @@
  * Rein: der Lader und das Warten kommen herein (Tests ohne Uhr und Netz).
  */
 import type {
-  ChatResponse, InlineDocument, PreparedWriteOut, TopicPageView,
+  ChatResponse, InlineDocument, PreparedWriteOut, TopicPageView, UiInfo,
 } from '../grouping/message-types';
 import type { HistoryMessage } from '../stream/chat-api';
 
@@ -137,10 +137,10 @@ export async function antwortAusVerlauf(
 }
 
 /** Die gezeigten Boxen eines Zugs, wie `turn_persist` sie an der Antwort ablegt
- *  (`debug._dokumente`, je Box gedeckelt). Bei `zeige_dokument` steht im Text nur
+ *  (`ui.dokumente`, je Box gedeckelt). Bei `zeige_dokument` steht im Text nur
  *  der Begleitsatz — ohne sie fehlte das Ergebnis. */
-function dokumente(debug: Record<string, any> | undefined, hinweis?: string): InlineDocument[] | undefined {
-  const roh = debug?.['_dokumente'];
+function dokumente(ui: UiInfo | undefined, hinweis?: string): InlineDocument[] | undefined {
+  const roh: any = ui?.dokumente;
   if (!Array.isArray(roh)) return undefined;
   const boxen = roh
     .filter((d) => d && typeof d === 'object' && typeof d.content === 'string' && d.content.trim())
@@ -152,18 +152,18 @@ function dokumente(debug: Record<string, any> | undefined, hinweis?: string): In
   return boxen.length ? boxen : undefined;
 }
 
-function themenseite(debug: Record<string, any> | undefined): TopicPageView | null {
-  const v = debug?.['_topic_page_view'];
+function themenseite(ui: UiInfo | undefined): TopicPageView | null {
+  const v: any = ui?.topic_page_view;
   return v && typeof v === 'object' && Array.isArray(v.swimlanes) ? (v as TopicPageView) : null;
 }
 
-/** Die ausgelieferte Änderung des Zugs (`debug._prepared_write`, Paket 9): reißt
+/** Die ausgelieferte Änderung des Zugs (`ui.prepared_write`, Paket 9): reißt
  *  beim „ja“ der Strom ab, löst der Server den Vorgang trotzdem ein, und nur diese
  *  Nachfrage kann die Anfrage noch an die Seite geben. Die Wiederherstellung beim
  *  Laden liest den Eintrag nie — sonst liefe die Änderung erneut. Was die Seite
  *  absetzen darf, prüft die Erlaubnisliste beim Ausführen (E4). */
-function vorbereitet(debug: Record<string, any> | undefined): PreparedWriteOut | null {
-  const roh = debug?.['_prepared_write'];
+function vorbereitet(ui: UiInfo | undefined): PreparedWriteOut | null {
+  const roh = ui?.prepared_write;
   if (!roh || typeof roh !== 'object') return null;
   const { method, path, body, done_message } = roh as Record<string, unknown>;
   if (typeof method !== 'string' || typeof path !== 'string' || !path.startsWith('/')) return null;
@@ -189,7 +189,7 @@ export async function antwortAusVerlaufHolen(
 ): Promise<ChatResponse | null> {
   const eintrag = await antwortAusVerlauf(laden, frage, opts);
   if (!eintrag) return null;
-  const schreiben = vorbereitet(eintrag.debug);
+  const schreiben = vorbereitet(eintrag.ui);
   // Eine Änderung nur bei sicherer Zuordnung (Review Paket 9): ohne `nachId` zählt
   // allein der Text, und vor dem Speichern der neuen Frage träfe ein früheres „Ja, so
   // ausführen“ — seine Änderung liefe noch einmal. Dann lieber der ehrliche Hinweis.
@@ -200,13 +200,13 @@ export async function antwortAusVerlaufHolen(
     cards: eintrag.cards ?? [],
     follow_up: '',
     quick_replies: [],
-    debug: (eintrag.debug ?? {}) as ChatResponse['debug'],
+    ui: eintrag.ui ?? {},
     page_action: null,
     pagination: null,
     web_links: eintrag.webLinks,
     query_metas: eintrag.queryMetas,
-    inline_documents: dokumente(eintrag.debug, opts.gekuerztHinweis),
-    topic_page: themenseite(eintrag.debug),
+    inline_documents: dokumente(eintrag.ui, opts.gekuerztHinweis),
+    topic_page: themenseite(eintrag.ui),
     prepared_write: schreiben,
   };
 }

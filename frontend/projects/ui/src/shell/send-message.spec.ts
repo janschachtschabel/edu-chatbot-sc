@@ -26,7 +26,7 @@ const ERROR_TEXT = 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuch
 function makeResp(over: Partial<ChatResponse> = {}): ChatResponse {
   return {
     session_id: 's', content: 'Antwort', cards: [], follow_up: '', quick_replies: [],
-    debug: { pattern: 'M06' } as ChatResponse['debug'], page_action: null, pagination: null, ...over,
+    debug: null, ui: { pattern: 'M06' }, page_action: null, pagination: null, ...over,
   } as ChatResponse;
 }
 
@@ -151,6 +151,8 @@ describe('runSendMessage — Lifecycle', () => {
     // 11-Positionen-Seam: cards/quick_replies an rest[0]/rest[1].
     expect(r.bots[1].rest[0]).toEqual([{ id: 'k' }]);
     expect(r.bots[1].rest[1]).toEqual(['q']);
+    // Paket 18C/D: `ui` statt `debug` an rest[2].
+    expect(r.bots[1].rest[2]).toEqual({ pattern: 'M06' });
     // Loading-Bubble wird entfernt, Scroll wandert Loading→Ergebnis.
     expect(r.removed).toEqual([r.bots[0].id]);
     expect(r.scroll).toEqual([r.bots[0].id, r.bots[1].id]);
@@ -496,6 +498,18 @@ describe('runSendMessage — Nachfrage im Verlauf (Review Paket 7)', () => {
     expect(r.postCalls).toEqual([]);
     expect(r.bots.at(-1)?.content).toBe(ERROR_TEXT);
     expect(r.loading.at(-1)).toBe(false);
+    warn.mockRestore();
+  });
+
+  it('Paket 18C/D: die Fehlerblase nennt die Fehlernummer aus dem Strom', async () => {
+    // Dieselbe Nummer steht in der gespeicherten Blase; im Studio führt sie zum Zug.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const serverfehler = Object.assign(new Error('internal error'),
+      { name: 'StreamServerError', code: 'internal', nummer: '4711abcdef01' });
+    const r = makeCtx({ input: '', stream: () => Promise.reject(serverfehler) });
+    await runSendMessage('Frage', undefined, undefined, r.ctx);
+    expect(r.bots.at(-1)?.content).toBe(
+      'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut. (Fehlernummer: 4711abcdef01)');
     warn.mockRestore();
   });
 

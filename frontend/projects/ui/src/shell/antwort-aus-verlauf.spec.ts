@@ -225,17 +225,17 @@ describe('antwortAusVerlaufHolen', () => {
 
   it('bringt die Ergebnis-Boxen und die Themenseite mit (Review C-2)', async () => {
     // Bei `zeige_dokument` steht im Text nur der Begleitsatz — die Box selbst
-    // liegt am Verlaufseintrag unter `debug._dokumente`.
+    // liegt am Verlaufseintrag unter `ui.dokumente` (Paket 18C/D).
     const themenseite = { variant_title: 'Optik', topic_page_url: 'https://wlo.de/t', swimlanes: [{ title: 'A' }] };
     const eintrag: HistoryMessage = {
       id: 2, role: 'assistant', content: 'Hier ist dein Arbeitsblatt.',
-      debug: {
-        _dokumente: [
+      ui: {
+        dokumente: [
           { kind: 'ki_material', title: 'Arbeitsblatt', content: '# Linsen', gekuerzt: false },
           { kind: 'lernpfad', title: 'Pfad', content: '# Lang', gekuerzt: true },
           { kind: 'x', title: 'leer', content: '   ' },
         ],
-        _topic_page_view: themenseite,
+        topic_page_view: themenseite,
       },
     };
     const resp = await antwortAusVerlaufHolen(
@@ -256,7 +256,7 @@ describe('antwortAusVerlaufHolen', () => {
     const anfrage = { method: 'PUT', path: '/edu-sharing/rest/x/n1', body: null, done_message: 'Erledigt.' };
     const eintrag: HistoryMessage = {
       id: 2, role: 'assistant', content: 'Wird in der Seite ausgeführt.',
-      debug: { _prepared_write: anfrage },
+      ui: { prepared_write: anfrage },
     };
     const resp = await antwortAusVerlaufHolen(
       () => Promise.resolve([u('ja', 1), eintrag]), 'ja', 'bb-1',
@@ -272,7 +272,7 @@ describe('antwortAusVerlaufHolen', () => {
     // als eine fremde Antwort, die „wird ausgeführt“ sagt.
     const alt: HistoryMessage = {
       id: 2, role: 'assistant', content: 'Wird in der Seite ausgeführt.',
-      debug: { _prepared_write: { method: 'PUT', path: '/edu-sharing/rest/x/n1', body: null, done_message: '' } },
+      ui: { prepared_write: { method: 'PUT', path: '/edu-sharing/rest/x/n1', body: null, done_message: '' } },
     };
     const resp = await antwortAusVerlaufHolen(
       () => Promise.resolve([u('Ja, so ausführen', 1), alt]), 'Ja, so ausführen', 'bb-1',
@@ -283,7 +283,7 @@ describe('antwortAusVerlaufHolen', () => {
 
   it('eine verbogene Anfrage am Verlaufseintrag wird nicht ausgeliefert', async () => {
     for (const roh of [{ method: 'PUT' }, { method: 1, path: '/x' }, 'PUT /x', { method: 'PUT', path: 'x' }]) {
-      const eintrag: HistoryMessage = { id: 2, role: 'assistant', content: 'x', debug: { _prepared_write: roh } };
+      const eintrag: HistoryMessage = { id: 2, role: 'assistant', content: 'x', ui: { prepared_write: roh } };
       const resp = await antwortAusVerlaufHolen(
         () => Promise.resolve([u('ja', 1), eintrag]), 'ja', 'bb-1', { nachId: 0, warten: () => Promise.resolve() },
       );

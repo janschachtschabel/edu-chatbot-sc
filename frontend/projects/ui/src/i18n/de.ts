@@ -218,6 +218,15 @@ export const DE: Catalogue = {
   'error.tourStart': 'Entschuldigung, die Tour konnte gerade nicht gestartet werden. Bitte versuch es nochmal.',
   'error.transcription': 'Spracheingabe konnte nicht verarbeitet werden. Bitte tippe deine Nachricht.',
   'error.generic': 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut.',
+  /** Paket 18C/D: der Strom meldete eine Fehlernummer — im Studio führt sie zum Zug.
+   *  Satzende wie in der gespeicherten Blase des Backends (`error.internal`). */
+  'error.genericNumber': 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut. (Fehlernummer: {nummer})',
+  /** Paket 18C/D: ohne Freigabe kein Debug-Block — das Debug-Panel sagt, wo er steht. */
+  'debug.onlyInStudio': 'Die volle Diagnose dieser Antwort (Persona, Signale, Spur, Kosten) steht im Studio unter „Gespräche“.',
+  'debug.ui.pattern': 'Muster',
+  'debug.ui.intent': 'Absicht',
+  'debug.ui.state': 'Zustand',
+  'debug.ui.tools': 'Werkzeuge',
   /** Paket 7 (P1): noch läuft ein Zug derselben Sitzung (auch auf einer
    *  anderen Server-Kopie). Die Frage wurde NICHT beantwortet. */
   'error.busy': 'Einen Moment — ich beantworte noch deine vorige Nachricht. '

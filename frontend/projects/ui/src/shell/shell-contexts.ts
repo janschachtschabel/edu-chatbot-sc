@@ -16,7 +16,7 @@
  */
 import { WloCard } from '../cards/card-types';
 import {
-  ChatMessage, DebugInfo, InlineDocument, PaginationInfo,
+  ChatMessage, DebugInfo, InlineDocument, PaginationInfo, UiInfo,
   QueryMetaEntry, TopicPageView, WebLink,
 } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
@@ -49,14 +49,15 @@ export interface ShellHost {
   addUserMessage: (content: string) => void;
   addBotMessage: (
     content: string, isLoading?: boolean, cards?: WloCard[],
-    quickReplies?: string[], debug?: DebugInfo,
+    quickReplies?: string[], ui?: UiInfo,
     pagination?: PaginationInfo | null, queryMetas?: QueryMetaEntry[],
     webLinks?: WebLink[], inlineDocuments?: InlineDocument[],
     displayRules?: Record<string, any>, topicPage?: TopicPageView | null,
   ) => string;
   removeMessage: (id: string) => void;
   setScrollTarget: (id: string) => void;
-  setLatestDebug: (debug: DebugInfo) => void;
+  /** Debug-Panel: Debug-Block (nur mit Freigabe, sonst `null`) und `ui` der Antwort. */
+  setLatestDebug: (debug: DebugInfo | null | undefined, ui?: UiInfo) => void;
   dispatchPageAction: (pa: { action: string; payload: any } | null | undefined) => void;
   messagesContainer: () => HTMLElement | undefined;
   /** `@Input() emitGuideSuggestion` — LIVE (kann nach Konstruktion gesetzt werden). */
@@ -103,7 +104,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
     addBotMessage: (...args) => host.addBotMessage(...args),
     removeMessage: (id) => host.removeMessage(id),
     setScrollTarget: (id) => host.setScrollTarget(id),
-    setLatestDebug: (debug) => host.setLatestDebug(debug),
+    setLatestDebug: (debug, ui) => host.setLatestDebug(debug, ui),
     t: (key, params) => host.t(key, params),
   };
 
@@ -116,7 +117,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
     addBotMessage: (...args) => host.addBotMessage(...args),
     removeMessage: (id) => host.removeMessage(id),
     setScrollTarget: (id) => host.setScrollTarget(id),
-    setLatestDebug: (debug) => host.setLatestDebug(debug),
+    setLatestDebug: (debug, ui) => host.setLatestDebug(debug, ui),
   };
 
   const collectionActions: CollectionActionsContext = {
@@ -129,7 +130,7 @@ export function buildControllerContexts(host: ShellHost): ControllerContexts {
     addBotMessage: (...args) => host.addBotMessage(...args),
     removeMessage: (id) => host.removeMessage(id),
     setScrollTarget: (id) => host.setScrollTarget(id),
-    setLatestDebug: (debug) => host.setLatestDebug(debug),
+    setLatestDebug: (debug, ui) => host.setLatestDebug(debug, ui),
     dispatchPageAction: (pa) => host.dispatchPageAction(pa),
     messagesContainer: () => host.messagesContainer(),
     t: (key, params) => host.t(key, params),

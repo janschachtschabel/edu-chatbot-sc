@@ -13,7 +13,7 @@
  * sind verbatim aus ALT. Kein Modul-Global-State — `baseUrl`/`guideMode`/
  * `guideHost`/`startTime` sind Instanzfelder; `fetchImpl` ist injizierbar.
  */
-import { ChatResponse, QueryMetaEntry } from '../grouping/message-types';
+import { ChatResponse, QueryMetaEntry, UiInfo } from '../grouping/message-types';
 import { verlaufAbrufen } from './history-transport';
 import { ChatStreamEvent, postChat, streamChat } from './stream-client';
 
@@ -115,15 +115,16 @@ export interface ChatApiClientOptions {
   fetchImpl?: typeof fetch;
 }
 
-/** Persistierte History-Message (GET /sessions/:id/messages). Das Backend legt
- *  `web_links`/`query_metas` in `debug_json` ab; {@link ChatApiClient.loadHistory}
+/** Persistierte History-Message (GET /sessions/:id/messages). Das Backend gibt
+ *  `web_links`/`query_metas` in `ui` mit; {@link ChatApiClient.loadHistory}
  *  hebt sie auf die Top-Level, damit die Shell sie ohne zweites Mapping direkt an
- *  `addBotMessage` reichen kann. Verbatim-Shape aus ALT api.service.ts:556-573. */
+ *  `addBotMessage` reichen kann. Shape nach ALT api.service.ts:556-573. */
 export interface HistoryMessage {
   role: string;
   content: string;
   cards?: any[];
-  debug?: Record<string, any>;
+  /** Der öffentliche Teil des Zugs (Paket 18C/D); nur gesetzte Felder. */
+  ui?: UiInfo;
   webLinks?: Array<{ title: string; url: string }>;
   queryMetas?: QueryMetaEntry[];
   [key: string]: any;

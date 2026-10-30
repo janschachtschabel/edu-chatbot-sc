@@ -39,6 +39,9 @@ export interface SessionMessageDebug extends TraceDebug {
   readonly state?: string;
   readonly signals?: readonly string[];
   readonly tools_called?: readonly string[];
+  /** The turn record (Paket 18C/D): tool calls with arguments, rewrites,
+   *  shortcuts. Stored JSON — `views/zugakte.ts` checks every field. */
+  readonly _zugakte?: unknown;
 }
 
 export interface SessionMessage {
@@ -46,7 +49,18 @@ export interface SessionMessage {
   readonly role: string;
   readonly content: string;
   readonly debug?: SessionMessageDebug;
+  /** Only for the studio (Paket 18C/D) — its start is the error number. */
+  readonly trace_id?: string;
   readonly created_at?: string;
+}
+
+/** One hit of `GET /sessions/zug/{nummer}` (Paket 18C/D): one per turn, its
+ *  last message, newest first, at most 20. */
+export interface ZugTreffer {
+  readonly session_id: string;
+  readonly message_id: number;
+  readonly trace_id: string;
+  readonly created_at: string;
 }
 
 /** What a purge across ALL sessions takes (ST-6) — one flag per table, named
@@ -119,6 +133,12 @@ export class SessionsApi {
       `/sessions/${encodeURIComponent(sessionId)}/messages`,
       { limit: TRANSCRIPT_LIMIT },
     );
+  }
+
+  /** The turns behind an error number (Paket 18C/D). Below 8 characters the
+   *  server matches exactly, from 8 on by prefix. */
+  findTurn(nummer: string): Promise<ZugTreffer[]> {
+    return this.api.get<ZugTreffer[]>(`/sessions/zug/${encodeURIComponent(nummer)}`);
   }
 
   deleteSession(sessionId: string): Promise<unknown> {

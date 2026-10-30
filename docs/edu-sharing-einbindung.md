@@ -461,7 +461,7 @@ window.addEventListener('boerdi:guide-suggestion', (e) => {
 | `boerdi:page-action` | der Bot schlägt eine Seiten-Aktion vor | `{action, payload}` — heute gefeuert: `navigate`, `show_results`, `canvas_show_cards` |
 | `boerdi:query-meta` | nach jedem Zug mit Suche — **immer an**, kein Opt-in | `{queries: [{tool_name, query_type, search_term, criteria[], pagination, repository_url, search_url}]}` |
 | `boerdi:guide-suggestion` | jeder Zug mit verlinkbarem Treffer — **`emit-guide-suggestion="true"` nötig** | `{url, title, node_id, node_type, query, alternatives[]}` |
-| `boerdi:routing-debug` | jeder Bot-Zug — **`emit-routing-debug="true"` nötig** | `{message, pattern, intent, state, persona, tools_called[], rag_areas[], sources[], modifier{…}, signals[]}` |
+| `boerdi:routing-debug` | jeder Bot-Zug — **`emit-routing-debug="true"` nötig** | `{message, pattern, intent, state, persona, tools_called[], rag_areas[], sources[], modifier{…}, signals[]}` — `persona` und `signals` seit Paket 18C/D nur mit Freigabe (Studio), sonst leer |
 
 **Doppelversand beachten.** Solange der ALTE Chatbot parallel läuft, feuert jedes
 Ereignis **zweimal** — neu zuerst (`boerdi:…`, das ist der Vertrag), dann noch

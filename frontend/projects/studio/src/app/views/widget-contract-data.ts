@@ -168,6 +168,8 @@ export interface HostEvent {
   readonly name: string;
   readonly whenKey: string;
   readonly payload: string;
+  /** Übersetzter Zusatz unter der Nutzlast (die Nutzlast selbst ist Code). */
+  readonly noteKey?: string;
 }
 
 /**
@@ -198,7 +200,9 @@ export const HOST_EVENTS: readonly HostEvent[] = [
   },
   {
     name: 'boerdi:routing-debug', whenKey: 'rw.when.routingDebug',
-    payload: '{pattern, intent, state, persona, tools_called[], sources[], modifier{}}',
+    payload: '{pattern, intent, state, tools_called[], rag_areas[], sources[], modifier{}, persona, '
+      + 'signals[]}',
+    noteKey: 'rw.note.routingDebug',
   },
   {
     name: 'boerdi:agent-result', whenKey: 'rw.when.agentResult',

@@ -1,0 +1,43 @@
+<form class="zs" role="search" novalidate (submit)="$event.preventDefault(); suchen()">
+  <label class="zs-label" for="zs-nummer">{{ t('sv.search.label') }}</label>
+  <p class="zs-hint" id="zs-hint">{{ t('sv.search.hint') }}</p>
+  <div class="zs-row">
+    <input
+      id="zs-nummer"
+      class="zs-input"
+      type="text"
+      autocomplete="off"
+      autocapitalize="off"
+      spellcheck="false"
+      maxlength="128"
+      [value]="eingabe()"
+      [attr.aria-invalid]="feldFehler() ? 'true' : null"
+      [attr.aria-describedby]="feldFehler() ? 'zs-hint zs-error' : 'zs-hint'"
+      (input)="onInput($event)"
+    />
+    <button type="submit" class="zs-btn" [disabled]="sucht()">
+      {{ sucht() ? t('sv.search.searching') : t('sv.search.submit') }}
+    </button>
+  </div>
+  @if (feldFehler()) {
+    <p class="zs-error" id="zs-error" role="alert">{{ feldFehler() }}</p>
+  }
+</form>
+
+<p class="zs-status" aria-live="polite">{{ status() }}</p>
+@if (fehler()) {
+  <p class="zs-error" role="alert">{{ fehler() }}</p>
+}
+
+@if (treffer().length > 0) {
+  <ul class="zs-hits" [attr.aria-label]="t('sv.search.results')">
+    @for (hit of treffer(); track hit.message_id) {
+      <li>
+        <button type="button" class="zs-hit" (click)="waehlen(hit)">
+          <span class="zs-hit-id">{{ hit.session_id }}</span>
+          <span class="zs-hit-time">{{ zeit(hit.created_at) }}</span>
+        </button>
+      </li>
+    }
+  </ul>
+}

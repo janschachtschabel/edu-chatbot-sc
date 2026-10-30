@@ -20,6 +20,7 @@ import {
   PaginationInfo,
   QueryMetaEntry,
   TopicPageView,
+  UiInfo,
   WebLink,
 } from '../grouping/message-types';
 import { sitzungsWache } from '../session/session-id';
@@ -38,14 +39,15 @@ export interface ContextGreetingContext {
   setLoading: (v: boolean) => void;
   addBotMessage: (
     content: string, isLoading?: boolean, cards?: WloCard[],
-    quickReplies?: string[], debug?: DebugInfo,
+    quickReplies?: string[], ui?: UiInfo,
     pagination?: PaginationInfo | null, queryMetas?: QueryMetaEntry[],
     webLinks?: WebLink[], inlineDocuments?: InlineDocument[],
     displayRules?: Record<string, any>, topicPage?: TopicPageView | null,
   ) => string;
   removeMessage: (id: string) => void;
   setScrollTarget: (id: string) => void;
-  setLatestDebug: (debug: DebugInfo) => void;
+  /** Debug-Panel: Debug-Block (nur mit Freigabe, sonst `null`) und `ui` der Antwort. */
+  setLatestDebug: (debug: DebugInfo | null | undefined, ui?: UiInfo) => void;
 }
 
 export class ContextGreetingController {
@@ -94,12 +96,12 @@ export class ContextGreetingController {
         || !!(resp.quick_replies && resp.quick_replies.length);
       if (hasContent) {
         const id = this.ctx.addBotMessage(
-          resp.content, false, resp.cards, resp.quick_replies, resp.debug,
+          resp.content, false, resp.cards, resp.quick_replies, resp.ui,
           resp.pagination, resp.query_metas, resp.web_links,
           resp.inline_documents, resp.display_rules, resp.topic_page,
         );
         this.ctx.setScrollTarget(id);
-        this.ctx.setLatestDebug(resp.debug);
+        this.ctx.setLatestDebug(resp.debug, resp.ui);
         rendered = true;
       }
     } catch {

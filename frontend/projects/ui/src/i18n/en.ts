@@ -156,6 +156,12 @@ export const EN: Catalogue = {
   'error.tourStart': 'Sorry, the tour could not be started just now. Please try again.',
   'error.transcription': 'Voice input could not be processed. Please type your message.',
   'error.generic': 'Sorry, something went wrong. Please try again.',
+  'error.genericNumber': 'Sorry, something went wrong. Please try again. (Error number: {nummer})',
+  'debug.onlyInStudio': 'The full diagnostics of this answer (persona, signals, trace, cost) are in the Studio under “Conversations”.',
+  'debug.ui.pattern': 'Pattern',
+  'debug.ui.intent': 'Intent',
+  'debug.ui.state': 'State',
+  'debug.ui.tools': 'Tools',
   'error.busy': 'One moment — I am still answering your previous message. '
     + 'Please send this one again shortly.',
   'error.stale': 'This is taking unusually long — please ask your question again in '

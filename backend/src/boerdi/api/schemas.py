@@ -337,9 +337,10 @@ class ChatResponse(BaseModel):
     cards: list[WloCard] = Field(default_factory=list)
     follow_up: str = "none"
     quick_replies: list[str] = Field(default_factory=list)
-    debug: DebugInfo = Field(default_factory=DebugInfo)
-    # Paket 18C/D: der öffentliche Teil des Debug-Blocks (``api/schemas_ui``), gesetzt an der
-    # API-Grenze (``api/publikum``). Ab Phase 4 liest das Widget nur noch hier.
+    # Paket 18C/D: Diagnose — innen immer gesetzt, an der API-Grenze (``api/publikum``) ohne
+    # Freigabe ``None``.
+    debug: DebugInfo | None = Field(default_factory=DebugInfo)
+    # Der öffentliche Teil, gesetzt an der API-Grenze; das Widget liest nur hier.
     ui: UiInfo = Field(default_factory=UiInfo)
     page_action: dict[str, Any] | None = None
     # Maschinenlesbares Ergebnis des Zuges — nur wenn der Gastgeber ein

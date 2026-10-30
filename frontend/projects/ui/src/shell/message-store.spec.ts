@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { WloCard } from '../cards/card-types';
-import { DebugInfo, InlineDocument, PaginationInfo, TopicPageView } from '../grouping/message-types';
+import { InlineDocument, PaginationInfo, TopicPageView } from '../grouping/message-types';
 import { MessageStore } from './message-store';
 
 /**
@@ -70,14 +70,14 @@ describe('MessageStore — State-Core', () => {
       variant_title: 'V', topic_page_url: 'https://t', swimlanes: [{ heading: 'H', cards: [] }],
     };
     const id = s.addBotMessage(
-      'X', false, cards, ['q'], { pattern: 'M06' } as DebugInfo, pagination,
+      'X', false, cards, ['q'], { pattern: 'M06' }, pagination,
       undefined, [{ title: 'w', url: 'u' }], inlineDocs, { fontSize: 90 }, topic,
     );
     const m = s.messages()[0];
     expect(m.id).toBe(id);
     expect(m.cards).toBe(cards);
     expect(m.quickReplies).toEqual(['q']);
-    expect(m.debug).toEqual({ pattern: 'M06' });
+    expect(m.ui).toEqual({ pattern: 'M06' });
     expect(m.pagination).toBe(pagination);
     expect(m.visibleCardCount).toBe(10); // = pagination.page_size
     expect(m.queryMetas).toBeUndefined();

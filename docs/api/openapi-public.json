@@ -223,7 +223,14 @@
             "type": "string"
           },
           "debug": {
-            "$ref": "#/components/schemas/DebugInfo"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DebugInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "display_rules": {
             "additionalProperties": true,

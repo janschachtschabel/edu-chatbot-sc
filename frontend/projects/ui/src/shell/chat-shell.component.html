@@ -211,7 +211,9 @@
     }
   </div>
 
-  <boerdi-debug-panel [debug]="latestDebug()" [show]="showDebug()" />
+  <boerdi-debug-panel
+    [debug]="latestDebug()" [ui]="latestUi()" [translate]="translate()" [show]="showDebug()"
+  />
 
   <!-- Eingabe-Footer (ALT 609-632) -->
   <div class="chat-footer">

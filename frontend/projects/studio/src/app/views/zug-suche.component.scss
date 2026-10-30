@@ -1,0 +1,100 @@
+// Suche nach Fehlernummer über der Sitzungsliste (Paket 18C/D). Maße und
+// Knöpfe wie die Gesprächsseite (`sessions.component.scss`).
+:host {
+  display: block;
+  margin-block-end: var(--st-4);
+}
+
+.zs {
+  margin: 0;
+}
+
+.zs-label {
+  display: block;
+  font-weight: 600;
+}
+
+.zs-hint {
+  margin: var(--st-1) 0 var(--st-2);
+  font-size: 0.8125rem;
+  color: var(--st-text-muted);
+}
+
+.zs-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+}
+
+.zs-input {
+  flex: 1 1 14rem;
+  min-inline-size: 0;
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-3);
+  // Feldrahmen in `--st-text-muted` (7,0:1) — die Linien-Farben blieben unter 3:1 (SC 1.4.11).
+  border: 1px solid var(--st-text-muted);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+  color: var(--st-text);
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  &[aria-invalid='true'] {
+    border-color: var(--st-danger-text);
+  }
+}
+
+.zs-btn,
+.zs-hit {
+  min-block-size: 2.5rem;
+  padding: var(--st-2) var(--st-3);
+  border: 1px solid var(--st-rule-strong);
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  color: var(--st-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+}
+
+.zs-status {
+  margin: var(--st-2) 0 0;
+  min-block-size: 1.25rem; // reserviert — eine Statuszeile verschiebt die Seite nicht
+  font-size: 0.875rem;
+  color: var(--st-text-muted);
+}
+
+.zs-error {
+  margin: var(--st-2) 0 0;
+  color: var(--st-danger-text);
+}
+
+.zs-hits {
+  display: grid;
+  gap: var(--st-1);
+  margin: var(--st-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zs-hit {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--st-2);
+  inline-size: 100%;
+  text-align: start;
+}
+
+.zs-hit-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.zs-hit-time {
+  color: var(--st-text-muted);
+}

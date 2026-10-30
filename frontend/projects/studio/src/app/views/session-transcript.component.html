@@ -10,7 +10,13 @@
 @if (rows().length > 0) {
   <ol class="st-list">
     @for (message of rows(); track message.id ?? $index) {
-      <li class="st-turn" [class.st-turn--bot]="message.role === 'assistant'">
+      <li
+        class="st-turn"
+        [id]="'st-msg-' + message.id"
+        [class.st-turn--bot]="message.role === 'assistant'"
+        [class.st-turn--fokus]="message.id !== undefined && message.id === fokus()?.messageId"
+        [attr.tabindex]="message.id !== undefined && message.id === fokus()?.messageId ? -1 : null"
+      >
         <p class="st-who">
           <span class="st-role">{{ roleLabel(message.role) }}</span>
           @if (formatTime(message.created_at); as time) {
@@ -33,6 +39,7 @@
         }
         @if (message.role === 'assistant') {
           <studio-agent-trace [debug]="message.debug" />
+          <studio-zugakte [akte]="message.debug?._zugakte" />
         }
       </li>
     }

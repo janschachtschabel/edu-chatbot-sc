@@ -5,21 +5,26 @@
  * The debug block is the reason this view exists at all: pattern, intent, state
  * and the tools that ran are how an editor tells "the bot chose the wrong
  * pattern" from "the pattern is worded badly". Since ST-8a each answer also
- * shows its engine, tokens and — in agent mode — the rounds of the loop.
+ * shows its engine, tokens and — in agent mode — the rounds of the loop; since
+ * Paket 18C/D its error number and its turn record (tool calls with arguments,
+ * rewrites), and a search hit (`fokus`) jumps to its message.
  */
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, untracked }
   from '@angular/core';
 
 import { AsyncData } from '../core/async-data';
+import { injectFocus } from '../core/inject-focus';
 import { SessionsApi, type SessionMessage } from '../core/sessions-api.service';
 import { AgentTraceComponent } from './agent-trace.component';
 import { AsyncStateComponent } from './async-state.component';
+import { ZugakteComponent } from './zugakte.component';
+import { fehlernummer } from './zugakte';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { StudioFormat } from '../i18n/studio-format.service';
 
 @Component({
   selector: 'studio-session-transcript',
-  imports: [AgentTraceComponent, AsyncStateComponent],
+  imports: [AgentTraceComponent, AsyncStateComponent, ZugakteComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './session-transcript.component.html',
   styleUrl: './session-transcript.component.scss',
@@ -35,16 +40,30 @@ export class SessionTranscriptComponent {
   private readonly api = inject(SessionsApi);
 
   readonly sessionId = input.required<string>();
+  /** The message an error-number search led to (Paket 18C/D): highlighted and
+   *  focused once it is loaded — focus moves the view there, too. One object per
+   *  search; a reload of the same transcript does not jump again. */
+  readonly fokus = input<{ readonly messageId: number } | null>(null);
 
   readonly messages = new AsyncData<SessionMessage[]>(() => this.api.messages(this.sessionId()), this.t);
   /** Derived, not mirrored into a second signal — an effect that only copies a
    *  value is a computed with extra steps and one more thing to keep in sync. */
   readonly rows = computed<readonly SessionMessage[]>(() => this.messages.value() ?? []);
 
+  private readonly focus = injectFocus();
+  private fokussiert: object | null = null;
+
   constructor() {
     effect(() => {
       this.sessionId();
       untracked(() => void this.load());
+    });
+    effect(() => {
+      const ziel = this.fokus();
+      if (ziel && ziel !== this.fokussiert && this.rows().some((m) => m.id === ziel.messageId)) {
+        this.fokussiert = ziel;
+        untracked(() => this.focus(`#st-msg-${ziel.messageId}`));
+      }
     });
   }
 
@@ -67,6 +86,8 @@ export class SessionTranscriptComponent {
     if (debug.signals?.length) {
       out.push({ label: this.t('st.fact.signals'), value: debug.signals.join(', ') });
     }
+    const nummer = message.role === 'assistant' ? fehlernummer(message.trace_id) : '';
+    if (nummer) out.push({ label: this.t('st.fact.errorNumber'), value: nummer });
     return out;
   }
 

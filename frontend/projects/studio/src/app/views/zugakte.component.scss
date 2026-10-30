@@ -1,0 +1,121 @@
+// Gleiche Maße wie die Spur darüber (agent-trace.component.scss): beide sind
+// Diagnose unter einer Antwort und sollen sich als ein Block lesen.
+.za {
+  margin-block-start: var(--st-2);
+  font-size: 0.8125rem;
+}
+
+.za-block {
+  margin-block-start: var(--st-2);
+
+  > summary {
+    min-block-size: 1.5rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  > summary:focus-visible {
+    border-radius: var(--st-radius);
+  }
+
+  &[open] > summary {
+    margin-block-end: var(--st-2);
+  }
+}
+
+.za-list {
+  display: grid;
+  gap: var(--st-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.za-item {
+  padding: var(--st-2);
+  border: 1px solid var(--st-rule);
+  border-radius: var(--st-radius);
+  background: var(--st-panel);
+}
+
+.za-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-1) var(--st-3);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.za-name,
+.za-pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.za-fail {
+  // Der Status steht als Wort da — die Farbe verstärkt nur (WCAG 1.4.1).
+  color: var(--st-danger-text);
+  font-weight: 600;
+}
+
+.za-error {
+  margin: var(--st-1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.za-label {
+  color: var(--st-text-muted);
+}
+
+p.za-label {
+  margin: var(--st-2) 0 var(--st-1);
+}
+
+.za-args {
+  margin-block-start: var(--st-1);
+
+  > summary {
+    min-block-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  > summary:focus-visible {
+    border-radius: var(--st-radius);
+  }
+}
+
+.za-pre {
+  margin: 0;
+  padding: var(--st-2);
+  overflow-x: auto;
+  border-radius: var(--st-radius);
+  background: var(--st-surface-variant);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.za-note {
+  margin: var(--st-2) 0 0;
+  color: var(--st-text-muted);
+}
+
+.za-diff {
+  display: grid;
+  gap: var(--st-1);
+  margin: var(--st-2) 0 0;
+
+  > div {
+    display: grid;
+    grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr);
+    gap: var(--st-2);
+  }
+
+  dt {
+    color: var(--st-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}

@@ -19,7 +19,7 @@
  * Verlauf, POST-Rückfall, Hinweis — stehen in eigenen Funktionen; bis dahin lagen
  * sie verschachtelt in `runSendMessage`.
  */
-import { ChatResponse } from '../grouping/message-types';
+import { ChatResponse, UiInfo } from '../grouping/message-types';
 import type { TranslateFn } from '../i18n/i18n';
 import { sitzungsWache } from '../session/session-id';
 import { ChatStreamEvent } from '../stream/stream-client';
@@ -50,7 +50,7 @@ export interface SendMessageContext {
   /** Der 11-Positionen-Seam des State-Core (8-4S-b). */
   addBotMessage: (
     content: string, isLoading?: boolean, cards?: ChatResponse['cards'],
-    quickReplies?: string[], debug?: ChatResponse['debug'],
+    quickReplies?: string[], ui?: UiInfo,
     pagination?: ChatResponse['pagination'], queryMetas?: ChatResponse['query_metas'],
     webLinks?: ChatResponse['web_links'], inlineDocuments?: ChatResponse['inline_documents'],
     displayRules?: Record<string, any>, topicPage?: ChatResponse['topic_page'],
@@ -149,7 +149,7 @@ export async function runSendMessage(
     // Loading entfernen, echte Antwort anhängen.
     ctx.removeMessage(loadingId);
     const botMsgId = ctx.addBotMessage(
-      resp.content, false, resp.cards, resp.quick_replies, resp.debug,
+      resp.content, false, resp.cards, resp.quick_replies, resp.ui,
       resp.pagination, resp.query_metas, resp.web_links, resp.inline_documents,
       resp.display_rules, resp.topic_page,
     );
@@ -158,10 +158,15 @@ export async function runSendMessage(
     // Erfolgs-Seiteneffekte (Tour/latestDebug/query-meta/page-action/Guides/
     // autoSpeak) — Shell-verdrahtet.
     ctx.onResult(resp, msg);
-  } catch {
+  } catch (err) {
     if (veraltet()) return;
     ctx.removeMessage(loadingId);
-    const errId = ctx.addBotMessage(ctx.t('error.generic'));
+    // Paket 18C/D: meldet der Strom eine Fehlernummer, nennt die Blase sie — dieselbe
+    // steht in der gespeicherten Blase und führt im Studio zum Zug.
+    const nummer = (err as { nummer?: unknown } | null)?.nummer;
+    const errId = ctx.addBotMessage(typeof nummer === 'string' && nummer
+      ? ctx.t('error.genericNumber', { nummer })
+      : ctx.t('error.generic'));
     ctx.setScrollTarget(errId);
   }
 

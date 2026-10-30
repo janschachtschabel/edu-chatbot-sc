@@ -1041,8 +1041,9 @@ Soll-Ist-Abgleich aus Kompendiumstext (`get_compendium_text`) gegen Inhaltsliste
 `get_wikipedia_summary`/`get_url_text`. Das ist kein Ausfall, sondern der
 Rückfall — nur eben ohne Hauskonvention.
 
-**Nachprüfen, ob es geklappt hat:** im Debug-Block muss `tools_called` ein
-`get_skill` enthalten. Fehlt es, war der Auftrag zu unbestimmt — nicht der Bot
+**Nachprüfen, ob es geklappt hat:** in `ui.tools_called` der Antwort (auch im
+Debug-Panel des Widgets) muss ein `get_skill` stehen; die volle Spur zeigt das
+Studio unter „Gespräche“. Fehlt es, war der Auftrag zu unbestimmt — nicht der Bot
 kaputt.
 
 So sah der Lauf oben aus (gemessen 2026-08-17, Maschine `pattern`, also die
@@ -1171,7 +1172,7 @@ window.addEventListener('boerdi:guide-suggestion', (e) => {
 | `boerdi:page-action` | der Bot schlägt eine Seiten-Aktion vor | `{action, payload}` — heute gefeuert: `navigate`, `show_results`, `canvas_show_cards` |
 | `boerdi:query-meta` | nach jedem Bot-Zug mit Suche — **immer an**, kein Opt-in | `{queries: [{tool_name, query_type, search_term, criteria[], pagination, repository_url, search_url}]}` |
 | `boerdi:guide-suggestion` | jeder Zug mit mindestens einem verlinkbaren Treffer — **`emit-guide-suggestion="true"` nötig** | `{url, title, node_id, node_type, query, alternatives[]}` |
-| `boerdi:routing-debug` | jeder Bot-Zug — **`emit-routing-debug="true"` nötig** | `{message, pattern, intent, state, persona, tools_called[], rag_areas[], sources[], modifier{tone,length,formality,card_text_mode,override}, signals[]}` |
+| `boerdi:routing-debug` | jeder Bot-Zug — **`emit-routing-debug="true"` nötig** | `{message, pattern, intent, state, persona, tools_called[], rag_areas[], sources[], modifier{tone,length,formality,card_text_mode,override}, signals[]}` — `persona` und `signals` seit Paket 18C/D nur mit Freigabe (Studio), sonst leer |
 | `boerdi:agent-result` | jeder Zug — **`result-schema` gesetzt UND `engine="agent"` nötig** (§7a) | `{result, stop_reason}`; `result` ist `null`, wenn dieser Zug keins hergab |
 
 **Zwei Dinge, an denen man sich sonst die Zähne ausbeißt:**

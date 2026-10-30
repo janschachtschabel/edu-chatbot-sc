@@ -19,6 +19,7 @@ import { SessionsApi, type SessionRow } from '../core/sessions-api.service';
 import { AsyncStateComponent } from './async-state.component';
 import { OriginScopeComponent } from './origin-scope.component';
 import { SessionTranscriptComponent } from './session-transcript.component';
+import { type ZugZiel, ZugSucheComponent } from './zug-suche.component';
 import { StudioLanguageService } from '../i18n/studio-language.service';
 import { StudioFormat } from '../i18n/studio-format.service';
 
@@ -30,7 +31,7 @@ interface Armed {
 
 @Component({
   selector: 'studio-sessions',
-  imports: [AsyncStateComponent, OriginScopeComponent, SessionTranscriptComponent],
+  imports: [AsyncStateComponent, OriginScopeComponent, SessionTranscriptComponent, ZugSucheComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sessions.component.html',
   styleUrl: './sessions.component.scss',
@@ -60,6 +61,10 @@ export class SessionsComponent {
   }
 
   readonly selected = signal('');
+  /** The message an error-number search led to (Paket 18C/D) — cleared by a
+   *  plain pick, so the highlight never outlives the search that set it. A fresh
+   *  object per search: the same number searched twice jumps again. */
+  readonly fokus = signal<{ readonly messageId: number } | null>(null);
   readonly armed = signal<Armed | null>(null);
   /** Present only while a session is selected — hence the optional call. */
   private readonly transcript = viewChild(SessionTranscriptComponent);
@@ -82,7 +87,15 @@ export class SessionsComponent {
   }
 
   select(id: string): void {
+    this.fokus.set(null);
     this.selected.set(this.selected() === id ? '' : id);
+  }
+
+  /** A search hit: open its session — also one outside the filtered list — at
+   *  the message. */
+  open(ziel: ZugZiel): void {
+    this.selected.set(ziel.sessionId);
+    this.fokus.set({ messageId: ziel.messageId });
   }
 
   isArmed(id: string, kind: Armed['kind']): boolean {
