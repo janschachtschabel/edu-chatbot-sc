@@ -180,3 +180,141 @@ def test_wieder_geworfenes_gruppenmitglied():
     for art, text in _ausgaben(record).items():
         assert MARKE not in text, art
         assert "mcp.shared.exceptions.McpError" in text, art
+
+
+# ── Review 2026-10-30 ──────────────────────────────────────────────────────────
+
+
+def test_die_kurzform_behaelt_status_und_code():
+    from boerdi.obs.log_format import ausnahme_text
+
+    anbieter = litellm.BadRequestError(message=f"Invalid value: {MARKE}", model="gpt-x",
+                                       llm_provider="openai")
+    mcp = McpError(ErrorData(code=-32603, message=f"Interner Fehler bei {MARKE}"))
+    assert ausnahme_text(anbieter) == "BadRequestError(status=400, ‹geschwärzt›)"
+    assert ausnahme_text(mcp) == "McpError(code=-32603, ‹geschwärzt›)"
+
+
+def test_ausnahme_text_loest_gruppen_auf_und_behaelt_eigene_texte():
+    from boerdi.obs.log_format import ausnahme_text
+
+    gruppe = ExceptionGroup("unhandled errors in a TaskGroup", [
+        McpError(ErrorData(code=-32603, message=f"Fehler zu {MARKE}")),
+        ConnectionError("Verbindung abgelehnt"),
+    ])
+    text = ausnahme_text(gruppe)
+    assert text == "McpError(code=-32603, ‹geschwärzt›); Verbindung abgelehnt"
+    assert MARKE not in text
+
+
+def test_eine_huelle_von_instructor_wird_geschwaerzt():
+    """``InstructorRetryException(str(e)) from e`` — so wirft instructor den Anbieterfehler."""
+    from instructor.core import InstructorRetryException
+
+    from boerdi.obs.log_format import ausnahme_text
+
+    def ausloesen() -> None:
+        try:
+            _anbieterfehler()
+        except litellm.BadRequestError as e:
+            raise InstructorRetryException(str(e), n_attempts=1, total_usage=0) from e
+
+    for formatierer in (text_formatter(), JsonFormatter()):
+        text = formatierer.format(_record(ausloesen))
+        assert MARKE not in text, type(formatierer).__name__
+    try:
+        ausloesen()
+    except InstructorRetryException as e:
+        assert MARKE not in ausnahme_text(e)
+
+
+def test_eine_eigene_huelle_ohne_fremdtext_bleibt_lesbar():
+    """Nur wer den Text der Ursache übernimmt, gilt als Hülle."""
+    from boerdi.obs.log_format import ausnahme_text
+
+    try:
+        try:
+            _anbieterfehler()
+        except litellm.BadRequestError as e:
+            raise RuntimeError("Klassifikation gescheitert") from e
+    except RuntimeError as e:
+        assert ausnahme_text(e) == "Klassifikation gescheitert"
+
+
+def test_asyncpg_nennt_den_wert_eines_parameters_nicht():
+    from boerdi.obs.log_format import geschwaerzt
+
+    text = geschwaerzt(f"invalid input for query argument $2: '{MARKE} Optik' (expected int)")
+    assert text == "invalid input for query argument $2: ‹geschwärzt›"  # samt Rest der Zeile
+
+
+def test_wurzelzeilen_des_mcp_sdk_ohne_text(caplog):
+    """``mcp/shared/session.py`` schreibt per ``logging.warning(f"…{e}")`` über die Wurzel."""
+    from boerdi.obs.drittlogger import drittlogger_einstellen
+
+    drittlogger_einstellen(False)
+    try:
+        record = logging.LogRecord(
+            "root", logging.WARNING,
+            "/app/.venv/lib/python3.12/site-packages/mcp/shared/session.py", 383,
+            f"Failed to validate request: {MARKE} Optik", (), None)
+        tief = logging.LogRecord(
+            "root", logging.DEBUG,
+            "/app/.venv/lib/python3.12/site-packages/mcp/shared/session.py", 384,
+            f"Message that failed validation: {MARKE}", (), None)
+        eigen = logging.LogRecord("root", logging.WARNING, "/app/src/boerdi/main.py", 1,
+                                  f"eigene Zeile {MARKE}", (), None)
+        wurzel = logging.getLogger()
+        assert wurzel.filter(record) and not wurzel.filter(tief) and wurzel.filter(eigen)
+        assert record.getMessage() == (
+            "Failed to validate request: ‹ausgelassen› (MCP-SDK session.py:383)")
+        assert MARKE in eigen.getMessage()
+    finally:
+        drittlogger_einstellen(False)
+
+
+
+def test_instructor_steht_fuer_sich_in_der_liste():
+    """Ohne Ursache: nur der Eintrag in ``_FREMDTEXTE`` schwärzt (Review 2026-10-30)."""
+    from instructor.core import InstructorRetryException
+
+    from boerdi.obs.log_format import ausnahme_text
+
+    text = ausnahme_text(InstructorRetryException(f"Versuch scheiterte: {MARKE}", n_attempts=1,
+                                                  total_usage=0))
+    assert MARKE not in text and text.startswith("InstructorRetryException(")
+
+
+def test_eine_eigene_huelle_mit_fremdtext_wird_geschwaerzt():
+    """Die Hüllen-Regel für sich: ``RuntimeError(str(e)) from e``."""
+    from boerdi.obs.log_format import ausnahme_text
+
+    def ausloesen() -> None:
+        try:
+            _anbieterfehler()
+        except litellm.BadRequestError as e:
+            raise RuntimeError(str(e)) from e
+
+    try:
+        ausloesen()
+    except RuntimeError as e:
+        assert ausnahme_text(e) == "RuntimeError(‹geschwärzt›)"
+        record = logging.LogRecord("probe", logging.ERROR, __file__, 1, "Fehler: %s", (e,), None)
+        record.trace_id = "-"
+        assert MARKE not in text_formatter().format(record)
+
+
+def test_status_steht_auch_im_traceback():
+    text = traceback_ohne_fremdtexte(_record(_anbieterfehler).exc_info)
+    assert "status=400, ‹geschwärzt›" in text and MARKE not in text
+
+
+@pytest.mark.parametrize("zeile", [
+    f"invalid input for query argument $2: '{MARKE} (Klasse 7)' (expected int, got str)",
+    f"invalid input for query argument $2 in element #3 of executemany() sequence: '{MARKE}'",
+    f"invalid input for query argument $1: '{MARKE}' (invalid UUID '{MARKE}': length must be 32)",
+])
+def test_asyncpg_in_allen_formen(zeile):
+    from boerdi.obs.log_format import geschwaerzt
+
+    assert MARKE not in geschwaerzt(zeile)

@@ -34,6 +34,7 @@ from typing import Any, Literal
 
 from fastapi import Request
 
+from boerdi.obs.log_format import ausnahme_text
 from boerdi.obs.progress import TurnProgress
 from boerdi.obs.tasks import cancel_and_drain
 from boerdi.obs.trace_id import fehlernummer
@@ -209,7 +210,11 @@ async def sse_turn(
 
     result = await impl_task
     if isinstance(result, Exception):
-        nachricht = f"{type(result).__name__}: {result}"[:400]
+        # Review 2026-10-30: fertig formatiert umging die Zeile die Schwärzung im Formatierer
+        # (Anbietertext, bei einer 401 Teile des Schlüssels).
+        grund = ausnahme_text(result)
+        art = type(result).__name__
+        nachricht = (grund if grund.startswith(f"{art}(") else f"{art}: {grund}")[:400]
         # Audit 2026-09-29 A-M4: Typ und Text der Ausnahme bleiben im Log — der
         # Rahmen geht auch an anonyme Clients. Das Widget zeigt ohnehin seinen
         # eigenen, übersetzten Fehlertext; eine ``sse_code`` der Ausnahme sagt

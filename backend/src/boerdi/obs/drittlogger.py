@@ -21,6 +21,8 @@ import logging
 #: Klassifikators samt Nachrichten und seine rohe Antwort).
 INHALT_LOGGER: tuple[str, ...] = (
     "LiteLLM", "LiteLLM Router", "LiteLLM Proxy", "openai", "mcp", "instructor",
+    # ``mcp/client/session.py`` loggt unter dem Namen „client“ (Review 2026-10-30).
+    "client",
 )
 #: Immer gedeckelt, mit der Stufe.
 GEDECKELT: dict[str, int] = {
@@ -40,8 +42,37 @@ _INHALT_STUFE: dict[str, int] = {"instructor": logging.CRITICAL}
 _LITELLM = ("LiteLLM", "LiteLLM Router", "LiteLLM Proxy")
 
 
+class _MCPWurzelzeilen(logging.Filter):
+    """Zeilen, die das MCP-SDK über die WURZEL schreibt (``logging.warning(f"…{e}")`` in
+    ``mcp/shared/session.py``) — am Deckel der Logger vorbei, der Text vorformatiert
+    (Review 2026-10-30). Ohne ``LOG_CONTENT``: unter WARNING verworfen, sonst nur der Satzanfang.
+    Sitzt am Wurzel-Logger und sieht damit nur dessen eigene Zeilen, keine weitergereichten."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        pfad = record.pathname.replace("\\", "/")
+        if "/site-packages/mcp/" not in pfad:
+            return True
+        if record.levelno < logging.WARNING:
+            return False
+        # Nur ein Satzanfang vor dem Doppelpunkt (Review 2026-10-30) — ohne ihn ist die ganze
+        # Zeile vorformatiert, dann nur der Ort.
+        kopf, trenner, _ = str(record.msg).partition(":")
+        ort = f"MCP-SDK {pfad.rsplit('/', 1)[-1]}:{record.lineno}"
+        record.msg = (f"{kopf[:80]}: ‹ausgelassen› ({ort})" if trenner else
+                      f"{ort}: ‹ausgelassen›")
+        record.args = ()
+        return True
+
+
+_MCP_WURZEL = _MCPWurzelzeilen()
+
+
 def drittlogger_einstellen(log_content: bool) -> None:
     """Die Fremd-Logger auf ihre Stufen setzen; aufgerufen von ``main._configure_logging``."""
+    wurzel = logging.getLogger()
+    wurzel.removeFilter(_MCP_WURZEL)
+    if not log_content:
+        wurzel.addFilter(_MCP_WURZEL)
     # LiteLLM hängt beim Import einen eigenen stderr-Handler an seine Logger: jede Zeile kam
     # doppelt, einmal am JSON-Format und an jeder Deckelung vorbei. Erst importieren, dann
     # entfernen — sonst käme der Handler mit einem späteren Import zurück.

@@ -230,7 +230,7 @@ async def generate_scenarios(
                 if not lines:
                     logger.warning(
                         "Scenario generator returned no parseable lines for %s/%s. Raw: %r",
-                        p.get("id"), i.get("id"), raw[:200],
+                        p.get("id"), i.get("id"), raw[:200],  # log-ok: erfundene Eval-Szenarien
                     )
                 # ── Persona-Marker-Gate ENTFERNT (2026-05-23) ────────────
                 # Im Scenario-Mode ist die Persona durch die Konstruktion

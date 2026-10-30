@@ -75,7 +75,10 @@ class Settings(BaseSettings):
     # Paket 17 (D4): ``json`` für den Betrieb (eine JSON-Zeile je Eintrag), ``text`` lokal.
     log_format: str = Field("text", validation_alias=_env("LOG_FORMAT"))
     # Paket 18C/D: Inhalte (Nachrichten, Prompts, Werkzeugargumente) stehen im Log nur mit
-    # diesem Schalter, und nur auf DEBUG — für eine akute Analyse, danach wieder aus.
+    # diesem Schalter — für eine akute Analyse, danach wieder aus. Eigene Zeilen mit Inhalt
+    # stehen auf DEBUG; die Fremd-Logger (``obs/drittlogger``) öffnet er aber ganz, auch
+    # unter ``LOG_LEVEL=INFO``: dann kommen etwa die ERROR-Zeilen von instructor und
+    # Warnungen von LiteLLM mit Anbietertext (Review 2026-10-30).
     log_content: bool = Field(False, validation_alias=_env("LOG_CONTENT"))
     studio_api_key: SecretStr = Field(
         SecretStr(""), validation_alias=_env("STUDIO_API_KEY"),

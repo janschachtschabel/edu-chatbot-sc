@@ -250,7 +250,8 @@ async def _abrufen(kennung: str, *, frisch: bool) -> tuple[str | None, str | Non
         logger.warning("Master-Skill %s nicht abrufbar: %s", kennung, fehler)
         return None, f"{type(fehler).__name__}: {fehler}"[:200], False
     if not roh or is_mcp_error(roh):
-        logger.warning("Master-Skill %s: Server lehnte ab (%s)", kennung, (roh or "")[:120])
+        logger.warning("Master-Skill %s: Server lehnte ab (%s)",
+                       kennung, (roh or "")[:120])  # log-ok: Servertext, nur Konfiguration
         return None, f"Server lehnte ab: {(roh or '')[:120]}", False
     text = roh.strip()
     if not text:

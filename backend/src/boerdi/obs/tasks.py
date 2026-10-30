@@ -62,7 +62,7 @@ async def cancel_and_drain(
     if haengend:
         logger.warning("%s%d abgebrochene Aufgabe(n) nach %.1f s nicht beendet — sie laufen "
                        "im Hintergrund aus", f"[{bezeichnung}] " if bezeichnung else "",
-                       haengend, frist_s)
+                       haengend, frist_s)  # log-ok: feste Bezeichnung aus dem Code
     return len(offen)
 
 
